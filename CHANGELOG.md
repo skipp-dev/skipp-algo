@@ -6,6 +6,30 @@ All notable changes to this project are documented in this file.
 
 ## [Unreleased]
 
+### Changed (2026-06-21) — Live-overlay provider-health monitoring + drill-down (PR #2875)
+
+- Added provider-health telemetry for the live-overlay news snapshot:
+  `live_overlay_provider_news_snapshot_loaded`,
+  `live_overlay_provider_news_snapshot_age_seconds`, aggregate provider counts,
+  and binary health state gauges (`ok` / `degraded` / `unknown`).
+- Added provider-specific drill-down gauges emitted per known provider key in
+  the snapshot (`live_overlay_provider_news_<provider>_ok`,
+  `..._degraded`, `..._state_code`), enabling operational visibility without
+  changing overlay response contracts.
+- Grafana dashboard expanded with provider-health panels (aggregate +
+  per-provider drill-down timelines).
+- Dashboard UX refresh (v12): section rows (`External Integrations`,
+  `SLO & Reliability`, `Provider Health`), built-in alert list panel
+  (`Active Alerts (live_overlay)`), and provider drill-down query
+  refinement to exclude aggregate health series from per-provider timelines.
+- Provider alerts tuned to reduce noise:
+  - degraded alert now requires **multiple degraded providers** and longer
+    persistence (`for: 15m`)
+  - stale/missing snapshot alert threshold increased to 1h and
+    persistence increased to 15m.
+- README metrics catalog updated with aggregate and per-provider health metric
+  families.
+
 ### Changed (2026-06-21) — Live-overlay hardening + observability follow-ups (PR #2866, #2867, #2869, #2870, #2872, #2873, #2874)
 
 - **Feed lifecycle thread-safety**: feed start/stop now serialized with

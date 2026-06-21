@@ -165,6 +165,9 @@ URLLIB_REQUEST_POST_LEDGER: set[tuple[str, int]] = {
     ("terminal_notifications.py", 316),
     # Open-prep alerts dispatcher (Slack/webhook).
     ("open_prep/alerts.py", 395),
+    # 2026-06-21: UptimeRobot bridge polls monitor API with low-level
+    # urllib.request.Request(..., method="POST") + timeout discipline.
+    ("services/live_overlay_daemon/uptimerobot_bridge.py", 69),
 }
 
 

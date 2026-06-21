@@ -98,6 +98,9 @@ WHILE_TRUE_LEDGER: dict[str, int] = {
     "newsstack_fmp/ingest_benzinga.py": 1,
     "newsstack_fmp/shared_fetch.py": 1,
     "newsstack_fmp/pipeline.py": 1,
+    # 2026-06-21: live overlay feed thread uses one deliberate long-lived
+    # loop with explicit break paths (stop event + fail-fast breaker).
+    "services/live_overlay_daemon/feed.py": 1,
 }
 
 

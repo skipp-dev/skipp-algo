@@ -19,6 +19,7 @@ from __future__ import annotations
 
 import logging
 import os
+import re
 from pathlib import Path
 
 logger = logging.getLogger(__name__)
@@ -155,3 +156,101 @@ def log_level() -> str:
         logger.warning("LOG_LEVEL=%r is not a valid uvicorn log level; using info", raw)
         return "info"
     return raw
+
+
+def uptimerobot_api_key() -> str:
+    """Optional UptimeRobot API key used for Grafana bridge polling."""
+    return _optional_str("UPTIMEROBOT_API_KEY", "")
+
+
+def uptimerobot_monitor_ids() -> list[str]:
+    """Optional monitor id allow-list parsed from comma-separated env var."""
+    raw = _optional_str("UPTIMEROBOT_MONITOR_IDS", "")
+    if not raw:
+        return []
+    ids = [item.strip() for item in raw.split(",") if item.strip()]
+    # Preserve order and de-duplicate.
+    seen: set[str] = set()
+    unique_ids: list[str] = []
+    for monitor_id in ids:
+        if monitor_id in seen:
+            continue
+        seen.add(monitor_id)
+        unique_ids.append(monitor_id)
+    return unique_ids
+
+
+def uptimerobot_timeout_secs() -> int:
+    """HTTP timeout for UptimeRobot polling requests."""
+    return _clamped_int("UPTIMEROBOT_TIMEOUT_SECS", 5, 1, 30)
+
+
+def uptimerobot_poll_ttl_secs() -> int:
+    """Cache TTL for UptimeRobot polling results."""
+    return _clamped_int("UPTIMEROBOT_POLL_TTL_SECS", 30, 5, 300)
+
+
+def github_workflow_token() -> str:
+    """Optional GitHub token for workflow monitoring bridge."""
+    return _optional_str("GITHUB_WORKFLOW_MONITOR_TOKEN", "")
+
+
+def github_workflow_repo() -> tuple[str, str]:
+    """Repo target for GitHub workflow polling in owner/repo format."""
+    raw = _optional_str("GITHUB_WORKFLOW_MONITOR_REPO", "skippALGO/skipp-algo")
+    owner, sep, repo = raw.partition("/")
+    owner = owner.strip()
+    repo = repo.strip()
+    if sep != "/" or not owner or not repo:
+        logger.warning(
+            "GITHUB_WORKFLOW_MONITOR_REPO=%r invalid, falling back to skippALGO/skipp-algo",
+            raw,
+        )
+        return ("skippALGO", "skipp-algo")
+    return (owner, repo)
+
+
+def github_workflow_ids() -> list[str]:
+    """Optional workflow-id allow-list parsed from comma-separated env var."""
+    raw = _optional_str("GITHUB_WORKFLOW_MONITOR_IDS", "")
+    if not raw:
+        return []
+    ids = [item.strip() for item in raw.split(",") if item.strip()]
+    seen: set[str] = set()
+    unique_ids: list[str] = []
+    for workflow_id in ids:
+        if workflow_id in seen:
+            continue
+        seen.add(workflow_id)
+        unique_ids.append(workflow_id)
+    return unique_ids
+
+
+def github_workflow_timeout_secs() -> int:
+    """HTTP timeout for GitHub workflow polling requests."""
+    return _clamped_int("GITHUB_WORKFLOW_MONITOR_TIMEOUT_SECS", 5, 1, 30)
+
+
+def github_workflow_poll_ttl_secs() -> int:
+    """Cache TTL for GitHub workflow snapshot reuse."""
+    return _clamped_int("GITHUB_WORKFLOW_MONITOR_POLL_TTL_SECS", 30, 5, 300)
+
+
+def github_workflow_per_page() -> int:
+    """Number of workflow runs requested per poll."""
+    return _clamped_int("GITHUB_WORKFLOW_MONITOR_PER_PAGE", 30, 1, 100)
+
+
+def restart_cause() -> str:
+    """Deployment/runtime restart cause label for observability dashboards.
+
+    Examples: deploy, crash, manual, autoscale, unknown.
+    """
+    raw = _optional_str("LIVE_OVERLAY_RESTART_CAUSE", "unknown").lower()
+    normalized = re.sub(r"[^a-z0-9_]+", "_", raw).strip("_")
+    return normalized or "unknown"
+
+
+def ingest_queue_max() -> int:
+    """Maximum number of pending bars in feed ingest queue."""
+    return _clamped_int("LIVE_OVERLAY_INGEST_QUEUE_MAX", 20000, 1000, 200000)

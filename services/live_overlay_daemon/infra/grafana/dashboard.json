@@ -4,12 +4,25 @@
   "fiscalYearStartMonth": 0,
   "graphTooltip": 1,
   "id": null,
-  "links": [],
+  "links": [
+    {
+      "title": "Daemon Runbook",
+      "type": "link",
+      "url": "https://github.com/skippALGO/skipp-algo/blob/main/services/live_overlay_daemon/README.md",
+      "targetBlank": true
+    },
+    {
+      "title": "Grafana Alert Rules",
+      "type": "link",
+      "url": "https://github.com/skippALGO/skipp-algo/blob/main/services/live_overlay_daemon/infra/grafana/alert-rules.yaml",
+      "targetBlank": true
+    }
+  ],
   "panels": [
     {
       "title": "Service Status",
       "type": "stat",
-      "gridPos": {"h": 4, "w": 6, "x": 0, "y": 0},
+      "gridPos": {"h": 4, "w": 4, "x": 0, "y": 0},
       "targets": [
         {
           "expr": "live_overlay_health_status_ok{job=\"live_overlay\"}*2 + live_overlay_health_status_idle_market_closed{job=\"live_overlay\"}",
@@ -40,7 +53,7 @@
     {
       "title": "Workers Healthy",
       "type": "stat",
-      "gridPos": {"h": 4, "w": 6, "x": 6, "y": 0},
+      "gridPos": {"h": 4, "w": 4, "x": 4, "y": 0},
       "targets": [{"expr": "live_overlay_workers_healthy{job=\"live_overlay\"}", "legendFormat": "Workers"}],
       "options": {
         "colorMode": "background_solid",
@@ -57,7 +70,7 @@
     {
       "title": "Uptime",
       "type": "stat",
-      "gridPos": {"h": 4, "w": 6, "x": 12, "y": 0},
+      "gridPos": {"h": 4, "w": 4, "x": 8, "y": 0},
       "targets": [{"expr": "live_overlay_uptime_seconds{job=\"live_overlay\"}", "legendFormat": "Uptime"}],
       "fieldConfig": {
         "defaults": {
@@ -77,7 +90,7 @@
     {
       "title": "Overlay Symbols",
       "type": "stat",
-      "gridPos": {"h": 4, "w": 6, "x": 18, "y": 0},
+      "gridPos": {"h": 4, "w": 4, "x": 12, "y": 0},
       "targets": [{"expr": "live_overlay_overlay_symbols{job=\"live_overlay\"}", "legendFormat": "Symbols"}],
       "options": {
         "graphMode": "area",
@@ -95,6 +108,44 @@
               }
             }
           ]
+        }
+      }
+    },
+    {
+      "title": "Bar Symbols",
+      "type": "stat",
+      "gridPos": {"h": 4, "w": 4, "x": 16, "y": 0},
+      "targets": [{"expr": "live_overlay_bar_symbols{job=\"live_overlay\"}", "legendFormat": "Bar symbols"}],
+      "options": {
+        "graphMode": "area",
+        "reduceOptions": {"calcs": ["lastNotNull"], "fields": "", "values": false}
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "mappings": [
+            {
+              "type": "value",
+              "options": {
+                "0": {"text": "EMPTY", "color": "red"}
+              }
+            }
+          ]
+        }
+      }
+    },
+    {
+      "title": "Bar Count",
+      "type": "stat",
+      "gridPos": {"h": 4, "w": 4, "x": 20, "y": 0},
+      "targets": [{"expr": "live_overlay_bar_count{job=\"live_overlay\"}", "legendFormat": "Bar count"}],
+      "options": {
+        "graphMode": "area",
+        "reduceOptions": {"calcs": ["lastNotNull"], "fields": "", "values": false}
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short"
         }
       }
     },
@@ -195,10 +246,15 @@
     {
       "title": "Feed Circuit Breakers (Total)",
       "type": "stat",
-      "gridPos": {"h": 6, "w": 12, "x": 12, "y": 20},
+      "gridPos": {"h": 6, "w": 6, "x": 12, "y": 20},
       "targets": [
         {"expr": "live_overlay_feed_circuit_breakers{job=\"live_overlay\"}", "legendFormat": "circuit breakers"}
       ],
+      "options": {
+        "colorMode": "background_solid",
+        "graphMode": "none",
+        "reduceOptions": {"calcs": ["lastNotNull"], "fields": "", "values": false}
+      },
       "fieldConfig": {
         "defaults": {
           "decimals": 0,
@@ -209,7 +265,41 @@
                 "0": {"text": "0", "color": "green"}
               }
             }
-          ]
+          ],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {"color": "green", "value": null},
+              {"color": "yellow", "value": 1},
+              {"color": "red", "value": 3}
+            ]
+          }
+        }
+      }
+    },
+    {
+      "title": "Feed Partial Restarts (Total)",
+      "type": "stat",
+      "gridPos": {"h": 6, "w": 6, "x": 18, "y": 20},
+      "targets": [
+        {"expr": "live_overlay_feed_partial_restarts{job=\"live_overlay\"}", "legendFormat": "partial restarts"}
+      ],
+      "options": {
+        "colorMode": "background_solid",
+        "graphMode": "none",
+        "reduceOptions": {"calcs": ["lastNotNull"], "fields": "", "values": false}
+      },
+      "fieldConfig": {
+        "defaults": {
+          "decimals": 0,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {"color": "green", "value": null},
+              {"color": "yellow", "value": 1},
+              {"color": "red", "value": 3}
+            ]
+          }
         }
       }
     },
@@ -243,7 +333,7 @@
       "gridPos": {"h": 6, "w": 8, "x": 0, "y": 26},
       "targets": [
         {
-          "expr": "100 * sum(rate(live_overlay_smc_live_success_total{job=\"live_overlay\"}[5m])) / clamp_min(sum(rate(live_overlay_smc_live_requests_total{job=\"live_overlay\"}[5m])), 1e-9)",
+          "expr": "100 * sum(rate(live_overlay_smc_live_success_total{job=\"live_overlay\"}[$__rate_interval])) / clamp_min(sum(rate(live_overlay_smc_live_requests_total{job=\"live_overlay\"}[$__rate_interval])), 1e-9)",
           "legendFormat": "success_rate"
         }
       ],
@@ -275,7 +365,7 @@
       "gridPos": {"h": 6, "w": 8, "x": 8, "y": 26},
       "targets": [
         {
-          "expr": "live_overlay_market_open{job=\"live_overlay\"} * (rate(live_overlay_smc_live_requests_total{job=\"live_overlay\"}[10m]) > bool 0.001)",
+          "expr": "live_overlay_market_open{job=\"live_overlay\"} + (live_overlay_market_open{job=\"live_overlay\"} * (rate(live_overlay_smc_live_requests_total{job=\"live_overlay\"}[$__rate_interval]) > bool 0.001))",
           "legendFormat": "open_req_health"
         }
       ],
@@ -290,12 +380,20 @@
             {
               "type": "value",
               "options": {
-                "0": {"text": "NO_TRAFFIC_OR_CLOSED", "color": "red"},
-                "1": {"text": "TRAFFIC_OK", "color": "green"}
+                "0": {"text": "MARKET_CLOSED", "color": "gray"},
+                "1": {"text": "OPEN_NO_TRAFFIC", "color": "yellow"},
+                "2": {"text": "TRAFFIC_OK", "color": "green"}
               }
             }
           ],
-          "thresholds": {"mode": "absolute", "steps": [{"color": "red", "value": null}, {"color": "green", "value": 1}]}
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {"color": "gray", "value": null},
+              {"color": "yellow", "value": 1},
+              {"color": "green", "value": 2}
+            ]
+          }
         }
       }
     },
@@ -333,9 +431,10 @@
       "type": "timeseries",
       "gridPos": {"h": 8, "w": 12, "x": 0, "y": 32},
       "targets": [
-        {"expr": "rate(live_overlay_smc_live_auth_denied{job=\"live_overlay\"}[5m])", "legendFormat": "auth denied"},
-        {"expr": "rate(live_overlay_smc_live_cache_miss_total{job=\"live_overlay\"}[5m])", "legendFormat": "cache miss"},
-        {"expr": "rate(live_overlay_smc_live_bad_tf_total{job=\"live_overlay\"}[5m])", "legendFormat": "bad tf"}
+        {"expr": "rate(live_overlay_smc_live_auth_denied{job=\"live_overlay\"}[$__rate_interval])", "legendFormat": "auth denied"},
+        {"expr": "rate(live_overlay_smc_live_cache_miss_total{job=\"live_overlay\"}[$__rate_interval])", "legendFormat": "cache miss"},
+        {"expr": "rate(live_overlay_smc_live_bad_tf_total{job=\"live_overlay\"}[$__rate_interval])", "legendFormat": "bad tf"},
+        {"expr": "rate(live_overlay_smc_live_errors_total{job=\"live_overlay\"}[$__rate_interval])", "legendFormat": "errors"}
       ],
       "options": {
         "tooltip": {"mode": "multi", "sort": "none"},
@@ -409,7 +508,7 @@
       "gridPos": {"h": 8, "w": 12, "x": 12, "y": 40},
       "targets": [
         {
-          "expr": "rate(live_overlay_smc_live_stale_served_total{job=\"live_overlay\"}[5m])",
+          "expr": "rate(live_overlay_smc_live_stale_served_total{job=\"live_overlay\"}[$__rate_interval])",
           "legendFormat": "stale served/s"
         }
       ],
@@ -437,7 +536,7 @@
       "gridPos": {"h": 8, "w": 12, "x": 0, "y": 48},
       "targets": [
         {
-          "expr": "rate(live_overlay_smc_live_latency_sum_ms{job=\"live_overlay\"}[5m]) / clamp_min(rate(live_overlay_smc_live_latency_count{job=\"live_overlay\"}[5m]), 1e-9)",
+          "expr": "rate(live_overlay_smc_live_latency_sum_ms{job=\"live_overlay\"}[$__rate_interval]) / clamp_min(rate(live_overlay_smc_live_latency_count{job=\"live_overlay\"}[$__rate_interval]), 1e-9)",
           "legendFormat": "avg latency"
         }
       ],
@@ -465,12 +564,12 @@
       "type": "timeseries",
       "gridPos": {"h": 8, "w": 12, "x": 12, "y": 48},
       "targets": [
-        {"expr": "rate(live_overlay_smc_live_latency_bucket_le_50{job=\"live_overlay\"}[5m])", "legendFormat": "<=50ms"},
-        {"expr": "rate(live_overlay_smc_live_latency_bucket_le_100{job=\"live_overlay\"}[5m])", "legendFormat": "<=100ms"},
-        {"expr": "rate(live_overlay_smc_live_latency_bucket_le_250{job=\"live_overlay\"}[5m])", "legendFormat": "<=250ms"},
-        {"expr": "rate(live_overlay_smc_live_latency_bucket_le_500{job=\"live_overlay\"}[5m])", "legendFormat": "<=500ms"},
-        {"expr": "rate(live_overlay_smc_live_latency_bucket_le_1000{job=\"live_overlay\"}[5m])", "legendFormat": "<=1000ms"},
-        {"expr": "rate(live_overlay_smc_live_latency_bucket_le_inf{job=\"live_overlay\"}[5m])", "legendFormat": "<=inf"}
+        {"expr": "rate(live_overlay_smc_live_latency_bucket_le_50{job=\"live_overlay\"}[$__rate_interval])", "legendFormat": "<=50ms"},
+        {"expr": "rate(live_overlay_smc_live_latency_bucket_le_100{job=\"live_overlay\"}[$__rate_interval])", "legendFormat": "<=100ms"},
+        {"expr": "rate(live_overlay_smc_live_latency_bucket_le_250{job=\"live_overlay\"}[$__rate_interval])", "legendFormat": "<=250ms"},
+        {"expr": "rate(live_overlay_smc_live_latency_bucket_le_500{job=\"live_overlay\"}[$__rate_interval])", "legendFormat": "<=500ms"},
+        {"expr": "rate(live_overlay_smc_live_latency_bucket_le_1000{job=\"live_overlay\"}[$__rate_interval])", "legendFormat": "<=1000ms"},
+        {"expr": "rate(live_overlay_smc_live_latency_bucket_le_inf{job=\"live_overlay\"}[$__rate_interval])", "legendFormat": "<=inf"}
       ],
       "options": {
         "tooltip": {"mode": "multi", "sort": "none"},
@@ -481,6 +580,628 @@
           "unit": "reqps",
           "custom": {"stacking": {"mode": "none", "group": "A"}}
         }
+      }
+    },
+    {
+      "title": "External Integrations",
+      "type": "row",
+      "gridPos": {"h": 1, "w": 24, "x": 0, "y": 56},
+      "collapsed": false,
+      "panels": []
+    },
+    {
+      "title": "UptimeRobot Bridge",
+      "type": "stat",
+      "gridPos": {"h": 4, "w": 6, "x": 0, "y": 57},
+      "targets": [
+        {
+          "expr": "live_overlay_uptimerobot_scrape_success{job=\"live_overlay\"}*2 + live_overlay_uptimerobot_bridge_enabled{job=\"live_overlay\"}",
+          "legendFormat": "bridge_state"
+        }
+      ],
+      "options": {
+        "colorMode": "background_solid",
+        "graphMode": "none",
+        "reduceOptions": {"calcs": ["lastNotNull"], "fields": "", "values": false}
+      },
+      "fieldConfig": {
+        "defaults": {
+          "mappings": [
+            {
+              "type": "value",
+              "options": {
+                "0": {"text": "DISABLED", "color": "gray"},
+                "1": {"text": "SCRAPE ERROR", "color": "red"},
+                "2": {"text": "OK", "color": "green"}
+              }
+            }
+          ],
+          "thresholds": {"mode": "absolute", "steps": [{"color": "gray", "value": null}]}
+        }
+      }
+    },
+    {
+      "title": "UptimeRobot Snapshot Age",
+      "type": "stat",
+      "gridPos": {"h": 4, "w": 6, "x": 6, "y": 57},
+      "targets": [
+        {
+          "expr": "live_overlay_uptimerobot_snapshot_age_seconds{job=\"live_overlay\"}",
+          "legendFormat": "snapshot_age"
+        }
+      ],
+      "options": {
+        "colorMode": "background_solid",
+        "graphMode": "none",
+        "reduceOptions": {"calcs": ["lastNotNull"], "fields": "", "values": false}
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "s",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {"color": "green", "value": null},
+              {"color": "yellow", "value": 60},
+              {"color": "red", "value": 180}
+            ]
+          }
+        }
+      }
+    },
+    {
+      "title": "UptimeRobot Monitors",
+      "type": "timeseries",
+      "gridPos": {"h": 8, "w": 12, "x": 12, "y": 57},
+      "targets": [
+        {"expr": "live_overlay_uptimerobot_monitors_total_total{job=\"live_overlay\"}", "legendFormat": "total"},
+        {"expr": "live_overlay_uptimerobot_monitors_up_total{job=\"live_overlay\"}", "legendFormat": "up"},
+        {"expr": "live_overlay_uptimerobot_monitors_down_total{job=\"live_overlay\"}", "legendFormat": "down"},
+        {"expr": "live_overlay_uptimerobot_monitors_paused_total{job=\"live_overlay\"}", "legendFormat": "paused"},
+        {"expr": "live_overlay_uptimerobot_monitors_response_time_ms_avg{job=\"live_overlay\"}", "legendFormat": "avg response (ms)"}
+      ],
+      "options": {
+        "tooltip": {"mode": "multi", "sort": "none"},
+        "legend": {"displayMode": "list", "placement": "bottom", "showLegend": true, "calcs": ["lastNotNull"]}
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short"
+        },
+        "overrides": [
+          {
+            "matcher": {"id": "byName", "options": "avg response (ms)"},
+            "properties": [{"id": "unit", "value": "ms"}]
+          }
+        ]
+      }
+    },
+    {
+      "title": "GitHub Workflow Bridge",
+      "type": "stat",
+      "gridPos": {"h": 4, "w": 6, "x": 0, "y": 65},
+      "targets": [
+        {
+          "expr": "live_overlay_github_workflow_scrape_success{job=\"live_overlay\"}*2 + live_overlay_github_workflow_bridge_enabled{job=\"live_overlay\"}",
+          "legendFormat": "bridge_state"
+        }
+      ],
+      "options": {
+        "colorMode": "background_solid",
+        "graphMode": "none",
+        "reduceOptions": {"calcs": ["lastNotNull"], "fields": "", "values": false}
+      },
+      "fieldConfig": {
+        "defaults": {
+          "mappings": [
+            {
+              "type": "value",
+              "options": {
+                "0": {"text": "DISABLED", "color": "gray"},
+                "1": {"text": "SCRAPE ERROR", "color": "red"},
+                "2": {"text": "OK", "color": "green"}
+              }
+            }
+          ],
+          "thresholds": {"mode": "absolute", "steps": [{"color": "gray", "value": null}]}
+        }
+      }
+    },
+    {
+      "title": "GitHub Workflow Snapshot Age",
+      "type": "stat",
+      "gridPos": {"h": 4, "w": 6, "x": 6, "y": 65},
+      "targets": [
+        {
+          "expr": "live_overlay_github_workflow_snapshot_age_seconds{job=\"live_overlay\"}",
+          "legendFormat": "snapshot_age"
+        }
+      ],
+      "options": {
+        "colorMode": "background_solid",
+        "graphMode": "none",
+        "reduceOptions": {"calcs": ["lastNotNull"], "fields": "", "values": false}
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "s",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {"color": "green", "value": null},
+              {"color": "yellow", "value": 60},
+              {"color": "red", "value": 180}
+            ]
+          }
+        }
+      }
+    },
+    {
+      "title": "GitHub Workflow Runs",
+      "type": "timeseries",
+      "gridPos": {"h": 8, "w": 12, "x": 12, "y": 65},
+      "targets": [
+        {"expr": "live_overlay_github_workflow_runs_seen_total{job=\"live_overlay\"}", "legendFormat": "seen"},
+        {"expr": "live_overlay_github_workflow_runs_success_total{job=\"live_overlay\"}", "legendFormat": "success"},
+        {"expr": "live_overlay_github_workflow_runs_failed_total{job=\"live_overlay\"}", "legendFormat": "failed"},
+        {"expr": "live_overlay_github_workflow_runs_in_progress_total{job=\"live_overlay\"}", "legendFormat": "in_progress"},
+        {"expr": "live_overlay_github_workflow_runs_queued_total{job=\"live_overlay\"}", "legendFormat": "queued"}
+      ],
+      "options": {
+        "tooltip": {"mode": "multi", "sort": "none"},
+        "legend": {"displayMode": "list", "placement": "bottom", "showLegend": true, "calcs": ["lastNotNull"]}
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short"
+        }
+      }
+    },
+    {
+      "title": "GitHub Workflow Timing",
+      "type": "timeseries",
+      "gridPos": {"h": 8, "w": 24, "x": 0, "y": 73},
+      "targets": [
+        {"expr": "live_overlay_github_workflow_latest_run_age_seconds{job=\"live_overlay\"}", "legendFormat": "latest age (s)"},
+        {"expr": "live_overlay_github_workflow_latest_run_duration_seconds{job=\"live_overlay\"}", "legendFormat": "latest duration (s)"}
+      ],
+      "options": {
+        "tooltip": {"mode": "multi", "sort": "none"},
+        "legend": {"displayMode": "list", "placement": "bottom", "showLegend": true, "calcs": ["lastNotNull"]}
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "s"
+        },
+        "overrides": [
+          {
+            "matcher": {"id": "byName", "options": "latest age (s)"},
+            "properties": [{"id": "unit", "value": "s"}]
+          },
+          {
+            "matcher": {"id": "byName", "options": "latest duration (s)"},
+            "properties": [{"id": "unit", "value": "s"}]
+          }
+        ]
+      }
+    },
+    {
+      "title": "Global Market Sessions",
+      "type": "state-timeline",
+      "gridPos": {"h": 8, "w": 24, "x": 0, "y": 81},
+      "targets": [
+        {"expr": "live_overlay_market_us_open{job=\"live_overlay\"}", "legendFormat": "US"},
+        {"expr": "live_overlay_market_europe_open{job=\"live_overlay\"}", "legendFormat": "Europe"},
+        {"expr": "live_overlay_market_asia_open{job=\"live_overlay\"}", "legendFormat": "Asia"}
+      ],
+      "options": {
+        "tooltip": {"mode": "multi", "sort": "none"},
+        "legend": {"displayMode": "list", "placement": "bottom", "showLegend": true},
+        "rowHeight": 0.9
+      },
+      "fieldConfig": {
+        "defaults": {
+          "min": 0,
+          "max": 1,
+          "mappings": [
+            {
+              "type": "value",
+              "options": {
+                "0": {"text": "CLOSED"},
+                "1": {"text": "OPEN"}
+              }
+            }
+          ],
+          "color": {"mode": "thresholds"},
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {"color": "gray", "value": null},
+              {"color": "green", "value": 1}
+            ]
+          }
+        }
+      }
+    },
+    {
+      "title": "SLO & Reliability",
+      "type": "row",
+      "gridPos": {"h": 1, "w": 24, "x": 0, "y": 89},
+      "collapsed": false,
+      "panels": []
+    },
+    {
+      "title": "Latency p95/p99 (ms)",
+      "type": "timeseries",
+      "gridPos": {"h": 8, "w": 12, "x": 0, "y": 90},
+      "targets": [
+        {"expr": "live_overlay_smc_live_latency_p95_ms{job=\"live_overlay\"}", "legendFormat": "p95"},
+        {"expr": "live_overlay_smc_live_latency_p99_ms{job=\"live_overlay\"}", "legendFormat": "p99"}
+      ],
+      "options": {
+        "tooltip": {"mode": "multi", "sort": "none"},
+        "legend": {"displayMode": "list", "placement": "bottom", "showLegend": true, "calcs": ["lastNotNull"]}
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "ms",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {"color": "green", "value": null},
+              {"color": "yellow", "value": 200},
+              {"color": "orange", "value": 350},
+              {"color": "red", "value": 500}
+            ]
+          }
+        }
+      }
+    },
+    {
+      "title": "Freshness SLO (Market Open, 1h)",
+      "type": "stat",
+      "gridPos": {"h": 8, "w": 6, "x": 12, "y": 90},
+      "targets": [
+        {
+          "expr": "100 * sum_over_time((live_overlay_overlay_fresh{job=\"live_overlay\"} * live_overlay_market_open{job=\"live_overlay\"})[1h]) / clamp_min(sum_over_time(live_overlay_market_open{job=\"live_overlay\"}[1h]), 1)",
+          "legendFormat": "freshness_slo"
+        }
+      ],
+      "options": {
+        "colorMode": "background_solid",
+        "graphMode": "area",
+        "reduceOptions": {"calcs": ["lastNotNull"], "fields": "", "values": false}
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percent",
+          "min": 0,
+          "max": 100,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {"color": "red", "value": null},
+              {"color": "yellow", "value": 95},
+              {"color": "green", "value": 99}
+            ]
+          }
+        }
+      }
+    },
+    {
+      "title": "No-Data Guard (Core Metrics)",
+      "type": "stat",
+      "gridPos": {"h": 8, "w": 6, "x": 18, "y": 90},
+      "targets": [
+        {
+          "expr": "1 - (absent(live_overlay_uptime_seconds{job=\"live_overlay\"}) or vector(0))",
+          "legendFormat": "core_metrics_present"
+        }
+      ],
+      "options": {
+        "colorMode": "background_solid",
+        "graphMode": "none",
+        "reduceOptions": {"calcs": ["lastNotNull"], "fields": "", "values": false}
+      },
+      "fieldConfig": {
+        "defaults": {
+          "mappings": [
+            {
+              "type": "value",
+              "options": {
+                "0": {"text": "MISSING", "color": "red"},
+                "1": {"text": "PRESENT", "color": "green"}
+              }
+            }
+          ],
+          "thresholds": {"mode": "absolute", "steps": [{"color": "red", "value": null}, {"color": "green", "value": 1}]}
+        }
+      }
+    },
+    {
+      "title": "Error Budget Burn Rate (5m / 1h)",
+      "type": "timeseries",
+      "gridPos": {"h": 8, "w": 12, "x": 0, "y": 98},
+      "targets": [
+        {
+          "expr": "(1 - (sum(rate(live_overlay_smc_live_success_total{job=\"live_overlay\"}[5m])) / clamp_min(sum(rate(live_overlay_smc_live_requests_total{job=\"live_overlay\"}[5m])), 1e-9))) / 0.01",
+          "legendFormat": "burn_5m"
+        },
+        {
+          "expr": "(1 - (sum(rate(live_overlay_smc_live_success_total{job=\"live_overlay\"}[1h])) / clamp_min(sum(rate(live_overlay_smc_live_requests_total{job=\"live_overlay\"}[1h])), 1e-9))) / 0.01",
+          "legendFormat": "burn_1h"
+        }
+      ],
+      "options": {
+        "tooltip": {"mode": "multi", "sort": "none"},
+        "legend": {"displayMode": "list", "placement": "bottom", "showLegend": true, "calcs": ["lastNotNull"]}
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {"color": "green", "value": null},
+              {"color": "yellow", "value": 2},
+              {"color": "orange", "value": 6},
+              {"color": "red", "value": 14}
+            ]
+          }
+        }
+      }
+    },
+    {
+      "title": "Bridge Scrape Health Timeline",
+      "type": "state-timeline",
+      "gridPos": {"h": 8, "w": 12, "x": 12, "y": 98},
+      "targets": [
+        {"expr": "live_overlay_uptimerobot_scrape_success{job=\"live_overlay\"}", "legendFormat": "UptimeRobot"},
+        {"expr": "live_overlay_github_workflow_scrape_success{job=\"live_overlay\"}", "legendFormat": "GitHub Workflows"}
+      ],
+      "options": {
+        "tooltip": {"mode": "multi", "sort": "none"},
+        "legend": {"displayMode": "list", "placement": "bottom", "showLegend": true},
+        "rowHeight": 0.9
+      },
+      "fieldConfig": {
+        "defaults": {
+          "min": 0,
+          "max": 1,
+          "mappings": [{"type": "value", "options": {"0": {"text": "ERROR"}, "1": {"text": "OK"}}}],
+          "color": {"mode": "thresholds"},
+          "thresholds": {"mode": "absolute", "steps": [{"color": "red", "value": null}, {"color": "green", "value": 1}]}
+        }
+      }
+    },
+    {
+      "title": "Restart Causes (24h)",
+      "type": "timeseries",
+      "gridPos": {"h": 8, "w": 12, "x": 0, "y": 106},
+      "targets": [
+        {
+          "expr": "sum by (__name__) (increase({__name__=~\"live_overlay_daemon_restart_cause_.*_total\",job=\"live_overlay\"}[24h]))",
+          "legendFormat": "{{__name__}}"
+        }
+      ],
+      "options": {
+        "tooltip": {"mode": "multi", "sort": "none"},
+        "legend": {"displayMode": "list", "placement": "bottom", "showLegend": true, "calcs": ["lastNotNull"]}
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short"
+        }
+      }
+    },
+    {
+      "title": "Hotspots — Symbols (Top)",
+      "type": "timeseries",
+      "gridPos": {"h": 8, "w": 12, "x": 12, "y": 106},
+      "targets": [
+        {
+          "expr": "{__name__=~\"live_overlay_hotspot_symbol_.*_requests_total\",job=\"live_overlay\"}",
+          "legendFormat": "{{__name__}}"
+        }
+      ],
+      "options": {
+        "tooltip": {"mode": "multi", "sort": "none"},
+        "legend": {"displayMode": "list", "placement": "bottom", "showLegend": true, "calcs": ["lastNotNull"]}
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short"
+        }
+      }
+    },
+    {
+      "title": "Hotspots — Timeframes (Top)",
+      "type": "timeseries",
+      "gridPos": {"h": 8, "w": 24, "x": 0, "y": 114},
+      "targets": [
+        {
+          "expr": "{__name__=~\"live_overlay_hotspot_tf_.*_requests_total\",job=\"live_overlay\"}",
+          "legendFormat": "{{__name__}}"
+        }
+      ],
+      "options": {
+        "tooltip": {"mode": "multi", "sort": "none"},
+        "legend": {"displayMode": "list", "placement": "bottom", "showLegend": true, "calcs": ["lastNotNull"]}
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short"
+        }
+      }
+    },
+    {
+      "title": "Ingest Queue Backpressure",
+      "type": "timeseries",
+      "gridPos": {"h": 8, "w": 12, "x": 0, "y": 122},
+      "targets": [
+        {"expr": "live_overlay_feed_ingest_queue_depth{job=\"live_overlay\"}", "legendFormat": "depth"},
+        {"expr": "live_overlay_feed_ingest_queue_depth_max{job=\"live_overlay\"}", "legendFormat": "depth max"},
+        {"expr": "live_overlay_feed_ingest_queue_dropped_total{job=\"live_overlay\"}", "legendFormat": "dropped total"}
+      ],
+      "options": {
+        "tooltip": {"mode": "multi", "sort": "none"},
+        "legend": {"displayMode": "list", "placement": "bottom", "showLegend": true, "calcs": ["lastNotNull"]}
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short"
+        }
+      }
+    },
+    {
+      "title": "Ingest Queue Lag (ms)",
+      "type": "timeseries",
+      "gridPos": {"h": 8, "w": 12, "x": 12, "y": 122},
+      "targets": [
+        {"expr": "live_overlay_feed_ingest_queue_lag_ms_last{job=\"live_overlay\"}", "legendFormat": "lag last"},
+        {"expr": "live_overlay_feed_ingest_queue_lag_ms_max{job=\"live_overlay\"}", "legendFormat": "lag max"}
+      ],
+      "options": {
+        "tooltip": {"mode": "multi", "sort": "none"},
+        "legend": {"displayMode": "list", "placement": "bottom", "showLegend": true, "calcs": ["lastNotNull"]}
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "ms",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {"color": "green", "value": null},
+              {"color": "yellow", "value": 1000},
+              {"color": "red", "value": 5000}
+            ]
+          }
+        }
+      }
+    },
+    {
+      "title": "Provider Health",
+      "type": "row",
+      "gridPos": {"h": 1, "w": 24, "x": 0, "y": 130},
+      "collapsed": false,
+      "panels": []
+    },
+    {
+      "title": "News Provider Health State",
+      "type": "state-timeline",
+      "gridPos": {"h": 8, "w": 12, "x": 0, "y": 131},
+      "targets": [
+        {"expr": "live_overlay_provider_news_health_ok{job=\"live_overlay\"}", "legendFormat": "health_ok"},
+        {"expr": "live_overlay_provider_news_health_degraded{job=\"live_overlay\"}", "legendFormat": "health_degraded"},
+        {"expr": "live_overlay_provider_news_health_unknown{job=\"live_overlay\"}", "legendFormat": "health_unknown"}
+      ],
+      "options": {
+        "tooltip": {"mode": "multi", "sort": "none"},
+        "legend": {"displayMode": "list", "placement": "bottom", "showLegend": true},
+        "rowHeight": 0.9
+      },
+      "fieldConfig": {
+        "defaults": {
+          "min": 0,
+          "max": 1,
+          "mappings": [{"type": "value", "options": {"0": {"text": "OFF"}, "1": {"text": "ON"}}}],
+          "color": {"mode": "thresholds"},
+          "thresholds": {"mode": "absolute", "steps": [{"color": "gray", "value": null}, {"color": "green", "value": 1}]}
+        }
+      }
+    },
+    {
+      "title": "News Snapshot Age & Provider Counts",
+      "type": "timeseries",
+      "gridPos": {"h": 8, "w": 12, "x": 12, "y": 131},
+      "targets": [
+        {"expr": "live_overlay_provider_news_snapshot_age_seconds{job=\"live_overlay\"}", "legendFormat": "snapshot age (s)"},
+        {"expr": "live_overlay_provider_news_providers_total{job=\"live_overlay\"}", "legendFormat": "providers total"},
+        {"expr": "live_overlay_provider_news_providers_ok_total{job=\"live_overlay\"}", "legendFormat": "providers ok"},
+        {"expr": "live_overlay_provider_news_providers_degraded_total{job=\"live_overlay\"}", "legendFormat": "providers degraded"}
+      ],
+      "options": {
+        "tooltip": {"mode": "multi", "sort": "none"},
+        "legend": {"displayMode": "list", "placement": "bottom", "showLegend": true, "calcs": ["lastNotNull"]}
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short"
+        }
+      }
+    },
+    {
+      "title": "News Providers — OK/Degraded (Drill-down)",
+      "type": "timeseries",
+      "gridPos": {"h": 8, "w": 12, "x": 0, "y": 139},
+      "targets": [
+        {
+          "expr": "({__name__=~\"live_overlay_provider_news_.*_(ok|degraded)\",job=\"live_overlay\"}) unless ({__name__=~\"live_overlay_provider_news_health_(ok|degraded)\",job=\"live_overlay\"})",
+          "legendFormat": "{{__name__}}"
+        }
+      ],
+      "options": {
+        "tooltip": {"mode": "multi", "sort": "none"},
+        "legend": {"displayMode": "list", "placement": "bottom", "showLegend": true, "calcs": ["lastNotNull"]}
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "min": 0,
+          "max": 1
+        }
+      }
+    },
+    {
+      "title": "News Providers — State Code",
+      "type": "timeseries",
+      "gridPos": {"h": 8, "w": 12, "x": 12, "y": 139},
+      "targets": [
+        {
+          "expr": "{__name__=~\"live_overlay_provider_news_.*_state_code\",job=\"live_overlay\"}",
+          "legendFormat": "{{__name__}}"
+        }
+      ],
+      "options": {
+        "tooltip": {"mode": "multi", "sort": "none"},
+        "legend": {"displayMode": "list", "placement": "bottom", "showLegend": true, "calcs": ["lastNotNull"]}
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "min": 0,
+          "max": 2,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {"color": "gray", "value": null},
+              {"color": "orange", "value": 1},
+              {"color": "green", "value": 2}
+            ]
+          }
+        }
+      }
+    },
+    {
+      "title": "Active Alerts (live_overlay)",
+      "type": "alertlist",
+      "gridPos": {"h": 8, "w": 24, "x": 0, "y": 147},
+      "options": {
+        "showLabels": true,
+        "sortOrder": 1,
+        "groupMode": "default",
+        "maxItems": 20,
+        "alertInstanceLabelFilter": "job=live_overlay",
+        "stateFilter": {
+          "alerting": true,
+          "firing": true,
+          "pending": true,
+          "no_data": true,
+          "normal": false,
+          "ok": false,
+          "paused": true
+        },
+        "viewMode": "list"
       }
     }
   ],
@@ -493,5 +1214,5 @@
   "timezone": "utc",
   "title": "SMC Live Overlay Daemon",
   "uid": "smc-live-overlay-v1",
-  "version": 1
+  "version": 12
 }
