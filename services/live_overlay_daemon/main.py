@@ -394,21 +394,29 @@ def smc_live(
 def _ct_eq(a: str, b: str) -> bool:
     """Constant-time string equality with no length side-channel.
 
-    Both inputs are reduced to fixed-size SHA-256 digests before
-    ``hmac.compare_digest``. This keeps the compare width constant (32 bytes)
-    and avoids token-length-dependent compare work.
+    ``hmac.compare_digest`` can short-circuit on raw length mismatch. We avoid
+    secret-length-dependent compare work by normalizing both inputs to a fixed,
+    constant-width byte buffer before comparing.
     """
-    import hashlib
     import hmac
 
-    # Keep a hard upper bound on attacker-controlled input processing.
-    if len(a) > 4096:
+    # Keep hard upper bounds on attacker-controlled input processing.
+    # The byte cap is intentionally inclusive so multibyte payloads at the
+    # exact UTF-8 boundary are rejected deterministically.
+    max_user_chars = 4096
+    max_user_bytes = 16_384
+
+    if len(a) > max_user_chars:
         return False
 
     a_bytes = a.encode()
-    if len(a_bytes) > 16_384:
+    b_bytes = b.encode()
+
+    if len(a_bytes) >= max_user_bytes:
+        return False
+    if len(b_bytes) >= max_user_bytes:
         return False
 
-    a_digest = hashlib.sha256(a_bytes).digest()
-    b_digest = hashlib.sha256(b.encode()).digest()
-    return hmac.compare_digest(a_digest, b_digest)
+    a_norm = a_bytes[:max_user_bytes].ljust(max_user_bytes, b"\0")
+    b_norm = b_bytes[:max_user_bytes].ljust(max_user_bytes, b"\0")
+    return hmac.compare_digest(a_norm, b_norm) and len(a_bytes) == len(b_bytes)
