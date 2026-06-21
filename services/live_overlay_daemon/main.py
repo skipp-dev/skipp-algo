@@ -253,6 +253,7 @@ def smc_live(
 ) -> JSONResponse:
     started_at = time.monotonic()
     observability.metric_counter("live_overlay.smc_live_requests.total")
+    sym = symbol.upper().strip()
     try:
         # Constant-time token comparison to avoid timing attacks. _ct_eq hashes
         # both sides to a fixed-length digest before comparing, so neither the
@@ -261,10 +262,9 @@ def smc_live(
         expected = config.overlay_secret_token()
         if not _ct_eq(token, expected):
             observability.metric_counter("live_overlay.smc_live_auth.denied")
-            observability.audit_event("smc_live_auth", "denied", symbol=symbol, tf=tf)
+            observability.audit_event("smc_live_auth", "denied", symbol=sym, tf=tf)
             raise HTTPException(status_code=404)  # 404 not 401 to avoid leaking route structure
 
-        sym = symbol.upper().strip()
         if tf not in _VALID_TFS:
             observability.metric_counter("live_overlay.smc_live_bad_tf.total")
             observability.audit_event("live_overlay_tf_validation", "rejected", symbol=sym, tf=tf)
@@ -319,6 +319,18 @@ def smc_live(
         observability.metric_counter("live_overlay.smc_live_success.total")
         observability.audit_event("smc_live_fetch", "ok", symbol=sym, tf=tf, stale=payload["stale"])
         return JSONResponse(_json_safe(payload))
+    except Exception as exc:
+        # Let FastAPI's own HTTPExceptions (auth denied, bad tf, etc.) propagate
+        # unchanged; only unexpected failures (cache/config bugs, etc.) become
+        # a deterministic 500 with observability signals for triage.
+        if isinstance(exc, HTTPException):
+            raise
+        logger.exception("smc_live failed for %s tf=%s", sym, tf)
+        observability.metric_counter("live_overlay.smc_live_errors.total")
+        observability.audit_event(
+            "smc_live_fetch", "error", symbol=sym, tf=tf, error=type(exc).__name__
+        )
+        raise HTTPException(status_code=500, detail="internal error") from exc
     finally:
         observability.metric_histogram_ms(
             "live_overlay.smc_live_latency",
