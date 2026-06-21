@@ -113,7 +113,7 @@ class TestFeedReconnectAndCircuitBreaker:
             )
 
         snapshot = feed.metrics_snapshot()
-        assert snapshot["bento_errors"] >= 1
+        assert snapshot["bento_errors"] >= 2
         assert snapshot["reconnect_attempts"] >= 1
 
     def test_consecutive_failures_trip_circuit_breaker(self, monkeypatch: pytest.MonkeyPatch) -> None:
@@ -158,7 +158,7 @@ class TestFeedReconnectAndCircuitBreaker:
             )
 
         snapshot = feed.metrics_snapshot()
-        assert snapshot["unexpected_errors"] >= 1
+        assert snapshot["unexpected_errors"] >= 2
         assert snapshot["reconnect_attempts"] >= 1
 
     def test_bar_processed_while_connected(self, monkeypatch: pytest.MonkeyPatch) -> None:

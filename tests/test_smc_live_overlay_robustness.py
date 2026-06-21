@@ -487,7 +487,7 @@ class TestNewsSnapshotPathConfig:
         assert cfg.news_snapshot_path() == override
 
 
-class TestLogLevelConfig:
+class TestLogLevelValidation:
     """log_level() normalizes aliases and falls back to info for invalid values."""
 
     def test_log_level_default(self, monkeypatch: pytest.MonkeyPatch) -> None:
