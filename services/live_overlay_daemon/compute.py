@@ -354,11 +354,21 @@ def _bars_for_timeframe(bars: list[dict[str, Any]], tf: str) -> list[dict[str, A
     """Return bars for indicator computation at the requested timeframe.
 
     We aggregate from 1-minute cache bars when possible. If aggregation yields
-    no usable bars (for example synthetic/unit-test inputs that omit ts_event),
-    fall back to the provided input bars so indicator invariants remain stable.
+    no usable bars and the input has no valid ``ts_event`` values (for example
+    synthetic/unit-test inputs), fall back to the provided input bars so
+    indicator invariants remain stable.
     """
     aggregated = _aggregate_bars(bars, tf)
-    return aggregated if aggregated else list(bars)
+    if aggregated:
+        return aggregated
+
+    has_valid_ts_event = any(
+        isinstance((ts := bar.get("ts_event")), int)
+        and not isinstance(ts, bool)
+        and ts > 0
+        for bar in bars
+    )
+    return [] if has_valid_ts_event else list(bars)
 
 
 def compute_flow_fields(bars: list[dict[str, Any]]) -> dict[str, Any]:
