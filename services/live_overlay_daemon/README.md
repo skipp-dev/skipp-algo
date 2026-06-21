@@ -360,6 +360,10 @@ is organized into section rows to keep navigation fast during incidents:
 Operational UX additions:
 
 - `Active Alerts (live_overlay)` alert-list panel for in-dashboard triage.
+- Alert-list `no_data` state is intentionally filtered out to avoid ambiguous
+  `unknown/no_data` UI noise during incidents.
+- A dedicated alert rule (`lo-news-snapshot-series-missing`) captures missing
+  news snapshot metric series via explicit `absent(...)` checks.
 - Provider drill-down query excludes aggregate health series so per-provider
   `..._ok` / `..._degraded` timelines remain noise-free.
 

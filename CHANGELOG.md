@@ -6,6 +6,43 @@ All notable changes to this project are documented in this file.
 
 ## [Unreleased]
 
+### Changed (2026-06-21) — Live-overlay cold-start seed snapshot + missing-series alert
+
+- Added `news_snapshot_seed.json` for cold-start provider visibility in CI,
+  local runs, and container images.
+- `Dockerfile` now explicitly copies the cold-start news snapshot into the image.
+- Added `lo-news-snapshot-series-missing` alert rule to detect absent news
+  snapshot metric series explicitly via `absent(...)` checks.
+- README updated to document `no_data` filtering and the missing-series alert.
+
+### Changed (2026-06-21) — Live-overlay monitoring dashboard hardening + snapshot-age fix (PR #2879)
+
+- **Snapshot-age false-alarm fix** (`metrics.py`): `live_overlay_provider_news_snapshot_age_seconds`
+  now reads `fetched_at_unix` from the snapshot JSON instead of using `stat.st_mtime`.
+  Static seed files (no live producer yet) report age 0 and never trigger the
+  stale-snapshot alert; only snapshots written by a live producer carry a timestamp
+  and age correctly.
+- **Grafana dashboard v39 hardening** (`infra/grafana/dashboard.json`):
+  - `Market Session Banner` expression guarded with `or vector(0)` on the
+    `max(market_open)` operand so the fully-down state (value 0) shows
+    `SERVICE DOWN` (red) instead of "No data"; renamed dead-state label
+    from `OPEN SIGNAL MISSING` to `SERVICE DOWN`.
+  - Bridge state formula corrected: `enabled + scrape_success`
+    (was `scrape_success*2 + enabled`; old formula yielded 3 when both gauges
+    were 1).
+  - No-Data Guard dual-series fix: replaced `1 - (absent(...) or vector(0))`
+    with `clamp_max(count(...), 1) or vector(0)` to avoid phantom second
+    series over long Prometheus windows.
+  - Market-closed UX gating: 8 request/latency/SLO panels now gate their
+    queries with `and on(job) (market_open == 1)` and display
+    `noValue: "MARKET CLOSED"` instead of showing zeros.
+  - Market-open Request Health panel hardened: `(max(market_open) * (1 + ...)) or vector(0)`.
+- **Dockerfile**: cold-start seed snapshot `smc_live_news_snapshot.json` now
+  explicitly `COPY`-ed into the container image, ensuring the service starts
+  with provider data even before the first live fetch.
+- **`news_snapshot_seed.json`** added to version control (was untracked):
+  provides provider cold-start visibility in CI and local runs.
+
 ### Changed (2026-06-21) — Live-overlay provider-health monitoring + drill-down (PR #2875)
 
 - Added provider-health telemetry for the live-overlay news snapshot:

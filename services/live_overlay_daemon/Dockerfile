@@ -10,6 +10,7 @@ COPY services/live_overlay_daemon/requirements.txt /tmp/requirements.txt
 RUN pip install --no-cache-dir -r /tmp/requirements.txt
 
 COPY services/live_overlay_daemon/ /app/services/live_overlay_daemon/
+COPY artifacts/smc_microstructure_exports/smc_live_news_snapshot.json /app/artifacts/smc_microstructure_exports/smc_live_news_snapshot.json
 
 # Run as non-root user for security (D1)
 RUN groupadd -r appuser && useradd -r -g appuser -d /app -s /sbin/nologin appuser \
