@@ -110,3 +110,26 @@ def test_bars_for_timeframe_falls_back_when_aggregation_empty() -> None:
     ]
     used = compute._bars_for_timeframe(bars, "4H")
     assert used == bars
+
+
+def test_bars_for_timeframe_does_not_fallback_for_timestamped_malformed_bars() -> None:
+    bars = [
+        {
+            "open": 100.0,
+            "high": 101.0,
+            "low": 99.0,
+            "close": None,
+            "volume": 100.0,
+            "ts_event": 60_000_000_000,
+        },
+        {
+            "open": 101.0,
+            "high": 102.0,
+            "low": 100.0,
+            "close": None,
+            "volume": 110.0,
+            "ts_event": 120_000_000_000,
+        },
+    ]
+    used = compute._bars_for_timeframe(bars, "5m")
+    assert used == []
