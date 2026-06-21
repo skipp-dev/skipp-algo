@@ -22,6 +22,7 @@ from __future__ import annotations
 import asyncio
 import atexit
 import logging
+import queue
 import threading
 import time
 from typing import Any
@@ -46,6 +47,11 @@ _flow_refresh_thread: threading.Thread | None = None
 _stop_event = threading.Event()
 _feed_ready = threading.Event()
 _last_bar_at: float = 0.0
+_runtime: dict[str, Any] = {
+    "ingest_thread": None,
+    "ingest_queue": None,
+    "ingest_queue_max": 0,
+}
 _metrics_lock = threading.Lock()
 _metrics: dict[str, int] = {
     "reconnect_attempts": 0,
@@ -53,6 +59,13 @@ _metrics: dict[str, int] = {
     "unexpected_errors": 0,
     "circuit_breakers": 0,
     "partial_restarts": 0,
+}
+_backpressure_lock = threading.Lock()
+_backpressure: dict[str, float] = {
+    "ingest_queue_depth_max": 0.0,
+    "ingest_queue_dropped_total": 0.0,
+    "ingest_queue_lag_ms_last": 0.0,
+    "ingest_queue_lag_ms_max": 0.0,
 }
 
 # Guard all lifecycle mutations (start/stop/worker reads) against races.
@@ -120,6 +133,40 @@ def _inc_metric(name: str, amount: int = 1) -> None:
 def _metrics_snapshot() -> dict[str, int]:
     with _metrics_lock:
         return dict(_metrics)
+
+
+def _record_enqueue_backpressure() -> None:
+    with _backpressure_lock:
+        ingest_queue = _runtime.get("ingest_queue")
+        depth = float(ingest_queue.qsize()) if ingest_queue is not None else 0.0
+        _backpressure["ingest_queue_depth_max"] = max(
+            _backpressure.get("ingest_queue_depth_max", 0.0),
+            depth,
+        )
+
+
+def _record_queue_drop() -> None:
+    with _backpressure_lock:
+        _backpressure["ingest_queue_dropped_total"] = (
+            _backpressure.get("ingest_queue_dropped_total", 0.0) + 1.0
+        )
+
+
+def _record_queue_lag_ms(lag_ms: float) -> None:
+    with _backpressure_lock:
+        _backpressure["ingest_queue_lag_ms_last"] = lag_ms
+        _backpressure["ingest_queue_lag_ms_max"] = max(
+            _backpressure.get("ingest_queue_lag_ms_max", 0.0),
+            lag_ms,
+        )
+
+
+def backpressure_snapshot() -> dict[str, float]:
+    with _backpressure_lock:
+        snapshot = dict(_backpressure)
+    ingest_queue = _runtime.get("ingest_queue")
+    snapshot["ingest_queue_depth"] = float(ingest_queue.qsize()) if ingest_queue is not None else 0.0
+    return snapshot
 
 
 _last_bar_lock = threading.Lock()
@@ -221,18 +268,18 @@ def _run_feed_loop(stop: threading.Event) -> None:
                             logger.warning("bar=None for sym=%s rec_type=%s", sym, rec_type)
                         continue
 
-                    global _last_bar_at
-                    cache.push_bar(sym, bar)
-                    _bars_pushed_count += 1
-
-                    with _last_bar_lock:
-                        _last_bar_at = time.monotonic()
-                        if not stop.is_set() and not _feed_ready.is_set():
-                            _feed_ready.set()
-                            logger.info("Feed ready — first bar pushed for %s", sym)
-
-                    # Track VIX separately.
-                    _maybe_cache_vix(sym, bar)
+                    ingest_queue = _runtime.get("ingest_queue")
+                    if ingest_queue is None:
+                        continue
+                    try:
+                        ingest_queue.put_nowait((sym, bar, time.monotonic()))
+                        _record_enqueue_backpressure()
+                        _bars_pushed_count += 1
+                    except queue.Full:
+                        _record_queue_drop()
+                        metric_counter("live_overlay.feed.ingest_queue_dropped_total")
+                        if _bars_pushed_count % 100 == 0:
+                            logger.warning("Ingest queue full — dropping newest bar")
 
             except db.BentoError as exc:
                 consecutive_failures += 1
@@ -286,6 +333,37 @@ def _run_feed_loop(stop: threading.Event) -> None:
         loop.close()
 
 
+def _run_ingest_loop(stop: threading.Event) -> None:
+    """Drain feed queue into cache and compute backpressure telemetry."""
+    while True:
+        ingest_queue = _runtime.get("ingest_queue")
+        if stop.is_set() and (ingest_queue is None or ingest_queue.empty()):
+            break
+        if ingest_queue is None:
+            stop.wait(0.2)
+            continue
+        try:
+            sym, bar, queued_at = ingest_queue.get(timeout=0.5)
+        except queue.Empty:
+            continue
+
+        cache.push_bar(sym, bar)
+        _maybe_cache_vix(sym, bar)
+
+        now = time.monotonic()
+        _record_queue_lag_ms(max(0.0, (now - queued_at) * 1000.0))
+
+        global _last_bar_at
+        with _last_bar_lock:
+            _last_bar_at = now
+            if not stop.is_set() and not _feed_ready.is_set():
+                _feed_ready.set()
+                logger.info("Feed ready — first bar pushed for %s", sym)
+
+        ingest_queue.task_done()
+    logger.info("Ingest thread stopped.")
+
+
 # ---------------------------------------------------------------------------
 # Refresh loop
 # ---------------------------------------------------------------------------
@@ -335,17 +413,24 @@ def _do_start() -> None:
     """Unsynchronized start implementation; callers must hold _lifecycle_lock."""
     global _feed_thread, _refresh_thread, _flow_refresh_thread
 
+    desired_queue_max = config.ingest_queue_max()
+    if _runtime.get("ingest_queue") is None or _runtime.get("ingest_queue_max") != desired_queue_max:
+        _runtime["ingest_queue"] = queue.Queue(maxsize=desired_queue_max)
+        _runtime["ingest_queue_max"] = desired_queue_max
+
     feed_alive = _feed_thread is not None and _feed_thread.is_alive()
+    ingest_thread = _runtime.get("ingest_thread")
+    ingest_alive = ingest_thread is not None and ingest_thread.is_alive()
     refresh_alive = _refresh_thread is not None and _refresh_thread.is_alive()
     flow_alive = _flow_refresh_thread is not None and _flow_refresh_thread.is_alive()
 
     # Idempotent no-op when every worker is already healthy.
-    if feed_alive and refresh_alive and flow_alive:
+    if feed_alive and ingest_alive and refresh_alive and flow_alive:
         logger.warning("start() called while all workers alive — ignoring")
         return
 
     # If shutdown is in progress and some workers are still alive, avoid restart race.
-    if _stop_event.is_set() and (feed_alive or refresh_alive or flow_alive):
+    if _stop_event.is_set() and (feed_alive or ingest_alive or refresh_alive or flow_alive):
         logger.warning("start() called while stop event is set and workers are still alive — ignoring")
         return
 
@@ -358,6 +443,14 @@ def _do_start() -> None:
         )
         _feed_thread.start()
         started.append("live-feed")
+
+    if not ingest_alive:
+        ingest_thread = threading.Thread(
+            target=_run_ingest_loop, args=(_stop_event,), daemon=True, name="ingest-processor"
+        )
+        ingest_thread.start()
+        _runtime["ingest_thread"] = ingest_thread
+        started.append("ingest-processor")
 
     if not refresh_alive:
         _refresh_thread = threading.Thread(
@@ -376,7 +469,7 @@ def _do_start() -> None:
         _flow_refresh_thread.start()
         started.append("flow-refresh")
 
-    if started and (feed_alive or refresh_alive or flow_alive):
+    if started and (feed_alive or ingest_alive or refresh_alive or flow_alive):
         _inc_metric("partial_restarts")
 
     # Safety-net shutdown hook: the three threads are daemon=True, so an exit
@@ -398,17 +491,22 @@ def stop() -> None:
     with _lifecycle_lock:
         _stop_event.set()
         _feed_ready.clear()
-        if _feed_thread is not None and _feed_thread.is_alive():
+        if _feed_thread is not None and _feed_thread.is_alive() and hasattr(_feed_thread, "join"):
             _feed_thread.join(timeout=5)
-        if _refresh_thread is not None and _refresh_thread.is_alive():
+        ingest_thread = _runtime.get("ingest_thread")
+        if ingest_thread is not None and ingest_thread.is_alive() and hasattr(ingest_thread, "join"):
+            ingest_thread.join(timeout=5)
+        if _refresh_thread is not None and _refresh_thread.is_alive() and hasattr(_refresh_thread, "join"):
             _refresh_thread.join(timeout=5)
-        if _flow_refresh_thread is not None and _flow_refresh_thread.is_alive():
+        if _flow_refresh_thread is not None and _flow_refresh_thread.is_alive() and hasattr(_flow_refresh_thread, "join"):
             _flow_refresh_thread.join(timeout=5)
 
         if _feed_thread is None or not _feed_thread.is_alive():
             _feed_thread = None
         if _refresh_thread is None or not _refresh_thread.is_alive():
             _refresh_thread = None
+        if ingest_thread is None or not ingest_thread.is_alive():
+            _runtime["ingest_thread"] = None
         if _flow_refresh_thread is None or not _flow_refresh_thread.is_alive():
             _flow_refresh_thread = None
         # Defensive clear after joins: the feed thread can still race to set
@@ -416,6 +514,7 @@ def stop() -> None:
         _feed_ready.clear()
         still_alive = {
             "live_feed": _feed_thread is not None and _feed_thread.is_alive(),
+            "ingest_processor": ingest_thread is not None and ingest_thread.is_alive(),
             "overlay_refresh": _refresh_thread is not None and _refresh_thread.is_alive(),
             "flow_refresh": _flow_refresh_thread is not None and _flow_refresh_thread.is_alive(),
         }
@@ -448,8 +547,10 @@ def last_bar_age_secs() -> float | None:
 def worker_liveness() -> dict[str, bool]:
     """Return per-worker liveness flags for operational health reporting."""
     with _lifecycle_lock:
+        ingest_thread = _runtime.get("ingest_thread")
         return {
             "live_feed": _feed_thread is not None and _feed_thread.is_alive(),
+            "ingest_processor": ingest_thread is not None and ingest_thread.is_alive(),
             "overlay_refresh": _refresh_thread is not None and _refresh_thread.is_alive(),
             "flow_refresh": _flow_refresh_thread is not None and _flow_refresh_thread.is_alive(),
         }

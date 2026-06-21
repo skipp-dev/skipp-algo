@@ -112,6 +112,10 @@ UptimeRobot bridge gauges (monitor totals/up/down, bridge status, snapshot age,
 and per-monitor up/status/latency gauges) so Grafana can show both internal
 daemon health and external synthetic check status.
 
+If `GITHUB_WORKFLOW_MONITOR_TOKEN` is configured, this endpoint also exports
+GitHub Actions workflow bridge gauges (run state totals, latest run age/duration,
+bridge status/snapshot age, and per-workflow phase/success gauges).
+
 Used by Prometheus scrape jobs. Returns `text/plain; version=0.0.4`.
 
 ```bash
@@ -184,6 +188,14 @@ All numeric fields are `null`, all bool fields are `false`, `stale: true`.
 | `UPTIMEROBOT_MONITOR_IDS` | ❌ | *(all monitors)* | Comma-separated monitor IDs to include in bridge poll |
 | `UPTIMEROBOT_TIMEOUT_SECS` | ❌ | `5` | UptimeRobot API timeout in seconds (range 1–30) |
 | `UPTIMEROBOT_POLL_TTL_SECS` | ❌ | `30` | In-process cache TTL for UptimeRobot snapshot (range 5–300) |
+| `GITHUB_WORKFLOW_MONITOR_TOKEN` | ❌ | *(unset)* | Enables optional GitHub Actions workflow bridge metrics in `/metrics` |
+| `GITHUB_WORKFLOW_MONITOR_REPO` | ❌ | `skippALGO/skipp-algo` | Target repository in `owner/repo` format |
+| `GITHUB_WORKFLOW_MONITOR_IDS` | ❌ | *(all workflows)* | Comma-separated workflow IDs to include |
+| `GITHUB_WORKFLOW_MONITOR_TIMEOUT_SECS` | ❌ | `5` | GitHub API timeout in seconds (range 1–30) |
+| `GITHUB_WORKFLOW_MONITOR_POLL_TTL_SECS` | ❌ | `30` | In-process cache TTL for workflow snapshot (range 5–300) |
+| `GITHUB_WORKFLOW_MONITOR_PER_PAGE` | ❌ | `30` | Number of workflow runs fetched per API poll (range 1–100) |
+| `LIVE_OVERLAY_RESTART_CAUSE` | ❌ | `unknown` | Restart cause label (`deploy`, `crash`, `manual`, …) for restart observability |
+| `LIVE_OVERLAY_INGEST_QUEUE_MAX` | ❌ | `20000` | Max pending bars in feed ingest queue before drops (range 1000–200000) |
 | `NEWS_SNAPSHOT_PATH` | ❌ | *(repo root)*`/artifacts/smc_microstructure_exports/smc_live_news_snapshot.json` | Absolute path to news JSON file (resolved relative to repo root) |
 
 ### Config validation
@@ -281,15 +293,48 @@ observability.py (structured log lines + in-process counters)
 | `live_overlay_uptime_seconds` | gauge | main.py |
 | `live_overlay_overlay_symbols` | gauge | cache |
 | `live_overlay_overlay_age_seconds` | gauge | cache |
+| `live_overlay_smc_live_latency_p95_ms` | gauge | metrics.py (derived from histogram buckets) |
+| `live_overlay_smc_live_latency_p99_ms` | gauge | metrics.py (derived from histogram buckets) |
 | `live_overlay_last_bar_age_seconds` | gauge | feed.py |
 | `live_overlay_feed_healthy` | gauge | feed.py |
 | `live_overlay_workers_healthy` | gauge | feed.py |
 | `live_overlay_worker_*_alive` | gauge | feed.py |
+| `live_overlay_market_us_open` | gauge | market_hours.py |
+| `live_overlay_market_europe_open` | gauge | market_hours.py |
+| `live_overlay_market_asia_open` | gauge | market_hours.py |
+| `live_overlay_daemon_restart_cause_<cause>_total` | counter | main.py/config.py |
+| `live_overlay_hotspot_symbols_tracked` | gauge | request_hotspots.py |
+| `live_overlay_hotspot_timeframes_tracked` | gauge | request_hotspots.py |
+| `live_overlay_hotspot_symbol_<symbol>_requests_total` | gauge | request_hotspots.py |
+| `live_overlay_hotspot_tf_<tf>_requests_total` | gauge | request_hotspots.py |
+| `live_overlay_feed_ingest_queue_depth` | gauge | feed.py backpressure snapshot |
+| `live_overlay_feed_ingest_queue_depth_max` | gauge | feed.py backpressure snapshot |
+| `live_overlay_feed_ingest_queue_dropped_total` | gauge | feed.py backpressure snapshot |
+| `live_overlay_feed_ingest_queue_lag_ms_last` | gauge | feed.py backpressure snapshot |
+| `live_overlay_feed_ingest_queue_lag_ms_max` | gauge | feed.py backpressure snapshot |
+| `live_overlay_provider_news_snapshot_loaded` | gauge | metrics.py news provider snapshot probe |
+| `live_overlay_provider_news_snapshot_age_seconds` | gauge | metrics.py news provider snapshot probe |
+| `live_overlay_provider_news_providers_total` | gauge | metrics.py news provider snapshot probe |
+| `live_overlay_provider_news_providers_ok_total` | gauge | metrics.py news provider snapshot probe |
+| `live_overlay_provider_news_providers_degraded_total` | gauge | metrics.py news provider snapshot probe |
+| `live_overlay_provider_news_providers_unknown_total` | gauge | metrics.py news provider snapshot probe |
+| `live_overlay_provider_news_health_ok` | gauge | metrics.py news provider snapshot probe |
+| `live_overlay_provider_news_health_degraded` | gauge | metrics.py news provider snapshot probe |
+| `live_overlay_provider_news_health_unknown` | gauge | metrics.py news provider snapshot probe |
+| `live_overlay_provider_news_<provider>_ok` | gauge | metrics.py provider drill-down (`1=ok`) |
+| `live_overlay_provider_news_<provider>_degraded` | gauge | metrics.py provider drill-down (`1=degraded`) |
+| `live_overlay_provider_news_<provider>_state_code` | gauge | metrics.py provider drill-down (`0=unknown,1=degraded,2=ok`) |
 | `live_overlay_uptimerobot_bridge_enabled` | gauge | uptimerobot_bridge.py |
 | `live_overlay_uptimerobot_scrape_success` | gauge | uptimerobot_bridge.py |
 | `live_overlay_uptimerobot_snapshot_age_seconds` | gauge | uptimerobot_bridge.py |
 | `live_overlay_uptimerobot_monitors_*_total` | gauge | uptimerobot_bridge.py |
 | `live_overlay_uptimerobot_monitor_<id>_*` | gauge | uptimerobot_bridge.py |
+| `live_overlay_github_workflow_bridge_enabled` | gauge | github_workflow_bridge.py |
+| `live_overlay_github_workflow_scrape_success` | gauge | github_workflow_bridge.py |
+| `live_overlay_github_workflow_snapshot_age_seconds` | gauge | github_workflow_bridge.py |
+| `live_overlay_github_workflow_runs_*_total` | gauge | github_workflow_bridge.py |
+| `live_overlay_github_workflow_latest_run_*_seconds` | gauge | github_workflow_bridge.py |
+| `live_overlay_github_workflow_<id>_*` | gauge | github_workflow_bridge.py |
 
 ### Alert rules (recommended)
 
@@ -302,6 +347,21 @@ observability.py (structured log lines + in-process counters)
 | `rate(bento_errors[5m]) > 0.5` | warning | Databento connectivity degraded |
 | `overlay_age_seconds > max_stale_secs` | high | Compute not running |
 | `overlay_symbols == 0` after 10 min | critical | No symbols computed |
+
+### Grafana dashboard layout (v12)
+
+The dashboard `services/live_overlay_daemon/infra/grafana/dashboard.json`
+is organized into section rows to keep navigation fast during incidents:
+
+- `External Integrations`
+- `SLO & Reliability`
+- `Provider Health`
+
+Operational UX additions:
+
+- `Active Alerts (live_overlay)` alert-list panel for in-dashboard triage.
+- Provider drill-down query excludes aggregate health series so per-provider
+  `..._ok` / `..._degraded` timelines remain noise-free.
 
 ### UptimeRobot (free tier)
 

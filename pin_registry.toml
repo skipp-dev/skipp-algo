@@ -81,6 +81,11 @@
 "open_prep/sentiment_fng.py" = [100]
 "scripts/probe_fmp_13f_endpoints.py" = [75]
 "scripts/resolve_workflow_runner.py" = [91]
+# 2026-06-21 (live-overlay bridge observability): optional external polling
+# bridges for GitHub workflow + UptimeRobot snapshots, each with explicit
+# timeout= and fixed https endpoint domains.
+"services/live_overlay_daemon/github_workflow_bridge.py" = [95]
+"services/live_overlay_daemon/uptimerobot_bridge.py" = [76]
 "terminal_finnhub.py" = [245]
 "terminal_tradingview_news.py" = [423]
 

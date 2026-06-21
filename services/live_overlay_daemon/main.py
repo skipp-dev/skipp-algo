@@ -29,7 +29,7 @@ from typing import Any
 from fastapi import FastAPI, HTTPException, Path, Query, Request
 from fastapi.responses import JSONResponse, PlainTextResponse
 
-from . import cache, compute, config, feed, metrics, observability
+from . import cache, compute, config, feed, metrics, observability, request_hotspots
 from .market_hours import (
     compute_daemon_health_status,
 )
@@ -72,6 +72,9 @@ async def _lifespan(app: FastAPI):
     global _startup_ts
     logger.info("Starting SMC Live Overlay Daemon …")
     observability.metric_counter("live_overlay.daemon.start_attempt")
+    observability.metric_counter(
+        f"live_overlay.daemon.restart_cause.{config.restart_cause()}.total"
+    )
 
     # Validate required env vars fail-fast at startup
     with observability.trace_span("live_overlay.daemon_lifespan"):
@@ -323,6 +326,7 @@ def smc_live(
                 detail=f"tf must be one of {sorted(_VALID_TFS)}",
             )
         payload = _get_payload_for_timeframe(sym, tf)
+        request_hotspots.record_request(sym, tf)
 
         if payload is None:
             observability.metric_counter("live_overlay.smc_live_cache_miss.total")

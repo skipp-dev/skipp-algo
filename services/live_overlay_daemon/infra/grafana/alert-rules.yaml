@@ -36,6 +36,30 @@ groups:
           summary: "Prometheus is not scraping live-overlay metrics"
           runbook: "Check metrics-collector service and /metrics auth/path wiring."
 
+      - uid: lo-core-signal-missing
+        title: "Core readiness signal missing"
+        condition: C
+        data:
+          - refId: A
+            datasourceUid: grafanacloud-prom
+            model:
+              expr: absent(live_overlay_overlay_fresh{job="live_overlay"})
+              instant: true
+          - refId: C
+            datasourceUid: __expr__
+            model:
+              type: threshold
+              conditions:
+                - evaluator: {type: gt, params: [0]}
+                  operator: {type: and}
+                  query: {params: [A]}
+        for: 3m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Core readiness metric missing from scrape output"
+          runbook: "Verify daemon /metrics output and exporter logic for overlay_fresh gauge."
+
       - uid: lo-feed-down-market-open
         title: "Feed unhealthy while market open"
         condition: C
@@ -282,3 +306,223 @@ groups:
         annotations:
           summary: "Compute cycles are erroring persistently"
           runbook: "Check Railway logs for stack traces in compute.py. Likely data quality issue in cached bars."
+
+      - uid: lo-error-budget-burn-critical
+        title: "Error budget burn critical"
+        condition: C
+        data:
+          - refId: A
+            datasourceUid: grafanacloud-prom
+            model:
+              expr: "(1 - (sum(rate(live_overlay_smc_live_success_total{job=\"live_overlay\"}[5m])) / clamp_min(sum(rate(live_overlay_smc_live_requests_total{job=\"live_overlay\"}[5m])), 1e-9))) / 0.01"
+              instant: true
+          - refId: B
+            datasourceUid: grafanacloud-prom
+            model:
+              expr: "(1 - (sum(rate(live_overlay_smc_live_success_total{job=\"live_overlay\"}[1h])) / clamp_min(sum(rate(live_overlay_smc_live_requests_total{job=\"live_overlay\"}[1h])), 1e-9))) / 0.01"
+              instant: true
+          - refId: C
+            datasourceUid: __expr__
+            model:
+              type: math
+              expression: "($A > 14) && ($B > 7)"
+        for: 5m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Error budget burn is critically high"
+          runbook: "Inspect error mix, latency p95/p99, and freshness timeline; mitigate request failures immediately."
+
+      - uid: lo-error-budget-burn-warning
+        title: "Error budget burn warning"
+        condition: C
+        data:
+          - refId: A
+            datasourceUid: grafanacloud-prom
+            model:
+              expr: "(1 - (sum(rate(live_overlay_smc_live_success_total{job=\"live_overlay\"}[5m])) / clamp_min(sum(rate(live_overlay_smc_live_requests_total{job=\"live_overlay\"}[5m])), 1e-9))) / 0.01"
+              instant: true
+          - refId: B
+            datasourceUid: grafanacloud-prom
+            model:
+              expr: "(1 - (sum(rate(live_overlay_smc_live_success_total{job=\"live_overlay\"}[1h])) / clamp_min(sum(rate(live_overlay_smc_live_requests_total{job=\"live_overlay\"}[1h])), 1e-9))) / 0.01"
+              instant: true
+          - refId: C
+            datasourceUid: __expr__
+            model:
+              type: math
+              expression: "($A > 6) && ($B > 3)"
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Error budget burn elevated"
+          runbook: "Check request success rate trend and investigate recent failure-type spikes before critical threshold is reached."
+
+      - uid: lo-latency-p99-high
+        title: "p99 latency elevated"
+        condition: C
+        data:
+          - refId: A
+            datasourceUid: grafanacloud-prom
+            model:
+              expr: live_overlay_smc_live_latency_p99_ms{job="live_overlay"}
+              instant: true
+          - refId: C
+            datasourceUid: __expr__
+            model:
+              type: threshold
+              conditions:
+                - evaluator: {type: gt, params: [500]}
+                  operator: {type: and}
+                  query: {params: [A]}
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: "p99 latency above 500ms for 10m"
+          runbook: "Check request volume hotspots and compute/feed health for saturation symptoms."
+
+      - uid: lo-uptimerobot-snapshot-stale
+        title: "UptimeRobot snapshot stale"
+        condition: C
+        data:
+          - refId: A
+            datasourceUid: grafanacloud-prom
+            model:
+              expr: live_overlay_uptimerobot_snapshot_age_seconds{job="live_overlay"}
+              instant: true
+          - refId: C
+            datasourceUid: __expr__
+            model:
+              type: threshold
+              conditions:
+                - evaluator: {type: gt, params: [180]}
+                  operator: {type: and}
+                  query: {params: [A]}
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: "UptimeRobot bridge data is stale"
+          runbook: "Check UptimeRobot API key/quota and bridge scrape health state."
+
+      - uid: lo-github-workflow-snapshot-stale
+        title: "GitHub workflow snapshot stale"
+        condition: C
+        data:
+          - refId: A
+            datasourceUid: grafanacloud-prom
+            model:
+              expr: live_overlay_github_workflow_snapshot_age_seconds{job="live_overlay"}
+              instant: true
+          - refId: C
+            datasourceUid: __expr__
+            model:
+              type: threshold
+              conditions:
+                - evaluator: {type: gt, params: [180]}
+                  operator: {type: and}
+                  query: {params: [A]}
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: "GitHub workflow bridge data is stale"
+          runbook: "Check GitHub workflow token/repo config and bridge scrape status."
+
+      - uid: lo-ingest-queue-depth-high
+        title: "Ingest queue depth high"
+        condition: C
+        data:
+          - refId: A
+            datasourceUid: grafanacloud-prom
+            model:
+              expr: live_overlay_feed_ingest_queue_depth{job="live_overlay"}
+              instant: true
+          - refId: C
+            datasourceUid: __expr__
+            model:
+              type: threshold
+              conditions:
+                - evaluator: {type: gt, params: [1000]}
+                  operator: {type: and}
+                  query: {params: [A]}
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Ingest queue depth is persistently high"
+          runbook: "Backpressure detected: review feed throughput, compute cadence, and queue max setting."
+
+      - uid: lo-ingest-drops-increasing
+        title: "Ingest queue drops increasing"
+        condition: C
+        data:
+          - refId: A
+            datasourceUid: grafanacloud-prom
+            model:
+              expr: increase(live_overlay_feed_ingest_queue_dropped_total{job="live_overlay"}[10m])
+              instant: true
+          - refId: C
+            datasourceUid: __expr__
+            model:
+              type: threshold
+              conditions:
+                - evaluator: {type: gt, params: [0]}
+                  operator: {type: and}
+                  query: {params: [A]}
+        for: 0s
+        labels:
+          severity: high
+        annotations:
+          summary: "Bars are being dropped due to ingest queue saturation"
+          runbook: "Increase LIVE_OVERLAY_INGEST_QUEUE_MAX and investigate sustained producer-consumer imbalance."
+
+      - uid: lo-news-provider-health-degraded
+        title: "News provider health degraded"
+        condition: C
+        data:
+          - refId: A
+            datasourceUid: grafanacloud-prom
+            model:
+              expr: (live_overlay_provider_news_snapshot_loaded{job="live_overlay"} == bool 1) * (live_overlay_provider_news_providers_degraded_total{job="live_overlay"} >= bool 2)
+              instant: true
+          - refId: C
+            datasourceUid: __expr__
+            model:
+              type: threshold
+              conditions:
+                - evaluator: {type: gt, params: [0]}
+                  operator: {type: and}
+                  query: {params: [A]}
+        for: 15m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Multiple news providers are degraded"
+          runbook: "Inspect provider error fields in news snapshot and upstream provider quotas/auth."
+
+      - uid: lo-news-snapshot-stale-or-missing
+        title: "News snapshot stale or missing"
+        condition: C
+        data:
+          - refId: A
+            datasourceUid: grafanacloud-prom
+            model:
+              expr: (live_overlay_provider_news_snapshot_loaded{job="live_overlay"} == bool 0) or (live_overlay_provider_news_snapshot_age_seconds{job="live_overlay"} > bool 3600)
+              instant: true
+          - refId: C
+            datasourceUid: __expr__
+            model:
+              type: threshold
+              conditions:
+                - evaluator: {type: gt, params: [0]}
+                  operator: {type: and}
+                  query: {params: [A]}
+        for: 15m
+        labels:
+          severity: warning
+        annotations:
+          summary: "News provider snapshot is stale or unavailable"
+          runbook: "Check NEWS_SNAPSHOT_PATH producer job and file update cadence."
