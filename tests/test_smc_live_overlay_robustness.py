@@ -961,8 +961,8 @@ class TestFeedMetricsSnapshot:
 
 
 class TestConstantTimeTokenCompare:
-    """C1: _ct_eq compares equal-length normalized buffers so token length is
-    not exposed as a timing oracle (CWE-208)."""
+    """C1: _ct_eq compares fixed-size digests so token length is not exposed
+    as a timing oracle (CWE-208)."""
 
     def test_equal_tokens_match(self) -> None:
         import services.live_overlay_daemon.main as main_mod
@@ -1006,8 +1006,7 @@ class TestConstantTimeTokenCompare:
         monkeypatch.setattr(_hmac, "compare_digest", _spy)
         main_mod._ct_eq("abc", "a-far-longer-token-value")
         assert seen, "_ct_eq must call hmac.compare_digest"
-        assert seen[0][0] == seen[0][1], "compare buffers must be same length"
-        assert seen[0][0] >= len("a-far-longer-token-value")
+        assert seen[0] == (32, 32), "compare buffers must be fixed-size digests"
 
     def test_rejects_multibyte_input_exceeding_byte_cap(self) -> None:
         import services.live_overlay_daemon.main as main_mod
