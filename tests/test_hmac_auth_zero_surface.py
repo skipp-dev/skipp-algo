@@ -38,9 +38,9 @@ HMAC_ALLOWED: set[tuple[str, int, str]] = {
     # endpoint uses hmac.compare_digest for constant-time comparison.
     # 2026-06-19 (fix/live-overlay-daemon-security, C1): _ct_eq compare site
     # moved repeatedly with daemon endpoint updates.
-    # 2026-06-21 (merge refresh): combined branch changes shifted
-    # compare_digest call to line 414.
-    ("services/live_overlay_daemon/main.py", 414, "compare_digest"),
+    # 2026-06-21 (monitoring SLO follow-up): smc_live latency guard
+    # update shifted compare_digest call to line 419.
+    ("services/live_overlay_daemon/main.py", 419, "compare_digest"),
 }
 
 _DIR_EXCLUDE = {

@@ -8,7 +8,6 @@ from __future__ import annotations
 
 import logging
 import math
-import re
 import threading
 import time
 import uuid
@@ -60,15 +59,6 @@ def _coerce_finite_metric_value(value: float, *, metric_name: str) -> float:
     return coerced
 
 
-def _bucket_suffix(value: float) -> str:
-    """Return a Prometheus-safe bucket suffix for metric key names."""
-    text = f"{value:.9f}".rstrip("0").rstrip(".")
-    if not text:
-        text = "0"
-    text = text.replace(".", "_")
-    return re.sub(r"[^0-9_]", "_", text)
-
-
 def metric_counter(name: str, value: float = 1.0, **fields: Any) -> float:
     """Record a counter metric and emit a structured log line."""
     inc = _coerce_finite_metric_value(value, metric_name=name)
@@ -108,9 +98,9 @@ def metric_histogram_ms(
     chosen = _HISTOGRAM_DEFAULT_BUCKETS_MS if buckets_ms is None else buckets_ms
     finite_bucket_set: set[float] = set()
     for bucket in chosen:
-        coerced_bucket = _coerce_finite_metric_value(bucket, metric_name=f"{name}.bucket")
-        if coerced_bucket >= 0.0:
-            finite_bucket_set.add(coerced_bucket)
+        finite_bucket = _coerce_finite_metric_value(bucket, metric_name=f"{name}.bucket")
+        if finite_bucket >= 0.0:
+            finite_bucket_set.add(finite_bucket)
     finite_buckets = tuple(sorted(finite_bucket_set))
 
     with _counter_lock:
@@ -124,7 +114,8 @@ def metric_histogram_ms(
         )
         for bucket in finite_buckets:
             if finite_ms <= bucket:
-                suffix = _bucket_suffix(bucket)
+                # Avoid scientific notation (1e+06) so Prometheus suffixes stay readable.
+                suffix = f"{bucket:.0f}".replace(".", "_")
                 key = f"{name}.bucket_le_{suffix}"
                 _counters[key] = _coerce_finite_metric_value(
                     _counters.get(key, 0.0) + 1.0,

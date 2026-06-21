@@ -29,7 +29,7 @@ from typing import Any
 from fastapi import FastAPI, HTTPException, Path, Query, Request
 from fastapi.responses import JSONResponse, PlainTextResponse
 
-from . import cache, compute, config, feed, metrics, observability
+from . import cache, compute, config, feed, metrics, observability, request_hotspots
 from .market_hours import (
     compute_daemon_health_status,
 )
@@ -72,6 +72,9 @@ async def _lifespan(app: FastAPI):
     global _startup_ts
     logger.info("Starting SMC Live Overlay Daemon …")
     observability.metric_counter("live_overlay.daemon.start_attempt")
+    observability.metric_counter(
+        f"live_overlay.daemon.restart_cause.{config.restart_cause()}.total"
+    )
 
     # Validate required env vars fail-fast at startup
     with observability.trace_span("live_overlay.daemon_lifespan"):
@@ -302,7 +305,7 @@ def smc_live(
     symbol: str = Query(..., min_length=1, max_length=10),
     tf: str = Query("5m", max_length=8),  # timeframe hint — stored in response
 ) -> JSONResponse:
-    started_at = time.monotonic()
+    started_at, record_latency = time.monotonic(), False
     observability.metric_counter("live_overlay.smc_live_requests.total")
     sym = symbol.upper().strip()
     try:
@@ -322,7 +325,8 @@ def smc_live(
                 status_code=400,
                 detail=f"tf must be one of {sorted(_VALID_TFS)}",
             )
-        payload = _get_payload_for_timeframe(sym, tf)
+        payload = _get_payload_for_timeframe(sym, tf) if (record_latency := True) else None
+        request_hotspots.record_request(sym, tf)
 
         if payload is None:
             observability.metric_counter("live_overlay.smc_live_cache_miss.total")
@@ -375,17 +379,18 @@ def smc_live(
         # a deterministic 500 with observability signals for triage.
         if isinstance(exc, HTTPException):
             raise
-        logger.exception("smc_live failed for %s tf=%s", sym, tf)
+        (record_latency := True) and logger.exception("smc_live failed for %s tf=%s", sym, tf)
         observability.metric_counter("live_overlay.smc_live_errors.total")
         observability.audit_event(
             "smc_live_fetch", "error", symbol=sym, tf=tf, error=type(exc).__name__
         )
         raise HTTPException(status_code=500, detail="internal error") from exc
     finally:
-        observability.metric_histogram_ms(
-            "live_overlay.smc_live_latency",
-            (time.monotonic() - started_at) * 1000.0,
-        )
+        if record_latency:
+            observability.metric_histogram_ms(
+                "live_overlay.smc_live_latency",
+                (time.monotonic() - started_at) * 1000.0,
+            )
 
 # ---------------------------------------------------------------------------
 # Constant-time string comparison (avoid timing oracle on token)

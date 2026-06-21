@@ -44,6 +44,7 @@ def test_concurrent_start_serializes_lifecycle(monkeypatch: pytest.MonkeyPatch) 
     feed_mod._feed_thread = None
     feed_mod._refresh_thread = None
     feed_mod._flow_refresh_thread = None
+    feed_mod._runtime["ingest_thread"] = None
 
     created: queue.Queue[str] = queue.Queue()
     release_start = threading.Event()
@@ -91,14 +92,15 @@ def test_concurrent_start_serializes_lifecycle(monkeypatch: pytest.MonkeyPatch) 
         created_list.append(created.get_nowait())
 
     assert not errs, errs
-    # With serialization only one caller creates the 3 workers.
-    assert len(created_list) == 3, f"expected 3, got {len(created_list)}: {created_list}"
-    assert sorted(created_list) == ["flow-refresh", "live-feed", "overlay-refresh"]
+    # With serialization only one caller creates the 4 workers.
+    assert len(created_list) == 4, f"expected 4, got {len(created_list)}: {created_list}"
+    assert sorted(created_list) == ["flow-refresh", "ingest-processor", "live-feed", "overlay-refresh"]
 
     feed_mod._stop_event.set()
     feed_mod._feed_thread = None
     feed_mod._refresh_thread = None
     feed_mod._flow_refresh_thread = None
+    feed_mod._runtime["ingest_thread"] = None
 
 
 def test_stop_clears_feed_ready_under_lifecycle_lock(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -129,6 +131,7 @@ def test_worker_liveness_runs_under_lifecycle_lock(monkeypatch: pytest.MonkeyPat
     feed_mod._feed_thread = None
     feed_mod._refresh_thread = None
     feed_mod._flow_refresh_thread = None
+    feed_mod._runtime["ingest_thread"] = None
 
     liveness_results: list[dict[str, bool]] = []
     errors: list[BaseException] = []
@@ -149,11 +152,13 @@ def test_worker_liveness_runs_under_lifecycle_lock(monkeypatch: pytest.MonkeyPat
             for _ in range(iterations):
                 with feed_mod._lifecycle_lock:
                     feed_mod._feed_thread = _SlowToStartThread(name="live-feed")
+                    feed_mod._runtime["ingest_thread"] = _SlowToStartThread(name="ingest-processor")
                     feed_mod._refresh_thread = _SlowToStartThread(name="overlay-refresh")
                     feed_mod._flow_refresh_thread = _SlowToStartThread(name="flow-refresh")
                 step_barrier.wait()
                 with feed_mod._lifecycle_lock:
                     feed_mod._feed_thread = None
+                    feed_mod._runtime["ingest_thread"] = None
                     feed_mod._refresh_thread = None
                     feed_mod._flow_refresh_thread = None
                 step_barrier.wait()
@@ -172,5 +177,5 @@ def test_worker_liveness_runs_under_lifecycle_lock(monkeypatch: pytest.MonkeyPat
     assert not errors, errors
     assert len(liveness_results) == iterations
     for result in liveness_results:
-        assert set(result.keys()) == {"live_feed", "overlay_refresh", "flow_refresh"}
+        assert set(result.keys()) == {"live_feed", "ingest_processor", "overlay_refresh", "flow_refresh"}
         assert all(isinstance(v, bool) for v in result.values())

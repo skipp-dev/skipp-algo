@@ -139,6 +139,12 @@ jobs:
           # ignores persistent roots for this runner-environment and creates a
           # fresh workspace venv while Actions cache handles hosted-runner reuse.
           runner-environment: github-hosted
+      - name: Validate live-overlay daemon requirements
+        if: steps.gate.outputs.run_heavy == 'true'
+        run: |
+          # Explicitly validate daemon runtime deps in addition to root lockfile.
+          # This catches daemon-only dependency drift before deployment.
+          "$SMC_PYTHON_BIN" -m pip install --dry-run -r services/live_overlay_daemon/requirements.txt
       # Coverage adds ~25-35% test wall-time. Keep it on `main` pushes (where
       # the report has value) and use the faster no-coverage suite on PRs and
       # non-main branch pushes to shorten feedback loops while preserving the

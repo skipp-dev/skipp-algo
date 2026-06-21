@@ -161,6 +161,10 @@ _FROZEN_URLOPEN_SITES: frozenset[tuple[str, int]] = frozenset(
         ("terminal_notifications.py", 255),
         ("terminal_notifications.py", 319),
         ("terminal_tradingview_news.py", 423),
+        # 2026-06-21: live-overlay external bridge polling via urllib with
+        # explicit timeout discipline.
+        ("services/live_overlay_daemon/github_workflow_bridge.py", 96),
+        ("services/live_overlay_daemon/uptimerobot_bridge.py", 76),
     }
 )
 

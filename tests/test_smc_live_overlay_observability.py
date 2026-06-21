@@ -159,6 +159,39 @@ def test_smc_live_records_latency_histogram_counters(
         assert obs._counters.get("live_overlay.smc_live_latency.sum_ms", 0.0) >= 0.0
 
 
+@pytest.mark.parametrize(
+    ("token", "tf", "expected_status"),
+    [
+        ("wrong-token", "5m", 404),
+        ("secret-token", "13m", 400),
+    ],
+)
+def test_smc_live_rejected_requests_do_not_record_latency_histogram(
+    monkeypatch: pytest.MonkeyPatch,
+    token: str,
+    tf: str,
+    expected_status: int,
+) -> None:
+    import services.live_overlay_daemon.main as main_mod
+    import services.live_overlay_daemon.observability as obs
+
+    monkeypatch.setattr(main_mod.config, "overlay_secret_token", lambda: "secret-token")
+
+    with obs._counter_lock:
+        obs._counters.pop("live_overlay.smc_live_latency.count", None)
+        obs._counters.pop("live_overlay.smc_live_latency.sum_ms", None)
+        obs._counters.pop("live_overlay.smc_live_latency.bucket_le_inf", None)
+
+    with pytest.raises(main_mod.HTTPException) as exc_info:
+        main_mod.smc_live(token=token, symbol="AAPL", tf=tf)
+
+    assert exc_info.value.status_code == expected_status
+    with obs._counter_lock:
+        assert obs._counters.get("live_overlay.smc_live_latency.count") is None
+        assert obs._counters.get("live_overlay.smc_live_latency.sum_ms") is None
+        assert obs._counters.get("live_overlay.smc_live_latency.bucket_le_inf") is None
+
+
 def test_smc_live_unexpected_error_emits_error_metric_and_audit(
     monkeypatch: pytest.MonkeyPatch,
     caplog: pytest.LogCaptureFixture,
