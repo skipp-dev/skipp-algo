@@ -24,6 +24,9 @@ Databento Live (db.Live())
         ▼                           ▼
   GET /health                GET /{token}/smc_live
   (liveness, no auth)        (token in path, HMAC compare)
+              │                           │
+            GET /metrics                GET /{token}/metrics (legacy)
+            (Basic auth preferred)      (backward-compatible)
         │                           │
   Railway healthcheck        Pine request.raw() consumer
   UptimeRobot HEAD probe     TradingView chart
@@ -72,7 +75,8 @@ No authentication required. **Readiness/diagnostics** endpoint with worker and d
 }
 ```
 
-> `status` is `"starting"` until feed + workers + overlay_fresh are all healthy, then `"ok"`.
+> `status` is market-aware and can be `"ok"`, `"starting"`, or
+> `"idle_market_closed"` (outside US regular session while otherwise healthy).
 > `feed_healthy` becomes `false` after `stop()` or if bars are stale beyond `max_stale_secs`.
 > `workers_healthy` is `false` if any of the three background threads (feed, refresh, flow) is dead.
 > `overlay_fresh` is `false` when overlay_symbols == 0 or overlay_age > max_stale_secs.
@@ -80,11 +84,33 @@ No authentication required. **Readiness/diagnostics** endpoint with worker and d
 
 ---
 
+### `GET /metrics` (preferred)
+
+Prometheus text-format endpoint protected via **Basic Auth**.
+
+- Username: arbitrary (recommended: `metrics`)
+- Password: `OVERLAY_SECRET_TOKEN`
+
+Returns `401` + `WWW-Authenticate: Basic` on missing/invalid credentials.
+
+```bash
+curl -u "metrics:${OVERLAY_SECRET_TOKEN}" "http://localhost:8000/metrics"
+```
+
+---
+
 ### `GET /{token}/metrics`
 
-Token-protected Prometheus text-format endpoint. Same token as `/smc_live`.
+Legacy token-in-path Prometheus endpoint (backward-compatible). Same token as `/smc_live`.
+New deployments should prefer `GET /metrics` with Basic auth.
+
 Returns all in-process counters (request totals, auth denials, compute errors,
 feed errors) plus gauges (uptime, overlay age, bar count, worker liveness).
+
+If `UPTIMEROBOT_API_KEY` is configured, this endpoint also exports
+UptimeRobot bridge gauges (monitor totals/up/down, bridge status, snapshot age,
+and per-monitor up/status/latency gauges) so Grafana can show both internal
+daemon health and external synthetic check status.
 
 Used by Prometheus scrape jobs. Returns `text/plain; version=0.0.4`.
 
@@ -104,7 +130,7 @@ Returns **404** on wrong token (does not leak route existence).
 | Param    | Required | Example | Notes |
 |----------|----------|---------|-------|
 | `symbol` | ✅ | `NVDA` | Case-insensitive, max 10 chars |
-| `tf`     | ❌ | `5m` | One of `5m`, `15m`, `1H`, `4H`. Returns 400 for unknown values. |
+| `tf`     | ❌ | `5m` | One of `5m`, `10m`, `15m`, `30m`, `1H`, `4H`. Returns 400 for unknown values. |
 
 **Response fields**
 
@@ -146,6 +172,7 @@ All numeric fields are `null`, all bool fields are `false`, `stale: true`.
 | `DATABENTO_API_KEY` | ✅ | — | Set in Railway env vars |
 | `OVERLAY_SECRET_TOKEN` | ✅ | — | Embedded in Pine URL path |
 | `PORT` | ❌ | `8000` | Injected by Railway automatically |
+| `LOG_LEVEL` | ❌ | `info` | Uvicorn-compatible level (`critical`,`error`,`warning`,`info`,`debug`,`trace`) |
 | `OVERLAY_REFRESH_SECS` | ❌ | `1800` | Full overlay compute cycle interval (seconds) |
 | `OVERLAY_FLOW_REFRESH_SECS` | ❌ | `300` | Flow-patch cycle interval (seconds) |
 | `OVERLAY_ROLLING_BARS` | ❌ | `60` | Rolling window size for flow/ATS computations (range 1–500) |
@@ -153,6 +180,10 @@ All numeric fields are `null`, all bool fields are `false`, `stale: true`.
 | `OVERLAY_MAX_SYMBOLS` | ❌ | `2000` | Hard cap on tracked symbols in bar cache (range 100–50 000) |
 | `OVERLAY_NEWS_CACHE_TTL_SECS` | ❌ | `600` | News snapshot cache TTL in seconds (range 60–3600) |
 | `OVERLAY_MAX_FEED_FAILURES` | ❌ | `50` | Circuit-breaker threshold for consecutive feed failures (range 1–1000) |
+| `UPTIMEROBOT_API_KEY` | ❌ | *(unset)* | Enables optional UptimeRobot API bridge metrics in `/metrics` |
+| `UPTIMEROBOT_MONITOR_IDS` | ❌ | *(all monitors)* | Comma-separated monitor IDs to include in bridge poll |
+| `UPTIMEROBOT_TIMEOUT_SECS` | ❌ | `5` | UptimeRobot API timeout in seconds (range 1–30) |
+| `UPTIMEROBOT_POLL_TTL_SECS` | ❌ | `30` | In-process cache TTL for UptimeRobot snapshot (range 5–300) |
 | `NEWS_SNAPSHOT_PATH` | ❌ | *(repo root)*`/artifacts/smc_microstructure_exports/smc_live_news_snapshot.json` | Absolute path to news JSON file (resolved relative to repo root) |
 
 ### Config validation
@@ -206,7 +237,10 @@ DATABENTO_API_KEY=xxx OVERLAY_SECRET_TOKEN=mysecret \
 # Health check
 curl http://localhost:8000/health
 
-# Metrics (Prometheus text format)
+# Metrics (preferred, Basic auth)
+curl -u "metrics:${OVERLAY_SECRET_TOKEN}" "http://localhost:8000/metrics"
+
+# Metrics (legacy token-in-path)
 curl "http://localhost:8000/mysecret/metrics"
 
 # Overlay (replace TOKEN and symbol)
@@ -251,6 +285,11 @@ observability.py (structured log lines + in-process counters)
 | `live_overlay_feed_healthy` | gauge | feed.py |
 | `live_overlay_workers_healthy` | gauge | feed.py |
 | `live_overlay_worker_*_alive` | gauge | feed.py |
+| `live_overlay_uptimerobot_bridge_enabled` | gauge | uptimerobot_bridge.py |
+| `live_overlay_uptimerobot_scrape_success` | gauge | uptimerobot_bridge.py |
+| `live_overlay_uptimerobot_snapshot_age_seconds` | gauge | uptimerobot_bridge.py |
+| `live_overlay_uptimerobot_monitors_*_total` | gauge | uptimerobot_bridge.py |
+| `live_overlay_uptimerobot_monitor_<id>_*` | gauge | uptimerobot_bridge.py |
 
 ### Alert rules (recommended)
 
@@ -340,10 +379,10 @@ will stay at 0.
 
 ### Startup readiness (main.py)
 
-The health endpoint returns `"status": "starting"` until the feed thread has
-pushed at least one OHLCV bar. After the first bar, it switches to `"ok"`.
-This lets Railway/UptimeRobot distinguish a cold-starting daemon from one that
-has successfully connected to Databento.
+The readiness endpoint (`/ready`) returns market-aware daemon status and may be
+`"starting"` until feed + workers + overlay freshness are healthy. Liveness
+(`/health`) remains intentionally simple (`"alive"`) for probes like
+Railway/UptimeRobot.
 
 ---
 

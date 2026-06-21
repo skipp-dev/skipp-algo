@@ -105,7 +105,7 @@ def metric_histogram_ms(
       - ``{name}.bucket_le_inf``
     """
     finite_ms = _coerce_finite_metric_value(value_ms, metric_name=name)
-    chosen = buckets_ms or _HISTOGRAM_DEFAULT_BUCKETS_MS
+    chosen = _HISTOGRAM_DEFAULT_BUCKETS_MS if buckets_ms is None else buckets_ms
     finite_bucket_set: set[float] = set()
     for bucket in chosen:
         coerced_bucket = _coerce_finite_metric_value(bucket, metric_name=f"{name}.bucket")

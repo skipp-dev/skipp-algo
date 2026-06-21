@@ -6,6 +6,44 @@ All notable changes to this project are documented in this file.
 
 ## [Unreleased]
 
+### Changed (2026-06-21) — Live-overlay hardening + observability follow-ups (PR #2866, #2867, #2869, #2870, #2872, #2873, #2874)
+
+- **Feed lifecycle thread-safety**: feed start/stop now serialized with
+  `_lifecycle_lock` to avoid concurrent lifecycle races under repeated
+  start/stop calls.
+- **Timeframe-aware overlay payloads**: non-`5m` requests now aggregate
+  cached 1-minute bars on demand before indicator computation
+  (`5m/10m/15m/30m/1H/4H`), with stale evaluation based on latest bar recency.
+- **`/smc_live` error hardening**: unexpected internal exceptions are now
+  observed (`live_overlay.smc_live_errors.total`) and returned as deterministic
+  HTTP 500 (`internal error`) while preserving native `HTTPException` behavior.
+- **Metrics endpoint security posture**: preferred scrape path is now
+  `GET /metrics` with Basic auth (`OVERLAY_SECRET_TOKEN` as password), while
+  legacy `/{token}/metrics` remains backward-compatible.
+- **Cache safety**: overlay payloads are deep-copied on read to prevent
+  accidental caller mutation of shared in-process cache state.
+- **Daemon observability expansion**:
+  - market/session-aware health gauges
+  - `live_overlay_max_stale_seconds` gauge for runtime-configured stale budget
+  - latency histogram counters and bucket telemetry for `smc_live`
+  - richer Grafana SLO panels/alerts consuming these series.
+- **Config hardening**: `LOG_LEVEL` is validated against uvicorn-compatible
+  values with warning + fallback to `info` on invalid input.
+- **Dependencies**: `databento` pinned to `0.79.0` and guarded by live-client
+  contract tests.
+
+### Changed (2026-06-20) — Live-overlay telemetry rollout + Grafana/Alloy stabilization
+
+- Expanded live-overlay telemetry and dashboard coverage (market-aware health,
+  request quality, stale budget, latency, worker state).
+- Added and iterated Grafana alert rules for market-aware monitoring and
+  corrected datasource wiring.
+- Alloy scrape configuration hardened (including explicit job alignment and
+  env-driven secret handling) to keep dashboard selectors and scrape labels
+  consistent.
+- Documentation and runbook updates landed for compute/timeframe constraints and
+  live-overlay telemetry operations.
+
 ### Security (2026-06-20) — Torch GHSA remediation refresh (GHSA-rrmf-rvhw-rf47)
 
 - `requirements-rl.txt`: `torch==2.12.0` → `torch==2.12.1`.
