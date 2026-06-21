@@ -278,8 +278,15 @@ def _run_feed_loop(stop: threading.Event) -> None:
                     except queue.Full:
                         _record_queue_drop()
                         metric_counter("live_overlay.feed.ingest_queue_dropped_total")
-                        if _bars_pushed_count % 100 == 0:
-                            logger.warning("Ingest queue full — dropping newest bar")
+                        with _backpressure_lock:
+                            total_drops = int(
+                                _backpressure.get("ingest_queue_dropped_total", 0.0)
+                            )
+                        if total_drops % 100 == 0:
+                            logger.warning(
+                                "Ingest queue full — dropping newest bar (total_drops=%d)",
+                                total_drops,
+                            )
 
             except db.BentoError as exc:
                 consecutive_failures += 1
@@ -414,9 +421,23 @@ def _do_start() -> None:
     global _feed_thread, _refresh_thread, _flow_refresh_thread
 
     desired_queue_max = config.ingest_queue_max()
-    if _runtime.get("ingest_queue") is None or _runtime.get("ingest_queue_max") != desired_queue_max:
+    ingest_thread = _runtime.get("ingest_thread")
+    workers_alive = (
+        (_feed_thread is not None and _feed_thread.is_alive())
+        or (ingest_thread is not None and ingest_thread.is_alive())
+        or (_refresh_thread is not None and _refresh_thread.is_alive())
+        or (_flow_refresh_thread is not None and _flow_refresh_thread.is_alive())
+    )
+    if _runtime.get("ingest_queue") is None or (_runtime.get("ingest_queue_max") != desired_queue_max and not workers_alive):
         _runtime["ingest_queue"] = queue.Queue(maxsize=desired_queue_max)
         _runtime["ingest_queue_max"] = desired_queue_max
+    elif _runtime.get("ingest_queue_max") != desired_queue_max:
+        logger.warning(
+            "LIVE_OVERLAY_INGEST_QUEUE_MAX changed from %d to %d while workers are alive; "
+            "queue resize ignored until next restart.",
+            _runtime["ingest_queue_max"],
+            desired_queue_max,
+        )
 
     feed_alive = _feed_thread is not None and _feed_thread.is_alive()
     ingest_thread = _runtime.get("ingest_thread")

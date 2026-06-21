@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import json
 import math
+import re
 import time
 
 from . import (
@@ -29,10 +30,24 @@ from .market_hours import (
     is_us_regular_session_open,
 )
 
+_PROM_NAME_CHARS_RE = re.compile(r"[^a-z0-9_]")
+
 
 def _sanitize_name(name: str) -> str:
-    """Convert dotted metric names to Prometheus-safe underscore format."""
-    return name.replace(".", "_").replace("-", "_")
+    """Convert metric fragments to a strict Prometheus-safe ASCII allow-list.
+
+    This project embeds user-derived fragments (symbol, timeframe, provider)
+    into metric names, so we enforce a conservative allow-list of
+    ``[a-z0-9_]`` rather than Prometheus' broader grammar. The fragment is
+    lower-cased, whitespace is stripped, every character outside the
+    allow-list is replaced with an underscore, and a leading digit is
+    prefixed with an underscore. Empty or fully-invalid fragments fall back
+    to ``_``.
+    """
+    cleaned = _PROM_NAME_CHARS_RE.sub("_", str(name).lower().strip())
+    if cleaned and cleaned[0].isdigit():
+        cleaned = f"_{cleaned}"
+    return cleaned or "_"
 
 
 def _prom_numeric_value(raw: object) -> float:
