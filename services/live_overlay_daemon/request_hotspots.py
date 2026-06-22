@@ -10,7 +10,7 @@ _tf_counts: Counter[str] = Counter()
 
 
 def record_request(symbol: str, tf: str) -> None:
-    """Record one validated smc_live request (auth/tf accepted; payload may still miss cache)."""
+    """Record one successful/validated smc_live request."""
     sym = symbol.upper().strip()
     timeframe = tf.strip()
     if not sym or not timeframe:

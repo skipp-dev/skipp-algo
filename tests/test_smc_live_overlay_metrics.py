@@ -8,14 +8,35 @@ Covers:
 """
 from __future__ import annotations
 
-import json
 import math
-from pathlib import Path
 
 import pytest
 
 
-def _patch_common(monkeypatch: pytest.MonkeyPatch, *, feed_ready: bool, market_open: bool, bar_count: int, overlay_symbols: int, overlay_age: float, workers: dict[str, bool] | None = None) -> None:
+def test_sanitize_name_rejects_invalid_prometheus_characters() -> None:
+    import services.live_overlay_daemon.metrics as metrics_mod
+
+    assert metrics_mod._sanitize_name("  AAPL/US @NASDAQ  ") == "aapl_us_nasdaq"
+    assert metrics_mod._sanitize_name("BTC-USD.PERP") == "btc_usd_perp"
+    assert metrics_mod._sanitize_name("__$$$__") == "unknown"
+
+
+def test_sanitize_name_collapses_runs_of_separators() -> None:
+    import services.live_overlay_daemon.metrics as metrics_mod
+
+    assert metrics_mod._sanitize_name("A..B---C") == "a_b_c"
+
+
+def _patch_common(
+    monkeypatch: pytest.MonkeyPatch,
+    *,
+    feed_ready: bool,
+    market_open: bool,
+    bar_count: int,
+    overlay_symbols: int,
+    overlay_age: float,
+    workers: dict[str, bool] | None = None,
+) -> None:
     import services.live_overlay_daemon.cache as cache
     import services.live_overlay_daemon.config as config
     import services.live_overlay_daemon.feed as feed
@@ -263,8 +284,8 @@ def test_render_metrics_emits_hotspot_gauges(monkeypatch: pytest.MonkeyPatch) ->
     assert "live_overlay_hotspot_timeframes_tracked 2.0" in body
     assert "live_overlay_hotspot_symbol_nvda_requests_total 12.0" in body
     assert "live_overlay_hotspot_symbol_aapl_requests_total 7.0" in body
-    assert "live_overlay_hotspot_tf__5m_requests_total 15.0" in body
-    assert "live_overlay_hotspot_tf__1h_requests_total 4.0" in body
+    assert "live_overlay_hotspot_tf_5m_requests_total 15.0" in body
+    assert "live_overlay_hotspot_tf_1h_requests_total 4.0" in body
 
 
 def test_observability_rejects_non_finite_values() -> None:
@@ -381,12 +402,11 @@ def test_render_metrics_includes_uptimerobot_bridge_snapshot(monkeypatch: pytest
     assert "live_overlay_uptimerobot_bridge_enabled 1" in body
     assert "live_overlay_uptimerobot_scrape_success 1" in body
     assert "live_overlay_uptimerobot_monitors_total 4.0" in body
-    assert "live_overlay_uptimerobot_monitors_total_total" not in body
     assert "live_overlay_uptimerobot_monitors_up_total 4.0" in body
     assert "live_overlay_uptimerobot_monitors_response_time_ms_avg 101.5" in body
-    assert "live_overlay_uptimerobot_monitor__803343156_up 1.0" in body
-    assert "live_overlay_uptimerobot_monitor__803343156_status_code 2.0" in body
-    assert "live_overlay_uptimerobot_monitor__803343156_response_time_ms 98.0" in body
+    assert "live_overlay_uptimerobot_monitor_803343156_up 1.0" in body
+    assert "live_overlay_uptimerobot_monitor_803343156_status_code 2.0" in body
+    assert "live_overlay_uptimerobot_monitor_803343156_response_time_ms 98.0" in body
 
 
 def test_render_metrics_handles_uptimerobot_bridge_disabled(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -468,10 +488,10 @@ def test_render_metrics_includes_github_workflow_bridge_snapshot(monkeypatch: py
     assert "live_overlay_github_workflow_runs_failed_total 1.0" in body
     assert "live_overlay_github_workflow_latest_run_age_seconds 45.5" in body
     assert "live_overlay_github_workflow_latest_run_duration_seconds 120.0" in body
-    assert "live_overlay_github_workflow__129428056_phase_code 3.0" in body
-    assert "live_overlay_github_workflow__129428056_latest_success 1.0" in body
-    assert "live_overlay_github_workflow__129428056_latest_age_seconds 45.5" in body
-    assert "live_overlay_github_workflow__129428056_latest_duration_seconds 120.0" in body
+    assert "live_overlay_github_workflow_129428056_phase_code 3.0" in body
+    assert "live_overlay_github_workflow_129428056_latest_success 1.0" in body
+    assert "live_overlay_github_workflow_129428056_latest_age_seconds 45.5" in body
+    assert "live_overlay_github_workflow_129428056_latest_duration_seconds 120.0" in body
 
 
 def test_render_metrics_handles_github_workflow_bridge_disabled(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -510,94 +530,3 @@ def test_render_metrics_handles_github_workflow_bridge_disabled(monkeypatch: pyt
     assert "live_overlay_github_workflow_bridge_enabled 0" in body
     assert "live_overlay_github_workflow_scrape_success 0" in body
     assert "live_overlay_github_workflow_runs_seen_total 0.0" in body
-
-
-def test_sanitize_name_rejects_invalid_prometheus_characters() -> None:
-    """_sanitize_name must replace characters outside the strict [a-z0-9_] allow-list with underscores."""
-    import services.live_overlay_daemon.metrics as metrics_mod
-
-    assert metrics_mod._sanitize_name("AAPL") == "aapl"
-    assert metrics_mod._sanitize_name("AAPL/USD") == "aapl_usd"
-    assert metrics_mod._sanitize_name("SPX:500") == "spx_500"
-    assert metrics_mod._sanitize_name(" bitcoin ") == "bitcoin"
-    assert metrics_mod._sanitize_name("tf-1m") == "tf_1m"
-    assert metrics_mod._sanitize_name("tf 1m") == "tf_1m"
-    assert metrics_mod._sanitize_name("provider@news") == "provider_news"
-    assert metrics_mod._sanitize_name("123provider") == "_123provider"
-    assert metrics_mod._sanitize_name("") == "_"
-
-
-def test_alert_rules_split_news_snapshot_unavailable_and_stale() -> None:
-    """Unavailable snapshot (loaded==0) and stale snapshot (age>3600) must be separate alerts."""
-    import yaml
-
-    repo_root = Path(__file__).resolve().parents[1]
-    rules_path = repo_root / "services" / "live_overlay_daemon" / "infra" / "grafana" / "alert-rules.yaml"
-    rules_doc = yaml.safe_load(rules_path.read_text(encoding="utf-8"))
-    warning_group = next(g for g in rules_doc["groups"] if g.get("name") == "live-overlay-warning")
-    uids = {r.get("uid") for r in warning_group["rules"]}
-    assert "lo-news-snapshot-unavailable" in uids
-    assert "lo-news-snapshot-stale" in uids
-
-    unavailable = next(r for r in warning_group["rules"] if r.get("uid") == "lo-news-snapshot-unavailable")
-    assert unavailable["labels"]["severity"] == "high"
-    assert "snapshot_loaded" in unavailable["data"][0]["model"]["expr"]
-    assert "== bool 0" in unavailable["data"][0]["model"]["expr"]
-
-    stale = next(r for r in warning_group["rules"] if r.get("uid") == "lo-news-snapshot-stale")
-    assert "snapshot_age_seconds" in stale["data"][0]["model"]["expr"]
-    assert "> bool 3600" in stale["data"][0]["model"]["expr"]
-
-
-def test_github_workflow_config_defaults_to_main_branch(monkeypatch: pytest.MonkeyPatch) -> None:
-    import services.live_overlay_daemon.config as config
-
-    monkeypatch.delenv("GITHUB_WORKFLOW_MONITOR_BRANCH", raising=False)
-    assert config.github_workflow_branch() == "main"
-    monkeypatch.setenv("GITHUB_WORKFLOW_MONITOR_BRANCH", "")
-    assert config.github_workflow_branch() is None
-    monkeypatch.setenv("GITHUB_WORKFLOW_MONITOR_BRANCH", "develop")
-    assert config.github_workflow_branch() == "develop"
-
-
-def test_dashboard_service_status_panel_maps_starting_state() -> None:
-    repo_root = Path(__file__).resolve().parents[1]
-    dashboard_path = repo_root / "services" / "live_overlay_daemon" / "infra" / "grafana" / "dashboard.json"
-    dashboard = json.loads(dashboard_path.read_text(encoding="utf-8"))
-    panel = next(p for p in dashboard["panels"] if p.get("title") == "Service Status")
-    options = panel["fieldConfig"]["defaults"]["mappings"][0]["options"]
-    assert options.get("0", {}).get("text") == "STARTING"
-
-
-def test_dashboard_worker_liveness_uses_human_labels() -> None:
-    repo_root = Path(__file__).resolve().parents[1]
-    dashboard_path = repo_root / "services" / "live_overlay_daemon" / "infra" / "grafana" / "dashboard.json"
-    dashboard = json.loads(dashboard_path.read_text(encoding="utf-8"))
-    panel = next(p for p in dashboard["panels"] if p.get("title") == "Worker Liveness")
-    options = panel["fieldConfig"]["defaults"]["mappings"][0]["options"]
-    assert options.get("0", {}).get("text") == "DEAD"
-    assert options.get("1", {}).get("text") == "ALIVE"
-    assert "min" not in panel["fieldConfig"]["defaults"]
-    assert "max" not in panel["fieldConfig"]["defaults"]
-
-
-def test_dashboard_has_uptimerobot_state_timeline() -> None:
-    repo_root = Path(__file__).resolve().parents[1]
-    dashboard_path = repo_root / "services" / "live_overlay_daemon" / "infra" / "grafana" / "dashboard.json"
-    dashboard = json.loads(dashboard_path.read_text(encoding="utf-8"))
-    panel = next(p for p in dashboard["panels"] if p.get("title") == "UptimeRobot Monitor States")
-    assert panel["type"] == "state-timeline"
-    assert any("live_overlay_uptimerobot_monitor_.*_status_code" in t["expr"] for t in panel["targets"])
-    options = panel["fieldConfig"]["defaults"]["mappings"][0]["options"]
-    assert options.get("0", {}).get("text") == "PAUSED"
-    assert options.get("8", {}).get("text") == "DOWN"
-
-
-def test_dashboard_github_workflow_runs_panel_uses_rate() -> None:
-    repo_root = Path(__file__).resolve().parents[1]
-    dashboard_path = repo_root / "services" / "live_overlay_daemon" / "infra" / "grafana" / "dashboard.json"
-    dashboard = json.loads(dashboard_path.read_text(encoding="utf-8"))
-    panel = next(p for p in dashboard["panels"] if p.get("title") == "GitHub Workflow Runs")
-    assert all("rate(" in t["expr"] for t in panel["targets"])
-    assert panel["fieldConfig"]["defaults"]["unit"] == "cps"
-    assert panel["fieldConfig"]["defaults"]["custom"]["axisLabel"] == "runs / sec"

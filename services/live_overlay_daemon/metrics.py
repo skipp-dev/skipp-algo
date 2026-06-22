@@ -30,24 +30,22 @@ from .market_hours import (
     is_us_regular_session_open,
 )
 
-_PROM_NAME_CHARS_RE = re.compile(r"[^a-z0-9_]")
-
 
 def _sanitize_name(name: str) -> str:
-    """Convert metric fragments to a strict Prometheus-safe ASCII allow-list.
+    """Normalize metric/path fragments to a Prometheus-safe token.
 
-    This project embeds user-derived fragments (symbol, timeframe, provider)
-    into metric names, so we enforce a conservative allow-list of
-    ``[a-z0-9_]`` rather than Prometheus' broader grammar. The fragment is
-    lower-cased, whitespace is stripped, every character outside the
-    allow-list is replaced with an underscore, and a leading digit is
-    prefixed with an underscore. Empty or fully-invalid fragments fall back
-    to ``_``.
+    Rules:
+    - lowercase
+    - trim surrounding whitespace
+    - map dots/dashes to underscores
+    - collapse all remaining non [a-z0-9_] chars to underscores
+    - collapse repeated underscores and trim edge underscores
+    - fallback to ``unknown`` when nothing remains
     """
-    cleaned = _PROM_NAME_CHARS_RE.sub("_", str(name).lower().strip())
-    if cleaned and cleaned[0].isdigit():
-        cleaned = f"_{cleaned}"
-    return cleaned or "_"
+    token = str(name).strip().lower().replace(".", "_").replace("-", "_")
+    token = re.sub(r"[^a-z0-9_]", "_", token)
+    token = re.sub(r"_+", "_", token).strip("_")
+    return token or "unknown"
 
 
 def _prom_numeric_value(raw: object) -> float:
@@ -141,11 +139,16 @@ def _provider_health_snapshot() -> dict[str, object]:
             if isinstance(raw, dict):
                 providers_obj = raw.get("providers") or {}
                 snapshot_loaded = 1.0
-                # Use fetched_at_unix when present (live producer snapshots).
-                # Seed files omit this key and report age 0 (never stale).
+                # Prefer fetched_at_unix embedded in snapshot (written by live producer).
+                # Falls back to 0.0 for static seed files (avoids false-positive stale alerts).
                 fetched_at = raw.get("fetched_at_unix")
-                if fetched_at is not None and math.isfinite(float(fetched_at)) and float(fetched_at) > 0:
-                    snapshot_age_seconds = max(0.0, time.time() - float(fetched_at))
+                try:
+                    fetched_at_float = float(fetched_at)
+                except (TypeError, ValueError):
+                    fetched_at_float = 0.0
+                if math.isfinite(fetched_at_float) and fetched_at_float > 0:
+                    snapshot_age_seconds = max(0.0, time.time() - fetched_at_float)
+                # else: keep 0.0 — no live producer has written a timestamp yet
         except Exception:
             providers_obj = {}
 
@@ -230,14 +233,14 @@ def render_metrics(startup_ts: float) -> str:
 
     for symbol, count in hotspot.get("top_symbols") or []:
         sym = _sanitize_name(str(symbol).lower())
-        lines.append(f"# TYPE live_overlay_hotspot_symbol_{sym}_requests_total gauge")
+        lines.append(f"# TYPE live_overlay_hotspot_symbol_{sym}_requests_total counter")
         lines.append(
             f"live_overlay_hotspot_symbol_{sym}_requests_total {_prom_numeric_value(count)}"
         )
 
     for tf, count in hotspot.get("top_tfs") or []:
         tf_name = _sanitize_name(str(tf).lower())
-        lines.append(f"# TYPE live_overlay_hotspot_tf_{tf_name}_requests_total gauge")
+        lines.append(f"# TYPE live_overlay_hotspot_tf_{tf_name}_requests_total counter")
         lines.append(
             f"live_overlay_hotspot_tf_{tf_name}_requests_total {_prom_numeric_value(count)}"
         )
@@ -399,7 +402,11 @@ def render_metrics(startup_ts: float) -> str:
     enabled = int(uptime_snapshot.get("enabled", 0) or 0)
     ok = int(uptime_snapshot.get("ok", 0) or 0)
     fetched_at_unix = _prom_numeric_value(uptime_snapshot.get("fetched_at_unix", 0.0))
-    snapshot_age = max(0.0, time.time() - fetched_at_unix) if math.isfinite(fetched_at_unix) and fetched_at_unix > 0 else 0.0
+    snapshot_age = (
+        max(0.0, time.time() - fetched_at_unix)
+        if math.isfinite(fetched_at_unix) and fetched_at_unix > 0
+        else 0.0
+    )
 
     lines.append("# TYPE live_overlay_uptimerobot_bridge_enabled gauge")
     lines.append(f"live_overlay_uptimerobot_bridge_enabled {enabled}")
@@ -413,9 +420,7 @@ def render_metrics(startup_ts: float) -> str:
         suffix = "_total" if key != "total" else ""
         prom_name = f"live_overlay_uptimerobot_monitors_{key}{suffix}"
         lines.append(f"# TYPE {prom_name} gauge")
-        lines.append(
-            f"{prom_name} {_prom_numeric_value(counts.get(key, 0))}"
-        )
+        lines.append(f"{prom_name} {_prom_numeric_value(counts.get(key, 0))}")
 
     avg_response_time_ms = uptime_snapshot.get("avg_response_time_ms")
     if avg_response_time_ms is not None:
@@ -443,7 +448,11 @@ def render_metrics(startup_ts: float) -> str:
     wf_enabled = int(workflow_snapshot.get("enabled", 0) or 0)
     wf_ok = int(workflow_snapshot.get("ok", 0) or 0)
     wf_fetched_at_unix = _prom_numeric_value(workflow_snapshot.get("fetched_at_unix", 0.0))
-    wf_snapshot_age = max(0.0, time.time() - wf_fetched_at_unix) if math.isfinite(wf_fetched_at_unix) and wf_fetched_at_unix > 0 else 0.0
+    wf_snapshot_age = (
+        max(0.0, time.time() - wf_fetched_at_unix)
+        if math.isfinite(wf_fetched_at_unix) and wf_fetched_at_unix > 0
+        else 0.0
+    )
 
     lines.append("# TYPE live_overlay_github_workflow_bridge_enabled gauge")
     lines.append(f"live_overlay_github_workflow_bridge_enabled {wf_enabled}")

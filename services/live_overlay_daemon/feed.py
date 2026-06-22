@@ -146,11 +146,17 @@ def _record_enqueue_backpressure() -> None:
         )
 
 
-def _record_queue_drop() -> None:
+def _record_queue_drop() -> float:
     with _backpressure_lock:
         _backpressure["ingest_queue_dropped_total"] = (
             _backpressure.get("ingest_queue_dropped_total", 0.0) + 1.0
         )
+        return _backpressure["ingest_queue_dropped_total"]
+
+
+def _should_log_queue_drop_warning(dropped_total: float) -> bool:
+    """Emit warning every 100 dropped bars (based on drop counter)."""
+    return int(dropped_total) % 100 == 0
 
 
 def _record_queue_lag_ms(lag_ms: float) -> None:
@@ -277,16 +283,12 @@ def _run_feed_loop(stop: threading.Event) -> None:
                         _record_enqueue_backpressure()
                         _bars_pushed_count += 1
                     except queue.Full:
-                        _record_queue_drop()
+                        dropped_total = _record_queue_drop()
                         metric_counter("live_overlay.feed.ingest_queue_dropped_total")
-                        with _backpressure_lock:
-                            total_drops = int(
-                                _backpressure.get("ingest_queue_dropped_total", 0.0)
-                            )
-                        if total_drops % 100 == 0:
+                        if _should_log_queue_drop_warning(dropped_total):
                             logger.warning(
-                                "Ingest queue full — dropping newest bar (total_drops=%d)",
-                                total_drops,
+                                "Ingest queue full — dropping newest bar (dropped_total=%d)",
+                                int(dropped_total),
                             )
 
             except db.BentoError as exc:
@@ -449,7 +451,6 @@ def _do_start() -> None:
         )
 
     feed_alive = _feed_thread is not None and _feed_thread.is_alive()
-    ingest_thread = _runtime.get("ingest_thread")
     ingest_alive = ingest_thread is not None and ingest_thread.is_alive()
     refresh_alive = _refresh_thread is not None and _refresh_thread.is_alive()
     flow_alive = _flow_refresh_thread is not None and _flow_refresh_thread.is_alive()

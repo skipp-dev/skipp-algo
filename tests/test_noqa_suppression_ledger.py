@@ -180,9 +180,8 @@ _FROZEN_SITES: dict[str, int] = {
     "scripts/databento_production_merge_shards.py": 3,
     # 2026-06-22: Grafana dashboard upsert helper; intentional Keychain read.
     "scripts/grafana_dashboard_upsert.py": 2,
-    # 2026-06-22: publish helper resolves the keychain executable via
-    # shutil.which("security") and uses token-list argv with shell=False;
-    # Bandit S603 remains a bounded false positive at the subprocess call.
+    # 2026-06-22: keychain hardening in publish script adds one
+    # deliberate ``# noqa: S603`` on subprocess.run with fixed argv.
     "scripts/publish_overlay_dashboard.py": 1,
     # 2026-05-12 PR #2157: Databento entitlement probe wraps each
     # provider request in a generic ``except Exception`` so it can
