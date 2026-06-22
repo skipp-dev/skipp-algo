@@ -3735,7 +3735,6 @@
                   "no_data": false,
                   "normal": false,
                   "ok": false,
-                  "paused": true,
                   "pending": true
                 },
                 "viewMode": "list"
