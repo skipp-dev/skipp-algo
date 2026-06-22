@@ -58,6 +58,14 @@ def test_update_script_adds_uptimerobot_state_timeline(tmp_path: Path) -> None:
     assert "UptimeRobot Monitor States" in titles_after
     panel = next(p for p in updated["panels"] if p["title"] == "UptimeRobot Monitor States")
     assert panel["type"] == "state-timeline"
+    # Per-monitor status-code metrics are named live_overlay_uptimerobot_monitor_<id>_status_code
+    assert "live_overlay_uptimerobot_monitor_.*_status_code" in panel["targets"][0]["expr"]
+    options = panel["fieldConfig"]["defaults"]["mappings"][0]["options"]
+    assert options["0"]["text"] == "PAUSED"
+    assert options["1"]["text"] == "NOT CHECKED"
+    assert options["2"]["text"] == "UP"
+    assert options["8"]["text"] == "DOWN"
+    assert options["9"]["text"] == "DOWN"
 
 
 def test_update_script_preserves_existing_panels(tmp_path: Path) -> None:
@@ -134,3 +142,11 @@ def test_deploy_restart_annotations_present(temp_dashboard: Path) -> None:
     data = json.loads(temp_dashboard.read_text(encoding="utf-8"))
     names = {a.get("name") for a in data.get("annotations", {}).get("list", [])}
     assert "Deploys / Restarts" in names
+
+
+def test_update_script_is_idempotent(temp_dashboard: Path) -> None:
+    _run_script(temp_dashboard)
+    first = temp_dashboard.read_text(encoding="utf-8")
+    _run_script(temp_dashboard)
+    second = temp_dashboard.read_text(encoding="utf-8")
+    assert first == second, "Re-running the updater changed dashboard.json"

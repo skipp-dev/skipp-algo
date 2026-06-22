@@ -1036,6 +1036,10 @@
         {
           "expr": "live_overlay_worker_flow_refresh_alive{job=~\"$job\"}",
           "legendFormat": "flow_refresh"
+        },
+        {
+          "expr": "live_overlay_worker_ingest_processor_alive{job=~\"$job\"}",
+          "legendFormat": "ingest_processor"
         }
       ],
       "options": {
@@ -1666,7 +1670,7 @@
       },
       "targets": [
         {
-          "expr": "live_overlay_uptimerobot_monitor_status_code{job=~\"$job\"}",
+          "expr": "{__name__=~\"live_overlay_uptimerobot_monitor_.*_status_code\",job=~\"$job\"}",
           "legendFormat": "{{__name__}}"
         }
       ],
@@ -3105,5 +3109,5 @@
   "timezone": "utc",
   "title": "SMC Live Overlay Daemon",
   "uid": "smc-live-overlay-v1",
-  "version": 25
+  "version": 29
 }

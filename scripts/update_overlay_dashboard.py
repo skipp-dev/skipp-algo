@@ -265,7 +265,7 @@ def _uptimerobot_state_timeline() -> dict:
         "gridPos": {"h": 6, "w": 12, "x": 0, "y": 61},
         "targets": [
             {
-                "expr": 'live_overlay_uptimerobot_monitor_status_code{job=~"$job"} or vector(0)',
+                "expr": '{__name__=~"live_overlay_uptimerobot_monitor_.*_status_code",job=~"$job"}',
                 "legendFormat": "{{__name__}}",
             }
         ],
@@ -380,6 +380,20 @@ def _apply_state_timeline_defaults(panel: dict, labels: tuple[str, str], descrip
     _deduplicate_state_timeline(panel)
 
 
+def _ensure_worker_liveness_panel(panel: dict) -> None:
+    """Ensure Worker Liveness covers all daemon worker threads."""
+    expected = {
+        "live_feed": 'live_overlay_worker_live_feed_alive{job=~"$job"}',
+        "overlay_refresh": 'live_overlay_worker_overlay_refresh_alive{job=~"$job"}',
+        "flow_refresh": 'live_overlay_worker_flow_refresh_alive{job=~"$job"}',
+        "ingest_processor": 'live_overlay_worker_ingest_processor_alive{job=~"$job"}',
+    }
+    existing_exprs = {t.get("expr", "").strip() for t in panel.get("targets", [])}
+    for legend, expr in expected.items():
+        if expr not in existing_exprs:
+            panel["targets"].append({"expr": expr, "legendFormat": legend})
+
+
 def _strip_fallback_queries_from_all_panels(panels: list[dict]) -> None:
     """Clean legacy fallback chains from every panel, not just state timelines."""
     for panel in panels:
@@ -453,6 +467,7 @@ def _add_annotations(data: dict) -> None:
 def main(argv: list[str] | None = None) -> int:
     dashboard_path = _resolve_dashboard_path(argv)
     data = _load_dashboard(dashboard_path)
+    original_text = dashboard_path.read_text(encoding="utf-8")
     panels = data.get("panels", [])
 
     # Add deploy/restart annotations.
@@ -515,6 +530,8 @@ def main(argv: list[str] | None = None) -> int:
         panel = _find_panel_by_title(panels, title)
         if panel is not None:
             _apply_state_timeline_defaults(panel, labels, description)
+            if title == "Worker Liveness":
+                _ensure_worker_liveness_panel(panel)
 
     # 4. Strip fallback queries from all panels.
     _strip_fallback_queries_from_all_panels(panels)
@@ -540,12 +557,12 @@ def main(argv: list[str] | None = None) -> int:
                 }
             )
 
-    # 8. Fix GitHub Workflow Runs panel.
+    # 6. Fix GitHub Workflow Runs panel.
     gh_runs = _find_panel_by_title(panels, "GitHub Workflow Runs")
     if gh_runs is not None:
         _convert_github_workflow_runs_to_rate(gh_runs)
 
-    # 8. Clarify stale-budget panel.
+    # 7. Clarify stale-budget panel.
     fresh_budget = _find_panel_by_title(panels, "Overlay Freshness Budget (%)")
     if fresh_budget is not None:
         fresh_budget["title"] = "Stale Budget Consumed (%)"
@@ -563,6 +580,10 @@ def main(argv: list[str] | None = None) -> int:
     panels.sort(key=lambda p: (p.get("gridPos", {}).get("y", 0), p.get("gridPos", {}).get("x", 0)))
 
     data["panels"] = panels
+    new_text = json.dumps(data, indent=2, ensure_ascii=False) + "\n"
+    if new_text == original_text:
+        print(f"No changes needed for {dashboard_path}")
+        return 0
     data["version"] = data.get("version", 0) + 1
     _save_dashboard(dashboard_path, data)
     print(f"Updated {dashboard_path} (version={data['version']})")
