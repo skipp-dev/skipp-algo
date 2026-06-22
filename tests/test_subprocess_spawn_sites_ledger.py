@@ -150,8 +150,9 @@ SUBPROCESS_RUN_LEDGER: set[tuple[str, int]] = {
     # branch-local realtime_signals layout.
     ("open_prep/realtime_signals.py", 190),
     # 2026-06-22: Grafana dashboard publish script keychain token lookup.
-    # Line shifted 135 -> 151 after v1/v2 routing support refactor.
-    ("scripts/publish_overlay_dashboard.py", 151),
+    # Line shifted 151 -> 173 after ADR-0025 App Platform (/apis
+    # dashboard.grafana.app/v1) migration added namespace/folder args above.
+    ("scripts/publish_overlay_dashboard.py", 173),
 }
 
 SUBPROCESS_POPEN_LEDGER: set[tuple[str, int]] = {
