@@ -86,6 +86,9 @@
 # timeout= and fixed https endpoint domains.
 "services/live_overlay_daemon/github_workflow_bridge.py" = [95]
 "services/live_overlay_daemon/uptimerobot_bridge.py" = [76]
+# 2026-06-22: v2 Grafana dashboard publisher uses urllib.request.urlopen
+# exactly once for POST /api/v1/dashboards with explicit timeout=60.
+"scripts/publish_overlay_dashboard.py" = [184]
 "terminal_finnhub.py" = [245]
 "terminal_tradingview_news.py" = [423]
 
@@ -323,6 +326,14 @@ count = 1
 
 [[subprocess_shell_injection_pin.sites]]
 file = "scripts/smc_zone_priority_calibration.py"
+attr = "run"
+count = 1
+
+# 2026-06-22: publish_overlay_dashboard reads Grafana token via the
+# macOS `security find-generic-password` CLI (token-list args,
+# capture_output, check=True, no shell=True).
+[[subprocess_shell_injection_pin.sites]]
+file = "scripts/publish_overlay_dashboard.py"
 attr = "run"
 count = 1
 
