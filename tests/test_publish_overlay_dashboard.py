@@ -5,7 +5,13 @@ from pathlib import Path
 
 import pytest
 
-from scripts.publish_overlay_dashboard import _get_token, _load_dashboard, _prepare_legacy_payload, _prepare_payload, main
+from scripts.publish_overlay_dashboard import (
+    _get_token,
+    _load_dashboard,
+    _prepare_legacy_payload,
+    _prepare_payload,
+    main,
+)
 
 
 def test_get_token_prefers_cli_token(monkeypatch: pytest.MonkeyPatch) -> None:
