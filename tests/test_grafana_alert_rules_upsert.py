@@ -133,7 +133,7 @@ class _FakeResp:
     def read(self) -> bytes:
         return self._body
 
-    def __enter__(self) -> "_FakeResp":
+    def __enter__(self) -> _FakeResp:
         return self
 
     def __exit__(self, *exc: object) -> None:
@@ -143,7 +143,7 @@ class _FakeResp:
 def test_resolve_folder_uid_matches_existing(monkeypatch: pytest.MonkeyPatch) -> None:
     import json
 
-    def fake_urlopen(req, timeout=0):  # noqa: ANN001
+    def fake_urlopen(req, timeout=0):
         assert req.get_method() == "GET"
         assert "/api/folders" in req.full_url
         return _FakeResp(json.dumps([{"title": "SMC Live Overlay", "uid": "abc"}]).encode())
@@ -157,7 +157,7 @@ def test_resolve_folder_uid_creates_when_missing(monkeypatch: pytest.MonkeyPatch
 
     calls: list[tuple[str, str]] = []
 
-    def fake_urlopen(req, timeout=0):  # noqa: ANN001
+    def fake_urlopen(req, timeout=0):
         calls.append((req.get_method(), req.full_url))
         if req.get_method() == "GET":
             return _FakeResp(json.dumps([]).encode())
@@ -174,7 +174,7 @@ def test_upsert_group_uses_rule_group_endpoint(monkeypatch: pytest.MonkeyPatch) 
 
     captured: dict[str, Any] = {}
 
-    def fake_urlopen(req, timeout=0):  # noqa: ANN001
+    def fake_urlopen(req, timeout=0):
         method = req.get_method()
         if method == "GET":
             return _FakeResp(json.dumps([{"title": "SMC Live Overlay", "uid": "fuid"}]).encode())
