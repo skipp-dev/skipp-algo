@@ -40,6 +40,11 @@ def _branch_state() -> tuple[str, str | None, int | None, int | None]:
         for raw in result.stdout.splitlines():
             if raw.startswith("# branch.head "):
                 branch = raw.removeprefix("# branch.head ").strip()
+                if branch.startswith("("):
+                    # porcelain markers like "(detached)", "(unknown)",
+                    # and "(initial)" should map to detached/unborn fallback
+                    # presentation instead of being treated as a branch name.
+                    branch = ""
             elif raw.startswith("# branch.upstream "):
                 upstream = raw.removeprefix("# branch.upstream ").strip() or None
             elif raw.startswith("# branch.ab "):
@@ -52,7 +57,7 @@ def _branch_state() -> tuple[str, str | None, int | None, int | None]:
                         ahead = None
                         behind = None
         return branch, upstream, ahead, behind
-    except (subprocess.CalledProcessError, OSError):
+    except (subprocess.CalledProcessError, subprocess.TimeoutExpired, OSError):
         return "", None, None, None
 
 

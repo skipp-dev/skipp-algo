@@ -39,7 +39,7 @@ This is intentionally **observation-first**:
 
 ### Implemented signal
 
-`script/check_branch_safety.py` now reads `git status --porcelain=2 --branch`
+`scripts/check_branch_safety.py` now reads `git status --porcelain=2 --branch`
 and reports branch lifecycle state against tracked upstream when available:
 
 - `AHEAD` (`ahead>0, behind=0`)
