@@ -137,25 +137,24 @@ def snapshot() -> dict[str, Any]:
         }
 
     ttl = config.uptimerobot_poll_ttl_secs()
-    now_mono = time.monotonic()
     with _cache_lock:
+        now_mono = time.monotonic()
         if _cached_snapshot is not None and (now_mono - _cached_at_monotonic) < ttl:
             return dict(_cached_snapshot)
 
-    try:
-        fresh = _fetch_snapshot(api_key)
-    except Exception as exc:  # pragma: no cover - exercised via tests using monkeypatch
-        fresh = {
-            "enabled": 1,
-            "ok": 0,
-            "fetched_at_unix": time.time(),
-            "counts": {"total": 0, "up": 0, "down": 0, "paused": 0, "unknown": 0},
-            "avg_response_time_ms": None,
-            "monitors": [],
-            "error": type(exc).__name__,
-        }
+        try:
+            fresh = _fetch_snapshot(api_key)
+        except Exception as exc:  # pragma: no cover - exercised via tests using monkeypatch
+            fresh = {
+                "enabled": 1,
+                "ok": 0,
+                "fetched_at_unix": time.time(),
+                "counts": {"total": 0, "up": 0, "down": 0, "paused": 0, "unknown": 0},
+                "avg_response_time_ms": None,
+                "monitors": [],
+                "error": type(exc).__name__,
+            }
 
-    with _cache_lock:
         _cached_snapshot = fresh
-        _cached_at_monotonic = now_mono
-    return dict(fresh)
+        _cached_at_monotonic = time.monotonic()
+        return dict(fresh)
