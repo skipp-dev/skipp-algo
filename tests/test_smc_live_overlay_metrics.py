@@ -27,7 +27,16 @@ def test_sanitize_name_collapses_runs_of_separators() -> None:
     assert metrics_mod._sanitize_name("A..B---C") == "a_b_c"
 
 
-def _patch_common(monkeypatch: pytest.MonkeyPatch, *, feed_ready: bool, market_open: bool, bar_count: int, overlay_symbols: int, overlay_age: float, workers: dict[str, bool] | None = None) -> None:
+def _patch_common(
+    monkeypatch: pytest.MonkeyPatch,
+    *,
+    feed_ready: bool,
+    market_open: bool,
+    bar_count: int,
+    overlay_symbols: int,
+    overlay_age: float,
+    workers: dict[str, bool] | None = None,
+) -> None:
     import services.live_overlay_daemon.cache as cache
     import services.live_overlay_daemon.config as config
     import services.live_overlay_daemon.feed as feed
@@ -105,6 +114,8 @@ def test_render_metrics_prometheus_format_and_trailing_newline(monkeypatch: pyte
     assert "# TYPE live_overlay_uptime_seconds gauge" in body
     assert "# TYPE live_overlay_max_stale_seconds gauge" in body
     assert "live_overlay_max_stale_seconds 300" in body
+    assert body.count("# TYPE live_overlay_max_stale_seconds gauge") == 1
+    assert body.count("live_overlay_max_stale_seconds 300") == 1
     assert "live_overlay_feed_ingest_queue_depth 0.0" in body
     assert "live_overlay_feed_ingest_queue_lag_ms_max 35.0" in body
     assert "live_overlay_provider_news_snapshot_loaded 1.0" in body

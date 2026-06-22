@@ -120,7 +120,14 @@ def _is_urlopen_call(node: ast.Call) -> bool:
     if isinstance(func, ast.Name) and func.id == "urlopen":
         return True
     # ``urllib.request.urlopen(...)``.
-    return bool(isinstance(func, ast.Attribute) and func.attr == "urlopen" and isinstance(func.value, ast.Attribute) and func.value.attr == "request" and isinstance(func.value.value, ast.Name) and func.value.value.id == "urllib")
+    return bool(
+        isinstance(func, ast.Attribute)
+        and func.attr == "urlopen"
+        and isinstance(func.value, ast.Attribute)
+        and func.value.attr == "request"
+        and isinstance(func.value.value, ast.Name)
+        and func.value.value.id == "urllib"
+    )
 
 
 def _has_timeout_kwarg(node: ast.Call) -> bool:
@@ -163,7 +170,7 @@ _FROZEN_URLOPEN_SITES: frozenset[tuple[str, int]] = frozenset(
         ("terminal_tradingview_news.py", 423),
         # 2026-06-21: live-overlay external bridge polling via urllib with
         # explicit timeout discipline.
-        ("services/live_overlay_daemon/github_workflow_bridge.py", 95),
+        ("services/live_overlay_daemon/github_workflow_bridge.py", 101),
         ("services/live_overlay_daemon/uptimerobot_bridge.py", 76),
     }
 )

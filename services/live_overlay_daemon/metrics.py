@@ -356,8 +356,6 @@ def render_metrics(startup_ts: float) -> str:
     # Market/session-aware daemon health state mirrors /health status logic.
     market_open = is_us_regular_session_open()
     max_stale = config.max_stale_secs()
-    lines.append("# TYPE live_overlay_max_stale_seconds gauge")
-    lines.append(f"live_overlay_max_stale_seconds {max_stale}")
     overlay_fresh = (
         overlay_symbols > 0
         and overlay_age != float("inf")
@@ -400,7 +398,11 @@ def render_metrics(startup_ts: float) -> str:
     enabled = int(uptime_snapshot.get("enabled", 0) or 0)
     ok = int(uptime_snapshot.get("ok", 0) or 0)
     fetched_at_unix = _prom_numeric_value(uptime_snapshot.get("fetched_at_unix", 0.0))
-    snapshot_age = max(0.0, time.time() - fetched_at_unix) if math.isfinite(fetched_at_unix) and fetched_at_unix > 0 else 0.0
+    snapshot_age = (
+        max(0.0, time.time() - fetched_at_unix)
+        if math.isfinite(fetched_at_unix) and fetched_at_unix > 0
+        else 0.0
+    )
 
     lines.append("# TYPE live_overlay_uptimerobot_bridge_enabled gauge")
     lines.append(f"live_overlay_uptimerobot_bridge_enabled {enabled}")
@@ -442,7 +444,11 @@ def render_metrics(startup_ts: float) -> str:
     wf_enabled = int(workflow_snapshot.get("enabled", 0) or 0)
     wf_ok = int(workflow_snapshot.get("ok", 0) or 0)
     wf_fetched_at_unix = _prom_numeric_value(workflow_snapshot.get("fetched_at_unix", 0.0))
-    wf_snapshot_age = max(0.0, time.time() - wf_fetched_at_unix) if math.isfinite(wf_fetched_at_unix) and wf_fetched_at_unix > 0 else 0.0
+    wf_snapshot_age = (
+        max(0.0, time.time() - wf_fetched_at_unix)
+        if math.isfinite(wf_fetched_at_unix) and wf_fetched_at_unix > 0
+        else 0.0
+    )
 
     lines.append("# TYPE live_overlay_github_workflow_bridge_enabled gauge")
     lines.append(f"live_overlay_github_workflow_bridge_enabled {wf_enabled}")
