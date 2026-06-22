@@ -102,15 +102,25 @@
                       "options": {
                         "0": {
                           "text": "STARTING",
-                          "color": "yellow"
-                        },
+                          "color": "dark-yellow"
+                        }
+                      }
+                    },
+                    {
+                      "type": "value",
+                      "options": {
                         "1": {
                           "text": "IDLE (MARKET CLOSED)",
-                          "color": "semi-dark-orange"
-                        },
+                          "color": "gray"
+                        }
+                      }
+                    },
+                    {
+                      "type": "value",
+                      "options": {
                         "2": {
                           "text": "OK",
-                          "color": "green"
+                          "color": "dark-green"
                         }
                       }
                     }
@@ -120,7 +130,7 @@
                     "steps": [
                       {
                         "value": null,
-                        "color": "green"
+                        "color": "dark-green"
                       }
                     ]
                   }
@@ -282,7 +292,7 @@
                       "options": {
                         "0": {
                           "text": "0",
-                          "color": "green"
+                          "color": "dark-green"
                         }
                       }
                     }
@@ -292,15 +302,15 @@
                     "steps": [
                       {
                         "value": null,
-                        "color": "green"
+                        "color": "dark-green"
                       },
                       {
                         "value": 1,
-                        "color": "yellow"
+                        "color": "dark-yellow"
                       },
                       {
                         "value": 3,
-                        "color": "red"
+                        "color": "dark-red"
                       }
                     ]
                   }
@@ -367,15 +377,15 @@
                     "steps": [
                       {
                         "value": null,
-                        "color": "green"
+                        "color": "dark-green"
                       },
                       {
                         "value": 1,
-                        "color": "yellow"
+                        "color": "dark-yellow"
                       },
                       {
                         "value": 3,
-                        "color": "red"
+                        "color": "dark-red"
                       }
                     ]
                   }
@@ -476,30 +486,21 @@
                       "type": "value",
                       "options": {
                         "0": {
-                          "text": "DEAD"
-                        },
+                          "text": "DEAD",
+                          "color": "dark-red"
+                        }
+                      }
+                    },
+                    {
+                      "type": "value",
+                      "options": {
                         "1": {
-                          "text": "ALIVE"
+                          "text": "ALIVE",
+                          "color": "dark-green"
                         }
                       }
                     }
-                  ],
-                  "thresholds": {
-                    "mode": "absolute",
-                    "steps": [
-                      {
-                        "value": null,
-                        "color": "red"
-                      },
-                      {
-                        "value": 1,
-                        "color": "green"
-                      }
-                    ]
-                  },
-                  "color": {
-                    "mode": "thresholds"
-                  }
+                  ]
                 },
                 "overrides": []
               }
@@ -566,15 +567,15 @@
                     "steps": [
                       {
                         "value": null,
-                        "color": "red"
+                        "color": "dark-red"
                       },
                       {
                         "value": 95,
-                        "color": "yellow"
+                        "color": "dark-yellow"
                       },
                       {
                         "value": 99,
-                        "color": "green"
+                        "color": "dark-green"
                       }
                     ]
                   },
@@ -643,14 +644,24 @@
                         "0": {
                           "text": "MARKET_CLOSED",
                           "color": "gray"
-                        },
+                        }
+                      }
+                    },
+                    {
+                      "type": "value",
+                      "options": {
                         "1": {
                           "text": "OPEN_NO_TRAFFIC",
-                          "color": "yellow"
-                        },
+                          "color": "dark-yellow"
+                        }
+                      }
+                    },
+                    {
+                      "type": "value",
+                      "options": {
                         "2": {
                           "text": "TRAFFIC_OK",
-                          "color": "green"
+                          "color": "dark-green"
                         }
                       }
                     }
@@ -664,11 +675,11 @@
                       },
                       {
                         "value": 1,
-                        "color": "yellow"
+                        "color": "dark-yellow"
                       },
                       {
                         "value": 2,
-                        "color": "green"
+                        "color": "dark-green"
                       }
                     ]
                   }
@@ -735,15 +746,15 @@
                     "steps": [
                       {
                         "value": null,
-                        "color": "green"
+                        "color": "dark-green"
                       },
                       {
                         "value": 1,
-                        "color": "yellow"
+                        "color": "dark-yellow"
                       },
                       {
                         "value": 3,
-                        "color": "red"
+                        "color": "dark-red"
                       }
                     ]
                   }
@@ -1060,30 +1071,21 @@
                       "type": "value",
                       "options": {
                         "0": {
-                          "text": "NO"
-                        },
+                          "text": "NO",
+                          "color": "dark-red"
+                        }
+                      }
+                    },
+                    {
+                      "type": "value",
+                      "options": {
                         "1": {
-                          "text": "YES"
+                          "text": "YES",
+                          "color": "dark-green"
                         }
                       }
                     }
-                  ],
-                  "thresholds": {
-                    "mode": "absolute",
-                    "steps": [
-                      {
-                        "value": null,
-                        "color": "red"
-                      },
-                      {
-                        "value": 1,
-                        "color": "green"
-                      }
-                    ]
-                  },
-                  "color": {
-                    "mode": "thresholds"
-                  }
+                  ]
                 },
                 "overrides": []
               }
@@ -1147,11 +1149,16 @@
                       "options": {
                         "0": {
                           "text": "DEGRADED",
-                          "color": "red"
-                        },
+                          "color": "dark-red"
+                        }
+                      }
+                    },
+                    {
+                      "type": "value",
+                      "options": {
                         "1": {
                           "text": "OK",
-                          "color": "green"
+                          "color": "dark-green"
                         }
                       }
                     }
@@ -1161,7 +1168,7 @@
                     "steps": [
                       {
                         "value": null,
-                        "color": "green"
+                        "color": "dark-green"
                       }
                     ]
                   }
@@ -1232,15 +1239,15 @@
                     "steps": [
                       {
                         "value": null,
-                        "color": "green"
+                        "color": "dark-green"
                       },
                       {
                         "value": 0.01,
-                        "color": "yellow"
+                        "color": "dark-yellow"
                       },
                       {
                         "value": 0.1,
-                        "color": "red"
+                        "color": "dark-red"
                       }
                     ]
                   },
@@ -1312,19 +1319,19 @@
                     "steps": [
                       {
                         "value": null,
-                        "color": "green"
+                        "color": "dark-green"
                       },
                       {
                         "value": 150,
-                        "color": "yellow"
+                        "color": "dark-yellow"
                       },
                       {
                         "value": 300,
-                        "color": "orange"
+                        "color": "dark-orange"
                       },
                       {
                         "value": 500,
-                        "color": "red"
+                        "color": "dark-red"
                       }
                     ]
                   },
@@ -1542,14 +1549,24 @@
                         "0": {
                           "text": "DISABLED",
                           "color": "gray"
-                        },
+                        }
+                      }
+                    },
+                    {
+                      "type": "value",
+                      "options": {
                         "1": {
                           "text": "SCRAPE ERROR",
-                          "color": "red"
-                        },
+                          "color": "dark-red"
+                        }
+                      }
+                    },
+                    {
+                      "type": "value",
+                      "options": {
                         "2": {
                           "text": "OK",
-                          "color": "green"
+                          "color": "dark-green"
                         }
                       }
                     }
@@ -1626,15 +1643,15 @@
                     "steps": [
                       {
                         "value": null,
-                        "color": "green"
+                        "color": "dark-green"
                       },
                       {
                         "value": 60,
-                        "color": "yellow"
+                        "color": "dark-yellow"
                       },
                       {
                         "value": 180,
-                        "color": "red"
+                        "color": "dark-red"
                       }
                     ]
                   }
@@ -1840,14 +1857,24 @@
                         "0": {
                           "text": "DISABLED",
                           "color": "gray"
-                        },
+                        }
+                      }
+                    },
+                    {
+                      "type": "value",
+                      "options": {
                         "1": {
                           "text": "SCRAPE ERROR",
-                          "color": "red"
-                        },
+                          "color": "dark-red"
+                        }
+                      }
+                    },
+                    {
+                      "type": "value",
+                      "options": {
                         "2": {
                           "text": "OK",
-                          "color": "green"
+                          "color": "dark-green"
                         }
                       }
                     }
@@ -1924,15 +1951,15 @@
                     "steps": [
                       {
                         "value": null,
-                        "color": "green"
+                        "color": "dark-green"
                       },
                       {
                         "value": 60,
-                        "color": "yellow"
+                        "color": "dark-yellow"
                       },
                       {
                         "value": 180,
-                        "color": "red"
+                        "color": "dark-red"
                       }
                     ]
                   }
@@ -2326,30 +2353,21 @@
                       "type": "value",
                       "options": {
                         "0": {
-                          "text": "CLOSED"
-                        },
+                          "text": "CLOSED",
+                          "color": "gray"
+                        }
+                      }
+                    },
+                    {
+                      "type": "value",
+                      "options": {
                         "1": {
-                          "text": "OPEN"
+                          "text": "OPEN",
+                          "color": "dark-green"
                         }
                       }
                     }
-                  ],
-                  "thresholds": {
-                    "mode": "absolute",
-                    "steps": [
-                      {
-                        "value": null,
-                        "color": "gray"
-                      },
-                      {
-                        "value": 1,
-                        "color": "green"
-                      }
-                    ]
-                  },
-                  "color": {
-                    "mode": "thresholds"
-                  }
+                  ]
                 },
                 "overrides": []
               }
@@ -2432,19 +2450,19 @@
                     "steps": [
                       {
                         "value": null,
-                        "color": "green"
+                        "color": "dark-green"
                       },
                       {
                         "value": 200,
-                        "color": "yellow"
+                        "color": "dark-yellow"
                       },
                       {
                         "value": 350,
-                        "color": "orange"
+                        "color": "dark-orange"
                       },
                       {
                         "value": 500,
-                        "color": "red"
+                        "color": "dark-red"
                       }
                     ]
                   },
@@ -2514,15 +2532,15 @@
                     "steps": [
                       {
                         "value": null,
-                        "color": "red"
+                        "color": "dark-red"
                       },
                       {
                         "value": 95,
-                        "color": "yellow"
+                        "color": "dark-yellow"
                       },
                       {
                         "value": 99,
-                        "color": "green"
+                        "color": "dark-green"
                       }
                     ]
                   },
@@ -2590,19 +2608,34 @@
                       "options": {
                         "0": {
                           "text": "SERVICE DOWN",
-                          "color": "red"
-                        },
+                          "color": "dark-red"
+                        }
+                      }
+                    },
+                    {
+                      "type": "value",
+                      "options": {
                         "1": {
                           "text": "MARKET CLOSED",
                           "color": "gray"
-                        },
+                        }
+                      }
+                    },
+                    {
+                      "type": "value",
+                      "options": {
                         "2": {
                           "text": "OPEN / TELEMETRY MISSING",
-                          "color": "red"
-                        },
+                          "color": "dark-orange"
+                        }
+                      }
+                    },
+                    {
+                      "type": "value",
+                      "options": {
                         "3": {
                           "text": "MARKET OPEN",
-                          "color": "green"
+                          "color": "dark-green"
                         }
                       }
                     }
@@ -2612,7 +2645,7 @@
                     "steps": [
                       {
                         "value": null,
-                        "color": "red"
+                        "color": "dark-red"
                       },
                       {
                         "value": 1,
@@ -2620,11 +2653,11 @@
                       },
                       {
                         "value": 2,
-                        "color": "red"
+                        "color": "dark-red"
                       },
                       {
                         "value": 3,
-                        "color": "green"
+                        "color": "dark-green"
                       }
                     ]
                   }
@@ -2710,19 +2743,19 @@
                     "steps": [
                       {
                         "value": null,
-                        "color": "green"
+                        "color": "dark-green"
                       },
                       {
                         "value": 2,
-                        "color": "yellow"
+                        "color": "dark-yellow"
                       },
                       {
                         "value": 6,
-                        "color": "orange"
+                        "color": "dark-orange"
                       },
                       {
                         "value": 14,
-                        "color": "red"
+                        "color": "dark-red"
                       }
                     ]
                   },
@@ -2808,30 +2841,21 @@
                       "type": "value",
                       "options": {
                         "0": {
-                          "text": "ERROR"
-                        },
+                          "text": "ERROR",
+                          "color": "dark-red"
+                        }
+                      }
+                    },
+                    {
+                      "type": "value",
+                      "options": {
                         "1": {
-                          "text": "OK"
+                          "text": "OK",
+                          "color": "dark-green"
                         }
                       }
                     }
-                  ],
-                  "thresholds": {
-                    "mode": "absolute",
-                    "steps": [
-                      {
-                        "value": null,
-                        "color": "red"
-                      },
-                      {
-                        "value": 1,
-                        "color": "green"
-                      }
-                    ]
-                  },
-                  "color": {
-                    "mode": "thresholds"
-                  }
+                  ]
                 },
                 "overrides": []
               }
@@ -3017,7 +3041,7 @@
                       "options": {
                         "0": {
                           "text": "EMPTY",
-                          "color": "red"
+                          "color": "dark-red"
                         }
                       }
                     }
@@ -3027,7 +3051,7 @@
                     "steps": [
                       {
                         "value": null,
-                        "color": "green"
+                        "color": "dark-green"
                       }
                     ]
                   }
@@ -3267,15 +3291,15 @@
                     "steps": [
                       {
                         "value": null,
-                        "color": "green"
+                        "color": "dark-green"
                       },
                       {
                         "value": 1000,
-                        "color": "yellow"
+                        "color": "dark-yellow"
                       },
                       {
                         "value": 5000,
-                        "color": "red"
+                        "color": "dark-red"
                       }
                     ]
                   }
@@ -3376,30 +3400,21 @@
                       "type": "value",
                       "options": {
                         "0": {
-                          "text": "OFF"
-                        },
+                          "text": "OFF",
+                          "color": "gray"
+                        }
+                      }
+                    },
+                    {
+                      "type": "value",
+                      "options": {
                         "1": {
-                          "text": "ON"
+                          "text": "ON",
+                          "color": "dark-green"
                         }
                       }
                     }
-                  ],
-                  "thresholds": {
-                    "mode": "absolute",
-                    "steps": [
-                      {
-                        "value": null,
-                        "color": "gray"
-                      },
-                      {
-                        "value": 1,
-                        "color": "green"
-                      }
-                    ]
-                  },
-                  "color": {
-                    "mode": "thresholds"
-                  }
+                  ]
                 },
                 "overrides": []
               }
@@ -3644,14 +3659,43 @@
                       },
                       {
                         "value": 1,
-                        "color": "orange"
+                        "color": "dark-orange"
                       },
                       {
                         "value": 2,
-                        "color": "green"
+                        "color": "dark-green"
                       }
                     ]
-                  }
+                  },
+                  "mappings": [
+                    {
+                      "type": "value",
+                      "options": {
+                        "0": {
+                          "text": "UNKNOWN",
+                          "color": "gray"
+                        }
+                      }
+                    },
+                    {
+                      "type": "value",
+                      "options": {
+                        "1": {
+                          "text": "DEGRADED",
+                          "color": "dark-orange"
+                        }
+                      }
+                    },
+                    {
+                      "type": "value",
+                      "options": {
+                        "2": {
+                          "text": "OK",
+                          "color": "dark-green"
+                        }
+                      }
+                    }
+                  ]
                 },
                 "overrides": []
               }
@@ -3760,7 +3804,7 @@
                       "options": {
                         "0": {
                           "text": "EMPTY",
-                          "color": "red"
+                          "color": "dark-red"
                         }
                       }
                     }
@@ -4046,15 +4090,15 @@
                     "steps": [
                       {
                         "value": 0,
-                        "color": "green"
+                        "color": "dark-green"
                       },
                       {
                         "value": 1800,
-                        "color": "yellow"
+                        "color": "dark-yellow"
                       },
                       {
                         "value": 3600,
-                        "color": "red"
+                        "color": "dark-red"
                       }
                     ]
                   },
@@ -4146,11 +4190,11 @@
                     "steps": [
                       {
                         "value": null,
-                        "color": "green"
+                        "color": "dark-green"
                       },
                       {
                         "value": 1e-09,
-                        "color": "red"
+                        "color": "dark-red"
                       }
                     ]
                   },
@@ -4903,6 +4947,7 @@
       "fiscalYearStartMonth": 0
     },
     "title": "SMC Live Overlay Daemon",
-    "variables": []
+    "variables": [],
+    "version": 1
   }
 }
