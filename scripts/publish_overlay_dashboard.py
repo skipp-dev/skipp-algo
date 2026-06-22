@@ -221,8 +221,9 @@ def _prepare_payload(data: dict[str, Any], message: str, folder_uid: str | None)
     """
     spec, uid = _extract_spec_and_uid(data)
     annotations: dict[str, str] = {"grafana.app/message": message}
-    if folder_uid:
-        annotations["grafana.app/folder"] = folder_uid
+    folder = folder_uid.strip() if folder_uid else ""
+    if folder:
+        annotations["grafana.app/folder"] = folder
     return {
         "apiVersion": "dashboard.grafana.app/v1",
         "kind": "Dashboard",
@@ -330,7 +331,7 @@ def _post(
         )
     if status >= 400:
         raise SystemExit(f"Grafana API error {status} on {method}: {body.get('message', body)}")
-    return body, f"{method} /apis/dashboard.grafana.app/v1/.../dashboards/{uid}"
+    return body, f"{method} {url}"
 
 
 def main(argv: list[str] | None = None) -> int:
