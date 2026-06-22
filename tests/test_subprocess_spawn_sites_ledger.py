@@ -16,7 +16,7 @@ Why pin sites (in addition to the existing kwarg-shape invariants):
   "is this new shell-out actually necessary?".
 
 Today the entire production tree spawns external commands from
-exactly three locations:
+exactly four locations:
 
 * ``smc_integration/release_policy.py:1121`` — read git HEAD SHA
   (``git rev-parse HEAD``) for release manifest provenance.
@@ -25,6 +25,8 @@ exactly three locations:
 * ``open_prep/realtime_signals.py:336`` — re-launch the realtime
   signals daemon as a detached child (``Popen`` of
   ``python -m open_prep.realtime_signals``).
+* ``scripts/publish_overlay_dashboard.py:127`` — query OS keychain
+    for the Grafana API token (``security find-generic-password ...``).
 
 Defense-only — no production changes.
 """

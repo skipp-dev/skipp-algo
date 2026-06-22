@@ -12,10 +12,10 @@ Two sibling pins enforced over the same first-party AST walk:
 
 2. **``urlopen()`` must pass ``timeout=``** in production.
 
-   ``urllib.request.urlopen`` defaults to a *blocking* socket with no
-   timeout, which can wedge a worker thread indefinitely.  All eight
-   current production sites already pass ``timeout=``; this pin freezes
-   that invariant.  Detection covers both bound forms:
+    ``urllib.request.urlopen`` defaults to a *blocking* socket with no
+    timeout, which can wedge a worker thread indefinitely.  All current
+    production sites already pass ``timeout=``; this pin freezes that
+    invariant.  Detection covers both bound forms:
 
    * ``urlopen(req, timeout=...)``  (after ``from urllib.request import urlopen``)
    * ``urllib.request.urlopen(req, timeout=...)``
