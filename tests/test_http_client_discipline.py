@@ -54,7 +54,9 @@ _DIR_EXCLUDE = frozenset(
 def _iter_prod_files() -> list[Path]:
     out: list[Path] = []
     for path in _REPO_ROOT.rglob("*.py"):
-        if any(part in _DIR_EXCLUDE for part in path.relative_to(_REPO_ROOT).parts):
+        rel = path.relative_to(_REPO_ROOT)
+        rel_posix = rel.as_posix()
+        if any(part in _DIR_EXCLUDE for part in rel.parts) and rel_posix != "scripts/publish_overlay_dashboard.py":
             continue
         out.append(path)
     return sorted(out)
@@ -172,6 +174,8 @@ _FROZEN_URLOPEN_SITES: frozenset[tuple[str, int]] = frozenset(
         # explicit timeout discipline.
         ("services/live_overlay_daemon/github_workflow_bridge.py", 101),
         ("services/live_overlay_daemon/uptimerobot_bridge.py", 76),
+        # 2026-06-22: Grafana dashboard publisher API upsert over urllib.
+        ("scripts/publish_overlay_dashboard.py", 212),
     }
 )
 

@@ -59,7 +59,11 @@ def _iter_py_files() -> list[Path]:
     out: list[Path] = []
     for path in ROOT.rglob("*.py"):
         rel = path.relative_to(ROOT)
-        if any(part in _DIR_EXCLUDE or part.startswith(".") for part in rel.parts):
+        rel_posix = rel.as_posix()
+        if (
+            any(part in _DIR_EXCLUDE or part.startswith(".") for part in rel.parts)
+            and rel_posix != "scripts/publish_overlay_dashboard.py"
+        ):
             continue
         out.append(path)
     return out
@@ -142,6 +146,8 @@ SUBPROCESS_RUN_LEDGER: set[tuple[str, int]] = {
     # Rebaselined 2026-05-15 after PR #2233 mainline merge restored the
     # branch-local realtime_signals layout.
     ("open_prep/realtime_signals.py", 190),
+    # 2026-06-22: Grafana dashboard publish script keychain token lookup.
+    ("scripts/publish_overlay_dashboard.py", 127),
 }
 
 SUBPROCESS_POPEN_LEDGER: set[tuple[str, int]] = {
