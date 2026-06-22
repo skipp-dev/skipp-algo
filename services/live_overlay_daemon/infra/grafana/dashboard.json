@@ -2198,19 +2198,19 @@
       },
       "targets": [
         {
-          "expr": "max_over_time(live_overlay_market_us_open{job=\"$job\"}[5m]) or max_over_time(live_overlay_market_us_open[5m]) or vector(0)",
+          "expr": "max(max_over_time(live_overlay_market_us_open{job=\"$job\"}[5m])) or vector(0)",
           "legendFormat": "US",
           "instant": false,
           "range": true
         },
         {
-          "expr": "max_over_time(live_overlay_market_europe_open{job=\"$job\"}[5m]) or max_over_time(live_overlay_market_europe_open[5m]) or vector(0)",
+          "expr": "max(max_over_time(live_overlay_market_europe_open{job=\"$job\"}[5m])) or vector(0)",
           "legendFormat": "Europe",
           "instant": false,
           "range": true
         },
         {
-          "expr": "max_over_time(live_overlay_market_asia_open{job=\"$job\"}[5m]) or max_over_time(live_overlay_market_asia_open[5m]) or vector(0)",
+          "expr": "max(max_over_time(live_overlay_market_asia_open{job=\"$job\"}[5m])) or vector(0)",
           "legendFormat": "Asia",
           "instant": false,
           "range": true
@@ -2524,13 +2524,13 @@
       },
       "targets": [
         {
-          "expr": "max_over_time(live_overlay_uptimerobot_scrape_success{job=\"$job\"}[5m]) or max_over_time(live_overlay_uptimerobot_scrape_success[5m]) or vector(0)",
+          "expr": "max(max_over_time(live_overlay_uptimerobot_scrape_success{job=\"$job\"}[5m])) or vector(0)",
           "legendFormat": "UptimeRobot",
           "instant": false,
           "range": true
         },
         {
-          "expr": "max_over_time(live_overlay_github_workflow_scrape_success{job=\"$job\"}[5m]) or max_over_time(live_overlay_github_workflow_scrape_success[5m]) or vector(0)",
+          "expr": "max(max_over_time(live_overlay_github_workflow_scrape_success{job=\"$job\"}[5m])) or vector(0)",
           "legendFormat": "GitHub Workflows",
           "instant": false,
           "range": true
@@ -2827,19 +2827,19 @@
       },
       "targets": [
         {
-          "expr": "max_over_time(live_overlay_provider_news_health_ok{job=\"$job\"}[5m]) or max_over_time(live_overlay_provider_news_health_ok[5m]) or vector(0)",
+          "expr": "max(max_over_time(live_overlay_provider_news_health_ok{job=\"$job\"}[5m])) or vector(0)",
           "legendFormat": "health_ok",
           "instant": false,
           "range": true
         },
         {
-          "expr": "max_over_time(live_overlay_provider_news_health_degraded{job=\"$job\"}[5m]) or max_over_time(live_overlay_provider_news_health_degraded[5m]) or vector(0)",
+          "expr": "max(max_over_time(live_overlay_provider_news_health_degraded{job=\"$job\"}[5m])) or vector(0)",
           "legendFormat": "health_degraded",
           "instant": false,
           "range": true
         },
         {
-          "expr": "max_over_time(live_overlay_provider_news_health_unknown{job=\"$job\"}[5m]) or max_over_time(live_overlay_provider_news_health_unknown[5m]) or vector(0)",
+          "expr": "max(max_over_time(live_overlay_provider_news_health_unknown{job=\"$job\"}[5m])) or vector(0)",
           "legendFormat": "health_unknown",
           "instant": false,
           "range": true
