@@ -942,19 +942,19 @@
                     "steps": [
                       {
                         "value": null,
-                        "color": "green"
+                        "color": "dark-green"
                       },
                       {
                         "value": 50,
-                        "color": "yellow"
+                        "color": "dark-yellow"
                       },
                       {
                         "value": 80,
-                        "color": "orange"
+                        "color": "dark-orange"
                       },
                       {
                         "value": 100,
-                        "color": "red"
+                        "color": "dark-red"
                       }
                     ]
                   }
@@ -2142,15 +2142,15 @@
                     "steps": [
                       {
                         "value": null,
-                        "color": "red"
+                        "color": "dark-red"
                       },
                       {
                         "value": 360,
-                        "color": "yellow"
+                        "color": "dark-yellow"
                       },
                       {
                         "value": 3600,
-                        "color": "green"
+                        "color": "dark-green"
                       }
                     ]
                   }
@@ -3808,7 +3808,16 @@
                         }
                       }
                     }
-                  ]
+                  ],
+                  "thresholds": {
+                    "mode": "absolute",
+                    "steps": [
+                      {
+                        "value": null,
+                        "color": "dark-green"
+                      }
+                    ]
+                  }
                 },
                 "overrides": []
               }
@@ -3865,7 +3874,27 @@
               },
               "fieldConfig": {
                 "defaults": {
-                  "unit": "short"
+                  "unit": "short",
+                  "mappings": [
+                    {
+                      "type": "value",
+                      "options": {
+                        "0": {
+                          "text": "EMPTY",
+                          "color": "dark-red"
+                        }
+                      }
+                    }
+                  ],
+                  "thresholds": {
+                    "mode": "absolute",
+                    "steps": [
+                      {
+                        "value": null,
+                        "color": "dark-green"
+                      }
+                    ]
+                  }
                 },
                 "overrides": []
               }
@@ -3988,7 +4017,7 @@
                       {
                         "id": "color",
                         "value": {
-                          "fixedColor": "red",
+                          "fixedColor": "dark-red",
                           "mode": "fixed"
                         }
                       }
@@ -4003,7 +4032,7 @@
                       {
                         "id": "color",
                         "value": {
-                          "fixedColor": "yellow",
+                          "fixedColor": "dark-yellow",
                           "mode": "fixed"
                         }
                       }
@@ -4217,7 +4246,7 @@
                       {
                         "id": "color",
                         "value": {
-                          "fixedColor": "red",
+                          "fixedColor": "dark-red",
                           "mode": "fixed"
                         }
                       }
@@ -4232,7 +4261,7 @@
                       {
                         "id": "color",
                         "value": {
-                          "fixedColor": "orange",
+                          "fixedColor": "dark-orange",
                           "mode": "fixed"
                         }
                       }
