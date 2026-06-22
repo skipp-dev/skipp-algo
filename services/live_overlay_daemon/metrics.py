@@ -142,8 +142,12 @@ def _provider_health_snapshot() -> dict[str, object]:
                 # Prefer fetched_at_unix embedded in snapshot (written by live producer).
                 # Falls back to 0.0 for static seed files (avoids false-positive stale alerts).
                 fetched_at = raw.get("fetched_at_unix")
-                if fetched_at and math.isfinite(float(fetched_at)) and float(fetched_at) > 0:
-                    snapshot_age_seconds = max(0.0, time.time() - float(fetched_at))
+                try:
+                    fetched_at_float = float(fetched_at)
+                except (TypeError, ValueError):
+                    fetched_at_float = 0.0
+                if math.isfinite(fetched_at_float) and fetched_at_float > 0:
+                    snapshot_age_seconds = max(0.0, time.time() - fetched_at_float)
                 # else: keep 0.0 — no live producer has written a timestamp yet
         except Exception:
             providers_obj = {}
@@ -229,14 +233,14 @@ def render_metrics(startup_ts: float) -> str:
 
     for symbol, count in hotspot.get("top_symbols") or []:
         sym = _sanitize_name(str(symbol).lower())
-        lines.append(f"# TYPE live_overlay_hotspot_symbol_{sym}_requests_total gauge")
+        lines.append(f"# TYPE live_overlay_hotspot_symbol_{sym}_requests_total counter")
         lines.append(
             f"live_overlay_hotspot_symbol_{sym}_requests_total {_prom_numeric_value(count)}"
         )
 
     for tf, count in hotspot.get("top_tfs") or []:
         tf_name = _sanitize_name(str(tf).lower())
-        lines.append(f"# TYPE live_overlay_hotspot_tf_{tf_name}_requests_total gauge")
+        lines.append(f"# TYPE live_overlay_hotspot_tf_{tf_name}_requests_total counter")
         lines.append(
             f"live_overlay_hotspot_tf_{tf_name}_requests_total {_prom_numeric_value(count)}"
         )

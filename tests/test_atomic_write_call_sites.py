@@ -103,6 +103,8 @@ _ALLOWED_RAW_WRITE_FILES: dict[str, str] = {
     "scripts/build_backtest_reference.py": "fdopen + os.replace atomic pattern (drift reference + drift-input JSON)",
     "scripts/build_track_record_gate.py": "fdopen + os.replace atomic pattern (track_record_gate cache JSON)",
     "scripts/compute_live_drift.py": "fdopen + os.replace atomic pattern (drift verdict JSON)",
+    "scripts/reformat_overlay_dashboard.py": "fdopen + os.replace atomic pattern (Grafana dashboard reformat)",
+    "scripts/update_overlay_dashboard.py": "fdopen + os.replace atomic pattern (Grafana dashboard update)",
     "scripts/run_drift_watchdog.py": "fdopen + os.replace atomic pattern (drift_report JSON)",
     "scripts/run_smc_live_incubation.py": "audit JSONL append (mode='a', append-only ledger)",
     "scripts/build_backtest_slippage_samples.py": "mkstemp + fdopen + os.replace atomic pattern (slippage samples JSON)",

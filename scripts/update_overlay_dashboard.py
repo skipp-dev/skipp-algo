@@ -8,6 +8,8 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
+import tempfile
 from pathlib import Path
 from typing import Any
 
@@ -42,10 +44,21 @@ def _load_dashboard(dashboard_path: Path) -> dict[str, Any]:
 
 
 def _save_dashboard(dashboard_path: Path, data: dict[str, Any]) -> None:
-    dashboard_path.write_text(
-        json.dumps(data, indent=2, ensure_ascii=False) + "\n",
-        encoding="utf-8",
+    payload = json.dumps(data, indent=2, ensure_ascii=False) + "\n"
+    dashboard_path.parent.mkdir(parents=True, exist_ok=True)
+    fd, tmp_path = tempfile.mkstemp(
+        prefix=f"{dashboard_path.name}.",
+        suffix=".tmp",
+        dir=str(dashboard_path.parent),
+        text=True,
     )
+    try:
+        with os.fdopen(fd, "w", encoding="utf-8", newline="") as handle:
+            handle.write(payload)
+        os.replace(tmp_path, dashboard_path)
+    finally:
+        if os.path.exists(tmp_path):
+            os.unlink(tmp_path)
 
 
 def _elements(data: dict[str, Any]) -> dict[str, Any]:
