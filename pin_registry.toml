@@ -284,6 +284,13 @@ file = "scripts/grafana_dashboard_upsert.py"
 attr = "run"
 count = 1
 
+# scripts/publish_overlay_dashboard.py: local macOS Keychain read for Grafana
+# API key before authenticated dashboard publish; token-list args, no shell=True.
+[[subprocess_shell_injection_pin.sites]]
+file = "scripts/publish_overlay_dashboard.py"
+attr = "run"
+count = 1
+
 # scripts/phase5_perf_trend.py wraps `gh run list` once per workflow
 # (review-v3 phase 5). Token-list args, dev-only.
 [[subprocess_shell_injection_pin.sites]]
