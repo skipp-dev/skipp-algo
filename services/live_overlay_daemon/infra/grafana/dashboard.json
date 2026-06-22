@@ -1765,7 +1765,7 @@
       },
       "targets": [
         {
-          "expr": "(live_overlay_uptimerobot_bridge_enabled{job=\"$job\"} or vector(0)) + (live_overlay_uptimerobot_scrape_success{job=\"$job\"} or vector(0))",
+          "expr": "(max(live_overlay_uptimerobot_bridge_enabled{job=\"$job\"}) or vector(0)) + (max(live_overlay_uptimerobot_scrape_success{job=\"$job\"}) or vector(0))",
           "legendFormat": "bridge_state"
         }
       ],
@@ -1954,7 +1954,7 @@
       },
       "targets": [
         {
-          "expr": "(live_overlay_github_workflow_bridge_enabled{job=\"$job\"} or vector(0)) + (live_overlay_github_workflow_scrape_success{job=\"$job\"} or vector(0))",
+          "expr": "(max(live_overlay_github_workflow_bridge_enabled{job=\"$job\"}) or vector(0)) + (max(live_overlay_github_workflow_scrape_success{job=\"$job\"}) or vector(0))",
           "legendFormat": "bridge_state"
         }
       ],
