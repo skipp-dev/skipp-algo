@@ -62,7 +62,7 @@ def _resolve_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser.add_argument(
         "--no-keychain",
         action="store_true",
-        help="Disable keychain lookup (useful in CI/agent sandboxes)",
+        help="Disable keychain lookup (recommended in CI/non-macOS runners; provide token via --token or env vars)",
     )
     parser.add_argument(
         "--dry-run",
@@ -140,7 +140,7 @@ def _get_token(
     except (subprocess.CalledProcessError, FileNotFoundError) as exc:
         raise SystemExit(
             "Could not obtain Grafana API token. "
-            f"Set ${token_env}, ${DEFAULT_TOKEN_ENV}, or $GRAFANA_TOKEN, use --token, "
+            f"Set ${token_env}, ${DEFAULT_TOKEN_ENV}, or $GRAFANA_TOKEN, use --token, or run with --no-keychain in CI/non-macOS environments, "
             "or add a keychain entry for "
             f"service '{keychain_service}'. ({exc})"
         ) from exc
