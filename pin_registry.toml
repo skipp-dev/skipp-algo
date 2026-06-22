@@ -86,10 +86,11 @@
 # timeout= and fixed https endpoint domains.
 "services/live_overlay_daemon/github_workflow_bridge.py" = [96]
 "services/live_overlay_daemon/uptimerobot_bridge.py" = [76]
-# 2026-06-22: v2 Grafana dashboard publisher uses urllib.request.urlopen
-# exactly once with explicit timeout=60; same call path serves primary
-# /api/v1/dashboards and legacy /api/dashboards/db fallback attempts.
-"scripts/publish_overlay_dashboard.py" = [221]
+# 2026-06-22: Grafana dashboard publisher uses urllib.request.urlopen
+# exactly once with explicit timeout=60. The single callsite is reused
+# for both endpoint attempts: primary /api/v1/dashboards and fallback
+# /api/dashboards/db.
+"scripts/publish_overlay_dashboard.py" = [242]
 "terminal_finnhub.py" = [245]
 "terminal_tradingview_news.py" = [423]
 # 2026-06-22: Grafana dashboard upsert helper; fixed HTTPS URL, explicit timeout= via Request socket.

@@ -832,7 +832,14 @@ class TestFeedReadyClearedOnStop:
         monkeypatch.setattr(feed_mod, "_refresh_thread", None)
         monkeypatch.setattr(feed_mod, "_flow_refresh_thread", None)
 
-        ingest_q: queue.Queue[object] = queue.Queue(maxsize=4)
+        ingest_waiting = threading.Event()
+
+        class _SignalingQueue(queue.Queue[object]):
+            def get(self, *args, **kwargs):
+                ingest_waiting.set()
+                return super().get(*args, **kwargs)
+
+        ingest_q: queue.Queue[object] = _SignalingQueue(maxsize=4)
         feed_mod._runtime["ingest_queue"] = ingest_q
         ingest_thread = threading.Thread(
             target=feed_mod._run_ingest_loop,
@@ -842,9 +849,7 @@ class TestFeedReadyClearedOnStop:
         )
         feed_mod._runtime["ingest_thread"] = ingest_thread
         ingest_thread.start()
-
-        # Give the ingest worker a moment to block on queue.get(timeout=0.5).
-        time.sleep(0.05)
+        assert ingest_waiting.wait(timeout=1.0), "ingest worker did not reach queue.get() in time"
 
         with caplog.at_level(logging.WARNING):
             feed_mod.stop()

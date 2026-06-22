@@ -1,8 +1,9 @@
 #!/usr/bin/env python3
 """Publish the live-overlay Grafana dashboard from repo to Grafana Cloud.
 
-The dashboard is stored in Grafana API v2 format (apiVersion: dashboard.grafana.app/v2)
-and is pushed via the Kubernetes-style dashboards API:
+The default repo dashboard asset is maintained as legacy Grafana dashboard JSON.
+This script accepts both legacy JSON and Grafana API v2 Dashboard objects,
+normalizes to the v2 shape, and pushes via the Kubernetes-style dashboards API:
 
     POST /api/v1/dashboards
 
@@ -32,6 +33,10 @@ DEFAULT_DASHBOARD_PATH = Path("services/live_overlay_daemon/infra/grafana/dashbo
 DEFAULT_HOST = "bronzeporridge977.grafana.net"
 DEFAULT_KEYCHAIN_SERVICE = "skipp.grafana.api"
 DEFAULT_TOKEN_ENV = "GRAFANA_API_TOKEN"
+
+
+def _is_v2_dashboard(data: dict[str, Any]) -> bool:
+    return data.get("kind") == "Dashboard" and isinstance(data.get("spec"), dict)
 
 
 def _resolve_args(argv: list[str] | None = None) -> argparse.Namespace:
@@ -73,7 +78,7 @@ def _resolve_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser.add_argument(
         "--dry-run-full",
         action="store_true",
-        help="With --dry-run, also print the full JSON payload",
+        help="Implies --dry-run and also prints the full JSON payload",
     )
     parser.add_argument(
         "--message",
@@ -87,11 +92,27 @@ def _load_dashboard(dashboard_path: Path) -> dict[str, Any]:
     if not dashboard_path.exists():
         raise SystemExit(f"Dashboard not found: {dashboard_path}")
     data = json.loads(dashboard_path.read_text(encoding="utf-8"))
-    if data.get("kind") != "Dashboard":
-        raise SystemExit("Dashboard JSON is not in Kubernetes-style Dashboard format")
-    if "spec" not in data:
-        raise SystemExit("Dashboard JSON missing 'spec' field")
-    return data
+    if not isinstance(data, dict):
+        raise SystemExit("Dashboard JSON must be a JSON object")
+
+    # Native Grafana API v2 Dashboard object.
+    if data.get("kind") == "Dashboard" and "spec" in data:
+        return data
+
+    # Legacy Grafana dashboard JSON (title/panels/schemaVersion at top-level).
+    if "panels" in data or "schemaVersion" in data:
+        dashboard_name = str(data.get("uid") or data.get("title") or dashboard_path.stem)
+        return {
+            "apiVersion": "dashboard.grafana.app/v2",
+            "kind": "Dashboard",
+            "metadata": {"name": dashboard_name},
+            "spec": data,
+        }
+
+    raise SystemExit(
+        "Dashboard JSON must be either a Grafana API v2 Dashboard object "
+        "(kind/spec) or legacy Grafana dashboard JSON (panels/schemaVersion)."
+    )
 
 
 def _get_token(
@@ -133,7 +154,7 @@ def _get_token(
 
     try:
         result = subprocess.run(  # noqa: S603
-            [security_bin, "find-generic-password", "-s", keychain_service, "-a", os.environ.get("USER", ""), "-w"],
+            [security_bin, "find-generic-password", "-s", keychain_service, "-w"],
             capture_output=True,
             text=True,
             check=True,

@@ -5,7 +5,7 @@ from pathlib import Path
 
 import pytest
 
-from scripts.publish_overlay_dashboard import _get_token, _prepare_legacy_payload, _prepare_payload, main
+from scripts.publish_overlay_dashboard import _get_token, _load_dashboard, _prepare_legacy_payload, _prepare_payload, main
 
 
 def test_get_token_prefers_cli_token(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -38,6 +38,7 @@ def test_get_token_keychain_success(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.delenv("CUSTOM_GRAFANA_TOKEN", raising=False)
     monkeypatch.delenv("GRAFANA_API_TOKEN", raising=False)
     monkeypatch.delenv("GRAFANA_TOKEN", raising=False)
+    monkeypatch.setattr("scripts.publish_overlay_dashboard.shutil.which", lambda _name: "/usr/bin/security")
 
     def _fake_run(*_args, **_kwargs):
         return subprocess.CompletedProcess(args=[], returncode=0, stdout="kc-token\n")
@@ -50,6 +51,7 @@ def test_get_token_keychain_success_sets_timeout(monkeypatch: pytest.MonkeyPatch
     monkeypatch.delenv("CUSTOM_GRAFANA_TOKEN", raising=False)
     monkeypatch.delenv("GRAFANA_API_TOKEN", raising=False)
     monkeypatch.delenv("GRAFANA_TOKEN", raising=False)
+    monkeypatch.setattr("scripts.publish_overlay_dashboard.shutil.which", lambda _name: "/usr/bin/security")
 
     captured: dict[str, object] = {}
 
@@ -67,6 +69,7 @@ def test_get_token_keychain_failure(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.delenv("CUSTOM_GRAFANA_TOKEN", raising=False)
     monkeypatch.delenv("GRAFANA_API_TOKEN", raising=False)
     monkeypatch.delenv("GRAFANA_TOKEN", raising=False)
+    monkeypatch.setattr("scripts.publish_overlay_dashboard.shutil.which", lambda _name: "/usr/bin/security")
 
     def _fake_run(*_args, **_kwargs):
         raise subprocess.CalledProcessError(returncode=1, cmd=["security"])
@@ -81,6 +84,7 @@ def test_get_token_keychain_timeout(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.delenv("CUSTOM_GRAFANA_TOKEN", raising=False)
     monkeypatch.delenv("GRAFANA_API_TOKEN", raising=False)
     monkeypatch.delenv("GRAFANA_TOKEN", raising=False)
+    monkeypatch.setattr("scripts.publish_overlay_dashboard.shutil.which", lambda _name: "/usr/bin/security")
 
     def _fake_run(*_args, **_kwargs):
         raise subprocess.TimeoutExpired(cmd=["security"], timeout=10)
@@ -115,6 +119,43 @@ def test_get_token_custom_env_then_default_then_fallback(monkeypatch: pytest.Mon
     monkeypatch.setenv("GRAFANA_TOKEN", "fallback-token")
 
     assert _get_token(None, "svc", "CUSTOM_GRAFANA_TOKEN") == "default-token"
+
+
+def test_get_token_keychain_lookup_is_service_only(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.delenv("CUSTOM_GRAFANA_TOKEN", raising=False)
+    monkeypatch.delenv("GRAFANA_API_TOKEN", raising=False)
+    monkeypatch.delenv("GRAFANA_TOKEN", raising=False)
+    monkeypatch.setattr("scripts.publish_overlay_dashboard.shutil.which", lambda _name: "/usr/bin/security")
+
+    captured: dict[str, object] = {}
+
+    def _fake_run(args, **kwargs):
+        captured["args"] = args
+        captured.update(kwargs)
+        return subprocess.CompletedProcess(args=args, returncode=0, stdout="kc-token\n")
+
+    monkeypatch.setattr(subprocess, "run", _fake_run)
+
+    assert _get_token(None, "svc", "CUSTOM_GRAFANA_TOKEN") == "kc-token"
+    argv = captured["args"]
+    assert isinstance(argv, list)
+    assert "-a" not in argv
+
+
+def test_load_dashboard_accepts_legacy_dashboard_json(tmp_path: Path) -> None:
+    path = tmp_path / "dashboard.json"
+    path.write_text(
+        '{"title":"SMC Live Overlay","uid":"smc-live-overlay-v1","schemaVersion":39,"panels":[]}',
+        encoding="utf-8",
+    )
+
+    payload = _load_dashboard(path)
+
+    assert payload["apiVersion"] == "dashboard.grafana.app/v2"
+    assert payload["kind"] == "Dashboard"
+    assert payload["metadata"]["name"] == "smc-live-overlay-v1"
+    assert payload["spec"]["schemaVersion"] == 39
+    assert payload["spec"]["panels"] == []
 
 
 def test_prepare_legacy_payload_wraps_payload_with_message() -> None:
