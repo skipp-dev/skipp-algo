@@ -202,12 +202,27 @@ def _extract_spec_and_uid(data: dict[str, Any]) -> tuple[dict[str, Any], str]:
     """
     if _is_v2_dashboard(data):
         spec = data["spec"]
-        uid = str(data.get("metadata", {}).get("name") or spec.get("uid") or "").strip()
+        uid = data.get("metadata", {}).get("name")
+        uid_source: str | None = "metadata.name"
+        if uid is None:
+            uid = spec.get("uid")
+            uid_source = "spec.uid"
     else:
         spec = data
-        uid = str(data.get("uid") or "").strip()
+        uid = data.get("uid")
+        uid_source = "uid"
+
+    if uid is None:
+        uid = ""
+        uid_source = None
+
+    uid = str(uid).strip()
     if not uid:
-        raise SystemExit("Dashboard is missing a uid (classic top-level 'uid' or metadata.name).")
+        checked = f" (checked {uid_source})" if uid_source else ""
+        raise SystemExit(
+            f"Dashboard is missing a uid{checked}. "
+            "Expected classic top-level 'uid' or App Platform metadata.name."
+        )
     return spec, uid
 
 

@@ -175,9 +175,9 @@ _FROZEN_URLOPEN_SITES: frozenset[tuple[str, int]] = frozenset(
         ("services/live_overlay_daemon/github_workflow_bridge.py", 101),
         ("services/live_overlay_daemon/uptimerobot_bridge.py", 76),
         # 2026-06-22: Grafana dashboard publisher API upsert over urllib.
-        # Line shifted 251 -> 272 after ADR-0025 App Platform (/apis
+        # Line shifted 251 -> 287 after ADR-0025 App Platform (/apis
         # dashboard.grafana.app/v1) migration; urlopen now in shared _request_json.
-        ("scripts/publish_overlay_dashboard.py", 272),
+        ("scripts/publish_overlay_dashboard.py", 287),
     }
 )
 
