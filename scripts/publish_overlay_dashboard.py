@@ -132,8 +132,8 @@ def _get_token(
     *,
     no_keychain: bool = False,
 ) -> str:
-    if token:
-        return token
+    if token and token.strip():
+        return token.strip()
 
     env_candidates = [token_env]
     if token_env != DEFAULT_TOKEN_ENV:
@@ -204,13 +204,27 @@ def _prepare_payload(data: dict[str, Any], message: str) -> dict[str, Any]:
 
     # Preserve only client-relevant metadata. Server-managed fields like
     # resourceVersion, generation, creationTimestamp and uid are stripped.
-    meta = data.get("metadata", {})
-    for key in ("name", "annotations", "labels"):
-        if key in meta:
-            payload["metadata"][key] = meta[key]
+    meta = data.get("metadata")
+    if not isinstance(meta, dict):
+        meta = {}
+
+    name = meta.get("name")
+    if name is not None:
+        payload["metadata"]["name"] = name
+
+    labels = meta.get("labels")
+    if isinstance(labels, dict):
+        payload["metadata"]["labels"] = labels
+
+    annotations = meta.get("annotations")
+    if isinstance(annotations, dict):
+        payload["metadata"]["annotations"] = annotations
 
     # Ensure the change message is recorded as an annotation.
-    annotations = payload["metadata"].setdefault("annotations", {})
+    annotations = payload["metadata"].get("annotations")
+    if not isinstance(annotations, dict):
+        annotations = {}
+        payload["metadata"]["annotations"] = annotations
     annotations["grafana.app/message"] = message
 
     return payload

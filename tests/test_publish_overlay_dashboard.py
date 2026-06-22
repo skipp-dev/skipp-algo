@@ -19,6 +19,11 @@ def test_get_token_prefers_cli_token(monkeypatch: pytest.MonkeyPatch) -> None:
     assert _get_token("cli-token", "svc", "GRAFANA_API_TOKEN") == "cli-token"
 
 
+def test_get_token_normalizes_cli_token_whitespace(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("GRAFANA_API_TOKEN", "env-token")
+    assert _get_token("  cli-token\n", "svc", "GRAFANA_API_TOKEN") == "cli-token"
+
+
 def test_get_token_reads_primary_env(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setenv("CUSTOM_GRAFANA_TOKEN", "primary-token")
     assert _get_token(None, "svc", "CUSTOM_GRAFANA_TOKEN") == "primary-token"
@@ -117,6 +122,21 @@ def test_prepare_payload_keeps_v2_shape_for_api_v1_endpoint() -> None:
     assert payload["metadata"]["labels"] == {"team": "ops"}
     assert payload["metadata"]["annotations"]["grafana.app/message"] == "sync from test"
     assert payload["spec"] == {"elements": {}}
+
+
+def test_prepare_payload_tolerates_null_metadata_shapes() -> None:
+    data = {
+        "apiVersion": "dashboard.grafana.app/v2",
+        "kind": "Dashboard",
+        "metadata": {"name": "smc-live-overlay-v1", "annotations": None, "labels": None},
+        "spec": {"elements": {}},
+    }
+
+    payload = _prepare_payload(data, "sync from test")
+
+    assert payload["metadata"]["name"] == "smc-live-overlay-v1"
+    assert payload["metadata"]["annotations"]["grafana.app/message"] == "sync from test"
+    assert "labels" not in payload["metadata"]
 
 
 def test_get_token_custom_env_then_default_then_fallback(monkeypatch: pytest.MonkeyPatch) -> None:
