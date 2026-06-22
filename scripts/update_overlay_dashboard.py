@@ -40,7 +40,20 @@ def _resolve_dashboard_path(argv: list[str] | None = None) -> Path:
 def _load_dashboard(dashboard_path: Path) -> dict[str, Any]:
     if not dashboard_path.exists():
         raise SystemExit(f"Dashboard not found: {dashboard_path}")
-    return json.loads(dashboard_path.read_text(encoding="utf-8"))
+    data = json.loads(dashboard_path.read_text(encoding="utf-8"))
+    if not isinstance(data, dict):
+        raise SystemExit("Dashboard JSON must be a JSON object")
+    if data.get("kind") == "Dashboard" and isinstance(data.get("spec"), dict):
+        return data
+    if isinstance(data.get("panels"), list):
+        raise SystemExit(
+            "update_overlay_dashboard.py requires Grafana v2/Kubernetes dashboard format "
+            "(kind='Dashboard' + spec). Legacy v1 dashboards (top-level panels) are not supported."
+        )
+    raise SystemExit(
+        "Unsupported dashboard JSON shape: expected Grafana v2/Kubernetes dashboard "
+        "(kind='Dashboard' + spec)."
+    )
 
 
 def _save_dashboard(dashboard_path: Path, data: dict[str, Any]) -> None:

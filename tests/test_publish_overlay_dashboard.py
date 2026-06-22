@@ -1,11 +1,18 @@
 from __future__ import annotations
 
+import json
 import subprocess
 from pathlib import Path
 
 import pytest
 
-from scripts.publish_overlay_dashboard import _get_token, _prepare_legacy_payload, _prepare_payload, main
+from scripts.publish_overlay_dashboard import (
+    _get_token,
+    _load_dashboard,
+    _prepare_legacy_payload,
+    _prepare_payload,
+    main,
+)
 
 
 def test_get_token_prefers_cli_token(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -89,28 +96,30 @@ def test_get_token_custom_env_then_default_then_fallback(monkeypatch: pytest.Mon
 
 
 def test_prepare_legacy_payload_wraps_payload_with_message() -> None:
-    payload = {
-        "apiVersion": "dashboard.grafana.app/v2",
-        "kind": "Dashboard",
-        "metadata": {
-            "name": "smc-live-overlay-v1",
-            "annotations": {"grafana.app/message": "from test"},
-        },
-        "spec": {"elements": {}},
+    dashboard = {
+        "title": "legacy-dashboard",
+        "panels": [],
     }
 
-    wrapped = _prepare_legacy_payload(payload)
-    assert wrapped["dashboard"] is payload
+    wrapped = _prepare_legacy_payload(dashboard, "from test")
+    assert wrapped["dashboard"] is dashboard
     assert wrapped["overwrite"] is True
     assert wrapped["message"] == "from test"
 
 
+def test_load_dashboard_accepts_legacy_v1_shape(tmp_path: Path) -> None:
+    path = tmp_path / "dashboard.json"
+    path.write_text(json.dumps({"title": "legacy", "panels": []}), encoding="utf-8")
+
+    loaded = _load_dashboard(path)
+    assert loaded["title"] == "legacy"
+    assert loaded["panels"] == []
+
+
 def test_main_dry_run_prints_summary_only_by_default(
-    monkeypatch: pytest.MonkeyPatch,
     capsys: pytest.CaptureFixture[str],
     tmp_path: Path,
 ) -> None:
-    monkeypatch.setenv("GRAFANA_API_TOKEN", "env-token")
     path = tmp_path / "dashboard.json"
     path.write_text(
         '{"apiVersion":"dashboard.grafana.app/v2","kind":"Dashboard","metadata":{"name":"smc-live-overlay-v1"},"spec":{"elements":{}}}',
@@ -129,11 +138,9 @@ def test_main_dry_run_prints_summary_only_by_default(
 
 
 def test_main_dry_run_full_prints_payload(
-    monkeypatch: pytest.MonkeyPatch,
     capsys: pytest.CaptureFixture[str],
     tmp_path: Path,
 ) -> None:
-    monkeypatch.setenv("GRAFANA_API_TOKEN", "env-token")
     path = tmp_path / "dashboard.json"
     path.write_text(
         '{"apiVersion":"dashboard.grafana.app/v2","kind":"Dashboard","metadata":{"name":"smc-live-overlay-v1"},"spec":{"elements":{}}}',
@@ -146,3 +153,18 @@ def test_main_dry_run_full_prints_payload(
     assert rc == 0
     assert "Payload:" in out
     assert '"spec": {' in out
+
+
+def test_main_dry_run_legacy_v1_reports_panel_count(
+    capsys: pytest.CaptureFixture[str],
+    tmp_path: Path,
+) -> None:
+    path = tmp_path / "dashboard.json"
+    path.write_text('{"title":"legacy","uid":"u1","panels":[{"type":"stat"}]}', encoding="utf-8")
+
+    rc = main([str(path), "--dry-run"])
+    out = capsys.readouterr().out
+
+    assert rc == 0
+    assert '"dashboard_format": "v1"' in out
+    assert '"panels": 1' in out

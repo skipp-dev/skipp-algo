@@ -30,6 +30,7 @@
 # 2026-06-12 (PR #2707): conflict-marker tripwire skips gracefully when git
 # is unavailable (mirrors the other repo tripwires).
 "tests/test_no_merge_conflict_markers.py" = 1
+"tests/test_live_overlay_dashboard_contract.py" = 4
 "tests/test_performance_report.py" = 1
 "tests/test_pine_boundary_literals.py" = 1
 "tests/test_pine_input_surface.py" = 2
@@ -86,9 +87,9 @@
 # timeout= and fixed https endpoint domains.
 "services/live_overlay_daemon/github_workflow_bridge.py" = [101]
 "services/live_overlay_daemon/uptimerobot_bridge.py" = [76]
-# 2026-06-22: line shifted 212 -> 221 after keychain hardening +
-# token-path guards in publish_overlay_dashboard.py.
-"scripts/publish_overlay_dashboard.py" = [221]
+# 2026-06-22: line shifted 221 -> 251 after v1/v2 routing support
+# refactor in publish_overlay_dashboard.py.
+"scripts/publish_overlay_dashboard.py" = [251]
 "terminal_finnhub.py" = [245]
 "terminal_tradingview_news.py" = [423]
 # 2026-06-22: Grafana dashboard upsert helper; fixed HTTPS URL, explicit timeout= via Request socket.

@@ -285,7 +285,10 @@ def _run_feed_loop(stop: threading.Event) -> None:
                         dropped_total = _record_queue_drop()
                         metric_counter("live_overlay.feed.ingest_queue_dropped_total")
                         if _should_log_queue_drop_warning(dropped_total):
-                            logger.warning("Ingest queue full — dropping newest bar")
+                            logger.warning(
+                                "Ingest queue full — dropping newest bar (dropped_total=%d)",
+                                int(dropped_total),
+                            )
 
             except db.BentoError as exc:
                 consecutive_failures += 1

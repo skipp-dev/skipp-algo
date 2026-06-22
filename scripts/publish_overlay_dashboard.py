@@ -34,6 +34,14 @@ DEFAULT_KEYCHAIN_SERVICE = "skipp.grafana.api"
 DEFAULT_TOKEN_ENV = "GRAFANA_API_TOKEN"
 
 
+def _is_v2_dashboard(data: dict[str, Any]) -> bool:
+    return data.get("kind") == "Dashboard" and isinstance(data.get("spec"), dict)
+
+
+def _is_legacy_dashboard(data: dict[str, Any]) -> bool:
+    return isinstance(data.get("panels"), list)
+
+
 def _resolve_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser = argparse.ArgumentParser(
         description="Publish the live-overlay Grafana dashboard to Grafana Cloud."
@@ -87,11 +95,19 @@ def _load_dashboard(dashboard_path: Path) -> dict[str, Any]:
     if not dashboard_path.exists():
         raise SystemExit(f"Dashboard not found: {dashboard_path}")
     data = json.loads(dashboard_path.read_text(encoding="utf-8"))
-    if data.get("kind") != "Dashboard":
-        raise SystemExit("Dashboard JSON is not in Kubernetes-style Dashboard format")
-    if "spec" not in data:
-        raise SystemExit("Dashboard JSON missing 'spec' field")
-    return data
+    if not isinstance(data, dict):
+        raise SystemExit("Dashboard JSON must be a JSON object")
+
+    if _is_v2_dashboard(data):
+        return data
+    if _is_legacy_dashboard(data):
+        return data
+
+    raise SystemExit(
+        "Dashboard JSON must be either Grafana v2/Kubernetes shape "
+        "(kind='Dashboard' + spec) or legacy Grafana v1 shape "
+        "(top-level panels)."
+    )
 
 
 def _get_token(
@@ -162,6 +178,9 @@ def _prepare_payload(data: dict[str, Any], message: str) -> dict[str, Any]:
     strip server-managed metadata that must not be sent on upsert and add the
     standard change message annotation.
     """
+
+    if not _is_v2_dashboard(data):
+        raise SystemExit("_prepare_payload expects a Grafana v2/Kubernetes dashboard object")
     # The repo dashboard is maintained in Grafana API v2 shape and is sent as-is.
     payload: dict[str, Any] = {
         "apiVersion": data.get("apiVersion", "dashboard.grafana.app/v2"),
@@ -184,27 +203,38 @@ def _prepare_payload(data: dict[str, Any], message: str) -> dict[str, Any]:
     return payload
 
 
-def _prepare_legacy_payload(payload: dict[str, Any]) -> dict[str, Any]:
+def _prepare_legacy_payload(dashboard: dict[str, Any], message: str) -> dict[str, Any]:
     """Return a payload for legacy POST /api/dashboards/db upsert.
 
     Grafana Cloud stacks that do not expose /api/v1/dashboards can still accept
     the v2 Dashboard object inside the legacy wrapper.
     """
-    message = payload.get("metadata", {}).get("annotations", {}).get("grafana.app/message", "sync from repo")
     return {
-        "dashboard": payload,
+        "dashboard": dashboard,
         "overwrite": True,
         "message": message,
     }
 
 
-def _post(host: str, token: str, payload: dict[str, Any]) -> tuple[dict[str, Any], str]:
-    attempts: list[tuple[str, dict[str, Any]]] = [
-        ("/api/v1/dashboards", payload),
-        ("/api/dashboards/db", _prepare_legacy_payload(payload)),
-    ]
+def _post(
+    host: str,
+    token: str,
+    payload: dict[str, Any],
+    *,
+    message: str,
+    dashboard_format: str,
+) -> tuple[dict[str, Any], str]:
+    if dashboard_format == "v2":
+        attempts: list[tuple[str, dict[str, Any]]] = [
+            ("/api/v1/dashboards", payload),
+            ("/api/dashboards/db", _prepare_legacy_payload(payload, message)),
+        ]
+    else:
+        attempts = [
+            ("/api/dashboards/db", _prepare_legacy_payload(payload, message)),
+        ]
 
-    for idx, (endpoint, endpoint_payload) in enumerate(attempts):
+    for endpoint, endpoint_payload in attempts:
         url = f"https://{host}{endpoint}"
         body = json.dumps(endpoint_payload, indent=2, ensure_ascii=False).encode("utf-8")
         req = urllib.request.Request(
@@ -221,8 +251,8 @@ def _post(host: str, token: str, payload: dict[str, Any]) -> tuple[dict[str, Any
             with urllib.request.urlopen(req, timeout=60) as resp:
                 return json.loads(resp.read().decode("utf-8")), endpoint
         except urllib.error.HTTPError as exc:
-            # If v1 is unavailable on this stack, try legacy endpoint.
-            if idx == 0 and exc.code == 404:
+            # Fallback only when /api/v1/dashboards is unavailable.
+            if exc.code == 404 and endpoint == "/api/v1/dashboards":
                 continue
             detail = exc.read().decode("utf-8", errors="replace")
             raise SystemExit(f"Grafana API error {exc.code}: {detail}") from exc
@@ -234,25 +264,26 @@ def _post(host: str, token: str, payload: dict[str, Any]) -> tuple[dict[str, Any
 
 def main(argv: list[str] | None = None) -> int:
     args = _resolve_args(argv)
+    if args.dry_run_full and not args.dry_run:
+        args.dry_run = True
+
     data = _load_dashboard(args.dashboard_path)
-    token = _get_token(
-        args.token,
-        args.keychain_service,
-        args.token_env,
-        no_keychain=args.no_keychain,
-    )
-    payload = _prepare_payload(data, args.message)
+    is_v2 = _is_v2_dashboard(data)
+    dashboard_format = "v2" if is_v2 else "v1"
+    payload = _prepare_payload(data, args.message) if is_v2 else data
 
     if args.dry_run:
         summary = {
             "dry_run": True,
+            "dashboard_format": dashboard_format,
             "endpoint_primary": f"https://{args.host}/api/v1/dashboards",
             "endpoint_fallback": f"https://{args.host}/api/dashboards/db",
             "apiVersion": payload.get("apiVersion", "n/a"),
             "kind": payload.get("kind", "n/a"),
-            "dashboard_name": payload.get("metadata", {}).get("name", "n/a"),
-            "spec_elements": len(payload.get("spec", {}).get("elements", {})),
-            "message": payload.get("metadata", {}).get("annotations", {}).get("grafana.app/message", "n/a"),
+            "dashboard_name": payload.get("metadata", {}).get("name", payload.get("uid", payload.get("title", "n/a"))),
+            "spec_elements": len(payload.get("spec", {}).get("elements", {})) if is_v2 else "n/a",
+            "panels": len(payload.get("panels", [])) if not is_v2 else "n/a",
+            "message": args.message,
         }
         print("Dry-run: no network request sent.")
         print(json.dumps(summary, indent=2, ensure_ascii=False))
@@ -261,7 +292,20 @@ def main(argv: list[str] | None = None) -> int:
             print(json.dumps(payload, indent=2, ensure_ascii=False))
         return 0
 
-    result, endpoint_used = _post(args.host, token, payload)
+    token = _get_token(
+        args.token,
+        args.keychain_service,
+        args.token_env,
+        no_keychain=args.no_keychain,
+    )
+
+    result, endpoint_used = _post(
+        args.host,
+        token,
+        payload,
+        message=args.message,
+        dashboard_format=dashboard_format,
+    )
     metadata = result.get("metadata", {})
     print(
         f"Published {args.dashboard_path} to {args.host}\n"

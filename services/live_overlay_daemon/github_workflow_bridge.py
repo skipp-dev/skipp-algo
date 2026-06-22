@@ -197,32 +197,31 @@ def snapshot() -> dict[str, Any]:
         }
 
     ttl = config.github_workflow_poll_ttl_secs()
-    now_mono = time.monotonic()
     with _cache_lock:
+        now_mono = time.monotonic()
         if _cached_snapshot is not None and (now_mono - _cached_at_monotonic) < ttl:
             return dict(_cached_snapshot)
 
-    try:
-        fresh = _fetch_snapshot(token)
-    except Exception as exc:  # pragma: no cover
-        fresh = {
-            "enabled": 1,
-            "ok": 0,
-            "fetched_at_unix": time.time(),
-            "counts": {
-                "seen": 0,
-                "success": 0,
-                "failed": 0,
-                "in_progress": 0,
-                "queued": 0,
-            },
-            "latest_run_age_seconds": None,
-            "latest_run_duration_seconds": None,
-            "workflows": [],
-            "error": type(exc).__name__,
-        }
+        try:
+            fresh = _fetch_snapshot(token)
+        except Exception as exc:  # pragma: no cover
+            fresh = {
+                "enabled": 1,
+                "ok": 0,
+                "fetched_at_unix": time.time(),
+                "counts": {
+                    "seen": 0,
+                    "success": 0,
+                    "failed": 0,
+                    "in_progress": 0,
+                    "queued": 0,
+                },
+                "latest_run_age_seconds": None,
+                "latest_run_duration_seconds": None,
+                "workflows": [],
+                "error": type(exc).__name__,
+            }
 
-    with _cache_lock:
         _cached_snapshot = fresh
         _cached_at_monotonic = time.monotonic()
-    return dict(fresh)
+        return dict(fresh)
