@@ -1681,7 +1681,7 @@
                       "group": "",
                       "version": "v0",
                       "spec": {
-                        "expr": "live_overlay_uptimerobot_monitors_total_total{job=\"live_overlay\"}",
+                        "expr": "live_overlay_uptimerobot_monitors_total{job=\"live_overlay\"}",
                         "legendFormat": "total"
                       }
                     },

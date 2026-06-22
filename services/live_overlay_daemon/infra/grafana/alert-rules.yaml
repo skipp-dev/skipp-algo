@@ -127,7 +127,7 @@ groups:
                   query: {params: [A]}
         for: 5m
         labels:
-          severity: high
+          severity: critical
         annotations:
           summary: "Overlay age > 1h — compute cycle likely hung or erroring"
           runbook: "Check full_compute_cycle_errors rate. Verify feed is pushing bars (last_bar_age_seconds)."
@@ -182,7 +182,7 @@ groups:
                   query: {params: [A]}
         for: 5m
         labels:
-          severity: high
+          severity: warning
         annotations:
           summary: "No fresh bar for > 5 min while market is open"
           runbook: "Check feed thread liveness and Databento connectivity. Compare with feed_healthy/workers_healthy."
@@ -206,7 +206,7 @@ groups:
                   query: {params: [A]}
         for: 0s
         labels:
-          severity: high
+          severity: warning
         annotations:
           summary: "Feed circuit breaker increased in last 15m"
           runbook: "Persistent Databento outage. Service may need restart if breaker keeps incrementing."
@@ -474,7 +474,7 @@ groups:
                   query: {params: [A]}
         for: 0s
         labels:
-          severity: high
+          severity: warning
         annotations:
           summary: "Bars are being dropped due to ingest queue saturation"
           runbook: "Increase LIVE_OVERLAY_INGEST_QUEUE_MAX and investigate sustained producer-consumer imbalance."

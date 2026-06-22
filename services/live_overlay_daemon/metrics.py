@@ -398,10 +398,10 @@ def render_metrics(startup_ts: float) -> str:
 
     counts = dict(uptime_snapshot.get("counts") or {})
     for key in ("total", "up", "down", "paused", "unknown"):
-        lines.append(f"# TYPE live_overlay_uptimerobot_monitors_{key}_total gauge")
-        lines.append(
-            f"live_overlay_uptimerobot_monitors_{key}_total {_prom_numeric_value(counts.get(key, 0))}"
-        )
+        suffix = "_total" if key != "total" else ""
+        prom_name = f"live_overlay_uptimerobot_monitors_{key}{suffix}"
+        lines.append(f"# TYPE {prom_name} gauge")
+        lines.append(f"{prom_name} {_prom_numeric_value(counts.get(key, 0))}")
 
     avg_response_time_ms = uptime_snapshot.get("avg_response_time_ms")
     if avg_response_time_ms is not None:
