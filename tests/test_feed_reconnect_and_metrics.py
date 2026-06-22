@@ -7,6 +7,7 @@ exceptions we want to verify.
 from __future__ import annotations
 
 import logging
+import queue
 import threading
 import time
 from collections.abc import Callable
@@ -177,14 +178,31 @@ class TestFeedReconnectAndCircuitBreaker:
         feed = _reload_feed_module()
         _patch_reconnect_delays(feed)
 
+        # Queue-based architecture: feed loop enqueues, ingest loop applies to cache.
+        feed._runtime["ingest_queue"] = queue.Queue(maxsize=32)
+        feed._runtime["ingest_queue_max"] = 32
+
         sequence = [SymbolMappingMsg(), OHLCV_1m()]
 
+        stop = threading.Event()
+        feed_thread = threading.Thread(
+            target=feed._run_feed_loop, args=(stop,), daemon=True, name="test-feed"
+        )
+        ingest_thread = threading.Thread(
+            target=feed._run_ingest_loop, args=(stop,), daemon=True, name="test-ingest"
+        )
+
         with patch.object(db, "Live", side_effect=lambda **_: _live_factory(sequence)):
-            _run_feed_loop_until(
-                feed,
-                until=lambda: feed.last_bar_age_secs() is not None,
-                max_runtime=2.0,
-            )
+            feed_thread.start()
+            ingest_thread.start()
+            deadline = time.monotonic() + 2.0
+            while time.monotonic() < deadline and feed.last_bar_age_secs() is None:
+                stop.wait(0.05)
+            stop.set()
+            feed_thread.join(timeout=2)
+            ingest_thread.join(timeout=2)
+            assert not feed_thread.is_alive(), "feed loop thread did not stop within timeout"
+            assert not ingest_thread.is_alive(), "ingest loop thread did not stop within timeout"
 
         assert feed.last_bar_age_secs() is not None
         assert feed.metrics_snapshot()["bento_errors"] == 0
@@ -207,3 +225,21 @@ class TestFeedMissingApiKey:
 
         assert "Non-retryable feed configuration error" in caplog.text
         assert not feed._feed_ready.is_set()
+
+
+class TestFeedBackpressureDropCadence:
+    """Drop warning cadence must be driven by drop count, not pushed-bar count."""
+
+    def test_queue_drop_counter_increments_and_warns_on_100th_drop(self) -> None:
+        feed = _reload_feed_module()
+
+        with feed._backpressure_lock:
+            feed._backpressure["ingest_queue_dropped_total"] = 0.0
+
+        for _ in range(99):
+            dropped_total = feed._record_queue_drop()
+            assert feed._should_log_queue_drop_warning(dropped_total) is False
+
+        dropped_total = feed._record_queue_drop()
+        assert dropped_total == 100.0
+        assert feed._should_log_queue_drop_warning(dropped_total) is True
