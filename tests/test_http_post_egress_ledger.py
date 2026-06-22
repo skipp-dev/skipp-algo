@@ -167,7 +167,8 @@ URLLIB_REQUEST_POST_LEDGER: set[tuple[str, int]] = {
     ("open_prep/alerts.py", 395),
     # 2026-06-21: UptimeRobot bridge polls monitor API with low-level
     # urllib.request.Request(..., method="POST") + timeout discipline.
-    ("services/live_overlay_daemon/uptimerobot_bridge.py", 69),
+    # 2026-06-22: shifted +1 by cache-fallback error-path hardening.
+    ("services/live_overlay_daemon/uptimerobot_bridge.py", 70),
 }
 
 
