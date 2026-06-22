@@ -2,9 +2,12 @@
 """Publish the live-overlay Grafana dashboard from repo to Grafana Cloud.
 
 The dashboard is stored in Grafana API v2 format (apiVersion: dashboard.grafana.app/v2)
-and is pushed via the Kubernetes-style dashboards API:
+and is pushed via the legacy dashboard upsert API:
 
-    POST /api/v1/dashboards
+    POST /api/dashboards/db
+
+Grafana Cloud accepts the v2 JSON directly when wrapped in
+``{"dashboard": <json>, "overwrite": true, "message": ...}``.
 
 Authentication uses CLI/env first and falls back to the macOS keychain entry
 ``skipp.grafana.api`` by default.
@@ -22,7 +25,6 @@ import argparse
 import json
 import os
 import subprocess
-import sys
 import urllib.error
 import urllib.request
 from pathlib import Path
@@ -139,36 +141,21 @@ def _get_token(
 
 
 def _prepare_payload(data: dict[str, Any], message: str) -> dict[str, Any]:
-    """Return the payload expected by the /api/v1/dashboards endpoint.
+    """Return the payload expected by the /api/dashboards/db endpoint.
 
-    The repo file is already in the Kubernetes-style Dashboard format, but we
-    strip server-managed metadata that must not be sent on upsert and add the
-    standard change message annotation.
+    The repo file is maintained in Grafana API v2 format. Grafana Cloud's
+    legacy upsert endpoint accepts that JSON directly when embedded under the
+    ``dashboard`` key.
     """
-    # The repo dashboard is maintained in Grafana API v2 shape and is sent as-is.
-    payload: dict[str, Any] = {
-        "apiVersion": data.get("apiVersion", "dashboard.grafana.app/v2"),
-        "kind": "Dashboard",
-        "metadata": {},
-        "spec": data["spec"],
+    return {
+        "dashboard": data,
+        "overwrite": True,
+        "message": message,
     }
-
-    # Preserve only client-relevant metadata. Server-managed fields like
-    # resourceVersion, generation, creationTimestamp and uid are stripped.
-    meta = data.get("metadata", {})
-    for key in ("name", "annotations", "labels"):
-        if key in meta:
-            payload["metadata"][key] = meta[key]
-
-    # Ensure the change message is recorded as an annotation.
-    annotations = payload["metadata"].setdefault("annotations", {})
-    annotations["grafana.app/message"] = message
-
-    return payload
 
 
 def _post(host: str, token: str, payload: dict[str, Any]) -> dict[str, Any]:
-    url = f"https://{host}/api/v1/dashboards"
+    url = f"https://{host}/api/dashboards/db"
     body = json.dumps(payload, indent=2, ensure_ascii=False).encode("utf-8")
     req = urllib.request.Request(
         url,
@@ -206,17 +193,15 @@ def main(argv: list[str] | None = None) -> int:
         return 0
 
     result = _post(args.host, token, payload)
-    metadata = result.get("metadata", {})
     print(
         f"Published {args.dashboard_path} to {args.host}\n"
-        f"  uid:      {metadata.get('uid', 'n/a')}\n"
-        f"  name:     {metadata.get('name', 'n/a')}\n"
-        f"  version:  {metadata.get('resourceVersion', 'n/a')}\n"
-        f"  response: {result.get('status', 'ok')}"
+        f"  uid:      {result.get('uid', 'n/a')}\n"
+        f"  url:      {result.get('url', 'n/a')}\n"
+        f"  version:  {result.get('version', 'n/a')}\n"
+        f"  status:   {result.get('status', 'n/a')}"
     )
     return 0
 
 
 if __name__ == "__main__":
     raise SystemExit(main())
-

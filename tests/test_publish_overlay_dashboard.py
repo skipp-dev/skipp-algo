@@ -59,7 +59,7 @@ def test_get_token_keychain_failure(monkeypatch: pytest.MonkeyPatch) -> None:
         _get_token(None, "svc", "CUSTOM_GRAFANA_TOKEN")
 
 
-def test_prepare_payload_keeps_v2_api_version_and_message_annotation() -> None:
+def test_prepare_payload_wraps_v2_dashboard_for_legacy_endpoint() -> None:
     data = {
         "apiVersion": "dashboard.grafana.app/v2",
         "kind": "Dashboard",
@@ -69,7 +69,6 @@ def test_prepare_payload_keeps_v2_api_version_and_message_annotation() -> None:
 
     payload = _prepare_payload(data, "sync from test")
 
-    assert payload["apiVersion"] == "dashboard.grafana.app/v2"
-    assert payload["kind"] == "Dashboard"
-    assert payload["metadata"]["name"] == "smc-live-overlay-v1"
-    assert payload["metadata"]["annotations"]["grafana.app/message"] == "sync from test"
+    assert payload["dashboard"] is data
+    assert payload["overwrite"] is True
+    assert payload["message"] == "sync from test"
