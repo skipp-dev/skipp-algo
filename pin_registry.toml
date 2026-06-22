@@ -183,9 +183,6 @@ codes = ["E402", "I001"]
 # ---------------------------------------------------------------------------
 [workflow_orphan_inventory]
 allowed = [
-	# 2026-06-22: new Grafana dashboard deploy workflow; no dedicated
-	# structure-pin test yet, so keep explicitly allowlisted for now.
-	"live-overlay-dashboard-publish.yml",
 ]
 
 # ---------------------------------------------------------------------------
