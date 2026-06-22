@@ -42,6 +42,7 @@ def test_get_token_keychain_success(monkeypatch: pytest.MonkeyPatch) -> None:
     def _fake_run(*_args, **_kwargs):
         return subprocess.CompletedProcess(args=[], returncode=0, stdout="kc-token\n")
 
+    monkeypatch.setattr("scripts.publish_overlay_dashboard.shutil.which", lambda _name: "/usr/bin/security")
     monkeypatch.setattr(subprocess, "run", _fake_run)
     assert _get_token(None, "svc", "CUSTOM_GRAFANA_TOKEN") == "kc-token"
 
@@ -54,6 +55,7 @@ def test_get_token_keychain_failure(monkeypatch: pytest.MonkeyPatch) -> None:
     def _fake_run(*_args, **_kwargs):
         raise subprocess.CalledProcessError(returncode=1, cmd=["security"])
 
+    monkeypatch.setattr("scripts.publish_overlay_dashboard.shutil.which", lambda _name: "/usr/bin/security")
     monkeypatch.setattr(subprocess, "run", _fake_run)
 
     with pytest.raises(SystemExit, match="Could not obtain Grafana API token"):

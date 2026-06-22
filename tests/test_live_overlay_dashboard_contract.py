@@ -12,7 +12,6 @@ from pathlib import Path
 
 import yaml
 
-
 _REPO_ROOT = Path(__file__).resolve().parents[1]
 _DASHBOARD_JSON = _REPO_ROOT / "services" / "live_overlay_daemon" / "infra" / "grafana" / "dashboard.json"
 _ALERT_RULES_YAML = _REPO_ROOT / "services" / "live_overlay_daemon" / "infra" / "grafana" / "alert-rules.yaml"

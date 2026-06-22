@@ -21,6 +21,7 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import shutil
 import subprocess
 import urllib.error
 import urllib.request
@@ -123,12 +124,20 @@ def _get_token(
             f"Set ${token_env}, ${DEFAULT_TOKEN_ENV}, or $GRAFANA_TOKEN, or pass --token."
         )
 
+    security_bin = shutil.which("security")
+    if not security_bin:
+        raise SystemExit(
+            "Could not obtain Grafana API token: 'security' CLI not found in PATH. "
+            f"Set ${token_env}, ${DEFAULT_TOKEN_ENV}, or $GRAFANA_TOKEN, pass --token, or run with --no-keychain in CI/non-macOS environments."
+        )
+
     try:
-        result = subprocess.run(
-            ["security", "find-generic-password", "-s", keychain_service, "-a", os.environ.get("USER", ""), "-w"],
+        result = subprocess.run(  # noqa: S603
+            [security_bin, "find-generic-password", "-s", keychain_service, "-a", os.environ.get("USER", ""), "-w"],
             capture_output=True,
             text=True,
             check=True,
+            timeout=10,
         )
         keychain_token = result.stdout.strip()
         if keychain_token:
@@ -137,7 +146,7 @@ def _get_token(
             "Keychain lookup returned an empty token. "
             f"Set ${token_env}, ${DEFAULT_TOKEN_ENV}, or $GRAFANA_TOKEN, or pass --token."
         )
-    except (subprocess.CalledProcessError, FileNotFoundError) as exc:
+    except (subprocess.CalledProcessError, subprocess.TimeoutExpired, FileNotFoundError) as exc:
         raise SystemExit(
             "Could not obtain Grafana API token. "
             f"Set ${token_env}, ${DEFAULT_TOKEN_ENV}, or $GRAFANA_TOKEN, use --token, or run with --no-keychain in CI/non-macOS environments, "
