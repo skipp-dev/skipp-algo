@@ -173,7 +173,8 @@ URLLIB_REQUEST_POST_LEDGER: set[tuple[str, int]] = {
     # urllib.request.Request(..., method="POST") + timeout discipline.
     ("services/live_overlay_daemon/uptimerobot_bridge.py", 69),
     # 2026-06-22: Grafana dashboard publisher API upsert payload.
-    ("scripts/publish_overlay_dashboard.py", 201),
+    # Line shifted 201 -> 210 after keychain hardening + token-path guards.
+    ("scripts/publish_overlay_dashboard.py", 210),
 }
 
 

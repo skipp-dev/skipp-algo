@@ -25,7 +25,7 @@ exactly four locations:
 * ``open_prep/realtime_signals.py:336`` — re-launch the realtime
   signals daemon as a detached child (``Popen`` of
   ``python -m open_prep.realtime_signals``).
-* ``scripts/publish_overlay_dashboard.py:127`` — query OS keychain
+* ``scripts/publish_overlay_dashboard.py:135`` — query OS keychain
   for the Grafana API token (``security find-generic-password ...``).
 
 Defense-only — no production changes.
@@ -149,7 +149,8 @@ SUBPROCESS_RUN_LEDGER: set[tuple[str, int]] = {
     # branch-local realtime_signals layout.
     ("open_prep/realtime_signals.py", 190),
     # 2026-06-22: Grafana dashboard publish script keychain token lookup.
-    ("scripts/publish_overlay_dashboard.py", 127),
+    # Line shifted 127 -> 135 after keychain hardening + token-path guards.
+    ("scripts/publish_overlay_dashboard.py", 135),
 }
 
 SUBPROCESS_POPEN_LEDGER: set[tuple[str, int]] = {

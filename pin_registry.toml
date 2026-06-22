@@ -86,7 +86,9 @@
 # timeout= and fixed https endpoint domains.
 "services/live_overlay_daemon/github_workflow_bridge.py" = [101]
 "services/live_overlay_daemon/uptimerobot_bridge.py" = [76]
-"scripts/publish_overlay_dashboard.py" = [212]
+# 2026-06-22: line shifted 212 -> 221 after keychain hardening +
+# token-path guards in publish_overlay_dashboard.py.
+"scripts/publish_overlay_dashboard.py" = [221]
 "terminal_finnhub.py" = [245]
 "terminal_tradingview_news.py" = [423]
 # 2026-06-22: Grafana dashboard upsert helper; fixed HTTPS URL, explicit timeout= via Request socket.
