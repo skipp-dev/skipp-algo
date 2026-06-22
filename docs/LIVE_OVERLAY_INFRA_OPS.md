@@ -310,6 +310,26 @@ curl -sS "https://bronzeporridge977.grafana.net/api/ruler/grafana/api/v1/rules" 
   ```
   mit 4-State-Mapping: `0=SERVICE DOWN`, `1=MARKET CLOSED`, `2=OPEN/TELEMETRY MISSING`, `3=MARKET OPEN`.
 
+### Troubleshooting (2026-06-22): Doppelte/kontradiktorische Timeline-Zeilen
+
+**Symptom:** In `Worker Liveness` oder `Readiness Components Timeline` erscheinen
+gleichnamige Zeilen mit widersprüchlichen Zuständen (z. B. `flow_refresh DEAD` + `flow_refresh ALIVE`).
+
+**Ursache:** In State-Timeline-Panels erzeugt `EXPR or vector(0)` bei Datenlücken eine
+zweite, label-lose Fallback-Serie (`0`). Mit festem `legendFormat` wird diese als zweite
+Zeile mit demselben Namen gerendert.
+
+**Fix-Regel:** Für Status-/Timeline-Queries **kein** `or vector(0)` verwenden.
+
+Bereinigte Queries:
+
+- `live_overlay_worker_overlay_refresh_alive{job="live_overlay"}`
+- `live_overlay_worker_flow_refresh_alive{job="live_overlay"}`
+- `live_overlay_overlay_fresh{job="live_overlay"}`
+
+`or vector(0)` bleibt nur in Stat/Timeseries-Panels, wo ein expliziter `0`-Fallback
+für No-Data gewollt ist.
+
 ---
 
 ## 4. UptimeRobot — Monitoring-Bridge

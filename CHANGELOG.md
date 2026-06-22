@@ -6,6 +6,38 @@ All notable changes to this project are documented in this file.
 
 ## [Unreleased]
 
+### Fixed (2026-06-22) — Live-overlay dashboard duplicate DEAD/ALIVE rows (PR #2890)
+
+- **State-timeline duplicate-row RCA + fix** (`services/live_overlay_daemon/infra/grafana/dashboard.json`):
+  removed `or vector(0)` from three state-timeline queries:
+  - `live_overlay_worker_overlay_refresh_alive{job="live_overlay"}`
+  - `live_overlay_worker_flow_refresh_alive{job="live_overlay"}`
+  - `live_overlay_overlay_fresh{job="live_overlay"}`
+- Root cause: `or vector(0)` can inject a second, label-less fallback series in
+  timeline visualizations when scrape gaps occur. With fixed `legendFormat`, Grafana
+  rendered contradictory duplicate rows (e.g. `flow_refresh ALIVE` + `flow_refresh DEAD`).
+- Scope: `or vector(0)` remains intentionally in stat/timeseries panels where
+  absent-sample fallback to `0` is desired (`Overlay & Bar Age`, `Compute Cycle Errors`,
+  `Market-open Request Health`, `Market Session Banner`).
+- Dashboard was re-published to Grafana Cloud and live-verified (`smc-live-overlay-v1`,
+  version bump observed) to ensure Worker Liveness + Readiness timelines no longer include
+  the phantom fallback series.
+
+### Changed (2026-06-22) — Monitoring query selector hardening (PR #2890)
+
+- Replaced regex job selector usage in dashboard queries (`job=~"$job"`) with exact
+  match selector (`job="$job"`) to avoid accidental multi-series matching from similarly
+  named scrape jobs.
+
+### Security/Guards (2026-06-22) — Publish-script defense gap closure (PR #2891)
+
+- Closed F1 defense gap for `scripts/publish_overlay_dashboard.py` by explicitly including
+  this script in guard scans (while keeping `scripts/` globally excluded by default):
+  - `tests/test_subprocess_spawn_sites_ledger.py` pins `subprocess.run(...)` callsite.
+  - `tests/test_http_post_egress_ledger.py` pins `Request(..., method="POST")` callsite.
+  - `tests/test_http_client_discipline.py` pins `urlopen(..., timeout=...)` callsite.
+- Validation run for the guard closure passed (`34 passed` across targeted guard + publish tests).
+
 ### Changed (2026-06-21) — Live-overlay monitoring dashboard hardening + snapshot-age fix (PR #2879)
 
 - **Snapshot-age false-alarm fix** (`metrics.py`): `live_overlay_provider_news_snapshot_age_seconds`
