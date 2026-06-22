@@ -44,6 +44,7 @@ import argparse
 import json
 import os
 import re
+import shutil
 import subprocess
 import sys
 import urllib.error
@@ -192,7 +193,7 @@ def build_provisioned_rule(
     rule: dict[str, Any], group: dict[str, Any], folder_uid: str
 ) -> dict[str, Any]:
     """Translate a file-format rule into a provisioning-API ProvisionedAlertRule."""
-    for_value = rule.get("for", "0s")
+    for_value = rule["for"]
     payload: dict[str, Any] = {
         "uid": rule["uid"],
         "title": rule["title"],
@@ -236,8 +237,14 @@ def _api_key() -> str:
     env_value = os.environ.get(ENV_API_KEY, "").strip()
     if env_value:
         return env_value
+    security_bin = shutil.which("security")
+    if not security_bin:
+        raise RuntimeError(
+            f"{ENV_API_KEY} is not set and macOS keychain tool 'security' was not found. "
+            f"Set {ENV_API_KEY} in the environment."
+        )
     result = subprocess.run(  # noqa: S603
-        ["security", "find-generic-password", "-s", KEYCHAIN_SERVICE, "-w"],  # noqa: S607
+        [security_bin, "find-generic-password", "-s", KEYCHAIN_SERVICE, "-w"],
         capture_output=True,
         text=True,
         check=True,

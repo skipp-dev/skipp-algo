@@ -223,7 +223,7 @@ def test_newsapi_refresh_workflow_keeps_fmp_and_tradingview_enabled() -> None:
         for ln in text.splitlines()
         if ln.strip() and not ln.lstrip().startswith("#")
     ]
-    assert not any(ln.startswith("--newsapi-only") for ln in active_lines), (
+    assert not any("--newsapi-only" in ln for ln in active_lines), (
         "smc-live-newsapi-refresh.yml must not run the export with --newsapi-only "
         "(that disables FMP + TradingView despite active subscriptions)."
     )
