@@ -149,7 +149,7 @@ jobs:
           INPUT_SYMBOLS: ${{ github.event.inputs.symbols }}
           INPUT_SYMBOL_LIMIT: ${{ github.event.inputs.symbol_limit }}
           INPUT_RESET_STATE: ${{ github.event.inputs.reset_state }}
-          NEWSAPI_AI_SHARED_CACHE_TTL_SECONDS: "3300"  # 55 min — aligned to hourly cron cadence (was 25 s for 5-min cron)
+          NEWSAPI_AI_SHARED_CACHE_TTL_SECONDS: "3900"  # 65 min — keeps cache warm across hourly cadence + light overrun jitter (was 25 s for 5-min cron)
         run: |
           test -n "${NEWSAPI_KEY}" || { echo "::error::NEWSAPI_KEY secret is required"; exit 1; }
 

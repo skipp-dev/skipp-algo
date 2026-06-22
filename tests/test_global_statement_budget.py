@@ -212,9 +212,10 @@ _FROZEN_SITES: frozenset[tuple[str, int, tuple[str, ...]]] = frozenset(
         # feed.py gained additional helper/config blocks, shifting global
         # statements to 362/420/496.
         # 2026-06-22 follow-ups shifted these anchors to 365/423/512.
-        ("services/live_overlay_daemon/feed.py", 365, ("_last_bar_at",)),
-        ("services/live_overlay_daemon/feed.py", 423, ("_feed_thread", "_flow_refresh_thread", "_refresh_thread")),
-        ("services/live_overlay_daemon/feed.py", 512, ("_feed_thread", "_flow_refresh_thread", "_refresh_thread")),
+        # Post-merge sync with main shifted these anchors to 374/432/521.
+        ("services/live_overlay_daemon/feed.py", 374, ("_last_bar_at",)),
+        ("services/live_overlay_daemon/feed.py", 432, ("_feed_thread", "_flow_refresh_thread", "_refresh_thread")),
+        ("services/live_overlay_daemon/feed.py", 521, ("_feed_thread", "_flow_refresh_thread", "_refresh_thread")),
         # 2026-06-21: optional external bridge snapshot caches are guarded by
         # module locks and cached via module-level singleton snapshots.
         ("services/live_overlay_daemon/github_workflow_bridge.py", 178, ("_cached_at_monotonic", "_cached_snapshot")),

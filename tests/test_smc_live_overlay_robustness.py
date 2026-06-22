@@ -14,6 +14,7 @@ from __future__ import annotations
 
 import json
 import logging
+import queue
 import threading
 import time
 from pathlib import Path
@@ -819,6 +820,46 @@ class TestFeedReadyClearedOnStop:
         # cleanup
         feed_mod._stop_event.clear()
 
+    def test_stop_wakes_blocked_ingest_loop_without_leftover_worker(
+        self,
+        monkeypatch: pytest.MonkeyPatch,
+        caplog: pytest.LogCaptureFixture,
+    ) -> None:
+        import services.live_overlay_daemon.feed as feed_mod
+
+        feed_mod._stop_event.clear()
+        monkeypatch.setattr(feed_mod, "_feed_thread", None)
+        monkeypatch.setattr(feed_mod, "_refresh_thread", None)
+        monkeypatch.setattr(feed_mod, "_flow_refresh_thread", None)
+
+        ingest_waiting = threading.Event()
+
+        class _SignalingQueue(queue.Queue[object]):
+            def get(self, *args, **kwargs):
+                ingest_waiting.set()
+                return super().get(*args, **kwargs)
+
+        original_ingest_queue = feed_mod._runtime.get("ingest_queue")
+        ingest_q: queue.Queue[object] = _SignalingQueue(maxsize=4)
+        feed_mod._runtime["ingest_queue"] = ingest_q
+        ingest_thread = threading.Thread(
+            target=feed_mod._run_ingest_loop,
+            args=(feed_mod._stop_event,),
+            daemon=True,
+            name="ingest-processor",
+        )
+        feed_mod._runtime["ingest_thread"] = ingest_thread
+        ingest_thread.start()
+        assert ingest_waiting.wait(timeout=1.0), "ingest worker did not reach queue.get() in time"
+
+        with caplog.at_level(logging.WARNING):
+            feed_mod.stop()
+
+        assert feed_mod._runtime["ingest_thread"] is None
+        assert "bounded joins ended with workers still alive" not in caplog.text
+        feed_mod._runtime["ingest_queue"] = original_ingest_queue
+        feed_mod._stop_event.clear()
+
 
 class TestFeedLoopConfigFailFast:
     """Non-retryable configuration failures must not enter retry/backoff loops."""
@@ -856,6 +897,7 @@ class TestDoubleStartGuard:
     def test_start_noop_when_already_running(self, monkeypatch: pytest.MonkeyPatch) -> None:
         import services.live_overlay_daemon.feed as feed_mod
 
+        feed_mod._runtime["ingest_thread"] = None
         sentinel = MagicMock(spec=threading.Thread)
         sentinel.is_alive.return_value = True
         monkeypatch.setattr(feed_mod, "_feed_thread", sentinel)
@@ -871,6 +913,7 @@ class TestDoubleStartGuard:
         monkeypatch.setattr(feed_mod, "_feed_thread", None)
         monkeypatch.setattr(feed_mod, "_refresh_thread", None)
         monkeypatch.setattr(feed_mod, "_flow_refresh_thread", None)
+        feed_mod._runtime["ingest_thread"] = None
 
 
 class TestFeedMetricsSnapshot:
@@ -925,6 +968,9 @@ class TestFeedMetricsSnapshot:
     ) -> None:
         import services.live_overlay_daemon.feed as feed_mod
 
+        monkeypatch.setattr(feed_mod.atexit, "register", lambda _fn: None)
+        monkeypatch.setattr(feed_mod.atexit, "unregister", lambda _fn: None)
+
         alive = MagicMock(spec=threading.Thread)
         alive.is_alive.return_value = True
         dead = MagicMock(spec=threading.Thread)
@@ -953,6 +999,14 @@ class TestFeedMetricsSnapshot:
         assert "overlay-refresh" in created
         assert "flow-refresh" in created
         assert "live-feed" not in created
+
+        # Cleanup test doubles so suite teardown/atexit cannot observe
+        # intentionally-alive fake workers from this test.
+        monkeypatch.setattr(feed_mod, "_feed_thread", None)
+        monkeypatch.setattr(feed_mod, "_refresh_thread", None)
+        monkeypatch.setattr(feed_mod, "_flow_refresh_thread", None)
+        feed_mod._runtime["ingest_thread"] = None
+        feed_mod._stop_event.clear()
 
 
 # ---------------------------------------------------------------------------
@@ -1048,6 +1102,9 @@ class TestAtexitShutdownHook:
         # cleanup
         feed_mod._stop_event.clear()
         monkeypatch.setattr(feed_mod, "_feed_thread", None)
+        monkeypatch.setattr(feed_mod, "_refresh_thread", None)
+        monkeypatch.setattr(feed_mod, "_flow_refresh_thread", None)
+        feed_mod._runtime["ingest_thread"] = None
 
 
 class TestTfSchemaContract:
