@@ -84,8 +84,9 @@
 # 2026-06-21 (live-overlay bridge observability): optional external polling
 # bridges for GitHub workflow + UptimeRobot snapshots, each with explicit
 # timeout= and fixed https endpoint domains.
-"services/live_overlay_daemon/github_workflow_bridge.py" = [96]
+"services/live_overlay_daemon/github_workflow_bridge.py" = [101]
 "services/live_overlay_daemon/uptimerobot_bridge.py" = [76]
+"scripts/publish_overlay_dashboard.py" = [212]
 "terminal_finnhub.py" = [245]
 "terminal_tradingview_news.py" = [423]
 # 2026-06-22: Grafana dashboard upsert helper; fixed HTTPS URL, explicit timeout= via Request socket.
@@ -278,6 +279,13 @@ count = 1
 # Token-list args, no shell=True, constant executable.
 [[subprocess_shell_injection_pin.sites]]
 file = "scripts/grafana_dashboard_upsert.py"
+attr = "run"
+count = 1
+
+# scripts/publish_overlay_dashboard.py: local macOS Keychain read for Grafana
+# token lookup before authenticated dashboard publish.
+[[subprocess_shell_injection_pin.sites]]
+file = "scripts/publish_overlay_dashboard.py"
 attr = "run"
 count = 1
 
