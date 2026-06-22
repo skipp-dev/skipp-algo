@@ -6,8 +6,9 @@ Prometheus metric export in ``metrics.render_metrics``.
 It is optional and env-driven:
 - when ``GITHUB_WORKFLOW_MONITOR_TOKEN`` is unset, bridge metrics are emitted as
   disabled and no outbound requests are made.
-- errors never bubble into scrape failures; they are converted into status
-  gauges via ``snapshot()`` fallback payloads.
+- errors never bubble into scrape failures; when a previous good cache exists,
+    ``snapshot()`` keeps serving it and annotates the payload with error context.
+    Without a previous cache, failures are converted into status gauges.
 """
 from __future__ import annotations
 
@@ -205,6 +206,15 @@ def snapshot() -> dict[str, Any]:
     try:
         fresh = _fetch_snapshot(token)
     except Exception as exc:  # pragma: no cover
+        with _cache_lock:
+            if _cached_snapshot is not None and int(_cached_snapshot.get("ok", 0) or 0) == 1:
+                fallback = dict(_cached_snapshot)
+                fallback["error"] = type(exc).__name__
+                fallback["cache_fallback"] = 1
+                _cached_snapshot = fallback
+                _cached_at_monotonic = now_mono
+                return dict(fallback)
+
         fresh = {
             "enabled": 1,
             "ok": 0,

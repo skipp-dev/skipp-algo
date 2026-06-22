@@ -6,7 +6,8 @@ snapshot that can be exported as Prometheus gauges in ``metrics.render_metrics``
 The bridge is optional and fully env-driven:
 - when ``UPTIMEROBOT_API_KEY`` is unset, bridge metrics are emitted as disabled
   and no outbound HTTP request is made.
-- failures are converted into status gauges; scraping never raises.
+- failures keep serving the previous good cache when available; otherwise they
+    are converted into status gauges. Scraping never raises.
 """
 from __future__ import annotations
 
@@ -145,6 +146,15 @@ def snapshot() -> dict[str, Any]:
     try:
         fresh = _fetch_snapshot(api_key)
     except Exception as exc:  # pragma: no cover - exercised via tests using monkeypatch
+        with _cache_lock:
+            if _cached_snapshot is not None and int(_cached_snapshot.get("ok", 0) or 0) == 1:
+                fallback = dict(_cached_snapshot)
+                fallback["error"] = type(exc).__name__
+                fallback["cache_fallback"] = 1
+                _cached_snapshot = fallback
+                _cached_at_monotonic = now_mono
+                return dict(fallback)
+
         fresh = {
             "enabled": 1,
             "ok": 0,
