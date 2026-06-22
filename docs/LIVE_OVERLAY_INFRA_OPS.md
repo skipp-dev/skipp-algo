@@ -181,28 +181,12 @@ Der Grafana-API-Token benötigt mindestens:
 
 **Schritt-für-Schritt:**
 
-```python
-# publish_dashboard.py (einzeiliger Inline-Aufruf, kein extra Skript nötig)
-python3 - <<'PY'
-import json, os, urllib.request
-from pathlib import Path
+```bash
+# v2-Flow: payload lokal prüfen
+python3 scripts/publish_overlay_dashboard.py --dry-run > /tmp/dashboard-payload.json
 
-HOST = "bronzeporridge977.grafana.net"
-TOKEN = os.popen('security find-generic-password -s skipp.grafana.api -a "$USER" -w').read().strip()
-
-dash = json.loads(Path("services/live_overlay_daemon/infra/grafana/dashboard.json").read_text())
-print("local uid=", dash.get("uid"), "panels=", len(dash.get("panels", [])))
-
-req = urllib.request.Request(
-    f"https://{HOST}/api/dashboards/db",
-    data=json.dumps({"dashboard": dash, "overwrite": True, "message": "chore: sync from repo"}).encode(),
-    method="POST",
-    headers={"Authorization": f"Bearer {TOKEN}", "Content-Type": "application/json"},
-)
-with urllib.request.urlopen(req, timeout=30) as r:
-    out = json.loads(r.read())
-print("upsert:", out.get("status"), "version:", out.get("version"))
-PY
+# v2-Flow: publish (Token via --token / Env / optional Keychain)
+python3 scripts/publish_overlay_dashboard.py --message "chore: sync from repo"
 ```
 
 **Live-Version verifizieren:**
@@ -438,27 +422,16 @@ Niemals in `.env`-Dateien committen.
 ```bash
 cd /path/to/skipp-algo
 
-# 1. JSON validieren
-python3 -c "import json; d=json.load(open('services/live_overlay_daemon/infra/grafana/dashboard.json')); print('OK uid='+d['uid']+' panels='+str(len(d['panels'])))"
+# 1. JSON validieren (v2 Dashboard-Shape)
+python3 -c "import json; d=json.load(open('services/live_overlay_daemon/infra/grafana/dashboard.json')); print('OK apiVersion='+d.get('apiVersion','?')+' elements='+str(len(d.get('spec',{}).get('elements',{}))))"
 
-# 2. Auf Grafana Cloud pushen
-TOKEN=$(security find-generic-password -s skipp.grafana.api -a "$USER" -w)
-python3 - <<PY
-import json, os, urllib.request
-from pathlib import Path
-TOKEN = os.environ["TOKEN"]  # aus Shell-Variable
-dash = json.loads(Path("services/live_overlay_daemon/infra/grafana/dashboard.json").read_text())
-req = urllib.request.Request(
-    "https://bronzeporridge977.grafana.net/api/dashboards/db",
-    data=json.dumps({"dashboard": dash, "overwrite": True, "message": "update"}).encode(),
-    method="POST",
-    headers={"Authorization": f"Bearer {TOKEN}", "Content-Type": "application/json"},
-)
-with urllib.request.urlopen(req, timeout=30) as r:
-    print(json.loads(r.read()))
-PY
+# 2. Dry-run Payload prüfen
+python3 scripts/publish_overlay_dashboard.py --dry-run > /tmp/dashboard-payload.json
 
-# 3. Committen
+# 3. Publish via v2-Skript
+python3 scripts/publish_overlay_dashboard.py --message "update"
+
+# 4. Committen
 git add services/live_overlay_daemon/infra/grafana/dashboard.json
 git commit -m "feat(monitoring): <beschreibung>"
 git push

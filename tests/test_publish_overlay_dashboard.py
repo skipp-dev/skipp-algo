@@ -4,7 +4,7 @@ import subprocess
 
 import pytest
 
-from scripts.publish_overlay_dashboard import _get_token
+from scripts.publish_overlay_dashboard import _get_token, _prepare_payload
 
 
 def test_get_token_prefers_cli_token(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -57,3 +57,19 @@ def test_get_token_keychain_failure(monkeypatch: pytest.MonkeyPatch) -> None:
 
     with pytest.raises(SystemExit, match="Could not obtain Grafana API token"):
         _get_token(None, "svc", "CUSTOM_GRAFANA_TOKEN")
+
+
+def test_prepare_payload_keeps_v2_api_version_and_message_annotation() -> None:
+    data = {
+        "apiVersion": "dashboard.grafana.app/v2",
+        "kind": "Dashboard",
+        "metadata": {"name": "smc-live-overlay-v1", "labels": {"team": "ops"}},
+        "spec": {"elements": {}},
+    }
+
+    payload = _prepare_payload(data, "sync from test")
+
+    assert payload["apiVersion"] == "dashboard.grafana.app/v2"
+    assert payload["kind"] == "Dashboard"
+    assert payload["metadata"]["name"] == "smc-live-overlay-v1"
+    assert payload["metadata"]["annotations"]["grafana.app/message"] == "sync from test"

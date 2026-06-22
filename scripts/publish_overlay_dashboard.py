@@ -145,6 +145,7 @@ def _prepare_payload(data: dict[str, Any], message: str) -> dict[str, Any]:
     strip server-managed metadata that must not be sent on upsert and add the
     standard change message annotation.
     """
+    # The repo dashboard is maintained in Grafana API v2 shape and is sent as-is.
     payload: dict[str, Any] = {
         "apiVersion": data.get("apiVersion", "dashboard.grafana.app/v2"),
         "kind": "Dashboard",
