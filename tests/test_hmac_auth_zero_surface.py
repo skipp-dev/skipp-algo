@@ -40,7 +40,9 @@ HMAC_ALLOWED: set[tuple[str, int, str]] = {
     # moved repeatedly with daemon endpoint updates.
     # 2026-06-21 (merge refresh): combined branch changes shifted
     # compare_digest call; latest line pin is 418.
-    ("services/live_overlay_daemon/main.py", 418, "compare_digest"),
+    # 2026-06-22 (fix/live-overlay-market-open-multiregion): main-merge +
+    # provider-news rework shifted the same compare_digest call 418 → 421.
+    ("services/live_overlay_daemon/main.py", 421, "compare_digest"),
 }
 
 _DIR_EXCLUDE = {

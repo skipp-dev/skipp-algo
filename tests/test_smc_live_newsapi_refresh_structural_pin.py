@@ -114,11 +114,11 @@ def test_ttl_env_pin_present(refresh_job: dict) -> None:
             step
             for step in steps
             if isinstance(step, dict)
-            and step.get("name") == "Refresh NewsAPI.ai live snapshot"
+            and step.get("name") == "Refresh live news snapshot (NewsAPI.ai + FMP + TradingView)"
         ),
         None,
     )
-    assert isinstance(refresh_step, dict), "Refresh NewsAPI.ai live snapshot step missing"
+    assert isinstance(refresh_step, dict), "Refresh live news snapshot step missing"
 
     env = refresh_step.get("env")
     assert isinstance(env, dict)
