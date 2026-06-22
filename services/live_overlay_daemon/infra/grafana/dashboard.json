@@ -84,7 +84,7 @@
             "version": "",
             "spec": {
               "options": {
-                "colorMode": "background",
+                "colorMode": "value",
                 "graphMode": "none",
                 "reduceOptions": {
                   "calcs": [
@@ -546,7 +546,7 @@
             "version": "",
             "spec": {
               "options": {
-                "colorMode": "background",
+                "colorMode": "value",
                 "graphMode": "area",
                 "reduceOptions": {
                   "calcs": [
@@ -2512,7 +2512,7 @@
             "version": "",
             "spec": {
               "options": {
-                "colorMode": "background",
+                "colorMode": "value",
                 "graphMode": "area",
                 "reduceOptions": {
                   "calcs": [
