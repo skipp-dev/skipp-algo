@@ -106,7 +106,12 @@ def _load_dashboard(dashboard_path: Path) -> dict[str, Any]:
 
     # Legacy Grafana dashboard JSON (title/panels/schemaVersion at top-level).
     if "panels" in data or "schemaVersion" in data:
-        dashboard_name = str(data.get("uid") or data.get("title") or dashboard_path.stem)
+        dashboard_name_raw = data.get("uid")
+        if dashboard_name_raw is None:
+            dashboard_name_raw = data.get("title")
+        if dashboard_name_raw is None:
+            dashboard_name_raw = dashboard_path.stem
+        dashboard_name = str(dashboard_name_raw)
         return {
             "apiVersion": "dashboard.grafana.app/v2",
             "kind": "Dashboard",

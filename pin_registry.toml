@@ -1,3 +1,4 @@
+
 # pin_registry.toml — single source of truth for ledger-style audit pins.
 #
 # Migrated from per-test _FROZEN_* constants per
@@ -90,7 +91,7 @@
 # exactly once with explicit timeout=60. The single callsite is reused
 # for both endpoint attempts: primary /api/v1/dashboards and fallback
 # /api/dashboards/db.
-"scripts/publish_overlay_dashboard.py" = [242]
+"scripts/publish_overlay_dashboard.py" = [253]
 "terminal_finnhub.py" = [245]
 "terminal_tradingview_news.py" = [423]
 # 2026-06-22: Grafana dashboard upsert helper; fixed HTTPS URL, explicit timeout= via Request socket.
