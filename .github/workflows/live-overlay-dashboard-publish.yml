@@ -22,7 +22,7 @@ permissions:
 
 concurrency:
   # Serialize publishes to the shared Grafana dashboard target.
-  group: live-overlay-dashboard-publish
+  group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: false
 
 env:

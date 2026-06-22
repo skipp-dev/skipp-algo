@@ -267,3 +267,26 @@ def test_main_dry_run_full_implies_dry_run_without_network_request(
     assert rc == 0
     assert "Dry-run: no network request sent." in out
     assert "Payload:" in out
+
+
+def test_main_dry_run_skips_token_resolution(
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+    tmp_path: Path,
+) -> None:
+    path = tmp_path / "dashboard.json"
+    path.write_text(
+        '{"apiVersion":"dashboard.grafana.app/v2","kind":"Dashboard","metadata":{"name":"smc-live-overlay-v1"},"spec":{"elements":{}}}',
+        encoding="utf-8",
+    )
+
+    def _boom_get_token(*_args, **_kwargs):
+        raise AssertionError("_get_token must not be called for --dry-run")
+
+    monkeypatch.setattr("scripts.publish_overlay_dashboard._get_token", _boom_get_token)
+
+    rc = main([str(path), "--dry-run"])
+    out = capsys.readouterr().out
+
+    assert rc == 0
+    assert "Dry-run: no network request sent." in out

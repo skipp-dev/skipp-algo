@@ -284,12 +284,6 @@ def main(argv: list[str] | None = None) -> int:
         # `--dry-run-full` is a strict superset of `--dry-run` and must never publish.
         args.dry_run = True
     data = _load_dashboard(args.dashboard_path)
-    token = _get_token(
-        args.token,
-        args.keychain_service,
-        args.token_env,
-        no_keychain=args.no_keychain,
-    )
     payload = _prepare_payload(data, args.message)
 
     if args.dry_run:
@@ -309,6 +303,13 @@ def main(argv: list[str] | None = None) -> int:
             print("\nPayload:")
             print(json.dumps(payload, indent=2, ensure_ascii=False))
         return 0
+
+    token = _get_token(
+        args.token,
+        args.keychain_service,
+        args.token_env,
+        no_keychain=args.no_keychain,
+    )
 
     result, endpoint_used = _post(args.host, token, payload)
     metadata = result.get("metadata", {})

@@ -525,7 +525,7 @@ def stop() -> None:
             _feed_thread.join(timeout=5)
         ingest_thread = _runtime.get("ingest_thread")
         ingest_queue = _runtime.get("ingest_queue")
-        if ingest_queue is not None:
+        if ingest_queue is not None and ingest_thread is not None and ingest_thread.is_alive():
             try:
                 # Wake a potentially blocked queue.get(timeout=0.5) so stop()
                 # does not need to wait for timeout jitter during teardown.

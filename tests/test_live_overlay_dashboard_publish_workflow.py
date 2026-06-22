@@ -64,7 +64,9 @@ def test_permissions_defaults_and_concurrency_pinned(workflow_doc: dict) -> None
 
     concurrency = workflow_doc.get("concurrency")
     assert isinstance(concurrency, dict)
-    assert concurrency.get("group") == "live-overlay-dashboard-publish"
+    group = concurrency.get("group")
+    assert isinstance(group, str)
+    assert "${{ github.workflow }}" in group and "${{ github.ref }}" in group
     assert concurrency.get("cancel-in-progress") is False
 
 
