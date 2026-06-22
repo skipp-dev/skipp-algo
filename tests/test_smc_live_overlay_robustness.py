@@ -839,6 +839,7 @@ class TestFeedReadyClearedOnStop:
                 ingest_waiting.set()
                 return super().get(*args, **kwargs)
 
+        original_ingest_queue = feed_mod._runtime.get("ingest_queue")
         ingest_q: queue.Queue[object] = _SignalingQueue(maxsize=4)
         feed_mod._runtime["ingest_queue"] = ingest_q
         ingest_thread = threading.Thread(
@@ -856,6 +857,7 @@ class TestFeedReadyClearedOnStop:
 
         assert feed_mod._runtime["ingest_thread"] is None
         assert "bounded joins ended with workers still alive" not in caplog.text
+        feed_mod._runtime["ingest_queue"] = original_ingest_queue
         feed_mod._stop_event.clear()
 
 

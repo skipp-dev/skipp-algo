@@ -96,8 +96,13 @@ def _load_dashboard(dashboard_path: Path) -> dict[str, Any]:
         raise SystemExit("Dashboard JSON must be a JSON object")
 
     # Native Grafana API v2 Dashboard object.
-    if data.get("kind") == "Dashboard" and "spec" in data:
+    if _is_v2_dashboard(data):
         return data
+    if data.get("kind") == "Dashboard":
+        raise SystemExit(
+            "Grafana API v2 dashboard object requires a top-level object "
+            "shape: kind='Dashboard' and spec=<object>."
+        )
 
     # Legacy Grafana dashboard JSON (title/panels/schemaVersion at top-level).
     if "panels" in data or "schemaVersion" in data:
@@ -179,11 +184,12 @@ def _get_token(
 def _prepare_payload(data: dict[str, Any], message: str) -> dict[str, Any]:
     """Return the payload expected by the /api/v1/dashboards endpoint.
 
-    The repo file is already in the Kubernetes-style Dashboard format, but we
-    strip server-managed metadata that must not be sent on upsert and add the
-    standard change message annotation.
+    The input is normalized to Kubernetes-style Dashboard format (native v2 or
+    legacy JSON wrapped by `_load_dashboard`). We then strip server-managed
+    metadata that must not be sent on upsert and add the standard change
+    message annotation.
     """
-    # The repo dashboard is maintained in Grafana API v2 shape and is sent as-is.
+    # Send a clean Dashboard v2 object built from normalized input.
     payload: dict[str, Any] = {
         "apiVersion": data.get("apiVersion", "dashboard.grafana.app/v2"),
         "kind": "Dashboard",
