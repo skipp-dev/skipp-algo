@@ -1653,13 +1653,18 @@ export async function fillFirst(value: string, candidates: Locator[], timeoutMs 
   return false;
 }
 
-async function clickVisibleWithFallback(
+export async function clickVisibleWithFallback(
   page: Page,
   candidates: Locator[],
   tracePrefix: string,
   timeoutMs = 2_000,
   settleMs = 500,
 ): Promise<boolean> {
+  // Centralised hover-tooltip dismissal (issue #2849).
+  // Moving to (0, 0) before the first candidate loop causes TradingView to
+  // close any hover-only [data-id] overlay so it does not intercept clicks.
+  await page.mouse.move(0, 0).catch(() => undefined);
+
   let missingCandidates = 0;
 
   for (const [index, locator] of candidates.entries()) {
