@@ -87,9 +87,11 @@ def test_checkout_uses_gh_pat_for_bot_pr_trigger() -> None:
         "GH_PAT-or-default token pattern missing; bot PR will stall in BLOCKED "
         "(fast-gates 'expected' forever)"
     )
-    assert "persist-credentials: true" in text, (
-        "run job's checkout must persist-credentials so subsequent git push "
-        "uses the PAT, not the anonymous token"
+    assert "persist-credentials: false" in text, (
+        "run job checkout must disable persisted credentials; push auth must be explicit"
+    )
+    assert "git remote set-url origin \"https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git\"" in text, (
+        "run job must set tokenized remote URL explicitly before git push"
     )
 
 
