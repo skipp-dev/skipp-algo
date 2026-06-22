@@ -22,3 +22,7 @@ artifacts/ci/
 artifacts/review_*
 artifacts/open_prep/outcomes/feature_importance/
 node_modules/
+
+# Never send local secret env files into Docker build context.
+.env
+**/.env

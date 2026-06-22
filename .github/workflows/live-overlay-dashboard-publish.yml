@@ -1,0 +1,99 @@
+# live-window: any-trigger  # F-V6-F2.1 (2026-06-22): push-mutating publish workflow
+name: live-overlay-dashboard-publish
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - services/live_overlay_daemon/infra/grafana/dashboard.json
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: "Run validation only (no publish request)"
+        type: boolean
+        default: true
+      host:
+        description: "Grafana host override"
+        required: false
+        default: "bronzeporridge977.grafana.net"
+
+permissions:
+  contents: read
+
+concurrency:
+  # Serialize publishes to the shared Grafana dashboard target.
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: false
+
+env:
+  PYTHONUNBUFFERED: "1"
+  PYTHONPATH: ${{ github.workspace }}
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: "true"
+
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  publish-dashboard:
+    runs-on: ${{ vars.SMC_GH_HOSTED_RUNNER || 'ubuntu-latest' }}
+    timeout-minutes: 15
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+        with:
+          persist-credentials: false
+
+      - name: Set up pinned Python
+        uses: ./.github/actions/setup-python-pinned
+        with:
+          cache: pip
+          cache-dependency-path: requirements.txt
+
+      - name: Publish dashboard (or dry-run)
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          INPUT_DRY_RUN: ${{ github.event.inputs.dry_run }}
+          INPUT_HOST: ${{ github.event.inputs.host }}
+          GRAFANA_API_TOKEN: ${{ secrets.GRAFANA_API_TOKEN }}
+        run: |
+          set -euo pipefail
+
+          DASHBOARD_PATH="services/live_overlay_daemon/infra/grafana/dashboard.json"
+          HOST="${INPUT_HOST:-bronzeporridge977.grafana.net}"
+
+          # push -> always publish (mutating workflow);
+          # manual runs can be dry-run or publish.
+          dry_run="false"
+          if [[ "${EVENT_NAME}" == "workflow_dispatch" ]]; then
+            case "${INPUT_DRY_RUN:-true}" in
+              true|false) dry_run="${INPUT_DRY_RUN:-true}" ;;
+              *)
+                echo "::error::dry_run input must be 'true' or 'false', got: ${INPUT_DRY_RUN}"
+                exit 1
+                ;;
+            esac
+          fi
+
+          if [[ "${dry_run}" == "true" ]]; then
+            echo "Manual dry-run: validating payload generation only (no network publish)."
+            python scripts/publish_overlay_dashboard.py \
+              "${DASHBOARD_PATH}" \
+              --host "${HOST}" \
+              --dry-run \
+              --token "dry-run-token" \
+              --no-keychain
+            exit 0
+          fi
+
+          test -n "${GRAFANA_API_TOKEN}" || {
+            echo "::error::GRAFANA_API_TOKEN secret is required for dashboard publish."
+            exit 1
+          }
+
+          echo "Publishing ${DASHBOARD_PATH} to ${HOST}."
+          python scripts/publish_overlay_dashboard.py \
+            "${DASHBOARD_PATH}" \
+            --host "${HOST}" \
+            --no-keychain
