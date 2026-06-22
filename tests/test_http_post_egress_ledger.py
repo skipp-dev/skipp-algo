@@ -172,9 +172,13 @@ URLLIB_REQUEST_POST_LEDGER: set[tuple[str, int]] = {
     # 2026-06-21: UptimeRobot bridge polls monitor API with low-level
     # urllib.request.Request(..., method="POST") + timeout discipline.
     ("services/live_overlay_daemon/uptimerobot_bridge.py", 69),
-    # 2026-06-22: Grafana dashboard publisher API upsert payload.
-    # Line shifted 210 -> 243 after v1/v2 routing support refactor.
-    ("scripts/publish_overlay_dashboard.py", 240),
+    # 2026-06-22: the Grafana dashboard publisher previously pinned here as a
+    # literal Request(method="POST"). ADR-0025 consolidated its GET/POST/PUT
+    # egress into a single method-agnostic urllib.request.Request in
+    # _request_json (no literal method="POST"), so it is no longer detectable
+    # by this literal-POST shape. Its single urlopen transport edge stays
+    # pinned via the urllib_urlopen ledger (pin_registry.toml) +
+    # http_client_discipline at scripts/publish_overlay_dashboard.py:271.
 }
 
 
