@@ -125,7 +125,7 @@ Concretely, `scripts/publish_overlay_dashboard.py`:
   the literal-`method="POST"` shape of the HTTP-POST-egress ledger. Its egress
   edge is instead pinned by the single `urlopen` site in the urllib-urlopen
   ledger (`pin_registry.toml`) and `tests/test_http_client_discipline.py`
-  (`scripts/publish_overlay_dashboard.py:271`). The POST-egress ledger entry
+  (`scripts/publish_overlay_dashboard.py:287`). The POST-egress ledger entry
   for this file was removed with an inline justification rather than silently
   dropped.
 - Pin ledgers for the keychain `subprocess.run` and the `urllib` call sites

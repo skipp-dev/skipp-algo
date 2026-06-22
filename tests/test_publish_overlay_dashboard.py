@@ -282,5 +282,34 @@ def test_post_falls_back_to_legacy_on_apis_404(monkeypatch: pytest.MonkeyPatch) 
     monkeypatch.setattr("scripts.publish_overlay_dashboard._request_json", fake_request_json)
     _body, endpoint = _post("h", "t", _apis_payload(), namespace="default", uid="u1", message="m")
 
-    assert endpoint == "/api/dashboards/db"
+    assert endpoint == "POST https://h/api/dashboards/db"
     assert calls[-1][1].endswith("/api/dashboards/db")
+
+
+def test_post_raises_on_404_when_app_platform_base_is_reachable(monkeypatch: pytest.MonkeyPatch) -> None:
+    """404 from PUT/POST while the App Platform base is reachable must raise, not fall back."""
+
+    def fake_request_json(url, _token, *, method, payload=None):
+        if method == "GET" and url.endswith("/dashboards/u1"):
+            return 200, {"metadata": {"name": "u1", "resourceVersion": "42"}}
+        if method == "GET" and url.endswith("/v1"):
+            # Probe: API group base is reachable (e.g. wrong namespace, not absent platform).
+            return 200, {}
+        # PUT to collection/{uid} returns 404 (wrong namespace).
+        return 404, {"message": "not found"}
+
+    monkeypatch.setattr("scripts.publish_overlay_dashboard._request_json", fake_request_json)
+    with pytest.raises(SystemExit, match="API-group base is reachable"):
+        _post("h", "t", _apis_payload(), namespace="wrong-ns", uid="u1", message="m")
+
+
+def test_get_resource_version_raises_on_200_without_resource_version(monkeypatch: pytest.MonkeyPatch) -> None:
+    """200 response without metadata.resourceVersion must raise SystemExit (not return None)."""
+    from scripts.publish_overlay_dashboard import _get_resource_version
+
+    def fake_request_json(url, _token, *, method, payload=None):
+        return 200, {"metadata": {"name": "u1"}}  # missing resourceVersion
+
+    monkeypatch.setattr("scripts.publish_overlay_dashboard._request_json", fake_request_json)
+    with pytest.raises(SystemExit, match="resourceVersion"):
+        _get_resource_version("h", "t", "default", "u1")

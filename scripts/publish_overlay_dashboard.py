@@ -306,7 +306,13 @@ def _get_resource_version(host: str, token: str, namespace: str, uid: str) -> st
     if status >= 400:
         raise SystemExit(f"Grafana API error {status} on GET dashboard: {body.get('message', body)}")
     rv = body.get("metadata", {}).get("resourceVersion")
-    return str(rv) if rv is not None else None
+    if rv is None:
+        raise SystemExit(
+            f"Grafana API returned 200 for dashboard {uid!r} but "
+            "`metadata.resourceVersion` is absent — cannot proceed with "
+            "optimistic-concurrency PUT (see ADR-0025)."
+        )
+    return str(rv)
 
 
 def _post(
@@ -333,12 +339,24 @@ def _post(
 
     status, body = _request_json(url, token, method=method, payload=payload)
     if status == 404:
-        # Stack does not expose the App Platform API: fall back to legacy upsert.
+        # A 404 can mean the App Platform API group is absent (stack-level) or
+        # a wrong namespace / missing permissions (config error).  Probe the
+        # non-namespaced API-group base to distinguish the two cases.
+        probe_url = f"https://{host}/apis/dashboard.grafana.app/v1"
+        probe_status, _ = _request_json(probe_url, token, method="GET")
+        if probe_status != 404:
+            raise SystemExit(
+                f"Grafana App Platform returned 404 on {method} {url} but the "
+                f"API-group base is reachable (HTTP {probe_status}). "
+                "Check --namespace or API token permissions — "
+                "not falling back to legacy surface."
+            )
+        # App Platform truly absent: fall back to legacy upsert.
         legacy = _prepare_legacy_payload(payload["spec"], message)
         status, body = _request_json(f"https://{host}/api/dashboards/db", token, method="POST", payload=legacy)
         if status >= 400:
             raise SystemExit(f"Grafana API error {status} (legacy fallback): {body.get('message', body)}")
-        return body, "/api/dashboards/db"
+        return body, f"POST https://{host}/api/dashboards/db"
     if status == 409:
         raise SystemExit(
             "Grafana API 409 conflict: the dashboard changed in the UI since the last sync. "

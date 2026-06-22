@@ -178,7 +178,7 @@ URLLIB_REQUEST_POST_LEDGER: set[tuple[str, int]] = {
     # _request_json (no literal method="POST"), so it is no longer detectable
     # by this literal-POST shape. Its single urlopen transport edge stays
     # pinned via the urllib_urlopen ledger (pin_registry.toml) +
-    # http_client_discipline at scripts/publish_overlay_dashboard.py:271.
+    # http_client_discipline at scripts/publish_overlay_dashboard.py:287.
 }
 
 
