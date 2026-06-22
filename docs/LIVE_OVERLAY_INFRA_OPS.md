@@ -182,17 +182,39 @@ Der Grafana-API-Token benötigt mindestens:
 **Schritt-für-Schritt:**
 
 ```bash
-# Payload lokal prüfen (ohne Netzwerkaufruf)
+# Dry-run (kompakte Zusammenfassung, ohne Netzwerkaufruf)
 python3 scripts/publish_overlay_dashboard.py --dry-run
 
-# Publish (Token-Reihenfolge: --token > $GRAFANA_API_TOKEN > $GRAFANA_TOKEN > macOS Keychain)
+# Optional: Dry-run mit vollständigem Payload-JSON
+python3 scripts/publish_overlay_dashboard.py --dry-run --dry-run-full
+
+# Publish (primär: POST /api/v1/dashboards, Fallback: /api/dashboards/db bei 404)
 python3 scripts/publish_overlay_dashboard.py --message "chore: sync from repo"
 ```
 
-> Hinweis: Das Skript verwendet den legacy Endpoint `POST /api/dashboards/db`,
-> weil `POST /api/v1/dashboards` auf Grafana Cloud nicht verfügbar ist. Das
-> v2-Dashboard-JSON wird dabei unverändert im `dashboard`-Feld übermittelt,
-> was Grafana Cloud akzeptiert und korrekt verarbeitet.
+**Token-Auflösung (publish_overlay_dashboard.py):**
+
+1. `--token`
+2. `$<--token-env>` (Default: `GRAFANA_API_TOKEN`)
+3. `$GRAFANA_API_TOKEN` (nur wenn `--token-env` auf eine andere Variable zeigt)
+4. `$GRAFANA_TOKEN`
+5. macOS Keychain (`skipp.grafana.api`), außer bei `--no-keychain`
+
+**Endpoint-Verhalten:**
+
+- Primär: `POST /api/v1/dashboards`
+- Wenn Grafana Cloud dafür `404 Not found` liefert: automatischer Fallback auf
+  `POST /api/dashboards/db` mit Legacy-Wrapper (`dashboard`, `overwrite`, `message`)
+
+Beispiele:
+
+```bash
+# CI/Agent-Sandbox ohne Keychain
+GRAFANA_API_TOKEN=... python3 scripts/publish_overlay_dashboard.py --no-keychain --message "ci sync"
+
+# Custom env var first
+CUSTOM_GRAFANA_TOKEN=... python3 scripts/publish_overlay_dashboard.py --token-env CUSTOM_GRAFANA_TOKEN --message "custom token env"
+```
 
 **Live-Version verifizieren:**
 
@@ -432,7 +454,10 @@ cd /path/to/skipp-algo
 python3 -c "import json; d=json.load(open('services/live_overlay_daemon/infra/grafana/dashboard.json')); print('OK apiVersion='+d.get('apiVersion','?')+' elements='+str(len(d.get('spec',{}).get('elements',{}))))"
 
 # 2. Dry-run Payload prüfen
-python3 scripts/publish_overlay_dashboard.py --dry-run > /tmp/dashboard-payload.json
+python3 scripts/publish_overlay_dashboard.py --dry-run
+
+# 2b. Optional: vollständiges Payload für Diff/Review speichern
+python3 scripts/publish_overlay_dashboard.py --dry-run --dry-run-full > /tmp/dashboard-payload.json
 
 # 3. Publish via v2-Skript
 python3 scripts/publish_overlay_dashboard.py --message "update"
@@ -505,4 +530,31 @@ PY
 
 ---
 
-*Zuletzt aktualisiert: 2026-06-22 — PR #2879 (feat/monitoring-slo-terminal-updates)*
+## 9. Änderungen (Backfill 2026-06-21 / 2026-06-22)
+
+### 2026-06-21
+
+- `scripts/publish_overlay_dashboard.py`: Umstellung auf v2-Dashboard-Form als
+  Publish-Payload (`apiVersion: dashboard.grafana.app/v2`, `kind: Dashboard`,
+  `metadata`, `spec`) inkl. `grafana.app/message` Annotation.
+- Playbook: Dashboard-Publish über Skript als Standardpfad dokumentiert.
+
+### 2026-06-22
+
+- Token-Auflösung präzisiert und in Doku/Code synchronisiert:
+  - `--token-env` ist primär.
+  - `$GRAFANA_API_TOKEN` wird nur als zusätzlicher Fallback geprüft, wenn
+    `--token-env` auf eine andere Variable zeigt.
+  - danach `$GRAFANA_TOKEN`, dann Keychain.
+- Dry-run-Ausgabe gehärtet:
+  - `--dry-run` zeigt standardmäßig nur eine kompakte Zusammenfassung
+    (Primary/Fallback-Endpoint, Dashboard-Name, apiVersion, Elements, Message).
+  - `--dry-run-full` gibt zusätzlich das komplette Payload aus.
+- Publish-Robustheit erhöht:
+  - automatischer Fallback auf Legacy-Endpoint bei `404` auf dem v1-Endpoint,
+    damit Dashboard-Syncs auf Cloud-Stacks zuverlässig ankommen.
+- Tests ergänzt für Token-Fallback-Kette und Dry-run-Verhalten.
+
+---
+
+*Zuletzt aktualisiert: 2026-06-22 — PR #2879 (feat/monitoring-slo-terminal-updates), Backfill ergänzt 2026-06-21/22*

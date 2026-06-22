@@ -1,10 +1,11 @@
 from __future__ import annotations
 
 import subprocess
+from pathlib import Path
 
 import pytest
 
-from scripts.publish_overlay_dashboard import _get_token, _prepare_payload
+from scripts.publish_overlay_dashboard import _get_token, _prepare_legacy_payload, _prepare_payload, main
 
 
 def test_get_token_prefers_cli_token(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -59,7 +60,7 @@ def test_get_token_keychain_failure(monkeypatch: pytest.MonkeyPatch) -> None:
         _get_token(None, "svc", "CUSTOM_GRAFANA_TOKEN")
 
 
-def test_prepare_payload_wraps_v2_dashboard_for_legacy_endpoint() -> None:
+def test_prepare_payload_keeps_v2_shape_for_api_v1_endpoint() -> None:
     data = {
         "apiVersion": "dashboard.grafana.app/v2",
         "kind": "Dashboard",
@@ -69,6 +70,77 @@ def test_prepare_payload_wraps_v2_dashboard_for_legacy_endpoint() -> None:
 
     payload = _prepare_payload(data, "sync from test")
 
-    assert payload["dashboard"] is data
-    assert payload["overwrite"] is True
-    assert payload["message"] == "sync from test"
+    assert payload["apiVersion"] == "dashboard.grafana.app/v2"
+    assert payload["kind"] == "Dashboard"
+    assert payload["metadata"]["name"] == "smc-live-overlay-v1"
+    assert payload["metadata"]["labels"] == {"team": "ops"}
+    assert payload["metadata"]["annotations"]["grafana.app/message"] == "sync from test"
+    assert payload["spec"] == {"elements": {}}
+
+
+def test_get_token_custom_env_then_default_then_fallback(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.delenv("CUSTOM_GRAFANA_TOKEN", raising=False)
+    monkeypatch.setenv("GRAFANA_API_TOKEN", "default-token")
+    monkeypatch.setenv("GRAFANA_TOKEN", "fallback-token")
+
+    assert _get_token(None, "svc", "CUSTOM_GRAFANA_TOKEN") == "default-token"
+
+
+def test_prepare_legacy_payload_wraps_payload_with_message() -> None:
+    payload = {
+        "apiVersion": "dashboard.grafana.app/v2",
+        "kind": "Dashboard",
+        "metadata": {
+            "name": "smc-live-overlay-v1",
+            "annotations": {"grafana.app/message": "from test"},
+        },
+        "spec": {"elements": {}},
+    }
+
+    wrapped = _prepare_legacy_payload(payload)
+    assert wrapped["dashboard"] is payload
+    assert wrapped["overwrite"] is True
+    assert wrapped["message"] == "from test"
+
+
+def test_main_dry_run_prints_summary_only_by_default(
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+    tmp_path: Path,
+) -> None:
+    monkeypatch.setenv("GRAFANA_API_TOKEN", "env-token")
+    path = tmp_path / "dashboard.json"
+    path.write_text(
+        '{"apiVersion":"dashboard.grafana.app/v2","kind":"Dashboard","metadata":{"name":"smc-live-overlay-v1"},"spec":{"elements":{}}}',
+        encoding="utf-8",
+    )
+
+    rc = main([str(path), "--dry-run"])
+    out = capsys.readouterr().out
+
+    assert rc == 0
+    assert "Dry-run: no network request sent." in out
+    assert '"endpoint_primary": "https://bronzeporridge977.grafana.net/api/v1/dashboards"' in out
+    assert '"endpoint_fallback": "https://bronzeporridge977.grafana.net/api/dashboards/db"' in out
+    assert '"spec_elements": 0' in out
+    assert '"spec": {' not in out
+
+
+def test_main_dry_run_full_prints_payload(
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+    tmp_path: Path,
+) -> None:
+    monkeypatch.setenv("GRAFANA_API_TOKEN", "env-token")
+    path = tmp_path / "dashboard.json"
+    path.write_text(
+        '{"apiVersion":"dashboard.grafana.app/v2","kind":"Dashboard","metadata":{"name":"smc-live-overlay-v1"},"spec":{"elements":{}}}',
+        encoding="utf-8",
+    )
+
+    rc = main([str(path), "--dry-run", "--dry-run-full"])
+    out = capsys.readouterr().out
+
+    assert rc == 0
+    assert "Payload:" in out
+    assert '"spec": {' in out

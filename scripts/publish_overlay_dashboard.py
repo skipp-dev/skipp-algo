@@ -2,12 +2,9 @@
 """Publish the live-overlay Grafana dashboard from repo to Grafana Cloud.
 
 The dashboard is stored in Grafana API v2 format (apiVersion: dashboard.grafana.app/v2)
-and is pushed via the legacy dashboard upsert API:
+and is pushed via the Kubernetes-style dashboards API:
 
-    POST /api/dashboards/db
-
-Grafana Cloud accepts the v2 JSON directly when wrapped in
-``{"dashboard": <json>, "overwrite": true, "message": ...}``.
+    POST /api/v1/dashboards
 
 Authentication uses CLI/env first and falls back to the macOS keychain entry
 ``skipp.grafana.api`` by default.
@@ -15,7 +12,7 @@ Authentication uses CLI/env first and falls back to the macOS keychain entry
 Resolution order:
 1) ``--token``
 2) ``$<--token-env>`` (default: ``GRAFANA_API_TOKEN``)
-3) ``$GRAFANA_API_TOKEN``
+3) ``$GRAFANA_API_TOKEN`` (only if ``--token-env`` points to a different var)
 4) ``$GRAFANA_TOKEN``
 5) Keychain (unless ``--no-keychain`` is set)
 """
@@ -25,6 +22,7 @@ import argparse
 import json
 import os
 import subprocess
+import sys
 import urllib.error
 import urllib.request
 from pathlib import Path
@@ -70,7 +68,12 @@ def _resolve_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser.add_argument(
         "--dry-run",
         action="store_true",
-        help="Validate and print payload without sending",
+        help="Validate without sending; prints a compact summary",
+    )
+    parser.add_argument(
+        "--dry-run-full",
+        action="store_true",
+        help="With --dry-run, also print the full JSON payload",
     )
     parser.add_argument(
         "--message",
@@ -101,7 +104,11 @@ def _get_token(
     if token:
         return token
 
-    env_candidates = [token_env, DEFAULT_TOKEN_ENV, "GRAFANA_TOKEN"]
+    env_candidates = [token_env]
+    if token_env != DEFAULT_TOKEN_ENV:
+        env_candidates.append(DEFAULT_TOKEN_ENV)
+    env_candidates.append("GRAFANA_TOKEN")
+
     seen: set[str] = set()
     for name in env_candidates:
         if not name or name in seen:
@@ -141,40 +148,80 @@ def _get_token(
 
 
 def _prepare_payload(data: dict[str, Any], message: str) -> dict[str, Any]:
-    """Return the payload expected by the /api/dashboards/db endpoint.
+    """Return the payload expected by the /api/v1/dashboards endpoint.
 
-    The repo file is maintained in Grafana API v2 format. Grafana Cloud's
-    legacy upsert endpoint accepts that JSON directly when embedded under the
-    ``dashboard`` key.
+    The repo file is already in the Kubernetes-style Dashboard format, but we
+    strip server-managed metadata that must not be sent on upsert and add the
+    standard change message annotation.
     """
+    # The repo dashboard is maintained in Grafana API v2 shape and is sent as-is.
+    payload: dict[str, Any] = {
+        "apiVersion": data.get("apiVersion", "dashboard.grafana.app/v2"),
+        "kind": "Dashboard",
+        "metadata": {},
+        "spec": data["spec"],
+    }
+
+    # Preserve only client-relevant metadata. Server-managed fields like
+    # resourceVersion, generation, creationTimestamp and uid are stripped.
+    meta = data.get("metadata", {})
+    for key in ("name", "annotations", "labels"):
+        if key in meta:
+            payload["metadata"][key] = meta[key]
+
+    # Ensure the change message is recorded as an annotation.
+    annotations = payload["metadata"].setdefault("annotations", {})
+    annotations["grafana.app/message"] = message
+
+    return payload
+
+
+def _prepare_legacy_payload(payload: dict[str, Any]) -> dict[str, Any]:
+    """Return a payload for legacy POST /api/dashboards/db upsert.
+
+    Grafana Cloud stacks that do not expose /api/v1/dashboards can still accept
+    the v2 Dashboard object inside the legacy wrapper.
+    """
+    message = payload.get("metadata", {}).get("annotations", {}).get("grafana.app/message", "sync from repo")
     return {
-        "dashboard": data,
+        "dashboard": payload,
         "overwrite": True,
         "message": message,
     }
 
 
-def _post(host: str, token: str, payload: dict[str, Any]) -> dict[str, Any]:
-    url = f"https://{host}/api/dashboards/db"
-    body = json.dumps(payload, indent=2, ensure_ascii=False).encode("utf-8")
-    req = urllib.request.Request(
-        url,
-        data=body,
-        method="POST",
-        headers={
-            "Authorization": f"Bearer {token}",
-            "Content-Type": "application/json",
-            "Accept": "application/json",
-        },
-    )
-    try:
-        with urllib.request.urlopen(req, timeout=60) as resp:
-            return json.loads(resp.read().decode("utf-8"))
-    except urllib.error.HTTPError as exc:
-        detail = exc.read().decode("utf-8", errors="replace")
-        raise SystemExit(f"Grafana API error {exc.code}: {detail}") from exc
-    except urllib.error.URLError as exc:
-        raise SystemExit(f"Could not reach Grafana API: {exc}") from exc
+def _post(host: str, token: str, payload: dict[str, Any]) -> tuple[dict[str, Any], str]:
+    attempts: list[tuple[str, dict[str, Any]]] = [
+        ("/api/v1/dashboards", payload),
+        ("/api/dashboards/db", _prepare_legacy_payload(payload)),
+    ]
+
+    for idx, (endpoint, endpoint_payload) in enumerate(attempts):
+        url = f"https://{host}{endpoint}"
+        body = json.dumps(endpoint_payload, indent=2, ensure_ascii=False).encode("utf-8")
+        req = urllib.request.Request(
+            url,
+            data=body,
+            method="POST",
+            headers={
+                "Authorization": f"Bearer {token}",
+                "Content-Type": "application/json",
+                "Accept": "application/json",
+            },
+        )
+        try:
+            with urllib.request.urlopen(req, timeout=60) as resp:
+                return json.loads(resp.read().decode("utf-8")), endpoint
+        except urllib.error.HTTPError as exc:
+            # If v1 is unavailable on this stack, try legacy endpoint.
+            if idx == 0 and exc.code == 404:
+                continue
+            detail = exc.read().decode("utf-8", errors="replace")
+            raise SystemExit(f"Grafana API error {exc.code}: {detail}") from exc
+        except urllib.error.URLError as exc:
+            raise SystemExit(f"Could not reach Grafana API: {exc}") from exc
+
+    raise SystemExit("Grafana API error: no endpoint attempt succeeded")
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -189,19 +236,36 @@ def main(argv: list[str] | None = None) -> int:
     payload = _prepare_payload(data, args.message)
 
     if args.dry_run:
-        print(json.dumps(payload, indent=2, ensure_ascii=False))
+        summary = {
+            "dry_run": True,
+            "endpoint_primary": f"https://{args.host}/api/v1/dashboards",
+            "endpoint_fallback": f"https://{args.host}/api/dashboards/db",
+            "apiVersion": payload.get("apiVersion", "n/a"),
+            "kind": payload.get("kind", "n/a"),
+            "dashboard_name": payload.get("metadata", {}).get("name", "n/a"),
+            "spec_elements": len(payload.get("spec", {}).get("elements", {})),
+            "message": payload.get("metadata", {}).get("annotations", {}).get("grafana.app/message", "n/a"),
+        }
+        print("Dry-run: no network request sent.")
+        print(json.dumps(summary, indent=2, ensure_ascii=False))
+        if args.dry_run_full:
+            print("\nPayload:")
+            print(json.dumps(payload, indent=2, ensure_ascii=False))
         return 0
 
-    result = _post(args.host, token, payload)
+    result, endpoint_used = _post(args.host, token, payload)
+    metadata = result.get("metadata", {})
     print(
         f"Published {args.dashboard_path} to {args.host}\n"
-        f"  uid:      {result.get('uid', 'n/a')}\n"
-        f"  url:      {result.get('url', 'n/a')}\n"
-        f"  version:  {result.get('version', 'n/a')}\n"
-        f"  status:   {result.get('status', 'n/a')}"
+        f"  endpoint: {endpoint_used}\n"
+        f"  uid:      {metadata.get('uid', 'n/a')}\n"
+        f"  name:     {metadata.get('name', 'n/a')}\n"
+        f"  version:  {metadata.get('resourceVersion', 'n/a')}\n"
+        f"  response: {result.get('status', 'ok')}"
     )
     return 0
 
 
 if __name__ == "__main__":
     raise SystemExit(main())
+

@@ -87,8 +87,8 @@
 "services/live_overlay_daemon/github_workflow_bridge.py" = [95]
 "services/live_overlay_daemon/uptimerobot_bridge.py" = [76]
 # 2026-06-22: v2 Grafana dashboard publisher uses urllib.request.urlopen
-# exactly once for POST /api/dashboards/db with explicit timeout=60.
-"scripts/publish_overlay_dashboard.py" = [171]
+# exactly once for POST /api/v1/dashboards with explicit timeout=60.
+"scripts/publish_overlay_dashboard.py" = [213]
 "terminal_finnhub.py" = [245]
 "terminal_tradingview_news.py" = [423]
 
