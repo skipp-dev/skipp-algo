@@ -100,7 +100,7 @@ jobs:
           # leaves the PR stuck in BLOCKED with `fast-gates` "expected"
           # forever (observed on PR #103, run 24894798260).
           token: ${{ secrets.GH_PAT != '' && secrets.GH_PAT || github.token }}
-          persist-credentials: true
+          persist-credentials: false
 
       - name: Set up pinned Python (GitHub-hosted)
         if: needs.select-runner.outputs.runner_environment == 'github-hosted'
@@ -208,6 +208,7 @@ jobs:
           set -euo pipefail
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git remote set-url origin "https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git"
           git add artifacts/open_prep/outcomes/ || true
           if git diff --staged --quiet; then
             echo "No new outcomes to commit."

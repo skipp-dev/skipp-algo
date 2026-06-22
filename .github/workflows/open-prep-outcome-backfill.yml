@@ -107,7 +107,7 @@ jobs:
           # the default GITHUB_TOKEN do NOT spawn child workflows, which
           # leaves the PR stuck in BLOCKED with `fast-gates` "expected".
           token: ${{ secrets.GH_PAT != '' && secrets.GH_PAT || github.token }}
-          persist-credentials: true
+          persist-credentials: false
 
       - name: Set up pinned Python (GitHub-hosted)
         if: needs.select-runner.outputs.runner_environment == 'github-hosted'
@@ -284,6 +284,7 @@ jobs:
           set -euo pipefail
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git remote set-url origin "https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git"
           git add artifacts/open_prep/outcomes/ artifacts/open_prep/outcome_backfill/ artifacts/open_prep/feature_importance/ || true
           if git diff --staged --quiet; then
             echo "No changes to commit."

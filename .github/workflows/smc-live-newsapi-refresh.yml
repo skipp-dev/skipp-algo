@@ -83,6 +83,9 @@ jobs:
 
       - name: Checkout
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+        with:
+          token: ${{ secrets.GH_PAT != '' && secrets.GH_PAT || github.token }}
+          persist-credentials: false
 
       - name: Set up pinned Python (GitHub-hosted)
         if: needs.select-runner.outputs.runner_environment == 'github-hosted'
@@ -204,6 +207,8 @@ jobs:
         # green forever and the bot/live-news-snapshot staleness floor
         # silently rotted. Transient failures self-heal on the next
         # hourly tick; persistent failures must show up red.
+        env:
+          GH_TOKEN: ${{ secrets.GH_PAT != '' && secrets.GH_PAT || github.token }}
         run: |
           # F-V3 (audit 2026-05-02): strict mode so unexpected git failures
           # don't silently slip past and mis-report `outcome=pushed`. The
@@ -211,6 +216,7 @@ jobs:
           set -euo pipefail
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git remote set-url origin "https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git"
           git add --sparse -f artifacts/smc_microstructure_exports/smc_live_news_snapshot.json artifacts/smc_microstructure_exports/smc_live_news_state.json
           if git diff --cached --quiet; then
             echo "No live snapshot changes to commit."
