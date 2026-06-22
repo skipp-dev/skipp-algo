@@ -7,7 +7,18 @@ import time
 from typing import Any
 from unittest.mock import patch
 
+import pytest
+
 from services.live_overlay_daemon import uptimerobot_bridge
+
+
+@pytest.fixture(autouse=True)
+def _reset_bridge_cache() -> None:
+    uptimerobot_bridge._cached_snapshot = None
+    uptimerobot_bridge._cached_at_monotonic = 0.0
+    yield
+    uptimerobot_bridge._cached_snapshot = None
+    uptimerobot_bridge._cached_at_monotonic = 0.0
 
 
 def test_status_bucket() -> None:

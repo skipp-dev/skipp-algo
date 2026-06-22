@@ -13,6 +13,15 @@ import pytest
 from services.live_overlay_daemon import github_workflow_bridge
 
 
+@pytest.fixture(autouse=True)
+def _reset_bridge_cache() -> None:
+    github_workflow_bridge._cached_snapshot = None
+    github_workflow_bridge._cached_at_monotonic = 0.0
+    yield
+    github_workflow_bridge._cached_snapshot = None
+    github_workflow_bridge._cached_at_monotonic = 0.0
+
+
 def test_phase_code_mapping() -> None:
     assert github_workflow_bridge._phase_code("queued", None) == 1
     assert github_workflow_bridge._phase_code("in_progress", None) == 2

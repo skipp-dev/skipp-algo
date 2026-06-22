@@ -381,6 +381,7 @@ def test_render_metrics_includes_uptimerobot_bridge_snapshot(monkeypatch: pytest
     assert "live_overlay_uptimerobot_bridge_enabled 1" in body
     assert "live_overlay_uptimerobot_scrape_success 1" in body
     assert "live_overlay_uptimerobot_monitors_total 4.0" in body
+    assert "live_overlay_uptimerobot_monitors_total_total 4.0" in body
     assert "live_overlay_uptimerobot_monitors_up_total 4.0" in body
     assert "live_overlay_uptimerobot_monitors_response_time_ms_avg 101.5" in body
     assert "live_overlay_uptimerobot_monitor__803343156_up 1.0" in body
