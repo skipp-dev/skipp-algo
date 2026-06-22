@@ -229,3 +229,41 @@ def test_snapshot_coalesces_parallel_fetches() -> None:
             t.join()
 
     assert len(calls) == 1
+
+
+def test_snapshot_parallel_fetch_error_is_coalesced() -> None:
+    calls: list[str] = []
+    results: list[dict[str, Any]] = []
+
+    def _slow_fail(token: str) -> dict[str, Any]:
+        calls.append(token)
+        time.sleep(0.05)
+        raise TimeoutError("boom")
+
+    def _worker() -> None:
+        results.append(github_workflow_bridge.snapshot())
+
+    with patch.object(
+        github_workflow_bridge.config,
+        "github_workflow_token",
+        return_value="token",
+    ), patch.object(
+        github_workflow_bridge.config,
+        "github_workflow_poll_ttl_secs",
+        return_value=300,
+    ), patch.object(
+        github_workflow_bridge,
+        "_fetch_snapshot",
+        side_effect=_slow_fail,
+    ):
+        threads = [threading.Thread(target=_worker) for _ in range(6)]
+        for t in threads:
+            t.start()
+        for t in threads:
+            t.join()
+
+    assert len(calls) == 1
+    assert len(results) == 6
+    assert all(r.get("enabled") == 1 for r in results)
+    assert all(r.get("ok") == 0 for r in results)
+    assert all(r.get("error") == "TimeoutError" for r in results)
