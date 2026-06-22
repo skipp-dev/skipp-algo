@@ -78,19 +78,36 @@ def test_jobs_select_runner_then_run() -> None:
     assert jobs["select-runner"]["timeout-minutes"] == 5
 
 
+def _job_checkout_step(job_name: str) -> dict:
+    jobs = _load()["jobs"]
+    steps = jobs[job_name]["steps"]
+    for step in steps:
+        uses = step.get("uses") or ""
+        if isinstance(uses, str) and uses.startswith("actions/checkout@"):
+            return step
+    raise AssertionError(f"missing actions/checkout step in jobs.{job_name}")
+
+
 def test_checkout_uses_gh_pat_for_bot_pr_trigger() -> None:
     """GH_PAT regression guard: PR #103 / run 24894798260 stuck in BLOCKED."""
-    text = _WF_PATH.read_text(encoding="utf-8")
-    # The ``run`` job's checkout must pull a token (PAT-or-fallback) — without
-    # this, ``git push`` -> ``gh pr create`` does not spawn the fast-gates run.
-    assert "secrets.GH_PAT != ''" in text, (
-        "GH_PAT-or-default token pattern missing; bot PR will stall in BLOCKED "
-        "(fast-gates 'expected' forever)"
+    checkout = _job_checkout_step("run")
+    with_block = checkout.get("with")
+    assert isinstance(with_block, dict), "jobs.run checkout must define a with: block"
+
+    token = with_block.get("token")
+    assert isinstance(token, str) and "secrets.GH_PAT != ''" in token, (
+        "jobs.run checkout token must use GH_PAT-or-default expression so bot PRs "
+        "trigger required checks (avoid fast-gates stuck as expected/BLOCKED)"
     )
-    assert "persist-credentials: false" in text, (
+
+    assert with_block.get("persist-credentials") is False, (
         "run job checkout must disable persisted credentials; push auth must be explicit"
     )
-    assert "git remote set-url origin \"https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git\"" in text, (
+
+    run_scripts = "\n".join(
+        str(step.get("run", "")) for step in _load()["jobs"]["run"]["steps"]
+    )
+    assert "git remote set-url origin \"https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git\"" in run_scripts, (
         "run job must set tokenized remote URL explicitly before git push"
     )
 
