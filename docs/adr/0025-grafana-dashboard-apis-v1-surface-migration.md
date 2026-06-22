@@ -74,10 +74,20 @@ Concretely, `scripts/publish_overlay_dashboard.py`:
 
 1. Reads the in-repo classic `dashboard.json` (top-level `uid` / `panels` /
    `schemaVersion`) — **the repo file format does not change**.
-2. Wraps it into the App Platform resource envelope at publish time:
-   `{apiVersion: dashboard.grafana.app/v1, kind: Dashboard,
-   metadata: {name: <uid>, annotations: {grafana.app/folder, grafana.app/message}},
-   spec: <classic dashboard>}`.
+2. Wraps it into the App Platform resource envelope at publish time (a
+   `Dashboard` resource whose `spec` is the unchanged classic dashboard):
+
+   ```json
+   {
+     "apiVersion": "dashboard.grafana.app/v1",
+     "kind": "Dashboard",
+     "metadata": {
+       "name": "<uid>",
+       "annotations": {"grafana.app/folder": "<folderUid>", "grafana.app/message": "<msg>"}
+     },
+     "spec": "<classic dashboard JSON>"
+   }
+   ```
 3. Performs an **upsert with optimistic concurrency**: `GET` the existing
    resource to read `metadata.resourceVersion`; `POST` to the collection when
    absent (create) or `PUT` to `.../dashboards/<uid>` echoing the

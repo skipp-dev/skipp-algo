@@ -85,11 +85,18 @@ def test_prepare_payload_wraps_classic_dashboard_into_apis_v1() -> None:
     assert payload["spec"]["panels"] == [{"type": "stat"}]
 
 
-def test_prepare_payload_omits_folder_annotation_when_empty() -> None:
-    payload = _prepare_payload({"uid": "u1", "panels": []}, "msg", "")
+@pytest.mark.parametrize("folder", ["", "   ", "\t", None])
+def test_prepare_payload_omits_folder_annotation_when_blank(folder: str | None) -> None:
+    payload = _prepare_payload({"uid": "u1", "panels": []}, "msg", folder)
 
     assert "grafana.app/folder" not in payload["metadata"]["annotations"]
     assert payload["metadata"]["annotations"] == {"grafana.app/message": "msg"}
+
+
+def test_prepare_payload_strips_folder_whitespace() -> None:
+    payload = _prepare_payload({"uid": "u1", "panels": []}, "msg", "  cfpozahbhfzswc  ")
+
+    assert payload["metadata"]["annotations"]["grafana.app/folder"] == "cfpozahbhfzswc"
 
 
 def test_prepare_payload_accepts_v2_input_and_uses_metadata_name() -> None:
@@ -219,11 +226,14 @@ def test_post_creates_when_absent(monkeypatch: pytest.MonkeyPatch) -> None:
         return 201, {"metadata": {"name": "u1", "resourceVersion": "5"}}
 
     monkeypatch.setattr("scripts.publish_overlay_dashboard._request_json", fake_request_json)
-    body, _endpoint = _post("h", "t", _apis_payload(), namespace="default", uid="u1", message="m")
+    body, endpoint = _post("h", "t", _apis_payload(), namespace="default", uid="u1", message="m")
 
     assert calls[0][0] == "GET"
     assert calls[1][0] == "POST"
     assert calls[1][1].endswith("/dashboards")
+    # Create reports the collection endpoint (POST), not the per-uid path.
+    assert endpoint.startswith("POST ")
+    assert endpoint.endswith("/dashboards")
     assert body["metadata"]["resourceVersion"] == "5"
 
 
@@ -237,11 +247,14 @@ def test_post_updates_with_resource_version_when_present(monkeypatch: pytest.Mon
         return 200, {"metadata": {"name": "u1", "resourceVersion": "43"}}
 
     monkeypatch.setattr("scripts.publish_overlay_dashboard._request_json", fake_request_json)
-    _post("h", "t", _apis_payload(), namespace="default", uid="u1", message="m")
+    _body, endpoint = _post("h", "t", _apis_payload(), namespace="default", uid="u1", message="m")
 
     assert seen["method"] == "PUT"
     assert seen["url"].endswith("/dashboards/u1")
     assert seen["payload"]["metadata"]["resourceVersion"] == "42"
+    # Update reports the per-uid endpoint (PUT).
+    assert endpoint.startswith("PUT ")
+    assert endpoint.endswith("/dashboards/u1")
 
 
 def test_post_raises_on_conflict(monkeypatch: pytest.MonkeyPatch) -> None:
