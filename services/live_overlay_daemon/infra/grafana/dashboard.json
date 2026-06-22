@@ -2952,7 +2952,7 @@
       },
       "targets": [
         {
-          "expr": "(({__name__=~\"live_overlay_provider_news_.*_(ok|degraded)\",job=\"$job\"} or {__name__=~\"live_overlay_provider_news_.*_(ok|degraded)\"}) unless ({__name__=~\"live_overlay_provider_news_health_(ok|degraded)\",job=\"$job\"} or {__name__=~\"live_overlay_provider_news_health_(ok|degraded)\"}))",
+          "expr": "(({__name__=~\"live_overlay_provider_news_.*_(ok|degraded)\",job=\"$job\"} or {__name__=~\"live_overlay_provider_news_.*_(ok|degraded)\"}) unless on(__name__) ({__name__=~\"live_overlay_provider_news_health_(ok|degraded)\",job=\"$job\"} or {__name__=~\"live_overlay_provider_news_health_(ok|degraded)\"}))",
           "legendFormat": "{{__name__}}"
         }
       ],
