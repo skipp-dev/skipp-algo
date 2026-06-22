@@ -392,6 +392,19 @@ Run it after hand-editing the dashboard:
 python scripts/update_overlay_dashboard.py
 ```
 
+Then import the updated JSON into Grafana Cloud so the live dashboard picks up
+the changes:
+
+1. Open the production dashboard: **[SMC Live Overlay Daemon](https://bronzeporridge977.grafana.net/d/smc-live-overlay-v1/smc-live-overlay-daemon)**
+2. Click the gear icon → **JSON Model**.
+3. Paste the contents of `services/live_overlay_daemon/infra/grafana/dashboard.json`.
+4. Click **Save changes**.
+
+There is currently no automated Grafana deployment workflow; a manual import is
+required after each dashboard JSON change. If Grafana Cloud API credentials are
+added to the repository later, `scripts/update_overlay_dashboard.py` can be
+extended to push the JSON via the Grafana HTTP API.
+
 State-timeline panels use explicit value mappings to avoid Grafana's default
 `<1` / `1+` labels. UptimeRobot monitor state mapping follows the UptimeRobot
 API v2 status codes:
