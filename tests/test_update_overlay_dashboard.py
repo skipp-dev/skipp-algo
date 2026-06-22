@@ -6,6 +6,7 @@ Covers idempotent dashboard UX transformations.
 from __future__ import annotations
 
 import json
+import os
 import shutil
 import subprocess
 import sys
@@ -30,7 +31,7 @@ def _run_script(dashboard_path: Path) -> None:
     result = subprocess.run(
         [sys.executable, str(script), str(dashboard_path)],
         cwd=str(repo_root),
-        env=env,
+        env={**os.environ, **env},
         capture_output=True,
         text=True,
     )
@@ -150,3 +151,14 @@ def test_update_script_is_idempotent(temp_dashboard: Path) -> None:
     _run_script(temp_dashboard)
     second = temp_dashboard.read_text(encoding="utf-8")
     assert first == second, "Re-running the updater changed dashboard.json"
+
+
+def test_all_panel_queries_have_balanced_parentheses(temp_dashboard: Path) -> None:
+    _run_script(temp_dashboard)
+    data = json.loads(temp_dashboard.read_text(encoding="utf-8"))
+    for panel in data["panels"]:
+        for target in panel.get("targets", []):
+            expr = target.get("expr", "")
+            if not expr:
+                continue
+            assert expr.count("(") == expr.count(")"), f"Unbalanced parentheses in {panel['title']!r}: {expr[:200]}"

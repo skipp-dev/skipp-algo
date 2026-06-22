@@ -321,20 +321,80 @@ def _news_provider_legend_text() -> dict:
     }
 
 
+def _split_top_level_or(expr: str) -> list[str]:
+    """Split `or` only at the top PromQL level (outside parens/braces/strings)."""
+    parts: list[str] = []
+    current: list[str] = []
+    depth_paren = 0
+    depth_brace = 0
+    in_string: str | None = None
+    i = 0
+    n = len(expr)
+    while i < n:
+        ch = expr[i]
+        if in_string:
+            current.append(ch)
+            if ch == "\\" and i + 1 < n:
+                i += 1
+                current.append(expr[i])
+            elif ch == in_string:
+                in_string = None
+        elif ch in ('"', "'", "`"):
+            in_string = ch
+            current.append(ch)
+        elif ch == "(":
+            depth_paren += 1
+            current.append(ch)
+        elif ch == ")":
+            depth_paren -= 1
+            current.append(ch)
+        elif ch == "{":
+            depth_brace += 1
+            current.append(ch)
+        elif ch == "}":
+            depth_brace -= 1
+            current.append(ch)
+        elif depth_paren == 0 and depth_brace == 0 and expr.startswith(" or ", i):
+            parts.append("".join(current).strip())
+            current = []
+            i += 3
+            continue
+        else:
+            current.append(ch)
+        i += 1
+    parts.append("".join(current).strip())
+    return parts
+
+
+def _metric_name(expr: str) -> str:
+    """Return the leading metric name, ignoring surrounding parens."""
+    expr = expr.strip()
+    while expr.startswith("(") and expr.endswith(")"):
+        expr = expr[1:-1].strip()
+    return expr.split("{")[0].strip()
+
+
 def _strip_fallback_queries(expr: str) -> str:
     """Remove legacy fallback `A or A_without_labels or vector(0)` chains.
 
     In newer Grafana versions each branch of an `or` is rendered as a separate
     series.  That causes duplicate/w contradictory rows in state-timeline
-    panels.  We keep only the labelled metric expression.
+    panels.  We keep only the labelled metric expression, but we preserve
+    genuine `or` joins between different metrics (e.g. bridge min()).
     """
     expr = expr.strip()
-    if " or " not in expr:
+    parts = _split_top_level_or(expr)
+    if len(parts) <= 1:
         return expr
-    first = expr.split(" or ")[0].strip()
-    # Drop a trailing `or vector(0)` / `or vector(1)` fallback used for missing metrics.
-    first = re.sub(r"\s+or\s+vector\([01]\)\s*$", "", first)
-    return first
+    first_metric = _metric_name(parts[0])
+    for part in parts[1:]:
+        bare = part.strip()
+        if bare in {"vector(0)", "vector(1)"}:
+            continue
+        if _metric_name(bare) != first_metric:
+            # This is a real union of different metrics, not a label fallback.
+            return expr
+    return parts[0]
 
 
 def _deduplicate_state_timeline(panel: dict) -> None:

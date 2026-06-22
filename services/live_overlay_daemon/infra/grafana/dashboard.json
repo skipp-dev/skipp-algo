@@ -304,7 +304,7 @@
       },
       "targets": [
         {
-          "expr": "min(live_overlay_uptimerobot_scrape_success{job=~\"$job\"}",
+          "expr": "min(live_overlay_uptimerobot_scrape_success{job=~\"$job\"} or live_overlay_github_workflow_scrape_success{job=~\"$job\"} or vector(0))",
           "legendFormat": "bridge_scrapes"
         }
       ],
@@ -1263,7 +1263,7 @@
       },
       "targets": [
         {
-          "expr": "(live_overlay_market_open{job=~\"$job\"}",
+          "expr": "(live_overlay_market_open{job=~\"$job\"} or live_overlay_market_open or vector(0)) + ((live_overlay_market_open{job=~\"$job\"} or live_overlay_market_open or vector(0)) * (((rate(live_overlay_smc_live_requests_total{job=~\"$job\"}[$__rate_interval]) or rate(live_overlay_smc_live_requests_total[$__rate_interval]) or vector(0)) > bool 0.001)))",
           "legendFormat": "open_req_health"
         }
       ],
@@ -1330,7 +1330,7 @@
       },
       "targets": [
         {
-          "expr": "sum(resets(live_overlay_uptime_seconds{job=~\"$job\"}[24h]))",
+          "expr": "sum(resets(live_overlay_uptime_seconds{job=~\"$job\"}[24h])) or sum(resets(live_overlay_uptime_seconds[24h])) or vector(0)",
           "legendFormat": "uptime_resets"
         }
       ],
@@ -1749,7 +1749,7 @@
         "h": 1,
         "w": 24,
         "x": 0,
-        "y": 68
+        "y": 74
       },
       "collapsed": false,
       "panels": []
@@ -1761,11 +1761,11 @@
         "h": 4,
         "w": 6,
         "x": 0,
-        "y": 69
+        "y": 75
       },
       "targets": [
         {
-          "expr": "(live_overlay_uptimerobot_bridge_enabled{job=~\"$job\"}",
+          "expr": "(live_overlay_uptimerobot_bridge_enabled{job=~\"$job\"} or vector(0)) + (live_overlay_uptimerobot_scrape_success{job=~\"$job\"} or vector(0))",
           "legendFormat": "bridge_state"
         }
       ],
@@ -1820,11 +1820,11 @@
         "h": 4,
         "w": 6,
         "x": 6,
-        "y": 69
+        "y": 75
       },
       "targets": [
         {
-          "expr": "(live_overlay_uptimerobot_snapshot_age_seconds{job=~\"$job\"} and on(job) (live_overlay_uptimerobot_bridge_enabled{job=~\"$job\"} == 1))",
+          "expr": "(live_overlay_uptimerobot_snapshot_age_seconds{job=~\"$job\"} and on(job) (live_overlay_uptimerobot_bridge_enabled{job=~\"$job\"} == 1)) or (live_overlay_uptimerobot_bridge_enabled{job=~\"$job\"} * 0 - 1)",
           "legendFormat": "snapshot_age"
         }
       ],
@@ -1885,7 +1885,7 @@
         "h": 8,
         "w": 12,
         "x": 12,
-        "y": 69
+        "y": 75
       },
       "targets": [
         {
@@ -1950,11 +1950,11 @@
         "h": 4,
         "w": 6,
         "x": 0,
-        "y": 77
+        "y": 83
       },
       "targets": [
         {
-          "expr": "(live_overlay_github_workflow_bridge_enabled{job=~\"$job\"}",
+          "expr": "(live_overlay_github_workflow_bridge_enabled{job=~\"$job\"} or vector(0)) + (live_overlay_github_workflow_scrape_success{job=~\"$job\"} or vector(0))",
           "legendFormat": "bridge_state"
         }
       ],
@@ -2009,11 +2009,11 @@
         "h": 4,
         "w": 6,
         "x": 6,
-        "y": 77
+        "y": 83
       },
       "targets": [
         {
-          "expr": "(live_overlay_github_workflow_snapshot_age_seconds{job=~\"$job\"} and on(job) (live_overlay_github_workflow_bridge_enabled{job=~\"$job\"} == 1))",
+          "expr": "(live_overlay_github_workflow_snapshot_age_seconds{job=~\"$job\"} and on(job) (live_overlay_github_workflow_bridge_enabled{job=~\"$job\"} == 1)) or (live_overlay_github_workflow_bridge_enabled{job=~\"$job\"} * 0 - 1)",
           "legendFormat": "snapshot_age"
         }
       ],
@@ -2074,7 +2074,7 @@
         "h": 8,
         "w": 12,
         "x": 12,
-        "y": 77
+        "y": 83
       },
       "targets": [
         {
@@ -2198,19 +2198,19 @@
       },
       "targets": [
         {
-          "expr": "max_over_time(live_overlay_market_us_open{job=~\"$job\"}[5m])",
+          "expr": "max_over_time(live_overlay_market_us_open{job=~\"$job\"}[5m]) or max_over_time(live_overlay_market_us_open[5m]) or vector(0)",
           "legendFormat": "US",
           "instant": false,
           "range": true
         },
         {
-          "expr": "max_over_time(live_overlay_market_europe_open{job=~\"$job\"}[5m])",
+          "expr": "max_over_time(live_overlay_market_europe_open{job=~\"$job\"}[5m]) or max_over_time(live_overlay_market_europe_open[5m]) or vector(0)",
           "legendFormat": "Europe",
           "instant": false,
           "range": true
         },
         {
-          "expr": "max_over_time(live_overlay_market_asia_open{job=~\"$job\"}[5m])",
+          "expr": "max_over_time(live_overlay_market_asia_open{job=~\"$job\"}[5m]) or max_over_time(live_overlay_market_asia_open[5m]) or vector(0)",
           "legendFormat": "Asia",
           "instant": false,
           "range": true
@@ -2354,7 +2354,7 @@
       },
       "targets": [
         {
-          "expr": "100 * ((sum(sum_over_time((((live_overlay_overlay_fresh{job=~\"$job\"}",
+          "expr": "100 * ((sum(sum_over_time((((live_overlay_overlay_fresh{job=~\"$job\"} or live_overlay_overlay_fresh or vector(1)) * (live_overlay_market_open{job=~\"$job\"} or live_overlay_market_open or vector(0))))[1h:])) + (sum(sum_over_time((live_overlay_market_open{job=~\"$job\"} or live_overlay_market_open or vector(0))[1h:])) == bool 0)) / clamp_min(sum(sum_over_time((live_overlay_market_open{job=~\"$job\"} or live_overlay_market_open or vector(0))[1h:])), 1))",
           "legendFormat": "freshness_slo"
         }
       ],
@@ -2524,13 +2524,13 @@
       },
       "targets": [
         {
-          "expr": "max_over_time(live_overlay_uptimerobot_scrape_success{job=~\"$job\"}[5m])",
+          "expr": "max_over_time(live_overlay_uptimerobot_scrape_success{job=~\"$job\"}[5m]) or max_over_time(live_overlay_uptimerobot_scrape_success[5m]) or vector(0)",
           "legendFormat": "UptimeRobot",
           "instant": false,
           "range": true
         },
         {
-          "expr": "max_over_time(live_overlay_github_workflow_scrape_success{job=~\"$job\"}[5m])",
+          "expr": "max_over_time(live_overlay_github_workflow_scrape_success{job=~\"$job\"}[5m]) or max_over_time(live_overlay_github_workflow_scrape_success[5m]) or vector(0)",
           "legendFormat": "GitHub Workflows",
           "instant": false,
           "range": true
@@ -2677,7 +2677,7 @@
         "h": 8,
         "w": 24,
         "x": 0,
-        "y": 132
+        "y": 134
       },
       "targets": [
         {
@@ -2712,7 +2712,7 @@
         "h": 8,
         "w": 12,
         "x": 0,
-        "y": 140
+        "y": 142
       },
       "targets": [
         {
@@ -2755,7 +2755,7 @@
         "h": 8,
         "w": 12,
         "x": 12,
-        "y": 140
+        "y": 142
       },
       "targets": [
         {
@@ -2827,19 +2827,19 @@
       },
       "targets": [
         {
-          "expr": "max_over_time(live_overlay_provider_news_health_ok{job=~\"$job\"}[5m])",
+          "expr": "max_over_time(live_overlay_provider_news_health_ok{job=~\"$job\"}[5m]) or max_over_time(live_overlay_provider_news_health_ok[5m]) or vector(0)",
           "legendFormat": "health_ok",
           "instant": false,
           "range": true
         },
         {
-          "expr": "max_over_time(live_overlay_provider_news_health_degraded{job=~\"$job\"}[5m])",
+          "expr": "max_over_time(live_overlay_provider_news_health_degraded{job=~\"$job\"}[5m]) or max_over_time(live_overlay_provider_news_health_degraded[5m]) or vector(0)",
           "legendFormat": "health_degraded",
           "instant": false,
           "range": true
         },
         {
-          "expr": "max_over_time(live_overlay_provider_news_health_unknown{job=~\"$job\"}[5m])",
+          "expr": "max_over_time(live_overlay_provider_news_health_unknown{job=~\"$job\"}[5m]) or max_over_time(live_overlay_provider_news_health_unknown[5m]) or vector(0)",
           "legendFormat": "health_unknown",
           "instant": false,
           "range": true
@@ -2952,7 +2952,7 @@
       },
       "targets": [
         {
-          "expr": "(({__name__=~\"live_overlay_provider_news_.*_(ok|degraded)\",job=~\"$job\"}",
+          "expr": "(({__name__=~\"live_overlay_provider_news_.*_(ok|degraded)\",job=~\"$job\"} or {__name__=~\"live_overlay_provider_news_.*_(ok|degraded)\"}) unless ({__name__=~\"live_overlay_provider_news_health_(ok|degraded)\",job=~\"$job\"} or {__name__=~\"live_overlay_provider_news_health_(ok|degraded)\"}))",
           "legendFormat": "{{__name__}}"
         }
       ],
@@ -3109,5 +3109,5 @@
   "timezone": "utc",
   "title": "SMC Live Overlay Daemon",
   "uid": "smc-live-overlay-v1",
-  "version": 29
+  "version": 22
 }
