@@ -95,7 +95,8 @@
 # 2026-06-22: Grafana dashboard upsert helper; fixed HTTPS URL, explicit timeout= via Request socket.
 "scripts/grafana_dashboard_upsert.py" = [63]
 # 2026-06-22: Grafana alert-rules upsert helper; fixed HTTPS URL, explicit timeout= via Request socket.
-"scripts/grafana_alert_rules_upsert.py" = [274]
+# 2026-06-22 review follow-up: _api_key hardening shifted urlopen site 274 -> 281.
+"scripts/grafana_alert_rules_upsert.py" = [281]
 
 # ---------------------------------------------------------------------------
 # test_noqa_budget.py — frozen noqa-suppression sites.
