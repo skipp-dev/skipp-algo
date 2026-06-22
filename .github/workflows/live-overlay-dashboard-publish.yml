@@ -1,4 +1,4 @@
-# live-window: any-trigger
+# live-window: any-trigger  # F-V6-F2.1 (2026-06-22): push-mutating publish workflow
 name: live-overlay-dashboard-publish
 
 on:
