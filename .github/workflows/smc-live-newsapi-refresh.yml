@@ -140,9 +140,17 @@ jobs:
           fi
           exit 0
 
-      - name: Refresh NewsAPI.ai live snapshot
+      - name: Refresh live news snapshot (NewsAPI.ai + FMP + TradingView)
         env:
           NEWSAPI_KEY: ${{ secrets.NEWSAPI_KEY }}
+          # F (2026-06-22): FMP + TradingView re-enabled alongside NewsAPI.ai.
+          # FMP_API_KEY drives the fmp_stock / fmp_press / fmp_articles lanes
+          # (active subscription); TradingView is keyless. Benzinga stays off
+          # via --skip-benzinga (no active subscription). The provider-health
+          # dashboard previously flagged FMP/TV as degraded because the export
+          # ran with --newsapi-only, which disabled those lanes despite the
+          # live subscriptions being valid.
+          FMP_API_KEY: ${{ secrets.FMP_API_KEY }}
           INPUT_SYMBOLS: ${{ github.event.inputs.symbols }}
           INPUT_SYMBOL_LIMIT: ${{ github.event.inputs.symbol_limit }}
           INPUT_RESET_STATE: ${{ github.event.inputs.reset_state }}
@@ -171,7 +179,7 @@ jobs:
             --symbols "$SYMBOLS" \
             --export-dir artifacts/smc_microstructure_exports \
             --symbol-limit "$SYMBOL_LIMIT" \
-            --newsapi-only \
+            --skip-benzinga \
             --newsapi-lookback-days 2 \
             --newsapi-articles-per-request 100 \
             --story-window-hours 24 \
