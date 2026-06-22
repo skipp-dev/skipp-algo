@@ -420,12 +420,25 @@ def _do_start() -> None:
     global _feed_thread, _refresh_thread, _flow_refresh_thread
 
     desired_queue_max = config.ingest_queue_max()
-    if _runtime.get("ingest_queue") is None or _runtime.get("ingest_queue_max") != desired_queue_max:
+    ingest_thread = _runtime.get("ingest_thread")
+    workers_alive = (
+        (_feed_thread is not None and _feed_thread.is_alive())
+        or (ingest_thread is not None and ingest_thread.is_alive())
+        or (_refresh_thread is not None and _refresh_thread.is_alive())
+        or (_flow_refresh_thread is not None and _flow_refresh_thread.is_alive())
+    )
+    if _runtime.get("ingest_queue") is None or (_runtime.get("ingest_queue_max") != desired_queue_max and not workers_alive):
         _runtime["ingest_queue"] = queue.Queue(maxsize=desired_queue_max)
         _runtime["ingest_queue_max"] = desired_queue_max
+    elif _runtime.get("ingest_queue_max") != desired_queue_max:
+        logger.warning(
+            "LIVE_OVERLAY_INGEST_QUEUE_MAX changed from %d to %d while workers are alive; "
+            "queue resize ignored until next restart.",
+            _runtime["ingest_queue_max"],
+            desired_queue_max,
+        )
 
     feed_alive = _feed_thread is not None and _feed_thread.is_alive()
-    ingest_thread = _runtime.get("ingest_thread")
     ingest_alive = ingest_thread is not None and ingest_thread.is_alive()
     refresh_alive = _refresh_thread is not None and _refresh_thread.is_alive()
     flow_alive = _flow_refresh_thread is not None and _flow_refresh_thread.is_alive()

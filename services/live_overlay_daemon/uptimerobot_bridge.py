@@ -157,5 +157,5 @@ def snapshot() -> dict[str, Any]:
 
     with _cache_lock:
         _cached_snapshot = fresh
-        _cached_at_monotonic = now_mono
+        _cached_at_monotonic = time.monotonic()
     return dict(fresh)

@@ -45,3 +45,54 @@ def test_duration_seconds_clamps_negative_values_to_zero() -> None:
     )
 
     assert duration == 0.0
+
+
+def test_snapshot_returns_cached_value_within_ttl(monkeypatch: pytest.MonkeyPatch) -> None:
+    import services.live_overlay_daemon.github_workflow_bridge as bridge
+
+    monkeypatch.setattr(bridge.config, "github_workflow_token", lambda: "token")
+    monkeypatch.setattr(bridge.config, "github_workflow_poll_ttl_secs", lambda: 60)
+    monkeypatch.setattr(bridge.time, "monotonic", lambda: 100.0)
+
+    bridge._cached_snapshot = {
+        "enabled": 1,
+        "ok": 1,
+        "fetched_at_unix": 1.0,
+        "counts": {"seen": 1, "success": 1, "failed": 0, "in_progress": 0, "queued": 0},
+        "latest_run_age_seconds": 1.0,
+        "latest_run_duration_seconds": 2.0,
+        "workflows": [],
+    }
+    bridge._cached_at_monotonic = 99.0
+
+    def _boom_fetch(_token: str) -> dict:
+        raise AssertionError("_fetch_snapshot must not be called on cache hit")
+
+    monkeypatch.setattr(bridge, "_fetch_snapshot", _boom_fetch)
+
+    snap = bridge.snapshot()
+    assert snap["ok"] == 1
+    assert snap["counts"]["seen"] == 1
+
+
+def test_snapshot_fetch_error_returns_fallback_payload(monkeypatch: pytest.MonkeyPatch) -> None:
+    import services.live_overlay_daemon.github_workflow_bridge as bridge
+
+    monkeypatch.setattr(bridge.config, "github_workflow_token", lambda: "token")
+    monkeypatch.setattr(bridge.config, "github_workflow_poll_ttl_secs", lambda: 0)
+    monkeypatch.setattr(bridge.time, "time", lambda: 1234.0)
+    monkeypatch.setattr(bridge.time, "monotonic", lambda: 200.0)
+
+    bridge._cached_snapshot = None
+    bridge._cached_at_monotonic = 0.0
+
+    def _raise_fetch(_token: str) -> dict:
+        raise RuntimeError("boom")
+
+    monkeypatch.setattr(bridge, "_fetch_snapshot", _raise_fetch)
+
+    snap = bridge.snapshot()
+    assert snap["enabled"] == 1
+    assert snap["ok"] == 0
+    assert snap["error"] == "RuntimeError"
+    assert snap["fetched_at_unix"] == 1234.0
