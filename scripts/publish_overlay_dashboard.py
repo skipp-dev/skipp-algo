@@ -21,6 +21,7 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import shutil
 import subprocess
 import urllib.error
 import urllib.request
@@ -123,9 +124,16 @@ def _get_token(
             f"Set ${token_env}, ${DEFAULT_TOKEN_ENV}, or $GRAFANA_TOKEN, or pass --token."
         )
 
+    security_bin = shutil.which("security")
+    if not security_bin:
+        raise SystemExit(
+            "Could not obtain Grafana API token: 'security' CLI not found in PATH. "
+            f"Set ${token_env}, ${DEFAULT_TOKEN_ENV}, or $GRAFANA_TOKEN, pass --token, or run with --no-keychain in CI/non-macOS environments."
+        )
+
     try:
-        result = subprocess.run(
-            ["security", "find-generic-password", "-s", keychain_service, "-a", os.environ.get("USER", ""), "-w"],
+        result = subprocess.run(  # noqa: S603
+            [security_bin, "find-generic-password", "-s", keychain_service, "-a", os.environ.get("USER", ""), "-w"],
             capture_output=True,
             text=True,
             check=True,
@@ -226,6 +234,9 @@ def _post(host: str, token: str, payload: dict[str, Any]) -> tuple[dict[str, Any
 
 def main(argv: list[str] | None = None) -> int:
     args = _resolve_args(argv)
+    if args.dry_run_full and not args.dry_run:
+        # `--dry-run-full` is a strict superset of `--dry-run` and must never publish.
+        args.dry_run = True
     data = _load_dashboard(args.dashboard_path)
     token = _get_token(
         args.token,
