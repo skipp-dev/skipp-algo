@@ -1,6 +1,17 @@
 {
   "annotations": {
-    "list": []
+    "list": [
+      {
+        "name": "Deploys / Restarts",
+        "datasource": "grafanacloud-prom",
+        "expr": "resets(live_overlay_uptime_seconds{job=~\"$job\"}[1m]) > 0 or sum by (__name__) (increase({__name__=~\"live_overlay_daemon_restart_cause_.*_total\",job=~\"$job\"}[1m])) > 0",
+        "tagKeys": "",
+        "textFormat": "restart/deploy",
+        "iconColor": "yellow",
+        "enable": true,
+        "hide": false
+      }
+    ]
   },
   "editable": true,
   "fiscalYearStartMonth": 0,
@@ -22,13 +33,441 @@
   ],
   "panels": [
     {
+      "title": "Overall Health",
+      "type": "stat",
+      "description": "Single-pane triage signal. HEALTHY = feed, workers and overlay fresh; DEGRADED = bridge stale/scrape error or workers not healthy; CRITICAL = feed down while market open or overlay stale.",
+      "gridPos": {
+        "h": 4,
+        "w": 8,
+        "x": 0,
+        "y": 0
+      },
+      "targets": [
+        {
+          "expr": "(live_overlay_health_status_ok{job=~\"$job\"} * 2) + (live_overlay_health_status_idle_market_closed{job=~\"$job\"} * 1)",
+          "legendFormat": "health_code"
+        }
+      ],
+      "options": {
+        "colorMode": "background_solid",
+        "graphMode": "none",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        }
+      },
+      "fieldConfig": {
+        "defaults": {
+          "mappings": [
+            {
+              "type": "value",
+              "options": {
+                "0": {
+                  "text": "CRITICAL",
+                  "color": "red"
+                },
+                "1": {
+                  "text": "IDLE",
+                  "color": "yellow"
+                },
+                "2": {
+                  "text": "HEALTHY",
+                  "color": "green"
+                }
+              }
+            }
+          ],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "red",
+                "value": null
+              },
+              {
+                "color": "yellow",
+                "value": 1
+              },
+              {
+                "color": "green",
+                "value": 2
+              }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "title": "Incident Triage Guide",
+      "type": "text",
+      "description": "Suggested first checks when Overall Health is not HEALTHY.",
+      "gridPos": {
+        "h": 4,
+        "w": 16,
+        "x": 0,
+        "y": 4
+      },
+      "options": {
+        "mode": "markdown",
+        "content": "**Incident triage quick-checks**\n\n- `feed_healthy == 0` -> check `DATABENTO_API_KEY`, Railway logs, circuit breaker.\n- `workers_healthy == 0` -> check thread liveness in Worker Liveness panel; restart via Railway.\n- `overlay_fresh == 0` -> check compute cycle errors, full/flow compute logs.\n- `market_open == 1` but no traffic -> check TradingView token rollout / auth denied rate.\n- bridge scrape error -> verify UptimeRobot / GitHub API token and quota.\n- vertical grey lines on time-series = recent deploy/restart.\n\nFull runbook: [README](https://github.com/skippALGO/skipp-algo/blob/main/services/live_overlay_daemon/README.md)"
+      }
+    },
+    {
+      "title": "Feed Healthy",
+      "type": "stat",
+      "description": "Live feed connection health (0 = unhealthy, 1 = healthy).",
+      "gridPos": {
+        "h": 3,
+        "w": 4,
+        "x": 0,
+        "y": 9
+      },
+      "targets": [
+        {
+          "expr": "live_overlay_feed_healthy{job=~\"$job\"}",
+          "legendFormat": "feed_healthy"
+        }
+      ],
+      "options": {
+        "colorMode": "background_solid",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        }
+      },
+      "fieldConfig": {
+        "defaults": {
+          "mappings": [
+            {
+              "type": "value",
+              "options": {
+                "0": {
+                  "text": "UNHEALTHY",
+                  "color": "red"
+                },
+                "1": {
+                  "text": "HEALTHY",
+                  "color": "green"
+                }
+              }
+            }
+          ],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "red",
+                "value": null
+              },
+              {
+                "color": "green",
+                "value": 1
+              }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "title": "Overlay Fresh",
+      "type": "stat",
+      "description": "Overlay data freshness (1 = fresh, 0 = stale).",
+      "gridPos": {
+        "h": 3,
+        "w": 4,
+        "x": 4,
+        "y": 9
+      },
+      "targets": [
+        {
+          "expr": "live_overlay_overlay_fresh{job=~\"$job\"}",
+          "legendFormat": "overlay_fresh"
+        }
+      ],
+      "options": {
+        "colorMode": "background_solid",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        }
+      },
+      "fieldConfig": {
+        "defaults": {
+          "mappings": [
+            {
+              "type": "value",
+              "options": {
+                "0": {
+                  "text": "STALE",
+                  "color": "red"
+                },
+                "1": {
+                  "text": "FRESH",
+                  "color": "green"
+                }
+              }
+            }
+          ],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "red",
+                "value": null
+              },
+              {
+                "color": "green",
+                "value": 1
+              }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "title": "Workers Healthy",
+      "type": "stat",
+      "description": "Background thread liveness (1 = all alive, 0 = at least one dead).",
+      "gridPos": {
+        "h": 3,
+        "w": 4,
+        "x": 8,
+        "y": 9
+      },
+      "targets": [
+        {
+          "expr": "live_overlay_workers_healthy{job=~\"$job\"}",
+          "legendFormat": "workers_healthy"
+        }
+      ],
+      "options": {
+        "colorMode": "background_solid",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        }
+      },
+      "fieldConfig": {
+        "defaults": {
+          "mappings": [
+            {
+              "type": "value",
+              "options": {
+                "0": {
+                  "text": "DEGRADED",
+                  "color": "red"
+                },
+                "1": {
+                  "text": "HEALTHY",
+                  "color": "green"
+                }
+              }
+            }
+          ],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "red",
+                "value": null
+              },
+              {
+                "color": "green",
+                "value": 1
+              }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "title": "Bridge Scrapes",
+      "type": "stat",
+      "description": "External bridge scrape health (UptimeRobot + GitHub Workflows).",
+      "gridPos": {
+        "h": 3,
+        "w": 4,
+        "x": 12,
+        "y": 9
+      },
+      "targets": [
+        {
+          "expr": "min(live_overlay_uptimerobot_scrape_success{job=~\"$job\"} or live_overlay_github_workflow_scrape_success{job=~\"$job\"} or vector(0))",
+          "legendFormat": "bridge_scrapes"
+        }
+      ],
+      "options": {
+        "colorMode": "background_solid",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        }
+      },
+      "fieldConfig": {
+        "defaults": {
+          "mappings": [
+            {
+              "type": "value",
+              "options": {
+                "0": {
+                  "text": "ERROR",
+                  "color": "red"
+                },
+                "1": {
+                  "text": "OK",
+                  "color": "green"
+                }
+              }
+            }
+          ],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "red",
+                "value": null
+              },
+              {
+                "color": "green",
+                "value": 1
+              }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "title": "Market Status",
+      "type": "stat",
+      "description": "US regular trading session state (1 = open, 0 = closed).",
+      "gridPos": {
+        "h": 3,
+        "w": 4,
+        "x": 16,
+        "y": 9
+      },
+      "targets": [
+        {
+          "expr": "live_overlay_market_open{job=~\"$job\"}",
+          "legendFormat": "market_status"
+        }
+      ],
+      "options": {
+        "colorMode": "background_solid",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        }
+      },
+      "fieldConfig": {
+        "defaults": {
+          "mappings": [
+            {
+              "type": "value",
+              "options": {
+                "0": {
+                  "text": "CLOSED",
+                  "color": "gray"
+                },
+                "1": {
+                  "text": "OPEN",
+                  "color": "green"
+                }
+              }
+            }
+          ],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "gray",
+                "value": null
+              },
+              {
+                "color": "green",
+                "value": 1
+              }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "title": "Last Bar Age",
+      "type": "stat",
+      "description": "Age of the newest bar received from Databento.",
+      "gridPos": {
+        "h": 3,
+        "w": 4,
+        "x": 20,
+        "y": 9
+      },
+      "targets": [
+        {
+          "expr": "live_overlay_last_bar_age_seconds{job=~\"$job\"}",
+          "legendFormat": "age"
+        }
+      ],
+      "options": {
+        "colorMode": "background_solid",
+        "graphMode": "area",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        }
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "s",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "yellow",
+                "value": 300
+              },
+              {
+                "color": "red",
+                "value": 600
+              }
+            ]
+          }
+        }
+      }
+    },
+    {
       "title": "Service Status",
       "type": "stat",
       "gridPos": {
         "h": 4,
         "w": 4,
         "x": 0,
-        "y": 0
+        "y": 12
       },
       "targets": [
         {
@@ -87,7 +526,7 @@
         "h": 4,
         "w": 4,
         "x": 4,
-        "y": 0
+        "y": 12
       },
       "targets": [
         {
@@ -142,7 +581,7 @@
         "h": 4,
         "w": 4,
         "x": 8,
-        "y": 0
+        "y": 12
       },
       "targets": [
         {
@@ -181,7 +620,7 @@
         "h": 4,
         "w": 4,
         "x": 12,
-        "y": 0
+        "y": 12
       },
       "targets": [
         {
@@ -232,7 +671,7 @@
         "h": 4,
         "w": 4,
         "x": 16,
-        "y": 0
+        "y": 12
       },
       "targets": [
         {
@@ -274,7 +713,7 @@
         "h": 4,
         "w": 4,
         "x": 20,
-        "y": 0
+        "y": 12
       },
       "targets": [
         {
@@ -305,23 +744,23 @@
         "h": 8,
         "w": 12,
         "x": 0,
-        "y": 4
+        "y": 16
       },
       "targets": [
         {
-          "expr": "rate(live_overlay_smc_live_requests_total{job=~\"$job\"}[$__rate_interval]) or vector(0)",
+          "expr": "rate(live_overlay_smc_live_requests_total{job=~\"$job\"}[$__rate_interval])",
           "legendFormat": "smc_live total"
         },
         {
-          "expr": "rate(live_overlay_smc_live_success_total{job=~\"$job\"}[$__rate_interval]) or vector(0)",
+          "expr": "rate(live_overlay_smc_live_success_total{job=~\"$job\"}[$__rate_interval])",
           "legendFormat": "success"
         },
         {
-          "expr": "rate(live_overlay_smc_live_auth_denied{job=~\"$job\"}[$__rate_interval]) or vector(0)",
+          "expr": "rate(live_overlay_smc_live_auth_denied{job=~\"$job\"}[$__rate_interval])",
           "legendFormat": "auth denied"
         },
         {
-          "expr": "rate(live_overlay_smc_live_cache_miss_total{job=~\"$job\"}[$__rate_interval]) or vector(0)",
+          "expr": "rate(live_overlay_smc_live_cache_miss_total{job=~\"$job\"}[$__rate_interval])",
           "legendFormat": "cache miss"
         }
       ],
@@ -385,7 +824,7 @@
         "h": 8,
         "w": 12,
         "x": 12,
-        "y": 4
+        "y": 16
       },
       "targets": [
         {
@@ -393,7 +832,7 @@
           "legendFormat": "overlay age"
         },
         {
-          "expr": "live_overlay_last_bar_age_seconds{job=~\"$job\"} or vector(0)",
+          "expr": "live_overlay_last_bar_age_seconds{job=~\"$job\"}",
           "legendFormat": "last bar age"
         }
       ],
@@ -446,15 +885,15 @@
         "h": 8,
         "w": 12,
         "x": 0,
-        "y": 12
+        "y": 24
       },
       "targets": [
         {
-          "expr": "rate(live_overlay_full_compute_cycle_errors{job=~\"$job\"}[$__rate_interval]) or vector(0)",
+          "expr": "rate(live_overlay_full_compute_cycle_errors{job=~\"$job\"}[$__rate_interval])",
           "legendFormat": "full compute errors"
         },
         {
-          "expr": "rate(live_overlay_flow_patch_cycle_errors{job=~\"$job\"}[$__rate_interval]) or vector(0)",
+          "expr": "rate(live_overlay_flow_patch_cycle_errors{job=~\"$job\"}[$__rate_interval])",
           "legendFormat": "flow patch errors"
         }
       ],
@@ -539,7 +978,7 @@
         "h": 8,
         "w": 12,
         "x": 12,
-        "y": 12
+        "y": 24
       },
       "targets": [
         {
@@ -577,13 +1016,89 @@
       }
     },
     {
+      "title": "Worker Liveness",
+      "type": "state-timeline",
+      "gridPos": {
+        "h": 6,
+        "w": 12,
+        "x": 0,
+        "y": 32
+      },
+      "targets": [
+        {
+          "expr": "live_overlay_worker_live_feed_alive{job=~\"$job\"}",
+          "legendFormat": "live_feed"
+        },
+        {
+          "expr": "live_overlay_worker_overlay_refresh_alive{job=~\"$job\"}",
+          "legendFormat": "overlay_refresh"
+        },
+        {
+          "expr": "live_overlay_worker_flow_refresh_alive{job=~\"$job\"}",
+          "legendFormat": "flow_refresh"
+        },
+        {
+          "expr": "live_overlay_worker_ingest_processor_alive{job=~\"$job\"}",
+          "legendFormat": "ingest_processor"
+        }
+      ],
+      "options": {
+        "tooltip": {
+          "mode": "multi",
+          "sort": "none"
+        },
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "rowHeight": 0.9
+      },
+      "fieldConfig": {
+        "defaults": {
+          "mappings": [
+            {
+              "type": "value",
+              "options": {
+                "0": {
+                  "text": "DEAD",
+                  "color": "red"
+                },
+                "1": {
+                  "text": "ALIVE",
+                  "color": "green"
+                }
+              }
+            }
+          ],
+          "color": {
+            "mode": "thresholds"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "red",
+                "value": null
+              },
+              {
+                "color": "green",
+                "value": 1
+              }
+            ]
+          }
+        }
+      },
+      "description": "Per-worker thread liveness: live_feed, overlay_refresh, flow_refresh, ingest_processor."
+    },
+    {
       "title": "Feed Circuit Breakers (Total)",
       "type": "stat",
       "gridPos": {
         "h": 6,
         "w": 6,
         "x": 12,
-        "y": 20
+        "y": 32
       },
       "targets": [
         {
@@ -643,7 +1158,7 @@
         "h": 6,
         "w": 6,
         "x": 18,
-        "y": 20
+        "y": 32
       },
       "targets": [
         {
@@ -686,88 +1201,17 @@
       }
     },
     {
-      "title": "Worker Liveness",
-      "type": "state-timeline",
-      "gridPos": {
-        "h": 6,
-        "w": 12,
-        "x": 0,
-        "y": 20
-      },
-      "targets": [
-        {
-          "expr": "live_overlay_worker_live_feed_alive{job=~\"$job\"}",
-          "legendFormat": "live_feed"
-        },
-        {
-          "expr": "live_overlay_worker_overlay_refresh_alive{job=~\"$job\"} or vector(0)",
-          "legendFormat": "overlay_refresh"
-        },
-        {
-          "expr": "live_overlay_worker_flow_refresh_alive{job=~\"$job\"} or vector(0)",
-          "legendFormat": "flow_refresh"
-        }
-      ],
-      "options": {
-        "tooltip": {
-          "mode": "multi",
-          "sort": "none"
-        },
-        "legend": {
-          "displayMode": "list",
-          "placement": "bottom",
-          "showLegend": true
-        },
-        "rowHeight": 0.9
-      },
-      "fieldConfig": {
-        "defaults": {
-          "min": 0,
-          "max": 1,
-          "mappings": [
-            {
-              "type": "value",
-              "options": {
-                "0": {
-                  "text": "DEAD"
-                },
-                "1": {
-                  "text": "ALIVE"
-                }
-              }
-            }
-          ],
-          "color": {
-            "mode": "thresholds"
-          },
-          "thresholds": {
-            "mode": "absolute",
-            "steps": [
-              {
-                "color": "red",
-                "value": null
-              },
-              {
-                "color": "green",
-                "value": 1
-              }
-            ]
-          }
-        }
-      }
-    },
-    {
       "title": "Success Rate (%)",
       "type": "stat",
       "gridPos": {
         "h": 6,
         "w": 6,
         "x": 0,
-        "y": 26
+        "y": 38
       },
       "targets": [
         {
-          "expr": "(100 * sum(rate(live_overlay_smc_live_success_total{job=~\"$job\"}[$__rate_interval])) / clamp_min(sum(rate(live_overlay_smc_live_requests_total{job=~\"$job\"}[$__rate_interval])), 1e-9)) or vector(0)",
+          "expr": "(100 * sum(rate(live_overlay_smc_live_success_total{job=~\"$job\"}[$__rate_interval])) / clamp_min(sum(rate(live_overlay_smc_live_requests_total{job=~\"$job\"}[$__rate_interval])), 1e-9))",
           "legendFormat": "success_rate"
         }
       ],
@@ -815,7 +1259,7 @@
         "h": 6,
         "w": 6,
         "x": 6,
-        "y": 26
+        "y": 38
       },
       "targets": [
         {
@@ -882,7 +1326,7 @@
         "h": 6,
         "w": 6,
         "x": 12,
-        "y": 26
+        "y": 38
       },
       "targets": [
         {
@@ -931,11 +1375,11 @@
         "h": 6,
         "w": 6,
         "x": 18,
-        "y": 26
+        "y": 38
       },
       "targets": [
         {
-          "expr": "sum(increase({__name__=~\"live_overlay_daemon_restart_cause_.*_total\",job=~\"$job\"}[24h])) or sum(increase({__name__=~\"live_overlay_daemon_restart_cause_.*_total\"}[24h])) or vector(0)",
+          "expr": "sum(increase({__name__=~\"live_overlay_daemon_restart_cause_.*_total\",job=~\"$job\"}[24h]))",
           "legendFormat": "restart_causes_count"
         }
       ],
@@ -980,23 +1424,23 @@
         "h": 8,
         "w": 12,
         "x": 0,
-        "y": 32
+        "y": 44
       },
       "targets": [
         {
-          "expr": "rate(live_overlay_smc_live_auth_denied{job=~\"$job\"}[$__rate_interval]) or vector(0)",
+          "expr": "rate(live_overlay_smc_live_auth_denied{job=~\"$job\"}[$__rate_interval])",
           "legendFormat": "auth denied"
         },
         {
-          "expr": "rate(live_overlay_smc_live_cache_miss_total{job=~\"$job\"}[$__rate_interval]) or vector(0)",
+          "expr": "rate(live_overlay_smc_live_cache_miss_total{job=~\"$job\"}[$__rate_interval])",
           "legendFormat": "cache miss"
         },
         {
-          "expr": "rate(live_overlay_smc_live_bad_tf_total{job=~\"$job\"}[$__rate_interval]) or vector(0)",
+          "expr": "rate(live_overlay_smc_live_bad_tf_total{job=~\"$job\"}[$__rate_interval])",
           "legendFormat": "bad tf"
         },
         {
-          "expr": "rate(live_overlay_smc_live_errors_total{job=~\"$job\"}[$__rate_interval]) or vector(0)",
+          "expr": "rate(live_overlay_smc_live_errors_total{job=~\"$job\"}[$__rate_interval])",
           "legendFormat": "errors"
         }
       ],
@@ -1028,13 +1472,13 @@
       }
     },
     {
-      "title": "Overlay Freshness Budget (%)",
+      "title": "Stale Budget Consumed (%)",
       "type": "timeseries",
       "gridPos": {
         "h": 8,
         "w": 12,
         "x": 12,
-        "y": 32
+        "y": 44
       },
       "targets": [
         {
@@ -1082,7 +1526,8 @@
             ]
           }
         }
-      }
+      },
+      "description": "How much of the configured max_stale budget is currently consumed. 100 % means the overlay is at the stale threshold. This is derived from overlay_age_seconds / max_stale_seconds."
     },
     {
       "title": "Readiness Components Timeline",
@@ -1091,7 +1536,7 @@
         "h": 8,
         "w": 12,
         "x": 0,
-        "y": 40
+        "y": 52
       },
       "targets": [
         {
@@ -1103,7 +1548,7 @@
           "legendFormat": "workers_healthy"
         },
         {
-          "expr": "live_overlay_overlay_fresh{job=~\"$job\"} or vector(0)",
+          "expr": "live_overlay_overlay_fresh{job=~\"$job\"}",
           "legendFormat": "overlay_fresh"
         },
         {
@@ -1125,17 +1570,17 @@
       },
       "fieldConfig": {
         "defaults": {
-          "min": 0,
-          "max": 1,
           "mappings": [
             {
               "type": "value",
               "options": {
                 "0": {
-                  "text": "NO"
+                  "text": "NO",
+                  "color": "red"
                 },
                 "1": {
-                  "text": "YES"
+                  "text": "YES",
+                  "color": "green"
                 }
               }
             }
@@ -1157,7 +1602,8 @@
             ]
           }
         }
-      }
+      },
+      "description": "Readiness components over time: feed healthy, workers healthy, overlay fresh, market open."
     },
     {
       "title": "Stale Responses (served)",
@@ -1166,11 +1612,11 @@
         "h": 8,
         "w": 12,
         "x": 12,
-        "y": 40
+        "y": 52
       },
       "targets": [
         {
-          "expr": "rate(live_overlay_smc_live_stale_served_total{job=~\"$job\"}[$__rate_interval]) or vector(0)",
+          "expr": "rate(live_overlay_smc_live_stale_served_total{job=~\"$job\"}[$__rate_interval])",
           "legendFormat": "stale served/s"
         }
       ],
@@ -1213,18 +1659,19 @@
       }
     },
     {
-      "title": "smc_live Latency Avg (ms)",
-      "type": "timeseries",
+      "title": "UptimeRobot Monitor States",
+      "type": "state-timeline",
+      "description": "Per-monitor UptimeRobot state over time. paused = monitor intentionally paused; unknown = unrecognized status code.",
       "gridPos": {
-        "h": 8,
+        "h": 6,
         "w": 12,
         "x": 0,
-        "y": 48
+        "y": 61
       },
       "targets": [
         {
-          "expr": "(rate(live_overlay_smc_live_latency_sum_ms{job=~\"$job\"}[$__rate_interval]) or rate(live_overlay_smc_live_latency_sum_ms[$__rate_interval]) or vector(0)) / clamp_min((rate(live_overlay_smc_live_latency_count{job=~\"$job\"}[$__rate_interval]) or rate(live_overlay_smc_live_latency_count[$__rate_interval]) or vector(0)), 1e-9)",
-          "legendFormat": "avg latency"
+          "expr": "{__name__=~\"live_overlay_uptimerobot_monitor_.*_status_code\",job=~\"$job\"}",
+          "legendFormat": "{{__name__}}"
         }
       ],
       "options": {
@@ -1235,98 +1682,62 @@
         "legend": {
           "displayMode": "list",
           "placement": "bottom",
-          "showLegend": true,
-          "calcs": [
-            "mean",
-            "lastNotNull"
-          ]
-        }
+          "showLegend": true
+        },
+        "rowHeight": 0.9
       },
       "fieldConfig": {
         "defaults": {
-          "unit": "ms",
+          "mappings": [
+            {
+              "type": "value",
+              "options": {
+                "0": {
+                  "text": "PAUSED",
+                  "color": "gray"
+                },
+                "1": {
+                  "text": "NOT CHECKED",
+                  "color": "purple"
+                },
+                "2": {
+                  "text": "UP",
+                  "color": "green"
+                },
+                "8": {
+                  "text": "DOWN",
+                  "color": "red"
+                },
+                "9": {
+                  "text": "DOWN",
+                  "color": "red"
+                }
+              }
+            }
+          ],
+          "color": {
+            "mode": "thresholds"
+          },
           "thresholds": {
             "mode": "absolute",
             "steps": [
               {
-                "color": "green",
+                "color": "gray",
                 "value": null
               },
               {
-                "color": "yellow",
-                "value": 150
+                "color": "purple",
+                "value": 1
               },
               {
-                "color": "orange",
-                "value": 300
+                "color": "green",
+                "value": 2
               },
               {
                 "color": "red",
-                "value": 500
+                "value": 8
               }
             ]
-          }
-        }
-      }
-    },
-    {
-      "title": "smc_live Latency Buckets (req/s)",
-      "type": "timeseries",
-      "gridPos": {
-        "h": 8,
-        "w": 12,
-        "x": 12,
-        "y": 48
-      },
-      "targets": [
-        {
-          "expr": "rate(live_overlay_smc_live_latency_bucket_le_50{job=~\"$job\"}[$__rate_interval]) or rate(live_overlay_smc_live_latency_bucket_le_50[$__rate_interval]) or vector(0)",
-          "legendFormat": "<=50ms"
-        },
-        {
-          "expr": "rate(live_overlay_smc_live_latency_bucket_le_100{job=~\"$job\"}[$__rate_interval]) or rate(live_overlay_smc_live_latency_bucket_le_100[$__rate_interval]) or vector(0)",
-          "legendFormat": "<=100ms"
-        },
-        {
-          "expr": "rate(live_overlay_smc_live_latency_bucket_le_250{job=~\"$job\"}[$__rate_interval]) or rate(live_overlay_smc_live_latency_bucket_le_250[$__rate_interval]) or vector(0)",
-          "legendFormat": "<=250ms"
-        },
-        {
-          "expr": "rate(live_overlay_smc_live_latency_bucket_le_500{job=~\"$job\"}[$__rate_interval]) or rate(live_overlay_smc_live_latency_bucket_le_500[$__rate_interval]) or vector(0)",
-          "legendFormat": "<=500ms"
-        },
-        {
-          "expr": "rate(live_overlay_smc_live_latency_bucket_le_1000{job=~\"$job\"}[$__rate_interval]) or rate(live_overlay_smc_live_latency_bucket_le_1000[$__rate_interval]) or vector(0)",
-          "legendFormat": "<=1000ms"
-        },
-        {
-          "expr": "rate(live_overlay_smc_live_latency_bucket_le_inf{job=~\"$job\"}[$__rate_interval]) or rate(live_overlay_smc_live_latency_bucket_le_inf[$__rate_interval]) or vector(0)",
-          "legendFormat": "<=inf"
-        }
-      ],
-      "options": {
-        "tooltip": {
-          "mode": "multi",
-          "sort": "none"
-        },
-        "legend": {
-          "displayMode": "list",
-          "placement": "bottom",
-          "showLegend": true,
-          "calcs": [
-            "mean",
-            "lastNotNull"
-          ]
-        }
-      },
-      "fieldConfig": {
-        "defaults": {
-          "unit": "reqps",
-          "custom": {
-            "stacking": {
-              "mode": "none",
-              "group": "A"
-            }
           }
         }
       }
@@ -1338,7 +1749,7 @@
         "h": 1,
         "w": 24,
         "x": 0,
-        "y": 56
+        "y": 74
       },
       "collapsed": false,
       "panels": []
@@ -1350,7 +1761,7 @@
         "h": 4,
         "w": 6,
         "x": 0,
-        "y": 57
+        "y": 75
       },
       "targets": [
         {
@@ -1409,7 +1820,7 @@
         "h": 4,
         "w": 6,
         "x": 6,
-        "y": 57
+        "y": 75
       },
       "targets": [
         {
@@ -1474,27 +1885,27 @@
         "h": 8,
         "w": 12,
         "x": 12,
-        "y": 57
+        "y": 75
       },
       "targets": [
         {
-          "expr": "live_overlay_uptimerobot_monitors_total_total{job=~\"$job\"} or live_overlay_uptimerobot_monitors_total_total or vector(0)",
+          "expr": "live_overlay_uptimerobot_monitors_total_total{job=~\"$job\"}",
           "legendFormat": "total"
         },
         {
-          "expr": "live_overlay_uptimerobot_monitors_up_total{job=~\"$job\"} or live_overlay_uptimerobot_monitors_up_total or vector(0)",
+          "expr": "live_overlay_uptimerobot_monitors_up_total{job=~\"$job\"}",
           "legendFormat": "up"
         },
         {
-          "expr": "live_overlay_uptimerobot_monitors_down_total{job=~\"$job\"} or live_overlay_uptimerobot_monitors_down_total or vector(0)",
+          "expr": "live_overlay_uptimerobot_monitors_down_total{job=~\"$job\"}",
           "legendFormat": "down"
         },
         {
-          "expr": "live_overlay_uptimerobot_monitors_paused_total{job=~\"$job\"} or live_overlay_uptimerobot_monitors_paused_total or vector(0)",
+          "expr": "live_overlay_uptimerobot_monitors_paused_total{job=~\"$job\"}",
           "legendFormat": "paused"
         },
         {
-          "expr": "live_overlay_uptimerobot_monitors_response_time_ms_avg{job=~\"$job\"} or live_overlay_uptimerobot_monitors_response_time_ms_avg or vector(0)",
+          "expr": "live_overlay_uptimerobot_monitors_response_time_ms_avg{job=~\"$job\"}",
           "legendFormat": "avg response (ms)"
         }
       ],
@@ -1539,7 +1950,7 @@
         "h": 4,
         "w": 6,
         "x": 0,
-        "y": 65
+        "y": 83
       },
       "targets": [
         {
@@ -1598,7 +2009,7 @@
         "h": 4,
         "w": 6,
         "x": 6,
-        "y": 65
+        "y": 83
       },
       "targets": [
         {
@@ -1663,27 +2074,27 @@
         "h": 8,
         "w": 12,
         "x": 12,
-        "y": 65
+        "y": 83
       },
       "targets": [
         {
-          "expr": "live_overlay_github_workflow_runs_seen_total{job=~\"$job\"} or live_overlay_github_workflow_runs_seen_total or vector(0)",
+          "expr": "rate(live_overlay_github_workflow_runs_seen_total{job=~\"$job\"}[$__rate_interval])",
           "legendFormat": "seen"
         },
         {
-          "expr": "live_overlay_github_workflow_runs_success_total{job=~\"$job\"} or live_overlay_github_workflow_runs_success_total or vector(0)",
+          "expr": "rate(live_overlay_github_workflow_runs_success_total{job=~\"$job\"}[$__rate_interval])",
           "legendFormat": "success"
         },
         {
-          "expr": "live_overlay_github_workflow_runs_failed_total{job=~\"$job\"} or live_overlay_github_workflow_runs_failed_total or vector(0)",
+          "expr": "rate(live_overlay_github_workflow_runs_failed_total{job=~\"$job\"}[$__rate_interval])",
           "legendFormat": "failed"
         },
         {
-          "expr": "live_overlay_github_workflow_runs_in_progress_total{job=~\"$job\"} or live_overlay_github_workflow_runs_in_progress_total or vector(0)",
+          "expr": "rate(live_overlay_github_workflow_runs_in_progress_total{job=~\"$job\"}[$__rate_interval])",
           "legendFormat": "in_progress"
         },
         {
-          "expr": "live_overlay_github_workflow_runs_queued_total{job=~\"$job\"} or live_overlay_github_workflow_runs_queued_total or vector(0)",
+          "expr": "rate(live_overlay_github_workflow_runs_queued_total{job=~\"$job\"}[$__rate_interval])",
           "legendFormat": "queued"
         }
       ],
@@ -1703,9 +2114,13 @@
       },
       "fieldConfig": {
         "defaults": {
-          "unit": "short"
+          "unit": "cps",
+          "custom": {
+            "axisLabel": "runs / sec"
+          }
         }
-      }
+      },
+      "description": "Rate of GitHub workflow runs by phase (runs per second)."
     },
     {
       "title": "GitHub Workflow Timing",
@@ -1714,15 +2129,15 @@
         "h": 8,
         "w": 24,
         "x": 0,
-        "y": 73
+        "y": 91
       },
       "targets": [
         {
-          "expr": "live_overlay_github_workflow_latest_run_age_seconds{job=~\"$job\"} or live_overlay_github_workflow_latest_run_age_seconds or vector(0)",
+          "expr": "live_overlay_github_workflow_latest_run_age_seconds{job=~\"$job\"}",
           "legendFormat": "latest age (s)"
         },
         {
-          "expr": "live_overlay_github_workflow_latest_run_duration_seconds{job=~\"$job\"} or live_overlay_github_workflow_latest_run_duration_seconds or vector(0)",
+          "expr": "live_overlay_github_workflow_latest_run_duration_seconds{job=~\"$job\"}",
           "legendFormat": "latest duration (s)"
         }
       ],
@@ -1779,7 +2194,7 @@
         "h": 8,
         "w": 24,
         "x": 0,
-        "y": 81
+        "y": 99
       },
       "targets": [
         {
@@ -1815,17 +2230,17 @@
       },
       "fieldConfig": {
         "defaults": {
-          "min": 0,
-          "max": 1,
           "mappings": [
             {
               "type": "value",
               "options": {
                 "0": {
-                  "text": "CLOSED"
+                  "text": "CLOSED",
+                  "color": "red"
                 },
                 "1": {
-                  "text": "OPEN"
+                  "text": "OPEN",
+                  "color": "green"
                 }
               }
             }
@@ -1837,7 +2252,7 @@
             "mode": "absolute",
             "steps": [
               {
-                "color": "gray",
+                "color": "red",
                 "value": null
               },
               {
@@ -1847,7 +2262,8 @@
             ]
           }
         }
-      }
+      },
+      "description": "Regular trading session state for US, Europe, and Asia markets."
     },
     {
       "title": "SLO & Reliability",
@@ -1856,28 +2272,33 @@
         "h": 1,
         "w": 24,
         "x": 0,
-        "y": 89
+        "y": 107
       },
       "collapsed": false,
       "panels": []
     },
     {
-      "title": "Latency p95/p99 (ms)",
+      "title": "Latency vs. SLO (ms)",
       "type": "timeseries",
       "gridPos": {
         "h": 8,
         "w": 12,
         "x": 0,
-        "y": 90
+        "y": 108
       },
       "targets": [
         {
-          "expr": "live_overlay_smc_live_latency_p95_ms{job=~\"$job\"} or live_overlay_smc_live_latency_p95_ms or vector(0)",
+          "expr": "live_overlay_smc_live_latency_p95_ms{job=~\"$job\"}",
           "legendFormat": "p95"
         },
         {
-          "expr": "live_overlay_smc_live_latency_p99_ms{job=~\"$job\"} or live_overlay_smc_live_latency_p99_ms or vector(0)",
+          "expr": "live_overlay_smc_live_latency_p99_ms{job=~\"$job\"}",
           "legendFormat": "p99"
+        },
+        {
+          "expr": "vector(500)",
+          "legendFormat": "SLO = 500ms",
+          "refId": "SLO"
         }
       ],
       "options": {
@@ -1919,7 +2340,8 @@
             ]
           }
         }
-      }
+      },
+      "description": "p95 and p99 latency with a fixed 500 ms SLO threshold."
     },
     {
       "title": "Freshness SLO (Market Open, 1h)",
@@ -1928,7 +2350,7 @@
         "h": 8,
         "w": 6,
         "x": 12,
-        "y": 90
+        "y": 108
       },
       "targets": [
         {
@@ -1979,7 +2401,7 @@
         "h": 8,
         "w": 6,
         "x": 18,
-        "y": 90
+        "y": 108
       },
       "targets": [
         {
@@ -2038,15 +2460,15 @@
         "h": 8,
         "w": 12,
         "x": 0,
-        "y": 98
+        "y": 116
       },
       "targets": [
         {
-          "expr": "((sum(rate(live_overlay_smc_live_requests_total{job=~\"$job\"}[5m])) > bool 1e-6) * ((1 - (sum(rate(live_overlay_smc_live_success_total{job=~\"$job\"}[5m])) / clamp_min(sum(rate(live_overlay_smc_live_requests_total{job=~\"$job\"}[5m])), 1e-9))) / 0.01)) or vector(0)",
+          "expr": "((sum(rate(live_overlay_smc_live_requests_total{job=~\"$job\"}[5m])) > bool 1e-6) * ((1 - (sum(rate(live_overlay_smc_live_success_total{job=~\"$job\"}[5m])) / clamp_min(sum(rate(live_overlay_smc_live_requests_total{job=~\"$job\"}[5m])), 1e-9))) / 0.01))",
           "legendFormat": "burn_5m"
         },
         {
-          "expr": "((sum(rate(live_overlay_smc_live_requests_total{job=~\"$job\"}[1h])) > bool 1e-6) * ((1 - (sum(rate(live_overlay_smc_live_success_total{job=~\"$job\"}[1h])) / clamp_min(sum(rate(live_overlay_smc_live_requests_total{job=~\"$job\"}[1h])), 1e-9))) / 0.01)) or vector(0)",
+          "expr": "((sum(rate(live_overlay_smc_live_requests_total{job=~\"$job\"}[1h])) > bool 1e-6) * ((1 - (sum(rate(live_overlay_smc_live_success_total{job=~\"$job\"}[1h])) / clamp_min(sum(rate(live_overlay_smc_live_requests_total{job=~\"$job\"}[1h])), 1e-9))) / 0.01))",
           "legendFormat": "burn_1h"
         }
       ],
@@ -2098,7 +2520,7 @@
         "h": 8,
         "w": 12,
         "x": 12,
-        "y": 98
+        "y": 116
       },
       "targets": [
         {
@@ -2128,17 +2550,17 @@
       },
       "fieldConfig": {
         "defaults": {
-          "min": 0,
-          "max": 1,
           "mappings": [
             {
               "type": "value",
               "options": {
                 "0": {
-                  "text": "ERROR"
+                  "text": "ERROR",
+                  "color": "red"
                 },
                 "1": {
-                  "text": "OK"
+                  "text": "OK",
+                  "color": "green"
                 }
               }
             }
@@ -2160,7 +2582,8 @@
             ]
           }
         }
-      }
+      },
+      "description": "External bridge scrape success over time (UptimeRobot + GitHub Workflows)."
     },
     {
       "title": "Restart Causes (24h, by cause)",
@@ -2169,11 +2592,11 @@
         "h": 8,
         "w": 12,
         "x": 0,
-        "y": 106
+        "y": 124
       },
       "targets": [
         {
-          "expr": "sum by (__name__) (increase({__name__=~\"live_overlay_daemon_restart_cause_.*_total\",job=~\"$job\"}[24h])) or sum by (__name__) (increase({__name__=~\"live_overlay_daemon_restart_cause_.*_total\"}[24h])) or vector(0)",
+          "expr": "sum by (__name__) (increase({__name__=~\"live_overlay_daemon_restart_cause_.*_total\",job=~\"$job\"}[24h]))",
           "legendFormat": "{{__name__}}"
         }
       ],
@@ -2198,17 +2621,17 @@
       }
     },
     {
-      "title": "Hotspots \u2014 Symbols (Top)",
+      "title": "Hotspots — Symbols (Top)",
       "type": "timeseries",
       "gridPos": {
         "h": 8,
         "w": 12,
         "x": 12,
-        "y": 106
+        "y": 124
       },
       "targets": [
         {
-          "expr": "{__name__=~\"live_overlay_hotspot_symbol_.*_requests_total\",job=~\"$job\"} or {__name__=~\"live_overlay_hotspot_symbol_.*_requests_total\"} or vector(0)",
+          "expr": "{__name__=~\"live_overlay_hotspot_symbol_.*_requests_total\",job=~\"$job\"}",
           "legendFormat": "{{__name__}}"
         }
       ],
@@ -2233,17 +2656,32 @@
       }
     },
     {
-      "title": "Hotspots \u2014 Timeframes (Top)",
+      "title": "News Provider State Codes",
+      "type": "text",
+      "description": "Legend for News Provider panels directly below.",
+      "gridPos": {
+        "h": 2,
+        "w": 24,
+        "x": 0,
+        "y": 129
+      },
+      "options": {
+        "mode": "markdown",
+        "content": "**News provider state codes:** `0` = unknown / no data, `1` = degraded, `2` = ok. Drill-down panel shows per-provider ok/degraded flags; state-code panel maps the same provider to a single numeric state."
+      }
+    },
+    {
+      "title": "Hotspots — Timeframes (Top)",
       "type": "timeseries",
       "gridPos": {
         "h": 8,
         "w": 24,
         "x": 0,
-        "y": 114
+        "y": 134
       },
       "targets": [
         {
-          "expr": "{__name__=~\"live_overlay_hotspot_tf_.*_requests_total\",job=~\"$job\"} or {__name__=~\"live_overlay_hotspot_tf_.*_requests_total\"} or vector(0)",
+          "expr": "{__name__=~\"live_overlay_hotspot_tf_.*_requests_total\",job=~\"$job\"}",
           "legendFormat": "{{__name__}}"
         }
       ],
@@ -2274,19 +2712,19 @@
         "h": 8,
         "w": 12,
         "x": 0,
-        "y": 122
+        "y": 142
       },
       "targets": [
         {
-          "expr": "live_overlay_feed_ingest_queue_depth{job=~\"$job\"} or live_overlay_feed_ingest_queue_depth or vector(0)",
+          "expr": "live_overlay_feed_ingest_queue_depth{job=~\"$job\"}",
           "legendFormat": "depth"
         },
         {
-          "expr": "live_overlay_feed_ingest_queue_depth_max{job=~\"$job\"} or live_overlay_feed_ingest_queue_depth_max or vector(0)",
+          "expr": "live_overlay_feed_ingest_queue_depth_max{job=~\"$job\"}",
           "legendFormat": "depth max"
         },
         {
-          "expr": "live_overlay_feed_ingest_queue_dropped_total{job=~\"$job\"} or live_overlay_feed_ingest_queue_dropped_total or vector(0)",
+          "expr": "live_overlay_feed_ingest_queue_dropped_total{job=~\"$job\"}",
           "legendFormat": "dropped total"
         }
       ],
@@ -2317,15 +2755,15 @@
         "h": 8,
         "w": 12,
         "x": 12,
-        "y": 122
+        "y": 142
       },
       "targets": [
         {
-          "expr": "live_overlay_feed_ingest_queue_lag_ms_last{job=~\"$job\"} or live_overlay_feed_ingest_queue_lag_ms_last or vector(0)",
+          "expr": "live_overlay_feed_ingest_queue_lag_ms_last{job=~\"$job\"}",
           "legendFormat": "lag last"
         },
         {
-          "expr": "live_overlay_feed_ingest_queue_lag_ms_max{job=~\"$job\"} or live_overlay_feed_ingest_queue_lag_ms_max or vector(0)",
+          "expr": "live_overlay_feed_ingest_queue_lag_ms_max{job=~\"$job\"}",
           "legendFormat": "lag max"
         }
       ],
@@ -2373,7 +2811,7 @@
         "h": 1,
         "w": 24,
         "x": 0,
-        "y": 130
+        "y": 150
       },
       "collapsed": false,
       "panels": []
@@ -2385,7 +2823,7 @@
         "h": 8,
         "w": 12,
         "x": 0,
-        "y": 131
+        "y": 151
       },
       "targets": [
         {
@@ -2421,17 +2859,17 @@
       },
       "fieldConfig": {
         "defaults": {
-          "min": 0,
-          "max": 1,
           "mappings": [
             {
               "type": "value",
               "options": {
                 "0": {
-                  "text": "OFF"
+                  "text": "OFF",
+                  "color": "red"
                 },
                 "1": {
-                  "text": "ON"
+                  "text": "ON",
+                  "color": "green"
                 }
               }
             }
@@ -2443,7 +2881,7 @@
             "mode": "absolute",
             "steps": [
               {
-                "color": "gray",
+                "color": "red",
                 "value": null
               },
               {
@@ -2453,7 +2891,8 @@
             ]
           }
         }
-      }
+      },
+      "description": "Aggregate news provider health flags (ok / degraded / unknown)."
     },
     {
       "title": "News Snapshot Age & Provider Counts",
@@ -2462,23 +2901,23 @@
         "h": 8,
         "w": 12,
         "x": 12,
-        "y": 131
+        "y": 151
       },
       "targets": [
         {
-          "expr": "live_overlay_provider_news_snapshot_age_seconds{job=~\"$job\"} or live_overlay_provider_news_snapshot_age_seconds or vector(0)",
+          "expr": "live_overlay_provider_news_snapshot_age_seconds{job=~\"$job\"}",
           "legendFormat": "snapshot age (s)"
         },
         {
-          "expr": "live_overlay_provider_news_providers_total{job=~\"$job\"} or live_overlay_provider_news_providers_total or vector(0)",
+          "expr": "live_overlay_provider_news_providers_total{job=~\"$job\"}",
           "legendFormat": "providers total"
         },
         {
-          "expr": "live_overlay_provider_news_providers_ok_total{job=~\"$job\"} or live_overlay_provider_news_providers_ok_total or vector(0)",
+          "expr": "live_overlay_provider_news_providers_ok_total{job=~\"$job\"}",
           "legendFormat": "providers ok"
         },
         {
-          "expr": "live_overlay_provider_news_providers_degraded_total{job=~\"$job\"} or live_overlay_provider_news_providers_degraded_total or vector(0)",
+          "expr": "live_overlay_provider_news_providers_degraded_total{job=~\"$job\"}",
           "legendFormat": "providers degraded"
         }
       ],
@@ -2503,17 +2942,17 @@
       }
     },
     {
-      "title": "News Providers \u2014 OK/Degraded (Drill-down)",
+      "title": "News Providers — OK/Degraded (Drill-down)",
       "type": "timeseries",
       "gridPos": {
         "h": 8,
         "w": 12,
         "x": 0,
-        "y": 139
+        "y": 159
       },
       "targets": [
         {
-          "expr": "(({__name__=~\"live_overlay_provider_news_.*_(ok|degraded)\",job=~\"$job\"} or {__name__=~\"live_overlay_provider_news_.*_(ok|degraded)\"}) unless ({__name__=~\"live_overlay_provider_news_health_(ok|degraded)\",job=~\"$job\"} or {__name__=~\"live_overlay_provider_news_health_(ok|degraded)\"})) or vector(0)",
+          "expr": "(({__name__=~\"live_overlay_provider_news_.*_(ok|degraded)\",job=~\"$job\"} or {__name__=~\"live_overlay_provider_news_.*_(ok|degraded)\"}) unless ({__name__=~\"live_overlay_provider_news_health_(ok|degraded)\",job=~\"$job\"} or {__name__=~\"live_overlay_provider_news_health_(ok|degraded)\"}))",
           "legendFormat": "{{__name__}}"
         }
       ],
@@ -2540,17 +2979,17 @@
       }
     },
     {
-      "title": "News Providers \u2014 State Code",
+      "title": "News Providers — State Code",
       "type": "timeseries",
       "gridPos": {
         "h": 8,
         "w": 12,
         "x": 12,
-        "y": 139
+        "y": 159
       },
       "targets": [
         {
-          "expr": "{__name__=~\"live_overlay_provider_news_.*_state_code\",job=~\"$job\"} or {__name__=~\"live_overlay_provider_news_.*_state_code\"} or vector(0)",
+          "expr": "{__name__=~\"live_overlay_provider_news_.*_state_code\",job=~\"$job\"}",
           "legendFormat": "{{__name__}}"
         }
       ],
@@ -2571,8 +3010,6 @@
       "fieldConfig": {
         "defaults": {
           "unit": "short",
-          "min": 0,
-          "max": 2,
           "thresholds": {
             "mode": "absolute",
             "steps": [
@@ -2589,9 +3026,32 @@
                 "value": 2
               }
             ]
+          },
+          "mappings": [
+            {
+              "type": "value",
+              "options": {
+                "0": {
+                  "text": "UNKNOWN",
+                  "color": "gray"
+                },
+                "1": {
+                  "text": "DEGRADED",
+                  "color": "orange"
+                },
+                "2": {
+                  "text": "OK",
+                  "color": "green"
+                }
+              }
+            }
+          ],
+          "color": {
+            "mode": "thresholds"
           }
         }
-      }
+      },
+      "description": "Per-provider news state code: 0=unknown, 1=degraded, 2=ok."
     },
     {
       "title": "Active Alerts (live_overlay)",
@@ -2600,7 +3060,7 @@
         "h": 8,
         "w": 24,
         "x": 0,
-        "y": 147
+        "y": 167
       },
       "options": {
         "showLabels": true,
@@ -2649,5 +3109,5 @@
   "timezone": "utc",
   "title": "SMC Live Overlay Daemon",
   "uid": "smc-live-overlay-v1",
-  "version": 20
+  "version": 22
 }

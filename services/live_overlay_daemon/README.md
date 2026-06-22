@@ -351,8 +351,11 @@ observability.py (structured log lines + in-process counters)
 
 ### Grafana dashboard layout (v12)
 
-The dashboard `services/live_overlay_daemon/infra/grafana/dashboard.json`
-is organized into section rows to keep navigation fast during incidents:
+Production dashboard: **[SMC Live Overlay Daemon](https://bronzeporridge977.grafana.net/d/smc-live-overlay-v1/smc-live-overlay-daemon)**
+
+Source JSON: `services/live_overlay_daemon/infra/grafana/dashboard.json`
+
+The dashboard is organized into section rows to keep navigation fast during incidents:
 
 - `External Integrations`
 - `SLO & Reliability`
@@ -367,6 +370,53 @@ Operational UX additions:
   news snapshot metric series via explicit `absent(...)` checks.
 - Provider drill-down query excludes aggregate health series so per-provider
   `..._ok` / `..._degraded` timelines remain noise-free.
+
+### Dashboard UX maintenance
+
+The helper script `scripts/update_overlay_dashboard.py` applies idempotent
+Grafana UX improvements to `services/live_overlay_daemon/infra/grafana/dashboard.json`:
+
+- Adds a `UptimeRobot Monitor States` state-timeline panel so ``paused``
+  no longer renders as an ``unknown`` numeric line.
+- Adds explicit value mappings to state-timeline panels so `0`/`1` become
+  human-readable labels (e.g. `DEAD`/`ALIVE`, `NO`/`YES`, `CLOSED`/`OPEN`).
+- Adds a `News Provider State Codes` text legend above the provider panels.
+- Converts `GitHub Workflow Runs` from raw counters to rates (`cps`) with a
+  labelled y-axis.
+- Renames the `Overlay Freshness Budget (%)` panel to
+  `Stale Budget Consumed (%)` to remove ambiguity with `overlay_fresh`.
+
+Run it after hand-editing the dashboard:
+
+```bash
+python scripts/update_overlay_dashboard.py
+```
+
+Then import the updated JSON into Grafana Cloud so the live dashboard picks up
+the changes:
+
+1. Open the production dashboard: **[SMC Live Overlay Daemon](https://bronzeporridge977.grafana.net/d/smc-live-overlay-v1/smc-live-overlay-daemon)**
+2. Click the gear icon → **JSON Model**.
+3. Paste the contents of `services/live_overlay_daemon/infra/grafana/dashboard.json`.
+4. Click **Save changes**.
+
+There is currently no automated Grafana deployment workflow; a manual import is
+required after each dashboard JSON change. If Grafana Cloud API credentials are
+added to the repository later, `scripts/update_overlay_dashboard.py` can be
+extended to push the JSON via the Grafana HTTP API.
+
+State-timeline panels use explicit value mappings to avoid Grafana's default
+`<1` / `1+` labels. UptimeRobot monitor state mapping follows the UptimeRobot
+API v2 status codes:
+
+| Code | Label | Meaning |
+|------|-------|---------|
+| `0` | `PAUSED` | Monitor intentionally paused |
+| `1` | `NOT CHECKED` | Monitor not yet checked |
+| `2` | `UP` | Healthy |
+| `8` | `DOWN` | Down (seems down) |
+| `9` | `DOWN` | Down (confirmed) |
+| other | `UNKNOWN` | Unrecognized status code |
 
 ### UptimeRobot (free tier)
 
