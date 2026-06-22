@@ -37,6 +37,7 @@ logger = logging.getLogger(__name__)
 _RECONNECT_DELAY_SECS = 10
 _MAX_RECONNECT_ATTEMPTS = 5
 _RECONNECT_BACKOFF_SECS = 120
+_INGEST_STOP_SENTINEL = object()
 
 # VIX symbol on EQUS.MINI
 _VIX_SYMBOL = "VIX"
@@ -350,9 +351,17 @@ def _run_ingest_loop(stop: threading.Event) -> None:
             stop.wait(0.2)
             continue
         try:
-            sym, bar, queued_at = ingest_queue.get(timeout=0.5)
+            item = ingest_queue.get(timeout=0.5)
         except queue.Empty:
             continue
+
+        if item is _INGEST_STOP_SENTINEL:
+            ingest_queue.task_done()
+            if stop.is_set():
+                break
+            continue
+
+        sym, bar, queued_at = item
 
         cache.push_bar(sym, bar)
         _maybe_cache_vix(sym, bar)
@@ -515,6 +524,15 @@ def stop() -> None:
         if _feed_thread is not None and _feed_thread.is_alive() and hasattr(_feed_thread, "join"):
             _feed_thread.join(timeout=5)
         ingest_thread = _runtime.get("ingest_thread")
+        ingest_queue = _runtime.get("ingest_queue")
+        if ingest_queue is not None:
+            try:
+                # Wake a potentially blocked queue.get(timeout=0.5) so stop()
+                # does not need to wait for timeout jitter during teardown.
+                ingest_queue.put_nowait(_INGEST_STOP_SENTINEL)
+            except queue.Full:
+                # If full, the ingest loop is already actively draining.
+                pass
         if ingest_thread is not None and ingest_thread.is_alive() and hasattr(ingest_thread, "join"):
             ingest_thread.join(timeout=5)
         if _refresh_thread is not None and _refresh_thread.is_alive() and hasattr(_refresh_thread, "join"):
