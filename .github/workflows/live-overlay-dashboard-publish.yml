@@ -1,4 +1,4 @@
-# live-window: mutating-on-push
+# live-window: any-trigger
 name: live-overlay-dashboard-publish
 
 on:

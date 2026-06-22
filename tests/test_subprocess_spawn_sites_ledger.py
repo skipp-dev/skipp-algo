@@ -15,8 +15,8 @@ Why pin sites (in addition to the existing kwarg-shape invariants):
   audit of every place we shell out, and forces a reviewer to ask
   "is this new shell-out actually necessary?".
 
-Today the entire production tree spawns external commands from
-exactly four locations:
+Today the production tree has exactly four reviewed
+``subprocess.run`` / ``subprocess.Popen`` call-sites pinned here:
 
 * ``smc_integration/release_policy.py:1121`` — read git HEAD SHA
   (``git rev-parse HEAD``) for release manifest provenance.
@@ -25,7 +25,7 @@ exactly four locations:
 * ``open_prep/realtime_signals.py:336`` — re-launch the realtime
   signals daemon as a detached child (``Popen`` of
     ``python -m open_prep.realtime_signals``).
-* ``scripts/publish_overlay_dashboard.py:127`` — query OS keychain
+* ``scripts/publish_overlay_dashboard.py:166`` — query OS keychain
     for the Grafana API token (``security find-generic-password ...``).
 
 Defense-only — no production changes.
