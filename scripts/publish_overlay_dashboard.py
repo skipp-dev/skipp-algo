@@ -1,10 +1,10 @@
 #!/usr/bin/env python3
 """Publish the live-overlay Grafana dashboard from repo to Grafana Cloud.
 
-The dashboard is stored in Grafana API v2 format (apiVersion: dashboard.grafana.app/v2)
-and is pushed via the Kubernetes-style dashboards API:
-
-    POST /api/v1/dashboards
+The repo dashboard is currently stored in legacy Grafana v1 format (top-level
+``panels``). Both formats are supported: legacy v1 publishes via
+POST /api/dashboards/db, and v2 (apiVersion: dashboard.grafana.app/v2)
+publishes via POST /api/v1/dashboards (with /api/dashboards/db as fallback).
 
 Authentication uses CLI/env first and falls back to the macOS keychain entry
 ``skipp.grafana.api`` by default.
@@ -196,9 +196,9 @@ def _prepare_payload(data: dict[str, Any], message: str) -> dict[str, Any]:
         if key in meta:
             payload["metadata"][key] = meta[key]
 
-    # Ensure the change message is recorded as an annotation.
-    annotations = payload["metadata"].setdefault("annotations", {})
-    annotations["grafana.app/message"] = message
+    # Record the change message; coerce null/non-dict annotations to a dict first.
+    _ann = payload["metadata"].get("annotations")
+    payload["metadata"]["annotations"] = {**(_ann if isinstance(_ann, dict) else {}), "grafana.app/message": message}
 
     return payload
 

@@ -450,8 +450,8 @@ Niemals in `.env`-Dateien committen.
 ```bash
 cd /path/to/skipp-algo
 
-# 1. JSON validieren (v2 Dashboard-Shape)
-python3 -c "import json; d=json.load(open('services/live_overlay_daemon/infra/grafana/dashboard.json')); print('OK apiVersion='+d.get('apiVersion','?')+' elements='+str(len(d.get('spec',{}).get('elements',{}))))"
+# 1. JSON validieren (aktuell v1 Dashboard-Shape: top-level panels)
+python3 -c "import json; d=json.load(open('services/live_overlay_daemon/infra/grafana/dashboard.json')); n=len(d.get('panels') or d.get('spec',{}).get('elements',{})); print('OK schemaVersion='+str(d.get('schemaVersion','?'))+' panels='+str(n))"
 
 # 2. Dry-run Payload prüfen
 python3 scripts/publish_overlay_dashboard.py --dry-run
@@ -459,7 +459,7 @@ python3 scripts/publish_overlay_dashboard.py --dry-run
 # 2b. Optional: vollständiges Payload für Diff/Review speichern
 python3 scripts/publish_overlay_dashboard.py --dry-run --dry-run-full > /tmp/dashboard-payload.json
 
-# 3. Publish via v2-Skript
+# 3. Publish (Skript erkennt v1/v2 automatisch)
 python3 scripts/publish_overlay_dashboard.py --message "update"
 
 # 4. Committen
