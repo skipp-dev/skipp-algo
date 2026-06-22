@@ -357,8 +357,6 @@ def render_metrics(startup_ts: float) -> str:
     # Market/session-aware daemon health state mirrors /health status logic.
     market_open = is_us_regular_session_open()
     max_stale = config.max_stale_secs()
-    lines.append("# TYPE live_overlay_max_stale_seconds gauge")
-    lines.append(f"live_overlay_max_stale_seconds {max_stale}")
     overlay_fresh = (
         overlay_symbols > 0
         and overlay_age != float("inf")
@@ -412,9 +410,11 @@ def render_metrics(startup_ts: float) -> str:
 
     counts = dict(uptime_snapshot.get("counts") or {})
     for key in ("total", "up", "down", "paused", "unknown"):
-        lines.append(f"# TYPE live_overlay_uptimerobot_monitors_{key}_total gauge")
+        suffix = "_total" if key != "total" else ""
+        prom_name = f"live_overlay_uptimerobot_monitors_{key}{suffix}"
+        lines.append(f"# TYPE {prom_name} gauge")
         lines.append(
-            f"live_overlay_uptimerobot_monitors_{key}_total {_prom_numeric_value(counts.get(key, 0))}"
+            f"{prom_name} {_prom_numeric_value(counts.get(key, 0))}"
         )
 
     avg_response_time_ms = uptime_snapshot.get("avg_response_time_ms")
