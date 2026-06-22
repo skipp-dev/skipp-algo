@@ -355,7 +355,13 @@ def render_metrics(startup_ts: float) -> str:
     lines.append(f"live_overlay_workers_healthy {workers_healthy}")
 
     # Market/session-aware daemon health state mirrors /health status logic.
-    market_open = is_us_regular_session_open()
+    # US session gates feed/traffic/health (feed is US equities); the headline
+    # display gauge widens to "any major session" so the dashboard does not show
+    # MARKET CLOSED while European exchanges trade ahead of the US open.
+    us_open = is_us_regular_session_open()
+    eu_open = is_europe_regular_session_open()
+    asia_open = is_asia_regular_session_open()
+    market_open = us_open or eu_open
     max_stale = config.max_stale_secs()
     overlay_fresh = (
         overlay_symbols > 0
@@ -368,18 +374,18 @@ def render_metrics(startup_ts: float) -> str:
         feed_healthy=bool(feed_healthy),
         workers_healthy=bool(workers_healthy),
         overlay_fresh=overlay_fresh,
-        market_open=market_open,
+        market_open=us_open,
         bar_count=bar_count,
     )
 
     lines.append("# TYPE live_overlay_market_open gauge")
     lines.append(f"live_overlay_market_open {1 if market_open else 0}")
     lines.append("# TYPE live_overlay_market_us_open gauge")
-    lines.append(f"live_overlay_market_us_open {1 if market_open else 0}")
+    lines.append(f"live_overlay_market_us_open {1 if us_open else 0}")
     lines.append("# TYPE live_overlay_market_europe_open gauge")
-    lines.append(f"live_overlay_market_europe_open {1 if is_europe_regular_session_open() else 0}")
+    lines.append(f"live_overlay_market_europe_open {1 if eu_open else 0}")
     lines.append("# TYPE live_overlay_market_asia_open gauge")
-    lines.append(f"live_overlay_market_asia_open {1 if is_asia_regular_session_open() else 0}")
+    lines.append(f"live_overlay_market_asia_open {1 if asia_open else 0}")
     lines.append("# TYPE live_overlay_max_stale_seconds gauge")
     lines.append(f"live_overlay_max_stale_seconds {max_stale}")
     lines.append("# TYPE live_overlay_health_status_ok gauge")

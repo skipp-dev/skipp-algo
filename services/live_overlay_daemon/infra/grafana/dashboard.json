@@ -1263,7 +1263,7 @@
       },
       "targets": [
         {
-          "expr": "(live_overlay_market_open{job=\"$job\"} or live_overlay_market_open or vector(0)) + ((live_overlay_market_open{job=\"$job\"} or live_overlay_market_open or vector(0)) * (((rate(live_overlay_smc_live_requests_total{job=\"$job\"}[$__rate_interval]) or rate(live_overlay_smc_live_requests_total[$__rate_interval]) or vector(0)) > bool 0.001)))",
+          "expr": "(live_overlay_market_us_open{job=\"$job\"} or live_overlay_market_us_open or vector(0)) + ((live_overlay_market_us_open{job=\"$job\"} or live_overlay_market_us_open or vector(0)) * (((rate(live_overlay_smc_live_requests_total{job=\"$job\"}[$__rate_interval]) or rate(live_overlay_smc_live_requests_total[$__rate_interval]) or vector(0)) > bool 0.001)))",
           "legendFormat": "open_req_health"
         }
       ],
@@ -2354,7 +2354,7 @@
       },
       "targets": [
         {
-          "expr": "100 * ((sum(sum_over_time((((live_overlay_overlay_fresh{job=\"$job\"} or live_overlay_overlay_fresh or vector(1)) * (live_overlay_market_open{job=\"$job\"} or live_overlay_market_open or vector(0))))[1h:])) + (sum(sum_over_time((live_overlay_market_open{job=\"$job\"} or live_overlay_market_open or vector(0))[1h:])) == bool 0)) / clamp_min(sum(sum_over_time((live_overlay_market_open{job=\"$job\"} or live_overlay_market_open or vector(0))[1h:])), 1))",
+          "expr": "100 * ((sum(sum_over_time((((live_overlay_overlay_fresh{job=\"$job\"} or live_overlay_overlay_fresh or vector(1)) * (live_overlay_market_us_open{job=\"$job\"} or live_overlay_market_us_open or vector(0))))[1h:])) + (sum(sum_over_time((live_overlay_market_us_open{job=\"$job\"} or live_overlay_market_us_open or vector(0))[1h:])) == bool 0)) / clamp_min(sum(sum_over_time((live_overlay_market_us_open{job=\"$job\"} or live_overlay_market_us_open or vector(0))[1h:])), 1))",
           "legendFormat": "freshness_slo"
         }
       ],

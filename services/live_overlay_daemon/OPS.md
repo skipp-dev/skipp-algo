@@ -292,10 +292,12 @@ security find-generic-password -s skipp.grafana.api -w
 
 #### Market-gating
 
-Only alert on feed health when the market is open:
+Only alert on feed health when the US session is open (the feed is US equities;
+`live_overlay_market_us_open` gates feed/traffic/SLO, while `live_overlay_market_open`
+is the broadened US-or-EU display gauge):
 
 ```promql
-live_overlay_market_open{job="live_overlay"}
+live_overlay_market_us_open{job="live_overlay"}
   * (1 - live_overlay_feed_healthy{job="live_overlay"})
 ```
 
