@@ -11,7 +11,7 @@ It is optional and env-driven:
 """
 from __future__ import annotations
 
-import calendar
+import datetime
 import json
 import threading
 import time
@@ -61,9 +61,10 @@ def _iso_age_seconds(iso_ts: str | None) -> float | None:
     if not iso_ts:
         return None
     try:
-        # GitHub emits UTC timestamps with trailing Z.
-        dt = time.strptime(iso_ts.replace("Z", "+0000"), "%Y-%m-%dT%H:%M:%S%z")
-        epoch = calendar.timegm(dt)
+        parsed = datetime.datetime.fromisoformat(iso_ts.replace("Z", "+00:00"))
+        if parsed.tzinfo is None:
+            parsed = parsed.replace(tzinfo=datetime.UTC)
+        epoch = parsed.timestamp()
     except Exception:
         return None
     return max(0.0, time.time() - epoch)
@@ -73,10 +74,14 @@ def _duration_seconds(started_at: str | None, updated_at: str | None) -> float |
     if not started_at or not updated_at:
         return None
     try:
-        s = time.strptime(started_at.replace("Z", "+0000"), "%Y-%m-%dT%H:%M:%S%z")
-        u = time.strptime(updated_at.replace("Z", "+0000"), "%Y-%m-%dT%H:%M:%S%z")
-        s_epoch = calendar.timegm(s)
-        u_epoch = calendar.timegm(u)
+        start = datetime.datetime.fromisoformat(started_at.replace("Z", "+00:00"))
+        end = datetime.datetime.fromisoformat(updated_at.replace("Z", "+00:00"))
+        if start.tzinfo is None:
+            start = start.replace(tzinfo=datetime.UTC)
+        if end.tzinfo is None:
+            end = end.replace(tzinfo=datetime.UTC)
+        s_epoch = start.timestamp()
+        u_epoch = end.timestamp()
     except Exception:
         return None
     return max(0.0, u_epoch - s_epoch)
@@ -102,11 +107,7 @@ def _fetch_snapshot(token: str) -> dict[str, Any]:
     owner, repo = config.github_workflow_repo()
     timeout = config.github_workflow_timeout_secs()
     per_page = config.github_workflow_per_page()
-    query_params: dict[str, str | int] = {"per_page": per_page}
-    branch = config.github_workflow_branch()
-    if branch:
-        query_params["branch"] = branch
-    params = urllib.parse.urlencode(query_params)
+    params = urllib.parse.urlencode({"per_page": per_page})
     url = f"https://api.github.com/repos/{owner}/{repo}/actions/runs?{params}"
     parsed = _github_request_json(url, token, timeout)
 

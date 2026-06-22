@@ -37,6 +37,7 @@ logger = logging.getLogger(__name__)
 _RECONNECT_DELAY_SECS = 10
 _MAX_RECONNECT_ATTEMPTS = 5
 _RECONNECT_BACKOFF_SECS = 120
+_INGEST_STOP_SENTINEL = object()
 
 # VIX symbol on EQUS.MINI
 _VIX_SYMBOL = "VIX"
@@ -145,11 +146,17 @@ def _record_enqueue_backpressure() -> None:
         )
 
 
-def _record_queue_drop() -> None:
+def _record_queue_drop() -> float:
     with _backpressure_lock:
         _backpressure["ingest_queue_dropped_total"] = (
             _backpressure.get("ingest_queue_dropped_total", 0.0) + 1.0
         )
+        return _backpressure["ingest_queue_dropped_total"]
+
+
+def _should_log_queue_drop_warning(dropped_total: float) -> bool:
+    """Emit warning every 100 dropped bars (based on drop counter)."""
+    return int(dropped_total) % 100 == 0
 
 
 def _record_queue_lag_ms(lag_ms: float) -> None:
@@ -276,16 +283,12 @@ def _run_feed_loop(stop: threading.Event) -> None:
                         _record_enqueue_backpressure()
                         _bars_pushed_count += 1
                     except queue.Full:
-                        _record_queue_drop()
+                        dropped_total = _record_queue_drop()
                         metric_counter("live_overlay.feed.ingest_queue_dropped_total")
-                        with _backpressure_lock:
-                            total_drops = int(
-                                _backpressure.get("ingest_queue_dropped_total", 0.0)
-                            )
-                        if total_drops % 100 == 0:
+                        if _should_log_queue_drop_warning(dropped_total):
                             logger.warning(
-                                "Ingest queue full — dropping newest bar (total_drops=%d)",
-                                total_drops,
+                                "Ingest queue full — dropping newest bar (dropped_total=%d)",
+                                int(dropped_total),
                             )
 
             except db.BentoError as exc:
@@ -350,9 +353,17 @@ def _run_ingest_loop(stop: threading.Event) -> None:
             stop.wait(0.2)
             continue
         try:
-            sym, bar, queued_at = ingest_queue.get(timeout=0.5)
+            item = ingest_queue.get(timeout=0.5)
         except queue.Empty:
             continue
+
+        if item is _INGEST_STOP_SENTINEL:
+            ingest_queue.task_done()
+            if stop.is_set():
+                break
+            continue
+
+        sym, bar, queued_at = item
 
         cache.push_bar(sym, bar)
         _maybe_cache_vix(sym, bar)
@@ -440,7 +451,6 @@ def _do_start() -> None:
         )
 
     feed_alive = _feed_thread is not None and _feed_thread.is_alive()
-    ingest_thread = _runtime.get("ingest_thread")
     ingest_alive = ingest_thread is not None and ingest_thread.is_alive()
     refresh_alive = _refresh_thread is not None and _refresh_thread.is_alive()
     flow_alive = _flow_refresh_thread is not None and _flow_refresh_thread.is_alive()
@@ -515,6 +525,15 @@ def stop() -> None:
         if _feed_thread is not None and _feed_thread.is_alive() and hasattr(_feed_thread, "join"):
             _feed_thread.join(timeout=5)
         ingest_thread = _runtime.get("ingest_thread")
+        ingest_queue = _runtime.get("ingest_queue")
+        if ingest_queue is not None and ingest_thread is not None and ingest_thread.is_alive():
+            try:
+                # Wake a potentially blocked queue.get(timeout=0.5) so stop()
+                # does not need to wait for timeout jitter during teardown.
+                ingest_queue.put_nowait(_INGEST_STOP_SENTINEL)
+            except queue.Full:
+                # If full, the ingest loop is already actively draining.
+                pass
         if ingest_thread is not None and ingest_thread.is_alive() and hasattr(ingest_thread, "join"):
             ingest_thread.join(timeout=5)
         if _refresh_thread is not None and _refresh_thread.is_alive() and hasattr(_refresh_thread, "join"):

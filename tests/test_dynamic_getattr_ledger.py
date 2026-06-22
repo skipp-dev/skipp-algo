@@ -94,9 +94,9 @@ def _dynamic_getattr_sites() -> set[tuple[str, int]]:
 # small ``Mapping[str, Callable]`` / TypedDict accessor so the set of
 # valid names is statically visible.
 DYNAMIC_GETATTR_LEDGER: set[tuple[str, int]] = {
-    # 2026-06-21 (provider/bridge + queue follow-ups): helper block growth
-    # shifted _record_to_bar dynamic getattr site 68 -> 81.
-    ("services/live_overlay_daemon/feed.py", 81),
+    # 2026-06-22 (ingest-stop sentinel wakeup): helper block growth shifted
+    # _record_to_bar dynamic getattr site 81 -> 82.
+    ("services/live_overlay_daemon/feed.py", 82),
     ("smc_core/event_ledger.py", 79),
     ("smc_core/scoring.py", 308),
     ("streamlit_terminal_alerts.py", 41),

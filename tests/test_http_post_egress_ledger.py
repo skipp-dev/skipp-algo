@@ -68,7 +68,11 @@ def _iter_py_files() -> list[Path]:
     out: list[Path] = []
     for path in ROOT.rglob("*.py"):
         rel = path.relative_to(ROOT)
-        if any(part in _DIR_EXCLUDE or part.startswith(".") for part in rel.parts):
+        rel_posix = rel.as_posix()
+        if (
+            any(part in _DIR_EXCLUDE or part.startswith(".") for part in rel.parts)
+            and rel_posix != "scripts/publish_overlay_dashboard.py"
+        ):
             continue
         out.append(path)
     return out
@@ -168,6 +172,9 @@ URLLIB_REQUEST_POST_LEDGER: set[tuple[str, int]] = {
     # 2026-06-21: UptimeRobot bridge polls monitor API with low-level
     # urllib.request.Request(..., method="POST") + timeout discipline.
     ("services/live_overlay_daemon/uptimerobot_bridge.py", 69),
+    # 2026-06-22: Grafana dashboard publisher API upsert payload.
+    # Line shifted 210 -> 243 after v1/v2 routing support refactor.
+    ("scripts/publish_overlay_dashboard.py", 240),
 }
 
 

@@ -210,13 +210,15 @@ _FROZEN_SITES: frozenset[tuple[str, int, tuple[str, ...]]] = frozenset(
         ("services/live_overlay_daemon/compute.py", 55, ("_news_cache", "_news_checked_at", "_news_loaded_at")),
         # 2026-06-21 (provider/bridge + queue backpressure follow-ups):
         # feed.py gained additional helper/config blocks, shifting global
-        # statements to 356/414/490.
-        ("services/live_overlay_daemon/feed.py", 363, ("_last_bar_at",)),
-        ("services/live_overlay_daemon/feed.py", 421, ("_feed_thread", "_flow_refresh_thread", "_refresh_thread")),
-        ("services/live_overlay_daemon/feed.py", 511, ("_feed_thread", "_flow_refresh_thread", "_refresh_thread")),
+        # statements to 362/420/496.
+        # 2026-06-22 follow-ups shifted these anchors to 365/423/512.
+        # Post-merge sync with main shifted these anchors to 374/432/521.
+        ("services/live_overlay_daemon/feed.py", 374, ("_last_bar_at",)),
+        ("services/live_overlay_daemon/feed.py", 432, ("_feed_thread", "_flow_refresh_thread", "_refresh_thread")),
+        ("services/live_overlay_daemon/feed.py", 521, ("_feed_thread", "_flow_refresh_thread", "_refresh_thread")),
         # 2026-06-21: optional external bridge snapshot caches are guarded by
         # module locks and cached via module-level singleton snapshots.
-        ("services/live_overlay_daemon/github_workflow_bridge.py", 177, ("_cached_at_monotonic", "_cached_snapshot")),
+        ("services/live_overlay_daemon/github_workflow_bridge.py", 178, ("_cached_at_monotonic", "_cached_snapshot")),
         ("services/live_overlay_daemon/uptimerobot_bridge.py", 125, ("_cached_at_monotonic", "_cached_snapshot")),
         # 2026-06-19 (fix/live-overlay-post-merge-bugs): added non-finite JSON
         # sanitization helper and related imports, shifting _startup_ts line.

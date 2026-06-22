@@ -15,8 +15,9 @@ Why pin sites (in addition to the existing kwarg-shape invariants):
   audit of every place we shell out, and forces a reviewer to ask
   "is this new shell-out actually necessary?".
 
-Today the entire production tree spawns external commands from
-exactly three locations:
+Today the audited repository surface (production modules + explicitly
+included helper scripts) spawns external commands from exactly four
+locations:
 
 * ``smc_integration/release_policy.py:1121`` — read git HEAD SHA
   (``git rev-parse HEAD``) for release manifest provenance.
@@ -25,6 +26,8 @@ exactly three locations:
 * ``open_prep/realtime_signals.py:336`` — re-launch the realtime
   signals daemon as a detached child (``Popen`` of
   ``python -m open_prep.realtime_signals``).
+* ``scripts/publish_overlay_dashboard.py:151`` — query OS keychain
+  for the Grafana API token (``security find-generic-password ...``).
 
 Defense-only — no production changes.
 """
@@ -59,7 +62,11 @@ def _iter_py_files() -> list[Path]:
     out: list[Path] = []
     for path in ROOT.rglob("*.py"):
         rel = path.relative_to(ROOT)
-        if any(part in _DIR_EXCLUDE or part.startswith(".") for part in rel.parts):
+        rel_posix = rel.as_posix()
+        if (
+            any(part in _DIR_EXCLUDE or part.startswith(".") for part in rel.parts)
+            and rel_posix != "scripts/publish_overlay_dashboard.py"
+        ):
             continue
         out.append(path)
     return out
@@ -142,6 +149,9 @@ SUBPROCESS_RUN_LEDGER: set[tuple[str, int]] = {
     # Rebaselined 2026-05-15 after PR #2233 mainline merge restored the
     # branch-local realtime_signals layout.
     ("open_prep/realtime_signals.py", 190),
+    # 2026-06-22: Grafana dashboard publish script keychain token lookup.
+    # Line shifted 135 -> 151 after v1/v2 routing support refactor.
+    ("scripts/publish_overlay_dashboard.py", 151),
 }
 
 SUBPROCESS_POPEN_LEDGER: set[tuple[str, int]] = {

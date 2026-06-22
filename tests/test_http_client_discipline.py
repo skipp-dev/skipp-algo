@@ -12,10 +12,10 @@ Two sibling pins enforced over the same first-party AST walk:
 
 2. **``urlopen()`` must pass ``timeout=``** in production.
 
-   ``urllib.request.urlopen`` defaults to a *blocking* socket with no
-   timeout, which can wedge a worker thread indefinitely.  All eight
-   current production sites already pass ``timeout=``; this pin freezes
-   that invariant.  Detection covers both bound forms:
+    ``urllib.request.urlopen`` defaults to a *blocking* socket with no
+    timeout, which can wedge a worker thread indefinitely.  All current
+    production sites already pass ``timeout=``; this pin freezes that
+    invariant.  Detection covers both bound forms:
 
    * ``urlopen(req, timeout=...)``  (after ``from urllib.request import urlopen``)
    * ``urllib.request.urlopen(req, timeout=...)``
@@ -54,7 +54,9 @@ _DIR_EXCLUDE = frozenset(
 def _iter_prod_files() -> list[Path]:
     out: list[Path] = []
     for path in _REPO_ROOT.rglob("*.py"):
-        if any(part in _DIR_EXCLUDE for part in path.relative_to(_REPO_ROOT).parts):
+        rel = path.relative_to(_REPO_ROOT)
+        rel_posix = rel.as_posix()
+        if any(part in _DIR_EXCLUDE for part in rel.parts) and rel_posix != "scripts/publish_overlay_dashboard.py":
             continue
         out.append(path)
     return sorted(out)
@@ -120,7 +122,14 @@ def _is_urlopen_call(node: ast.Call) -> bool:
     if isinstance(func, ast.Name) and func.id == "urlopen":
         return True
     # ``urllib.request.urlopen(...)``.
-    return bool(isinstance(func, ast.Attribute) and func.attr == "urlopen" and isinstance(func.value, ast.Attribute) and func.value.attr == "request" and isinstance(func.value.value, ast.Name) and func.value.value.id == "urllib")
+    return bool(
+        isinstance(func, ast.Attribute)
+        and func.attr == "urlopen"
+        and isinstance(func.value, ast.Attribute)
+        and func.value.attr == "request"
+        and isinstance(func.value.value, ast.Name)
+        and func.value.value.id == "urllib"
+    )
 
 
 def _has_timeout_kwarg(node: ast.Call) -> bool:
@@ -163,8 +172,11 @@ _FROZEN_URLOPEN_SITES: frozenset[tuple[str, int]] = frozenset(
         ("terminal_tradingview_news.py", 423),
         # 2026-06-21: live-overlay external bridge polling via urllib with
         # explicit timeout discipline.
-        ("services/live_overlay_daemon/github_workflow_bridge.py", 96),
+        ("services/live_overlay_daemon/github_workflow_bridge.py", 101),
         ("services/live_overlay_daemon/uptimerobot_bridge.py", 76),
+        # 2026-06-22: Grafana dashboard publisher API upsert over urllib.
+        # Line shifted 221 -> 251 after v1/v2 routing support refactor.
+        ("scripts/publish_overlay_dashboard.py", 251),
     }
 )
 

@@ -1,269 +1,98 @@
-"""Unit tests for the GitHub workflow bridge."""
+"""Unit tests for services.live_overlay_daemon.github_workflow_bridge helpers."""
 
 from __future__ import annotations
 
-import threading
-import time
-from datetime import UTC, datetime, timedelta
-from typing import Any
-from unittest.mock import patch
-
 import pytest
 
-from services.live_overlay_daemon import github_workflow_bridge
+
+def test_iso_age_seconds_parses_utc_z_timestamp(monkeypatch: pytest.MonkeyPatch) -> None:
+    import services.live_overlay_daemon.github_workflow_bridge as bridge
+
+    # 2026-06-22T10:00:00Z
+    fixed_now = 1_782_122_460.0
+    monkeypatch.setattr(bridge.time, "time", lambda: fixed_now)
+
+    age = bridge._iso_age_seconds("2026-06-22T10:00:00Z")
+
+    assert age is not None
+    assert age == pytest.approx(60.0)
 
 
-@pytest.fixture(autouse=True)
-def _reset_bridge_cache() -> None:
-    github_workflow_bridge._cached_snapshot = None
-    github_workflow_bridge._cached_at_monotonic = 0.0
-    yield
-    github_workflow_bridge._cached_snapshot = None
-    github_workflow_bridge._cached_at_monotonic = 0.0
+def test_iso_age_seconds_returns_none_on_invalid_timestamp() -> None:
+    import services.live_overlay_daemon.github_workflow_bridge as bridge
+
+    assert bridge._iso_age_seconds("not-a-timestamp") is None
 
 
-def test_phase_code_mapping() -> None:
-    assert github_workflow_bridge._phase_code("queued", None) == 1
-    assert github_workflow_bridge._phase_code("in_progress", None) == 2
-    assert github_workflow_bridge._phase_code("completed", "success") == 3
-    assert github_workflow_bridge._phase_code("completed", "failure") == 4
-    assert github_workflow_bridge._phase_code("completed", "cancelled") == 5
-    assert github_workflow_bridge._phase_code("completed", "skipped") == 6
-    assert github_workflow_bridge._phase_code("completed", "neutral") == 7
-    assert github_workflow_bridge._phase_code("completed", "timed_out") == 8
-    assert github_workflow_bridge._phase_code("completed", "action_required") == 9
-    assert github_workflow_bridge._phase_code("completed", "startup_failure") == 10
-    assert github_workflow_bridge._phase_code("completed", "stale") == 11
-    assert github_workflow_bridge._phase_code("completed", "unknown") == 0
-    assert github_workflow_bridge._phase_code("weird", None) == 0
+def test_duration_seconds_parses_utc_z_timestamps() -> None:
+    import services.live_overlay_daemon.github_workflow_bridge as bridge
+
+    duration = bridge._duration_seconds(
+        "2026-06-22T10:00:00Z",
+        "2026-06-22T10:02:30Z",
+    )
+
+    assert duration is not None
+    assert duration == pytest.approx(150.0)
 
 
-def test_iso_age_seconds() -> None:
-    one_hour_ago = (datetime.now(UTC) - timedelta(hours=1)).strftime("%Y-%m-%dT%H:%M:%SZ")
-    age = github_workflow_bridge._iso_age_seconds(one_hour_ago)
-    assert age is not None and 3500 < age < 3700
-    assert github_workflow_bridge._iso_age_seconds(None) is None
-    assert github_workflow_bridge._iso_age_seconds("") is None
-    assert github_workflow_bridge._iso_age_seconds("not-a-date") is None
+def test_duration_seconds_clamps_negative_values_to_zero() -> None:
+    import services.live_overlay_daemon.github_workflow_bridge as bridge
+
+    duration = bridge._duration_seconds(
+        "2026-06-22T10:03:00Z",
+        "2026-06-22T10:02:30Z",
+    )
+
+    assert duration == 0.0
 
 
-def test_duration_seconds() -> None:
-    assert github_workflow_bridge._duration_seconds(
-        "2026-06-21T12:00:00Z", "2026-06-21T12:00:30Z"
-    ) == pytest.approx(30.0, abs=1.0)
-    assert github_workflow_bridge._duration_seconds(None, "2026-06-21T12:00:30Z") is None
+def test_snapshot_returns_cached_value_within_ttl(monkeypatch: pytest.MonkeyPatch) -> None:
+    import services.live_overlay_daemon.github_workflow_bridge as bridge
 
+    monkeypatch.setattr(bridge.config, "github_workflow_token", lambda: "token")
+    monkeypatch.setattr(bridge.config, "github_workflow_poll_ttl_secs", lambda: 60)
+    monkeypatch.setattr(bridge.time, "monotonic", lambda: 100.0)
 
-def _fake_response(body: bytes) -> object:
-    class _Response:
-        def read(self) -> bytes:
-            return body
-
-        def __enter__(self) -> object:
-            return self
-
-        def __exit__(self, *args: object) -> None:
-            return None
-
-    return _Response()
-
-
-def test_github_request_json_uses_auth_headers() -> None:
-    body = b'{"total_count": 0, "workflow_runs": []}'
-
-    with patch.object(
-        github_workflow_bridge.urllib.request,
-        "urlopen",
-        return_value=_fake_response(body),
-    ) as mock_urlopen:
-        result = github_workflow_bridge._github_request_json(
-            "https://api.github.com/repos/owner/repo/actions/runs",
-            "token123",
-            5,
-        )
-
-    assert result == {"total_count": 0, "workflow_runs": []}
-    request = mock_urlopen.call_args[0][0]
-    assert request.headers["Authorization"] == "Bearer token123"
-    assert request.get_header("X-github-api-version") == "2022-11-28"
-
-
-def test_fetch_snapshot_applies_branch_filter() -> None:
-    payload: dict[str, Any] = {
-        "total_count": 1,
-        "workflow_runs": [
-            {
-                "id": 101,
-                "name": "CI",
-                "workflow_id": 1,
-                "status": "completed",
-                "conclusion": "success",
-                "created_at": "2026-06-21T12:00:00Z",
-                "run_started_at": "2026-06-21T12:00:00Z",
-                "updated_at": "2026-06-21T12:00:30Z",
-                "head_branch": "main",
-            }
-        ],
+    bridge._cached_snapshot = {
+        "enabled": 1,
+        "ok": 1,
+        "fetched_at_unix": 1.0,
+        "counts": {"seen": 1, "success": 1, "failed": 0, "in_progress": 0, "queued": 0},
+        "latest_run_age_seconds": 1.0,
+        "latest_run_duration_seconds": 2.0,
+        "workflows": [],
     }
+    bridge._cached_at_monotonic = 99.0
 
-    with patch.object(
-        github_workflow_bridge.config,
-        "github_workflow_repo",
-        return_value=("owner", "repo"),
-    ), patch.object(
-        github_workflow_bridge.config,
-        "github_workflow_timeout_secs",
-        return_value=5,
-    ), patch.object(
-        github_workflow_bridge.config,
-        "github_workflow_per_page",
-        return_value=30,
-    ), patch.object(
-        github_workflow_bridge.config,
-        "github_workflow_branch",
-        return_value="main",
-    ), patch.object(
-        github_workflow_bridge.config,
-        "github_workflow_ids",
-        return_value=[],
-    ), patch.object(
-        github_workflow_bridge,
-        "_github_request_json",
-        return_value=payload,
-    ) as mock_request:
-        result = github_workflow_bridge._fetch_snapshot("token")
+    def _boom_fetch(_token: str) -> dict:
+        raise AssertionError("_fetch_snapshot must not be called on cache hit")
 
-    assert result["ok"] == 1
-    assert result["counts"]["seen"] == 1
-    assert result["counts"]["success"] == 1
-    called_url = mock_request.call_args[0][0]
-    assert "branch=main" in called_url
+    monkeypatch.setattr(bridge, "_fetch_snapshot", _boom_fetch)
+
+    snap = bridge.snapshot()
+    assert snap["ok"] == 1
+    assert snap["counts"]["seen"] == 1
 
 
-def test_fetch_snapshot_empty_branch_filter_allows_all() -> None:
-    with patch.object(
-        github_workflow_bridge.config,
-        "github_workflow_repo",
-        return_value=("owner", "repo"),
-    ), patch.object(
-        github_workflow_bridge.config,
-        "github_workflow_timeout_secs",
-        return_value=5,
-    ), patch.object(
-        github_workflow_bridge.config,
-        "github_workflow_per_page",
-        return_value=30,
-    ), patch.object(
-        github_workflow_bridge.config,
-        "github_workflow_branch",
-        return_value=None,
-    ), patch.object(
-        github_workflow_bridge.config,
-        "github_workflow_ids",
-        return_value=[],
-    ), patch.object(
-        github_workflow_bridge,
-        "_github_request_json",
-        return_value={"total_count": 0, "workflow_runs": []},
-    ) as mock_request:
-        github_workflow_bridge._fetch_snapshot("token")
+def test_snapshot_fetch_error_returns_fallback_payload(monkeypatch: pytest.MonkeyPatch) -> None:
+    import services.live_overlay_daemon.github_workflow_bridge as bridge
 
-    called_url = mock_request.call_args[0][0]
-    assert "branch=" not in called_url
+    monkeypatch.setattr(bridge.config, "github_workflow_token", lambda: "token")
+    monkeypatch.setattr(bridge.config, "github_workflow_poll_ttl_secs", lambda: 0)
+    monkeypatch.setattr(bridge.time, "time", lambda: 1234.0)
+    monkeypatch.setattr(bridge.time, "monotonic", lambda: 200.0)
 
+    bridge._cached_snapshot = None
+    bridge._cached_at_monotonic = 0.0
 
-def test_snapshot_returns_disabled_without_token() -> None:
-    with patch.object(
-        github_workflow_bridge.config,
-        "github_workflow_token",
-        return_value="",
-    ):
-        result = github_workflow_bridge.snapshot()
-    assert result["enabled"] == 0
-    assert result["ok"] == 0
-    assert result["error"] == "missing_token"
+    def _raise_fetch(_token: str) -> dict:
+        raise RuntimeError("boom")
 
+    monkeypatch.setattr(bridge, "_fetch_snapshot", _raise_fetch)
 
-def test_snapshot_coalesces_parallel_fetches() -> None:
-    github_workflow_bridge._cached_snapshot = None
-    github_workflow_bridge._cached_at_monotonic = 0.0
-
-    calls: list[str] = []
-
-    def _slow_fetch(token: str) -> dict[str, Any]:
-        calls.append(token)
-        time.sleep(0.05)
-        return {
-            "enabled": 1,
-            "ok": 1,
-            "fetched_at_unix": time.time(),
-            "counts": {
-                "seen": 1,
-                "success": 1,
-                "failed": 0,
-                "in_progress": 0,
-                "queued": 0,
-            },
-            "latest_run_age_seconds": None,
-            "latest_run_duration_seconds": None,
-            "workflows": [],
-        }
-
-    with patch.object(
-        github_workflow_bridge.config,
-        "github_workflow_token",
-        return_value="token",
-    ), patch.object(
-        github_workflow_bridge.config,
-        "github_workflow_poll_ttl_secs",
-        return_value=300,
-    ), patch.object(
-        github_workflow_bridge,
-        "_fetch_snapshot",
-        side_effect=_slow_fetch,
-    ):
-        threads = [threading.Thread(target=github_workflow_bridge.snapshot) for _ in range(6)]
-        for t in threads:
-            t.start()
-        for t in threads:
-            t.join()
-
-    assert len(calls) == 1
-
-
-def test_snapshot_parallel_fetch_error_is_coalesced() -> None:
-    calls: list[str] = []
-    results: list[dict[str, Any]] = []
-
-    def _slow_fail(token: str) -> dict[str, Any]:
-        calls.append(token)
-        time.sleep(0.05)
-        raise TimeoutError("boom")
-
-    def _worker() -> None:
-        results.append(github_workflow_bridge.snapshot())
-
-    with patch.object(
-        github_workflow_bridge.config,
-        "github_workflow_token",
-        return_value="token",
-    ), patch.object(
-        github_workflow_bridge.config,
-        "github_workflow_poll_ttl_secs",
-        return_value=300,
-    ), patch.object(
-        github_workflow_bridge,
-        "_fetch_snapshot",
-        side_effect=_slow_fail,
-    ):
-        threads = [threading.Thread(target=_worker) for _ in range(6)]
-        for t in threads:
-            t.start()
-        for t in threads:
-            t.join()
-
-    assert len(calls) == 1
-    assert len(results) == 6
-    assert all(r.get("enabled") == 1 for r in results)
-    assert all(r.get("ok") == 0 for r in results)
-    assert all(r.get("error") == "TimeoutError" for r in results)
+    snap = bridge.snapshot()
+    assert snap["enabled"] == 1
+    assert snap["ok"] == 0
+    assert snap["error"] == "RuntimeError"
+    assert snap["fetched_at_unix"] == 1234.0

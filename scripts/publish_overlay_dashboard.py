@@ -1,0 +1,323 @@
+#!/usr/bin/env python3
+"""Publish the live-overlay Grafana dashboard from repo to Grafana Cloud.
+
+The dashboard is stored in Grafana API v2 format (apiVersion: dashboard.grafana.app/v2)
+and is pushed via the Kubernetes-style dashboards API:
+
+    POST /api/v1/dashboards
+
+Authentication uses CLI/env first and falls back to the macOS keychain entry
+``skipp.grafana.api`` by default.
+
+Resolution order:
+1) ``--token``
+2) ``$<--token-env>`` (default: ``GRAFANA_API_TOKEN``)
+3) ``$GRAFANA_API_TOKEN`` (only if ``--token-env`` points to a different var)
+4) ``$GRAFANA_TOKEN``
+5) Keychain (unless ``--no-keychain`` is set)
+"""
+from __future__ import annotations
+
+import argparse
+import json
+import os
+import shutil
+import subprocess
+import urllib.error
+import urllib.request
+from pathlib import Path
+from typing import Any
+
+DEFAULT_DASHBOARD_PATH = Path("services/live_overlay_daemon/infra/grafana/dashboard.json")
+DEFAULT_HOST = "bronzeporridge977.grafana.net"
+DEFAULT_KEYCHAIN_SERVICE = "skipp.grafana.api"
+DEFAULT_TOKEN_ENV = "GRAFANA_API_TOKEN"
+
+
+def _is_v2_dashboard(data: dict[str, Any]) -> bool:
+    return data.get("kind") == "Dashboard" and isinstance(data.get("spec"), dict)
+
+
+def _is_legacy_dashboard(data: dict[str, Any]) -> bool:
+    return isinstance(data.get("panels"), list)
+
+
+def _resolve_args(argv: list[str] | None = None) -> argparse.Namespace:
+    parser = argparse.ArgumentParser(
+        description="Publish the live-overlay Grafana dashboard to Grafana Cloud."
+    )
+    parser.add_argument(
+        "dashboard_path",
+        nargs="?",
+        type=Path,
+        default=DEFAULT_DASHBOARD_PATH,
+        help="Path to dashboard.json",
+    )
+    parser.add_argument("--host", default=DEFAULT_HOST, help="Grafana Cloud host")
+    parser.add_argument("--token", default=None, help="Grafana API token (Bearer)")
+    parser.add_argument(
+        "--token-env",
+        default=DEFAULT_TOKEN_ENV,
+        help=(
+            "Primary env var to read token from "
+            f"(default: {DEFAULT_TOKEN_ENV}; also falls back to GRAFANA_TOKEN)"
+        ),
+    )
+    parser.add_argument(
+        "--keychain-service",
+        default=DEFAULT_KEYCHAIN_SERVICE,
+        help="macOS keychain service name to read the token from",
+    )
+    parser.add_argument(
+        "--no-keychain",
+        action="store_true",
+        help="Disable keychain lookup (recommended in CI/non-macOS runners; provide token via --token or env vars)",
+    )
+    parser.add_argument(
+        "--dry-run",
+        action="store_true",
+        help="Validate without sending; prints a compact summary",
+    )
+    parser.add_argument(
+        "--dry-run-full",
+        action="store_true",
+        help="With --dry-run, also print the full JSON payload",
+    )
+    parser.add_argument(
+        "--message",
+        default="sync from repo",
+        help="Change message stored in Grafana",
+    )
+    return parser.parse_args(argv)
+
+
+def _load_dashboard(dashboard_path: Path) -> dict[str, Any]:
+    if not dashboard_path.exists():
+        raise SystemExit(f"Dashboard not found: {dashboard_path}")
+    data = json.loads(dashboard_path.read_text(encoding="utf-8"))
+    if not isinstance(data, dict):
+        raise SystemExit("Dashboard JSON must be a JSON object")
+
+    if _is_v2_dashboard(data):
+        return data
+    if _is_legacy_dashboard(data):
+        return data
+
+    raise SystemExit(
+        "Dashboard JSON must be either Grafana v2/Kubernetes shape "
+        "(kind='Dashboard' + spec) or legacy Grafana v1 shape "
+        "(top-level panels)."
+    )
+
+
+def _get_token(
+    token: str | None,
+    keychain_service: str,
+    token_env: str,
+    *,
+    no_keychain: bool = False,
+) -> str:
+    if token:
+        return token
+
+    env_candidates = [token_env]
+    if token_env != DEFAULT_TOKEN_ENV:
+        env_candidates.append(DEFAULT_TOKEN_ENV)
+    env_candidates.append("GRAFANA_TOKEN")
+
+    seen: set[str] = set()
+    for name in env_candidates:
+        if not name or name in seen:
+            continue
+        seen.add(name)
+        value = os.environ.get(name, "").strip()
+        if value:
+            return value
+
+    if no_keychain:
+        raise SystemExit(
+            "Could not obtain Grafana API token: keychain lookup disabled. "
+            f"Set ${token_env}, ${DEFAULT_TOKEN_ENV}, or $GRAFANA_TOKEN, or pass --token."
+        )
+
+    security_bin = shutil.which("security")
+    if not security_bin:
+        raise SystemExit(
+            "Could not obtain Grafana API token: 'security' CLI not found in PATH. "
+            f"Set ${token_env}, ${DEFAULT_TOKEN_ENV}, or $GRAFANA_TOKEN, pass --token, or run with --no-keychain in CI/non-macOS environments."
+        )
+
+    try:
+        result = subprocess.run(  # noqa: S603
+            [security_bin, "find-generic-password", "-s", keychain_service, "-a", os.environ.get("USER", ""), "-w"],
+            capture_output=True,
+            text=True,
+            check=True,
+            timeout=10,
+        )
+        keychain_token = result.stdout.strip()
+        if keychain_token:
+            return keychain_token
+        raise SystemExit(
+            "Keychain lookup returned an empty token. "
+            f"Set ${token_env}, ${DEFAULT_TOKEN_ENV}, or $GRAFANA_TOKEN, or pass --token."
+        )
+    except (subprocess.CalledProcessError, subprocess.TimeoutExpired, FileNotFoundError) as exc:
+        raise SystemExit(
+            "Could not obtain Grafana API token. "
+            f"Set ${token_env}, ${DEFAULT_TOKEN_ENV}, or $GRAFANA_TOKEN, use --token, or run with --no-keychain in CI/non-macOS environments, "
+            "or add a keychain entry for "
+            f"service '{keychain_service}'. ({exc})"
+        ) from exc
+
+
+def _prepare_payload(data: dict[str, Any], message: str) -> dict[str, Any]:
+    """Return the payload expected by the /api/v1/dashboards endpoint.
+
+    The repo file is already in the Kubernetes-style Dashboard format, but we
+    strip server-managed metadata that must not be sent on upsert and add the
+    standard change message annotation.
+    """
+
+    if not _is_v2_dashboard(data):
+        raise SystemExit("_prepare_payload expects a Grafana v2/Kubernetes dashboard object")
+    # The repo dashboard is maintained in Grafana API v2 shape and is sent as-is.
+    payload: dict[str, Any] = {
+        "apiVersion": data.get("apiVersion", "dashboard.grafana.app/v2"),
+        "kind": "Dashboard",
+        "metadata": {},
+        "spec": data["spec"],
+    }
+
+    # Preserve only client-relevant metadata. Server-managed fields like
+    # resourceVersion, generation, creationTimestamp and uid are stripped.
+    meta = data.get("metadata", {})
+    for key in ("name", "annotations", "labels"):
+        if key in meta:
+            payload["metadata"][key] = meta[key]
+
+    # Ensure the change message is recorded as an annotation.
+    annotations = payload["metadata"].setdefault("annotations", {})
+    annotations["grafana.app/message"] = message
+
+    return payload
+
+
+def _prepare_legacy_payload(dashboard: dict[str, Any], message: str) -> dict[str, Any]:
+    """Return a payload for legacy POST /api/dashboards/db upsert.
+
+    Grafana Cloud stacks that do not expose /api/v1/dashboards can still accept
+    the v2 Dashboard object inside the legacy wrapper.
+    """
+    return {
+        "dashboard": dashboard,
+        "overwrite": True,
+        "message": message,
+    }
+
+
+def _post(
+    host: str,
+    token: str,
+    payload: dict[str, Any],
+    *,
+    message: str,
+    dashboard_format: str,
+) -> tuple[dict[str, Any], str]:
+    if dashboard_format == "v2":
+        attempts: list[tuple[str, dict[str, Any]]] = [
+            ("/api/v1/dashboards", payload),
+            ("/api/dashboards/db", _prepare_legacy_payload(payload, message)),
+        ]
+    else:
+        attempts = [
+            ("/api/dashboards/db", _prepare_legacy_payload(payload, message)),
+        ]
+
+    for endpoint, endpoint_payload in attempts:
+        url = f"https://{host}{endpoint}"
+        body = json.dumps(endpoint_payload, indent=2, ensure_ascii=False).encode("utf-8")
+        req = urllib.request.Request(
+            url,
+            data=body,
+            method="POST",
+            headers={
+                "Authorization": f"Bearer {token}",
+                "Content-Type": "application/json",
+                "Accept": "application/json",
+            },
+        )
+        try:
+            with urllib.request.urlopen(req, timeout=60) as resp:
+                return json.loads(resp.read().decode("utf-8")), endpoint
+        except urllib.error.HTTPError as exc:
+            # Fallback only when /api/v1/dashboards is unavailable.
+            if exc.code == 404 and endpoint == "/api/v1/dashboards":
+                continue
+            detail = exc.read().decode("utf-8", errors="replace")
+            raise SystemExit(f"Grafana API error {exc.code}: {detail}") from exc
+        except urllib.error.URLError as exc:
+            raise SystemExit(f"Could not reach Grafana API: {exc}") from exc
+
+    raise SystemExit("Grafana API error: no endpoint attempt succeeded")
+
+
+def main(argv: list[str] | None = None) -> int:
+    args = _resolve_args(argv)
+    if args.dry_run_full and not args.dry_run:
+        args.dry_run = True
+
+    data = _load_dashboard(args.dashboard_path)
+    is_v2 = _is_v2_dashboard(data)
+    dashboard_format = "v2" if is_v2 else "v1"
+    payload = _prepare_payload(data, args.message) if is_v2 else data
+
+    if args.dry_run:
+        summary = {
+            "dry_run": True,
+            "dashboard_format": dashboard_format,
+            "endpoint_primary": f"https://{args.host}/api/v1/dashboards",
+            "endpoint_fallback": f"https://{args.host}/api/dashboards/db",
+            "apiVersion": payload.get("apiVersion", "n/a"),
+            "kind": payload.get("kind", "n/a"),
+            "dashboard_name": payload.get("metadata", {}).get("name", payload.get("uid", payload.get("title", "n/a"))),
+            "spec_elements": len(payload.get("spec", {}).get("elements", {})) if is_v2 else "n/a",
+            "panels": len(payload.get("panels", [])) if not is_v2 else "n/a",
+            "message": args.message,
+        }
+        print("Dry-run: no network request sent.")
+        print(json.dumps(summary, indent=2, ensure_ascii=False))
+        if args.dry_run_full:
+            print("\nPayload:")
+            print(json.dumps(payload, indent=2, ensure_ascii=False))
+        return 0
+
+    token = _get_token(
+        args.token,
+        args.keychain_service,
+        args.token_env,
+        no_keychain=args.no_keychain,
+    )
+
+    result, endpoint_used = _post(
+        args.host,
+        token,
+        payload,
+        message=args.message,
+        dashboard_format=dashboard_format,
+    )
+    metadata = result.get("metadata", {})
+    print(
+        f"Published {args.dashboard_path} to {args.host}\n"
+        f"  endpoint: {endpoint_used}\n"
+        f"  uid:      {metadata.get('uid', 'n/a')}\n"
+        f"  name:     {metadata.get('name', 'n/a')}\n"
+        f"  version:  {metadata.get('resourceVersion', 'n/a')}\n"
+        f"  response: {result.get('status', 'ok')}"
+    )
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())
+
