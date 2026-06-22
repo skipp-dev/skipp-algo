@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import threading
+import time
 from datetime import UTC, datetime, timedelta
 from typing import Any
 from unittest.mock import patch
@@ -171,3 +173,50 @@ def test_snapshot_returns_disabled_without_token() -> None:
     assert result["enabled"] == 0
     assert result["ok"] == 0
     assert result["error"] == "missing_token"
+
+
+def test_snapshot_coalesces_parallel_fetches() -> None:
+    github_workflow_bridge._cached_snapshot = None
+    github_workflow_bridge._cached_at_monotonic = 0.0
+
+    calls: list[str] = []
+
+    def _slow_fetch(token: str) -> dict[str, Any]:
+        calls.append(token)
+        time.sleep(0.05)
+        return {
+            "enabled": 1,
+            "ok": 1,
+            "fetched_at_unix": time.time(),
+            "counts": {
+                "seen": 1,
+                "success": 1,
+                "failed": 0,
+                "in_progress": 0,
+                "queued": 0,
+            },
+            "latest_run_age_seconds": None,
+            "latest_run_duration_seconds": None,
+            "workflows": [],
+        }
+
+    with patch.object(
+        github_workflow_bridge.config,
+        "github_workflow_token",
+        return_value="token",
+    ), patch.object(
+        github_workflow_bridge.config,
+        "github_workflow_poll_ttl_secs",
+        return_value=300,
+    ), patch.object(
+        github_workflow_bridge,
+        "_fetch_snapshot",
+        side_effect=_slow_fetch,
+    ):
+        threads = [threading.Thread(target=github_workflow_bridge.snapshot) for _ in range(6)]
+        for t in threads:
+            t.start()
+        for t in threads:
+            t.join()
+
+    assert len(calls) == 1

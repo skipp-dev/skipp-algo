@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import threading
+import time
 from typing import Any
 from unittest.mock import patch
 
@@ -152,3 +154,43 @@ def test_snapshot_handles_api_error_gracefully() -> None:
     assert result["enabled"] == 1
     assert result["ok"] == 0
     assert result["error"] == "TimeoutError"
+
+
+def test_snapshot_coalesces_parallel_fetches() -> None:
+    uptimerobot_bridge._cached_snapshot = None
+    uptimerobot_bridge._cached_at_monotonic = 0.0
+
+    calls: list[str] = []
+
+    def _slow_fetch(api_key: str) -> dict[str, Any]:
+        calls.append(api_key)
+        time.sleep(0.05)
+        return {
+            "enabled": 1,
+            "ok": 1,
+            "fetched_at_unix": time.time(),
+            "counts": {"total": 0, "up": 0, "down": 0, "paused": 0, "unknown": 0},
+            "avg_response_time_ms": None,
+            "monitors": [],
+        }
+
+    with patch.object(
+        uptimerobot_bridge.config,
+        "uptimerobot_api_key",
+        return_value="secret",
+    ), patch.object(
+        uptimerobot_bridge.config,
+        "uptimerobot_poll_ttl_secs",
+        return_value=300,
+    ), patch.object(
+        uptimerobot_bridge,
+        "_fetch_snapshot",
+        side_effect=_slow_fetch,
+    ):
+        threads = [threading.Thread(target=uptimerobot_bridge.snapshot) for _ in range(6)]
+        for t in threads:
+            t.start()
+        for t in threads:
+            t.join()
+
+    assert len(calls) == 1
