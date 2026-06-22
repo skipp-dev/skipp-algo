@@ -8,7 +8,9 @@ from smc_core.ids import bos_id, fvg_id, ob_id
 
 _TIMEFRAME_CANONICAL: dict[str, str] = {
     "5m": "5m",
+    "10m": "10m",
     "15m": "15m",
+    "30m": "30m",
     "1h": "1H",
     "4h": "4H",
     "1d": "1D",

@@ -127,7 +127,7 @@ groups:
                   query: {params: [A]}
         for: 5m
         labels:
-          severity: critical
+          severity: high
         annotations:
           summary: "Overlay age > 1h — compute cycle likely hung or erroring"
           runbook: "Check full_compute_cycle_errors rate. Verify feed is pushing bars (last_bar_age_seconds)."
@@ -139,18 +139,23 @@ groups:
           - refId: A
             datasourceUid: grafanacloud-prom
             model:
-              expr: live_overlay_overlay_symbols
+              expr: live_overlay_overlay_symbols{job="live_overlay"}
               instant: true
           - refId: B
             datasourceUid: grafanacloud-prom
             model:
-              expr: live_overlay_uptime_seconds
+              expr: live_overlay_uptime_seconds{job="live_overlay"}
+              instant: true
+          - refId: D
+            datasourceUid: grafanacloud-prom
+            model:
+              expr: resets(live_overlay_uptime_seconds{job="live_overlay"}[10m])
               instant: true
           - refId: C
             datasourceUid: __expr__
             model:
               type: math
-              expression: "$A == 0 && $B > 600"
+              expression: "$A == 0 && ($B > 600 || $D > 0)"
         for: 5m
         labels:
           severity: critical
@@ -182,7 +187,7 @@ groups:
                   query: {params: [A]}
         for: 5m
         labels:
-          severity: warning
+          severity: high
         annotations:
           summary: "No fresh bar for > 5 min while market is open"
           runbook: "Check feed thread liveness and Databento connectivity. Compare with feed_healthy/workers_healthy."
@@ -206,7 +211,7 @@ groups:
                   query: {params: [A]}
         for: 0s
         labels:
-          severity: warning
+          severity: high
         annotations:
           summary: "Feed circuit breaker increased in last 15m"
           runbook: "Persistent Databento outage. Service may need restart if breaker keeps incrementing."
@@ -266,7 +271,7 @@ groups:
           - refId: A
             datasourceUid: grafanacloud-prom
             model:
-              expr: live_overlay_market_open{job="live_overlay"} * (rate(live_overlay_smc_live_requests_total{job="live_overlay"}[10m]) < bool 0.001) * (live_overlay_uptime_seconds{job="live_overlay"} > bool 600)
+              expr: live_overlay_market_open{job="live_overlay"} * (rate(live_overlay_smc_live_requests_total{job="live_overlay"}[10m]) < bool 0.001) * (live_overlay_uptime_seconds{job="live_overlay"} > bool 600) * (increase(live_overlay_smc_live_requests_total{job="live_overlay"}[10m]) > bool 5)
               instant: true
           - refId: C
             datasourceUid: __expr__
@@ -474,7 +479,7 @@ groups:
                   query: {params: [A]}
         for: 0s
         labels:
-          severity: warning
+          severity: high
         annotations:
           summary: "Bars are being dropped due to ingest queue saturation"
           runbook: "Increase LIVE_OVERLAY_INGEST_QUEUE_MAX and investigate sustained producer-consumer imbalance."
@@ -527,14 +532,38 @@ groups:
           summary: "News snapshot metrics are missing from scrape output"
           runbook: "Check /metrics exposure for news snapshot gauges and scrape target label wiring."
 
-      - uid: lo-news-snapshot-stale-or-missing
-        title: "News snapshot stale or missing"
+      - uid: lo-news-snapshot-unavailable
+        title: "News snapshot unavailable"
         condition: C
         data:
           - refId: A
             datasourceUid: grafanacloud-prom
             model:
-              expr: (live_overlay_provider_news_snapshot_loaded{job="live_overlay"} == bool 0) or (live_overlay_provider_news_snapshot_age_seconds{job="live_overlay"} > bool 3600)
+              expr: live_overlay_provider_news_snapshot_loaded{job="live_overlay"} == bool 0
+              instant: true
+          - refId: C
+            datasourceUid: __expr__
+            model:
+              type: threshold
+              conditions:
+                - evaluator: {type: gt, params: [0]}
+                  operator: {type: and}
+                  query: {params: [A]}
+        for: 5m
+        labels:
+          severity: high
+        annotations:
+          summary: "News provider snapshot file is not loaded"
+          runbook: "Verify NEWS_SNAPSHOT_PATH exists and is readable by the daemon; check seed/producer job."
+
+      - uid: lo-news-snapshot-stale
+        title: "News snapshot stale"
+        condition: C
+        data:
+          - refId: A
+            datasourceUid: grafanacloud-prom
+            model:
+              expr: live_overlay_provider_news_snapshot_loaded{job="live_overlay"} * (live_overlay_provider_news_snapshot_age_seconds{job="live_overlay"} > bool 3600)
               instant: true
           - refId: C
             datasourceUid: __expr__
@@ -548,5 +577,5 @@ groups:
         labels:
           severity: warning
         annotations:
-          summary: "News provider snapshot is stale or unavailable"
-          runbook: "Check NEWS_SNAPSHOT_PATH producer job and file update cadence."
+          summary: "News provider snapshot is older than 1 hour"
+          runbook: "Check NEWS_SNAPSHOT_PATH producer job and file update cadence; inspect fetched_at_unix in snapshot."

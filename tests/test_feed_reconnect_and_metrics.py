@@ -49,20 +49,37 @@ def _run_feed_loop_until(
     until: Callable[[], bool],
     max_runtime: float = 3.0,
 ) -> None:
-    """Run _run_feed_loop in a daemon thread until *until()* is true or timeout."""
+    """Run _run_feed_loop + _run_ingest_loop until *until()* is true or timeout.
+
+    Since PR #2879 the feed thread only enqueues bars; an ingest thread is
+    required to drain the queue and push bars into the cache. Create the queue
+    here so tests that call this helper directly do not silently drop bars.
+    """
     stop = threading.Event()
-    thread = threading.Thread(
+    if feed._runtime.get("ingest_queue") is None:
+        feed._runtime["ingest_queue"] = queue.Queue(maxsize=feed.config.ingest_queue_max())
+        feed._runtime["ingest_queue_max"] = feed.config.ingest_queue_max()
+
+    ingest_thread = threading.Thread(
+        target=feed._run_ingest_loop, args=(stop,), daemon=True, name="test-ingest"
+    )
+    ingest_thread.start()
+    feed_thread = threading.Thread(
         target=feed._run_feed_loop, args=(stop,), daemon=True, name="test-feed"
     )
-    thread.start()
+    feed_thread.start()
+
     deadline = time.monotonic() + max_runtime
-    while thread.is_alive() and time.monotonic() < deadline:
+    while feed_thread.is_alive() and ingest_thread.is_alive() and time.monotonic() < deadline:
         if until():
             break
         stop.wait(0.05)
+
     stop.set()
-    thread.join(timeout=2)
-    assert not thread.is_alive(), "feed loop thread did not stop within timeout"
+    feed_thread.join(timeout=2)
+    ingest_thread.join(timeout=2)
+    assert not feed_thread.is_alive(), "feed loop thread did not stop within timeout"
+    assert not ingest_thread.is_alive(), "ingest loop thread did not stop within timeout"
 
 
 class FakeLive:

@@ -84,13 +84,12 @@
 # 2026-06-21 (live-overlay bridge observability): optional external polling
 # bridges for GitHub workflow + UptimeRobot snapshots, each with explicit
 # timeout= and fixed https endpoint domains.
-"services/live_overlay_daemon/github_workflow_bridge.py" = [101]
+"services/live_overlay_daemon/github_workflow_bridge.py" = [96]
 "services/live_overlay_daemon/uptimerobot_bridge.py" = [76]
-# 2026-06-22: v2 Grafana dashboard publisher uses urllib.request.urlopen
-# exactly once for POST /api/v1/dashboards with explicit timeout=60.
-"scripts/publish_overlay_dashboard.py" = [212]
 "terminal_finnhub.py" = [245]
 "terminal_tradingview_news.py" = [423]
+# 2026-06-22: Grafana dashboard upsert helper; fixed HTTPS URL, explicit timeout= via Request socket.
+"scripts/grafana_dashboard_upsert.py" = [63]
 
 # ---------------------------------------------------------------------------
 # test_noqa_budget.py — frozen noqa-suppression sites.
@@ -165,6 +164,7 @@ codes = ["F401"]
 file = "smc_tv_bridge/smc_api.py"
 line = 184
 codes = ["E402", "I001"]
+
 
 # ---------------------------------------------------------------------------
 # test_workflow_orphan_inventory.py — workflows without a test that
@@ -274,6 +274,13 @@ file = "scripts/measure_databento_ops_run.py"
 attr = "run"
 count = 1
 
+# scripts/grafana_dashboard_upsert.py: local macOS Keychain read for Grafana API key.
+# Token-list args, no shell=True, constant executable.
+[[subprocess_shell_injection_pin.sites]]
+file = "scripts/grafana_dashboard_upsert.py"
+attr = "run"
+count = 1
+
 # scripts/phase5_perf_trend.py wraps `gh run list` once per workflow
 # (review-v3 phase 5). Token-list args, dev-only.
 [[subprocess_shell_injection_pin.sites]]
@@ -326,14 +333,6 @@ count = 1
 
 [[subprocess_shell_injection_pin.sites]]
 file = "scripts/smc_zone_priority_calibration.py"
-attr = "run"
-count = 1
-
-# 2026-06-22: publish_overlay_dashboard reads Grafana token via the
-# macOS `security find-generic-password` CLI (token-list args,
-# capture_output, check=True, no shell=True).
-[[subprocess_shell_injection_pin.sites]]
-file = "scripts/publish_overlay_dashboard.py"
 attr = "run"
 count = 1
 

@@ -7,6 +7,7 @@ dependency upgrade cannot silently invalidate the feed loop assumptions.
 """
 from __future__ import annotations
 
+from pathlib import Path
 from unittest.mock import MagicMock, patch
 
 import databento as db
@@ -33,3 +34,23 @@ class TestDatabentoLiveStartContract:
             )
             with pytest.raises(ValueError):
                 client.start()
+
+
+class TestDatabentoPinConsistency:
+    """Daemon requirements.txt must track the repo-wide Databento pin."""
+
+    def test_daemon_requirements_matches_root_pin(self) -> None:
+        repo_root = Path(__file__).resolve().parents[1]
+        root_req = repo_root / "requirements.txt"
+        daemon_req = repo_root / "services" / "live_overlay_daemon" / "requirements.txt"
+
+        def _databento_pin(path: Path) -> str:
+            for line in path.read_text(encoding="utf-8").splitlines():
+                stripped = line.strip()
+                if stripped.startswith("databento=="):
+                    return stripped
+            raise AssertionError(f"No databento pin found in {path}")
+
+        assert _databento_pin(daemon_req) == _databento_pin(root_req), (
+            "Daemon requirements.txt databento pin drifted from root requirements.txt"
+        )

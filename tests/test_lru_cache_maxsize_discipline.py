@@ -48,6 +48,9 @@ _BASELINE_LRU_CACHE_SITES: frozenset[tuple[str, str]] = frozenset({
     # maxsize=8 — memoizes the daily_bars workbook parse per (path, mtime);
     # domain is the handful of production workbooks read during a run.
     ("smc_core/cached_workbook_reader.py", "_read_daily_bars_cached"),
+    # maxsize=64 — memoizes holiday-date computation per (calendar_code, year);
+    # domain is the multi-year holiday calendar window used by market-hours checks.
+    ("services/live_overlay_daemon/market_hours.py", "_holiday_dates_for_year"),
 })
 
 
