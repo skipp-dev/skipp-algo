@@ -584,7 +584,7 @@ def test_dashboard_has_uptimerobot_state_timeline() -> None:
     dashboard = json.loads(dashboard_path.read_text(encoding="utf-8"))
     panel = next(p for p in dashboard["panels"] if p.get("title") == "UptimeRobot Monitor States")
     assert panel["type"] == "state-timeline"
-    assert any("live_overlay_uptimerobot_monitor_status_code" in t["expr"] for t in panel["targets"])
+    assert any("live_overlay_uptimerobot_monitor_.*_status_code" in t["expr"] for t in panel["targets"])
     options = panel["fieldConfig"]["defaults"]["mappings"][0]["options"]
     assert options.get("0", {}).get("text") == "PAUSED"
     assert options.get("8", {}).get("text") == "DOWN"

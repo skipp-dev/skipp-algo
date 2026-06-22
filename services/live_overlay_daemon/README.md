@@ -215,6 +215,11 @@ All numeric fields are `null`, all bool fields are `false`, `stale: true`.
 
 ---
 
+## Operations
+
+For deployment, monitoring, credential rotation, and incident triage see
+[`OPS.md`](OPS.md) in this directory.
+
 ## Deployment
 
 ### Railway.app (production)

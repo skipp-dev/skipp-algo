@@ -88,6 +88,8 @@
 "services/live_overlay_daemon/uptimerobot_bridge.py" = [76]
 "terminal_finnhub.py" = [245]
 "terminal_tradingview_news.py" = [423]
+# 2026-06-22: Grafana dashboard upsert helper; fixed HTTPS URL, explicit timeout= via Request socket.
+"scripts/grafana_dashboard_upsert.py" = [63]
 
 # ---------------------------------------------------------------------------
 # test_noqa_budget.py — frozen noqa-suppression sites.
@@ -162,6 +164,7 @@ codes = ["F401"]
 file = "smc_tv_bridge/smc_api.py"
 line = 184
 codes = ["E402", "I001"]
+
 
 # ---------------------------------------------------------------------------
 # test_workflow_orphan_inventory.py — workflows without a test that
@@ -268,6 +271,13 @@ count = 1
 
 [[subprocess_shell_injection_pin.sites]]
 file = "scripts/measure_databento_ops_run.py"
+attr = "run"
+count = 1
+
+# scripts/grafana_dashboard_upsert.py: local macOS Keychain read for Grafana API key.
+# Token-list args, no shell=True, constant executable.
+[[subprocess_shell_injection_pin.sites]]
+file = "scripts/grafana_dashboard_upsert.py"
 attr = "run"
 count = 1
 
