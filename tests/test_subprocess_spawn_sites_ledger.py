@@ -149,7 +149,7 @@ SUBPROCESS_RUN_LEDGER: set[tuple[str, int]] = {
     # branch-local realtime_signals layout.
     ("open_prep/realtime_signals.py", 190),
     # 2026-06-22: Grafana dashboard publish script keychain token lookup.
-    ("scripts/publish_overlay_dashboard.py", 161),
+    ("scripts/publish_overlay_dashboard.py", 166),
 }
 
 SUBPROCESS_POPEN_LEDGER: set[tuple[str, int]] = {
