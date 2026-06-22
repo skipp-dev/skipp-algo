@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import json
 import math
+import re
 import time
 
 from . import (
@@ -31,8 +32,20 @@ from .market_hours import (
 
 
 def _sanitize_name(name: str) -> str:
-    """Convert dotted metric names to Prometheus-safe underscore format."""
-    return name.replace(".", "_").replace("-", "_")
+    """Normalize metric/path fragments to a Prometheus-safe token.
+
+    Rules:
+    - lowercase
+    - trim surrounding whitespace
+    - map dots/dashes to underscores
+    - collapse all remaining non [a-z0-9_] chars to underscores
+    - collapse repeated underscores and trim edge underscores
+    - fallback to ``unknown`` when nothing remains
+    """
+    token = str(name).strip().lower().replace(".", "_").replace("-", "_")
+    token = re.sub(r"[^a-z0-9_]", "_", token)
+    token = re.sub(r"_+", "_", token).strip("_")
+    return token or "unknown"
 
 
 def _prom_numeric_value(raw: object) -> float:

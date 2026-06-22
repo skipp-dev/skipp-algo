@@ -13,6 +13,20 @@ import math
 import pytest
 
 
+def test_sanitize_name_rejects_invalid_prometheus_characters() -> None:
+    import services.live_overlay_daemon.metrics as metrics_mod
+
+    assert metrics_mod._sanitize_name("  AAPL/US @NASDAQ  ") == "aapl_us_nasdaq"
+    assert metrics_mod._sanitize_name("BTC-USD.PERP") == "btc_usd_perp"
+    assert metrics_mod._sanitize_name("__$$$__") == "unknown"
+
+
+def test_sanitize_name_collapses_runs_of_separators() -> None:
+    import services.live_overlay_daemon.metrics as metrics_mod
+
+    assert metrics_mod._sanitize_name("A..B---C") == "a_b_c"
+
+
 def _patch_common(monkeypatch: pytest.MonkeyPatch, *, feed_ready: bool, market_open: bool, bar_count: int, overlay_symbols: int, overlay_age: float, workers: dict[str, bool] | None = None) -> None:
     import services.live_overlay_daemon.cache as cache
     import services.live_overlay_daemon.config as config

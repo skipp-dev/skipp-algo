@@ -46,6 +46,20 @@ def test_alert_rules_include_dedicated_news_snapshot_series_missing_rule() -> No
     assert "absent(live_overlay_provider_news_snapshot_age_seconds" in expr
 
 
+def test_alert_rules_include_combined_news_snapshot_stale_or_missing_warning() -> None:
+    """Combined stale/missing snapshot alert must stay present and warning-severity."""
+    rules_doc = yaml.safe_load(_ALERT_RULES_YAML.read_text(encoding="utf-8"))
+    groups = rules_doc["groups"]
+    warning_group = next(g for g in groups if g.get("name") == "live-overlay-warning")
+    rule = next(r for r in warning_group["rules"] if r.get("uid") == "lo-news-snapshot-stale-or-missing")
+
+    assert rule["labels"]["severity"] == "warning"
+    expr = rule["data"][0]["model"]["expr"]
+    assert "live_overlay_provider_news_snapshot_loaded" in expr
+    assert "live_overlay_provider_news_snapshot_age_seconds" in expr
+    assert "or" in expr
+
+
 def test_state_timeline_panels_hide_threshold_range_legend() -> None:
     """State-timeline legends render threshold ranges (e.g. '< 1', '1+') as
     duplicate-looking entries; they must stay hidden since cell states already

@@ -145,11 +145,12 @@ def _record_enqueue_backpressure() -> None:
         )
 
 
-def _record_queue_drop() -> None:
+def _record_queue_drop() -> float:
     with _backpressure_lock:
         _backpressure["ingest_queue_dropped_total"] = (
             _backpressure.get("ingest_queue_dropped_total", 0.0) + 1.0
         )
+        return _backpressure["ingest_queue_dropped_total"]
 
 
 def _record_queue_lag_ms(lag_ms: float) -> None:
@@ -276,9 +277,9 @@ def _run_feed_loop(stop: threading.Event) -> None:
                         _record_enqueue_backpressure()
                         _bars_pushed_count += 1
                     except queue.Full:
-                        _record_queue_drop()
+                        dropped_total = _record_queue_drop()
                         metric_counter("live_overlay.feed.ingest_queue_dropped_total")
-                        if _bars_pushed_count % 100 == 0:
+                        if int(dropped_total) % 100 == 0:
                             logger.warning("Ingest queue full — dropping newest bar")
 
             except db.BentoError as exc:
