@@ -30,6 +30,7 @@ import {
   findLegendRowWrappers,
   isLegendTruncatedMatch,
   dismissOverlapManagerOverlay,
+  clickVisibleWithFallback,
 } from "../lib/tv_shared.js";
 
 const CORE_SCRIPT = "SMC Core";
@@ -1068,4 +1069,52 @@ test("findLegendRowWrappers matches ancestor with truncated TradingView display 
     2,
     "must match at depth 2 where the truncated text lives",
   );
+});
+
+// --- clickVisibleWithFallback: centralised hover-tooltip dismissal (#2849) ---
+
+test("clickVisibleWithFallback dismisses hover-only [data-id] overlay via mouse.move(0,0) without dismissOverlapManagerOverlay", async () => {
+  // Regression guard for issue #2849: mouse.move(0,0) at the top of
+  // clickVisibleWithFallback must cause a hover-only overlay to disappear so
+  // the target button becomes clickable — without needing dismissOverlapManagerOverlay.
+  const browser = await chromium.launch({ headless: true });
+  const page = await browser.newPage();
+  try {
+    await page.setContent(`
+      <html><body>
+        <button id="target" style="position:absolute;left:100px;top:100px">Click me</button>
+        <div id="tooltip" data-id="hoverTooltip"
+             style="position:fixed;inset:0;pointer-events:all">hover-only blocking overlay</div>
+        <script>
+          // Simulate TV hover-tooltip: disappears when cursor moves to (0, 0).
+          document.addEventListener("mousemove", function(e) {
+            if (e.clientX === 0 && e.clientY === 0) {
+              var t = document.getElementById("tooltip");
+              if (t) t.remove();
+            }
+          });
+          document.getElementById("target").addEventListener("click", function() {
+            document.body.insertAdjacentHTML("beforeend", '<div data-name="clicked">ok</div>');
+          });
+        </script>
+      </body></html>
+    `);
+
+    const clicked = await clickVisibleWithFallback(
+      page,
+      [page.locator("#target")],
+      "issue-2849-hover-dismiss",
+      2_000,
+      100,
+    );
+
+    assert.equal(clicked, true, "clickVisibleWithFallback must return true after overlay dismissed by mouse.move");
+    assert.equal(
+      await page.locator('[data-name="clicked"]').isVisible(),
+      true,
+      "target button must have received the click after hover overlay was dismissed",
+    );
+  } finally {
+    await browser.close();
+  }
 });
