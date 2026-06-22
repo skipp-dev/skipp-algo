@@ -26,7 +26,7 @@ exactly four locations:
   signals daemon as a detached child (``Popen`` of
   ``python -m open_prep.realtime_signals``).
 * ``scripts/publish_overlay_dashboard.py:127`` — query OS keychain
-    for the Grafana API token (``security find-generic-password ...``).
+  for the Grafana API token (``security find-generic-password ...``).
 
 Defense-only — no production changes.
 """
