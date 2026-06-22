@@ -212,7 +212,7 @@ def _oncall_row_panels(y: int) -> list[dict]:
         ),
         _oncall_stat(
             "Bridge Scrapes",
-            'min(live_overlay_uptimerobot_scrape_success{job=~"$job"} or live_overlay_github_workflow_scrape_success{job=~"$job"} or vector(0))',
+            'min(live_overlay_uptimerobot_scrape_success{job=~"$job"} or live_overlay_github_workflow_scrape_success{job=~"$job"})',
             (("ERROR", "red"), ("OK", "green")),
             "External bridge scrape health (UptimeRobot + GitHub Workflows).",
             12,
