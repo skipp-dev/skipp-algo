@@ -117,7 +117,7 @@ def test_get_token_custom_env_then_default_then_fallback(monkeypatch: pytest.Mon
     assert _get_token(None, "svc", "CUSTOM_GRAFANA_TOKEN") == "default-token"
 
 
-def test_prepare_legacy_payload_wraps_payload_with_message() -> None:
+def test_prepare_legacy_payload_rejects_v2_dashboard_shape() -> None:
     payload = {
         "apiVersion": "dashboard.grafana.app/v2",
         "kind": "Dashboard",
@@ -126,6 +126,19 @@ def test_prepare_legacy_payload_wraps_payload_with_message() -> None:
             "annotations": {"grafana.app/message": "from test"},
         },
         "spec": {"elements": {}},
+    }
+
+    with pytest.raises(SystemExit, match="fallback /api/dashboards/db endpoint is incompatible"):
+        _prepare_legacy_payload(payload)
+
+
+def test_prepare_legacy_payload_wraps_legacy_shape_with_message() -> None:
+    payload = {
+        "title": "smc-live-overlay-v1",
+        "panels": [],
+        "metadata": {
+            "annotations": {"grafana.app/message": "from test"},
+        },
     }
 
     wrapped = _prepare_legacy_payload(payload)

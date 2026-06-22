@@ -107,7 +107,11 @@ def _fetch_snapshot(token: str) -> dict[str, Any]:
     owner, repo = config.github_workflow_repo()
     timeout = config.github_workflow_timeout_secs()
     per_page = config.github_workflow_per_page()
-    params = urllib.parse.urlencode({"per_page": per_page})
+    branch = config.github_workflow_branch()
+    params_dict: dict[str, Any] = {"per_page": per_page}
+    if branch:
+        params_dict["branch"] = branch
+    params = urllib.parse.urlencode(params_dict)
     url = f"https://api.github.com/repos/{owner}/{repo}/actions/runs?{params}"
     parsed = _github_request_json(url, token, timeout)
 

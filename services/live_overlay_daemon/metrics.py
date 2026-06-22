@@ -45,6 +45,8 @@ def _sanitize_name(name: str) -> str:
     token = str(name).strip().lower().replace(".", "_").replace("-", "_")
     token = re.sub(r"[^a-z0-9_]", "_", token)
     token = re.sub(r"_+", "_", token).strip("_")
+    if token and token[0].isdigit():
+        token = f"_{token}"
     return token or "unknown"
 
 

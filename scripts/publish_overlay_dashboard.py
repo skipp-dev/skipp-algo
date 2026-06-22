@@ -179,9 +179,19 @@ def _prepare_payload(data: dict[str, Any], message: str) -> dict[str, Any]:
 def _prepare_legacy_payload(payload: dict[str, Any]) -> dict[str, Any]:
     """Return a payload for legacy POST /api/dashboards/db upsert.
 
-    Grafana Cloud stacks that do not expose /api/v1/dashboards can still accept
-    the v2 Dashboard object inside the legacy wrapper.
+    The legacy endpoint expects the classic dashboard model, not the v2
+    Kubernetes-style Dashboard object. This helper therefore rejects v2 payloads
+    with an explicit error instead of sending a known-incompatible request.
     """
+    api_version = str(payload.get("apiVersion", ""))
+    kind = str(payload.get("kind", ""))
+    if kind == "Dashboard" and api_version.startswith("dashboard.grafana.app/"):
+        raise SystemExit(
+            "Grafana stack does not expose /api/v1/dashboards and the fallback "
+            "/api/dashboards/db endpoint is incompatible with v2 Dashboard payloads. "
+            "Use a stack/version with /api/v1/dashboards support."
+        )
+
     message = payload.get("metadata", {}).get("annotations", {}).get("grafana.app/message", "sync from repo")
     return {
         "dashboard": payload,
@@ -191,12 +201,13 @@ def _prepare_legacy_payload(payload: dict[str, Any]) -> dict[str, Any]:
 
 
 def _post(host: str, token: str, payload: dict[str, Any]) -> tuple[dict[str, Any], str]:
-    attempts: list[tuple[str, dict[str, Any]]] = [
-        ("/api/v1/dashboards", payload),
-        ("/api/dashboards/db", _prepare_legacy_payload(payload)),
+    attempts: list[str] = [
+        "/api/v1/dashboards",
+        "/api/dashboards/db",
     ]
 
-    for idx, (endpoint, endpoint_payload) in enumerate(attempts):
+    for idx, endpoint in enumerate(attempts):
+        endpoint_payload = payload if endpoint == "/api/v1/dashboards" else _prepare_legacy_payload(payload)
         url = f"https://{host}{endpoint}"
         body = json.dumps(endpoint_payload, indent=2, ensure_ascii=False).encode("utf-8")
         req = urllib.request.Request(

@@ -284,8 +284,8 @@ def test_render_metrics_emits_hotspot_gauges(monkeypatch: pytest.MonkeyPatch) ->
     assert "live_overlay_hotspot_timeframes_tracked 2.0" in body
     assert "live_overlay_hotspot_symbol_nvda_requests_total 12.0" in body
     assert "live_overlay_hotspot_symbol_aapl_requests_total 7.0" in body
-    assert "live_overlay_hotspot_tf_5m_requests_total 15.0" in body
-    assert "live_overlay_hotspot_tf_1h_requests_total 4.0" in body
+    assert "live_overlay_hotspot_tf__5m_requests_total 15.0" in body
+    assert "live_overlay_hotspot_tf__1h_requests_total 4.0" in body
 
 
 def test_observability_rejects_non_finite_values() -> None:
@@ -404,9 +404,9 @@ def test_render_metrics_includes_uptimerobot_bridge_snapshot(monkeypatch: pytest
     assert "live_overlay_uptimerobot_monitors_total 4.0" in body
     assert "live_overlay_uptimerobot_monitors_up_total 4.0" in body
     assert "live_overlay_uptimerobot_monitors_response_time_ms_avg 101.5" in body
-    assert "live_overlay_uptimerobot_monitor_803343156_up 1.0" in body
-    assert "live_overlay_uptimerobot_monitor_803343156_status_code 2.0" in body
-    assert "live_overlay_uptimerobot_monitor_803343156_response_time_ms 98.0" in body
+    assert "live_overlay_uptimerobot_monitor__803343156_up 1.0" in body
+    assert "live_overlay_uptimerobot_monitor__803343156_status_code 2.0" in body
+    assert "live_overlay_uptimerobot_monitor__803343156_response_time_ms 98.0" in body
 
 
 def test_render_metrics_handles_uptimerobot_bridge_disabled(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -488,10 +488,10 @@ def test_render_metrics_includes_github_workflow_bridge_snapshot(monkeypatch: py
     assert "live_overlay_github_workflow_runs_failed_total 1.0" in body
     assert "live_overlay_github_workflow_latest_run_age_seconds 45.5" in body
     assert "live_overlay_github_workflow_latest_run_duration_seconds 120.0" in body
-    assert "live_overlay_github_workflow_129428056_phase_code 3.0" in body
-    assert "live_overlay_github_workflow_129428056_latest_success 1.0" in body
-    assert "live_overlay_github_workflow_129428056_latest_age_seconds 45.5" in body
-    assert "live_overlay_github_workflow_129428056_latest_duration_seconds 120.0" in body
+    assert "live_overlay_github_workflow__129428056_phase_code 3.0" in body
+    assert "live_overlay_github_workflow__129428056_latest_success 1.0" in body
+    assert "live_overlay_github_workflow__129428056_latest_age_seconds 45.5" in body
+    assert "live_overlay_github_workflow__129428056_latest_duration_seconds 120.0" in body
 
 
 def test_render_metrics_handles_github_workflow_bridge_disabled(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -530,3 +530,22 @@ def test_render_metrics_handles_github_workflow_bridge_disabled(monkeypatch: pyt
     assert "live_overlay_github_workflow_bridge_enabled 0" in body
     assert "live_overlay_github_workflow_scrape_success 0" in body
     assert "live_overlay_github_workflow_runs_seen_total 0.0" in body
+
+
+def test_sanitize_name_prefixes_leading_digits() -> None:
+    import services.live_overlay_daemon.metrics as metrics_mod
+
+    assert metrics_mod._sanitize_name("123provider") == "_123provider"
+
+
+def test_github_workflow_branch_default_and_empty(monkeypatch: pytest.MonkeyPatch) -> None:
+    import services.live_overlay_daemon.config as cfg
+
+    monkeypatch.delenv("GITHUB_WORKFLOW_MONITOR_BRANCH", raising=False)
+    assert cfg.github_workflow_branch() == "main"
+
+    monkeypatch.setenv("GITHUB_WORKFLOW_MONITOR_BRANCH", "")
+    assert cfg.github_workflow_branch() is None
+
+    monkeypatch.setenv("GITHUB_WORKFLOW_MONITOR_BRANCH", "develop")
+    assert cfg.github_workflow_branch() == "develop"

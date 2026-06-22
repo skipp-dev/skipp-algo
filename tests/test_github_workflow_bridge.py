@@ -45,3 +45,53 @@ def test_duration_seconds_clamps_negative_values_to_zero() -> None:
     )
 
     assert duration == 0.0
+
+
+def test_fetch_snapshot_includes_branch_query_when_configured(monkeypatch: pytest.MonkeyPatch) -> None:
+    import services.live_overlay_daemon.github_workflow_bridge as bridge
+
+    monkeypatch.setattr(bridge.config, "github_workflow_repo", lambda: ("skippALGO", "skipp-algo"))
+    monkeypatch.setattr(bridge.config, "github_workflow_timeout_secs", lambda: 5)
+    monkeypatch.setattr(bridge.config, "github_workflow_per_page", lambda: 30)
+    monkeypatch.setattr(bridge.config, "github_workflow_ids", lambda: [])
+    monkeypatch.setattr(bridge.config, "github_workflow_branch", lambda: "main")
+
+    captured: dict[str, object] = {}
+
+    def _fake_request_json(url: str, token: str, timeout: int) -> dict[str, object]:
+        captured["url"] = url
+        captured["token"] = token
+        captured["timeout"] = timeout
+        return {"workflow_runs": []}
+
+    monkeypatch.setattr(bridge, "_github_request_json", _fake_request_json)
+
+    snap = bridge._fetch_snapshot("token")
+
+    assert snap["ok"] == 1
+    assert "branch=main" in str(captured.get("url", ""))
+    assert captured["token"] == "token"
+    assert captured["timeout"] == 5
+
+
+def test_fetch_snapshot_omits_branch_query_when_not_configured(monkeypatch: pytest.MonkeyPatch) -> None:
+    import services.live_overlay_daemon.github_workflow_bridge as bridge
+
+    monkeypatch.setattr(bridge.config, "github_workflow_repo", lambda: ("skippALGO", "skipp-algo"))
+    monkeypatch.setattr(bridge.config, "github_workflow_timeout_secs", lambda: 5)
+    monkeypatch.setattr(bridge.config, "github_workflow_per_page", lambda: 30)
+    monkeypatch.setattr(bridge.config, "github_workflow_ids", lambda: [])
+    monkeypatch.setattr(bridge.config, "github_workflow_branch", lambda: None)
+
+    captured: dict[str, object] = {}
+
+    def _fake_request_json(url: str, token: str, timeout: int) -> dict[str, object]:
+        captured["url"] = url
+        return {"workflow_runs": []}
+
+    monkeypatch.setattr(bridge, "_github_request_json", _fake_request_json)
+
+    snap = bridge._fetch_snapshot("token")
+
+    assert snap["ok"] == 1
+    assert "branch=" not in str(captured.get("url", ""))
