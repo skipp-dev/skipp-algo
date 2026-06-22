@@ -173,8 +173,8 @@ Der Grafana-API-Token benötigt mindestens:
 
 ```
 1. dashboard.json lokal bearbeiten
-2. JSON-Validierung
-3. Via Grafana API auf Cloud pushen (upsert)
+2. JSON-Validierung + Dry-Run des Publishers
+3. Via scripts/publish_overlay_dashboard.py auf Cloud pushen (upsert)
 4. Live-Verifikation
 5. git add / commit / push
 ```
@@ -182,12 +182,17 @@ Der Grafana-API-Token benötigt mindestens:
 **Schritt-für-Schritt:**
 
 ```bash
-# v2-Flow: payload lokal prüfen
-python3 scripts/publish_overlay_dashboard.py --dry-run > /tmp/dashboard-payload.json
+# Payload lokal prüfen (ohne Netzwerkaufruf)
+python3 scripts/publish_overlay_dashboard.py --dry-run
 
-# v2-Flow: publish (Token via --token / Env / optional Keychain)
+# Publish (Token-Reihenfolge: --token > $GRAFANA_API_TOKEN > $GRAFANA_TOKEN > macOS Keychain)
 python3 scripts/publish_overlay_dashboard.py --message "chore: sync from repo"
 ```
+
+> Hinweis: Das Skript verwendet den legacy Endpoint `POST /api/dashboards/db`,
+> weil `POST /api/v1/dashboards` auf Grafana Cloud nicht verfügbar ist. Das
+> v2-Dashboard-JSON wird dabei unverändert im `dashboard`-Feld übermittelt,
+> was Grafana Cloud akzeptiert und korrekt verarbeitet.
 
 **Live-Version verifizieren:**
 
@@ -220,13 +225,14 @@ req = urllib.request.Request(
 )
 with urllib.request.urlopen(req, timeout=30) as r:
     dash = json.loads(r.read())["dashboard"]
-# Version-Felder für Upsert entfernen
-for key in ("version", "id"):
-    dash.pop(key, None)
+# Server-verwaltete Felder entfernen, damit der nächste Publish sauber ist.
+meta = dash.setdefault("metadata", {})
+for key in ("resourceVersion", "generation", "creationTimestamp", "uid"):
+    meta.pop(key, None)
 Path("services/live_overlay_daemon/infra/grafana/dashboard.json").write_text(
     json.dumps(dash, indent=2, ensure_ascii=False) + "\n", encoding="utf-8"
 )
-print("saved panels=", len(dash.get("panels", [])))
+print("saved panels=", len(dash.get("spec", {}).get("elements", {})))
 PY
 ```
 
