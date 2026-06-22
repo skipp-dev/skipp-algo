@@ -87,7 +87,9 @@
                 "colorMode": "background_solid",
                 "graphMode": "none",
                 "reduceOptions": {
-                  "calcs": ["lastNotNull"],
+                  "calcs": [
+                    "lastNotNull"
+                  ],
                   "fields": "",
                   "values": false
                 }
@@ -98,15 +100,29 @@
                     {
                       "type": "value",
                       "options": {
-                        "0": {"text": "STARTING", "color": "yellow"},
-                        "1": {"text": "IDLE (MARKET CLOSED)", "color": "semi-dark-orange"},
-                        "2": {"text": "OK", "color": "green"}
+                        "0": {
+                          "text": "STARTING",
+                          "color": "yellow"
+                        },
+                        "1": {
+                          "text": "IDLE (MARKET CLOSED)",
+                          "color": "semi-dark-orange"
+                        },
+                        "2": {
+                          "text": "OK",
+                          "color": "green"
+                        }
                       }
                     }
                   ],
                   "thresholds": {
                     "mode": "absolute",
-                    "steps": [{"value": null, "color": "green"}]
+                    "steps": [
+                      {
+                        "value": null,
+                        "color": "green"
+                      }
+                    ]
                   }
                 },
                 "overrides": []
@@ -126,9 +142,54 @@
             "kind": "QueryGroup",
             "spec": {
               "queries": [
-                {"kind": "PanelQuery","spec": {"query": {"kind": "DataQuery","group": "","version": "v0","spec": {"expr": "rate(live_overlay_feed_reconnect_attempts{job=\"live_overlay\"}[$__rate_interval])","legendFormat": "reconnects/s"}},"refId": "A","hidden": false}},
-                {"kind": "PanelQuery","spec": {"query": {"kind": "DataQuery","group": "","version": "v0","spec": {"expr": "rate(live_overlay_feed_bento_errors{job=\"live_overlay\"}[$__rate_interval])","legendFormat": "bento errors/s"}},"refId": "B","hidden": false}},
-                {"kind": "PanelQuery","spec": {"query": {"kind": "DataQuery","group": "","version": "v0","spec": {"expr": "rate(live_overlay_feed_unexpected_errors{job=\"live_overlay\"}[$__rate_interval])","legendFormat": "unexpected errors/s"}},"refId": "C","hidden": false}}
+                {
+                  "kind": "PanelQuery",
+                  "spec": {
+                    "query": {
+                      "kind": "DataQuery",
+                      "group": "",
+                      "version": "v0",
+                      "spec": {
+                        "expr": "rate(live_overlay_feed_reconnect_attempts{job=\"live_overlay\"}[$__rate_interval])",
+                        "legendFormat": "reconnects/s"
+                      }
+                    },
+                    "refId": "A",
+                    "hidden": false
+                  }
+                },
+                {
+                  "kind": "PanelQuery",
+                  "spec": {
+                    "query": {
+                      "kind": "DataQuery",
+                      "group": "",
+                      "version": "v0",
+                      "spec": {
+                        "expr": "rate(live_overlay_feed_bento_errors{job=\"live_overlay\"}[$__rate_interval])",
+                        "legendFormat": "bento errors/s"
+                      }
+                    },
+                    "refId": "B",
+                    "hidden": false
+                  }
+                },
+                {
+                  "kind": "PanelQuery",
+                  "spec": {
+                    "query": {
+                      "kind": "DataQuery",
+                      "group": "",
+                      "version": "v0",
+                      "spec": {
+                        "expr": "rate(live_overlay_feed_unexpected_errors{job=\"live_overlay\"}[$__rate_interval])",
+                        "legendFormat": "unexpected errors/s"
+                      }
+                    },
+                    "refId": "C",
+                    "hidden": false
+                  }
+                }
               ],
               "transformations": [],
               "queryOptions": {}
@@ -140,10 +201,26 @@
             "version": "",
             "spec": {
               "options": {
-                "legend": {"calcs": ["mean","lastNotNull"],"displayMode": "list","placement": "bottom","showLegend": true},
-                "tooltip": {"mode": "multi","sort": "none"}
+                "legend": {
+                  "calcs": [
+                    "mean",
+                    "lastNotNull"
+                  ],
+                  "displayMode": "list",
+                  "placement": "bottom",
+                  "showLegend": true
+                },
+                "tooltip": {
+                  "mode": "multi",
+                  "sort": "none"
+                }
               },
-              "fieldConfig": {"defaults": {"unit": "cps"},"overrides": []}
+              "fieldConfig": {
+                "defaults": {
+                  "unit": "cps"
+                },
+                "overrides": []
+              }
             }
           }
         }
@@ -159,7 +236,22 @@
             "kind": "QueryGroup",
             "spec": {
               "queries": [
-                {"kind": "PanelQuery","spec": {"query": {"kind": "DataQuery","group": "","version": "v0","spec": {"expr": "live_overlay_feed_circuit_breakers{job=\"live_overlay\"}","legendFormat": "circuit breakers"}},"refId": "A","hidden": false}}
+                {
+                  "kind": "PanelQuery",
+                  "spec": {
+                    "query": {
+                      "kind": "DataQuery",
+                      "group": "",
+                      "version": "v0",
+                      "spec": {
+                        "expr": "live_overlay_feed_circuit_breakers{job=\"live_overlay\"}",
+                        "legendFormat": "circuit breakers"
+                      }
+                    },
+                    "refId": "A",
+                    "hidden": false
+                  }
+                }
               ],
               "transformations": [],
               "queryOptions": {}
@@ -173,13 +265,45 @@
               "options": {
                 "colorMode": "background_solid",
                 "graphMode": "none",
-                "reduceOptions": {"calcs": ["lastNotNull"],"fields": "","values": false}
+                "reduceOptions": {
+                  "calcs": [
+                    "lastNotNull"
+                  ],
+                  "fields": "",
+                  "values": false
+                }
               },
               "fieldConfig": {
                 "defaults": {
                   "decimals": 0,
-                  "mappings": [{"type": "value","options": {"0": {"text": "0","color": "green"}}}],
-                  "thresholds": {"mode": "absolute","steps": [{"value": null,"color": "green"},{"value": 1,"color": "yellow"},{"value": 3,"color": "red"}]}
+                  "mappings": [
+                    {
+                      "type": "value",
+                      "options": {
+                        "0": {
+                          "text": "0",
+                          "color": "green"
+                        }
+                      }
+                    }
+                  ],
+                  "thresholds": {
+                    "mode": "absolute",
+                    "steps": [
+                      {
+                        "value": null,
+                        "color": "green"
+                      },
+                      {
+                        "value": 1,
+                        "color": "yellow"
+                      },
+                      {
+                        "value": 3,
+                        "color": "red"
+                      }
+                    ]
+                  }
                 },
                 "overrides": []
               }
@@ -198,7 +322,22 @@
             "kind": "QueryGroup",
             "spec": {
               "queries": [
-                {"kind": "PanelQuery","spec": {"query": {"kind": "DataQuery","group": "","version": "v0","spec": {"expr": "live_overlay_feed_partial_restarts{job=\"live_overlay\"}","legendFormat": "partial restarts"}},"refId": "A","hidden": false}}
+                {
+                  "kind": "PanelQuery",
+                  "spec": {
+                    "query": {
+                      "kind": "DataQuery",
+                      "group": "",
+                      "version": "v0",
+                      "spec": {
+                        "expr": "live_overlay_feed_partial_restarts{job=\"live_overlay\"}",
+                        "legendFormat": "partial restarts"
+                      }
+                    },
+                    "refId": "A",
+                    "hidden": false
+                  }
+                }
               ],
               "transformations": [],
               "queryOptions": {}
@@ -212,12 +351,34 @@
               "options": {
                 "colorMode": "background_solid",
                 "graphMode": "none",
-                "reduceOptions": {"calcs": ["lastNotNull"],"fields": "","values": false}
+                "reduceOptions": {
+                  "calcs": [
+                    "lastNotNull"
+                  ],
+                  "fields": "",
+                  "values": false
+                }
               },
               "fieldConfig": {
                 "defaults": {
                   "decimals": 0,
-                  "thresholds": {"mode": "absolute","steps": [{"value": null,"color": "green"},{"value": 1,"color": "yellow"},{"value": 3,"color": "red"}]}
+                  "thresholds": {
+                    "mode": "absolute",
+                    "steps": [
+                      {
+                        "value": null,
+                        "color": "green"
+                      },
+                      {
+                        "value": 1,
+                        "color": "yellow"
+                      },
+                      {
+                        "value": 3,
+                        "color": "red"
+                      }
+                    ]
+                  }
                 },
                 "overrides": []
               }
@@ -236,9 +397,54 @@
             "kind": "QueryGroup",
             "spec": {
               "queries": [
-                {"kind": "PanelQuery","spec": {"query": {"kind": "DataQuery","group": "","version": "v0","spec": {"expr": "live_overlay_worker_live_feed_alive{job=\"live_overlay\"}","legendFormat": "live_feed"}},"refId": "A","hidden": false}},
-                {"kind": "PanelQuery","spec": {"query": {"kind": "DataQuery","group": "","version": "v0","spec": {"expr": "live_overlay_worker_overlay_refresh_alive{job=\"live_overlay\"} or vector(0)","legendFormat": "overlay_refresh"}},"refId": "B","hidden": false}},
-                {"kind": "PanelQuery","spec": {"query": {"kind": "DataQuery","group": "","version": "v0","spec": {"expr": "live_overlay_worker_flow_refresh_alive{job=\"live_overlay\"} or vector(0)","legendFormat": "flow_refresh"}},"refId": "C","hidden": false}}
+                {
+                  "kind": "PanelQuery",
+                  "spec": {
+                    "query": {
+                      "kind": "DataQuery",
+                      "group": "",
+                      "version": "v0",
+                      "spec": {
+                        "expr": "live_overlay_worker_live_feed_alive{job=\"live_overlay\"}",
+                        "legendFormat": "live_feed"
+                      }
+                    },
+                    "refId": "A",
+                    "hidden": false
+                  }
+                },
+                {
+                  "kind": "PanelQuery",
+                  "spec": {
+                    "query": {
+                      "kind": "DataQuery",
+                      "group": "",
+                      "version": "v0",
+                      "spec": {
+                        "expr": "live_overlay_worker_overlay_refresh_alive{job=\"live_overlay\"} or vector(0)",
+                        "legendFormat": "overlay_refresh"
+                      }
+                    },
+                    "refId": "B",
+                    "hidden": false
+                  }
+                },
+                {
+                  "kind": "PanelQuery",
+                  "spec": {
+                    "query": {
+                      "kind": "DataQuery",
+                      "group": "",
+                      "version": "v0",
+                      "spec": {
+                        "expr": "live_overlay_worker_flow_refresh_alive{job=\"live_overlay\"} or vector(0)",
+                        "legendFormat": "flow_refresh"
+                      }
+                    },
+                    "refId": "C",
+                    "hidden": false
+                  }
+                }
               ],
               "transformations": [],
               "queryOptions": {}
@@ -250,17 +456,50 @@
             "version": "",
             "spec": {
               "options": {
-                "legend": {"displayMode": "list","placement": "bottom","showLegend": false},
+                "legend": {
+                  "displayMode": "list",
+                  "placement": "bottom",
+                  "showLegend": false
+                },
                 "rowHeight": 0.9,
-                "tooltip": {"mode": "multi","sort": "none"}
+                "tooltip": {
+                  "mode": "multi",
+                  "sort": "none"
+                }
               },
               "fieldConfig": {
                 "defaults": {
                   "min": 0,
                   "max": 1,
-                  "mappings": [{"type": "value","options": {"0": {"text": "DEAD"},"1": {"text": "ALIVE"}}}],
-                  "thresholds": {"mode": "absolute","steps": [{"value": null,"color": "red"},{"value": 1,"color": "green"}]},
-                  "color": {"mode": "thresholds"}
+                  "mappings": [
+                    {
+                      "type": "value",
+                      "options": {
+                        "0": {
+                          "text": "DEAD"
+                        },
+                        "1": {
+                          "text": "ALIVE"
+                        }
+                      }
+                    }
+                  ],
+                  "thresholds": {
+                    "mode": "absolute",
+                    "steps": [
+                      {
+                        "value": null,
+                        "color": "red"
+                      },
+                      {
+                        "value": 1,
+                        "color": "green"
+                      }
+                    ]
+                  },
+                  "color": {
+                    "mode": "thresholds"
+                  }
                 },
                 "overrides": []
               }
@@ -279,7 +518,22 @@
             "kind": "QueryGroup",
             "spec": {
               "queries": [
-                {"kind": "PanelQuery","spec": {"query": {"kind": "DataQuery","group": "","version": "v0","spec": {"expr": "(100 * sum(rate(live_overlay_smc_live_success_total{job=\"live_overlay\"}[$__rate_interval])) / clamp_min(sum(rate(live_overlay_smc_live_requests_total{job=\"live_overlay\"}[$__rate_interval])), 1e-9)) and on() (max(live_overlay_market_open{job=\"live_overlay\"}) == 1)","legendFormat": "success_rate"}},"refId": "A","hidden": false}}
+                {
+                  "kind": "PanelQuery",
+                  "spec": {
+                    "query": {
+                      "kind": "DataQuery",
+                      "group": "",
+                      "version": "v0",
+                      "spec": {
+                        "expr": "(100 * sum(rate(live_overlay_smc_live_success_total{job=\"live_overlay\"}[$__rate_interval])) / clamp_min(sum(rate(live_overlay_smc_live_requests_total{job=\"live_overlay\"}[$__rate_interval])), 1e-9)) and on() (max(live_overlay_market_open{job=\"live_overlay\"}) == 1)",
+                        "legendFormat": "success_rate"
+                      }
+                    },
+                    "refId": "A",
+                    "hidden": false
+                  }
+                }
               ],
               "transformations": [],
               "queryOptions": {}
@@ -293,7 +547,13 @@
               "options": {
                 "colorMode": "background_solid",
                 "graphMode": "area",
-                "reduceOptions": {"calcs": ["lastNotNull"],"fields": "","values": false}
+                "reduceOptions": {
+                  "calcs": [
+                    "lastNotNull"
+                  ],
+                  "fields": "",
+                  "values": false
+                }
               },
               "fieldConfig": {
                 "defaults": {
@@ -301,7 +561,23 @@
                   "decimals": 2,
                   "min": 0,
                   "max": 100,
-                  "thresholds": {"mode": "absolute","steps": [{"value": null,"color": "red"},{"value": 95,"color": "yellow"},{"value": 99,"color": "green"}]},
+                  "thresholds": {
+                    "mode": "absolute",
+                    "steps": [
+                      {
+                        "value": null,
+                        "color": "red"
+                      },
+                      {
+                        "value": 95,
+                        "color": "yellow"
+                      },
+                      {
+                        "value": 99,
+                        "color": "green"
+                      }
+                    ]
+                  },
                   "noValue": "MARKET CLOSED"
                 },
                 "overrides": []
@@ -321,7 +597,22 @@
             "kind": "QueryGroup",
             "spec": {
               "queries": [
-                {"kind": "PanelQuery","spec": {"query": {"kind": "DataQuery","group": "","version": "v0","spec": {"expr": "(max(live_overlay_market_open{job=\"live_overlay\"}) * (1 + ((sum(rate(live_overlay_smc_live_requests_total{job=\"live_overlay\"}[$__rate_interval])) > bool 0.001) or vector(0)))) or vector(0)","legendFormat": "open_req_health"}},"refId": "A","hidden": false}}
+                {
+                  "kind": "PanelQuery",
+                  "spec": {
+                    "query": {
+                      "kind": "DataQuery",
+                      "group": "",
+                      "version": "v0",
+                      "spec": {
+                        "expr": "(max(live_overlay_market_open{job=\"live_overlay\"}) * (1 + ((sum(rate(live_overlay_smc_live_requests_total{job=\"live_overlay\"}[$__rate_interval])) > bool 0.001) or vector(0)))) or vector(0)",
+                        "legendFormat": "open_req_health"
+                      }
+                    },
+                    "refId": "A",
+                    "hidden": false
+                  }
+                }
               ],
               "transformations": [],
               "queryOptions": {}
@@ -335,12 +626,52 @@
               "options": {
                 "colorMode": "background_solid",
                 "graphMode": "area",
-                "reduceOptions": {"calcs": ["lastNotNull"],"fields": "","values": false}
+                "reduceOptions": {
+                  "calcs": [
+                    "lastNotNull"
+                  ],
+                  "fields": "",
+                  "values": false
+                }
               },
               "fieldConfig": {
                 "defaults": {
-                  "mappings": [{"type": "value","options": {"0": {"text": "MARKET_CLOSED","color": "gray"},"1": {"text": "OPEN_NO_TRAFFIC","color": "yellow"},"2": {"text": "TRAFFIC_OK","color": "green"}}}],
-                  "thresholds": {"mode": "absolute","steps": [{"value": null,"color": "gray"},{"value": 1,"color": "yellow"},{"value": 2,"color": "green"}]}
+                  "mappings": [
+                    {
+                      "type": "value",
+                      "options": {
+                        "0": {
+                          "text": "MARKET_CLOSED",
+                          "color": "gray"
+                        },
+                        "1": {
+                          "text": "OPEN_NO_TRAFFIC",
+                          "color": "yellow"
+                        },
+                        "2": {
+                          "text": "TRAFFIC_OK",
+                          "color": "green"
+                        }
+                      }
+                    }
+                  ],
+                  "thresholds": {
+                    "mode": "absolute",
+                    "steps": [
+                      {
+                        "value": null,
+                        "color": "gray"
+                      },
+                      {
+                        "value": 1,
+                        "color": "yellow"
+                      },
+                      {
+                        "value": 2,
+                        "color": "green"
+                      }
+                    ]
+                  }
                 },
                 "overrides": []
               }
@@ -359,7 +690,22 @@
             "kind": "QueryGroup",
             "spec": {
               "queries": [
-                {"kind": "PanelQuery","spec": {"query": {"kind": "DataQuery","group": "","version": "v0","spec": {"expr": "resets(live_overlay_uptime_seconds{job=\"live_overlay\"}[24h])","legendFormat": "restarts"}},"refId": "A","hidden": false}}
+                {
+                  "kind": "PanelQuery",
+                  "spec": {
+                    "query": {
+                      "kind": "DataQuery",
+                      "group": "",
+                      "version": "v0",
+                      "spec": {
+                        "expr": "resets(live_overlay_uptime_seconds{job=\"live_overlay\"}[24h])",
+                        "legendFormat": "restarts"
+                      }
+                    },
+                    "refId": "A",
+                    "hidden": false
+                  }
+                }
               ],
               "transformations": [],
               "queryOptions": {}
@@ -373,12 +719,34 @@
               "options": {
                 "colorMode": "background_solid",
                 "graphMode": "none",
-                "reduceOptions": {"calcs": ["lastNotNull"],"fields": "","values": false}
+                "reduceOptions": {
+                  "calcs": [
+                    "lastNotNull"
+                  ],
+                  "fields": "",
+                  "values": false
+                }
               },
               "fieldConfig": {
                 "defaults": {
                   "decimals": 0,
-                  "thresholds": {"mode": "absolute","steps": [{"value": null,"color": "green"},{"value": 1,"color": "yellow"},{"value": 3,"color": "red"}]}
+                  "thresholds": {
+                    "mode": "absolute",
+                    "steps": [
+                      {
+                        "value": null,
+                        "color": "green"
+                      },
+                      {
+                        "value": 1,
+                        "color": "yellow"
+                      },
+                      {
+                        "value": 3,
+                        "color": "red"
+                      }
+                    ]
+                  }
                 },
                 "overrides": []
               }
@@ -397,10 +765,70 @@
             "kind": "QueryGroup",
             "spec": {
               "queries": [
-                {"kind": "PanelQuery","spec": {"query": {"kind": "DataQuery","group": "","version": "v0","spec": {"expr": "rate(live_overlay_smc_live_auth_denied{job=\"live_overlay\"}[$__rate_interval]) and on(job) (live_overlay_market_open{job=\"live_overlay\"} == 1)","legendFormat": "auth denied"}},"refId": "A","hidden": false}},
-                {"kind": "PanelQuery","spec": {"query": {"kind": "DataQuery","group": "","version": "v0","spec": {"expr": "rate(live_overlay_smc_live_cache_miss_total{job=\"live_overlay\"}[$__rate_interval]) and on(job) (live_overlay_market_open{job=\"live_overlay\"} == 1)","legendFormat": "cache miss"}},"refId": "B","hidden": false}},
-                {"kind": "PanelQuery","spec": {"query": {"kind": "DataQuery","group": "","version": "v0","spec": {"expr": "rate(live_overlay_smc_live_bad_tf_total{job=\"live_overlay\"}[$__rate_interval]) and on(job) (live_overlay_market_open{job=\"live_overlay\"} == 1)","legendFormat": "bad tf"}},"refId": "C","hidden": false}},
-                {"kind": "PanelQuery","spec": {"query": {"kind": "DataQuery","group": "","version": "v0","spec": {"expr": "rate(live_overlay_smc_live_errors_total{job=\"live_overlay\"}[$__rate_interval]) and on(job) (live_overlay_market_open{job=\"live_overlay\"} == 1)","legendFormat": "errors"}},"refId": "D","hidden": false}}
+                {
+                  "kind": "PanelQuery",
+                  "spec": {
+                    "query": {
+                      "kind": "DataQuery",
+                      "group": "",
+                      "version": "v0",
+                      "spec": {
+                        "expr": "rate(live_overlay_smc_live_auth_denied{job=\"live_overlay\"}[$__rate_interval]) and on(job) (live_overlay_market_open{job=\"live_overlay\"} == 1)",
+                        "legendFormat": "auth denied"
+                      }
+                    },
+                    "refId": "A",
+                    "hidden": false
+                  }
+                },
+                {
+                  "kind": "PanelQuery",
+                  "spec": {
+                    "query": {
+                      "kind": "DataQuery",
+                      "group": "",
+                      "version": "v0",
+                      "spec": {
+                        "expr": "rate(live_overlay_smc_live_cache_miss_total{job=\"live_overlay\"}[$__rate_interval]) and on(job) (live_overlay_market_open{job=\"live_overlay\"} == 1)",
+                        "legendFormat": "cache miss"
+                      }
+                    },
+                    "refId": "B",
+                    "hidden": false
+                  }
+                },
+                {
+                  "kind": "PanelQuery",
+                  "spec": {
+                    "query": {
+                      "kind": "DataQuery",
+                      "group": "",
+                      "version": "v0",
+                      "spec": {
+                        "expr": "rate(live_overlay_smc_live_bad_tf_total{job=\"live_overlay\"}[$__rate_interval]) and on(job) (live_overlay_market_open{job=\"live_overlay\"} == 1)",
+                        "legendFormat": "bad tf"
+                      }
+                    },
+                    "refId": "C",
+                    "hidden": false
+                  }
+                },
+                {
+                  "kind": "PanelQuery",
+                  "spec": {
+                    "query": {
+                      "kind": "DataQuery",
+                      "group": "",
+                      "version": "v0",
+                      "spec": {
+                        "expr": "rate(live_overlay_smc_live_errors_total{job=\"live_overlay\"}[$__rate_interval]) and on(job) (live_overlay_market_open{job=\"live_overlay\"} == 1)",
+                        "legendFormat": "errors"
+                      }
+                    },
+                    "refId": "D",
+                    "hidden": false
+                  }
+                }
               ],
               "transformations": [],
               "queryOptions": {}
@@ -412,14 +840,30 @@
             "version": "",
             "spec": {
               "options": {
-                "legend": {"calcs": ["mean","lastNotNull"],"displayMode": "list","placement": "bottom","showLegend": true},
-                "tooltip": {"mode": "multi","sort": "none"}
+                "legend": {
+                  "calcs": [
+                    "mean",
+                    "lastNotNull"
+                  ],
+                  "displayMode": "list",
+                  "placement": "bottom",
+                  "showLegend": true
+                },
+                "tooltip": {
+                  "mode": "multi",
+                  "sort": "none"
+                }
               },
               "fieldConfig": {
                 "defaults": {
                   "unit": "reqps",
                   "noValue": "MARKET CLOSED",
-                  "custom": {"stacking": {"group": "A","mode": "normal"}}
+                  "custom": {
+                    "stacking": {
+                      "group": "A",
+                      "mode": "normal"
+                    }
+                  }
                 },
                 "overrides": []
               }
@@ -438,7 +882,22 @@
             "kind": "QueryGroup",
             "spec": {
               "queries": [
-                {"kind": "PanelQuery","spec": {"query": {"kind": "DataQuery","group": "","version": "v0","spec": {"expr": "100 * live_overlay_overlay_age_seconds{job=\"live_overlay\"} / clamp_min(live_overlay_max_stale_seconds{job=\"live_overlay\"}, 1)","legendFormat": "stale_budget_used"}},"refId": "A","hidden": false}}
+                {
+                  "kind": "PanelQuery",
+                  "spec": {
+                    "query": {
+                      "kind": "DataQuery",
+                      "group": "",
+                      "version": "v0",
+                      "spec": {
+                        "expr": "100 * live_overlay_overlay_age_seconds{job=\"live_overlay\"} / clamp_min(live_overlay_max_stale_seconds{job=\"live_overlay\"}, 1)",
+                        "legendFormat": "stale_budget_used"
+                      }
+                    },
+                    "refId": "A",
+                    "hidden": false
+                  }
+                }
               ],
               "transformations": [],
               "queryOptions": {}
@@ -450,14 +909,44 @@
             "version": "",
             "spec": {
               "options": {
-                "legend": {"calcs": ["lastNotNull"],"displayMode": "list","placement": "bottom","showLegend": true},
-                "tooltip": {"mode": "multi","sort": "none"}
+                "legend": {
+                  "calcs": [
+                    "lastNotNull"
+                  ],
+                  "displayMode": "list",
+                  "placement": "bottom",
+                  "showLegend": true
+                },
+                "tooltip": {
+                  "mode": "multi",
+                  "sort": "none"
+                }
               },
               "fieldConfig": {
                 "defaults": {
                   "unit": "percent",
                   "min": 0,
-                  "thresholds": {"mode": "absolute","steps": [{"value": null,"color": "green"},{"value": 50,"color": "yellow"},{"value": 80,"color": "orange"},{"value": 100,"color": "red"}]}
+                  "thresholds": {
+                    "mode": "absolute",
+                    "steps": [
+                      {
+                        "value": null,
+                        "color": "green"
+                      },
+                      {
+                        "value": 50,
+                        "color": "yellow"
+                      },
+                      {
+                        "value": 80,
+                        "color": "orange"
+                      },
+                      {
+                        "value": 100,
+                        "color": "red"
+                      }
+                    ]
+                  }
                 },
                 "overrides": []
               }
@@ -476,10 +965,70 @@
             "kind": "QueryGroup",
             "spec": {
               "queries": [
-                {"kind": "PanelQuery","spec": {"query": {"kind": "DataQuery","group": "","version": "v0","spec": {"expr": "live_overlay_feed_healthy{job=\"live_overlay\"}","legendFormat": "feed_healthy"}},"refId": "A","hidden": false}},
-                {"kind": "PanelQuery","spec": {"query": {"kind": "DataQuery","group": "","version": "v0","spec": {"expr": "live_overlay_workers_healthy{job=\"live_overlay\"}","legendFormat": "workers_healthy"}},"refId": "B","hidden": false}},
-                {"kind": "PanelQuery","spec": {"query": {"kind": "DataQuery","group": "","version": "v0","spec": {"expr": "live_overlay_overlay_fresh{job=\"live_overlay\"} or vector(0)","legendFormat": "overlay_fresh"}},"refId": "C","hidden": false}},
-                {"kind": "PanelQuery","spec": {"query": {"kind": "DataQuery","group": "","version": "v0","spec": {"expr": "live_overlay_market_open{job=\"live_overlay\"}","legendFormat": "market_open"}},"refId": "D","hidden": false}}
+                {
+                  "kind": "PanelQuery",
+                  "spec": {
+                    "query": {
+                      "kind": "DataQuery",
+                      "group": "",
+                      "version": "v0",
+                      "spec": {
+                        "expr": "live_overlay_feed_healthy{job=\"live_overlay\"}",
+                        "legendFormat": "feed_healthy"
+                      }
+                    },
+                    "refId": "A",
+                    "hidden": false
+                  }
+                },
+                {
+                  "kind": "PanelQuery",
+                  "spec": {
+                    "query": {
+                      "kind": "DataQuery",
+                      "group": "",
+                      "version": "v0",
+                      "spec": {
+                        "expr": "live_overlay_workers_healthy{job=\"live_overlay\"}",
+                        "legendFormat": "workers_healthy"
+                      }
+                    },
+                    "refId": "B",
+                    "hidden": false
+                  }
+                },
+                {
+                  "kind": "PanelQuery",
+                  "spec": {
+                    "query": {
+                      "kind": "DataQuery",
+                      "group": "",
+                      "version": "v0",
+                      "spec": {
+                        "expr": "live_overlay_overlay_fresh{job=\"live_overlay\"} or vector(0)",
+                        "legendFormat": "overlay_fresh"
+                      }
+                    },
+                    "refId": "C",
+                    "hidden": false
+                  }
+                },
+                {
+                  "kind": "PanelQuery",
+                  "spec": {
+                    "query": {
+                      "kind": "DataQuery",
+                      "group": "",
+                      "version": "v0",
+                      "spec": {
+                        "expr": "live_overlay_market_open{job=\"live_overlay\"}",
+                        "legendFormat": "market_open"
+                      }
+                    },
+                    "refId": "D",
+                    "hidden": false
+                  }
+                }
               ],
               "transformations": [],
               "queryOptions": {}
@@ -491,17 +1040,50 @@
             "version": "",
             "spec": {
               "options": {
-                "legend": {"displayMode": "list","placement": "bottom","showLegend": false},
+                "legend": {
+                  "displayMode": "list",
+                  "placement": "bottom",
+                  "showLegend": false
+                },
                 "rowHeight": 0.9,
-                "tooltip": {"mode": "multi","sort": "none"}
+                "tooltip": {
+                  "mode": "multi",
+                  "sort": "none"
+                }
               },
               "fieldConfig": {
                 "defaults": {
                   "min": 0,
                   "max": 1,
-                  "mappings": [{"type": "value","options": {"0": {"text": "NO"},"1": {"text": "YES"}}}],
-                  "thresholds": {"mode": "absolute","steps": [{"value": null,"color": "red"},{"value": 1,"color": "green"}]},
-                  "color": {"mode": "thresholds"}
+                  "mappings": [
+                    {
+                      "type": "value",
+                      "options": {
+                        "0": {
+                          "text": "NO"
+                        },
+                        "1": {
+                          "text": "YES"
+                        }
+                      }
+                    }
+                  ],
+                  "thresholds": {
+                    "mode": "absolute",
+                    "steps": [
+                      {
+                        "value": null,
+                        "color": "red"
+                      },
+                      {
+                        "value": 1,
+                        "color": "green"
+                      }
+                    ]
+                  },
+                  "color": {
+                    "mode": "thresholds"
+                  }
                 },
                 "overrides": []
               }
@@ -520,7 +1102,22 @@
             "kind": "QueryGroup",
             "spec": {
               "queries": [
-                {"kind": "PanelQuery","spec": {"query": {"kind": "DataQuery","group": "","version": "v0","spec": {"expr": "live_overlay_workers_healthy{job=\"live_overlay\"}","legendFormat": "Workers"}},"refId": "A","hidden": false}}
+                {
+                  "kind": "PanelQuery",
+                  "spec": {
+                    "query": {
+                      "kind": "DataQuery",
+                      "group": "",
+                      "version": "v0",
+                      "spec": {
+                        "expr": "live_overlay_workers_healthy{job=\"live_overlay\"}",
+                        "legendFormat": "Workers"
+                      }
+                    },
+                    "refId": "A",
+                    "hidden": false
+                  }
+                }
               ],
               "transformations": [],
               "queryOptions": {}
@@ -534,12 +1131,40 @@
               "options": {
                 "colorMode": "background_solid",
                 "graphMode": "none",
-                "reduceOptions": {"calcs": ["lastNotNull"],"fields": "","values": false}
+                "reduceOptions": {
+                  "calcs": [
+                    "lastNotNull"
+                  ],
+                  "fields": "",
+                  "values": false
+                }
               },
               "fieldConfig": {
                 "defaults": {
-                  "mappings": [{"type": "value","options": {"0": {"text": "DEGRADED","color": "red"},"1": {"text": "OK","color": "green"}}}],
-                  "thresholds": {"mode": "absolute","steps": [{"value": null,"color": "green"}]}
+                  "mappings": [
+                    {
+                      "type": "value",
+                      "options": {
+                        "0": {
+                          "text": "DEGRADED",
+                          "color": "red"
+                        },
+                        "1": {
+                          "text": "OK",
+                          "color": "green"
+                        }
+                      }
+                    }
+                  ],
+                  "thresholds": {
+                    "mode": "absolute",
+                    "steps": [
+                      {
+                        "value": null,
+                        "color": "green"
+                      }
+                    ]
+                  }
                 },
                 "overrides": []
               }
@@ -558,7 +1183,22 @@
             "kind": "QueryGroup",
             "spec": {
               "queries": [
-                {"kind": "PanelQuery","spec": {"query": {"kind": "DataQuery","group": "","version": "v0","spec": {"expr": "rate(live_overlay_smc_live_stale_served_total{job=\"live_overlay\"}[$__rate_interval]) and on(job) (live_overlay_market_open{job=\"live_overlay\"} == 1)","legendFormat": "stale served/s"}},"refId": "A","hidden": false}}
+                {
+                  "kind": "PanelQuery",
+                  "spec": {
+                    "query": {
+                      "kind": "DataQuery",
+                      "group": "",
+                      "version": "v0",
+                      "spec": {
+                        "expr": "rate(live_overlay_smc_live_stale_served_total{job=\"live_overlay\"}[$__rate_interval]) and on(job) (live_overlay_market_open{job=\"live_overlay\"} == 1)",
+                        "legendFormat": "stale served/s"
+                      }
+                    },
+                    "refId": "A",
+                    "hidden": false
+                  }
+                }
               ],
               "transformations": [],
               "queryOptions": {}
@@ -570,13 +1210,40 @@
             "version": "",
             "spec": {
               "options": {
-                "legend": {"calcs": ["mean","lastNotNull"],"displayMode": "list","placement": "bottom","showLegend": true},
-                "tooltip": {"mode": "multi","sort": "none"}
+                "legend": {
+                  "calcs": [
+                    "mean",
+                    "lastNotNull"
+                  ],
+                  "displayMode": "list",
+                  "placement": "bottom",
+                  "showLegend": true
+                },
+                "tooltip": {
+                  "mode": "multi",
+                  "sort": "none"
+                }
               },
               "fieldConfig": {
                 "defaults": {
                   "unit": "reqps",
-                  "thresholds": {"mode": "absolute","steps": [{"value": null,"color": "green"},{"value": 0.01,"color": "yellow"},{"value": 0.1,"color": "red"}]},
+                  "thresholds": {
+                    "mode": "absolute",
+                    "steps": [
+                      {
+                        "value": null,
+                        "color": "green"
+                      },
+                      {
+                        "value": 0.01,
+                        "color": "yellow"
+                      },
+                      {
+                        "value": 0.1,
+                        "color": "red"
+                      }
+                    ]
+                  },
                   "noValue": "MARKET CLOSED"
                 },
                 "overrides": []
@@ -596,7 +1263,22 @@
             "kind": "QueryGroup",
             "spec": {
               "queries": [
-                {"kind": "PanelQuery","spec": {"query": {"kind": "DataQuery","group": "","version": "v0","spec": {"expr": "(rate(live_overlay_smc_live_latency_sum_ms{job=\"live_overlay\"}[$__rate_interval]) / clamp_min(rate(live_overlay_smc_live_latency_count{job=\"live_overlay\"}[$__rate_interval]), 1e-9)) and on(job) (live_overlay_market_open{job=\"live_overlay\"} == 1)","legendFormat": "avg latency"}},"refId": "A","hidden": false}}
+                {
+                  "kind": "PanelQuery",
+                  "spec": {
+                    "query": {
+                      "kind": "DataQuery",
+                      "group": "",
+                      "version": "v0",
+                      "spec": {
+                        "expr": "(rate(live_overlay_smc_live_latency_sum_ms{job=\"live_overlay\"}[$__rate_interval]) / clamp_min(rate(live_overlay_smc_live_latency_count{job=\"live_overlay\"}[$__rate_interval]), 1e-9)) and on(job) (live_overlay_market_open{job=\"live_overlay\"} == 1)",
+                        "legendFormat": "avg latency"
+                      }
+                    },
+                    "refId": "A",
+                    "hidden": false
+                  }
+                }
               ],
               "transformations": [],
               "queryOptions": {}
@@ -608,13 +1290,44 @@
             "version": "",
             "spec": {
               "options": {
-                "legend": {"calcs": ["mean","lastNotNull"],"displayMode": "list","placement": "bottom","showLegend": true},
-                "tooltip": {"mode": "multi","sort": "none"}
+                "legend": {
+                  "calcs": [
+                    "mean",
+                    "lastNotNull"
+                  ],
+                  "displayMode": "list",
+                  "placement": "bottom",
+                  "showLegend": true
+                },
+                "tooltip": {
+                  "mode": "multi",
+                  "sort": "none"
+                }
               },
               "fieldConfig": {
                 "defaults": {
                   "unit": "ms",
-                  "thresholds": {"mode": "absolute","steps": [{"value": null,"color": "green"},{"value": 150,"color": "yellow"},{"value": 300,"color": "orange"},{"value": 500,"color": "red"}]},
+                  "thresholds": {
+                    "mode": "absolute",
+                    "steps": [
+                      {
+                        "value": null,
+                        "color": "green"
+                      },
+                      {
+                        "value": 150,
+                        "color": "yellow"
+                      },
+                      {
+                        "value": 300,
+                        "color": "orange"
+                      },
+                      {
+                        "value": 500,
+                        "color": "red"
+                      }
+                    ]
+                  },
                   "noValue": "MARKET CLOSED"
                 },
                 "overrides": []
@@ -634,12 +1347,102 @@
             "kind": "QueryGroup",
             "spec": {
               "queries": [
-                {"kind": "PanelQuery","spec": {"query": {"kind": "DataQuery","group": "","version": "v0","spec": {"expr": "rate(live_overlay_smc_live_latency_bucket_le_50{job=\"live_overlay\"}[$__rate_interval]) and on(job) (live_overlay_market_open{job=\"live_overlay\"} == 1)","legendFormat": "<=50ms"}},"refId": "A","hidden": false}},
-                {"kind": "PanelQuery","spec": {"query": {"kind": "DataQuery","group": "","version": "v0","spec": {"expr": "rate(live_overlay_smc_live_latency_bucket_le_100{job=\"live_overlay\"}[$__rate_interval]) and on(job) (live_overlay_market_open{job=\"live_overlay\"} == 1)","legendFormat": "<=100ms"}},"refId": "B","hidden": false}},
-                {"kind": "PanelQuery","spec": {"query": {"kind": "DataQuery","group": "","version": "v0","spec": {"expr": "rate(live_overlay_smc_live_latency_bucket_le_250{job=\"live_overlay\"}[$__rate_interval]) and on(job) (live_overlay_market_open{job=\"live_overlay\"} == 1)","legendFormat": "<=250ms"}},"refId": "C","hidden": false}},
-                {"kind": "PanelQuery","spec": {"query": {"kind": "DataQuery","group": "","version": "v0","spec": {"expr": "rate(live_overlay_smc_live_latency_bucket_le_500{job=\"live_overlay\"}[$__rate_interval]) and on(job) (live_overlay_market_open{job=\"live_overlay\"} == 1)","legendFormat": "<=500ms"}},"refId": "D","hidden": false}},
-                {"kind": "PanelQuery","spec": {"query": {"kind": "DataQuery","group": "","version": "v0","spec": {"expr": "rate(live_overlay_smc_live_latency_bucket_le_1000{job=\"live_overlay\"}[$__rate_interval]) and on(job) (live_overlay_market_open{job=\"live_overlay\"} == 1)","legendFormat": "<=1000ms"}},"refId": "E","hidden": false}},
-                {"kind": "PanelQuery","spec": {"query": {"kind": "DataQuery","group": "","version": "v0","spec": {"expr": "rate(live_overlay_smc_live_latency_bucket_le_inf{job=\"live_overlay\"}[$__rate_interval]) and on(job) (live_overlay_market_open{job=\"live_overlay\"} == 1)","legendFormat": "<=inf"}},"refId": "F","hidden": false}}
+                {
+                  "kind": "PanelQuery",
+                  "spec": {
+                    "query": {
+                      "kind": "DataQuery",
+                      "group": "",
+                      "version": "v0",
+                      "spec": {
+                        "expr": "rate(live_overlay_smc_live_latency_bucket_le_50{job=\"live_overlay\"}[$__rate_interval]) and on(job) (live_overlay_market_open{job=\"live_overlay\"} == 1)",
+                        "legendFormat": "<=50ms"
+                      }
+                    },
+                    "refId": "A",
+                    "hidden": false
+                  }
+                },
+                {
+                  "kind": "PanelQuery",
+                  "spec": {
+                    "query": {
+                      "kind": "DataQuery",
+                      "group": "",
+                      "version": "v0",
+                      "spec": {
+                        "expr": "rate(live_overlay_smc_live_latency_bucket_le_100{job=\"live_overlay\"}[$__rate_interval]) and on(job) (live_overlay_market_open{job=\"live_overlay\"} == 1)",
+                        "legendFormat": "<=100ms"
+                      }
+                    },
+                    "refId": "B",
+                    "hidden": false
+                  }
+                },
+                {
+                  "kind": "PanelQuery",
+                  "spec": {
+                    "query": {
+                      "kind": "DataQuery",
+                      "group": "",
+                      "version": "v0",
+                      "spec": {
+                        "expr": "rate(live_overlay_smc_live_latency_bucket_le_250{job=\"live_overlay\"}[$__rate_interval]) and on(job) (live_overlay_market_open{job=\"live_overlay\"} == 1)",
+                        "legendFormat": "<=250ms"
+                      }
+                    },
+                    "refId": "C",
+                    "hidden": false
+                  }
+                },
+                {
+                  "kind": "PanelQuery",
+                  "spec": {
+                    "query": {
+                      "kind": "DataQuery",
+                      "group": "",
+                      "version": "v0",
+                      "spec": {
+                        "expr": "rate(live_overlay_smc_live_latency_bucket_le_500{job=\"live_overlay\"}[$__rate_interval]) and on(job) (live_overlay_market_open{job=\"live_overlay\"} == 1)",
+                        "legendFormat": "<=500ms"
+                      }
+                    },
+                    "refId": "D",
+                    "hidden": false
+                  }
+                },
+                {
+                  "kind": "PanelQuery",
+                  "spec": {
+                    "query": {
+                      "kind": "DataQuery",
+                      "group": "",
+                      "version": "v0",
+                      "spec": {
+                        "expr": "rate(live_overlay_smc_live_latency_bucket_le_1000{job=\"live_overlay\"}[$__rate_interval]) and on(job) (live_overlay_market_open{job=\"live_overlay\"} == 1)",
+                        "legendFormat": "<=1000ms"
+                      }
+                    },
+                    "refId": "E",
+                    "hidden": false
+                  }
+                },
+                {
+                  "kind": "PanelQuery",
+                  "spec": {
+                    "query": {
+                      "kind": "DataQuery",
+                      "group": "",
+                      "version": "v0",
+                      "spec": {
+                        "expr": "rate(live_overlay_smc_live_latency_bucket_le_inf{job=\"live_overlay\"}[$__rate_interval]) and on(job) (live_overlay_market_open{job=\"live_overlay\"} == 1)",
+                        "legendFormat": "<=inf"
+                      }
+                    },
+                    "refId": "F",
+                    "hidden": false
+                  }
+                }
               ],
               "transformations": [],
               "queryOptions": {}
@@ -651,14 +1454,30 @@
             "version": "",
             "spec": {
               "options": {
-                "legend": {"calcs": ["mean","lastNotNull"],"displayMode": "list","placement": "bottom","showLegend": true},
-                "tooltip": {"mode": "multi","sort": "none"}
+                "legend": {
+                  "calcs": [
+                    "mean",
+                    "lastNotNull"
+                  ],
+                  "displayMode": "list",
+                  "placement": "bottom",
+                  "showLegend": true
+                },
+                "tooltip": {
+                  "mode": "multi",
+                  "sort": "none"
+                }
               },
               "fieldConfig": {
                 "defaults": {
                   "unit": "reqps",
                   "noValue": "MARKET CLOSED",
-                  "custom": {"stacking": {"group": "A","mode": "none"}}
+                  "custom": {
+                    "stacking": {
+                      "group": "A",
+                      "mode": "none"
+                    }
+                  }
                 },
                 "overrides": []
               }
@@ -677,7 +1496,22 @@
             "kind": "QueryGroup",
             "spec": {
               "queries": [
-                {"kind": "PanelQuery","spec": {"query": {"kind": "DataQuery","group": "","version": "v0","spec": {"expr": "live_overlay_uptimerobot_bridge_enabled{job=\"live_overlay\"} + live_overlay_uptimerobot_scrape_success{job=\"live_overlay\"}","legendFormat": "bridge_state"}},"refId": "A","hidden": false}}
+                {
+                  "kind": "PanelQuery",
+                  "spec": {
+                    "query": {
+                      "kind": "DataQuery",
+                      "group": "",
+                      "version": "v0",
+                      "spec": {
+                        "expr": "live_overlay_uptimerobot_bridge_enabled{job=\"live_overlay\"} + live_overlay_uptimerobot_scrape_success{job=\"live_overlay\"}",
+                        "legendFormat": "bridge_state"
+                      }
+                    },
+                    "refId": "A",
+                    "hidden": false
+                  }
+                }
               ],
               "transformations": [],
               "queryOptions": {}
@@ -691,12 +1525,44 @@
               "options": {
                 "colorMode": "background_solid",
                 "graphMode": "none",
-                "reduceOptions": {"calcs": ["lastNotNull"],"fields": "","values": false}
+                "reduceOptions": {
+                  "calcs": [
+                    "lastNotNull"
+                  ],
+                  "fields": "",
+                  "values": false
+                }
               },
               "fieldConfig": {
                 "defaults": {
-                  "mappings": [{"type": "value","options": {"0": {"text": "DISABLED","color": "gray"},"1": {"text": "SCRAPE ERROR","color": "red"},"2": {"text": "OK","color": "green"}}}],
-                  "thresholds": {"mode": "absolute","steps": [{"value": null,"color": "gray"}]}
+                  "mappings": [
+                    {
+                      "type": "value",
+                      "options": {
+                        "0": {
+                          "text": "DISABLED",
+                          "color": "gray"
+                        },
+                        "1": {
+                          "text": "SCRAPE ERROR",
+                          "color": "red"
+                        },
+                        "2": {
+                          "text": "OK",
+                          "color": "green"
+                        }
+                      }
+                    }
+                  ],
+                  "thresholds": {
+                    "mode": "absolute",
+                    "steps": [
+                      {
+                        "value": null,
+                        "color": "gray"
+                      }
+                    ]
+                  }
                 },
                 "overrides": []
               }
@@ -715,7 +1581,22 @@
             "kind": "QueryGroup",
             "spec": {
               "queries": [
-                {"kind": "PanelQuery","spec": {"query": {"kind": "DataQuery","group": "","version": "v0","spec": {"expr": "live_overlay_uptimerobot_snapshot_age_seconds{job=\"live_overlay\"}","legendFormat": "snapshot_age"}},"refId": "A","hidden": false}}
+                {
+                  "kind": "PanelQuery",
+                  "spec": {
+                    "query": {
+                      "kind": "DataQuery",
+                      "group": "",
+                      "version": "v0",
+                      "spec": {
+                        "expr": "live_overlay_uptimerobot_snapshot_age_seconds{job=\"live_overlay\"}",
+                        "legendFormat": "snapshot_age"
+                      }
+                    },
+                    "refId": "A",
+                    "hidden": false
+                  }
+                }
               ],
               "transformations": [],
               "queryOptions": {}
@@ -729,12 +1610,34 @@
               "options": {
                 "colorMode": "background_solid",
                 "graphMode": "none",
-                "reduceOptions": {"calcs": ["lastNotNull"],"fields": "","values": false}
+                "reduceOptions": {
+                  "calcs": [
+                    "lastNotNull"
+                  ],
+                  "fields": "",
+                  "values": false
+                }
               },
               "fieldConfig": {
                 "defaults": {
                   "unit": "s",
-                  "thresholds": {"mode": "absolute","steps": [{"value": null,"color": "green"},{"value": 60,"color": "yellow"},{"value": 180,"color": "red"}]}
+                  "thresholds": {
+                    "mode": "absolute",
+                    "steps": [
+                      {
+                        "value": null,
+                        "color": "green"
+                      },
+                      {
+                        "value": 60,
+                        "color": "yellow"
+                      },
+                      {
+                        "value": 180,
+                        "color": "red"
+                      }
+                    ]
+                  }
                 },
                 "overrides": []
               }
@@ -753,11 +1656,86 @@
             "kind": "QueryGroup",
             "spec": {
               "queries": [
-                {"kind": "PanelQuery","spec": {"query": {"kind": "DataQuery","group": "","version": "v0","spec": {"expr": "live_overlay_uptimerobot_monitors_total_total{job=\"live_overlay\"}","legendFormat": "total"}},"refId": "A","hidden": false}},
-                {"kind": "PanelQuery","spec": {"query": {"kind": "DataQuery","group": "","version": "v0","spec": {"expr": "live_overlay_uptimerobot_monitors_up_total{job=\"live_overlay\"}","legendFormat": "up"}},"refId": "B","hidden": false}},
-                {"kind": "PanelQuery","spec": {"query": {"kind": "DataQuery","group": "","version": "v0","spec": {"expr": "live_overlay_uptimerobot_monitors_down_total{job=\"live_overlay\"}","legendFormat": "down"}},"refId": "C","hidden": false}},
-                {"kind": "PanelQuery","spec": {"query": {"kind": "DataQuery","group": "","version": "v0","spec": {"expr": "live_overlay_uptimerobot_monitors_paused_total{job=\"live_overlay\"}","legendFormat": "paused"}},"refId": "D","hidden": false}},
-                {"kind": "PanelQuery","spec": {"query": {"kind": "DataQuery","group": "","version": "v0","spec": {"expr": "live_overlay_uptimerobot_monitors_response_time_ms_avg{job=\"live_overlay\"}","legendFormat": "avg response (ms)"}},"refId": "E","hidden": false}}
+                {
+                  "kind": "PanelQuery",
+                  "spec": {
+                    "query": {
+                      "kind": "DataQuery",
+                      "group": "",
+                      "version": "v0",
+                      "spec": {
+                        "expr": "live_overlay_uptimerobot_monitors_total_total{job=\"live_overlay\"}",
+                        "legendFormat": "total"
+                      }
+                    },
+                    "refId": "A",
+                    "hidden": false
+                  }
+                },
+                {
+                  "kind": "PanelQuery",
+                  "spec": {
+                    "query": {
+                      "kind": "DataQuery",
+                      "group": "",
+                      "version": "v0",
+                      "spec": {
+                        "expr": "live_overlay_uptimerobot_monitors_up_total{job=\"live_overlay\"}",
+                        "legendFormat": "up"
+                      }
+                    },
+                    "refId": "B",
+                    "hidden": false
+                  }
+                },
+                {
+                  "kind": "PanelQuery",
+                  "spec": {
+                    "query": {
+                      "kind": "DataQuery",
+                      "group": "",
+                      "version": "v0",
+                      "spec": {
+                        "expr": "live_overlay_uptimerobot_monitors_down_total{job=\"live_overlay\"}",
+                        "legendFormat": "down"
+                      }
+                    },
+                    "refId": "C",
+                    "hidden": false
+                  }
+                },
+                {
+                  "kind": "PanelQuery",
+                  "spec": {
+                    "query": {
+                      "kind": "DataQuery",
+                      "group": "",
+                      "version": "v0",
+                      "spec": {
+                        "expr": "live_overlay_uptimerobot_monitors_paused_total{job=\"live_overlay\"}",
+                        "legendFormat": "paused"
+                      }
+                    },
+                    "refId": "D",
+                    "hidden": false
+                  }
+                },
+                {
+                  "kind": "PanelQuery",
+                  "spec": {
+                    "query": {
+                      "kind": "DataQuery",
+                      "group": "",
+                      "version": "v0",
+                      "spec": {
+                        "expr": "live_overlay_uptimerobot_monitors_response_time_ms_avg{job=\"live_overlay\"}",
+                        "legendFormat": "avg response (ms)"
+                      }
+                    },
+                    "refId": "E",
+                    "hidden": false
+                  }
+                }
               ],
               "transformations": [],
               "queryOptions": {}
@@ -769,12 +1747,37 @@
             "version": "",
             "spec": {
               "options": {
-                "legend": {"calcs": ["lastNotNull"],"displayMode": "list","placement": "bottom","showLegend": true},
-                "tooltip": {"mode": "multi","sort": "none"}
+                "legend": {
+                  "calcs": [
+                    "lastNotNull"
+                  ],
+                  "displayMode": "list",
+                  "placement": "bottom",
+                  "showLegend": true
+                },
+                "tooltip": {
+                  "mode": "multi",
+                  "sort": "none"
+                }
               },
               "fieldConfig": {
-                "defaults": {"unit": "short"},
-                "overrides": [{"matcher": {"id": "byName","options": "avg response (ms)"},"properties": [{"id": "unit","value": "ms"}]}]
+                "defaults": {
+                  "unit": "short"
+                },
+                "overrides": [
+                  {
+                    "matcher": {
+                      "id": "byName",
+                      "options": "avg response (ms)"
+                    },
+                    "properties": [
+                      {
+                        "id": "unit",
+                        "value": "ms"
+                      }
+                    ]
+                  }
+                ]
               }
             }
           }
@@ -791,7 +1794,22 @@
             "kind": "QueryGroup",
             "spec": {
               "queries": [
-                {"kind": "PanelQuery","spec": {"query": {"kind": "DataQuery","group": "","version": "v0","spec": {"expr": "live_overlay_github_workflow_bridge_enabled{job=\"live_overlay\"} + live_overlay_github_workflow_scrape_success{job=\"live_overlay\"}","legendFormat": "bridge_state"}},"refId": "A","hidden": false}}
+                {
+                  "kind": "PanelQuery",
+                  "spec": {
+                    "query": {
+                      "kind": "DataQuery",
+                      "group": "",
+                      "version": "v0",
+                      "spec": {
+                        "expr": "live_overlay_github_workflow_bridge_enabled{job=\"live_overlay\"} + live_overlay_github_workflow_scrape_success{job=\"live_overlay\"}",
+                        "legendFormat": "bridge_state"
+                      }
+                    },
+                    "refId": "A",
+                    "hidden": false
+                  }
+                }
               ],
               "transformations": [],
               "queryOptions": {}
@@ -805,12 +1823,44 @@
               "options": {
                 "colorMode": "background_solid",
                 "graphMode": "none",
-                "reduceOptions": {"calcs": ["lastNotNull"],"fields": "","values": false}
+                "reduceOptions": {
+                  "calcs": [
+                    "lastNotNull"
+                  ],
+                  "fields": "",
+                  "values": false
+                }
               },
               "fieldConfig": {
                 "defaults": {
-                  "mappings": [{"type": "value","options": {"0": {"text": "DISABLED","color": "gray"},"1": {"text": "SCRAPE ERROR","color": "red"},"2": {"text": "OK","color": "green"}}}],
-                  "thresholds": {"mode": "absolute","steps": [{"value": null,"color": "gray"}]}
+                  "mappings": [
+                    {
+                      "type": "value",
+                      "options": {
+                        "0": {
+                          "text": "DISABLED",
+                          "color": "gray"
+                        },
+                        "1": {
+                          "text": "SCRAPE ERROR",
+                          "color": "red"
+                        },
+                        "2": {
+                          "text": "OK",
+                          "color": "green"
+                        }
+                      }
+                    }
+                  ],
+                  "thresholds": {
+                    "mode": "absolute",
+                    "steps": [
+                      {
+                        "value": null,
+                        "color": "gray"
+                      }
+                    ]
+                  }
                 },
                 "overrides": []
               }
@@ -829,7 +1879,22 @@
             "kind": "QueryGroup",
             "spec": {
               "queries": [
-                {"kind": "PanelQuery","spec": {"query": {"kind": "DataQuery","group": "","version": "v0","spec": {"expr": "live_overlay_github_workflow_snapshot_age_seconds{job=\"live_overlay\"}","legendFormat": "snapshot_age"}},"refId": "A","hidden": false}}
+                {
+                  "kind": "PanelQuery",
+                  "spec": {
+                    "query": {
+                      "kind": "DataQuery",
+                      "group": "",
+                      "version": "v0",
+                      "spec": {
+                        "expr": "live_overlay_github_workflow_snapshot_age_seconds{job=\"live_overlay\"}",
+                        "legendFormat": "snapshot_age"
+                      }
+                    },
+                    "refId": "A",
+                    "hidden": false
+                  }
+                }
               ],
               "transformations": [],
               "queryOptions": {}
@@ -843,12 +1908,34 @@
               "options": {
                 "colorMode": "background_solid",
                 "graphMode": "none",
-                "reduceOptions": {"calcs": ["lastNotNull"],"fields": "","values": false}
+                "reduceOptions": {
+                  "calcs": [
+                    "lastNotNull"
+                  ],
+                  "fields": "",
+                  "values": false
+                }
               },
               "fieldConfig": {
                 "defaults": {
                   "unit": "s",
-                  "thresholds": {"mode": "absolute","steps": [{"value": null,"color": "green"},{"value": 60,"color": "yellow"},{"value": 180,"color": "red"}]}
+                  "thresholds": {
+                    "mode": "absolute",
+                    "steps": [
+                      {
+                        "value": null,
+                        "color": "green"
+                      },
+                      {
+                        "value": 60,
+                        "color": "yellow"
+                      },
+                      {
+                        "value": 180,
+                        "color": "red"
+                      }
+                    ]
+                  }
                 },
                 "overrides": []
               }
@@ -867,11 +1954,86 @@
             "kind": "QueryGroup",
             "spec": {
               "queries": [
-                {"kind": "PanelQuery","spec": {"query": {"kind": "DataQuery","group": "","version": "v0","spec": {"expr": "live_overlay_github_workflow_runs_seen_total{job=\"live_overlay\"}","legendFormat": "seen"}},"refId": "A","hidden": false}},
-                {"kind": "PanelQuery","spec": {"query": {"kind": "DataQuery","group": "","version": "v0","spec": {"expr": "live_overlay_github_workflow_runs_success_total{job=\"live_overlay\"}","legendFormat": "success"}},"refId": "B","hidden": false}},
-                {"kind": "PanelQuery","spec": {"query": {"kind": "DataQuery","group": "","version": "v0","spec": {"expr": "live_overlay_github_workflow_runs_failed_total{job=\"live_overlay\"}","legendFormat": "failed"}},"refId": "C","hidden": false}},
-                {"kind": "PanelQuery","spec": {"query": {"kind": "DataQuery","group": "","version": "v0","spec": {"expr": "live_overlay_github_workflow_runs_in_progress_total{job=\"live_overlay\"}","legendFormat": "in_progress"}},"refId": "D","hidden": false}},
-                {"kind": "PanelQuery","spec": {"query": {"kind": "DataQuery","group": "","version": "v0","spec": {"expr": "live_overlay_github_workflow_runs_queued_total{job=\"live_overlay\"}","legendFormat": "queued"}},"refId": "E","hidden": false}}
+                {
+                  "kind": "PanelQuery",
+                  "spec": {
+                    "query": {
+                      "kind": "DataQuery",
+                      "group": "",
+                      "version": "v0",
+                      "spec": {
+                        "expr": "live_overlay_github_workflow_runs_seen_total{job=\"live_overlay\"}",
+                        "legendFormat": "seen"
+                      }
+                    },
+                    "refId": "A",
+                    "hidden": false
+                  }
+                },
+                {
+                  "kind": "PanelQuery",
+                  "spec": {
+                    "query": {
+                      "kind": "DataQuery",
+                      "group": "",
+                      "version": "v0",
+                      "spec": {
+                        "expr": "live_overlay_github_workflow_runs_success_total{job=\"live_overlay\"}",
+                        "legendFormat": "success"
+                      }
+                    },
+                    "refId": "B",
+                    "hidden": false
+                  }
+                },
+                {
+                  "kind": "PanelQuery",
+                  "spec": {
+                    "query": {
+                      "kind": "DataQuery",
+                      "group": "",
+                      "version": "v0",
+                      "spec": {
+                        "expr": "live_overlay_github_workflow_runs_failed_total{job=\"live_overlay\"}",
+                        "legendFormat": "failed"
+                      }
+                    },
+                    "refId": "C",
+                    "hidden": false
+                  }
+                },
+                {
+                  "kind": "PanelQuery",
+                  "spec": {
+                    "query": {
+                      "kind": "DataQuery",
+                      "group": "",
+                      "version": "v0",
+                      "spec": {
+                        "expr": "live_overlay_github_workflow_runs_in_progress_total{job=\"live_overlay\"}",
+                        "legendFormat": "in_progress"
+                      }
+                    },
+                    "refId": "D",
+                    "hidden": false
+                  }
+                },
+                {
+                  "kind": "PanelQuery",
+                  "spec": {
+                    "query": {
+                      "kind": "DataQuery",
+                      "group": "",
+                      "version": "v0",
+                      "spec": {
+                        "expr": "live_overlay_github_workflow_runs_queued_total{job=\"live_overlay\"}",
+                        "legendFormat": "queued"
+                      }
+                    },
+                    "refId": "E",
+                    "hidden": false
+                  }
+                }
               ],
               "transformations": [],
               "queryOptions": {}
@@ -883,10 +2045,25 @@
             "version": "",
             "spec": {
               "options": {
-                "legend": {"calcs": ["lastNotNull"],"displayMode": "list","placement": "bottom","showLegend": true},
-                "tooltip": {"mode": "multi","sort": "none"}
+                "legend": {
+                  "calcs": [
+                    "lastNotNull"
+                  ],
+                  "displayMode": "list",
+                  "placement": "bottom",
+                  "showLegend": true
+                },
+                "tooltip": {
+                  "mode": "multi",
+                  "sort": "none"
+                }
               },
-              "fieldConfig": {"defaults": {"unit": "short"},"overrides": []}
+              "fieldConfig": {
+                "defaults": {
+                  "unit": "short"
+                },
+                "overrides": []
+              }
             }
           }
         }
@@ -902,7 +2079,22 @@
             "kind": "QueryGroup",
             "spec": {
               "queries": [
-                {"kind": "PanelQuery","spec": {"query": {"kind": "DataQuery","group": "","version": "v0","spec": {"expr": "live_overlay_uptime_seconds{job=\"live_overlay\"}","legendFormat": "Uptime"}},"refId": "A","hidden": false}}
+                {
+                  "kind": "PanelQuery",
+                  "spec": {
+                    "query": {
+                      "kind": "DataQuery",
+                      "group": "",
+                      "version": "v0",
+                      "spec": {
+                        "expr": "live_overlay_uptime_seconds{job=\"live_overlay\"}",
+                        "legendFormat": "Uptime"
+                      }
+                    },
+                    "refId": "A",
+                    "hidden": false
+                  }
+                }
               ],
               "transformations": [],
               "queryOptions": {}
@@ -918,7 +2110,23 @@
                 "defaults": {
                   "unit": "s",
                   "decimals": 0,
-                  "thresholds": {"mode": "absolute","steps": [{"value": null,"color": "red"},{"value": 360,"color": "yellow"},{"value": 3600,"color": "green"}]}
+                  "thresholds": {
+                    "mode": "absolute",
+                    "steps": [
+                      {
+                        "value": null,
+                        "color": "red"
+                      },
+                      {
+                        "value": 360,
+                        "color": "yellow"
+                      },
+                      {
+                        "value": 3600,
+                        "color": "green"
+                      }
+                    ]
+                  }
                 },
                 "overrides": []
               }
@@ -937,8 +2145,38 @@
             "kind": "QueryGroup",
             "spec": {
               "queries": [
-                {"kind": "PanelQuery","spec": {"query": {"kind": "DataQuery","group": "","version": "v0","spec": {"expr": "live_overlay_github_workflow_latest_run_age_seconds{job=\"live_overlay\"}","legendFormat": "latest age (s)"}},"refId": "A","hidden": false}},
-                {"kind": "PanelQuery","spec": {"query": {"kind": "DataQuery","group": "","version": "v0","spec": {"expr": "live_overlay_github_workflow_latest_run_duration_seconds{job=\"live_overlay\"}","legendFormat": "latest duration (s)"}},"refId": "B","hidden": false}}
+                {
+                  "kind": "PanelQuery",
+                  "spec": {
+                    "query": {
+                      "kind": "DataQuery",
+                      "group": "",
+                      "version": "v0",
+                      "spec": {
+                        "expr": "live_overlay_github_workflow_latest_run_age_seconds{job=\"live_overlay\"}",
+                        "legendFormat": "latest age (s)"
+                      }
+                    },
+                    "refId": "A",
+                    "hidden": false
+                  }
+                },
+                {
+                  "kind": "PanelQuery",
+                  "spec": {
+                    "query": {
+                      "kind": "DataQuery",
+                      "group": "",
+                      "version": "v0",
+                      "spec": {
+                        "expr": "live_overlay_github_workflow_latest_run_duration_seconds{job=\"live_overlay\"}",
+                        "legendFormat": "latest duration (s)"
+                      }
+                    },
+                    "refId": "B",
+                    "hidden": false
+                  }
+                }
               ],
               "transformations": [],
               "queryOptions": {}
@@ -950,14 +2188,48 @@
             "version": "",
             "spec": {
               "options": {
-                "legend": {"calcs": ["lastNotNull"],"displayMode": "list","placement": "bottom","showLegend": true},
-                "tooltip": {"mode": "multi","sort": "none"}
+                "legend": {
+                  "calcs": [
+                    "lastNotNull"
+                  ],
+                  "displayMode": "list",
+                  "placement": "bottom",
+                  "showLegend": true
+                },
+                "tooltip": {
+                  "mode": "multi",
+                  "sort": "none"
+                }
               },
               "fieldConfig": {
-                "defaults": {"unit": "s"},
+                "defaults": {
+                  "unit": "s"
+                },
                 "overrides": [
-                  {"matcher": {"id": "byName","options": "latest age (s)"},"properties": [{"id": "unit","value": "s"}]},
-                  {"matcher": {"id": "byName","options": "latest duration (s)"},"properties": [{"id": "unit","value": "s"}]}
+                  {
+                    "matcher": {
+                      "id": "byName",
+                      "options": "latest age (s)"
+                    },
+                    "properties": [
+                      {
+                        "id": "unit",
+                        "value": "s"
+                      }
+                    ]
+                  },
+                  {
+                    "matcher": {
+                      "id": "byName",
+                      "options": "latest duration (s)"
+                    },
+                    "properties": [
+                      {
+                        "id": "unit",
+                        "value": "s"
+                      }
+                    ]
+                  }
                 ]
               }
             }
@@ -975,9 +2247,54 @@
             "kind": "QueryGroup",
             "spec": {
               "queries": [
-                {"kind": "PanelQuery","spec": {"query": {"kind": "DataQuery","group": "","version": "v0","spec": {"expr": "live_overlay_market_us_open{job=\"live_overlay\"}","legendFormat": "US"}},"refId": "A","hidden": false}},
-                {"kind": "PanelQuery","spec": {"query": {"kind": "DataQuery","group": "","version": "v0","spec": {"expr": "live_overlay_market_europe_open{job=\"live_overlay\"}","legendFormat": "Europe"}},"refId": "B","hidden": false}},
-                {"kind": "PanelQuery","spec": {"query": {"kind": "DataQuery","group": "","version": "v0","spec": {"expr": "live_overlay_market_asia_open{job=\"live_overlay\"}","legendFormat": "Asia"}},"refId": "C","hidden": false}}
+                {
+                  "kind": "PanelQuery",
+                  "spec": {
+                    "query": {
+                      "kind": "DataQuery",
+                      "group": "",
+                      "version": "v0",
+                      "spec": {
+                        "expr": "live_overlay_market_us_open{job=\"live_overlay\"}",
+                        "legendFormat": "US"
+                      }
+                    },
+                    "refId": "A",
+                    "hidden": false
+                  }
+                },
+                {
+                  "kind": "PanelQuery",
+                  "spec": {
+                    "query": {
+                      "kind": "DataQuery",
+                      "group": "",
+                      "version": "v0",
+                      "spec": {
+                        "expr": "live_overlay_market_europe_open{job=\"live_overlay\"}",
+                        "legendFormat": "Europe"
+                      }
+                    },
+                    "refId": "B",
+                    "hidden": false
+                  }
+                },
+                {
+                  "kind": "PanelQuery",
+                  "spec": {
+                    "query": {
+                      "kind": "DataQuery",
+                      "group": "",
+                      "version": "v0",
+                      "spec": {
+                        "expr": "live_overlay_market_asia_open{job=\"live_overlay\"}",
+                        "legendFormat": "Asia"
+                      }
+                    },
+                    "refId": "C",
+                    "hidden": false
+                  }
+                }
               ],
               "transformations": [],
               "queryOptions": {}
@@ -989,17 +2306,50 @@
             "version": "",
             "spec": {
               "options": {
-                "legend": {"displayMode": "list","placement": "bottom","showLegend": false},
+                "legend": {
+                  "displayMode": "list",
+                  "placement": "bottom",
+                  "showLegend": false
+                },
                 "rowHeight": 0.9,
-                "tooltip": {"mode": "multi","sort": "none"}
+                "tooltip": {
+                  "mode": "multi",
+                  "sort": "none"
+                }
               },
               "fieldConfig": {
                 "defaults": {
                   "min": 0,
                   "max": 1,
-                  "mappings": [{"type": "value","options": {"0": {"text": "CLOSED"},"1": {"text": "OPEN"}}}],
-                  "thresholds": {"mode": "absolute","steps": [{"value": null,"color": "gray"},{"value": 1,"color": "green"}]},
-                  "color": {"mode": "thresholds"}
+                  "mappings": [
+                    {
+                      "type": "value",
+                      "options": {
+                        "0": {
+                          "text": "CLOSED"
+                        },
+                        "1": {
+                          "text": "OPEN"
+                        }
+                      }
+                    }
+                  ],
+                  "thresholds": {
+                    "mode": "absolute",
+                    "steps": [
+                      {
+                        "value": null,
+                        "color": "gray"
+                      },
+                      {
+                        "value": 1,
+                        "color": "green"
+                      }
+                    ]
+                  },
+                  "color": {
+                    "mode": "thresholds"
+                  }
                 },
                 "overrides": []
               }
@@ -1018,8 +2368,38 @@
             "kind": "QueryGroup",
             "spec": {
               "queries": [
-                {"kind": "PanelQuery","spec": {"query": {"kind": "DataQuery","group": "","version": "v0","spec": {"expr": "live_overlay_smc_live_latency_p95_ms{job=\"live_overlay\"} and on(job) (live_overlay_market_open{job=\"live_overlay\"} == 1)","legendFormat": "p95"}},"refId": "A","hidden": false}},
-                {"kind": "PanelQuery","spec": {"query": {"kind": "DataQuery","group": "","version": "v0","spec": {"expr": "live_overlay_smc_live_latency_p99_ms{job=\"live_overlay\"} and on(job) (live_overlay_market_open{job=\"live_overlay\"} == 1)","legendFormat": "p99"}},"refId": "B","hidden": false}}
+                {
+                  "kind": "PanelQuery",
+                  "spec": {
+                    "query": {
+                      "kind": "DataQuery",
+                      "group": "",
+                      "version": "v0",
+                      "spec": {
+                        "expr": "live_overlay_smc_live_latency_p95_ms{job=\"live_overlay\"} and on(job) (live_overlay_market_open{job=\"live_overlay\"} == 1)",
+                        "legendFormat": "p95"
+                      }
+                    },
+                    "refId": "A",
+                    "hidden": false
+                  }
+                },
+                {
+                  "kind": "PanelQuery",
+                  "spec": {
+                    "query": {
+                      "kind": "DataQuery",
+                      "group": "",
+                      "version": "v0",
+                      "spec": {
+                        "expr": "live_overlay_smc_live_latency_p99_ms{job=\"live_overlay\"} and on(job) (live_overlay_market_open{job=\"live_overlay\"} == 1)",
+                        "legendFormat": "p99"
+                      }
+                    },
+                    "refId": "B",
+                    "hidden": false
+                  }
+                }
               ],
               "transformations": [],
               "queryOptions": {}
@@ -1031,13 +2411,43 @@
             "version": "",
             "spec": {
               "options": {
-                "legend": {"calcs": ["lastNotNull"],"displayMode": "list","placement": "bottom","showLegend": true},
-                "tooltip": {"mode": "multi","sort": "none"}
+                "legend": {
+                  "calcs": [
+                    "lastNotNull"
+                  ],
+                  "displayMode": "list",
+                  "placement": "bottom",
+                  "showLegend": true
+                },
+                "tooltip": {
+                  "mode": "multi",
+                  "sort": "none"
+                }
               },
               "fieldConfig": {
                 "defaults": {
                   "unit": "ms",
-                  "thresholds": {"mode": "absolute","steps": [{"value": null,"color": "green"},{"value": 200,"color": "yellow"},{"value": 350,"color": "orange"},{"value": 500,"color": "red"}]},
+                  "thresholds": {
+                    "mode": "absolute",
+                    "steps": [
+                      {
+                        "value": null,
+                        "color": "green"
+                      },
+                      {
+                        "value": 200,
+                        "color": "yellow"
+                      },
+                      {
+                        "value": 350,
+                        "color": "orange"
+                      },
+                      {
+                        "value": 500,
+                        "color": "red"
+                      }
+                    ]
+                  },
                   "noValue": "MARKET CLOSED"
                 },
                 "overrides": []
@@ -1057,7 +2467,22 @@
             "kind": "QueryGroup",
             "spec": {
               "queries": [
-                {"kind": "PanelQuery","spec": {"query": {"kind": "DataQuery","group": "","version": "v0","spec": {"expr": "100 * sum_over_time((live_overlay_overlay_fresh{job=\"live_overlay\"} * live_overlay_market_open{job=\"live_overlay\"})[1h]) / clamp_min(sum_over_time(live_overlay_market_open{job=\"live_overlay\"}[1h]), 1)","legendFormat": "freshness_slo"}},"refId": "A","hidden": false}}
+                {
+                  "kind": "PanelQuery",
+                  "spec": {
+                    "query": {
+                      "kind": "DataQuery",
+                      "group": "",
+                      "version": "v0",
+                      "spec": {
+                        "expr": "100 * sum_over_time((live_overlay_overlay_fresh{job=\"live_overlay\"} * live_overlay_market_open{job=\"live_overlay\"})[1h]) / clamp_min(sum_over_time(live_overlay_market_open{job=\"live_overlay\"}[1h]), 1)",
+                        "legendFormat": "freshness_slo"
+                      }
+                    },
+                    "refId": "A",
+                    "hidden": false
+                  }
+                }
               ],
               "transformations": [],
               "queryOptions": {}
@@ -1071,14 +2496,36 @@
               "options": {
                 "colorMode": "background_solid",
                 "graphMode": "area",
-                "reduceOptions": {"calcs": ["lastNotNull"],"fields": "","values": false}
+                "reduceOptions": {
+                  "calcs": [
+                    "lastNotNull"
+                  ],
+                  "fields": "",
+                  "values": false
+                }
               },
               "fieldConfig": {
                 "defaults": {
                   "unit": "percent",
                   "min": 0,
                   "max": 100,
-                  "thresholds": {"mode": "absolute","steps": [{"value": null,"color": "red"},{"value": 95,"color": "yellow"},{"value": 99,"color": "green"}]},
+                  "thresholds": {
+                    "mode": "absolute",
+                    "steps": [
+                      {
+                        "value": null,
+                        "color": "red"
+                      },
+                      {
+                        "value": 95,
+                        "color": "yellow"
+                      },
+                      {
+                        "value": 99,
+                        "color": "green"
+                      }
+                    ]
+                  },
                   "noValue": "MARKET CLOSED"
                 },
                 "overrides": []
@@ -1098,7 +2545,22 @@
             "kind": "QueryGroup",
             "spec": {
               "queries": [
-                {"kind": "PanelQuery","spec": {"query": {"kind": "DataQuery","group": "","version": "v0","spec": {"expr": "((2 * (max(live_overlay_market_open{job=\"live_overlay\"}) or vector(0))) + (clamp_max(count(live_overlay_uptime_seconds{job=\"live_overlay\"}), 1) or vector(0)))","legendFormat": "market_session_banner"}},"refId": "A","hidden": false}}
+                {
+                  "kind": "PanelQuery",
+                  "spec": {
+                    "query": {
+                      "kind": "DataQuery",
+                      "group": "",
+                      "version": "v0",
+                      "spec": {
+                        "expr": "((2 * (max(live_overlay_market_open{job=\"live_overlay\"}) or vector(0))) + (clamp_max(count(live_overlay_uptime_seconds{job=\"live_overlay\"}), 1) or vector(0)))",
+                        "legendFormat": "market_session_banner"
+                      }
+                    },
+                    "refId": "A",
+                    "hidden": false
+                  }
+                }
               ],
               "transformations": [],
               "queryOptions": {}
@@ -1112,12 +2574,60 @@
               "options": {
                 "colorMode": "background_solid",
                 "graphMode": "none",
-                "reduceOptions": {"calcs": ["lastNotNull"],"fields": "","values": false}
+                "reduceOptions": {
+                  "calcs": [
+                    "lastNotNull"
+                  ],
+                  "fields": "",
+                  "values": false
+                }
               },
               "fieldConfig": {
                 "defaults": {
-                  "mappings": [{"type": "value","options": {"0": {"text": "SERVICE DOWN","color": "red"},"1": {"text": "MARKET CLOSED","color": "gray"},"2": {"text": "OPEN / TELEMETRY MISSING","color": "red"},"3": {"text": "MARKET OPEN","color": "green"}}}],
-                  "thresholds": {"mode": "absolute","steps": [{"value": null,"color": "red"},{"value": 1,"color": "gray"},{"value": 2,"color": "red"},{"value": 3,"color": "green"}]}
+                  "mappings": [
+                    {
+                      "type": "value",
+                      "options": {
+                        "0": {
+                          "text": "SERVICE DOWN",
+                          "color": "red"
+                        },
+                        "1": {
+                          "text": "MARKET CLOSED",
+                          "color": "gray"
+                        },
+                        "2": {
+                          "text": "OPEN / TELEMETRY MISSING",
+                          "color": "red"
+                        },
+                        "3": {
+                          "text": "MARKET OPEN",
+                          "color": "green"
+                        }
+                      }
+                    }
+                  ],
+                  "thresholds": {
+                    "mode": "absolute",
+                    "steps": [
+                      {
+                        "value": null,
+                        "color": "red"
+                      },
+                      {
+                        "value": 1,
+                        "color": "gray"
+                      },
+                      {
+                        "value": 2,
+                        "color": "red"
+                      },
+                      {
+                        "value": 3,
+                        "color": "green"
+                      }
+                    ]
+                  }
                 },
                 "overrides": []
               }
@@ -1136,8 +2646,38 @@
             "kind": "QueryGroup",
             "spec": {
               "queries": [
-                {"kind": "PanelQuery","spec": {"query": {"kind": "DataQuery","group": "","version": "v0","spec": {"expr": "((1 - (sum(rate(live_overlay_smc_live_success_total{job=\"live_overlay\"}[5m])) / clamp_min(sum(rate(live_overlay_smc_live_requests_total{job=\"live_overlay\"}[5m])), 1e-9))) / 0.01) and on() (max(live_overlay_market_open{job=\"live_overlay\"}) == 1)","legendFormat": "burn_5m"}},"refId": "A","hidden": false}},
-                {"kind": "PanelQuery","spec": {"query": {"kind": "DataQuery","group": "","version": "v0","spec": {"expr": "((1 - (sum(rate(live_overlay_smc_live_success_total{job=\"live_overlay\"}[1h])) / clamp_min(sum(rate(live_overlay_smc_live_requests_total{job=\"live_overlay\"}[1h])), 1e-9))) / 0.01) and on() (max(live_overlay_market_open{job=\"live_overlay\"}) == 1)","legendFormat": "burn_1h"}},"refId": "B","hidden": false}}
+                {
+                  "kind": "PanelQuery",
+                  "spec": {
+                    "query": {
+                      "kind": "DataQuery",
+                      "group": "",
+                      "version": "v0",
+                      "spec": {
+                        "expr": "((1 - (sum(rate(live_overlay_smc_live_success_total{job=\"live_overlay\"}[5m])) / clamp_min(sum(rate(live_overlay_smc_live_requests_total{job=\"live_overlay\"}[5m])), 1e-9))) / 0.01) and on() (max(live_overlay_market_open{job=\"live_overlay\"}) == 1)",
+                        "legendFormat": "burn_5m"
+                      }
+                    },
+                    "refId": "A",
+                    "hidden": false
+                  }
+                },
+                {
+                  "kind": "PanelQuery",
+                  "spec": {
+                    "query": {
+                      "kind": "DataQuery",
+                      "group": "",
+                      "version": "v0",
+                      "spec": {
+                        "expr": "((1 - (sum(rate(live_overlay_smc_live_success_total{job=\"live_overlay\"}[1h])) / clamp_min(sum(rate(live_overlay_smc_live_requests_total{job=\"live_overlay\"}[1h])), 1e-9))) / 0.01) and on() (max(live_overlay_market_open{job=\"live_overlay\"}) == 1)",
+                        "legendFormat": "burn_1h"
+                      }
+                    },
+                    "refId": "B",
+                    "hidden": false
+                  }
+                }
               ],
               "transformations": [],
               "queryOptions": {}
@@ -1149,13 +2689,43 @@
             "version": "",
             "spec": {
               "options": {
-                "legend": {"calcs": ["lastNotNull"],"displayMode": "list","placement": "bottom","showLegend": true},
-                "tooltip": {"mode": "multi","sort": "none"}
+                "legend": {
+                  "calcs": [
+                    "lastNotNull"
+                  ],
+                  "displayMode": "list",
+                  "placement": "bottom",
+                  "showLegend": true
+                },
+                "tooltip": {
+                  "mode": "multi",
+                  "sort": "none"
+                }
               },
               "fieldConfig": {
                 "defaults": {
                   "unit": "short",
-                  "thresholds": {"mode": "absolute","steps": [{"value": null,"color": "green"},{"value": 2,"color": "yellow"},{"value": 6,"color": "orange"},{"value": 14,"color": "red"}]},
+                  "thresholds": {
+                    "mode": "absolute",
+                    "steps": [
+                      {
+                        "value": null,
+                        "color": "green"
+                      },
+                      {
+                        "value": 2,
+                        "color": "yellow"
+                      },
+                      {
+                        "value": 6,
+                        "color": "orange"
+                      },
+                      {
+                        "value": 14,
+                        "color": "red"
+                      }
+                    ]
+                  },
                   "noValue": "MARKET CLOSED"
                 },
                 "overrides": []
@@ -1175,8 +2745,38 @@
             "kind": "QueryGroup",
             "spec": {
               "queries": [
-                {"kind": "PanelQuery","spec": {"query": {"kind": "DataQuery","group": "","version": "v0","spec": {"expr": "live_overlay_uptimerobot_scrape_success{job=\"live_overlay\"}","legendFormat": "UptimeRobot"}},"refId": "A","hidden": false}},
-                {"kind": "PanelQuery","spec": {"query": {"kind": "DataQuery","group": "","version": "v0","spec": {"expr": "live_overlay_github_workflow_scrape_success{job=\"live_overlay\"}","legendFormat": "GitHub Workflows"}},"refId": "B","hidden": false}}
+                {
+                  "kind": "PanelQuery",
+                  "spec": {
+                    "query": {
+                      "kind": "DataQuery",
+                      "group": "",
+                      "version": "v0",
+                      "spec": {
+                        "expr": "live_overlay_uptimerobot_scrape_success{job=\"live_overlay\"}",
+                        "legendFormat": "UptimeRobot"
+                      }
+                    },
+                    "refId": "A",
+                    "hidden": false
+                  }
+                },
+                {
+                  "kind": "PanelQuery",
+                  "spec": {
+                    "query": {
+                      "kind": "DataQuery",
+                      "group": "",
+                      "version": "v0",
+                      "spec": {
+                        "expr": "live_overlay_github_workflow_scrape_success{job=\"live_overlay\"}",
+                        "legendFormat": "GitHub Workflows"
+                      }
+                    },
+                    "refId": "B",
+                    "hidden": false
+                  }
+                }
               ],
               "transformations": [],
               "queryOptions": {}
@@ -1188,17 +2788,50 @@
             "version": "",
             "spec": {
               "options": {
-                "legend": {"displayMode": "list","placement": "bottom","showLegend": false},
+                "legend": {
+                  "displayMode": "list",
+                  "placement": "bottom",
+                  "showLegend": false
+                },
                 "rowHeight": 0.9,
-                "tooltip": {"mode": "multi","sort": "none"}
+                "tooltip": {
+                  "mode": "multi",
+                  "sort": "none"
+                }
               },
               "fieldConfig": {
                 "defaults": {
                   "min": 0,
                   "max": 1,
-                  "mappings": [{"type": "value","options": {"0": {"text": "ERROR"},"1": {"text": "OK"}}}],
-                  "thresholds": {"mode": "absolute","steps": [{"value": null,"color": "red"},{"value": 1,"color": "green"}]},
-                  "color": {"mode": "thresholds"}
+                  "mappings": [
+                    {
+                      "type": "value",
+                      "options": {
+                        "0": {
+                          "text": "ERROR"
+                        },
+                        "1": {
+                          "text": "OK"
+                        }
+                      }
+                    }
+                  ],
+                  "thresholds": {
+                    "mode": "absolute",
+                    "steps": [
+                      {
+                        "value": null,
+                        "color": "red"
+                      },
+                      {
+                        "value": 1,
+                        "color": "green"
+                      }
+                    ]
+                  },
+                  "color": {
+                    "mode": "thresholds"
+                  }
                 },
                 "overrides": []
               }
@@ -1217,7 +2850,22 @@
             "kind": "QueryGroup",
             "spec": {
               "queries": [
-                {"kind": "PanelQuery","spec": {"query": {"kind": "DataQuery","group": "","version": "v0","spec": {"expr": "sum by (__name__) (increase({__name__=~\"live_overlay_daemon_restart_cause_.*_total\",job=\"live_overlay\"}[24h]))","legendFormat": "{{__name__}}"}},"refId": "A","hidden": false}}
+                {
+                  "kind": "PanelQuery",
+                  "spec": {
+                    "query": {
+                      "kind": "DataQuery",
+                      "group": "",
+                      "version": "v0",
+                      "spec": {
+                        "expr": "sum by (__name__) (increase({__name__=~\"live_overlay_daemon_restart_cause_.*_total\",job=\"live_overlay\"}[24h]))",
+                        "legendFormat": "{{__name__}}"
+                      }
+                    },
+                    "refId": "A",
+                    "hidden": false
+                  }
+                }
               ],
               "transformations": [],
               "queryOptions": {}
@@ -1229,10 +2877,25 @@
             "version": "",
             "spec": {
               "options": {
-                "legend": {"calcs": ["lastNotNull"],"displayMode": "list","placement": "bottom","showLegend": true},
-                "tooltip": {"mode": "multi","sort": "none"}
+                "legend": {
+                  "calcs": [
+                    "lastNotNull"
+                  ],
+                  "displayMode": "list",
+                  "placement": "bottom",
+                  "showLegend": true
+                },
+                "tooltip": {
+                  "mode": "multi",
+                  "sort": "none"
+                }
               },
-              "fieldConfig": {"defaults": {"unit": "short"},"overrides": []}
+              "fieldConfig": {
+                "defaults": {
+                  "unit": "short"
+                },
+                "overrides": []
+              }
             }
           }
         }
@@ -1248,7 +2911,22 @@
             "kind": "QueryGroup",
             "spec": {
               "queries": [
-                {"kind": "PanelQuery","spec": {"query": {"kind": "DataQuery","group": "","version": "v0","spec": {"expr": "{__name__=~\"live_overlay_hotspot_symbol_.*_requests_total\",job=\"live_overlay\"}","legendFormat": "{{__name__}}"}},"refId": "A","hidden": false}}
+                {
+                  "kind": "PanelQuery",
+                  "spec": {
+                    "query": {
+                      "kind": "DataQuery",
+                      "group": "",
+                      "version": "v0",
+                      "spec": {
+                        "expr": "{__name__=~\"live_overlay_hotspot_symbol_.*_requests_total\",job=\"live_overlay\"}",
+                        "legendFormat": "{{__name__}}"
+                      }
+                    },
+                    "refId": "A",
+                    "hidden": false
+                  }
+                }
               ],
               "transformations": [],
               "queryOptions": {}
@@ -1260,10 +2938,25 @@
             "version": "",
             "spec": {
               "options": {
-                "legend": {"calcs": ["lastNotNull"],"displayMode": "list","placement": "bottom","showLegend": true},
-                "tooltip": {"mode": "multi","sort": "none"}
+                "legend": {
+                  "calcs": [
+                    "lastNotNull"
+                  ],
+                  "displayMode": "list",
+                  "placement": "bottom",
+                  "showLegend": true
+                },
+                "tooltip": {
+                  "mode": "multi",
+                  "sort": "none"
+                }
               },
-              "fieldConfig": {"defaults": {"unit": "short"},"overrides": []}
+              "fieldConfig": {
+                "defaults": {
+                  "unit": "short"
+                },
+                "overrides": []
+              }
             }
           }
         }
@@ -1279,7 +2972,22 @@
             "kind": "QueryGroup",
             "spec": {
               "queries": [
-                {"kind": "PanelQuery","spec": {"query": {"kind": "DataQuery","group": "","version": "v0","spec": {"expr": "live_overlay_overlay_symbols{job=\"live_overlay\"}","legendFormat": "Symbols"}},"refId": "A","hidden": false}}
+                {
+                  "kind": "PanelQuery",
+                  "spec": {
+                    "query": {
+                      "kind": "DataQuery",
+                      "group": "",
+                      "version": "v0",
+                      "spec": {
+                        "expr": "live_overlay_overlay_symbols{job=\"live_overlay\"}",
+                        "legendFormat": "Symbols"
+                      }
+                    },
+                    "refId": "A",
+                    "hidden": false
+                  }
+                }
               ],
               "transformations": [],
               "queryOptions": {}
@@ -1292,13 +3000,37 @@
             "spec": {
               "options": {
                 "graphMode": "area",
-                "reduceOptions": {"calcs": ["lastNotNull"],"fields": "","values": false}
+                "reduceOptions": {
+                  "calcs": [
+                    "lastNotNull"
+                  ],
+                  "fields": "",
+                  "values": false
+                }
               },
               "fieldConfig": {
                 "defaults": {
                   "unit": "short",
-                  "mappings": [{"type": "value","options": {"0": {"text": "EMPTY","color": "red"}}}],
-                  "thresholds": {"mode": "absolute","steps": [{"value": null,"color": "green"}]}
+                  "mappings": [
+                    {
+                      "type": "value",
+                      "options": {
+                        "0": {
+                          "text": "EMPTY",
+                          "color": "red"
+                        }
+                      }
+                    }
+                  ],
+                  "thresholds": {
+                    "mode": "absolute",
+                    "steps": [
+                      {
+                        "value": null,
+                        "color": "green"
+                      }
+                    ]
+                  }
                 },
                 "overrides": []
               }
@@ -1317,7 +3049,22 @@
             "kind": "QueryGroup",
             "spec": {
               "queries": [
-                {"kind": "PanelQuery","spec": {"query": {"kind": "DataQuery","group": "","version": "v0","spec": {"expr": "{__name__=~\"live_overlay_hotspot_tf_.*_requests_total\",job=\"live_overlay\"}","legendFormat": "{{__name__}}"}},"refId": "A","hidden": false}}
+                {
+                  "kind": "PanelQuery",
+                  "spec": {
+                    "query": {
+                      "kind": "DataQuery",
+                      "group": "",
+                      "version": "v0",
+                      "spec": {
+                        "expr": "{__name__=~\"live_overlay_hotspot_tf_.*_requests_total\",job=\"live_overlay\"}",
+                        "legendFormat": "{{__name__}}"
+                      }
+                    },
+                    "refId": "A",
+                    "hidden": false
+                  }
+                }
               ],
               "transformations": [],
               "queryOptions": {}
@@ -1329,10 +3076,25 @@
             "version": "",
             "spec": {
               "options": {
-                "legend": {"calcs": ["lastNotNull"],"displayMode": "list","placement": "bottom","showLegend": true},
-                "tooltip": {"mode": "multi","sort": "none"}
+                "legend": {
+                  "calcs": [
+                    "lastNotNull"
+                  ],
+                  "displayMode": "list",
+                  "placement": "bottom",
+                  "showLegend": true
+                },
+                "tooltip": {
+                  "mode": "multi",
+                  "sort": "none"
+                }
               },
-              "fieldConfig": {"defaults": {"unit": "short"},"overrides": []}
+              "fieldConfig": {
+                "defaults": {
+                  "unit": "short"
+                },
+                "overrides": []
+              }
             }
           }
         }
@@ -1348,9 +3110,54 @@
             "kind": "QueryGroup",
             "spec": {
               "queries": [
-                {"kind": "PanelQuery","spec": {"query": {"kind": "DataQuery","group": "","version": "v0","spec": {"expr": "live_overlay_feed_ingest_queue_depth{job=\"live_overlay\"}","legendFormat": "depth"}},"refId": "A","hidden": false}},
-                {"kind": "PanelQuery","spec": {"query": {"kind": "DataQuery","group": "","version": "v0","spec": {"expr": "live_overlay_feed_ingest_queue_depth_max{job=\"live_overlay\"}","legendFormat": "depth max"}},"refId": "B","hidden": false}},
-                {"kind": "PanelQuery","spec": {"query": {"kind": "DataQuery","group": "","version": "v0","spec": {"expr": "live_overlay_feed_ingest_queue_dropped_total{job=\"live_overlay\"}","legendFormat": "dropped total"}},"refId": "C","hidden": false}}
+                {
+                  "kind": "PanelQuery",
+                  "spec": {
+                    "query": {
+                      "kind": "DataQuery",
+                      "group": "",
+                      "version": "v0",
+                      "spec": {
+                        "expr": "live_overlay_feed_ingest_queue_depth{job=\"live_overlay\"}",
+                        "legendFormat": "depth"
+                      }
+                    },
+                    "refId": "A",
+                    "hidden": false
+                  }
+                },
+                {
+                  "kind": "PanelQuery",
+                  "spec": {
+                    "query": {
+                      "kind": "DataQuery",
+                      "group": "",
+                      "version": "v0",
+                      "spec": {
+                        "expr": "live_overlay_feed_ingest_queue_depth_max{job=\"live_overlay\"}",
+                        "legendFormat": "depth max"
+                      }
+                    },
+                    "refId": "B",
+                    "hidden": false
+                  }
+                },
+                {
+                  "kind": "PanelQuery",
+                  "spec": {
+                    "query": {
+                      "kind": "DataQuery",
+                      "group": "",
+                      "version": "v0",
+                      "spec": {
+                        "expr": "live_overlay_feed_ingest_queue_dropped_total{job=\"live_overlay\"}",
+                        "legendFormat": "dropped total"
+                      }
+                    },
+                    "refId": "C",
+                    "hidden": false
+                  }
+                }
               ],
               "transformations": [],
               "queryOptions": {}
@@ -1362,10 +3169,25 @@
             "version": "",
             "spec": {
               "options": {
-                "legend": {"calcs": ["lastNotNull"],"displayMode": "list","placement": "bottom","showLegend": true},
-                "tooltip": {"mode": "multi","sort": "none"}
+                "legend": {
+                  "calcs": [
+                    "lastNotNull"
+                  ],
+                  "displayMode": "list",
+                  "placement": "bottom",
+                  "showLegend": true
+                },
+                "tooltip": {
+                  "mode": "multi",
+                  "sort": "none"
+                }
               },
-              "fieldConfig": {"defaults": {"unit": "short"},"overrides": []}
+              "fieldConfig": {
+                "defaults": {
+                  "unit": "short"
+                },
+                "overrides": []
+              }
             }
           }
         }
@@ -1381,8 +3203,38 @@
             "kind": "QueryGroup",
             "spec": {
               "queries": [
-                {"kind": "PanelQuery","spec": {"query": {"kind": "DataQuery","group": "","version": "v0","spec": {"expr": "live_overlay_feed_ingest_queue_lag_ms_last{job=\"live_overlay\"}","legendFormat": "lag last"}},"refId": "A","hidden": false}},
-                {"kind": "PanelQuery","spec": {"query": {"kind": "DataQuery","group": "","version": "v0","spec": {"expr": "live_overlay_feed_ingest_queue_lag_ms_max{job=\"live_overlay\"}","legendFormat": "lag max"}},"refId": "B","hidden": false}}
+                {
+                  "kind": "PanelQuery",
+                  "spec": {
+                    "query": {
+                      "kind": "DataQuery",
+                      "group": "",
+                      "version": "v0",
+                      "spec": {
+                        "expr": "live_overlay_feed_ingest_queue_lag_ms_last{job=\"live_overlay\"}",
+                        "legendFormat": "lag last"
+                      }
+                    },
+                    "refId": "A",
+                    "hidden": false
+                  }
+                },
+                {
+                  "kind": "PanelQuery",
+                  "spec": {
+                    "query": {
+                      "kind": "DataQuery",
+                      "group": "",
+                      "version": "v0",
+                      "spec": {
+                        "expr": "live_overlay_feed_ingest_queue_lag_ms_max{job=\"live_overlay\"}",
+                        "legendFormat": "lag max"
+                      }
+                    },
+                    "refId": "B",
+                    "hidden": false
+                  }
+                }
               ],
               "transformations": [],
               "queryOptions": {}
@@ -1394,13 +3246,39 @@
             "version": "",
             "spec": {
               "options": {
-                "legend": {"calcs": ["lastNotNull"],"displayMode": "list","placement": "bottom","showLegend": true},
-                "tooltip": {"mode": "multi","sort": "none"}
+                "legend": {
+                  "calcs": [
+                    "lastNotNull"
+                  ],
+                  "displayMode": "list",
+                  "placement": "bottom",
+                  "showLegend": true
+                },
+                "tooltip": {
+                  "mode": "multi",
+                  "sort": "none"
+                }
               },
               "fieldConfig": {
                 "defaults": {
                   "unit": "ms",
-                  "thresholds": {"mode": "absolute","steps": [{"value": null,"color": "green"},{"value": 1000,"color": "yellow"},{"value": 5000,"color": "red"}]}
+                  "thresholds": {
+                    "mode": "absolute",
+                    "steps": [
+                      {
+                        "value": null,
+                        "color": "green"
+                      },
+                      {
+                        "value": 1000,
+                        "color": "yellow"
+                      },
+                      {
+                        "value": 5000,
+                        "color": "red"
+                      }
+                    ]
+                  }
                 },
                 "overrides": []
               }
@@ -1419,9 +3297,54 @@
             "kind": "QueryGroup",
             "spec": {
               "queries": [
-                {"kind": "PanelQuery","spec": {"query": {"kind": "DataQuery","group": "","version": "v0","spec": {"expr": "live_overlay_provider_news_health_ok{job=\"live_overlay\"}","legendFormat": "health_ok"}},"refId": "A","hidden": false}},
-                {"kind": "PanelQuery","spec": {"query": {"kind": "DataQuery","group": "","version": "v0","spec": {"expr": "live_overlay_provider_news_health_degraded{job=\"live_overlay\"}","legendFormat": "health_degraded"}},"refId": "B","hidden": false}},
-                {"kind": "PanelQuery","spec": {"query": {"kind": "DataQuery","group": "","version": "v0","spec": {"expr": "live_overlay_provider_news_health_unknown{job=\"live_overlay\"}","legendFormat": "health_unknown"}},"refId": "C","hidden": false}}
+                {
+                  "kind": "PanelQuery",
+                  "spec": {
+                    "query": {
+                      "kind": "DataQuery",
+                      "group": "",
+                      "version": "v0",
+                      "spec": {
+                        "expr": "live_overlay_provider_news_health_ok{job=\"live_overlay\"}",
+                        "legendFormat": "health_ok"
+                      }
+                    },
+                    "refId": "A",
+                    "hidden": false
+                  }
+                },
+                {
+                  "kind": "PanelQuery",
+                  "spec": {
+                    "query": {
+                      "kind": "DataQuery",
+                      "group": "",
+                      "version": "v0",
+                      "spec": {
+                        "expr": "live_overlay_provider_news_health_degraded{job=\"live_overlay\"}",
+                        "legendFormat": "health_degraded"
+                      }
+                    },
+                    "refId": "B",
+                    "hidden": false
+                  }
+                },
+                {
+                  "kind": "PanelQuery",
+                  "spec": {
+                    "query": {
+                      "kind": "DataQuery",
+                      "group": "",
+                      "version": "v0",
+                      "spec": {
+                        "expr": "live_overlay_provider_news_health_unknown{job=\"live_overlay\"}",
+                        "legendFormat": "health_unknown"
+                      }
+                    },
+                    "refId": "C",
+                    "hidden": false
+                  }
+                }
               ],
               "transformations": [],
               "queryOptions": {}
@@ -1433,17 +3356,50 @@
             "version": "",
             "spec": {
               "options": {
-                "legend": {"displayMode": "list","placement": "bottom","showLegend": false},
+                "legend": {
+                  "displayMode": "list",
+                  "placement": "bottom",
+                  "showLegend": false
+                },
                 "rowHeight": 0.9,
-                "tooltip": {"mode": "multi","sort": "none"}
+                "tooltip": {
+                  "mode": "multi",
+                  "sort": "none"
+                }
               },
               "fieldConfig": {
                 "defaults": {
                   "min": 0,
                   "max": 1,
-                  "mappings": [{"type": "value","options": {"0": {"text": "OFF"},"1": {"text": "ON"}}}],
-                  "thresholds": {"mode": "absolute","steps": [{"value": null,"color": "gray"},{"value": 1,"color": "green"}]},
-                  "color": {"mode": "thresholds"}
+                  "mappings": [
+                    {
+                      "type": "value",
+                      "options": {
+                        "0": {
+                          "text": "OFF"
+                        },
+                        "1": {
+                          "text": "ON"
+                        }
+                      }
+                    }
+                  ],
+                  "thresholds": {
+                    "mode": "absolute",
+                    "steps": [
+                      {
+                        "value": null,
+                        "color": "gray"
+                      },
+                      {
+                        "value": 1,
+                        "color": "green"
+                      }
+                    ]
+                  },
+                  "color": {
+                    "mode": "thresholds"
+                  }
                 },
                 "overrides": []
               }
@@ -1462,10 +3418,70 @@
             "kind": "QueryGroup",
             "spec": {
               "queries": [
-                {"kind": "PanelQuery","spec": {"query": {"kind": "DataQuery","group": "","version": "v0","spec": {"expr": "live_overlay_provider_news_snapshot_age_seconds{job=\"live_overlay\"}","legendFormat": "snapshot age (s)"}},"refId": "A","hidden": false}},
-                {"kind": "PanelQuery","spec": {"query": {"kind": "DataQuery","group": "","version": "v0","spec": {"expr": "live_overlay_provider_news_providers_total{job=\"live_overlay\"}","legendFormat": "providers total"}},"refId": "B","hidden": false}},
-                {"kind": "PanelQuery","spec": {"query": {"kind": "DataQuery","group": "","version": "v0","spec": {"expr": "live_overlay_provider_news_providers_ok_total{job=\"live_overlay\"}","legendFormat": "providers ok"}},"refId": "C","hidden": false}},
-                {"kind": "PanelQuery","spec": {"query": {"kind": "DataQuery","group": "","version": "v0","spec": {"expr": "live_overlay_provider_news_providers_degraded_total{job=\"live_overlay\"}","legendFormat": "providers degraded"}},"refId": "D","hidden": false}}
+                {
+                  "kind": "PanelQuery",
+                  "spec": {
+                    "query": {
+                      "kind": "DataQuery",
+                      "group": "",
+                      "version": "v0",
+                      "spec": {
+                        "expr": "live_overlay_provider_news_snapshot_age_seconds{job=\"live_overlay\"}",
+                        "legendFormat": "snapshot age (s)"
+                      }
+                    },
+                    "refId": "A",
+                    "hidden": false
+                  }
+                },
+                {
+                  "kind": "PanelQuery",
+                  "spec": {
+                    "query": {
+                      "kind": "DataQuery",
+                      "group": "",
+                      "version": "v0",
+                      "spec": {
+                        "expr": "live_overlay_provider_news_providers_total{job=\"live_overlay\"}",
+                        "legendFormat": "providers total"
+                      }
+                    },
+                    "refId": "B",
+                    "hidden": false
+                  }
+                },
+                {
+                  "kind": "PanelQuery",
+                  "spec": {
+                    "query": {
+                      "kind": "DataQuery",
+                      "group": "",
+                      "version": "v0",
+                      "spec": {
+                        "expr": "live_overlay_provider_news_providers_ok_total{job=\"live_overlay\"}",
+                        "legendFormat": "providers ok"
+                      }
+                    },
+                    "refId": "C",
+                    "hidden": false
+                  }
+                },
+                {
+                  "kind": "PanelQuery",
+                  "spec": {
+                    "query": {
+                      "kind": "DataQuery",
+                      "group": "",
+                      "version": "v0",
+                      "spec": {
+                        "expr": "live_overlay_provider_news_providers_degraded_total{job=\"live_overlay\"}",
+                        "legendFormat": "providers degraded"
+                      }
+                    },
+                    "refId": "D",
+                    "hidden": false
+                  }
+                }
               ],
               "transformations": [],
               "queryOptions": {}
@@ -1477,10 +3493,25 @@
             "version": "",
             "spec": {
               "options": {
-                "legend": {"calcs": ["lastNotNull"],"displayMode": "list","placement": "bottom","showLegend": true},
-                "tooltip": {"mode": "multi","sort": "none"}
+                "legend": {
+                  "calcs": [
+                    "lastNotNull"
+                  ],
+                  "displayMode": "list",
+                  "placement": "bottom",
+                  "showLegend": true
+                },
+                "tooltip": {
+                  "mode": "multi",
+                  "sort": "none"
+                }
               },
-              "fieldConfig": {"defaults": {"unit": "short"},"overrides": []}
+              "fieldConfig": {
+                "defaults": {
+                  "unit": "short"
+                },
+                "overrides": []
+              }
             }
           }
         }
@@ -1496,7 +3527,22 @@
             "kind": "QueryGroup",
             "spec": {
               "queries": [
-                {"kind": "PanelQuery","spec": {"query": {"kind": "DataQuery","group": "","version": "v0","spec": {"expr": "{__name__=~\"live_overlay_provider_news_.*_(ok|degraded)\",__name__!~\"live_overlay_provider_news_health_(ok|degraded)\",job=\"live_overlay\"} != 0","legendFormat": "{{__name__}}"}},"refId": "A","hidden": false}}
+                {
+                  "kind": "PanelQuery",
+                  "spec": {
+                    "query": {
+                      "kind": "DataQuery",
+                      "group": "",
+                      "version": "v0",
+                      "spec": {
+                        "expr": "{__name__=~\"live_overlay_provider_news_.*_(ok|degraded)\",__name__!~\"live_overlay_provider_news_health_(ok|degraded)\",job=\"live_overlay\"} != 0",
+                        "legendFormat": "{{__name__}}"
+                      }
+                    },
+                    "refId": "A",
+                    "hidden": false
+                  }
+                }
               ],
               "transformations": [],
               "queryOptions": {}
@@ -1508,11 +3554,25 @@
             "version": "",
             "spec": {
               "options": {
-                "legend": {"calcs": ["lastNotNull"],"displayMode": "list","placement": "bottom","showLegend": true},
-                "tooltip": {"mode": "multi","sort": "none"}
+                "legend": {
+                  "calcs": [
+                    "lastNotNull"
+                  ],
+                  "displayMode": "list",
+                  "placement": "bottom",
+                  "showLegend": true
+                },
+                "tooltip": {
+                  "mode": "multi",
+                  "sort": "none"
+                }
               },
               "fieldConfig": {
-                "defaults": {"unit": "short","min": 0,"max": 1},
+                "defaults": {
+                  "unit": "short",
+                  "min": 0,
+                  "max": 1
+                },
                 "overrides": []
               }
             }
@@ -1530,7 +3590,22 @@
             "kind": "QueryGroup",
             "spec": {
               "queries": [
-                {"kind": "PanelQuery","spec": {"query": {"kind": "DataQuery","group": "","version": "v0","spec": {"expr": "{__name__=~\"live_overlay_provider_news_.*_state_code\",job=\"live_overlay\"} > 0","legendFormat": "{{__name__}}"}},"refId": "A","hidden": false}}
+                {
+                  "kind": "PanelQuery",
+                  "spec": {
+                    "query": {
+                      "kind": "DataQuery",
+                      "group": "",
+                      "version": "v0",
+                      "spec": {
+                        "expr": "{__name__=~\"live_overlay_provider_news_.*_state_code\",job=\"live_overlay\"} > 0",
+                        "legendFormat": "{{__name__}}"
+                      }
+                    },
+                    "refId": "A",
+                    "hidden": false
+                  }
+                }
               ],
               "transformations": [],
               "queryOptions": {}
@@ -1542,15 +3617,41 @@
             "version": "",
             "spec": {
               "options": {
-                "legend": {"calcs": ["lastNotNull"],"displayMode": "list","placement": "bottom","showLegend": true},
-                "tooltip": {"mode": "multi","sort": "none"}
+                "legend": {
+                  "calcs": [
+                    "lastNotNull"
+                  ],
+                  "displayMode": "list",
+                  "placement": "bottom",
+                  "showLegend": true
+                },
+                "tooltip": {
+                  "mode": "multi",
+                  "sort": "none"
+                }
               },
               "fieldConfig": {
                 "defaults": {
                   "unit": "short",
                   "min": 0,
                   "max": 2,
-                  "thresholds": {"mode": "absolute","steps": [{"value": null,"color": "gray"},{"value": 1,"color": "orange"},{"value": 2,"color": "green"}]}
+                  "thresholds": {
+                    "mode": "absolute",
+                    "steps": [
+                      {
+                        "value": null,
+                        "color": "gray"
+                      },
+                      {
+                        "value": 1,
+                        "color": "orange"
+                      },
+                      {
+                        "value": 2,
+                        "color": "green"
+                      }
+                    ]
+                  }
                 },
                 "overrides": []
               }
@@ -1595,7 +3696,10 @@
                 },
                 "viewMode": "list"
               },
-              "fieldConfig": {"defaults": {},"overrides": []}
+              "fieldConfig": {
+                "defaults": {},
+                "overrides": []
+              }
             }
           }
         }
@@ -1611,7 +3715,22 @@
             "kind": "QueryGroup",
             "spec": {
               "queries": [
-                {"kind": "PanelQuery","spec": {"query": {"kind": "DataQuery","group": "","version": "v0","spec": {"expr": "live_overlay_bar_symbols{job=\"live_overlay\"}","legendFormat": "Bar symbols"}},"refId": "A","hidden": false}}
+                {
+                  "kind": "PanelQuery",
+                  "spec": {
+                    "query": {
+                      "kind": "DataQuery",
+                      "group": "",
+                      "version": "v0",
+                      "spec": {
+                        "expr": "live_overlay_bar_symbols{job=\"live_overlay\"}",
+                        "legendFormat": "Bar symbols"
+                      }
+                    },
+                    "refId": "A",
+                    "hidden": false
+                  }
+                }
               ],
               "transformations": [],
               "queryOptions": {}
@@ -1624,12 +3743,28 @@
             "spec": {
               "options": {
                 "graphMode": "area",
-                "reduceOptions": {"calcs": ["lastNotNull"],"fields": "","values": false}
+                "reduceOptions": {
+                  "calcs": [
+                    "lastNotNull"
+                  ],
+                  "fields": "",
+                  "values": false
+                }
               },
               "fieldConfig": {
                 "defaults": {
                   "unit": "short",
-                  "mappings": [{"type": "value","options": {"0": {"text": "EMPTY","color": "red"}}}]
+                  "mappings": [
+                    {
+                      "type": "value",
+                      "options": {
+                        "0": {
+                          "text": "EMPTY",
+                          "color": "red"
+                        }
+                      }
+                    }
+                  ]
                 },
                 "overrides": []
               }
@@ -1648,7 +3783,22 @@
             "kind": "QueryGroup",
             "spec": {
               "queries": [
-                {"kind": "PanelQuery","spec": {"query": {"kind": "DataQuery","group": "","version": "v0","spec": {"expr": "live_overlay_bar_count{job=\"live_overlay\"}","legendFormat": "Bar count"}},"refId": "A","hidden": false}}
+                {
+                  "kind": "PanelQuery",
+                  "spec": {
+                    "query": {
+                      "kind": "DataQuery",
+                      "group": "",
+                      "version": "v0",
+                      "spec": {
+                        "expr": "live_overlay_bar_count{job=\"live_overlay\"}",
+                        "legendFormat": "Bar count"
+                      }
+                    },
+                    "refId": "A",
+                    "hidden": false
+                  }
+                }
               ],
               "transformations": [],
               "queryOptions": {}
@@ -1661,9 +3811,20 @@
             "spec": {
               "options": {
                 "graphMode": "area",
-                "reduceOptions": {"calcs": ["lastNotNull"],"fields": "","values": false}
+                "reduceOptions": {
+                  "calcs": [
+                    "lastNotNull"
+                  ],
+                  "fields": "",
+                  "values": false
+                }
               },
-              "fieldConfig": {"defaults": {"unit": "short"},"overrides": []}
+              "fieldConfig": {
+                "defaults": {
+                  "unit": "short"
+                },
+                "overrides": []
+              }
             }
           }
         }
@@ -1679,10 +3840,70 @@
             "kind": "QueryGroup",
             "spec": {
               "queries": [
-                {"kind": "PanelQuery","spec": {"query": {"kind": "DataQuery","group": "","version": "v0","spec": {"expr": "rate(live_overlay_smc_live_requests_total{job=\"live_overlay\"}[$__rate_interval]) and on(job) (live_overlay_market_open{job=\"live_overlay\"} == 1)","legendFormat": "smc_live total"}},"refId": "A","hidden": false}},
-                {"kind": "PanelQuery","spec": {"query": {"kind": "DataQuery","group": "","version": "v0","spec": {"expr": "rate(live_overlay_smc_live_success_total{job=\"live_overlay\"}[$__rate_interval]) and on(job) (live_overlay_market_open{job=\"live_overlay\"} == 1)","legendFormat": "success"}},"refId": "B","hidden": false}},
-                {"kind": "PanelQuery","spec": {"query": {"kind": "DataQuery","group": "","version": "v0","spec": {"expr": "rate(live_overlay_smc_live_auth_denied{job=\"live_overlay\"}[$__rate_interval]) and on(job) (live_overlay_market_open{job=\"live_overlay\"} == 1)","legendFormat": "auth denied"}},"refId": "C","hidden": false}},
-                {"kind": "PanelQuery","spec": {"query": {"kind": "DataQuery","group": "","version": "v0","spec": {"expr": "rate(live_overlay_smc_live_cache_miss_total{job=\"live_overlay\"}[$__rate_interval]) and on(job) (live_overlay_market_open{job=\"live_overlay\"} == 1)","legendFormat": "cache miss"}},"refId": "D","hidden": false}}
+                {
+                  "kind": "PanelQuery",
+                  "spec": {
+                    "query": {
+                      "kind": "DataQuery",
+                      "group": "",
+                      "version": "v0",
+                      "spec": {
+                        "expr": "rate(live_overlay_smc_live_requests_total{job=\"live_overlay\"}[$__rate_interval]) and on(job) (live_overlay_market_open{job=\"live_overlay\"} == 1)",
+                        "legendFormat": "smc_live total"
+                      }
+                    },
+                    "refId": "A",
+                    "hidden": false
+                  }
+                },
+                {
+                  "kind": "PanelQuery",
+                  "spec": {
+                    "query": {
+                      "kind": "DataQuery",
+                      "group": "",
+                      "version": "v0",
+                      "spec": {
+                        "expr": "rate(live_overlay_smc_live_success_total{job=\"live_overlay\"}[$__rate_interval]) and on(job) (live_overlay_market_open{job=\"live_overlay\"} == 1)",
+                        "legendFormat": "success"
+                      }
+                    },
+                    "refId": "B",
+                    "hidden": false
+                  }
+                },
+                {
+                  "kind": "PanelQuery",
+                  "spec": {
+                    "query": {
+                      "kind": "DataQuery",
+                      "group": "",
+                      "version": "v0",
+                      "spec": {
+                        "expr": "rate(live_overlay_smc_live_auth_denied{job=\"live_overlay\"}[$__rate_interval]) and on(job) (live_overlay_market_open{job=\"live_overlay\"} == 1)",
+                        "legendFormat": "auth denied"
+                      }
+                    },
+                    "refId": "C",
+                    "hidden": false
+                  }
+                },
+                {
+                  "kind": "PanelQuery",
+                  "spec": {
+                    "query": {
+                      "kind": "DataQuery",
+                      "group": "",
+                      "version": "v0",
+                      "spec": {
+                        "expr": "rate(live_overlay_smc_live_cache_miss_total{job=\"live_overlay\"}[$__rate_interval]) and on(job) (live_overlay_market_open{job=\"live_overlay\"} == 1)",
+                        "legendFormat": "cache miss"
+                      }
+                    },
+                    "refId": "D",
+                    "hidden": false
+                  }
+                }
               ],
               "transformations": [],
               "queryOptions": {}
@@ -1694,14 +3915,56 @@
             "version": "",
             "spec": {
               "options": {
-                "legend": {"calcs": ["mean","lastNotNull"],"displayMode": "list","placement": "bottom","showLegend": true},
-                "tooltip": {"mode": "multi","sort": "none"}
+                "legend": {
+                  "calcs": [
+                    "mean",
+                    "lastNotNull"
+                  ],
+                  "displayMode": "list",
+                  "placement": "bottom",
+                  "showLegend": true
+                },
+                "tooltip": {
+                  "mode": "multi",
+                  "sort": "none"
+                }
               },
               "fieldConfig": {
-                "defaults": {"unit": "reqps","noValue": "MARKET CLOSED"},
+                "defaults": {
+                  "unit": "reqps",
+                  "noValue": "MARKET CLOSED"
+                },
                 "overrides": [
-                  {"matcher": {"id": "byName","options": "auth denied"},"properties": [{"id": "color","value": {"fixedColor": "red","mode": "fixed"}}]},
-                  {"matcher": {"id": "byName","options": "cache miss"},"properties": [{"id": "color","value": {"fixedColor": "yellow","mode": "fixed"}}]}
+                  {
+                    "matcher": {
+                      "id": "byName",
+                      "options": "auth denied"
+                    },
+                    "properties": [
+                      {
+                        "id": "color",
+                        "value": {
+                          "fixedColor": "red",
+                          "mode": "fixed"
+                        }
+                      }
+                    ]
+                  },
+                  {
+                    "matcher": {
+                      "id": "byName",
+                      "options": "cache miss"
+                    },
+                    "properties": [
+                      {
+                        "id": "color",
+                        "value": {
+                          "fixedColor": "yellow",
+                          "mode": "fixed"
+                        }
+                      }
+                    ]
+                  }
                 ]
               }
             }
@@ -1719,8 +3982,38 @@
             "kind": "QueryGroup",
             "spec": {
               "queries": [
-                {"kind": "PanelQuery","spec": {"query": {"kind": "DataQuery","group": "","version": "v0","spec": {"expr": "live_overlay_overlay_age_seconds{job=\"live_overlay\"}","legendFormat": "overlay age"}},"refId": "A","hidden": false}},
-                {"kind": "PanelQuery","spec": {"query": {"kind": "DataQuery","group": "","version": "v0","spec": {"expr": "live_overlay_last_bar_age_seconds{job=\"live_overlay\"} or vector(0)","legendFormat": "last bar age"}},"refId": "B","hidden": false}}
+                {
+                  "kind": "PanelQuery",
+                  "spec": {
+                    "query": {
+                      "kind": "DataQuery",
+                      "group": "",
+                      "version": "v0",
+                      "spec": {
+                        "expr": "live_overlay_overlay_age_seconds{job=\"live_overlay\"}",
+                        "legendFormat": "overlay age"
+                      }
+                    },
+                    "refId": "A",
+                    "hidden": false
+                  }
+                },
+                {
+                  "kind": "PanelQuery",
+                  "spec": {
+                    "query": {
+                      "kind": "DataQuery",
+                      "group": "",
+                      "version": "v0",
+                      "spec": {
+                        "expr": "live_overlay_last_bar_age_seconds{job=\"live_overlay\"} or vector(0)",
+                        "legendFormat": "last bar age"
+                      }
+                    },
+                    "refId": "B",
+                    "hidden": false
+                  }
+                }
               ],
               "transformations": [],
               "queryOptions": {}
@@ -1732,14 +4025,44 @@
             "version": "",
             "spec": {
               "options": {
-                "legend": {"calcs": ["lastNotNull"],"displayMode": "list","placement": "bottom","showLegend": true},
-                "tooltip": {"mode": "multi","sort": "none"}
+                "legend": {
+                  "calcs": [
+                    "lastNotNull"
+                  ],
+                  "displayMode": "list",
+                  "placement": "bottom",
+                  "showLegend": true
+                },
+                "tooltip": {
+                  "mode": "multi",
+                  "sort": "none"
+                }
               },
               "fieldConfig": {
                 "defaults": {
                   "unit": "s",
-                  "thresholds": {"mode": "absolute","steps": [{"value": 0,"color": "green"},{"value": 1800,"color": "yellow"},{"value": 3600,"color": "red"}]},
-                  "custom": {"thresholdsStyle": {"mode": "line"}}
+                  "thresholds": {
+                    "mode": "absolute",
+                    "steps": [
+                      {
+                        "value": 0,
+                        "color": "green"
+                      },
+                      {
+                        "value": 1800,
+                        "color": "yellow"
+                      },
+                      {
+                        "value": 3600,
+                        "color": "red"
+                      }
+                    ]
+                  },
+                  "custom": {
+                    "thresholdsStyle": {
+                      "mode": "line"
+                    }
+                  }
                 },
                 "overrides": []
               }
@@ -1758,8 +4081,38 @@
             "kind": "QueryGroup",
             "spec": {
               "queries": [
-                {"kind": "PanelQuery","spec": {"query": {"kind": "DataQuery","group": "","version": "v0","spec": {"expr": "rate(live_overlay_full_compute_cycle_errors{job=\"live_overlay\"}[$__rate_interval]) or vector(0)","legendFormat": "full compute errors"}},"refId": "A","hidden": false}},
-                {"kind": "PanelQuery","spec": {"query": {"kind": "DataQuery","group": "","version": "v0","spec": {"expr": "rate(live_overlay_flow_patch_cycle_errors{job=\"live_overlay\"}[$__rate_interval]) or vector(0)","legendFormat": "flow patch errors"}},"refId": "B","hidden": false}}
+                {
+                  "kind": "PanelQuery",
+                  "spec": {
+                    "query": {
+                      "kind": "DataQuery",
+                      "group": "",
+                      "version": "v0",
+                      "spec": {
+                        "expr": "rate(live_overlay_full_compute_cycle_errors{job=\"live_overlay\"}[$__rate_interval]) or vector(0)",
+                        "legendFormat": "full compute errors"
+                      }
+                    },
+                    "refId": "A",
+                    "hidden": false
+                  }
+                },
+                {
+                  "kind": "PanelQuery",
+                  "spec": {
+                    "query": {
+                      "kind": "DataQuery",
+                      "group": "",
+                      "version": "v0",
+                      "spec": {
+                        "expr": "rate(live_overlay_flow_patch_cycle_errors{job=\"live_overlay\"}[$__rate_interval]) or vector(0)",
+                        "legendFormat": "flow patch errors"
+                      }
+                    },
+                    "refId": "B",
+                    "hidden": false
+                  }
+                }
               ],
               "transformations": [],
               "queryOptions": {}
@@ -1771,19 +4124,76 @@
             "version": "",
             "spec": {
               "options": {
-                "legend": {"calcs": ["mean","lastNotNull"],"displayMode": "list","placement": "bottom","showLegend": true},
-                "tooltip": {"mode": "multi","sort": "none"}
+                "legend": {
+                  "calcs": [
+                    "mean",
+                    "lastNotNull"
+                  ],
+                  "displayMode": "list",
+                  "placement": "bottom",
+                  "showLegend": true
+                },
+                "tooltip": {
+                  "mode": "multi",
+                  "sort": "none"
+                }
               },
               "fieldConfig": {
                 "defaults": {
                   "unit": "cps",
-                  "thresholds": {"mode": "absolute","steps": [{"value": null,"color": "green"},{"value": 1e-9,"color": "red"}]},
-                  "color": {"mode": "thresholds"},
-                  "custom": {"thresholdsStyle": {"mode": "area"}}
+                  "thresholds": {
+                    "mode": "absolute",
+                    "steps": [
+                      {
+                        "value": null,
+                        "color": "green"
+                      },
+                      {
+                        "value": 1e-09,
+                        "color": "red"
+                      }
+                    ]
+                  },
+                  "color": {
+                    "mode": "thresholds"
+                  },
+                  "custom": {
+                    "thresholdsStyle": {
+                      "mode": "area"
+                    }
+                  }
                 },
                 "overrides": [
-                  {"matcher": {"id": "byName","options": "full compute errors"},"properties": [{"id": "color","value": {"fixedColor": "red","mode": "fixed"}}]},
-                  {"matcher": {"id": "byName","options": "flow patch errors"},"properties": [{"id": "color","value": {"fixedColor": "orange","mode": "fixed"}}]}
+                  {
+                    "matcher": {
+                      "id": "byName",
+                      "options": "full compute errors"
+                    },
+                    "properties": [
+                      {
+                        "id": "color",
+                        "value": {
+                          "fixedColor": "red",
+                          "mode": "fixed"
+                        }
+                      }
+                    ]
+                  },
+                  {
+                    "matcher": {
+                      "id": "byName",
+                      "options": "flow patch errors"
+                    },
+                    "properties": [
+                      {
+                        "id": "color",
+                        "value": {
+                          "fixedColor": "orange",
+                          "mode": "fixed"
+                        }
+                      }
+                    ]
+                  }
                 ]
               }
             }
@@ -1805,28 +4215,292 @@
                 "kind": "GridLayout",
                 "spec": {
                   "items": [
-                    {"kind": "GridLayoutItem","spec": {"x": 0,"y": 0,"width": 4,"height": 4,"element": {"kind": "ElementReference","name": "panel-1"}}},
-                    {"kind": "GridLayoutItem","spec": {"x": 4,"y": 0,"width": 4,"height": 4,"element": {"kind": "ElementReference","name": "panel-2"}}},
-                    {"kind": "GridLayoutItem","spec": {"x": 8,"y": 0,"width": 4,"height": 4,"element": {"kind": "ElementReference","name": "panel-3"}}},
-                    {"kind": "GridLayoutItem","spec": {"x": 12,"y": 0,"width": 4,"height": 4,"element": {"kind": "ElementReference","name": "panel-4"}}},
-                    {"kind": "GridLayoutItem","spec": {"x": 16,"y": 0,"width": 4,"height": 4,"element": {"kind": "ElementReference","name": "panel-5"}}},
-                    {"kind": "GridLayoutItem","spec": {"x": 20,"y": 0,"width": 4,"height": 4,"element": {"kind": "ElementReference","name": "panel-6"}}},
-                    {"kind": "GridLayoutItem","spec": {"x": 0,"y": 4,"width": 12,"height": 8,"element": {"kind": "ElementReference","name": "panel-7"}}},
-                    {"kind": "GridLayoutItem","spec": {"x": 12,"y": 4,"width": 12,"height": 8,"element": {"kind": "ElementReference","name": "panel-8"}}},
-                    {"kind": "GridLayoutItem","spec": {"x": 0,"y": 12,"width": 12,"height": 8,"element": {"kind": "ElementReference","name": "panel-9"}}},
-                    {"kind": "GridLayoutItem","spec": {"x": 12,"y": 12,"width": 12,"height": 8,"element": {"kind": "ElementReference","name": "panel-10"}}},
-                    {"kind": "GridLayoutItem","spec": {"x": 0,"y": 20,"width": 12,"height": 6,"element": {"kind": "ElementReference","name": "panel-13"}}},
-                    {"kind": "GridLayoutItem","spec": {"x": 12,"y": 20,"width": 6,"height": 6,"element": {"kind": "ElementReference","name": "panel-11"}}},
-                    {"kind": "GridLayoutItem","spec": {"x": 18,"y": 20,"width": 6,"height": 6,"element": {"kind": "ElementReference","name": "panel-12"}}},
-                    {"kind": "GridLayoutItem","spec": {"x": 0,"y": 26,"width": 8,"height": 6,"element": {"kind": "ElementReference","name": "panel-14"}}},
-                    {"kind": "GridLayoutItem","spec": {"x": 8,"y": 26,"width": 8,"height": 6,"element": {"kind": "ElementReference","name": "panel-15"}}},
-                    {"kind": "GridLayoutItem","spec": {"x": 16,"y": 26,"width": 8,"height": 6,"element": {"kind": "ElementReference","name": "panel-16"}}},
-                    {"kind": "GridLayoutItem","spec": {"x": 0,"y": 32,"width": 12,"height": 8,"element": {"kind": "ElementReference","name": "panel-17"}}},
-                    {"kind": "GridLayoutItem","spec": {"x": 12,"y": 32,"width": 12,"height": 8,"element": {"kind": "ElementReference","name": "panel-18"}}},
-                    {"kind": "GridLayoutItem","spec": {"x": 0,"y": 40,"width": 12,"height": 8,"element": {"kind": "ElementReference","name": "panel-19"}}},
-                    {"kind": "GridLayoutItem","spec": {"x": 12,"y": 40,"width": 12,"height": 8,"element": {"kind": "ElementReference","name": "panel-20"}}},
-                    {"kind": "GridLayoutItem","spec": {"x": 0,"y": 48,"width": 12,"height": 8,"element": {"kind": "ElementReference","name": "panel-21"}}},
-                    {"kind": "GridLayoutItem","spec": {"x": 12,"y": 48,"width": 12,"height": 8,"element": {"kind": "ElementReference","name": "panel-22"}}}
+                    {
+                      "kind": "GridLayoutItem",
+                      "spec": {
+                        "x": 0,
+                        "y": 0,
+                        "width": 4,
+                        "height": 4,
+                        "element": {
+                          "kind": "ElementReference",
+                          "name": "panel-1"
+                        }
+                      }
+                    },
+                    {
+                      "kind": "GridLayoutItem",
+                      "spec": {
+                        "x": 4,
+                        "y": 0,
+                        "width": 4,
+                        "height": 4,
+                        "element": {
+                          "kind": "ElementReference",
+                          "name": "panel-2"
+                        }
+                      }
+                    },
+                    {
+                      "kind": "GridLayoutItem",
+                      "spec": {
+                        "x": 8,
+                        "y": 0,
+                        "width": 4,
+                        "height": 4,
+                        "element": {
+                          "kind": "ElementReference",
+                          "name": "panel-3"
+                        }
+                      }
+                    },
+                    {
+                      "kind": "GridLayoutItem",
+                      "spec": {
+                        "x": 12,
+                        "y": 0,
+                        "width": 4,
+                        "height": 4,
+                        "element": {
+                          "kind": "ElementReference",
+                          "name": "panel-4"
+                        }
+                      }
+                    },
+                    {
+                      "kind": "GridLayoutItem",
+                      "spec": {
+                        "x": 16,
+                        "y": 0,
+                        "width": 4,
+                        "height": 4,
+                        "element": {
+                          "kind": "ElementReference",
+                          "name": "panel-5"
+                        }
+                      }
+                    },
+                    {
+                      "kind": "GridLayoutItem",
+                      "spec": {
+                        "x": 20,
+                        "y": 0,
+                        "width": 4,
+                        "height": 4,
+                        "element": {
+                          "kind": "ElementReference",
+                          "name": "panel-6"
+                        }
+                      }
+                    },
+                    {
+                      "kind": "GridLayoutItem",
+                      "spec": {
+                        "x": 0,
+                        "y": 4,
+                        "width": 12,
+                        "height": 8,
+                        "element": {
+                          "kind": "ElementReference",
+                          "name": "panel-7"
+                        }
+                      }
+                    },
+                    {
+                      "kind": "GridLayoutItem",
+                      "spec": {
+                        "x": 12,
+                        "y": 4,
+                        "width": 12,
+                        "height": 8,
+                        "element": {
+                          "kind": "ElementReference",
+                          "name": "panel-8"
+                        }
+                      }
+                    },
+                    {
+                      "kind": "GridLayoutItem",
+                      "spec": {
+                        "x": 0,
+                        "y": 12,
+                        "width": 12,
+                        "height": 8,
+                        "element": {
+                          "kind": "ElementReference",
+                          "name": "panel-9"
+                        }
+                      }
+                    },
+                    {
+                      "kind": "GridLayoutItem",
+                      "spec": {
+                        "x": 12,
+                        "y": 12,
+                        "width": 12,
+                        "height": 8,
+                        "element": {
+                          "kind": "ElementReference",
+                          "name": "panel-10"
+                        }
+                      }
+                    },
+                    {
+                      "kind": "GridLayoutItem",
+                      "spec": {
+                        "x": 0,
+                        "y": 20,
+                        "width": 12,
+                        "height": 6,
+                        "element": {
+                          "kind": "ElementReference",
+                          "name": "panel-13"
+                        }
+                      }
+                    },
+                    {
+                      "kind": "GridLayoutItem",
+                      "spec": {
+                        "x": 12,
+                        "y": 20,
+                        "width": 6,
+                        "height": 6,
+                        "element": {
+                          "kind": "ElementReference",
+                          "name": "panel-11"
+                        }
+                      }
+                    },
+                    {
+                      "kind": "GridLayoutItem",
+                      "spec": {
+                        "x": 18,
+                        "y": 20,
+                        "width": 6,
+                        "height": 6,
+                        "element": {
+                          "kind": "ElementReference",
+                          "name": "panel-12"
+                        }
+                      }
+                    },
+                    {
+                      "kind": "GridLayoutItem",
+                      "spec": {
+                        "x": 0,
+                        "y": 26,
+                        "width": 8,
+                        "height": 6,
+                        "element": {
+                          "kind": "ElementReference",
+                          "name": "panel-14"
+                        }
+                      }
+                    },
+                    {
+                      "kind": "GridLayoutItem",
+                      "spec": {
+                        "x": 8,
+                        "y": 26,
+                        "width": 8,
+                        "height": 6,
+                        "element": {
+                          "kind": "ElementReference",
+                          "name": "panel-15"
+                        }
+                      }
+                    },
+                    {
+                      "kind": "GridLayoutItem",
+                      "spec": {
+                        "x": 16,
+                        "y": 26,
+                        "width": 8,
+                        "height": 6,
+                        "element": {
+                          "kind": "ElementReference",
+                          "name": "panel-16"
+                        }
+                      }
+                    },
+                    {
+                      "kind": "GridLayoutItem",
+                      "spec": {
+                        "x": 0,
+                        "y": 32,
+                        "width": 12,
+                        "height": 8,
+                        "element": {
+                          "kind": "ElementReference",
+                          "name": "panel-17"
+                        }
+                      }
+                    },
+                    {
+                      "kind": "GridLayoutItem",
+                      "spec": {
+                        "x": 12,
+                        "y": 32,
+                        "width": 12,
+                        "height": 8,
+                        "element": {
+                          "kind": "ElementReference",
+                          "name": "panel-18"
+                        }
+                      }
+                    },
+                    {
+                      "kind": "GridLayoutItem",
+                      "spec": {
+                        "x": 0,
+                        "y": 40,
+                        "width": 12,
+                        "height": 8,
+                        "element": {
+                          "kind": "ElementReference",
+                          "name": "panel-19"
+                        }
+                      }
+                    },
+                    {
+                      "kind": "GridLayoutItem",
+                      "spec": {
+                        "x": 12,
+                        "y": 40,
+                        "width": 12,
+                        "height": 8,
+                        "element": {
+                          "kind": "ElementReference",
+                          "name": "panel-20"
+                        }
+                      }
+                    },
+                    {
+                      "kind": "GridLayoutItem",
+                      "spec": {
+                        "x": 0,
+                        "y": 48,
+                        "width": 12,
+                        "height": 8,
+                        "element": {
+                          "kind": "ElementReference",
+                          "name": "panel-21"
+                        }
+                      }
+                    },
+                    {
+                      "kind": "GridLayoutItem",
+                      "spec": {
+                        "x": 12,
+                        "y": 48,
+                        "width": 12,
+                        "height": 8,
+                        "element": {
+                          "kind": "ElementReference",
+                          "name": "panel-22"
+                        }
+                      }
+                    }
                   ]
                 }
               }
@@ -1841,14 +4515,110 @@
                 "kind": "GridLayout",
                 "spec": {
                   "items": [
-                    {"kind": "GridLayoutItem","spec": {"x": 0,"y": 0,"width": 6,"height": 4,"element": {"kind": "ElementReference","name": "panel-24"}}},
-                    {"kind": "GridLayoutItem","spec": {"x": 6,"y": 0,"width": 6,"height": 4,"element": {"kind": "ElementReference","name": "panel-25"}}},
-                    {"kind": "GridLayoutItem","spec": {"x": 12,"y": 0,"width": 12,"height": 8,"element": {"kind": "ElementReference","name": "panel-26"}}},
-                    {"kind": "GridLayoutItem","spec": {"x": 0,"y": 8,"width": 6,"height": 4,"element": {"kind": "ElementReference","name": "panel-27"}}},
-                    {"kind": "GridLayoutItem","spec": {"x": 6,"y": 8,"width": 6,"height": 4,"element": {"kind": "ElementReference","name": "panel-28"}}},
-                    {"kind": "GridLayoutItem","spec": {"x": 12,"y": 8,"width": 12,"height": 8,"element": {"kind": "ElementReference","name": "panel-29"}}},
-                    {"kind": "GridLayoutItem","spec": {"x": 0,"y": 16,"width": 24,"height": 8,"element": {"kind": "ElementReference","name": "panel-30"}}},
-                    {"kind": "GridLayoutItem","spec": {"x": 0,"y": 24,"width": 24,"height": 8,"element": {"kind": "ElementReference","name": "panel-31"}}}
+                    {
+                      "kind": "GridLayoutItem",
+                      "spec": {
+                        "x": 0,
+                        "y": 0,
+                        "width": 6,
+                        "height": 4,
+                        "element": {
+                          "kind": "ElementReference",
+                          "name": "panel-24"
+                        }
+                      }
+                    },
+                    {
+                      "kind": "GridLayoutItem",
+                      "spec": {
+                        "x": 6,
+                        "y": 0,
+                        "width": 6,
+                        "height": 4,
+                        "element": {
+                          "kind": "ElementReference",
+                          "name": "panel-25"
+                        }
+                      }
+                    },
+                    {
+                      "kind": "GridLayoutItem",
+                      "spec": {
+                        "x": 12,
+                        "y": 0,
+                        "width": 12,
+                        "height": 8,
+                        "element": {
+                          "kind": "ElementReference",
+                          "name": "panel-26"
+                        }
+                      }
+                    },
+                    {
+                      "kind": "GridLayoutItem",
+                      "spec": {
+                        "x": 0,
+                        "y": 8,
+                        "width": 6,
+                        "height": 4,
+                        "element": {
+                          "kind": "ElementReference",
+                          "name": "panel-27"
+                        }
+                      }
+                    },
+                    {
+                      "kind": "GridLayoutItem",
+                      "spec": {
+                        "x": 6,
+                        "y": 8,
+                        "width": 6,
+                        "height": 4,
+                        "element": {
+                          "kind": "ElementReference",
+                          "name": "panel-28"
+                        }
+                      }
+                    },
+                    {
+                      "kind": "GridLayoutItem",
+                      "spec": {
+                        "x": 12,
+                        "y": 8,
+                        "width": 12,
+                        "height": 8,
+                        "element": {
+                          "kind": "ElementReference",
+                          "name": "panel-29"
+                        }
+                      }
+                    },
+                    {
+                      "kind": "GridLayoutItem",
+                      "spec": {
+                        "x": 0,
+                        "y": 16,
+                        "width": 24,
+                        "height": 8,
+                        "element": {
+                          "kind": "ElementReference",
+                          "name": "panel-30"
+                        }
+                      }
+                    },
+                    {
+                      "kind": "GridLayoutItem",
+                      "spec": {
+                        "x": 0,
+                        "y": 24,
+                        "width": 24,
+                        "height": 8,
+                        "element": {
+                          "kind": "ElementReference",
+                          "name": "panel-31"
+                        }
+                      }
+                    }
                   ]
                 }
               }
@@ -1863,16 +4633,136 @@
                 "kind": "GridLayout",
                 "spec": {
                   "items": [
-                    {"kind": "GridLayoutItem","spec": {"x": 0,"y": 0,"width": 12,"height": 8,"element": {"kind": "ElementReference","name": "panel-33"}}},
-                    {"kind": "GridLayoutItem","spec": {"x": 12,"y": 0,"width": 6,"height": 8,"element": {"kind": "ElementReference","name": "panel-34"}}},
-                    {"kind": "GridLayoutItem","spec": {"x": 18,"y": 0,"width": 6,"height": 8,"element": {"kind": "ElementReference","name": "panel-35"}}},
-                    {"kind": "GridLayoutItem","spec": {"x": 0,"y": 8,"width": 12,"height": 8,"element": {"kind": "ElementReference","name": "panel-36"}}},
-                    {"kind": "GridLayoutItem","spec": {"x": 12,"y": 8,"width": 12,"height": 8,"element": {"kind": "ElementReference","name": "panel-37"}}},
-                    {"kind": "GridLayoutItem","spec": {"x": 0,"y": 16,"width": 12,"height": 8,"element": {"kind": "ElementReference","name": "panel-38"}}},
-                    {"kind": "GridLayoutItem","spec": {"x": 12,"y": 16,"width": 12,"height": 8,"element": {"kind": "ElementReference","name": "panel-39"}}},
-                    {"kind": "GridLayoutItem","spec": {"x": 0,"y": 24,"width": 24,"height": 8,"element": {"kind": "ElementReference","name": "panel-40"}}},
-                    {"kind": "GridLayoutItem","spec": {"x": 0,"y": 32,"width": 12,"height": 8,"element": {"kind": "ElementReference","name": "panel-41"}}},
-                    {"kind": "GridLayoutItem","spec": {"x": 12,"y": 32,"width": 12,"height": 8,"element": {"kind": "ElementReference","name": "panel-42"}}}
+                    {
+                      "kind": "GridLayoutItem",
+                      "spec": {
+                        "x": 0,
+                        "y": 0,
+                        "width": 12,
+                        "height": 8,
+                        "element": {
+                          "kind": "ElementReference",
+                          "name": "panel-33"
+                        }
+                      }
+                    },
+                    {
+                      "kind": "GridLayoutItem",
+                      "spec": {
+                        "x": 12,
+                        "y": 0,
+                        "width": 6,
+                        "height": 8,
+                        "element": {
+                          "kind": "ElementReference",
+                          "name": "panel-34"
+                        }
+                      }
+                    },
+                    {
+                      "kind": "GridLayoutItem",
+                      "spec": {
+                        "x": 18,
+                        "y": 0,
+                        "width": 6,
+                        "height": 8,
+                        "element": {
+                          "kind": "ElementReference",
+                          "name": "panel-35"
+                        }
+                      }
+                    },
+                    {
+                      "kind": "GridLayoutItem",
+                      "spec": {
+                        "x": 0,
+                        "y": 8,
+                        "width": 12,
+                        "height": 8,
+                        "element": {
+                          "kind": "ElementReference",
+                          "name": "panel-36"
+                        }
+                      }
+                    },
+                    {
+                      "kind": "GridLayoutItem",
+                      "spec": {
+                        "x": 12,
+                        "y": 8,
+                        "width": 12,
+                        "height": 8,
+                        "element": {
+                          "kind": "ElementReference",
+                          "name": "panel-37"
+                        }
+                      }
+                    },
+                    {
+                      "kind": "GridLayoutItem",
+                      "spec": {
+                        "x": 0,
+                        "y": 16,
+                        "width": 12,
+                        "height": 8,
+                        "element": {
+                          "kind": "ElementReference",
+                          "name": "panel-38"
+                        }
+                      }
+                    },
+                    {
+                      "kind": "GridLayoutItem",
+                      "spec": {
+                        "x": 12,
+                        "y": 16,
+                        "width": 12,
+                        "height": 8,
+                        "element": {
+                          "kind": "ElementReference",
+                          "name": "panel-39"
+                        }
+                      }
+                    },
+                    {
+                      "kind": "GridLayoutItem",
+                      "spec": {
+                        "x": 0,
+                        "y": 24,
+                        "width": 24,
+                        "height": 8,
+                        "element": {
+                          "kind": "ElementReference",
+                          "name": "panel-40"
+                        }
+                      }
+                    },
+                    {
+                      "kind": "GridLayoutItem",
+                      "spec": {
+                        "x": 0,
+                        "y": 32,
+                        "width": 12,
+                        "height": 8,
+                        "element": {
+                          "kind": "ElementReference",
+                          "name": "panel-41"
+                        }
+                      }
+                    },
+                    {
+                      "kind": "GridLayoutItem",
+                      "spec": {
+                        "x": 12,
+                        "y": 32,
+                        "width": 12,
+                        "height": 8,
+                        "element": {
+                          "kind": "ElementReference",
+                          "name": "panel-42"
+                        }
+                      }
+                    }
                   ]
                 }
               }
@@ -1887,11 +4777,71 @@
                 "kind": "GridLayout",
                 "spec": {
                   "items": [
-                    {"kind": "GridLayoutItem","spec": {"x": 0,"y": 0,"width": 12,"height": 8,"element": {"kind": "ElementReference","name": "panel-44"}}},
-                    {"kind": "GridLayoutItem","spec": {"x": 12,"y": 0,"width": 12,"height": 8,"element": {"kind": "ElementReference","name": "panel-45"}}},
-                    {"kind": "GridLayoutItem","spec": {"x": 0,"y": 8,"width": 12,"height": 8,"element": {"kind": "ElementReference","name": "panel-46"}}},
-                    {"kind": "GridLayoutItem","spec": {"x": 12,"y": 8,"width": 12,"height": 8,"element": {"kind": "ElementReference","name": "panel-47"}}},
-                    {"kind": "GridLayoutItem","spec": {"x": 0,"y": 16,"width": 24,"height": 8,"element": {"kind": "ElementReference","name": "panel-48"}}}
+                    {
+                      "kind": "GridLayoutItem",
+                      "spec": {
+                        "x": 0,
+                        "y": 0,
+                        "width": 12,
+                        "height": 8,
+                        "element": {
+                          "kind": "ElementReference",
+                          "name": "panel-44"
+                        }
+                      }
+                    },
+                    {
+                      "kind": "GridLayoutItem",
+                      "spec": {
+                        "x": 12,
+                        "y": 0,
+                        "width": 12,
+                        "height": 8,
+                        "element": {
+                          "kind": "ElementReference",
+                          "name": "panel-45"
+                        }
+                      }
+                    },
+                    {
+                      "kind": "GridLayoutItem",
+                      "spec": {
+                        "x": 0,
+                        "y": 8,
+                        "width": 12,
+                        "height": 8,
+                        "element": {
+                          "kind": "ElementReference",
+                          "name": "panel-46"
+                        }
+                      }
+                    },
+                    {
+                      "kind": "GridLayoutItem",
+                      "spec": {
+                        "x": 12,
+                        "y": 8,
+                        "width": 12,
+                        "height": 8,
+                        "element": {
+                          "kind": "ElementReference",
+                          "name": "panel-47"
+                        }
+                      }
+                    },
+                    {
+                      "kind": "GridLayoutItem",
+                      "spec": {
+                        "x": 0,
+                        "y": 16,
+                        "width": 24,
+                        "height": 8,
+                        "element": {
+                          "kind": "ElementReference",
+                          "name": "panel-48"
+                        }
+                      }
+                    }
                   ]
                 }
               }
@@ -1901,18 +4851,54 @@
       }
     },
     "links": [
-      {"title": "Daemon Runbook","type": "link","icon": "","tooltip": "","url": "https://github.com/skippALGO/skipp-algo/blob/main/services/live_overlay_daemon/README.md","tags": [],"asDropdown": false,"targetBlank": true,"includeVars": false,"keepTime": false},
-      {"title": "Grafana Alert Rules","type": "link","icon": "","tooltip": "","url": "https://github.com/skippALGO/skipp-algo/blob/main/services/live_overlay_daemon/infra/grafana/alert-rules.yaml","tags": [],"asDropdown": false,"targetBlank": true,"includeVars": false,"keepTime": false}
+      {
+        "title": "Daemon Runbook",
+        "type": "link",
+        "icon": "",
+        "tooltip": "",
+        "url": "https://github.com/skippALGO/skipp-algo/blob/main/services/live_overlay_daemon/README.md",
+        "tags": [],
+        "asDropdown": false,
+        "targetBlank": true,
+        "includeVars": false,
+        "keepTime": false
+      },
+      {
+        "title": "Grafana Alert Rules",
+        "type": "link",
+        "icon": "",
+        "tooltip": "",
+        "url": "https://github.com/skippALGO/skipp-algo/blob/main/services/live_overlay_daemon/infra/grafana/alert-rules.yaml",
+        "tags": [],
+        "asDropdown": false,
+        "targetBlank": true,
+        "includeVars": false,
+        "keepTime": false
+      }
     ],
     "liveNow": false,
     "preload": false,
-    "tags": ["live-overlay","skipp-algo"],
+    "tags": [
+      "live-overlay",
+      "skipp-algo"
+    ],
     "timeSettings": {
       "timezone": "utc",
       "from": "now-6h",
       "to": "now",
       "autoRefresh": "30s",
-      "autoRefreshIntervals": ["5s","10s","30s","1m","5m","15m","30m","1h","2h","1d"],
+      "autoRefreshIntervals": [
+        "5s",
+        "10s",
+        "30s",
+        "1m",
+        "5m",
+        "15m",
+        "30m",
+        "1h",
+        "2h",
+        "1d"
+      ],
       "hideTimepicker": false,
       "fiscalYearStartMonth": 0
     },
