@@ -93,6 +93,8 @@ def test_render_metrics_prometheus_format_and_trailing_newline(monkeypatch: pyte
     assert "# TYPE live_overlay_uptime_seconds gauge" in body
     assert "# TYPE live_overlay_max_stale_seconds gauge" in body
     assert "live_overlay_max_stale_seconds 300" in body
+    assert body.count("# TYPE live_overlay_max_stale_seconds gauge") == 1
+    assert body.count("live_overlay_max_stale_seconds 300") == 1
     assert "live_overlay_feed_ingest_queue_depth 0.0" in body
     assert "live_overlay_feed_ingest_queue_lag_ms_max 35.0" in body
     assert "live_overlay_provider_news_snapshot_loaded 1.0" in body
@@ -378,7 +380,8 @@ def test_render_metrics_includes_uptimerobot_bridge_snapshot(monkeypatch: pytest
 
     assert "live_overlay_uptimerobot_bridge_enabled 1" in body
     assert "live_overlay_uptimerobot_scrape_success 1" in body
-    assert "live_overlay_uptimerobot_monitors_total_total 4.0" in body
+    assert "live_overlay_uptimerobot_monitors_total 4.0" in body
+    assert "live_overlay_uptimerobot_monitors_total_total" not in body
     assert "live_overlay_uptimerobot_monitors_up_total 4.0" in body
     assert "live_overlay_uptimerobot_monitors_response_time_ms_avg 101.5" in body
     assert "live_overlay_uptimerobot_monitor__803343156_up 1.0" in body
@@ -414,7 +417,7 @@ def test_render_metrics_handles_uptimerobot_bridge_disabled(monkeypatch: pytest.
 
     assert "live_overlay_uptimerobot_bridge_enabled 0" in body
     assert "live_overlay_uptimerobot_scrape_success 0" in body
-    assert "live_overlay_uptimerobot_monitors_total_total 0.0" in body
+    assert "live_overlay_uptimerobot_monitors_total 0.0" in body
 
 
 def test_render_metrics_includes_github_workflow_bridge_snapshot(monkeypatch: pytest.MonkeyPatch) -> None:

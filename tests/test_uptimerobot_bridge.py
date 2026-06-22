@@ -2,10 +2,23 @@
 
 from __future__ import annotations
 
+import threading
+import time
 from typing import Any
 from unittest.mock import patch
 
+import pytest
+
 from services.live_overlay_daemon import uptimerobot_bridge
+
+
+@pytest.fixture(autouse=True)
+def _reset_bridge_cache() -> None:
+    uptimerobot_bridge._cached_snapshot = None
+    uptimerobot_bridge._cached_at_monotonic = 0.0
+    yield
+    uptimerobot_bridge._cached_snapshot = None
+    uptimerobot_bridge._cached_at_monotonic = 0.0
 
 
 def test_status_bucket() -> None:
@@ -152,3 +165,81 @@ def test_snapshot_handles_api_error_gracefully() -> None:
     assert result["enabled"] == 1
     assert result["ok"] == 0
     assert result["error"] == "TimeoutError"
+
+
+def test_snapshot_coalesces_parallel_fetches() -> None:
+    uptimerobot_bridge._cached_snapshot = None
+    uptimerobot_bridge._cached_at_monotonic = 0.0
+
+    calls: list[str] = []
+
+    def _slow_fetch(api_key: str) -> dict[str, Any]:
+        calls.append(api_key)
+        time.sleep(0.05)
+        return {
+            "enabled": 1,
+            "ok": 1,
+            "fetched_at_unix": time.time(),
+            "counts": {"total": 0, "up": 0, "down": 0, "paused": 0, "unknown": 0},
+            "avg_response_time_ms": None,
+            "monitors": [],
+        }
+
+    with patch.object(
+        uptimerobot_bridge.config,
+        "uptimerobot_api_key",
+        return_value="secret",
+    ), patch.object(
+        uptimerobot_bridge.config,
+        "uptimerobot_poll_ttl_secs",
+        return_value=300,
+    ), patch.object(
+        uptimerobot_bridge,
+        "_fetch_snapshot",
+        side_effect=_slow_fetch,
+    ):
+        threads = [threading.Thread(target=uptimerobot_bridge.snapshot) for _ in range(6)]
+        for t in threads:
+            t.start()
+        for t in threads:
+            t.join()
+
+    assert len(calls) == 1
+
+
+def test_snapshot_parallel_fetch_error_is_coalesced() -> None:
+    calls: list[str] = []
+    results: list[dict[str, Any]] = []
+
+    def _slow_fail(api_key: str) -> dict[str, Any]:
+        calls.append(api_key)
+        time.sleep(0.05)
+        raise TimeoutError("boom")
+
+    def _worker() -> None:
+        results.append(uptimerobot_bridge.snapshot())
+
+    with patch.object(
+        uptimerobot_bridge.config,
+        "uptimerobot_api_key",
+        return_value="secret",
+    ), patch.object(
+        uptimerobot_bridge.config,
+        "uptimerobot_poll_ttl_secs",
+        return_value=300,
+    ), patch.object(
+        uptimerobot_bridge,
+        "_fetch_snapshot",
+        side_effect=_slow_fail,
+    ):
+        threads = [threading.Thread(target=_worker) for _ in range(6)]
+        for t in threads:
+            t.start()
+        for t in threads:
+            t.join()
+
+    assert len(calls) == 1
+    assert len(results) == 6
+    assert all(r.get("enabled") == 1 for r in results)
+    assert all(r.get("ok") == 0 for r in results)
+    assert all(r.get("error") == "TimeoutError" for r in results)
