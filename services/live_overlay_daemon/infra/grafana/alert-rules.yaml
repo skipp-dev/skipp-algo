@@ -67,7 +67,7 @@ groups:
           - refId: A
             datasourceUid: grafanacloud-prom
             model:
-              expr: live_overlay_market_open{job="live_overlay"} * (1 - live_overlay_feed_healthy{job="live_overlay"})
+              expr: live_overlay_market_us_open{job="live_overlay"} * (1 - live_overlay_feed_healthy{job="live_overlay"})
               instant: true
           - refId: C
             datasourceUid: __expr__
@@ -175,7 +175,7 @@ groups:
           - refId: A
             datasourceUid: grafanacloud-prom
             model:
-              expr: live_overlay_market_open{job="live_overlay"} * (live_overlay_last_bar_age_seconds{job="live_overlay"} > bool 300)
+              expr: live_overlay_market_us_open{job="live_overlay"} * (live_overlay_last_bar_age_seconds{job="live_overlay"} > bool 300)
               instant: true
           - refId: C
             datasourceUid: __expr__
@@ -271,7 +271,7 @@ groups:
           - refId: A
             datasourceUid: grafanacloud-prom
             model:
-              expr: live_overlay_market_open{job="live_overlay"} * (rate(live_overlay_smc_live_requests_total{job="live_overlay"}[10m]) < bool 0.001) * (live_overlay_uptime_seconds{job="live_overlay"} > bool 600) * (increase(live_overlay_smc_live_requests_total{job="live_overlay"}[10m]) > bool 5)
+              expr: live_overlay_market_us_open{job="live_overlay"} * (rate(live_overlay_smc_live_requests_total{job="live_overlay"}[10m]) < bool 0.001) * (live_overlay_uptime_seconds{job="live_overlay"} > bool 600) * (increase(live_overlay_smc_live_requests_total{job="live_overlay"}[10m]) > bool 5)
               instant: true
           - refId: C
             datasourceUid: __expr__

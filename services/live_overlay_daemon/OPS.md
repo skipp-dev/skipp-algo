@@ -258,25 +258,38 @@ python scripts/update_overlay_dashboard.py
 git diff services/live_overlay_daemon/infra/grafana/dashboard.json
 ```
 
-### Alert rules import
+### Alert rules deploy
 
-File: `services/live_overlay_daemon/infra/grafana/alert-rules.yaml`
+File (source of truth): `services/live_overlay_daemon/infra/grafana/alert-rules.yaml`
 
-Import via UI:
-
-1. Grafana Cloud → Alerting → Alert rules → **More …** → **Import alert rules**
-2. Paste YAML contents.
-
-Import via API:
+Deploy with the idempotent one-liner (run from the repo root):
 
 ```bash
-API_KEY=$(security find-generic-password -s skipp.grafana.api -w)
-curl -X POST \
-  -H "Authorization: Bearer $API_KEY" \
-  -H "Content-Type: application/yaml" \
-  --data-binary @services/live_overlay_daemon/infra/grafana/alert-rules.yaml \
-  https://bronzeporridge977.grafana.net/api/v1/provisioning/alert-rules
+python scripts/grafana_alert_rules_upsert.py            # validate + apply
+python scripts/grafana_alert_rules_upsert.py --dry-run  # validate only, no network
 ```
+
+The script parses the file and upserts each rule **group** via
+`PUT /api/v1/provisioning/folder/{folderUID}/rule-groups/{group}`, which
+overwrites the whole group — new rules are added, changed rules updated, and
+rules deleted from the YAML are removed. Re-running it is safe and converges the
+live state 1:1 to the repo. The Grafana folder is resolved by name (created if
+missing); rules are pushed with `X-Disable-Provenance: true` so they stay
+editable in the UI.
+
+Auth: `GRAFANA_API_KEY` env var (CI) or the macOS Keychain entry
+`skipp.grafana.api` (local). The token is never printed.
+
+> ⚠️ Do **not** `curl --data-binary @alert-rules.yaml` to
+> `POST /api/v1/provisioning/alert-rules`. That endpoint creates a *single* rule
+> and ignores the `groups:` file-provisioning envelope, so it silently fails to
+> provision the rule set — this is how alerting previously drifted from the repo.
+> Use the script above instead.
+
+Validation runs automatically before any network call, and
+`tests/test_grafana_alert_rules_upsert.py` enforces the same checks in CI
+(unique UIDs, valid condition references, parseable intervals), so a malformed
+`alert-rules.yaml` fails the build instead of failing silently at deploy time.
 
 ### Keychain auth
 
@@ -292,10 +305,12 @@ security find-generic-password -s skipp.grafana.api -w
 
 #### Market-gating
 
-Only alert on feed health when the market is open:
+Only alert on feed health when the US session is open (the feed is US equities;
+`live_overlay_market_us_open` gates feed/traffic/SLO, while `live_overlay_market_open`
+is the broadened US-or-EU display gauge):
 
 ```promql
-live_overlay_market_open{job="live_overlay"}
+live_overlay_market_us_open{job="live_overlay"}
   * (1 - live_overlay_feed_healthy{job="live_overlay"})
 ```
 

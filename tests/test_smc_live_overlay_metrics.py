@@ -8,7 +8,9 @@ Covers:
 """
 from __future__ import annotations
 
+import json
 import math
+from pathlib import Path
 
 import pytest
 
@@ -66,16 +68,24 @@ def _patch_common(
     monkeypatch.setattr(metrics_mod, "_provider_health_snapshot", lambda: {
         "news_snapshot_loaded": 1.0,
         "news_snapshot_age_seconds": 42.0,
-        "news_providers_total": 2.0,
+        "news_providers_total": 3.0,
         "news_providers_ok_total": 1.0,
         "news_providers_degraded_total": 1.0,
         "news_providers_unknown_total": 0.0,
+        "news_providers_disabled_total": 1.0,
+        "news_providers_consumed_total": 2.0,
         "news_health_ok": 0.0,
         "news_health_degraded": 1.0,
         "news_health_unknown": 0.0,
-        "news_provider_ok": {"newsapi_ai": 1.0, "tv": 0.0},
-        "news_provider_degraded": {"newsapi_ai": 0.0, "tv": 1.0},
-        "news_provider_state_code": {"newsapi_ai": 2.0, "tv": 1.0},
+        "news_provider_ok": {"newsapi_ai": 1.0, "tv": 0.0, "benzinga": 0.0},
+        "news_provider_degraded": {"newsapi_ai": 0.0, "tv": 1.0, "benzinga": 0.0},
+        "news_provider_state_code": {"newsapi_ai": 2.0, "tv": 1.0, "benzinga": 3.0},
+        "news_provider_consumed": {"newsapi_ai": 1.0, "tv": 1.0, "benzinga": 0.0},
+        "news_provider_info": [
+            {"provider": "newsapi_ai", "state": "ok", "reason": "OK", "consumed": "true"},
+            {"provider": "tv", "state": "degraded", "reason": "API key missing", "consumed": "true"},
+            {"provider": "benzinga", "state": "disabled", "reason": "Provider disabled (not ingested)", "consumed": "false"},
+        ],
     })
 
     monkeypatch.setattr(cache, "overlay_symbol_count", lambda: overlay_symbols)
@@ -124,6 +134,19 @@ def test_render_metrics_prometheus_format_and_trailing_newline(monkeypatch: pyte
     assert "live_overlay_provider_news_newsapi_ai_ok 1.0" in body
     assert "live_overlay_provider_news_tv_degraded 1.0" in body
     assert "live_overlay_provider_news_tv_state_code 1.0" in body
+    assert "live_overlay_provider_news_providers_disabled_total 1.0" in body
+    assert "live_overlay_provider_news_providers_consumed_total 2.0" in body
+    assert "live_overlay_provider_news_benzinga_state_code 3.0" in body
+    assert "live_overlay_provider_news_benzinga_consumed 0.0" in body
+    assert "live_overlay_provider_news_newsapi_ai_consumed 1.0" in body
+    assert (
+        'live_overlay_provider_news_info{provider="benzinga",state="disabled",'
+        'reason="Provider disabled (not ingested)",consumed="false"} 1' in body
+    )
+    assert (
+        'live_overlay_provider_news_info{provider="tv",state="degraded",'
+        'reason="API key missing",consumed="true"} 1' in body
+    )
 
 
 def test_render_metrics_health_status_ok(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -530,3 +553,145 @@ def test_render_metrics_handles_github_workflow_bridge_disabled(monkeypatch: pyt
     assert "live_overlay_github_workflow_bridge_enabled 0" in body
     assert "live_overlay_github_workflow_scrape_success 0" in body
     assert "live_overlay_github_workflow_runs_seen_total 0.0" in body
+
+def test_alert_rules_split_news_snapshot_unavailable_and_stale() -> None:
+    """Unavailable snapshot (loaded==0) and stale snapshot (age>3600) must be separate alerts."""
+    import yaml
+
+    repo_root = Path(__file__).resolve().parents[1]
+    rules_path = repo_root / "services" / "live_overlay_daemon" / "infra" / "grafana" / "alert-rules.yaml"
+    rules_doc = yaml.safe_load(rules_path.read_text(encoding="utf-8"))
+    warning_group = next(g for g in rules_doc["groups"] if g.get("name") == "live-overlay-warning")
+    uids = {r.get("uid") for r in warning_group["rules"]}
+    assert "lo-news-snapshot-unavailable" in uids
+    assert "lo-news-snapshot-stale" in uids
+
+    unavailable = next(r for r in warning_group["rules"] if r.get("uid") == "lo-news-snapshot-unavailable")
+    assert unavailable["labels"]["severity"] == "high"
+    assert "snapshot_loaded" in unavailable["data"][0]["model"]["expr"]
+    assert "== bool 0" in unavailable["data"][0]["model"]["expr"]
+
+    stale = next(r for r in warning_group["rules"] if r.get("uid") == "lo-news-snapshot-stale")
+    assert "snapshot_age_seconds" in stale["data"][0]["model"]["expr"]
+    assert "> bool 3600" in stale["data"][0]["model"]["expr"]
+
+
+def test_dashboard_service_status_panel_maps_starting_state() -> None:
+    repo_root = Path(__file__).resolve().parents[1]
+    dashboard_path = repo_root / "services" / "live_overlay_daemon" / "infra" / "grafana" / "dashboard.json"
+    dashboard = json.loads(dashboard_path.read_text(encoding="utf-8"))
+    panel = next(p for p in dashboard["panels"] if p.get("title") == "Service Status")
+    options = panel["fieldConfig"]["defaults"]["mappings"][0]["options"]
+    assert options.get("0", {}).get("text") == "STARTING"
+
+
+def test_dashboard_worker_liveness_uses_human_labels() -> None:
+    repo_root = Path(__file__).resolve().parents[1]
+    dashboard_path = repo_root / "services" / "live_overlay_daemon" / "infra" / "grafana" / "dashboard.json"
+    dashboard = json.loads(dashboard_path.read_text(encoding="utf-8"))
+    panel = next(p for p in dashboard["panels"] if p.get("title") == "Worker Liveness")
+    options = panel["fieldConfig"]["defaults"]["mappings"][0]["options"]
+    assert options.get("0", {}).get("text") == "DEAD"
+    assert options.get("1", {}).get("text") == "ALIVE"
+    assert "min" not in panel["fieldConfig"]["defaults"]
+    assert "max" not in panel["fieldConfig"]["defaults"]
+
+
+def test_dashboard_has_uptimerobot_state_timeline() -> None:
+    repo_root = Path(__file__).resolve().parents[1]
+    dashboard_path = repo_root / "services" / "live_overlay_daemon" / "infra" / "grafana" / "dashboard.json"
+    dashboard = json.loads(dashboard_path.read_text(encoding="utf-8"))
+    panel = next(p for p in dashboard["panels"] if p.get("title") == "UptimeRobot Monitor States")
+    assert panel["type"] == "state-timeline"
+    assert any("live_overlay_uptimerobot_monitor_.*_status_code" in t["expr"] for t in panel["targets"])
+    options = panel["fieldConfig"]["defaults"]["mappings"][0]["options"]
+    assert options.get("0", {}).get("text") == "PAUSED"
+    assert options.get("8", {}).get("text") == "DOWN"
+
+
+def test_dashboard_github_workflow_runs_panel_uses_rate() -> None:
+    repo_root = Path(__file__).resolve().parents[1]
+    dashboard_path = repo_root / "services" / "live_overlay_daemon" / "infra" / "grafana" / "dashboard.json"
+    dashboard = json.loads(dashboard_path.read_text(encoding="utf-8"))
+    panel = next(p for p in dashboard["panels"] if p.get("title") == "GitHub Workflow Runs")
+    assert all("rate(" in t["expr"] for t in panel["targets"])
+    assert panel["fieldConfig"]["defaults"]["unit"] == "cps"
+    assert panel["fieldConfig"]["defaults"]["custom"]["axisLabel"] == "runs / sec"
+
+
+def test_provider_health_snapshot_classifies_state_reason_and_consumed(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Disabled providers are excluded from health; degraded reasons are mapped."""
+    import services.live_overlay_daemon.metrics as metrics_mod
+
+    snapshot = {
+        "fetched_at_unix": 0,
+        "providers": {
+            "newsapi_ai": {"ok": True, "error": None, "raw_count": 12, "new_item_count": 3},
+            "benzinga": {"ok": False, "error": "disabled"},
+            "fmp_press": {"ok": False, "error": "missing_api_key"},
+            "fmp_articles": {"ok": False, "error": "fetch_failed: 403 forbidden no subscription"},
+            "tv": {"ok": None},
+        },
+    }
+    snap_path = tmp_path / "smc_live_news_snapshot.json"
+    snap_path.write_text(json.dumps(snapshot), encoding="utf-8")
+    monkeypatch.setattr(metrics_mod.config, "news_snapshot_path", lambda: snap_path)
+
+    health = metrics_mod._provider_health_snapshot()
+
+    assert health["news_providers_total"] == 5.0
+    assert health["news_providers_ok_total"] == 1.0
+    assert health["news_providers_degraded_total"] == 2.0
+    assert health["news_providers_unknown_total"] == 1.0
+    assert health["news_providers_disabled_total"] == 1.0
+    # disabled provider is not consumed; everything else is.
+    assert health["news_providers_consumed_total"] == 4.0
+    # benzinga disabled must NOT drag health into degraded by itself,
+    # but the missing-key / unknown providers still mark it degraded.
+    assert health["news_health_degraded"] == 1.0
+    assert health["news_health_ok"] == 0.0
+
+    info = {row["provider"]: row for row in health["news_provider_info"]}
+    assert info["benzinga"]["state"] == "disabled"
+    assert info["benzinga"]["consumed"] == "false"
+    assert info["benzinga"]["reason"] == "Provider disabled (not ingested)"
+    assert info["fmp_press"]["state"] == "degraded"
+    assert info["fmp_press"]["reason"] == "API key missing"
+    assert info["fmp_articles"]["reason"] == "No active subscription"
+    assert info["tv"]["state"] == "unknown"
+    assert info["newsapi_ai"]["state"] == "ok"
+    assert info["newsapi_ai"]["reason"] == "OK"
+
+    assert health["news_provider_state_code"]["benzinga"] == 3.0
+    assert health["news_provider_consumed"]["benzinga"] == 0.0
+    assert health["news_provider_consumed"]["newsapi_ai"] == 1.0
+
+
+def test_provider_health_snapshot_all_disabled_except_consumed_ok(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """When only one provider is consumed and it is OK, health must be OK."""
+    import services.live_overlay_daemon.metrics as metrics_mod
+
+    snapshot = {
+        "fetched_at_unix": 0,
+        "providers": {
+            "newsapi_ai": {"ok": True, "error": None},
+            "benzinga": {"ok": False, "error": "disabled"},
+            "fmp_stock": {"ok": False, "error": "disabled"},
+            "tv": {"ok": False, "error": "disabled"},
+        },
+    }
+    snap_path = tmp_path / "smc_live_news_snapshot.json"
+    snap_path.write_text(json.dumps(snapshot), encoding="utf-8")
+    monkeypatch.setattr(metrics_mod.config, "news_snapshot_path", lambda: snap_path)
+
+    health = metrics_mod._provider_health_snapshot()
+
+    assert health["news_providers_consumed_total"] == 1.0
+    assert health["news_providers_disabled_total"] == 3.0
+    assert health["news_health_ok"] == 1.0
+    assert health["news_health_degraded"] == 0.0
+    assert health["news_health_unknown"] == 0.0

@@ -107,6 +107,18 @@ def is_asia_regular_session_open(now_utc: datetime.datetime | None = None) -> bo
     )
 
 
+def is_any_regular_session_open(now_utc: datetime.datetime | None = None) -> bool:
+    """Return True when any major covered session (US or Europe) is open.
+
+    Used for the operator-facing ``live_overlay_market_open`` display gauge so the
+    dashboard does not show MARKET CLOSED while European exchanges trade ahead of
+    the US session. Feed/traffic/SLO gating stays bound to the US session via
+    ``is_us_regular_session_open`` because the upstream feed is US equities.
+    """
+    now_utc = now_utc or datetime.datetime.now(datetime.UTC)
+    return is_us_regular_session_open(now_utc) or is_europe_regular_session_open(now_utc)
+
+
 def compute_daemon_health_status(
     *,
     feed_healthy: bool,

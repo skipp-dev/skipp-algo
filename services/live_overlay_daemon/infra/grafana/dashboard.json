@@ -1263,7 +1263,7 @@
       },
       "targets": [
         {
-          "expr": "(live_overlay_market_open{job=\"$job\"} or live_overlay_market_open or vector(0)) + ((live_overlay_market_open{job=\"$job\"} or live_overlay_market_open or vector(0)) * (((rate(live_overlay_smc_live_requests_total{job=\"$job\"}[$__rate_interval]) or rate(live_overlay_smc_live_requests_total[$__rate_interval]) or vector(0)) > bool 0.001)))",
+          "expr": "(live_overlay_market_us_open{job=\"$job\"} or live_overlay_market_us_open or vector(0)) + ((live_overlay_market_us_open{job=\"$job\"} or live_overlay_market_us_open or vector(0)) * (((rate(live_overlay_smc_live_requests_total{job=\"$job\"}[$__rate_interval]) or rate(live_overlay_smc_live_requests_total[$__rate_interval]) or vector(0)) > bool 0.001)))",
           "legendFormat": "open_req_health"
         }
       ],
@@ -1765,7 +1765,7 @@
       },
       "targets": [
         {
-          "expr": "(live_overlay_uptimerobot_bridge_enabled{job=\"$job\"} or vector(0)) + (live_overlay_uptimerobot_scrape_success{job=\"$job\"} or vector(0))",
+          "expr": "(max(live_overlay_uptimerobot_bridge_enabled{job=\"$job\"}) or vector(0)) + (max(live_overlay_uptimerobot_scrape_success{job=\"$job\"}) or vector(0))",
           "legendFormat": "bridge_state"
         }
       ],
@@ -1954,7 +1954,7 @@
       },
       "targets": [
         {
-          "expr": "(live_overlay_github_workflow_bridge_enabled{job=\"$job\"} or vector(0)) + (live_overlay_github_workflow_scrape_success{job=\"$job\"} or vector(0))",
+          "expr": "(max(live_overlay_github_workflow_bridge_enabled{job=\"$job\"}) or vector(0)) + (max(live_overlay_github_workflow_scrape_success{job=\"$job\"}) or vector(0))",
           "legendFormat": "bridge_state"
         }
       ],
@@ -2198,19 +2198,19 @@
       },
       "targets": [
         {
-          "expr": "max_over_time(live_overlay_market_us_open{job=\"$job\"}[5m]) or max_over_time(live_overlay_market_us_open[5m]) or vector(0)",
+          "expr": "max(max_over_time(live_overlay_market_us_open{job=\"$job\"}[5m])) or vector(0)",
           "legendFormat": "US",
           "instant": false,
           "range": true
         },
         {
-          "expr": "max_over_time(live_overlay_market_europe_open{job=\"$job\"}[5m]) or max_over_time(live_overlay_market_europe_open[5m]) or vector(0)",
+          "expr": "max(max_over_time(live_overlay_market_europe_open{job=\"$job\"}[5m])) or vector(0)",
           "legendFormat": "Europe",
           "instant": false,
           "range": true
         },
         {
-          "expr": "max_over_time(live_overlay_market_asia_open{job=\"$job\"}[5m]) or max_over_time(live_overlay_market_asia_open[5m]) or vector(0)",
+          "expr": "max(max_over_time(live_overlay_market_asia_open{job=\"$job\"}[5m])) or vector(0)",
           "legendFormat": "Asia",
           "instant": false,
           "range": true
@@ -2354,7 +2354,7 @@
       },
       "targets": [
         {
-          "expr": "100 * ((sum(sum_over_time((((live_overlay_overlay_fresh{job=\"$job\"} or live_overlay_overlay_fresh or vector(1)) * (live_overlay_market_open{job=\"$job\"} or live_overlay_market_open or vector(0))))[1h:])) + (sum(sum_over_time((live_overlay_market_open{job=\"$job\"} or live_overlay_market_open or vector(0))[1h:])) == bool 0)) / clamp_min(sum(sum_over_time((live_overlay_market_open{job=\"$job\"} or live_overlay_market_open or vector(0))[1h:])), 1))",
+          "expr": "100 * ((sum(sum_over_time((((live_overlay_overlay_fresh{job=\"$job\"} or live_overlay_overlay_fresh or vector(1)) * (live_overlay_market_us_open{job=\"$job\"} or live_overlay_market_us_open or vector(0))))[1h:])) + (sum(sum_over_time((live_overlay_market_us_open{job=\"$job\"} or live_overlay_market_us_open or vector(0))[1h:])) == bool 0)) / clamp_min(sum(sum_over_time((live_overlay_market_us_open{job=\"$job\"} or live_overlay_market_us_open or vector(0))[1h:])), 1))",
           "legendFormat": "freshness_slo"
         }
       ],
@@ -2524,13 +2524,13 @@
       },
       "targets": [
         {
-          "expr": "max_over_time(live_overlay_uptimerobot_scrape_success{job=\"$job\"}[5m]) or max_over_time(live_overlay_uptimerobot_scrape_success[5m]) or vector(0)",
+          "expr": "max(max_over_time(live_overlay_uptimerobot_scrape_success{job=\"$job\"}[5m])) or vector(0)",
           "legendFormat": "UptimeRobot",
           "instant": false,
           "range": true
         },
         {
-          "expr": "max_over_time(live_overlay_github_workflow_scrape_success{job=\"$job\"}[5m]) or max_over_time(live_overlay_github_workflow_scrape_success[5m]) or vector(0)",
+          "expr": "max(max_over_time(live_overlay_github_workflow_scrape_success{job=\"$job\"}[5m])) or vector(0)",
           "legendFormat": "GitHub Workflows",
           "instant": false,
           "range": true
@@ -2667,7 +2667,7 @@
       },
       "options": {
         "mode": "markdown",
-        "content": "**News provider state codes:** `0` = unknown / no data, `1` = degraded, `2` = ok. Drill-down panel shows per-provider ok/degraded flags; state-code panel maps the same provider to a single numeric state."
+        "content": "**News provider state codes:** `0` = unknown / no data, `1` = degraded, `2` = ok, `3` = disabled (not ingested). The **News Providers — Ingest Status & Reason** table shows the human-readable reason (e.g. API key missing, no active subscription, provider disabled) and whether each provider is actually consumed."
       }
     },
     {
@@ -2827,19 +2827,19 @@
       },
       "targets": [
         {
-          "expr": "max_over_time(live_overlay_provider_news_health_ok{job=\"$job\"}[5m]) or max_over_time(live_overlay_provider_news_health_ok[5m]) or vector(0)",
+          "expr": "max(max_over_time(live_overlay_provider_news_health_ok{job=\"$job\"}[5m])) or vector(0)",
           "legendFormat": "health_ok",
           "instant": false,
           "range": true
         },
         {
-          "expr": "max_over_time(live_overlay_provider_news_health_degraded{job=\"$job\"}[5m]) or max_over_time(live_overlay_provider_news_health_degraded[5m]) or vector(0)",
+          "expr": "max(max_over_time(live_overlay_provider_news_health_degraded{job=\"$job\"}[5m])) or vector(0)",
           "legendFormat": "health_degraded",
           "instant": false,
           "range": true
         },
         {
-          "expr": "max_over_time(live_overlay_provider_news_health_unknown{job=\"$job\"}[5m]) or max_over_time(live_overlay_provider_news_health_unknown[5m]) or vector(0)",
+          "expr": "max(max_over_time(live_overlay_provider_news_health_unknown{job=\"$job\"}[5m])) or vector(0)",
           "legendFormat": "health_unknown",
           "instant": false,
           "range": true
@@ -2919,6 +2919,14 @@
         {
           "expr": "live_overlay_provider_news_providers_degraded_total{job=\"$job\"}",
           "legendFormat": "providers degraded"
+        },
+        {
+          "expr": "live_overlay_provider_news_providers_consumed_total{job=\"$job\"}",
+          "legendFormat": "providers consumed"
+        },
+        {
+          "expr": "live_overlay_provider_news_providers_disabled_total{job=\"$job\"}",
+          "legendFormat": "providers disabled"
         }
       ],
       "options": {
@@ -2952,7 +2960,7 @@
       },
       "targets": [
         {
-          "expr": "(({__name__=~\"live_overlay_provider_news_.*_(ok|degraded)\",job=\"$job\"} or {__name__=~\"live_overlay_provider_news_.*_(ok|degraded)\"}) unless ({__name__=~\"live_overlay_provider_news_health_(ok|degraded)\",job=\"$job\"} or {__name__=~\"live_overlay_provider_news_health_(ok|degraded)\"}))",
+          "expr": "(({__name__=~\"live_overlay_provider_news_.*_(ok|degraded)\",job=\"$job\"} or {__name__=~\"live_overlay_provider_news_.*_(ok|degraded)\"}) unless on(__name__) ({__name__=~\"live_overlay_provider_news_health_(ok|degraded)\",job=\"$job\"} or {__name__=~\"live_overlay_provider_news_health_(ok|degraded)\"}))",
           "legendFormat": "{{__name__}}"
         }
       ],
@@ -3024,6 +3032,10 @@
               {
                 "color": "green",
                 "value": 2
+              },
+              {
+                "color": "blue",
+                "value": 3
               }
             ]
           },
@@ -3042,6 +3054,10 @@
                 "2": {
                   "text": "OK",
                   "color": "green"
+                },
+                "3": {
+                  "text": "DISABLED",
+                  "color": "blue"
                 }
               }
             }
@@ -3051,7 +3067,155 @@
           }
         }
       },
-      "description": "Per-provider news state code: 0=unknown, 1=degraded, 2=ok."
+      "description": "Per-provider news state code: 0=unknown, 1=degraded, 2=ok, 3=disabled (not ingested)."
+    },
+    {
+      "title": "News Providers — Ingest Status & Reason",
+      "type": "table",
+      "gridPos": {
+        "h": 8,
+        "w": 24,
+        "x": 0,
+        "y": 167
+      },
+      "description": "Per-provider ingest status with the human-readable degraded reason (API key missing, no active subscription, provider disabled, …) and whether the provider is actually consumed.",
+      "targets": [
+        {
+          "expr": "live_overlay_provider_news_info{job=\"$job\"}",
+          "legendFormat": "",
+          "instant": true,
+          "format": "table"
+        }
+      ],
+      "transformations": [
+        {
+          "id": "labelsToFields",
+          "options": {
+            "mode": "columns"
+          }
+        },
+        {
+          "id": "organize",
+          "options": {
+            "excludeByName": {
+              "Time": true,
+              "Value": true,
+              "__name__": true,
+              "job": true,
+              "instance": true
+            },
+            "renameByName": {
+              "provider": "Provider",
+              "state": "State",
+              "reason": "Reason",
+              "consumed": "Consumed"
+            },
+            "indexByName": {
+              "provider": 0,
+              "state": 1,
+              "consumed": 2,
+              "reason": 3
+            }
+          }
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "align": "left",
+            "filterable": true
+          }
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "State"
+            },
+            "properties": [
+              {
+                "id": "mappings",
+                "value": [
+                  {
+                    "type": "value",
+                    "options": {
+                      "ok": {
+                        "text": "OK",
+                        "color": "green",
+                        "index": 0
+                      },
+                      "degraded": {
+                        "text": "DEGRADED",
+                        "color": "orange",
+                        "index": 1
+                      },
+                      "disabled": {
+                        "text": "DISABLED",
+                        "color": "blue",
+                        "index": 2
+                      },
+                      "unknown": {
+                        "text": "UNKNOWN",
+                        "color": "gray",
+                        "index": 3
+                      }
+                    }
+                  }
+                ]
+              },
+              {
+                "id": "custom.cellOptions",
+                "value": {
+                  "type": "color-text"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Consumed"
+            },
+            "properties": [
+              {
+                "id": "mappings",
+                "value": [
+                  {
+                    "type": "value",
+                    "options": {
+                      "true": {
+                        "text": "yes",
+                        "color": "green",
+                        "index": 0
+                      },
+                      "false": {
+                        "text": "no",
+                        "color": "gray",
+                        "index": 1
+                      }
+                    }
+                  }
+                ]
+              },
+              {
+                "id": "custom.cellOptions",
+                "value": {
+                  "type": "color-text"
+                }
+              }
+            ]
+          }
+        ]
+      },
+      "options": {
+        "showHeader": true,
+        "sortBy": [
+          {
+            "displayName": "State",
+            "desc": false
+          }
+        ]
+      }
     },
     {
       "title": "Active Alerts (live_overlay)",
@@ -3060,7 +3224,7 @@
         "h": 8,
         "w": 24,
         "x": 0,
-        "y": 167
+        "y": 175
       },
       "options": {
         "showLabels": true,

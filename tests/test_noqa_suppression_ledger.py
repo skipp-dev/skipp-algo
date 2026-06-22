@@ -180,6 +180,10 @@ _FROZEN_SITES: dict[str, int] = {
     "scripts/databento_production_merge_shards.py": 3,
     # 2026-06-22: Grafana dashboard upsert helper; intentional Keychain read.
     "scripts/grafana_dashboard_upsert.py": 2,
+    # 2026-06-22: Grafana alert-rules upsert helper; intentional Keychain read
+    # (S603 + S607 on the `security find-generic-password` call).
+    "scripts/grafana_alert_rules_upsert.py": 2,
+
     # 2026-06-22: keychain hardening in publish script adds one
     # deliberate ``# noqa: S603`` on subprocess.run with fixed argv.
     "scripts/publish_overlay_dashboard.py": 1,

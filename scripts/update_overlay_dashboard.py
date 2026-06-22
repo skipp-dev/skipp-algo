@@ -7,6 +7,7 @@ thresholds from state-timeline panels that already use value mappings.
 from __future__ import annotations
 
 import argparse
+import copy
 import json
 import os
 import tempfile
@@ -22,6 +23,57 @@ COLOR_WARN = "dark-yellow"
 COLOR_DEGRADED = "dark-orange"
 COLOR_NEUTRAL = "gray"
 COLOR_STARTING = "dark-yellow"
+
+# Canonical classic (v1) definition of the per-monitor UptimeRobot state-timeline
+# panel. The updater self-heals this panel if it is ever removed from the
+# hand-maintained v1 dashboard, so the deployed dashboard never silently loses
+# UptimeRobot visibility.
+UPTIMEROBOT_PANEL: dict[str, Any] = {
+    "title": "UptimeRobot Monitor States",
+    "type": "state-timeline",
+    "description": (
+        "Per-monitor UptimeRobot state over time. paused = monitor intentionally "
+        "paused; unknown = unrecognized status code."
+    ),
+    "gridPos": {"h": 6, "w": 12, "x": 0, "y": 61},
+    "targets": [
+        {
+            "expr": '{__name__=~"live_overlay_uptimerobot_monitor_.*_status_code",job="$job"}',
+            "legendFormat": "{{__name__}}",
+        }
+    ],
+    "options": {
+        "tooltip": {"mode": "multi", "sort": "none"},
+        "legend": {"displayMode": "list", "placement": "bottom", "showLegend": False},
+        "rowHeight": 0.9,
+    },
+    "fieldConfig": {
+        "defaults": {
+            "mappings": [
+                {
+                    "type": "value",
+                    "options": {
+                        "0": {"text": "PAUSED", "color": "gray"},
+                        "1": {"text": "NOT CHECKED", "color": "purple"},
+                        "2": {"text": "UP", "color": "green"},
+                        "8": {"text": "DOWN", "color": "red"},
+                        "9": {"text": "DOWN", "color": "red"},
+                    },
+                }
+            ],
+            "color": {"mode": "thresholds"},
+            "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                    {"color": "gray", "value": None},
+                    {"color": "purple", "value": 1},
+                    {"color": "green", "value": 2},
+                    {"color": "red", "value": 8},
+                ],
+            },
+        }
+    },
+}
 
 
 def _resolve_dashboard_path(argv: list[str] | None = None) -> Path:
@@ -46,13 +98,13 @@ def _load_dashboard(dashboard_path: Path) -> dict[str, Any]:
     if data.get("kind") == "Dashboard" and isinstance(data.get("spec"), dict):
         return data
     if isinstance(data.get("panels"), list):
-        raise SystemExit(
-            "update_overlay_dashboard.py requires Grafana v2/Kubernetes dashboard format "
-            "(kind='Dashboard' + spec). Legacy v1 dashboards (top-level panels) are not supported."
-        )
+        # Classic Grafana v1 dashboard (top-level "panels" list). This is the
+        # format actually deployed via grafana_dashboard_upsert.py, so it is
+        # fully supported here.
+        return data
     raise SystemExit(
-        "Unsupported dashboard JSON shape: expected Grafana v2/Kubernetes dashboard "
-        "(kind='Dashboard' + spec)."
+        "Unsupported dashboard JSON shape: expected either a Grafana v2/Kubernetes "
+        "dashboard (kind='Dashboard' + spec) or a classic v1 dashboard (top-level 'panels')."
     )
 
 
@@ -72,6 +124,34 @@ def _save_dashboard(dashboard_path: Path, data: dict[str, Any]) -> None:
     finally:
         if os.path.exists(tmp_path):
             os.unlink(tmp_path)
+
+
+def _is_v2(data: dict[str, Any]) -> bool:
+    return data.get("kind") == "Dashboard" and isinstance(data.get("spec"), dict)
+
+
+def _iter_v1_panels(data: dict[str, Any]):
+    """Yield every classic-format panel, including panels nested inside rows."""
+    for panel in data.get("panels", []) or []:
+        if not isinstance(panel, dict):
+            continue
+        yield panel
+        for child in panel.get("panels", []) or []:
+            if isinstance(child, dict):
+                yield child
+
+
+def _ensure_uptimerobot_panel(data: dict[str, Any]) -> bool:
+    """Self-heal the classic UptimeRobot state-timeline panel.
+
+    Returns True when the panel was (re)added so the caller can bump the
+    dashboard version; returns False (no-op) when it is already present.
+    """
+    for panel in _iter_v1_panels(data):
+        if panel.get("title") == "UptimeRobot Monitor States":
+            return False
+    data.setdefault("panels", []).append(copy.deepcopy(UPTIMEROBOT_PANEL))
+    return True
 
 
 def _elements(data: dict[str, Any]) -> dict[str, Any]:
@@ -163,6 +243,19 @@ def _apply_stat_consistency(panel: dict[str, Any]) -> None:
 def main(argv: list[str] | None = None) -> int:
     dashboard_path = _resolve_dashboard_path(argv)
     data = _load_dashboard(dashboard_path)
+
+    if not _is_v2(data):
+        # Classic v1 dashboards are hand-maintained and authoritative. The v2
+        # color/mapping transforms below assume the v2 element/vizConfig shape
+        # and would corrupt v1 panels, so for v1 we only self-heal the
+        # UptimeRobot panel and write back idempotently (version bumps only when
+        # something actually changed).
+        changed = _ensure_uptimerobot_panel(data)
+        if changed:
+            data["version"] = int(data.get("version", 0) or 0) + 1
+        _save_dashboard(dashboard_path, data)
+        print(f"Updated {dashboard_path} (v1, version={data.get('version')})")
+        return 0
 
     # Top-level status panels: consistent semantic colors.
     service_status = _panel_by_title(data, "Service Status")
