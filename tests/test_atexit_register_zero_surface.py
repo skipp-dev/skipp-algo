@@ -91,7 +91,10 @@ ATEXIT_REGISTER_ALLOWED: set[tuple[str, int]] = {
     # atexit.register location in feed.start().
     # 2026-06-22: queue-drop telemetry helpers and ingest-shutdown handling
     # shifted this callsite in feed.start().
-    ("services/live_overlay_daemon/feed.py", 490),
+    # 2026-06-22 (fix/live-overlay-market-open-multiregion): main-merge +
+    # provider-news/ingest rework shifted the same single-hook register
+    # 490 -> 515 (still the unregister-then-register pattern in feed.start()).
+    ("services/live_overlay_daemon/feed.py", 515),
 }
 
 
