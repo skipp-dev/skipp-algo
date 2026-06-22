@@ -416,14 +416,6 @@ def render_metrics(startup_ts: float) -> str:
         lines.append(
             f"{prom_name} {_prom_numeric_value(counts.get(key, 0))}"
         )
-        # Backward compatibility: older dashboards queried
-        # live_overlay_uptimerobot_monitors_total_total for the aggregate count.
-        if key == "total":
-            legacy_name = "live_overlay_uptimerobot_monitors_total_total"
-            lines.append(f"# TYPE {legacy_name} gauge")
-            lines.append(
-                f"{legacy_name} {_prom_numeric_value(counts.get(key, 0))}"
-            )
 
     avg_response_time_ms = uptime_snapshot.get("avg_response_time_ms")
     if avg_response_time_ms is not None:
