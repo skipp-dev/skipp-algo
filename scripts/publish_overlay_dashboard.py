@@ -129,6 +129,7 @@ def _get_token(
             capture_output=True,
             text=True,
             check=True,
+            timeout=10,
         )
         keychain_token = result.stdout.strip()
         if keychain_token:
@@ -137,7 +138,7 @@ def _get_token(
             "Keychain lookup returned an empty token. "
             f"Set ${token_env}, ${DEFAULT_TOKEN_ENV}, or $GRAFANA_TOKEN, or pass --token."
         )
-    except (subprocess.CalledProcessError, FileNotFoundError) as exc:
+    except (subprocess.CalledProcessError, subprocess.TimeoutExpired, FileNotFoundError) as exc:
         raise SystemExit(
             "Could not obtain Grafana API token. "
             f"Set ${token_env}, ${DEFAULT_TOKEN_ENV}, or $GRAFANA_TOKEN, use --token, or run with --no-keychain in CI/non-macOS environments, "
