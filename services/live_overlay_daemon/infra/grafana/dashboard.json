@@ -431,7 +431,7 @@
                       "group": "",
                       "version": "v0",
                       "spec": {
-                        "expr": "live_overlay_worker_overlay_refresh_alive{job=\"live_overlay\"} or vector(0)",
+                        "expr": "live_overlay_worker_overlay_refresh_alive{job=\"live_overlay\"}",
                         "legendFormat": "overlay_refresh"
                       }
                     },
@@ -447,7 +447,7 @@
                       "group": "",
                       "version": "v0",
                       "spec": {
-                        "expr": "live_overlay_worker_flow_refresh_alive{job=\"live_overlay\"} or vector(0)",
+                        "expr": "live_overlay_worker_flow_refresh_alive{job=\"live_overlay\"}",
                         "legendFormat": "flow_refresh"
                       }
                     },
@@ -1016,7 +1016,7 @@
                       "group": "",
                       "version": "v0",
                       "spec": {
-                        "expr": "live_overlay_overlay_fresh{job=\"live_overlay\"} or vector(0)",
+                        "expr": "live_overlay_overlay_fresh{job=\"live_overlay\"}",
                         "legendFormat": "overlay_fresh"
                       }
                     },
