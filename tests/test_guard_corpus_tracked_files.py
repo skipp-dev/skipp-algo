@@ -66,7 +66,9 @@ def test_iter_tracked_files_excludes_untracked_root_scratch_file() -> None:
 
     scratch = root / "__scratch_guard_scan_regression__.py"
     scratch.write_text(
-        "import subprocess\nsubprocess.run('echo hi', shell=True)\nprint('hi')\n",
+        "# untracked scratch file used for tracked-inventory regression\n"
+        "def _scratch() -> None:\n"
+        "    return None\n",
         encoding="utf-8",
     )
     try:

@@ -61,7 +61,7 @@ BOT_EMAIL = "41898282+github-actions[bot]@users.noreply.github.com"
 
 def _git(
     args: list[str], cwd: Path, *, check: bool = True
-) -> subprocess.CompletedProcess[bytes]:
+) -> subprocess.CompletedProcess[str]:
     """Run a single git subcommand with a fixed, hardcoded argv.
 
     ``git`` is resolved via :func:`shutil.which` and every argument is a
@@ -70,8 +70,14 @@ def _git(
     """
     git_exe = shutil.which("git") or "git"
     return subprocess.run(  # noqa: S603 -- hardcoded git argv resolved via shutil.which (no shell, no user input)
-        [git_exe, *args], cwd=cwd, check=check
+        [git_exe, *args], cwd=cwd, check=check, capture_output=True, text=True
     )
+
+
+def _redact_token(text: str, token: str) -> str:
+    if not text or not token:
+        return text
+    return text.replace(token, "***")
 
 
 def _git_diff_has_changes(cwd: Path) -> bool:
@@ -128,7 +134,14 @@ def publish(input_path: Path, branch: str, repo: str, token: str) -> int:
         print(f"Published signals snapshot to {branch}.")
         return 0
     except subprocess.CalledProcessError as exc:
-        print(f"error: git command failed (exit {exc.returncode})", file=sys.stderr)
+        detail = _redact_token((exc.stderr or exc.stdout or "").strip(), token)
+        if detail:
+            print(
+                f"error: git command failed (exit {exc.returncode}): {detail}",
+                file=sys.stderr,
+            )
+        else:
+            print(f"error: git command failed (exit {exc.returncode})", file=sys.stderr)
         return 2
     finally:
         shutil.rmtree(work, ignore_errors=True)

@@ -447,9 +447,18 @@ jobs:
         # has to track the dated run directory.
         if: always()
         env:
-          GH_TOKEN: ${{ secrets.GH_PAT != '' && secrets.GH_PAT || github.token }}
+          GH_TOKEN: ${{ secrets.GH_PAT }}
         run: |
           set -euo pipefail
+          if [ -z "${GH_TOKEN:-}" ]; then
+            echo "::warning::GH_PAT is not configured; skipping publish to bot/live-experiment-snapshot to avoid deterministic push failure with read-only github.token."
+            {
+              echo "### ⚠ experiment snapshot publish skipped"
+              echo ""
+              echo "GH_PAT is not configured for this run. The benchmark artifact uploaded, but bot/live-experiment-snapshot was not updated."
+            } >> "$GITHUB_STEP_SUMMARY"
+            exit 0
+          fi
           out_dir="${{ steps.meta.outputs.out_dir }}"
           rollup="${out_dir}/plan_2_8_tf_family_rollup.json"
           history="${out_dir}/plan_2_8_history.jsonl"
