@@ -5,4 +5,4 @@
 # python-dotenv are imported behind try/except guards; pinning them here keeps
 # timezone handling and local .env parsing fully available in the container.
 python-dateutil==2.9.0.post0
-python-dotenv==1.0.1
+python-dotenv==1.2.2
