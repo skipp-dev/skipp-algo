@@ -283,3 +283,24 @@ def test_deploy_boundary_cli_arg(tmp_path: Path) -> None:
     assert not state.exists()
     entries = _read_journal(journal)
     assert entries[-1]["reason"] == "deploy_boundary_change"
+
+
+def test_non_string_boundary_in_journal_is_skipped(tmp_path: Path) -> None:
+    """A 'boundary' field that is not a string must be ignored by _last_recorded_boundary."""
+    from scripts.f2_flip_status import _last_recorded_boundary
+
+    journal = tmp_path / "journal.jsonl"
+    # Write a journal entry with a non-string boundary (e.g. null or number)
+    journal.write_text(
+        '{"action": "noop", "boundary": null}\n'
+        '{"action": "noop", "boundary": 42}\n',
+        encoding="utf-8",
+    )
+    # Both entries must be ignored; result should be None (no valid string boundary found).
+    assert _last_recorded_boundary(journal) is None
+
+    # A valid string boundary written after the invalid ones must be returned.
+    with journal.open("a", encoding="utf-8") as fh:
+        import json
+        fh.write(json.dumps({"action": "noop", "boundary": "v1"}) + "\n")
+    assert _last_recorded_boundary(journal) == "v1"

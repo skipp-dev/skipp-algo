@@ -37,6 +37,30 @@ script writes a ``{"action": "noop", "reason": "non_flip_transition",
 ...}`` entry and leaves the state files alone. The caller controls
 cadence; the helper itself is idempotent.
 
+Deploy-boundary reset (``--deploy-boundary``, issue #2770)
+----------------------------------------------------------
+Passing a ``--deploy-boundary MARKER`` argument also triggers
+``sprt_state_reset`` when the marker changes between runs — even when
+the spec status stays ``live``.
+
+- **First observation** (no prior journal entry with a ``boundary``
+  field): records ``deploy_boundary_established`` noop; state untouched.
+- **Changed marker**: deletes the SPRT state file and journals
+  ``sprt_state_reset / deploy_boundary_change``.
+- **Unchanged marker**: journals ``noop / deploy_boundary_unchanged``;
+  state untouched.
+- **Real** ``plumbing_only → live`` **flip**: existing reset logic runs;
+  ``deploy_boundary`` parameter is ignored.
+
+Recommended usage in CI:
+
+.. code-block:: bash
+
+    python scripts/f2_flip_status.py \\
+      --from live --to live \\
+      --deploy-boundary "$(git rev-parse HEAD)" \\
+      --state-file artifacts/ci/f2/sprt_state.json
+
 The journal lives in its own JSONL file (mirrors the existing
 ``artifacts/ci/f2/revert_journal.jsonl`` pattern) so it does not
 collide with the numeric ``rollback_history.json`` schema that
@@ -109,7 +133,9 @@ def _last_recorded_boundary(journal_path: Path) -> str | None:
             except json.JSONDecodeError:
                 continue
             if "boundary" in entry:
-                last = entry["boundary"]
+                value = entry["boundary"]
+                if isinstance(value, str):
+                    last = value
     return last
 
 

@@ -220,7 +220,8 @@ jobs:
             --to   "${CURRENT}" \
             --state-file       artifacts/ci/f2/sprt_state.json \
             --journal          artifacts/ci/f2/status_flip_journal.jsonl \
-            --rollback-history artifacts/ci/f2/rollback_history.json
+            --rollback-history artifacts/ci/f2/rollback_history.json \
+            --deploy-boundary  "${{ github.sha }}"
           FLIP_RC=$?
           # Only persist CURRENT to the cache file when the helper
           # succeeded; otherwise a transient helper error would mask the
