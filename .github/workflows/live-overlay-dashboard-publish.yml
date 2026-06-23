@@ -81,6 +81,8 @@ jobs:
             python scripts/publish_overlay_dashboard.py \
               "${DASHBOARD_PATH}" \
               --host "${HOST}" \
+              --namespace stacks-1697741 \
+              --folder cfpozahbhfzswc \
               --dry-run \
               --token "dry-run-token" \
               --no-keychain
@@ -96,4 +98,6 @@ jobs:
           python scripts/publish_overlay_dashboard.py \
             "${DASHBOARD_PATH}" \
             --host "${HOST}" \
+            --namespace stacks-1697741 \
+            --folder cfpozahbhfzswc \
             --no-keychain
