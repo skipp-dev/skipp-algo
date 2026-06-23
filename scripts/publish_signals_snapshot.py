@@ -88,13 +88,13 @@ def _is_valid_owner_repo(repo: str) -> bool:
         return False
     if len(owner) > 39 or len(name) > 100:
         return False
-    if not owner[0].isalnum():
+    if not owner[0].isascii() or not owner[0].isalnum():
         return False
     if owner.endswith("-") or "--" in owner:
         return False
-    if not all(ch.isalnum() or ch == "-" for ch in owner):
+    if not all(ch.isascii() and (ch.isalnum() or ch == "-") for ch in owner):
         return False
-    return all(ch.isalnum() or ch in "._-" for ch in name)
+    return all(ch.isascii() and (ch.isalnum() or ch in "._-") for ch in name)
 
 
 def _is_valid_branch(name: str) -> bool:
@@ -175,9 +175,14 @@ def publish(input_path: Path, branch: str, repo: str, token: str) -> int:
         dest = work / DEST_PATH
         dest.parent.mkdir(parents=True, exist_ok=True)
         try:
-            dest.write_bytes(input_path.read_bytes())
+            data = input_path.read_bytes()
         except PermissionError:
             print(f"error: cannot read input file: {input_path}", file=sys.stderr)
+            return 1
+        try:
+            dest.write_bytes(data)
+        except PermissionError:
+            print(f"error: cannot write destination file: {dest}", file=sys.stderr)
             return 1
 
         _git(["add", "-f", DEST_PATH], work)

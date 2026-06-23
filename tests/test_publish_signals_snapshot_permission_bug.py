@@ -9,9 +9,12 @@ from __future__ import annotations
 import os
 from pathlib import Path
 
+import pytest
+
 from scripts import publish_signals_snapshot as mod
 
 
+@pytest.mark.skipif(os.name == "nt", reason="chmod 000 semantics not available on Windows")
 def test_publish_unreadable_input_returns_exit_code_1(tmp_path: Path) -> None:
     """PermissionError is caught and converted to exit code 1."""
     input_path = tmp_path / "latest_realtime_signals.json"
