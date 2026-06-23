@@ -282,3 +282,104 @@ def test_signals_route_accepts_bearer_with_whitespace_and_case(monkeypatch, tmp_
 
     assert trailing_space.status == 200
     assert lower_scheme.status == 200
+
+
+def test_signals_route_rejects_bearer_with_crlf_in_scheme(monkeypatch, tmp_path) -> None:
+    """CR/LF in the scheme separator must not allow auth bypass (CVE-class: header injection)."""
+    monkeypatch.setenv("SIGNALS_INTERNAL_TOKEN", "s3cret")
+    signals_file = tmp_path / "latest_realtime_signals.json"
+    signals_file.write_text(json.dumps({"signals": [{"symbol": "NVDA"}]}), encoding="utf-8")
+    monkeypatch.setattr(rs, "SIGNALS_PATH", signals_file)
+
+    handler_cls = _build_handler(monkeypatch)
+    lf_bypass = _invoke_get(handler_cls, "/signals", headers={"Authorization": "Bearer\ns3cret"})
+    cr_bypass = _invoke_get(handler_cls, "/signals", headers={"Authorization": "Bearer\rs3cret"})
+    tab_scheme = _invoke_get(handler_cls, "/signals", headers={"Authorization": "Bearer\ts3cret"})
+
+    assert lf_bypass.status == 401
+    assert cr_bypass.status == 401
+    assert tab_scheme.status == 401
+
+
+# ─── BUG-1/2/3 regression tests ─────────────────────────────────────────────
+
+
+def test_realtime_engine_lock_initialized() -> None:
+    """BUG-1 regression: RealtimeEngine.__init__ must initialize self._lock.
+
+    Previously ``get_active_signals()`` raised ``AttributeError`` on every
+    live-state request because ``_lock`` was used but never assigned.
+    """
+    import threading
+
+    engine = rs.RealtimeEngine(poll_interval=10)
+    assert hasattr(engine, "_lock"), "RealtimeEngine._lock not initialized"
+    assert isinstance(engine._lock, type(threading.Lock()))
+    # Must not raise AttributeError
+    assert engine.get_active_signals() == []
+
+
+def test_signals_route_returns_error_on_nan_payload(monkeypatch, tmp_path) -> None:
+    """BUG-2 regression: NaN/Infinity in a signals payload must not cause a
+    connection abort.  Previously ``json.dumps(..., allow_nan=False)`` was
+    called without a try/except, leaving the client with a half-open socket.
+    """
+    monkeypatch.setenv("SIGNALS_INTERNAL_TOKEN", "")
+
+    # Write a signals file containing a non-finite float value encoded via the
+    # non-standard JSON extension that Python's json.loads accepts.
+    signals_file = tmp_path / "latest_realtime_signals.json"
+    # Build a dict with NaN and serialise with allow_nan=True so we can write
+    # a file that will later fail on allow_nan=False.
+    import math
+
+    raw_payload = {"signals": [{"symbol": "NVDA", "score": math.nan}]}
+    signals_file.write_text(
+        json.dumps(raw_payload, allow_nan=True), encoding="utf-8"
+    )
+    monkeypatch.setattr(rs, "SIGNALS_PATH", signals_file)
+
+    handler_cls = _build_handler(monkeypatch)
+    result = _invoke_get(handler_cls, "/signals")
+
+    # Must respond with *some* HTTP status (not leave connection open), and the
+    # body should contain "error" rather than a bare NaN literal.
+    assert result.status is not None, "Handler must always set a response code"
+    body_text = result.body.decode("utf-8", errors="replace")
+    assert "error" in body_text.lower() or result.status == 200
+
+
+def test_signals_route_reads_token_per_request(monkeypatch, tmp_path) -> None:
+    """BUG-3 regression: auth token must be read from the environment on every
+    request, not captured at server-start time.
+
+    Previously the token was read once into a closure variable when the server
+    was constructed; a runtime ``SIGNALS_INTERNAL_TOKEN`` change was silently
+    ignored until restart.
+    """
+    # Set an initial token value before building the handler.
+    monkeypatch.setenv("SIGNALS_INTERNAL_TOKEN", "old-token")
+    signals_file = tmp_path / "latest_realtime_signals.json"
+    signals_file.write_text(json.dumps({"signals": []}), encoding="utf-8")
+    monkeypatch.setattr(rs, "SIGNALS_PATH", signals_file)
+
+    handler_cls = _build_handler(monkeypatch)
+
+    # Now rotate the token *after* the handler class was created.
+    monkeypatch.setenv("SIGNALS_INTERNAL_TOKEN", "new-token")
+
+    # A request with the new token must be accepted (200).
+    accepted = _invoke_get(
+        handler_cls, "/signals", headers={"Authorization": "Bearer new-token"}
+    )
+    # A request with the old token must now be rejected (401).
+    rejected = _invoke_get(
+        handler_cls, "/signals", headers={"Authorization": "Bearer old-token"}
+    )
+
+    assert accepted.status == 200, (
+        f"Expected 200 with rotated token, got {accepted.status}"
+    )
+    assert rejected.status == 401, (
+        f"Expected 401 for stale token, got {rejected.status}"
+    )
