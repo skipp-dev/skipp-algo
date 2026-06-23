@@ -90,7 +90,7 @@ def _attr_call_sites(attr_owner: str, attr_name: str) -> set[tuple[str, int]]:
 # justification.
 OS_KILL_ALLOWED: set[tuple[str, int]] = {
     ("open_prep/realtime_signals.py", 181),
-    ("open_prep/realtime_signals.py", 208),
+    ("open_prep/realtime_signals.py", 211),
     # Signal-0 PID liveness probe for the IB-client-id leasing registry
     # (claims an IB API client_id slot only if the previous owner is gone).
     ("scripts/ib_client_id.py", 81),
