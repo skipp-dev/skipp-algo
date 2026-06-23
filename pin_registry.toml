@@ -26,7 +26,7 @@
 "tests/test_credential_health_workflow.py" = 1
 "tests/test_e2e_smoke_ci.py" = 1
 "tests/test_generate_smc_micro_profiles.py" = 2
-"tests/test_guard_corpus_tracked_files.py" = 1
+"tests/test_guard_corpus_tracked_files.py" = 2
 "tests/test_hero_surface_input_map.py" = 1
 # 2026-06-12 (PR #2707): conflict-marker tripwire skips gracefully when git
 # is unavailable (mirrors the other repo tripwires).
