@@ -433,6 +433,67 @@ jobs:
           fi
           true
 
+      - name: Publish experiment snapshot to rolling bot branch
+        # Mirrors smc-live-newsapi-refresh.yml's "Publish snapshot to rolling
+        # bot branch": the live-overlay daemon reads the daily experiment
+        # rollup + history from the rolling `bot/live-experiment-snapshot`
+        # branch via the GitHub Contents API (EXPERIMENT_SNAPSHOT_URL /
+        # EXPERIMENT_HISTORY_URL) so the Grafana experiment panels reflect the
+        # freshest CI run instead of a stale Docker-baked seed. A bare push to
+        # main is blocked by the `main-governance` ruleset; `bot/*` is excluded,
+        # so we force-update the dedicated branch. The uploaded benchmark
+        # artifact bundle above remains the authoritative archive. The two
+        # files are copied to a STABLE `latest/` path so the daemon URL never
+        # has to track the dated run directory.
+        if: always()
+        env:
+          GH_TOKEN: ${{ secrets.GH_PAT != '' && secrets.GH_PAT || github.token }}
+        run: |
+          set -euo pipefail
+          out_dir="${{ steps.meta.outputs.out_dir }}"
+          rollup="${out_dir}/plan_2_8_tf_family_rollup.json"
+          history="${out_dir}/plan_2_8_history.jsonl"
+          # Fail-soft on missing inputs: the rollup + history steps above are
+          # both fail-soft, so a hiccup there must not turn this delivery step
+          # red. Only a genuine push failure (expired PAT, ruleset change)
+          # should surface as a job failure.
+          if [ ! -s "${rollup}" ] && [ ! -s "${history}" ]; then
+            echo "No experiment rollup/history produced this run; nothing to publish."
+            exit 0
+          fi
+          stable_dir="artifacts/ci/measurement_benchmark_rolling/latest"
+          mkdir -p "${stable_dir}"
+          [ -s "${rollup}" ]  && cp "${rollup}"  "${stable_dir}/plan_2_8_tf_family_rollup.json"
+          [ -s "${history}" ] && cp "${history}" "${stable_dir}/plan_2_8_history.jsonl"
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git remote set-url origin "https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git"
+          # `latest/` lives under the gitignored artifacts/ tree, so `-f` is
+          # required to stage it. Adding the directory tolerates either file
+          # being absent on a partial run.
+          git add --sparse -f "${stable_dir}"
+          if git diff --cached --quiet; then
+            echo "No experiment snapshot changes to commit."
+            exit 0
+          fi
+          git commit -m "[skip ci] chore: refresh experiment snapshot"
+          # Fetch the remote tip first so --force-with-lease has a real base
+          # to compare against; tolerate the branch not yet existing.
+          git fetch origin "+refs/heads/bot/live-experiment-snapshot:refs/remotes/origin/bot/live-experiment-snapshot" 2>/dev/null || true
+          # `if git push` form (fail-loud) is what tests/test_workflow_auth_pattern.py
+          # expects; a real push failure surfaces red instead of a swallowed warning.
+          if git push --force-with-lease=refs/heads/bot/live-experiment-snapshot origin "HEAD:refs/heads/bot/live-experiment-snapshot"; then
+            echo "Pushed experiment snapshot to bot/live-experiment-snapshot."
+          else
+            echo "::warning::experiment snapshot push failed; the benchmark artifact bundle remains available, but bot/live-experiment-snapshot may be stale and the Grafana experiment panels can lag until the next daily run."
+            {
+              echo "### ⚠ experiment snapshot persistence warning"
+              echo ""
+              echo "The benchmark artifact uploaded, but the rolling bot/live-experiment-snapshot branch push failed. The Grafana experiment panels may show a stale rollup until the next daily run."
+            } >> "$GITHUB_STEP_SUMMARY"
+            exit 1
+          fi
+
       - name: Upload rolling benchmark artifacts
         if: always()
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7

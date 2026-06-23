@@ -132,6 +132,7 @@ name = "smc-live-overlay"
 | `OVERLAY_NEWS_CACHE_TTL_SECS` | no | — | News cache TTL |
 | `NEWS_SNAPSHOT_URL` | no | — | Optional HTTPS URL for live news snapshot |
 | `NEWS_SNAPSHOT_URL_TOKEN` | no | — | Optional bearer token for `NEWS_SNAPSHOT_URL` |
+| `NEWS_SNAPSHOT_PATH` | no | baked seed | Local news snapshot path; point at the volume (`/data/...`) for write-through persistence |
 | `SIGNALS_SNAPSHOT_PATH` | no | — | Local realtime-signals snapshot path |
 | `SIGNALS_SNAPSHOT_URL` | no | — | Optional HTTPS URL for realtime-signals snapshot |
 | `SIGNALS_SNAPSHOT_URL_TOKEN` | no | — | Optional bearer token for `SIGNALS_SNAPSHOT_URL` |
@@ -174,6 +175,47 @@ name = "smc-live-overlay"
 | `GRAFANA_CLOUD_USER` | Grafana Cloud stack user |
 | `GRAFANA_CLOUD_API_KEY` | Grafana Cloud API key |
 
+### Snapshot delivery & volume persistence
+
+The daemon serves three producer-side snapshots (news, realtime signals, daily
+experiment rollup/history). Each loader is **URL-first**: when the matching
+`*_SNAPSHOT_URL` is set it fetches the freshest payload over HTTPS
+(GitHub Contents API raw, fine-grained PAT), otherwise it falls back to the
+local `*_SNAPSHOT_PATH`. The Docker image bakes a one-time news seed at build
+time; without a `*_URL` the dashboard shows that stale seed.
+
+**Stable producer URLs (rolling bot branches).** Producer workflows
+force-push the freshest snapshot to dedicated `bot/*` cache branches
+(exempt from the `main-governance` ruleset, see ADR-0024):
+
+| Snapshot | Producer workflow | Bot branch | Stable path |
+|----------|-------------------|------------|-------------|
+| News | `smc-live-newsapi-refresh.yml` | `bot/live-news-snapshot` | `artifacts/smc_microstructure_exports/smc_live_news_snapshot.json` |
+| Experiment rollup + history | `smc-measurement-benchmark-rolling.yml` | `bot/live-experiment-snapshot` | `artifacts/ci/measurement_benchmark_rolling/latest/plan_2_8_tf_family_rollup.json` and `.../latest/plan_2_8_history.jsonl` |
+| Realtime signals | _none (live engine only)_ | — | Written by `open_prep/realtime_signals.py` on the trading host; **no CI producer**, so there is no stable URL yet |
+
+The `*_URL` form is `https://api.github.com/repos/skippALGO/skipp-algo/contents/<stable-path>?ref=<bot-branch>` with a fine-grained PAT (`Contents: Read`, repo `skipp-algo` only) in the matching `*_URL_TOKEN`.
+
+**Write-through persistence (Railway volume).** On every successful `*_URL`
+fetch the daemon atomically writes the payload back to its `*_SNAPSHOT_PATH`
+(`tempfile` + `os.replace`). Mount a Railway volume and point the `*_PATH`
+vars at it so a cold start (or a momentary URL outage) reads the last-good
+copy from the volume instead of the baked seed.
+
+- Create the volume (interactive — pick service `smc-live-overlay`, mount path `/data`):
+
+```bash
+railway volume add
+```
+
+- The volume mounts as **root**. The daemon image runs as a non-root
+  `appuser`, so writes to `/data` fail unless the service runs as root.
+  Set `RAILWAY_RUN_UID=0` to enable write-through (the write-through is
+  best-effort: without it the daemon still serves fresh data from the URL,
+  it just cannot persist across restarts).
+- Volumes are **not** config-as-code; do not add them to `railway.toml`
+  (only `build`/`deploy` settings are supported there).
+
 ### Common Railway CLI commands
 
 ```bash
@@ -199,7 +241,7 @@ railway up
 railway run --service smc-live-overlay bash
 
 # Pull remote env vars to local .env
-railway variables --service smc-live-overlay
+railway variable list --service smc-live-overlay
 ```
 
 ---

@@ -36,10 +36,12 @@ import datetime
 import json
 import logging
 import math
+import os
 import threading
 import time
 import urllib.error
 import urllib.request
+from pathlib import Path
 from typing import Any
 
 from . import cache, config, observability
@@ -89,6 +91,27 @@ _experiment_history_loaded_at: float = 0.0
 _experiment_history_checked_at: float = 0.0
 _experiment_lock = threading.Lock()
 _EXPERIMENT_USER_AGENT = "live-overlay-daemon-experiment/1"
+
+
+def _persist_snapshot(path: Path, text: str) -> None:
+    """Atomically write a freshly-fetched snapshot to its local cache ``path``.
+
+    Best-effort write-through: when a runtime ``*_URL`` fetch succeeds we persist
+    the payload to the local snapshot path so a Railway volume mounted there
+    keeps the last-good copy across restarts. A cold start can then read the
+    volume instead of the stale Docker-baked seed when the URL is momentarily
+    unreachable. Never raises — a persistence failure must not break the live
+    fetch that already succeeded; the temp file is written in the same directory
+    and ``os.replace`` swaps it in atomically so readers never see a partial
+    file.
+    """
+    try:
+        path.parent.mkdir(parents=True, exist_ok=True)
+        tmp = path.parent / f"{path.name}.tmp"
+        tmp.write_text(text, encoding="utf-8")
+        os.replace(tmp, path)
+    except OSError:
+        logger.warning("Failed to persist snapshot to %s", path, exc_info=True)
 
 
 def _fetch_news_url(url: str, token: str, timeout: float = 10.0) -> dict[str, Any] | None:
@@ -145,6 +168,10 @@ def _load_news_snapshot() -> dict[str, Any]:
             if fetched is not None:
                 _news_cache = fetched
                 _news_loaded_at = now
+                _persist_snapshot(
+                    config.news_snapshot_path(),
+                    json.dumps(fetched, separators=(",", ":")),
+                )
                 return dict(_news_cache)
 
         path = config.news_snapshot_path()
@@ -220,6 +247,10 @@ def _load_signals_snapshot() -> dict[str, Any]:
             if fetched is not None:
                 _signals_cache = fetched
                 _signals_loaded_at = now
+                _persist_snapshot(
+                    config.signals_snapshot_path(),
+                    json.dumps(fetched, separators=(",", ":")),
+                )
                 return dict(_signals_cache)
 
         path = config.signals_snapshot_path()
@@ -320,6 +351,7 @@ def _load_experiment_snapshot() -> dict[str, Any]:
                 if isinstance(raw, dict):
                     _experiment_cache = raw
                     _experiment_loaded_at = now
+                    _persist_snapshot(config.experiment_snapshot_path(), body)
                     return dict(_experiment_cache)
 
         path = config.experiment_snapshot_path()
@@ -369,6 +401,7 @@ def _load_experiment_history() -> list[dict[str, Any]]:
             if body is not None:
                 _experiment_history_cache = _parse_history_lines(body, max_days)
                 _experiment_history_loaded_at = now
+                _persist_snapshot(config.experiment_history_path(), body)
                 return [dict(r) for r in _experiment_history_cache]
 
         path = config.experiment_history_path()

@@ -207,14 +207,17 @@ _FROZEN_SITES: frozenset[tuple[str, int, tuple[str, ...]]] = frozenset(
         # success cache for the full TTL when a snapshot appears later.
         # 2026-06-19 (bug-hunt): added _news_lock + with-block around
         # _load_news_snapshot cache mutation for atomic state transitions.
-        ("services/live_overlay_daemon/compute.py", 121, ("_news_cache", "_news_checked_at", "_news_loaded_at")),
+        # 2026-06-23 (delivery-gap write-through): _persist_snapshot helper +
+        # loader write-through calls shifted globals 121/199/300/347 ->
+        # 144/226/331/379.
+        ("services/live_overlay_daemon/compute.py", 144, ("_news_cache", "_news_checked_at", "_news_loaded_at")),
         # 2026-06-23 (feat/grafana-trading-signals): realtime trading-signals
         # snapshot loader mirrors the news snapshot caching pattern.
-        ("services/live_overlay_daemon/compute.py", 199, ("_signals_cache", "_signals_checked_at", "_signals_loaded_at")),
+        ("services/live_overlay_daemon/compute.py", 226, ("_signals_cache", "_signals_checked_at", "_signals_loaded_at")),
         # 2026-06-23 (feat/grafana-experiment-timeline): daily experiment rollup
         # + per-day history loaders mirror the same snapshot caching pattern.
-        ("services/live_overlay_daemon/compute.py", 300, ("_experiment_cache", "_experiment_checked_at", "_experiment_loaded_at")),
-        ("services/live_overlay_daemon/compute.py", 347, ("_experiment_history_cache", "_experiment_history_checked_at", "_experiment_history_loaded_at")),
+        ("services/live_overlay_daemon/compute.py", 331, ("_experiment_cache", "_experiment_checked_at", "_experiment_loaded_at")),
+        ("services/live_overlay_daemon/compute.py", 379, ("_experiment_history_cache", "_experiment_history_checked_at", "_experiment_history_loaded_at")),
         # 2026-06-21 (provider/bridge + queue backpressure follow-ups):
         # feed.py gained additional helper/config blocks, shifting global
         # statements to 362/420/496.

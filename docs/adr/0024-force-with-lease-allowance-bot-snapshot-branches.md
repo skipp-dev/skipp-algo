@@ -4,7 +4,7 @@
 |---------|-------|
 | Status  | Accepted |
 | Date    | 2026-06-10 |
-| Refs    | Audit-R3 (Principal Review 2026-06-10); `.github/workflows/smc-live-newsapi-refresh.yml:225`; `tests/test_workflow_auth_pattern.py`; ADR-0010 (cron-workflow invariants) |
+| Refs    | Audit-R3 (Principal Review 2026-06-10); `.github/workflows/smc-live-newsapi-refresh.yml:225`; `.github/workflows/smc-measurement-benchmark-rolling.yml` (bot/live-experiment-snapshot, added 2026-06-23); `tests/test_workflow_auth_pattern.py`; ADR-0010 (cron-workflow invariants) |
 
 ---
 
@@ -78,6 +78,13 @@ Constraints that must hold for the allowance to remain valid:
 
 * The `smc-live-newsapi-refresh.yml` snapshot mechanism continues to work
   without accumulating unbounded history on `bot/live-news-snapshot`.
+* The same carve-out is reused by `smc-measurement-benchmark-rolling.yml`
+  (added 2026-06-23), which publishes the daily experiment rollup +
+  `plan_2_8_history.jsonl` to `bot/live-experiment-snapshot` so the
+  live-overlay daemon (Grafana experiment panels) reads the freshest CI run
+  via the GitHub Contents API instead of the stale Docker-baked seed. Both
+  branches are pure cache cursors in the `bot/*` namespace and satisfy the
+  four constraints above.
 * A future `--force-with-lease` added outside `bot/*` or without a prior
   `git fetch` will be caught at PR time by the new allowlist test.
 * The policy statement "never `--force*`" is now accurate as *"never outside

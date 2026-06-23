@@ -239,6 +239,33 @@ All numeric fields are `null`, all bool fields are `false`, `stale: true`.
 - Non-integer values for any `_optional_int` variable are logged at `WARNING`
   and fall back to the documented default.
 
+### Snapshot delivery & persistence
+
+Each snapshot loader (news, signals, experiment rollup/history) is
+**URL-first**: when the matching `*_SNAPSHOT_URL` is set it fetches the freshest
+payload over HTTPS and falls back to the local `*_SNAPSHOT_PATH` otherwise. The
+Docker image bakes a one-time news seed, so **without a `*_URL` the dashboard
+shows that stale seed**.
+
+- **News** and the **experiment rollup + history** are published to rolling
+  `bot/*` cache branches by CI (`smc-live-newsapi-refresh.yml` →
+  `bot/live-news-snapshot`; `smc-measurement-benchmark-rolling.yml` →
+  `bot/live-experiment-snapshot`). Point the matching `*_SNAPSHOT_URL` /
+  `*_HISTORY_URL` at
+  `https://api.github.com/repos/skippALGO/skipp-algo/contents/<path>?ref=<bot-branch>`
+  with a fine-grained PAT (`Contents: Read`) in the `*_URL_TOKEN`.
+- **Realtime signals have no CI producer** — `latest_realtime_signals.json` is
+  written only by `open_prep/realtime_signals.py` on the live trading host, so
+  there is no `SIGNALS_SNAPSHOT_URL` to point at yet.
+- **Write-through persistence:** on every successful `*_URL` fetch the daemon
+  atomically writes the payload back to its `*_SNAPSHOT_PATH`
+  (temp file + `os.replace`). On Railway, mount a volume and set the `*_PATH`
+  vars to `/data/...` so a cold start reads the last-good copy instead of the
+  baked seed. The volume mounts as root and the image runs as a non-root
+  `appuser`, so set `RAILWAY_RUN_UID=0` to enable the write-through (it is
+  best-effort and never blocks serving fresh URL data). See
+  [OPS.md](OPS.md#snapshot-delivery--volume-persistence) for the exact commands.
+
 ---
 
 ## Deployment

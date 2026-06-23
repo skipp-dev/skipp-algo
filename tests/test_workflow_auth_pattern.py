@@ -153,6 +153,10 @@ _FORCE_LEASE_ALLOWLIST: frozenset[str] = frozenset({
     # smc-live-newsapi-refresh.yml: rolling bot/live-news-snapshot cache
     # cursor; force-with-lease with prior fetch. See ADR-0024.
     "smc-live-newsapi-refresh.yml",
+    # smc-measurement-benchmark-rolling.yml: rolling bot/live-experiment-snapshot
+    # cache cursor for the daily experiment rollup + history consumed by the
+    # live-overlay daemon; force-with-lease with prior fetch. See ADR-0024.
+    "smc-measurement-benchmark-rolling.yml",
 })
 
 _FORCE_RE = re.compile(r"git\s+push\b[^\n]*--force")
