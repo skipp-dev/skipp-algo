@@ -115,3 +115,18 @@ docs/audit-*.md
 
 # mutmut setup.cfg (contains absolute machine paths, not portable)
 setup.cfg
+
+# Scratch/ad-hoc scripts and JSON dumps created during PR triage sessions
+pr_status.py
+fetch_threads.py
+process_prs.py
+pr_audit.log
+pr_threads.json
+prs_data.json
+pr2894_basic.json
+pr2894_details.json
+all_threads.json
+threads_diff.json
+threads_full.json
+threads.json
+fast_gates_fail.json
