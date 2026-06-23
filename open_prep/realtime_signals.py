@@ -688,7 +688,6 @@ def _start_telemetry_server(
     from http.server import BaseHTTPRequestHandler, HTTPServer
 
     bind_host = host or os.getenv("TELEMETRY_BIND_HOST", "127.0.0.1")
-    auth_token = os.getenv("SIGNALS_INTERNAL_TOKEN", "").strip()
 
     class _Handler(BaseHTTPRequestHandler):
         def do_GET(self) -> None:
@@ -699,17 +698,21 @@ def _start_telemetry_server(
                 self.wfile.write(b"ok\n")
             elif self.path in ("/telemetry.json", "/telemetry"):
                 import json as _json
-                body = _json.dumps(telemetry.snapshot(), indent=2, allow_nan=False).encode()
+                try:
+                    body = _json.dumps(telemetry.snapshot(), indent=2, allow_nan=False).encode()
+                except (ValueError, TypeError):
+                    body = _json.dumps({"error": "non-finite value in telemetry payload"}).encode()
                 self.send_response(200)
                 self.send_header("Content-Type", "application/json")
                 self.end_headers()
                 self.wfile.write(body)
             elif self.path in ("/signals.json", "/signals"):
-                if auth_token:
+                _auth_token = os.getenv("SIGNALS_INTERNAL_TOKEN", "").strip()
+                if _auth_token:
                     _hdr = self.headers.get("Authorization", "")
-                    _parts = _hdr.split(None, 1)
+                    _parts = _hdr.split(" ", 1)
                     _supplied = _parts[1].strip() if len(_parts) == 2 and _parts[0].lower() == "bearer" else ""
-                    if not hmac.compare_digest(_supplied, auth_token):
+                    if not hmac.compare_digest(_supplied, _auth_token):
                         self.send_response(401)
                         self.end_headers()
                         return
@@ -726,7 +729,10 @@ def _start_telemetry_server(
                     }
                 if not payload:
                     payload = {"signals": [], "signal_count": 0, "a0_count": 0, "a1_count": 0, "status": "warming_up"}
-                body = _json.dumps(payload, indent=2, allow_nan=False, default=str).encode()
+                try:
+                    body = _json.dumps(payload, indent=2, allow_nan=False, default=str).encode()
+                except (ValueError, TypeError):
+                    body = _json.dumps({"error": "non-finite value in signals payload"}).encode()
                 self.send_response(200)
                 self.send_header("Content-Type", "application/json")
                 self.end_headers()
@@ -1425,6 +1431,7 @@ class RealtimeEngine:
         self._client = fmp_client
         self._client_disabled_reason: str | None = None
         self._active_signals: list[RealtimeSignal] = []
+        self._lock = threading.Lock()  # guards _active_signals
         self._watchlist: list[dict[str, Any]] = []  # all scored symbols from pipeline
         self._last_prices: dict[str, float] = {}
         self._price_history: dict[str, deque[float]] = {}  # rolling window for velocity
