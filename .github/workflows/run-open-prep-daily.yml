@@ -225,7 +225,11 @@ jobs:
           # lease (unconditional force). Fetch the tip first for a real base.
           git fetch origin "+refs/heads/bot/live-open-prep-snapshot:refs/remotes/origin/bot/live-open-prep-snapshot" 2>/dev/null || true
           git checkout --detach --quiet "$START_SHA"
-          git add --sparse -f "$SNAPSHOT"
+          # `-f` overrides .gitignore so the runtime snapshot can be staged.
+          # `--sparse` was previously paired here but is meaningless against
+          # actions/checkout's full (non-sparse) tree and confused readers
+          # (audit PR #2913 F4); removed without behavior change.
+          git add -f "$SNAPSHOT"
           if git diff --cached --quiet; then
             echo "No open-prep snapshot changes to publish."
             git checkout --quiet "$START_SHA"
