@@ -240,9 +240,9 @@ _FROZEN_SITES: frozenset[tuple[str, int, tuple[str, ...]]] = frozenset(
         ("services/live_overlay_daemon/feed.py", 521, ("_feed_thread", "_flow_refresh_thread", "_refresh_thread")),
         # 2026-06-21: optional external bridge snapshot caches are guarded by
         # module locks and cached via module-level singleton snapshots.
-        # 2026-06-23 (audit #2909 F9/F10): owner/repo encoding + pagination note
-        # in _fetch_snapshot shifted this global to 189.
-        ("services/live_overlay_daemon/github_workflow_bridge.py", 189, ("_cached_at_monotonic", "_cached_snapshot")),
+    # 2026-06-23: workflow bridge hardening (status/conclusion semantics,
+    # owner/repo encoding and pagination note) shifted this global anchor.
+    ("services/live_overlay_daemon/github_workflow_bridge.py", 194, ("_cached_at_monotonic", "_cached_snapshot")),
         ("services/live_overlay_daemon/uptimerobot_bridge.py", 125, ("_cached_at_monotonic", "_cached_snapshot")),
         # 2026-06-19 (fix/live-overlay-post-merge-bugs): added non-finite JSON
         # sanitization helper and related imports, shifting _startup_ts line.

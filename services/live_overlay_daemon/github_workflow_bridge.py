@@ -164,8 +164,13 @@ def _fetch_snapshot(token: str) -> dict[str, Any]:
                 "id": workflow_id,
                 "name": str(run.get("name", "unknown")) or "unknown",
                 "event": str(run.get("event", "")).lower() or "unknown",
-                # Keep raw GitHub conclusion semantics; queued/in_progress runs
-                # have no conclusion yet and should remain "unknown" here.
+                # Keep status/conclusion semantics explicit for downstream
+                # consumers: `status` is lifecycle state (queued/in_progress/
+                # completed), while `conclusion` is only populated by GitHub
+                # once a run has completed (success/failure/cancelled/...).
+                "status": status or "unknown",
+                # Queued/in_progress runs have no conclusion yet and therefore
+                # remain "unknown" until GitHub marks completion.
                 "conclusion": conclusion or "unknown",
                 "phase_code": _phase_code(status, conclusion),
                 "latest_success": 1 if status == "completed" and conclusion == "success" else 0,
