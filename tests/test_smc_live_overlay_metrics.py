@@ -15,6 +15,17 @@ from pathlib import Path
 import pytest
 
 
+@pytest.fixture(autouse=True)
+def _reset_compute_news_loader_cache(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Avoid cross-test bleed from compute._load_news_snapshot() TTL globals."""
+    import services.live_overlay_daemon.compute as compute_mod
+
+    monkeypatch.setattr(compute_mod.config, "news_snapshot_url", lambda: "")
+    monkeypatch.setattr(compute_mod, "_news_loaded_at", 0.0)
+    monkeypatch.setattr(compute_mod, "_news_checked_at", 0.0)
+    monkeypatch.setattr(compute_mod, "_news_cache", {})
+
+
 def test_sanitize_name_rejects_invalid_prometheus_characters() -> None:
     import services.live_overlay_daemon.metrics as metrics_mod
 
