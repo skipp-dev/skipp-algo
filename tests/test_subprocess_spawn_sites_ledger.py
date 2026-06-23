@@ -147,7 +147,8 @@ SUBPROCESS_RUN_LEDGER: set[tuple[str, int]] = {
     # `pgrep` to discover the realtime-signals daemon PID.
     # Rebaselined 2026-05-15 after PR #2233 mainline merge restored the
     # branch-local realtime_signals layout.
-    ("open_prep/realtime_signals.py", 190),
+    # Shifted 190 -> 191 after import hmac + lock fix added lines above.
+    ("open_prep/realtime_signals.py", 191),
     # 2026-06-22: Grafana dashboard publish script keychain token lookup.
     # Line shifted 151 -> 173 after ADR-0025 App Platform (/apis
     # dashboard.grafana.app/v1) migration added namespace/folder args above.
@@ -159,7 +160,8 @@ SUBPROCESS_RUN_LEDGER: set[tuple[str, int]] = {
 
 SUBPROCESS_POPEN_LEDGER: set[tuple[str, int]] = {
     # Detached re-launch of the realtime-signals daemon.
-    ("open_prep/realtime_signals.py", 336),
+    # Shifted 336 -> 337 after import hmac + lock fix added lines above.
+    ("open_prep/realtime_signals.py", 337),
 }
 
 
