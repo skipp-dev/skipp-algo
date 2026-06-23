@@ -396,20 +396,13 @@ This includes `ci.yml`. CI validate is intentionally GitHub-hosted.
 Routing via `--inventory-unavailable-fallback required-self-hosted` only
 unless the workflow truly cannot run on GitHub-hosted infrastructure.
 
----
-
-## Runner- & CI-Policy
-
-Variable `SMC_GH_HOSTED_RUNNER`, currently
-`ubuntu-latest` (GitHub-hosted default). Routierte Workflows nutzen `select-runner`.
-
-**GitHub Copilot Code Review / Copilot reviewer:** GitHub-managed dynamic workflow named `Copilot`.
-Do **not** create or edit repository workflows to route Copilot review jobs.
-The AI reviewer should execute on GitHub-managed infrastructure.
-
-This includes `ci.yml`. CI validate is intentionally GitHub-hosted.
-Routing via `--inventory-unavailable-fallback required-self-hosted` only
-unless the workflow truly cannot run on GitHub-hosted infrastructure.
+**Kill switch — force GitHub-hosted everywhere:** Set the repository variable
+`SMC_FORCE_GH_HOSTED=1` (or pass `--force-hosted` to
+`scripts/resolve_workflow_runner.py`). The `select-runner` job then resolves to
+the GitHub-hosted runner unconditionally, bypassing the self-hosted inventory and
+every self-hosted fallback (including `--inventory-unavailable-fallback
+required-self-hosted`). Use it when the self-hosted pool is offline; unset the
+variable to restore self-hosted-primary routing.
 
 ---
 

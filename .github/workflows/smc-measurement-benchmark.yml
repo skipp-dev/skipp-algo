@@ -46,6 +46,7 @@ jobs:
         id: resolve
         env:
           GH_TOKEN: ${{ secrets.GH_PAT != '' && secrets.GH_PAT || github.token }}
+          SMC_FORCE_GH_HOSTED: ${{ vars.SMC_FORCE_GH_HOSTED }}
         run: |
           # Weekly measurement benchmarks are an off-hours batch workload, so
           # they should prefer the priority cron Windows runner when it is

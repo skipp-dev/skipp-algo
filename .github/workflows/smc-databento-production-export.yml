@@ -120,15 +120,18 @@ jobs:
         id: resolve
         env:
           GH_TOKEN: ${{ secrets.GH_PAT != '' && secrets.GH_PAT || github.token }}
+          SMC_FORCE_GH_HOSTED: ${{ vars.SMC_FORCE_GH_HOSTED }}
         run: |
           # The producer has documented high-RSS/OOM history during canonical
-          # export generation, so prefer the priority cron Windows runner when
-          # it is online and idle.
+          # export generation. This monolith is DEPRECATED and kept only as a
+          # workflow_dispatch emergency fallback, so it no longer hard-routes to
+          # the (inactive) self-hosted pool: fall back to github-hosted when the
+          # runner inventory cannot be queried.
           python scripts/resolve_workflow_runner.py \
             --repository "${{ github.repository }}" \
             --hosted-runner "${{ vars.SMC_GH_HOSTED_RUNNER || 'ubuntu-latest' }}" \
             --custom-label "${{ vars.SMC_PRIORITY_CRON_SELF_HOSTED_LABEL || vars.SMC_SELF_HOSTED_LABEL }}" \
-            --inventory-unavailable-fallback required-self-hosted
+            --inventory-unavailable-fallback hosted
 
   export:
     needs: select-runner

@@ -80,6 +80,7 @@ jobs:
         id: resolve
         env:
           GH_TOKEN: ${{ secrets.GH_PAT != '' && secrets.GH_PAT || github.token }}
+          SMC_FORCE_GH_HOSTED: ${{ vars.SMC_FORCE_GH_HOSTED }}
         run: |
           PREFER_GPU="${{ inputs.prefer_gpu || 'true' }}"
           if [[ "$PREFER_GPU" == "true" ]]; then
