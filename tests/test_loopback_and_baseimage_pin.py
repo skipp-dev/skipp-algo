@@ -67,7 +67,7 @@ _FROZEN_LOOPBACK_COUNTS: dict[str, int] = {
     "streamlit_terminal_alerts.py": 1,
     "streamlit_terminal.py": 1,
     "open_prep/alerts.py": 1,
-    "open_prep/realtime_signals.py": 4,
+    "open_prep/realtime_signals.py": 3,
     "newsstack_fmp/enrich.py": 1,
 }
 _FROZEN_LOOPBACK_TOTAL = sum(_FROZEN_LOOPBACK_COUNTS.values())

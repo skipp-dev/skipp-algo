@@ -1,0 +1,212 @@
+from __future__ import annotations
+
+import io
+import json
+import urllib.error
+import urllib.request
+
+import open_prep.realtime_signals as rs
+
+
+class _FakeResponse:
+    def __init__(self, body: bytes) -> None:
+        self._body = body
+
+    def __enter__(self) -> _FakeResponse:
+        return self
+
+    def __exit__(self, *_exc: object) -> None:
+        return None
+
+    def read(self) -> bytes:
+        return self._body
+
+
+def test_fetch_json_url_returns_decoded_mapping(monkeypatch) -> None:
+    captured: dict[str, object] = {}
+
+    def _fake_urlopen(request, timeout):
+        captured["url"] = request.full_url
+        captured["timeout"] = timeout
+        return _FakeResponse(json.dumps({"ranked_v2": [{"symbol": "AAPL"}]}).encode())
+
+    monkeypatch.setattr(urllib.request, "urlopen", _fake_urlopen)
+
+    payload = rs._fetch_json_url("https://example.test/snapshot.json", timeout=7.0)
+
+    assert payload == {"ranked_v2": [{"symbol": "AAPL"}]}
+    assert captured["url"] == "https://example.test/snapshot.json"
+    assert captured["timeout"] == 7.0
+
+
+def test_fetch_json_url_rejects_non_http_scheme(monkeypatch) -> None:
+    def _boom(*_a: object, **_k: object) -> None:  # pragma: no cover - must not run
+        raise AssertionError("urlopen should not be called for unsupported scheme")
+
+    monkeypatch.setattr(urllib.request, "urlopen", _boom)
+
+    assert rs._fetch_json_url("ftp://example.test/snapshot.json") is None
+    assert rs._fetch_json_url("file:///etc/passwd") is None
+
+
+def test_fetch_json_url_returns_none_on_network_error(monkeypatch) -> None:
+    def _fake_urlopen(_request, timeout):
+        raise urllib.error.URLError("boom")
+
+    monkeypatch.setattr(urllib.request, "urlopen", _fake_urlopen)
+
+    assert rs._fetch_json_url("https://example.test/snapshot.json") is None
+
+
+def test_fetch_json_url_returns_none_on_non_object_json(monkeypatch) -> None:
+    def _fake_urlopen(_request, timeout):
+        return _FakeResponse(json.dumps([1, 2, 3]).encode())
+
+    monkeypatch.setattr(urllib.request, "urlopen", _fake_urlopen)
+
+    assert rs._fetch_json_url("https://example.test/snapshot.json") is None
+
+
+def test_telemetry_server_honours_bind_host_env(monkeypatch) -> None:
+    monkeypatch.setenv("TELEMETRY_BIND_HOST", "0.0.0.0")
+
+    class _FakeServer:
+        def __init__(self, port: int) -> None:
+            self.server_port = port
+
+        def serve_forever(self) -> None:
+            return None
+
+    class _FakeThread:
+        def __init__(self, *, target, daemon: bool) -> None:
+            self._target = target
+            self.daemon = daemon
+
+        def start(self) -> None:
+            return None
+
+    attempts: list[tuple[str, int]] = []
+
+    def _fake_http_server(address, _handler):
+        host, port = address
+        attempts.append((host, port))
+        return _FakeServer(port or 8099)
+
+    import http.server
+    import threading
+
+    monkeypatch.setattr(http.server, "HTTPServer", _fake_http_server)
+    monkeypatch.setattr(threading, "Thread", _FakeThread)
+
+    server = rs._start_telemetry_server(rs.ScoreTelemetry(), port=8099)
+
+    assert server is not None
+    assert attempts == [("0.0.0.0", 8099)]
+
+
+def test_telemetry_server_explicit_host_overrides_env(monkeypatch) -> None:
+    monkeypatch.setenv("TELEMETRY_BIND_HOST", "0.0.0.0")
+
+    class _FakeServer:
+        server_port = 8099
+
+        def serve_forever(self) -> None:
+            return None
+
+    class _FakeThread:
+        def __init__(self, *, target, daemon: bool) -> None:
+            self._target = target
+
+        def start(self) -> None:
+            return None
+
+    attempts: list[tuple[str, int]] = []
+
+    def _fake_http_server(address, _handler):
+        attempts.append(address)
+        return _FakeServer()
+
+    import http.server
+    import threading
+
+    monkeypatch.setattr(http.server, "HTTPServer", _fake_http_server)
+    monkeypatch.setattr(threading, "Thread", _FakeThread)
+
+    rs._start_telemetry_server(rs.ScoreTelemetry(), port=8099, host="127.0.0.1")
+
+    assert attempts == [("127.0.0.1", 8099)]
+
+
+def test_signals_route_serves_latest_signals(monkeypatch, tmp_path) -> None:
+    signals_file = tmp_path / "latest_realtime_signals.json"
+    signals_file.write_text(json.dumps({"signals": [{"symbol": "MSFT"}]}), encoding="utf-8")
+    monkeypatch.setattr(rs, "SIGNALS_PATH", signals_file)
+
+    handler_cls = _build_handler(monkeypatch)
+    handler = _invoke_get(handler_cls, "/signals")
+
+    assert handler.status == 200
+    assert json.loads(handler.body) == {"signals": [{"symbol": "MSFT"}]}
+
+
+def _build_handler(monkeypatch):
+    """Start the telemetry server with fakes and return the registered handler class."""
+
+    captured: dict[str, object] = {}
+
+    class _FakeServer:
+        server_port = 8099
+
+        def serve_forever(self) -> None:
+            return None
+
+    class _FakeThread:
+        def __init__(self, *, target, daemon: bool) -> None:
+            pass
+
+        def start(self) -> None:
+            return None
+
+    def _fake_http_server(_address, handler):
+        captured["handler"] = handler
+        return _FakeServer()
+
+    import http.server
+    import threading
+
+    monkeypatch.setattr(http.server, "HTTPServer", _fake_http_server)
+    monkeypatch.setattr(threading, "Thread", _FakeThread)
+
+    rs._start_telemetry_server(rs.ScoreTelemetry(), port=8099)
+    return captured["handler"]
+
+
+def _invoke_get(handler_cls, path: str):
+    """Drive ``do_GET`` on the handler without a real socket."""
+
+    handler = handler_cls.__new__(handler_cls)
+    handler.path = path
+    handler.wfile = io.BytesIO()
+    handler._status = None
+    handler._headers: list[tuple[str, str]] = []
+
+    def _send_response(code: int) -> None:
+        handler._status = code
+
+    def _send_header(key: str, value: str) -> None:
+        handler._headers.append((key, value))
+
+    def _end_headers() -> None:
+        return None
+
+    handler.send_response = _send_response  # type: ignore[method-assign]
+    handler.send_header = _send_header  # type: ignore[method-assign]
+    handler.end_headers = _end_headers  # type: ignore[method-assign]
+
+    handler.do_GET()
+
+    class _Result:
+        status = handler._status
+        body = handler.wfile.getvalue()
+
+    return _Result()

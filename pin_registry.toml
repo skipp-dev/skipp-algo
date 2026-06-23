@@ -80,6 +80,10 @@
 # 2026-06-11 (eval-findings B8): surprise-scale comment block +8 (713→721).
 "open_prep/macro.py" = [740]
 "open_prep/sentiment_fng.py" = [100]
+# 2026-06-23 (signals-producer consumer hook): _fetch_json_url pulls the
+# open-prep snapshot from OPEN_PREP_SNAPSHOT_URL (raw bot-branch JSON) so the
+# Railway worker can run without the local artifact; http(s)-only, timeout=15s.
+"open_prep/realtime_signals.py" = [763]
 "scripts/probe_fmp_13f_endpoints.py" = [75]
 "scripts/resolve_workflow_runner.py" = [91]
 # 2026-06-21 (live-overlay bridge observability): optional external polling

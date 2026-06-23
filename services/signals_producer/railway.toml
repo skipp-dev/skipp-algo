@@ -1,0 +1,17 @@
+[build]
+builder = "DOCKERFILE"
+dockerfilePath = "services/signals_producer/Dockerfile"
+
+[deploy]
+# Long-running worker: the realtime signal engine polls FMP forever and serves
+# the latest signals over /signals (consumed by sibling services on the
+# private network).  TELEMETRY_BIND_HOST=0.0.0.0 is set as a service variable
+# so the bind is reachable via *.railway.internal.
+startCommand = "python -m open_prep.realtime_signals --telemetry-port $PORT"
+healthcheckPath = "/healthz"
+healthcheckTimeout = 60
+restartPolicyType = "ON_FAILURE"
+restartPolicyMaxRetries = 3
+
+[[services]]
+name = "smc-signals-producer"

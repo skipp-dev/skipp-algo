@@ -1,0 +1,8 @@
+# Runtime dependencies for the smc-signals-producer worker.
+#
+# open_prep.realtime_signals itself relies only on the Python standard library
+# (urllib/ssl-based FMP client in open_prep.macro).  python-dateutil and
+# python-dotenv are imported behind try/except guards; pinning them here keeps
+# timezone handling and local .env parsing fully available in the container.
+python-dateutil==2.9.0.post0
+python-dotenv==1.0.1

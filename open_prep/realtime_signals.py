@@ -663,14 +663,22 @@ class ScoreTelemetry:
 def _start_telemetry_server(
     telemetry: ScoreTelemetry,
     port: int = 8099,
+    host: str | None = None,
 ) -> Any:
     """Launch a lightweight HTTP server serving ``/telemetry.json`` and ``/healthz``.
 
     Runs as a daemon thread — will be cleaned up when the main process exits.
     Returns the HTTPServer instance (or None on failure) for graceful shutdown.
+
+    The bind host defaults to ``127.0.0.1`` (loopback) but can be overridden
+    via the ``host`` argument or the ``TELEMETRY_BIND_HOST`` environment
+    variable — set it to a non-loopback address so a sibling service can
+    reach ``/signals`` over a private network (e.g. Railway internal DNS).
     """
     import threading
     from http.server import BaseHTTPRequestHandler, HTTPServer
+
+    bind_host = host or os.getenv("TELEMETRY_BIND_HOST", "127.0.0.1")
 
     class _Handler(BaseHTTPRequestHandler):
         def do_GET(self) -> None:
@@ -686,6 +694,14 @@ def _start_telemetry_server(
                 self.send_header("Content-Type", "application/json")
                 self.end_headers()
                 self.wfile.write(body)
+            elif self.path in ("/signals.json", "/signals"):
+                import json as _json
+                payload = _read_json_file(SIGNALS_PATH) or {}
+                body = _json.dumps(payload, indent=2, allow_nan=False).encode()
+                self.send_response(200)
+                self.send_header("Content-Type", "application/json")
+                self.end_headers()
+                self.wfile.write(body)
             else:
                 self.send_response(404)
                 self.end_headers()
@@ -695,16 +711,16 @@ def _start_telemetry_server(
             pass
 
     try:
-        server = HTTPServer(("127.0.0.1", port), _Handler)
+        server = HTTPServer((bind_host, port), _Handler)
         t = threading.Thread(target=server.serve_forever, daemon=True)
         t.start()
         _update_telemetry_status(enabled=True, requested_port=port, active_port=int(server.server_port), error=None)
-        logger.info("Telemetry HTTP server listening on http://127.0.0.1:%d", port)
+        logger.info("Telemetry HTTP server listening on http://%s:%d", bind_host, port)
         return server
     except OSError as exc:
         logger.warning("Could not start telemetry server on port %d: %s", port, type(exc).__name__, exc_info=True)
         try:
-            fallback_server = HTTPServer(("127.0.0.1", 0), _Handler)
+            fallback_server = HTTPServer((bind_host, 0), _Handler)
             t = threading.Thread(target=fallback_server.serve_forever, daemon=True)
             t.start()
             fallback_port = int(fallback_server.server_port)
@@ -725,6 +741,34 @@ def _start_telemetry_server(
             _update_telemetry_status(enabled=False, requested_port=port, active_port=None, error=error)
             logger.warning("Could not start telemetry server fallback after port %d failed", port, exc_info=True)
             return None
+
+
+def _fetch_json_url(url: str, timeout: float = 15.0) -> dict[str, Any] | None:
+    """Fetch and parse a JSON document from ``url``.
+
+    Returns the decoded mapping, or ``None`` on any network/parse error so
+    callers can fall back to a local snapshot.  Only ``http(s)`` URLs are
+    accepted; the call always passes an explicit ``timeout``.
+    """
+    import urllib.error
+    import urllib.request
+
+    if not url.lower().startswith(("http://", "https://")):
+        logger.warning("OPEN_PREP_SNAPSHOT_URL ignored — unsupported scheme")
+        return None
+    try:
+        request = urllib.request.Request(
+            url, headers={"User-Agent": "smc-signals-producer"}
+        )
+        with urllib.request.urlopen(request, timeout=timeout) as response:
+            payload = json.loads(response.read().decode("utf-8"))
+    except (urllib.error.URLError, ValueError, OSError) as exc:
+        logger.warning("Failed to fetch snapshot from URL: %s", type(exc).__name__)
+        return None
+    if not isinstance(payload, dict):
+        logger.warning("Snapshot URL returned non-object JSON — ignoring")
+        return None
+    return payload
 
 
 # ═══════════════════════════════════════════════════════════════════════════
@@ -1474,14 +1518,27 @@ class RealtimeEngine:
         If ``self.top_n > 0`` the list is sliced for backward compat;
         the default (0) means *all* symbols are monitored.
         """
-        run_path = LATEST_RUN_PATH if LATEST_RUN_PATH.exists() else _LEGACY_RUN_PATH
-        if not run_path.exists():
-            logger.warning("No latest_open_prep_run.json found — watchlist empty")
-            return
+        snapshot_url = os.getenv("OPEN_PREP_SNAPSHOT_URL", "").strip()
+        data: dict[str, Any] | None = None
+        if snapshot_url:
+            data = _fetch_json_url(snapshot_url)
+            if data is None:
+                logger.warning(
+                    "OPEN_PREP_SNAPSHOT_URL fetch failed — "
+                    "falling back to local snapshot",
+                )
+        if data is None:
+            run_path = LATEST_RUN_PATH if LATEST_RUN_PATH.exists() else _LEGACY_RUN_PATH
+            if not run_path.exists():
+                logger.warning("No latest_open_prep_run.json found — watchlist empty")
+                return
+            try:
+                with open(run_path, encoding="utf-8") as fh:
+                    data = json.load(fh)
+            except Exception as exc:
+                logger.warning("Failed to load watchlist: %s", exc, exc_info=True)
+                return
         try:
-            with open(run_path, encoding="utf-8") as fh:
-                data = json.load(fh)
-
             # -- Build full universe: ranked + overflow -------------------
             ranked_v2 = data.get("ranked_v2") or []
             seen: set[str] = set()
