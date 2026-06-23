@@ -226,6 +226,8 @@ def _trading_signals_snapshot() -> dict[str, object]:
     loaded = 0.0
     age_seconds = 0.0
     age_known = 0.0
+    max_age_seconds = float(config.signals_max_age_secs())
+    stale = 0.0
     signals_obj: object = []
     counts = {"active": 0, "a0": 0, "a1": 0, "watched": 0}
 
@@ -247,6 +249,7 @@ def _trading_signals_snapshot() -> dict[str, object]:
         if math.isfinite(epoch_float) and epoch_float > 0:
             age_known = 1.0
             age_seconds = max(0.0, time.time() - epoch_float)
+            stale = 1.0 if age_seconds > max_age_seconds else 0.0
 
     signals_list = signals_obj if isinstance(signals_obj, list) else []
     normalized = [item for item in signals_list if isinstance(item, dict)]
@@ -270,8 +273,69 @@ def _trading_signals_snapshot() -> dict[str, object]:
         "loaded": loaded,
         "age_seconds": age_seconds,
         "age_known": age_known,
+        "max_age_seconds": max_age_seconds,
+        "stale": stale,
         "counts": counts,
         "signals": normalized[:_SIGNAL_SERIES_CAP],
+    }
+
+
+def _tradingview_credential_snapshot() -> dict[str, float]:
+    """Derive TradingView credential-age gauges from the credential report.
+
+    Reads through :func:`compute._load_tradingview_credential_snapshot` (local
+    ``credential_health.json`` or the runtime
+    ``TRADINGVIEW_CREDENTIAL_SNAPSHOT_URL``) and extracts the
+    ``tv_storage_state_age`` probe written by
+    ``scripts/credential_health_check.py``. Surfaces the storage-state age in
+    hours versus the 72h policy TTL so Grafana can alert before the cached
+    TradingView login expires. Returns ``loaded=0`` when no report/probe is
+    available; ``valid`` is 1.0 while the probe severity is not ``error``.
+    """
+    raw = compute._load_tradingview_credential_snapshot()
+    loaded = 0.0
+    age_hours = 0.0
+    age_known = 0.0
+    valid = 0.0
+    validated_at_seconds = 0.0
+
+    probe: dict[str, object] | None = None
+    if isinstance(raw, dict) and raw:
+        probes = raw.get("probes")
+        if isinstance(probes, (list, tuple)):
+            for item in probes:
+                if isinstance(item, dict) and item.get("name") == "tv_storage_state_age":
+                    probe = item
+                    break
+
+    if probe is not None:
+        loaded = 1.0
+        severity = str(probe.get("severity", "") or "")
+        valid = 0.0 if severity == "error" else 1.0
+        details = probe.get("details")
+        if isinstance(details, dict):
+            age_raw = details.get("age_hours")
+            if isinstance(age_raw, (int, float)) and not isinstance(age_raw, bool):
+                age_float = float(age_raw)
+                if math.isfinite(age_float):
+                    age_known = 1.0
+                    age_hours = max(0.0, age_float)
+            validated_at = details.get("validated_at")
+            if isinstance(validated_at, str) and validated_at:
+                try:
+                    parsed = datetime.datetime.fromisoformat(
+                        validated_at.replace("Z", "+00:00")
+                    )
+                    validated_at_seconds = parsed.timestamp()
+                except ValueError:
+                    validated_at_seconds = 0.0
+
+    return {
+        "loaded": loaded,
+        "age_hours": age_hours,
+        "age_known": age_known,
+        "valid": valid,
+        "validated_at_seconds": validated_at_seconds,
     }
 
 
@@ -1027,6 +1091,16 @@ def render_metrics(startup_ts: float) -> str:
         "live_overlay_trading_signals_snapshot_age_seconds "
         f"{signals_snapshot['age_seconds']:.1f}"
     )
+    lines.append("# TYPE live_overlay_trading_signals_snapshot_max_age_seconds gauge")
+    lines.append(
+        "live_overlay_trading_signals_snapshot_max_age_seconds "
+        f"{_prom_numeric_value(signals_snapshot['max_age_seconds'])}"
+    )
+    lines.append("# TYPE live_overlay_trading_signals_snapshot_stale gauge")
+    lines.append(
+        "live_overlay_trading_signals_snapshot_stale "
+        f"{_prom_numeric_value(signals_snapshot['stale'])}"
+    )
 
     signal_rows = signals_snapshot["signals"]
     if isinstance(signal_rows, list) and signal_rows:
@@ -1064,6 +1138,39 @@ def render_metrics(startup_ts: float) -> str:
                 f'news_category="{_escape_label_value(sig.get("news_category", "") or "unknown")}"'
             )
             lines.append(f"live_overlay_trading_signal_info{{{info_labels}}} 1")
+
+    # ----- TradingView storage-state credential age ------------------------
+    # Sourced from the daily credential-health report via
+    # compute._load_tradingview_credential_snapshot (local credential_health.json
+    # or TRADINGVIEW_CREDENTIAL_SNAPSHOT_URL). Surfaces the cached TradingView
+    # login age so Grafana can alert before it expires (policy TTL 72h, warn at
+    # 57.6h). age_hours is only meaningful while age_known == 1.
+    tv_credential = _tradingview_credential_snapshot()
+    lines.append("# TYPE live_overlay_tradingview_credential_loaded gauge")
+    lines.append(
+        "live_overlay_tradingview_credential_loaded "
+        f"{_prom_numeric_value(tv_credential['loaded'])}"
+    )
+    lines.append("# TYPE live_overlay_tradingview_credential_valid gauge")
+    lines.append(
+        "live_overlay_tradingview_credential_valid "
+        f"{_prom_numeric_value(tv_credential['valid'])}"
+    )
+    lines.append("# TYPE live_overlay_tradingview_credential_age_known gauge")
+    lines.append(
+        "live_overlay_tradingview_credential_age_known "
+        f"{_prom_numeric_value(tv_credential['age_known'])}"
+    )
+    lines.append("# TYPE live_overlay_tradingview_credential_age_hours gauge")
+    lines.append(
+        "live_overlay_tradingview_credential_age_hours "
+        f"{tv_credential['age_hours']:.3f}"
+    )
+    lines.append("# TYPE live_overlay_tradingview_credential_validated_at_seconds gauge")
+    lines.append(
+        "live_overlay_tradingview_credential_validated_at_seconds "
+        f"{tv_credential['validated_at_seconds']:.0f}"
+    )
 
     # ----- Daily experiment (Plan 2.8 family/timeframe scoring) -------------
     experiment = _experiment_snapshot()
@@ -1153,11 +1260,14 @@ def render_metrics(startup_ts: float) -> str:
                 f"live_overlay_experiment_verdict_underpowered{{{labels}}} "
                 f"{_prom_numeric_value(verdict.get('underpowered', 0))}"
             )
-        # p-value is optional (only present for "measured*" verdicts); emit it
-        # only when known so the panel does not plot a misleading 0.
+        # p-value is optional and is exported only for fully measured verdicts
+        # (status == "measured") so underpowered/insufficient states cannot
+        # expose a misleading numeric p-value.
         p_value_lines: list[str] = []
         for verdict in verdicts:
             p_value = verdict.get("p_value")
+            if str(verdict.get("status", "")) != "measured":
+                continue
             if not isinstance(p_value, (int, float)):
                 continue
             labels = _experiment_verdict_labels(

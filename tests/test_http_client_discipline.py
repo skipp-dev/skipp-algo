@@ -178,16 +178,23 @@ _FROZEN_URLOPEN_SITES: frozenset[tuple[str, int]] = frozenset(
         # Line shifted 251 -> 287 after ADR-0025 App Platform (/apis
         # dashboard.grafana.app/v1) migration; urlopen now in shared _request_json.
         ("scripts/publish_overlay_dashboard.py", 287),
-        # 2026-06-23: live-overlay daemon optional NEWS_SNAPSHOT_URL runtime
-        # fetch (https-only, explicit timeout) with local-file/seed fallback.
-        # Lines shift as sibling signals + experiment loaders are added above.
+        # 2026-06-23: live-overlay daemon runtime snapshot fetchers in
+        # compute.py (NEWS_SNAPSHOT_URL, SIGNALS_SNAPSHOT_URL,
+        # TRADINGVIEW_CREDENTIAL_SNAPSHOT_URL, EXPERIMENT_*_URL) are all
+        # https-only with explicit timeout and local fallback behavior.
+        # Lines shift as sibling loaders are added above.
         # 2026-06-23 (delivery-gap write-through): _persist_snapshot helper +
         # loader write-through calls shifted these 111/182/259 -> 134/209/290.
-        ("services/live_overlay_daemon/compute.py", 134),
-        ("services/live_overlay_daemon/compute.py", 209),
+        # 2026-06-23 (TV credential-age): _fetch_tradingview_credential_url adds
+        # a 4th site and shifts the experiment fetch 290 -> 407.
+        ("services/live_overlay_daemon/compute.py", 151),
+        ("services/live_overlay_daemon/compute.py", 226),
+        # 2026-06-23 (TV credential-age): credential-health report runtime fetch
+        # (TRADINGVIEW_CREDENTIAL_SNAPSHOT_URL, https-only) with local fallback.
+        ("services/live_overlay_daemon/compute.py", 313),
         # 2026-06-23: daily experiment rollup/history runtime fetch
         # (EXPERIMENT_SNAPSHOT_URL / EXPERIMENT_HISTORY_URL, https-only).
-        ("services/live_overlay_daemon/compute.py", 290),
+        ("services/live_overlay_daemon/compute.py", 407),
     }
 )
 

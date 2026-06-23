@@ -3523,7 +3523,7 @@
       "gridPos": { "h": 6, "w": 6, "x": 12, "y": 192 },
       "targets": [
         {
-          "expr": "live_overlay_trading_signals_snapshot_age_seconds{job=\"$job\"} and on() (live_overlay_trading_signals_snapshot_age_known{job=\"$job\"} == 1)",
+          "expr": "live_overlay_trading_signals_snapshot_age_seconds{job=\"$job\"} and on(job,instance) (live_overlay_trading_signals_snapshot_age_known{job=\"$job\"} == 1)",
           "instant": true,
           "refId": "A"
         }
@@ -3801,7 +3801,7 @@
       "gridPos": { "h": 5, "w": 6, "x": 0, "y": 216 },
       "targets": [
         {
-          "expr": "live_overlay_experiment_snapshot_age_seconds{job=\"$job\"} and on() (live_overlay_experiment_snapshot_age_known{job=\"$job\"} == 1)",
+          "expr": "live_overlay_experiment_snapshot_age_seconds{job=\"$job\"} and on(job,instance) (live_overlay_experiment_snapshot_age_known{job=\"$job\"} == 1)",
           "instant": true,
           "refId": "A"
         }
@@ -4076,6 +4076,71 @@
       "options": {
         "showHeader": true,
         "sortBy": [ { "displayName": "Run Date", "desc": true } ]
+      }
+    },
+    {
+      "title": "TradingView Credential Age",
+      "type": "stat",
+      "description": "Hours since the TradingView Playwright storage-state login (meta.authValidatedAt) was last validated, from the daily credential-health report (tv_storage_state_age probe). Policy TTL is 72h: green < 57.6h (80% warn band), yellow 57.6–72h, red once the cached login is older than 72h and must be re-captured. N/A when no report/age is available.",
+      "gridPos": { "h": 5, "w": 6, "x": 0, "y": 248 },
+      "targets": [
+        {
+          "expr": "live_overlay_tradingview_credential_age_hours{job=\"$job\"} and on(job,instance) (live_overlay_tradingview_credential_age_known{job=\"$job\"} == 1)",
+          "instant": true,
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "thresholds" },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "green", "value": null },
+              { "color": "yellow", "value": 57.6 },
+              { "color": "red", "value": 72 }
+            ]
+          },
+          "unit": "h",
+          "noValue": "N/A"
+        },
+        "overrides": []
+      },
+      "options": {
+        "colorMode": "background",
+        "graphMode": "none",
+        "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false }
+      }
+    },
+    {
+      "title": "TradingView Credential Status",
+      "type": "stat",
+      "description": "Whether the latest credential-health report considers the TradingView storage-state login valid (severity not error). 1 = valid (cached login still within the 72h TTL), 0 = expired/error → re-capture TV_STORAGE_STATE. N/A when no report has been ingested yet.",
+      "gridPos": { "h": 5, "w": 6, "x": 6, "y": 248 },
+      "targets": [
+        {
+          "expr": "live_overlay_tradingview_credential_valid{job=\"$job\"} and on(job,instance) (live_overlay_tradingview_credential_loaded{job=\"$job\"} == 1)",
+          "instant": true,
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "noValue": "N/A",
+          "mappings": [
+            { "type": "value", "options": {
+              "0": { "text": "EXPIRED", "color": "red", "index": 0 },
+              "1": { "text": "valid", "color": "green", "index": 1 }
+            } }
+          ],
+          "thresholds": { "mode": "absolute", "steps": [ { "color": "text", "value": null } ] }
+        },
+        "overrides": []
+      },
+      "options": {
+        "colorMode": "background",
+        "graphMode": "none",
+        "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false }
       }
     }
   ],

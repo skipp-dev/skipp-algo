@@ -407,13 +407,13 @@ sum by (__name__) (
 
 Implementation: `services/live_overlay_daemon/uptimerobot_bridge.py`
 
-### What it does (GitHub Workflow)
+### What it does
 
 - Polls the UptimeRobot V2 `getMonitors` endpoint.
 - Caches results in-process for `UPTIMEROBOT_POLL_TTL_SECS`.
 - Emits Prometheus gauges for each configured monitor.
 
-### Exported metrics (GitHub Workflow)
+### Exported metrics
 
 | Metric | Type | Labels | Description |
 |--------|------|--------|-------------|
