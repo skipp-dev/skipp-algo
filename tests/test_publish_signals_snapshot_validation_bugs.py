@@ -10,7 +10,6 @@ import pytest
 
 from scripts import publish_signals_snapshot as mod
 
-
 # ---------------------------------------------------------------------------
 # _is_valid_owner_repo: must reject invalid GitHub usernames
 # ---------------------------------------------------------------------------
