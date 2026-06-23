@@ -105,7 +105,8 @@ def publish(input_path: Path, branch: str, repo: str, token: str) -> int:
         fetched = _git(
             ["fetch", "--quiet", "--depth", "1", "origin", branch], work, check=False
         )
-        if fetched.returncode == 0:
+        has_remote_tip = fetched.returncode == 0
+        if has_remote_tip:
             _git(["checkout", "--quiet", "-B", branch, "FETCH_HEAD"], work)
         else:
             # A missing remote ref is the normal first-publish case; anything else
@@ -132,13 +133,23 @@ def publish(input_path: Path, branch: str, repo: str, token: str) -> int:
             ["commit", "--quiet", "-m", "[skip ci] chore: refresh signals snapshot"],
             work,
         )
-        _git(
-            [
+        if has_remote_tip:
+            push_args = [
                 "push",
                 f"--force-with-lease=refs/heads/{branch}",
                 "origin",
                 f"HEAD:refs/heads/{branch}",
-            ],
+            ]
+        else:
+            # First publish: no remote branch tip exists to lease against yet.
+            push_args = [
+                "push",
+                "--force",
+                "origin",
+                f"HEAD:refs/heads/{branch}",
+            ]
+        _git(
+            push_args,
             work,
         )
         print(f"Published signals snapshot to {branch}.")

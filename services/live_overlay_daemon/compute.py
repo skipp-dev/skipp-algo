@@ -108,6 +108,36 @@ _tradingview_credential_loaded_at: float = 0.0
 _tradingview_credential_checked_at: float = 0.0
 _tradingview_credential_lock = threading.Lock()
 _TRADINGVIEW_CREDENTIAL_USER_AGENT = "live-overlay-daemon-tv-credential/1"
+_SNAPSHOT_PERSIST_MAX_BYTES_DEFAULT = 10 * 1024 * 1024  # 10 MiB
+
+
+def _snapshot_persist_max_bytes() -> int:
+    """Return max persisted snapshot size in bytes.
+
+    Read from ``OVERLAY_SNAPSHOT_PERSIST_MAX_BYTES`` when set, otherwise use
+    the default. Invalid/non-positive values fall back to the default so the
+    write-through path never raises due to configuration mistakes.
+    """
+    raw = os.getenv("OVERLAY_SNAPSHOT_PERSIST_MAX_BYTES", "").strip()
+    if not raw:
+        return _SNAPSHOT_PERSIST_MAX_BYTES_DEFAULT
+    try:
+        parsed = int(raw)
+    except ValueError:
+        logger.warning(
+            "Invalid OVERLAY_SNAPSHOT_PERSIST_MAX_BYTES=%r; using default %d",
+            raw,
+            _SNAPSHOT_PERSIST_MAX_BYTES_DEFAULT,
+        )
+        return _SNAPSHOT_PERSIST_MAX_BYTES_DEFAULT
+    if parsed <= 0:
+        logger.warning(
+            "OVERLAY_SNAPSHOT_PERSIST_MAX_BYTES=%d must be > 0; using default %d",
+            parsed,
+            _SNAPSHOT_PERSIST_MAX_BYTES_DEFAULT,
+        )
+        return _SNAPSHOT_PERSIST_MAX_BYTES_DEFAULT
+    return parsed
 
 
 def _validate_https_url(env_name: str, url: str) -> bool:
@@ -134,12 +164,23 @@ def _persist_snapshot(path: Path, text: str) -> None:
     succeeded; the temp file is written in the same directory and ``os.replace`` swaps
     it in atomically so readers never see a partial file.
     """
+    payload_bytes = text.encode("utf-8")
+    max_bytes = _snapshot_persist_max_bytes()
+    if len(payload_bytes) > max_bytes:
+        logger.warning(
+            "Snapshot too large to persist (%d bytes > limit %d): %s",
+            len(payload_bytes),
+            max_bytes,
+            path,
+        )
+        return
+
     try:
         path.parent.mkdir(parents=True, exist_ok=True)
         tmp = path.parent / f"{path.name}.{os.getpid()}.{threading.get_ident()}.{time.time_ns()}.tmp"
         fd = os.open(tmp, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
-        with os.fdopen(fd, "w", encoding="utf-8") as fh:
-            fh.write(text)
+        with os.fdopen(fd, "wb") as fh:
+            fh.write(payload_bytes)
             fh.flush()
             os.fsync(fh.fileno())
         os.replace(tmp, path)

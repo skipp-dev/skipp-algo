@@ -63,6 +63,22 @@ def test_news_no_write_through_on_fetch_failure(tmp_path, monkeypatch) -> None:
     assert not dest.exists()
 
 
+def test_news_no_write_through_when_payload_exceeds_size_limit(tmp_path, monkeypatch) -> None:
+    dest = tmp_path / "news.json"
+    payload = {"providers": {"fmp": {"headline": "X" * 128}}}
+    monkeypatch.setenv("OVERLAY_SNAPSHOT_PERSIST_MAX_BYTES", "32")
+    monkeypatch.setattr(compute.config, "news_snapshot_url", lambda: "https://example.test/news")
+    monkeypatch.setattr(compute.config, "news_snapshot_url_token", lambda: "")
+    monkeypatch.setattr(compute.config, "news_snapshot_path", lambda: dest)
+    monkeypatch.setattr(compute, "_fetch_news_url", lambda url, token, **kw: dict(payload))
+
+    result = compute._load_news_snapshot()
+
+    assert result == payload
+    # Oversized payloads are served from memory but not persisted to disk.
+    assert not dest.exists()
+
+
 def test_signals_write_through(tmp_path, monkeypatch) -> None:
     dest = tmp_path / "signals.json"
     payload = {"symbols": {"AAPL": {"bias": "long"}}}
