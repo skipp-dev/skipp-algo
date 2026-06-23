@@ -4,7 +4,7 @@
 |---------|-------|
 | Status  | Accepted |
 | Date    | 2026-06-10 |
-| Refs    | Audit-R3 (Principal Review 2026-06-10); `.github/workflows/smc-live-newsapi-refresh.yml:225`; `.github/workflows/smc-measurement-benchmark-rolling.yml` (bot/live-experiment-snapshot, added 2026-06-23); `tests/test_workflow_auth_pattern.py`; ADR-0010 (cron-workflow invariants) |
+| Refs    | Audit-R3 (Principal Review 2026-06-10); `.github/workflows/smc-live-newsapi-refresh.yml:225`; `.github/workflows/smc-measurement-benchmark-rolling.yml` (bot/live-experiment-snapshot, added 2026-06-23); `.github/workflows/credential-health-check.yml` (bot/live-tv-credential-snapshot, added 2026-06-23); `scripts/publish_signals_snapshot.py` (bot/live-signals-snapshot host helper, added 2026-06-23); `tests/test_workflow_auth_pattern.py`; ADR-0010 (cron-workflow invariants) |
 
 ---
 
@@ -85,6 +85,19 @@ Constraints that must hold for the allowance to remain valid:
   via the GitHub Contents API instead of the stale Docker-baked seed. Both
   branches are pure cache cursors in the `bot/*` namespace and satisfy the
   four constraints above.
+* The carve-out is likewise reused by `credential-health-check.yml`
+  (added 2026-06-23), which publishes the daily credential-health report
+  (TradingView storage-state age probe) to `bot/live-tv-credential-snapshot`
+  so the live-overlay daemon surfaces the cached-login age as a Grafana
+  metric/panel before the 72h TTL expires.
+* The same pattern is applied outside CI by
+  `scripts/publish_signals_snapshot.py`, a host-run helper that force-updates
+  `bot/live-signals-snapshot` with `latest_realtime_signals.json` (which has
+  no CI producer — it is written only by `open_prep/realtime_signals.py` on
+  the live trading host). It uses the identical fetch-then-`--force-with-lease`
+  sequence against a `bot/*` cache branch. Because it runs outside a workflow
+  `run:` block it is not covered by `_FORCE_LEASE_ALLOWLIST`, but it honours
+  the same four constraints and pushes only to the `bot/*` namespace.
 * A future `--force-with-lease` added outside `bot/*` or without a prior
   `git fetch` will be caught at PR time by the new allowlist test.
 * The policy statement "never `--force*`" is now accurate as *"never outside

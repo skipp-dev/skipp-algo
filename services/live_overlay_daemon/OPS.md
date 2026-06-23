@@ -181,12 +181,13 @@ name = "smc-live-overlay"
 
 ### Snapshot delivery & volume persistence
 
-The daemon serves three producer-side snapshots (news, realtime signals, daily
-experiment rollup/history). Each loader is **URL-first**: when the matching
-`*_SNAPSHOT_URL` is set it fetches the freshest payload over HTTPS
-(GitHub Contents API raw, fine-grained PAT), otherwise it falls back to the
-local `*_SNAPSHOT_PATH`. The Docker image bakes a one-time news seed at build
-time; without a `*_URL` the dashboard shows that stale seed.
+The daemon serves four producer-side snapshots (news, realtime signals, daily
+experiment rollup/history, and the TradingView credential-age report). Each
+loader is **URL-first**: when the matching `*_SNAPSHOT_URL` is set it fetches
+the freshest payload over HTTPS (GitHub Contents API raw, fine-grained PAT),
+otherwise it falls back to the local `*_SNAPSHOT_PATH`. The Docker image bakes a
+one-time news seed at build time; without a `*_URL` the dashboard shows that
+stale seed.
 
 **Stable producer URLs (rolling bot branches).** Producer workflows
 force-push the freshest snapshot to dedicated `bot/*` cache branches
@@ -196,9 +197,21 @@ force-push the freshest snapshot to dedicated `bot/*` cache branches
 |----------|-------------------|------------|-------------|
 | News | `smc-live-newsapi-refresh.yml` | `bot/live-news-snapshot` | `artifacts/smc_microstructure_exports/smc_live_news_snapshot.json` |
 | Experiment rollup + history | `smc-measurement-benchmark-rolling.yml` | `bot/live-experiment-snapshot` | `artifacts/ci/measurement_benchmark_rolling/latest/plan_2_8_tf_family_rollup.json` and `.../latest/plan_2_8_history.jsonl` |
-| Realtime signals | _none (live engine only)_ | — | Written by `open_prep/realtime_signals.py` on the trading host; **no CI producer**, so there is no stable URL yet |
+| TradingView credential age | `credential-health-check.yml` | `bot/live-tv-credential-snapshot` | `artifacts/credential_health/latest/credential_health.json` |
+| Realtime signals | _host helper (no CI producer)_ | `bot/live-signals-snapshot` | `artifacts/open_prep/latest/latest_realtime_signals.json` |
 
 The `*_URL` form is `https://api.github.com/repos/skippALGO/skipp-algo/contents/<stable-path>?ref=<bot-branch>` with a fine-grained PAT (`Contents: Read`, repo `skipp-algo` only) in the matching `*_URL_TOKEN`.
+
+**Realtime signals have no CI producer.** `latest_realtime_signals.json` is
+written only by `open_prep/realtime_signals.py` on the live trading host. Run
+[`scripts/publish_signals_snapshot.py`](../../scripts/publish_signals_snapshot.py)
+on that host (cron / after each engine cycle) with `GH_TOKEN` set to a PAT that
+can push to `bot/*`; it force-updates `bot/live-signals-snapshot`, after which
+`SIGNALS_SNAPSHOT_URL` works exactly like the news/experiment URLs:
+
+```bash
+GH_TOKEN=<push-pat> .venv/bin/python3.12 scripts/publish_signals_snapshot.py
+```
 
 **Write-through persistence (Railway volume).** On every successful `*_URL`
 fetch the daemon atomically writes the payload back to its `*_SNAPSHOT_PATH`
