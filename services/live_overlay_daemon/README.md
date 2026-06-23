@@ -205,6 +205,10 @@ All numeric fields are `null`, all bool fields are `false`, `stale: true`.
 | `OVERLAY_EXPERIMENT_CACHE_TTL_SECS` | ❌ | `900` | Experiment snapshot/history cache TTL in seconds (range 60–7200) |
 | `OVERLAY_EXPERIMENT_MAX_AGE_SECS` | ❌ | `129600` | Age threshold after which experiment snapshot is stale (range 3600–1209600) |
 | `OVERLAY_EXPERIMENT_HISTORY_MAX_DAYS` | ❌ | `30` | Max number of history days surfaced as metrics (range 1–366) |
+| `TRADINGVIEW_CREDENTIAL_SNAPSHOT_PATH` | ❌ | *(repo root)*`/artifacts/credential_health/latest/credential_health.json` | Local daily credential-health report (TradingView storage-state age probe) |
+| `TRADINGVIEW_CREDENTIAL_SNAPSHOT_URL` | ❌ | *(unset)* | Optional HTTPS URL for the credential-health report; takes precedence over local path |
+| `TRADINGVIEW_CREDENTIAL_SNAPSHOT_URL_TOKEN` | ❌ | *(unset)* | Optional bearer token for `TRADINGVIEW_CREDENTIAL_SNAPSHOT_URL` |
+| `OVERLAY_TRADINGVIEW_CREDENTIAL_CACHE_TTL_SECS` | ❌ | `3600` | Credential-health report cache TTL in seconds (range 60–86400) |
 | `OVERLAY_MAX_FEED_FAILURES` | ❌ | `50` | Circuit-breaker threshold for consecutive feed failures (range 1–1000) |
 | `UPTIMEROBOT_API_KEY` | ❌ | *(unset)* | Enables optional UptimeRobot API bridge metrics in `/metrics` |
 | `UPTIMEROBOT_MONITOR_IDS` | ❌ | *(all monitors)* | Comma-separated monitor IDs to include in bridge poll |
@@ -247,16 +251,24 @@ payload over HTTPS and falls back to the local `*_SNAPSHOT_PATH` otherwise. The
 Docker image bakes a one-time news seed, so **without a `*_URL` the dashboard
 shows that stale seed**.
 
-- **News** and the **experiment rollup + history** are published to rolling
-  `bot/*` cache branches by CI (`smc-live-newsapi-refresh.yml` →
-  `bot/live-news-snapshot`; `smc-measurement-benchmark-rolling.yml` →
-  `bot/live-experiment-snapshot`). Point the matching `*_SNAPSHOT_URL` /
-  `*_HISTORY_URL` at
+- **News**, the **experiment rollup + history**, and the **TradingView
+  credential-age report** are published to rolling `bot/*` cache branches by CI
+  (`smc-live-newsapi-refresh.yml` → `bot/live-news-snapshot`;
+  `smc-measurement-benchmark-rolling.yml` → `bot/live-experiment-snapshot`;
+  `credential-health-check.yml` → `bot/live-tv-credential-snapshot`). Point the
+  matching `*_SNAPSHOT_URL` / `*_HISTORY_URL` at
   `https://api.github.com/repos/skippALGO/skipp-algo/contents/<path>?ref=<bot-branch>`
   with a fine-grained PAT (`Contents: Read`) in the `*_URL_TOKEN`.
 - **Realtime signals have no CI producer** — `latest_realtime_signals.json` is
-  written only by `open_prep/realtime_signals.py` on the live trading host, so
-  there is no `SIGNALS_SNAPSHOT_URL` to point at yet.
+  written only by `open_prep/realtime_signals.py` on the live trading host. To
+  feed the hosted daemon, run
+  [`scripts/publish_signals_snapshot.py`](../../scripts/publish_signals_snapshot.py)
+  on that host (cron / after each engine cycle) with `GH_TOKEN` set to a PAT
+  that can push to `bot/*`; it force-updates `bot/live-signals-snapshot` with
+  the latest snapshot. Then set
+  `SIGNALS_SNAPSHOT_URL=https://api.github.com/repos/skippALGO/skipp-algo/contents/artifacts/open_prep/latest/latest_realtime_signals.json?ref=bot/live-signals-snapshot`
+  and `SIGNALS_SNAPSHOT_URL_TOKEN` to a `Contents: Read` PAT, exactly like the
+  news snapshot.
 - **Write-through persistence:** on every successful `*_URL` fetch the daemon
   atomically writes the payload back to its `*_SNAPSHOT_PATH`
   (temp file + `os.replace`). On Railway, mount a volume and set the `*_PATH`
