@@ -35,6 +35,8 @@ from __future__ import annotations
 
 import ast
 import functools
+import shutil
+import subprocess
 from collections.abc import Iterable
 from pathlib import Path
 
@@ -117,6 +119,67 @@ def iter_py_files(
             rel_parts = path.relative_to(base).parts
         except ValueError:
             continue
+        if any(part in excluded for part in rel_parts):
+            continue
+        out.append(path)
+    return sorted(out)
+
+
+@functools.cache
+def _git_ls_files(base_str: str, pattern: str) -> tuple[str, ...] | None:
+    """Return git-tracked files for ``pattern`` relative to ``base_str``.
+
+    Returns ``None`` when git is unavailable or the command fails, so callers
+    can gracefully fall back to filesystem walks.
+    """
+    git = shutil.which("git")
+    if git is None:
+        return None
+    try:
+        proc = subprocess.run(
+            [git, "-C", base_str, "ls-files", "-z", "--", pattern],
+            check=True,
+            capture_output=True,
+        )
+    except (OSError, subprocess.SubprocessError):
+        return None
+    if not proc.stdout:
+        return tuple()
+    entries = [item for item in proc.stdout.decode("utf-8").split("\x00") if item]
+    return tuple(entries)
+
+
+def iter_tracked_files(
+    pattern: str,
+    exclude_dirs: Iterable[str],
+    *,
+    root: Path | None = None,
+) -> list[Path]:
+    """Return sorted git-tracked files matching ``pattern`` under ``root``.
+
+    If git is unavailable, falls back to a filesystem walk with the same
+    exclude semantics used by :func:`iter_py_files`.
+    """
+    base = root or _ROOT
+    excluded = frozenset(exclude_dirs)
+
+    rels = _git_ls_files(str(base.resolve()), pattern)
+    out: list[Path] = []
+
+    if rels is None:
+        for path in base.rglob(pattern):
+            try:
+                rel_parts = path.relative_to(base).parts
+            except ValueError:
+                continue
+            if any(part in excluded for part in rel_parts):
+                continue
+            out.append(path)
+        return sorted(out)
+
+    for rel in rels:
+        path = base / rel
+        rel_parts = Path(rel).parts
         if any(part in excluded for part in rel_parts):
             continue
         out.append(path)
