@@ -199,10 +199,13 @@ def _detect_rt_engine_pid() -> int | None:
         return None
     if result.returncode != 0 or not result.stdout.strip():
         return None
+    own_pid = os.getpid()
     for raw_pid in result.stdout.splitlines():
         try:
             pid = int(raw_pid.strip())
         except ValueError:
+            continue
+        if pid == own_pid:
             continue
         try:
             os.kill(pid, 0)
@@ -314,7 +317,8 @@ def _ensure_rt_engine_running_locked(
         _RT_ENGINE_LOG_FILE.parent.mkdir(parents=True, exist_ok=True)
 
         env = os.environ.copy()
-        env["PYTHONPATH"] = str(project_root)
+        existing_pp = env.get("PYTHONPATH", "")
+        env["PYTHONPATH"] = f"{project_root}{os.pathsep}{existing_pp}" if existing_pp else str(project_root)
 
         # Load .env for API keys
         env_file = project_root / ".env"
@@ -741,6 +745,15 @@ def _start_telemetry_server(
                 self.send_response(404)
                 self.end_headers()
 
+        def do_HEAD(self) -> None:
+            if self.path == "/healthz":
+                self.send_response(200)
+                self.send_header("Content-Type", "text/plain")
+                self.end_headers()
+            else:
+                self.send_response(404)
+                self.end_headers()
+
         def log_message(self, fmt: str, *args: Any) -> None:
             # Silence standard request logging to avoid log noise
             pass
@@ -965,9 +978,11 @@ class GateHysteresis:
         self,
         margin_pct: float = 0.02,
         min_hold_seconds: float = 30.0,  # was 90 — faster upgrades
+        max_state_size: int = 1000,
     ):
         self._margin_pct = margin_pct
         self._min_hold = min_hold_seconds
+        self._max_state_size = max_state_size
         # {symbol: {"level": "A0"|"A1", "ts": float}}
         self._state: dict[str, dict[str, Any]] = {}
 
@@ -988,7 +1003,10 @@ class GateHysteresis:
         prev = self._state.get(symbol)
 
         if prev is None:
-            # First time — accept whatever is proposed
+            # First time — accept whatever is proposed; evict oldest if at capacity
+            if len(self._state) >= self._max_state_size:
+                oldest = next(iter(self._state))
+                del self._state[oldest]
             self._state[symbol] = {"level": proposed_level, "ts": now}
             return proposed_level
 
@@ -1008,7 +1026,15 @@ class GateHysteresis:
             or abs_change_pct < a0_chg_margin
         )
 
-        is_clear = clearly_a0 if proposed_level == "A0" else clearly_a1
+        if proposed_level == "A0":
+            is_clear = clearly_a0
+        elif proposed_level == "A1":
+            is_clear = clearly_a1
+        else:
+            # A2 downgrade: allow unless metrics clearly support staying at
+            # current level (A0).  Detection logic uses richer criteria to
+            # propose A2 — hysteresis should only block if still clearly A0.
+            is_clear = not clearly_a0
         elapsed = now - prev["ts"]
 
         if is_clear or elapsed >= self._min_hold:
@@ -2139,7 +2165,8 @@ class RealtimeEngine:
 
         if self._client_disabled_reason:
             # Persist empty signals with disabled reason so UIs stay green
-            self._active_signals.clear()
+            with self._lock:
+                self._active_signals.clear()
             self._save_signals(disabled_reason=self._client_disabled_reason)
             self.last_poll_duration = time.monotonic() - poll_start
             return []
@@ -2198,7 +2225,8 @@ class RealtimeEngine:
                 "Volume regime HOLIDAY_SUSPECT — all signals suspended (%.0f%% thin)",
                 self._volume_regime.thin_fraction * 100,
             )
-            self._active_signals.clear()
+            with self._lock:
+                self._active_signals.clear()
             self._save_signals()
             return []
 
@@ -2260,22 +2288,23 @@ class RealtimeEngine:
 
                 # Check if we already have an active signal for this symbol
                 _level_rank = {"A0": 0, "A1": 1, "A2": 2}
-                existing = [s for s in self._active_signals if s.symbol == sym and not s.is_expired()]
-                if existing:
-                    latest = existing[-1]
-                    new_rank = _level_rank.get(signal.level, 3)
-                    old_rank = _level_rank.get(latest.level, 3)
-                    if new_rank < old_rank:
-                        # Upgrade: A2→A1, A1→A0, etc.
-                        self._active_signals = [s for s in self._active_signals if s.symbol != sym]
+                with self._lock:
+                    existing = [s for s in self._active_signals if s.symbol == sym and not s.is_expired()]
+                    if existing:
+                        latest = existing[-1]
+                        new_rank = _level_rank.get(signal.level, 3)
+                        old_rank = _level_rank.get(latest.level, 3)
+                        if new_rank < old_rank:
+                            # Upgrade: A2→A1, A1→A0, etc.
+                            self._active_signals = [s for s in self._active_signals if s.symbol != sym]
+                            new_signals.append(signal)
+                        elif signal.direction != latest.direction:
+                            # Direction change: replace
+                            self._active_signals = [s for s in self._active_signals if s.symbol != sym]
+                            new_signals.append(signal)
+                        # else: same or lower level, same direction — skip
+                    else:
                         new_signals.append(signal)
-                    elif signal.direction != latest.direction:
-                        # Direction change: replace
-                        self._active_signals = [s for s in self._active_signals if s.symbol != sym]
-                        new_signals.append(signal)
-                    # else: same or lower level, same direction — skip
-                else:
-                    new_signals.append(signal)
 
             # Track price for next cycle
             price = _safe_float(quote.get("price") or quote.get("lastPrice"), 0.0)
@@ -2401,13 +2430,16 @@ class RealtimeEngine:
             }
 
         # Add new signals to active list
-        self._active_signals.extend(new_signals)
+        with self._lock:
+            self._active_signals.extend(new_signals)
 
         # ── #6  Signal re-qualification ──────────────────────────
         # Re-validate ALL active signals against current quotes.  If a
         # signal no longer meets even A1 criteria → expire it early.
         requalified: list[RealtimeSignal] = []
-        for sig in self._active_signals:
+        with self._lock:
+            signals_snapshot = list(self._active_signals)
+        for sig in signals_snapshot:
             if sig.is_expired():
                 continue
             q = quotes.get(sig.symbol)
@@ -2431,7 +2463,9 @@ class RealtimeEngine:
                 continue
             cur_change = abs(((cur_price / cur_prev_close) - 1) * 100)
             raw_cur_vol = cur_volume / cur_avg_vol
-            cur_vol_ratio = raw_cur_vol / max(_expected_cumulative_volume_fraction(), 0.02)
+            cur_vol_ratio = raw_cur_vol / max(
+                _resolve_expected_volume_fraction(q.get("expected_volume_fraction")), 0.02
+            )
 
             # Apply regime-adjusted thresholds for re-qualification too
             eff_a2_vol = A2_VOLUME_RATIO_MIN * regime_thresholds["vol_mult"]
@@ -2513,24 +2547,25 @@ class RealtimeEngine:
 
             requalified.append(sig)
 
-        self._active_signals = requalified
+        with self._lock:
+            self._active_signals = requalified
 
-        # Decay existing signals
-        now_epoch = time.time()
-        for sig in self._active_signals:
-            elapsed = now_epoch - sig.fired_epoch
-            sig.freshness = adaptive_freshness_decay(
-                elapsed, atr_pct=sig.atr_pct if sig.atr_pct > 0 else None,
+            # Decay existing signals
+            now_epoch = time.time()
+            for sig in self._active_signals:
+                elapsed = now_epoch - sig.fired_epoch
+                sig.freshness = adaptive_freshness_decay(
+                    elapsed, atr_pct=sig.atr_pct if sig.atr_pct > 0 else None,
+                )
+
+            # Prune expired signals
+            self._active_signals = [s for s in self._active_signals if not s.is_expired()]
+
+            # Sort: A0 before A1 before A2, then by freshness
+            _level_order = {"A0": 0, "A1": 1, "A2": 2}
+            self._active_signals.sort(
+                key=lambda s: (_level_order.get(s.level, 3), -s.freshness),
             )
-
-        # Prune expired signals
-        self._active_signals = [s for s in self._active_signals if not s.is_expired()]
-
-        # Sort: A0 before A1 before A2, then by freshness
-        _level_order = {"A0": 0, "A1": 1, "A2": 2}
-        self._active_signals.sort(
-            key=lambda s: (_level_order.get(s.level, 3), -s.freshness),
-        )
 
         # ── Telemetry recording ─────────────────────────────────
         # Aggregate per-poll stats for the telemetry snapshot

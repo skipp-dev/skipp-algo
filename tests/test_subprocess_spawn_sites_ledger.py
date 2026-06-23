@@ -160,8 +160,8 @@ SUBPROCESS_RUN_LEDGER: set[tuple[str, int]] = {
 
 SUBPROCESS_POPEN_LEDGER: set[tuple[str, int]] = {
     # Detached re-launch of the realtime-signals daemon.
-    # Shifted 336 -> 337 after import hmac + lock fix added lines above.
-    ("open_prep/realtime_signals.py", 337),
+    # Shifted 336 -> 337 -> 341 after import hmac + lock fix + do_HEAD addition.
+    ("open_prep/realtime_signals.py", 341),
 }
 
 
