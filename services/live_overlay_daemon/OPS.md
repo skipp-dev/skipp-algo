@@ -147,6 +147,10 @@ name = "smc-live-overlay"
 | `OVERLAY_EXPERIMENT_CACHE_TTL_SECS` | no | — | Experiment rollup/history cache TTL |
 | `OVERLAY_EXPERIMENT_MAX_AGE_SECS` | no | — | Experiment snapshot staleness threshold |
 | `OVERLAY_EXPERIMENT_HISTORY_MAX_DAYS` | no | — | Max history days exposed as metrics |
+| `TRADINGVIEW_CREDENTIAL_SNAPSHOT_PATH` | no | `artifacts/credential_health/latest/credential_health.json` | Local daily credential-health report (TradingView storage-state age) |
+| `TRADINGVIEW_CREDENTIAL_SNAPSHOT_URL` | no | — | Optional HTTPS URL for the credential-health report |
+| `TRADINGVIEW_CREDENTIAL_SNAPSHOT_URL_TOKEN` | no | — | Optional bearer token for `TRADINGVIEW_CREDENTIAL_SNAPSHOT_URL` |
+| `OVERLAY_TRADINGVIEW_CREDENTIAL_CACHE_TTL_SECS` | no | — | Credential-health report cache TTL (default 3600) |
 | `OVERLAY_REFRESH_SECS` | no | — | Full compute refresh interval |
 | `OVERLAY_ROLLING_BARS` | no | — | Rolling bar window |
 
