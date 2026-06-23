@@ -78,7 +78,11 @@ def test_producer_prefers_priority_cron_self_hosted_runner() -> None:
     text = LEGACY_PRODUCER_WF.read_text(encoding="utf-8")
 
     assert '--custom-label "${{ vars.SMC_PRIORITY_CRON_SELF_HOSTED_LABEL || vars.SMC_SELF_HOSTED_LABEL }}"' in text
-    assert "--inventory-unavailable-fallback required-self-hosted" in text
+    # Legacy monolithic producer is workflow_dispatch-only emergency fallback.
+    # When runner inventory is unavailable, it should route to github-hosted
+    # instead of forcing required self-hosted queueing.
+    assert "--inventory-unavailable-fallback hosted" in text
+    assert "--inventory-unavailable-fallback required-self-hosted" not in text
     assert '--custom-label "${{ vars.SMC_SELF_HOSTED_LABEL }}"' not in text
 
 

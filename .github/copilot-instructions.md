@@ -406,21 +406,6 @@ variable to restore self-hosted-primary routing.
 
 ---
 
-## Runner- & CI-Policy
-
-Variable `SMC_GH_HOSTED_RUNNER`, currently
-`ubuntu-latest` (GitHub-hosted default). Routierte Workflows nutzen `select-runner`.
-
-**GitHub Copilot Code Review / Copilot reviewer:** GitHub-managed dynamic workflow named `Copilot`.
-Do **not** create or edit repository workflows to route Copilot review jobs.
-The AI reviewer should execute on GitHub-managed infrastructure.
-
-This includes `ci.yml`. CI validate is intentionally GitHub-hosted.
-Routing via `--inventory-unavailable-fallback required-self-hosted` only
-unless the workflow truly cannot run on GitHub-hosted infrastructure.
-
----
-
 ## Session-Start
 
 Beim ersten Turn: prüfe ob `spec/agent_handover.md` auf main existiert. Falls ja: lesen, Stand bestätigen, loslegen.
