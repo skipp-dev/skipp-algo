@@ -664,6 +664,7 @@ def _start_telemetry_server(
     telemetry: ScoreTelemetry,
     port: int = 8099,
     host: str | None = None,
+    engine: Any = None,
 ) -> Any:
     """Launch a lightweight HTTP server serving ``/telemetry.json`` and ``/healthz``.
 
@@ -674,11 +675,19 @@ def _start_telemetry_server(
     via the ``host`` argument or the ``TELEMETRY_BIND_HOST`` environment
     variable — set it to a non-loopback address so a sibling service can
     reach ``/signals`` over a private network (e.g. Railway internal DNS).
+
+    When ``engine`` is provided, ``/signals`` falls back to live engine state
+    if ``SIGNALS_PATH`` has not yet been written (cold start before the first
+    ``poll_once()`` finishes).  When ``SIGNALS_INTERNAL_TOKEN`` is set in the
+    environment, ``/signals`` additionally requires an ``Authorization: Bearer
+    <token>`` header — a minimal shared-secret guard for the case where the
+    bind host is exposed beyond the private network (audit PR #2913 F2).
     """
     import threading
     from http.server import BaseHTTPRequestHandler, HTTPServer
 
     bind_host = host or os.getenv("TELEMETRY_BIND_HOST", "127.0.0.1")
+    auth_token = os.getenv("SIGNALS_INTERNAL_TOKEN", "").strip()
 
     class _Handler(BaseHTTPRequestHandler):
         def do_GET(self) -> None:
@@ -695,9 +704,26 @@ def _start_telemetry_server(
                 self.end_headers()
                 self.wfile.write(body)
             elif self.path in ("/signals.json", "/signals"):
+                if auth_token:
+                    _hdr = self.headers.get("Authorization", "")
+                    if not (_hdr.startswith("Bearer ") and _hdr[7:] == auth_token):
+                        self.send_response(401)
+                        self.end_headers()
+                        return
                 import json as _json
-                payload = _read_json_file(SIGNALS_PATH) or {}
-                body = _json.dumps(payload, indent=2, allow_nan=False).encode()
+                payload = _read_json_file(SIGNALS_PATH)
+                if not payload and engine is not None:
+                    _active = engine.get_active_signals()
+                    payload = {
+                        "signals": [s.to_dict() for s in _active],
+                        "signal_count": len(_active),
+                        "a0_count": sum(1 for s in _active if s.level == "A0"),
+                        "a1_count": sum(1 for s in _active if s.level == "A1"),
+                        "status": "cold_start",
+                    }
+                if not payload:
+                    payload = {"signals": [], "signal_count": 0, "a0_count": 0, "a1_count": 0, "status": "warming_up"}
+                body = _json.dumps(payload, indent=2, allow_nan=False, default=str).encode()
                 self.send_response(200)
                 self.send_header("Content-Type", "application/json")
                 self.end_headers()
@@ -2732,10 +2758,14 @@ def main() -> None:
         ultra_mode=args.ultra,
     )
 
-    # Start telemetry HTTP server (daemon thread — auto-stops on exit)
+    # Start telemetry HTTP server (daemon thread — auto-stops on exit).
+    # Pass the engine so /signals can fall back to live state during the
+    # cold-start window before the first poll cycle writes SIGNALS_PATH.
     telemetry_server: Any = None
     if args.telemetry_port > 0:
-        telemetry_server = _start_telemetry_server(engine.telemetry, port=args.telemetry_port)
+        telemetry_server = _start_telemetry_server(
+            engine.telemetry, port=args.telemetry_port, engine=engine,
+        )
 
     # Start async newsstack for fast/ultra modes (reduces per-poll latency)
     if args.fast or args.ultra:

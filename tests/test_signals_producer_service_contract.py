@@ -38,7 +38,13 @@ def test_railway_declares_signals_producer_service() -> None:
 def test_dockerfile_copies_open_prep_and_runs_engine() -> None:
     dockerfile = (_SERVICE_DIR / "Dockerfile").read_text(encoding="utf-8")
     assert "COPY open_prep/" in dockerfile
-    assert "python -m open_prep.realtime_signals" in dockerfile
+    # Accept both shell-form (`python -m ...`) and exec-form (`"python", "-m", ...`)
+    # CMDs.  Railway overrides CMD with railway.toml:startCommand at runtime;
+    # the Dockerfile CMD is the local / `docker run` fallback.
+    assert (
+        "python -m open_prep.realtime_signals" in dockerfile
+        or '"python", "-m", "open_prep.realtime_signals"' in dockerfile
+    )
     # Container must not run as root (security baseline).
     assert "USER appuser" in dockerfile
 

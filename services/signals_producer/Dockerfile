@@ -21,7 +21,9 @@ ENV PYTHONUNBUFFERED=1
 
 EXPOSE 8099
 
-# The realtime signal engine runs forever and serves /healthz + /signals on
-# $PORT.  TELEMETRY_BIND_HOST (set as a Railway service variable to 0.0.0.0)
-# makes the bind reachable over the private network.
-CMD ["sh", "-c", "python -m open_prep.realtime_signals --telemetry-port ${PORT:-8099}"]
+# The realtime signal engine runs forever and serves /healthz + /signals.
+# TELEMETRY_BIND_HOST (set as a Railway service variable to 0.0.0.0) makes
+# the bind reachable over the private network.  Railway overrides this CMD
+# with railway.toml:startCommand (which injects $PORT); this is the local /
+# `docker run` fallback (no shell expansion, exec form, single source of truth).
+CMD ["python", "-m", "open_prep.realtime_signals", "--telemetry-port", "8099"]

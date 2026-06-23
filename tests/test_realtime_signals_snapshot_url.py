@@ -149,7 +149,7 @@ def test_signals_route_serves_latest_signals(monkeypatch, tmp_path) -> None:
     assert json.loads(handler.body) == {"signals": [{"symbol": "MSFT"}]}
 
 
-def _build_handler(monkeypatch):
+def _build_handler(monkeypatch, *, engine=None):
     """Start the telemetry server with fakes and return the registered handler class."""
 
     captured: dict[str, object] = {}
@@ -177,15 +177,16 @@ def _build_handler(monkeypatch):
     monkeypatch.setattr(http.server, "HTTPServer", _fake_http_server)
     monkeypatch.setattr(threading, "Thread", _FakeThread)
 
-    rs._start_telemetry_server(rs.ScoreTelemetry(), port=8099)
+    rs._start_telemetry_server(rs.ScoreTelemetry(), port=8099, engine=engine)
     return captured["handler"]
 
 
-def _invoke_get(handler_cls, path: str):
+def _invoke_get(handler_cls, path: str, *, headers: dict[str, str] | None = None):
     """Drive ``do_GET`` on the handler without a real socket."""
 
     handler = handler_cls.__new__(handler_cls)
     handler.path = path
+    handler.headers = headers or {}
     handler.wfile = io.BytesIO()
     handler._status = None
     handler._headers: list[tuple[str, str]] = []
@@ -210,3 +211,59 @@ def _invoke_get(handler_cls, path: str):
         body = handler.wfile.getvalue()
 
     return _Result()
+
+
+def test_signals_route_cold_start_uses_engine_when_file_missing(monkeypatch, tmp_path) -> None:
+    """F1: /signals must not return empty payload during the cold-start window.
+
+    When the first ``poll_once()`` has not yet written ``SIGNALS_PATH``, the
+    handler falls back to live engine state and tags the payload with
+    ``status="cold_start"`` so consumers can distinguish it from steady-state.
+    """
+    missing = tmp_path / "never_written.json"
+    monkeypatch.setattr(rs, "SIGNALS_PATH", missing)
+
+    class _StubEngine:
+        def get_active_signals(self):
+            return []
+
+    handler_cls = _build_handler(monkeypatch, engine=_StubEngine())
+    handler = _invoke_get(handler_cls, "/signals")
+
+    assert handler.status == 200
+    payload = json.loads(handler.body)
+    assert payload["status"] == "cold_start"
+    assert payload["signals"] == []
+    assert payload["signal_count"] == 0
+
+
+def test_signals_route_rejects_missing_bearer_when_token_set(monkeypatch, tmp_path) -> None:
+    """F2: when SIGNALS_INTERNAL_TOKEN is set, /signals requires a Bearer token."""
+    monkeypatch.setenv("SIGNALS_INTERNAL_TOKEN", "s3cret")
+    signals_file = tmp_path / "latest_realtime_signals.json"
+    signals_file.write_text(json.dumps({"signals": []}), encoding="utf-8")
+    monkeypatch.setattr(rs, "SIGNALS_PATH", signals_file)
+
+    handler_cls = _build_handler(monkeypatch)
+
+    no_header = _invoke_get(handler_cls, "/signals")
+    bad_header = _invoke_get(handler_cls, "/signals", headers={"Authorization": "Bearer wrong"})
+    wrong_scheme = _invoke_get(handler_cls, "/signals", headers={"Authorization": "Basic abc"})
+
+    assert no_header.status == 401
+    assert bad_header.status == 401
+    assert wrong_scheme.status == 401
+
+
+def test_signals_route_accepts_correct_bearer_when_token_set(monkeypatch, tmp_path) -> None:
+    """F2: a matching Bearer token returns the normal /signals payload."""
+    monkeypatch.setenv("SIGNALS_INTERNAL_TOKEN", "s3cret")
+    signals_file = tmp_path / "latest_realtime_signals.json"
+    signals_file.write_text(json.dumps({"signals": [{"symbol": "NVDA"}]}), encoding="utf-8")
+    monkeypatch.setattr(rs, "SIGNALS_PATH", signals_file)
+
+    handler_cls = _build_handler(monkeypatch)
+    handler = _invoke_get(handler_cls, "/signals", headers={"Authorization": "Bearer s3cret"})
+
+    assert handler.status == 200
+    assert json.loads(handler.body) == {"signals": [{"symbol": "NVDA"}]}
