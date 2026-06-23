@@ -384,13 +384,21 @@ def github_workflow_token() -> str:
     return _optional_str("GITHUB_WORKFLOW_MONITOR_TOKEN", "")
 
 
+_GITHUB_OWNER_RE = re.compile(r"^[A-Za-z0-9](?:[A-Za-z0-9-]{0,38})$")
+_GITHUB_REPO_RE = re.compile(r"^[A-Za-z0-9._-]{1,100}$")
+
+
 def github_workflow_repo() -> tuple[str, str]:
     """Repo target for GitHub workflow polling in owner/repo format."""
     raw = _optional_str("GITHUB_WORKFLOW_MONITOR_REPO", "skippALGO/skipp-algo")
     owner, sep, repo = raw.partition("/")
     owner = owner.strip()
     repo = repo.strip()
-    if sep != "/" or not owner or not repo:
+    if (
+        sep != "/"
+        or not _GITHUB_OWNER_RE.match(owner)
+        or not _GITHUB_REPO_RE.match(repo)
+    ):
         logger.warning(
             "GITHUB_WORKFLOW_MONITOR_REPO=%r invalid, falling back to skippALGO/skipp-algo",
             raw,

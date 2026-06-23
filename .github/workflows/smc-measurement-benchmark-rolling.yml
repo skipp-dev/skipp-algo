@@ -323,6 +323,9 @@ jobs:
               echo "::warning title=per-tf-structure::exporter crashed for tf=${tf}; benchmark will use the legacy fallback for this TF"
             fi
           done
+          # Per-tf JSON is consumed inline above; drop it so it never leaks into
+          # later steps' working tree or uploaded artifacts.
+          rm -f structure_export_*.json
 
       - name: Run daily rolling benchmark
         env:

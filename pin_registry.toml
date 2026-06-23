@@ -97,7 +97,9 @@
 # 4th https fetcher and shifts the experiment fetch 290 -> 407.
 # 2026-06-23 (Copilot/E702 follow-up): _persist_snapshot semicolon split +
 # logging layout change shifted these callsites +3 -> 154/229/316/410.
-"services/live_overlay_daemon/compute.py" = [154, 229, 316, 410]
+# 2026-06-23 (audit #2909 F3): centralized _validate_https_url helper added
+# above the fetchers shifted these callsites -> 166/240/323/416.
+"services/live_overlay_daemon/compute.py" = [166, 240, 323, 416]
 # 2026-06-22: line shifted 251 -> 287 after ADR-0025 App Platform migration
 # (/apis dashboard.grafana.app/v1); urlopen now in shared _request_json helper.
 "scripts/publish_overlay_dashboard.py" = [287]

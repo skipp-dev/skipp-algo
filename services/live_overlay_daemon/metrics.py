@@ -130,6 +130,11 @@ def _estimate_histogram_quantile_ms(
 
 # Provider health state codes exposed via live_overlay_provider_news_*_state_code
 # and the live_overlay_provider_news_info{state=...} label.
+# NOTE: the per-provider metric names (live_overlay_provider_news_<provider>_state_code)
+# are intentionally dynamic. The Grafana dashboards select them with a
+# ``__name__=~"live_overlay_provider_news_.*_state_code"`` regex matcher rather than a
+# fixed metric name, so adding a provider needs no dashboard change. Cardinality stays
+# bounded by the small, static provider set.
 _PROVIDER_STATE_LABELS = {0: "unknown", 1: "degraded", 2: "ok", 3: "disabled"}
 
 # Map the raw snapshot "error" reason onto a human-readable message that the

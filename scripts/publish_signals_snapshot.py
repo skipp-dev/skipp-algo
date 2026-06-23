@@ -108,6 +108,15 @@ def publish(input_path: Path, branch: str, repo: str, token: str) -> int:
         if fetched.returncode == 0:
             _git(["checkout", "--quiet", "-B", branch, "FETCH_HEAD"], work)
         else:
+            # A missing remote ref is the normal first-publish case; anything else
+            # (auth/network) silently discards the existing tip, so surface it.
+            stderr = (fetched.stderr or "").strip()
+            if stderr and "find remote ref" not in stderr.lower():
+                print(
+                    f"warning: initial fetch failed; seeding empty branch: "
+                    f"{_redact_token(stderr, token)}",
+                    file=sys.stderr,
+                )
             _git(["checkout", "--quiet", "-B", branch], work)
 
         dest = work / DEST_PATH

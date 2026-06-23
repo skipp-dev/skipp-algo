@@ -110,6 +110,19 @@ _tradingview_credential_lock = threading.Lock()
 _TRADINGVIEW_CREDENTIAL_USER_AGENT = "live-overlay-daemon-tv-credential/1"
 
 
+def _validate_https_url(env_name: str, url: str) -> bool:
+    """Return ``True`` iff ``url`` is an https URL; warn and return ``False`` otherwise.
+
+    Centralizes the guard shared by every ``*_URL`` snapshot fetcher so a
+    misconfigured plain-http (or empty) endpoint is rejected rather than fetched,
+    with one consistent warning that names the offending env var.
+    """
+    if url.lower().startswith("https://"):
+        return True
+    logger.warning("%s must be an https URL; ignoring %r", env_name, url)
+    return False
+
+
 def _persist_snapshot(path: Path, text: str) -> None:
     """Atomically write a freshly-fetched snapshot to its local cache ``path``.
 
@@ -123,7 +136,7 @@ def _persist_snapshot(path: Path, text: str) -> None:
     """
     try:
         path.parent.mkdir(parents=True, exist_ok=True)
-        tmp = path.parent / f"{path.name}.{os.getpid()}.{time.time_ns()}.tmp"
+        tmp = path.parent / f"{path.name}.{os.getpid()}.{threading.get_ident()}.{time.time_ns()}.tmp"
         fd = os.open(tmp, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
         with os.fdopen(fd, "w", encoding="utf-8") as fh:
             fh.write(text)
@@ -141,8 +154,7 @@ def _fetch_news_url(url: str, token: str, timeout: float = 10.0) -> dict[str, An
     can fall back to the local file (and baked seed). Only https URLs are
     honoured.
     """
-    if not url.lower().startswith("https://"):
-        logger.warning("NEWS_SNAPSHOT_URL must be an https URL; ignoring %r", url)
+    if not _validate_https_url("NEWS_SNAPSHOT_URL", url):
         return None
     headers = {"Accept": "application/json", "User-Agent": _NEWS_USER_AGENT}
     if token:
@@ -216,8 +228,7 @@ def _fetch_signals_url(
     Returns the parsed dict on success or ``None`` on any failure so the caller
     can fall back to the local file. Only https URLs are honoured.
     """
-    if not url.lower().startswith("https://"):
-        logger.warning("SIGNALS_SNAPSHOT_URL must be an https URL; ignoring %r", url)
+    if not _validate_https_url("SIGNALS_SNAPSHOT_URL", url):
         return None
     headers = {"Accept": "application/json", "User-Agent": _SIGNALS_USER_AGENT}
     if token:
@@ -297,11 +308,7 @@ def _fetch_tradingview_credential_url(
     Returns the parsed dict on success or ``None`` on any failure so the caller
     can fall back to the local file. Only https URLs are honoured.
     """
-    if not url.lower().startswith("https://"):
-        logger.warning(
-            "TRADINGVIEW_CREDENTIAL_SNAPSHOT_URL must be an https URL; ignoring %r",
-            url,
-        )
+    if not _validate_https_url("TRADINGVIEW_CREDENTIAL_SNAPSHOT_URL", url):
         return None
     headers = {
         "Accept": "application/json",
@@ -397,8 +404,7 @@ def _fetch_experiment_url(
     Returns the decoded body on success or ``None`` on any failure so the caller
     can fall back to the local file. Only https URLs are honoured.
     """
-    if not url.lower().startswith("https://"):
-        logger.warning("EXPERIMENT_*_URL must be an https URL; ignoring %r", url)
+    if not _validate_https_url("EXPERIMENT_*_URL", url):
         return None
     headers = {"Accept": "application/json", "User-Agent": _EXPERIMENT_USER_AGENT}
     if token:
