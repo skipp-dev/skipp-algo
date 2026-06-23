@@ -2725,7 +2725,10 @@ def main() -> None:
                     if not line or line.startswith("#") or "=" not in line:
                         continue
                     key, _, val = line.partition("=")
-                    key, val = key.strip(), val.strip().strip("'\"")
+                    key = key.strip()
+                    if key.startswith("export "):
+                        key = key[7:].strip()
+                    val = val.strip().strip("'\"")
                     # R-E2 (2026-06-14): os.environ mutation is safe here —
                     # this code runs in main() before any threads are started,
                     # is additive-only (guarded by `not in os.environ`), and

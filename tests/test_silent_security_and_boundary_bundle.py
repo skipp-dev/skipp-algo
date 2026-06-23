@@ -193,7 +193,7 @@ _FROZEN_BASIC_CONFIG_SITES: frozenset[tuple[str, int]] = frozenset({
     # 2026-06-12 (Copilot #2729): main() exit-semantics docstring +6 → 585.
     # 2026-06-17 (F1 lint fix): remove unused import sys → 585→584.
     ("open_prep/outcome_backfill.py", 584),
-    ("open_prep/realtime_signals.py", 2753),
+    ("open_prep/realtime_signals.py", 2757),
     # 2026-06-16 (feat/live-overlay-daemon): entry-point main.py configures
     # root logger at startup (Railway container, no other logger setup).
     # 2026-06-19 (fix/live-overlay-post-merge-bugs): import additions for
@@ -265,7 +265,7 @@ def test_no_stale_basic_config_ledger_entries() -> None:
 
 
 _FROZEN_SYSPATH_SITES: frozenset[tuple[str, int, str]] = frozenset({
-    ("open_prep/realtime_signals.py", 1161, "insert"),
+    ("open_prep/realtime_signals.py", 1162, "insert"),
     ("open_prep/streamlit_monitor.py", 34, "insert"),
     # WP-H (PR #2612): 32 -> 34, VIX import + helper block added above.
     ("smc_tv_bridge/smc_api.py", 34, "insert"),
