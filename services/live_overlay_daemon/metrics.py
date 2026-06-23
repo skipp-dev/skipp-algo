@@ -507,7 +507,11 @@ def _experiment_snapshot() -> dict[str, object]:
                         "status": status,
                         "status_code": _EXPERIMENT_VERDICT_STATUS_CODES.get(status, 0),
                         "delta_hr": verdict.get("delta_hr", 0),
-                        "p_value": p_value if isinstance(p_value, (int, float)) else None,
+                        "p_value": (
+                            p_value
+                            if isinstance(p_value, (int, float)) and not isinstance(p_value, bool)
+                            else None
+                        ),
                         "underpowered": 1.0 if verdict.get("underpowered") else 0.0,
                         "n_a": verdict.get("n_a", 0),
                         "n_b": verdict.get("n_b", 0),
