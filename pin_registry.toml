@@ -81,6 +81,10 @@
 # 2026-06-11 (eval-findings B8): surprise-scale comment block +8 (713→721).
 "open_prep/macro.py" = [740]
 "open_prep/sentiment_fng.py" = [100]
+# 2026-06-23 (signals-producer consumer hook): _fetch_json_url pulls the
+# open-prep snapshot from OPEN_PREP_SNAPSHOT_URL (raw bot-branch JSON) so the
+# Railway worker can run without the local artifact; http(s)-only, timeout=15s.
+"open_prep/realtime_signals.py" = [791]
 "scripts/probe_fmp_13f_endpoints.py" = [75]
 "scripts/resolve_workflow_runner.py" = [91]
 # 2026-06-21 (live-overlay bridge observability): optional external polling
@@ -130,18 +134,18 @@ file = "governance/run_manifest.py"
 line = 73
 codes = ["S603"]
 
-# open_prep/realtime_signals.py:190,336 — Bandit S603 false positives:
+# open_prep/realtime_signals.py:191,337 — Bandit S603 false positives:
 # hardcoded pgrep / sys.executable -m argv lists. Rebaselined 2026-05-15
 # after PR #2233 mainline merge restored the older realtime_signals
 # layout used by this branch.
 [[noqa_budget.sites]]
 file = "open_prep/realtime_signals.py"
-line = 190
+line = 191
 codes = ["S603"]
 
 [[noqa_budget.sites]]
 file = "open_prep/realtime_signals.py"
-line = 336
+line = 337
 codes = ["S603"]
 
 # smc_integration/release_policy.py:1121 — Bandit S603 false positive:
