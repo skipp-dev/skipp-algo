@@ -404,7 +404,14 @@ observability.py (structured log lines + in-process counters)
 | `live_overlay_trading_signals_watched_total` | gauge | metrics.py signals snapshot probe |
 | `live_overlay_trading_signals_snapshot_age_known` | gauge | metrics.py signals snapshot probe |
 | `live_overlay_trading_signals_snapshot_age_seconds` | gauge | metrics.py signals snapshot probe |
+| `live_overlay_trading_signals_snapshot_max_age_seconds` | gauge | metrics.py signals snapshot probe (configured staleness threshold) |
+| `live_overlay_trading_signals_snapshot_stale` | gauge | metrics.py signals snapshot probe (`1=stale`, `0=fresh/unknown`) |
 | `live_overlay_trading_signal_*` | gauge | metrics.py per-signal labeled series (`score`, `freshness`, `technical_score`, `change_pct`, `info`) |
+| `live_overlay_tradingview_credential_loaded` | gauge | metrics.py TradingView credential-health snapshot probe |
+| `live_overlay_tradingview_credential_valid` | gauge | metrics.py TradingView credential-health snapshot probe (`0=error severity`, `1=ok/warn`) |
+| `live_overlay_tradingview_credential_age_known` | gauge | metrics.py TradingView credential-health snapshot probe (`1=age_hours present`) |
+| `live_overlay_tradingview_credential_age_hours` | gauge | metrics.py TradingView credential-health snapshot probe (`tv_storage_state_age.details.age_hours`) |
+| `live_overlay_tradingview_credential_validated_at_seconds` | gauge | metrics.py TradingView credential-health snapshot probe (`tv_storage_state_age.details.validated_at`) |
 | `live_overlay_experiment_loaded` | gauge | metrics.py daily experiment snapshot probe |
 | `live_overlay_experiment_snapshot_age_known` | gauge | metrics.py daily experiment snapshot probe |
 | `live_overlay_experiment_snapshot_age_seconds` | gauge | metrics.py daily experiment snapshot probe |

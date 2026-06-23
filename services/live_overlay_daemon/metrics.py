@@ -346,7 +346,6 @@ def _tradingview_credential_snapshot() -> dict[str, float]:
 # SWEEP) per timeframe once per day. We surface the latest rollup (current-day
 # stats + Phase E2 verdicts) plus the retained per-day history so Grafana can
 # render both a live "today" view and a backfilled per-day timeline.
-_EXPERIMENT_FAMILY_ORDER = ("BOS", "OB", "FVG", "SWEEP")
 
 # Stable numeric code per Phase E2 verdict status so a Grafana stat panel can
 # colour it (higher == more conclusive / healthier evidence).
