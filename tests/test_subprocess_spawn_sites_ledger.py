@@ -37,7 +37,7 @@ from __future__ import annotations
 import ast
 from pathlib import Path
 
-from tests._guard_corpus import parse_module
+from tests._guard_corpus import iter_tracked_files, parse_module
 
 ROOT = Path(__file__).resolve().parents[1]
 
@@ -59,16 +59,10 @@ _DIR_EXCLUDE = {
 
 
 def _iter_py_files() -> list[Path]:
-    out: list[Path] = []
-    for path in ROOT.rglob("*.py"):
-        rel = path.relative_to(ROOT)
-        rel_posix = rel.as_posix()
-        if (
-            any(part in _DIR_EXCLUDE or part.startswith(".") for part in rel.parts)
-            and rel_posix != "scripts/publish_overlay_dashboard.py"
-        ):
-            continue
-        out.append(path)
+    out = iter_tracked_files("*.py", _DIR_EXCLUDE, root=ROOT)
+    publish_overlay = ROOT / "scripts/publish_overlay_dashboard.py"
+    if publish_overlay.is_file() and publish_overlay not in out:
+        out.append(publish_overlay)
     return out
 
 
