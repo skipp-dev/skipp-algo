@@ -96,3 +96,36 @@ def test_snapshot_fetch_error_returns_fallback_payload(monkeypatch: pytest.Monke
     assert snap["ok"] == 0
     assert snap["error"] == "RuntimeError"
     assert snap["fetched_at_unix"] == 1234.0
+
+
+def test_fetch_snapshot_separates_status_from_conclusion(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    import services.live_overlay_daemon.github_workflow_bridge as bridge
+
+    runs_payload = {
+        "workflow_runs": [
+            {
+                "workflow_id": 1,
+                "name": "CI",
+                "event": "pull_request",
+                "status": "queued",
+                "conclusion": None,
+                "created_at": "2026-06-22T10:00:00Z",
+                "run_started_at": None,
+                "updated_at": None,
+            }
+        ]
+    }
+
+    monkeypatch.setattr(bridge.config, "github_workflow_repo", lambda: ("o", "r"))
+    monkeypatch.setattr(bridge.config, "github_workflow_per_page", lambda: 30)
+    monkeypatch.setattr(bridge.config, "github_workflow_timeout_secs", lambda: 5)
+    monkeypatch.setattr(bridge.time, "time", lambda: 1_782_122_460.0)
+    monkeypatch.setattr(bridge, "_github_request_json", lambda *args, **kwargs: runs_payload)
+
+    snap = bridge._fetch_snapshot("token")
+    assert snap["workflows"]
+    row = snap["workflows"][0]
+    assert row["status"] == "queued"
+    assert row["conclusion"] == "unknown"
