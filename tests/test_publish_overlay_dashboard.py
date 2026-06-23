@@ -119,6 +119,57 @@ def test_prepare_payload_missing_uid_raises() -> None:
         _prepare_payload({"title": "no uid", "panels": []}, "msg", None)
 
 
+@pytest.mark.parametrize("bad_annotations", [None, [], "x", 42])
+def test_prepare_payload_normalizes_non_dict_annotations(bad_annotations: object) -> None:
+    # Source metadata may carry "annotations" as null or a non-mapping value;
+    # _prepare_payload must normalize it instead of raising a TypeError.
+    data = {
+        "apiVersion": "dashboard.grafana.app/v2",
+        "kind": "Dashboard",
+        "metadata": {"name": "smc-live-overlay-v1", "annotations": bad_annotations},
+        "spec": {"elements": {}},
+    }
+
+    payload = _prepare_payload(data, "sync from test", None)
+
+    assert payload["metadata"]["annotations"] == {"grafana.app/message": "sync from test"}
+
+
+def test_prepare_payload_preserves_existing_annotation_keys() -> None:
+    data = {
+        "apiVersion": "dashboard.grafana.app/v2",
+        "kind": "Dashboard",
+        "metadata": {
+            "name": "smc-live-overlay-v1",
+            "annotations": {"grafana.app/folder": "ops"},
+        },
+        "spec": {"elements": {}},
+    }
+
+    payload = _prepare_payload(data, "sync from test", None)
+
+    assert payload["metadata"]["annotations"] == {
+        "grafana.app/folder": "ops",
+        "grafana.app/message": "sync from test",
+    }
+
+
+@pytest.mark.parametrize("bad_metadata", [None, [], "x", 42])
+def test_prepare_payload_normalizes_non_dict_metadata(bad_metadata: object) -> None:
+    data = {
+        "apiVersion": "dashboard.grafana.app/v2",
+        "kind": "Dashboard",
+        "metadata": bad_metadata,
+        "spec": {"elements": {}},
+    }
+
+    payload = _prepare_payload(data, "sync from test", None)
+
+    assert payload["metadata"] == {
+        "annotations": {"grafana.app/message": "sync from test"},
+    }
+
+
 def test_get_token_custom_env_then_default_then_fallback(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.delenv("CUSTOM_GRAFANA_TOKEN", raising=False)
     monkeypatch.setenv("GRAFANA_API_TOKEN", "default-token")

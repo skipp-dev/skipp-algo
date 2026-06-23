@@ -1,8 +1,10 @@
 """Contract tests for the live-overlay Grafana dashboard JSON.
 
-The dashboard is stored in Grafana API v2 format (apiVersion: dashboard.grafana.app/v2).
-Panel data lives in spec.elements (a dict keyed by "panel-N"), panel type is at
-vizConfig.group, and options are at vizConfig.spec.options.
+The dashboard is currently stored in legacy Grafana v1 format (top-level
+``panels``). These tests also accept the Grafana v2 shape
+(apiVersion: dashboard.grafana.app/v2), where panel data lives in
+``spec.elements`` (a dict keyed by "panel-N"), panel type is at
+``vizConfig.group``, and options are at ``vizConfig.spec.options``.
 """
 
 from __future__ import annotations
