@@ -153,7 +153,7 @@ def test_publishes_open_prep_snapshot_to_bot_branch() -> None:
         "snapshot publish must push the stable latest_open_prep_run.json path"
     )
     assert (
-        "git push --force-with-lease=refs/heads/bot/live-open-prep-snapshot "
+        "git push --force-with-lease=refs/remotes/origin/bot/live-open-prep-snapshot "
         "origin \"HEAD:refs/heads/bot/live-open-prep-snapshot\"" in run
     ), "snapshot publish must force-with-lease the dedicated bot snapshot branch"
     assert "if git push --force-with-lease" in run, (
