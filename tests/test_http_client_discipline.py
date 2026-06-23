@@ -187,14 +187,16 @@ _FROZEN_URLOPEN_SITES: frozenset[tuple[str, int]] = frozenset(
         # loader write-through calls shifted these 111/182/259 -> 134/209/290.
         # 2026-06-23 (TV credential-age): _fetch_tradingview_credential_url adds
         # a 4th site and shifts the experiment fetch 290 -> 407.
-        ("services/live_overlay_daemon/compute.py", 151),
-        ("services/live_overlay_daemon/compute.py", 226),
+        # 2026-06-23 (Copilot/E702 follow-up): semicolon split + logging
+        # formatting in _persist_snapshot shifted these +3 -> 154/229/316/410.
+        ("services/live_overlay_daemon/compute.py", 154),
+        ("services/live_overlay_daemon/compute.py", 229),
         # 2026-06-23 (TV credential-age): credential-health report runtime fetch
         # (TRADINGVIEW_CREDENTIAL_SNAPSHOT_URL, https-only) with local fallback.
-        ("services/live_overlay_daemon/compute.py", 313),
+        ("services/live_overlay_daemon/compute.py", 316),
         # 2026-06-23: daily experiment rollup/history runtime fetch
         # (EXPERIMENT_SNAPSHOT_URL / EXPERIMENT_HISTORY_URL, https-only).
-        ("services/live_overlay_daemon/compute.py", 407),
+        ("services/live_overlay_daemon/compute.py", 410),
     }
 )
 
