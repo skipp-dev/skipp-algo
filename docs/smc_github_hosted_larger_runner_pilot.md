@@ -2,6 +2,11 @@
 
 Stand: 2026-04-18
 
+> Hinweis (2026-06-23): Dieses Dokument beschreibt die Larger-Runner-
+> Kosten/Performance-Pilotierung. Der aktuelle Routing-Source-of-truth ist
+> `docs/self_hosted_runner_reservation_runbook.md` inkl. globalem hosted-
+> Kill-Switch `SMC_FORCE_GH_HOSTED`.
+
 ## Goal
 
 Run `.github/workflows/smc-library-refresh.yml` on a larger GitHub-hosted

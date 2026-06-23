@@ -207,10 +207,25 @@ _FROZEN_SITES: frozenset[tuple[str, int, tuple[str, ...]]] = frozenset(
         # success cache for the full TTL when a snapshot appears later.
         # 2026-06-19 (bug-hunt): added _news_lock + with-block around
         # _load_news_snapshot cache mutation for atomic state transitions.
-        ("services/live_overlay_daemon/compute.py", 102, ("_news_cache", "_news_checked_at", "_news_loaded_at")),
+        # 2026-06-23 (delivery-gap write-through): _persist_snapshot helper +
+        # loader write-through calls shifted globals 121/199/300/347 ->
+        # 144/226/331/379.
+        # 2026-06-23 (mainline sync): active compute.py surface exposes
+        # news/signals/experiment cache globals at 144/226/331/379.
+        # 2026-06-23 (feat/grafana-tv-credential-age): TradingView credential
+        # snapshot loader inserts a 5th global and shifts the news/signals/
+        # experiment anchors to 161/243/333/448/496.
+        ("services/live_overlay_daemon/compute.py", 161, ("_news_cache", "_news_checked_at", "_news_loaded_at")),
         # 2026-06-23 (feat/grafana-trading-signals): realtime trading-signals
         # snapshot loader mirrors the news snapshot caching pattern.
-        ("services/live_overlay_daemon/compute.py", 180, ("_signals_cache", "_signals_checked_at", "_signals_loaded_at")),
+        ("services/live_overlay_daemon/compute.py", 243, ("_signals_cache", "_signals_checked_at", "_signals_loaded_at")),
+        # 2026-06-23 (feat/grafana-tv-credential-age): credential-health report
+        # loader mirrors the same snapshot caching pattern.
+        ("services/live_overlay_daemon/compute.py", 333, ("_tradingview_credential_cache", "_tradingview_credential_checked_at", "_tradingview_credential_loaded_at")),
+        # 2026-06-23 (feat/grafana-experiment-timeline): daily experiment rollup
+        # + per-day history loaders mirror the same snapshot caching pattern.
+        ("services/live_overlay_daemon/compute.py", 448, ("_experiment_cache", "_experiment_checked_at", "_experiment_loaded_at")),
+        ("services/live_overlay_daemon/compute.py", 496, ("_experiment_history_cache", "_experiment_history_checked_at", "_experiment_history_loaded_at")),
         # 2026-06-21 (provider/bridge + queue backpressure follow-ups):
         # feed.py gained additional helper/config blocks, shifting global
         # statements to 362/420/496.
@@ -221,7 +236,7 @@ _FROZEN_SITES: frozenset[tuple[str, int, tuple[str, ...]]] = frozenset(
         ("services/live_overlay_daemon/feed.py", 521, ("_feed_thread", "_flow_refresh_thread", "_refresh_thread")),
         # 2026-06-21: optional external bridge snapshot caches are guarded by
         # module locks and cached via module-level singleton snapshots.
-        ("services/live_overlay_daemon/github_workflow_bridge.py", 180, ("_cached_at_monotonic", "_cached_snapshot")),
+        ("services/live_overlay_daemon/github_workflow_bridge.py", 182, ("_cached_at_monotonic", "_cached_snapshot")),
         ("services/live_overlay_daemon/uptimerobot_bridge.py", 125, ("_cached_at_monotonic", "_cached_snapshot")),
         # 2026-06-19 (fix/live-overlay-post-merge-bugs): added non-finite JSON
         # sanitization helper and related imports, shifting _startup_ts line.

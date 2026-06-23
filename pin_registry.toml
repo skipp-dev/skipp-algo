@@ -26,6 +26,7 @@
 "tests/test_credential_health_workflow.py" = 1
 "tests/test_e2e_smoke_ci.py" = 1
 "tests/test_generate_smc_micro_profiles.py" = 2
+"tests/test_guard_corpus_tracked_files.py" = 2
 "tests/test_hero_surface_input_map.py" = 1
 # 2026-06-12 (PR #2707): conflict-marker tripwire skips gracefully when git
 # is unavailable (mirrors the other repo tripwires).
@@ -87,10 +88,14 @@
 # timeout= and fixed https endpoint domains.
 "services/live_overlay_daemon/github_workflow_bridge.py" = [101]
 "services/live_overlay_daemon/uptimerobot_bridge.py" = [76]
-# 2026-06-23: live-overlay runtime fetches — daemon serves freshest producer
-# snapshots via NEWS_SNAPSHOT_URL and SIGNALS_SNAPSHOT_URL (https-only,
-# explicit timeout=).
-"services/live_overlay_daemon/compute.py" = [92, 163]
+# 2026-06-23: live-overlay runtime snapshot fetchers in compute.py
+# (NEWS_SNAPSHOT_URL, SIGNALS_SNAPSHOT_URL, EXPERIMENT_*_URL), all https-only
+# with explicit timeout=. 2026-06-23 (delivery-gap write-through): atomic
+# _persist_snapshot helper + loader write-through calls shifted urlopen sites
+# 111/182/259 -> 134/209/290. 2026-06-23 (TV credential-age):
+# _fetch_tradingview_credential_url (TRADINGVIEW_CREDENTIAL_SNAPSHOT_URL) adds a
+# 4th https fetcher and shifts the experiment fetch 290 -> 407.
+"services/live_overlay_daemon/compute.py" = [151, 226, 313, 407]
 # 2026-06-22: line shifted 251 -> 287 after ADR-0025 App Platform migration
 # (/apis dashboard.grafana.app/v1); urlopen now in shared _request_json helper.
 "scripts/publish_overlay_dashboard.py" = [287]
@@ -303,6 +308,14 @@ count = 1
 # token lookup before authenticated dashboard publish.
 [[subprocess_shell_injection_pin.sites]]
 file = "scripts/publish_overlay_dashboard.py"
+attr = "run"
+count = 1
+
+# scripts/publish_signals_snapshot.py: host-run helper that git-pushes the
+# realtime signals snapshot to bot/live-signals-snapshot. Single `_git`
+# wrapper, token-list args, no shell=True, x-access-token remote only.
+[[subprocess_shell_injection_pin.sites]]
+file = "scripts/publish_signals_snapshot.py"
 attr = "run"
 count = 1
 
