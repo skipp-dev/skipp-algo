@@ -122,6 +122,22 @@ def test_prepare_payload_preserves_existing_annotation_keys() -> None:
     }
 
 
+@pytest.mark.parametrize("bad_metadata", [None, [], "x", 42])
+def test_prepare_payload_normalizes_non_dict_metadata(bad_metadata: object) -> None:
+    data = {
+        "apiVersion": "dashboard.grafana.app/v2",
+        "kind": "Dashboard",
+        "metadata": bad_metadata,
+        "spec": {"elements": {}},
+    }
+
+    payload = _prepare_payload(data, "sync from test")
+
+    assert payload["metadata"] == {
+        "annotations": {"grafana.app/message": "sync from test"},
+    }
+
+
 def test_get_token_custom_env_then_default_then_fallback(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.delenv("CUSTOM_GRAFANA_TOKEN", raising=False)
     monkeypatch.setenv("GRAFANA_API_TOKEN", "default-token")

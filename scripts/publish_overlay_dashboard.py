@@ -191,7 +191,7 @@ def _prepare_payload(data: dict[str, Any], message: str) -> dict[str, Any]:
 
     # Preserve only client-relevant metadata. Server-managed fields like
     # resourceVersion, generation, creationTimestamp and uid are stripped.
-    meta = data.get("metadata", {})
+    meta = _meta if isinstance((_meta := data.get("metadata")), dict) else {}
     for key in ("name", "annotations", "labels"):
         if key in meta:
             payload["metadata"][key] = meta[key]
