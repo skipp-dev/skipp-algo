@@ -5,7 +5,7 @@ WORKDIR /app
 # Build context is the repo root (clear the Railway "Root Directory" setting).
 COPY services/signals_producer/requirements.txt /tmp/requirements.txt
 RUN apt-get update \
-    && apt-get install -y --no-install-recommends tzdata \
+    && apt-get install -y --no-install-recommends tzdata ca-certificates \
     && rm -rf /var/lib/apt/lists/* \
     && pip install --no-cache-dir -r /tmp/requirements.txt
 

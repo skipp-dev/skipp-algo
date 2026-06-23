@@ -44,6 +44,7 @@ except ImportError:  # Windows
     fcntl = None
     _FLOCK_SUPPORTED = False
 import hashlib
+import hmac
 import json
 import logging
 import os
@@ -706,7 +707,8 @@ def _start_telemetry_server(
             elif self.path in ("/signals.json", "/signals"):
                 if auth_token:
                     _hdr = self.headers.get("Authorization", "")
-                    if not (_hdr.startswith("Bearer ") and _hdr[7:] == auth_token):
+                    _supplied = _hdr[7:] if _hdr.startswith("Bearer ") else ""
+                    if not hmac.compare_digest(_supplied, auth_token):
                         self.send_response(401)
                         self.end_headers()
                         return
@@ -2559,14 +2561,16 @@ class RealtimeEngine:
     def get_active_signals(self) -> list[RealtimeSignal]:
         """Return active (non-expired) signals, sorted by priority."""
         now_epoch = time.time()
-        # Update freshness before returning
-        for sig in self._active_signals:
-            elapsed = now_epoch - sig.fired_epoch
-            sig.freshness = adaptive_freshness_decay(
-                elapsed, atr_pct=sig.atr_pct if sig.atr_pct > 0 else None,
-            )
-        self._active_signals = [s for s in self._active_signals if not s.is_expired()]
-        return list(self._active_signals)
+        # Update freshness before returning; guard with lock to avoid racing
+        # with the poll loop that also mutates _active_signals.
+        with self._lock:
+            for sig in self._active_signals:
+                elapsed = now_epoch - sig.fired_epoch
+                sig.freshness = adaptive_freshness_decay(
+                    elapsed, atr_pct=sig.atr_pct if sig.atr_pct > 0 else None,
+                )
+            self._active_signals = [s for s in self._active_signals if not s.is_expired()]
+            return list(self._active_signals)
 
     # ------------------------------------------------------------------
     # Persistence
