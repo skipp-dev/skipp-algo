@@ -6,6 +6,25 @@ All notable changes to this project are documented in this file.
 
 ## [Unreleased]
 
+### Changed (2026-06-23) — Live-overlay snapshot delivery hardening
+
+- `scripts/publish_signals_snapshot.py` now validates `--branch` defensively
+  (rejecting values that could be interpreted as git flags or invalid refs)
+  before any git command is executed.
+- First publish in `scripts/publish_signals_snapshot.py` now uses
+  `--force-with-lease=refs/heads/<branch>:0000000000000000000000000000000000000000`
+  (40-zero SHA) instead of bare `--force`, preventing silent clobber when
+  another publisher creates the branch in the fetch→push race window.
+- `_git_diff_has_changes()` now distinguishes real staged diffs (`returncode=1`)
+  from git execution errors (`returncode>1`), surfacing the latter as command
+  failures instead of false-positive "changes present".
+- Snapshot write-through cleanup in `compute.py` was tightened: temporary files
+  are only removed when a rename did not complete, clarifying the atomic
+  `os.replace` success/failure paths.
+- Runtime snapshot fetchers now apply the GitHub Contents raw `Accept` header
+  only to actual GitHub Contents API endpoints, avoiding GitHub-specific
+  `Accept` values on authenticated non-GitHub URLs.
+
 ### Changed (2026-06-21) — Live-overlay observability hardening
 
 - Alert rule `lo-news-snapshot-stale-or-missing` split into two rules:

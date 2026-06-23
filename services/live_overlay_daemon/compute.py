@@ -4,8 +4,10 @@ Overlay field computation.
 Takes a snapshot of accumulated OHLCV bars from cache.py and produces
 the overlay payload for each symbol.
 
-All computations use only standard library + the bars already in cache —
-no additional network calls from this module.
+All computations use only standard library + the bars already in cache.
+The news snapshot is normally read from a local file, but may instead be
+fetched at runtime from NEWS_SNAPSHOT_URL when that env var is set; no other
+module here performs network calls.
 
 Field definitions (matching spec/smc_live_overlay.schema.json):
   news_strength        — [0.0, 1.0] composite news sentiment magnitude for symbol
@@ -34,8 +36,13 @@ import datetime
 import json
 import logging
 import math
+import os
 import threading
 import time
+import urllib.error
+import urllib.parse
+import urllib.request
+from pathlib import Path
 from typing import Any
 
 from . import cache, config, observability
@@ -50,11 +57,203 @@ _news_cache: dict[str, Any] = {}
 _news_loaded_at: float = 0.0
 _news_checked_at: float = 0.0
 _news_lock = threading.Lock()
+_NEWS_USER_AGENT = "live-overlay-daemon-news/1"
+
+# ---------------------------------------------------------------------------
+# Realtime trading-signals snapshot helpers
+# ---------------------------------------------------------------------------
+# The realtime engine (open_prep/realtime_signals.py) writes its active A0/A1
+# breakout signals to ``artifacts/open_prep/latest/latest_realtime_signals.json``.
+# The daemon ingests that snapshot (locally or, when SIGNALS_SNAPSHOT_URL is
+# set, over https) purely to surface it as Prometheus metrics for Grafana; it
+# never produces or mutates signals.
+
+_signals_cache: dict[str, Any] = {}
+_signals_loaded_at: float = 0.0
+_signals_checked_at: float = 0.0
+_signals_lock = threading.Lock()
+_SIGNALS_USER_AGENT = "live-overlay-daemon-signals/1"
+
+# ---------------------------------------------------------------------------
+# Daily experiment (Plan 2.8 per-TF family rollup + history) helpers
+# ---------------------------------------------------------------------------
+# The rolling measurement benchmark (scripts/plan_2_8_tf_family_rollup.py)
+# scores SMC setup families (BOS / OB / FVG / SWEEP) per timeframe once per day
+# and writes ``plan_2_8_tf_family_rollup.json``; ``plan_2_8_history_archive.py``
+# folds each day's rollup into a per-day ``plan_2_8_history.jsonl``. The daemon
+# ingests both (locally or, when the *_URL vars are set, over https) purely to
+# surface the daily statistics as Prometheus metrics; it never re-scores.
+
+_experiment_cache: dict[str, Any] = {}
+_experiment_loaded_at: float = 0.0
+_experiment_checked_at: float = 0.0
+_experiment_history_cache: list[dict[str, Any]] = []
+_experiment_history_loaded_at: float = 0.0
+_experiment_history_checked_at: float = 0.0
+_experiment_lock = threading.Lock()
+_EXPERIMENT_USER_AGENT = "live-overlay-daemon-experiment/1"
+
+# ---------------------------------------------------------------------------
+# TradingView storage-state credential-age helpers
+# ---------------------------------------------------------------------------
+# The daily credential-health workflow (scripts/credential_health_check.py)
+# probes the TradingView Playwright storage-state and writes a report whose
+# ``tv_storage_state_age`` probe carries the credential ``age_hours`` versus the
+# 72h policy TTL. The daemon ingests that report (locally or, when
+# TRADINGVIEW_CREDENTIAL_SNAPSHOT_URL is set, over https) purely to surface the
+# credential age as Prometheus metrics for Grafana; it never logs in or mutates
+# the storage state.
+
+_tradingview_credential_cache: dict[str, Any] = {}
+_tradingview_credential_loaded_at: float = 0.0
+_tradingview_credential_checked_at: float = 0.0
+_tradingview_credential_lock = threading.Lock()
+_TRADINGVIEW_CREDENTIAL_USER_AGENT = "live-overlay-daemon-tv-credential/1"
+_SNAPSHOT_PERSIST_MAX_BYTES_DEFAULT = 10 * 1024 * 1024  # 10 MiB
+
+
+def _snapshot_persist_max_bytes() -> int:
+    """Return max persisted snapshot size in bytes.
+
+    Read from ``OVERLAY_SNAPSHOT_PERSIST_MAX_BYTES`` when set, otherwise use
+    the default. Invalid/non-positive values fall back to the default so the
+    write-through path never raises due to configuration mistakes.
+    """
+    raw = os.getenv("OVERLAY_SNAPSHOT_PERSIST_MAX_BYTES", "").strip()
+    if not raw:
+        return _SNAPSHOT_PERSIST_MAX_BYTES_DEFAULT
+    try:
+        parsed = int(raw)
+    except ValueError:
+        logger.warning(
+            "Invalid OVERLAY_SNAPSHOT_PERSIST_MAX_BYTES=%r; using default %d",
+            raw,
+            _SNAPSHOT_PERSIST_MAX_BYTES_DEFAULT,
+        )
+        return _SNAPSHOT_PERSIST_MAX_BYTES_DEFAULT
+    if parsed <= 0:
+        logger.warning(
+            "OVERLAY_SNAPSHOT_PERSIST_MAX_BYTES=%d must be > 0; using default %d",
+            parsed,
+            _SNAPSHOT_PERSIST_MAX_BYTES_DEFAULT,
+        )
+        return _SNAPSHOT_PERSIST_MAX_BYTES_DEFAULT
+    return parsed
+
+
+def _validate_https_url(env_name: str, url: str) -> bool:
+    """Return ``True`` iff ``url`` is an https URL; warn and return ``False`` otherwise.
+
+    Centralizes the guard shared by every ``*_URL`` snapshot fetcher so a
+    misconfigured plain-http (or empty) endpoint is rejected rather than fetched,
+    with one consistent warning that names the offending env var.
+    """
+    if url.lower().startswith("https://"):
+        return True
+    logger.warning("%s must be an https URL; ignoring %r", env_name, url)
+    return False
+
+
+def _persist_snapshot(path: Path, text: str) -> None:
+    """Atomically write a freshly-fetched snapshot to its local cache ``path``.
+
+    Best-effort write-through: when a runtime ``*_URL`` fetch succeeds we persist
+    the payload to the local snapshot path so a Railway volume mounted there
+    keeps the last-good copy across restarts. A cold start can then read the volume
+    instead of the stale Docker-baked seed when the URL is momentarily unreachable.
+    Never raises — a persistence failure must not break the live fetch that already
+    succeeded; the temp file is written in the same directory and ``os.replace`` swaps
+    it in atomically so readers never see a partial file.
+    """
+    payload_bytes = text.encode("utf-8")
+    max_bytes = _snapshot_persist_max_bytes()
+    if len(payload_bytes) > max_bytes:
+        logger.warning(
+            "Snapshot too large to persist (%d bytes > limit %d): %s",
+            len(payload_bytes),
+            max_bytes,
+            path,
+        )
+        return
+
+    tmp: Path | None = None
+    try:
+        path.parent.mkdir(parents=True, exist_ok=True)
+        tmp = path.parent / f"{path.name}.{os.getpid()}.{threading.get_ident()}.{time.time_ns()}.tmp"
+        fd = os.open(tmp, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
+        with os.fdopen(fd, "wb") as fh:
+            fh.write(payload_bytes)
+            fh.flush()
+            os.fsync(fh.fileno())
+        os.replace(tmp, path)
+        tmp = None  # successfully renamed; nothing to clean up
+    except OSError:
+        logger.warning("Failed to persist snapshot to %s", path, exc_info=True)
+    finally:
+        if tmp is not None:
+            _cleanup_snapshot_tmp(tmp)
+
+
+def _is_github_contents_api_url(url: str) -> bool:
+    """Return True when ``url`` points to the GitHub Contents API endpoint."""
+    try:
+        parsed = urllib.parse.urlsplit(url)
+    except ValueError:
+        return False
+    host = parsed.netloc.lower()
+    path = parsed.path.lower()
+    return host == "api.github.com" and "/repos/" in path and "/contents/" in path
+
+
+def _fetch_json_snapshot_url(
+    url: str,
+    token: str,
+    *,
+    env_name: str,
+    user_agent: str,
+    timeout: float = 10.0,
+    error_message: str,
+) -> dict[str, Any] | None:
+    """Fetch and parse a JSON snapshot from https URL, returning None on failures."""
+    if not _validate_https_url(env_name, url):
+        return None
+    headers = {"Accept": "application/json", "User-Agent": user_agent}
+    if token:
+        headers["Authorization"] = f"Bearer {token}"
+    # Use GitHub raw JSON accept only when the URL actually points to the
+    # GitHub Contents API — not for every authenticated URL (audit F1).
+    if _is_github_contents_api_url(url):
+        headers["Accept"] = "application/vnd.github.raw+json"
+    req = urllib.request.Request(url, headers=headers)
+    try:
+        with urllib.request.urlopen(req, timeout=timeout) as resp:
+            payload = resp.read()
+        raw = json.loads(payload)
+    except (urllib.error.URLError, TimeoutError, ValueError, OSError):
+        logger.warning(error_message, exc_info=True)
+        return None
+    return raw if isinstance(raw, dict) else None
+
+
+def _fetch_news_url(url: str, token: str, timeout: float = 10.0) -> dict[str, Any] | None:
+    """Fetch the news snapshot JSON from ``url``.
+    Returns the parsed dict on success or ``None`` on any failure so the caller
+    can fall back to the local file (and baked seed). Only https URLs are
+    honoured.
+    """
+    return _fetch_json_snapshot_url(
+        url,
+        token,
+        env_name="NEWS_SNAPSHOT_URL",
+        user_agent=_NEWS_USER_AGENT,
+        timeout=timeout,
+        error_message="Failed to fetch news snapshot from URL",
+    )
+
 
 def _load_news_snapshot() -> dict[str, Any]:
     global _news_cache, _news_loaded_at, _news_checked_at
     with _news_lock:
-        path = config.news_snapshot_path()
         now = time.monotonic()
         ttl = config.news_cache_ttl_secs()
 
@@ -72,6 +271,21 @@ def _load_news_snapshot() -> dict[str, Any]:
 
         _news_checked_at = now
 
+        # Prefer a runtime URL when configured; fall back to the local file
+        # (and baked seed) on any fetch failure so cold-start still works.
+        url = config.news_snapshot_url()
+        if url:
+            fetched = _fetch_news_url(url, config.news_snapshot_url_token())
+            if fetched is not None:
+                _news_cache = fetched
+                _news_loaded_at = now
+                _persist_snapshot(
+                    config.news_snapshot_path(),
+                    json.dumps(fetched, separators=(",", ":")),
+                )
+                return dict(_news_cache)
+
+        path = config.news_snapshot_path()
         if not path.exists():
             _news_cache = {}
             return {}
@@ -83,6 +297,311 @@ def _load_news_snapshot() -> dict[str, Any]:
             logger.warning("Failed to load news snapshot from %s", path, exc_info=True)
             _news_cache = {}
         return dict(_news_cache)
+
+
+def _fetch_signals_url(
+    url: str, token: str, timeout: float = 10.0
+) -> dict[str, Any] | None:
+    """Fetch the realtime-signals snapshot JSON from ``url``.
+
+    Returns the parsed dict on success or ``None`` on any failure so the caller
+    can fall back to the local file. Only https URLs are honoured.
+    """
+    return _fetch_json_snapshot_url(
+        url,
+        token,
+        env_name="SIGNALS_SNAPSHOT_URL",
+        user_agent=_SIGNALS_USER_AGENT,
+        timeout=timeout,
+        error_message="Failed to fetch signals snapshot from URL",
+    )
+
+
+def _load_signals_snapshot() -> dict[str, Any]:
+    """Return the latest realtime trading-signals snapshot as a dict.
+
+    Mirrors :func:`_load_news_snapshot`: a runtime ``SIGNALS_SNAPSHOT_URL`` (when
+    set) takes precedence, otherwise the local ``signals_snapshot_path`` file is
+    read. All reads are TTL-rate-limited so a missing/corrupt file cannot cause
+    a read/log storm. Returns ``{}`` when no snapshot is available.
+    """
+    global _signals_cache, _signals_loaded_at, _signals_checked_at
+    with _signals_lock:
+        now = time.monotonic()
+        ttl = config.signals_cache_ttl_secs()
+
+        # Happy path: a successful load within the TTL.
+        if _signals_loaded_at > 0.0 and now - _signals_loaded_at < ttl:
+            return dict(_signals_cache)
+
+        # Rate-limit every read attempt (success or failure); keep
+        # _signals_loaded_at for successful loads only so a snapshot that
+        # appears after an earlier miss is still picked up once the window
+        # expires instead of being ignored for the full TTL.
+        if _signals_checked_at > 0.0 and now - _signals_checked_at < ttl:
+            return dict(_signals_cache)
+
+        _signals_checked_at = now
+
+        url = config.signals_snapshot_url()
+        if url:
+            fetched = _fetch_signals_url(url, config.signals_snapshot_url_token())
+            if fetched is not None:
+                _signals_cache = fetched
+                _signals_loaded_at = now
+                _persist_snapshot(
+                    config.signals_snapshot_path(),
+                    json.dumps(fetched, separators=(",", ":")),
+                )
+                return dict(_signals_cache)
+
+        path = config.signals_snapshot_path()
+        if not path.exists():
+            _signals_cache = {}
+            return {}
+        try:
+            raw = json.loads(path.read_text(encoding="utf-8"))
+            _signals_cache = raw if isinstance(raw, dict) else {}
+            _signals_loaded_at = now
+        except Exception:
+            logger.warning(
+                "Failed to load signals snapshot from %s", path, exc_info=True
+            )
+            _signals_cache = {}
+        return dict(_signals_cache)
+
+
+def _fetch_tradingview_credential_url(
+    url: str, token: str, timeout: float = 10.0
+) -> dict[str, Any] | None:
+    """Fetch the credential-health report JSON from ``url``.
+
+    Returns the parsed dict on success or ``None`` on any failure so the caller
+    can fall back to the local file. Only https URLs are honoured.
+    """
+    return _fetch_json_snapshot_url(
+        url,
+        token,
+        env_name="TRADINGVIEW_CREDENTIAL_SNAPSHOT_URL",
+        user_agent=_TRADINGVIEW_CREDENTIAL_USER_AGENT,
+        timeout=timeout,
+        error_message="Failed to fetch credential-health report from URL",
+    )
+
+
+def _load_tradingview_credential_snapshot() -> dict[str, Any]:
+    """Return the latest credential-health report as a dict.
+
+    Mirrors :func:`_load_signals_snapshot`: a runtime
+    ``TRADINGVIEW_CREDENTIAL_SNAPSHOT_URL`` (when set) takes precedence,
+    otherwise the local ``tradingview_credential_snapshot_path`` file is read.
+    All reads are TTL-rate-limited so a missing/corrupt file cannot cause a
+    read/log storm. Returns ``{}`` when no report is available.
+    """
+    global _tradingview_credential_cache, _tradingview_credential_loaded_at, _tradingview_credential_checked_at
+    with _tradingview_credential_lock:
+        now = time.monotonic()
+        ttl = config.tradingview_credential_cache_ttl_secs()
+
+        # Happy path: a successful load within the TTL.
+        if (
+            _tradingview_credential_loaded_at > 0.0
+            and now - _tradingview_credential_loaded_at < ttl
+        ):
+            return dict(_tradingview_credential_cache)
+
+        # Rate-limit every read attempt (success or failure); keep
+        # _tradingview_credential_loaded_at for successful loads only so a
+        # report that appears after an earlier miss is still picked up once the
+        # window expires instead of being ignored for the full TTL.
+        if (
+            _tradingview_credential_checked_at > 0.0
+            and now - _tradingview_credential_checked_at < ttl
+        ):
+            return dict(_tradingview_credential_cache)
+
+        _tradingview_credential_checked_at = now
+
+        url = config.tradingview_credential_snapshot_url()
+        if url:
+            fetched = _fetch_tradingview_credential_url(
+                url, config.tradingview_credential_snapshot_url_token()
+            )
+            if fetched is not None:
+                _tradingview_credential_cache = fetched
+                _tradingview_credential_loaded_at = now
+                _persist_snapshot(
+                    config.tradingview_credential_snapshot_path(),
+                    json.dumps(fetched, separators=(",", ":")),
+                )
+                return dict(_tradingview_credential_cache)
+
+        path = config.tradingview_credential_snapshot_path()
+        if not path.exists():
+            _tradingview_credential_cache = {}
+            return {}
+        try:
+            raw = json.loads(path.read_text(encoding="utf-8"))
+            _tradingview_credential_cache = raw if isinstance(raw, dict) else {}
+            _tradingview_credential_loaded_at = now
+        except Exception:
+            logger.warning(
+                "Failed to load credential-health report from %s",
+                path,
+                exc_info=True,
+            )
+            _tradingview_credential_cache = {}
+        return dict(_tradingview_credential_cache)
+
+
+def _fetch_experiment_url(
+    url: str, token: str, timeout: float = 10.0
+) -> str | None:
+    """Fetch raw text (JSON rollup or JSONL history) from ``url``.
+
+    Returns the decoded body on success or ``None`` on any failure so the caller
+    can fall back to the local file. Only https URLs are honoured.
+    """
+    if not _validate_https_url("EXPERIMENT_*_URL", url):
+        return None
+    headers = {"Accept": "application/json", "User-Agent": _EXPERIMENT_USER_AGENT}
+    if token:
+        headers["Authorization"] = f"Bearer {token}"
+    if _is_github_contents_api_url(url):
+        headers["Accept"] = "application/vnd.github.raw+json"
+    req = urllib.request.Request(url, headers=headers)
+    try:
+        with urllib.request.urlopen(req, timeout=timeout) as resp:
+            payload = resp.read()
+        return payload.decode("utf-8", errors="replace")
+    except (urllib.error.URLError, TimeoutError, ValueError, OSError):
+        logger.warning("Failed to fetch experiment data from URL", exc_info=True)
+        return None
+
+
+def _parse_history_lines(text: str, max_days: int) -> list[dict[str, Any]]:
+    """Parse a Plan 2.8 history JSONL body into the most recent per-day dicts.
+
+    Malformed lines are skipped. The newest ``max_days`` snapshots are returned
+    in chronological order (oldest first) so Grafana renders them left-to-right.
+    """
+    rows: list[dict[str, Any]] = []
+    for line in text.splitlines():
+        line = line.strip()
+        if not line:
+            continue
+        try:
+            obj = json.loads(line)
+        except ValueError:
+            continue
+        if isinstance(obj, dict) and obj.get("captured_at"):
+            rows.append(obj)
+    # JSONL is append-ordered, but sort defensively on captured_at so a backfill
+    # line interleaved out of order still renders chronologically.
+    rows.sort(key=lambda r: str(r.get("captured_at", "")))
+    if max_days > 0 and len(rows) > max_days:
+        rows = rows[-max_days:]
+    return rows
+
+
+def _load_experiment_snapshot() -> dict[str, Any]:
+    """Return the latest Plan 2.8 per-TF family rollup as a dict.
+
+    Mirrors :func:`_load_signals_snapshot`: a runtime ``EXPERIMENT_SNAPSHOT_URL``
+    takes precedence, otherwise the local rollup file is read. TTL-rate-limited
+    so a missing/corrupt file cannot cause a read/log storm. Returns ``{}`` when
+    no rollup is available.
+    """
+    global _experiment_cache, _experiment_loaded_at, _experiment_checked_at
+    with _experiment_lock:
+        now = time.monotonic()
+        ttl = config.experiment_cache_ttl_secs()
+
+        if _experiment_loaded_at > 0.0 and now - _experiment_loaded_at < ttl:
+            return dict(_experiment_cache)
+        if _experiment_checked_at > 0.0 and now - _experiment_checked_at < ttl:
+            return dict(_experiment_cache)
+
+        _experiment_checked_at = now
+
+        url = config.experiment_snapshot_url()
+        if url:
+            body = _fetch_experiment_url(url, config.experiment_snapshot_url_token())
+            if body is not None:
+                try:
+                    raw = json.loads(body)
+                except ValueError:
+                    raw = None
+                if isinstance(raw, dict):
+                    _experiment_cache = raw
+                    _experiment_loaded_at = now
+                    _persist_snapshot(config.experiment_snapshot_path(), body)
+                    return dict(_experiment_cache)
+
+        path = config.experiment_snapshot_path()
+        if not path.exists():
+            _experiment_cache = {}
+            return {}
+        try:
+            raw = json.loads(path.read_text(encoding="utf-8"))
+            _experiment_cache = raw if isinstance(raw, dict) else {}
+            _experiment_loaded_at = now
+        except Exception:
+            logger.warning(
+                "Failed to load experiment rollup from %s", path, exc_info=True
+            )
+            _experiment_cache = {}
+        return dict(_experiment_cache)
+
+
+def _load_experiment_history() -> list[dict[str, Any]]:
+    """Return the per-day Plan 2.8 history snapshots (oldest first).
+
+    Mirrors the snapshot loader but parses JSONL and caps to
+    ``experiment_history_max_days``. Returns ``[]`` when unavailable.
+    """
+    global _experiment_history_cache, _experiment_history_loaded_at, _experiment_history_checked_at
+    with _experiment_lock:
+        now = time.monotonic()
+        ttl = config.experiment_cache_ttl_secs()
+        max_days = config.experiment_history_max_days()
+
+        if (
+            _experiment_history_loaded_at > 0.0
+            and now - _experiment_history_loaded_at < ttl
+        ):
+            return [dict(r) for r in _experiment_history_cache]
+        if (
+            _experiment_history_checked_at > 0.0
+            and now - _experiment_history_checked_at < ttl
+        ):
+            return [dict(r) for r in _experiment_history_cache]
+
+        _experiment_history_checked_at = now
+
+        url = config.experiment_history_url()
+        if url:
+            body = _fetch_experiment_url(url, config.experiment_history_url_token())
+            if body is not None:
+                _experiment_history_cache = _parse_history_lines(body, max_days)
+                _experiment_history_loaded_at = now
+                _persist_snapshot(config.experiment_history_path(), body)
+                return [dict(r) for r in _experiment_history_cache]
+
+        path = config.experiment_history_path()
+        if not path.exists():
+            _experiment_history_cache = []
+            return []
+        try:
+            text = path.read_text(encoding="utf-8")
+            _experiment_history_cache = _parse_history_lines(text, max_days)
+            _experiment_history_loaded_at = now
+        except Exception:
+            logger.warning(
+                "Failed to load experiment history from %s", path, exc_info=True
+            )
+            _experiment_history_cache = []
+        return [dict(r) for r in _experiment_history_cache]
 
 
 def _get_news_fields(symbol: str) -> dict[str, Any]:
@@ -653,3 +1172,8 @@ def run_flow_patch_cycle(tf: str = "5m") -> int:
             symbols=count,
         )
         return count
+
+
+def _cleanup_snapshot_tmp(tmp: Any) -> None:
+    if isinstance(tmp, Path):
+        tmp.unlink(missing_ok=True)

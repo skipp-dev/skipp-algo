@@ -389,3 +389,97 @@ class TestVolumeTypeDriftRobustness:
         assert payload is not None
         assert payload["flow_rel_vol"] == pytest.approx(140.0 / 115.0, rel=1e-4)
         assert payload["flow_delta_proxy_pct"] is None
+
+
+class TestNewsSnapshotRuntimeUrlFetch:
+    """Task B: the daemon serves the most-current producer output via NEWS_SNAPSHOT_URL."""
+
+    def test_url_fetch_supersedes_baked_file_seed(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        import services.live_overlay_daemon.compute as compute
+
+        seed_path = tmp_path / "seed.json"
+        seed_path.write_text(
+            json.dumps({"stories": [], "providers": {"fmp_stock": {"ok": False}}}),
+            encoding="utf-8",
+        )
+        live = {
+            "generated_at": "2026-06-23T05:28:11.246150Z",
+            "providers": {"fmp_stock": {"ok": True}, "tv": {"ok": True}},
+            "stories": [{"tickers": ["AAPL"], "sentiment_score": 0.4}],
+        }
+
+        monkeypatch.setattr(compute, "_news_loaded_at", 0.0)
+        monkeypatch.setattr(compute, "_news_checked_at", 0.0)
+        monkeypatch.setattr(compute, "_news_cache", {})
+        monkeypatch.setattr(compute.config, "news_snapshot_path", lambda: seed_path)
+        monkeypatch.setattr(
+            compute.config, "news_snapshot_url", lambda: "https://example.test/snap.json"
+        )
+        monkeypatch.setattr(compute.config, "news_snapshot_url_token", lambda: "")
+        monkeypatch.setattr(compute, "_fetch_news_url", lambda url, token, timeout=10.0: live)
+
+        snap = compute._load_news_snapshot()
+
+        assert snap["providers"]["fmp_stock"]["ok"] is True
+        assert snap["providers"]["tv"]["ok"] is True
+
+    def test_url_fetch_failure_falls_back_to_file(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        import services.live_overlay_daemon.compute as compute
+
+        seed_path = tmp_path / "seed.json"
+        seed_path.write_text(
+            json.dumps({"providers": {"fmp_stock": {"ok": False, "error": "disabled"}}}),
+            encoding="utf-8",
+        )
+
+        monkeypatch.setattr(compute, "_news_loaded_at", 0.0)
+        monkeypatch.setattr(compute, "_news_checked_at", 0.0)
+        monkeypatch.setattr(compute, "_news_cache", {})
+        monkeypatch.setattr(compute.config, "news_snapshot_path", lambda: seed_path)
+        monkeypatch.setattr(
+            compute.config, "news_snapshot_url", lambda: "https://example.test/snap.json"
+        )
+        monkeypatch.setattr(compute.config, "news_snapshot_url_token", lambda: "")
+        monkeypatch.setattr(compute, "_fetch_news_url", lambda url, token, timeout=10.0: None)
+
+        snap = compute._load_news_snapshot()
+
+        assert snap["providers"]["fmp_stock"]["ok"] is False
+
+    def test_fetch_news_url_rejects_non_https(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        import services.live_overlay_daemon.compute as compute
+
+        def _boom(*_a: Any, **_k: Any) -> Any:
+            raise AssertionError("urlopen must not be called for non-https URL")
+
+        monkeypatch.setattr(compute.urllib.request, "urlopen", _boom)
+
+        assert compute._fetch_news_url("http://example.test/snap.json", "") is None
+
+
+class TestSnapshotTimestampAge:
+    """Task C: snapshot age is derived from generated_at / fetched_at_unix."""
+
+    def test_generated_at_iso_is_parsed(self) -> None:
+        import services.live_overlay_daemon.metrics as metrics_mod
+
+        ts = metrics_mod._snapshot_timestamp(
+            {"generated_at": "2026-06-23T05:28:11.246150Z"}
+        )
+        assert ts is not None
+        assert ts > 0
+
+    def test_fetched_at_unix_preferred(self) -> None:
+        import services.live_overlay_daemon.metrics as metrics_mod
+
+        ts = metrics_mod._snapshot_timestamp({"fetched_at_unix": 1_700_000_000})
+        assert ts == 1_700_000_000.0
+
+    def test_missing_timestamp_returns_none(self) -> None:
+        import services.live_overlay_daemon.metrics as metrics_mod
+
+        assert metrics_mod._snapshot_timestamp({"providers": {}}) is None
