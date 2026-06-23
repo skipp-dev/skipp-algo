@@ -155,7 +155,7 @@ def _update_telemetry_status(
     enabled: bool,
     requested_port: int,
     active_port: int | None,
-    error: str | None = None,
+    bind_host: str | None = None, error: str | None = None,
 ) -> None:
     _write_json_atomically(
         _RT_ENGINE_TELEMETRY_FILE,
@@ -163,7 +163,7 @@ def _update_telemetry_status(
             "enabled": bool(enabled),
             "requested_port": int(requested_port),
             "active_port": int(active_port) if active_port is not None else None,
-            "url": f"http://127.0.0.1:{active_port}" if active_port is not None else "",
+            "url": (f"http://{(bind_host or os.getenv('TELEMETRY_BIND_HOST', '127.0.0.1'))}:{active_port}" if active_port is not None else ""),
             "error": str(error) if error else "",
             "updated_at": datetime.now(UTC).isoformat(timespec="seconds"),
         },
@@ -714,7 +714,7 @@ def _start_telemetry_server(
         server = HTTPServer((bind_host, port), _Handler)
         t = threading.Thread(target=server.serve_forever, daemon=True)
         t.start()
-        _update_telemetry_status(enabled=True, requested_port=port, active_port=int(server.server_port), error=None)
+        _update_telemetry_status(enabled=True, requested_port=port, active_port=int(server.server_port), bind_host=bind_host, error=None)
         logger.info("Telemetry HTTP server listening on http://%s:%d", bind_host, port)
         return server
     except OSError as exc:
@@ -729,7 +729,7 @@ def _start_telemetry_server(
                 enabled=True,
                 requested_port=port,
                 active_port=fallback_port,
-                error=error,
+                bind_host=bind_host, error=error,
             )
             logger.warning("Telemetry server fell back to port %d after port %d failed", fallback_port, port)
             return fallback_server
@@ -738,7 +738,7 @@ def _start_telemetry_server(
                 f"Requested port {port} unavailable ({type(exc).__name__}); "
                 f"fallback bind failed ({type(fallback_exc).__name__})."
             )
-            _update_telemetry_status(enabled=False, requested_port=port, active_port=None, error=error)
+            _update_telemetry_status(enabled=False, requested_port=port, active_port=None, bind_host=bind_host, error=error)
             logger.warning("Could not start telemetry server fallback after port %d failed", port, exc_info=True)
             return None
 

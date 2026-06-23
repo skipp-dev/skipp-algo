@@ -179,6 +179,16 @@ def test_update_telemetry_status_records_fallback_with_error(
     assert "fallback" in payload["error"]
 
 
+def test_update_telemetry_status_uses_bind_host_from_env(
+    status_paths: dict[str, Path],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("TELEMETRY_BIND_HOST", "0.0.0.0")
+    _update_telemetry_status(enabled=True, requested_port=8099, active_port=8099)
+    payload = json.loads(status_paths["telemetry"].read_text())
+    assert payload["url"] == "http://0.0.0.0:8099"
+
+
 def test_update_telemetry_status_disabled_omits_url(status_paths: dict[str, Path]) -> None:
     _update_telemetry_status(enabled=False, requested_port=8099, active_port=None)
     payload = json.loads(status_paths["telemetry"].read_text())

@@ -4,7 +4,10 @@ WORKDIR /app
 
 # Build context is the repo root (clear the Railway "Root Directory" setting).
 COPY services/signals_producer/requirements.txt /tmp/requirements.txt
-RUN pip install --no-cache-dir -r /tmp/requirements.txt
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends tzdata \
+    && rm -rf /var/lib/apt/lists/* \
+    && pip install --no-cache-dir -r /tmp/requirements.txt
 
 # The worker imports open_prep.realtime_signals (pure-stdlib FMP client).
 COPY open_prep/ /app/open_prep/
