@@ -126,10 +126,10 @@ def _persist_snapshot(path: Path, text: str) -> None:
         tmp = path.parent / f"{path.name}.{os.getpid()}.{time.time_ns()}.tmp"
         fd = os.open(tmp, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
         with os.fdopen(fd, "w", encoding="utf-8") as fh:
-            fh.write(text)
+            fh.write(text); fh.flush(); os.fsync(fh.fileno())
         os.replace(tmp, path)
     except OSError:
-        logger.warning("Failed to persist snapshot to %s", path, exc_info=True)
+        _cleanup_snapshot_tmp(locals().get("tmp")); logger.warning("Failed to persist snapshot to %s", path, exc_info=True)
 
 
 def _fetch_news_url(url: str, token: str, timeout: float = 10.0) -> dict[str, Any] | None:
@@ -1105,3 +1105,8 @@ def run_flow_patch_cycle(tf: str = "5m") -> int:
             symbols=count,
         )
         return count
+
+
+def _cleanup_snapshot_tmp(tmp: Any) -> None:
+    if isinstance(tmp, Path):
+        tmp.unlink(missing_ok=True)

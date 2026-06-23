@@ -62,11 +62,12 @@ BOT_EMAIL = "41898282+github-actions[bot]@users.noreply.github.com"
 def _git(
     args: list[str], cwd: Path, *, check: bool = True
 ) -> subprocess.CompletedProcess[str]:
-    """Run a single git subcommand with a fixed, hardcoded argv.
+    """Run a single git subcommand with explicit argv (no shell).
 
     ``git`` is resolved via :func:`shutil.which` and every argument is a
-    literal or a caller-controlled constant (branch / repo names), never shell
-    input, so there is no injection surface.
+    plain argv item (including caller-provided branch / repo names from CLI).
+    We never invoke a shell, so these values are passed verbatim as arguments
+    and do not create shell-injection risk.
     """
     git_exe = shutil.which("git") or "git"
     return subprocess.run(  # noqa: S603 -- hardcoded git argv resolved via shutil.which (no shell, no user input)
