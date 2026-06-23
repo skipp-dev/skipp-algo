@@ -88,11 +88,13 @@ def _is_valid_owner_repo(repo: str) -> bool:
         return False
     if len(owner) > 39 or len(name) > 100:
         return False
-    if not owner[0].isalnum():
+    if not owner[0].isascii() or not owner[0].isalnum():
         return False
-    if not all(ch.isalnum() or ch == "-" for ch in owner):
+    if owner.endswith("-") or "--" in owner:
         return False
-    return all(ch.isalnum() or ch in "._-" for ch in name)
+    if not all(ch.isascii() and (ch.isalnum() or ch == "-") for ch in owner):
+        return False
+    return all(ch.isascii() and (ch.isalnum() or ch in "._-") for ch in name)
 
 
 def _is_valid_branch(name: str) -> bool:
@@ -105,6 +107,16 @@ def _is_valid_branch(name: str) -> bool:
         return False
     if ".." in name or name.endswith(".") or name.endswith("/"):
         return False
+    if name.startswith("/"):
+        return False
+    if any(ord(ch) < 0x20 or ord(ch) == 0x7F for ch in name):
+        return False
+    if "@{" in name or name == "@":
+        return False
+    # Each path component must not start with '.' and must not be empty.
+    for component in name.split("/"):
+        if not component or component.startswith("."):
+            return False
     return not any(ch in name for ch in "~^:\\ \t")
 
 
@@ -162,7 +174,16 @@ def publish(input_path: Path, branch: str, repo: str, token: str) -> int:
 
         dest = work / DEST_PATH
         dest.parent.mkdir(parents=True, exist_ok=True)
-        dest.write_bytes(input_path.read_bytes())
+        try:
+            data = input_path.read_bytes()
+        except PermissionError:
+            print(f"error: cannot read input file: {input_path}", file=sys.stderr)
+            return 1
+        try:
+            dest.write_bytes(data)
+        except PermissionError:
+            print(f"error: cannot write destination file: {dest}", file=sys.stderr)
+            return 1
 
         _git(["add", "-f", DEST_PATH], work)
         if not _git_diff_has_changes(work):
@@ -207,6 +228,9 @@ def publish(input_path: Path, branch: str, repo: str, token: str) -> int:
             )
         else:
             print(f"error: git command failed (exit {exc.returncode})", file=sys.stderr)
+        return 2
+    except RuntimeError as exc:
+        print(f"error: {exc}", file=sys.stderr)
         return 2
     finally:
         shutil.rmtree(work, ignore_errors=True)
