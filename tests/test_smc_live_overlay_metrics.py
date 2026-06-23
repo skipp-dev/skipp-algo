@@ -504,6 +504,8 @@ def test_render_metrics_includes_github_workflow_bridge_snapshot(monkeypatch: py
             "workflows": [
                 {
                     "id": "129428056",
+                    "name": "CI",
+                    "event": "schedule",
                     "phase_code": 3,
                     "latest_success": 1,
                     "latest_age_seconds": 45.5,
@@ -522,10 +524,15 @@ def test_render_metrics_includes_github_workflow_bridge_snapshot(monkeypatch: py
     assert "live_overlay_github_workflow_runs_failed_total 1.0" in body
     assert "live_overlay_github_workflow_latest_run_age_seconds 45.5" in body
     assert "live_overlay_github_workflow_latest_run_duration_seconds 120.0" in body
-    assert "live_overlay_github_workflow_129428056_phase_code 3.0" in body
-    assert "live_overlay_github_workflow_129428056_latest_success 1.0" in body
-    assert "live_overlay_github_workflow_129428056_latest_age_seconds 45.5" in body
-    assert "live_overlay_github_workflow_129428056_latest_duration_seconds 120.0" in body
+    # Per-workflow series are labelled (id + name + event) so Grafana can name
+    # each flow and group a shared status timeline / detail table.
+    workflow_labels = 'workflow_id="129428056",workflow="CI",event="schedule"'
+    assert f"live_overlay_github_workflow_phase_code{{{workflow_labels}}} 3.0" in body
+    assert f"live_overlay_github_workflow_latest_success{{{workflow_labels}}} 1.0" in body
+    assert f"live_overlay_github_workflow_latest_age_seconds{{{workflow_labels}}} 45.5" in body
+    assert (
+        f"live_overlay_github_workflow_latest_duration_seconds{{{workflow_labels}}} 120.0" in body
+    )
 
 
 def test_render_metrics_handles_github_workflow_bridge_disabled(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -564,6 +571,217 @@ def test_render_metrics_handles_github_workflow_bridge_disabled(monkeypatch: pyt
     assert "live_overlay_github_workflow_bridge_enabled 0" in body
     assert "live_overlay_github_workflow_scrape_success 0" in body
     assert "live_overlay_github_workflow_runs_seen_total 0.0" in body
+
+
+def test_render_metrics_includes_trading_signals_snapshot(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    import time as _time
+
+    import services.live_overlay_daemon.metrics as metrics_mod
+
+    _patch_common(
+        monkeypatch,
+        feed_ready=True,
+        market_open=True,
+        bar_count=10,
+        overlay_symbols=5,
+        overlay_age=60.0,
+    )
+    snapshot = {
+        "updated_at": "2026-06-23T14:30:00+00:00",
+        "updated_epoch": _time.time() - 30.0,
+        "poll_interval": 5,
+        "poll_duration": 0.4,
+        "watched_symbols": ["AAPL", "TSLA", "NVDA"],
+        "signal_count": 2,
+        "a0_count": 1,
+        "a1_count": 1,
+        "disabled_reason": None,
+        "signals": [
+            {
+                "symbol": "AAPL",
+                "level": "A1",
+                "direction": "LONG",
+                "confidence_tier": "HIGH",
+                "score": 7.5,
+                "freshness": 0.9,
+                "technical_score": 0.82,
+                "change_pct": 1.23,
+                "technical_signal": "STRONG_BUY",
+                "macd_signal": "BUY",
+                "symbol_regime": "TREND_UP",
+                "news_category": "earnings",
+            },
+            {
+                "symbol": "TSLA",
+                "level": "A0",
+                "direction": "SHORT",
+                "confidence_tier": "MEDIUM",
+                "score": 4.0,
+                "freshness": 0.5,
+                "technical_score": 0.31,
+                "change_pct": -2.0,
+                "technical_signal": "SELL",
+                "macd_signal": "SELL",
+                "symbol_regime": "TREND_DOWN",
+                "news_category": "none",
+            },
+        ],
+    }
+    monkeypatch.setattr(metrics_mod.compute, "_load_signals_snapshot", lambda: snapshot)
+
+    body = metrics_mod.render_metrics(startup_ts=100.0)
+
+    assert "live_overlay_trading_signals_loaded 1.0" in body
+    assert "live_overlay_trading_signals_active_total 2.0" in body
+    assert "live_overlay_trading_signals_a0_total 1.0" in body
+    assert "live_overlay_trading_signals_a1_total 1.0" in body
+    assert "live_overlay_trading_signals_watched_total 3.0" in body
+    assert "live_overlay_trading_signals_snapshot_age_known 1.0" in body
+    # Per-signal series are labelled so Grafana can name/group each firing symbol.
+    aapl = 'symbol="AAPL",level="A1",direction="LONG",tier="HIGH"'
+    assert f"live_overlay_trading_signal_score{{{aapl}}} 7.5" in body
+    assert f"live_overlay_trading_signal_freshness{{{aapl}}} 0.9" in body
+    assert f"live_overlay_trading_signal_technical_score{{{aapl}}} 0.82" in body
+    assert f"live_overlay_trading_signal_change_pct{{{aapl}}} 1.23" in body
+    expected_info = (
+        "live_overlay_trading_signal_info{"
+        + aapl
+        + ',technical_signal="STRONG_BUY",macd_signal="BUY",'
+        'symbol_regime="TREND_UP",news_category="earnings"} 1'
+    )
+    assert expected_info in body
+    # Highest score sorts first in the capped list.
+    assert body.index('live_overlay_trading_signal_score{symbol="AAPL"') < body.index(
+        'live_overlay_trading_signal_score{symbol="TSLA"'
+    )
+
+
+def test_render_metrics_includes_tradingview_credential(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    import services.live_overlay_daemon.metrics as metrics_mod
+
+    _patch_common(
+        monkeypatch,
+        feed_ready=True,
+        market_open=True,
+        bar_count=10,
+        overlay_symbols=5,
+        overlay_age=60.0,
+    )
+    report = {
+        "schema_version": "1",
+        "overall_severity": "warn",
+        "probes": [
+            {
+                "name": "tv_storage_state_age",
+                "severity": "warn",
+                "message": "ageing",
+                "details": {
+                    "validated_at": "2026-06-20T00:00:00+00:00",
+                    "age_hours": 60.0,
+                    "max_age_hours": 72,
+                },
+            }
+        ],
+    }
+    monkeypatch.setattr(
+        metrics_mod.compute, "_load_tradingview_credential_snapshot", lambda: report
+    )
+
+    body = metrics_mod.render_metrics(startup_ts=100.0)
+
+    assert "live_overlay_tradingview_credential_loaded 1.0" in body
+    # severity "warn" is not "error" -> still considered valid.
+    assert "live_overlay_tradingview_credential_valid 1.0" in body
+    assert "live_overlay_tradingview_credential_age_known 1.0" in body
+    assert "live_overlay_tradingview_credential_age_hours 60.000" in body
+    assert "live_overlay_tradingview_credential_validated_at_seconds" in body
+
+
+def test_render_metrics_tradingview_credential_error_is_invalid(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    import services.live_overlay_daemon.metrics as metrics_mod
+
+    _patch_common(
+        monkeypatch,
+        feed_ready=True,
+        market_open=True,
+        bar_count=10,
+        overlay_symbols=5,
+        overlay_age=60.0,
+    )
+    report = {
+        "probes": [
+            {
+                "name": "tv_storage_state_age",
+                "severity": "error",
+                "details": {"validated_at": "2026-06-15T00:00:00+00:00", "age_hours": 120.0},
+            }
+        ],
+    }
+    monkeypatch.setattr(
+        metrics_mod.compute, "_load_tradingview_credential_snapshot", lambda: report
+    )
+
+    body = metrics_mod.render_metrics(startup_ts=100.0)
+
+    assert "live_overlay_tradingview_credential_loaded 1.0" in body
+    assert "live_overlay_tradingview_credential_valid 0.0" in body
+    assert "live_overlay_tradingview_credential_age_hours 120.000" in body
+
+
+def test_render_metrics_handles_tradingview_credential_missing(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    import services.live_overlay_daemon.metrics as metrics_mod
+
+    _patch_common(
+        monkeypatch,
+        feed_ready=True,
+        market_open=True,
+        bar_count=10,
+        overlay_symbols=5,
+        overlay_age=60.0,
+    )
+    monkeypatch.setattr(
+        metrics_mod.compute, "_load_tradingview_credential_snapshot", lambda: {}
+    )
+
+    body = metrics_mod.render_metrics(startup_ts=100.0)
+
+    assert "live_overlay_tradingview_credential_loaded 0.0" in body
+    assert "live_overlay_tradingview_credential_valid 0.0" in body
+    assert "live_overlay_tradingview_credential_age_known 0.0" in body
+    assert "live_overlay_tradingview_credential_age_hours 0.000" in body
+
+
+def test_render_metrics_handles_trading_signals_snapshot_missing(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    import services.live_overlay_daemon.metrics as metrics_mod
+
+    _patch_common(
+        monkeypatch,
+        feed_ready=True,
+        market_open=True,
+        bar_count=10,
+        overlay_symbols=5,
+        overlay_age=60.0,
+    )
+    monkeypatch.setattr(metrics_mod.compute, "_load_signals_snapshot", lambda: {})
+
+    body = metrics_mod.render_metrics(startup_ts=100.0)
+
+    assert "live_overlay_trading_signals_loaded 0.0" in body
+    assert "live_overlay_trading_signals_active_total 0.0" in body
+    assert "live_overlay_trading_signals_snapshot_age_known 0.0" in body
+    # No per-signal series when the snapshot is empty.
+    assert "live_overlay_trading_signal_score{" not in body
+
 
 def test_alert_rules_split_news_snapshot_unavailable_and_stale() -> None:
     """Unavailable snapshot (loaded==0) and stale snapshot (age>3600) must be separate alerts."""
@@ -630,10 +848,53 @@ def test_dashboard_github_workflow_runs_panel_uses_rate() -> None:
     assert panel["fieldConfig"]["defaults"]["custom"]["axisLabel"] == "runs / sec"
 
 
+def test_dashboard_has_trading_signals_panels() -> None:
+    repo_root = Path(__file__).resolve().parents[1]
+    dashboard_path = repo_root / "services" / "live_overlay_daemon" / "infra" / "grafana" / "dashboard.json"
+    dashboard = json.loads(dashboard_path.read_text(encoding="utf-8"))
+    by_title = {p.get("title"): p for p in dashboard["panels"]}
+
+    active = by_title["Active Trading Signals"]
+    assert active["type"] == "stat"
+    assert any(
+        "live_overlay_trading_signals_active_total" in t["expr"]
+        for t in active["targets"]
+    )
+
+    age = by_title["Signals Snapshot Age"]
+    assert age["fieldConfig"]["defaults"]["unit"] == "s"
+    assert any(
+        "live_overlay_trading_signals_snapshot_age_seconds" in t["expr"]
+        for t in age["targets"]
+    )
+    assert any(
+        "live_overlay_trading_signals_snapshot_age_known" in t["expr"]
+        for t in age["targets"]
+    )
+
+    table = by_title["Top Trading Signals — Latest Detail"]
+    assert table["type"] == "table"
+    exprs = {t["expr"] for t in table["targets"]}
+    assert any("live_overlay_trading_signal_score{" in e for e in exprs)
+    assert any("live_overlay_trading_signal_technical_score{" in e for e in exprs)
+    assert any("live_overlay_trading_signal_change_pct{" in e for e in exprs)
+    assert any("live_overlay_trading_signal_freshness{" in e for e in exprs)
+    # The numeric series share the same label set so the merge collapses them
+    # onto one row per signal; instant queries are required for an at-a-glance
+    # snapshot table.
+    assert all(t.get("instant") for t in table["targets"])
+    assert any(tr["id"] == "merge" for tr in table["transformations"])
+
+    ts_panel = by_title["Signal Score — Active Symbols"]
+    assert ts_panel["type"] == "timeseries"
+    assert ts_panel["targets"][0]["legendFormat"] == "{{symbol}} {{level}} {{direction}}"
+
+
 def test_provider_health_snapshot_classifies_state_reason_and_consumed(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     """Disabled providers are excluded from health; degraded reasons are mapped."""
+    import services.live_overlay_daemon.compute as compute_mod
     import services.live_overlay_daemon.metrics as metrics_mod
 
     snapshot = {
@@ -649,6 +910,13 @@ def test_provider_health_snapshot_classifies_state_reason_and_consumed(
     snap_path = tmp_path / "smc_live_news_snapshot.json"
     snap_path.write_text(json.dumps(snapshot), encoding="utf-8")
     monkeypatch.setattr(metrics_mod.config, "news_snapshot_path", lambda: snap_path)
+    # Deterministic read: provider-health uses the shared compute loader which
+    # is TTL-cached process-wide. Reset it so this test does not inherit a
+    # prior snapshot from another case (testmon/shard order dependent).
+    monkeypatch.setattr(compute_mod.config, "news_snapshot_url", lambda: "")
+    monkeypatch.setattr(compute_mod, "_news_loaded_at", 0.0)
+    monkeypatch.setattr(compute_mod, "_news_checked_at", 0.0)
+    monkeypatch.setattr(compute_mod, "_news_cache", {})
 
     health = metrics_mod._provider_health_snapshot()
 
@@ -713,3 +981,200 @@ def test_provider_health_snapshot_all_disabled_except_consumed_ok(
     assert health["news_health_ok"] == 1.0
     assert health["news_health_degraded"] == 0.0
     assert health["news_health_unknown"] == 0.0
+
+
+def test_render_metrics_includes_daily_experiment_snapshot(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    import services.live_overlay_daemon.metrics as metrics_mod
+
+    _patch_common(
+        monkeypatch,
+        feed_ready=True,
+        market_open=True,
+        bar_count=10,
+        overlay_symbols=5,
+        overlay_age=60.0,
+    )
+    rollup = {
+        "schema_version": 1,
+        "scoring_root": "/x/artifacts/ci/measurement_benchmark_rolling/2026-06-21",
+        "files_scanned": 1234,
+        "per_tf": {
+            "5m": {
+                "n_events": 200,
+                "hit_rate": 0.61,
+                "symbols": ["AAPL"],
+                "families": {
+                    "FVG": {"n_events": 80, "hit_rate": 0.7},
+                    "SWEEP": {"n_events": 40, "hit_rate": 0.55},
+                },
+            },
+            "4H": {
+                "n_events": 50,
+                "hit_rate": 0.48,
+                "families": {"BOS": {"n_events": 30, "hit_rate": 0.5}},
+            },
+        },
+        "phase_e2_verdict": {
+            "fvg_ttf_5m_vs_baseline": {
+                "status": "measured",
+                "delta_hr": 0.08,
+                "delta_hr_p_value": 0.012,
+                "underpowered": False,
+                "n_a": 80,
+                "n_b": 90,
+            },
+            "bos_stability_4h_vs_baseline": {
+                "status": "insufficient_data",
+                "n_a": 5,
+                "n_b": 7,
+            },
+        },
+    }
+    history = [
+        {
+            "captured_at": "2026-06-20T13:00:00Z",
+            "per_tf": {
+                "5m": {
+                    "n_events": 180,
+                    "hit_rate": 0.58,
+                    "families": {"FVG": {"n_events": 70, "hit_rate": 0.66}},
+                }
+            },
+        },
+        {
+            "captured_at": "2026-06-21T13:00:00Z",
+            "per_tf": {
+                "5m": {
+                    "n_events": 200,
+                    "hit_rate": 0.61,
+                    "families": {"FVG": {"n_events": 80, "hit_rate": 0.7}},
+                }
+            },
+        },
+    ]
+    monkeypatch.setattr(
+        metrics_mod.compute, "_load_experiment_snapshot", lambda: rollup
+    )
+    monkeypatch.setattr(
+        metrics_mod.compute, "_load_experiment_history", lambda: history
+    )
+
+    body = metrics_mod.render_metrics(startup_ts=100.0)
+
+    assert "live_overlay_experiment_loaded 1.0" in body
+    assert "live_overlay_experiment_files_scanned 1234.0" in body
+    # The dated scoring_root yields a known run age.
+    assert "live_overlay_experiment_snapshot_age_known 1.0" in body
+    # Per-timeframe aggregates.
+    assert (
+        'live_overlay_experiment_tf_hit_rate{timeframe="5m"} 0.61' in body
+    )
+    assert (
+        'live_overlay_experiment_tf_n_events{timeframe="4H"} 50.0' in body
+    )
+    # Per-family detail.
+    assert (
+        'live_overlay_experiment_family_hit_rate{timeframe="5m",family="FVG"} 0.7'
+        in body
+    )
+    assert (
+        'live_overlay_experiment_family_n_events{timeframe="5m",family="SWEEP"} 40.0'
+        in body
+    )
+    # Phase E2 verdicts mapped to numeric codes; p-value only when measured.
+    assert (
+        'live_overlay_experiment_verdict_status_code{hypothesis="fvg_5m",status="measured"} 4.0'
+        in body
+    )
+    assert (
+        'live_overlay_experiment_verdict_status_code{hypothesis="bos_4h",status="insufficient_data"} 1.0'
+        in body
+    )
+    assert (
+        'live_overlay_experiment_verdict_p_value{hypothesis="fvg_5m",status="measured"} 0.012'
+        in body
+    )
+    # p-value is omitted for the insufficient-data verdict (no false 0).
+    assert 'live_overlay_experiment_verdict_p_value{hypothesis="bos_4h"' not in body
+    # Per-day backfilled history series, one per (run_date, timeframe, family).
+    assert (
+        'live_overlay_experiment_day_family_hit_rate{run_date="2026-06-20",timeframe="5m",family="FVG"} 0.66'
+        in body
+    )
+    assert (
+        'live_overlay_experiment_day_family_hit_rate{run_date="2026-06-21",timeframe="5m",family="FVG"} 0.7'
+        in body
+    )
+
+
+def test_render_metrics_handles_daily_experiment_snapshot_missing(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    import services.live_overlay_daemon.metrics as metrics_mod
+
+    _patch_common(
+        monkeypatch,
+        feed_ready=True,
+        market_open=True,
+        bar_count=10,
+        overlay_symbols=5,
+        overlay_age=60.0,
+    )
+    monkeypatch.setattr(metrics_mod.compute, "_load_experiment_snapshot", lambda: {})
+    monkeypatch.setattr(metrics_mod.compute, "_load_experiment_history", lambda: [])
+
+    body = metrics_mod.render_metrics(startup_ts=100.0)
+
+    assert "live_overlay_experiment_loaded 0.0" in body
+    assert "live_overlay_experiment_snapshot_age_known 0.0" in body
+    assert "live_overlay_experiment_files_scanned 0.0" in body
+    # No per-family or per-day series when nothing is available.
+    assert "live_overlay_experiment_family_hit_rate{" not in body
+    assert "live_overlay_experiment_day_family_hit_rate{" not in body
+
+
+def test_dashboard_has_daily_experiment_panels() -> None:
+    repo_root = Path(__file__).resolve().parents[1]
+    dashboard_path = repo_root / "services" / "live_overlay_daemon" / "infra" / "grafana" / "dashboard.json"
+    dashboard = json.loads(dashboard_path.read_text(encoding="utf-8"))
+    by_title = {p.get("title"): p for p in dashboard["panels"]}
+
+    age = by_title["Daily Experiment — Snapshot Age"]
+    assert age["fieldConfig"]["defaults"]["unit"] == "s"
+    assert any(
+        "live_overlay_experiment_snapshot_age_seconds" in t["expr"]
+        for t in age["targets"]
+    )
+    assert any(
+        "live_overlay_experiment_snapshot_age_known" in t["expr"]
+        for t in age["targets"]
+    )
+
+    fvg = by_title["FVG 5m Verdict (Phase E2)"]
+    assert any(
+        'hypothesis="fvg_5m"' in t["expr"]
+        and "live_overlay_experiment_verdict_status_code" in t["expr"]
+        for t in fvg["targets"]
+    )
+    fvg_map = fvg["fieldConfig"]["defaults"]["mappings"][0]["options"]
+    assert fvg_map["4"]["text"] == "measured"
+
+    detail = by_title["Daily Experiment — Latest Per-Family Detail"]
+    assert detail["type"] == "table"
+    exprs = {t["expr"] for t in detail["targets"]}
+    assert any("live_overlay_experiment_family_hit_rate{" in e for e in exprs)
+    assert any("live_overlay_experiment_family_n_events{" in e for e in exprs)
+    assert all(t.get("instant") for t in detail["targets"])
+    assert any(tr["id"] == "merge" for tr in detail["transformations"])
+
+    ts_panel = by_title["Family Hit-Rate Over Time (accumulates daily)"]
+    assert ts_panel["type"] == "timeseries"
+    assert ts_panel["targets"][0]["legendFormat"] == "{{timeframe}} · {{family}}"
+
+    history = by_title["Per-Day Family Hit-Rate — History (backfilled)"]
+    assert history["type"] == "table"
+    hist_exprs = {t["expr"] for t in history["targets"]}
+    assert any("live_overlay_experiment_day_family_hit_rate{" in e for e in hist_exprs)
+    assert any(tr["id"] == "merge" for tr in history["transformations"])

@@ -1,14 +1,24 @@
 {% raw %}
 # WP-R3 — Hosted-vs-Self-hosted Runner Decision
 
-Stand: 2026-04-18
+Stand: 2026-06-23
 
-## Decision
+> ⚠️ **Status-Hinweis (2026-06-23):** Dieses Dokument ist eine historische
+> Entscheidungsaufnahme aus April 2026. Der aktuelle produktive Zustand ist ein
+> resolver-basiertes Mischmodell mit GitHub-hosted Fallback und globalem
+> Kill-Switch `SMC_FORCE_GH_HOSTED`.
+>
+> Source of truth:
+> - `docs/self_hosted_runner_reservation_runbook.md`
+> - `scripts/resolve_workflow_runner.py`
 
-**Use GitHub-hosted runners exclusively.**
+## Decision (historical snapshot)
 
-The self-hosted runner path is retired. No self-hosted runner infrastructure
-exists on `main` and none will be created.
+**April-2026 snapshot:** Use GitHub-hosted runners exclusively.
+
+This statement is no longer globally true for current `main`: resolver-based
+workflow routing can still select self-hosted runners when available, unless
+`SMC_FORCE_GH_HOSTED` is enabled.
 
 ## Rationale
 
@@ -58,7 +68,8 @@ never merged to `main`. The approach was abandoned because:
 3. The standard hosted runner proved sufficient once pipeline batching and
    caching were implemented, removing the need for larger runner hardware.
 
-No self-hosted runner artifacts remain in the repository.
+The repository now contains active self-hosted routing/reservation artifacts
+again (see source-of-truth links above).
 
 ## Future Escalation Path
 

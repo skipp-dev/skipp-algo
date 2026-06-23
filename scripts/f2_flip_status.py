@@ -37,6 +37,30 @@ script writes a ``{"action": "noop", "reason": "non_flip_transition",
 ...}`` entry and leaves the state files alone. The caller controls
 cadence; the helper itself is idempotent.
 
+Deploy-boundary reset (``--deploy-boundary``, issue #2770)
+----------------------------------------------------------
+Passing a ``--deploy-boundary MARKER`` argument also triggers
+``sprt_state_reset`` when the marker changes between runs — even when
+the spec status stays ``live``.
+
+- **First observation** (no prior journal entry with a ``boundary``
+  field): records ``deploy_boundary_established`` noop; state untouched.
+- **Changed marker**: deletes the SPRT state file and journals
+  ``sprt_state_reset / deploy_boundary_change``.
+- **Unchanged marker**: journals ``noop / deploy_boundary_unchanged``;
+  state untouched.
+- **Real** ``plumbing_only → live`` **flip**: existing reset logic runs;
+  ``deploy_boundary`` parameter is ignored.
+
+Recommended usage in CI:
+
+.. code-block:: bash
+
+    python scripts/f2_flip_status.py \\
+      --from live --to live \\
+      --deploy-boundary "$(git rev-parse HEAD)" \\
+      --state-file artifacts/ci/f2/sprt_state.json
+
 The journal lives in its own JSONL file (mirrors the existing
 ``artifacts/ci/f2/revert_journal.jsonl`` pattern) so it does not
 collide with the numeric ``rollback_history.json`` schema that
@@ -94,6 +118,27 @@ def _reset_rollback_history(path: Path) -> None:
         raise
 
 
+def _last_recorded_boundary(journal_path: Path) -> str | None:
+    """Return the ``boundary`` field from the most-recent journal entry that has one."""
+    if not journal_path.exists():
+        return None
+    last: str | None = None
+    with journal_path.open(encoding="utf-8") as fh:
+        for raw in fh:
+            raw = raw.strip()
+            if not raw:
+                continue
+            try:
+                entry = json.loads(raw)
+            except json.JSONDecodeError:
+                continue
+            if "boundary" in entry:
+                value = entry["boundary"]
+                if isinstance(value, str):
+                    last = value
+    return last
+
+
 def flip_status(
     *,
     from_status: str,
@@ -102,11 +147,59 @@ def flip_status(
     journal_path: Path = DEFAULT_JOURNAL_PATH,
     rollback_history_path: Path = DEFAULT_ROLLBACK_HISTORY_PATH,
     reset_rollback_history: bool = False,
+    deploy_boundary: str | None = None,
     now: str | None = None,
 ) -> dict[str, Any]:
     """Execute the flip-status workflow and return the journal entry."""
     at = now or _utc_iso()
     is_flip = from_status == FLIP_FROM and to_status == FLIP_TO
+
+    # Deploy-boundary reset: fires on any non-flip transition when the caller
+    # supplies a boundary marker that differs from the last *recorded* boundary.
+    # On the very first boundary observation (no previous entry) the boundary is
+    # simply established without resetting the corpus.
+    if deploy_boundary is not None and not is_flip:
+        last_boundary = _last_recorded_boundary(journal_path)
+        if last_boundary is None:
+            # First-ever boundary: record it, do not reset.
+            entry: dict[str, Any] = {
+                "action": "noop",
+                "reason": "deploy_boundary_established",
+                "from": from_status,
+                "to": to_status,
+                "at": at,
+                "boundary": deploy_boundary,
+            }
+            _append_journal(journal_path, entry)
+            return entry
+        if last_boundary != deploy_boundary:
+            state_existed = state_path.exists()
+            if state_existed:
+                with suppress(FileNotFoundError):
+                    state_path.unlink()
+            entry = {
+                "action": "sprt_state_reset",
+                "reason": "deploy_boundary_change",
+                "from": from_status,
+                "to": to_status,
+                "at": at,
+                "state_existed": state_existed,
+                "rollback_history_reset": False,
+                "boundary": deploy_boundary,
+            }
+            _append_journal(journal_path, entry)
+            return entry
+        # Same boundary → noop
+        entry = {
+            "action": "noop",
+            "reason": "deploy_boundary_unchanged",
+            "from": from_status,
+            "to": to_status,
+            "at": at,
+            "boundary": deploy_boundary,
+        }
+        _append_journal(journal_path, entry)
+        return entry
 
     if not is_flip:
         entry: dict[str, Any] = {
@@ -182,6 +275,17 @@ def _parse_args(argv: list[str] | None) -> argparse.Namespace:
         action="store_true",
         help="Also truncate the numeric rollback-history ring on flip.",
     )
+    parser.add_argument(
+        "--deploy-boundary",
+        default=None,
+        dest="deploy_boundary",
+        help=(
+            "Deploy-boundary marker (e.g. git SHA or hash of gate-code files). "
+            "Triggers sprt_state_reset with reason=deploy_boundary_change when "
+            "the marker differs from the last recorded boundary, even if the "
+            "spec status remains live."
+        ),
+    )
     return parser.parse_args(argv)
 
 
@@ -194,6 +298,7 @@ def main(argv: list[str] | None = None) -> int:
         journal_path=args.journal,
         rollback_history_path=args.rollback_history,
         reset_rollback_history=args.reset_rollback_history,
+        deploy_boundary=args.deploy_boundary,
     )
     print(json.dumps(entry, indent=2))
     return 0

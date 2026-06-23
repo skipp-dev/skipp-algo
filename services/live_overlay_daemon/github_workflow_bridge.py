@@ -108,7 +108,14 @@ def _fetch_snapshot(token: str) -> dict[str, Any]:
     timeout = config.github_workflow_timeout_secs()
     per_page = config.github_workflow_per_page()
     params = urllib.parse.urlencode({"per_page": per_page})
-    url = f"https://api.github.com/repos/{owner}/{repo}/actions/runs?{params}"
+    # GitHub returns runs newest-first, so the first page already contains the most
+    # recent run per workflow we care about; ``per_page`` is sized to cover the
+    # configured workflow set, so we never need to paginate for "latest run" state.
+    # ``owner``/``repo`` come from config but are percent-encoded defensively in case
+    # they ever contain URL-significant characters.
+    safe_owner = urllib.parse.quote(owner, safe="")
+    safe_repo = urllib.parse.quote(repo, safe="")
+    url = f"https://api.github.com/repos/{safe_owner}/{safe_repo}/actions/runs?{params}"
     parsed = _github_request_json(url, token, timeout)
 
     runs_raw = list(parsed.get("workflow_runs") or [])
@@ -156,6 +163,15 @@ def _fetch_snapshot(token: str) -> dict[str, Any]:
             workflows_latest[workflow_id] = {
                 "id": workflow_id,
                 "name": str(run.get("name", "unknown")) or "unknown",
+                "event": str(run.get("event", "")).lower() or "unknown",
+                # Keep status/conclusion semantics explicit for downstream
+                # consumers: `status` is lifecycle state (queued/in_progress/
+                # completed), while `conclusion` is only populated by GitHub
+                # once a run has completed (success/failure/cancelled/...).
+                "status": status or "unknown",
+                # Queued/in_progress runs have no conclusion yet and therefore
+                # remain "unknown" until GitHub marks completion.
+                "conclusion": conclusion or "unknown",
                 "phase_code": _phase_code(status, conclusion),
                 "latest_success": 1 if status == "completed" and conclusion == "success" else 0,
                 "latest_age_seconds": age,

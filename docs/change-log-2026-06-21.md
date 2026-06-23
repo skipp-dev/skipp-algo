@@ -54,3 +54,35 @@ Diese Notiz fasst die Änderungen vom **21.06.2026** zusammen (inkl. gemergter P
 - Targeted Lint/Test-Läufe für die betroffenen Dateien/Suiten wurden grün ausgeführt
   (u. a. `test_smc_live_overlay_metrics.py`, `test_smc_live_overlay_observability.py`,
   `test_hmac_auth_zero_surface.py`).
+
+---
+
+## Nachtrag — 2026-06-23 (PR #2909 Audit-Follow-ups)
+
+### Architektur / Runtime-Härtung
+
+- Snapshot-URL-Validierung in `compute.py` zentralisiert
+  (`_validate_https_url`): alle runtime `*_URL`-Fetcher sind konsistent
+  HTTPS-only.
+- Write-through-Persistenz weiter gehärtet: temporäre Snapshot-Dateien enthalten
+  jetzt `pid + thread_id + time_ns` zur besseren Kollisionsvermeidung.
+- `GITHUB_WORKFLOW_MONITOR_REPO` wird strenger validiert; ungültige Werte fallen
+  auf `skippALGO/skipp-algo` zurück.
+
+### Integrations-/Bridge-Details
+
+- GitHub Workflow Bridge dokumentiert als bewusstes "first-page is enough"
+  Polling für Latest-Run-Status; URL-Segmente werden defensiv percent-encoded.
+- `publish_signals_snapshot.py` gibt bei unerwartetem initialen Fetch-Fehler
+  (außer "remote ref not found" beim First-Publish) eine redacted Warnung aus,
+  statt stillschweigend fortzufahren.
+
+### Observability-Dokumentation
+
+- Dynamic metric names bei Provider-/Signal-Serien sind als beabsichtigtes
+  Design festgehalten (Grafana arbeitet mit `__name__=~`-Regex-Matchern).
+
+### CI/Workflow-Hygiene
+
+- `smc-measurement-benchmark-rolling.yml` räumt temporäre
+  `structure_export_*.json` innerhalb des Steps auf.
