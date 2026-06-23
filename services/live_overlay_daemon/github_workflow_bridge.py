@@ -156,6 +156,8 @@ def _fetch_snapshot(token: str) -> dict[str, Any]:
             workflows_latest[workflow_id] = {
                 "id": workflow_id,
                 "name": str(run.get("name", "unknown")) or "unknown",
+                "event": str(run.get("event", "")).lower() or "unknown",
+                "conclusion": conclusion or status or "unknown",
                 "phase_code": _phase_code(status, conclusion),
                 "latest_success": 1 if status == "completed" and conclusion == "success" else 0,
                 "latest_age_seconds": age,

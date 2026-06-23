@@ -13,6 +13,7 @@ import datetime
 import math
 import re
 import time
+from collections.abc import Mapping
 
 from . import (
     cache,
@@ -175,6 +176,20 @@ def _escape_label_value(value: object) -> str:
         .replace("\\", "\\\\")
         .replace('"', '\\"')
         .replace("\n", " ")
+    )
+
+
+def _workflow_labels(workflow: Mapping[str, object]) -> str:
+    """Render the ``workflow_id``/``workflow``/``event`` label set for a flow.
+
+    The workflow name and trigger event are surfaced as labels (rather than
+    baked into the metric name) so Grafana can name each flow and group a
+    single shared status timeline / detail table by workflow.
+    """
+    return (
+        f'workflow_id="{_escape_label_value(workflow.get("id", "unknown"))}",'
+        f'workflow="{_escape_label_value(workflow.get("name", "unknown") or "unknown")}",'
+        f'event="{_escape_label_value(workflow.get("event", "unknown") or "unknown")}"'
     )
 
 
@@ -630,28 +645,41 @@ def render_metrics(startup_ts: float) -> str:
             f"{_prom_numeric_value(latest_run_duration)}"
         )
 
-    for workflow in workflow_snapshot.get("workflows") or []:
-        workflow_id = _sanitize_name(str(workflow.get("id", "unknown")))
-        workflow_prefix = f"live_overlay_github_workflow_{workflow_id}"
-        lines.append(f"# TYPE {workflow_prefix}_phase_code gauge")
-        lines.append(
-            f"{workflow_prefix}_phase_code {_prom_numeric_value(workflow.get('phase_code', 0))}"
-        )
-        lines.append(f"# TYPE {workflow_prefix}_latest_success gauge")
-        lines.append(
-            f"{workflow_prefix}_latest_success {_prom_numeric_value(workflow.get('latest_success', 0))}"
-        )
-
-        workflow_age = workflow.get("latest_age_seconds")
-        if workflow_age is not None:
-            lines.append(f"# TYPE {workflow_prefix}_latest_age_seconds gauge")
-            lines.append(f"{workflow_prefix}_latest_age_seconds {_prom_numeric_value(workflow_age)}")
-
-        workflow_duration = workflow.get("latest_duration_seconds")
-        if workflow_duration is not None:
-            lines.append(f"# TYPE {workflow_prefix}_latest_duration_seconds gauge")
+    # Per-workflow series are emitted as labelled time series (workflow_id,
+    # workflow name, trigger event) so Grafana can name each flow and render a
+    # single shared, colour-coded status timeline / detail table. Each metric
+    # name carries one ``# TYPE`` line followed by one sample per workflow.
+    workflows = list(workflow_snapshot.get("workflows") or [])
+    if workflows:
+        lines.append("# TYPE live_overlay_github_workflow_phase_code gauge")
+        for workflow in workflows:
             lines.append(
-                f"{workflow_prefix}_latest_duration_seconds {_prom_numeric_value(workflow_duration)}"
+                f"live_overlay_github_workflow_phase_code{{{_workflow_labels(workflow)}}} "
+                f"{_prom_numeric_value(workflow.get('phase_code', 0))}"
+            )
+        lines.append("# TYPE live_overlay_github_workflow_latest_success gauge")
+        for workflow in workflows:
+            lines.append(
+                f"live_overlay_github_workflow_latest_success{{{_workflow_labels(workflow)}}} "
+                f"{_prom_numeric_value(workflow.get('latest_success', 0))}"
+            )
+        lines.append("# TYPE live_overlay_github_workflow_latest_age_seconds gauge")
+        for workflow in workflows:
+            workflow_age = workflow.get("latest_age_seconds")
+            if workflow_age is None:
+                continue
+            lines.append(
+                f"live_overlay_github_workflow_latest_age_seconds{{{_workflow_labels(workflow)}}} "
+                f"{_prom_numeric_value(workflow_age)}"
+            )
+        lines.append("# TYPE live_overlay_github_workflow_latest_duration_seconds gauge")
+        for workflow in workflows:
+            workflow_duration = workflow.get("latest_duration_seconds")
+            if workflow_duration is None:
+                continue
+            lines.append(
+                "live_overlay_github_workflow_latest_duration_seconds"
+                f"{{{_workflow_labels(workflow)}}} {_prom_numeric_value(workflow_duration)}"
             )
 
     lines.append("")  # trailing newline

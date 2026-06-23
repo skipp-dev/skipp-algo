@@ -493,6 +493,8 @@ def test_render_metrics_includes_github_workflow_bridge_snapshot(monkeypatch: py
             "workflows": [
                 {
                     "id": "129428056",
+                    "name": "CI",
+                    "event": "schedule",
                     "phase_code": 3,
                     "latest_success": 1,
                     "latest_age_seconds": 45.5,
@@ -511,10 +513,15 @@ def test_render_metrics_includes_github_workflow_bridge_snapshot(monkeypatch: py
     assert "live_overlay_github_workflow_runs_failed_total 1.0" in body
     assert "live_overlay_github_workflow_latest_run_age_seconds 45.5" in body
     assert "live_overlay_github_workflow_latest_run_duration_seconds 120.0" in body
-    assert "live_overlay_github_workflow_129428056_phase_code 3.0" in body
-    assert "live_overlay_github_workflow_129428056_latest_success 1.0" in body
-    assert "live_overlay_github_workflow_129428056_latest_age_seconds 45.5" in body
-    assert "live_overlay_github_workflow_129428056_latest_duration_seconds 120.0" in body
+    # Per-workflow series are labelled (id + name + event) so Grafana can name
+    # each flow and group a shared status timeline / detail table.
+    workflow_labels = 'workflow_id="129428056",workflow="CI",event="schedule"'
+    assert f"live_overlay_github_workflow_phase_code{{{workflow_labels}}} 3.0" in body
+    assert f"live_overlay_github_workflow_latest_success{{{workflow_labels}}} 1.0" in body
+    assert f"live_overlay_github_workflow_latest_age_seconds{{{workflow_labels}}} 45.5" in body
+    assert (
+        f"live_overlay_github_workflow_latest_duration_seconds{{{workflow_labels}}} 120.0" in body
+    )
 
 
 def test_render_metrics_handles_github_workflow_bridge_disabled(monkeypatch: pytest.MonkeyPatch) -> None:

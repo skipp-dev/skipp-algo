@@ -2123,8 +2123,8 @@
       "description": "Rate of GitHub workflow runs by phase (runs per second)."
     },
     {
-      "title": "GitHub Workflow Timing",
-      "type": "timeseries",
+      "title": "GitHub Workflow Status — Timeline",
+      "type": "state-timeline",
       "gridPos": {
         "h": 8,
         "w": 24,
@@ -2133,59 +2133,68 @@
       },
       "targets": [
         {
-          "expr": "live_overlay_github_workflow_latest_run_age_seconds{job=\"$job\"}",
-          "legendFormat": "latest age (s)"
-        },
-        {
-          "expr": "live_overlay_github_workflow_latest_run_duration_seconds{job=\"$job\"}",
-          "legendFormat": "latest duration (s)"
+          "expr": "live_overlay_github_workflow_phase_code{job=\"$job\"}",
+          "legendFormat": "{{workflow}}",
+          "instant": false,
+          "range": true
         }
       ],
       "options": {
-        "tooltip": {
-          "mode": "multi",
-          "sort": "none"
-        },
+        "showValue": "auto",
+        "rowHeight": 0.9,
+        "mergeValues": true,
+        "alignValue": "left",
         "legend": {
           "displayMode": "list",
           "placement": "bottom",
-          "showLegend": true,
-          "calcs": [
-            "lastNotNull"
-          ]
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "single",
+          "sort": "none"
         }
       },
       "fieldConfig": {
         "defaults": {
-          "unit": "s"
-        },
-        "overrides": [
-          {
-            "matcher": {
-              "id": "byName",
-              "options": "latest age (s)"
-            },
-            "properties": [
-              {
-                "id": "unit",
-                "value": "s"
-              }
-            ]
+          "custom": {
+            "fillOpacity": 80,
+            "lineWidth": 0
           },
-          {
-            "matcher": {
-              "id": "byName",
-              "options": "latest duration (s)"
-            },
-            "properties": [
+          "mappings": [
+            {
+              "type": "value",
+              "options": {
+                "0": { "text": "Unknown", "color": "gray" },
+                "1": { "text": "Queued", "color": "yellow" },
+                "2": { "text": "In progress", "color": "blue" },
+                "3": { "text": "Success", "color": "green" },
+                "4": { "text": "Failure", "color": "red" },
+                "5": { "text": "Cancelled", "color": "orange" },
+                "6": { "text": "Skipped", "color": "purple" },
+                "7": { "text": "Neutral", "color": "blue" },
+                "8": { "text": "Timed out", "color": "red" },
+                "9": { "text": "Action required", "color": "orange" },
+                "10": { "text": "Startup failure", "color": "red" },
+                "11": { "text": "Stale", "color": "yellow" }
+              }
+            }
+          ],
+          "color": {
+            "mode": "thresholds"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
               {
-                "id": "unit",
-                "value": "s"
+                "color": "gray",
+                "value": null
               }
             ]
           }
-        ]
-      }
+        },
+        "overrides": []
+      },
+      "description": "Colour-coded latest status of each GitHub Actions workflow over time. Every row is one named workflow ({{workflow}} legend); the cell colour encodes the run conclusion — green=success, red=failure/timed-out, orange=cancelled/action-required, blue=in-progress, yellow=queued/stale, gray=unknown/skipped. Series come from live_overlay_github_workflow_phase_code{workflow,event,workflow_id}, sampled at the daemon's GitHub workflow bridge interval (so runs shorter than one scrape interval may not appear)."
     },
     {
       "title": "Global Market Sessions",
@@ -3233,6 +3242,186 @@
         "maxItems": 20,
         "alertInstanceLabelFilter": "job=live_overlay",
         "viewMode": "list"
+      }
+    },
+    {
+      "title": "GitHub Workflows — Latest Run Detail",
+      "type": "table",
+      "gridPos": {
+        "h": 9,
+        "w": 24,
+        "x": 0,
+        "y": 183
+      },
+      "description": "Per-workflow detail of the most recent run the daemon observed: trigger event (schedule / push / …), current status, run duration and age. One row per named workflow. Driven by the labelled live_overlay_github_workflow_* gauges (phase_code, latest_duration_seconds, latest_age_seconds, latest_success).",
+      "targets": [
+        {
+          "expr": "live_overlay_github_workflow_phase_code{job=\"$job\"}",
+          "format": "table",
+          "instant": true,
+          "refId": "A"
+        },
+        {
+          "expr": "live_overlay_github_workflow_latest_duration_seconds{job=\"$job\"}",
+          "format": "table",
+          "instant": true,
+          "refId": "B"
+        },
+        {
+          "expr": "live_overlay_github_workflow_latest_age_seconds{job=\"$job\"}",
+          "format": "table",
+          "instant": true,
+          "refId": "C"
+        },
+        {
+          "expr": "live_overlay_github_workflow_latest_success{job=\"$job\"}",
+          "format": "table",
+          "instant": true,
+          "refId": "D"
+        }
+      ],
+      "transformations": [
+        {
+          "id": "merge",
+          "options": {}
+        },
+        {
+          "id": "organize",
+          "options": {
+            "excludeByName": {
+              "Time": true,
+              "instance": true,
+              "job": true,
+              "__name__": true
+            },
+            "indexByName": {
+              "workflow": 0,
+              "event": 1,
+              "Value #A": 2,
+              "Value #B": 3,
+              "Value #C": 4,
+              "Value #D": 5,
+              "workflow_id": 6
+            },
+            "renameByName": {
+              "workflow": "Workflow",
+              "event": "Trigger",
+              "workflow_id": "Workflow ID",
+              "Value #A": "Status",
+              "Value #B": "Duration (s)",
+              "Value #C": "Age (s)",
+              "Value #D": "OK"
+            }
+          }
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "align": "auto",
+            "cellOptions": {
+              "type": "auto"
+            }
+          }
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Status"
+            },
+            "properties": [
+              {
+                "id": "custom.cellOptions",
+                "value": {
+                  "type": "color-background",
+                  "mode": "basic"
+                }
+              },
+              {
+                "id": "mappings",
+                "value": [
+                  {
+                    "type": "value",
+                    "options": {
+                      "0": { "text": "Unknown", "color": "gray" },
+                      "1": { "text": "Queued", "color": "yellow" },
+                      "2": { "text": "In progress", "color": "blue" },
+                      "3": { "text": "Success", "color": "green" },
+                      "4": { "text": "Failure", "color": "red" },
+                      "5": { "text": "Cancelled", "color": "orange" },
+                      "6": { "text": "Skipped", "color": "purple" },
+                      "7": { "text": "Neutral", "color": "blue" },
+                      "8": { "text": "Timed out", "color": "red" },
+                      "9": { "text": "Action required", "color": "orange" },
+                      "10": { "text": "Startup failure", "color": "red" },
+                      "11": { "text": "Stale", "color": "yellow" }
+                    }
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Duration (s)"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "s"
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Age (s)"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "s"
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "OK"
+            },
+            "properties": [
+              {
+                "id": "mappings",
+                "value": [
+                  {
+                    "type": "value",
+                    "options": {
+                      "0": { "text": "✗", "color": "red" },
+                      "1": { "text": "✓", "color": "green" }
+                    }
+                  }
+                ]
+              },
+              {
+                "id": "custom.cellOptions",
+                "value": {
+                  "type": "color-text"
+                }
+              }
+            ]
+          }
+        ]
+      },
+      "options": {
+        "showHeader": true,
+        "sortBy": [
+          {
+            "displayName": "Workflow",
+            "desc": false
+          }
+        ]
       }
     }
   ],
