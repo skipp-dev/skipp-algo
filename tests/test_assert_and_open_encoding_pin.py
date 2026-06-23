@@ -31,7 +31,7 @@ from pathlib import Path
 
 import pytest
 
-from tests._guard_corpus import parse_module
+from tests._guard_corpus import iter_tracked_files, parse_module
 
 ROOT = Path(__file__).resolve().parent.parent
 
@@ -55,10 +55,7 @@ _DIR_EXCLUDE = frozenset(
 
 
 def _iter_prod_py() -> Iterator[Path]:
-    for p in ROOT.rglob("*.py"):
-        if any(part in _DIR_EXCLUDE for part in p.relative_to(ROOT).parts):
-            continue
-        yield p
+    yield from iter_tracked_files("*.py", _DIR_EXCLUDE, root=ROOT)
 
 
 def _parse(p: Path) -> ast.AST | None:
