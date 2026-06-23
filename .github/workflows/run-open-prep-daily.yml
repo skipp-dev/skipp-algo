@@ -223,8 +223,10 @@ jobs:
           # actions/checkout is shallow, so the remote-tracking ref does not
           # exist locally and --force-with-lease would degrade to an empty
           # lease (unconditional force). Fetch the tip first for a real base.
-          git fetch origin "+refs/heads/bot/live-open-prep-snapshot:refs/remotes/origin/bot/live-open-prep-snapshot" 2>/dev/null || true
+          git fetch origin "+refs/heads/bot/live-open-prep-snapshot:refs/remotes/origin/bot/live-open-prep-snapshot" \
+            || echo "::warning::fetch of bot/live-open-prep-snapshot failed; proceeding without base (branch may not exist yet)"
           git checkout --detach --quiet "$START_SHA"
+          rm -f "$SNAPSHOT"
           # `-f` overrides .gitignore so the runtime snapshot can be staged.
           # `--sparse` was previously paired here but is meaningless against
           # actions/checkout's full (non-sparse) tree and confused readers
@@ -233,15 +235,17 @@ jobs:
           if git diff --cached --quiet; then
             echo "No open-prep snapshot changes to publish."
             git checkout --quiet "$START_SHA"
+            rm -f "$SNAPSHOT"
             exit 0
           fi
           git commit -m "[skip ci] chore: refresh open-prep snapshot"
           # `if git push` positive form is what tests/test_workflow_auth_pattern.py
           # requires (it disallows the `if !` negation). Surface real push
           # failures as a red job, not a swallowed warning.
-          if git push --force-with-lease=refs/heads/bot/live-open-prep-snapshot origin "HEAD:refs/heads/bot/live-open-prep-snapshot"; then
+          if git push --force-with-lease=refs/remotes/origin/bot/live-open-prep-snapshot origin "HEAD:refs/heads/bot/live-open-prep-snapshot"; then
             echo "Pushed open-prep snapshot to bot/live-open-prep-snapshot."
             git checkout --quiet "$START_SHA"
+            rm -f "$SNAPSHOT"
           else
             echo "::warning::open-prep snapshot push failed; the per-run artifact remains available, but bot/live-open-prep-snapshot may be stale."
             {
@@ -250,6 +254,7 @@ jobs:
               echo "The per-run artifact uploaded, but the rolling bot/live-open-prep-snapshot branch push failed. Consumers reading the stable snapshot path may see stale data until the next daily run."
             } >> "$GITHUB_STEP_SUMMARY"
             git checkout --quiet "$START_SHA" || true
+            rm -f "$SNAPSHOT"
             exit 1
           fi
 
