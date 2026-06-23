@@ -311,6 +311,14 @@ file = "scripts/publish_overlay_dashboard.py"
 attr = "run"
 count = 1
 
+# scripts/publish_signals_snapshot.py: host-run helper that git-pushes the
+# realtime signals snapshot to bot/live-signals-snapshot. Single `_git`
+# wrapper, token-list args, no shell=True, x-access-token remote only.
+[[subprocess_shell_injection_pin.sites]]
+file = "scripts/publish_signals_snapshot.py"
+attr = "run"
+count = 1
+
 # scripts/phase5_perf_trend.py wraps `gh run list` once per workflow
 # (review-v3 phase 5). Token-list args, dev-only.
 [[subprocess_shell_injection_pin.sites]]

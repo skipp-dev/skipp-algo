@@ -647,6 +647,107 @@ def test_render_metrics_includes_trading_signals_snapshot(
     )
 
 
+def test_render_metrics_includes_tradingview_credential(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    import services.live_overlay_daemon.metrics as metrics_mod
+
+    _patch_common(
+        monkeypatch,
+        feed_ready=True,
+        market_open=True,
+        bar_count=10,
+        overlay_symbols=5,
+        overlay_age=60.0,
+    )
+    report = {
+        "schema_version": "1",
+        "overall_severity": "warn",
+        "probes": [
+            {
+                "name": "tv_storage_state_age",
+                "severity": "warn",
+                "message": "ageing",
+                "details": {
+                    "validated_at": "2026-06-20T00:00:00+00:00",
+                    "age_hours": 60.0,
+                    "max_age_hours": 72,
+                },
+            }
+        ],
+    }
+    monkeypatch.setattr(
+        metrics_mod.compute, "_load_tradingview_credential_snapshot", lambda: report
+    )
+
+    body = metrics_mod.render_metrics(startup_ts=100.0)
+
+    assert "live_overlay_tradingview_credential_loaded 1.0" in body
+    # severity "warn" is not "error" -> still considered valid.
+    assert "live_overlay_tradingview_credential_valid 1.0" in body
+    assert "live_overlay_tradingview_credential_age_known 1.0" in body
+    assert "live_overlay_tradingview_credential_age_hours 60.000" in body
+    assert "live_overlay_tradingview_credential_validated_at_seconds" in body
+
+
+def test_render_metrics_tradingview_credential_error_is_invalid(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    import services.live_overlay_daemon.metrics as metrics_mod
+
+    _patch_common(
+        monkeypatch,
+        feed_ready=True,
+        market_open=True,
+        bar_count=10,
+        overlay_symbols=5,
+        overlay_age=60.0,
+    )
+    report = {
+        "probes": [
+            {
+                "name": "tv_storage_state_age",
+                "severity": "error",
+                "details": {"validated_at": "2026-06-15T00:00:00+00:00", "age_hours": 120.0},
+            }
+        ],
+    }
+    monkeypatch.setattr(
+        metrics_mod.compute, "_load_tradingview_credential_snapshot", lambda: report
+    )
+
+    body = metrics_mod.render_metrics(startup_ts=100.0)
+
+    assert "live_overlay_tradingview_credential_loaded 1.0" in body
+    assert "live_overlay_tradingview_credential_valid 0.0" in body
+    assert "live_overlay_tradingview_credential_age_hours 120.000" in body
+
+
+def test_render_metrics_handles_tradingview_credential_missing(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    import services.live_overlay_daemon.metrics as metrics_mod
+
+    _patch_common(
+        monkeypatch,
+        feed_ready=True,
+        market_open=True,
+        bar_count=10,
+        overlay_symbols=5,
+        overlay_age=60.0,
+    )
+    monkeypatch.setattr(
+        metrics_mod.compute, "_load_tradingview_credential_snapshot", lambda: {}
+    )
+
+    body = metrics_mod.render_metrics(startup_ts=100.0)
+
+    assert "live_overlay_tradingview_credential_loaded 0.0" in body
+    assert "live_overlay_tradingview_credential_valid 0.0" in body
+    assert "live_overlay_tradingview_credential_age_known 0.0" in body
+    assert "live_overlay_tradingview_credential_age_hours 0.000" in body
+
+
 def test_render_metrics_handles_trading_signals_snapshot_missing(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
