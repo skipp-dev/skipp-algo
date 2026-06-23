@@ -11,6 +11,11 @@ Optional vars:
   OVERLAY_MAX_STALE_SECS      — threshold for marking payload stale, default 3600 (1 h)
   OVERLAY_ROLLING_BARS        — number of 1-min bars to keep per symbol, default 60
   NEWS_SNAPSHOT_PATH          — path to news snapshot JSON, default relative to repo root
+  NEWS_SNAPSHOT_URL           — optional https URL fetched at runtime; takes precedence
+                                over NEWS_SNAPSHOT_PATH and falls back to it (and the
+                                baked seed) on any fetch failure
+  NEWS_SNAPSHOT_URL_TOKEN     — optional bearer token for NEWS_SNAPSHOT_URL (e.g. a
+                                GitHub token for the private contents API raw endpoint)
   OVERLAY_MAX_FEED_FAILURES   — circuit-breaker threshold for feed failures, default 50
   PORT                        — HTTP port, default 8000
   LOG_LEVEL                   — uvicorn log level, default info
@@ -129,6 +134,20 @@ def news_snapshot_path() -> Path:
         ),
     )
     return Path(raw)
+
+
+def news_snapshot_url() -> str:
+    """Optional https URL the daemon fetches the news snapshot from at runtime.
+
+    When set it takes precedence over :func:`news_snapshot_path`; on any fetch
+    failure the daemon falls back to the local path (and baked seed).
+    """
+    return _optional_str("NEWS_SNAPSHOT_URL", "")
+
+
+def news_snapshot_url_token() -> str:
+    """Optional bearer token sent when fetching :func:`news_snapshot_url`."""
+    return _optional_str("NEWS_SNAPSHOT_URL_TOKEN", "")
 
 
 def max_symbols() -> int:

@@ -9,13 +9,14 @@ values are consistent and complete.
 """
 from __future__ import annotations
 
-import json
+import datetime
 import math
 import re
 import time
 
 from . import (
     cache,
+    compute,
     config,
     feed,
     github_workflow_bridge,
@@ -177,31 +178,62 @@ def _escape_label_value(value: object) -> str:
     )
 
 
+def _snapshot_timestamp(raw: dict[str, object]) -> float | None:
+    """Best-effort unix timestamp for a news snapshot.
+
+    Prefers ``fetched_at_unix`` (written by the live producer) then the
+    ISO-8601 ``generated_at`` string. Returns ``None`` when neither is usable
+    so callers can flag the snapshot age as unknown rather than reporting a
+    misleading 0.
+    """
+    fetched_at = raw.get("fetched_at_unix")
+    fetched_at_float = 0.0
+    if isinstance(fetched_at, (int, float, str)):
+        try:
+            fetched_at_float = float(fetched_at)
+        except (TypeError, ValueError):
+            fetched_at_float = 0.0
+    if math.isfinite(fetched_at_float) and fetched_at_float > 0:
+        return fetched_at_float
+
+    generated_at = raw.get("generated_at")
+    if isinstance(generated_at, str) and generated_at.strip():
+        text = generated_at.strip().replace("Z", "+00:00")
+        try:
+            parsed = datetime.datetime.fromisoformat(text)
+        except ValueError:
+            return None
+        if parsed.tzinfo is None:
+            parsed = parsed.replace(tzinfo=datetime.UTC)
+        return parsed.timestamp()
+    return None
+
+
 def _provider_health_snapshot() -> dict[str, object]:
-    """Derive provider-health gauges from the configured news snapshot file."""
-    path = config.news_snapshot_path()
+    """Derive provider-health gauges from the current news snapshot.
+
+    Reads through the shared :func:`compute._load_news_snapshot` loader so the
+    gauges reflect whatever source the daemon actually serves (the runtime
+    ``NEWS_SNAPSHOT_URL`` when configured, otherwise the local file / baked
+    seed).
+    """
+    raw = compute._load_news_snapshot()
     snapshot_loaded = 0.0
     snapshot_age_seconds = 0.0
+    snapshot_age_known = 0.0
     providers_obj: object = {}
 
-    if path.exists():
-        try:
-            raw = json.loads(path.read_text(encoding="utf-8"))
-            if isinstance(raw, dict):
-                providers_obj = raw.get("providers") or {}
-                snapshot_loaded = 1.0
-                # Prefer fetched_at_unix embedded in snapshot (written by live producer).
-                # Falls back to 0.0 for static seed files (avoids false-positive stale alerts).
-                fetched_at = raw.get("fetched_at_unix")
-                try:
-                    fetched_at_float = float(fetched_at)
-                except (TypeError, ValueError):
-                    fetched_at_float = 0.0
-                if math.isfinite(fetched_at_float) and fetched_at_float > 0:
-                    snapshot_age_seconds = max(0.0, time.time() - fetched_at_float)
-                # else: keep 0.0 — no live producer has written a timestamp yet
-        except Exception:
-            providers_obj = {}
+    if isinstance(raw, dict) and raw:
+        providers_obj = raw.get("providers") or {}
+        snapshot_loaded = 1.0
+        # Prefer fetched_at_unix (live producer); fall back to the ISO-8601
+        # generated_at string. When neither is present (e.g. the static seed)
+        # the age is unknown and flagged as such instead of reporting a
+        # misleading 0 that masquerades as a fresh snapshot.
+        snapshot_ts = _snapshot_timestamp(raw)
+        if snapshot_ts is not None:
+            snapshot_age_known = 1.0
+            snapshot_age_seconds = max(0.0, time.time() - snapshot_ts)
 
     providers = providers_obj if isinstance(providers_obj, dict) else {}
 
@@ -275,6 +307,7 @@ def _provider_health_snapshot() -> dict[str, object]:
     return {
         "news_snapshot_loaded": snapshot_loaded,
         "news_snapshot_age_seconds": snapshot_age_seconds,
+        "news_snapshot_age_known": snapshot_age_known,
         "news_providers_total": float(total),
         "news_providers_ok_total": float(ok),
         "news_providers_degraded_total": float(degraded),
@@ -370,6 +403,7 @@ def render_metrics(startup_ts: float) -> str:
     for key in (
         "news_snapshot_loaded",
         "news_snapshot_age_seconds",
+        "news_snapshot_age_known",
         "news_providers_total",
         "news_providers_ok_total",
         "news_providers_degraded_total",

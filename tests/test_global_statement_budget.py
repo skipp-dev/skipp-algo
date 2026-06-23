@@ -207,7 +207,7 @@ _FROZEN_SITES: frozenset[tuple[str, int, tuple[str, ...]]] = frozenset(
         # success cache for the full TTL when a snapshot appears later.
         # 2026-06-19 (bug-hunt): added _news_lock + with-block around
         # _load_news_snapshot cache mutation for atomic state transitions.
-        ("services/live_overlay_daemon/compute.py", 55, ("_news_cache", "_news_checked_at", "_news_loaded_at")),
+        ("services/live_overlay_daemon/compute.py", 87, ("_news_cache", "_news_checked_at", "_news_loaded_at")),
         # 2026-06-21 (provider/bridge + queue backpressure follow-ups):
         # feed.py gained additional helper/config blocks, shifting global
         # statements to 362/420/496.

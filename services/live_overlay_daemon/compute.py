@@ -4,8 +4,10 @@ Overlay field computation.
 Takes a snapshot of accumulated OHLCV bars from cache.py and produces
 the overlay payload for each symbol.
 
-All computations use only standard library + the bars already in cache —
-no additional network calls from this module.
+All computations use only standard library + the bars already in cache.
+The news snapshot is normally read from a local file, but may instead be
+fetched at runtime from NEWS_SNAPSHOT_URL when that env var is set; no other
+module here performs network calls.
 
 Field definitions (matching spec/smc_live_overlay.schema.json):
   news_strength        — [0.0, 1.0] composite news sentiment magnitude for symbol
@@ -36,6 +38,8 @@ import logging
 import math
 import threading
 import time
+import urllib.error
+import urllib.request
 from typing import Any
 
 from . import cache, config, observability
@@ -50,11 +54,38 @@ _news_cache: dict[str, Any] = {}
 _news_loaded_at: float = 0.0
 _news_checked_at: float = 0.0
 _news_lock = threading.Lock()
+_NEWS_USER_AGENT = "live-overlay-daemon-news/1"
+
+
+def _fetch_news_url(url: str, token: str, timeout: float = 10.0) -> dict[str, Any] | None:
+    """Fetch the news snapshot JSON from ``url``.
+
+    Returns the parsed dict on success or ``None`` on any failure so the caller
+    can fall back to the local file (and baked seed). Only https URLs are
+    honoured.
+    """
+    if not url.lower().startswith("https://"):
+        logger.warning("NEWS_SNAPSHOT_URL must be an https URL; ignoring %r", url)
+        return None
+    headers = {"Accept": "application/json", "User-Agent": _NEWS_USER_AGENT}
+    if token:
+        headers["Authorization"] = f"Bearer {token}"
+        # Allows pointing NEWS_SNAPSHOT_URL at the GitHub contents API.
+        headers["Accept"] = "application/vnd.github.raw+json"
+    req = urllib.request.Request(url, headers=headers)
+    try:
+        with urllib.request.urlopen(req, timeout=timeout) as resp:
+            payload = resp.read()
+        raw = json.loads(payload)
+    except (urllib.error.URLError, TimeoutError, ValueError, OSError):
+        logger.warning("Failed to fetch news snapshot from URL", exc_info=True)
+        return None
+    return raw if isinstance(raw, dict) else None
+
 
 def _load_news_snapshot() -> dict[str, Any]:
     global _news_cache, _news_loaded_at, _news_checked_at
     with _news_lock:
-        path = config.news_snapshot_path()
         now = time.monotonic()
         ttl = config.news_cache_ttl_secs()
 
@@ -72,6 +103,17 @@ def _load_news_snapshot() -> dict[str, Any]:
 
         _news_checked_at = now
 
+        # Prefer a runtime URL when configured; fall back to the local file
+        # (and baked seed) on any fetch failure so cold-start still works.
+        url = config.news_snapshot_url()
+        if url:
+            fetched = _fetch_news_url(url, config.news_snapshot_url_token())
+            if fetched is not None:
+                _news_cache = fetched
+                _news_loaded_at = now
+                return dict(_news_cache)
+
+        path = config.news_snapshot_path()
         if not path.exists():
             _news_cache = {}
             return {}

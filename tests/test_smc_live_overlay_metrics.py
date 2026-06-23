@@ -673,6 +673,7 @@ def test_provider_health_snapshot_all_disabled_except_consumed_ok(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     """When only one provider is consumed and it is OK, health must be OK."""
+    import services.live_overlay_daemon.compute as compute_mod
     import services.live_overlay_daemon.metrics as metrics_mod
 
     snapshot = {
@@ -687,6 +688,12 @@ def test_provider_health_snapshot_all_disabled_except_consumed_ok(
     snap_path = tmp_path / "smc_live_news_snapshot.json"
     snap_path.write_text(json.dumps(snapshot), encoding="utf-8")
     monkeypatch.setattr(metrics_mod.config, "news_snapshot_path", lambda: snap_path)
+    # Metrics derive from the shared (TTL-cached) compute loader; reset its
+    # cache so the patched snapshot path is read fresh and no URL is used.
+    monkeypatch.setattr(compute_mod.config, "news_snapshot_url", lambda: "")
+    monkeypatch.setattr(compute_mod, "_news_loaded_at", 0.0)
+    monkeypatch.setattr(compute_mod, "_news_checked_at", 0.0)
+    monkeypatch.setattr(compute_mod, "_news_cache", {})
 
     health = metrics_mod._provider_health_snapshot()
 

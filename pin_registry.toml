@@ -87,6 +87,9 @@
 # timeout= and fixed https endpoint domains.
 "services/live_overlay_daemon/github_workflow_bridge.py" = [101]
 "services/live_overlay_daemon/uptimerobot_bridge.py" = [76]
+# 2026-06-23: live-news runtime fetch — daemon serves freshest producer
+# snapshot via NEWS_SNAPSHOT_URL (https-only, explicit timeout=, S310 noqa).
+"services/live_overlay_daemon/compute.py" = [77]
 # 2026-06-22: line shifted 251 -> 287 after ADR-0025 App Platform migration
 # (/apis dashboard.grafana.app/v1); urlopen now in shared _request_json helper.
 "scripts/publish_overlay_dashboard.py" = [287]
