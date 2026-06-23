@@ -130,7 +130,7 @@ def test_prepare_payload_normalizes_non_dict_annotations(bad_annotations: object
         "spec": {"elements": {}},
     }
 
-    payload = _prepare_payload(data, "sync from test")
+    payload = _prepare_payload(data, "sync from test", None)
 
     assert payload["metadata"]["annotations"] == {"grafana.app/message": "sync from test"}
 
@@ -146,7 +146,7 @@ def test_prepare_payload_preserves_existing_annotation_keys() -> None:
         "spec": {"elements": {}},
     }
 
-    payload = _prepare_payload(data, "sync from test")
+    payload = _prepare_payload(data, "sync from test", None)
 
     assert payload["metadata"]["annotations"] == {
         "grafana.app/folder": "ops",
@@ -163,7 +163,7 @@ def test_prepare_payload_normalizes_non_dict_metadata(bad_metadata: object) -> N
         "spec": {"elements": {}},
     }
 
-    payload = _prepare_payload(data, "sync from test")
+    payload = _prepare_payload(data, "sync from test", None)
 
     assert payload["metadata"] == {
         "annotations": {"grafana.app/message": "sync from test"},
