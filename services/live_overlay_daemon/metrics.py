@@ -130,6 +130,11 @@ def _estimate_histogram_quantile_ms(
 
 # Provider health state codes exposed via live_overlay_provider_news_*_state_code
 # and the live_overlay_provider_news_info{state=...} label.
+# NOTE: the per-provider metric names (live_overlay_provider_news_<provider>_state_code)
+# are intentionally dynamic. The Grafana dashboards select them with a
+# ``__name__=~"live_overlay_provider_news_.*_state_code"`` regex matcher rather than a
+# fixed metric name, so adding a provider needs no dashboard change. Cardinality stays
+# bounded by the small, static provider set.
 _PROVIDER_STATE_LABELS = {0: "unknown", 1: "degraded", 2: "ok", 3: "disabled"}
 
 # Map the raw snapshot "error" reason onto a human-readable message that the
@@ -191,6 +196,374 @@ def _workflow_labels(workflow: Mapping[str, object]) -> str:
         f'workflow="{_escape_label_value(workflow.get("name", "unknown") or "unknown")}",'
         f'event="{_escape_label_value(workflow.get("event", "unknown") or "unknown")}"'
     )
+
+
+# Cap the number of per-signal series emitted so a busy session cannot blow up
+# Prometheus cardinality; the strongest-scoring signals are kept.
+_SIGNAL_SERIES_CAP = 50
+
+
+def _signal_labels(sig: Mapping[str, object]) -> str:
+    """Render the ``symbol``/``level``/``direction``/``tier`` label set.
+
+    Surfacing the breakout level (A0 pre-breakout / A1 breakout), trade
+    direction and confidence tier as labels lets Grafana name, colour and
+    group each firing symbol instead of baking identity into the metric name.
+    """
+    return (
+        f'symbol="{_escape_label_value(sig.get("symbol", "") or "unknown")}",'
+        f'level="{_escape_label_value(sig.get("level", "") or "unknown")}",'
+        f'direction="{_escape_label_value(sig.get("direction", "") or "unknown")}",'
+        f'tier="{_escape_label_value(sig.get("confidence_tier", "") or "unknown")}"'
+    )
+
+
+def _trading_signals_snapshot() -> dict[str, object]:
+    """Derive trading-signal gauges from the realtime-engine snapshot.
+
+    Reads through :func:`compute._load_signals_snapshot` so the gauges reflect
+    whatever source the daemon serves (the runtime ``SIGNALS_SNAPSHOT_URL`` when
+    configured, otherwise the local ``latest_realtime_signals.json``). Returns
+    aggregate counts, the snapshot age (when known) and a cardinality-capped,
+    score-sorted list of the active signals.
+    """
+    raw = compute._load_signals_snapshot()
+    loaded = 0.0
+    age_seconds = 0.0
+    age_known = 0.0
+    max_age_seconds = float(config.signals_max_age_secs())
+    stale = 0.0
+    signals_obj: object = []
+    counts = {"active": 0, "a0": 0, "a1": 0, "watched": 0}
+
+    if isinstance(raw, dict) and raw:
+        loaded = 1.0
+        signals_obj = raw.get("signals") or []
+        counts["active"] = int(raw.get("signal_count", 0) or 0)
+        counts["a0"] = int(raw.get("a0_count", 0) or 0)
+        counts["a1"] = int(raw.get("a1_count", 0) or 0)
+        watched = raw.get("watched_symbols") or []
+        counts["watched"] = len(watched) if isinstance(watched, (list, tuple)) else 0
+        updated_epoch = raw.get("updated_epoch")
+        epoch_float = 0.0
+        if isinstance(updated_epoch, (int, float, str)):
+            try:
+                epoch_float = float(updated_epoch)
+            except (TypeError, ValueError):
+                epoch_float = 0.0
+        if math.isfinite(epoch_float) and epoch_float > 0:
+            age_known = 1.0
+            age_seconds = max(0.0, time.time() - epoch_float)
+            stale = 1.0 if age_seconds > max_age_seconds else 0.0
+
+    signals_list = signals_obj if isinstance(signals_obj, list) else []
+    normalized = [item for item in signals_list if isinstance(item, dict)]
+
+    def _score_key(sig: dict[str, object]) -> float:
+        value = sig.get("score")
+        if isinstance(value, bool):
+            return 0.0
+        if isinstance(value, (int, float)):
+            return float(value)
+        if isinstance(value, str):
+            try:
+                return float(value)
+            except ValueError:
+                return 0.0
+        return 0.0
+
+    normalized.sort(key=_score_key, reverse=True)
+
+    return {
+        "loaded": loaded,
+        "age_seconds": age_seconds,
+        "age_known": age_known,
+        "max_age_seconds": max_age_seconds,
+        "stale": stale,
+        "counts": counts,
+        "signals": normalized[:_SIGNAL_SERIES_CAP],
+    }
+
+
+def _tradingview_credential_snapshot() -> dict[str, float]:
+    """Derive TradingView credential-age gauges from the credential report.
+
+    Reads through :func:`compute._load_tradingview_credential_snapshot` (local
+    ``credential_health.json`` or the runtime
+    ``TRADINGVIEW_CREDENTIAL_SNAPSHOT_URL``) and extracts the
+    ``tv_storage_state_age`` probe written by
+    ``scripts/credential_health_check.py``. Surfaces the storage-state age in
+    hours versus the 72h policy TTL so Grafana can alert before the cached
+    TradingView login expires. Returns ``loaded=0`` when no report/probe is
+    available; ``valid`` is 1.0 while the probe severity is not ``error``.
+    """
+    raw = compute._load_tradingview_credential_snapshot()
+    loaded = 0.0
+    age_hours = 0.0
+    age_known = 0.0
+    valid = 0.0
+    validated_at_seconds = 0.0
+
+    probe: dict[str, object] | None = None
+    if isinstance(raw, dict) and raw:
+        probes = raw.get("probes")
+        if isinstance(probes, (list, tuple)):
+            for item in probes:
+                if isinstance(item, dict) and item.get("name") == "tv_storage_state_age":
+                    probe = item
+                    break
+
+    if probe is not None:
+        loaded = 1.0
+        severity = str(probe.get("severity", "") or "")
+        valid = 0.0 if severity == "error" else 1.0
+        details = probe.get("details")
+        if isinstance(details, dict):
+            age_raw = details.get("age_hours")
+            if isinstance(age_raw, (int, float)) and not isinstance(age_raw, bool):
+                age_float = float(age_raw)
+                if math.isfinite(age_float):
+                    age_known = 1.0
+                    age_hours = max(0.0, age_float)
+            validated_at = details.get("validated_at")
+            if isinstance(validated_at, str) and validated_at:
+                try:
+                    parsed = datetime.datetime.fromisoformat(
+                        validated_at.replace("Z", "+00:00")
+                    )
+                    validated_at_seconds = parsed.timestamp()
+                except ValueError:
+                    validated_at_seconds = 0.0
+
+    return {
+        "loaded": loaded,
+        "age_hours": age_hours,
+        "age_known": age_known,
+        "valid": valid,
+        "validated_at_seconds": validated_at_seconds,
+    }
+
+
+# ---------------------------------------------------------------------------
+# Daily experiment (Plan 2.8 per-TF family rollup + per-day history) helpers
+# ---------------------------------------------------------------------------
+# The rolling measurement benchmark scores SMC setup families (BOS / OB / FVG /
+# SWEEP) per timeframe once per day. We surface the latest rollup (current-day
+# stats + Phase E2 verdicts) plus the retained per-day history so Grafana can
+# render both a live "today" view and a backfilled per-day timeline.
+
+# Stable numeric code per Phase E2 verdict status so a Grafana stat panel can
+# colour it (higher == more conclusive / healthier evidence).
+_EXPERIMENT_VERDICT_STATUS_CODES: Mapping[str, int] = {
+    "missing": 0,
+    "insufficient_data": 1,
+    "degenerate_aliased_input": 2,
+    "measured_underpowered": 3,
+    "measured": 4,
+}
+
+# Map the rollup's verdict keys to short hypothesis labels for the dashboard.
+_EXPERIMENT_VERDICT_KEYS: Mapping[str, str] = {
+    "fvg_ttf_5m_vs_baseline": "fvg_5m",
+    "bos_stability_4h_vs_baseline": "bos_4h",
+}
+
+
+def _experiment_tf_labels(timeframe: str) -> str:
+    """Render the ``timeframe`` label for a per-TF experiment series."""
+    return f'timeframe="{_escape_label_value(timeframe or "unknown")}"'
+
+
+def _experiment_family_labels(timeframe: str, family: str) -> str:
+    """Render the ``timeframe``/``family`` label set for a per-family series."""
+    return (
+        f'timeframe="{_escape_label_value(timeframe or "unknown")}",'
+        f'family="{_escape_label_value(family or "unknown")}"'
+    )
+
+
+def _experiment_day_labels(run_date: str, timeframe: str, family: str) -> str:
+    """Render the ``run_date``/``timeframe``/``family`` label set (history)."""
+    return (
+        f'run_date="{_escape_label_value(run_date or "unknown")}",'
+        f'timeframe="{_escape_label_value(timeframe or "unknown")}",'
+        f'family="{_escape_label_value(family or "unknown")}"'
+    )
+
+
+def _experiment_verdict_labels(hypothesis: str, status: str) -> str:
+    """Render the ``hypothesis``/``status`` label set for a verdict series."""
+    return (
+        f'hypothesis="{_escape_label_value(hypothesis or "unknown")}",'
+        f'status="{_escape_label_value(status or "unknown")}"'
+    )
+
+
+def _experiment_date_from_root(scoring_root: object) -> str:
+    """Extract a ``YYYY-MM-DD`` run date from a rollup ``scoring_root`` path."""
+    if not isinstance(scoring_root, str) or not scoring_root:
+        return ""
+    tail = scoring_root.rstrip("/").rsplit("/", 1)[-1]
+    if len(tail) == 10 and tail[4] == "-" and tail[7] == "-":
+        try:
+            datetime.datetime.strptime(tail, "%Y-%m-%d")
+        except ValueError:
+            return ""
+        return tail
+    return ""
+
+
+def _experiment_run_age(run_date: str) -> tuple[float, float]:
+    """Return ``(age_known, age_seconds)`` from a ``YYYY-MM-DD`` run date.
+
+    Daily granularity: age is measured from midnight UTC of the run date. When
+    the date cannot be parsed ``age_known`` is ``0`` so the panel shows N/A
+    rather than a misleading ``0``.
+    """
+    if not run_date:
+        return 0.0, 0.0
+    try:
+        parsed = datetime.datetime.strptime(run_date, "%Y-%m-%d").replace(
+            tzinfo=datetime.UTC
+        )
+    except ValueError:
+        return 0.0, 0.0
+    age = time.time() - parsed.timestamp()
+    return 1.0, max(0.0, age)
+
+
+def _experiment_per_tf_rows(per_tf: object) -> tuple[list[dict[str, object]], list[dict[str, object]]]:
+    """Flatten a rollup/history ``per_tf`` mapping into TF and family rows.
+
+    Returns ``(tf_rows, family_rows)`` where each TF row carries
+    ``timeframe``/``n_events``/``hit_rate`` and each family row additionally
+    carries ``family``. Malformed entries are skipped.
+    """
+    tf_rows: list[dict[str, object]] = []
+    family_rows: list[dict[str, object]] = []
+    if not isinstance(per_tf, dict):
+        return tf_rows, family_rows
+    for timeframe, payload in per_tf.items():
+        if not isinstance(payload, dict):
+            continue
+        tf_rows.append(
+            {
+                "timeframe": str(timeframe),
+                "n_events": payload.get("n_events", 0),
+                "hit_rate": payload.get("hit_rate", 0),
+            }
+        )
+        families = payload.get("families")
+        if not isinstance(families, dict):
+            continue
+        for family, fam_payload in families.items():
+            if not isinstance(fam_payload, dict):
+                continue
+            family_rows.append(
+                {
+                    "timeframe": str(timeframe),
+                    "family": str(family),
+                    "n_events": fam_payload.get("n_events", 0),
+                    "hit_rate": fam_payload.get("hit_rate", 0),
+                }
+            )
+    return tf_rows, family_rows
+
+
+def _experiment_snapshot() -> dict[str, object]:
+    """Derive daily-experiment gauges from the latest Plan 2.8 family rollup.
+
+    Reads through :func:`compute._load_experiment_snapshot` so the gauges
+    reflect whatever source the daemon serves (the runtime
+    ``EXPERIMENT_SNAPSHOT_URL`` when configured, otherwise the local rollup).
+    Returns the load flag, run date + age, files scanned, flattened per-TF and
+    per-family rows and the Phase E2 verdicts.
+    """
+    raw = compute._load_experiment_snapshot()
+    loaded = 0.0
+    run_date = ""
+    age_known = 0.0
+    age_seconds = 0.0
+    files_scanned = 0.0
+    tf_rows: list[dict[str, object]] = []
+    family_rows: list[dict[str, object]] = []
+    verdicts: list[dict[str, object]] = []
+
+    if isinstance(raw, dict) and raw:
+        loaded = 1.0
+        run_date = _experiment_date_from_root(raw.get("scoring_root"))
+        age_known, age_seconds = _experiment_run_age(run_date)
+        files_value = raw.get("files_scanned", 0)
+        if isinstance(files_value, (int, float)) and not isinstance(files_value, bool):
+            files_scanned = float(files_value)
+        tf_rows, family_rows = _experiment_per_tf_rows(raw.get("per_tf"))
+
+        phase_e2 = raw.get("phase_e2_verdict")
+        if isinstance(phase_e2, dict):
+            for key, hypothesis in _EXPERIMENT_VERDICT_KEYS.items():
+                verdict = phase_e2.get(key)
+                if not isinstance(verdict, dict):
+                    continue
+                status = str(verdict.get("status", "missing"))
+                p_value = verdict.get("delta_hr_p_value")
+                verdicts.append(
+                    {
+                        "hypothesis": hypothesis,
+                        "status": status,
+                        "status_code": _EXPERIMENT_VERDICT_STATUS_CODES.get(status, 0),
+                        "delta_hr": verdict.get("delta_hr", 0),
+                        "p_value": (
+                            p_value
+                            if isinstance(p_value, (int, float)) and not isinstance(p_value, bool)
+                            else None
+                        ),
+                        "underpowered": 1.0 if verdict.get("underpowered") else 0.0,
+                        "n_a": verdict.get("n_a", 0),
+                        "n_b": verdict.get("n_b", 0),
+                    }
+                )
+
+    return {
+        "loaded": loaded,
+        "run_date": run_date,
+        "age_known": age_known,
+        "age_seconds": age_seconds,
+        "files_scanned": files_scanned,
+        "tf_rows": tf_rows,
+        "family_rows": family_rows,
+        "verdicts": verdicts,
+    }
+
+
+def _experiment_history() -> list[dict[str, object]]:
+    """Flatten the per-day Plan 2.8 history into per-(day, TF, family) rows.
+
+    Reads through :func:`compute._load_experiment_history` (already capped and
+    chronologically ordered). Each returned row carries ``run_date``,
+    ``timeframe``, ``family``, ``hit_rate`` and ``n_events`` so Grafana can
+    render the retained window as an immediate per-day timeline without waiting
+    for Prometheus to accumulate samples.
+    """
+    rows: list[dict[str, object]] = []
+    for snapshot in compute._load_experiment_history():
+        if not isinstance(snapshot, dict):
+            continue
+        captured_at = snapshot.get("captured_at")
+        run_date = str(captured_at)[:10] if isinstance(captured_at, str) else ""
+        if not run_date:
+            continue
+        _tf_rows, family_rows = _experiment_per_tf_rows(snapshot.get("per_tf"))
+        for family_row in family_rows:
+            rows.append(
+                {
+                    "run_date": run_date,
+                    "timeframe": family_row["timeframe"],
+                    "family": family_row["family"],
+                    "hit_rate": family_row["hit_rate"],
+                    "n_events": family_row["n_events"],
+                }
+            )
+    return rows
 
 
 def _snapshot_timestamp(raw: dict[str, object]) -> float | None:
@@ -680,6 +1053,265 @@ def render_metrics(startup_ts: float) -> str:
             lines.append(
                 "live_overlay_github_workflow_latest_duration_seconds"
                 f"{{{_workflow_labels(workflow)}}} {_prom_numeric_value(workflow_duration)}"
+            )
+
+    # ---- Realtime trading signals (A0 pre-breakout / A1 breakout) ----------
+    # Sourced from the realtime engine snapshot via
+    # compute._load_signals_snapshot (local file or SIGNALS_SNAPSHOT_URL).
+    # Surfaced so Grafana can show which symbols are firing, their
+    # score/freshness/technical bias, and how fresh the snapshot is. Per-signal
+    # series are labelled (symbol/level/direction/tier) and capped to the
+    # strongest signals to bound cardinality.
+    signals_snapshot = _trading_signals_snapshot()
+    signal_counts = signals_snapshot["counts"]
+    if not isinstance(signal_counts, dict):
+        signal_counts = {"active": 0, "a0": 0, "a1": 0, "watched": 0}
+    lines.append("# TYPE live_overlay_trading_signals_loaded gauge")
+    lines.append(
+        "live_overlay_trading_signals_loaded "
+        f"{_prom_numeric_value(signals_snapshot['loaded'])}"
+    )
+    lines.append("# TYPE live_overlay_trading_signals_active_total gauge")
+    lines.append(
+        "live_overlay_trading_signals_active_total "
+        f"{_prom_numeric_value(signal_counts['active'])}"
+    )
+    lines.append("# TYPE live_overlay_trading_signals_a0_total gauge")
+    lines.append(
+        f"live_overlay_trading_signals_a0_total {_prom_numeric_value(signal_counts['a0'])}"
+    )
+    lines.append("# TYPE live_overlay_trading_signals_a1_total gauge")
+    lines.append(
+        f"live_overlay_trading_signals_a1_total {_prom_numeric_value(signal_counts['a1'])}"
+    )
+    lines.append("# TYPE live_overlay_trading_signals_watched_total gauge")
+    lines.append(
+        "live_overlay_trading_signals_watched_total "
+        f"{_prom_numeric_value(signal_counts['watched'])}"
+    )
+    lines.append("# TYPE live_overlay_trading_signals_snapshot_age_known gauge")
+    lines.append(
+        "live_overlay_trading_signals_snapshot_age_known "
+        f"{_prom_numeric_value(signals_snapshot['age_known'])}"
+    )
+    lines.append("# TYPE live_overlay_trading_signals_snapshot_age_seconds gauge")
+    lines.append(
+        "live_overlay_trading_signals_snapshot_age_seconds "
+        f"{signals_snapshot['age_seconds']:.1f}"
+    )
+    lines.append("# TYPE live_overlay_trading_signals_snapshot_max_age_seconds gauge")
+    lines.append(
+        "live_overlay_trading_signals_snapshot_max_age_seconds "
+        f"{_prom_numeric_value(signals_snapshot['max_age_seconds'])}"
+    )
+    lines.append("# TYPE live_overlay_trading_signals_snapshot_stale gauge")
+    lines.append(
+        "live_overlay_trading_signals_snapshot_stale "
+        f"{_prom_numeric_value(signals_snapshot['stale'])}"
+    )
+
+    signal_rows = signals_snapshot["signals"]
+    if isinstance(signal_rows, list) and signal_rows:
+        lines.append("# TYPE live_overlay_trading_signal_score gauge")
+        for sig in signal_rows:
+            lines.append(
+                f"live_overlay_trading_signal_score{{{_signal_labels(sig)}}} "
+                f"{_prom_numeric_value(sig.get('score', 0))}"
+            )
+        lines.append("# TYPE live_overlay_trading_signal_freshness gauge")
+        for sig in signal_rows:
+            lines.append(
+                f"live_overlay_trading_signal_freshness{{{_signal_labels(sig)}}} "
+                f"{_prom_numeric_value(sig.get('freshness', 0))}"
+            )
+        lines.append("# TYPE live_overlay_trading_signal_technical_score gauge")
+        for sig in signal_rows:
+            lines.append(
+                f"live_overlay_trading_signal_technical_score{{{_signal_labels(sig)}}} "
+                f"{_prom_numeric_value(sig.get('technical_score', 0))}"
+            )
+        lines.append("# TYPE live_overlay_trading_signal_change_pct gauge")
+        for sig in signal_rows:
+            lines.append(
+                f"live_overlay_trading_signal_change_pct{{{_signal_labels(sig)}}} "
+                f"{_prom_numeric_value(sig.get('change_pct', 0))}"
+            )
+        lines.append("# TYPE live_overlay_trading_signal_info gauge")
+        for sig in signal_rows:
+            info_labels = (
+                f"{_signal_labels(sig)},"
+                f'technical_signal="{_escape_label_value(sig.get("technical_signal", "") or "unknown")}",'
+                f'macd_signal="{_escape_label_value(sig.get("macd_signal", "") or "unknown")}",'
+                f'symbol_regime="{_escape_label_value(sig.get("symbol_regime", "") or "unknown")}",'
+                f'news_category="{_escape_label_value(sig.get("news_category", "") or "unknown")}"'
+            )
+            lines.append(f"live_overlay_trading_signal_info{{{info_labels}}} 1")
+
+    # ----- TradingView storage-state credential age ------------------------
+    # Sourced from the daily credential-health report via
+    # compute._load_tradingview_credential_snapshot (local credential_health.json
+    # or TRADINGVIEW_CREDENTIAL_SNAPSHOT_URL). Surfaces the cached TradingView
+    # login age so Grafana can alert before it expires (policy TTL 72h, warn at
+    # 57.6h). age_hours is only meaningful while age_known == 1.
+    tv_credential = _tradingview_credential_snapshot()
+    lines.append("# TYPE live_overlay_tradingview_credential_loaded gauge")
+    lines.append(
+        "live_overlay_tradingview_credential_loaded "
+        f"{_prom_numeric_value(tv_credential['loaded'])}"
+    )
+    lines.append("# TYPE live_overlay_tradingview_credential_valid gauge")
+    lines.append(
+        "live_overlay_tradingview_credential_valid "
+        f"{_prom_numeric_value(tv_credential['valid'])}"
+    )
+    lines.append("# TYPE live_overlay_tradingview_credential_age_known gauge")
+    lines.append(
+        "live_overlay_tradingview_credential_age_known "
+        f"{_prom_numeric_value(tv_credential['age_known'])}"
+    )
+    lines.append("# TYPE live_overlay_tradingview_credential_age_hours gauge")
+    lines.append(
+        "live_overlay_tradingview_credential_age_hours "
+        f"{tv_credential['age_hours']:.3f}"
+    )
+    lines.append("# TYPE live_overlay_tradingview_credential_validated_at_seconds gauge")
+    lines.append(
+        "live_overlay_tradingview_credential_validated_at_seconds "
+        f"{tv_credential['validated_at_seconds']:.0f}"
+    )
+
+    # ----- Daily experiment (Plan 2.8 family/timeframe scoring) -------------
+    experiment = _experiment_snapshot()
+    lines.append("# TYPE live_overlay_experiment_loaded gauge")
+    lines.append(
+        f"live_overlay_experiment_loaded {_prom_numeric_value(experiment['loaded'])}"
+    )
+    lines.append("# TYPE live_overlay_experiment_snapshot_age_known gauge")
+    lines.append(
+        "live_overlay_experiment_snapshot_age_known "
+        f"{_prom_numeric_value(experiment['age_known'])}"
+    )
+    lines.append("# TYPE live_overlay_experiment_snapshot_age_seconds gauge")
+    age_value = experiment["age_seconds"]
+    age_float = float(age_value) if isinstance(age_value, (int, float)) else 0.0
+    lines.append(f"live_overlay_experiment_snapshot_age_seconds {age_float:.1f}")
+    lines.append("# TYPE live_overlay_experiment_files_scanned gauge")
+    lines.append(
+        "live_overlay_experiment_files_scanned "
+        f"{_prom_numeric_value(experiment['files_scanned'])}"
+    )
+
+    tf_rows = experiment["tf_rows"]
+    if isinstance(tf_rows, list) and tf_rows:
+        lines.append("# TYPE live_overlay_experiment_tf_hit_rate gauge")
+        for row in tf_rows:
+            labels = _experiment_tf_labels(str(row.get("timeframe", "")))
+            lines.append(
+                f"live_overlay_experiment_tf_hit_rate{{{labels}}} "
+                f"{_prom_numeric_value(row.get('hit_rate', 0))}"
+            )
+        lines.append("# TYPE live_overlay_experiment_tf_n_events gauge")
+        for row in tf_rows:
+            labels = _experiment_tf_labels(str(row.get("timeframe", "")))
+            lines.append(
+                f"live_overlay_experiment_tf_n_events{{{labels}}} "
+                f"{_prom_numeric_value(row.get('n_events', 0))}"
+            )
+
+    family_rows = experiment["family_rows"]
+    if isinstance(family_rows, list) and family_rows:
+        lines.append("# TYPE live_overlay_experiment_family_hit_rate gauge")
+        for row in family_rows:
+            labels = _experiment_family_labels(
+                str(row.get("timeframe", "")), str(row.get("family", ""))
+            )
+            lines.append(
+                f"live_overlay_experiment_family_hit_rate{{{labels}}} "
+                f"{_prom_numeric_value(row.get('hit_rate', 0))}"
+            )
+        lines.append("# TYPE live_overlay_experiment_family_n_events gauge")
+        for row in family_rows:
+            labels = _experiment_family_labels(
+                str(row.get("timeframe", "")), str(row.get("family", ""))
+            )
+            lines.append(
+                f"live_overlay_experiment_family_n_events{{{labels}}} "
+                f"{_prom_numeric_value(row.get('n_events', 0))}"
+            )
+
+    verdicts = experiment["verdicts"]
+    if isinstance(verdicts, list) and verdicts:
+        lines.append("# TYPE live_overlay_experiment_verdict_status_code gauge")
+        for verdict in verdicts:
+            labels = _experiment_verdict_labels(
+                str(verdict.get("hypothesis", "")), str(verdict.get("status", ""))
+            )
+            lines.append(
+                f"live_overlay_experiment_verdict_status_code{{{labels}}} "
+                f"{_prom_numeric_value(verdict.get('status_code', 0))}"
+            )
+        lines.append("# TYPE live_overlay_experiment_verdict_delta_hr gauge")
+        for verdict in verdicts:
+            labels = _experiment_verdict_labels(
+                str(verdict.get("hypothesis", "")), str(verdict.get("status", ""))
+            )
+            lines.append(
+                f"live_overlay_experiment_verdict_delta_hr{{{labels}}} "
+                f"{_prom_numeric_value(verdict.get('delta_hr', 0))}"
+            )
+        lines.append("# TYPE live_overlay_experiment_verdict_underpowered gauge")
+        for verdict in verdicts:
+            labels = _experiment_verdict_labels(
+                str(verdict.get("hypothesis", "")), str(verdict.get("status", ""))
+            )
+            lines.append(
+                f"live_overlay_experiment_verdict_underpowered{{{labels}}} "
+                f"{_prom_numeric_value(verdict.get('underpowered', 0))}"
+            )
+        # p-value is optional and is exported only for fully measured verdicts
+        # (status == "measured") so underpowered/insufficient states cannot
+        # expose a misleading numeric p-value.
+        p_value_lines: list[str] = []
+        for verdict in verdicts:
+            p_value = verdict.get("p_value")
+            if str(verdict.get("status", "")) != "measured":
+                continue
+            if not isinstance(p_value, (int, float)):
+                continue
+            labels = _experiment_verdict_labels(
+                str(verdict.get("hypothesis", "")), str(verdict.get("status", ""))
+            )
+            p_value_lines.append(
+                f"live_overlay_experiment_verdict_p_value{{{labels}}} "
+                f"{_prom_numeric_value(p_value)}"
+            )
+        if p_value_lines:
+            lines.append("# TYPE live_overlay_experiment_verdict_p_value gauge")
+            lines.extend(p_value_lines)
+
+    history_rows = _experiment_history()
+    if history_rows:
+        lines.append("# TYPE live_overlay_experiment_day_family_hit_rate gauge")
+        for row in history_rows:
+            labels = _experiment_day_labels(
+                str(row.get("run_date", "")),
+                str(row.get("timeframe", "")),
+                str(row.get("family", "")),
+            )
+            lines.append(
+                f"live_overlay_experiment_day_family_hit_rate{{{labels}}} "
+                f"{_prom_numeric_value(row.get('hit_rate', 0))}"
+            )
+        lines.append("# TYPE live_overlay_experiment_day_family_n_events gauge")
+        for row in history_rows:
+            labels = _experiment_day_labels(
+                str(row.get("run_date", "")),
+                str(row.get("timeframe", "")),
+                str(row.get("family", "")),
+            )
+            lines.append(
+                f"live_overlay_experiment_day_family_n_events{{{labels}}} "
+                f"{_prom_numeric_value(row.get('n_events', 0))}"
             )
 
     lines.append("")  # trailing newline

@@ -1,5 +1,7 @@
 # SMC Live Overlay Daemon
 
+<!-- markdownlint-disable MD060 -->
+
 FastAPI micro-service that subscribes to [Databento](https://databento.com) `EQUS.MINI` live feed
 (schema `ohlcv-1m`, `ALL_SYMBOLS`) and exposes a per-symbol overlay JSON endpoint for
 TradingView Pine scripts.
@@ -10,7 +12,7 @@ Deployed on [Railway.app](https://railway.com) — see [Deployment](#deployment)
 
 ## Architecture
 
-```
+```text
 Databento Live (db.Live())
         │ ohlcv-1m bars (background thread)
         ▼
@@ -40,7 +42,8 @@ Databento Live (db.Live())
 
 No authentication required. **Liveness only** endpoint used by Railway healthcheck and UptimeRobot.
 
-**Response (200 OK)**
+#### Response example (200 OK)
+
 ```json
 {
   "status": "alive",
@@ -56,7 +59,8 @@ No authentication required. **Liveness only** endpoint used by Railway healthche
 
 No authentication required. **Readiness/diagnostics** endpoint with worker and dependency state.
 
-**Response (200 OK)**
+#### Response (200 OK)
+
 ```json
 {
   "status": "ok",
@@ -129,14 +133,14 @@ curl "http://localhost:8000/mysecret/metrics"
 Token must match `OVERLAY_SECRET_TOKEN` env var (constant-time `hmac.compare_digest` comparison).
 Returns **404** on wrong token (does not leak route existence).
 
-**Query params**
+#### Query params
 
 | Param    | Required | Example | Notes |
 |----------|----------|---------|-------|
 | `symbol` | ✅ | `NVDA` | Case-insensitive, max 10 chars |
 | `tf`     | ❌ | `5m` | One of `5m`, `10m`, `15m`, `30m`, `1H`, `4H`. Returns 400 for unknown values. |
 
-**Response fields**
+#### Response fields
 
 | Field | Type | Range / Values | Notes |
 |-------|------|----------------|-------|
@@ -163,7 +167,9 @@ Returns **404** on wrong token (does not leak route existence).
 | `symbol_event_blocked` | bool | | |
 | `event_provider_status` | str | `"ok"` \| `"stale"` \| `"unavailable"` | |
 
-**Stale response** (symbol not yet in cache — pre-market or feed not connected):
+#### Stale response
+
+(symbol not yet in cache — pre-market or feed not connected)
 
 All numeric fields are `null`, all bool fields are `false`, `stale: true`.
 
@@ -183,13 +189,33 @@ All numeric fields are `null`, all bool fields are `false`, `stale: true`.
 | `OVERLAY_MAX_STALE_SECS` | ❌ | `3600` | Overlay age before `stale: true` (range 60–7200) |
 | `OVERLAY_MAX_SYMBOLS` | ❌ | `2000` | Hard cap on tracked symbols in bar cache (range 100–50 000) |
 | `OVERLAY_NEWS_CACHE_TTL_SECS` | ❌ | `600` | News snapshot cache TTL in seconds (range 60–3600) |
+| `NEWS_SNAPSHOT_URL` | ❌ | *(unset)* | Optional HTTPS URL for news snapshot; takes precedence over local path |
+| `NEWS_SNAPSHOT_URL_TOKEN` | ❌ | *(unset)* | Optional bearer token for `NEWS_SNAPSHOT_URL` |
+| `SIGNALS_SNAPSHOT_PATH` | ❌ | *(repo root)*`/artifacts/open_prep/latest/latest_realtime_signals.json` | Local realtime-signals snapshot path |
+| `SIGNALS_SNAPSHOT_URL` | ❌ | *(unset)* | Optional HTTPS URL for realtime-signals snapshot |
+| `SIGNALS_SNAPSHOT_URL_TOKEN` | ❌ | *(unset)* | Optional bearer token for `SIGNALS_SNAPSHOT_URL` |
+| `OVERLAY_SIGNALS_CACHE_TTL_SECS` | ❌ | `120` | Signals snapshot cache TTL in seconds (range 30–1800) |
+| `OVERLAY_SIGNALS_MAX_AGE_SECS` | ❌ | `480` | Age threshold after which signals snapshot is stale (range 60–7200) |
+| `EXPERIMENT_SNAPSHOT_PATH` | ❌ | *(repo root)*`/artifacts/ci/measurement_benchmark_rolling/latest/plan_2_8_tf_family_rollup.json` | Local daily experiment rollup snapshot |
+| `EXPERIMENT_SNAPSHOT_URL` | ❌ | *(unset)* | Optional HTTPS URL for daily experiment rollup snapshot |
+| `EXPERIMENT_SNAPSHOT_URL_TOKEN` | ❌ | *(unset)* | Optional bearer token for `EXPERIMENT_SNAPSHOT_URL` |
+| `EXPERIMENT_HISTORY_PATH` | ❌ | *(repo root)*`/artifacts/ci/measurement_benchmark_rolling/latest/plan_2_8_history.jsonl` | Local per-day experiment history JSONL |
+| `EXPERIMENT_HISTORY_URL` | ❌ | *(unset)* | Optional HTTPS URL for per-day experiment history JSONL |
+| `EXPERIMENT_HISTORY_URL_TOKEN` | ❌ | *(unset)* | Optional bearer token for `EXPERIMENT_HISTORY_URL` |
+| `OVERLAY_EXPERIMENT_CACHE_TTL_SECS` | ❌ | `900` | Experiment snapshot/history cache TTL in seconds (range 60–7200) |
+| `OVERLAY_EXPERIMENT_MAX_AGE_SECS` | ❌ | `129600` | Age threshold after which experiment snapshot is stale (range 3600–1209600) |
+| `OVERLAY_EXPERIMENT_HISTORY_MAX_DAYS` | ❌ | `30` | Max number of history days surfaced as metrics (range 1–366) |
+| `TRADINGVIEW_CREDENTIAL_SNAPSHOT_PATH` | ❌ | *(repo root)*`/artifacts/credential_health/latest/credential_health.json` | Local daily credential-health report (TradingView storage-state age probe) |
+| `TRADINGVIEW_CREDENTIAL_SNAPSHOT_URL` | ❌ | *(unset)* | Optional HTTPS URL for the credential-health report; takes precedence over local path |
+| `TRADINGVIEW_CREDENTIAL_SNAPSHOT_URL_TOKEN` | ❌ | *(unset)* | Optional bearer token for `TRADINGVIEW_CREDENTIAL_SNAPSHOT_URL` |
+| `OVERLAY_TRADINGVIEW_CREDENTIAL_CACHE_TTL_SECS` | ❌ | `3600` | Credential-health report cache TTL in seconds (range 60–86400) |
 | `OVERLAY_MAX_FEED_FAILURES` | ❌ | `50` | Circuit-breaker threshold for consecutive feed failures (range 1–1000) |
 | `UPTIMEROBOT_API_KEY` | ❌ | *(unset)* | Enables optional UptimeRobot API bridge metrics in `/metrics` |
 | `UPTIMEROBOT_MONITOR_IDS` | ❌ | *(all monitors)* | Comma-separated monitor IDs to include in bridge poll |
 | `UPTIMEROBOT_TIMEOUT_SECS` | ❌ | `5` | UptimeRobot API timeout in seconds (range 1–30) |
 | `UPTIMEROBOT_POLL_TTL_SECS` | ❌ | `30` | In-process cache TTL for UptimeRobot snapshot (range 5–300) |
 | `GITHUB_WORKFLOW_MONITOR_TOKEN` | ❌ | *(unset)* | Enables optional GitHub Actions workflow bridge metrics in `/metrics` |
-| `GITHUB_WORKFLOW_MONITOR_REPO` | ❌ | `skippALGO/skipp-algo` | Target repository in `owner/repo` format |
+| `GITHUB_WORKFLOW_MONITOR_REPO` | ❌ | `skippALGO/skipp-algo` | Target repository in `owner/repo` format (validated; invalid values fall back to default) |
 | `GITHUB_WORKFLOW_MONITOR_IDS` | ❌ | *(all workflows)* | Comma-separated workflow IDs to include |
 | `GITHUB_WORKFLOW_MONITOR_TIMEOUT_SECS` | ❌ | `5` | GitHub API timeout in seconds (range 1–30) |
 | `GITHUB_WORKFLOW_MONITOR_POLL_TTL_SECS` | ❌ | `30` | In-process cache TTL for workflow snapshot (range 5–300) |
@@ -207,10 +233,69 @@ All numeric fields are `null`, all bool fields are `false`, `stale: true`.
 - **`OVERLAY_REFRESH_SECS`** is clamped to `[10, 86400]` (10 s – 24 h).
 - **`OVERLAY_FLOW_REFRESH_SECS`** is clamped to `[5, 3600]` (5 s – 1 h).
 - **`OVERLAY_NEWS_CACHE_TTL_SECS`** is clamped to `[60, 3600]` (1 min – 1 h).
+- **`OVERLAY_SIGNALS_CACHE_TTL_SECS`** is clamped to `[30, 1800]`.
+- **`OVERLAY_SIGNALS_MAX_AGE_SECS`** is clamped to `[60, 7200]`.
+- **`OVERLAY_EXPERIMENT_CACHE_TTL_SECS`** is clamped to `[60, 7200]`.
+- **`OVERLAY_EXPERIMENT_MAX_AGE_SECS`** is clamped to `[3600, 1209600]`.
+- **`OVERLAY_EXPERIMENT_HISTORY_MAX_DAYS`** is clamped to `[1, 366]`.
 - **`OVERLAY_MAX_SYMBOLS`** is clamped to `[100, 50000]`.
 - **`OVERLAY_MAX_FEED_FAILURES`** is clamped to `[1, 1000]`.
 - Non-integer values for any `_optional_int` variable are logged at `WARNING`
   and fall back to the documented default.
+
+### Snapshot delivery & persistence
+
+Each snapshot loader (news, signals, experiment rollup/history, TradingView
+credential report) is
+**URL-first**: when the matching `*_SNAPSHOT_URL` is set it fetches the freshest
+payload over HTTPS and falls back to the local `*_SNAPSHOT_PATH` otherwise. The
+Docker image bakes a one-time news seed, so **without a `*_URL` the dashboard
+shows that stale seed**.
+
+- **HTTPS-only URL guard is centralized:** all runtime snapshot URL fetchers
+  share one validation path and reject non-HTTPS URLs with a consistent warning
+  (`<ENV_NAME> must be an https URL; ignoring ...`).
+
+- **News**, the **experiment rollup + history**, and the **TradingView
+  credential-age report** are published to rolling `bot/*` cache branches by CI
+  (`smc-live-newsapi-refresh.yml` → `bot/live-news-snapshot`;
+  `smc-measurement-benchmark-rolling.yml` → `bot/live-experiment-snapshot`;
+  `credential-health-check.yml` → `bot/live-tv-credential-snapshot`). Point the
+  matching `*_SNAPSHOT_URL` / `*_HISTORY_URL` at
+  `https://api.github.com/repos/skippALGO/skipp-algo/contents/<path>?ref=<bot-branch>`
+  with a fine-grained PAT (`Contents: Read`) in the `*_URL_TOKEN`.
+- **Realtime signals have no CI producer** — `latest_realtime_signals.json` is
+  written only by `open_prep/realtime_signals.py` on the live trading host. To
+  feed the hosted daemon, run
+  [`scripts/publish_signals_snapshot.py`](../../scripts/publish_signals_snapshot.py)
+  on that host (cron / after each engine cycle) with `GH_TOKEN` set to a PAT
+  that can push to `bot/*`; it updates `bot/live-signals-snapshot` via
+  `--force-with-lease` with branch-name validation (`--branch` cannot become a
+  git flag) and a race-safe first-publish lease
+  (`refs/heads/<branch>:0000000000000000000000000000000000000000`)
+  so concurrent branch creation cannot be clobbered silently. Then set
+  `SIGNALS_SNAPSHOT_URL=https://api.github.com/repos/skippALGO/skipp-algo/contents/artifacts/open_prep/latest/latest_realtime_signals.json?ref=bot/live-signals-snapshot`
+  and `SIGNALS_SNAPSHOT_URL_TOKEN` to a `Contents: Read` PAT, exactly like the
+  news snapshot.
+  On first publish, an absent remote branch is treated as expected; unexpected
+  `git fetch` failures (auth/network) are emitted as **redacted warnings** to
+  stderr before seeding an empty branch.
+
+- **GitHub Contents Accept header is now endpoint-scoped:** runtime snapshot
+  fetchers set `Accept: application/vnd.github.raw+json` only for true
+  GitHub Contents API URLs (`api.github.com/repos/.../contents/...`).
+  Authenticated non-GitHub URLs no longer receive GitHub-specific `Accept`
+  headers.
+- **Write-through persistence:** on every successful `*_URL` fetch the daemon
+  atomically writes the payload back to its `*_SNAPSHOT_PATH`
+  (exclusive temp file + `os.replace`). Temp filenames include
+  `pid.thread_id.time_ns` to avoid collisions under concurrent writers.
+  On Railway, mount a volume and set the `*_PATH`
+  vars to `/data/...` so a cold start reads the last-good copy instead of the
+  baked seed. The volume mounts as root and the image runs as a non-root
+  `appuser`, so set `RAILWAY_RUN_UID=0` to enable the write-through (it is
+  best-effort and never blocks serving fresh URL data). See
+  [OPS.md](OPS.md#snapshot-delivery--volume-persistence) for the exact commands.
 
 ---
 
@@ -265,7 +350,7 @@ curl "http://localhost:8000/mysecret/smc_live?symbol=NVDA&tf=5m"
 
 ### Telemetry architecture
 
-```
+```text
 observability.py (structured log lines + in-process counters)
         │
         ├── /metrics  → Prometheus scrape → Grafana dashboards + alerts
@@ -274,7 +359,9 @@ observability.py (structured log lines + in-process counters)
         └── stdout    → Railway Logs (human/debug) → optional log-drain
 ```
 
-**Metric names** (Prometheus-format via `/{token}/metrics`):
+#### Metric names
+
+(Prometheus-format via `/{token}/metrics`)
 
 | Metric | Type | Source |
 |--------|------|--------|
@@ -314,16 +401,44 @@ observability.py (structured log lines + in-process counters)
 | `live_overlay_feed_ingest_queue_lag_ms_max` | gauge | feed.py backpressure snapshot |
 | `live_overlay_provider_news_snapshot_loaded` | gauge | metrics.py news provider snapshot probe |
 | `live_overlay_provider_news_snapshot_age_seconds` | gauge | metrics.py news provider snapshot probe |
+| `live_overlay_provider_news_snapshot_age_known` | gauge | metrics.py news provider snapshot probe (`1=timestamp known`) |
 | `live_overlay_provider_news_providers_total` | gauge | metrics.py news provider snapshot probe |
 | `live_overlay_provider_news_providers_ok_total` | gauge | metrics.py news provider snapshot probe |
 | `live_overlay_provider_news_providers_degraded_total` | gauge | metrics.py news provider snapshot probe |
 | `live_overlay_provider_news_providers_unknown_total` | gauge | metrics.py news provider snapshot probe |
+| `live_overlay_provider_news_providers_disabled_total` | gauge | metrics.py news provider snapshot probe |
+| `live_overlay_provider_news_providers_consumed_total` | gauge | metrics.py news provider snapshot probe |
 | `live_overlay_provider_news_health_ok` | gauge | metrics.py news provider snapshot probe |
 | `live_overlay_provider_news_health_degraded` | gauge | metrics.py news provider snapshot probe |
 | `live_overlay_provider_news_health_unknown` | gauge | metrics.py news provider snapshot probe |
 | `live_overlay_provider_news_<provider>_ok` | gauge | metrics.py provider drill-down (`1=ok`) |
 | `live_overlay_provider_news_<provider>_degraded` | gauge | metrics.py provider drill-down (`1=degraded`) |
-| `live_overlay_provider_news_<provider>_state_code` | gauge | metrics.py provider drill-down (`0=unknown,1=degraded,2=ok`) |
+| `live_overlay_provider_news_<provider>_state_code` | gauge | metrics.py provider drill-down (`0=unknown,1=degraded,2=ok,3=disabled`) |
+| `live_overlay_provider_news_<provider>_consumed` | gauge | metrics.py provider drill-down (`1=consumed`, `0=excluded/disabled`) |
+| `live_overlay_provider_news_info{provider,state,reason,consumed}` | gauge | metrics.py labeled provider reason/state info series |
+| `live_overlay_trading_signals_loaded` | gauge | metrics.py signals snapshot probe |
+| `live_overlay_trading_signals_active_total` | gauge | metrics.py signals snapshot probe |
+| `live_overlay_trading_signals_a0_total` | gauge | metrics.py signals snapshot probe |
+| `live_overlay_trading_signals_a1_total` | gauge | metrics.py signals snapshot probe |
+| `live_overlay_trading_signals_watched_total` | gauge | metrics.py signals snapshot probe |
+| `live_overlay_trading_signals_snapshot_age_known` | gauge | metrics.py signals snapshot probe |
+| `live_overlay_trading_signals_snapshot_age_seconds` | gauge | metrics.py signals snapshot probe |
+| `live_overlay_trading_signals_snapshot_max_age_seconds` | gauge | metrics.py signals snapshot probe (configured staleness threshold) |
+| `live_overlay_trading_signals_snapshot_stale` | gauge | metrics.py signals snapshot probe (`1=stale`, `0=fresh/unknown`) |
+| `live_overlay_trading_signal_*` | gauge | metrics.py per-signal labeled series (`score`, `freshness`, `technical_score`, `change_pct`, `info`) |
+| `live_overlay_tradingview_credential_loaded` | gauge | metrics.py TradingView credential-health snapshot probe |
+| `live_overlay_tradingview_credential_valid` | gauge | metrics.py TradingView credential-health snapshot probe (`0=error severity`, `1=ok/warn`) |
+| `live_overlay_tradingview_credential_age_known` | gauge | metrics.py TradingView credential-health snapshot probe (`1=age_hours present`) |
+| `live_overlay_tradingview_credential_age_hours` | gauge | metrics.py TradingView credential-health snapshot probe (`tv_storage_state_age.details.age_hours`) |
+| `live_overlay_tradingview_credential_validated_at_seconds` | gauge | metrics.py TradingView credential-health snapshot probe (`tv_storage_state_age.details.validated_at`) |
+| `live_overlay_experiment_loaded` | gauge | metrics.py daily experiment snapshot probe |
+| `live_overlay_experiment_snapshot_age_known` | gauge | metrics.py daily experiment snapshot probe |
+| `live_overlay_experiment_snapshot_age_seconds` | gauge | metrics.py daily experiment snapshot probe |
+| `live_overlay_experiment_files_scanned` | gauge | metrics.py daily experiment snapshot probe |
+| `live_overlay_experiment_tf_*` | gauge | metrics.py per-timeframe experiment series (`hit_rate`, `n_events`) |
+| `live_overlay_experiment_family_*` | gauge | metrics.py per-family experiment series (`hit_rate`, `n_events`) |
+| `live_overlay_experiment_verdict_*` | gauge | metrics.py verdict series (`status_code`, `delta_hr`, `underpowered`, optional `p_value`) |
+| `live_overlay_experiment_day_family_*` | gauge | metrics.py per-day history timeline/backfill series (`hit_rate`, `n_events`) |
 | `live_overlay_uptimerobot_bridge_enabled` | gauge | uptimerobot_bridge.py |
 | `live_overlay_uptimerobot_scrape_success` | gauge | uptimerobot_bridge.py |
 | `live_overlay_uptimerobot_snapshot_age_seconds` | gauge | uptimerobot_bridge.py |
@@ -333,8 +448,17 @@ observability.py (structured log lines + in-process counters)
 | `live_overlay_github_workflow_scrape_success` | gauge | github_workflow_bridge.py |
 | `live_overlay_github_workflow_snapshot_age_seconds` | gauge | github_workflow_bridge.py |
 | `live_overlay_github_workflow_runs_*_total` | gauge | github_workflow_bridge.py |
-| `live_overlay_github_workflow_latest_run_*_seconds` | gauge | github_workflow_bridge.py |
-| `live_overlay_github_workflow_<id>_*` | gauge | github_workflow_bridge.py |
+| `live_overlay_github_workflow_latest_run_*_seconds` | gauge | github_workflow_bridge.py aggregate latest run age/duration |
+| `live_overlay_github_workflow_phase_code{workflow_id,workflow,event}` | gauge | metrics.py per-workflow timeline series |
+| `live_overlay_github_workflow_latest_success{workflow_id,workflow,event}` | gauge | metrics.py per-workflow latest success state |
+| `live_overlay_github_workflow_latest_age_seconds{workflow_id,workflow,event}` | gauge | metrics.py per-workflow latest run age |
+| `live_overlay_github_workflow_latest_duration_seconds{workflow_id,workflow,event}` | gauge | metrics.py per-workflow latest run duration |
+
+> Provider drill-down and trading-signal metric families intentionally use
+> dynamic metric names (for example `live_overlay_provider_news_<provider>_*`
+> and `live_overlay_trading_signal_*`). The Grafana dashboard queries these via
+> `__name__=~...` regex matchers so adding providers/signals does not require
+> panel rewrites.
 
 ### Alert rules (recommended)
 
@@ -348,7 +472,7 @@ observability.py (structured log lines + in-process counters)
 | `overlay_age_seconds > max_stale_secs` | high | Compute not running |
 | `overlay_symbols == 0` after 10 min | critical | No symbols computed |
 
-### Grafana dashboard layout (v12)
+### Grafana dashboard layout (v24)
 
 The dashboard `services/live_overlay_daemon/infra/grafana/dashboard.json`
 is organized into section rows to keep navigation fast during incidents:
@@ -356,6 +480,9 @@ is organized into section rows to keep navigation fast during incidents:
 - `External Integrations`
 - `SLO & Reliability`
 - `Provider Health`
+- `Workflow Timeline`
+- `Trading Signals`
+- `Daily Experiment`
 
 Operational UX additions:
 
@@ -389,7 +516,8 @@ All 16 overlay fields are exposed as named `plot()` series so other scripts can
 import them via `request.security()`. A dashboard table renders in the top-right
 corner (toggle off in indicator settings).
 
-**Usage:**
+### Usage
+
 1. Open Pine Script Editor in TradingView
 2. Paste `pine/smc_live_overlay_consumer.pine`
 3. Set `OVERLAY_SECRET_TOKEN` in the `Overlay Token` input
