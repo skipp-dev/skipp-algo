@@ -121,8 +121,8 @@ OS_DELETE_LEDGER: set[tuple[str, int, str]] = {
     # _load_outcomes_range +6 → 587.
     ("open_prep/outcomes.py", 587, "unlink"),
     ("open_prep/realtime_signals.py", 125, "remove"),
-    ("open_prep/realtime_signals.py", 2630, "unlink"),
-    ("open_prep/realtime_signals.py", 2669, "unlink"),
+  ("open_prep/realtime_signals.py", 2631, "unlink"),
+  ("open_prep/realtime_signals.py", 2670, "unlink"),
     # 2026-06-11 (eval-findings D7): technical_analysis import block +8
     # lines at L55 shifted all run_open_prep sites; enrichment-loop
     # real-ADX/BBW block added +15 more after L5491.
