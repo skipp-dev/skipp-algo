@@ -808,6 +808,36 @@ def render_metrics(startup_ts: float) -> str:
         "live_overlay_trading_signals_snapshot_age_seconds "
         f"{signals_snapshot['age_seconds']:.1f}"
     )
+    snapshot_max_age = float(config.signals_max_age_secs())
+    lines.append("# TYPE live_overlay_trading_signals_snapshot_max_age_seconds gauge")
+    lines.append(
+        "live_overlay_trading_signals_snapshot_max_age_seconds "
+        f"{snapshot_max_age:.1f}"
+    )
+    snapshot_stale = 1.0 if (
+        float(signals_snapshot["age_known"]) >= 1.0
+        and float(signals_snapshot["age_seconds"]) > snapshot_max_age
+    ) else 0.0
+    lines.append("# TYPE live_overlay_trading_signals_snapshot_stale gauge")
+    lines.append(
+        "live_overlay_trading_signals_snapshot_stale "
+        f"{snapshot_stale:.1f}"
+    )
+    snapshot_max_age = float(config.signals_max_age_secs())
+    lines.append("# TYPE live_overlay_trading_signals_snapshot_max_age_seconds gauge")
+    lines.append(
+        "live_overlay_trading_signals_snapshot_max_age_seconds "
+        f"{snapshot_max_age:.1f}"
+    )
+    snapshot_stale = 1.0 if (
+        float(signals_snapshot["age_known"]) >= 1.0
+        and float(signals_snapshot["age_seconds"]) > snapshot_max_age
+    ) else 0.0
+    lines.append("# TYPE live_overlay_trading_signals_snapshot_stale gauge")
+    lines.append(
+        "live_overlay_trading_signals_snapshot_stale "
+        f"{snapshot_stale:.1f}"
+    )
 
     signal_rows = signals_snapshot["signals"]
     if isinstance(signal_rows, list) and signal_rows:

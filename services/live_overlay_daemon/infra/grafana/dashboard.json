@@ -3523,7 +3523,7 @@
       "gridPos": { "h": 6, "w": 6, "x": 12, "y": 192 },
       "targets": [
         {
-          "expr": "live_overlay_trading_signals_snapshot_age_seconds{job=\"$job\"} and on() (live_overlay_trading_signals_snapshot_age_known{job=\"$job\"} == 1)",
+          "expr": "live_overlay_trading_signals_snapshot_age_seconds{job=\"$job\"} and on(job,instance) (live_overlay_trading_signals_snapshot_age_known{job=\"$job\"} == 1)",
           "instant": true,
           "refId": "A"
         }
