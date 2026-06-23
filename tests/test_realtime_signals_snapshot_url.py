@@ -267,3 +267,18 @@ def test_signals_route_accepts_correct_bearer_when_token_set(monkeypatch, tmp_pa
 
     assert handler.status == 200
     assert json.loads(handler.body) == {"signals": [{"symbol": "NVDA"}]}
+
+
+def test_signals_route_accepts_bearer_with_whitespace_and_case(monkeypatch, tmp_path) -> None:
+    """RFC 7230 tolerant parsing — case-insensitive scheme and trimmed token."""
+    monkeypatch.setenv("SIGNALS_INTERNAL_TOKEN", "s3cret")
+    signals_file = tmp_path / "latest_realtime_signals.json"
+    signals_file.write_text(json.dumps({"signals": [{"symbol": "NVDA"}]}), encoding="utf-8")
+    monkeypatch.setattr(rs, "SIGNALS_PATH", signals_file)
+
+    handler_cls = _build_handler(monkeypatch)
+    trailing_space = _invoke_get(handler_cls, "/signals", headers={"Authorization": "Bearer s3cret "})
+    lower_scheme = _invoke_get(handler_cls, "/signals", headers={"Authorization": "bearer s3cret"})
+
+    assert trailing_space.status == 200
+    assert lower_scheme.status == 200

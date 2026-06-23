@@ -707,7 +707,8 @@ def _start_telemetry_server(
             elif self.path in ("/signals.json", "/signals"):
                 if auth_token:
                     _hdr = self.headers.get("Authorization", "")
-                    _supplied = _hdr[7:] if _hdr.startswith("Bearer ") else ""
+                    _parts = _hdr.split(None, 1)
+                    _supplied = _parts[1].strip() if len(_parts) == 2 and _parts[0].lower() == "bearer" else ""
                     if not hmac.compare_digest(_supplied, auth_token):
                         self.send_response(401)
                         self.end_headers()
