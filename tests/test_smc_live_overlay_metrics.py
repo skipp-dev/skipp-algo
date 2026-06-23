@@ -782,6 +782,7 @@ def test_provider_health_snapshot_classifies_state_reason_and_consumed(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     """Disabled providers are excluded from health; degraded reasons are mapped."""
+    import services.live_overlay_daemon.compute as compute_mod
     import services.live_overlay_daemon.metrics as metrics_mod
 
     snapshot = {
@@ -797,6 +798,13 @@ def test_provider_health_snapshot_classifies_state_reason_and_consumed(
     snap_path = tmp_path / "smc_live_news_snapshot.json"
     snap_path.write_text(json.dumps(snapshot), encoding="utf-8")
     monkeypatch.setattr(metrics_mod.config, "news_snapshot_path", lambda: snap_path)
+    # Deterministic read: provider-health uses the shared compute loader which
+    # is TTL-cached process-wide. Reset it so this test does not inherit a
+    # prior snapshot from another case (testmon/shard order dependent).
+    monkeypatch.setattr(compute_mod.config, "news_snapshot_url", lambda: "")
+    monkeypatch.setattr(compute_mod, "_news_loaded_at", 0.0)
+    monkeypatch.setattr(compute_mod, "_news_checked_at", 0.0)
+    monkeypatch.setattr(compute_mod, "_news_cache", {})
 
     health = metrics_mod._provider_health_snapshot()
 
