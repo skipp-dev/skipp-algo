@@ -112,7 +112,7 @@ def publish(input_path: Path, branch: str, repo: str, token: str) -> int:
 
         dest = work / DEST_PATH
         dest.parent.mkdir(parents=True, exist_ok=True)
-        shutil.copyfile(input_path, dest)
+        dest.write_bytes(input_path.read_bytes())
 
         _git(["add", "-f", DEST_PATH], work)
         if not _git_diff_has_changes(work):
@@ -167,7 +167,9 @@ def main(argv: list[str] | None = None) -> int:
     )
     args = parser.parse_args(argv)
 
-    token = os.environ.get("GH_TOKEN") or os.environ.get("GITHUB_TOKEN") or ""
+    token = os.environ.get("GH_TOKEN", "")
+    if not token:
+        token = os.environ.get("GITHUB_TOKEN", "")
     if not token:
         print(
             "error: GH_TOKEN (or GITHUB_TOKEN) must be set with push rights to "
