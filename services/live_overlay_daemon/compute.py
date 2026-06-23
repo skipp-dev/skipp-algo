@@ -92,6 +92,23 @@ _experiment_history_checked_at: float = 0.0
 _experiment_lock = threading.Lock()
 _EXPERIMENT_USER_AGENT = "live-overlay-daemon-experiment/1"
 
+# ---------------------------------------------------------------------------
+# TradingView storage-state credential-age helpers
+# ---------------------------------------------------------------------------
+# The daily credential-health workflow (scripts/credential_health_check.py)
+# probes the TradingView Playwright storage-state and writes a report whose
+# ``tv_storage_state_age`` probe carries the credential ``age_hours`` versus the
+# 72h policy TTL. The daemon ingests that report (locally or, when
+# TRADINGVIEW_CREDENTIAL_SNAPSHOT_URL is set, over https) purely to surface the
+# credential age as Prometheus metrics for Grafana; it never logs in or mutates
+# the storage state.
+
+_tradingview_credential_cache: dict[str, Any] = {}
+_tradingview_credential_loaded_at: float = 0.0
+_tradingview_credential_checked_at: float = 0.0
+_tradingview_credential_lock = threading.Lock()
+_TRADINGVIEW_CREDENTIAL_USER_AGENT = "live-overlay-daemon-tv-credential/1"
+
 
 def _persist_snapshot(path: Path, text: str) -> None:
     """Atomically write a freshly-fetched snapshot to its local cache ``path``.
@@ -269,6 +286,106 @@ def _load_signals_snapshot() -> dict[str, Any]:
         return dict(_signals_cache)
 
 
+def _fetch_tradingview_credential_url(
+    url: str, token: str, timeout: float = 10.0
+) -> dict[str, Any] | None:
+    """Fetch the credential-health report JSON from ``url``.
+
+    Returns the parsed dict on success or ``None`` on any failure so the caller
+    can fall back to the local file. Only https URLs are honoured.
+    """
+    if not url.lower().startswith("https://"):
+        logger.warning(
+            "TRADINGVIEW_CREDENTIAL_SNAPSHOT_URL must be an https URL; ignoring %r",
+            url,
+        )
+        return None
+    headers = {
+        "Accept": "application/json",
+        "User-Agent": _TRADINGVIEW_CREDENTIAL_USER_AGENT,
+    }
+    if token:
+        headers["Authorization"] = f"Bearer {token}"
+        # Allows pointing the URL at the GitHub contents API raw endpoint.
+        headers["Accept"] = "application/vnd.github.raw+json"
+    req = urllib.request.Request(url, headers=headers)
+    try:
+        with urllib.request.urlopen(req, timeout=timeout) as resp:
+            payload = resp.read()
+        raw = json.loads(payload)
+    except (urllib.error.URLError, TimeoutError, ValueError, OSError):
+        logger.warning(
+            "Failed to fetch credential-health report from URL", exc_info=True
+        )
+        return None
+    return raw if isinstance(raw, dict) else None
+
+
+def _load_tradingview_credential_snapshot() -> dict[str, Any]:
+    """Return the latest credential-health report as a dict.
+
+    Mirrors :func:`_load_signals_snapshot`: a runtime
+    ``TRADINGVIEW_CREDENTIAL_SNAPSHOT_URL`` (when set) takes precedence,
+    otherwise the local ``tradingview_credential_snapshot_path`` file is read.
+    All reads are TTL-rate-limited so a missing/corrupt file cannot cause a
+    read/log storm. Returns ``{}`` when no report is available.
+    """
+    global _tradingview_credential_cache, _tradingview_credential_loaded_at, _tradingview_credential_checked_at
+    with _tradingview_credential_lock:
+        now = time.monotonic()
+        ttl = config.tradingview_credential_cache_ttl_secs()
+
+        # Happy path: a successful load within the TTL.
+        if (
+            _tradingview_credential_loaded_at > 0.0
+            and now - _tradingview_credential_loaded_at < ttl
+        ):
+            return dict(_tradingview_credential_cache)
+
+        # Rate-limit every read attempt (success or failure); keep
+        # _tradingview_credential_loaded_at for successful loads only so a
+        # report that appears after an earlier miss is still picked up once the
+        # window expires instead of being ignored for the full TTL.
+        if (
+            _tradingview_credential_checked_at > 0.0
+            and now - _tradingview_credential_checked_at < ttl
+        ):
+            return dict(_tradingview_credential_cache)
+
+        _tradingview_credential_checked_at = now
+
+        url = config.tradingview_credential_snapshot_url()
+        if url:
+            fetched = _fetch_tradingview_credential_url(
+                url, config.tradingview_credential_snapshot_url_token()
+            )
+            if fetched is not None:
+                _tradingview_credential_cache = fetched
+                _tradingview_credential_loaded_at = now
+                _persist_snapshot(
+                    config.tradingview_credential_snapshot_path(),
+                    json.dumps(fetched, separators=(",", ":")),
+                )
+                return dict(_tradingview_credential_cache)
+
+        path = config.tradingview_credential_snapshot_path()
+        if not path.exists():
+            _tradingview_credential_cache = {}
+            return {}
+        try:
+            raw = json.loads(path.read_text(encoding="utf-8"))
+            _tradingview_credential_cache = raw if isinstance(raw, dict) else {}
+            _tradingview_credential_loaded_at = now
+        except Exception:
+            logger.warning(
+                "Failed to load credential-health report from %s",
+                path,
+                exc_info=True,
+            )
+            _tradingview_credential_cache = {}
+        return dict(_tradingview_credential_cache)
+
+
 def _fetch_experiment_url(
     url: str, token: str, timeout: float = 10.0
 ) -> str | None:
@@ -283,7 +400,7 @@ def _fetch_experiment_url(
     headers = {"Accept": "application/json", "User-Agent": _EXPERIMENT_USER_AGENT}
     if token:
         headers["Authorization"] = f"Bearer {token}"
-        # Allows pointing the URL at the GitHub contents API raw endpoint.
+    if "api.github.com/repos/" in url and "/contents/" in url:
         headers["Accept"] = "application/vnd.github.raw+json"
     req = urllib.request.Request(url, headers=headers)
     try:

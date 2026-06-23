@@ -16,20 +16,23 @@ from services.live_overlay_daemon import compute
 
 
 @pytest.fixture(autouse=True)
-def _reset_loader_caches() -> None:
+def _reset_loader_caches(monkeypatch: pytest.MonkeyPatch) -> None:
     """Force every loader to perform a fresh fetch by clearing module caches."""
-    compute._news_cache = {}
-    compute._news_loaded_at = 0.0
-    compute._news_checked_at = 0.0
-    compute._signals_cache = {}
-    compute._signals_loaded_at = 0.0
-    compute._signals_checked_at = 0.0
-    compute._experiment_cache = {}
-    compute._experiment_loaded_at = 0.0
-    compute._experiment_checked_at = 0.0
-    compute._experiment_history_cache = []
-    compute._experiment_history_loaded_at = 0.0
-    compute._experiment_history_checked_at = 0.0
+    monkeypatch.setattr(compute, "_news_cache", {})
+    monkeypatch.setattr(compute, "_news_loaded_at", 0.0)
+    monkeypatch.setattr(compute, "_news_checked_at", 0.0)
+    monkeypatch.setattr(compute, "_signals_cache", {})
+    monkeypatch.setattr(compute, "_signals_loaded_at", 0.0)
+    monkeypatch.setattr(compute, "_signals_checked_at", 0.0)
+    monkeypatch.setattr(compute, "_experiment_cache", {})
+    monkeypatch.setattr(compute, "_experiment_loaded_at", 0.0)
+    monkeypatch.setattr(compute, "_experiment_checked_at", 0.0)
+    monkeypatch.setattr(compute, "_experiment_history_cache", [])
+    monkeypatch.setattr(compute, "_experiment_history_loaded_at", 0.0)
+    monkeypatch.setattr(compute, "_experiment_history_checked_at", 0.0)
+    monkeypatch.setattr(compute, "_tradingview_credential_cache", {})
+    monkeypatch.setattr(compute, "_tradingview_credential_loaded_at", 0.0)
+    monkeypatch.setattr(compute, "_tradingview_credential_checked_at", 0.0)
 
 
 def test_news_write_through(tmp_path, monkeypatch) -> None:
@@ -91,6 +94,53 @@ def test_experiment_snapshot_write_through(tmp_path, monkeypatch) -> None:
     assert dest.exists()
     # The raw body is persisted verbatim (no re-serialisation drift).
     assert dest.read_text(encoding="utf-8") == body
+
+
+def test_tradingview_credential_write_through(tmp_path, monkeypatch) -> None:
+    dest = tmp_path / "nested" / "credential_health.json"
+    payload = {
+        "schema_version": "1",
+        "overall_severity": "warn",
+        "probes": [
+            {
+                "name": "tv_storage_state_age",
+                "severity": "warn",
+                "message": "ageing",
+                "details": {"validated_at": "2026-06-20T00:00:00+00:00", "age_hours": 60.0},
+            }
+        ],
+    }
+    monkeypatch.setattr(
+        compute.config, "tradingview_credential_snapshot_url", lambda: "https://example.test/tv"
+    )
+    monkeypatch.setattr(compute.config, "tradingview_credential_snapshot_url_token", lambda: "")
+    monkeypatch.setattr(compute.config, "tradingview_credential_snapshot_path", lambda: dest)
+    monkeypatch.setattr(compute.config, "tradingview_credential_cache_ttl_secs", lambda: 3600)
+    monkeypatch.setattr(
+        compute, "_fetch_tradingview_credential_url", lambda url, token, **kw: dict(payload)
+    )
+
+    result = compute._load_tradingview_credential_snapshot()
+
+    assert result == payload
+    assert dest.exists()
+    assert json.loads(dest.read_text(encoding="utf-8")) == payload
+
+
+def test_tradingview_credential_no_write_through_on_fetch_failure(tmp_path, monkeypatch) -> None:
+    dest = tmp_path / "credential_health.json"
+    monkeypatch.setattr(
+        compute.config, "tradingview_credential_snapshot_url", lambda: "https://example.test/tv"
+    )
+    monkeypatch.setattr(compute.config, "tradingview_credential_snapshot_url_token", lambda: "")
+    monkeypatch.setattr(compute.config, "tradingview_credential_snapshot_path", lambda: dest)
+    monkeypatch.setattr(compute.config, "tradingview_credential_cache_ttl_secs", lambda: 3600)
+    monkeypatch.setattr(compute, "_fetch_tradingview_credential_url", lambda url, token, **kw: None)
+
+    result = compute._load_tradingview_credential_snapshot()
+
+    assert result == {}
+    assert not dest.exists()
 
 
 def test_experiment_history_write_through(tmp_path, monkeypatch) -> None:
