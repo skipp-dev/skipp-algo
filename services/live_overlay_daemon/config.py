@@ -11,6 +11,11 @@ Optional vars:
   OVERLAY_MAX_STALE_SECS      — threshold for marking payload stale, default 3600 (1 h)
   OVERLAY_ROLLING_BARS        — number of 1-min bars to keep per symbol, default 60
   NEWS_SNAPSHOT_PATH          — path to news snapshot JSON, default relative to repo root
+  NEWS_SNAPSHOT_URL           — optional https URL fetched at runtime; takes precedence
+                                over NEWS_SNAPSHOT_PATH and falls back to it (and the
+                                baked seed) on any fetch failure
+  NEWS_SNAPSHOT_URL_TOKEN     — optional bearer token for NEWS_SNAPSHOT_URL (e.g. a
+                                GitHub token for the private contents API raw endpoint)
   OVERLAY_MAX_FEED_FAILURES   — circuit-breaker threshold for feed failures, default 50
   PORT                        — HTTP port, default 8000
   LOG_LEVEL                   — uvicorn log level, default info
@@ -131,12 +136,196 @@ def news_snapshot_path() -> Path:
     return Path(raw)
 
 
+def news_snapshot_url() -> str:
+    """Optional https URL the daemon fetches the news snapshot from at runtime.
+
+    When set it takes precedence over :func:`news_snapshot_path`; on any fetch
+    failure the daemon falls back to the local path (and baked seed).
+    """
+    return _optional_str("NEWS_SNAPSHOT_URL", "")
+
+
+def news_snapshot_url_token() -> str:
+    """Optional bearer token sent when fetching :func:`news_snapshot_url`."""
+    return _optional_str("NEWS_SNAPSHOT_URL_TOKEN", "")
+
+
 def max_symbols() -> int:
     return _clamped_int("OVERLAY_MAX_SYMBOLS", 2000, 100, 50000)
 
 
 def news_cache_ttl_secs() -> int:
     return _clamped_int("OVERLAY_NEWS_CACHE_TTL_SECS", 600, 60, 3600)
+
+
+def signals_snapshot_path() -> Path:
+    raw = _optional_str(
+        "SIGNALS_SNAPSHOT_PATH",
+        str(
+            _REPO_ROOT
+            / "artifacts"
+            / "open_prep"
+            / "latest"
+            / "latest_realtime_signals.json"
+        ),
+    )
+    return Path(raw)
+
+
+def signals_snapshot_url() -> str:
+    """Optional https URL the daemon fetches realtime trading signals from.
+
+    When set it takes precedence over :func:`signals_snapshot_path`; on any
+    fetch failure the daemon falls back to the local path.
+    """
+    return _optional_str("SIGNALS_SNAPSHOT_URL", "")
+
+
+def signals_snapshot_url_token() -> str:
+    """Optional bearer token sent when fetching :func:`signals_snapshot_url`."""
+    return _optional_str("SIGNALS_SNAPSHOT_URL_TOKEN", "")
+
+
+def signals_cache_ttl_secs() -> int:
+    return _clamped_int("OVERLAY_SIGNALS_CACHE_TTL_SECS", 120, 30, 1800)
+
+
+def signals_max_age_secs() -> int:
+    """Age (s) beyond which the realtime signals snapshot is treated as stale."""
+    return _clamped_int("OVERLAY_SIGNALS_MAX_AGE_SECS", 480, 60, 7200)
+
+
+def experiment_snapshot_path() -> Path:
+    """Local path to the latest Plan 2.8 per-TF family rollup JSON.
+
+    Produced by ``scripts/plan_2_8_tf_family_rollup.py`` into the dated
+    ``artifacts/ci/measurement_benchmark_rolling/<date>/`` directory. The
+    default points at a stable ``latest`` convention; off-host daemons should
+    set :func:`experiment_snapshot_url` instead (the dated artifacts are not
+    present on the Railway filesystem).
+    """
+    raw = _optional_str(
+        "EXPERIMENT_SNAPSHOT_PATH",
+        str(
+            _REPO_ROOT
+            / "artifacts"
+            / "ci"
+            / "measurement_benchmark_rolling"
+            / "latest"
+            / "plan_2_8_tf_family_rollup.json"
+        ),
+    )
+    return Path(raw)
+
+
+def experiment_snapshot_url() -> str:
+    """Optional https URL the daemon fetches the daily family rollup from.
+
+    When set it takes precedence over :func:`experiment_snapshot_path`; on any
+    fetch failure the daemon falls back to the local path.
+    """
+    return _optional_str("EXPERIMENT_SNAPSHOT_URL", "")
+
+
+def experiment_snapshot_url_token() -> str:
+    """Optional bearer token sent when fetching :func:`experiment_snapshot_url`."""
+    return _optional_str("EXPERIMENT_SNAPSHOT_URL_TOKEN", "")
+
+
+def experiment_history_path() -> Path:
+    """Local path to the Plan 2.8 per-day history JSONL.
+
+    Produced by ``scripts/plan_2_8_history_archive.py`` (one compact snapshot
+    line per daily run). Used to backfill the per-day timeline panels.
+    """
+    raw = _optional_str(
+        "EXPERIMENT_HISTORY_PATH",
+        str(
+            _REPO_ROOT
+            / "artifacts"
+            / "ci"
+            / "measurement_benchmark_rolling"
+            / "latest"
+            / "plan_2_8_history.jsonl"
+        ),
+    )
+    return Path(raw)
+
+
+def experiment_history_url() -> str:
+    """Optional https URL the daemon fetches the per-day history JSONL from."""
+    return _optional_str("EXPERIMENT_HISTORY_URL", "")
+
+
+def experiment_history_url_token() -> str:
+    """Optional bearer token sent when fetching :func:`experiment_history_url`."""
+    return _optional_str("EXPERIMENT_HISTORY_URL_TOKEN", "")
+
+
+def experiment_cache_ttl_secs() -> int:
+    """How long the daemon caches the experiment rollup/history before reload."""
+    return _clamped_int("OVERLAY_EXPERIMENT_CACHE_TTL_SECS", 900, 60, 7200)
+
+
+def experiment_max_age_secs() -> int:
+    """Age (s) beyond which the daily experiment rollup is treated as stale.
+
+    The rolling benchmark runs roughly daily, so the default tolerates a
+    skipped run (~36h) before the snapshot-age panel turns red.
+    """
+    return _clamped_int("OVERLAY_EXPERIMENT_MAX_AGE_SECS", 129600, 3600, 1209600)
+
+
+def experiment_history_max_days() -> int:
+    """Cap on the number of per-day history snapshots surfaced as metrics."""
+    return _clamped_int("OVERLAY_EXPERIMENT_HISTORY_MAX_DAYS", 30, 1, 366)
+
+
+def tradingview_credential_snapshot_path() -> Path:
+    """Local path to the daily credential-health report JSON.
+
+    Produced by ``scripts/credential_health_check.py --output`` and published
+    by ``.github/workflows/credential-health-check.yml`` to a stable
+    ``latest`` convention. The daemon reads the ``tv_storage_state_age`` probe
+    from it to surface the TradingView storage-state credential age; off-host
+    daemons should set :func:`tradingview_credential_snapshot_url` instead (the
+    report is not present on the Railway filesystem).
+    """
+    raw = _optional_str(
+        "TRADINGVIEW_CREDENTIAL_SNAPSHOT_PATH",
+        str(
+            _REPO_ROOT
+            / "artifacts"
+            / "credential_health"
+            / "latest"
+            / "credential_health.json"
+        ),
+    )
+    return Path(raw)
+
+
+def tradingview_credential_snapshot_url() -> str:
+    """Optional https URL the daemon fetches the credential-health report from.
+
+    When set it takes precedence over
+    :func:`tradingview_credential_snapshot_path`; on any fetch failure the
+    daemon falls back to the local path.
+    """
+    return _optional_str("TRADINGVIEW_CREDENTIAL_SNAPSHOT_URL", "")
+
+
+def tradingview_credential_snapshot_url_token() -> str:
+    """Optional bearer token sent when fetching the credential snapshot URL."""
+    return _optional_str("TRADINGVIEW_CREDENTIAL_SNAPSHOT_URL_TOKEN", "")
+
+
+def tradingview_credential_cache_ttl_secs() -> int:
+    """How long the daemon caches the credential-health report before reload.
+
+    The report is refreshed at most once per day, so a 1h cache keeps load off
+    the producer URL while still picking up the daily refresh promptly.
+    """
+    return _clamped_int("OVERLAY_TRADINGVIEW_CREDENTIAL_CACHE_TTL_SECS", 3600, 60, 86400)
 
 
 def max_feed_failures() -> int:
@@ -195,13 +384,21 @@ def github_workflow_token() -> str:
     return _optional_str("GITHUB_WORKFLOW_MONITOR_TOKEN", "")
 
 
+_GITHUB_OWNER_RE = re.compile(r"^[A-Za-z0-9](?:[A-Za-z0-9-]{0,38})$")
+_GITHUB_REPO_RE = re.compile(r"^[A-Za-z0-9._-]{1,100}$")
+
+
 def github_workflow_repo() -> tuple[str, str]:
     """Repo target for GitHub workflow polling in owner/repo format."""
     raw = _optional_str("GITHUB_WORKFLOW_MONITOR_REPO", "skippALGO/skipp-algo")
     owner, sep, repo = raw.partition("/")
     owner = owner.strip()
     repo = repo.strip()
-    if sep != "/" or not owner or not repo:
+    if (
+        sep != "/"
+        or not _GITHUB_OWNER_RE.match(owner)
+        or not _GITHUB_REPO_RE.match(repo)
+    ):
         logger.warning(
             "GITHUB_WORKFLOW_MONITOR_REPO=%r invalid, falling back to skippALGO/skipp-algo",
             raw,

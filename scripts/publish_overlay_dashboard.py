@@ -1,10 +1,20 @@
 #!/usr/bin/env python3
 """Publish the live-overlay Grafana dashboard from repo to Grafana Cloud.
 
-The repo dashboard is currently stored in legacy Grafana v1 format (top-level
-``panels``). Both formats are supported: legacy v1 publishes via
-POST /api/dashboards/db, and v2 (apiVersion: dashboard.grafana.app/v2)
-publishes via POST /api/v1/dashboards (with /api/dashboards/db as fallback).
+The dashboard is stored in the repo in the classic Grafana model (top-level
+``panels`` / ``schemaVersion``). It is published through the Grafana App
+Platform API surface (Kubernetes-style), which carries that classic model
+unchanged inside ``spec`` (see ADR-0025):
+
+    GET  /apis/dashboard.grafana.app/v1/namespaces/<ns>/dashboards/<uid>
+    POST /apis/dashboard.grafana.app/v1/namespaces/<ns>/dashboards         # create
+    PUT  /apis/dashboard.grafana.app/v1/namespaces/<ns>/dashboards/<uid>   # update
+
+The existing ``resourceVersion`` is read before an update and echoed back so
+concurrent UI edits surface as HTTP 409 instead of being silently overwritten.
+Stacks without the App Platform API fall back to legacy POST /api/dashboards/db.
+The namespace is ``default`` on-prem; Grafana Cloud uses ``stacks-<stackId>``
+(override with ``--namespace``).
 
 Authentication uses CLI/env first and falls back to the macOS keychain entry
 ``skipp.grafana.api`` by default.
@@ -32,6 +42,8 @@ DEFAULT_DASHBOARD_PATH = Path("services/live_overlay_daemon/infra/grafana/dashbo
 DEFAULT_HOST = "bronzeporridge977.grafana.net"
 DEFAULT_KEYCHAIN_SERVICE = "skipp.grafana.api"
 DEFAULT_TOKEN_ENV = "GRAFANA_API_TOKEN"
+DEFAULT_NAMESPACE = "default"
+DEFAULT_FOLDER_UID = "cfpozahbhfzswc"
 
 
 def _is_v2_dashboard(data: dict[str, Any]) -> bool:
@@ -54,6 +66,16 @@ def _resolve_args(argv: list[str] | None = None) -> argparse.Namespace:
         help="Path to dashboard.json",
     )
     parser.add_argument("--host", default=DEFAULT_HOST, help="Grafana Cloud host")
+    parser.add_argument(
+        "--namespace",
+        default=DEFAULT_NAMESPACE,
+        help="App Platform namespace ('default' on-prem; 'stacks-<stackId>' on Grafana Cloud)",
+    )
+    parser.add_argument(
+        "--folder",
+        default=DEFAULT_FOLDER_UID,
+        help="Grafana folder uid stored as the grafana.app/folder annotation (empty to omit)",
+    )
     parser.add_argument("--token", default=None, help="Grafana API token (Bearer)")
     parser.add_argument(
         "--token-env",
@@ -171,49 +193,126 @@ def _get_token(
         ) from exc
 
 
-def _prepare_payload(data: dict[str, Any], message: str) -> dict[str, Any]:
-    """Return the payload expected by the /api/v1/dashboards endpoint.
+def _extract_spec_and_uid(data: dict[str, Any]) -> tuple[dict[str, Any], str]:
+    """Return ``(spec, uid)`` for both classic and App Platform inputs.
 
-    The repo file is already in the Kubernetes-style Dashboard format, but we
-    strip server-managed metadata that must not be sent on upsert and add the
-    standard change message annotation.
+    Option B keeps the classic dashboard model (top-level ``panels`` /
+    ``schemaVersion``) inside ``spec``; panels are never rewritten into the
+    v2alpha ``elements`` model (see ADR-0025).
     """
+    if _is_v2_dashboard(data):
+        spec = data["spec"]
+        uid = data.get("metadata", {}).get("name")
+        uid_source: str | None = "metadata.name"
+        if uid is None:
+            uid = spec.get("uid")
+            uid_source = "spec.uid"
+    else:
+        spec = data
+        uid = data.get("uid")
+        uid_source = "uid"
 
-    if not _is_v2_dashboard(data):
-        raise SystemExit("_prepare_payload expects a Grafana v2/Kubernetes dashboard object")
-    # The repo dashboard is maintained in Grafana API v2 shape and is sent as-is.
-    payload: dict[str, Any] = {
-        "apiVersion": data.get("apiVersion", "dashboard.grafana.app/v2"),
+    if uid is None:
+        uid = ""
+        uid_source = None
+
+    uid = str(uid).strip()
+    if not uid:
+        checked = f" (checked {uid_source})" if uid_source else ""
+        raise SystemExit(
+            f"Dashboard is missing a uid{checked}. "
+            "Expected classic top-level 'uid' or App Platform metadata.name."
+        )
+    return spec, uid
+
+
+def _prepare_payload(data: dict[str, Any], message: str, folder_uid: str | None) -> dict[str, Any]:
+    """Wrap the dashboard into a ``dashboard.grafana.app/v1`` App Platform resource.
+
+    The repo dashboard is stored in the classic Grafana model (top-level
+    ``panels`` / ``schemaVersion``). The v1 App Platform API carries that classic
+    model unchanged inside ``spec`` (see ADR-0025); only the API surface and the
+    resource envelope change. Server-managed metadata is intentionally omitted.
+    """
+    spec, uid = _extract_spec_and_uid(data)
+    annotations: dict[str, str] = {"grafana.app/message": message}
+    folder = folder_uid.strip() if folder_uid else ""
+    if folder:
+        annotations["grafana.app/folder"] = folder
+    return {
+        "apiVersion": "dashboard.grafana.app/v1",
         "kind": "Dashboard",
-        "metadata": {},
-        "spec": data["spec"],
+        "metadata": {"name": uid, "annotations": annotations},
+        "spec": spec,
     }
 
-    # Preserve only client-relevant metadata. Server-managed fields like
-    # resourceVersion, generation, creationTimestamp and uid are stripped.
-    meta = _meta if isinstance((_meta := data.get("metadata")), dict) else {}
-    for key in ("name", "annotations", "labels"):
-        if key in meta:
-            payload["metadata"][key] = meta[key]
 
-    # Record the change message; coerce null/non-dict annotations to a dict first.
-    _ann = payload["metadata"].get("annotations")
-    payload["metadata"]["annotations"] = {**(_ann if isinstance(_ann, dict) else {}), "grafana.app/message": message}
+def _prepare_legacy_payload(spec: dict[str, Any], message: str) -> dict[str, Any]:
+    """Return a payload for the legacy ``POST /api/dashboards/db`` fallback.
 
-    return payload
-
-
-def _prepare_legacy_payload(dashboard: dict[str, Any], message: str) -> dict[str, Any]:
-    """Return a payload for legacy POST /api/dashboards/db upsert.
-
-    Grafana Cloud stacks that do not expose /api/v1/dashboards can still accept
-    the v2 Dashboard object inside the legacy wrapper.
+    Used only when a stack does not expose the App Platform API. The classic
+    dashboard model lives directly under ``dashboard``.
     """
     return {
-        "dashboard": dashboard,
+        "dashboard": spec,
         "overwrite": True,
         "message": message,
     }
+
+
+def _apis_collection(host: str, namespace: str) -> str:
+    return f"https://{host}/apis/dashboard.grafana.app/v1/namespaces/{namespace}/dashboards"
+
+
+def _request_json(
+    url: str,
+    token: str,
+    *,
+    method: str,
+    payload: dict[str, Any] | None = None,
+) -> tuple[int, dict[str, Any]]:
+    """Issue a JSON request and return ``(status_code, parsed_body)``.
+
+    HTTP error status codes are returned (not raised) so callers can branch on
+    404/409; transport errors still raise ``SystemExit``.
+    """
+    data = None
+    if payload is not None:
+        data = json.dumps(payload, indent=2, ensure_ascii=False).encode("utf-8")
+    headers = {"Authorization": f"Bearer {token}", "Accept": "application/json"}
+    if data is not None:
+        headers["Content-Type"] = "application/json"
+    req = urllib.request.Request(url, data=data, method=method, headers=headers)
+    try:
+        with urllib.request.urlopen(req, timeout=60) as resp:
+            raw = resp.read().decode("utf-8")
+            return resp.status, (json.loads(raw) if raw else {})
+    except urllib.error.HTTPError as exc:
+        raw = exc.read().decode("utf-8", errors="replace")
+        try:
+            body = json.loads(raw) if raw else {}
+        except json.JSONDecodeError:
+            body = {"message": raw}
+        return exc.code, body
+    except urllib.error.URLError as exc:
+        raise SystemExit(f"Could not reach Grafana API: {exc}") from exc
+
+
+def _get_resource_version(host: str, token: str, namespace: str, uid: str) -> str | None:
+    """Return ``metadata.resourceVersion`` for an existing dashboard, or None (404)."""
+    status, body = _request_json(f"{_apis_collection(host, namespace)}/{uid}", token, method="GET")
+    if status == 404:
+        return None
+    if status >= 400:
+        raise SystemExit(f"Grafana API error {status} on GET dashboard: {body.get('message', body)}")
+    rv = body.get("metadata", {}).get("resourceVersion")
+    if rv is None:
+        raise SystemExit(
+            f"Grafana API returned 200 for dashboard {uid!r} but "
+            "`metadata.resourceVersion` is absent — cannot proceed with "
+            "optimistic-concurrency PUT (see ADR-0025)."
+        )
+    return str(rv)
 
 
 def _post(
@@ -221,45 +320,51 @@ def _post(
     token: str,
     payload: dict[str, Any],
     *,
+    namespace: str,
+    uid: str,
     message: str,
-    dashboard_format: str,
 ) -> tuple[dict[str, Any], str]:
-    if dashboard_format == "v2":
-        attempts: list[tuple[str, dict[str, Any]]] = [
-            ("/api/v1/dashboards", payload),
-            ("/api/dashboards/db", _prepare_legacy_payload(payload, message)),
-        ]
+    """Upsert via the App Platform API; fall back to legacy ``/api/dashboards/db``.
+
+    Optimistic concurrency: an existing ``resourceVersion`` is read first and
+    echoed on PUT, so concurrent UI edits surface as 409 instead of being
+    silently overwritten.
+    """
+    resource_version = _get_resource_version(host, token, namespace, uid)
+    if resource_version is None:
+        url, method = _apis_collection(host, namespace), "POST"
     else:
-        attempts = [
-            ("/api/dashboards/db", _prepare_legacy_payload(payload, message)),
-        ]
+        url, method = f"{_apis_collection(host, namespace)}/{uid}", "PUT"
+        payload = {**payload, "metadata": {**payload["metadata"], "resourceVersion": resource_version}}
 
-    for endpoint, endpoint_payload in attempts:
-        url = f"https://{host}{endpoint}"
-        body = json.dumps(endpoint_payload, indent=2, ensure_ascii=False).encode("utf-8")
-        req = urllib.request.Request(
-            url,
-            data=body,
-            method="POST",
-            headers={
-                "Authorization": f"Bearer {token}",
-                "Content-Type": "application/json",
-                "Accept": "application/json",
-            },
+    status, body = _request_json(url, token, method=method, payload=payload)
+    if status == 404:
+        # A 404 can mean the App Platform API group is absent (stack-level) or
+        # a wrong namespace / missing permissions (config error).  Probe the
+        # non-namespaced API-group base to distinguish the two cases.
+        probe_url = f"https://{host}/apis/dashboard.grafana.app/v1"
+        probe_status, _ = _request_json(probe_url, token, method="GET")
+        if probe_status != 404:
+            raise SystemExit(
+                f"Grafana App Platform returned 404 on {method} {url} but the "
+                f"API-group base is reachable (HTTP {probe_status}). "
+                "Check --namespace or API token permissions — "
+                "not falling back to legacy surface."
+            )
+        # App Platform truly absent: fall back to legacy upsert.
+        legacy = _prepare_legacy_payload(payload["spec"], message)
+        status, body = _request_json(f"https://{host}/api/dashboards/db", token, method="POST", payload=legacy)
+        if status >= 400:
+            raise SystemExit(f"Grafana API error {status} (legacy fallback): {body.get('message', body)}")
+        return body, f"POST https://{host}/api/dashboards/db"
+    if status == 409:
+        raise SystemExit(
+            "Grafana API 409 conflict: the dashboard changed in the UI since the last sync. "
+            "Re-run to pick up the new resourceVersion (optimistic concurrency)."
         )
-        try:
-            with urllib.request.urlopen(req, timeout=60) as resp:
-                return json.loads(resp.read().decode("utf-8")), endpoint
-        except urllib.error.HTTPError as exc:
-            # Fallback only when /api/v1/dashboards is unavailable.
-            if exc.code == 404 and endpoint == "/api/v1/dashboards":
-                continue
-            detail = exc.read().decode("utf-8", errors="replace")
-            raise SystemExit(f"Grafana API error {exc.code}: {detail}") from exc
-        except urllib.error.URLError as exc:
-            raise SystemExit(f"Could not reach Grafana API: {exc}") from exc
-
-    raise SystemExit("Grafana API error: no endpoint attempt succeeded")
+    if status >= 400:
+        raise SystemExit(f"Grafana API error {status} on {method}: {body.get('message', body)}")
+    return body, f"{method} {url}"
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -268,21 +373,24 @@ def main(argv: list[str] | None = None) -> int:
         args.dry_run = True
 
     data = _load_dashboard(args.dashboard_path)
-    is_v2 = _is_v2_dashboard(data)
-    dashboard_format = "v2" if is_v2 else "v1"
-    payload = _prepare_payload(data, args.message) if is_v2 else data
+    payload = _prepare_payload(data, args.message, args.folder)
+    uid = payload["metadata"]["name"]
+    collection = _apis_collection(args.host, args.namespace)
 
     if args.dry_run:
         summary = {
             "dry_run": True,
-            "dashboard_format": dashboard_format,
-            "endpoint_primary": f"https://{args.host}/api/v1/dashboards",
-            "endpoint_fallback": f"https://{args.host}/api/dashboards/db",
-            "apiVersion": payload.get("apiVersion", "n/a"),
-            "kind": payload.get("kind", "n/a"),
-            "dashboard_name": payload.get("metadata", {}).get("name", payload.get("uid", payload.get("title", "n/a"))),
-            "spec_elements": len(payload.get("spec", {}).get("elements", {})) if is_v2 else "n/a",
-            "panels": len(payload.get("panels", [])) if not is_v2 else "n/a",
+            "api_surface": "dashboard.grafana.app/v1",
+            "namespace": args.namespace,
+            "uid": uid,
+            "folder": args.folder or "n/a",
+            "endpoint_create": collection,
+            "endpoint_update": f"{collection}/{uid}",
+            "endpoint_legacy_fallback": f"https://{args.host}/api/dashboards/db",
+            "apiVersion": payload["apiVersion"],
+            "kind": payload["kind"],
+            "spec_panels": len(payload["spec"].get("panels", [])),
+            "schema_version": payload["spec"].get("schemaVersion", "n/a"),
             "message": args.message,
         }
         print("Dry-run: no network request sent.")
@@ -303,17 +411,17 @@ def main(argv: list[str] | None = None) -> int:
         args.host,
         token,
         payload,
+        namespace=args.namespace,
+        uid=uid,
         message=args.message,
-        dashboard_format=dashboard_format,
     )
     metadata = result.get("metadata", {})
     print(
         f"Published {args.dashboard_path} to {args.host}\n"
         f"  endpoint: {endpoint_used}\n"
-        f"  uid:      {metadata.get('uid', 'n/a')}\n"
-        f"  name:     {metadata.get('name', 'n/a')}\n"
+        f"  uid:      {metadata.get('name', uid)}\n"
         f"  version:  {metadata.get('resourceVersion', 'n/a')}\n"
-        f"  response: {result.get('status', 'ok')}"
+        f"  created:  {metadata.get('creationTimestamp', 'n/a')}"
     )
     return 0
 

@@ -16,7 +16,7 @@ Why pin sites (in addition to the existing kwarg-shape invariants):
   "is this new shell-out actually necessary?".
 
 Today the audited repository surface (production modules + explicitly
-included helper scripts) spawns external commands from exactly four
+included helper scripts) spawns external commands from exactly five
 locations:
 
 * ``smc_integration/release_policy.py:1121`` — read git HEAD SHA
@@ -28,6 +28,8 @@ locations:
   ``python -m open_prep.realtime_signals``).
 * ``scripts/publish_overlay_dashboard.py:151`` — query OS keychain
   for the Grafana API token (``security find-generic-password ...``).
+* ``scripts/publish_signals_snapshot.py:73`` — run explicit git argv
+    commands to publish the rolling live-signals snapshot branch.
 
 Defense-only — no production changes.
 """
@@ -37,7 +39,7 @@ from __future__ import annotations
 import ast
 from pathlib import Path
 
-from tests._guard_corpus import parse_module
+from tests._guard_corpus import iter_tracked_files, parse_module
 
 ROOT = Path(__file__).resolve().parents[1]
 
@@ -59,16 +61,13 @@ _DIR_EXCLUDE = {
 
 
 def _iter_py_files() -> list[Path]:
-    out: list[Path] = []
-    for path in ROOT.rglob("*.py"):
-        rel = path.relative_to(ROOT)
-        rel_posix = rel.as_posix()
-        if (
-            any(part in _DIR_EXCLUDE or part.startswith(".") for part in rel.parts)
-            and rel_posix != "scripts/publish_overlay_dashboard.py"
-        ):
-            continue
-        out.append(path)
+    out = iter_tracked_files("*.py", _DIR_EXCLUDE, root=ROOT)
+    publish_overlay = ROOT / "scripts/publish_overlay_dashboard.py"
+    publish_signals = ROOT / "scripts/publish_signals_snapshot.py"
+    if publish_overlay.is_file() and publish_overlay not in out:
+        out.append(publish_overlay)
+    if publish_signals.is_file() and publish_signals not in out:
+        out.append(publish_signals)
     return out
 
 
@@ -150,8 +149,12 @@ SUBPROCESS_RUN_LEDGER: set[tuple[str, int]] = {
     # branch-local realtime_signals layout.
     ("open_prep/realtime_signals.py", 190),
     # 2026-06-22: Grafana dashboard publish script keychain token lookup.
-    # Line shifted 135 -> 151 after v1/v2 routing support refactor.
-    ("scripts/publish_overlay_dashboard.py", 151),
+    # Line shifted 151 -> 173 after ADR-0025 App Platform (/apis
+    # dashboard.grafana.app/v1) migration added namespace/folder args above.
+    ("scripts/publish_overlay_dashboard.py", 173),
+    # 2026-06-23: host helper publishing latest realtime signals snapshot to
+    # rolling bot branch via explicit git argv subprocess calls.
+    ("scripts/publish_signals_snapshot.py", 73),
 }
 
 SUBPROCESS_POPEN_LEDGER: set[tuple[str, int]] = {

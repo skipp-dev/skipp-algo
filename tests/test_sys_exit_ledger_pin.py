@@ -29,7 +29,7 @@ from pathlib import Path
 
 import pytest
 
-from tests._guard_corpus import parse_module
+from tests._guard_corpus import iter_tracked_files, parse_module
 
 _REPO_ROOT = Path(__file__).resolve().parents[1]
 _DIR_EXCLUDE = frozenset({
@@ -63,13 +63,7 @@ _SYS_EXIT_LEDGER: frozenset[tuple[str, int]] = frozenset({
 
 
 def _iter_prod_py() -> list[Path]:
-    out: list[Path] = []
-    for p in sorted(_REPO_ROOT.rglob("*.py")):
-        rel_parts = p.relative_to(_REPO_ROOT).parts
-        if any(part in _DIR_EXCLUDE for part in rel_parts):
-            continue
-        out.append(p)
-    return out
+    return iter_tracked_files("*.py", _DIR_EXCLUDE, root=_REPO_ROOT)
 
 
 def _scan() -> tuple[set[tuple[str, int]], set[tuple[str, int, str]]]:
