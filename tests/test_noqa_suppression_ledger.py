@@ -187,6 +187,12 @@ _FROZEN_SITES: dict[str, int] = {
     # 2026-06-22: keychain hardening in publish script adds one
     # deliberate ``# noqa: S603`` on subprocess.run with fixed argv.
     "scripts/publish_overlay_dashboard.py": 1,
+    # 2026-06-23: host-run helper that force-updates the rolling
+    # bot/live-signals-snapshot branch so the hosted overlay daemon can fetch
+    # the realtime-signals snapshot via SIGNALS_SNAPSHOT_URL. All git calls go
+    # through one ``_git`` wrapper (git resolved via shutil.which, fixed argv,
+    # no shell), carrying a single S603 subprocess suppression.
+    "scripts/publish_signals_snapshot.py": 1,
     # 2026-05-12 PR #2157: Databento entitlement probe wraps each
     # provider request in a generic ``except Exception`` so it can
     # surface the original error message in the probe report. BLE001
