@@ -3,7 +3,7 @@
     "list": [
       {
         "name": "Deploys / Restarts",
-        "datasource": "grafanacloud-prom",
+        "datasource": {"type": "prometheus", "uid": "grafanacloud-prom"},
         "expr": "resets(live_overlay_uptime_seconds{job=\"$job\"}[1m]) > 0 or sum by (__name__) (increase({__name__=~\"live_overlay_daemon_restart_cause_.*_total\",job=\"$job\"}[1m])) > 0",
         "tagKeys": "",
         "textFormat": "restart/deploy",

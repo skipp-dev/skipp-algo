@@ -41,10 +41,11 @@ old one and update the table below.
 | 0022 | [Joint meta-label A/B executed — direction saturated; re-target tier-2 sizing to move-size](0022-meta-label-joint-ab-and-magnitude-retarget.md) | Proposed | 2026-06-05 | doc-only; executes ADR-0019's joint A/B (rejected on direction) and records the move-size re-targeting hypothesis — see [joint findings](../governance/adr0022_meta_label_joint_findings.md); tooling `governance/family_meta_label.py` + `scripts/run_meta_label_ab.py` |
 | 0023 | [Pre-register the tier-2 sizing gate move-size re-target](0023-tier-2-size-gate-magnitude-retarget.md) | Proposed | 2026-06-05 | doc-only; freezes the falsifiable acceptance bar (magnitude AUC + permutation-null resolution, additive `magnitude_resolution_floor` check) a separate real-data PR must clear before re-targeting tier-2 from direction-Brier — see [pending findings](../governance/adr0023_magnitude_retarget_findings.md) |
 | 0024 | [Allow `--force-with-lease` on `bot/*` snapshot branches](0024-force-with-lease-allowance-bot-snapshot-branches.md) | Accepted | 2026-06-10 | `tests/test_workflow_auth_pattern.py::test_workflow_force_push_is_allowlisted` (`_FORCE_LEASE_ALLOWLIST`) |
+| 0025 | [Grafana App Platform `dashboard.grafana.app/v1` publish surface (classic schema in `spec`)](0025-grafana-dashboard-apis-v1-surface-migration.md) | Accepted | 2026-06-22 | `scripts/publish_overlay_dashboard.py` + `tests/test_publish_overlay_dashboard.py` + `tests/test_live_overlay_dashboard_contract.py`; pin re-alignment per ADR-0009 |
 
 ## Reservation rule
 
-The next free ADR number is **0025**. To avoid concurrent-PR collisions:
+The next free ADR number is **0026**. To avoid concurrent-PR collisions:
 
 1. Reserve the next number by opening the PR with the file already named
    (e.g. `docs/adr/0008-foo.md`) before the rebase race window closes.
