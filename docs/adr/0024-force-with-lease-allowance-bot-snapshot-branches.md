@@ -91,13 +91,18 @@ Constraints that must hold for the allowance to remain valid:
   so the live-overlay daemon surfaces the cached-login age as a Grafana
   metric/panel before the 72h TTL expires.
 * The same pattern is applied outside CI by
-  `scripts/publish_signals_snapshot.py`, a host-run helper that force-updates
+  `scripts/publish_signals_snapshot.py`, a host-run helper that updates
   `bot/live-signals-snapshot` with `latest_realtime_signals.json` (which has
   no CI producer — it is written only by `open_prep/realtime_signals.py` on
   the live trading host). It uses the identical fetch-then-`--force-with-lease`
-  sequence against a `bot/*` cache branch. Because it runs outside a workflow
-  `run:` block it is not covered by `_FORCE_LEASE_ALLOWLIST`, but it honours
-  the same four constraints and pushes only to the `bot/*` namespace.
+  sequence against a `bot/*` cache branch, plus a race-safe first-publish
+  lease
+  (`refs/heads/<branch>:0000000000000000000000000000000000000000`) so a
+  concurrently created branch is never overwritten silently. Because it runs
+  outside a workflow `run:` block
+  it is not covered by `_FORCE_LEASE_ALLOWLIST`, but it honours the same four
+  constraints, validates branch names defensively, and pushes only to the
+  `bot/*` namespace.
 * A future `--force-with-lease` added outside `bot/*` or without a prior
   `git fetch` will be caught at PR time by the new allowlist test.
 * The policy statement "never `--force*`" is now accurate as *"never outside

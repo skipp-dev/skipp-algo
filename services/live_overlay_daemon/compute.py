@@ -40,6 +40,7 @@ import os
 import threading
 import time
 import urllib.error
+import urllib.parse
 import urllib.request
 from pathlib import Path
 from typing import Any
@@ -175,6 +176,7 @@ def _persist_snapshot(path: Path, text: str) -> None:
         )
         return
 
+    tmp: Path | None = None
     try:
         path.parent.mkdir(parents=True, exist_ok=True)
         tmp = path.parent / f"{path.name}.{os.getpid()}.{threading.get_ident()}.{time.time_ns()}.tmp"
@@ -184,9 +186,53 @@ def _persist_snapshot(path: Path, text: str) -> None:
             fh.flush()
             os.fsync(fh.fileno())
         os.replace(tmp, path)
+        tmp = None  # successfully renamed; nothing to clean up
     except OSError:
-        _cleanup_snapshot_tmp(locals().get("tmp"))
         logger.warning("Failed to persist snapshot to %s", path, exc_info=True)
+    finally:
+        if tmp is not None:
+            _cleanup_snapshot_tmp(tmp)
+
+
+def _is_github_contents_api_url(url: str) -> bool:
+    """Return True when ``url`` points to the GitHub Contents API endpoint."""
+    try:
+        parsed = urllib.parse.urlsplit(url)
+    except ValueError:
+        return False
+    host = parsed.netloc.lower()
+    path = parsed.path.lower()
+    return host == "api.github.com" and "/repos/" in path and "/contents/" in path
+
+
+def _fetch_json_snapshot_url(
+    url: str,
+    token: str,
+    *,
+    env_name: str,
+    user_agent: str,
+    timeout: float = 10.0,
+    error_message: str,
+) -> dict[str, Any] | None:
+    """Fetch and parse a JSON snapshot from https URL, returning None on failures."""
+    if not _validate_https_url(env_name, url):
+        return None
+    headers = {"Accept": "application/json", "User-Agent": user_agent}
+    if token:
+        headers["Authorization"] = f"Bearer {token}"
+    # Use GitHub raw JSON accept only when the URL actually points to the
+    # GitHub Contents API — not for every authenticated URL (audit F1).
+    if _is_github_contents_api_url(url):
+        headers["Accept"] = "application/vnd.github.raw+json"
+    req = urllib.request.Request(url, headers=headers)
+    try:
+        with urllib.request.urlopen(req, timeout=timeout) as resp:
+            payload = resp.read()
+        raw = json.loads(payload)
+    except (urllib.error.URLError, TimeoutError, ValueError, OSError):
+        logger.warning(error_message, exc_info=True)
+        return None
+    return raw if isinstance(raw, dict) else None
 
 
 def _fetch_news_url(url: str, token: str, timeout: float = 10.0) -> dict[str, Any] | None:
@@ -195,22 +241,14 @@ def _fetch_news_url(url: str, token: str, timeout: float = 10.0) -> dict[str, An
     can fall back to the local file (and baked seed). Only https URLs are
     honoured.
     """
-    if not _validate_https_url("NEWS_SNAPSHOT_URL", url):
-        return None
-    headers = {"Accept": "application/json", "User-Agent": _NEWS_USER_AGENT}
-    if token:
-        headers["Authorization"] = f"Bearer {token}"
-        # Allows pointing NEWS_SNAPSHOT_URL at the GitHub contents API.
-        headers["Accept"] = "application/vnd.github.raw+json"
-    req = urllib.request.Request(url, headers=headers)
-    try:
-        with urllib.request.urlopen(req, timeout=timeout) as resp:
-            payload = resp.read()
-        raw = json.loads(payload)
-    except (urllib.error.URLError, TimeoutError, ValueError, OSError):
-        logger.warning("Failed to fetch news snapshot from URL", exc_info=True)
-        return None
-    return raw if isinstance(raw, dict) else None
+    return _fetch_json_snapshot_url(
+        url,
+        token,
+        env_name="NEWS_SNAPSHOT_URL",
+        user_agent=_NEWS_USER_AGENT,
+        timeout=timeout,
+        error_message="Failed to fetch news snapshot from URL",
+    )
 
 
 def _load_news_snapshot() -> dict[str, Any]:
@@ -269,22 +307,14 @@ def _fetch_signals_url(
     Returns the parsed dict on success or ``None`` on any failure so the caller
     can fall back to the local file. Only https URLs are honoured.
     """
-    if not _validate_https_url("SIGNALS_SNAPSHOT_URL", url):
-        return None
-    headers = {"Accept": "application/json", "User-Agent": _SIGNALS_USER_AGENT}
-    if token:
-        headers["Authorization"] = f"Bearer {token}"
-        # Allows pointing SIGNALS_SNAPSHOT_URL at the GitHub contents API.
-        headers["Accept"] = "application/vnd.github.raw+json"
-    req = urllib.request.Request(url, headers=headers)
-    try:
-        with urllib.request.urlopen(req, timeout=timeout) as resp:
-            payload = resp.read()
-        raw = json.loads(payload)
-    except (urllib.error.URLError, TimeoutError, ValueError, OSError):
-        logger.warning("Failed to fetch signals snapshot from URL", exc_info=True)
-        return None
-    return raw if isinstance(raw, dict) else None
+    return _fetch_json_snapshot_url(
+        url,
+        token,
+        env_name="SIGNALS_SNAPSHOT_URL",
+        user_agent=_SIGNALS_USER_AGENT,
+        timeout=timeout,
+        error_message="Failed to fetch signals snapshot from URL",
+    )
 
 
 def _load_signals_snapshot() -> dict[str, Any]:
@@ -349,27 +379,14 @@ def _fetch_tradingview_credential_url(
     Returns the parsed dict on success or ``None`` on any failure so the caller
     can fall back to the local file. Only https URLs are honoured.
     """
-    if not _validate_https_url("TRADINGVIEW_CREDENTIAL_SNAPSHOT_URL", url):
-        return None
-    headers = {
-        "Accept": "application/json",
-        "User-Agent": _TRADINGVIEW_CREDENTIAL_USER_AGENT,
-    }
-    if token:
-        headers["Authorization"] = f"Bearer {token}"
-        # Allows pointing the URL at the GitHub contents API raw endpoint.
-        headers["Accept"] = "application/vnd.github.raw+json"
-    req = urllib.request.Request(url, headers=headers)
-    try:
-        with urllib.request.urlopen(req, timeout=timeout) as resp:
-            payload = resp.read()
-        raw = json.loads(payload)
-    except (urllib.error.URLError, TimeoutError, ValueError, OSError):
-        logger.warning(
-            "Failed to fetch credential-health report from URL", exc_info=True
-        )
-        return None
-    return raw if isinstance(raw, dict) else None
+    return _fetch_json_snapshot_url(
+        url,
+        token,
+        env_name="TRADINGVIEW_CREDENTIAL_SNAPSHOT_URL",
+        user_agent=_TRADINGVIEW_CREDENTIAL_USER_AGENT,
+        timeout=timeout,
+        error_message="Failed to fetch credential-health report from URL",
+    )
 
 
 def _load_tradingview_credential_snapshot() -> dict[str, Any]:
@@ -450,7 +467,7 @@ def _fetch_experiment_url(
     headers = {"Accept": "application/json", "User-Agent": _EXPERIMENT_USER_AGENT}
     if token:
         headers["Authorization"] = f"Bearer {token}"
-    if "api.github.com/repos/" in url and "/contents/" in url:
+    if _is_github_contents_api_url(url):
         headers["Accept"] = "application/vnd.github.raw+json"
     req = urllib.request.Request(url, headers=headers)
     try:

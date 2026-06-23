@@ -178,3 +178,61 @@ def test_experiment_history_write_through(tmp_path, monkeypatch) -> None:
     assert len(result) == 2
     assert dest.exists()
     assert dest.read_text(encoding="utf-8") == body
+
+
+def test_fetch_experiment_url_uses_raw_accept_for_github_contents_api(monkeypatch) -> None:
+    captured_headers: dict[str, str] = {}
+
+    class _Resp:
+        def __enter__(self):
+            return self
+
+        def __exit__(self, exc_type, exc, tb) -> None:
+            return None
+
+        def read(self) -> bytes:
+            return b'{"ok": true}'
+
+    def _fake_urlopen(req, timeout=10.0):
+        del timeout
+        captured_headers.update(req.headers)
+        return _Resp()
+
+    monkeypatch.setattr(compute.urllib.request, "urlopen", _fake_urlopen)
+
+    body = compute._fetch_experiment_url(
+        "https://API.GITHUB.COM/repos/skippALGO/skipp-algo/contents/artifacts/rollup.json",
+        "",
+    )
+
+    assert body == '{"ok": true}'
+    assert captured_headers.get("Accept") == "application/vnd.github.raw+json"
+
+
+def test_fetch_experiment_url_does_not_match_query_string_substrings(monkeypatch) -> None:
+    captured_headers: dict[str, str] = {}
+
+    class _Resp:
+        def __enter__(self):
+            return self
+
+        def __exit__(self, exc_type, exc, tb) -> None:
+            return None
+
+        def read(self) -> bytes:
+            return b'{"ok": true}'
+
+    def _fake_urlopen(req, timeout=10.0):
+        del timeout
+        captured_headers.update(req.headers)
+        return _Resp()
+
+    monkeypatch.setattr(compute.urllib.request, "urlopen", _fake_urlopen)
+
+    body = compute._fetch_experiment_url(
+        "https://example.test/rollup.json?next=api.github.com/repos/skippALGO/skipp-algo/contents/x",
+        "",
+    )
+
+    assert body == '{"ok": true}'
+    assert captured_headers.get("Accept") == "application/json"

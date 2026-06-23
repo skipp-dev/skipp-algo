@@ -81,15 +81,56 @@ def _redact_token(text: str, token: str) -> str:
     return text.replace(token, "***")
 
 
+def _is_valid_owner_repo(repo: str) -> bool:
+    """Return True iff ``repo`` is a valid ``owner/name`` GitHub identifier."""
+    owner, sep, name = repo.partition("/")
+    if sep != "/" or not owner or not name:
+        return False
+    if len(owner) > 39 or len(name) > 100:
+        return False
+    if not owner[0].isalnum():
+        return False
+    if not all(ch.isalnum() or ch == "-" for ch in owner):
+        return False
+    return all(ch.isalnum() or ch in "._-" for ch in name)
+
+
+def _is_valid_branch(name: str) -> bool:
+    """Return True iff ``name`` is a safe git branch name.
+
+    Rejects names that start with ``-`` (would be parsed as a git flag),
+    contain control characters, or violate basic git ref rules.
+    """
+    if not name or name.startswith("-"):
+        return False
+    if ".." in name or name.endswith(".") or name.endswith("/"):
+        return False
+    if any(ch in name for ch in "~^:\\ \t"):
+        return False
+    return True
+
+
 def _git_diff_has_changes(cwd: Path) -> bool:
     """Return True when there are staged changes to commit."""
-    return _git(["diff", "--cached", "--quiet"], cwd, check=False).returncode != 0
+    result = _git(["diff", "--cached", "--quiet"], cwd, check=False)
+    # returncode 1 = differences found; >1 = git error (not-a-repo, etc.)
+    if result.returncode > 1:
+        raise subprocess.CalledProcessError(
+            result.returncode, result.args, result.stdout, result.stderr
+        )
+    return result.returncode == 1
 
 
 def publish(input_path: Path, branch: str, repo: str, token: str) -> int:
     """Publish ``input_path`` to ``branch`` on ``repo``. Returns an exit code."""
     if not input_path.is_file():
         print(f"error: signals snapshot not found: {input_path}", file=sys.stderr)
+        return 1
+    if not _is_valid_owner_repo(repo):
+        print(f"error: repo must be owner/name with valid characters, got {repo!r}", file=sys.stderr)
+        return 1
+    if not _is_valid_branch(branch):
+        print(f"error: invalid branch name: {branch!r}", file=sys.stderr)
         return 1
 
     remote = f"https://x-access-token:{token}@github.com/{repo}.git"
@@ -141,10 +182,14 @@ def publish(input_path: Path, branch: str, repo: str, token: str) -> int:
                 f"HEAD:refs/heads/{branch}",
             ]
         else:
-            # First publish: no remote branch tip exists to lease against yet.
+            # First publish: use an all-zeros expected SHA so the push only
+            # succeeds if the remote branch genuinely does not exist yet.
+            # This prevents silently clobbering a branch created between our
+            # fetch and push (race window on concurrent first-publishes).
+            _ZERO_SHA = "0" * 40
             push_args = [
                 "push",
-                "--force",
+                f"--force-with-lease=refs/heads/{branch}:{_ZERO_SHA}",
                 "origin",
                 f"HEAD:refs/heads/{branch}",
             ]

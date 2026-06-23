@@ -479,11 +479,14 @@ jobs:
           [ -s "${history}" ] && cp "${history}" "${stable_dir}/plan_2_8_history.jsonl"
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git remote set-url origin "https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git"
+          # Pass the authenticated URL directly to each git command instead of
+          # persisting it via `git remote set-url`, which would leave the token
+          # readable in .git/config for the rest of the job (audit F3).
+          _remote_url="https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git"
           # `latest/` lives under the gitignored artifacts/ tree, so `-f` is
           # required to stage it. Adding the directory tolerates either file
           # being absent on a partial run.
-          git add --sparse -f "${stable_dir}"
+          git add -f "${stable_dir}"
           if git diff --cached --quiet; then
             echo "No experiment snapshot changes to commit."
             exit 0
@@ -491,10 +494,10 @@ jobs:
           git commit -m "[skip ci] chore: refresh experiment snapshot"
           # Fetch the remote tip first so --force-with-lease has a real base
           # to compare against; tolerate the branch not yet existing.
-          git fetch origin "+refs/heads/bot/live-experiment-snapshot:refs/remotes/origin/bot/live-experiment-snapshot" 2>/dev/null || true
+          git fetch "${_remote_url}" "+refs/heads/bot/live-experiment-snapshot:refs/remotes/origin/bot/live-experiment-snapshot" 2>/dev/null || true
           # `if git push` form (fail-loud) is what tests/test_workflow_auth_pattern.py
           # expects; a real push failure surfaces red instead of a swallowed warning.
-          if git push --force-with-lease=refs/heads/bot/live-experiment-snapshot origin "HEAD:refs/heads/bot/live-experiment-snapshot"; then
+          if git push --force-with-lease=refs/heads/bot/live-experiment-snapshot "${_remote_url}" "HEAD:refs/heads/bot/live-experiment-snapshot"; then
             echo "Pushed experiment snapshot to bot/live-experiment-snapshot."
           else
             echo "::warning::experiment snapshot push failed; the benchmark artifact bundle remains available, but bot/live-experiment-snapshot may be stale and the Grafana experiment panels can lag until the next daily run."

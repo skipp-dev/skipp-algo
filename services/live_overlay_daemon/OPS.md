@@ -210,7 +210,11 @@ The `*_URL` form is `https://api.github.com/repos/skippALGO/skipp-algo/contents/
 written only by `open_prep/realtime_signals.py` on the live trading host. Run
 [`scripts/publish_signals_snapshot.py`](../../scripts/publish_signals_snapshot.py)
 on that host (cron / after each engine cycle) with `GH_TOKEN` set to a PAT that
-can push to `bot/*`; it force-updates `bot/live-signals-snapshot`, after which
+can push to `bot/*`; it publishes to `bot/live-signals-snapshot` using
+`--force-with-lease` semantics, including a race-safe first-publish guard with
+an all-zeros expected SHA
+(`refs/heads/<branch>:0000000000000000000000000000000000000000`) and strict branch-name
+validation to avoid option-injection via `--branch`. After publish,
 `SIGNALS_SNAPSHOT_URL` works exactly like the news/experiment URLs:
 
 ```bash
@@ -232,6 +236,10 @@ unchanged), so over-scheduling only wastes a no-op run.
 If the initial remote fetch fails for reasons other than the expected
 "remote ref not found" first-publish case, the helper emits a redacted warning
 to stderr before creating/seeding the local branch.
+
+Runtime URL fetchers in `compute.py` also scope the GitHub raw `Accept` header
+to actual GitHub Contents API URLs only, avoiding GitHub-specific headers on
+authenticated non-GitHub snapshot endpoints.
 
 **Write-through persistence (Railway volume).** On every successful `*_URL`
 fetch the daemon atomically writes the payload back to its `*_SNAPSHOT_PATH`

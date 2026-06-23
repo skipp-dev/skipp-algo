@@ -178,29 +178,15 @@ _FROZEN_URLOPEN_SITES: frozenset[tuple[str, int]] = frozenset(
         # Line shifted 251 -> 287 after ADR-0025 App Platform (/apis
         # dashboard.grafana.app/v1) migration; urlopen now in shared _request_json.
         ("scripts/publish_overlay_dashboard.py", 287),
-        # 2026-06-23: live-overlay daemon runtime snapshot fetchers in
-        # compute.py (NEWS_SNAPSHOT_URL, SIGNALS_SNAPSHOT_URL,
-        # EXPERIMENT_*_URL) are all https-only with explicit timeout and
-        # local fallback behavior.
-        # Lines shift as sibling loaders are added above.
-        # 2026-06-23 (delivery-gap write-through): _persist_snapshot helper +
-        # loader write-through calls shifted these 111/182/259 -> 134/209/290.
-        # 2026-06-23 (TV credential-age): _fetch_tradingview_credential_url adds
-        # a 4th site and shifts the experiment fetch 290 -> 407.
-        # 2026-06-23 (Copilot/E702 follow-up): semicolon split + logging
-        # formatting in _persist_snapshot shifted these +3 -> 154/229/316/410.
-        # 2026-06-23 (audit #2909 F3): centralized _validate_https_url helper
-        # added above the fetchers shifted these -> 166/240/323/416.
-        # 2026-06-23 (audit follow-up): snapshot persist size-limit helper and
-        # checks shifted these to 207/281/364/457.
-        ("services/live_overlay_daemon/compute.py", 207),
-        ("services/live_overlay_daemon/compute.py", 281),
-        # 2026-06-23 (TV credential-age): credential-health report runtime fetch
-        # (TRADINGVIEW_CREDENTIAL_SNAPSHOT_URL, https-only) with local fallback.
-        ("services/live_overlay_daemon/compute.py", 364),
-        # 2026-06-23: daily experiment rollup/history runtime fetch
-        # (EXPERIMENT_SNAPSHOT_URL / EXPERIMENT_HISTORY_URL, https-only).
-        ("services/live_overlay_daemon/compute.py", 457),
+        # 2026-06-23 (audit follow-up F2/F3): NEWS/SIGNALS/TRADINGVIEW JSON
+        # fetchers delegate into one shared helper (_fetch_json_snapshot_url),
+        # reducing four urlopen sites to two while preserving timeout discipline.
+        # Remaining compute.py urlopen sites:
+        #   * shared JSON helper for runtime snapshots (https-only)
+        #   * experiment text fetcher (rollup/history) with GitHub-contents
+        #     Accept-header hardening via parsed URL checks.
+        ("services/live_overlay_daemon/compute.py", 229),
+        ("services/live_overlay_daemon/compute.py", 474),
     }
 )
 

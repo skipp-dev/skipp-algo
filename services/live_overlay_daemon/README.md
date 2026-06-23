@@ -269,14 +269,23 @@ shows that stale seed**.
   feed the hosted daemon, run
   [`scripts/publish_signals_snapshot.py`](../../scripts/publish_signals_snapshot.py)
   on that host (cron / after each engine cycle) with `GH_TOKEN` set to a PAT
-  that can push to `bot/*`; it force-updates `bot/live-signals-snapshot` with
-  the latest snapshot. Then set
+  that can push to `bot/*`; it updates `bot/live-signals-snapshot` via
+  `--force-with-lease` with branch-name validation (`--branch` cannot become a
+  git flag) and a race-safe first-publish lease
+  (`refs/heads/<branch>:0000000000000000000000000000000000000000`)
+  so concurrent branch creation cannot be clobbered silently. Then set
   `SIGNALS_SNAPSHOT_URL=https://api.github.com/repos/skippALGO/skipp-algo/contents/artifacts/open_prep/latest/latest_realtime_signals.json?ref=bot/live-signals-snapshot`
   and `SIGNALS_SNAPSHOT_URL_TOKEN` to a `Contents: Read` PAT, exactly like the
   news snapshot.
   On first publish, an absent remote branch is treated as expected; unexpected
   `git fetch` failures (auth/network) are emitted as **redacted warnings** to
   stderr before seeding an empty branch.
+
+- **GitHub Contents Accept header is now endpoint-scoped:** runtime snapshot
+  fetchers set `Accept: application/vnd.github.raw+json` only for true
+  GitHub Contents API URLs (`api.github.com/repos/.../contents/...`).
+  Authenticated non-GitHub URLs no longer receive GitHub-specific `Accept`
+  headers.
 - **Write-through persistence:** on every successful `*_URL` fetch the daemon
   atomically writes the payload back to its `*_SNAPSHOT_PATH`
   (exclusive temp file + `os.replace`). Temp filenames include
