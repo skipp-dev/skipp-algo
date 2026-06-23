@@ -213,6 +213,18 @@ can push to `bot/*`; it force-updates `bot/live-signals-snapshot`, after which
 GH_TOKEN=<push-pat> .venv/bin/python3.12 scripts/publish_signals_snapshot.py
 ```
 
+Run it as a **separate, scheduled sync job** (decoupled from
+`open_prep/realtime_signals.py`) so a delivery hiccup never blocks the trading
+engine. A 2-minute `cron` entry on the live host is enough:
+
+```cron
+# /etc/cron.d/skipp-signals-snapshot  (live trading host)
+*/2 * * * * appuser cd /opt/skipp-algo && GH_TOKEN=<push-pat> .venv/bin/python3.12 scripts/publish_signals_snapshot.py >> /var/log/skipp/signals_snapshot.log 2>&1
+```
+
+The script is idempotent (it exits `0` without a push when the snapshot is
+unchanged), so over-scheduling only wastes a no-op run.
+
 **Write-through persistence (Railway volume).** On every successful `*_URL`
 fetch the daemon atomically writes the payload back to its `*_SNAPSHOT_PATH`
 (`tempfile` + `os.replace`). Mount a Railway volume and point the `*_PATH`
