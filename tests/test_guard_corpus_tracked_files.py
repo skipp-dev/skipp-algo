@@ -61,6 +61,9 @@ def test_iter_tracked_files_matches_git_ls_files_inventory() -> None:
 
 def test_iter_tracked_files_excludes_untracked_root_scratch_file() -> None:
     root = repo_root()
+    if shutil.which("git") is None:
+        pytest.skip("git unavailable; tracked-file exclusion requires git ls-files")
+
     scratch = root / "__scratch_guard_scan_regression__.py"
     scratch.write_text(
         "import subprocess\nsubprocess.run('echo hi', shell=True)\nprint('hi')\n",
@@ -68,15 +71,9 @@ def test_iter_tracked_files_excludes_untracked_root_scratch_file() -> None:
     )
     try:
         observed = set(iter_tracked_files("*.py", frozenset(), root=root))
-        if shutil.which("git") is None:
-            assert scratch in observed, (
-                "Without git, iter_tracked_files falls back to filesystem walk; "
-                "untracked root files are therefore expected in the inventory."
-            )
-        else:
-            assert scratch not in observed, (
-                "iter_tracked_files must not include untracked root scratch files; "
-                "otherwise hygiene ledgers can false-fail."
-            )
+        assert scratch not in observed, (
+            "iter_tracked_files must not include untracked root scratch files; "
+            "otherwise hygiene ledgers can false-fail."
+        )
     finally:
         scratch.unlink(missing_ok=True)
