@@ -105,9 +105,7 @@ def _is_valid_branch(name: str) -> bool:
         return False
     if ".." in name or name.endswith(".") or name.endswith("/"):
         return False
-    if any(ch in name for ch in "~^:\\ \t"):
-        return False
-    return True
+    return not any(ch in name for ch in "~^:\\ \t")
 
 
 def _git_diff_has_changes(cwd: Path) -> bool:
