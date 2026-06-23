@@ -56,6 +56,21 @@ _news_checked_at: float = 0.0
 _news_lock = threading.Lock()
 _NEWS_USER_AGENT = "live-overlay-daemon-news/1"
 
+# ---------------------------------------------------------------------------
+# Realtime trading-signals snapshot helpers
+# ---------------------------------------------------------------------------
+# The realtime engine (open_prep/realtime_signals.py) writes its active A0/A1
+# breakout signals to ``artifacts/open_prep/latest/latest_realtime_signals.json``.
+# The daemon ingests that snapshot (locally or, when SIGNALS_SNAPSHOT_URL is
+# set, over https) purely to surface it as Prometheus metrics for Grafana; it
+# never produces or mutates signals.
+
+_signals_cache: dict[str, Any] = {}
+_signals_loaded_at: float = 0.0
+_signals_checked_at: float = 0.0
+_signals_lock = threading.Lock()
+_SIGNALS_USER_AGENT = "live-overlay-daemon-signals/1"
+
 
 def _fetch_news_url(url: str, token: str, timeout: float = 10.0) -> dict[str, Any] | None:
     """Fetch the news snapshot JSON from ``url``.
@@ -125,6 +140,83 @@ def _load_news_snapshot() -> dict[str, Any]:
             logger.warning("Failed to load news snapshot from %s", path, exc_info=True)
             _news_cache = {}
         return dict(_news_cache)
+
+
+def _fetch_signals_url(
+    url: str, token: str, timeout: float = 10.0
+) -> dict[str, Any] | None:
+    """Fetch the realtime-signals snapshot JSON from ``url``.
+
+    Returns the parsed dict on success or ``None`` on any failure so the caller
+    can fall back to the local file. Only https URLs are honoured.
+    """
+    if not url.lower().startswith("https://"):
+        logger.warning("SIGNALS_SNAPSHOT_URL must be an https URL; ignoring %r", url)
+        return None
+    headers = {"Accept": "application/json", "User-Agent": _SIGNALS_USER_AGENT}
+    if token:
+        headers["Authorization"] = f"Bearer {token}"
+        # Allows pointing SIGNALS_SNAPSHOT_URL at the GitHub contents API.
+        headers["Accept"] = "application/vnd.github.raw+json"
+    req = urllib.request.Request(url, headers=headers)
+    try:
+        with urllib.request.urlopen(req, timeout=timeout) as resp:
+            payload = resp.read()
+        raw = json.loads(payload)
+    except (urllib.error.URLError, TimeoutError, ValueError, OSError):
+        logger.warning("Failed to fetch signals snapshot from URL", exc_info=True)
+        return None
+    return raw if isinstance(raw, dict) else None
+
+
+def _load_signals_snapshot() -> dict[str, Any]:
+    """Return the latest realtime trading-signals snapshot as a dict.
+
+    Mirrors :func:`_load_news_snapshot`: a runtime ``SIGNALS_SNAPSHOT_URL`` (when
+    set) takes precedence, otherwise the local ``signals_snapshot_path`` file is
+    read. All reads are TTL-rate-limited so a missing/corrupt file cannot cause
+    a read/log storm. Returns ``{}`` when no snapshot is available.
+    """
+    global _signals_cache, _signals_loaded_at, _signals_checked_at
+    with _signals_lock:
+        now = time.monotonic()
+        ttl = config.signals_cache_ttl_secs()
+
+        # Happy path: a successful load within the TTL.
+        if _signals_loaded_at > 0.0 and now - _signals_loaded_at < ttl:
+            return dict(_signals_cache)
+
+        # Rate-limit every read attempt (success or failure); keep
+        # _signals_loaded_at for successful loads only so a snapshot that
+        # appears after an earlier miss is still picked up once the window
+        # expires instead of being ignored for the full TTL.
+        if _signals_checked_at > 0.0 and now - _signals_checked_at < ttl:
+            return dict(_signals_cache)
+
+        _signals_checked_at = now
+
+        url = config.signals_snapshot_url()
+        if url:
+            fetched = _fetch_signals_url(url, config.signals_snapshot_url_token())
+            if fetched is not None:
+                _signals_cache = fetched
+                _signals_loaded_at = now
+                return dict(_signals_cache)
+
+        path = config.signals_snapshot_path()
+        if not path.exists():
+            _signals_cache = {}
+            return {}
+        try:
+            raw = json.loads(path.read_text(encoding="utf-8"))
+            _signals_cache = raw if isinstance(raw, dict) else {}
+            _signals_loaded_at = now
+        except Exception:
+            logger.warning(
+                "Failed to load signals snapshot from %s", path, exc_info=True
+            )
+            _signals_cache = {}
+        return dict(_signals_cache)
 
 
 def _get_news_fields(symbol: str) -> dict[str, Any]:

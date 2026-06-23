@@ -3423,6 +3423,376 @@
           }
         ]
       }
+    },
+    {
+      "title": "Active Trading Signals",
+      "type": "stat",
+      "description": "Number of currently active realtime breakout signals (A0 pre-breakout + A1 confirmed) the engine snapshot is reporting.",
+      "gridPos": { "h": 6, "w": 6, "x": 0, "y": 192 },
+      "targets": [
+        {
+          "expr": "live_overlay_trading_signals_active_total{job=\"$job\"}",
+          "instant": true,
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "thresholds" },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "gray", "value": null },
+              { "color": "green", "value": 1 }
+            ]
+          },
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false },
+        "colorMode": "value",
+        "graphMode": "area",
+        "textMode": "auto",
+        "justifyMode": "auto"
+      }
+    },
+    {
+      "title": "A0 / A1 Breakouts",
+      "type": "stat",
+      "description": "Split of active signals by level: A0 = pre-breakout setup, A1 = confirmed breakout.",
+      "gridPos": { "h": 6, "w": 6, "x": 6, "y": 192 },
+      "targets": [
+        {
+          "expr": "live_overlay_trading_signals_a0_total{job=\"$job\"}",
+          "instant": true,
+          "legendFormat": "A0 (pre)",
+          "refId": "A"
+        },
+        {
+          "expr": "live_overlay_trading_signals_a1_total{job=\"$job\"}",
+          "instant": true,
+          "legendFormat": "A1 (breakout)",
+          "refId": "B"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "thresholds" },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "gray", "value": null },
+              { "color": "blue", "value": 1 }
+            ]
+          },
+          "unit": "short"
+        },
+        "overrides": [
+          {
+            "matcher": { "id": "byName", "options": "A1 (breakout)" },
+            "properties": [
+              {
+                "id": "thresholds",
+                "value": {
+                  "mode": "absolute",
+                  "steps": [
+                    { "color": "gray", "value": null },
+                    { "color": "green", "value": 1 }
+                  ]
+                }
+              }
+            ]
+          }
+        ]
+      },
+      "options": {
+        "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false },
+        "colorMode": "value",
+        "graphMode": "none",
+        "textMode": "value_and_name",
+        "justifyMode": "auto",
+        "orientation": "horizontal"
+      }
+    },
+    {
+      "title": "Signals Snapshot Age",
+      "type": "stat",
+      "description": "Seconds since the realtime engine last wrote latest_realtime_signals.json. Red once the snapshot is older than the 480s (8 min) max signal age — stale signals should not be trusted. Shows N/A when the snapshot timestamp is unknown.",
+      "gridPos": { "h": 6, "w": 6, "x": 12, "y": 192 },
+      "targets": [
+        {
+          "expr": "live_overlay_trading_signals_snapshot_age_seconds{job=\"$job\"} and on() (live_overlay_trading_signals_snapshot_age_known{job=\"$job\"} == 1)",
+          "instant": true,
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "thresholds" },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "green", "value": null },
+              { "color": "yellow", "value": 240 },
+              { "color": "red", "value": 480 }
+            ]
+          },
+          "unit": "s",
+          "noValue": "N/A"
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false },
+        "colorMode": "background",
+        "graphMode": "none",
+        "textMode": "auto",
+        "justifyMode": "auto"
+      }
+    },
+    {
+      "title": "Watched Symbols",
+      "type": "stat",
+      "description": "How many symbols the realtime engine is actively polling for breakout signals.",
+      "gridPos": { "h": 6, "w": 6, "x": 18, "y": 192 },
+      "targets": [
+        {
+          "expr": "live_overlay_trading_signals_watched_total{job=\"$job\"}",
+          "instant": true,
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "thresholds" },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "gray", "value": null },
+              { "color": "blue", "value": 1 }
+            ]
+          },
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false },
+        "colorMode": "value",
+        "graphMode": "none",
+        "textMode": "auto",
+        "justifyMode": "auto"
+      }
+    },
+    {
+      "title": "Top Trading Signals — Latest Detail",
+      "type": "table",
+      "description": "Per-symbol detail of the active breakout signals (top 50 by ranking score). Level A0 = pre-breakout, A1 = confirmed breakout; Direction is the trade bias; Score is the engine's v2 ranking; Tech is the 0–1 technical score; Change % is the intraday move; Freshness decays 1→0 as the signal ages. Driven by the labelled live_overlay_trading_signal_* gauges merged by symbol/level/direction/tier.",
+      "gridPos": { "h": 10, "w": 24, "x": 0, "y": 198 },
+      "targets": [
+        {
+          "expr": "live_overlay_trading_signal_score{job=\"$job\"}",
+          "format": "table",
+          "instant": true,
+          "refId": "A"
+        },
+        {
+          "expr": "live_overlay_trading_signal_technical_score{job=\"$job\"}",
+          "format": "table",
+          "instant": true,
+          "refId": "B"
+        },
+        {
+          "expr": "live_overlay_trading_signal_change_pct{job=\"$job\"}",
+          "format": "table",
+          "instant": true,
+          "refId": "C"
+        },
+        {
+          "expr": "live_overlay_trading_signal_freshness{job=\"$job\"}",
+          "format": "table",
+          "instant": true,
+          "refId": "D"
+        }
+      ],
+      "transformations": [
+        { "id": "merge", "options": {} },
+        {
+          "id": "organize",
+          "options": {
+            "excludeByName": {
+              "Time": true,
+              "instance": true,
+              "job": true,
+              "__name__": true
+            },
+            "indexByName": {
+              "symbol": 0,
+              "level": 1,
+              "direction": 2,
+              "tier": 3,
+              "Value #A": 4,
+              "Value #B": 5,
+              "Value #C": 6,
+              "Value #D": 7
+            },
+            "renameByName": {
+              "symbol": "Symbol",
+              "level": "Level",
+              "direction": "Direction",
+              "tier": "Tier",
+              "Value #A": "Score",
+              "Value #B": "Tech",
+              "Value #C": "Change %",
+              "Value #D": "Freshness"
+            }
+          }
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "custom": { "align": "auto", "cellOptions": { "type": "auto" } }
+        },
+        "overrides": [
+          {
+            "matcher": { "id": "byName", "options": "Level" },
+            "properties": [
+              {
+                "id": "mappings",
+                "value": [
+                  {
+                    "type": "value",
+                    "options": {
+                      "A0": { "text": "A0 (pre)", "color": "yellow", "index": 0 },
+                      "A1": { "text": "A1 (breakout)", "color": "green", "index": 1 }
+                    }
+                  }
+                ]
+              },
+              { "id": "custom.cellOptions", "value": { "type": "color-text" } }
+            ]
+          },
+          {
+            "matcher": { "id": "byName", "options": "Direction" },
+            "properties": [
+              {
+                "id": "mappings",
+                "value": [
+                  {
+                    "type": "value",
+                    "options": {
+                      "LONG": { "text": "LONG", "color": "green", "index": 0 },
+                      "B_UP": { "text": "LONG", "color": "green", "index": 1 },
+                      "SHORT": { "text": "SHORT", "color": "red", "index": 2 },
+                      "B_DOWN": { "text": "SHORT", "color": "red", "index": 3 }
+                    }
+                  }
+                ]
+              },
+              { "id": "custom.cellOptions", "value": { "type": "color-text" } }
+            ]
+          },
+          {
+            "matcher": { "id": "byName", "options": "Score" },
+            "properties": [
+              { "id": "decimals", "value": 1 },
+              {
+                "id": "custom.cellOptions",
+                "value": { "type": "color-background", "mode": "gradient" }
+              },
+              {
+                "id": "thresholds",
+                "value": {
+                  "mode": "absolute",
+                  "steps": [
+                    { "color": "gray", "value": null },
+                    { "color": "blue", "value": 1 },
+                    { "color": "green", "value": 5 }
+                  ]
+                }
+              }
+            ]
+          },
+          {
+            "matcher": { "id": "byName", "options": "Tech" },
+            "properties": [
+              { "id": "decimals", "value": 2 },
+              { "id": "max", "value": 1 },
+              { "id": "min", "value": 0 }
+            ]
+          },
+          {
+            "matcher": { "id": "byName", "options": "Change %" },
+            "properties": [
+              { "id": "unit", "value": "percent" },
+              { "id": "decimals", "value": 2 },
+              {
+                "id": "custom.cellOptions",
+                "value": { "type": "color-text" }
+              },
+              {
+                "id": "thresholds",
+                "value": {
+                  "mode": "absolute",
+                  "steps": [
+                    { "color": "red", "value": null },
+                    { "color": "green", "value": 0 }
+                  ]
+                }
+              }
+            ]
+          },
+          {
+            "matcher": { "id": "byName", "options": "Freshness" },
+            "properties": [
+              { "id": "decimals", "value": 2 },
+              { "id": "max", "value": 1 },
+              { "id": "min", "value": 0 },
+              {
+                "id": "custom.cellOptions",
+                "value": { "type": "gauge", "mode": "basic" }
+              }
+            ]
+          }
+        ]
+      },
+      "options": {
+        "showHeader": true,
+        "sortBy": [ { "displayName": "Score", "desc": true } ]
+      }
+    },
+    {
+      "title": "Signal Score — Active Symbols",
+      "type": "timeseries",
+      "description": "Ranking score over time for each active breakout signal, labelled by symbol / level / direction. Lets you see which symbols are strengthening or fading.",
+      "gridPos": { "h": 8, "w": 24, "x": 0, "y": 208 },
+      "targets": [
+        {
+          "expr": "live_overlay_trading_signal_score{job=\"$job\"}",
+          "legendFormat": "{{symbol}} {{level}} {{direction}}",
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "drawStyle": "line",
+            "lineInterpolation": "stepAfter",
+            "lineWidth": 2,
+            "fillOpacity": 10,
+            "showPoints": "auto",
+            "spanNulls": false
+          },
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": { "displayMode": "table", "placement": "right", "calcs": ["lastNotNull", "max"] },
+        "tooltip": { "mode": "multi", "sort": "desc" }
+      }
     }
   ],
   "schemaVersion": 39,
@@ -3462,5 +3832,5 @@
   "timezone": "utc",
   "title": "SMC Live Overlay Daemon",
   "uid": "smc-live-overlay-v1",
-  "version": 22
+  "version": 23
 }

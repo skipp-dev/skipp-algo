@@ -180,7 +180,8 @@ _FROZEN_URLOPEN_SITES: frozenset[tuple[str, int]] = frozenset(
         ("scripts/publish_overlay_dashboard.py", 287),
         # 2026-06-23: live-overlay daemon optional NEWS_SNAPSHOT_URL runtime
         # fetch (https-only, explicit timeout) with local-file/seed fallback.
-        ("services/live_overlay_daemon/compute.py", 77),
+        ("services/live_overlay_daemon/compute.py", 92),
+        ("services/live_overlay_daemon/compute.py", 163),
     }
 )
 

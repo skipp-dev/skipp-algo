@@ -561,6 +561,116 @@ def test_render_metrics_handles_github_workflow_bridge_disabled(monkeypatch: pyt
     assert "live_overlay_github_workflow_scrape_success 0" in body
     assert "live_overlay_github_workflow_runs_seen_total 0.0" in body
 
+
+def test_render_metrics_includes_trading_signals_snapshot(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    import time as _time
+
+    import services.live_overlay_daemon.metrics as metrics_mod
+
+    _patch_common(
+        monkeypatch,
+        feed_ready=True,
+        market_open=True,
+        bar_count=10,
+        overlay_symbols=5,
+        overlay_age=60.0,
+    )
+    snapshot = {
+        "updated_at": "2026-06-23T14:30:00+00:00",
+        "updated_epoch": _time.time() - 30.0,
+        "poll_interval": 5,
+        "poll_duration": 0.4,
+        "watched_symbols": ["AAPL", "TSLA", "NVDA"],
+        "signal_count": 2,
+        "a0_count": 1,
+        "a1_count": 1,
+        "disabled_reason": None,
+        "signals": [
+            {
+                "symbol": "AAPL",
+                "level": "A1",
+                "direction": "LONG",
+                "confidence_tier": "HIGH",
+                "score": 7.5,
+                "freshness": 0.9,
+                "technical_score": 0.82,
+                "change_pct": 1.23,
+                "technical_signal": "STRONG_BUY",
+                "macd_signal": "BUY",
+                "symbol_regime": "TREND_UP",
+                "news_category": "earnings",
+            },
+            {
+                "symbol": "TSLA",
+                "level": "A0",
+                "direction": "SHORT",
+                "confidence_tier": "MEDIUM",
+                "score": 4.0,
+                "freshness": 0.5,
+                "technical_score": 0.31,
+                "change_pct": -2.0,
+                "technical_signal": "SELL",
+                "macd_signal": "SELL",
+                "symbol_regime": "TREND_DOWN",
+                "news_category": "none",
+            },
+        ],
+    }
+    monkeypatch.setattr(metrics_mod.compute, "_load_signals_snapshot", lambda: snapshot)
+
+    body = metrics_mod.render_metrics(startup_ts=100.0)
+
+    assert "live_overlay_trading_signals_loaded 1.0" in body
+    assert "live_overlay_trading_signals_active_total 2.0" in body
+    assert "live_overlay_trading_signals_a0_total 1.0" in body
+    assert "live_overlay_trading_signals_a1_total 1.0" in body
+    assert "live_overlay_trading_signals_watched_total 3.0" in body
+    assert "live_overlay_trading_signals_snapshot_age_known 1.0" in body
+    # Per-signal series are labelled so Grafana can name/group each firing symbol.
+    aapl = 'symbol="AAPL",level="A1",direction="LONG",tier="HIGH"'
+    assert f"live_overlay_trading_signal_score{{{aapl}}} 7.5" in body
+    assert f"live_overlay_trading_signal_freshness{{{aapl}}} 0.9" in body
+    assert f"live_overlay_trading_signal_technical_score{{{aapl}}} 0.82" in body
+    assert f"live_overlay_trading_signal_change_pct{{{aapl}}} 1.23" in body
+    expected_info = (
+        "live_overlay_trading_signal_info{"
+        + aapl
+        + ',technical_signal="STRONG_BUY",macd_signal="BUY",'
+        'symbol_regime="TREND_UP",news_category="earnings"} 1'
+    )
+    assert expected_info in body
+    # Highest score sorts first in the capped list.
+    assert body.index('live_overlay_trading_signal_score{symbol="AAPL"') < body.index(
+        'live_overlay_trading_signal_score{symbol="TSLA"'
+    )
+
+
+def test_render_metrics_handles_trading_signals_snapshot_missing(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    import services.live_overlay_daemon.metrics as metrics_mod
+
+    _patch_common(
+        monkeypatch,
+        feed_ready=True,
+        market_open=True,
+        bar_count=10,
+        overlay_symbols=5,
+        overlay_age=60.0,
+    )
+    monkeypatch.setattr(metrics_mod.compute, "_load_signals_snapshot", lambda: {})
+
+    body = metrics_mod.render_metrics(startup_ts=100.0)
+
+    assert "live_overlay_trading_signals_loaded 0.0" in body
+    assert "live_overlay_trading_signals_active_total 0.0" in body
+    assert "live_overlay_trading_signals_snapshot_age_known 0.0" in body
+    # No per-signal series when the snapshot is empty.
+    assert "live_overlay_trading_signal_score{" not in body
+
+
 def test_alert_rules_split_news_snapshot_unavailable_and_stale() -> None:
     """Unavailable snapshot (loaded==0) and stale snapshot (age>3600) must be separate alerts."""
     import yaml
@@ -624,6 +734,48 @@ def test_dashboard_github_workflow_runs_panel_uses_rate() -> None:
     assert all("rate(" in t["expr"] for t in panel["targets"])
     assert panel["fieldConfig"]["defaults"]["unit"] == "cps"
     assert panel["fieldConfig"]["defaults"]["custom"]["axisLabel"] == "runs / sec"
+
+
+def test_dashboard_has_trading_signals_panels() -> None:
+    repo_root = Path(__file__).resolve().parents[1]
+    dashboard_path = repo_root / "services" / "live_overlay_daemon" / "infra" / "grafana" / "dashboard.json"
+    dashboard = json.loads(dashboard_path.read_text(encoding="utf-8"))
+    by_title = {p.get("title"): p for p in dashboard["panels"]}
+
+    active = by_title["Active Trading Signals"]
+    assert active["type"] == "stat"
+    assert any(
+        "live_overlay_trading_signals_active_total" in t["expr"]
+        for t in active["targets"]
+    )
+
+    age = by_title["Signals Snapshot Age"]
+    assert age["fieldConfig"]["defaults"]["unit"] == "s"
+    assert any(
+        "live_overlay_trading_signals_snapshot_age_seconds" in t["expr"]
+        for t in age["targets"]
+    )
+    assert any(
+        "live_overlay_trading_signals_snapshot_age_known" in t["expr"]
+        for t in age["targets"]
+    )
+
+    table = by_title["Top Trading Signals — Latest Detail"]
+    assert table["type"] == "table"
+    exprs = {t["expr"] for t in table["targets"]}
+    assert any("live_overlay_trading_signal_score{" in e for e in exprs)
+    assert any("live_overlay_trading_signal_technical_score{" in e for e in exprs)
+    assert any("live_overlay_trading_signal_change_pct{" in e for e in exprs)
+    assert any("live_overlay_trading_signal_freshness{" in e for e in exprs)
+    # The numeric series share the same label set so the merge collapses them
+    # onto one row per signal; instant queries are required for an at-a-glance
+    # snapshot table.
+    assert all(t.get("instant") for t in table["targets"])
+    assert any(tr["id"] == "merge" for tr in table["transformations"])
+
+    ts_panel = by_title["Signal Score — Active Symbols"]
+    assert ts_panel["type"] == "timeseries"
+    assert ts_panel["targets"][0]["legendFormat"] == "{{symbol}} {{level}} {{direction}}"
 
 
 def test_provider_health_snapshot_classifies_state_reason_and_consumed(

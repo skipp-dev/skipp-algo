@@ -158,6 +158,43 @@ def news_cache_ttl_secs() -> int:
     return _clamped_int("OVERLAY_NEWS_CACHE_TTL_SECS", 600, 60, 3600)
 
 
+def signals_snapshot_path() -> Path:
+    raw = _optional_str(
+        "SIGNALS_SNAPSHOT_PATH",
+        str(
+            _REPO_ROOT
+            / "artifacts"
+            / "open_prep"
+            / "latest"
+            / "latest_realtime_signals.json"
+        ),
+    )
+    return Path(raw)
+
+
+def signals_snapshot_url() -> str:
+    """Optional https URL the daemon fetches realtime trading signals from.
+
+    When set it takes precedence over :func:`signals_snapshot_path`; on any
+    fetch failure the daemon falls back to the local path.
+    """
+    return _optional_str("SIGNALS_SNAPSHOT_URL", "")
+
+
+def signals_snapshot_url_token() -> str:
+    """Optional bearer token sent when fetching :func:`signals_snapshot_url`."""
+    return _optional_str("SIGNALS_SNAPSHOT_URL_TOKEN", "")
+
+
+def signals_cache_ttl_secs() -> int:
+    return _clamped_int("OVERLAY_SIGNALS_CACHE_TTL_SECS", 120, 30, 1800)
+
+
+def signals_max_age_secs() -> int:
+    """Age (s) beyond which the realtime signals snapshot is treated as stale."""
+    return _clamped_int("OVERLAY_SIGNALS_MAX_AGE_SECS", 480, 60, 7200)
+
+
 def max_feed_failures() -> int:
     return _clamped_int("OVERLAY_MAX_FEED_FAILURES", 50, 1, 1000)
 

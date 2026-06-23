@@ -193,6 +193,88 @@ def _workflow_labels(workflow: Mapping[str, object]) -> str:
     )
 
 
+# Cap the number of per-signal series emitted so a busy session cannot blow up
+# Prometheus cardinality; the strongest-scoring signals are kept.
+_SIGNAL_SERIES_CAP = 50
+
+
+def _signal_labels(sig: Mapping[str, object]) -> str:
+    """Render the ``symbol``/``level``/``direction``/``tier`` label set.
+
+    Surfacing the breakout level (A0 pre-breakout / A1 breakout), trade
+    direction and confidence tier as labels lets Grafana name, colour and
+    group each firing symbol instead of baking identity into the metric name.
+    """
+    return (
+        f'symbol="{_escape_label_value(sig.get("symbol", "") or "unknown")}",'
+        f'level="{_escape_label_value(sig.get("level", "") or "unknown")}",'
+        f'direction="{_escape_label_value(sig.get("direction", "") or "unknown")}",'
+        f'tier="{_escape_label_value(sig.get("confidence_tier", "") or "unknown")}"'
+    )
+
+
+def _trading_signals_snapshot() -> dict[str, object]:
+    """Derive trading-signal gauges from the realtime-engine snapshot.
+
+    Reads through :func:`compute._load_signals_snapshot` so the gauges reflect
+    whatever source the daemon serves (the runtime ``SIGNALS_SNAPSHOT_URL`` when
+    configured, otherwise the local ``latest_realtime_signals.json``). Returns
+    aggregate counts, the snapshot age (when known) and a cardinality-capped,
+    score-sorted list of the active signals.
+    """
+    raw = compute._load_signals_snapshot()
+    loaded = 0.0
+    age_seconds = 0.0
+    age_known = 0.0
+    signals_obj: object = []
+    counts = {"active": 0, "a0": 0, "a1": 0, "watched": 0}
+
+    if isinstance(raw, dict) and raw:
+        loaded = 1.0
+        signals_obj = raw.get("signals") or []
+        counts["active"] = int(raw.get("signal_count", 0) or 0)
+        counts["a0"] = int(raw.get("a0_count", 0) or 0)
+        counts["a1"] = int(raw.get("a1_count", 0) or 0)
+        watched = raw.get("watched_symbols") or []
+        counts["watched"] = len(watched) if isinstance(watched, (list, tuple)) else 0
+        updated_epoch = raw.get("updated_epoch")
+        epoch_float = 0.0
+        if isinstance(updated_epoch, (int, float, str)):
+            try:
+                epoch_float = float(updated_epoch)
+            except (TypeError, ValueError):
+                epoch_float = 0.0
+        if math.isfinite(epoch_float) and epoch_float > 0:
+            age_known = 1.0
+            age_seconds = max(0.0, time.time() - epoch_float)
+
+    signals_list = signals_obj if isinstance(signals_obj, list) else []
+    normalized = [item for item in signals_list if isinstance(item, dict)]
+
+    def _score_key(sig: dict[str, object]) -> float:
+        value = sig.get("score")
+        if isinstance(value, bool):
+            return 0.0
+        if isinstance(value, (int, float)):
+            return float(value)
+        if isinstance(value, str):
+            try:
+                return float(value)
+            except ValueError:
+                return 0.0
+        return 0.0
+
+    normalized.sort(key=_score_key, reverse=True)
+
+    return {
+        "loaded": loaded,
+        "age_seconds": age_seconds,
+        "age_known": age_known,
+        "counts": counts,
+        "signals": normalized[:_SIGNAL_SERIES_CAP],
+    }
+
+
 def _snapshot_timestamp(raw: dict[str, object]) -> float | None:
     """Best-effort unix timestamp for a news snapshot.
 
@@ -681,6 +763,88 @@ def render_metrics(startup_ts: float) -> str:
                 "live_overlay_github_workflow_latest_duration_seconds"
                 f"{{{_workflow_labels(workflow)}}} {_prom_numeric_value(workflow_duration)}"
             )
+
+    # ---- Realtime trading signals (A0 pre-breakout / A1 breakout) ----------
+    # Sourced from the realtime engine snapshot via
+    # compute._load_signals_snapshot (local file or SIGNALS_SNAPSHOT_URL).
+    # Surfaced so Grafana can show which symbols are firing, their
+    # score/freshness/technical bias, and how fresh the snapshot is. Per-signal
+    # series are labelled (symbol/level/direction/tier) and capped to the
+    # strongest signals to bound cardinality.
+    signals_snapshot = _trading_signals_snapshot()
+    signal_counts = signals_snapshot["counts"]
+    if not isinstance(signal_counts, dict):
+        signal_counts = {"active": 0, "a0": 0, "a1": 0, "watched": 0}
+    lines.append("# TYPE live_overlay_trading_signals_loaded gauge")
+    lines.append(
+        "live_overlay_trading_signals_loaded "
+        f"{_prom_numeric_value(signals_snapshot['loaded'])}"
+    )
+    lines.append("# TYPE live_overlay_trading_signals_active_total gauge")
+    lines.append(
+        "live_overlay_trading_signals_active_total "
+        f"{_prom_numeric_value(signal_counts['active'])}"
+    )
+    lines.append("# TYPE live_overlay_trading_signals_a0_total gauge")
+    lines.append(
+        f"live_overlay_trading_signals_a0_total {_prom_numeric_value(signal_counts['a0'])}"
+    )
+    lines.append("# TYPE live_overlay_trading_signals_a1_total gauge")
+    lines.append(
+        f"live_overlay_trading_signals_a1_total {_prom_numeric_value(signal_counts['a1'])}"
+    )
+    lines.append("# TYPE live_overlay_trading_signals_watched_total gauge")
+    lines.append(
+        "live_overlay_trading_signals_watched_total "
+        f"{_prom_numeric_value(signal_counts['watched'])}"
+    )
+    lines.append("# TYPE live_overlay_trading_signals_snapshot_age_known gauge")
+    lines.append(
+        "live_overlay_trading_signals_snapshot_age_known "
+        f"{_prom_numeric_value(signals_snapshot['age_known'])}"
+    )
+    lines.append("# TYPE live_overlay_trading_signals_snapshot_age_seconds gauge")
+    lines.append(
+        "live_overlay_trading_signals_snapshot_age_seconds "
+        f"{signals_snapshot['age_seconds']:.1f}"
+    )
+
+    signal_rows = signals_snapshot["signals"]
+    if isinstance(signal_rows, list) and signal_rows:
+        lines.append("# TYPE live_overlay_trading_signal_score gauge")
+        for sig in signal_rows:
+            lines.append(
+                f"live_overlay_trading_signal_score{{{_signal_labels(sig)}}} "
+                f"{_prom_numeric_value(sig.get('score', 0))}"
+            )
+        lines.append("# TYPE live_overlay_trading_signal_freshness gauge")
+        for sig in signal_rows:
+            lines.append(
+                f"live_overlay_trading_signal_freshness{{{_signal_labels(sig)}}} "
+                f"{_prom_numeric_value(sig.get('freshness', 0))}"
+            )
+        lines.append("# TYPE live_overlay_trading_signal_technical_score gauge")
+        for sig in signal_rows:
+            lines.append(
+                f"live_overlay_trading_signal_technical_score{{{_signal_labels(sig)}}} "
+                f"{_prom_numeric_value(sig.get('technical_score', 0))}"
+            )
+        lines.append("# TYPE live_overlay_trading_signal_change_pct gauge")
+        for sig in signal_rows:
+            lines.append(
+                f"live_overlay_trading_signal_change_pct{{{_signal_labels(sig)}}} "
+                f"{_prom_numeric_value(sig.get('change_pct', 0))}"
+            )
+        lines.append("# TYPE live_overlay_trading_signal_info gauge")
+        for sig in signal_rows:
+            info_labels = (
+                f"{_signal_labels(sig)},"
+                f'technical_signal="{_escape_label_value(sig.get("technical_signal", "") or "unknown")}",'
+                f'macd_signal="{_escape_label_value(sig.get("macd_signal", "") or "unknown")}",'
+                f'symbol_regime="{_escape_label_value(sig.get("symbol_regime", "") or "unknown")}",'
+                f'news_category="{_escape_label_value(sig.get("news_category", "") or "unknown")}"'
+            )
+            lines.append(f"live_overlay_trading_signal_info{{{info_labels}}} 1")
 
     lines.append("")  # trailing newline
     return "\n".join(lines)
