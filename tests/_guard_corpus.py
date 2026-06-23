@@ -182,5 +182,6 @@ def iter_tracked_files(
         rel_parts = Path(rel).parts
         if any(part in excluded for part in rel_parts):
             continue
-        if path.exists(): out.append(path)
+        if path.exists():
+            out.append(path)
     return sorted(out)
