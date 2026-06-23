@@ -163,7 +163,7 @@ name = "smc-live-overlay"
 | `UPTIMEROBOT_POLL_TTL_SECS` | UptimeRobot | Cache TTL (default 30) |
 | `UPTIMEROBOT_TIMEOUT_SECS` | UptimeRobot | HTTP timeout (default 5) |
 | `GITHUB_WORKFLOW_MONITOR_TOKEN` | GitHub | PAT with `repo` + `actions:read` |
-| `GITHUB_WORKFLOW_MONITOR_REPO` | GitHub | `owner/repo` to watch |
+| `GITHUB_WORKFLOW_MONITOR_REPO` | GitHub | `owner/repo` to watch (validated; invalid value falls back to `skippALGO/skipp-algo`) |
 | `GITHUB_WORKFLOW_MONITOR_IDS` | GitHub | Workflow IDs or names to monitor |
 | `GITHUB_WORKFLOW_MONITOR_POLL_TTL_SECS` | GitHub | Cache TTL |
 | `GITHUB_WORKFLOW_MONITOR_TIMEOUT_SECS` | GitHub | HTTP timeout |
@@ -200,6 +200,10 @@ force-push the freshest snapshot to dedicated `bot/*` cache branches
 | TradingView credential age | `credential-health-check.yml` | `bot/live-tv-credential-snapshot` | `artifacts/credential_health/latest/credential_health.json` |
 | Realtime signals | _host helper (no CI producer)_ | `bot/live-signals-snapshot` | `artifacts/open_prep/latest/latest_realtime_signals.json` |
 
+`smc-measurement-benchmark-rolling.yml` writes temporary per-timeframe
+`structure_export_*.json` files only for inline notices and deletes them in the
+same step so they do not leak into later jobs/artifacts.
+
 The `*_URL` form is `https://api.github.com/repos/skippALGO/skipp-algo/contents/<stable-path>?ref=<bot-branch>` with a fine-grained PAT (`Contents: Read`, repo `skipp-algo` only) in the matching `*_URL_TOKEN`.
 
 **Realtime signals have no CI producer.** `latest_realtime_signals.json` is
@@ -224,6 +228,10 @@ engine. A 2-minute `cron` entry on the live host is enough:
 
 The script is idempotent (it exits `0` without a push when the snapshot is
 unchanged), so over-scheduling only wastes a no-op run.
+
+If the initial remote fetch fails for reasons other than the expected
+"remote ref not found" first-publish case, the helper emits a redacted warning
+to stderr before creating/seeding the local branch.
 
 **Write-through persistence (Railway volume).** On every successful `*_URL`
 fetch the daemon atomically writes the payload back to its `*_SNAPSHOT_PATH`
@@ -370,7 +378,7 @@ Auth: `GRAFANA_API_KEY` env var (CI) or the macOS Keychain entry
 `skipp.grafana.api` (local). The token is never printed.
 
 > ⚠️ Do **not** `curl --data-binary @alert-rules.yaml` to
-> `POST /api/v1/provisioning/alert-rules`. That endpoint creates a *single* rule
+> `POST /api/v1/provisioning/alert-rules`. That endpoint creates a _single_ rule
 > and ignores the `groups:` file-provisioning envelope, so it silently fails to
 > provision the rule set — this is how alerting previously drifted from the repo.
 > Use the script above instead.
@@ -436,13 +444,13 @@ sum by (__name__) (
 
 Implementation: `services/live_overlay_daemon/uptimerobot_bridge.py`
 
-### What it does
+### What it does (GitHub bridge)
 
 - Polls the UptimeRobot V2 `getMonitors` endpoint.
 - Caches results in-process for `UPTIMEROBOT_POLL_TTL_SECS`.
 - Emits Prometheus gauges for each configured monitor.
 
-### Exported metrics
+### Exported metrics (GitHub bridge)
 
 | Metric | Type | Labels | Description |
 |--------|------|--------|-------------|
@@ -486,6 +494,9 @@ Implementation: `services/live_overlay_daemon/github_workflow_bridge.py`
 - Polls GitHub Actions workflow run status for a configured repo.
 - Caches results in-process for `GITHUB_WORKFLOW_MONITOR_POLL_TTL_SECS`.
 - Exposes aggregate scrape success/failure metrics.
+- Uses one-page polling intentionally: GitHub returns runs newest-first and the
+  bridge only needs "latest run" state per configured workflow.
+- Percent-encodes owner/repo segments in API URLs defensively.
 
 ### Required env vars
 
@@ -612,4 +623,4 @@ python -m pytest tests/test_live_overlay_infra_alloy_contracts.py -v
 
 ---
 
-*Last updated: 2026-06-23 — aligned with workflow timeline, trading-signals, and daily-experiment observability docs.*
+_Last updated: 2026-06-23 — aligned with workflow timeline, trading-signals, and daily-experiment observability docs._

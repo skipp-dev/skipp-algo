@@ -215,7 +215,7 @@ All numeric fields are `null`, all bool fields are `false`, `stale: true`.
 | `UPTIMEROBOT_TIMEOUT_SECS` | ❌ | `5` | UptimeRobot API timeout in seconds (range 1–30) |
 | `UPTIMEROBOT_POLL_TTL_SECS` | ❌ | `30` | In-process cache TTL for UptimeRobot snapshot (range 5–300) |
 | `GITHUB_WORKFLOW_MONITOR_TOKEN` | ❌ | *(unset)* | Enables optional GitHub Actions workflow bridge metrics in `/metrics` |
-| `GITHUB_WORKFLOW_MONITOR_REPO` | ❌ | `skippALGO/skipp-algo` | Target repository in `owner/repo` format |
+| `GITHUB_WORKFLOW_MONITOR_REPO` | ❌ | `skippALGO/skipp-algo` | Target repository in `owner/repo` format (validated; invalid values fall back to default) |
 | `GITHUB_WORKFLOW_MONITOR_IDS` | ❌ | *(all workflows)* | Comma-separated workflow IDs to include |
 | `GITHUB_WORKFLOW_MONITOR_TIMEOUT_SECS` | ❌ | `5` | GitHub API timeout in seconds (range 1–30) |
 | `GITHUB_WORKFLOW_MONITOR_POLL_TTL_SECS` | ❌ | `30` | In-process cache TTL for workflow snapshot (range 5–300) |
@@ -245,11 +245,16 @@ All numeric fields are `null`, all bool fields are `false`, `stale: true`.
 
 ### Snapshot delivery & persistence
 
-Each snapshot loader (news, signals, experiment rollup/history) is
+Each snapshot loader (news, signals, experiment rollup/history, TradingView
+credential report) is
 **URL-first**: when the matching `*_SNAPSHOT_URL` is set it fetches the freshest
 payload over HTTPS and falls back to the local `*_SNAPSHOT_PATH` otherwise. The
 Docker image bakes a one-time news seed, so **without a `*_URL` the dashboard
 shows that stale seed**.
+
+- **HTTPS-only URL guard is centralized:** all runtime snapshot URL fetchers
+  share one validation path and reject non-HTTPS URLs with a consistent warning
+  (`<ENV_NAME> must be an https URL; ignoring ...`).
 
 - **News**, the **experiment rollup + history**, and the **TradingView
   credential-age report** are published to rolling `bot/*` cache branches by CI
@@ -269,9 +274,14 @@ shows that stale seed**.
   `SIGNALS_SNAPSHOT_URL=https://api.github.com/repos/skippALGO/skipp-algo/contents/artifacts/open_prep/latest/latest_realtime_signals.json?ref=bot/live-signals-snapshot`
   and `SIGNALS_SNAPSHOT_URL_TOKEN` to a `Contents: Read` PAT, exactly like the
   news snapshot.
+  On first publish, an absent remote branch is treated as expected; unexpected
+  `git fetch` failures (auth/network) are emitted as **redacted warnings** to
+  stderr before seeding an empty branch.
 - **Write-through persistence:** on every successful `*_URL` fetch the daemon
   atomically writes the payload back to its `*_SNAPSHOT_PATH`
-  (temp file + `os.replace`). On Railway, mount a volume and set the `*_PATH`
+  (exclusive temp file + `os.replace`). Temp filenames include
+  `pid.thread_id.time_ns` to avoid collisions under concurrent writers.
+  On Railway, mount a volume and set the `*_PATH`
   vars to `/data/...` so a cold start reads the last-good copy instead of the
   baked seed. The volume mounts as root and the image runs as a non-root
   `appuser`, so set `RAILWAY_RUN_UID=0` to enable the write-through (it is
@@ -434,6 +444,12 @@ observability.py (structured log lines + in-process counters)
 | `live_overlay_github_workflow_latest_success{workflow_id,workflow,event}` | gauge | metrics.py per-workflow latest success state |
 | `live_overlay_github_workflow_latest_age_seconds{workflow_id,workflow,event}` | gauge | metrics.py per-workflow latest run age |
 | `live_overlay_github_workflow_latest_duration_seconds{workflow_id,workflow,event}` | gauge | metrics.py per-workflow latest run duration |
+
+> Provider drill-down and trading-signal metric families intentionally use
+> dynamic metric names (for example `live_overlay_provider_news_<provider>_*`
+> and `live_overlay_trading_signal_*`). The Grafana dashboard queries these via
+> `__name__=~...` regex matchers so adding providers/signals does not require
+> panel rewrites.
 
 ### Alert rules (recommended)
 
