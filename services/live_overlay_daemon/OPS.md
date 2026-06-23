@@ -1,5 +1,7 @@
 # SMC Live Overlay Daemon — Operations Guide
 
+<!-- markdownlint-disable MD060 MD033 -->
+
 One-stop reference for running, deploying, and debugging the SMC Live Overlay
 Daemon on Railway + Grafana Cloud.
 
@@ -128,6 +130,22 @@ name = "smc-live-overlay"
 | `OVERLAY_MAX_STALE_SECS` | no | — | Staleness threshold |
 | `OVERLAY_MAX_SYMBOLS` | no | — | Symbol limit |
 | `OVERLAY_NEWS_CACHE_TTL_SECS` | no | — | News cache TTL |
+| `NEWS_SNAPSHOT_URL` | no | — | Optional HTTPS URL for live news snapshot |
+| `NEWS_SNAPSHOT_URL_TOKEN` | no | — | Optional bearer token for `NEWS_SNAPSHOT_URL` |
+| `SIGNALS_SNAPSHOT_PATH` | no | — | Local realtime-signals snapshot path |
+| `SIGNALS_SNAPSHOT_URL` | no | — | Optional HTTPS URL for realtime-signals snapshot |
+| `SIGNALS_SNAPSHOT_URL_TOKEN` | no | — | Optional bearer token for `SIGNALS_SNAPSHOT_URL` |
+| `OVERLAY_SIGNALS_CACHE_TTL_SECS` | no | — | Signals snapshot cache TTL |
+| `OVERLAY_SIGNALS_MAX_AGE_SECS` | no | — | Signals staleness threshold |
+| `EXPERIMENT_SNAPSHOT_PATH` | no | — | Local daily experiment rollup snapshot path |
+| `EXPERIMENT_SNAPSHOT_URL` | no | — | Optional HTTPS URL for experiment rollup snapshot |
+| `EXPERIMENT_SNAPSHOT_URL_TOKEN` | no | — | Optional bearer token for `EXPERIMENT_SNAPSHOT_URL` |
+| `EXPERIMENT_HISTORY_PATH` | no | — | Local daily experiment history JSONL path |
+| `EXPERIMENT_HISTORY_URL` | no | — | Optional HTTPS URL for experiment history JSONL |
+| `EXPERIMENT_HISTORY_URL_TOKEN` | no | — | Optional bearer token for `EXPERIMENT_HISTORY_URL` |
+| `OVERLAY_EXPERIMENT_CACHE_TTL_SECS` | no | — | Experiment rollup/history cache TTL |
+| `OVERLAY_EXPERIMENT_MAX_AGE_SECS` | no | — | Experiment snapshot staleness threshold |
+| `OVERLAY_EXPERIMENT_HISTORY_MAX_DAYS` | no | — | Max history days exposed as metrics |
 | `OVERLAY_REFRESH_SECS` | no | — | Full compute refresh interval |
 | `OVERLAY_ROLLING_BARS` | no | — | Rolling bar window |
 
@@ -347,13 +365,13 @@ sum by (__name__) (
 
 Implementation: `services/live_overlay_daemon/uptimerobot_bridge.py`
 
-### What it does
+### What it does (GitHub Workflow)
 
 - Polls the UptimeRobot V2 `getMonitors` endpoint.
 - Caches results in-process for `UPTIMEROBOT_POLL_TTL_SECS`.
 - Emits Prometheus gauges for each configured monitor.
 
-### Exported metrics
+### Exported metrics (GitHub Workflow)
 
 | Metric | Type | Labels | Description |
 |--------|------|--------|-------------|
@@ -523,4 +541,4 @@ python -m pytest tests/test_live_overlay_infra_alloy_contracts.py -v
 
 ---
 
-*Last updated: 2026-06-22 — aligned with dashboard UX hardening v2.*
+*Last updated: 2026-06-23 — aligned with workflow timeline, trading-signals, and daily-experiment observability docs.*
