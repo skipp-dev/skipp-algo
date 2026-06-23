@@ -115,8 +115,9 @@ def _git_diff_has_changes(cwd: Path) -> bool:
     result = _git(["diff", "--cached", "--quiet"], cwd, check=False)
     # returncode 1 = differences found; >1 = git error (not-a-repo, etc.)
     if result.returncode > 1:
-        raise subprocess.CalledProcessError(
-            result.returncode, result.args, result.stdout, result.stderr
+        raise RuntimeError(
+            f"git diff --cached failed (rc={result.returncode}): "
+            f"{result.stderr.strip()}"
         )
     return result.returncode == 1
 

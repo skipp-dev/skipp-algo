@@ -680,20 +680,18 @@ from `live`: `live` denotes an *active shadow experiment*, and no
 - The F2 contextual candidate is parked; any future contextual
   zone-priority weighting must enter as a **new** candidate with a
   fresh SPRT corpus, not as a continuation of this one.
-- **Caveat / follow-up (corpus reset gap).** The SPRT corpus `n`
+- **Corpus reset gap (resolved, issue #2770).** The SPRT corpus `n`
   grew monotonically across the fix boundary (`1492 → 1588 → 1664`).
-  The only automatic reset path,
-  [`scripts/f2_flip_status.py`](../scripts/f2_flip_status.py)
-  (`action: sprt_state_reset`), fires *only* on a
-  `plumbing_only → live` status flip (`FLIP_FROM/FLIP_TO`), and the
-  spec status stayed `live` throughout the fix — so no reset fired
-  and a fraction of the corpus predates the 06-10 fix. Because the
-  post-fix arms are distinct, the LLR is strongly negative, and the
-  treatment is worse on every metric, the H0 acceptance is
-  directionally robust to that contamination; but a code-deploy
-  boundary (not just a status flip) should trigger an explicit
-  corpus reset. Tracked externally in issue #2770 — do **not**
-  treat this ADR as evidence that the reset path works.
+  The original reset path fired *only* on a `plumbing_only → live`
+  status flip; the spec status stayed `live` throughout the fix, so
+  no automatic reset occurred. The H0 acceptance remains
+  directionally robust to that contamination (LLR strongly negative,
+  treatment worse on every metric). The gap is resolved: as of this
+  PR the `f2-promotion-gate-daily` workflow passes
+  `--deploy-boundary ${{ github.sha }}` to
+  [`scripts/f2_flip_status.py`](../scripts/f2_flip_status.py),
+  which now resets the corpus whenever the SHA changes —
+  independent of the status flip path.
 
 **Evidence.**
 
