@@ -1,5 +1,7 @@
 # SMC Live Overlay Daemon — Operations Guide
 
+<!-- markdownlint-disable MD060 MD033 -->
+
 One-stop reference for running, deploying, and debugging the SMC Live Overlay
 Daemon on Railway + Grafana Cloud.
 
@@ -128,6 +130,27 @@ name = "smc-live-overlay"
 | `OVERLAY_MAX_STALE_SECS` | no | — | Staleness threshold |
 | `OVERLAY_MAX_SYMBOLS` | no | — | Symbol limit |
 | `OVERLAY_NEWS_CACHE_TTL_SECS` | no | — | News cache TTL |
+| `NEWS_SNAPSHOT_URL` | no | — | Optional HTTPS URL for live news snapshot |
+| `NEWS_SNAPSHOT_URL_TOKEN` | no | — | Optional bearer token for `NEWS_SNAPSHOT_URL` |
+| `NEWS_SNAPSHOT_PATH` | no | baked seed | Local news snapshot path; point at the volume (`/data/...`) for write-through persistence |
+| `SIGNALS_SNAPSHOT_PATH` | no | — | Local realtime-signals snapshot path |
+| `SIGNALS_SNAPSHOT_URL` | no | — | Optional HTTPS URL for realtime-signals snapshot |
+| `SIGNALS_SNAPSHOT_URL_TOKEN` | no | — | Optional bearer token for `SIGNALS_SNAPSHOT_URL` |
+| `OVERLAY_SIGNALS_CACHE_TTL_SECS` | no | — | Signals snapshot cache TTL |
+| `OVERLAY_SIGNALS_MAX_AGE_SECS` | no | — | Signals staleness threshold |
+| `EXPERIMENT_SNAPSHOT_PATH` | no | — | Local daily experiment rollup snapshot path |
+| `EXPERIMENT_SNAPSHOT_URL` | no | — | Optional HTTPS URL for experiment rollup snapshot |
+| `EXPERIMENT_SNAPSHOT_URL_TOKEN` | no | — | Optional bearer token for `EXPERIMENT_SNAPSHOT_URL` |
+| `EXPERIMENT_HISTORY_PATH` | no | — | Local daily experiment history JSONL path |
+| `EXPERIMENT_HISTORY_URL` | no | — | Optional HTTPS URL for experiment history JSONL |
+| `EXPERIMENT_HISTORY_URL_TOKEN` | no | — | Optional bearer token for `EXPERIMENT_HISTORY_URL` |
+| `OVERLAY_EXPERIMENT_CACHE_TTL_SECS` | no | — | Experiment rollup/history cache TTL |
+| `OVERLAY_EXPERIMENT_MAX_AGE_SECS` | no | — | Experiment snapshot staleness threshold |
+| `OVERLAY_EXPERIMENT_HISTORY_MAX_DAYS` | no | — | Max history days exposed as metrics |
+| `TRADINGVIEW_CREDENTIAL_SNAPSHOT_PATH` | no | `artifacts/credential_health/latest/credential_health.json` | Local daily credential-health report (TradingView storage-state age) |
+| `TRADINGVIEW_CREDENTIAL_SNAPSHOT_URL` | no | — | Optional HTTPS URL for the credential-health report |
+| `TRADINGVIEW_CREDENTIAL_SNAPSHOT_URL_TOKEN` | no | — | Optional bearer token for `TRADINGVIEW_CREDENTIAL_SNAPSHOT_URL` |
+| `OVERLAY_TRADINGVIEW_CREDENTIAL_CACHE_TTL_SECS` | no | — | Credential-health report cache TTL (default 3600) |
 | `OVERLAY_REFRESH_SECS` | no | — | Full compute refresh interval |
 | `OVERLAY_ROLLING_BARS` | no | — | Rolling bar window |
 
@@ -140,7 +163,7 @@ name = "smc-live-overlay"
 | `UPTIMEROBOT_POLL_TTL_SECS` | UptimeRobot | Cache TTL (default 30) |
 | `UPTIMEROBOT_TIMEOUT_SECS` | UptimeRobot | HTTP timeout (default 5) |
 | `GITHUB_WORKFLOW_MONITOR_TOKEN` | GitHub | PAT with `repo` + `actions:read` |
-| `GITHUB_WORKFLOW_MONITOR_REPO` | GitHub | `owner/repo` to watch |
+| `GITHUB_WORKFLOW_MONITOR_REPO` | GitHub | `owner/repo` to watch (validated; invalid value falls back to `skippALGO/skipp-algo`) |
 | `GITHUB_WORKFLOW_MONITOR_IDS` | GitHub | Workflow IDs or names to monitor |
 | `GITHUB_WORKFLOW_MONITOR_POLL_TTL_SECS` | GitHub | Cache TTL |
 | `GITHUB_WORKFLOW_MONITOR_TIMEOUT_SECS` | GitHub | HTTP timeout |
@@ -155,6 +178,88 @@ name = "smc-live-overlay"
 | `GRAFANA_CLOUD_PROM_URL` | Grafana Cloud remote-write URL |
 | `GRAFANA_CLOUD_USER` | Grafana Cloud stack user |
 | `GRAFANA_CLOUD_API_KEY` | Grafana Cloud API key |
+
+### Snapshot delivery & volume persistence
+
+The daemon serves four producer-side snapshots (news, realtime signals, daily
+experiment rollup/history, and the TradingView credential-age report). Each
+loader is **URL-first**: when the matching `*_SNAPSHOT_URL` is set it fetches
+the freshest payload over HTTPS (GitHub Contents API raw, fine-grained PAT),
+otherwise it falls back to the local `*_SNAPSHOT_PATH`. The Docker image bakes a
+one-time news seed at build time; without a `*_URL` the dashboard shows that
+stale seed.
+
+**Stable producer URLs (rolling bot branches).** Producer workflows
+force-push the freshest snapshot to dedicated `bot/*` cache branches
+(exempt from the `main-governance` ruleset, see ADR-0024):
+
+| Snapshot | Producer workflow | Bot branch | Stable path |
+|----------|-------------------|------------|-------------|
+| News | `smc-live-newsapi-refresh.yml` | `bot/live-news-snapshot` | `artifacts/smc_microstructure_exports/smc_live_news_snapshot.json` |
+| Experiment rollup + history | `smc-measurement-benchmark-rolling.yml` | `bot/live-experiment-snapshot` | `artifacts/ci/measurement_benchmark_rolling/latest/plan_2_8_tf_family_rollup.json` and `.../latest/plan_2_8_history.jsonl` |
+| TradingView credential age | `credential-health-check.yml` | `bot/live-tv-credential-snapshot` | `artifacts/credential_health/latest/credential_health.json` |
+| Realtime signals | _host helper (no CI producer)_ | `bot/live-signals-snapshot` | `artifacts/open_prep/latest/latest_realtime_signals.json` |
+
+`smc-measurement-benchmark-rolling.yml` writes temporary per-timeframe
+`structure_export_*.json` files only for inline notices and deletes them in the
+same step so they do not leak into later jobs/artifacts.
+
+The `*_URL` form is `https://api.github.com/repos/skippALGO/skipp-algo/contents/<stable-path>?ref=<bot-branch>` with a fine-grained PAT (`Contents: Read`, repo `skipp-algo` only) in the matching `*_URL_TOKEN`.
+
+**Realtime signals have no CI producer.** `latest_realtime_signals.json` is
+written only by `open_prep/realtime_signals.py` on the live trading host. Run
+[`scripts/publish_signals_snapshot.py`](../../scripts/publish_signals_snapshot.py)
+on that host (cron / after each engine cycle) with `GH_TOKEN` set to a PAT that
+can push to `bot/*`; it publishes to `bot/live-signals-snapshot` using
+`--force-with-lease` semantics, including a race-safe first-publish guard with
+an all-zeros expected SHA
+(`refs/heads/<branch>:0000000000000000000000000000000000000000`) and strict branch-name
+validation to avoid option-injection via `--branch`. After publish,
+`SIGNALS_SNAPSHOT_URL` works exactly like the news/experiment URLs:
+
+```bash
+GH_TOKEN=<push-pat> .venv/bin/python3.12 scripts/publish_signals_snapshot.py
+```
+
+Run it as a **separate, scheduled sync job** (decoupled from
+`open_prep/realtime_signals.py`) so a delivery hiccup never blocks the trading
+engine. A 2-minute `cron` entry on the live host is enough:
+
+```cron
+# /etc/cron.d/skipp-signals-snapshot  (live trading host)
+*/2 * * * * appuser cd /opt/skipp-algo && GH_TOKEN=<push-pat> .venv/bin/python3.12 scripts/publish_signals_snapshot.py >> /var/log/skipp/signals_snapshot.log 2>&1
+```
+
+The script is idempotent (it exits `0` without a push when the snapshot is
+unchanged), so over-scheduling only wastes a no-op run.
+
+If the initial remote fetch fails for reasons other than the expected
+"remote ref not found" first-publish case, the helper emits a redacted warning
+to stderr before creating/seeding the local branch.
+
+Runtime URL fetchers in `compute.py` also scope the GitHub raw `Accept` header
+to actual GitHub Contents API URLs only, avoiding GitHub-specific headers on
+authenticated non-GitHub snapshot endpoints.
+
+**Write-through persistence (Railway volume).** On every successful `*_URL`
+fetch the daemon atomically writes the payload back to its `*_SNAPSHOT_PATH`
+(`tempfile` + `os.replace`). Mount a Railway volume and point the `*_PATH`
+vars at it so a cold start (or a momentary URL outage) reads the last-good
+copy from the volume instead of the baked seed.
+
+- Create the volume (interactive — pick service `smc-live-overlay`, mount path `/data`):
+
+```bash
+railway volume add
+```
+
+- The volume mounts as **root**. The daemon image runs as a non-root
+  `appuser`, so writes to `/data` fail unless the service runs as root.
+  Set `RAILWAY_RUN_UID=0` to enable write-through (the write-through is
+  best-effort: without it the daemon still serves fresh data from the URL,
+  it just cannot persist across restarts).
+- Volumes are **not** config-as-code; do not add them to `railway.toml`
+  (only `build`/`deploy` settings are supported there).
 
 ### Common Railway CLI commands
 
@@ -181,7 +286,7 @@ railway up
 railway run --service smc-live-overlay bash
 
 # Pull remote env vars to local .env
-railway variables --service smc-live-overlay
+railway variable list --service smc-live-overlay
 ```
 
 ---
@@ -281,7 +386,7 @@ Auth: `GRAFANA_API_KEY` env var (CI) or the macOS Keychain entry
 `skipp.grafana.api` (local). The token is never printed.
 
 > ⚠️ Do **not** `curl --data-binary @alert-rules.yaml` to
-> `POST /api/v1/provisioning/alert-rules`. That endpoint creates a *single* rule
+> `POST /api/v1/provisioning/alert-rules`. That endpoint creates a _single_ rule
 > and ignores the `groups:` file-provisioning envelope, so it silently fails to
 > provision the rule set — this is how alerting previously drifted from the repo.
 > Use the script above instead.
@@ -347,13 +452,13 @@ sum by (__name__) (
 
 Implementation: `services/live_overlay_daemon/uptimerobot_bridge.py`
 
-### What it does
+### What it does (GitHub bridge)
 
 - Polls the UptimeRobot V2 `getMonitors` endpoint.
 - Caches results in-process for `UPTIMEROBOT_POLL_TTL_SECS`.
 - Emits Prometheus gauges for each configured monitor.
 
-### Exported metrics
+### Exported metrics (GitHub bridge)
 
 | Metric | Type | Labels | Description |
 |--------|------|--------|-------------|
@@ -397,6 +502,9 @@ Implementation: `services/live_overlay_daemon/github_workflow_bridge.py`
 - Polls GitHub Actions workflow run status for a configured repo.
 - Caches results in-process for `GITHUB_WORKFLOW_MONITOR_POLL_TTL_SECS`.
 - Exposes aggregate scrape success/failure metrics.
+- Uses one-page polling intentionally: GitHub returns runs newest-first and the
+  bridge only needs "latest run" state per configured workflow.
+- Percent-encodes owner/repo segments in API URLs defensively.
 
 ### Required env vars
 
@@ -523,4 +631,4 @@ python -m pytest tests/test_live_overlay_infra_alloy_contracts.py -v
 
 ---
 
-*Last updated: 2026-06-22 — aligned with dashboard UX hardening v2.*
+_Last updated: 2026-06-23 — aligned with workflow timeline, trading-signals, and daily-experiment observability docs._

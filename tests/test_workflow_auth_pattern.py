@@ -157,6 +157,15 @@ _FORCE_LEASE_ALLOWLIST: frozenset[str] = frozenset({
     # latest_open_prep_run.json for the realtime-signals producer; isolated
     # detached-HEAD commit + force-with-lease with prior fetch. See ADR-0024.
     "run-open-prep-daily.yml",
+    # smc-measurement-benchmark-rolling.yml: rolling bot/live-experiment-snapshot
+    # cache cursor for the daily experiment rollup + history consumed by the
+    # live-overlay daemon; force-with-lease with prior fetch. See ADR-0024.
+    "smc-measurement-benchmark-rolling.yml",
+    # credential-health-check.yml: rolling bot/live-tv-credential-snapshot cache
+    # cursor for the daily TradingView storage-state credential-age report
+    # consumed by the live-overlay daemon; force-with-lease with prior fetch.
+    # See ADR-0024.
+    "credential-health-check.yml",
 })
 
 _FORCE_RE = re.compile(r"git\s+push\b[^\n]*--force")
