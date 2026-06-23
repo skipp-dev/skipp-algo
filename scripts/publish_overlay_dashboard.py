@@ -202,27 +202,29 @@ def _extract_spec_and_uid(data: dict[str, Any]) -> tuple[dict[str, Any], str]:
     """
     if _is_v2_dashboard(data):
         spec = data["spec"]
-        uid = data.get("metadata", {}).get("name")
+        meta = data.get("metadata")
+        meta_dict = meta if isinstance(meta, dict) else {}
+        uid = meta_dict.get("name")
         uid_source: str | None = "metadata.name"
         if uid is None:
             uid = spec.get("uid")
             uid_source = "spec.uid"
+        # For v2 inputs, a missing uid is allowed (server may assign it).
+        uid = str(uid).strip() if uid is not None else ""
     else:
         spec = data
         uid = data.get("uid")
         uid_source = "uid"
-
-    if uid is None:
-        uid = ""
-        uid_source = None
-
-    uid = str(uid).strip()
-    if not uid:
-        checked = f" (checked {uid_source})" if uid_source else ""
-        raise SystemExit(
-            f"Dashboard is missing a uid{checked}. "
-            "Expected classic top-level 'uid' or App Platform metadata.name."
-        )
+        if uid is None:
+            uid = ""
+            uid_source = None
+        uid = str(uid).strip()
+        if not uid:
+            checked = f" (checked {uid_source})" if uid_source else ""
+            raise SystemExit(
+                f"Dashboard is missing a uid{checked}. "
+                "Expected classic top-level 'uid' or App Platform metadata.name."
+            )
     return spec, uid
 
 
@@ -235,14 +237,21 @@ def _prepare_payload(data: dict[str, Any], message: str, folder_uid: str | None)
     resource envelope change. Server-managed metadata is intentionally omitted.
     """
     spec, uid = _extract_spec_and_uid(data)
-    annotations: dict[str, str] = {"grafana.app/message": message}
+    # Preserve any existing annotations from v2 input metadata; non-dict values
+    # (null, list, string, int) are treated as absent (ADR robustness fix).
+    existing_meta = data.get("metadata") if isinstance(data.get("metadata"), dict) else {}
+    existing_ann = existing_meta.get("annotations") if isinstance(existing_meta.get("annotations"), dict) else {}
+    annotations: dict[str, str] = {**existing_ann, "grafana.app/message": message}
     folder = folder_uid.strip() if folder_uid else ""
     if folder:
         annotations["grafana.app/folder"] = folder
+    meta: dict[str, Any] = {"annotations": annotations}
+    if uid:
+        meta["name"] = uid
     return {
         "apiVersion": "dashboard.grafana.app/v1",
         "kind": "Dashboard",
-        "metadata": {"name": uid, "annotations": annotations},
+        "metadata": meta,
         "spec": spec,
     }
 
