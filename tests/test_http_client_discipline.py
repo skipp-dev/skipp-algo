@@ -180,8 +180,12 @@ _FROZEN_URLOPEN_SITES: frozenset[tuple[str, int]] = frozenset(
         ("scripts/publish_overlay_dashboard.py", 287),
         # 2026-06-23: live-overlay daemon optional NEWS_SNAPSHOT_URL runtime
         # fetch (https-only, explicit timeout) with local-file/seed fallback.
-        ("services/live_overlay_daemon/compute.py", 92),
-        ("services/live_overlay_daemon/compute.py", 163),
+        # Lines shift as sibling signals + experiment loaders are added above.
+        ("services/live_overlay_daemon/compute.py", 111),
+        ("services/live_overlay_daemon/compute.py", 182),
+        # 2026-06-23: daily experiment rollup/history runtime fetch
+        # (EXPERIMENT_SNAPSHOT_URL / EXPERIMENT_HISTORY_URL, https-only).
+        ("services/live_overlay_daemon/compute.py", 259),
     }
 )
 

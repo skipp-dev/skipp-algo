@@ -71,6 +71,25 @@ _signals_checked_at: float = 0.0
 _signals_lock = threading.Lock()
 _SIGNALS_USER_AGENT = "live-overlay-daemon-signals/1"
 
+# ---------------------------------------------------------------------------
+# Daily experiment (Plan 2.8 per-TF family rollup + history) helpers
+# ---------------------------------------------------------------------------
+# The rolling measurement benchmark (scripts/plan_2_8_tf_family_rollup.py)
+# scores SMC setup families (BOS / OB / FVG / SWEEP) per timeframe once per day
+# and writes ``plan_2_8_tf_family_rollup.json``; ``plan_2_8_history_archive.py``
+# folds each day's rollup into a per-day ``plan_2_8_history.jsonl``. The daemon
+# ingests both (locally or, when the *_URL vars are set, over https) purely to
+# surface the daily statistics as Prometheus metrics; it never re-scores.
+
+_experiment_cache: dict[str, Any] = {}
+_experiment_loaded_at: float = 0.0
+_experiment_checked_at: float = 0.0
+_experiment_history_cache: list[dict[str, Any]] = []
+_experiment_history_loaded_at: float = 0.0
+_experiment_history_checked_at: float = 0.0
+_experiment_lock = threading.Lock()
+_EXPERIMENT_USER_AGENT = "live-overlay-daemon-experiment/1"
+
 
 def _fetch_news_url(url: str, token: str, timeout: float = 10.0) -> dict[str, Any] | None:
     """Fetch the news snapshot JSON from ``url``.
@@ -217,6 +236,155 @@ def _load_signals_snapshot() -> dict[str, Any]:
             )
             _signals_cache = {}
         return dict(_signals_cache)
+
+
+def _fetch_experiment_url(
+    url: str, token: str, timeout: float = 10.0
+) -> str | None:
+    """Fetch raw text (JSON rollup or JSONL history) from ``url``.
+
+    Returns the decoded body on success or ``None`` on any failure so the caller
+    can fall back to the local file. Only https URLs are honoured.
+    """
+    if not url.lower().startswith("https://"):
+        logger.warning("EXPERIMENT_*_URL must be an https URL; ignoring %r", url)
+        return None
+    headers = {"Accept": "application/json", "User-Agent": _EXPERIMENT_USER_AGENT}
+    if token:
+        headers["Authorization"] = f"Bearer {token}"
+        # Allows pointing the URL at the GitHub contents API raw endpoint.
+        headers["Accept"] = "application/vnd.github.raw+json"
+    req = urllib.request.Request(url, headers=headers)
+    try:
+        with urllib.request.urlopen(req, timeout=timeout) as resp:
+            payload = resp.read()
+        return payload.decode("utf-8", errors="replace")
+    except (urllib.error.URLError, TimeoutError, ValueError, OSError):
+        logger.warning("Failed to fetch experiment data from URL", exc_info=True)
+        return None
+
+
+def _parse_history_lines(text: str, max_days: int) -> list[dict[str, Any]]:
+    """Parse a Plan 2.8 history JSONL body into the most recent per-day dicts.
+
+    Malformed lines are skipped. The newest ``max_days`` snapshots are returned
+    in chronological order (oldest first) so Grafana renders them left-to-right.
+    """
+    rows: list[dict[str, Any]] = []
+    for line in text.splitlines():
+        line = line.strip()
+        if not line:
+            continue
+        try:
+            obj = json.loads(line)
+        except ValueError:
+            continue
+        if isinstance(obj, dict) and obj.get("captured_at"):
+            rows.append(obj)
+    # JSONL is append-ordered, but sort defensively on captured_at so a backfill
+    # line interleaved out of order still renders chronologically.
+    rows.sort(key=lambda r: str(r.get("captured_at", "")))
+    if max_days > 0 and len(rows) > max_days:
+        rows = rows[-max_days:]
+    return rows
+
+
+def _load_experiment_snapshot() -> dict[str, Any]:
+    """Return the latest Plan 2.8 per-TF family rollup as a dict.
+
+    Mirrors :func:`_load_signals_snapshot`: a runtime ``EXPERIMENT_SNAPSHOT_URL``
+    takes precedence, otherwise the local rollup file is read. TTL-rate-limited
+    so a missing/corrupt file cannot cause a read/log storm. Returns ``{}`` when
+    no rollup is available.
+    """
+    global _experiment_cache, _experiment_loaded_at, _experiment_checked_at
+    with _experiment_lock:
+        now = time.monotonic()
+        ttl = config.experiment_cache_ttl_secs()
+
+        if _experiment_loaded_at > 0.0 and now - _experiment_loaded_at < ttl:
+            return dict(_experiment_cache)
+        if _experiment_checked_at > 0.0 and now - _experiment_checked_at < ttl:
+            return dict(_experiment_cache)
+
+        _experiment_checked_at = now
+
+        url = config.experiment_snapshot_url()
+        if url:
+            body = _fetch_experiment_url(url, config.experiment_snapshot_url_token())
+            if body is not None:
+                try:
+                    raw = json.loads(body)
+                except ValueError:
+                    raw = None
+                if isinstance(raw, dict):
+                    _experiment_cache = raw
+                    _experiment_loaded_at = now
+                    return dict(_experiment_cache)
+
+        path = config.experiment_snapshot_path()
+        if not path.exists():
+            _experiment_cache = {}
+            return {}
+        try:
+            raw = json.loads(path.read_text(encoding="utf-8"))
+            _experiment_cache = raw if isinstance(raw, dict) else {}
+            _experiment_loaded_at = now
+        except Exception:
+            logger.warning(
+                "Failed to load experiment rollup from %s", path, exc_info=True
+            )
+            _experiment_cache = {}
+        return dict(_experiment_cache)
+
+
+def _load_experiment_history() -> list[dict[str, Any]]:
+    """Return the per-day Plan 2.8 history snapshots (oldest first).
+
+    Mirrors the snapshot loader but parses JSONL and caps to
+    ``experiment_history_max_days``. Returns ``[]`` when unavailable.
+    """
+    global _experiment_history_cache, _experiment_history_loaded_at, _experiment_history_checked_at
+    with _experiment_lock:
+        now = time.monotonic()
+        ttl = config.experiment_cache_ttl_secs()
+        max_days = config.experiment_history_max_days()
+
+        if (
+            _experiment_history_loaded_at > 0.0
+            and now - _experiment_history_loaded_at < ttl
+        ):
+            return [dict(r) for r in _experiment_history_cache]
+        if (
+            _experiment_history_checked_at > 0.0
+            and now - _experiment_history_checked_at < ttl
+        ):
+            return [dict(r) for r in _experiment_history_cache]
+
+        _experiment_history_checked_at = now
+
+        url = config.experiment_history_url()
+        if url:
+            body = _fetch_experiment_url(url, config.experiment_history_url_token())
+            if body is not None:
+                _experiment_history_cache = _parse_history_lines(body, max_days)
+                _experiment_history_loaded_at = now
+                return [dict(r) for r in _experiment_history_cache]
+
+        path = config.experiment_history_path()
+        if not path.exists():
+            _experiment_history_cache = []
+            return []
+        try:
+            text = path.read_text(encoding="utf-8")
+            _experiment_history_cache = _parse_history_lines(text, max_days)
+            _experiment_history_loaded_at = now
+        except Exception:
+            logger.warning(
+                "Failed to load experiment history from %s", path, exc_info=True
+            )
+            _experiment_history_cache = []
+        return [dict(r) for r in _experiment_history_cache]
 
 
 def _get_news_fields(symbol: str) -> dict[str, Any]:

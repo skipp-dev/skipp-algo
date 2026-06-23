@@ -861,3 +861,200 @@ def test_provider_health_snapshot_all_disabled_except_consumed_ok(
     assert health["news_health_ok"] == 1.0
     assert health["news_health_degraded"] == 0.0
     assert health["news_health_unknown"] == 0.0
+
+
+def test_render_metrics_includes_daily_experiment_snapshot(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    import services.live_overlay_daemon.metrics as metrics_mod
+
+    _patch_common(
+        monkeypatch,
+        feed_ready=True,
+        market_open=True,
+        bar_count=10,
+        overlay_symbols=5,
+        overlay_age=60.0,
+    )
+    rollup = {
+        "schema_version": 1,
+        "scoring_root": "/x/artifacts/ci/measurement_benchmark_rolling/2026-06-21",
+        "files_scanned": 1234,
+        "per_tf": {
+            "5m": {
+                "n_events": 200,
+                "hit_rate": 0.61,
+                "symbols": ["AAPL"],
+                "families": {
+                    "FVG": {"n_events": 80, "hit_rate": 0.7},
+                    "SWEEP": {"n_events": 40, "hit_rate": 0.55},
+                },
+            },
+            "4H": {
+                "n_events": 50,
+                "hit_rate": 0.48,
+                "families": {"BOS": {"n_events": 30, "hit_rate": 0.5}},
+            },
+        },
+        "phase_e2_verdict": {
+            "fvg_ttf_5m_vs_baseline": {
+                "status": "measured",
+                "delta_hr": 0.08,
+                "delta_hr_p_value": 0.012,
+                "underpowered": False,
+                "n_a": 80,
+                "n_b": 90,
+            },
+            "bos_stability_4h_vs_baseline": {
+                "status": "insufficient_data",
+                "n_a": 5,
+                "n_b": 7,
+            },
+        },
+    }
+    history = [
+        {
+            "captured_at": "2026-06-20T13:00:00Z",
+            "per_tf": {
+                "5m": {
+                    "n_events": 180,
+                    "hit_rate": 0.58,
+                    "families": {"FVG": {"n_events": 70, "hit_rate": 0.66}},
+                }
+            },
+        },
+        {
+            "captured_at": "2026-06-21T13:00:00Z",
+            "per_tf": {
+                "5m": {
+                    "n_events": 200,
+                    "hit_rate": 0.61,
+                    "families": {"FVG": {"n_events": 80, "hit_rate": 0.7}},
+                }
+            },
+        },
+    ]
+    monkeypatch.setattr(
+        metrics_mod.compute, "_load_experiment_snapshot", lambda: rollup
+    )
+    monkeypatch.setattr(
+        metrics_mod.compute, "_load_experiment_history", lambda: history
+    )
+
+    body = metrics_mod.render_metrics(startup_ts=100.0)
+
+    assert "live_overlay_experiment_loaded 1.0" in body
+    assert "live_overlay_experiment_files_scanned 1234.0" in body
+    # The dated scoring_root yields a known run age.
+    assert "live_overlay_experiment_snapshot_age_known 1.0" in body
+    # Per-timeframe aggregates.
+    assert (
+        'live_overlay_experiment_tf_hit_rate{timeframe="5m"} 0.61' in body
+    )
+    assert (
+        'live_overlay_experiment_tf_n_events{timeframe="4H"} 50.0' in body
+    )
+    # Per-family detail.
+    assert (
+        'live_overlay_experiment_family_hit_rate{timeframe="5m",family="FVG"} 0.7'
+        in body
+    )
+    assert (
+        'live_overlay_experiment_family_n_events{timeframe="5m",family="SWEEP"} 40.0'
+        in body
+    )
+    # Phase E2 verdicts mapped to numeric codes; p-value only when measured.
+    assert (
+        'live_overlay_experiment_verdict_status_code{hypothesis="fvg_5m",status="measured"} 4.0'
+        in body
+    )
+    assert (
+        'live_overlay_experiment_verdict_status_code{hypothesis="bos_4h",status="insufficient_data"} 1.0'
+        in body
+    )
+    assert (
+        'live_overlay_experiment_verdict_p_value{hypothesis="fvg_5m",status="measured"} 0.012'
+        in body
+    )
+    # p-value is omitted for the insufficient-data verdict (no false 0).
+    assert 'live_overlay_experiment_verdict_p_value{hypothesis="bos_4h"' not in body
+    # Per-day backfilled history series, one per (run_date, timeframe, family).
+    assert (
+        'live_overlay_experiment_day_family_hit_rate{run_date="2026-06-20",timeframe="5m",family="FVG"} 0.66'
+        in body
+    )
+    assert (
+        'live_overlay_experiment_day_family_hit_rate{run_date="2026-06-21",timeframe="5m",family="FVG"} 0.7'
+        in body
+    )
+
+
+def test_render_metrics_handles_daily_experiment_snapshot_missing(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    import services.live_overlay_daemon.metrics as metrics_mod
+
+    _patch_common(
+        monkeypatch,
+        feed_ready=True,
+        market_open=True,
+        bar_count=10,
+        overlay_symbols=5,
+        overlay_age=60.0,
+    )
+    monkeypatch.setattr(metrics_mod.compute, "_load_experiment_snapshot", lambda: {})
+    monkeypatch.setattr(metrics_mod.compute, "_load_experiment_history", lambda: [])
+
+    body = metrics_mod.render_metrics(startup_ts=100.0)
+
+    assert "live_overlay_experiment_loaded 0.0" in body
+    assert "live_overlay_experiment_snapshot_age_known 0.0" in body
+    assert "live_overlay_experiment_files_scanned 0.0" in body
+    # No per-family or per-day series when nothing is available.
+    assert "live_overlay_experiment_family_hit_rate{" not in body
+    assert "live_overlay_experiment_day_family_hit_rate{" not in body
+
+
+def test_dashboard_has_daily_experiment_panels() -> None:
+    repo_root = Path(__file__).resolve().parents[1]
+    dashboard_path = repo_root / "services" / "live_overlay_daemon" / "infra" / "grafana" / "dashboard.json"
+    dashboard = json.loads(dashboard_path.read_text(encoding="utf-8"))
+    by_title = {p.get("title"): p for p in dashboard["panels"]}
+
+    age = by_title["Daily Experiment — Snapshot Age"]
+    assert age["fieldConfig"]["defaults"]["unit"] == "s"
+    assert any(
+        "live_overlay_experiment_snapshot_age_seconds" in t["expr"]
+        for t in age["targets"]
+    )
+    assert any(
+        "live_overlay_experiment_snapshot_age_known" in t["expr"]
+        for t in age["targets"]
+    )
+
+    fvg = by_title["FVG 5m Verdict (Phase E2)"]
+    assert any(
+        'hypothesis="fvg_5m"' in t["expr"]
+        and "live_overlay_experiment_verdict_status_code" in t["expr"]
+        for t in fvg["targets"]
+    )
+    fvg_map = fvg["fieldConfig"]["defaults"]["mappings"][0]["options"]
+    assert fvg_map["4"]["text"] == "measured"
+
+    detail = by_title["Daily Experiment — Latest Per-Family Detail"]
+    assert detail["type"] == "table"
+    exprs = {t["expr"] for t in detail["targets"]}
+    assert any("live_overlay_experiment_family_hit_rate{" in e for e in exprs)
+    assert any("live_overlay_experiment_family_n_events{" in e for e in exprs)
+    assert all(t.get("instant") for t in detail["targets"])
+    assert any(tr["id"] == "merge" for tr in detail["transformations"])
+
+    ts_panel = by_title["Family Hit-Rate Over Time (accumulates daily)"]
+    assert ts_panel["type"] == "timeseries"
+    assert ts_panel["targets"][0]["legendFormat"] == "{{timeframe}} · {{family}}"
+
+    history = by_title["Per-Day Family Hit-Rate — History (backfilled)"]
+    assert history["type"] == "table"
+    hist_exprs = {t["expr"] for t in history["targets"]}
+    assert any("live_overlay_experiment_day_family_hit_rate{" in e for e in hist_exprs)
+    assert any(tr["id"] == "merge" for tr in history["transformations"])

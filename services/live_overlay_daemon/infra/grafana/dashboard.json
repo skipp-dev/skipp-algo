@@ -3793,6 +3793,290 @@
         "legend": { "displayMode": "table", "placement": "right", "calcs": ["lastNotNull", "max"] },
         "tooltip": { "mode": "multi", "sort": "desc" }
       }
+    },
+    {
+      "title": "Daily Experiment — Snapshot Age",
+      "type": "stat",
+      "description": "Age of the latest Plan 2.8 family rollup (scripts/plan_2_8_tf_family_rollup.py). The rolling benchmark runs ~daily; green < 24h, yellow < 36h, red beyond means a run was skipped. N/A when the run date cannot be derived.",
+      "gridPos": { "h": 5, "w": 6, "x": 0, "y": 216 },
+      "targets": [
+        {
+          "expr": "live_overlay_experiment_snapshot_age_seconds{job=\"$job\"} and on() (live_overlay_experiment_snapshot_age_known{job=\"$job\"} == 1)",
+          "instant": true,
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "s",
+          "noValue": "N/A",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "green", "value": null },
+              { "color": "yellow", "value": 86400 },
+              { "color": "red", "value": 129600 }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "colorMode": "background",
+        "graphMode": "none",
+        "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false }
+      }
+    },
+    {
+      "title": "Daily Experiment — Files Scanned",
+      "type": "stat",
+      "description": "Number of scoring files folded into the latest daily rollup. A sudden drop signals an upstream scoring/coverage problem.",
+      "gridPos": { "h": 5, "w": 6, "x": 6, "y": 216 },
+      "targets": [
+        {
+          "expr": "live_overlay_experiment_files_scanned{job=\"$job\"}",
+          "instant": true,
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "noValue": "N/A",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "red", "value": null },
+              { "color": "green", "value": 1 }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "colorMode": "value",
+        "graphMode": "area",
+        "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false }
+      }
+    },
+    {
+      "title": "FVG 5m Verdict (Phase E2)",
+      "type": "stat",
+      "description": "Latest Phase E2 verdict for the FVG-time-to-fill 5m hypothesis vs baseline. measured = conclusive signal; underpowered = effect seen but not enough samples; insufficient/missing = not enough data yet.",
+      "gridPos": { "h": 5, "w": 6, "x": 12, "y": 216 },
+      "targets": [
+        {
+          "expr": "live_overlay_experiment_verdict_status_code{job=\"$job\", hypothesis=\"fvg_5m\"}",
+          "instant": true,
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "noValue": "N/A",
+          "mappings": [
+            { "type": "value", "options": {
+              "0": { "text": "missing", "color": "red", "index": 0 },
+              "1": { "text": "insufficient", "color": "orange", "index": 1 },
+              "2": { "text": "degenerate", "color": "orange", "index": 2 },
+              "3": { "text": "underpowered", "color": "yellow", "index": 3 },
+              "4": { "text": "measured", "color": "green", "index": 4 }
+            } }
+          ],
+          "thresholds": { "mode": "absolute", "steps": [ { "color": "text", "value": null } ] }
+        },
+        "overrides": []
+      },
+      "options": {
+        "colorMode": "background",
+        "graphMode": "none",
+        "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false }
+      }
+    },
+    {
+      "title": "BOS 4H Verdict (Phase E2)",
+      "type": "stat",
+      "description": "Latest Phase E2 verdict for the BOS 4H stability hypothesis vs baseline.",
+      "gridPos": { "h": 5, "w": 6, "x": 18, "y": 216 },
+      "targets": [
+        {
+          "expr": "live_overlay_experiment_verdict_status_code{job=\"$job\", hypothesis=\"bos_4h\"}",
+          "instant": true,
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "noValue": "N/A",
+          "mappings": [
+            { "type": "value", "options": {
+              "0": { "text": "missing", "color": "red", "index": 0 },
+              "1": { "text": "insufficient", "color": "orange", "index": 1 },
+              "2": { "text": "degenerate", "color": "orange", "index": 2 },
+              "3": { "text": "underpowered", "color": "yellow", "index": 3 },
+              "4": { "text": "measured", "color": "green", "index": 4 }
+            } }
+          ],
+          "thresholds": { "mode": "absolute", "steps": [ { "color": "text", "value": null } ] }
+        },
+        "overrides": []
+      },
+      "options": {
+        "colorMode": "background",
+        "graphMode": "none",
+        "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false }
+      }
+    },
+    {
+      "title": "Daily Experiment — Latest Per-Family Detail",
+      "type": "table",
+      "description": "Current-day hit-rate and sample size for each SMC setup family (BOS / OB / FVG / SWEEP) per timeframe, from the latest rollup. Hit-rate is colour-graded; n_events is the sample size behind it.",
+      "gridPos": { "h": 9, "w": 24, "x": 0, "y": 221 },
+      "targets": [
+        {
+          "expr": "live_overlay_experiment_family_hit_rate{job=\"$job\"}",
+          "instant": true,
+          "format": "table",
+          "refId": "A"
+        },
+        {
+          "expr": "live_overlay_experiment_family_n_events{job=\"$job\"}",
+          "instant": true,
+          "format": "table",
+          "refId": "B"
+        }
+      ],
+      "transformations": [
+        { "id": "merge", "options": {} },
+        {
+          "id": "organize",
+          "options": {
+            "excludeByName": { "Time": true, "__name__": true, "job": true, "instance": true },
+            "renameByName": {
+              "timeframe": "Timeframe",
+              "family": "Family",
+              "Value #A": "Hit Rate",
+              "Value #B": "Events"
+            }
+          }
+        }
+      ],
+      "fieldConfig": {
+        "defaults": { "custom": { "align": "auto" } },
+        "overrides": [
+          {
+            "matcher": { "id": "byName", "options": "Hit Rate" },
+            "properties": [
+              { "id": "unit", "value": "percentunit" },
+              { "id": "custom.cellOptions", "value": { "type": "gauge", "mode": "gradient" } },
+              { "id": "min", "value": 0 },
+              { "id": "max", "value": 1 },
+              { "id": "thresholds", "value": { "mode": "absolute", "steps": [
+                { "color": "red", "value": null },
+                { "color": "yellow", "value": 0.45 },
+                { "color": "green", "value": 0.55 }
+              ] } }
+            ]
+          }
+        ]
+      },
+      "options": {
+        "showHeader": true,
+        "sortBy": [ { "displayName": "Hit Rate", "desc": true } ]
+      }
+    },
+    {
+      "title": "Family Hit-Rate Over Time (accumulates daily)",
+      "type": "timeseries",
+      "description": "Live forward timeline: each daily benchmark run updates these gauges, so Prometheus records one step per day. Use the time picker (e.g. last 30 days) to see how each family/timeframe hit-rate trends going forward.",
+      "gridPos": { "h": 8, "w": 24, "x": 0, "y": 230 },
+      "targets": [
+        {
+          "expr": "live_overlay_experiment_family_hit_rate{job=\"$job\"}",
+          "legendFormat": "{{timeframe}} · {{family}}",
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "drawStyle": "line",
+            "lineInterpolation": "stepAfter",
+            "lineWidth": 2,
+            "fillOpacity": 5,
+            "showPoints": "always",
+            "pointSize": 6,
+            "spanNulls": true
+          },
+          "unit": "percentunit",
+          "min": 0,
+          "max": 1
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": { "displayMode": "table", "placement": "right", "calcs": ["lastNotNull", "mean", "min", "max"] },
+        "tooltip": { "mode": "multi", "sort": "desc" }
+      }
+    },
+    {
+      "title": "Per-Day Family Hit-Rate — History (backfilled)",
+      "type": "table",
+      "description": "Retained per-day history from plan_2_8_history.jsonl: exact hit-rate and sample size for each run date / timeframe / family. Backfills the daily statistics immediately (no need to wait for Prometheus to accumulate). Sort by Run Date to read the day-by-day timeline.",
+      "gridPos": { "h": 10, "w": 24, "x": 0, "y": 238 },
+      "targets": [
+        {
+          "expr": "live_overlay_experiment_day_family_hit_rate{job=\"$job\"}",
+          "instant": true,
+          "format": "table",
+          "refId": "A"
+        },
+        {
+          "expr": "live_overlay_experiment_day_family_n_events{job=\"$job\"}",
+          "instant": true,
+          "format": "table",
+          "refId": "B"
+        }
+      ],
+      "transformations": [
+        { "id": "merge", "options": {} },
+        {
+          "id": "organize",
+          "options": {
+            "excludeByName": { "Time": true, "__name__": true, "job": true, "instance": true },
+            "renameByName": {
+              "run_date": "Run Date",
+              "timeframe": "Timeframe",
+              "family": "Family",
+              "Value #A": "Hit Rate",
+              "Value #B": "Events"
+            }
+          }
+        }
+      ],
+      "fieldConfig": {
+        "defaults": { "custom": { "align": "auto" } },
+        "overrides": [
+          {
+            "matcher": { "id": "byName", "options": "Hit Rate" },
+            "properties": [
+              { "id": "unit", "value": "percentunit" },
+              { "id": "custom.cellOptions", "value": { "type": "color-background", "mode": "gradient" } },
+              { "id": "min", "value": 0 },
+              { "id": "max", "value": 1 },
+              { "id": "thresholds", "value": { "mode": "absolute", "steps": [
+                { "color": "red", "value": null },
+                { "color": "yellow", "value": 0.45 },
+                { "color": "green", "value": 0.55 }
+              ] } }
+            ]
+          }
+        ]
+      },
+      "options": {
+        "showHeader": true,
+        "sortBy": [ { "displayName": "Run Date", "desc": true } ]
+      }
     }
   ],
   "schemaVersion": 39,
@@ -3832,5 +4116,5 @@
   "timezone": "utc",
   "title": "SMC Live Overlay Daemon",
   "uid": "smc-live-overlay-v1",
-  "version": 23
+  "version": 24
 }
