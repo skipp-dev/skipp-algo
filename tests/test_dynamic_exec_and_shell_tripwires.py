@@ -19,7 +19,7 @@ from __future__ import annotations
 import ast
 from pathlib import Path
 
-from tests._guard_corpus import parse_module
+from tests._guard_corpus import iter_tracked_files, parse_module
 
 _REPO_ROOT = Path(__file__).resolve().parent.parent
 
@@ -45,12 +45,7 @@ _BANNED_BUILTINS = frozenset({"exec", "eval", "compile", "input"})
 
 
 def _iter_prod_files() -> list[Path]:
-    out: list[Path] = []
-    for path in _REPO_ROOT.rglob("*.py"):
-        if any(part in _DIR_EXCLUDE for part in path.relative_to(_REPO_ROOT).parts):
-            continue
-        out.append(path)
-    return sorted(out)
+    return iter_tracked_files("*.py", _DIR_EXCLUDE, root=_REPO_ROOT)
 
 
 def _shell_true(node: ast.Call) -> bool:
