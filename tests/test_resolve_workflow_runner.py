@@ -283,3 +283,73 @@ def test_main_no_idle_fallback_required_self_hosted_routes_when_all_busy(
         "resolution_reason=no_idle_matching_self_hosted_runner:forced_required_self_hosted"
         in payload
     )
+
+
+def test_main_force_hosted_flag_bypasses_inventory_and_self_hosted(
+    monkeypatch, tmp_path: Path
+) -> None:
+    module = _load_module()
+
+    output_path = tmp_path / "github_output.txt"
+    monkeypatch.setenv("GH_TOKEN", "fake-token")
+    monkeypatch.delenv("SMC_FORCE_GH_HOSTED", raising=False)
+    monkeypatch.setenv("GITHUB_OUTPUT", str(output_path))
+
+    def _explode(*args, **kwargs):
+        raise AssertionError("inventory must not be queried when force-hosted")
+
+    monkeypatch.setattr(module, "_fetch_repository_runners", _explode)
+    monkeypatch.setattr(
+        sys,
+        "argv",
+        [
+            "resolve_workflow_runner.py",
+            "--repository",
+            "owner/repo",
+            "--force-hosted",
+            "--inventory-unavailable-fallback",
+            "required-self-hosted",
+        ],
+    )
+
+    exit_code = module.main()
+
+    assert exit_code == 0
+    payload = output_path.read_text(encoding="utf-8")
+    assert 'runs_on_json="ubuntu-latest"' in payload
+    assert "runner_environment=github-hosted" in payload
+    assert "resolution_reason=forced_github_hosted" in payload
+
+
+def test_main_force_hosted_via_env_var_without_token(monkeypatch, tmp_path: Path) -> None:
+    module = _load_module()
+
+    output_path = tmp_path / "github_output.txt"
+    monkeypatch.delenv("GH_TOKEN", raising=False)
+    monkeypatch.delenv("GITHUB_TOKEN", raising=False)
+    monkeypatch.setenv("SMC_FORCE_GH_HOSTED", "1")
+    monkeypatch.setenv("GITHUB_OUTPUT", str(output_path))
+
+    def _explode(*args, **kwargs):
+        raise AssertionError("inventory must not be queried when force-hosted")
+
+    monkeypatch.setattr(module, "_fetch_repository_runners", _explode)
+    monkeypatch.setattr(
+        sys,
+        "argv",
+        [
+            "resolve_workflow_runner.py",
+            "--repository",
+            "owner/repo",
+            "--inventory-unavailable-fallback",
+            "required-self-hosted",
+        ],
+    )
+
+    exit_code = module.main()
+
+    assert exit_code == 0
+    payload = output_path.read_text(encoding="utf-8")
+    assert 'runs_on_json="ubuntu-latest"' in payload
+    assert "runner_environment=github-hosted" in payload
+    assert "resolution_reason=forced_github_hosted" in payload

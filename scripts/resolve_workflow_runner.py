@@ -111,8 +111,20 @@ def _append_github_output(
         handle.write(f"matched_runner_name={resolution.matched_runner_name or ''}\n")
 
 
+def _env_truthy(value: str | None) -> bool:
+    """Return True for common truthy string encodings of a flag env var."""
+    if value is None:
+        return False
+    return value.strip().lower() in {"1", "true", "yes", "on"}
+
+
 def main() -> int:
-    parser = argparse.ArgumentParser(description="Resolve a GitHub Actions runner with self-hosted-primary fallback semantics.")
+    parser = argparse.ArgumentParser(
+        description=(
+            "Resolve a GitHub Actions runner. Self-hosted-primary by default; "
+            "github-hosted can be forced via --force-hosted / SMC_FORCE_GH_HOSTED."
+        )
+    )
     parser.add_argument("--repository", required=True, help="Repository in owner/name form.")
     parser.add_argument("--hosted-runner", default="ubuntu-latest", help="GitHub-hosted fallback runner label.")
     parser.add_argument("--custom-label", default="", help="Optional custom self-hosted runner label.")
@@ -142,6 +154,17 @@ def main() -> int:
             "required self-hosted labels so the job queues until a runner is free."
         ),
     )
+    parser.add_argument(
+        "--force-hosted",
+        action="store_true",
+        default=_env_truthy(os.getenv("SMC_FORCE_GH_HOSTED")),
+        help=(
+            "Force github-hosted resolution unconditionally, bypassing runner "
+            "inventory and every self-hosted fallback. Defaults to the truthiness "
+            "of the SMC_FORCE_GH_HOSTED environment variable so a single repository "
+            "variable can flip all workflows to github-hosted."
+        ),
+    )
     args = parser.parse_args()
 
     custom_label = args.custom_label.strip() or None
@@ -149,7 +172,13 @@ def main() -> int:
     token = os.getenv(args.token_env, "").strip()
     force_required_self_hosted = args.inventory_unavailable_fallback == "required-self-hosted"
 
-    if not token:
+    if args.force_hosted:
+        resolution = RunnerResolution(
+            runs_on=args.hosted_runner,
+            runner_environment="github-hosted",
+            reason="forced_github_hosted",
+        )
+    elif not token:
         if force_required_self_hosted:
             resolution = RunnerResolution(
                 runs_on=required_labels,

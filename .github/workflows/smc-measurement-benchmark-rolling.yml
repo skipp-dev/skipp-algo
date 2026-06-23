@@ -99,6 +99,7 @@ jobs:
         id: resolve
         env:
           GH_TOKEN: ${{ secrets.GH_PAT != '' && secrets.GH_PAT || github.token }}
+          SMC_FORCE_GH_HOSTED: ${{ vars.SMC_FORCE_GH_HOSTED }}
         run: |
           # The rolling benchmark is an off-hours batch workload, so it
           # should prefer the priority cron Windows runner when one is idle.

@@ -396,6 +396,14 @@ This includes `ci.yml`. CI validate is intentionally GitHub-hosted.
 Routing via `--inventory-unavailable-fallback required-self-hosted` only
 unless the workflow truly cannot run on GitHub-hosted infrastructure.
 
+**Kill switch — force GitHub-hosted everywhere:** Set the repository variable
+`SMC_FORCE_GH_HOSTED=1` (or pass `--force-hosted` to
+`scripts/resolve_workflow_runner.py`). The `select-runner` job then resolves to
+the GitHub-hosted runner unconditionally, bypassing the self-hosted inventory and
+every self-hosted fallback (including `--inventory-unavailable-fallback
+required-self-hosted`). Use it when the self-hosted pool is offline; unset the
+variable to restore self-hosted-primary routing.
+
 ---
 
 ## Runner- & CI-Policy
