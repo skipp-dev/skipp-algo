@@ -78,6 +78,14 @@ Constraints that must hold for the allowance to remain valid:
 
 * The `smc-live-newsapi-refresh.yml` snapshot mechanism continues to work
   without accumulating unbounded history on `bot/live-news-snapshot`.
+* `run-open-prep-daily.yml` reuses the same carve-out to publish
+  `latest_open_prep_run.json` to `bot/live-open-prep-snapshot` (2026-06-23,
+  Task F-V8) so the realtime-signals producer can consume a stable,
+  git-tracked snapshot path. The snapshot commit is built on a detached HEAD
+  so the workflow's outcomes auto-merge PR diff stays free of the gitignored
+  snapshot file; the lease is populated by a prior fetch and the push uses
+  the `if git push ... ; then ... else ... fi` form. It is the second entry
+  in `_FORCE_LEASE_ALLOWLIST`.
 * The same carve-out is reused by `smc-measurement-benchmark-rolling.yml`
   (added 2026-06-23), which publishes the daily experiment rollup +
   `plan_2_8_history.jsonl` to `bot/live-experiment-snapshot` so the

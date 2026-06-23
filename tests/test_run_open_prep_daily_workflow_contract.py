@@ -132,3 +132,46 @@ def test_run_step_uploads_outcomes_artifact_always() -> None:
         "outcome upload must run on failure too (partial outcomes are useful for triage)"
     )
     assert "artifacts/open_prep/outcomes/" in step["with"]["path"]
+
+
+def _snapshot_publish_step() -> dict:
+    for step in _load()["jobs"]["run"]["steps"]:
+        if "bot/live-open-prep-snapshot" in str(step.get("run", "")):
+            return step
+    raise AssertionError(
+        "missing the open-prep snapshot publish step (bot/live-open-prep-snapshot)"
+    )
+
+
+def test_publishes_open_prep_snapshot_to_bot_branch() -> None:
+    """The realtime-signals producer consumes latest_open_prep_run.json from a
+    stable git path; this step keeps bot/live-open-prep-snapshot fresh."""
+    step = _snapshot_publish_step()
+    run = str(step["run"])
+
+    assert "artifacts/open_prep/latest/latest_open_prep_run.json" in run, (
+        "snapshot publish must push the stable latest_open_prep_run.json path"
+    )
+    assert (
+        "git push --force-with-lease=refs/remotes/origin/bot/live-open-prep-snapshot "
+        "origin \"HEAD:refs/heads/bot/live-open-prep-snapshot\"" in run
+    ), "snapshot publish must force-with-lease the dedicated bot snapshot branch"
+    assert "if git push --force-with-lease" in run, (
+        "must use the positive `if git push` form (see test_workflow_auth_pattern)"
+    )
+    assert "git fetch origin \"+refs/heads/bot/live-open-prep-snapshot" in run, (
+        "must fetch the snapshot tip first so --force-with-lease has a real lease"
+    )
+    assert "git checkout --detach" in run, (
+        "snapshot commit must be isolated on a detached HEAD so the outcomes "
+        "auto-merge PR diff stays free of the gitignored snapshot file"
+    )
+
+
+def test_snapshot_publish_uses_gh_pat_token() -> None:
+    step = _snapshot_publish_step()
+    token = str((step.get("env") or {}).get("GH_TOKEN", ""))
+    assert "secrets.GH_PAT != ''" in token, (
+        "snapshot publish push must use GH_PAT-or-default so the force-push "
+        "is authorized against the protected repository"
+    )

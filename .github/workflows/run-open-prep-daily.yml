@@ -193,6 +193,72 @@ jobs:
             artifacts/open_prep/outcomes/
           if-no-files-found: warn
 
+      - name: Publish open-prep snapshot to rolling bot branch
+        # Task F-V8 (2026-06-23): the artifact upload above is the
+        # authoritative per-run snapshot, but downstream consumers (the
+        # realtime-signals producer) need a git-tracked, stable-path copy
+        # of latest_open_prep_run.json. The `main-governance` ruleset blocks
+        # bare pushes to main and a daily PR would add noise, so — exactly
+        # like smc-live-newsapi-refresh — we force-update the dedicated
+        # `bot/live-open-prep-snapshot` branch (allowed: `bot/*` is excluded
+        # from the ruleset). No `continue-on-error`: the block is fail-loud so
+        # a permanently broken push (expired PAT, ruleset change) shows red.
+        if: success()
+        env:
+          GH_TOKEN: ${{ secrets.GH_PAT != '' && secrets.GH_PAT || github.token }}
+        run: |
+          set -euo pipefail
+          SNAPSHOT="artifacts/open_prep/latest/latest_open_prep_run.json"
+          if [ ! -f "$SNAPSHOT" ]; then
+            echo "::warning::run produced no $SNAPSHOT; skipping snapshot publish."
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git remote set-url origin "https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git"
+          # Isolate the snapshot commit on a detached HEAD so the workflow's
+          # checkout is left untouched: the later "Commit fresh outcomes" step
+          # branches from the original SHA and its PR diff must NOT carry this
+          # gitignored snapshot file.
+          START_SHA="$(git rev-parse HEAD)"
+          # actions/checkout is shallow, so the remote-tracking ref does not
+          # exist locally and --force-with-lease would degrade to an empty
+          # lease (unconditional force). Fetch the tip first for a real base.
+          git fetch origin "+refs/heads/bot/live-open-prep-snapshot:refs/remotes/origin/bot/live-open-prep-snapshot" \
+            || echo "::warning::fetch of bot/live-open-prep-snapshot failed; proceeding without base (branch may not exist yet)"
+          git checkout --detach --quiet "$START_SHA"
+          rm -f "$SNAPSHOT"
+          # `-f` overrides .gitignore so the runtime snapshot can be staged.
+          # `--sparse` was previously paired here but is meaningless against
+          # actions/checkout's full (non-sparse) tree and confused readers
+          # (audit PR #2913 F4); removed without behavior change.
+          git add -f "$SNAPSHOT"
+          if git diff --cached --quiet; then
+            echo "No open-prep snapshot changes to publish."
+            git checkout --quiet "$START_SHA"
+            rm -f "$SNAPSHOT"
+            exit 0
+          fi
+          git commit -m "[skip ci] chore: refresh open-prep snapshot"
+          # `if git push` positive form is what tests/test_workflow_auth_pattern.py
+          # requires (it disallows the `if !` negation). Surface real push
+          # failures as a red job, not a swallowed warning.
+          if git push --force-with-lease=refs/remotes/origin/bot/live-open-prep-snapshot origin "HEAD:refs/heads/bot/live-open-prep-snapshot"; then
+            echo "Pushed open-prep snapshot to bot/live-open-prep-snapshot."
+            git checkout --quiet "$START_SHA"
+            rm -f "$SNAPSHOT"
+          else
+            echo "::warning::open-prep snapshot push failed; the per-run artifact remains available, but bot/live-open-prep-snapshot may be stale."
+            {
+              echo "### ⚠ open-prep snapshot persistence warning"
+              echo ""
+              echo "The per-run artifact uploaded, but the rolling bot/live-open-prep-snapshot branch push failed. Consumers reading the stable snapshot path may see stale data until the next daily run."
+            } >> "$GITHUB_STEP_SUMMARY"
+            git checkout --quiet "$START_SHA" || true
+            rm -f "$SNAPSHOT"
+            exit 1
+          fi
+
       - name: Commit fresh outcomes via auto-merge PR
         # The repo's `main-governance` ruleset targets only ~DEFAULT_BRANCH,
         # so we can push to fresh `bot/*` branches and open an auto-merge PR.
