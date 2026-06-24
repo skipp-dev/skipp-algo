@@ -1104,9 +1104,10 @@ def poll_once(
         _bz = _bz_rss_adapter
         if _bz is not None:
             meta.setdefault("providers", {})["benzinga_rss"] = {
-                "ok": _bz.fetch_errors == 0 or _bz.fetch_total > 0,
+                "ok": _bz.fetch_total > 0 and _bz.fetch_errors == 0,
                 "fetch_total": _bz.fetch_total,
                 "fetch_errors": _bz.fetch_errors,
+                "last_fetch_errors": _bz.last_fetch_errors,
                 "items_parsed": _bz.items_parsed,
                 "items_deduped": _bz.items_deduped,
                 "bozo_total": _bz.bozo_total,

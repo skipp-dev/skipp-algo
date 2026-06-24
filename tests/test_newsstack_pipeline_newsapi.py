@@ -224,3 +224,75 @@ def test_poll_once_exposes_last_meta_for_downstream_consumers() -> None:
         pipeline._best_by_ticker.update(old_best)
         pipeline._last_meta = old_meta
         store.close()
+
+
+def test_poll_once_exports_benzinga_rss_provider_state() -> None:
+    from newsstack_fmp import pipeline
+    from newsstack_fmp.config import Config
+    from newsstack_fmp.store_sqlite import SqliteStore
+
+    class _DummyRssAdapter:
+        def __init__(self, *, fetch_total: int, fetch_errors: int, last_fetch_errors: int) -> None:
+            self.fetch_total = fetch_total
+            self.fetch_errors = fetch_errors
+            self.last_fetch_errors = last_fetch_errors
+            self.items_parsed = 7
+            self.items_deduped = 2
+            self.bozo_total = 1
+            self.last_fetch_duration = 0.456
+
+        def fetch_news(self, *, min_epoch: float = 0.0):
+            _ = min_epoch
+            return []
+
+    store = SqliteStore(":memory:")
+
+    old_best = pipeline._best_by_ticker.copy()
+    old_meta = pipeline._last_meta
+    old_adapter = pipeline._bz_rss_adapter
+    pipeline._best_by_ticker.clear()
+    try:
+        with (
+            patch.object(pipeline, "_get_store", return_value=store),
+            patch.object(pipeline, "_get_enricher", return_value=MagicMock()),
+            patch.object(pipeline, "_fetch_newsapi_provider_items", return_value=None),
+            patch.object(pipeline, "export_open_prep") as mock_export,
+            patch.dict(
+                os.environ,
+                {
+                    "ENABLE_FMP": "0",
+                    "ENABLE_FMP_ARTICLES": "0",
+                    "ENABLE_BENZINGA_REST": "0",
+                    "ENABLE_BENZINGA_WS": "0",
+                    "ENABLE_BENZINGA_RSS": "1",
+                    "ENABLE_TRADINGVIEW_NEWS": "0",
+                    "ENABLE_NEWSAPI_AI": "0",
+                    "FILTER_TO_UNIVERSE": "0",
+                },
+                clear=False,
+            ),
+        ):
+            pipeline._bz_rss_adapter = _DummyRssAdapter(
+                fetch_total=1,
+                fetch_errors=1,
+                last_fetch_errors=1,
+            )
+            cfg = Config()
+            pipeline.poll_once(cfg, universe={"AAPL"})
+
+        meta = mock_export.call_args[0][2]
+        provider = meta["providers"]["benzinga_rss"]
+        assert provider["ok"] is False
+        assert provider["fetch_total"] == 1
+        assert provider["fetch_errors"] == 1
+        assert provider["last_fetch_errors"] == 1
+        assert provider["items_parsed"] == 7
+        assert provider["items_deduped"] == 2
+        assert provider["bozo_total"] == 1
+        assert provider["last_fetch_duration_s"] == 0.456
+    finally:
+        pipeline._best_by_ticker.clear()
+        pipeline._best_by_ticker.update(old_best)
+        pipeline._last_meta = old_meta
+        pipeline._bz_rss_adapter = old_adapter
+        store.close()

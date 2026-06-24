@@ -264,6 +264,7 @@ def test_metrics_counters_populated_after_fetch():
 
     assert adapter.fetch_total == 1
     assert adapter.fetch_errors == 0
+    assert adapter.last_fetch_errors == 0
     assert adapter.items_parsed == 2  # 2 feeds × 1 entry
     assert adapter.items_deduped == 0
     assert adapter.bozo_total == 0
@@ -282,4 +283,24 @@ def test_metrics_dedup_counter():
 
     assert adapter.items_deduped == 3  # 1st call: feed2 dups feed1; 2nd call: both feeds dup
     assert adapter.fetch_total == 2
+
+
+def test_last_fetch_errors_resets_per_fetch_call():
+    """last_fetch_errors reflects only the most recent fetch invocation."""
+    state = {"fail": True}
+
+    def _parse(_url, **_kw):
+        if state["fail"]:
+            raise RuntimeError("transient rss failure")
+        return {"bozo": False, "entries": []}
+
+    with _mock_feedparser(_parse):
+        adapter = BenzingaRssAdapter()
+        adapter.fetch_news()
+        assert adapter.last_fetch_errors == 2  # two RSS feed URLs
+
+        state["fail"] = False
+        adapter.fetch_news()
+
+    assert adapter.last_fetch_errors == 0
 
