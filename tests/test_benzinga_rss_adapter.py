@@ -355,3 +355,20 @@ def test_fetch_news_gives_up_after_max_attempts():
     assert len(items) == 0
     assert adapter.fetch_errors == 2  # one per default feed
 
+def test_fetch_news_parallel_fetches_all_feeds():
+    """Multiple feeds are fetched and aggregated even when they return different items."""
+    feeds = (
+        "https://benzinga.com/feed/a",
+        "https://benzinga.com/feed/b",
+        "https://benzinga.com/feed/c",
+    )
+
+    def _parse(url, **_kw):
+        return {"entries": [_make_entry(guid=f"guid-{url}", title=f"From {url}")], "bozo": False}
+
+    with _mock_feedparser(_parse):
+        adapter = BenzingaRssAdapter(feeds=feeds)
+        items = adapter.fetch_news()
+    assert len(items) == 3
+    assert {i.headline for i in items} == {f"From {u}" for u in feeds}
+
