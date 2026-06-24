@@ -4,6 +4,7 @@ import fs from "node:fs";
 import path from "node:path";
 
 import { chromium } from "playwright";
+import { authenticator } from "otplib";
 
 import { inspectTradingViewStorageState } from "../automation/tradingview/lib/tv_validation_model.js";
 
@@ -16,6 +17,8 @@ type CliArgs = {
   persistentProfileDir?: string;
   username?: string;
   password?: string;
+  totpSecret?: string;
+  headless: boolean;
 };
 
 async function collectPageAuthDiagnostics(page: import("playwright").Page): Promise<{
@@ -35,7 +38,10 @@ async function collectPageAuthDiagnostics(page: import("playwright").Page): Prom
   });
 }
 
-async function assistTwoFactorSubmission(page: import("playwright").Page): Promise<void> {
+async function assistTwoFactorSubmission(
+  page: import("playwright").Page,
+  totpSecret?: string,
+): Promise<void> {
   const bodyText = await page.locator("body").innerText().catch(() => "");
   if (!/two-factor authentication|verification code|backup code|code from your app/i.test(bodyText)) {
     return;
@@ -46,6 +52,19 @@ async function assistTwoFactorSubmission(page: import("playwright").Page): Promi
   ).first();
 
   const fieldVisible = (await codeField.count().catch(() => 0)) > 0 && (await codeField.isVisible().catch(() => false));
+
+  // If we have a TOTP secret, generate the current 6-digit code and fill it.
+  if (totpSecret && fieldVisible) {
+    try {
+      const token = authenticator.generate(totpSecret);
+      console.log("TOTP code generated — filling 2FA field automatically.");
+      await codeField.fill(token);
+      await page.waitForTimeout(500);
+    } catch (err) {
+      console.warn(`TOTP generation failed: ${err instanceof Error ? err.message : String(err)}. Proceeding without filling.`);
+    }
+  }
+
   const currentValue = fieldVisible ? await codeField.inputValue().catch(() => "") : "";
   const hasLikelyCode = currentValue.trim().length >= 6;
 
@@ -97,6 +116,7 @@ async function assistTwoFactorSubmission(page: import("playwright").Page): Promi
   }
 }
 
+
 function parseArgs(): CliArgs {
   const args = process.argv.slice(2);
 
@@ -137,6 +157,8 @@ function parseArgs(): CliArgs {
     ).trim() || undefined,
     username: (getFlag("--username", process.env.TV_USERNAME || "") || "").trim() || undefined,
     password: (getFlag("--password", process.env.TV_PASSWORD || "") || "").trim() || undefined,
+    totpSecret: (getFlag("--totp-secret", process.env.TV_TOTP_SECRET || "") || "").trim() || undefined,
+    headless: args.includes("--headless") || process.env.TV_HEADLESS === "1",
   };
 }
 
@@ -156,7 +178,7 @@ async function waitForUserOrAuthenticatedChart(
   const deadline = Date.now() + cli.waitTimeoutMs;
   while (Date.now() < deadline) {
     await page.waitForTimeout(1_000);
-    await assistTwoFactorSubmission(page).catch(() => undefined);
+      await assistTwoFactorSubmission(page, cli.totpSecret).catch(() => undefined);
     const authDiagnostics = await collectPageAuthDiagnostics(page).catch(() => undefined);
     const storageState = await context.storageState({ indexedDB: true }).catch(() => undefined);
     const inspection = storageState ? inspectTradingViewStorageState(storageState) : undefined;
@@ -256,8 +278,8 @@ async function main(): Promise<number> {
     page = context.pages()[0] ?? (await context.newPage());
   } else {
     browser = await chromium.launch({
-      headless: false,
-      slowMo: 100,
+      headless: cli.headless,
+      slowMo: cli.headless ? 0 : 100,
     });
 
     context = await browser.newContext({

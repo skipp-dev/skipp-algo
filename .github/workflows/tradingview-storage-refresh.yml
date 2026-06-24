@@ -1,0 +1,197 @@
+name: tradingview-storage-refresh
+# live-window: mutating-on-cron  # F-V6-F2.1 (schedule-only + secrets:write via GH_PAT)
+
+# Automated zero-touch refresh of the TV_STORAGE_STATE secret.
+#
+# Background
+# ----------
+# smc-library-refresh.yml enforces TV_STORAGE_STATE_MAX_AGE_HOURS=72.
+# After the 72 h TTL expires the library-refresh workflow fails and the
+# entire TradingView publish chain is blocked until the cookie is
+# manually re-captured.
+#
+# This workflow solves that by proactively refreshing the cookie every
+# 48 h (well before the 72 h deadline).  It logs in headlessly via:
+#   TV_USERNAME    — TradingView account e-mail / username
+#   TV_PASSWORD    — account password
+#   TV_TOTP_SECRET — TOTP seed (Base32) from the Authenticator-App 2FA
+#                    setup page; used by otplib to generate the 6-digit
+#                    code without human intervention.
+#
+# On success the freshly captured JSON is written back to the repo
+# secret TV_STORAGE_STATE via `gh secret set`, using GH_PAT which must
+# have the `secrets:write` (repo) scope.
+#
+# If login fails (CAPTCHA, IP block, TradingView anti-bot) the job
+# fails loudly and the credential-health-check.yml daily probe will
+# catch the stale cookie before any downstream consumer runs.
+#
+# Required secrets
+# ----------------
+#   TV_USERNAME      — TradingView login e-mail / username
+#   TV_PASSWORD      — TradingView password
+#   TV_TOTP_SECRET   — TOTP Base32 seed (set via `gh secret set TV_TOTP_SECRET`)
+#   GH_PAT           — Personal Access Token with repo + secrets:write scope
+#
+# The workflow intentionally does NOT fall back to github.token because
+# github.token cannot write repository secrets.
+
+on:
+  schedule:
+    # Every 48 h: 03:00 UTC on even UTC days (Mon/Wed/Fri/Sun).
+    # The TTL is 72 h, so this gives a 24 h safety margin.
+    - cron: "0 3 */2 * *"
+  workflow_dispatch: {}
+
+permissions:
+  contents: read
+  issues: write  # needed by the failure-notification step (gh issue create)
+
+# Never cancel a running refresh — a half-written secret is worse than
+# waiting for the previous run to finish.
+concurrency:
+  group: tradingview-storage-refresh
+  cancel-in-progress: false
+
+defaults:
+  run:
+    shell: bash
+
+env:
+  PYTHONUNBUFFERED: "1"
+  PYTHONPATH: ${{ github.workspace }}
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: "true"
+
+jobs:
+  refresh:
+    runs-on: ${{ vars.SMC_GH_HOSTED_RUNNER || 'ubuntu-latest' }}
+    timeout-minutes: 15
+    steps:
+      - name: Checkout
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+        with:
+          fetch-depth: 1
+
+      # xvfb provides a virtual display so Playwright can run headed
+      # (required for TradingView's login page to function correctly).
+      # --auto-servernum picks a free display number automatically.
+      - name: Start virtual display (xvfb)
+        run: |
+          sudo apt-get install -y --no-install-recommends xvfb 2>/dev/null || true
+          Xvfb :99 -screen 0 1440x1100x24 -ac &
+          echo "DISPLAY=:99" >> "$GITHUB_ENV"
+
+      - name: Set up Node 20
+        uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6
+        with:
+          node-version: "20"
+          cache: "npm"
+
+      - name: Install npm dependencies (including otplib)
+        run: npm ci
+
+      - name: Install Playwright Chromium browser
+        run: npx playwright install --with-deps chromium
+
+      - name: Capture TradingView storage state
+        id: capture
+        env:
+          TV_USERNAME: ${{ secrets.TV_USERNAME }}
+          TV_PASSWORD: ${{ secrets.TV_PASSWORD }}
+          TV_TOTP_SECRET: ${{ secrets.TV_TOTP_SECRET }}
+          # TV_HEADLESS=1 activates headless mode in the script (uses the
+          # virtual display via DISPLAY=:99 set above).
+          TV_HEADLESS: "1"
+          TV_STORAGE_STATE: automation/tradingview/auth/storage-state.json
+          # Tight timeout: if automated login doesn't complete in 3 min
+          # something is wrong (CAPTCHA / layout change) — fail fast.
+          TV_STORAGE_WAIT_TIMEOUT_MS: "180000"
+        run: |
+          set -euo pipefail
+          npx tsx scripts/create_tradingview_storage_state.ts \
+            --headless \
+            --out automation/tradingview/auth/storage-state.json
+
+      - name: Validate captured storage state
+        run: |
+          set -euo pipefail
+          mkdir -p artifacts/ci
+          # credential_health_check.py reads TV_STORAGE_STATE as raw JSON content.
+          TV_STORAGE_STATE="$(cat automation/tradingview/auth/storage-state.json)" \
+            python scripts/credential_health_check.py \
+              --tv-max-age-hours 72 \
+              --skip-gh-pat \
+              --skip-databento \
+              --skip-fmp \
+              --skip-newsapi \
+              --output artifacts/ci/cred-health.json
+          python - <<'EOF'
+          import json, sys
+          report = json.load(open("artifacts/ci/cred-health.json"))
+          # Find the tv_storage_state_age probe in the probes list.
+          probes = {p["name"]: p for p in report.get("probes", [])}
+          tv = probes.get("tv_storage_state_age", {})
+          severity = tv.get("severity", "unknown")
+          if severity not in ("ok",):
+              print(f"Captured storage state failed validation: {tv}", file=sys.stderr)
+              sys.exit(1)
+          print(f"Storage state validation passed: {tv}")
+          EOF
+
+      - name: Write refreshed secret back to GitHub
+        env:
+          GH_TOKEN: ${{ secrets.GH_PAT }}
+        run: |
+          set -euo pipefail
+          # Compress + base64-encode exactly as smc-library-refresh.yml expects.
+          PAYLOAD=$(python3 - <<'PYEOF'
+          import base64, gzip, json, pathlib, sys
+          raw = pathlib.Path("automation/tradingview/auth/storage-state.json").read_bytes()
+          # Validate it's parseable JSON before writing.
+          json.loads(raw)
+          compressed = gzip.compress(raw, compresslevel=9)
+          print(base64.b64encode(compressed).decode(), end="")
+          PYEOF
+          )
+          echo "$PAYLOAD" | gh secret set TV_STORAGE_STATE \
+            --repo "${{ github.repository }}" \
+            --body -
+          echo "TV_STORAGE_STATE secret updated successfully."
+
+      - name: Report success
+        run: |
+          echo "### TradingView storage state refreshed" >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo "Cookie captured headlessly with TOTP and written back to \`TV_STORAGE_STATE\`." >> "$GITHUB_STEP_SUMMARY"
+          echo "Next automatic refresh scheduled in ~48 h." >> "$GITHUB_STEP_SUMMARY"
+
+      # On failure: open an issue so the operator knows the automated
+      # refresh broke (CAPTCHA / layout change / IP block).
+      - name: File failure issue
+        if: failure()
+        env:
+          GH_TOKEN: ${{ secrets.GH_PAT != '' && secrets.GH_PAT || github.token }}
+        run: |
+          gh issue create \
+            --repo "${{ github.repository }}" \
+            --title "🔐 tradingview-storage-refresh failed — manual cookie refresh required" \
+            --body "$(cat <<'EOF'
+          The automated TradingView storage-state refresh failed at ${{ github.run_html_url }}.
+
+          **Likely causes**
+          - CAPTCHA / IP-based anti-bot challenge (most common)
+          - TradingView login page layout changed (script selectors need update)
+          - \`TV_TOTP_SECRET\` rotated or TOTP clock skew
+          - \`TV_USERNAME\` / \`TV_PASSWORD\` changed
+
+          **Immediate action**
+          Run \`npm run tv:storage-state\` locally, log in manually, then update the secret:
+          \`\`\`bash
+          gh secret set TV_STORAGE_STATE --repo skippALGO/skipp-algo
+          \`\`\`
+
+          **Note:** The current \`TV_STORAGE_STATE\` is still valid until its 72 h TTL expires.
+          Check \`credential-health-check\` for its remaining age.
+          EOF
+          )" \
+            --label "cron-failure,bug"
