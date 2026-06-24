@@ -42,6 +42,10 @@ HMAC_ALLOWED: set[tuple[str, int, str]] = {
     # compare_digest call; latest line pin is 418.
     # 2026-06-22 (fix/live-overlay-market-open-multiregion): main-merge +
     # provider-news rework shifted the same compare_digest call 418 → 421.
+    # 2026-06-24 (signals auth): /signals endpoint bearer-token guard uses
+    # constant-time compare in both response variants.
+    ("open_prep/realtime_signals.py", 811, "compare_digest"),
+    ("open_prep/realtime_signals.py", 842, "compare_digest"),
     ("services/live_overlay_daemon/main.py", 421, "compare_digest"),
 }
 

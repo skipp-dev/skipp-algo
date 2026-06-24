@@ -1959,6 +1959,7 @@ class TestConfigActiveSources(unittest.TestCase):
         with patch.dict(os.environ, {
             "ENABLE_FMP": "0",
             "ENABLE_BENZINGA_REST": "0",
+            "ENABLE_BENZINGA_RSS": "0",
             "ENABLE_BENZINGA_WS": "0",
             "ENABLE_TRADINGVIEW_NEWS": "0",
             "ENABLE_FMP_ARTICLES": "0",
@@ -1977,6 +1978,7 @@ class TestConfigActiveSources(unittest.TestCase):
             "ENABLE_FMP_ARTICLES": "0",
             "ENABLE_FMP_GENERAL": "0",
             "ENABLE_BENZINGA_REST": "0",
+            "ENABLE_BENZINGA_RSS": "0",
             "ENABLE_BENZINGA_WS": "0",
             "ENABLE_TRADINGVIEW_NEWS": "0",
             "ENABLE_NEWSAPI_AI": "0",
