@@ -84,6 +84,14 @@ def is_benzinga_ws_enabled() -> bool:
     return _bool_env("ENABLE_BENZINGA_WS", "0")
 
 
+def is_benzinga_rss_enabled() -> bool:
+    """Return True iff ``ENABLE_BENZINGA_RSS`` is set to ``"1"`` (default ON).
+
+    Uses the free Benzinga RSS feed — no API key required.
+    """
+    return _bool_env("ENABLE_BENZINGA_RSS", "1")
+
+
 def is_tradingview_news_enabled() -> bool:
     """Return True iff ``ENABLE_TRADINGVIEW_NEWS`` is set to ``"1"`` (default OFF)."""
     return _bool_env("ENABLE_TRADINGVIEW_NEWS", "0")

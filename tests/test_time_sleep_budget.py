@@ -88,8 +88,10 @@ def _all_sites() -> list[tuple[str, int]]:
 # reason, or (b) an existing site moves by ±N lines.
 _FROZEN_SITES: frozenset[tuple[str, int]] = frozenset(
     {
-        ("newsstack_fmp/ingest_benzinga.py", 196),
-        ("newsstack_fmp/ingest_benzinga.py", 207),
+        # 2026-06-24 (benzinga-rss): retry-backoff sleeps shifted +1 (196→197,
+        # 207→208) by type hint modernization in RSS adapter.
+        ("newsstack_fmp/ingest_benzinga.py", 197),
+        ("newsstack_fmp/ingest_benzinga.py", 208),
         ("newsstack_fmp/ingest_fmp.py", 136),
         ("newsstack_fmp/ingest_fmp.py", 154),
         # PR #2154: ingest_fmp_filings.py shifted +8 (121→129, 134→142)
@@ -109,7 +111,9 @@ _FROZEN_SITES: frozenset[tuple[str, int]] = frozenset(
         ("newsstack_fmp/ingest_fmp_political.py", 122),
         ("newsstack_fmp/ingest_fmp_political.py", 135),
         ("newsstack_fmp/shared_fetch.py", 297),
-        ("newsstack_fmp/pipeline.py", 1203),
+        # 2026-06-24 (benzinga-rss): pipeline.py time.sleep shifted from
+        # 1203→1242 by atexit import block insertion.
+        ("newsstack_fmp/pipeline.py", 1242),
         ("newsstack_fmp/store_sqlite.py", 81),
         ("newsstack_fmp/store_sqlite.py", 86),
         ("open_prep/alerts.py", 408),

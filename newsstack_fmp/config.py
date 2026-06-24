@@ -16,6 +16,7 @@ from dataclasses import dataclass, field
 # would flag).
 from open_prep.feature_flags import (
     is_benzinga_rest_enabled,
+    is_benzinga_rss_enabled,
     is_benzinga_ws_enabled,
     is_fmp_8k_enabled,
     is_fmp_13f_enabled,
@@ -70,6 +71,7 @@ class Config:
     enable_fmp_articles: bool = field(default_factory=is_fmp_articles_enabled)
     enable_benzinga_rest: bool = field(default_factory=is_benzinga_rest_enabled)
     enable_benzinga_ws: bool = field(default_factory=is_benzinga_ws_enabled)
+    enable_benzinga_rss: bool = field(default_factory=is_benzinga_rss_enabled)
     enable_tradingview_news: bool = field(default_factory=is_tradingview_news_enabled)
     enable_newsapi_ai: bool = field(default_factory=is_newsapi_ai_enabled)
     # B1: Unusual Whales /news/headlines (default-OFF — endpoint availability
@@ -174,6 +176,8 @@ class Config:
             sources.append("benzinga_rest")
         if self.enable_benzinga_ws:
             sources.append("benzinga_ws")
+        if self.enable_benzinga_rss:
+            sources.append("benzinga_rss")
         if self.enable_tradingview_news:
             sources.append("tradingview")
         if self.enable_newsapi_ai and self.newsapi_ai_key:

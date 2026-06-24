@@ -89,7 +89,7 @@ _FROZEN_FILE_COUNTS: dict[str, int] = {
     "ml/training/xgb_family_trainer.py": 1,  # PR #2241: 2 bare ignores replaced by 1 specific `[import-not-found]` on `import xgboost`.
     "ml/walkforward.py": 1,
     "newsstack_fmp/_bz_http.py": 2,
-    "newsstack_fmp/ingest_benzinga.py": 1,
+    "newsstack_fmp/ingest_benzinga.py": 2,  # websockets + feedparser (both import-untyped).
     "newsstack_fmp/normalize.py": 1,
     "newsstack_fmp/scoring.py": 5,
     "newsstack_fmp/store_sqlite.py": 3,

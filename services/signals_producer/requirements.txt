@@ -6,3 +6,4 @@
 # timezone handling and local .env parsing fully available in the container.
 python-dateutil==2.9.0.post0
 python-dotenv==1.2.2
+feedparser==6.0.11     # lenient RSS/Atom parser for BenzingaRssAdapter

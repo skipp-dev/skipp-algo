@@ -23,6 +23,7 @@ enabled in ``Config``.
 from __future__ import annotations
 
 import asyncio
+import collections
 import json
 import logging
 import queue
@@ -714,3 +715,177 @@ class BenzingaWsAdapter:
         if isinstance(msg, dict):
             return [_unwrap_content(msg)]
         return []
+
+
+# =====================================================================
+# 3) Benzinga RSS adapter  (free tier — no API key required)
+# =====================================================================
+#
+# Benzinga publishes two public market-news RSS feeds:
+#   https://www.benzinga.com/markets/feed   — equities/macro market news
+#   https://www.benzinga.com/news/feed      — general financial news
+#
+# Each <item> may carry one or more
+#   <category domain="stock-symbol">TICKER</category>
+# tags giving exact ticker attribution.  The feed requires no auth.
+
+_BENZINGA_RSS_FEEDS: tuple[str, ...] = (
+    "https://www.benzinga.com/markets/feed",
+    "https://www.benzinga.com/news/feed",
+)
+_RSS_USER_AGENT = (
+    "Mozilla/5.0 (compatible; skipp-algo/1.0; +https://skippalgo.com/bot)"
+)
+_RSS_TIMEOUT = 10  # seconds per feed
+_RSS_MAX_SEEN_GUIDS = 4096  # cap dedup memory; pipeline cache handles long-term
+_RSS_STOCK_DOMAIN = "stock-symbol"
+
+
+def _parse_rss_tickers(entry: Any) -> list[str]:
+    """Extract ticker symbols from feedparser entry tags."""
+    tickers: list[str] = []
+    for tag in getattr(entry, "tags", []) or []:
+        domain = getattr(tag, "scheme", None) or getattr(tag, "domain", None) or ""
+        term = getattr(tag, "term", None) or getattr(tag, "label", None) or ""
+        if domain == _RSS_STOCK_DOMAIN and term:
+            ticker = term.strip().upper()
+            if ticker and 1 <= len(ticker) <= 6:
+                tickers.append(ticker)
+    return tickers
+
+
+def _entry_to_news_item(entry: Any, *, source_url: str) -> NewsItem | None:
+    """Convert a feedparser entry to a NewsItem.  Returns None on failure."""
+    guid: str = (
+        getattr(entry, "id", None)
+        or getattr(entry, "link", None)
+        or ""
+    ).strip()
+    title: str = (getattr(entry, "title", None) or "").strip()
+    if not guid or not title:
+        return None
+
+    link: str | None = (getattr(entry, "link", None) or "").strip() or None
+
+    # published timestamp
+    published_struct = getattr(entry, "published_parsed", None)
+    if published_struct:
+        import calendar as _calendar
+        published_ts = float(_calendar.timegm(published_struct))
+    else:
+        published_ts = 0.0
+
+    # snippet — prefer summary over content
+    snippet: str = ""
+    summary = getattr(entry, "summary", None) or ""
+    if summary:
+        snippet = re.sub(r"<[^>]+>", "", summary).strip()[:500]
+
+    author: str = (
+        getattr(entry, "author", None)
+        or getattr(entry, "dc_creator", None)
+        or "benzinga"
+    ).strip()
+
+    tickers = _parse_rss_tickers(entry)
+
+    return NewsItem(
+        provider="benzinga_rss",
+        item_id=guid,
+        published_ts=published_ts,
+        updated_ts=published_ts,
+        headline=title,
+        snippet=snippet,
+        tickers=tickers,
+        url=link,
+        source=author,
+        raw={
+            "guid": guid,
+            "feed_url": source_url,
+            "tickers_raw": tickers,
+        },
+    )
+
+
+class BenzingaRssAdapter:
+    """Polls Benzinga's public RSS feeds — no API key required.
+
+    Typical usage (inside ``poll_once()``)::
+
+        adapter = BenzingaRssAdapter()
+        items: list[NewsItem] = adapter.fetch_news(min_epoch=last_seen)
+
+    The adapter uses a simple in-process seen-guid set to deduplicate
+    across consecutive polls in the same process.  Cross-process
+    deduplication is handled by the pipeline cache layer.
+    """
+
+    def __init__(
+        self,
+        *,
+        feeds: tuple[str, ...] = _BENZINGA_RSS_FEEDS,
+        timeout: int = _RSS_TIMEOUT,
+    ) -> None:
+        self._feeds = feeds
+        self._timeout = timeout
+        self._seen_guids: collections.deque[str] = collections.deque(maxlen=_RSS_MAX_SEEN_GUIDS)
+        self._seen_guids_set: set[str] = set()
+        self._lock = threading.Lock()
+
+    def fetch_news(self, *, min_epoch: float = 0.0) -> list[NewsItem]:
+        """Fetch and return new NewsItems from all configured RSS feeds.
+
+        Args:
+            min_epoch: only include items with ``published_ts >= min_epoch``.
+                       Pass 0.0 to get all available items on first call.
+
+        Returns a list sorted oldest-first by ``published_ts``.
+        """
+        try:
+            import feedparser  # type: ignore[import-untyped]
+        except ImportError as exc:
+            logger.warning(
+                "feedparser not installed — BenzingaRssAdapter unavailable: %s", exc
+            )
+            return []
+
+        results: list[NewsItem] = []
+        for feed_url in self._feeds:
+            try:
+                parsed = feedparser.parse(
+                    feed_url,
+                    agent=_RSS_USER_AGENT,
+                    request_headers={"Accept": "application/rss+xml, application/xml, */*"},
+                    timeout=self._timeout,
+                )
+                if parsed.get("bozo"):
+                    logger.warning(
+                        "BenzingaRSS: bozo parse of %s: %s",
+                        feed_url,
+                        parsed.get("bozo_exception", "?"),
+                    )
+                    if not parsed.get("entries"):
+                        continue
+                for entry in parsed.get("entries", []):
+                    item = _entry_to_news_item(entry, source_url=feed_url)
+                    if item is None:
+                        continue
+                    if item.published_ts < min_epoch:
+                        continue
+                    with self._lock:
+                        if item.item_id in self._seen_guids_set:
+                            continue
+                        self._seen_guids.append(item.item_id)
+                        self._seen_guids_set.add(item.item_id)
+                        # Evict oldest when deque rolls over
+                        if len(self._seen_guids_set) > len(self._seen_guids):
+                            self._seen_guids_set = set(self._seen_guids)
+                    results.append(item)
+            except Exception as exc:
+                logger.warning("BenzingaRSS: fetch failed for %s: %s", feed_url, exc)
+
+        results.sort(key=lambda x: x.published_ts)
+        return results
+
+    def close(self) -> None:
+        """No-op; present for interface parity with other adapters."""

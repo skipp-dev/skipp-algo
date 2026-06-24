@@ -155,12 +155,6 @@ file = "smc_integration/release_policy.py"
 line = 1121
 codes = ["S603"]
 
-# E402 outliers in newsstack_fmp/pipeline.py remain (not covered by per-file-ignores).
-[[noqa_budget.sites]]
-file = "newsstack_fmp/pipeline.py"
-line = 1178
-codes = ["E402"]
-
 # ruff fix (2026-06-11): added # noqa: RUF007 / RUF012 / F401 suppressions
 # for four sites that need suppressions rather than code changes.
 [[noqa_budget.sites]]
@@ -187,6 +181,12 @@ codes = ["F401"]
 file = "smc_tv_bridge/smc_api.py"
 line = 184
 codes = ["E402", "I001"]
+
+# Benzinga RSS adapter (2026-06-24): atexit import after singleton helpers.
+[[noqa_budget.sites]]
+file = "newsstack_fmp/pipeline.py"
+line = 1217
+codes = ["E402"]
 
 
 # ---------------------------------------------------------------------------
