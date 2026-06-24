@@ -132,9 +132,12 @@ _FROZEN_SITES: frozenset[tuple[str, int]] = frozenset(
         # shifted the throttle sleep site 293 -> 294.
         ("terminal_technicals.py", 294),
         ("terminal_tradingview_news.py", 409),
-        # 2026-06-24 feat/benzinga-rss: retry backoff sleeps in REST client.
-        ("newsstack_fmp/ingest_benzinga.py", 197),
-        ("newsstack_fmp/ingest_benzinga.py", 208),
+        # 2026-06-24 feat/benzinga-rss-improvements (issue #2925): RSS-4 retry
+        # backoff sleeps (3 attempts with 1s/2s/4s delays) for transient errors
+        # in RSS adapter, plus existing REST client retry backoffs shifted +1.
+        ("newsstack_fmp/ingest_benzinga.py", 198),
+        ("newsstack_fmp/ingest_benzinga.py", 209),
+        ("newsstack_fmp/ingest_benzinga.py", 915),
     }
 )
 
