@@ -2430,8 +2430,10 @@ class RealtimeEngine:
             )
             vol_ratio = round(q_volume / _avg_vol, 2) if _avg_vol >= 1000 else 0.0
             # Determine signal status for this symbol
+            with self._lock:
+                _current_active = list(self._active_signals)
             sym_signals = [
-                s for s in (*self._active_signals, *new_signals)
+                s for s in (*_current_active, *new_signals)
                 if s.symbol == sym and not s.is_expired()
             ]
             sig_level = ""
@@ -2789,16 +2791,22 @@ class RealtimeEngine:
         # VisiData compact JSONL snapshot (fast, no fsync)
         self._save_vd_snapshot()
 
+        _lock = getattr(self, "_lock", None)
+        if _lock is not None:
+            with _lock:
+                _snap = list(self._active_signals)
+        else:
+            _snap = list(self._active_signals)
         payload = {
             "updated_at": datetime.now(UTC).isoformat(),
             "updated_epoch": time.time(),
             "poll_interval": self.poll_interval,
             "poll_duration": round(self.last_poll_duration, 3),
             "watched_symbols": [str(r.get("symbol", "")) for r in self._watchlist],
-            "signals": [s.to_dict() for s in self._active_signals],
-            "signal_count": len(self._active_signals),
-            "a0_count": sum(1 for s in self._active_signals if s.level == "A0"),
-            "a1_count": sum(1 for s in self._active_signals if s.level == "A1"),
+            "signals": [s.to_dict() for s in _snap],
+            "signal_count": len(_snap),
+            "a0_count": sum(1 for s in _snap if s.level == "A0"),
+            "a1_count": sum(1 for s in _snap if s.level == "A1"),
             "disabled_reason": disabled_reason,
         }
         try:
