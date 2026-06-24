@@ -71,6 +71,11 @@ DEFAULTS: dict[str, Any] = {
     "SIGNAL_FRESHNESS": "stale",
 }
 
+# Public model IDs used by downstream modules.
+_SQ_MODEL_V1: str = "v1"
+_SQ_MODEL_V2: str = "v2"
+_SQ_MODEL_V21: str = "v2.1"
+
 # ── Tier boundaries ─────────────────────────────────────────────────
 
 TIER_LOW = 25
