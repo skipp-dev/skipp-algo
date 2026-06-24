@@ -1099,6 +1099,19 @@ def poll_once(
     }
     if newsapi_provider_meta is not None:
         meta["providers"] = {"newsapi_ai": newsapi_provider_meta}
+    # ── Benzinga RSS provider state ──────────────────────────────────
+    if cfg.enable_benzinga_rss:
+        _bz = _bz_rss_adapter
+        if _bz is not None:
+            meta.setdefault("providers", {})["benzinga_rss"] = {
+                "ok": _bz.fetch_errors == 0 or _bz.fetch_total > 0,
+                "fetch_total": _bz.fetch_total,
+                "fetch_errors": _bz.fetch_errors,
+                "items_parsed": _bz.items_parsed,
+                "items_deduped": _bz.items_deduped,
+                "bozo_total": _bz.bozo_total,
+                "last_fetch_duration_s": round(_bz.last_fetch_duration, 3),
+            }
     global _last_meta
     with _meta_lock:
         _last_meta = copy.deepcopy(meta)

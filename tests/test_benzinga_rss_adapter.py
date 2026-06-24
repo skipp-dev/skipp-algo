@@ -252,3 +252,34 @@ def test_fetch_news_bozo_with_entries_still_processes():
         items = adapter.fetch_news()
     assert len(items) == 1
 
+
+def test_metrics_counters_populated_after_fetch():
+    """RSS adapter counters are incremented correctly after a successful fetch."""
+    def _parse(url, **_kw):
+        return {"bozo": False, "entries": [_make_entry(guid=f"g-{url}")]}
+
+    with _mock_feedparser(_parse):
+        adapter = BenzingaRssAdapter()
+        adapter.fetch_news()
+
+    assert adapter.fetch_total == 1
+    assert adapter.fetch_errors == 0
+    assert adapter.items_parsed == 2  # 2 feeds × 1 entry
+    assert adapter.items_deduped == 0
+    assert adapter.bozo_total == 0
+    assert adapter.last_fetch_duration > 0
+
+
+def test_metrics_dedup_counter():
+    """Dedup counter increments when same GUID seen twice."""
+    def _parse(url, **_kw):
+        return {"bozo": False, "entries": [_make_entry(guid="same-guid")]}
+
+    with _mock_feedparser(_parse):
+        adapter = BenzingaRssAdapter()
+        adapter.fetch_news()
+        adapter.fetch_news()
+
+    assert adapter.items_deduped == 3  # 1st call: feed2 dups feed1; 2nd call: both feeds dup
+    assert adapter.fetch_total == 2
+

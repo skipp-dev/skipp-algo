@@ -831,6 +831,13 @@ class BenzingaRssAdapter:
         self._seen_guids: collections.deque[str] = collections.deque(maxlen=_RSS_MAX_SEEN_GUIDS)
         self._seen_guids_set: set[str] = set()
         self._lock = threading.Lock()
+        # ── Metrics counters ──────────────────────────────────────────
+        self.fetch_total: int = 0
+        self.fetch_errors: int = 0
+        self.items_parsed: int = 0
+        self.items_deduped: int = 0
+        self.bozo_total: int = 0
+        self.last_fetch_duration: float = 0.0
 
     def fetch_news(self, *, min_epoch: float = 0.0) -> list[NewsItem]:
         """Fetch and return new NewsItems from all configured RSS feeds.
@@ -850,6 +857,7 @@ class BenzingaRssAdapter:
             return []
 
         results: list[NewsItem] = []
+        _t0 = time.monotonic()
         for feed_url in self._feeds:
             try:
                 parsed = feedparser.parse(
@@ -859,6 +867,7 @@ class BenzingaRssAdapter:
                     timeout=self._timeout,
                 )
                 if parsed.get("bozo"):
+                    self.bozo_total += 1
                     logger.warning(
                         "BenzingaRSS: bozo parse of %s: %s",
                         feed_url,
@@ -870,10 +879,12 @@ class BenzingaRssAdapter:
                     item = _entry_to_news_item(entry, source_url=feed_url)
                     if item is None:
                         continue
+                    self.items_parsed += 1
                     if item.published_ts < min_epoch:
                         continue
                     with self._lock:
                         if item.item_id in self._seen_guids_set:
+                            self.items_deduped += 1
                             continue
                         self._seen_guids.append(item.item_id)
                         self._seen_guids_set.add(item.item_id)
@@ -882,7 +893,11 @@ class BenzingaRssAdapter:
                             self._seen_guids_set = set(self._seen_guids)
                     results.append(item)
             except Exception as exc:
+                self.fetch_errors += 1
                 logger.warning("BenzingaRSS: fetch failed for %s: %s", feed_url, exc)
+
+        self.fetch_total += 1
+        self.last_fetch_duration = time.monotonic() - _t0
 
         results.sort(key=lambda x: x.published_ts)
         return results
