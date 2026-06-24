@@ -61,7 +61,7 @@ def test_start_telemetry_server_falls_back_to_ephemeral_port(monkeypatch, tmp_pa
 
     server = rs._start_telemetry_server(rs.ScoreTelemetry(), port=8099)
     assert server is not None
-    assert attempts == [("127.0.0.1", 8099), ("127.0.0.1", 0)]
+    assert attempts == [("0.0.0.0", 8099), ("0.0.0.0", 0)]
 
     telemetry = rs.get_rt_engine_telemetry_status()
     assert telemetry["enabled"] is True
