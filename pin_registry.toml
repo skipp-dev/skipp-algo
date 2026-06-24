@@ -191,11 +191,6 @@ file = "smc_tv_bridge/smc_api.py"
 line = 184
 codes = ["E402", "I001"]
 
-[[noqa_budget.sites]]
-file = "smc_core/smt_divergence.py"
-line = 93
-codes = ["D401"]
-
 # smc_integration/measurement_evidence.py — Phase B/C sweep trap + reaction zone
 # helper: BLE001 broad-except is intentional — Phase B/C enrichment is purely
 # additive; any error must degrade gracefully without breaking v1 scoring.
