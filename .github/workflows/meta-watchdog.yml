@@ -130,7 +130,7 @@ jobs:
           set +e
           python scripts/check_workflow_freshness.py \
             --output artifacts/ci/dag_health.json \
-            smc-databento-production-export-sharded.yml=30:success:weekday \
+            smc-databento-production-export-sharded.yml=14:success:weekday \
             smc-library-refresh.yml=30:success:weekday \
             f2-promotion-gate-daily.yml=30:any:weekday \
             credential-health-check.yml=30:any:weekday
