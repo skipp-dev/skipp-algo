@@ -134,7 +134,7 @@ _FROZEN_SITES: frozenset[tuple[str, int]] = frozenset(
         ("terminal_technicals.py", 294),
         ("terminal_tradingview_news.py", 409),
         # 2026-06-24 feat/benzinga-rss: RSS feed fetch retry backoff.
-        ("newsstack_fmp/ingest_benzinga.py", 898),
+        ("newsstack_fmp/ingest_benzinga.py", 897),
     }
 )
 

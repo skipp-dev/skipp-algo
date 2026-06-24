@@ -5,13 +5,9 @@ All network calls are mocked — no real HTTP in CI.
 from __future__ import annotations
 
 import sys
-from types import SimpleNamespace, ModuleType
-from unittest.mock import MagicMock, patch
+from types import ModuleType, SimpleNamespace
 
-import pytest
-
-from newsstack_fmp.ingest_benzinga import BenzingaRssAdapter, _parse_rss_tickers, _entry_to_news_item
-
+from newsstack_fmp.ingest_benzinga import BenzingaRssAdapter, _entry_to_news_item, _parse_rss_tickers
 
 # ── helpers ──────────────────────────────────────────────────────────
 
@@ -371,4 +367,14 @@ def test_fetch_news_parallel_fetches_all_feeds():
         items = adapter.fetch_news()
     assert len(items) == 3
     assert {i.headline for i in items} == {f"From {u}" for u in feeds}
+
+def test_entry_to_news_item_published_ts_falls_back_to_updated_parsed():
+    """When published_parsed is missing but updated_parsed exists, use it."""
+    entry = _make_entry(guid="g", title="t")
+    entry.published_parsed = None
+    entry.updated_parsed = (2024, 6, 1, 11, 30, 0, 5, 153, 0)
+    item = _entry_to_news_item(entry, source_url="x")
+    assert item is not None
+    assert item.published_ts > 0.0
+    assert item.published_ts == item.updated_ts
 

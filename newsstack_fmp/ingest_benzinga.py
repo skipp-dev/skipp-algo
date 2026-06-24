@@ -760,7 +760,7 @@ def _parse_rss_tickers(entry: Any) -> list[str]:
     return tickers
 
 
-def _entry_to_news_item(entry: Any, *, source_url: str) -> "NewsItem | None":
+def _entry_to_news_item(entry: Any, *, source_url: str) -> NewsItem | None:
     """Convert a feedparser entry to a NewsItem.  Returns None on failure."""
     guid: str = (
         getattr(entry, "id", None)
@@ -773,20 +773,19 @@ def _entry_to_news_item(entry: Any, *, source_url: str) -> "NewsItem | None":
 
     link: str | None = (getattr(entry, "link", None) or "").strip() or None
 
-    # published timestamp
-    published_struct = getattr(entry, "published_parsed", None)
-    if published_struct:
-        import calendar as _calendar
-        published_ts = float(_calendar.timegm(published_struct))
-    else:
-        published_ts = 0.0
+    def _struct_to_ts(struct: Any) -> float | None:
+        if struct:
+            import calendar as _calendar
+            return float(_calendar.timegm(struct))
+        return None
 
-    # updated timestamp (RSS-6: use updated_parsed when available)
-    updated_struct = getattr(entry, "updated_parsed", None)
-    if updated_struct:
-        import calendar as _calendar
-        updated_ts = float(_calendar.timegm(updated_struct))
-    else:
+    # published timestamp — fall back to updated_parsed if the feed only
+    # provides an updated date (RSS-7: be robust against partial feeds).
+    published_ts = _struct_to_ts(getattr(entry, "published_parsed", None))
+    updated_ts = _struct_to_ts(getattr(entry, "updated_parsed", None))
+    if published_ts is None:
+        published_ts = updated_ts if updated_ts is not None else 0.0
+    if updated_ts is None:
         updated_ts = published_ts
 
     # snippet — prefer summary over content
@@ -826,7 +825,7 @@ def _process_parsed_feed(
     feed_url: str,
     *,
     min_epoch: float,
-    adapter: "BenzingaRssAdapter",
+    adapter: BenzingaRssAdapter,
 ) -> list[NewsItem]:
     """Process entries from one parsed feed into NewsItems."""
     items: list[NewsItem] = []
