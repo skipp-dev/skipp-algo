@@ -834,6 +834,7 @@ class BenzingaRssAdapter:
         # ── Metrics counters ──────────────────────────────────────────
         self.fetch_total: int = 0
         self.fetch_errors: int = 0
+        self.last_fetch_errors: int = 0  # errors on the most-recent fetch call
         self.items_parsed: int = 0
         self.items_deduped: int = 0
         self.bozo_total: int = 0
@@ -858,6 +859,7 @@ class BenzingaRssAdapter:
 
         results: list[NewsItem] = []
         _t0 = time.monotonic()
+        _errors_this_fetch: int = 0
         for feed_url in self._feeds:
             try:
                 parsed = feedparser.parse(
@@ -894,9 +896,11 @@ class BenzingaRssAdapter:
                     results.append(item)
             except Exception as exc:
                 self.fetch_errors += 1
+                _errors_this_fetch += 1
                 logger.warning("BenzingaRSS: fetch failed for %s: %s", feed_url, exc)
 
         self.fetch_total += 1
+        self.last_fetch_errors = _errors_this_fetch
         self.last_fetch_duration = time.monotonic() - _t0
 
         results.sort(key=lambda x: x.published_ts)
