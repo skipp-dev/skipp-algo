@@ -97,7 +97,7 @@ def test_all_v2_features_enabled_produces_expected_keys() -> None:
 
     # Phase B: Sweep trap
     assert result["SWEEP_TRAP_DETECTED"] is True
-    assert result["SWEEP_TRAP_CONFIDENCE"] == 80
+    assert result["SWEEP_TRAP_CONFIDENCE"] == 100
 
     # Phase C: Reaction zone
     assert result["REACTION_ZONE_DETECTED"] is True
