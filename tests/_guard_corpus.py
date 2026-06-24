@@ -42,6 +42,13 @@ from pathlib import Path
 
 _ROOT = Path(__file__).resolve().parents[1]
 
+MIN_EXPECTED_PROD_FILES = 50
+"""Minimum number of production ``*.py`` files expected in the repo scan.
+
+Used across ledger/pin/budget tests to guard against overly broad
+``_DIR_EXCLUDE`` sets or sparse-checkout environments returning too few files.
+"""
+
 
 def repo_root() -> Path:
     """Return the repository root (the parent of ``tests/``)."""

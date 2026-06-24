@@ -72,7 +72,7 @@ def _iter_py_files() -> list[Path]:
         # Exclude dot-directories and any path segment matching an
         # excluded directory name. Single check covers both nested
         # and top-level cases.
-        if any(part in _DIR_EXCLUDE or part.startswith(".") for part in rel_parts[:-1]):
+        if any(part in _DIR_EXCLUDE or part.startswith(".") for part in rel_parts):
             continue
         out.append(p)
     return out
@@ -80,23 +80,25 @@ def _iter_py_files() -> list[Path]:
 
 def _hmac_calls() -> set[tuple[str, int, str]]:
     found: set[tuple[str, int, str]] = set()
+
+    class _HmacCallVisitor(ast.NodeVisitor):
+        def __init__(self, path: Path, out: set[tuple[str, int, str]]) -> None:
+            self._rel = path.relative_to(ROOT).as_posix()
+            self._out = out
+
+        def visit_Call(self, node: ast.Call) -> None:
+            func = node.func
+            if isinstance(func, ast.Attribute):
+                value = func.value
+                if isinstance(value, ast.Name) and value.id == "hmac":
+                    self._out.add((self._rel, node.lineno, func.attr))
+            self.generic_visit(node)
+
     for path in _iter_py_files():
         tree = parse_module(path)
         if tree is None:
             continue
-        for node in ast.walk(tree):
-            if not isinstance(node, ast.Call):
-                continue
-            func = node.func
-            if not isinstance(func, ast.Attribute):
-                continue
-            value = func.value
-            if not isinstance(value, ast.Name):
-                continue
-            if value.id != "hmac":
-                continue
-            rel = path.relative_to(ROOT).as_posix()
-            found.add((rel, node.lineno, func.attr))
+        _HmacCallVisitor(path, found).visit(tree)
     return found
 
 
