@@ -347,3 +347,268 @@ def build_signal_quality(
                 result[key] = value
 
     return result
+
+
+# ---------------------------------------------------------------------------
+# Signal Quality v2 — re-weighted budget (Phase D cutover)
+# Budget: Structure(18) + Session(18) + Liquidity(18) + OB(12) + FVG(12) +
+#         Compression(10) + Confluence(12) = 100  (penalty -15 unchanged)
+# Activated when SIGNAL_QUALITY_MODEL env var == "v2" or "v2.1".
+# Do NOT enable until the Phase D confluence calibration gate is passed.
+# ---------------------------------------------------------------------------
+
+# v2 model version identifiers
+_SQ_MODEL_V1: str = "v1"
+_SQ_MODEL_V2: str = "v2"
+_SQ_MODEL_V21: str = "v2.1"
+
+# v2 bucket maxima
+_MAX_STRUCTURE_V2: int = 18
+_MAX_SESSION_V2: int = 18
+_MAX_LIQUIDITY_V2: int = 18
+_MAX_OB_V2: int = 12
+_MAX_FVG_V2: int = 12
+_MAX_COMPRESSION_V2: int = 10
+_MAX_CONFLUENCE_V2: int = 12
+_ASSERT_V2_SUM: int = (
+    _MAX_STRUCTURE_V2
+    + _MAX_SESSION_V2
+    + _MAX_LIQUIDITY_V2
+    + _MAX_OB_V2
+    + _MAX_FVG_V2
+    + _MAX_COMPRESSION_V2
+    + _MAX_CONFLUENCE_V2
+)
+assert _ASSERT_V2_SUM == 100, f"v2 budget must sum to 100; got {_ASSERT_V2_SUM}"
+
+
+def build_signal_quality_v2(
+    *,
+    enrichment: dict[str, Any] | None = None,
+    overrides: dict[str, Any] | None = None,
+) -> dict[str, Any]:
+    """Signal Quality v2 — re-weighted budget with freshness decay and confluence.
+
+    Differences from :func:`build_signal_quality` (v1):
+
+    * Different bucket weights (see ``_MAX_*_V2`` constants above).
+    * **Freshness decay multiplier** (Phase A): ``freshness_penalty`` from the
+      ``"freshness_v2"`` enrichment key multiplies the OB, FVG, and Liquidity
+      bucket raw contributions before they are summed.  Structure and session
+      are market-wide signals — they are *not* decayed.
+    * **Hard invalidation gate**: events with ``freshness_bucket="invalidated"``
+      have their tier capped at ``"ok"`` regardless of raw score.
+    * **Sweep Trap Quality** (Phase B): uses ``SWEEP_TRAP_QUALITY_SCORE`` from the
+      liquidity enrichment key when available; falls back to ``SWEEP_QUALITY_SCORE``.
+    * **Confluence bucket** (Phase D): reads ``raw_confluence_score`` from the
+      ``"confluence_v2"`` enrichment key.
+
+    Parameters
+    ----------
+    enrichment:
+        Full enrichment dict assembled by
+        :func:`~smc_integration.measurement_evidence._event_signal_quality_score`.
+        New Phase A/B/D keys (``"freshness_v2"``, ``"confluence_v2"``) are optional
+        and default to no-op values when absent, making this function safe to call
+        while those phases are still being rolled out.
+    overrides:
+        Manual field overrides (same semantics as v1).
+
+    Returns
+    -------
+    dict[str, Any]
+        Same shape as :func:`build_signal_quality` — drop-in replacement.
+    """
+    result = dict(DEFAULTS)
+    enr = enrichment or {}
+    warnings: list[str] = []
+    score = 0
+
+    # ── Phase A freshness decay ──────────────────────────────────
+    freshness_v2 = enr.get("freshness_v2") or {}
+    freshness_bucket_v2 = str(freshness_v2.get("freshness_bucket", "fresh"))
+    freshness_penalty = float(freshness_v2.get("freshness_penalty", 1.0))
+    is_invalidated = freshness_bucket_v2 == "invalidated"
+
+    # ── Structure freshness (0-18) ───────────────────────────────
+    ssl = enr.get("structure_state_light") or {}
+    ss = enr.get("structure_state") or {}
+    structure_fresh = bool(_prefer_lean_value(ssl, ss, "STRUCTURE_FRESH", False))
+    structure_age = int(_prefer_lean_value(ssl, ss, "STRUCTURE_EVENT_AGE_BARS", 999))
+    last_event = str(_prefer_lean_value(ssl, ss, "STRUCTURE_LAST_EVENT", "NONE"))
+    if last_event in ("BOS_BULL", "CHOCH_BULL"):
+        structure_state = "BULLISH"
+    elif last_event in ("BOS_BEAR", "CHOCH_BEAR"):
+        structure_state = "BEARISH"
+    else:
+        structure_state = str(ss.get("STRUCTURE_STATE", "NEUTRAL"))
+
+    if structure_fresh:
+        score += _MAX_STRUCTURE_V2
+    elif structure_age <= 15:
+        score += int(_MAX_STRUCTURE_V2 * 0.6)
+    elif structure_age <= 30:
+        score += int(_MAX_STRUCTURE_V2 * 0.3)
+    else:
+        warnings.append("structure_stale")
+
+    # ── Session alignment (0-18) ─────────────────────────────────
+    scl = enr.get("session_context_light") or {}
+    sc = enr.get("session_context") or {}
+    in_killzone = bool(_prefer_lean_value(scl, sc, "IN_KILLZONE", False))
+    session_bias = str(_prefer_lean_value(scl, sc, "SESSION_DIRECTION_BIAS", "NEUTRAL"))
+    session_score_raw = int(_prefer_lean_value(scl, sc, "SESSION_CONTEXT_SCORE", 0))
+
+    if in_killzone and session_score_raw >= 4:
+        score += _MAX_SESSION_V2
+    elif in_killzone:
+        score += int(_MAX_SESSION_V2 * 0.7)
+    elif session_score_raw >= 3:
+        score += int(_MAX_SESSION_V2 * 0.4)
+    else:
+        if not in_killzone:
+            warnings.append("outside_killzone")
+
+    # ── Liquidity / sweep support (0-18, freshness-decayed) ──────
+    ls = enr.get("liquidity_sweeps") or {}
+    has_bull_sweep = bool(ls.get("RECENT_BULL_SWEEP", False))
+    has_bear_sweep = bool(ls.get("RECENT_BEAR_SWEEP", False))
+    sweep_direction = str(ls.get("SWEEP_DIRECTION", "NONE"))
+
+    # Phase B: prefer trap quality score when present
+    trap_quality = float(ls.get("SWEEP_TRAP_QUALITY_SCORE", -1.0))
+    if trap_quality >= 0.0:
+        sweep_raw = int(trap_quality * _MAX_LIQUIDITY_V2)
+    else:
+        sweep_quality = int(ls.get("SWEEP_QUALITY_SCORE", 0))
+        sweep_raw = min(_MAX_LIQUIDITY_V2, int(sweep_quality * _MAX_LIQUIDITY_V2 / 10))
+
+    if has_bull_sweep or has_bear_sweep:
+        score += max(0, int(sweep_raw * freshness_penalty))
+
+    # ── OB support (0-12, freshness-decayed) ─────────────────────
+    ob_light = enr.get("ob_context_light") or {}
+    ob_side = str(ob_light.get("PRIMARY_OB_SIDE", "NONE"))
+    ob_fresh = bool(ob_light.get("OB_FRESH", False))
+    ob_distance = float(ob_light.get("PRIMARY_OB_DISTANCE", 99.0))
+
+    if ob_side == "NONE":
+        ob = enr.get("order_blocks") or {}
+        if ob:
+            bull_fresh_val = int(ob.get("BULL_OB_FRESHNESS", 0))
+            bear_fresh_val = int(ob.get("BEAR_OB_FRESHNESS", 0))
+            if bull_fresh_val > bear_fresh_val:
+                ob_side = "BULL"
+                ob_fresh = bull_fresh_val <= 10
+            elif bear_fresh_val > 0:
+                ob_side = "BEAR"
+                ob_fresh = bear_fresh_val <= 10
+            ob_distance = float(ob.get("OB_NEAREST_DISTANCE_PCT", 99.0))
+
+    if ob_side != "NONE" and ob_fresh and ob_distance < 2.0:
+        ob_raw = _MAX_OB_V2
+    elif ob_side != "NONE" and ob_distance < 3.0:
+        ob_raw = int(_MAX_OB_V2 * 0.6)
+    elif ob_side != "NONE":
+        ob_raw = int(_MAX_OB_V2 * 0.3)
+    else:
+        ob_raw = 0
+
+    score += max(0, int(ob_raw * freshness_penalty))
+
+    # ── FVG support (0-12, freshness-decayed) ────────────────────
+    fvg_light = enr.get("fvg_lifecycle_light") or {}
+    fvg_side = str(fvg_light.get("PRIMARY_FVG_SIDE", "NONE"))
+    fvg_fresh = bool(fvg_light.get("FVG_FRESH", False))
+    fvg_fill = float(fvg_light.get("FVG_FILL_PCT", 0.0))
+    fvg_invalidated = bool(fvg_light.get("FVG_INVALIDATED", False))
+
+    if fvg_side == "NONE":
+        il = enr.get("imbalance_lifecycle") or {}
+        if il:
+            if il.get("BULL_FVG_ACTIVE"):
+                fvg_side = "BULL"
+                fvg_fill = float(il.get("BULL_FVG_MITIGATION_PCT", 0.0))
+                fvg_fresh = fvg_fill < 0.3
+                fvg_invalidated = bool(il.get("BULL_FVG_FULL_MITIGATION", False))
+            elif il.get("BEAR_FVG_ACTIVE"):
+                fvg_side = "BEAR"
+                fvg_fill = float(il.get("BEAR_FVG_MITIGATION_PCT", 0.0))
+                fvg_fresh = fvg_fill < 0.3
+                fvg_invalidated = bool(il.get("BEAR_FVG_FULL_MITIGATION", False))
+
+    if fvg_side != "NONE" and fvg_fresh and not fvg_invalidated:
+        fvg_raw = _MAX_FVG_V2
+    elif fvg_side != "NONE" and not fvg_invalidated:
+        fvg_raw = int(_MAX_FVG_V2 * 0.5)
+    else:
+        fvg_raw = 0
+        if fvg_invalidated:
+            warnings.append("fvg_invalidated")
+
+    score += max(0, int(fvg_raw * freshness_penalty))
+
+    # ── Event risk penalty (-15 to 0, unchanged from v1) ────────
+    erl = enr.get("event_risk_light") or {}
+    er = enr.get("event_risk") or {}
+    if "MARKET_EVENT_BLOCKED" in erl or "SYMBOL_EVENT_BLOCKED" in erl:
+        event_blocked = bool(
+            erl.get("MARKET_EVENT_BLOCKED", False) or erl.get("SYMBOL_EVENT_BLOCKED", False)
+        )
+    else:
+        event_blocked = bool(
+            er.get("MARKET_EVENT_BLOCKED", False) or er.get("SYMBOL_EVENT_BLOCKED", False)
+        )
+    event_risk_level = str(_prefer_lean_value(erl, er, "EVENT_RISK_LEVEL", "NONE"))
+
+    if event_blocked:
+        score += PENALTY_EVENT
+        warnings.append("event_blocked")
+    elif event_risk_level in ("HIGH", "ELEVATED"):
+        score += int(PENALTY_EVENT * 0.6)
+        warnings.append("event_risk_high")
+
+    # ── Compression regime (0-10) ────────────────────────────────
+    cr = enr.get("compression_regime") or {}
+    squeeze_on = bool(cr.get("SQUEEZE_ON", False))
+    atr_regime = str(cr.get("ATR_REGIME", "NORMAL"))
+
+    if squeeze_on:
+        score += int(_MAX_COMPRESSION_V2 * 0.8)
+    elif atr_regime in ("COMPRESSION",):
+        score += int(_MAX_COMPRESSION_V2 * 0.5)
+    elif atr_regime in ("NORMAL",):
+        score += int(_MAX_COMPRESSION_V2 * 0.3)
+    elif atr_regime in ("EXHAUSTION",):
+        warnings.append("atr_exhaustion")
+
+    # ── Confluence sub-score (0-12, Phase D) ─────────────────────
+    confluence_v2 = enr.get("confluence_v2") or {}
+    raw_confluence = float(confluence_v2.get("raw_confluence_score", 0.0))
+    score += max(0, int(raw_confluence * _MAX_CONFLUENCE_V2))
+
+    # ── Clamp and derive tier ────────────────────────────────────
+    score = max(0, min(100, score))
+    tier = _score_tier(score)
+
+    # Hard invalidation gate: cap tier at "ok" for structurally invalidated events.
+    if is_invalidated and tier in ("good", "high"):
+        tier = "ok"
+        warnings.append("freshness_invalidated")
+
+    freshness = _freshness_label(structure_fresh, structure_age, fvg_fresh, ob_fresh)
+    bias = _bias_alignment(structure_state, session_bias, sweep_direction, ob_side, fvg_side)
+    warning_str = "|".join(warnings[:3])
+
+    result["SIGNAL_QUALITY_SCORE"] = score
+    result["SIGNAL_QUALITY_TIER"] = tier
+    result["SIGNAL_WARNINGS"] = warning_str
+    result["SIGNAL_BIAS_ALIGNMENT"] = bias
+    result["SIGNAL_FRESHNESS"] = freshness
+
+    if overrides:
+        for key, value in overrides.items():
+            if key in result:
+                result[key] = value
+
+    return result

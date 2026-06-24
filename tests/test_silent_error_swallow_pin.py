@@ -76,6 +76,9 @@ _FROZEN_SITES: dict[str, int] = {
     # 2026-05-17 C12.1 ConstraintHitLog wiring: an audit-log write
     # failure must never block a guard decision. See HardConstraintLayer._log.
     "rl/safety/__init__.py": 1,
+    # 2026-06-24 feat/benzinga-rss: measurement_evidence best-effort guards
+    # for JSON-parse errors in get_measurement_evidence/classify_accuracy.
+    "smc_integration/measurement_evidence.py": 2,
 }
 
 _FROZEN_TOTAL = sum(_FROZEN_SITES.values())

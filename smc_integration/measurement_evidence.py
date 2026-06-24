@@ -22,7 +22,12 @@ from scripts.smc_event_risk_builder import build_event_risk
 from scripts.smc_event_risk_light import build_event_risk_light
 from scripts.smc_session_context_block import build_session_context_block
 from scripts.smc_session_context_light import build_session_context_light
-from scripts.smc_signal_quality import build_signal_quality
+from scripts.smc_signal_quality import (
+    build_signal_quality,
+    build_signal_quality_v2,
+    _SQ_MODEL_V2,
+    _SQ_MODEL_V21,
+)
 from scripts.smc_structure_state import build_structure_state
 from scripts.smc_structure_state_light import build_structure_state_light
 from smc_core.benchmark import EventFamily
@@ -40,8 +45,19 @@ from smc_core.scoring import (
     label_sweep_reversal,
     score_events,
 )
+from smc_core.event_freshness import classify_freshness, freshness_decay_multiplier  # Phase A
+from smc_core.reaction_zone import compute_reaction_zone  # Phase C
+from smc_core.smc_confluence import compute_confluence  # Phase D
 from smc_core.session_context import build_session_liquidity_context
+from smc_core.sweep_trap import classify_sweep_trap  # Phase B
 from smc_core.vol_regime import compute_vol_regime
+from open_prep.feature_flags import (  # Phase 0 model flags
+    is_confluence_score_enabled,
+    is_freshness_v2_enabled,
+    is_reaction_zone_enabled,
+    is_sweep_trap_enabled,
+    signal_quality_model,
+)
 from smc_integration.artifact_resolution import resolve_structure_artifact_inputs
 from smc_integration.repo_sources import load_raw_meta_input_composite
 from smc_integration.sources import structure_artifact_json
@@ -782,12 +798,61 @@ def _liquidity_support_for_event(
         else:
             continue
         quality = 5 if candidate_id == current_id and family == "SWEEP" else max(1, 5 - min(age_bars, 4))
-        payload = {
+        payload: dict[str, Any] = {
             "RECENT_BULL_SWEEP": bull_sweep,
             "RECENT_BEAR_SWEEP": bear_sweep,
             "SWEEP_DIRECTION": direction,
             "SWEEP_QUALITY_SCORE": quality,
         }
+
+        # Phase B — Sweep Trap Classifier (shadow enrichment, default OFF).
+        if is_sweep_trap_enabled():
+            try:
+                swept_level = float(candidate.get("swept_level", 0.0) or 0.0)
+                sweep_extreme = float(candidate.get("sweep_extreme", 0.0) or 0.0)
+                origin_level = float(candidate.get("origin_level", swept_level) or swept_level)
+                look_ahead_end = min(anchor_idx, candidate_idx + 14) if candidate_idx is not None else anchor_idx
+                post_bars_df = bars.iloc[candidate_idx + 1 : look_ahead_end] if candidate_idx is not None else bars.iloc[0:0]
+                post_sweep_bars = [
+                    {"open": float(r["open"]), "high": float(r["high"]),
+                     "low": float(r["low"]), "close": float(r["close"])}
+                    for _, r in post_bars_df.iterrows()
+                ]
+                if swept_level > 0:
+                    trap = classify_sweep_trap(
+                        swept_level=swept_level,
+                        sweep_extreme=sweep_extreme,
+                        origin_level=origin_level,
+                        is_bullish_sweep=bull_sweep,
+                        post_sweep_bars=post_sweep_bars,
+                    )
+                    payload["SWEEP_TRAP_TYPE"] = trap.trap_type
+                    payload["SWEEP_RECLAIM_BARS"] = trap.sweep_reclaim_bars
+                    payload["SWEEP_RECLAIM_STRENGTH"] = trap.reclaim_strength
+                    payload["SWEEP_FIB_RETRACE"] = trap.fib_retrace_depth
+                    payload["SWEEP_TRAP_QUALITY_SCORE"] = trap.trap_quality_score
+
+                    # Phase C — Reaction Zone (depends on Phase B active).
+                    if is_reaction_zone_enabled() and swept_level > 0:
+                        zone = compute_reaction_zone(
+                            swept_level=swept_level,
+                            sweep_extreme=sweep_extreme,
+                            is_bullish_sweep=bull_sweep,
+                            post_sweep_bars=post_sweep_bars,
+                        )
+                        payload["REACTION_ZONE_LOW"] = zone.reaction_zone_low
+                        payload["REACTION_ZONE_HIGH"] = zone.reaction_zone_high
+                        payload["REACTION_ZONE_CONFIRMED"] = zone.close_back_inside_zone
+                        payload["REACTION_WICK_RATIO"] = zone.wick_rejection_ratio
+                        payload["REACTION_BODY_RATIO"] = zone.confirmation_body_ratio
+                        payload["REACTION_BARS_TO_CONFIRM"] = zone.bars_to_confirm
+                        # Discount trap quality when reaction zone is unconfirmed.
+                        if not zone.close_back_inside_zone and "SWEEP_TRAP_QUALITY_SCORE" in payload:
+                            payload["SWEEP_TRAP_QUALITY_SCORE"] = (
+                                payload["SWEEP_TRAP_QUALITY_SCORE"] * 0.50
+                            )
+            except Exception:  # noqa: BLE001
+                pass  # Phase B/C is additive; failure must not break v1 scoring.
         priority = (0 if candidate_id == current_id and family == "SWEEP" else 1, age_bars)
         if best is None or priority < best[0]:
             best = (priority, payload)
@@ -797,6 +862,99 @@ def _liquidity_support_for_event(
         "RECENT_BEAR_SWEEP": False,
         "SWEEP_DIRECTION": "NONE",
         "SWEEP_QUALITY_SCORE": 0,
+    }
+
+
+# ---------------------------------------------------------------------------
+# Phase A helper — freshness/invalidation shadow enrichment
+# ---------------------------------------------------------------------------
+
+def _freshness_state_light_for_event(
+    *,
+    event: dict[str, Any],
+    anchor_idx: int,
+    bars: "pd.DataFrame",
+) -> dict[str, Any]:
+    """Build Phase A freshness enrichment for a single SMC event.
+
+    Returns a dict with ``freshness_bucket``, ``freshness_penalty``,
+    ``event_age_bars``, ``event_age_seconds``, ``invalidated_at``, and
+    ``mitigated_at`` keys suitable for insertion under ``"freshness_v2"``
+    in the enrichment dict.
+
+    Falls back to a ``"fresh"`` state with full penalty (1.0) on any error,
+    so v2 scoring degrades gracefully when data is incomplete.
+    """
+    try:
+        event_bar = int(event.get("bar_index", anchor_idx))
+        age_bars: int = max(0, anchor_idx - event_bar)
+
+        mitigated: bool = bool(event.get("mitigated", False))
+        invalidated: bool = bool(event.get("invalidated", False))
+        mitigated_ts: float | None = event.get("mitigated_ts") or event.get("mitigated_at")
+        invalidated_ts: float | None = event.get("invalidated_ts") or event.get("invalidated_at")
+
+        # Approximate bar duration from the bars DataFrame when available.
+        bar_seconds: float = 60.0
+        if hasattr(bars, "index") and len(bars) >= 2:
+            try:
+                t0 = bars.index[-2]
+                t1 = bars.index[-1]
+                delta = (t1 - t0).total_seconds()  # type: ignore[operator]
+                if delta > 0:
+                    bar_seconds = float(delta)
+            except Exception:  # noqa: BLE001
+                pass
+
+        state = classify_freshness(
+            age_bars,
+            mitigated=mitigated,
+            invalidated=invalidated,
+            mitigated_ts=float(mitigated_ts) if mitigated_ts is not None else None,
+            invalidated_ts=float(invalidated_ts) if invalidated_ts is not None else None,
+            bar_seconds=bar_seconds,
+        )
+        return {
+            "freshness_bucket": state.freshness_bucket,
+            "freshness_penalty": state.freshness_penalty,
+            "event_age_bars": state.event_age_bars,
+            "event_age_seconds": state.event_age_seconds,
+            "invalidated_at": state.invalidated_at,
+            "mitigated_at": state.mitigated_at,
+        }
+    except Exception:  # noqa: BLE001
+        return {
+            "freshness_bucket": "fresh",
+            "freshness_penalty": 1.0,
+            "event_age_bars": 0,
+            "event_age_seconds": 0.0,
+            "invalidated_at": None,
+            "mitigated_at": None,
+        }
+
+
+# ---------------------------------------------------------------------------
+# Phase D helper — confluence shadow enrichment
+# ---------------------------------------------------------------------------
+
+def _confluence_light_for_event(
+    *,
+    ob_light: dict[str, Any] | None,
+    fvg_light: dict[str, Any] | None,
+    sweep_light: dict[str, Any] | None,
+) -> dict[str, Any]:
+    """Build Phase D confluence enrichment for a single SMC event.
+
+    Returns a dict with ``raw_confluence_score`` and ``confluence_tier``
+    for insertion under ``"confluence_v2"`` in the enrichment dict.
+    """
+    result = compute_confluence(ob_light, fvg_light, sweep_light)
+    return {
+        "ob_contribution": result.ob_contribution,
+        "fvg_contribution": result.fvg_contribution,
+        "sweep_contribution": result.sweep_contribution,
+        "raw_confluence_score": result.raw_confluence_score,
+        "confluence_tier": result.confluence_tier,
     }
 
 
@@ -872,7 +1030,28 @@ def _event_signal_quality_score(
             }.get(str(vol_regime_label).strip().upper(), "NORMAL"),
         },
     }
-    signal_quality = build_signal_quality(enrichment=enrichment)
+    # Phase A: freshness/invalidation shadow enrichment (no-op when disabled).
+    if is_freshness_v2_enabled():
+        enrichment["freshness_v2"] = _freshness_state_light_for_event(
+            event=event,
+            anchor_idx=anchor_idx,
+            bars=bars,
+        )
+
+    # Phase D: confluence shadow enrichment (no-op when disabled).
+    if is_confluence_score_enabled():
+        enrichment["confluence_v2"] = _confluence_light_for_event(
+            ob_light=enrichment.get("ob_context_light"),
+            fvg_light=enrichment.get("fvg_lifecycle_light"),
+            sweep_light=enrichment.get("liquidity_sweeps"),
+        )
+
+    # Route to v2 scoring function when SIGNAL_QUALITY_MODEL flag is set.
+    _model = signal_quality_model()
+    if _model in (_SQ_MODEL_V2, _SQ_MODEL_V21):
+        signal_quality = build_signal_quality_v2(enrichment=enrichment)
+    else:
+        signal_quality = build_signal_quality(enrichment=enrichment)
     raw_score = float(signal_quality.get(_SQ_RAW_SCORE_NAME, 0.0) or 0.0)
     return round(max(0.0, min(100.0, raw_score)), 4)
 

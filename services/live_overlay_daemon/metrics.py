@@ -713,6 +713,78 @@ def _provider_health_snapshot() -> dict[str, object]:
     }
 
 
+def _collect_process_metrics(startup_ts: float) -> list[str]:
+    """Emit process-level resource metrics (CPU, RSS, FDs, GC).
+
+    Pure-stdlib implementation — no prometheus_client dependency. Uses
+    /proc/self/status on Linux (Railway containers) and resource.getrusage
+    as fallback (macOS dev).
+    """
+    import gc
+    import os
+    import resource
+
+    lines: list[str] = []
+    prefix = "live_overlay_process"
+
+    # CPU seconds (user + system)
+    usage = resource.getrusage(resource.RUSAGE_SELF)
+    cpu_seconds = usage.ru_utime + usage.ru_stime
+    lines.append(f"# TYPE {prefix}_cpu_seconds_total counter")
+    lines.append(f"{prefix}_cpu_seconds_total {cpu_seconds:.6f}")
+
+    # Memory — prefer /proc/self/status (Linux) for accurate RSS/VmSize
+    rss_bytes = 0
+    vm_bytes = 0
+    try:
+        with open("/proc/self/status", encoding="utf-8") as f:
+            for line in f:
+                if line.startswith("VmRSS:"):
+                    rss_bytes = int(line.split()[1]) * 1024
+                elif line.startswith("VmSize:"):
+                    vm_bytes = int(line.split()[1]) * 1024
+    except (OSError, ValueError):
+        # macOS fallback: ru_maxrss is in bytes on macOS, KB on Linux
+        import sys
+
+        rss_bytes = usage.ru_maxrss
+        if sys.platform == "darwin":
+            pass  # already in bytes on macOS
+        else:
+            rss_bytes *= 1024
+
+    lines.append(f"# TYPE {prefix}_resident_memory_bytes gauge")
+    lines.append(f"{prefix}_resident_memory_bytes {rss_bytes}")
+    if vm_bytes:
+        lines.append(f"# TYPE {prefix}_virtual_memory_bytes gauge")
+        lines.append(f"{prefix}_virtual_memory_bytes {vm_bytes}")
+
+    # Open file descriptors
+    try:
+        fd_count = len(os.listdir("/proc/self/fd"))
+    except OSError:
+        fd_count = 0
+    lines.append(f"# TYPE {prefix}_open_fds gauge")
+    lines.append(f"{prefix}_open_fds {fd_count}")
+
+    # Start time and uptime
+    lines.append(f"# TYPE {prefix}_start_time_seconds gauge")
+    lines.append(f"{prefix}_start_time_seconds {startup_ts:.3f}")
+    uptime = time.time() - startup_ts if startup_ts > 0 else 0
+    lines.append(f"# TYPE {prefix}_uptime_seconds gauge")
+    lines.append(f"{prefix}_uptime_seconds {uptime:.1f}")
+
+    # Python GC collections
+    gc_stats = gc.get_stats()
+    lines.append(f"# TYPE {prefix}_python_gc_collections_total counter")
+    for i, stat in enumerate(gc_stats):
+        lines.append(
+            f'{prefix}_python_gc_collections_total{{generation="{i}"}} {stat.get("collections", 0)}'
+        )
+
+    return lines
+
+
 def render_metrics(startup_ts: float) -> str:
     """Return Prometheus text-format exposition of all daemon metrics."""
     lines: list[str] = []
@@ -1313,6 +1385,9 @@ def render_metrics(startup_ts: float) -> str:
                 f"live_overlay_experiment_day_family_n_events{{{labels}}} "
                 f"{_prom_numeric_value(row.get('n_events', 0))}"
             )
+
+    # --- Process-level metrics (CPU, memory, FDs, GC) ---
+    lines.extend(_collect_process_metrics(startup_ts))
 
     lines.append("")  # trailing newline
     return "\n".join(lines)
