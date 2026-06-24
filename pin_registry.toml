@@ -84,7 +84,8 @@
 # 2026-06-23 (signals-producer consumer hook): _fetch_json_url pulls the
 # open-prep snapshot from OPEN_PREP_SNAPSHOT_URL (raw bot-branch JSON) so the
 # Railway worker can run without the local artifact; http(s)-only, timeout=15s.
-"open_prep/realtime_signals.py" = [811]
+# 2026-06-24 (+1 shift): TELEMETRY_BIND_HOST default changed 127.0.0.1→0.0.0.0.
+"open_prep/realtime_signals.py" = [812]
 "scripts/probe_fmp_13f_endpoints.py" = [75]
 "scripts/resolve_workflow_runner.py" = [91]
 # 2026-06-21 (live-overlay bridge observability): optional external polling
