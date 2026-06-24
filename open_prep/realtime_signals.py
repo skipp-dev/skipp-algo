@@ -676,35 +676,42 @@ def _collect_process_metrics() -> str:
     Python GC stats.  Designed for Alloy/Grafana Cloud Prometheus scraping.
     """
     import gc as _gc
-    import resource as _resource
     import platform as _platform
+
+    try:
+        import resource as _resource  # POSIX-only; guarded for cross-platform safety
+        _resource_available = True
+    except ImportError:
+        _resource_available = False
+        _resource = None  # type: ignore[assignment]
 
     _prefix = "signals_producer"
     lines: list[str] = []
 
-    # CPU seconds (user + system)
-    usage = _resource.getrusage(_resource.RUSAGE_SELF)
-    cpu_seconds = usage.ru_utime + usage.ru_stime
-    lines.append(f"# HELP {_prefix}_process_cpu_seconds_total Total user and system CPU time spent in seconds.")
-    lines.append(f"# TYPE {_prefix}_process_cpu_seconds_total counter")
-    lines.append(f"{_prefix}_process_cpu_seconds_total {cpu_seconds:.6f}")
+    # CPU seconds (user + system) — POSIX only; skip on non-POSIX platforms
+    if _resource_available and _resource is not None:
+        usage = _resource.getrusage(_resource.RUSAGE_SELF)
+        cpu_seconds = usage.ru_utime + usage.ru_stime
+        lines.append(f"# HELP {_prefix}_process_cpu_seconds_total Total user and system CPU time spent in seconds.")
+        lines.append(f"# TYPE {_prefix}_process_cpu_seconds_total counter")
+        lines.append(f"{_prefix}_process_cpu_seconds_total {cpu_seconds:.6f}")
 
-    # Resident memory (RSS)
-    try:
-        with open("/proc/self/status", encoding="utf-8") as _f:
-            for _line in _f:
-                if _line.startswith("VmRSS:"):
-                    rss_bytes = int(_line.split()[1]) * 1024
-                    break
-            else:
-                raise FileNotFoundError
-    except (FileNotFoundError, PermissionError, ValueError):
-        rss_bytes = usage.ru_maxrss
-        if _platform.system() == "Linux":
-            rss_bytes *= 1024
-    lines.append(f"# HELP {_prefix}_process_resident_memory_bytes Resident memory size in bytes.")
-    lines.append(f"# TYPE {_prefix}_process_resident_memory_bytes gauge")
-    lines.append(f"{_prefix}_process_resident_memory_bytes {rss_bytes}")
+        # Resident memory (RSS)
+        try:
+            with open("/proc/self/status", encoding="utf-8") as _f:
+                for _line in _f:
+                    if _line.startswith("VmRSS:"):
+                        rss_bytes = int(_line.split()[1]) * 1024
+                        break
+                else:
+                    raise FileNotFoundError
+        except (FileNotFoundError, PermissionError, ValueError):
+            rss_bytes = usage.ru_maxrss
+            if _platform.system() == "Linux":
+                rss_bytes *= 1024
+        lines.append(f"# HELP {_prefix}_process_resident_memory_bytes Resident memory size in bytes.")
+        lines.append(f"# TYPE {_prefix}_process_resident_memory_bytes gauge")
+        lines.append(f"{_prefix}_process_resident_memory_bytes {rss_bytes}")
 
     # Virtual memory
     try:
