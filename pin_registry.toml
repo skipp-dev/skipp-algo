@@ -477,10 +477,13 @@ frozen_major = "v7"
 "scripts/smc_news_scorer.py" = 1
 "scripts/smc_newsapi_ai.py" = 17
 "scripts/smc_provider_policy.py" = 9
-"scripts/smc_signal_quality.py" = 4
+"scripts/smc_signal_quality.py" = 2
 "scripts/tv_publish_evidence_summary.py" = 2
 "scripts/verify_tradingview_post_release.py" = 1
 "scripts/wsh_earnings_calendar.py" = 1
+# 2026-06-24 (PR #2941 hardening): lean-vs-broad fallback lookups in
+# measurement_evidence were introduced intentionally for compatibility.
+"smc_integration/measurement_evidence.py" = 3
 "smc_integration/service.py" = 1
 "smc_integration/sources/live_news_snapshot_json.py" = 1
 "smc_integration/trust_state.py" = 2
