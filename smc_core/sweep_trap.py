@@ -1,4 +1,4 @@
-"""Phase B — Sweep Trap Classifier.
+"""Phase B — Sweep Trap Classifier + SMC v2 enrichment wrapper.
 
 A *sweep trap* (also: stop-hunt reversal, liquidity trap) occurs when price
 sweeps a prior swing high/low to trigger resting orders, then reclaims the
@@ -12,13 +12,20 @@ This module provides:
   context when ``ENABLE_SWEEP_TRAP=1``.
 * :func:`classify_sweep_trap` — deterministic, pure-math classification; no
   I/O, no global state.
+* :func:`detect_sweep_trap` — SMC v2 signal-quality enrichment wrapper that
+  reads the lean ``liquidity_sweeps`` block and returns a neutral/detected
+  verdict with a 0-100 confidence score.
 
 Integration point
 -----------------
 :func:`~smc_integration.measurement_evidence._liquidity_support_for_event`
-calls this function when the best sweep found for an event has ``ENABLE_SWEEP_TRAP``
-enabled.  The result fields are merged into the liquidity enrichment payload and
-propagated to ``label_sweep_reversal`` in ``smc_core/scoring.py`` for calibration.
+calls :func:`classify_sweep_trap` when the best sweep found for an event has
+``ENABLE_SWEEP_TRAP`` enabled.  The result fields are merged into the liquidity
+enrichment payload and propagated to ``label_sweep_reversal`` in
+``smc_core/scoring.py`` for calibration.
+
+:func:`detect_sweep_trap` is consumed by ``scripts/smc_signal_quality.py``
+when ``SIGNAL_QUALITY_MODEL=v2`` or ``ENABLE_SWEEP_TRAP=1``.
 
 Phase B is *parallel-safe* with Phase A (event_freshness) — neither depends on
 the other at the enrichment level.
@@ -218,8 +225,28 @@ def classify_sweep_trap(
     )
 
 
+# ---------------------------------------------------------------------------
+# SMC v2 signal-quality enrichment wrapper
+# ---------------------------------------------------------------------------
+
+
 def detect_sweep_trap(enrichment: dict[str, Any] | None = None) -> dict[str, Any]:
-    """Detector-style sweep trap signal used by v2 integration tests."""
+    """Detect a sweep-trap condition from enrichment data.
+
+    Parameters
+    ----------
+    enrichment : dict | None
+        Full enrichment dict.  Reads ``liquidity_sweeps`` and optional
+        ``structure_state_light`` / ``structure_state`` blocks.
+
+    Returns
+    -------
+    dict[str, Any]
+        ``{"SWEEP_TRAP_DETECTED": bool, "SWEEP_TRAP_CONFIDENCE": int}``
+        Confidence ranges from 0–100.  When the feature flag is OFF the
+        detector always returns the neutral block
+        ``{"SWEEP_TRAP_DETECTED": False, "SWEEP_TRAP_CONFIDENCE": 0}``.
+    """
     neutral = {"SWEEP_TRAP_DETECTED": False, "SWEEP_TRAP_CONFIDENCE": 0}
 
     if not sweep_trap_enabled():
@@ -236,13 +263,18 @@ def detect_sweep_trap(enrichment: dict[str, Any] | None = None) -> dict[str, Any
     if not (has_bull_sweep or has_bear_sweep) or sweep_direction == "NONE":
         return neutral
 
+    # Quality must be poor for a trap.
     if sweep_quality >= sweep_trap_config.quality_threshold:
         return neutral
 
+    # Base confidence: inversely proportional to quality on the 0-5 scale.
     quality_factor = max(0, min(100, (5 - sweep_quality) * 20))
+
+    # Boost when only one direction swept (lopsided liquidity grab).
     both_sides = has_bull_sweep and has_bear_sweep
     direction_boost = 0 if both_sides else sweep_trap_config.lopsided_boost
 
+    # Reduce confidence if structure already reversed against the sweep.
     ssl = enr.get("structure_state_light") or {}
     ss = enr.get("structure_state") or {}
     last_event = str(
@@ -253,9 +285,12 @@ def detect_sweep_trap(enrichment: dict[str, Any] | None = None) -> dict[str, Any
     if sweep_direction == "BULL" and last_event in ("BOS_BEAR", "CHOCH_BEAR"):
         reversal_penalty = sweep_trap_config.reversal_penalty
     elif sweep_direction == "BEAR" and last_event in ("BOS_BULL", "CHOCH_BULL"):
-        reversal_penalty = 40
+        reversal_penalty = sweep_trap_config.reversal_penalty
 
     confidence = max(0, min(100, quality_factor + direction_boost - reversal_penalty))
+
+    # If quality is poor but structure already reversed, the trap is no
+    # longer active.
     if confidence == 0:
         return neutral
 
