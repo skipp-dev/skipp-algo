@@ -379,7 +379,8 @@ _ASSERT_V2_SUM: int = (
     + _MAX_COMPRESSION_V2
     + _MAX_CONFLUENCE_V2
 )
-assert _ASSERT_V2_SUM == 100, f"v2 budget must sum to 100; got {_ASSERT_V2_SUM}"
+if _ASSERT_V2_SUM != 100:
+    raise ValueError(f"v2 budget must sum to 100; got {_ASSERT_V2_SUM}")
 
 
 def build_signal_quality_v2(
