@@ -25,6 +25,7 @@ commit message.
 from __future__ import annotations
 
 import ast
+from collections.abc import Iterator
 from pathlib import Path
 
 from tests._guard_corpus import parse_module
@@ -47,22 +48,30 @@ _DIR_EXCLUDE = {
 }
 
 
-def _iter_py_files() -> list[Path]:
-    out: list[Path] = []
+def _iter_py_files() -> Iterator[Path]:
     for path in ROOT.rglob("*.py"):
         rel = path.relative_to(ROOT)
         if any(part in _DIR_EXCLUDE or part.startswith(".") for part in rel.parts):
             continue
-        out.append(path)
-    return out
+        yield path
 
 
 def _attr_call_sites(attr_owner: str, attr_name: str) -> set[tuple[str, int]]:
-    """Return ``{(relpath, lineno)}`` for every ``owner.attr(...)`` call."""
+    """Return call sites for a specific ``owner.attr(...)`` pattern.
+
+    Args:
+        attr_owner: The module/object name referenced on the call receiver
+            (for example ``"os"`` in ``os.kill(...)``).
+        attr_name: The attribute/method name being called
+            (for example ``"kill"`` in ``os.kill(...)``).
+
+    Returns:
+        A set of ``(relpath, lineno)`` tuples for each matching call site.
+    """
 
     sites: set[tuple[str, int]] = set()
     for path in _iter_py_files():
-        rel = str(path.relative_to(ROOT)).replace("\\", "/")
+        rel = path.relative_to(ROOT).as_posix()
         tree = parse_module(path)
         if tree is None:
             continue

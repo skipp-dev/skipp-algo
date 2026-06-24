@@ -23,7 +23,7 @@ from pathlib import Path
 
 import pytest
 
-from tests._guard_corpus import parse_module
+from tests._guard_corpus import MIN_EXPECTED_PROD_FILES, parse_module
 
 _REPO_ROOT = Path(__file__).resolve().parent.parent
 
@@ -46,7 +46,7 @@ _DIR_EXCLUDE = frozenset(
 )
 
 
-def _iter_prod_files() -> list[Path]:
+def _list_prod_files() -> list[Path]:
     out: list[Path] = []
     for path in _REPO_ROOT.rglob("*.py"):
         if any(part in _DIR_EXCLUDE for part in path.relative_to(_REPO_ROOT).parts):
@@ -65,9 +65,9 @@ def _is_time_sleep_call(node: ast.Call) -> bool:
     )
 
 
-def _all_sites() -> list[tuple[str, int]]:
+def _all_time_sleep_sites() -> list[tuple[str, int]]:
     out: list[tuple[str, int]] = []
-    for path in _iter_prod_files():
+    for path in _list_prod_files():
         rel = path.relative_to(_REPO_ROOT).as_posix()
         tree = parse_module(path)
         if tree is None:  # pragma: no cover - defensive
@@ -141,7 +141,7 @@ _FROZEN_SITES: frozenset[tuple[str, int]] = frozenset(
 
 def test_no_new_time_sleep_sites() -> None:
     """Tripwire: every new ``time.sleep(...)`` deserves a deliberate review."""
-    current = set(_all_sites())
+    current = set(_all_time_sleep_sites())
     new_sites = sorted(current - _FROZEN_SITES)
     assert not new_sites, (
         "New time.sleep(...) call site detected — confirm it's a "
@@ -175,7 +175,7 @@ def test_frozen_time_sleep_site_still_present(rel: str, lineno: int) -> None:
 
 def test_time_sleep_inventory_parity() -> None:
     """Bidirectional parity: ledger ∪ scan must be identical."""
-    current = set(_all_sites())
+    current = set(_all_time_sleep_sites())
     missing_from_ledger = current - _FROZEN_SITES
     stale_in_ledger = _FROZEN_SITES - current
     assert not missing_from_ledger and not stale_in_ledger, (
@@ -186,8 +186,8 @@ def test_time_sleep_inventory_parity() -> None:
 
 
 def test_prod_file_inventory_sane() -> None:
-    files = _iter_prod_files()
-    assert len(files) >= 50, (
+    files = _list_prod_files()
+    assert len(files) >= MIN_EXPECTED_PROD_FILES, (
         f"Production *.py scan only found {len(files)} files — "
         f"_DIR_EXCLUDE may be over-broad or sparse-checkout incomplete."
     )

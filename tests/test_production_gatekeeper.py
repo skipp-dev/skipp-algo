@@ -8,6 +8,7 @@ review.
 from __future__ import annotations
 
 import math
+import threading
 from datetime import UTC, date, datetime, timedelta
 from unittest.mock import MagicMock, patch
 
@@ -394,9 +395,8 @@ class TestPrevTradingDaySafety:
             # d=2025-06-16, iterates 14 times from d-1=Jun 15 through Jun 1,
             # then one more step to May 31 → returns May 31 (cur after loop)
             result = _prev_trading_day(date(2025, 6, 16))
-            # Last iteration: cur = Jun 16 - 1 - 14 = Jun 1
+            # Start at d-1 (Jun 15); after 14 backward iterations, cur is Jun 1.
             assert result == date(2025, 6, 1)
-
 
 # ═══════════════════════════════════════════════════════════════════
 # 7) Bare float() safety in realtime_signals._detect_signal
@@ -544,7 +544,7 @@ class TestRealtimeFailOpen:
         from open_prep.realtime_signals import RealtimeEngine
 
         engine = RealtimeEngine.__new__(RealtimeEngine)
-        engine._lock = __import__("threading").Lock()  # set by __init__; required by poll_once
+        engine._lock = threading.Lock()  # set by __init__; required by poll_once
         engine._client_disabled_reason = "API key missing"
         engine._active_signals = []
         engine._watchlist = []
@@ -1074,6 +1074,7 @@ class TestPrevTradingDayFallback:
             monday = date(2025, 1, 6)
             result = _prev_trading_day(monday)
             # Should NOT return d-1 (Sunday Jan 5)
+            assert result != monday - timedelta(days=1)
             # Should return the last checked date: Jan 6 - 15 = Dec 22
             expected_last_checked = monday - timedelta(days=15)
             assert result == expected_last_checked
