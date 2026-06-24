@@ -6,6 +6,52 @@ All notable changes to this project are documented in this file.
 
 ## [Unreleased]
 
+### Fixed (2026-06-24) — Databento merge OOM / swap-thrash prevention (WF-026)
+
+- `scripts/databento_production_merge_shards.py` — `merge_shard_payloads()` now
+  uses `pyarrow.dataset` streaming instead of `[pd.read_parquet(p) for p in
+  paths] + pd.concat(...)`.  The old approach held N pandas DataFrames
+  simultaneously in RAM plus the concatenated copy plus the deduped/sorted copy
+  (peak ≈ 3× total frame size); on the 7 GB GitHub runner with 6 production
+  shards this caused OOM / swap-thrash on 2026-06-22 (swap_used peaked at
+  5 750 MB / 9 215 MB, triggering 8 consecutive job failures).
+  The new path reads all shard files in a single Arrow streaming pass
+  (column-oriented layout, ~2× more compact than N pandas DataFrames) and
+  releases the Arrow buffer with an explicit `del` before `_dedupe_frame`
+  allocates its sorted copy.  Peak is now ≈ 2× total frame size, saving
+  ~2.5–3 GB on a 6-shard run.
+- Two new tests cover the streaming path:
+  `test_merge_shard_payloads_streaming_six_shards` (production-realistic
+  6-shard scenario) and `test_merge_shard_payloads_single_shard_passthrough`.
+- `pyarrow` is already a transitive dependency via pandas' parquet engine —
+  no additional install step is required.
+
+### Changed (2026-06-24) — Databento export freshness budget tightened
+
+- `meta-watchdog.yml`: `smc-databento-production-export-sharded.yml` freshness
+  budget reduced from 30 h to 14 h (weekday-adjusted).  The workflow already
+  runs 9× per day on weekdays (08–22 UTC); the previous 30 h window allowed
+  a full day of silent failures before alerting.  14 h absorbs one failed run
+  without a false alarm but catches a real outage within ≈ 2 h.
+
+### Added (2026-06-24) — Zero-touch TradingView storage-state refresh (TOTP)
+
+- `scripts/create_tradingview_storage_state.ts` now accepts `TV_TOTP_SECRET`
+  (env var or `--totp-secret` flag) to generate the 6-digit TOTP code via
+  `otplib` and fill the 2FA input automatically.  Also accepts `TV_HEADLESS=1`
+  / `--headless` for CI (no GUI required).
+- New workflow `tradingview-storage-refresh.yml` runs every 48 h (03:00 UTC on
+  even days) and:
+  - Starts an `xvfb` virtual display for headed Playwright on CI.
+  - Logs in headlessly via `TV_USERNAME` + `TV_PASSWORD` + TOTP code generated
+    from `TV_TOTP_SECRET`.
+  - Validates the captured storage state via `credential_health_check.py`.
+  - Writes the refreshed secret back via `gh secret set TV_STORAGE_STATE`
+    (requires `GH_PAT` with `repo` + `secrets:write` scope).
+  - On failure: opens a `cron-failure` GitHub issue with recovery instructions.
+- `package.json`: added `otplib ^12.0.1` dependency.
+- Closes #2904.
+
 ### Changed (2026-06-23) — Live-overlay snapshot delivery hardening
 
 - `scripts/publish_signals_snapshot.py` now validates `--branch` defensively
