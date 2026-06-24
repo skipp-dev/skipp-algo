@@ -88,8 +88,9 @@ def test_all_v2_features_enabled_produces_expected_keys() -> None:
     assert "SIGNAL_BIAS_ALIGNMENT" in result
     assert "SIGNAL_FRESHNESS" in result
 
-    # Phase A: Freshness v2
-    assert result["SIGNAL_FRESHNESS"] == "very_fresh"
+    # Phase A: Freshness v2 starts at very_fresh, but is downgraded one
+    # step because a high-confidence sweep trap and SMT divergence were detected.
+    assert result["SIGNAL_FRESHNESS"] == "fresh"
 
     # Phase D: Confluence score
     assert result["CONFLUENCE_SCORE"] == 100
@@ -142,3 +143,28 @@ def test_v2_overrides_win_across_all_features() -> None:
     result = build_signal_quality(enrichment=_make_full_enrichment(), overrides=overrides)
     for key, value in overrides.items():
         assert result[key] == value
+
+def test_freshness_downgraded_by_high_confidence_trap_and_divergence() -> None:
+    """A very_fresh base label is downgraded when trap/divergence fire with high confidence."""
+    _enable_all_v2_flags()
+    enrichment = _make_full_enrichment()
+    # Ensure base inputs would yield very_fresh.
+    enrichment["structure_state_light"]["STRUCTURE_FRESH"] = True
+    enrichment["session_context_light"]["IN_KILLZONE"] = True
+    result = build_signal_quality(enrichment=enrichment)
+    assert result["SIGNAL_FRESHNESS"] == "fresh"
+
+
+def test_freshness_not_downgraded_without_contra_signals() -> None:
+    """Freshness stays very_fresh when no high-confidence contra signals fire."""
+    _enable_all_v2_flags()
+    enrichment = _make_full_enrichment()
+    # High quality sweep -> no trap detected.
+    enrichment["liquidity_sweeps"]["SWEEP_QUALITY_SCORE"] = 4
+    # Correlated market aligns with primary -> no SMT divergence.
+    enrichment["correlated_context"] = {"CORRELATED_BIAS": "BULLISH"}
+    result = build_signal_quality(enrichment=enrichment)
+    assert result["SWEEP_TRAP_DETECTED"] is False
+    assert result["SMT_DIVERGENCE_DETECTED"] is False
+    assert result["SIGNAL_FRESHNESS"] == "very_fresh"
+
