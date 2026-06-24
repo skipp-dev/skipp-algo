@@ -9,7 +9,6 @@ hard-coded behaviour.
 from __future__ import annotations
 
 import os
-from typing import Any
 
 
 def _env_int(name: str, default: int, min_val: int | None = None, max_val: int | None = None) -> int:

@@ -59,7 +59,37 @@ Both blocks are read-only, scoring-only, and safe-default to zero on absence.
 
 ---
 
-## 4. OB_MITIGATION_STATE — Age-Derived Lifecycle
+## 4. SMC v2 Detector Extensions
+
+When ``SIGNAL_QUALITY_MODEL=v2`` or any individual v2 feature flag is enabled,
+``build_signal_quality`` runs an extended pipeline that folds four optional
+detectors into the result block.  Each detector is independently gated, reads
+only lean-family or admitted support-block data, and safe-defaults to neutral
+when inputs are unavailable.
+
+| Detector | Output Fields | Gating Flag | Key Inputs |
+| --- | --- | --- | --- |
+| Freshness v2 | ``SIGNAL_FRESHNESS`` | ``ENABLE_FRESHNESS_V2`` | Structure, FVG, OB, killzone, sweep, ATR regime |
+| Sweep Trap | ``SWEEP_TRAP_DETECTED``, ``SWEEP_TRAP_CONFIDENCE`` | ``ENABLE_SWEEP_TRAP`` | ``liquidity_sweeps`` quality and direction |
+| Reaction Zone | ``REACTION_ZONE_DETECTED``, ``REACTION_ZONE_CONFIDENCE``, ``REACTION_ZONE_DIRECTION`` | ``ENABLE_REACTION_ZONE`` | OB/FVG distance and side, structure, sweep |
+| Confluence Score | ``CONFLUENCE_SCORE``, ``CONFLUENCE_DIRECTION`` | ``ENABLE_CONFLUENCE_SCORE`` | Structure, session, OB, FVG, sweep |
+| SMT Divergence | ``SMT_DIVERGENCE_DETECTED``, ``SMT_DIVERGENCE_SIDE``, ``SMT_DIVERGENCE_CONFIDENCE`` | ``ENABLE_SMT_DIVERGENCE`` | Primary structure vs. correlated context |
+
+All thresholds and confidence values are configurable via ``smc_core.v2_config``
+environment variables (e.g. ``SMC_SWEEP_TRAP_QUALITY_THRESHOLD``,
+``SMC_REACTION_ZONE_DISTANCE_PCT``).  A high-confidence sweep-trap or SMT
+divergence downgrades ``SIGNAL_FRESHNESS`` by one step, because both signals
+indicate that the current price context is less reliable than the base
+freshness score suggests.
+
+**Implementation**:
+- Router & integration: [scripts/smc_signal_quality.py](../scripts/smc_signal_quality.py)
+- Detectors: [smc_core/sweep_trap.py](../smc_core/sweep_trap.py), [smc_core/reaction_zone.py](../smc_core/reaction_zone.py), [smc_core/confluence_score.py](../smc_core/confluence_score.py), [smc_core/smt_divergence.py](../smc_core/smt_divergence.py)
+- Configuration: [smc_core/v2_config.py](../smc_core/v2_config.py)
+
+---
+
+## 5. OB_MITIGATION_STATE — Age-Derived Lifecycle
 
 States are **age-derived lifecycle stages**, not price-event signals:
 
@@ -77,7 +107,7 @@ explicitly.
 
 ---
 
-## 5. Hero Surface — Compact Mode Reference
+## 7. Hero Surface — Compact Mode Reference
 
 Compact Mode (`compact_mode = true`) is the recommended UX. The Hero Surface
 occupies Dashboard rows 10-17:
@@ -102,7 +132,7 @@ All suppression uses `_eff` variables. Filter logic is **not** affected.
 
 ---
 
-## 6. Artifact Strategy
+## 8. Artifact Strategy
 
 Two artifact classes; no third class allowed:
 
@@ -118,7 +148,7 @@ through adapters for consistency verification.
 
 ---
 
-## 7. Runtime Budget
+## 9. Runtime Budget
 
 | Metric | Value |
 | --- | --- |
@@ -145,7 +175,7 @@ it materially reduces coupling without changing runtime behavior.
 
 ---
 
-## 8. No Shadow Logic Policy
+## 10. No Shadow Logic Policy
 
 Pine must not rebuild competing interpretation layers outside the generator chain.
 
@@ -160,7 +190,7 @@ Pine must not rebuild competing interpretation layers outside the generator chai
 
 ---
 
-## 9. Version History
+## 11. Version History
 
 | Version | Change | Commit |
 | --- | --- | --- |
@@ -177,7 +207,7 @@ Pine must not rebuild competing interpretation layers outside the generator chai
 
 ---
 
-## 10. Forward-Looking Extensions
+## 12. Forward-Looking Extensions
 
 v5.5b ships four infrastructure modules that lay the ground for
 measurement, calibration, and probabilistic scoring **without** breaking the
