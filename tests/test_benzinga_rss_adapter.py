@@ -36,6 +36,7 @@ def _make_entry(
         title=title,
         link=link,
         published_parsed=published_parsed,
+        updated_parsed=None,
         summary=summary,
         author=author,
         tags=resolved_tags,
@@ -132,6 +133,26 @@ def test_entry_to_news_item_no_timestamp():
     item = _entry_to_news_item(entry, source_url="x")
     assert item is not None
     assert item.published_ts == 0.0
+
+
+def test_entry_to_news_item_updated_ts_from_updated_parsed():
+    entry = _make_entry(
+        published_parsed=(2024, 6, 1, 10, 0, 0, 5, 153, 0),
+    )
+    entry.updated_parsed = (2024, 6, 1, 11, 30, 0, 5, 153, 0)
+    item = _entry_to_news_item(entry, source_url="x")
+    assert item is not None
+    assert item.updated_ts > item.published_ts
+
+
+def test_entry_to_news_item_updated_ts_falls_back_to_published():
+    entry = _make_entry(
+        published_parsed=(2024, 6, 1, 10, 0, 0, 5, 153, 0),
+    )
+    entry.updated_parsed = None
+    item = _entry_to_news_item(entry, source_url="x")
+    assert item is not None
+    assert item.updated_ts == item.published_ts
 
 
 # ── BenzingaRssAdapter.fetch_news ────────────────────────────────────

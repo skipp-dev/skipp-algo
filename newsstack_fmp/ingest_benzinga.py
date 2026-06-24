@@ -775,6 +775,14 @@ def _entry_to_news_item(entry: Any, *, source_url: str) -> "NewsItem | None":
     else:
         published_ts = 0.0
 
+    # updated timestamp (RSS-6: use updated_parsed when available)
+    updated_struct = getattr(entry, "updated_parsed", None)
+    if updated_struct:
+        import calendar as _calendar
+        updated_ts = float(_calendar.timegm(updated_struct))
+    else:
+        updated_ts = published_ts
+
     # snippet — prefer summary over content
     snippet: str = ""
     summary = getattr(entry, "summary", None) or ""
@@ -793,7 +801,7 @@ def _entry_to_news_item(entry: Any, *, source_url: str) -> "NewsItem | None":
         provider="benzinga_rss",
         item_id=guid,
         published_ts=published_ts,
-        updated_ts=published_ts,
+        updated_ts=updated_ts,
         headline=title,
         snippet=snippet,
         tickers=tickers,
