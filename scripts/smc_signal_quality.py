@@ -504,6 +504,20 @@ def build_signal_quality_v2(
 
         result.update(detect_smt_divergence(enr))
 
+    # Post-detector freshness adjustment: a confirmed sweep-trap or SMT
+    # divergence is a contra-freshness signal.  Downgrade the freshness
+    # label by one step unless it is already stale or expired.
+    freshness = result.get("SIGNAL_FRESHNESS", "stale")
+    downgrade_triggered = False
+    if result.get("SWEEP_TRAP_DETECTED") and result.get("SWEEP_TRAP_CONFIDENCE", 0) >= 60:
+        downgrade_triggered = True
+    if result.get("SMT_DIVERGENCE_DETECTED") and result.get("SMT_DIVERGENCE_CONFIDENCE", 0) >= 60:
+        downgrade_triggered = True
+
+    if downgrade_triggered and freshness not in ("stale", "expired"):
+        downgrades = {"very_fresh": "fresh", "fresh": "aging", "aging": "stale"}
+        result["SIGNAL_FRESHNESS"] = downgrades.get(freshness, "stale")
+
     # Re-apply overrides last so manual values win over the v2 label.
     if overrides:
         for key, value in overrides.items():

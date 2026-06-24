@@ -64,3 +64,29 @@ def test_enabled_bear_primary_with_bullish_correlated() -> None:
     assert result["SMT_DIVERGENCE_DETECTED"] is True
     assert result["SMT_DIVERGENCE_SIDE"] == "bull"
     assert result["SMT_DIVERGENCE_CONFIDENCE"] == 70
+
+def test_enabled_bull_primary_with_bullish_correlated_no_divergence() -> None:
+    os.environ["ENABLE_SMT_DIVERGENCE"] = "1"
+    result = detect_smt_divergence(
+        enrichment={
+            "structure_state_light": {"STRUCTURE_LAST_EVENT": "BOS_BULL"},
+            "correlated_context": {"CORRELATED_BIAS": "BULLISH"},
+        }
+    )
+    assert result["SMT_DIVERGENCE_DETECTED"] is False
+    assert result["SMT_DIVERGENCE_SIDE"] == "none"
+    assert result["SMT_DIVERGENCE_CONFIDENCE"] == 0
+
+
+def test_enabled_bear_primary_with_bearish_correlated_no_divergence() -> None:
+    os.environ["ENABLE_SMT_DIVERGENCE"] = "1"
+    result = detect_smt_divergence(
+        enrichment={
+            "structure_state_light": {"STRUCTURE_LAST_EVENT": "CHOCH_BEAR"},
+            "correlated_context": {"CORRELATED_LAST_EVENT": "BOS_BEAR"},
+        }
+    )
+    assert result["SMT_DIVERGENCE_DETECTED"] is False
+    assert result["SMT_DIVERGENCE_SIDE"] == "none"
+    assert result["SMT_DIVERGENCE_CONFIDENCE"] == 0
+

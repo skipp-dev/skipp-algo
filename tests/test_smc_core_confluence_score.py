@@ -79,3 +79,28 @@ def test_enabled_clamped_to_100() -> None:
         }
     )
     assert result["CONFLUENCE_SCORE"] <= 100
+
+def test_enabled_partial_confluence_score_40() -> None:
+    os.environ["ENABLE_CONFLUENCE_SCORE"] = "1"
+    result = compute_confluence_score(
+        enrichment={
+            "structure_state_light": {"STRUCTURE_LAST_EVENT": "BOS_BULL"},
+            "session_context_light": {"SESSION_DIRECTION_BIAS": "BULLISH"},
+        }
+    )
+    assert result["CONFLUENCE_SCORE"] == 40
+    assert result["CONFLUENCE_DIRECTION"] == "bull"
+
+
+def test_enabled_partial_confluence_score_60() -> None:
+    os.environ["ENABLE_CONFLUENCE_SCORE"] = "1"
+    result = compute_confluence_score(
+        enrichment={
+            "structure_state_light": {"STRUCTURE_LAST_EVENT": "BOS_BULL"},
+            "session_context_light": {"SESSION_DIRECTION_BIAS": "BULLISH"},
+            "ob_context_light": {"PRIMARY_OB_SIDE": "BULL", "OB_FRESH": True},
+        }
+    )
+    assert result["CONFLUENCE_SCORE"] == 60
+    assert result["CONFLUENCE_DIRECTION"] == "bull"
+
