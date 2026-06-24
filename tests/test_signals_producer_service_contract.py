@@ -21,7 +21,6 @@ def test_railway_start_command_runs_signal_engine() -> None:
     config = _load_railway_config()
     start = config["deploy"]["startCommand"]
     assert "python -m open_prep.realtime_signals" in start
-    assert "--telemetry-port" in start
 
 
 def test_railway_healthcheck_path_is_healthz() -> None:

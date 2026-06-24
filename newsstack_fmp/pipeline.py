@@ -49,6 +49,7 @@ _bz_rest_adapter: Any | None = None  # BenzingaRestAdapter (lazy)
 _bz_rest_adapter_key: str | None = None
 _bz_ws_adapter: Any | None = None  # BenzingaWsAdapter (lazy)
 _bz_ws_adapter_key: tuple[str, str, tuple[str, ...] | None] | None = None
+_bz_rss_adapter: Any | None = None  # BenzingaRssAdapter (lazy)
 _enricher: Enricher | None = None
 _best_by_ticker: dict[str, dict[str, Any]] = {}
 _bbt_lock = threading.Lock()
@@ -126,6 +127,16 @@ def _get_bz_ws_adapter(cfg: Config) -> Any:
             _bz_ws_adapter.start()
             _bz_ws_adapter_key = current_key
     return _bz_ws_adapter
+
+
+def _get_bz_rss_adapter() -> Any:
+    """Lazy-init the free Benzinga RSS adapter (no API key needed)."""
+    global _bz_rss_adapter
+    with _init_lock:
+        if _bz_rss_adapter is None:
+            from .ingest_benzinga import BenzingaRssAdapter
+            _bz_rss_adapter = BenzingaRssAdapter()
+    return _bz_rss_adapter
 
 
 def _get_enricher() -> Enricher:
@@ -561,6 +572,7 @@ def poll_once(
     fmp_press_last = float(store.get_kv("fmp.press.last_seen_epoch") or fmp_legacy_last or 0.0)
     fmp_articles_last = float(store.get_kv("fmp.articles.last_seen_epoch") or 0.0)
     bz_rest_cursor = float(store.get_kv("benzinga.updatedSince") or "0")
+    bz_rss_last_seen = float(store.get_kv("benzinga_rss.last_seen_epoch") or "0")
     tv_last_seen = float(store.get_kv("tradingview.last_seen_epoch") or "0")
     newsapi_last_seen = float(store.get_kv("newsapi_ai.last_seen_epoch") or "0")
     newsapi_last_seen_uri = str(store.get_kv("newsapi_ai.last_seen_news_uri") or "").strip()
@@ -580,6 +592,7 @@ def poll_once(
     new_fmp_press_max = fmp_press_last
     new_fmp_articles_max = fmp_articles_last
     new_bz_rest_max = bz_rest_cursor
+    new_bz_rss_max = bz_rss_last_seen
     new_tv_max = tv_last_seen
     new_newsapi_max = newsapi_last_seen
     new_newsapi_uri = newsapi_last_seen_uri
@@ -699,6 +712,23 @@ def poll_once(
             _msg = _sanitize_exc(exc)
             logger.warning("Benzinga REST fetch failed: %s", _msg)
             cycle_warnings.append(f"benzinga_rest: {_msg}")
+
+    # ── 2.4b) Benzinga RSS (free, no key) ───────────────────────
+    if cfg.enable_benzinga_rss:
+        try:
+            bz_rss = _get_bz_rss_adapter()
+            bz_rss_items = bz_rss.fetch_news(min_epoch=bz_rss_last_seen)
+            bz_rss_new = [it for it in bz_rss_items if it.is_valid]
+            new_bz_rss_max = max(
+                (it.updated_ts for it in bz_rss_new),
+                default=bz_rss_last_seen,
+            )
+            ingest_counts_by_source["benzinga_rss"] = len(bz_rss_items)
+            other_items.extend(bz_rss_new)
+        except Exception as exc:
+            _msg = _sanitize_exc(exc)
+            logger.warning("Benzinga RSS fetch failed: %s", _msg)
+            cycle_warnings.append(f"benzinga_rss: {_msg}")
 
     # ── 2.5) Unusual Whales /news/headlines (B1+B2+B3, PR2 2026-05-09) ─
     # Default-OFF via ENABLE_UW_NEWS=1.  DISABLED-pattern in the adapter
@@ -964,6 +994,8 @@ def poll_once(
                 "Benzinga REST: all %d items lack timestamps — cursor NOT advanced.",
                 len(bz_rest_items),
             )
+    if other_processing_ok and new_bz_rss_max > bz_rss_last_seen:
+        store.set_kv("benzinga_rss.last_seen_epoch", str(new_bz_rss_max))
     if other_processing_ok and new_tv_max > tv_last_seen:
         store.set_kv("tradingview.last_seen_epoch", str(new_tv_max))
     if other_processing_ok and new_newsapi_max > newsapi_last_seen:
@@ -1001,8 +1033,10 @@ def poll_once(
     ]
 
     fmp_count = sum(1 for it in fmp_items if it.is_valid)
-    bz_count = sum(1 for it in other_items if it.provider.startswith("benzinga_") and it.is_valid)
-    tv_count = sum(1 for it in other_items if it.provider.startswith("tv_") and it.is_valid)
+    bz_count = sum(1 for it in other_items if it.provider.startswith("benzinga") and it.is_valid)
+    bz_rest_count = sum(1 for it in other_items if it.provider == "benzinga_rest" and it.is_valid)
+    bz_rss_count = sum(1 for it in other_items if it.provider == "benzinga_rss" and it.is_valid)
+    tv_count = sum(1 for it in other_items if (it.provider in ("tradingview", "tv_news") or it.provider.startswith("tv_")) and it.is_valid)
     newsapi_count = sum(1 for it in other_items if it.provider == "newsapi_ai" and it.is_valid)
     meta_sources: list[str] = []
     if cfg.enable_fmp:
@@ -1024,6 +1058,8 @@ def poll_once(
             meta_sources.append("fmp_13f_latest")
     if cfg.enable_benzinga_rest:
         meta_sources.append("benzinga_rest")
+    if cfg.enable_benzinga_rss:
+        meta_sources.append("benzinga_rss")
     if cfg.enable_benzinga_ws:
         meta_sources.append("benzinga_ws")
     if cfg.enable_tradingview_news and universe_symbols:
@@ -1041,6 +1077,7 @@ def poll_once(
             "fmp_press_last_seen_epoch": new_fmp_press_max,
             "fmp_articles_last_seen_epoch": new_fmp_articles_max,
             "benzinga_updatedSince": store.get_kv("benzinga.updatedSince"),
+            "benzinga_rss_last_seen_epoch": store.get_kv("benzinga_rss.last_seen_epoch"),
             "tradingview_last_seen_epoch": store.get_kv("tradingview.last_seen_epoch"),
             "newsapi_ai_last_seen_epoch": store.get_kv("newsapi_ai.last_seen_epoch"),
             "newsapi_ai_last_seen_news_uri": store.get_kv("newsapi_ai.last_seen_news_uri"),
@@ -1051,6 +1088,8 @@ def poll_once(
         "ingest_counts": {
             "fmp": fmp_count,
             "benzinga": bz_count,
+            "benzinga_rest": bz_rest_count,
+            "benzinga_rss": bz_rss_count,
             "tradingview": tv_count,
             "newsapi_ai": newsapi_count,
         },
@@ -1060,6 +1099,20 @@ def poll_once(
     }
     if newsapi_provider_meta is not None:
         meta["providers"] = {"newsapi_ai": newsapi_provider_meta}
+    # ── Benzinga RSS provider state ──────────────────────────────────
+    if cfg.enable_benzinga_rss:
+        _bz = _bz_rss_adapter
+        if _bz is not None:
+            meta.setdefault("providers", {})["benzinga_rss"] = {
+                "ok": _bz.fetch_total > 0 and _bz.fetch_errors == 0,
+                "fetch_total": _bz.fetch_total,
+                "fetch_errors": _bz.fetch_errors,
+                "last_fetch_errors": _bz.last_fetch_errors,
+                "items_parsed": _bz.items_parsed,
+                "items_deduped": _bz.items_deduped,
+                "bozo_total": _bz.bozo_total,
+                "last_fetch_duration_s": round(_bz.last_fetch_duration, 3),
+            }
     global _last_meta
     with _meta_lock:
         _last_meta = copy.deepcopy(meta)
@@ -1149,7 +1202,7 @@ def _prune_best_by_ticker(keep_seconds: float) -> None:
 
 def _cleanup_singletons() -> None:
     """Close all module-level singleton resources."""
-    global _store, _fmp_adapter, _bz_rest_adapter, _bz_ws_adapter, _enricher, _last_meta
+    global _store, _fmp_adapter, _bz_rest_adapter, _bz_rss_adapter, _bz_ws_adapter, _enricher, _last_meta
     global _fmp_adapter_key, _bz_rest_adapter_key, _bz_ws_adapter_key
     for obj in (_fmp_adapter, _bz_rest_adapter, _enricher):
         if obj is not None and hasattr(obj, "close"):
@@ -1171,7 +1224,7 @@ def _cleanup_singletons() -> None:
         _best_by_ticker.clear()
     with _meta_lock:
         _last_meta = None
-    _store = _fmp_adapter = _bz_rest_adapter = _bz_ws_adapter = _enricher = None
+    _store = _fmp_adapter = _bz_rest_adapter = _bz_rss_adapter = _bz_ws_adapter = _enricher = None
     _fmp_adapter_key = _bz_rest_adapter_key = _bz_ws_adapter_key = None
 
 

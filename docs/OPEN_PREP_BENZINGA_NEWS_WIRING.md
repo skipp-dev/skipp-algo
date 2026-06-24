@@ -424,3 +424,28 @@ nachdem der Endpoint laut offizieller Doku unter einem anderen Pfad
 ausgeliefert wird. Authentifizierung laeuft weiterhin via `?token=`-Query
 (reverted in #1952). Bestehende Konsumenten unter `terminal_export.py`
 und der Benzinga-Intelligence-UI funktionieren unveraendert.
+
+## 11. Update 2026-06-24: Benzinga RSS im News-Stack (free tier) + Defaults
+
+Neu im separaten `newsstack_fmp`-Pfad:
+
+- `newsstack_fmp/pipeline.py` pollt jetzt zusaetzlich einen
+  **Benzinga-RSS-Free-Path** (`2.4b) Benzinga RSS`) mit eigenem Cursor
+  `benzinga_rss.last_seen_epoch`.
+- Der RSS-Adapter wird lazy initialisiert (`_get_bz_rss_adapter()`) und bei
+  Fehlern fail-open mit Warning geloggt.
+- `newsstack_fmp/config.py` fuehrt `enable_benzinga_rss` und
+  `active_sources += ["benzinga_rss"]`.
+
+Aktuelle Feature-Defaults:
+
+- `ENABLE_BENZINGA_RSS` default **ON** (`"1"`)
+- `ENABLE_TRADINGVIEW_NEWS` default **ON** (`"1"`)
+
+Wichtig zur Abgrenzung (unveraendert):
+
+- Diese Erweiterung betrifft den **News-Stack/Poller-Pfad**.
+- Die Core-Open-Prep-Candidate-Felder (`news_catalyst_by_symbol`,
+  `news_event_class`, `news_materiality`, `news_source_tier` etc.) bleiben
+  weiterhin an `build_news_scores(...)` und den dort beschriebenen
+  Core-Artikelvertrag gebunden.

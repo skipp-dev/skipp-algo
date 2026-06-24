@@ -3,7 +3,10 @@
     "list": [
       {
         "name": "Deploys / Restarts",
-        "datasource": {"type": "prometheus", "uid": "grafanacloud-prom"},
+        "datasource": {
+          "type": "prometheus",
+          "uid": "grafanacloud-prom"
+        },
         "expr": "resets(live_overlay_uptime_seconds{job=\"$job\"}[1m]) > 0 or sum by (__name__) (increase({__name__=~\"live_overlay_daemon_restart_cause_.*_total\",job=\"$job\"}[1m])) > 0",
         "tagKeys": "",
         "textFormat": "restart/deploy",
@@ -2164,18 +2167,54 @@
             {
               "type": "value",
               "options": {
-                "0": { "text": "Unknown", "color": "gray" },
-                "1": { "text": "Queued", "color": "yellow" },
-                "2": { "text": "In progress", "color": "blue" },
-                "3": { "text": "Success", "color": "green" },
-                "4": { "text": "Failure", "color": "red" },
-                "5": { "text": "Cancelled", "color": "orange" },
-                "6": { "text": "Skipped", "color": "purple" },
-                "7": { "text": "Neutral", "color": "blue" },
-                "8": { "text": "Timed out", "color": "red" },
-                "9": { "text": "Action required", "color": "orange" },
-                "10": { "text": "Startup failure", "color": "red" },
-                "11": { "text": "Stale", "color": "yellow" }
+                "0": {
+                  "text": "Unknown",
+                  "color": "gray"
+                },
+                "1": {
+                  "text": "Queued",
+                  "color": "yellow"
+                },
+                "2": {
+                  "text": "In progress",
+                  "color": "blue"
+                },
+                "3": {
+                  "text": "Success",
+                  "color": "green"
+                },
+                "4": {
+                  "text": "Failure",
+                  "color": "red"
+                },
+                "5": {
+                  "text": "Cancelled",
+                  "color": "orange"
+                },
+                "6": {
+                  "text": "Skipped",
+                  "color": "purple"
+                },
+                "7": {
+                  "text": "Neutral",
+                  "color": "blue"
+                },
+                "8": {
+                  "text": "Timed out",
+                  "color": "red"
+                },
+                "9": {
+                  "text": "Action required",
+                  "color": "orange"
+                },
+                "10": {
+                  "text": "Startup failure",
+                  "color": "red"
+                },
+                "11": {
+                  "text": "Stale",
+                  "color": "yellow"
+                }
               }
             }
           ],
@@ -3344,18 +3383,54 @@
                   {
                     "type": "value",
                     "options": {
-                      "0": { "text": "Unknown", "color": "gray" },
-                      "1": { "text": "Queued", "color": "yellow" },
-                      "2": { "text": "In progress", "color": "blue" },
-                      "3": { "text": "Success", "color": "green" },
-                      "4": { "text": "Failure", "color": "red" },
-                      "5": { "text": "Cancelled", "color": "orange" },
-                      "6": { "text": "Skipped", "color": "purple" },
-                      "7": { "text": "Neutral", "color": "blue" },
-                      "8": { "text": "Timed out", "color": "red" },
-                      "9": { "text": "Action required", "color": "orange" },
-                      "10": { "text": "Startup failure", "color": "red" },
-                      "11": { "text": "Stale", "color": "yellow" }
+                      "0": {
+                        "text": "Unknown",
+                        "color": "gray"
+                      },
+                      "1": {
+                        "text": "Queued",
+                        "color": "yellow"
+                      },
+                      "2": {
+                        "text": "In progress",
+                        "color": "blue"
+                      },
+                      "3": {
+                        "text": "Success",
+                        "color": "green"
+                      },
+                      "4": {
+                        "text": "Failure",
+                        "color": "red"
+                      },
+                      "5": {
+                        "text": "Cancelled",
+                        "color": "orange"
+                      },
+                      "6": {
+                        "text": "Skipped",
+                        "color": "purple"
+                      },
+                      "7": {
+                        "text": "Neutral",
+                        "color": "blue"
+                      },
+                      "8": {
+                        "text": "Timed out",
+                        "color": "red"
+                      },
+                      "9": {
+                        "text": "Action required",
+                        "color": "orange"
+                      },
+                      "10": {
+                        "text": "Startup failure",
+                        "color": "red"
+                      },
+                      "11": {
+                        "text": "Stale",
+                        "color": "yellow"
+                      }
                     }
                   }
                 ]
@@ -3398,8 +3473,14 @@
                   {
                     "type": "value",
                     "options": {
-                      "0": { "text": "✗", "color": "red" },
-                      "1": { "text": "✓", "color": "green" }
+                      "0": {
+                        "text": "✗",
+                        "color": "red"
+                      },
+                      "1": {
+                        "text": "✓",
+                        "color": "green"
+                      }
                     }
                   }
                 ]
@@ -3428,7 +3509,12 @@
       "title": "Active Trading Signals",
       "type": "stat",
       "description": "Number of currently active realtime breakout signals (A0 pre-breakout + A1 confirmed) the engine snapshot is reporting.",
-      "gridPos": { "h": 6, "w": 6, "x": 0, "y": 192 },
+      "gridPos": {
+        "h": 6,
+        "w": 6,
+        "x": 0,
+        "y": 192
+      },
       "targets": [
         {
           "expr": "live_overlay_trading_signals_active_total{job=\"$job\"}",
@@ -3438,12 +3524,20 @@
       ],
       "fieldConfig": {
         "defaults": {
-          "color": { "mode": "thresholds" },
+          "color": {
+            "mode": "thresholds"
+          },
           "thresholds": {
             "mode": "absolute",
             "steps": [
-              { "color": "gray", "value": null },
-              { "color": "green", "value": 1 }
+              {
+                "color": "gray",
+                "value": null
+              },
+              {
+                "color": "green",
+                "value": 1
+              }
             ]
           },
           "unit": "short"
@@ -3451,7 +3545,13 @@
         "overrides": []
       },
       "options": {
-        "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false },
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
         "colorMode": "value",
         "graphMode": "area",
         "textMode": "auto",
@@ -3462,7 +3562,12 @@
       "title": "A0 / A1 Breakouts",
       "type": "stat",
       "description": "Split of active signals by level: A0 = pre-breakout setup, A1 = confirmed breakout.",
-      "gridPos": { "h": 6, "w": 6, "x": 6, "y": 192 },
+      "gridPos": {
+        "h": 6,
+        "w": 6,
+        "x": 6,
+        "y": 192
+      },
       "targets": [
         {
           "expr": "live_overlay_trading_signals_a0_total{job=\"$job\"}",
@@ -3479,27 +3584,44 @@
       ],
       "fieldConfig": {
         "defaults": {
-          "color": { "mode": "thresholds" },
+          "color": {
+            "mode": "thresholds"
+          },
           "thresholds": {
             "mode": "absolute",
             "steps": [
-              { "color": "gray", "value": null },
-              { "color": "blue", "value": 1 }
+              {
+                "color": "gray",
+                "value": null
+              },
+              {
+                "color": "blue",
+                "value": 1
+              }
             ]
           },
           "unit": "short"
         },
         "overrides": [
           {
-            "matcher": { "id": "byName", "options": "A1 (breakout)" },
+            "matcher": {
+              "id": "byName",
+              "options": "A1 (breakout)"
+            },
             "properties": [
               {
                 "id": "thresholds",
                 "value": {
                   "mode": "absolute",
                   "steps": [
-                    { "color": "gray", "value": null },
-                    { "color": "green", "value": 1 }
+                    {
+                      "color": "gray",
+                      "value": null
+                    },
+                    {
+                      "color": "green",
+                      "value": 1
+                    }
                   ]
                 }
               }
@@ -3508,7 +3630,13 @@
         ]
       },
       "options": {
-        "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false },
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
         "colorMode": "value",
         "graphMode": "none",
         "textMode": "value_and_name",
@@ -3520,7 +3648,12 @@
       "title": "Signals Snapshot Age",
       "type": "stat",
       "description": "Seconds since the realtime engine last wrote latest_realtime_signals.json. Red once the snapshot is older than the 480s (8 min) max signal age — stale signals should not be trusted. Shows N/A when the snapshot timestamp is unknown.",
-      "gridPos": { "h": 6, "w": 6, "x": 12, "y": 192 },
+      "gridPos": {
+        "h": 6,
+        "w": 6,
+        "x": 12,
+        "y": 192
+      },
       "targets": [
         {
           "expr": "live_overlay_trading_signals_snapshot_age_seconds{job=\"$job\"} and on(job,instance) (live_overlay_trading_signals_snapshot_age_known{job=\"$job\"} == 1)",
@@ -3530,13 +3663,24 @@
       ],
       "fieldConfig": {
         "defaults": {
-          "color": { "mode": "thresholds" },
+          "color": {
+            "mode": "thresholds"
+          },
           "thresholds": {
             "mode": "absolute",
             "steps": [
-              { "color": "green", "value": null },
-              { "color": "yellow", "value": 240 },
-              { "color": "red", "value": 480 }
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "yellow",
+                "value": 240
+              },
+              {
+                "color": "red",
+                "value": 480
+              }
             ]
           },
           "unit": "s",
@@ -3545,7 +3689,13 @@
         "overrides": []
       },
       "options": {
-        "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false },
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
         "colorMode": "background",
         "graphMode": "none",
         "textMode": "auto",
@@ -3556,7 +3706,12 @@
       "title": "Watched Symbols",
       "type": "stat",
       "description": "How many symbols the realtime engine is actively polling for breakout signals.",
-      "gridPos": { "h": 6, "w": 6, "x": 18, "y": 192 },
+      "gridPos": {
+        "h": 6,
+        "w": 6,
+        "x": 18,
+        "y": 192
+      },
       "targets": [
         {
           "expr": "live_overlay_trading_signals_watched_total{job=\"$job\"}",
@@ -3566,12 +3721,20 @@
       ],
       "fieldConfig": {
         "defaults": {
-          "color": { "mode": "thresholds" },
+          "color": {
+            "mode": "thresholds"
+          },
           "thresholds": {
             "mode": "absolute",
             "steps": [
-              { "color": "gray", "value": null },
-              { "color": "blue", "value": 1 }
+              {
+                "color": "gray",
+                "value": null
+              },
+              {
+                "color": "blue",
+                "value": 1
+              }
             ]
           },
           "unit": "short"
@@ -3579,7 +3742,13 @@
         "overrides": []
       },
       "options": {
-        "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false },
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
         "colorMode": "value",
         "graphMode": "none",
         "textMode": "auto",
@@ -3590,7 +3759,12 @@
       "title": "Top Trading Signals — Latest Detail",
       "type": "table",
       "description": "Per-symbol detail of the active breakout signals (top 50 by ranking score). Level A0 = pre-breakout, A1 = confirmed breakout; Direction is the trade bias; Score is the engine's v2 ranking; Tech is the 0–1 technical score; Change % is the intraday move; Freshness decays 1→0 as the signal ages. Driven by the labelled live_overlay_trading_signal_* gauges merged by symbol/level/direction/tier.",
-      "gridPos": { "h": 10, "w": 24, "x": 0, "y": 198 },
+      "gridPos": {
+        "h": 10,
+        "w": 24,
+        "x": 0,
+        "y": 198
+      },
       "targets": [
         {
           "expr": "live_overlay_trading_signal_score{job=\"$job\"}",
@@ -3618,7 +3792,10 @@
         }
       ],
       "transformations": [
-        { "id": "merge", "options": {} },
+        {
+          "id": "merge",
+          "options": {}
+        },
         {
           "id": "organize",
           "options": {
@@ -3653,11 +3830,19 @@
       ],
       "fieldConfig": {
         "defaults": {
-          "custom": { "align": "auto", "cellOptions": { "type": "auto" } }
+          "custom": {
+            "align": "auto",
+            "cellOptions": {
+              "type": "auto"
+            }
+          }
         },
         "overrides": [
           {
-            "matcher": { "id": "byName", "options": "Level" },
+            "matcher": {
+              "id": "byName",
+              "options": "Level"
+            },
             "properties": [
               {
                 "id": "mappings",
@@ -3665,17 +3850,33 @@
                   {
                     "type": "value",
                     "options": {
-                      "A0": { "text": "A0 (pre)", "color": "yellow", "index": 0 },
-                      "A1": { "text": "A1 (breakout)", "color": "green", "index": 1 }
+                      "A0": {
+                        "text": "A0 (pre)",
+                        "color": "yellow",
+                        "index": 0
+                      },
+                      "A1": {
+                        "text": "A1 (breakout)",
+                        "color": "green",
+                        "index": 1
+                      }
                     }
                   }
                 ]
               },
-              { "id": "custom.cellOptions", "value": { "type": "color-text" } }
+              {
+                "id": "custom.cellOptions",
+                "value": {
+                  "type": "color-text"
+                }
+              }
             ]
           },
           {
-            "matcher": { "id": "byName", "options": "Direction" },
+            "matcher": {
+              "id": "byName",
+              "options": "Direction"
+            },
             "properties": [
               {
                 "id": "mappings",
@@ -3683,76 +3884,159 @@
                   {
                     "type": "value",
                     "options": {
-                      "LONG": { "text": "LONG", "color": "green", "index": 0 },
-                      "B_UP": { "text": "LONG", "color": "green", "index": 1 },
-                      "SHORT": { "text": "SHORT", "color": "red", "index": 2 },
-                      "B_DOWN": { "text": "SHORT", "color": "red", "index": 3 }
+                      "LONG": {
+                        "text": "LONG",
+                        "color": "green",
+                        "index": 0
+                      },
+                      "B_UP": {
+                        "text": "LONG",
+                        "color": "green",
+                        "index": 1
+                      },
+                      "SHORT": {
+                        "text": "SHORT",
+                        "color": "red",
+                        "index": 2
+                      },
+                      "B_DOWN": {
+                        "text": "SHORT",
+                        "color": "red",
+                        "index": 3
+                      }
                     }
                   }
                 ]
               },
-              { "id": "custom.cellOptions", "value": { "type": "color-text" } }
+              {
+                "id": "custom.cellOptions",
+                "value": {
+                  "type": "color-text"
+                }
+              }
             ]
           },
           {
-            "matcher": { "id": "byName", "options": "Score" },
+            "matcher": {
+              "id": "byName",
+              "options": "Score"
+            },
             "properties": [
-              { "id": "decimals", "value": 1 },
+              {
+                "id": "decimals",
+                "value": 1
+              },
               {
                 "id": "custom.cellOptions",
-                "value": { "type": "color-background", "mode": "gradient" }
+                "value": {
+                  "type": "color-background",
+                  "mode": "gradient"
+                }
               },
               {
                 "id": "thresholds",
                 "value": {
                   "mode": "absolute",
                   "steps": [
-                    { "color": "gray", "value": null },
-                    { "color": "blue", "value": 1 },
-                    { "color": "green", "value": 5 }
+                    {
+                      "color": "gray",
+                      "value": null
+                    },
+                    {
+                      "color": "blue",
+                      "value": 1
+                    },
+                    {
+                      "color": "green",
+                      "value": 5
+                    }
                   ]
                 }
               }
             ]
           },
           {
-            "matcher": { "id": "byName", "options": "Tech" },
+            "matcher": {
+              "id": "byName",
+              "options": "Tech"
+            },
             "properties": [
-              { "id": "decimals", "value": 2 },
-              { "id": "max", "value": 1 },
-              { "id": "min", "value": 0 }
+              {
+                "id": "decimals",
+                "value": 2
+              },
+              {
+                "id": "max",
+                "value": 1
+              },
+              {
+                "id": "min",
+                "value": 0
+              }
             ]
           },
           {
-            "matcher": { "id": "byName", "options": "Change %" },
+            "matcher": {
+              "id": "byName",
+              "options": "Change %"
+            },
             "properties": [
-              { "id": "unit", "value": "percent" },
-              { "id": "decimals", "value": 2 },
+              {
+                "id": "unit",
+                "value": "percent"
+              },
+              {
+                "id": "decimals",
+                "value": 2
+              },
               {
                 "id": "custom.cellOptions",
-                "value": { "type": "color-text" }
+                "value": {
+                  "type": "color-text"
+                }
               },
               {
                 "id": "thresholds",
                 "value": {
                   "mode": "absolute",
                   "steps": [
-                    { "color": "red", "value": null },
-                    { "color": "green", "value": 0 }
+                    {
+                      "color": "red",
+                      "value": null
+                    },
+                    {
+                      "color": "green",
+                      "value": 0
+                    }
                   ]
                 }
               }
             ]
           },
           {
-            "matcher": { "id": "byName", "options": "Freshness" },
+            "matcher": {
+              "id": "byName",
+              "options": "Freshness"
+            },
             "properties": [
-              { "id": "decimals", "value": 2 },
-              { "id": "max", "value": 1 },
-              { "id": "min", "value": 0 },
+              {
+                "id": "decimals",
+                "value": 2
+              },
+              {
+                "id": "max",
+                "value": 1
+              },
+              {
+                "id": "min",
+                "value": 0
+              },
               {
                 "id": "custom.cellOptions",
-                "value": { "type": "gauge", "mode": "basic" }
+                "value": {
+                  "type": "gauge",
+                  "mode": "basic"
+                }
               }
             ]
           }
@@ -3760,14 +4044,24 @@
       },
       "options": {
         "showHeader": true,
-        "sortBy": [ { "displayName": "Score", "desc": true } ]
+        "sortBy": [
+          {
+            "displayName": "Score",
+            "desc": true
+          }
+        ]
       }
     },
     {
       "title": "Signal Score — Active Symbols",
       "type": "timeseries",
       "description": "Ranking score over time for each active breakout signal, labelled by symbol / level / direction. Lets you see which symbols are strengthening or fading.",
-      "gridPos": { "h": 8, "w": 24, "x": 0, "y": 208 },
+      "gridPos": {
+        "h": 8,
+        "w": 24,
+        "x": 0,
+        "y": 208
+      },
       "targets": [
         {
           "expr": "live_overlay_trading_signal_score{job=\"$job\"}",
@@ -3790,15 +4084,30 @@
         "overrides": []
       },
       "options": {
-        "legend": { "displayMode": "table", "placement": "right", "calcs": ["lastNotNull", "max"] },
-        "tooltip": { "mode": "multi", "sort": "desc" }
+        "legend": {
+          "displayMode": "table",
+          "placement": "right",
+          "calcs": [
+            "lastNotNull",
+            "max"
+          ]
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
       }
     },
     {
       "title": "Daily Experiment — Snapshot Age",
       "type": "stat",
       "description": "Age of the latest Plan 2.8 family rollup (scripts/plan_2_8_tf_family_rollup.py). The rolling benchmark runs ~daily; green < 24h, yellow < 36h, red beyond means a run was skipped. N/A when the run date cannot be derived.",
-      "gridPos": { "h": 5, "w": 6, "x": 0, "y": 216 },
+      "gridPos": {
+        "h": 5,
+        "w": 6,
+        "x": 0,
+        "y": 216
+      },
       "targets": [
         {
           "expr": "live_overlay_experiment_snapshot_age_seconds{job=\"$job\"} and on(job,instance) (live_overlay_experiment_snapshot_age_known{job=\"$job\"} == 1)",
@@ -3813,9 +4122,18 @@
           "thresholds": {
             "mode": "absolute",
             "steps": [
-              { "color": "green", "value": null },
-              { "color": "yellow", "value": 86400 },
-              { "color": "red", "value": 129600 }
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "yellow",
+                "value": 86400
+              },
+              {
+                "color": "red",
+                "value": 129600
+              }
             ]
           }
         },
@@ -3824,14 +4142,25 @@
       "options": {
         "colorMode": "background",
         "graphMode": "none",
-        "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false }
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        }
       }
     },
     {
       "title": "Daily Experiment — Files Scanned",
       "type": "stat",
       "description": "Number of scoring files folded into the latest daily rollup. A sudden drop signals an upstream scoring/coverage problem.",
-      "gridPos": { "h": 5, "w": 6, "x": 6, "y": 216 },
+      "gridPos": {
+        "h": 5,
+        "w": 6,
+        "x": 6,
+        "y": 216
+      },
       "targets": [
         {
           "expr": "live_overlay_experiment_files_scanned{job=\"$job\"}",
@@ -3846,8 +4175,14 @@
           "thresholds": {
             "mode": "absolute",
             "steps": [
-              { "color": "red", "value": null },
-              { "color": "green", "value": 1 }
+              {
+                "color": "red",
+                "value": null
+              },
+              {
+                "color": "green",
+                "value": 1
+              }
             ]
           }
         },
@@ -3856,14 +4191,25 @@
       "options": {
         "colorMode": "value",
         "graphMode": "area",
-        "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false }
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        }
       }
     },
     {
       "title": "FVG 5m Verdict (Phase E2)",
       "type": "stat",
       "description": "Latest Phase E2 verdict for the FVG-time-to-fill 5m hypothesis vs baseline. measured = conclusive signal; underpowered = effect seen but not enough samples; insufficient/missing = not enough data yet.",
-      "gridPos": { "h": 5, "w": 6, "x": 12, "y": 216 },
+      "gridPos": {
+        "h": 5,
+        "w": 6,
+        "x": 12,
+        "y": 216
+      },
       "targets": [
         {
           "expr": "live_overlay_experiment_verdict_status_code{job=\"$job\", hypothesis=\"fvg_5m\"}",
@@ -3875,29 +4221,71 @@
         "defaults": {
           "noValue": "N/A",
           "mappings": [
-            { "type": "value", "options": {
-              "0": { "text": "missing", "color": "red", "index": 0 },
-              "1": { "text": "insufficient", "color": "orange", "index": 1 },
-              "2": { "text": "degenerate", "color": "orange", "index": 2 },
-              "3": { "text": "underpowered", "color": "yellow", "index": 3 },
-              "4": { "text": "measured", "color": "green", "index": 4 }
-            } }
+            {
+              "type": "value",
+              "options": {
+                "0": {
+                  "text": "missing",
+                  "color": "red",
+                  "index": 0
+                },
+                "1": {
+                  "text": "insufficient",
+                  "color": "orange",
+                  "index": 1
+                },
+                "2": {
+                  "text": "degenerate",
+                  "color": "orange",
+                  "index": 2
+                },
+                "3": {
+                  "text": "underpowered",
+                  "color": "yellow",
+                  "index": 3
+                },
+                "4": {
+                  "text": "measured",
+                  "color": "green",
+                  "index": 4
+                }
+              }
+            }
           ],
-          "thresholds": { "mode": "absolute", "steps": [ { "color": "text", "value": null } ] }
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "text",
+                "value": null
+              }
+            ]
+          }
         },
         "overrides": []
       },
       "options": {
         "colorMode": "background",
         "graphMode": "none",
-        "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false }
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        }
       }
     },
     {
       "title": "BOS 4H Verdict (Phase E2)",
       "type": "stat",
       "description": "Latest Phase E2 verdict for the BOS 4H stability hypothesis vs baseline.",
-      "gridPos": { "h": 5, "w": 6, "x": 18, "y": 216 },
+      "gridPos": {
+        "h": 5,
+        "w": 6,
+        "x": 18,
+        "y": 216
+      },
       "targets": [
         {
           "expr": "live_overlay_experiment_verdict_status_code{job=\"$job\", hypothesis=\"bos_4h\"}",
@@ -3909,29 +4297,71 @@
         "defaults": {
           "noValue": "N/A",
           "mappings": [
-            { "type": "value", "options": {
-              "0": { "text": "missing", "color": "red", "index": 0 },
-              "1": { "text": "insufficient", "color": "orange", "index": 1 },
-              "2": { "text": "degenerate", "color": "orange", "index": 2 },
-              "3": { "text": "underpowered", "color": "yellow", "index": 3 },
-              "4": { "text": "measured", "color": "green", "index": 4 }
-            } }
+            {
+              "type": "value",
+              "options": {
+                "0": {
+                  "text": "missing",
+                  "color": "red",
+                  "index": 0
+                },
+                "1": {
+                  "text": "insufficient",
+                  "color": "orange",
+                  "index": 1
+                },
+                "2": {
+                  "text": "degenerate",
+                  "color": "orange",
+                  "index": 2
+                },
+                "3": {
+                  "text": "underpowered",
+                  "color": "yellow",
+                  "index": 3
+                },
+                "4": {
+                  "text": "measured",
+                  "color": "green",
+                  "index": 4
+                }
+              }
+            }
           ],
-          "thresholds": { "mode": "absolute", "steps": [ { "color": "text", "value": null } ] }
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "text",
+                "value": null
+              }
+            ]
+          }
         },
         "overrides": []
       },
       "options": {
         "colorMode": "background",
         "graphMode": "none",
-        "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false }
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        }
       }
     },
     {
       "title": "Daily Experiment — Latest Per-Family Detail",
       "type": "table",
       "description": "Current-day hit-rate and sample size for each SMC setup family (BOS / OB / FVG / SWEEP) per timeframe, from the latest rollup. Hit-rate is colour-graded; n_events is the sample size behind it.",
-      "gridPos": { "h": 9, "w": 24, "x": 0, "y": 221 },
+      "gridPos": {
+        "h": 9,
+        "w": 24,
+        "x": 0,
+        "y": 221
+      },
       "targets": [
         {
           "expr": "live_overlay_experiment_family_hit_rate{job=\"$job\"}",
@@ -3947,11 +4377,19 @@
         }
       ],
       "transformations": [
-        { "id": "merge", "options": {} },
+        {
+          "id": "merge",
+          "options": {}
+        },
         {
           "id": "organize",
           "options": {
-            "excludeByName": { "Time": true, "__name__": true, "job": true, "instance": true },
+            "excludeByName": {
+              "Time": true,
+              "__name__": true,
+              "job": true,
+              "instance": true
+            },
             "renameByName": {
               "timeframe": "Timeframe",
               "family": "Family",
@@ -3962,34 +4400,81 @@
         }
       ],
       "fieldConfig": {
-        "defaults": { "custom": { "align": "auto" } },
+        "defaults": {
+          "custom": {
+            "align": "auto"
+          }
+        },
         "overrides": [
           {
-            "matcher": { "id": "byName", "options": "Hit Rate" },
+            "matcher": {
+              "id": "byName",
+              "options": "Hit Rate"
+            },
             "properties": [
-              { "id": "unit", "value": "percentunit" },
-              { "id": "custom.cellOptions", "value": { "type": "gauge", "mode": "gradient" } },
-              { "id": "min", "value": 0 },
-              { "id": "max", "value": 1 },
-              { "id": "thresholds", "value": { "mode": "absolute", "steps": [
-                { "color": "red", "value": null },
-                { "color": "yellow", "value": 0.45 },
-                { "color": "green", "value": 0.55 }
-              ] } }
+              {
+                "id": "unit",
+                "value": "percentunit"
+              },
+              {
+                "id": "custom.cellOptions",
+                "value": {
+                  "type": "gauge",
+                  "mode": "gradient"
+                }
+              },
+              {
+                "id": "min",
+                "value": 0
+              },
+              {
+                "id": "max",
+                "value": 1
+              },
+              {
+                "id": "thresholds",
+                "value": {
+                  "mode": "absolute",
+                  "steps": [
+                    {
+                      "color": "red",
+                      "value": null
+                    },
+                    {
+                      "color": "yellow",
+                      "value": 0.45
+                    },
+                    {
+                      "color": "green",
+                      "value": 0.55
+                    }
+                  ]
+                }
+              }
             ]
           }
         ]
       },
       "options": {
         "showHeader": true,
-        "sortBy": [ { "displayName": "Hit Rate", "desc": true } ]
+        "sortBy": [
+          {
+            "displayName": "Hit Rate",
+            "desc": true
+          }
+        ]
       }
     },
     {
       "title": "Family Hit-Rate Over Time (accumulates daily)",
       "type": "timeseries",
       "description": "Live forward timeline: each daily benchmark run updates these gauges, so Prometheus records one step per day. Use the time picker (e.g. last 30 days) to see how each family/timeframe hit-rate trends going forward.",
-      "gridPos": { "h": 8, "w": 24, "x": 0, "y": 230 },
+      "gridPos": {
+        "h": 8,
+        "w": 24,
+        "x": 0,
+        "y": 230
+      },
       "targets": [
         {
           "expr": "live_overlay_experiment_family_hit_rate{job=\"$job\"}",
@@ -4015,15 +4500,32 @@
         "overrides": []
       },
       "options": {
-        "legend": { "displayMode": "table", "placement": "right", "calcs": ["lastNotNull", "mean", "min", "max"] },
-        "tooltip": { "mode": "multi", "sort": "desc" }
+        "legend": {
+          "displayMode": "table",
+          "placement": "right",
+          "calcs": [
+            "lastNotNull",
+            "mean",
+            "min",
+            "max"
+          ]
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
       }
     },
     {
       "title": "Per-Day Family Hit-Rate — History (backfilled)",
       "type": "table",
       "description": "Retained per-day history from plan_2_8_history.jsonl: exact hit-rate and sample size for each run date / timeframe / family. Backfills the daily statistics immediately (no need to wait for Prometheus to accumulate). Sort by Run Date to read the day-by-day timeline.",
-      "gridPos": { "h": 10, "w": 24, "x": 0, "y": 238 },
+      "gridPos": {
+        "h": 10,
+        "w": 24,
+        "x": 0,
+        "y": 238
+      },
       "targets": [
         {
           "expr": "live_overlay_experiment_day_family_hit_rate{job=\"$job\"}",
@@ -4039,11 +4541,19 @@
         }
       ],
       "transformations": [
-        { "id": "merge", "options": {} },
+        {
+          "id": "merge",
+          "options": {}
+        },
         {
           "id": "organize",
           "options": {
-            "excludeByName": { "Time": true, "__name__": true, "job": true, "instance": true },
+            "excludeByName": {
+              "Time": true,
+              "__name__": true,
+              "job": true,
+              "instance": true
+            },
             "renameByName": {
               "run_date": "Run Date",
               "timeframe": "Timeframe",
@@ -4055,34 +4565,81 @@
         }
       ],
       "fieldConfig": {
-        "defaults": { "custom": { "align": "auto" } },
+        "defaults": {
+          "custom": {
+            "align": "auto"
+          }
+        },
         "overrides": [
           {
-            "matcher": { "id": "byName", "options": "Hit Rate" },
+            "matcher": {
+              "id": "byName",
+              "options": "Hit Rate"
+            },
             "properties": [
-              { "id": "unit", "value": "percentunit" },
-              { "id": "custom.cellOptions", "value": { "type": "color-background", "mode": "gradient" } },
-              { "id": "min", "value": 0 },
-              { "id": "max", "value": 1 },
-              { "id": "thresholds", "value": { "mode": "absolute", "steps": [
-                { "color": "red", "value": null },
-                { "color": "yellow", "value": 0.45 },
-                { "color": "green", "value": 0.55 }
-              ] } }
+              {
+                "id": "unit",
+                "value": "percentunit"
+              },
+              {
+                "id": "custom.cellOptions",
+                "value": {
+                  "type": "color-background",
+                  "mode": "gradient"
+                }
+              },
+              {
+                "id": "min",
+                "value": 0
+              },
+              {
+                "id": "max",
+                "value": 1
+              },
+              {
+                "id": "thresholds",
+                "value": {
+                  "mode": "absolute",
+                  "steps": [
+                    {
+                      "color": "red",
+                      "value": null
+                    },
+                    {
+                      "color": "yellow",
+                      "value": 0.45
+                    },
+                    {
+                      "color": "green",
+                      "value": 0.55
+                    }
+                  ]
+                }
+              }
             ]
           }
         ]
       },
       "options": {
         "showHeader": true,
-        "sortBy": [ { "displayName": "Run Date", "desc": true } ]
+        "sortBy": [
+          {
+            "displayName": "Run Date",
+            "desc": true
+          }
+        ]
       }
     },
     {
       "title": "TradingView Credential Age",
       "type": "stat",
       "description": "Hours since the TradingView Playwright storage-state login (meta.authValidatedAt) was last validated, from the daily credential-health report (tv_storage_state_age probe). Policy TTL is 72h: green < 57.6h (80% warn band), yellow 57.6–72h, red once the cached login is older than 72h and must be re-captured. N/A when no report/age is available.",
-      "gridPos": { "h": 5, "w": 6, "x": 0, "y": 248 },
+      "gridPos": {
+        "h": 5,
+        "w": 6,
+        "x": 0,
+        "y": 248
+      },
       "targets": [
         {
           "expr": "live_overlay_tradingview_credential_age_hours{job=\"$job\"} and on(job,instance) (live_overlay_tradingview_credential_age_known{job=\"$job\"} == 1)",
@@ -4092,13 +4649,24 @@
       ],
       "fieldConfig": {
         "defaults": {
-          "color": { "mode": "thresholds" },
+          "color": {
+            "mode": "thresholds"
+          },
           "thresholds": {
             "mode": "absolute",
             "steps": [
-              { "color": "green", "value": null },
-              { "color": "yellow", "value": 57.6 },
-              { "color": "red", "value": 72 }
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "yellow",
+                "value": 57.6
+              },
+              {
+                "color": "red",
+                "value": 72
+              }
             ]
           },
           "unit": "h",
@@ -4109,14 +4677,25 @@
       "options": {
         "colorMode": "background",
         "graphMode": "none",
-        "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false }
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        }
       }
     },
     {
       "title": "TradingView Credential Status",
       "type": "stat",
       "description": "Whether the latest credential-health report considers the TradingView storage-state login valid (severity not error). 1 = valid (cached login still within the 72h TTL), 0 = expired/error → re-capture TV_STORAGE_STATE. N/A when no report has been ingested yet.",
-      "gridPos": { "h": 5, "w": 6, "x": 6, "y": 248 },
+      "gridPos": {
+        "h": 5,
+        "w": 6,
+        "x": 6,
+        "y": 248
+      },
       "targets": [
         {
           "expr": "live_overlay_tradingview_credential_valid{job=\"$job\"} and on(job,instance) (live_overlay_tradingview_credential_loaded{job=\"$job\"} == 1)",
@@ -4128,20 +4707,602 @@
         "defaults": {
           "noValue": "N/A",
           "mappings": [
-            { "type": "value", "options": {
-              "0": { "text": "EXPIRED", "color": "red", "index": 0 },
-              "1": { "text": "valid", "color": "green", "index": 1 }
-            } }
+            {
+              "type": "value",
+              "options": {
+                "0": {
+                  "text": "EXPIRED",
+                  "color": "red",
+                  "index": 0
+                },
+                "1": {
+                  "text": "valid",
+                  "color": "green",
+                  "index": 1
+                }
+              }
+            }
           ],
-          "thresholds": { "mode": "absolute", "steps": [ { "color": "text", "value": null } ] }
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "text",
+                "value": null
+              }
+            ]
+          }
         },
         "overrides": []
       },
       "options": {
         "colorMode": "background",
         "graphMode": "none",
-        "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false }
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        }
       }
+    },
+    {
+      "type": "row",
+      "title": "Container Resources (Railway)",
+      "collapsed": false,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 253
+      }
+    },
+    {
+      "type": "timeseries",
+      "title": "CPU Usage (rate 5m)",
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 254
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "grafanacloud-prom"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percentunit",
+          "custom": {
+            "drawStyle": "line",
+            "fillOpacity": 15,
+            "lineWidth": 2
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "calcs": [
+            "mean",
+            "max"
+          ]
+        },
+        "tooltip": {
+          "mode": "multi"
+        }
+      },
+      "targets": [
+        {
+          "expr": "rate(signals_producer_process_cpu_seconds_total{job=\"signals_producer\"}[5m])",
+          "legendFormat": "signals-producer CPU",
+          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "grafanacloud-prom"
+          }
+        },
+        {
+          "expr": "rate(live_overlay_process_cpu_seconds_total{job=\"live_overlay\"}[5m])",
+          "legendFormat": "live-overlay CPU",
+          "refId": "B",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "grafanacloud-prom"
+          }
+        },
+        {
+          "expr": "rate(process_cpu_seconds_total{job=\"alloy\"}[5m])",
+          "legendFormat": "alloy CPU",
+          "refId": "C",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "grafanacloud-prom"
+          }
+        }
+      ]
+    },
+    {
+      "type": "timeseries",
+      "title": "Memory RSS (MB)",
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 254
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "grafanacloud-prom"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "decmbytes",
+          "custom": {
+            "drawStyle": "line",
+            "fillOpacity": 15,
+            "lineWidth": 2
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "calcs": [
+            "mean",
+            "max"
+          ]
+        },
+        "tooltip": {
+          "mode": "multi"
+        }
+      },
+      "targets": [
+        {
+          "expr": "signals_producer_process_resident_memory_bytes{job=\"signals_producer\"} / 1024 / 1024",
+          "legendFormat": "signals-producer RSS",
+          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "grafanacloud-prom"
+          }
+        },
+        {
+          "expr": "live_overlay_process_resident_memory_bytes{job=\"live_overlay\"} / 1024 / 1024",
+          "legendFormat": "live-overlay RSS",
+          "refId": "B",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "grafanacloud-prom"
+          }
+        },
+        {
+          "expr": "process_resident_memory_bytes{job=\"alloy\"} / 1024 / 1024",
+          "legendFormat": "alloy RSS",
+          "refId": "C",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "grafanacloud-prom"
+          }
+        }
+      ]
+    },
+    {
+      "type": "timeseries",
+      "title": "Open File Descriptors",
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 262
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "grafanacloud-prom"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "custom": {
+            "drawStyle": "line",
+            "fillOpacity": 10,
+            "lineWidth": 1
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list"
+        },
+        "tooltip": {
+          "mode": "multi"
+        }
+      },
+      "targets": [
+        {
+          "expr": "signals_producer_process_open_fds{job=\"signals_producer\"}",
+          "legendFormat": "signals-producer FDs",
+          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "grafanacloud-prom"
+          }
+        },
+        {
+          "expr": "live_overlay_process_open_fds{job=\"live_overlay\"}",
+          "legendFormat": "live-overlay FDs",
+          "refId": "B",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "grafanacloud-prom"
+          }
+        }
+      ]
+    },
+    {
+      "type": "stat",
+      "title": "Signals Producer Uptime",
+      "gridPos": {
+        "h": 4,
+        "w": 6,
+        "x": 12,
+        "y": 262
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "grafanacloud-prom"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "dtdurations"
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ]
+        },
+        "colorMode": "background"
+      },
+      "targets": [
+        {
+          "expr": "signals_producer_process_uptime_seconds{job=\"signals_producer\"}",
+          "legendFormat": "Uptime",
+          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "grafanacloud-prom"
+          }
+        }
+      ]
+    },
+    {
+      "type": "stat",
+      "title": "Live Overlay Uptime",
+      "gridPos": {
+        "h": 4,
+        "w": 6,
+        "x": 18,
+        "y": 262
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "grafanacloud-prom"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "dtdurations"
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ]
+        },
+        "colorMode": "background"
+      },
+      "targets": [
+        {
+          "expr": "live_overlay_process_uptime_seconds{job=\"live_overlay\"}",
+          "legendFormat": "Uptime",
+          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "grafanacloud-prom"
+          }
+        }
+      ]
+    },
+    {
+      "type": "timeseries",
+      "title": "Python GC Collections (rate/5m)",
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 266
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "grafanacloud-prom"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "ops",
+          "custom": {
+            "drawStyle": "bars",
+            "fillOpacity": 50,
+            "lineWidth": 1
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list"
+        },
+        "tooltip": {
+          "mode": "multi"
+        }
+      },
+      "targets": [
+        {
+          "expr": "rate(signals_producer_python_gc_collections_total{job=\"signals_producer\"}[5m])",
+          "legendFormat": "signals-producer gen{{generation}}",
+          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "grafanacloud-prom"
+          }
+        },
+        {
+          "expr": "rate(live_overlay_process_python_gc_collections_total{job=\"live_overlay\"}[5m])",
+          "legendFormat": "live-overlay gen{{generation}}",
+          "refId": "B",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "grafanacloud-prom"
+          }
+        }
+      ]
+    },
+    {
+      "type": "row",
+      "title": "Metric Collector (Alloy)",
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 274
+      },
+      "collapsed": false,
+      "panels": []
+    },
+    {
+      "type": "timeseries",
+      "title": "Alloy CPU Usage (rate/5m)",
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 275
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "grafanacloud-prom"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percentunit",
+          "min": 0,
+          "custom": {
+            "fillOpacity": 20,
+            "lineWidth": 2
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list"
+        },
+        "tooltip": {
+          "mode": "multi"
+        }
+      },
+      "targets": [
+        {
+          "expr": "rate(process_cpu_seconds_total{job=\"alloy\"}[5m])",
+          "legendFormat": "alloy",
+          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "grafanacloud-prom"
+          }
+        }
+      ]
+    },
+    {
+      "type": "timeseries",
+      "title": "Alloy Memory RSS (MB)",
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 275
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "grafanacloud-prom"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "decmbytes",
+          "min": 0,
+          "custom": {
+            "fillOpacity": 15,
+            "lineWidth": 2
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list"
+        },
+        "tooltip": {
+          "mode": "multi"
+        }
+      },
+      "targets": [
+        {
+          "expr": "process_resident_memory_bytes{job=\"alloy\"} / 1024 / 1024",
+          "legendFormat": "alloy",
+          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "grafanacloud-prom"
+          }
+        }
+      ]
+    },
+    {
+      "type": "stat",
+      "title": "Alloy Uptime",
+      "gridPos": {
+        "h": 4,
+        "w": 6,
+        "x": 0,
+        "y": 283
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "grafanacloud-prom"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "s",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {"color": "red", "value": null},
+              {"color": "green", "value": 300}
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": ["lastNotNull"]
+        }
+      },
+      "targets": [
+        {
+          "expr": "time() - process_start_time_seconds{job=\"alloy\"}",
+          "legendFormat": "uptime",
+          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "grafanacloud-prom"
+          }
+        }
+      ]
+    },
+    {
+      "type": "stat",
+      "title": "Alloy Go Goroutines",
+      "gridPos": {
+        "h": 4,
+        "w": 6,
+        "x": 6,
+        "y": 283
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "grafanacloud-prom"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {"color": "green", "value": null},
+              {"color": "yellow", "value": 100},
+              {"color": "red", "value": 500}
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": ["lastNotNull"]
+        }
+      },
+      "targets": [
+        {
+          "expr": "go_goroutines{job=\"alloy\"}",
+          "legendFormat": "goroutines",
+          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "grafanacloud-prom"
+          }
+        }
+      ]
+    },
+    {
+      "type": "timeseries",
+      "title": "Alloy Scrape Duration (s)",
+      "gridPos": {
+        "h": 4,
+        "w": 12,
+        "x": 12,
+        "y": 283
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "grafanacloud-prom"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "s",
+          "custom": {
+            "fillOpacity": 10,
+            "lineWidth": 1
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list"
+        },
+        "tooltip": {
+          "mode": "multi"
+        }
+      },
+      "targets": [
+        {
+          "expr": "scrape_duration_seconds{job=~\"signals_producer|live_overlay|alloy\"}",
+          "legendFormat": "{{job}}",
+          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "grafanacloud-prom"
+          }
+        }
+      ]
     }
   ],
   "schemaVersion": 39,

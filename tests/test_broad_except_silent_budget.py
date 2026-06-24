@@ -85,6 +85,8 @@ _FROZEN_SITE_COUNTS: dict[str, int] = {
     # 2026-05-17 C12.1 ConstraintHitLog wiring: an audit-log write
     # failure must never block a guard decision. See HardConstraintLayer._log.
     "rl/safety/__init__.py": 1,
+    # 2026-06-24 feat/benzinga-rss: best-effort guards in measurement_evidence.
+    "smc_integration/measurement_evidence.py": 2,
 }
 
 

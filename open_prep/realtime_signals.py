@@ -665,6 +665,97 @@ class ScoreTelemetry:
 # Telemetry HTTP server (runs in a daemon thread)
 # ---------------------------------------------------------------------------
 
+_PROCESS_START_TIME = time.time()
+
+
+def _collect_process_metrics() -> str:
+    """Return Prometheus exposition format metrics for this process.
+
+    Pure-stdlib implementation — no prometheus_client dependency required.
+    Emits standard process metrics (cpu, memory, fds, uptime) plus
+    Python GC stats.  Designed for Alloy/Grafana Cloud Prometheus scraping.
+    """
+    import gc as _gc
+    import platform as _platform
+
+    try:
+        import resource as _resource  # POSIX-only; guarded for cross-platform safety
+        _resource_available = True
+    except ImportError:
+        _resource_available = False
+        _resource = None  # type: ignore[assignment]
+
+    _prefix = "signals_producer"
+    lines: list[str] = []
+
+    # CPU seconds (user + system) — POSIX only; skip on non-POSIX platforms
+    if _resource_available and _resource is not None:
+        usage = _resource.getrusage(_resource.RUSAGE_SELF)
+        cpu_seconds = usage.ru_utime + usage.ru_stime
+        lines.append(f"# HELP {_prefix}_process_cpu_seconds_total Total user and system CPU time spent in seconds.")
+        lines.append(f"# TYPE {_prefix}_process_cpu_seconds_total counter")
+        lines.append(f"{_prefix}_process_cpu_seconds_total {cpu_seconds:.6f}")
+
+        # Resident memory (RSS)
+        try:
+            with open("/proc/self/status", encoding="utf-8") as _f:
+                for _line in _f:
+                    if _line.startswith("VmRSS:"):
+                        rss_bytes = int(_line.split()[1]) * 1024
+                        break
+                else:
+                    raise FileNotFoundError
+        except (FileNotFoundError, PermissionError, ValueError):
+            rss_bytes = usage.ru_maxrss
+            if _platform.system() == "Linux":
+                rss_bytes *= 1024
+        lines.append(f"# HELP {_prefix}_process_resident_memory_bytes Resident memory size in bytes.")
+        lines.append(f"# TYPE {_prefix}_process_resident_memory_bytes gauge")
+        lines.append(f"{_prefix}_process_resident_memory_bytes {rss_bytes}")
+
+    # Virtual memory
+    try:
+        with open("/proc/self/status", encoding="utf-8") as _f:
+            for _line in _f:
+                if _line.startswith("VmSize:"):
+                    vsize_bytes = int(_line.split()[1]) * 1024
+                    lines.append(f"# HELP {_prefix}_process_virtual_memory_bytes Virtual memory size in bytes.")
+                    lines.append(f"# TYPE {_prefix}_process_virtual_memory_bytes gauge")
+                    lines.append(f"{_prefix}_process_virtual_memory_bytes {vsize_bytes}")
+                    break
+    except (FileNotFoundError, PermissionError, ValueError):
+        pass
+
+    # Open file descriptors
+    try:
+        fd_count = len(os.listdir(f"/proc/{os.getpid()}/fd"))
+        lines.append(f"# HELP {_prefix}_process_open_fds Number of open file descriptors.")
+        lines.append(f"# TYPE {_prefix}_process_open_fds gauge")
+        lines.append(f"{_prefix}_process_open_fds {fd_count}")
+    except (FileNotFoundError, PermissionError):
+        pass
+
+    # Process start time
+    lines.append(f"# HELP {_prefix}_process_start_time_seconds Start time of the process since unix epoch in seconds.")
+    lines.append(f"# TYPE {_prefix}_process_start_time_seconds gauge")
+    lines.append(f"{_prefix}_process_start_time_seconds {_PROCESS_START_TIME:.6f}")
+
+    # Uptime (convenience gauge)
+    uptime = time.time() - _PROCESS_START_TIME
+    lines.append(f"# HELP {_prefix}_process_uptime_seconds Time since process start in seconds.")
+    lines.append(f"# TYPE {_prefix}_process_uptime_seconds gauge")
+    lines.append(f"{_prefix}_process_uptime_seconds {uptime:.1f}")
+
+    # Python GC collections
+    gc_stats = _gc.get_stats()
+    lines.append(f"# HELP {_prefix}_python_gc_collections_total Total number of GC collections per generation.")
+    lines.append(f"# TYPE {_prefix}_python_gc_collections_total counter")
+    for i, stat in enumerate(gc_stats):
+        lines.append(f'{_prefix}_python_gc_collections_total{{generation="{i}"}} {stat["collections"]}')
+
+    return "\n".join(lines) + "\n"
+
+
 def _start_telemetry_server(
     telemetry: ScoreTelemetry,
     port: int = 8099,
@@ -684,9 +775,10 @@ def _start_telemetry_server(
     When ``engine`` is provided, ``/signals`` falls back to live engine state
     if ``SIGNALS_PATH`` has not yet been written (cold start before the first
     ``poll_once()`` finishes).  When ``SIGNALS_INTERNAL_TOKEN`` is set in the
-    environment, ``/signals`` additionally requires an ``Authorization: Bearer
-    <token>`` header — a minimal shared-secret guard for the case where the
-    bind host is exposed beyond the private network (audit PR #2913 F2).
+    environment, both ``/signals`` and ``/metrics`` additionally require an
+    ``Authorization: Bearer <token>`` header — a minimal shared-secret guard
+    for the case where the bind host is exposed beyond the private network
+    (audit PR #2913 F2; ``/metrics`` token-gate added by audit F6).
     """
     import threading
     from http.server import BaseHTTPRequestHandler, HTTPServer
@@ -739,6 +831,21 @@ def _start_telemetry_server(
                     body = _json.dumps({"error": "non-finite value in signals payload"}).encode()
                 self.send_response(200)
                 self.send_header("Content-Type", "application/json")
+                self.end_headers()
+                self.wfile.write(body)
+            elif self.path == "/metrics":
+                _auth_token = os.getenv("SIGNALS_INTERNAL_TOKEN", "").strip()
+                if _auth_token:
+                    _hdr = self.headers.get("Authorization", "")
+                    _parts = _hdr.split(" ", 1)
+                    _supplied = _parts[1].strip() if len(_parts) == 2 and _parts[0].lower() == "bearer" else ""
+                    if not hmac.compare_digest(_supplied, _auth_token):
+                        self.send_response(401)
+                        self.end_headers()
+                        return
+                body = _collect_process_metrics().encode()
+                self.send_response(200)
+                self.send_header("Content-Type", "text/plain; version=0.0.4; charset=utf-8")
                 self.end_headers()
                 self.wfile.write(body)
             else:
@@ -2787,9 +2894,10 @@ def main() -> None:
         "--ultra", action="store_true",
         help="Ultra-fast 2s polling for VisiData near-realtime breakout monitoring",
     )
+    _default_port = int(os.getenv("PORT", "8099"))
     parser.add_argument(
-        "--telemetry-port", type=int, default=8099,
-        help="Port for the telemetry HTTP endpoint (0 to disable)",
+        "--telemetry-port", type=int, default=_default_port,
+        help="Port for the telemetry HTTP endpoint (0 to disable, default: $PORT or 8099)",
     )
     args = parser.parse_args()
 

@@ -4,6 +4,7 @@
 // Env vars required (set in Railway):
 //   OVERLAY_SECRET_TOKEN    — same token used by /smc_live
 //   OVERLAY_SERVICE_URL     — host:port only, e.g. smc-live-overlay.railway.internal:PORT (no scheme)
+//   SIGNALS_SERVICE_URL     — host:port for smc-signals-producer, e.g. smc-signals-producer.railway.internal:PORT
 //   GRAFANA_CLOUD_PROM_URL  — Grafana Cloud Prometheus remote-write URL
 //   GRAFANA_CLOUD_USER      — Grafana Cloud stack user (numeric ID)
 //   GRAFANA_CLOUD_API_KEY   — Grafana Cloud API key (with MetricsPublisher role)
@@ -22,6 +23,37 @@ prometheus.scrape "live_overlay" {
     username = "metrics"
     password = sys.env("OVERLAY_SECRET_TOKEN")
   }
+
+  forward_to = [prometheus.remote_write.grafana_cloud.receiver]
+}
+
+// --- Scrape smc-signals-producer /metrics (process metrics) ---
+prometheus.scrape "signals_producer" {
+  targets = [{
+    __address__ = sys.env("SIGNALS_SERVICE_URL"),
+    __metrics_path__ = "/metrics",
+  }]
+  scrape_interval = "30s"
+  scrape_timeout  = "10s"
+  job_name        = "signals_producer"
+
+  authorization {
+    type        = "Bearer"
+    credentials = sys.env("SIGNALS_INTERNAL_TOKEN")
+  }
+
+  forward_to = [prometheus.remote_write.grafana_cloud.receiver]
+}
+
+// --- Self-scrape: Alloy internal metrics (CPU/RAM of the agent itself) ---
+prometheus.scrape "alloy_self" {
+  targets = [{
+    __address__ = "127.0.0.1:12345",
+    __metrics_path__ = "/metrics",
+  }]
+  scrape_interval = "30s"
+  scrape_timeout  = "10s"
+  job_name        = "alloy"
 
   forward_to = [prometheus.remote_write.grafana_cloud.receiver]
 }
