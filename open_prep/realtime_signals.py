@@ -164,7 +164,7 @@ def _update_telemetry_status(
             "enabled": bool(enabled),
             "requested_port": int(requested_port),
             "active_port": int(active_port) if active_port is not None else None,
-            "url": (f"http://{(bind_host or os.getenv('TELEMETRY_BIND_HOST', '127.0.0.1'))}:{active_port}" if active_port is not None else ""),
+            "url": (f"http://{(bind_host or os.getenv('TELEMETRY_BIND_HOST', '0.0.0.0'))}:{active_port}" if active_port is not None else ""),
             "error": str(error) if error else "",
             "updated_at": datetime.now(UTC).isoformat(timespec="seconds"),
         },
@@ -691,7 +691,7 @@ def _start_telemetry_server(
     import threading
     from http.server import BaseHTTPRequestHandler, HTTPServer
 
-    bind_host = host or os.getenv("TELEMETRY_BIND_HOST", "127.0.0.1")
+    bind_host = host or os.getenv("TELEMETRY_BIND_HOST", "0.0.0.0")
 
     class _Handler(BaseHTTPRequestHandler):
         def do_GET(self) -> None:
@@ -2787,9 +2787,10 @@ def main() -> None:
         "--ultra", action="store_true",
         help="Ultra-fast 2s polling for VisiData near-realtime breakout monitoring",
     )
+    _default_port = int(os.getenv("PORT", "8099"))
     parser.add_argument(
-        "--telemetry-port", type=int, default=8099,
-        help="Port for the telemetry HTTP endpoint (0 to disable)",
+        "--telemetry-port", type=int, default=_default_port,
+        help="Port for the telemetry HTTP endpoint (0 to disable, default: $PORT or 8099)",
     )
     args = parser.parse_args()
 

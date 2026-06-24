@@ -26,4 +26,4 @@ EXPOSE 8099
 # the bind reachable over the private network.  Railway overrides this CMD
 # with railway.toml:startCommand (which injects $PORT); this is the local /
 # `docker run` fallback (no shell expansion, exec form, single source of truth).
-CMD ["python", "-m", "open_prep.realtime_signals", "--telemetry-port", "8099"]
+CMD ["python", "-m", "open_prep.realtime_signals"]

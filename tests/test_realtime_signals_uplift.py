@@ -160,7 +160,7 @@ def test_update_telemetry_status_records_active_port(status_paths: dict[str, Pat
     assert payload["enabled"] is True
     assert payload["requested_port"] == 8099
     assert payload["active_port"] == 8099
-    assert payload["url"] == "http://127.0.0.1:8099"
+    assert payload["url"] == "http://0.0.0.0:8099"
     assert payload["error"] == ""
 
 
@@ -175,7 +175,7 @@ def test_update_telemetry_status_records_fallback_with_error(
     )
     payload = json.loads(status_paths["telemetry"].read_text())
     assert payload["active_port"] == 8123
-    assert payload["url"] == "http://127.0.0.1:8123"
+    assert payload["url"] == "http://0.0.0.0:8123"
     assert "fallback" in payload["error"]
 
 
