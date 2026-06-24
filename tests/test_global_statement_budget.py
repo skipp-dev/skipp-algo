@@ -86,15 +86,15 @@ _FROZEN_SITES: frozenset[tuple[str, int, tuple[str, ...]]] = frozenset(
         ("newsstack_fmp/pipeline.py", 108, ("_bz_ws_adapter", "_bz_ws_adapter_key")),
         ("newsstack_fmp/pipeline.py", 134, ("_bz_rss_adapter",)),
         ("newsstack_fmp/pipeline.py", 143, ("_enricher",)),
-        ("newsstack_fmp/pipeline.py", 1116, ("_last_meta",)),
+        ("newsstack_fmp/pipeline.py", 1119, ("_last_meta",)),
         (
             "newsstack_fmp/pipeline.py",
-            1205,
+            1208,
             ("_bz_rest_adapter", "_bz_rss_adapter", "_bz_ws_adapter", "_enricher", "_fmp_adapter", "_last_meta", "_store"),
         ),
         (
             "newsstack_fmp/pipeline.py",
-            1206,
+            1209,
             ("_bz_rest_adapter_key", "_bz_ws_adapter_key", "_fmp_adapter_key"),
         ),
         ("open_prep/regime.py", 129, ("_prev_regime",)),

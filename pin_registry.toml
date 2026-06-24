@@ -161,7 +161,7 @@ codes = ["S603"]
 # E402 outliers in newsstack_fmp/pipeline.py remain (not covered by per-file-ignores).
 [[noqa_budget.sites]]
 file = "newsstack_fmp/pipeline.py"
-line = 1231
+line = 1234
 codes = ["E402"]
 
 # ruff fix (2026-06-11): added # noqa: RUF007 / RUF012 / F401 suppressions
