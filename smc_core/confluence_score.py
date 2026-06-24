@@ -9,6 +9,7 @@ from __future__ import annotations
 
 from typing import Any
 
+from smc_core.v2_config import confluence_score_config
 from smc_core.v2_features import confluence_score_enabled
 
 
@@ -82,7 +83,7 @@ def compute_confluence_score(enrichment: dict[str, Any] | None = None) -> dict[s
     if total == 0:
         return neutral
 
-    score = min(100, total * 20)
+    score = min(100, total * confluence_score_config.points_per_signal)
     if bull_signals > bear_signals:
         direction = "bull"
     elif bear_signals > bull_signals:

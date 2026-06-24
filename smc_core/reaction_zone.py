@@ -10,6 +10,7 @@ from __future__ import annotations
 
 from typing import Any
 
+from smc_core.v2_config import reaction_zone_config
 from smc_core.v2_features import reaction_zone_enabled
 
 
@@ -73,7 +74,8 @@ def detect_reaction_zone(enrichment: dict[str, Any] | None = None) -> dict[str, 
         return neutral
 
     # Need a fresh OB or FVG close to price (< 3 %) to define the zone.
-    has_near_support = (ob_fresh and ob_distance < 3.0) or (fvg_fresh and fvg_distance < 3.0)
+    threshold = reaction_zone_config.distance_threshold_pct
+    has_near_support = (ob_fresh and ob_distance < threshold) or (fvg_fresh and fvg_distance < threshold)
     if not has_near_support:
         return neutral
 
@@ -95,7 +97,11 @@ def detect_reaction_zone(enrichment: dict[str, Any] | None = None) -> dict[str, 
         (direction == "bull" and session_bias == "BULLISH")
         or (direction == "bear" and session_bias == "BEARISH")
     )
-    confidence = 60 if bias_aligned else 40
+    confidence = (
+        reaction_zone_config.bias_aligned_confidence
+        if bias_aligned
+        else reaction_zone_config.bias_misaligned_confidence
+    )
 
     return {
         "REACTION_ZONE_DETECTED": True,

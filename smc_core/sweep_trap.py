@@ -17,6 +17,7 @@ from __future__ import annotations
 
 from typing import Any
 
+from smc_core.v2_config import sweep_trap_config
 from smc_core.v2_features import sweep_trap_enabled
 
 
@@ -53,16 +54,16 @@ def detect_sweep_trap(enrichment: dict[str, Any] | None = None) -> dict[str, Any
     if not (has_bull_sweep or has_bear_sweep) or sweep_direction == "NONE":
         return neutral
 
-    # Quality must be poor for a trap (< 3 on the 0-5 scale).
-    if sweep_quality >= 3:
+    # Quality must be poor for a trap.
+    if sweep_quality >= sweep_trap_config.quality_threshold:
         return neutral
 
-    # Base confidence: quality 0 -> 100, 1 -> 80, 2 -> 60.
+    # Base confidence: inversely proportional to quality on the 0-5 scale.
     quality_factor = max(0, min(100, (5 - sweep_quality) * 20))
 
     # Boost when only one direction swept (lopsided liquidity grab).
     both_sides = has_bull_sweep and has_bear_sweep
-    direction_boost = 0 if both_sides else 20
+    direction_boost = 0 if both_sides else sweep_trap_config.lopsided_boost
 
     # Reduce confidence if structure already reversed against the sweep.
     ssl = enr.get("structure_state_light") or {}
@@ -71,7 +72,7 @@ def detect_sweep_trap(enrichment: dict[str, Any] | None = None) -> dict[str, Any
 
     reversal_penalty = 0
     if sweep_direction == "BULL" and last_event in ("BOS_BEAR", "CHOCH_BEAR"):
-        reversal_penalty = 40
+        reversal_penalty = sweep_trap_config.reversal_penalty
     elif sweep_direction == "BEAR" and last_event in ("BOS_BULL", "CHOCH_BULL"):
         reversal_penalty = 40
 

@@ -11,6 +11,7 @@ from __future__ import annotations
 
 from typing import Any
 
+from smc_core.v2_config import smt_divergence_config
 from smc_core.v2_features import smt_divergence_enabled
 
 
@@ -60,14 +61,14 @@ def detect_smt_divergence(enrichment: dict[str, Any] | None = None) -> dict[str,
         return {
             "SMT_DIVERGENCE_DETECTED": True,
             "SMT_DIVERGENCE_SIDE": "bear",
-            "SMT_DIVERGENCE_CONFIDENCE": 70,
+            "SMT_DIVERGENCE_CONFIDENCE": smt_divergence_config.confidence,
         }
 
     if primary_bear and corr_bull:
         return {
             "SMT_DIVERGENCE_DETECTED": True,
             "SMT_DIVERGENCE_SIDE": "bull",
-            "SMT_DIVERGENCE_CONFIDENCE": 70,
+            "SMT_DIVERGENCE_CONFIDENCE": smt_divergence_config.confidence,
         }
 
     return neutral
