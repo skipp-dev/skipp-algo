@@ -139,3 +139,60 @@ def is_fmp_13f_enabled() -> bool:
     FMP /sec-filings/13F-HR-latest.  Requires dedicated plan tier.
     """
     return _bool_env("ENABLE_FMP_13F", "0")
+
+
+# ---------------------------------------------------------------------------
+# SMC v2 feature flags (Phase 0 scaffolding, 2026-06-24).
+# All flags default OFF until their phase is calibrated and approved.
+# Model version is read directly by scripts.smc_signal_quality.
+# ---------------------------------------------------------------------------
+
+
+def is_sweep_trap_enabled() -> bool:
+    """Return True iff ``ENABLE_SWEEP_TRAP`` is set to ``"1"`` (default OFF)."""
+    return _bool_env("ENABLE_SWEEP_TRAP", "0")
+
+
+def is_reaction_zone_enabled() -> bool:
+    """Return True iff ``ENABLE_REACTION_ZONE`` is set to ``"1"`` (default OFF)."""
+    return _bool_env("ENABLE_REACTION_ZONE", "0")
+
+
+def is_confluence_score_enabled() -> bool:
+    """Return True iff ``ENABLE_CONFLUENCE_SCORE`` is set to ``"1"`` (default OFF)."""
+    return _bool_env("ENABLE_CONFLUENCE_SCORE", "0")
+
+
+def is_freshness_v2_enabled() -> bool:
+    """Return True iff ``ENABLE_FRESHNESS_V2`` is set to ``"1"`` (default OFF)."""
+    return _bool_env("ENABLE_FRESHNESS_V2", "0")
+
+
+def is_smt_divergence_enabled() -> bool:
+    """Return True iff ``ENABLE_SMT_DIVERGENCE`` is set to ``"1"`` (default OFF)."""
+    return _bool_env("ENABLE_SMT_DIVERGENCE", "0")
+
+
+def any_v2_feature_enabled() -> bool:
+    """Return True iff any SMC v2 feature flag is enabled."""
+    return any(
+        (
+            is_sweep_trap_enabled(),
+            is_reaction_zone_enabled(),
+            is_confluence_score_enabled(),
+            is_freshness_v2_enabled(),
+            is_smt_divergence_enabled(),
+        )
+    )
+
+
+def signal_quality_model() -> str:
+    """Return the active signal-quality model version.
+
+    Supported values: ``"v1"`` (default), ``"v2"``, ``"v2.1"``.
+    Unknown or empty values safely fall back to ``"v1"``.
+    """
+    model = os.environ.get("SIGNAL_QUALITY_MODEL", "v1").strip().lower() or "v1"
+    if model in ("v1", "v2", "v2.1"):
+        return model
+    return "v1"

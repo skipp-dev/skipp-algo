@@ -406,6 +406,45 @@ variable to restore self-hosted-primary routing.
 
 ---
 
+## Editor-Tooling: Anti-Hang Regeln (Continue/Copilot)
+
+Wenn Datei-Edits hängen oder abbrechen, gelten diese Regeln standardmäßig:
+
+1. **Append statt Voll-Edit bei selbstständigen Blöcken**
+  - Für reine Anhänge immer bevorzugt shell-append (`cat >> <file> << 'EOF' ... EOF`) statt großem Edit-Payload.
+
+2. **Kleinstmögliche Ersetzung**
+  - Für Replacements nur kleinste exakte Alt/Neu-Anker verwenden (single find/replace Stil).
+  - Keine Full-File-Edits mit Platzhaltern wie `... existing code ...` bei Dateien >50 Zeilen.
+
+3. **Eine begrenzte Änderung pro Turn**
+  - Pro Tool-Call nur ein klar abgegrenzter, kleiner Edit.
+  - Große Refactors in mehrere kleine, verifizierbare Edits aufteilen.
+
+4. **Nach Hang immer Dateistand verifizieren**
+  - Vor Retry erst Zustand prüfen (`tail`, `wc -l`, `git status`, optional gezieltes `read_file`).
+  - Nie von Erfolg/Misserfolg ausgehen, ohne den aktuellen Dateiinhalt kurz zu verifizieren.
+
+5. **Temporäre Pfad-/Worktree-Fehler defensiv behandeln**
+  - "File does not exist" in Worktrees zunächst als evtl. transient betrachten.
+  - Kurz mit einer kleinen Leseprobe gegenprüfen, dann erst erneut editieren.
+
+6. **Große/risikoreiche Ersetzungen nach vorherigem Hang**
+  - Bei Dateien >100 Zeilen **oder** Ersetzungen >30 Zeilen `edit_existing_file` und `single_find_and_replace` vermeiden, **wenn Continue zuvor beim Editieren gehängt hat**.
+  - Stattdessen ein temporäres Python-Patch-Skript verwenden, das die Datei atomar umschreibt.
+  - Skript mit dem Projekt-Python ausführen, Ergebnis validieren, temporäres Skript anschließend löschen.
+
+7. **Sofort-Fallback bei hängenden diff-Tools (Continue/Copilot)**
+  - Wenn `edit_existing_file` oder `single_find_and_replace` hängt, "file does not exist" meldet, `N lines pending` anzeigt oder Merge-Konflikt-Blöcke (`<<<<<<< HEAD`) im Tool-Output erscheinen: den Edit-Versuch sofort abbrechen.
+  - Datei atomisch neu schreiben mit einer der beiden Methoden:
+    - temporäres Python-Skript, das den Zielinhalt erzeugt und per `os.replace` einspielt.
+    - Shell-Redirect: `cat > <pfad> << 'EOF' ... EOF`.
+  - Danach validieren: `ruff check --fix` + relevante `pytest`-Tests.
+  - Temporäre Patch-Skripte sofort nach erfolgreicher Validierung löschen.
+  - Besonders anwenden bei Dateien >500 Zeilen oder Dateien, die in der aktuellen Session bereits Editor-Probleme verursacht haben (z. B. `scripts/smc_signal_quality.py`).
+
+---
+
 ## Session-Start
 
 Beim ersten Turn: prüfe ob `spec/agent_handover.md` auf main existiert. Falls ja: lesen, Stand bestätigen, loslegen.

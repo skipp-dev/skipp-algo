@@ -11,7 +11,17 @@ from __future__ import annotations
 
 import os
 
-from open_prep.feature_flags import _bool_env, is_opra_uoa_enabled
+from open_prep.feature_flags import (
+    _bool_env,
+    any_v2_feature_enabled,
+    is_confluence_score_enabled,
+    is_freshness_v2_enabled,
+    is_opra_uoa_enabled,
+    is_reaction_zone_enabled,
+    is_smt_divergence_enabled,
+    is_sweep_trap_enabled,
+    signal_quality_model,
+)
 
 
 def _isolated(name: str):
@@ -73,3 +83,61 @@ def test_config_consumes_ssot() -> None:
         assert Config().enable_opra_uoa is True
         os.environ["ENABLE_OPRA_UOA"] = "0"
         assert Config().enable_opra_uoa is False
+
+
+def test_smc_v2_flags_default_off() -> None:
+    for name in (
+        "ENABLE_SWEEP_TRAP",
+        "ENABLE_REACTION_ZONE",
+        "ENABLE_CONFLUENCE_SCORE",
+        "ENABLE_FRESHNESS_V2",
+        "ENABLE_SMT_DIVERGENCE",
+    ):
+        with _isolated(name):
+            assert _bool_env(name, "0") is False
+
+
+def test_smc_v2_flags_explicit_on() -> None:
+    for name, fn in (
+        ("ENABLE_SWEEP_TRAP", is_sweep_trap_enabled),
+        ("ENABLE_REACTION_ZONE", is_reaction_zone_enabled),
+        ("ENABLE_CONFLUENCE_SCORE", is_confluence_score_enabled),
+        ("ENABLE_FRESHNESS_V2", is_freshness_v2_enabled),
+        ("ENABLE_SMT_DIVERGENCE", is_smt_divergence_enabled),
+    ):
+        with _isolated(name):
+            os.environ[name] = "1"
+            assert fn() is True
+
+
+def test_signal_quality_model_default_v1() -> None:
+    with _isolated("SIGNAL_QUALITY_MODEL"):
+        assert signal_quality_model() == "v1"
+
+
+def test_signal_quality_model_normalized() -> None:
+    with _isolated("SIGNAL_QUALITY_MODEL"):
+        os.environ["SIGNAL_QUALITY_MODEL"] = " V2 "
+        assert signal_quality_model() == "v2"
+
+
+def test_signal_quality_model_empty_fallback() -> None:
+    with _isolated("SIGNAL_QUALITY_MODEL"):
+        os.environ["SIGNAL_QUALITY_MODEL"] = "  "
+        assert signal_quality_model() == "v1"
+
+
+def test_signal_quality_model_unknown_fallback() -> None:
+    with _isolated("SIGNAL_QUALITY_MODEL"):
+        os.environ["SIGNAL_QUALITY_MODEL"] = "v3"
+        assert signal_quality_model() == "v1"
+
+
+def test_any_v2_feature_enabled_default_false() -> None:
+    assert any_v2_feature_enabled() is False
+
+
+def test_any_v2_feature_enabled_true_when_one_on() -> None:
+    with _isolated("ENABLE_CONFLUENCE_SCORE"):
+        os.environ["ENABLE_CONFLUENCE_SCORE"] = "1"
+        assert any_v2_feature_enabled() is True

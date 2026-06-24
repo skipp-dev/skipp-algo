@@ -43,10 +43,21 @@ Usage::
     sq = build_signal_quality(enrichment=enrichment)
     enrichment["signal_quality"] = sq
 """
+
 from __future__ import annotations
 
 import logging
 from typing import Any
+
+from open_prep.feature_flags import (
+    any_v2_feature_enabled,
+    is_confluence_score_enabled,
+    is_freshness_v2_enabled,
+    is_reaction_zone_enabled,
+    is_smt_divergence_enabled,
+    is_sweep_trap_enabled,
+    signal_quality_model,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -101,6 +112,47 @@ def _freshness_label(structure_fresh: bool, structure_age: int, fvg_fresh: bool,
     if fresh_count >= 1 or structure_age <= 15:
         return "aging"
     return "stale"
+
+
+def _freshness_label_v2(
+    *,
+    structure_fresh: bool,
+    structure_age: int,
+    fvg_fresh: bool,
+    ob_fresh: bool,
+    in_killzone: bool,
+    has_bull_sweep: bool,
+    has_bear_sweep: bool,
+    atr_regime: str,
+) -> str:
+    """Extended freshness label used by the v2 signal-quality model.
+
+    In addition to the v1 inputs (structure, FVG, OB), v2 freshness also
+    weighs session killzone presence, recent liquidity sweep activity,
+    and the ATR/compression regime.  The five-label scale gives callers
+    a finer graduation than v1's ``fresh | aging | stale``.
+    """
+    fresh_count = sum([structure_fresh, fvg_fresh, ob_fresh])
+    has_recent_sweep = has_bull_sweep or has_bear_sweep
+
+    # Very fresh: multiple fresh components and supportive context
+    if fresh_count >= 2 and in_killzone and has_recent_sweep:
+        return "very_fresh"
+
+    # Fresh: same rule as v1; killzone/sweep are handled above.
+    if fresh_count >= 2 or (structure_fresh and structure_age <= 5):
+        return "fresh"
+
+    # Aging: at least one fresh component or recent structure
+    if fresh_count >= 1 or structure_age <= 15 or (in_killzone and has_recent_sweep):
+        return "aging"
+
+    # Stale: nothing fresh but not clearly exhausted
+    if atr_regime not in ("EXHAUSTION",):
+        return "stale"
+
+    # Expired: stale plus exhaustion regime
+    return "expired"
 
 
 def _bias_alignment(
@@ -158,7 +210,7 @@ def _bias_alignment(
     return "bear"
 
 
-def build_signal_quality(
+def build_signal_quality_v1(
     *,
     enrichment: dict[str, Any] | None = None,
     overrides: dict[str, Any] | None = None,
@@ -341,6 +393,113 @@ def build_signal_quality(
     result["SIGNAL_FRESHNESS"] = freshness
 
     # Apply overrides last
+    if overrides:
+        for key, value in overrides.items():
+            if key in result:
+                result[key] = value
+
+    return result
+
+
+def build_signal_quality(
+    *,
+    enrichment: dict[str, Any] | None = None,
+    overrides: dict[str, Any] | None = None,
+) -> dict[str, Any]:
+    """Route to the active signal-quality implementation.
+
+    ``SIGNAL_QUALITY_MODEL`` (from ``open_prep.feature_flags``) selects
+    the implementation: ``"v1"`` (default) calls the frozen production
+    scoring in :func:`build_signal_quality_v1`; ``"v2"`` and ``"v2.1"`
+    delegate to :func:`build_signal_quality_v2`.
+
+    Additionally, if any v2 feature flag is enabled (see
+    :func:`open_prep.feature_flags.any_v2_feature_enabled`), the router
+    always delegates to v2 so that individual features can be toggled
+    without changing the model setting.
+    """
+    model = signal_quality_model()
+    if model == "v1" and not any_v2_feature_enabled():
+        return build_signal_quality_v1(enrichment=enrichment, overrides=overrides)
+    return build_signal_quality_v2(enrichment=enrichment, overrides=overrides)
+
+
+def build_signal_quality_v2(
+    *,
+    enrichment: dict[str, Any] | None = None,
+    overrides: dict[str, Any] | None = None,
+) -> dict[str, Any]:
+    """Build a v2 signal-quality score.
+
+    Phase A (Freshness v2): when ``ENABLE_FRESHNESS_V2`` is set, the
+    result uses :func:`_freshness_label_v2` for ``SIGNAL_FRESHNESS``.
+    All other fields remain identical to v1 so that callers can switch
+    to ``SIGNAL_QUALITY_MODEL=v2`` without regressions.
+    """
+    result = build_signal_quality_v1(enrichment=enrichment, overrides=overrides)
+    enr = enrichment or {}
+
+    # Phase A: optionally apply the extended v2 freshness label.
+    if is_freshness_v2_enabled():
+        ssl = enr.get("structure_state_light") or {}
+        ss = enr.get("structure_state") or {}
+        structure_fresh = bool(_prefer_lean_value(ssl, ss, "STRUCTURE_FRESH", False))
+        structure_age = int(_prefer_lean_value(ssl, ss, "STRUCTURE_EVENT_AGE_BARS", 999))
+
+        fvg_light = enr.get("fvg_lifecycle_light") or {}
+        fvg_fresh = bool(fvg_light.get("FVG_FRESH", False))
+
+        ob_light = enr.get("ob_context_light") or {}
+        ob_fresh = bool(ob_light.get("OB_FRESH", False))
+
+        scl = enr.get("session_context_light") or {}
+        sc = enr.get("session_context") or {}
+        in_killzone = bool(_prefer_lean_value(scl, sc, "IN_KILLZONE", False))
+
+        ls = enr.get("liquidity_sweeps") or {}
+        has_bull_sweep = bool(ls.get("RECENT_BULL_SWEEP", False))
+        has_bear_sweep = bool(ls.get("RECENT_BEAR_SWEEP", False))
+
+        cr = enr.get("compression_regime") or {}
+        atr_regime = str(cr.get("ATR_REGIME", "NORMAL"))
+
+        result["SIGNAL_FRESHNESS"] = _freshness_label_v2(
+            structure_fresh=structure_fresh,
+            structure_age=structure_age,
+            fvg_fresh=fvg_fresh,
+            ob_fresh=ob_fresh,
+            in_killzone=in_killzone,
+            has_bull_sweep=has_bull_sweep,
+            has_bear_sweep=has_bear_sweep,
+            atr_regime=atr_regime,
+        )
+
+    # Phase D: optionally fold the v2 confluence score into the block.
+    if is_confluence_score_enabled():
+        from smc_core.confluence_score import compute_confluence_score
+
+        confluence = compute_confluence_score(enr)
+        result.update(confluence)
+
+    # Phase B: optionally fold the sweep-trap detector into the block.
+    if is_sweep_trap_enabled():
+        from smc_core.sweep_trap import detect_sweep_trap
+
+        result.update(detect_sweep_trap(enr))
+
+    # Phase C: optionally fold the reaction-zone detector into the block.
+    if is_reaction_zone_enabled():
+        from smc_core.reaction_zone import detect_reaction_zone
+
+        result.update(detect_reaction_zone(enr))
+
+    # Phase E: optionally fold the SMT-divergence detector into the block.
+    if is_smt_divergence_enabled():
+        from smc_core.smt_divergence import detect_smt_divergence
+
+        result.update(detect_smt_divergence(enr))
+
+    # Re-apply overrides last so manual values win over the v2 label.
     if overrides:
         for key, value in overrides.items():
             if key in result:
