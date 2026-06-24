@@ -525,8 +525,9 @@ def merge_shard_payloads(
     # Lazy imports — keep CLI startup cheap when operating in manifest-only
     # mode.  pyarrow is a transitive dep via pandas' parquet engine so it
     # is always available without an extra install step.
+    import pyarrow.dataset as _pa_ds
+
     from scripts.smc_atomic_write import atomic_write_parquet
-    import pyarrow.dataset as _pa_ds  # noqa: PLC0415
 
     summary: dict[str, int] = {}
     for frame, paths in by_frame.items():

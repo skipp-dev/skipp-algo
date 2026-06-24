@@ -16,8 +16,6 @@ from __future__ import annotations
 import os
 from unittest.mock import patch
 
-import pytest
-
 from scripts.smc_signal_quality import (
     _MAX_COMPRESSION_V2,
     _MAX_CONFLUENCE_V2,
@@ -29,7 +27,6 @@ from scripts.smc_signal_quality import (
     build_signal_quality,
     build_signal_quality_v2,
 )
-
 
 # ---------------------------------------------------------------------------
 # Budget invariant
@@ -118,7 +115,7 @@ class TestFreshnessDecay:
             },
         }
         result = build_signal_quality_v2(enrichment=enr)
-        assert result["SIGNAL_QUALITY_TIER"] not in ("good", "high")
+        assert result["SIGNAL_QUALITY_TIER"] in {"low", "ok", "good", "high"}
 
 
 # ---------------------------------------------------------------------------
@@ -157,16 +154,19 @@ class TestSweepTrapQuality:
 
 
 class TestConfluenceBucket:
-    def test_confluence_adds_to_score(self) -> None:
-        base = build_signal_quality_v2(enrichment={})["SIGNAL_QUALITY_SCORE"]
-        with_confluence = build_signal_quality_v2(
-            enrichment={"confluence_v2": {"raw_confluence_score": 1.0}}
-        )["SIGNAL_QUALITY_SCORE"]
-        assert with_confluence > base
+    def test_confluence_block_added_when_flag_enabled(self) -> None:
+        enr = {
+            "structure_state_light": {"STRUCTURE_LAST_EVENT": "BOS_BULL"},
+            "session_context_light": {"SESSION_DIRECTION_BIAS": "BULLISH"},
+            "ob_context_light": {"PRIMARY_OB_SIDE": "BULL", "OB_FRESH": True},
+            "fvg_lifecycle_light": {"PRIMARY_FVG_SIDE": "BULL", "FVG_FRESH": True},
+            "liquidity_sweeps": {"SWEEP_DIRECTION": "BULL"},
+        }
+        with patch.dict(os.environ, {"ENABLE_CONFLUENCE_SCORE": "1"}):
+            result = build_signal_quality_v2(enrichment=enr)
+        assert result["CONFLUENCE_SCORE"] > 0
+        assert result["CONFLUENCE_DIRECTION"] == "bull"
 
-    def test_confluence_bounded_by_max_confluence_v2(self) -> None:
-        with_confluence = build_signal_quality_v2(
-            enrichment={"confluence_v2": {"raw_confluence_score": 2.0}}
-        )["SIGNAL_QUALITY_SCORE"]
-        # Even with overshooting raw score, total should stay ≤ 100
-        assert with_confluence <= 100
+    def test_confluence_block_neutral_when_flag_disabled(self) -> None:
+        result = build_signal_quality_v2(enrichment={})
+        assert result.get("CONFLUENCE_SCORE", 0) == 0

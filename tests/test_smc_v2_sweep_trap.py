@@ -16,12 +16,8 @@ import pytest
 
 from smc_core.sweep_trap import (
     DELAYED_RECLAIM_BARS,
-    IMMEDIATE_RECLAIM_BARS,
-    SweepTrapResult,
-    TrapType,
     classify_sweep_trap,
 )
-
 
 # ---------------------------------------------------------------------------
 # Helpers to build synthetic bar sequences

@@ -754,7 +754,7 @@ def _parse_rss_tickers(entry: Any) -> list[str]:
     return tickers
 
 
-def _entry_to_news_item(entry: Any, *, source_url: str) -> "NewsItem | None":
+def _entry_to_news_item(entry: Any, *, source_url: str) -> NewsItem | None:
     """Convert a feedparser entry to a NewsItem.  Returns None on failure."""
     guid: str = (
         getattr(entry, "id", None)

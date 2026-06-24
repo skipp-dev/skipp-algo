@@ -81,7 +81,7 @@ def test_poll_once_does_not_hold_active_signals_lock(tmp_path: Path, monkeypatch
             lock_events.append("release")
             real_lock.release()
 
-        def __enter__(self) -> "LockSpy":
+        def __enter__(self) -> LockSpy:
             self.acquire()
             return self
 
@@ -93,7 +93,7 @@ def test_poll_once_does_not_hold_active_signals_lock(tmp_path: Path, monkeypatch
 
     # After fix: poll_once now correctly acquires the lock while mutating
     # _active_signals, preventing concurrent reader corruption.
-    assert "acquire" in lock_events, f"poll_once did not acquire _active_signals lock — race condition unfixed"
+    assert "acquire" in lock_events, "poll_once did not acquire _active_signals lock — race condition unfixed"
 
 
 def test_get_active_signals_races_with_poll_once(tmp_path: Path, monkeypatch: Any) -> None:

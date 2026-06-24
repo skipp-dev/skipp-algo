@@ -5,13 +5,9 @@ All network calls are mocked — no real HTTP in CI.
 from __future__ import annotations
 
 import sys
-from types import SimpleNamespace, ModuleType
-from unittest.mock import MagicMock, patch
+from types import ModuleType, SimpleNamespace
 
-import pytest
-
-from newsstack_fmp.ingest_benzinga import BenzingaRssAdapter, _parse_rss_tickers, _entry_to_news_item
-
+from newsstack_fmp.ingest_benzinga import BenzingaRssAdapter, _entry_to_news_item, _parse_rss_tickers
 
 # ── helpers ──────────────────────────────────────────────────────────
 
