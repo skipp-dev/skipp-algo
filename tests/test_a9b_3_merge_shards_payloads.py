@@ -252,3 +252,71 @@ def test_merged_bundle_loadable_via_load_export_bundle(mod, tmp_path):
         "daily_symbol_features_full_universe",
     }
     assert len(payload["frames"]["daily_bars"]) == 8
+
+
+def test_merge_shard_payloads_streaming_six_shards(mod, tmp_path):
+    """WF-026 OOM fix — production-realistic 6-shard streaming merge.
+
+    Exercises the PyArrow-dataset streaming path that replaced the
+    ``[pd.read_parquet(p) for p in paths] + pd.concat(...)`` pattern.
+    Verifies that:
+    - All 6 × 3 = 18 rows (one date per shard, three symbols each) are
+      preserved after the streaming concat + dedupe round-trip.
+    - The merged parquet is readable and has the expected column set.
+    - Schema is stable across shards with identical column layouts.
+    """
+    shards = []
+    for i in range(1, 7):
+        # Each shard covers a distinct calendar month to guarantee
+        # date-disjoint shards (no cross-shard duplicates expected).
+        date = f"2026-{i:02d}-01"
+        ts = f"2026{i:02d}01_000000"
+        shards.append(
+            _make_shard(
+                tmp_path,
+                i,
+                basename=f"databento_volatility_production_{ts}",
+                dates=[date],
+                symbols=["AAPL", "MSFT", "GOOGL"],
+            )
+        )
+
+    manifests = [
+        next((s / "smc_microstructure_exports").glob("*_manifest.json"))
+        for s in shards
+    ]
+    out_dir = tmp_path / "merged"
+    summary = mod.merge_shard_payloads(manifests, out_dir)
+
+    # 6 shards × 1 date × 3 symbols = 18 rows per frame.
+    assert summary == {
+        "daily_bars": 18,
+        "daily_symbol_features_full_universe": 18,
+    }, f"unexpected summary: {summary}"
+
+    merged = pd.read_parquet(out_dir / f"{mod.MERGED_BASENAME}__daily_bars.parquet")
+    assert len(merged) == 18
+    assert merged["trade_date"].nunique() == 6
+    assert set(merged["symbol"]) == {"AAPL", "MSFT", "GOOGL"}
+    assert set(merged.columns) >= {"symbol", "trade_date", "close"}
+
+
+def test_merge_shard_payloads_single_shard_passthrough(mod, tmp_path):
+    """Single-shard case — streaming path must not alter schema or row count."""
+    shard = _make_shard(
+        tmp_path,
+        1,
+        basename="databento_volatility_production_20260420_000000",
+        dates=["2026-04-20", "2026-04-21"],
+        symbols=["AAPL", "MSFT"],
+    )
+    manifests = [
+        next((shard / "smc_microstructure_exports").glob("*_manifest.json"))
+    ]
+    out_dir = tmp_path / "merged"
+    summary = mod.merge_shard_payloads(manifests, out_dir)
+
+    # 2 dates × 2 symbols = 4 rows; no dedup expected (single shard).
+    assert summary["daily_bars"] == 4
+    merged = pd.read_parquet(out_dir / f"{mod.MERGED_BASENAME}__daily_bars.parquet")
+    assert len(merged) == 4
