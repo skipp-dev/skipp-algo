@@ -89,7 +89,7 @@ _FROZEN_FILE_COUNTS: dict[str, int] = {
     "ml/training/xgb_family_trainer.py": 1,  # PR #2241: 2 bare ignores replaced by 1 specific `[import-not-found]` on `import xgboost`.
     "ml/walkforward.py": 1,
     "newsstack_fmp/_bz_http.py": 2,
-    "newsstack_fmp/ingest_benzinga.py": 1,
+    "newsstack_fmp/ingest_benzinga.py": 2,
     "newsstack_fmp/normalize.py": 1,
     "newsstack_fmp/scoring.py": 5,
     "newsstack_fmp/store_sqlite.py": 3,
@@ -115,6 +115,7 @@ _FROZEN_FILE_COUNTS: dict[str, int] = {
     "terminal_tabs/tab_live_incubation.py": 1,
     "terminal_technicals.py": 2,
     "terminal_tradingview_news.py": 1,  # PR #2128: tuple-return (bool, T) miss-cache helper signature confuses generic narrowing.
+    "smc_integration/measurement_evidence.py": 1,  # 2026-06-24: datetime subtraction type narrowing
 }
 
 

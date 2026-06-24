@@ -119,10 +119,12 @@ curl https://liveoverlaydaemon-production.up.railway.app/ready
 | `GITHUB_WORKFLOW_MONITOR_REPO` | smc-live-overlay | optional | `owner/repo`, default `skippALGO/skipp-algo` |
 | `NEWS_SNAPSHOT_PATH` | smc-live-overlay | optional | Pfad zum News-Snapshot-JSON |
 | `OVERLAY_SERVICE_URL` | metrics-collector | ✅ | `smc-live-overlay.railway.internal:PORT` |
+| `SIGNALS_SERVICE_URL` | metrics-collector | ✅ | `smc-signals-producer.railway.internal:PORT` — Alloy scrapes `/metrics` on signals producer |
 | `GRAFANA_CLOUD_PROM_URL` | metrics-collector | ✅ | Grafana Cloud Remote-Write-URL |
 | `GRAFANA_CLOUD_USER` | metrics-collector | ✅ | Grafana Cloud Stack-ID (numerisch) |
 | `GRAFANA_CLOUD_API_KEY` | metrics-collector | ✅ | Grafana Cloud API-Key (MetricsPublisher) |
 | `OVERLAY_SECRET_TOKEN` | metrics-collector | ✅ | gleicher Token wie in smc-live-overlay |
+| `SIGNALS_INTERNAL_TOKEN` | metrics-collector, smc-signals-producer | optional | Shared-Secret für `/signals`- und `/metrics`-Endpoint (Bearer-Token); Alloy sendet diesen Token beim Scrape automatisch |
 
 ### Alloy-Konfiguration aktualisieren
 
@@ -404,6 +406,8 @@ CI-Workflows und exportiert ihn als Prometheus-Gauges.
 | Von → Nach | Protokoll | Auth | Richtung | Trigger |
 |------------|-----------|------|----------|---------|
 | Grafana Alloy → `smc-live-overlay /metrics` | HTTP Basic | `metrics` / `OVERLAY_SECRET_TOKEN` | Pull | alle 30 s |
+| Grafana Alloy → `smc-signals-producer /metrics` | HTTP Bearer | `SIGNALS_INTERNAL_TOKEN` (same token shared with metrics-collector) | Pull | alle 30 s |
+| Grafana Alloy → Alloy self `127.0.0.1:12345/metrics` | HTTP | keine (loopback) | Pull | alle 30 s |
 | Grafana Alloy → Grafana Cloud Prometheus | HTTPS Basic | `GRAFANA_CLOUD_USER` / `GRAFANA_CLOUD_API_KEY` | Push (remote-write) | kontinuierlich |
 | `smc-live-overlay` → UptimeRobot API | HTTPS POST | `UPTIMEROBOT_API_KEY` in Request-Body | Pull | bei Scrape (TTL 30 s) |
 | `smc-live-overlay` → GitHub API | HTTPS | `GITHUB_WORKFLOW_MONITOR_TOKEN` Bearer | Pull | bei Scrape (TTL 30 s) |

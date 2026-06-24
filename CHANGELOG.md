@@ -6,6 +6,40 @@ All notable changes to this project are documented in this file.
 
 ## [Unreleased]
 
+### Changed (2026-06-24) — Benzinga RSS wiring + process metrics expansion
+
+- `newsstack_fmp` now includes a free-tier Benzinga RSS adapter path in the
+  production poller: lazy adapter init, RSS fetch block, persisted cursor
+  (`benzinga_rss.last_seen_epoch`) and metadata export for diagnostics.
+- `newsstack_fmp.config.Config` gained `enable_benzinga_rss` and includes
+  `benzinga_rss` in `active_sources` when enabled.
+- Feature-flag defaults were aligned to ON for both
+  `ENABLE_BENZINGA_RSS` and `ENABLE_TRADINGVIEW_NEWS`.
+- Process-level telemetry was expanded:
+  - `open_prep/realtime_signals.py` exports `signals_producer_process_*`
+    metrics via `/metrics`.
+  - `services/live_overlay_daemon/metrics.py` exports
+    `live_overlay_process_*` metrics (CPU/memory/fds/uptime/GC) in the daemon
+    metrics payload.
+  - Alloy scrape setup gained additional targets for `signals_producer` and
+    `alloy_self`, enabling Grafana visibility for all three Railway containers
+    (signals producer, live overlay, metric collector).
+- Grafana dashboard and alert rules were extended with dedicated process
+  resource panels/alerts for all three services.
+- `/proc/self/status` reads in `_collect_process_metrics()` now use `encoding="utf-8"` explicitly
+  instead of relying on the locale default (hardened text-IO, consistent with the
+  `test_assert_and_open_encoding_pin` guard).
+- **Security (F6):** `/metrics` in `open_prep/realtime_signals.py` now requires the same
+  `Authorization: Bearer <token>` guard as `/signals` when `SIGNALS_INTERNAL_TOKEN` is set
+  in the environment (audit finding F6; resolves the unauthenticated-endpoint gap noted in
+  the previous entry).
+- **Alloy auth:** `prometheus.scrape "signals_producer"` now sends `Authorization: Bearer`
+  using `SIGNALS_INTERNAL_TOKEN`, ensuring scraping works when the token is set.
+- Multiple pin/ledger guards were re-baselined for intentional line drift in
+  touched files (`global`, `time.sleep`, `urlopen`, `mkstemp`,
+  `os.unlink/remove`, `json.load`, `# type: ignore`, and related boundary
+  bundle ledgers).
+
 ### Changed (2026-06-23) — Live-overlay snapshot delivery hardening
 
 - `scripts/publish_signals_snapshot.py` now validates `--branch` defensively

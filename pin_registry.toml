@@ -84,7 +84,7 @@
 # 2026-06-23 (signals-producer consumer hook): _fetch_json_url pulls the
 # open-prep snapshot from OPEN_PREP_SNAPSHOT_URL (raw bot-branch JSON) so the
 # Railway worker can run without the local artifact; http(s)-only, timeout=15s.
-"open_prep/realtime_signals.py" = [811]
+"open_prep/realtime_signals.py" = [911]
 "scripts/probe_fmp_13f_endpoints.py" = [75]
 "scripts/resolve_workflow_runner.py" = [91]
 # 2026-06-21 (live-overlay bridge observability): optional external polling
@@ -158,7 +158,7 @@ codes = ["S603"]
 # E402 outliers in newsstack_fmp/pipeline.py remain (not covered by per-file-ignores).
 [[noqa_budget.sites]]
 file = "newsstack_fmp/pipeline.py"
-line = 1178
+line = 1217
 codes = ["E402"]
 
 # ruff fix (2026-06-11): added # noqa: RUF007 / RUF012 / F401 suppressions
@@ -187,6 +187,46 @@ codes = ["F401"]
 file = "smc_tv_bridge/smc_api.py"
 line = 184
 codes = ["E402", "I001"]
+
+[[noqa_budget.sites]]
+file = "smc_core/smt_divergence.py"
+line = 93
+codes = ["D401"]
+
+# smc_integration/measurement_evidence.py — Phase B/C sweep trap + reaction zone
+# helper: BLE001 broad-except is intentional — Phase B/C enrichment is purely
+# additive; any error must degrade gracefully without breaking v1 scoring.
+[[noqa_budget.sites]]
+file = "smc_integration/measurement_evidence.py"
+line = 854
+codes = ["BLE001"]
+
+[[noqa_budget.sites]]
+file = "smc_integration/measurement_evidence.py"
+line = 906
+codes = ["BLE001"]
+
+# smc_integration/measurement_evidence.py:925 — Phase A freshness helper:
+# same reasoning as above — graceful degradation to "fresh" on any error.
+[[noqa_budget.sites]]
+file = "smc_integration/measurement_evidence.py"
+line = 925
+codes = ["BLE001"]
+
+[[noqa_budget.sites]]
+file = "smc_integration/measurement_evidence.py"
+line = 854
+codes = ["BLE001"]
+
+[[noqa_budget.sites]]
+file = "smc_integration/measurement_evidence.py"
+line = 906
+codes = ["BLE001"]
+
+[[noqa_budget.sites]]
+file = "smc_integration/measurement_evidence.py"
+line = 925
+codes = ["BLE001"]
 
 
 # ---------------------------------------------------------------------------

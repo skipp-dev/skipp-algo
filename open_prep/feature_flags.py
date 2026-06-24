@@ -84,9 +84,22 @@ def is_benzinga_ws_enabled() -> bool:
     return _bool_env("ENABLE_BENZINGA_WS", "0")
 
 
+def is_benzinga_rss_enabled() -> bool:
+    """Return True iff ``ENABLE_BENZINGA_RSS`` is set to ``"1"`` (default ON).
+
+    Uses free RSS feed — no API key required.
+    """
+    return _bool_env("ENABLE_BENZINGA_RSS", "1")
+
+
 def is_tradingview_news_enabled() -> bool:
-    """Return True iff ``ENABLE_TRADINGVIEW_NEWS`` is set to ``"1"`` (default OFF)."""
-    return _bool_env("ENABLE_TRADINGVIEW_NEWS", "0")
+    """Return True iff ``ENABLE_TRADINGVIEW_NEWS`` is set to ``"1"`` (default ON).
+
+    TradingView uses an unofficial keyless endpoint — no API credentials
+    required.  Default-ON so the Railway worker gets free symbol-scoped
+    headlines out of the box.  Set to ``"0"`` to disable explicitly.
+    """
+    return _bool_env("ENABLE_TRADINGVIEW_NEWS", "1")
 
 
 def is_newsapi_ai_enabled() -> bool:
@@ -139,3 +152,75 @@ def is_fmp_13f_enabled() -> bool:
     FMP /sec-filings/13F-HR-latest.  Requires dedicated plan tier.
     """
     return _bool_env("ENABLE_FMP_13F", "0")
+
+
+# ---------------------------------------------------------------------------
+# SMC Signal Quality v2 feature flags
+# (TradingFinder SMC implementation plan, 2026-06-24)
+# All default OFF so existing v1 scoring is unchanged until each phase is
+# validated and explicitly enabled in the deployment environment.
+# ---------------------------------------------------------------------------
+
+
+def is_freshness_v2_enabled() -> bool:
+    """Return True iff ``ENABLE_FRESHNESS_V2`` is ``"1"`` (default OFF).
+
+    Phase A: enables uniform freshness/invalidation enrichment across all
+    SMC event families (BOS, OB, FVG, SWEEP).  When disabled, the legacy
+    per-family freshness fields are used unchanged.
+    """
+    return _bool_env("ENABLE_FRESHNESS_V2", "0")
+
+
+def is_sweep_trap_enabled() -> bool:
+    """Return True iff ``ENABLE_SWEEP_TRAP`` is ``"1"`` (default OFF).
+
+    Phase B: enables Sweep Trap Classifier enrichment.  Adds
+    ``sweep_reclaim_bars``, ``trap_type``, ``reclaim_strength``,
+    ``fib_retrace_depth``, and ``trap_quality_score`` fields to liquidity
+    sweep context.  Requires an active SWEEP event to have any effect.
+    """
+    return _bool_env("ENABLE_SWEEP_TRAP", "0")
+
+
+def is_reaction_zone_enabled() -> bool:
+    """Return True iff ``ENABLE_REACTION_ZONE`` is ``"1"`` (default OFF).
+
+    Phase C: enables Reaction Zone computation for liquidity sweeps.
+    Adds ``reaction_zone_low/high``, ``close_back_inside_zone``,
+    ``wick_rejection_ratio``, ``confirmation_body_ratio``, and
+    ``bars_to_confirm``.  Depends on Phase B (sweep trap) being active.
+    """
+    return _bool_env("ENABLE_REACTION_ZONE", "0")
+
+
+def is_confluence_score_enabled() -> bool:
+    """Return True iff ``ENABLE_CONFLUENCE_SCORE`` is ``"1"`` (default OFF).
+
+    Phase D: enables the OB ∩ FVG ∩ Sweep orthogonal confluence sub-score.
+    This is the trigger for the Signal Quality v2 budget re-weight; do not
+    enable before the v2 calibration gate is passed.
+    """
+    return _bool_env("ENABLE_CONFLUENCE_SCORE", "0")
+
+
+def is_smt_divergence_enabled() -> bool:
+    """Return True iff ``ENABLE_SMT_DIVERGENCE`` is ``"1"`` (default OFF).
+
+    Phase E: enables SMT/correlation divergence layer.  Requires a
+    correlated-pair data feed to be configured in the live engine.
+    """
+    return _bool_env("ENABLE_SMT_DIVERGENCE", "0")
+
+
+def signal_quality_model() -> str:
+    """Return the active Signal Quality score model version.
+
+    Values: ``"v1"`` (default), ``"v2"`` (after Phase D cutover),
+    ``"v2.1"`` (after Phase E cutover).  Controls which bucket weights
+    ``build_signal_quality`` applies.
+
+    Operators should NOT flip this to ``"v2"`` until the confluence
+    calibration gate has been passed (incremental Brier non-inferiority).
+    """
+    return os.environ.get("SIGNAL_QUALITY_MODEL", "v1").strip()
