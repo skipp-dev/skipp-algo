@@ -104,8 +104,8 @@ _TEMPFILE_LEDGER: frozenset[tuple[str, int, str]] = frozenset({
     # _load_outcomes_range +6 → 575.
     ("open_prep/outcomes.py", 575, "mkstemp"),
     ("open_prep/realtime_signals.py", 117, "mkstemp"),
-    ("open_prep/realtime_signals.py", 2658, "mkstemp"),
-    ("open_prep/realtime_signals.py", 2699, "mkstemp"),
+    ("open_prep/realtime_signals.py", 2659, "mkstemp"),
+    ("open_prep/realtime_signals.py", 2700, "mkstemp"),
     ("open_prep/watchlist.py", 63, "mkstemp"),
     ("smc_core/benchmark.py", 30, "mkstemp"),
     ("smc_core/ensemble_quality.py", 49, "mkstemp"),

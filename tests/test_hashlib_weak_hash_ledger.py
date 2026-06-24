@@ -76,7 +76,7 @@ _FROZEN_SITES: dict[str, dict[str, frozenset[int]]] = {
         "sha1": frozenset({186}),
     },
     "open_prep/dirty_flag_manager.py": {"md5": frozenset({74})},
-    "open_prep/realtime_signals.py": {"md5": frozenset({1142})},
+    "open_prep/realtime_signals.py": {"md5": frozenset({1143})},
     # #2334: offline simulation script mirrors build_cache_path's digest
     # computation to re-key probe paths. Non-security cache-fingerprint use.
     "scripts/simulate_cache_redesign_2334.py": {"sha1": frozenset({49})},

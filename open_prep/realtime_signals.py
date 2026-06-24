@@ -676,10 +676,11 @@ def _start_telemetry_server(
     Runs as a daemon thread — will be cleaned up when the main process exits.
     Returns the HTTPServer instance (or None on failure) for graceful shutdown.
 
-    The bind host defaults to ``127.0.0.1`` (loopback) but can be overridden
+    The bind host defaults to ``0.0.0.0`` (all interfaces) so Railway's
+    reverse proxy can reach the process from outside the container.  Override
     via the ``host`` argument or the ``TELEMETRY_BIND_HOST`` environment
-    variable — set it to a non-loopback address so a sibling service can
-    reach ``/signals`` over a private network (e.g. Railway internal DNS).
+    variable (e.g. set to ``127.0.0.1`` to restrict to loopback in
+    non-container deployments).
 
     When ``engine`` is provided, ``/signals`` falls back to live engine state
     if ``SIGNALS_PATH`` has not yet been written (cold start before the first

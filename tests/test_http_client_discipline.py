@@ -178,7 +178,7 @@ _FROZEN_URLOPEN_SITES: frozenset[tuple[str, int]] = frozenset(
         # the open-prep snapshot from OPEN_PREP_SNAPSHOT_URL with explicit
         # timeout discipline (Railway worker without local artifact).
         # Line shifted 792 -> 798 -> 802 -> 811 after do_HEAD addition.
-        ("open_prep/realtime_signals.py", 811),
+        ("open_prep/realtime_signals.py", 812),
         # 2026-06-22: Grafana dashboard publisher API upsert over urllib.
         # Line shifted 251 -> 287 after ADR-0025 App Platform (/apis
         # dashboard.grafana.app/v1) migration; urlopen now in shared _request_json.
