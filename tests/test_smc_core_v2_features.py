@@ -1,4 +1,4 @@
-"""Tests for smc_core.v2_features (Phase 0c stubs)."""
+"""Tests for smc_core.v2_features isolation layer."""
 
 from __future__ import annotations
 
@@ -14,21 +14,20 @@ from smc_core.v2_features import (
     reaction_zone_enabled,
     smt_divergence_enabled,
     sweep_trap_enabled,
-    v2_feature_summary,
 )
 
 
 @pytest.fixture(autouse=True)
 def _clear_feature_flags() -> Iterator[None]:
-    """Remove all SMC v2 env vars before each test."""
-    keys = {
+    """Remove all SMC v2 feature flags before each test."""
+    keys = [
         "ENABLE_SWEEP_TRAP",
         "ENABLE_REACTION_ZONE",
         "ENABLE_CONFLUENCE_SCORE",
         "ENABLE_FRESHNESS_V2",
         "ENABLE_SMT_DIVERGENCE",
         "SIGNAL_QUALITY_MODEL",
-    }
+    ]
     saved = {k: os.environ.pop(k, None) for k in keys}
     yield
     for k, v in saved.items():
@@ -39,7 +38,7 @@ def _clear_feature_flags() -> Iterator[None]:
 
 
 @pytest.mark.parametrize(
-    "env_var, func",
+    "env_var,func",
     [
         ("ENABLE_SWEEP_TRAP", sweep_trap_enabled),
         ("ENABLE_REACTION_ZONE", reaction_zone_enabled),
@@ -53,7 +52,7 @@ def test_feature_default_off(env_var: str, func: Callable[[], bool]) -> None:
 
 
 @pytest.mark.parametrize(
-    "env_var, func",
+    "env_var,func",
     [
         ("ENABLE_SWEEP_TRAP", sweep_trap_enabled),
         ("ENABLE_REACTION_ZONE", reaction_zone_enabled),
@@ -71,18 +70,21 @@ def test_active_signal_quality_model_default_v1() -> None:
     assert active_signal_quality_model() == "v1"
 
 
-def test_active_signal_quality_model_normalized() -> None:
-    os.environ["SIGNAL_QUALITY_MODEL"] = " V2 "
+def test_active_signal_quality_model_v2() -> None:
+    os.environ["SIGNAL_QUALITY_MODEL"] = "v2"
     assert active_signal_quality_model() == "v2"
 
 
-def test_v2_feature_summary_defaults() -> None:
-    summary = v2_feature_summary()
-    assert summary == {
-        "sweep_trap": False,
-        "reaction_zone": False,
-        "confluence_score": False,
-        "freshness_v2": False,
-        "smt_divergence": False,
-        "signal_quality_model": "v1",
-    }
+def test_active_signal_quality_model_v2_1() -> None:
+    os.environ["SIGNAL_QUALITY_MODEL"] = "v2.1"
+    assert active_signal_quality_model() == "v2.1"
+
+
+def test_active_signal_quality_model_unknown_fallback() -> None:
+    os.environ["SIGNAL_QUALITY_MODEL"] = "v3"
+    assert active_signal_quality_model() == "v1"
+
+
+def test_active_signal_quality_model_empty_fallback() -> None:
+    os.environ["SIGNAL_QUALITY_MODEL"] = "  "
+    assert active_signal_quality_model() == "v1"

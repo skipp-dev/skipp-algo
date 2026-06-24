@@ -36,15 +36,7 @@ Implementiert wurden die Phasen:
 Alle neuen v2-Features werden über `open_prep.feature_flags` geschaltet. In `smc_core/v2_features.py` gibt es dafür einheitliche, safe-default-Wrapper. Beispiel:
 
 ```python
-# smc_core/v2_features.py
-from open_prep.feature_flags import (
-    is_freshness_v2_enabled,
-    is_sweep_trap_enabled,
-    is_reaction_zone_enabled,
-    is_confluence_score_enabled,
-    is_smt_divergence_enabled,
-)
-
+# open_prep/feature_flags.py
 def any_v2_feature_enabled() -> bool:
     return any([
         is_freshness_v2_enabled(),
@@ -54,6 +46,8 @@ def any_v2_feature_enabled() -> bool:
         is_smt_divergence_enabled(),
     ])
 ```
+
+`smc_core/v2_features.py` bleibt ein isolierter Wrapper, der env vars direkt liest und **kein** `open_prep` importiert (Vorgabe: `tests/test_smc_fmp_client_isolation.py`).
 
 ### 2.2 Router in `scripts/smc_signal_quality.py`
 
