@@ -492,11 +492,24 @@ def merge_shard_payloads(
     union of what's available); the missing shards simply contribute zero
     rows.
 
-    Heavy deps (``pandas``, parquet engine) are imported lazily so the
+    Memory profile (WF-026 OOM fix, 2026-06-24)
+    --------------------------------------------
+    Old implementation loaded every shard file into a separate pandas
+    DataFrame (``[pd.read_parquet(p) for p in paths]``) and then called
+    ``pd.concat()``, holding N DataFrames + the concatenated copy + the
+    deduped copy simultaneously — peak ≈ 3× total frame size.  On the
+    standard 7 GB GitHub runner with 6 shards this triggered OOM /
+    swap-thrash on 2026-06-22 (swap_used peaked at 5 750 MB / 9 215 MB).
+
+    New implementation uses ``pyarrow.dataset`` to read all shard files
+    in a single streaming pass into one Arrow table (column-oriented,
+    more compact than N pandas DataFrames).  The Arrow table is released
+    before ``_dedupe_frame`` allocates its sorted copy, giving a peak of
+    ≈ 2× total frame size.
+
+    Heavy deps (``pyarrow``, parquet engine) are imported lazily so the
     manifest-only merge path stays import-cheap.
     """
-    import pandas as pd
-
     output_dir.mkdir(parents=True, exist_ok=True)
     by_frame = _discover_shard_parquets(manifest_paths)
     if not by_frame:
@@ -509,21 +522,44 @@ def merge_shard_payloads(
         )
         return {}
 
-    # Lazy import to keep CLI startup cheap when the reducer is invoked
-    # in manifest-only mode (no payloads to merge).
+    # Lazy imports — keep CLI startup cheap when operating in manifest-only
+    # mode.  pyarrow is a transitive dep via pandas' parquet engine so it
+    # is always available without an extra install step.
     from scripts.smc_atomic_write import atomic_write_parquet
+    import pyarrow.dataset as _pa_ds  # noqa: PLC0415
 
     summary: dict[str, int] = {}
     for frame, paths in by_frame.items():
-        frames_df = [pd.read_parquet(p) for p in paths]
-        concat_df = pd.concat(frames_df, ignore_index=True, sort=False)
+        # ------------------------------------------------------------------
+        # STREAMING READ — WF-026 OOM fix (2026-06-24)
+        # ------------------------------------------------------------------
+        # Previous: [pd.read_parquet(p) for p in paths] + pd.concat(...)
+        #   Peak ≈ 3× total frame size: N DataFrames simultaneously in RAM,
+        #   then the concatenated copy, then the deduped/sorted copy.
+        #   On a 7 GB runner with 6 shards → swap_used > 5 GB → OOM.
+        #
+        # New: pyarrow.dataset reads all shard files in one streaming pass
+        #   into a single Arrow table (column-oriented, ~2× more compact
+        #   than equivalent pandas DataFrames).  Explicit del before
+        #   _dedupe_frame frees the buffer before pandas allocates the
+        #   sorted copy.
+        #   Peak ≈ 2× total frame size (Arrow table → pandas → deduped).
+        # ------------------------------------------------------------------
+        _dataset = _pa_ds.dataset([str(p) for p in paths], format="parquet")
+        _arrow_table = _dataset.to_table()
+        concat_df = _arrow_table.to_pandas()
+        del _arrow_table  # release Arrow buffer before sort/dedup allocates
         deduped = _dedupe_frame(frame, concat_df)
+        del concat_df  # release pre-dedup copy
         out_path = output_dir / f"{merged_basename}__{frame}.parquet"
         atomic_write_parquet(deduped, out_path, index=False)
-        summary[frame] = len(deduped)
+        row_count = len(deduped)
+        del deduped  # release before next frame iteration
+
+        summary[frame] = row_count
         print(
             f"{_LOG_PREFIX}{frame}: merged {len(paths)} shard(s) → "
-            f"{len(deduped)} row(s) → {out_path.name}"
+            f"{row_count} row(s) → {out_path.name}"
         )
     return summary
 
