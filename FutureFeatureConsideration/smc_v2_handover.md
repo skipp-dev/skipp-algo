@@ -1,6 +1,6 @@
 # Handover: SMC v2 Feature Branch
 
-**Status:** Gemerged in `origin/main` via PR #2936 (Commit `881e3957`)  
+**Status:** Gemerged in `origin/main` via PR #2936 (Commit `881e3957`). Folgearbeiten in PR #2940.  
 **Basis:** `origin/main`  
 **Python:** Projekt-Venv (`<repo-root>/.venv/bin/python`)  
 **Stand:** Alle zugehörigen Tests grün, `ruff check --fix` sauber. Worktree und Branch wurden nach dem Merge aufgeräumt.
@@ -166,7 +166,12 @@ Ergebnis: **alle zugehörigen Tests passed**.
 
 - [x] PR #2936 mergen, sobald CI grün ist.
 - [x] Post-merge: Worktree entfernen, Branch löschen.
-- [ ] Zukünftige Iterationen: Detektoren von Stubs zu echten Implementierungen ausbauen.
+- [x] Detektoren gehärtet (Sweep Trap) und konfigurierbar gemacht.
+- [x] Edge-Case-Tests ergänzt.
+- [x] Freshness-Downgrade bei kontra-Signalen integriert.
+- [x] Dokumentation in `docs/v5_5b_architecture.md` ergänzt.
+- [ ] PR #2940 mergen.
+- [ ] Weitere Iterationen: datengetriebene Kalibrierung der Confidence-Scores.
 
 ---
 
