@@ -135,6 +135,8 @@ _FROZEN_SITES: frozenset[tuple[str, int]] = frozenset(
         # 2026-06-24 feat/benzinga-rss: retry backoff sleeps in REST client.
         ("newsstack_fmp/ingest_benzinga.py", 197),
         ("newsstack_fmp/ingest_benzinga.py", 208),
+        # 2026-06-24 feat/benzinga-rss: RSS feed fetch retry backoff.
+        ("newsstack_fmp/ingest_benzinga.py", 854),
     }
 )
 

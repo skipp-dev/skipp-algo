@@ -325,3 +325,33 @@ def test_last_fetch_errors_resets_per_fetch_call():
 
     assert adapter.last_fetch_errors == 0
 
+def test_fetch_news_retries_transient_failure_then_succeeds():
+    """A feed that fails once then succeeds should still yield items."""
+    attempts = []
+
+    def _parse(url, **_kw):
+        attempts.append(url)
+        if len(attempts) == 1:
+            raise Exception("transient")
+        entry = _make_entry(guid=f"guid-{url}", title="Recovered")
+        return {"entries": [entry], "bozo": False}
+
+    with _mock_feedparser(_parse):
+        adapter = BenzingaRssAdapter()
+        items = adapter.fetch_news()
+    # Two feeds configured by default; first feed fails once, then succeeds.
+    assert len(items) == 2
+    assert adapter.fetch_errors == 0  # transient retries don't count as final errors
+
+
+def test_fetch_news_gives_up_after_max_attempts():
+    """A feed that always fails should be skipped after max attempts."""
+    def _parse(url, **_kw):
+        raise Exception("persistent")
+
+    with _mock_feedparser(_parse):
+        adapter = BenzingaRssAdapter()
+        items = adapter.fetch_news()
+    assert len(items) == 0
+    assert adapter.fetch_errors == 2  # one per default feed
+

@@ -738,6 +738,10 @@ _RSS_USER_AGENT = (
 )
 _RSS_TIMEOUT = 10  # seconds per feed
 _RSS_MAX_SEEN_GUIDS = 4096  # cap dedup memory; pipeline cache handles long-term
+_RSS_MAX_ATTEMPTS = 3  # transient RSS errors: retry with exponential backoff
+_RSS_RETRYABLE_EXCEPTIONS = (
+    Exception,
+)  # feedparser raises generic Exception on network/parse failures
 _RSS_STOCK_DOMAIN = "stock-symbol"
 
 
@@ -815,6 +819,49 @@ def _entry_to_news_item(entry: Any, *, source_url: str) -> "NewsItem | None":
     )
 
 
+def _fetch_single_feed(
+    feed_url: str,
+    *,
+    timeout: int,
+    feedparser: Any,
+    max_attempts: int = _RSS_MAX_ATTEMPTS,
+) -> dict[str, Any]:
+    """Fetch a single RSS feed with retry/backoff.
+
+    Returns the parsed feed dict.  On repeated failure returns an empty
+    dict so the caller can continue with the remaining feeds.
+    """
+    for attempt in range(max_attempts):
+        try:
+            parsed = feedparser.parse(
+                feed_url,
+                agent=_RSS_USER_AGENT,
+                request_headers={"Accept": "application/rss+xml, application/xml, */*"},
+                timeout=timeout,
+            )
+            return parsed
+        except _RSS_RETRYABLE_EXCEPTIONS as exc:
+            if attempt < max_attempts - 1:
+                wait = 2 ** attempt
+                logger.warning(
+                    "BenzingaRSS: fetch failed for %s (attempt %d/%d): %s — retrying in %ds",
+                    feed_url,
+                    attempt + 1,
+                    max_attempts,
+                    exc,
+                    wait,
+                )
+                time.sleep(wait)
+            else:
+                logger.warning(
+                    "BenzingaRSS: fetch failed for %s after %d attempts: %s",
+                    feed_url,
+                    max_attempts,
+                    exc,
+                )
+    return {}
+
+
 class BenzingaRssAdapter:
     """Polls Benzinga's public RSS feeds — no API key required.
 
@@ -869,13 +916,14 @@ class BenzingaRssAdapter:
         _t0 = time.monotonic()
         _errors_this_fetch: int = 0
         for feed_url in self._feeds:
+            parsed = _fetch_single_feed(
+                feed_url, timeout=self._timeout, feedparser=feedparser
+            )
+            if not parsed:
+                _errors_this_fetch += 1
+                self.fetch_errors += 1
+                continue
             try:
-                parsed = feedparser.parse(
-                    feed_url,
-                    agent=_RSS_USER_AGENT,
-                    request_headers={"Accept": "application/rss+xml, application/xml, */*"},
-                    timeout=self._timeout,
-                )
                 if parsed.get("bozo"):
                     self.bozo_total += 1
                     logger.warning(
@@ -905,7 +953,7 @@ class BenzingaRssAdapter:
             except Exception as exc:
                 self.fetch_errors += 1
                 _errors_this_fetch += 1
-                logger.warning("BenzingaRSS: fetch failed for %s: %s", feed_url, exc)
+                logger.warning("BenzingaRSS: parse failed for %s: %s", feed_url, exc)
 
         self.fetch_total += 1
         self.last_fetch_errors = _errors_this_fetch
