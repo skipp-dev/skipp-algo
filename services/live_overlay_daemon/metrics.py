@@ -22,6 +22,7 @@ from . import (
     feed,
     github_workflow_bridge,
     observability,
+    railway_metrics,
     request_hotspots,
     uptimerobot_bridge,
 )
