@@ -111,7 +111,7 @@ _FROZEN_JSON_LOAD_SITES: frozenset[tuple[str, int]] = frozenset(
         # store_daily_outcomes shifted 185→199.
         ("open_prep/outcomes.py", 199),
         ("open_prep/realtime_signals.py", 1706),
-        ("open_prep/realtime_signals.py", 2843),
+        ("open_prep/realtime_signals.py", 2851),
         ("open_prep/scorer.py", 122),
         ("open_prep/watchlist.py", 53),
         # 2026-06-10 (PR #2658): centralized trading-thresholds loader parses a
