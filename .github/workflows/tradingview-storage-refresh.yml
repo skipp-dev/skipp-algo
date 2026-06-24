@@ -176,7 +176,7 @@ jobs:
             --repo "${{ github.repository }}" \
             --title "🔐 tradingview-storage-refresh failed — manual cookie refresh required" \
             --body "$(cat <<'EOF'
-          The automated TradingView storage-state refresh failed at ${{ github.run_html_url }}.
+          The automated TradingView storage-state refresh failed at ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}.
 
           **Likely causes**
           - CAPTCHA / IP-based anti-bot challenge (most common)
