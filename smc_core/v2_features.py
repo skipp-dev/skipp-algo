@@ -9,12 +9,14 @@ from __future__ import annotations
 
 import os
 
-_TRUE_VALUES = frozenset({"1", "true", "yes", "on", "y"})
-
 
 def _flag_enabled(name: str) -> bool:
-    raw = os.getenv(name, "")
-    return raw.strip().lower() in _TRUE_VALUES
+    """Return True only when the env var is set to ``"1"``.
+
+    Matches the contract used by ``open_prep.feature_flags._bool_env``
+    so operators see consistent semantics across the codebase.
+    """
+    return os.getenv(name, "").strip() == "1"
 
 
 def sweep_trap_enabled() -> bool:

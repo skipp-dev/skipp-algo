@@ -1,11 +1,10 @@
 # Handover: SMC v2 Feature Branch
 
-**Worktree:** `/Users/spreuss/Documents/skipp-algo.worktrees/smc-v2`  
+**Worktree:** `<repo-root>.worktrees/smc-v2`  
 **Branch:** `feature/smc-v2`  
-**HEAD:** `bb50e510a20b86876d5b66023a08bc1fc895d54c`  
-**Basis:** `origin/main` (`bb50e510`) — 0 ahead / 0 behind  
-**Python:** `/Users/spreuss/Documents/skipp-algo/.venv/bin/python`  
-**Stand:** 155 zugehörige Tests grün, `ruff check --fix` sauber.
+**Basis:** `origin/main`  
+**Python:** Projekt-Venv (`<repo-root>/.venv/bin/python`)  
+**Stand:** Alle zugehörigen Tests grün, `ruff check --fix` sauber.
 
 ---
 
@@ -170,8 +169,8 @@ def build_signal_quality_v2(
 Letzter erfolgreicher Testlauf:
 
 ```bash
-cd /Users/spreuss/Documents/skipp-algo.worktrees/smc-v2
-/Users/spreuss/Documents/skipp-algo/.venv/bin/python -m pytest \
+cd <repo-root>.worktrees/smc-v2
+python -m pytest \
   tests/test_feature_flags.py \
   tests/test_smc_core_v2_features.py \
   tests/test_signal_quality.py \

@@ -139,7 +139,7 @@ def _freshness_label_v2(
     if fresh_count >= 2 and in_killzone and has_recent_sweep:
         return "very_fresh"
 
-    # Fresh: same rule as v1 plus killzone or sweep as tie breaker
+    # Fresh: same rule as v1; killzone/sweep are handled above.
     if fresh_count >= 2 or (structure_fresh and structure_age <= 5):
         return "fresh"
 
@@ -412,6 +412,11 @@ def build_signal_quality(
     the implementation: ``"v1"`` (default) calls the frozen production
     scoring in :func:`build_signal_quality_v1`; ``"v2"`` and ``"v2.1"`
     delegate to :func:`build_signal_quality_v2`.
+
+    Additionally, if any v2 feature flag is enabled (see
+    :func:`open_prep.feature_flags.any_v2_feature_enabled`), the router
+    always delegates to v2 so that individual features can be toggled
+    without changing the model setting.
     """
     model = signal_quality_model()
     if model == "v1" and not any_v2_feature_enabled():
