@@ -3,6 +3,7 @@ from __future__ import annotations
 import hashlib
 import logging
 import math
+import os
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from pathlib import Path
@@ -51,13 +52,6 @@ from smc_core.smc_confluence import compute_confluence  # Phase D
 from smc_core.session_context import build_session_liquidity_context
 from smc_core.sweep_trap import classify_sweep_trap  # Phase B
 from smc_core.vol_regime import compute_vol_regime
-from open_prep.feature_flags import (  # Phase 0 model flags
-    is_confluence_score_enabled,
-    is_freshness_v2_enabled,
-    is_reaction_zone_enabled,
-    is_sweep_trap_enabled,
-    signal_quality_model,
-)
 from smc_integration.artifact_resolution import resolve_structure_artifact_inputs
 from smc_integration.repo_sources import load_raw_meta_input_composite
 from smc_integration.sources import structure_artifact_json
@@ -75,6 +69,30 @@ _BOS_FOLLOW_THROUGH_THRESHOLD_PCT = 0.003
 _SWEEP_REVERSAL_THRESHOLD_PCT = 0.005
 _SQ_LOOKBACK_BARS = 64
 _SQ_RAW_SCORE_NAME = "SIGNAL_QUALITY_SCORE"
+
+
+def _bool_env(name: str, default: str = "1") -> bool:
+    return os.environ.get(name, default).strip() == "1"
+
+
+def is_freshness_v2_enabled() -> bool:
+    return _bool_env("ENABLE_FRESHNESS_V2", "0")
+
+
+def is_sweep_trap_enabled() -> bool:
+    return _bool_env("ENABLE_SWEEP_TRAP", "0")
+
+
+def is_reaction_zone_enabled() -> bool:
+    return _bool_env("ENABLE_REACTION_ZONE", "0")
+
+
+def is_confluence_score_enabled() -> bool:
+    return _bool_env("ENABLE_CONFLUENCE_SCORE", "0")
+
+
+def signal_quality_model() -> str:
+    return os.environ.get("SIGNAL_QUALITY_MODEL", "v1").strip()
 
 
 def build_evidence_id(
