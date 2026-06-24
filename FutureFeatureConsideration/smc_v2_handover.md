@@ -1,10 +1,9 @@
 # Handover: SMC v2 Feature Branch
 
-**Worktree:** `<repo-root>.worktrees/smc-v2`  
-**Branch:** `feature/smc-v2`  
+**Status:** Gemerged in `origin/main` via PR #2936 (Commit `881e3957`)  
 **Basis:** `origin/main`  
 **Python:** Projekt-Venv (`<repo-root>/.venv/bin/python`)  
-**Stand:** Alle zugehörigen Tests grün, `ruff check --fix` sauber, PR #2936 offen.
+**Stand:** Alle zugehörigen Tests grün, `ruff check --fix` sauber. Worktree und Branch wurden nach dem Merge aufgeräumt.
 
 ---
 
@@ -165,17 +164,17 @@ Ergebnis: **alle zugehörigen Tests passed**.
 
 ## 6. Nächste Schritte
 
-- [ ] PR #2936 mergen, sobald CI grün ist.
-- [ ] Post-merge: Worktree entfernen, Branch löschen.
+- [x] PR #2936 mergen, sobald CI grün ist.
+- [x] Post-merge: Worktree entfernen, Branch löschen.
 - [ ] Zukünftige Iterationen: Detektoren von Stubs zu echten Implementierungen ausbauen.
 
 ---
 
-## 7. Schnell-Checkliste für den neuen Chat
+## 7. Schnell-Checkliste für Folgearbeiten an SMC v2
 
-- [ ] Worktree `<repo-root>.worktrees/smc-v2` verwenden
-- [ ] Branch `feature/smc-v2` bestätigen (`git branch --show-current`)
+- [ ] Neuen Worktree von `origin/main` erstellen (der alte `smc-v2`-Worktree wurde entfernt)
+- [ ] Branch bestätigen (`git branch --show-current`)
 - [ ] Nicht im shared `<repo-root>/skipp-algo` schreiben
 - [ ] Bei Änderungen an `scripts/smc_signal_quality.py` Patch-Skripte bevorzugen
 - [ ] Nach jeder Änderung `ruff check --fix` und zugehörige `pytest`-Tests laufen lassen
-- [ ] `FutureFeatureConsideration/smc_v2_handover.md` am Ende der Session aktualisieren
+- [ ] `FutureFeatureConsideration/smc_v2_handover.md` am Ende der Session aktualisiseren
