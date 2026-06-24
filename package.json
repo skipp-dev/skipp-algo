@@ -40,6 +40,9 @@
     "tv:evidence-summary": "python3 scripts/tv_publish_evidence_summary.py",
     "tsc:check": "tsc --noEmit"
   },
+  "dependencies": {
+    "otplib": "^12.0.1"
+  },
   "devDependencies": {
     "@types/node": "^24.6.0",
     "playwright": "^1.55.0",

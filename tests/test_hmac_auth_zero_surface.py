@@ -43,6 +43,9 @@ HMAC_ALLOWED: set[tuple[str, int, str]] = {
     # 2026-06-22 (fix/live-overlay-market-open-multiregion): main-merge +
     # provider-news rework shifted the same compare_digest call 418 → 421.
     ("services/live_overlay_daemon/main.py", 421, "compare_digest"),
+    # realtime_signals.py uses compare_digest for constant-time HMAC token
+    # verification. Added 2026-06-24 as part of TV refresh auth work.
+    ("open_prep/realtime_signals.py", 719, "compare_digest"),
 }
 
 _DIR_EXCLUDE = {
