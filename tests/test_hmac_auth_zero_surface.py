@@ -45,7 +45,7 @@ HMAC_ALLOWED: set[tuple[str, int, str]] = {
     ("services/live_overlay_daemon/main.py", 421, "compare_digest"),
     # 2026-06-24 (fix/healthz-bind-default-0000): constant-time Bearer token
     # comparison for /signals auth guard (CWE-208 safe).
-    ("open_prep/realtime_signals.py", 719, "compare_digest"),
+    ("open_prep/realtime_signals.py", 720, "compare_digest"),
 }
 
 _DIR_EXCLUDE = {
