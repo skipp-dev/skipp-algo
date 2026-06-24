@@ -1394,6 +1394,117 @@ def render_metrics(startup_ts: float) -> str:
                 f"{_prom_numeric_value(row.get('n_events', 0))}"
             )
 
+    # --- Railway container resource metrics ---
+    railway_snapshot = railway_metrics.snapshot()
+    lines.append("# TYPE live_overlay_railway_metrics_enabled gauge")
+    if railway_snapshot.get("enabled"):
+        lines.append(
+            f"live_overlay_railway_metrics_enabled {1 if railway_snapshot.get('ok') else 0}"
+        )
+
+        fetched_at = railway_snapshot.get("fetched_at_unix", 0.0)
+        if fetched_at > 0:
+            age_seconds = time.time() - fetched_at
+            lines.append("# TYPE live_overlay_railway_metrics_age_seconds gauge")
+            lines.append(f"live_overlay_railway_metrics_age_seconds {age_seconds:.1f}")
+
+        error = railway_snapshot.get("error")
+        if error:
+            # Surface error as an info metric with the error text as label
+            escaped_error = _escape_label_value(str(error)[:200])
+            lines.append("# TYPE live_overlay_railway_metrics_error_info gauge")
+            lines.append(f'live_overlay_railway_metrics_error_info{{error="{escaped_error}"}} 1')
+
+        services = railway_snapshot.get("services") or []
+        if services:
+            # CPU cores
+            lines.append("# TYPE live_overlay_railway_service_cpu_cores gauge")
+            for svc in services:
+                service_name = _sanitize_name(svc.get("service", "unknown"))
+                service_id = svc.get("service_id", "unknown")
+                cpu = svc.get("cpu_cores")
+                if cpu is not None:
+                    lines.append(
+                        f'live_overlay_railway_service_cpu_cores{{service="{service_name}",service_id="{service_id}"}} '
+                        f"{_prom_numeric_value(cpu)}"
+                    )
+
+            # Memory usage in GB (Railway native units)
+            lines.append("# TYPE live_overlay_railway_service_memory_gb gauge")
+            for svc in services:
+                service_name = _sanitize_name(svc.get("service", "unknown"))
+                service_id = svc.get("service_id", "unknown")
+                memory_gb = svc.get("memory_gb")
+                if memory_gb is not None:
+                    lines.append(
+                        f'live_overlay_railway_service_memory_gb{{service="{service_name}",service_id="{service_id}"}} '
+                        f"{_prom_numeric_value(memory_gb)}"
+                    )
+
+            # Memory limit in GB
+            lines.append("# TYPE live_overlay_railway_service_memory_limit_gb gauge")
+            for svc in services:
+                service_name = _sanitize_name(svc.get("service", "unknown"))
+                service_id = svc.get("service_id", "unknown")
+                limit_gb = svc.get("memory_limit_gb")
+                if limit_gb is not None:
+                    lines.append(
+                        f'live_overlay_railway_service_memory_limit_gb{{service="{service_name}",service_id="{service_id}"}} '
+                        f"{_prom_numeric_value(limit_gb)}"
+                    )
+
+            # Memory used ratio (memory_gb / memory_limit_gb)
+            lines.append("# TYPE live_overlay_railway_service_memory_used_ratio gauge")
+            for svc in services:
+                service_name = _sanitize_name(svc.get("service", "unknown"))
+                service_id = svc.get("service_id", "unknown")
+                memory_gb = svc.get("memory_gb")
+                limit_gb = svc.get("memory_limit_gb")
+                if memory_gb is not None and limit_gb is not None and limit_gb > 0:
+                    ratio = memory_gb / limit_gb
+                    lines.append(
+                        f'live_overlay_railway_service_memory_used_ratio{{service="{service_name}",service_id="{service_id}"}} '
+                        f"{_prom_numeric_value(ratio)}"
+                    )
+
+            # Disk usage in GB
+            lines.append("# TYPE live_overlay_railway_service_disk_gb gauge")
+            for svc in services:
+                service_name = _sanitize_name(svc.get("service", "unknown"))
+                service_id = svc.get("service_id", "unknown")
+                disk_gb = svc.get("disk_gb")
+                if disk_gb is not None:
+                    lines.append(
+                        f'live_overlay_railway_service_disk_gb{{service="{service_name}",service_id="{service_id}"}} '
+                        f"{_prom_numeric_value(disk_gb)}"
+                    )
+
+            # Network RX in GB
+            lines.append("# TYPE live_overlay_railway_service_network_rx_gb gauge")
+            for svc in services:
+                service_name = _sanitize_name(svc.get("service", "unknown"))
+                service_id = svc.get("service_id", "unknown")
+                rx_gb = svc.get("network_rx_gb")
+                if rx_gb is not None:
+                    lines.append(
+                        f'live_overlay_railway_service_network_rx_gb{{service="{service_name}",service_id="{service_id}"}} '
+                        f"{_prom_numeric_value(rx_gb)}"
+                    )
+
+            # Network TX in GB
+            lines.append("# TYPE live_overlay_railway_service_network_tx_gb gauge")
+            for svc in services:
+                service_name = _sanitize_name(svc.get("service", "unknown"))
+                service_id = svc.get("service_id", "unknown")
+                tx_gb = svc.get("network_tx_gb")
+                if tx_gb is not None:
+                    lines.append(
+                        f'live_overlay_railway_service_network_tx_gb{{service="{service_name}",service_id="{service_id}"}} '
+                        f"{_prom_numeric_value(tx_gb)}"
+                    )
+    else:
+        lines.append("live_overlay_railway_metrics_enabled 0")
+
     # --- Process-level metrics (CPU, memory, FDs, GC) ---
     lines.extend(_collect_process_metrics(startup_ts))
 

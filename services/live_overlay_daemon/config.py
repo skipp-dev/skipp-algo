@@ -451,3 +451,69 @@ def restart_cause() -> str:
 def ingest_queue_max() -> int:
     """Maximum number of pending bars in feed ingest queue."""
     return _clamped_int("LIVE_OVERLAY_INGEST_QUEUE_MAX", 20000, 1000, 200000)
+
+
+# ---------------------------------------------------------------------------
+# Railway container metrics bridge
+# ---------------------------------------------------------------------------
+
+
+def railway_metrics_enabled() -> bool:
+    """Return True iff Railway container metrics polling is enabled."""
+    return _optional_str("ENABLE_RAILWAY_METRICS", "0") == "1"
+
+
+def railway_api_token() -> str:
+    """Railway API token for GraphQL metrics queries."""
+    return _optional_str("RAILWAY_API_TOKEN", "")
+
+
+def railway_project_id() -> str:
+    """Railway project ID for metrics queries."""
+    return _optional_str("RAILWAY_PROJECT_ID", "")
+
+
+def railway_environment_id() -> str:
+    """Railway environment ID for metrics queries."""
+    return _optional_str("RAILWAY_ENVIRONMENT_ID", "")
+
+
+def railway_service_names() -> dict[str, str]:
+    """Mapping of Railway service IDs to human-readable names.
+
+    Format: RAILWAY_SERVICE_NAMES="service-id-1=signals-producer,service-id-2=live-overlay"
+    """
+    raw = _optional_str("RAILWAY_SERVICE_NAMES", "")
+    if not raw:
+        return {}
+    mapping: dict[str, str] = {}
+    for pair in raw.split(","):
+        pair = pair.strip()
+        if not pair or "=" not in pair:
+            continue
+        service_id, sep, name = pair.partition("=")
+        service_id = service_id.strip()
+        name = name.strip()
+        if service_id and name:
+            mapping[service_id] = name
+    return mapping
+
+
+def railway_metrics_timeout_secs() -> int:
+    """HTTP timeout for Railway GraphQL requests."""
+    return _clamped_int("RAILWAY_METRICS_TIMEOUT_SECS", 10, 1, 60)
+
+
+def railway_metrics_window_secs() -> int:
+    """Time window for Railway metrics query (how far back to look)."""
+    return _clamped_int("RAILWAY_METRICS_WINDOW_SECS", 300, 60, 3600)
+
+
+def railway_metrics_sample_secs() -> int:
+    """Sample rate for Railway metrics aggregation."""
+    return _clamped_int("RAILWAY_METRICS_SAMPLE_SECS", 60, 10, 600)
+
+
+def railway_metrics_poll_ttl_secs() -> int:
+    """Cache TTL for Railway metrics snapshot reuse."""
+    return _clamped_int("RAILWAY_METRICS_POLL_TTL_SECS", 60, 10, 600)

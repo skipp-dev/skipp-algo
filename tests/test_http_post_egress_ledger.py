@@ -172,6 +172,8 @@ URLLIB_REQUEST_POST_LEDGER: set[tuple[str, int]] = {
     # 2026-06-21: UptimeRobot bridge polls monitor API with low-level
     # urllib.request.Request(..., method="POST") + timeout discipline.
     ("services/live_overlay_daemon/uptimerobot_bridge.py", 69),
+    # 2026-06-24: Railway GraphQL API for container metrics polling.
+    ("services/live_overlay_daemon/railway_metrics.py", 74),
     # 2026-06-22: the Grafana dashboard publisher previously pinned here as a
     # literal Request(method="POST"). ADR-0025 consolidated its GET/POST/PUT
     # egress into a single method-agnostic urllib.request.Request in
