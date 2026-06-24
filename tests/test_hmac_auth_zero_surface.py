@@ -42,13 +42,11 @@ HMAC_ALLOWED: set[tuple[str, int, str]] = {
     # compare_digest call; latest line pin is 418.
     # 2026-06-22 (fix/live-overlay-market-open-multiregion): main-merge +
     # provider-news rework shifted the same compare_digest call 418 → 421.
-    # 2026-06-24 (signals auth): realtime /signals bearer-token check uses
-    # constant-time comparison.
-    ("open_prep/realtime_signals.py", 719, "compare_digest"),
+    # 2026-06-24 (signals auth): realtime /signals bearer-token checks use
+    # constant-time comparison at two call sites.
+    ("open_prep/realtime_signals.py", 812, "compare_digest"),
+    ("open_prep/realtime_signals.py", 843, "compare_digest"),
     ("services/live_overlay_daemon/main.py", 421, "compare_digest"),
-    # realtime_signals.py uses compare_digest for constant-time HMAC token
-    # verification. Added 2026-06-24 as part of TV refresh auth work.
-    ("open_prep/realtime_signals.py", 719, "compare_digest"),
 }
 
 _DIR_EXCLUDE = {
