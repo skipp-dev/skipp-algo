@@ -10,7 +10,7 @@ from __future__ import annotations
 
 from typing import Any
 
-from open_prep.feature_flags import is_reaction_zone_enabled
+from smc_core.v2_features import reaction_zone_enabled
 
 
 def detect_reaction_zone(enrichment: dict[str, Any] | None = None) -> dict[str, Any]:
@@ -37,7 +37,7 @@ def detect_reaction_zone(enrichment: dict[str, Any] | None = None) -> dict[str, 
         "REACTION_ZONE_DIRECTION": "neutral",
     }
 
-    if not is_reaction_zone_enabled():
+    if not reaction_zone_enabled():
         return neutral
 
     enr = enrichment or {}

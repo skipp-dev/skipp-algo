@@ -11,7 +11,7 @@ from __future__ import annotations
 
 from typing import Any
 
-from open_prep.feature_flags import is_smt_divergence_enabled
+from smc_core.v2_features import smt_divergence_enabled
 
 
 def detect_smt_divergence(enrichment: dict[str, Any] | None = None) -> dict[str, Any]:
@@ -37,7 +37,7 @@ def detect_smt_divergence(enrichment: dict[str, Any] | None = None) -> dict[str,
         "SMT_DIVERGENCE_CONFIDENCE": 0,
     }
 
-    if not is_smt_divergence_enabled():
+    if not smt_divergence_enabled():
         return neutral
 
     enr = enrichment or {}

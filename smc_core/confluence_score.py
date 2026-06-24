@@ -9,7 +9,7 @@ from __future__ import annotations
 
 from typing import Any
 
-from open_prep.feature_flags import is_confluence_score_enabled
+from smc_core.v2_features import confluence_score_enabled
 
 
 def compute_confluence_score(enrichment: dict[str, Any] | None = None) -> dict[str, Any]:
@@ -32,7 +32,7 @@ def compute_confluence_score(enrichment: dict[str, Any] | None = None) -> dict[s
     """
     neutral = {"CONFLUENCE_SCORE": 0, "CONFLUENCE_DIRECTION": "neutral"}
 
-    if not is_confluence_score_enabled():
+    if not confluence_score_enabled():
         return neutral
 
     enr = enrichment or {}

@@ -9,7 +9,7 @@ from __future__ import annotations
 
 from typing import Any
 
-from open_prep.feature_flags import is_sweep_trap_enabled
+from smc_core.v2_features import sweep_trap_enabled
 
 
 def detect_sweep_trap(enrichment: dict[str, Any] | None = None) -> dict[str, Any]:
@@ -31,7 +31,7 @@ def detect_sweep_trap(enrichment: dict[str, Any] | None = None) -> dict[str, Any
     """
     neutral = {"SWEEP_TRAP_DETECTED": False, "SWEEP_TRAP_CONFIDENCE": 0}
 
-    if not is_sweep_trap_enabled():
+    if not sweep_trap_enabled():
         return neutral
 
     enr = enrichment or {}
