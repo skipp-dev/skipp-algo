@@ -2684,7 +2684,11 @@ class RealtimeEngine:
         # VisiData compact JSONL snapshot (fast, no fsync)
         self._save_vd_snapshot()
 
-        with self._lock:
+        _lock = getattr(self, "_lock", None)
+        if _lock is not None:
+            with _lock:
+                _snap = list(self._active_signals)
+        else:
             _snap = list(self._active_signals)
         payload = {
             "updated_at": datetime.now(UTC).isoformat(),
