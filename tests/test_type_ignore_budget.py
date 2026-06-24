@@ -116,6 +116,8 @@ _FROZEN_FILE_COUNTS: dict[str, int] = {
     "terminal_technicals.py": 2,
     "terminal_tradingview_news.py": 1,  # PR #2128: tuple-return (bool, T) miss-cache helper signature confuses generic narrowing.
     "smc_integration/measurement_evidence.py": 1,  # 2026-06-24: datetime subtraction type narrowing
+    "open_prep/realtime_signals.py": 1,  # 2026-06-24: _resource=None POSIX-guard shim (type: ignore[assignment])
+    "services/live_overlay_daemon/metrics.py": 2,  # 2026-06-24: resource=None POSIX-guard shim (type: ignore[assignment]) + possibly-undefined
 }
 
 
