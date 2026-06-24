@@ -17,11 +17,9 @@ from smc_core.event_freshness import (
     AGING_BARS,
     FRESH_BARS,
     STALE_BARS,
-    FreshnessState,
     classify_freshness,
     freshness_decay_multiplier,
 )
-
 
 # ---------------------------------------------------------------------------
 # classify_freshness — bucket assignment
