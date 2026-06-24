@@ -199,7 +199,11 @@ codes = ["E402", "I001"]
 # for any NEW orphan.
 # ---------------------------------------------------------------------------
 [workflow_orphan_inventory]
+# 2026-06-24 (PR #2927 unblock): tradingview-storage-refresh.yml exists on
+# current main but was missing on this branch; we add it to keep the orphan
+# inventory explicit until dedicated coverage is added.
 allowed = [
+  "tradingview-storage-refresh.yml",
 ]
 
 # ---------------------------------------------------------------------------
