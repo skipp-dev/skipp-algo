@@ -544,6 +544,7 @@ class TestRealtimeFailOpen:
         from open_prep.realtime_signals import RealtimeEngine
 
         engine = RealtimeEngine.__new__(RealtimeEngine)
+        engine._lock = __import__("threading").Lock()  # set by __init__; required by poll_once
         engine._client_disabled_reason = "API key missing"
         engine._active_signals = []
         engine._watchlist = []
