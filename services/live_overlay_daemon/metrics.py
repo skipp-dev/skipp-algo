@@ -722,16 +722,23 @@ def _collect_process_metrics(startup_ts: float) -> list[str]:
     """
     import gc
     import os
-    import resource
+
+    try:
+        import resource  # POSIX-only; guarded for cross-platform safety
+        _resource_available = True
+    except ImportError:
+        _resource_available = False
+        resource = None  # type: ignore[assignment]
 
     lines: list[str] = []
     prefix = "live_overlay_process"
 
-    # CPU seconds (user + system)
-    usage = resource.getrusage(resource.RUSAGE_SELF)
-    cpu_seconds = usage.ru_utime + usage.ru_stime
-    lines.append(f"# TYPE {prefix}_cpu_seconds_total counter")
-    lines.append(f"{prefix}_cpu_seconds_total {cpu_seconds:.6f}")
+    # CPU seconds (user + system) — POSIX only
+    if _resource_available and resource is not None:
+        usage = resource.getrusage(resource.RUSAGE_SELF)
+        cpu_seconds = usage.ru_utime + usage.ru_stime
+        lines.append(f"# TYPE {prefix}_cpu_seconds_total counter")
+        lines.append(f"{prefix}_cpu_seconds_total {cpu_seconds:.6f}")
 
     # Memory — prefer /proc/self/status (Linux) for accurate RSS/VmSize
     rss_bytes = 0
@@ -745,13 +752,14 @@ def _collect_process_metrics(startup_ts: float) -> list[str]:
                     vm_bytes = int(line.split()[1]) * 1024
     except (OSError, ValueError):
         # macOS fallback: ru_maxrss is in bytes on macOS, KB on Linux
-        import sys
+        if _resource_available and resource is not None:
+            import sys
 
-        rss_bytes = usage.ru_maxrss
-        if sys.platform == "darwin":
-            pass  # already in bytes on macOS
-        else:
-            rss_bytes *= 1024
+            rss_bytes = usage.ru_maxrss  # type: ignore[possibly-undefined]
+            if sys.platform == "darwin":
+                pass  # already in bytes on macOS
+            else:
+                rss_bytes *= 1024
 
     lines.append(f"# TYPE {prefix}_resident_memory_bytes gauge")
     lines.append(f"{prefix}_resident_memory_bytes {rss_bytes}")
