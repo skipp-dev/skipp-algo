@@ -93,7 +93,7 @@ class SMTDivergenceResult:
     smt_strength: float
 
 
-def classify_smt_divergence(  # noqa: D401
+def classify_smt_divergence(
     *,
     base_symbol: str,
     corr_symbol: str,
