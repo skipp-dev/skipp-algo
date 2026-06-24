@@ -1,4 +1,5 @@
 """Integration test for the full SMC v2 signal-quality surface."""
+
 from __future__ import annotations
 
 import os
@@ -65,7 +66,7 @@ def _make_full_enrichment() -> dict:
             "RECENT_BULL_SWEEP": True,
             "RECENT_BEAR_SWEEP": False,
             "SWEEP_DIRECTION": "BULL",
-            "SWEEP_QUALITY_SCORE": 2,
+            "SWEEP_QUALITY_SCORE": 1,
         },
         "compression_regime": {"ATR_REGIME": "NORMAL"},
         "correlated_context": {

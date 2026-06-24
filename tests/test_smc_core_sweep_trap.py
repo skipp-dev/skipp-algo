@@ -1,4 +1,5 @@
 """Tests for smc_core.sweep_trap (Phase B)."""
+
 from __future__ import annotations
 
 import os
@@ -21,9 +22,7 @@ def _clear_env() -> Iterator[None]:
 
 
 def test_disabled_returns_neutral() -> None:
-    result = detect_sweep_trap(
-        enrichment={"liquidity_sweeps": {"RECENT_BULL_SWEEP": True, "SWEEP_QUALITY_SCORE": 1}}
-    )
+    result = detect_sweep_trap(enrichment={"liquidity_sweeps": {"RECENT_BULL_SWEEP": True, "SWEEP_QUALITY_SCORE": 1}})
     assert result == {"SWEEP_TRAP_DETECTED": False, "SWEEP_TRAP_CONFIDENCE": 0}
 
 
@@ -42,7 +41,7 @@ def test_enabled_low_quality_bull_sweep_detected() -> None:
                 "RECENT_BULL_SWEEP": True,
                 "RECENT_BEAR_SWEEP": False,
                 "SWEEP_DIRECTION": "BULL",
-                "SWEEP_QUALITY_SCORE": 2,
+                "SWEEP_QUALITY_SCORE": 1,
             }
         }
     )
@@ -58,7 +57,7 @@ def test_enabled_high_quality_returns_neutral() -> None:
                 "RECENT_BULL_SWEEP": True,
                 "RECENT_BEAR_SWEEP": False,
                 "SWEEP_DIRECTION": "BULL",
-                "SWEEP_QUALITY_SCORE": 9,
+                "SWEEP_QUALITY_SCORE": 4,
             }
         }
     )

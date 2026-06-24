@@ -1,4 +1,5 @@
 """Tests for Phase A Freshness v2 in scripts.smc_signal_quality."""
+
 from __future__ import annotations
 
 import os
@@ -56,7 +57,7 @@ def test_v2_freshness_expired_when_exhaustion() -> None:
     assert result["SIGNAL_FRESHNESS"] == "expired"
 
 
-def test_v1_ignores_freshness_v2_flag() -> None:
+def test_v2_feature_flag_triggers_v2_routing_with_default_model() -> None:
     os.environ["ENABLE_FRESHNESS_V2"] = "1"
     enrichment = {
         "structure_state_light": {"STRUCTURE_FRESH": True, "STRUCTURE_EVENT_AGE_BARS": 2},
@@ -64,10 +65,11 @@ def test_v1_ignores_freshness_v2_flag() -> None:
         "ob_context_light": {"OB_FRESH": True},
         "session_context_light": {"IN_KILLZONE": True},
         "liquidity_sweeps": {"RECENT_BULL_SWEEP": True},
+        "compression_regime": {"ATR_REGIME": "NORMAL"},
     }
     result = build_signal_quality(enrichment=enrichment)
-    # v1 caps at "fresh" and has no "very_fresh" label
-    assert result["SIGNAL_FRESHNESS"] == "fresh"
+    # The feature flag forces v2 routing even when SIGNAL_QUALITY_MODEL is unset.
+    assert result["SIGNAL_FRESHNESS"] == "very_fresh"
 
 
 def test_overrides_still_win_with_v2_freshness() -> None:

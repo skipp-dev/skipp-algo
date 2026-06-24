@@ -43,12 +43,14 @@ Usage::
     sq = build_signal_quality(enrichment=enrichment)
     enrichment["signal_quality"] = sq
 """
+
 from __future__ import annotations
 
 import logging
 from typing import Any
 
 from open_prep.feature_flags import (
+    any_v2_feature_enabled,
     is_confluence_score_enabled,
     is_freshness_v2_enabled,
     is_reaction_zone_enabled,
@@ -398,6 +400,7 @@ def build_signal_quality_v1(
 
     return result
 
+
 def build_signal_quality(
     *,
     enrichment: dict[str, Any] | None = None,
@@ -411,7 +414,7 @@ def build_signal_quality(
     delegate to :func:`build_signal_quality_v2`.
     """
     model = signal_quality_model()
-    if model == "v1":
+    if model == "v1" and not any_v2_feature_enabled():
         return build_signal_quality_v1(enrichment=enrichment, overrides=overrides)
     return build_signal_quality_v2(enrichment=enrichment, overrides=overrides)
 

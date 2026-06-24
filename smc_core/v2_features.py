@@ -1,65 +1,50 @@
 """SMC v2 feature-flag access layer for smc_core.
 
-Phase 0c scaffolding (2026-06-24).  All flags default OFF and are read
-directly from environment variables so ``smc_core`` stays independent
-from ``open_prep`` package imports.
+Phase 0c scaffolding (2026-06-24).  Thin wrappers around the SSOT in
+``open_prep.feature_flags`` so that ``smc_core`` consumers use the same
+env-var parsing semantics as the rest of the repository.
 """
+
 from __future__ import annotations
 
-import os
-
-_TRUE_VALUES = frozenset({"1", "true", "yes", "on", "y"})
-
-
-def _flag_enabled(name: str) -> bool:
-    raw = os.getenv(name, "")
-    return raw.strip().lower() in _TRUE_VALUES
+from open_prep.feature_flags import (
+    is_confluence_score_enabled,
+    is_freshness_v2_enabled,
+    is_reaction_zone_enabled,
+    is_smt_divergence_enabled,
+    is_sweep_trap_enabled,
+    signal_quality_model,
+)
 
 
 def sweep_trap_enabled() -> bool:
     """Return True when the Sweep Trap feature is enabled."""
-    return _flag_enabled("ENABLE_SWEEP_TRAP")
+    return is_sweep_trap_enabled()
 
 
 def reaction_zone_enabled() -> bool:
     """Return True when the Reaction Zone feature is enabled."""
-    return _flag_enabled("ENABLE_REACTION_ZONE")
+    return is_reaction_zone_enabled()
 
 
 def confluence_score_enabled() -> bool:
     """Return True when the Confluence Score feature is enabled."""
-    return _flag_enabled("ENABLE_CONFLUENCE_SCORE")
+    return is_confluence_score_enabled()
 
 
 def freshness_v2_enabled() -> bool:
     """Return True when Freshness v2 is enabled."""
-    return _flag_enabled("ENABLE_FRESHNESS_V2")
+    return is_freshness_v2_enabled()
 
 
 def smt_divergence_enabled() -> bool:
     """Return True when SMT Divergence is enabled."""
-    return _flag_enabled("ENABLE_SMT_DIVERGENCE")
+    return is_smt_divergence_enabled()
 
 
 def active_signal_quality_model() -> str:
     """Return the active signal-quality model version (``"v1"`` default)."""
-    model = os.getenv("SIGNAL_QUALITY_MODEL", "v1").strip().lower()
-    if model in {"v1", "v2", "v2.1"}:
-        return model
-    return "v1"
-
-
-def any_v2_feature_enabled() -> bool:
-    """Return True if any SMC v2 feature flag is currently enabled."""
-    return any(
-        (
-            sweep_trap_enabled(),
-            reaction_zone_enabled(),
-            confluence_score_enabled(),
-            freshness_v2_enabled(),
-            smt_divergence_enabled(),
-        )
-    )
+    return signal_quality_model()
 
 
 def v2_feature_summary() -> dict[str, bool | str]:

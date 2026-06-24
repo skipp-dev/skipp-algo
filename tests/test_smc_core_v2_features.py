@@ -1,14 +1,14 @@
 """Tests for smc_core.v2_features (Phase 0c stubs)."""
+
 from __future__ import annotations
 
 import os
-from collections.abc import Iterator
+from collections.abc import Callable, Iterator
 
 import pytest
 
 from smc_core.v2_features import (
     active_signal_quality_model,
-    any_v2_feature_enabled,
     confluence_score_enabled,
     freshness_v2_enabled,
     reaction_zone_enabled,
@@ -48,7 +48,7 @@ def _clear_feature_flags() -> Iterator[None]:
         ("ENABLE_SMT_DIVERGENCE", smt_divergence_enabled),
     ],
 )
-def test_feature_default_off(env_var: str, func: callable) -> None:
+def test_feature_default_off(env_var: str, func: Callable[[], bool]) -> None:
     assert func() is False
 
 
@@ -62,18 +62,9 @@ def test_feature_default_off(env_var: str, func: callable) -> None:
         ("ENABLE_SMT_DIVERGENCE", smt_divergence_enabled),
     ],
 )
-def test_feature_explicit_on(env_var: str, func: callable) -> None:
+def test_feature_explicit_on(env_var: str, func: Callable[[], bool]) -> None:
     os.environ[env_var] = "1"
     assert func() is True
-
-
-def test_any_v2_feature_default_false() -> None:
-    assert any_v2_feature_enabled() is False
-
-
-def test_any_v2_feature_true_when_one_on() -> None:
-    os.environ["ENABLE_SWEEP_TRAP"] = "1"
-    assert any_v2_feature_enabled() is True
 
 
 def test_active_signal_quality_model_default_v1() -> None:

@@ -173,10 +173,26 @@ def is_smt_divergence_enabled() -> bool:
     return _bool_env("ENABLE_SMT_DIVERGENCE", "0")
 
 
+def any_v2_feature_enabled() -> bool:
+    """Return True iff any SMC v2 feature flag is enabled."""
+    return any(
+        (
+            is_sweep_trap_enabled(),
+            is_reaction_zone_enabled(),
+            is_confluence_score_enabled(),
+            is_freshness_v2_enabled(),
+            is_smt_divergence_enabled(),
+        )
+    )
+
+
 def signal_quality_model() -> str:
     """Return the active signal-quality model version.
 
     Supported values: ``"v1"`` (default), ``"v2"``, ``"v2.1"``.
-    Callers should treat unknown values as ``"v1"`` for safe fallback.
+    Unknown or empty values safely fall back to ``"v1"``.
     """
-    return os.environ.get("SIGNAL_QUALITY_MODEL", "v1").strip().lower() or "v1"
+    model = os.environ.get("SIGNAL_QUALITY_MODEL", "v1").strip().lower() or "v1"
+    if model in ("v1", "v2", "v2.1"):
+        return model
+    return "v1"

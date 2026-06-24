@@ -5,6 +5,7 @@ no corresponding reversal has occurred and the sweep quality is poor.
 The detector is gated by ``ENABLE_SWEEP_TRAP`` and safe-defaults to a
 neutral result when the flag is OFF or inputs are unavailable.
 """
+
 from __future__ import annotations
 
 from typing import Any
@@ -45,12 +46,13 @@ def detect_sweep_trap(enrichment: dict[str, Any] | None = None) -> dict[str, Any
     if not (has_bull_sweep or has_bear_sweep) or sweep_direction == "NONE":
         return neutral
 
-    # A trap is identified only when sweep quality is poor (< 4 out of 10).
-    if sweep_quality >= 4:
+    # A trap is identified only when sweep quality is poor (< 3 on the 0-5 scale).
+    if sweep_quality >= 3:
         return neutral
 
-    # Confidence increases as quality decreases: score 3 -> 70, 2 -> 80, etc.
-    quality_factor = max(0, min(100, (10 - sweep_quality) * 10))
+    # Confidence increases as quality decreases on the 0-5 scale:
+    # score 0 -> 100, 1 -> 80, 2 -> 60.
+    quality_factor = max(0, min(100, (5 - sweep_quality) * 20))
 
     return {
         "SWEEP_TRAP_DETECTED": True,
