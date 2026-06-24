@@ -24,10 +24,10 @@ from scripts.smc_event_risk_light import build_event_risk_light
 from scripts.smc_session_context_block import build_session_context_block
 from scripts.smc_session_context_light import build_session_context_light
 from scripts.smc_signal_quality import (
-    build_signal_quality,
-    build_signal_quality_v2,
     _SQ_MODEL_V2,
     _SQ_MODEL_V21,
+    build_signal_quality,
+    build_signal_quality_v2,
 )
 from scripts.smc_structure_state import build_structure_state
 from scripts.smc_structure_state_light import build_structure_state_light
@@ -35,7 +35,9 @@ from smc_core.benchmark import EventFamily
 from smc_core.bias_merge import merge_bias
 from smc_core.cached_workbook_reader import read_daily_bars
 from smc_core.ensemble_quality import build_ensemble_quality, serialize_ensemble_quality
+from smc_core.event_freshness import classify_freshness  # Phase A
 from smc_core.htf_context import build_htf_bias_context
+from smc_core.reaction_zone import compute_reaction_zone  # Phase C
 from smc_core.scoring import (
     ScoredEvent,
     compute_fvg_partial_fill,
@@ -46,10 +48,8 @@ from smc_core.scoring import (
     label_sweep_reversal,
     score_events,
 )
-from smc_core.event_freshness import classify_freshness, freshness_decay_multiplier  # Phase A
-from smc_core.reaction_zone import compute_reaction_zone  # Phase C
-from smc_core.smc_confluence import compute_confluence  # Phase D
 from smc_core.session_context import build_session_liquidity_context
+from smc_core.smc_confluence import compute_confluence  # Phase D
 from smc_core.sweep_trap import classify_sweep_trap  # Phase B
 from smc_core.vol_regime import compute_vol_regime
 from smc_integration.artifact_resolution import resolve_structure_artifact_inputs
@@ -869,7 +869,7 @@ def _liquidity_support_for_event(
                             payload["SWEEP_TRAP_QUALITY_SCORE"] = (
                                 payload["SWEEP_TRAP_QUALITY_SCORE"] * 0.50
                             )
-            except Exception:  # noqa: BLE001
+            except Exception:
                 pass  # Phase B/C is additive; failure must not break v1 scoring.
         priority = (0 if candidate_id == current_id and family == "SWEEP" else 1, age_bars)
         if best is None or priority < best[0]:
@@ -891,7 +891,7 @@ def _freshness_state_light_for_event(
     *,
     event: dict[str, Any],
     anchor_idx: int,
-    bars: "pd.DataFrame",
+    bars: pd.DataFrame,
 ) -> dict[str, Any]:
     """Build Phase A freshness enrichment for a single SMC event.
 
@@ -921,7 +921,7 @@ def _freshness_state_light_for_event(
                 delta = (t1 - t0).total_seconds()  # type: ignore[operator]
                 if delta > 0:
                     bar_seconds = float(delta)
-            except Exception:  # noqa: BLE001
+            except Exception:
                 pass
 
         state = classify_freshness(
@@ -940,7 +940,7 @@ def _freshness_state_light_for_event(
             "invalidated_at": state.invalidated_at,
             "mitigated_at": state.mitigated_at,
         }
-    except Exception:  # noqa: BLE001
+    except Exception:
         return {
             "freshness_bucket": "fresh",
             "freshness_penalty": 1.0,

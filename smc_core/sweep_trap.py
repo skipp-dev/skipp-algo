@@ -26,8 +26,9 @@ the other at the enrichment level.
 
 from __future__ import annotations
 
+from collections.abc import Sequence
 from dataclasses import dataclass
-from typing import Any, Literal, Sequence
+from typing import Any, Literal
 
 from smc_core.v2_config import sweep_trap_config
 from smc_core.v2_features import sweep_trap_enabled
@@ -250,10 +251,10 @@ def detect_sweep_trap(enrichment: dict[str, Any] | None = None) -> dict[str, Any
     ).upper()
 
     reversal_penalty = 0
-    if sweep_direction == "BULL" and last_event in ("BOS_BEAR", "CHOCH_BEAR"):
+    if (sweep_direction == "BULL" and last_event in ("BOS_BEAR", "CHOCH_BEAR")) or (
+        sweep_direction == "BEAR" and last_event in ("BOS_BULL", "CHOCH_BULL")
+    ):
         reversal_penalty = sweep_trap_config.reversal_penalty
-    elif sweep_direction == "BEAR" and last_event in ("BOS_BULL", "CHOCH_BULL"):
-        reversal_penalty = 40
 
     confidence = max(0, min(100, quality_factor + direction_boost - reversal_penalty))
     if confidence == 0:

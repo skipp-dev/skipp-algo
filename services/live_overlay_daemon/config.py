@@ -491,7 +491,7 @@ def railway_service_names() -> dict[str, str]:
         pair = pair.strip()
         if not pair or "=" not in pair:
             continue
-        service_id, sep, name = pair.partition("=")
+        service_id, _sep, name = pair.partition("=")
         service_id = service_id.strip()
         name = name.strip()
         if service_id and name:
