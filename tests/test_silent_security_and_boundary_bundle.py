@@ -193,7 +193,7 @@ _FROZEN_BASIC_CONFIG_SITES: frozenset[tuple[str, int]] = frozenset({
     # 2026-06-12 (Copilot #2729): main() exit-semantics docstring +6 → 585.
     # 2026-06-17 (F1 lint fix): remove unused import sys → 585→584.
     ("open_prep/outcome_backfill.py", 584),
-    ("open_prep/realtime_signals.py", 2796),
+    ("open_prep/realtime_signals.py", 2800),
     # 2026-06-16 (feat/live-overlay-daemon): entry-point main.py configures
     # root logger at startup (Railway container, no other logger setup).
     # 2026-06-19 (fix/live-overlay-post-merge-bugs): import additions for
