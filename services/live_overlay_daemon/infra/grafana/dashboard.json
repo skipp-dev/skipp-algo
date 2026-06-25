@@ -2655,7 +2655,7 @@
       "targets": [
         {
           "expr": "live_overlay_github_workflow_phase_code{job=~\"$job\"}",
-          "legendFormat": "{{workflow}}",
+          "legendFormat": "{{workflow}} ({{event}})",
           "instant": false,
           "range": true,
           "datasource": {
@@ -4056,7 +4056,7 @@
       "title": "GitHub Workflows \u2014 Latest Run Detail",
       "type": "table",
       "gridPos": {
-        "h": 9,
+        "h": 14,
         "w": 24,
         "x": 0,
         "y": 187
