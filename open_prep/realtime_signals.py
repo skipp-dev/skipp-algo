@@ -528,13 +528,13 @@ class AsyncNewsstackPoller:
                     self._data = new_data
                     self.cached_tickers_count = len(new_data)
                     self.poll_count += 1
-                    self.last_success_at = time.monotonic()
+                    self.last_success_at = time.time()
                     self.last_error_msg = None
             except Exception as exc:
                 logger.debug("Async newsstack poll error: %s", exc)
                 with self._lock:
                     self.poll_errors += 1
-                    self.last_error_at = time.monotonic()
+                    self.last_error_at = time.time()
                     self.last_error_msg = str(exc)
             finally:
                 with self._lock:
