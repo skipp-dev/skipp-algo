@@ -1228,6 +1228,7 @@ class TestObContextPriceGuard:
             "OB_FRESH": False,
             "OB_AGE_BARS": 0,
             "OB_MITIGATION_STATE": "stale",
+            "OB_SUPPORT_SCORE": 0.0,
         }
 
     def test_negative_price_short_circuits(self) -> None:
@@ -1263,6 +1264,7 @@ class TestFvgLifecyclePriceGuard:
             "FVG_MATURITY_LEVEL": 0,
             "FVG_FRESH": False,
             "FVG_INVALIDATED": False,
+            "FVG_GAP_SCORE": 0.0,
         }
 
     def test_inf_price_short_circuits(self) -> None:

@@ -166,6 +166,9 @@ _FORCE_LEASE_ALLOWLIST: frozenset[str] = frozenset({
     # consumed by the live-overlay daemon; force-with-lease with prior fetch.
     # See ADR-0024.
     "credential-health-check.yml",
+    # plan-2-8-evaluation.yml: rolling bot/live-experiment-snapshot refresh
+    # for the Plan 2.8 TF-family evaluation artifact stream. See ADR-0024.
+    "plan-2-8-evaluation.yml",
 })
 
 _FORCE_RE = re.compile(r"git\s+push\b[^\n]*--force")

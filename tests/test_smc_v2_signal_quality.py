@@ -23,6 +23,7 @@ from scripts.smc_signal_quality import (
     _MAX_LIQUIDITY_V2,
     _MAX_OB_V2,
     _MAX_SESSION_V2,
+    _MAX_SMT_V2,
     _MAX_STRUCTURE_V2,
     build_signal_quality,
     build_signal_quality_v2,
@@ -42,6 +43,7 @@ def test_v2_budget_sums_to_100() -> None:
         + _MAX_FVG_V2
         + _MAX_COMPRESSION_V2
         + _MAX_CONFLUENCE_V2
+        + _MAX_SMT_V2
     )
     assert total == 100
 
@@ -78,6 +80,7 @@ class TestFreshnessDecay:
             "PRIMARY_OB_SIDE": "BULL",
             "OB_FRESH": True,
             "PRIMARY_OB_DISTANCE": 1.0,
+            "OB_SUPPORT_SCORE": 15.0,
         }
 
     def test_fresh_penalty_1_no_decay(self) -> None:
@@ -158,13 +161,29 @@ class TestConfluenceBucket:
         enr = {
             "structure_state_light": {"STRUCTURE_LAST_EVENT": "BOS_BULL"},
             "session_context_light": {"SESSION_DIRECTION_BIAS": "BULLISH"},
-            "ob_context_light": {"PRIMARY_OB_SIDE": "BULL", "OB_FRESH": True},
-            "fvg_lifecycle_light": {"PRIMARY_FVG_SIDE": "BULL", "FVG_FRESH": True},
-            "liquidity_sweeps": {"SWEEP_DIRECTION": "BULL"},
+            "ob_context_light": {
+                "PRIMARY_OB_SIDE": "BULL",
+                "OB_FRESH": True,
+                "PRIMARY_OB_DISTANCE": 1.0,
+                "OB_SUPPORT_SCORE": 15.0,
+            },
+            "fvg_lifecycle_light": {
+                "PRIMARY_FVG_SIDE": "BULL",
+                "FVG_FRESH": True,
+                "FVG_FILL_PCT": 0.0,
+                "FVG_INVALIDATED": False,
+                "PRIMARY_FVG_DISTANCE": 1.0,
+                "FVG_GAP_SCORE": 15.0,
+            },
+            "liquidity_sweeps": {
+                "RECENT_BULL_SWEEP": True,
+                "SWEEP_DIRECTION": "BULL",
+                "SWEEP_QUALITY_SCORE": 5,
+            },
         }
         with patch.dict(os.environ, {"ENABLE_CONFLUENCE_SCORE": "1"}):
             result = build_signal_quality_v2(enrichment=enr)
-        assert result["CONFLUENCE_SCORE"] > 0
+        assert result["CONFLUENCE_SCORE"] == 12
         assert result["CONFLUENCE_DIRECTION"] == "bull"
 
     def test_confluence_block_neutral_when_flag_disabled(self) -> None:

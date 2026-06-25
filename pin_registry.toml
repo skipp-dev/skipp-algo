@@ -209,13 +209,7 @@ allowed = [
   # TV_STORAGE_STATE secret headlessly; tested end-to-end via the
   # credential-health-check.yml probe. CI integration would require live
   # TradingView credentials. Added 2026-06-24 (#2904).
-  "tradingview-storage-refresh.yml",
-  # plan-2-8-evaluation.yml: ops-only cron that generates Plan 2.8
-  # experiment snapshots for dashboard consumption. Runs synthetic
-  # evaluation (placeholder for real logic). Added 2026-06-25 (dashboard
-  # automation).
-  "plan-2-8-evaluation.yml",
-]
+  "tradingview-storage-refresh.yml",]
 
 # ---------------------------------------------------------------------------
 # test_workflow_set_plus_e_inventory.py — workflows allowed to use
