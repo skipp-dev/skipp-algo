@@ -1203,10 +1203,10 @@ def render_metrics(startup_ts: float) -> str:
 
     workflow_counts = dict(workflow_snapshot.get("counts") or {})
     for key in ("seen", "success", "failed", "in_progress", "queued"):
-        # These values are cumulative counts from the GitHub API, so they are
-        # counters even though they are sampled periodically by the bridge.
+        # Bridge payloads are snapshot counts (latest scrape view), not
+        # monotonic process-lifetime counters.
         metric_name = f"live_overlay_github_workflow_runs_{key}_total"
-        lines.append(f"# TYPE {metric_name} counter")
+        lines.append(f"# TYPE {metric_name} gauge")
         lines.append(
             f"{metric_name} {_prom_numeric_value(workflow_counts.get(key, 0))}"
         )

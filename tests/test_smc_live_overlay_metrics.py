@@ -521,7 +521,7 @@ def test_render_metrics_includes_github_workflow_bridge_snapshot(monkeypatch: py
 
     assert "live_overlay_github_workflow_bridge_enabled 1" in body
     assert "live_overlay_github_workflow_scrape_success 1" in body
-    assert "# TYPE live_overlay_github_workflow_runs_seen_total counter" in body
+    assert "# TYPE live_overlay_github_workflow_runs_seen_total gauge" in body
     assert "live_overlay_github_workflow_runs_seen_total 4.0" in body
     assert "live_overlay_github_workflow_runs_success_total 2.0" in body
     assert "live_overlay_github_workflow_runs_failed_total 1.0" in body
@@ -995,14 +995,14 @@ def test_dashboard_has_uptimerobot_state_timeline() -> None:
     assert options.get("8", {}).get("text") == "DOWN"
 
 
-def test_dashboard_github_workflow_runs_panel_uses_rate() -> None:
+def test_dashboard_github_workflow_runs_panel_uses_snapshot_counts() -> None:
     repo_root = Path(__file__).resolve().parents[1]
     dashboard_path = repo_root / "services" / "live_overlay_daemon" / "infra" / "grafana" / "dashboard.json"
     dashboard = json.loads(dashboard_path.read_text(encoding="utf-8"))
     panel = next(p for p in dashboard["panels"] if p.get("title") == "GitHub Workflow Runs")
-    assert all("rate(" in t["expr"] for t in panel["targets"])
-    assert panel["fieldConfig"]["defaults"]["unit"] == "cps"
-    assert panel["fieldConfig"]["defaults"]["custom"]["axisLabel"] == "runs / sec"
+    assert all("rate(" not in t["expr"] for t in panel["targets"])
+    assert panel["fieldConfig"]["defaults"]["unit"] == "none"
+    assert panel["fieldConfig"]["defaults"]["custom"]["axisLabel"] == "runs (snapshot)"
 
 
 def test_dashboard_has_trading_signals_panels() -> None:

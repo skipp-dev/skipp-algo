@@ -2574,7 +2574,7 @@
       },
       "targets": [
         {
-          "expr": "rate(live_overlay_github_workflow_runs_seen_total{job=~\"$job\"}[$__rate_interval])",
+          "expr": "live_overlay_github_workflow_runs_seen_total{job=~\"$job\"}",
           "legendFormat": "seen",
           "datasource": {
             "type": "prometheus",
@@ -2582,7 +2582,7 @@
           }
         },
         {
-          "expr": "rate(live_overlay_github_workflow_runs_success_total{job=~\"$job\"}[$__rate_interval])",
+          "expr": "live_overlay_github_workflow_runs_success_total{job=~\"$job\"}",
           "legendFormat": "success",
           "datasource": {
             "type": "prometheus",
@@ -2590,7 +2590,7 @@
           }
         },
         {
-          "expr": "rate(live_overlay_github_workflow_runs_failed_total{job=~\"$job\"}[$__rate_interval])",
+          "expr": "live_overlay_github_workflow_runs_failed_total{job=~\"$job\"}",
           "legendFormat": "failed",
           "datasource": {
             "type": "prometheus",
@@ -2598,7 +2598,7 @@
           }
         },
         {
-          "expr": "rate(live_overlay_github_workflow_runs_in_progress_total{job=~\"$job\"}[$__rate_interval])",
+          "expr": "live_overlay_github_workflow_runs_in_progress_total{job=~\"$job\"}",
           "legendFormat": "in_progress",
           "datasource": {
             "type": "prometheus",
@@ -2606,7 +2606,7 @@
           }
         },
         {
-          "expr": "rate(live_overlay_github_workflow_runs_queued_total{job=~\"$job\"}[$__rate_interval])",
+          "expr": "live_overlay_github_workflow_runs_queued_total{job=~\"$job\"}",
           "legendFormat": "queued",
           "datasource": {
             "type": "prometheus",
@@ -2630,13 +2630,13 @@
       },
       "fieldConfig": {
         "defaults": {
-          "unit": "cps",
+          "unit": "none",
           "custom": {
-            "axisLabel": "runs / sec"
+            "axisLabel": "runs (snapshot)"
           }
         }
       },
-      "description": "Rate of GitHub workflow runs by phase (runs per second).",
+      "description": "Snapshot counts of GitHub workflow runs by phase from the latest bridge scrape.",
       "datasource": {
         "type": "prometheus",
         "uid": "grafanacloud-prom"
