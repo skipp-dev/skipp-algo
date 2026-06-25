@@ -1135,7 +1135,7 @@ def render_metrics(startup_ts: float) -> str:
 
     error_code = str(uptime_snapshot.get("error_code") or "")
     if error_code:
-        escaped = error_code.replace('"', '\\"').replace('\\', '\\\\')
+        escaped = _escape_label_value(error_code)
         lines.append("# TYPE live_overlay_uptimerobot_scrape_error_info gauge")
         lines.append(f'live_overlay_uptimerobot_scrape_error_info{{error_code="{escaped}"}} 1')
     else:
@@ -1190,7 +1190,7 @@ def render_metrics(startup_ts: float) -> str:
 
     wf_error_code = str(workflow_snapshot.get("error_code") or "")
     if wf_error_code:
-        escaped = wf_error_code.replace('"', '\\"').replace('\\', '\\\\')
+        escaped = _escape_label_value(wf_error_code)
         lines.append("# TYPE live_overlay_github_workflow_scrape_error_info gauge")
         lines.append(f'live_overlay_github_workflow_scrape_error_info{{error_code="{escaped}"}} 1')
     else:

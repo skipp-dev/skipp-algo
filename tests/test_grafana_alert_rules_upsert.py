@@ -227,7 +227,8 @@ def test_newsapi_refresh_workflow_keeps_fmp_and_tradingview_enabled() -> None:
         "smc-live-newsapi-refresh.yml must not run the export with --newsapi-only "
         "(that disables FMP + TradingView despite active subscriptions)."
     )
+    active_text = "\n".join(active_lines)
     # The active export command must enable Benzinga and inject both API keys.
-    assert "--skip-benzinga" not in text
-    assert "FMP_API_KEY" in text
-    assert "BENZINGA_API_KEY" in text
+    assert "--skip-benzinga" not in active_text
+    assert "FMP_API_KEY" in active_text
+    assert "BENZINGA_API_KEY" in active_text

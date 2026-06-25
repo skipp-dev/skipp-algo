@@ -573,6 +573,67 @@ def test_render_metrics_handles_github_workflow_bridge_disabled(monkeypatch: pyt
     assert "live_overlay_github_workflow_runs_seen_total 0.0" in body
 
 
+def test_render_metrics_escapes_uptimerobot_error_code_labels(monkeypatch: pytest.MonkeyPatch) -> None:
+    import services.live_overlay_daemon.metrics as metrics_mod
+
+    _patch_common(
+        monkeypatch,
+        feed_ready=True,
+        market_open=True,
+        bar_count=10,
+        overlay_symbols=5,
+        overlay_age=60.0,
+    )
+    monkeypatch.setattr(
+        metrics_mod.uptimerobot_bridge,
+        "snapshot",
+        lambda: {
+            "enabled": 1,
+            "ok": 0,
+            "fetched_at_unix": 1_700_000_100.0,
+            "error_code": 'timeout\\\\"quoted',
+            "counts": {"total": 0, "up": 0, "down": 0, "paused": 0, "unknown": 0},
+            "avg_response_time_ms": None,
+            "monitors": [],
+        },
+    )
+
+    body = metrics_mod.render_metrics(startup_ts=100.0)
+
+    assert 'live_overlay_uptimerobot_scrape_error_info{error_code="timeout\\\\\\\\\\"quoted"} 1' in body
+
+
+def test_render_metrics_escapes_github_workflow_error_code_labels(monkeypatch: pytest.MonkeyPatch) -> None:
+    import services.live_overlay_daemon.metrics as metrics_mod
+
+    _patch_common(
+        monkeypatch,
+        feed_ready=True,
+        market_open=True,
+        bar_count=10,
+        overlay_symbols=5,
+        overlay_age=60.0,
+    )
+    monkeypatch.setattr(
+        metrics_mod.github_workflow_bridge,
+        "snapshot",
+        lambda: {
+            "enabled": 1,
+            "ok": 0,
+            "fetched_at_unix": 1_700_000_100.0,
+            "error_code": 'http\\\\"401',
+            "counts": {"seen": 0, "success": 0, "failed": 0, "in_progress": 0, "queued": 0},
+            "latest_run_age_seconds": None,
+            "latest_run_duration_seconds": None,
+            "workflows": [],
+        },
+    )
+
+    body = metrics_mod.render_metrics(startup_ts=100.0)
+
+    assert 'live_overlay_github_workflow_scrape_error_info{error_code="http\\\\\\\\\\"401"} 1' in body
+
+
 def test_render_metrics_includes_trading_signals_snapshot(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
