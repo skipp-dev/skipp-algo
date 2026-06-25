@@ -396,7 +396,7 @@ observability.py (structured log lines + in-process counters)
 | `live_overlay_hotspot_tf_<tf>_requests_total` | gauge | request_hotspots.py |
 | `live_overlay_feed_ingest_queue_depth` | gauge | feed.py backpressure snapshot |
 | `live_overlay_feed_ingest_queue_depth_max` | gauge | feed.py backpressure snapshot |
-| `live_overlay_feed_ingest_queue_dropped_total` | gauge | feed.py backpressure snapshot |
+| `live_overlay_feed_ingest_queue_dropped_total` | counter | feed.py backpressure snapshot (monotonically increasing drops) |
 | `live_overlay_feed_ingest_queue_lag_ms_last` | gauge | feed.py backpressure snapshot |
 | `live_overlay_feed_ingest_queue_lag_ms_max` | gauge | feed.py backpressure snapshot |
 | `live_overlay_provider_news_snapshot_loaded` | gauge | metrics.py news provider snapshot probe |

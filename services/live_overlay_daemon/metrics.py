@@ -952,6 +952,15 @@ def render_metrics(startup_ts: float) -> str:
         lines.append(f"live_overlay_smc_live_latency_p99_ms {latency_p99_ms:.3f}")
 
     # --- Feed counters ---
+    # --- Daemon restart counter (aggregates restart-cause counters) ---
+    restart_total = sum(
+        value
+        for name, value in counters.items()
+        if name.startswith("live_overlay.daemon.restart_cause.") and name.endswith(".total")
+    )
+    lines.append("# TYPE live_overlay_daemon_restarts_total counter")
+    lines.append(f"live_overlay_daemon_restarts_total {_prom_numeric_value(restart_total)}")
+
     feed_metrics = feed.metrics_snapshot()
     for name, value in sorted(feed_metrics.items()):
         prom_name = f"live_overlay_feed_{_sanitize_name(name)}"
@@ -962,13 +971,17 @@ def render_metrics(startup_ts: float) -> str:
     for key in (
         "ingest_queue_depth",
         "ingest_queue_depth_max",
-        "ingest_queue_dropped_total",
         "ingest_queue_lag_ms_last",
         "ingest_queue_lag_ms_max",
     ):
         prom_name = f"live_overlay_feed_{_sanitize_name(key)}"
         lines.append(f"# TYPE {prom_name} gauge")
         lines.append(f"{prom_name} {_prom_numeric_value(backpressure.get(key, 0.0))}")
+
+    # ingest_queue_dropped_total is a counter (monotonically increasing drops).
+    prom_name = "live_overlay_feed_ingest_queue_dropped_total"
+    lines.append(f"# TYPE {prom_name} counter")
+    lines.append(f"{prom_name} {_prom_numeric_value(backpressure.get('ingest_queue_dropped_total', 0.0))}")
 
     provider_health = _provider_health_snapshot()
     for key in (
@@ -1199,6 +1212,8 @@ def render_metrics(startup_ts: float) -> str:
 
     workflow_counts = dict(workflow_snapshot.get("counts") or {})
     for key in ("seen", "success", "failed", "in_progress", "queued"):
+        # NOTE: these are point-in-time counts from the latest GitHub API page,
+        # not cumulative counters. Use deriv() or direct value, not rate().
         lines.append(f"# TYPE live_overlay_github_workflow_runs_{key}_total gauge")
         lines.append(
             f"live_overlay_github_workflow_runs_{key}_total {_prom_numeric_value(workflow_counts.get(key, 0))}"

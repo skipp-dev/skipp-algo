@@ -243,9 +243,9 @@ _FROZEN_SITES: frozenset[tuple[str, int, tuple[str, ...]]] = frozenset(
         # statements to 362/420/496.
         # 2026-06-22 follow-ups shifted these anchors to 365/423/512.
         # Post-merge sync with main shifted these anchors to 374/432/521.
-        ("services/live_overlay_daemon/feed.py", 374, ("_last_bar_at",)),
-        ("services/live_overlay_daemon/feed.py", 432, ("_feed_thread", "_flow_refresh_thread", "_refresh_thread")),
-        ("services/live_overlay_daemon/feed.py", 521, ("_feed_thread", "_flow_refresh_thread", "_refresh_thread")),
+        ("services/live_overlay_daemon/feed.py", 373, ("_last_bar_at",)),
+        ("services/live_overlay_daemon/feed.py", 431, ("_feed_thread", "_flow_refresh_thread", "_refresh_thread")),
+        ("services/live_overlay_daemon/feed.py", 520, ("_feed_thread", "_flow_refresh_thread", "_refresh_thread")),
         # 2026-06-21: optional external bridge snapshot caches are guarded by
         # module locks and cached via module-level singleton snapshots.
         # 2026-06-23: workflow bridge hardening (status/conclusion semantics,

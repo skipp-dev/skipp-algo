@@ -992,12 +992,14 @@ def test_dashboard_has_uptimerobot_state_timeline() -> None:
     assert options.get("8", {}).get("text") == "DOWN"
 
 
-def test_dashboard_github_workflow_runs_panel_uses_rate() -> None:
+def test_dashboard_github_workflow_runs_panel_uses_deriv() -> None:
     repo_root = Path(__file__).resolve().parents[1]
     dashboard_path = repo_root / "services" / "live_overlay_daemon" / "infra" / "grafana" / "dashboard.json"
     dashboard = json.loads(dashboard_path.read_text(encoding="utf-8"))
     panel = next(p for p in dashboard["panels"] if p.get("title") == "GitHub Workflow Runs")
-    assert all("rate(" in t["expr"] for t in panel["targets"])
+    # GitHub workflow counts are gauges (point-in-time API values), so deriv()
+    # is the correct rate-like operator rather than rate().
+    assert all("deriv(" in t["expr"] for t in panel["targets"])
     assert panel["fieldConfig"]["defaults"]["unit"] == "cps"
     assert panel["fieldConfig"]["defaults"]["custom"]["axisLabel"] == "runs / sec"
 
