@@ -598,9 +598,6 @@ def build_signal_quality_v2(
     elif atr_regime in ("EXHAUSTION",):
         warnings.append("atr_exhaustion")
 
-    # ── Event risk penalty (0 to -15) ───────────────────────────
-    score = _event_risk_penalty(enr, score, warnings, PENALTY_EVENT)
-
     # ── Confluence (0-12) ───────────────────────────────────────
     if is_confluence_score_enabled():
         from smc_core.smc_confluence import compute_confluence
