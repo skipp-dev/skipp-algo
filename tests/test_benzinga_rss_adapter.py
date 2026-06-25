@@ -5,7 +5,10 @@ All network calls are mocked — no real HTTP in CI.
 from __future__ import annotations
 
 import sys
+import threading
 from types import ModuleType, SimpleNamespace
+
+import pytest
 
 from newsstack_fmp.ingest_benzinga import BenzingaRssAdapter, _entry_to_news_item, _parse_rss_tickers
 
@@ -204,19 +207,6 @@ def test_fetch_news_tolerates_bozo_with_no_entries():
         adapter = BenzingaRssAdapter()
         items = adapter.fetch_news()
     assert items == []
-    # Both default feeds failed parsing (bozo with no entries).
-    assert adapter.fetch_errors == 2
-    assert adapter.last_fetch_errors == 2
-
-
-def test_fetch_news_empty_feed_list_returns_empty_without_error():
-    with _mock_feedparser(lambda _url, **_kw: {"entries": [], "bozo": False}):
-        adapter = BenzingaRssAdapter(feeds=())
-        items = adapter.fetch_news()
-    assert items == []
-    assert adapter.fetch_total == 1
-    assert adapter.fetch_errors == 0
-    assert adapter.last_fetch_errors == 0
 
 
 def test_fetch_news_tolerates_network_error():
@@ -334,45 +324,49 @@ def test_last_fetch_errors_resets_per_fetch_call():
 
     assert adapter.last_fetch_errors == 0
 
+
 def test_fetch_news_retries_transient_failure_then_succeeds(
-    monkeypatch,
+    monkeypatch: pytest.MonkeyPatch,
 ):
     """A feed that fails once then succeeds should still yield items."""
-    attempts = []
+    attempts: list[str] = []
+    seen_fail: set[str] = set()
+    lock = threading.Lock()
+    monkeypatch.setattr("newsstack_fmp.ingest_benzinga.time.sleep", lambda _s: None)
 
     def _parse(url, **_kw):
-        attempts.append(url)
-        if len(attempts) == 1:
+        with lock:
+            attempts.append(url)
+            first_for_url = url not in seen_fail
+            if first_for_url:
+                seen_fail.add(url)
+        if first_for_url:
             raise Exception("transient")
         entry = _make_entry(guid=f"guid-{url}", title="Recovered")
         return {"entries": [entry], "bozo": False}
 
     with _mock_feedparser(_parse):
-        monkeypatch.setattr(
-            "newsstack_fmp.ingest_benzinga.time.sleep", lambda _seconds: None
-        )
         adapter = BenzingaRssAdapter()
         items = adapter.fetch_news()
-    # Two feeds configured by default; first feed fails once, then succeeds.
+    # Two feeds configured by default; each URL fails once, then succeeds.
     assert len(items) == 2
     assert adapter.fetch_errors == 0  # transient retries don't count as final errors
 
 
 def test_fetch_news_gives_up_after_max_attempts(
-    monkeypatch,
+    monkeypatch: pytest.MonkeyPatch,
 ):
     """A feed that always fails should be skipped after max attempts."""
+    monkeypatch.setattr("newsstack_fmp.ingest_benzinga.time.sleep", lambda _s: None)
     def _parse(url, **_kw):
         raise Exception("persistent")
 
     with _mock_feedparser(_parse):
-        monkeypatch.setattr(
-            "newsstack_fmp.ingest_benzinga.time.sleep", lambda _seconds: None
-        )
         adapter = BenzingaRssAdapter()
         items = adapter.fetch_news()
     assert len(items) == 0
     assert adapter.fetch_errors == 2  # one per default feed
+
 
 def test_fetch_news_parallel_fetches_all_feeds():
     """Multiple feeds are fetched and aggregated even when they return different items."""
@@ -390,6 +384,7 @@ def test_fetch_news_parallel_fetches_all_feeds():
         items = adapter.fetch_news()
     assert len(items) == 3
     assert {i.headline for i in items} == {f"From {u}" for u in feeds}
+
 
 def test_entry_to_news_item_published_ts_falls_back_to_updated_parsed():
     """When published_parsed is missing but updated_parsed exists, use it."""

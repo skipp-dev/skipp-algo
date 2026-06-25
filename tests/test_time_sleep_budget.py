@@ -118,7 +118,7 @@ _FROZEN_SITES: frozenset[tuple[str, int]] = frozenset(
         ("open_prep/error_taxonomy.py", 117),
         ("open_prep/realtime_signals.py", 279),
         ("open_prep/realtime_signals.py", 354),
-        ("open_prep/realtime_signals.py", 1927),  # shifted by AsyncNewsstackPoller telemetry
+        ("open_prep/realtime_signals.py", 1927),
         ("open_prep/realtime_signals.py", 3061),
         ("open_prep/realtime_signals.py", 3074),
         # 2026-06-11 (eval-findings D7): technical_analysis import block
@@ -133,7 +133,8 @@ _FROZEN_SITES: frozenset[tuple[str, int]] = frozenset(
         # shifted the throttle sleep site 293 -> 294.
         ("terminal_technicals.py", 294),
         ("terminal_tradingview_news.py", 409),
-        # 2026-06-24 feat/benzinga-rss: RSS feed fetch retry backoff.
+        # 2026-06-25 feat/benzinga-rss-improvements (issue #2925):
+        # RSS adapter retries transient feed fetch failures with backoff.
         ("newsstack_fmp/ingest_benzinga.py", 897),
     }
 )
