@@ -88,6 +88,9 @@ def _all_time_sleep_sites() -> list[tuple[str, int]]:
 # reason, or (b) an existing site moves by ±N lines.
 _FROZEN_SITES: frozenset[tuple[str, int]] = frozenset(
     {
+        # 2026-06-24 feat/benzinga-rss: REST client retry backoff.
+        ("newsstack_fmp/ingest_benzinga.py", 198),
+        ("newsstack_fmp/ingest_benzinga.py", 209),
         ("newsstack_fmp/ingest_fmp.py", 136),
         ("newsstack_fmp/ingest_fmp.py", 154),
         # PR #2154: ingest_fmp_filings.py shifted +8 (121→129, 134→142)
@@ -107,7 +110,7 @@ _FROZEN_SITES: frozenset[tuple[str, int]] = frozenset(
         ("newsstack_fmp/ingest_fmp_political.py", 122),
         ("newsstack_fmp/ingest_fmp_political.py", 135),
         ("newsstack_fmp/shared_fetch.py", 297),
-        ("newsstack_fmp/pipeline.py", 1256),
+        ("newsstack_fmp/pipeline.py", 1259),
         ("newsstack_fmp/store_sqlite.py", 81),
         ("newsstack_fmp/store_sqlite.py", 86),
         ("open_prep/alerts.py", 408),
@@ -130,12 +133,9 @@ _FROZEN_SITES: frozenset[tuple[str, int]] = frozenset(
         # shifted the throttle sleep site 293 -> 294.
         ("terminal_technicals.py", 294),
         ("terminal_tradingview_news.py", 409),
-        # 2026-06-24 feat/benzinga-rss-improvements (issue #2925): RSS-4 retry
-        # backoff sleeps (3 attempts with 1s/2s/4s delays) for transient errors
-        # in RSS adapter, plus existing REST client retry backoffs shifted +1.
-        ("newsstack_fmp/ingest_benzinga.py", 198),
-        ("newsstack_fmp/ingest_benzinga.py", 209),
-        ("newsstack_fmp/ingest_benzinga.py", 915),
+        # 2026-06-25 feat/benzinga-rss-improvements (issue #2925):
+        # RSS adapter retries transient feed fetch failures with backoff.
+        ("newsstack_fmp/ingest_benzinga.py", 917),
     }
 )
 
