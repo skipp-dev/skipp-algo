@@ -104,8 +104,10 @@ _TEMPFILE_LEDGER: frozenset[tuple[str, int, str]] = frozenset({
     # _load_outcomes_range +6 → 575.
     ("open_prep/outcomes.py", 575, "mkstemp"),
     ("open_prep/realtime_signals.py", 117, "mkstemp"),
-    ("open_prep/realtime_signals.py", 2768, "mkstemp"),
-    ("open_prep/realtime_signals.py", 2815, "mkstemp"),
+    # 2026-06-25: AsyncNewsstackPoller telemetry additions shifted
+    # 2768 -> 2849 and 2815 -> 2896.
+    ("open_prep/realtime_signals.py", 2851, "mkstemp"),
+    ("open_prep/realtime_signals.py", 2898, "mkstemp"),
     ("open_prep/watchlist.py", 63, "mkstemp"),
     ("smc_core/benchmark.py", 30, "mkstemp"),
     ("smc_core/ensemble_quality.py", 49, "mkstemp"),

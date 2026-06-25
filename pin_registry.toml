@@ -84,7 +84,9 @@
 # 2026-06-23 (signals-producer consumer hook): _fetch_json_url pulls the
 # open-prep snapshot from OPEN_PREP_SNAPSHOT_URL (raw bot-branch JSON) so the
 # Railway worker can run without the local artifact; http(s)-only, timeout=15s.
-"open_prep/realtime_signals.py" = [919]
+# 2026-06-25: shifted 919 -> 1000 by AsyncNewsstackPoller telemetry additions.
+# 2026-06-25: shifted 1000 -> 1002 by stop-guard hardening in the poll loop.
+"open_prep/realtime_signals.py" = [1002]
 "scripts/probe_fmp_13f_endpoints.py" = [75]
 "scripts/resolve_workflow_runner.py" = [91]
 # 2026-06-21 (live-overlay bridge observability): optional external polling
@@ -161,6 +163,7 @@ line = 1121
 codes = ["S603"]
 
 # E402 outliers in newsstack_fmp/pipeline.py remain (not covered by per-file-ignores).
+# 2026-06-25: shifted 1231 -> 1234 by RSS watermark comment addition.
 [[noqa_budget.sites]]
 file = "newsstack_fmp/pipeline.py"
 line = 1234

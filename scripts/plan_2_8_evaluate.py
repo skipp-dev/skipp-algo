@@ -22,13 +22,11 @@ from pathlib import Path
 
 try:
     from scripts._logging_init import init_cli_logging
-except ImportError:  # script-style invocation: `python scripts/X.py`
-    import sys as _v6a11_sys
-    from pathlib import Path as _v6a11_Path
-
-    _v6a11_sys.path.insert(0, str(_v6a11_Path(__file__).resolve().parents[1]))
-    from scripts._logging_init import init_cli_logging  # type: ignore[no-redef]
-from scripts.smc_atomic_write import atomic_write_json
+    from scripts.smc_atomic_write import atomic_write_json
+except ImportError:
+    # script-style invocation: `python scripts/X.py`
+    from _logging_init import init_cli_logging
+    from smc_atomic_write import atomic_write_json
 
 logger = logging.getLogger(__name__)
 

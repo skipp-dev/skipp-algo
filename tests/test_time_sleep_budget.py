@@ -118,13 +118,13 @@ _FROZEN_SITES: frozenset[tuple[str, int]] = frozenset(
         ("open_prep/error_taxonomy.py", 117),
         ("open_prep/realtime_signals.py", 279),
         ("open_prep/realtime_signals.py", 354),
-        ("open_prep/realtime_signals.py", 1844),
-        ("open_prep/realtime_signals.py", 2978),
-        ("open_prep/realtime_signals.py", 2991),
+        ("open_prep/realtime_signals.py", 1927),
+        ("open_prep/realtime_signals.py", 3061),
+        ("open_prep/realtime_signals.py", 3074),
         # 2026-06-11 (eval-findings D7): technical_analysis import block
         # +8 lines (1943→1951, 1945→1953).
-        ("open_prep/run_open_prep.py", 2034),
-        ("open_prep/run_open_prep.py", 2036),
+        ("open_prep/run_open_prep.py", 2038),
+        ("open_prep/run_open_prep.py", 2040),
         ("newsstack_fmp/_bz_http.py", 44),
         ("terminal_bitcoin.py", 846),
         ("terminal_bitcoin.py", 848),
@@ -136,10 +136,10 @@ _FROZEN_SITES: frozenset[tuple[str, int]] = frozenset(
         # 2026-06-24 feat/benzinga-rss: retry backoff sleeps in REST client
         # (197→198, 208→209 after RSS improvements).
         # 2026-06-24 feat/benzinga-rss-improvements: added retry sleep in
-        # parallel fetch worker (line 917).
+        # parallel fetch worker (line 900 after thread-safety follow-up).
         ("newsstack_fmp/ingest_benzinga.py", 198),
         ("newsstack_fmp/ingest_benzinga.py", 209),
-        ("newsstack_fmp/ingest_benzinga.py", 917),
+        ("newsstack_fmp/ingest_benzinga.py", 900),
     }
 )
 

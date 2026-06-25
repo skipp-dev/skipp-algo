@@ -102,6 +102,24 @@ def is_tradingview_news_enabled() -> bool:
     return _bool_env("ENABLE_TRADINGVIEW_NEWS", "1")
 
 
+def is_open_prep_tradingview_news_enabled() -> bool:
+    """Return True iff ``OPEN_PREP_ENABLE_TRADINGVIEW_NEWS == "1"`` (default ON).
+
+    Legacy ``run_open_prep`` gate for TradingView news supplement.
+    SSOT parser semantics apply: only the literal ``"1"`` enables.
+    """
+    return _bool_env("OPEN_PREP_ENABLE_TRADINGVIEW_NEWS", "1")
+
+
+def is_open_prep_benzinga_core_news_enabled() -> bool:
+    """Return True iff ``OPEN_PREP_ENABLE_BENZINGA_CORE_NEWS == "1"`` (default OFF).
+
+    Legacy ``run_open_prep`` gate for the Benzinga Core News API supplement.
+    SSOT parser semantics apply: only the literal ``"1"`` enables.
+    """
+    return _bool_env("OPEN_PREP_ENABLE_BENZINGA_CORE_NEWS", "0")
+
+
 def is_newsapi_ai_enabled() -> bool:
     """Return True iff ``ENABLE_NEWSAPI_AI`` is set to ``"1"`` (default ON)."""
     return _bool_env("ENABLE_NEWSAPI_AI", "1")

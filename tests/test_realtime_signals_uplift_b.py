@@ -139,6 +139,104 @@ def test_async_newsstack_poller_stop_without_start_is_safe() -> None:
     p.stop(timeout=0.1)
 
 
+def test_async_newsstack_poller_metrics_initially_zero() -> None:
+    """ANP-6: telemetry counters start at zero before any poll runs."""
+    p = AsyncNewsstackPoller(poll_interval=5.0)
+    metrics = p.metrics()
+    assert metrics["poll_count"] == 0
+    assert metrics["poll_errors"] == 0
+    assert metrics["last_poll_duration"] == 0.0
+    assert metrics["last_success_at"] is None
+    assert metrics["last_error_at"] is None
+    assert metrics["last_error_msg"] is None
+    assert metrics["cached_tickers_count"] == 0
+
+
+def test_async_newsstack_poller_metrics_after_successful_poll(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """ANP-6: successful poll updates counters and timestamp."""
+    p = AsyncNewsstackPoller(poll_interval=5.0)
+    candidates = [{"ticker": "aapl", "news_score": 0.5, "headline": "h"}]
+
+    fake_pipeline = type("M", (), {"poll_once": staticmethod(lambda _cfg: candidates)})
+    fake_config = type("C", (), {"Config": type("Cfg", (), {})})
+    monkeypatch.setitem(__import__("sys").modules, "newsstack_fmp.pipeline", fake_pipeline)
+    monkeypatch.setitem(__import__("sys").modules, "newsstack_fmp.config", fake_config)
+
+    real_wait = p._stop.wait
+
+    def stop_after_one(_timeout: float) -> bool:
+        p._stop.set()
+        return real_wait(0.0)
+
+    monkeypatch.setattr(p._stop, "wait", stop_after_one)
+    p._loop()
+
+    metrics = p.metrics()
+    assert metrics["poll_count"] == 1
+    assert metrics["poll_errors"] == 0
+    assert metrics["last_success_at"] is not None
+    assert metrics["last_error_msg"] is None
+    assert metrics["cached_tickers_count"] == 1
+
+
+def test_async_newsstack_poller_metrics_after_error(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """ANP-6: failed poll records error telemetry."""
+    p = AsyncNewsstackPoller(poll_interval=5.0)
+
+    def boom(_cfg: Any) -> list[dict[str, Any]]:
+        raise RuntimeError("pipeline down")
+
+    fake_pipeline = type("M", (), {"poll_once": staticmethod(boom)})
+    fake_config = type("C", (), {"Config": type("Cfg", (), {})})
+    monkeypatch.setitem(__import__("sys").modules, "newsstack_fmp.pipeline", fake_pipeline)
+    monkeypatch.setitem(__import__("sys").modules, "newsstack_fmp.config", fake_config)
+
+    real_wait = p._stop.wait
+
+    def stop_after_one(_timeout: float) -> bool:
+        p._stop.set()
+        return real_wait(0.0)
+
+    monkeypatch.setattr(p._stop, "wait", stop_after_one)
+    p._loop()
+
+    metrics = p.metrics()
+    assert metrics["poll_count"] == 0
+    assert metrics["poll_errors"] == 1
+    assert metrics["last_error_at"] is not None
+    assert "pipeline down" in metrics["last_error_msg"]
+
+
+def test_async_newsstack_poller_loop_respects_stop_event(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """ANP-5: a long-blocking poll_once can be abandoned via stop_event."""
+    p = AsyncNewsstackPoller(poll_interval=5.0)
+    started = __import__("threading").Event()
+    unblock = __import__("threading").Event()
+
+    def blocking_poll(_cfg: Any) -> list[dict[str, Any]]:
+        started.set()
+        unblock.wait()
+        return [{"ticker": "aapl", "news_score": 0.5, "headline": "h"}]
+
+    fake_pipeline = type("M", (), {"poll_once": staticmethod(blocking_poll)})
+    fake_config = type("C", (), {"Config": type("Cfg", (), {})})
+    monkeypatch.setitem(__import__("sys").modules, "newsstack_fmp.pipeline", fake_pipeline)
+    monkeypatch.setitem(__import__("sys").modules, "newsstack_fmp.config", fake_config)
+
+    p.start()
+    assert started.wait(timeout=1.0)
+    p.stop(timeout=1.0)
+    unblock.set()
+    # The poller must not block on the long poll; stop returns promptly.
+    assert not p._thread.is_alive()
+
+
 # ---------------------------------------------------------------------------
 # RealtimeSignal
 # ---------------------------------------------------------------------------

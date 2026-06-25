@@ -104,6 +104,9 @@ _FROZEN_SITES: frozenset[tuple[str, int, tuple[str, ...]]] = frozenset(
         ("databento_volatility_screener.py", 5400, ("_fast_progress_total",)),
         ("databento_volatility_screener.py", 5401, ("_fast_eta_smooth_seconds",)),
         ("smc_core/ensemble_quality.py", 188, ("active_weight", "weighted_total")),
+        # 2026-06-25: worker-thread target for interruptible AsyncNewsstackPoller
+        # poll loop uses nonlocal to ferry result/error back to the caller.
+        ("open_prep/realtime_signals.py", 562, ("error", "result")),
     }
 )
 

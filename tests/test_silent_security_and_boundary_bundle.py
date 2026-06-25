@@ -193,7 +193,11 @@ _FROZEN_BASIC_CONFIG_SITES: frozenset[tuple[str, int]] = frozenset({
     # 2026-06-12 (Copilot #2729): main() exit-semantics docstring +6 → 585.
     # 2026-06-17 (F1 lint fix): remove unused import sys → 585→584.
     ("open_prep/outcome_backfill.py", 584),
-    ("open_prep/realtime_signals.py", 2913),
+    # 2026-06-25: AsyncNewsstackPoller telemetry additions shifted
+    # 2913 -> 2992; feature-flag helper additions shifted run_open_prep
+    # 6059 -> 6063.
+    ("open_prep/realtime_signals.py", 2996),
+    ("open_prep/run_open_prep.py", 6063),
     # 2026-06-16 (feat/live-overlay-daemon): entry-point main.py configures
     # root logger at startup (Railway container, no other logger setup).
     # 2026-06-19 (fix/live-overlay-post-merge-bugs): import additions for
@@ -205,15 +209,6 @@ _FROZEN_BASIC_CONFIG_SITES: frozenset[tuple[str, int]] = frozenset({
     # 2026-06-21 (auth decode hardening): binascii import shifted
     # basicConfig to line 40.
     ("services/live_overlay_daemon/main.py", 40),
-    # 2026-06-10 (#2670 W2/W4): source-disclosure edits shifted +25 (5840→5865).
-    # 2026-06-11 (trend-state features): 5865→5876, enrichment-loop stamping.
-    # 2026-06-11 (eval-findings D7): import block +8, enrichment +15
-    # (5876→5899); vix9d D5 fetch+stamp +19 → 5918.
-    # 2026-06-11 (Copilot sweep #2688): VIX9D fail-closed guard +5 → 5923.
-    # 2026-06-12 (merge #2713 into #2696): +1 net → 5924.
-    # 2026-06-12 (backlog-resilience): fail-loud outcome storage +18 → 5942.
-    # 2026-06-12 (copilot-followup): rename + 3-line comment → 5945.
-    ("open_prep/run_open_prep.py", 6059),
     # WP-H (PR #2612): 35 -> 37, VIX import + helper block added above.
     ("smc_tv_bridge/smc_api.py", 37),
 })
@@ -265,7 +260,9 @@ def test_no_stale_basic_config_ledger_entries() -> None:
 
 
 _FROZEN_SYSPATH_SITES: frozenset[tuple[str, int, str]] = frozenset({
-    ("open_prep/realtime_signals.py", 1302, "insert"),
+    # 2026-06-25: AsyncNewsstackPoller telemetry additions shifted
+    # 1302 -> 1381.
+    ("open_prep/realtime_signals.py", 1385, "insert"),
     ("open_prep/streamlit_monitor.py", 34, "insert"),
     # WP-H (PR #2612): 32 -> 34, VIX import + helper block added above.
     ("smc_tv_bridge/smc_api.py", 34, "insert"),

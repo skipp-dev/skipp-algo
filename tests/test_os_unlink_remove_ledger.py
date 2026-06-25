@@ -121,8 +121,10 @@ OS_DELETE_LEDGER: set[tuple[str, int, str]] = {
     # _load_outcomes_range +6 → 587.
     ("open_prep/outcomes.py", 587, "unlink"),
     ("open_prep/realtime_signals.py", 125, "remove"),
-    ("open_prep/realtime_signals.py", 2783, "unlink"),
-    ("open_prep/realtime_signals.py", 2828, "unlink"),
+    # 2026-06-25: AsyncNewsstackPoller telemetry additions shifted
+    # 2783 -> 2862 and 2828 -> 2907.
+    ("open_prep/realtime_signals.py", 2866, "unlink"),
+    ("open_prep/realtime_signals.py", 2911, "unlink"),
     # 2026-06-11 (eval-findings D7): technical_analysis import block +8
     # lines at L55 shifted all run_open_prep sites; enrichment-loop
     # real-ADX/BBW block added +15 more after L5491.
@@ -131,19 +133,24 @@ OS_DELETE_LEDGER: set[tuple[str, int, str]] = {
     # 2026-06-19 (B9/B10): _add_pdh_pdl_context current-day fields +6 and
     # 2026-06-19 (B10 non-padded date extension): _parse_calendar_date
     # extended; multiple insertion points produced non-uniform shifts.
-    ("open_prep/run_open_prep.py", 2308, "unlink"),
+    # 2026-06-25: feature-flag helper additions shifted 2308 -> 2312.
+    ("open_prep/run_open_prep.py", 2312, "unlink"),
     # 2026-06-10 (#2670 W2/W4): regime_source + premarket source-disclosure
     # edits shifted the later unlink sites (+20/+20/+20/+25).
-    ("open_prep/run_open_prep.py", 3131, "unlink"),
-    ("open_prep/run_open_prep.py", 3483, "unlink"),
+    # 2026-06-25: feature-flag helper additions shifted
+    # 3131 -> 3135 and 3483 -> 3487.
+    ("open_prep/run_open_prep.py", 3135, "unlink"),
+    ("open_prep/run_open_prep.py", 3487, "unlink"),
     # 2026-06-11 (Copilot sweep #2688): VIX9D fail-closed guard +5;
     # 2026-06-12 (merge #2713 into #2696): net +1 → 5512/5790.
-    ("open_prep/run_open_prep.py", 5621, "unlink"),
+    # 2026-06-25: feature-flag helper additions shifted 5621 -> 5625.
+    ("open_prep/run_open_prep.py", 5625, "unlink"),
     # 2026-06-11 (trend-state features): 5731→5742, enrichment-loop
     # stamping + lookback comment added above; eval-findings 5742→5765.
     # 2026-06-12 (backlog-resilience): fail-loud outcome storage +9 → 5799.
     # 2026-06-12 (copilot-followup): rename + 3-line comment → 5802.
-    ("open_prep/run_open_prep.py", 5916, "unlink"),
+    # 2026-06-25: feature-flag helper additions shifted 5916 -> 5920.
+    ("open_prep/run_open_prep.py", 5920, "unlink"),
     ("open_prep/scorer.py", 149, "unlink"),
     ("open_prep/watchlist.py", 74, "unlink"),
     ("smc_core/benchmark.py", 39, "unlink"),

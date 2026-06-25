@@ -48,7 +48,8 @@ _SYS_EXIT_LEDGER: frozenset[tuple[str, int]] = frozenset({
     # store_daily_outcomes failed — the daily workflow's primary artifact
     # (outcomes_<date>.json) must not fail silently green.
     # 2026-06-12 (copilot-followup): rename + 3-line comment → 5931.
-    ("open_prep/run_open_prep.py", 6045),
+    # 2026-06-25: feature-flag helper addition shifted 6045 -> 6049.
+    ("open_prep/run_open_prep.py", 6049),
     # 2026-06-02 (#2497): +68 lines after the `provenance` subcommand block
     # was inserted above the lint dispatch (was 400, 402).
     ("pine_input_surface.py", 468),
