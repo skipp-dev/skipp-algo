@@ -614,7 +614,7 @@ def build_signal_quality_v2(
         score += confluence_contribution
         result["CONFLUENCE_SCORE"] = confluence_contribution
         result["CONFLUENCE_DIRECTION"] = (
-            _derive_confluence_direction(enr) if confluence_contribution > 0 else "NONE"
+            _derive_confluence_direction(enr) if confluence_contribution > 0 else "neutral"
         )
         result["CONFLUENCE_TIER"] = confluence_result.confluence_tier
         result["CONFLUENCE_OB_CONTRIBUTION"] = confluence_result.ob_contribution
