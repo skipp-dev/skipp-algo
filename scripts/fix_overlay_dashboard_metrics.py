@@ -18,14 +18,13 @@ from __future__ import annotations
 import argparse
 import hashlib
 import json
-import sys
 from pathlib import Path
 from typing import Any
 
-# Make the repo root importable so scripts.smc_atomic_write can be found when
-# this file is executed directly.
-sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
-from scripts.smc_atomic_write import atomic_write_text
+try:
+    from scripts.smc_atomic_write import atomic_write_text
+except ImportError:  # script-style invocation: `python scripts/X.py`
+    from smc_atomic_write import atomic_write_text
 
 DEFAULT_DASHBOARD_PATH = Path("services/live_overlay_daemon/infra/grafana/dashboard.json")
 DATASOURCE = {"type": "prometheus", "uid": "grafanacloud-prom"}
