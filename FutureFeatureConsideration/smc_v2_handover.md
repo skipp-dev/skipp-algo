@@ -23,7 +23,7 @@ Implementiert wurden die Phasen:
 | A | Freshness v2 mit erweiterten Labels (`very_fresh`/`fresh`/`aging`/`stale`/`expired`) |
 | B | Sweep-Trap-Detektor (`smc_core/sweep_trap.py`) in `build_signal_quality_v2` integriert |
 | C | Reaction-Zone-Detektor (`smc_core/reaction_zone.py`) in `build_signal_quality_v2` integriert |
-| D | Confluence-Score-Detektor: Cutover von `smc_core/confluence_score.py` auf `smc_core/smc_confluence.compute_confluence`; orthogonale `OB_SUPPORT_SCORE`/`FVG_GAP_SCORE` in `measurement_evidence`; Budget-Refaktorierung in `build_signal_quality_v2` |
+| D | Confluence-Score-Detektor: Cutover von `smc_core/confluence_score.py` auf `smc_core/smc_confluence.compute_confluence`; orthogonale `OB_SUPPORT_SCORE`/`FVG_GAP_SCORE` in `measurement_evidence`; Sweep-Score-Skalierung auf 0-5 korrigiert; `CONFLUENCE_DIRECTION=NONE` bei Score 0; Budget-Refaktorierung in `build_signal_quality_v2` |
 | E | SMT-Divergenz-Detektor (`smc_core/smt_divergence.py`) in `build_signal_quality_v2` integriert |
 | F | Vollständige v2-Integration aller Detektoren |
 | G | Integrationstest `tests/test_signal_quality_v2_integration.py` |
