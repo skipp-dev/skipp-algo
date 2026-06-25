@@ -396,7 +396,7 @@ observability.py (structured log lines + in-process counters)
 | `live_overlay_hotspot_tf_<tf>_requests_total` | gauge | request_hotspots.py |
 | `live_overlay_feed_ingest_queue_depth` | gauge | feed.py backpressure snapshot |
 | `live_overlay_feed_ingest_queue_depth_max` | gauge | feed.py backpressure snapshot |
-| `live_overlay_feed_ingest_queue_dropped_total` | gauge | feed.py backpressure snapshot |
+| `live_overlay_feed_ingest_queue_dropped_total` | counter | feed.py backpressure snapshot (monotonically increasing drops) |
 | `live_overlay_feed_ingest_queue_lag_ms_last` | gauge | feed.py backpressure snapshot |
 | `live_overlay_feed_ingest_queue_lag_ms_max` | gauge | feed.py backpressure snapshot |
 | `live_overlay_provider_news_snapshot_loaded` | gauge | metrics.py news provider snapshot probe |
@@ -457,7 +457,7 @@ observability.py (structured log lines + in-process counters)
 | `live_overlay_github_workflow_bridge_enabled` | gauge | github_workflow_bridge.py |
 | `live_overlay_github_workflow_scrape_success` | gauge | github_workflow_bridge.py |
 | `live_overlay_github_workflow_snapshot_age_seconds` | gauge | github_workflow_bridge.py |
-| `live_overlay_github_workflow_runs_*_total` | gauge | github_workflow_bridge.py |
+| `live_overlay_github_workflow_runs_*` | gauge | github_workflow_bridge.py point-in-time run counts (no `_total` suffix because these are gauges, not counters) |
 | `live_overlay_github_workflow_latest_run_*_seconds` | gauge | github_workflow_bridge.py aggregate latest run age/duration |
 | `live_overlay_github_workflow_phase_code{workflow_id,workflow,event}` | gauge | metrics.py per-workflow timeline series |
 | `live_overlay_github_workflow_latest_success{workflow_id,workflow,event}` | gauge | metrics.py per-workflow latest success state |

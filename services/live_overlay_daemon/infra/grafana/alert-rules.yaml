@@ -149,7 +149,7 @@ groups:
           - refId: D
             datasourceUid: grafanacloud-prom
             model:
-              expr: resets(live_overlay_uptime_seconds{job="live_overlay"}[10m])
+              expr: increase(live_overlay_daemon_restarts_total{job="live_overlay"}[10m])
               instant: true
           - refId: C
             datasourceUid: __expr__
@@ -209,7 +209,7 @@ groups:
                 - evaluator: {type: gt, params: [0]}
                   operator: {type: and}
                   query: {params: [A]}
-        for: 0s
+        for: 1m
         labels:
           severity: high
         annotations:
@@ -313,7 +313,7 @@ groups:
           runbook: "Check Railway logs for stack traces in compute.py. Likely data quality issue in cached bars."
 
       - uid: lo-error-budget-burn-critical
-        title: "Error budget burn critical"
+        title: "SLO error rate critical (5m & 1h)"
         condition: C
         data:
           - refId: A
@@ -335,11 +335,11 @@ groups:
         labels:
           severity: critical
         annotations:
-          summary: "Error budget burn is critically high"
+          summary: "SLO error rate is critically high on both 5m and 1h windows"
           runbook: "Inspect error mix, latency p95/p99, and freshness timeline; mitigate request failures immediately."
 
       - uid: lo-error-budget-burn-warning
-        title: "Error budget burn warning"
+        title: "SLO error rate warning (5m & 1h)"
         condition: C
         data:
           - refId: A
@@ -361,7 +361,7 @@ groups:
         labels:
           severity: warning
         annotations:
-          summary: "Error budget burn elevated"
+          summary: "SLO error rate is elevated on both 5m and 1h windows"
           runbook: "Check request success rate trend and investigate recent failure-type spikes before critical threshold is reached."
 
       - uid: lo-latency-p99-high
@@ -477,7 +477,7 @@ groups:
                 - evaluator: {type: gt, params: [0]}
                   operator: {type: and}
                   query: {params: [A]}
-        for: 0s
+        for: 1m
         labels:
           severity: high
         annotations:
