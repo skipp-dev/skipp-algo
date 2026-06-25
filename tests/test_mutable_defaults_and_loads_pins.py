@@ -112,8 +112,8 @@ _FROZEN_JSON_LOAD_SITES: frozenset[tuple[str, int]] = frozenset(
         ("open_prep/outcomes.py", 199),
         # 2026-06-25: AsyncNewsstackPoller telemetry additions shifted
         # 1707 -> 1788 and 2852 -> 2933.
-        ("open_prep/realtime_signals.py", 1788),
-        ("open_prep/realtime_signals.py", 2933),
+        ("open_prep/realtime_signals.py", 1790),
+        ("open_prep/realtime_signals.py", 2935),
         ("open_prep/scorer.py", 122),
         ("open_prep/watchlist.py", 53),
         # 2026-06-10 (PR #2658): centralized trading-thresholds loader parses a
@@ -180,7 +180,7 @@ _FROZEN_ENV_SUBSCRIPT_SITES: frozenset[tuple[str, int]] = frozenset(
         # macro.py:2041 and macro.py:2050 are gone. See
         # ``docs/AUDIT_L1_REVIEW_RETROSPECTIVE_2026-05-12.md`` § R6.
         # 2026-06-25: shifted 2892 -> 2973 by AsyncNewsstackPoller telemetry additions.
-        ("open_prep/realtime_signals.py", 2973),
+        ("open_prep/realtime_signals.py", 2975),
         ("open_prep/streamlit_monitor.py", 79),  # +1 from import time as _time (PR #2764)
         ("streamlit_terminal.py", 327),
     }

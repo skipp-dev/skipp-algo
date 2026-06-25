@@ -118,9 +118,9 @@ _FROZEN_SITES: frozenset[tuple[str, int]] = frozenset(
         ("open_prep/error_taxonomy.py", 117),
         ("open_prep/realtime_signals.py", 279),
         ("open_prep/realtime_signals.py", 354),
-        ("open_prep/realtime_signals.py", 1925),  # shifted by AsyncNewsstackPoller telemetry
-        ("open_prep/realtime_signals.py", 3059),
-        ("open_prep/realtime_signals.py", 3072),
+        ("open_prep/realtime_signals.py", 1927),  # shifted by AsyncNewsstackPoller telemetry
+        ("open_prep/realtime_signals.py", 3061),
+        ("open_prep/realtime_signals.py", 3074),
         # 2026-06-11 (eval-findings D7): technical_analysis import block
         # +8 lines (1943→1951, 1945→1953).
         ("open_prep/run_open_prep.py", 2038),
