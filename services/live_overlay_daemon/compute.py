@@ -454,6 +454,11 @@ def _load_tradingview_credential_snapshot() -> dict[str, Any]:
         return dict(_tradingview_credential_cache)
 
 
+# Public alias used by metrics.py and any new consumers. The legacy name is
+# kept for backward compatibility with existing call sites/tests.
+_load_credential_health_snapshot = _load_tradingview_credential_snapshot
+
+
 def _fetch_experiment_url(
     url: str, token: str, timeout: float = 10.0
 ) -> str | None:

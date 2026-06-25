@@ -15,11 +15,12 @@ Replace with actual evaluation logic when Plan 2.8 infrastructure is ready.
 from __future__ import annotations
 
 import argparse
-import json
 import logging
 import sys
 from datetime import UTC, datetime
 from pathlib import Path
+
+from scripts.smc_atomic_write import atomic_write_json
 
 logger = logging.getLogger(__name__)
 
@@ -170,20 +171,19 @@ def main() -> int:
 
         # Write snapshot
         args.output.parent.mkdir(parents=True, exist_ok=True)
-        with args.output.open("w") as f:
-            json.dump(snapshot, f, indent=2)
+        atomic_write_json(snapshot, args.output, indent=2)
 
         logger.info("Snapshot written to %s", args.output)
 
         # Surface key metrics
-        print(f"\n✅ Evaluation Success")
+        print("\n✅ Evaluation Success")
         print(f"Files Scanned: {snapshot['files_scanned']}")
         print(
             f"Overall Hit Rate: {snapshot['aggregate']['overall_hit_rate']:.1%} "
             f"(+{snapshot['aggregate']['improvement_delta']:.1%} vs baseline)"
         )
-        print(f"\nPhase E2 Verdicts:")
-        for hyp_name, verdict in snapshot["phase_e2_verdict"].items():
+        print("\nPhase E2 Verdicts:")
+        for _hyp_name, verdict in snapshot["phase_e2_verdict"].items():
             status = verdict["status"]
             delta = verdict["hit_rate_delta"]
             print(

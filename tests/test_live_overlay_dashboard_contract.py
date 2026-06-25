@@ -110,3 +110,23 @@ def test_state_timeline_panels_hide_threshold_range_legend() -> None:
         options = panel.get("vizConfig", {}).get("spec", {}).get("options", panel.get("options", {}))
         legend = options["legend"]
         assert legend.get("showLegend") is False, panel.get("title")
+
+
+def test_dashboard_has_top_level_description() -> None:
+    dashboard = json.loads(_DASHBOARD_JSON.read_text(encoding="utf-8"))
+    assert dashboard.get("description"), "dashboard must have a top-level description"
+
+
+def test_dashboard_panel_titles_are_unique() -> None:
+    dashboard = json.loads(_DASHBOARD_JSON.read_text(encoding="utf-8"))
+    panels = _dashboard_panels(dashboard)
+    titles = [p.get("title") for p in panels if p.get("title")]
+    duplicates = {t for t in titles if titles.count(t) > 1}
+    assert not duplicates, f"duplicate panel titles found: {duplicates}"
+
+
+def test_dashboard_panels_have_descriptions() -> None:
+    dashboard = json.loads(_DASHBOARD_JSON.read_text(encoding="utf-8"))
+    panels = _dashboard_panels(dashboard)
+    missing = [p.get("title") for p in panels if p.get("type") != "row" and not p.get("description")]
+    assert not missing, f"panels missing description: {missing}"

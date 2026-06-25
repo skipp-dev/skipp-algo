@@ -759,6 +759,99 @@ def test_render_metrics_handles_tradingview_credential_missing(
     assert "live_overlay_tradingview_credential_age_hours 0.000" in body
 
 
+def test_render_metrics_includes_full_credential_health_report(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    import services.live_overlay_daemon.metrics as metrics_mod
+
+    _patch_common(
+        monkeypatch,
+        feed_ready=True,
+        market_open=True,
+        bar_count=10,
+        overlay_symbols=5,
+        overlay_age=60.0,
+    )
+    report = {
+        "schema_version": "1",
+        "overall_severity": "warn",
+        "probes": [
+            {
+                "name": "tv_storage_state_age",
+                "severity": "warn",
+                "message": "ageing",
+                "details": {
+                    "validated_at": "2026-06-20T00:00:00+00:00",
+                    "age_hours": 60.0,
+                    "max_age_hours": 72,
+                },
+            },
+            {
+                "name": "github_pat_validity",
+                "severity": "ok",
+                "message": "PAT valid",
+                "details": {"days_left": 45},
+            },
+            {
+                "name": "databento_delivery",
+                "severity": "error",
+                "message": "stale delivery",
+                "details": {"staleness_days": 3.5},
+            },
+            {
+                "name": "fmp_api_key",
+                "severity": "ok",
+                "message": "OK",
+                "details": {},
+            },
+        ],
+    }
+    monkeypatch.setattr(
+        metrics_mod.compute, "_load_credential_health_snapshot", lambda: report
+    )
+
+    body = metrics_mod.render_metrics(startup_ts=100.0)
+
+    assert "live_overlay_credential_health_loaded 1.0" in body
+    assert "live_overlay_credential_health_overall_valid 1.0" in body
+    assert 'severity="warn"' in body
+    assert "live_overlay_credential_health_tv_storage_state_age_severity_code 1.0" in body
+    assert "live_overlay_credential_health_tv_storage_state_age_valid 1.0" in body
+    assert "live_overlay_credential_health_tv_storage_state_age_age_hours 60.0" in body
+    assert "live_overlay_credential_health_tv_storage_state_age_validated_at_seconds" in body
+    assert "live_overlay_credential_health_github_pat_validity_severity_code 2.0" in body
+    assert "live_overlay_credential_health_github_pat_validity_valid 1.0" in body
+    assert "live_overlay_credential_health_github_pat_validity_days_left 45.0" in body
+    assert "live_overlay_credential_health_databento_delivery_severity_code 0.0" in body
+    assert "live_overlay_credential_health_databento_delivery_valid 0.0" in body
+    assert "live_overlay_credential_health_databento_delivery_staleness_days 3.5" in body
+    assert 'live_overlay_credential_health_fmp_api_key_info{severity="ok",message="OK"} 1' in body
+
+
+def test_render_metrics_credential_health_missing_report_is_zeroed(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    import services.live_overlay_daemon.metrics as metrics_mod
+
+    _patch_common(
+        monkeypatch,
+        feed_ready=True,
+        market_open=True,
+        bar_count=10,
+        overlay_symbols=5,
+        overlay_age=60.0,
+    )
+    monkeypatch.setattr(
+        metrics_mod.compute, "_load_credential_health_snapshot", lambda: {}
+    )
+
+    body = metrics_mod.render_metrics(startup_ts=100.0)
+
+    assert "live_overlay_credential_health_loaded 0.0" in body
+    assert "live_overlay_credential_health_overall_valid 0.0" in body
+    assert "live_overlay_credential_health_tv_storage_state_age_severity_code" not in body
+
+
 def test_render_metrics_handles_trading_signals_snapshot_missing(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
