@@ -549,7 +549,7 @@ def build_signal_quality_v2(
 
     # ── Liquidity / sweep support (0-12) ──────────────────────────
     if has_bull_sweep or has_bear_sweep:
-        sweep_contrib = min(_MAX_LIQUIDITY_V2, int(sweep_quality * _MAX_LIQUIDITY_V2 / 10))
+        sweep_contrib = min(_MAX_LIQUIDITY_V2, int(sweep_quality * _MAX_LIQUIDITY_V2 / 5))
         score += sweep_contrib
 
     # ── OB support (0-12) ───────────────────────────────────────
@@ -585,7 +585,7 @@ def build_signal_quality_v2(
         elif fvg_side != "NONE" and not fvg_invalidated:
             current_dynamic += int(_MAX_FVG_V2 * 0.5)
         if has_bull_sweep or has_bear_sweep:
-            current_dynamic += min(_MAX_LIQUIDITY_V2, int(sweep_quality * _MAX_LIQUIDITY_V2 / 10))
+            current_dynamic += min(_MAX_LIQUIDITY_V2, int(sweep_quality * _MAX_LIQUIDITY_V2 / 5))
         score = score - current_dynamic + int(current_dynamic * freshness_penalty)
 
     # ── Compression regime (0-12) ───────────────────────────────
@@ -616,7 +616,9 @@ def build_signal_quality_v2(
         confluence_contribution = int(_MAX_CONFLUENCE_V2 * confluence_result.raw_confluence_score)
         score += confluence_contribution
         result["CONFLUENCE_SCORE"] = confluence_contribution
-        result["CONFLUENCE_DIRECTION"] = _derive_confluence_direction(enr)
+        result["CONFLUENCE_DIRECTION"] = (
+            _derive_confluence_direction(enr) if confluence_contribution > 0 else "NONE"
+        )
         result["CONFLUENCE_TIER"] = confluence_result.confluence_tier
         result["CONFLUENCE_OB_CONTRIBUTION"] = confluence_result.ob_contribution
         result["CONFLUENCE_FVG_CONTRIBUTION"] = confluence_result.fvg_contribution
