@@ -24,6 +24,7 @@ from __future__ import annotations
 
 import asyncio
 import collections
+import concurrent.futures
 import json
 import logging
 import queue
@@ -754,7 +755,7 @@ def _parse_rss_tickers(entry: Any) -> list[str]:
     return tickers
 
 
-def _entry_to_news_item(entry: Any, *, source_url: str) -> "NewsItem | None":
+def _entry_to_news_item(entry: Any, *, source_url: str) -> NewsItem | None:
     """Convert a feedparser entry to a NewsItem.  Returns None on failure."""
     guid: str = (
         getattr(entry, "id", None)
@@ -775,6 +776,14 @@ def _entry_to_news_item(entry: Any, *, source_url: str) -> "NewsItem | None":
     else:
         published_ts = 0.0
 
+    # updated timestamp — RSS-6: prefer updated_parsed over published_parsed
+    updated_struct = getattr(entry, "updated_parsed", None)
+    if updated_struct:
+        import calendar as _calendar
+        updated_ts = float(_calendar.timegm(updated_struct))
+    else:
+        updated_ts = published_ts
+
     # snippet — prefer summary over content
     snippet: str = ""
     summary = getattr(entry, "summary", None) or ""
@@ -793,7 +802,7 @@ def _entry_to_news_item(entry: Any, *, source_url: str) -> "NewsItem | None":
         provider="benzinga_rss",
         item_id=guid,
         published_ts=published_ts,
-        updated_ts=published_ts,
+        updated_ts=updated_ts,
         headline=title,
         snippet=snippet,
         tickers=tickers,
@@ -840,27 +849,23 @@ class BenzingaRssAdapter:
         self.bozo_total: int = 0
         self.last_fetch_duration: float = 0.0
 
-    def fetch_news(self, *, min_epoch: float = 0.0) -> list[NewsItem]:
-        """Fetch and return new NewsItems from all configured RSS feeds.
+    def _fetch_single_feed(
+        self,
+        feed_url: str,
+        *,
+        min_epoch: float,
+        feedparser: Any,
+    ) -> tuple[list[NewsItem], int]:
+        """Fetch and parse a single RSS feed with retry logic (RSS-4).
 
-        Args:
-            min_epoch: only include items with ``published_ts >= min_epoch``.
-                       Pass 0.0 to get all available items on first call.
-
-        Returns a list sorted oldest-first by ``published_ts``.
+        Returns:
+            (list of NewsItems, error count)
         """
-        try:
-            import feedparser  # type: ignore[import-untyped]
-        except ImportError as exc:
-            logger.warning(
-                "feedparser not installed — BenzingaRssAdapter unavailable: %s", exc
-            )
-            return []
+        _MAX_RETRIES = 3
+        _RETRY_BACKOFF = (1.0, 2.0, 4.0)  # seconds
+        errors = 0
 
-        results: list[NewsItem] = []
-        _t0 = time.monotonic()
-        _errors_this_fetch: int = 0
-        for feed_url in self._feeds:
+        for attempt in range(_MAX_RETRIES):
             try:
                 parsed = feedparser.parse(
                     feed_url,
@@ -876,7 +881,10 @@ class BenzingaRssAdapter:
                         parsed.get("bozo_exception", "?"),
                     )
                     if not parsed.get("entries"):
-                        continue
+                        # Bozo with no entries — not retryable
+                        return ([], 1)
+
+                results: list[NewsItem] = []
                 for entry in parsed.get("entries", []):
                     item = _entry_to_news_item(entry, source_url=feed_url)
                     if item is None:
@@ -894,12 +902,62 @@ class BenzingaRssAdapter:
                         if len(self._seen_guids_set) > len(self._seen_guids):
                             self._seen_guids_set = set(self._seen_guids)
                     results.append(item)
+                return (results, 0)
+
             except Exception as exc:
-                self.fetch_errors += 1
-                _errors_this_fetch += 1
-                logger.warning("BenzingaRSS: fetch failed for %s: %s", feed_url, exc)
+                errors = 1
+                if attempt < _MAX_RETRIES - 1:
+                    backoff = _RETRY_BACKOFF[attempt]
+                    logger.warning(
+                        "BenzingaRSS: fetch failed for %s (attempt %d/%d): %s — retrying in %.1fs",
+                        feed_url, attempt + 1, _MAX_RETRIES, exc, backoff
+                    )
+                    time.sleep(backoff)
+                else:
+                    logger.warning(
+                        "BenzingaRSS: fetch failed for %s after %d attempts: %s",
+                        feed_url, _MAX_RETRIES, exc
+                    )
+
+        return ([], errors)
+
+    def fetch_news(self, *, min_epoch: float = 0.0) -> list[NewsItem]:
+        """Fetch and return new NewsItems from all configured RSS feeds.
+
+        RSS-3: Feeds are fetched in parallel for better performance.
+        RSS-4: Transient errors are retried with exponential backoff.
+
+        Args:
+            min_epoch: only include items with ``published_ts >= min_epoch``.
+                       Pass 0.0 to get all available items on first call.
+
+        Returns a list sorted oldest-first by ``published_ts``.
+        """
+        try:
+            import feedparser  # type: ignore[import-untyped]
+        except ImportError as exc:
+            logger.warning(
+                "feedparser not installed — BenzingaRssAdapter unavailable: %s", exc
+            )
+            return []
+
+        _t0 = time.monotonic()
+        _errors_this_fetch: int = 0
+
+        # RSS-3: Parallel fetch with ThreadPoolExecutor
+        results: list[NewsItem] = []
+        with concurrent.futures.ThreadPoolExecutor(max_workers=len(self._feeds)) as executor:
+            future_to_url = {
+                executor.submit(self._fetch_single_feed, url, min_epoch=min_epoch, feedparser=feedparser): url
+                for url in self._feeds
+            }
+            for future in concurrent.futures.as_completed(future_to_url):
+                feed_items, errors = future.result()
+                results.extend(feed_items)
+                _errors_this_fetch += errors
 
         self.fetch_total += 1
+        self.fetch_errors += _errors_this_fetch
         self.last_fetch_errors = _errors_this_fetch
         self.last_fetch_duration = time.monotonic() - _t0
 

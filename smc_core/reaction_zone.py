@@ -26,8 +26,9 @@ meaningful).
 
 from __future__ import annotations
 
+from collections.abc import Sequence
 from dataclasses import dataclass
-from typing import Any, Sequence
+from typing import Any
 
 from smc_core.v2_config import reaction_zone_config
 from smc_core.v2_features import reaction_zone_enabled

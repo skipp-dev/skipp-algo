@@ -10,7 +10,6 @@ Covers:
 from __future__ import annotations
 
 import socket
-import threading
 import time
 import urllib.request
 from typing import Any
@@ -19,7 +18,6 @@ from unittest.mock import MagicMock
 import pytest
 
 import open_prep.realtime_signals as rs
-
 
 # ---------------------------------------------------------------------------
 # _collect_process_metrics() unit tests
@@ -122,7 +120,7 @@ def _get(url: str, token: str | None = None) -> tuple[int, str]:
     if token is not None:
         req.add_header("Authorization", f"Bearer {token}")
     try:
-        with urllib.request.urlopen(req, timeout=3) as resp:  # noqa: S310
+        with urllib.request.urlopen(req, timeout=3) as resp:
             return resp.status, resp.read().decode()
     except urllib.error.HTTPError as exc:
         return exc.code, ""

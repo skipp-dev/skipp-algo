@@ -18,7 +18,6 @@ from smc_core.smt_divergence import (
     classify_smt_divergence,
 )
 
-
 # ---------------------------------------------------------------------------
 # Known pairs
 # ---------------------------------------------------------------------------
@@ -61,7 +60,7 @@ def test_classify_smt_divergence_raises_not_implemented() -> None:
 
 
 def test_error_message_mentions_phase_e0() -> None:
-    with pytest.raises(NotImplementedError, match="Phase E.0"):
+    with pytest.raises(NotImplementedError, match=r"Phase E\.0"):
         classify_smt_divergence(
             base_symbol="BTCUSD",
             corr_symbol="ETHUSD",

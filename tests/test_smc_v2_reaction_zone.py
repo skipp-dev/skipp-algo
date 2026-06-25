@@ -18,12 +18,9 @@ from __future__ import annotations
 import pytest
 
 from smc_core.reaction_zone import (
-    MIN_CONFIRMATION_BODY_RATIO,
     ZONE_WIDTH_FRACTION,
-    ReactionZone,
     compute_reaction_zone,
 )
-
 
 # ---------------------------------------------------------------------------
 # Zone boundary computation

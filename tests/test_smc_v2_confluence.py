@@ -21,11 +21,8 @@ from smc_core.smc_confluence import (
     FVG_ACTIVE_THRESHOLD,
     OB_ACTIVE_THRESHOLD,
     SWEEP_ACTIVE_THRESHOLD,
-    ConfluenceScore,
-    ConfluenceTier,
     compute_confluence,
 )
-
 
 # ---------------------------------------------------------------------------
 # Helpers — build minimal light dicts in the format measurement_evidence uses

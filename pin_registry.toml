@@ -191,26 +191,6 @@ file = "smc_tv_bridge/smc_api.py"
 line = 184
 codes = ["E402", "I001"]
 
-# smc_integration/measurement_evidence.py — Phase B/C sweep trap + reaction zone
-# helper: BLE001 broad-except is intentional — Phase B/C enrichment is purely
-# additive; any error must degrade gracefully without breaking v1 scoring.
-[[noqa_budget.sites]]
-file = "smc_integration/measurement_evidence.py"
-line = 872
-codes = ["BLE001"]
-
-[[noqa_budget.sites]]
-file = "smc_integration/measurement_evidence.py"
-line = 924
-codes = ["BLE001"]
-
-# smc_integration/measurement_evidence.py:925 — Phase A freshness helper:
-# same reasoning as above — graceful degradation to "fresh" on any error.
-[[noqa_budget.sites]]
-file = "smc_integration/measurement_evidence.py"
-line = 943
-codes = ["BLE001"]
-
 
 # ---------------------------------------------------------------------------
 # test_workflow_orphan_inventory.py — workflows without a test that
@@ -497,10 +477,12 @@ frozen_major = "v7"
 "scripts/smc_news_scorer.py" = 1
 "scripts/smc_newsapi_ai.py" = 17
 "scripts/smc_provider_policy.py" = 9
-"scripts/smc_signal_quality.py" = 4
+"scripts/smc_signal_quality.py" = 2
 "scripts/tv_publish_evidence_summary.py" = 2
 "scripts/verify_tradingview_post_release.py" = 1
 "scripts/wsh_earnings_calendar.py" = 1
+# 2026-06-24 (PR #2942 follow-up): lean-vs-broad fallback lookups in
+# measurement_evidence are intentional compatibility chains.
 "smc_integration/measurement_evidence.py" = 3
 "smc_integration/service.py" = 1
 "smc_integration/sources/live_news_snapshot_json.py" = 1
