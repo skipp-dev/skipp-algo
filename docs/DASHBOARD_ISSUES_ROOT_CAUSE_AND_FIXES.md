@@ -88,9 +88,9 @@ On **first startup** before any successful fetch:
 
 1. **Verify signals producer configuration:**
    ```bash
-   # Check if benzinga_rss is enabled in the producer
+   # GitHub secrets API only confirms existence/metadata, not value.
    gh api repos/skippALGO/skipp-algo/actions/secrets/ENABLE_BENZINGA_RSS
-   # or check Railway environment variables
+   # Check the effective value in your runtime environment (Railway vars, etc.).
    ```
 
 2. **Check news snapshot:**
@@ -325,7 +325,7 @@ When report is missing:
 These metrics are exposed via the daemon's `/metrics` endpoint and scraped by Grafana Alloy.
 
 **If showing N/A:**
-1. Verify Prometheus/Alloy is scraping `http://daemon:5040/metrics`
+1. Verify Prometheus/Alloy is scraping `http://daemon:8000/metrics` (or your configured `PORT`)
 2. Check scrape job label matches `job="live_overlay"`
 3. Ensure daemon has been running long enough to accumulate CPU time (>1 scrape interval)
 
@@ -356,17 +356,17 @@ These metrics are exposed via the daemon's `/metrics` endpoint and scraped by Gr
 1. **Benzinga Provider:**
    - Verify `ENABLE_BENZINGA_RSS=1` in signals producer environment
    - Trigger a signals producer run to generate fresh news snapshot
-   - Check `artifacts/live_overlay/news_snapshot.json` contains `benzinga_rss` entry
+   - Check `artifacts/smc_microstructure_exports/smc_live_news_snapshot.json` contains `benzinga_rss` entry
 
 2. **Experiment Panels:**
    - Run Plan 2.8 evaluation pipeline to generate snapshot files:
-     - `artifacts/live_overlay/plan_2_8_tf_family_rollup.json`
-     - `artifacts/live_overlay/plan_2_8_history.jsonl`
+     - `artifacts/ci/measurement_benchmark_rolling/latest/plan_2_8_tf_family_rollup.json`
+     - `artifacts/ci/measurement_benchmark_rolling/latest/plan_2_8_history.jsonl`
    - Or configure `EXPERIMENT_SNAPSHOT_URL` / `EXPERIMENT_HISTORY_URL` env vars
 
 3. **TradingView Credential Panels:**
    - Run `python3 scripts/credential_health_check.py` to generate report
-   - Save output to `artifacts/live_overlay/credential_health.json`
+   - Save output to `artifacts/credential_health/latest/credential_health.json`
    - Or configure `TRADINGVIEW_CREDENTIAL_SNAPSHOT_URL` env var
 
 **Long-term (automation):**
@@ -408,14 +408,14 @@ These metrics are exposed via the daemon's `/metrics` endpoint and scraped by Gr
 1. **Benzinga:**
    ```bash
    # Verify provider shows as OK
-   curl http://daemon:5040/metrics | grep 'live_overlay_provider_news_state_code{provider="benzinga_rss"}'
+   curl http://daemon:8000/metrics | grep 'live_overlay_provider_news_state_code{provider="benzinga_rss"}'
    # Expected: live_overlay_provider_news_state_code{provider="benzinga_rss"} 2.0
    ```
 
 2. **Experiment Panels:**
    ```bash
    # Verify metrics exist
-   curl http://daemon:5040/metrics | grep 'live_overlay_experiment'
+   curl http://daemon:8000/metrics | grep 'live_overlay_experiment'
    # Expected: live_overlay_experiment_loaded 1.0
    #           live_overlay_experiment_snapshot_age_seconds{} <value>
    #           live_overlay_experiment_files_scanned{} <count>
@@ -424,7 +424,7 @@ These metrics are exposed via the daemon's `/metrics` endpoint and scraped by Gr
 3. **TradingView Credential:**
    ```bash
    # Verify credential age metric exists
-   curl http://daemon:5040/metrics | grep 'live_overlay_tradingview_credential'
+   curl http://daemon:8000/metrics | grep 'live_overlay_tradingview_credential'
    # Expected: live_overlay_tradingview_credential_age_hours{} <hours>
    #           live_overlay_tradingview_credential_valid{} 1.0
    ```
