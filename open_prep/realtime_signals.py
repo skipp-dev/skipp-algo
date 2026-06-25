@@ -515,6 +515,8 @@ class AsyncNewsstackPoller:
                 ns_candidates = _run_poll_once_in_thread(
                     _newsstack_poll, _NSConfig(), self._stop
                 )
+                if self._stop.is_set():
+                    break
                 new_data: dict[str, dict[str, Any]] = {}
                 for nc in ns_candidates:
                     tk = str(nc.get("ticker", "")).strip().upper()

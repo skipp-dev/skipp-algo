@@ -989,11 +989,13 @@ class BenzingaRssAdapter:
                 if parsed.get("bozo") and not parsed.get("entries"):
                     _errors_this_fetch += 1
                     self.fetch_errors += 1
+                prev_errors = self.fetch_errors
                 results.extend(
                     _process_parsed_feed(
                         parsed, feed_url, min_epoch=min_epoch, adapter=self
                     )
                 )
+                _errors_this_fetch += max(0, self.fetch_errors - prev_errors)
 
         self.fetch_total += 1
         self.last_fetch_errors = _errors_this_fetch
