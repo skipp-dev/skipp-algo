@@ -1,9 +1,9 @@
 # Handover: SMC v2 Feature Branch
 
-**Status:** Gemerged in `origin/main` via PR #2936 (Commit `881e3957`). Folgearbeiten in PR #2940.  
-**Basis:** `origin/main`  
+**Status:** WIP in Branch `fix/smc-v2-confluence` / Worktree `smc-v2-confluence`.  
+**Basis:** `origin/main` nach PR #2940.  
 **Python:** Projekt-Venv (`<repo-root>/.venv/bin/python`)  
-**Stand:** Alle zugehörigen Tests grün, `ruff check --fix` sauber. Worktree und Branch wurden nach dem Merge aufgeräumt.
+**Stand:** SMC-v2-Confluence-Migration (Phase D) abgeschlossen; Tests grün, `ruff check --fix` sauber.
 
 ---
 
@@ -20,7 +20,7 @@ Implementiert wurden die Phasen:
 | A | Freshness v2 mit erweiterten Labels (`very_fresh`/`fresh`/`aging`/`stale`/`expired`) |
 | B | Sweep-Trap-Detektor (`smc_core/sweep_trap.py`) in `build_signal_quality_v2` integriert |
 | C | Reaction-Zone-Detektor (`smc_core/reaction_zone.py`) in `build_signal_quality_v2` integriert |
-| D | Confluence-Score-Detektor (`smc_core/confluence_score.py`) + Cutover in `build_signal_quality_v2` |
+| D | Confluence-Score-Detektor: Cutover von `smc_core/confluence_score.py` auf `smc_core/smc_confluence.compute_confluence`; orthogonale `OB_SUPPORT_SCORE`/`FVG_GAP_SCORE` in `measurement_evidence`; Budget-Refaktorierung in `build_signal_quality_v2` |
 | E | SMT-Divergenz-Detektor (`smc_core/smt_divergence.py`) in `build_signal_quality_v2` integriert |
 | F | Vollständige v2-Integration aller Detektoren |
 | G | Integrationstest `tests/test_signal_quality_v2_integration.py` |
@@ -63,33 +63,32 @@ So kann `SIGNAL_QUALITY_MODEL=v1` bleiben und einzelne v2-Features trotzdem akti
 
 ### 2.3 Unabhängiges Gating in `build_signal_quality_v2`
 
-Jedes v2-Feature wird unabhängig geprüft; es gibt keinen frühen Return mehr:
+`build_signal_quality_v2` ist kein Wrapper um `build_signal_quality_v1` mehr. Es besitzt ein eigenes Budget (Summe = 100):
+
+| Slot | Budget |
+|------|--------|
+| Structure | 18 |
+| Session | 18 |
+| Liquidity | 12 |
+| OB | 12 |
+| FVG | 12 |
+| Compression | 12 |
+| Confluence | 12 |
+| SMT | 4 |
+
+Jedes v2-Feature wird unabhängig geprüft:
 
 ```python
-result = build_signal_quality_v1(enrichment=enrichment, overrides=overrides)
-
-if is_freshness_v2_enabled():
-    result["SIGNAL_FRESHNESS"] = _freshness_label_v2(...)
-
 if is_confluence_score_enabled():
-    result.update(compute_confluence_score(enr))
-
-if is_sweep_trap_enabled():
-    result.update(detect_sweep_trap(enr))
-
-if is_reaction_zone_enabled():
-    result.update(detect_reaction_zone(enr))
-
-if is_smt_divergence_enabled():
-    result.update(detect_smt_divergence(enr))
-
-if overrides:
-    for key, value in overrides.items():
-        if key in result:
-            result[key] = value
-
-return result
+    from smc_core.smc_confluence import compute_confluence
+    confluence = compute_confluence(ob_light, fvg_light, sweeps)
+    score += int(_MAX_CONFLUENCE_V2 * confluence.raw_confluence_score)
+    result["CONFLUENCE_SCORE"] = confluence_contribution
+    result["CONFLUENCE_DIRECTION"] = _derive_confluence_direction(enr)
+    ...
 ```
+
+`smc_core/confluence_score.py` wurde entfernt; der einzige Confluence-Algorithmus ist nun `smc_core/smc_confluence.py` (geometrischer Mittelwert über OB/FVG/Sweep mit Tiering).
 
 ---
 
@@ -102,15 +101,23 @@ return result
 - `tests/test_feature_flags.py` — Tests für neue Flags
 - `.github/copilot-instructions.md` — Anti-Hang-Editor-Fallback-Regel
 
-### Neue Dateien
+### Geänderte Dateien in dieser Session
 
 | Datei | Zweck |
 |-------|-------|
-| `smc_core/v2_features.py` | Isolierte v2-Feature-Flag-Wrapper |
-| `smc_core/sweep_trap.py` | `detect_sweep_trap(enrichment)` |
-| `smc_core/reaction_zone.py` | `detect_reaction_zone(enrichment)` |
-| `smc_core/confluence_score.py` | `compute_confluence_score(enrichment)` |
-| `smc_core/smt_divergence.py` | `detect_smt_divergence(enrichment)` |
+| `smc_integration/measurement_evidence.py` | `_ob_support_score()`, `_fvg_gap_score()`; OB/FVG-Light-Dicts enthalten `OB_SUPPORT_SCORE`/`FVG_GAP_SCORE` |
+| `scripts/smc_signal_quality.py` | Eigenes v2-Budget (18/18/12/12/12/12/12/4); Confluence-Cutover auf `smc_core.smc_confluence`; SMT-Slot |
+| `tests/test_smc_core_confluence_score.py` | Migration auf `smc_core.smc_confluence.compute_confluence` und `build_signal_quality_v2` |
+| `tests/test_signal_quality_v2_freshness.py` | Confluence-Test an neue API angepasst |
+| `tests/test_signal_quality_v2_integration.py` | Orthogonale Scores + Budgettests angepasst |
+| `tests/test_smc_v2_signal_quality.py` | Budget-Summe inkl. SMT; Confluence-Test an neue API |
+| `tests/test_smc_integration_measurement_evidence.py` | OB/FVG-Price-Guard-Payloads um neue Score-Felder ergänzt |
+
+### Entfernte Dateien
+
+| Datei | Grund |
+|-------|-------|
+| `smc_core/confluence_score.py` | Funktionalität vollständig durch `smc_core/smc_confluence.py` ersetzt |
 | `tests/test_smc_core_v2_features.py` | 15 Tests für Flag-Wrapper |
 | `tests/test_signal_quality_v2_freshness.py` | Freshness-v2- + Confluence-Cutover-Tests |
 | `tests/test_signal_quality_v2_integration.py` | End-to-End-v2-Integrationstest |
@@ -143,18 +150,23 @@ return result
 Letzter erfolgreicher Testlauf (im Worktree-Root ausführen):
 
 ```bash
-python -m ruff check --fix .
-python -m pytest \
-  tests/test_feature_flags.py \
-  tests/test_smc_core_v2_features.py \
-  tests/test_signal_quality.py \
-  tests/test_lean_value_domains.py \
+python -m ruff check --fix \
+  smc_integration/measurement_evidence.py \
+  scripts/smc_signal_quality.py \
+  tests/test_smc_core_confluence_score.py \
   tests/test_signal_quality_v2_freshness.py \
   tests/test_signal_quality_v2_integration.py \
-  tests/test_smc_core_sweep_trap.py \
-  tests/test_smc_core_reaction_zone.py \
+  tests/test_smc_v2_signal_quality.py \
+  tests/test_smc_integration_measurement_evidence.py
+python -m pytest \
+  tests/test_smc_v2_confluence.py \
   tests/test_smc_core_confluence_score.py \
-  tests/test_smc_core_smt_divergence.py \
+  tests/test_signal_quality_v2_freshness.py \
+  tests/test_signal_quality_v2_integration.py \
+  tests/test_smc_v2_signal_quality.py \
+  tests/test_smc_integration_measurement_evidence.py \
+  tests/test_smc_core_v2_features.py \
+  tests/test_feature_flags.py \
   -q
 ```
 
@@ -170,7 +182,7 @@ Ergebnis: **alle zugehörigen Tests passed**.
 - [x] Edge-Case-Tests ergänzt.
 - [x] Freshness-Downgrade bei kontra-Signalen integriert.
 - [x] Dokumentation in `docs/v5_5b_architecture.md` ergänzt.
-- [ ] PR #2940 mergen.
+- [ ] PR aus `fix/smc-v2-confluence` erstellen.
 - [ ] Weitere Iterationen: datengetriebene Kalibrierung der Confidence-Scores.
 
 ---
