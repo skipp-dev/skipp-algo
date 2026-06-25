@@ -27,6 +27,10 @@ from .diff import (
     load_previous_snapshot,
     save_result_snapshot,
 )
+from .feature_flags import (
+    is_open_prep_benzinga_core_news_enabled,
+    is_open_prep_tradingview_news_enabled,
+)
 from .log_redaction import apply_global_log_redaction
 from .macro import (
     FinnhubClient,
@@ -4102,7 +4106,7 @@ def _fetch_news_context_with_diagnostics(
     if tradingview_fetch_error:
         news_fetch_errors.append(f"tradingview:{tradingview_fetch_error}")
 
-    benzinga_enabled = _bool_env("OPEN_PREP_ENABLE_BENZINGA_CORE_NEWS", False) if include_benzinga is None else bool(include_benzinga)
+    benzinga_enabled = is_open_prep_benzinga_core_news_enabled() if include_benzinga is None else bool(include_benzinga)
     if benzinga_enabled:
         benzinga_articles, benzinga_fetch_error = _fetch_benzinga_core_news_articles(symbols=symbols)
         if benzinga_fetch_error:
@@ -4391,7 +4395,7 @@ def _dedupe_news_articles(batches: list[list[dict[str, Any]]]) -> list[dict[str,
 
 
 def _fetch_tradingview_news_articles(*, symbols: list[str]) -> tuple[list[dict[str, Any]], str | None]:
-    if not _bool_env("OPEN_PREP_ENABLE_TRADINGVIEW_NEWS", True):
+    if not is_open_prep_tradingview_news_enabled():
         return [], None
 
     max_symbols = max(_int_env("OPEN_PREP_TV_NEWS_MAX_SYMBOLS", 8), 0)

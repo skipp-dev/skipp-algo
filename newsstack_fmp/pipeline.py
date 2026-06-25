@@ -719,8 +719,11 @@ def poll_once(
             bz_rss = _get_bz_rss_adapter()
             bz_rss_items = bz_rss.fetch_news(min_epoch=bz_rss_last_seen)
             bz_rss_new = [it for it in bz_rss_items if it.is_valid]
+            # Use published_ts for the watermark because the RSS adapter
+            # filters items by published_ts >= min_epoch.  updated_ts may
+            # reflect a later edit and would cause us to skip new items.
             new_bz_rss_max = max(
-                (it.updated_ts for it in bz_rss_new),
+                (it.published_ts for it in bz_rss_new),
                 default=bz_rss_last_seen,
             )
             ingest_counts_by_source["benzinga_rss"] = len(bz_rss_items)

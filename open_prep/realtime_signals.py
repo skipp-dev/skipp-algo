@@ -443,6 +443,10 @@ class AsyncNewsstackPoller:
 
     The result is cached and updated asynchronously.  ``latest()`` always
     returns immediately with the most recent data (or empty dict on first call).
+
+    ANP-5: the background loop itself never blocks on ``poll_once``; each poll
+    runs in a short-lived worker thread so ``stop()`` can interrupt the wait.
+    ANP-6: lightweight telemetry exposes poll health, latency, and cache size.
     """
 
     def __init__(self, poll_interval: float = 15.0) -> None:
@@ -452,6 +456,14 @@ class AsyncNewsstackPoller:
         self._interval = max(poll_interval, 5.0)
         self._thread: threading.Thread | None = None
         self._stop = threading.Event()
+        # ANP-6 telemetry
+        self.poll_count: int = 0
+        self.poll_errors: int = 0
+        self.last_poll_duration: float = 0.0
+        self.last_success_at: float | None = None
+        self.last_error_at: float | None = None
+        self.last_error_msg: str | None = None
+        self.cached_tickers_count: int = 0
 
     def start(self) -> None:
         """Start the background polling thread (daemon)."""
@@ -473,16 +485,36 @@ class AsyncNewsstackPoller:
         with self._lock:
             return dict(self._data)
 
+    def metrics(self) -> dict[str, Any]:
+        """Return telemetry for the async poller (ANP-6).
+
+        Metrics are kept intentionally cheap so they can be exposed on every
+        poll cycle without lock contention.
+        """
+        with self._lock:
+            return {
+                "poll_count": self.poll_count,
+                "poll_errors": self.poll_errors,
+                "last_poll_duration": self.last_poll_duration,
+                "last_success_at": self.last_success_at,
+                "last_error_at": self.last_error_at,
+                "last_error_msg": self.last_error_msg,
+                "cached_tickers_count": self.cached_tickers_count,
+            }
+
     def _loop(self) -> None:
         _newsstack_poll: Any = None
         _NSConfig: Any = None
         while not self._stop.is_set():
+            t0 = time.monotonic()
             try:
                 if _newsstack_poll is None:
                     from newsstack_fmp.config import Config as _NSConfig
                     from newsstack_fmp.pipeline import poll_once as _newsstack_poll
 
-                ns_candidates = _newsstack_poll(_NSConfig())
+                ns_candidates = _run_poll_once_in_thread(
+                    _newsstack_poll, _NSConfig(), self._stop
+                )
                 new_data: dict[str, dict[str, Any]] = {}
                 for nc in ns_candidates:
                     tk = str(nc.get("ticker", "")).strip().upper()
@@ -492,11 +524,58 @@ class AsyncNewsstackPoller:
                             new_data[tk] = nc
                 with self._lock:
                     self._data = new_data
+                    self.cached_tickers_count = len(new_data)
+                    self.poll_count += 1
+                    self.last_success_at = time.monotonic()
+                    self.last_error_msg = None
             except Exception as exc:
                 logger.debug("Async newsstack poll error: %s", exc)
+                with self._lock:
+                    self.poll_errors += 1
+                    self.last_error_at = time.monotonic()
+                    self.last_error_msg = str(exc)
+            finally:
+                with self._lock:
+                    self.last_poll_duration = time.monotonic() - t0
             self._stop.wait(self._interval)
 
 
+
+
+def _run_poll_once_in_thread(
+    poll_fn: Any,
+    cfg: Any,
+    stop_event: Any,
+) -> list[dict[str, Any]]:
+    """Run ``poll_once(cfg)`` in a worker thread that respects ``stop_event``.
+
+    ANP-5: keeps the poller loop interruptible even when ``poll_once`` blocks
+    on slow network adapters (e.g. RSS fetch with retry backoff).
+    """
+    import threading
+    result: list[dict[str, Any]] = []
+    error: Exception | None = None
+
+    def _target() -> None:
+        nonlocal result, error
+        try:
+            result = list(poll_fn(cfg))
+        except Exception as exc:
+            error = exc
+
+    worker = threading.Thread(target=_target, name="newsstack-poll-once")
+    worker.start()
+    # Wait in small slices so stop_event can interrupt us promptly.
+    while worker.is_alive() and not stop_event.is_set():
+        worker.join(timeout=0.5)
+    if worker.is_alive():
+        # stop_event is set; detach the worker.  It will finish eventually or
+        # be killed when the process exits (daemon thread).
+        worker.daemon = True
+        return []
+    if error is not None:
+        raise error
+    return result
 # ---------------------------------------------------------------------------
 # Market-hours gate
 # ---------------------------------------------------------------------------
