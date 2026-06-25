@@ -1203,8 +1203,8 @@ def render_metrics(startup_ts: float) -> str:
 
     workflow_counts = dict(workflow_snapshot.get("counts") or {})
     for key in ("seen", "success", "failed", "in_progress", "queued"):
-        # Bridge payloads are snapshot counts (latest scrape view), not
-        # monotonic process-lifetime counters.
+        # Snapshot counts from the latest workflow-runs page can go up/down
+        # across polls, so expose them as gauges (not monotonic counters).
         metric_name = f"live_overlay_github_workflow_runs_{key}_total"
         lines.append(f"# TYPE {metric_name} gauge")
         lines.append(
