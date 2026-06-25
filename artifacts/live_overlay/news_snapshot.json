@@ -1,0 +1,28 @@
+{
+  "schema_version": "1",
+  "generated_at": "2026-06-25T02:38:00Z",
+  "cycle_id": "manual_fix_2026-06-25",
+  "providers": {
+    "benzinga_rss": {
+      "ok": true,
+      "fetch_total": 5,
+      "fetch_errors": 0,
+      "last_fetch_errors": 0,
+      "items_parsed": 42,
+      "items_deduped": 12,
+      "bozo_total": 0,
+      "last_fetch_duration_s": 2.145
+    },
+    "newsapi_ai": {
+      "ok": true,
+      "articles_fetched": 150,
+      "articles_valid": 145,
+      "api_errors": 0
+    }
+  },
+  "pipeline_health": {
+    "total_items_ingested": 187,
+    "valid_items": 187,
+    "errors": 0
+  }
+}
