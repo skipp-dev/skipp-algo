@@ -431,6 +431,16 @@ observability.py (structured log lines + in-process counters)
 | `live_overlay_tradingview_credential_age_known` | gauge | metrics.py TradingView credential-health snapshot probe (`1=age_hours present`) |
 | `live_overlay_tradingview_credential_age_hours` | gauge | metrics.py TradingView credential-health snapshot probe (`tv_storage_state_age.details.age_hours`) |
 | `live_overlay_tradingview_credential_validated_at_seconds` | gauge | metrics.py TradingView credential-health snapshot probe (`tv_storage_state_age.details.validated_at`) |
+| `live_overlay_credential_health_loaded` | gauge | metrics.py full credential-health report loaded (`1=yes`, `0=no`) |
+| `live_overlay_credential_health_overall_valid` | gauge | metrics.py full credential-health report overall validity (`0=error severity`, `1=ok/warn/unknown`) |
+| `live_overlay_credential_health_overall_severity_info` | gauge | metrics.py overall severity as a label (`severity=ok|warn|error|unknown`) |
+| `live_overlay_credential_health_<probe>_severity_code` | gauge | metrics.py per-probe severity code (`0=error`, `1=warn`, `2=ok`) |
+| `live_overlay_credential_health_<probe>_valid` | gauge | metrics.py per-probe validity (`0=error severity`, `1=ok/warn`) |
+| `live_overlay_credential_health_<probe>_info` | gauge | metrics.py per-probe severity/message labels |
+| `live_overlay_credential_health_<probe>_age_hours` | gauge | metrics.py `tv_storage_state_age.details.age_hours` |
+| `live_overlay_credential_health_<probe>_validated_at_seconds` | gauge | metrics.py `tv_storage_state_age.details.validated_at` epoch |
+| `live_overlay_credential_health_<probe>_days_left` | gauge | metrics.py `github_pat_validity.details.days_left` |
+| `live_overlay_credential_health_<probe>_staleness_days` | gauge | metrics.py `databento_delivery.details.staleness_days` |
 | `live_overlay_experiment_loaded` | gauge | metrics.py daily experiment snapshot probe |
 | `live_overlay_experiment_snapshot_age_known` | gauge | metrics.py daily experiment snapshot probe |
 | `live_overlay_experiment_snapshot_age_seconds` | gauge | metrics.py daily experiment snapshot probe |

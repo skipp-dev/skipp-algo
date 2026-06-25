@@ -520,62 +520,8 @@
             ]
           }
         }
-      }
-    },
-    {
-      "title": "Workers Healthy",
-      "type": "stat",
-      "gridPos": {
-        "h": 4,
-        "w": 4,
-        "x": 4,
-        "y": 12
       },
-      "targets": [
-        {
-          "expr": "live_overlay_workers_healthy{job=\"$job\"}",
-          "legendFormat": "Workers"
-        }
-      ],
-      "options": {
-        "colorMode": "background_solid",
-        "graphMode": "none",
-        "reduceOptions": {
-          "calcs": [
-            "lastNotNull"
-          ],
-          "fields": "",
-          "values": false
-        }
-      },
-      "fieldConfig": {
-        "defaults": {
-          "mappings": [
-            {
-              "type": "value",
-              "options": {
-                "0": {
-                  "text": "DEGRADED",
-                  "color": "red"
-                },
-                "1": {
-                  "text": "OK",
-                  "color": "green"
-                }
-              }
-            }
-          ],
-          "thresholds": {
-            "mode": "absolute",
-            "steps": [
-              {
-                "color": "green",
-                "value": null
-              }
-            ]
-          }
-        }
-      }
+      "description": "Daemon lifecycle state: STARTING, HEALTHY, DEGRADED, CRITICAL or IDLE. Combines feed readiness, worker liveness, overlay freshness and market-open context."
     },
     {
       "title": "Uptime",
@@ -614,7 +560,8 @@
             ]
           }
         }
-      }
+      },
+      "description": "Daemon process uptime since the last start/restart."
     },
     {
       "title": "Overlay Symbols",
@@ -665,7 +612,8 @@
             }
           ]
         }
-      }
+      },
+      "description": "Number of distinct symbols currently held in the in-memory SMC overlay cache."
     },
     {
       "title": "Bar Symbols",
@@ -707,7 +655,8 @@
             }
           ]
         }
-      }
+      },
+      "description": "Number of distinct symbols with at least one 1-minute bar in the ingest cache."
     },
     {
       "title": "Bar Count",
@@ -738,7 +687,8 @@
         "defaults": {
           "unit": "short"
         }
-      }
+      },
+      "description": "Total 1-minute bars currently retained across all symbols."
     },
     {
       "title": "Request Rate",
@@ -818,7 +768,8 @@
             ]
           }
         ]
-      }
+      },
+      "description": "HTTP request rate to the daemon endpoints as observed by Grafana Alloy."
     },
     {
       "title": "Overlay & Bar Age",
@@ -879,7 +830,8 @@
             }
           }
         }
-      }
+      },
+      "description": "Time since the overlay cache and the newest ingested bar were last refreshed."
     },
     {
       "title": "Compute Cycle Errors",
@@ -972,7 +924,8 @@
             ]
           }
         ]
-      }
+      },
+      "description": "Rate of errors raised during SMC overlay compute cycles (full + flow refresh)."
     },
     {
       "title": "Feed Health Counters",
@@ -1016,7 +969,8 @@
         "defaults": {
           "unit": "cps"
         }
-      }
+      },
+      "description": "Feed-level counters: reconnects, Databento errors, unexpected errors, circuit breakers and partial restarts."
     },
     {
       "title": "Worker Liveness",
@@ -1152,7 +1106,8 @@
             ]
           }
         }
-      }
+      },
+      "description": "Cumulative number of times the feed circuit breaker opened since process start."
     },
     {
       "title": "Feed Partial Restarts (Total)",
@@ -1201,7 +1156,8 @@
             ]
           }
         }
-      }
+      },
+      "description": "Cumulative number of partial feed restarts (lighter than a full reconnect)."
     },
     {
       "title": "Success Rate (%)",
@@ -1253,7 +1209,8 @@
             ]
           }
         }
-      }
+      },
+      "description": "Percentage of recent SMC compute cycles that completed without errors."
     },
     {
       "title": "Market-open Request Health",
@@ -1320,7 +1277,8 @@
             ]
           }
         }
-      }
+      },
+      "description": "Synthetic signal that amplifies request health while the US market is open and suppresses it when closed."
     },
     {
       "title": "Uptime Resets (24h, est.)",
@@ -1369,7 +1327,8 @@
             ]
           }
         }
-      }
+      },
+      "description": "Estimated number of daemon restarts in the last 24 hours based on uptime resets."
     },
     {
       "title": "Restart Causes (24h, counted)",
@@ -1418,7 +1377,8 @@
             ]
           }
         }
-      }
+      },
+      "description": "Restart cause labels emitted by the daemon/deploy pipeline over the last 24 hours."
     },
     {
       "title": "Failure Mix",
@@ -1472,7 +1432,8 @@
             }
           }
         }
-      }
+      },
+      "description": "Breakdown of compute/feed failures by category over time."
     },
     {
       "title": "Stale Budget Consumed (%)",
@@ -1659,7 +1620,8 @@
             ]
           }
         }
-      }
+      },
+      "description": "Count of health/status responses served while the overlay or feed data was stale."
     },
     {
       "title": "UptimeRobot Monitor States",
@@ -1755,7 +1717,8 @@
         "y": 74
       },
       "collapsed": false,
-      "panels": []
+      "panels": [],
+      "description": "Row grouping for external bridge health: UptimeRobot monitors and GitHub Actions workflows."
     },
     {
       "title": "UptimeRobot Bridge",
@@ -1814,7 +1777,8 @@
             ]
           }
         }
-      }
+      },
+      "description": "Whether the UptimeRobot API bridge is enabled and its last scrape succeeded."
     },
     {
       "title": "UptimeRobot Snapshot Age",
@@ -1879,7 +1843,8 @@
             }
           ]
         }
-      }
+      },
+      "description": "Seconds since the last successful UptimeRobot bridge poll."
     },
     {
       "title": "UptimeRobot Monitors",
@@ -1944,7 +1909,8 @@
             ]
           }
         ]
-      }
+      },
+      "description": "Per-monitor up/down status and response time from UptimeRobot."
     },
     {
       "title": "GitHub Workflow Bridge",
@@ -2003,7 +1969,8 @@
             ]
           }
         }
-      }
+      },
+      "description": "Whether the GitHub workflow bridge is enabled and its last scrape succeeded."
     },
     {
       "title": "GitHub Workflow Snapshot Age",
@@ -2068,7 +2035,8 @@
             }
           ]
         }
-      }
+      },
+      "description": "Seconds since the last successful GitHub workflow bridge poll."
     },
     {
       "title": "GitHub Workflow Runs",
@@ -2323,7 +2291,8 @@
         "y": 107
       },
       "collapsed": false,
-      "panels": []
+      "panels": [],
+      "description": "Row grouping for service-level objectives, no-data guards and error-budget burn rate."
     },
     {
       "title": "Latency vs. SLO (ms)",
@@ -2440,7 +2409,8 @@
             ]
           }
         }
-      }
+      },
+      "description": "Boolean SLO: overlay age under the freshness threshold while the market is open."
     },
     {
       "title": "No-Data Guard (Core Metrics)",
@@ -2499,7 +2469,8 @@
             ]
           }
         }
-      }
+      },
+      "description": "Fires when any of the core daemon metrics series disappears from Alloy."
     },
     {
       "title": "Error Budget Burn Rate (5m / 1h)",
@@ -2559,7 +2530,8 @@
             ]
           }
         }
-      }
+      },
+      "description": "Rate of bad events over 5m and 1h windows used for multi-window SLO alerting."
     },
     {
       "title": "Bridge Scrape Health Timeline",
@@ -2666,7 +2638,8 @@
         "defaults": {
           "unit": "short"
         }
-      }
+      },
+      "description": "Restart cause distribution over the last 24 hours."
     },
     {
       "title": "Hotspots — Symbols (Top)",
@@ -2701,7 +2674,8 @@
         "defaults": {
           "unit": "short"
         }
-      }
+      },
+      "description": "Most requested SMC overlay symbols by request count."
     },
     {
       "title": "News Provider State Codes",
@@ -2751,7 +2725,8 @@
         "defaults": {
           "unit": "short"
         }
-      }
+      },
+      "description": "Most requested SMC timeframes by request count."
     },
     {
       "title": "Ingest Queue Backpressure",
@@ -2794,7 +2769,8 @@
         "defaults": {
           "unit": "short"
         }
-      }
+      },
+      "description": "Current ingest queue depth versus its configured maximum."
     },
     {
       "title": "Ingest Queue Lag (ms)",
@@ -2850,7 +2826,8 @@
             ]
           }
         }
-      }
+      },
+      "description": "End-to-end latency from bar arrival to ingestion completion."
     },
     {
       "title": "Provider Health",
@@ -2862,7 +2839,8 @@
         "y": 150
       },
       "collapsed": false,
-      "panels": []
+      "panels": [],
+      "description": "Row grouping for live news provider health."
     },
     {
       "title": "News Provider Health State",
@@ -2995,7 +2973,8 @@
         "defaults": {
           "unit": "short"
         }
-      }
+      },
+      "description": "Age of the smc_live_news_snapshot.json provider state and aggregate provider counts (ok/degraded/unknown/disabled/consumed)."
     },
     {
       "title": "News Providers — OK/Degraded (Drill-down)",
@@ -3032,7 +3011,8 @@
           "min": 0,
           "max": 1
         }
-      }
+      },
+      "description": "Per-provider ok/degraded/unknown state codes over time."
     },
     {
       "title": "News Providers — State Code",
@@ -3281,7 +3261,8 @@
         "maxItems": 20,
         "alertInstanceLabelFilter": "job=live_overlay",
         "viewMode": "list"
-      }
+      },
+      "description": "Currently firing Grafana alerts from the live-overlay alert rule group."
     },
     {
       "title": "GitHub Workflows — Latest Run Detail",
@@ -4756,7 +4737,8 @@
         "w": 24,
         "x": 0,
         "y": 253
-      }
+      },
+      "description": "Row grouping for Railway container-level CPU, memory, disk and network metrics."
     },
     {
       "type": "timeseries",
@@ -4822,7 +4804,8 @@
             "uid": "grafanacloud-prom"
           }
         }
-      ]
+      ],
+      "description": "Container CPU usage in cores (rate over 5m) for live_overlay and signals_producer."
     },
     {
       "type": "timeseries",
@@ -4888,7 +4871,8 @@
             "uid": "grafanacloud-prom"
           }
         }
-      ]
+      ],
+      "description": "Container resident memory in MB for live_overlay and signals_producer."
     },
     {
       "type": "timeseries",
@@ -4941,7 +4925,8 @@
             "uid": "grafanacloud-prom"
           }
         }
-      ]
+      ],
+      "description": "Open file descriptor count per Railway service."
     },
     {
       "type": "stat",
@@ -4980,7 +4965,8 @@
             "uid": "grafanacloud-prom"
           }
         }
-      ]
+      ],
+      "description": "Process uptime of the signals producer service."
     },
     {
       "type": "stat",
@@ -5019,7 +5005,8 @@
             "uid": "grafanacloud-prom"
           }
         }
-      ]
+      ],
+      "description": "Process uptime of the live overlay daemon service."
     },
     {
       "type": "timeseries",
@@ -5072,7 +5059,8 @@
             "uid": "grafanacloud-prom"
           }
         }
-      ]
+      ],
+      "description": "Python garbage collection frequency by generation."
     },
     {
       "type": "row",
@@ -5084,7 +5072,8 @@
         "y": 274
       },
       "collapsed": false,
-      "panels": []
+      "panels": [],
+      "description": "Row grouping for the Grafana Alloy sidecar scraping /metrics."
     },
     {
       "type": "timeseries",
@@ -5128,7 +5117,8 @@
             "uid": "grafanacloud-prom"
           }
         }
-      ]
+      ],
+      "description": "CPU usage of the Grafana Alloy collector."
     },
     {
       "type": "timeseries",
@@ -5172,7 +5162,8 @@
             "uid": "grafanacloud-prom"
           }
         }
-      ]
+      ],
+      "description": "Resident memory of the Grafana Alloy collector."
     },
     {
       "type": "stat",
@@ -5193,8 +5184,14 @@
           "thresholds": {
             "mode": "absolute",
             "steps": [
-              {"color": "red", "value": null},
-              {"color": "green", "value": 300}
+              {
+                "color": "red",
+                "value": null
+              },
+              {
+                "color": "green",
+                "value": 300
+              }
             ]
           }
         },
@@ -5202,7 +5199,9 @@
       },
       "options": {
         "reduceOptions": {
-          "calcs": ["lastNotNull"]
+          "calcs": [
+            "lastNotNull"
+          ]
         }
       },
       "targets": [
@@ -5215,7 +5214,8 @@
             "uid": "grafanacloud-prom"
           }
         }
-      ]
+      ],
+      "description": "Process uptime of the Grafana Alloy collector."
     },
     {
       "type": "stat",
@@ -5236,9 +5236,18 @@
           "thresholds": {
             "mode": "absolute",
             "steps": [
-              {"color": "green", "value": null},
-              {"color": "yellow", "value": 100},
-              {"color": "red", "value": 500}
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "yellow",
+                "value": 100
+              },
+              {
+                "color": "red",
+                "value": 500
+              }
             ]
           }
         },
@@ -5246,7 +5255,9 @@
       },
       "options": {
         "reduceOptions": {
-          "calcs": ["lastNotNull"]
+          "calcs": [
+            "lastNotNull"
+          ]
         }
       },
       "targets": [
@@ -5259,7 +5270,8 @@
             "uid": "grafanacloud-prom"
           }
         }
-      ]
+      ],
+      "description": "Number of Go goroutines in the Grafana Alloy collector."
     },
     {
       "type": "timeseries",
@@ -5302,7 +5314,8 @@
             "uid": "grafanacloud-prom"
           }
         }
-      ]
+      ],
+      "description": "Duration of Alloy scrape jobs against the daemon /metrics endpoint."
     }
   ],
   "schemaVersion": 39,
@@ -5342,5 +5355,6 @@
   "timezone": "utc",
   "title": "SMC Live Overlay Daemon",
   "uid": "smc-live-overlay-v1",
-  "version": 24
+  "version": 24,
+  "description": "Live-overlay daemon operational dashboard: feed health, worker liveness, SMC overlay freshness, external bridge status, provider health, daily experiment metrics, and Railway container resources."
 }
