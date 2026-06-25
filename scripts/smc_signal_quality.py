@@ -465,7 +465,7 @@ def build_signal_quality_v2(
 
     Budget (sum = 100):
       structure 18 | session 18 | liquidity 12 | OB 12 | FVG 12 |
-      compression 12 | confluence 12 | SMT 6
+      compression 12 | confluence 12 | SMT 4
 
     Phase A (Freshness v2): optionally uses the extended v2 freshness label.
     Phase B-D: optionally folds sweep-trap, reaction-zone, confluence and
@@ -607,7 +607,14 @@ def build_signal_quality_v2(
     if is_confluence_score_enabled():
         from smc_core.smc_confluence import compute_confluence
 
-        confluence_result = compute_confluence(ob_light, fvg_light, ls)
+        # Normalize SWEEP_QUALITY_SCORE (0-5) to 0.0-1.0 for compute_confluence.
+        normalized_sweep = dict(ls) if ls else {}
+        if "SWEEP_QUALITY_SCORE" in normalized_sweep:
+            normalized_sweep = {
+                **normalized_sweep,
+                "SWEEP_QUALITY_SCORE": min(1.0, max(0.0, float(normalized_sweep["SWEEP_QUALITY_SCORE"]) / 5.0)),
+            }
+        confluence_result = compute_confluence(ob_light, fvg_light, normalized_sweep)
         confluence_contribution = int(_MAX_CONFLUENCE_V2 * confluence_result.raw_confluence_score)
         score += confluence_contribution
         result["CONFLUENCE_SCORE"] = confluence_contribution
@@ -617,7 +624,7 @@ def build_signal_quality_v2(
         result["CONFLUENCE_FVG_CONTRIBUTION"] = confluence_result.fvg_contribution
         result["CONFLUENCE_SWEEP_CONTRIBUTION"] = confluence_result.sweep_contribution
 
-    # ── SMT divergence (0-6) ────────────────────────────────────
+    # ── SMT divergence (0-4) ────────────────────────────────────
     if is_smt_divergence_enabled():
         from smc_core.smt_divergence import detect_smt_divergence
 

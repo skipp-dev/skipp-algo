@@ -1,8 +1,10 @@
 # Handover: SMC v2 Feature Branch
 
-**Status:** Offener PR #2945 (`fix/smc-v2-confluence` → `main`).  
+**Status:** In Review — PR #2945 (`fix/smc-v2-confluence` → `main`).  
 **Basis:** `origin/main` nach PR #2940.  
-**PR URL:** https://github.com/skippALGO/skipp-algo/pull/2945  
+**PR URL:** https://github.com/skippALGO/skipp-algo/pull/2945
+
+> Post-merge sollte dieser Abschnitt auf "Gemerged in `origin/main` via PR #2945" geändert werden.  
 **Python:** Projekt-Venv (`<repo-root>/.venv/bin/python`)  
 **Stand:** SMC-v2-Confluence-Migration (Phase D) abgeschlossen; Tests grün, `ruff check --fix` sauber.
 
