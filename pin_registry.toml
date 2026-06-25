@@ -85,7 +85,7 @@
 # open-prep snapshot from OPEN_PREP_SNAPSHOT_URL (raw bot-branch JSON) so the
 # Railway worker can run without the local artifact; http(s)-only, timeout=15s.
 # 2026-06-25: shifted 919 -> 998 by AsyncNewsstackPoller telemetry additions.
-"open_prep/realtime_signals.py" = [998]
+"open_prep/realtime_signals.py" = [1000]
 "scripts/probe_fmp_13f_endpoints.py" = [75]
 "scripts/resolve_workflow_runner.py" = [91]
 # 2026-06-21 (live-overlay bridge observability): optional external polling
