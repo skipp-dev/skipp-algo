@@ -2574,7 +2574,7 @@
       },
       "targets": [
         {
-          "expr": "deriv(live_overlay_github_workflow_runs_seen{job=~\"$job\"}[$__rate_interval])",
+          "expr": "rate(live_overlay_github_workflow_runs_seen_total{job=~\"$job\"}[$__rate_interval])",
           "legendFormat": "seen",
           "datasource": {
             "type": "prometheus",
@@ -2582,7 +2582,7 @@
           }
         },
         {
-          "expr": "deriv(live_overlay_github_workflow_runs_success{job=~\"$job\"}[$__rate_interval])",
+          "expr": "rate(live_overlay_github_workflow_runs_success_total{job=~\"$job\"}[$__rate_interval])",
           "legendFormat": "success",
           "datasource": {
             "type": "prometheus",
@@ -2590,7 +2590,7 @@
           }
         },
         {
-          "expr": "deriv(live_overlay_github_workflow_runs_failed{job=~\"$job\"}[$__rate_interval])",
+          "expr": "rate(live_overlay_github_workflow_runs_failed_total{job=~\"$job\"}[$__rate_interval])",
           "legendFormat": "failed",
           "datasource": {
             "type": "prometheus",
@@ -2598,7 +2598,7 @@
           }
         },
         {
-          "expr": "deriv(live_overlay_github_workflow_runs_in_progress{job=~\"$job\"}[$__rate_interval])",
+          "expr": "rate(live_overlay_github_workflow_runs_in_progress_total{job=~\"$job\"}[$__rate_interval])",
           "legendFormat": "in_progress",
           "datasource": {
             "type": "prometheus",
@@ -2606,7 +2606,7 @@
           }
         },
         {
-          "expr": "deriv(live_overlay_github_workflow_runs_queued{job=~\"$job\"}[$__rate_interval])",
+          "expr": "rate(live_overlay_github_workflow_runs_queued_total{job=~\"$job\"}[$__rate_interval])",
           "legendFormat": "queued",
           "datasource": {
             "type": "prometheus",

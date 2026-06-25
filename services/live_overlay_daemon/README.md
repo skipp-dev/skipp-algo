@@ -390,10 +390,11 @@ observability.py (structured log lines + in-process counters)
 | `live_overlay_market_europe_open` | gauge | market_hours.py |
 | `live_overlay_market_asia_open` | gauge | market_hours.py |
 | `live_overlay_daemon_restart_cause_<cause>_total` | counter | main.py/config.py |
+| `live_overlay_daemon_restarts_total` | counter | main.py |
 | `live_overlay_hotspot_symbols_tracked` | gauge | request_hotspots.py |
 | `live_overlay_hotspot_timeframes_tracked` | gauge | request_hotspots.py |
-| `live_overlay_hotspot_symbol_<symbol>_requests_total` | gauge | request_hotspots.py |
-| `live_overlay_hotspot_tf_<tf>_requests_total` | gauge | request_hotspots.py |
+| `live_overlay_hotspot_symbol_<symbol>_requests_total` | counter | request_hotspots.py |
+| `live_overlay_hotspot_tf_<tf>_requests_total` | counter | request_hotspots.py |
 | `live_overlay_feed_ingest_queue_depth` | gauge | feed.py backpressure snapshot |
 | `live_overlay_feed_ingest_queue_depth_max` | gauge | feed.py backpressure snapshot |
 | `live_overlay_feed_ingest_queue_dropped_total` | counter | feed.py backpressure snapshot (monotonically increasing drops) |
@@ -402,12 +403,12 @@ observability.py (structured log lines + in-process counters)
 | `live_overlay_provider_news_snapshot_loaded` | gauge | metrics.py news provider snapshot probe |
 | `live_overlay_provider_news_snapshot_age_seconds` | gauge | metrics.py news provider snapshot probe |
 | `live_overlay_provider_news_snapshot_age_known` | gauge | metrics.py news provider snapshot probe (`1=timestamp known`) |
-| `live_overlay_provider_news_providers_total` | gauge | metrics.py news provider snapshot probe |
-| `live_overlay_provider_news_providers_ok_total` | gauge | metrics.py news provider snapshot probe |
-| `live_overlay_provider_news_providers_degraded_total` | gauge | metrics.py news provider snapshot probe |
-| `live_overlay_provider_news_providers_unknown_total` | gauge | metrics.py news provider snapshot probe |
-| `live_overlay_provider_news_providers_disabled_total` | gauge | metrics.py news provider snapshot probe |
-| `live_overlay_provider_news_providers_consumed_total` | gauge | metrics.py news provider snapshot probe |
+| `live_overlay_provider_news_providers_total` | gauge | metrics.py news provider snapshot probe (`_total` suffix reflects a count, but value is a snapshot) |
+| `live_overlay_provider_news_providers_ok_total` | gauge | metrics.py news provider snapshot probe (`_total` suffix reflects a count, but value is a snapshot) |
+| `live_overlay_provider_news_providers_degraded_total` | gauge | metrics.py news provider snapshot probe (`_total` suffix reflects a count, but value is a snapshot) |
+| `live_overlay_provider_news_providers_unknown_total` | gauge | metrics.py news provider snapshot probe (`_total` suffix reflects a count, but value is a snapshot) |
+| `live_overlay_provider_news_providers_disabled_total` | gauge | metrics.py news provider snapshot probe (`_total` suffix reflects a count, but value is a snapshot) |
+| `live_overlay_provider_news_providers_consumed_total` | gauge | metrics.py news provider snapshot probe (`_total` suffix reflects a count, but value is a snapshot) |
 | `live_overlay_provider_news_health_ok` | gauge | metrics.py news provider snapshot probe |
 | `live_overlay_provider_news_health_degraded` | gauge | metrics.py news provider snapshot probe |
 | `live_overlay_provider_news_health_unknown` | gauge | metrics.py news provider snapshot probe |
@@ -417,10 +418,10 @@ observability.py (structured log lines + in-process counters)
 | `live_overlay_provider_news_<provider>_consumed` | gauge | metrics.py provider drill-down (`1=consumed`, `0=excluded/disabled`) |
 | `live_overlay_provider_news_info{provider,state,reason,consumed}` | gauge | metrics.py labeled provider reason/state info series |
 | `live_overlay_trading_signals_loaded` | gauge | metrics.py signals snapshot probe |
-| `live_overlay_trading_signals_active_total` | gauge | metrics.py signals snapshot probe |
-| `live_overlay_trading_signals_a0_total` | gauge | metrics.py signals snapshot probe |
-| `live_overlay_trading_signals_a1_total` | gauge | metrics.py signals snapshot probe |
-| `live_overlay_trading_signals_watched_total` | gauge | metrics.py signals snapshot probe |
+| `live_overlay_trading_signals_active_total` | gauge | metrics.py signals snapshot probe (`_total` suffix reflects a count, but value is a snapshot) |
+| `live_overlay_trading_signals_a0_total` | gauge | metrics.py signals snapshot probe (`_total` suffix reflects a count, but value is a snapshot) |
+| `live_overlay_trading_signals_a1_total` | gauge | metrics.py signals snapshot probe (`_total` suffix reflects a count, but value is a snapshot) |
+| `live_overlay_trading_signals_watched_total` | gauge | metrics.py signals snapshot probe (`_total` suffix reflects a count, but value is a snapshot) |
 | `live_overlay_trading_signals_snapshot_age_known` | gauge | metrics.py signals snapshot probe |
 | `live_overlay_trading_signals_snapshot_age_seconds` | gauge | metrics.py signals snapshot probe |
 | `live_overlay_trading_signals_snapshot_max_age_seconds` | gauge | metrics.py signals snapshot probe (configured staleness threshold) |
@@ -452,12 +453,12 @@ observability.py (structured log lines + in-process counters)
 | `live_overlay_uptimerobot_bridge_enabled` | gauge | uptimerobot_bridge.py |
 | `live_overlay_uptimerobot_scrape_success` | gauge | uptimerobot_bridge.py |
 | `live_overlay_uptimerobot_snapshot_age_seconds` | gauge | uptimerobot_bridge.py |
-| `live_overlay_uptimerobot_monitors_*_total` | gauge | uptimerobot_bridge.py |
+| `live_overlay_uptimerobot_monitors_*_total` | gauge | uptimerobot_bridge.py (`_total` suffix reflects a count, but value is a snapshot) |
 | `live_overlay_uptimerobot_monitor_<id>_*` | gauge | uptimerobot_bridge.py |
 | `live_overlay_github_workflow_bridge_enabled` | gauge | github_workflow_bridge.py |
 | `live_overlay_github_workflow_scrape_success` | gauge | github_workflow_bridge.py |
 | `live_overlay_github_workflow_snapshot_age_seconds` | gauge | github_workflow_bridge.py |
-| `live_overlay_github_workflow_runs_*` | gauge | github_workflow_bridge.py point-in-time run counts (no `_total` suffix because these are gauges, not counters) |
+| `live_overlay_github_workflow_runs_*_total` | counter | github_workflow_bridge.py |
 | `live_overlay_github_workflow_latest_run_*_seconds` | gauge | github_workflow_bridge.py aggregate latest run age/duration |
 | `live_overlay_github_workflow_phase_code{workflow_id,workflow,event}` | gauge | metrics.py per-workflow timeline series |
 | `live_overlay_github_workflow_latest_success{workflow_id,workflow,event}` | gauge | metrics.py per-workflow latest success state |
