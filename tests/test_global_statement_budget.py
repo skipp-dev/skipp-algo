@@ -234,8 +234,10 @@ _FROZEN_SITES: frozenset[tuple[str, int, tuple[str, ...]]] = frozenset(
         ("services/live_overlay_daemon/compute.py", 401, ("_tradingview_credential_cache", "_tradingview_credential_checked_at", "_tradingview_credential_loaded_at")),
         # 2026-06-23 (feat/grafana-experiment-timeline): daily experiment rollup
         # + per-day history loaders mirror the same snapshot caching pattern.
-        ("services/live_overlay_daemon/compute.py", 515, ("_experiment_cache", "_experiment_checked_at", "_experiment_loaded_at")),
-        ("services/live_overlay_daemon/compute.py", 563, ("_experiment_history_cache", "_experiment_history_checked_at", "_experiment_history_loaded_at")),
+        # 2026-06-24 (feat/live-overlay-credential-health): +5 lines for
+        # _load_credential_health_snapshot alias shifted globals to 520/568.
+        ("services/live_overlay_daemon/compute.py", 520, ("_experiment_cache", "_experiment_checked_at", "_experiment_loaded_at")),
+        ("services/live_overlay_daemon/compute.py", 568, ("_experiment_history_cache", "_experiment_history_checked_at", "_experiment_history_loaded_at")),
         # 2026-06-21 (provider/bridge + queue backpressure follow-ups):
         # feed.py gained additional helper/config blocks, shifting global
         # statements to 362/420/496.
