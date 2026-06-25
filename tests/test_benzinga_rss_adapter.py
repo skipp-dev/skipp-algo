@@ -348,7 +348,7 @@ def test_fetch_news_retries_transient_failure_then_succeeds(
     with _mock_feedparser(_parse):
         adapter = BenzingaRssAdapter()
         items = adapter.fetch_news()
-    # Two feeds configured by default; first feed fails once, then succeeds.
+    # Two feeds configured by default; each URL fails once, then succeeds.
     assert len(items) == 2
     assert adapter.fetch_errors == 0  # transient retries don't count as final errors
 
