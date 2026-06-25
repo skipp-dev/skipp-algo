@@ -44,8 +44,8 @@ HMAC_ALLOWED: set[tuple[str, int, str]] = {
     # provider-news rework shifted the same compare_digest call 418 → 421.
     # 2026-06-24 (signals auth): realtime /signals bearer-token checks use
     # constant-time comparison at two call sites.
-    ("open_prep/realtime_signals.py", 893, "compare_digest"),
-    ("open_prep/realtime_signals.py", 924, "compare_digest"),
+    ("open_prep/realtime_signals.py", 895, "compare_digest"),
+    ("open_prep/realtime_signals.py", 926, "compare_digest"),
     ("services/live_overlay_daemon/main.py", 421, "compare_digest"),
 }
 
