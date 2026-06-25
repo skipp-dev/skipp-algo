@@ -144,10 +144,29 @@ Diese Dateien existieren weiterhin im Branch und werden aktiv gepflegt:
 | Event-Risk-Penalty in `_event_risk_penalty()` extrahiert | `scripts/smc_signal_quality.py` | Field-Preference-Chain-Drift beseitigen; Duplikation vermeiden |
 | Sweep-Score-Skalierung von `/10` auf `/5` korrigiert | `scripts/smc_signal_quality.py` | `SWEEP_QUALITY_SCORE` hat Wertebereich 0–5, nicht 0–10 |
 | Freshness-Decay ebenfalls `/5` skaliert | `scripts/smc_signal_quality.py` | Konsistenz mit Liquidity-Slot |
-| `CONFLUENCE_DIRECTION=NONE` bei Score 0 | `scripts/smc_signal_quality.py` | Verhindert irreführende Richtung ohne Beitrag |
+| `CONFLUENCE_DIRECTION=neutral` bei Score 0 | `scripts/smc_signal_quality.py` | Verhindert irreführende Richtung ohne Beitrag |
 | `SWEEP_QUALITY_SCORE` auf 0.0–1.0 für `compute_confluence` normalisiert | `scripts/smc_signal_quality.py` | Verhindert Sweep-Sättigung im Confluence-Detektor |
 | OB/FVG-Hilfsfunktions-Docstrings ins Englische übersetzt | `smc_integration/measurement_evidence.py` | Sprachkonsistenz |
 | Doppelte `OB_FRESH`/`mitigation_state`-Berechnung entfernt | `smc_integration/measurement_evidence.py` | Vermeidet Drift |
+
+### Parallelarbeit auf dem Feature-Branch
+
+Während der finalen Phase wurden zusätzliche Commits von einem parallelen
+Agenten/Prozess auf `fix/smc-v2-confluence` gepusht (z.B.
+`bb007fc4`, `3e140d4d`, `f53010cb`, `14b2d7ba`, `126793b9`, `dc0eaeb6`).
+Diese beheben:
+
+| Commit | Inhalt |
+|--------|--------|
+| `126793b9` | Doppelten Event-Risk-Penalty in v2 entfernt |
+| `f53010cb` | `CONFLUENCE_DIRECTION=neutral` bei Score 0 |
+| `14b2d7ba` | Test-Coverage für `plan-2-8-evaluation.yml` |
+| `bb007fc4` | `docs/v5_5b_architecture.md` um Confluence-Cutover ergänzt |
+| `3e140d4d` | `plan-2-8-evaluation.yml` aus orphan allowlist entfernt |
+| `dc0eaeb6` | Wording/Formatierung in Handover und Architekturdoc |
+
+Dies verdeutlicht, dass der Worktree nicht isoliert war. Für Folgearbeiten
+sollte immer ein frischer, dedizierter Worktree verwendet werden.
 
 ---
 
