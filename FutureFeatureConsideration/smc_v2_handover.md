@@ -1,10 +1,9 @@
 # Handover: SMC v2 Feature Branch
 
-**Status:** In Review — PR #2945 (`fix/smc-v2-confluence` → `main`).  
+**Status:** PR #2945 gemerged in `origin/main`; Rebase-/Dokumentations-Follow-up über PR #2951 (`fix/smc-v2-confluence-rebase` → `main`).  
 **Basis:** `origin/main` nach PR #2940.  
 **PR URL:** https://github.com/skippALGO/skipp-algo/pull/2945
 
-> Post-merge sollte dieser Abschnitt auf "Gemerged in `origin/main` via PR #2945" geändert werden.  
 **Python:** Projekt-Venv (`<repo-root>/.venv/bin/python`)  
 **Stand:** SMC-v2-Confluence-Migration (Phase D) abgeschlossen; Tests grün, `ruff check --fix` sauber.
 
@@ -23,7 +22,7 @@ Implementiert wurden die Phasen:
 | A | Freshness v2 mit erweiterten Labels (`very_fresh`/`fresh`/`aging`/`stale`/`expired`) |
 | B | Sweep-Trap-Detektor (`smc_core/sweep_trap.py`) in `build_signal_quality_v2` integriert |
 | C | Reaction-Zone-Detektor (`smc_core/reaction_zone.py`) in `build_signal_quality_v2` integriert |
-| D | Confluence-Score-Detektor: Cutover von `smc_core/confluence_score.py` auf `smc_core/smc_confluence.compute_confluence`; orthogonale `OB_SUPPORT_SCORE`/`FVG_GAP_SCORE` in `measurement_evidence`; Sweep-Score-Skalierung auf 0-5 korrigiert; `CONFLUENCE_DIRECTION=NONE` bei Score 0; Budget-Refaktorierung in `build_signal_quality_v2` |
+| D | Confluence-Score-Detektor: Cutover von `smc_core/confluence_score.py` auf `smc_core/smc_confluence.compute_confluence`; orthogonale `OB_SUPPORT_SCORE`/`FVG_GAP_SCORE` in `measurement_evidence`; Sweep-Score-Skalierung auf 0-5 korrigiert; `CONFLUENCE_DIRECTION=neutral` bei Score 0; Budget-Refaktorierung in `build_signal_quality_v2` |
 | E | SMT-Divergenz-Detektor (`smc_core/smt_divergence.py`) in `build_signal_quality_v2` integriert |
 | F | Vollständige v2-Integration aller Detektoren |
 | G | Integrationstest `tests/test_signal_quality_v2_integration.py` |
