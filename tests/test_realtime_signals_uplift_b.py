@@ -216,10 +216,12 @@ def test_async_newsstack_poller_loop_respects_stop_event(
 ) -> None:
     """ANP-5: a long-blocking poll_once can be abandoned via stop_event."""
     p = AsyncNewsstackPoller(poll_interval=5.0)
+    started = __import__("threading").Event()
+    unblock = __import__("threading").Event()
 
     def blocking_poll(_cfg: Any) -> list[dict[str, Any]]:
-        # Simulate a slow adapter call.
-        time.sleep(2.0)
+        started.set()
+        unblock.wait()
         return [{"ticker": "aapl", "news_score": 0.5, "headline": "h"}]
 
     fake_pipeline = type("M", (), {"poll_once": staticmethod(blocking_poll)})
@@ -228,9 +230,9 @@ def test_async_newsstack_poller_loop_respects_stop_event(
     monkeypatch.setitem(__import__("sys").modules, "newsstack_fmp.config", fake_config)
 
     p.start()
-    # Let the worker thread start, then request stop before poll_once finishes.
-    time.sleep(0.1)
+    assert started.wait(timeout=1.0)
     p.stop(timeout=1.0)
+    unblock.set()
     # The poller must not block on the long poll; stop returns promptly.
     assert not p._thread.is_alive()
 

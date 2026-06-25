@@ -28,8 +28,6 @@ except ImportError:
     from _logging_init import init_cli_logging
     from smc_atomic_write import atomic_write_json
 
-from scripts.smc_atomic_write import atomic_write_json
-
 logger = logging.getLogger(__name__)
 
 
