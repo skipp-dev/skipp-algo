@@ -55,18 +55,21 @@ def _make_full_enrichment() -> dict:
             "PRIMARY_OB_SIDE": "BULL",
             "OB_FRESH": True,
             "PRIMARY_OB_DISTANCE": 1.5,
+            "OB_SUPPORT_SCORE": 15.0,
         },
         "fvg_lifecycle_light": {
             "PRIMARY_FVG_SIDE": "BULL",
             "FVG_FRESH": True,
             "FVG_FILL_PCT": 0.1,
             "FVG_INVALIDATED": False,
+            "FVG_GAP_SCORE": 15.0,
         },
         "liquidity_sweeps": {
             "RECENT_BULL_SWEEP": True,
             "RECENT_BEAR_SWEEP": False,
             "SWEEP_DIRECTION": "BULL",
             "SWEEP_QUALITY_SCORE": 1,
+            "SWEEP_TRAP_QUALITY_SCORE": 1.0,
         },
         "compression_regime": {"ATR_REGIME": "NORMAL"},
         "correlated_context": {
@@ -93,7 +96,7 @@ def test_all_v2_features_enabled_produces_expected_keys() -> None:
     assert result["SIGNAL_FRESHNESS"] == "fresh"
 
     # Phase D: Confluence score
-    assert result["CONFLUENCE_SCORE"] == 100
+    assert result["CONFLUENCE_SCORE"] == 12
     assert result["CONFLUENCE_DIRECTION"] == "bull"
 
     # Phase B: Sweep trap

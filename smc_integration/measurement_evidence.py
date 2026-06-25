@@ -565,6 +565,33 @@ def _candidate_mitigated_at_anchor(
     return mitigated_ts > 0.0 and mitigated_ts <= float(anchor_ts)
 
 
+
+def _ob_support_score(*, ob_fresh: bool, ob_distance: float, mitigation_state: str) -> float:
+    """Orthogonaler OB-Support-Score fuer den Confluence-Detektor (0-15)."""
+    if mitigation_state == "mitigated":
+        return 0.0
+    if ob_fresh and ob_distance < 2.0:
+        return 15.0
+    if ob_distance < 3.0:
+        return 9.0
+    if ob_distance < 5.0:
+        return 4.5
+    return 0.0
+
+
+def _fvg_gap_score(*, fvg_fresh: bool, fvg_invalidated: bool, fvg_fill_pct: float, fvg_distance: float) -> float:
+    """Orthogonaler FVG-Gap-Score fuer den Confluence-Detektor (0-15)."""
+    if fvg_invalidated or fvg_fill_pct >= 1.0:
+        return 0.0
+    if fvg_fresh and fvg_distance < 2.0:
+        return 15.0
+    if fvg_distance < 3.0:
+        return 7.5
+    if fvg_distance < 5.0:
+        return 3.0
+    return 0.0
+
+
 def _session_context_light_for_event(
     *,
     anchor_ts: float,
@@ -664,6 +691,7 @@ def _ob_context_light_for_event(
             "OB_FRESH": False,
             "OB_AGE_BARS": 0,
             "OB_MITIGATION_STATE": "stale",
+            "OB_SUPPORT_SCORE": 0.0,
         }
     best: tuple[tuple[int, int, int, float, int], dict[str, Any]] | None = None
     current_id = str(current_event.get("id", "")).strip()
@@ -700,6 +728,11 @@ def _ob_context_light_for_event(
             "OB_FRESH": age_bars <= 10 and not mitigated,
             "OB_AGE_BARS": age_bars,
             "OB_MITIGATION_STATE": _mitigation_state(age_bars=age_bars, mitigated=mitigated),
+            "OB_SUPPORT_SCORE": round(_ob_support_score(
+                ob_fresh=age_bars <= 10 and not mitigated,
+                ob_distance=distance,
+                mitigation_state=_mitigation_state(age_bars=age_bars, mitigated=mitigated),
+            ), 2),
         }
         if best is None or priority < best[0]:
             best = (priority, payload)
@@ -710,6 +743,7 @@ def _ob_context_light_for_event(
         "OB_FRESH": False,
         "OB_AGE_BARS": 0,
         "OB_MITIGATION_STATE": "stale",
+        "OB_SUPPORT_SCORE": 0.0,
     }
 
 
@@ -732,6 +766,7 @@ def _fvg_lifecycle_light_for_event(
             "FVG_MATURITY_LEVEL": 0,
             "FVG_FRESH": False,
             "FVG_INVALIDATED": False,
+            "FVG_GAP_SCORE": 0.0,
         }
     best: tuple[tuple[int, int, float, int], dict[str, Any]] | None = None
     current_id = str(current_event.get("id", "")).strip()
@@ -769,6 +804,12 @@ def _fvg_lifecycle_light_for_event(
             "FVG_MATURITY_LEVEL": maturity,
             "FVG_FRESH": not invalidated,
             "FVG_INVALIDATED": invalidated,
+            "FVG_GAP_SCORE": round(_fvg_gap_score(
+                fvg_fresh=not invalidated,
+                fvg_invalidated=invalidated,
+                fvg_fill_pct=fill_pct,
+                fvg_distance=distance,
+            ), 2),
         }
         if best is None or priority < best[0]:
             best = (priority, payload)
@@ -780,6 +821,7 @@ def _fvg_lifecycle_light_for_event(
         "FVG_MATURITY_LEVEL": 0,
         "FVG_FRESH": False,
         "FVG_INVALIDATED": False,
+        "FVG_GAP_SCORE": 0.0,
     }
 
 

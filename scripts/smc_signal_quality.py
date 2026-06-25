@@ -93,13 +93,14 @@ MAX_COMPRESSION = 15
 PENALTY_EVENT = -15
 
 # Backward-compatible v2 budget aliases used by tests and downstream imports.
-_MAX_STRUCTURE_V2 = MAX_STRUCTURE
-_MAX_SESSION_V2 = MAX_SESSION
-_MAX_LIQUIDITY_V2 = MAX_LIQUIDITY
-_MAX_OB_V2 = MAX_OB
-_MAX_FVG_V2 = MAX_FVG
-_MAX_COMPRESSION_V2 = MAX_COMPRESSION
-_MAX_CONFLUENCE_V2 = 0
+_MAX_STRUCTURE_V2 = 18
+_MAX_SESSION_V2 = 18
+_MAX_LIQUIDITY_V2 = 12
+_MAX_OB_V2 = 12
+_MAX_FVG_V2 = 12
+_MAX_COMPRESSION_V2 = 12
+_MAX_CONFLUENCE_V2 = 12
+_MAX_SMT_V2 = 4
 
 
 def _prefer_lean_value(primary: dict[str, Any], fallback: dict[str, Any], key: str, default: Any) -> Any:
@@ -438,6 +439,23 @@ def build_signal_quality(
     return build_signal_quality_v2(enrichment=enrichment, overrides=overrides)
 
 
+
+def _derive_confluence_direction(enr: dict[str, Any]) -> str:
+    """Derive an overall confluence direction from orthogonal family signals."""
+    ob_light = enr.get("ob_context_light") or {}
+    fvg_light = enr.get("fvg_lifecycle_light") or {}
+    ls = enr.get("liquidity_sweeps") or {}
+    ob_side = str(ob_light.get("PRIMARY_OB_SIDE", "NONE")).upper()
+    fvg_side = str(fvg_light.get("PRIMARY_FVG_SIDE", "NONE")).upper()
+    sweep_dir = str(ls.get("SWEEP_DIRECTION", "NONE")).upper()
+    bull = sum([ob_side == "BULL", fvg_side == "BULL", sweep_dir == "BULL"])
+    bear = sum([ob_side == "BEAR", fvg_side == "BEAR", sweep_dir == "BEAR"])
+    if bull > bear:
+        return "bull"
+    if bear > bull:
+        return "bear"
+    return "neutral"
+
 def build_signal_quality_v2(
     *,
     enrichment: dict[str, Any] | None = None,
@@ -445,39 +463,178 @@ def build_signal_quality_v2(
 ) -> dict[str, Any]:
     """Build a v2 signal-quality score.
 
-    Phase A (Freshness v2): when ``ENABLE_FRESHNESS_V2`` is set, the
-    result uses :func:`_freshness_label_v2` for ``SIGNAL_FRESHNESS``.
-    All other fields remain identical to v1 so that callers can switch
-    to ``SIGNAL_QUALITY_MODEL=v2`` without regressions.
+    Budget (sum = 100):
+      structure 18 | session 18 | liquidity 12 | OB 12 | FVG 12 |
+      compression 12 | confluence 12 | SMT 6
+
+    Phase A (Freshness v2): optionally uses the extended v2 freshness label.
+    Phase B-D: optionally folds sweep-trap, reaction-zone, confluence and
+    SMT-divergence detectors into the block.
     """
-    result = build_signal_quality_v1(enrichment=enrichment, overrides=overrides)
+    result = dict(DEFAULTS)
     enr = enrichment or {}
+    warnings: list[str] = []
+    score = 0
+
+    # ── Helpers reused from v1 ──────────────────────────────────
+    ssl = enr.get("structure_state_light") or {}
+    ss = enr.get("structure_state") or {}
+    structure_fresh = bool(_prefer_lean_value(ssl, ss, "STRUCTURE_FRESH", False))
+    structure_age = int(_prefer_lean_value(ssl, ss, "STRUCTURE_EVENT_AGE_BARS", 999))
+    last_event = str(_prefer_lean_value(ssl, ss, "STRUCTURE_LAST_EVENT", "NONE"))
+    if last_event in ("BOS_BULL", "CHOCH_BULL"):
+        structure_state = "BULLISH"
+    elif last_event in ("BOS_BEAR", "CHOCH_BEAR"):
+        structure_state = "BEARISH"
+    else:
+        structure_state = str(ss.get("STRUCTURE_STATE", "NEUTRAL"))
+
+    scl = enr.get("session_context_light") or {}
+    sc = enr.get("session_context") or {}
+    in_killzone = bool(_prefer_lean_value(scl, sc, "IN_KILLZONE", False))
+    session_bias = str(_prefer_lean_value(scl, sc, "SESSION_DIRECTION_BIAS", "NEUTRAL"))
+    session_score_raw = int(_prefer_lean_value(scl, sc, "SESSION_CONTEXT_SCORE", 0))
+
+    ob_light = enr.get("ob_context_light") or {}
+    ob_side = str(ob_light.get("PRIMARY_OB_SIDE", "NONE"))
+    ob_fresh = bool(ob_light.get("OB_FRESH", False))
+    ob_distance = float(ob_light.get("PRIMARY_OB_DISTANCE", 99.0))
+
+    fvg_light = enr.get("fvg_lifecycle_light") or {}
+    fvg_side = str(fvg_light.get("PRIMARY_FVG_SIDE", "NONE"))
+    fvg_fresh = bool(fvg_light.get("FVG_FRESH", False))
+    fvg_invalidated = bool(fvg_light.get("FVG_INVALIDATED", False))
+
+    ls = enr.get("liquidity_sweeps") or {}
+    has_bull_sweep = bool(ls.get("RECENT_BULL_SWEEP", False))
+    has_bear_sweep = bool(ls.get("RECENT_BEAR_SWEEP", False))
+    sweep_quality = int(ls.get("SWEEP_QUALITY_SCORE", 0))
+    sweep_direction = str(ls.get("SWEEP_DIRECTION", "NONE"))
+
+    cr = enr.get("compression_regime") or {}
+    squeeze_on = bool(cr.get("SQUEEZE_ON", False))
+    atr_regime = str(cr.get("ATR_REGIME", "NORMAL"))
+
+    erl = enr.get("event_risk_light") or {}
+    er = enr.get("event_risk") or {}
+    if "MARKET_EVENT_BLOCKED" in erl or "SYMBOL_EVENT_BLOCKED" in erl:
+        event_blocked = bool(erl.get("MARKET_EVENT_BLOCKED", False) or erl.get("SYMBOL_EVENT_BLOCKED", False))
+    else:
+        event_blocked = bool(er.get("MARKET_EVENT_BLOCKED", False) or er.get("SYMBOL_EVENT_BLOCKED", False))
+    event_risk_level = str(_prefer_lean_value(erl, er, "EVENT_RISK_LEVEL", "NONE"))
+
+    # ── Structure freshness (0-18) ──────────────────────────────
+    if structure_fresh:
+        score += _MAX_STRUCTURE_V2
+    elif structure_age <= 15:
+        score += int(_MAX_STRUCTURE_V2 * 0.6)
+    elif structure_age <= 30:
+        score += int(_MAX_STRUCTURE_V2 * 0.3)
+    else:
+        warnings.append("structure_stale")
+
+    # ── Session alignment (0-18) ────────────────────────────────
+    if in_killzone and session_score_raw >= 4:
+        score += _MAX_SESSION_V2
+    elif in_killzone:
+        score += int(_MAX_SESSION_V2 * 0.7)
+    elif session_score_raw >= 3:
+        score += int(_MAX_SESSION_V2 * 0.4)
+    else:
+        if not in_killzone:
+            warnings.append("outside_killzone")
+
+    # ── Liquidity / sweep support (0-12) ──────────────────────────
+    if has_bull_sweep or has_bear_sweep:
+        sweep_contrib = min(_MAX_LIQUIDITY_V2, int(sweep_quality * _MAX_LIQUIDITY_V2 / 10))
+        score += sweep_contrib
+
+    # ── OB support (0-12) ───────────────────────────────────────
+    if ob_side != "NONE" and ob_fresh and ob_distance < 2.0:
+        score += _MAX_OB_V2
+    elif ob_side != "NONE" and ob_distance < 3.0:
+        score += int(_MAX_OB_V2 * 0.6)
+    elif ob_side != "NONE":
+        score += int(_MAX_OB_V2 * 0.3)
+
+    # ── FVG support (0-12) ──────────────────────────────────────
+    if fvg_side != "NONE" and fvg_fresh and not fvg_invalidated:
+        score += _MAX_FVG_V2
+    elif fvg_side != "NONE" and not fvg_invalidated:
+        score += int(_MAX_FVG_V2 * 0.5)
+    elif fvg_invalidated:
+        warnings.append("fvg_invalidated")
+
+    # ── Freshness v2 decay multiplier (Phase A) ─────────────────
+    # Apply penalty to dynamic family slots (OB/FVG/Liquidity) only.
+    freshness_penalty = float((enr.get("freshness_v2") or {}).get("freshness_penalty", 1.0))
+    if freshness_penalty < 1.0:
+        # Compute the dynamic-family portion of the current score and discount it.
+        current_dynamic = 0
+        if ob_side != "NONE" and ob_fresh and ob_distance < 2.0:
+            current_dynamic += _MAX_OB_V2
+        elif ob_side != "NONE" and ob_distance < 3.0:
+            current_dynamic += int(_MAX_OB_V2 * 0.6)
+        elif ob_side != "NONE":
+            current_dynamic += int(_MAX_OB_V2 * 0.3)
+        if fvg_side != "NONE" and fvg_fresh and not fvg_invalidated:
+            current_dynamic += _MAX_FVG_V2
+        elif fvg_side != "NONE" and not fvg_invalidated:
+            current_dynamic += int(_MAX_FVG_V2 * 0.5)
+        if has_bull_sweep or has_bear_sweep:
+            current_dynamic += min(_MAX_LIQUIDITY_V2, int(sweep_quality * _MAX_LIQUIDITY_V2 / 10))
+        score = score - current_dynamic + int(current_dynamic * freshness_penalty)
+
+    # ── Compression regime (0-12) ───────────────────────────────
+    if squeeze_on:
+        score += int(_MAX_COMPRESSION_V2 * 0.8)
+    elif atr_regime in ("COMPRESSION",):
+        score += int(_MAX_COMPRESSION_V2 * 0.5)
+    elif atr_regime in ("NORMAL",):
+        score += int(_MAX_COMPRESSION_V2 * 0.3)
+    elif atr_regime in ("EXHAUSTION",):
+        warnings.append("atr_exhaustion")
+
+    # ── Event risk penalty (0 to -15) ───────────────────────────
+    if event_blocked:
+        score += PENALTY_EVENT
+        warnings.append("event_blocked")
+    elif event_risk_level in ("HIGH", "ELEVATED"):
+        score += int(PENALTY_EVENT * 0.6)
+        warnings.append("event_risk_high")
+
+    # ── Confluence (0-12) ───────────────────────────────────────
+    if is_confluence_score_enabled():
+        from smc_core.smc_confluence import compute_confluence
+
+        confluence_result = compute_confluence(ob_light, fvg_light, ls)
+        confluence_contribution = int(_MAX_CONFLUENCE_V2 * confluence_result.raw_confluence_score)
+        score += confluence_contribution
+        result["CONFLUENCE_SCORE"] = confluence_contribution
+        result["CONFLUENCE_DIRECTION"] = _derive_confluence_direction(enr)
+        result["CONFLUENCE_TIER"] = confluence_result.confluence_tier
+        result["CONFLUENCE_OB_CONTRIBUTION"] = confluence_result.ob_contribution
+        result["CONFLUENCE_FVG_CONTRIBUTION"] = confluence_result.fvg_contribution
+        result["CONFLUENCE_SWEEP_CONTRIBUTION"] = confluence_result.sweep_contribution
+
+    # ── SMT divergence (0-6) ────────────────────────────────────
+    if is_smt_divergence_enabled():
+        from smc_core.smt_divergence import detect_smt_divergence
+
+        smt_block = detect_smt_divergence(enr)
+        result.update(smt_block)
+        if smt_block.get("SMT_DIVERGENCE_DETECTED") and smt_block.get("SMT_DIVERGENCE_CONFIDENCE", 0) >= 60:
+            score += _MAX_SMT_V2
+
+    # ── Clamp and derive tier ───────────────────────────────────
+    score = max(0, min(100, score))
+    tier = _score_tier(score)
+    freshness = _freshness_label(structure_fresh, structure_age, fvg_fresh, ob_fresh)
+    bias = _bias_alignment(structure_state, session_bias, sweep_direction, ob_side, fvg_side)
 
     # Phase A: optionally apply the extended v2 freshness label.
     if is_freshness_v2_enabled():
-        ssl = enr.get("structure_state_light") or {}
-        ss = enr.get("structure_state") or {}
-        structure_fresh = bool(_prefer_lean_value(ssl, ss, "STRUCTURE_FRESH", False))
-        structure_age = int(_prefer_lean_value(ssl, ss, "STRUCTURE_EVENT_AGE_BARS", 999))
-
-        fvg_light = enr.get("fvg_lifecycle_light") or {}
-        fvg_fresh = bool(fvg_light.get("FVG_FRESH", False))
-
-        ob_light = enr.get("ob_context_light") or {}
-        ob_fresh = bool(ob_light.get("OB_FRESH", False))
-
-        scl = enr.get("session_context_light") or {}
-        sc = enr.get("session_context") or {}
-        in_killzone = bool(_prefer_lean_value(scl, sc, "IN_KILLZONE", False))
-
-        ls = enr.get("liquidity_sweeps") or {}
-        has_bull_sweep = bool(ls.get("RECENT_BULL_SWEEP", False))
-        has_bear_sweep = bool(ls.get("RECENT_BEAR_SWEEP", False))
-
-        cr = enr.get("compression_regime") or {}
-        atr_regime = str(cr.get("ATR_REGIME", "NORMAL"))
-
-        result["SIGNAL_FRESHNESS"] = _freshness_label_v2(
+        freshness = _freshness_label_v2(
             structure_fresh=structure_fresh,
             structure_age=structure_age,
             fvg_fresh=fvg_fresh,
@@ -488,46 +645,34 @@ def build_signal_quality_v2(
             atr_regime=atr_regime,
         )
 
-    # Phase D: optionally fold the v2 confluence score into the block.
-    if is_confluence_score_enabled():
-        from smc_core.confluence_score import compute_confluence_score
+    result["SIGNAL_QUALITY_SCORE"] = score
+    result["SIGNAL_QUALITY_TIER"] = tier
+    result["SIGNAL_WARNINGS"] = "|".join(warnings[:3])
+    result["SIGNAL_BIAS_ALIGNMENT"] = bias
+    result["SIGNAL_FRESHNESS"] = freshness
 
-        confluence = compute_confluence_score(enr)
-        result.update(confluence)
-
-    # Phase B: optionally fold the sweep-trap detector into the block.
+    # Phase B/C: optionally fold sweep-trap / reaction-zone detectors.
     if is_sweep_trap_enabled():
         from smc_core.sweep_trap import detect_sweep_trap
 
         result.update(detect_sweep_trap(enr))
-
-    # Phase C: optionally fold the reaction-zone detector into the block.
     if is_reaction_zone_enabled():
         from smc_core.reaction_zone import detect_reaction_zone
 
         result.update(detect_reaction_zone(enr))
 
-    # Phase E: optionally fold the SMT-divergence detector into the block.
-    if is_smt_divergence_enabled():
-        from smc_core.smt_divergence import detect_smt_divergence
-
-        result.update(detect_smt_divergence(enr))
-
-    # Post-detector freshness adjustment: a confirmed sweep-trap or SMT
-    # divergence is a contra-freshness signal.  Downgrade the freshness
-    # label by one step unless it is already stale or expired.
+    # Post-detector freshness adjustment.
     freshness = result.get("SIGNAL_FRESHNESS", "stale")
     downgrade_triggered = False
     if result.get("SWEEP_TRAP_DETECTED") and result.get("SWEEP_TRAP_CONFIDENCE", 0) >= 60:
         downgrade_triggered = True
     if result.get("SMT_DIVERGENCE_DETECTED") and result.get("SMT_DIVERGENCE_CONFIDENCE", 0) >= 60:
         downgrade_triggered = True
-
     if downgrade_triggered and freshness not in ("stale", "expired"):
         downgrades = {"very_fresh": "fresh", "fresh": "aging", "aging": "stale"}
         result["SIGNAL_FRESHNESS"] = downgrades.get(freshness, "stale")
 
-    # Re-apply overrides last so manual values win over the v2 label.
+    # Re-apply overrides last so manual values win.
     if overrides:
         for key, value in overrides.items():
             if key in result:
