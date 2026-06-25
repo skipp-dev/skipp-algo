@@ -5,6 +5,7 @@ All network calls are mocked — no real HTTP in CI.
 from __future__ import annotations
 
 import sys
+import threading
 from types import ModuleType, SimpleNamespace
 
 from newsstack_fmp.ingest_benzinga import BenzingaRssAdapter, _entry_to_news_item, _parse_rss_tickers
@@ -326,12 +327,18 @@ def test_fetch_news_retries_transient_failure_then_succeeds(
     monkeypatch: pytest.MonkeyPatch,
 ):
     """A feed that fails once then succeeds should still yield items."""
-    attempts = []
+    attempts: list[str] = []
+    seen_fail: set[str] = set()
+    lock = threading.Lock()
     monkeypatch.setattr("newsstack_fmp.ingest_benzinga.time.sleep", lambda _s: None)
 
     def _parse(url, **_kw):
-        attempts.append(url)
-        if len(attempts) == 1:
+        with lock:
+            attempts.append(url)
+            first_for_url = url not in seen_fail
+            if first_for_url:
+                seen_fail.add(url)
+        if first_for_url:
             raise Exception("transient")
         entry = _make_entry(guid=f"guid-{url}", title="Recovered")
         return {"entries": [entry], "bozo": False}
