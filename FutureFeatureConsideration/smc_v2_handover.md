@@ -1,7 +1,8 @@
 # Handover: SMC v2 Feature Branch
 
-**Status:** WIP in Branch `fix/smc-v2-confluence` / Worktree `smc-v2-confluence`.  
+**Status:** Offener PR #2945 (`fix/smc-v2-confluence` → `main`).  
 **Basis:** `origin/main` nach PR #2940.  
+**PR URL:** https://github.com/skippALGO/skipp-algo/pull/2945  
 **Python:** Projekt-Venv (`<repo-root>/.venv/bin/python`)  
 **Stand:** SMC-v2-Confluence-Migration (Phase D) abgeschlossen; Tests grün, `ruff check --fix` sauber.
 
@@ -182,7 +183,8 @@ Ergebnis: **alle zugehörigen Tests passed**.
 - [x] Edge-Case-Tests ergänzt.
 - [x] Freshness-Downgrade bei kontra-Signalen integriert.
 - [x] Dokumentation in `docs/v5_5b_architecture.md` ergänzt.
-- [ ] PR aus `fix/smc-v2-confluence` erstellen.
+- [x] PR aus `fix/smc-v2-confluence` erstellen: https://github.com/skippALGO/skipp-algo/pull/2945
+- [ ] PR #2945 mergen, sobald CI grün und Review abgeschlossen.
 - [ ] Weitere Iterationen: datengetriebene Kalibrierung der Confidence-Scores.
 
 ---
