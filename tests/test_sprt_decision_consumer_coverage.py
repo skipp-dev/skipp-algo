@@ -67,6 +67,12 @@ _SINGLE_BRANCH_ALLOWLIST: dict[str, str] = {
         "emits own TV-preflight retry-verdict vocab; 'inconclusive' is a "
         "homonym, not the SPRT sentinel"
     ),
+    # plan_2_8_evaluate.py: consumes per-family verdict payloads for a
+    # narrow dashboard rollup and currently reads only the "inconclusive"
+    # sentinel; broader SPRT decision handling is intentionally out of scope.
+    "scripts/plan_2_8_evaluate.py": (
+        "single-sentinel dashboard rollup consumer"
+    ),
 }
 
 

@@ -8,6 +8,8 @@ import sys
 import threading
 from types import ModuleType, SimpleNamespace
 
+import pytest
+
 from newsstack_fmp.ingest_benzinga import BenzingaRssAdapter, _entry_to_news_item, _parse_rss_tickers
 
 # ── helpers ──────────────────────────────────────────────────────────
