@@ -90,8 +90,8 @@
 # 2026-06-21 (live-overlay bridge observability): optional external polling
 # bridges for GitHub workflow + UptimeRobot snapshots, each with explicit
 # timeout= and fixed https endpoint domains.
-"services/live_overlay_daemon/github_workflow_bridge.py" = [101]
-"services/live_overlay_daemon/uptimerobot_bridge.py" = [76]
+"services/live_overlay_daemon/github_workflow_bridge.py" = [115]
+"services/live_overlay_daemon/uptimerobot_bridge.py" = [91]
 # 2026-06-23: live-overlay runtime snapshot fetchers in compute.py remain
 # https-only with explicit timeout=. 2026-06-23 (audit follow-up F2/F3):
 # NEWS/SIGNALS/TRADINGVIEW JSON loaders delegate into one shared
@@ -163,7 +163,7 @@ codes = ["S603"]
 # E402 outliers in newsstack_fmp/pipeline.py remain (not covered by per-file-ignores).
 [[noqa_budget.sites]]
 file = "newsstack_fmp/pipeline.py"
-line = 1234
+line = 1231
 codes = ["E402"]
 
 # ruff fix (2026-06-11): added # noqa: RUF007 / RUF012 / F401 suppressions
@@ -209,8 +209,7 @@ allowed = [
   # TV_STORAGE_STATE secret headlessly; tested end-to-end via the
   # credential-health-check.yml probe. CI integration would require live
   # TradingView credentials. Added 2026-06-24 (#2904).
-  "tradingview-storage-refresh.yml",
-]
+  "tradingview-storage-refresh.yml",]
 
 # ---------------------------------------------------------------------------
 # test_workflow_set_plus_e_inventory.py — workflows allowed to use

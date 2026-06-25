@@ -1,4 +1,4 @@
-"""Tests for smc_core.confluence_score (Phase D)."""
+"""Tests for the smc_core.smc_confluence integration in signal quality (Phase D)."""
 from __future__ import annotations
 
 import os
@@ -6,7 +6,8 @@ from collections.abc import Iterator
 
 import pytest
 
-from smc_core.confluence_score import compute_confluence_score
+from scripts.smc_signal_quality import build_signal_quality_v2
+from smc_core.smc_confluence import compute_confluence
 
 
 @pytest.fixture(autouse=True)
@@ -20,87 +21,73 @@ def _clear_env() -> Iterator[None]:
         os.environ.pop(key, None)
 
 
-def test_disabled_returns_neutral() -> None:
-    result = compute_confluence_score(
-        enrichment={
-            "structure_state_light": {"STRUCTURE_LAST_EVENT": "BOS_BULL"},
-            "session_context_light": {"SESSION_DIRECTION_BIAS": "BULLISH"},
-        }
-    )
-    assert result == {"CONFLUENCE_SCORE": 0, "CONFLUENCE_DIRECTION": "neutral"}
+_FULL_BULLISH = {
+    "PRIMARY_OB_SIDE": "BULL",
+    "OB_FRESH": True,
+    "PRIMARY_OB_DISTANCE": 1.0,
+    "OB_SUPPORT_SCORE": 15.0,
+}
+_FULL_BULLISH_FVG = {
+    "PRIMARY_FVG_SIDE": "BULL",
+    "FVG_FRESH": True,
+    "FVG_FILL_PCT": 0.0,
+    "FVG_INVALIDATED": False,
+    "PRIMARY_FVG_DISTANCE": 1.0,
+    "FVG_GAP_SCORE": 15.0,
+}
+_FULL_BULLISH_SWEEP = {
+    "RECENT_BULL_SWEEP": True,
+    "SWEEP_DIRECTION": "BULL",
+    "SWEEP_QUALITY_SCORE": 5,
+}
 
 
-def test_enabled_no_signals_returns_neutral() -> None:
+def test_compute_confluence_no_signals() -> None:
+    result = compute_confluence(None, None, None)
+    assert result.raw_confluence_score == pytest.approx(0.0)
+    assert result.confluence_tier == "NONE"
+
+
+def test_compute_confluence_full() -> None:
+    result = compute_confluence(_FULL_BULLISH, _FULL_BULLISH_FVG, _FULL_BULLISH_SWEEP)
+    assert result.raw_confluence_score == pytest.approx(1.0)
+    assert result.confluence_tier == "HIGH"
+
+
+def test_build_signal_quality_v2_full_confluence() -> None:
     os.environ["ENABLE_CONFLUENCE_SCORE"] = "1"
-    result = compute_confluence_score(enrichment={})
-    assert result["CONFLUENCE_SCORE"] == 0
+    enrichment = {
+        "ob_context_light": _FULL_BULLISH,
+        "fvg_lifecycle_light": _FULL_BULLISH_FVG,
+        "liquidity_sweeps": _FULL_BULLISH_SWEEP,
+    }
+    result = build_signal_quality_v2(enrichment=enrichment)
+    assert result["CONFLUENCE_SCORE"] == 12
+    assert result["CONFLUENCE_DIRECTION"] == "bull"
+    assert result["CONFLUENCE_TIER"] == "HIGH"
+
+
+def test_build_signal_quality_v2_confluence_disabled() -> None:
+    enrichment = {
+        "ob_context_light": _FULL_BULLISH,
+        "fvg_lifecycle_light": _FULL_BULLISH_FVG,
+        "liquidity_sweeps": _FULL_BULLISH_SWEEP,
+    }
+    result = build_signal_quality_v2(enrichment=enrichment)
+    assert "CONFLUENCE_SCORE" not in result
+
+
+def test_build_signal_quality_v2_mixed_direction_neutral() -> None:
+    os.environ["ENABLE_CONFLUENCE_SCORE"] = "1"
+    enrichment = {
+        "ob_context_light": {
+            "PRIMARY_OB_SIDE": "BEAR",
+            "OB_FRESH": True,
+            "PRIMARY_OB_DISTANCE": 1.0,
+            "OB_SUPPORT_SCORE": 15.0,
+        },
+        "fvg_lifecycle_light": _FULL_BULLISH_FVG,
+        "liquidity_sweeps": {"SWEEP_DIRECTION": "NONE"},
+    }
+    result = build_signal_quality_v2(enrichment=enrichment)
     assert result["CONFLUENCE_DIRECTION"] == "neutral"
-
-
-def test_enabled_full_bullish_confluence() -> None:
-    os.environ["ENABLE_CONFLUENCE_SCORE"] = "1"
-    result = compute_confluence_score(
-        enrichment={
-            "structure_state_light": {"STRUCTURE_LAST_EVENT": "BOS_BULL"},
-            "session_context_light": {"SESSION_DIRECTION_BIAS": "BULLISH"},
-            "ob_context_light": {"PRIMARY_OB_SIDE": "BULL", "OB_FRESH": True},
-            "fvg_lifecycle_light": {"PRIMARY_FVG_SIDE": "BULL", "FVG_FRESH": True},
-            "liquidity_sweeps": {"SWEEP_DIRECTION": "BULL"},
-        }
-    )
-    assert result["CONFLUENCE_SCORE"] == 100
-    assert result["CONFLUENCE_DIRECTION"] == "bull"
-
-
-def test_enabled_mixed_signals_neutral() -> None:
-    os.environ["ENABLE_CONFLUENCE_SCORE"] = "1"
-    result = compute_confluence_score(
-        enrichment={
-            "structure_state_light": {"STRUCTURE_LAST_EVENT": "BOS_BULL"},
-            "session_context_light": {"SESSION_DIRECTION_BIAS": "BEARISH"},
-            "ob_context_light": {"PRIMARY_OB_SIDE": "BEAR", "OB_FRESH": True},
-            "fvg_lifecycle_light": {"PRIMARY_FVG_SIDE": "BULL", "FVG_FRESH": True},
-            "liquidity_sweeps": {"SWEEP_DIRECTION": "NONE"},
-        }
-    )
-    assert result["CONFLUENCE_SCORE"] == 0
-    assert result["CONFLUENCE_DIRECTION"] == "neutral"
-
-
-def test_enabled_clamped_to_100() -> None:
-    os.environ["ENABLE_CONFLUENCE_SCORE"] = "1"
-    result = compute_confluence_score(
-        enrichment={
-            "structure_state_light": {"STRUCTURE_LAST_EVENT": "BOS_BULL"},
-            "session_context_light": {"SESSION_DIRECTION_BIAS": "BULLISH"},
-            "ob_context_light": {"PRIMARY_OB_SIDE": "BULL", "OB_FRESH": True},
-            "fvg_lifecycle_light": {"PRIMARY_FVG_SIDE": "BULL", "FVG_FRESH": True},
-            "liquidity_sweeps": {"SWEEP_DIRECTION": "BULL"},
-        }
-    )
-    assert result["CONFLUENCE_SCORE"] <= 100
-
-def test_enabled_partial_confluence_score_40() -> None:
-    os.environ["ENABLE_CONFLUENCE_SCORE"] = "1"
-    result = compute_confluence_score(
-        enrichment={
-            "structure_state_light": {"STRUCTURE_LAST_EVENT": "BOS_BULL"},
-            "session_context_light": {"SESSION_DIRECTION_BIAS": "BULLISH"},
-        }
-    )
-    assert result["CONFLUENCE_SCORE"] == 40
-    assert result["CONFLUENCE_DIRECTION"] == "bull"
-
-
-def test_enabled_partial_confluence_score_60() -> None:
-    os.environ["ENABLE_CONFLUENCE_SCORE"] = "1"
-    result = compute_confluence_score(
-        enrichment={
-            "structure_state_light": {"STRUCTURE_LAST_EVENT": "BOS_BULL"},
-            "session_context_light": {"SESSION_DIRECTION_BIAS": "BULLISH"},
-            "ob_context_light": {"PRIMARY_OB_SIDE": "BULL", "OB_FRESH": True},
-        }
-    )
-    assert result["CONFLUENCE_SCORE"] == 60
-    assert result["CONFLUENCE_DIRECTION"] == "bull"
-

@@ -243,15 +243,15 @@ _FROZEN_SITES: frozenset[tuple[str, int, tuple[str, ...]]] = frozenset(
         # statements to 362/420/496.
         # 2026-06-22 follow-ups shifted these anchors to 365/423/512.
         # Post-merge sync with main shifted these anchors to 374/432/521.
-        ("services/live_overlay_daemon/feed.py", 374, ("_last_bar_at",)),
-        ("services/live_overlay_daemon/feed.py", 432, ("_feed_thread", "_flow_refresh_thread", "_refresh_thread")),
-        ("services/live_overlay_daemon/feed.py", 521, ("_feed_thread", "_flow_refresh_thread", "_refresh_thread")),
+        ("services/live_overlay_daemon/feed.py", 373, ("_last_bar_at",)),
+        ("services/live_overlay_daemon/feed.py", 431, ("_feed_thread", "_flow_refresh_thread", "_refresh_thread")),
+        ("services/live_overlay_daemon/feed.py", 520, ("_feed_thread", "_flow_refresh_thread", "_refresh_thread")),
         # 2026-06-21: optional external bridge snapshot caches are guarded by
         # module locks and cached via module-level singleton snapshots.
         # 2026-06-23: workflow bridge hardening (status/conclusion semantics,
         # owner/repo encoding and pagination note) shifted this global anchor.
-        ("services/live_overlay_daemon/github_workflow_bridge.py", 194, ("_cached_at_monotonic", "_cached_snapshot")),
-        ("services/live_overlay_daemon/uptimerobot_bridge.py", 125, ("_cached_at_monotonic", "_cached_snapshot")),
+        ("services/live_overlay_daemon/github_workflow_bridge.py", 208, ("_cached_at_monotonic", "_cached_snapshot")),
+        ("services/live_overlay_daemon/uptimerobot_bridge.py", 140, ("_cached_at_monotonic", "_cached_snapshot")),
         # 2026-06-24 (feat/railway-metrics): Railway GraphQL bridge for container
         # metrics exposes a lazily-refreshed TTL cache (mirroring uptimerobot).
         ("services/live_overlay_daemon/railway_metrics.py", 184, ("_CACHE", "_CACHE_EXPIRES_AT")),

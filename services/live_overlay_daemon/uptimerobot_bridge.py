@@ -44,6 +44,21 @@ def _to_float(value: Any) -> float | None:
     return parsed
 
 
+def _classify_error(exc: Exception) -> str:
+    """Map an exception to a small, stable error-code vocabulary."""
+    name = type(exc).__name__
+    if "Timeout" in name:
+        return "timeout"
+    if name == "HTTPError":
+        return "http_error"
+    if name in ("URLError", "ConnectionError", "SSLError", "OSError"):
+        return "network_error"
+    if "JSON" in name or "json" in name.lower():
+        return "json_error"
+    return "unknown"
+
+
+
 def _extract_response_time_ms(raw_monitor: dict[str, Any]) -> float | None:
     response_times = raw_monitor.get("response_times")
     if isinstance(response_times, list) and response_times:
@@ -134,6 +149,8 @@ def snapshot() -> dict[str, Any]:
             "avg_response_time_ms": None,
             "monitors": [],
             "error": "missing_api_key",
+            "error_code": "missing_api_key",
+            "error_message": "UPTIMEROBOT_API_KEY is not set",
         }
 
     ttl = config.uptimerobot_poll_ttl_secs()
@@ -145,6 +162,7 @@ def snapshot() -> dict[str, Any]:
         try:
             fresh = _fetch_snapshot(api_key)
         except Exception as exc:  # pragma: no cover - exercised via tests using monkeypatch
+            error_code = _classify_error(exc)
             fresh = {
                 "enabled": 1,
                 "ok": 0,
@@ -153,6 +171,8 @@ def snapshot() -> dict[str, Any]:
                 "avg_response_time_ms": None,
                 "monitors": [],
                 "error": type(exc).__name__,
+                "error_code": error_code,
+                "error_message": str(exc),
             }
 
         _cached_snapshot = fresh

@@ -114,7 +114,7 @@ def test_ttl_env_pin_present(refresh_job: dict) -> None:
             step
             for step in steps
             if isinstance(step, dict)
-            and step.get("name") == "Refresh live news snapshot (NewsAPI.ai + FMP + TradingView)"
+            and step.get("name") == "Refresh live news snapshot (NewsAPI.ai + FMP + Benzinga + TradingView)"
         ),
         None,
     )

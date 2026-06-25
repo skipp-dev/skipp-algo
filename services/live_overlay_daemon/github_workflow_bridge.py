@@ -87,6 +87,20 @@ def _duration_seconds(started_at: str | None, updated_at: str | None) -> float |
     return max(0.0, u_epoch - s_epoch)
 
 
+def _classify_error(exc: Exception) -> str:
+    """Map an exception to a small, stable error-code vocabulary."""
+    name = type(exc).__name__
+    if "Timeout" in name:
+        return "timeout"
+    if name == "HTTPError":
+        return "http_error"
+    if name in ("URLError", "ConnectionError", "SSLError", "OSError"):
+        return "network_error"
+    if "JSON" in name or "json" in name.lower():
+        return "json_error"
+    return "unknown"
+
+
 def _github_request_json(url: str, token: str, timeout: int) -> dict[str, Any]:
     request = urllib.request.Request(
         url,
@@ -210,6 +224,8 @@ def snapshot() -> dict[str, Any]:
             "latest_run_duration_seconds": None,
             "workflows": [],
             "error": "missing_token",
+            "error_code": "missing_token",
+            "error_message": "GITHUB_WORKFLOW_MONITOR_TOKEN is not set",
         }
 
     ttl = config.github_workflow_poll_ttl_secs()
@@ -221,6 +237,7 @@ def snapshot() -> dict[str, Any]:
         try:
             fresh = _fetch_snapshot(token)
         except Exception as exc:  # pragma: no cover
+            error_code = _classify_error(exc)
             fresh = {
                 "enabled": 1,
                 "ok": 0,
@@ -236,6 +253,8 @@ def snapshot() -> dict[str, Any]:
                 "latest_run_duration_seconds": None,
                 "workflows": [],
                 "error": type(exc).__name__,
+                "error_code": error_code,
+                "error_message": str(exc),
             }
 
         _cached_snapshot = fresh

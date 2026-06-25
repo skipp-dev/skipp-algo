@@ -20,7 +20,6 @@ import sys
 from datetime import UTC, datetime
 from pathlib import Path
 
-from scripts.smc_atomic_write import atomic_write_json
 try:
     from scripts._logging_init import init_cli_logging
 except ImportError:  # script-style invocation: `python scripts/X.py`
@@ -29,6 +28,8 @@ except ImportError:  # script-style invocation: `python scripts/X.py`
 
     _v6a11_sys.path.insert(0, str(_v6a11_Path(__file__).resolve().parents[1]))
     from scripts._logging_init import init_cli_logging  # type: ignore[no-redef]
+
+from scripts.smc_atomic_write import atomic_write_json
 
 logger = logging.getLogger(__name__)
 
@@ -160,6 +161,7 @@ def main() -> int:
     )
 
     args = parser.parse_args()
+
     if args.verbose:
         logging.getLogger().setLevel(logging.DEBUG)
 

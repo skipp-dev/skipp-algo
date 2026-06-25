@@ -519,9 +519,9 @@ def test_render_metrics_includes_github_workflow_bridge_snapshot(monkeypatch: py
 
     assert "live_overlay_github_workflow_bridge_enabled 1" in body
     assert "live_overlay_github_workflow_scrape_success 1" in body
-    assert "live_overlay_github_workflow_runs_seen_total 4.0" in body
-    assert "live_overlay_github_workflow_runs_success_total 2.0" in body
-    assert "live_overlay_github_workflow_runs_failed_total 1.0" in body
+    assert "live_overlay_github_workflow_runs_seen 4.0" in body
+    assert "live_overlay_github_workflow_runs_success 2.0" in body
+    assert "live_overlay_github_workflow_runs_failed 1.0" in body
     assert "live_overlay_github_workflow_latest_run_age_seconds 45.5" in body
     assert "live_overlay_github_workflow_latest_run_duration_seconds 120.0" in body
     # Per-workflow series are labelled (id + name + event) so Grafana can name
@@ -570,7 +570,68 @@ def test_render_metrics_handles_github_workflow_bridge_disabled(monkeypatch: pyt
 
     assert "live_overlay_github_workflow_bridge_enabled 0" in body
     assert "live_overlay_github_workflow_scrape_success 0" in body
-    assert "live_overlay_github_workflow_runs_seen_total 0.0" in body
+    assert "live_overlay_github_workflow_runs_seen 0.0" in body
+
+
+def test_render_metrics_escapes_uptimerobot_error_code_labels(monkeypatch: pytest.MonkeyPatch) -> None:
+    import services.live_overlay_daemon.metrics as metrics_mod
+
+    _patch_common(
+        monkeypatch,
+        feed_ready=True,
+        market_open=True,
+        bar_count=10,
+        overlay_symbols=5,
+        overlay_age=60.0,
+    )
+    monkeypatch.setattr(
+        metrics_mod.uptimerobot_bridge,
+        "snapshot",
+        lambda: {
+            "enabled": 1,
+            "ok": 0,
+            "fetched_at_unix": 1_700_000_100.0,
+            "error_code": 'timeout\\\\"quoted',
+            "counts": {"total": 0, "up": 0, "down": 0, "paused": 0, "unknown": 0},
+            "avg_response_time_ms": None,
+            "monitors": [],
+        },
+    )
+
+    body = metrics_mod.render_metrics(startup_ts=100.0)
+
+    assert 'live_overlay_uptimerobot_scrape_error_info{error_code="timeout\\\\\\\\\\"quoted"} 1' in body
+
+
+def test_render_metrics_escapes_github_workflow_error_code_labels(monkeypatch: pytest.MonkeyPatch) -> None:
+    import services.live_overlay_daemon.metrics as metrics_mod
+
+    _patch_common(
+        monkeypatch,
+        feed_ready=True,
+        market_open=True,
+        bar_count=10,
+        overlay_symbols=5,
+        overlay_age=60.0,
+    )
+    monkeypatch.setattr(
+        metrics_mod.github_workflow_bridge,
+        "snapshot",
+        lambda: {
+            "enabled": 1,
+            "ok": 0,
+            "fetched_at_unix": 1_700_000_100.0,
+            "error_code": 'http\\\\"401',
+            "counts": {"seen": 0, "success": 0, "failed": 0, "in_progress": 0, "queued": 0},
+            "latest_run_age_seconds": None,
+            "latest_run_duration_seconds": None,
+            "workflows": [],
+        },
+    )
+
+    body = metrics_mod.render_metrics(startup_ts=100.0)
+
+    assert 'live_overlay_github_workflow_scrape_error_info{error_code="http\\\\\\\\\\"401"} 1' in body
 
 
 def test_render_metrics_includes_trading_signals_snapshot(
@@ -931,12 +992,15 @@ def test_dashboard_has_uptimerobot_state_timeline() -> None:
     assert options.get("8", {}).get("text") == "DOWN"
 
 
-def test_dashboard_github_workflow_runs_panel_uses_rate() -> None:
+def test_dashboard_github_workflow_runs_panel_uses_deriv() -> None:
     repo_root = Path(__file__).resolve().parents[1]
     dashboard_path = repo_root / "services" / "live_overlay_daemon" / "infra" / "grafana" / "dashboard.json"
     dashboard = json.loads(dashboard_path.read_text(encoding="utf-8"))
     panel = next(p for p in dashboard["panels"] if p.get("title") == "GitHub Workflow Runs")
-    assert all("rate(" in t["expr"] for t in panel["targets"])
+    # GitHub workflow counts are gauges (point-in-time API values), so deriv()
+    # is the correct rate-like operator rather than rate().
+    assert all("deriv(" in t["expr"] for t in panel["targets"])
+    assert all("_total" not in t["expr"] for t in panel["targets"])
     assert panel["fieldConfig"]["defaults"]["unit"] == "cps"
     assert panel["fieldConfig"]["defaults"]["custom"]["axisLabel"] == "runs / sec"
 

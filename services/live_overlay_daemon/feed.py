@@ -284,7 +284,6 @@ def _run_feed_loop(stop: threading.Event) -> None:
                         _bars_pushed_count += 1
                     except queue.Full:
                         dropped_total = _record_queue_drop()
-                        metric_counter("live_overlay.feed.ingest_queue_dropped_total")
                         if _should_log_queue_drop_warning(dropped_total):
                             logger.warning(
                                 "Ingest queue full — dropping newest bar (dropped_total=%d)",

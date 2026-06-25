@@ -72,7 +72,7 @@ when inputs are unavailable.
 | Freshness v2 | ``SIGNAL_FRESHNESS`` | ``ENABLE_FRESHNESS_V2`` | Structure, FVG, OB, killzone, sweep, ATR regime |
 | Sweep Trap | ``SWEEP_TRAP_DETECTED``, ``SWEEP_TRAP_CONFIDENCE`` | ``ENABLE_SWEEP_TRAP`` | ``liquidity_sweeps`` quality and direction |
 | Reaction Zone | ``REACTION_ZONE_DETECTED``, ``REACTION_ZONE_CONFIDENCE``, ``REACTION_ZONE_DIRECTION`` | ``ENABLE_REACTION_ZONE`` | OB/FVG distance and side, structure, sweep |
-| Confluence Score | ``CONFLUENCE_SCORE``, ``CONFLUENCE_DIRECTION`` | ``ENABLE_CONFLUENCE_SCORE`` | Structure, session, OB, FVG, sweep |
+| Confluence Score | ``CONFLUENCE_SCORE``, ``CONFLUENCE_DIRECTION``, ``CONFLUENCE_TIER``, ``CONFLUENCE_OB_CONTRIBUTION``, ``CONFLUENCE_FVG_CONTRIBUTION``, ``CONFLUENCE_SWEEP_CONTRIBUTION`` | ``ENABLE_CONFLUENCE_SCORE`` | Orthogonal ``OB_SUPPORT_SCORE`` (0-15), ``FVG_GAP_SCORE`` (0-15), normalized ``SWEEP_QUALITY_SCORE`` (0.0-1.0) |
 | SMT Divergence | ``SMT_DIVERGENCE_DETECTED``, ``SMT_DIVERGENCE_SIDE``, ``SMT_DIVERGENCE_CONFIDENCE`` | ``ENABLE_SMT_DIVERGENCE`` | Primary structure vs. correlated context |
 
 All thresholds and confidence values are configurable via ``smc_core.v2_config``
@@ -84,8 +84,29 @@ freshness score suggests.
 
 **Implementation**:
 - Router & integration: [scripts/smc_signal_quality.py](../scripts/smc_signal_quality.py)
-- Detectors: [smc_core/sweep_trap.py](../smc_core/sweep_trap.py), [smc_core/reaction_zone.py](../smc_core/reaction_zone.py), [smc_core/confluence_score.py](../smc_core/confluence_score.py), [smc_core/smt_divergence.py](../smc_core/smt_divergence.py)
+- Detectors: [smc_core/sweep_trap.py](../smc_core/sweep_trap.py), [smc_core/reaction_zone.py](../smc_core/reaction_zone.py), [smc_core/smc_confluence.py](../smc_core/smc_confluence.py) (replaces the removed ``smc_core/confluence_score.py``), [smc_core/smt_divergence.py](../smc_core/smt_divergence.py)
 - Configuration: [smc_core/v2_config.py](../smc_core/v2_config.py)
+
+### Signal-Quality v2 Budget
+
+When any v2 feature is enabled (or ``SIGNAL_QUALITY_MODEL=v2``), the router
+delegates to ``build_signal_quality_v2``. It uses an independent 100-point
+budget so that v1 scoring remains frozen while v2 is calibrated:
+
+| Slot | Budget |
+|------|--------|
+| Structure | 18 |
+| Session | 18 |
+| Liquidity | 12 |
+| OB | 12 |
+| FVG | 12 |
+| Compression | 12 |
+| Confluence | 12 |
+| SMT | 4 |
+
+``CONFLUENCE_DIRECTION`` is set to ``"NONE"`` when the confluence contribution
+is zero, e.g. because the orthogonal OB/FVG scores are zero or the sweep
+quality is negligible.
 
 ---
 

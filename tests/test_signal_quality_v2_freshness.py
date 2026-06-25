@@ -13,7 +13,14 @@ from scripts.smc_signal_quality import build_signal_quality
 @pytest.fixture(autouse=True)
 def _reset_env() -> Iterator[None]:
     """Reset env vars that influence routing / freshness v2."""
-    keys = {"SIGNAL_QUALITY_MODEL", "ENABLE_FRESHNESS_V2"}
+    keys = {
+        "SIGNAL_QUALITY_MODEL",
+        "ENABLE_FRESHNESS_V2",
+        "ENABLE_CONFLUENCE_SCORE",
+        "ENABLE_SWEEP_TRAP",
+        "ENABLE_REACTION_ZONE",
+        "ENABLE_SMT_DIVERGENCE",
+    }
     saved = {k: os.environ.pop(k, None) for k in keys}
     yield
     for k, v in saved.items():
@@ -89,12 +96,28 @@ def test_v2_includes_confluence_score_when_enabled() -> None:
         enrichment={
             "structure_state_light": {"STRUCTURE_LAST_EVENT": "BOS_BULL"},
             "session_context_light": {"SESSION_DIRECTION_BIAS": "BULLISH"},
-            "ob_context_light": {"PRIMARY_OB_SIDE": "BULL", "OB_FRESH": True},
-            "fvg_lifecycle_light": {"PRIMARY_FVG_SIDE": "BULL", "FVG_FRESH": True},
-            "liquidity_sweeps": {"SWEEP_DIRECTION": "BULL"},
+            "ob_context_light": {
+                "PRIMARY_OB_SIDE": "BULL",
+                "OB_FRESH": True,
+                "PRIMARY_OB_DISTANCE": 1.0,
+                "OB_SUPPORT_SCORE": 15.0,
+            },
+            "fvg_lifecycle_light": {
+                "PRIMARY_FVG_SIDE": "BULL",
+                "FVG_FRESH": True,
+                "FVG_FILL_PCT": 0.0,
+                "FVG_INVALIDATED": False,
+                "PRIMARY_FVG_DISTANCE": 1.0,
+                "FVG_GAP_SCORE": 15.0,
+            },
+            "liquidity_sweeps": {
+                "RECENT_BULL_SWEEP": True,
+                "SWEEP_DIRECTION": "BULL",
+                "SWEEP_QUALITY_SCORE": 5,
+            },
         }
     )
     assert "CONFLUENCE_SCORE" in result
     assert "CONFLUENCE_DIRECTION" in result
-    assert result["CONFLUENCE_SCORE"] == 100
+    assert result["CONFLUENCE_SCORE"] == 12
     assert result["CONFLUENCE_DIRECTION"] == "bull"
