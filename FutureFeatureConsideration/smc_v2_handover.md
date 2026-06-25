@@ -121,6 +121,13 @@ if is_confluence_score_enabled():
 | Datei | Grund |
 |-------|-------|
 | `smc_core/confluence_score.py` | Funktionalität vollständig durch `smc_core/smc_confluence.py` ersetzt |
+
+### Weiterhin vorhandene Begleitdateien
+
+Diese Dateien existieren weiterhin im Branch und werden aktiv gepflegt:
+
+| Datei | Zweck |
+|-------|-------|
 | `tests/test_smc_core_v2_features.py` | 15 Tests für Flag-Wrapper |
 | `tests/test_signal_quality_v2_freshness.py` | Freshness-v2- + Confluence-Cutover-Tests |
 | `tests/test_signal_quality_v2_integration.py` | End-to-End-v2-Integrationstest |
@@ -128,8 +135,19 @@ if is_confluence_score_enabled():
 | `tests/test_smc_core_reaction_zone.py` | 4 Tests |
 | `tests/test_smc_core_confluence_score.py` | 5 Tests |
 | `tests/test_smc_core_smt_divergence.py` | 4 Tests |
-| `FutureFeatureConsideration/smc_v2_handover.md` | Dieses Dokument |
 | `FutureFeatureConsideration/continue_fallback_rule.md` | Editor-Fallback-Regel |
+
+### Letzte Code-Änderungen (nach Copilot-Review)
+
+| Änderung | Datei | Grund |
+|----------|-------|-------|
+| Event-Risk-Penalty in `_event_risk_penalty()` extrahiert | `scripts/smc_signal_quality.py` | Field-Preference-Chain-Drift beseitigen; Duplikation vermeiden |
+| Sweep-Score-Skalierung von `/10` auf `/5` korrigiert | `scripts/smc_signal_quality.py` | `SWEEP_QUALITY_SCORE` hat Wertebereich 0–5, nicht 0–10 |
+| Freshness-Decay ebenfalls `/5` skaliert | `scripts/smc_signal_quality.py` | Konsistenz mit Liquidity-Slot |
+| `CONFLUENCE_DIRECTION=NONE` bei Score 0 | `scripts/smc_signal_quality.py` | Verhindert irreführende Richtung ohne Beitrag |
+| `SWEEP_QUALITY_SCORE` auf 0.0–1.0 für `compute_confluence` normalisiert | `scripts/smc_signal_quality.py` | Verhindert Sweep-Sättigung im Confluence-Detektor |
+| OB/FVG-Hilfsfunktions-Docstrings ins Englische übersetzt | `smc_integration/measurement_evidence.py` | Sprachkonsistenz |
+| Doppelte `OB_FRESH`/`mitigation_state`-Berechnung entfernt | `smc_integration/measurement_evidence.py` | Vermeidet Drift |
 
 ---
 
@@ -179,14 +197,14 @@ Ergebnis: **alle zugehörigen Tests passed**.
 
 ## 6. Nächste Schritte
 
-- [x] PR #2936 mergen, sobald CI grün ist.
-- [x] Post-merge: Worktree entfernen, Branch löschen.
+- [x] PR #2936 (Vorgänger-PR) wurde gemerged; Worktree entfernt, Branch gelöscht.
 - [x] Detektoren gehärtet (Sweep Trap) und konfigurierbar gemacht.
 - [x] Edge-Case-Tests ergänzt.
 - [x] Freshness-Downgrade bei kontra-Signalen integriert.
 - [x] Dokumentation in `docs/v5_5b_architecture.md` ergänzt.
 - [x] PR aus `fix/smc-v2-confluence` erstellen: https://github.com/skippALGO/skipp-algo/pull/2945
 - [ ] PR #2945 mergen, sobald CI grün und Review abgeschlossen.
+- [ ] `docs/v5_5b_architecture.md` um Confluence-Cutover und OB/FVG-Scores ergänzen (Inhalt verifiziert und aktualisiert in diesem Commit).
 - [ ] Weitere Iterationen: datengetriebene Kalibrierung der Confidence-Scores.
 
 ---
@@ -198,4 +216,4 @@ Ergebnis: **alle zugehörigen Tests passed**.
 - [ ] Nicht im shared `<repo-root>/skipp-algo` schreiben
 - [ ] Bei Änderungen an `scripts/smc_signal_quality.py` Patch-Skripte bevorzugen
 - [ ] Nach jeder Änderung `ruff check --fix` und zugehörige `pytest`-Tests laufen lassen
-- [ ] `FutureFeatureConsideration/smc_v2_handover.md` am Ende der Session aktualisiseren
+- [ ] `FutureFeatureConsideration/smc_v2_handover.md` am Ende der Session aktualisieren
