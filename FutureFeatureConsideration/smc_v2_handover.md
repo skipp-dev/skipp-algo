@@ -221,7 +221,7 @@ Ergebnis: **alle zugehörigen Tests passed**.
 - [x] Freshness-Downgrade bei kontra-Signalen integriert.
 - [x] Dokumentation in `docs/v5_5b_architecture.md` ergänzt.
 - [x] PR aus `fix/smc-v2-confluence` erstellen: https://github.com/skippALGO/skipp-algo/pull/2945
-- [ ] PR #2945 mergen, sobald CI grün und Review abgeschlossen.
+- [x] PR #2945 gemerged (`origin/main`, Follow-up in PR #2951 dokumentiert).
 - [ ] `docs/v5_5b_architecture.md` um Confluence-Cutover und OB/FVG-Scores ergänzen (Inhalt verifiziert und aktualisiert in diesem Commit).
 - [ ] Weitere Iterationen: datengetriebene Kalibrierung der Confidence-Scores.
 
