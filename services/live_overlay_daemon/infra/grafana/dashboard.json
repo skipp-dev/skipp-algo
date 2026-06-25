@@ -2126,11 +2126,11 @@
         "x": 6,
         "y": 75
       },
-      "description": "Latest UptimeRobot bridge scrape error class. 'none' means the last scrape succeeded; when the bridge is disabled this field reports 'missing_api_key'.",
+      "description": "Bridge error flag across the selected jobs/instances (0=OK, 1=ERROR).",
       "targets": [
         {
-          "expr": "live_overlay_uptimerobot_scrape_error_info{job=~\"$job\"}",
-          "legendFormat": "{{error_code}}",
+          "expr": "max(live_overlay_uptimerobot_scrape_error_info{job=~\"$job\"} or vector(0))",
+          "legendFormat": "error",
           "instant": true,
           "datasource": {
             "type": "prometheus",
@@ -2429,11 +2429,11 @@
         "x": 6,
         "y": 83
       },
-      "description": "Latest GitHub workflow bridge scrape error class. 'none' means the last scrape succeeded; when the bridge is disabled this field reports 'missing_token'.",
+      "description": "Bridge error flag across the selected jobs/instances (0=OK, 1=ERROR).",
       "targets": [
         {
-          "expr": "live_overlay_github_workflow_scrape_error_info{job=~\"$job\"}",
-          "legendFormat": "{{error_code}}",
+          "expr": "max(live_overlay_github_workflow_scrape_error_info{job=~\"$job\"} or vector(0))",
+          "legendFormat": "error",
           "instant": true,
           "datasource": {
             "type": "prometheus",
