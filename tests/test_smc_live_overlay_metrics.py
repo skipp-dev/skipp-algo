@@ -1000,7 +1000,15 @@ def test_dashboard_github_workflow_runs_panel_uses_snapshot_counts() -> None:
     dashboard_path = repo_root / "services" / "live_overlay_daemon" / "infra" / "grafana" / "dashboard.json"
     dashboard = json.loads(dashboard_path.read_text(encoding="utf-8"))
     panel = next(p for p in dashboard["panels"] if p.get("title") == "GitHub Workflow Runs")
-    assert all("rate(" not in t["expr"] for t in panel["targets"])
+    expected_exprs = {
+        "seen": "live_overlay_github_workflow_runs_seen_total{job=~\"$job\"}",
+        "success": "live_overlay_github_workflow_runs_success_total{job=~\"$job\"}",
+        "failed": "live_overlay_github_workflow_runs_failed_total{job=~\"$job\"}",
+        "in_progress": "live_overlay_github_workflow_runs_in_progress_total{job=~\"$job\"}",
+        "queued": "live_overlay_github_workflow_runs_queued_total{job=~\"$job\"}",
+    }
+    actual_exprs = {t["legendFormat"]: t["expr"] for t in panel["targets"]}
+    assert actual_exprs == expected_exprs
     assert panel["fieldConfig"]["defaults"]["unit"] == "none"
     assert panel["fieldConfig"]["defaults"]["custom"]["axisLabel"] == "runs (snapshot)"
 
