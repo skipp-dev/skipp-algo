@@ -960,8 +960,10 @@ class BenzingaRssAdapter:
         _errors_this_fetch: int = 0
 
         if not self._feeds:
+            logger.warning("BenzingaRSS: no feeds configured; marking fetch as error")
             self.fetch_total += 1
-            self.last_fetch_errors = 0
+            self.fetch_errors += 1
+            self.last_fetch_errors = 1
             self.last_fetch_duration = time.monotonic() - _t0
             return []
 

@@ -325,6 +325,18 @@ def test_last_fetch_errors_resets_per_fetch_call():
     assert adapter.last_fetch_errors == 0
 
 
+def test_fetch_news_empty_feeds_counts_error() -> None:
+    """Empty feed configuration should be surfaced as a fetch error."""
+    with _mock_feedparser(lambda _url, **_kw: {"entries": [], "bozo": False}):
+        adapter = BenzingaRssAdapter(feeds=())
+        items = adapter.fetch_news()
+
+    assert items == []
+    assert adapter.fetch_total == 1
+    assert adapter.fetch_errors == 1
+    assert adapter.last_fetch_errors == 1
+
+
 def test_fetch_news_retries_transient_failure_then_succeeds(
     monkeypatch: pytest.MonkeyPatch,
 ):
