@@ -110,8 +110,10 @@ _FROZEN_JSON_LOAD_SITES: frozenset[tuple[str, int]] = frozenset(
         # 2026-06-11 (pytest write-guard): import + guard call in
         # store_daily_outcomes shifted 185→199.
         ("open_prep/outcomes.py", 199),
-        ("open_prep/realtime_signals.py", 1707),
-        ("open_prep/realtime_signals.py", 2852),
+        # 2026-06-25: AsyncNewsstackPoller telemetry additions shifted
+        # 1707 -> 1786 and 2852 -> 2931.
+        ("open_prep/realtime_signals.py", 1786),
+        ("open_prep/realtime_signals.py", 2931),
         ("open_prep/scorer.py", 122),
         ("open_prep/watchlist.py", 53),
         # 2026-06-10 (PR #2658): centralized trading-thresholds loader parses a
@@ -177,7 +179,8 @@ _FROZEN_ENV_SUBSCRIPT_SITES: frozenset[tuple[str, int]] = frozenset(
         # through to ``terminal_finnhub._get``, so the previous entries at
         # macro.py:2041 and macro.py:2050 are gone. See
         # ``docs/AUDIT_L1_REVIEW_RETROSPECTIVE_2026-05-12.md`` § R6.
-        ("open_prep/realtime_signals.py", 2892),  # BUG-3 fix: auth_token removed from closure; _load_env_file os.environ[key] shifted
+        # 2026-06-25: shifted 2892 -> 2971 by AsyncNewsstackPoller telemetry additions.
+        ("open_prep/realtime_signals.py", 2971),
         ("open_prep/streamlit_monitor.py", 79),  # +1 from import time as _time (PR #2764)
         ("streamlit_terminal.py", 327),
     }
