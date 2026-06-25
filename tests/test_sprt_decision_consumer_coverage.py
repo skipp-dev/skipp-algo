@@ -67,11 +67,12 @@ _SINGLE_BRANCH_ALLOWLIST: dict[str, str] = {
         "emits own TV-preflight retry-verdict vocab; 'inconclusive' is a "
         "homonym, not the SPRT sentinel"
     ),
-    # plan_2_8_evaluate.py: emits synthetic demo payloads for dashboard
-    # prototyping. The output string "inconclusive" is a homonym with the
-    # SPRT sentinel but not sourced from real SPRT decision consumption.
+    # plan_2_8_evaluate.py: placeholder synthetic report emits an
+    # "inconclusive" verdict label for Phase E2 display only; it does not
+    # import or consume SPRT decision payloads.
     "scripts/plan_2_8_evaluate.py": (
-        "synthetic dashboard output; 'inconclusive' homonym only"
+        "synthetic Plan 2.8 report uses 'inconclusive' as a homonym, not an "
+        "SPRT decision consumer"
     ),
 }
 

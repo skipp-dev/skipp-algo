@@ -563,15 +563,17 @@ def _run_poll_once_in_thread(
         except Exception as exc:
             error = exc
 
-    worker = threading.Thread(target=_target, name="newsstack-poll-once")
+    # Keep worker daemonized from creation time. Python forbids toggling
+    # ``daemon`` after ``start()``, and this path intentionally detaches
+    # blocked workers during shutdown.
+    worker = threading.Thread(target=_target, name="newsstack-poll-once", daemon=True)
     worker.start()
     # Wait in small slices so stop_event can interrupt us promptly.
     while worker.is_alive() and not stop_event.is_set():
         worker.join(timeout=0.5)
     if worker.is_alive():
-        # stop_event is set; detach the worker.  It will finish eventually or
-        # be killed when the process exits (daemon thread).
-        worker.daemon = True
+        # stop_event is set; detach the worker. It will finish eventually or
+        # be killed when the process exits (already daemonized).
         return []
     if error is not None:
         raise error

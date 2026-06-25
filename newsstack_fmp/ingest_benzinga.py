@@ -959,6 +959,12 @@ class BenzingaRssAdapter:
         _t0 = time.monotonic()
         _errors_this_fetch: int = 0
 
+        if not self._feeds:
+            self.fetch_total += 1
+            self.last_fetch_errors = 0
+            self.last_fetch_duration = time.monotonic() - _t0
+            return []
+
         workers = min(len(self._feeds), _RSS_MAX_WORKERS)
         with concurrent.futures.ThreadPoolExecutor(max_workers=workers) as executor:
             future_to_url = {
@@ -980,6 +986,9 @@ class BenzingaRssAdapter:
                     _errors_this_fetch += 1
                     self.fetch_errors += 1
                     continue
+                if parsed.get("bozo") and not parsed.get("entries"):
+                    _errors_this_fetch += 1
+                    self.fetch_errors += 1
                 results.extend(
                     _process_parsed_feed(
                         parsed, feed_url, min_epoch=min_epoch, adapter=self

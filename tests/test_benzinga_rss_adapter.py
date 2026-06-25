@@ -204,6 +204,19 @@ def test_fetch_news_tolerates_bozo_with_no_entries():
         adapter = BenzingaRssAdapter()
         items = adapter.fetch_news()
     assert items == []
+    # Both default feeds failed parsing (bozo with no entries).
+    assert adapter.fetch_errors == 2
+    assert adapter.last_fetch_errors == 2
+
+
+def test_fetch_news_empty_feed_list_returns_empty_without_error():
+    with _mock_feedparser(lambda _url, **_kw: {"entries": [], "bozo": False}):
+        adapter = BenzingaRssAdapter(feeds=())
+        items = adapter.fetch_news()
+    assert items == []
+    assert adapter.fetch_total == 1
+    assert adapter.fetch_errors == 0
+    assert adapter.last_fetch_errors == 0
 
 
 def test_fetch_news_tolerates_network_error():
@@ -377,4 +390,3 @@ def test_entry_to_news_item_published_ts_falls_back_to_updated_parsed():
     assert item is not None
     assert item.published_ts > 0.0
     assert item.published_ts == item.updated_ts
-
