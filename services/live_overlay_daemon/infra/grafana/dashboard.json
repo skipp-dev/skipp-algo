@@ -2111,8 +2111,8 @@
         }
       ],
       "options": {
-        "showValue": "auto",
-        "rowHeight": 0.9,
+        "showValue": "never",
+        "rowHeight": 0.95,
         "mergeValues": true,
         "alignValue": "left",
         "legend": {
