@@ -322,9 +322,12 @@ def test_last_fetch_errors_resets_per_fetch_call():
     assert adapter.last_fetch_errors == 0
 
 
-def test_fetch_news_retries_transient_failure_then_succeeds():
+def test_fetch_news_retries_transient_failure_then_succeeds(
+    monkeypatch: pytest.MonkeyPatch,
+):
     """A feed that fails once then succeeds should still yield items."""
     attempts = []
+    monkeypatch.setattr("newsstack_fmp.ingest_benzinga.time.sleep", lambda _s: None)
 
     def _parse(url, **_kw):
         attempts.append(url)
@@ -341,8 +344,11 @@ def test_fetch_news_retries_transient_failure_then_succeeds():
     assert adapter.fetch_errors == 0  # transient retries don't count as final errors
 
 
-def test_fetch_news_gives_up_after_max_attempts():
+def test_fetch_news_gives_up_after_max_attempts(
+    monkeypatch: pytest.MonkeyPatch,
+):
     """A feed that always fails should be skipped after max attempts."""
+    monkeypatch.setattr("newsstack_fmp.ingest_benzinga.time.sleep", lambda _s: None)
     def _parse(url, **_kw):
         raise Exception("persistent")
 

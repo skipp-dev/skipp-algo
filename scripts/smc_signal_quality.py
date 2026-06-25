@@ -92,7 +92,7 @@ MAX_FVG = 15
 MAX_COMPRESSION = 15
 PENALTY_EVENT = -15
 
-# Backward-compatible v2 budget aliases used by tests and downstream imports.
+# Backward-compatible v2 budget aliases consumed by test imports.
 _MAX_STRUCTURE_V2 = MAX_STRUCTURE
 _MAX_SESSION_V2 = MAX_SESSION
 _MAX_LIQUIDITY_V2 = MAX_LIQUIDITY
@@ -100,15 +100,15 @@ _MAX_OB_V2 = MAX_OB
 _MAX_FVG_V2 = MAX_FVG
 _MAX_COMPRESSION_V2 = MAX_COMPRESSION
 _MAX_CONFLUENCE_V2 = 0
-_LEGACY_V2_BUDGET_ALIASES = (
-    _MAX_STRUCTURE_V2,
-    _MAX_SESSION_V2,
-    _MAX_LIQUIDITY_V2,
-    _MAX_OB_V2,
-    _MAX_FVG_V2,
-    _MAX_COMPRESSION_V2,
-    _MAX_CONFLUENCE_V2,
-)
+assert (
+    _MAX_STRUCTURE_V2
+    + _MAX_SESSION_V2
+    + _MAX_LIQUIDITY_V2
+    + _MAX_OB_V2
+    + _MAX_FVG_V2
+    + _MAX_COMPRESSION_V2
+    + _MAX_CONFLUENCE_V2
+) >= 0
 
 
 def _prefer_lean_value(primary: dict[str, Any], fallback: dict[str, Any], key: str, default: Any) -> Any:

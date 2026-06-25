@@ -740,10 +740,6 @@ _RSS_USER_AGENT = (
 _RSS_TIMEOUT = 10  # seconds per feed
 _RSS_MAX_WORKERS = 4  # parallel RSS fetch threads
 _RSS_MAX_SEEN_GUIDS = 4096  # cap dedup memory; pipeline cache handles long-term
-_RSS_MAX_ATTEMPTS = 3  # transient RSS errors: retry with exponential backoff
-_RSS_RETRYABLE_EXCEPTIONS = (
-    Exception,
-)  # feedparser raises generic Exception on network/parse failures
 _RSS_STOCK_DOMAIN = "stock-symbol"
 
 
@@ -788,14 +784,6 @@ def _entry_to_news_item(entry: Any, *, source_url: str) -> NewsItem | None:
     if updated_ts is None:
         updated_ts = published_ts
 
-    # updated timestamp — RSS-6: prefer updated_parsed over published_parsed
-    updated_struct = getattr(entry, "updated_parsed", None)
-    if updated_struct:
-        import calendar as _calendar
-        updated_ts = float(_calendar.timegm(updated_struct))
-    else:
-        updated_ts = published_ts
-
     # snippet — prefer summary over content
     snippet: str = ""
     summary = getattr(entry, "summary", None) or ""
@@ -826,91 +814,6 @@ def _entry_to_news_item(entry: Any, *, source_url: str) -> NewsItem | None:
             "tickers_raw": tickers,
         },
     )
-
-
-def _process_parsed_feed(
-    parsed: dict[str, Any],
-    feed_url: str,
-    *,
-    min_epoch: float,
-    adapter: BenzingaRssAdapter,
-) -> list[NewsItem]:
-    """Process entries from one parsed feed into NewsItems."""
-    items: list[NewsItem] = []
-    try:
-        if parsed.get("bozo"):
-            adapter.bozo_total += 1
-            logger.warning(
-                "BenzingaRSS: bozo parse of %s: %s",
-                feed_url,
-                parsed.get("bozo_exception", "?"),
-            )
-            if not parsed.get("entries"):
-                return items
-        for entry in parsed.get("entries", []):
-            item = _entry_to_news_item(entry, source_url=feed_url)
-            if item is None:
-                continue
-            adapter.items_parsed += 1
-            if item.published_ts < min_epoch:
-                continue
-            with adapter._lock:
-                if item.item_id in adapter._seen_guids_set:
-                    adapter.items_deduped += 1
-                    continue
-                adapter._seen_guids.append(item.item_id)
-                adapter._seen_guids_set.add(item.item_id)
-                # Evict oldest when deque rolls over
-                if len(adapter._seen_guids_set) > len(adapter._seen_guids):
-                    adapter._seen_guids_set = set(adapter._seen_guids)
-            items.append(item)
-    except Exception as exc:
-        adapter.fetch_errors += 1
-        logger.warning("BenzingaRSS: parse failed for %s: %s", feed_url, exc)
-    return items
-
-
-def _fetch_single_feed(
-    feed_url: str,
-    *,
-    timeout: int,
-    feedparser: Any,
-    max_attempts: int = _RSS_MAX_ATTEMPTS,
-) -> dict[str, Any]:
-    """Fetch a single RSS feed with retry/backoff.
-
-    Returns the parsed feed dict.  On repeated failure returns an empty
-    dict so the caller can continue with the remaining feeds.
-    """
-    for attempt in range(max_attempts):
-        try:
-            parsed = feedparser.parse(
-                feed_url,
-                agent=_RSS_USER_AGENT,
-                request_headers={"Accept": "application/rss+xml, application/xml, */*"},
-                timeout=timeout,
-            )
-            return parsed
-        except _RSS_RETRYABLE_EXCEPTIONS as exc:
-            if attempt < max_attempts - 1:
-                wait = 2 ** attempt
-                logger.warning(
-                    "BenzingaRSS: fetch failed for %s (attempt %d/%d): %s — retrying in %ds",
-                    feed_url,
-                    attempt + 1,
-                    max_attempts,
-                    exc,
-                    wait,
-                )
-                time.sleep(wait)
-            else:
-                logger.warning(
-                    "BenzingaRSS: fetch failed for %s after %d attempts: %s",
-                    feed_url,
-                    max_attempts,
-                    exc,
-                )
-    return {}
 
 
 class BenzingaRssAdapter:
@@ -971,7 +874,8 @@ class BenzingaRssAdapter:
                     timeout=self._timeout,
                 )
                 if parsed.get("bozo"):
-                    self.bozo_total += 1
+                    with self._lock:
+                        self.bozo_total += 1
                     logger.warning(
                         "BenzingaRSS: bozo parse of %s: %s",
                         feed_url,
@@ -986,7 +890,8 @@ class BenzingaRssAdapter:
                     item = _entry_to_news_item(entry, source_url=feed_url)
                     if item is None:
                         continue
-                    self.items_parsed += 1
+                    with self._lock:
+                        self.items_parsed += 1
                     if item.published_ts < min_epoch:
                         continue
                     with self._lock:
