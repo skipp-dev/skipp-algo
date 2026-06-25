@@ -27,7 +27,7 @@ Analysis of 7 categories of Grafana dashboard issues reveals that most problems 
 ### 1. ✅ GitHub Workflow Timeline - Overlapping Labels [FIXED]
 
 **Symptom:** Timeline labels are overlapping and unreadable
-**Panel:** "GitHub Workflow Status — Timeline" (dashboard.json:2129-2236)
+**Panel:** "GitHub Workflow Status — Timeline"
 
 **Root Cause:**
 The legend format `{{workflow}}` doesn't distinguish between workflows with the same name but different trigger events. Metrics include three label dimensions (`workflow_id`, `workflow`, `event`), but only `workflow` was displayed.
@@ -45,7 +45,7 @@ The legend format `{{workflow}}` doesn't distinguish between workflows with the 
 ### 2. ✅ GitHub Workflows Latest Run Detail - Panel Height [FIXED]
 
 **Symptom:** Panel is scrollable, workflow details hidden
-**Panel:** "GitHub Workflows — Latest Run Detail" (dashboard.json:3287-3490)
+**Panel:** "GitHub Workflows — Latest Run Detail"
 
 **Root Cause:**
 Fixed height of 9 rows cannot accommodate all workflows when monitoring >8-10 distinct workflows.
@@ -63,7 +63,7 @@ Fixed height of 9 rows cannot accommodate all workflows when monitoring >8-10 di
 ### 3. ⚠️ Benzinga Provider - DISABLED Status
 
 **Symptom:** Benzinga shows as "DISABLED - Provider disabled (not ingested)"
-**Panel:** "News Providers — Ingest Status & Reason" (dashboard.json:3121-3267)
+**Panel:** "News Providers — Ingest Status & Reason"
 
 **Root Cause - Bootstrap Problem:**
 
@@ -118,13 +118,13 @@ On **first startup** before any successful fetch:
 ### 4-7. ⚠️ Daily Experiment Panels - N/A or 0 Values
 
 **Affected Panels:**
-- Daily Experiment — Snapshot Age (dashboard.json:4102)
-- Daily Experiment — Files Scanned (dashboard.json:4155)
-- FVG 5m Verdict (Phase E2) (dashboard.json:4204)
-- BOS 4H Verdict (Phase E2) (dashboard.json:4280)
-- Latest Per-Family Detail (dashboard.json:4356)
-- Family Hit-Rate Over Time (dashboard.json:4469)
-- Per-Day Family Hit-Rate — History (dashboard.json:4520)
+- Daily Experiment — Snapshot Age
+- Daily Experiment — Files Scanned
+- FVG 5m Verdict (Phase E2)
+- BOS 4H Verdict (Phase E2)
+- Latest Per-Family Detail
+- Family Hit-Rate Over Time
+- Per-Day Family Hit-Rate — History
 
 **Root Cause - Missing Snapshot Files:**
 
@@ -195,8 +195,8 @@ When snapshot is missing:
 ### 8-9. ⚠️ TradingView Credential Panels - N/A Values
 
 **Affected Panels:**
-- TradingView Credential Age (dashboard.json:4634)
-- TradingView Credential Status (dashboard.json:4690)
+- TradingView Credential Age
+- TradingView Credential Status
 
 **Root Cause - Missing Credential Health Report:**
 
@@ -298,9 +298,9 @@ When report is missing:
 **Status:** ✅ **No action required** - panels exist and are correctly configured
 
 **Panels:**
-- CPU Usage (rate 5m) (dashboard.json:4752-4828)
-- Memory RSS (MB) (dashboard.json:4829-4894)
-- Open File Descriptors (dashboard.json:4895-4944)
+- CPU Usage (rate 5m)
+- Memory RSS (MB)
+- Open File Descriptors
 
 **Metrics:**
 - `live_overlay_process_cpu_seconds_total{job="live_overlay"}` (counter)
@@ -337,13 +337,13 @@ These metrics are exposed via the daemon's `/metrics` endpoint and scraped by Gr
 
 **File:** `services/live_overlay_daemon/infra/grafana/dashboard.json`
 
-1. **GitHub Workflow Timeline Legend** (line 2140):
+1. **GitHub Workflow Timeline Legend**:
    ```diff
    - "legendFormat": "{{workflow}}",
    + "legendFormat": "{{workflow}} ({{event}})",
    ```
 
-2. **GitHub Workflows Latest Run Detail Height** (line 3290):
+2. **GitHub Workflows Latest Run Detail Height**:
    ```diff
    - "h": 9,
    + "h": 14,
