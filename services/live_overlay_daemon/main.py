@@ -72,6 +72,7 @@ async def _lifespan(app: FastAPI):
     global _startup_ts
     logger.info("Starting SMC Live Overlay Daemon …")
     observability.metric_counter("live_overlay.daemon.start_attempt")
+    observability.metric_counter("live_overlay.daemon.restarts_total")
     observability.metric_counter(
         f"live_overlay.daemon.restart_cause.{config.restart_cause()}.total"
     )

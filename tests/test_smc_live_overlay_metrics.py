@@ -138,6 +138,8 @@ def test_render_metrics_prometheus_format_and_trailing_newline(monkeypatch: pyte
     assert body.count("# TYPE live_overlay_max_stale_seconds gauge") == 1
     assert body.count("live_overlay_max_stale_seconds 300") == 1
     assert "live_overlay_feed_ingest_queue_depth 0.0" in body
+    assert "# TYPE live_overlay_feed_ingest_queue_dropped_total counter" in body
+    assert "live_overlay_feed_ingest_queue_dropped_total 1.0" in body
     assert "live_overlay_feed_ingest_queue_lag_ms_max 35.0" in body
     assert "live_overlay_provider_news_snapshot_loaded 1.0" in body
     assert "live_overlay_provider_news_providers_degraded_total 1.0" in body
@@ -519,9 +521,10 @@ def test_render_metrics_includes_github_workflow_bridge_snapshot(monkeypatch: py
 
     assert "live_overlay_github_workflow_bridge_enabled 1" in body
     assert "live_overlay_github_workflow_scrape_success 1" in body
-    assert "live_overlay_github_workflow_runs_seen 4.0" in body
-    assert "live_overlay_github_workflow_runs_success 2.0" in body
-    assert "live_overlay_github_workflow_runs_failed 1.0" in body
+    assert "# TYPE live_overlay_github_workflow_runs_seen_total gauge" in body
+    assert "live_overlay_github_workflow_runs_seen_total 4.0" in body
+    assert "live_overlay_github_workflow_runs_success_total 2.0" in body
+    assert "live_overlay_github_workflow_runs_failed_total 1.0" in body
     assert "live_overlay_github_workflow_latest_run_age_seconds 45.5" in body
     assert "live_overlay_github_workflow_latest_run_duration_seconds 120.0" in body
     # Per-workflow series are labelled (id + name + event) so Grafana can name
@@ -570,7 +573,7 @@ def test_render_metrics_handles_github_workflow_bridge_disabled(monkeypatch: pyt
 
     assert "live_overlay_github_workflow_bridge_enabled 0" in body
     assert "live_overlay_github_workflow_scrape_success 0" in body
-    assert "live_overlay_github_workflow_runs_seen 0.0" in body
+    assert "live_overlay_github_workflow_runs_seen_total 0.0" in body
 
 
 def test_render_metrics_escapes_uptimerobot_error_code_labels(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -992,17 +995,22 @@ def test_dashboard_has_uptimerobot_state_timeline() -> None:
     assert options.get("8", {}).get("text") == "DOWN"
 
 
-def test_dashboard_github_workflow_runs_panel_uses_deriv() -> None:
+def test_dashboard_github_workflow_runs_panel_uses_snapshot_counts() -> None:
     repo_root = Path(__file__).resolve().parents[1]
     dashboard_path = repo_root / "services" / "live_overlay_daemon" / "infra" / "grafana" / "dashboard.json"
     dashboard = json.loads(dashboard_path.read_text(encoding="utf-8"))
     panel = next(p for p in dashboard["panels"] if p.get("title") == "GitHub Workflow Runs")
-    # GitHub workflow counts are gauges (point-in-time API values), so deriv()
-    # is the correct rate-like operator rather than rate().
-    assert all("deriv(" in t["expr"] for t in panel["targets"])
-    assert all("_total" not in t["expr"] for t in panel["targets"])
-    assert panel["fieldConfig"]["defaults"]["unit"] == "cps"
-    assert panel["fieldConfig"]["defaults"]["custom"]["axisLabel"] == "runs / sec"
+    expected_exprs = {
+        "seen": "live_overlay_github_workflow_runs_seen_total{job=~\"$job\"}",
+        "success": "live_overlay_github_workflow_runs_success_total{job=~\"$job\"}",
+        "failed": "live_overlay_github_workflow_runs_failed_total{job=~\"$job\"}",
+        "in_progress": "live_overlay_github_workflow_runs_in_progress_total{job=~\"$job\"}",
+        "queued": "live_overlay_github_workflow_runs_queued_total{job=~\"$job\"}",
+    }
+    actual_exprs = {t["legendFormat"]: t["expr"] for t in panel["targets"]}
+    assert actual_exprs == expected_exprs
+    assert panel["fieldConfig"]["defaults"]["unit"] == "none"
+    assert panel["fieldConfig"]["defaults"]["custom"]["axisLabel"] == "runs (snapshot)"
 
 
 def test_dashboard_has_trading_signals_panels() -> None:
@@ -1377,3 +1385,72 @@ def test_dashboard_railway_panels_query_emitted_metrics() -> None:
 
     bad = queried - emitted
     assert not bad, f"Railway panels query non-existent metrics: {bad}"
+
+
+def test_render_metrics_includes_daemon_restarts_total_counter(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The dedicated restart counter is rendered as a counter series."""
+    import services.live_overlay_daemon.metrics as metrics_mod
+    import services.live_overlay_daemon.observability as obs
+
+    _patch_common(
+        monkeypatch,
+        feed_ready=True,
+        market_open=True,
+        bar_count=10,
+        overlay_symbols=5,
+        overlay_age=60.0,
+    )
+
+    with obs._counter_lock:
+        obs._counters["live_overlay.daemon.restarts_total"] = 3.0
+        obs._counters["live_overlay.daemon.restart_cause.deploy.total"] = 3.0
+
+    body = metrics_mod.render_metrics(startup_ts=100.0)
+    assert "# TYPE live_overlay_daemon_restarts_total counter" in body
+    assert "live_overlay_daemon_restarts_total 3.0" in body
+    assert "# TYPE live_overlay_daemon_restart_cause_deploy_total counter" in body
+    assert "live_overlay_daemon_restart_cause_deploy_total 3.0" in body
+
+
+def test_main_lifespan_increments_restarts_total_counter() -> None:
+    """main.py _lifespan increments the dedicated restart counter."""
+    import services.live_overlay_daemon.main as main_mod
+
+    source = Path(main_mod.__file__).read_text(encoding="utf-8")
+    assert 'observability.metric_counter("live_overlay.daemon.restarts_total")' in source
+    assert 'observability.metric_counter(' in source
+    assert "restart_cause" in source
+
+
+def test_dashboard_all_panels_have_datasource() -> None:
+    repo_root = Path(__file__).resolve().parents[1]
+    dashboard_path = repo_root / "services" / "live_overlay_daemon" / "infra" / "grafana" / "dashboard.json"
+    dashboard = json.loads(dashboard_path.read_text(encoding="utf-8"))
+    expected = {"type": "prometheus", "uid": "grafanacloud-prom"}
+    for panel in dashboard["panels"]:
+        assert panel.get("datasource") == expected, panel.get("title")
+        for target in panel.get("targets", []):
+            assert target.get("datasource") == expected, panel.get("title")
+
+
+def test_dashboard_all_panels_have_stable_id() -> None:
+    repo_root = Path(__file__).resolve().parents[1]
+    dashboard_path = repo_root / "services" / "live_overlay_daemon" / "infra" / "grafana" / "dashboard.json"
+    dashboard = json.loads(dashboard_path.read_text(encoding="utf-8"))
+    ids = []
+    for panel in dashboard["panels"]:
+        assert "id" in panel, panel.get("title")
+        assert isinstance(panel["id"], int), panel.get("title")
+        ids.append(panel["id"])
+    assert len(ids) == len(set(ids)), "duplicate panel ids"
+
+
+def test_dashboard_job_variable_allows_multi_and_all() -> None:
+    repo_root = Path(__file__).resolve().parents[1]
+    dashboard_path = repo_root / "services" / "live_overlay_daemon" / "infra" / "grafana" / "dashboard.json"
+    dashboard = json.loads(dashboard_path.read_text(encoding="utf-8"))
+    job_var = next(v for v in dashboard["templating"]["list"] if v["name"] == "job")
+    assert job_var["multi"] is True
+    assert job_var["includeAll"] is True

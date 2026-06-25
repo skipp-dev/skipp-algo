@@ -952,15 +952,6 @@ def render_metrics(startup_ts: float) -> str:
         lines.append(f"live_overlay_smc_live_latency_p99_ms {latency_p99_ms:.3f}")
 
     # --- Feed counters ---
-    # --- Daemon restart counter (aggregates restart-cause counters) ---
-    restart_total = sum(
-        value
-        for name, value in counters.items()
-        if name.startswith("live_overlay.daemon.restart_cause.") and name.endswith(".total")
-    )
-    lines.append("# TYPE live_overlay_daemon_restarts_total counter")
-    lines.append(f"live_overlay_daemon_restarts_total {_prom_numeric_value(restart_total)}")
-
     feed_metrics = feed.metrics_snapshot()
     for name, value in sorted(feed_metrics.items()):
         prom_name = f"live_overlay_feed_{_sanitize_name(name)}"
@@ -1212,9 +1203,9 @@ def render_metrics(startup_ts: float) -> str:
 
     workflow_counts = dict(workflow_snapshot.get("counts") or {})
     for key in ("seen", "success", "failed", "in_progress", "queued"):
-        # NOTE: these are point-in-time counts from the latest GitHub API page,
-        # not cumulative counters, so they are gauges without a _total suffix.
-        metric_name = f"live_overlay_github_workflow_runs_{key}"
+        # Snapshot counts from the latest workflow-runs page can go up/down
+        # across polls, so expose them as gauges (not monotonic counters).
+        metric_name = f"live_overlay_github_workflow_runs_{key}_total"
         lines.append(f"# TYPE {metric_name} gauge")
         lines.append(
             f"{metric_name} {_prom_numeric_value(workflow_counts.get(key, 0))}"
