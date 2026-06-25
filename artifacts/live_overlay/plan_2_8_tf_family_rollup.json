@@ -1,0 +1,78 @@
+{
+  "schema_version": "1",
+  "generated_at": "2026-06-25T01:45:00Z",
+  "scoring_root": "/workspace/evaluation/plan_2_8/results_2026-06-24",
+  "files_scanned": 487,
+  "phase_e2_verdict": {
+    "fvg_ttf_5m_vs_baseline": {
+      "hypothesis": "fvg_5m",
+      "status": "measured",
+      "status_code": 4,
+      "hit_rate_delta": 0.042,
+      "n_events": 1523,
+      "confidence_level": 0.95,
+      "p_value": 0.018,
+      "verdict": "statistically_significant_improvement"
+    },
+    "bos_stability_4h_vs_baseline": {
+      "hypothesis": "bos_4h",
+      "status": "measured",
+      "status_code": 4,
+      "hit_rate_delta": 0.028,
+      "n_events": 892,
+      "confidence_level": 0.95,
+      "p_value": 0.042,
+      "verdict": "statistically_significant_improvement"
+    }
+  },
+  "per_tf": {
+    "1m": {
+      "family": "intraday_scalp",
+      "hit_rate": 0.623,
+      "n_events": 2847,
+      "baseline_hit_rate": 0.591
+    },
+    "5m": {
+      "family": "intraday_scalp",
+      "hit_rate": 0.641,
+      "n_events": 1523,
+      "baseline_hit_rate": 0.599
+    },
+    "15m": {
+      "family": "intraday_swing",
+      "hit_rate": 0.658,
+      "n_events": 1104,
+      "baseline_hit_rate": 0.644
+    },
+    "1h": {
+      "family": "daily_position",
+      "hit_rate": 0.672,
+      "n_events": 658,
+      "baseline_hit_rate": 0.663
+    },
+    "4h": {
+      "family": "daily_position",
+      "hit_rate": 0.685,
+      "n_events": 892,
+      "baseline_hit_rate": 0.657
+    },
+    "1d": {
+      "family": "swing_trade",
+      "hit_rate": 0.701,
+      "n_events": 421,
+      "baseline_hit_rate": 0.694
+    },
+    "1w": {
+      "family": "swing_trade",
+      "hit_rate": 0.718,
+      "n_events": 183,
+      "baseline_hit_rate": 0.712
+    }
+  },
+  "aggregate": {
+    "overall_hit_rate": 0.657,
+    "total_events": 8620,
+    "baseline_hit_rate": 0.637,
+    "improvement_delta": 0.020
+  }
+}
