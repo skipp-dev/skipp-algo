@@ -250,8 +250,8 @@ _FROZEN_SITES: frozenset[tuple[str, int, tuple[str, ...]]] = frozenset(
         # module locks and cached via module-level singleton snapshots.
         # 2026-06-23: workflow bridge hardening (status/conclusion semantics,
         # owner/repo encoding and pagination note) shifted this global anchor.
-        ("services/live_overlay_daemon/github_workflow_bridge.py", 194, ("_cached_at_monotonic", "_cached_snapshot")),
-        ("services/live_overlay_daemon/uptimerobot_bridge.py", 125, ("_cached_at_monotonic", "_cached_snapshot")),
+        ("services/live_overlay_daemon/github_workflow_bridge.py", 208, ("_cached_at_monotonic", "_cached_snapshot")),
+        ("services/live_overlay_daemon/uptimerobot_bridge.py", 140, ("_cached_at_monotonic", "_cached_snapshot")),
         # 2026-06-24 (feat/railway-metrics): Railway GraphQL bridge for container
         # metrics exposes a lazily-refreshed TTL cache (mirroring uptimerobot).
         ("services/live_overlay_daemon/railway_metrics.py", 184, ("_CACHE", "_CACHE_EXPIRES_AT")),

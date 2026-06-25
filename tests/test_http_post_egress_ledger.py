@@ -171,7 +171,7 @@ URLLIB_REQUEST_POST_LEDGER: set[tuple[str, int]] = {
     ("open_prep/alerts.py", 395),
     # 2026-06-21: UptimeRobot bridge polls monitor API with low-level
     # urllib.request.Request(..., method="POST") + timeout discipline.
-    ("services/live_overlay_daemon/uptimerobot_bridge.py", 69),
+    ("services/live_overlay_daemon/uptimerobot_bridge.py", 84),
     # 2026-06-24: Railway GraphQL API for container metrics polling.
     ("services/live_overlay_daemon/railway_metrics.py", 74),
     # 2026-06-22: the Grafana dashboard publisher previously pinned here as a

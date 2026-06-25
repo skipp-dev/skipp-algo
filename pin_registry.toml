@@ -90,8 +90,8 @@
 # 2026-06-21 (live-overlay bridge observability): optional external polling
 # bridges for GitHub workflow + UptimeRobot snapshots, each with explicit
 # timeout= and fixed https endpoint domains.
-"services/live_overlay_daemon/github_workflow_bridge.py" = [101]
-"services/live_overlay_daemon/uptimerobot_bridge.py" = [76]
+"services/live_overlay_daemon/github_workflow_bridge.py" = [115]
+"services/live_overlay_daemon/uptimerobot_bridge.py" = [91]
 # 2026-06-23: live-overlay runtime snapshot fetchers in compute.py remain
 # https-only with explicit timeout=. 2026-06-23 (audit follow-up F2/F3):
 # NEWS/SIGNALS/TRADINGVIEW JSON loaders delegate into one shared
