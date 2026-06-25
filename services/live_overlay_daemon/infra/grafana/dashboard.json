@@ -5715,8 +5715,8 @@
     },
     {
       "id": 201878404,
-      "title": "Railway CPU Utilization (%)",
-      "description": "Railway container CPU utilization as reported by the Railway API.",
+      "title": "Railway CPU Cores",
+      "description": "CPU cores used per Railway service (from Railway GraphQL metrics).",
       "type": "timeseries",
       "datasource": {
         "type": "prometheus",
@@ -5727,221 +5727,6 @@
         "w": 8,
         "x": 0,
         "y": 258
-      },
-      "fieldConfig": {
-        "defaults": {
-          "unit": "percent",
-          "custom": {
-            "drawStyle": "line",
-            "lineInterpolation": "linear"
-          }
-        },
-        "overrides": []
-      },
-      "targets": [
-        {
-          "datasource": {
-            "type": "prometheus",
-            "uid": "grafanacloud-prom"
-          },
-          "expr": "live_overlay_railway_cpu_utilization_percent{job=~\"$job\"}",
-          "refId": "A",
-          "legendFormat": "{{instance}}"
-        }
-      ],
-      "options": {
-        "legend": {
-          "displayMode": "list",
-          "placement": "bottom"
-        }
-      }
-    },
-    {
-      "id": 567983884,
-      "title": "Railway Memory Utilization (%)",
-      "description": "Railway container memory utilization as reported by the Railway API.",
-      "type": "timeseries",
-      "datasource": {
-        "type": "prometheus",
-        "uid": "grafanacloud-prom"
-      },
-      "gridPos": {
-        "h": 7,
-        "w": 8,
-        "x": 8,
-        "y": 258
-      },
-      "fieldConfig": {
-        "defaults": {
-          "unit": "percent",
-          "custom": {
-            "drawStyle": "line",
-            "lineInterpolation": "linear"
-          }
-        },
-        "overrides": []
-      },
-      "targets": [
-        {
-          "datasource": {
-            "type": "prometheus",
-            "uid": "grafanacloud-prom"
-          },
-          "expr": "live_overlay_railway_memory_utilization_percent{job=~\"$job\"}",
-          "refId": "A",
-          "legendFormat": "{{instance}}"
-        }
-      ],
-      "options": {
-        "legend": {
-          "displayMode": "list",
-          "placement": "bottom"
-        }
-      }
-    },
-    {
-      "id": 124154101,
-      "title": "Railway Disk Utilization (%)",
-      "description": "Railway container disk utilization as reported by the Railway API.",
-      "type": "timeseries",
-      "datasource": {
-        "type": "prometheus",
-        "uid": "grafanacloud-prom"
-      },
-      "gridPos": {
-        "h": 7,
-        "w": 8,
-        "x": 16,
-        "y": 258
-      },
-      "fieldConfig": {
-        "defaults": {
-          "unit": "percent",
-          "custom": {
-            "drawStyle": "line",
-            "lineInterpolation": "linear"
-          }
-        },
-        "overrides": []
-      },
-      "targets": [
-        {
-          "datasource": {
-            "type": "prometheus",
-            "uid": "grafanacloud-prom"
-          },
-          "expr": "live_overlay_railway_disk_utilization_percent{job=~\"$job\"}",
-          "refId": "A",
-          "legendFormat": "{{instance}}"
-        }
-      ],
-      "options": {
-        "legend": {
-          "displayMode": "list",
-          "placement": "bottom"
-        }
-      }
-    },
-    {
-      "id": 1720917438,
-      "title": "Railway Network Receive (Bps)",
-      "description": "Railway container inbound network traffic rate.",
-      "type": "timeseries",
-      "datasource": {
-        "type": "prometheus",
-        "uid": "grafanacloud-prom"
-      },
-      "gridPos": {
-        "h": 7,
-        "w": 8,
-        "x": 0,
-        "y": 265
-      },
-      "fieldConfig": {
-        "defaults": {
-          "unit": "Bps",
-          "custom": {
-            "drawStyle": "line",
-            "lineInterpolation": "linear"
-          }
-        },
-        "overrides": []
-      },
-      "targets": [
-        {
-          "datasource": {
-            "type": "prometheus",
-            "uid": "grafanacloud-prom"
-          },
-          "expr": "rate(live_overlay_railway_network_bytes_received_total{job=~\"$job\"}[$__rate_interval])",
-          "refId": "A",
-          "legendFormat": "{{instance}}"
-        }
-      ],
-      "options": {
-        "legend": {
-          "displayMode": "list",
-          "placement": "bottom"
-        }
-      }
-    },
-    {
-      "id": 631833346,
-      "title": "Railway Network Transmit (Bps)",
-      "description": "Railway container outbound network traffic rate.",
-      "type": "timeseries",
-      "datasource": {
-        "type": "prometheus",
-        "uid": "grafanacloud-prom"
-      },
-      "gridPos": {
-        "h": 7,
-        "w": 8,
-        "x": 8,
-        "y": 265
-      },
-      "fieldConfig": {
-        "defaults": {
-          "unit": "Bps",
-          "custom": {
-            "drawStyle": "line",
-            "lineInterpolation": "linear"
-          }
-        },
-        "overrides": []
-      },
-      "targets": [
-        {
-          "datasource": {
-            "type": "prometheus",
-            "uid": "grafanacloud-prom"
-          },
-          "expr": "rate(live_overlay_railway_network_bytes_sent_total{job=~\"$job\"}[$__rate_interval])",
-          "refId": "A",
-          "legendFormat": "{{instance}}"
-        }
-      ],
-      "options": {
-        "legend": {
-          "displayMode": "list",
-          "placement": "bottom"
-        }
-      }
-    },
-    {
-      "id": 2133310721,
-      "title": "Railway Container Restarts",
-      "description": "Cumulative Railway container restart count.",
-      "type": "timeseries",
-      "datasource": {
-        "type": "prometheus",
-        "uid": "grafanacloud-prom"
-      },
-      "gridPos": {
-        "h": 7,
-        "w": 8,
-        "x": 16,
-        "y": 265
       },
       "fieldConfig": {
         "defaults": {
@@ -5959,9 +5744,230 @@
             "type": "prometheus",
             "uid": "grafanacloud-prom"
           },
-          "expr": "live_overlay_railway_container_restarts_total{job=~\"$job\"}",
+          "expr": "live_overlay_railway_service_cpu_cores{job=~\"$job\"}",
           "refId": "A",
-          "legendFormat": "{{instance}}"
+          "legendFormat": "{{service}}",
+          "interval": "1m"
+        }
+      ],
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom"
+        }
+      }
+    },
+    {
+      "id": 567983884,
+      "title": "Railway Memory Used Ratio",
+      "description": "Memory usage / memory limit per Railway service.",
+      "type": "timeseries",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "grafanacloud-prom"
+      },
+      "gridPos": {
+        "h": 7,
+        "w": 8,
+        "x": 8,
+        "y": 258
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percentunit",
+          "custom": {
+            "drawStyle": "line",
+            "lineInterpolation": "linear"
+          }
+        },
+        "overrides": []
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "grafanacloud-prom"
+          },
+          "expr": "live_overlay_railway_service_memory_used_ratio{job=~\"$job\"}",
+          "refId": "A",
+          "legendFormat": "{{service}}",
+          "interval": "1m"
+        }
+      ],
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom"
+        }
+      }
+    },
+    {
+      "id": 124154101,
+      "title": "Railway Disk Usage (GB)",
+      "description": "Disk usage per Railway service in GB.",
+      "type": "timeseries",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "grafanacloud-prom"
+      },
+      "gridPos": {
+        "h": 7,
+        "w": 8,
+        "x": 16,
+        "y": 258
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "gbytes",
+          "custom": {
+            "drawStyle": "line",
+            "lineInterpolation": "linear"
+          }
+        },
+        "overrides": []
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "grafanacloud-prom"
+          },
+          "expr": "live_overlay_railway_service_disk_gb{job=~\"$job\"}",
+          "refId": "A",
+          "legendFormat": "{{service}}",
+          "interval": "1m"
+        }
+      ],
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom"
+        }
+      }
+    },
+    {
+      "id": 1720917438,
+      "title": "Railway Network RX (GB)",
+      "description": "Network receive (RX) per Railway service in GB.",
+      "type": "timeseries",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "grafanacloud-prom"
+      },
+      "gridPos": {
+        "h": 7,
+        "w": 8,
+        "x": 0,
+        "y": 265
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "gbytes",
+          "custom": {
+            "drawStyle": "line",
+            "lineInterpolation": "linear"
+          }
+        },
+        "overrides": []
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "grafanacloud-prom"
+          },
+          "expr": "live_overlay_railway_service_network_rx_gb{job=~\"$job\"}",
+          "refId": "A",
+          "legendFormat": "{{service}}",
+          "interval": "1m"
+        }
+      ],
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom"
+        }
+      }
+    },
+    {
+      "id": 631833346,
+      "title": "Railway Network TX (GB)",
+      "description": "Network transmit (TX) per Railway service in GB.",
+      "type": "timeseries",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "grafanacloud-prom"
+      },
+      "gridPos": {
+        "h": 7,
+        "w": 8,
+        "x": 8,
+        "y": 265
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "gbytes",
+          "custom": {
+            "drawStyle": "line",
+            "lineInterpolation": "linear"
+          }
+        },
+        "overrides": []
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "grafanacloud-prom"
+          },
+          "expr": "live_overlay_railway_service_network_tx_gb{job=~\"$job\"}",
+          "refId": "A",
+          "legendFormat": "{{service}}",
+          "interval": "1m"
+        }
+      ],
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom"
+        }
+      }
+    },
+    {
+      "id": 2133310721,
+      "title": "Railway Memory Limit (GB)",
+      "description": "Memory limit per Railway service in GB.",
+      "type": "timeseries",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "grafanacloud-prom"
+      },
+      "gridPos": {
+        "h": 7,
+        "w": 8,
+        "x": 16,
+        "y": 265
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "gbytes",
+          "custom": {
+            "drawStyle": "line",
+            "lineInterpolation": "linear"
+          }
+        },
+        "overrides": []
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "grafanacloud-prom"
+          },
+          "expr": "live_overlay_railway_service_memory_limit_gb{job=~\"$job\"}",
+          "refId": "A",
+          "legendFormat": "{{service}}",
+          "interval": "1m"
         }
       ],
       "options": {
