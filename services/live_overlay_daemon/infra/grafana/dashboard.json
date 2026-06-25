@@ -1781,12 +1781,71 @@
       "description": "Whether the UptimeRobot API bridge is enabled and its last scrape succeeded."
     },
     {
-      "title": "UptimeRobot Snapshot Age",
+      "title": "UptimeRobot Bridge Error",
       "type": "stat",
       "gridPos": {
         "h": 4,
         "w": 6,
         "x": 6,
+        "y": 75
+      },
+      "description": "Latest UptimeRobot bridge scrape error class. 'none' means the last scrape succeeded or the bridge is disabled.",
+      "targets": [
+        {
+          "expr": "live_overlay_uptimerobot_scrape_error_info{job=\"$job\"}",
+          "legendFormat": "{{error_code}}",
+          "instant": true
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "mappings": [
+            {
+              "type": "value",
+              "options": {
+                "0": {
+                  "text": "OK",
+                  "color": "green"
+                },
+                "1": {
+                  "text": "ERROR",
+                  "color": "red"
+                }
+              }
+            }
+          ],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              }
+            ]
+          },
+          "noValue": "none"
+        },
+        "overrides": []
+      },
+      "options": {
+        "colorMode": "background_solid",
+        "graphMode": "none",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        }
+      }
+    },
+    {
+      "title": "UptimeRobot Snapshot Age",
+      "type": "stat",
+      "gridPos": {
+        "h": 4,
+        "w": 6,
+        "x": 12,
         "y": 75
       },
       "targets": [
@@ -1852,7 +1911,7 @@
       "gridPos": {
         "h": 8,
         "w": 12,
-        "x": 12,
+        "x": 18,
         "y": 75
       },
       "targets": [
@@ -1973,12 +2032,71 @@
       "description": "Whether the GitHub workflow bridge is enabled and its last scrape succeeded."
     },
     {
-      "title": "GitHub Workflow Snapshot Age",
+      "title": "GitHub Workflow Bridge Error",
       "type": "stat",
       "gridPos": {
         "h": 4,
         "w": 6,
         "x": 6,
+        "y": 83
+      },
+      "description": "Latest GitHub workflow bridge scrape error class. 'none' means the last scrape succeeded or the bridge is disabled.",
+      "targets": [
+        {
+          "expr": "live_overlay_github_workflow_scrape_error_info{job=\"$job\"}",
+          "legendFormat": "{{error_code}}",
+          "instant": true
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "mappings": [
+            {
+              "type": "value",
+              "options": {
+                "0": {
+                  "text": "OK",
+                  "color": "green"
+                },
+                "1": {
+                  "text": "ERROR",
+                  "color": "red"
+                }
+              }
+            }
+          ],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              }
+            ]
+          },
+          "noValue": "none"
+        },
+        "overrides": []
+      },
+      "options": {
+        "colorMode": "background_solid",
+        "graphMode": "none",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        }
+      }
+    },
+    {
+      "title": "GitHub Workflow Snapshot Age",
+      "type": "stat",
+      "gridPos": {
+        "h": 4,
+        "w": 6,
+        "x": 12,
         "y": 83
       },
       "targets": [
@@ -2044,7 +2162,7 @@
       "gridPos": {
         "h": 8,
         "w": 12,
-        "x": 12,
+        "x": 18,
         "y": 83
       },
       "targets": [
@@ -2682,10 +2800,10 @@
       "type": "text",
       "description": "Legend for News Provider panels directly below.",
       "gridPos": {
+        "y": 151,
         "h": 2,
         "w": 24,
-        "x": 0,
-        "y": 129
+        "x": 0
       },
       "options": {
         "mode": "markdown",
@@ -2846,10 +2964,10 @@
       "title": "News Provider Health State",
       "type": "state-timeline",
       "gridPos": {
+        "y": 163,
         "h": 8,
         "w": 12,
-        "x": 0,
-        "y": 151
+        "x": 0
       },
       "targets": [
         {
@@ -2924,10 +3042,10 @@
       "title": "News Snapshot Age & Provider Counts",
       "type": "timeseries",
       "gridPos": {
+        "y": 163,
         "h": 8,
         "w": 12,
-        "x": 12,
-        "y": 151
+        "x": 12
       },
       "targets": [
         {
@@ -2980,10 +3098,10 @@
       "title": "News Providers — OK/Degraded (Drill-down)",
       "type": "timeseries",
       "gridPos": {
+        "y": 171,
         "h": 8,
         "w": 12,
-        "x": 0,
-        "y": 159
+        "x": 0
       },
       "targets": [
         {
@@ -3018,10 +3136,10 @@
       "title": "News Providers — State Code",
       "type": "timeseries",
       "gridPos": {
-        "h": 8,
-        "w": 12,
-        "x": 12,
-        "y": 159
+        "y": 153,
+        "h": 10,
+        "w": 24,
+        "x": 0
       },
       "targets": [
         {
@@ -3101,10 +3219,10 @@
       "title": "News Providers — Ingest Status & Reason",
       "type": "table",
       "gridPos": {
+        "y": 171,
         "h": 8,
-        "w": 24,
-        "x": 0,
-        "y": 167
+        "w": 12,
+        "x": 12
       },
       "description": "Per-provider ingest status with the human-readable degraded reason (API key missing, no active subscription, provider disabled, …) and whether the provider is actually consumed.",
       "targets": [
@@ -3252,7 +3370,7 @@
         "h": 8,
         "w": 24,
         "x": 0,
-        "y": 175
+        "y": 179
       },
       "options": {
         "showLabels": true,
@@ -3271,7 +3389,7 @@
         "h": 9,
         "w": 24,
         "x": 0,
-        "y": 183
+        "y": 187
       },
       "description": "Per-workflow detail of the most recent run the daemon observed: trigger event (schedule / push / …), current status, run duration and age. One row per named workflow. Driven by the labelled live_overlay_github_workflow_* gauges (phase_code, latest_duration_seconds, latest_age_seconds, latest_success).",
       "targets": [
@@ -3494,7 +3612,7 @@
         "h": 6,
         "w": 6,
         "x": 0,
-        "y": 192
+        "y": 196
       },
       "targets": [
         {
@@ -3547,7 +3665,7 @@
         "h": 6,
         "w": 6,
         "x": 6,
-        "y": 192
+        "y": 196
       },
       "targets": [
         {
@@ -3633,7 +3751,7 @@
         "h": 6,
         "w": 6,
         "x": 12,
-        "y": 192
+        "y": 196
       },
       "targets": [
         {
@@ -3691,7 +3809,7 @@
         "h": 6,
         "w": 6,
         "x": 18,
-        "y": 192
+        "y": 196
       },
       "targets": [
         {
@@ -3744,7 +3862,7 @@
         "h": 10,
         "w": 24,
         "x": 0,
-        "y": 198
+        "y": 202
       },
       "targets": [
         {
@@ -4041,7 +4159,7 @@
         "h": 8,
         "w": 24,
         "x": 0,
-        "y": 208
+        "y": 212
       },
       "targets": [
         {
@@ -4087,7 +4205,7 @@
         "h": 5,
         "w": 6,
         "x": 0,
-        "y": 216
+        "y": 220
       },
       "targets": [
         {
@@ -4140,7 +4258,7 @@
         "h": 5,
         "w": 6,
         "x": 6,
-        "y": 216
+        "y": 220
       },
       "targets": [
         {
@@ -4189,7 +4307,7 @@
         "h": 5,
         "w": 6,
         "x": 12,
-        "y": 216
+        "y": 220
       },
       "targets": [
         {
@@ -4265,7 +4383,7 @@
         "h": 5,
         "w": 6,
         "x": 18,
-        "y": 216
+        "y": 220
       },
       "targets": [
         {
@@ -4341,7 +4459,7 @@
         "h": 9,
         "w": 24,
         "x": 0,
-        "y": 221
+        "y": 225
       },
       "targets": [
         {
@@ -4454,7 +4572,7 @@
         "h": 8,
         "w": 24,
         "x": 0,
-        "y": 230
+        "y": 234
       },
       "targets": [
         {
@@ -4505,7 +4623,7 @@
         "h": 10,
         "w": 24,
         "x": 0,
-        "y": 238
+        "y": 242
       },
       "targets": [
         {
@@ -4619,7 +4737,7 @@
         "h": 5,
         "w": 6,
         "x": 0,
-        "y": 248
+        "y": 252
       },
       "targets": [
         {
@@ -4675,7 +4793,7 @@
         "h": 5,
         "w": 6,
         "x": 6,
-        "y": 248
+        "y": 252
       },
       "targets": [
         {
@@ -4736,7 +4854,7 @@
         "h": 1,
         "w": 24,
         "x": 0,
-        "y": 253
+        "y": 257
       },
       "description": "Row grouping for Railway container-level CPU, memory, disk and network metrics."
     },
@@ -4747,7 +4865,7 @@
         "h": 8,
         "w": 12,
         "x": 0,
-        "y": 254
+        "y": 258
       },
       "datasource": {
         "type": "prometheus",
@@ -4814,7 +4932,7 @@
         "h": 8,
         "w": 12,
         "x": 12,
-        "y": 254
+        "y": 258
       },
       "datasource": {
         "type": "prometheus",
@@ -4881,7 +4999,7 @@
         "h": 8,
         "w": 12,
         "x": 0,
-        "y": 262
+        "y": 266
       },
       "datasource": {
         "type": "prometheus",
@@ -4935,7 +5053,7 @@
         "h": 4,
         "w": 6,
         "x": 12,
-        "y": 262
+        "y": 266
       },
       "datasource": {
         "type": "prometheus",
@@ -4975,7 +5093,7 @@
         "h": 4,
         "w": 6,
         "x": 18,
-        "y": 262
+        "y": 266
       },
       "datasource": {
         "type": "prometheus",
@@ -5015,7 +5133,7 @@
         "h": 8,
         "w": 12,
         "x": 12,
-        "y": 266
+        "y": 270
       },
       "datasource": {
         "type": "prometheus",
@@ -5069,7 +5187,7 @@
         "h": 1,
         "w": 24,
         "x": 0,
-        "y": 274
+        "y": 278
       },
       "collapsed": false,
       "panels": [],
@@ -5082,7 +5200,7 @@
         "h": 8,
         "w": 12,
         "x": 0,
-        "y": 275
+        "y": 279
       },
       "datasource": {
         "type": "prometheus",
@@ -5127,7 +5245,7 @@
         "h": 8,
         "w": 12,
         "x": 12,
-        "y": 275
+        "y": 279
       },
       "datasource": {
         "type": "prometheus",
@@ -5172,7 +5290,7 @@
         "h": 4,
         "w": 6,
         "x": 0,
-        "y": 283
+        "y": 287
       },
       "datasource": {
         "type": "prometheus",
@@ -5224,7 +5342,7 @@
         "h": 4,
         "w": 6,
         "x": 6,
-        "y": 283
+        "y": 287
       },
       "datasource": {
         "type": "prometheus",
@@ -5280,7 +5398,7 @@
         "h": 4,
         "w": 12,
         "x": 12,
-        "y": 283
+        "y": 287
       },
       "datasource": {
         "type": "prometheus",

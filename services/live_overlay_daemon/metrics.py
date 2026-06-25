@@ -1133,6 +1133,15 @@ def render_metrics(startup_ts: float) -> str:
     lines.append("# TYPE live_overlay_uptimerobot_snapshot_age_seconds gauge")
     lines.append(f"live_overlay_uptimerobot_snapshot_age_seconds {snapshot_age:.1f}")
 
+    error_code = str(uptime_snapshot.get("error_code") or "")
+    if error_code:
+        escaped = error_code.replace('"', '\\"').replace('\\', '\\\\')
+        lines.append("# TYPE live_overlay_uptimerobot_scrape_error_info gauge")
+        lines.append(f'live_overlay_uptimerobot_scrape_error_info{{error_code="{escaped}"}} 1')
+    else:
+        lines.append("# TYPE live_overlay_uptimerobot_scrape_error_info gauge")
+        lines.append('live_overlay_uptimerobot_scrape_error_info{error_code="none"} 0')
+
     counts = dict(uptime_snapshot.get("counts") or {})
     for key in ("total", "up", "down", "paused", "unknown"):
         suffix = "_total" if key != "total" else ""
@@ -1178,6 +1187,15 @@ def render_metrics(startup_ts: float) -> str:
     lines.append(f"live_overlay_github_workflow_scrape_success {wf_ok}")
     lines.append("# TYPE live_overlay_github_workflow_snapshot_age_seconds gauge")
     lines.append(f"live_overlay_github_workflow_snapshot_age_seconds {wf_snapshot_age:.1f}")
+
+    wf_error_code = str(workflow_snapshot.get("error_code") or "")
+    if wf_error_code:
+        escaped = wf_error_code.replace('"', '\\"').replace('\\', '\\\\')
+        lines.append("# TYPE live_overlay_github_workflow_scrape_error_info gauge")
+        lines.append(f'live_overlay_github_workflow_scrape_error_info{{error_code="{escaped}"}} 1')
+    else:
+        lines.append("# TYPE live_overlay_github_workflow_scrape_error_info gauge")
+        lines.append('live_overlay_github_workflow_scrape_error_info{error_code="none"} 0')
 
     workflow_counts = dict(workflow_snapshot.get("counts") or {})
     for key in ("seen", "success", "failed", "in_progress", "queued"):
