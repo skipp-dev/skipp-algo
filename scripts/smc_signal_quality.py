@@ -225,6 +225,27 @@ def _bias_alignment(
     return "bear"
 
 
+def _event_risk_penalty(enr: dict[str, Any], score: int, warnings: list[str], penalty_event: int) -> int:
+    """Apply event-risk penalty using lean `event_risk_light` with `event_risk` fallback.
+
+    Returns the updated score. Appends warning labels to ``warnings`` in place.
+    """
+    erl = enr.get("event_risk_light") or {}
+    er = enr.get("event_risk") or {}
+    if "MARKET_EVENT_BLOCKED" in erl or "SYMBOL_EVENT_BLOCKED" in erl:
+        event_blocked = bool(erl.get("MARKET_EVENT_BLOCKED", False) or erl.get("SYMBOL_EVENT_BLOCKED", False))
+    else:
+        event_blocked = bool(er.get("MARKET_EVENT_BLOCKED", False) or er.get("SYMBOL_EVENT_BLOCKED", False))
+    event_risk_level = str(_prefer_lean_value(erl, er, "EVENT_RISK_LEVEL", "NONE"))
+
+    if event_blocked:
+        score += penalty_event
+        warnings.append("event_blocked")
+    elif event_risk_level in ("HIGH", "ELEVATED"):
+        score += int(penalty_event * 0.6)
+        warnings.append("event_risk_high")
+    return score
+
 def build_signal_quality_v1(
     *,
     enrichment: dict[str, Any] | None = None,
@@ -362,20 +383,7 @@ def build_signal_quality_v1(
         warnings.append("fvg_invalidated")
 
     # ── Event risk penalty (0 to -15) — lean: event_risk_light ──
-    erl = enr.get("event_risk_light") or {}
-    er = enr.get("event_risk") or {}  # fallback-only
-    if "MARKET_EVENT_BLOCKED" in erl or "SYMBOL_EVENT_BLOCKED" in erl:
-        event_blocked = bool(erl.get("MARKET_EVENT_BLOCKED", False) or erl.get("SYMBOL_EVENT_BLOCKED", False))
-    else:
-        event_blocked = bool(er.get("MARKET_EVENT_BLOCKED", False) or er.get("SYMBOL_EVENT_BLOCKED", False))
-    event_risk_level = str(_prefer_lean_value(erl, er, "EVENT_RISK_LEVEL", "NONE"))
-
-    if event_blocked:
-        score += PENALTY_EVENT
-        warnings.append("event_blocked")
-    elif event_risk_level in ("HIGH", "ELEVATED"):
-        score += int(PENALTY_EVENT * 0.6)
-        warnings.append("event_risk_high")
+    score = _event_risk_penalty(enr, score, warnings, PENALTY_EVENT)
 
     # ── Compression regime (0-15) ───────────────────────────────
     # Scores expansion potential from squeeze/ATR data (not price headroom)
@@ -515,13 +523,8 @@ def build_signal_quality_v2(
     squeeze_on = bool(cr.get("SQUEEZE_ON", False))
     atr_regime = str(cr.get("ATR_REGIME", "NORMAL"))
 
-    erl = enr.get("event_risk_light") or {}
-    er = enr.get("event_risk") or {}
-    if "MARKET_EVENT_BLOCKED" in erl or "SYMBOL_EVENT_BLOCKED" in erl:
-        event_blocked = bool(erl.get("MARKET_EVENT_BLOCKED", False) or erl.get("SYMBOL_EVENT_BLOCKED", False))
-    else:
-        event_blocked = bool(er.get("MARKET_EVENT_BLOCKED", False) or er.get("SYMBOL_EVENT_BLOCKED", False))
-    event_risk_level = str(_prefer_lean_value(erl, er, "EVENT_RISK_LEVEL", "NONE"))
+    # ── Event risk penalty (0 to -15) — lean: event_risk_light ──
+    score = _event_risk_penalty(enr, score, warnings, PENALTY_EVENT)
 
     # ── Structure freshness (0-18) ──────────────────────────────
     if structure_fresh:
@@ -596,12 +599,7 @@ def build_signal_quality_v2(
         warnings.append("atr_exhaustion")
 
     # ── Event risk penalty (0 to -15) ───────────────────────────
-    if event_blocked:
-        score += PENALTY_EVENT
-        warnings.append("event_blocked")
-    elif event_risk_level in ("HIGH", "ELEVATED"):
-        score += int(PENALTY_EVENT * 0.6)
-        warnings.append("event_risk_high")
+    score = _event_risk_penalty(enr, score, warnings, PENALTY_EVENT)
 
     # ── Confluence (0-12) ───────────────────────────────────────
     if is_confluence_score_enabled():
