@@ -1,10 +1,9 @@
 # Handover: SMC v2 Feature Branch
 
-**Status:** In Review — PR #2945 (`fix/smc-v2-confluence` → `main`).  
+**Status:** PR #2945 gemerged in `origin/main`; Rebase-/Dokumentations-Follow-up über PR #2951 (`fix/smc-v2-confluence-rebase` → `main`).  
 **Basis:** `origin/main` nach PR #2940.  
 **PR URL:** https://github.com/skippALGO/skipp-algo/pull/2945
 
-> Post-merge sollte dieser Abschnitt auf "Gemerged in `origin/main` via PR #2945" geändert werden.  
 **Python:** Projekt-Venv (`<repo-root>/.venv/bin/python`)  
 **Stand:** SMC-v2-Confluence-Migration (Phase D) abgeschlossen; Tests grün, `ruff check --fix` sauber.
 
@@ -23,7 +22,7 @@ Implementiert wurden die Phasen:
 | A | Freshness v2 mit erweiterten Labels (`very_fresh`/`fresh`/`aging`/`stale`/`expired`) |
 | B | Sweep-Trap-Detektor (`smc_core/sweep_trap.py`) in `build_signal_quality_v2` integriert |
 | C | Reaction-Zone-Detektor (`smc_core/reaction_zone.py`) in `build_signal_quality_v2` integriert |
-| D | Confluence-Score-Detektor: Cutover von `smc_core/confluence_score.py` auf `smc_core/smc_confluence.compute_confluence`; orthogonale `OB_SUPPORT_SCORE`/`FVG_GAP_SCORE` in `measurement_evidence`; Sweep-Score-Skalierung auf 0-5 korrigiert; `CONFLUENCE_DIRECTION=NONE` bei Score 0; Budget-Refaktorierung in `build_signal_quality_v2` |
+| D | Confluence-Score-Detektor: Cutover von `smc_core/confluence_score.py` auf `smc_core/smc_confluence.compute_confluence`; orthogonale `OB_SUPPORT_SCORE`/`FVG_GAP_SCORE` in `measurement_evidence`; Sweep-Score-Skalierung auf 0-5 korrigiert; `CONFLUENCE_DIRECTION=neutral` bei Score 0; Budget-Refaktorierung in `build_signal_quality_v2` |
 | E | SMT-Divergenz-Detektor (`smc_core/smt_divergence.py`) in `build_signal_quality_v2` integriert |
 | F | Vollständige v2-Integration aller Detektoren |
 | G | Integrationstest `tests/test_signal_quality_v2_integration.py` |
@@ -144,10 +143,29 @@ Diese Dateien existieren weiterhin im Branch und werden aktiv gepflegt:
 | Event-Risk-Penalty in `_event_risk_penalty()` extrahiert | `scripts/smc_signal_quality.py` | Field-Preference-Chain-Drift beseitigen; Duplikation vermeiden |
 | Sweep-Score-Skalierung von `/10` auf `/5` korrigiert | `scripts/smc_signal_quality.py` | `SWEEP_QUALITY_SCORE` hat Wertebereich 0–5, nicht 0–10 |
 | Freshness-Decay ebenfalls `/5` skaliert | `scripts/smc_signal_quality.py` | Konsistenz mit Liquidity-Slot |
-| `CONFLUENCE_DIRECTION=NONE` bei Score 0 | `scripts/smc_signal_quality.py` | Verhindert irreführende Richtung ohne Beitrag |
+| `CONFLUENCE_DIRECTION=neutral` bei Score 0 | `scripts/smc_signal_quality.py` | Verhindert irreführende Richtung ohne Beitrag |
 | `SWEEP_QUALITY_SCORE` auf 0.0–1.0 für `compute_confluence` normalisiert | `scripts/smc_signal_quality.py` | Verhindert Sweep-Sättigung im Confluence-Detektor |
 | OB/FVG-Hilfsfunktions-Docstrings ins Englische übersetzt | `smc_integration/measurement_evidence.py` | Sprachkonsistenz |
 | Doppelte `OB_FRESH`/`mitigation_state`-Berechnung entfernt | `smc_integration/measurement_evidence.py` | Vermeidet Drift |
+
+### Parallelarbeit auf dem Feature-Branch
+
+Während der finalen Phase wurden zusätzliche Commits von einem parallelen
+Agenten/Prozess auf `fix/smc-v2-confluence` gepusht (z.B.
+`bb007fc4`, `3e140d4d`, `f53010cb`, `14b2d7ba`, `126793b9`, `dc0eaeb6`).
+Diese beheben:
+
+| Commit | Inhalt |
+|--------|--------|
+| `126793b9` | Doppelten Event-Risk-Penalty in v2 entfernt |
+| `f53010cb` | `CONFLUENCE_DIRECTION=neutral` bei Score 0 |
+| `14b2d7ba` | Test-Coverage für `plan-2-8-evaluation.yml` |
+| `bb007fc4` | `docs/v5_5b_architecture.md` um Confluence-Cutover ergänzt |
+| `3e140d4d` | `plan-2-8-evaluation.yml` aus orphan allowlist entfernt |
+| `dc0eaeb6` | Wording/Formatierung in Handover und Architekturdoc |
+
+Dies verdeutlicht, dass der Worktree nicht isoliert war. Für Folgearbeiten
+sollte immer ein frischer, dedizierter Worktree verwendet werden.
 
 ---
 
@@ -203,7 +221,7 @@ Ergebnis: **alle zugehörigen Tests passed**.
 - [x] Freshness-Downgrade bei kontra-Signalen integriert.
 - [x] Dokumentation in `docs/v5_5b_architecture.md` ergänzt.
 - [x] PR aus `fix/smc-v2-confluence` erstellen: https://github.com/skippALGO/skipp-algo/pull/2945
-- [ ] PR #2945 mergen, sobald CI grün und Review abgeschlossen.
+- [x] PR #2945 gemerged (`origin/main`, Follow-up in PR #2951 dokumentiert).
 - [ ] `docs/v5_5b_architecture.md` um Confluence-Cutover und OB/FVG-Scores ergänzen (Inhalt verifiziert und aktualisiert in diesem Commit).
 - [ ] Weitere Iterationen: datengetriebene Kalibrierung der Confidence-Scores.
 
