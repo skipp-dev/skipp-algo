@@ -136,10 +136,10 @@ _FROZEN_SITES: frozenset[tuple[str, int]] = frozenset(
         # 2026-06-24 feat/benzinga-rss: retry backoff sleeps in REST client
         # (197→198, 208→209 after RSS improvements).
         # 2026-06-24 feat/benzinga-rss-improvements: added retry sleep in
-        # parallel fetch worker (line 897 after follow-up import cleanup).
+        # parallel fetch worker (line 900 after thread-safety follow-up).
         ("newsstack_fmp/ingest_benzinga.py", 198),
         ("newsstack_fmp/ingest_benzinga.py", 209),
-        ("newsstack_fmp/ingest_benzinga.py", 897),
+        ("newsstack_fmp/ingest_benzinga.py", 900),
     }
 )
 
