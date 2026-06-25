@@ -345,6 +345,108 @@ def _tradingview_credential_snapshot() -> dict[str, float]:
     }
 
 
+# Stable numeric code per credential-health probe severity so Grafana can colour
+# states consistently. Higher is healthier.
+_CREDENTIAL_SEVERITY_CODES: Mapping[str, int] = {
+    "error": 0,
+    "warn": 1,
+    "ok": 2,
+}
+
+
+def _credential_health_snapshot() -> dict[str, object]:
+    """Derive credential-health gauges from the daily credential report.
+
+    Reads through :func:`compute._load_credential_health_snapshot` (local
+    ``credential_health.json`` or the runtime
+    ``TRADINGVIEW_CREDENTIAL_SNAPSHOT_URL``) and exposes every probe written by
+    ``scripts/credential_health_check.py``. For each probe we emit:
+
+    * ``live_overlay_credential_health_<probe>_severity_code`` — 0=error,
+      1=warn, 2=ok.
+    * ``live_overlay_credential_health_<probe>_valid`` — 1 unless severity is
+      ``error``.
+    * ``live_overlay_credential_health_<probe>_info`` — labelled gauge carrying
+      the raw severity and message as metadata.
+    * Numeric detail gauges when the probe exposes a known scalar:
+      ``age_hours`` for ``tv_storage_state_age``,
+      ``days_left`` for ``github_pat_validity``,
+      ``staleness_days`` for ``databento_delivery``.
+
+    The legacy ``live_overlay_tradingview_credential_*`` gauges remain so
+    existing dashboards and alerts keep working.
+    """
+    raw = compute._load_credential_health_snapshot()
+    snapshot: dict[str, object] = {
+        "loaded": 0.0,
+        "overall_severity": "unknown",
+        "overall_valid": 0.0,
+        "probes": [],
+    }
+
+    if not isinstance(raw, dict) or not raw:
+        return snapshot
+
+    snapshot["loaded"] = 1.0
+    overall = str(raw.get("overall_severity", "") or "unknown").lower()
+    snapshot["overall_severity"] = overall
+    snapshot["overall_valid"] = 0.0 if overall == "error" else 1.0
+
+    probes = raw.get("probes")
+    probe_rows: list[dict[str, object]] = []
+    if isinstance(probes, (list, tuple)):
+        for item in probes:
+            if not isinstance(item, dict):
+                continue
+            name = str(item.get("name", "") or "unknown")
+            severity = str(item.get("severity", "") or "unknown").lower()
+            message = str(item.get("message", "") or "")
+            details = item.get("details")
+            details_dict = details if isinstance(details, dict) else {}
+
+            code = _CREDENTIAL_SEVERITY_CODES.get(severity, 0)
+            valid = 0.0 if severity == "error" else 1.0
+
+            numeric: dict[str, float] = {}
+            if name == "tv_storage_state_age":
+                age_raw = details_dict.get("age_hours")
+                if isinstance(age_raw, (int, float)) and not isinstance(age_raw, bool):
+                    age_float = float(age_raw)
+                    if math.isfinite(age_float):
+                        numeric["age_hours"] = max(0.0, age_float)
+                validated_at = details_dict.get("validated_at")
+                if isinstance(validated_at, str) and validated_at:
+                    try:
+                        parsed = datetime.datetime.fromisoformat(
+                            validated_at.replace("Z", "+00:00")
+                        )
+                        numeric["validated_at_seconds"] = parsed.timestamp()
+                    except ValueError:
+                        numeric["validated_at_seconds"] = float("nan")
+            elif name == "github_pat_validity":
+                days_left = details_dict.get("days_left")
+                if isinstance(days_left, (int, float)) and not isinstance(days_left, bool):
+                    numeric["days_left"] = float(days_left)
+            elif name == "databento_delivery":
+                staleness = details_dict.get("staleness_days")
+                if isinstance(staleness, (int, float)) and not isinstance(staleness, bool):
+                    numeric["staleness_days"] = float(staleness)
+
+            probe_rows.append(
+                {
+                    "name": _sanitize_name(name),
+                    "severity": severity,
+                    "code": float(code),
+                    "valid": valid,
+                    "message": message,
+                    "numeric": numeric,
+                }
+            )
+
+    snapshot["probes"] = probe_rows
+    return snapshot
+
+
 # ---------------------------------------------------------------------------
 # Daily experiment (Plan 2.8 per-TF family rollup + per-day history) helpers
 # ---------------------------------------------------------------------------
@@ -1260,6 +1362,62 @@ def render_metrics(startup_ts: float) -> str:
         "live_overlay_tradingview_credential_validated_at_seconds "
         f"{tv_credential['validated_at_seconds']:.0f}"
     )
+
+    # ----- Full credential-health report -----------------------------------
+    # Sourced from the same daily credential-health report as the legacy
+    # TradingView gauge above, but exposes every probe (TV storage state,
+    # GitHub PAT, Databento delivery, FMP, NewsAPI, ...) as labelled metrics.
+    credential = _credential_health_snapshot()
+    lines.append("# TYPE live_overlay_credential_health_loaded gauge")
+    lines.append(
+        "live_overlay_credential_health_loaded "
+        f"{_prom_numeric_value(credential['loaded'])}"
+    )
+    lines.append("# TYPE live_overlay_credential_health_overall_valid gauge")
+    lines.append(
+        "live_overlay_credential_health_overall_valid "
+        f"{_prom_numeric_value(credential['overall_valid'])}"
+    )
+    lines.append("# TYPE live_overlay_credential_health_overall_severity_info gauge")
+    overall_severity = _escape_label_value(str(credential["overall_severity"]))
+    lines.append(
+        f'live_overlay_credential_health_overall_severity_info{{severity="{overall_severity}"}} 1'
+    )
+
+    probe_rows = credential.get("probes") or []
+    if probe_rows:
+        lines.append("# TYPE live_overlay_credential_health_probe_severity_code gauge")
+        for probe in probe_rows:
+            name = _sanitize_name(str(probe["name"]))
+            code = _prom_numeric_value(probe["code"])
+            lines.append(f"live_overlay_credential_health_{name}_severity_code {code}")
+
+        lines.append("# TYPE live_overlay_credential_health_probe_valid gauge")
+        for probe in probe_rows:
+            name = _sanitize_name(str(probe["name"]))
+            valid = _prom_numeric_value(probe["valid"])
+            lines.append(f"live_overlay_credential_health_{name}_valid {valid}")
+
+        lines.append("# TYPE live_overlay_credential_health_probe_info gauge")
+        for probe in probe_rows:
+            name = _sanitize_name(str(probe["name"]))
+            severity = _escape_label_value(str(probe["severity"]))
+            message = _escape_label_value(str(probe["message"])[:200])
+            lines.append(
+                f'live_overlay_credential_health_{name}_info{{severity="{severity}",'
+                f'message="{message}"}} 1'
+            )
+
+        lines.append("# TYPE live_overlay_credential_health_probe_value gauge")
+        for probe in probe_rows:
+            name = _sanitize_name(str(probe["name"]))
+            numeric = probe.get("numeric") or {}
+            for value_name, value in numeric.items():
+                value_metric = _sanitize_name(str(value_name))
+                lines.append(
+                    f'live_overlay_credential_health_{name}_{value_metric} '
+                    f"{_prom_numeric_value(value)}"
+                )
 
     # ----- Daily experiment (Plan 2.8 family/timeframe scoring) -------------
     experiment = _experiment_snapshot()

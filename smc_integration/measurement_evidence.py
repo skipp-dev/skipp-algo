@@ -921,8 +921,11 @@ def _freshness_state_light_for_event(
                 delta = (t1 - t0).total_seconds()  # type: ignore[operator]
                 if delta > 0:
                     bar_seconds = float(delta)
-            except Exception:
-                pass
+            except Exception as exc:
+                logger.debug(
+                    "freshness_v2: bar-seconds approximation failed; using default",
+                    exc_info=exc,
+                )
 
         state = classify_freshness(
             age_bars,

@@ -1,0 +1,230 @@
+name: plan-2-8-evaluation
+# live-window: mutating-on-cron  # Daily evaluation snapshot
+
+# Automated Plan 2.8 multi-timeframe family evaluation
+# Generates daily experiment snapshots for live overlay dashboard panels:
+#   - plan_2_8_tf_family_rollup.json (current evaluation state)
+#   - plan_2_8_history.jsonl (append daily for trend analysis)
+#
+# The snapshots power the dashboard "Daily Experiment" panels:
+#   * Snapshot Age / Files Scanned
+#   * FVG 5m Verdict / BOS 4H Verdict (Phase E2)
+#   * Per-family hit-rate tables and trend graphs
+
+on:
+  schedule:
+    # Daily 04:00 UTC — runs after daily data delivery completes
+    - cron: "0 4 * * *"
+  workflow_dispatch:
+    inputs:
+      skip_history_append:
+        description: 'Skip appending to history.jsonl (for testing)'
+        required: false
+        type: boolean
+        default: false
+
+permissions:
+  contents: write  # needed for bot/* branch push
+
+# Queue overlapping runs to avoid race conditions on history append
+concurrency:
+  group: plan-2-8-evaluation
+  cancel-in-progress: false
+
+defaults:
+  run:
+    shell: bash
+
+env:
+  PYTHONUNBUFFERED: "1"
+  PYTHONPATH: ${{ github.workspace }}
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: "true"
+
+jobs:
+  evaluate:
+    runs-on: ${{ vars.SMC_GH_HOSTED_RUNNER || 'ubuntu-latest' }}
+    timeout-minutes: 30
+    steps:
+      - name: Checkout
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+        with:
+          fetch-depth: 1
+
+      - name: Set up pinned Python
+        uses: ./.github/actions/setup-python-pinned
+
+      - name: Run Plan 2.8 evaluation script
+        id: evaluate
+        run: |
+          set -euo pipefail
+          mkdir -p artifacts/evaluation
+
+          # Run evaluation script (placeholder - replace with actual script)
+          python scripts/plan_2_8_evaluate.py \
+            --output artifacts/evaluation/plan_2_8_tf_family_rollup.json \
+            --verbose
+
+          if [ -f artifacts/evaluation/plan_2_8_tf_family_rollup.json ]; then
+            echo "status=success" >> "$GITHUB_OUTPUT"
+            files_scanned=$(python -c "import json; print(json.load(open('artifacts/evaluation/plan_2_8_tf_family_rollup.json'))['files_scanned'])")
+            echo "files_scanned=$files_scanned" >> "$GITHUB_OUTPUT"
+          else
+            echo "status=failed" >> "$GITHUB_OUTPUT"
+            echo "files_scanned=0" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Append to history JSONL
+        if: steps.evaluate.outputs.status == 'success' && !inputs.skip_history_append
+        run: |
+          set -euo pipefail
+
+          # Ensure history file exists (create if first run)
+          history_file="artifacts/evaluation/plan_2_8_history.jsonl"
+          snapshot="artifacts/evaluation/plan_2_8_tf_family_rollup.json"
+
+          # Extract per_tf data and add captured_at timestamp
+          python - <<'PY'
+          import json
+          from datetime import datetime, timezone
+
+          snapshot = json.load(open("artifacts/evaluation/plan_2_8_tf_family_rollup.json"))
+          history_entry = {
+              "captured_at": datetime.now(timezone.utc).isoformat(),
+              "per_tf": snapshot["per_tf"]
+          }
+
+          # Append to history (create if doesn't exist)
+          with open("artifacts/evaluation/plan_2_8_history.jsonl", "a") as f:
+              f.write(json.dumps(history_entry) + "\n")
+
+          print(f"Appended snapshot to history at {history_entry['captured_at']}")
+          PY
+
+          # Trim history to last 30 days to prevent unbounded growth
+          if [ -f "${history_file}" ]; then
+            line_count=$(wc -l < "${history_file}")
+            if [ "$line_count" -gt 30 ]; then
+              tail -n 30 "${history_file}" > "${history_file}.tmp"
+              mv "${history_file}.tmp" "${history_file}"
+              echo "Trimmed history to last 30 days"
+            fi
+          fi
+
+      - name: Surface evaluation summary
+        if: always()
+        run: |
+          {
+            echo "## Plan 2.8 Evaluation Summary"
+            echo ""
+            echo "Status: \`${{ steps.evaluate.outputs.status }}\`"
+            echo "Files Scanned: **${{ steps.evaluate.outputs.files_scanned }}**"
+            echo ""
+            if [ -f artifacts/evaluation/plan_2_8_tf_family_rollup.json ]; then
+              echo "### Snapshot Preview"
+              echo '```json'
+              head -50 artifacts/evaluation/plan_2_8_tf_family_rollup.json
+              echo '```'
+            fi
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload evaluation artifacts
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: plan-2-8-evaluation-${{ github.run_id }}
+          path: |
+            artifacts/evaluation/plan_2_8_tf_family_rollup.json
+            artifacts/evaluation/plan_2_8_history.jsonl
+          if-no-files-found: warn
+          retention-days: 90
+
+      - name: Publish snapshots to rolling bot branch
+        # Mirrors credential-health-check.yml: publish to bot/live-experiment-snapshot
+        # so the live overlay daemon can fetch via EXPERIMENT_SNAPSHOT_URL without
+        # requiring Railway persistent volumes or S3.
+        if: steps.evaluate.outputs.status == 'success'
+        env:
+          GH_TOKEN: ${{ secrets.GH_PAT }}
+        run: |
+          set -euo pipefail
+          if [ -z "${GH_TOKEN:-}" ]; then
+            echo "::warning::GH_PAT not configured; skipping publish to bot/live-experiment-snapshot"
+            exit 0
+          fi
+
+          snapshot="artifacts/evaluation/plan_2_8_tf_family_rollup.json"
+          history="artifacts/evaluation/plan_2_8_history.jsonl"
+
+          if [ ! -s "${snapshot}" ]; then
+            echo "No evaluation snapshot produced; nothing to publish."
+            exit 0
+          fi
+
+          # Copy to stable path
+          stable_dir="artifacts/experiment/latest"
+          mkdir -p "${stable_dir}"
+          cp "${snapshot}" "${stable_dir}/plan_2_8_tf_family_rollup.json"
+
+          if [ -f "${history}" ]; then
+            cp "${history}" "${stable_dir}/plan_2_8_history.jsonl"
+          fi
+
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+          _remote_url="https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git"
+
+          git add -f "${stable_dir}"
+
+          if git diff --cached --quiet; then
+            echo "No experiment snapshot changes to commit."
+            exit 0
+          fi
+
+          git commit -m "[skip ci] chore: refresh Plan 2.8 evaluation snapshot"
+
+          git fetch "${_remote_url}" "+refs/heads/bot/live-experiment-snapshot:refs/remotes/origin/bot/live-experiment-snapshot" 2>/dev/null || true
+
+          if git push --force-with-lease=refs/heads/bot/live-experiment-snapshot "${_remote_url}" "HEAD:refs/heads/bot/live-experiment-snapshot"; then
+            echo "✅ Pushed experiment snapshots to bot/live-experiment-snapshot"
+            {
+              echo "### ✅ Experiment snapshot published"
+              echo ""
+              echo "Branch: \`bot/live-experiment-snapshot\`"
+              echo "Path: \`artifacts/experiment/latest/\`"
+            } >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo "::error::Experiment snapshot push failed"
+            exit 1
+          fi
+
+      - name: Open issue on evaluation failure
+        if: failure() && steps.evaluate.outputs.status == 'failed'
+        env:
+          GH_TOKEN: ${{ secrets.GH_PAT != '' && secrets.GH_PAT || github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+          TITLE="plan-2-8-evaluation: failed — daily run ($(date -u +%Y-%m-%d))"
+          BODY_FILE=$(mktemp)
+          {
+            echo "Daily Plan 2.8 evaluation failed."
+            echo ""
+            echo "Run: https://github.com/${GH_REPO}/actions/runs/${{ github.run_id }}"
+            echo ""
+            echo "### Impact"
+            echo ""
+            echo "Dashboard 'Daily Experiment' panels will show stale data until the next successful run."
+            echo ""
+            echo "### Action Required"
+            echo ""
+            echo "1. Review workflow logs for errors"
+            echo "2. Fix evaluation script or data availability issues"
+            echo "3. Re-run workflow via workflow_dispatch"
+          } > "${BODY_FILE}"
+
+          gh issue create \
+            --repo "${GH_REPO}" \
+            --title "${TITLE}" \
+            --body-file "${BODY_FILE}" \
+            --label "cron-failure,enhancement" || true

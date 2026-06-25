@@ -321,6 +321,7 @@ def test_last_fetch_errors_resets_per_fetch_call():
 
     assert adapter.last_fetch_errors == 0
 
+
 def test_fetch_news_retries_transient_failure_then_succeeds():
     """A feed that fails once then succeeds should still yield items."""
     attempts = []
@@ -351,6 +352,7 @@ def test_fetch_news_gives_up_after_max_attempts():
     assert len(items) == 0
     assert adapter.fetch_errors == 2  # one per default feed
 
+
 def test_fetch_news_parallel_fetches_all_feeds():
     """Multiple feeds are fetched and aggregated even when they return different items."""
     feeds = (
@@ -368,6 +370,7 @@ def test_fetch_news_parallel_fetches_all_feeds():
     assert len(items) == 3
     assert {i.headline for i in items} == {f"From {u}" for u in feeds}
 
+
 def test_entry_to_news_item_published_ts_falls_back_to_updated_parsed():
     """When published_parsed is missing but updated_parsed exists, use it."""
     entry = _make_entry(guid="g", title="t")
@@ -377,4 +380,3 @@ def test_entry_to_news_item_published_ts_falls_back_to_updated_parsed():
     assert item is not None
     assert item.published_ts > 0.0
     assert item.published_ts == item.updated_ts
-

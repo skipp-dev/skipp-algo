@@ -101,7 +101,9 @@
 # _is_github_contents_api_url(url) check; shifted sites to [226, 471].
 # 2026-06-23 (audit F2: _persist_snapshot finally-cleanup): +3 lines shifted
 # sites to [229, 474].
-"services/live_overlay_daemon/compute.py" = [229, 474]
+# 2026-06-24 (feat/live-overlay-credential-health): +5 lines for
+# _load_credential_health_snapshot alias shifted sites to [229, 479].
+"services/live_overlay_daemon/compute.py" = [229, 479]
 # 2026-06-22: line shifted 251 -> 287 after ADR-0025 App Platform migration
 # (/apis dashboard.grafana.app/v1); urlopen now in shared _request_json helper.
 # 2026-06-23: shifted 287 -> 296 after annotations-robustness fix.
@@ -208,6 +210,11 @@ allowed = [
   # credential-health-check.yml probe. CI integration would require live
   # TradingView credentials. Added 2026-06-24 (#2904).
   "tradingview-storage-refresh.yml",
+  # plan-2-8-evaluation.yml: ops-only cron that generates Plan 2.8
+  # experiment snapshots for dashboard consumption. Runs synthetic
+  # evaluation (placeholder for real logic). Added 2026-06-25 (dashboard
+  # automation).
+  "plan-2-8-evaluation.yml",
 ]
 
 # ---------------------------------------------------------------------------
