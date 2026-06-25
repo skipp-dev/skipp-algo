@@ -1213,10 +1213,11 @@ def render_metrics(startup_ts: float) -> str:
     workflow_counts = dict(workflow_snapshot.get("counts") or {})
     for key in ("seen", "success", "failed", "in_progress", "queued"):
         # NOTE: these are point-in-time counts from the latest GitHub API page,
-        # not cumulative counters. Use deriv() or direct value, not rate().
-        lines.append(f"# TYPE live_overlay_github_workflow_runs_{key}_total gauge")
+        # not cumulative counters, so they are gauges without a _total suffix.
+        metric_name = f"live_overlay_github_workflow_runs_{key}"
+        lines.append(f"# TYPE {metric_name} gauge")
         lines.append(
-            f"live_overlay_github_workflow_runs_{key}_total {_prom_numeric_value(workflow_counts.get(key, 0))}"
+            f"{metric_name} {_prom_numeric_value(workflow_counts.get(key, 0))}"
         )
 
     latest_run_age = workflow_snapshot.get("latest_run_age_seconds")

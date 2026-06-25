@@ -18,9 +18,13 @@ from __future__ import annotations
 import argparse
 import hashlib
 import json
+import sys
 from pathlib import Path
 from typing import Any
 
+# Make the repo root importable so scripts.smc_atomic_write can be found when
+# this file is executed directly.
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from scripts.smc_atomic_write import atomic_write_text
 
 DEFAULT_DASHBOARD_PATH = Path("services/live_overlay_daemon/infra/grafana/dashboard.json")
@@ -105,7 +109,7 @@ def _fix_github_workflow_runs(panel: dict) -> None:
         return
     for target in panel.get("targets", []):
         expr = target.get("expr", "")
-        if "live_overlay_github_workflow_runs_" in expr:
+        if "live_overlay_github_workflow_runs_" in expr and "_total" not in expr:
             expr = expr.replace("rate(", "deriv(")
             target["expr"] = _rewrite_job_selector(expr)
 

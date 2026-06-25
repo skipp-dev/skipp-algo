@@ -457,7 +457,7 @@ observability.py (structured log lines + in-process counters)
 | `live_overlay_github_workflow_bridge_enabled` | gauge | github_workflow_bridge.py |
 | `live_overlay_github_workflow_scrape_success` | gauge | github_workflow_bridge.py |
 | `live_overlay_github_workflow_snapshot_age_seconds` | gauge | github_workflow_bridge.py |
-| `live_overlay_github_workflow_runs_*_total` | gauge | github_workflow_bridge.py |
+| `live_overlay_github_workflow_runs_*` | gauge | github_workflow_bridge.py point-in-time run counts (no `_total` suffix because these are gauges, not counters) |
 | `live_overlay_github_workflow_latest_run_*_seconds` | gauge | github_workflow_bridge.py aggregate latest run age/duration |
 | `live_overlay_github_workflow_phase_code{workflow_id,workflow,event}` | gauge | metrics.py per-workflow timeline series |
 | `live_overlay_github_workflow_latest_success{workflow_id,workflow,event}` | gauge | metrics.py per-workflow latest success state |
