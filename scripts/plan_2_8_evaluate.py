@@ -30,8 +30,6 @@ except ImportError:  # script-style invocation: `python scripts/X.py`
     from scripts._logging_init import init_cli_logging  # type: ignore[no-redef]
 from scripts.smc_atomic_write import atomic_write_json
 
-from scripts.smc_atomic_write import atomic_write_json
-
 logger = logging.getLogger(__name__)
 
 
