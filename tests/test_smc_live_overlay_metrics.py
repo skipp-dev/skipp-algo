@@ -1335,3 +1335,45 @@ def test_dashboard_has_daily_experiment_panels() -> None:
     hist_exprs = {t["expr"] for t in history["targets"]}
     assert any("live_overlay_experiment_day_family_hit_rate{" in e for e in hist_exprs)
     assert any(tr["id"] == "merge" for tr in history["transformations"])
+
+
+def test_dashboard_railway_panels_query_emitted_metrics() -> None:
+    from pathlib import Path
+
+    repo_root = Path(__file__).resolve().parents[1]
+    dashboard_path = repo_root / "services" / "live_overlay_daemon" / "infra" / "grafana" / "dashboard.json"
+    dashboard = json.loads(dashboard_path.read_text(encoding="utf-8"))
+
+    emitted = {
+        "live_overlay_railway_service_cpu_cores",
+        "live_overlay_railway_service_memory_used_ratio",
+        "live_overlay_railway_service_disk_gb",
+        "live_overlay_railway_service_network_rx_gb",
+        "live_overlay_railway_service_network_tx_gb",
+        "live_overlay_railway_service_memory_limit_gb",
+    }
+    expected_titles = {
+        "Railway CPU Cores",
+        "Railway Memory Used Ratio",
+        "Railway Disk Usage (GB)",
+        "Railway Network RX (GB)",
+        "Railway Network TX (GB)",
+        "Railway Memory Limit (GB)",
+    }
+    by_title = {p["title"]: p for p in dashboard["panels"]}
+    missing_titles = expected_titles - by_title.keys()
+    assert not missing_titles, f"Missing Railway panels: {missing_titles}"
+
+    queried = set()
+    for title in expected_titles:
+        panel = by_title[title]
+        for target in panel.get("targets", []):
+            expr = target.get("expr", "")
+            metric = expr.split("{")[0].split("(")[-1]
+            queried.add(metric)
+
+    missing_metrics = emitted - queried
+    assert not missing_metrics, f"Railway panels do not query emitted metrics: {missing_metrics}"
+
+    bad = queried - emitted
+    assert not bad, f"Railway panels query non-existent metrics: {bad}"

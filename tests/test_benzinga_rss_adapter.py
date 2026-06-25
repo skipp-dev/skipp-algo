@@ -5,7 +5,10 @@ All network calls are mocked — no real HTTP in CI.
 from __future__ import annotations
 
 import sys
+import threading
 from types import ModuleType, SimpleNamespace
+
+import pytest
 
 from newsstack_fmp.ingest_benzinga import BenzingaRssAdapter, _entry_to_news_item, _parse_rss_tickers
 
@@ -32,6 +35,7 @@ def _make_entry(
         title=title,
         link=link,
         published_parsed=published_parsed,
+        updated_parsed=None,
         summary=summary,
         author=author,
         tags=resolved_tags,
@@ -128,6 +132,26 @@ def test_entry_to_news_item_no_timestamp():
     item = _entry_to_news_item(entry, source_url="x")
     assert item is not None
     assert item.published_ts == 0.0
+
+
+def test_entry_to_news_item_updated_ts_from_updated_parsed():
+    entry = _make_entry(
+        published_parsed=(2024, 6, 1, 10, 0, 0, 5, 153, 0),
+    )
+    entry.updated_parsed = (2024, 6, 1, 11, 30, 0, 5, 153, 0)
+    item = _entry_to_news_item(entry, source_url="x")
+    assert item is not None
+    assert item.updated_ts > item.published_ts
+
+
+def test_entry_to_news_item_updated_ts_falls_back_to_published():
+    entry = _make_entry(
+        published_parsed=(2024, 6, 1, 10, 0, 0, 5, 153, 0),
+    )
+    entry.updated_parsed = None
+    item = _entry_to_news_item(entry, source_url="x")
+    assert item is not None
+    assert item.updated_ts == item.published_ts
 
 
 # ── BenzingaRssAdapter.fetch_news ────────────────────────────────────
@@ -300,3 +324,86 @@ def test_last_fetch_errors_resets_per_fetch_call():
 
     assert adapter.last_fetch_errors == 0
 
+
+def test_fetch_news_empty_feeds_counts_error() -> None:
+    """Empty feed configuration should be surfaced as a fetch error."""
+    with _mock_feedparser(lambda _url, **_kw: {"entries": [], "bozo": False}):
+        adapter = BenzingaRssAdapter(feeds=())
+        items = adapter.fetch_news()
+
+    assert items == []
+    assert adapter.fetch_total == 1
+    assert adapter.fetch_errors == 1
+    assert adapter.last_fetch_errors == 1
+
+
+def test_fetch_news_retries_transient_failure_then_succeeds(
+    monkeypatch: pytest.MonkeyPatch,
+):
+    """A feed that fails once then succeeds should still yield items."""
+    attempts: list[str] = []
+    seen_fail: set[str] = set()
+    lock = threading.Lock()
+    monkeypatch.setattr("newsstack_fmp.ingest_benzinga.time.sleep", lambda _s: None)
+
+    def _parse(url, **_kw):
+        with lock:
+            attempts.append(url)
+            first_for_url = url not in seen_fail
+            if first_for_url:
+                seen_fail.add(url)
+        if first_for_url:
+            raise Exception("transient")
+        entry = _make_entry(guid=f"guid-{url}", title="Recovered")
+        return {"entries": [entry], "bozo": False}
+
+    with _mock_feedparser(_parse):
+        adapter = BenzingaRssAdapter()
+        items = adapter.fetch_news()
+    # Two feeds configured by default; each URL fails once, then succeeds.
+    assert len(items) == 2
+    assert adapter.fetch_errors == 0  # transient retries don't count as final errors
+
+
+def test_fetch_news_gives_up_after_max_attempts(
+    monkeypatch: pytest.MonkeyPatch,
+):
+    """A feed that always fails should be skipped after max attempts."""
+    monkeypatch.setattr("newsstack_fmp.ingest_benzinga.time.sleep", lambda _s: None)
+    def _parse(url, **_kw):
+        raise Exception("persistent")
+
+    with _mock_feedparser(_parse):
+        adapter = BenzingaRssAdapter()
+        items = adapter.fetch_news()
+    assert len(items) == 0
+    assert adapter.fetch_errors == 2  # one per default feed
+
+
+def test_fetch_news_parallel_fetches_all_feeds():
+    """Multiple feeds are fetched and aggregated even when they return different items."""
+    feeds = (
+        "https://benzinga.com/feed/a",
+        "https://benzinga.com/feed/b",
+        "https://benzinga.com/feed/c",
+    )
+
+    def _parse(url, **_kw):
+        return {"entries": [_make_entry(guid=f"guid-{url}", title=f"From {url}")], "bozo": False}
+
+    with _mock_feedparser(_parse):
+        adapter = BenzingaRssAdapter(feeds=feeds)
+        items = adapter.fetch_news()
+    assert len(items) == 3
+    assert {i.headline for i in items} == {f"From {u}" for u in feeds}
+
+
+def test_entry_to_news_item_published_ts_falls_back_to_updated_parsed():
+    """When published_parsed is missing but updated_parsed exists, use it."""
+    entry = _make_entry(guid="g", title="t")
+    entry.published_parsed = None
+    entry.updated_parsed = (2024, 6, 1, 11, 30, 0, 5, 153, 0)
+    item = _entry_to_news_item(entry, source_url="x")
+    assert item is not None
+    assert item.published_ts > 0.0
+    assert item.published_ts == item.updated_ts

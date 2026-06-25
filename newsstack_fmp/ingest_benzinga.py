@@ -738,6 +738,7 @@ _RSS_USER_AGENT = (
     "Mozilla/5.0 (compatible; skipp-algo/1.0; +https://skippalgo.com/bot)"
 )
 _RSS_TIMEOUT = 10  # seconds per feed
+_RSS_MAX_WORKERS = 4  # parallel RSS fetch threads
 _RSS_MAX_SEEN_GUIDS = 4096  # cap dedup memory; pipeline cache handles long-term
 _RSS_STOCK_DOMAIN = "stock-symbol"
 
@@ -768,20 +769,19 @@ def _entry_to_news_item(entry: Any, *, source_url: str) -> NewsItem | None:
 
     link: str | None = (getattr(entry, "link", None) or "").strip() or None
 
-    # published timestamp
-    published_struct = getattr(entry, "published_parsed", None)
-    if published_struct:
-        import calendar as _calendar
-        published_ts = float(_calendar.timegm(published_struct))
-    else:
-        published_ts = 0.0
+    def _struct_to_ts(struct: Any) -> float | None:
+        if struct:
+            import calendar as _calendar
+            return float(_calendar.timegm(struct))
+        return None
 
-    # updated timestamp — RSS-6: prefer updated_parsed over published_parsed
-    updated_struct = getattr(entry, "updated_parsed", None)
-    if updated_struct:
-        import calendar as _calendar
-        updated_ts = float(_calendar.timegm(updated_struct))
-    else:
+    # published timestamp — fall back to updated_parsed if the feed only
+    # provides an updated date (RSS-7: be robust against partial feeds).
+    published_ts = _struct_to_ts(getattr(entry, "published_parsed", None))
+    updated_ts = _struct_to_ts(getattr(entry, "updated_parsed", None))
+    if published_ts is None:
+        published_ts = updated_ts if updated_ts is not None else 0.0
+    if updated_ts is None:
         updated_ts = published_ts
 
     # snippet — prefer summary over content
@@ -874,7 +874,8 @@ class BenzingaRssAdapter:
                     timeout=self._timeout,
                 )
                 if parsed.get("bozo"):
-                    self.bozo_total += 1
+                    with self._lock:
+                        self.bozo_total += 1
                     logger.warning(
                         "BenzingaRSS: bozo parse of %s: %s",
                         feed_url,
@@ -889,7 +890,8 @@ class BenzingaRssAdapter:
                     item = _entry_to_news_item(entry, source_url=feed_url)
                     if item is None:
                         continue
-                    self.items_parsed += 1
+                    with self._lock:
+                        self.items_parsed += 1
                     if item.published_ts < min_epoch:
                         continue
                     with self._lock:
@@ -944,11 +946,25 @@ class BenzingaRssAdapter:
         _t0 = time.monotonic()
         _errors_this_fetch: int = 0
 
+        if not self._feeds:
+            logger.warning("BenzingaRSS: no feeds configured; marking fetch as error")
+            self.fetch_total += 1
+            self.fetch_errors += 1
+            self.last_fetch_errors = 1
+            self.last_fetch_duration = time.monotonic() - _t0
+            return []
+
         # RSS-3: Parallel fetch with ThreadPoolExecutor
         results: list[NewsItem] = []
-        with concurrent.futures.ThreadPoolExecutor(max_workers=len(self._feeds)) as executor:
+        workers = min(len(self._feeds), _RSS_MAX_WORKERS)
+        with concurrent.futures.ThreadPoolExecutor(max_workers=workers) as executor:
             future_to_url = {
-                executor.submit(self._fetch_single_feed, url, min_epoch=min_epoch, feedparser=feedparser): url
+                executor.submit(
+                    self._fetch_single_feed,
+                    url,
+                    min_epoch=min_epoch,
+                    feedparser=feedparser,
+                ): url
                 for url in self._feeds
             }
             for future in concurrent.futures.as_completed(future_to_url):
