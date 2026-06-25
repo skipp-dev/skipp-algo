@@ -831,7 +831,8 @@ def _process_parsed_feed(
     items: list[NewsItem] = []
     try:
         if parsed.get("bozo"):
-            adapter.bozo_total += 1
+            with adapter._lock:
+                adapter.bozo_total += 1
             logger.warning(
                 "BenzingaRSS: bozo parse of %s: %s",
                 feed_url,
@@ -843,7 +844,8 @@ def _process_parsed_feed(
             item = _entry_to_news_item(entry, source_url=feed_url)
             if item is None:
                 continue
-            adapter.items_parsed += 1
+            with adapter._lock:
+                adapter.items_parsed += 1
             if item.published_ts < min_epoch:
                 continue
             with adapter._lock:
@@ -857,7 +859,8 @@ def _process_parsed_feed(
                     adapter._seen_guids_set = set(adapter._seen_guids)
             items.append(item)
     except Exception as exc:
-        adapter.fetch_errors += 1
+        with adapter._lock:
+            adapter.fetch_errors += 1
         logger.warning("BenzingaRSS: parse failed for %s: %s", feed_url, exc)
     return items
 

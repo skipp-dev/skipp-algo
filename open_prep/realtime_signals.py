@@ -489,7 +489,7 @@ class AsyncNewsstackPoller:
         """Return telemetry for the async poller (ANP-6).
 
         Metrics are kept intentionally cheap so they can be exposed on every
-        poll cycle without lock contention.
+        poll cycle with minimal lock hold time.
         """
         with self._lock:
             return {
