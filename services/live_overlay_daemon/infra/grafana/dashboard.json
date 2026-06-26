@@ -349,7 +349,7 @@
       "targets": [
         {
           "expr": "min by (job) (\n  live_overlay_uptimerobot_scrape_success{job=~\"$job\"} or\n  live_overlay_github_workflow_scrape_success{job=~\"$job\"}\n) or vector(0)",
-          "legendFormat": "bridge_scrapes",
+          "legendFormat": "{{job}}",
           "datasource": {
             "type": "prometheus",
             "uid": "grafanacloud-prom"
@@ -2061,7 +2061,7 @@
       "targets": [
         {
           "expr": "(max by (job) (live_overlay_uptimerobot_bridge_enabled{job=~\"$job\"}) or vector(0)) + (max by (job) (live_overlay_uptimerobot_scrape_success{job=~\"$job\"}) or vector(0))",
-          "legendFormat": "bridge_state",
+          "legendFormat": "{{job}}",
           "datasource": {
             "type": "prometheus",
             "uid": "grafanacloud-prom"
@@ -2364,7 +2364,7 @@
       "targets": [
         {
           "expr": "(max by (job) (live_overlay_github_workflow_bridge_enabled{job=~\"$job\"}) or vector(0)) + (max by (job) (live_overlay_github_workflow_scrape_success{job=~\"$job\"}) or vector(0))",
-          "legendFormat": "bridge_state",
+          "legendFormat": "{{job}}",
           "datasource": {
             "type": "prometheus",
             "uid": "grafanacloud-prom"

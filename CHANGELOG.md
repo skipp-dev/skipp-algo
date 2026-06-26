@@ -39,7 +39,7 @@ All notable changes to this project are documented in this file.
     `job="live_overlay"` selector, matching every other alert in the file.
   - Added proactive alerts for dashboard thresholds that previously had
     no alert coverage:
-    - `lo-tradingview-credential-age-high` (warning when credential age
+    - `lo-tradingview-credential-age-high` (high severity when credential age
       exceeds 72 h).
     - `lo-ingest-queue-lag-high` (warning when max ingest queue lag
       exceeds 5000 ms for 10 min).

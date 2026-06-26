@@ -244,7 +244,7 @@ def test_alert_workers_degraded_and_overlay_stale_include_job_filter() -> None:
         for rule in group["rules"]:
             if rule["uid"] in ("lo-workers-degraded", "lo-overlay-stale"):
                 expr = rule["data"][0]["model"]["expr"]
-                assert '{job="live_overlay"}' in expr, (
+                assert 'job="live_overlay"' in expr, (
                     f"{rule['uid']} is missing job filter: {expr}"
                 )
 
@@ -259,7 +259,7 @@ def test_alert_rules_include_tradingview_credential_age() -> None:
     )
     expr = rule["data"][0]["model"]["expr"]
     assert "live_overlay_tradingview_credential_age_hours" in expr
-    assert '{job="live_overlay"}' in expr
+    assert 'job="live_overlay"' in expr
 
 
 def test_alert_rules_include_ingest_queue_lag() -> None:

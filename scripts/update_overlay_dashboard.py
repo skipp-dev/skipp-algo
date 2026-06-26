@@ -363,13 +363,16 @@ def _fix_bridge_scrapes_panel(data: dict[str, Any]) -> bool:
             if "live_overlay_uptimerobot_scrape_success" not in expr:
                 continue
             new_expr = (
-                "min(\n"
+                "min by (job) (\n"
                 '  live_overlay_uptimerobot_scrape_success{job=~"$job"} or\n'
                 '  live_overlay_github_workflow_scrape_success{job=~"$job"}\n'
                 ") or vector(0)"
             )
             if expr != new_expr:
                 target["expr"] = new_expr
+                changed = True
+            if target.get("legendFormat") != "{{job}}":
+                target["legendFormat"] = "{{job}}"
                 changed = True
     return changed
 
@@ -395,6 +398,26 @@ def _fix_bridge_error_panels(data: dict[str, Any]) -> bool:
                 continue
             target["expr"] = f'max({metric}{{job=~"$job",error_code!="none"}} or vector(0))'
             changed = True
+    return changed
+
+
+def _fix_bridge_state_panel_legends(data: dict[str, Any]) -> bool:
+    """Keep per-job bridge state series distinguishable when $job is All."""
+    changed = False
+    for title in ("UptimeRobot Bridge", "GitHub Workflow Bridge"):
+        panels = (
+            [_panel_by_title(data, title)]
+            if _is_v2(data)
+            else [panel for panel in _iter_v1_panels(data) if panel.get("title") == title]
+        )
+        for panel in (panel for panel in panels if panel):
+            for target in panel.get("targets", []):
+                expr = target.get("expr", "")
+                if "max by (job)" not in expr:
+                    continue
+                if target.get("legendFormat") != "{{job}}":
+                    target["legendFormat"] = "{{job}}"
+                    changed = True
     return changed
 
 
@@ -528,6 +551,7 @@ def main(argv: list[str] | None = None) -> int:
         changed = _ensure_uptimerobot_panel(data)
         changed = _fix_bridge_scrapes_panel(data) or changed
         changed = _fix_bridge_error_panels(data) or changed
+        changed = _fix_bridge_state_panel_legends(data) or changed
         changed = _ensure_railway_status_panels(data) or changed
         changed = _fix_github_workflow_timeline_panel(data) or changed
         if changed:
@@ -537,6 +561,8 @@ def main(argv: list[str] | None = None) -> int:
         return 0
 
     # Top-level status panels: consistent semantic colors.
+    _fix_bridge_state_panel_legends(data)
+
     service_status = _panel_by_title(data, "Service Status")
     if service_status:
         _set_mappings(
