@@ -194,6 +194,8 @@ All numeric fields are `null`, all bool fields are `false`, `stale: true`.
 | `SIGNALS_SNAPSHOT_PATH` | ❌ | *(repo root)*`/artifacts/open_prep/latest/latest_realtime_signals.json` | Local realtime-signals snapshot path |
 | `SIGNALS_SNAPSHOT_URL` | ❌ | *(unset)* | Optional HTTPS URL for realtime-signals snapshot |
 | `SIGNALS_SNAPSHOT_URL_TOKEN` | ❌ | *(unset)* | Optional bearer token for `SIGNALS_SNAPSHOT_URL` |
+| `SIGNALS_SERVICE_URL` | ❌ | *(unset)* | Internal Railway hostname/URL of `smc-signals-producer`; takes precedence over all other signal sources |
+| `SIGNALS_INTERNAL_TOKEN` | ❌ | *(unset)* | Bearer token used when calling `SIGNALS_SERVICE_URL` |
 | `OVERLAY_SIGNALS_CACHE_TTL_SECS` | ❌ | `120` | Signals snapshot cache TTL in seconds (range 30–1800) |
 | `OVERLAY_SIGNALS_MAX_AGE_SECS` | ❌ | `480` | Age threshold after which signals snapshot is stale (range 60–7200) |
 | `EXPERIMENT_SNAPSHOT_PATH` | ❌ | *(repo root)*`/artifacts/live_overlay/plan_2_8_tf_family_rollup.json` | Local daily experiment rollup snapshot |
@@ -270,9 +272,15 @@ those instead.
   matching `*_SNAPSHOT_URL` / `*_HISTORY_URL` at
   `https://api.github.com/repos/skippALGO/skipp-algo/contents/<path>?ref=<bot-branch>`
   with a fine-grained PAT (`Contents: Read`) in the `*_URL_TOKEN`.
-- **Realtime signals have no CI producer** — `latest_realtime_signals.json` is
+- **Realtime signals on Railway** are fetched live from the internal
+  `smc-signals-producer` service. Set `SIGNALS_SERVICE_URL` to the Railway
+  private hostname (e.g. `smc-signals-producer.railway.internal`) and
+  `SIGNALS_INTERNAL_TOKEN` to the bearer token the producer requires. This
+  source takes precedence over all other signal sources; on failure the daemon
+  falls back to `SIGNALS_SNAPSHOT_URL`, then the local `SIGNALS_SNAPSHOT_PATH`.
+- **Realtime signals without a producer** — `latest_realtime_signals.json` is
   written only by `open_prep/realtime_signals.py` on the live trading host. To
-  feed the hosted daemon, run
+  feed the hosted daemon when no producer is reachable, run
   [`scripts/publish_signals_snapshot.py`](../../scripts/publish_signals_snapshot.py)
   on that host (cron / after each engine cycle) with `GH_TOKEN` set to a PAT
   that can push to `bot/*`; it updates `bot/live-signals-snapshot` via
