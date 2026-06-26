@@ -22,40 +22,64 @@
 ## 1. Architekturüberblick
 
 ```
-┌─────────────────────────────────────────────────────────────────────┐
-│  Railway (Production)                                                │
-│                                                                     │
-│  ┌──────────────────────────┐     ┌──────────────────────────────┐  │
-│  │   smc-live-overlay       │     │   metrics-collector          │  │
-│  │   (live_overlay_daemon)  │◄────│   (Grafana Alloy)            │  │
-│  │                          │     │                              │  │
-│  │  /health   → Railway HC  │     │  scrape /metrics 30s         │  │
-│  │  /metrics  → Alloy        │     │  remote-write → Grafana Cloud│  │
-│  │  /smc_live → Pine Script │     └──────────┬───────────────────┘  │
-│  └──────────┬───────────────┘               │                       │
-│             │                               │                       │
-└─────────────┼───────────────────────────────┼───────────────────────┘
-              │                               │
-              │  polls (TTL-cached)           │  Prometheus remote-write
-              ▼                               ▼
-   ┌──────────────────┐           ┌───────────────────────┐
-   │  UptimeRobot API │           │  Grafana Cloud         │
-   │  /v2/getMonitors │           │  bronzeporridge977.    │
-   └──────────────────┘           │  grafana.net           │
-                                  │                        │
-   ┌──────────────────┐           │  ► Prometheus TSDB     │
-   │  GitHub API      │           │  ► Dashboard           │
-   │  /repos/.../runs │           │    smc-live-overlay-v1 │
-   └──────────────────┘           │  ► Alert Rules         │
-                                  └───────────────────────┘
+┌─────────────────────────────────────────────────────────────────────────────────────────────┐
+│                              Railway (Production)                                            │
+│                                                                                              │
+│  ┌───────────────────────────────┐        ┌─────────────────────────────────────────────┐   │
+│  │   smc-signals-producer        │        │   smc-live-overlay                          │   │
+│  │   (open_prep/realtime_signals)│        │   (live_overlay_daemon)                     │   │
+│  │                               │        │                                             │   │
+│  │  Input: FMP_API_KEY           │        │  Inputs:                                    │   │
+│  │  Input: latest_open_prep_run  │        │  • Databento live feed                      │   │
+│  │                               │        │  • *_SNAPSHOT_URL / *_SNAPSHOT_PATH        │   │
+│  │  Endpoints:                   │        │  • smc-signals-producer /signals (planned)  │   │
+│  │  • /signals   ────────────────┼────────┼─► (A0/A1 signal JSON)                       │   │
+│  │  • /metrics                   │        │  • UptimeRobot API                          │   │
+│  │  • /healthz                   │        │  • GitHub API                               │   │
+│  │  • /telemetry.json            │        │  • Railway API                              │   │
+│  └──────────┬────────────────────┘        │                                             │   │
+│             │                             │  Endpoints:                                 │   │
+│             │                             │  • /health  → Railway healthcheck           │   │
+│             │                             │  • /metrics → metrics-collector (Alloy)     │   │
+│             │                             │  • /smc_live → Pine Script consumer         │   │
+│             │                             └─────────────────────┬───────────────────────┘   │
+│             │                                                   │                         │
+│             │                    ┌──────────────────────────────┘                         │
+│             │                    │                                                        │
+│             │                    ▼                                                        │
+│             │         ┌─────────────────────┐                                             │
+│             └────────►│  metrics-collector  │                                             │
+│                       │  (Grafana Alloy)    │                                             │
+│                       │                     │                                             │
+│                       │  scrape /metrics    │                                             │
+│                       │  every 30 s         │                                             │
+│                       └──────────┬──────────┘                                             │
+│                                  │                                                        │
+└──────────────────────────────────┼────────────────────────────────────────────────────────┘
+                                   │
+                                   │  Prometheus remote-write
+                                   ▼
+                        ┌───────────────────────┐
+                        │   Grafana Cloud        │
+                        │   (Monitoring only)    │
+                        │                        │
+                        │  ► Prometheus TSDB     │
+                        │  ► Dashboards/Alerts   │
+                        └───────────────────────┘
 ```
 
 **Datenfluss:**
-1. Der Daemon scrapet UptimeRobot und die GitHub-API intern (in-process, TTL-gecacht).
-2. Grafana Alloy (Railway-Service `metrics-collector`) scraped `/metrics` alle 30 s
-   via Basic Auth und schreibt die Zeitreihen nach Grafana Cloud.
-3. Grafana Cloud visualisiert die Daten im Dashboard `smc-live-overlay-v1` und
-   feuert bei Bedarf Alerts.
+1. `smc-signals-producer` pollt FMP und berechnet A0/A1-Breakout-Signale. Er soll diese
+   über `/signals` direkt an `smc-live-overlay` liefern (heute noch nicht implementiert —
+   siehe `docs/LIVE_OVERLAY_SIGNALS_ARCHITECTURE_GAP.md`).
+2. `smc-live-overlay` konsumiert Databento-Livedaten, Snapshot-Dateien (News/Experiment/
+   TradingView), UptimeRobot, GitHub-API, Railway-API und (geplant) die Signale vom
+   Producer. Er exponiert alles als Prometheus-Metriken unter `/metrics`.
+3. Grafana Alloy (Railway-Service `metrics-collector`) scraped `/metrics` beider Services
+   alle 30 s und schreibt die Zeitreihen nach Grafana Cloud.
+4. Grafana Cloud dient ausschließlich dem Monitoring — nicht der Datenweiterleitung an
+   den Overlay-Daemon oder Pine.
+5. Pine Script ist der Endkonsument von `/smc_live`.
 
 ---
 
@@ -119,12 +143,12 @@ curl https://liveoverlaydaemon-production.up.railway.app/ready
 | `GITHUB_WORKFLOW_MONITOR_REPO` | smc-live-overlay | optional | `owner/repo`, default `skippALGO/skipp-algo` |
 | `NEWS_SNAPSHOT_PATH` | smc-live-overlay | optional | Pfad zum News-Snapshot-JSON |
 | `OVERLAY_SERVICE_URL` | metrics-collector | ✅ | `smc-live-overlay.railway.internal:PORT` |
-| `SIGNALS_SERVICE_URL` | metrics-collector | ✅ | `smc-signals-producer.railway.internal:PORT` — Alloy scrapes `/metrics` on signals producer |
+| `SIGNALS_SERVICE_URL` | smc-live-overlay, metrics-collector | ✅ | `smc-signals-producer.railway.internal:PORT` — internal host:port of the signals producer; Alloy scrapes `/metrics`, smc-live-overlay fetches `/signals` |
 | `GRAFANA_CLOUD_PROM_URL` | metrics-collector | ✅ | Grafana Cloud Remote-Write-URL |
 | `GRAFANA_CLOUD_USER` | metrics-collector | ✅ | Grafana Cloud Stack-ID (numerisch) |
 | `GRAFANA_CLOUD_API_KEY` | metrics-collector | ✅ | Grafana Cloud API-Key (MetricsPublisher) |
 | `OVERLAY_SECRET_TOKEN` | metrics-collector | ✅ | gleicher Token wie in smc-live-overlay |
-| `SIGNALS_INTERNAL_TOKEN` | metrics-collector, smc-signals-producer | optional | Shared-Secret für `/signals`- und `/metrics`-Endpoint (Bearer-Token); Alloy sendet diesen Token beim Scrape automatisch |
+| `SIGNALS_INTERNAL_TOKEN` | smc-live-overlay, metrics-collector, smc-signals-producer | ✅ | Shared-Secret für `/signals`- und `/metrics`-Endpoint (Bearer-Token); smc-live-overlay und Alloy senden diesen Token beim Aufruf |
 
 ### Alloy-Konfiguration aktualisieren
 
