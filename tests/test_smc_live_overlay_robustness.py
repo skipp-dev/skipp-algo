@@ -478,7 +478,8 @@ class TestNewsSnapshotPathConfig:
         import services.live_overlay_daemon.config as cfg
 
         path = cfg.news_snapshot_path()
-        assert path.name == "smc_live_news_snapshot.json"
+        assert path.name == "news_snapshot.json"
+        assert "live_overlay" in path.parts
 
     def test_news_snapshot_path_env_override(self, monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
         override = tmp_path / "custom_snapshot.json"
@@ -486,6 +487,65 @@ class TestNewsSnapshotPathConfig:
         import services.live_overlay_daemon.config as cfg
 
         assert cfg.news_snapshot_path() == override
+
+
+class TestExperimentSnapshotPathConfig:
+    """experiment_snapshot_path() honours env override and default."""
+
+    def test_experiment_snapshot_path_default(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        monkeypatch.delenv("EXPERIMENT_SNAPSHOT_PATH", raising=False)
+        import services.live_overlay_daemon.config as cfg
+
+        path = cfg.experiment_snapshot_path()
+        assert path.name == "plan_2_8_tf_family_rollup.json"
+        assert "live_overlay" in path.parts
+
+    def test_experiment_snapshot_path_env_override(self, monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+        override = tmp_path / "custom_rollup.json"
+        monkeypatch.setenv("EXPERIMENT_SNAPSHOT_PATH", str(override))
+        import services.live_overlay_daemon.config as cfg
+
+        assert cfg.experiment_snapshot_path() == override
+
+
+class TestExperimentHistoryPathConfig:
+    """experiment_history_path() honours env override and default."""
+
+    def test_experiment_history_path_default(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        monkeypatch.delenv("EXPERIMENT_HISTORY_PATH", raising=False)
+        import services.live_overlay_daemon.config as cfg
+
+        path = cfg.experiment_history_path()
+        assert path.name == "plan_2_8_history.jsonl"
+        assert "live_overlay" in path.parts
+
+    def test_experiment_history_path_env_override(self, monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+        override = tmp_path / "custom_history.jsonl"
+        monkeypatch.setenv("EXPERIMENT_HISTORY_PATH", str(override))
+        import services.live_overlay_daemon.config as cfg
+
+        assert cfg.experiment_history_path() == override
+
+
+class TestTradingViewCredentialSnapshotPathConfig:
+    """tradingview_credential_snapshot_path() honours env override and default."""
+
+    def test_tradingview_credential_snapshot_path_default(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        monkeypatch.delenv("TRADINGVIEW_CREDENTIAL_SNAPSHOT_PATH", raising=False)
+        import services.live_overlay_daemon.config as cfg
+
+        path = cfg.tradingview_credential_snapshot_path()
+        assert path.name == "credential_health.json"
+        assert "live_overlay" in path.parts
+
+    def test_tradingview_credential_snapshot_path_env_override(
+        self, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+    ) -> None:
+        override = tmp_path / "custom_credential_health.json"
+        monkeypatch.setenv("TRADINGVIEW_CREDENTIAL_SNAPSHOT_PATH", str(override))
+        import services.live_overlay_daemon.config as cfg
+
+        assert cfg.tradingview_credential_snapshot_path() == override
 
 
 class TestLogLevelValidation:

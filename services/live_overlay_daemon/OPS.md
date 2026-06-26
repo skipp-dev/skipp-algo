@@ -185,20 +185,20 @@ The daemon serves four producer-side snapshots (news, realtime signals, daily
 experiment rollup/history, and the TradingView credential-age report). Each
 loader is **URL-first**: when the matching `*_SNAPSHOT_URL` is set it fetches
 the freshest payload over HTTPS (GitHub Contents API raw, fine-grained PAT),
-otherwise it falls back to the local `*_SNAPSHOT_PATH`. The Docker image bakes a
-one-time news seed at build time; without a `*_URL` the dashboard shows that
-stale seed.
+otherwise it falls back to the local `*_SNAPSHOT_PATH`. Default
+`*_SNAPSHOT_PATH` values point at tracked seed files under
+`artifacts/live_overlay/` so the daemon renders data out of the box. CI
+producers push fresher snapshots to dedicated `bot/*` cache branches
+(exempt from the `main-governance` ruleset, see ADR-0024); off-host daemons
+should set the matching `*_SNAPSHOT_URL` / `*_HISTORY_URL` to consume those
+instead.
 
-**Stable producer URLs (rolling bot branches).** Producer workflows
-force-push the freshest snapshot to dedicated `bot/*` cache branches
-(exempt from the `main-governance` ruleset, see ADR-0024):
-
-| Snapshot | Producer workflow | Bot branch | Stable path |
-|----------|-------------------|------------|-------------|
-| News | `smc-live-newsapi-refresh.yml` | `bot/live-news-snapshot` | `artifacts/smc_microstructure_exports/smc_live_news_snapshot.json` |
-| Experiment rollup + history | `smc-measurement-benchmark-rolling.yml` | `bot/live-experiment-snapshot` | `artifacts/ci/measurement_benchmark_rolling/latest/plan_2_8_tf_family_rollup.json` and `.../latest/plan_2_8_history.jsonl` |
-| TradingView credential age | `credential-health-check.yml` | `bot/live-tv-credential-snapshot` | `artifacts/credential_health/latest/credential_health.json` |
-| Realtime signals | _host helper (no CI producer)_ | `bot/live-signals-snapshot` | `artifacts/open_prep/latest/latest_realtime_signals.json` |
+| Snapshot | Producer workflow | Bot branch | Bot-branch stable path | Default seed path |
+|----------|-------------------|------------|------------------------|-------------------|
+| News | `smc-live-newsapi-refresh.yml` | `bot/live-news-snapshot` | `artifacts/smc_microstructure_exports/smc_live_news_snapshot.json` | `artifacts/live_overlay/news_snapshot.json` |
+| Experiment rollup + history | `smc-measurement-benchmark-rolling.yml` | `bot/live-experiment-snapshot` | `artifacts/ci/measurement_benchmark_rolling/latest/plan_2_8_tf_family_rollup.json` and `.../latest/plan_2_8_history.jsonl` | `artifacts/live_overlay/plan_2_8_tf_family_rollup.json` / `plan_2_8_history.jsonl` |
+| TradingView credential age | `credential-health-check.yml` | `bot/live-tv-credential-snapshot` | `artifacts/credential_health/latest/credential_health.json` | `artifacts/live_overlay/credential_health.json` |
+| Realtime signals | _host helper (no CI producer)_ | `bot/live-signals-snapshot` | `artifacts/open_prep/latest/latest_realtime_signals.json` | `artifacts/open_prep/latest/latest_realtime_signals.json` |
 
 `smc-measurement-benchmark-rolling.yml` writes temporary per-timeframe
 `structure_export_*.json` files only for inline notices and deletes them in the

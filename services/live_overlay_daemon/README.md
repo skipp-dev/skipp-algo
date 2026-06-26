@@ -248,9 +248,12 @@ All numeric fields are `null`, all bool fields are `false`, `stale: true`.
 Each snapshot loader (news, signals, experiment rollup/history, TradingView
 credential report) is
 **URL-first**: when the matching `*_SNAPSHOT_URL` is set it fetches the freshest
-payload over HTTPS and falls back to the local `*_SNAPSHOT_PATH` otherwise. The
-Docker image bakes a one-time news seed, so **without a `*_URL` the dashboard
-shows that stale seed**.
+payload over HTTPS and falls back to the local `*_SNAPSHOT_PATH` otherwise.
+The default `*_SNAPSHOT_PATH` values point at tracked seed files under
+`artifacts/live_overlay/` so the daemon (and local dashboard) renders data out
+of the box. CI producers push fresher snapshots to rolling `bot/*` branches;
+off-host daemons should set the matching `*_SNAPSHOT_URL` / `*_HISTORY_URL` to
+consume those instead.
 
 - **HTTPS-only URL guard is centralized:** all runtime snapshot URL fetchers
   share one validation path and reject non-HTTPS URLs with a consistent warning
