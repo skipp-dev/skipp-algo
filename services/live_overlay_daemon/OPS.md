@@ -310,6 +310,67 @@ railway variable list --service smc-live-overlay
 Source JSON:
 `services/live_overlay_daemon/infra/grafana/dashboard.json`
 
+### Success Rate panel and no-traffic semantics
+
+The **Success Rate (%)** panel shows the percentage of recent `/smc_live`
+compute cycles that completed without errors.
+
+#### Historical bug: "0.00 %" with no traffic
+
+Before `fix(live-overlay): always emit traffic counters and guarantee tzdata
+availability` (`50995c03`), the traffic counters
+`live_overlay_smc_live_requests_total` and
+`live_overlay_smc_live_success_total` were only created when the `/smc_live`
+endpoint was actually invoked. On a fresh daemon start with no traffic, these
+series were absent from `/metrics`. Grafana's `rate()` over a missing series
+returns no data, which the panel rendered as `0.00 %`. This looked like a
+service outage even though the daemon was healthy and simply had no requests.
+
+The same root cause made the **Market-open Request Health** panel flip between
+`MARKET_CLOSED` and `OPEN_NO_TRAFFIC` because the synthetic signal depends on
+whether request traffic is present.
+
+#### Code fix
+
+`services/live_overlay_daemon/metrics.py` now seeds the traffic counters to
+`0.0` on every metrics render, so the series always exist in Prometheus even
+before the first request:
+
+- `live_overlay_smc_live_requests_total`
+- `live_overlay_smc_live_success_total`
+- `live_overlay_smc_live_errors_total`
+- `live_overlay_smc_live_auth.denied`
+- `live_overlay_smc_live_bad_tf.total`
+- `live_overlay_smc_live_cache_miss.total`
+- `live_overlay_smc_live_stale_served.total`
+
+Additionally, `services/live_overlay_daemon/Dockerfile` now installs the
+`tzdata` package so `ZoneInfo("America/New_York")` resolves correctly in the
+container. Without it, market-open detection fell back to UTC hours and could
+report the market as closed at the wrong time.
+
+#### Dashboard UX hardening
+
+To prevent the panel from showing a misleading percentage when the request rate
+is exactly zero, the Success Rate query uses PromQL `unless on()` to drop the
+result when no traffic has occurred in the selected interval:
+
+```promql
+100 * (
+  sum(rate(live_overlay_smc_live_success_total{job=~"$job"}[$__rate_interval]))
+  /
+  sum(rate(live_overlay_smc_live_requests_total{job=~"$job"}[$__rate_interval]))
+)
+unless on()
+sum(rate(live_overlay_smc_live_requests_total{job=~"$job"}[$__rate_interval])) == 0
+```
+
+The panel's field config sets `noValue: "NO TRAFFIC"`, so Grafana displays
+**NO TRAFFIC** instead of `0.00 %` when the query returns no data. As soon as
+traffic appears, the series becomes non-zero and the panel shows the real
+success rate again.
+
+
 ### Dashboard upsert via API
 
 Use the following Python snippet to push the dashboard JSON from a checkout.
