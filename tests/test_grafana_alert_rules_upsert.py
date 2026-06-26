@@ -240,13 +240,12 @@ def test_newsapi_refresh_workflow_keeps_fmp_and_tradingview_enabled() -> None:
 def test_alert_workers_degraded_and_overlay_stale_include_job_filter() -> None:
     """All live-overlay alerts must scope to job="live_overlay"."""
     groups = mod.load_alert_groups(ALERT_RULES)
-    for group in groups:
-        for rule in group["rules"]:
-            if rule["uid"] in ("lo-workers-degraded", "lo-overlay-stale"):
-                expr = rule["data"][0]["model"]["expr"]
-                assert 'job="live_overlay"' in expr, (
-                    f"{rule['uid']} is missing job filter: {expr}"
-                )
+    required_uids = {"lo-workers-degraded", "lo-overlay-stale"}
+    rules_by_uid = {rule["uid"]: rule for group in groups for rule in group["rules"]}
+    assert required_uids <= rules_by_uid.keys()
+    for uid in required_uids:
+        expr = rules_by_uid[uid]["data"][0]["model"]["expr"]
+        assert 'job="live_overlay"' in expr, f"{uid} is missing job filter: {expr}"
 
 
 def test_alert_rules_include_tradingview_credential_age() -> None:

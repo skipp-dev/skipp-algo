@@ -173,10 +173,14 @@ def test_dashboard_railway_metrics_bridge_query_does_not_filter_value_inside_max
 def test_dashboard_market_open_request_health_uses_fixed_rate_range() -> None:
     """stat panels must not use $__rate_interval because it depends on time range."""
     dashboard = json.loads(_DASHBOARD_JSON.read_text(encoding="utf-8"))
-    panel = next(p for p in dashboard["panels"] if p.get("title") == "Market-open Request Health")
+    panel = next(p for p in _dashboard_panels(dashboard) if p.get("title") == "Market-open Request Health")
     expr = panel["targets"][0]["expr"]
     assert "$__rate_interval" not in expr, "stat panel must use a fixed range vector"
     assert "[5m]" in expr
+    assert 'live_overlay_market_open{job=~"$job"}' in expr
+    assert 'live_overlay_smc_live_requests_total{job=~"$job"}[5m]' in expr
+    assert "or live_overlay_market_open" not in expr
+    assert "rate(live_overlay_smc_live_requests_total[5m])" not in expr
 
 
 def test_dashboard_bridge_scrapes_aggregates_by_job() -> None:
