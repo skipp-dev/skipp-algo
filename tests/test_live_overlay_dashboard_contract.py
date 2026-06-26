@@ -130,3 +130,32 @@ def test_dashboard_panels_have_descriptions() -> None:
     panels = _dashboard_panels(dashboard)
     missing = [p.get("title") for p in panels if p.get("type") != "row" and not p.get("description")]
     assert not missing, f"panels missing description: {missing}"
+
+def test_market_open_request_health_uses_major_session_metric() -> None:
+    """The synthetic traffic-health panel must follow live_overlay_market_open.
+
+    metrics.py widens the headline display gauge to "any major session" (US or
+    Europe) so the dashboard does not falsely show MARKET_CLOSED while European
+    exchanges trade ahead of the US open.  Using live_overlay_market_us_open
+    here would reintroduce that false-closed signal.
+    """
+    dashboard = json.loads(_DASHBOARD_JSON.read_text(encoding="utf-8"))
+    panels = _dashboard_panels(dashboard)
+    panel = next(p for p in panels if p.get("title") == "Market-open Request Health")
+    expr = panel["targets"][0]["expr"]
+    assert "live_overlay_market_open" in expr, expr
+    assert "live_overlay_market_us_open" not in expr, expr
+
+
+def test_market_status_description_matches_major_session_metric() -> None:
+    """The Market Status panel already uses live_overlay_market_open; its
+    description must not claim it is US-only.
+    """
+    dashboard = json.loads(_DASHBOARD_JSON.read_text(encoding="utf-8"))
+    panels = _dashboard_panels(dashboard)
+    panel = next(p for p in panels if p.get("title") == "Market Status")
+    expr = panel["targets"][0]["expr"]
+    description = panel.get("description", "")
+    assert "live_overlay_market_open" in expr, expr
+    assert "US regular" not in description or "Europe" in description, description
+
