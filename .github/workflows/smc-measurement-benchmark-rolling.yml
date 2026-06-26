@@ -1,4 +1,4 @@
-# live-window: off-hours-only  # F-V6-F2.1 (2026-05-02)
+# live-window: mutating-on-cron  # F-V6-F2.1 (2026-05-02)
 name: smc-measurement-benchmark-rolling
 
 # E3 — Rolling Benchmark (Q3/Q4 plan §2.2 E3).
@@ -63,9 +63,9 @@ permissions:
   # API and (b) force-update the bot/live-experiment-snapshot branch so the
   # Grafana experiment daemon sees fresh rollups. `contents: write` is required
   # for the push; `actions: read` is required for artifact listing/download.
-  # Using github.token instead of a PAT avoids runtime downscoping and keeps
-  # the permission model explicit.
-  contents: write
+  # Keep workflow-level default as read-only and elevate write only on the
+  # mutating job below (least-privilege layout).
+  contents: read
   actions: read
 
 concurrency:
@@ -123,6 +123,11 @@ jobs:
     needs: select-runner
     runs-on: ${{ fromJson(needs.select-runner.outputs.runs_on_json) }}
     timeout-minutes: 60
+    permissions:
+      # WF-AUTH-1: this is the only job that pushes updates to
+      # bot/live-experiment-snapshot and reads producer artifacts.
+      contents: write
+      actions: read
 
     steps:
       - name: Announce selected runner
