@@ -41,12 +41,27 @@ from pathlib import Path
 REPO_ROOT = Path(__file__).resolve().parent.parent
 WORKFLOWS_DIR = REPO_ROOT / ".github" / "workflows"
 
+# Workflows that are allowed to push to bot/* branches using github.token
+# with job-level contents:write instead of secrets.GH_PAT. Each entry must
+# cite the ADR/PR that explicitly approved the migration.
+_GITHUB_TOKEN_BOT_PUSH_ALLOWLIST: frozenset[str] = frozenset({
+    # PR #2956 (2026-06-26): the rolling benchmark only publishes a rolling
+    # cache cursor (bot/live-experiment-snapshot) consumed by the live-overlay
+    # daemon via the GitHub Contents API. No downstream workflow is triggered
+    # by this push, so the GITHUB_TOKEN suppression rule does not apply. The
+    # job explicitly elevates to contents: write and actions: read.
+    "smc-measurement-benchmark-rolling.yml",
+})
+
 # Sensitive actions that need fast-gates to trigger downstream.
 _SENSITIVE_PATTERNS: tuple[re.Pattern[str], ...] = (
     # ``gh pr <create|edit|comment|merge>`` — any PR-mutating subcommand.
     re.compile(r"\bgh\s+pr\s+(?:create|edit|comment|merge)\b"),
     # Literal ``bot/...`` push (optionally quoted).
     re.compile(r"git\s+push[^\n]*\borigin\s+['\"]?bot/"),
+    # Push to a fully-qualified refs/heads/bot/* ref (e.g.
+    # ``git push --force-with-lease=refs/heads/bot/... "HEAD:refs/heads/bot/..."``).
+    re.compile(r"git\s+push[^\n]*\brefs/heads/bot/"),
     # Variable push: ``git push origin "$BRANCH"`` / ``${BRANCH}``.
     re.compile(
         r"git\s+push[^\n]*\borigin\s+['\"]?\$"
@@ -69,6 +84,14 @@ _GH_PAT_HINT = re.compile(r"\bsecrets\.GH_PAT\b")
 # mention in a comment or unrelated env var is not enough.
 _GH_PAT_BINDING = re.compile(
     r"\b(?:GH_TOKEN|GITHUB_TOKEN)\s*:\s*[^\n]*\bsecrets\.GH_PAT\b"
+)
+
+# Binding that uses the repository-scoped GITHUB_TOKEN / github.token.
+# Allowed only for workflows in _GITHUB_TOKEN_BOT_PUSH_ALLOWLIST that
+# push cache-cursor bot/* branches where no downstream workflow must be
+# triggered.
+_GITHUB_TOKEN_BINDING = re.compile(
+    r"\b(?:GH_TOKEN|GITHUB_TOKEN)\s*:\s*[^\n]*\$\{\{\s*github\.token\s*\}\}"
 )
 
 # Step boundary inside a workflow YAML: a list-item starting a new
@@ -108,9 +131,15 @@ def _strip_comments(lines: list[str]) -> list[str]:
     return [ln for ln in lines if not ln.lstrip().startswith("#")]
 
 
+def _is_bot_push_pattern(pat: re.Pattern[str], line: str) -> bool:
+    """Return True if the matched pattern is a bot/* push of any form."""
+    return "bot/" in line and bool(re.search(r"git\s+push", line))
+
+
 def _find_violations(path: Path) -> list[tuple[int, str]]:
     text = path.read_text(encoding="utf-8")
     lines = text.splitlines()
+    allowed_github_token = path.name in _GITHUB_TOKEN_BOT_PUSH_ALLOWLIST
     violations: list[tuple[int, str]] = []
     for idx, line in enumerate(lines):
         # Skip comment-only lines — they describe patterns rather than
@@ -126,9 +155,19 @@ def _find_violations(path: Path) -> list[tuple[int, str]]:
             # cannot satisfy the pin.
             step_start, step_end = _step_bounds(lines, idx)
             step_exec = "\n".join(_strip_comments(lines[step_start:step_end]))
+
+            # Allowlisted bot/* cache-cursor pushes may use github.token
+            # with explicit job-level contents:write.
+            if (
+                allowed_github_token
+                and _is_bot_push_pattern(pat, line)
+                and _GITHUB_TOKEN_BINDING.search(step_exec)
+            ):
+                continue
+
             # Require BOTH a mention of the secret AND an actual
-            # binding to GH_TOKEN / GITHUB_TOKEN via the canonical
-            # ternary. The mention check catches obvious absences;
+            # binding to GH_TOKEN / GITHUB_TOKEN via the canonical ternary
+            # fallback. The mention check catches obvious absences;
             # the binding check rules out cases where the secret is
             # referenced for an unrelated purpose.
             if _GH_PAT_HINT.search(step_exec) and _GH_PAT_BINDING.search(step_exec):
@@ -138,7 +177,9 @@ def _find_violations(path: Path) -> list[tuple[int, str]]:
 
 
 def test_pr_creating_steps_use_gh_pat() -> None:
-    """Every PR-creation / bot-push step must reference secrets.GH_PAT.
+    """Every PR-creation / bot-push step must reference secrets.GH_PAT
+    (or be explicitly allowlisted to use github.token for a bot/*
+    cache-cursor push where no downstream workflow trigger is needed).
 
     Otherwise the resulting PR fails to trigger fast-gates (see
     `/memories/repo/bot-pr-needs-pat-not-github-token.md`).
@@ -152,8 +193,11 @@ def test_pr_creating_steps_use_gh_pat() -> None:
                 f"`secrets.GH_PAT` in proximity:\n    {snippet!r}\n  "
                 "Add `GH_TOKEN: ${{ secrets.GH_PAT != '' && "
                 "secrets.GH_PAT || github.token }}` in the step's env "
-                "block. See PRs #80/#81/#88/#97/#103 for the canonical "
-                "pattern."
+                "block. If this is an allowlisted bot/* cache-cursor "
+                "push using github.token with job-level contents:write, "
+                "add the workflow to `_GITHUB_TOKEN_BOT_PUSH_ALLOWLIST` "
+                "and cite the approving PR/ADR. See PRs #80/#81/#88/#97/#103 "
+                "for the canonical pattern."
             )
     assert not findings, (
         "Workflows missing GH_PAT for PR-creating actions:\n  "
