@@ -488,8 +488,19 @@ def ingest_queue_max() -> int:
 
 
 def railway_metrics_enabled() -> bool:
-    """Return True iff Railway container metrics polling is enabled."""
-    return _optional_str("ENABLE_RAILWAY_METRICS", "0") == "1"
+    """Return True iff Railway container metrics polling is enabled.
+
+    The bridge is active when explicitly enabled via ``ENABLE_RAILWAY_METRICS=1``
+    or when all required Railway credentials are configured, so operators do not
+    need to remember two separate opt-in flags.
+    """
+    if _optional_str("ENABLE_RAILWAY_METRICS", "0") == "1":
+        return True
+    return bool(
+        _optional_str("RAILWAY_API_TOKEN", "")
+        and _optional_str("RAILWAY_PROJECT_ID", "")
+        and _optional_str("RAILWAY_ENVIRONMENT_ID", "")
+    )
 
 
 def railway_api_token() -> str:

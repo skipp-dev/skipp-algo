@@ -23,6 +23,35 @@ COLOR_WARN = "dark-yellow"
 COLOR_DEGRADED = "dark-orange"
 COLOR_NEUTRAL = "gray"
 COLOR_STARTING = "dark-yellow"
+# Canonical phase-code colors for the GitHub Workflow Status timeline.
+_GITHUB_WORKFLOW_PHASE_COLORS: dict[int, tuple[str, str]] = {
+    0: ("Unknown", COLOR_NEUTRAL),
+    1: ("Queued", COLOR_WARN),
+    2: ("In progress", "dark-blue"),
+    3: ("Success", COLOR_OK),
+    4: ("Failure", COLOR_ERROR),
+    5: ("Cancelled", COLOR_DEGRADED),
+    6: ("Skipped", "dark-purple"),
+    7: ("Neutral", "dark-blue"),
+    8: ("Timed out", COLOR_ERROR),
+    9: ("Action required", COLOR_DEGRADED),
+    10: ("Startup failure", COLOR_ERROR),
+    11: ("Stale", COLOR_WARN),
+}
+
+_GITHUB_WORKFLOW_TIMELINE_TITLE = "GitHub Workflow Status — Timeline"
+_GITHUB_WORKFLOW_TIMELINE_HEIGHT = 25
+_GITHUB_WORKFLOW_TIMELINE_DESCRIPTION = (
+    "Colour-coded latest status of each GitHub Actions workflow over time. Every row "
+    "is one named workflow ({{workflow}} legend); the cell colour encodes the run "
+    "conclusion — green=success, red=failure/timed-out/startup-failure, "
+    "orange=cancelled/action-required, blue=in-progress/neutral, "
+    "yellow=queued/stale, gray=unknown, purple=skipped. Series come from "
+    "live_overlay_github_workflow_phase_code{workflow,event,workflow_id}, sampled "
+    "at the daemon's GitHub workflow bridge interval (so runs shorter than one "
+    "scrape interval may not appear)."
+)
+
 
 # Canonical classic (v1) definition of the per-monitor UptimeRobot state-timeline
 # panel. The updater self-heals this panel if it is ever removed from the
@@ -140,6 +169,84 @@ def _iter_v1_panels(data: dict[str, Any]):
             if isinstance(child, dict):
                 yield child
 
+
+def _fix_github_workflow_timeline_panel(data: dict[str, Any]) -> bool:
+    """Make the GitHub Workflow Status timeline readable and colourful.
+
+    The panel grows from 8 to 25 grid units so ~35 workflow rows can be read
+    without scrolling. Value labels are shown automatically, state mappings and
+    thresholds are kept in sync so successes are green, failures red, etc.
+    """
+    panels = data.get("panels", [])
+    panel: dict[str, Any] | None = None
+    for candidate in panels:
+        if candidate.get("title") == _GITHUB_WORKFLOW_TIMELINE_TITLE:
+            panel = candidate
+            break
+    if panel is None:
+        return False
+
+    grid_pos = panel.setdefault("gridPos", {})
+    old_h = grid_pos.get("h")
+    old_y = grid_pos.get("y", 0)
+    old_bottom_y = old_y + (old_h if isinstance(old_h, int) else 8)
+
+    mappings = [
+        {"type": "value", "options": {str(code): {"text": text, "color": color}}}
+        for code, (text, color) in _GITHUB_WORKFLOW_PHASE_COLORS.items()
+    ]
+    thresholds = {
+        "mode": "absolute",
+        "steps": [
+            {"value": None, "color": COLOR_NEUTRAL},
+            *[
+                {"value": code, "color": color}
+                for code, (_text, color) in _GITHUB_WORKFLOW_PHASE_COLORS.items()
+            ],
+        ],
+    }
+    desired_options = {
+        "showValue": "auto",
+        "rowHeight": 0.92,
+        "mergeValues": True,
+        "alignValue": "left",
+        "legend": {"displayMode": "list", "placement": "bottom", "showLegend": False},
+        "tooltip": {"mode": "single", "sort": "none"},
+    }
+    desired_field_config = {
+        "defaults": {
+            "custom": {"fillOpacity": 80, "lineWidth": 0},
+            "mappings": mappings,
+            "color": {"mode": "thresholds"},
+            "thresholds": thresholds,
+        },
+        "overrides": [],
+    }
+
+    changed = False
+    if grid_pos.get("h") != _GITHUB_WORKFLOW_TIMELINE_HEIGHT:
+        grid_pos["h"] = _GITHUB_WORKFLOW_TIMELINE_HEIGHT
+        changed = True
+    if panel.get("options") != desired_options:
+        panel["options"] = desired_options
+        changed = True
+    if panel.get("fieldConfig") != desired_field_config:
+        panel["fieldConfig"] = desired_field_config
+        changed = True
+    if panel.get("description") != _GITHUB_WORKFLOW_TIMELINE_DESCRIPTION:
+        panel["description"] = _GITHUB_WORKFLOW_TIMELINE_DESCRIPTION
+        changed = True
+
+    new_bottom_y = old_y + _GITHUB_WORKFLOW_TIMELINE_HEIGHT
+    delta = new_bottom_y - old_bottom_y
+    if delta > 0:
+        for candidate in panels:
+            candidate_grid = candidate.get("gridPos", {})
+            if candidate_grid.get("y", 0) > old_y:
+                candidate_grid["y"] = candidate_grid["y"] + delta
+        changed = True
+
+    return changed
 
 def _ensure_uptimerobot_panel(data: dict[str, Any]) -> bool:
     """Self-heal the classic UptimeRobot state-timeline panel.
@@ -422,6 +529,7 @@ def main(argv: list[str] | None = None) -> int:
         changed = _fix_bridge_scrapes_panel(data) or changed
         changed = _fix_bridge_error_panels(data) or changed
         changed = _ensure_railway_status_panels(data) or changed
+        changed = _fix_github_workflow_timeline_panel(data) or changed
         if changed:
             data["version"] = int(data.get("version", 0) or 0) + 1
         _save_dashboard(dashboard_path, data)

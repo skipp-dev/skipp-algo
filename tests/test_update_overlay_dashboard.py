@@ -196,3 +196,23 @@ def test_update_script_adds_railway_status_panels(temp_dashboard: Path) -> None:
 
     bridge = next(p for p in data["panels"] if p.get("title") == "Railway Metrics Bridge")
     assert "live_overlay_railway_metrics_enabled" in bridge["targets"][0]["expr"]
+
+
+def test_update_script_fixes_github_workflow_timeline_readability(temp_dashboard: Path) -> None:
+    """The GitHub Workflow Status timeline must be tall enough and colour-coded."""
+    _run_script(temp_dashboard)
+    data = json.loads(temp_dashboard.read_text(encoding="utf-8"))
+    panel = next(p for p in data["panels"] if p.get("title") == "GitHub Workflow Status — Timeline")
+    assert panel["type"] == "state-timeline"
+    assert panel["gridPos"]["h"] >= 25
+    assert "gray=unknown, purple=skipped" in panel["description"]
+    assert panel["options"]["showValue"] == "auto"
+    defaults = panel["fieldConfig"]["defaults"]
+    assert defaults["color"]["mode"] == "thresholds"
+    steps = defaults["thresholds"]["steps"]
+    codes = {step["value"] for step in steps}
+    assert codes >= {0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11}
+    mapping_codes = set()
+    for mapping in defaults["mappings"]:
+        mapping_codes.update(mapping.get("options", {}).keys())
+    assert mapping_codes >= {"0", "1", "2", "3", "4", "5", "6", "7", "8", "9", "10", "11"}
