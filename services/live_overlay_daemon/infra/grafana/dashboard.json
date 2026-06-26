@@ -348,7 +348,7 @@
       },
       "targets": [
         {
-          "expr": "min(live_overlay_uptimerobot_scrape_success{job=~\"$job\"} or live_overlay_github_workflow_scrape_success{job=~\"$job\"} or vector(0))",
+          "expr": "min(\n  live_overlay_uptimerobot_scrape_success{job=~\"$job\"} or\n  live_overlay_github_workflow_scrape_success{job=~\"$job\"}\n) or vector(0)",
           "legendFormat": "bridge_scrapes",
           "datasource": {
             "type": "prometheus",
@@ -2129,7 +2129,7 @@
       "description": "Bridge error flag across the selected jobs/instances (0=OK, 1=ERROR).",
       "targets": [
         {
-          "expr": "max(live_overlay_uptimerobot_scrape_error_info{job=~\"$job\"} or vector(0))",
+          "expr": "max(live_overlay_uptimerobot_scrape_error_info{job=~\"$job\",error_code!=\"none\"} or vector(0))",
           "legendFormat": "error",
           "instant": true,
           "datasource": {
@@ -2432,7 +2432,7 @@
       "description": "Bridge error flag across the selected jobs/instances (0=OK, 1=ERROR).",
       "targets": [
         {
-          "expr": "max(live_overlay_github_workflow_scrape_error_info{job=~\"$job\"} or vector(0))",
+          "expr": "max(live_overlay_github_workflow_scrape_error_info{job=~\"$job\",error_code!=\"none\"} or vector(0))",
           "legendFormat": "error",
           "instant": true,
           "datasource": {
@@ -5714,6 +5714,187 @@
       }
     },
     {
+      "title": "Railway Metrics Bridge",
+      "type": "stat",
+      "description": "Whether the Railway metrics bridge is enabled and its last poll succeeded.",
+      "gridPos": {
+        "h": 3,
+        "w": 4,
+        "x": 0,
+        "y": 258
+      },
+      "targets": [
+        {
+          "expr": "max(live_overlay_railway_metrics_enabled{job=~\"$job\"} == 1) or vector(0)",
+          "legendFormat": "enabled",
+          "instant": true,
+          "datasource": {
+            "type": "prometheus",
+            "uid": "grafanacloud-prom"
+          }
+        }
+      ],
+      "options": {
+        "colorMode": "background_solid",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        }
+      },
+      "fieldConfig": {
+        "defaults": {
+          "mappings": [
+            {
+              "type": "value",
+              "options": {
+                "0": {
+                  "text": "DISABLED",
+                  "color": "gray"
+                },
+                "1": {
+                  "text": "OK",
+                  "color": "green"
+                }
+              }
+            }
+          ],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "gray",
+                "value": null
+              },
+              {
+                "color": "green",
+                "value": 1
+              }
+            ]
+          }
+        }
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "grafanacloud-prom"
+      },
+      "id": 1230367684
+    },
+    {
+      "title": "Railway Metrics Snapshot Age",
+      "type": "stat",
+      "description": "Seconds since the last successful Railway metrics poll.",
+      "gridPos": {
+        "h": 3,
+        "w": 4,
+        "x": 4,
+        "y": 258
+      },
+      "targets": [
+        {
+          "expr": "live_overlay_railway_metrics_age_seconds{job=~\"$job\"} and on(job) (live_overlay_railway_metrics_enabled{job=~\"$job\"} == 1)",
+          "legendFormat": "age",
+          "instant": true,
+          "datasource": {
+            "type": "prometheus",
+            "uid": "grafanacloud-prom"
+          }
+        }
+      ],
+      "options": {
+        "colorMode": "background_solid",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        }
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "s"
+        }
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "grafanacloud-prom"
+      },
+      "id": 1230367685
+    },
+    {
+      "title": "Railway Metrics Error",
+      "type": "stat",
+      "description": "Latest Railway metrics bridge error class. OK when healthy.",
+      "gridPos": {
+        "h": 3,
+        "w": 4,
+        "x": 8,
+        "y": 258
+      },
+      "targets": [
+        {
+          "expr": "max(live_overlay_railway_metrics_error_info{job=~\"$job\",error!=\"none\"} or vector(0))",
+          "legendFormat": "{{error}}",
+          "instant": true,
+          "datasource": {
+            "type": "prometheus",
+            "uid": "grafanacloud-prom"
+          }
+        }
+      ],
+      "options": {
+        "colorMode": "background_solid",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        }
+      },
+      "fieldConfig": {
+        "defaults": {
+          "mappings": [
+            {
+              "type": "value",
+              "options": {
+                "0": {
+                  "text": "OK",
+                  "color": "green"
+                },
+                "1": {
+                  "text": "ERROR",
+                  "color": "red"
+                }
+              }
+            }
+          ],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "red",
+                "value": 1
+              }
+            ]
+          },
+          "noValue": "none"
+        }
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "grafanacloud-prom"
+      },
+      "id": 1230367686
+    },
+    {
       "id": 201878404,
       "title": "Railway CPU Cores",
       "description": "CPU cores used per Railway service (from Railway GraphQL metrics).",
@@ -5726,7 +5907,7 @@
         "h": 7,
         "w": 8,
         "x": 0,
-        "y": 258
+        "y": 261
       },
       "fieldConfig": {
         "defaults": {
@@ -5770,7 +5951,7 @@
         "h": 7,
         "w": 8,
         "x": 8,
-        "y": 258
+        "y": 261
       },
       "fieldConfig": {
         "defaults": {
@@ -5814,7 +5995,7 @@
         "h": 7,
         "w": 8,
         "x": 16,
-        "y": 258
+        "y": 261
       },
       "fieldConfig": {
         "defaults": {
@@ -5858,7 +6039,7 @@
         "h": 7,
         "w": 8,
         "x": 0,
-        "y": 265
+        "y": 268
       },
       "fieldConfig": {
         "defaults": {
@@ -5902,7 +6083,7 @@
         "h": 7,
         "w": 8,
         "x": 8,
-        "y": 265
+        "y": 268
       },
       "fieldConfig": {
         "defaults": {
@@ -5946,7 +6127,7 @@
         "h": 7,
         "w": 8,
         "x": 16,
-        "y": 265
+        "y": 268
       },
       "fieldConfig": {
         "defaults": {
@@ -6028,6 +6209,6 @@
   "timezone": "utc",
   "title": "SMC Live Overlay Daemon",
   "uid": "smc-live-overlay-v1",
-  "version": 26,
+  "version": 27,
   "description": "Live-overlay daemon operational dashboard: feed health, worker liveness, SMC overlay freshness, external bridge status, provider health, daily experiment metrics, and Railway container resources."
 }
