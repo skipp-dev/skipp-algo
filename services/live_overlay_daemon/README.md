@@ -196,7 +196,7 @@ All numeric fields are `null`, all bool fields are `false`, `stale: true`.
 | `SIGNALS_SNAPSHOT_URL_TOKEN` | ❌ | *(unset)* | Optional bearer token for `SIGNALS_SNAPSHOT_URL` |
 | `OVERLAY_SIGNALS_CACHE_TTL_SECS` | ❌ | `120` | Signals snapshot cache TTL in seconds (range 30–1800) |
 | `OVERLAY_SIGNALS_MAX_AGE_SECS` | ❌ | `480` | Age threshold after which signals snapshot is stale (range 60–7200) |
-| `EXPERIMENT_SNAPSHOT_PATH` | ❌ | *(repo root)*`/artifacts/ci/measurement_benchmark_rolling/latest/plan_2_8_tf_family_rollup.json` | Local daily experiment rollup snapshot |
+| `EXPERIMENT_SNAPSHOT_PATH` | ❌ | *(repo root)*`/artifacts/live_overlay/plan_2_8_tf_family_rollup.json` | Local daily experiment rollup snapshot |
 | `EXPERIMENT_SNAPSHOT_URL` | ❌ | *(unset)* | Optional HTTPS URL for daily experiment rollup snapshot |
 | `EXPERIMENT_SNAPSHOT_URL_TOKEN` | ❌ | *(unset)* | Optional bearer token for `EXPERIMENT_SNAPSHOT_URL` |
 | `EXPERIMENT_HISTORY_PATH` | ❌ | *(repo root)*`/artifacts/ci/measurement_benchmark_rolling/latest/plan_2_8_history.jsonl` | Local per-day experiment history JSONL |
@@ -205,7 +205,7 @@ All numeric fields are `null`, all bool fields are `false`, `stale: true`.
 | `OVERLAY_EXPERIMENT_CACHE_TTL_SECS` | ❌ | `900` | Experiment snapshot/history cache TTL in seconds (range 60–7200) |
 | `OVERLAY_EXPERIMENT_MAX_AGE_SECS` | ❌ | `129600` | Age threshold after which experiment snapshot is stale (range 3600–1209600) |
 | `OVERLAY_EXPERIMENT_HISTORY_MAX_DAYS` | ❌ | `30` | Max number of history days surfaced as metrics (range 1–366) |
-| `TRADINGVIEW_CREDENTIAL_SNAPSHOT_PATH` | ❌ | *(repo root)*`/artifacts/credential_health/latest/credential_health.json` | Local daily credential-health report (TradingView storage-state age probe) |
+| `TRADINGVIEW_CREDENTIAL_SNAPSHOT_PATH` | ❌ | *(repo root)*`/artifacts/live_overlay/credential_health.json` | Local daily credential-health report (TradingView storage-state age probe) |
 | `TRADINGVIEW_CREDENTIAL_SNAPSHOT_URL` | ❌ | *(unset)* | Optional HTTPS URL for the credential-health report; takes precedence over local path |
 | `TRADINGVIEW_CREDENTIAL_SNAPSHOT_URL_TOKEN` | ❌ | *(unset)* | Optional bearer token for `TRADINGVIEW_CREDENTIAL_SNAPSHOT_URL` |
 | `OVERLAY_TRADINGVIEW_CREDENTIAL_CACHE_TTL_SECS` | ❌ | `3600` | Credential-health report cache TTL in seconds (range 60–86400) |
@@ -222,7 +222,7 @@ All numeric fields are `null`, all bool fields are `false`, `stale: true`.
 | `GITHUB_WORKFLOW_MONITOR_PER_PAGE` | ❌ | `30` | Number of workflow runs fetched per API poll (range 1–100) |
 | `LIVE_OVERLAY_RESTART_CAUSE` | ❌ | `unknown` | Restart cause label (`deploy`, `crash`, `manual`, …) for restart observability |
 | `LIVE_OVERLAY_INGEST_QUEUE_MAX` | ❌ | `20000` | Max pending bars in feed ingest queue before drops (range 1000–200000) |
-| `NEWS_SNAPSHOT_PATH` | ❌ | *(repo root)*`/artifacts/smc_microstructure_exports/smc_live_news_snapshot.json` | Absolute path to news JSON file (resolved relative to repo root) |
+| `NEWS_SNAPSHOT_PATH` | ❌ | *(repo root)*`/artifacts/live_overlay/news_snapshot.json` | Absolute path to news JSON file (resolved relative to repo root) |
 
 ### Config validation
 
@@ -248,9 +248,15 @@ All numeric fields are `null`, all bool fields are `false`, `stale: true`.
 Each snapshot loader (news, signals, experiment rollup/history, TradingView
 credential report) is
 **URL-first**: when the matching `*_SNAPSHOT_URL` is set it fetches the freshest
-payload over HTTPS and falls back to the local `*_SNAPSHOT_PATH` otherwise. The
-Docker image bakes a one-time news seed, so **without a `*_URL` the dashboard
-shows that stale seed**.
+payload over HTTPS and falls back to the local `*_SNAPSHOT_PATH` otherwise.
+The default `*_SNAPSHOT_PATH` values for the CI-produced snapshots (news,
+experiment rollup/history, and TradingView credential report) point at tracked
+seed files under `artifacts/live_overlay/` so the daemon (and local dashboard)
+renders data out of the box. Realtime signals are the exception: they have no
+CI producer and still default to `artifacts/open_prep/latest/latest_realtime_signals.json`.
+CI producers push fresher snapshots to rolling `bot/*` branches; off-host
+daemons should set the matching `*_SNAPSHOT_URL` / `*_HISTORY_URL` to consume
+those instead.
 
 - **HTTPS-only URL guard is centralized:** all runtime snapshot URL fetchers
   share one validation path and reject non-HTTPS URLs with a consistent warning

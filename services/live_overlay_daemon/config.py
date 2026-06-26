@@ -124,13 +124,21 @@ def rolling_bars() -> int:
 
 
 def news_snapshot_path() -> Path:
+    """Local path to the latest news-provider health snapshot JSON.
+
+    The canonical tracked seed lives at ``artifacts/live_overlay/news_snapshot.json``
+    so the daemon (and local dashboard) works out of the box. CI producers publish
+    fresher snapshots to ``artifacts/smc_microstructure_exports/smc_live_news_snapshot.json``
+    on the ``bot/live-news-snapshot`` branch; off-host daemons should set
+    :func:`news_snapshot_url` to that branch instead.
+    """
     raw = _optional_str(
         "NEWS_SNAPSHOT_PATH",
         str(
             _REPO_ROOT
             / "artifacts"
-            / "smc_microstructure_exports"
-            / "smc_live_news_snapshot.json"
+            / "live_overlay"
+            / "news_snapshot.json"
         ),
     )
     return Path(raw)
@@ -198,20 +206,18 @@ def signals_max_age_secs() -> int:
 def experiment_snapshot_path() -> Path:
     """Local path to the latest Plan 2.8 per-TF family rollup JSON.
 
-    Produced by ``scripts/plan_2_8_tf_family_rollup.py`` into the dated
-    ``artifacts/ci/measurement_benchmark_rolling/<date>/`` directory. The
-    default points at a stable ``latest`` convention; off-host daemons should
-    set :func:`experiment_snapshot_url` instead (the dated artifacts are not
-    present on the Railway filesystem).
+    The canonical tracked seed lives at ``artifacts/live_overlay/plan_2_8_tf_family_rollup.json``
+    so the daemon (and local dashboard) works out of the box. CI producers publish
+    fresher rollups to ``artifacts/ci/measurement_benchmark_rolling/latest/`` on the
+    ``bot/live-experiment-snapshot`` branch; off-host daemons should set
+    :func:`experiment_snapshot_url` to that branch instead.
     """
     raw = _optional_str(
         "EXPERIMENT_SNAPSHOT_PATH",
         str(
             _REPO_ROOT
             / "artifacts"
-            / "ci"
-            / "measurement_benchmark_rolling"
-            / "latest"
+            / "live_overlay"
             / "plan_2_8_tf_family_rollup.json"
         ),
     )
@@ -235,17 +241,18 @@ def experiment_snapshot_url_token() -> str:
 def experiment_history_path() -> Path:
     """Local path to the Plan 2.8 per-day history JSONL.
 
-    Produced by ``scripts/plan_2_8_history_archive.py`` (one compact snapshot
-    line per daily run). Used to backfill the per-day timeline panels.
+    The canonical tracked seed lives at ``artifacts/live_overlay/plan_2_8_history.jsonl``
+    so the daemon (and local dashboard) works out of the box. CI producers publish
+    fresher history to ``artifacts/ci/measurement_benchmark_rolling/latest/`` on the
+    ``bot/live-experiment-snapshot`` branch; off-host daemons should set
+    :func:`experiment_history_url` to that branch instead.
     """
     raw = _optional_str(
         "EXPERIMENT_HISTORY_PATH",
         str(
             _REPO_ROOT
             / "artifacts"
-            / "ci"
-            / "measurement_benchmark_rolling"
-            / "latest"
+            / "live_overlay"
             / "plan_2_8_history.jsonl"
         ),
     )
@@ -284,20 +291,21 @@ def experiment_history_max_days() -> int:
 def tradingview_credential_snapshot_path() -> Path:
     """Local path to the daily credential-health report JSON.
 
-    Produced by ``scripts/credential_health_check.py --output`` and published
-    by ``.github/workflows/credential-health-check.yml`` to a stable
-    ``latest`` convention. The daemon reads the ``tv_storage_state_age`` probe
-    from it to surface the TradingView storage-state credential age; off-host
-    daemons should set :func:`tradingview_credential_snapshot_url` instead (the
-    report is not present on the Railway filesystem).
+    The canonical tracked seed lives at ``artifacts/live_overlay/credential_health.json``
+    so the daemon (and local dashboard) works out of the box. CI producers publish
+    fresher reports to ``artifacts/credential_health/latest/`` on the
+    ``bot/live-tv-credential-snapshot`` branch; off-host daemons should set
+    :func:`tradingview_credential_snapshot_url` to that branch instead.
+
+    The daemon reads the ``tv_storage_state_age`` probe from this file to
+    surface the TradingView storage-state credential age.
     """
     raw = _optional_str(
         "TRADINGVIEW_CREDENTIAL_SNAPSHOT_PATH",
         str(
             _REPO_ROOT
             / "artifacts"
-            / "credential_health"
-            / "latest"
+            / "live_overlay"
             / "credential_health.json"
         ),
     )

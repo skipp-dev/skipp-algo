@@ -132,13 +132,13 @@ name = "smc-live-overlay"
 | `OVERLAY_NEWS_CACHE_TTL_SECS` | no | — | News cache TTL |
 | `NEWS_SNAPSHOT_URL` | no | — | Optional HTTPS URL for live news snapshot |
 | `NEWS_SNAPSHOT_URL_TOKEN` | no | — | Optional bearer token for `NEWS_SNAPSHOT_URL` |
-| `NEWS_SNAPSHOT_PATH` | no | baked seed | Local news snapshot path; point at the volume (`/data/...`) for write-through persistence |
+| `NEWS_SNAPSHOT_PATH` | no | `artifacts/live_overlay/news_snapshot.json` | Local news snapshot path; point at the volume (`/data/...`) for write-through persistence |
 | `SIGNALS_SNAPSHOT_PATH` | no | — | Local realtime-signals snapshot path |
 | `SIGNALS_SNAPSHOT_URL` | no | — | Optional HTTPS URL for realtime-signals snapshot |
 | `SIGNALS_SNAPSHOT_URL_TOKEN` | no | — | Optional bearer token for `SIGNALS_SNAPSHOT_URL` |
 | `OVERLAY_SIGNALS_CACHE_TTL_SECS` | no | — | Signals snapshot cache TTL |
 | `OVERLAY_SIGNALS_MAX_AGE_SECS` | no | — | Signals staleness threshold |
-| `EXPERIMENT_SNAPSHOT_PATH` | no | — | Local daily experiment rollup snapshot path |
+| `EXPERIMENT_SNAPSHOT_PATH` | no | `artifacts/live_overlay/plan_2_8_tf_family_rollup.json` | Local daily experiment rollup snapshot path |
 | `EXPERIMENT_SNAPSHOT_URL` | no | — | Optional HTTPS URL for experiment rollup snapshot |
 | `EXPERIMENT_SNAPSHOT_URL_TOKEN` | no | — | Optional bearer token for `EXPERIMENT_SNAPSHOT_URL` |
 | `EXPERIMENT_HISTORY_PATH` | no | — | Local daily experiment history JSONL path |
@@ -147,7 +147,7 @@ name = "smc-live-overlay"
 | `OVERLAY_EXPERIMENT_CACHE_TTL_SECS` | no | — | Experiment rollup/history cache TTL |
 | `OVERLAY_EXPERIMENT_MAX_AGE_SECS` | no | — | Experiment snapshot staleness threshold |
 | `OVERLAY_EXPERIMENT_HISTORY_MAX_DAYS` | no | — | Max history days exposed as metrics |
-| `TRADINGVIEW_CREDENTIAL_SNAPSHOT_PATH` | no | `artifacts/credential_health/latest/credential_health.json` | Local daily credential-health report (TradingView storage-state age) |
+| `TRADINGVIEW_CREDENTIAL_SNAPSHOT_PATH` | no | `artifacts/live_overlay/credential_health.json` | Local daily credential-health report (TradingView storage-state age) |
 | `TRADINGVIEW_CREDENTIAL_SNAPSHOT_URL` | no | — | Optional HTTPS URL for the credential-health report |
 | `TRADINGVIEW_CREDENTIAL_SNAPSHOT_URL_TOKEN` | no | — | Optional bearer token for `TRADINGVIEW_CREDENTIAL_SNAPSHOT_URL` |
 | `OVERLAY_TRADINGVIEW_CREDENTIAL_CACHE_TTL_SECS` | no | — | Credential-health report cache TTL (default 3600) |
@@ -185,20 +185,21 @@ The daemon serves four producer-side snapshots (news, realtime signals, daily
 experiment rollup/history, and the TradingView credential-age report). Each
 loader is **URL-first**: when the matching `*_SNAPSHOT_URL` is set it fetches
 the freshest payload over HTTPS (GitHub Contents API raw, fine-grained PAT),
-otherwise it falls back to the local `*_SNAPSHOT_PATH`. The Docker image bakes a
-one-time news seed at build time; without a `*_URL` the dashboard shows that
-stale seed.
+otherwise it falls back to the local `*_SNAPSHOT_PATH`. Default `*_SNAPSHOT_PATH` values for the three CI-produced snapshots (news,
+experiment rollup/history, TradingView credential report) point at tracked seed
+files under `artifacts/live_overlay/` so the daemon renders data out of the
+box. Realtime signals remain host-only and still default to
+`artifacts/open_prep/latest/latest_realtime_signals.json`. CI producers push
+fresher snapshots to dedicated `bot/*` cache branches (exempt from the
+`main-governance` ruleset, see ADR-0024); off-host daemons should set the
+matching `*_SNAPSHOT_URL` / `*_HISTORY_URL` to consume those instead.
 
-**Stable producer URLs (rolling bot branches).** Producer workflows
-force-push the freshest snapshot to dedicated `bot/*` cache branches
-(exempt from the `main-governance` ruleset, see ADR-0024):
-
-| Snapshot | Producer workflow | Bot branch | Stable path |
-|----------|-------------------|------------|-------------|
-| News | `smc-live-newsapi-refresh.yml` | `bot/live-news-snapshot` | `artifacts/smc_microstructure_exports/smc_live_news_snapshot.json` |
-| Experiment rollup + history | `smc-measurement-benchmark-rolling.yml` | `bot/live-experiment-snapshot` | `artifacts/ci/measurement_benchmark_rolling/latest/plan_2_8_tf_family_rollup.json` and `.../latest/plan_2_8_history.jsonl` |
-| TradingView credential age | `credential-health-check.yml` | `bot/live-tv-credential-snapshot` | `artifacts/credential_health/latest/credential_health.json` |
-| Realtime signals | _host helper (no CI producer)_ | `bot/live-signals-snapshot` | `artifacts/open_prep/latest/latest_realtime_signals.json` |
+| Snapshot | Producer workflow | Bot branch | Bot-branch stable path | Default seed path |
+|----------|-------------------|------------|------------------------|-------------------|
+| News | `smc-live-newsapi-refresh.yml` | `bot/live-news-snapshot` | `artifacts/smc_microstructure_exports/smc_live_news_snapshot.json` | `artifacts/live_overlay/news_snapshot.json` |
+| Experiment rollup + history | `smc-measurement-benchmark-rolling.yml` | `bot/live-experiment-snapshot` | `artifacts/ci/measurement_benchmark_rolling/latest/plan_2_8_tf_family_rollup.json` and `.../latest/plan_2_8_history.jsonl` | `artifacts/live_overlay/plan_2_8_tf_family_rollup.json` / `plan_2_8_history.jsonl` |
+| TradingView credential age | `credential-health-check.yml` | `bot/live-tv-credential-snapshot` | `artifacts/credential_health/latest/credential_health.json` | `artifacts/live_overlay/credential_health.json` |
+| Realtime signals | _host helper (no CI producer)_ | `bot/live-signals-snapshot` | `artifacts/open_prep/latest/latest_realtime_signals.json` | `artifacts/open_prep/latest/latest_realtime_signals.json` |
 
 `smc-measurement-benchmark-rolling.yml` writes temporary per-timeframe
 `structure_export_*.json` files only for inline notices and deletes them in the
