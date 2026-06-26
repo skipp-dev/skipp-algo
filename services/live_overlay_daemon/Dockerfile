@@ -6,6 +6,9 @@ WORKDIR /app
 RUN mkdir -p /app/services && touch /app/services/__init__.py
 
 # Build context is repo root (Root Directory cleared in Railway)
+# tzdata guarantees IANA timezone files exist even on minimal slim images;
+# the PyPI tzdata fallback in requirements.txt covers non-Docker installs.
+RUN apt-get update && apt-get install -y --no-install-recommends tzdata     && rm -rf /var/lib/apt/lists/*
 COPY services/live_overlay_daemon/requirements.txt /tmp/requirements.txt
 RUN pip install --no-cache-dir -r /tmp/requirements.txt
 
