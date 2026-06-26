@@ -255,8 +255,8 @@ def test_railway_metrics_enabled_when_credentials_present(monkeypatch: pytest.Mo
 def test_railway_metrics_disabled_when_no_credentials(monkeypatch: pytest.MonkeyPatch) -> None:
     """The bridge stays disabled when no credentials are configured."""
     monkeypatch.delenv("ENABLE_RAILWAY_METRICS", raising=False)
-    monkeypatch.delenv("RAILWAY_API_TOKEN", raising=False)
-    monkeypatch.delenv("RAILWAY_PROJECT_ID", raising=False)
-    monkeypatch.delenv("RAILWAY_ENVIRONMENT_ID", raising=False)
+    monkeypatch.setenv("RAILWAY_API_TOKEN", "")
+    monkeypatch.setenv("RAILWAY_PROJECT_ID", "")
+    monkeypatch.setenv("RAILWAY_ENVIRONMENT_ID", "")
     importlib.reload(config)
     assert config.railway_metrics_enabled() is False

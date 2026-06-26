@@ -198,8 +198,11 @@ def _fix_github_workflow_timeline_panel(data: dict[str, Any]) -> bool:
     thresholds = {
         "mode": "absolute",
         "steps": [
-            {"value": code, "color": color}
-            for code, (_text, color) in _GITHUB_WORKFLOW_PHASE_COLORS.items()
+            {"value": None, "color": COLOR_NEUTRAL},
+            *[
+                {"value": code, "color": color}
+                for code, (_text, color) in _GITHUB_WORKFLOW_PHASE_COLORS.items()
+            ],
         ],
     }
     desired_options = {
