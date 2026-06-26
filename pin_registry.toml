@@ -108,7 +108,9 @@
 # 2026-06-26 (PR #2962): added producer-first SIGNALS_SERVICE_URL fetcher
 # (_fetch_signals_service) and tightened http://*.railway.internal guard;
 # shifted sites to [230, 379, 571].
-"services/live_overlay_daemon/compute.py" = [230, 379, 571]
+# 2026-06-26 (fixup): suffix-safe railway.internal check shifted sites
+# to [230, 389, 581].
+"services/live_overlay_daemon/compute.py" = [230, 389, 581]
 # 2026-06-22: line shifted 251 -> 287 after ADR-0025 App Platform migration
 # (/apis dashboard.grafana.app/v1); urlopen now in shared _request_json helper.
 # 2026-06-23: shifted 287 -> 296 after annotations-robustness fix.

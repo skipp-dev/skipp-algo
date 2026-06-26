@@ -232,18 +232,18 @@ _FROZEN_SITES: frozenset[tuple[str, int, tuple[str, ...]]] = frozenset(
         # 2026-06-23 (feat/grafana-trading-signals): realtime trading-signals
         # snapshot loader mirrors the news snapshot caching pattern.
         # 2026-06-26 (PR #2962): shifted by producer client code.
-        ("services/live_overlay_daemon/compute.py", 406, ("_signals_cache", "_signals_checked_at", "_signals_loaded_at")),
+        ("services/live_overlay_daemon/compute.py", 416, ("_signals_cache", "_signals_checked_at", "_signals_loaded_at")),
         # 2026-06-23 (feat/grafana-tv-credential-age): credential-health report
         # loader mirrors the same snapshot caching pattern.
         # 2026-06-26 (PR #2962): shifted by producer client code.
-        ("services/live_overlay_daemon/compute.py", 493, ("_tradingview_credential_cache", "_tradingview_credential_checked_at", "_tradingview_credential_loaded_at")),
+        ("services/live_overlay_daemon/compute.py", 503, ("_tradingview_credential_cache", "_tradingview_credential_checked_at", "_tradingview_credential_loaded_at")),
         # 2026-06-23 (feat/grafana-experiment-timeline): daily experiment rollup
         # + per-day history loaders mirror the same snapshot caching pattern.
         # 2026-06-24 (feat/live-overlay-credential-health): +5 lines for
         # _load_credential_health_snapshot alias shifted globals to 520/568.
         # 2026-06-26 (PR #2962): shifted by producer client code.
-        ("services/live_overlay_daemon/compute.py", 612, ("_experiment_cache", "_experiment_checked_at", "_experiment_loaded_at")),
-        ("services/live_overlay_daemon/compute.py", 660, ("_experiment_history_cache", "_experiment_history_checked_at", "_experiment_history_loaded_at")),
+        ("services/live_overlay_daemon/compute.py", 622, ("_experiment_cache", "_experiment_checked_at", "_experiment_loaded_at")),
+        ("services/live_overlay_daemon/compute.py", 670, ("_experiment_history_cache", "_experiment_history_checked_at", "_experiment_history_loaded_at")),
         # 2026-06-21 (provider/bridge + queue backpressure follow-ups):
         # feed.py gained additional helper/config blocks, shifting global
         # statements to 362/420/496.

@@ -325,25 +325,35 @@ def _is_valid_service_url(url: str) -> bool:
     may be passed as a bare host or plain ``http://`` URL. These are plain http
     inside the private network, so the stricter https-only guard used for
     public ``*_URL`` snapshots does not apply here. Plain ``http://`` and bare
-    hostnames are accepted only for ``*.railway.internal`` hosts; all other
-    URLs must use ``https://``.
+    hostnames are accepted only for direct subdomains of ``railway.internal``;
+    all other URLs must use ``https://``.
     """
     if not url:
         return False
     stripped = url.strip()
     if not stripped:
         return False
+
+    def _is_railway_internal_host(host: str) -> bool:
+        if not host:
+            return False
+        parts = host.lower().split(".")
+        # Require at least one specific subdomain label, followed by the
+        # exact ``railway.internal`` suffix. This rejects suffix matches such
+        # as ``evil.railway.internal.attacker.com``.
+        return len(parts) >= 3 and parts[-2] == "railway" and parts[-1] == "internal"
+
     lower = stripped.lower()
     if lower.startswith("https://"):
         return True
     if lower.startswith("http://"):
         # Restrict plain HTTP to the Railway private network.
         host = urllib.parse.urlsplit(stripped).hostname or ""
-        return host.lower().endswith(".railway.internal")
+        return _is_railway_internal_host(host)
     # Bare hostname/path: only Railway private-network hostnames are accepted.
     parsed = urllib.parse.urlsplit("http://" + stripped)
     host = parsed.hostname or ""
-    return host.lower().endswith(".railway.internal")
+    return _is_railway_internal_host(host)
 
 
 def _signals_service_url_to_full(base: str) -> str:
