@@ -164,7 +164,6 @@ def test_all_panel_queries_have_balanced_parentheses(temp_dashboard: Path) -> No
             assert expr.count("(") == expr.count(")"), f"Unbalanced parentheses in {panel['title']!r}: {expr[:200]}"
 
 
-
 def test_update_script_fixes_bridge_scrapes_query(temp_dashboard: Path) -> None:
     """Bridge Scrapes should ignore unconfigured bridges, not treat them as failures."""
     _run_script(temp_dashboard)
@@ -197,4 +196,3 @@ def test_update_script_adds_railway_status_panels(temp_dashboard: Path) -> None:
 
     bridge = next(p for p in data["panels"] if p.get("title") == "Railway Metrics Bridge")
     assert "live_overlay_railway_metrics_enabled" in bridge["targets"][0]["expr"]
-
