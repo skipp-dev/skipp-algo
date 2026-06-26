@@ -2,13 +2,14 @@
 
 from __future__ import annotations
 
+import importlib
 import json
 from typing import Any
 from unittest.mock import patch
 
 import pytest
 
-from services.live_overlay_daemon import railway_metrics
+from services.live_overlay_daemon import config, railway_metrics
 
 
 @pytest.fixture(autouse=True)
@@ -239,3 +240,23 @@ def test_render_metrics_railway_disabled_emits_zero_gauge() -> None:
 
     assert "live_overlay_railway_metrics_enabled 0" in text
     assert "live_overlay_railway_service_cpu_cores{" not in text
+
+
+def test_railway_metrics_enabled_when_credentials_present(monkeypatch: pytest.MonkeyPatch) -> None:
+    """The bridge auto-enables when all Railway credentials are configured."""
+    monkeypatch.delenv("ENABLE_RAILWAY_METRICS", raising=False)
+    monkeypatch.setenv("RAILWAY_API_TOKEN", "token")
+    monkeypatch.setenv("RAILWAY_PROJECT_ID", "project")
+    monkeypatch.setenv("RAILWAY_ENVIRONMENT_ID", "env")
+    importlib.reload(config)
+    assert config.railway_metrics_enabled() is True
+
+
+def test_railway_metrics_disabled_when_no_credentials(monkeypatch: pytest.MonkeyPatch) -> None:
+    """The bridge stays disabled when no credentials are configured."""
+    monkeypatch.delenv("ENABLE_RAILWAY_METRICS", raising=False)
+    monkeypatch.delenv("RAILWAY_API_TOKEN", raising=False)
+    monkeypatch.delenv("RAILWAY_PROJECT_ID", raising=False)
+    monkeypatch.delenv("RAILWAY_ENVIRONMENT_ID", raising=False)
+    importlib.reload(config)
+    assert config.railway_metrics_enabled() is False
