@@ -1447,6 +1447,41 @@ def test_dashboard_all_panels_have_stable_id() -> None:
     assert len(ids) == len(set(ids)), "duplicate panel ids"
 
 
+def test_render_metrics_always_emits_traffic_counters(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Traffic counters must be present even before the first request.
+
+    Grafana panels "Success Rate (%)" and "Market-open Request Health" use
+    rate() over live_overlay_smc_live_requests_total / _success_total.  When
+    the daemon starts and no request has arrived yet, these counters do not
+    exist in the in-process counter dict, so Prometheus returns "No data".
+    The renderer must seed them as 0.0 so the series are always scraped.
+    """
+    import services.live_overlay_daemon.metrics as metrics_mod
+    import services.live_overlay_daemon.observability as obs
+
+    _patch_common(
+        monkeypatch,
+        feed_ready=True,
+        market_open=True,
+        bar_count=10,
+        overlay_symbols=5,
+        overlay_age=60.0,
+    )
+
+    with obs._counter_lock:
+        obs._counters.clear()
+
+    body = metrics_mod.render_metrics(startup_ts=100.0)
+
+    assert "live_overlay_smc_live_requests_total 0.0" in body
+    assert "live_overlay_smc_live_success_total 0.0" in body
+    assert "live_overlay_smc_live_errors_total 0.0" in body
+    assert "live_overlay_smc_live_auth_denied 0.0" in body
+    assert "live_overlay_smc_live_bad_tf_total 0.0" in body
+    assert "live_overlay_smc_live_cache_miss_total 0.0" in body
+    assert "live_overlay_smc_live_stale_served_total 0.0" in body
+
+
 def test_dashboard_job_variable_allows_multi_and_all() -> None:
     repo_root = Path(__file__).resolve().parents[1]
     dashboard_path = repo_root / "services" / "live_overlay_daemon" / "infra" / "grafana" / "dashboard.json"
