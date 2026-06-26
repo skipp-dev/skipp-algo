@@ -97,6 +97,8 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+        with:
+          persist-credentials: false
 
       - name: Set up pinned Python
         uses: ./.github/actions/setup-python-pinned
@@ -138,6 +140,8 @@ jobs:
 
       - name: Checkout
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+        with:
+          persist-credentials: false
 
       - name: Set up pinned Python (GitHub-hosted)
         if: needs.select-runner.outputs.runner_environment == 'github-hosted'
