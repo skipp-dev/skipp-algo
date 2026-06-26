@@ -1386,7 +1386,7 @@
       },
       "targets": [
         {
-          "expr": "(100 * sum(rate(live_overlay_smc_live_success_total{job=~\"$job\"}[$__rate_interval])) / clamp_min(sum(rate(live_overlay_smc_live_requests_total{job=~\"$job\"}[$__rate_interval])), 1e-9))",
+          "expr": "100 * (\n  sum(rate(live_overlay_smc_live_success_total{job=~\"$job\"}[$__rate_interval]))\n  /\n  sum(rate(live_overlay_smc_live_requests_total{job=~\"$job\"}[$__rate_interval]))\n)\nunless on()\nsum(rate(live_overlay_smc_live_requests_total{job=~\"$job\"}[$__rate_interval])) == 0",
           "legendFormat": "success_rate",
           "datasource": {
             "type": "prometheus",
@@ -1427,7 +1427,8 @@
                 "value": 99
               }
             ]
-          }
+          },
+          "noValue": "NO TRAFFIC"
         }
       },
       "description": "Percentage of recent SMC compute cycles that completed without errors.",

@@ -5,6 +5,24 @@
 All notable changes to this project are documented in this file.
 
 ## [Unreleased]
+### Fixed (2026-06-26) — Live overlay success-rate dashboard shows "NO TRAFFIC" instead of misleading 0.00 %
+
+- `services/live_overlay_daemon/metrics.py` seeds traffic counters
+  (`live_overlay_smc_live_requests_total`,
+  `live_overlay_smc_live_success_total`, and related counters) to `0.0` on
+  every metrics render. Previously these series were only created after the
+  first `/smc_live` request, so a fresh daemon with no traffic exposed no data
+  for the Success Rate panel and the panel rendered `0.00 %`.
+- `services/live_overlay_daemon/Dockerfile` installs `tzdata` so
+  `ZoneInfo("America/New_York")` resolves correctly in the Railway container;
+  without it, market-open detection silently fell back to UTC hours.
+- `services/live_overlay_daemon/infra/grafana/dashboard.json` hardens the
+  Success Rate panel: the PromQL query now drops the result when request rate
+  is zero (`unless on()`), and `noValue` is set to `"NO TRAFFIC"`, making an
+  idle-but-healthy daemon visually distinct from a real outage.
+- `services/live_overlay_daemon/OPS.md` documents the root cause, the code
+  fix, and the dashboard UX hardening.
+
 
 ### Changed (2026-06-24) — Benzinga RSS wiring + process metrics expansion
 
