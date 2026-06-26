@@ -232,3 +232,55 @@ def test_newsapi_refresh_workflow_keeps_fmp_and_tradingview_enabled() -> None:
     assert "--skip-benzinga" not in active_text
     assert "FMP_API_KEY" in active_text
     assert "BENZINGA_API_KEY" in active_text
+
+
+# --------------------------------------------------------------------------- #
+# Dashboard-review regression guards
+# --------------------------------------------------------------------------- #
+def test_alert_workers_degraded_and_overlay_stale_include_job_filter() -> None:
+    """All live-overlay alerts must scope to job="live_overlay"."""
+    groups = mod.load_alert_groups(ALERT_RULES)
+    required_uids = {"lo-workers-degraded", "lo-overlay-stale"}
+    rules_by_uid = {rule["uid"]: rule for group in groups for rule in group["rules"]}
+    assert required_uids <= rules_by_uid.keys()
+    for uid in required_uids:
+        expr = rules_by_uid[uid]["data"][0]["model"]["expr"]
+        assert 'job="live_overlay"' in expr, f"{uid} is missing job filter: {expr}"
+
+
+def test_alert_rules_include_tradingview_credential_age() -> None:
+    groups = mod.load_alert_groups(ALERT_RULES)
+    uids = {r["uid"] for g in groups for r in g["rules"]}
+    assert "lo-tradingview-credential-age-high" in uids
+    rule = next(
+        r for g in groups for r in g["rules"]
+        if r["uid"] == "lo-tradingview-credential-age-high"
+    )
+    expr = rule["data"][0]["model"]["expr"]
+    assert "live_overlay_tradingview_credential_age_hours" in expr
+    assert 'job="live_overlay"' in expr
+
+
+def test_alert_rules_include_ingest_queue_lag() -> None:
+    groups = mod.load_alert_groups(ALERT_RULES)
+    uids = {r["uid"] for g in groups for r in g["rules"]}
+    assert "lo-ingest-queue-lag-high" in uids
+    rule = next(
+        r for g in groups for r in g["rules"] if r["uid"] == "lo-ingest-queue-lag-high"
+    )
+    expr = rule["data"][0]["model"]["expr"]
+    assert "live_overlay_feed_ingest_queue_lag_ms_max" in expr
+    assert rule["labels"]["severity"] == "warning"
+
+
+def test_alert_rules_include_daemon_restarts_high() -> None:
+    groups = mod.load_alert_groups(ALERT_RULES)
+    uids = {r["uid"] for g in groups for r in g["rules"]}
+    assert "lo-daemon-restarts-high" in uids
+    rule = next(
+        r for g in groups for r in g["rules"] if r["uid"] == "lo-daemon-restarts-high"
+    )
+    expr = rule["data"][0]["model"]["expr"]
+    assert "increase(live_overlay_daemon_restarts_total" in expr
+    assert "[24h]" in expr
+    assert rule["labels"]["severity"] == "high"

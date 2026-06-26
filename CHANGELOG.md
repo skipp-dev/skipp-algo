@@ -22,6 +22,32 @@ All notable changes to this project are documented in this file.
   major-session gauge.
 - `tests/test_live_overlay_dashboard_contract.py` pins the panel wiring so
   the dashboard cannot regress to `live_overlay_market_us_open`.
+### Fixed (2026-06-26) — Grafana dashboard review fixes and missing alerts
+
+- `services/live_overlay_daemon/infra/grafana/dashboard.json`:
+  - **Railway Metrics Bridge** no longer filters on `== 1` inside `max()`,
+    so a disabled bridge correctly renders `0` / "DISABLED" instead of
+    dropping the series.
+  - **Market-open Request Health** (stat panel) now uses a fixed `[5m]`
+    range vector instead of `$__rate_interval`, avoiding unstable values
+    when the dashboard time range is narrow.
+  - **Bridge Scrapes**, **UptimeRobot Bridge**, and **GitHub Workflow
+    Bridge** aggregate `min`/`max` by `job` so a disabled or failing job
+    cannot be hidden behind a healthy one when `$job` is set to `All`.
+- `services/live_overlay_daemon/infra/grafana/alert-rules.yaml`:
+  - `lo-workers-degraded` and `lo-overlay-stale` now include the
+    `job="live_overlay"` selector, matching every other alert in the file.
+  - Added proactive alerts for dashboard thresholds that previously had
+    no alert coverage:
+    - `lo-tradingview-credential-age-high` (high severity when credential age
+      exceeds 72 h).
+    - `lo-ingest-queue-lag-high` (warning when max ingest queue lag
+      exceeds 5000 ms for 10 min).
+    - `lo-daemon-restarts-high` (high severity when more than 3 daemon
+      restarts occur within 24 h).
+- Added regression tests in `tests/test_live_overlay_dashboard_contract.py`
+  and `tests/test_grafana_alert_rules_upsert.py` to prevent these
+  dashboard/alert regressions from recurring.
 
 ### Fixed (2026-06-26) — Live overlay success-rate dashboard shows "NO TRAFFIC" instead of misleading 0.00 %
 

@@ -172,6 +172,8 @@ def test_update_script_fixes_bridge_scrapes_query(temp_dashboard: Path) -> None:
     expr = panel["targets"][0]["expr"]
     assert "live_overlay_uptimerobot_scrape_success" in expr
     assert "live_overlay_github_workflow_scrape_success" in expr
+    assert "min by (job)" in expr
+    assert panel["targets"][0]["legendFormat"] == "{{job}}"
     assert expr.endswith(") or vector(0)")
 
 
