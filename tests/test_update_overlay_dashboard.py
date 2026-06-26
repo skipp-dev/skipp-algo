@@ -205,6 +205,7 @@ def test_update_script_fixes_github_workflow_timeline_readability(temp_dashboard
     panel = next(p for p in data["panels"] if p.get("title") == "GitHub Workflow Status — Timeline")
     assert panel["type"] == "state-timeline"
     assert panel["gridPos"]["h"] >= 25
+    assert "gray=unknown, purple=skipped" in panel["description"]
     assert panel["options"]["showValue"] == "auto"
     defaults = panel["fieldConfig"]["defaults"]
     assert defaults["color"]["mode"] == "thresholds"

@@ -2854,7 +2854,7 @@
         },
         "overrides": []
       },
-      "description": "Colour-coded latest status of each GitHub Actions workflow over time. Every row is one named workflow ({{workflow}} legend); the cell colour encodes the run conclusion \u2014 green=success, red=failure/timed-out, orange=cancelled/action-required, blue=in-progress, yellow=queued/stale, gray=unknown/skipped. Series come from live_overlay_github_workflow_phase_code{workflow,event,workflow_id}, sampled at the daemon's GitHub workflow bridge interval (so runs shorter than one scrape interval may not appear).",
+      "description": "Colour-coded latest status of each GitHub Actions workflow over time. Every row is one named workflow ({{workflow}} legend); the cell colour encodes the run conclusion \u2014 green=success, red=failure/timed-out/startup-failure, orange=cancelled/action-required, blue=in-progress/neutral, yellow=queued/stale, gray=unknown, purple=skipped. Series come from live_overlay_github_workflow_phase_code{workflow,event,workflow_id}, sampled at the daemon's GitHub workflow bridge interval (so runs shorter than one scrape interval may not appear).",
       "datasource": {
         "type": "prometheus",
         "uid": "grafanacloud-prom"

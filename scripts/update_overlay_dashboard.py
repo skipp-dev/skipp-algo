@@ -41,6 +41,16 @@ _GITHUB_WORKFLOW_PHASE_COLORS: dict[int, tuple[str, str]] = {
 
 _GITHUB_WORKFLOW_TIMELINE_TITLE = "GitHub Workflow Status — Timeline"
 _GITHUB_WORKFLOW_TIMELINE_HEIGHT = 25
+_GITHUB_WORKFLOW_TIMELINE_DESCRIPTION = (
+    "Colour-coded latest status of each GitHub Actions workflow over time. Every row "
+    "is one named workflow ({{workflow}} legend); the cell colour encodes the run "
+    "conclusion — green=success, red=failure/timed-out/startup-failure, "
+    "orange=cancelled/action-required, blue=in-progress/neutral, "
+    "yellow=queued/stale, gray=unknown, purple=skipped. Series come from "
+    "live_overlay_github_workflow_phase_code{workflow,event,workflow_id}, sampled "
+    "at the daemon's GitHub workflow bridge interval (so runs shorter than one "
+    "scrape interval may not appear)."
+)
 
 
 # Canonical classic (v1) definition of the per-monitor UptimeRobot state-timeline
@@ -219,6 +229,9 @@ def _fix_github_workflow_timeline_panel(data: dict[str, Any]) -> bool:
         changed = True
     if panel.get("fieldConfig") != desired_field_config:
         panel["fieldConfig"] = desired_field_config
+        changed = True
+    if panel.get("description") != _GITHUB_WORKFLOW_TIMELINE_DESCRIPTION:
+        panel["description"] = _GITHUB_WORKFLOW_TIMELINE_DESCRIPTION
         changed = True
 
     new_bottom_y = old_y + _GITHUB_WORKFLOW_TIMELINE_HEIGHT
