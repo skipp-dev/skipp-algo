@@ -91,7 +91,7 @@ groups:
           - refId: A
             datasourceUid: grafanacloud-prom
             model:
-              expr: live_overlay_workers_healthy
+              expr: live_overlay_workers_healthy{job="live_overlay"}
               instant: true
           - refId: C
             datasourceUid: __expr__
@@ -115,7 +115,7 @@ groups:
           - refId: A
             datasourceUid: grafanacloud-prom
             model:
-              expr: live_overlay_overlay_age_seconds
+              expr: live_overlay_overlay_age_seconds{job="live_overlay"}
               instant: true
           - refId: C
             datasourceUid: __expr__
@@ -579,6 +579,78 @@ groups:
         annotations:
           summary: "News provider snapshot is older than 1 hour"
           runbook: "Check NEWS_SNAPSHOT_PATH producer job and file update cadence; inspect fetched_at_unix in snapshot."
+
+      - uid: lo-tradingview-credential-age-high
+        title: "TradingView credential age high"
+        condition: C
+        data:
+          - refId: A
+            datasourceUid: grafanacloud-prom
+            model:
+              expr: live_overlay_tradingview_credential_age_hours{job="live_overlay"} and on(job, instance) (live_overlay_tradingview_credential_age_known{job="live_overlay"} == 1)
+              instant: true
+          - refId: C
+            datasourceUid: __expr__
+            model:
+              type: threshold
+              conditions:
+                - evaluator: {type: gt, params: [72]}
+                  operator: {type: and}
+                  query: {params: [A]}
+        for: 5m
+        labels:
+          severity: high
+        annotations:
+          summary: "TradingView credential age > 72 h"
+          runbook: "Refresh TradingView session/cookie. Credential becomes invalid around 72-96 h."
+
+      - uid: lo-ingest-queue-lag-high
+        title: "Ingest queue lag high"
+        condition: C
+        data:
+          - refId: A
+            datasourceUid: grafanacloud-prom
+            model:
+              expr: live_overlay_feed_ingest_queue_lag_ms_max{job="live_overlay"}
+              instant: true
+          - refId: C
+            datasourceUid: __expr__
+            model:
+              type: threshold
+              conditions:
+                - evaluator: {type: gt, params: [5000]}
+                  operator: {type: and}
+                  query: {params: [A]}
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Feed ingest queue lag > 5000 ms"
+          runbook: "Ingest processor is falling behind. Check CPU, queue depth and dropped bars."
+
+      - uid: lo-daemon-restarts-high
+        title: "Daemon restarts high (24h)"
+        condition: C
+        data:
+          - refId: A
+            datasourceUid: grafanacloud-prom
+            model:
+              expr: sum(increase(live_overlay_daemon_restarts_total{job="live_overlay"}[24h]))
+              instant: true
+          - refId: C
+            datasourceUid: __expr__
+            model:
+              type: threshold
+              conditions:
+                - evaluator: {type: gt, params: [3]}
+                  operator: {type: and}
+                  query: {params: [A]}
+        for: 5m
+        labels:
+          severity: high
+        annotations:
+          summary: "More than 3 daemon restarts in the last 24 h"
+          runbook: "Check Railway deployment logs and restart_cause counters for crash loop."
 
       # ─── Container Resources: signals-producer ─────────────────────────
       - uid: sp-memory-high

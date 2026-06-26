@@ -159,3 +159,40 @@ def test_market_status_description_matches_major_session_metric() -> None:
     assert "live_overlay_market_open" in expr, expr
     assert "US regular" not in description or "Europe" in description, description
 
+
+def test_dashboard_railway_metrics_bridge_query_does_not_filter_value_inside_max() -> None:
+    """Railway Metrics Bridge must show 0 when disabled, not drop the series."""
+    dashboard = json.loads(_DASHBOARD_JSON.read_text(encoding="utf-8"))
+    panel = next(p for p in dashboard["panels"] if p.get("title") == "Railway Metrics Bridge")
+    expr = panel["targets"][0]["expr"]
+    assert "max(live_overlay_railway_metrics_enabled" in expr
+    assert "== 1" not in expr, "value selector inside max() hides the disabled state"
+    assert "or vector(0)" in expr
+
+
+def test_dashboard_market_open_request_health_uses_fixed_rate_range() -> None:
+    """stat panels must not use $__rate_interval because it depends on time range."""
+    dashboard = json.loads(_DASHBOARD_JSON.read_text(encoding="utf-8"))
+    panel = next(p for p in dashboard["panels"] if p.get("title") == "Market-open Request Health")
+    expr = panel["targets"][0]["expr"]
+    assert "$__rate_interval" not in expr, "stat panel must use a fixed range vector"
+    assert "[5m]" in expr
+
+
+def test_dashboard_bridge_scrapes_aggregates_by_job() -> None:
+    """Bridge Scrapes should not hide a disabled job behind a global min()."""
+    dashboard = json.loads(_DASHBOARD_JSON.read_text(encoding="utf-8"))
+    panel = next(p for p in dashboard["panels"] if p.get("title") == "Bridge Scrapes")
+    expr = panel["targets"][0]["expr"]
+    assert "min by (job)" in expr
+    assert panel["targets"][0]["legendFormat"] == "{{job}}"
+
+
+def test_dashboard_bridge_state_panels_aggregate_by_job() -> None:
+    """Bridge state panels must expose per-job state, not global max()."""
+    dashboard = json.loads(_DASHBOARD_JSON.read_text(encoding="utf-8"))
+    for title in ("UptimeRobot Bridge", "GitHub Workflow Bridge"):
+        panel = next(p for p in dashboard["panels"] if p.get("title") == title)
+        expr = panel["targets"][0]["expr"]
+        assert "max by (job)" in expr, f"{title} should aggregate by job"
+        assert panel["targets"][0]["legendFormat"] == "{{job}}", f"{title} should label per job"
