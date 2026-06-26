@@ -332,3 +332,9 @@ def test_is_valid_service_url() -> None:
     assert compute._is_valid_service_url("   ") is False
     assert compute._is_valid_service_url("") is False
     assert compute._is_valid_service_url("ftp://host") is False
+    # Reject suffix-only matches that would allow external hosts to spoof the
+    # private Railway network.
+    assert compute._is_valid_service_url("evil.railway.internal.attacker.com") is False
+    assert compute._is_valid_service_url("http://evil.railway.internal.attacker.com") is False
+    assert compute._is_valid_service_url("railway.internal") is False
+    assert compute._is_valid_service_url("http://railway.internal") is False
