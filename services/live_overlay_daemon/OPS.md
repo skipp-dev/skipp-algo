@@ -136,6 +136,8 @@ name = "smc-live-overlay"
 | `SIGNALS_SNAPSHOT_PATH` | no | — | Local realtime-signals snapshot path |
 | `SIGNALS_SNAPSHOT_URL` | no | — | Optional HTTPS URL for realtime-signals snapshot |
 | `SIGNALS_SNAPSHOT_URL_TOKEN` | no | — | Optional bearer token for `SIGNALS_SNAPSHOT_URL` |
+| `SIGNALS_SERVICE_URL` | no | — | Internal Railway hostname/URL of `smc-signals-producer`; takes precedence |
+| `SIGNALS_INTERNAL_TOKEN` | no | — | Bearer token used when calling `SIGNALS_SERVICE_URL` |
 | `OVERLAY_SIGNALS_CACHE_TTL_SECS` | no | — | Signals snapshot cache TTL |
 | `OVERLAY_SIGNALS_MAX_AGE_SECS` | no | — | Signals staleness threshold |
 | `EXPERIMENT_SNAPSHOT_PATH` | no | `artifacts/live_overlay/plan_2_8_tf_family_rollup.json` | Local daily experiment rollup snapshot path |
@@ -206,6 +208,13 @@ matching `*_SNAPSHOT_URL` / `*_HISTORY_URL` to consume those instead.
 same step so they do not leak into later jobs/artifacts.
 
 The `*_URL` form is `https://api.github.com/repos/skippALGO/skipp-algo/contents/<stable-path>?ref=<bot-branch>` with a fine-grained PAT (`Contents: Read`, repo `skipp-algo` only) in the matching `*_URL_TOKEN`.
+
+**Realtime signals on Railway are fetched live from `smc-signals-producer`.**
+Set `SIGNALS_SERVICE_URL` to the Railway private hostname/URL and
+`SIGNALS_INTERNAL_TOKEN` to the producer bearer token. The daemon calls the
+producer's `/signals.json` endpoint first and only falls back to
+`SIGNALS_SNAPSHOT_URL` / `SIGNALS_SNAPSHOT_PATH` when the producer is
+unreachable or unconfigured.
 
 **Realtime signals have no CI producer.** `latest_realtime_signals.json` is
 written only by `open_prep/realtime_signals.py` on the live trading host. Run

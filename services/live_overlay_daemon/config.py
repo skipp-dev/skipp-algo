@@ -194,6 +194,27 @@ def signals_snapshot_url_token() -> str:
     return _optional_str("SIGNALS_SNAPSHOT_URL_TOKEN", "")
 
 
+def signals_service_url() -> str:
+    """Optional internal URL of the smc-signals-producer service.
+
+    When set, :func:`services.live_overlay_daemon.compute._load_signals_snapshot`
+    fetches live A0/A1 signals directly from the producer over the Railway
+    private network before falling back to :func:`signals_snapshot_url` or
+    :func:`signals_snapshot_path`. Example value:
+    ``smc-signals-producer.railway.internal``.
+    """
+    return _optional_str("SIGNALS_SERVICE_URL", "")
+
+
+def signals_internal_token() -> str:
+    """Bearer token used when calling :func:`signals_service_url`.
+
+    Sent as ``Authorization: Bearer <token>``. Must match the token the
+    producer requires for its ``/signals.json`` endpoint.
+    """
+    return _optional_str("SIGNALS_INTERNAL_TOKEN", "")
+
+
 def signals_cache_ttl_secs() -> int:
     return _clamped_int("OVERLAY_SIGNALS_CACHE_TTL_SECS", 120, 30, 1800)
 

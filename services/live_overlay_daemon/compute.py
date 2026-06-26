@@ -64,9 +64,10 @@ _NEWS_USER_AGENT = "live-overlay-daemon-news/1"
 # ---------------------------------------------------------------------------
 # The realtime engine (open_prep/realtime_signals.py) writes its active A0/A1
 # breakout signals to ``artifacts/open_prep/latest/latest_realtime_signals.json``.
-# The daemon ingests that snapshot (locally or, when SIGNALS_SNAPSHOT_URL is
-# set, over https) purely to surface it as Prometheus metrics for Grafana; it
-# never produces or mutates signals.
+# The daemon ingests that snapshot (locally, when SIGNALS_SNAPSHOT_URL is set
+# over https, or — on Railway — directly from smc-signals-producer via
+# SIGNALS_SERVICE_URL) purely to surface it as Prometheus metrics for Grafana;
+# it never produces or mutates signals.
 
 _signals_cache: dict[str, Any] = {}
 _signals_loaded_at: float = 0.0
@@ -317,13 +318,89 @@ def _fetch_signals_url(
     )
 
 
+def _is_valid_service_url(url: str) -> bool:
+    """Return ``True`` iff ``url`` is an acceptable producer service base.
+
+    Internal Railway hostnames such as ``smc-signals-producer.railway.internal``
+    may be passed as a bare host or plain ``http://`` URL. These are plain http
+    inside the private network, so the stricter https-only guard used for
+    public ``*_URL`` snapshots does not apply here. Plain ``http://`` and bare
+    hostnames are accepted only for ``*.railway.internal`` hosts; all other
+    URLs must use ``https://``.
+    """
+    if not url:
+        return False
+    stripped = url.strip()
+    if not stripped:
+        return False
+    lower = stripped.lower()
+    if lower.startswith("https://"):
+        return True
+    if lower.startswith("http://"):
+        # Restrict plain HTTP to the Railway private network.
+        host = urllib.parse.urlsplit(stripped).hostname or ""
+        return host.lower().endswith(".railway.internal")
+    # Bare hostname/path: only Railway private-network hostnames are accepted.
+    parsed = urllib.parse.urlsplit("http://" + stripped)
+    host = parsed.hostname or ""
+    return host.lower().endswith(".railway.internal")
+
+
+def _signals_service_url_to_full(base: str) -> str:
+    """Turn a host or base path into the producer ``/signals.json`` endpoint."""
+    base = base.strip().rstrip("/")
+    if "//" in base:
+        return f"{base}/signals.json"
+    return f"http://{base}/signals.json"
+
+
+def _fetch_signals_service(
+    base: str, token: str, timeout: float = 10.0
+) -> dict[str, Any] | None:
+    """Fetch the realtime-signals snapshot JSON from the internal producer.
+
+    ``base`` may be a full URL (``http://host:port``) or just a hostname/path.
+    Returns the parsed dict on success or ``None`` on any failure so the caller
+    can fall back to ``SIGNALS_SNAPSHOT_URL`` / ``SIGNALS_SNAPSHOT_PATH``.
+    """
+    if not _is_valid_service_url(base):
+        logger.warning(
+            "SIGNALS_SERVICE_URL must be a non-empty http(s) host or URL; ignoring %r",
+            base,
+        )
+        return None
+    url = _signals_service_url_to_full(base)
+    headers = {"Accept": "application/json", "User-Agent": _SIGNALS_USER_AGENT}
+    if token:
+        headers["Authorization"] = f"Bearer {token}"
+    req = urllib.request.Request(url, headers=headers)
+    try:
+        with urllib.request.urlopen(req, timeout=timeout) as resp:
+            payload = resp.read()
+        raw = json.loads(payload)
+    except (urllib.error.URLError, TimeoutError, ValueError, OSError):
+        logger.warning(
+            "Failed to fetch signals snapshot from producer %s", base, exc_info=True
+        )
+        return None
+    return raw if isinstance(raw, dict) else None
+
+
 def _load_signals_snapshot() -> dict[str, Any]:
     """Return the latest realtime trading-signals snapshot as a dict.
 
-    Mirrors :func:`_load_news_snapshot`: a runtime ``SIGNALS_SNAPSHOT_URL`` (when
-    set) takes precedence, otherwise the local ``signals_snapshot_path`` file is
-    read. All reads are TTL-rate-limited so a missing/corrupt file cannot cause
-    a read/log storm. Returns ``{}`` when no snapshot is available.
+    Resolution order:
+
+    1. If ``SIGNALS_SERVICE_URL`` is set, fetch live signals directly from the
+       internal smc-signals-producer service over the Railway private network.
+    2. If ``SIGNALS_SNAPSHOT_URL`` is set, fetch the snapshot from that public
+       https URL.
+    3. Otherwise read the local ``signals_snapshot_path`` file.
+
+    All reads are TTL-rate-limited so a missing/corrupt source cannot cause a
+    read/log storm. A successful producer/URL fetch is persisted to the local
+    snapshot path as a write-through cache. Returns ``{}`` when no snapshot is
+    available.
     """
     global _signals_cache, _signals_loaded_at, _signals_checked_at
     with _signals_lock:
@@ -342,6 +419,20 @@ def _load_signals_snapshot() -> dict[str, Any]:
             return dict(_signals_cache)
 
         _signals_checked_at = now
+
+        service_base = config.signals_service_url()
+        if service_base:
+            fetched = _fetch_signals_service(
+                service_base, config.signals_internal_token()
+            )
+            if fetched is not None:
+                _signals_cache = fetched
+                _signals_loaded_at = now
+                _persist_snapshot(
+                    config.signals_snapshot_path(),
+                    json.dumps(fetched, separators=(",", ":")),
+                )
+                return dict(_signals_cache)
 
         url = config.signals_snapshot_url()
         if url:

@@ -79,3 +79,21 @@ class TestLoadEnvDoesNotOverwritePresetVars:
         import services.live_overlay_daemon.config as cfg
         with patch("services.live_overlay_daemon.config._ENV_FILE", nonexistent):
             cfg._load_env()  # must not raise
+
+
+class TestSignalsServiceConfig:
+    """SIGNALS_SERVICE_URL / SIGNALS_INTERNAL_TOKEN are read lazily from env."""
+
+    def test_signals_service_config_defaults_to_empty(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        monkeypatch.delenv("SIGNALS_SERVICE_URL", raising=False)
+        monkeypatch.delenv("SIGNALS_INTERNAL_TOKEN", raising=False)
+        cfg = _import_config_fresh()
+        assert cfg.signals_service_url() == ""
+        assert cfg.signals_internal_token() == ""
+
+    def test_signals_service_config_reads_env(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        monkeypatch.setenv("SIGNALS_SERVICE_URL", "smc-signals-producer.railway.internal")
+        monkeypatch.setenv("SIGNALS_INTERNAL_TOKEN", "railway-token")
+        cfg = _import_config_fresh()
+        assert cfg.signals_service_url() == "smc-signals-producer.railway.internal"
+        assert cfg.signals_internal_token() == "railway-token"

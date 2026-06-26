@@ -236,3 +236,99 @@ def test_fetch_experiment_url_does_not_match_query_string_substrings(monkeypatch
 
     assert body == '{"ok": true}'
     assert captured_headers.get("Accept") == "application/json"
+
+
+# ---------------------------------------------------------------------------
+# smc-signals-producer direct-service fetch tests
+# ---------------------------------------------------------------------------
+
+
+def test_signals_service_fetch_takes_precedence_and_writes_through(
+    tmp_path, monkeypatch
+) -> None:
+    """When SIGNALS_SERVICE_URL is set, the producer is consulted first."""
+    dest = tmp_path / "signals.json"
+    payload = {"signals": [{"symbol": "AAPL", "level": "A1"}], "signal_count": 1}
+
+    captured: list[tuple[str, str]] = []
+
+    def _fake_fetch_service(base: str, token: str, timeout: float = 10.0):
+        captured.append((base, token))
+        return dict(payload)
+
+    monkeypatch.setattr(compute.config, "signals_service_url", lambda: "smc-signals-producer.railway.internal")
+    monkeypatch.setattr(compute.config, "signals_internal_token", lambda: "secret-token")
+    monkeypatch.setattr(compute.config, "signals_snapshot_url", lambda: "https://example.test/signals")
+    monkeypatch.setattr(compute.config, "signals_snapshot_path", lambda: dest)
+    monkeypatch.setattr(compute, "_fetch_signals_service", _fake_fetch_service)
+    # Make the public URL fail loudly if it were ever reached.
+    def _fail_if_public_url_reached(url: str, token: str, **kw):
+        raise AssertionError("public URL path should not be reached when producer succeeds")
+    monkeypatch.setattr(compute, "_fetch_signals_url", _fail_if_public_url_reached)
+
+    result = compute._load_signals_snapshot()
+
+    assert result == payload
+    assert captured == [("smc-signals-producer.railway.internal", "secret-token")]
+    assert dest.exists()
+    assert json.loads(dest.read_text(encoding="utf-8")) == payload
+
+
+def test_signals_service_fetch_falls_back_to_url(tmp_path, monkeypatch) -> None:
+    """A failing producer fetch falls back to SIGNALS_SNAPSHOT_URL."""
+    dest = tmp_path / "signals.json"
+    payload = {"signals": [{"symbol": "TSLA", "level": "A0"}], "signal_count": 1}
+
+    monkeypatch.setattr(compute.config, "signals_service_url", lambda: "smc-signals-producer.railway.internal")
+    monkeypatch.setattr(compute.config, "signals_internal_token", lambda: "")
+    monkeypatch.setattr(compute.config, "signals_snapshot_url", lambda: "https://example.test/signals")
+    monkeypatch.setattr(compute.config, "signals_snapshot_path", lambda: dest)
+    monkeypatch.setattr(compute, "_fetch_signals_service", lambda base, token, **kw: None)
+    monkeypatch.setattr(compute, "_fetch_signals_url", lambda url, token, **kw: dict(payload))
+
+    result = compute._load_signals_snapshot()
+
+    assert result == payload
+    assert dest.exists()
+
+
+def test_signals_service_fetch_falls_back_to_path(tmp_path, monkeypatch) -> None:
+    """A failing producer fetch with no URL falls back to the local path."""
+    dest = tmp_path / "signals.json"
+    payload = {"signals": [{"symbol": "NVDA", "level": "A1"}], "signal_count": 1}
+    dest.write_text(json.dumps(payload), encoding="utf-8")
+
+    monkeypatch.setattr(compute.config, "signals_service_url", lambda: "smc-signals-producer.railway.internal")
+    monkeypatch.setattr(compute.config, "signals_internal_token", lambda: "")
+    monkeypatch.setattr(compute.config, "signals_snapshot_url", lambda: "")
+    monkeypatch.setattr(compute.config, "signals_snapshot_path", lambda: dest)
+    monkeypatch.setattr(compute, "_fetch_signals_service", lambda base, token, **kw: None)
+
+    result = compute._load_signals_snapshot()
+
+    assert result == payload
+
+
+def test_signals_service_url_to_full_with_host_and_url() -> None:
+    assert compute._signals_service_url_to_full("smc-signals-producer.railway.internal") == (
+        "http://smc-signals-producer.railway.internal/signals.json"
+    )
+    assert compute._signals_service_url_to_full("http://producer:8080") == (
+        "http://producer:8080/signals.json"
+    )
+    assert compute._signals_service_url_to_full("https://producer/path/") == (
+        "https://producer/path/signals.json"
+    )
+
+
+def test_is_valid_service_url() -> None:
+    assert compute._is_valid_service_url("smc-signals-producer.railway.internal") is True
+    assert compute._is_valid_service_url("smc-signals-producer.railway.internal:8080") is True
+    assert compute._is_valid_service_url("http://smc-signals-producer.railway.internal") is True
+    assert compute._is_valid_service_url("http://host") is False
+    assert compute._is_valid_service_url("http://example.com") is False
+    assert compute._is_valid_service_url("https://host") is True
+    assert compute._is_valid_service_url("example.com") is False
+    assert compute._is_valid_service_url("   ") is False
+    assert compute._is_valid_service_url("") is False
+    assert compute._is_valid_service_url("ftp://host") is False
