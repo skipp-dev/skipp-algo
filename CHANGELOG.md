@@ -5,6 +5,24 @@
 All notable changes to this project are documented in this file.
 
 ## [Unreleased]
+### Fixed (2026-06-26) — Live overlay dashboard market-open wiring and no-traffic UX
+
+- `services/live_overlay_daemon/infra/grafana/dashboard.json`
+  - **Market-open Request Health** panel now uses `live_overlay_market_open`
+    (any major session: US or Europe) instead of `live_overlay_market_us_open`.
+    The previous wiring showed `MARKET_CLOSED` during the European pre-US
+    session even though the daemon was active.
+  - The panel PromQL was simplified to a single, consistently filtered
+    expression so multi-select `$job` values do not create mismatched series.
+  - **Market Status** panel description corrected from "US regular trading
+    session" to "Major session state (US regular or Europe regular)" to match
+    the metric it already displays.
+- `services/live_overlay_daemon/OPS.md` documents the corrected
+  Market-open Request Health expression and the rationale for using the
+  major-session gauge.
+- `tests/test_live_overlay_dashboard_contract.py` pins the panel wiring so
+  the dashboard cannot regress to `live_overlay_market_us_open`.
+
 ### Fixed (2026-06-26) — Live overlay success-rate dashboard shows "NO TRAFFIC" instead of misleading 0.00 %
 
 - `services/live_overlay_daemon/metrics.py` seeds traffic counters
