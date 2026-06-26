@@ -904,6 +904,21 @@ def render_metrics(startup_ts: float) -> str:
     with observability._counter_lock:
         counters = dict(observability._counters)
 
+    # Traffic counters are incremented in main.py. After a fresh start or when
+    # no requests arrive, the in-process counter dict does not yet contain
+    # them, which causes Prometheus rate() queries in the dashboard to return
+    # "No data". Seed them as 0.0 so the series are always scraped.
+    for traffic_counter in (
+        "live_overlay.smc_live_requests.total",
+        "live_overlay.smc_live_success.total",
+        "live_overlay.smc_live_errors.total",
+        "live_overlay.smc_live_auth.denied",
+        "live_overlay.smc_live_bad_tf.total",
+        "live_overlay.smc_live_cache_miss.total",
+        "live_overlay.smc_live_stale_served.total",
+    ):
+        counters.setdefault(traffic_counter, 0.0)
+
     for name, value in sorted(counters.items()):
         prom_name = _sanitize_name(name)
         lines.append(f"# TYPE {prom_name} counter")
