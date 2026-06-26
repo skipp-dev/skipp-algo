@@ -319,17 +319,31 @@ def _fetch_signals_url(
 
 
 def _is_valid_service_url(url: str) -> bool:
-    """Return ``True`` iff ``url`` is a non-empty http(s) URL or host.
+    """Return ``True`` iff ``url`` is an acceptable producer service base.
 
     Internal Railway hostnames such as ``smc-signals-producer.railway.internal``
-    are plain http inside the private network, so the stricter https-only guard
-    used for public ``*_URL`` snapshots does not apply here.
+    may be passed as a bare host or plain ``http://`` URL. These are plain http
+    inside the private network, so the stricter https-only guard used for
+    public ``*_URL`` snapshots does not apply here. Plain ``http://`` and bare
+    hostnames are accepted only for ``*.railway.internal`` hosts; all other
+    URLs must use ``https://``.
     """
     if not url:
         return False
-    if "//" in url:
-        return url.lower().startswith(("http://", "https://"))
-    return True
+    stripped = url.strip()
+    if not stripped:
+        return False
+    lower = stripped.lower()
+    if lower.startswith("https://"):
+        return True
+    if lower.startswith("http://"):
+        # Restrict plain HTTP to the Railway private network.
+        host = urllib.parse.urlsplit(stripped).hostname or ""
+        return host.lower().endswith(".railway.internal")
+    # Bare hostname/path: only Railway private-network hostnames are accepted.
+    parsed = urllib.parse.urlsplit("http://" + stripped)
+    host = parsed.hostname or ""
+    return host.lower().endswith(".railway.internal")
 
 
 def _signals_service_url_to_full(base: str) -> str:

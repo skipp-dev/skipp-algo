@@ -210,7 +210,7 @@ def signals_internal_token() -> str:
     """Bearer token used when calling :func:`signals_service_url`.
 
     Sent as ``Authorization: Bearer <token>``. Must match the token the
-    producer requires for its ``/signals`` endpoint.
+    producer requires for its ``/signals.json`` endpoint.
     """
     return _optional_str("SIGNALS_INTERNAL_TOKEN", "")
 

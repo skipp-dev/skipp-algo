@@ -190,10 +190,13 @@ _FROZEN_URLOPEN_SITES: frozenset[tuple[str, int]] = frozenset(
         # reducing four urlopen sites to two while preserving timeout discipline.
         # Remaining compute.py urlopen sites:
         #   * shared JSON helper for runtime snapshots (https-only)
+        #   * producer-first signals-service fetcher (http://*.railway.internal)
         #   * experiment text fetcher (rollup/history) with GitHub-contents
         #     Accept-header hardening via parsed URL checks.
-        ("services/live_overlay_daemon/compute.py", 229),
-        ("services/live_overlay_daemon/compute.py", 479),
+        # 2026-06-26 (PR #2962): shifted/expanded by the producer client.
+        ("services/live_overlay_daemon/compute.py", 230),
+        ("services/live_overlay_daemon/compute.py", 378),
+        ("services/live_overlay_daemon/compute.py", 570),
         # 2026-06-24: Railway GraphQL API bridge for container metrics polling;
         # fixed https endpoint (backboard.railway.com), explicit timeout discipline.
         ("services/live_overlay_daemon/railway_metrics.py", 85),

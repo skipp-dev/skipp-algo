@@ -81,7 +81,6 @@ class TestLoadEnvDoesNotOverwritePresetVars:
             cfg._load_env()  # must not raise
 
 
-
 class TestSignalsServiceConfig:
     """SIGNALS_SERVICE_URL / SIGNALS_INTERNAL_TOKEN are read lazily from env."""
 

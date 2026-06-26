@@ -262,7 +262,9 @@ def test_signals_service_fetch_takes_precedence_and_writes_through(
     monkeypatch.setattr(compute.config, "signals_snapshot_path", lambda: dest)
     monkeypatch.setattr(compute, "_fetch_signals_service", _fake_fetch_service)
     # Make the public URL fail loudly if it were ever reached.
-    monkeypatch.setattr(compute, "_fetch_signals_url", lambda url, token, **kw: None)
+    def _fail_if_public_url_reached(url: str, token: str, **kw):
+        raise AssertionError("public URL path should not be reached when producer succeeds")
+    monkeypatch.setattr(compute, "_fetch_signals_url", _fail_if_public_url_reached)
 
     result = compute._load_signals_snapshot()
 
@@ -321,7 +323,12 @@ def test_signals_service_url_to_full_with_host_and_url() -> None:
 
 def test_is_valid_service_url() -> None:
     assert compute._is_valid_service_url("smc-signals-producer.railway.internal") is True
-    assert compute._is_valid_service_url("http://host") is True
+    assert compute._is_valid_service_url("smc-signals-producer.railway.internal:8080") is True
+    assert compute._is_valid_service_url("http://smc-signals-producer.railway.internal") is True
+    assert compute._is_valid_service_url("http://host") is False
+    assert compute._is_valid_service_url("http://example.com") is False
     assert compute._is_valid_service_url("https://host") is True
+    assert compute._is_valid_service_url("example.com") is False
+    assert compute._is_valid_service_url("   ") is False
     assert compute._is_valid_service_url("") is False
     assert compute._is_valid_service_url("ftp://host") is False
