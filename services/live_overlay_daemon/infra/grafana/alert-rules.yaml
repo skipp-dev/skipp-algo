@@ -223,7 +223,7 @@ groups:
           - refId: A
             datasourceUid: grafanacloud-prom
             model:
-              expr: rate(live_overlay_feed_bento_errors[5m])
+              expr: rate(live_overlay_feed_bento_errors{job="live_overlay"}[5m])
               instant: true
           - refId: C
             datasourceUid: __expr__
@@ -319,12 +319,12 @@ groups:
           - refId: A
             datasourceUid: grafanacloud-prom
             model:
-              expr: "(1 - (sum(rate(live_overlay_smc_live_success_total{job=\"live_overlay\"}[5m])) / clamp_min(sum(rate(live_overlay_smc_live_requests_total{job=\"live_overlay\"}[5m])), 1e-9))) / 0.01"
+              expr: "(sum(rate(live_overlay_smc_live_errors_total{job=\"live_overlay\"}[5m])) / clamp_min(sum(rate(live_overlay_smc_live_requests_total{job=\"live_overlay\"}[5m])), 1e-9)) / 0.01"
               instant: true
           - refId: B
             datasourceUid: grafanacloud-prom
             model:
-              expr: "(1 - (sum(rate(live_overlay_smc_live_success_total{job=\"live_overlay\"}[1h])) / clamp_min(sum(rate(live_overlay_smc_live_requests_total{job=\"live_overlay\"}[1h])), 1e-9))) / 0.01"
+              expr: "(sum(rate(live_overlay_smc_live_errors_total{job=\"live_overlay\"}[1h])) / clamp_min(sum(rate(live_overlay_smc_live_requests_total{job=\"live_overlay\"}[1h])), 1e-9)) / 0.01"
               instant: true
           - refId: C
             datasourceUid: __expr__
@@ -335,7 +335,7 @@ groups:
         labels:
           severity: critical
         annotations:
-          summary: "SLO error rate is critically high on both 5m and 1h windows"
+          summary: "SLO error budget burn rate is critically high on both 5m and 1h windows"
           runbook: "Inspect error mix, latency p95/p99, and freshness timeline; mitigate request failures immediately."
 
       - uid: lo-error-budget-burn-warning
@@ -345,12 +345,12 @@ groups:
           - refId: A
             datasourceUid: grafanacloud-prom
             model:
-              expr: "(1 - (sum(rate(live_overlay_smc_live_success_total{job=\"live_overlay\"}[5m])) / clamp_min(sum(rate(live_overlay_smc_live_requests_total{job=\"live_overlay\"}[5m])), 1e-9))) / 0.01"
+              expr: "(sum(rate(live_overlay_smc_live_errors_total{job=\"live_overlay\"}[5m])) / clamp_min(sum(rate(live_overlay_smc_live_requests_total{job=\"live_overlay\"}[5m])), 1e-9)) / 0.01"
               instant: true
           - refId: B
             datasourceUid: grafanacloud-prom
             model:
-              expr: "(1 - (sum(rate(live_overlay_smc_live_success_total{job=\"live_overlay\"}[1h])) / clamp_min(sum(rate(live_overlay_smc_live_requests_total{job=\"live_overlay\"}[1h])), 1e-9))) / 0.01"
+              expr: "(sum(rate(live_overlay_smc_live_errors_total{job=\"live_overlay\"}[1h])) / clamp_min(sum(rate(live_overlay_smc_live_requests_total{job=\"live_overlay\"}[1h])), 1e-9)) / 0.01"
               instant: true
           - refId: C
             datasourceUid: __expr__
@@ -361,7 +361,7 @@ groups:
         labels:
           severity: warning
         annotations:
-          summary: "SLO error rate is elevated on both 5m and 1h windows"
+          summary: "SLO error budget burn rate is elevated on both 5m and 1h windows"
           runbook: "Check request success rate trend and investigate recent failure-type spikes before critical threshold is reached."
 
       - uid: lo-latency-p99-high
