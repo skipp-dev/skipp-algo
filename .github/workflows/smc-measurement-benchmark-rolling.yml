@@ -58,11 +58,14 @@ on:
         default: "5m,10m,15m,30m,1H,4H,1D"
 
 permissions:
-  contents: read
-  # Required by the restore step below: it calls the GitHub Actions REST API
-  # to enumerate and download producer artifacts by id. Without `actions: read`
-  # the cross-workflow pull fails with `Resource not accessible by integration`
-  # (403). Matches the permissions block in smc-library-refresh.yml.
+  # WF-AUTH-1 (2026-06-26): the rolling benchmark must both (a) read cross-
+  # workflow artifacts from the canonical producer via the GitHub Actions REST
+  # API and (b) force-update the bot/live-experiment-snapshot branch so the
+  # Grafana experiment daemon sees fresh rollups. `contents: write` is required
+  # for the push; `actions: read` is required for artifact listing/download.
+  # Using github.token instead of a PAT avoids runtime downscoping and keeps
+  # the permission model explicit.
+  contents: write
   actions: read
 
 concurrency:
@@ -83,6 +86,9 @@ jobs:
     timeout-minutes: 5
     permissions:
       contents: read
+      # WF-AUTH-1: runner inventory query uses the repo-level Actions runners
+      # REST endpoint; `actions: read` is required.
+      actions: read
     outputs:
       runs_on_json: ${{ steps.resolve.outputs.runs_on_json }}
       runner_environment: ${{ steps.resolve.outputs.runner_environment }}
@@ -98,7 +104,7 @@ jobs:
       - name: Resolve worker runner
         id: resolve
         env:
-          GH_TOKEN: ${{ secrets.GH_PAT != '' && secrets.GH_PAT || github.token }}
+          GH_TOKEN: ${{ github.token }}
           SMC_FORCE_GH_HOSTED: ${{ vars.SMC_FORCE_GH_HOSTED }}
         run: |
           # The rolling benchmark is an off-hours batch workload, so it
@@ -206,7 +212,7 @@ jobs:
       - name: Restore Databento production export bundle (today + fallback with retry)
         id: restore_export_bundle
         env:
-          GH_TOKEN: ${{ secrets.GH_PAT != '' && secrets.GH_PAT || github.token }}
+          GH_TOKEN: ${{ github.token }}
           RUN_DATE: ${{ steps.meta.outputs.run_date }}
         run: |
           set -euo pipefail
@@ -451,18 +457,9 @@ jobs:
         # has to track the dated run directory.
         if: always()
         env:
-          GH_TOKEN: ${{ secrets.GH_PAT }}
+          GH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
-          if [ -z "${GH_TOKEN:-}" ]; then
-            echo "::warning::GH_PAT is not configured; skipping publish to bot/live-experiment-snapshot to avoid deterministic push failure with read-only github.token."
-            {
-              echo "### ⚠ experiment snapshot publish skipped"
-              echo ""
-              echo "GH_PAT is not configured for this run. The benchmark artifact uploaded, but bot/live-experiment-snapshot was not updated."
-            } >> "$GITHUB_STEP_SUMMARY"
-            exit 0
-          fi
           out_dir="${{ steps.meta.outputs.out_dir }}"
           rollup="${out_dir}/plan_2_8_tf_family_rollup.json"
           history="${out_dir}/plan_2_8_history.jsonl"
