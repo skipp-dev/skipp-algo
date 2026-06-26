@@ -162,3 +162,39 @@ def test_all_panel_queries_have_balanced_parentheses(temp_dashboard: Path) -> No
             if not expr:
                 continue
             assert expr.count("(") == expr.count(")"), f"Unbalanced parentheses in {panel['title']!r}: {expr[:200]}"
+
+
+
+def test_update_script_fixes_bridge_scrapes_query(temp_dashboard: Path) -> None:
+    """Bridge Scrapes should ignore unconfigured bridges, not treat them as failures."""
+    _run_script(temp_dashboard)
+    data = json.loads(temp_dashboard.read_text(encoding="utf-8"))
+    panel = next(p for p in data["panels"] if p.get("title") == "Bridge Scrapes")
+    expr = panel["targets"][0]["expr"]
+    assert "live_overlay_uptimerobot_scrape_success" in expr
+    assert "live_overlay_github_workflow_scrape_success" in expr
+    assert expr.endswith(") or vector(0)")
+
+
+def test_update_script_fixes_bridge_error_panels(temp_dashboard: Path) -> None:
+    """Bridge error panels must not count the healthy error_code="none" series."""
+    _run_script(temp_dashboard)
+    data = json.loads(temp_dashboard.read_text(encoding="utf-8"))
+    for title in ("UptimeRobot Bridge Error", "GitHub Workflow Bridge Error"):
+        panel = next(p for p in data["panels"] if p.get("title") == title)
+        expr = panel["targets"][0]["expr"]
+        assert 'error_code!="none"' in expr, f"{title}: {expr[:200]}"
+
+
+def test_update_script_adds_railway_status_panels(temp_dashboard: Path) -> None:
+    """Railway row should expose bridge status, snapshot age, and error class."""
+    _run_script(temp_dashboard)
+    data = json.loads(temp_dashboard.read_text(encoding="utf-8"))
+    titles = {p.get("title") for p in data["panels"]}
+    assert "Railway Metrics Bridge" in titles
+    assert "Railway Metrics Snapshot Age" in titles
+    assert "Railway Metrics Error" in titles
+
+    bridge = next(p for p in data["panels"] if p.get("title") == "Railway Metrics Bridge")
+    assert "live_overlay_railway_metrics_enabled" in bridge["targets"][0]["expr"]
+

@@ -109,7 +109,7 @@ def _load_dashboard(dashboard_path: Path) -> dict[str, Any]:
 
 
 def _save_dashboard(dashboard_path: Path, data: dict[str, Any]) -> None:
-    payload = json.dumps(data, indent=2, ensure_ascii=False) + "\n"
+    payload = json.dumps(data, indent=2, ensure_ascii=True) + "\n"
     dashboard_path.parent.mkdir(parents=True, exist_ok=True)
     fd, tmp_path = tempfile.mkstemp(
         prefix=f"{dashboard_path.name}.",
@@ -240,6 +240,174 @@ def _apply_stat_consistency(panel: dict[str, Any]) -> None:
     _desaturate_thresholds(panel)
 
 
+def _fix_bridge_scrapes_panel(data: dict[str, Any]) -> bool:
+    """Make the global bridge-scrape stat ignore unconfigured bridges.
+
+    The previous query used `or vector(0)` inside `min()`, so a bridge that
+    was not enabled on any instance forced the panel to 0 (ERROR). By moving
+    the fallback outside `min()`, only actually configured bridges vote.
+    """
+    changed = False
+    for panel in _iter_v1_panels(data):
+        if panel.get("title") != "Bridge Scrapes":
+            continue
+        for target in panel.get("targets", []):
+            expr = target.get("expr", "")
+            if "live_overlay_uptimerobot_scrape_success" not in expr:
+                continue
+            new_expr = (
+                "min(\n"
+                '  live_overlay_uptimerobot_scrape_success{job=~"$job"} or\n'
+                '  live_overlay_github_workflow_scrape_success{job=~"$job"}\n'
+                ") or vector(0)"
+            )
+            if expr != new_expr:
+                target["expr"] = new_expr
+                changed = True
+    return changed
+
+
+def _fix_bridge_error_panels(data: dict[str, Any]) -> bool:
+    """Ensure bridge error panels only count real error codes.
+
+    The metrics emit `error_code="none"` with value 0 when the scrape
+    succeeds; without the filter the panel shows ERROR for the healthy case.
+    """
+    changed = False
+    title_to_metric = {
+        "UptimeRobot Bridge Error": "live_overlay_uptimerobot_scrape_error_info",
+        "GitHub Workflow Bridge Error": "live_overlay_github_workflow_scrape_error_info",
+    }
+    for panel in _iter_v1_panels(data):
+        metric = title_to_metric.get(panel.get("title", ""))
+        if not metric:
+            continue
+        for target in panel.get("targets", []):
+            expr = target.get("expr", "")
+            if metric not in expr or 'error_code!="none"' in expr:
+                continue
+            target["expr"] = f'max({metric}{{job=~"$job",error_code!="none"}} or vector(0))'
+            changed = True
+    return changed
+
+
+def _ensure_railway_status_panels(data: dict[str, Any]) -> bool:
+    """Add status/age/error panels to the Railway row so operators can tell
+    whether Railway metrics are enabled/reachable before interpreting "No data".
+
+    Existing Railway resource panels are shifted down by one row (h=3) to make
+    room for the new status strip.
+    """
+    panels = data.get("panels", [])
+    titles = {p.get("title") for p in _iter_v1_panels(data)}
+    if "Railway Metrics Bridge" in titles:
+        return False
+
+    row_index: int | None = None
+    for i, panel in enumerate(panels):
+        if panel.get("title") == "Railway Resources" and panel.get("type") == "row":
+            row_index = i
+            break
+    if row_index is None:
+        return False
+
+    row_y = panels[row_index].get("gridPos", {}).get("y", 257)
+    status_y = row_y + 1
+
+    # Shift every panel at or below the Railway row down by 3 units.
+    for panel in panels:
+        grid_pos = panel.get("gridPos", {})
+        if grid_pos.get("y", 0) >= status_y:
+            grid_pos["y"] = grid_pos["y"] + 3
+
+    datasource = {"type": "prometheus", "uid": "grafanacloud-prom"}
+    status_panels = [
+        {
+            "title": "Railway Metrics Bridge",
+            "type": "stat",
+            "description": "Whether the Railway metrics bridge is enabled and its last poll succeeded.",
+            "gridPos": {"h": 3, "w": 4, "x": 0, "y": status_y},
+            "targets": [
+                {
+                    "expr": 'max(live_overlay_railway_metrics_enabled{job=~"$job"} == 1) or vector(0)',
+                    "legendFormat": "enabled",
+                    "instant": True,
+                    "datasource": datasource,
+                }
+            ],
+            "options": {
+                "colorMode": "background_solid",
+                "reduceOptions": {"calcs": ["lastNotNull"], "fields": "", "values": False},
+            },
+            "fieldConfig": {
+                "defaults": {
+                    "mappings": [
+                        {"type": "value", "options": {"0": {"text": "DISABLED", "color": "gray"}, "1": {"text": "OK", "color": "green"}}}
+                    ],
+                    "thresholds": {"mode": "absolute", "steps": [{"color": "gray", "value": None}, {"color": "green", "value": 1}]},
+                }
+            },
+            "datasource": datasource,
+            "id": 1230367684,
+        },
+        {
+            "title": "Railway Metrics Snapshot Age",
+            "type": "stat",
+            "description": "Seconds since the last successful Railway metrics poll.",
+            "gridPos": {"h": 3, "w": 4, "x": 4, "y": status_y},
+            "targets": [
+                {
+                    "expr": 'live_overlay_railway_metrics_age_seconds{job=~"$job"} and on(job) (live_overlay_railway_metrics_enabled{job=~"$job"} == 1)',
+                    "legendFormat": "age",
+                    "instant": True,
+                    "datasource": datasource,
+                }
+            ],
+            "options": {
+                "colorMode": "background_solid",
+                "reduceOptions": {"calcs": ["lastNotNull"], "fields": "", "values": False},
+            },
+            "fieldConfig": {"defaults": {"unit": "s"}},
+            "datasource": datasource,
+            "id": 1230367685,
+        },
+        {
+            "title": "Railway Metrics Error",
+            "type": "stat",
+            "description": "Latest Railway metrics bridge error class. Empty when healthy.",
+            "gridPos": {"h": 3, "w": 4, "x": 8, "y": status_y},
+            "targets": [
+                {
+                    "expr": 'max(live_overlay_railway_metrics_error_info{job=~"$job",error!="none"} or vector(0))',
+                    "legendFormat": "{{error}}",
+                    "instant": True,
+                    "datasource": datasource,
+                }
+            ],
+            "options": {
+                "colorMode": "background_solid",
+                "reduceOptions": {"calcs": ["lastNotNull"], "fields": "", "values": False},
+            },
+            "fieldConfig": {
+                "defaults": {
+                    "mappings": [
+                        {"type": "value", "options": {"0": {"text": "OK", "color": "green"}, "1": {"text": "ERROR", "color": "red"}}}
+                    ],
+                    "thresholds": {"mode": "absolute", "steps": [{"color": "green", "value": None}, {"color": "red", "value": 1}]},
+                    "noValue": "none",
+                }
+            },
+            "datasource": datasource,
+            "id": 1230367686,
+        },
+    ]
+
+    # Insert the new status strip right after the row header.
+    for insert_panel in reversed(status_panels):
+        panels.insert(row_index + 1, insert_panel)
+    return True
+
+
 def main(argv: list[str] | None = None) -> int:
     dashboard_path = _resolve_dashboard_path(argv)
     data = _load_dashboard(dashboard_path)
@@ -251,6 +419,9 @@ def main(argv: list[str] | None = None) -> int:
         # UptimeRobot panel and write back idempotently (version bumps only when
         # something actually changed).
         changed = _ensure_uptimerobot_panel(data)
+        changed = _fix_bridge_scrapes_panel(data) or changed
+        changed = _fix_bridge_error_panels(data) or changed
+        changed = _ensure_railway_status_panels(data) or changed
         if changed:
             data["version"] = int(data.get("version", 0) or 0) + 1
         _save_dashboard(dashboard_path, data)
