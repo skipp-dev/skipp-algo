@@ -2648,7 +2648,7 @@
       "title": "GitHub Workflow Status \u2014 Timeline",
       "type": "state-timeline",
       "gridPos": {
-        "h": 8,
+        "h": 25,
         "w": 24,
         "x": 0,
         "y": 91
@@ -2666,14 +2666,14 @@
         }
       ],
       "options": {
-        "showValue": "never",
-        "rowHeight": 0.95,
+        "showValue": "auto",
+        "rowHeight": 0.92,
         "mergeValues": true,
         "alignValue": "left",
         "legend": {
           "displayMode": "list",
           "placement": "bottom",
-          "showLegend": true
+          "showLegend": false
         },
         "tooltip": {
           "mode": "single",
@@ -2693,50 +2693,105 @@
                 "0": {
                   "text": "Unknown",
                   "color": "gray"
-                },
+                }
+              }
+            },
+            {
+              "type": "value",
+              "options": {
                 "1": {
                   "text": "Queued",
-                  "color": "yellow"
-                },
+                  "color": "dark-yellow"
+                }
+              }
+            },
+            {
+              "type": "value",
+              "options": {
                 "2": {
                   "text": "In progress",
-                  "color": "blue"
-                },
+                  "color": "dark-blue"
+                }
+              }
+            },
+            {
+              "type": "value",
+              "options": {
                 "3": {
                   "text": "Success",
-                  "color": "green"
-                },
+                  "color": "dark-green"
+                }
+              }
+            },
+            {
+              "type": "value",
+              "options": {
                 "4": {
                   "text": "Failure",
-                  "color": "red"
-                },
+                  "color": "dark-red"
+                }
+              }
+            },
+            {
+              "type": "value",
+              "options": {
                 "5": {
                   "text": "Cancelled",
-                  "color": "orange"
-                },
+                  "color": "dark-orange"
+                }
+              }
+            },
+            {
+              "type": "value",
+              "options": {
                 "6": {
                   "text": "Skipped",
-                  "color": "purple"
-                },
+                  "color": "dark-purple"
+                }
+              }
+            },
+            {
+              "type": "value",
+              "options": {
                 "7": {
                   "text": "Neutral",
-                  "color": "blue"
-                },
+                  "color": "dark-blue"
+                }
+              }
+            },
+            {
+              "type": "value",
+              "options": {
                 "8": {
                   "text": "Timed out",
-                  "color": "red"
-                },
+                  "color": "dark-red"
+                }
+              }
+            },
+            {
+              "type": "value",
+              "options": {
                 "9": {
                   "text": "Action required",
-                  "color": "orange"
-                },
+                  "color": "dark-orange"
+                }
+              }
+            },
+            {
+              "type": "value",
+              "options": {
                 "10": {
                   "text": "Startup failure",
-                  "color": "red"
-                },
+                  "color": "dark-red"
+                }
+              }
+            },
+            {
+              "type": "value",
+              "options": {
                 "11": {
                   "text": "Stale",
-                  "color": "yellow"
+                  "color": "dark-yellow"
                 }
               }
             }
@@ -2748,15 +2803,63 @@
             "mode": "absolute",
             "steps": [
               {
-                "color": "gray",
-                "value": null
+                "value": null,
+                "color": "gray"
+              },
+              {
+                "value": 0,
+                "color": "gray"
+              },
+              {
+                "value": 1,
+                "color": "dark-yellow"
+              },
+              {
+                "value": 2,
+                "color": "dark-blue"
+              },
+              {
+                "value": 3,
+                "color": "dark-green"
+              },
+              {
+                "value": 4,
+                "color": "dark-red"
+              },
+              {
+                "value": 5,
+                "color": "dark-orange"
+              },
+              {
+                "value": 6,
+                "color": "dark-purple"
+              },
+              {
+                "value": 7,
+                "color": "dark-blue"
+              },
+              {
+                "value": 8,
+                "color": "dark-red"
+              },
+              {
+                "value": 9,
+                "color": "dark-orange"
+              },
+              {
+                "value": 10,
+                "color": "dark-red"
+              },
+              {
+                "value": 11,
+                "color": "dark-yellow"
               }
             ]
           }
         },
         "overrides": []
       },
-      "description": "Colour-coded latest status of each GitHub Actions workflow over time. Every row is one named workflow ({{workflow}} legend); the cell colour encodes the run conclusion \u2014 green=success, red=failure/timed-out, orange=cancelled/action-required, blue=in-progress, yellow=queued/stale, gray=unknown/skipped. Series come from live_overlay_github_workflow_phase_code{workflow,event,workflow_id}, sampled at the daemon's GitHub workflow bridge interval (so runs shorter than one scrape interval may not appear).",
+      "description": "Colour-coded latest status of each GitHub Actions workflow over time. Every row is one named workflow ({{workflow}} legend); the cell colour encodes the run conclusion \u2014 green=success, red=failure/timed-out/startup-failure, orange=cancelled/action-required, blue=in-progress/neutral, yellow=queued/stale, gray=unknown, purple=skipped. Series come from live_overlay_github_workflow_phase_code{workflow,event,workflow_id}, sampled at the daemon's GitHub workflow bridge interval (so runs shorter than one scrape interval may not appear).",
       "datasource": {
         "type": "prometheus",
         "uid": "grafanacloud-prom"
@@ -2770,7 +2873,7 @@
         "h": 8,
         "w": 24,
         "x": 0,
-        "y": 99
+        "y": 116
       },
       "targets": [
         {
@@ -2865,7 +2968,7 @@
         "h": 1,
         "w": 24,
         "x": 0,
-        "y": 107
+        "y": 124
       },
       "collapsed": true,
       "panels": [],
@@ -2883,7 +2986,7 @@
         "h": 8,
         "w": 12,
         "x": 0,
-        "y": 108
+        "y": 125
       },
       "targets": [
         {
@@ -2966,7 +3069,7 @@
         "h": 8,
         "w": 6,
         "x": 12,
-        "y": 108
+        "y": 125
       },
       "targets": [
         {
@@ -3027,7 +3130,7 @@
         "h": 8,
         "w": 6,
         "x": 18,
-        "y": 108
+        "y": 125
       },
       "targets": [
         {
@@ -3096,7 +3199,7 @@
         "h": 8,
         "w": 12,
         "x": 0,
-        "y": 116
+        "y": 133
       },
       "targets": [
         {
@@ -3170,7 +3273,7 @@
         "h": 8,
         "w": 12,
         "x": 12,
-        "y": 116
+        "y": 133
       },
       "targets": [
         {
@@ -3255,7 +3358,7 @@
         "h": 8,
         "w": 12,
         "x": 0,
-        "y": 124
+        "y": 141
       },
       "targets": [
         {
@@ -3301,7 +3404,7 @@
         "h": 8,
         "w": 12,
         "x": 12,
-        "y": 124
+        "y": 141
       },
       "targets": [
         {
@@ -3344,7 +3447,7 @@
       "type": "text",
       "description": "Legend for News Provider panels directly below.",
       "gridPos": {
-        "y": 151,
+        "y": 168,
         "h": 2,
         "w": 24,
         "x": 0
@@ -3366,7 +3469,7 @@
         "h": 8,
         "w": 24,
         "x": 0,
-        "y": 134
+        "y": 151
       },
       "targets": [
         {
@@ -3411,7 +3514,7 @@
         "h": 8,
         "w": 12,
         "x": 0,
-        "y": 142
+        "y": 159
       },
       "targets": [
         {
@@ -3472,7 +3575,7 @@
         "h": 8,
         "w": 12,
         "x": 12,
-        "y": 142
+        "y": 159
       },
       "targets": [
         {
@@ -3542,7 +3645,7 @@
         "h": 1,
         "w": 24,
         "x": 0,
-        "y": 150
+        "y": 167
       },
       "collapsed": true,
       "panels": [],
@@ -3557,7 +3660,7 @@
       "title": "News Provider Health State",
       "type": "state-timeline",
       "gridPos": {
-        "y": 163,
+        "y": 180,
         "h": 8,
         "w": 12,
         "x": 0
@@ -3652,7 +3755,7 @@
       "title": "News Snapshot Age & Provider Counts",
       "type": "timeseries",
       "gridPos": {
-        "y": 163,
+        "y": 180,
         "h": 8,
         "w": 12,
         "x": 12
@@ -3737,7 +3840,7 @@
       "title": "News Providers \u2014 OK/Degraded (Drill-down)",
       "type": "timeseries",
       "gridPos": {
-        "y": 171,
+        "y": 188,
         "h": 8,
         "w": 12,
         "x": 0
@@ -3784,7 +3887,7 @@
       "title": "News Providers \u2014 State Code",
       "type": "timeseries",
       "gridPos": {
-        "y": 153,
+        "y": 170,
         "h": 10,
         "w": 24,
         "x": 0
@@ -3876,7 +3979,7 @@
       "title": "News Providers \u2014 Ingest Status & Reason",
       "type": "table",
       "gridPos": {
-        "y": 171,
+        "y": 188,
         "h": 8,
         "w": 12,
         "x": 12
@@ -4036,7 +4139,7 @@
         "h": 8,
         "w": 24,
         "x": 0,
-        "y": 179
+        "y": 196
       },
       "options": {
         "showLabels": true,
@@ -4060,7 +4163,7 @@
         "h": 14,
         "w": 24,
         "x": 0,
-        "y": 187
+        "y": 204
       },
       "description": "Per-workflow detail of the most recent run the daemon observed: trigger event (schedule / push / \u2026), current status, run duration and age. One row per named workflow. Driven by the labelled live_overlay_github_workflow_* gauges (phase_code, latest_duration_seconds, latest_age_seconds, latest_success).",
       "targets": [
@@ -4304,7 +4407,7 @@
         "h": 6,
         "w": 6,
         "x": 0,
-        "y": 196
+        "y": 213
       },
       "targets": [
         {
@@ -4366,7 +4469,7 @@
         "h": 6,
         "w": 6,
         "x": 6,
-        "y": 196
+        "y": 213
       },
       "targets": [
         {
@@ -4465,7 +4568,7 @@
         "h": 6,
         "w": 6,
         "x": 12,
-        "y": 196
+        "y": 213
       },
       "targets": [
         {
@@ -4532,7 +4635,7 @@
         "h": 6,
         "w": 6,
         "x": 18,
-        "y": 196
+        "y": 213
       },
       "targets": [
         {
@@ -4594,7 +4697,7 @@
         "h": 10,
         "w": 24,
         "x": 0,
-        "y": 202
+        "y": 219
       },
       "targets": [
         {
@@ -4912,7 +5015,7 @@
         "h": 8,
         "w": 24,
         "x": 0,
-        "y": 212
+        "y": 229
       },
       "targets": [
         {
@@ -4967,7 +5070,7 @@
         "h": 5,
         "w": 6,
         "x": 0,
-        "y": 220
+        "y": 237
       },
       "targets": [
         {
@@ -5029,7 +5132,7 @@
         "h": 5,
         "w": 6,
         "x": 6,
-        "y": 220
+        "y": 237
       },
       "targets": [
         {
@@ -5087,7 +5190,7 @@
         "h": 5,
         "w": 6,
         "x": 12,
-        "y": 220
+        "y": 237
       },
       "targets": [
         {
@@ -5172,7 +5275,7 @@
         "h": 5,
         "w": 6,
         "x": 18,
-        "y": 220
+        "y": 237
       },
       "targets": [
         {
@@ -5257,7 +5360,7 @@
         "h": 9,
         "w": 24,
         "x": 0,
-        "y": 225
+        "y": 242
       },
       "targets": [
         {
@@ -5383,7 +5486,7 @@
         "h": 8,
         "w": 24,
         "x": 0,
-        "y": 234
+        "y": 251
       },
       "targets": [
         {
@@ -5443,7 +5546,7 @@
         "h": 10,
         "w": 24,
         "x": 0,
-        "y": 242
+        "y": 259
       },
       "targets": [
         {
@@ -5570,7 +5673,7 @@
         "h": 5,
         "w": 6,
         "x": 0,
-        "y": 252
+        "y": 269
       },
       "targets": [
         {
@@ -5635,7 +5738,7 @@
         "h": 5,
         "w": 6,
         "x": 6,
-        "y": 252
+        "y": 269
       },
       "targets": [
         {
@@ -5706,7 +5809,7 @@
         "h": 1,
         "w": 24,
         "x": 0,
-        "y": 257
+        "y": 274
       },
       "panels": [],
       "datasource": {
@@ -5722,7 +5825,7 @@
         "h": 3,
         "w": 4,
         "x": 0,
-        "y": 258
+        "y": 275
       },
       "targets": [
         {
@@ -5791,7 +5894,7 @@
         "h": 3,
         "w": 4,
         "x": 4,
-        "y": 258
+        "y": 275
       },
       "targets": [
         {
@@ -5833,7 +5936,7 @@
         "h": 3,
         "w": 4,
         "x": 8,
-        "y": 258
+        "y": 275
       },
       "targets": [
         {
@@ -5908,7 +6011,7 @@
         "h": 7,
         "w": 8,
         "x": 0,
-        "y": 261
+        "y": 278
       },
       "fieldConfig": {
         "defaults": {
@@ -5952,7 +6055,7 @@
         "h": 7,
         "w": 8,
         "x": 8,
-        "y": 261
+        "y": 278
       },
       "fieldConfig": {
         "defaults": {
@@ -5996,7 +6099,7 @@
         "h": 7,
         "w": 8,
         "x": 16,
-        "y": 261
+        "y": 278
       },
       "fieldConfig": {
         "defaults": {
@@ -6040,7 +6143,7 @@
         "h": 7,
         "w": 8,
         "x": 0,
-        "y": 268
+        "y": 285
       },
       "fieldConfig": {
         "defaults": {
@@ -6084,7 +6187,7 @@
         "h": 7,
         "w": 8,
         "x": 8,
-        "y": 268
+        "y": 285
       },
       "fieldConfig": {
         "defaults": {
@@ -6128,7 +6231,7 @@
         "h": 7,
         "w": 8,
         "x": 16,
-        "y": 268
+        "y": 285
       },
       "fieldConfig": {
         "defaults": {
@@ -6210,6 +6313,6 @@
   "timezone": "utc",
   "title": "SMC Live Overlay Daemon",
   "uid": "smc-live-overlay-v1",
-  "version": 27,
+  "version": 31,
   "description": "Live-overlay daemon operational dashboard: feed health, worker liveness, SMC overlay freshness, external bridge status, provider health, daily experiment metrics, and Railway container resources."
 }
