@@ -374,7 +374,7 @@ def _ensure_railway_status_panels(data: dict[str, Any]) -> bool:
         {
             "title": "Railway Metrics Error",
             "type": "stat",
-            "description": "Latest Railway metrics bridge error class. Empty when healthy.",
+            "description": "Latest Railway metrics bridge error class. OK when healthy.",
             "gridPos": {"h": 3, "w": 4, "x": 8, "y": status_y},
             "targets": [
                 {
