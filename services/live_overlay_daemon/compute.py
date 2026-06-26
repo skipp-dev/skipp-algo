@@ -349,7 +349,8 @@ def _is_valid_service_url(url: str) -> bool:
 def _signals_service_url_to_full(base: str) -> str:
     """Turn a host or base path into the producer ``/signals.json`` endpoint."""
     base = base.strip().rstrip("/")
-    if "//" in base:
+    lower = base.lower()
+    if lower.startswith("http://") or lower.startswith("https://"):
         return f"{base}/signals.json"
     return f"http://{base}/signals.json"
 
