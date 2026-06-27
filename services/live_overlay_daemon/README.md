@@ -527,16 +527,26 @@ observability.py (structured log lines + in-process counters)
 ### Grafana dashboard layout (v25)
 
 The operations dashboard `services/live_overlay_daemon/infra/grafana/dashboard.json`
-is organized to keep incident response fast:
+is organized for 3-a.m. incident triage:
 
-- `Operations at a glance (pinned)` — always-expanded top section with
-  `Overall Health`, `Active Alerts (live_overlay)`, `Incident Triage Guide`,
-  `Global Market Sessions`, and the core stat grid (`Feed Healthy`,
-  `Overlay Fresh`, `Workers Healthy`, etc.).
-- `External Integrations` — UptimeRobot, GitHub workflow, and bridge health.
-- `SLO & Reliability` — latency, freshness, error-budget burn, queue health.
-- `Provider Health` — news-provider state and ingest status.
-- `Railway Resources` — Railway service metrics and bridge health.
+- **Impact first** — pinned top section with `Overall Health`,
+  `Active Alerts`, and an `Incident Triage Guide` that speaks in user-impact
+  terms (feed, workers, overlay freshness, scrape targets) instead of raw
+  metric names.
+- **Root causes next** — a clean stat row (`Feed Healthy`, `Overlay Fresh`,
+  `Workers Healthy`, `Bridge Scrapes`, `Market Status`, `Last Bar Age`) with
+  no grid overlaps so an on-call engineer can read the health story at a glance.
+- **Context after health** — `Service Status`, `Uptime`, symbol counts,
+  `Process Resident Memory`, and `Global Market Sessions` follow below.
+  `CLOSED` sessions are shown in gray, not red, because a closed market is not
+  an incident.
+- **External Integrations** — UptimeRobot, GitHub workflow, and bridge health.
+- **SLO & Reliability** — latency, freshness, error-budget burn, queue health.
+- **Provider Health** — news-provider state and ingest status.
+- **Collector / Scrape Targets** — alloy/signals_producer/live_overlay scrape
+  health and collector memory, separated from provider/GitHub detail panels to
+  avoid grid collisions.
+- **Railway Resources** — Railway service metrics and bridge health.
 
 Signal and experiment detail panels live in a companion dashboard:
 `services/live_overlay_daemon/infra/grafana/dashboard-signals-experiments.json`.
@@ -545,8 +555,9 @@ A link to the companion dashboard is available in the dashboard header.
 
 Operational UX additions:
 
-- `Active Alerts (live_overlay)` alert-list panel is pinned at the top for
-  in-dashboard triage.
+- `Active Alerts` alert-list panel is pinned at the top and intentionally shows
+  alerts for `live_overlay`, collector, and dependent services, not only
+  `job=live_overlay`.
 - Key stat panels include drill-down links to related charts (e.g.
   `Feed Healthy` -> `Feed Health Counters`, `Workers Healthy` ->
   `Worker Liveness`).
@@ -558,6 +569,8 @@ Operational UX additions:
   news snapshot metric series via explicit `absent(...)` checks.
 - Provider drill-down query excludes aggregate health series so per-provider
   `..._ok` / `..._degraded` timelines remain noise-free.
+- A contract test (`test_dashboard_grid_has_no_overlapping_panels`) guards
+  against grid-position regressions.
 
 Both dashboards are published automatically by
 `.github/workflows/live-overlay-dashboard-publish.yml` on pushes to `main`.
