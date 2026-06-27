@@ -137,6 +137,12 @@ def _estimate_histogram_quantile_ms(
 # fixed metric name, so adding a provider needs no dashboard change. Cardinality stays
 # bounded by the small, static provider set.
 _PROVIDER_STATE_LABELS = {0: "unknown", 1: "degraded", 2: "ok", 3: "disabled"}
+_HEALTH_STATUS_CODES = {
+    "unknown": 0,
+    "starting": 1,
+    "idle_market_closed": 2,
+    "ok": 3,
+}
 
 # Map the raw snapshot "error" reason onto a human-readable message that the
 # dashboard surfaces directly to operators.
@@ -1122,6 +1128,13 @@ def render_metrics(startup_ts: float) -> str:
     lines.append(f"live_overlay_market_asia_open {1 if asia_open else 0}")
     lines.append("# TYPE live_overlay_max_stale_seconds gauge")
     lines.append(f"live_overlay_max_stale_seconds {max_stale}")
+    health_status_code = _HEALTH_STATUS_CODES.get(status, _HEALTH_STATUS_CODES["unknown"])
+    lines.append("# TYPE live_overlay_health_status_code gauge")
+    lines.append(f"live_overlay_health_status_code {health_status_code}")
+    lines.append("# TYPE live_overlay_health_status_info gauge")
+    lines.append(
+        f'live_overlay_health_status_info{{status="{_escape_label_value(status)}"}} 1'
+    )
     lines.append("# TYPE live_overlay_health_status_ok gauge")
     lines.append(f"live_overlay_health_status_ok {1 if status == 'ok' else 0}")
     lines.append("# TYPE live_overlay_health_status_starting gauge")

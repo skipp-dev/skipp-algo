@@ -56,7 +56,7 @@
     {
       "title": "Overall Health",
       "type": "stat",
-      "description": "Single-pane triage signal. HEALTHY = feed, workers and overlay fresh; DEGRADED = bridge stale/scrape error or workers not healthy; CRITICAL = feed down while market open or overlay stale.",
+      "description": "Single-pane triage signal. HEALTHY = feed, workers and overlay fresh; IDLE = market closed before the first bar; STARTING = daemon still waiting on feed/workers/overlay; UNKNOWN = status metric missing.",
       "gridPos": {
         "x": 0,
         "y": 1,
@@ -65,7 +65,7 @@
       },
       "targets": [
         {
-          "expr": "(live_overlay_health_status_ok{job=~\"$job\"} * 2)\n+ (live_overlay_health_status_starting{job=~\"$job\"} * 1)\n+ (live_overlay_health_status_idle_market_closed{job=~\"$job\"} * 1)",
+          "expr": "live_overlay_health_status_code{job=~\"$job\"} or vector(0)",
           "legendFormat": "health_code",
           "datasource": {
             "type": "prometheus",
@@ -91,14 +91,18 @@
               "type": "value",
               "options": {
                 "0": {
-                  "text": "CRITICAL",
+                  "text": "UNKNOWN",
                   "color": "red"
                 },
                 "1": {
-                  "text": "STARTING / IDLE",
+                  "text": "STARTING",
                   "color": "yellow"
                 },
                 "2": {
+                  "text": "IDLE",
+                  "color": "semi-dark-orange"
+                },
+                "3": {
                   "text": "HEALTHY",
                   "color": "green"
                 }
@@ -117,8 +121,12 @@
                 "value": 1
               },
               {
-                "color": "green",
+                "color": "semi-dark-orange",
                 "value": 2
+              },
+              {
+                "color": "green",
+                "value": 3
               }
             ]
           }
@@ -283,7 +291,7 @@
       "description": "Live feed connection health (0 = unhealthy, 1 = healthy).",
       "gridPos": {
         "x": 0,
-        "y": 14,
+        "y": 12,
         "w": 4,
         "h": 3
       },
@@ -359,7 +367,7 @@
       "description": "Overlay data freshness (1 = fresh, 0 = stale).",
       "gridPos": {
         "x": 4,
-        "y": 14,
+        "y": 12,
         "w": 4,
         "h": 3
       },
@@ -435,7 +443,7 @@
       "description": "Background thread liveness (1 = all alive, 0 = at least one dead).",
       "gridPos": {
         "x": 8,
-        "y": 14,
+        "y": 12,
         "w": 4,
         "h": 3
       },
@@ -511,13 +519,13 @@
       "description": "External bridge scrape health (UptimeRobot + GitHub Workflows).",
       "gridPos": {
         "x": 12,
-        "y": 14,
+        "y": 12,
         "w": 4,
         "h": 3
       },
       "targets": [
         {
-          "expr": "min by (job) (\n  live_overlay_uptimerobot_scrape_success{job=~\"$job\"} or\n  live_overlay_github_workflow_scrape_success{job=~\"$job\"}\n) or vector(0)",
+          "expr": "min by (job) (\n  live_overlay_uptimerobot_scrape_success{job=~\"$job\"} or\n  live_overlay_github_workflow_scrape_success{job=~\"$job\"}\n)\nor on (job) label_replace(vector(0), \"job\", \"live_overlay\", \"\", \"\")",
           "legendFormat": "{{job}}",
           "datasource": {
             "type": "prometheus",
@@ -579,7 +587,7 @@
       "description": "Major session state (US regular or Europe regular); 1 = open, 0 = closed.",
       "gridPos": {
         "x": 16,
-        "y": 14,
+        "y": 12,
         "w": 4,
         "h": 3
       },
@@ -647,7 +655,7 @@
       "description": "Age of the newest bar received from Databento.",
       "gridPos": {
         "x": 20,
-        "y": 14,
+        "y": 12,
         "w": 4,
         "h": 3
       },
@@ -719,7 +727,7 @@
       },
       "targets": [
         {
-          "expr": "(live_overlay_health_status_ok{job=~\"$job\"} * 2)\n+ (live_overlay_health_status_starting{job=~\"$job\"} * 1)\n+ (live_overlay_health_status_idle_market_closed{job=~\"$job\"} * 1)",
+          "expr": "live_overlay_health_status_code{job=~\"$job\"} or vector(0)",
           "legendFormat": "Health state",
           "datasource": {
             "type": "prometheus",
@@ -745,14 +753,18 @@
               "type": "value",
               "options": {
                 "0": {
+                  "text": "UNKNOWN",
+                  "color": "red"
+                },
+                "1": {
                   "text": "STARTING",
                   "color": "yellow"
                 },
-                "1": {
+                "2": {
                   "text": "IDLE (MARKET CLOSED)",
                   "color": "semi-dark-orange"
                 },
-                "2": {
+                "3": {
                   "text": "OK",
                   "color": "green"
                 }
@@ -763,14 +775,26 @@
             "mode": "absolute",
             "steps": [
               {
-                "color": "green",
+                "color": "red",
                 "value": null
+              },
+              {
+                "color": "yellow",
+                "value": 1
+              },
+              {
+                "color": "semi-dark-orange",
+                "value": 2
+              },
+              {
+                "color": "green",
+                "value": 3
               }
             ]
           }
         }
       },
-      "description": "Daemon lifecycle state: STARTING, HEALTHY, DEGRADED, CRITICAL or IDLE. Combines feed readiness, worker liveness, overlay freshness and market-open context.",
+      "description": "Daemon lifecycle state: UNKNOWN, STARTING, IDLE or OK. Combines feed readiness, worker liveness, overlay freshness and market-open context.",
       "datasource": {
         "type": "prometheus",
         "uid": "grafanacloud-prom"
