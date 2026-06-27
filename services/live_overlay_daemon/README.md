@@ -394,8 +394,11 @@ observability.py (structured log lines + in-process counters)
 | `live_overlay_uptime_seconds` | gauge | main.py |
 | `live_overlay_overlay_symbols` | gauge | cache |
 | `live_overlay_overlay_age_seconds` | gauge | cache |
+| `live_overlay_smc_live_latency_ms_bucket` | histogram | metrics.py (classic histogram buckets) |
 | `live_overlay_smc_live_latency_p95_ms` | gauge | metrics.py (derived from histogram buckets) |
 | `live_overlay_smc_live_latency_p99_ms` | gauge | metrics.py (derived from histogram buckets) |
+| `live_overlay_overlay_age_known` | gauge | metrics.py (1 when overlay_age_seconds is meaningful) |
+| `live_overlay_last_bar_age_known` | gauge | metrics.py (1 when last_bar_age_seconds is meaningful) |
 | `live_overlay_last_bar_age_seconds` | gauge | feed.py |
 | `live_overlay_feed_healthy` | gauge | feed.py |
 | `live_overlay_workers_healthy` | gauge | feed.py |

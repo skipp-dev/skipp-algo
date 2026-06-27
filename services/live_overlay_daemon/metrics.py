@@ -954,9 +954,37 @@ def render_metrics(startup_ts: float) -> str:
             f"live_overlay_hotspot_tf_{tf_name}_requests_total {_prom_numeric_value(count)}"
         )
 
+    # --- Latency histogram -------------------------------------------------
+    # Export real classic histogram bucket series so Prometheus can compute
+    # rolling quantiles with histogram_quantile() instead of relying on
+    # lifetime gauges derived from in-memory counters.
+    latency_base = "live_overlay.smc_live_latency"
+    latency_count = counters.get(f"{latency_base}.count")
+    latency_total = _prom_numeric_value(latency_count) if latency_count is not None else None
+    latency_bucket_keys = [
+        key for key in counters
+        if key.startswith(f"{latency_base}.bucket_le_")
+    ]
+    if latency_bucket_keys or (latency_total is not None and math.isfinite(latency_total) and latency_total > 0):
+        lines.append("# TYPE live_overlay_smc_live_latency_ms histogram")
+        for key in sorted(latency_bucket_keys):
+            suffix = key[len(f"{latency_base}.bucket_le_"):]
+            le = "+Inf" if suffix == "inf" else suffix.replace("_", ".")
+            lines.append(
+                f'live_overlay_smc_live_latency_ms_bucket{{le="{le}"}} {_prom_numeric_value(counters[key])}'
+            )
+        lines.append(
+            f'live_overlay_smc_live_latency_ms_sum {_prom_numeric_value(counters.get(f"{latency_base}.sum_ms", 0.0))}'
+        )
+        lines.append(
+            f'live_overlay_smc_live_latency_ms_count {_prom_numeric_value(latency_count)}'
+        )
+
+    # Keep the derived gauges for backward compatibility until dashboard/alert
+    # consumers are fully migrated to histogram_quantile() over the buckets.
     latency_p95_ms = _estimate_histogram_quantile_ms(
         counters,
-        base_name="live_overlay.smc_live_latency",
+        base_name=latency_base,
         quantile=0.95,
     )
     if latency_p95_ms is not None:
@@ -965,7 +993,7 @@ def render_metrics(startup_ts: float) -> str:
 
     latency_p99_ms = _estimate_histogram_quantile_ms(
         counters,
-        base_name="live_overlay.smc_live_latency",
+        base_name=latency_base,
         quantile=0.99,
     )
     if latency_p99_ms is not None:
@@ -1076,14 +1104,24 @@ def render_metrics(startup_ts: float) -> str:
     lines.append(f"live_overlay_bar_count {bar_count}")
 
     overlay_age = cache.overlay_age_secs()
-    if overlay_age != float("inf"):
-        lines.append("# TYPE live_overlay_overlay_age_seconds gauge")
-        lines.append(f"live_overlay_overlay_age_seconds {overlay_age:.1f}")
+    overlay_age_known = 1.0 if overlay_age != float("inf") else 0.0
+    lines.append("# TYPE live_overlay_overlay_age_known gauge")
+    lines.append(f"live_overlay_overlay_age_known {overlay_age_known}")
+    lines.append("# TYPE live_overlay_overlay_age_seconds gauge")
+    lines.append(
+        f"live_overlay_overlay_age_seconds {overlay_age:.1f}"
+        if overlay_age != float("inf")
+        else "live_overlay_overlay_age_seconds 0.0"
+    )
 
     bar_age = feed.last_bar_age_secs()
-    if bar_age is not None:
-        lines.append("# TYPE live_overlay_last_bar_age_seconds gauge")
-        lines.append(f"live_overlay_last_bar_age_seconds {bar_age:.1f}")
+    bar_age_known = 1.0 if bar_age is not None else 0.0
+    if bar_age is None:
+        bar_age = 0.0
+    lines.append("# TYPE live_overlay_last_bar_age_known gauge")
+    lines.append(f"live_overlay_last_bar_age_known {bar_age_known}")
+    lines.append("# TYPE live_overlay_last_bar_age_seconds gauge")
+    lines.append(f"live_overlay_last_bar_age_seconds {bar_age:.1f}")
 
     feed_healthy = 1 if feed.is_ready() else 0
     lines.append("# TYPE live_overlay_feed_healthy gauge")

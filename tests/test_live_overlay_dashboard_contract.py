@@ -131,20 +131,18 @@ def test_dashboard_panels_have_descriptions() -> None:
     missing = [p.get("title") for p in panels if p.get("type") != "row" and not p.get("description")]
     assert not missing, f"panels missing description: {missing}"
 
-def test_market_open_request_health_uses_major_session_metric() -> None:
-    """The synthetic traffic-health panel must follow live_overlay_market_open.
+def test_market_open_request_health_uses_us_session_metric() -> None:
+    """The traffic-health panel follows live_overlay_market_us_open.
 
-    metrics.py widens the headline display gauge to "any major session" (US or
-    Europe) so the dashboard does not falsely show MARKET_CLOSED while European
-    exchanges trade ahead of the US open.  Using live_overlay_market_us_open
-    here would reintroduce that false-closed signal.
+    Traffic, feed and health are US-gated; the broader live_overlay_market_open
+    display gauge is only for headline market-status display.
     """
     dashboard = json.loads(_DASHBOARD_JSON.read_text(encoding="utf-8"))
     panels = _dashboard_panels(dashboard)
     panel = next(p for p in panels if p.get("title") == "Market-open Request Health")
     expr = panel["targets"][0]["expr"]
-    assert "live_overlay_market_open" in expr, expr
-    assert "live_overlay_market_us_open" not in expr, expr
+    assert "live_overlay_market_us_open" in expr, expr
+    assert "live_overlay_market_open" not in expr, expr
 
 
 def test_market_status_description_matches_major_session_metric() -> None:
@@ -177,7 +175,7 @@ def test_dashboard_market_open_request_health_uses_fixed_rate_range() -> None:
     expr = panel["targets"][0]["expr"]
     assert "$__rate_interval" not in expr, "stat panel must use a fixed range vector"
     assert "[5m]" in expr
-    assert 'live_overlay_market_open{job=~"$job"}' in expr
+    assert 'live_overlay_market_us_open{job=~"$job"}' in expr
     assert 'live_overlay_smc_live_requests_total{job=~"$job"}[5m]' in expr
     assert "or live_overlay_market_open" not in expr
     assert "rate(live_overlay_smc_live_requests_total[5m])" not in expr
@@ -189,7 +187,7 @@ def test_dashboard_bridge_scrapes_aggregates_by_job() -> None:
     panel = next(p for p in dashboard["panels"] if p.get("title") == "Bridge Scrapes")
     expr = panel["targets"][0]["expr"]
     assert "min by (job)" in expr
-    assert 'or on (job) label_replace(vector(0), "job", "live_overlay", "", "")' in expr
+    assert 'or on(job) label_replace(vector(0), "job", "live_overlay", "", "")' in expr
     assert panel["targets"][0]["legendFormat"] == "{{job}}"
 
 
@@ -233,14 +231,21 @@ def test_dashboard_restart_causes_panel_is_unique_and_groups_by_cause() -> None:
     assert panel["targets"][0].get("legendFormat") == "{{cause}}"
 
 
-def test_dashboard_rows_are_expanded() -> None:
-    """Previously collapsed rows must be expanded so child panels are visible."""
+def test_dashboard_operational_rows_expanded_others_collapsed() -> None:
+    """Top operational rows stay expanded; detail rows start collapsed."""
     dashboard = json.loads(_DASHBOARD_JSON.read_text(encoding="utf-8"))
-    row_titles = {"External Integrations", "SLO & Reliability", "Provider Health", "Railway Resources"}
-    rows = [p for p in dashboard["panels"] if p.get("type") == "row" and p.get("title") in row_titles]
-    assert len(rows) == 4
-    for row in rows:
-        assert row.get("collapsed") is False, f"row {row['title']} is still collapsed"
+    expanded = {"Overview", "Health", "Status", "Collector / Scrape Targets"}
+    collapsed = {"External Integrations", "Provider Health", "Railway Resources", "SLO & Reliability"}
+    rows = [p for p in dashboard["panels"] if p.get("type") == "row"]
+    titles = {r["title"] for r in rows}
+    for title in expanded:
+        if title in titles:
+            row = next(r for r in rows if r["title"] == title)
+            assert row.get("collapsed") is False, f"row {title} should be expanded"
+    for title in collapsed:
+        if title in titles:
+            row = next(r for r in rows if r["title"] == title)
+            assert row.get("collapsed") is True, f"row {title} should be collapsed"
 
 
 def test_dashboard_has_process_resident_memory_panel() -> None:
@@ -252,6 +257,59 @@ def test_dashboard_has_process_resident_memory_panel() -> None:
     assert gp["y"] == 12 and gp["x"] == 4 and gp["w"] == 4 and gp["h"] == 4, gp
     expr = panel["targets"][0]["expr"]
     assert "live_overlay_process_resident_memory_bytes" in expr, expr
+
+def test_dashboard_job_variable_is_datasource_pinned() -> None:
+    """The $job variable must use the grafanacloud-prom datasource explicitly."""
+    dashboard = json.loads(_DASHBOARD_JSON.read_text(encoding="utf-8"))
+    job_var = next(v for v in dashboard["templating"]["list"] if v.get("name") == "job")
+    assert job_var.get("datasource") == {"type": "prometheus", "uid": "grafanacloud-prom"}
+
+
+def test_dashboard_memory_threshold_matches_alert() -> None:
+    """Process Resident Memory red threshold must align with the 900 MiB alert."""
+    dashboard = json.loads(_DASHBOARD_JSON.read_text(encoding="utf-8"))
+    panels = _dashboard_panels(dashboard)
+    panel = next(p for p in panels if p.get("title") == "Process Resident Memory")
+    steps = panel.get("fieldConfig", {}).get("defaults", {}).get("thresholds", {}).get("steps", [])
+    red_step = next((s for s in steps if s.get("color") == "red"), None)
+    assert red_step is not None
+    assert red_step.get("value") == 943718400
+
+
+def test_dashboard_refresh_rate_reduced() -> None:
+    """Refresh rate should be 5m to avoid query storms."""
+    dashboard = json.loads(_DASHBOARD_JSON.read_text(encoding="utf-8"))
+    assert dashboard.get("refresh") == "5m"
+
+
+def test_dashboard_has_collector_scrape_targets_row() -> None:
+    """A Collector row with up and memory panels for alloy/signals_producer/live_overlay must exist."""
+    dashboard = json.loads(_DASHBOARD_JSON.read_text(encoding="utf-8"))
+    row = next(p for p in dashboard["panels"] if p.get("type") == "row" and p.get("title") == "Collector / Scrape Targets")
+    assert row.get("collapsed") is False
+    titles = {p.get("title") for p in _dashboard_panels(dashboard)}
+    assert "Scrape Targets Up" in titles
+    assert "Collector Resident Memory" in titles
+
+
+def test_dashboard_latency_panel_uses_histogram_quantile() -> None:
+    """Latency vs SLO must use histogram_quantile over exported buckets."""
+    dashboard = json.loads(_DASHBOARD_JSON.read_text(encoding="utf-8"))
+    panels = _dashboard_panels(dashboard)
+    panel = next(p for p in panels if p.get("title") == "Latency vs. SLO (ms)")
+    exprs = [t["expr"] for t in panel["targets"]]
+    assert any("histogram_quantile" in e and "live_overlay_smc_live_latency_ms_bucket" in e for e in exprs)
+
+
+def test_dashboard_news_panels_split_by_unit() -> None:
+    """News age and provider counts must be separate panels with correct units."""
+    dashboard = json.loads(_DASHBOARD_JSON.read_text(encoding="utf-8"))
+    panels = _dashboard_panels(dashboard)
+    age_panel = next(p for p in panels if p.get("title") == "News Snapshot Age")
+    count_panel = next(p for p in panels if p.get("title") == "News Provider Counts")
+    assert age_panel.get("fieldConfig", {}).get("defaults", {}).get("unit") == "s"
+    assert count_panel.get("fieldConfig", {}).get("defaults", {}).get("unit") == "short"
+
 
 
 def test_dashboard_ingest_queue_backpressure_separates_drop_rate_axis() -> None:

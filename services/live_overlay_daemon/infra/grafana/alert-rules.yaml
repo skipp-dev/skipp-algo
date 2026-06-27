@@ -115,7 +115,7 @@ groups:
           - refId: A
             datasourceUid: grafanacloud-prom
             model:
-              expr: live_overlay_overlay_age_seconds{job="live_overlay"}
+              expr: live_overlay_overlay_age_seconds{job="live_overlay"} * (live_overlay_overlay_age_known{job="live_overlay"} > bool 0)
               instant: true
           - refId: C
             datasourceUid: __expr__
@@ -175,7 +175,7 @@ groups:
           - refId: A
             datasourceUid: grafanacloud-prom
             model:
-              expr: live_overlay_market_us_open{job="live_overlay"} * (live_overlay_last_bar_age_seconds{job="live_overlay"} > bool 300)
+              expr: live_overlay_market_us_open{job="live_overlay"} * (live_overlay_last_bar_age_known{job="live_overlay"} > bool 0) * (live_overlay_last_bar_age_seconds{job="live_overlay"} > bool 300)
               instant: true
           - refId: C
             datasourceUid: __expr__
@@ -271,7 +271,7 @@ groups:
           - refId: A
             datasourceUid: grafanacloud-prom
             model:
-              expr: live_overlay_market_us_open{job="live_overlay"} * (rate(live_overlay_smc_live_requests_total{job="live_overlay"}[10m]) < bool 0.001) * (live_overlay_uptime_seconds{job="live_overlay"} > bool 600) * (increase(live_overlay_smc_live_requests_total{job="live_overlay"}[10m]) > bool 5)
+              expr: live_overlay_market_us_open{job="live_overlay"} * (rate(live_overlay_smc_live_requests_total{job="live_overlay"}[10m]) < bool 0.001) * (live_overlay_uptime_seconds{job="live_overlay"} > bool 600) * (increase(live_overlay_smc_live_requests_total{job="live_overlay"}[1h]) > bool 5)
               instant: true
           - refId: C
             datasourceUid: __expr__
@@ -295,7 +295,7 @@ groups:
           - refId: A
             datasourceUid: grafanacloud-prom
             model:
-              expr: increase(live_overlay_full_compute_cycle_errors{job="live_overlay"}[15m]) + increase(live_overlay_flow_patch_cycle_errors{job="live_overlay"}[15m])
+              expr: (sum(increase(live_overlay_full_compute_cycle_errors{job="live_overlay"}[15m])) or vector(0)) + (sum(increase(live_overlay_flow_patch_cycle_errors{job="live_overlay"}[15m])) or vector(0))
               instant: true
           - refId: C
             datasourceUid: __expr__
@@ -313,7 +313,7 @@ groups:
           runbook: "Check Railway logs for stack traces in compute.py. Likely data quality issue in cached bars."
 
       - uid: lo-error-budget-burn-critical
-        title: "SLO error rate critical (5m & 1h)"
+        title: "SLO error budget page (5m & 1h)"
         condition: C
         data:
           - refId: A
@@ -330,38 +330,38 @@ groups:
             datasourceUid: __expr__
             model:
               type: math
-              expression: "($A > 14) && ($B > 7)"
+              expression: "($A > 14.4) && ($B > 14.4)"
         for: 5m
         labels:
           severity: critical
         annotations:
-          summary: "SLO error budget burn rate is critically high on both 5m and 1h windows"
+          summary: "SLO error budget burn rate pages on both 5m and 1h windows"
           runbook: "Inspect error mix, latency p95/p99, and freshness timeline; mitigate request failures immediately."
 
       - uid: lo-error-budget-burn-warning
-        title: "SLO error rate warning (5m & 1h)"
+        title: "SLO error budget ticket (30m & 6h)"
         condition: C
         data:
           - refId: A
             datasourceUid: grafanacloud-prom
             model:
-              expr: "((sum(rate(live_overlay_smc_live_errors_total{job=\"live_overlay\"}[5m])) / clamp_min(sum(rate(live_overlay_smc_live_requests_total{job=\"live_overlay\"}[5m])), 1e-9)) / 0.01)"
+              expr: "((sum(rate(live_overlay_smc_live_errors_total{job=\"live_overlay\"}[30m])) / clamp_min(sum(rate(live_overlay_smc_live_requests_total{job=\"live_overlay\"}[30m])), 1e-9)) / 0.01)"
               instant: true
           - refId: B
             datasourceUid: grafanacloud-prom
             model:
-              expr: "((sum(rate(live_overlay_smc_live_errors_total{job=\"live_overlay\"}[1h])) / clamp_min(sum(rate(live_overlay_smc_live_requests_total{job=\"live_overlay\"}[1h])), 1e-9)) / 0.01)"
+              expr: "((sum(rate(live_overlay_smc_live_errors_total{job=\"live_overlay\"}[6h])) / clamp_min(sum(rate(live_overlay_smc_live_requests_total{job=\"live_overlay\"}[6h])), 1e-9)) / 0.01)"
               instant: true
           - refId: C
             datasourceUid: __expr__
             model:
               type: math
-              expression: "($A > 6) && ($B > 3)"
+              expression: "($A > 6) && ($B > 6)"
         for: 10m
         labels:
           severity: warning
         annotations:
-          summary: "SLO error budget burn rate is elevated on both 5m and 1h windows"
+          summary: "SLO error budget burn rate tickets on both 30m and 6h windows"
           runbook: "Check request success rate trend and investigate recent failure-type spikes before critical threshold is reached."
 
       - uid: lo-latency-p99-high
@@ -371,7 +371,7 @@ groups:
           - refId: A
             datasourceUid: grafanacloud-prom
             model:
-              expr: live_overlay_smc_live_latency_p99_ms{job="live_overlay"}
+              expr: histogram_quantile(0.99, sum by (le) (rate(live_overlay_smc_live_latency_ms_bucket{job="live_overlay"}[5m])))
               instant: true
           - refId: C
             datasourceUid: __expr__
