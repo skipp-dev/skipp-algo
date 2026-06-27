@@ -118,9 +118,11 @@ groups:
               expr: |
                 (
                   live_overlay_overlay_age_seconds{job="live_overlay"}
-                  * (live_overlay_overlay_age_known{job="live_overlay"} > bool 0)
-                ) or (
-                  live_overlay_overlay_age_known{job="live_overlay"} == bool 0
+                  * live_overlay_overlay_age_known{job="live_overlay"}
+                )
+                + (
+                  (1 - live_overlay_overlay_age_known{job="live_overlay"})
+                  * 3601
                 )
               instant: true
           - refId: C
@@ -183,8 +185,11 @@ groups:
             model:
               expr: |
                 live_overlay_market_us_open{job="live_overlay"} * (
-                  (live_overlay_last_bar_age_known{job="live_overlay"} == bool 0)
-                  or (live_overlay_last_bar_age_seconds{job="live_overlay"} > bool 300)
+                  (1 - live_overlay_last_bar_age_known{job="live_overlay"})
+                  + (
+                    live_overlay_last_bar_age_known{job="live_overlay"}
+                    * (live_overlay_last_bar_age_seconds{job="live_overlay"} > bool 300)
+                  )
                 )
               instant: true
           - refId: C

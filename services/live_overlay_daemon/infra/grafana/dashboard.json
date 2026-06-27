@@ -661,7 +661,7 @@
       },
       "targets": [
         {
-          "expr": "live_overlay_last_bar_age_seconds{job=~\"$job\"} * (live_overlay_last_bar_age_known{job=~\"$job\"} > bool 0)",
+          "expr": "(\n  live_overlay_last_bar_age_seconds{job=~\"$job\"}\n  and on(job, instance) (live_overlay_last_bar_age_known{job=~\"$job\"} == 1)\n) or on(job, instance) (\n  live_overlay_last_bar_age_known{job=~\"$job\"} * 0 - 1\n)",
           "legendFormat": "age",
           "datasource": {
             "type": "prometheus",
@@ -1177,7 +1177,7 @@
       },
       "targets": [
         {
-          "expr": "live_overlay_overlay_age_seconds{job=~\"$job\"} * (live_overlay_overlay_age_known{job=~\"$job\"} > bool 0)",
+          "expr": "(\n  live_overlay_overlay_age_seconds{job=~\"$job\"}\n  and on(job, instance) (live_overlay_overlay_age_known{job=~\"$job\"} == 1)\n) or on(job, instance) (\n  live_overlay_overlay_age_known{job=~\"$job\"} * 0 - 1\n)",
           "legendFormat": "overlay age",
           "datasource": {
             "type": "prometheus",
@@ -1185,7 +1185,7 @@
           }
         },
         {
-          "expr": "live_overlay_last_bar_age_seconds{job=~\"$job\"} * (live_overlay_last_bar_age_known{job=~\"$job\"} > bool 0)",
+          "expr": "(\n  live_overlay_last_bar_age_seconds{job=~\"$job\"}\n  and on(job, instance) (live_overlay_last_bar_age_known{job=~\"$job\"} == 1)\n) or on(job, instance) (\n  live_overlay_last_bar_age_known{job=~\"$job\"} * 0 - 1\n)",
           "legendFormat": "last bar age",
           "datasource": {
             "type": "prometheus",
@@ -1939,7 +1939,7 @@
       },
       "targets": [
         {
-          "expr": "100 * live_overlay_overlay_age_seconds{job=~\"$job\"} / clamp_min(live_overlay_max_stale_seconds{job=~\"$job\"}, 1)",
+          "expr": "100 * (\n  (\n    live_overlay_overlay_age_seconds{job=~\"$job\"}\n    and on(job, instance) (live_overlay_overlay_age_known{job=~\"$job\"} == 1)\n  ) or on(job, instance) (\n    live_overlay_overlay_age_known{job=~\"$job\"} * 0 - 1\n  )\n) / clamp_min(live_overlay_max_stale_seconds{job=~\"$job\"}, 1)",
           "legendFormat": "stale_budget_used",
           "datasource": {
             "type": "prometheus",
@@ -2257,7 +2257,7 @@
         "x": 0,
         "y": 135
       },
-      "collapsed": true,
+      "collapsed": false,
       "panels": [],
       "description": "Row grouping for external bridge health: UptimeRobot monitors and GitHub Actions workflows.",
       "datasource": {
@@ -2862,7 +2862,7 @@
       "id": 1639741128
     },
     {
-      "title": "GitHub Workflow Status \u2014 Timeline",
+      "title": "GitHub Workflow Status — Timeline",
       "type": "state-timeline",
       "gridPos": {
         "h": 25,
@@ -3076,7 +3076,7 @@
         },
         "overrides": []
       },
-      "description": "Colour-coded latest status of each GitHub Actions workflow over time. Every row is one named workflow ({{workflow}} legend); the cell colour encodes the run conclusion \u2014 green=success, red=failure/timed-out/startup-failure, orange=cancelled/action-required, blue=in-progress/neutral, yellow=queued/stale, gray=unknown, purple=skipped. Series come from live_overlay_github_workflow_phase_code{workflow,event,workflow_id}, sampled at the daemon's GitHub workflow bridge interval (so runs shorter than one scrape interval may not appear).",
+      "description": "Colour-coded latest status of each GitHub Actions workflow over time. Every row is one named workflow ({{workflow}} legend); the cell colour encodes the run conclusion — green=success, red=failure/timed-out/startup-failure, orange=cancelled/action-required, blue=in-progress/neutral, yellow=queued/stale, gray=unknown, purple=skipped. Series come from live_overlay_github_workflow_phase_code{workflow,event,workflow_id}, sampled at the daemon's GitHub workflow bridge interval (so runs shorter than one scrape interval may not appear).",
       "datasource": {
         "type": "prometheus",
         "uid": "grafanacloud-prom"
@@ -3092,7 +3092,7 @@
         "x": 0,
         "y": 201
       },
-      "collapsed": true,
+      "collapsed": false,
       "panels": [],
       "description": "Row grouping for service-level objectives, no-data guards and error-budget burn rate.",
       "datasource": {
@@ -3536,7 +3536,7 @@
       "id": 1148615869
     },
     {
-      "title": "Hotspots \u2014 Symbols (Top)",
+      "title": "Hotspots — Symbols (Top)",
       "type": "timeseries",
       "gridPos": {
         "h": 8,
@@ -3581,7 +3581,7 @@
       "id": 1135701409
     },
     {
-      "title": "Hotspots \u2014 Timeframes (Top)",
+      "title": "Hotspots — Timeframes (Top)",
       "type": "timeseries",
       "gridPos": {
         "h": 8,
@@ -3787,7 +3787,7 @@
         "x": 0,
         "y": 282
       },
-      "collapsed": true,
+      "collapsed": false,
       "panels": [],
       "description": "Row grouping for live news provider health.",
       "datasource": {
@@ -3808,7 +3808,7 @@
       },
       "options": {
         "mode": "markdown",
-        "content": "**News provider state codes:** `0` = unknown / no data, `1` = degraded, `2` = ok, `3` = disabled (not ingested). The **News Providers \u2014 Ingest Status & Reason** table shows the human-readable reason (e.g. API key missing, no active subscription, provider disabled) and whether each provider is actually consumed."
+        "content": "**News provider state codes:** `0` = unknown / no data, `1` = degraded, `2` = ok, `3` = disabled (not ingested). The **News Providers — Ingest Status & Reason** table shows the human-readable reason (e.g. API key missing, no active subscription, provider disabled) and whether each provider is actually consumed."
       },
       "datasource": {
         "type": "prometheus",
@@ -3817,7 +3817,7 @@
       "id": 755773609
     },
     {
-      "title": "News Providers \u2014 State Code",
+      "title": "News Providers — State Code",
       "type": "timeseries",
       "gridPos": {
         "y": 285,
@@ -4126,7 +4126,7 @@
       "id": 2133310726
     },
     {
-      "title": "News Providers \u2014 OK/Degraded (Drill-down)",
+      "title": "News Providers — OK/Degraded (Drill-down)",
       "type": "timeseries",
       "gridPos": {
         "y": 311,
@@ -4173,7 +4173,7 @@
       "id": 2078851417
     },
     {
-      "title": "News Providers \u2014 Ingest Status & Reason",
+      "title": "News Providers — Ingest Status & Reason",
       "type": "table",
       "gridPos": {
         "y": 319,
@@ -4181,7 +4181,7 @@
         "w": 12,
         "x": 12
       },
-      "description": "Per-provider ingest status with the human-readable degraded reason (API key missing, no active subscription, provider disabled, \u2026) and whether the provider is actually consumed.",
+      "description": "Per-provider ingest status with the human-readable degraded reason (API key missing, no active subscription, provider disabled, …) and whether the provider is actually consumed.",
       "targets": [
         {
           "expr": "live_overlay_provider_news_info{job=~\"$job\"}",
@@ -4330,7 +4330,7 @@
       "id": 337952283
     },
     {
-      "title": "GitHub Workflows \u2014 Latest Run Detail",
+      "title": "GitHub Workflows — Latest Run Detail",
       "type": "table",
       "gridPos": {
         "h": 14,
@@ -4338,7 +4338,7 @@
         "x": 0,
         "y": 327
       },
-      "description": "Per-workflow detail of the most recent run the daemon observed: trigger event (schedule / push / \u2026), current status, run duration and age. One row per named workflow. Driven by the labelled live_overlay_github_workflow_* gauges (phase_code, latest_duration_seconds, latest_age_seconds, latest_success).",
+      "description": "Per-workflow detail of the most recent run the daemon observed: trigger event (schedule / push / …), current status, run duration and age. One row per named workflow. Driven by the labelled live_overlay_github_workflow_* gauges (phase_code, latest_duration_seconds, latest_age_seconds, latest_success).",
       "targets": [
         {
           "expr": "live_overlay_github_workflow_phase_code{job=~\"$job\"}",
@@ -4536,11 +4536,11 @@
                     "type": "value",
                     "options": {
                       "0": {
-                        "text": "\u2717",
+                        "text": "✗",
                         "color": "red"
                       },
                       "1": {
-                        "text": "\u2713",
+                        "text": "✓",
                         "color": "green"
                       }
                     }
@@ -4575,7 +4575,7 @@
     {
       "title": "TradingView Credential Age",
       "type": "stat",
-      "description": "Hours since the TradingView Playwright storage-state login (meta.authValidatedAt) was last validated, from the daily credential-health report (tv_storage_state_age probe). Policy TTL is 72h: green < 57.6h (80% warn band), yellow 57.6\u201372h, red once the cached login is older than 72h and must be re-captured. N/A when no report/age is available.",
+      "description": "Hours since the TradingView Playwright storage-state login (meta.authValidatedAt) was last validated, from the daily credential-health report (tv_storage_state_age probe). Policy TTL is 72h: green < 57.6h (80% warn band), yellow 57.6–72h, red once the cached login is older than 72h and must be re-captured. N/A when no report/age is available.",
       "gridPos": {
         "h": 5,
         "w": 6,
@@ -4640,7 +4640,7 @@
     {
       "title": "TradingView Credential Status",
       "type": "stat",
-      "description": "Whether the latest credential-health report considers the TradingView storage-state login valid (severity not error). 1 = valid (cached login still within the 72h TTL), 0 = expired/error \u2192 re-capture TV_STORAGE_STATE. N/A when no report has been ingested yet.",
+      "description": "Whether the latest credential-health report considers the TradingView storage-state login valid (severity not error). 1 = valid (cached login still within the 72h TTL), 0 = expired/error → re-capture TV_STORAGE_STATE. N/A when no report has been ingested yet.",
       "gridPos": {
         "h": 5,
         "w": 6,
@@ -4711,7 +4711,7 @@
       "id": 1230367683,
       "title": "Railway Resources",
       "type": "row",
-      "collapsed": true,
+      "collapsed": false,
       "gridPos": {
         "h": 1,
         "w": 24,

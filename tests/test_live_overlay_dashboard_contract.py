@@ -231,21 +231,28 @@ def test_dashboard_restart_causes_panel_is_unique_and_groups_by_cause() -> None:
     assert panel["targets"][0].get("legendFormat") == "{{cause}}"
 
 
-def test_dashboard_operational_rows_expanded_others_collapsed() -> None:
-    """Top operational rows stay expanded; detail rows start collapsed."""
+def test_dashboard_rows_are_either_expanded_or_contain_children() -> None:
+    """Rows without nested child panels must not claim to be collapsed.
+
+    Grafana only lazy-loads rows that actually contain child panels in
+    ``row.panels``.  Empty collapsed rows (``panels: []``) provide no load
+    benefit and hide the detail panels that follow in the top-level list.
+    """
     dashboard = json.loads(_DASHBOARD_JSON.read_text(encoding="utf-8"))
     expanded = {"Overview", "Health", "Status", "Collector / Scrape Targets"}
-    collapsed = {"External Integrations", "Provider Health", "Railway Resources", "SLO & Reliability"}
     rows = [p for p in dashboard["panels"] if p.get("type") == "row"]
     titles = {r["title"] for r in rows}
     for title in expanded:
         if title in titles:
             row = next(r for r in rows if r["title"] == title)
             assert row.get("collapsed") is False, f"row {title} should be expanded"
-    for title in collapsed:
-        if title in titles:
-            row = next(r for r in rows if r["title"] == title)
-            assert row.get("collapsed") is True, f"row {title} should be collapsed"
+    for row in rows:
+        if row["title"] not in expanded:
+            children = row.get("panels") or []
+            if not children:
+                assert row.get("collapsed") is False, (
+                    f"row {row['title']} has no child panels and must not be collapsed"
+                )
 
 
 def test_dashboard_has_process_resident_memory_panel() -> None:
@@ -411,20 +418,31 @@ def test_latency_queries_guard_zero_observation_histogram() -> None:
         assert "or vector(0)" in expr
 
 
-def test_age_alerts_fire_when_age_unknown() -> None:
-    """Stale-age alerts must page when the known gauge reports 0 (unknown)."""
+def test_age_alerts_use_arithmetic_not_or_between_bool_vectors() -> None:
+    """Stale-age alerts must fire both when age is unknown and when it exceeds the threshold.
+
+    ``or`` between bool-comparison vectors is dangerous because bool comparisons
+    drop the metric name and ``or`` keeps the left side when both sides share the
+    same label set.  The current alerts therefore use arithmetic 0/1 logic instead.
+    """
     rules_doc = yaml.safe_load(_ALERT_RULES_YAML.read_text(encoding="utf-8"))
     groups = rules_doc["groups"]
-    for uid, expected_tokens in (
-        ("lo-overlay-stale", ("overlay_age_known", "== bool 0")),
-        ("lo-last-bar-stale-open", ("last_bar_age_known", "== bool 0")),
-    ):
-        rule = next(
-            r for g in groups for r in g["rules"] if r.get("uid") == uid
-        )
-        expr = rule["data"][0]["model"]["expr"]
-        for token in expected_tokens:
-            assert token in expr, f"{uid}: missing {token} in {expr}"
+
+    overlay = next(
+        r for g in groups for r in g["rules"] if r.get("uid") == "lo-overlay-stale"
+    )
+    overlay_expr = overlay["data"][0]["model"]["expr"]
+    assert "(1 - live_overlay_overlay_age_known" in overlay_expr
+    assert "* 3601" in overlay_expr
+    assert " or " not in overlay_expr.replace("\n", " ")
+
+    last_bar = next(
+        r for g in groups for r in g["rules"] if r.get("uid") == "lo-last-bar-stale-open"
+    )
+    last_bar_expr = last_bar["data"][0]["model"]["expr"]
+    assert "(1 - live_overlay_last_bar_age_known" in last_bar_expr
+    assert "> bool 300" in last_bar_expr
+    assert " or " not in last_bar_expr.replace("\n", " ")
 
 
 def test_burn_rate_panel_covers_warning_windows() -> None:
