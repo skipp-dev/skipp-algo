@@ -43,15 +43,16 @@
   "panels": [
     {
       "id": 2019579735,
-      "title": "Operations at a glance (pinned)",
+      "title": "Incident Overview",
       "type": "row",
-      "collapsed": true,
+      "collapsed": false,
       "gridPos": {
         "x": 0,
         "y": 0,
         "w": 24,
         "h": 1
-      }
+      },
+      "description": "First-screen incident view: health, alerts, market context, user impact and SLOs."
     },
     {
       "title": "Overall Health",
@@ -99,8 +100,8 @@
                   "color": "yellow"
                 },
                 "2": {
-                  "text": "IDLE",
-                  "color": "semi-dark-orange"
+                  "text": "IDLE (MARKET CLOSED)",
+                  "color": "gray"
                 },
                 "3": {
                   "text": "HEALTHY",
@@ -121,7 +122,7 @@
                 "value": 1
               },
               {
-                "color": "semi-dark-orange",
+                "color": "gray",
                 "value": 2
               },
               {
@@ -130,7 +131,27 @@
               }
             ]
           }
-        }
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Health"
+            },
+            "properties": [
+              {
+                "id": "links",
+                "value": [
+                  {
+                    "title": "Railway logs",
+                    "url": "https://railway.app/project",
+                    "targetBlank": true
+                  }
+                ]
+              }
+            ]
+          }
+        ]
       },
       "datasource": {
         "type": "prometheus",
@@ -147,7 +168,7 @@
       ]
     },
     {
-      "title": "Active Alerts (live_overlay)",
+      "title": "Active Alerts",
       "type": "alertlist",
       "gridPos": {
         "x": 8,
@@ -159,11 +180,10 @@
         "showLabels": true,
         "sortOrder": 1,
         "groupMode": "default",
-        "maxItems": 20,
-        "alertInstanceLabelFilter": "job=live_overlay",
+        "maxItems": 30,
         "viewMode": "list"
       },
-      "description": "Currently firing Grafana alerts from the live-overlay alert rule group.",
+      "description": "Currently firing Grafana alerts for live overlay, collector, and dependent services.",
       "datasource": {
         "type": "prometheus",
         "uid": "grafanacloud-prom"
@@ -182,7 +202,7 @@
       },
       "options": {
         "mode": "markdown",
-        "content": "**Incident triage quick-checks**\n\n- `feed_healthy == 0` -> check `DATABENTO_API_KEY`, Railway logs, circuit breaker.\n- `workers_healthy == 0` -> check thread liveness in Worker Liveness panel; restart via Railway.\n- `overlay_fresh == 0` -> check compute cycle errors, full/flow compute logs.\n- `market_open == 1` but no traffic -> check TradingView token rollout / auth denied rate.\n- bridge scrape error -> verify UptimeRobot / GitHub API token and quota.\n- vertical grey lines on time-series = recent deploy/restart.\n\nFull runbook: [README](https://github.com/skippALGO/skipp-algo/blob/main/services/live_overlay_daemon/README.md)"
+        "content": "**Incident triage**\n\n1. Check **Active Alerts** first.\n2. If **Feed Healthy** is red: check Databento credentials, feed reconnects, and Railway logs.\n3. If **Workers Healthy** is red: open Worker Liveness and restart the daemon if a worker is dead.\n4. If **Overlay Fresh** is red: check Compute Cycle Errors and Overlay & Bar Age.\n5. If traffic is missing while **Market Status** is open: check TradingView rollout, auth denied, and request rate.\n6. If dashboards show no data: check Collector / Scrape Targets.\n\nRunbook: [README](https://github.com/skippALGO/skipp-algo/blob/main/services/live_overlay_daemon/README.md)\n\n---\n**Quick links** \u00b7 [Railway logs](https://railway.app/project) \u00b7 [Railway deployments](https://railway.app/project/deployments) \u00b7 [GitHub Actions](https://github.com/skippALGO/skipp-algo/actions) \u00b7 [Runbook: live-overlay on-call](https://github.com/skippALGO/skipp-algo/blob/main/services/live_overlay_daemon/RUNBOOK.md)"
       },
       "datasource": {
         "type": "prometheus",
@@ -191,107 +211,12 @@
       "id": 128646875
     },
     {
-      "title": "Global Market Sessions",
-      "type": "state-timeline",
-      "gridPos": {
-        "x": 0,
-        "y": 10,
-        "w": 24,
-        "h": 4
-      },
-      "targets": [
-        {
-          "expr": "max(max_over_time(live_overlay_market_us_open{job=~\"$job\"}[5m])) or vector(0)",
-          "legendFormat": "US",
-          "instant": false,
-          "range": true,
-          "datasource": {
-            "type": "prometheus",
-            "uid": "grafanacloud-prom"
-          }
-        },
-        {
-          "expr": "max(max_over_time(live_overlay_market_europe_open{job=~\"$job\"}[5m])) or vector(0)",
-          "legendFormat": "Europe",
-          "instant": false,
-          "range": true,
-          "datasource": {
-            "type": "prometheus",
-            "uid": "grafanacloud-prom"
-          }
-        },
-        {
-          "expr": "max(max_over_time(live_overlay_market_asia_open{job=~\"$job\"}[5m])) or vector(0)",
-          "legendFormat": "Asia",
-          "instant": false,
-          "range": true,
-          "datasource": {
-            "type": "prometheus",
-            "uid": "grafanacloud-prom"
-          }
-        }
-      ],
-      "options": {
-        "tooltip": {
-          "mode": "multi",
-          "sort": "none"
-        },
-        "legend": {
-          "displayMode": "list",
-          "placement": "bottom",
-          "showLegend": false
-        },
-        "rowHeight": 0.9
-      },
-      "fieldConfig": {
-        "defaults": {
-          "mappings": [
-            {
-              "type": "value",
-              "options": {
-                "0": {
-                  "text": "CLOSED",
-                  "color": "red"
-                },
-                "1": {
-                  "text": "OPEN",
-                  "color": "green"
-                }
-              }
-            }
-          ],
-          "color": {
-            "mode": "thresholds"
-          },
-          "thresholds": {
-            "mode": "absolute",
-            "steps": [
-              {
-                "color": "red",
-                "value": null
-              },
-              {
-                "color": "green",
-                "value": 1
-              }
-            ]
-          }
-        }
-      },
-      "description": "Regular trading session state for US, Europe, and Asia markets.",
-      "datasource": {
-        "type": "prometheus",
-        "uid": "grafanacloud-prom"
-      },
-      "id": 1083571696
-    },
-    {
       "title": "Feed Healthy",
       "type": "stat",
       "description": "Live feed connection health (0 = unhealthy, 1 = healthy).",
       "gridPos": {
         "x": 0,
-        "y": 12,
+        "y": 10,
         "w": 4,
         "h": 3
       },
@@ -364,10 +289,10 @@
     {
       "title": "Overlay Fresh",
       "type": "stat",
-      "description": "Overlay data freshness (1 = fresh, 0 = stale).",
+      "description": "Is the latest overlay calculation recent enough to trade on? Green means the last computed overlay is within the expected freshness window.",
       "gridPos": {
         "x": 4,
-        "y": 12,
+        "y": 10,
         "w": 4,
         "h": 3
       },
@@ -443,7 +368,7 @@
       "description": "Background thread liveness (1 = all alive, 0 = at least one dead).",
       "gridPos": {
         "x": 8,
-        "y": 12,
+        "y": 10,
         "w": 4,
         "h": 3
       },
@@ -514,12 +439,12 @@
       ]
     },
     {
-      "title": "Bridge Scrapes",
+      "title": "External Checks",
       "type": "stat",
       "description": "External bridge scrape health (UptimeRobot + GitHub Workflows).",
       "gridPos": {
         "x": 12,
-        "y": 12,
+        "y": 10,
         "w": 4,
         "h": 3
       },
@@ -579,7 +504,15 @@
         "type": "prometheus",
         "uid": "grafanacloud-prom"
       },
-      "id": 2071035035
+      "id": 2071035035,
+      "links": [
+        {
+          "title": "External Integrations",
+          "type": "link",
+          "url": "/d/smc-live-overlay-v1?orgId=1&viewPanel=2503",
+          "targetBlank": true
+        }
+      ]
     },
     {
       "title": "Market Status",
@@ -587,7 +520,7 @@
       "description": "Major session state (US regular or Europe regular); 1 = open, 0 = closed.",
       "gridPos": {
         "x": 16,
-        "y": 12,
+        "y": 10,
         "w": 4,
         "h": 3
       },
@@ -655,13 +588,13 @@
       "description": "Age of the newest bar received from Databento.",
       "gridPos": {
         "x": 20,
-        "y": 12,
+        "y": 10,
         "w": 4,
         "h": 3
       },
       "targets": [
         {
-          "expr": "live_overlay_last_bar_age_seconds{job=~\"$job\"} * (live_overlay_last_bar_age_known{job=~\"$job\"} > bool 0)",
+          "expr": "(\n  live_overlay_last_bar_age_seconds{job=~\"$job\"}\n  and on(job, instance) (live_overlay_last_bar_age_known{job=~\"$job\"} == 1)\n) or on(job, instance) (\n  live_overlay_last_bar_age_known{job=~\"$job\"} * 0 - 1\n)",
           "legendFormat": "age",
           "datasource": {
             "type": "prometheus",
@@ -721,7 +654,7 @@
       "type": "stat",
       "gridPos": {
         "x": 0,
-        "y": 17,
+        "y": 14,
         "w": 4,
         "h": 3
       },
@@ -762,7 +695,7 @@
                 },
                 "2": {
                   "text": "IDLE (MARKET CLOSED)",
-                  "color": "semi-dark-orange"
+                  "color": "gray"
                 },
                 "3": {
                   "text": "OK",
@@ -783,7 +716,7 @@
                 "value": 1
               },
               {
-                "color": "semi-dark-orange",
+                "color": "gray",
                 "value": 2
               },
               {
@@ -802,71 +735,11 @@
       "id": 135167800
     },
     {
-      "id": 2025070801,
-      "title": "Process Resident Memory",
-      "type": "stat",
-      "description": "Daemon process resident memory as reported by the built-in Prometheus collector.",
-      "gridPos": {
-        "h": 4,
-        "w": 4,
-        "x": 4,
-        "y": 12
-      },
-      "datasource": {
-        "type": "prometheus",
-        "uid": "grafanacloud-prom"
-      },
-      "targets": [
-        {
-          "expr": "live_overlay_process_resident_memory_bytes{job=~\"$job\"}",
-          "legendFormat": "resident memory",
-          "datasource": {
-            "type": "prometheus",
-            "uid": "grafanacloud-prom"
-          }
-        }
-      ],
-      "options": {
-        "colorMode": "background_solid",
-        "graphMode": "area",
-        "reduceOptions": {
-          "calcs": [
-            "lastNotNull"
-          ],
-          "fields": "",
-          "values": false
-        }
-      },
-      "fieldConfig": {
-        "defaults": {
-          "unit": "bytes",
-          "decimals": 2,
-          "thresholds": {
-            "mode": "absolute",
-            "steps": [
-              {
-                "color": "green",
-                "value": null
-              },
-              {
-                "color": "yellow",
-                "value": 536870912
-              },
-              {
-                "color": "red",
-                "value": 943718400
-              }
-            ]
-          }
-        }
-      }
-    },
-    {
       "title": "Uptime",
       "type": "stat",
       "gridPos": {
         "x": 4,
-        "y": 17,
+        "y": 14,
         "w": 4,
         "h": 3
       },
@@ -915,7 +788,7 @@
       "type": "stat",
       "gridPos": {
         "x": 8,
-        "y": 17,
+        "y": 14,
         "w": 4,
         "h": 3
       },
@@ -976,7 +849,7 @@
       "type": "stat",
       "gridPos": {
         "x": 12,
-        "y": 17,
+        "y": 14,
         "w": 4,
         "h": 3
       },
@@ -1028,7 +901,7 @@
       "type": "stat",
       "gridPos": {
         "x": 16,
-        "y": 17,
+        "y": 14,
         "w": 4,
         "h": 3
       },
@@ -1065,13 +938,650 @@
       "id": 1733734659
     },
     {
+      "id": 2025070801,
+      "title": "Process Resident Memory",
+      "type": "stat",
+      "description": "Daemon process resident memory as reported by the built-in Prometheus collector.",
+      "gridPos": {
+        "x": 20,
+        "y": 14,
+        "w": 4,
+        "h": 3
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "grafanacloud-prom"
+      },
+      "targets": [
+        {
+          "expr": "live_overlay_process_resident_memory_bytes{job=~\"$job\"}",
+          "legendFormat": "resident memory",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "grafanacloud-prom"
+          }
+        }
+      ],
+      "options": {
+        "colorMode": "background_solid",
+        "graphMode": "area",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        }
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "bytes",
+          "decimals": 2,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "yellow",
+                "value": 536870912
+              },
+              {
+                "color": "red",
+                "value": 943718400
+              }
+            ]
+          },
+          "links": [
+            {
+              "title": "Railway metrics",
+              "url": "https://railway.app/project/metrics",
+              "targetBlank": true
+            }
+          ]
+        }
+      }
+    },
+    {
+      "title": "Global Market Sessions",
+      "type": "state-timeline",
+      "gridPos": {
+        "x": 0,
+        "y": 18,
+        "w": 24,
+        "h": 4
+      },
+      "targets": [
+        {
+          "expr": "max(max_over_time(live_overlay_market_us_open{job=~\"$job\"}[5m])) or vector(0)",
+          "legendFormat": "US",
+          "instant": false,
+          "range": true,
+          "datasource": {
+            "type": "prometheus",
+            "uid": "grafanacloud-prom"
+          }
+        },
+        {
+          "expr": "max(max_over_time(live_overlay_market_europe_open{job=~\"$job\"}[5m])) or vector(0)",
+          "legendFormat": "Europe",
+          "instant": false,
+          "range": true,
+          "datasource": {
+            "type": "prometheus",
+            "uid": "grafanacloud-prom"
+          }
+        },
+        {
+          "expr": "max(max_over_time(live_overlay_market_asia_open{job=~\"$job\"}[5m])) or vector(0)",
+          "legendFormat": "Asia",
+          "instant": false,
+          "range": true,
+          "datasource": {
+            "type": "prometheus",
+            "uid": "grafanacloud-prom"
+          }
+        }
+      ],
+      "options": {
+        "tooltip": {
+          "mode": "multi",
+          "sort": "none"
+        },
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": false
+        },
+        "rowHeight": 0.9
+      },
+      "fieldConfig": {
+        "defaults": {
+          "mappings": [
+            {
+              "options": {
+                "0": {
+                  "color": "gray",
+                  "index": 0,
+                  "text": "CLOSED"
+                },
+                "1": {
+                  "color": "green",
+                  "index": 1,
+                  "text": "OPEN"
+                }
+              },
+              "type": "value"
+            }
+          ],
+          "color": {
+            "mode": "thresholds"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "gray",
+                "value": null
+              },
+              {
+                "color": "green",
+                "value": 1
+              }
+            ]
+          }
+        }
+      },
+      "description": "Regular trading session state for US, Europe, and Asia markets.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "grafanacloud-prom"
+      },
+      "id": 1083571696
+    },
+    {
+      "title": "Success Rate (%)",
+      "type": "stat",
+      "gridPos": {
+        "x": 0,
+        "y": 23,
+        "w": 6,
+        "h": 5
+      },
+      "targets": [
+        {
+          "expr": "100 * (\n  sum(rate(live_overlay_smc_live_success_total{job=~\"$job\"}[$__rate_interval]))\n  /\n  sum(rate(live_overlay_smc_live_requests_total{job=~\"$job\"}[$__rate_interval]))\n)\nunless on()\nsum(rate(live_overlay_smc_live_requests_total{job=~\"$job\"}[$__rate_interval])) == 0",
+          "legendFormat": "success_rate",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "grafanacloud-prom"
+          }
+        }
+      ],
+      "options": {
+        "colorMode": "background_solid",
+        "graphMode": "area",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        }
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percent",
+          "decimals": 2,
+          "min": 0,
+          "max": 100,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "red",
+                "value": null
+              },
+              {
+                "color": "yellow",
+                "value": 95
+              },
+              {
+                "color": "green",
+                "value": 99
+              }
+            ]
+          },
+          "noValue": "NO TRAFFIC"
+        }
+      },
+      "description": "Percentage of recent /smc_live HTTP requests that completed successfully. Displays NO TRAFFIC when no requests are observed.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "grafanacloud-prom"
+      },
+      "id": 430700215,
+      "links": [
+        {
+          "title": "Failure Mix",
+          "type": "link",
+          "url": "/d/smc-live-overlay-v1?orgId=1&viewPanel=571973267",
+          "targetBlank": true
+        }
+      ]
+    },
+    {
+      "title": "Market Traffic Health",
+      "type": "stat",
+      "gridPos": {
+        "x": 6,
+        "y": 23,
+        "w": 6,
+        "h": 5
+      },
+      "targets": [
+        {
+          "expr": "(live_overlay_market_us_open{job=~\"$job\"} or vector(0)) + ((live_overlay_market_us_open{job=~\"$job\"} or vector(0)) * (((rate(live_overlay_smc_live_requests_total{job=~\"$job\"}[5m]) or vector(0)) > bool 0.001)))",
+          "legendFormat": "open_req_health",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "grafanacloud-prom"
+          }
+        }
+      ],
+      "options": {
+        "colorMode": "background_solid",
+        "graphMode": "area",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        }
+      },
+      "fieldConfig": {
+        "defaults": {
+          "mappings": [
+            {
+              "type": "value",
+              "options": {
+                "0": {
+                  "text": "MARKET_CLOSED",
+                  "color": "gray"
+                },
+                "1": {
+                  "text": "OPEN_NO_TRAFFIC",
+                  "color": "yellow"
+                },
+                "2": {
+                  "text": "TRAFFIC_OK",
+                  "color": "green"
+                }
+              }
+            }
+          ],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "gray",
+                "value": null
+              },
+              {
+                "color": "yellow",
+                "value": 1
+              },
+              {
+                "color": "green",
+                "value": 2
+              }
+            ]
+          }
+        }
+      },
+      "description": "Synthetic signal that amplifies request health while any major trading session (US or Europe) is open and suppresses it when closed.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "grafanacloud-prom"
+      },
+      "id": 471930109
+    },
+    {
+      "title": "Market Data Freshness",
+      "type": "stat",
+      "gridPos": {
+        "x": 12,
+        "y": 23,
+        "w": 6,
+        "h": 5
+      },
+      "targets": [
+        {
+          "expr": "100 * (\n  sum_over_time(\n    (\n      live_overlay_overlay_fresh{job=~\"$job\"}\n      * live_overlay_market_us_open{job=~\"$job\"}\n    )[1h:]\n  )\n  /\n  clamp_min(\n    sum_over_time(live_overlay_market_us_open{job=~\"$job\"}[1h:]),\n    1\n  )\n)",
+          "legendFormat": "freshness_slo",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "grafanacloud-prom"
+          }
+        }
+      ],
+      "options": {
+        "colorMode": "background_solid",
+        "graphMode": "area",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        }
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percent",
+          "min": 0,
+          "max": 100,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "red",
+                "value": null
+              },
+              {
+                "color": "yellow",
+                "value": 95
+              },
+              {
+                "color": "green",
+                "value": 99
+              }
+            ]
+          }
+        }
+      },
+      "description": "Are market-open bars still arriving on time? Shows freshness SLO over the last hour.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "grafanacloud-prom"
+      },
+      "id": 1544709606
+    },
+    {
+      "title": "Core Metrics Present",
+      "type": "stat",
+      "gridPos": {
+        "x": 18,
+        "y": 23,
+        "w": 6,
+        "h": 5
+      },
+      "targets": [
+        {
+          "expr": "count(live_overlay_uptime_seconds{job=~\"$job\"}) > bool 0",
+          "legendFormat": "core_metrics_present",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "grafanacloud-prom"
+          }
+        }
+      ],
+      "options": {
+        "colorMode": "background_solid",
+        "graphMode": "none",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        }
+      },
+      "fieldConfig": {
+        "defaults": {
+          "mappings": [
+            {
+              "type": "value",
+              "options": {
+                "0": {
+                  "text": "MISSING",
+                  "color": "red"
+                },
+                "1": {
+                  "text": "PRESENT",
+                  "color": "green"
+                }
+              }
+            }
+          ],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "red",
+                "value": null
+              },
+              {
+                "color": "green",
+                "value": 1
+              }
+            ]
+          }
+        }
+      },
+      "description": "Can Grafana still see the service? This panel turns red when the core daemon metric series disappear, which usually means the process is down or the scrape target is unreachable.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "grafanacloud-prom"
+      },
+      "id": 1535993467,
+      "links": [
+        {
+          "title": "Collector / Scrape Targets",
+          "type": "link",
+          "url": "/d/smc-live-overlay-v1?orgId=1&viewPanel=4374",
+          "targetBlank": true
+        }
+      ]
+    },
+    {
+      "title": "Latency vs. SLO (ms)",
+      "type": "timeseries",
+      "gridPos": {
+        "x": 0,
+        "y": 29,
+        "w": 12,
+        "h": 8
+      },
+      "targets": [
+        {
+          "expr": "(\n  histogram_quantile(0.95, sum by (le) (\n    rate(live_overlay_smc_live_latency_ms_bucket{job=~\"$job\"}[5m])\n  ))\n  and on() (sum(rate(live_overlay_smc_live_latency_ms_count{job=~\"$job\"}[5m])) > 0)\n) or vector(0)",
+          "legendFormat": "p95",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "grafanacloud-prom"
+          }
+        },
+        {
+          "expr": "(\n  histogram_quantile(0.99, sum by (le) (\n    rate(live_overlay_smc_live_latency_ms_bucket{job=~\"$job\"}[5m])\n  ))\n  and on() (sum(rate(live_overlay_smc_live_latency_ms_count{job=~\"$job\"}[5m])) > 0)\n) or vector(0)",
+          "legendFormat": "p99",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "grafanacloud-prom"
+          }
+        },
+        {
+          "expr": "vector(500)",
+          "legendFormat": "SLO = 500ms",
+          "refId": "SLO",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "grafanacloud-prom"
+          }
+        }
+      ],
+      "options": {
+        "tooltip": {
+          "mode": "multi",
+          "sort": "none"
+        },
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true,
+          "calcs": [
+            "lastNotNull"
+          ]
+        }
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "ms",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "yellow",
+                "value": 200
+              },
+              {
+                "color": "orange",
+                "value": 350
+              },
+              {
+                "color": "red",
+                "value": 500
+              }
+            ]
+          }
+        }
+      },
+      "description": "5m rolling p95/p99 latency computed with histogram_quantile() over live_overlay_smc_live_latency_ms_bucket, plus fixed 500 ms SLO threshold.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "grafanacloud-prom"
+      },
+      "id": 799015540
+    },
+    {
+      "title": "Error Budget Burn Rate",
+      "type": "timeseries",
+      "gridPos": {
+        "x": 12,
+        "y": 29,
+        "w": 12,
+        "h": 8
+      },
+      "targets": [
+        {
+          "expr": "((sum(rate(live_overlay_smc_live_errors_total{job=~\"$job\"}[5m])) / clamp_min(sum(rate(live_overlay_smc_live_requests_total{job=~\"$job\"}[5m])), 1e-9)) / 0.01)",
+          "legendFormat": "5m burn rate",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "grafanacloud-prom"
+          }
+        },
+        {
+          "expr": "((sum(rate(live_overlay_smc_live_errors_total{job=~\"$job\"}[1h])) / clamp_min(sum(rate(live_overlay_smc_live_requests_total{job=~\"$job\"}[1h])), 1e-9)) / 0.01)",
+          "legendFormat": "1h burn rate",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "grafanacloud-prom"
+          }
+        },
+        {
+          "expr": "((sum(rate(live_overlay_smc_live_errors_total{job=~\"$job\"}[30m])) / clamp_min(sum(rate(live_overlay_smc_live_requests_total{job=~\"$job\"}[30m])), 1e-9)) / 0.01)",
+          "legendFormat": "30m burn rate",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "grafanacloud-prom"
+          }
+        },
+        {
+          "expr": "((sum(rate(live_overlay_smc_live_errors_total{job=~\"$job\"}[6h])) / clamp_min(sum(rate(live_overlay_smc_live_requests_total{job=~\"$job\"}[6h])), 1e-9)) / 0.01)",
+          "legendFormat": "6h burn rate",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "grafanacloud-prom"
+          }
+        }
+      ],
+      "options": {
+        "tooltip": {
+          "mode": "multi",
+          "sort": "none"
+        },
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true,
+          "calcs": [
+            "lastNotNull"
+          ]
+        }
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "yellow",
+                "value": 2
+              },
+              {
+                "color": "orange",
+                "value": 6
+              },
+              {
+                "color": "red",
+                "value": 14.4
+              }
+            ]
+          }
+        }
+      },
+      "description": "Rate of bad events over 5m and 1h windows used for multi-window SLO alerting.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "grafanacloud-prom"
+      },
+      "id": 801261644
+    },
+    {
+      "id": 2026029801,
+      "title": "Operational Drill-down",
+      "type": "row",
+      "collapsed": false,
+      "gridPos": {
+        "x": 0,
+        "y": 40,
+        "w": 24,
+        "h": 1
+      },
+      "panels": [],
+      "description": "Immediate cause-finding panels after the top-level incident signals."
+    },
+    {
       "title": "Request Rate",
       "type": "timeseries",
       "gridPos": {
-        "h": 8,
-        "w": 12,
         "x": 0,
-        "y": 23
+        "y": 42,
+        "w": 12,
+        "h": 8
       },
       "targets": [
         {
@@ -1170,14 +1680,14 @@
       "title": "Overlay & Bar Age",
       "type": "timeseries",
       "gridPos": {
-        "h": 8,
-        "w": 12,
         "x": 12,
-        "y": 31
+        "y": 42,
+        "w": 12,
+        "h": 8
       },
       "targets": [
         {
-          "expr": "live_overlay_overlay_age_seconds{job=~\"$job\"} * (live_overlay_overlay_age_known{job=~\"$job\"} > bool 0)",
+          "expr": "(\n  live_overlay_overlay_age_seconds{job=~\"$job\"}\n  and on(job, instance) (live_overlay_overlay_age_known{job=~\"$job\"} == 1)\n) or on(job, instance) (\n  live_overlay_overlay_age_known{job=~\"$job\"} * 0 - 1\n)",
           "legendFormat": "overlay age",
           "datasource": {
             "type": "prometheus",
@@ -1185,7 +1695,7 @@
           }
         },
         {
-          "expr": "live_overlay_last_bar_age_seconds{job=~\"$job\"} * (live_overlay_last_bar_age_known{job=~\"$job\"} > bool 0)",
+          "expr": "(\n  live_overlay_last_bar_age_seconds{job=~\"$job\"}\n  and on(job, instance) (live_overlay_last_bar_age_known{job=~\"$job\"} == 1)\n) or on(job, instance) (\n  live_overlay_last_bar_age_known{job=~\"$job\"} * 0 - 1\n)",
           "legendFormat": "last bar age",
           "datasource": {
             "type": "prometheus",
@@ -1245,14 +1755,14 @@
       "title": "Compute Cycle Errors",
       "type": "timeseries",
       "gridPos": {
-        "h": 8,
-        "w": 12,
         "x": 0,
-        "y": 39
+        "y": 51,
+        "w": 12,
+        "h": 8
       },
       "targets": [
         {
-          "expr": "rate(live_overlay_full_compute_cycle_errors{job=~\"$job\"}[$__rate_interval])",
+          "expr": "rate(live_overlay_full_compute_cycle_errors{job=~\"$job\"}[$__rate_interval]) or vector(0)",
           "legendFormat": "full compute errors",
           "datasource": {
             "type": "prometheus",
@@ -1260,7 +1770,7 @@
           }
         },
         {
-          "expr": "rate(live_overlay_flow_patch_cycle_errors{job=~\"$job\"}[$__rate_interval])",
+          "expr": "rate(live_overlay_flow_patch_cycle_errors{job=~\"$job\"}[$__rate_interval]) or vector(0)",
           "legendFormat": "flow patch errors",
           "datasource": {
             "type": "prometheus",
@@ -1352,10 +1862,10 @@
       "title": "Feed Health Counters",
       "type": "timeseries",
       "gridPos": {
-        "h": 8,
-        "w": 12,
         "x": 12,
-        "y": 47
+        "y": 51,
+        "w": 12,
+        "h": 8
       },
       "targets": [
         {
@@ -1414,10 +1924,10 @@
       "title": "Worker Liveness",
       "type": "state-timeline",
       "gridPos": {
-        "h": 6,
-        "w": 12,
         "x": 0,
-        "y": 55
+        "y": 60,
+        "w": 12,
+        "h": 6
       },
       "targets": [
         {
@@ -1511,10 +2021,10 @@
       "title": "Feed Circuit Breakers (Total)",
       "type": "stat",
       "gridPos": {
-        "h": 6,
-        "w": 6,
         "x": 12,
-        "y": 61
+        "y": 60,
+        "w": 6,
+        "h": 6
       },
       "targets": [
         {
@@ -1581,10 +2091,10 @@
       "title": "Feed Partial Restarts (Total)",
       "type": "stat",
       "gridPos": {
-        "h": 6,
-        "w": 6,
         "x": 18,
-        "y": 67
+        "y": 60,
+        "w": 6,
+        "h": 6
       },
       "targets": [
         {
@@ -1637,161 +2147,13 @@
       "id": 1736105602
     },
     {
-      "title": "Success Rate (%)",
-      "type": "stat",
-      "gridPos": {
-        "h": 6,
-        "w": 6,
-        "x": 0,
-        "y": 73
-      },
-      "targets": [
-        {
-          "expr": "100 * (\n  sum(rate(live_overlay_smc_live_success_total{job=~\"$job\"}[$__rate_interval]))\n  /\n  sum(rate(live_overlay_smc_live_requests_total{job=~\"$job\"}[$__rate_interval]))\n)\nunless on()\nsum(rate(live_overlay_smc_live_requests_total{job=~\"$job\"}[$__rate_interval])) == 0",
-          "legendFormat": "success_rate",
-          "datasource": {
-            "type": "prometheus",
-            "uid": "grafanacloud-prom"
-          }
-        }
-      ],
-      "options": {
-        "colorMode": "background_solid",
-        "graphMode": "area",
-        "reduceOptions": {
-          "calcs": [
-            "lastNotNull"
-          ],
-          "fields": "",
-          "values": false
-        }
-      },
-      "fieldConfig": {
-        "defaults": {
-          "unit": "percent",
-          "decimals": 2,
-          "min": 0,
-          "max": 100,
-          "thresholds": {
-            "mode": "absolute",
-            "steps": [
-              {
-                "color": "red",
-                "value": null
-              },
-              {
-                "color": "yellow",
-                "value": 95
-              },
-              {
-                "color": "green",
-                "value": 99
-              }
-            ]
-          },
-          "noValue": "NO TRAFFIC"
-        }
-      },
-      "description": "Percentage of recent /smc_live HTTP requests that completed successfully. Displays NO TRAFFIC when no requests are observed.",
-      "datasource": {
-        "type": "prometheus",
-        "uid": "grafanacloud-prom"
-      },
-      "id": 430700215,
-      "links": [
-        {
-          "title": "Failure Mix",
-          "type": "link",
-          "url": "/d/smc-live-overlay-v1?orgId=1&viewPanel=571973267",
-          "targetBlank": true
-        }
-      ]
-    },
-    {
-      "title": "Market-open Request Health",
-      "type": "stat",
-      "gridPos": {
-        "h": 6,
-        "w": 6,
-        "x": 6,
-        "y": 79
-      },
-      "targets": [
-        {
-          "expr": "(live_overlay_market_us_open{job=~\"$job\"} or vector(0)) + ((live_overlay_market_us_open{job=~\"$job\"} or vector(0)) * (((rate(live_overlay_smc_live_requests_total{job=~\"$job\"}[5m]) or vector(0)) > bool 0.001)))",
-          "legendFormat": "open_req_health",
-          "datasource": {
-            "type": "prometheus",
-            "uid": "grafanacloud-prom"
-          }
-        }
-      ],
-      "options": {
-        "colorMode": "background_solid",
-        "graphMode": "area",
-        "reduceOptions": {
-          "calcs": [
-            "lastNotNull"
-          ],
-          "fields": "",
-          "values": false
-        }
-      },
-      "fieldConfig": {
-        "defaults": {
-          "mappings": [
-            {
-              "type": "value",
-              "options": {
-                "0": {
-                  "text": "MARKET_CLOSED",
-                  "color": "gray"
-                },
-                "1": {
-                  "text": "OPEN_NO_TRAFFIC",
-                  "color": "yellow"
-                },
-                "2": {
-                  "text": "TRAFFIC_OK",
-                  "color": "green"
-                }
-              }
-            }
-          ],
-          "thresholds": {
-            "mode": "absolute",
-            "steps": [
-              {
-                "color": "gray",
-                "value": null
-              },
-              {
-                "color": "yellow",
-                "value": 1
-              },
-              {
-                "color": "green",
-                "value": 2
-              }
-            ]
-          }
-        }
-      },
-      "description": "Synthetic signal that amplifies request health while any major trading session (US or Europe) is open and suppresses it when closed.",
-      "datasource": {
-        "type": "prometheus",
-        "uid": "grafanacloud-prom"
-      },
-      "id": 471930109
-    },
-    {
       "title": "Daemon Restarts (24h)",
       "type": "stat",
       "gridPos": {
-        "h": 6,
-        "w": 6,
         "x": 12,
-        "y": 85
+        "y": 67,
+        "w": 6,
+        "h": 6
       },
       "targets": [
         {
@@ -1856,10 +2218,10 @@
       "title": "Failure Mix",
       "type": "timeseries",
       "gridPos": {
-        "h": 8,
-        "w": 12,
         "x": 0,
-        "y": 97
+        "y": 74,
+        "w": 12,
+        "h": 8
       },
       "targets": [
         {
@@ -1932,14 +2294,14 @@
       "title": "Stale Budget Consumed (%)",
       "type": "timeseries",
       "gridPos": {
-        "h": 8,
-        "w": 12,
         "x": 12,
-        "y": 105
+        "y": 74,
+        "w": 12,
+        "h": 8
       },
       "targets": [
         {
-          "expr": "100 * live_overlay_overlay_age_seconds{job=~\"$job\"} / clamp_min(live_overlay_max_stale_seconds{job=~\"$job\"}, 1)",
+          "expr": "100 * (\n  (\n    live_overlay_overlay_age_seconds{job=~\"$job\"}\n    and on(job, instance) (live_overlay_overlay_age_known{job=~\"$job\"} == 1)\n  ) or on(job, instance) (\n    live_overlay_overlay_age_known{job=~\"$job\"} * 0 - 1\n  )\n) / clamp_min(live_overlay_max_stale_seconds{job=~\"$job\"}, 1)",
           "legendFormat": "stale_budget_used",
           "datasource": {
             "type": "prometheus",
@@ -1999,10 +2361,10 @@
       "title": "Readiness Components Timeline",
       "type": "state-timeline",
       "gridPos": {
-        "h": 8,
-        "w": 12,
         "x": 0,
-        "y": 113
+        "y": 83,
+        "w": 12,
+        "h": 8
       },
       "targets": [
         {
@@ -2096,10 +2458,10 @@
       "title": "Stale Responses (served)",
       "type": "timeseries",
       "gridPos": {
-        "h": 8,
-        "w": 12,
         "x": 12,
-        "y": 121
+        "y": 83,
+        "w": 12,
+        "h": 8
       },
       "targets": [
         {
@@ -2156,14 +2518,32 @@
       "id": 1549186611
     },
     {
+      "title": "External Integrations",
+      "type": "row",
+      "gridPos": {
+        "x": 0,
+        "y": 98,
+        "w": 24,
+        "h": 1
+      },
+      "collapsed": false,
+      "panels": [],
+      "description": "Row grouping for external bridge health: UptimeRobot monitors and GitHub Actions workflows.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "grafanacloud-prom"
+      },
+      "id": 692020449
+    },
+    {
       "title": "UptimeRobot Monitor States",
       "type": "state-timeline",
       "description": "Per-monitor UptimeRobot state over time. paused = monitor intentionally paused; unknown = unrecognized status code.",
       "gridPos": {
-        "h": 6,
-        "w": 12,
         "x": 0,
-        "y": 129
+        "y": 99,
+        "w": 24,
+        "h": 6
       },
       "targets": [
         {
@@ -2249,31 +2629,13 @@
       "id": 1350096766
     },
     {
-      "title": "External Integrations",
-      "type": "row",
-      "gridPos": {
-        "h": 1,
-        "w": 24,
-        "x": 0,
-        "y": 135
-      },
-      "collapsed": true,
-      "panels": [],
-      "description": "Row grouping for external bridge health: UptimeRobot monitors and GitHub Actions workflows.",
-      "datasource": {
-        "type": "prometheus",
-        "uid": "grafanacloud-prom"
-      },
-      "id": 692020449
-    },
-    {
       "title": "UptimeRobot Bridge",
       "type": "stat",
       "gridPos": {
-        "h": 4,
-        "w": 6,
         "x": 0,
-        "y": 136
+        "y": 106,
+        "w": 6,
+        "h": 4
       },
       "targets": [
         {
@@ -2339,10 +2701,10 @@
       "title": "UptimeRobot Bridge Error",
       "type": "stat",
       "gridPos": {
-        "h": 4,
-        "w": 6,
         "x": 6,
-        "y": 140
+        "y": 106,
+        "w": 6,
+        "h": 4
       },
       "description": "Bridge error flag across the selected jobs/instances (0=OK, 1=ERROR).",
       "targets": [
@@ -2407,10 +2769,10 @@
       "title": "UptimeRobot Snapshot Age",
       "type": "stat",
       "gridPos": {
-        "h": 4,
-        "w": 6,
         "x": 12,
-        "y": 144
+        "y": 106,
+        "w": 6,
+        "h": 4
       },
       "targets": [
         {
@@ -2482,10 +2844,10 @@
       "title": "UptimeRobot Monitors",
       "type": "timeseries",
       "gridPos": {
-        "h": 8,
-        "w": 12,
         "x": 18,
-        "y": 148
+        "y": 106,
+        "w": 12,
+        "h": 8
       },
       "targets": [
         {
@@ -2573,10 +2935,10 @@
       "title": "GitHub Workflow Bridge",
       "type": "stat",
       "gridPos": {
-        "h": 4,
-        "w": 6,
         "x": 0,
-        "y": 156
+        "y": 111,
+        "w": 6,
+        "h": 4
       },
       "targets": [
         {
@@ -2642,10 +3004,10 @@
       "title": "GitHub Workflow Bridge Error",
       "type": "stat",
       "gridPos": {
-        "h": 4,
-        "w": 6,
         "x": 6,
-        "y": 160
+        "y": 111,
+        "w": 6,
+        "h": 4
       },
       "description": "Bridge error flag across the selected jobs/instances (0=OK, 1=ERROR).",
       "targets": [
@@ -2710,10 +3072,10 @@
       "title": "GitHub Workflow Snapshot Age",
       "type": "stat",
       "gridPos": {
-        "h": 4,
-        "w": 6,
         "x": 12,
-        "y": 164
+        "y": 111,
+        "w": 6,
+        "h": 4
       },
       "targets": [
         {
@@ -2785,10 +3147,10 @@
       "title": "GitHub Workflow Runs",
       "type": "timeseries",
       "gridPos": {
-        "h": 8,
-        "w": 12,
         "x": 18,
-        "y": 168
+        "y": 115,
+        "w": 12,
+        "h": 8
       },
       "targets": [
         {
@@ -2865,10 +3227,10 @@
       "title": "GitHub Workflow Status \u2014 Timeline",
       "type": "state-timeline",
       "gridPos": {
-        "h": 25,
-        "w": 24,
         "x": 0,
-        "y": 176
+        "y": 116,
+        "w": 18,
+        "h": 10
       },
       "targets": [
         {
@@ -3084,17 +3446,17 @@
       "id": 1291128877
     },
     {
-      "title": "SLO & Reliability",
+      "title": "Reliability Drill-down",
       "type": "row",
       "gridPos": {
-        "h": 1,
-        "w": 24,
         "x": 0,
-        "y": 201
+        "y": 127,
+        "w": 24,
+        "h": 1
       },
-      "collapsed": true,
+      "collapsed": false,
       "panels": [],
-      "description": "Row grouping for service-level objectives, no-data guards and error-budget burn rate.",
+      "description": "Detailed restart, load, hotspot and backpressure diagnostics after the top-level SLO and impact signals.",
       "datasource": {
         "type": "prometheus",
         "uid": "grafanacloud-prom"
@@ -3102,300 +3464,13 @@
       "id": 2100569352
     },
     {
-      "title": "Latency vs. SLO (ms)",
-      "type": "timeseries",
-      "gridPos": {
-        "h": 8,
-        "w": 12,
-        "x": 0,
-        "y": 202
-      },
-      "targets": [
-        {
-          "expr": "histogram_quantile(0.95, sum by (le) (rate(live_overlay_smc_live_latency_ms_bucket{job=~\"$job\"}[5m])))",
-          "legendFormat": "p95",
-          "datasource": {
-            "type": "prometheus",
-            "uid": "grafanacloud-prom"
-          }
-        },
-        {
-          "expr": "histogram_quantile(0.99, sum by (le) (rate(live_overlay_smc_live_latency_ms_bucket{job=~\"$job\"}[5m])))",
-          "legendFormat": "p99",
-          "datasource": {
-            "type": "prometheus",
-            "uid": "grafanacloud-prom"
-          }
-        },
-        {
-          "expr": "vector(500)",
-          "legendFormat": "SLO = 500ms",
-          "refId": "SLO",
-          "datasource": {
-            "type": "prometheus",
-            "uid": "grafanacloud-prom"
-          }
-        }
-      ],
-      "options": {
-        "tooltip": {
-          "mode": "multi",
-          "sort": "none"
-        },
-        "legend": {
-          "displayMode": "list",
-          "placement": "bottom",
-          "showLegend": true,
-          "calcs": [
-            "lastNotNull"
-          ]
-        }
-      },
-      "fieldConfig": {
-        "defaults": {
-          "unit": "ms",
-          "thresholds": {
-            "mode": "absolute",
-            "steps": [
-              {
-                "color": "green",
-                "value": null
-              },
-              {
-                "color": "yellow",
-                "value": 200
-              },
-              {
-                "color": "orange",
-                "value": 350
-              },
-              {
-                "color": "red",
-                "value": 500
-              }
-            ]
-          }
-        }
-      },
-      "description": "5m rolling p95/p99 latency computed with histogram_quantile() over live_overlay_smc_live_latency_ms_bucket, plus fixed 500 ms SLO threshold.",
-      "datasource": {
-        "type": "prometheus",
-        "uid": "grafanacloud-prom"
-      },
-      "id": 799015540
-    },
-    {
-      "title": "Freshness SLO (Market Open, 1h)",
-      "type": "stat",
-      "gridPos": {
-        "h": 8,
-        "w": 6,
-        "x": 12,
-        "y": 210
-      },
-      "targets": [
-        {
-          "expr": "100 * (\n  sum_over_time(\n    (\n      live_overlay_overlay_fresh{job=~\"$job\"}\n      * live_overlay_market_us_open{job=~\"$job\"}\n    )[1h:]\n  )\n  /\n  clamp_min(\n    sum_over_time(live_overlay_market_us_open{job=~\"$job\"}[1h:]),\n    1\n  )\n)",
-          "legendFormat": "freshness_slo",
-          "datasource": {
-            "type": "prometheus",
-            "uid": "grafanacloud-prom"
-          }
-        }
-      ],
-      "options": {
-        "colorMode": "background_solid",
-        "graphMode": "area",
-        "reduceOptions": {
-          "calcs": [
-            "lastNotNull"
-          ],
-          "fields": "",
-          "values": false
-        }
-      },
-      "fieldConfig": {
-        "defaults": {
-          "unit": "percent",
-          "min": 0,
-          "max": 100,
-          "thresholds": {
-            "mode": "absolute",
-            "steps": [
-              {
-                "color": "red",
-                "value": null
-              },
-              {
-                "color": "yellow",
-                "value": 95
-              },
-              {
-                "color": "green",
-                "value": 99
-              }
-            ]
-          }
-        }
-      },
-      "description": "Boolean SLO: overlay age under the freshness threshold while the market is open.",
-      "datasource": {
-        "type": "prometheus",
-        "uid": "grafanacloud-prom"
-      },
-      "id": 1544709606
-    },
-    {
-      "title": "No-Data Guard (Core Metrics)",
-      "type": "stat",
-      "gridPos": {
-        "h": 8,
-        "w": 6,
-        "x": 18,
-        "y": 218
-      },
-      "targets": [
-        {
-          "expr": "count(live_overlay_uptime_seconds{job=~\"$job\"}) > bool 0",
-          "legendFormat": "core_metrics_present",
-          "datasource": {
-            "type": "prometheus",
-            "uid": "grafanacloud-prom"
-          }
-        }
-      ],
-      "options": {
-        "colorMode": "background_solid",
-        "graphMode": "none",
-        "reduceOptions": {
-          "calcs": [
-            "lastNotNull"
-          ],
-          "fields": "",
-          "values": false
-        }
-      },
-      "fieldConfig": {
-        "defaults": {
-          "mappings": [
-            {
-              "type": "value",
-              "options": {
-                "0": {
-                  "text": "MISSING",
-                  "color": "red"
-                },
-                "1": {
-                  "text": "PRESENT",
-                  "color": "green"
-                }
-              }
-            }
-          ],
-          "thresholds": {
-            "mode": "absolute",
-            "steps": [
-              {
-                "color": "red",
-                "value": null
-              },
-              {
-                "color": "green",
-                "value": 1
-              }
-            ]
-          }
-        }
-      },
-      "description": "Fires when any of the core daemon metrics series disappears from Alloy.",
-      "datasource": {
-        "type": "prometheus",
-        "uid": "grafanacloud-prom"
-      },
-      "id": 1535993467
-    },
-    {
-      "title": "Error Budget Burn Rate (5m / 1h)",
-      "type": "timeseries",
-      "gridPos": {
-        "h": 8,
-        "w": 12,
-        "x": 0,
-        "y": 226
-      },
-      "targets": [
-        {
-          "expr": "((sum(rate(live_overlay_smc_live_errors_total{job=~\"$job\"}[5m])) / clamp_min(sum(rate(live_overlay_smc_live_requests_total{job=~\"$job\"}[5m])), 1e-9)) / 0.01)",
-          "legendFormat": "5m burn rate",
-          "datasource": {
-            "type": "prometheus",
-            "uid": "grafanacloud-prom"
-          }
-        },
-        {
-          "expr": "((sum(rate(live_overlay_smc_live_errors_total{job=~\"$job\"}[1h])) / clamp_min(sum(rate(live_overlay_smc_live_requests_total{job=~\"$job\"}[1h])), 1e-9)) / 0.01)",
-          "legendFormat": "1h burn rate",
-          "datasource": {
-            "type": "prometheus",
-            "uid": "grafanacloud-prom"
-          }
-        }
-      ],
-      "options": {
-        "tooltip": {
-          "mode": "multi",
-          "sort": "none"
-        },
-        "legend": {
-          "displayMode": "list",
-          "placement": "bottom",
-          "showLegend": true,
-          "calcs": [
-            "lastNotNull"
-          ]
-        }
-      },
-      "fieldConfig": {
-        "defaults": {
-          "unit": "short",
-          "thresholds": {
-            "mode": "absolute",
-            "steps": [
-              {
-                "color": "green",
-                "value": null
-              },
-              {
-                "color": "yellow",
-                "value": 2
-              },
-              {
-                "color": "orange",
-                "value": 6
-              },
-              {
-                "color": "red",
-                "value": 14
-              }
-            ]
-          }
-        }
-      },
-      "description": "Rate of bad events over 5m and 1h windows used for multi-window SLO alerting.",
-      "datasource": {
-        "type": "prometheus",
-        "uid": "grafanacloud-prom"
-      },
-      "id": 801261644
-    },
-    {
       "title": "Bridge Scrape Health Timeline",
       "type": "state-timeline",
       "gridPos": {
-        "h": 8,
-        "w": 12,
         "x": 12,
-        "y": 234
+        "y": 137,
+        "w": 12,
+        "h": 8
       },
       "targets": [
         {
@@ -3477,10 +3552,10 @@
       "title": "Restart Causes (24h)",
       "type": "timeseries",
       "gridPos": {
-        "h": 8,
-        "w": 12,
         "x": 0,
-        "y": 242
+        "y": 146,
+        "w": 12,
+        "h": 8
       },
       "targets": [
         {
@@ -3523,10 +3598,10 @@
       "title": "Hotspots \u2014 Symbols (Top)",
       "type": "timeseries",
       "gridPos": {
-        "h": 8,
-        "w": 12,
         "x": 12,
-        "y": 250
+        "y": 146,
+        "w": 12,
+        "h": 8
       },
       "targets": [
         {
@@ -3568,10 +3643,10 @@
       "title": "Hotspots \u2014 Timeframes (Top)",
       "type": "timeseries",
       "gridPos": {
-        "h": 8,
-        "w": 24,
         "x": 0,
-        "y": 258
+        "y": 155,
+        "w": 24,
+        "h": 8
       },
       "targets": [
         {
@@ -3613,10 +3688,10 @@
       "title": "Ingest Queue Backpressure",
       "type": "timeseries",
       "gridPos": {
-        "h": 8,
-        "w": 12,
         "x": 0,
-        "y": 266
+        "y": 164,
+        "w": 12,
+        "h": 8
       },
       "targets": [
         {
@@ -3696,10 +3771,10 @@
       "title": "Ingest Queue Lag (ms)",
       "type": "timeseries",
       "gridPos": {
-        "h": 8,
-        "w": 12,
         "x": 12,
-        "y": 274
+        "y": 164,
+        "w": 12,
+        "h": 8
       },
       "targets": [
         {
@@ -3766,12 +3841,12 @@
       "title": "Provider Health",
       "type": "row",
       "gridPos": {
-        "h": 1,
-        "w": 24,
         "x": 0,
-        "y": 282
+        "y": 173,
+        "w": 24,
+        "h": 1
       },
-      "collapsed": true,
+      "collapsed": false,
       "panels": [],
       "description": "Row grouping for live news provider health.",
       "datasource": {
@@ -3785,10 +3860,10 @@
       "type": "text",
       "description": "Legend for News Provider panels directly below.",
       "gridPos": {
-        "y": 283,
-        "h": 2,
+        "x": 0,
+        "y": 174,
         "w": 24,
-        "x": 0
+        "h": 2
       },
       "options": {
         "mode": "markdown",
@@ -3804,10 +3879,10 @@
       "title": "News Providers \u2014 State Code",
       "type": "timeseries",
       "gridPos": {
-        "y": 285,
-        "h": 10,
+        "x": 0,
+        "y": 176,
         "w": 24,
-        "x": 0
+        "h": 10
       },
       "targets": [
         {
@@ -3896,10 +3971,10 @@
       "title": "News Provider Health State",
       "type": "state-timeline",
       "gridPos": {
-        "y": 295,
-        "h": 8,
+        "x": 0,
+        "y": 187,
         "w": 12,
-        "x": 0
+        "h": 8
       },
       "targets": [
         {
@@ -3992,9 +4067,9 @@
       "type": "timeseries",
       "gridPos": {
         "x": 12,
-        "y": 303,
-        "h": 8,
-        "w": 6
+        "y": 187,
+        "w": 6,
+        "h": 8
       },
       "targets": [
         {
@@ -4037,9 +4112,9 @@
       "type": "timeseries",
       "gridPos": {
         "x": 18,
-        "y": 303,
-        "h": 8,
-        "w": 6
+        "y": 187,
+        "w": 6,
+        "h": 8
       },
       "targets": [
         {
@@ -4113,10 +4188,10 @@
       "title": "News Providers \u2014 OK/Degraded (Drill-down)",
       "type": "timeseries",
       "gridPos": {
-        "y": 311,
-        "h": 8,
+        "x": 0,
+        "y": 196,
         "w": 12,
-        "x": 0
+        "h": 8
       },
       "targets": [
         {
@@ -4160,10 +4235,10 @@
       "title": "News Providers \u2014 Ingest Status & Reason",
       "type": "table",
       "gridPos": {
-        "y": 319,
-        "h": 8,
+        "x": 12,
+        "y": 196,
         "w": 12,
-        "x": 12
+        "h": 8
       },
       "description": "Per-provider ingest status with the human-readable degraded reason (API key missing, no active subscription, provider disabled, \u2026) and whether the provider is actually consumed.",
       "targets": [
@@ -4314,13 +4389,91 @@
       "id": 337952283
     },
     {
+      "title": "Collector / Scrape Targets",
+      "type": "row",
+      "collapsed": false,
+      "gridPos": {
+        "x": 0,
+        "y": 205,
+        "w": 24,
+        "h": 1
+      },
+      "panels": [],
+      "id": 2133310722,
+      "description": "Telemetry pipeline health: scrape target liveness and collector memory."
+    },
+    {
+      "title": "Scrape Targets Up",
+      "type": "timeseries",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "grafanacloud-prom"
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 206,
+        "w": 12,
+        "h": 8
+      },
+      "targets": [
+        {
+          "expr": "up{job=~\"alloy|signals_producer|live_overlay\"}",
+          "legendFormat": "{{job}}",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "grafanacloud-prom"
+          }
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "bool",
+          "min": 0,
+          "max": 1
+        }
+      },
+      "description": "Scrape target liveness from Alloy for alloy, signals_producer and live_overlay jobs.",
+      "id": 2133310723
+    },
+    {
+      "title": "Collector Resident Memory",
+      "type": "timeseries",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "grafanacloud-prom"
+      },
+      "gridPos": {
+        "x": 12,
+        "y": 206,
+        "w": 12,
+        "h": 8
+      },
+      "targets": [
+        {
+          "expr": "process_resident_memory_bytes{job=~\"alloy\"} or label_replace({__name__=~\"live_overlay_process_resident_memory_bytes|signals_producer_process_resident_memory_bytes\",job=~\"live_overlay|signals_producer\"}, \"job\", \"$1\", \"job\", \"(.*)\")",
+          "legendFormat": "{{job}}",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "grafanacloud-prom"
+          }
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "bytes"
+        }
+      },
+      "description": "Resident memory for Alloy, signals_producer and live_overlay jobs. live_overlay and signals_producer expose prefixed metric names.",
+      "id": 2133310724
+    },
+    {
       "title": "GitHub Workflows \u2014 Latest Run Detail",
       "type": "table",
       "gridPos": {
-        "h": 14,
-        "w": 24,
         "x": 0,
-        "y": 327
+        "y": 215,
+        "w": 24,
+        "h": 14
       },
       "description": "Per-workflow detail of the most recent run the daemon observed: trigger event (schedule / push / \u2026), current status, run duration and age. One row per named workflow. Driven by the labelled live_overlay_github_workflow_* gauges (phase_code, latest_duration_seconds, latest_age_seconds, latest_success).",
       "targets": [
@@ -4561,10 +4714,10 @@
       "type": "stat",
       "description": "Hours since the TradingView Playwright storage-state login (meta.authValidatedAt) was last validated, from the daily credential-health report (tv_storage_state_age probe). Policy TTL is 72h: green < 57.6h (80% warn band), yellow 57.6\u201372h, red once the cached login is older than 72h and must be re-captured. N/A when no report/age is available.",
       "gridPos": {
-        "h": 5,
-        "w": 6,
         "x": 0,
-        "y": 341
+        "y": 230,
+        "w": 6,
+        "h": 5
       },
       "targets": [
         {
@@ -4626,10 +4779,10 @@
       "type": "stat",
       "description": "Whether the latest credential-health report considers the TradingView storage-state login valid (severity not error). 1 = valid (cached login still within the 72h TTL), 0 = expired/error \u2192 re-capture TV_STORAGE_STATE. N/A when no report has been ingested yet.",
       "gridPos": {
-        "h": 5,
-        "w": 6,
         "x": 6,
-        "y": 346
+        "y": 230,
+        "w": 6,
+        "h": 5
       },
       "targets": [
         {
@@ -4695,28 +4848,29 @@
       "id": 1230367683,
       "title": "Railway Resources",
       "type": "row",
-      "collapsed": true,
+      "collapsed": false,
       "gridPos": {
-        "h": 1,
-        "w": 24,
         "x": 0,
-        "y": 351
+        "y": 236,
+        "w": 24,
+        "h": 1
       },
       "panels": [],
       "datasource": {
         "type": "prometheus",
         "uid": "grafanacloud-prom"
-      }
+      },
+      "description": "Railway container capacity and bridge health for service-owner review."
     },
     {
       "title": "Railway Metrics Bridge",
       "type": "stat",
       "description": "Whether the Railway metrics bridge is enabled and its last poll succeeded.",
       "gridPos": {
-        "h": 3,
-        "w": 4,
         "x": 0,
-        "y": 352
+        "y": 237,
+        "w": 4,
+        "h": 3
       },
       "targets": [
         {
@@ -4768,7 +4922,14 @@
                 "value": 1
               }
             ]
-          }
+          },
+          "links": [
+            {
+              "title": "Railway deployments",
+              "url": "https://railway.app/project/deployments",
+              "targetBlank": true
+            }
+          ]
         }
       },
       "datasource": {
@@ -4782,10 +4943,10 @@
       "type": "stat",
       "description": "Seconds since the last successful Railway metrics poll.",
       "gridPos": {
-        "h": 3,
-        "w": 4,
         "x": 4,
-        "y": 355
+        "y": 237,
+        "w": 4,
+        "h": 3
       },
       "targets": [
         {
@@ -4845,10 +5006,10 @@
       "type": "stat",
       "description": "Latest Railway metrics bridge error class. OK when healthy.",
       "gridPos": {
-        "h": 3,
-        "w": 4,
         "x": 8,
-        "y": 358
+        "y": 237,
+        "w": 4,
+        "h": 3
       },
       "targets": [
         {
@@ -4920,10 +5081,10 @@
         "uid": "grafanacloud-prom"
       },
       "gridPos": {
-        "h": 7,
-        "w": 8,
         "x": 0,
-        "y": 361
+        "y": 241,
+        "w": 8,
+        "h": 7
       },
       "fieldConfig": {
         "defaults": {
@@ -4964,10 +5125,10 @@
         "uid": "grafanacloud-prom"
       },
       "gridPos": {
-        "h": 7,
-        "w": 8,
         "x": 8,
-        "y": 368
+        "y": 241,
+        "w": 8,
+        "h": 7
       },
       "fieldConfig": {
         "defaults": {
@@ -5025,10 +5186,10 @@
         "uid": "grafanacloud-prom"
       },
       "gridPos": {
-        "h": 7,
-        "w": 8,
         "x": 16,
-        "y": 375
+        "y": 241,
+        "w": 8,
+        "h": 7
       },
       "fieldConfig": {
         "defaults": {
@@ -5069,10 +5230,10 @@
         "uid": "grafanacloud-prom"
       },
       "gridPos": {
-        "h": 7,
-        "w": 8,
         "x": 0,
-        "y": 382
+        "y": 249,
+        "w": 8,
+        "h": 7
       },
       "fieldConfig": {
         "defaults": {
@@ -5113,10 +5274,10 @@
         "uid": "grafanacloud-prom"
       },
       "gridPos": {
-        "h": 7,
-        "w": 8,
         "x": 8,
-        "y": 389
+        "y": 249,
+        "w": 8,
+        "h": 7
       },
       "fieldConfig": {
         "defaults": {
@@ -5157,10 +5318,10 @@
         "uid": "grafanacloud-prom"
       },
       "gridPos": {
-        "h": 7,
-        "w": 8,
         "x": 16,
-        "y": 396
+        "y": 249,
+        "w": 8,
+        "h": 7
       },
       "fieldConfig": {
         "defaults": {
@@ -5190,83 +5351,6 @@
           "placement": "bottom"
         }
       }
-    },
-    {
-      "title": "Collector / Scrape Targets",
-      "type": "row",
-      "collapsed": false,
-      "gridPos": {
-        "x": 0,
-        "y": 320,
-        "h": 1,
-        "w": 24
-      },
-      "panels": [],
-      "id": 2133310722
-    },
-    {
-      "title": "Scrape Targets Up",
-      "type": "timeseries",
-      "datasource": {
-        "type": "prometheus",
-        "uid": "grafanacloud-prom"
-      },
-      "gridPos": {
-        "x": 0,
-        "y": 321,
-        "h": 8,
-        "w": 12
-      },
-      "targets": [
-        {
-          "expr": "up{job=~\"alloy|signals_producer|live_overlay\"}",
-          "legendFormat": "{{job}}",
-          "datasource": {
-            "type": "prometheus",
-            "uid": "grafanacloud-prom"
-          }
-        }
-      ],
-      "fieldConfig": {
-        "defaults": {
-          "unit": "bool",
-          "min": 0,
-          "max": 1
-        }
-      },
-      "description": "Scrape target liveness from Alloy for alloy, signals_producer and live_overlay jobs.",
-      "id": 2133310723
-    },
-    {
-      "title": "Collector Resident Memory",
-      "type": "timeseries",
-      "datasource": {
-        "type": "prometheus",
-        "uid": "grafanacloud-prom"
-      },
-      "gridPos": {
-        "x": 12,
-        "y": 321,
-        "h": 8,
-        "w": 12
-      },
-      "targets": [
-        {
-          "expr": "process_resident_memory_bytes{job=~\"alloy\"} or label_replace({__name__=~\"live_overlay_process_resident_memory_bytes|signals_producer_process_resident_memory_bytes\",job=~\"live_overlay|signals_producer\"}, \"job\", \"$1\", \"job\", \"(.*)\")",
-          "legendFormat": "{{job}}",
-          "datasource": {
-            "type": "prometheus",
-            "uid": "grafanacloud-prom"
-          }
-        }
-      ],
-      "fieldConfig": {
-        "defaults": {
-          "unit": "bytes"
-        }
-      },
-      "description": "Resident memory for Alloy, signals_producer and live_overlay jobs. live_overlay and signals_producer expose prefixed metric names.",
-      "id": 2133310724
     }
   ],
   "schemaVersion": 39,
@@ -5282,9 +5366,9 @@
           "text": "live_overlay",
           "value": "live_overlay"
         },
-        "hide": 0,
+        "hide": 2,
         "includeAll": true,
-        "label": "Service job",
+        "label": "Prometheus job (advanced)",
         "multi": true,
         "name": "job",
         "options": [],
@@ -5322,7 +5406,7 @@
     "hide": false
   },
   "timezone": "utc",
-  "title": "SMC Live Overlay Daemon",
+  "title": "SMC Live Overlay API",
   "uid": "smc-live-overlay-v1",
   "version": 31,
   "description": "Live-overlay daemon operational dashboard: feed health, worker liveness, SMC overlay freshness, external bridge status, provider health, daily experiment metrics, and Railway container resources."

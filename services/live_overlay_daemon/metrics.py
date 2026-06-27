@@ -967,45 +967,41 @@ def render_metrics(startup_ts: float) -> str:
         key for key in counters
         if key.startswith(f"{latency_base}.bucket_le_")
     ]
-    has_latency_observations = (
-        latency_count is not None
-        or latency_bucket_keys
+    # latency_count / latency_bucket_keys are intentionally kept as local
+    # documentation of where observations come from; they feed the running
+    # fill logic below which now always emits the histogram series.
+    # Emit the classic histogram on every scrape, even before the first
+    # observation, so dashboard/alert consumers never see missing series.
+    default_buckets = getattr(observability, "_HISTOGRAM_DEFAULT_BUCKETS_MS", ())
+    bucket_values: dict[float, float] = {bucket: 0.0 for bucket in default_buckets}
+    bucket_values[float("inf")] = 0.0
+    prefix = f"{latency_base}.bucket_le_"
+    for key in latency_bucket_keys:
+        suffix = key[len(prefix):]
+        upper = _parse_bucket_upper_bound(suffix)
+        if upper is None:
+            continue
+        bucket_values[upper] = _prom_numeric_value(counters[key])
+    running = 0.0
+    for bucket in sorted(default_buckets):
+        running = max(running, bucket_values.get(bucket, running))
+        bucket_values[bucket] = running
+    bucket_values[float("inf")] = _prom_numeric_value(
+        counters.get(f"{latency_base}.bucket_le_inf", latency_count or 0.0)
     )
-    if has_latency_observations:
-        # Build a complete set of known buckets. Because the in-process
-        # histogram only creates keys for buckets that have already received
-        # an observation, missing default buckets are filled by carrying the
-        # previous bucket's cumulative count forward (classic Prometheus
-        # histogram semantics) so histogram_quantile() is stable across scrapes.
-        default_buckets = getattr(observability, "_HISTOGRAM_DEFAULT_BUCKETS_MS", ())
-        bucket_values: dict[float, float] = {}
-        prefix = f"{latency_base}.bucket_le_"
-        for key in latency_bucket_keys:
-            suffix = key[len(prefix):]
-            upper = _parse_bucket_upper_bound(suffix)
-            if upper is None:
-                continue
-            bucket_values[upper] = _prom_numeric_value(counters[key])
-        running = 0.0
-        for bucket in sorted(default_buckets):
-            running = max(running, bucket_values.get(bucket, running))
-            bucket_values[bucket] = running
-        bucket_values[float("inf")] = _prom_numeric_value(
-            counters.get(f"{latency_base}.bucket_le_inf", latency_count or 0.0)
-        )
 
-        lines.append("# TYPE live_overlay_smc_live_latency_ms histogram")
-        for upper in sorted(bucket_values, key=lambda u: (math.isinf(u), u)):
-            le = "+Inf" if upper == float("inf") else f"{upper:.0f}"
-            lines.append(
-                f'live_overlay_smc_live_latency_ms_bucket{{le="{le}"}} {_prom_numeric_value(bucket_values[upper])}'
-            )
+    lines.append("# TYPE live_overlay_smc_live_latency_ms histogram")
+    for upper in sorted(bucket_values, key=lambda u: (math.isinf(u), u)):
+        le = "+Inf" if upper == float("inf") else f"{upper:.0f}"
         lines.append(
-            f'live_overlay_smc_live_latency_ms_sum {_prom_numeric_value(counters.get(f"{latency_base}.sum_ms", 0.0))}'
+            f'live_overlay_smc_live_latency_ms_bucket{{le="{le}"}} {_prom_numeric_value(bucket_values[upper])}'
         )
-        lines.append(
-            f'live_overlay_smc_live_latency_ms_count {_prom_numeric_value(latency_count or 0.0)}'
-        )
+    lines.append(
+        f'live_overlay_smc_live_latency_ms_sum {_prom_numeric_value(counters.get(f"{latency_base}.sum_ms", 0.0))}'
+    )
+    lines.append(
+        f'live_overlay_smc_live_latency_ms_count {_prom_numeric_value(latency_count or 0.0)}'
+    )
 
     # Keep the derived gauges for backward compatibility until dashboard/alert
     # consumers are fully migrated to histogram_quantile() over the buckets.

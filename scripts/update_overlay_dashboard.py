@@ -348,7 +348,7 @@ def _apply_stat_consistency(panel: dict[str, Any]) -> None:
 
 
 def _fix_bridge_scrapes_panel(data: dict[str, Any]) -> bool:
-    """Make the global bridge-scrape stat ignore unconfigured bridges.
+    """Make the global external-checks stat ignore unconfigured bridges.
 
     The previous query used `or vector(0)` inside `min()`, so a bridge that
     was not enabled on any instance forced the panel to 0 (ERROR). By moving
@@ -356,7 +356,7 @@ def _fix_bridge_scrapes_panel(data: dict[str, Any]) -> bool:
     """
     changed = False
     for panel in _iter_v1_panels(data):
-        if panel.get("title") != "Bridge Scrapes":
+        if panel.get("title") != "External Checks":
             continue
         for target in panel.get("targets", []):
             expr = target.get("expr", "")

@@ -1182,7 +1182,7 @@ def test_dashboard_overall_health_distinguishes_starting_from_idle() -> None:
     assert panel["targets"][0]["expr"] == 'live_overlay_health_status_code{job=~"$job"} or vector(0)'
     options = panel["fieldConfig"]["defaults"]["mappings"][0]["options"]
     assert options.get("1", {}).get("text") == "STARTING"
-    assert options.get("2", {}).get("text") == "IDLE"
+    assert options.get("2", {}).get("text") == "IDLE (MARKET CLOSED)"
     assert options.get("3", {}).get("text") == "HEALTHY"
 
 
@@ -1739,3 +1739,34 @@ def test_dashboard_job_variable_allows_multi_and_all() -> None:
     job_var = next(v for v in dashboard["templating"]["list"] if v["name"] == "job")
     assert job_var["multi"] is True
     assert job_var["includeAll"] is True
+
+
+def test_render_metrics_emits_latency_histogram_before_first_observation(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Classic histogram series must exist before the first observation.
+
+    histogram_quantile() over _bucket needs a complete, stable bucket set on
+    every scrape. Without observations the exporter must still emit _bucket,
+    _sum and _count lines with value 0.
+    """
+    import services.live_overlay_daemon.metrics as metrics_mod
+    import services.live_overlay_daemon.observability as obs
+
+    _patch_common(
+        monkeypatch,
+        feed_ready=True,
+        market_open=True,
+        bar_count=10,
+        overlay_symbols=5,
+        overlay_age=60.0,
+    )
+
+    with obs._counter_lock:
+        obs._counters.clear()
+
+    body = metrics_mod.render_metrics(startup_ts=100.0)
+
+    assert "# TYPE live_overlay_smc_live_latency_ms histogram" in body
+    assert "live_overlay_smc_live_latency_ms_bucket{le=\"+Inf\"} 0.0" in body
+    assert "live_overlay_smc_live_latency_ms_sum 0.0" in body
+    assert "live_overlay_smc_live_latency_ms_count 0.0" in body
+    assert body.count("live_overlay_smc_live_latency_ms_bucket{") >= 2

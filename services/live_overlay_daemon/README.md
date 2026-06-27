@@ -524,19 +524,55 @@ observability.py (structured log lines + in-process counters)
 | `overlay_age_seconds > max_stale_secs` | high | Compute not running |
 | `overlay_symbols == 0` after 10 min | critical | No symbols computed |
 
-### Grafana dashboard layout (v25)
+### Grafana dashboard layout (v28)
 
 The operations dashboard `services/live_overlay_daemon/infra/grafana/dashboard.json`
-is organized to keep incident response fast:
+is organized for 3-a.m. incident triage:
 
-- `Operations at a glance (pinned)` — always-expanded top section with
-  `Overall Health`, `Active Alerts (live_overlay)`, `Incident Triage Guide`,
-  `Global Market Sessions`, and the core stat grid (`Feed Healthy`,
-  `Overlay Fresh`, `Workers Healthy`, etc.).
-- `External Integrations` — UptimeRobot, GitHub workflow, and bridge health.
-- `SLO & Reliability` — latency, freshness, error-budget burn, queue health.
-- `Provider Health` — news-provider state and ingest status.
-- `Railway Resources` — Railway service metrics and bridge health.
+- **Impact first** — pinned top section with `Overall Health`,
+  `Active Alerts`, and an `Incident Triage Guide` that speaks in user-impact
+  terms (feed, workers, overlay freshness, external checks) instead of raw
+  metric names.
+- **Root causes next** — a clean stat row (`Feed Healthy`, `Overlay Fresh`,
+  `Workers Healthy`, `External Checks`, `Market Status`, `Last Bar Age`) with
+  no grid overlaps so an on-call engineer can read the health story at a glance.
+- **User-impact / SLO block** — immediately after the root-cause row:
+  `Success Rate (%)`, `Market Traffic Health`, `Market Data Freshness`,
+  `Core Metrics Present`, `Latency vs. SLO (ms)`, and `Error Budget Burn Rate`
+  are promoted to the top so SLO pages require no scrolling.
+- **Context after health** — `Service Status`, `Uptime`, symbol counts,
+  `Process Resident Memory`, and `Global Market Sessions` follow below.
+  `CLOSED` sessions and `IDLE (MARKET CLOSED)` states are shown in gray, not
+  red/orange, because a closed market is not an incident.
+- **Incident Overview** — compact triage row containing only the pinned health
+  story: `Overall Health`, `Active Alerts`, `Incident Triage Guide`, the
+  root-cause stat row, market sessions, and the user-impact/SLO block.
+  Drill-down detail panels live below a dedicated `Operational Drill-down`
+  row so the first screen does not overwhelm a 3-a.m. on-call engineer.
+- **Operational Drill-down** — root-cause detail placed after the incident
+  overview: `Request Rate`, `Overlay & Bar Age`, `Compute Cycle Errors`,
+  `Feed Health Counters`, `Worker Liveness`, `Failure Mix`,
+  `Readiness Components Timeline`, and related restart/backpressure stats.
+- **External Integrations** — UptimeRobot, GitHub workflow, and bridge health.
+  `UptimeRobot Monitor States` lives here, not inside the Incident Overview.
+- **Reliability Drill-down** — restart causes, hotspots, ingest queue
+  backpressure and lag; renamed from `SLO & Reliability` to reflect that the
+  top-level SLO panels have been promoted to the user-impact block above.
+- **Provider Health** — news-provider state and ingest status.
+- **Collector / Scrape Targets** — alloy/signals_producer/live_overlay scrape
+  health and collector memory, separated from provider/GitHub detail panels to
+  avoid grid collisions.
+- **Railway Resources** — Railway service metrics and bridge health.
+
+Row headers (`Incident Overview`, `Operational Drill-down`,
+`Collector / Scrape Targets`, `Railway Resources`) carry descriptions that
+explain their purpose, reducing ambiguity for on-call engineers and
+stakeholders. `Freshness SLO (Market Open, 1h)` was renamed to
+`Market Data Freshness` with the SLO moved into the description so the title
+is stakeholder-friendly. Top incident tiles (`External Checks`,
+`Core Metrics Present`) include direct drill-down links to the related detail
+rows so a 3-a.m. engineer can jump from the headline signal to root-cause
+panels in one click.
 
 Signal and experiment detail panels live in a companion dashboard:
 `services/live_overlay_daemon/infra/grafana/dashboard-signals-experiments.json`.
@@ -545,19 +581,38 @@ A link to the companion dashboard is available in the dashboard header.
 
 Operational UX additions:
 
-- `Active Alerts (live_overlay)` alert-list panel is pinned at the top for
-  in-dashboard triage.
+- `Active Alerts` alert-list panel is pinned at the top and intentionally shows
+  alerts for `live_overlay`, collector, and dependent services, not only
+  `job=live_overlay`.
 - Key stat panels include drill-down links to related charts (e.g.
   `Feed Healthy` -> `Feed Health Counters`, `Workers Healthy` ->
-  `Worker Liveness`).
+  `Worker Liveness`). The `Incident Triage Guide`, `Overall Health`,
+  `Process Resident Memory`, and `Railway Metrics Bridge` panels include
+  direct links to Railway logs, deployments, metrics, and the on-call runbook.
 - Railway panels now have thresholds (memory ratio, snapshot age).
-- The `$job` template variable is labeled `Service job` for clarity.
+- The `$job` template variable is hidden (`hide: 2`) and labeled
+  `Prometheus job (advanced)`; it defaults to `live_overlay` and keeps the UI
+  approachable for stakeholders.
 - Alert-list `no_data` state is intentionally filtered out to avoid ambiguous
   `unknown/no_data` UI noise during incidents.
 - A dedicated alert rule (`lo-news-snapshot-series-missing`) captures missing
   news snapshot metric series via explicit `absent(...)` checks.
 - Provider drill-down query excludes aggregate health series so per-provider
   `..._ok` / `..._degraded` timelines remain noise-free.
+- Contract tests guard against regressions:
+  - `test_dashboard_has_no_grid_overlaps`
+  - `test_dashboard_user_impact_block_is_promoted_to_top`
+  - `test_dashboard_idle_state_is_gray_not_orange`
+  - `test_dashboard_jargon_reduced_in_top_panels`
+  - `test_dashboard_job_variable_hidden_but_effective`
+  - `test_dashboard_external_details_are_not_in_incident_overview`
+  - `test_dashboard_operational_drill_down_row_exists`
+  - `test_dashboard_reliability_row_renamed`
+  - `test_dashboard_stakeholder_descriptions_put_impact_first`
+  - `test_dashboard_triage_guide_has_quick_links`
+  - `test_dashboard_incident_rows_have_descriptions`
+  - `test_dashboard_top_incident_path_is_above_drilldown`
+  - `test_dashboard_top_tiles_have_drilldown_links`
 
 Both dashboards are published automatically by
 `.github/workflows/live-overlay-dashboard-publish.yml` on pushes to `main`.

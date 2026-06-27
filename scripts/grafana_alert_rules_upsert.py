@@ -189,6 +189,29 @@ def validate_alert_groups(groups: list[dict[str, Any]]) -> list[str]:
     return errors
 
 
+# Default query time window used by Grafana for instant alert queries.
+DEFAULT_RELATIVE_TIME_RANGE: dict[str, int] = {"from": 300, "to": 0}
+
+
+def _ensure_relative_time_range(data: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """Return query data with a default relativeTimeRange when missing.
+
+    The provisioning API rejects queries whose time range is unset or zero-wide
+    (``from: 0, to: 0``).  Existing exported rules use ``from: 300, to: 0``.
+    """
+    out: list[dict[str, Any]] = []
+    for node in data:
+        if not isinstance(node, dict):
+            out.append(node)
+            continue
+        copy = dict(node)
+        rtr = copy.get("relativeTimeRange")
+        if not isinstance(rtr, dict) or not rtr.get("from"):
+            copy["relativeTimeRange"] = dict(DEFAULT_RELATIVE_TIME_RANGE)
+        out.append(copy)
+    return out
+
+
 def build_provisioned_rule(
     rule: dict[str, Any], group: dict[str, Any], folder_uid: str
 ) -> dict[str, Any]:
@@ -198,7 +221,7 @@ def build_provisioned_rule(
         "uid": rule["uid"],
         "title": rule["title"],
         "condition": rule["condition"],
-        "data": rule["data"],
+        "data": _ensure_relative_time_range(rule["data"]),
         "for": for_value if isinstance(for_value, str) else f"{int(for_value)}s",
         "folderUID": folder_uid,
         "ruleGroup": group["name"],

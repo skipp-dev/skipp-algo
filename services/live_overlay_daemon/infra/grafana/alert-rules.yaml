@@ -115,7 +115,15 @@ groups:
           - refId: A
             datasourceUid: grafanacloud-prom
             model:
-              expr: live_overlay_overlay_age_seconds{job="live_overlay"} * (live_overlay_overlay_age_known{job="live_overlay"} > bool 0)
+              expr: |
+                (
+                  live_overlay_overlay_age_seconds{job="live_overlay"}
+                  * live_overlay_overlay_age_known{job="live_overlay"}
+                )
+                + (
+                  (1 - live_overlay_overlay_age_known{job="live_overlay"})
+                  * 3601
+                )
               instant: true
           - refId: C
             datasourceUid: __expr__
@@ -175,7 +183,14 @@ groups:
           - refId: A
             datasourceUid: grafanacloud-prom
             model:
-              expr: live_overlay_market_us_open{job="live_overlay"} * (live_overlay_last_bar_age_known{job="live_overlay"} > bool 0) * (live_overlay_last_bar_age_seconds{job="live_overlay"} > bool 300)
+              expr: |
+                live_overlay_market_us_open{job="live_overlay"} * (
+                  (1 - live_overlay_last_bar_age_known{job="live_overlay"})
+                  + (
+                    live_overlay_last_bar_age_known{job="live_overlay"}
+                    * (live_overlay_last_bar_age_seconds{job="live_overlay"} > bool 300)
+                  )
+                )
               instant: true
           - refId: C
             datasourceUid: __expr__
@@ -257,7 +272,7 @@ groups:
                 - evaluator: {type: gt, params: [20]}
                   operator: {type: and}
                   query: {params: [A]}
-        for: 0s
+        for: 2m
         labels:
           severity: warning
         annotations:
@@ -372,10 +387,15 @@ groups:
             datasourceUid: grafanacloud-prom
             model:
               expr: |
-                histogram_quantile(
-                  0.99,
-                  sum by (le) (
-                    rate(live_overlay_smc_live_latency_ms_bucket{job="live_overlay"}[5m])
+                (
+                  histogram_quantile(
+                    0.99,
+                    sum by (le) (
+                      rate(live_overlay_smc_live_latency_ms_bucket{job="live_overlay"}[5m])
+                    )
+                  )
+                  and on() (
+                    sum(rate(live_overlay_smc_live_latency_ms_count{job="live_overlay"}[5m])) > 0
                   )
                 ) or vector(0)
               instant: true
@@ -860,7 +880,7 @@ groups:
           - refId: A
             datasourceUid: grafanacloud-prom
             model:
-              expr: count(up{job=~"signals_producer|live_overlay"} == 0)
+              expr: (count(up{job=~"signals_producer|live_overlay"} == 0) > 0) or absent(up{job="signals_producer"}) or absent(up{job="live_overlay"})
               instant: true
           - refId: C
             datasourceUid: __expr__
