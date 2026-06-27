@@ -524,22 +524,28 @@ observability.py (structured log lines + in-process counters)
 | `overlay_age_seconds > max_stale_secs` | high | Compute not running |
 | `overlay_symbols == 0` after 10 min | critical | No symbols computed |
 
-### Grafana dashboard layout (v25)
+### Grafana dashboard layout (v26)
 
 The operations dashboard `services/live_overlay_daemon/infra/grafana/dashboard.json`
 is organized for 3-a.m. incident triage:
 
 - **Impact first** — pinned top section with `Overall Health`,
   `Active Alerts`, and an `Incident Triage Guide` that speaks in user-impact
-  terms (feed, workers, overlay freshness, scrape targets) instead of raw
+  terms (feed, workers, overlay freshness, external checks) instead of raw
   metric names.
 - **Root causes next** — a clean stat row (`Feed Healthy`, `Overlay Fresh`,
-  `Workers Healthy`, `Bridge Scrapes`, `Market Status`, `Last Bar Age`) with
+  `Workers Healthy`, `External Checks`, `Market Status`, `Last Bar Age`) with
   no grid overlaps so an on-call engineer can read the health story at a glance.
+- **User-impact / SLO block** — immediately after the root-cause row:
+  `Success Rate (%)`, `Market Traffic Health`, `Freshness SLO`,
+  `Core Metrics Present`, `Latency vs. SLO (ms)`, and `Error Budget Burn Rate`
+  are promoted to the top so SLO pages require no scrolling.
 - **Context after health** — `Service Status`, `Uptime`, symbol counts,
   `Process Resident Memory`, and `Global Market Sessions` follow below.
-  `CLOSED` sessions are shown in gray, not red, because a closed market is not
-  an incident.
+  `CLOSED` sessions and `IDLE (MARKET CLOSED)` states are shown in gray, not
+  red/orange, because a closed market is not an incident.
+- **Incident Overview** — compact incident row; external detail panels live in
+  their own sections.
 - **External Integrations** — UptimeRobot, GitHub workflow, and bridge health.
 - **SLO & Reliability** — latency, freshness, error-budget burn, queue health.
 - **Provider Health** — news-provider state and ingest status.
@@ -562,15 +568,21 @@ Operational UX additions:
   `Feed Healthy` -> `Feed Health Counters`, `Workers Healthy` ->
   `Worker Liveness`).
 - Railway panels now have thresholds (memory ratio, snapshot age).
-- The `$job` template variable is labeled `Service job` for clarity.
+- The `$job` template variable is hidden (`hide: 2`) and labeled
+  `Prometheus job (advanced)`; it defaults to `live_overlay` and keeps the UI
+  approachable for stakeholders.
 - Alert-list `no_data` state is intentionally filtered out to avoid ambiguous
   `unknown/no_data` UI noise during incidents.
 - A dedicated alert rule (`lo-news-snapshot-series-missing`) captures missing
   news snapshot metric series via explicit `absent(...)` checks.
 - Provider drill-down query excludes aggregate health series so per-provider
   `..._ok` / `..._degraded` timelines remain noise-free.
-- A contract test (`test_dashboard_grid_has_no_overlapping_panels`) guards
-  against grid-position regressions.
+- Contract tests guard against regressions:
+  - `test_dashboard_grid_has_no_overlapping_panels`
+  - `test_dashboard_user_impact_block_is_promoted_to_top`
+  - `test_dashboard_idle_state_is_gray_not_orange`
+  - `test_dashboard_jargon_reduced_in_top_panels`
+  - `test_dashboard_job_variable_hidden_but_effective`
 
 Both dashboards are published automatically by
 `.github/workflows/live-overlay-dashboard-publish.yml` on pushes to `main`.

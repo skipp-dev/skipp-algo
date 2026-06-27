@@ -139,7 +139,7 @@ def test_market_open_request_health_uses_us_session_metric() -> None:
     """
     dashboard = json.loads(_DASHBOARD_JSON.read_text(encoding="utf-8"))
     panels = _dashboard_panels(dashboard)
-    panel = next(p for p in panels if p.get("title") == "Market-open Request Health")
+    panel = next(p for p in panels if p.get("title") == "Market Traffic Health")
     expr = panel["targets"][0]["expr"]
     assert "live_overlay_market_us_open" in expr, expr
     assert "live_overlay_market_open" not in expr, expr
@@ -171,7 +171,7 @@ def test_dashboard_railway_metrics_bridge_query_does_not_filter_value_inside_max
 def test_dashboard_market_open_request_health_uses_fixed_rate_range() -> None:
     """stat panels must not use $__rate_interval because it depends on time range."""
     dashboard = json.loads(_DASHBOARD_JSON.read_text(encoding="utf-8"))
-    panel = next(p for p in _dashboard_panels(dashboard) if p.get("title") == "Market-open Request Health")
+    panel = next(p for p in _dashboard_panels(dashboard) if p.get("title") == "Market Traffic Health")
     expr = panel["targets"][0]["expr"]
     assert "$__rate_interval" not in expr, "stat panel must use a fixed range vector"
     assert "[5m]" in expr
@@ -184,7 +184,7 @@ def test_dashboard_market_open_request_health_uses_fixed_rate_range() -> None:
 def test_dashboard_bridge_scrapes_aggregates_by_job() -> None:
     """Bridge Scrapes should not hide a disabled job behind a global min()."""
     dashboard = json.loads(_DASHBOARD_JSON.read_text(encoding="utf-8"))
-    panel = next(p for p in dashboard["panels"] if p.get("title") == "Bridge Scrapes")
+    panel = next(p for p in dashboard["panels"] if p.get("title") == "External Checks")
     expr = panel["targets"][0]["expr"]
     assert "min by (job)" in expr
     assert 'or on(job) label_replace(vector(0), "job", "live_overlay", "", "")' in expr
@@ -549,3 +549,92 @@ def test_auth_denied_spike_has_non_zero_for() -> None:
         if r.get("uid") == "lo-auth-denied-spike"
     )
     assert rule.get("for") == "2m"
+
+
+# --------------------------------------------------------------------------- #
+# Second UX-layout review follow-up assertions (2026-06-27)
+# --------------------------------------------------------------------------- #
+
+PROMOTED_SLO_TITLES = {
+    "Success Rate (%)",
+    "Market Traffic Health",
+    "Freshness SLO (Market Open, 1h)",
+    "Core Metrics Present",
+    "Latency vs. SLO (ms)",
+    "Error Budget Burn Rate",
+}
+
+
+def test_dashboard_user_impact_block_is_promoted_to_top() -> None:
+    """User-impact/SLO panels must sit directly after the root-cause stat row."""
+    dashboard = json.loads(_DASHBOARD_JSON.read_text(encoding="utf-8"))
+    panels = _dashboard_panels(dashboard)
+    by_title = {p.get("title"): p for p in panels}
+    for title in PROMOTED_SLO_TITLES:
+        assert title in by_title, f"missing panel: {title}"
+    assert by_title["Success Rate (%)"]["gridPos"]["y"] == 23
+    assert by_title["Market Traffic Health"]["gridPos"]["y"] == 23
+    assert by_title["Freshness SLO (Market Open, 1h)"]["gridPos"]["y"] == 23
+    assert by_title["Core Metrics Present"]["gridPos"]["y"] == 23
+    assert by_title["Latency vs. SLO (ms)"]["gridPos"]["y"] == 29
+    assert by_title["Error Budget Burn Rate"]["gridPos"]["y"] == 29
+
+
+def test_dashboard_title_uses_api_not_daemon() -> None:
+    """Dashboard title should be approachable for stakeholders."""
+    dashboard = json.loads(_DASHBOARD_JSON.read_text(encoding="utf-8"))
+    assert dashboard.get("title") == "SMC Live Overlay API"
+
+
+def test_dashboard_job_variable_hidden_but_effective() -> None:
+    """$job should default to live_overlay and be hidden as an advanced control."""
+    dashboard = json.loads(_DASHBOARD_JSON.read_text(encoding="utf-8"))
+    job_var = next(v for v in dashboard["templating"]["list"] if v.get("name") == "job")
+    assert job_var.get("hide") == 2
+    assert job_var.get("label") == "Prometheus job (advanced)"
+    assert job_var["current"]["value"] == "live_overlay"
+
+
+def test_dashboard_idle_state_is_gray_not_orange() -> None:
+    """Market-closed (IDLE) must not look like a warning."""
+    dashboard = json.loads(_DASHBOARD_JSON.read_text(encoding="utf-8"))
+    panels = _dashboard_panels(dashboard)
+    by_title = {p.get("title"): p for p in panels}
+    for title in ("Overall Health", "Service Status"):
+        p = by_title[title]
+        mapping = p["fieldConfig"]["defaults"]["mappings"][0]["options"]["2"]
+        assert mapping["color"] == "gray", f"{title} idle color is {mapping['color']}"
+        threshold_step = next(
+            s for s in p["fieldConfig"]["defaults"]["thresholds"]["steps"] if s.get("value") == 2
+        )
+        assert threshold_step["color"] == "gray", f"{title} idle threshold is {threshold_step['color']}"
+    assert by_title["Overall Health"]["fieldConfig"]["defaults"]["mappings"][0]["options"]["2"]["text"] == "IDLE (MARKET CLOSED)"
+
+
+def test_dashboard_incident_overview_row_renamed_and_compacted() -> None:
+    """The first row must be renamed to Incident Overview."""
+    dashboard = json.loads(_DASHBOARD_JSON.read_text(encoding="utf-8"))
+    row = next(p for p in dashboard["panels"] if p.get("type") == "row" and p.get("gridPos", {}).get("y") == 0)
+    assert row["title"] == "Incident Overview"
+
+
+def test_dashboard_uptimerobot_monitor_states_moved_to_external_integrations() -> None:
+    """UptimeRobot Monitor States must live inside the External Integrations section."""
+    dashboard = json.loads(_DASHBOARD_JSON.read_text(encoding="utf-8"))
+    panels = _dashboard_panels(dashboard)
+    panel = next(p for p in panels if p.get("title") == "UptimeRobot Monitor States")
+    gp = panel["gridPos"]
+    assert gp["y"] >= 80
+
+
+def test_dashboard_jargon_reduced_in_top_panels() -> None:
+    """Top panels must use stakeholder-friendly titles."""
+    dashboard = json.loads(_DASHBOARD_JSON.read_text(encoding="utf-8"))
+    panels = _dashboard_panels(dashboard)
+    titles = {p.get("title") for p in panels}
+    assert "External Checks" in titles
+    assert "Core Metrics Present" in titles
+    assert "Market Traffic Health" in titles
+    assert "No-Data Guard (Core Metrics)" not in titles
+    assert "Market-open Request Health" not in titles
+    assert "Bridge Scrapes" not in titles
