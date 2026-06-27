@@ -488,6 +488,15 @@ observability.py (structured log lines + in-process counters)
 | `live_overlay_railway_metrics_error_info{error}` | gauge | metrics.py Railway API snapshot error |
 | `live_overlay_railway_service_cpu_cores{service,service_id}` | gauge | metrics.py Railway per-service CPU cores |
 | `live_overlay_railway_service_memory_gb{service,service_id}` | gauge | metrics.py Railway per-service memory usage |
+
+> **Histograms and staleness gates.** Latency is exported as a classic
+> Prometheus histogram (`live_overlay_smc_live_latency_ms_bucket/_sum/_count`).
+> The exporter always emits the full default bucket set on every scrape, carrying
+> the previous bucket's cumulative count forward for missing buckets, so
+> `histogram_quantile()` results are stable. Derived `*_p95_ms` / `*_p99_ms`
+> gauges remain for backward compatibility but are deprecated. Age and staleness
+> panels/alerts gate on companion `*_age_known` gauges rather than treating an
+> absent or zero-valued age series as meaningful.
 | `live_overlay_railway_service_memory_limit_gb{service,service_id}` | gauge | metrics.py Railway per-service memory limit |
 | `live_overlay_railway_service_memory_used_ratio{service,service_id}` | gauge | metrics.py Railway per-service memory pressure |
 | `live_overlay_railway_service_disk_gb{service,service_id}` | gauge | metrics.py Railway per-service disk usage |
