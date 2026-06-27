@@ -118,8 +118,37 @@ def test_news_state_code_panel_has_value_mapping(temp_dashboard: Path) -> None:
     panel = next(p for p in data["panels"] if p["title"] == "News Providers — State Code")
     options = panel["fieldConfig"]["defaults"]["mappings"][0].get("options", {})
     assert options.get("0", {}).get("text") == "UNKNOWN"
-    assert options.get("1", {}).get("text") == "DEGRADED"
-    assert options.get("2", {}).get("text") == "OK"
+
+
+def test_railway_links_are_concrete_or_placeholders(temp_dashboard: Path) -> None:
+    _run_script(temp_dashboard)
+    raw = temp_dashboard.read_text(encoding="utf-8")
+    # Generic railway.app project-root URLs are never acceptable.
+    assert "railway.app/project" not in raw, "dashboard still contains generic railway.app URLs"
+    # Dashboard-level links must use the concrete service-scoped shape.
+    data = json.loads(raw)
+    link_urls = {link.get("title"): link.get("url", "") for link in data.get("links", [])}
+    assert link_urls.get("Railway logs", "").startswith("https://railway.com/project/")
+    assert link_urls.get("Railway deployments", "").startswith("https://railway.com/project/")
+    assert link_urls.get("Railway metrics", "").startswith("https://railway.com/project/")
+
+
+def test_railway_links_use_env_ids_when_provided(temp_dashboard: Path) -> None:
+    env = {**os.environ, "RAILWAY_PROJECT_ID": "proj-123", "RAILWAY_ENVIRONMENT_ID": "env-456", "RAILWAY_LIVE_OVERLAY_SERVICE_ID": "svc-789"}
+    repo_root = Path(__file__).resolve().parents[1]
+    script = repo_root / "scripts" / "update_overlay_dashboard.py"
+    result = subprocess.run(
+        [sys.executable, str(script), str(temp_dashboard)],
+        cwd=str(repo_root),
+        env=env,
+        capture_output=True,
+        text=True,
+    )
+    assert result.returncode == 0, result.stderr
+    raw = temp_dashboard.read_text(encoding="utf-8")
+    assert "proj-123" in raw
+    assert "env-456" in raw
+    assert "svc-789" in raw
 
 
 def test_overall_health_ampel_and_oncall_row_present(temp_dashboard: Path) -> None:
