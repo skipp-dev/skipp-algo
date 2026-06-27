@@ -94,7 +94,7 @@ jobs:
               continue
             fi
 
-            test -n "${GRAFANA_API_TOKEN}" || {
+            test -n "${GRAFANA_API_TOKEN:-}" || {
               echo "::error::GRAFANA_API_TOKEN secret is required for dashboard publish."
               exit 1
             }

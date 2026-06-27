@@ -1015,7 +1015,14 @@ def test_dashboard_github_workflow_runs_panel_uses_snapshot_counts() -> None:
 
 def test_dashboard_has_trading_signals_panels() -> None:
     repo_root = Path(__file__).resolve().parents[1]
-    dashboard_path = repo_root / "services" / "live_overlay_daemon" / "infra" / "grafana" / "dashboard.json"
+    dashboard_path = (
+        repo_root
+        / "services"
+        / "live_overlay_daemon"
+        / "infra"
+        / "grafana"
+        / "dashboard-signals-experiments.json"
+    )
     dashboard = json.loads(dashboard_path.read_text(encoding="utf-8"))
     by_title = {p.get("title"): p for p in dashboard["panels"]}
 
@@ -1053,6 +1060,21 @@ def test_dashboard_has_trading_signals_panels() -> None:
     ts_panel = by_title["Signal Score — Active Symbols"]
     assert ts_panel["type"] == "timeseries"
     assert ts_panel["targets"][0]["legendFormat"] == "{{symbol}} {{level}} {{direction}}"
+
+
+def test_signals_experiments_dashboard_is_packed_from_top() -> None:
+    repo_root = Path(__file__).resolve().parents[1]
+    dashboard_path = (
+        repo_root
+        / "services"
+        / "live_overlay_daemon"
+        / "infra"
+        / "grafana"
+        / "dashboard-signals-experiments.json"
+    )
+    dashboard = json.loads(dashboard_path.read_text(encoding="utf-8"))
+    y_values = [p["gridPos"]["y"] for p in dashboard["panels"]]
+    assert min(y_values) == 0
 
 
 def test_provider_health_snapshot_classifies_state_reason_and_consumed(
@@ -1302,7 +1324,14 @@ def test_render_metrics_handles_daily_experiment_snapshot_missing(
 
 def test_dashboard_has_daily_experiment_panels() -> None:
     repo_root = Path(__file__).resolve().parents[1]
-    dashboard_path = repo_root / "services" / "live_overlay_daemon" / "infra" / "grafana" / "dashboard.json"
+    dashboard_path = (
+        repo_root
+        / "services"
+        / "live_overlay_daemon"
+        / "infra"
+        / "grafana"
+        / "dashboard-signals-experiments.json"
+    )
     dashboard = json.loads(dashboard_path.read_text(encoding="utf-8"))
     by_title = {p.get("title"): p for p in dashboard["panels"]}
 
@@ -1426,13 +1455,16 @@ def test_main_lifespan_increments_restarts_total_counter() -> None:
 
 def test_dashboard_all_panels_have_datasource() -> None:
     repo_root = Path(__file__).resolve().parents[1]
-    dashboard_path = repo_root / "services" / "live_overlay_daemon" / "infra" / "grafana" / "dashboard.json"
-    dashboard = json.loads(dashboard_path.read_text(encoding="utf-8"))
     expected = {"type": "prometheus", "uid": "grafanacloud-prom"}
-    for panel in dashboard["panels"]:
-        assert panel.get("datasource") == expected, panel.get("title")
-        for target in panel.get("targets", []):
-            assert target.get("datasource") == expected, panel.get("title")
+    for dashboard_name in ("dashboard.json", "dashboard-signals-experiments.json"):
+        dashboard_path = repo_root / "services" / "live_overlay_daemon" / "infra" / "grafana" / dashboard_name
+        dashboard = json.loads(dashboard_path.read_text(encoding="utf-8"))
+        for panel in dashboard["panels"]:
+            if panel.get("type") == "row":
+                continue
+            assert panel.get("datasource") == expected, panel.get("title")
+            for target in panel.get("targets", []):
+                assert target.get("datasource") == expected, panel.get("title")
 
 
 def test_dashboard_all_panels_have_stable_id() -> None:
