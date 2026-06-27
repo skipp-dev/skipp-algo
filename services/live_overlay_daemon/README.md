@@ -510,28 +510,43 @@ observability.py (structured log lines + in-process counters)
 | `overlay_age_seconds > max_stale_secs` | high | Compute not running |
 | `overlay_symbols == 0` after 10 min | critical | No symbols computed |
 
-### Grafana dashboard layout (v24)
+### Grafana dashboard layout (v25)
 
-The dashboard `services/live_overlay_daemon/infra/grafana/dashboard.json`
-is organized into section rows to keep navigation fast during incidents:
+The operations dashboard `services/live_overlay_daemon/infra/grafana/dashboard.json`
+is organized to keep incident response fast:
 
-- `External Integrations`
-- `SLO & Reliability`
-- `Provider Health`
-- `Workflow Timeline`
-- `Trading Signals`
-- `Daily Experiment`
-- `Railway Resources`
+- `Operations at a glance (pinned)` — always-expanded top section with
+  `Overall Health`, `Active Alerts (live_overlay)`, `Incident Triage Guide`,
+  `Global Market Sessions`, and the core stat grid (`Feed Healthy`,
+  `Overlay Fresh`, `Workers Healthy`, etc.).
+- `External Integrations` — UptimeRobot, GitHub workflow, and bridge health.
+- `SLO & Reliability` — latency, freshness, error-budget burn, queue health.
+- `Provider Health` — news-provider state and ingest status.
+- `Railway Resources` — Railway service metrics and bridge health.
+
+Signal and experiment detail panels live in a companion dashboard:
+`services/live_overlay_daemon/infra/grafana/dashboard-signals-experiments.json`.
+This keeps the main operations board focused and reduces alert fatigue.
+A link to the companion dashboard is available in the dashboard header.
 
 Operational UX additions:
 
-- `Active Alerts (live_overlay)` alert-list panel for in-dashboard triage.
+- `Active Alerts (live_overlay)` alert-list panel is pinned at the top for
+  in-dashboard triage.
+- Key stat panels include drill-down links to related charts (e.g.
+  `Feed Healthy` -> `Feed Health Counters`, `Workers Healthy` ->
+  `Worker Liveness`).
+- Railway panels now have thresholds (memory ratio, snapshot age).
+- The `$job` template variable is labeled `Service job` for clarity.
 - Alert-list `no_data` state is intentionally filtered out to avoid ambiguous
   `unknown/no_data` UI noise during incidents.
 - A dedicated alert rule (`lo-news-snapshot-series-missing`) captures missing
   news snapshot metric series via explicit `absent(...)` checks.
 - Provider drill-down query excludes aggregate health series so per-provider
   `..._ok` / `..._degraded` timelines remain noise-free.
+
+Both dashboards are published automatically by
+`.github/workflows/live-overlay-dashboard-publish.yml` on pushes to `main`.
 
 ### UptimeRobot (free tier)
 

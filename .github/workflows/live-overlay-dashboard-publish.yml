@@ -6,6 +6,7 @@ on:
     branches: [main]
     paths:
       - services/live_overlay_daemon/infra/grafana/dashboard.json
+      - services/live_overlay_daemon/infra/grafana/dashboard-signals-experiments.json
   workflow_dispatch:
     inputs:
       dry_run:
@@ -51,7 +52,7 @@ jobs:
           cache: pip
           cache-dependency-path: requirements.txt
 
-      - name: Publish dashboard (or dry-run)
+      - name: Publish dashboards (or dry-run)
         env:
           EVENT_NAME: ${{ github.event_name }}
           INPUT_DRY_RUN: ${{ github.event.inputs.dry_run }}
@@ -60,8 +61,11 @@ jobs:
         run: |
           set -euo pipefail
 
-          DASHBOARD_PATH="services/live_overlay_daemon/infra/grafana/dashboard.json"
           HOST="${INPUT_HOST:-bronzeporridge977.grafana.net}"
+          DASHBOARDS=(
+            "services/live_overlay_daemon/infra/grafana/dashboard.json"
+            "services/live_overlay_daemon/infra/grafana/dashboard-signals-experiments.json"
+          )
 
           # push -> always publish (mutating workflow);
           # manual runs can be dry-run or publish.
@@ -76,28 +80,30 @@ jobs:
             esac
           fi
 
-          if [[ "${dry_run}" == "true" ]]; then
-            echo "Manual dry-run: validating payload generation only (no network publish)."
+          for DASHBOARD_PATH in "${DASHBOARDS[@]}"; do
+            if [[ "${dry_run}" == "true" ]]; then
+              echo "Manual dry-run: validating payload generation for ${DASHBOARD_PATH} (no network publish)."
+              python scripts/publish_overlay_dashboard.py \
+                "${DASHBOARD_PATH}" \
+                --host "${HOST}" \
+                --namespace stacks-1697741 \
+                --folder cfpozahbhfzswc \
+                --dry-run \
+                --token "dry-run-token" \
+                --no-keychain
+              continue
+            fi
+
+            test -n "${GRAFANA_API_TOKEN:-}" || {
+              echo "::error::GRAFANA_API_TOKEN secret is required for dashboard publish."
+              exit 1
+            }
+
+            echo "Publishing ${DASHBOARD_PATH} to ${HOST}."
             python scripts/publish_overlay_dashboard.py \
               "${DASHBOARD_PATH}" \
               --host "${HOST}" \
               --namespace stacks-1697741 \
               --folder cfpozahbhfzswc \
-              --dry-run \
-              --token "dry-run-token" \
               --no-keychain
-            exit 0
-          fi
-
-          test -n "${GRAFANA_API_TOKEN}" || {
-            echo "::error::GRAFANA_API_TOKEN secret is required for dashboard publish."
-            exit 1
-          }
-
-          echo "Publishing ${DASHBOARD_PATH} to ${HOST}."
-          python scripts/publish_overlay_dashboard.py \
-            "${DASHBOARD_PATH}" \
-            --host "${HOST}" \
-            --namespace stacks-1697741 \
-            --folder cfpozahbhfzswc \
-            --no-keychain
+          done

@@ -32,9 +32,10 @@ def test_trigger_contract_pinned(workflow_doc: dict) -> None:
     push = on_block.get("push")
     assert isinstance(push, dict), "workflow must define push trigger"
     assert push.get("branches") == ["main"], "push trigger must remain pinned to main"
-    assert push.get("paths") == ["services/live_overlay_daemon/infra/grafana/dashboard.json"], (
-        "push path filter drifted for dashboard publish workflow"
-    )
+    assert push.get("paths") == [
+        "services/live_overlay_daemon/infra/grafana/dashboard.json",
+        "services/live_overlay_daemon/infra/grafana/dashboard-signals-experiments.json",
+    ], "push path filter drifted for dashboard publish workflow"
 
     dispatch = on_block.get("workflow_dispatch")
     assert isinstance(dispatch, dict), "workflow must support workflow_dispatch"
@@ -90,7 +91,7 @@ def test_publish_step_contract_pinned(workflow_doc: dict) -> None:
         (
             step
             for step in steps
-            if isinstance(step, dict) and step.get("name") == "Publish dashboard (or dry-run)"
+            if isinstance(step, dict) and step.get("name") == "Publish dashboards (or dry-run)"
         ),
         None,
     )
@@ -98,5 +99,6 @@ def test_publish_step_contract_pinned(workflow_doc: dict) -> None:
 
     run = publish_step.get("run") or ""
     assert "python scripts/publish_overlay_dashboard.py" in run
+    assert "dashboard-signals-experiments.json" in run
     assert "GRAFANA_API_TOKEN" in run
     assert "--dry-run" in run
