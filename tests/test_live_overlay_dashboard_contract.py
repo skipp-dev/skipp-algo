@@ -330,6 +330,17 @@ def test_dashboard_ingest_queue_backpressure_separates_drop_rate_axis() -> None:
     assert "unit" in prop_ids, prop_ids
 
 
+def test_dashboard_hotspots_timeframes_legend_uses_timeframe_label() -> None:
+    """The Hotspots Timeframes panel query produces a 'timeframe' label, so the legend must use it."""
+    dashboard = json.loads(_DASHBOARD_JSON.read_text(encoding="utf-8"))
+    panel = next(p for p in _dashboard_panels(dashboard) if p.get("title") == "Hotspots — Timeframes (Top)")
+    exprs = [t["expr"] for t in panel["targets"]]
+    legends = [t.get("legendFormat") for t in panel["targets"]]
+    assert any('label_replace' in e and '"timeframe"' in e for e in exprs), exprs
+    assert all('{{timeframe}}' in legend for legend in legends), legends
+    assert all('{{tf}}' not in legend for legend in legends), legends
+
+
 def test_dashboard_y12_grid_gap_is_closed() -> None:
     """The x=4..8 slot at y=12 must be occupied (no cosmetic gap)."""
     dashboard = json.loads(_DASHBOARD_JSON.read_text(encoding="utf-8"))

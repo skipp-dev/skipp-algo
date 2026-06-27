@@ -3576,7 +3576,7 @@
       "targets": [
         {
           "expr": "sum by (timeframe) (label_replace(rate({__name__=~\"live_overlay_hotspot_tf_.*_requests_total\",job=~\"$job\"}[$__rate_interval]), \"timeframe\", \"$1\", \"__name__\", \"live_overlay_hotspot_tf_(.*)_requests_total\"))",
-          "legendFormat": "{{tf}}",
+          "legendFormat": "{{timeframe}}",
           "datasource": {
             "type": "prometheus",
             "uid": "grafanacloud-prom"
