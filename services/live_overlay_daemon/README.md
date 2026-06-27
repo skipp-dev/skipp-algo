@@ -524,7 +524,7 @@ observability.py (structured log lines + in-process counters)
 | `overlay_age_seconds > max_stale_secs` | high | Compute not running |
 | `overlay_symbols == 0` after 10 min | critical | No symbols computed |
 
-### Grafana dashboard layout (v28)
+### Grafana dashboard layout (v33)
 
 The operations dashboard `services/live_overlay_daemon/infra/grafana/dashboard.json`
 is organized for 3-a.m. incident triage:
@@ -558,16 +558,19 @@ is organized for 3-a.m. incident triage:
 - **Reliability Drill-down** — restart causes, hotspots, ingest queue
   backpressure and lag; renamed from `SLO & Reliability` to reflect that the
   top-level SLO panels have been promoted to the user-impact block above.
-- **Provider Health** — news-provider state and ingest status.
-- **Collector / Scrape Targets** — alloy/signals_producer/live_overlay scrape
+- **Provider Health** — service-owner detail: live news provider state and ingest status.
+- **Collector / Scrape Targets** — service-owner detail: alloy/signals_producer/live_overlay scrape
   health and collector memory, separated from provider/GitHub detail panels to
   avoid grid collisions.
-- **Railway Resources** — Railway service metrics and bridge health.
+- **Railway Resources** — service-owner detail: Railway service metrics and bridge health.
 
 Row headers (`Incident Overview`, `Operational Drill-down`,
 `Collector / Scrape Targets`, `Railway Resources`) carry descriptions that
 explain their purpose, reducing ambiguity for on-call engineers and
-stakeholders. `Freshness SLO (Market Open, 1h)` was renamed to
+stakeholders. The service-owner detail rows (`Provider Health`,
+`Collector / Scrape Targets`, `Railway Resources`) are explicitly labeled as
+such so stakeholders know they are secondary during the first minutes of triage.
+`Freshness SLO (Market Open, 1h)` was renamed to
 `Market Data Freshness` with the SLO moved into the description so the title
 is stakeholder-friendly. Top incident tiles (`External Checks`,
 `Core Metrics Present`) include direct drill-down links to the related detail
@@ -599,6 +602,21 @@ Operational UX additions:
   news snapshot metric series via explicit `absent(...)` checks.
 - Provider drill-down query excludes aggregate health series so per-provider
   `..._ok` / `..._degraded` timelines remain noise-free.
+- Railway links in the triage guide and resource panels intentionally use generic
+  `https://railway.app/project/...` URLs because the concrete project and
+  service IDs are configured via environment variables (`RAILWAY_PROJECT_ID`,
+  `RAILWAY_SERVICE_NAMES`) and are not committed in this repo.  When those
+  IDs become stable enough to embed, the links should be updated and the generic
+  placeholders removed.
+- Known UX follow-ups not yet addressed:
+  - `Bridge Scrape Health Timeline` currently lives under
+    `Reliability Drill-down` but logically belongs in
+    `External Integrations`.
+  - `GitHub Workflows — Latest Run Detail` currently lives under
+    `Collector / Scrape Targets` but logically belongs in
+    `External Integrations`.
+  Moving them requires a larger grid refactor; the current contract tests pin
+  the existing positions so the misplacement is explicit and safe to revisit.
 - Contract tests guard against regressions:
   - `test_dashboard_has_no_grid_overlaps`
   - `test_dashboard_user_impact_block_is_promoted_to_top`
@@ -613,6 +631,9 @@ Operational UX additions:
   - `test_dashboard_incident_rows_have_descriptions`
   - `test_dashboard_top_incident_path_is_above_drilldown`
   - `test_dashboard_top_tiles_have_drilldown_links`
+  - `test_dashboard_triage_guide_links_are_known`
+  - `test_dashboard_drilldown_links_target_real_panels`
+  - `test_dashboard_detail_rows_are_marked_as_service_owner_details`
 
 Both dashboards are published automatically by
 `.github/workflows/live-overlay-dashboard-publish.yml` on pushes to `main`.
