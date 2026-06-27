@@ -3230,7 +3230,7 @@
         "x": 0,
         "y": 116,
         "w": 18,
-        "h": 10
+        "h": 25
       },
       "targets": [
         {
@@ -3450,7 +3450,7 @@
       "type": "row",
       "gridPos": {
         "x": 0,
-        "y": 127,
+        "y": 142,
         "w": 24,
         "h": 1
       },
@@ -3468,7 +3468,7 @@
       "type": "state-timeline",
       "gridPos": {
         "x": 12,
-        "y": 137,
+        "y": 152,
         "w": 12,
         "h": 8
       },
@@ -3553,7 +3553,7 @@
       "type": "timeseries",
       "gridPos": {
         "x": 0,
-        "y": 146,
+        "y": 161,
         "w": 12,
         "h": 8
       },
@@ -3599,7 +3599,7 @@
       "type": "timeseries",
       "gridPos": {
         "x": 12,
-        "y": 146,
+        "y": 161,
         "w": 12,
         "h": 8
       },
@@ -3644,7 +3644,7 @@
       "type": "timeseries",
       "gridPos": {
         "x": 0,
-        "y": 155,
+        "y": 170,
         "w": 24,
         "h": 8
       },
@@ -3689,7 +3689,7 @@
       "type": "timeseries",
       "gridPos": {
         "x": 0,
-        "y": 164,
+        "y": 179,
         "w": 12,
         "h": 8
       },
@@ -3772,7 +3772,7 @@
       "type": "timeseries",
       "gridPos": {
         "x": 12,
-        "y": 164,
+        "y": 179,
         "w": 12,
         "h": 8
       },
@@ -3842,7 +3842,7 @@
       "type": "row",
       "gridPos": {
         "x": 0,
-        "y": 173,
+        "y": 188,
         "w": 24,
         "h": 1
       },
@@ -3861,7 +3861,7 @@
       "description": "Legend for News Provider panels directly below.",
       "gridPos": {
         "x": 0,
-        "y": 174,
+        "y": 189,
         "w": 24,
         "h": 2
       },
@@ -3880,7 +3880,7 @@
       "type": "timeseries",
       "gridPos": {
         "x": 0,
-        "y": 176,
+        "y": 191,
         "w": 24,
         "h": 10
       },
@@ -3972,7 +3972,7 @@
       "type": "state-timeline",
       "gridPos": {
         "x": 0,
-        "y": 187,
+        "y": 202,
         "w": 12,
         "h": 8
       },
@@ -4067,7 +4067,7 @@
       "type": "timeseries",
       "gridPos": {
         "x": 12,
-        "y": 187,
+        "y": 202,
         "w": 6,
         "h": 8
       },
@@ -4112,7 +4112,7 @@
       "type": "timeseries",
       "gridPos": {
         "x": 18,
-        "y": 187,
+        "y": 202,
         "w": 6,
         "h": 8
       },
@@ -4189,7 +4189,7 @@
       "type": "timeseries",
       "gridPos": {
         "x": 0,
-        "y": 196,
+        "y": 211,
         "w": 12,
         "h": 8
       },
@@ -4236,7 +4236,7 @@
       "type": "table",
       "gridPos": {
         "x": 12,
-        "y": 196,
+        "y": 211,
         "w": 12,
         "h": 8
       },
@@ -4394,7 +4394,7 @@
       "collapsed": false,
       "gridPos": {
         "x": 0,
-        "y": 205,
+        "y": 220,
         "w": 24,
         "h": 1
       },
@@ -4411,7 +4411,7 @@
       },
       "gridPos": {
         "x": 0,
-        "y": 206,
+        "y": 221,
         "w": 12,
         "h": 8
       },
@@ -4444,7 +4444,7 @@
       },
       "gridPos": {
         "x": 12,
-        "y": 206,
+        "y": 221,
         "w": 12,
         "h": 8
       },
@@ -4471,7 +4471,7 @@
       "type": "table",
       "gridPos": {
         "x": 0,
-        "y": 215,
+        "y": 230,
         "w": 24,
         "h": 14
       },
@@ -4715,7 +4715,7 @@
       "description": "Hours since the TradingView Playwright storage-state login (meta.authValidatedAt) was last validated, from the daily credential-health report (tv_storage_state_age probe). Policy TTL is 72h: green < 57.6h (80% warn band), yellow 57.6\u201372h, red once the cached login is older than 72h and must be re-captured. N/A when no report/age is available.",
       "gridPos": {
         "x": 0,
-        "y": 230,
+        "y": 245,
         "w": 6,
         "h": 5
       },
@@ -4780,7 +4780,7 @@
       "description": "Whether the latest credential-health report considers the TradingView storage-state login valid (severity not error). 1 = valid (cached login still within the 72h TTL), 0 = expired/error \u2192 re-capture TV_STORAGE_STATE. N/A when no report has been ingested yet.",
       "gridPos": {
         "x": 6,
-        "y": 230,
+        "y": 245,
         "w": 6,
         "h": 5
       },
@@ -4851,7 +4851,7 @@
       "collapsed": false,
       "gridPos": {
         "x": 0,
-        "y": 236,
+        "y": 251,
         "w": 24,
         "h": 1
       },
@@ -4868,7 +4868,7 @@
       "description": "Whether the Railway metrics bridge is enabled and its last poll succeeded.",
       "gridPos": {
         "x": 0,
-        "y": 237,
+        "y": 252,
         "w": 4,
         "h": 3
       },
@@ -4944,7 +4944,7 @@
       "description": "Seconds since the last successful Railway metrics poll.",
       "gridPos": {
         "x": 4,
-        "y": 237,
+        "y": 252,
         "w": 4,
         "h": 3
       },
@@ -5007,7 +5007,7 @@
       "description": "Latest Railway metrics bridge error class. OK when healthy.",
       "gridPos": {
         "x": 8,
-        "y": 237,
+        "y": 252,
         "w": 4,
         "h": 3
       },
@@ -5082,7 +5082,7 @@
       },
       "gridPos": {
         "x": 0,
-        "y": 241,
+        "y": 256,
         "w": 8,
         "h": 7
       },
@@ -5126,7 +5126,7 @@
       },
       "gridPos": {
         "x": 8,
-        "y": 241,
+        "y": 256,
         "w": 8,
         "h": 7
       },
@@ -5187,7 +5187,7 @@
       },
       "gridPos": {
         "x": 16,
-        "y": 241,
+        "y": 256,
         "w": 8,
         "h": 7
       },
@@ -5231,7 +5231,7 @@
       },
       "gridPos": {
         "x": 0,
-        "y": 249,
+        "y": 264,
         "w": 8,
         "h": 7
       },
@@ -5275,7 +5275,7 @@
       },
       "gridPos": {
         "x": 8,
-        "y": 249,
+        "y": 264,
         "w": 8,
         "h": 7
       },
@@ -5319,7 +5319,7 @@
       },
       "gridPos": {
         "x": 16,
-        "y": 249,
+        "y": 264,
         "w": 8,
         "h": 7
       },
@@ -5408,6 +5408,6 @@
   "timezone": "utc",
   "title": "SMC Live Overlay API",
   "uid": "smc-live-overlay-v1",
-  "version": 32,
+  "version": 33,
   "description": "Live-overlay daemon operational dashboard: feed health, worker liveness, SMC overlay freshness, external bridge status, provider health, daily experiment metrics, and Railway container resources."
 }
