@@ -521,17 +521,17 @@ live_overlay_market_us_open{job="live_overlay"}
 The Overall Health ampel uses:
 
 ```promql
-(live_overlay_health_status_ok{job=~"$job"} * 2)
-+ (live_overlay_health_status_idle_market_closed{job=~"$job"} * 1)
+live_overlay_health_status_code{job=~"$job"} or vector(0)
 ```
 
 Value mappings:
 
 | Value | Label | Meaning |
 |-------|-------|---------|
-| 2 | HEALTHY | Feed, workers, overlay all healthy |
-| 1 | IDLE | Market closed, expected idle |
-| 0 | CRITICAL | Feed down or overlay stale while market open |
+| 3 | HEALTHY | Feed, workers, overlay all healthy |
+| 2 | IDLE | Market closed before the first bar |
+| 1 | STARTING | Daemon still waiting on feed, workers or overlay freshness |
+| 0 | UNKNOWN | Status metric missing or scrape not available |
 
 #### Deploy/restart annotations
 

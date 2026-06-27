@@ -568,9 +568,10 @@ def main(argv: list[str] | None = None) -> int:
         _set_mappings(
             service_status,
             [
-                _value_mapping(0, "STARTING", COLOR_STARTING),
-                _value_mapping(1, "IDLE (MARKET CLOSED)", COLOR_NEUTRAL),
-                _value_mapping(2, "OK", COLOR_OK),
+                _value_mapping(0, "UNKNOWN", COLOR_ERROR),
+                _value_mapping(1, "STARTING", COLOR_STARTING),
+                _value_mapping(2, "IDLE (MARKET CLOSED)", COLOR_NEUTRAL),
+                _value_mapping(3, "OK", COLOR_OK),
             ],
         )
         _apply_stat_consistency(service_status)

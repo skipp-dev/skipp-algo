@@ -176,6 +176,8 @@ def test_render_metrics_health_status_ok(monkeypatch: pytest.MonkeyPatch) -> Non
 
     body = metrics_mod.render_metrics(startup_ts=100.0)
     assert "live_overlay_overlay_fresh 1" in body
+    assert "live_overlay_health_status_code 3" in body
+    assert 'live_overlay_health_status_info{status="ok"} 1' in body
     assert "live_overlay_health_status_ok 1" in body
     assert "live_overlay_health_status_starting 0" in body
     assert "live_overlay_health_status_idle_market_closed 0" in body
@@ -218,6 +220,8 @@ def test_render_metrics_health_status_idle_market_closed(monkeypatch: pytest.Mon
     )
 
     body = metrics_mod.render_metrics(startup_ts=100.0)
+    assert "live_overlay_health_status_code 2" in body
+    assert 'live_overlay_health_status_info{status="idle_market_closed"} 1' in body
     assert "live_overlay_health_status_ok 0" in body
     assert "live_overlay_health_status_starting 0" in body
     assert "live_overlay_health_status_idle_market_closed 1" in body
@@ -236,6 +240,8 @@ def test_render_metrics_health_status_starting(monkeypatch: pytest.MonkeyPatch) 
     )
 
     body = metrics_mod.render_metrics(startup_ts=100.0)
+    assert "live_overlay_health_status_code 1" in body
+    assert 'live_overlay_health_status_info{status="starting"} 1' in body
     assert "live_overlay_health_status_ok 0" in body
     assert "live_overlay_health_status_starting 1" in body
     assert "live_overlay_health_status_idle_market_closed 0" in body
@@ -967,8 +973,23 @@ def test_dashboard_service_status_panel_maps_starting_state() -> None:
     dashboard_path = repo_root / "services" / "live_overlay_daemon" / "infra" / "grafana" / "dashboard.json"
     dashboard = json.loads(dashboard_path.read_text(encoding="utf-8"))
     panel = next(p for p in dashboard["panels"] if p.get("title") == "Service Status")
+    assert panel["targets"][0]["expr"] == 'live_overlay_health_status_code{job=~"$job"} or vector(0)'
     options = panel["fieldConfig"]["defaults"]["mappings"][0]["options"]
-    assert options.get("0", {}).get("text") == "STARTING"
+    assert options.get("1", {}).get("text") == "STARTING"
+    assert options.get("2", {}).get("text") == "IDLE (MARKET CLOSED)"
+    assert options.get("3", {}).get("text") == "OK"
+
+
+def test_dashboard_overall_health_distinguishes_starting_from_idle() -> None:
+    repo_root = Path(__file__).resolve().parents[1]
+    dashboard_path = repo_root / "services" / "live_overlay_daemon" / "infra" / "grafana" / "dashboard.json"
+    dashboard = json.loads(dashboard_path.read_text(encoding="utf-8"))
+    panel = next(p for p in dashboard["panels"] if p.get("title") == "Overall Health")
+    assert panel["targets"][0]["expr"] == 'live_overlay_health_status_code{job=~"$job"} or vector(0)'
+    options = panel["fieldConfig"]["defaults"]["mappings"][0]["options"]
+    assert options.get("1", {}).get("text") == "STARTING"
+    assert options.get("2", {}).get("text") == "IDLE"
+    assert options.get("3", {}).get("text") == "HEALTHY"
 
 
 def test_dashboard_worker_liveness_uses_human_labels() -> None:
