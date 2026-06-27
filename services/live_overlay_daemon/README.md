@@ -524,7 +524,7 @@ observability.py (structured log lines + in-process counters)
 | `overlay_age_seconds > max_stale_secs` | high | Compute not running |
 | `overlay_symbols == 0` after 10 min | critical | No symbols computed |
 
-### Grafana dashboard layout (v27)
+### Grafana dashboard layout (v28)
 
 The operations dashboard `services/live_overlay_daemon/infra/grafana/dashboard.json`
 is organized for 3-a.m. incident triage:
@@ -537,7 +537,7 @@ is organized for 3-a.m. incident triage:
   `Workers Healthy`, `External Checks`, `Market Status`, `Last Bar Age`) with
   no grid overlaps so an on-call engineer can read the health story at a glance.
 - **User-impact / SLO block** — immediately after the root-cause row:
-  `Success Rate (%)`, `Market Traffic Health`, `Freshness SLO`,
+  `Success Rate (%)`, `Market Traffic Health`, `Market Data Freshness`,
   `Core Metrics Present`, `Latency vs. SLO (ms)`, and `Error Budget Burn Rate`
   are promoted to the top so SLO pages require no scrolling.
 - **Context after health** — `Service Status`, `Uptime`, symbol counts,
@@ -563,6 +563,16 @@ is organized for 3-a.m. incident triage:
   health and collector memory, separated from provider/GitHub detail panels to
   avoid grid collisions.
 - **Railway Resources** — Railway service metrics and bridge health.
+
+Row headers (`Incident Overview`, `Operational Drill-down`,
+`Collector / Scrape Targets`, `Railway Resources`) carry descriptions that
+explain their purpose, reducing ambiguity for on-call engineers and
+stakeholders. `Freshness SLO (Market Open, 1h)` was renamed to
+`Market Data Freshness` with the SLO moved into the description so the title
+is stakeholder-friendly. Top incident tiles (`External Checks`,
+`Core Metrics Present`) include direct drill-down links to the related detail
+rows so a 3-a.m. engineer can jump from the headline signal to root-cause
+panels in one click.
 
 Signal and experiment detail panels live in a companion dashboard:
 `services/live_overlay_daemon/infra/grafana/dashboard-signals-experiments.json`.
@@ -600,6 +610,9 @@ Operational UX additions:
   - `test_dashboard_reliability_row_renamed`
   - `test_dashboard_stakeholder_descriptions_put_impact_first`
   - `test_dashboard_triage_guide_has_quick_links`
+  - `test_dashboard_incident_rows_have_descriptions`
+  - `test_dashboard_top_incident_path_is_above_drilldown`
+  - `test_dashboard_top_tiles_have_drilldown_links`
 
 Both dashboards are published automatically by
 `.github/workflows/live-overlay-dashboard-publish.yml` on pushes to `main`.

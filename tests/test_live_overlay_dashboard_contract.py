@@ -182,7 +182,7 @@ def test_dashboard_market_open_request_health_uses_fixed_rate_range() -> None:
 
 
 def test_dashboard_bridge_scrapes_aggregates_by_job() -> None:
-    """Bridge Scrapes should not hide a disabled job behind a global min()."""
+    """External Checks should not hide a disabled job behind a global min()."""
     dashboard = json.loads(_DASHBOARD_JSON.read_text(encoding="utf-8"))
     panel = next(p for p in dashboard["panels"] if p.get("title") == "External Checks")
     expr = panel["targets"][0]["expr"]
@@ -558,7 +558,7 @@ def test_auth_denied_spike_has_non_zero_for() -> None:
 PROMOTED_SLO_TITLES = {
     "Success Rate (%)",
     "Market Traffic Health",
-    "Freshness SLO (Market Open, 1h)",
+    "Market Data Freshness",
     "Core Metrics Present",
     "Latency vs. SLO (ms)",
     "Error Budget Burn Rate",
@@ -574,7 +574,7 @@ def test_dashboard_user_impact_block_is_promoted_to_top() -> None:
         assert title in by_title, f"missing panel: {title}"
     assert by_title["Success Rate (%)"]["gridPos"]["y"] == 23
     assert by_title["Market Traffic Health"]["gridPos"]["y"] == 23
-    assert by_title["Freshness SLO (Market Open, 1h)"]["gridPos"]["y"] == 23
+    assert by_title["Market Data Freshness"]["gridPos"]["y"] == 23
     assert by_title["Core Metrics Present"]["gridPos"]["y"] == 23
     assert by_title["Latency vs. SLO (ms)"]["gridPos"]["y"] == 29
     assert by_title["Error Budget Burn Rate"]["gridPos"]["y"] == 29
@@ -696,7 +696,7 @@ def test_dashboard_stakeholder_descriptions_put_impact_first() -> None:
     """Descriptions for top SLO panels must lead with user impact, not metric jargon."""
     dashboard = json.loads(_DASHBOARD_JSON.read_text(encoding="utf-8"))
     panels = {p.get("title"): p for p in _dashboard_panels(dashboard)}
-    for title in ("Core Metrics Present", "Freshness SLO (Market Open, 1h)", "Overlay Fresh"):
+    for title in ("Core Metrics Present", "Market Data Freshness", "Overlay Fresh"):
         desc = panels[title].get("description", "")
         assert desc.startswith("Can") or desc.startswith("Are") or desc.startswith("Is"), (
             f"{title} description does not lead with user impact: {desc[:80]}"
@@ -711,3 +711,50 @@ def test_dashboard_triage_guide_has_quick_links() -> None:
     assert "Railway logs" in content
     assert "Railway deployments" in content
     assert "Runbook" in content
+
+
+# --------------------------------------------------------------------------- #
+# Third UX-layout review follow-up assertions (2026-06-28)
+# --------------------------------------------------------------------------- #
+
+
+def test_dashboard_incident_rows_have_descriptions() -> None:
+    """Row headers must explain their purpose for 3-a.m. triage."""
+    dashboard = json.loads(_DASHBOARD_JSON.read_text(encoding="utf-8"))
+    required = {
+        "Incident Overview",
+        "Operational Drill-down",
+        "Collector / Scrape Targets",
+        "Railway Resources",
+    }
+    rows = {p["title"]: p for p in dashboard["panels"] if p.get("type") == "row"}
+    for title in required:
+        assert rows[title].get("description"), title
+
+
+def test_dashboard_top_incident_path_is_above_drilldown() -> None:
+    """All top-level incident signal panels must appear before Operational Drill-down."""
+    dashboard = json.loads(_DASHBOARD_JSON.read_text(encoding="utf-8"))
+    y = {p["title"]: p["gridPos"]["y"] for p in dashboard["panels"] if "title" in p}
+
+    for title in (
+        "Overall Health",
+        "Active Alerts",
+        "Success Rate (%)",
+        "Market Traffic Health",
+        "Market Data Freshness",
+        "Core Metrics Present",
+        "Latency vs. SLO (ms)",
+        "Error Budget Burn Rate",
+    ):
+        assert y[title] < y["Operational Drill-down"], title
+
+
+def test_dashboard_top_tiles_have_drilldown_links() -> None:
+    """External Checks and Core Metrics Present must link to related detail rows."""
+    dashboard = json.loads(_DASHBOARD_JSON.read_text(encoding="utf-8"))
+    panels = {p.get("title"): p for p in _dashboard_panels(dashboard)}
+    for title in ("External Checks", "Core Metrics Present"):
+        links = panels[title].get("links") or []
+        assert links, f"{title} is missing drilldown links"
+        assert all(link.get("targetBlank") for link in links), f"{title} drilldown should open in new tab"

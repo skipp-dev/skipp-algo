@@ -51,7 +51,8 @@
         "y": 0,
         "w": 24,
         "h": 1
-      }
+      },
+      "description": "First-screen incident view: health, alerts, market context, user impact and SLOs."
     },
     {
       "title": "Overall Health",
@@ -503,7 +504,15 @@
         "type": "prometheus",
         "uid": "grafanacloud-prom"
       },
-      "id": 2071035035
+      "id": 2071035035,
+      "links": [
+        {
+          "title": "External Integrations",
+          "type": "link",
+          "url": "/d/smc-live-overlay-v1?orgId=1&viewPanel=2503",
+          "targetBlank": true
+        }
+      ]
     },
     {
       "title": "Market Status",
@@ -1241,7 +1250,7 @@
       "id": 471930109
     },
     {
-      "title": "Freshness SLO (Market Open, 1h)",
+      "title": "Market Data Freshness",
       "type": "stat",
       "gridPos": {
         "x": 12,
@@ -1294,7 +1303,7 @@
           }
         }
       },
-      "description": "Are market-open bars still arriving on time? It compares the timestamp of the latest finished bar to the current market clock and burns error budget when data is stale during trading hours.",
+      "description": "Are market-open bars still arriving on time? Shows freshness SLO over the last hour.",
       "datasource": {
         "type": "prometheus",
         "uid": "grafanacloud-prom"
@@ -1368,7 +1377,15 @@
         "type": "prometheus",
         "uid": "grafanacloud-prom"
       },
-      "id": 1535993467
+      "id": 1535993467,
+      "links": [
+        {
+          "title": "Collector / Scrape Targets",
+          "type": "link",
+          "url": "/d/smc-live-overlay-v1?orgId=1&viewPanel=4374",
+          "targetBlank": true
+        }
+      ]
     },
     {
       "title": "Latency vs. SLO (ms)",
@@ -1554,7 +1571,8 @@
         "w": 24,
         "h": 1
       },
-      "panels": []
+      "panels": [],
+      "description": "Immediate cause-finding panels after the top-level incident signals."
     },
     {
       "title": "Request Rate",
@@ -4381,7 +4399,8 @@
         "h": 1
       },
       "panels": [],
-      "id": 2133310722
+      "id": 2133310722,
+      "description": "Telemetry pipeline health: scrape target liveness and collector memory."
     },
     {
       "title": "Scrape Targets Up",
@@ -4840,7 +4859,8 @@
       "datasource": {
         "type": "prometheus",
         "uid": "grafanacloud-prom"
-      }
+      },
+      "description": "Railway container capacity and bridge health for service-owner review."
     },
     {
       "title": "Railway Metrics Bridge",

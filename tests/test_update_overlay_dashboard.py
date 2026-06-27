@@ -132,7 +132,7 @@ def test_overall_health_ampel_and_oncall_row_present(temp_dashboard: Path) -> No
         "Feed Healthy",
         "Overlay Fresh",
         "Workers Healthy",
-        "Bridge Scrapes",
+        "External Checks",
         "Market Status",
         "Last Bar Age",
     }.issubset(titles)
@@ -164,17 +164,16 @@ def test_all_panel_queries_have_balanced_parentheses(temp_dashboard: Path) -> No
             assert expr.count("(") == expr.count(")"), f"Unbalanced parentheses in {panel['title']!r}: {expr[:200]}"
 
 
-def test_update_script_fixes_bridge_scrapes_query(temp_dashboard: Path) -> None:
-    """Bridge Scrapes should ignore unconfigured bridges, not treat them as failures."""
+def test_update_script_fixes_external_checks_query(temp_dashboard: Path) -> None:
+    """External Checks should ignore unconfigured bridges, not treat them as failures."""
     _run_script(temp_dashboard)
     data = json.loads(temp_dashboard.read_text(encoding="utf-8"))
-    panel = next(p for p in data["panels"] if p.get("title") == "Bridge Scrapes")
+    panel = next(p for p in data["panels"] if p.get("title") == "External Checks")
     expr = panel["targets"][0]["expr"]
-    assert "live_overlay_uptimerobot_scrape_success" in expr
-    assert "live_overlay_github_workflow_scrape_success" in expr
+    assert "live_overlay_(uptimerobot|github_workflow)_scrape_success" in expr
     assert "min by (job)" in expr
     assert panel["targets"][0]["legendFormat"] == "{{job}}"
-    assert 'or on (job) label_replace(vector(0), "job", "live_overlay", "", "")' in expr
+    assert 'or on(job) label_replace(vector(0), "job", "live_overlay", "", "")' in expr
 
 
 def test_update_script_fixes_bridge_error_panels(temp_dashboard: Path) -> None:

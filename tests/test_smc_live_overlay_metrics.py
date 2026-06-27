@@ -1182,7 +1182,7 @@ def test_dashboard_overall_health_distinguishes_starting_from_idle() -> None:
     assert panel["targets"][0]["expr"] == 'live_overlay_health_status_code{job=~"$job"} or vector(0)'
     options = panel["fieldConfig"]["defaults"]["mappings"][0]["options"]
     assert options.get("1", {}).get("text") == "STARTING"
-    assert options.get("2", {}).get("text") == "IDLE"
+    assert options.get("2", {}).get("text") == "IDLE (MARKET CLOSED)"
     assert options.get("3", {}).get("text") == "HEALTHY"
 
 
