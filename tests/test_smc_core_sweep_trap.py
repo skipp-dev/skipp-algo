@@ -101,6 +101,25 @@ def test_enabled_reversal_against_sweep_cancels_trap() -> None:
     assert result["SWEEP_TRAP_CONFIDENCE"] == 80
 
 
+def test_float_quality_score_is_rounded_not_truncated() -> None:
+    """Regression: float quality scores must round, not truncate."""
+    os.environ["ENABLE_SWEEP_TRAP"] = "1"
+    # 2.4 rounds to 2 (below default threshold 3) -> trap active.
+    result = detect_sweep_trap(
+        enrichment={
+            "liquidity_sweeps": {
+                "RECENT_BULL_SWEEP": True,
+                "RECENT_BEAR_SWEEP": False,
+                "SWEEP_DIRECTION": "BULL",
+                "SWEEP_QUALITY_SCORE": 2.4,
+            }
+        }
+    )
+    assert result["SWEEP_TRAP_DETECTED"] is True
+    # quality 2 -> 60, lopsided +20 -> 80
+    assert result["SWEEP_TRAP_CONFIDENCE"] == 80
+
+
 def test_enabled_strong_reversal_neutralises_trap() -> None:
     os.environ["ENABLE_SWEEP_TRAP"] = "1"
     result = detect_sweep_trap(
