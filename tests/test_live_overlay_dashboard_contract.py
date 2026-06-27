@@ -200,3 +200,90 @@ def test_dashboard_bridge_state_panels_aggregate_by_job() -> None:
         expr = panel["targets"][0]["expr"]
         assert "max by (job)" in expr, f"{title} should aggregate by job"
         assert panel["targets"][0]["legendFormat"] == "{{job}}", f"{title} should label per job"
+
+
+# --------------------------------------------------------------------------- #
+# Review follow-up assertions (2026-06-27)
+# --------------------------------------------------------------------------- #
+
+def test_dashboard_success_rate_panel_description_matches_http_requests() -> None:
+    """Success Rate (%) must describe /smc_live HTTP request success, not compute cycles."""
+    dashboard = json.loads(_DASHBOARD_JSON.read_text(encoding="utf-8"))
+    panel = next(p for p in _dashboard_panels(dashboard) if p.get("title") == "Success Rate (%)")
+    expr = panel["targets"][0]["expr"]
+    description = panel.get("description", "")
+    assert "live_overlay_smc_live_success_total" in expr
+    assert "live_overlay_smc_live_requests_total" in expr
+    assert "HTTP" in description or "request" in description.lower()
+    assert "compute cycle" not in description.lower()
+
+
+def test_dashboard_restart_causes_panel_is_unique_and_groups_by_cause() -> None:
+    """There must be exactly one restart-cause panel and it must group by extracted cause label."""
+    dashboard = json.loads(_DASHBOARD_JSON.read_text(encoding="utf-8"))
+    panels = _dashboard_panels(dashboard)
+    restart_panels = [p for p in panels if "Restart Cause" in p.get("title", "")]
+    assert len(restart_panels) == 1, f"expected exactly one restart-cause panel, got {restart_panels}"
+    panel = restart_panels[0]
+    expr = panel["targets"][0]["expr"]
+    assert "sum by (cause)" in expr, expr
+    assert "label_replace" in expr, expr
+    assert panel["targets"][0].get("legendFormat") == "{{cause}}"
+
+
+def test_dashboard_rows_are_expanded() -> None:
+    """Previously collapsed rows must be expanded so child panels are visible."""
+    dashboard = json.loads(_DASHBOARD_JSON.read_text(encoding="utf-8"))
+    row_titles = {"External Integrations", "SLO & Reliability", "Provider Health", "Railway Resources"}
+    rows = [p for p in dashboard["panels"] if p.get("type") == "row" and p.get("title") in row_titles]
+    assert len(rows) == 4
+    for row in rows:
+        assert row.get("collapsed") is False, f"row {row['title']} is still collapsed"
+
+
+def test_dashboard_has_process_resident_memory_panel() -> None:
+    """A process-resident-memory panel must close the y=12 grid gap and match the memory alerts."""
+    dashboard = json.loads(_DASHBOARD_JSON.read_text(encoding="utf-8"))
+    panels = _dashboard_panels(dashboard)
+    panel = next(p for p in panels if p.get("title") == "Process Resident Memory")
+    gp = panel["gridPos"]
+    assert gp["y"] == 12 and gp["x"] == 4 and gp["w"] == 4 and gp["h"] == 4, gp
+    expr = panel["targets"][0]["expr"]
+    assert "live_overlay_process_resident_memory_bytes" in expr, expr
+
+
+def test_dashboard_ingest_queue_backpressure_separates_drop_rate_axis() -> None:
+    """Ingest Queue Backpressure must show depth on the left axis and drop rate on the right."""
+    dashboard = json.loads(_DASHBOARD_JSON.read_text(encoding="utf-8"))
+    panel = next(p for p in _dashboard_panels(dashboard) if p.get("title") == "Ingest Queue Backpressure")
+    overrides = panel.get("fieldConfig", {}).get("overrides", [])
+    dropped_overrides = [o for o in overrides if o.get("matcher", {}).get("options") == "dropped rate"]
+    assert dropped_overrides, "missing override for dropped rate"
+    prop_ids = {prop["id"] for prop in dropped_overrides[0].get("properties", [])}
+    assert "custom.axisPlacement" in prop_ids, prop_ids
+    assert "unit" in prop_ids, prop_ids
+
+
+def test_dashboard_y12_grid_gap_is_closed() -> None:
+    """The x=4..8 slot at y=12 must be occupied (no cosmetic gap)."""
+    dashboard = json.loads(_DASHBOARD_JSON.read_text(encoding="utf-8"))
+    panels = _dashboard_panels(dashboard)
+    at_y12 = [p for p in panels if p.get("gridPos", {}).get("y") == 12]
+    xs = {p["gridPos"]["x"] for p in at_y12}
+    assert {0, 4, 8, 12, 16, 20}.issubset(xs), f"y=12 panels occupy x positions {xs}"
+
+
+def test_alert_rules_error_budget_burn_uses_two_windows() -> None:
+    """Burn-rate alerts must evaluate both a short and a long window."""
+    rules_doc = yaml.safe_load(_ALERT_RULES_YAML.read_text(encoding="utf-8"))
+    for group in rules_doc["groups"]:
+        for rule in group["rules"]:
+            title = rule.get("title", "")
+            if "burn" not in title.lower():
+                continue
+            expressions = [d["model"]["expr"] for d in rule["data"] if "expr" in d.get("model", {})]
+            assert any("[5m]" in e for e in expressions), f"{title} missing 5m window"
+            assert any("[1h]" in e for e in expressions), f"{title} missing 1h window"
+            condition = next((d for d in rule["data"] if d.get("refId") == rule.get("condition")), {})
+            condition_expr = condition.get("model", {}).get("expression", "")
+            assert "$A" in condition_expr and "$B" in condition_expr, condition_expr
