@@ -292,13 +292,19 @@ def test_dashboard_has_collector_scrape_targets_row() -> None:
     assert "Collector Resident Memory" in titles
 
 
-def test_dashboard_latency_panel_uses_histogram_quantile() -> None:
-    """Latency vs SLO must use histogram_quantile over exported buckets."""
+def test_dashboard_latency_panel_uses_only_histogram_quantile() -> None:
+    """Latency vs SLO must use histogram_quantile over exported buckets and not fall back to legacy gauges."""
     dashboard = json.loads(_DASHBOARD_JSON.read_text(encoding="utf-8"))
     panels = _dashboard_panels(dashboard)
     panel = next(p for p in panels if p.get("title") == "Latency vs. SLO (ms)")
-    exprs = [t["expr"] for t in panel["targets"]]
-    assert any("histogram_quantile" in e and "live_overlay_smc_live_latency_ms_bucket" in e for e in exprs)
+    exprs = {t.get("legendFormat"): t["expr"] for t in panel["targets"] if "expr" in t}
+
+    assert "histogram_quantile(0.95" in exprs["p95"]
+    assert "histogram_quantile(0.99" in exprs["p99"]
+    assert "live_overlay_smc_live_latency_ms_bucket" in exprs["p95"]
+    assert "live_overlay_smc_live_latency_ms_bucket" in exprs["p99"]
+    assert all("live_overlay_smc_live_latency_p95_ms" not in e for e in exprs.values())
+    assert all("live_overlay_smc_live_latency_p99_ms" not in e for e in exprs.values())
 
 
 def test_dashboard_news_panels_split_by_unit() -> None:
@@ -333,17 +339,38 @@ def test_dashboard_y12_grid_gap_is_closed() -> None:
     assert {0, 4, 8, 12, 16, 20}.issubset(xs), f"y=12 panels occupy x positions {xs}"
 
 
+def test_latency_alert_uses_histogram_quantile_bucket() -> None:
+    """p99 latency alert must query histogram buckets, not the legacy gauge."""
+    rules_doc = yaml.safe_load(_ALERT_RULES_YAML.read_text(encoding="utf-8"))
+    rule = next(
+        r for g in rules_doc["groups"] for r in g["rules"]
+        if r.get("uid") == "lo-latency-p99-high"
+    )
+    expr = rule["data"][0]["model"]["expr"]
+    assert "histogram_quantile(" in expr and "0.99" in expr
+    assert "live_overlay_smc_live_latency_ms_bucket" in expr
+    assert "sum by (le)" in expr
+    assert "[5m]" in expr
+    assert "live_overlay_smc_live_latency_p99_ms" not in expr
+    assert "or vector(0)" in expr
+
+
 def test_alert_rules_error_budget_burn_uses_two_windows() -> None:
     """Burn-rate alerts must evaluate both a short and a long window."""
     rules_doc = yaml.safe_load(_ALERT_RULES_YAML.read_text(encoding="utf-8"))
+    expected_windows = {
+        "lo-error-budget-burn-critical": ("[5m]", "[1h]"),
+        "lo-error-budget-burn-warning": ("[30m]", "[6h]"),
+    }
     for group in rules_doc["groups"]:
         for rule in group["rules"]:
-            title = rule.get("title", "")
-            if "burn" not in title.lower():
+            uid = rule.get("uid", "")
+            if uid not in expected_windows:
                 continue
+            short, long = expected_windows[uid]
             expressions = [d["model"]["expr"] for d in rule["data"] if "expr" in d.get("model", {})]
-            assert any("[5m]" in e for e in expressions), f"{title} missing 5m window"
-            assert any("[1h]" in e for e in expressions), f"{title} missing 1h window"
+            assert any(short in e for e in expressions), f"{uid} missing {short} window"
+            assert any(long in e for e in expressions), f"{uid} missing {long} window"
             condition = next((d for d in rule["data"] if d.get("refId") == rule.get("condition")), {})
             condition_expr = condition.get("model", {}).get("expression", "")
             assert "$A" in condition_expr and "$B" in condition_expr, condition_expr

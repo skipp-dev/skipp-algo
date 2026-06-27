@@ -3177,7 +3177,7 @@
           }
         }
       },
-      "description": "p95 and p99 latency with a fixed 500 ms SLO threshold.",
+      "description": "5m rolling p95/p99 latency computed with histogram_quantile() over live_overlay_smc_live_latency_ms_bucket, plus fixed 500 ms SLO threshold.",
       "datasource": {
         "type": "prometheus",
         "uid": "grafanacloud-prom"

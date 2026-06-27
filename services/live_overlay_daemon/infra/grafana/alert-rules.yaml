@@ -371,7 +371,13 @@ groups:
           - refId: A
             datasourceUid: grafanacloud-prom
             model:
-              expr: histogram_quantile(0.99, sum by (le) (rate(live_overlay_smc_live_latency_ms_bucket{job="live_overlay"}[5m])))
+              expr: |
+                histogram_quantile(
+                  0.99,
+                  sum by (le) (
+                    rate(live_overlay_smc_live_latency_ms_bucket{job="live_overlay"}[5m])
+                  )
+                ) or vector(0)
               instant: true
           - refId: C
             datasourceUid: __expr__
@@ -386,7 +392,7 @@ groups:
           severity: warning
         annotations:
           summary: "p99 latency above 500ms for 10m"
-          runbook: "Check request volume hotspots and compute/feed health for saturation symptoms."
+          runbook: "Check request hotspots and saturation. Verify live_overlay_smc_live_latency_ms_bucket{le=\"+Inf\"} increases with request traffic."
 
       - uid: lo-uptimerobot-snapshot-stale
         title: "UptimeRobot snapshot stale"

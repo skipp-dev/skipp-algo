@@ -303,6 +303,10 @@ def test_render_metrics_emits_latency_quantile_gauges(monkeypatch: pytest.Monkey
     assert 'live_overlay_smc_live_latency_ms_bucket{le="+Inf"} 100.0' in body
     assert "live_overlay_smc_live_latency_ms_sum 0.0" in body
     assert "live_overlay_smc_live_latency_ms_count 100.0" in body
+    # Classic histogram structure: bucket series, _sum, _count, and +Inf bucket.
+    assert "live_overlay_smc_live_latency_ms_bucket{" in body
+    assert "live_overlay_smc_live_latency_ms_sum " in body
+    assert "live_overlay_smc_live_latency_ms_count " in body
 
 
 def test_render_metrics_emits_age_known_gauges(monkeypatch: pytest.MonkeyPatch) -> None:
