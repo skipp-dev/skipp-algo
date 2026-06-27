@@ -147,7 +147,7 @@
       ]
     },
     {
-      "title": "Active Alerts (live_overlay)",
+      "title": "Active Alerts",
       "type": "alertlist",
       "gridPos": {
         "x": 8,
@@ -159,11 +159,10 @@
         "showLabels": true,
         "sortOrder": 1,
         "groupMode": "default",
-        "maxItems": 20,
-        "alertInstanceLabelFilter": "job=live_overlay",
+        "maxItems": 30,
         "viewMode": "list"
       },
-      "description": "Currently firing Grafana alerts from the live-overlay alert rule group.",
+      "description": "Currently firing Grafana alerts for live overlay, collector, and dependent services.",
       "datasource": {
         "type": "prometheus",
         "uid": "grafanacloud-prom"
@@ -182,7 +181,7 @@
       },
       "options": {
         "mode": "markdown",
-        "content": "**Incident triage quick-checks**\n\n- `feed_healthy == 0` -> check `DATABENTO_API_KEY`, Railway logs, circuit breaker.\n- `workers_healthy == 0` -> check thread liveness in Worker Liveness panel; restart via Railway.\n- `overlay_fresh == 0` -> check compute cycle errors, full/flow compute logs.\n- `market_open == 1` but no traffic -> check TradingView token rollout / auth denied rate.\n- bridge scrape error -> verify UptimeRobot / GitHub API token and quota.\n- vertical grey lines on time-series = recent deploy/restart.\n\nFull runbook: [README](https://github.com/skippALGO/skipp-algo/blob/main/services/live_overlay_daemon/README.md)"
+        "content": "**Incident triage**\n\n1. Check **Active Alerts** first.\n2. If **Feed Healthy** is red: check Databento credentials, feed reconnects, and Railway logs.\n3. If **Workers Healthy** is red: open Worker Liveness and restart the daemon if a worker is dead.\n4. If **Overlay Fresh** is red: check Compute Cycle Errors and Overlay & Bar Age.\n5. If traffic is missing while **Market Status** is open: check TradingView rollout, auth denied, and request rate.\n6. If dashboards show no data: check Collector / Scrape Targets.\n\nRunbook: [README](https://github.com/skippALGO/skipp-algo/blob/main/services/live_overlay_daemon/README.md)\n"
       },
       "datasource": {
         "type": "prometheus",
@@ -195,7 +194,7 @@
       "type": "state-timeline",
       "gridPos": {
         "x": 0,
-        "y": 10,
+        "y": 18,
         "w": 24,
         "h": 4
       },
@@ -247,17 +246,19 @@
         "defaults": {
           "mappings": [
             {
-              "type": "value",
               "options": {
                 "0": {
-                  "text": "CLOSED",
-                  "color": "red"
+                  "color": "gray",
+                  "index": 0,
+                  "text": "CLOSED"
                 },
                 "1": {
-                  "text": "OPEN",
-                  "color": "green"
+                  "color": "green",
+                  "index": 1,
+                  "text": "OPEN"
                 }
-              }
+              },
+              "type": "value"
             }
           ],
           "color": {
@@ -267,7 +268,7 @@
             "mode": "absolute",
             "steps": [
               {
-                "color": "red",
+                "color": "gray",
                 "value": null
               },
               {
@@ -291,7 +292,7 @@
       "description": "Live feed connection health (0 = unhealthy, 1 = healthy).",
       "gridPos": {
         "x": 0,
-        "y": 12,
+        "y": 10,
         "w": 4,
         "h": 3
       },
@@ -367,7 +368,7 @@
       "description": "Overlay data freshness (1 = fresh, 0 = stale).",
       "gridPos": {
         "x": 4,
-        "y": 12,
+        "y": 10,
         "w": 4,
         "h": 3
       },
@@ -443,7 +444,7 @@
       "description": "Background thread liveness (1 = all alive, 0 = at least one dead).",
       "gridPos": {
         "x": 8,
-        "y": 12,
+        "y": 10,
         "w": 4,
         "h": 3
       },
@@ -519,7 +520,7 @@
       "description": "External bridge scrape health (UptimeRobot + GitHub Workflows).",
       "gridPos": {
         "x": 12,
-        "y": 12,
+        "y": 10,
         "w": 4,
         "h": 3
       },
@@ -587,7 +588,7 @@
       "description": "Major session state (US regular or Europe regular); 1 = open, 0 = closed.",
       "gridPos": {
         "x": 16,
-        "y": 12,
+        "y": 10,
         "w": 4,
         "h": 3
       },
@@ -655,7 +656,7 @@
       "description": "Age of the newest bar received from Databento.",
       "gridPos": {
         "x": 20,
-        "y": 12,
+        "y": 10,
         "w": 4,
         "h": 3
       },
@@ -721,7 +722,7 @@
       "type": "stat",
       "gridPos": {
         "x": 0,
-        "y": 17,
+        "y": 14,
         "w": 4,
         "h": 3
       },
@@ -807,10 +808,10 @@
       "type": "stat",
       "description": "Daemon process resident memory as reported by the built-in Prometheus collector.",
       "gridPos": {
-        "h": 4,
+        "x": 20,
+        "y": 14,
         "w": 4,
-        "x": 4,
-        "y": 12
+        "h": 3
       },
       "datasource": {
         "type": "prometheus",
@@ -866,7 +867,7 @@
       "type": "stat",
       "gridPos": {
         "x": 4,
-        "y": 17,
+        "y": 14,
         "w": 4,
         "h": 3
       },
@@ -915,7 +916,7 @@
       "type": "stat",
       "gridPos": {
         "x": 8,
-        "y": 17,
+        "y": 14,
         "w": 4,
         "h": 3
       },
@@ -976,7 +977,7 @@
       "type": "stat",
       "gridPos": {
         "x": 12,
-        "y": 17,
+        "y": 14,
         "w": 4,
         "h": 3
       },
@@ -1028,7 +1029,7 @@
       "type": "stat",
       "gridPos": {
         "x": 16,
-        "y": 17,
+        "y": 14,
         "w": 4,
         "h": 3
       },
@@ -1068,10 +1069,10 @@
       "title": "Request Rate",
       "type": "timeseries",
       "gridPos": {
-        "h": 8,
-        "w": 12,
         "x": 0,
-        "y": 23
+        "y": 23,
+        "w": 12,
+        "h": 8
       },
       "targets": [
         {
@@ -1170,10 +1171,10 @@
       "title": "Overlay & Bar Age",
       "type": "timeseries",
       "gridPos": {
-        "h": 8,
-        "w": 12,
         "x": 12,
-        "y": 31
+        "y": 23,
+        "w": 12,
+        "h": 8
       },
       "targets": [
         {
@@ -1245,10 +1246,10 @@
       "title": "Compute Cycle Errors",
       "type": "timeseries",
       "gridPos": {
-        "h": 8,
-        "w": 12,
         "x": 0,
-        "y": 39
+        "y": 32,
+        "w": 12,
+        "h": 8
       },
       "targets": [
         {
@@ -1352,10 +1353,10 @@
       "title": "Feed Health Counters",
       "type": "timeseries",
       "gridPos": {
-        "h": 8,
-        "w": 12,
         "x": 12,
-        "y": 47
+        "y": 32,
+        "w": 12,
+        "h": 8
       },
       "targets": [
         {
@@ -1414,10 +1415,10 @@
       "title": "Worker Liveness",
       "type": "state-timeline",
       "gridPos": {
-        "h": 6,
-        "w": 12,
         "x": 0,
-        "y": 55
+        "y": 41,
+        "w": 12,
+        "h": 6
       },
       "targets": [
         {
@@ -1511,10 +1512,10 @@
       "title": "Feed Circuit Breakers (Total)",
       "type": "stat",
       "gridPos": {
-        "h": 6,
-        "w": 6,
         "x": 12,
-        "y": 61
+        "y": 41,
+        "w": 6,
+        "h": 6
       },
       "targets": [
         {
@@ -1581,10 +1582,10 @@
       "title": "Feed Partial Restarts (Total)",
       "type": "stat",
       "gridPos": {
-        "h": 6,
-        "w": 6,
         "x": 18,
-        "y": 67
+        "y": 41,
+        "w": 6,
+        "h": 6
       },
       "targets": [
         {
@@ -1640,10 +1641,10 @@
       "title": "Success Rate (%)",
       "type": "stat",
       "gridPos": {
-        "h": 6,
-        "w": 6,
         "x": 0,
-        "y": 73
+        "y": 48,
+        "w": 6,
+        "h": 6
       },
       "targets": [
         {
@@ -1711,10 +1712,10 @@
       "title": "Market-open Request Health",
       "type": "stat",
       "gridPos": {
-        "h": 6,
-        "w": 6,
         "x": 6,
-        "y": 79
+        "y": 48,
+        "w": 6,
+        "h": 6
       },
       "targets": [
         {
@@ -1788,10 +1789,10 @@
       "title": "Daemon Restarts (24h)",
       "type": "stat",
       "gridPos": {
-        "h": 6,
-        "w": 6,
         "x": 12,
-        "y": 85
+        "y": 48,
+        "w": 6,
+        "h": 6
       },
       "targets": [
         {
@@ -1856,10 +1857,10 @@
       "title": "Failure Mix",
       "type": "timeseries",
       "gridPos": {
-        "h": 8,
-        "w": 12,
         "x": 0,
-        "y": 97
+        "y": 55,
+        "w": 12,
+        "h": 8
       },
       "targets": [
         {
@@ -1932,10 +1933,10 @@
       "title": "Stale Budget Consumed (%)",
       "type": "timeseries",
       "gridPos": {
-        "h": 8,
-        "w": 12,
         "x": 12,
-        "y": 105
+        "y": 55,
+        "w": 12,
+        "h": 8
       },
       "targets": [
         {
@@ -1999,10 +2000,10 @@
       "title": "Readiness Components Timeline",
       "type": "state-timeline",
       "gridPos": {
-        "h": 8,
-        "w": 12,
         "x": 0,
-        "y": 113
+        "y": 64,
+        "w": 12,
+        "h": 8
       },
       "targets": [
         {
@@ -2096,10 +2097,10 @@
       "title": "Stale Responses (served)",
       "type": "timeseries",
       "gridPos": {
-        "h": 8,
-        "w": 12,
         "x": 12,
-        "y": 121
+        "y": 64,
+        "w": 12,
+        "h": 8
       },
       "targets": [
         {
@@ -2160,10 +2161,10 @@
       "type": "state-timeline",
       "description": "Per-monitor UptimeRobot state over time. paused = monitor intentionally paused; unknown = unrecognized status code.",
       "gridPos": {
-        "h": 6,
-        "w": 12,
         "x": 0,
-        "y": 129
+        "y": 73,
+        "w": 12,
+        "h": 6
       },
       "targets": [
         {
@@ -2252,10 +2253,10 @@
       "title": "External Integrations",
       "type": "row",
       "gridPos": {
-        "h": 1,
-        "w": 24,
         "x": 0,
-        "y": 135
+        "y": 80,
+        "w": 24,
+        "h": 1
       },
       "collapsed": false,
       "panels": [],
@@ -2270,10 +2271,10 @@
       "title": "UptimeRobot Bridge",
       "type": "stat",
       "gridPos": {
-        "h": 4,
-        "w": 6,
         "x": 0,
-        "y": 136
+        "y": 81,
+        "w": 6,
+        "h": 4
       },
       "targets": [
         {
@@ -2339,10 +2340,10 @@
       "title": "UptimeRobot Bridge Error",
       "type": "stat",
       "gridPos": {
-        "h": 4,
-        "w": 6,
         "x": 6,
-        "y": 140
+        "y": 81,
+        "w": 6,
+        "h": 4
       },
       "description": "Bridge error flag across the selected jobs/instances (0=OK, 1=ERROR).",
       "targets": [
@@ -2407,10 +2408,10 @@
       "title": "UptimeRobot Snapshot Age",
       "type": "stat",
       "gridPos": {
-        "h": 4,
-        "w": 6,
         "x": 12,
-        "y": 144
+        "y": 81,
+        "w": 6,
+        "h": 4
       },
       "targets": [
         {
@@ -2482,10 +2483,10 @@
       "title": "UptimeRobot Monitors",
       "type": "timeseries",
       "gridPos": {
-        "h": 8,
-        "w": 12,
         "x": 18,
-        "y": 148
+        "y": 81,
+        "w": 12,
+        "h": 8
       },
       "targets": [
         {
@@ -2573,10 +2574,10 @@
       "title": "GitHub Workflow Bridge",
       "type": "stat",
       "gridPos": {
-        "h": 4,
-        "w": 6,
         "x": 0,
-        "y": 156
+        "y": 86,
+        "w": 6,
+        "h": 4
       },
       "targets": [
         {
@@ -2642,10 +2643,10 @@
       "title": "GitHub Workflow Bridge Error",
       "type": "stat",
       "gridPos": {
-        "h": 4,
-        "w": 6,
         "x": 6,
-        "y": 160
+        "y": 86,
+        "w": 6,
+        "h": 4
       },
       "description": "Bridge error flag across the selected jobs/instances (0=OK, 1=ERROR).",
       "targets": [
@@ -2710,10 +2711,10 @@
       "title": "GitHub Workflow Snapshot Age",
       "type": "stat",
       "gridPos": {
-        "h": 4,
-        "w": 6,
         "x": 12,
-        "y": 164
+        "y": 86,
+        "w": 6,
+        "h": 4
       },
       "targets": [
         {
@@ -2785,10 +2786,10 @@
       "title": "GitHub Workflow Runs",
       "type": "timeseries",
       "gridPos": {
-        "h": 8,
-        "w": 12,
         "x": 18,
-        "y": 168
+        "y": 90,
+        "w": 12,
+        "h": 8
       },
       "targets": [
         {
@@ -2862,13 +2863,13 @@
       "id": 1639741128
     },
     {
-      "title": "GitHub Workflow Status — Timeline",
+      "title": "GitHub Workflow Status \u2014 Timeline",
       "type": "state-timeline",
       "gridPos": {
-        "h": 25,
-        "w": 24,
         "x": 0,
-        "y": 176
+        "y": 91,
+        "w": 18,
+        "h": 10
       },
       "targets": [
         {
@@ -3076,7 +3077,7 @@
         },
         "overrides": []
       },
-      "description": "Colour-coded latest status of each GitHub Actions workflow over time. Every row is one named workflow ({{workflow}} legend); the cell colour encodes the run conclusion — green=success, red=failure/timed-out/startup-failure, orange=cancelled/action-required, blue=in-progress/neutral, yellow=queued/stale, gray=unknown, purple=skipped. Series come from live_overlay_github_workflow_phase_code{workflow,event,workflow_id}, sampled at the daemon's GitHub workflow bridge interval (so runs shorter than one scrape interval may not appear).",
+      "description": "Colour-coded latest status of each GitHub Actions workflow over time. Every row is one named workflow ({{workflow}} legend); the cell colour encodes the run conclusion \u2014 green=success, red=failure/timed-out/startup-failure, orange=cancelled/action-required, blue=in-progress/neutral, yellow=queued/stale, gray=unknown, purple=skipped. Series come from live_overlay_github_workflow_phase_code{workflow,event,workflow_id}, sampled at the daemon's GitHub workflow bridge interval (so runs shorter than one scrape interval may not appear).",
       "datasource": {
         "type": "prometheus",
         "uid": "grafanacloud-prom"
@@ -3087,10 +3088,10 @@
       "title": "SLO & Reliability",
       "type": "row",
       "gridPos": {
-        "h": 1,
-        "w": 24,
         "x": 0,
-        "y": 201
+        "y": 102,
+        "w": 24,
+        "h": 1
       },
       "collapsed": false,
       "panels": [],
@@ -3105,10 +3106,10 @@
       "title": "Latency vs. SLO (ms)",
       "type": "timeseries",
       "gridPos": {
-        "h": 8,
-        "w": 12,
         "x": 0,
-        "y": 202
+        "y": 103,
+        "w": 12,
+        "h": 8
       },
       "targets": [
         {
@@ -3188,10 +3189,10 @@
       "title": "Freshness SLO (Market Open, 1h)",
       "type": "stat",
       "gridPos": {
-        "h": 8,
-        "w": 6,
         "x": 12,
-        "y": 210
+        "y": 103,
+        "w": 6,
+        "h": 8
       },
       "targets": [
         {
@@ -3249,10 +3250,10 @@
       "title": "No-Data Guard (Core Metrics)",
       "type": "stat",
       "gridPos": {
-        "h": 8,
-        "w": 6,
         "x": 18,
-        "y": 218
+        "y": 103,
+        "w": 6,
+        "h": 8
       },
       "targets": [
         {
@@ -3318,10 +3319,10 @@
       "title": "Error Budget Burn Rate",
       "type": "timeseries",
       "gridPos": {
-        "h": 8,
-        "w": 12,
         "x": 0,
-        "y": 226
+        "y": 112,
+        "w": 12,
+        "h": 8
       },
       "targets": [
         {
@@ -3408,10 +3409,10 @@
       "title": "Bridge Scrape Health Timeline",
       "type": "state-timeline",
       "gridPos": {
-        "h": 8,
-        "w": 12,
         "x": 12,
-        "y": 234
+        "y": 112,
+        "w": 12,
+        "h": 8
       },
       "targets": [
         {
@@ -3493,10 +3494,10 @@
       "title": "Restart Causes (24h)",
       "type": "timeseries",
       "gridPos": {
-        "h": 8,
-        "w": 12,
         "x": 0,
-        "y": 242
+        "y": 121,
+        "w": 12,
+        "h": 8
       },
       "targets": [
         {
@@ -3536,13 +3537,13 @@
       "id": 1148615869
     },
     {
-      "title": "Hotspots — Symbols (Top)",
+      "title": "Hotspots \u2014 Symbols (Top)",
       "type": "timeseries",
       "gridPos": {
-        "h": 8,
-        "w": 12,
         "x": 12,
-        "y": 250
+        "y": 121,
+        "w": 12,
+        "h": 8
       },
       "targets": [
         {
@@ -3581,13 +3582,13 @@
       "id": 1135701409
     },
     {
-      "title": "Hotspots — Timeframes (Top)",
+      "title": "Hotspots \u2014 Timeframes (Top)",
       "type": "timeseries",
       "gridPos": {
-        "h": 8,
-        "w": 24,
         "x": 0,
-        "y": 258
+        "y": 130,
+        "w": 24,
+        "h": 8
       },
       "targets": [
         {
@@ -3629,10 +3630,10 @@
       "title": "Ingest Queue Backpressure",
       "type": "timeseries",
       "gridPos": {
-        "h": 8,
-        "w": 12,
         "x": 0,
-        "y": 266
+        "y": 139,
+        "w": 12,
+        "h": 8
       },
       "targets": [
         {
@@ -3712,10 +3713,10 @@
       "title": "Ingest Queue Lag (ms)",
       "type": "timeseries",
       "gridPos": {
-        "h": 8,
-        "w": 12,
         "x": 12,
-        "y": 274
+        "y": 139,
+        "w": 12,
+        "h": 8
       },
       "targets": [
         {
@@ -3782,10 +3783,10 @@
       "title": "Provider Health",
       "type": "row",
       "gridPos": {
-        "h": 1,
-        "w": 24,
         "x": 0,
-        "y": 282
+        "y": 148,
+        "w": 24,
+        "h": 1
       },
       "collapsed": false,
       "panels": [],
@@ -3801,14 +3802,14 @@
       "type": "text",
       "description": "Legend for News Provider panels directly below.",
       "gridPos": {
-        "y": 283,
-        "h": 2,
+        "x": 0,
+        "y": 149,
         "w": 24,
-        "x": 0
+        "h": 2
       },
       "options": {
         "mode": "markdown",
-        "content": "**News provider state codes:** `0` = unknown / no data, `1` = degraded, `2` = ok, `3` = disabled (not ingested). The **News Providers — Ingest Status & Reason** table shows the human-readable reason (e.g. API key missing, no active subscription, provider disabled) and whether each provider is actually consumed."
+        "content": "**News provider state codes:** `0` = unknown / no data, `1` = degraded, `2` = ok, `3` = disabled (not ingested). The **News Providers \u2014 Ingest Status & Reason** table shows the human-readable reason (e.g. API key missing, no active subscription, provider disabled) and whether each provider is actually consumed."
       },
       "datasource": {
         "type": "prometheus",
@@ -3817,13 +3818,13 @@
       "id": 755773609
     },
     {
-      "title": "News Providers — State Code",
+      "title": "News Providers \u2014 State Code",
       "type": "timeseries",
       "gridPos": {
-        "y": 285,
-        "h": 10,
+        "x": 0,
+        "y": 151,
         "w": 24,
-        "x": 0
+        "h": 10
       },
       "targets": [
         {
@@ -3912,10 +3913,10 @@
       "title": "News Provider Health State",
       "type": "state-timeline",
       "gridPos": {
-        "y": 295,
-        "h": 8,
+        "x": 0,
+        "y": 162,
         "w": 12,
-        "x": 0
+        "h": 8
       },
       "targets": [
         {
@@ -4008,9 +4009,9 @@
       "type": "timeseries",
       "gridPos": {
         "x": 12,
-        "y": 303,
-        "h": 8,
-        "w": 6
+        "y": 162,
+        "w": 6,
+        "h": 8
       },
       "targets": [
         {
@@ -4053,9 +4054,9 @@
       "type": "timeseries",
       "gridPos": {
         "x": 18,
-        "y": 303,
-        "h": 8,
-        "w": 6
+        "y": 162,
+        "w": 6,
+        "h": 8
       },
       "targets": [
         {
@@ -4126,13 +4127,13 @@
       "id": 2133310726
     },
     {
-      "title": "News Providers — OK/Degraded (Drill-down)",
+      "title": "News Providers \u2014 OK/Degraded (Drill-down)",
       "type": "timeseries",
       "gridPos": {
-        "y": 311,
-        "h": 8,
+        "x": 0,
+        "y": 171,
         "w": 12,
-        "x": 0
+        "h": 8
       },
       "targets": [
         {
@@ -4173,15 +4174,15 @@
       "id": 2078851417
     },
     {
-      "title": "News Providers — Ingest Status & Reason",
+      "title": "News Providers \u2014 Ingest Status & Reason",
       "type": "table",
       "gridPos": {
-        "y": 319,
-        "h": 8,
+        "x": 12,
+        "y": 171,
         "w": 12,
-        "x": 12
+        "h": 8
       },
-      "description": "Per-provider ingest status with the human-readable degraded reason (API key missing, no active subscription, provider disabled, …) and whether the provider is actually consumed.",
+      "description": "Per-provider ingest status with the human-readable degraded reason (API key missing, no active subscription, provider disabled, \u2026) and whether the provider is actually consumed.",
       "targets": [
         {
           "expr": "live_overlay_provider_news_info{job=~\"$job\"}",
@@ -4330,15 +4331,15 @@
       "id": 337952283
     },
     {
-      "title": "GitHub Workflows — Latest Run Detail",
+      "title": "GitHub Workflows \u2014 Latest Run Detail",
       "type": "table",
       "gridPos": {
-        "h": 14,
-        "w": 24,
         "x": 0,
-        "y": 327
+        "y": 190,
+        "w": 24,
+        "h": 14
       },
-      "description": "Per-workflow detail of the most recent run the daemon observed: trigger event (schedule / push / …), current status, run duration and age. One row per named workflow. Driven by the labelled live_overlay_github_workflow_* gauges (phase_code, latest_duration_seconds, latest_age_seconds, latest_success).",
+      "description": "Per-workflow detail of the most recent run the daemon observed: trigger event (schedule / push / \u2026), current status, run duration and age. One row per named workflow. Driven by the labelled live_overlay_github_workflow_* gauges (phase_code, latest_duration_seconds, latest_age_seconds, latest_success).",
       "targets": [
         {
           "expr": "live_overlay_github_workflow_phase_code{job=~\"$job\"}",
@@ -4536,11 +4537,11 @@
                     "type": "value",
                     "options": {
                       "0": {
-                        "text": "✗",
+                        "text": "\u2717",
                         "color": "red"
                       },
                       "1": {
-                        "text": "✓",
+                        "text": "\u2713",
                         "color": "green"
                       }
                     }
@@ -4575,12 +4576,12 @@
     {
       "title": "TradingView Credential Age",
       "type": "stat",
-      "description": "Hours since the TradingView Playwright storage-state login (meta.authValidatedAt) was last validated, from the daily credential-health report (tv_storage_state_age probe). Policy TTL is 72h: green < 57.6h (80% warn band), yellow 57.6–72h, red once the cached login is older than 72h and must be re-captured. N/A when no report/age is available.",
+      "description": "Hours since the TradingView Playwright storage-state login (meta.authValidatedAt) was last validated, from the daily credential-health report (tv_storage_state_age probe). Policy TTL is 72h: green < 57.6h (80% warn band), yellow 57.6\u201372h, red once the cached login is older than 72h and must be re-captured. N/A when no report/age is available.",
       "gridPos": {
-        "h": 5,
-        "w": 6,
         "x": 0,
-        "y": 341
+        "y": 205,
+        "w": 6,
+        "h": 5
       },
       "targets": [
         {
@@ -4640,12 +4641,12 @@
     {
       "title": "TradingView Credential Status",
       "type": "stat",
-      "description": "Whether the latest credential-health report considers the TradingView storage-state login valid (severity not error). 1 = valid (cached login still within the 72h TTL), 0 = expired/error → re-capture TV_STORAGE_STATE. N/A when no report has been ingested yet.",
+      "description": "Whether the latest credential-health report considers the TradingView storage-state login valid (severity not error). 1 = valid (cached login still within the 72h TTL), 0 = expired/error \u2192 re-capture TV_STORAGE_STATE. N/A when no report has been ingested yet.",
       "gridPos": {
-        "h": 5,
-        "w": 6,
         "x": 6,
-        "y": 346
+        "y": 205,
+        "w": 6,
+        "h": 5
       },
       "targets": [
         {
@@ -4713,10 +4714,10 @@
       "type": "row",
       "collapsed": false,
       "gridPos": {
-        "h": 1,
-        "w": 24,
         "x": 0,
-        "y": 351
+        "y": 211,
+        "w": 24,
+        "h": 1
       },
       "panels": [],
       "datasource": {
@@ -4729,10 +4730,10 @@
       "type": "stat",
       "description": "Whether the Railway metrics bridge is enabled and its last poll succeeded.",
       "gridPos": {
-        "h": 3,
-        "w": 4,
         "x": 0,
-        "y": 352
+        "y": 212,
+        "w": 4,
+        "h": 3
       },
       "targets": [
         {
@@ -4798,10 +4799,10 @@
       "type": "stat",
       "description": "Seconds since the last successful Railway metrics poll.",
       "gridPos": {
-        "h": 3,
-        "w": 4,
         "x": 4,
-        "y": 355
+        "y": 212,
+        "w": 4,
+        "h": 3
       },
       "targets": [
         {
@@ -4861,10 +4862,10 @@
       "type": "stat",
       "description": "Latest Railway metrics bridge error class. OK when healthy.",
       "gridPos": {
-        "h": 3,
-        "w": 4,
         "x": 8,
-        "y": 358
+        "y": 212,
+        "w": 4,
+        "h": 3
       },
       "targets": [
         {
@@ -4936,10 +4937,10 @@
         "uid": "grafanacloud-prom"
       },
       "gridPos": {
-        "h": 7,
-        "w": 8,
         "x": 0,
-        "y": 361
+        "y": 216,
+        "w": 8,
+        "h": 7
       },
       "fieldConfig": {
         "defaults": {
@@ -4980,10 +4981,10 @@
         "uid": "grafanacloud-prom"
       },
       "gridPos": {
-        "h": 7,
-        "w": 8,
         "x": 8,
-        "y": 368
+        "y": 216,
+        "w": 8,
+        "h": 7
       },
       "fieldConfig": {
         "defaults": {
@@ -5041,10 +5042,10 @@
         "uid": "grafanacloud-prom"
       },
       "gridPos": {
-        "h": 7,
-        "w": 8,
         "x": 16,
-        "y": 375
+        "y": 216,
+        "w": 8,
+        "h": 7
       },
       "fieldConfig": {
         "defaults": {
@@ -5085,10 +5086,10 @@
         "uid": "grafanacloud-prom"
       },
       "gridPos": {
-        "h": 7,
-        "w": 8,
         "x": 0,
-        "y": 382
+        "y": 224,
+        "w": 8,
+        "h": 7
       },
       "fieldConfig": {
         "defaults": {
@@ -5129,10 +5130,10 @@
         "uid": "grafanacloud-prom"
       },
       "gridPos": {
-        "h": 7,
-        "w": 8,
         "x": 8,
-        "y": 389
+        "y": 224,
+        "w": 8,
+        "h": 7
       },
       "fieldConfig": {
         "defaults": {
@@ -5173,10 +5174,10 @@
         "uid": "grafanacloud-prom"
       },
       "gridPos": {
-        "h": 7,
-        "w": 8,
         "x": 16,
-        "y": 396
+        "y": 224,
+        "w": 8,
+        "h": 7
       },
       "fieldConfig": {
         "defaults": {
@@ -5213,9 +5214,9 @@
       "collapsed": false,
       "gridPos": {
         "x": 0,
-        "y": 320,
-        "h": 1,
-        "w": 24
+        "y": 180,
+        "w": 24,
+        "h": 1
       },
       "panels": [],
       "id": 2133310722
@@ -5229,9 +5230,9 @@
       },
       "gridPos": {
         "x": 0,
-        "y": 321,
-        "h": 8,
-        "w": 12
+        "y": 181,
+        "w": 12,
+        "h": 8
       },
       "targets": [
         {
@@ -5262,9 +5263,9 @@
       },
       "gridPos": {
         "x": 12,
-        "y": 321,
-        "h": 8,
-        "w": 12
+        "y": 181,
+        "w": 12,
+        "h": 8
       },
       "targets": [
         {

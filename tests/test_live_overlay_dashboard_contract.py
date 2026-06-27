@@ -46,7 +46,7 @@ def test_active_alerts_panel_no_data_filter_disabled() -> None:
     """Grafana alert list should not include no_data to avoid unknown-state rows."""
     dashboard = json.loads(_DASHBOARD_JSON.read_text(encoding="utf-8"))
     panels = _dashboard_panels(dashboard)
-    panel = next(p for p in panels if p.get("title") == "Active Alerts (live_overlay)")
+    panel = next(p for p in panels if p.get("title") == "Active Alerts")
     options = panel.get("vizConfig", {}).get("spec", {}).get("options", panel.get("options", {}))
     state_filter = options.get("stateFilter")
     if state_filter is None:
@@ -256,14 +256,68 @@ def test_dashboard_rows_are_either_expanded_or_contain_children() -> None:
 
 
 def test_dashboard_has_process_resident_memory_panel() -> None:
-    """A process-resident-memory panel must close the y=12 grid gap and match the memory alerts."""
+    """A process-resident-memory panel must sit in the secondary top row and match the memory alerts."""
     dashboard = json.loads(_DASHBOARD_JSON.read_text(encoding="utf-8"))
     panels = _dashboard_panels(dashboard)
     panel = next(p for p in panels if p.get("title") == "Process Resident Memory")
     gp = panel["gridPos"]
-    assert gp["y"] == 12 and gp["x"] == 4 and gp["w"] == 4 and gp["h"] == 4, gp
+    assert gp["y"] == 14 and gp["x"] == 20 and gp["w"] == 4 and gp["h"] == 3, gp
     expr = panel["targets"][0]["expr"]
     assert "live_overlay_process_resident_memory_bytes" in expr, expr
+
+
+def test_dashboard_grid_has_no_overlapping_panels() -> None:
+    """All dashboard panels must occupy disjoint grid cells."""
+    dashboard = json.loads(_DASHBOARD_JSON.read_text(encoding="utf-8"))
+    panels = _dashboard_panels(dashboard)
+    rects = []
+    for p in panels:
+        gp = p.get("gridPos", {})
+        rects.append((p.get("title", "?"), gp.get("x", 0), gp.get("y", 0), gp.get("w", 0), gp.get("h", 0)))
+    overlaps = []
+    for i, (t1, x1, y1, w1, h1) in enumerate(rects):
+        for t2, x2, y2, w2, h2 in rects[i + 1 :]:
+            if x1 < x2 + w2 and x1 + w1 > x2 and y1 < y2 + h2 and y1 + h1 > y2:
+                overlaps.append((t1, t2))
+    assert not overlaps, f"overlapping panels: {overlaps}"
+
+
+def test_dashboard_active_alerts_panel_includes_infrastructure() -> None:
+    """The top alert list must not filter to job=live_overlay only."""
+    dashboard = json.loads(_DASHBOARD_JSON.read_text(encoding="utf-8"))
+    panels = _dashboard_panels(dashboard)
+    panel = next(p for p in panels if p.get("title") == "Active Alerts")
+    options = panel.get("options", {})
+    assert options.get("alertInstanceLabelFilter") is None, "alert list must not hide infrastructure alerts"
+    assert options.get("maxItems") >= 20
+
+
+def test_dashboard_market_sessions_closed_is_not_red() -> None:
+    """CLOSED market sessions must not use a red color (closed market is not an incident)."""
+    dashboard = json.loads(_DASHBOARD_JSON.read_text(encoding="utf-8"))
+    panels = _dashboard_panels(dashboard)
+    panel = next(p for p in panels if p.get("title") == "Global Market Sessions")
+    mappings = panel.get("fieldConfig", {}).get("defaults", {}).get("mappings", [])
+    closed = None
+    for mapping in mappings:
+        opts = mapping.get("options", {})
+        if "0" in opts:
+            closed = opts["0"]
+            break
+    assert closed is not None
+    assert closed.get("color") in {"gray", "blue", "purple"}, closed
+    assert closed.get("text") == "CLOSED"
+
+
+def test_dashboard_triage_guide_uses_user_impact_language() -> None:
+    """The incident triage guide must speak in user-impact terms, not raw metric names."""
+    dashboard = json.loads(_DASHBOARD_JSON.read_text(encoding="utf-8"))
+    panels = _dashboard_panels(dashboard)
+    panel = next(p for p in panels if p.get("title") == "Incident Triage Guide")
+    content = panel.get("options", {}).get("content", "")
+    assert "Active Alerts" in content
+    assert "Runbook" in content or "README" in content
+    assert "**Incident triage**" in content
 
 def test_dashboard_job_variable_is_datasource_pinned() -> None:
     """The $job variable must use the grafanacloud-prom datasource explicitly."""
@@ -360,12 +414,12 @@ def test_dashboard_hotspots_timeframes_legend_uses_timeframe_label() -> None:
 
 
 def test_dashboard_y12_grid_gap_is_closed() -> None:
-    """The x=4..8 slot at y=12 must be occupied (no cosmetic gap)."""
+    """The x=0..24 slot at y=10 must be fully occupied by the health-cause stat row."""
     dashboard = json.loads(_DASHBOARD_JSON.read_text(encoding="utf-8"))
     panels = _dashboard_panels(dashboard)
-    at_y12 = [p for p in panels if p.get("gridPos", {}).get("y") == 12]
-    xs = {p["gridPos"]["x"] for p in at_y12}
-    assert {0, 4, 8, 12, 16, 20}.issubset(xs), f"y=12 panels occupy x positions {xs}"
+    at_y10 = [p for p in panels if p.get("gridPos", {}).get("y") == 10]
+    xs = {p["gridPos"]["x"] for p in at_y10}
+    assert {0, 4, 8, 12, 16, 20}.issubset(xs), f"y=10 health-cause panels occupy x positions {xs}"
 
 
 def test_latency_alert_uses_histogram_quantile_bucket() -> None:
