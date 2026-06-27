@@ -317,6 +317,17 @@ def test_dashboard_news_panels_split_by_unit() -> None:
     assert count_panel.get("fieldConfig", {}).get("defaults", {}).get("unit") == "short"
 
 
+def test_dashboard_collector_resident_memory_covers_prefixed_metrics() -> None:
+    """Collector Resident Memory must cover alloy's bare metric plus prefixed live_overlay/signals_producer metrics."""
+    dashboard = json.loads(_DASHBOARD_JSON.read_text(encoding="utf-8"))
+    panels = _dashboard_panels(dashboard)
+    panel = next(p for p in panels if p.get("title") == "Collector Resident Memory")
+    expr = panel["targets"][0]["expr"]
+    assert "process_resident_memory_bytes" in expr
+    assert "live_overlay_process_resident_memory_bytes" in expr
+    assert "signals_producer_process_resident_memory_bytes" in expr
+
+
 
 def test_dashboard_ingest_queue_backpressure_separates_drop_rate_axis() -> None:
     """Ingest Queue Backpressure must show depth on the left axis and drop rate on the right."""

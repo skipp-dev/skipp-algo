@@ -5252,7 +5252,7 @@
       },
       "targets": [
         {
-          "expr": "process_resident_memory_bytes{job=~\"alloy|signals_producer|live_overlay\"}",
+          "expr": "process_resident_memory_bytes{job=~\"alloy\"} or label_replace({__name__=~\"live_overlay_process_resident_memory_bytes|signals_producer_process_resident_memory_bytes\",job=~\"live_overlay|signals_producer\"}, \"job\", \"$1\", \"job\", \"(.*)\")",
           "legendFormat": "{{job}}",
           "datasource": {
             "type": "prometheus",
@@ -5265,7 +5265,7 @@
           "unit": "bytes"
         }
       },
-      "description": "Resident memory for Alloy, signals_producer and live_overlay jobs.",
+      "description": "Resident memory for Alloy, signals_producer and live_overlay jobs. live_overlay and signals_producer expose prefixed metric names.",
       "id": 2133310724
     }
   ],

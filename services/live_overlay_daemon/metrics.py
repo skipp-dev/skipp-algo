@@ -958,26 +958,53 @@ def render_metrics(startup_ts: float) -> str:
     # Export real classic histogram bucket series so Prometheus can compute
     # rolling quantiles with histogram_quantile() instead of relying on
     # lifetime gauges derived from in-memory counters.
+    # Always emit every known default bucket (with 0 when not yet observed)
+    # so histogram_quantile() and Grafana transformations see a stable,
+    # complete bucket set on every scrape.
     latency_base = "live_overlay.smc_live_latency"
     latency_count = counters.get(f"{latency_base}.count")
-    latency_total = _prom_numeric_value(latency_count) if latency_count is not None else None
     latency_bucket_keys = [
         key for key in counters
         if key.startswith(f"{latency_base}.bucket_le_")
     ]
-    if latency_bucket_keys or (latency_total is not None and math.isfinite(latency_total) and latency_total > 0):
+    has_latency_observations = (
+        latency_count is not None
+        or latency_bucket_keys
+    )
+    if has_latency_observations:
+        # Build a complete set of known buckets. Because the in-process
+        # histogram only creates keys for buckets that have already received
+        # an observation, missing default buckets are filled by carrying the
+        # previous bucket's cumulative count forward (classic Prometheus
+        # histogram semantics) so histogram_quantile() is stable across scrapes.
+        default_buckets = getattr(observability, "_HISTOGRAM_DEFAULT_BUCKETS_MS", ())
+        bucket_values: dict[float, float] = {}
+        prefix = f"{latency_base}.bucket_le_"
+        for key in latency_bucket_keys:
+            suffix = key[len(prefix):]
+            upper = _parse_bucket_upper_bound(suffix)
+            if upper is None:
+                continue
+            bucket_values[upper] = _prom_numeric_value(counters[key])
+        running = 0.0
+        for bucket in sorted(default_buckets):
+            running = max(running, bucket_values.get(bucket, running))
+            bucket_values[bucket] = running
+        bucket_values[float("inf")] = _prom_numeric_value(
+            counters.get(f"{latency_base}.bucket_le_inf", latency_count or 0.0)
+        )
+
         lines.append("# TYPE live_overlay_smc_live_latency_ms histogram")
-        for key in sorted(latency_bucket_keys):
-            suffix = key[len(f"{latency_base}.bucket_le_"):]
-            le = "+Inf" if suffix == "inf" else suffix.replace("_", ".")
+        for upper in sorted(bucket_values, key=lambda u: (math.isinf(u), u)):
+            le = "+Inf" if upper == float("inf") else f"{upper:.0f}"
             lines.append(
-                f'live_overlay_smc_live_latency_ms_bucket{{le="{le}"}} {_prom_numeric_value(counters[key])}'
+                f'live_overlay_smc_live_latency_ms_bucket{{le="{le}"}} {_prom_numeric_value(bucket_values[upper])}'
             )
         lines.append(
             f'live_overlay_smc_live_latency_ms_sum {_prom_numeric_value(counters.get(f"{latency_base}.sum_ms", 0.0))}'
         )
         lines.append(
-            f'live_overlay_smc_live_latency_ms_count {_prom_numeric_value(latency_count)}'
+            f'live_overlay_smc_live_latency_ms_count {_prom_numeric_value(latency_count or 0.0)}'
         )
 
     # Keep the derived gauges for backward compatibility until dashboard/alert

@@ -297,9 +297,15 @@ def test_render_metrics_emits_latency_quantile_gauges(monkeypatch: pytest.Monkey
     assert "live_overlay_smc_live_latency_p95_ms" in body
     assert "live_overlay_smc_live_latency_p99_ms" in body
     assert "# TYPE live_overlay_smc_live_latency_ms histogram" in body
+    assert 'live_overlay_smc_live_latency_ms_bucket{le="10"} 0.0' in body
+    assert 'live_overlay_smc_live_latency_ms_bucket{le="25"} 0.0' in body
+    assert 'live_overlay_smc_live_latency_ms_bucket{le="50"} 0.0' in body
     assert 'live_overlay_smc_live_latency_ms_bucket{le="100"} 90.0' in body
     assert 'live_overlay_smc_live_latency_ms_bucket{le="250"} 98.0' in body
     assert 'live_overlay_smc_live_latency_ms_bucket{le="500"} 100.0' in body
+    assert 'live_overlay_smc_live_latency_ms_bucket{le="1000"} 100.0' in body
+    assert 'live_overlay_smc_live_latency_ms_bucket{le="2500"} 100.0' in body
+    assert 'live_overlay_smc_live_latency_ms_bucket{le="5000"} 100.0' in body
     assert 'live_overlay_smc_live_latency_ms_bucket{le="+Inf"} 100.0' in body
     assert "live_overlay_smc_live_latency_ms_sum 0.0" in body
     assert "live_overlay_smc_live_latency_ms_count 100.0" in body
@@ -307,6 +313,11 @@ def test_render_metrics_emits_latency_quantile_gauges(monkeypatch: pytest.Monkey
     assert "live_overlay_smc_live_latency_ms_bucket{" in body
     assert "live_overlay_smc_live_latency_ms_sum " in body
     assert "live_overlay_smc_live_latency_ms_count " in body
+    # Buckets must be sorted numerically, not lexicographically.
+    p10 = body.find('live_overlay_smc_live_latency_ms_bucket{le="10"}')
+    p100 = body.find('live_overlay_smc_live_latency_ms_bucket{le="100"}')
+    p1000 = body.find('live_overlay_smc_live_latency_ms_bucket{le="1000"}')
+    assert 0 < p10 < p100 < p1000, "histogram buckets not sorted numerically"
 
 
 def test_render_metrics_emits_age_known_gauges(monkeypatch: pytest.MonkeyPatch) -> None:
