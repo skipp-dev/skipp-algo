@@ -366,7 +366,8 @@ def _fix_bridge_scrapes_panel(data: dict[str, Any]) -> bool:
                 "min by (job) (\n"
                 '  live_overlay_uptimerobot_scrape_success{job=~"$job"} or\n'
                 '  live_overlay_github_workflow_scrape_success{job=~"$job"}\n'
-                ") or vector(0)"
+                ")\n"
+                'or on (job) label_replace(vector(0), "job", "live_overlay", "", "")'
             )
             if expr != new_expr:
                 target["expr"] = new_expr

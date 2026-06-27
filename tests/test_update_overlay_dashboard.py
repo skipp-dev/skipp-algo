@@ -174,7 +174,7 @@ def test_update_script_fixes_bridge_scrapes_query(temp_dashboard: Path) -> None:
     assert "live_overlay_github_workflow_scrape_success" in expr
     assert "min by (job)" in expr
     assert panel["targets"][0]["legendFormat"] == "{{job}}"
-    assert expr.endswith(") or vector(0)")
+    assert 'or on (job) label_replace(vector(0), "job", "live_overlay", "", "")' in expr
 
 
 def test_update_script_fixes_bridge_error_panels(temp_dashboard: Path) -> None:

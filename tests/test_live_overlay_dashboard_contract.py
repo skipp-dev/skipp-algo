@@ -189,6 +189,7 @@ def test_dashboard_bridge_scrapes_aggregates_by_job() -> None:
     panel = next(p for p in dashboard["panels"] if p.get("title") == "Bridge Scrapes")
     expr = panel["targets"][0]["expr"]
     assert "min by (job)" in expr
+    assert 'or on (job) label_replace(vector(0), "job", "live_overlay", "", "")' in expr
     assert panel["targets"][0]["legendFormat"] == "{{job}}"
 
 

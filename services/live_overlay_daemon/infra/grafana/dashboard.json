@@ -525,7 +525,7 @@
       },
       "targets": [
         {
-          "expr": "min by (job) (\n  live_overlay_uptimerobot_scrape_success{job=~\"$job\"} or\n  live_overlay_github_workflow_scrape_success{job=~\"$job\"}\n) or vector(0)",
+          "expr": "min by (job) (\n  live_overlay_uptimerobot_scrape_success{job=~\"$job\"} or\n  live_overlay_github_workflow_scrape_success{job=~\"$job\"}\n)\nor on (job) label_replace(vector(0), \"job\", \"live_overlay\", \"\", \"\")",
           "legendFormat": "{{job}}",
           "datasource": {
             "type": "prometheus",
