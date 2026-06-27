@@ -638,3 +638,76 @@ def test_dashboard_jargon_reduced_in_top_panels() -> None:
     assert "No-Data Guard (Core Metrics)" not in titles
     assert "Market-open Request Health" not in titles
     assert "Bridge Scrapes" not in titles
+
+
+
+def test_dashboard_has_no_grid_overlaps() -> None:
+    """No two visual panels may occupy the same grid cell."""
+    dashboard = json.loads(_DASHBOARD_JSON.read_text(encoding="utf-8"))
+    panels = [p for p in dashboard["panels"] if p.get("type") != "row"]
+    for i, a in enumerate(panels):
+        ag = a["gridPos"]
+        for b in panels[i + 1 :]:
+            bg = b["gridPos"]
+            overlap = (
+                ag["x"] < bg["x"] + bg["w"]
+                and bg["x"] < ag["x"] + ag["w"]
+                and ag["y"] < bg["y"] + bg["h"]
+                and bg["y"] < ag["y"] + ag["h"]
+            )
+            assert not overlap, f"{a.get('title')} overlaps {b.get('title')}"
+
+
+def test_dashboard_external_details_are_not_in_incident_overview() -> None:
+    """External-integration detail must not appear inside the first triage section."""
+    dashboard = json.loads(_DASHBOARD_JSON.read_text(encoding="utf-8"))
+    rows = sorted(
+        [p for p in dashboard["panels"] if p.get("type") == "row"],
+        key=lambda p: p["gridPos"]["y"],
+    )
+    incident_end = next(
+        r for r in rows if r["title"] == "Operational Drill-down"
+    )["gridPos"]["y"]
+    external_detail = next(
+        p for p in dashboard["panels"] if p.get("title") == "UptimeRobot Monitor States"
+    )
+    assert external_detail["gridPos"]["y"] > incident_end
+
+
+def test_dashboard_operational_drill_down_row_exists() -> None:
+    """A dedicated drill-down row must split incident overview from root-cause details."""
+    dashboard = json.loads(_DASHBOARD_JSON.read_text(encoding="utf-8"))
+    titles = {p.get("title") for p in dashboard["panels"] if p.get("type") == "row"}
+    assert "Operational Drill-down" in titles
+
+
+def test_dashboard_reliability_row_renamed() -> None:
+    """The former SLO & Reliability row must reflect its new drill-down role."""
+    dashboard = json.loads(_DASHBOARD_JSON.read_text(encoding="utf-8"))
+    row = next(
+        p for p in dashboard["panels"]
+        if p.get("type") == "row" and p.get("title") == "Reliability Drill-down"
+    )
+    assert "restart" in row.get("description", "").lower()
+    assert "backpressure" in row.get("description", "").lower()
+
+
+def test_dashboard_stakeholder_descriptions_put_impact_first() -> None:
+    """Descriptions for top SLO panels must lead with user impact, not metric jargon."""
+    dashboard = json.loads(_DASHBOARD_JSON.read_text(encoding="utf-8"))
+    panels = {p.get("title"): p for p in _dashboard_panels(dashboard)}
+    for title in ("Core Metrics Present", "Freshness SLO (Market Open, 1h)", "Overlay Fresh"):
+        desc = panels[title].get("description", "")
+        assert desc.startswith("Can") or desc.startswith("Are") or desc.startswith("Is"), (
+            f"{title} description does not lead with user impact: {desc[:80]}"
+        )
+
+
+def test_dashboard_triage_guide_has_quick_links() -> None:
+    """The triage guide must surface direct links to logs, deploys and runbooks."""
+    dashboard = json.loads(_DASHBOARD_JSON.read_text(encoding="utf-8"))
+    panels = {p.get("title"): p for p in _dashboard_panels(dashboard)}
+    content = panels["Incident Triage Guide"].get("options", {}).get("content", "")
+    assert "Railway logs" in content
+    assert "Railway deployments" in content
+    assert "Runbook" in content

@@ -524,7 +524,7 @@ observability.py (structured log lines + in-process counters)
 | `overlay_age_seconds > max_stale_secs` | high | Compute not running |
 | `overlay_symbols == 0` after 10 min | critical | No symbols computed |
 
-### Grafana dashboard layout (v26)
+### Grafana dashboard layout (v27)
 
 The operations dashboard `services/live_overlay_daemon/infra/grafana/dashboard.json`
 is organized for 3-a.m. incident triage:
@@ -544,10 +544,20 @@ is organized for 3-a.m. incident triage:
   `Process Resident Memory`, and `Global Market Sessions` follow below.
   `CLOSED` sessions and `IDLE (MARKET CLOSED)` states are shown in gray, not
   red/orange, because a closed market is not an incident.
-- **Incident Overview** — compact incident row; external detail panels live in
-  their own sections.
+- **Incident Overview** — compact triage row containing only the pinned health
+  story: `Overall Health`, `Active Alerts`, `Incident Triage Guide`, the
+  root-cause stat row, market sessions, and the user-impact/SLO block.
+  Drill-down detail panels live below a dedicated `Operational Drill-down`
+  row so the first screen does not overwhelm a 3-a.m. on-call engineer.
+- **Operational Drill-down** — root-cause detail placed after the incident
+  overview: `Request Rate`, `Overlay & Bar Age`, `Compute Cycle Errors`,
+  `Feed Health Counters`, `Worker Liveness`, `Failure Mix`,
+  `Readiness Components Timeline`, and related restart/backpressure stats.
 - **External Integrations** — UptimeRobot, GitHub workflow, and bridge health.
-- **SLO & Reliability** — latency, freshness, error-budget burn, queue health.
+  `UptimeRobot Monitor States` lives here, not inside the Incident Overview.
+- **Reliability Drill-down** — restart causes, hotspots, ingest queue
+  backpressure and lag; renamed from `SLO & Reliability` to reflect that the
+  top-level SLO panels have been promoted to the user-impact block above.
 - **Provider Health** — news-provider state and ingest status.
 - **Collector / Scrape Targets** — alloy/signals_producer/live_overlay scrape
   health and collector memory, separated from provider/GitHub detail panels to
@@ -566,7 +576,9 @@ Operational UX additions:
   `job=live_overlay`.
 - Key stat panels include drill-down links to related charts (e.g.
   `Feed Healthy` -> `Feed Health Counters`, `Workers Healthy` ->
-  `Worker Liveness`).
+  `Worker Liveness`). The `Incident Triage Guide`, `Overall Health`,
+  `Process Resident Memory`, and `Railway Metrics Bridge` panels include
+  direct links to Railway logs, deployments, metrics, and the on-call runbook.
 - Railway panels now have thresholds (memory ratio, snapshot age).
 - The `$job` template variable is hidden (`hide: 2`) and labeled
   `Prometheus job (advanced)`; it defaults to `live_overlay` and keeps the UI
@@ -578,11 +590,16 @@ Operational UX additions:
 - Provider drill-down query excludes aggregate health series so per-provider
   `..._ok` / `..._degraded` timelines remain noise-free.
 - Contract tests guard against regressions:
-  - `test_dashboard_grid_has_no_overlapping_panels`
+  - `test_dashboard_has_no_grid_overlaps`
   - `test_dashboard_user_impact_block_is_promoted_to_top`
   - `test_dashboard_idle_state_is_gray_not_orange`
   - `test_dashboard_jargon_reduced_in_top_panels`
   - `test_dashboard_job_variable_hidden_but_effective`
+  - `test_dashboard_external_details_are_not_in_incident_overview`
+  - `test_dashboard_operational_drill_down_row_exists`
+  - `test_dashboard_reliability_row_renamed`
+  - `test_dashboard_stakeholder_descriptions_put_impact_first`
+  - `test_dashboard_triage_guide_has_quick_links`
 
 Both dashboards are published automatically by
 `.github/workflows/live-overlay-dashboard-publish.yml` on pushes to `main`.
