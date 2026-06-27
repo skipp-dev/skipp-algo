@@ -381,8 +381,9 @@ def _fix_bridge_scrapes_panel(data: dict[str, Any]) -> bool:
 def _fix_bridge_error_panels(data: dict[str, Any]) -> bool:
     """Ensure bridge error panels only count real error codes.
 
-    The metrics emit `error_code="none"` with value 0 when the scrape
-    succeeds; without the filter the panel shows ERROR for the healthy case.
+    Healthy scrapes no longer emit an `error_code` label at all.  The
+    filter is kept defensively so any stale or mislabelled healthy series
+    (e.g. `error_code="none"`) cannot be counted as an error.
     """
     changed = False
     title_to_metric = {

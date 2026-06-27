@@ -643,6 +643,138 @@ def test_render_metrics_escapes_github_workflow_error_code_labels(monkeypatch: p
     assert 'live_overlay_github_workflow_scrape_error_info{error_code="http\\\\\\\\\\"401"} 1' in body
 
 
+
+
+def test_render_metrics_bridge_error_info_absent_when_healthy(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Healthy scrapes must not emit any scrape_error_info series.
+
+    Emitting a healthy `error_code="none"` series leaves stale real-error
+    samples in Prometheus for the staleness window, so dashboards briefly
+    show ERROR after recovery. Only emit the metric when an error is active.
+    """
+    import services.live_overlay_daemon.metrics as metrics_mod
+
+    _patch_common(
+        monkeypatch,
+        feed_ready=True,
+        market_open=True,
+        bar_count=10,
+        overlay_symbols=5,
+        overlay_age=60.0,
+    )
+    monkeypatch.setattr(
+        metrics_mod.uptimerobot_bridge,
+        "snapshot",
+        lambda: {
+            "enabled": 1,
+            "ok": 1,
+            "fetched_at_unix": 1_700_000_100.0,
+            "error_code": "",
+            "counts": {"total": 0, "up": 0, "down": 0, "paused": 0, "unknown": 0},
+            "avg_response_time_ms": None,
+            "monitors": [],
+        },
+    )
+    monkeypatch.setattr(
+        metrics_mod.github_workflow_bridge,
+        "snapshot",
+        lambda: {
+            "enabled": 1,
+            "ok": 1,
+            "fetched_at_unix": 1_700_000_100.0,
+            "error_code": "",
+            "counts": {"seen": 0, "success": 0, "failed": 0, "in_progress": 0, "queued": 0},
+            "latest_run_age_seconds": None,
+            "latest_run_duration_seconds": None,
+            "workflows": [],
+        },
+    )
+
+    body = metrics_mod.render_metrics(startup_ts=100.0)
+
+    assert "live_overlay_uptimerobot_scrape_error_info" not in body
+    assert "live_overlay_github_workflow_scrape_error_info" not in body
+
+
+def test_render_metrics_bridge_error_info_clears_after_recovery(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A recovery scrape must no longer contain the previous error series."""
+    import services.live_overlay_daemon.metrics as metrics_mod
+
+    _patch_common(
+        monkeypatch,
+        feed_ready=True,
+        market_open=True,
+        bar_count=10,
+        overlay_symbols=5,
+        overlay_age=60.0,
+    )
+    monkeypatch.setattr(
+        metrics_mod.uptimerobot_bridge,
+        "snapshot",
+        lambda: {
+            "enabled": 1,
+            "ok": 0,
+            "fetched_at_unix": 1_700_000_100.0,
+            "error_code": "timeout",
+            "counts": {"total": 0, "up": 0, "down": 0, "paused": 0, "unknown": 0},
+            "avg_response_time_ms": None,
+            "monitors": [],
+        },
+    )
+    monkeypatch.setattr(
+        metrics_mod.github_workflow_bridge,
+        "snapshot",
+        lambda: {
+            "enabled": 1,
+            "ok": 0,
+            "fetched_at_unix": 1_700_000_100.0,
+            "error_code": "http401",
+            "counts": {"seen": 0, "success": 0, "failed": 0, "in_progress": 0, "queued": 0},
+            "latest_run_age_seconds": None,
+            "latest_run_duration_seconds": None,
+            "workflows": [],
+        },
+    )
+
+    body = metrics_mod.render_metrics(startup_ts=100.0)
+    assert 'live_overlay_uptimerobot_scrape_error_info{error_code="timeout"} 1' in body
+    assert 'live_overlay_github_workflow_scrape_error_info{error_code="http401"} 1' in body
+
+    monkeypatch.setattr(
+        metrics_mod.uptimerobot_bridge,
+        "snapshot",
+        lambda: {
+            "enabled": 1,
+            "ok": 1,
+            "fetched_at_unix": 1_700_000_100.0,
+            "error_code": "",
+            "counts": {"total": 0, "up": 0, "down": 0, "paused": 0, "unknown": 0},
+            "avg_response_time_ms": None,
+            "monitors": [],
+        },
+    )
+    monkeypatch.setattr(
+        metrics_mod.github_workflow_bridge,
+        "snapshot",
+        lambda: {
+            "enabled": 1,
+            "ok": 1,
+            "fetched_at_unix": 1_700_000_100.0,
+            "error_code": "",
+            "counts": {"seen": 0, "success": 0, "failed": 0, "in_progress": 0, "queued": 0},
+            "latest_run_age_seconds": None,
+            "latest_run_duration_seconds": None,
+            "workflows": [],
+        },
+    )
+    body = metrics_mod.render_metrics(startup_ts=100.0)
+    assert "live_overlay_uptimerobot_scrape_error_info" not in body
+    assert "live_overlay_github_workflow_scrape_error_info" not in body
+
 def test_render_metrics_includes_trading_signals_snapshot(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:

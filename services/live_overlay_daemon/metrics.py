@@ -1170,9 +1170,6 @@ def render_metrics(startup_ts: float) -> str:
         escaped = _escape_label_value(error_code)
         lines.append("# TYPE live_overlay_uptimerobot_scrape_error_info gauge")
         lines.append(f'live_overlay_uptimerobot_scrape_error_info{{error_code="{escaped}"}} 1')
-    else:
-        lines.append("# TYPE live_overlay_uptimerobot_scrape_error_info gauge")
-        lines.append('live_overlay_uptimerobot_scrape_error_info{error_code="none"} 0')
 
     counts = dict(uptime_snapshot.get("counts") or {})
     for key in ("total", "up", "down", "paused", "unknown"):
@@ -1225,9 +1222,6 @@ def render_metrics(startup_ts: float) -> str:
         escaped = _escape_label_value(wf_error_code)
         lines.append("# TYPE live_overlay_github_workflow_scrape_error_info gauge")
         lines.append(f'live_overlay_github_workflow_scrape_error_info{{error_code="{escaped}"}} 1')
-    else:
-        lines.append("# TYPE live_overlay_github_workflow_scrape_error_info gauge")
-        lines.append('live_overlay_github_workflow_scrape_error_info{error_code="none"} 0')
 
     workflow_counts = dict(workflow_snapshot.get("counts") or {})
     for key in ("seen", "success", "failed", "in_progress", "queued"):
