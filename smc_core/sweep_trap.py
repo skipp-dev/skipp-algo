@@ -258,7 +258,9 @@ def detect_sweep_trap(enrichment: dict[str, Any] | None = None) -> dict[str, Any
 
     has_bull_sweep = bool(ls.get("RECENT_BULL_SWEEP", False))
     has_bear_sweep = bool(ls.get("RECENT_BEAR_SWEEP", False))
-    sweep_quality = int(ls.get("SWEEP_QUALITY_SCORE", 0))
+    # Round float quality scores to the nearest integer on the 0-5 scale.
+    # Truncation would silently inflate confidence (e.g. 2.9 -> 2).
+    sweep_quality = max(0, min(5, round(float(ls.get("SWEEP_QUALITY_SCORE", 0)))))
     sweep_direction = str(ls.get("SWEEP_DIRECTION", "NONE")).upper()
 
     if not (has_bull_sweep or has_bear_sweep) or sweep_direction == "NONE":
