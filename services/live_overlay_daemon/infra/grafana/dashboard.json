@@ -202,7 +202,7 @@
       },
       "options": {
         "mode": "markdown",
-        "content": "**Incident triage**\n\n1. Check **Active Alerts** first.\n2. If **Feed Healthy** is red: check Databento credentials, feed reconnects, and Railway logs.\n3. If **Workers Healthy** is red: open Worker Liveness and restart the daemon if a worker is dead.\n4. If **Overlay Fresh** is red: check Compute Cycle Errors and Overlay & Bar Age.\n5. If traffic is missing while **Market Status** is open: check TradingView rollout, auth denied, and request rate.\n6. If dashboards show no data: check Collector / Scrape Targets.\n\nRunbook: [README](https://github.com/skippALGO/skipp-algo/blob/main/services/live_overlay_daemon/README.md)\n\n---\n**Quick links** \u00b7 [Railway logs](https://railway.app/project) \u00b7 [Railway deployments](https://railway.app/project/deployments) \u00b7 [GitHub Actions](https://github.com/skippALGO/skipp-algo/actions) \u00b7 [Runbook: live-overlay on-call](https://github.com/skippALGO/skipp-algo/blob/main/services/live_overlay_daemon/RUNBOOK.md)"
+        "content": "**Incident triage**\n\n1. Check **Active Alerts** first.\n2. If **Feed Healthy** is red: check Databento credentials, feed reconnects, and Railway logs.\n3. If **Workers Healthy** is red: open Worker Liveness and restart the daemon if a worker is dead.\n4. If **Overlay Fresh** is red: check Compute Cycle Errors and Overlay & Bar Age.\n5. If traffic is missing while **Market Status** is open: check TradingView rollout, auth denied, and request rate.\n6. If dashboards show no data: check Collector / Scrape Targets.\n\nRunbook: [README](https://github.com/skippALGO/skipp-algo/blob/main/services/live_overlay_daemon/README.md)\n\n---\n**Quick links** \u00b7 [Railway logs](https://railway.app/project) \u00b7 [Railway deployments](https://railway.app/project/deployments) \u00b7 [GitHub Actions](https://github.com/skippALGO/skipp-algo/actions) \u00b7 [Runbook: live-overlay on-call](https://github.com/skippALGO/skipp-algo/blob/main/services/live_overlay_daemon/OPS.md)"
       },
       "datasource": {
         "type": "prometheus",
@@ -509,7 +509,7 @@
         {
           "title": "External Integrations",
           "type": "link",
-          "url": "/d/smc-live-overlay-v1?orgId=1&viewPanel=2503",
+          "url": "/d/smc-live-overlay-v1?orgId=1&viewPanel=692020449",
           "targetBlank": true
         }
       ]
@@ -1382,7 +1382,7 @@
         {
           "title": "Collector / Scrape Targets",
           "type": "link",
-          "url": "/d/smc-live-overlay-v1?orgId=1&viewPanel=4374",
+          "url": "/d/smc-live-overlay-v1?orgId=1&viewPanel=2133310722",
           "targetBlank": true
         }
       ]
@@ -3848,7 +3848,7 @@
       },
       "collapsed": false,
       "panels": [],
-      "description": "Row grouping for live news provider health.",
+      "description": "Service-owner detail: live news provider health and ingest status. Investigate after top-level incident signals are understood.",
       "datasource": {
         "type": "prometheus",
         "uid": "grafanacloud-prom"
@@ -4400,7 +4400,7 @@
       },
       "panels": [],
       "id": 2133310722,
-      "description": "Telemetry pipeline health: scrape target liveness and collector memory."
+      "description": "Service-owner detail: telemetry pipeline health (scrape target liveness, collector memory). Use when Core Metrics Present or drill-down signals are red."
     },
     {
       "title": "Scrape Targets Up",
@@ -4860,7 +4860,7 @@
         "type": "prometheus",
         "uid": "grafanacloud-prom"
       },
-      "description": "Railway container capacity and bridge health for service-owner review."
+      "description": "Service-owner detail: Railway container capacity and bridge health. Use for deployment, resource, and infrastructure context after triage."
     },
     {
       "title": "Railway Metrics Bridge",
@@ -5408,6 +5408,6 @@
   "timezone": "utc",
   "title": "SMC Live Overlay API",
   "uid": "smc-live-overlay-v1",
-  "version": 31,
+  "version": 32,
   "description": "Live-overlay daemon operational dashboard: feed health, worker liveness, SMC overlay freshness, external bridge status, provider health, daily experiment metrics, and Railway container resources."
 }

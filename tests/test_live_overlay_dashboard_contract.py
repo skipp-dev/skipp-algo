@@ -10,6 +10,7 @@ The dashboard is currently stored in legacy Grafana v1 format (top-level
 from __future__ import annotations
 
 import json
+import re
 from pathlib import Path
 
 import pytest
@@ -761,3 +762,43 @@ def test_dashboard_top_tiles_have_drilldown_links() -> None:
         links = panels[title].get("links") or []
         assert links, f"{title} is missing drilldown links"
         assert all(link.get("targetBlank") for link in links), f"{title} drilldown should open in new tab"
+
+# --------------------------------------------------------------------------- #
+# Fourth UX-layout review follow-up assertions (2026-06-29)
+# --------------------------------------------------------------------------- #
+
+def test_dashboard_triage_guide_links_are_known() -> None:
+    """Triage-guide links must point at existing repo docs or known generic URLs."""
+    dashboard = json.loads(_DASHBOARD_JSON.read_text(encoding="utf-8"))
+    panels = {p.get("title"): p for p in _dashboard_panels(dashboard)}
+    content = panels["Incident Triage Guide"].get("options", {}).get("content", "")
+    known_generic_urls = {"https://railway.app/project", "https://railway.app/project/deployments", "https://railway.app/project/metrics"}
+    for m in re.finditer(r"\[([^\]]+)\]\(([^)]+)\)", content):
+        url = m.group(2)
+        if url.startswith("https://github.com/skippALGO/skipp-algo/blob/main/"):
+            rel = url.replace("https://github.com/skippALGO/skipp-algo/blob/main/", "")
+            assert (_REPO_ROOT / rel).exists(), f"missing repo file: {rel}"
+        elif "railway.app" in url:
+            assert url in known_generic_urls, f"unexpected Railway URL: {url}"
+
+def test_dashboard_drilldown_links_target_real_panels() -> None:
+    """Any panel link that uses a viewPanel ID must point to an existing panel."""
+    dashboard = json.loads(_DASHBOARD_JSON.read_text(encoding="utf-8"))
+    panels = _dashboard_panels(dashboard)
+    valid_ids = {p.get("id") for p in panels if "id" in p}
+    for panel in panels:
+        for link in panel.get("links", []) + panel.get("fieldConfig", {}).get("defaults", {}).get("links", []):
+            url = link.get("url", "")
+            m = re.search(r"viewPanel=(\d+)", url)
+            if m:
+                assert int(m.group(1)) in valid_ids, f"{panel.get('title')} -> {url}"
+
+def test_dashboard_detail_rows_are_marked_as_service_owner_details() -> None:
+    """Detail rows must explicitly describe themselves as service-owner details."""
+    dashboard = json.loads(_DASHBOARD_JSON.read_text(encoding="utf-8"))
+    detail_rows = {"Provider Health", "Collector / Scrape Targets", "Railway Resources"}
+    rows = {p["title"]: p for p in dashboard["panels"] if p.get("type") == "row"}
+    for title in detail_rows:
+        desc = rows[title].get("description", "")
+        assert "service-owner detail" in desc.lower(), f"{title}: {desc}"
+
