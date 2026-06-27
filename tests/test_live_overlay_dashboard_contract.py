@@ -801,4 +801,3 @@ def test_dashboard_detail_rows_are_marked_as_service_owner_details() -> None:
     for title in detail_rows:
         desc = rows[title].get("description", "")
         assert "service-owner detail" in desc.lower(), f"{title}: {desc}"
-
