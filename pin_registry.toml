@@ -121,7 +121,8 @@
 "scripts/grafana_dashboard_upsert.py" = [63]
 # 2026-06-22: Grafana alert-rules upsert helper; fixed HTTPS URL, explicit timeout= via Request socket.
 # 2026-06-22 review follow-up: _api_key hardening shifted urlopen site 274 -> 281.
-"scripts/grafana_alert_rules_upsert.py" = [281]
+# 2026-06-27: added default relativeTimeRange handling for instant alert queries.
+"scripts/grafana_alert_rules_upsert.py" = [304]
 # 2026-06-24: Railway GraphQL API bridge for container metrics; fixed https
 # endpoint (backboard.railway.com/graphql/v2), explicit timeout= via Request.
 "services/live_overlay_daemon/railway_metrics.py" = [85]

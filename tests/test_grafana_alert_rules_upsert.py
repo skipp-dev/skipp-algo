@@ -284,3 +284,18 @@ def test_alert_rules_include_daemon_restarts_high() -> None:
     assert "increase(live_overlay_daemon_restarts_total" in expr
     assert "[24h]" in expr
     assert rule["labels"]["severity"] == "high"
+
+
+def test_build_provisioned_rule_adds_default_relative_time_range() -> None:
+    """Queries without a usable relativeTimeRange must inherit the Grafana default."""
+    group = mod.load_alert_groups(ALERT_RULES)[0]
+    rule = group["rules"][0]
+    # ensure the fixture itself does not carry the field for this assertion
+    original_data = rule["data"]
+    rule["data"] = [{**node, "relativeTimeRange": {}} for node in original_data]
+    try:
+        payload = mod.build_provisioned_rule(rule, group, "folder-uid-123")
+        for node in payload["data"]:
+            assert node["relativeTimeRange"] == {"from": 300, "to": 0}
+    finally:
+        rule["data"] = original_data
