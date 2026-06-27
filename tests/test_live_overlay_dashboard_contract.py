@@ -192,12 +192,15 @@ def test_dashboard_bridge_scrapes_aggregates_by_job() -> None:
 
 
 def test_dashboard_bridge_state_panels_aggregate_by_job() -> None:
-    """Bridge state panels must expose per-job state, not global max()."""
+    """Bridge state panels must expose per-job state without an always-present 0 fallback."""
     dashboard = json.loads(_DASHBOARD_JSON.read_text(encoding="utf-8"))
     for title in ("UptimeRobot Bridge", "GitHub Workflow Bridge"):
         panel = next(p for p in dashboard["panels"] if p.get("title") == title)
         expr = panel["targets"][0]["expr"]
         assert "max by (job)" in expr, f"{title} should aggregate by job"
+        assert "+ on(job)" in expr, f"{title} should join enabled/success by job"
+        assert "or on() vector(0)" in expr, f"{title} should only fallback when no bridge series exist"
+        assert "or vector(0)" not in expr, f"{title} must not add an unlabeled zero series beside real data"
         assert panel["targets"][0]["legendFormat"] == "{{job}}", f"{title} should label per job"
 
 

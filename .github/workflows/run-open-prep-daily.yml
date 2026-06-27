@@ -227,7 +227,6 @@ jobs:
           git fetch origin "+refs/heads/bot/live-open-prep-snapshot:refs/remotes/origin/bot/live-open-prep-snapshot" \
             || echo "::warning::fetch of bot/live-open-prep-snapshot failed; proceeding without base (branch may not exist yet)"
           git checkout --detach --quiet "$START_SHA"
-          rm -f "$SNAPSHOT"
           # `-f` overrides .gitignore so the runtime snapshot can be staged.
           # `--sparse` was previously paired here but is meaningless against
           # actions/checkout's full (non-sparse) tree and confused readers

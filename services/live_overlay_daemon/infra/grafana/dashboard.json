@@ -2639,7 +2639,7 @@
       },
       "targets": [
         {
-          "expr": "(max by (job) (live_overlay_uptimerobot_bridge_enabled{job=~\"$job\"}) or vector(0)) + (max by (job) (live_overlay_uptimerobot_scrape_success{job=~\"$job\"}) or vector(0))",
+          "expr": "(max by (job) (live_overlay_uptimerobot_bridge_enabled{job=~\"$job\"}) + on(job) max by (job) (live_overlay_uptimerobot_scrape_success{job=~\"$job\"})) or on() vector(0)",
           "legendFormat": "{{job}}",
           "datasource": {
             "type": "prometheus",
@@ -2942,7 +2942,7 @@
       },
       "targets": [
         {
-          "expr": "(max by (job) (live_overlay_github_workflow_bridge_enabled{job=~\"$job\"}) or vector(0)) + (max by (job) (live_overlay_github_workflow_scrape_success{job=~\"$job\"}) or vector(0))",
+          "expr": "(max by (job) (live_overlay_github_workflow_bridge_enabled{job=~\"$job\"}) + on(job) max by (job) (live_overlay_github_workflow_scrape_success{job=~\"$job\"})) or on() vector(0)",
           "legendFormat": "{{job}}",
           "datasource": {
             "type": "prometheus",
