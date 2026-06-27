@@ -601,6 +601,66 @@
       "id": 135167800
     },
     {
+      "id": 2025070801,
+      "title": "Process Resident Memory",
+      "type": "stat",
+      "description": "Daemon process resident memory as reported by the built-in Prometheus collector.",
+      "gridPos": {
+        "h": 4,
+        "w": 4,
+        "x": 4,
+        "y": 12
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "grafanacloud-prom"
+      },
+      "targets": [
+        {
+          "expr": "live_overlay_process_resident_memory_bytes{job=~\"$job\"}",
+          "legendFormat": "resident memory",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "grafanacloud-prom"
+          }
+        }
+      ],
+      "options": {
+        "colorMode": "background_solid",
+        "graphMode": "area",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        }
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "bytes",
+          "decimals": 2,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "yellow",
+                "value": 536870912
+              },
+              {
+                "color": "red",
+                "value": 1073741824
+              }
+            ]
+          }
+        }
+      }
+    },
+    {
       "title": "Uptime",
       "type": "stat",
       "gridPos": {
@@ -1431,7 +1491,7 @@
           "noValue": "NO TRAFFIC"
         }
       },
-      "description": "Percentage of recent SMC compute cycles that completed without errors.",
+      "description": "Percentage of recent /smc_live HTTP requests that completed successfully. Displays NO TRAFFIC when no requests are observed.",
       "datasource": {
         "type": "prometheus",
         "uid": "grafanacloud-prom"
@@ -1574,69 +1634,6 @@
         "uid": "grafanacloud-prom"
       },
       "id": 302168320
-    },
-    {
-      "title": "Restart Causes (24h, counted)",
-      "type": "table",
-      "gridPos": {
-        "h": 6,
-        "w": 6,
-        "x": 18,
-        "y": 38
-      },
-      "targets": [
-        {
-          "datasource": {
-            "type": "prometheus",
-            "uid": "grafanacloud-prom"
-          },
-          "expr": "sum by (cause) (\n  label_replace(\n    increase({__name__=~\"live_overlay_daemon_restart_cause_.*_total\",job=~\"$job\"}[24h]),\n    \"cause\",\n    \"$1\",\n    \"__name__\",\n    \"live_overlay_daemon_restart_cause_(.*)_total\"\n  )\n)",
-          "refId": "A",
-          "legendFormat": "{{cause}}"
-        }
-      ],
-      "options": {
-        "colorMode": "background_solid",
-        "graphMode": "none",
-        "reduceOptions": {
-          "calcs": [
-            "lastNotNull"
-          ],
-          "fields": "",
-          "values": false
-        }
-      },
-      "fieldConfig": {
-        "defaults": {
-          "decimals": 0,
-          "thresholds": {
-            "mode": "absolute",
-            "steps": [
-              {
-                "color": "green",
-                "value": null
-              },
-              {
-                "color": "yellow",
-                "value": 1
-              },
-              {
-                "color": "red",
-                "value": 3
-              }
-            ]
-          },
-          "custom": {
-            "displayMode": "auto"
-          }
-        }
-      },
-      "description": "Restart cause labels emitted by the daemon/deploy pipeline over the last 24 hours.",
-      "datasource": {
-        "type": "prometheus",
-        "uid": "grafanacloud-prom"
-      },
-      "id": 150611290
     },
     {
       "title": "Failure Mix",
@@ -2648,7 +2645,7 @@
       "id": 1639741128
     },
     {
-      "title": "GitHub Workflow Status \u2014 Timeline",
+      "title": "GitHub Workflow Status — Timeline",
       "type": "state-timeline",
       "gridPos": {
         "h": 25,
@@ -2862,7 +2859,7 @@
         },
         "overrides": []
       },
-      "description": "Colour-coded latest status of each GitHub Actions workflow over time. Every row is one named workflow ({{workflow}} legend); the cell colour encodes the run conclusion \u2014 green=success, red=failure/timed-out/startup-failure, orange=cancelled/action-required, blue=in-progress/neutral, yellow=queued/stale, gray=unknown, purple=skipped. Series come from live_overlay_github_workflow_phase_code{workflow,event,workflow_id}, sampled at the daemon's GitHub workflow bridge interval (so runs shorter than one scrape interval may not appear).",
+      "description": "Colour-coded latest status of each GitHub Actions workflow over time. Every row is one named workflow ({{workflow}} legend); the cell colour encodes the run conclusion — green=success, red=failure/timed-out/startup-failure, orange=cancelled/action-required, blue=in-progress/neutral, yellow=queued/stale, gray=unknown, purple=skipped. Series come from live_overlay_github_workflow_phase_code{workflow,event,workflow_id}, sampled at the daemon's GitHub workflow bridge interval (so runs shorter than one scrape interval may not appear).",
       "datasource": {
         "type": "prometheus",
         "uid": "grafanacloud-prom"
@@ -3355,7 +3352,7 @@
       "id": 1892223023
     },
     {
-      "title": "Restart Causes (24h, by cause)",
+      "title": "Restart Causes (24h)",
       "type": "timeseries",
       "gridPos": {
         "h": 8,
@@ -3369,7 +3366,7 @@
             "type": "prometheus",
             "uid": "grafanacloud-prom"
           },
-          "expr": "sum by (cause) (\n  label_replace(\n    increase({__name__=~\"live_overlay_daemon_restart_cause_.*_total\",job=~\"$job\"}[24h]),\n    \"cause\",\n    \"$1\",\n    \"__name__\",\n    \"live_overlay_daemon_restart_cause_(.*)_total\"\n  )\n)",
+          "expr": "sum by (cause) (\n  label_replace(\n    increase({__name__=~\"live_overlay_daemon_restart_cause_.*_total\",job=~\"$job\"}[24h]),\n    \"cause\", \"$1\", \"__name__\", \"live_overlay_daemon_restart_cause_(.*)_total\"\n  )\n)",
           "refId": "A",
           "legendFormat": "{{cause}}"
         }
@@ -3393,7 +3390,7 @@
           "unit": "short"
         }
       },
-      "description": "Restart cause distribution over the last 24 hours.",
+      "description": "Restart cause distribution over the last 24 hours, extracted from per-cause counters.",
       "datasource": {
         "type": "prometheus",
         "uid": "grafanacloud-prom"
@@ -3401,7 +3398,7 @@
       "id": 1148615869
     },
     {
-      "title": "Hotspots \u2014 Symbols (Top)",
+      "title": "Hotspots — Symbols (Top)",
       "type": "timeseries",
       "gridPos": {
         "h": 8,
@@ -3446,7 +3443,7 @@
       "id": 1135701409
     },
     {
-      "title": "Hotspots \u2014 Timeframes (Top)",
+      "title": "Hotspots — Timeframes (Top)",
       "type": "timeseries",
       "gridPos": {
         "h": 8,
@@ -3541,10 +3538,32 @@
       },
       "fieldConfig": {
         "defaults": {
-          "unit": "short"
-        }
+          "unit": "none"
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "dropped rate"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "cps"
+              },
+              {
+                "id": "custom.axisPlacement",
+                "value": "right"
+              },
+              {
+                "id": "custom.axisLabel",
+                "value": "dropped / s"
+              }
+            ]
+          }
+        ]
       },
-      "description": "Current ingest queue depth versus its configured maximum.",
+      "description": "Current ingest queue depth versus its configured maximum (left axis) and the rate of dropped messages (right axis).",
       "datasource": {
         "type": "prometheus",
         "uid": "grafanacloud-prom"
@@ -3651,7 +3670,7 @@
       },
       "options": {
         "mode": "markdown",
-        "content": "**News provider state codes:** `0` = unknown / no data, `1` = degraded, `2` = ok, `3` = disabled (not ingested). The **News Providers \u2014 Ingest Status & Reason** table shows the human-readable reason (e.g. API key missing, no active subscription, provider disabled) and whether each provider is actually consumed."
+        "content": "**News provider state codes:** `0` = unknown / no data, `1` = degraded, `2` = ok, `3` = disabled (not ingested). The **News Providers — Ingest Status & Reason** table shows the human-readable reason (e.g. API key missing, no active subscription, provider disabled) and whether each provider is actually consumed."
       },
       "datasource": {
         "type": "prometheus",
@@ -3660,7 +3679,7 @@
       "id": 755773609
     },
     {
-      "title": "News Providers \u2014 State Code",
+      "title": "News Providers — State Code",
       "type": "timeseries",
       "gridPos": {
         "y": 170,
@@ -3932,7 +3951,7 @@
       "id": 348351077
     },
     {
-      "title": "News Providers \u2014 OK/Degraded (Drill-down)",
+      "title": "News Providers — OK/Degraded (Drill-down)",
       "type": "timeseries",
       "gridPos": {
         "y": 188,
@@ -3979,7 +3998,7 @@
       "id": 2078851417
     },
     {
-      "title": "News Providers \u2014 Ingest Status & Reason",
+      "title": "News Providers — Ingest Status & Reason",
       "type": "table",
       "gridPos": {
         "y": 188,
@@ -3987,7 +4006,7 @@
         "w": 12,
         "x": 12
       },
-      "description": "Per-provider ingest status with the human-readable degraded reason (API key missing, no active subscription, provider disabled, \u2026) and whether the provider is actually consumed.",
+      "description": "Per-provider ingest status with the human-readable degraded reason (API key missing, no active subscription, provider disabled, …) and whether the provider is actually consumed.",
       "targets": [
         {
           "expr": "live_overlay_provider_news_info{job=~\"$job\"}",
@@ -4160,7 +4179,7 @@
       "id": 389642118
     },
     {
-      "title": "GitHub Workflows \u2014 Latest Run Detail",
+      "title": "GitHub Workflows — Latest Run Detail",
       "type": "table",
       "gridPos": {
         "h": 14,
@@ -4168,7 +4187,7 @@
         "x": 0,
         "y": 204
       },
-      "description": "Per-workflow detail of the most recent run the daemon observed: trigger event (schedule / push / \u2026), current status, run duration and age. One row per named workflow. Driven by the labelled live_overlay_github_workflow_* gauges (phase_code, latest_duration_seconds, latest_age_seconds, latest_success).",
+      "description": "Per-workflow detail of the most recent run the daemon observed: trigger event (schedule / push / …), current status, run duration and age. One row per named workflow. Driven by the labelled live_overlay_github_workflow_* gauges (phase_code, latest_duration_seconds, latest_age_seconds, latest_success).",
       "targets": [
         {
           "expr": "live_overlay_github_workflow_phase_code{job=~\"$job\"}",
@@ -4366,11 +4385,11 @@
                     "type": "value",
                     "options": {
                       "0": {
-                        "text": "\u2717",
+                        "text": "✗",
                         "color": "red"
                       },
                       "1": {
-                        "text": "\u2713",
+                        "text": "✓",
                         "color": "green"
                       }
                     }
@@ -4566,7 +4585,7 @@
     {
       "title": "Signals Snapshot Age",
       "type": "stat",
-      "description": "Seconds since the realtime engine last wrote latest_realtime_signals.json. Red once the snapshot is older than the 480s (8 min) max signal age \u2014 stale signals should not be trusted. Shows N/A when the snapshot timestamp is unknown.",
+      "description": "Seconds since the realtime engine last wrote latest_realtime_signals.json. Red once the snapshot is older than the 480s (8 min) max signal age — stale signals should not be trusted. Shows N/A when the snapshot timestamp is unknown.",
       "gridPos": {
         "h": 6,
         "w": 6,
@@ -4693,9 +4712,9 @@
       "id": 235629715
     },
     {
-      "title": "Top Trading Signals \u2014 Latest Detail",
+      "title": "Top Trading Signals — Latest Detail",
       "type": "table",
-      "description": "Per-symbol detail of the active breakout signals (top 50 by ranking score). Level A0 = pre-breakout, A1 = confirmed breakout; Direction is the trade bias; Score is the engine's v2 ranking; Tech is the 0\u20131 technical score; Change % is the intraday move; Freshness decays 1\u21920 as the signal ages. Driven by the labelled live_overlay_trading_signal_* gauges merged by symbol/level/direction/tier.",
+      "description": "Per-symbol detail of the active breakout signals (top 50 by ranking score). Level A0 = pre-breakout, A1 = confirmed breakout; Direction is the trade bias; Score is the engine's v2 ranking; Tech is the 0–1 technical score; Change % is the intraday move; Freshness decays 1→0 as the signal ages. Driven by the labelled live_overlay_trading_signal_* gauges merged by symbol/level/direction/tier.",
       "gridPos": {
         "h": 10,
         "w": 24,
@@ -5011,7 +5030,7 @@
       "id": 1878680845
     },
     {
-      "title": "Signal Score \u2014 Active Symbols",
+      "title": "Signal Score — Active Symbols",
       "type": "timeseries",
       "description": "Ranking score over time for each active breakout signal, labelled by symbol / level / direction. Lets you see which symbols are strengthening or fading.",
       "gridPos": {
@@ -5066,7 +5085,7 @@
       "id": 730705782
     },
     {
-      "title": "Daily Experiment \u2014 Snapshot Age",
+      "title": "Daily Experiment — Snapshot Age",
       "type": "stat",
       "description": "Age of the latest Plan 2.8 family rollup (scripts/plan_2_8_tf_family_rollup.py). The rolling benchmark runs ~daily; green < 24h, yellow < 36h, red beyond means a run was skipped. N/A when the run date cannot be derived.",
       "gridPos": {
@@ -5128,7 +5147,7 @@
       "id": 1927313819
     },
     {
-      "title": "Daily Experiment \u2014 Files Scanned",
+      "title": "Daily Experiment — Files Scanned",
       "type": "stat",
       "description": "Number of scoring files folded into the latest daily rollup. A sudden drop signals an upstream scoring/coverage problem.",
       "gridPos": {
@@ -5356,7 +5375,7 @@
       "id": 1822006024
     },
     {
-      "title": "Daily Experiment \u2014 Latest Per-Family Detail",
+      "title": "Daily Experiment — Latest Per-Family Detail",
       "type": "table",
       "description": "Current-day hit-rate and sample size for each SMC setup family (BOS / OB / FVG / SWEEP) per timeframe, from the latest rollup. Hit-rate is colour-graded; n_events is the sample size behind it.",
       "gridPos": {
@@ -5494,7 +5513,7 @@
       "targets": [
         {
           "expr": "live_overlay_experiment_family_hit_rate{job=~\"$job\"}",
-          "legendFormat": "{{timeframe}} \u00b7 {{family}}",
+          "legendFormat": "{{timeframe}} · {{family}}",
           "refId": "A",
           "datasource": {
             "type": "prometheus",
@@ -5542,7 +5561,7 @@
       "id": 1103734831
     },
     {
-      "title": "Per-Day Family Hit-Rate \u2014 History (backfilled)",
+      "title": "Per-Day Family Hit-Rate — History (backfilled)",
       "type": "table",
       "description": "Retained per-day history from plan_2_8_history.jsonl: exact hit-rate and sample size for each run date / timeframe / family. Backfills the daily statistics immediately (no need to wait for Prometheus to accumulate). Sort by Run Date to read the day-by-day timeline.",
       "gridPos": {
@@ -5671,7 +5690,7 @@
     {
       "title": "TradingView Credential Age",
       "type": "stat",
-      "description": "Hours since the TradingView Playwright storage-state login (meta.authValidatedAt) was last validated, from the daily credential-health report (tv_storage_state_age probe). Policy TTL is 72h: green < 57.6h (80% warn band), yellow 57.6\u201372h, red once the cached login is older than 72h and must be re-captured. N/A when no report/age is available.",
+      "description": "Hours since the TradingView Playwright storage-state login (meta.authValidatedAt) was last validated, from the daily credential-health report (tv_storage_state_age probe). Policy TTL is 72h: green < 57.6h (80% warn band), yellow 57.6–72h, red once the cached login is older than 72h and must be re-captured. N/A when no report/age is available.",
       "gridPos": {
         "h": 5,
         "w": 6,
@@ -5736,7 +5755,7 @@
     {
       "title": "TradingView Credential Status",
       "type": "stat",
-      "description": "Whether the latest credential-health report considers the TradingView storage-state login valid (severity not error). 1 = valid (cached login still within the 72h TTL), 0 = expired/error \u2192 re-capture TV_STORAGE_STATE. N/A when no report has been ingested yet.",
+      "description": "Whether the latest credential-health report considers the TradingView storage-state login valid (severity not error). 1 = valid (cached login still within the 72h TTL), 0 = expired/error → re-capture TV_STORAGE_STATE. N/A when no report has been ingested yet.",
       "gridPos": {
         "h": 5,
         "w": 6,

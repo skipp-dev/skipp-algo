@@ -5,6 +5,35 @@
 All notable changes to this project are documented in this file.
 
 ## [Unreleased]
+### Fixed (2026-06-27) — Grafana dashboard SRE review follow-up (7 items)
+
+- `services/live_overlay_daemon/infra/grafana/dashboard.json`:
+  - **Success Rate (%)** description now correctly describes `/smc_live`
+    HTTP request success instead of SMC compute cycles.
+  - Removed duplicate **Restart Causes (24h, counted)** table panel; the
+    remaining **Restart Causes (24h)** timeseries now extracts a `cause`
+    label via `label_replace(...)` and groups by it.
+  - Expanded the previously collapsed rows (**External Integrations**,
+    **SLO & Reliability**, **Provider Health**, **Railway Resources**) so
+    their child panels are visible on load.
+  - Added **Process Resident Memory** stat panel (`x=4`, `y=12`) to close
+    the grid gap and to match the existing process-memory alerts.
+  - **Ingest Queue Backpressure** now renders queue depth on the left axis
+    and the drop rate on the right axis via field overrides, separating
+    count and rate units visually.
+  - Cosmetic `y=12` grid gap closed by placing the new memory panel at
+    `x=4`.
+- `services/live_overlay_daemon/infra/grafana/alert-rules.yaml`:
+  - Verified that **SLO error-rate burn-rate alerts**
+    (`lo-error-budget-burn-critical` and `lo-error-budget-burn-warning`)
+    correctly evaluate both the 5-minute and 1-hour windows with an `AND`
+    math expression; titles and implementation now match.
+- `tests/test_live_overlay_dashboard_contract.py`:
+  - Added regression tests for all seven review findings: success-rate
+    description, unique restart-cause panel, expanded rows, process
+    memory panel, backpressure axis separation, closed grid gap, and
+    two-window burn-rate alerts.
+
 ### Fixed (2026-06-26) — Live overlay dashboard market-open wiring and no-traffic UX
 
 - `services/live_overlay_daemon/infra/grafana/dashboard.json`
