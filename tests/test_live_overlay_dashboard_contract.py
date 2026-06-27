@@ -182,7 +182,7 @@ def test_dashboard_market_open_request_health_uses_fixed_rate_range() -> None:
 
 
 def test_dashboard_bridge_scrapes_aggregates_by_job() -> None:
-    """Bridge Scrapes should not hide a disabled job behind a global min()."""
+    """External Checks should not hide a disabled job behind a global min()."""
     dashboard = json.loads(_DASHBOARD_JSON.read_text(encoding="utf-8"))
     panel = next(p for p in dashboard["panels"] if p.get("title") == "External Checks")
     expr = panel["targets"][0]["expr"]
