@@ -772,7 +772,12 @@ def test_dashboard_triage_guide_links_are_known() -> None:
     dashboard = json.loads(_DASHBOARD_JSON.read_text(encoding="utf-8"))
     panels = {p.get("title"): p for p in _dashboard_panels(dashboard)}
     content = panels["Incident Triage Guide"].get("options", {}).get("content", "")
-    known_generic_urls = {"https://railway.app/project", "https://railway.app/project/deployments", "https://railway.app/project/metrics"}
+    known_generic_urls = {
+        "https://railway.app/project",
+        "https://railway.app/project/deployments",
+        "https://railway.app/project/metrics",
+        "https://github.com/skippALGO/skipp-algo/actions",
+    }
     for m in re.finditer(r"\[([^\]]+)\]\(([^)]+)\)", content):
         url = m.group(2)
         if url.startswith("https://github.com/skippALGO/skipp-algo/blob/main/"):
@@ -780,6 +785,10 @@ def test_dashboard_triage_guide_links_are_known() -> None:
             assert (_REPO_ROOT / rel).exists(), f"missing repo file: {rel}"
         elif "railway.app" in url:
             assert url in known_generic_urls, f"unexpected Railway URL: {url}"
+        elif url in known_generic_urls:
+            pass
+        else:
+            pytest.fail(f"unexpected triage-guide URL: {url}")
 
 def test_dashboard_drilldown_links_target_real_panels() -> None:
     """Any panel link that uses a viewPanel ID must point to an existing panel."""
