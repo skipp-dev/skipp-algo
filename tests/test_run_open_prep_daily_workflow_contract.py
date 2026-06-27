@@ -168,6 +168,22 @@ def test_publishes_open_prep_snapshot_to_bot_branch() -> None:
     )
 
 
+def test_snapshot_publish_keeps_snapshot_until_after_git_add() -> None:
+    """The snapshot file must not be deleted before it is staged.
+
+    Regression guard for the failure mode where the workflow produced
+    ``latest_open_prep_run.json`` and then removed it immediately before
+    ``git add -f "$SNAPSHOT"``, leaving the realtime-signals producer with no
+    rolling watchlist branch.
+    """
+    step = _snapshot_publish_step()
+    run = str(step["run"])
+    git_add = 'git add -f "$SNAPSHOT"'
+    assert git_add in run
+    pre_add = run.split(git_add, 1)[0]
+    assert 'rm -f "$SNAPSHOT"' not in pre_add
+
+
 def test_snapshot_publish_uses_gh_pat_token() -> None:
     step = _snapshot_publish_step()
     token = str((step.get("env") or {}).get("GH_TOKEN", ""))
