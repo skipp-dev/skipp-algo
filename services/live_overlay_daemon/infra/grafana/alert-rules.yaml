@@ -896,3 +896,80 @@ groups:
         annotations:
           summary: "One or more Railway services are unreachable from Alloy"
           runbook: "Check Railway internal networking. Verify OVERLAY_SERVICE_URL and SIGNALS_SERVICE_URL env vars. Target service may have crashed."
+
+  - orgId: 1
+    name: signals-producer-readiness
+    folder: SMC Live Overlay
+    interval: 1m
+    rules:
+      - uid: sp-watchlist-empty
+        title: "Signals Producer watchlist empty"
+        condition: C
+        data:
+          - refId: A
+            datasourceUid: grafanacloud-prom
+            model:
+              expr: signals_producer_watchlist_symbols{job="signals_producer"} == 0
+              instant: true
+          - refId: C
+            datasourceUid: __expr__
+            model:
+              type: threshold
+              conditions:
+                - evaluator: {type: gt, params: [0]}
+                  operator: {type: and}
+                  query: {params: [A]}
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "smc-signals-producer has zero watchlist symbols"
+          runbook: "Verify OPEN_PREP_SNAPSHOT_URL / latest_open_prep_run.json exists and contains ranked_v2 symbols."
+
+      - uid: sp-snapshot-missing
+        title: "Signals Producer snapshot missing"
+        condition: C
+        data:
+          - refId: A
+            datasourceUid: grafanacloud-prom
+            model:
+              expr: (1 - signals_producer_open_prep_snapshot_loaded{job="signals_producer"}) or vector(1)
+              instant: true
+          - refId: C
+            datasourceUid: __expr__
+            model:
+              type: threshold
+              conditions:
+                - evaluator: {type: gt, params: [0]}
+                  operator: {type: and}
+                  query: {params: [A]}
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "smc-signals-producer has not loaded an Open-Prep snapshot"
+          runbook: "Check Railway env OPEN_PREP_SNAPSHOT_URL and verify the snapshot endpoint returns a JSON object."
+
+      - uid: sp-poll-stale
+        title: "Signals Producer poll stale"
+        condition: C
+        data:
+          - refId: A
+            datasourceUid: grafanacloud-prom
+            model:
+              expr: (signals_producer_last_poll_age_seconds{job="signals_producer"} > 300) or vector(0)
+              instant: true
+          - refId: C
+            datasourceUid: __expr__
+            model:
+              type: threshold
+              conditions:
+                - evaluator: {type: gt, params: [0]}
+                  operator: {type: and}
+                  query: {params: [A]}
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "smc-signals-producer has not completed a poll cycle in > 5 min"
+          runbook: "Check producer logs for FMP client failures, network errors, or telemetry server crashes."

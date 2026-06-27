@@ -86,7 +86,9 @@
 # Railway worker can run without the local artifact; http(s)-only, timeout=15s.
 # 2026-06-25: shifted 919 -> 1000 by AsyncNewsstackPoller telemetry additions.
 # 2026-06-25: shifted 1000 -> 1002 by stop-guard hardening in the poll loop.
-"open_prep/realtime_signals.py" = [1002]
+# 2026-06-28 (semantic monitoring): readiness metrics + _extract_snapshot_epoch
+# helper shifted the _fetch_json_url urlopen call +53 lines.
+"open_prep/realtime_signals.py" = [1055]
 "scripts/probe_fmp_13f_endpoints.py" = [75]
 "scripts/resolve_workflow_runner.py" = [91]
 # 2026-06-21 (live-overlay bridge observability): optional external polling
@@ -147,18 +149,19 @@ file = "governance/run_manifest.py"
 line = 73
 codes = ["S603"]
 
-# open_prep/realtime_signals.py:191,337 — Bandit S603 false positives:
+# open_prep/realtime_signals.py:211,361 — Bandit S603 false positives:
 # hardcoded pgrep / sys.executable -m argv lists. Rebaselined 2026-05-15
 # after PR #2233 mainline merge restored the older realtime_signals
 # layout used by this branch.
+# 2026-06-28 (semantic monitoring): shifted +20 lines by _extract_snapshot_epoch helper.
 [[noqa_budget.sites]]
 file = "open_prep/realtime_signals.py"
-line = 191
+line = 211
 codes = ["S603"]
 
 [[noqa_budget.sites]]
 file = "open_prep/realtime_signals.py"
-line = 341
+line = 361
 codes = ["S603"]
 
 # smc_integration/release_policy.py:1121 — Bandit S603 false positive:

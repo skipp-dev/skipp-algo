@@ -12,6 +12,8 @@ from __future__ import annotations
 import socket
 import time
 import urllib.request
+from datetime import UTC, datetime
+from types import SimpleNamespace
 from typing import Any
 from unittest.mock import MagicMock
 
@@ -123,7 +125,7 @@ def _get(url: str, token: str | None = None) -> tuple[int, str]:
         with urllib.request.urlopen(req, timeout=3) as resp:
             return resp.status, resp.read().decode()
     except urllib.error.HTTPError as exc:
-        return exc.code, ""
+        return exc.code, exc.read().decode()
 
 
 class TestMetricsEndpointAuth:
@@ -157,3 +159,83 @@ class TestMetricsEndpointAuth:
         status, body = _get(f"http://127.0.0.1:{port}/metrics", token="correct-token")
         assert status == 200
         assert "signals_producer_process_cpu_seconds_total" in body
+
+
+# ---------------------------------------------------------------------------
+# Semantic readiness gauges
+# ---------------------------------------------------------------------------
+
+def test_extract_snapshot_epoch_parses_iso() -> None:
+    ts = datetime(2026, 6, 28, 12, 0, 0, tzinfo=UTC).timestamp()
+    assert rs._extract_snapshot_epoch({"generated_at": "2026-06-28T12:00:00+00:00"}) == ts
+
+
+def test_extract_snapshot_epoch_parses_numeric() -> None:
+    assert rs._extract_snapshot_epoch({"generated_at": 1751112000.0}) == 1751112000.0
+    assert rs._extract_snapshot_epoch({"generated_at": 1751112000}) == 1751112000.0
+
+
+def test_extract_snapshot_epoch_returns_zero_when_missing() -> None:
+    assert rs._extract_snapshot_epoch({}) == 0.0
+    assert rs._extract_snapshot_epoch(None) == 0.0
+
+
+def test_collect_process_metrics_includes_semantic_readiness_gauges() -> None:
+    engine = SimpleNamespace(
+        _watchlist=[{"symbol": "AAPL"}],
+        open_prep_snapshot_loaded=1.0,
+        open_prep_snapshot_age_seconds=12.5,
+        last_poll_success_epoch=1_700_000_000.0,
+        last_poll_duration_seconds=0.123,
+    )
+    body = rs._collect_process_metrics(engine)
+    assert "signals_producer_watchlist_symbols 1" in body
+    assert "signals_producer_open_prep_snapshot_loaded 1.0" in body
+    assert "signals_producer_open_prep_snapshot_age_seconds 12.5" in body
+    assert "signals_producer_last_poll_age_seconds" in body
+    assert "signals_producer_last_poll_duration_seconds 0.123" in body
+
+
+def test_collect_process_metrics_defaults_last_poll_age_to_max_when_never_polled() -> None:
+    engine = SimpleNamespace(
+        _watchlist=[],
+        open_prep_snapshot_loaded=0.0,
+        open_prep_snapshot_age_seconds=0.0,
+        last_poll_success_epoch=0.0,
+        last_poll_duration_seconds=0.0,
+    )
+    body = rs._collect_process_metrics(engine)
+    assert "signals_producer_last_poll_age_seconds 999999.0" in body
+
+
+def test_readyz_returns_503_when_not_ready(monkeypatch: pytest.MonkeyPatch) -> None:
+    port = _free_port()
+    monkeypatch.delenv("SIGNALS_INTERNAL_TOKEN", raising=False)
+    telemetry = MagicMock()
+    telemetry.snapshot.return_value = {}
+    server = rs._start_telemetry_server(telemetry, port=port, host="127.0.0.1")
+    try:
+        status, body = _get(f"http://127.0.0.1:{port}/readyz")
+        assert status == 503
+        assert body.strip() == "not_ready"
+    finally:
+        server.shutdown()
+
+
+def test_readyz_returns_200_when_ready(monkeypatch: pytest.MonkeyPatch) -> None:
+    port = _free_port()
+    monkeypatch.delenv("SIGNALS_INTERNAL_TOKEN", raising=False)
+    engine = SimpleNamespace(
+        _watchlist=[{"symbol": "AAPL"}],
+        open_prep_snapshot_loaded=1.0,
+        last_poll_success_epoch=time.time(),
+    )
+    telemetry = MagicMock()
+    telemetry.snapshot.return_value = {}
+    server = rs._start_telemetry_server(telemetry, port=port, host="127.0.0.1", engine=engine)
+    try:
+        status, body = _get(f"http://127.0.0.1:{port}/readyz")
+        assert status == 200
+        assert body.strip() == "ready"
+    finally:
+        server.shutdown()
