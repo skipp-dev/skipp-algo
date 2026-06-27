@@ -296,6 +296,68 @@ def test_render_metrics_emits_latency_quantile_gauges(monkeypatch: pytest.Monkey
 
     assert "live_overlay_smc_live_latency_p95_ms" in body
     assert "live_overlay_smc_live_latency_p99_ms" in body
+    assert "# TYPE live_overlay_smc_live_latency_ms histogram" in body
+    assert 'live_overlay_smc_live_latency_ms_bucket{le="10"} 0.0' in body
+    assert 'live_overlay_smc_live_latency_ms_bucket{le="25"} 0.0' in body
+    assert 'live_overlay_smc_live_latency_ms_bucket{le="50"} 0.0' in body
+    assert 'live_overlay_smc_live_latency_ms_bucket{le="100"} 90.0' in body
+    assert 'live_overlay_smc_live_latency_ms_bucket{le="250"} 98.0' in body
+    assert 'live_overlay_smc_live_latency_ms_bucket{le="500"} 100.0' in body
+    assert 'live_overlay_smc_live_latency_ms_bucket{le="1000"} 100.0' in body
+    assert 'live_overlay_smc_live_latency_ms_bucket{le="2500"} 100.0' in body
+    assert 'live_overlay_smc_live_latency_ms_bucket{le="5000"} 100.0' in body
+    assert 'live_overlay_smc_live_latency_ms_bucket{le="+Inf"} 100.0' in body
+    assert "live_overlay_smc_live_latency_ms_sum 0.0" in body
+    assert "live_overlay_smc_live_latency_ms_count 100.0" in body
+    # Classic histogram structure: bucket series, _sum, _count, and +Inf bucket.
+    assert "live_overlay_smc_live_latency_ms_bucket{" in body
+    assert "live_overlay_smc_live_latency_ms_sum " in body
+    assert "live_overlay_smc_live_latency_ms_count " in body
+    # Buckets must be sorted numerically, not lexicographically.
+    p10 = body.find('live_overlay_smc_live_latency_ms_bucket{le="10"}')
+    p100 = body.find('live_overlay_smc_live_latency_ms_bucket{le="100"}')
+    p1000 = body.find('live_overlay_smc_live_latency_ms_bucket{le="1000"}')
+    assert 0 < p10 < p100 < p1000, "histogram buckets not sorted numerically"
+
+
+def test_render_metrics_emits_age_known_gauges(monkeypatch: pytest.MonkeyPatch) -> None:
+    import services.live_overlay_daemon.metrics as metrics_mod
+
+    _patch_common(
+        monkeypatch,
+        feed_ready=True,
+        market_open=True,
+        bar_count=10,
+        overlay_symbols=5,
+        overlay_age=60.0,
+    )
+
+    body = metrics_mod.render_metrics(startup_ts=100.0)
+    assert "live_overlay_overlay_age_known 1.0" in body
+    assert "live_overlay_overlay_age_seconds 60.0" in body
+    assert "live_overlay_last_bar_age_known 1.0" in body
+    assert "live_overlay_last_bar_age_seconds 5.0" in body
+
+
+def test_render_metrics_age_known_zero_when_unknown(monkeypatch: pytest.MonkeyPatch) -> None:
+    import services.live_overlay_daemon.feed as feed
+    import services.live_overlay_daemon.metrics as metrics_mod
+
+    _patch_common(
+        monkeypatch,
+        feed_ready=True,
+        market_open=True,
+        bar_count=0,
+        overlay_symbols=0,
+        overlay_age=float("inf"),
+    )
+    monkeypatch.setattr(feed, "last_bar_age_secs", lambda: None)
+
+    body = metrics_mod.render_metrics(startup_ts=100.0)
+    assert "live_overlay_overlay_age_known 0.0" in body
+    assert "live_overlay_overlay_age_seconds 0.0" in body
+    assert "live_overlay_last_bar_age_known 0.0" in body
+    assert "live_overlay_last_bar_age_seconds 0.0" in body
 
 
 def test_render_metrics_emits_hotspot_gauges(monkeypatch: pytest.MonkeyPatch) -> None:
