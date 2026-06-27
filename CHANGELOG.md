@@ -10,7 +10,7 @@ All notable changes to this project are documented in this file.
 - `services/live_overlay_daemon/infra/grafana/dashboard.json`:
   - **Success Rate (%)** description now correctly describes `/smc_live`
     HTTP request success instead of SMC compute cycles.
-  - Removed duplicate **Restart Causes (24h, counted)** stat panel; the
+  - Removed duplicate **Restart Causes (24h, counted)** table panel; the
     remaining **Restart Causes (24h)** timeseries now extracts a `cause`
     label via `label_replace(...)` and groups by it.
   - Expanded the previously collapsed rows (**External Integrations**,

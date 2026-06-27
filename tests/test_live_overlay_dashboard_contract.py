@@ -223,7 +223,8 @@ def test_dashboard_restart_causes_panel_is_unique_and_groups_by_cause() -> None:
     dashboard = json.loads(_DASHBOARD_JSON.read_text(encoding="utf-8"))
     panels = _dashboard_panels(dashboard)
     restart_panels = [p for p in panels if "Restart Cause" in p.get("title", "")]
-    assert len(restart_panels) == 1, f"expected exactly one restart-cause panel, got {restart_panels}"
+    matches = [(p.get("title"), p.get("id")) for p in restart_panels]
+    assert len(restart_panels) == 1, f"expected exactly one restart-cause panel, got {matches}"
     panel = restart_panels[0]
     expr = panel["targets"][0]["expr"]
     assert "sum by (cause)" in expr, expr
