@@ -45,7 +45,7 @@
       "id": 2019579735,
       "title": "Operations at a glance (pinned)",
       "type": "row",
-      "collapsed": true,
+      "collapsed": false,
       "gridPos": {
         "x": 0,
         "y": 0,
@@ -1252,7 +1252,7 @@
       },
       "targets": [
         {
-          "expr": "rate(live_overlay_full_compute_cycle_errors{job=~\"$job\"}[$__rate_interval])",
+          "expr": "rate(live_overlay_full_compute_cycle_errors{job=~\"$job\"}[$__rate_interval]) or vector(0)",
           "legendFormat": "full compute errors",
           "datasource": {
             "type": "prometheus",
@@ -1260,7 +1260,7 @@
           }
         },
         {
-          "expr": "rate(live_overlay_flow_patch_cycle_errors{job=~\"$job\"}[$__rate_interval])",
+          "expr": "rate(live_overlay_flow_patch_cycle_errors{job=~\"$job\"}[$__rate_interval]) or vector(0)",
           "legendFormat": "flow patch errors",
           "datasource": {
             "type": "prometheus",
@@ -3112,7 +3112,7 @@
       },
       "targets": [
         {
-          "expr": "histogram_quantile(0.95, sum by (le) (rate(live_overlay_smc_live_latency_ms_bucket{job=~\"$job\"}[5m])))",
+          "expr": "(\n  histogram_quantile(0.95, sum by (le) (\n    rate(live_overlay_smc_live_latency_ms_bucket{job=~\"$job\"}[5m])\n  ))\n  and on() (sum(rate(live_overlay_smc_live_latency_ms_count{job=~\"$job\"}[5m])) > 0)\n) or vector(0)",
           "legendFormat": "p95",
           "datasource": {
             "type": "prometheus",
@@ -3120,7 +3120,7 @@
           }
         },
         {
-          "expr": "histogram_quantile(0.99, sum by (le) (rate(live_overlay_smc_live_latency_ms_bucket{job=~\"$job\"}[5m])))",
+          "expr": "(\n  histogram_quantile(0.99, sum by (le) (\n    rate(live_overlay_smc_live_latency_ms_bucket{job=~\"$job\"}[5m])\n  ))\n  and on() (sum(rate(live_overlay_smc_live_latency_ms_count{job=~\"$job\"}[5m])) > 0)\n) or vector(0)",
           "legendFormat": "p99",
           "datasource": {
             "type": "prometheus",
@@ -3315,7 +3315,7 @@
       "id": 1535993467
     },
     {
-      "title": "Error Budget Burn Rate (5m / 1h)",
+      "title": "Error Budget Burn Rate",
       "type": "timeseries",
       "gridPos": {
         "h": 8,
@@ -3335,6 +3335,22 @@
         {
           "expr": "((sum(rate(live_overlay_smc_live_errors_total{job=~\"$job\"}[1h])) / clamp_min(sum(rate(live_overlay_smc_live_requests_total{job=~\"$job\"}[1h])), 1e-9)) / 0.01)",
           "legendFormat": "1h burn rate",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "grafanacloud-prom"
+          }
+        },
+        {
+          "expr": "((sum(rate(live_overlay_smc_live_errors_total{job=~\"$job\"}[30m])) / clamp_min(sum(rate(live_overlay_smc_live_requests_total{job=~\"$job\"}[30m])), 1e-9)) / 0.01)",
+          "legendFormat": "30m burn rate",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "grafanacloud-prom"
+          }
+        },
+        {
+          "expr": "((sum(rate(live_overlay_smc_live_errors_total{job=~\"$job\"}[6h])) / clamp_min(sum(rate(live_overlay_smc_live_requests_total{job=~\"$job\"}[6h])), 1e-9)) / 0.01)",
+          "legendFormat": "6h burn rate",
           "datasource": {
             "type": "prometheus",
             "uid": "grafanacloud-prom"
@@ -3375,7 +3391,7 @@
               },
               {
                 "color": "red",
-                "value": 14
+                "value": 14.4
               }
             ]
           }

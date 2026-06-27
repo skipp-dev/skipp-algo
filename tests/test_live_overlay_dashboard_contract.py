@@ -396,3 +396,84 @@ def test_alert_rules_error_budget_burn_uses_two_windows() -> None:
             condition = next((d for d in rule["data"] if d.get("refId") == rule.get("condition")), {})
             condition_expr = condition.get("model", {}).get("expression", "")
             assert "$A" in condition_expr and "$B" in condition_expr, condition_expr
+
+
+def test_latency_queries_guard_zero_observation_histogram() -> None:
+    """Latency panels must not render NaN when no requests have been observed."""
+    dashboard = json.loads(_DASHBOARD_JSON.read_text(encoding="utf-8"))
+    panels = _dashboard_panels(dashboard)
+    panel = next(p for p in panels if p.get("title") == "Latency vs. SLO (ms)")
+    for target in panel["targets"]:
+        expr = target.get("expr", "")
+        if "histogram_quantile" not in expr:
+            continue
+        assert "live_overlay_smc_live_latency_ms_count" in expr
+        assert "or vector(0)" in expr
+
+
+def test_age_alerts_fire_when_age_unknown() -> None:
+    """Stale-age alerts must page when the known gauge reports 0 (unknown)."""
+    rules_doc = yaml.safe_load(_ALERT_RULES_YAML.read_text(encoding="utf-8"))
+    groups = rules_doc["groups"]
+    for uid, expected_tokens in (
+        ("lo-overlay-stale", ("overlay_age_known", "== bool 0")),
+        ("lo-last-bar-stale-open", ("last_bar_age_known", "== bool 0")),
+    ):
+        rule = next(
+            r for g in groups for r in g["rules"] if r.get("uid") == uid
+        )
+        expr = rule["data"][0]["model"]["expr"]
+        for token in expected_tokens:
+            assert token in expr, f"{uid}: missing {token} in {expr}"
+
+
+def test_burn_rate_panel_covers_warning_windows() -> None:
+    """Error-budget burn-rate panel must visualise the warning windows 30m/6h."""
+    dashboard = json.loads(_DASHBOARD_JSON.read_text(encoding="utf-8"))
+    panels = _dashboard_panels(dashboard)
+    panel = next(p for p in panels if p.get("title") == "Error Budget Burn Rate")
+    exprs = [t.get("expr", "") for t in panel["targets"]]
+    assert any("[30m]" in e for e in exprs)
+    assert any("[6h]" in e for e in exprs)
+
+
+def test_compute_cycle_errors_panel_has_vector_zero_guard() -> None:
+    """Compute Cycle Errors panel must show 0 instead of NoData."""
+    dashboard = json.loads(_DASHBOARD_JSON.read_text(encoding="utf-8"))
+    panels = _dashboard_panels(dashboard)
+    panel = next(p for p in panels if p.get("title") == "Compute Cycle Errors")
+    for target in panel["targets"]:
+        assert "or vector(0)" in target.get("expr", "")
+
+
+def test_burn_rate_red_threshold_matches_alert() -> None:
+    """Dashboard red threshold must match the critical alert threshold 14.4."""
+    dashboard = json.loads(_DASHBOARD_JSON.read_text(encoding="utf-8"))
+    panels = _dashboard_panels(dashboard)
+    panel = next(p for p in panels if p.get("title") == "Error Budget Burn Rate")
+    steps = panel.get("fieldConfig", {}).get("defaults", {}).get("thresholds", {}).get("steps", [])
+    red_step = next((s for s in steps if s.get("color") == "red"), None)
+    assert red_step is not None
+    assert red_step.get("value") == 14.4
+
+
+def test_alloy_targets_down_uses_absent_for_missing_series() -> None:
+    """alloy-targets-down must fire when a target job disappears completely."""
+    rules_doc = yaml.safe_load(_ALERT_RULES_YAML.read_text(encoding="utf-8"))
+    rule = next(
+        r for g in rules_doc["groups"] for r in g["rules"]
+        if r.get("uid") == "alloy-targets-down"
+    )
+    expr = rule["data"][0]["model"]["expr"]
+    assert "absent(up{job=\"signals_producer\"})" in expr
+    assert "absent(up{job=\"live_overlay\"})" in expr
+
+
+def test_auth_denied_spike_has_non_zero_for() -> None:
+    """Auth-denied spike alert should wait briefly to avoid single-flap paging."""
+    rules_doc = yaml.safe_load(_ALERT_RULES_YAML.read_text(encoding="utf-8"))
+    rule = next(
+        r for g in rules_doc["groups"] for r in g["rules"]
+        if r.get("uid") == "lo-auth-denied-spike"
+    )
+    assert rule.get("for") == "2m"
