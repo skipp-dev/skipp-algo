@@ -47,7 +47,7 @@
       },
       "targets": [
         {
-          "expr": "(live_overlay_health_status_ok{job=~\"$job\"} * 2) + (live_overlay_health_status_idle_market_closed{job=~\"$job\"} * 1)",
+          "expr": "(live_overlay_health_status_ok{job=~\"$job\"} * 2)\n+ (live_overlay_health_status_starting{job=~\"$job\"} * 1)\n+ (live_overlay_health_status_idle_market_closed{job=~\"$job\"} * 1)",
           "legendFormat": "health_code",
           "datasource": {
             "type": "prometheus",
@@ -77,7 +77,7 @@
                   "color": "red"
                 },
                 "1": {
-                  "text": "IDLE",
+                  "text": "STARTING / IDLE",
                   "color": "yellow"
                 },
                 "2": {
@@ -542,7 +542,7 @@
       },
       "targets": [
         {
-          "expr": "live_overlay_health_status_ok{job=~\"$job\"}*2 + live_overlay_health_status_idle_market_closed{job=~\"$job\"}",
+          "expr": "(live_overlay_health_status_ok{job=~\"$job\"} * 2)\n+ (live_overlay_health_status_starting{job=~\"$job\"} * 1)\n+ (live_overlay_health_status_idle_market_closed{job=~\"$job\"} * 1)",
           "legendFormat": "Health state",
           "datasource": {
             "type": "prometheus",
@@ -1577,7 +1577,7 @@
     },
     {
       "title": "Restart Causes (24h, counted)",
-      "type": "stat",
+      "type": "table",
       "gridPos": {
         "h": 6,
         "w": 6,
@@ -1590,9 +1590,9 @@
             "type": "prometheus",
             "uid": "grafanacloud-prom"
           },
-          "expr": "sum by (__name__) (increase({__name__=~\"live_overlay_daemon_restart_cause_.*_total\",job=~\"$job\"}[24h]))",
+          "expr": "sum by (cause) (\n  label_replace(\n    increase({__name__=~\"live_overlay_daemon_restart_cause_.*_total\",job=~\"$job\"}[24h]),\n    \"cause\",\n    \"$1\",\n    \"__name__\",\n    \"live_overlay_daemon_restart_cause_(.*)_total\"\n  )\n)",
           "refId": "A",
-          "legendFormat": "{{__name__}}"
+          "legendFormat": "{{cause}}"
         }
       ],
       "options": {
@@ -1625,6 +1625,9 @@
                 "value": 3
               }
             ]
+          },
+          "custom": {
+            "displayMode": "auto"
           }
         }
       },
@@ -2040,7 +2043,7 @@
         "x": 0,
         "y": 74
       },
-      "collapsed": true,
+      "collapsed": false,
       "panels": [],
       "description": "Row grouping for external bridge health: UptimeRobot monitors and GitHub Actions workflows.",
       "datasource": {
@@ -2970,7 +2973,7 @@
         "x": 0,
         "y": 124
       },
-      "collapsed": true,
+      "collapsed": false,
       "panels": [],
       "description": "Row grouping for service-level objectives, no-data guards and error-budget burn rate.",
       "datasource": {
@@ -3073,7 +3076,7 @@
       },
       "targets": [
         {
-          "expr": "100 * ((sum(sum_over_time((((live_overlay_overlay_fresh{job=~\"$job\"} or live_overlay_overlay_fresh or vector(1)) * (live_overlay_market_us_open{job=~\"$job\"} or live_overlay_market_us_open or vector(0))))[1h:])) + (sum(sum_over_time((live_overlay_market_us_open{job=~\"$job\"} or live_overlay_market_us_open or vector(0))[1h:])) == bool 0)) / clamp_min(sum(sum_over_time((live_overlay_market_us_open{job=~\"$job\"} or live_overlay_market_us_open or vector(0))[1h:])), 1))",
+          "expr": "100 * (\n  sum_over_time(\n    (\n      live_overlay_overlay_fresh{job=~\"$job\"}\n      * live_overlay_market_us_open{job=~\"$job\"}\n    )[1h:]\n  )\n  /\n  clamp_min(\n    sum_over_time(live_overlay_market_us_open{job=~\"$job\"}[1h:]),\n    1\n  )\n)",
           "legendFormat": "freshness_slo",
           "datasource": {
             "type": "prometheus",
@@ -3203,16 +3206,16 @@
       },
       "targets": [
         {
-          "expr": "((sum(rate(live_overlay_smc_live_requests_total{job=~\"$job\"}[5m])) > bool 1e-6) * ((1 - (sum(rate(live_overlay_smc_live_success_total{job=~\"$job\"}[5m])) / clamp_min(sum(rate(live_overlay_smc_live_requests_total{job=~\"$job\"}[5m])), 1e-9))) / 0.01))",
-          "legendFormat": "burn_5m",
+          "expr": "(\n  sum(rate(live_overlay_smc_live_errors_total{job=~\"$job\"}[5m]))\n  /\n  clamp_min(sum(rate(live_overlay_smc_live_requests_total{job=~\"$job\"}[5m])), 1e-9)\n)\n/\n0.01",
+          "legendFormat": "5m burn rate",
           "datasource": {
             "type": "prometheus",
             "uid": "grafanacloud-prom"
           }
         },
         {
-          "expr": "((sum(rate(live_overlay_smc_live_requests_total{job=~\"$job\"}[1h])) > bool 1e-6) * ((1 - (sum(rate(live_overlay_smc_live_success_total{job=~\"$job\"}[1h])) / clamp_min(sum(rate(live_overlay_smc_live_requests_total{job=~\"$job\"}[1h])), 1e-9))) / 0.01))",
-          "legendFormat": "burn_1h",
+          "expr": "(\n  sum(rate(live_overlay_smc_live_errors_total{job=~\"$job\"}[1h]))\n  /\n  clamp_min(sum(rate(live_overlay_smc_live_requests_total{job=~\"$job\"}[1h])), 1e-9)\n)\n/\n0.01",
+          "legendFormat": "1h burn rate",
           "datasource": {
             "type": "prometheus",
             "uid": "grafanacloud-prom"
@@ -3366,9 +3369,9 @@
             "type": "prometheus",
             "uid": "grafanacloud-prom"
           },
-          "expr": "sum by (__name__) (increase({__name__=~\"live_overlay_daemon_restart_cause_.*_total\",job=~\"$job\"}[24h]))",
+          "expr": "sum by (cause) (\n  label_replace(\n    increase({__name__=~\"live_overlay_daemon_restart_cause_.*_total\",job=~\"$job\"}[24h]),\n    \"cause\",\n    \"$1\",\n    \"__name__\",\n    \"live_overlay_daemon_restart_cause_(.*)_total\"\n  )\n)",
           "refId": "A",
-          "legendFormat": "{{__name__}}"
+          "legendFormat": "{{cause}}"
         }
       ],
       "options": {
@@ -3408,8 +3411,8 @@
       },
       "targets": [
         {
-          "expr": "{__name__=~\"live_overlay_hotspot_symbol_.*_requests_total\",job=~\"$job\"}",
-          "legendFormat": "{{__name__}}",
+          "expr": "sum by (symbol) (rate({__name__=~\"live_overlay_hotspot_symbol_.*_requests_total\",job=~\"$job\"}[$__rate_interval]))",
+          "legendFormat": "{{symbol}}",
           "datasource": {
             "type": "prometheus",
             "uid": "grafanacloud-prom"
@@ -3443,26 +3446,6 @@
       "id": 1135701409
     },
     {
-      "title": "News Provider State Codes",
-      "type": "text",
-      "description": "Legend for News Provider panels directly below.",
-      "gridPos": {
-        "y": 168,
-        "h": 2,
-        "w": 24,
-        "x": 0
-      },
-      "options": {
-        "mode": "markdown",
-        "content": "**News provider state codes:** `0` = unknown / no data, `1` = degraded, `2` = ok, `3` = disabled (not ingested). The **News Providers \u2014 Ingest Status & Reason** table shows the human-readable reason (e.g. API key missing, no active subscription, provider disabled) and whether each provider is actually consumed."
-      },
-      "datasource": {
-        "type": "prometheus",
-        "uid": "grafanacloud-prom"
-      },
-      "id": 755773609
-    },
-    {
       "title": "Hotspots \u2014 Timeframes (Top)",
       "type": "timeseries",
       "gridPos": {
@@ -3473,8 +3456,8 @@
       },
       "targets": [
         {
-          "expr": "{__name__=~\"live_overlay_hotspot_tf_.*_requests_total\",job=~\"$job\"}",
-          "legendFormat": "{{__name__}}",
+          "expr": "sum by (tf) (rate({__name__=~\"live_overlay_hotspot_tf_.*_requests_total\",job=~\"$job\"}[$__rate_interval]))",
+          "legendFormat": "{{tf}}",
           "datasource": {
             "type": "prometheus",
             "uid": "grafanacloud-prom"
@@ -3647,7 +3630,7 @@
         "x": 0,
         "y": 167
       },
-      "collapsed": true,
+      "collapsed": false,
       "panels": [],
       "description": "Row grouping for live news provider health.",
       "datasource": {
@@ -3655,6 +3638,118 @@
         "uid": "grafanacloud-prom"
       },
       "id": 984557481
+    },
+    {
+      "title": "News Provider State Codes",
+      "type": "text",
+      "description": "Legend for News Provider panels directly below.",
+      "gridPos": {
+        "y": 168,
+        "h": 2,
+        "w": 24,
+        "x": 0
+      },
+      "options": {
+        "mode": "markdown",
+        "content": "**News provider state codes:** `0` = unknown / no data, `1` = degraded, `2` = ok, `3` = disabled (not ingested). The **News Providers \u2014 Ingest Status & Reason** table shows the human-readable reason (e.g. API key missing, no active subscription, provider disabled) and whether each provider is actually consumed."
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "grafanacloud-prom"
+      },
+      "id": 755773609
+    },
+    {
+      "title": "News Providers \u2014 State Code",
+      "type": "timeseries",
+      "gridPos": {
+        "y": 170,
+        "h": 10,
+        "w": 24,
+        "x": 0
+      },
+      "targets": [
+        {
+          "expr": "{__name__=~\"live_overlay_provider_news_.*_state_code\",job=~\"$job\"}",
+          "legendFormat": "{{__name__}}",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "grafanacloud-prom"
+          }
+        }
+      ],
+      "options": {
+        "tooltip": {
+          "mode": "multi",
+          "sort": "none"
+        },
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true,
+          "calcs": [
+            "lastNotNull"
+          ]
+        }
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "gray",
+                "value": null
+              },
+              {
+                "color": "orange",
+                "value": 1
+              },
+              {
+                "color": "green",
+                "value": 2
+              },
+              {
+                "color": "blue",
+                "value": 3
+              }
+            ]
+          },
+          "mappings": [
+            {
+              "type": "value",
+              "options": {
+                "0": {
+                  "text": "UNKNOWN",
+                  "color": "gray"
+                },
+                "1": {
+                  "text": "DEGRADED",
+                  "color": "orange"
+                },
+                "2": {
+                  "text": "OK",
+                  "color": "green"
+                },
+                "3": {
+                  "text": "DISABLED",
+                  "color": "blue"
+                }
+              }
+            }
+          ],
+          "color": {
+            "mode": "thresholds"
+          }
+        }
+      },
+      "description": "Per-provider news state code: 0=unknown, 1=degraded, 2=ok, 3=disabled (not ingested).",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "grafanacloud-prom"
+      },
+      "id": 239187308
     },
     {
       "title": "News Provider Health State",
@@ -3882,98 +3977,6 @@
         "uid": "grafanacloud-prom"
       },
       "id": 2078851417
-    },
-    {
-      "title": "News Providers \u2014 State Code",
-      "type": "timeseries",
-      "gridPos": {
-        "y": 170,
-        "h": 10,
-        "w": 24,
-        "x": 0
-      },
-      "targets": [
-        {
-          "expr": "{__name__=~\"live_overlay_provider_news_.*_state_code\",job=~\"$job\"}",
-          "legendFormat": "{{__name__}}",
-          "datasource": {
-            "type": "prometheus",
-            "uid": "grafanacloud-prom"
-          }
-        }
-      ],
-      "options": {
-        "tooltip": {
-          "mode": "multi",
-          "sort": "none"
-        },
-        "legend": {
-          "displayMode": "list",
-          "placement": "bottom",
-          "showLegend": true,
-          "calcs": [
-            "lastNotNull"
-          ]
-        }
-      },
-      "fieldConfig": {
-        "defaults": {
-          "unit": "short",
-          "thresholds": {
-            "mode": "absolute",
-            "steps": [
-              {
-                "color": "gray",
-                "value": null
-              },
-              {
-                "color": "orange",
-                "value": 1
-              },
-              {
-                "color": "green",
-                "value": 2
-              },
-              {
-                "color": "blue",
-                "value": 3
-              }
-            ]
-          },
-          "mappings": [
-            {
-              "type": "value",
-              "options": {
-                "0": {
-                  "text": "UNKNOWN",
-                  "color": "gray"
-                },
-                "1": {
-                  "text": "DEGRADED",
-                  "color": "orange"
-                },
-                "2": {
-                  "text": "OK",
-                  "color": "green"
-                },
-                "3": {
-                  "text": "DISABLED",
-                  "color": "blue"
-                }
-              }
-            }
-          ],
-          "color": {
-            "mode": "thresholds"
-          }
-        }
-      },
-      "description": "Per-provider news state code: 0=unknown, 1=degraded, 2=ok, 3=disabled (not ingested).",
-      "datasource": {
-        "type": "prometheus",
-        "uid": "grafanacloud-prom"
-      },
-      "id": 239187308
     },
     {
       "title": "News Providers \u2014 Ingest Status & Reason",
@@ -5804,7 +5807,7 @@
       "id": 1230367683,
       "title": "Railway Resources",
       "type": "row",
-      "collapsed": true,
+      "collapsed": false,
       "gridPos": {
         "h": 1,
         "w": 24,
