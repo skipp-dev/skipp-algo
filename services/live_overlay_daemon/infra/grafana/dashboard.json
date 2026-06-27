@@ -32,18 +32,36 @@
       "type": "link",
       "url": "https://github.com/skippALGO/skipp-algo/blob/main/services/live_overlay_daemon/infra/grafana/alert-rules.yaml",
       "targetBlank": true
+    },
+    {
+      "title": "Signals & Experiments Dashboard",
+      "type": "link",
+      "url": "/d/smc-live-overlay-signals-v1",
+      "targetBlank": false
     }
   ],
   "panels": [
+    {
+      "id": 2019579735,
+      "title": "Operations at a glance (pinned)",
+      "type": "row",
+      "collapsed": false,
+      "gridPos": {
+        "x": 0,
+        "y": 0,
+        "w": 24,
+        "h": 1
+      }
+    },
     {
       "title": "Overall Health",
       "type": "stat",
       "description": "Single-pane triage signal. HEALTHY = feed, workers and overlay fresh; DEGRADED = bridge stale/scrape error or workers not healthy; CRITICAL = feed down while market open or overlay stale.",
       "gridPos": {
-        "h": 4,
-        "w": 8,
         "x": 0,
-        "y": 0
+        "y": 1,
+        "w": 8,
+        "h": 5
       },
       "targets": [
         {
@@ -110,17 +128,49 @@
         "type": "prometheus",
         "uid": "grafanacloud-prom"
       },
-      "id": 1400018297
+      "id": 1400018297,
+      "links": [
+        {
+          "title": "Open runbook",
+          "type": "link",
+          "url": "https://github.com/skippALGO/skipp-algo/blob/main/services/live_overlay_daemon/README.md",
+          "targetBlank": true
+        }
+      ]
+    },
+    {
+      "title": "Active Alerts (live_overlay)",
+      "type": "alertlist",
+      "gridPos": {
+        "x": 8,
+        "y": 1,
+        "w": 16,
+        "h": 5
+      },
+      "options": {
+        "showLabels": true,
+        "sortOrder": 1,
+        "groupMode": "default",
+        "maxItems": 20,
+        "alertInstanceLabelFilter": "job=live_overlay",
+        "viewMode": "list"
+      },
+      "description": "Currently firing Grafana alerts from the live-overlay alert rule group.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "grafanacloud-prom"
+      },
+      "id": 389642118
     },
     {
       "title": "Incident Triage Guide",
       "type": "text",
       "description": "Suggested first checks when Overall Health is not HEALTHY.",
       "gridPos": {
-        "h": 4,
-        "w": 16,
         "x": 0,
-        "y": 4
+        "y": 6,
+        "w": 24,
+        "h": 4
       },
       "options": {
         "mode": "markdown",
@@ -133,14 +183,109 @@
       "id": 128646875
     },
     {
+      "title": "Global Market Sessions",
+      "type": "state-timeline",
+      "gridPos": {
+        "x": 0,
+        "y": 10,
+        "w": 24,
+        "h": 4
+      },
+      "targets": [
+        {
+          "expr": "max(max_over_time(live_overlay_market_us_open{job=~\"$job\"}[5m])) or vector(0)",
+          "legendFormat": "US",
+          "instant": false,
+          "range": true,
+          "datasource": {
+            "type": "prometheus",
+            "uid": "grafanacloud-prom"
+          }
+        },
+        {
+          "expr": "max(max_over_time(live_overlay_market_europe_open{job=~\"$job\"}[5m])) or vector(0)",
+          "legendFormat": "Europe",
+          "instant": false,
+          "range": true,
+          "datasource": {
+            "type": "prometheus",
+            "uid": "grafanacloud-prom"
+          }
+        },
+        {
+          "expr": "max(max_over_time(live_overlay_market_asia_open{job=~\"$job\"}[5m])) or vector(0)",
+          "legendFormat": "Asia",
+          "instant": false,
+          "range": true,
+          "datasource": {
+            "type": "prometheus",
+            "uid": "grafanacloud-prom"
+          }
+        }
+      ],
+      "options": {
+        "tooltip": {
+          "mode": "multi",
+          "sort": "none"
+        },
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": false
+        },
+        "rowHeight": 0.9
+      },
+      "fieldConfig": {
+        "defaults": {
+          "mappings": [
+            {
+              "type": "value",
+              "options": {
+                "0": {
+                  "text": "CLOSED",
+                  "color": "red"
+                },
+                "1": {
+                  "text": "OPEN",
+                  "color": "green"
+                }
+              }
+            }
+          ],
+          "color": {
+            "mode": "thresholds"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "red",
+                "value": null
+              },
+              {
+                "color": "green",
+                "value": 1
+              }
+            ]
+          }
+        }
+      },
+      "description": "Regular trading session state for US, Europe, and Asia markets.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "grafanacloud-prom"
+      },
+      "id": 1083571696
+    },
+    {
       "title": "Feed Healthy",
       "type": "stat",
       "description": "Live feed connection health (0 = unhealthy, 1 = healthy).",
       "gridPos": {
-        "h": 3,
-        "w": 4,
         "x": 0,
-        "y": 9
+        "y": 14,
+        "w": 4,
+        "h": 3
       },
       "targets": [
         {
@@ -198,17 +343,25 @@
         "type": "prometheus",
         "uid": "grafanacloud-prom"
       },
-      "id": 263166781
+      "id": 263166781,
+      "links": [
+        {
+          "title": "Feed Health Counters",
+          "type": "link",
+          "url": "/d/smc-live-overlay-v1?orgId=1&viewPanel=623987092",
+          "targetBlank": true
+        }
+      ]
     },
     {
       "title": "Overlay Fresh",
       "type": "stat",
       "description": "Overlay data freshness (1 = fresh, 0 = stale).",
       "gridPos": {
-        "h": 3,
-        "w": 4,
         "x": 4,
-        "y": 9
+        "y": 14,
+        "w": 4,
+        "h": 3
       },
       "targets": [
         {
@@ -266,17 +419,25 @@
         "type": "prometheus",
         "uid": "grafanacloud-prom"
       },
-      "id": 1677801392
+      "id": 1677801392,
+      "links": [
+        {
+          "title": "Overlay & Bar Age",
+          "type": "link",
+          "url": "/d/smc-live-overlay-v1?orgId=1&viewPanel=381569035",
+          "targetBlank": true
+        }
+      ]
     },
     {
       "title": "Workers Healthy",
       "type": "stat",
       "description": "Background thread liveness (1 = all alive, 0 = at least one dead).",
       "gridPos": {
-        "h": 3,
-        "w": 4,
         "x": 8,
-        "y": 9
+        "y": 14,
+        "w": 4,
+        "h": 3
       },
       "targets": [
         {
@@ -334,17 +495,25 @@
         "type": "prometheus",
         "uid": "grafanacloud-prom"
       },
-      "id": 885350371
+      "id": 885350371,
+      "links": [
+        {
+          "title": "Worker Liveness",
+          "type": "link",
+          "url": "/d/smc-live-overlay-v1?orgId=1&viewPanel=1820730403",
+          "targetBlank": true
+        }
+      ]
     },
     {
       "title": "Bridge Scrapes",
       "type": "stat",
       "description": "External bridge scrape health (UptimeRobot + GitHub Workflows).",
       "gridPos": {
-        "h": 3,
-        "w": 4,
         "x": 12,
-        "y": 9
+        "y": 14,
+        "w": 4,
+        "h": 3
       },
       "targets": [
         {
@@ -409,10 +578,10 @@
       "type": "stat",
       "description": "Major session state (US regular or Europe regular); 1 = open, 0 = closed.",
       "gridPos": {
-        "h": 3,
-        "w": 4,
         "x": 16,
-        "y": 9
+        "y": 14,
+        "w": 4,
+        "h": 3
       },
       "targets": [
         {
@@ -477,10 +646,10 @@
       "type": "stat",
       "description": "Age of the newest bar received from Databento.",
       "gridPos": {
-        "h": 3,
-        "w": 4,
         "x": 20,
-        "y": 9
+        "y": 14,
+        "w": 4,
+        "h": 3
       },
       "targets": [
         {
@@ -529,16 +698,24 @@
         "type": "prometheus",
         "uid": "grafanacloud-prom"
       },
-      "id": 1385808862
+      "id": 1385808862,
+      "links": [
+        {
+          "title": "Overlay & Bar Age",
+          "type": "link",
+          "url": "/d/smc-live-overlay-v1?orgId=1&viewPanel=381569035",
+          "targetBlank": true
+        }
+      ]
     },
     {
       "title": "Service Status",
       "type": "stat",
       "gridPos": {
-        "h": 4,
-        "w": 4,
         "x": 0,
-        "y": 12
+        "y": 17,
+        "w": 4,
+        "h": 3
       },
       "targets": [
         {
@@ -664,10 +841,10 @@
       "title": "Uptime",
       "type": "stat",
       "gridPos": {
-        "h": 4,
+        "x": 4,
+        "y": 17,
         "w": 4,
-        "x": 8,
-        "y": 12
+        "h": 3
       },
       "targets": [
         {
@@ -713,10 +890,10 @@
       "title": "Overlay Symbols",
       "type": "stat",
       "gridPos": {
-        "h": 4,
+        "x": 8,
+        "y": 17,
         "w": 4,
-        "x": 12,
-        "y": 12
+        "h": 3
       },
       "targets": [
         {
@@ -774,10 +951,10 @@
       "title": "Bar Symbols",
       "type": "stat",
       "gridPos": {
-        "h": 4,
+        "x": 12,
+        "y": 17,
         "w": 4,
-        "x": 16,
-        "y": 12
+        "h": 3
       },
       "targets": [
         {
@@ -826,10 +1003,10 @@
       "title": "Bar Count",
       "type": "stat",
       "gridPos": {
-        "h": 4,
+        "x": 16,
+        "y": 17,
         "w": 4,
-        "x": 20,
-        "y": 12
+        "h": 3
       },
       "targets": [
         {
@@ -870,7 +1047,7 @@
         "h": 8,
         "w": 12,
         "x": 0,
-        "y": 16
+        "y": 23
       },
       "targets": [
         {
@@ -972,7 +1149,7 @@
         "h": 8,
         "w": 12,
         "x": 12,
-        "y": 16
+        "y": 31
       },
       "targets": [
         {
@@ -1047,7 +1224,7 @@
         "h": 8,
         "w": 12,
         "x": 0,
-        "y": 24
+        "y": 39
       },
       "targets": [
         {
@@ -1154,7 +1331,7 @@
         "h": 8,
         "w": 12,
         "x": 12,
-        "y": 24
+        "y": 47
       },
       "targets": [
         {
@@ -1216,7 +1393,7 @@
         "h": 6,
         "w": 12,
         "x": 0,
-        "y": 32
+        "y": 55
       },
       "targets": [
         {
@@ -1313,7 +1490,7 @@
         "h": 6,
         "w": 6,
         "x": 12,
-        "y": 32
+        "y": 61
       },
       "targets": [
         {
@@ -1383,7 +1560,7 @@
         "h": 6,
         "w": 6,
         "x": 18,
-        "y": 32
+        "y": 67
       },
       "targets": [
         {
@@ -1442,7 +1619,7 @@
         "h": 6,
         "w": 6,
         "x": 0,
-        "y": 38
+        "y": 73
       },
       "targets": [
         {
@@ -1496,7 +1673,15 @@
         "type": "prometheus",
         "uid": "grafanacloud-prom"
       },
-      "id": 430700215
+      "id": 430700215,
+      "links": [
+        {
+          "title": "Failure Mix",
+          "type": "link",
+          "url": "/d/smc-live-overlay-v1?orgId=1&viewPanel=571973267",
+          "targetBlank": true
+        }
+      ]
     },
     {
       "title": "Market-open Request Health",
@@ -1505,7 +1690,7 @@
         "h": 6,
         "w": 6,
         "x": 6,
-        "y": 38
+        "y": 79
       },
       "targets": [
         {
@@ -1582,7 +1767,7 @@
         "h": 6,
         "w": 6,
         "x": 12,
-        "y": 38
+        "y": 85
       },
       "targets": [
         {
@@ -1633,7 +1818,15 @@
         "type": "prometheus",
         "uid": "grafanacloud-prom"
       },
-      "id": 302168320
+      "id": 302168320,
+      "links": [
+        {
+          "title": "Restart Causes",
+          "type": "link",
+          "url": "/d/smc-live-overlay-v1?orgId=1&viewPanel=1148615869",
+          "targetBlank": true
+        }
+      ]
     },
     {
       "title": "Failure Mix",
@@ -1642,7 +1835,7 @@
         "h": 8,
         "w": 12,
         "x": 0,
-        "y": 44
+        "y": 97
       },
       "targets": [
         {
@@ -1718,7 +1911,7 @@
         "h": 8,
         "w": 12,
         "x": 12,
-        "y": 44
+        "y": 105
       },
       "targets": [
         {
@@ -1785,7 +1978,7 @@
         "h": 8,
         "w": 12,
         "x": 0,
-        "y": 52
+        "y": 113
       },
       "targets": [
         {
@@ -1882,7 +2075,7 @@
         "h": 8,
         "w": 12,
         "x": 12,
-        "y": 52
+        "y": 121
       },
       "targets": [
         {
@@ -1946,7 +2139,7 @@
         "h": 6,
         "w": 12,
         "x": 0,
-        "y": 61
+        "y": 129
       },
       "targets": [
         {
@@ -2038,7 +2231,7 @@
         "h": 1,
         "w": 24,
         "x": 0,
-        "y": 74
+        "y": 135
       },
       "collapsed": false,
       "panels": [],
@@ -2056,7 +2249,7 @@
         "h": 4,
         "w": 6,
         "x": 0,
-        "y": 75
+        "y": 136
       },
       "targets": [
         {
@@ -2125,7 +2318,7 @@
         "h": 4,
         "w": 6,
         "x": 6,
-        "y": 75
+        "y": 140
       },
       "description": "Bridge error flag across the selected jobs/instances (0=OK, 1=ERROR).",
       "targets": [
@@ -2193,7 +2386,7 @@
         "h": 4,
         "w": 6,
         "x": 12,
-        "y": 75
+        "y": 144
       },
       "targets": [
         {
@@ -2268,7 +2461,7 @@
         "h": 8,
         "w": 12,
         "x": 18,
-        "y": 75
+        "y": 148
       },
       "targets": [
         {
@@ -2359,7 +2552,7 @@
         "h": 4,
         "w": 6,
         "x": 0,
-        "y": 83
+        "y": 156
       },
       "targets": [
         {
@@ -2428,7 +2621,7 @@
         "h": 4,
         "w": 6,
         "x": 6,
-        "y": 83
+        "y": 160
       },
       "description": "Bridge error flag across the selected jobs/instances (0=OK, 1=ERROR).",
       "targets": [
@@ -2496,7 +2689,7 @@
         "h": 4,
         "w": 6,
         "x": 12,
-        "y": 83
+        "y": 164
       },
       "targets": [
         {
@@ -2571,7 +2764,7 @@
         "h": 8,
         "w": 12,
         "x": 18,
-        "y": 83
+        "y": 168
       },
       "targets": [
         {
@@ -2651,7 +2844,7 @@
         "h": 25,
         "w": 24,
         "x": 0,
-        "y": 91
+        "y": 176
       },
       "targets": [
         {
@@ -2867,108 +3060,13 @@
       "id": 1291128877
     },
     {
-      "title": "Global Market Sessions",
-      "type": "state-timeline",
-      "gridPos": {
-        "h": 8,
-        "w": 24,
-        "x": 0,
-        "y": 116
-      },
-      "targets": [
-        {
-          "expr": "max(max_over_time(live_overlay_market_us_open{job=~\"$job\"}[5m])) or vector(0)",
-          "legendFormat": "US",
-          "instant": false,
-          "range": true,
-          "datasource": {
-            "type": "prometheus",
-            "uid": "grafanacloud-prom"
-          }
-        },
-        {
-          "expr": "max(max_over_time(live_overlay_market_europe_open{job=~\"$job\"}[5m])) or vector(0)",
-          "legendFormat": "Europe",
-          "instant": false,
-          "range": true,
-          "datasource": {
-            "type": "prometheus",
-            "uid": "grafanacloud-prom"
-          }
-        },
-        {
-          "expr": "max(max_over_time(live_overlay_market_asia_open{job=~\"$job\"}[5m])) or vector(0)",
-          "legendFormat": "Asia",
-          "instant": false,
-          "range": true,
-          "datasource": {
-            "type": "prometheus",
-            "uid": "grafanacloud-prom"
-          }
-        }
-      ],
-      "options": {
-        "tooltip": {
-          "mode": "multi",
-          "sort": "none"
-        },
-        "legend": {
-          "displayMode": "list",
-          "placement": "bottom",
-          "showLegend": false
-        },
-        "rowHeight": 0.9
-      },
-      "fieldConfig": {
-        "defaults": {
-          "mappings": [
-            {
-              "type": "value",
-              "options": {
-                "0": {
-                  "text": "CLOSED",
-                  "color": "red"
-                },
-                "1": {
-                  "text": "OPEN",
-                  "color": "green"
-                }
-              }
-            }
-          ],
-          "color": {
-            "mode": "thresholds"
-          },
-          "thresholds": {
-            "mode": "absolute",
-            "steps": [
-              {
-                "color": "red",
-                "value": null
-              },
-              {
-                "color": "green",
-                "value": 1
-              }
-            ]
-          }
-        }
-      },
-      "description": "Regular trading session state for US, Europe, and Asia markets.",
-      "datasource": {
-        "type": "prometheus",
-        "uid": "grafanacloud-prom"
-      },
-      "id": 1083571696
-    },
-    {
       "title": "SLO & Reliability",
       "type": "row",
       "gridPos": {
         "h": 1,
         "w": 24,
         "x": 0,
-        "y": 124
+        "y": 201
       },
       "collapsed": false,
       "panels": [],
@@ -2986,7 +3084,7 @@
         "h": 8,
         "w": 12,
         "x": 0,
-        "y": 125
+        "y": 202
       },
       "targets": [
         {
@@ -3069,7 +3167,7 @@
         "h": 8,
         "w": 6,
         "x": 12,
-        "y": 125
+        "y": 210
       },
       "targets": [
         {
@@ -3130,7 +3228,7 @@
         "h": 8,
         "w": 6,
         "x": 18,
-        "y": 125
+        "y": 218
       },
       "targets": [
         {
@@ -3199,7 +3297,7 @@
         "h": 8,
         "w": 12,
         "x": 0,
-        "y": 133
+        "y": 226
       },
       "targets": [
         {
@@ -3273,7 +3371,7 @@
         "h": 8,
         "w": 12,
         "x": 12,
-        "y": 133
+        "y": 234
       },
       "targets": [
         {
@@ -3358,7 +3456,7 @@
         "h": 8,
         "w": 12,
         "x": 0,
-        "y": 141
+        "y": 242
       },
       "targets": [
         {
@@ -3404,7 +3502,7 @@
         "h": 8,
         "w": 12,
         "x": 12,
-        "y": 141
+        "y": 250
       },
       "targets": [
         {
@@ -3449,7 +3547,7 @@
         "h": 8,
         "w": 24,
         "x": 0,
-        "y": 151
+        "y": 258
       },
       "targets": [
         {
@@ -3494,7 +3592,7 @@
         "h": 8,
         "w": 12,
         "x": 0,
-        "y": 159
+        "y": 266
       },
       "targets": [
         {
@@ -3577,7 +3675,7 @@
         "h": 8,
         "w": 12,
         "x": 12,
-        "y": 159
+        "y": 274
       },
       "targets": [
         {
@@ -3647,7 +3745,7 @@
         "h": 1,
         "w": 24,
         "x": 0,
-        "y": 167
+        "y": 282
       },
       "collapsed": false,
       "panels": [],
@@ -3663,7 +3761,7 @@
       "type": "text",
       "description": "Legend for News Provider panels directly below.",
       "gridPos": {
-        "y": 168,
+        "y": 283,
         "h": 2,
         "w": 24,
         "x": 0
@@ -3682,7 +3780,7 @@
       "title": "News Providers — State Code",
       "type": "timeseries",
       "gridPos": {
-        "y": 170,
+        "y": 285,
         "h": 10,
         "w": 24,
         "x": 0
@@ -3774,7 +3872,7 @@
       "title": "News Provider Health State",
       "type": "state-timeline",
       "gridPos": {
-        "y": 180,
+        "y": 295,
         "h": 8,
         "w": 12,
         "x": 0
@@ -3869,7 +3967,7 @@
       "title": "News Snapshot Age & Provider Counts",
       "type": "timeseries",
       "gridPos": {
-        "y": 180,
+        "y": 303,
         "h": 8,
         "w": 12,
         "x": 12
@@ -3954,7 +4052,7 @@
       "title": "News Providers — OK/Degraded (Drill-down)",
       "type": "timeseries",
       "gridPos": {
-        "y": 188,
+        "y": 311,
         "h": 8,
         "w": 12,
         "x": 0
@@ -4001,7 +4099,7 @@
       "title": "News Providers — Ingest Status & Reason",
       "type": "table",
       "gridPos": {
-        "y": 188,
+        "y": 319,
         "h": 8,
         "w": 12,
         "x": 12
@@ -4155,37 +4253,13 @@
       "id": 337952283
     },
     {
-      "title": "Active Alerts (live_overlay)",
-      "type": "alertlist",
-      "gridPos": {
-        "h": 8,
-        "w": 24,
-        "x": 0,
-        "y": 196
-      },
-      "options": {
-        "showLabels": true,
-        "sortOrder": 1,
-        "groupMode": "default",
-        "maxItems": 20,
-        "alertInstanceLabelFilter": "job=live_overlay",
-        "viewMode": "list"
-      },
-      "description": "Currently firing Grafana alerts from the live-overlay alert rule group.",
-      "datasource": {
-        "type": "prometheus",
-        "uid": "grafanacloud-prom"
-      },
-      "id": 389642118
-    },
-    {
       "title": "GitHub Workflows — Latest Run Detail",
       "type": "table",
       "gridPos": {
         "h": 14,
         "w": 24,
         "x": 0,
-        "y": 204
+        "y": 327
       },
       "description": "Per-workflow detail of the most recent run the daemon observed: trigger event (schedule / push / …), current status, run duration and age. One row per named workflow. Driven by the labelled live_overlay_github_workflow_* gauges (phase_code, latest_duration_seconds, latest_age_seconds, latest_success).",
       "targets": [
@@ -4422,1272 +4496,6 @@
       "id": 1050488908
     },
     {
-      "title": "Active Trading Signals",
-      "type": "stat",
-      "description": "Number of currently active realtime breakout signals (A0 pre-breakout + A1 confirmed) the engine snapshot is reporting.",
-      "gridPos": {
-        "h": 6,
-        "w": 6,
-        "x": 0,
-        "y": 213
-      },
-      "targets": [
-        {
-          "expr": "live_overlay_trading_signals_active_total{job=~\"$job\"}",
-          "instant": true,
-          "refId": "A",
-          "datasource": {
-            "type": "prometheus",
-            "uid": "grafanacloud-prom"
-          }
-        }
-      ],
-      "fieldConfig": {
-        "defaults": {
-          "color": {
-            "mode": "thresholds"
-          },
-          "thresholds": {
-            "mode": "absolute",
-            "steps": [
-              {
-                "color": "gray",
-                "value": null
-              },
-              {
-                "color": "green",
-                "value": 1
-              }
-            ]
-          },
-          "unit": "short"
-        },
-        "overrides": []
-      },
-      "options": {
-        "reduceOptions": {
-          "calcs": [
-            "lastNotNull"
-          ],
-          "fields": "",
-          "values": false
-        },
-        "colorMode": "value",
-        "graphMode": "area",
-        "textMode": "auto",
-        "justifyMode": "auto"
-      },
-      "datasource": {
-        "type": "prometheus",
-        "uid": "grafanacloud-prom"
-      },
-      "id": 2101841898
-    },
-    {
-      "title": "A0 / A1 Breakouts",
-      "type": "stat",
-      "description": "Split of active signals by level: A0 = pre-breakout setup, A1 = confirmed breakout.",
-      "gridPos": {
-        "h": 6,
-        "w": 6,
-        "x": 6,
-        "y": 213
-      },
-      "targets": [
-        {
-          "expr": "live_overlay_trading_signals_a0_total{job=~\"$job\"}",
-          "instant": true,
-          "legendFormat": "A0 (pre)",
-          "refId": "A",
-          "datasource": {
-            "type": "prometheus",
-            "uid": "grafanacloud-prom"
-          }
-        },
-        {
-          "expr": "live_overlay_trading_signals_a1_total{job=~\"$job\"}",
-          "instant": true,
-          "legendFormat": "A1 (breakout)",
-          "refId": "B",
-          "datasource": {
-            "type": "prometheus",
-            "uid": "grafanacloud-prom"
-          }
-        }
-      ],
-      "fieldConfig": {
-        "defaults": {
-          "color": {
-            "mode": "thresholds"
-          },
-          "thresholds": {
-            "mode": "absolute",
-            "steps": [
-              {
-                "color": "gray",
-                "value": null
-              },
-              {
-                "color": "blue",
-                "value": 1
-              }
-            ]
-          },
-          "unit": "short"
-        },
-        "overrides": [
-          {
-            "matcher": {
-              "id": "byName",
-              "options": "A1 (breakout)"
-            },
-            "properties": [
-              {
-                "id": "thresholds",
-                "value": {
-                  "mode": "absolute",
-                  "steps": [
-                    {
-                      "color": "gray",
-                      "value": null
-                    },
-                    {
-                      "color": "green",
-                      "value": 1
-                    }
-                  ]
-                }
-              }
-            ]
-          }
-        ]
-      },
-      "options": {
-        "reduceOptions": {
-          "calcs": [
-            "lastNotNull"
-          ],
-          "fields": "",
-          "values": false
-        },
-        "colorMode": "value",
-        "graphMode": "none",
-        "textMode": "value_and_name",
-        "justifyMode": "auto",
-        "orientation": "horizontal"
-      },
-      "datasource": {
-        "type": "prometheus",
-        "uid": "grafanacloud-prom"
-      },
-      "id": 1166193383
-    },
-    {
-      "title": "Signals Snapshot Age",
-      "type": "stat",
-      "description": "Seconds since the realtime engine last wrote latest_realtime_signals.json. Red once the snapshot is older than the 480s (8 min) max signal age — stale signals should not be trusted. Shows N/A when the snapshot timestamp is unknown.",
-      "gridPos": {
-        "h": 6,
-        "w": 6,
-        "x": 12,
-        "y": 213
-      },
-      "targets": [
-        {
-          "expr": "live_overlay_trading_signals_snapshot_age_seconds{job=~\"$job\"} and on(job,instance) (live_overlay_trading_signals_snapshot_age_known{job=~\"$job\"} == 1)",
-          "instant": true,
-          "refId": "A",
-          "datasource": {
-            "type": "prometheus",
-            "uid": "grafanacloud-prom"
-          }
-        }
-      ],
-      "fieldConfig": {
-        "defaults": {
-          "color": {
-            "mode": "thresholds"
-          },
-          "thresholds": {
-            "mode": "absolute",
-            "steps": [
-              {
-                "color": "green",
-                "value": null
-              },
-              {
-                "color": "yellow",
-                "value": 240
-              },
-              {
-                "color": "red",
-                "value": 480
-              }
-            ]
-          },
-          "unit": "s",
-          "noValue": "N/A"
-        },
-        "overrides": []
-      },
-      "options": {
-        "reduceOptions": {
-          "calcs": [
-            "lastNotNull"
-          ],
-          "fields": "",
-          "values": false
-        },
-        "colorMode": "background",
-        "graphMode": "none",
-        "textMode": "auto",
-        "justifyMode": "auto"
-      },
-      "datasource": {
-        "type": "prometheus",
-        "uid": "grafanacloud-prom"
-      },
-      "id": 2138485144
-    },
-    {
-      "title": "Watched Symbols",
-      "type": "stat",
-      "description": "How many symbols the realtime engine is actively polling for breakout signals.",
-      "gridPos": {
-        "h": 6,
-        "w": 6,
-        "x": 18,
-        "y": 213
-      },
-      "targets": [
-        {
-          "expr": "live_overlay_trading_signals_watched_total{job=~\"$job\"}",
-          "instant": true,
-          "refId": "A",
-          "datasource": {
-            "type": "prometheus",
-            "uid": "grafanacloud-prom"
-          }
-        }
-      ],
-      "fieldConfig": {
-        "defaults": {
-          "color": {
-            "mode": "thresholds"
-          },
-          "thresholds": {
-            "mode": "absolute",
-            "steps": [
-              {
-                "color": "gray",
-                "value": null
-              },
-              {
-                "color": "blue",
-                "value": 1
-              }
-            ]
-          },
-          "unit": "short"
-        },
-        "overrides": []
-      },
-      "options": {
-        "reduceOptions": {
-          "calcs": [
-            "lastNotNull"
-          ],
-          "fields": "",
-          "values": false
-        },
-        "colorMode": "value",
-        "graphMode": "none",
-        "textMode": "auto",
-        "justifyMode": "auto"
-      },
-      "datasource": {
-        "type": "prometheus",
-        "uid": "grafanacloud-prom"
-      },
-      "id": 235629715
-    },
-    {
-      "title": "Top Trading Signals — Latest Detail",
-      "type": "table",
-      "description": "Per-symbol detail of the active breakout signals (top 50 by ranking score). Level A0 = pre-breakout, A1 = confirmed breakout; Direction is the trade bias; Score is the engine's v2 ranking; Tech is the 0–1 technical score; Change % is the intraday move; Freshness decays 1→0 as the signal ages. Driven by the labelled live_overlay_trading_signal_* gauges merged by symbol/level/direction/tier.",
-      "gridPos": {
-        "h": 10,
-        "w": 24,
-        "x": 0,
-        "y": 219
-      },
-      "targets": [
-        {
-          "expr": "live_overlay_trading_signal_score{job=~\"$job\"}",
-          "format": "table",
-          "instant": true,
-          "refId": "A",
-          "datasource": {
-            "type": "prometheus",
-            "uid": "grafanacloud-prom"
-          }
-        },
-        {
-          "expr": "live_overlay_trading_signal_technical_score{job=~\"$job\"}",
-          "format": "table",
-          "instant": true,
-          "refId": "B",
-          "datasource": {
-            "type": "prometheus",
-            "uid": "grafanacloud-prom"
-          }
-        },
-        {
-          "expr": "live_overlay_trading_signal_change_pct{job=~\"$job\"}",
-          "format": "table",
-          "instant": true,
-          "refId": "C",
-          "datasource": {
-            "type": "prometheus",
-            "uid": "grafanacloud-prom"
-          }
-        },
-        {
-          "expr": "live_overlay_trading_signal_freshness{job=~\"$job\"}",
-          "format": "table",
-          "instant": true,
-          "refId": "D",
-          "datasource": {
-            "type": "prometheus",
-            "uid": "grafanacloud-prom"
-          }
-        }
-      ],
-      "transformations": [
-        {
-          "id": "merge",
-          "options": {}
-        },
-        {
-          "id": "organize",
-          "options": {
-            "excludeByName": {
-              "Time": true,
-              "instance": true,
-              "job": true,
-              "__name__": true
-            },
-            "indexByName": {
-              "symbol": 0,
-              "level": 1,
-              "direction": 2,
-              "tier": 3,
-              "Value #A": 4,
-              "Value #B": 5,
-              "Value #C": 6,
-              "Value #D": 7
-            },
-            "renameByName": {
-              "symbol": "Symbol",
-              "level": "Level",
-              "direction": "Direction",
-              "tier": "Tier",
-              "Value #A": "Score",
-              "Value #B": "Tech",
-              "Value #C": "Change %",
-              "Value #D": "Freshness"
-            }
-          }
-        }
-      ],
-      "fieldConfig": {
-        "defaults": {
-          "custom": {
-            "align": "auto",
-            "cellOptions": {
-              "type": "auto"
-            }
-          }
-        },
-        "overrides": [
-          {
-            "matcher": {
-              "id": "byName",
-              "options": "Level"
-            },
-            "properties": [
-              {
-                "id": "mappings",
-                "value": [
-                  {
-                    "type": "value",
-                    "options": {
-                      "A0": {
-                        "text": "A0 (pre)",
-                        "color": "yellow",
-                        "index": 0
-                      },
-                      "A1": {
-                        "text": "A1 (breakout)",
-                        "color": "green",
-                        "index": 1
-                      }
-                    }
-                  }
-                ]
-              },
-              {
-                "id": "custom.cellOptions",
-                "value": {
-                  "type": "color-text"
-                }
-              }
-            ]
-          },
-          {
-            "matcher": {
-              "id": "byName",
-              "options": "Direction"
-            },
-            "properties": [
-              {
-                "id": "mappings",
-                "value": [
-                  {
-                    "type": "value",
-                    "options": {
-                      "LONG": {
-                        "text": "LONG",
-                        "color": "green",
-                        "index": 0
-                      },
-                      "B_UP": {
-                        "text": "LONG",
-                        "color": "green",
-                        "index": 1
-                      },
-                      "SHORT": {
-                        "text": "SHORT",
-                        "color": "red",
-                        "index": 2
-                      },
-                      "B_DOWN": {
-                        "text": "SHORT",
-                        "color": "red",
-                        "index": 3
-                      }
-                    }
-                  }
-                ]
-              },
-              {
-                "id": "custom.cellOptions",
-                "value": {
-                  "type": "color-text"
-                }
-              }
-            ]
-          },
-          {
-            "matcher": {
-              "id": "byName",
-              "options": "Score"
-            },
-            "properties": [
-              {
-                "id": "decimals",
-                "value": 1
-              },
-              {
-                "id": "custom.cellOptions",
-                "value": {
-                  "type": "color-background",
-                  "mode": "gradient"
-                }
-              },
-              {
-                "id": "thresholds",
-                "value": {
-                  "mode": "absolute",
-                  "steps": [
-                    {
-                      "color": "gray",
-                      "value": null
-                    },
-                    {
-                      "color": "blue",
-                      "value": 1
-                    },
-                    {
-                      "color": "green",
-                      "value": 5
-                    }
-                  ]
-                }
-              }
-            ]
-          },
-          {
-            "matcher": {
-              "id": "byName",
-              "options": "Tech"
-            },
-            "properties": [
-              {
-                "id": "decimals",
-                "value": 2
-              },
-              {
-                "id": "max",
-                "value": 1
-              },
-              {
-                "id": "min",
-                "value": 0
-              }
-            ]
-          },
-          {
-            "matcher": {
-              "id": "byName",
-              "options": "Change %"
-            },
-            "properties": [
-              {
-                "id": "unit",
-                "value": "percent"
-              },
-              {
-                "id": "decimals",
-                "value": 2
-              },
-              {
-                "id": "custom.cellOptions",
-                "value": {
-                  "type": "color-text"
-                }
-              },
-              {
-                "id": "thresholds",
-                "value": {
-                  "mode": "absolute",
-                  "steps": [
-                    {
-                      "color": "red",
-                      "value": null
-                    },
-                    {
-                      "color": "green",
-                      "value": 0
-                    }
-                  ]
-                }
-              }
-            ]
-          },
-          {
-            "matcher": {
-              "id": "byName",
-              "options": "Freshness"
-            },
-            "properties": [
-              {
-                "id": "decimals",
-                "value": 2
-              },
-              {
-                "id": "max",
-                "value": 1
-              },
-              {
-                "id": "min",
-                "value": 0
-              },
-              {
-                "id": "custom.cellOptions",
-                "value": {
-                  "type": "gauge",
-                  "mode": "basic"
-                }
-              }
-            ]
-          }
-        ]
-      },
-      "options": {
-        "showHeader": true,
-        "sortBy": [
-          {
-            "displayName": "Score",
-            "desc": true
-          }
-        ]
-      },
-      "datasource": {
-        "type": "prometheus",
-        "uid": "grafanacloud-prom"
-      },
-      "id": 1878680845
-    },
-    {
-      "title": "Signal Score — Active Symbols",
-      "type": "timeseries",
-      "description": "Ranking score over time for each active breakout signal, labelled by symbol / level / direction. Lets you see which symbols are strengthening or fading.",
-      "gridPos": {
-        "h": 8,
-        "w": 24,
-        "x": 0,
-        "y": 229
-      },
-      "targets": [
-        {
-          "expr": "live_overlay_trading_signal_score{job=~\"$job\"}",
-          "legendFormat": "{{symbol}} {{level}} {{direction}}",
-          "refId": "A",
-          "datasource": {
-            "type": "prometheus",
-            "uid": "grafanacloud-prom"
-          }
-        }
-      ],
-      "fieldConfig": {
-        "defaults": {
-          "custom": {
-            "drawStyle": "line",
-            "lineInterpolation": "stepAfter",
-            "lineWidth": 2,
-            "fillOpacity": 10,
-            "showPoints": "auto",
-            "spanNulls": false
-          },
-          "unit": "short"
-        },
-        "overrides": []
-      },
-      "options": {
-        "legend": {
-          "displayMode": "table",
-          "placement": "right",
-          "calcs": [
-            "lastNotNull",
-            "max"
-          ]
-        },
-        "tooltip": {
-          "mode": "multi",
-          "sort": "desc"
-        }
-      },
-      "datasource": {
-        "type": "prometheus",
-        "uid": "grafanacloud-prom"
-      },
-      "id": 730705782
-    },
-    {
-      "title": "Daily Experiment — Snapshot Age",
-      "type": "stat",
-      "description": "Age of the latest Plan 2.8 family rollup (scripts/plan_2_8_tf_family_rollup.py). The rolling benchmark runs ~daily; green < 24h, yellow < 36h, red beyond means a run was skipped. N/A when the run date cannot be derived.",
-      "gridPos": {
-        "h": 5,
-        "w": 6,
-        "x": 0,
-        "y": 237
-      },
-      "targets": [
-        {
-          "expr": "live_overlay_experiment_snapshot_age_seconds{job=~\"$job\"} and on(job,instance) (live_overlay_experiment_snapshot_age_known{job=~\"$job\"} == 1)",
-          "instant": true,
-          "refId": "A",
-          "datasource": {
-            "type": "prometheus",
-            "uid": "grafanacloud-prom"
-          }
-        }
-      ],
-      "fieldConfig": {
-        "defaults": {
-          "unit": "s",
-          "noValue": "N/A",
-          "thresholds": {
-            "mode": "absolute",
-            "steps": [
-              {
-                "color": "green",
-                "value": null
-              },
-              {
-                "color": "yellow",
-                "value": 86400
-              },
-              {
-                "color": "red",
-                "value": 129600
-              }
-            ]
-          }
-        },
-        "overrides": []
-      },
-      "options": {
-        "colorMode": "background",
-        "graphMode": "none",
-        "reduceOptions": {
-          "calcs": [
-            "lastNotNull"
-          ],
-          "fields": "",
-          "values": false
-        }
-      },
-      "datasource": {
-        "type": "prometheus",
-        "uid": "grafanacloud-prom"
-      },
-      "id": 1927313819
-    },
-    {
-      "title": "Daily Experiment — Files Scanned",
-      "type": "stat",
-      "description": "Number of scoring files folded into the latest daily rollup. A sudden drop signals an upstream scoring/coverage problem.",
-      "gridPos": {
-        "h": 5,
-        "w": 6,
-        "x": 6,
-        "y": 237
-      },
-      "targets": [
-        {
-          "expr": "live_overlay_experiment_files_scanned{job=~\"$job\"}",
-          "instant": true,
-          "refId": "A",
-          "datasource": {
-            "type": "prometheus",
-            "uid": "grafanacloud-prom"
-          }
-        }
-      ],
-      "fieldConfig": {
-        "defaults": {
-          "unit": "short",
-          "noValue": "N/A",
-          "thresholds": {
-            "mode": "absolute",
-            "steps": [
-              {
-                "color": "red",
-                "value": null
-              },
-              {
-                "color": "green",
-                "value": 1
-              }
-            ]
-          }
-        },
-        "overrides": []
-      },
-      "options": {
-        "colorMode": "value",
-        "graphMode": "area",
-        "reduceOptions": {
-          "calcs": [
-            "lastNotNull"
-          ],
-          "fields": "",
-          "values": false
-        }
-      },
-      "datasource": {
-        "type": "prometheus",
-        "uid": "grafanacloud-prom"
-      },
-      "id": 659829990
-    },
-    {
-      "title": "FVG 5m Verdict (Phase E2)",
-      "type": "stat",
-      "description": "Latest Phase E2 verdict for the FVG-time-to-fill 5m hypothesis vs baseline. measured = conclusive signal; underpowered = effect seen but not enough samples; insufficient/missing = not enough data yet.",
-      "gridPos": {
-        "h": 5,
-        "w": 6,
-        "x": 12,
-        "y": 237
-      },
-      "targets": [
-        {
-          "expr": "live_overlay_experiment_verdict_status_code{job=~\"$job\", hypothesis=\"fvg_5m\"}",
-          "instant": true,
-          "refId": "A",
-          "datasource": {
-            "type": "prometheus",
-            "uid": "grafanacloud-prom"
-          }
-        }
-      ],
-      "fieldConfig": {
-        "defaults": {
-          "noValue": "N/A",
-          "mappings": [
-            {
-              "type": "value",
-              "options": {
-                "0": {
-                  "text": "missing",
-                  "color": "red",
-                  "index": 0
-                },
-                "1": {
-                  "text": "insufficient",
-                  "color": "orange",
-                  "index": 1
-                },
-                "2": {
-                  "text": "degenerate",
-                  "color": "orange",
-                  "index": 2
-                },
-                "3": {
-                  "text": "underpowered",
-                  "color": "yellow",
-                  "index": 3
-                },
-                "4": {
-                  "text": "measured",
-                  "color": "green",
-                  "index": 4
-                }
-              }
-            }
-          ],
-          "thresholds": {
-            "mode": "absolute",
-            "steps": [
-              {
-                "color": "text",
-                "value": null
-              }
-            ]
-          }
-        },
-        "overrides": []
-      },
-      "options": {
-        "colorMode": "background",
-        "graphMode": "none",
-        "reduceOptions": {
-          "calcs": [
-            "lastNotNull"
-          ],
-          "fields": "",
-          "values": false
-        }
-      },
-      "datasource": {
-        "type": "prometheus",
-        "uid": "grafanacloud-prom"
-      },
-      "id": 1874705827
-    },
-    {
-      "title": "BOS 4H Verdict (Phase E2)",
-      "type": "stat",
-      "description": "Latest Phase E2 verdict for the BOS 4H stability hypothesis vs baseline.",
-      "gridPos": {
-        "h": 5,
-        "w": 6,
-        "x": 18,
-        "y": 237
-      },
-      "targets": [
-        {
-          "expr": "live_overlay_experiment_verdict_status_code{job=~\"$job\", hypothesis=\"bos_4h\"}",
-          "instant": true,
-          "refId": "A",
-          "datasource": {
-            "type": "prometheus",
-            "uid": "grafanacloud-prom"
-          }
-        }
-      ],
-      "fieldConfig": {
-        "defaults": {
-          "noValue": "N/A",
-          "mappings": [
-            {
-              "type": "value",
-              "options": {
-                "0": {
-                  "text": "missing",
-                  "color": "red",
-                  "index": 0
-                },
-                "1": {
-                  "text": "insufficient",
-                  "color": "orange",
-                  "index": 1
-                },
-                "2": {
-                  "text": "degenerate",
-                  "color": "orange",
-                  "index": 2
-                },
-                "3": {
-                  "text": "underpowered",
-                  "color": "yellow",
-                  "index": 3
-                },
-                "4": {
-                  "text": "measured",
-                  "color": "green",
-                  "index": 4
-                }
-              }
-            }
-          ],
-          "thresholds": {
-            "mode": "absolute",
-            "steps": [
-              {
-                "color": "text",
-                "value": null
-              }
-            ]
-          }
-        },
-        "overrides": []
-      },
-      "options": {
-        "colorMode": "background",
-        "graphMode": "none",
-        "reduceOptions": {
-          "calcs": [
-            "lastNotNull"
-          ],
-          "fields": "",
-          "values": false
-        }
-      },
-      "datasource": {
-        "type": "prometheus",
-        "uid": "grafanacloud-prom"
-      },
-      "id": 1822006024
-    },
-    {
-      "title": "Daily Experiment — Latest Per-Family Detail",
-      "type": "table",
-      "description": "Current-day hit-rate and sample size for each SMC setup family (BOS / OB / FVG / SWEEP) per timeframe, from the latest rollup. Hit-rate is colour-graded; n_events is the sample size behind it.",
-      "gridPos": {
-        "h": 9,
-        "w": 24,
-        "x": 0,
-        "y": 242
-      },
-      "targets": [
-        {
-          "expr": "live_overlay_experiment_family_hit_rate{job=~\"$job\"}",
-          "instant": true,
-          "format": "table",
-          "refId": "A",
-          "datasource": {
-            "type": "prometheus",
-            "uid": "grafanacloud-prom"
-          }
-        },
-        {
-          "expr": "live_overlay_experiment_family_n_events{job=~\"$job\"}",
-          "instant": true,
-          "format": "table",
-          "refId": "B",
-          "datasource": {
-            "type": "prometheus",
-            "uid": "grafanacloud-prom"
-          }
-        }
-      ],
-      "transformations": [
-        {
-          "id": "merge",
-          "options": {}
-        },
-        {
-          "id": "organize",
-          "options": {
-            "excludeByName": {
-              "Time": true,
-              "__name__": true,
-              "job": true,
-              "instance": true
-            },
-            "renameByName": {
-              "timeframe": "Timeframe",
-              "family": "Family",
-              "Value #A": "Hit Rate",
-              "Value #B": "Events"
-            }
-          }
-        }
-      ],
-      "fieldConfig": {
-        "defaults": {
-          "custom": {
-            "align": "auto"
-          }
-        },
-        "overrides": [
-          {
-            "matcher": {
-              "id": "byName",
-              "options": "Hit Rate"
-            },
-            "properties": [
-              {
-                "id": "unit",
-                "value": "percentunit"
-              },
-              {
-                "id": "custom.cellOptions",
-                "value": {
-                  "type": "gauge",
-                  "mode": "gradient"
-                }
-              },
-              {
-                "id": "min",
-                "value": 0
-              },
-              {
-                "id": "max",
-                "value": 1
-              },
-              {
-                "id": "thresholds",
-                "value": {
-                  "mode": "absolute",
-                  "steps": [
-                    {
-                      "color": "red",
-                      "value": null
-                    },
-                    {
-                      "color": "yellow",
-                      "value": 0.45
-                    },
-                    {
-                      "color": "green",
-                      "value": 0.55
-                    }
-                  ]
-                }
-              }
-            ]
-          }
-        ]
-      },
-      "options": {
-        "showHeader": true,
-        "sortBy": [
-          {
-            "displayName": "Hit Rate",
-            "desc": true
-          }
-        ]
-      },
-      "datasource": {
-        "type": "prometheus",
-        "uid": "grafanacloud-prom"
-      },
-      "id": 1326844325
-    },
-    {
-      "title": "Family Hit-Rate Over Time (accumulates daily)",
-      "type": "timeseries",
-      "description": "Live forward timeline: each daily benchmark run updates these gauges, so Prometheus records one step per day. Use the time picker (e.g. last 30 days) to see how each family/timeframe hit-rate trends going forward.",
-      "gridPos": {
-        "h": 8,
-        "w": 24,
-        "x": 0,
-        "y": 251
-      },
-      "targets": [
-        {
-          "expr": "live_overlay_experiment_family_hit_rate{job=~\"$job\"}",
-          "legendFormat": "{{timeframe}} · {{family}}",
-          "refId": "A",
-          "datasource": {
-            "type": "prometheus",
-            "uid": "grafanacloud-prom"
-          }
-        }
-      ],
-      "fieldConfig": {
-        "defaults": {
-          "custom": {
-            "drawStyle": "line",
-            "lineInterpolation": "stepAfter",
-            "lineWidth": 2,
-            "fillOpacity": 5,
-            "showPoints": "always",
-            "pointSize": 6,
-            "spanNulls": true
-          },
-          "unit": "percentunit",
-          "min": 0,
-          "max": 1
-        },
-        "overrides": []
-      },
-      "options": {
-        "legend": {
-          "displayMode": "table",
-          "placement": "right",
-          "calcs": [
-            "lastNotNull",
-            "mean",
-            "min",
-            "max"
-          ]
-        },
-        "tooltip": {
-          "mode": "multi",
-          "sort": "desc"
-        }
-      },
-      "datasource": {
-        "type": "prometheus",
-        "uid": "grafanacloud-prom"
-      },
-      "id": 1103734831
-    },
-    {
-      "title": "Per-Day Family Hit-Rate — History (backfilled)",
-      "type": "table",
-      "description": "Retained per-day history from plan_2_8_history.jsonl: exact hit-rate and sample size for each run date / timeframe / family. Backfills the daily statistics immediately (no need to wait for Prometheus to accumulate). Sort by Run Date to read the day-by-day timeline.",
-      "gridPos": {
-        "h": 10,
-        "w": 24,
-        "x": 0,
-        "y": 259
-      },
-      "targets": [
-        {
-          "expr": "live_overlay_experiment_day_family_hit_rate{job=~\"$job\"}",
-          "instant": true,
-          "format": "table",
-          "refId": "A",
-          "datasource": {
-            "type": "prometheus",
-            "uid": "grafanacloud-prom"
-          }
-        },
-        {
-          "expr": "live_overlay_experiment_day_family_n_events{job=~\"$job\"}",
-          "instant": true,
-          "format": "table",
-          "refId": "B",
-          "datasource": {
-            "type": "prometheus",
-            "uid": "grafanacloud-prom"
-          }
-        }
-      ],
-      "transformations": [
-        {
-          "id": "merge",
-          "options": {}
-        },
-        {
-          "id": "organize",
-          "options": {
-            "excludeByName": {
-              "Time": true,
-              "__name__": true,
-              "job": true,
-              "instance": true
-            },
-            "renameByName": {
-              "run_date": "Run Date",
-              "timeframe": "Timeframe",
-              "family": "Family",
-              "Value #A": "Hit Rate",
-              "Value #B": "Events"
-            }
-          }
-        }
-      ],
-      "fieldConfig": {
-        "defaults": {
-          "custom": {
-            "align": "auto"
-          }
-        },
-        "overrides": [
-          {
-            "matcher": {
-              "id": "byName",
-              "options": "Hit Rate"
-            },
-            "properties": [
-              {
-                "id": "unit",
-                "value": "percentunit"
-              },
-              {
-                "id": "custom.cellOptions",
-                "value": {
-                  "type": "color-background",
-                  "mode": "gradient"
-                }
-              },
-              {
-                "id": "min",
-                "value": 0
-              },
-              {
-                "id": "max",
-                "value": 1
-              },
-              {
-                "id": "thresholds",
-                "value": {
-                  "mode": "absolute",
-                  "steps": [
-                    {
-                      "color": "red",
-                      "value": null
-                    },
-                    {
-                      "color": "yellow",
-                      "value": 0.45
-                    },
-                    {
-                      "color": "green",
-                      "value": 0.55
-                    }
-                  ]
-                }
-              }
-            ]
-          }
-        ]
-      },
-      "options": {
-        "showHeader": true,
-        "sortBy": [
-          {
-            "displayName": "Run Date",
-            "desc": true
-          }
-        ]
-      },
-      "datasource": {
-        "type": "prometheus",
-        "uid": "grafanacloud-prom"
-      },
-      "id": 1756997640
-    },
-    {
       "title": "TradingView Credential Age",
       "type": "stat",
       "description": "Hours since the TradingView Playwright storage-state login (meta.authValidatedAt) was last validated, from the daily credential-health report (tv_storage_state_age probe). Policy TTL is 72h: green < 57.6h (80% warn band), yellow 57.6–72h, red once the cached login is older than 72h and must be re-captured. N/A when no report/age is available.",
@@ -5695,7 +4503,7 @@
         "h": 5,
         "w": 6,
         "x": 0,
-        "y": 269
+        "y": 341
       },
       "targets": [
         {
@@ -5760,7 +4568,7 @@
         "h": 5,
         "w": 6,
         "x": 6,
-        "y": 269
+        "y": 346
       },
       "targets": [
         {
@@ -5831,7 +4639,7 @@
         "h": 1,
         "w": 24,
         "x": 0,
-        "y": 274
+        "y": 351
       },
       "panels": [],
       "datasource": {
@@ -5847,7 +4655,7 @@
         "h": 3,
         "w": 4,
         "x": 0,
-        "y": 275
+        "y": 352
       },
       "targets": [
         {
@@ -5916,7 +4724,7 @@
         "h": 3,
         "w": 4,
         "x": 4,
-        "y": 275
+        "y": 355
       },
       "targets": [
         {
@@ -5941,7 +4749,28 @@
       },
       "fieldConfig": {
         "defaults": {
-          "unit": "s"
+          "unit": "s",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "gray",
+                "value": null
+              },
+              {
+                "color": "green",
+                "value": 0
+              },
+              {
+                "color": "yellow",
+                "value": 60
+              },
+              {
+                "color": "red",
+                "value": 180
+              }
+            ]
+          }
         }
       },
       "datasource": {
@@ -5958,7 +4787,7 @@
         "h": 3,
         "w": 4,
         "x": 8,
-        "y": 275
+        "y": 358
       },
       "targets": [
         {
@@ -6033,7 +4862,7 @@
         "h": 7,
         "w": 8,
         "x": 0,
-        "y": 278
+        "y": 361
       },
       "fieldConfig": {
         "defaults": {
@@ -6077,7 +4906,7 @@
         "h": 7,
         "w": 8,
         "x": 8,
-        "y": 278
+        "y": 368
       },
       "fieldConfig": {
         "defaults": {
@@ -6085,6 +4914,23 @@
           "custom": {
             "drawStyle": "line",
             "lineInterpolation": "linear"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "yellow",
+                "value": 0.7
+              },
+              {
+                "color": "red",
+                "value": 0.85
+              }
+            ]
           }
         },
         "overrides": []
@@ -6121,7 +4967,7 @@
         "h": 7,
         "w": 8,
         "x": 16,
-        "y": 278
+        "y": 375
       },
       "fieldConfig": {
         "defaults": {
@@ -6165,7 +5011,7 @@
         "h": 7,
         "w": 8,
         "x": 0,
-        "y": 285
+        "y": 382
       },
       "fieldConfig": {
         "defaults": {
@@ -6209,7 +5055,7 @@
         "h": 7,
         "w": 8,
         "x": 8,
-        "y": 285
+        "y": 389
       },
       "fieldConfig": {
         "defaults": {
@@ -6253,7 +5099,7 @@
         "h": 7,
         "w": 8,
         "x": 16,
-        "y": 285
+        "y": 396
       },
       "fieldConfig": {
         "defaults": {
@@ -6300,7 +5146,7 @@
         },
         "hide": 0,
         "includeAll": true,
-        "label": "job",
+        "label": "Service job",
         "multi": true,
         "name": "job",
         "options": [],
@@ -6310,7 +5156,8 @@
         "skipUrlSync": false,
         "sort": 1,
         "type": "query",
-        "allValue": ".*"
+        "allValue": ".*",
+        "description": "Prometheus job label for the live overlay daemon."
       }
     ]
   },
