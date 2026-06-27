@@ -319,12 +319,12 @@ groups:
           - refId: A
             datasourceUid: grafanacloud-prom
             model:
-              expr: "(sum(rate(live_overlay_smc_live_errors_total{job=\"live_overlay\"}[5m])) / clamp_min(sum(rate(live_overlay_smc_live_requests_total{job=\"live_overlay\"}[5m])), 1e-9)) / 0.01"
+              expr: "((sum(rate(live_overlay_smc_live_errors_total{job=\"live_overlay\"}[5m])) / clamp_min(sum(rate(live_overlay_smc_live_requests_total{job=\"live_overlay\"}[5m])), 1e-9)) / 0.01)"
               instant: true
           - refId: B
             datasourceUid: grafanacloud-prom
             model:
-              expr: "(sum(rate(live_overlay_smc_live_errors_total{job=\"live_overlay\"}[1h])) / clamp_min(sum(rate(live_overlay_smc_live_requests_total{job=\"live_overlay\"}[1h])), 1e-9)) / 0.01"
+              expr: "((sum(rate(live_overlay_smc_live_errors_total{job=\"live_overlay\"}[1h])) / clamp_min(sum(rate(live_overlay_smc_live_requests_total{job=\"live_overlay\"}[1h])), 1e-9)) / 0.01)"
               instant: true
           - refId: C
             datasourceUid: __expr__
@@ -345,12 +345,12 @@ groups:
           - refId: A
             datasourceUid: grafanacloud-prom
             model:
-              expr: "(sum(rate(live_overlay_smc_live_errors_total{job=\"live_overlay\"}[5m])) / clamp_min(sum(rate(live_overlay_smc_live_requests_total{job=\"live_overlay\"}[5m])), 1e-9)) / 0.01"
+              expr: "((sum(rate(live_overlay_smc_live_errors_total{job=\"live_overlay\"}[5m])) / clamp_min(sum(rate(live_overlay_smc_live_requests_total{job=\"live_overlay\"}[5m])), 1e-9)) / 0.01)"
               instant: true
           - refId: B
             datasourceUid: grafanacloud-prom
             model:
-              expr: "(sum(rate(live_overlay_smc_live_errors_total{job=\"live_overlay\"}[1h])) / clamp_min(sum(rate(live_overlay_smc_live_requests_total{job=\"live_overlay\"}[1h])), 1e-9)) / 0.01"
+              expr: "((sum(rate(live_overlay_smc_live_errors_total{job=\"live_overlay\"}[1h])) / clamp_min(sum(rate(live_overlay_smc_live_requests_total{job=\"live_overlay\"}[1h])), 1e-9)) / 0.01)"
               instant: true
           - refId: C
             datasourceUid: __expr__

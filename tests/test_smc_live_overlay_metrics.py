@@ -1440,7 +1440,10 @@ def test_dashboard_all_panels_have_stable_id() -> None:
     dashboard_path = repo_root / "services" / "live_overlay_daemon" / "infra" / "grafana" / "dashboard.json"
     dashboard = json.loads(dashboard_path.read_text(encoding="utf-8"))
     ids = []
+    panels = list(dashboard["panels"])
     for panel in dashboard["panels"]:
+        panels.extend(panel.get("panels") or [])
+    for panel in panels:
         assert "id" in panel, panel.get("title")
         assert isinstance(panel["id"], int), panel.get("title")
         ids.append(panel["id"])
