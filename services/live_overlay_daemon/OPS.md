@@ -455,6 +455,11 @@ curl -s -H "Authorization: Bearer $API_KEY" \
 
 # 2. Re-apply idempotent UX transforms
 python scripts/update_overlay_dashboard.py
+# Optional: substitute concrete Railway console IDs so dashboard links point to
+# the live-overlay service instead of placeholder URLs:
+#   RAILWAY_PROJECT_ID=<id> RAILWAY_ENVIRONMENT_ID=<id> \
+#     RAILWAY_LIVE_OVERLAY_SERVICE_ID=<id> \
+#     python scripts/update_overlay_dashboard.py
 
 # 3. Review diff, commit, open PR
 git diff services/live_overlay_daemon/infra/grafana/dashboard.json

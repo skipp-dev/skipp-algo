@@ -9,12 +9,65 @@ from __future__ import annotations
 import argparse
 import copy
 import json
+import logging
 import os
 import tempfile
 from pathlib import Path
 from typing import Any
 
 DEFAULT_DASHBOARD_PATH = Path("services/live_overlay_daemon/infra/grafana/dashboard.json")
+
+logger = logging.getLogger(__name__)
+
+# Concrete Railway console URLs for live-overlay on-call.
+#
+# These IDs are *not* secrets, but they are environment-specific, so they are
+# loaded from env vars when available and fall back to documented placeholders.
+# To obtain the real URLs, open the Railway console, navigate to the live-overlay
+# service, and copy the URLs from the browser address bar for Logs / Deployments /
+# Metrics. Then export the IDs below (or edit the fallback defaults) and re-run
+# this updater.
+_RAILWAY_PROJECT_ID = os.getenv("RAILWAY_PROJECT_ID", "REPLACE_PROJECT_ID")
+_RAILWAY_ENVIRONMENT_ID = os.getenv("RAILWAY_ENVIRONMENT_ID", "REPLACE_ENVIRONMENT_ID")
+_RAILWAY_LIVE_OVERLAY_SERVICE_ID = os.getenv(
+    "RAILWAY_LIVE_OVERLAY_SERVICE_ID", "REPLACE_LIVE_OVERLAY_SERVICE_ID"
+)
+_RAILWAY_SIGNALS_PRODUCER_SERVICE_ID = os.getenv(
+    "RAILWAY_SIGNALS_PRODUCER_SERVICE_ID", "REPLACE_SIGNALS_PRODUCER_SERVICE_ID"
+)
+
+RAILWAY_LINKS: dict[str, str] = {
+    "live_overlay_logs": (
+        f"https://railway.com/project/{_RAILWAY_PROJECT_ID}/service/"
+        f"{_RAILWAY_LIVE_OVERLAY_SERVICE_ID}/logs?environmentId={_RAILWAY_ENVIRONMENT_ID}"
+    ),
+    "live_overlay_deployments": (
+        f"https://railway.com/project/{_RAILWAY_PROJECT_ID}/service/"
+        f"{_RAILWAY_LIVE_OVERLAY_SERVICE_ID}/deployments?environmentId={_RAILWAY_ENVIRONMENT_ID}"
+    ),
+    "live_overlay_metrics": (
+        f"https://railway.com/project/{_RAILWAY_PROJECT_ID}/service/"
+        f"{_RAILWAY_LIVE_OVERLAY_SERVICE_ID}/metrics?environmentId={_RAILWAY_ENVIRONMENT_ID}"
+    ),
+    "signals_producer_logs": (
+        f"https://railway.com/project/{_RAILWAY_PROJECT_ID}/service/"
+        f"{_RAILWAY_SIGNALS_PRODUCER_SERVICE_ID}/logs?environmentId={_RAILWAY_ENVIRONMENT_ID}"
+    ),
+    "signals_producer_deployments": (
+        f"https://railway.com/project/{_RAILWAY_PROJECT_ID}/service/"
+        f"{_RAILWAY_SIGNALS_PRODUCER_SERVICE_ID}/deployments?environmentId={_RAILWAY_ENVIRONMENT_ID}"
+    ),
+}
+
+# Generic Railway URLs that must never appear in the committed dashboard.
+_GENERIC_RAILWAY_URLS = {
+    "https://railway.app/project",
+    "https://railway.app/project/deployments",
+    "https://railway.app/project/metrics",
+    "https://railway.com/project",
+    "https://railway.com/project/deployments",
+    "https://railway.com/project/metrics",
+}
 
 # Semantic, desaturated Grafana named colors used across the dashboard.
 COLOR_OK = "dark-green"
@@ -540,6 +593,177 @@ def _ensure_railway_status_panels(data: dict[str, Any]) -> bool:
     return True
 
 
+def _railway_link(title: str, key: str) -> dict[str, Any]:
+    """Return a Grafana v1 dashboard link object for a concrete Railway URL."""
+    return {
+        "title": title,
+        "type": "link",
+        "url": RAILWAY_LINKS[key],
+        "targetBlank": True,
+    }
+
+
+def _fix_triage_guide_railway_links(data: dict[str, Any]) -> bool:
+    """Replace generic Railway links in the Incident Triage Guide with concrete URLs."""
+    changed = False
+    for panel in _iter_v1_panels(data):
+        if panel.get("title") != "Incident Triage Guide":
+            continue
+        options = panel.setdefault("options", {})
+        content = options.get("content", "")
+        if not content:
+            continue
+
+        new_content = content
+        # Replace the three known generic Railway console URLs anywhere they
+        # appear inside the guide (markdown links or bare references).
+        url_replacements = [
+            ("https://railway.app/project/metrics", RAILWAY_LINKS["live_overlay_metrics"]),
+            ("https://railway.app/project/deployments", RAILWAY_LINKS["live_overlay_deployments"]),
+            ("https://railway.app/project", RAILWAY_LINKS["live_overlay_logs"]),
+        ]
+        for old_url, new_url in url_replacements:
+            if old_url in new_content:
+                new_content = new_content.replace(old_url, new_url)
+        if new_content != content:
+            options["content"] = new_content
+            changed = True
+
+        runbook_line = "Runbook: [README](https://github.com/skippALGO/skipp-algo/blob/main/services/live_overlay_daemon/README.md)"
+        quick_links_header = "\n\n---\n**Quick links** "
+        quick_links_line = (
+            quick_links_header
+            + f"\u00b7 [Railway logs]({RAILWAY_LINKS['live_overlay_logs']}) "
+            + f"\u00b7 [Railway deployments]({RAILWAY_LINKS['live_overlay_deployments']}) "
+            + "\u00b7 [GitHub Actions](https://github.com/skippALGO/skipp-algo/actions) "
+            + "\u00b7 [Runbook: live-overlay on-call](https://github.com/skippALGO/skipp-algo/blob/main/services/live_overlay_daemon/OPS.md)"
+        )
+        if quick_links_header not in new_content and runbook_line in new_content:
+            options["content"] = new_content.replace(runbook_line, runbook_line + quick_links_line)
+            changed = True
+
+    return changed
+
+
+def _ensure_railway_resource_links(data: dict[str, Any]) -> bool:
+    """Ensure the dashboard has concrete Railway resource links.
+
+    Rewrites dashboard-level ``data["links"]``, per-panel ``panel["links"]``,
+    ``fieldConfig.defaults.links`` and ``fieldConfig.overrides`` link entries.
+    Stale generic entries are removed and replaced with concrete
+    service-scoped URLs.
+    """
+    changed = False
+
+    def _clean_links(links: list[dict[str, Any]]) -> list[dict[str, Any]]:
+        nonlocal changed
+        kept: list[dict[str, Any]] = []
+        for link in links:
+            url = link.get("url", "")
+            if any(url.startswith(generic) for generic in _GENERIC_RAILWAY_URLS):
+                changed = True
+                continue
+            kept.append(link)
+        return kept
+
+    def _rewrite_links_in_obj(obj: Any) -> Any:
+        nonlocal changed
+        if isinstance(obj, list):
+            new_list: list[Any] = []
+            for item in obj:
+                if isinstance(item, dict) and "url" in item:
+                    url = item.get("url", "")
+                    if any(url.startswith(generic) for generic in _GENERIC_RAILWAY_URLS):
+                        # Keep the same title if it maps to a known concrete link,
+                        # otherwise drop the stale generic entry.
+                        title = item.get("title", "")
+                        title_to_key = {
+                            "Railway logs": "live_overlay_logs",
+                            "Railway deployments": "live_overlay_deployments",
+                            "Railway metrics": "live_overlay_metrics",
+                        }
+                        if title in title_to_key:
+                            new_list.append(_railway_link(title, title_to_key[title]))
+                        else:
+                            changed = True
+                        continue
+                new_list.append(_rewrite_links_in_obj(item))
+            return new_list
+        if isinstance(obj, dict):
+            return {k: _rewrite_links_in_obj(v) for k, v in obj.items()}
+        return obj
+
+    data["links"] = _clean_links(data.get("links", []))
+
+    desired_titles = {
+        "Railway logs": "live_overlay_logs",
+        "Railway deployments": "live_overlay_deployments",
+        "Railway metrics": "live_overlay_metrics",
+    }
+    existing_titles = {link.get("title") for link in data["links"]}
+    for title, key in desired_titles.items():
+        if title in existing_titles:
+            continue
+        data["links"].append(_railway_link(title, key))
+        changed = True
+
+    # Recursively rewrite any generic link object anywhere in v1 panels.
+    for panel in _iter_v1_panels(data):
+        rewritten = _rewrite_links_in_obj(panel)
+        if rewritten != panel:
+            panel.clear()
+            panel.update(rewritten)
+            changed = True
+
+    return changed
+
+
+def _fail_if_generic_railway_links_remain(data: dict[str, Any]) -> None:
+    """Guard: the committed dashboard must never contain generic Railway URLs.
+
+    Placeholder URLs (e.g. https://railway.com/project/REPLACE_PROJECT_ID/service/...)
+    are allowed because they signal that the real IDs need to be filled in
+    before deployment.  Bare project-root URLs and the old railway.app
+    domain are not.
+    """
+    raw = json.dumps(data)
+    hits: list[str] = []
+
+    def _collect(prefix: str) -> None:
+        start_idx = 0
+        while True:
+            idx = raw.find(prefix, start_idx)
+            if idx == -1:
+                break
+            end_idx = raw.find(chr(34), idx)
+            url = raw[idx:end_idx] if end_idx != -1 else raw[idx:]
+            if url not in hits:
+                hits.append(url)
+            start_idx = idx + 1
+
+    # Old railway.app domain is never acceptable.
+    _collect("https://railway.app/project")
+
+    # railway.com/project without a concrete /service/<id> path is too generic.
+    start_idx = 0
+    while True:
+        idx = raw.find("https://railway.com/project", start_idx)
+        if idx == -1:
+            break
+        end_idx = raw.find(chr(34), idx)
+        url = raw[idx:end_idx] if end_idx != -1 else raw[idx:]
+        if "/service/" not in url and url not in hits:
+            hits.append(url)
+        start_idx = idx + 1
+
+    if hits:
+        raise SystemExit(
+            f"Generic Railway URLs still present in dashboard: {hits[:5]}. "
+            "Set RAILWAY_PROJECT_ID / RAILWAY_ENVIRONMENT_ID / "
+            "RAILWAY_LIVE_OVERLAY_SERVICE_ID and re-run the updater."
+        )
+
+
 def main(argv: list[str] | None = None) -> int:
     dashboard_path = _resolve_dashboard_path(argv)
     data = _load_dashboard(dashboard_path)
@@ -550,6 +774,8 @@ def main(argv: list[str] | None = None) -> int:
         # and would corrupt v1 panels, so for v1 we only self-heal the
         # UptimeRobot panel and write back idempotently (version bumps only when
         # something actually changed).
+        changed = _ensure_railway_resource_links(data)
+        changed = _fix_triage_guide_railway_links(data) or changed
         changed = _ensure_uptimerobot_panel(data)
         changed = _fix_bridge_scrapes_panel(data) or changed
         changed = _fix_bridge_error_panels(data) or changed
@@ -559,6 +785,7 @@ def main(argv: list[str] | None = None) -> int:
         if changed:
             data["version"] = int(data.get("version", 0) or 0) + 1
         _save_dashboard(dashboard_path, data)
+        _fail_if_generic_railway_links_remain(data)
         print(f"Updated {dashboard_path} (v1, version={data.get('version')})")
         return 0
 
