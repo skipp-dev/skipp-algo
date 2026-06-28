@@ -8,10 +8,14 @@ All notable changes to this project are documented in this file.
 ### Fixed (2026-06-28) — Live overlay dashboard UX follow-up tests and drilldown links
 
 - `scripts/update_overlay_dashboard.py`:
-  - **Signal Pipeline Ready** now links directly to the concrete detail
-    panels **Readiness Components Timeline** (panel 1580287418) and
-    **Scrape Targets Up** (panel 2133310723) instead of the collapsed row
-    header, so the 3 a.m. on-call click lands closer to the cause.
+  - **Signal Pipeline Ready** now links directly to the concrete
+    signal-producer detail panels **Open-Prep Snapshot** (panel 2165782568),
+    **Watchlist Symbols** (panel 2165782569), and **Producer Poll Age**
+    (panel 2165782570), plus **Scrape Targets Up** (panel 2133310723) and
+    the signals-producer Railway logs. Legacy links to the collapsed row
+    header (panel 2133310722) and live-overlay readiness timeline
+    (panel 1580287418) are removed so the 3 a.m. on-call click lands on the
+    actual signal-pipeline cause.
   - Dashboard JSON is now written with `ensure_ascii=False`, keeping
     Unicode characters literal and reducing future diff noise.
 - `services/live_overlay_daemon/infra/grafana/dashboard.json`:
