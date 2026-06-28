@@ -93,7 +93,7 @@
 | `services/live_overlay_daemon/Dockerfile` | Container-Image |
 | `services/live_overlay_daemon/infra/alloy/config.alloy` | Alloy-Config des `metrics-collector` |
 
-**`railway.toml` (smc-live-overlay):**
+**`railway.toml` (`live_overlay_daemon`):**
 ```toml
 [build]
 builder = "DOCKERFILE"
@@ -114,14 +114,14 @@ Railway deployed automatisch, sobald ein Commit auf dem verknüpften Branch land
 
 ```bash
 # Status und Logs
-railway status -s smc-live-overlay
-railway logs -s smc-live-overlay
+railway status -s live_overlay_daemon
+railway logs -s live_overlay_daemon
 
 # Einmalig deployen (ohne Push)
-railway up -s smc-live-overlay
+railway up -s live_overlay_daemon
 
 # Kommando im Kontext des Services ausführen (mit dessen Env-Vars)
-railway run -s smc-live-overlay python -c "import os; print(os.environ.get('PORT'))"
+railway run -s live_overlay_daemon python -c "import os; print(os.environ.get('PORT'))"
 
 # /health prüfen
 curl https://liveoverlaydaemon-production.up.railway.app/health
@@ -134,22 +134,22 @@ curl https://liveoverlaydaemon-production.up.railway.app/ready
 
 | Variable | Service | Pflicht | Beschreibung |
 |----------|---------|---------|--------------|
-| `DATABENTO_API_KEY` | smc-live-overlay | ✅ | Databento API key (Unlimited) |
-| `OVERLAY_SECRET_TOKEN` | smc-live-overlay | ✅ | Shared Secret für `/metrics` Basic Auth und `/smc_live` URL |
-| `PORT` | smc-live-overlay | ✅ | von Railway injiziert |
-| `LIVE_OVERLAY_EXPECT_MARKET_TRAFFIC` | smc-live-overlay | optional | `1` in production wenn TradingView/Pine Traffic während US-Marktöffnung erwartet wird; default `0` hält den first-zero Traffic-Alert deaktiviert. |
-| `UPTIMEROBOT_API_KEY` | smc-live-overlay | optional | API-Key für UptimeRobot-Bridge |
-| `UPTIMEROBOT_MONITOR_IDS` | smc-live-overlay | optional | Kommagetrennte Monitor-IDs |
-| `GITHUB_WORKFLOW_MONITOR_TOKEN` | smc-live-overlay | optional | GitHub PAT für Workflow-Bridge |
-| `GITHUB_WORKFLOW_MONITOR_REPO` | smc-live-overlay | optional | `owner/repo`, default `skippALGO/skipp-algo` |
-| `NEWS_SNAPSHOT_PATH` | smc-live-overlay | optional | Pfad zum News-Snapshot-JSON |
-| `OVERLAY_SERVICE_URL` | metrics-collector | ✅ | `smc-live-overlay.railway.internal:PORT` |
-| `SIGNALS_SERVICE_URL` | smc-live-overlay, metrics-collector | ✅ | `smc-signals-producer.railway.internal:PORT` — internal host:port of the signals producer; Alloy scrapes `/metrics`, smc-live-overlay fetches `/signals` |
+| `DATABENTO_API_KEY` | live_overlay_daemon | ✅ | Databento API key (Unlimited) |
+| `OVERLAY_SECRET_TOKEN` | live_overlay_daemon | ✅ | Shared Secret für `/metrics` Basic Auth und `/smc_live` URL |
+| `PORT` | live_overlay_daemon | ✅ | von Railway injiziert |
+| `LIVE_OVERLAY_EXPECT_MARKET_TRAFFIC` | live_overlay_daemon | optional | `1` in Production, wenn TradingView/Pine-Traffic während US Market Open erwartet wird; default `0` lässt den First-Zero-Traffic-Alert deaktiviert |
+| `UPTIMEROBOT_API_KEY` | live_overlay_daemon | optional | API-Key für UptimeRobot-Bridge |
+| `UPTIMEROBOT_MONITOR_IDS` | live_overlay_daemon | optional | Kommagetrennte Monitor-IDs; Production-Allowlist: `803309701,803341452,803343155,803343156,803362511` |
+| `GITHUB_WORKFLOW_MONITOR_TOKEN` | live_overlay_daemon | optional | GitHub PAT für Workflow-Bridge |
+| `GITHUB_WORKFLOW_MONITOR_REPO` | live_overlay_daemon | optional | `owner/repo`, default `skippALGO/skipp-algo` |
+| `NEWS_SNAPSHOT_PATH` | live_overlay_daemon | optional | Pfad zum News-Snapshot-JSON |
+| `OVERLAY_SERVICE_URL` | metrics-collector | ✅ | Scrape target ohne Scheme, aktuell `liveoverlaydaemon-production.up.railway.app`; bei Private Networking `liveoverlaydaemon.railway.internal:<PORT>` |
+| `SIGNALS_SERVICE_URL` | live_overlay_daemon, metrics-collector | ✅ | `smc-signals-producer.railway.internal:PORT` — internal host:port of the signals producer; Alloy scrapes `/metrics`, live_overlay_daemon fetches `/signals` |
 | `GRAFANA_CLOUD_PROM_URL` | metrics-collector | ✅ | Grafana Cloud Remote-Write-URL |
 | `GRAFANA_CLOUD_USER` | metrics-collector | ✅ | Grafana Cloud Stack-ID (numerisch) |
 | `GRAFANA_CLOUD_API_KEY` | metrics-collector | ✅ | Grafana Cloud API-Key (MetricsPublisher) |
-| `OVERLAY_SECRET_TOKEN` | metrics-collector | ✅ | gleicher Token wie in smc-live-overlay |
-| `SIGNALS_INTERNAL_TOKEN` | smc-live-overlay, metrics-collector, smc-signals-producer | ✅ | Shared-Secret für `/signals`- und `/metrics`-Endpoint (Bearer-Token); smc-live-overlay und Alloy senden diesen Token beim Aufruf |
+| `OVERLAY_SECRET_TOKEN` | metrics-collector | ✅ | gleicher Token wie in live_overlay_daemon |
+| `SIGNALS_INTERNAL_TOKEN` | live_overlay_daemon, metrics-collector, smc-signals-producer | ✅ | Shared-Secret für `/signals`- und `/metrics`-Endpoint (Bearer-Token); live_overlay_daemon und Alloy senden diesen Token beim Aufruf |
 
 ### Alloy-Konfiguration aktualisieren
 
@@ -367,6 +367,9 @@ Prometheus-Scrape (/metrics)
 ### Authentication
 
 - API-Key in Railway-Variable `UPTIMEROBOT_API_KEY` (Read-Only-Key ausreichend).
+- Production setzt `UPTIMEROBOT_MONITOR_IDS` auf
+  `803309701,803341452,803343155,803343156,803362511`, damit neue
+  UptimeRobot-Monitore nicht automatisch die Bridge-Aggregate verändern.
 - Kein Outbound-Request wenn `UPTIMEROBOT_API_KEY` fehlt → Bridge-Metriken zeigen
   `enabled=0`, kein Fehler.
 
@@ -507,10 +510,10 @@ curl -s https://liveoverlaydaemon-production.up.railway.app/ready | python3 -m j
 TOKEN=$(security find-generic-password -s skipp.grafana.api -a "$USER" -w)  # Achtung: Overlay-Token verwenden!
 # Besser via railway run:
 railway run -s metrics-collector curl -s -u "metrics:$OVERLAY_SECRET_TOKEN" \
-  http://smc-live-overlay.railway.internal:$PORT/metrics | head -30
+  "https://$OVERLAY_SERVICE_URL/metrics" | head -30
 
 # Logs
-railway logs -s smc-live-overlay --tail 100
+railway logs -s live_overlay_daemon --tail 100
 railway logs -s metrics-collector --tail 50
 ```
 
@@ -549,7 +552,7 @@ git push
 ### UptimeRobot-Bridge debuggen
 
 ```bash
-railway run -s smc-live-overlay python3 - <<'PY'
+railway run -s live_overlay_daemon python3 - <<'PY'
 from services.live_overlay_daemon import uptimerobot_bridge
 import json
 snap = uptimerobot_bridge.snapshot()

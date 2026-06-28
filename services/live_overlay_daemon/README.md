@@ -212,8 +212,9 @@ All numeric fields are `null`, all bool fields are `false`, `stale: true`.
 | `TRADINGVIEW_CREDENTIAL_SNAPSHOT_URL_TOKEN` | ❌ | *(unset)* | Optional bearer token for `TRADINGVIEW_CREDENTIAL_SNAPSHOT_URL` |
 | `OVERLAY_TRADINGVIEW_CREDENTIAL_CACHE_TTL_SECS` | ❌ | `3600` | Credential-health report cache TTL in seconds (range 60–86400) |
 | `OVERLAY_MAX_FEED_FAILURES` | ❌ | `50` | Circuit-breaker threshold for consecutive feed failures (range 1–1000) |
+| `LIVE_OVERLAY_EXPECT_MARKET_TRAFFIC` | ❌ | `0` | Set to `1` in production deployments that should receive TradingView/Pine `/smc_live` traffic during US market-open windows; arms the first-zero traffic alert |
 | `UPTIMEROBOT_API_KEY` | ❌ | *(unset)* | Enables optional UptimeRobot API bridge metrics in `/metrics` |
-| `UPTIMEROBOT_MONITOR_IDS` | ❌ | *(all monitors)* | Comma-separated monitor IDs to include in bridge poll |
+| `UPTIMEROBOT_MONITOR_IDS` | ❌ | *(all monitors)* | Comma-separated monitor IDs to include in bridge poll; production allowlist: `803309701,803341452,803343155,803343156,803362511` |
 | `UPTIMEROBOT_TIMEOUT_SECS` | ❌ | `5` | UptimeRobot API timeout in seconds (range 1–30) |
 | `UPTIMEROBOT_POLL_TTL_SECS` | ❌ | `30` | In-process cache TTL for UptimeRobot snapshot (range 5–300) |
 | `GITHUB_WORKFLOW_MONITOR_TOKEN` | ❌ | *(unset)* | Enables optional GitHub Actions workflow bridge metrics in `/metrics` |
@@ -319,7 +320,8 @@ those instead.
 ### Railway.app (production)
 
 - **URL:** `https://liveoverlaydaemon-production.up.railway.app`
-- **Plan:** Starter (512 MB RAM)
+- **Railway service:** `live_overlay_daemon`
+- **Runtime memory limit:** currently reported by Railway metrics as 8 GB
 - **Builder:** Dockerfile (`services/live_overlay_daemon/Dockerfile`)
 - **Root Directory:** *(empty — repo root is build context)*
 - **Branch:** `main` (switch after merging `feat/live-overlay-daemon`)
