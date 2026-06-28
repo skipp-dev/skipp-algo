@@ -82,7 +82,7 @@ Required Alloy environment variables:
 | Variable | Source | Purpose |
 |----------|--------|---------|
 | `OVERLAY_SECRET_TOKEN` | Same as daemon | Basic-auth password for `/metrics` |
-| `OVERLAY_SERVICE_URL` | Railway internal DNS, e.g. `smc-live-overlay.railway.internal:$PORT` | Scrape target host:port |
+| `OVERLAY_SERVICE_URL` | Railway host:port without scheme, e.g. public `liveoverlaydaemon-production.up.railway.app` or private `liveoverlaydaemon.railway.internal:<PORT>` | Scrape target host:port |
 | `GRAFANA_CLOUD_PROM_URL` | Grafana Cloud stack settings | Remote-write URL |
 | `GRAFANA_CLOUD_USER` | Grafana Cloud stack settings | Remote-write user |
 | `GRAFANA_CLOUD_API_KEY` | Grafana Cloud API key | Remote-write password |
@@ -110,18 +110,19 @@ restartPolicyType = "ON_FAILURE"
 restartPolicyMaxRetries = 3
 
 [[services]]
-name = "smc-live-overlay"
+name = "live_overlay_daemon"
 ```
 
 ### Environment variables
 
-#### Daemon (`smc-live-overlay`)
+#### Daemon (`live_overlay_daemon`)
 
 | Variable | Required | Default | Purpose |
 |----------|----------|---------|---------|
 | `DATABENTO_API_KEY` | yes | — | Databento live feed API key |
 | `OVERLAY_SECRET_TOKEN` | yes | — | HMAC + `/metrics` basic-auth secret |
 | `PORT` | yes | Railway injects | HTTP listen port |
+| `LIVE_OVERLAY_EXPECT_MARKET_TRAFFIC` | no | `0` | Set to `1` in production deployments that should receive TradingView/Pine `/smc_live` traffic during US market-open windows; arms the first-zero traffic alert |
 | `LIVE_OVERLAY_INGEST_QUEUE_MAX` | no | 10000 | Max queued bars before drop |
 | `LIVE_OVERLAY_RESTART_CAUSE` | no | — | Label for `live_overlay_daemon_restart_cause_*_total` |
 | `LOG_LEVEL` | no | `INFO` | Python log level |
@@ -161,7 +162,7 @@ name = "smc-live-overlay"
 | Variable | Bridge | Purpose |
 |----------|--------|---------|
 | `UPTIMEROBOT_API_KEY` | UptimeRobot | Free-tier API key |
-| `UPTIMEROBOT_MONITOR_IDS` | UptimeRobot | Comma-separated monitor IDs to poll |
+| `UPTIMEROBOT_MONITOR_IDS` | UptimeRobot | Comma-separated monitor IDs to poll; production allowlist: `803309701,803341452,803343155,803343156,803362511` |
 | `UPTIMEROBOT_POLL_TTL_SECS` | UptimeRobot | Cache TTL (default 30) |
 | `UPTIMEROBOT_TIMEOUT_SECS` | UptimeRobot | HTTP timeout (default 5) |
 | `GITHUB_WORKFLOW_MONITOR_TOKEN` | GitHub | PAT with `repo` + `actions:read` |
@@ -176,7 +177,7 @@ name = "smc-live-overlay"
 | Variable | Purpose |
 |----------|---------|
 | `OVERLAY_SECRET_TOKEN` | `/metrics` basic-auth password |
-| `OVERLAY_SERVICE_URL` | Internal scrape target, e.g. `smc-live-overlay.railway.internal:PORT` |
+| `OVERLAY_SERVICE_URL` | Scrape target without scheme, e.g. `liveoverlaydaemon-production.up.railway.app` or `liveoverlaydaemon.railway.internal:<PORT>` |
 | `GRAFANA_CLOUD_PROM_URL` | Grafana Cloud remote-write URL |
 | `GRAFANA_CLOUD_USER` | Grafana Cloud stack user |
 | `GRAFANA_CLOUD_API_KEY` | Grafana Cloud API key |
@@ -257,7 +258,7 @@ fetch the daemon atomically writes the payload back to its `*_SNAPSHOT_PATH`
 vars at it so a cold start (or a momentary URL outage) reads the last-good
 copy from the volume instead of the baked seed.
 
-- Create the volume (interactive — pick service `smc-live-overlay`, mount path `/data`):
+- Create the volume (interactive — pick service `live_overlay_daemon`, mount path `/data`):
 
 ```bash
 railway volume add
@@ -284,19 +285,19 @@ railway link
 railway status
 
 # Tail logs for the daemon
-railway logs -s smc-live-overlay -f
+railway logs -s live_overlay_daemon -f
 
 # Tail logs for the Alloy collector
-railway logs -s alloy -f
+railway logs -s metrics-collector -f
 
 # Deploy current branch
 railway up
 
 # Run a one-off shell in the daemon container
-railway run --service smc-live-overlay bash
+railway run --service live_overlay_daemon bash
 
 # Pull remote env vars to local .env
-railway variable list --service smc-live-overlay
+railway variable list --service live_overlay_daemon
 ```
 
 ---
@@ -390,6 +391,30 @@ Therefore the panel expression reads:
   effectively zero.
 - `2` = `TRAFFIC_OK` — US regular session is open and `/smc_live` traffic is
   present.
+
+#### Expected market traffic alert rollout
+
+`LIVE_OVERLAY_EXPECT_MARKET_TRAFFIC` controls whether the deployment expects
+`/smc_live` request traffic during US market-open windows.
+
+- `0` default: first-zero traffic alerting is disabled.
+- `1`: alert when US market is open, the daemon has been up for more than
+  10 minutes, and `/smc_live` request traffic remains near zero.
+
+Production deployments that should receive TradingView/Pine traffic must set:
+
+```env
+LIVE_OVERLAY_EXPECT_MARKET_TRAFFIC=1
+```
+
+After rollout, verify:
+
+```promql
+live_overlay_expected_market_traffic{job="live_overlay"} == 1
+```
+
+Local, dev, and warm-standby deployments should normally leave the value at
+`0`.
 
 
 ### Dashboard masking semantics
@@ -587,13 +612,13 @@ sum by (__name__) (
 
 Implementation: `services/live_overlay_daemon/uptimerobot_bridge.py`
 
-### What it does (GitHub bridge)
+### What it does (UptimeRobot bridge)
 
 - Polls the UptimeRobot V2 `getMonitors` endpoint.
 - Caches results in-process for `UPTIMEROBOT_POLL_TTL_SECS`.
 - Emits Prometheus gauges for each configured monitor.
 
-### Exported metrics (GitHub bridge)
+### Exported metrics (UptimeRobot bridge)
 
 | Metric | Type | Labels | Description |
 |--------|------|--------|-------------|
@@ -622,8 +647,14 @@ Implementation: `services/live_overlay_daemon/uptimerobot_bridge.py`
 ### Setup
 
 1. Get a free UptimeRobot API key.
-2. Add `UPTIMEROBOT_API_KEY` to Railway service.
-3. Add `UPTIMEROBOT_MONITOR_IDS` comma-separated list of monitor IDs.
+2. Add `UPTIMEROBOT_API_KEY` to the `live_overlay_daemon` Railway service.
+3. Add `UPTIMEROBOT_MONITOR_IDS` as a comma-separated allowlist. Production
+   currently monitors:
+
+   ```env
+   UPTIMEROBOT_MONITOR_IDS=803309701,803341452,803343155,803343156,803362511
+   ```
+
 4. Restart the daemon.
 
 ---
@@ -710,7 +741,7 @@ railway up
 ### Restart the daemon
 
 ```bash
-railway redeploy --service smc-live-overlay
+railway redeploy --service live_overlay_daemon
 ```
 
 ### Check current health
@@ -758,9 +789,9 @@ python -m pytest tests/test_live_overlay_infra_alloy_contracts.py -v
 
 | Symptom | First check | Command / Link |
 |---------|-------------|----------------|
-| Feed unhealthy while market open | Railway logs | `railway logs -s smc-live-overlay -f` |
+| Feed unhealthy while market open | Railway logs | `railway logs -s live_overlay_daemon -f` |
 | Workers unhealthy | Worker Liveness panel | Grafana dashboard |
-| Overlay stale | Compute cycle logs | `railway logs -s smc-live-overlay -f` |
+| Overlay stale | Compute cycle logs | `railway logs -s live_overlay_daemon -f` |
 | Bridge scrape error | API tokens / quotas | UptimeRobot / GitHub status pages |
 | Grey vertical lines on time-series | Recent deploy/restart | Grafana annotations |
 

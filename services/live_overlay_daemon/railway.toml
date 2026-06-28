@@ -10,4 +10,4 @@ restartPolicyType = "ON_FAILURE"
 restartPolicyMaxRetries = 3
 
 [[services]]
-name = "smc-live-overlay"
+name = "live_overlay_daemon"
