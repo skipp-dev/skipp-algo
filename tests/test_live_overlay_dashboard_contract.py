@@ -213,6 +213,31 @@ def test_dashboard_bridge_scrapes_aggregates_by_job_and_gates_enabled() -> None:
     assert mappings.get(1) == "OK"
 
 
+def test_dashboard_railway_bridge_state_uses_enabled_plus_success() -> None:
+    """Railway state panel must add enabled + scrape_success without inverted comparisons."""
+    dashboard = json.loads(_DASHBOARD_JSON.read_text(encoding="utf-8"))
+    panel = next(p for p in _dashboard_panels(dashboard) if p.get("title") == "Railway Metrics Bridge")
+    expr = panel["targets"][0]["expr"]
+
+    assert 'live_overlay_bridge_enabled{job=~"$job",bridge="railway_metrics"}' in expr
+    assert 'live_overlay_bridge_scrape_success{job=~"$job",bridge="railway_metrics"}' in expr
+    assert "== 0" not in expr
+    assert "== 1" not in expr
+
+
+def test_alert_rules_include_generic_bridge_failure_alert() -> None:
+    """Generic bridge failure alert must use enabled + scrape_success without configured gate."""
+    rules_doc = yaml.safe_load(_ALERT_RULES_YAML.read_text(encoding="utf-8"))
+    rules = [r for group in rules_doc["groups"] for r in group["rules"]]
+    rule = next(r for r in rules if r.get("uid") == "lo-bridge-scrape-failed")
+    expr = rule["data"][0]["model"]["expr"]
+
+    assert "live_overlay_bridge_enabled" in expr
+    assert "live_overlay_bridge_scrape_success" in expr
+    assert "on(job, bridge)" in expr
+    assert "live_overlay_bridge_configured" not in expr
+
+
 def test_dashboard_bridge_state_panels_aggregate_by_job() -> None:
     """Bridge state panels must expose per-job state without an always-present 0 fallback."""
     dashboard = json.loads(_DASHBOARD_JSON.read_text(encoding="utf-8"))

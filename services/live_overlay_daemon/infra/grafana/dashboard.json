@@ -5465,7 +5465,7 @@
       },
       "targets": [
         {
-          "expr": "max(live_overlay_railway_metrics_error_info{job=~\"$job\",error!=\"none\"} or vector(0))",
+          "expr": "max by (job, bridge, error) (\n  live_overlay_bridge_error_info{\n    job=~\"$job\",\n    bridge=\"railway_metrics\",\n    error!=\"none\"\n  }\n) or vector(0)",
           "legendFormat": "{{error}}",
           "instant": true,
           "datasource": {

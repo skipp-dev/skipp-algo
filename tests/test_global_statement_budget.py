@@ -260,8 +260,10 @@ _FROZEN_SITES: frozenset[tuple[str, int, tuple[str, ...]]] = frozenset(
         ("services/live_overlay_daemon/uptimerobot_bridge.py", 140, ("_cached_at_monotonic", "_cached_snapshot")),
         # 2026-06-24 (feat/railway-metrics): Railway GraphQL bridge for container
         # metrics exposes a lazily-refreshed TTL cache (mirroring uptimerobot).
-        ("services/live_overlay_daemon/railway_metrics.py", 198, ("_CACHE", "_CACHE_EXPIRES_AT")),
-        ("services/live_overlay_daemon/railway_metrics.py", 238, ("_CACHE", "_CACHE_EXPIRES_AT")),
+        # 2026-06-25 (fix/live-overlay-bridge-contract-followup): added
+        # _failed_snapshot helper shifted snapshot() and reset_cache() globals.
+        ("services/live_overlay_daemon/railway_metrics.py", 226, ("_CACHE", "_CACHE_EXPIRES_AT")),
+        ("services/live_overlay_daemon/railway_metrics.py", 271, ("_CACHE", "_CACHE_EXPIRES_AT")),
         # 2026-06-19 (fix/live-overlay-post-merge-bugs): added non-finite JSON
         # sanitization helper and related imports, shifting _startup_ts line.
         # 2026-06-19 (Copilot follow-up): _VALID_TFS contract alignment shifted
