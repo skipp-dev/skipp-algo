@@ -195,7 +195,7 @@ def test_update_script_is_idempotent(temp_dashboard: Path) -> None:
     assert first == second, "Re-running the updater changed dashboard.json body"
 
 
-def test_update_script_readds_missing_uptimerobot_panel_idempotently(tmp_path: Path) -> None:
+def test_update_script_re_adds_missing_uptimerobot_panel_idempotently(tmp_path: Path) -> None:
     """_ensure_uptimerobot_panel re-adds a missing panel and bumps version."""
     repo_root = Path(__file__).resolve().parents[1]
     src = repo_root / "services" / "live_overlay_daemon" / "infra" / "grafana" / "dashboard.json"
