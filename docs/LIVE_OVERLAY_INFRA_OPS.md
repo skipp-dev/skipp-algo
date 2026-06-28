@@ -453,15 +453,15 @@ CI-Workflows und exportiert ihn als Prometheus-Gauges.
 
 | Von → Nach | Protokoll | Auth | Richtung | Trigger |
 |------------|-----------|------|----------|---------|
-| Grafana Alloy → `smc-live-overlay /metrics` | HTTP Basic | `metrics` / `OVERLAY_SECRET_TOKEN` | Pull | alle 30 s |
+| Grafana Alloy → `live_overlay_daemon /metrics` | HTTP Basic | `metrics` / `OVERLAY_SECRET_TOKEN` | Pull | alle 30 s |
 | Grafana Alloy → `smc-signals-producer /metrics` | HTTP Bearer | `SIGNALS_INTERNAL_TOKEN` (same token shared with metrics-collector) | Pull | alle 30 s |
 | Grafana Alloy → Alloy self `127.0.0.1:12345/metrics` | HTTP | keine (loopback) | Pull | alle 30 s |
 | Grafana Alloy → Grafana Cloud Prometheus | HTTPS Basic | `GRAFANA_CLOUD_USER` / `GRAFANA_CLOUD_API_KEY` | Push (remote-write) | kontinuierlich |
-| `smc-live-overlay` → UptimeRobot API | HTTPS POST | `UPTIMEROBOT_API_KEY` in Request-Body | Pull | bei Scrape (TTL 30 s) |
-| `smc-live-overlay` → GitHub API | HTTPS | `GITHUB_WORKFLOW_MONITOR_TOKEN` Bearer | Pull | bei Scrape (TTL 30 s) |
+| `live_overlay_daemon` → UptimeRobot API | HTTPS POST | `UPTIMEROBOT_API_KEY` in Request-Body | Pull | bei Scrape (TTL 30 s) |
+| `live_overlay_daemon` → GitHub API | HTTPS | `GITHUB_WORKFLOW_MONITOR_TOKEN` Bearer | Pull | bei Scrape (TTL 30 s) |
 | Entwickler-Mac → Grafana API | HTTPS Bearer | Keychain `skipp.grafana.api` | Push | manuell / bei Dashboard-Update |
 | Railway → GitHub | HTTPS | Railway OAuth App | Pull (Webhook) | bei git push |
-| Pine Script → `smc-live-overlay /smc_live` | HTTPS | `OVERLAY_SECRET_TOKEN` im URL-Pfad | Pull | bei Chart-Request |
+| Pine Script → `live_overlay_daemon /smc_live` | HTTPS | `OVERLAY_SECRET_TOKEN` im URL-Pfad | Pull | bei Chart-Request |
 
 ### Private Networking fuer `live_overlay` Metrics
 
@@ -578,8 +578,8 @@ curl -s https://liveoverlaydaemon-production.up.railway.app/ready | python3 -m j
 # Prometheus-Metriken (Basic Auth)
 TOKEN=$(security find-generic-password -s skipp.grafana.api -a "$USER" -w)  # Achtung: Overlay-Token verwenden!
 # Besser via railway run:
-railway run -s metrics-collector curl -s -u "metrics:$OVERLAY_SECRET_TOKEN" \
-  "https://$OVERLAY_SERVICE_URL/metrics" | head -30
+railway run -s metrics-collector curl -sL -u "metrics:$OVERLAY_SECRET_TOKEN" \
+  "http://$OVERLAY_SERVICE_URL/metrics" | head -30
 
 # Logs
 railway logs -s live_overlay_daemon --tail 100
