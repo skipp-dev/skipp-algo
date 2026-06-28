@@ -609,15 +609,14 @@ Operational UX additions:
   them with `RAILWAY_PROJECT_ID`, `RAILWAY_ENVIRONMENT_ID`,
   `RAILWAY_LIVE_OVERLAY_SERVICE_ID`, and
   `RAILWAY_SIGNALS_PRODUCER_SERVICE_ID` before running the updater.
-- Known UX follow-ups not yet addressed:
-  - `Bridge Scrape Health Timeline` currently lives under
-    `Reliability Drill-down` but logically belongs in
-    `External Integrations`.
-  - `GitHub Workflows — Latest Run Detail` currently lives under
-    `Collector / Scrape Targets` but logically belongs in
-    `External Integrations`.
-  Moving them requires a larger grid refactor; the current contract tests pin
-  the existing positions so the misplacement is explicit and safe to revisit.
+- External-integration detail panels are co-located under
+  `External Integrations`. `Bridge Scrape Health Timeline` and
+  `GitHub Workflows — Latest Run Detail` live before the UptimeRobot and
+  GitHub workflow detail panels so service owners can inspect external bridge
+  health in one section.
+- Detail rows are collapsed by default to keep first-screen incident triage
+  focused. Top-level incident panels provide direct drilldown links before a
+  detail row is collapsed.
 - Contract tests guard against regressions:
   - `test_dashboard_has_no_grid_overlaps`
   - `test_dashboard_user_impact_block_is_promoted_to_top`
