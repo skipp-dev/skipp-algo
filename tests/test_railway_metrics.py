@@ -387,8 +387,10 @@ def test_render_metrics_uses_last_success_for_bridge_age() -> None:
         "error": "network_error",
         "services": [],
     }
-    with patch.object(metrics.railway_metrics, "snapshot", return_value=snapshot):
-        with patch("services.live_overlay_daemon.metrics.time.time", return_value=1_300.0):
-            text = metrics.render_metrics(startup_ts=1_300.0)
+    with (
+        patch.object(metrics.railway_metrics, "snapshot", return_value=snapshot),
+        patch("services.live_overlay_daemon.metrics.time.time", return_value=1_300.0),
+    ):
+        text = metrics.render_metrics(startup_ts=1_300.0)
 
     assert 'live_overlay_bridge_last_success_age_seconds{bridge="railway_metrics"} 300' in text
