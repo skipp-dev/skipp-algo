@@ -397,6 +397,31 @@ false `MARKET_CLOSED` reading during the European pre-US session even though
 the daemon was active and healthy.
 
 
+### Dashboard masking semantics
+
+The dashboard intentionally masks data in a few panels so on-call does not
+chase false reds:
+
+- **Market Data Freshness** — computed only while `live_overlay_market_us_open`
+  is `1`. When the selected interval contains no US market-open samples, Grafana
+  shows `MARKET CLOSED` via `noValue` instead of `0.00 %`.
+
+- **External Checks** — votes only from bridges that are enabled
+  (`live_overlay_*_bridge_enabled == 1`). When neither UptimeRobot nor GitHub
+  Workflow bridges are enabled, the panel shows `NO CHECKS CONFIGURED`
+  (`-1`) instead of `SCRAPE ERROR` (`0`).
+
+- **Core Metrics Present** — counts how many of the four critical series are
+  missing (`uptime_seconds`, `overlay_fresh`, `market_us_open`,
+  `last_bar_age_known`). A partial exporter regression that still serves
+  `uptime_seconds` but drops the others now turns red.
+
+- **Railway Metrics Bridge** — distinguishes `DISABLED` (`0`), `SCRAPE ERROR`
+  (`1`) and `OK` (`2`) by combining the
+  `live_overlay_railway_metrics_configured` and
+  `live_overlay_railway_metrics_scrape_success` gauges.
+
+
 ### Dashboard upsert via API
 
 Use the following Python snippet to push the dashboard JSON from a checkout.

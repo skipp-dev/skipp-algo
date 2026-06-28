@@ -159,13 +159,13 @@ def test_market_status_description_matches_major_session_metric() -> None:
     assert "US regular" not in description or "Europe" in description, description
 
 
-def test_dashboard_railway_metrics_bridge_query_does_not_filter_value_inside_max() -> None:
-    """Railway Metrics Bridge must show 0 when disabled, not drop the series."""
+def test_dashboard_railway_metrics_bridge_query_shows_state_mapping() -> None:
+    """Railway Metrics Bridge must distinguish DISABLED, SCRAPE ERROR, OK."""
     dashboard = json.loads(_DASHBOARD_JSON.read_text(encoding="utf-8"))
     panel = next(p for p in _dashboard_panels(dashboard) if p.get("title") == "Railway Metrics Bridge")
     expr = panel["targets"][0]["expr"]
-    assert "max(live_overlay_railway_metrics_enabled" in expr
-    assert "== 1" not in expr, "value selector inside max() hides the disabled state"
+    assert "live_overlay_railway_metrics_configured" in expr
+    assert "live_overlay_railway_metrics_scrape_success" in expr
     assert "or vector(0)" in expr
 
 
@@ -182,13 +182,15 @@ def test_dashboard_market_open_request_health_uses_fixed_rate_range() -> None:
     assert "rate(live_overlay_smc_live_requests_total[5m])" not in expr
 
 
-def test_dashboard_bridge_scrapes_aggregates_by_job() -> None:
-    """External Checks should not hide a disabled job behind a global min()."""
+def test_dashboard_bridge_scrapes_aggregates_by_job_and_gates_enabled() -> None:
+    """External Checks should ignore unconfigured bridges and aggregate by job."""
     dashboard = json.loads(_DASHBOARD_JSON.read_text(encoding="utf-8"))
     panel = next(p for p in _dashboard_panels(dashboard) if p.get("title") == "External Checks")
     expr = panel["targets"][0]["expr"]
     assert "min by (job)" in expr
-    assert 'or on(job) label_replace(vector(0), "job", "live_overlay", "", "")' in expr
+    assert "live_overlay_uptimerobot_bridge_enabled" in expr
+    assert "live_overlay_github_workflow_bridge_enabled" in expr
+    assert 'or on(job) label_replace(vector(-1), "job", "live_overlay", "", "")' in expr
     assert panel["targets"][0]["legendFormat"] == "{{job}}"
 
 
@@ -1021,3 +1023,54 @@ def test_dashboard_external_integration_details_are_co_located() -> None:
     for title in ("Bridge Scrape Health Timeline", "GitHub Workflows — Latest Run Detail"):
         y = by_title[title]["gridPos"]["y"]
         assert external_row_y < y < next_row_y, f"{title} y={y} not inside External Integrations"
+
+
+def test_dashboard_external_checks_ignores_unconfigured_bridges() -> None:
+    """Unconfigured bridges must show NO CHECKS CONFIGURED, not SCRAPE ERROR."""
+    dashboard = json.loads(_DASHBOARD_JSON.read_text(encoding="utf-8"))
+    panel = next(p for p in _dashboard_panels(dashboard) if p.get("title") == "External Checks")
+    expr = panel["targets"][0]["expr"]
+    assert "live_overlay_uptimerobot_bridge_enabled" in expr
+    assert "live_overlay_github_workflow_bridge_enabled" in expr
+    assert "vector(-1)" in expr, expr
+    mappings = panel["fieldConfig"]["defaults"]["mappings"]
+    options_keys = {k for m in mappings for k in m.get("options", {})}
+    assert "-1" in options_keys, options_keys
+    labels = {m["options"][k]["text"] for m in mappings for k in m.get("options", {})}
+    assert "NO CHECKS CONFIGURED" in labels, labels
+
+
+def test_dashboard_market_data_freshness_hides_when_market_closed() -> None:
+    """Market Data Freshness must show MARKET CLOSED instead of 0%% when idle."""
+    dashboard = json.loads(_DASHBOARD_JSON.read_text(encoding="utf-8"))
+    panel = next(p for p in _dashboard_panels(dashboard) if p.get("title") == "Market Data Freshness")
+    expr = panel["targets"][0]["expr"]
+    assert "unless on()" in expr, expr
+    assert 'sum_over_time(live_overlay_market_us_open{job=~"$job"}[1h:]) == 0' in expr
+    assert panel["fieldConfig"]["defaults"].get("noValue") == "MARKET CLOSED"
+
+
+def test_dashboard_core_metrics_present_checks_critical_series() -> None:
+    """Core Metrics Present must detect missing critical series, not just uptime."""
+    dashboard = json.loads(_DASHBOARD_JSON.read_text(encoding="utf-8"))
+    panel = next(p for p in _dashboard_panels(dashboard) if p.get("title") == "Core Metrics Present")
+    expr = panel["targets"][0]["expr"]
+    assert "absent(live_overlay_uptime_seconds" in expr
+    assert "absent(live_overlay_overlay_fresh" in expr
+    assert "absent(live_overlay_market_us_open" in expr
+    assert "absent(live_overlay_last_bar_age_known" in expr
+
+
+def test_dashboard_railway_bridge_shows_configured_vs_success() -> None:
+    """Railway Metrics Bridge must distinguish DISABLED, SCRAPE ERROR, OK."""
+    dashboard = json.loads(_DASHBOARD_JSON.read_text(encoding="utf-8"))
+    panel = next(p for p in _dashboard_panels(dashboard) if p.get("title") == "Railway Metrics Bridge")
+    expr = panel["targets"][0]["expr"]
+    assert "live_overlay_railway_metrics_configured" in expr
+    assert "live_overlay_railway_metrics_scrape_success" in expr
+    assert "live_overlay_railway_metrics_enabled" not in expr, expr
+    mappings = panel["fieldConfig"]["defaults"]["mappings"]
+    options_keys = {k for m in mappings for k in m.get("options", {})}
+    assert {"0", "1", "2"}.issubset(options_keys), options_keys
+    labels = {m["options"][k]["text"] for m in mappings for k in m.get("options", {})}
+    assert {"DISABLED", "SCRAPE ERROR", "OK"}.issubset(labels), labels

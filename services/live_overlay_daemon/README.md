@@ -483,7 +483,9 @@ observability.py (structured log lines + in-process counters)
 | `live_overlay_github_workflow_latest_success{workflow_id,workflow,event}` | gauge | metrics.py per-workflow latest success state |
 | `live_overlay_github_workflow_latest_age_seconds{workflow_id,workflow,event}` | gauge | metrics.py per-workflow latest run age |
 | `live_overlay_github_workflow_latest_duration_seconds{workflow_id,workflow,event}` | gauge | metrics.py per-workflow latest run duration |
-| `live_overlay_railway_metrics_enabled` | gauge | metrics.py Railway API snapshot reachable |
+| `live_overlay_railway_metrics_configured` | gauge | metrics.py Railway API credentials configured |
+| `live_overlay_railway_metrics_scrape_success` | gauge | metrics.py Railway API snapshot last poll OK |
+| `live_overlay_railway_metrics_enabled` | gauge | metrics.py backwards-compatible alias: `configured && scrape_success` |
 | `live_overlay_railway_metrics_age_seconds` | gauge | metrics.py Railway API snapshot age |
 | `live_overlay_railway_metrics_error_info{error}` | gauge | metrics.py Railway API snapshot error |
 | `live_overlay_railway_service_cpu_cores{service,service_id}` | gauge | metrics.py Railway per-service CPU cores |
