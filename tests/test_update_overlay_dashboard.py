@@ -349,6 +349,12 @@ def test_update_script_core_metrics_present_checks_critical_series(temp_dashboar
     assert "absent(live_overlay_overlay_fresh" in expr
     assert "absent(live_overlay_market_us_open" in expr
     assert "absent(live_overlay_last_bar_age_known" in expr
+    assert "absent(live_overlay_smc_live_requests_total" in expr
+    assert "absent(live_overlay_smc_live_success_total" in expr
+    assert "absent(live_overlay_smc_live_errors_total" in expr
+    assert "absent(live_overlay_smc_live_latency_ms_count" in expr
+    mappings = panel["fieldConfig"]["defaults"]["mappings"]
+    assert any(m.get("options", {}).get("8") for m in mappings) or "8 MISSING" in str(mappings)
 
 
 def test_update_script_railway_bridge_uses_generic_bridge_contract(temp_dashboard: Path) -> None:

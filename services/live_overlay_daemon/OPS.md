@@ -406,15 +406,17 @@ chase false reds:
   Workflow bridges are enabled, the panel shows `NO CHECKS CONFIGURED`
   (`-1`) instead of `SCRAPE ERROR` (`0`).
 
-- **Core Metrics Present** — counts how many of the four critical series are
+- **Core Metrics Present** — counts how many of the critical series are
   missing (`uptime_seconds`, `overlay_fresh`, `market_us_open`,
-  `last_bar_age_known`). A partial exporter regression that still serves
-  `uptime_seconds` but drops the others now turns red.
+  `last_bar_age_known`, `smc_live_requests_total`, `smc_live_success_total`,
+  `smc_live_errors_total`, `smc_live_latency_ms_count`). A partial exporter
+  regression that still serves `uptime_seconds` but drops the others now
+  turns red.
 
-- **Railway Metrics Bridge** — distinguishes `DISABLED` (`0`), `SCRAPE ERROR`
-  (`1`) and `OK` (`2`) by combining the
-  `live_overlay_railway_metrics_configured` and
-  `live_overlay_railway_metrics_scrape_success` gauges.
+- **Railway Metrics Bridge** — uses the generic bridge contract:
+  `live_overlay_bridge_enabled{bridge="railway_metrics"}` +
+  `live_overlay_bridge_scrape_success{bridge="railway_metrics"}`. It
+  distinguishes `DISABLED` (`0`), `SCRAPE ERROR` (`1`) and `OK` (`2`).
 
 
 ### Dashboard upsert via API

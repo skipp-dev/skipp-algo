@@ -196,6 +196,7 @@ def _fetch_snapshot(token: str) -> dict[str, Any]:
         "enabled": 1,
         "ok": 1,
         "fetched_at_unix": time.time(),
+        "last_success_fetched_at_unix": time.time(),
         "counts": counts,
         "latest_run_age_seconds": latest_age,
         "latest_run_duration_seconds": latest_duration,
@@ -236,12 +237,16 @@ def snapshot() -> dict[str, Any]:
 
         try:
             fresh = _fetch_snapshot(token)
+            if fresh.get("ok"):
+                fresh.setdefault("last_success_fetched_at_unix", fresh.get("fetched_at_unix", 0.0))
         except Exception as exc:  # pragma: no cover
             error_code = _classify_error(exc)
+            prev_last_success = (_cached_snapshot or {}).get("last_success_fetched_at_unix", 0.0)
             fresh = {
                 "enabled": 1,
                 "ok": 0,
                 "fetched_at_unix": time.time(),
+                "last_success_fetched_at_unix": prev_last_success,
                 "counts": {
                     "seen": 0,
                     "success": 0,
