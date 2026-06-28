@@ -162,7 +162,7 @@ UPTIMEROBOT_PANEL: dict[str, Any] = {
 }
 
 
-def _resolve_dashboard_path(argv: list[str] | None = None) -> Path:
+def _resolve_dashboard_path(argv: list[str] | None = None) -> tuple[Path, bool]:
     parser = argparse.ArgumentParser(description="Update Grafana dashboard UX.")
     parser.add_argument(
         "dashboard_path",
@@ -171,8 +171,13 @@ def _resolve_dashboard_path(argv: list[str] | None = None) -> Path:
         default=DEFAULT_DASHBOARD_PATH,
         help="Path to dashboard.json",
     )
+    parser.add_argument(
+        "--check",
+        action="store_true",
+        help="Validate that the dashboard is already up to date without writing.",
+    )
     args = parser.parse_args(argv)
-    return args.dashboard_path
+    return args.dashboard_path, args.check
 
 
 def _load_dashboard(dashboard_path: Path) -> dict[str, Any]:
@@ -1222,8 +1227,9 @@ def _fail_if_generic_railway_links_remain(data: dict[str, Any]) -> None:
 
 
 def main(argv: list[str] | None = None) -> int:
-    dashboard_path = _resolve_dashboard_path(argv)
+    dashboard_path, check = _resolve_dashboard_path(argv)
     data = _load_dashboard(dashboard_path)
+    original = copy.deepcopy(data)
 
     if not _is_v2(data):
         # Classic v1 dashboards are hand-maintained and authoritative. The v2
@@ -1251,9 +1257,20 @@ def main(argv: list[str] | None = None) -> int:
         changed = _co_locate_external_integration_details(data) or changed
         if changed:
             data["version"] = int(data.get("version", 0) or 0) + 1
-        _save_dashboard(dashboard_path, data)
+        # Generic/placeholder Railway URLs are never acceptable, even in
+        # --check mode: the committed dashboard must be production-ready.
         _fail_if_generic_railway_links_remain(data)
-        print(f"Updated {dashboard_path} (v1, version={data.get('version')})")
+        if check:
+            if data != original:
+                print(f"{dashboard_path} is not up to date")
+                return 1
+            print(f"{dashboard_path} is up to date")
+            return 0
+        if changed:
+            _save_dashboard(dashboard_path, data)
+            print(f"Updated {dashboard_path} (v1, version={data.get('version')})")
+        else:
+            print(f"{dashboard_path} is already up to date")
         return 0
 
     # Top-level status panels: consistent semantic colors.
@@ -1421,10 +1438,16 @@ def main(argv: list[str] | None = None) -> int:
             ],
         }
 
+    if check:
+        if data != original:
+            print(f"{dashboard_path} is not up to date")
+            return 1
+        print(f"{dashboard_path} is up to date")
+        return 0
+
     # Bump dashboard version so the change is visible after import.
     data["spec"] = data.get("spec", {})
     data["spec"]["version"] = data["spec"].get("version", 0) + 1
-
     _save_dashboard(dashboard_path, data)
     print(f"Updated {dashboard_path} (version={data['spec']['version']})")
     return 0

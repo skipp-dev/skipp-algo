@@ -367,3 +367,42 @@ def test_update_script_railway_bridge_uses_generic_bridge_contract(temp_dashboar
     assert "live_overlay_bridge_scrape_success" in expr
     assert 'bridge="railway_metrics"' in expr
     assert "live_overlay_railway_metrics_enabled" not in expr
+
+
+def test_update_script_check_mode_passes_on_current_dashboard() -> None:
+    repo_root = Path(__file__).resolve().parents[1]
+    script = repo_root / "scripts" / "update_overlay_dashboard.py"
+    dashboard = repo_root / "services" / "live_overlay_daemon" / "infra" / "grafana" / "dashboard.json"
+
+    result = subprocess.run(
+        [sys.executable, str(script), "--check", str(dashboard)],
+        cwd=str(repo_root),
+        capture_output=True,
+        text=True,
+    )
+
+    assert result.returncode == 0, result.stderr + result.stdout
+    assert "is up to date" in result.stdout
+
+
+def test_update_script_check_mode_fails_on_stale_dashboard(tmp_path: Path) -> None:
+    repo_root = Path(__file__).resolve().parents[1]
+    script = repo_root / "scripts" / "update_overlay_dashboard.py"
+    src = repo_root / "services" / "live_overlay_daemon" / "infra" / "grafana" / "dashboard.json"
+    dst = tmp_path / "dashboard.json"
+    shutil.copy(src, dst)
+
+    data = json.loads(dst.read_text(encoding="utf-8"))
+    # Remove a self-healed panel so the updater would mutate the dashboard.
+    data["panels"] = [p for p in data["panels"] if p.get("title") != "UptimeRobot Monitor States"]
+    dst.write_text(json.dumps(data, indent=2), encoding="utf-8")
+
+    result = subprocess.run(
+        [sys.executable, str(script), "--check", str(dst)],
+        cwd=str(repo_root),
+        capture_output=True,
+        text=True,
+    )
+
+    assert result.returncode == 1, result.stderr + result.stdout
+    assert "is not up to date" in result.stdout
