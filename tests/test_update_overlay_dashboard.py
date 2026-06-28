@@ -137,7 +137,12 @@ def test_railway_links_are_concrete(temp_dashboard: Path) -> None:
 
 
 def test_railway_links_use_env_ids_when_provided(temp_dashboard: Path) -> None:
-    env = {**os.environ, "RAILWAY_PROJECT_ID": "proj-123", "RAILWAY_ENVIRONMENT_ID": "env-456", "RAILWAY_LIVE_OVERLAY_SERVICE_ID": "svc-789"}
+    env = {
+        **os.environ,
+        "RAILWAY_PROJECT_ID": "proj-123",
+        "RAILWAY_ENVIRONMENT_ID": "env-456",
+        "RAILWAY_LIVE_OVERLAY_SERVICE_ID": "svc-789",
+    }
     repo_root = Path(__file__).resolve().parents[1]
     script = repo_root / "scripts" / "update_overlay_dashboard.py"
     result = subprocess.run(
@@ -232,15 +237,17 @@ def test_all_panel_queries_have_balanced_parentheses(temp_dashboard: Path) -> No
 
 
 def test_update_script_fixes_external_checks_query(temp_dashboard: Path) -> None:
-    """External Checks should ignore unconfigured bridges, not treat them as failures."""
+    """External Checks should use the generic bridge contract."""
     _run_script(temp_dashboard)
     data = json.loads(temp_dashboard.read_text(encoding="utf-8"))
     panel = next(p for p in data["panels"] if p.get("title") == "External Checks")
     expr = panel["targets"][0]["expr"]
-    assert "live_overlay_(uptimerobot|github_workflow)_scrape_success" in expr
+    assert "live_overlay_bridge_scrape_success" in expr
+    assert "live_overlay_bridge_enabled" in expr
+    assert 'bridge=~"uptimerobot|github_workflow"' in expr
     assert "min by (job)" in expr
     assert panel["targets"][0]["legendFormat"] == "{{job}}"
-    assert 'or on(job) label_replace(vector(0), "job", "live_overlay", "", "")' in expr
+    assert 'or on(job) label_replace(vector(-1), "job", "live_overlay", "", "")' in expr
 
 
 def test_update_script_fixes_bridge_error_panels(temp_dashboard: Path) -> None:
@@ -254,7 +261,7 @@ def test_update_script_fixes_bridge_error_panels(temp_dashboard: Path) -> None:
 
 
 def test_update_script_adds_railway_status_panels(temp_dashboard: Path) -> None:
-    """Railway row should expose bridge status, snapshot age, and error class."""
+    """Railway row should use the generic bridge contract and expose error class."""
     _run_script(temp_dashboard)
     data = json.loads(temp_dashboard.read_text(encoding="utf-8"))
     titles = {p.get("title") for p in data["panels"]}
@@ -263,7 +270,9 @@ def test_update_script_adds_railway_status_panels(temp_dashboard: Path) -> None:
     assert "Railway Metrics Error" in titles
 
     bridge = next(p for p in data["panels"] if p.get("title") == "Railway Metrics Bridge")
-    assert "live_overlay_railway_metrics_enabled" in bridge["targets"][0]["expr"]
+    assert "live_overlay_bridge_enabled" in bridge["targets"][0]["expr"]
+    assert "live_overlay_bridge_scrape_success" in bridge["targets"][0]["expr"]
+    assert 'bridge="railway_metrics"' in bridge["targets"][0]["expr"]
 
 
 def test_update_script_fixes_github_workflow_timeline_readability(temp_dashboard: Path) -> None:
@@ -307,3 +316,54 @@ def test_uptimerobot_panel_does_not_clobber_prior_changes(temp_dashboard: Path) 
     assert updated["version"] > 1, "version was not bumped even though prior fixes changed the dashboard"
     raw = temp_dashboard.read_text(encoding="utf-8")
     assert "REPLACE_PROJECT" not in raw, "prior railway-link fix was lost"
+
+
+def test_update_script_adds_no_checks_configured_mapping(temp_dashboard: Path) -> None:
+    """External Checks should gain a -1 value mapping for unconfigured bridges."""
+    _run_script(temp_dashboard)
+    data = json.loads(temp_dashboard.read_text(encoding="utf-8"))
+    panel = next(p for p in data["panels"] if p.get("title") == "External Checks")
+    options_keys = {k for m in panel["fieldConfig"]["defaults"]["mappings"] for k in m["options"]}
+    assert "-1" in options_keys
+    labels = {m["options"][k]["text"] for m in panel["fieldConfig"]["defaults"]["mappings"] for k in m["options"]}
+    assert "NO CHECKS CONFIGURED" in labels
+
+
+def test_update_script_market_data_freshness_hides_when_closed(temp_dashboard: Path) -> None:
+    """Market Data Freshness should display MARKET CLOSED instead of 0%%."""
+    _run_script(temp_dashboard)
+    data = json.loads(temp_dashboard.read_text(encoding="utf-8"))
+    panel = next(p for p in data["panels"] if p.get("title") == "Market Data Freshness")
+    expr = panel["targets"][0]["expr"]
+    assert "unless on()" in expr
+    assert panel["fieldConfig"]["defaults"].get("noValue") == "MARKET CLOSED"
+
+
+def test_update_script_core_metrics_present_checks_critical_series(temp_dashboard: Path) -> None:
+    """Core Metrics Present should sum absent() over critical series."""
+    _run_script(temp_dashboard)
+    data = json.loads(temp_dashboard.read_text(encoding="utf-8"))
+    panel = next(p for p in data["panels"] if p.get("title") == "Core Metrics Present")
+    expr = panel["targets"][0]["expr"]
+    assert "absent(live_overlay_uptime_seconds" in expr
+    assert "absent(live_overlay_overlay_fresh" in expr
+    assert "absent(live_overlay_market_us_open" in expr
+    assert "absent(live_overlay_last_bar_age_known" in expr
+    assert "absent(live_overlay_smc_live_requests_total" in expr
+    assert "absent(live_overlay_smc_live_success_total" in expr
+    assert "absent(live_overlay_smc_live_errors_total" in expr
+    assert "absent(live_overlay_smc_live_latency_ms_count" in expr
+    mappings = panel["fieldConfig"]["defaults"]["mappings"]
+    assert any(m.get("options", {}).get("8") for m in mappings) or "8 MISSING" in str(mappings)
+
+
+def test_update_script_railway_bridge_uses_generic_bridge_contract(temp_dashboard: Path) -> None:
+    """Railway Metrics Bridge panel should use the generic bridge contract."""
+    _run_script(temp_dashboard)
+    data = json.loads(temp_dashboard.read_text(encoding="utf-8"))
+    panel = next(p for p in data["panels"] if p.get("title") == "Railway Metrics Bridge")
+    expr = panel["targets"][0]["expr"]
+    assert "live_overlay_bridge_enabled" in expr
+    assert "live_overlay_bridge_scrape_success" in expr
+    assert 'bridge="railway_metrics"' in expr
+    assert "live_overlay_railway_metrics_enabled" not in expr

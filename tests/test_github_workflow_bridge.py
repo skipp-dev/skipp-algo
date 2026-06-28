@@ -129,3 +129,53 @@ def test_fetch_snapshot_separates_status_from_conclusion(
     row = snap["workflows"][0]
     assert row["status"] == "queued"
     assert row["conclusion"] == "unknown"
+
+
+def test_fetch_snapshot_records_last_success_timestamp(monkeypatch: pytest.MonkeyPatch) -> None:
+    import services.live_overlay_daemon.github_workflow_bridge as bridge
+
+    monkeypatch.setattr(bridge.config, "github_workflow_token", lambda: "token")
+    monkeypatch.setattr(bridge.config, "github_workflow_repo", lambda: ("o", "r"))
+    monkeypatch.setattr(bridge.config, "github_workflow_per_page", lambda: 30)
+    monkeypatch.setattr(bridge.config, "github_workflow_timeout_secs", lambda: 5)
+    monkeypatch.setattr(bridge.time, "time", lambda: 1_700_000_000.0)
+    monkeypatch.setattr(
+        bridge,
+        "_fetch_snapshot",
+        lambda _token: {
+            "enabled": 1,
+            "ok": 1,
+            "fetched_at_unix": 1_700_000_000.0,
+            "counts": {"seen": 0, "success": 0, "failed": 0, "in_progress": 0, "queued": 0},
+            "latest_run_age_seconds": None,
+            "latest_run_duration_seconds": None,
+            "workflows": [],
+        },
+    )
+
+    snap = bridge.snapshot()
+    assert snap["last_success_fetched_at_unix"] == 1_700_000_000.0
+
+
+def test_failed_snapshot_preserves_last_success_timestamp(monkeypatch: pytest.MonkeyPatch) -> None:
+    import services.live_overlay_daemon.github_workflow_bridge as bridge
+
+    bridge._cached_snapshot = {
+        "last_success_fetched_at_unix": 1_700_000_000.0,
+    }
+    bridge._cached_at_monotonic = 0.0
+
+    monkeypatch.setattr(bridge.config, "github_workflow_token", lambda: "token")
+    monkeypatch.setattr(bridge.config, "github_workflow_poll_ttl_secs", lambda: 300)
+    monkeypatch.setattr(bridge.time, "time", lambda: 1_700_000_300.0)
+    monkeypatch.setattr(bridge.time, "monotonic", lambda: 300.0)
+    monkeypatch.setattr(
+        bridge,
+        "_fetch_snapshot",
+        lambda _token: (_ for _ in ()).throw(TimeoutError("boom")),
+    )
+
+    snap = bridge.snapshot()
+    assert snap["ok"] == 0
+    assert snap["last_success_fetched_at_unix"] == 1_700_000_000.0
+    assert snap["fetched_at_unix"] == 1_700_000_300.0

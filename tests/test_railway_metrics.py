@@ -103,13 +103,18 @@ def test_snapshot_disabled_when_flag_off() -> None:
     assert result["services"] == []
 
 
-def test_snapshot_enabled_but_missing_config_reports_error() -> None:
-    with patch.object(railway_metrics.config, "railway_metrics_enabled", return_value=True), \
-        patch.object(railway_metrics.config, "railway_api_token", return_value=""), \
-        patch.object(railway_metrics.config, "railway_project_id", return_value=""), \
-        patch.object(railway_metrics.config, "railway_environment_id", return_value=""):
+def test_snapshot_enabled_but_missing_config_reports_failed_not_disabled() -> None:
+    """Missing credentials must report enabled intent, not look disabled."""
+    with (
+        patch.object(railway_metrics.config, "railway_metrics_enabled", return_value=True),
+        patch.object(railway_metrics.config, "railway_api_token", return_value=""),
+        patch.object(railway_metrics.config, "railway_project_id", return_value=""),
+        patch.object(railway_metrics.config, "railway_environment_id", return_value=""),
+    ):
         result = railway_metrics.snapshot()
-    assert result["enabled"] is False
+    assert result["enabled"] is True
+    assert result["configured"] is False
+    assert result["ok"] is False
     assert result["error"] == "missing_configuration"
 
 
@@ -161,7 +166,8 @@ def test_snapshot_returns_last_good_cache_on_error() -> None:
             good = railway_metrics.snapshot()
         assert good["ok"] is True
 
-        # Expire the cache then make the next fetch fail; we should get the cache.
+        # Expire the cache then make the next fetch fail; keep cached services
+        # but mark the scrape as failed with a stable error code.
         railway_metrics._CACHE_EXPIRES_AT = 0.0
         with patch.object(
             railway_metrics.urllib.request,
@@ -173,8 +179,11 @@ def test_snapshot_returns_last_good_cache_on_error() -> None:
         for p in patches:
             p.stop()
 
-    assert result["ok"] is True
-    assert result is good
+    assert result["ok"] is False
+    assert result["enabled"] is True
+    assert result["configured"] is True
+    assert result["error"] == "fetch_error"
+    assert result["services"] == good["services"]
 
 
 def test_snapshot_graphql_errors_treated_as_failure() -> None:
@@ -194,8 +203,9 @@ def test_snapshot_graphql_errors_treated_as_failure() -> None:
             p.stop()
 
     assert result["enabled"] is True
+    assert result["configured"] is True
     assert result["ok"] is False
-    assert "Railway GraphQL errors" in (result["error"] or "")
+    assert result["error"] == "fetch_error"
 
 
 def test_render_metrics_includes_railway_gauges() -> None:
@@ -260,3 +270,73 @@ def test_railway_metrics_disabled_when_no_credentials(monkeypatch: pytest.Monkey
     monkeypatch.setenv("RAILWAY_ENVIRONMENT_ID", "")
     importlib.reload(config)
     assert config.railway_metrics_enabled() is False
+
+
+def test_render_metrics_emits_configured_and_success_gauges() -> None:
+    from services.live_overlay_daemon import metrics
+
+    snapshot = {
+        "enabled": True,
+        "ok": True,
+        "fetched_at_unix": 1_000_000.0,
+        "error": None,
+        "services": [],
+    }
+    with patch.object(metrics.railway_metrics, "snapshot", return_value=snapshot):
+        text = metrics.render_metrics(startup_ts=1_000_000.0)
+
+    assert "live_overlay_railway_metrics_configured 1" in text
+    assert "live_overlay_railway_metrics_scrape_success 1" in text
+    assert "live_overlay_railway_metrics_enabled 1" in text
+
+
+def test_render_metrics_scrape_error_still_exposes_configured() -> None:
+    from services.live_overlay_daemon import metrics
+
+    snapshot = {
+        "enabled": True,
+        "ok": False,
+        "fetched_at_unix": 0.0,
+        "error": " GraphQL error",
+        "services": [],
+    }
+    with patch.object(metrics.railway_metrics, "snapshot", return_value=snapshot):
+        text = metrics.render_metrics(startup_ts=1_000_000.0)
+
+    assert "live_overlay_railway_metrics_configured 1" in text
+    assert "live_overlay_railway_metrics_scrape_success 0" in text
+    assert "live_overlay_railway_metrics_enabled 0" in text
+    assert "live_overlay_railway_metrics_error_info" in text
+
+
+@pytest.mark.parametrize(
+    ("snapshot", "enabled", "configured", "success", "error"),
+    [
+        ({"enabled": False, "configured": False, "ok": False, "error": None}, 0, 0, 0, "none"),
+        ({"enabled": True, "configured": False, "ok": False, "error": "missing_configuration"}, 1, 0, 0, "missing_configuration"),
+        ({"enabled": True, "configured": True, "ok": False, "error": "fetch_error"}, 1, 1, 0, "fetch_error"),
+        ({"enabled": True, "configured": True, "ok": True, "error": None}, 1, 1, 1, "none"),
+    ],
+)
+def test_render_metrics_exports_railway_bridge_truth_table(
+    snapshot: dict[str, Any],
+    enabled: int,
+    configured: int,
+    success: int,
+    error: str,
+) -> None:
+    from services.live_overlay_daemon import metrics
+
+    snapshot = {
+        "fetched_at_unix": 0.0,
+        "scrape_duration_seconds": None,
+        "services": [],
+        **snapshot,
+    }
+    with patch.object(metrics.railway_metrics, "snapshot", return_value=snapshot):
+        text = metrics.render_metrics(startup_ts=1_000_000.0)
+
+    assert f'live_overlay_bridge_enabled{{bridge="railway_metrics"}} {enabled}' in text
+    assert f'live_overlay_bridge_configured{{bridge="railway_metrics"}} {configured}' in text
+    assert f'live_overlay_bridge_scrape_success{{bridge="railway_metrics"}} {success}' in text
+    assert f'live_overlay_bridge_error_info{{bridge="railway_metrics",error="{error}"}}' in text

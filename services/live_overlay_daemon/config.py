@@ -482,6 +482,17 @@ def ingest_queue_max() -> int:
     return _clamped_int("LIVE_OVERLAY_INGEST_QUEUE_MAX", 20000, 1000, 200000)
 
 
+def expect_market_traffic() -> bool:
+    """Return True when the deployment should expect US-open smc_live traffic.
+
+    Operators set ``LIVE_OVERLAY_EXPECT_MARKET_TRAFFIC=1`` to arm the
+    first-zero traffic alert. When unset the gauge stays ``0`` and the alert
+    stays quiet, so quiet periods outside market hours or warm-standby
+    deployments do not page.
+    """
+    return _optional_str("LIVE_OVERLAY_EXPECT_MARKET_TRAFFIC", "0") == "1"
+
+
 # ---------------------------------------------------------------------------
 # Railway container metrics bridge
 # ---------------------------------------------------------------------------

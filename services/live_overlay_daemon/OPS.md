@@ -370,31 +370,53 @@ The panel's field config sets `noValue: "NO TRAFFIC"`, so Grafana displays
 traffic appears, the series becomes non-zero and the panel shows the real
 success rate again.
 
-#### Market-open Request Health wiring
+#### Market Traffic Health wiring
 
-The **Market-open Request Health** synthetic signal must follow the same
-major-session gauge (`live_overlay_market_open`) used elsewhere on the
-dashboard.  `metrics.py` intentionally widens the headline display metric to
-"any major session" (US regular **or** Europe regular) so the dashboard does
-not show `MARKET_CLOSED` while European exchanges trade ahead of the US open.
+The **Market Traffic Health** signal is intentionally US-regular-session gated
+via `live_overlay_market_us_open`. Europe/Asia session gauges are displayed for
+context, but `/smc_live` traffic expectations are evaluated against the US
+regular session only.
 
 Therefore the panel expression reads:
 
 ```promql
-(live_overlay_market_open{job=~"$job"} or vector(0))
-+ ((live_overlay_market_open{job=~"$job"} or vector(0))
-   * ((rate(live_overlay_smc_live_requests_total{job=~"$job"}[$__rate_interval]) or vector(0)) > bool 0.001))
+(live_overlay_market_us_open{job=~"$job"} or vector(0))
++ ((live_overlay_market_us_open{job=~"$job"} or vector(0))
+   * ((rate(live_overlay_smc_live_requests_total{job=~"$job"}[5m]) or vector(0)) > bool 0.001))
 ```
 
-- `0` = `MARKET_CLOSED` — no major session is open.
-- `1` = `OPEN_NO_TRAFFIC` — a major session is open, but the request rate is
+- `0` = `MARKET_CLOSED` — US regular session is closed.
+- `1` = `OPEN_NO_TRAFFIC` — US regular session is open, but the request rate is
   effectively zero.
-- `2` = `TRAFFIC_OK` — a major session is open and `/smc_live` traffic is
+- `2` = `TRAFFIC_OK` — US regular session is open and `/smc_live` traffic is
   present.
 
-The older expression used `live_overlay_market_us_open`, which produced a
-false `MARKET_CLOSED` reading during the European pre-US session even though
-the daemon was active and healthy.
+
+### Dashboard masking semantics
+
+The dashboard intentionally masks data in a few panels so on-call does not
+chase false reds:
+
+- **Market Data Freshness** — computed only while `live_overlay_market_us_open`
+  is `1`. When the selected interval contains no US market-open samples, Grafana
+  shows `MARKET CLOSED` via `noValue` instead of `0.00 %`.
+
+- **External Checks** — votes only from bridges that are enabled
+  (`live_overlay_*_bridge_enabled == 1`). When neither UptimeRobot nor GitHub
+  Workflow bridges are enabled, the panel shows `NO CHECKS CONFIGURED`
+  (`-1`) instead of `SCRAPE ERROR` (`0`).
+
+- **Core Metrics Present** — counts how many of the critical series are
+  missing (`uptime_seconds`, `overlay_fresh`, `market_us_open`,
+  `last_bar_age_known`, `smc_live_requests_total`, `smc_live_success_total`,
+  `smc_live_errors_total`, `smc_live_latency_ms_count`). A partial exporter
+  regression that still serves `uptime_seconds` but drops the others now
+  turns red.
+
+- **Railway Metrics Bridge** — uses the generic bridge contract:
+  `live_overlay_bridge_enabled{bridge="railway_metrics"}` +
+  `live_overlay_bridge_scrape_success{bridge="railway_metrics"}`. It
+  distinguishes `DISABLED` (`0`), `SCRAPE ERROR` (`1`) and `OK` (`2`).
 
 
 ### Dashboard upsert via API

@@ -4,6 +4,7 @@
 Applies a consistent, less saturated color palette and removes redundant
 thresholds from state-timeline panels that already use value mappings.
 """
+
 from __future__ import annotations
 
 import argparse
@@ -30,9 +31,7 @@ _DEFAULT_RAILWAY_LIVE_OVERLAY_SERVICE_ID = "705582c5-ba8b-4c6e-848c-33bffe0a61b0
 _DEFAULT_RAILWAY_SIGNALS_PRODUCER_SERVICE_ID = "81f8c6b5-ffe2-4646-a978-e62143192a9a"
 
 _RAILWAY_PROJECT_ID = os.getenv("RAILWAY_PROJECT_ID", _DEFAULT_RAILWAY_PROJECT_ID)
-_RAILWAY_ENVIRONMENT_ID = os.getenv(
-    "RAILWAY_ENVIRONMENT_ID", _DEFAULT_RAILWAY_ENVIRONMENT_ID
-)
+_RAILWAY_ENVIRONMENT_ID = os.getenv("RAILWAY_ENVIRONMENT_ID", _DEFAULT_RAILWAY_ENVIRONMENT_ID)
 _RAILWAY_LIVE_OVERLAY_SERVICE_ID = os.getenv(
     "RAILWAY_LIVE_OVERLAY_SERVICE_ID", _DEFAULT_RAILWAY_LIVE_OVERLAY_SERVICE_ID
 )
@@ -264,10 +263,7 @@ def _fix_github_workflow_timeline_panel(data: dict[str, Any]) -> bool:
         "mode": "absolute",
         "steps": [
             {"value": None, "color": COLOR_NEUTRAL},
-            *[
-                {"value": code, "color": color}
-                for code, (_text, color) in _GITHUB_WORKFLOW_PHASE_COLORS.items()
-            ],
+            *[{"value": code, "color": color} for code, (_text, color) in _GITHUB_WORKFLOW_PHASE_COLORS.items()],
         ],
     }
     desired_options = {
@@ -312,6 +308,7 @@ def _fix_github_workflow_timeline_panel(data: dict[str, Any]) -> bool:
         changed = True
 
     return changed
+
 
 def _ensure_uptimerobot_panel(data: dict[str, Any]) -> bool:
     """Self-heal the classic UptimeRobot state-timeline panel.
@@ -415,9 +412,9 @@ def _apply_stat_consistency(panel: dict[str, Any]) -> None:
 def _fix_bridge_scrapes_panel(data: dict[str, Any]) -> bool:
     """Make the global external-checks stat ignore unconfigured bridges.
 
-    The previous query used `or vector(0)` inside `min()`, so a bridge that
-    was not enabled on any instance forced the panel to 0 (ERROR). By moving
-    the fallback outside `min()`, only actually configured bridges vote.
+    Uses the generic bridge contract so Grafana does not have to reason about
+    per-bridge legacy metric names. Bridges that are not enabled collapse to a
+    -1 state (NO CHECKS CONFIGURED) instead of being counted as SCRAPE ERROR.
     """
     changed = False
     for panel in _iter_v1_panels(data):
@@ -425,14 +422,25 @@ def _fix_bridge_scrapes_panel(data: dict[str, Any]) -> bool:
             continue
         for target in panel.get("targets", []):
             expr = target.get("expr", "")
-            if "live_overlay_uptimerobot_scrape_success" not in expr:
+            if (
+                "live_overlay_bridge_scrape_success" not in expr
+                and "live_overlay_uptimerobot_scrape_success" not in expr
+            ):
                 continue
             new_expr = (
                 "min by (job) (\n"
-                '  live_overlay_uptimerobot_scrape_success{job=~"$job"} or\n'
-                '  live_overlay_github_workflow_scrape_success{job=~"$job"}\n'
+                "  live_overlay_bridge_scrape_success{\n"
+                '    job=~"$job",\n'
+                '    bridge=~"uptimerobot|github_workflow"\n'
+                "  }\n"
+                "  and on(job, bridge) (\n"
+                "    live_overlay_bridge_enabled{\n"
+                '      job=~"$job",\n'
+                '      bridge=~"uptimerobot|github_workflow"\n'
+                "    } == 1\n"
+                "  )\n"
                 ")\n"
-                'or on (job) label_replace(vector(0), "job", "live_overlay", "", "")'
+                'or on(job) label_replace(vector(-1), "job", "live_overlay", "", "")'
             )
             if expr != new_expr:
                 target["expr"] = new_expr
@@ -440,6 +448,23 @@ def _fix_bridge_scrapes_panel(data: dict[str, Any]) -> bool:
             if target.get("legendFormat") != "{{job}}":
                 target["legendFormat"] = "{{job}}"
                 changed = True
+        defaults = panel.setdefault("fieldConfig", {}).setdefault("defaults", {})
+        desired_mappings = [
+            _value_mapping(-1, "NO CHECKS CONFIGURED", COLOR_NEUTRAL),
+            _value_mapping(0, "SCRAPE ERROR", COLOR_ERROR),
+            _value_mapping(1, "OK", COLOR_OK),
+        ]
+        if defaults.get("mappings") != desired_mappings:
+            defaults["mappings"] = desired_mappings
+            changed = True
+        thresholds = defaults.setdefault("thresholds", {"mode": "absolute", "steps": []})
+        desired_steps = [
+            {"color": "red", "value": None},
+            {"color": "green", "value": 1},
+        ]
+        if thresholds.get("steps") != desired_steps:
+            thresholds["steps"] = desired_steps
+            changed = True
     return changed
 
 
@@ -472,17 +497,12 @@ def _ensure_v1_incident_drilldown_links(data: dict[str, Any]) -> bool:
 def _ensure_v1_service_owner_row_descriptions(data: dict[str, Any]) -> bool:
     """Label collapsed detail rows with their intended service-owner audience."""
     desired_descriptions = {
-        "Provider Health": (
-            "Service-owner detail: live news provider health and provider-level "
-            "degradation context."
-        ),
+        "Provider Health": ("Service-owner detail: live news provider health and provider-level degradation context."),
         "Collector / Scrape Targets": (
-            "Service-owner detail: telemetry pipeline health, scrape target "
-            "liveness, and collector memory."
+            "Service-owner detail: telemetry pipeline health, scrape target liveness, and collector memory."
         ),
         "Railway Resources": (
-            "Service-owner detail: Railway container capacity and bridge health "
-            "for production operations."
+            "Service-owner detail: Railway container capacity and bridge health for production operations."
         ),
     }
     changed = False
@@ -497,26 +517,36 @@ def _ensure_v1_service_owner_row_descriptions(data: dict[str, Any]) -> bool:
 
 
 def _fix_bridge_error_panels(data: dict[str, Any]) -> bool:
-    """Ensure bridge error panels only count real error codes.
+    """Ensure bridge error panels use the generic bridge contract.
 
-    Healthy scrapes no longer emit an `error_code` label at all.  The
-    filter is kept defensively so any stale or mislabelled healthy series
-    (e.g. `error_code="none"`) cannot be counted as an error.
+    Only surfaces real error labels; healthy scrapes use the ``none`` label
+    and are filtered out defensively.
     """
     changed = False
     title_to_metric = {
-        "UptimeRobot Bridge Error": "live_overlay_uptimerobot_scrape_error_info",
-        "GitHub Workflow Bridge Error": "live_overlay_github_workflow_scrape_error_info",
+        "UptimeRobot Bridge Error": "live_overlay_bridge_error_info",
+        "GitHub Workflow Bridge Error": "live_overlay_bridge_error_info",
+        "Railway Metrics Bridge Error": "live_overlay_bridge_error_info",
+    }
+    title_to_bridge = {
+        "UptimeRobot Bridge Error": "uptimerobot",
+        "GitHub Workflow Bridge Error": "github_workflow",
+        "Railway Metrics Bridge Error": "railway_metrics",
     }
     for panel in _iter_v1_panels(data):
         metric = title_to_metric.get(panel.get("title", ""))
-        if not metric:
+        bridge = title_to_bridge.get(panel.get("title", ""))
+        if not metric or not bridge:
             continue
         for target in panel.get("targets", []):
             expr = target.get("expr", "")
-            if metric not in expr or 'error_code!="none"' in expr:
+            if metric not in expr or 'error!="none"' in expr:
                 continue
-            target["expr"] = f'max({metric}{{job=~"$job",error_code!="none"}} or vector(0))'
+            target["expr"] = (
+                f"max by (job, bridge, error) (\n"
+                f'  {metric}{{job=~"$job",bridge="{bridge}",error!="none"}}\n'
+                f") or vector(0)"
+            )
             changed = True
     return changed
 
@@ -548,10 +578,22 @@ def _ensure_railway_status_panels(data: dict[str, Any]) -> bool:
     Existing Railway resource panels are shifted down by one row (h=3) to make
     room for the new status strip.
     """
+    changed = False
     panels = data.get("panels", [])
+
+    # Keep existing panels in sync with metric semantics.
+    for panel in _iter_v1_panels(data):
+        if panel.get("title") == "Railway Metrics Snapshot Age":
+            for target in panel.get("targets", []):
+                expr = target.get("expr", "")
+                new_expr = 'live_overlay_railway_metrics_age_seconds{job=~"$job"} and on(job) (live_overlay_railway_metrics_scrape_success{job=~"$job"} == 1)'
+                if expr != new_expr:
+                    target["expr"] = new_expr
+                    changed = True
+
     titles = {p.get("title") for p in _iter_v1_panels(data)}
     if "Railway Metrics Bridge" in titles:
-        return False
+        return changed
 
     row_index: int | None = None
     for i, panel in enumerate(panels):
@@ -559,7 +601,7 @@ def _ensure_railway_status_panels(data: dict[str, Any]) -> bool:
             row_index = i
             break
     if row_index is None:
-        return False
+        return changed
 
     row_y = panels[row_index].get("gridPos", {}).get("y", 257)
     status_y = row_y + 1
@@ -575,12 +617,12 @@ def _ensure_railway_status_panels(data: dict[str, Any]) -> bool:
         {
             "title": "Railway Metrics Bridge",
             "type": "stat",
-            "description": "Whether the Railway metrics bridge is enabled and its last poll succeeded.",
+            "description": "Railway metrics bridge state. DISABLED = not configured; SCRAPE ERROR = configured but last poll failed; OK = configured and reachable.",
             "gridPos": {"h": 3, "w": 4, "x": 0, "y": status_y},
             "targets": [
                 {
-                    "expr": 'max(live_overlay_railway_metrics_enabled{job=~"$job"} == 1) or vector(0)',
-                    "legendFormat": "enabled",
+                    "expr": 'max(live_overlay_railway_metrics_configured{job=~"$job"} == 1) + (max(live_overlay_railway_metrics_scrape_success{job=~"$job"} == 0) or vector(0))',
+                    "legendFormat": "state",
                     "instant": True,
                     "datasource": datasource,
                 }
@@ -592,9 +634,23 @@ def _ensure_railway_status_panels(data: dict[str, Any]) -> bool:
             "fieldConfig": {
                 "defaults": {
                     "mappings": [
-                        {"type": "value", "options": {"0": {"text": "DISABLED", "color": "gray"}, "1": {"text": "OK", "color": "green"}}}
+                        {
+                            "type": "value",
+                            "options": {
+                                "0": {"text": "DISABLED", "color": "gray"},
+                                "1": {"text": "SCRAPE ERROR", "color": "red"},
+                                "2": {"text": "OK", "color": "green"},
+                            },
+                        }
                     ],
-                    "thresholds": {"mode": "absolute", "steps": [{"color": "gray", "value": None}, {"color": "green", "value": 1}]},
+                    "thresholds": {
+                        "mode": "absolute",
+                        "steps": [
+                            {"color": "gray", "value": None},
+                            {"color": "red", "value": 1},
+                            {"color": "green", "value": 2},
+                        ],
+                    },
                 }
             },
             "datasource": datasource,
@@ -607,7 +663,7 @@ def _ensure_railway_status_panels(data: dict[str, Any]) -> bool:
             "gridPos": {"h": 3, "w": 4, "x": 4, "y": status_y},
             "targets": [
                 {
-                    "expr": 'live_overlay_railway_metrics_age_seconds{job=~"$job"} and on(job) (live_overlay_railway_metrics_enabled{job=~"$job"} == 1)',
+                    "expr": 'live_overlay_railway_metrics_age_seconds{job=~"$job"} and on(job) (live_overlay_railway_metrics_scrape_success{job=~"$job"} == 1)',
                     "legendFormat": "age",
                     "instant": True,
                     "datasource": datasource,
@@ -641,9 +697,15 @@ def _ensure_railway_status_panels(data: dict[str, Any]) -> bool:
             "fieldConfig": {
                 "defaults": {
                     "mappings": [
-                        {"type": "value", "options": {"0": {"text": "OK", "color": "green"}, "1": {"text": "ERROR", "color": "red"}}}
+                        {
+                            "type": "value",
+                            "options": {"0": {"text": "OK", "color": "green"}, "1": {"text": "ERROR", "color": "red"}},
+                        }
                     ],
-                    "thresholds": {"mode": "absolute", "steps": [{"color": "green", "value": None}, {"color": "red", "value": 1}]},
+                    "thresholds": {
+                        "mode": "absolute",
+                        "steps": [{"color": "green", "value": None}, {"color": "red", "value": 1}],
+                    },
                     "noValue": "none",
                 }
             },
@@ -804,8 +866,6 @@ def _ensure_railway_resource_links(data: dict[str, Any]) -> bool:
     return changed
 
 
-
-
 def _ensure_signal_pipeline_links(data: dict[str, Any]) -> bool:
     """Add drilldown links to the top-level Signal Pipeline Ready panel.
 
@@ -894,6 +954,152 @@ def _fix_triage_guide_signal_path(data: dict[str, Any]) -> bool:
     return changed
 
 
+def _fix_market_data_freshness_panel(data: dict[str, Any]) -> bool:
+    """Avoid false-red 0%% freshness when the US market has been closed for >1h.
+
+    The panel divides overlay_fresh samples that occurred while market_us_open
+    by the total market-open window in the last hour. When no market-open
+    samples exist, Grafana should show MARKET CLOSED (noValue) instead of 0%%.
+    """
+    changed = False
+    for panel in _iter_v1_panels(data):
+        if panel.get("title") != "Market Data Freshness":
+            continue
+        for target in panel.get("targets", []):
+            expr = target.get("expr", "")
+            if "live_overlay_overlay_fresh" not in expr:
+                continue
+            new_expr = (
+                "100 * (\n"
+                "  sum_over_time(\n"
+                "    (\n"
+                '      live_overlay_overlay_fresh{job=~"$job"}\n'
+                '      * live_overlay_market_us_open{job=~"$job"}\n'
+                "    )[1h:]\n"
+                "  )\n"
+                "  /\n"
+                '  sum_over_time(live_overlay_market_us_open{job=~"$job"}[1h:])\n'
+                ")\n"
+                "unless on() (\n"
+                '  sum_over_time(live_overlay_market_us_open{job=~"$job"}[1h:]) == 0\n'
+                ")"
+            )
+            if expr != new_expr:
+                target["expr"] = new_expr
+                changed = True
+        defaults = panel.setdefault("fieldConfig", {}).setdefault("defaults", {})
+        if defaults.get("noValue") != "MARKET CLOSED":
+            defaults["noValue"] = "MARKET CLOSED"
+            changed = True
+    return changed
+
+
+def _fix_core_metrics_present_panel(data: dict[str, Any]) -> bool:
+    """Check a critical metric set instead of only uptime_seconds.
+
+    A partial exporter regression can still scrape uptime_seconds while
+    dropping market_us_open, overlay_fresh, or last_bar_age_known. Counting
+    missing critical series makes the panel turn red in those cases.
+
+    The set also includes the HTTP/SLO traffic counters and latency histogram
+    count so missing request/error/latency telemetry is surfaced as red.
+    """
+    changed = False
+    for panel in _iter_v1_panels(data):
+        if panel.get("title") != "Core Metrics Present":
+            continue
+        for target in panel.get("targets", []):
+            expr = target.get("expr", "")
+            if "live_overlay_uptime_seconds" not in expr:
+                continue
+            new_expr = (
+                "(\n"
+                '  absent(live_overlay_uptime_seconds{job=~"$job"}) or vector(0)\n'
+                ") + (\n"
+                '  absent(live_overlay_overlay_fresh{job=~"$job"}) or vector(0)\n'
+                ") + (\n"
+                '  absent(live_overlay_market_us_open{job=~"$job"}) or vector(0)\n'
+                ") + (\n"
+                '  absent(live_overlay_last_bar_age_known{job=~"$job"}) or vector(0)\n'
+                ") + (\n"
+                '  absent(live_overlay_smc_live_requests_total{job=~"$job"}) or vector(0)\n'
+                ") + (\n"
+                '  absent(live_overlay_smc_live_success_total{job=~"$job"}) or vector(0)\n'
+                ") + (\n"
+                '  absent(live_overlay_smc_live_errors_total{job=~"$job"}) or vector(0)\n'
+                ") + (\n"
+                '  absent(live_overlay_smc_live_latency_ms_count{job=~"$job"}) or vector(0)\n'
+                ")"
+            )
+            if expr != new_expr:
+                target["expr"] = new_expr
+                changed = True
+        defaults = panel.setdefault("fieldConfig", {}).setdefault("defaults", {})
+        desired_mappings = [
+            _value_mapping(0, "PRESENT", COLOR_OK),
+            _value_mapping(1, "1 MISSING", COLOR_WARN),
+            _value_mapping(2, "2 MISSING", COLOR_DEGRADED),
+            _value_mapping(3, "3 MISSING", COLOR_ERROR),
+            _value_mapping(4, "4 MISSING", COLOR_ERROR),
+            _value_mapping(5, "5 MISSING", COLOR_ERROR),
+            _value_mapping(6, "6 MISSING", COLOR_ERROR),
+            _value_mapping(7, "7 MISSING", COLOR_ERROR),
+            _value_mapping(8, "ALL MISSING", COLOR_ERROR),
+        ]
+        if defaults.get("mappings") != desired_mappings:
+            defaults["mappings"] = desired_mappings
+            changed = True
+    return changed
+
+
+def _fix_railway_bridge_panel(data: dict[str, Any]) -> bool:
+    """Update Railway Metrics Bridge panel to use the generic bridge contract.
+
+    State is 0=DISABLED, 1=SCRAPE ERROR, 2=OK by adding enabled + scrape_success.
+    """
+    changed = False
+    for panel in _iter_v1_panels(data):
+        if panel.get("title") != "Railway Metrics Bridge":
+            continue
+        for target in panel.get("targets", []):
+            expr = target.get("expr", "")
+            if "live_overlay_bridge" not in expr and "live_overlay_railway_metrics" not in expr:
+                continue
+            new_expr = (
+                "(\n"
+                '  max by (job) (live_overlay_bridge_enabled{job=~"$job",bridge="railway_metrics"})\n'
+                "  +\n"
+                '  max by (job) (live_overlay_bridge_scrape_success{job=~"$job",bridge="railway_metrics"})\n'
+                ")\n"
+                'or on(job) label_replace(vector(0), "job", "live_overlay", "", "")'
+            )
+            if expr != new_expr:
+                target["expr"] = new_expr
+                changed = True
+            if target.get("legendFormat") != "state":
+                target["legendFormat"] = "state"
+                changed = True
+        defaults = panel.setdefault("fieldConfig", {}).setdefault("defaults", {})
+        desired_mappings = [
+            _value_mapping(0, "DISABLED", COLOR_NEUTRAL),
+            _value_mapping(1, "SCRAPE ERROR", COLOR_ERROR),
+            _value_mapping(2, "OK", COLOR_OK),
+        ]
+        if defaults.get("mappings") != desired_mappings:
+            defaults["mappings"] = desired_mappings
+            changed = True
+        thresholds = defaults.setdefault("thresholds", {"mode": "absolute", "steps": []})
+        desired_steps = [
+            {"color": "gray", "value": None},
+            {"color": "red", "value": 1},
+            {"color": "green", "value": 2},
+        ]
+        if thresholds.get("steps") != desired_steps:
+            thresholds["steps"] = desired_steps
+            changed = True
+    return changed
+
+
 def _fix_market_traffic_health_description(data: dict[str, Any]) -> bool:
     """Make the Market Traffic Health description match its US-only query."""
     changed = False
@@ -940,10 +1146,7 @@ def _co_locate_external_integration_details(data: dict[str, Any]) -> bool:
         "Bridge Scrape Health Timeline",
         "GitHub Workflows — Latest Run Detail",
     }
-    move_indices = [
-        i for i, p in enumerate(panels)
-        if p.get("title") in titles_to_move
-    ]
+    move_indices = [i for i, p in enumerate(panels) if p.get("title") in titles_to_move]
     if not move_indices:
         return changed
     external_idx = next(
@@ -1041,6 +1244,9 @@ def main(argv: list[str] | None = None) -> int:
         changed = _ensure_signal_pipeline_links(data) or changed
         changed = _fix_triage_guide_signal_path(data) or changed
         changed = _fix_market_traffic_health_description(data) or changed
+        changed = _fix_market_data_freshness_panel(data) or changed
+        changed = _fix_core_metrics_present_panel(data) or changed
+        changed = _fix_railway_bridge_panel(data) or changed
         changed = _collapse_service_owner_rows(data) or changed
         changed = _co_locate_external_integration_details(data) or changed
         if changed:

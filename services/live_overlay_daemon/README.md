@@ -483,7 +483,16 @@ observability.py (structured log lines + in-process counters)
 | `live_overlay_github_workflow_latest_success{workflow_id,workflow,event}` | gauge | metrics.py per-workflow latest success state |
 | `live_overlay_github_workflow_latest_age_seconds{workflow_id,workflow,event}` | gauge | metrics.py per-workflow latest run age |
 | `live_overlay_github_workflow_latest_duration_seconds{workflow_id,workflow,event}` | gauge | metrics.py per-workflow latest run duration |
-| `live_overlay_railway_metrics_enabled` | gauge | metrics.py Railway API snapshot reachable |
+| `live_overlay_bridge_enabled{bridge}` | gauge | generic bridge intent: 1 when the bridge is configured/turned on |
+| `live_overlay_bridge_configured{bridge}` | gauge | generic bridge credential/config completeness |
+| `live_overlay_bridge_scrape_success{bridge}` | gauge | generic bridge outcome: 1 when the last poll succeeded |
+| `live_overlay_bridge_last_success_age_seconds{bridge}` | gauge | seconds since the bridge last successfully polled |
+| `live_overlay_bridge_last_scrape_duration_seconds{bridge}` | gauge | duration of the last bridge scrape attempt |
+| `live_overlay_bridge_error_info{bridge,error}` | gauge | 1 when the bridge last scrape failed with the labelled error |
+| `live_overlay_expected_market_traffic` | gauge | 1 when `LIVE_OVERLAY_EXPECT_MARKET_TRAFFIC=1` arms the first-zero traffic alert |
+| `live_overlay_railway_metrics_configured` | gauge | metrics.py Railway API credentials configured (legacy) |
+| `live_overlay_railway_metrics_scrape_success` | gauge | metrics.py Railway API snapshot last poll OK (legacy) |
+| `live_overlay_railway_metrics_enabled` | gauge | metrics.py backwards-compatible alias: `configured && scrape_success` (legacy) |
 | `live_overlay_railway_metrics_age_seconds` | gauge | metrics.py Railway API snapshot age |
 | `live_overlay_railway_metrics_error_info{error}` | gauge | metrics.py Railway API snapshot error |
 | `live_overlay_railway_service_cpu_cores{service,service_id}` | gauge | metrics.py Railway per-service CPU cores |

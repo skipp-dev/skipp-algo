@@ -157,8 +157,10 @@ def _fetch() -> dict[str, Any]:
     services = _build_services(results, service_names)
     return {
         "enabled": True,
+        "configured": True,
         "ok": True,
         "fetched_at_unix": time.time(),
+        "scrape_duration_seconds": None,
         "error": None,
         "services": services,
     }
@@ -167,11 +169,51 @@ def _fetch() -> dict[str, Any]:
 def _disabled_snapshot() -> dict[str, Any]:
     return {
         "enabled": False,
+        "configured": False,
         "ok": False,
         "fetched_at_unix": 0.0,
+        "scrape_duration_seconds": None,
         "error": None,
         "services": [],
     }
+
+
+def _misconfigured_snapshot() -> dict[str, Any]:
+    """Enabled by intent but missing required configuration."""
+    return {
+        "enabled": True,
+        "configured": False,
+        "ok": False,
+        "fetched_at_unix": 0.0,
+        "scrape_duration_seconds": None,
+        "error": "missing_configuration",
+        "services": [],
+    }
+
+
+def _failed_snapshot(
+    error: str,
+    *,
+    cached: dict[str, Any] | None = None,
+) -> dict[str, Any]:
+    """Preserve cached resource data but mark the scrape as failed.
+
+    Stable error codes keep Grafana value mappings and alerts reliable even
+    when the underlying exception message varies.
+    """
+    base = dict(cached) if cached else {}
+    base.update(
+        {
+            "enabled": True,
+            "configured": True,
+            "ok": False,
+            "error": error,
+        }
+    )
+    base.setdefault("fetched_at_unix", 0.0)
+    base.setdefault("scrape_duration_seconds", None)
+    base.setdefault("services", [])
+    return base
 
 
 def snapshot() -> dict[str, Any]:
@@ -185,38 +227,37 @@ def snapshot() -> dict[str, Any]:
 
     if not config.railway_metrics_enabled():
         return _disabled_snapshot()
-    if not (
-        config.railway_api_token()
-        and config.railway_project_id()
-        and config.railway_environment_id()
-    ):
+    if not (config.railway_api_token() and config.railway_project_id() and config.railway_environment_id()):
         logger.warning(
             "Railway metrics enabled but RAILWAY_API_TOKEN / RAILWAY_PROJECT_ID / "
             "RAILWAY_ENVIRONMENT_ID is missing; skipping poll",
         )
-        result = _disabled_snapshot()
-        result["error"] = "missing_configuration"
-        return result
+        return _misconfigured_snapshot()
 
     now = time.monotonic()
     with _LOCK:
         if _CACHE is not None and now < _CACHE_EXPIRES_AT:
             return _CACHE
 
+    started = time.monotonic()
     try:
         fresh = _fetch()
-    except (urllib.error.URLError, TimeoutError, OSError, ValueError, RuntimeError) as exc:
+        fresh["scrape_duration_seconds"] = time.monotonic() - started
+    except urllib.error.URLError as exc:
+        logger.warning("Railway metrics poll failed (network): %s", exc)
+        with _LOCK:
+            cached = _CACHE
+        return _failed_snapshot("network_error", cached=cached)
+    except TimeoutError:
+        logger.warning("Railway metrics poll timed out")
+        with _LOCK:
+            cached = _CACHE
+        return _failed_snapshot("timeout", cached=cached)
+    except (OSError, ValueError, RuntimeError) as exc:
         logger.warning("Railway metrics poll failed: %s", exc)
         with _LOCK:
-            if _CACHE is not None:
-                return _CACHE
-        return {
-            "enabled": True,
-            "ok": False,
-            "fetched_at_unix": 0.0,
-            "error": str(exc)[:200],
-            "services": [],
-        }
+            cached = _CACHE
+        return _failed_snapshot("fetch_error", cached=cached)
 
     ttl = config.railway_metrics_poll_ttl_secs()
     with _LOCK:
