@@ -155,11 +155,13 @@ def _fetch() -> dict[str, Any]:
         raise RuntimeError(f"Railway GraphQL errors: {message}")
     results = ((body.get("data") or {}).get("metrics")) or []
     services = _build_services(results, service_names)
+    now = time.time()
     return {
         "enabled": True,
         "configured": True,
         "ok": True,
-        "fetched_at_unix": time.time(),
+        "fetched_at_unix": now,
+        "last_success_fetched_at_unix": now,
         "scrape_duration_seconds": None,
         "error": None,
         "services": services,
@@ -211,6 +213,7 @@ def _failed_snapshot(
         }
     )
     base.setdefault("fetched_at_unix", 0.0)
+    base.setdefault("last_success_fetched_at_unix", base.get("fetched_at_unix", 0.0))
     base.setdefault("scrape_duration_seconds", None)
     base.setdefault("services", [])
     return base

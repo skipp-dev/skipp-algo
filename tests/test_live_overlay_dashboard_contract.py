@@ -1110,6 +1110,10 @@ def test_dashboard_core_metrics_present_checks_critical_series() -> None:
     assert "absent(live_overlay_overlay_fresh" in expr
     assert "absent(live_overlay_market_us_open" in expr
     assert "absent(live_overlay_last_bar_age_known" in expr
+    assert "absent(live_overlay_smc_live_requests_total" in expr
+    assert "absent(live_overlay_smc_live_success_total" in expr
+    assert "absent(live_overlay_smc_live_errors_total" in expr
+    assert "absent(live_overlay_smc_live_latency_ms_count" in expr
 
 
 def test_dashboard_railway_bridge_shows_generic_contract() -> None:
