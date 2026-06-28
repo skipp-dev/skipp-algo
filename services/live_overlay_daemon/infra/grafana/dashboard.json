@@ -469,7 +469,7 @@
       },
       "targets": [
         {
-          "expr": "min by (job) (\n  (\n    live_overlay_uptimerobot_scrape_success{job=~\"$job\"}\n    and on(job) (live_overlay_uptimerobot_bridge_enabled{job=~\"$job\"} == 1)\n  ) or (\n    live_overlay_github_workflow_scrape_success{job=~\"$job\"}\n    and on(job) (live_overlay_github_workflow_bridge_enabled{job=~\"$job\"} == 1)\n  )\n)\nor on(job) label_replace(vector(-1), \"job\", \"live_overlay\", \"\", \"\")",
+          "expr": "min by (job) (\n  live_overlay_bridge_scrape_success{\n    job=~\"$job\",\n    bridge=~\"uptimerobot|github_workflow\"\n  }\n  and on(job, bridge) (\n    live_overlay_bridge_enabled{\n      job=~\"$job\",\n      bridge=~\"uptimerobot|github_workflow\"\n    } == 1\n  )\n)\nor on(job) label_replace(vector(-1), \"job\", \"live_overlay\", \"\", \"\")",
           "legendFormat": "{{job}}",
           "datasource": {
             "type": "prometheus",
@@ -5253,7 +5253,7 @@
       },
       "targets": [
         {
-          "expr": "max(live_overlay_railway_metrics_configured{job=~\"$job\"} == 1) + (max(live_overlay_railway_metrics_scrape_success{job=~\"$job\"} == 0) or vector(0))",
+          "expr": "(\n  max by (job) (live_overlay_bridge_enabled{job=~\"$job\",bridge=\"railway_metrics\"})\n  +\n  max by (job) (live_overlay_bridge_scrape_success{job=~\"$job\",bridge=\"railway_metrics\"})\n)\nor on(job) label_replace(vector(0), \"job\", \"live_overlay\", \"\", \"\")",
           "legendFormat": "state",
           "instant": true,
           "datasource": {
@@ -5860,6 +5860,6 @@
   "timezone": "utc",
   "title": "SMC Live Overlay API",
   "uid": "smc-live-overlay-v1",
-  "version": 40,
+  "version": 41,
   "description": "Live-overlay daemon operational dashboard: feed health, worker liveness, SMC overlay freshness, external bridge status, provider health, daily experiment metrics, and Railway container resources."
 }

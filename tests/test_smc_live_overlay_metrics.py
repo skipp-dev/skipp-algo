@@ -6,6 +6,7 @@ Covers:
 - non-finite sanitization in metrics rendering
 - non-finite rejection in observability primitives
 """
+
 from __future__ import annotations
 
 import json
@@ -57,47 +58,71 @@ def _patch_common(
 
     monkeypatch.setattr(feed, "is_ready", lambda: feed_ready)
     monkeypatch.setattr(feed, "last_bar_age_secs", lambda: 5.0)
-    monkeypatch.setattr(feed, "worker_liveness", lambda: workers or {
-        "live_feed": True,
-        "overlay_refresh": True,
-        "flow_refresh": True,
-    })
-    monkeypatch.setattr(feed, "metrics_snapshot", lambda: {
-        "reconnect_attempts": 2,
-        "bento_errors": 1,
-        "unexpected_errors": 0,
-        "circuit_breakers": 0,
-        "partial_restarts": 0,
-    })
-    monkeypatch.setattr(feed, "backpressure_snapshot", lambda: {
-        "ingest_queue_depth": 0.0,
-        "ingest_queue_depth_max": 3.0,
-        "ingest_queue_dropped_total": 1.0,
-        "ingest_queue_lag_ms_last": 7.5,
-        "ingest_queue_lag_ms_max": 35.0,
-    })
-    monkeypatch.setattr(metrics_mod, "_provider_health_snapshot", lambda: {
-        "news_snapshot_loaded": 1.0,
-        "news_snapshot_age_seconds": 42.0,
-        "news_providers_total": 3.0,
-        "news_providers_ok_total": 1.0,
-        "news_providers_degraded_total": 1.0,
-        "news_providers_unknown_total": 0.0,
-        "news_providers_disabled_total": 1.0,
-        "news_providers_consumed_total": 2.0,
-        "news_health_ok": 0.0,
-        "news_health_degraded": 1.0,
-        "news_health_unknown": 0.0,
-        "news_provider_ok": {"newsapi_ai": 1.0, "tv": 0.0, "benzinga": 0.0},
-        "news_provider_degraded": {"newsapi_ai": 0.0, "tv": 1.0, "benzinga": 0.0},
-        "news_provider_state_code": {"newsapi_ai": 2.0, "tv": 1.0, "benzinga": 3.0},
-        "news_provider_consumed": {"newsapi_ai": 1.0, "tv": 1.0, "benzinga": 0.0},
-        "news_provider_info": [
-            {"provider": "newsapi_ai", "state": "ok", "reason": "OK", "consumed": "true"},
-            {"provider": "tv", "state": "degraded", "reason": "API key missing", "consumed": "true"},
-            {"provider": "benzinga", "state": "disabled", "reason": "Provider disabled (not ingested)", "consumed": "false"},
-        ],
-    })
+    monkeypatch.setattr(
+        feed,
+        "worker_liveness",
+        lambda: (
+            workers
+            or {
+                "live_feed": True,
+                "overlay_refresh": True,
+                "flow_refresh": True,
+            }
+        ),
+    )
+    monkeypatch.setattr(
+        feed,
+        "metrics_snapshot",
+        lambda: {
+            "reconnect_attempts": 2,
+            "bento_errors": 1,
+            "unexpected_errors": 0,
+            "circuit_breakers": 0,
+            "partial_restarts": 0,
+        },
+    )
+    monkeypatch.setattr(
+        feed,
+        "backpressure_snapshot",
+        lambda: {
+            "ingest_queue_depth": 0.0,
+            "ingest_queue_depth_max": 3.0,
+            "ingest_queue_dropped_total": 1.0,
+            "ingest_queue_lag_ms_last": 7.5,
+            "ingest_queue_lag_ms_max": 35.0,
+        },
+    )
+    monkeypatch.setattr(
+        metrics_mod,
+        "_provider_health_snapshot",
+        lambda: {
+            "news_snapshot_loaded": 1.0,
+            "news_snapshot_age_seconds": 42.0,
+            "news_providers_total": 3.0,
+            "news_providers_ok_total": 1.0,
+            "news_providers_degraded_total": 1.0,
+            "news_providers_unknown_total": 0.0,
+            "news_providers_disabled_total": 1.0,
+            "news_providers_consumed_total": 2.0,
+            "news_health_ok": 0.0,
+            "news_health_degraded": 1.0,
+            "news_health_unknown": 0.0,
+            "news_provider_ok": {"newsapi_ai": 1.0, "tv": 0.0, "benzinga": 0.0},
+            "news_provider_degraded": {"newsapi_ai": 0.0, "tv": 1.0, "benzinga": 0.0},
+            "news_provider_state_code": {"newsapi_ai": 2.0, "tv": 1.0, "benzinga": 3.0},
+            "news_provider_consumed": {"newsapi_ai": 1.0, "tv": 1.0, "benzinga": 0.0},
+            "news_provider_info": [
+                {"provider": "newsapi_ai", "state": "ok", "reason": "OK", "consumed": "true"},
+                {"provider": "tv", "state": "degraded", "reason": "API key missing", "consumed": "true"},
+                {
+                    "provider": "benzinga",
+                    "state": "disabled",
+                    "reason": "Provider disabled (not ingested)",
+                    "consumed": "false",
+                },
+            ],
+        },
+    )
 
     monkeypatch.setattr(cache, "overlay_symbol_count", lambda: overlay_symbols)
     monkeypatch.setattr(cache, "bar_symbol_count", lambda: max(overlay_symbols, 1))
@@ -601,9 +626,7 @@ def test_render_metrics_includes_github_workflow_bridge_snapshot(monkeypatch: py
     assert f"live_overlay_github_workflow_phase_code{{{workflow_labels}}} 3.0" in body
     assert f"live_overlay_github_workflow_latest_success{{{workflow_labels}}} 1.0" in body
     assert f"live_overlay_github_workflow_latest_age_seconds{{{workflow_labels}}} 45.5" in body
-    assert (
-        f"live_overlay_github_workflow_latest_duration_seconds{{{workflow_labels}}} 120.0" in body
-    )
+    assert f"live_overlay_github_workflow_latest_duration_seconds{{{workflow_labels}}} 120.0" in body
 
 
 def test_render_metrics_handles_github_workflow_bridge_disabled(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -703,8 +726,6 @@ def test_render_metrics_escapes_github_workflow_error_code_labels(monkeypatch: p
     body = metrics_mod.render_metrics(startup_ts=100.0)
 
     assert 'live_overlay_github_workflow_scrape_error_info{error_code="http\\\\\\\\\\"401"} 1' in body
-
-
 
 
 def test_render_metrics_bridge_error_info_absent_when_healthy(
@@ -837,6 +858,7 @@ def test_render_metrics_bridge_error_info_clears_after_recovery(
     assert "live_overlay_uptimerobot_scrape_error_info" not in body
     assert "live_overlay_github_workflow_scrape_error_info" not in body
 
+
 def test_render_metrics_includes_trading_signals_snapshot(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -910,9 +932,7 @@ def test_render_metrics_includes_trading_signals_snapshot(
     assert f"live_overlay_trading_signal_technical_score{{{aapl}}} 0.82" in body
     assert f"live_overlay_trading_signal_change_pct{{{aapl}}} 1.23" in body
     expected_info = (
-        "live_overlay_trading_signal_info{"
-        + aapl
-        + ',technical_signal="STRONG_BUY",macd_signal="BUY",'
+        "live_overlay_trading_signal_info{" + aapl + ',technical_signal="STRONG_BUY",macd_signal="BUY",'
         'symbol_regime="TREND_UP",news_category="earnings"} 1'
     )
     assert expected_info in body
@@ -951,9 +971,7 @@ def test_render_metrics_includes_tradingview_credential(
             }
         ],
     }
-    monkeypatch.setattr(
-        metrics_mod.compute, "_load_tradingview_credential_snapshot", lambda: report
-    )
+    monkeypatch.setattr(metrics_mod.compute, "_load_tradingview_credential_snapshot", lambda: report)
 
     body = metrics_mod.render_metrics(startup_ts=100.0)
 
@@ -987,9 +1005,7 @@ def test_render_metrics_tradingview_credential_error_is_invalid(
             }
         ],
     }
-    monkeypatch.setattr(
-        metrics_mod.compute, "_load_tradingview_credential_snapshot", lambda: report
-    )
+    monkeypatch.setattr(metrics_mod.compute, "_load_tradingview_credential_snapshot", lambda: report)
 
     body = metrics_mod.render_metrics(startup_ts=100.0)
 
@@ -1011,9 +1027,7 @@ def test_render_metrics_handles_tradingview_credential_missing(
         overlay_symbols=5,
         overlay_age=60.0,
     )
-    monkeypatch.setattr(
-        metrics_mod.compute, "_load_tradingview_credential_snapshot", lambda: {}
-    )
+    monkeypatch.setattr(metrics_mod.compute, "_load_tradingview_credential_snapshot", lambda: {})
 
     body = metrics_mod.render_metrics(startup_ts=100.0)
 
@@ -1070,9 +1084,7 @@ def test_render_metrics_includes_full_credential_health_report(
             },
         ],
     }
-    monkeypatch.setattr(
-        metrics_mod.compute, "_load_credential_health_snapshot", lambda: report
-    )
+    monkeypatch.setattr(metrics_mod.compute, "_load_credential_health_snapshot", lambda: report)
 
     body = metrics_mod.render_metrics(startup_ts=100.0)
 
@@ -1105,9 +1117,7 @@ def test_render_metrics_credential_health_missing_report_is_zeroed(
         overlay_symbols=5,
         overlay_age=60.0,
     )
-    monkeypatch.setattr(
-        metrics_mod.compute, "_load_credential_health_snapshot", lambda: {}
-    )
+    monkeypatch.setattr(metrics_mod.compute, "_load_credential_health_snapshot", lambda: {})
 
     body = metrics_mod.render_metrics(startup_ts=100.0)
 
@@ -1216,11 +1226,11 @@ def test_dashboard_github_workflow_runs_panel_uses_snapshot_counts() -> None:
     dashboard = json.loads(dashboard_path.read_text(encoding="utf-8"))
     panel = next(p for p in dashboard["panels"] if p.get("title") == "GitHub Workflow Runs")
     expected_exprs = {
-        "seen": "live_overlay_github_workflow_runs_seen_total{job=~\"$job\"}",
-        "success": "live_overlay_github_workflow_runs_success_total{job=~\"$job\"}",
-        "failed": "live_overlay_github_workflow_runs_failed_total{job=~\"$job\"}",
-        "in_progress": "live_overlay_github_workflow_runs_in_progress_total{job=~\"$job\"}",
-        "queued": "live_overlay_github_workflow_runs_queued_total{job=~\"$job\"}",
+        "seen": 'live_overlay_github_workflow_runs_seen_total{job=~"$job"}',
+        "success": 'live_overlay_github_workflow_runs_success_total{job=~"$job"}',
+        "failed": 'live_overlay_github_workflow_runs_failed_total{job=~"$job"}',
+        "in_progress": 'live_overlay_github_workflow_runs_in_progress_total{job=~"$job"}',
+        "queued": 'live_overlay_github_workflow_runs_queued_total{job=~"$job"}',
     }
     actual_exprs = {t["legendFormat"]: t["expr"] for t in panel["targets"]}
     assert actual_exprs == expected_exprs
@@ -1231,33 +1241,19 @@ def test_dashboard_github_workflow_runs_panel_uses_snapshot_counts() -> None:
 def test_dashboard_has_trading_signals_panels() -> None:
     repo_root = Path(__file__).resolve().parents[1]
     dashboard_path = (
-        repo_root
-        / "services"
-        / "live_overlay_daemon"
-        / "infra"
-        / "grafana"
-        / "dashboard-signals-experiments.json"
+        repo_root / "services" / "live_overlay_daemon" / "infra" / "grafana" / "dashboard-signals-experiments.json"
     )
     dashboard = json.loads(dashboard_path.read_text(encoding="utf-8"))
     by_title = {p.get("title"): p for p in dashboard["panels"]}
 
     active = by_title["Active Trading Signals"]
     assert active["type"] == "stat"
-    assert any(
-        "live_overlay_trading_signals_active_total" in t["expr"]
-        for t in active["targets"]
-    )
+    assert any("live_overlay_trading_signals_active_total" in t["expr"] for t in active["targets"])
 
     age = by_title["Signals Snapshot Age"]
     assert age["fieldConfig"]["defaults"]["unit"] == "s"
-    assert any(
-        "live_overlay_trading_signals_snapshot_age_seconds" in t["expr"]
-        for t in age["targets"]
-    )
-    assert any(
-        "live_overlay_trading_signals_snapshot_age_known" in t["expr"]
-        for t in age["targets"]
-    )
+    assert any("live_overlay_trading_signals_snapshot_age_seconds" in t["expr"] for t in age["targets"])
+    assert any("live_overlay_trading_signals_snapshot_age_known" in t["expr"] for t in age["targets"])
 
     table = by_title["Top Trading Signals — Latest Detail"]
     assert table["type"] == "table"
@@ -1280,12 +1276,7 @@ def test_dashboard_has_trading_signals_panels() -> None:
 def test_signals_experiments_dashboard_is_packed_from_top() -> None:
     repo_root = Path(__file__).resolve().parents[1]
     dashboard_path = (
-        repo_root
-        / "services"
-        / "live_overlay_daemon"
-        / "infra"
-        / "grafana"
-        / "dashboard-signals-experiments.json"
+        repo_root / "services" / "live_overlay_daemon" / "infra" / "grafana" / "dashboard-signals-experiments.json"
     )
     dashboard = json.loads(dashboard_path.read_text(encoding="utf-8"))
     y_values = [p["gridPos"]["y"] for p in dashboard["panels"]]
@@ -1456,12 +1447,8 @@ def test_render_metrics_includes_daily_experiment_snapshot(
             },
         },
     ]
-    monkeypatch.setattr(
-        metrics_mod.compute, "_load_experiment_snapshot", lambda: rollup
-    )
-    monkeypatch.setattr(
-        metrics_mod.compute, "_load_experiment_history", lambda: history
-    )
+    monkeypatch.setattr(metrics_mod.compute, "_load_experiment_snapshot", lambda: rollup)
+    monkeypatch.setattr(metrics_mod.compute, "_load_experiment_history", lambda: history)
 
     body = metrics_mod.render_metrics(startup_ts=100.0)
 
@@ -1470,45 +1457,20 @@ def test_render_metrics_includes_daily_experiment_snapshot(
     # The dated scoring_root yields a known run age.
     assert "live_overlay_experiment_snapshot_age_known 1.0" in body
     # Per-timeframe aggregates.
-    assert (
-        'live_overlay_experiment_tf_hit_rate{timeframe="5m"} 0.61' in body
-    )
-    assert (
-        'live_overlay_experiment_tf_n_events{timeframe="4H"} 50.0' in body
-    )
+    assert 'live_overlay_experiment_tf_hit_rate{timeframe="5m"} 0.61' in body
+    assert 'live_overlay_experiment_tf_n_events{timeframe="4H"} 50.0' in body
     # Per-family detail.
-    assert (
-        'live_overlay_experiment_family_hit_rate{timeframe="5m",family="FVG"} 0.7'
-        in body
-    )
-    assert (
-        'live_overlay_experiment_family_n_events{timeframe="5m",family="SWEEP"} 40.0'
-        in body
-    )
+    assert 'live_overlay_experiment_family_hit_rate{timeframe="5m",family="FVG"} 0.7' in body
+    assert 'live_overlay_experiment_family_n_events{timeframe="5m",family="SWEEP"} 40.0' in body
     # Phase E2 verdicts mapped to numeric codes; p-value only when measured.
-    assert (
-        'live_overlay_experiment_verdict_status_code{hypothesis="fvg_5m",status="measured"} 4.0'
-        in body
-    )
-    assert (
-        'live_overlay_experiment_verdict_status_code{hypothesis="bos_4h",status="insufficient_data"} 1.0'
-        in body
-    )
-    assert (
-        'live_overlay_experiment_verdict_p_value{hypothesis="fvg_5m",status="measured"} 0.012'
-        in body
-    )
+    assert 'live_overlay_experiment_verdict_status_code{hypothesis="fvg_5m",status="measured"} 4.0' in body
+    assert 'live_overlay_experiment_verdict_status_code{hypothesis="bos_4h",status="insufficient_data"} 1.0' in body
+    assert 'live_overlay_experiment_verdict_p_value{hypothesis="fvg_5m",status="measured"} 0.012' in body
     # p-value is omitted for the insufficient-data verdict (no false 0).
     assert 'live_overlay_experiment_verdict_p_value{hypothesis="bos_4h"' not in body
     # Per-day backfilled history series, one per (run_date, timeframe, family).
-    assert (
-        'live_overlay_experiment_day_family_hit_rate{run_date="2026-06-20",timeframe="5m",family="FVG"} 0.66'
-        in body
-    )
-    assert (
-        'live_overlay_experiment_day_family_hit_rate{run_date="2026-06-21",timeframe="5m",family="FVG"} 0.7'
-        in body
-    )
+    assert 'live_overlay_experiment_day_family_hit_rate{run_date="2026-06-20",timeframe="5m",family="FVG"} 0.66' in body
+    assert 'live_overlay_experiment_day_family_hit_rate{run_date="2026-06-21",timeframe="5m",family="FVG"} 0.7' in body
 
 
 def test_render_metrics_handles_daily_experiment_snapshot_missing(
@@ -1540,31 +1502,19 @@ def test_render_metrics_handles_daily_experiment_snapshot_missing(
 def test_dashboard_has_daily_experiment_panels() -> None:
     repo_root = Path(__file__).resolve().parents[1]
     dashboard_path = (
-        repo_root
-        / "services"
-        / "live_overlay_daemon"
-        / "infra"
-        / "grafana"
-        / "dashboard-signals-experiments.json"
+        repo_root / "services" / "live_overlay_daemon" / "infra" / "grafana" / "dashboard-signals-experiments.json"
     )
     dashboard = json.loads(dashboard_path.read_text(encoding="utf-8"))
     by_title = {p.get("title"): p for p in dashboard["panels"]}
 
     age = by_title["Daily Experiment — Snapshot Age"]
     assert age["fieldConfig"]["defaults"]["unit"] == "s"
-    assert any(
-        "live_overlay_experiment_snapshot_age_seconds" in t["expr"]
-        for t in age["targets"]
-    )
-    assert any(
-        "live_overlay_experiment_snapshot_age_known" in t["expr"]
-        for t in age["targets"]
-    )
+    assert any("live_overlay_experiment_snapshot_age_seconds" in t["expr"] for t in age["targets"])
+    assert any("live_overlay_experiment_snapshot_age_known" in t["expr"] for t in age["targets"])
 
     fvg = by_title["FVG 5m Verdict (Phase E2)"]
     assert any(
-        'hypothesis="fvg_5m"' in t["expr"]
-        and "live_overlay_experiment_verdict_status_code" in t["expr"]
+        'hypothesis="fvg_5m"' in t["expr"] and "live_overlay_experiment_verdict_status_code" in t["expr"]
         for t in fvg["targets"]
     )
     fvg_map = fvg["fieldConfig"]["defaults"]["mappings"][0]["options"]
@@ -1664,7 +1614,7 @@ def test_main_lifespan_increments_restarts_total_counter() -> None:
 
     source = Path(main_mod.__file__).read_text(encoding="utf-8")
     assert 'observability.metric_counter("live_overlay.daemon.restarts_total")' in source
-    assert 'observability.metric_counter(' in source
+    assert "observability.metric_counter(" in source
     assert "restart_cause" in source
 
 
@@ -1766,7 +1716,79 @@ def test_render_metrics_emits_latency_histogram_before_first_observation(monkeyp
     body = metrics_mod.render_metrics(startup_ts=100.0)
 
     assert "# TYPE live_overlay_smc_live_latency_ms histogram" in body
-    assert "live_overlay_smc_live_latency_ms_bucket{le=\"+Inf\"} 0.0" in body
+    assert 'live_overlay_smc_live_latency_ms_bucket{le="+Inf"} 0.0' in body
     assert "live_overlay_smc_live_latency_ms_sum 0.0" in body
     assert "live_overlay_smc_live_latency_ms_count 0.0" in body
     assert body.count("live_overlay_smc_live_latency_ms_bucket{") >= 2
+
+
+def test_render_metrics_exports_generic_bridge_contract(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """All bridges must emit the generic contract series."""
+    import services.live_overlay_daemon.metrics as metrics_mod
+
+    _patch_common(
+        monkeypatch,
+        feed_ready=True,
+        market_open=True,
+        bar_count=10,
+        overlay_symbols=5,
+        overlay_age=60.0,
+    )
+    monkeypatch.setattr(
+        metrics_mod.uptimerobot_bridge,
+        "snapshot",
+        lambda: {
+            "enabled": 1,
+            "ok": 1,
+            "fetched_at_unix": 1_700_000_000.0,
+            "error_code": "",
+            "counts": {"total": 0, "up": 0, "down": 0, "paused": 0, "unknown": 0},
+            "avg_response_time_ms": None,
+            "monitors": [],
+        },
+    )
+    monkeypatch.setattr(
+        metrics_mod.github_workflow_bridge,
+        "snapshot",
+        lambda: {
+            "enabled": 1,
+            "ok": 0,
+            "fetched_at_unix": 0.0,
+            "error_code": "http401",
+            "counts": {"seen": 0, "success": 0, "failed": 0, "in_progress": 0, "queued": 0},
+            "latest_run_age_seconds": None,
+            "latest_run_duration_seconds": None,
+            "workflows": [],
+        },
+    )
+    monkeypatch.setattr(
+        metrics_mod.railway_metrics,
+        "snapshot",
+        lambda: {
+            "enabled": True,
+            "configured": False,
+            "ok": False,
+            "fetched_at_unix": 0.0,
+            "error": "missing_configuration",
+            "services": [],
+        },
+    )
+
+    body = metrics_mod.render_metrics(startup_ts=100.0)
+
+    assert 'live_overlay_bridge_enabled{bridge="uptimerobot"} 1' in body
+    assert 'live_overlay_bridge_configured{bridge="uptimerobot"} 1' in body
+    assert 'live_overlay_bridge_scrape_success{bridge="uptimerobot"} 1' in body
+    assert 'live_overlay_bridge_error_info{bridge="uptimerobot",error="none"} 0' in body
+
+    assert 'live_overlay_bridge_enabled{bridge="github_workflow"} 1' in body
+    assert 'live_overlay_bridge_configured{bridge="github_workflow"} 1' in body
+    assert 'live_overlay_bridge_scrape_success{bridge="github_workflow"} 0' in body
+    assert 'live_overlay_bridge_error_info{bridge="github_workflow",error="http401"} 1' in body
+
+    assert 'live_overlay_bridge_enabled{bridge="railway_metrics"} 1' in body
+    assert 'live_overlay_bridge_configured{bridge="railway_metrics"} 0' in body
+    assert 'live_overlay_bridge_scrape_success{bridge="railway_metrics"} 0' in body
+    assert 'live_overlay_bridge_error_info{bridge="railway_metrics",error="missing_configuration"} 1' in body

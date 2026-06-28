@@ -137,7 +137,12 @@ def test_railway_links_are_concrete(temp_dashboard: Path) -> None:
 
 
 def test_railway_links_use_env_ids_when_provided(temp_dashboard: Path) -> None:
-    env = {**os.environ, "RAILWAY_PROJECT_ID": "proj-123", "RAILWAY_ENVIRONMENT_ID": "env-456", "RAILWAY_LIVE_OVERLAY_SERVICE_ID": "svc-789"}
+    env = {
+        **os.environ,
+        "RAILWAY_PROJECT_ID": "proj-123",
+        "RAILWAY_ENVIRONMENT_ID": "env-456",
+        "RAILWAY_LIVE_OVERLAY_SERVICE_ID": "svc-789",
+    }
     repo_root = Path(__file__).resolve().parents[1]
     script = repo_root / "scripts" / "update_overlay_dashboard.py"
     result = subprocess.run(
@@ -232,15 +237,14 @@ def test_all_panel_queries_have_balanced_parentheses(temp_dashboard: Path) -> No
 
 
 def test_update_script_fixes_external_checks_query(temp_dashboard: Path) -> None:
-    """External Checks should ignore unconfigured bridges, not treat them as failures."""
+    """External Checks should use the generic bridge contract."""
     _run_script(temp_dashboard)
     data = json.loads(temp_dashboard.read_text(encoding="utf-8"))
     panel = next(p for p in data["panels"] if p.get("title") == "External Checks")
     expr = panel["targets"][0]["expr"]
-    assert "live_overlay_uptimerobot_scrape_success" in expr
-    assert "live_overlay_github_workflow_scrape_success" in expr
-    assert "live_overlay_uptimerobot_bridge_enabled" in expr
-    assert "live_overlay_github_workflow_bridge_enabled" in expr
+    assert "live_overlay_bridge_scrape_success" in expr
+    assert "live_overlay_bridge_enabled" in expr
+    assert 'bridge=~"uptimerobot|github_workflow"' in expr
     assert "min by (job)" in expr
     assert panel["targets"][0]["legendFormat"] == "{{job}}"
     assert 'or on(job) label_replace(vector(-1), "job", "live_overlay", "", "")' in expr
@@ -257,7 +261,7 @@ def test_update_script_fixes_bridge_error_panels(temp_dashboard: Path) -> None:
 
 
 def test_update_script_adds_railway_status_panels(temp_dashboard: Path) -> None:
-    """Railway row should expose bridge status, snapshot age, and error class."""
+    """Railway row should use the generic bridge contract and expose error class."""
     _run_script(temp_dashboard)
     data = json.loads(temp_dashboard.read_text(encoding="utf-8"))
     titles = {p.get("title") for p in data["panels"]}
@@ -266,8 +270,9 @@ def test_update_script_adds_railway_status_panels(temp_dashboard: Path) -> None:
     assert "Railway Metrics Error" in titles
 
     bridge = next(p for p in data["panels"] if p.get("title") == "Railway Metrics Bridge")
-    assert "live_overlay_railway_metrics_configured" in bridge["targets"][0]["expr"]
-    assert "live_overlay_railway_metrics_scrape_success" in bridge["targets"][0]["expr"]
+    assert "live_overlay_bridge_enabled" in bridge["targets"][0]["expr"]
+    assert "live_overlay_bridge_scrape_success" in bridge["targets"][0]["expr"]
+    assert 'bridge="railway_metrics"' in bridge["targets"][0]["expr"]
 
 
 def test_update_script_fixes_github_workflow_timeline_readability(temp_dashboard: Path) -> None:
@@ -346,12 +351,13 @@ def test_update_script_core_metrics_present_checks_critical_series(temp_dashboar
     assert "absent(live_overlay_last_bar_age_known" in expr
 
 
-def test_update_script_railway_bridge_uses_configured_and_success(temp_dashboard: Path) -> None:
-    """Railway Metrics Bridge panel should use configured/success split."""
+def test_update_script_railway_bridge_uses_generic_bridge_contract(temp_dashboard: Path) -> None:
+    """Railway Metrics Bridge panel should use the generic bridge contract."""
     _run_script(temp_dashboard)
     data = json.loads(temp_dashboard.read_text(encoding="utf-8"))
     panel = next(p for p in data["panels"] if p.get("title") == "Railway Metrics Bridge")
     expr = panel["targets"][0]["expr"]
-    assert "live_overlay_railway_metrics_configured" in expr
-    assert "live_overlay_railway_metrics_scrape_success" in expr
+    assert "live_overlay_bridge_enabled" in expr
+    assert "live_overlay_bridge_scrape_success" in expr
+    assert 'bridge="railway_metrics"' in expr
     assert "live_overlay_railway_metrics_enabled" not in expr
