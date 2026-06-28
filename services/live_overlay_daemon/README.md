@@ -602,12 +602,13 @@ Operational UX additions:
   news snapshot metric series via explicit `absent(...)` checks.
 - Provider drill-down query excludes aggregate health series so per-provider
   `..._ok` / `..._degraded` timelines remain noise-free.
-- Railway links in the triage guide and resource panels intentionally use generic
-  `https://railway.app/project/...` URLs because the concrete project and
-  service IDs are configured via environment variables (`RAILWAY_PROJECT_ID`,
-  `RAILWAY_SERVICE_NAMES`) and are not committed in this repo.  When those
-  IDs become stable enough to embed, the links should be updated and the generic
-  placeholders removed.
+- Railway links in the triage guide and resource panels use concrete
+  production Railway console URLs. Project, environment, and service IDs are
+  not secrets; `scripts/update_overlay_dashboard.py` keeps them as defaults so
+  on-call links work out of the box. Staging/forked environments can override
+  them with `RAILWAY_PROJECT_ID`, `RAILWAY_ENVIRONMENT_ID`,
+  `RAILWAY_LIVE_OVERLAY_SERVICE_ID`, and
+  `RAILWAY_SIGNALS_PRODUCER_SERVICE_ID` before running the updater.
 - Known UX follow-ups not yet addressed:
   - `Bridge Scrape Health Timeline` currently lives under
     `Reliability Drill-down` but logically belongs in

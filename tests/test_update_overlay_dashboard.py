@@ -120,17 +120,20 @@ def test_news_state_code_panel_has_value_mapping(temp_dashboard: Path) -> None:
     assert options.get("0", {}).get("text") == "UNKNOWN"
 
 
-def test_railway_links_are_concrete_or_placeholders(temp_dashboard: Path) -> None:
+def test_railway_links_are_concrete(temp_dashboard: Path) -> None:
     _run_script(temp_dashboard)
     raw = temp_dashboard.read_text(encoding="utf-8")
     # Generic railway.app project-root URLs are never acceptable.
     assert "railway.app/project" not in raw, "dashboard still contains generic railway.app URLs"
+    assert "REPLACE_" not in raw, "dashboard still contains placeholder Railway IDs"
     # Dashboard-level links must use the concrete service-scoped shape.
     data = json.loads(raw)
     link_urls = {link.get("title"): link.get("url", "") for link in data.get("links", [])}
-    assert link_urls.get("Railway logs", "").startswith("https://railway.com/project/")
-    assert link_urls.get("Railway deployments", "").startswith("https://railway.com/project/")
-    assert link_urls.get("Railway metrics", "").startswith("https://railway.com/project/")
+    for title in ("Railway logs", "Railway deployments", "Railway metrics"):
+        url = link_urls.get(title, "")
+        assert url.startswith("https://railway.com/project/")
+        assert "/service/" in url
+        assert "environmentId=" in url
 
 
 def test_railway_links_use_env_ids_when_provided(temp_dashboard: Path) -> None:

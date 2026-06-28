@@ -21,19 +21,24 @@ logger = logging.getLogger(__name__)
 
 # Concrete Railway console URLs for live-overlay on-call.
 #
-# These IDs are *not* secrets, but they are environment-specific, so they are
-# loaded from env vars when available and fall back to documented placeholders.
-# To obtain the real URLs, open the Railway console, navigate to the live-overlay
-# service, and copy the URLs from the browser address bar for Logs / Deployments /
-# Metrics. Then export the IDs below (or edit the fallback defaults) and re-run
-# this updater.
-_RAILWAY_PROJECT_ID = os.getenv("RAILWAY_PROJECT_ID", "REPLACE_PROJECT_ID")
-_RAILWAY_ENVIRONMENT_ID = os.getenv("RAILWAY_ENVIRONMENT_ID", "REPLACE_ENVIRONMENT_ID")
+# Railway resource IDs are not secrets. Keep production IDs as defaults so the
+# committed dashboard remains directly useful during incidents; env vars still
+# allow staging/forked environments to generate their own links.
+_DEFAULT_RAILWAY_PROJECT_ID = "0616a3b7-7b7f-41d1-8fac-a0b8922c94ca"
+_DEFAULT_RAILWAY_ENVIRONMENT_ID = "470fbd0f-894d-46cd-8722-6b072d255d99"
+_DEFAULT_RAILWAY_LIVE_OVERLAY_SERVICE_ID = "705582c5-ba8b-4c6e-848c-33bffe0a61b0"
+_DEFAULT_RAILWAY_SIGNALS_PRODUCER_SERVICE_ID = "81f8c6b5-ffe2-4646-a978-e62143192a9a"
+
+_RAILWAY_PROJECT_ID = os.getenv("RAILWAY_PROJECT_ID", _DEFAULT_RAILWAY_PROJECT_ID)
+_RAILWAY_ENVIRONMENT_ID = os.getenv(
+    "RAILWAY_ENVIRONMENT_ID", _DEFAULT_RAILWAY_ENVIRONMENT_ID
+)
 _RAILWAY_LIVE_OVERLAY_SERVICE_ID = os.getenv(
-    "RAILWAY_LIVE_OVERLAY_SERVICE_ID", "REPLACE_LIVE_OVERLAY_SERVICE_ID"
+    "RAILWAY_LIVE_OVERLAY_SERVICE_ID", _DEFAULT_RAILWAY_LIVE_OVERLAY_SERVICE_ID
 )
 _RAILWAY_SIGNALS_PRODUCER_SERVICE_ID = os.getenv(
-    "RAILWAY_SIGNALS_PRODUCER_SERVICE_ID", "REPLACE_SIGNALS_PRODUCER_SERVICE_ID"
+    "RAILWAY_SIGNALS_PRODUCER_SERVICE_ID",
+    _DEFAULT_RAILWAY_SIGNALS_PRODUCER_SERVICE_ID,
 )
 
 RAILWAY_LINKS: dict[str, str] = {
@@ -221,6 +226,13 @@ def _iter_v1_panels(data: dict[str, Any]):
         for child in panel.get("panels", []) or []:
             if isinstance(child, dict):
                 yield child
+
+
+def _v1_panel_by_title(data: dict[str, Any], title: str) -> dict[str, Any] | None:
+    for panel in _iter_v1_panels(data):
+        if panel.get("title") == title:
+            return panel
+    return None
 
 
 def _fix_github_workflow_timeline_panel(data: dict[str, Any]) -> bool:
@@ -431,6 +443,59 @@ def _fix_bridge_scrapes_panel(data: dict[str, Any]) -> bool:
     return changed
 
 
+def _ensure_v1_incident_drilldown_links(data: dict[str, Any]) -> bool:
+    """Keep first-screen incident stat links pointed at real detail rows."""
+    changed = False
+    link_specs = {
+        "External Checks": ("External Integrations", "External Integrations"),
+        "Core Metrics Present": ("Collector / Scrape Targets", "Collector / Scrape Targets"),
+    }
+    for panel_title, (link_title, target_title) in link_specs.items():
+        panel = _v1_panel_by_title(data, panel_title)
+        target = _v1_panel_by_title(data, target_title)
+        if not panel or not target or target.get("id") is None:
+            continue
+        desired_links = [
+            {
+                "title": link_title,
+                "type": "link",
+                "url": f"/d/smc-live-overlay-v1?orgId=1&viewPanel={target['id']}",
+                "targetBlank": True,
+            }
+        ]
+        if panel.get("links") != desired_links:
+            panel["links"] = desired_links
+            changed = True
+    return changed
+
+
+def _ensure_v1_service_owner_row_descriptions(data: dict[str, Any]) -> bool:
+    """Label collapsed detail rows with their intended service-owner audience."""
+    desired_descriptions = {
+        "Provider Health": (
+            "Service-owner detail: live news provider health and provider-level "
+            "degradation context."
+        ),
+        "Collector / Scrape Targets": (
+            "Service-owner detail: telemetry pipeline health, scrape target "
+            "liveness, and collector memory."
+        ),
+        "Railway Resources": (
+            "Service-owner detail: Railway container capacity and bridge health "
+            "for production operations."
+        ),
+    }
+    changed = False
+    for title, description in desired_descriptions.items():
+        panel = _v1_panel_by_title(data, title)
+        if not panel or panel.get("type") != "row":
+            continue
+        if panel.get("description") != description:
+            panel["description"] = description
+            changed = True
+    return changed
+
+
 def _fix_bridge_error_panels(data: dict[str, Any]) -> bool:
     """Ensure bridge error panels only count real error codes.
 
@@ -615,12 +680,28 @@ def _fix_triage_guide_railway_links(data: dict[str, Any]) -> bool:
             continue
 
         new_content = content
-        # Replace the three known generic Railway console URLs anywhere they
-        # appear inside the guide (markdown links or bare references).
+        placeholder_logs_url = (
+            "https://railway.com/project/REPLACE_PROJECT_ID/service/"
+            "REPLACE_LIVE_OVERLAY_SERVICE_ID/logs?environmentId=REPLACE_ENVIRONMENT_ID"
+        )
+        placeholder_deployments_url = (
+            "https://railway.com/project/REPLACE_PROJECT_ID/service/"
+            "REPLACE_LIVE_OVERLAY_SERVICE_ID/deployments?environmentId=REPLACE_ENVIRONMENT_ID"
+        )
+        placeholder_metrics_url = (
+            "https://railway.com/project/REPLACE_PROJECT_ID/service/"
+            "REPLACE_LIVE_OVERLAY_SERVICE_ID/metrics?environmentId=REPLACE_ENVIRONMENT_ID"
+        )
+
+        # Replace known generic and placeholder Railway console URLs anywhere
+        # they appear inside the guide (markdown links or bare references).
         url_replacements = [
             ("https://railway.app/project/metrics", RAILWAY_LINKS["live_overlay_metrics"]),
             ("https://railway.app/project/deployments", RAILWAY_LINKS["live_overlay_deployments"]),
             ("https://railway.app/project", RAILWAY_LINKS["live_overlay_logs"]),
+            (placeholder_metrics_url, RAILWAY_LINKS["live_overlay_metrics"]),
+            (placeholder_deployments_url, RAILWAY_LINKS["live_overlay_deployments"]),
+            (placeholder_logs_url, RAILWAY_LINKS["live_overlay_logs"]),
         ]
         for old_url, new_url in url_replacements:
             if old_url in new_content:
@@ -721,10 +802,10 @@ def _ensure_railway_resource_links(data: dict[str, Any]) -> bool:
 def _fail_if_generic_railway_links_remain(data: dict[str, Any]) -> None:
     """Guard: the committed dashboard must never contain generic Railway URLs.
 
-    Placeholder URLs (e.g. https://railway.com/project/REPLACE_PROJECT_ID/service/...)
-    are allowed because they signal that the real IDs need to be filled in
-    before deployment.  Bare project-root URLs and the old railway.app
-    domain are not.
+    Rejects:
+    - legacy ``railway.app`` project URLs
+    - ``railway.com/project`` URLs without a concrete ``/service/<id>`` scope
+    - any remaining ``REPLACE_*`` placeholders
     """
     raw = json.dumps(data)
     hits: list[str] = []
@@ -743,6 +824,11 @@ def _fail_if_generic_railway_links_remain(data: dict[str, Any]) -> None:
 
     # Old railway.app domain is never acceptable.
     _collect("https://railway.app/project")
+    _collect("https://railway.com/project/REPLACE_")
+    _collect("REPLACE_PROJECT_ID")
+    _collect("REPLACE_ENVIRONMENT_ID")
+    _collect("REPLACE_LIVE_OVERLAY_SERVICE_ID")
+    _collect("REPLACE_SIGNALS_PRODUCER_SERVICE_ID")
 
     # railway.com/project without a concrete /service/<id> path is too generic.
     start_idx = 0
@@ -758,9 +844,10 @@ def _fail_if_generic_railway_links_remain(data: dict[str, Any]) -> None:
 
     if hits:
         raise SystemExit(
-            f"Generic Railway URLs still present in dashboard: {hits[:5]}. "
-            "Set RAILWAY_PROJECT_ID / RAILWAY_ENVIRONMENT_ID / "
-            "RAILWAY_LIVE_OVERLAY_SERVICE_ID and re-run the updater."
+            f"Generic or placeholder Railway URLs still present in dashboard: {hits[:5]}. "
+            "Use concrete production Railway IDs or set RAILWAY_PROJECT_ID, "
+            "RAILWAY_ENVIRONMENT_ID, RAILWAY_LIVE_OVERLAY_SERVICE_ID, and "
+            "RAILWAY_SIGNALS_PRODUCER_SERVICE_ID, then re-run the updater."
         )
 
 
@@ -782,6 +869,8 @@ def main(argv: list[str] | None = None) -> int:
         changed = _fix_bridge_state_panel_legends(data) or changed
         changed = _ensure_railway_status_panels(data) or changed
         changed = _fix_github_workflow_timeline_panel(data) or changed
+        changed = _ensure_v1_incident_drilldown_links(data) or changed
+        changed = _ensure_v1_service_owner_row_descriptions(data) or changed
         if changed:
             data["version"] = int(data.get("version", 0) or 0) + 1
         _save_dashboard(dashboard_path, data)
