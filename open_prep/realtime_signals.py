@@ -149,7 +149,11 @@ def _extract_snapshot_epoch(data: dict[str, Any] | None) -> float:
         raw = raw.strip()
         if raw:
             try:
-                return datetime.fromisoformat(raw).timestamp()
+                # Python's fromisoformat does not accept a trailing 'Z' before 3.11.
+                dt = datetime.fromisoformat(raw.replace("Z", "+00:00"))
+                if dt.tzinfo is None:
+                    dt = dt.replace(tzinfo=UTC)
+                return dt.timestamp()
             except ValueError:
                 try:
                     return float(raw)
@@ -919,16 +923,24 @@ def _start_telemetry_server(
                 self.end_headers()
                 self.wfile.write(b"ok\n")
             elif self.path == "/readyz":
-                ready = (
-                    engine is not None
-                    and len(getattr(engine, "_watchlist", [])) > 0
-                    and getattr(engine, "open_prep_snapshot_loaded", 0.0) == 1.0
-                    and time.time() - getattr(engine, "last_poll_success_epoch", 0.0) < 300
-                )
+                ready = False
+                reason = "engine not initialised"
+                if engine is None:
+                    pass
+                elif len(getattr(engine, "_watchlist", [])) == 0:
+                    reason = "watchlist not loaded"
+                elif getattr(engine, "open_prep_snapshot_loaded", 0.0) != 1.0:
+                    reason = "open-prep snapshot not loaded"
+                else:
+                    poll_age = max(0.0, time.time() - getattr(engine, "last_poll_success_epoch", 0.0))
+                    if poll_age < 300:
+                        ready = True
+                    else:
+                        reason = f"last poll stale ({poll_age:.0f}s ago)"
                 self.send_response(200 if ready else 503)
                 self.send_header("Content-Type", "text/plain")
                 self.end_headers()
-                self.wfile.write(b"ready\n" if ready else b"not_ready\n")
+                self.wfile.write(b"ready\n" if ready else reason.encode() + b"\n")
             elif self.path in ("/telemetry.json", "/telemetry"):
                 import json as _json
                 try:
@@ -2494,6 +2506,7 @@ class RealtimeEngine:
             with self._lock:
                 self._active_signals.clear()
             self._save_signals()
+            self.last_poll_duration = time.monotonic() - poll_start
             self.last_poll_duration_seconds = self.last_poll_duration
             return []
 

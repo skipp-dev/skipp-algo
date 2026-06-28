@@ -88,7 +88,7 @@
 # 2026-06-25: shifted 1000 -> 1002 by stop-guard hardening in the poll loop.
 # 2026-06-28 (semantic monitoring): readiness metrics + _extract_snapshot_epoch
 # helper shifted the _fetch_json_url urlopen call +53 lines.
-"open_prep/realtime_signals.py" = [1055]
+"open_prep/realtime_signals.py" = [1067]
 "scripts/probe_fmp_13f_endpoints.py" = [75]
 "scripts/resolve_workflow_runner.py" = [91]
 # 2026-06-21 (live-overlay bridge observability): optional external polling
@@ -156,12 +156,12 @@ codes = ["S603"]
 # 2026-06-28 (semantic monitoring): shifted +20 lines by _extract_snapshot_epoch helper.
 [[noqa_budget.sites]]
 file = "open_prep/realtime_signals.py"
-line = 211
+line = 215
 codes = ["S603"]
 
 [[noqa_budget.sites]]
 file = "open_prep/realtime_signals.py"
-line = 361
+line = 365
 codes = ["S603"]
 
 # smc_integration/release_policy.py:1121 — Bandit S603 false positive:

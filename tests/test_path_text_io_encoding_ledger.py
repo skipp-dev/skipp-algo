@@ -58,7 +58,7 @@ _DIR_EXCLUDE = {
 #     entry removed from _FROZEN_SITES.
 _FROZEN_SITES: dict[str, frozenset[int]] = {
     # 2026-06-28 (semantic monitoring): shifted +20 lines by readiness metrics.
-    "open_prep/realtime_signals.py": frozenset({200}),
+    "open_prep/realtime_signals.py": frozenset({204}),
     "pine_apply_surface_reduction.py": frozenset({53, 87, 397, 471, 502, 555}),
     "pine_input_surface.py": frozenset({129, 156, 187, 260, 270, 344}),
     "scripts/investigate_universe_delta.py": frozenset({28}),

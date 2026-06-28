@@ -179,7 +179,7 @@ _FROZEN_URLOPEN_SITES: frozenset[tuple[str, int]] = frozenset(
         # timeout discipline (Railway worker without local artifact).
         # Line shifted 792 -> 798 -> 802 -> 811 -> 901 -> 998 -> 1055 after
         # AsyncNewsstackPoller telemetry additions and semantic monitoring.
-        ("open_prep/realtime_signals.py", 1055),
+        ("open_prep/realtime_signals.py", 1067),
         # 2026-06-22: Grafana dashboard publisher API upsert over urllib.
         # Line shifted 251 -> 287 after ADR-0025 App Platform (/apis
         # dashboard.grafana.app/v1) migration; urlopen now in shared _request_json.
