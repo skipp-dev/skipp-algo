@@ -800,7 +800,13 @@ def _ensure_railway_resource_links(data: dict[str, Any]) -> bool:
 
 
 def _fail_if_generic_railway_links_remain(data: dict[str, Any]) -> None:
-    """Guard: the committed dashboard must never contain placeholder Railway URLs."""
+    """Guard: the committed dashboard must never contain generic Railway URLs.
+
+    Rejects:
+    - legacy ``railway.app`` project URLs
+    - ``railway.com/project`` URLs without a concrete ``/service/<id>`` scope
+    - any remaining ``REPLACE_*`` placeholders
+    """
     raw = json.dumps(data)
     hits: list[str] = []
 
@@ -839,9 +845,9 @@ def _fail_if_generic_railway_links_remain(data: dict[str, Any]) -> None:
     if hits:
         raise SystemExit(
             f"Generic or placeholder Railway URLs still present in dashboard: {hits[:5]}. "
-            "Use concrete production Railway IDs or set RAILWAY_PROJECT_ID / "
-            "RAILWAY_ENVIRONMENT_ID / RAILWAY_LIVE_OVERLAY_SERVICE_ID and re-run "
-            "the updater."
+            "Use concrete production Railway IDs or set RAILWAY_PROJECT_ID, "
+            "RAILWAY_ENVIRONMENT_ID, RAILWAY_LIVE_OVERLAY_SERVICE_ID, and "
+            "RAILWAY_SIGNALS_PRODUCER_SERVICE_ID, then re-run the updater."
         )
 
 
