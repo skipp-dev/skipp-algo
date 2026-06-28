@@ -490,7 +490,7 @@ def expect_market_traffic() -> bool:
     stays quiet, so quiet periods outside market hours or warm-standby
     deployments do not page.
     """
-    return _optional_str("LIVE_OVERLAY_EXPECT_MARKET_TRAFFIC", "0") == "1"
+    return _optional_str("LIVE_OVERLAY_EXPECT_MARKET_TRAFFIC", "0").strip() == "1"
 
 
 # ---------------------------------------------------------------------------
