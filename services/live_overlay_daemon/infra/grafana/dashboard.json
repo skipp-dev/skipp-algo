@@ -1111,6 +1111,18 @@
           "type": "link",
           "url": "https://railway.com/project/0616a3b7-7b7f-41d1-8fac-a0b8922c94ca/service/81f8c6b5-ffe2-4646-a978-e62143192a9a/logs?environmentId=470fbd0f-894d-46cd-8722-6b072d255d99",
           "targetBlank": true
+        },
+        {
+          "title": "Signal readiness details",
+          "type": "link",
+          "url": "/d/smc-live-overlay-v1?orgId=1&viewPanel=1580287418",
+          "targetBlank": true
+        },
+        {
+          "title": "Collector scrape targets",
+          "type": "link",
+          "url": "/d/smc-live-overlay-v1?orgId=1&viewPanel=2133310723",
+          "targetBlank": true
         }
       ]
     },
@@ -5677,6 +5689,6 @@
   "timezone": "utc",
   "title": "SMC Live Overlay API",
   "uid": "smc-live-overlay-v1",
-  "version": 34,
+  "version": 35,
   "description": "Live-overlay daemon operational dashboard: feed health, worker liveness, SMC overlay freshness, external bridge status, provider health, daily experiment metrics, and Railway container resources."
 }

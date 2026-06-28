@@ -196,7 +196,7 @@ def _load_dashboard(dashboard_path: Path) -> dict[str, Any]:
 
 
 def _save_dashboard(dashboard_path: Path, data: dict[str, Any]) -> None:
-    payload = json.dumps(data, indent=2, ensure_ascii=True) + "\n"
+    payload = json.dumps(data, indent=2, ensure_ascii=False) + "\n"
     dashboard_path.parent.mkdir(parents=True, exist_ok=True)
     fd, tmp_path = tempfile.mkstemp(
         prefix=f"{dashboard_path.name}.",
@@ -814,16 +814,20 @@ def _ensure_signal_pipeline_links(data: dict[str, Any]) -> bool:
         return changed
     existing_urls = {link.get("url", "") for link in panel.get("links", [])}
     wanted = [
-        _railway_link("Collector / Scrape Targets", "live_overlay_metrics"),
+        {
+            "title": "Signal readiness details",
+            "type": "link",
+            "url": "/d/smc-live-overlay-v1?orgId=1&viewPanel=1580287418",
+            "targetBlank": True,
+        },
+        {
+            "title": "Collector scrape targets",
+            "type": "link",
+            "url": "/d/smc-live-overlay-v1?orgId=1&viewPanel=2133310723",
+            "targetBlank": True,
+        },
         _railway_link("signals-producer Railway logs", "signals_producer_logs"),
     ]
-    # Use a dashboard-internal link for the collector row viewPanel.
-    wanted[0] = {
-        "title": "Collector / Scrape Targets",
-        "type": "link",
-        "url": "/d/smc-live-overlay-v1?orgId=1&viewPanel=2133310722",
-        "targetBlank": True,
-    }
     links = list(panel.get("links", []))
     for link in wanted:
         if link["url"] not in existing_urls:

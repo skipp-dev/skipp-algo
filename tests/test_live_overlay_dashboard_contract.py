@@ -937,17 +937,24 @@ def test_alert_rules_poll_stale_uses_last_poll_age() -> None:
 # --------------------------------------------------------------------------- #
 
 
-def test_dashboard_signal_pipeline_ready_has_drilldown_links() -> None:
-    """A red Signal Pipeline Ready panel must offer a next click."""
+def test_dashboard_signal_pipeline_ready_links_to_concrete_detail_panels() -> None:
+    """Signal Pipeline Ready drilldowns must target concrete panels, not only rows."""
     dashboard = json.loads(_DASHBOARD_JSON.read_text(encoding="utf-8"))
     panels = _dashboard_panels(dashboard)
-    panel = next(p for p in panels if p.get("title") == "Signal Pipeline Ready")
+    by_title = {p.get("title"): p for p in panels}
+    by_id = {str(p.get("id")): p for p in panels if p.get("id") is not None}
+
+    panel = by_title["Signal Pipeline Ready"]
     links = panel.get("links") or []
     assert links, "Signal Pipeline Ready needs at least one drilldown link"
     assert all(link.get("targetBlank") for link in links), "drilldown links should open in a new tab"
     urls = {link.get("url", "") for link in links}
-    assert any("viewPanel=2133310722" in url for url in urls), "missing Collector / Scrape Targets drilldown"
+
+    assert any("viewPanel=1580287418" in url for url in urls), "missing Readiness Components Timeline drilldown"
+    assert any("viewPanel=2133310723" in url for url in urls), "missing Scrape Targets Up drilldown"
     assert any("/service/" in url for url in urls), "missing service-scoped Railway link"
+    assert by_id["1580287418"]["type"] != "row"
+    assert by_id["2133310723"]["type"] != "row"
 
 
 def test_dashboard_triage_guide_includes_signal_pipeline_path() -> None:
@@ -960,15 +967,18 @@ def test_dashboard_triage_guide_includes_signal_pipeline_path() -> None:
     assert "Producer Poll Age" in content
 
 
-def test_dashboard_market_traffic_health_description_is_us_only() -> None:
-    """The description must not claim Europe coverage when the query is US-only."""
+def test_dashboard_market_traffic_health_explains_us_market_context() -> None:
+    """The description must spell out the US market open/closed context."""
     dashboard = json.loads(_DASHBOARD_JSON.read_text(encoding="utf-8"))
     panels = _dashboard_panels(dashboard)
     panel = next(p for p in panels if p.get("title") == "Market Traffic Health")
     expr = panel["targets"][0]["expr"]
-    description = panel.get("description", "")
+    description = panel.get("description", "").lower()
     assert "live_overlay_market_us_open" in expr
-    assert "Europe" not in description, description
+    assert "us" in description or "u.s." in description, description
+    assert "market" in description or "trading" in description, description
+    assert "closed" in description or "session" in description or "hours" in description, description
+    assert "europe" not in description, description
 
 
 def test_dashboard_detail_rows_collapsed_by_default() -> None:

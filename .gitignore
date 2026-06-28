@@ -130,3 +130,4 @@ threads_diff.json
 threads_full.json
 threads.json
 fast_gates_fail.json
+.venv/

@@ -190,6 +190,36 @@ def test_update_script_is_idempotent(temp_dashboard: Path) -> None:
     assert first == second, "Re-running the updater changed dashboard.json body"
 
 
+def test_uptimerobot_panel_does_not_clobber_prior_changes(tmp_path: Path) -> None:
+    """_ensure_uptimerobot_panel must preserve earlier updater changes."""
+    repo_root = Path(__file__).resolve().parents[1]
+    src = repo_root / "services" / "live_overlay_daemon" / "infra" / "grafana" / "dashboard.json"
+    dst = tmp_path / "dashboard.json"
+    shutil.copy(src, dst)
+
+    # First run applies all UX fixes and bumps the version.
+    _run_script(dst)
+    first = json.loads(dst.read_text(encoding="utf-8"))
+    assert first["version"] > 0
+
+    # Remove the UptimeRobot panel to simulate a missing self-healed element.
+    data = json.loads(dst.read_text(encoding="utf-8"))
+    data["panels"] = [p for p in data["panels"] if p.get("title") != "UptimeRobot Monitor States"]
+    dst.write_text(json.dumps(data, indent=2), encoding="utf-8")
+
+    # Second run re-adds the panel and must count it as a change.
+    _run_script(dst)
+    second = json.loads(dst.read_text(encoding="utf-8"))
+    assert second["version"] > first["version"]
+    titles = {p.get("title") for p in second["panels"]}
+    assert "UptimeRobot Monitor States" in titles
+
+    # Third run must be idempotent.
+    _run_script(dst)
+    third = json.loads(dst.read_text(encoding="utf-8"))
+    assert third["version"] == second["version"]
+
+
 def test_all_panel_queries_have_balanced_parentheses(temp_dashboard: Path) -> None:
     _run_script(temp_dashboard)
     data = json.loads(temp_dashboard.read_text(encoding="utf-8"))
