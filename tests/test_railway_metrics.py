@@ -340,3 +340,55 @@ def test_render_metrics_exports_railway_bridge_truth_table(
     assert f'live_overlay_bridge_configured{{bridge="railway_metrics"}} {configured}' in text
     assert f'live_overlay_bridge_scrape_success{{bridge="railway_metrics"}} {success}' in text
     assert f'live_overlay_bridge_error_info{{bridge="railway_metrics",error="{error}"}}' in text
+
+
+def test_fetch_sets_last_success_fetched_at_unix(monkeypatch: pytest.MonkeyPatch) -> None:
+    """A successful Railway poll must record when the last success happened."""
+    monkeypatch.setenv("ENABLE_RAILWAY_METRICS", "1")
+    monkeypatch.setenv("RAILWAY_API_TOKEN", "token")
+    monkeypatch.setenv("RAILWAY_PROJECT_ID", "project")
+    monkeypatch.setenv("RAILWAY_ENVIRONMENT_ID", "env")
+    importlib.reload(config)
+
+    body = _metrics_body()
+    with patch.object(railway_metrics, "_post_graphql", return_value=json.loads(body)):
+        result = railway_metrics.snapshot()
+
+    assert result["ok"] is True
+    assert result["last_success_fetched_at_unix"] == result["fetched_at_unix"]
+    assert result["last_success_fetched_at_unix"] > 0
+
+
+def test_failed_snapshot_preserves_last_success_from_cache() -> None:
+    """A failed Railway poll must not reset last_success to the failed poll time."""
+    previous = {
+        "enabled": True,
+        "configured": True,
+        "ok": True,
+        "fetched_at_unix": 1_000_000.0,
+        "last_success_fetched_at_unix": 1_000_000.0,
+        "services": [],
+    }
+    failed = railway_metrics._failed_snapshot("network_error", cached=previous)
+    assert failed["ok"] is False
+    assert failed["fetched_at_unix"] == 1_000_000.0
+    assert failed["last_success_fetched_at_unix"] == 1_000_000.0
+
+
+def test_render_metrics_uses_last_success_for_bridge_age() -> None:
+    """Railway bridge last_success_age_seconds must use last_success_fetched_at_unix."""
+    from services.live_overlay_daemon import metrics
+
+    snapshot = {
+        "enabled": True,
+        "ok": False,
+        "fetched_at_unix": 1_300.0,
+        "last_success_fetched_at_unix": 1_000.0,
+        "error": "network_error",
+        "services": [],
+    }
+    with patch.object(metrics.railway_metrics, "snapshot", return_value=snapshot):
+        with patch("services.live_overlay_daemon.metrics.time.time", return_value=1_300.0):
+            text = metrics.render_metrics(startup_ts=1_300.0)
+
+    assert 'live_overlay_bridge_last_success_age_seconds{bridge="railway_metrics"} 300' in text
