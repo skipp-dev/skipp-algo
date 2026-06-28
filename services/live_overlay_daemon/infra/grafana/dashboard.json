@@ -221,7 +221,7 @@
       },
       "options": {
         "mode": "markdown",
-        "content": "**Incident triage**\n\n1. Check **Active Alerts** first.\n2. If **Feed Healthy** is red: check Databento credentials, feed reconnects, and Railway logs.\n3. If **Workers Healthy** is red: open Worker Liveness and restart the daemon if a worker is dead.\n4. If **Overlay Fresh** is red: check Compute Cycle Errors and Overlay & Bar Age.\n5. If traffic is missing while **Market Status** is open: check TradingView rollout, auth denied, and request rate.\n6. If dashboards show no data: check Collector / Scrape Targets.\n\nRunbook: [README](https://github.com/skippALGO/skipp-algo/blob/main/services/live_overlay_daemon/README.md)\n\n---\n**Quick links** \u00b7 [Railway logs](https://railway.com/project/0616a3b7-7b7f-41d1-8fac-a0b8922c94ca/service/705582c5-ba8b-4c6e-848c-33bffe0a61b0/logs?environmentId=470fbd0f-894d-46cd-8722-6b072d255d99) \u00b7 [Railway deployments](https://railway.com/project/0616a3b7-7b7f-41d1-8fac-a0b8922c94ca/service/705582c5-ba8b-4c6e-848c-33bffe0a61b0/deployments?environmentId=470fbd0f-894d-46cd-8722-6b072d255d99) \u00b7 [GitHub Actions](https://github.com/skippALGO/skipp-algo/actions) \u00b7 [Runbook: live-overlay on-call](https://github.com/skippALGO/skipp-algo/blob/main/services/live_overlay_daemon/OPS.md)"
+        "content": "**Incident triage**\n\n1. Check **Active Alerts** first.\n2. If **Feed Healthy** is red: check Databento credentials, feed reconnects, and Railway logs.\n3. If **Workers Healthy** is red: open Worker Liveness and restart the daemon if a worker is dead.\n4. If **Overlay Fresh** is red: check Compute Cycle Errors and Overlay & Bar Age.\n5. If traffic is missing while **Market Status** is open: check TradingView rollout, auth denied, and request rate.\n6. If dashboards show no data: check Collector / Scrape Targets.\n\nRunbook: [README](https://github.com/skippALGO/skipp-algo/blob/main/services/live_overlay_daemon/README.md)\n7. If **Signal Pipeline Ready** is red: check **Open-Prep Snapshot**, **Watchlist Symbols**, **Producer Poll Age**, then Collector / Scrape Targets and signals-producer Railway logs.\n\n---\n**Quick links** · [Railway logs](https://railway.com/project/0616a3b7-7b7f-41d1-8fac-a0b8922c94ca/service/705582c5-ba8b-4c6e-848c-33bffe0a61b0/logs?environmentId=470fbd0f-894d-46cd-8722-6b072d255d99) · [Railway deployments](https://railway.com/project/0616a3b7-7b7f-41d1-8fac-a0b8922c94ca/service/705582c5-ba8b-4c6e-848c-33bffe0a61b0/deployments?environmentId=470fbd0f-894d-46cd-8722-6b072d255d99) · [GitHub Actions](https://github.com/skippALGO/skipp-algo/actions) · [Runbook: live-overlay on-call](https://github.com/skippALGO/skipp-algo/blob/main/services/live_overlay_daemon/OPS.md)"
       },
       "datasource": {
         "type": "prometheus",
@@ -673,7 +673,7 @@
       "type": "stat",
       "gridPos": {
         "x": 0,
-        "y": 14,
+        "y": 13,
         "w": 4,
         "h": 3
       },
@@ -758,7 +758,7 @@
       "type": "stat",
       "gridPos": {
         "x": 4,
-        "y": 14,
+        "y": 13,
         "w": 4,
         "h": 3
       },
@@ -807,7 +807,7 @@
       "type": "stat",
       "gridPos": {
         "x": 8,
-        "y": 14,
+        "y": 13,
         "w": 4,
         "h": 3
       },
@@ -868,7 +868,7 @@
       "type": "stat",
       "gridPos": {
         "x": 12,
-        "y": 14,
+        "y": 13,
         "w": 4,
         "h": 3
       },
@@ -920,7 +920,7 @@
       "type": "stat",
       "gridPos": {
         "x": 16,
-        "y": 14,
+        "y": 13,
         "w": 4,
         "h": 3
       },
@@ -963,7 +963,7 @@
       "description": "Daemon process resident memory as reported by the built-in Prometheus collector.",
       "gridPos": {
         "x": 20,
-        "y": 14,
+        "y": 13,
         "w": 4,
         "h": 3
       },
@@ -1037,7 +1037,7 @@
         "h": 3,
         "w": 6,
         "x": 0,
-        "y": 17
+        "y": 16
       },
       "targets": [
         {
@@ -1098,7 +1098,21 @@
           }
         },
         "overrides": []
-      }
+      },
+      "links": [
+        {
+          "title": "Collector / Scrape Targets",
+          "type": "link",
+          "url": "/d/smc-live-overlay-v1?orgId=1&viewPanel=2133310722",
+          "targetBlank": true
+        },
+        {
+          "title": "signals-producer Railway logs",
+          "type": "link",
+          "url": "https://railway.com/project/0616a3b7-7b7f-41d1-8fac-a0b8922c94ca/service/81f8c6b5-ffe2-4646-a978-e62143192a9a/logs?environmentId=470fbd0f-894d-46cd-8722-6b072d255d99",
+          "targetBlank": true
+        }
+      ]
     },
     {
       "id": 2165782568,
@@ -1113,7 +1127,7 @@
         "h": 3,
         "w": 6,
         "x": 6,
-        "y": 17
+        "y": 16
       },
       "targets": [
         {
@@ -1189,7 +1203,7 @@
         "h": 3,
         "w": 6,
         "x": 12,
-        "y": 17
+        "y": 16
       },
       "targets": [
         {
@@ -1233,7 +1247,7 @@
         "h": 3,
         "w": 6,
         "x": 18,
-        "y": 17
+        "y": 16
       },
       "targets": [
         {
@@ -1269,7 +1283,7 @@
       "type": "state-timeline",
       "gridPos": {
         "x": 0,
-        "y": 21,
+        "y": 19,
         "w": 24,
         "h": 4
       },
@@ -1366,7 +1380,7 @@
       "type": "stat",
       "gridPos": {
         "x": 0,
-        "y": 26,
+        "y": 23,
         "w": 6,
         "h": 5
       },
@@ -1437,7 +1451,7 @@
       "type": "stat",
       "gridPos": {
         "x": 6,
-        "y": 26,
+        "y": 23,
         "w": 6,
         "h": 5
       },
@@ -1502,7 +1516,7 @@
           }
         }
       },
-      "description": "Synthetic signal that amplifies request health while any major trading session (US or Europe) is open and suppresses it when closed.",
+      "description": "Synthetic signal that amplifies request health while the US regular trading session is open and suppresses it when closed.",
       "datasource": {
         "type": "prometheus",
         "uid": "grafanacloud-prom"
@@ -1514,7 +1528,7 @@
       "type": "stat",
       "gridPos": {
         "x": 12,
-        "y": 26,
+        "y": 23,
         "w": 6,
         "h": 5
       },
@@ -1575,7 +1589,7 @@
       "type": "stat",
       "gridPos": {
         "x": 18,
-        "y": 26,
+        "y": 23,
         "w": 6,
         "h": 5
       },
@@ -1652,7 +1666,7 @@
       "type": "timeseries",
       "gridPos": {
         "x": 0,
-        "y": 32,
+        "y": 28,
         "w": 12,
         "h": 8
       },
@@ -1735,7 +1749,7 @@
       "type": "timeseries",
       "gridPos": {
         "x": 12,
-        "y": 32,
+        "y": 28,
         "w": 12,
         "h": 8
       },
@@ -1827,11 +1841,10 @@
       "collapsed": false,
       "gridPos": {
         "x": 0,
-        "y": 43,
+        "y": 36,
         "w": 24,
         "h": 1
       },
-      "panels": [],
       "description": "Immediate cause-finding panels after the top-level incident signals."
     },
     {
@@ -1839,7 +1852,7 @@
       "type": "timeseries",
       "gridPos": {
         "x": 0,
-        "y": 45,
+        "y": 37,
         "w": 12,
         "h": 8
       },
@@ -1941,7 +1954,7 @@
       "type": "timeseries",
       "gridPos": {
         "x": 12,
-        "y": 45,
+        "y": 37,
         "w": 12,
         "h": 8
       },
@@ -2016,7 +2029,7 @@
       "type": "timeseries",
       "gridPos": {
         "x": 0,
-        "y": 54,
+        "y": 45,
         "w": 12,
         "h": 8
       },
@@ -2123,7 +2136,7 @@
       "type": "timeseries",
       "gridPos": {
         "x": 12,
-        "y": 54,
+        "y": 45,
         "w": 12,
         "h": 8
       },
@@ -2185,7 +2198,7 @@
       "type": "state-timeline",
       "gridPos": {
         "x": 0,
-        "y": 63,
+        "y": 53,
         "w": 12,
         "h": 6
       },
@@ -2282,7 +2295,7 @@
       "type": "stat",
       "gridPos": {
         "x": 12,
-        "y": 63,
+        "y": 53,
         "w": 6,
         "h": 6
       },
@@ -2352,7 +2365,7 @@
       "type": "stat",
       "gridPos": {
         "x": 18,
-        "y": 63,
+        "y": 53,
         "w": 6,
         "h": 6
       },
@@ -2411,7 +2424,7 @@
       "type": "stat",
       "gridPos": {
         "x": 12,
-        "y": 70,
+        "y": 59,
         "w": 6,
         "h": 6
       },
@@ -2479,7 +2492,7 @@
       "type": "timeseries",
       "gridPos": {
         "x": 0,
-        "y": 77,
+        "y": 65,
         "w": 12,
         "h": 8
       },
@@ -2555,7 +2568,7 @@
       "type": "timeseries",
       "gridPos": {
         "x": 12,
-        "y": 77,
+        "y": 65,
         "w": 12,
         "h": 8
       },
@@ -2622,7 +2635,7 @@
       "type": "state-timeline",
       "gridPos": {
         "x": 0,
-        "y": 86,
+        "y": 73,
         "w": 12,
         "h": 8
       },
@@ -2719,7 +2732,7 @@
       "type": "timeseries",
       "gridPos": {
         "x": 12,
-        "y": 86,
+        "y": 73,
         "w": 12,
         "h": 8
       },
@@ -2782,12 +2795,11 @@
       "type": "row",
       "gridPos": {
         "x": 0,
-        "y": 101,
+        "y": 81,
         "w": 24,
         "h": 1
       },
-      "collapsed": false,
-      "panels": [],
+      "collapsed": true,
       "description": "Row grouping for external bridge health: UptimeRobot monitors and GitHub Actions workflows.",
       "datasource": {
         "type": "prometheus",
@@ -2796,12 +2808,340 @@
       "id": 692020449
     },
     {
+      "title": "Bridge Scrape Health Timeline",
+      "type": "state-timeline",
+      "gridPos": {
+        "x": 12,
+        "y": 82,
+        "w": 12,
+        "h": 8
+      },
+      "targets": [
+        {
+          "expr": "max(max_over_time(live_overlay_uptimerobot_scrape_success{job=~\"$job\"}[5m])) or vector(0)",
+          "legendFormat": "UptimeRobot",
+          "instant": false,
+          "range": true,
+          "datasource": {
+            "type": "prometheus",
+            "uid": "grafanacloud-prom"
+          }
+        },
+        {
+          "expr": "max(max_over_time(live_overlay_github_workflow_scrape_success{job=~\"$job\"}[5m])) or vector(0)",
+          "legendFormat": "GitHub Workflows",
+          "instant": false,
+          "range": true,
+          "datasource": {
+            "type": "prometheus",
+            "uid": "grafanacloud-prom"
+          }
+        }
+      ],
+      "options": {
+        "tooltip": {
+          "mode": "multi",
+          "sort": "none"
+        },
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "rowHeight": 0.9
+      },
+      "fieldConfig": {
+        "defaults": {
+          "mappings": [
+            {
+              "type": "value",
+              "options": {
+                "0": {
+                  "text": "ERROR",
+                  "color": "red"
+                },
+                "1": {
+                  "text": "OK",
+                  "color": "green"
+                }
+              }
+            }
+          ],
+          "color": {
+            "mode": "thresholds"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "red",
+                "value": null
+              },
+              {
+                "color": "green",
+                "value": 1
+              }
+            ]
+          }
+        }
+      },
+      "description": "External bridge scrape success over time (UptimeRobot + GitHub Workflows).",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "grafanacloud-prom"
+      },
+      "id": 1892223023
+    },
+    {
+      "title": "GitHub Workflows — Latest Run Detail",
+      "type": "table",
+      "gridPos": {
+        "x": 0,
+        "y": 90,
+        "w": 24,
+        "h": 14
+      },
+      "description": "Per-workflow detail of the most recent run the daemon observed: trigger event (schedule / push / …), current status, run duration and age. One row per named workflow. Driven by the labelled live_overlay_github_workflow_* gauges (phase_code, latest_duration_seconds, latest_age_seconds, latest_success).",
+      "targets": [
+        {
+          "expr": "live_overlay_github_workflow_phase_code{job=~\"$job\"}",
+          "format": "table",
+          "instant": true,
+          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "grafanacloud-prom"
+          }
+        },
+        {
+          "expr": "live_overlay_github_workflow_latest_duration_seconds{job=~\"$job\"}",
+          "format": "table",
+          "instant": true,
+          "refId": "B",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "grafanacloud-prom"
+          }
+        },
+        {
+          "expr": "live_overlay_github_workflow_latest_age_seconds{job=~\"$job\"}",
+          "format": "table",
+          "instant": true,
+          "refId": "C",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "grafanacloud-prom"
+          }
+        },
+        {
+          "expr": "live_overlay_github_workflow_latest_success{job=~\"$job\"}",
+          "format": "table",
+          "instant": true,
+          "refId": "D",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "grafanacloud-prom"
+          }
+        }
+      ],
+      "transformations": [
+        {
+          "id": "merge",
+          "options": {}
+        },
+        {
+          "id": "organize",
+          "options": {
+            "excludeByName": {
+              "Time": true,
+              "instance": true,
+              "job": true,
+              "__name__": true
+            },
+            "indexByName": {
+              "workflow": 0,
+              "event": 1,
+              "Value #A": 2,
+              "Value #B": 3,
+              "Value #C": 4,
+              "Value #D": 5,
+              "workflow_id": 6
+            },
+            "renameByName": {
+              "workflow": "Workflow",
+              "event": "Trigger",
+              "workflow_id": "Workflow ID",
+              "Value #A": "Status",
+              "Value #B": "Duration (s)",
+              "Value #C": "Age (s)",
+              "Value #D": "OK"
+            }
+          }
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "align": "auto",
+            "cellOptions": {
+              "type": "auto"
+            }
+          }
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Status"
+            },
+            "properties": [
+              {
+                "id": "custom.cellOptions",
+                "value": {
+                  "type": "color-background",
+                  "mode": "basic"
+                }
+              },
+              {
+                "id": "mappings",
+                "value": [
+                  {
+                    "type": "value",
+                    "options": {
+                      "0": {
+                        "text": "Unknown",
+                        "color": "gray"
+                      },
+                      "1": {
+                        "text": "Queued",
+                        "color": "yellow"
+                      },
+                      "2": {
+                        "text": "In progress",
+                        "color": "blue"
+                      },
+                      "3": {
+                        "text": "Success",
+                        "color": "green"
+                      },
+                      "4": {
+                        "text": "Failure",
+                        "color": "red"
+                      },
+                      "5": {
+                        "text": "Cancelled",
+                        "color": "orange"
+                      },
+                      "6": {
+                        "text": "Skipped",
+                        "color": "purple"
+                      },
+                      "7": {
+                        "text": "Neutral",
+                        "color": "blue"
+                      },
+                      "8": {
+                        "text": "Timed out",
+                        "color": "red"
+                      },
+                      "9": {
+                        "text": "Action required",
+                        "color": "orange"
+                      },
+                      "10": {
+                        "text": "Startup failure",
+                        "color": "red"
+                      },
+                      "11": {
+                        "text": "Stale",
+                        "color": "yellow"
+                      }
+                    }
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Duration (s)"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "s"
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Age (s)"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "s"
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "OK"
+            },
+            "properties": [
+              {
+                "id": "mappings",
+                "value": [
+                  {
+                    "type": "value",
+                    "options": {
+                      "0": {
+                        "text": "✗",
+                        "color": "red"
+                      },
+                      "1": {
+                        "text": "✓",
+                        "color": "green"
+                      }
+                    }
+                  }
+                ]
+              },
+              {
+                "id": "custom.cellOptions",
+                "value": {
+                  "type": "color-text"
+                }
+              }
+            ]
+          }
+        ]
+      },
+      "options": {
+        "showHeader": true,
+        "sortBy": [
+          {
+            "displayName": "Workflow",
+            "desc": false
+          }
+        ]
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "grafanacloud-prom"
+      },
+      "id": 1050488908
+    },
+    {
       "title": "UptimeRobot Monitor States",
       "type": "state-timeline",
       "description": "Per-monitor UptimeRobot state over time. paused = monitor intentionally paused; unknown = unrecognized status code.",
       "gridPos": {
         "x": 0,
-        "y": 102,
+        "y": 104,
         "w": 24,
         "h": 6
       },
@@ -2893,7 +3233,7 @@
       "type": "stat",
       "gridPos": {
         "x": 0,
-        "y": 109,
+        "y": 110,
         "w": 6,
         "h": 4
       },
@@ -2962,7 +3302,7 @@
       "type": "stat",
       "gridPos": {
         "x": 6,
-        "y": 109,
+        "y": 110,
         "w": 6,
         "h": 4
       },
@@ -3030,7 +3370,7 @@
       "type": "stat",
       "gridPos": {
         "x": 12,
-        "y": 109,
+        "y": 110,
         "w": 6,
         "h": 4
       },
@@ -3105,7 +3445,7 @@
       "type": "timeseries",
       "gridPos": {
         "x": 18,
-        "y": 109,
+        "y": 110,
         "w": 12,
         "h": 8
       },
@@ -3196,7 +3536,7 @@
       "type": "stat",
       "gridPos": {
         "x": 0,
-        "y": 114,
+        "y": 118,
         "w": 6,
         "h": 4
       },
@@ -3265,7 +3605,7 @@
       "type": "stat",
       "gridPos": {
         "x": 6,
-        "y": 114,
+        "y": 118,
         "w": 6,
         "h": 4
       },
@@ -3333,7 +3673,7 @@
       "type": "stat",
       "gridPos": {
         "x": 12,
-        "y": 114,
+        "y": 118,
         "w": 6,
         "h": 4
       },
@@ -3484,11 +3824,11 @@
       "id": 1639741128
     },
     {
-      "title": "GitHub Workflow Status \u2014 Timeline",
+      "title": "GitHub Workflow Status — Timeline",
       "type": "state-timeline",
       "gridPos": {
         "x": 0,
-        "y": 119,
+        "y": 126,
         "w": 18,
         "h": 25
       },
@@ -3698,7 +4038,7 @@
         },
         "overrides": []
       },
-      "description": "Colour-coded latest status of each GitHub Actions workflow over time. Every row is one named workflow ({{workflow}} legend); the cell colour encodes the run conclusion \u2014 green=success, red=failure/timed-out/startup-failure, orange=cancelled/action-required, blue=in-progress/neutral, yellow=queued/stale, gray=unknown, purple=skipped. Series come from live_overlay_github_workflow_phase_code{workflow,event,workflow_id}, sampled at the daemon's GitHub workflow bridge interval (so runs shorter than one scrape interval may not appear).",
+      "description": "Colour-coded latest status of each GitHub Actions workflow over time. Every row is one named workflow ({{workflow}} legend); the cell colour encodes the run conclusion — green=success, red=failure/timed-out/startup-failure, orange=cancelled/action-required, blue=in-progress/neutral, yellow=queued/stale, gray=unknown, purple=skipped. Series come from live_overlay_github_workflow_phase_code{workflow,event,workflow_id}, sampled at the daemon's GitHub workflow bridge interval (so runs shorter than one scrape interval may not appear).",
       "datasource": {
         "type": "prometheus",
         "uid": "grafanacloud-prom"
@@ -3710,12 +4050,11 @@
       "type": "row",
       "gridPos": {
         "x": 0,
-        "y": 145,
+        "y": 151,
         "w": 24,
         "h": 1
       },
-      "collapsed": false,
-      "panels": [],
+      "collapsed": true,
       "description": "Detailed restart, load, hotspot and backpressure diagnostics after the top-level SLO and impact signals.",
       "datasource": {
         "type": "prometheus",
@@ -3724,96 +4063,11 @@
       "id": 2100569352
     },
     {
-      "title": "Bridge Scrape Health Timeline",
-      "type": "state-timeline",
-      "gridPos": {
-        "x": 12,
-        "y": 155,
-        "w": 12,
-        "h": 8
-      },
-      "targets": [
-        {
-          "expr": "max(max_over_time(live_overlay_uptimerobot_scrape_success{job=~\"$job\"}[5m])) or vector(0)",
-          "legendFormat": "UptimeRobot",
-          "instant": false,
-          "range": true,
-          "datasource": {
-            "type": "prometheus",
-            "uid": "grafanacloud-prom"
-          }
-        },
-        {
-          "expr": "max(max_over_time(live_overlay_github_workflow_scrape_success{job=~\"$job\"}[5m])) or vector(0)",
-          "legendFormat": "GitHub Workflows",
-          "instant": false,
-          "range": true,
-          "datasource": {
-            "type": "prometheus",
-            "uid": "grafanacloud-prom"
-          }
-        }
-      ],
-      "options": {
-        "tooltip": {
-          "mode": "multi",
-          "sort": "none"
-        },
-        "legend": {
-          "displayMode": "list",
-          "placement": "bottom",
-          "showLegend": true
-        },
-        "rowHeight": 0.9
-      },
-      "fieldConfig": {
-        "defaults": {
-          "mappings": [
-            {
-              "type": "value",
-              "options": {
-                "0": {
-                  "text": "ERROR",
-                  "color": "red"
-                },
-                "1": {
-                  "text": "OK",
-                  "color": "green"
-                }
-              }
-            }
-          ],
-          "color": {
-            "mode": "thresholds"
-          },
-          "thresholds": {
-            "mode": "absolute",
-            "steps": [
-              {
-                "color": "red",
-                "value": null
-              },
-              {
-                "color": "green",
-                "value": 1
-              }
-            ]
-          }
-        }
-      },
-      "description": "External bridge scrape success over time (UptimeRobot + GitHub Workflows).",
-      "datasource": {
-        "type": "prometheus",
-        "uid": "grafanacloud-prom"
-      },
-      "id": 1892223023
-    },
-    {
       "title": "Restart Causes (24h)",
       "type": "timeseries",
       "gridPos": {
         "x": 0,
-        "y": 164,
+        "y": 152,
         "w": 12,
         "h": 8
       },
@@ -3855,11 +4109,11 @@
       "id": 1148615869
     },
     {
-      "title": "Hotspots \u2014 Symbols (Top)",
+      "title": "Hotspots — Symbols (Top)",
       "type": "timeseries",
       "gridPos": {
         "x": 12,
-        "y": 164,
+        "y": 152,
         "w": 12,
         "h": 8
       },
@@ -3900,11 +4154,11 @@
       "id": 1135701409
     },
     {
-      "title": "Hotspots \u2014 Timeframes (Top)",
+      "title": "Hotspots — Timeframes (Top)",
       "type": "timeseries",
       "gridPos": {
         "x": 0,
-        "y": 173,
+        "y": 160,
         "w": 24,
         "h": 8
       },
@@ -3949,7 +4203,7 @@
       "type": "timeseries",
       "gridPos": {
         "x": 0,
-        "y": 182,
+        "y": 168,
         "w": 12,
         "h": 8
       },
@@ -4032,7 +4286,7 @@
       "type": "timeseries",
       "gridPos": {
         "x": 12,
-        "y": 182,
+        "y": 168,
         "w": 12,
         "h": 8
       },
@@ -4102,12 +4356,11 @@
       "type": "row",
       "gridPos": {
         "x": 0,
-        "y": 191,
+        "y": 176,
         "w": 24,
         "h": 1
       },
-      "collapsed": false,
-      "panels": [],
+      "collapsed": true,
       "description": "Service-owner detail: live news provider health and provider-level degradation context.",
       "datasource": {
         "type": "prometheus",
@@ -4121,13 +4374,13 @@
       "description": "Legend for News Provider panels directly below.",
       "gridPos": {
         "x": 0,
-        "y": 192,
+        "y": 177,
         "w": 24,
         "h": 2
       },
       "options": {
         "mode": "markdown",
-        "content": "**News provider state codes:** `0` = unknown / no data, `1` = degraded, `2` = ok, `3` = disabled (not ingested). The **News Providers \u2014 Ingest Status & Reason** table shows the human-readable reason (e.g. API key missing, no active subscription, provider disabled) and whether each provider is actually consumed."
+        "content": "**News provider state codes:** `0` = unknown / no data, `1` = degraded, `2` = ok, `3` = disabled (not ingested). The **News Providers — Ingest Status & Reason** table shows the human-readable reason (e.g. API key missing, no active subscription, provider disabled) and whether each provider is actually consumed."
       },
       "datasource": {
         "type": "prometheus",
@@ -4136,11 +4389,11 @@
       "id": 755773609
     },
     {
-      "title": "News Providers \u2014 State Code",
+      "title": "News Providers — State Code",
       "type": "timeseries",
       "gridPos": {
         "x": 0,
-        "y": 194,
+        "y": 179,
         "w": 24,
         "h": 10
       },
@@ -4232,7 +4485,7 @@
       "type": "state-timeline",
       "gridPos": {
         "x": 0,
-        "y": 205,
+        "y": 189,
         "w": 12,
         "h": 8
       },
@@ -4327,7 +4580,7 @@
       "type": "timeseries",
       "gridPos": {
         "x": 12,
-        "y": 205,
+        "y": 189,
         "w": 6,
         "h": 8
       },
@@ -4372,7 +4625,7 @@
       "type": "timeseries",
       "gridPos": {
         "x": 18,
-        "y": 205,
+        "y": 189,
         "w": 6,
         "h": 8
       },
@@ -4445,11 +4698,11 @@
       "id": 2133310726
     },
     {
-      "title": "News Providers \u2014 OK/Degraded (Drill-down)",
+      "title": "News Providers — OK/Degraded (Drill-down)",
       "type": "timeseries",
       "gridPos": {
         "x": 0,
-        "y": 214,
+        "y": 197,
         "w": 12,
         "h": 8
       },
@@ -4492,15 +4745,15 @@
       "id": 2078851417
     },
     {
-      "title": "News Providers \u2014 Ingest Status & Reason",
+      "title": "News Providers — Ingest Status & Reason",
       "type": "table",
       "gridPos": {
         "x": 12,
-        "y": 214,
+        "y": 197,
         "w": 12,
         "h": 8
       },
-      "description": "Per-provider ingest status with the human-readable degraded reason (API key missing, no active subscription, provider disabled, \u2026) and whether the provider is actually consumed.",
+      "description": "Per-provider ingest status with the human-readable degraded reason (API key missing, no active subscription, provider disabled, …) and whether the provider is actually consumed.",
       "targets": [
         {
           "expr": "live_overlay_provider_news_info{job=~\"$job\"}",
@@ -4651,14 +4904,13 @@
     {
       "title": "Collector / Scrape Targets",
       "type": "row",
-      "collapsed": false,
+      "collapsed": true,
       "gridPos": {
         "x": 0,
-        "y": 223,
+        "y": 205,
         "w": 24,
         "h": 1
       },
-      "panels": [],
       "id": 2133310722,
       "description": "Service-owner detail: telemetry pipeline health, scrape target liveness, and collector memory."
     },
@@ -4671,7 +4923,7 @@
       },
       "gridPos": {
         "x": 0,
-        "y": 224,
+        "y": 206,
         "w": 12,
         "h": 8
       },
@@ -4704,7 +4956,7 @@
       },
       "gridPos": {
         "x": 12,
-        "y": 224,
+        "y": 206,
         "w": 12,
         "h": 8
       },
@@ -4727,255 +4979,12 @@
       "id": 2133310724
     },
     {
-      "title": "GitHub Workflows \u2014 Latest Run Detail",
-      "type": "table",
-      "gridPos": {
-        "x": 0,
-        "y": 233,
-        "w": 24,
-        "h": 14
-      },
-      "description": "Per-workflow detail of the most recent run the daemon observed: trigger event (schedule / push / \u2026), current status, run duration and age. One row per named workflow. Driven by the labelled live_overlay_github_workflow_* gauges (phase_code, latest_duration_seconds, latest_age_seconds, latest_success).",
-      "targets": [
-        {
-          "expr": "live_overlay_github_workflow_phase_code{job=~\"$job\"}",
-          "format": "table",
-          "instant": true,
-          "refId": "A",
-          "datasource": {
-            "type": "prometheus",
-            "uid": "grafanacloud-prom"
-          }
-        },
-        {
-          "expr": "live_overlay_github_workflow_latest_duration_seconds{job=~\"$job\"}",
-          "format": "table",
-          "instant": true,
-          "refId": "B",
-          "datasource": {
-            "type": "prometheus",
-            "uid": "grafanacloud-prom"
-          }
-        },
-        {
-          "expr": "live_overlay_github_workflow_latest_age_seconds{job=~\"$job\"}",
-          "format": "table",
-          "instant": true,
-          "refId": "C",
-          "datasource": {
-            "type": "prometheus",
-            "uid": "grafanacloud-prom"
-          }
-        },
-        {
-          "expr": "live_overlay_github_workflow_latest_success{job=~\"$job\"}",
-          "format": "table",
-          "instant": true,
-          "refId": "D",
-          "datasource": {
-            "type": "prometheus",
-            "uid": "grafanacloud-prom"
-          }
-        }
-      ],
-      "transformations": [
-        {
-          "id": "merge",
-          "options": {}
-        },
-        {
-          "id": "organize",
-          "options": {
-            "excludeByName": {
-              "Time": true,
-              "instance": true,
-              "job": true,
-              "__name__": true
-            },
-            "indexByName": {
-              "workflow": 0,
-              "event": 1,
-              "Value #A": 2,
-              "Value #B": 3,
-              "Value #C": 4,
-              "Value #D": 5,
-              "workflow_id": 6
-            },
-            "renameByName": {
-              "workflow": "Workflow",
-              "event": "Trigger",
-              "workflow_id": "Workflow ID",
-              "Value #A": "Status",
-              "Value #B": "Duration (s)",
-              "Value #C": "Age (s)",
-              "Value #D": "OK"
-            }
-          }
-        }
-      ],
-      "fieldConfig": {
-        "defaults": {
-          "custom": {
-            "align": "auto",
-            "cellOptions": {
-              "type": "auto"
-            }
-          }
-        },
-        "overrides": [
-          {
-            "matcher": {
-              "id": "byName",
-              "options": "Status"
-            },
-            "properties": [
-              {
-                "id": "custom.cellOptions",
-                "value": {
-                  "type": "color-background",
-                  "mode": "basic"
-                }
-              },
-              {
-                "id": "mappings",
-                "value": [
-                  {
-                    "type": "value",
-                    "options": {
-                      "0": {
-                        "text": "Unknown",
-                        "color": "gray"
-                      },
-                      "1": {
-                        "text": "Queued",
-                        "color": "yellow"
-                      },
-                      "2": {
-                        "text": "In progress",
-                        "color": "blue"
-                      },
-                      "3": {
-                        "text": "Success",
-                        "color": "green"
-                      },
-                      "4": {
-                        "text": "Failure",
-                        "color": "red"
-                      },
-                      "5": {
-                        "text": "Cancelled",
-                        "color": "orange"
-                      },
-                      "6": {
-                        "text": "Skipped",
-                        "color": "purple"
-                      },
-                      "7": {
-                        "text": "Neutral",
-                        "color": "blue"
-                      },
-                      "8": {
-                        "text": "Timed out",
-                        "color": "red"
-                      },
-                      "9": {
-                        "text": "Action required",
-                        "color": "orange"
-                      },
-                      "10": {
-                        "text": "Startup failure",
-                        "color": "red"
-                      },
-                      "11": {
-                        "text": "Stale",
-                        "color": "yellow"
-                      }
-                    }
-                  }
-                ]
-              }
-            ]
-          },
-          {
-            "matcher": {
-              "id": "byName",
-              "options": "Duration (s)"
-            },
-            "properties": [
-              {
-                "id": "unit",
-                "value": "s"
-              }
-            ]
-          },
-          {
-            "matcher": {
-              "id": "byName",
-              "options": "Age (s)"
-            },
-            "properties": [
-              {
-                "id": "unit",
-                "value": "s"
-              }
-            ]
-          },
-          {
-            "matcher": {
-              "id": "byName",
-              "options": "OK"
-            },
-            "properties": [
-              {
-                "id": "mappings",
-                "value": [
-                  {
-                    "type": "value",
-                    "options": {
-                      "0": {
-                        "text": "\u2717",
-                        "color": "red"
-                      },
-                      "1": {
-                        "text": "\u2713",
-                        "color": "green"
-                      }
-                    }
-                  }
-                ]
-              },
-              {
-                "id": "custom.cellOptions",
-                "value": {
-                  "type": "color-text"
-                }
-              }
-            ]
-          }
-        ]
-      },
-      "options": {
-        "showHeader": true,
-        "sortBy": [
-          {
-            "displayName": "Workflow",
-            "desc": false
-          }
-        ]
-      },
-      "datasource": {
-        "type": "prometheus",
-        "uid": "grafanacloud-prom"
-      },
-      "id": 1050488908
-    },
-    {
       "title": "TradingView Credential Age",
       "type": "stat",
-      "description": "Hours since the TradingView Playwright storage-state login (meta.authValidatedAt) was last validated, from the daily credential-health report (tv_storage_state_age probe). Policy TTL is 72h: green < 57.6h (80% warn band), yellow 57.6\u201372h, red once the cached login is older than 72h and must be re-captured. N/A when no report/age is available.",
+      "description": "Hours since the TradingView Playwright storage-state login (meta.authValidatedAt) was last validated, from the daily credential-health report (tv_storage_state_age probe). Policy TTL is 72h: green < 57.6h (80% warn band), yellow 57.6–72h, red once the cached login is older than 72h and must be re-captured. N/A when no report/age is available.",
       "gridPos": {
         "x": 0,
-        "y": 248,
+        "y": 214,
         "w": 6,
         "h": 5
       },
@@ -5037,10 +5046,10 @@
     {
       "title": "TradingView Credential Status",
       "type": "stat",
-      "description": "Whether the latest credential-health report considers the TradingView storage-state login valid (severity not error). 1 = valid (cached login still within the 72h TTL), 0 = expired/error \u2192 re-capture TV_STORAGE_STATE. N/A when no report has been ingested yet.",
+      "description": "Whether the latest credential-health report considers the TradingView storage-state login valid (severity not error). 1 = valid (cached login still within the 72h TTL), 0 = expired/error → re-capture TV_STORAGE_STATE. N/A when no report has been ingested yet.",
       "gridPos": {
         "x": 6,
-        "y": 248,
+        "y": 214,
         "w": 6,
         "h": 5
       },
@@ -5108,14 +5117,13 @@
       "id": 1230367683,
       "title": "Railway Resources",
       "type": "row",
-      "collapsed": false,
+      "collapsed": true,
       "gridPos": {
         "x": 0,
-        "y": 254,
+        "y": 219,
         "w": 24,
         "h": 1
       },
-      "panels": [],
       "datasource": {
         "type": "prometheus",
         "uid": "grafanacloud-prom"
@@ -5128,7 +5136,7 @@
       "description": "Whether the Railway metrics bridge is enabled and its last poll succeeded.",
       "gridPos": {
         "x": 0,
-        "y": 255,
+        "y": 220,
         "w": 4,
         "h": 3
       },
@@ -5205,7 +5213,7 @@
       "description": "Seconds since the last successful Railway metrics poll.",
       "gridPos": {
         "x": 4,
-        "y": 255,
+        "y": 220,
         "w": 4,
         "h": 3
       },
@@ -5268,7 +5276,7 @@
       "description": "Latest Railway metrics bridge error class. OK when healthy.",
       "gridPos": {
         "x": 8,
-        "y": 255,
+        "y": 220,
         "w": 4,
         "h": 3
       },
@@ -5343,7 +5351,7 @@
       },
       "gridPos": {
         "x": 0,
-        "y": 259,
+        "y": 223,
         "w": 8,
         "h": 7
       },
@@ -5387,7 +5395,7 @@
       },
       "gridPos": {
         "x": 8,
-        "y": 259,
+        "y": 223,
         "w": 8,
         "h": 7
       },
@@ -5448,7 +5456,7 @@
       },
       "gridPos": {
         "x": 16,
-        "y": 259,
+        "y": 223,
         "w": 8,
         "h": 7
       },
@@ -5492,7 +5500,7 @@
       },
       "gridPos": {
         "x": 0,
-        "y": 267,
+        "y": 230,
         "w": 8,
         "h": 7
       },
@@ -5536,7 +5544,7 @@
       },
       "gridPos": {
         "x": 8,
-        "y": 267,
+        "y": 230,
         "w": 8,
         "h": 7
       },
@@ -5580,7 +5588,7 @@
       },
       "gridPos": {
         "x": 16,
-        "y": 267,
+        "y": 230,
         "w": 8,
         "h": 7
       },
@@ -5669,6 +5677,6 @@
   "timezone": "utc",
   "title": "SMC Live Overlay API",
   "uid": "smc-live-overlay-v1",
-  "version": 33,
+  "version": 34,
   "description": "Live-overlay daemon operational dashboard: feed health, worker liveness, SMC overlay freshness, external bridge status, provider health, daily experiment metrics, and Railway container resources."
 }
