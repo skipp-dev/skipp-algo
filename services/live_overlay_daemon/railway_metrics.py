@@ -157,6 +157,7 @@ def _fetch() -> dict[str, Any]:
     services = _build_services(results, service_names)
     return {
         "enabled": True,
+        "configured": True,
         "ok": True,
         "fetched_at_unix": time.time(),
         "error": None,
@@ -167,9 +168,22 @@ def _fetch() -> dict[str, Any]:
 def _disabled_snapshot() -> dict[str, Any]:
     return {
         "enabled": False,
+        "configured": False,
         "ok": False,
         "fetched_at_unix": 0.0,
         "error": None,
+        "services": [],
+    }
+
+
+def _misconfigured_snapshot() -> dict[str, Any]:
+    """Enabled by intent but missing required configuration."""
+    return {
+        "enabled": True,
+        "configured": False,
+        "ok": False,
+        "fetched_at_unix": 0.0,
+        "error": "missing_configuration",
         "services": [],
     }
 
@@ -185,18 +199,12 @@ def snapshot() -> dict[str, Any]:
 
     if not config.railway_metrics_enabled():
         return _disabled_snapshot()
-    if not (
-        config.railway_api_token()
-        and config.railway_project_id()
-        and config.railway_environment_id()
-    ):
+    if not (config.railway_api_token() and config.railway_project_id() and config.railway_environment_id()):
         logger.warning(
             "Railway metrics enabled but RAILWAY_API_TOKEN / RAILWAY_PROJECT_ID / "
             "RAILWAY_ENVIRONMENT_ID is missing; skipping poll",
         )
-        result = _disabled_snapshot()
-        result["error"] = "missing_configuration"
-        return result
+        return _misconfigured_snapshot()
 
     now = time.monotonic()
     with _LOCK:

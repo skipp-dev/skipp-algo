@@ -1,975 +1,1260 @@
-# Grafana Cloud Alerting rules for SMC Live Overlay Daemon.
-# Import via Grafana UI → Alerting → Alert rules → Import, or provision via API.
-#
-# Notification channel must be configured separately in Grafana Cloud
-# (Slack webhook / Telegram bot / Email).
-
 apiVersion: 1
-
 groups:
-  - orgId: 1
-    name: live-overlay-critical
-    folder: SMC Live Overlay
-    interval: 1m
-    rules:
-      - uid: lo-scrape-missing
-        title: "Metrics scrape missing"
-        condition: C
-        data:
-          - refId: A
-            datasourceUid: grafanacloud-prom
-            model:
-              expr: absent(live_overlay_uptime_seconds{job="live_overlay"})
-              instant: true
-          - refId: C
-            datasourceUid: __expr__
-            model:
-              type: threshold
-              conditions:
-                - evaluator: {type: gt, params: [0]}
-                  operator: {type: and}
-                  query: {params: [A]}
-        for: 2m
-        labels:
-          severity: critical
-        annotations:
-          summary: "Prometheus is not scraping live-overlay metrics"
-          runbook: "Check metrics-collector service and /metrics auth/path wiring."
+- orgId: 1
+  name: live-overlay-critical
+  folder: SMC Live Overlay
+  interval: 1m
+  rules:
+  - uid: lo-scrape-missing
+    title: Metrics scrape missing
+    condition: C
+    data:
+    - refId: A
+      datasourceUid: grafanacloud-prom
+      model:
+        expr: absent(live_overlay_uptime_seconds{job="live_overlay"})
+        instant: true
+    - refId: C
+      datasourceUid: __expr__
+      model:
+        type: threshold
+        conditions:
+        - evaluator:
+            type: gt
+            params:
+            - 0
+          operator:
+            type: and
+          query:
+            params:
+            - A
+    for: 2m
+    labels:
+      severity: critical
+    annotations:
+      summary: Prometheus is not scraping live-overlay metrics
+      runbook: Check metrics-collector service and /metrics auth/path wiring.
+  - uid: lo-core-signal-missing
+    title: Core readiness signal missing
+    condition: C
+    data:
+    - refId: A
+      datasourceUid: grafanacloud-prom
+      model:
+        expr: absent(live_overlay_overlay_fresh{job="live_overlay"})
+        instant: true
+    - refId: C
+      datasourceUid: __expr__
+      model:
+        type: threshold
+        conditions:
+        - evaluator:
+            type: gt
+            params:
+            - 0
+          operator:
+            type: and
+          query:
+            params:
+            - A
+    for: 3m
+    labels:
+      severity: critical
+    annotations:
+      summary: Core readiness metric missing from scrape output
+      runbook: Verify daemon /metrics output and exporter logic for overlay_fresh
+        gauge.
+  - uid: lo-feed-down-market-open
+    title: Feed unhealthy while market open
+    condition: C
+    data:
+    - refId: A
+      datasourceUid: grafanacloud-prom
+      model:
+        expr: live_overlay_market_us_open{job="live_overlay"} * (1 - live_overlay_feed_healthy{job="live_overlay"})
+        instant: true
+    - refId: C
+      datasourceUid: __expr__
+      model:
+        type: threshold
+        conditions:
+        - evaluator:
+            type: gt
+            params:
+            - 0
+          operator:
+            type: and
+          query:
+            params:
+            - A
+    for: 5m
+    labels:
+      severity: critical
+    annotations:
+      summary: Live overlay feed is DOWN during market-open for > 5 min
+      runbook: Check Railway logs for BentoError / circuit breaker. Verify DATABENTO_API_KEY
+        validity.
+  - uid: lo-workers-degraded
+    title: Workers unhealthy
+    condition: C
+    data:
+    - refId: A
+      datasourceUid: grafanacloud-prom
+      model:
+        expr: live_overlay_workers_healthy{job="live_overlay"}
+        instant: true
+    - refId: C
+      datasourceUid: __expr__
+      model:
+        type: threshold
+        conditions:
+        - evaluator:
+            type: lt
+            params:
+            - 1
+          operator:
+            type: and
+          query:
+            params:
+            - A
+    for: 3m
+    labels:
+      severity: critical
+    annotations:
+      summary: One or more worker threads are dead
+      runbook: Check worker_liveness in /health. Railway may need restart (ON_FAILURE
+        should auto-recover).
+  - uid: lo-overlay-stale
+    title: Overlay data stale
+    condition: C
+    data:
+    - refId: A
+      datasourceUid: grafanacloud-prom
+      model:
+        expr: "(\n  live_overlay_overlay_age_seconds{job=\"live_overlay\"}\n  * live_overlay_overlay_age_known{job=\"\
+          live_overlay\"}\n)\n+ (\n  (1 - live_overlay_overlay_age_known{job=\"live_overlay\"\
+          })\n  * 3601\n)\n"
+        instant: true
+    - refId: C
+      datasourceUid: __expr__
+      model:
+        type: threshold
+        conditions:
+        - evaluator:
+            type: gt
+            params:
+            - 3600
+          operator:
+            type: and
+          query:
+            params:
+            - A
+    for: 5m
+    labels:
+      severity: high
+    annotations:
+      summary: Overlay age > 1h — compute cycle likely hung or erroring
+      runbook: Check full_compute_cycle_errors rate. Verify feed is pushing bars (last_bar_age_seconds).
+  - uid: lo-no-symbols
+    title: Zero overlay symbols after warmup
+    condition: C
+    data:
+    - refId: A
+      datasourceUid: grafanacloud-prom
+      model:
+        expr: live_overlay_overlay_symbols{job="live_overlay"}
+        instant: true
+    - refId: B
+      datasourceUid: grafanacloud-prom
+      model:
+        expr: live_overlay_uptime_seconds{job="live_overlay"}
+        instant: true
+    - refId: D
+      datasourceUid: grafanacloud-prom
+      model:
+        expr: increase(live_overlay_daemon_restarts_total{job="live_overlay"}[10m])
+        instant: true
+    - refId: C
+      datasourceUid: __expr__
+      model:
+        type: math
+        expression: $A == 0 && ($B > 600 || $D > 0)
+    for: 5m
+    labels:
+      severity: critical
+    annotations:
+      summary: No symbols computed after 10 min uptime
+      runbook: Service started but compute cycle never succeeded. Check feed + compute
+        logs.
+- orgId: 1
+  name: live-overlay-warning
+  folder: SMC Live Overlay
+  interval: 5m
+  rules:
+  - uid: lo-last-bar-stale-open
+    title: Last bar stale while market open
+    condition: C
+    data:
+    - refId: A
+      datasourceUid: grafanacloud-prom
+      model:
+        expr: "live_overlay_market_us_open{job=\"live_overlay\"} * (\n  (1 - live_overlay_last_bar_age_known{job=\"\
+          live_overlay\"})\n  + (\n    live_overlay_last_bar_age_known{job=\"live_overlay\"\
+          }\n    * (live_overlay_last_bar_age_seconds{job=\"live_overlay\"} > bool\
+          \ 300)\n  )\n)\n"
+        instant: true
+    - refId: C
+      datasourceUid: __expr__
+      model:
+        type: threshold
+        conditions:
+        - evaluator:
+            type: gt
+            params:
+            - 0
+          operator:
+            type: and
+          query:
+            params:
+            - A
+    for: 5m
+    labels:
+      severity: high
+    annotations:
+      summary: No fresh bar for > 5 min while market is open
+      runbook: Check feed thread liveness and Databento connectivity. Compare with
+        feed_healthy/workers_healthy.
+  - uid: lo-circuit-breaker-increase
+    title: Circuit breaker triggered (15m)
+    condition: C
+    data:
+    - refId: A
+      datasourceUid: grafanacloud-prom
+      model:
+        expr: increase(live_overlay_feed_circuit_breakers{job="live_overlay"}[15m])
+        instant: true
+    - refId: C
+      datasourceUid: __expr__
+      model:
+        type: threshold
+        conditions:
+        - evaluator:
+            type: gt
+            params:
+            - 0
+          operator:
+            type: and
+          query:
+            params:
+            - A
+    for: 1m
+    labels:
+      severity: high
+    annotations:
+      summary: Feed circuit breaker increased in last 15m
+      runbook: Persistent Databento outage. Service may need restart if breaker keeps
+        incrementing.
+  - uid: lo-bento-errors-rate
+    title: Elevated Databento error rate
+    condition: C
+    data:
+    - refId: A
+      datasourceUid: grafanacloud-prom
+      model:
+        expr: rate(live_overlay_feed_bento_errors{job="live_overlay"}[5m])
+        instant: true
+    - refId: C
+      datasourceUid: __expr__
+      model:
+        type: threshold
+        conditions:
+        - evaluator:
+            type: gt
+            params:
+            - 0.1
+          operator:
+            type: and
+          query:
+            params:
+            - A
+    for: 10m
+    labels:
+      severity: warning
+    annotations:
+      summary: Sustained Databento error rate > 0.1/s for 10 min
+      runbook: Check Databento status page. May indicate API key quota or network
+        issues.
+  - uid: lo-auth-denied-spike
+    title: Auth denied spike on smc_live
+    condition: C
+    data:
+    - refId: A
+      datasourceUid: grafanacloud-prom
+      model:
+        expr: increase(live_overlay_smc_live_auth_denied{job="live_overlay"}[15m])
+        instant: true
+    - refId: C
+      datasourceUid: __expr__
+      model:
+        type: threshold
+        conditions:
+        - evaluator:
+            type: gt
+            params:
+            - 20
+          operator:
+            type: and
+          query:
+            params:
+            - A
+    for: 2m
+    labels:
+      severity: warning
+    annotations:
+      summary: Auth denied requests spiked in the last 15m
+      runbook: Potential token drift or probing. Validate OVERLAY_SECRET_TOKEN rollout
+        in Pine consumers.
+  - uid: lo-request-rate-drop-open
+    title: Request rate near zero while market open
+    condition: C
+    data:
+    - refId: A
+      datasourceUid: grafanacloud-prom
+      model:
+        expr: live_overlay_market_us_open{job="live_overlay"} * (rate(live_overlay_smc_live_requests_total{job="live_overlay"}[10m])
+          < bool 0.001) * (live_overlay_uptime_seconds{job="live_overlay"} > bool
+          600) * (increase(live_overlay_smc_live_requests_total{job="live_overlay"}[1h])
+          > bool 5)
+        instant: true
+    - refId: C
+      datasourceUid: __expr__
+      model:
+        type: threshold
+        conditions:
+        - evaluator:
+            type: gt
+            params:
+            - 0
+          operator:
+            type: and
+          query:
+            params:
+            - A
+    for: 10m
+    labels:
+      severity: warning
+    annotations:
+      summary: Incoming smc_live request rate dropped near zero during market-open
+      runbook: Check TradingView consumer health, token rollout, and upstream network
+        path.
+  - uid: lo-compute-errors-rate
+    title: Compute cycle errors
+    condition: C
+    data:
+    - refId: A
+      datasourceUid: grafanacloud-prom
+      model:
+        expr: (sum(increase(live_overlay_full_compute_cycle_errors{job="live_overlay"}[15m]))
+          or vector(0)) + (sum(increase(live_overlay_flow_patch_cycle_errors{job="live_overlay"}[15m]))
+          or vector(0))
+        instant: true
+    - refId: C
+      datasourceUid: __expr__
+      model:
+        type: threshold
+        conditions:
+        - evaluator:
+            type: gt
+            params:
+            - 0
+          operator:
+            type: and
+          query:
+            params:
+            - A
+    for: 10m
+    labels:
+      severity: warning
+    annotations:
+      summary: Compute cycles are erroring persistently
+      runbook: Check Railway logs for stack traces in compute.py. Likely data quality
+        issue in cached bars.
+  - uid: lo-error-budget-burn-critical
+    title: SLO error budget page (5m & 1h)
+    condition: C
+    data:
+    - refId: A
+      datasourceUid: grafanacloud-prom
+      model:
+        expr: ((sum(rate(live_overlay_smc_live_errors_total{job="live_overlay"}[5m]))
+          / clamp_min(sum(rate(live_overlay_smc_live_requests_total{job="live_overlay"}[5m])),
+          1e-9)) / 0.01)
+        instant: true
+    - refId: B
+      datasourceUid: grafanacloud-prom
+      model:
+        expr: ((sum(rate(live_overlay_smc_live_errors_total{job="live_overlay"}[1h]))
+          / clamp_min(sum(rate(live_overlay_smc_live_requests_total{job="live_overlay"}[1h])),
+          1e-9)) / 0.01)
+        instant: true
+    - refId: C
+      datasourceUid: __expr__
+      model:
+        type: math
+        expression: ($A > 14.4) && ($B > 14.4)
+    for: 5m
+    labels:
+      severity: critical
+    annotations:
+      summary: SLO error budget burn rate pages on both 5m and 1h windows
+      runbook: Inspect error mix, latency p95/p99, and freshness timeline; mitigate
+        request failures immediately.
+  - uid: lo-error-budget-burn-warning
+    title: SLO error budget ticket (30m & 6h)
+    condition: C
+    data:
+    - refId: A
+      datasourceUid: grafanacloud-prom
+      model:
+        expr: ((sum(rate(live_overlay_smc_live_errors_total{job="live_overlay"}[30m]))
+          / clamp_min(sum(rate(live_overlay_smc_live_requests_total{job="live_overlay"}[30m])),
+          1e-9)) / 0.01)
+        instant: true
+    - refId: B
+      datasourceUid: grafanacloud-prom
+      model:
+        expr: ((sum(rate(live_overlay_smc_live_errors_total{job="live_overlay"}[6h]))
+          / clamp_min(sum(rate(live_overlay_smc_live_requests_total{job="live_overlay"}[6h])),
+          1e-9)) / 0.01)
+        instant: true
+    - refId: C
+      datasourceUid: __expr__
+      model:
+        type: math
+        expression: ($A > 6) && ($B > 6)
+    for: 10m
+    labels:
+      severity: warning
+    annotations:
+      summary: SLO error budget burn rate tickets on both 30m and 6h windows
+      runbook: Check request success rate trend and investigate recent failure-type
+        spikes before critical threshold is reached.
+  - uid: lo-latency-p99-high
+    title: p99 latency elevated
+    condition: C
+    data:
+    - refId: A
+      datasourceUid: grafanacloud-prom
+      model:
+        expr: "(\n  histogram_quantile(\n    0.99,\n    sum by (le) (\n      rate(live_overlay_smc_live_latency_ms_bucket{job=\"\
+          live_overlay\"}[5m])\n    )\n  )\n  and on() (\n    sum(rate(live_overlay_smc_live_latency_ms_count{job=\"\
+          live_overlay\"}[5m])) > 0\n  )\n) or vector(0)\n"
+        instant: true
+    - refId: C
+      datasourceUid: __expr__
+      model:
+        type: threshold
+        conditions:
+        - evaluator:
+            type: gt
+            params:
+            - 500
+          operator:
+            type: and
+          query:
+            params:
+            - A
+    for: 10m
+    labels:
+      severity: warning
+    annotations:
+      summary: p99 latency above 500ms for 10m
+      runbook: Check request hotspots and saturation. Verify live_overlay_smc_live_latency_ms_bucket{le="+Inf"}
+        increases with request traffic.
+  - uid: lo-uptimerobot-snapshot-stale
+    title: UptimeRobot snapshot stale
+    condition: C
+    data:
+    - refId: A
+      datasourceUid: grafanacloud-prom
+      model:
+        expr: live_overlay_uptimerobot_snapshot_age_seconds{job="live_overlay"}
+        instant: true
+    - refId: C
+      datasourceUid: __expr__
+      model:
+        type: threshold
+        conditions:
+        - evaluator:
+            type: gt
+            params:
+            - 180
+          operator:
+            type: and
+          query:
+            params:
+            - A
+    for: 10m
+    labels:
+      severity: warning
+    annotations:
+      summary: UptimeRobot bridge data is stale
+      runbook: Check UptimeRobot API key/quota and bridge scrape health state.
+  - uid: lo-github-workflow-snapshot-stale
+    title: GitHub workflow snapshot stale
+    condition: C
+    data:
+    - refId: A
+      datasourceUid: grafanacloud-prom
+      model:
+        expr: live_overlay_github_workflow_snapshot_age_seconds{job="live_overlay"}
+        instant: true
+    - refId: C
+      datasourceUid: __expr__
+      model:
+        type: threshold
+        conditions:
+        - evaluator:
+            type: gt
+            params:
+            - 180
+          operator:
+            type: and
+          query:
+            params:
+            - A
+    for: 10m
+    labels:
+      severity: warning
+    annotations:
+      summary: GitHub workflow bridge data is stale
+      runbook: Check GitHub workflow token/repo config and bridge scrape status.
+  - uid: lo-ingest-queue-depth-high
+    title: Ingest queue depth high
+    condition: C
+    data:
+    - refId: A
+      datasourceUid: grafanacloud-prom
+      model:
+        expr: live_overlay_feed_ingest_queue_depth{job="live_overlay"}
+        instant: true
+    - refId: C
+      datasourceUid: __expr__
+      model:
+        type: threshold
+        conditions:
+        - evaluator:
+            type: gt
+            params:
+            - 1000
+          operator:
+            type: and
+          query:
+            params:
+            - A
+    for: 10m
+    labels:
+      severity: warning
+    annotations:
+      summary: Ingest queue depth is persistently high
+      runbook: 'Backpressure detected: review feed throughput, compute cadence, and
+        queue max setting.'
+  - uid: lo-ingest-drops-increasing
+    title: Ingest queue drops increasing
+    condition: C
+    data:
+    - refId: A
+      datasourceUid: grafanacloud-prom
+      model:
+        expr: increase(live_overlay_feed_ingest_queue_dropped_total{job="live_overlay"}[10m])
+        instant: true
+    - refId: C
+      datasourceUid: __expr__
+      model:
+        type: threshold
+        conditions:
+        - evaluator:
+            type: gt
+            params:
+            - 0
+          operator:
+            type: and
+          query:
+            params:
+            - A
+    for: 1m
+    labels:
+      severity: high
+    annotations:
+      summary: Bars are being dropped due to ingest queue saturation
+      runbook: Increase LIVE_OVERLAY_INGEST_QUEUE_MAX and investigate sustained producer-consumer
+        imbalance.
+  - uid: lo-news-provider-health-degraded
+    title: News provider health degraded
+    condition: C
+    data:
+    - refId: A
+      datasourceUid: grafanacloud-prom
+      model:
+        expr: (live_overlay_provider_news_snapshot_loaded{job="live_overlay"} == bool
+          1) * (live_overlay_provider_news_providers_degraded_total{job="live_overlay"}
+          >= bool 2)
+        instant: true
+    - refId: C
+      datasourceUid: __expr__
+      model:
+        type: threshold
+        conditions:
+        - evaluator:
+            type: gt
+            params:
+            - 0
+          operator:
+            type: and
+          query:
+            params:
+            - A
+    for: 15m
+    labels:
+      severity: warning
+    annotations:
+      summary: Multiple news providers are degraded
+      runbook: Inspect provider error fields in news snapshot and upstream provider
+        quotas/auth.
+  - uid: lo-news-snapshot-series-missing
+    title: News snapshot series missing
+    condition: C
+    data:
+    - refId: A
+      datasourceUid: grafanacloud-prom
+      model:
+        expr: absent(live_overlay_provider_news_snapshot_loaded{job="live_overlay"})
+          or absent(live_overlay_provider_news_snapshot_age_seconds{job="live_overlay"})
+        instant: true
+    - refId: C
+      datasourceUid: __expr__
+      model:
+        type: threshold
+        conditions:
+        - evaluator:
+            type: gt
+            params:
+            - 0
+          operator:
+            type: and
+          query:
+            params:
+            - A
+    for: 10m
+    labels:
+      severity: warning
+    annotations:
+      summary: News snapshot metrics are missing from scrape output
+      runbook: Check /metrics exposure for news snapshot gauges and scrape target
+        label wiring.
+  - uid: lo-news-snapshot-unavailable
+    title: News snapshot unavailable
+    condition: C
+    data:
+    - refId: A
+      datasourceUid: grafanacloud-prom
+      model:
+        expr: live_overlay_provider_news_snapshot_loaded{job="live_overlay"} == bool
+          0
+        instant: true
+    - refId: C
+      datasourceUid: __expr__
+      model:
+        type: threshold
+        conditions:
+        - evaluator:
+            type: gt
+            params:
+            - 0
+          operator:
+            type: and
+          query:
+            params:
+            - A
+    for: 5m
+    labels:
+      severity: high
+    annotations:
+      summary: News provider snapshot file is not loaded
+      runbook: Verify NEWS_SNAPSHOT_PATH exists and is readable by the daemon; check
+        seed/producer job.
+  - uid: lo-news-snapshot-stale
+    title: News snapshot stale
+    condition: C
+    data:
+    - refId: A
+      datasourceUid: grafanacloud-prom
+      model:
+        expr: live_overlay_provider_news_snapshot_loaded{job="live_overlay"} * (live_overlay_provider_news_snapshot_age_seconds{job="live_overlay"}
+          > bool 3600)
+        instant: true
+    - refId: C
+      datasourceUid: __expr__
+      model:
+        type: threshold
+        conditions:
+        - evaluator:
+            type: gt
+            params:
+            - 0
+          operator:
+            type: and
+          query:
+            params:
+            - A
+    for: 15m
+    labels:
+      severity: warning
+    annotations:
+      summary: News provider snapshot is older than 1 hour
+      runbook: Check NEWS_SNAPSHOT_PATH producer job and file update cadence; inspect
+        fetched_at_unix in snapshot.
+  - uid: lo-tradingview-credential-age-high
+    title: TradingView credential age high
+    condition: C
+    data:
+    - refId: A
+      datasourceUid: grafanacloud-prom
+      model:
+        expr: live_overlay_tradingview_credential_age_hours{job="live_overlay"} and
+          on(job, instance) (live_overlay_tradingview_credential_age_known{job="live_overlay"}
+          == 1)
+        instant: true
+    - refId: C
+      datasourceUid: __expr__
+      model:
+        type: threshold
+        conditions:
+        - evaluator:
+            type: gt
+            params:
+            - 72
+          operator:
+            type: and
+          query:
+            params:
+            - A
+    for: 5m
+    labels:
+      severity: high
+    annotations:
+      summary: TradingView credential age > 72 h
+      runbook: Refresh TradingView session/cookie. Credential becomes invalid around
+        72-96 h.
+  - uid: lo-ingest-queue-lag-high
+    title: Ingest queue lag high
+    condition: C
+    data:
+    - refId: A
+      datasourceUid: grafanacloud-prom
+      model:
+        expr: live_overlay_feed_ingest_queue_lag_ms_max{job="live_overlay"}
+        instant: true
+    - refId: C
+      datasourceUid: __expr__
+      model:
+        type: threshold
+        conditions:
+        - evaluator:
+            type: gt
+            params:
+            - 5000
+          operator:
+            type: and
+          query:
+            params:
+            - A
+    for: 10m
+    labels:
+      severity: warning
+    annotations:
+      summary: Feed ingest queue lag > 5000 ms
+      runbook: Ingest processor is falling behind. Check CPU, queue depth and dropped
+        bars.
+  - uid: lo-daemon-restarts-high
+    title: Daemon restarts high (24h)
+    condition: C
+    data:
+    - refId: A
+      datasourceUid: grafanacloud-prom
+      model:
+        expr: sum(increase(live_overlay_daemon_restarts_total{job="live_overlay"}[24h]))
+        instant: true
+    - refId: C
+      datasourceUid: __expr__
+      model:
+        type: threshold
+        conditions:
+        - evaluator:
+            type: gt
+            params:
+            - 3
+          operator:
+            type: and
+          query:
+            params:
+            - A
+    for: 5m
+    labels:
+      severity: high
+    annotations:
+      summary: More than 3 daemon restarts in the last 24 h
+      runbook: Check Railway deployment logs and restart_cause counters for crash
+        loop.
+  - uid: sp-memory-high
+    title: Signals Producer RSS > 512 MB
+    condition: C
+    data:
+    - refId: A
+      datasourceUid: grafanacloud-prom
+      model:
+        expr: signals_producer_process_resident_memory_bytes{job="signals_producer"}
+          / 1024 / 1024
+        instant: true
+    - refId: C
+      datasourceUid: __expr__
+      model:
+        type: threshold
+        conditions:
+        - evaluator:
+            type: gt
+            params:
+            - 512
+          operator:
+            type: and
+          query:
+            params:
+            - A
+    for: 5m
+    labels:
+      severity: warning
+    annotations:
+      summary: smc-signals-producer memory exceeds 512 MB for > 5 min
+      runbook: Check for memory leak in poll_once / newsstack poller. Consider recycling
+        the Railway instance.
+  - uid: sp-memory-critical
+    title: Signals Producer RSS > 900 MB
+    condition: C
+    data:
+    - refId: A
+      datasourceUid: grafanacloud-prom
+      model:
+        expr: signals_producer_process_resident_memory_bytes{job="signals_producer"}
+          / 1024 / 1024
+        instant: true
+    - refId: C
+      datasourceUid: __expr__
+      model:
+        type: threshold
+        conditions:
+        - evaluator:
+            type: gt
+            params:
+            - 900
+          operator:
+            type: and
+          query:
+            params:
+            - A
+    for: 3m
+    labels:
+      severity: critical
+    annotations:
+      summary: smc-signals-producer memory exceeds 900 MB — OOM kill imminent
+      runbook: 'Railway free tier: 1 GB limit. Immediately inspect /metrics for FD
+        leak. May need manual restart.'
+  - uid: sp-scrape-down
+    title: Signals Producer scrape target down
+    condition: C
+    data:
+    - refId: A
+      datasourceUid: grafanacloud-prom
+      model:
+        expr: up{job="signals_producer"}
+        instant: true
+    - refId: C
+      datasourceUid: __expr__
+      model:
+        type: threshold
+        conditions:
+        - evaluator:
+            type: lt
+            params:
+            - 1
+          operator:
+            type: and
+          query:
+            params:
+            - A
+    for: 3m
+    labels:
+      severity: critical
+    annotations:
+      summary: Cannot scrape smc-signals-producer /metrics — container may be down
+      runbook: Check Railway deploy logs. Verify SIGNALS_SERVICE_URL env var in Alloy
+        service. Check UptimeRobot /healthz.
+  - uid: lo-memory-high
+    title: Live Overlay RSS > 512 MB
+    condition: C
+    data:
+    - refId: A
+      datasourceUid: grafanacloud-prom
+      model:
+        expr: live_overlay_process_resident_memory_bytes{job="live_overlay"} / 1024
+          / 1024
+        instant: true
+    - refId: C
+      datasourceUid: __expr__
+      model:
+        type: threshold
+        conditions:
+        - evaluator:
+            type: gt
+            params:
+            - 512
+          operator:
+            type: and
+          query:
+            params:
+            - A
+    for: 5m
+    labels:
+      severity: warning
+    annotations:
+      summary: smc-live-overlay memory exceeds 512 MB for > 5 min
+      runbook: Check Databento feed buffer sizes and GC stats. Consider restart.
+  - uid: lo-memory-critical
+    title: Live Overlay RSS > 900 MB
+    condition: C
+    data:
+    - refId: A
+      datasourceUid: grafanacloud-prom
+      model:
+        expr: live_overlay_process_resident_memory_bytes{job="live_overlay"} / 1024
+          / 1024
+        instant: true
+    - refId: C
+      datasourceUid: __expr__
+      model:
+        type: threshold
+        conditions:
+        - evaluator:
+            type: gt
+            params:
+            - 900
+          operator:
+            type: and
+          query:
+            params:
+            - A
+    for: 3m
+    labels:
+      severity: critical
+    annotations:
+      summary: smc-live-overlay memory exceeds 900 MB — OOM kill imminent
+      runbook: Railway 1 GB limit. Check feed accumulation and reconnect cycles.
+  - uid: alloy-scrape-self-down
+    title: Alloy self-scrape target down
+    condition: C
+    data:
+    - refId: A
+      datasourceUid: grafanacloud-prom
+      model:
+        expr: up{job="alloy"}
+        instant: true
+    - refId: C
+      datasourceUid: __expr__
+      model:
+        type: threshold
+        conditions:
+        - evaluator:
+            type: lt
+            params:
+            - 1
+          operator:
+            type: and
+          query:
+            params:
+            - A
+    for: 3m
+    labels:
+      severity: critical
+    annotations:
+      summary: Alloy self-scrape failing — metrics pipeline is blind
+      runbook: If Alloy self-scrape is down, NO metrics from any container reach Grafana.
+        Check Railway deploy logs for alloy container crash/OOM.
+  - uid: alloy-memory-high
+    title: Alloy RSS > 256 MB
+    condition: C
+    data:
+    - refId: A
+      datasourceUid: grafanacloud-prom
+      model:
+        expr: process_resident_memory_bytes{job="alloy"} / 1024 / 1024
+        instant: true
+    - refId: C
+      datasourceUid: __expr__
+      model:
+        type: threshold
+        conditions:
+        - evaluator:
+            type: gt
+            params:
+            - 256
+          operator:
+            type: and
+          query:
+            params:
+            - A
+    for: 5m
+    labels:
+      severity: warning
+    annotations:
+      summary: Alloy (metric-collector) memory exceeds 256 MB for > 5 min
+      runbook: Alloy is lightweight; high memory suggests scrape target explosion
+        or WAL buildup. Check remote-write backlog.
+  - uid: alloy-memory-critical
+    title: Alloy RSS > 512 MB
+    condition: C
+    data:
+    - refId: A
+      datasourceUid: grafanacloud-prom
+      model:
+        expr: process_resident_memory_bytes{job="alloy"} / 1024 / 1024
+        instant: true
+    - refId: C
+      datasourceUid: __expr__
+      model:
+        type: threshold
+        conditions:
+        - evaluator:
+            type: gt
+            params:
+            - 512
+          operator:
+            type: and
+          query:
+            params:
+            - A
+    for: 3m
+    labels:
+      severity: critical
+    annotations:
+      summary: Alloy (metric-collector) memory exceeds 512 MB — OOM risk
+      runbook: Railway container limit applies. Alloy should use < 100 MB normally.
+        Check for WAL corruption or stuck remote-write.
+  - uid: alloy-targets-down
+    title: Alloy scrape targets unreachable
+    condition: C
+    data:
+    - refId: A
+      datasourceUid: grafanacloud-prom
+      model:
+        expr: (count(up{job=~"signals_producer|live_overlay"} == 0) > 0) or absent(up{job="signals_producer"})
+          or absent(up{job="live_overlay"})
+        instant: true
+    - refId: C
+      datasourceUid: __expr__
+      model:
+        type: threshold
+        conditions:
+        - evaluator:
+            type: gt
+            params:
+            - 0
+          operator:
+            type: and
+          query:
+            params:
+            - A
+    for: 3m
+    labels:
+      severity: critical
+    annotations:
+      summary: One or more Railway services are unreachable from Alloy
+      runbook: Check Railway internal networking. Verify OVERLAY_SERVICE_URL and SIGNALS_SERVICE_URL
+        env vars. Target service may have crashed.
+  - uid: lo-bridge-scrape-failed
+    title: Live Overlay bridge scrape failed
+    condition: C
+    data:
+    - refId: A
+      datasourceUid: grafanacloud-prom
+      model:
+        expr: 'live_overlay_bridge_enabled{job="live_overlay"} == 1
 
-      - uid: lo-core-signal-missing
-        title: "Core readiness signal missing"
-        condition: C
-        data:
-          - refId: A
-            datasourceUid: grafanacloud-prom
-            model:
-              expr: absent(live_overlay_overlay_fresh{job="live_overlay"})
-              instant: true
-          - refId: C
-            datasourceUid: __expr__
-            model:
-              type: threshold
-              conditions:
-                - evaluator: {type: gt, params: [0]}
-                  operator: {type: and}
-                  query: {params: [A]}
-        for: 3m
-        labels:
-          severity: critical
-        annotations:
-          summary: "Core readiness metric missing from scrape output"
-          runbook: "Verify daemon /metrics output and exporter logic for overlay_fresh gauge."
+          and on(job, bridge)
 
-      - uid: lo-feed-down-market-open
-        title: "Feed unhealthy while market open"
-        condition: C
-        data:
-          - refId: A
-            datasourceUid: grafanacloud-prom
-            model:
-              expr: live_overlay_market_us_open{job="live_overlay"} * (1 - live_overlay_feed_healthy{job="live_overlay"})
-              instant: true
-          - refId: C
-            datasourceUid: __expr__
-            model:
-              type: threshold
-              conditions:
-                - evaluator: {type: gt, params: [0]}
-                  operator: {type: and}
-                  query: {params: [A]}
-        for: 5m
-        labels:
-          severity: critical
-        annotations:
-          summary: "Live overlay feed is DOWN during market-open for > 5 min"
-          runbook: "Check Railway logs for BentoError / circuit breaker. Verify DATABENTO_API_KEY validity."
+          live_overlay_bridge_configured{job="live_overlay"} == 1
 
-      - uid: lo-workers-degraded
-        title: "Workers unhealthy"
-        condition: C
-        data:
-          - refId: A
-            datasourceUid: grafanacloud-prom
-            model:
-              expr: live_overlay_workers_healthy{job="live_overlay"}
-              instant: true
-          - refId: C
-            datasourceUid: __expr__
-            model:
-              type: threshold
-              conditions:
-                - evaluator: {type: lt, params: [1]}
-                  operator: {type: and}
-                  query: {params: [A]}
-        for: 3m
-        labels:
-          severity: critical
-        annotations:
-          summary: "One or more worker threads are dead"
-          runbook: "Check worker_liveness in /health. Railway may need restart (ON_FAILURE should auto-recover)."
+          and on(job, bridge)
 
-      - uid: lo-overlay-stale
-        title: "Overlay data stale"
-        condition: C
-        data:
-          - refId: A
-            datasourceUid: grafanacloud-prom
-            model:
-              expr: |
-                (
-                  live_overlay_overlay_age_seconds{job="live_overlay"}
-                  * live_overlay_overlay_age_known{job="live_overlay"}
-                )
-                + (
-                  (1 - live_overlay_overlay_age_known{job="live_overlay"})
-                  * 3601
-                )
-              instant: true
-          - refId: C
-            datasourceUid: __expr__
-            model:
-              type: threshold
-              conditions:
-                - evaluator: {type: gt, params: [3600]}
-                  operator: {type: and}
-                  query: {params: [A]}
-        for: 5m
-        labels:
-          severity: high
-        annotations:
-          summary: "Overlay age > 1h — compute cycle likely hung or erroring"
-          runbook: "Check full_compute_cycle_errors rate. Verify feed is pushing bars (last_bar_age_seconds)."
+          live_overlay_bridge_scrape_success{job="live_overlay"} == 0
 
-      - uid: lo-no-symbols
-        title: "Zero overlay symbols after warmup"
-        condition: C
-        data:
-          - refId: A
-            datasourceUid: grafanacloud-prom
-            model:
-              expr: live_overlay_overlay_symbols{job="live_overlay"}
-              instant: true
-          - refId: B
-            datasourceUid: grafanacloud-prom
-            model:
-              expr: live_overlay_uptime_seconds{job="live_overlay"}
-              instant: true
-          - refId: D
-            datasourceUid: grafanacloud-prom
-            model:
-              expr: increase(live_overlay_daemon_restarts_total{job="live_overlay"}[10m])
-              instant: true
-          - refId: C
-            datasourceUid: __expr__
-            model:
-              type: math
-              expression: "$A == 0 && ($B > 600 || $D > 0)"
-        for: 5m
-        labels:
-          severity: critical
-        annotations:
-          summary: "No symbols computed after 10 min uptime"
-          runbook: "Service started but compute cycle never succeeded. Check feed + compute logs."
+          '
+        instant: true
+        refId: A
+    - refId: C
+      datasourceUid: __expr__
+      model:
+        type: threshold
+        conditions:
+        - evaluator:
+            type: gt
+            params:
+            - 0
+          operator:
+            type: and
+          query:
+            params:
+            - A
+    for: 5m
+    labels:
+      severity: warning
+    annotations:
+      summary: A configured live-overlay bridge is failing to scrape
+      runbook: Check bridge credentials and upstream API health. Inspect live_overlay_bridge_error_info
+        for error codes.
+  - uid: lo-bridge-stale
+    title: Live Overlay bridge data stale
+    condition: C
+    data:
+    - refId: A
+      datasourceUid: grafanacloud-prom
+      model:
+        expr: 'live_overlay_bridge_enabled{job="live_overlay"} == 1
 
-  - orgId: 1
-    name: live-overlay-warning
-    folder: SMC Live Overlay
-    interval: 5m
-    rules:
-      - uid: lo-last-bar-stale-open
-        title: "Last bar stale while market open"
-        condition: C
-        data:
-          - refId: A
-            datasourceUid: grafanacloud-prom
-            model:
-              expr: |
-                live_overlay_market_us_open{job="live_overlay"} * (
-                  (1 - live_overlay_last_bar_age_known{job="live_overlay"})
-                  + (
-                    live_overlay_last_bar_age_known{job="live_overlay"}
-                    * (live_overlay_last_bar_age_seconds{job="live_overlay"} > bool 300)
-                  )
-                )
-              instant: true
-          - refId: C
-            datasourceUid: __expr__
-            model:
-              type: threshold
-              conditions:
-                - evaluator: {type: gt, params: [0]}
-                  operator: {type: and}
-                  query: {params: [A]}
-        for: 5m
-        labels:
-          severity: high
-        annotations:
-          summary: "No fresh bar for > 5 min while market is open"
-          runbook: "Check feed thread liveness and Databento connectivity. Compare with feed_healthy/workers_healthy."
+          and on(job, bridge)
 
-      - uid: lo-circuit-breaker-increase
-        title: "Circuit breaker triggered (15m)"
-        condition: C
-        data:
-          - refId: A
-            datasourceUid: grafanacloud-prom
-            model:
-              expr: increase(live_overlay_feed_circuit_breakers{job="live_overlay"}[15m])
-              instant: true
-          - refId: C
-            datasourceUid: __expr__
-            model:
-              type: threshold
-              conditions:
-                - evaluator: {type: gt, params: [0]}
-                  operator: {type: and}
-                  query: {params: [A]}
-        for: 1m
-        labels:
-          severity: high
-        annotations:
-          summary: "Feed circuit breaker increased in last 15m"
-          runbook: "Persistent Databento outage. Service may need restart if breaker keeps incrementing."
+          live_overlay_bridge_scrape_success{job="live_overlay"} == 1
 
-      - uid: lo-bento-errors-rate
-        title: "Elevated Databento error rate"
-        condition: C
-        data:
-          - refId: A
-            datasourceUid: grafanacloud-prom
-            model:
-              expr: rate(live_overlay_feed_bento_errors{job="live_overlay"}[5m])
-              instant: true
-          - refId: C
-            datasourceUid: __expr__
-            model:
-              type: threshold
-              conditions:
-                - evaluator: {type: gt, params: [0.1]}
-                  operator: {type: and}
-                  query: {params: [A]}
-        for: 10m
-        labels:
-          severity: warning
-        annotations:
-          summary: "Sustained Databento error rate > 0.1/s for 10 min"
-          runbook: "Check Databento status page. May indicate API key quota or network issues."
+          and on(job, bridge)
 
-      - uid: lo-auth-denied-spike
-        title: "Auth denied spike on smc_live"
-        condition: C
-        data:
-          - refId: A
-            datasourceUid: grafanacloud-prom
-            model:
-              expr: increase(live_overlay_smc_live_auth_denied{job="live_overlay"}[15m])
-              instant: true
-          - refId: C
-            datasourceUid: __expr__
-            model:
-              type: threshold
-              conditions:
-                - evaluator: {type: gt, params: [20]}
-                  operator: {type: and}
-                  query: {params: [A]}
-        for: 2m
-        labels:
-          severity: warning
-        annotations:
-          summary: "Auth denied requests spiked in the last 15m"
-          runbook: "Potential token drift or probing. Validate OVERLAY_SECRET_TOKEN rollout in Pine consumers."
+          live_overlay_bridge_last_success_age_seconds{job="live_overlay"} > 900
 
-      - uid: lo-request-rate-drop-open
-        title: "Request rate near zero while market open"
-        condition: C
-        data:
-          - refId: A
-            datasourceUid: grafanacloud-prom
-            model:
-              expr: live_overlay_market_us_open{job="live_overlay"} * (rate(live_overlay_smc_live_requests_total{job="live_overlay"}[10m]) < bool 0.001) * (live_overlay_uptime_seconds{job="live_overlay"} > bool 600) * (increase(live_overlay_smc_live_requests_total{job="live_overlay"}[1h]) > bool 5)
-              instant: true
-          - refId: C
-            datasourceUid: __expr__
-            model:
-              type: threshold
-              conditions:
-                - evaluator: {type: gt, params: [0]}
-                  operator: {type: and}
-                  query: {params: [A]}
-        for: 10m
-        labels:
-          severity: warning
-        annotations:
-          summary: "Incoming smc_live request rate dropped near zero during market-open"
-          runbook: "Check TradingView consumer health, token rollout, and upstream network path."
-
-      - uid: lo-compute-errors-rate
-        title: "Compute cycle errors"
-        condition: C
-        data:
-          - refId: A
-            datasourceUid: grafanacloud-prom
-            model:
-              expr: (sum(increase(live_overlay_full_compute_cycle_errors{job="live_overlay"}[15m])) or vector(0)) + (sum(increase(live_overlay_flow_patch_cycle_errors{job="live_overlay"}[15m])) or vector(0))
-              instant: true
-          - refId: C
-            datasourceUid: __expr__
-            model:
-              type: threshold
-              conditions:
-                - evaluator: {type: gt, params: [0]}
-                  operator: {type: and}
-                  query: {params: [A]}
-        for: 10m
-        labels:
-          severity: warning
-        annotations:
-          summary: "Compute cycles are erroring persistently"
-          runbook: "Check Railway logs for stack traces in compute.py. Likely data quality issue in cached bars."
-
-      - uid: lo-error-budget-burn-critical
-        title: "SLO error budget page (5m & 1h)"
-        condition: C
-        data:
-          - refId: A
-            datasourceUid: grafanacloud-prom
-            model:
-              expr: "((sum(rate(live_overlay_smc_live_errors_total{job=\"live_overlay\"}[5m])) / clamp_min(sum(rate(live_overlay_smc_live_requests_total{job=\"live_overlay\"}[5m])), 1e-9)) / 0.01)"
-              instant: true
-          - refId: B
-            datasourceUid: grafanacloud-prom
-            model:
-              expr: "((sum(rate(live_overlay_smc_live_errors_total{job=\"live_overlay\"}[1h])) / clamp_min(sum(rate(live_overlay_smc_live_requests_total{job=\"live_overlay\"}[1h])), 1e-9)) / 0.01)"
-              instant: true
-          - refId: C
-            datasourceUid: __expr__
-            model:
-              type: math
-              expression: "($A > 14.4) && ($B > 14.4)"
-        for: 5m
-        labels:
-          severity: critical
-        annotations:
-          summary: "SLO error budget burn rate pages on both 5m and 1h windows"
-          runbook: "Inspect error mix, latency p95/p99, and freshness timeline; mitigate request failures immediately."
-
-      - uid: lo-error-budget-burn-warning
-        title: "SLO error budget ticket (30m & 6h)"
-        condition: C
-        data:
-          - refId: A
-            datasourceUid: grafanacloud-prom
-            model:
-              expr: "((sum(rate(live_overlay_smc_live_errors_total{job=\"live_overlay\"}[30m])) / clamp_min(sum(rate(live_overlay_smc_live_requests_total{job=\"live_overlay\"}[30m])), 1e-9)) / 0.01)"
-              instant: true
-          - refId: B
-            datasourceUid: grafanacloud-prom
-            model:
-              expr: "((sum(rate(live_overlay_smc_live_errors_total{job=\"live_overlay\"}[6h])) / clamp_min(sum(rate(live_overlay_smc_live_requests_total{job=\"live_overlay\"}[6h])), 1e-9)) / 0.01)"
-              instant: true
-          - refId: C
-            datasourceUid: __expr__
-            model:
-              type: math
-              expression: "($A > 6) && ($B > 6)"
-        for: 10m
-        labels:
-          severity: warning
-        annotations:
-          summary: "SLO error budget burn rate tickets on both 30m and 6h windows"
-          runbook: "Check request success rate trend and investigate recent failure-type spikes before critical threshold is reached."
-
-      - uid: lo-latency-p99-high
-        title: "p99 latency elevated"
-        condition: C
-        data:
-          - refId: A
-            datasourceUid: grafanacloud-prom
-            model:
-              expr: |
-                (
-                  histogram_quantile(
-                    0.99,
-                    sum by (le) (
-                      rate(live_overlay_smc_live_latency_ms_bucket{job="live_overlay"}[5m])
-                    )
-                  )
-                  and on() (
-                    sum(rate(live_overlay_smc_live_latency_ms_count{job="live_overlay"}[5m])) > 0
-                  )
-                ) or vector(0)
-              instant: true
-          - refId: C
-            datasourceUid: __expr__
-            model:
-              type: threshold
-              conditions:
-                - evaluator: {type: gt, params: [500]}
-                  operator: {type: and}
-                  query: {params: [A]}
-        for: 10m
-        labels:
-          severity: warning
-        annotations:
-          summary: "p99 latency above 500ms for 10m"
-          runbook: "Check request hotspots and saturation. Verify live_overlay_smc_live_latency_ms_bucket{le=\"+Inf\"} increases with request traffic."
-
-      - uid: lo-uptimerobot-snapshot-stale
-        title: "UptimeRobot snapshot stale"
-        condition: C
-        data:
-          - refId: A
-            datasourceUid: grafanacloud-prom
-            model:
-              expr: live_overlay_uptimerobot_snapshot_age_seconds{job="live_overlay"}
-              instant: true
-          - refId: C
-            datasourceUid: __expr__
-            model:
-              type: threshold
-              conditions:
-                - evaluator: {type: gt, params: [180]}
-                  operator: {type: and}
-                  query: {params: [A]}
-        for: 10m
-        labels:
-          severity: warning
-        annotations:
-          summary: "UptimeRobot bridge data is stale"
-          runbook: "Check UptimeRobot API key/quota and bridge scrape health state."
-
-      - uid: lo-github-workflow-snapshot-stale
-        title: "GitHub workflow snapshot stale"
-        condition: C
-        data:
-          - refId: A
-            datasourceUid: grafanacloud-prom
-            model:
-              expr: live_overlay_github_workflow_snapshot_age_seconds{job="live_overlay"}
-              instant: true
-          - refId: C
-            datasourceUid: __expr__
-            model:
-              type: threshold
-              conditions:
-                - evaluator: {type: gt, params: [180]}
-                  operator: {type: and}
-                  query: {params: [A]}
-        for: 10m
-        labels:
-          severity: warning
-        annotations:
-          summary: "GitHub workflow bridge data is stale"
-          runbook: "Check GitHub workflow token/repo config and bridge scrape status."
-
-      - uid: lo-ingest-queue-depth-high
-        title: "Ingest queue depth high"
-        condition: C
-        data:
-          - refId: A
-            datasourceUid: grafanacloud-prom
-            model:
-              expr: live_overlay_feed_ingest_queue_depth{job="live_overlay"}
-              instant: true
-          - refId: C
-            datasourceUid: __expr__
-            model:
-              type: threshold
-              conditions:
-                - evaluator: {type: gt, params: [1000]}
-                  operator: {type: and}
-                  query: {params: [A]}
-        for: 10m
-        labels:
-          severity: warning
-        annotations:
-          summary: "Ingest queue depth is persistently high"
-          runbook: "Backpressure detected: review feed throughput, compute cadence, and queue max setting."
-
-      - uid: lo-ingest-drops-increasing
-        title: "Ingest queue drops increasing"
-        condition: C
-        data:
-          - refId: A
-            datasourceUid: grafanacloud-prom
-            model:
-              expr: increase(live_overlay_feed_ingest_queue_dropped_total{job="live_overlay"}[10m])
-              instant: true
-          - refId: C
-            datasourceUid: __expr__
-            model:
-              type: threshold
-              conditions:
-                - evaluator: {type: gt, params: [0]}
-                  operator: {type: and}
-                  query: {params: [A]}
-        for: 1m
-        labels:
-          severity: high
-        annotations:
-          summary: "Bars are being dropped due to ingest queue saturation"
-          runbook: "Increase LIVE_OVERLAY_INGEST_QUEUE_MAX and investigate sustained producer-consumer imbalance."
-
-      - uid: lo-news-provider-health-degraded
-        title: "News provider health degraded"
-        condition: C
-        data:
-          - refId: A
-            datasourceUid: grafanacloud-prom
-            model:
-              expr: (live_overlay_provider_news_snapshot_loaded{job="live_overlay"} == bool 1) * (live_overlay_provider_news_providers_degraded_total{job="live_overlay"} >= bool 2)
-              instant: true
-          - refId: C
-            datasourceUid: __expr__
-            model:
-              type: threshold
-              conditions:
-                - evaluator: {type: gt, params: [0]}
-                  operator: {type: and}
-                  query: {params: [A]}
-        for: 15m
-        labels:
-          severity: warning
-        annotations:
-          summary: "Multiple news providers are degraded"
-          runbook: "Inspect provider error fields in news snapshot and upstream provider quotas/auth."
-
-      - uid: lo-news-snapshot-series-missing
-        title: "News snapshot series missing"
-        condition: C
-        data:
-          - refId: A
-            datasourceUid: grafanacloud-prom
-            model:
-              expr: absent(live_overlay_provider_news_snapshot_loaded{job="live_overlay"}) or absent(live_overlay_provider_news_snapshot_age_seconds{job="live_overlay"})
-              instant: true
-          - refId: C
-            datasourceUid: __expr__
-            model:
-              type: threshold
-              conditions:
-                - evaluator: {type: gt, params: [0]}
-                  operator: {type: and}
-                  query: {params: [A]}
-        for: 10m
-        labels:
-          severity: warning
-        annotations:
-          summary: "News snapshot metrics are missing from scrape output"
-          runbook: "Check /metrics exposure for news snapshot gauges and scrape target label wiring."
-
-      - uid: lo-news-snapshot-unavailable
-        title: "News snapshot unavailable"
-        condition: C
-        data:
-          - refId: A
-            datasourceUid: grafanacloud-prom
-            model:
-              expr: live_overlay_provider_news_snapshot_loaded{job="live_overlay"} == bool 0
-              instant: true
-          - refId: C
-            datasourceUid: __expr__
-            model:
-              type: threshold
-              conditions:
-                - evaluator: {type: gt, params: [0]}
-                  operator: {type: and}
-                  query: {params: [A]}
-        for: 5m
-        labels:
-          severity: high
-        annotations:
-          summary: "News provider snapshot file is not loaded"
-          runbook: "Verify NEWS_SNAPSHOT_PATH exists and is readable by the daemon; check seed/producer job."
-
-      - uid: lo-news-snapshot-stale
-        title: "News snapshot stale"
-        condition: C
-        data:
-          - refId: A
-            datasourceUid: grafanacloud-prom
-            model:
-              expr: live_overlay_provider_news_snapshot_loaded{job="live_overlay"} * (live_overlay_provider_news_snapshot_age_seconds{job="live_overlay"} > bool 3600)
-              instant: true
-          - refId: C
-            datasourceUid: __expr__
-            model:
-              type: threshold
-              conditions:
-                - evaluator: {type: gt, params: [0]}
-                  operator: {type: and}
-                  query: {params: [A]}
-        for: 15m
-        labels:
-          severity: warning
-        annotations:
-          summary: "News provider snapshot is older than 1 hour"
-          runbook: "Check NEWS_SNAPSHOT_PATH producer job and file update cadence; inspect fetched_at_unix in snapshot."
-
-      - uid: lo-tradingview-credential-age-high
-        title: "TradingView credential age high"
-        condition: C
-        data:
-          - refId: A
-            datasourceUid: grafanacloud-prom
-            model:
-              expr: live_overlay_tradingview_credential_age_hours{job="live_overlay"} and on(job, instance) (live_overlay_tradingview_credential_age_known{job="live_overlay"} == 1)
-              instant: true
-          - refId: C
-            datasourceUid: __expr__
-            model:
-              type: threshold
-              conditions:
-                - evaluator: {type: gt, params: [72]}
-                  operator: {type: and}
-                  query: {params: [A]}
-        for: 5m
-        labels:
-          severity: high
-        annotations:
-          summary: "TradingView credential age > 72 h"
-          runbook: "Refresh TradingView session/cookie. Credential becomes invalid around 72-96 h."
-
-      - uid: lo-ingest-queue-lag-high
-        title: "Ingest queue lag high"
-        condition: C
-        data:
-          - refId: A
-            datasourceUid: grafanacloud-prom
-            model:
-              expr: live_overlay_feed_ingest_queue_lag_ms_max{job="live_overlay"}
-              instant: true
-          - refId: C
-            datasourceUid: __expr__
-            model:
-              type: threshold
-              conditions:
-                - evaluator: {type: gt, params: [5000]}
-                  operator: {type: and}
-                  query: {params: [A]}
-        for: 10m
-        labels:
-          severity: warning
-        annotations:
-          summary: "Feed ingest queue lag > 5000 ms"
-          runbook: "Ingest processor is falling behind. Check CPU, queue depth and dropped bars."
-
-      - uid: lo-daemon-restarts-high
-        title: "Daemon restarts high (24h)"
-        condition: C
-        data:
-          - refId: A
-            datasourceUid: grafanacloud-prom
-            model:
-              expr: sum(increase(live_overlay_daemon_restarts_total{job="live_overlay"}[24h]))
-              instant: true
-          - refId: C
-            datasourceUid: __expr__
-            model:
-              type: threshold
-              conditions:
-                - evaluator: {type: gt, params: [3]}
-                  operator: {type: and}
-                  query: {params: [A]}
-        for: 5m
-        labels:
-          severity: high
-        annotations:
-          summary: "More than 3 daemon restarts in the last 24 h"
-          runbook: "Check Railway deployment logs and restart_cause counters for crash loop."
-
-      # ─── Container Resources: signals-producer ─────────────────────────
-      - uid: sp-memory-high
-        title: "Signals Producer RSS > 512 MB"
-        condition: C
-        data:
-          - refId: A
-            datasourceUid: grafanacloud-prom
-            model:
-              expr: signals_producer_process_resident_memory_bytes{job="signals_producer"} / 1024 / 1024
-              instant: true
-          - refId: C
-            datasourceUid: __expr__
-            model:
-              type: threshold
-              conditions:
-                - evaluator: {type: gt, params: [512]}
-                  operator: {type: and}
-                  query: {params: [A]}
-        for: 5m
-        labels:
-          severity: warning
-        annotations:
-          summary: "smc-signals-producer memory exceeds 512 MB for > 5 min"
-          runbook: "Check for memory leak in poll_once / newsstack poller. Consider recycling the Railway instance."
-
-      - uid: sp-memory-critical
-        title: "Signals Producer RSS > 900 MB"
-        condition: C
-        data:
-          - refId: A
-            datasourceUid: grafanacloud-prom
-            model:
-              expr: signals_producer_process_resident_memory_bytes{job="signals_producer"} / 1024 / 1024
-              instant: true
-          - refId: C
-            datasourceUid: __expr__
-            model:
-              type: threshold
-              conditions:
-                - evaluator: {type: gt, params: [900]}
-                  operator: {type: and}
-                  query: {params: [A]}
-        for: 3m
-        labels:
-          severity: critical
-        annotations:
-          summary: "smc-signals-producer memory exceeds 900 MB — OOM kill imminent"
-          runbook: "Railway free tier: 1 GB limit. Immediately inspect /metrics for FD leak. May need manual restart."
-
-      - uid: sp-scrape-down
-        title: "Signals Producer scrape target down"
-        condition: C
-        data:
-          - refId: A
-            datasourceUid: grafanacloud-prom
-            model:
-              expr: up{job="signals_producer"}
-              instant: true
-          - refId: C
-            datasourceUid: __expr__
-            model:
-              type: threshold
-              conditions:
-                - evaluator: {type: lt, params: [1]}
-                  operator: {type: and}
-                  query: {params: [A]}
-        for: 3m
-        labels:
-          severity: critical
-        annotations:
-          summary: "Cannot scrape smc-signals-producer /metrics — container may be down"
-          runbook: "Check Railway deploy logs. Verify SIGNALS_SERVICE_URL env var in Alloy service. Check UptimeRobot /healthz."
-
-      # ─── Container Resources: live-overlay ─────────────────────────────
-      - uid: lo-memory-high
-        title: "Live Overlay RSS > 512 MB"
-        condition: C
-        data:
-          - refId: A
-            datasourceUid: grafanacloud-prom
-            model:
-              expr: live_overlay_process_resident_memory_bytes{job="live_overlay"} / 1024 / 1024
-              instant: true
-          - refId: C
-            datasourceUid: __expr__
-            model:
-              type: threshold
-              conditions:
-                - evaluator: {type: gt, params: [512]}
-                  operator: {type: and}
-                  query: {params: [A]}
-        for: 5m
-        labels:
-          severity: warning
-        annotations:
-          summary: "smc-live-overlay memory exceeds 512 MB for > 5 min"
-          runbook: "Check Databento feed buffer sizes and GC stats. Consider restart."
-
-      - uid: lo-memory-critical
-        title: "Live Overlay RSS > 900 MB"
-        condition: C
-        data:
-          - refId: A
-            datasourceUid: grafanacloud-prom
-            model:
-              expr: live_overlay_process_resident_memory_bytes{job="live_overlay"} / 1024 / 1024
-              instant: true
-          - refId: C
-            datasourceUid: __expr__
-            model:
-              type: threshold
-              conditions:
-                - evaluator: {type: gt, params: [900]}
-                  operator: {type: and}
-                  query: {params: [A]}
-        for: 3m
-        labels:
-          severity: critical
-        annotations:
-          summary: "smc-live-overlay memory exceeds 900 MB — OOM kill imminent"
-          runbook: "Railway 1 GB limit. Check feed accumulation and reconnect cycles."
-
-      # ─── Container Resources: Alloy (metric-collector) ─────────────────
-      - uid: alloy-scrape-self-down
-        title: "Alloy self-scrape target down"
-        condition: C
-        data:
-          - refId: A
-            datasourceUid: grafanacloud-prom
-            model:
-              expr: up{job="alloy"}
-              instant: true
-          - refId: C
-            datasourceUid: __expr__
-            model:
-              type: threshold
-              conditions:
-                - evaluator: {type: lt, params: [1]}
-                  operator: {type: and}
-                  query: {params: [A]}
-        for: 3m
-        labels:
-          severity: critical
-        annotations:
-          summary: "Alloy self-scrape failing — metrics pipeline is blind"
-          runbook: "If Alloy self-scrape is down, NO metrics from any container reach Grafana. Check Railway deploy logs for alloy container crash/OOM."
-
-      - uid: alloy-memory-high
-        title: "Alloy RSS > 256 MB"
-        condition: C
-        data:
-          - refId: A
-            datasourceUid: grafanacloud-prom
-            model:
-              expr: process_resident_memory_bytes{job="alloy"} / 1024 / 1024
-              instant: true
-          - refId: C
-            datasourceUid: __expr__
-            model:
-              type: threshold
-              conditions:
-                - evaluator: {type: gt, params: [256]}
-                  operator: {type: and}
-                  query: {params: [A]}
-        for: 5m
-        labels:
-          severity: warning
-        annotations:
-          summary: "Alloy (metric-collector) memory exceeds 256 MB for > 5 min"
-          runbook: "Alloy is lightweight; high memory suggests scrape target explosion or WAL buildup. Check remote-write backlog."
-
-      - uid: alloy-memory-critical
-        title: "Alloy RSS > 512 MB"
-        condition: C
-        data:
-          - refId: A
-            datasourceUid: grafanacloud-prom
-            model:
-              expr: process_resident_memory_bytes{job="alloy"} / 1024 / 1024
-              instant: true
-          - refId: C
-            datasourceUid: __expr__
-            model:
-              type: threshold
-              conditions:
-                - evaluator: {type: gt, params: [512]}
-                  operator: {type: and}
-                  query: {params: [A]}
-        for: 3m
-        labels:
-          severity: critical
-        annotations:
-          summary: "Alloy (metric-collector) memory exceeds 512 MB — OOM risk"
-          runbook: "Railway container limit applies. Alloy should use < 100 MB normally. Check for WAL corruption or stuck remote-write."
-
-      - uid: alloy-targets-down
-        title: "Alloy scrape targets unreachable"
-        condition: C
-        data:
-          - refId: A
-            datasourceUid: grafanacloud-prom
-            model:
-              expr: (count(up{job=~"signals_producer|live_overlay"} == 0) > 0) or absent(up{job="signals_producer"}) or absent(up{job="live_overlay"})
-              instant: true
-          - refId: C
-            datasourceUid: __expr__
-            model:
-              type: threshold
-              conditions:
-                - evaluator: {type: gt, params: [0]}
-                  operator: {type: and}
-                  query: {params: [A]}
-        for: 3m
-        labels:
-          severity: critical
-        annotations:
-          summary: "One or more Railway services are unreachable from Alloy"
-          runbook: "Check Railway internal networking. Verify OVERLAY_SERVICE_URL and SIGNALS_SERVICE_URL env vars. Target service may have crashed."
-
-  - orgId: 1
-    name: signals-producer-readiness
-    folder: SMC Live Overlay
-    interval: 1m
-    rules:
-      - uid: sp-watchlist-empty
-        title: "Signals Producer watchlist empty"
-        condition: C
-        data:
-          - refId: A
-            datasourceUid: grafanacloud-prom
-            model:
-              expr: (signals_producer_watchlist_symbols{job="signals_producer"} == bool 0) or on() vector(1)
-              instant: true
-          - refId: C
-            datasourceUid: __expr__
-            model:
-              type: threshold
-              conditions:
-                - evaluator: {type: gt, params: [0]}
-                  operator: {type: and}
-                  query: {params: [A]}
-        for: 5m
-        labels:
-          severity: warning
-        annotations:
-          summary: "smc-signals-producer has zero watchlist symbols"
-          runbook: "Verify OPEN_PREP_SNAPSHOT_URL / latest_open_prep_run.json exists and contains ranked_v2 symbols."
-
-      - uid: sp-snapshot-missing
-        title: "Signals Producer snapshot missing"
-        condition: C
-        data:
-          - refId: A
-            datasourceUid: grafanacloud-prom
-            model:
-              expr: (1 - signals_producer_open_prep_snapshot_loaded{job="signals_producer"}) or vector(1)
-              instant: true
-          - refId: C
-            datasourceUid: __expr__
-            model:
-              type: threshold
-              conditions:
-                - evaluator: {type: gt, params: [0]}
-                  operator: {type: and}
-                  query: {params: [A]}
-        for: 5m
-        labels:
-          severity: warning
-        annotations:
-          summary: "smc-signals-producer has not loaded an Open-Prep snapshot"
-          runbook: "Check Railway env OPEN_PREP_SNAPSHOT_URL and verify the snapshot endpoint returns a JSON object."
-
-      - uid: sp-poll-stale
-        title: "Signals Producer poll stale"
-        condition: C
-        data:
-          - refId: A
-            datasourceUid: grafanacloud-prom
-            model:
-              expr: (signals_producer_last_poll_age_seconds{job="signals_producer"} > bool 300) or on() vector(1)
-              instant: true
-          - refId: C
-            datasourceUid: __expr__
-            model:
-              type: threshold
-              conditions:
-                - evaluator: {type: gt, params: [0]}
-                  operator: {type: and}
-                  query: {params: [A]}
-        for: 5m
-        labels:
-          severity: warning
-        annotations:
-          summary: "smc-signals-producer has not completed a poll cycle in > 5 min"
-          runbook: "Check producer logs for FMP client failures, network errors, or telemetry server crashes."
+          '
+        instant: true
+        refId: A
+    - refId: C
+      datasourceUid: __expr__
+      model:
+        type: threshold
+        conditions:
+        - evaluator:
+            type: gt
+            params:
+            - 0
+          operator:
+            type: and
+          query:
+            params:
+            - A
+    for: 5m
+    labels:
+      severity: warning
+    annotations:
+      summary: A configured live-overlay bridge has not refreshed in > 15 min
+      runbook: Check bridge polling thread and upstream API latency.
+- orgId: 1
+  name: signals-producer-readiness
+  folder: SMC Live Overlay
+  interval: 1m
+  rules:
+  - uid: sp-watchlist-empty
+    title: Signals Producer watchlist empty
+    condition: C
+    data:
+    - refId: A
+      datasourceUid: grafanacloud-prom
+      model:
+        expr: (signals_producer_watchlist_symbols{job="signals_producer"} == bool
+          0) or on() vector(1)
+        instant: true
+    - refId: C
+      datasourceUid: __expr__
+      model:
+        type: threshold
+        conditions:
+        - evaluator:
+            type: gt
+            params:
+            - 0
+          operator:
+            type: and
+          query:
+            params:
+            - A
+    for: 5m
+    labels:
+      severity: warning
+    annotations:
+      summary: smc-signals-producer has zero watchlist symbols
+      runbook: Verify OPEN_PREP_SNAPSHOT_URL / latest_open_prep_run.json exists and
+        contains ranked_v2 symbols.
+  - uid: sp-snapshot-missing
+    title: Signals Producer snapshot missing
+    condition: C
+    data:
+    - refId: A
+      datasourceUid: grafanacloud-prom
+      model:
+        expr: (1 - signals_producer_open_prep_snapshot_loaded{job="signals_producer"})
+          or vector(1)
+        instant: true
+    - refId: C
+      datasourceUid: __expr__
+      model:
+        type: threshold
+        conditions:
+        - evaluator:
+            type: gt
+            params:
+            - 0
+          operator:
+            type: and
+          query:
+            params:
+            - A
+    for: 5m
+    labels:
+      severity: warning
+    annotations:
+      summary: smc-signals-producer has not loaded an Open-Prep snapshot
+      runbook: Check Railway env OPEN_PREP_SNAPSHOT_URL and verify the snapshot endpoint
+        returns a JSON object.
+  - uid: sp-poll-stale
+    title: Signals Producer poll stale
+    condition: C
+    data:
+    - refId: A
+      datasourceUid: grafanacloud-prom
+      model:
+        expr: (signals_producer_last_poll_age_seconds{job="signals_producer"} > bool
+          300) or on() vector(1)
+        instant: true
+    - refId: C
+      datasourceUid: __expr__
+      model:
+        type: threshold
+        conditions:
+        - evaluator:
+            type: gt
+            params:
+            - 0
+          operator:
+            type: and
+          query:
+            params:
+            - A
+    for: 5m
+    labels:
+      severity: warning
+    annotations:
+      summary: smc-signals-producer has not completed a poll cycle in > 5 min
+      runbook: Check producer logs for FMP client failures, network errors, or telemetry
+        server crashes.

@@ -7,6 +7,7 @@ heavyweight prometheus_client dependency.
 Single-worker deployment (uvicorn --workers 1) guarantees these in-process
 values are consistent and complete.
 """
+
 from __future__ import annotations
 
 import datetime
@@ -96,7 +97,7 @@ def _estimate_histogram_quantile_ms(
     for key, value in counters.items():
         if not key.startswith(prefix):
             continue
-        suffix = key[len(prefix):]
+        suffix = key[len(prefix) :]
         upper = _parse_bucket_upper_bound(suffix)
         if upper is None:
             continue
@@ -183,12 +184,7 @@ def _provider_reason_message(status: object, error: str) -> str:
 
 
 def _escape_label_value(value: object) -> str:
-    return (
-        str(value)
-        .replace("\\", "\\\\")
-        .replace('"', '\\"')
-        .replace("\n", " ")
-    )
+    return str(value).replace("\\", "\\\\").replace('"', '\\"').replace("\n", " ")
 
 
 def _workflow_labels(workflow: Mapping[str, object]) -> str:
@@ -335,9 +331,7 @@ def _tradingview_credential_snapshot() -> dict[str, float]:
             validated_at = details.get("validated_at")
             if isinstance(validated_at, str) and validated_at:
                 try:
-                    parsed = datetime.datetime.fromisoformat(
-                        validated_at.replace("Z", "+00:00")
-                    )
+                    parsed = datetime.datetime.fromisoformat(validated_at.replace("Z", "+00:00"))
                     validated_at_seconds = parsed.timestamp()
                 except ValueError:
                     validated_at_seconds = 0.0
@@ -423,9 +417,7 @@ def _credential_health_snapshot() -> dict[str, object]:
                 validated_at = details_dict.get("validated_at")
                 if isinstance(validated_at, str) and validated_at:
                     try:
-                        parsed = datetime.datetime.fromisoformat(
-                            validated_at.replace("Z", "+00:00")
-                        )
+                        parsed = datetime.datetime.fromisoformat(validated_at.replace("Z", "+00:00"))
                         numeric["validated_at_seconds"] = parsed.timestamp()
                     except ValueError:
                         numeric["validated_at_seconds"] = float("nan")
@@ -486,8 +478,7 @@ def _experiment_tf_labels(timeframe: str) -> str:
 def _experiment_family_labels(timeframe: str, family: str) -> str:
     """Render the ``timeframe``/``family`` label set for a per-family series."""
     return (
-        f'timeframe="{_escape_label_value(timeframe or "unknown")}",'
-        f'family="{_escape_label_value(family or "unknown")}"'
+        f'timeframe="{_escape_label_value(timeframe or "unknown")}",family="{_escape_label_value(family or "unknown")}"'
     )
 
 
@@ -532,9 +523,7 @@ def _experiment_run_age(run_date: str) -> tuple[float, float]:
     if not run_date:
         return 0.0, 0.0
     try:
-        parsed = datetime.datetime.strptime(run_date, "%Y-%m-%d").replace(
-            tzinfo=datetime.UTC
-        )
+        parsed = datetime.datetime.strptime(run_date, "%Y-%m-%d").replace(tzinfo=datetime.UTC)
     except ValueError:
         return 0.0, 0.0
     age = time.time() - parsed.timestamp()
@@ -622,9 +611,7 @@ def _experiment_snapshot() -> dict[str, object]:
                         "status_code": _EXPERIMENT_VERDICT_STATUS_CODES.get(status, 0),
                         "delta_hr": verdict.get("delta_hr", 0),
                         "p_value": (
-                            p_value
-                            if isinstance(p_value, (int, float)) and not isinstance(p_value, bool)
-                            else None
+                            p_value if isinstance(p_value, (int, float)) and not isinstance(p_value, bool) else None
                         ),
                         "underpowered": 1.0 if verdict.get("underpowered") else 0.0,
                         "n_a": verdict.get("n_a", 0),
@@ -795,9 +782,7 @@ def _provider_health_snapshot() -> dict[str, object]:
     total = len(providers)
     # Health reflects only providers that are actually consumed/ingested;
     # disabled (not-ingested) providers are excluded so they never raise alarms.
-    health_ok = (
-        1.0 if consumed_total > 0 and degraded == 0 and unknown == 0 else 0.0
-    )
+    health_ok = 1.0 if consumed_total > 0 and degraded == 0 and unknown == 0 else 0.0
     health_degraded = 1.0 if degraded > 0 else 0.0
     health_unknown = 1.0 if consumed_total == 0 or unknown > 0 else 0.0
 
@@ -834,6 +819,7 @@ def _collect_process_metrics(startup_ts: float) -> list[str]:
 
     try:
         import resource  # POSIX-only; guarded for cross-platform safety
+
         _resource_available = True
     except ImportError:
         _resource_available = False
@@ -895,11 +881,55 @@ def _collect_process_metrics(startup_ts: float) -> list[str]:
     gc_stats = gc.get_stats()
     lines.append(f"# TYPE {prefix}_python_gc_collections_total counter")
     for i, stat in enumerate(gc_stats):
-        lines.append(
-            f'{prefix}_python_gc_collections_total{{generation="{i}"}} {stat.get("collections", 0)}'
-        )
+        lines.append(f'{prefix}_python_gc_collections_total{{generation="{i}"}} {stat.get("collections", 0)}')
 
     return lines
+
+
+def _append_bridge_metrics(
+    lines: list[str],
+    *,
+    bridge: str,
+    enabled: bool,
+    configured: bool,
+    scrape_success: bool,
+    last_success_age_seconds: float | None,
+    scrape_duration_seconds: float | None,
+    error_code: str | None,
+) -> None:
+    """Append generic Prometheus series for a live-overlay bridge.
+
+    Bridges expose intent (enabled/configured) separately from outcome
+    (scrape_success) so Grafana and alerts can distinguish disabled,
+    misconfigured, scrape_failed, stale and ok without guessing.
+
+    Low-cardinality labels only: ``bridge`` and a stable ``error``.
+    """
+    error = error_code or "none"
+
+    lines.append("# TYPE live_overlay_bridge_enabled gauge")
+    lines.append(f'live_overlay_bridge_enabled{{bridge="{bridge}"}} {1 if enabled else 0}')
+
+    lines.append("# TYPE live_overlay_bridge_configured gauge")
+    lines.append(f'live_overlay_bridge_configured{{bridge="{bridge}"}} {1 if configured else 0}')
+
+    lines.append("# TYPE live_overlay_bridge_scrape_success gauge")
+    lines.append(f'live_overlay_bridge_scrape_success{{bridge="{bridge}"}} {1 if scrape_success else 0}')
+
+    if last_success_age_seconds is not None:
+        lines.append("# TYPE live_overlay_bridge_last_success_age_seconds gauge")
+        lines.append(
+            f'live_overlay_bridge_last_success_age_seconds{{bridge="{bridge}"}} {last_success_age_seconds:.3f}'
+        )
+
+    if scrape_duration_seconds is not None:
+        lines.append("# TYPE live_overlay_bridge_last_scrape_duration_seconds gauge")
+        lines.append(
+            f'live_overlay_bridge_last_scrape_duration_seconds{{bridge="{bridge}"}} {scrape_duration_seconds:.3f}'
+        )
+
+    lines.append("# TYPE live_overlay_bridge_error_info gauge")
+    lines.append(f'live_overlay_bridge_error_info{{bridge="{bridge}",error="{error}"}} {0 if error == "none" else 1}')
 
 
 def render_metrics(startup_ts: float) -> str:
@@ -932,27 +962,19 @@ def render_metrics(startup_ts: float) -> str:
 
     hotspot = request_hotspots.snapshot(top_n=5)
     lines.append("# TYPE live_overlay_hotspot_symbols_tracked gauge")
-    lines.append(
-        f"live_overlay_hotspot_symbols_tracked {_prom_numeric_value(hotspot.get('symbol_count', 0))}"
-    )
+    lines.append(f"live_overlay_hotspot_symbols_tracked {_prom_numeric_value(hotspot.get('symbol_count', 0))}")
     lines.append("# TYPE live_overlay_hotspot_timeframes_tracked gauge")
-    lines.append(
-        f"live_overlay_hotspot_timeframes_tracked {_prom_numeric_value(hotspot.get('tf_count', 0))}"
-    )
+    lines.append(f"live_overlay_hotspot_timeframes_tracked {_prom_numeric_value(hotspot.get('tf_count', 0))}")
 
     for symbol, count in hotspot.get("top_symbols") or []:
         sym = _sanitize_name(str(symbol).lower())
         lines.append(f"# TYPE live_overlay_hotspot_symbol_{sym}_requests_total counter")
-        lines.append(
-            f"live_overlay_hotspot_symbol_{sym}_requests_total {_prom_numeric_value(count)}"
-        )
+        lines.append(f"live_overlay_hotspot_symbol_{sym}_requests_total {_prom_numeric_value(count)}")
 
     for tf, count in hotspot.get("top_tfs") or []:
         tf_name = _sanitize_name(str(tf).lower())
         lines.append(f"# TYPE live_overlay_hotspot_tf_{tf_name}_requests_total counter")
-        lines.append(
-            f"live_overlay_hotspot_tf_{tf_name}_requests_total {_prom_numeric_value(count)}"
-        )
+        lines.append(f"live_overlay_hotspot_tf_{tf_name}_requests_total {_prom_numeric_value(count)}")
 
     # --- Latency histogram -------------------------------------------------
     # Export real classic histogram bucket series so Prometheus can compute
@@ -963,10 +985,7 @@ def render_metrics(startup_ts: float) -> str:
     # complete bucket set on every scrape.
     latency_base = "live_overlay.smc_live_latency"
     latency_count = counters.get(f"{latency_base}.count")
-    latency_bucket_keys = [
-        key for key in counters
-        if key.startswith(f"{latency_base}.bucket_le_")
-    ]
+    latency_bucket_keys = [key for key in counters if key.startswith(f"{latency_base}.bucket_le_")]
     # latency_count / latency_bucket_keys are intentionally kept as local
     # documentation of where observations come from; they feed the running
     # fill logic below which now always emits the histogram series.
@@ -977,7 +996,7 @@ def render_metrics(startup_ts: float) -> str:
     bucket_values[float("inf")] = 0.0
     prefix = f"{latency_base}.bucket_le_"
     for key in latency_bucket_keys:
-        suffix = key[len(prefix):]
+        suffix = key[len(prefix) :]
         upper = _parse_bucket_upper_bound(suffix)
         if upper is None:
             continue
@@ -997,11 +1016,9 @@ def render_metrics(startup_ts: float) -> str:
             f'live_overlay_smc_live_latency_ms_bucket{{le="{le}"}} {_prom_numeric_value(bucket_values[upper])}'
         )
     lines.append(
-        f'live_overlay_smc_live_latency_ms_sum {_prom_numeric_value(counters.get(f"{latency_base}.sum_ms", 0.0))}'
+        f"live_overlay_smc_live_latency_ms_sum {_prom_numeric_value(counters.get(f'{latency_base}.sum_ms', 0.0))}"
     )
-    lines.append(
-        f'live_overlay_smc_live_latency_ms_count {_prom_numeric_value(latency_count or 0.0)}'
-    )
+    lines.append(f"live_overlay_smc_live_latency_ms_count {_prom_numeric_value(latency_count or 0.0)}")
 
     # Keep the derived gauges for backward compatibility until dashboard/alert
     # consumers are fully migrated to histogram_quantile() over the buckets.
@@ -1063,34 +1080,24 @@ def render_metrics(startup_ts: float) -> str:
     ):
         prom_name = f"live_overlay_provider_{_sanitize_name(key)}"
         lines.append(f"# TYPE {prom_name} gauge")
-        lines.append(
-            f"{prom_name} {_prom_numeric_value(provider_health.get(key, 0.0))}"
-        )
+        lines.append(f"{prom_name} {_prom_numeric_value(provider_health.get(key, 0.0))}")
 
-    for provider_name, value in sorted(
-        (provider_health.get("news_provider_ok") or {}).items()
-    ):
+    for provider_name, value in sorted((provider_health.get("news_provider_ok") or {}).items()):
         prom_name = f"live_overlay_provider_news_{provider_name}_ok"
         lines.append(f"# TYPE {prom_name} gauge")
         lines.append(f"{prom_name} {_prom_numeric_value(value)}")
 
-    for provider_name, value in sorted(
-        (provider_health.get("news_provider_degraded") or {}).items()
-    ):
+    for provider_name, value in sorted((provider_health.get("news_provider_degraded") or {}).items()):
         prom_name = f"live_overlay_provider_news_{provider_name}_degraded"
         lines.append(f"# TYPE {prom_name} gauge")
         lines.append(f"{prom_name} {_prom_numeric_value(value)}")
 
-    for provider_name, value in sorted(
-        (provider_health.get("news_provider_state_code") or {}).items()
-    ):
+    for provider_name, value in sorted((provider_health.get("news_provider_state_code") or {}).items()):
         prom_name = f"live_overlay_provider_news_{provider_name}_state_code"
         lines.append(f"# TYPE {prom_name} gauge")
         lines.append(f"{prom_name} {_prom_numeric_value(value)}")
 
-    for provider_name, value in sorted(
-        (provider_health.get("news_provider_consumed") or {}).items()
-    ):
+    for provider_name, value in sorted((provider_health.get("news_provider_consumed") or {}).items()):
         prom_name = f"live_overlay_provider_news_{provider_name}_consumed"
         lines.append(f"# TYPE {prom_name} gauge")
         lines.append(f"{prom_name} {_prom_numeric_value(value)}")
@@ -1164,11 +1171,7 @@ def render_metrics(startup_ts: float) -> str:
     asia_open = is_asia_regular_session_open()
     market_open = us_open or eu_open
     max_stale = config.max_stale_secs()
-    overlay_fresh = (
-        overlay_symbols > 0
-        and overlay_age != float("inf")
-        and overlay_age <= max_stale
-    )
+    overlay_fresh = overlay_symbols > 0 and overlay_age != float("inf") and overlay_age <= max_stale
     lines.append("# TYPE live_overlay_overlay_fresh gauge")
     lines.append(f"live_overlay_overlay_fresh {1 if overlay_fresh else 0}")
     status = compute_daemon_health_status(
@@ -1193,9 +1196,7 @@ def render_metrics(startup_ts: float) -> str:
     lines.append("# TYPE live_overlay_health_status_code gauge")
     lines.append(f"live_overlay_health_status_code {health_status_code}")
     lines.append("# TYPE live_overlay_health_status_info gauge")
-    lines.append(
-        f'live_overlay_health_status_info{{status="{_escape_label_value(status)}"}} 1'
-    )
+    lines.append(f'live_overlay_health_status_info{{status="{_escape_label_value(status)}"}} 1')
     lines.append("# TYPE live_overlay_health_status_ok gauge")
     lines.append(f"live_overlay_health_status_ok {1 if status == 'ok' else 0}")
     lines.append("# TYPE live_overlay_health_status_starting gauge")
@@ -1210,27 +1211,38 @@ def render_metrics(startup_ts: float) -> str:
 
     # --- Optional UptimeRobot bridge ---
     uptime_snapshot = uptimerobot_bridge.snapshot()
-    enabled = int(uptime_snapshot.get("enabled", 0) or 0)
-    ok = int(uptime_snapshot.get("ok", 0) or 0)
+    uptime_enabled = bool(uptime_snapshot.get("enabled"))
+    uptime_ok = bool(uptime_snapshot.get("ok"))
     fetched_at_unix = _prom_numeric_value(uptime_snapshot.get("fetched_at_unix", 0.0))
     snapshot_age = (
-        max(0.0, time.time() - fetched_at_unix)
-        if math.isfinite(fetched_at_unix) and fetched_at_unix > 0
-        else 0.0
+        max(0.0, time.time() - fetched_at_unix) if math.isfinite(fetched_at_unix) and fetched_at_unix > 0 else None
     )
 
+    # Legacy metrics retained for backwards compatibility.
     lines.append("# TYPE live_overlay_uptimerobot_bridge_enabled gauge")
-    lines.append(f"live_overlay_uptimerobot_bridge_enabled {enabled}")
+    lines.append(f"live_overlay_uptimerobot_bridge_enabled {1 if uptime_enabled else 0}")
     lines.append("# TYPE live_overlay_uptimerobot_scrape_success gauge")
-    lines.append(f"live_overlay_uptimerobot_scrape_success {ok}")
-    lines.append("# TYPE live_overlay_uptimerobot_snapshot_age_seconds gauge")
-    lines.append(f"live_overlay_uptimerobot_snapshot_age_seconds {snapshot_age:.1f}")
+    lines.append(f"live_overlay_uptimerobot_scrape_success {1 if uptime_ok else 0}")
+    if snapshot_age is not None:
+        lines.append("# TYPE live_overlay_uptimerobot_snapshot_age_seconds gauge")
+        lines.append(f"live_overlay_uptimerobot_snapshot_age_seconds {snapshot_age:.1f}")
 
     error_code = str(uptime_snapshot.get("error_code") or "")
     if error_code:
         escaped = _escape_label_value(error_code)
         lines.append("# TYPE live_overlay_uptimerobot_scrape_error_info gauge")
         lines.append(f'live_overlay_uptimerobot_scrape_error_info{{error_code="{escaped}"}} 1')
+
+    _append_bridge_metrics(
+        lines,
+        bridge="uptimerobot",
+        enabled=uptime_enabled,
+        configured=uptime_enabled,
+        scrape_success=uptime_ok,
+        last_success_age_seconds=snapshot_age,
+        scrape_duration_seconds=None,
+        error_code=error_code or None,
+    )
 
     counts = dict(uptime_snapshot.get("counts") or {})
     for key in ("total", "up", "down", "paused", "unknown"):
@@ -1252,9 +1264,7 @@ def render_metrics(startup_ts: float) -> str:
         lines.append(f"# TYPE {monitor_prefix}_up gauge")
         lines.append(f"{monitor_prefix}_up {_prom_numeric_value(monitor.get('up', 0))}")
         lines.append(f"# TYPE {monitor_prefix}_status_code gauge")
-        lines.append(
-            f"{monitor_prefix}_status_code {_prom_numeric_value(monitor.get('status_code', 1))}"
-        )
+        lines.append(f"{monitor_prefix}_status_code {_prom_numeric_value(monitor.get('status_code', 1))}")
         response_time_ms = monitor.get("response_time_ms")
         if response_time_ms is not None:
             lines.append(f"# TYPE {monitor_prefix}_response_time_ms gauge")
@@ -1262,21 +1272,23 @@ def render_metrics(startup_ts: float) -> str:
 
     # --- Optional GitHub workflow bridge ---
     workflow_snapshot = github_workflow_bridge.snapshot()
-    wf_enabled = int(workflow_snapshot.get("enabled", 0) or 0)
-    wf_ok = int(workflow_snapshot.get("ok", 0) or 0)
+    wf_enabled = bool(workflow_snapshot.get("enabled"))
+    wf_ok = bool(workflow_snapshot.get("ok"))
     wf_fetched_at_unix = _prom_numeric_value(workflow_snapshot.get("fetched_at_unix", 0.0))
     wf_snapshot_age = (
         max(0.0, time.time() - wf_fetched_at_unix)
         if math.isfinite(wf_fetched_at_unix) and wf_fetched_at_unix > 0
-        else 0.0
+        else None
     )
 
+    # Legacy metrics retained for backwards compatibility.
     lines.append("# TYPE live_overlay_github_workflow_bridge_enabled gauge")
-    lines.append(f"live_overlay_github_workflow_bridge_enabled {wf_enabled}")
+    lines.append(f"live_overlay_github_workflow_bridge_enabled {1 if wf_enabled else 0}")
     lines.append("# TYPE live_overlay_github_workflow_scrape_success gauge")
-    lines.append(f"live_overlay_github_workflow_scrape_success {wf_ok}")
-    lines.append("# TYPE live_overlay_github_workflow_snapshot_age_seconds gauge")
-    lines.append(f"live_overlay_github_workflow_snapshot_age_seconds {wf_snapshot_age:.1f}")
+    lines.append(f"live_overlay_github_workflow_scrape_success {1 if wf_ok else 0}")
+    if wf_snapshot_age is not None:
+        lines.append("# TYPE live_overlay_github_workflow_snapshot_age_seconds gauge")
+        lines.append(f"live_overlay_github_workflow_snapshot_age_seconds {wf_snapshot_age:.1f}")
 
     wf_error_code = str(workflow_snapshot.get("error_code") or "")
     if wf_error_code:
@@ -1284,29 +1296,35 @@ def render_metrics(startup_ts: float) -> str:
         lines.append("# TYPE live_overlay_github_workflow_scrape_error_info gauge")
         lines.append(f'live_overlay_github_workflow_scrape_error_info{{error_code="{escaped}"}} 1')
 
+    _append_bridge_metrics(
+        lines,
+        bridge="github_workflow",
+        enabled=wf_enabled,
+        configured=wf_enabled,
+        scrape_success=wf_ok,
+        last_success_age_seconds=wf_snapshot_age,
+        scrape_duration_seconds=None,
+        error_code=wf_error_code or None,
+    )
+
     workflow_counts = dict(workflow_snapshot.get("counts") or {})
     for key in ("seen", "success", "failed", "in_progress", "queued"):
         # Snapshot counts from the latest workflow-runs page can go up/down
         # across polls, so expose them as gauges (not monotonic counters).
         metric_name = f"live_overlay_github_workflow_runs_{key}_total"
         lines.append(f"# TYPE {metric_name} gauge")
-        lines.append(
-            f"{metric_name} {_prom_numeric_value(workflow_counts.get(key, 0))}"
-        )
+        lines.append(f"{metric_name} {_prom_numeric_value(workflow_counts.get(key, 0))}")
 
     latest_run_age = workflow_snapshot.get("latest_run_age_seconds")
     if latest_run_age is not None:
         lines.append("# TYPE live_overlay_github_workflow_latest_run_age_seconds gauge")
-        lines.append(
-            f"live_overlay_github_workflow_latest_run_age_seconds {_prom_numeric_value(latest_run_age)}"
-        )
+        lines.append(f"live_overlay_github_workflow_latest_run_age_seconds {_prom_numeric_value(latest_run_age)}")
 
     latest_run_duration = workflow_snapshot.get("latest_run_duration_seconds")
     if latest_run_duration is not None:
         lines.append("# TYPE live_overlay_github_workflow_latest_run_duration_seconds gauge")
         lines.append(
-            "live_overlay_github_workflow_latest_run_duration_seconds "
-            f"{_prom_numeric_value(latest_run_duration)}"
+            f"live_overlay_github_workflow_latest_run_duration_seconds {_prom_numeric_value(latest_run_duration)}"
         )
 
     # Per-workflow series are emitted as labelled time series (workflow_id,
@@ -1358,56 +1376,35 @@ def render_metrics(startup_ts: float) -> str:
     if not isinstance(signal_counts, dict):
         signal_counts = {"active": 0, "a0": 0, "a1": 0, "watched": 0}
     lines.append("# TYPE live_overlay_trading_signals_loaded gauge")
-    lines.append(
-        "live_overlay_trading_signals_loaded "
-        f"{_prom_numeric_value(signals_snapshot['loaded'])}"
-    )
+    lines.append(f"live_overlay_trading_signals_loaded {_prom_numeric_value(signals_snapshot['loaded'])}")
     lines.append("# TYPE live_overlay_trading_signals_active_total gauge")
-    lines.append(
-        "live_overlay_trading_signals_active_total "
-        f"{_prom_numeric_value(signal_counts['active'])}"
-    )
+    lines.append(f"live_overlay_trading_signals_active_total {_prom_numeric_value(signal_counts['active'])}")
     lines.append("# TYPE live_overlay_trading_signals_a0_total gauge")
-    lines.append(
-        f"live_overlay_trading_signals_a0_total {_prom_numeric_value(signal_counts['a0'])}"
-    )
+    lines.append(f"live_overlay_trading_signals_a0_total {_prom_numeric_value(signal_counts['a0'])}")
     lines.append("# TYPE live_overlay_trading_signals_a1_total gauge")
-    lines.append(
-        f"live_overlay_trading_signals_a1_total {_prom_numeric_value(signal_counts['a1'])}"
-    )
+    lines.append(f"live_overlay_trading_signals_a1_total {_prom_numeric_value(signal_counts['a1'])}")
     lines.append("# TYPE live_overlay_trading_signals_watched_total gauge")
-    lines.append(
-        "live_overlay_trading_signals_watched_total "
-        f"{_prom_numeric_value(signal_counts['watched'])}"
-    )
+    lines.append(f"live_overlay_trading_signals_watched_total {_prom_numeric_value(signal_counts['watched'])}")
     lines.append("# TYPE live_overlay_trading_signals_snapshot_age_known gauge")
     lines.append(
-        "live_overlay_trading_signals_snapshot_age_known "
-        f"{_prom_numeric_value(signals_snapshot['age_known'])}"
+        f"live_overlay_trading_signals_snapshot_age_known {_prom_numeric_value(signals_snapshot['age_known'])}"
     )
     lines.append("# TYPE live_overlay_trading_signals_snapshot_age_seconds gauge")
-    lines.append(
-        "live_overlay_trading_signals_snapshot_age_seconds "
-        f"{signals_snapshot['age_seconds']:.1f}"
-    )
+    lines.append(f"live_overlay_trading_signals_snapshot_age_seconds {signals_snapshot['age_seconds']:.1f}")
     lines.append("# TYPE live_overlay_trading_signals_snapshot_max_age_seconds gauge")
     lines.append(
         "live_overlay_trading_signals_snapshot_max_age_seconds "
         f"{_prom_numeric_value(signals_snapshot['max_age_seconds'])}"
     )
     lines.append("# TYPE live_overlay_trading_signals_snapshot_stale gauge")
-    lines.append(
-        "live_overlay_trading_signals_snapshot_stale "
-        f"{_prom_numeric_value(signals_snapshot['stale'])}"
-    )
+    lines.append(f"live_overlay_trading_signals_snapshot_stale {_prom_numeric_value(signals_snapshot['stale'])}")
 
     signal_rows = signals_snapshot["signals"]
     if isinstance(signal_rows, list) and signal_rows:
         lines.append("# TYPE live_overlay_trading_signal_score gauge")
         for sig in signal_rows:
             lines.append(
-                f"live_overlay_trading_signal_score{{{_signal_labels(sig)}}} "
-                f"{_prom_numeric_value(sig.get('score', 0))}"
+                f"live_overlay_trading_signal_score{{{_signal_labels(sig)}}} {_prom_numeric_value(sig.get('score', 0))}"
             )
         lines.append("# TYPE live_overlay_trading_signal_freshness gauge")
         for sig in signal_rows:
@@ -1446,29 +1443,16 @@ def render_metrics(startup_ts: float) -> str:
     # 57.6h). age_hours is only meaningful while age_known == 1.
     tv_credential = _tradingview_credential_snapshot()
     lines.append("# TYPE live_overlay_tradingview_credential_loaded gauge")
-    lines.append(
-        "live_overlay_tradingview_credential_loaded "
-        f"{_prom_numeric_value(tv_credential['loaded'])}"
-    )
+    lines.append(f"live_overlay_tradingview_credential_loaded {_prom_numeric_value(tv_credential['loaded'])}")
     lines.append("# TYPE live_overlay_tradingview_credential_valid gauge")
-    lines.append(
-        "live_overlay_tradingview_credential_valid "
-        f"{_prom_numeric_value(tv_credential['valid'])}"
-    )
+    lines.append(f"live_overlay_tradingview_credential_valid {_prom_numeric_value(tv_credential['valid'])}")
     lines.append("# TYPE live_overlay_tradingview_credential_age_known gauge")
-    lines.append(
-        "live_overlay_tradingview_credential_age_known "
-        f"{_prom_numeric_value(tv_credential['age_known'])}"
-    )
+    lines.append(f"live_overlay_tradingview_credential_age_known {_prom_numeric_value(tv_credential['age_known'])}")
     lines.append("# TYPE live_overlay_tradingview_credential_age_hours gauge")
-    lines.append(
-        "live_overlay_tradingview_credential_age_hours "
-        f"{tv_credential['age_hours']:.3f}"
-    )
+    lines.append(f"live_overlay_tradingview_credential_age_hours {tv_credential['age_hours']:.3f}")
     lines.append("# TYPE live_overlay_tradingview_credential_validated_at_seconds gauge")
     lines.append(
-        "live_overlay_tradingview_credential_validated_at_seconds "
-        f"{tv_credential['validated_at_seconds']:.0f}"
+        f"live_overlay_tradingview_credential_validated_at_seconds {tv_credential['validated_at_seconds']:.0f}"
     )
 
     # ----- Full credential-health report -----------------------------------
@@ -1477,20 +1461,12 @@ def render_metrics(startup_ts: float) -> str:
     # GitHub PAT, Databento delivery, FMP, NewsAPI, ...) as labelled metrics.
     credential = _credential_health_snapshot()
     lines.append("# TYPE live_overlay_credential_health_loaded gauge")
-    lines.append(
-        "live_overlay_credential_health_loaded "
-        f"{_prom_numeric_value(credential['loaded'])}"
-    )
+    lines.append(f"live_overlay_credential_health_loaded {_prom_numeric_value(credential['loaded'])}")
     lines.append("# TYPE live_overlay_credential_health_overall_valid gauge")
-    lines.append(
-        "live_overlay_credential_health_overall_valid "
-        f"{_prom_numeric_value(credential['overall_valid'])}"
-    )
+    lines.append(f"live_overlay_credential_health_overall_valid {_prom_numeric_value(credential['overall_valid'])}")
     lines.append("# TYPE live_overlay_credential_health_overall_severity_info gauge")
     overall_severity = _escape_label_value(str(credential["overall_severity"]))
-    lines.append(
-        f'live_overlay_credential_health_overall_severity_info{{severity="{overall_severity}"}} 1'
-    )
+    lines.append(f'live_overlay_credential_health_overall_severity_info{{severity="{overall_severity}"}} 1')
 
     probe_rows = credential.get("probes") or []
     if probe_rows:
@@ -1511,10 +1487,7 @@ def render_metrics(startup_ts: float) -> str:
             name = _sanitize_name(str(probe["name"]))
             severity = _escape_label_value(str(probe["severity"]))
             message = _escape_label_value(str(probe["message"])[:200])
-            lines.append(
-                f'live_overlay_credential_health_{name}_info{{severity="{severity}",'
-                f'message="{message}"}} 1'
-            )
+            lines.append(f'live_overlay_credential_health_{name}_info{{severity="{severity}",message="{message}"}} 1')
 
         lines.append("# TYPE live_overlay_credential_health_probe_value gauge")
         for probe in probe_rows:
@@ -1522,31 +1495,20 @@ def render_metrics(startup_ts: float) -> str:
             numeric = probe.get("numeric") or {}
             for value_name, value in numeric.items():
                 value_metric = _sanitize_name(str(value_name))
-                lines.append(
-                    f'live_overlay_credential_health_{name}_{value_metric} '
-                    f"{_prom_numeric_value(value)}"
-                )
+                lines.append(f"live_overlay_credential_health_{name}_{value_metric} {_prom_numeric_value(value)}")
 
     # ----- Daily experiment (Plan 2.8 family/timeframe scoring) -------------
     experiment = _experiment_snapshot()
     lines.append("# TYPE live_overlay_experiment_loaded gauge")
-    lines.append(
-        f"live_overlay_experiment_loaded {_prom_numeric_value(experiment['loaded'])}"
-    )
+    lines.append(f"live_overlay_experiment_loaded {_prom_numeric_value(experiment['loaded'])}")
     lines.append("# TYPE live_overlay_experiment_snapshot_age_known gauge")
-    lines.append(
-        "live_overlay_experiment_snapshot_age_known "
-        f"{_prom_numeric_value(experiment['age_known'])}"
-    )
+    lines.append(f"live_overlay_experiment_snapshot_age_known {_prom_numeric_value(experiment['age_known'])}")
     lines.append("# TYPE live_overlay_experiment_snapshot_age_seconds gauge")
     age_value = experiment["age_seconds"]
     age_float = float(age_value) if isinstance(age_value, (int, float)) else 0.0
     lines.append(f"live_overlay_experiment_snapshot_age_seconds {age_float:.1f}")
     lines.append("# TYPE live_overlay_experiment_files_scanned gauge")
-    lines.append(
-        "live_overlay_experiment_files_scanned "
-        f"{_prom_numeric_value(experiment['files_scanned'])}"
-    )
+    lines.append(f"live_overlay_experiment_files_scanned {_prom_numeric_value(experiment['files_scanned'])}")
 
     tf_rows = experiment["tf_rows"]
     if isinstance(tf_rows, list) and tf_rows:
@@ -1554,63 +1516,49 @@ def render_metrics(startup_ts: float) -> str:
         for row in tf_rows:
             labels = _experiment_tf_labels(str(row.get("timeframe", "")))
             lines.append(
-                f"live_overlay_experiment_tf_hit_rate{{{labels}}} "
-                f"{_prom_numeric_value(row.get('hit_rate', 0))}"
+                f"live_overlay_experiment_tf_hit_rate{{{labels}}} {_prom_numeric_value(row.get('hit_rate', 0))}"
             )
         lines.append("# TYPE live_overlay_experiment_tf_n_events gauge")
         for row in tf_rows:
             labels = _experiment_tf_labels(str(row.get("timeframe", "")))
             lines.append(
-                f"live_overlay_experiment_tf_n_events{{{labels}}} "
-                f"{_prom_numeric_value(row.get('n_events', 0))}"
+                f"live_overlay_experiment_tf_n_events{{{labels}}} {_prom_numeric_value(row.get('n_events', 0))}"
             )
 
     family_rows = experiment["family_rows"]
     if isinstance(family_rows, list) and family_rows:
         lines.append("# TYPE live_overlay_experiment_family_hit_rate gauge")
         for row in family_rows:
-            labels = _experiment_family_labels(
-                str(row.get("timeframe", "")), str(row.get("family", ""))
-            )
+            labels = _experiment_family_labels(str(row.get("timeframe", "")), str(row.get("family", "")))
             lines.append(
-                f"live_overlay_experiment_family_hit_rate{{{labels}}} "
-                f"{_prom_numeric_value(row.get('hit_rate', 0))}"
+                f"live_overlay_experiment_family_hit_rate{{{labels}}} {_prom_numeric_value(row.get('hit_rate', 0))}"
             )
         lines.append("# TYPE live_overlay_experiment_family_n_events gauge")
         for row in family_rows:
-            labels = _experiment_family_labels(
-                str(row.get("timeframe", "")), str(row.get("family", ""))
-            )
+            labels = _experiment_family_labels(str(row.get("timeframe", "")), str(row.get("family", "")))
             lines.append(
-                f"live_overlay_experiment_family_n_events{{{labels}}} "
-                f"{_prom_numeric_value(row.get('n_events', 0))}"
+                f"live_overlay_experiment_family_n_events{{{labels}}} {_prom_numeric_value(row.get('n_events', 0))}"
             )
 
     verdicts = experiment["verdicts"]
     if isinstance(verdicts, list) and verdicts:
         lines.append("# TYPE live_overlay_experiment_verdict_status_code gauge")
         for verdict in verdicts:
-            labels = _experiment_verdict_labels(
-                str(verdict.get("hypothesis", "")), str(verdict.get("status", ""))
-            )
+            labels = _experiment_verdict_labels(str(verdict.get("hypothesis", "")), str(verdict.get("status", "")))
             lines.append(
                 f"live_overlay_experiment_verdict_status_code{{{labels}}} "
                 f"{_prom_numeric_value(verdict.get('status_code', 0))}"
             )
         lines.append("# TYPE live_overlay_experiment_verdict_delta_hr gauge")
         for verdict in verdicts:
-            labels = _experiment_verdict_labels(
-                str(verdict.get("hypothesis", "")), str(verdict.get("status", ""))
-            )
+            labels = _experiment_verdict_labels(str(verdict.get("hypothesis", "")), str(verdict.get("status", "")))
             lines.append(
                 f"live_overlay_experiment_verdict_delta_hr{{{labels}}} "
                 f"{_prom_numeric_value(verdict.get('delta_hr', 0))}"
             )
         lines.append("# TYPE live_overlay_experiment_verdict_underpowered gauge")
         for verdict in verdicts:
-            labels = _experiment_verdict_labels(
-                str(verdict.get("hypothesis", "")), str(verdict.get("status", ""))
-            )
+            labels = _experiment_verdict_labels(str(verdict.get("hypothesis", "")), str(verdict.get("status", "")))
             lines.append(
                 f"live_overlay_experiment_verdict_underpowered{{{labels}}} "
                 f"{_prom_numeric_value(verdict.get('underpowered', 0))}"
@@ -1625,13 +1573,8 @@ def render_metrics(startup_ts: float) -> str:
                 continue
             if not isinstance(p_value, (int, float)):
                 continue
-            labels = _experiment_verdict_labels(
-                str(verdict.get("hypothesis", "")), str(verdict.get("status", ""))
-            )
-            p_value_lines.append(
-                f"live_overlay_experiment_verdict_p_value{{{labels}}} "
-                f"{_prom_numeric_value(p_value)}"
-            )
+            labels = _experiment_verdict_labels(str(verdict.get("hypothesis", "")), str(verdict.get("status", "")))
+            p_value_lines.append(f"live_overlay_experiment_verdict_p_value{{{labels}}} {_prom_numeric_value(p_value)}")
         if p_value_lines:
             lines.append("# TYPE live_overlay_experiment_verdict_p_value gauge")
             lines.extend(p_value_lines)
@@ -1646,8 +1589,7 @@ def render_metrics(startup_ts: float) -> str:
                 str(row.get("family", "")),
             )
             lines.append(
-                f"live_overlay_experiment_day_family_hit_rate{{{labels}}} "
-                f"{_prom_numeric_value(row.get('hit_rate', 0))}"
+                f"live_overlay_experiment_day_family_hit_rate{{{labels}}} {_prom_numeric_value(row.get('hit_rate', 0))}"
             )
         lines.append("# TYPE live_overlay_experiment_day_family_n_events gauge")
         for row in history_rows:
@@ -1657,123 +1599,139 @@ def render_metrics(startup_ts: float) -> str:
                 str(row.get("family", "")),
             )
             lines.append(
-                f"live_overlay_experiment_day_family_n_events{{{labels}}} "
-                f"{_prom_numeric_value(row.get('n_events', 0))}"
+                f"live_overlay_experiment_day_family_n_events{{{labels}}} {_prom_numeric_value(row.get('n_events', 0))}"
             )
 
     # --- Railway container resource metrics ---
     railway_snapshot = railway_metrics.snapshot()
     railway_enabled = bool(railway_snapshot.get("enabled"))
+    railway_configured = bool(railway_snapshot.get("configured", railway_enabled))
     railway_ok = bool(railway_snapshot.get("ok"))
+    railway_fetched_at = railway_snapshot.get("fetched_at_unix", 0.0)
+    railway_age = (
+        max(0.0, time.time() - railway_fetched_at)
+        if isinstance(railway_fetched_at, (int, float)) and railway_fetched_at > 0
+        else None
+    )
+
+    # Legacy metrics retained for backwards compatibility.
     lines.append("# TYPE live_overlay_railway_metrics_configured gauge")
-    lines.append(f"live_overlay_railway_metrics_configured {1 if railway_enabled else 0}")
+    lines.append(f"live_overlay_railway_metrics_configured {1 if railway_configured else 0}")
     lines.append("# TYPE live_overlay_railway_metrics_scrape_success gauge")
     lines.append(f"live_overlay_railway_metrics_scrape_success {1 if railway_ok else 0}")
     # Backwards-compatible metric: historically this combined configured + ok.
     lines.append("# TYPE live_overlay_railway_metrics_enabled gauge")
     lines.append(f"live_overlay_railway_metrics_enabled {1 if (railway_enabled and railway_ok) else 0}")
 
-    if railway_enabled:
-        fetched_at = railway_snapshot.get("fetched_at_unix", 0.0)
-        if fetched_at > 0:
-            age_seconds = time.time() - fetched_at
-            lines.append("# TYPE live_overlay_railway_metrics_age_seconds gauge")
-            lines.append(f"live_overlay_railway_metrics_age_seconds {age_seconds:.1f}")
+    if railway_enabled and railway_age is not None:
+        lines.append("# TYPE live_overlay_railway_metrics_age_seconds gauge")
+        lines.append(f"live_overlay_railway_metrics_age_seconds {railway_age:.1f}")
 
-        error = railway_snapshot.get("error")
-        if error:
-            # Surface error as an info metric with the error text as label
-            escaped_error = _escape_label_value(str(error)[:200])
-            lines.append("# TYPE live_overlay_railway_metrics_error_info gauge")
-            lines.append(f'live_overlay_railway_metrics_error_info{{error="{escaped_error}"}} 1')
+    error = railway_snapshot.get("error")
+    if error:
+        # Surface error as an info metric with the error text as label
+        escaped_error = _escape_label_value(str(error)[:200])
+        lines.append("# TYPE live_overlay_railway_metrics_error_info gauge")
+        lines.append(f'live_overlay_railway_metrics_error_info{{error="{escaped_error}"}} 1')
 
-        services = railway_snapshot.get("services") or []
-        if services:
-            # CPU cores
-            lines.append("# TYPE live_overlay_railway_service_cpu_cores gauge")
-            for svc in services:
-                service_name = _sanitize_name(svc.get("service", "unknown"))
-                service_id = svc.get("service_id", "unknown")
-                cpu = svc.get("cpu_cores")
-                if cpu is not None:
-                    lines.append(
-                        f'live_overlay_railway_service_cpu_cores{{service="{service_name}",service_id="{service_id}"}} '
-                        f"{_prom_numeric_value(cpu)}"
-                    )
+    _append_bridge_metrics(
+        lines,
+        bridge="railway_metrics",
+        enabled=railway_enabled,
+        configured=railway_configured,
+        scrape_success=railway_ok,
+        last_success_age_seconds=railway_age,
+        scrape_duration_seconds=None,
+        error_code=str(error)[:200] if error else None,
+    )
 
-            # Memory usage in GB (Railway native units)
-            lines.append("# TYPE live_overlay_railway_service_memory_gb gauge")
-            for svc in services:
-                service_name = _sanitize_name(svc.get("service", "unknown"))
-                service_id = svc.get("service_id", "unknown")
-                memory_gb = svc.get("memory_gb")
-                if memory_gb is not None:
-                    lines.append(
-                        f'live_overlay_railway_service_memory_gb{{service="{service_name}",service_id="{service_id}"}} '
-                        f"{_prom_numeric_value(memory_gb)}"
-                    )
+    services = railway_snapshot.get("services") or []
+    if services:
+        # CPU cores
+        lines.append("# TYPE live_overlay_railway_service_cpu_cores gauge")
+        for svc in services:
+            service_name = _sanitize_name(svc.get("service", "unknown"))
+            service_id = svc.get("service_id", "unknown")
+            cpu = svc.get("cpu_cores")
+            if cpu is not None:
+                lines.append(
+                    f'live_overlay_railway_service_cpu_cores{{service="{service_name}",service_id="{service_id}"}} '
+                    f"{_prom_numeric_value(cpu)}"
+                )
 
-            # Memory limit in GB
-            lines.append("# TYPE live_overlay_railway_service_memory_limit_gb gauge")
-            for svc in services:
-                service_name = _sanitize_name(svc.get("service", "unknown"))
-                service_id = svc.get("service_id", "unknown")
-                limit_gb = svc.get("memory_limit_gb")
-                if limit_gb is not None:
-                    lines.append(
-                        f'live_overlay_railway_service_memory_limit_gb{{service="{service_name}",service_id="{service_id}"}} '
-                        f"{_prom_numeric_value(limit_gb)}"
-                    )
+        # Memory usage in GB (Railway native units)
+        lines.append("# TYPE live_overlay_railway_service_memory_gb gauge")
+        for svc in services:
+            service_name = _sanitize_name(svc.get("service", "unknown"))
+            service_id = svc.get("service_id", "unknown")
+            memory_gb = svc.get("memory_gb")
+            if memory_gb is not None:
+                lines.append(
+                    f'live_overlay_railway_service_memory_gb{{service="{service_name}",service_id="{service_id}"}} '
+                    f"{_prom_numeric_value(memory_gb)}"
+                )
 
-            # Memory used ratio (memory_gb / memory_limit_gb)
-            lines.append("# TYPE live_overlay_railway_service_memory_used_ratio gauge")
-            for svc in services:
-                service_name = _sanitize_name(svc.get("service", "unknown"))
-                service_id = svc.get("service_id", "unknown")
-                memory_gb = svc.get("memory_gb")
-                limit_gb = svc.get("memory_limit_gb")
-                if memory_gb is not None and limit_gb is not None and limit_gb > 0:
-                    ratio = memory_gb / limit_gb
-                    lines.append(
-                        f'live_overlay_railway_service_memory_used_ratio{{service="{service_name}",service_id="{service_id}"}} '
-                        f"{_prom_numeric_value(ratio)}"
-                    )
+        # Memory limit in GB
+        lines.append("# TYPE live_overlay_railway_service_memory_limit_gb gauge")
+        for svc in services:
+            service_name = _sanitize_name(svc.get("service", "unknown"))
+            service_id = svc.get("service_id", "unknown")
+            limit_gb = svc.get("memory_limit_gb")
+            if limit_gb is not None:
+                lines.append(
+                    f'live_overlay_railway_service_memory_limit_gb{{service="{service_name}",service_id="{service_id}"}} '
+                    f"{_prom_numeric_value(limit_gb)}"
+                )
 
-            # Disk usage in GB
-            lines.append("# TYPE live_overlay_railway_service_disk_gb gauge")
-            for svc in services:
-                service_name = _sanitize_name(svc.get("service", "unknown"))
-                service_id = svc.get("service_id", "unknown")
-                disk_gb = svc.get("disk_gb")
-                if disk_gb is not None:
-                    lines.append(
-                        f'live_overlay_railway_service_disk_gb{{service="{service_name}",service_id="{service_id}"}} '
-                        f"{_prom_numeric_value(disk_gb)}"
-                    )
+        # Memory used ratio (memory_gb / memory_limit_gb)
+        lines.append("# TYPE live_overlay_railway_service_memory_used_ratio gauge")
+        for svc in services:
+            service_name = _sanitize_name(svc.get("service", "unknown"))
+            service_id = svc.get("service_id", "unknown")
+            memory_gb = svc.get("memory_gb")
+            limit_gb = svc.get("memory_limit_gb")
+            if memory_gb is not None and limit_gb is not None and limit_gb > 0:
+                ratio = memory_gb / limit_gb
+                lines.append(
+                    f'live_overlay_railway_service_memory_used_ratio{{service="{service_name}",service_id="{service_id}"}} '
+                    f"{_prom_numeric_value(ratio)}"
+                )
 
-            # Network RX in GB
-            lines.append("# TYPE live_overlay_railway_service_network_rx_gb gauge")
-            for svc in services:
-                service_name = _sanitize_name(svc.get("service", "unknown"))
-                service_id = svc.get("service_id", "unknown")
-                rx_gb = svc.get("network_rx_gb")
-                if rx_gb is not None:
-                    lines.append(
-                        f'live_overlay_railway_service_network_rx_gb{{service="{service_name}",service_id="{service_id}"}} '
-                        f"{_prom_numeric_value(rx_gb)}"
-                    )
+        # Disk usage in GB
+        lines.append("# TYPE live_overlay_railway_service_disk_gb gauge")
+        for svc in services:
+            service_name = _sanitize_name(svc.get("service", "unknown"))
+            service_id = svc.get("service_id", "unknown")
+            disk_gb = svc.get("disk_gb")
+            if disk_gb is not None:
+                lines.append(
+                    f'live_overlay_railway_service_disk_gb{{service="{service_name}",service_id="{service_id}"}} '
+                    f"{_prom_numeric_value(disk_gb)}"
+                )
 
-            # Network TX in GB
-            lines.append("# TYPE live_overlay_railway_service_network_tx_gb gauge")
-            for svc in services:
-                service_name = _sanitize_name(svc.get("service", "unknown"))
-                service_id = svc.get("service_id", "unknown")
-                tx_gb = svc.get("network_tx_gb")
-                if tx_gb is not None:
-                    lines.append(
-                        f'live_overlay_railway_service_network_tx_gb{{service="{service_name}",service_id="{service_id}"}} '
-                        f"{_prom_numeric_value(tx_gb)}"
-                    )
+        # Network RX in GB
+        lines.append("# TYPE live_overlay_railway_service_network_rx_gb gauge")
+        for svc in services:
+            service_name = _sanitize_name(svc.get("service", "unknown"))
+            service_id = svc.get("service_id", "unknown")
+            rx_gb = svc.get("network_rx_gb")
+            if rx_gb is not None:
+                lines.append(
+                    f'live_overlay_railway_service_network_rx_gb{{service="{service_name}",service_id="{service_id}"}} '
+                    f"{_prom_numeric_value(rx_gb)}"
+                )
+
+        # Network TX in GB
+        lines.append("# TYPE live_overlay_railway_service_network_tx_gb gauge")
+        for svc in services:
+            service_name = _sanitize_name(svc.get("service", "unknown"))
+            service_id = svc.get("service_id", "unknown")
+            tx_gb = svc.get("network_tx_gb")
+            if tx_gb is not None:
+                lines.append(
+                    f'live_overlay_railway_service_network_tx_gb{{service="{service_name}",service_id="{service_id}"}} '
+                    f"{_prom_numeric_value(tx_gb)}"
+                )
     else:
         lines.append("live_overlay_railway_metrics_enabled 0")
 

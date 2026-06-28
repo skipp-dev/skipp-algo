@@ -103,13 +103,18 @@ def test_snapshot_disabled_when_flag_off() -> None:
     assert result["services"] == []
 
 
-def test_snapshot_enabled_but_missing_config_reports_error() -> None:
-    with patch.object(railway_metrics.config, "railway_metrics_enabled", return_value=True), \
-        patch.object(railway_metrics.config, "railway_api_token", return_value=""), \
-        patch.object(railway_metrics.config, "railway_project_id", return_value=""), \
-        patch.object(railway_metrics.config, "railway_environment_id", return_value=""):
+def test_snapshot_enabled_but_missing_config_reports_misconfigured() -> None:
+    """Missing credentials must report intent (enabled) separately from outcome."""
+    with (
+        patch.object(railway_metrics.config, "railway_metrics_enabled", return_value=True),
+        patch.object(railway_metrics.config, "railway_api_token", return_value=""),
+        patch.object(railway_metrics.config, "railway_project_id", return_value=""),
+        patch.object(railway_metrics.config, "railway_environment_id", return_value=""),
+    ):
         result = railway_metrics.snapshot()
-    assert result["enabled"] is False
+    assert result["enabled"] is True
+    assert result["configured"] is False
+    assert result["ok"] is False
     assert result["error"] == "missing_configuration"
 
 

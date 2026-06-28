@@ -132,6 +132,7 @@ def test_dashboard_panels_have_descriptions() -> None:
     missing = [p.get("title") for p in panels if p.get("type") != "row" and not p.get("description")]
     assert not missing, f"panels missing description: {missing}"
 
+
 def test_market_open_request_health_uses_us_session_metric() -> None:
     """The traffic-health panel follows live_overlay_market_us_open.
 
@@ -164,9 +165,18 @@ def test_dashboard_railway_metrics_bridge_query_shows_state_mapping() -> None:
     dashboard = json.loads(_DASHBOARD_JSON.read_text(encoding="utf-8"))
     panel = next(p for p in _dashboard_panels(dashboard) if p.get("title") == "Railway Metrics Bridge")
     expr = panel["targets"][0]["expr"]
-    assert "live_overlay_railway_metrics_configured" in expr
-    assert "live_overlay_railway_metrics_scrape_success" in expr
-    assert "or vector(0)" in expr
+    assert "live_overlay_bridge_enabled" in expr
+    assert "live_overlay_bridge_scrape_success" in expr
+    assert 'bridge="railway_metrics"' in expr
+    assert "or on(job) label_replace(vector(0)" in expr
+    mappings = {
+        int(k): v["text"]
+        for m in panel["fieldConfig"]["defaults"].get("mappings", [])
+        for k, v in (m.get("options") or {}).items()
+    }
+    assert mappings.get(0) == "DISABLED"
+    assert mappings.get(1) == "SCRAPE ERROR"
+    assert mappings.get(2) == "OK"
 
 
 def test_dashboard_market_open_request_health_uses_fixed_rate_range() -> None:
@@ -183,15 +193,24 @@ def test_dashboard_market_open_request_health_uses_fixed_rate_range() -> None:
 
 
 def test_dashboard_bridge_scrapes_aggregates_by_job_and_gates_enabled() -> None:
-    """External Checks should ignore unconfigured bridges and aggregate by job."""
+    """External Checks should use the generic bridge contract and aggregate by job."""
     dashboard = json.loads(_DASHBOARD_JSON.read_text(encoding="utf-8"))
     panel = next(p for p in _dashboard_panels(dashboard) if p.get("title") == "External Checks")
     expr = panel["targets"][0]["expr"]
     assert "min by (job)" in expr
-    assert "live_overlay_uptimerobot_bridge_enabled" in expr
-    assert "live_overlay_github_workflow_bridge_enabled" in expr
+    assert "live_overlay_bridge_scrape_success" in expr
+    assert "live_overlay_bridge_enabled" in expr
+    assert 'bridge=~"uptimerobot|github_workflow"' in expr
     assert 'or on(job) label_replace(vector(-1), "job", "live_overlay", "", "")' in expr
     assert panel["targets"][0]["legendFormat"] == "{{job}}"
+    mappings = {
+        int(k): v["text"]
+        for m in panel["fieldConfig"]["defaults"].get("mappings", [])
+        for k, v in (m.get("options") or {}).items()
+    }
+    assert mappings.get(-1) == "NO CHECKS CONFIGURED"
+    assert mappings.get(0) == "SCRAPE ERROR"
+    assert mappings.get(1) == "OK"
 
 
 def test_dashboard_bridge_state_panels_aggregate_by_job() -> None:
@@ -211,6 +230,7 @@ def test_dashboard_bridge_state_panels_aggregate_by_job() -> None:
 # --------------------------------------------------------------------------- #
 # Review follow-up assertions (2026-06-27)
 # --------------------------------------------------------------------------- #
+
 
 def test_dashboard_success_rate_panel_description_matches_http_requests() -> None:
     """Success Rate (%) must describe /smc_live HTTP request success, not compute cycles."""
@@ -329,6 +349,7 @@ def test_dashboard_triage_guide_uses_user_impact_language() -> None:
     assert "Runbook" in content or "README" in content
     assert "**Incident triage**" in content
 
+
 def test_dashboard_job_variable_is_datasource_pinned() -> None:
     """The $job variable must use the grafanacloud-prom datasource explicitly."""
     dashboard = json.loads(_DASHBOARD_JSON.read_text(encoding="utf-8"))
@@ -356,7 +377,9 @@ def test_dashboard_refresh_rate_reduced() -> None:
 def test_dashboard_has_collector_scrape_targets_row() -> None:
     """A Collector row with up and memory panels for alloy/signals_producer/live_overlay must exist."""
     dashboard = json.loads(_DASHBOARD_JSON.read_text(encoding="utf-8"))
-    row = next(p for p in dashboard["panels"] if p.get("type") == "row" and p.get("title") == "Collector / Scrape Targets")
+    row = next(
+        p for p in dashboard["panels"] if p.get("type") == "row" and p.get("title") == "Collector / Scrape Targets"
+    )
     # Service-owner detail rows are collapsed by default to reduce first-load noise.
     assert row.get("collapsed") is True
     titles = {p.get("title") for p in _dashboard_panels(dashboard)}
@@ -400,7 +423,6 @@ def test_dashboard_collector_resident_memory_covers_prefixed_metrics() -> None:
     assert "signals_producer_process_resident_memory_bytes" in expr
 
 
-
 def test_dashboard_ingest_queue_backpressure_separates_drop_rate_axis() -> None:
     """Ingest Queue Backpressure must show depth on the left axis and drop rate on the right."""
     dashboard = json.loads(_DASHBOARD_JSON.read_text(encoding="utf-8"))
@@ -419,9 +441,9 @@ def test_dashboard_hotspots_timeframes_legend_uses_timeframe_label() -> None:
     panel = next(p for p in _dashboard_panels(dashboard) if p.get("title") == "Hotspots — Timeframes (Top)")
     exprs = [t["expr"] for t in panel["targets"]]
     legends = [t.get("legendFormat") for t in panel["targets"]]
-    assert any('label_replace' in e and '"timeframe"' in e for e in exprs), exprs
-    assert all('{{timeframe}}' in legend for legend in legends), legends
-    assert all('{{tf}}' not in legend for legend in legends), legends
+    assert any("label_replace" in e and '"timeframe"' in e for e in exprs), exprs
+    assert all("{{timeframe}}" in legend for legend in legends), legends
+    assert all("{{tf}}" not in legend for legend in legends), legends
 
 
 def test_dashboard_y12_grid_gap_is_closed() -> None:
@@ -436,10 +458,7 @@ def test_dashboard_y12_grid_gap_is_closed() -> None:
 def test_latency_alert_uses_histogram_quantile_bucket() -> None:
     """p99 latency alert must query histogram buckets, not the legacy gauge."""
     rules_doc = yaml.safe_load(_ALERT_RULES_YAML.read_text(encoding="utf-8"))
-    rule = next(
-        r for g in rules_doc["groups"] for r in g["rules"]
-        if r.get("uid") == "lo-latency-p99-high"
-    )
+    rule = next(r for g in rules_doc["groups"] for r in g["rules"] if r.get("uid") == "lo-latency-p99-high")
     expr = rule["data"][0]["model"]["expr"]
     assert "histogram_quantile(" in expr and "0.99" in expr
     assert "live_overlay_smc_live_latency_ms_bucket" in expr
@@ -493,17 +512,13 @@ def test_age_alerts_use_arithmetic_not_or_between_bool_vectors() -> None:
     rules_doc = yaml.safe_load(_ALERT_RULES_YAML.read_text(encoding="utf-8"))
     groups = rules_doc["groups"]
 
-    overlay = next(
-        r for g in groups for r in g["rules"] if r.get("uid") == "lo-overlay-stale"
-    )
+    overlay = next(r for g in groups for r in g["rules"] if r.get("uid") == "lo-overlay-stale")
     overlay_expr = overlay["data"][0]["model"]["expr"]
     assert "(1 - live_overlay_overlay_age_known" in overlay_expr
     assert "* 3601" in overlay_expr
     assert " or " not in overlay_expr.replace("\n", " ")
 
-    last_bar = next(
-        r for g in groups for r in g["rules"] if r.get("uid") == "lo-last-bar-stale-open"
-    )
+    last_bar = next(r for g in groups for r in g["rules"] if r.get("uid") == "lo-last-bar-stale-open")
     last_bar_expr = last_bar["data"][0]["model"]["expr"]
     assert "(1 - live_overlay_last_bar_age_known" in last_bar_expr
     assert "> bool 300" in last_bar_expr
@@ -543,22 +558,16 @@ def test_burn_rate_red_threshold_matches_alert() -> None:
 def test_alloy_targets_down_uses_absent_for_missing_series() -> None:
     """alloy-targets-down must fire when a target job disappears completely."""
     rules_doc = yaml.safe_load(_ALERT_RULES_YAML.read_text(encoding="utf-8"))
-    rule = next(
-        r for g in rules_doc["groups"] for r in g["rules"]
-        if r.get("uid") == "alloy-targets-down"
-    )
+    rule = next(r for g in rules_doc["groups"] for r in g["rules"] if r.get("uid") == "alloy-targets-down")
     expr = rule["data"][0]["model"]["expr"]
-    assert "absent(up{job=\"signals_producer\"})" in expr
-    assert "absent(up{job=\"live_overlay\"})" in expr
+    assert 'absent(up{job="signals_producer"})' in expr
+    assert 'absent(up{job="live_overlay"})' in expr
 
 
 def test_auth_denied_spike_has_non_zero_for() -> None:
     """Auth-denied spike alert should wait briefly to avoid single-flap paging."""
     rules_doc = yaml.safe_load(_ALERT_RULES_YAML.read_text(encoding="utf-8"))
-    rule = next(
-        r for g in rules_doc["groups"] for r in g["rules"]
-        if r.get("uid") == "lo-auth-denied-spike"
-    )
+    rule = next(r for g in rules_doc["groups"] for r in g["rules"] if r.get("uid") == "lo-auth-denied-spike")
     assert rule.get("for") == "2m"
 
 
@@ -615,11 +624,12 @@ def test_dashboard_idle_state_is_gray_not_orange() -> None:
         p = by_title[title]
         mapping = p["fieldConfig"]["defaults"]["mappings"][0]["options"]["2"]
         assert mapping["color"] == "gray", f"{title} idle color is {mapping['color']}"
-        threshold_step = next(
-            s for s in p["fieldConfig"]["defaults"]["thresholds"]["steps"] if s.get("value") == 2
-        )
+        threshold_step = next(s for s in p["fieldConfig"]["defaults"]["thresholds"]["steps"] if s.get("value") == 2)
         assert threshold_step["color"] == "gray", f"{title} idle threshold is {threshold_step['color']}"
-    assert by_title["Overall Health"]["fieldConfig"]["defaults"]["mappings"][0]["options"]["2"]["text"] == "IDLE (MARKET CLOSED)"
+    assert (
+        by_title["Overall Health"]["fieldConfig"]["defaults"]["mappings"][0]["options"]["2"]["text"]
+        == "IDLE (MARKET CLOSED)"
+    )
 
 
 def test_dashboard_incident_overview_row_renamed_and_compacted() -> None:
@@ -651,7 +661,6 @@ def test_dashboard_jargon_reduced_in_top_panels() -> None:
     assert "Bridge Scrapes" not in titles
 
 
-
 def test_dashboard_has_no_grid_overlaps() -> None:
     """No two visual panels may occupy the same grid cell."""
     dashboard = json.loads(_DASHBOARD_JSON.read_text(encoding="utf-8"))
@@ -676,12 +685,8 @@ def test_dashboard_external_details_are_not_in_incident_overview() -> None:
         [p for p in dashboard["panels"] if p.get("type") == "row"],
         key=lambda p: p["gridPos"]["y"],
     )
-    incident_end = next(
-        r for r in rows if r["title"] == "Operational Drill-down"
-    )["gridPos"]["y"]
-    external_detail = next(
-        p for p in _dashboard_panels(dashboard) if p.get("title") == "UptimeRobot Monitor States"
-    )
+    incident_end = next(r for r in rows if r["title"] == "Operational Drill-down")["gridPos"]["y"]
+    external_detail = next(p for p in _dashboard_panels(dashboard) if p.get("title") == "UptimeRobot Monitor States")
     assert external_detail["gridPos"]["y"] > incident_end
 
 
@@ -695,10 +700,7 @@ def test_dashboard_operational_drill_down_row_exists() -> None:
 def test_dashboard_reliability_row_renamed() -> None:
     """The former SLO & Reliability row must reflect its new drill-down role."""
     dashboard = json.loads(_DASHBOARD_JSON.read_text(encoding="utf-8"))
-    row = next(
-        p for p in dashboard["panels"]
-        if p.get("type") == "row" and p.get("title") == "Reliability Drill-down"
-    )
+    row = next(p for p in dashboard["panels"] if p.get("type") == "row" and p.get("title") == "Reliability Drill-down")
     assert "restart" in row.get("description", "").lower()
     assert "backpressure" in row.get("description", "").lower()
 
@@ -770,9 +772,11 @@ def test_dashboard_top_tiles_have_drilldown_links() -> None:
         assert links, f"{title} is missing drilldown links"
         assert all(link.get("targetBlank") for link in links), f"{title} drilldown should open in new tab"
 
+
 # --------------------------------------------------------------------------- #
 # Fourth UX-layout review follow-up assertions (2026-06-29)
 # --------------------------------------------------------------------------- #
+
 
 def test_dashboard_triage_guide_links_are_known() -> None:
     """Triage-guide links must point at existing repo docs or concrete consoles."""
@@ -795,6 +799,7 @@ def test_dashboard_triage_guide_links_are_known() -> None:
         else:
             pytest.fail(f"unexpected triage-guide URL: {url}")
 
+
 def test_dashboard_drilldown_links_target_real_panels() -> None:
     """Any panel link that uses a viewPanel ID must point to an existing panel."""
     dashboard = json.loads(_DASHBOARD_JSON.read_text(encoding="utf-8"))
@@ -806,6 +811,7 @@ def test_dashboard_drilldown_links_target_real_panels() -> None:
             m = re.search(r"viewPanel=(\d+)", url)
             if m:
                 assert int(m.group(1)) in valid_ids, f"{panel.get('title')} -> {url}"
+
 
 def test_dashboard_detail_rows_are_marked_as_service_owner_details() -> None:
     """Detail rows must explicitly describe themselves as service-owner details."""
@@ -820,6 +826,7 @@ def test_dashboard_detail_rows_are_marked_as_service_owner_details() -> None:
 # --------------------------------------------------------------------------- #
 # Signals-producer readiness panels and alerts
 # --------------------------------------------------------------------------- #
+
 
 def test_dashboard_has_signal_pipeline_ready_panel() -> None:
     dashboard = json.loads(_DASHBOARD_JSON.read_text(encoding="utf-8"))
@@ -888,9 +895,11 @@ def test_dashboard_signal_readiness_panels_are_at_y16() -> None:
     """Signal readiness panels share a single row directly above Global Market Sessions."""
     dashboard = json.loads(_DASHBOARD_JSON.read_text(encoding="utf-8"))
     panels = _dashboard_panels(dashboard)
-    readiness = [p for p in panels if p.get("title") in (
-        "Signal Pipeline Ready", "Open-Prep Snapshot", "Watchlist Symbols", "Producer Poll Age"
-    )]
+    readiness = [
+        p
+        for p in panels
+        if p.get("title") in ("Signal Pipeline Ready", "Open-Prep Snapshot", "Watchlist Symbols", "Producer Poll Age")
+    ]
     assert len(readiness) == 4
     for panel in readiness:
         assert panel["gridPos"]["y"] == 16, panel["title"]
@@ -965,7 +974,9 @@ def test_dashboard_signal_pipeline_ready_links_to_concrete_detail_panels() -> No
         assert metric in exprs, f"panel {panel_id} does not contain expected metric {metric!r}"
 
     assert not any("viewPanel=2133310722" in url for url in urls), "legacy row-header link still present"
-    assert not any("viewPanel=1580287418" in url for url in urls), "legacy live-overlay readiness timeline link still present"
+    assert not any("viewPanel=1580287418" in url for url in urls), (
+        "legacy live-overlay readiness timeline link still present"
+    )
     assert any("/service/" in url for url in urls), "missing service-scoped Railway link"
 
 
@@ -1017,8 +1028,7 @@ def test_dashboard_external_integration_details_are_co_located() -> None:
     by_title = {p.get("title"): p for p in panels}
     external_row_y = by_title["External Integrations"]["gridPos"]["y"]
     next_row_y = next(
-        p["gridPos"]["y"] for p in dashboard["panels"]
-        if p.get("type") == "row" and p["gridPos"]["y"] > external_row_y
+        p["gridPos"]["y"] for p in dashboard["panels"] if p.get("type") == "row" and p["gridPos"]["y"] > external_row_y
     )
     for title in ("Bridge Scrape Health Timeline", "GitHub Workflows — Latest Run Detail"):
         y = by_title[title]["gridPos"]["y"]
@@ -1030,13 +1040,14 @@ def test_dashboard_external_checks_ignores_unconfigured_bridges() -> None:
     dashboard = json.loads(_DASHBOARD_JSON.read_text(encoding="utf-8"))
     panel = next(p for p in _dashboard_panels(dashboard) if p.get("title") == "External Checks")
     expr = panel["targets"][0]["expr"]
-    assert "live_overlay_uptimerobot_bridge_enabled" in expr
-    assert "live_overlay_github_workflow_bridge_enabled" in expr
+    assert "live_overlay_bridge_scrape_success" in expr
+    assert "live_overlay_bridge_enabled" in expr
+    assert 'bridge=~"uptimerobot|github_workflow"' in expr
     assert "vector(-1)" in expr, expr
     mappings = panel["fieldConfig"]["defaults"]["mappings"]
     options_keys = {k for m in mappings for k in m.get("options", {})}
     assert "-1" in options_keys, options_keys
-    labels = {m["options"][k]["text"] for m in mappings for k in m.get("options", {})}
+    labels = {v["text"] for m in mappings for v in (m.get("options") or {}).values()}
     assert "NO CHECKS CONFIGURED" in labels, labels
 
 
@@ -1061,16 +1072,17 @@ def test_dashboard_core_metrics_present_checks_critical_series() -> None:
     assert "absent(live_overlay_last_bar_age_known" in expr
 
 
-def test_dashboard_railway_bridge_shows_configured_vs_success() -> None:
-    """Railway Metrics Bridge must distinguish DISABLED, SCRAPE ERROR, OK."""
+def test_dashboard_railway_bridge_shows_generic_contract() -> None:
+    """Railway Metrics Bridge must use the generic bridge contract."""
     dashboard = json.loads(_DASHBOARD_JSON.read_text(encoding="utf-8"))
     panel = next(p for p in _dashboard_panels(dashboard) if p.get("title") == "Railway Metrics Bridge")
     expr = panel["targets"][0]["expr"]
-    assert "live_overlay_railway_metrics_configured" in expr
-    assert "live_overlay_railway_metrics_scrape_success" in expr
+    assert "live_overlay_bridge_enabled" in expr
+    assert "live_overlay_bridge_scrape_success" in expr
+    assert 'bridge="railway_metrics"' in expr
     assert "live_overlay_railway_metrics_enabled" not in expr, expr
     mappings = panel["fieldConfig"]["defaults"]["mappings"]
     options_keys = {k for m in mappings for k in m.get("options", {})}
     assert {"0", "1", "2"}.issubset(options_keys), options_keys
-    labels = {m["options"][k]["text"] for m in mappings for k in m.get("options", {})}
+    labels = {v["text"] for m in mappings for v in (m.get("options") or {}).values()}
     assert {"DISABLED", "SCRAPE ERROR", "OK"}.issubset(labels), labels
