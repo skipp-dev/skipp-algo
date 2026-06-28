@@ -123,6 +123,7 @@ name = "smc-live-overlay"
 | `OVERLAY_SECRET_TOKEN` | yes | — | HMAC + `/metrics` basic-auth secret |
 | `PORT` | yes | Railway injects | HTTP listen port |
 | `LIVE_OVERLAY_INGEST_QUEUE_MAX` | no | 10000 | Max queued bars before drop |
+| `LIVE_OVERLAY_EXPECT_MARKET_TRAFFIC` | no | `0` | Set to `1` in production deployments that should receive TradingView/Pine `/smc_live` traffic during US market-open windows. Arms the first-zero traffic alert. Leave `0` for local/dev/warm-standby. |
 | `LIVE_OVERLAY_RESTART_CAUSE` | no | — | Label for `live_overlay_daemon_restart_cause_*_total` |
 | `LOG_LEVEL` | no | `INFO` | Python log level |
 | `OVERLAY_FLOW_REFRESH_SECS` | no | — | Flow refresh interval |
@@ -170,6 +171,29 @@ name = "smc-live-overlay"
 | `GITHUB_WORKFLOW_MONITOR_POLL_TTL_SECS` | GitHub | Cache TTL |
 | `GITHUB_WORKFLOW_MONITOR_TIMEOUT_SECS` | GitHub | HTTP timeout |
 | `GITHUB_WORKFLOW_MONITOR_PER_PAGE` | GitHub | Pagination page size |
+
+### Expected market traffic alert rollout
+
+`LIVE_OVERLAY_EXPECT_MARKET_TRAFFIC` controls whether the deployment expects
+`/smc_live` request traffic during US market-open windows.
+
+- `0` default: first-zero traffic alerting is disabled.
+- `1`: alert when US market is open, the daemon has been up for more than
+  10 minutes, and `/smc_live` request traffic remains near zero.
+
+Production deployments that should receive TradingView/Pine traffic must set:
+
+```env
+LIVE_OVERLAY_EXPECT_MARKET_TRAFFIC=1
+```
+
+After rollout, verify:
+
+```promql
+live_overlay_expected_market_traffic{job="live_overlay"} == 1
+```
+
+If the deployment is local, dev, or warm-standby, leave the value at `0`.
 
 #### Alloy service
 

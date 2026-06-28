@@ -137,6 +137,7 @@ curl https://liveoverlaydaemon-production.up.railway.app/ready
 | `DATABENTO_API_KEY` | smc-live-overlay | ✅ | Databento API key (Unlimited) |
 | `OVERLAY_SECRET_TOKEN` | smc-live-overlay | ✅ | Shared Secret für `/metrics` Basic Auth und `/smc_live` URL |
 | `PORT` | smc-live-overlay | ✅ | von Railway injiziert |
+| `LIVE_OVERLAY_EXPECT_MARKET_TRAFFIC` | smc-live-overlay | optional | `1` in production wenn TradingView/Pine Traffic während US-Marktöffnung erwartet wird; default `0` hält den first-zero Traffic-Alert deaktiviert. |
 | `UPTIMEROBOT_API_KEY` | smc-live-overlay | optional | API-Key für UptimeRobot-Bridge |
 | `UPTIMEROBOT_MONITOR_IDS` | smc-live-overlay | optional | Kommagetrennte Monitor-IDs |
 | `GITHUB_WORKFLOW_MONITOR_TOKEN` | smc-live-overlay | optional | GitHub PAT für Workflow-Bridge |
