@@ -18,7 +18,8 @@ of Prometheus target labels, scrape logs, and remote-write metadata.
    ```
    OVERLAY_SECRET_TOKEN=<same as main daemon>
    # Current production uses the public Railway host without scheme.
-   # Private networking can use liveoverlaydaemon.railway.internal:<PORT>.
+   # Private networking can use liveoverlaydaemon.railway.internal:<PORT>
+   # after the live daemon runtime PORT is verified from inside Railway.
    OVERLAY_SERVICE_URL=liveoverlaydaemon-production.up.railway.app
    GRAFANA_CLOUD_PROM_URL=https://prometheus-prod-XX-prod-XX.grafana.net/api/prom/push
    GRAFANA_CLOUD_USER=<numeric stack ID>
@@ -27,8 +28,11 @@ of Prometheus target labels, scrape logs, and remote-write metadata.
 
 3. **No health check needed** — Alloy runs as a pure scraper without inbound traffic.
 
-4. **Networking**: Uses Railway Private Networking to reach the main daemon
-   (no public internet hop, no additional auth layer needed beyond the token).
+4. **Networking**: Prefer Railway Private Networking for the main-daemon scrape
+   once the runtime port is known. Do not set `OVERLAY_SERVICE_URL` to a bare
+   `.railway.internal` hostname; Alloy needs `host:port`. Keep the public
+   Railway host until `up{job="live_overlay"} == 1` has been confirmed after
+   the private-host switch.
 
 ## Grafana Cloud Free Tier
 
@@ -44,6 +48,8 @@ After deploying, verify in Grafana Cloud → Explore:
 live_overlay_smc_live_requests_total
 live_overlay_uptime_seconds
 live_overlay_feed_healthy
+up{job="live_overlay"}
+increase(prometheus_remote_storage_samples_failed_total{job="alloy"}[10m])
 ```
 
 ## Security note

@@ -1982,13 +1982,79 @@
       "id": 801261644
     },
     {
+      "id": 2165782571,
+      "title": "Traffic Alert Armed",
+      "type": "stat",
+      "description": "Is production first-zero traffic alerting armed? Shows LIVE_OVERLAY_EXPECT_MARKET_TRAFFIC; 1 means ARMED and 0 means NOT ARMED.",
+      "gridPos": {
+        "x": 18,
+        "y": 36,
+        "w": 6,
+        "h": 4
+      },
+      "targets": [
+        {
+          "expr": "live_overlay_expected_market_traffic{job=~\"$job\"}",
+          "legendFormat": "expected_market_traffic",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "grafanacloud-prom"
+          }
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "mappings": [
+            {
+              "type": "value",
+              "options": {
+                "0": {
+                  "text": "NOT ARMED",
+                  "color": "dark-red"
+                },
+                "1": {
+                  "text": "ARMED",
+                  "color": "dark-green"
+                }
+              }
+            }
+          ],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "dark-red",
+                "value": null
+              },
+              {
+                "color": "dark-green",
+                "value": 1
+              }
+            ]
+          },
+          "noValue": "NO SIGNAL"
+        }
+      },
+      "options": {
+        "colorMode": "background_solid",
+        "graphMode": "none",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        }
+      }
+    },
+    {
       "id": 2026029801,
       "title": "Operational Drill-down",
       "type": "row",
       "collapsed": false,
       "gridPos": {
         "x": 0,
-        "y": 36,
+        "y": 40,
         "w": 24,
         "h": 1
       },
@@ -1999,7 +2065,7 @@
       "type": "timeseries",
       "gridPos": {
         "x": 0,
-        "y": 37,
+        "y": 41,
         "w": 12,
         "h": 8
       },
@@ -2101,7 +2167,7 @@
       "type": "timeseries",
       "gridPos": {
         "x": 12,
-        "y": 37,
+        "y": 41,
         "w": 12,
         "h": 8
       },
@@ -2176,7 +2242,7 @@
       "type": "timeseries",
       "gridPos": {
         "x": 0,
-        "y": 45,
+        "y": 49,
         "w": 12,
         "h": 8
       },
@@ -2283,7 +2349,7 @@
       "type": "timeseries",
       "gridPos": {
         "x": 12,
-        "y": 45,
+        "y": 49,
         "w": 12,
         "h": 8
       },
@@ -2345,7 +2411,7 @@
       "type": "state-timeline",
       "gridPos": {
         "x": 0,
-        "y": 53,
+        "y": 57,
         "w": 12,
         "h": 6
       },
@@ -2442,7 +2508,7 @@
       "type": "stat",
       "gridPos": {
         "x": 12,
-        "y": 53,
+        "y": 57,
         "w": 6,
         "h": 6
       },
@@ -2512,7 +2578,7 @@
       "type": "stat",
       "gridPos": {
         "x": 18,
-        "y": 53,
+        "y": 57,
         "w": 6,
         "h": 6
       },
@@ -2571,7 +2637,7 @@
       "type": "stat",
       "gridPos": {
         "x": 12,
-        "y": 59,
+        "y": 63,
         "w": 6,
         "h": 6
       },
@@ -2639,7 +2705,7 @@
       "type": "timeseries",
       "gridPos": {
         "x": 0,
-        "y": 65,
+        "y": 69,
         "w": 12,
         "h": 8
       },
@@ -2715,7 +2781,7 @@
       "type": "timeseries",
       "gridPos": {
         "x": 12,
-        "y": 65,
+        "y": 69,
         "w": 12,
         "h": 8
       },
@@ -2782,7 +2848,7 @@
       "type": "state-timeline",
       "gridPos": {
         "x": 0,
-        "y": 73,
+        "y": 77,
         "w": 12,
         "h": 8
       },
@@ -2879,7 +2945,7 @@
       "type": "timeseries",
       "gridPos": {
         "x": 12,
-        "y": 73,
+        "y": 77,
         "w": 12,
         "h": 8
       },
@@ -2942,7 +3008,7 @@
       "type": "row",
       "gridPos": {
         "x": 0,
-        "y": 81,
+        "y": 85,
         "w": 24,
         "h": 1
       },
@@ -2959,7 +3025,7 @@
       "type": "state-timeline",
       "gridPos": {
         "x": 12,
-        "y": 82,
+        "y": 86,
         "w": 12,
         "h": 8
       },
@@ -3044,7 +3110,7 @@
       "type": "table",
       "gridPos": {
         "x": 0,
-        "y": 90,
+        "y": 94,
         "w": 24,
         "h": 14
       },
@@ -3288,7 +3354,7 @@
       "description": "Per-monitor UptimeRobot state over time. paused = monitor intentionally paused; unknown = unrecognized status code.",
       "gridPos": {
         "x": 0,
-        "y": 104,
+        "y": 108,
         "w": 24,
         "h": 6
       },
@@ -3380,7 +3446,7 @@
       "type": "stat",
       "gridPos": {
         "x": 0,
-        "y": 110,
+        "y": 114,
         "w": 6,
         "h": 4
       },
@@ -3449,7 +3515,7 @@
       "type": "stat",
       "gridPos": {
         "x": 6,
-        "y": 110,
+        "y": 114,
         "w": 6,
         "h": 4
       },
@@ -3517,7 +3583,7 @@
       "type": "stat",
       "gridPos": {
         "x": 12,
-        "y": 110,
+        "y": 114,
         "w": 6,
         "h": 4
       },
@@ -3592,7 +3658,7 @@
       "type": "timeseries",
       "gridPos": {
         "x": 18,
-        "y": 110,
+        "y": 114,
         "w": 12,
         "h": 8
       },
@@ -3683,7 +3749,7 @@
       "type": "stat",
       "gridPos": {
         "x": 0,
-        "y": 118,
+        "y": 122,
         "w": 6,
         "h": 4
       },
@@ -3752,7 +3818,7 @@
       "type": "stat",
       "gridPos": {
         "x": 6,
-        "y": 118,
+        "y": 122,
         "w": 6,
         "h": 4
       },
@@ -3820,7 +3886,7 @@
       "type": "stat",
       "gridPos": {
         "x": 12,
-        "y": 118,
+        "y": 122,
         "w": 6,
         "h": 4
       },
@@ -3895,7 +3961,7 @@
       "type": "timeseries",
       "gridPos": {
         "x": 18,
-        "y": 118,
+        "y": 122,
         "w": 12,
         "h": 8
       },
@@ -3975,7 +4041,7 @@
       "type": "state-timeline",
       "gridPos": {
         "x": 0,
-        "y": 126,
+        "y": 130,
         "w": 18,
         "h": 25
       },
@@ -4197,7 +4263,7 @@
       "type": "row",
       "gridPos": {
         "x": 0,
-        "y": 151,
+        "y": 155,
         "w": 24,
         "h": 1
       },
@@ -4214,7 +4280,7 @@
       "type": "timeseries",
       "gridPos": {
         "x": 0,
-        "y": 152,
+        "y": 156,
         "w": 12,
         "h": 8
       },
@@ -4260,7 +4326,7 @@
       "type": "timeseries",
       "gridPos": {
         "x": 12,
-        "y": 152,
+        "y": 156,
         "w": 12,
         "h": 8
       },
@@ -4305,7 +4371,7 @@
       "type": "timeseries",
       "gridPos": {
         "x": 0,
-        "y": 160,
+        "y": 164,
         "w": 24,
         "h": 8
       },
@@ -4350,7 +4416,7 @@
       "type": "timeseries",
       "gridPos": {
         "x": 0,
-        "y": 168,
+        "y": 172,
         "w": 12,
         "h": 8
       },
@@ -4433,7 +4499,7 @@
       "type": "timeseries",
       "gridPos": {
         "x": 12,
-        "y": 168,
+        "y": 172,
         "w": 12,
         "h": 8
       },
@@ -4503,7 +4569,7 @@
       "type": "row",
       "gridPos": {
         "x": 0,
-        "y": 176,
+        "y": 180,
         "w": 24,
         "h": 1
       },
@@ -4521,7 +4587,7 @@
       "description": "Legend for News Provider panels directly below.",
       "gridPos": {
         "x": 0,
-        "y": 177,
+        "y": 181,
         "w": 24,
         "h": 2
       },
@@ -4540,7 +4606,7 @@
       "type": "timeseries",
       "gridPos": {
         "x": 0,
-        "y": 179,
+        "y": 183,
         "w": 24,
         "h": 10
       },
@@ -4632,7 +4698,7 @@
       "type": "state-timeline",
       "gridPos": {
         "x": 0,
-        "y": 189,
+        "y": 193,
         "w": 12,
         "h": 8
       },
@@ -4727,7 +4793,7 @@
       "type": "timeseries",
       "gridPos": {
         "x": 12,
-        "y": 189,
+        "y": 193,
         "w": 6,
         "h": 8
       },
@@ -4772,7 +4838,7 @@
       "type": "timeseries",
       "gridPos": {
         "x": 18,
-        "y": 189,
+        "y": 193,
         "w": 6,
         "h": 8
       },
@@ -4849,7 +4915,7 @@
       "type": "timeseries",
       "gridPos": {
         "x": 0,
-        "y": 197,
+        "y": 201,
         "w": 12,
         "h": 8
       },
@@ -4896,7 +4962,7 @@
       "type": "table",
       "gridPos": {
         "x": 12,
-        "y": 197,
+        "y": 201,
         "w": 12,
         "h": 8
       },
@@ -5054,7 +5120,7 @@
       "collapsed": true,
       "gridPos": {
         "x": 0,
-        "y": 205,
+        "y": 209,
         "w": 24,
         "h": 1
       },
@@ -5070,7 +5136,7 @@
       },
       "gridPos": {
         "x": 0,
-        "y": 206,
+        "y": 210,
         "w": 12,
         "h": 8
       },
@@ -5103,7 +5169,7 @@
       },
       "gridPos": {
         "x": 12,
-        "y": 206,
+        "y": 210,
         "w": 12,
         "h": 8
       },
@@ -5131,7 +5197,7 @@
       "description": "Hours since the TradingView Playwright storage-state login (meta.authValidatedAt) was last validated, from the daily credential-health report (tv_storage_state_age probe). Policy TTL is 72h: green < 57.6h (80% warn band), yellow 57.6–72h, red once the cached login is older than 72h and must be re-captured. N/A when no report/age is available.",
       "gridPos": {
         "x": 0,
-        "y": 214,
+        "y": 218,
         "w": 6,
         "h": 5
       },
@@ -5196,7 +5262,7 @@
       "description": "Whether the latest credential-health report considers the TradingView storage-state login valid (severity not error). 1 = valid (cached login still within the 72h TTL), 0 = expired/error → re-capture TV_STORAGE_STATE. N/A when no report has been ingested yet.",
       "gridPos": {
         "x": 6,
-        "y": 214,
+        "y": 218,
         "w": 6,
         "h": 5
       },
@@ -5267,7 +5333,7 @@
       "collapsed": true,
       "gridPos": {
         "x": 0,
-        "y": 219,
+        "y": 223,
         "w": 24,
         "h": 1
       },
@@ -5283,7 +5349,7 @@
       "description": "Whether the Railway metrics bridge is enabled and its last poll succeeded.",
       "gridPos": {
         "x": 0,
-        "y": 220,
+        "y": 224,
         "w": 4,
         "h": 3
       },
@@ -5432,7 +5498,7 @@
       "description": "Seconds since the last successful Railway metrics poll.",
       "gridPos": {
         "x": 4,
-        "y": 220,
+        "y": 224,
         "w": 4,
         "h": 3
       },
@@ -5495,7 +5561,7 @@
       "description": "Latest Railway metrics bridge error class. OK when healthy.",
       "gridPos": {
         "x": 8,
-        "y": 220,
+        "y": 224,
         "w": 4,
         "h": 3
       },
@@ -5570,7 +5636,7 @@
       },
       "gridPos": {
         "x": 0,
-        "y": 223,
+        "y": 227,
         "w": 8,
         "h": 7
       },
@@ -5614,7 +5680,7 @@
       },
       "gridPos": {
         "x": 8,
-        "y": 223,
+        "y": 227,
         "w": 8,
         "h": 7
       },
@@ -5675,7 +5741,7 @@
       },
       "gridPos": {
         "x": 16,
-        "y": 223,
+        "y": 227,
         "w": 8,
         "h": 7
       },
@@ -5719,7 +5785,7 @@
       },
       "gridPos": {
         "x": 0,
-        "y": 230,
+        "y": 234,
         "w": 8,
         "h": 7
       },
@@ -5763,7 +5829,7 @@
       },
       "gridPos": {
         "x": 8,
-        "y": 230,
+        "y": 234,
         "w": 8,
         "h": 7
       },
@@ -5807,7 +5873,7 @@
       },
       "gridPos": {
         "x": 16,
-        "y": 230,
+        "y": 234,
         "w": 8,
         "h": 7
       },
@@ -5896,6 +5962,6 @@
   "timezone": "utc",
   "title": "SMC Live Overlay API",
   "uid": "smc-live-overlay-v1",
-  "version": 42,
+  "version": 43,
   "description": "Live-overlay daemon operational dashboard: feed health, worker liveness, SMC overlay freshness, external bridge status, provider health, daily experiment metrics, and Railway container resources."
 }

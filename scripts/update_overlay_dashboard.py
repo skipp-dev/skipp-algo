@@ -162,6 +162,62 @@ UPTIMEROBOT_PANEL: dict[str, Any] = {
 }
 
 
+_TRAFFIC_ALERT_ARMED_TITLE = "Traffic Alert Armed"
+_TRAFFIC_ALERT_ARMED_Y = 36
+_TRAFFIC_ALERT_ARMED_H = 4
+
+TRAFFIC_ALERT_ARMED_PANEL: dict[str, Any] = {
+    "id": 2165782571,
+    "title": _TRAFFIC_ALERT_ARMED_TITLE,
+    "type": "stat",
+    "description": (
+        "Is production first-zero traffic alerting armed? Shows "
+        "LIVE_OVERLAY_EXPECT_MARKET_TRAFFIC; 1 means ARMED and 0 means NOT ARMED."
+    ),
+    "gridPos": {"x": 18, "y": _TRAFFIC_ALERT_ARMED_Y, "w": 6, "h": _TRAFFIC_ALERT_ARMED_H},
+    "targets": [
+        {
+            "expr": 'live_overlay_expected_market_traffic{job=~"$job"}',
+            "legendFormat": "expected_market_traffic",
+            "datasource": {
+                "type": "prometheus",
+                "uid": "grafanacloud-prom",
+            },
+        }
+    ],
+    "fieldConfig": {
+        "defaults": {
+            "mappings": [
+                {
+                    "type": "value",
+                    "options": {
+                        "0": {"text": "NOT ARMED", "color": COLOR_ERROR},
+                        "1": {"text": "ARMED", "color": COLOR_OK},
+                    },
+                }
+            ],
+            "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                    {"color": COLOR_ERROR, "value": None},
+                    {"color": COLOR_OK, "value": 1},
+                ],
+            },
+            "noValue": "NO SIGNAL",
+        }
+    },
+    "options": {
+        "colorMode": "background_solid",
+        "graphMode": "none",
+        "reduceOptions": {
+            "calcs": ["lastNotNull"],
+            "fields": "",
+            "values": False,
+        },
+    },
+}
+
+
 def _resolve_dashboard_path(argv: list[str] | None = None) -> tuple[Path, bool]:
     parser = argparse.ArgumentParser(description="Update Grafana dashboard UX.")
     parser.add_argument(
@@ -326,6 +382,67 @@ def _ensure_uptimerobot_panel(data: dict[str, Any]) -> bool:
             return False
     data.setdefault("panels", []).append(copy.deepcopy(UPTIMEROBOT_PANEL))
     return True
+
+
+def _shift_v1_panels_at_or_after_y(
+    data: dict[str, Any],
+    start_y: int,
+    delta: int,
+    exclude_titles: set[str] | None = None,
+) -> bool:
+    changed = False
+    exclude_titles = exclude_titles or set()
+    for panel in data.get("panels", []) or []:
+        if panel.get("title") in exclude_titles:
+            continue
+        grid_pos = panel.get("gridPos")
+        if not isinstance(grid_pos, dict):
+            continue
+        y = grid_pos.get("y")
+        if isinstance(y, int) and y >= start_y:
+            grid_pos["y"] = y + delta
+            changed = True
+    return changed
+
+
+def _ensure_traffic_alert_armed_panel(data: dict[str, Any]) -> bool:
+    """Keep the production traffic-alert arming tile in the incident overview."""
+    changed = False
+    desired = copy.deepcopy(TRAFFIC_ALERT_ARMED_PANEL)
+    panel = _v1_panel_by_title(data, _TRAFFIC_ALERT_ARMED_TITLE)
+    desired_bottom = _TRAFFIC_ALERT_ARMED_Y + _TRAFFIC_ALERT_ARMED_H
+
+    operational_row = _v1_panel_by_title(data, "Operational Drill-down")
+    if operational_row:
+        row_grid = operational_row.get("gridPos", {})
+        row_y = row_grid.get("y")
+        if isinstance(row_y, int) and row_y < desired_bottom:
+            changed = (
+                _shift_v1_panels_at_or_after_y(
+                    data,
+                    row_y,
+                    desired_bottom - row_y,
+                    exclude_titles={_TRAFFIC_ALERT_ARMED_TITLE},
+                )
+                or changed
+            )
+
+    if panel is None:
+        panels = data.setdefault("panels", [])
+        insert_at = len(panels)
+        for idx, candidate in enumerate(panels):
+            candidate_y = candidate.get("gridPos", {}).get("y")
+            if isinstance(candidate_y, int) and candidate_y >= desired_bottom:
+                insert_at = idx
+                break
+        panels.insert(insert_at, desired)
+        return True
+
+    for key, value in desired.items():
+        if panel.get(key) != value:
+            panel[key] = copy.deepcopy(value)
+            changed = True
+    return changed
 
 
 def _elements(data: dict[str, Any]) -> dict[str, Any]:
@@ -1250,6 +1367,7 @@ def main(argv: list[str] | None = None) -> int:
         changed = _ensure_signal_pipeline_links(data) or changed
         changed = _fix_triage_guide_signal_path(data) or changed
         changed = _fix_market_traffic_health_description(data) or changed
+        changed = _ensure_traffic_alert_armed_panel(data) or changed
         changed = _fix_market_data_freshness_panel(data) or changed
         changed = _fix_core_metrics_present_panel(data) or changed
         changed = _fix_railway_bridge_panel(data) or changed

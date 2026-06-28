@@ -21,6 +21,15 @@ _DASHBOARD_JSON = _REPO_ROOT / "services" / "live_overlay_daemon" / "infra" / "g
 _ALERT_RULES_YAML = _REPO_ROOT / "services" / "live_overlay_daemon" / "infra" / "grafana" / "alert-rules.yaml"
 
 
+def _alert_rule(uid: str) -> dict:
+    rules_doc = yaml.safe_load(_ALERT_RULES_YAML.read_text(encoding="utf-8"))
+    for group in rules_doc["groups"]:
+        for rule in group["rules"]:
+            if rule.get("uid") == uid:
+                return rule
+    raise AssertionError(f"missing alert rule {uid!r}")
+
+
 def _iter_legacy_panels(panels: list[dict]) -> list[dict]:
     out: list[dict] = []
     for panel in panels:
@@ -227,9 +236,7 @@ def test_dashboard_railway_bridge_state_uses_enabled_plus_success() -> None:
 
 def test_alert_rules_include_expected_traffic_missing_alert() -> None:
     """Expected traffic alert must fire when expected traffic is absent during US open."""
-    rules_doc = yaml.safe_load(_ALERT_RULES_YAML.read_text(encoding="utf-8"))
-    rules = [r for group in rules_doc["groups"] for r in group["rules"]]
-    rule = next(r for r in rules if r.get("uid") == "lo-request-rate-absent-open")
+    rule = _alert_rule("lo-request-rate-absent-open")
     expr = rule["data"][0]["model"]["expr"]
 
     assert "live_overlay_expected_market_traffic" in expr
@@ -240,11 +247,64 @@ def test_alert_rules_include_expected_traffic_missing_alert() -> None:
     assert rule.get("for") in ("10m", "10")
 
 
+def test_alert_rules_include_expected_traffic_armed_guard() -> None:
+    """Production must alert if the first-zero traffic guard is not armed."""
+    rule = _alert_rule("lo-expected-traffic-not-armed")
+    expr = rule["data"][0]["model"]["expr"]
+
+    assert "live_overlay_expected_market_traffic" in expr
+    assert "== bool 0" in expr
+    assert rule["labels"]["severity"] == "warning"
+    assert rule.get("for") == "15m"
+
+
+def test_alert_rules_guard_uptimerobot_monitor_count_and_down_total() -> None:
+    """UptimeRobot bridge must enforce the production monitor set and down count."""
+    count_rule = _alert_rule("lo-uptimerobot-monitor-count-mismatch")
+    count_expr = count_rule["data"][0]["model"]["expr"]
+    assert "live_overlay_uptimerobot_bridge_enabled" in count_expr
+    assert "live_overlay_uptimerobot_monitors_total" in count_expr
+    assert "!= bool 5" in count_expr
+
+    down_rule = _alert_rule("lo-uptimerobot-monitor-down")
+    down_expr = down_rule["data"][0]["model"]["expr"]
+    assert "live_overlay_uptimerobot_bridge_enabled" in down_expr
+    assert "live_overlay_uptimerobot_monitors_down_total" in down_expr
+    assert "> bool 0" in down_expr
+    assert down_rule["labels"]["severity"] == "critical"
+
+
+def test_alert_rules_use_railway_memory_ratio_thresholds() -> None:
+    """Railway memory alerts should use usage/limit ratio instead of only static RSS."""
+    warning = _alert_rule("lo-railway-memory-ratio-high")
+    warning_expr = warning["data"][0]["model"]["expr"]
+    assert "live_overlay_railway_service_memory_used_ratio" in warning_expr
+    assert "> 0.75" in warning_expr
+    assert "service_id" in warning_expr
+    assert warning["labels"]["severity"] == "warning"
+
+    critical = _alert_rule("lo-railway-memory-ratio-critical")
+    critical_expr = critical["data"][0]["model"]["expr"]
+    assert "live_overlay_railway_service_memory_used_ratio" in critical_expr
+    assert "> 0.90" in critical_expr
+    assert "service_id" in critical_expr
+    assert critical["labels"]["severity"] == "critical"
+
+
+def test_alert_rules_include_alloy_remote_write_failure_guard() -> None:
+    """Alloy must alert when remote-write starts dropping samples."""
+    rule = _alert_rule("alloy-remote-write-failures")
+    expr = rule["data"][0]["model"]["expr"]
+
+    assert "increase(prometheus_remote_storage_samples_failed_total" in expr
+    assert '{job="alloy"}[10m]' in expr
+    assert "> 0" in expr
+    assert rule["labels"]["severity"] == "warning"
+
+
 def test_alert_rules_include_generic_bridge_failure_alert() -> None:
     """Generic bridge failure alert must use enabled + scrape_success without configured gate."""
-    rules_doc = yaml.safe_load(_ALERT_RULES_YAML.read_text(encoding="utf-8"))
-    rules = [r for group in rules_doc["groups"] for r in group["rules"]]
-    rule = next(r for r in rules if r.get("uid") == "lo-bridge-scrape-failed")
+    rule = _alert_rule("lo-bridge-scrape-failed")
     expr = rule["data"][0]["model"]["expr"]
 
     assert "live_overlay_bridge_enabled" in expr
@@ -622,6 +682,7 @@ PROMOTED_SLO_TITLES = {
     "Core Metrics Present",
     "Latency vs. SLO (ms)",
     "Error Budget Burn Rate",
+    "Traffic Alert Armed",
 }
 
 
@@ -638,6 +699,8 @@ def test_dashboard_user_impact_block_is_promoted_to_top() -> None:
     assert by_title["Core Metrics Present"]["gridPos"]["y"] == 23
     assert by_title["Latency vs. SLO (ms)"]["gridPos"]["y"] == 28
     assert by_title["Error Budget Burn Rate"]["gridPos"]["y"] == 28
+    assert by_title["Traffic Alert Armed"]["gridPos"]["y"] == 36
+    assert by_title["Traffic Alert Armed"]["gridPos"]["y"] < by_title["Operational Drill-down"]["gridPos"]["y"]
 
 
 def test_dashboard_title_uses_api_not_daemon() -> None:
@@ -799,6 +862,7 @@ def test_dashboard_top_incident_path_is_above_drilldown() -> None:
         "Core Metrics Present",
         "Latency vs. SLO (ms)",
         "Error Budget Burn Rate",
+        "Traffic Alert Armed",
     ):
         assert y[title] < y["Operational Drill-down"], title
 
@@ -1117,6 +1181,23 @@ def test_dashboard_core_metrics_present_checks_critical_series() -> None:
     assert "absent(live_overlay_smc_live_success_total" in expr
     assert "absent(live_overlay_smc_live_errors_total" in expr
     assert "absent(live_overlay_smc_live_latency_ms_count" in expr
+
+
+def test_dashboard_traffic_alert_armed_tile_uses_expected_market_traffic() -> None:
+    """Traffic Alert Armed must show the production arming flag directly."""
+    dashboard = json.loads(_DASHBOARD_JSON.read_text(encoding="utf-8"))
+    panels = {p.get("title"): p for p in _dashboard_panels(dashboard)}
+    panel = panels["Traffic Alert Armed"]
+    expr = panel["targets"][0]["expr"]
+    mappings = panel["fieldConfig"]["defaults"]["mappings"]
+    labels = {v["text"]: v["color"] for m in mappings for v in (m.get("options") or {}).values()}
+
+    assert expr == 'live_overlay_expected_market_traffic{job=~"$job"}'
+    assert panel["targets"][0]["legendFormat"] == "expected_market_traffic"
+    assert labels["NOT ARMED"] == "dark-red"
+    assert labels["ARMED"] == "dark-green"
+    assert panel["fieldConfig"]["defaults"].get("noValue") == "NO SIGNAL"
+    assert panel["gridPos"]["y"] < panels["Operational Drill-down"]["gridPos"]["y"]
 
 
 def test_dashboard_railway_bridge_shows_generic_contract() -> None:

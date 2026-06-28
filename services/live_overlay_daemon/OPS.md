@@ -89,6 +89,22 @@ Required Alloy environment variables:
 
 Alloy config file: `services/live_overlay_daemon/infra/alloy/config.alloy`
 
+Alloy self-metrics are scraped as `job="alloy"`. The alert
+`alloy-remote-write-failures` pages when
+`increase(prometheus_remote_storage_samples_failed_total{job="alloy"}[10m]) > 0`,
+so remote-write drops are visible even when the scrape targets themselves still
+look healthy.
+
+Private Railway networking is supported by `OVERLAY_SERVICE_URL`, but do not set
+a bare `.railway.internal` host. The value must include the live daemon runtime
+port, e.g. `liveoverlaydaemon.railway.internal:<PORT>`. Keep the public Railway
+host in production until the runtime port has been verified from inside Railway,
+then switch the metrics-collector variable and confirm:
+
+```promql
+up{job="live_overlay"} == 1
+```
+
 ---
 
 ## Railway
@@ -437,9 +453,20 @@ After rollout, verify:
 live_overlay_expected_market_traffic{job="live_overlay"} == 1
 ```
 
-Local, dev, and warm-standby deployments should normally leave the value at
-`0`.
+The dashboard tile **Traffic Alert Armed** shows the same gauge:
 
+- `0` = `NOT ARMED`
+- `1` = `ARMED`
+
+Production also has a guard alert:
+
+```promql
+live_overlay_expected_market_traffic{job="live_overlay"} == bool 0
+```
+
+If this fires in production, set `LIVE_OVERLAY_EXPECT_MARKET_TRAFFIC=1` before
+trusting the first-zero traffic alerts. Local, dev, and warm-standby deployments
+should normally leave the value at `0`.
 
 ### Dashboard masking semantics
 
@@ -681,6 +708,28 @@ Implementation: `services/live_overlay_daemon/uptimerobot_bridge.py`
 
 4. Restart the daemon.
 
+### Production guards
+
+Production expects exactly five UptimeRobot monitors in the bridge allowlist.
+Grafana alerts enforce both the count and the external-down state:
+
+```promql
+(live_overlay_uptimerobot_bridge_enabled{job="live_overlay"} == 1)
+* on(job)
+(live_overlay_uptimerobot_monitors_total{job="live_overlay"} != bool 5)
+```
+
+```promql
+(live_overlay_uptimerobot_bridge_enabled{job="live_overlay"} == 1)
+* on(job)
+(live_overlay_uptimerobot_monitors_down_total{job="live_overlay"} > bool 0)
+```
+
+If the count alert fires, compare `UPTIMEROBOT_MONITOR_IDS` in Railway with the
+UptimeRobot dashboard. If the down alert fires, correlate the failed public
+probe with Railway `/health`, `/ready`, deploy history, and the
+**External Integrations** dashboard row.
+
 ---
 
 ## GitHub Workflow Bridge
@@ -730,6 +779,30 @@ Implementation: `services/live_overlay_daemon/github_workflow_bridge.py`
 | Daemon | GitHub API | HTTPS | `GITHUB_WORKFLOW_MONITOR_TOKEN` | Outbound | Workflow run status |
 | Railway healthcheck | Daemon `/health` | HTTP | none | Inbound | 200 OK liveness |
 | UptimeRobot probe | Daemon `/health` | HTTP/HTTPS | none | Inbound | HEAD/GET probe |
+
+### `/smc_live` synthetic canary plan
+
+Do **not** place the production `OVERLAY_SECRET_TOKEN` in UptimeRobot for a
+`/{token}/smc_live` synthetic probe. The token is not independently rotatable for
+that third-party monitor, so a UptimeRobot leak would force the same secret used
+by Pine consumers and `/metrics`.
+
+Current production coverage stays:
+
+- UptimeRobot probes unauthenticated liveness/readiness-style endpoints.
+- Grafana alerts detect first-zero `/smc_live` traffic during US market open
+  through `live_overlay_expected_market_traffic` and request-rate metrics.
+- Auth-denied spikes are monitored via `live_overlay_smc_live_auth_denied`.
+
+Future safe options, in order of preference:
+
+1. Add a non-secret contract endpoint such as `/ready/smc_live_contract` that
+   validates cache/compute readiness without returning customer-token-protected
+   overlay payloads.
+2. Run an internal synthetic from `metrics-collector` over Railway private
+   networking with a token that is not shared with Pine consumers.
+3. Keep the current Grafana first-zero request-rate detector as the end-to-end
+   traffic guard if neither of the above is approved.
 
 ---
 
