@@ -11,6 +11,7 @@ import copy
 import json
 import logging
 import os
+import re
 import tempfile
 from pathlib import Path
 from typing import Any
@@ -603,6 +604,65 @@ def _railway_link(title: str, key: str) -> dict[str, Any]:
     }
 
 
+def _fix_detail_row_descriptions(data: dict[str, Any]) -> bool:
+    """Ensure service-owner detail rows carry the expected description phrase.
+
+    The contract test ``test_dashboard_detail_rows_are_marked_as_service_owner_details``
+    expects the literal phrase "service-owner detail" in each detail-row description.
+    """
+    changed = False
+    desired_phrase = "service-owner detail"
+    detail_rows = {
+        "Provider Health",
+        "Collector / Scrape Targets",
+        "Railway Resources",
+    }
+    desired_descriptions = {
+        "Provider Health": "Service-owner detail row for live news provider health.",
+        "Collector / Scrape Targets": "Service-owner detail row for telemetry pipeline health.",
+        "Railway Resources": "Service-owner detail row for Railway container capacity and bridge health.",
+    }
+    for panel in data.get("panels", []) or []:
+        if panel.get("type") != "row" or panel.get("title") not in detail_rows:
+            continue
+        desc = panel.get("description", "")
+        if desired_phrase not in desc.lower():
+            panel["description"] = desired_descriptions[panel["title"]]
+            changed = True
+    return changed
+
+
+def _fix_drilldown_links_to_rows(data: dict[str, Any]) -> bool:
+    """Heal drilldown links whose viewPanel IDs no longer match any panel.
+
+    Re-writes panel links that reference a row title to use the row's current
+    panel id, preventing broken anchor links in the deployed dashboard.
+    """
+    changed = False
+    row_ids = {}
+    for panel in data.get("panels", []) or []:
+        title = panel.get("title")
+        if panel.get("type") == "row" and title and "id" in panel:
+            row_ids[title] = panel["id"]
+
+    for panel in _iter_v1_panels(data):
+        for link in panel.get("links", []) or []:
+            url = link.get("url", "")
+            m = re.search(r"viewPanel=(\d+)", url)
+            if not m:
+                continue
+            existing_id = int(m.group(1))
+            if any(p.get("id") == existing_id for p in data.get("panels", []) or []):
+                continue
+            target_title = link.get("title", "")
+            if target_title in row_ids:
+                new_url = re.sub(r"viewPanel=\d+", f"viewPanel={row_ids[target_title]}", url)
+                if new_url != url:
+                    link["url"] = new_url
+                    changed = True
+    return changed
+
+
 def _fix_triage_guide_railway_links(data: dict[str, Any]) -> bool:
     """Replace generic Railway links in the Incident Triage Guide with concrete URLs."""
     changed = False
@@ -776,6 +836,8 @@ def main(argv: list[str] | None = None) -> int:
         # something actually changed).
         changed = _ensure_railway_resource_links(data)
         changed = _fix_triage_guide_railway_links(data) or changed
+        changed = _fix_detail_row_descriptions(data) or changed
+        changed = _fix_drilldown_links_to_rows(data) or changed
         changed = _ensure_uptimerobot_panel(data)
         changed = _fix_bridge_scrapes_panel(data) or changed
         changed = _fix_bridge_error_panels(data) or changed

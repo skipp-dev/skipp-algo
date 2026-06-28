@@ -528,7 +528,7 @@
         {
           "title": "External Integrations",
           "type": "link",
-          "url": "/d/smc-live-overlay-v1?orgId=1&viewPanel=2503",
+          "url": "/d/smc-live-overlay-v1?orgId=1&viewPanel=692020449",
           "targetBlank": true
         }
       ]
@@ -1402,7 +1402,7 @@
         {
           "title": "Collector / Scrape Targets",
           "type": "link",
-          "url": "/d/smc-live-overlay-v1?orgId=1&viewPanel=4374",
+          "url": "/d/smc-live-overlay-v1?orgId=1&viewPanel=2133310722",
           "targetBlank": true
         }
       ]
@@ -3868,7 +3868,7 @@
       },
       "collapsed": false,
       "panels": [],
-      "description": "Row grouping for live news provider health.",
+      "description": "Service-owner detail row for live news provider health.",
       "datasource": {
         "type": "prometheus",
         "uid": "grafanacloud-prom"
@@ -4420,7 +4420,7 @@
       },
       "panels": [],
       "id": 2133310722,
-      "description": "Telemetry pipeline health: scrape target liveness and collector memory."
+      "description": "Service-owner detail row for telemetry pipeline health."
     },
     {
       "title": "Scrape Targets Up",
@@ -4880,7 +4880,7 @@
         "type": "prometheus",
         "uid": "grafanacloud-prom"
       },
-      "description": "Railway container capacity and bridge health for service-owner review."
+      "description": "Service-owner detail row for Railway container capacity and bridge health."
     },
     {
       "title": "Railway Metrics Bridge",
