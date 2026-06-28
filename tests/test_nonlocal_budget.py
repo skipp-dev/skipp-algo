@@ -106,7 +106,8 @@ _FROZEN_SITES: frozenset[tuple[str, int, tuple[str, ...]]] = frozenset(
         ("smc_core/ensemble_quality.py", 188, ("active_weight", "weighted_total")),
         # 2026-06-25: worker-thread target for interruptible AsyncNewsstackPoller
         # poll loop uses nonlocal to ferry result/error back to the caller.
-        ("open_prep/realtime_signals.py", 562, ("error", "result")),
+        # 2026-06-28 (semantic monitoring): shifted +20 lines by readiness metrics.
+        ("open_prep/realtime_signals.py", 586, ("error", "result")),
     }
 )
 

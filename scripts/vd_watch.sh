@@ -45,8 +45,8 @@ LOG_FILE="$PROJECT_DIR/artifacts/open_prep/latest/realtime_signals.log"
 if ! pgrep -f "open_prep.realtime_signals" >/dev/null 2>&1; then
   echo "▶️  Starte Realtime-Engine im Hintergrund …"
   mkdir -p "$(dirname "$LOG_FILE")"
-  nohup env PYTHONPATH="$PROJECT_DIR" \
-    "$VENV_PYTHON" -m open_prep.realtime_signals --interval 45 \
+  nohup env PYTHONPATH="$PROJECT_DIR" TELEMETRY_BIND_HOST=127.0.0.1 \
+    "$VENV_PYTHON" -m open_prep.realtime_signals --interval 45 --port 8099 \
     > "$LOG_FILE" 2>&1 &
   echo "  ▶️  Engine gestartet (PID $!)"
   sleep 1

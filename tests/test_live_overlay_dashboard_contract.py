@@ -576,12 +576,12 @@ def test_dashboard_user_impact_block_is_promoted_to_top() -> None:
     by_title = {p.get("title"): p for p in panels}
     for title in PROMOTED_SLO_TITLES:
         assert title in by_title, f"missing panel: {title}"
-    assert by_title["Success Rate (%)"]["gridPos"]["y"] == 23
-    assert by_title["Market Traffic Health"]["gridPos"]["y"] == 23
-    assert by_title["Market Data Freshness"]["gridPos"]["y"] == 23
-    assert by_title["Core Metrics Present"]["gridPos"]["y"] == 23
-    assert by_title["Latency vs. SLO (ms)"]["gridPos"]["y"] == 29
-    assert by_title["Error Budget Burn Rate"]["gridPos"]["y"] == 29
+    assert by_title["Success Rate (%)"]["gridPos"]["y"] == 26
+    assert by_title["Market Traffic Health"]["gridPos"]["y"] == 26
+    assert by_title["Market Data Freshness"]["gridPos"]["y"] == 26
+    assert by_title["Core Metrics Present"]["gridPos"]["y"] == 26
+    assert by_title["Latency vs. SLO (ms)"]["gridPos"]["y"] == 32
+    assert by_title["Error Budget Burn Rate"]["gridPos"]["y"] == 32
 
 
 def test_dashboard_title_uses_api_not_daemon() -> None:
@@ -808,3 +808,89 @@ def test_dashboard_detail_rows_are_marked_as_service_owner_details() -> None:
     for title in detail_rows:
         desc = rows[title].get("description", "")
         assert "service-owner detail" in desc.lower(), f"{title}: {desc}"
+
+
+# --------------------------------------------------------------------------- #
+# Signals-producer readiness panels and alerts
+# --------------------------------------------------------------------------- #
+
+def test_dashboard_has_signal_pipeline_ready_panel() -> None:
+    dashboard = json.loads(_DASHBOARD_JSON.read_text(encoding="utf-8"))
+    titles = {p.get("title") for p in _dashboard_panels(dashboard)}
+    assert "Signal Pipeline Ready" in titles
+
+
+def test_dashboard_signal_pipeline_ready_panel_uses_boolean_expression() -> None:
+    dashboard = json.loads(_DASHBOARD_JSON.read_text(encoding="utf-8"))
+    panels = _dashboard_panels(dashboard)
+    panel = next(p for p in panels if p.get("title") == "Signal Pipeline Ready")
+    expr = panel["targets"][0]["expr"]
+    assert "signals_producer_watchlist_symbols" in expr
+    assert "signals_producer_open_prep_snapshot_loaded" in expr
+    assert "signals_producer_last_poll_age_seconds" in expr
+    assert "bool" in expr
+    # Age==0 (before first poll) must not be treated as ready.
+    assert "clamp_min" in expr
+
+
+def test_dashboard_has_open_prep_snapshot_panel() -> None:
+    dashboard = json.loads(_DASHBOARD_JSON.read_text(encoding="utf-8"))
+    titles = {p.get("title") for p in _dashboard_panels(dashboard)}
+    assert "Open-Prep Snapshot" in titles
+
+
+def test_dashboard_has_watchlist_symbols_panel() -> None:
+    dashboard = json.loads(_DASHBOARD_JSON.read_text(encoding="utf-8"))
+    titles = {p.get("title") for p in _dashboard_panels(dashboard)}
+    assert "Watchlist Symbols" in titles
+
+
+def test_dashboard_has_producer_poll_age_panel() -> None:
+    dashboard = json.loads(_DASHBOARD_JSON.read_text(encoding="utf-8"))
+    titles = {p.get("title") for p in _dashboard_panels(dashboard)}
+    assert "Producer Poll Age" in titles
+
+
+def test_dashboard_signal_readiness_panels_are_at_y17() -> None:
+    dashboard = json.loads(_DASHBOARD_JSON.read_text(encoding="utf-8"))
+    panels = _dashboard_panels(dashboard)
+    readiness = [p for p in panels if p.get("title") in (
+        "Signal Pipeline Ready", "Open-Prep Snapshot", "Watchlist Symbols", "Producer Poll Age"
+    )]
+    assert len(readiness) == 4
+    for panel in readiness:
+        assert panel["gridPos"]["y"] == 17, panel["title"]
+
+
+def test_alert_rules_include_signals_producer_readiness_group() -> None:
+    rules_doc = yaml.safe_load(_ALERT_RULES_YAML.read_text(encoding="utf-8"))
+    group_names = [g.get("name") for g in rules_doc["groups"]]
+    assert "signals-producer-readiness" in group_names
+
+
+def test_alert_rules_watchlist_empty_uses_watchlist_symbols() -> None:
+    rules_doc = yaml.safe_load(_ALERT_RULES_YAML.read_text(encoding="utf-8"))
+    group = next(g for g in rules_doc["groups"] if g.get("name") == "signals-producer-readiness")
+    rule = next(r for r in group["rules"] if r.get("uid") == "sp-watchlist-empty")
+    expr = rule["data"][0]["model"]["expr"]
+    assert "signals_producer_watchlist_symbols" in expr
+    assert rule["labels"]["severity"] == "warning"
+
+
+def test_alert_rules_snapshot_missing_uses_snapshot_loaded() -> None:
+    rules_doc = yaml.safe_load(_ALERT_RULES_YAML.read_text(encoding="utf-8"))
+    group = next(g for g in rules_doc["groups"] if g.get("name") == "signals-producer-readiness")
+    rule = next(r for r in group["rules"] if r.get("uid") == "sp-snapshot-missing")
+    expr = rule["data"][0]["model"]["expr"]
+    assert "signals_producer_open_prep_snapshot_loaded" in expr
+    assert rule["labels"]["severity"] == "warning"
+
+
+def test_alert_rules_poll_stale_uses_last_poll_age() -> None:
+    rules_doc = yaml.safe_load(_ALERT_RULES_YAML.read_text(encoding="utf-8"))
+    group = next(g for g in rules_doc["groups"] if g.get("name") == "signals-producer-readiness")
+    rule = next(r for r in group["rules"] if r.get("uid") == "sp-poll-stale")
+    expr = rule["data"][0]["model"]["expr"]
+    assert "signals_producer_last_poll_age_seconds" in expr
+    assert "300" in expr
+    assert rule["labels"]["severity"] == "warning"

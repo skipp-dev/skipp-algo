@@ -138,6 +138,30 @@ def _read_json_file(path: Path) -> dict[str, Any] | None:
         return None
 
 
+def _extract_snapshot_epoch(data: dict[str, Any] | None) -> float:
+    """Best-effort epoch extraction from an Open-Prep snapshot."""
+    if not data:
+        return 0.0
+    raw = data.get("generated_at")
+    if isinstance(raw, (int, float)):
+        return float(raw)
+    if isinstance(raw, str):
+        raw = raw.strip()
+        if raw:
+            try:
+                # Python's fromisoformat does not accept a trailing 'Z' before 3.11.
+                dt = datetime.fromisoformat(raw.replace("Z", "+00:00"))
+                if dt.tzinfo is None:
+                    dt = dt.replace(tzinfo=UTC)
+                return dt.timestamp()
+            except ValueError:
+                try:
+                    return float(raw)
+                except ValueError:
+                    pass
+    return 0.0
+
+
 def _update_rt_engine_status(*, running: bool, pid: int | None, error: str | None = None) -> None:
     _write_json_atomically(
         _RT_ENGINE_STATUS_FILE,
@@ -751,12 +775,16 @@ class ScoreTelemetry:
 _PROCESS_START_TIME = time.time()
 
 
-def _collect_process_metrics() -> str:
+def _collect_process_metrics(engine: Any | None = None) -> str:
     """Return Prometheus exposition format metrics for this process.
 
     Pure-stdlib implementation — no prometheus_client dependency required.
     Emits standard process metrics (cpu, memory, fds, uptime) plus
     Python GC stats.  Designed for Alloy/Grafana Cloud Prometheus scraping.
+
+    When ``engine`` is provided, additional semantic readiness gauges
+    are emitted so Grafana can alert on watchlist/snapshot/poll health
+    without treating "zero active signals" as an incident.
     """
     import gc as _gc
     import platform as _platform
@@ -836,6 +864,24 @@ def _collect_process_metrics() -> str:
     for i, stat in enumerate(gc_stats):
         lines.append(f'{_prefix}_python_gc_collections_total{{generation="{i}"}} {stat["collections"]}')
 
+    if engine is not None:
+        now = time.time()
+        poll_age = (
+            max(0.0, now - engine.last_poll_success_epoch)
+            if engine.last_poll_success_epoch > 0
+            else 999999.0
+        )
+        lines.append(f"# TYPE {_prefix}_watchlist_symbols gauge")
+        lines.append(f"{_prefix}_watchlist_symbols {len(engine._watchlist)}")
+        lines.append(f"# TYPE {_prefix}_open_prep_snapshot_loaded gauge")
+        lines.append(f"{_prefix}_open_prep_snapshot_loaded {engine.open_prep_snapshot_loaded}")
+        lines.append(f"# TYPE {_prefix}_open_prep_snapshot_age_seconds gauge")
+        lines.append(f"{_prefix}_open_prep_snapshot_age_seconds {engine.open_prep_snapshot_age_seconds:.1f}")
+        lines.append(f"# TYPE {_prefix}_last_poll_age_seconds gauge")
+        lines.append(f"{_prefix}_last_poll_age_seconds {poll_age:.1f}")
+        lines.append(f"# TYPE {_prefix}_last_poll_duration_seconds gauge")
+        lines.append(f"{_prefix}_last_poll_duration_seconds {engine.last_poll_duration_seconds:.3f}")
+
     return "\n".join(lines) + "\n"
 
 
@@ -876,6 +922,25 @@ def _start_telemetry_server(
                 self.send_header("Content-Type", "text/plain")
                 self.end_headers()
                 self.wfile.write(b"ok\n")
+            elif self.path == "/readyz":
+                ready = False
+                reason = "engine not initialised"
+                if engine is None:
+                    pass
+                elif len(getattr(engine, "_watchlist", [])) == 0:
+                    reason = "watchlist not loaded"
+                elif getattr(engine, "open_prep_snapshot_loaded", 0.0) != 1.0:
+                    reason = "open-prep snapshot not loaded"
+                else:
+                    poll_age = max(0.0, time.time() - getattr(engine, "last_poll_success_epoch", 0.0))
+                    if poll_age < 300:
+                        ready = True
+                    else:
+                        reason = f"last poll stale ({poll_age:.0f}s ago)"
+                self.send_response(200 if ready else 503)
+                self.send_header("Content-Type", "text/plain")
+                self.end_headers()
+                self.wfile.write(b"ready\n" if ready else reason.encode() + b"\n")
             elif self.path in ("/telemetry.json", "/telemetry"):
                 import json as _json
                 try:
@@ -927,7 +992,7 @@ def _start_telemetry_server(
                         self.send_response(401)
                         self.end_headers()
                         return
-                body = _collect_process_metrics().encode()
+                body = _collect_process_metrics(engine).encode()
                 self.send_response(200)
                 self.send_header("Content-Type", "text/plain; version=0.0.4; charset=utf-8")
                 self.end_headers()
@@ -1695,6 +1760,17 @@ class RealtimeEngine:
         # Timing — last poll duration for adaptive sleep
         self.last_poll_duration: float = 0.0
 
+        # Semantic readiness gauges for Grafana alerts and /readyz.
+        # These describe pipeline health, not the presence of A0/A1 signals.
+        self.watchlist_load_success: float = 0.0
+        self.watchlist_loaded_at: float = 0.0
+        self.watchlist_symbols: int = 0
+        self.open_prep_snapshot_loaded: float = 0.0
+        self.open_prep_snapshot_age_seconds: float = 0.0
+        self.last_poll_attempt_epoch: float = 0.0
+        self.last_poll_success_epoch: float = 0.0
+        self.last_poll_duration_seconds: float = 0.0
+
         self._load_watchlist()
         self._restore_signals_from_disk()
 
@@ -1831,6 +1907,14 @@ class RealtimeEngine:
                 full = full[:self.top_n]
 
             self._watchlist = full
+
+            # Semantic readiness: snapshot/watchlist state
+            now = time.time()
+            self.watchlist_symbols = len(self._watchlist)
+            self.watchlist_load_success = 1.0 if self._watchlist else 0.0
+            self.watchlist_loaded_at = now
+            self.open_prep_snapshot_loaded = 1.0 if data else 0.0
+            self.open_prep_snapshot_age_seconds = max(0.0, now - _extract_snapshot_epoch(data))
 
             # Load new-entrant symbols from diff (for 🆕 column)
             diff = data.get("diff") or {}
@@ -2315,6 +2399,12 @@ class RealtimeEngine:
     # ------------------------------------------------------------------
     # Poll once — main detection loop
     # ------------------------------------------------------------------
+    def _mark_poll_success(self, poll_start: float) -> None:
+        """Track poll duration and mark the poll as successfully completed."""
+        self.last_poll_duration = time.monotonic() - poll_start
+        self.last_poll_success_epoch = time.time()
+        self.last_poll_duration_seconds = self.last_poll_duration
+
     def poll_once(self) -> list[RealtimeSignal]:
         """Run one poll cycle: fetch quotes → detect signals → persist.
 
@@ -2331,6 +2421,7 @@ class RealtimeEngine:
           - VisiData delta tracking (Δ-price, Δ-volume, tick, streak)
         """
         poll_start = time.monotonic()
+        self.last_poll_attempt_epoch = time.time()
 
         # ── Session-boundary detection: clear stale _last_prices ──
         # When the engine transitions from outside→inside market hours,
@@ -2359,7 +2450,7 @@ class RealtimeEngine:
             with self._lock:
                 self._active_signals.clear()
             self._save_signals(disabled_reason=self._client_disabled_reason)
-            self.last_poll_duration = time.monotonic() - poll_start
+            self._mark_poll_success(poll_start)
             return []
 
         # ── Newsstack: prefer async poller, fall back to synchronous ──
@@ -2393,7 +2484,7 @@ class RealtimeEngine:
         if not quotes:
             logger.debug("No quotes received in poll cycle")
             self._save_signals()
-            self.last_poll_duration = time.monotonic() - poll_start
+            self._mark_poll_success(poll_start)
             return new_signals
 
         self._poll_seq += 1
@@ -2419,6 +2510,7 @@ class RealtimeEngine:
             with self._lock:
                 self._active_signals.clear()
             self._save_signals()
+            self._mark_poll_success(poll_start)
             return []
 
         # Build symbol→watchlist entry map
@@ -2780,8 +2872,8 @@ class RealtimeEngine:
         # Persist
         self._save_signals()
 
-        # Track poll duration for adaptive sleep
-        self.last_poll_duration = time.monotonic() - poll_start
+        # Semantic readiness: successful poll completion
+        self._mark_poll_success(poll_start)
 
         if new_signals:
             logger.info(

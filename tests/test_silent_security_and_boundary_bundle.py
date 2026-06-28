@@ -196,7 +196,8 @@ _FROZEN_BASIC_CONFIG_SITES: frozenset[tuple[str, int]] = frozenset({
     # 2026-06-25: AsyncNewsstackPoller telemetry additions shifted
     # 2913 -> 2992; feature-flag helper additions shifted run_open_prep
     # 6059 -> 6063.
-    ("open_prep/realtime_signals.py", 2996),
+    # 2026-06-28 (semantic monitoring): shifted +80 lines by readiness metrics.
+    ("open_prep/realtime_signals.py", 3088),
     ("open_prep/run_open_prep.py", 6063),
     # 2026-06-16 (feat/live-overlay-daemon): entry-point main.py configures
     # root logger at startup (Railway container, no other logger setup).
@@ -262,7 +263,8 @@ def test_no_stale_basic_config_ledger_entries() -> None:
 _FROZEN_SYSPATH_SITES: frozenset[tuple[str, int, str]] = frozenset({
     # 2026-06-25: AsyncNewsstackPoller telemetry additions shifted
     # 1302 -> 1381.
-    ("open_prep/realtime_signals.py", 1385, "insert"),
+    # 2026-06-28 (semantic monitoring): shifted +53 lines by readiness metrics.
+    ("open_prep/realtime_signals.py", 1450, "insert"),
     ("open_prep/streamlit_monitor.py", 34, "insert"),
     # WP-H (PR #2612): 32 -> 34, VIX import + helper block added above.
     ("smc_tv_bridge/smc_api.py", 34, "insert"),

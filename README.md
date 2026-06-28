@@ -558,6 +558,30 @@ If Monitor shows *"RT Engine not running"*:
 
 For runbook-style incident handling, see: `docs/OPEN_PREP_OPS_QUICK_REFERENCE.md`.
 
+#### Signals Producer Telemetry
+
+The realtime engine exposes a telemetry port (default `9100`) with Prometheus
+metrics and small HTTP probes:
+
+- `GET /metrics` — process + semantic readiness gauges
+- `GET /healthz` — always returns `200 OK`
+- `GET /readyz` — returns `200 ready` only when the watchlist is loaded,
+  the Open-Prep snapshot is present, and the last successful poll is younger
+  than 5 minutes; otherwise returns `503 not_ready`
+
+Key readiness gauges (all prefixed `signals_producer_`):
+
+| Metric | Type | Meaning |
+| --- | --- | --- |
+| `watchlist_symbols` | gauge | Number of symbols in the loaded watchlist |
+| `open_prep_snapshot_loaded` | gauge | `1` if a snapshot has been loaded |
+| `open_prep_snapshot_age_seconds` | gauge | Age of the loaded Open-Prep snapshot |
+| `last_poll_age_seconds` | gauge | Seconds since the last successful poll |
+| `last_poll_duration_seconds` | gauge | Duration of the most recent poll cycle |
+
+These gauges drive the *Signal Pipeline Ready* dashboard panel and the
+`signals-producer-readiness` Grafana alert group.
+
 ### Macro Explainability
 
 Each candidate includes:

@@ -76,8 +76,8 @@ if ! pgrep -f "open_prep.realtime_signals" >/dev/null 2>&1; then
     source "$PROJECT_DIR/.env"
     set +a
   fi
-  nohup env PYTHONPATH="$PROJECT_DIR" \
-    "$_RT_PYTHON" -m open_prep.realtime_signals --interval 45 \
+  nohup env PYTHONPATH="$PROJECT_DIR" TELEMETRY_BIND_HOST=127.0.0.1 \
+    "$_RT_PYTHON" -m open_prep.realtime_signals --interval 45 --port 8099 \
     > "$RT_LOG" 2>&1 &
   echo "  ▶️  Engine gestartet (PID $!)"
 fi
