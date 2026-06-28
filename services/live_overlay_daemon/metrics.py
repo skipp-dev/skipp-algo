@@ -1620,10 +1620,14 @@ def render_metrics(startup_ts: float) -> str:
     railway_enabled = bool(railway_snapshot.get("enabled"))
     railway_configured = bool(railway_snapshot.get("configured", railway_enabled))
     railway_ok = bool(railway_snapshot.get("ok"))
-    railway_fetched_at = railway_snapshot.get("fetched_at_unix", 0.0)
+    railway_last_success_ts = _prom_numeric_value(
+        railway_snapshot.get("last_success_fetched_at_unix")
+        or railway_snapshot.get("fetched_at_unix")
+        or 0.0
+    )
     railway_age = (
-        max(0.0, time.time() - railway_fetched_at)
-        if isinstance(railway_fetched_at, (int, float)) and railway_fetched_at > 0
+        max(0.0, time.time() - railway_last_success_ts)
+        if math.isfinite(railway_last_success_ts) and railway_last_success_ts > 0
         else None
     )
 

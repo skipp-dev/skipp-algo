@@ -419,6 +419,17 @@ chase false reds:
   distinguishes `DISABLED` (`0`), `SCRAPE ERROR` (`1`) and `OK` (`2`).
 
 
+### Generic bridge troubleshooting contract
+
+| State | Expected metrics | Operational meaning |
+|-------|------------------|---------------------|
+| Disabled / not configured | `live_overlay_bridge_enabled{bridge="<name>"} == 0` | Bridge is intentionally not active; this should not alert as a scrape failure. |
+| Enabled and healthy | `live_overlay_bridge_enabled == 1` and `live_overlay_bridge_scrape_success == 1` | Last scrape succeeded. |
+| Enabled and failed | `live_overlay_bridge_enabled == 1` and `live_overlay_bridge_scrape_success == 0` | Bridge is configured but currently failing; investigate bridge logs and last error. |
+| Stale success | `live_overlay_bridge_last_success_age_seconds` exceeds threshold | Bridge may be failing or unable to refresh successful data. |
+| Absent bridge metrics | no `live_overlay_bridge_*` series | Exporter or metrics path may be broken; check `Core Metrics Present` and collector targets. |
+
+
 ### Dashboard upsert via API
 
 Use the following Python snippet to push the dashboard JSON from a checkout.

@@ -263,8 +263,11 @@ _FROZEN_SITES: frozenset[tuple[str, int, tuple[str, ...]]] = frozenset(
         # metrics exposes a lazily-refreshed TTL cache (mirroring uptimerobot).
         # 2026-06-25 (fix/live-overlay-bridge-contract-followup): added
         # _failed_snapshot helper shifted snapshot() and reset_cache() globals.
-        ("services/live_overlay_daemon/railway_metrics.py", 226, ("_CACHE", "_CACHE_EXPIRES_AT")),
-        ("services/live_overlay_daemon/railway_metrics.py", 271, ("_CACHE", "_CACHE_EXPIRES_AT")),
+        # 2026-06-28 (fix/live-overlay-monitoring-followup): added
+        # last_success_fetched_at_unix tracking shifted snapshot() and
+        # reset_cache() globals by three lines.
+        ("services/live_overlay_daemon/railway_metrics.py", 229, ("_CACHE", "_CACHE_EXPIRES_AT")),
+        ("services/live_overlay_daemon/railway_metrics.py", 274, ("_CACHE", "_CACHE_EXPIRES_AT")),
         # 2026-06-19 (fix/live-overlay-post-merge-bugs): added non-finite JSON
         # sanitization helper and related imports, shifting _startup_ts line.
         # 2026-06-19 (Copilot follow-up): _VALID_TFS contract alignment shifted
