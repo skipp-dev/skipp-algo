@@ -938,7 +938,7 @@ def test_alert_rules_poll_stale_uses_last_poll_age() -> None:
 
 
 def test_dashboard_signal_pipeline_ready_links_to_concrete_detail_panels() -> None:
-    """Signal Pipeline Ready drilldowns must target concrete panels, not only rows."""
+    """Signal Pipeline Ready drilldowns must target concrete signal-pipeline panels."""
     dashboard = json.loads(_DASHBOARD_JSON.read_text(encoding="utf-8"))
     panels = _dashboard_panels(dashboard)
     by_title = {p.get("title"): p for p in panels}
@@ -950,11 +950,21 @@ def test_dashboard_signal_pipeline_ready_links_to_concrete_detail_panels() -> No
     assert all(link.get("targetBlank") for link in links), "drilldown links should open in a new tab"
     urls = {link.get("url", "") for link in links}
 
-    assert any("viewPanel=1580287418" in url for url in urls), "missing Readiness Components Timeline drilldown"
-    assert any("viewPanel=2133310723" in url for url in urls), "missing Scrape Targets Up drilldown"
+    expected = {
+        "2165782568": "signals_producer_open_prep_snapshot_loaded",
+        "2165782569": "signals_producer_watchlist_symbols",
+        "2165782570": "signals_producer_last_poll_age_seconds",
+        "2133310723": 'up{job=~"alloy|signals_producer|live_overlay"}',
+    }
+    for panel_id, metric in expected.items():
+        assert any(f"viewPanel={panel_id}" in url for url in urls), f"missing drilldown to panel {panel_id}"
+        targets = by_id[panel_id].get("targets", [])
+        exprs = " ".join(t.get("expr", "") for t in targets)
+        assert metric in exprs, f"panel {panel_id} does not contain expected metric {metric!r}"
+
+    assert not any("viewPanel=2133310722" in url for url in urls), "legacy row-header link still present"
+    assert not any("viewPanel=1580287418" in url for url in urls), "legacy live-overlay readiness timeline link still present"
     assert any("/service/" in url for url in urls), "missing service-scoped Railway link"
-    assert by_id["1580287418"]["type"] != "row"
-    assert by_id["2133310723"]["type"] != "row"
 
 
 def test_dashboard_triage_guide_includes_signal_pipeline_path() -> None:

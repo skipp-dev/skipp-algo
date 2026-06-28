@@ -807,17 +807,46 @@ def _ensure_railway_resource_links(data: dict[str, Any]) -> bool:
 
 
 def _ensure_signal_pipeline_links(data: dict[str, Any]) -> bool:
-    """Add drilldown links to the top-level Signal Pipeline Ready panel."""
+    """Add drilldown links to the top-level Signal Pipeline Ready panel.
+
+    Links point to the concrete signal-producer detail panels (Open-Prep
+    Snapshot, Watchlist Symbols, Producer Poll Age) plus the Alloy scrape
+    targets panel and the signals-producer Railway logs. Legacy links to the
+    collapsed row header (2133310722) and the live-overlay readiness timeline
+    (1580287418) are removed so the 3 a.m. on-call click lands on the actual
+    signal-pipeline cause, not on live-overlay readiness.
+    """
     changed = False
     panel = _v1_panel_by_title(data, "Signal Pipeline Ready")
     if not panel:
         return changed
-    existing_urls = {link.get("url", "") for link in panel.get("links", [])}
+
+    legacy_urls = {
+        "/d/smc-live-overlay-v1?orgId=1&viewPanel=2133310722",
+        "/d/smc-live-overlay-v1?orgId=1&viewPanel=1580287418",
+    }
+    links = [link for link in panel.get("links", []) if link.get("url") not in legacy_urls]
+    if len(links) != len(panel.get("links", [])):
+        changed = True
+
+    existing_urls = {link.get("url", "") for link in links}
     wanted = [
         {
-            "title": "Signal readiness details",
+            "title": "Open-Prep snapshot",
             "type": "link",
-            "url": "/d/smc-live-overlay-v1?orgId=1&viewPanel=1580287418",
+            "url": "/d/smc-live-overlay-v1?orgId=1&viewPanel=2165782568",
+            "targetBlank": True,
+        },
+        {
+            "title": "Watchlist symbols",
+            "type": "link",
+            "url": "/d/smc-live-overlay-v1?orgId=1&viewPanel=2165782569",
+            "targetBlank": True,
+        },
+        {
+            "title": "Producer poll age",
+            "type": "link",
+            "url": "/d/smc-live-overlay-v1?orgId=1&viewPanel=2165782570",
             "targetBlank": True,
         },
         {
@@ -828,7 +857,6 @@ def _ensure_signal_pipeline_links(data: dict[str, Any]) -> bool:
         },
         _railway_link("signals-producer Railway logs", "signals_producer_logs"),
     ]
-    links = list(panel.get("links", []))
     for link in wanted:
         if link["url"] not in existing_urls:
             links.append(link)
