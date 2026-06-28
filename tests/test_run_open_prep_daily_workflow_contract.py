@@ -191,3 +191,17 @@ def test_snapshot_publish_uses_gh_pat_token() -> None:
         "snapshot publish push must use GH_PAT-or-default so the force-push "
         "is authorized against the protected repository"
     )
+
+
+def test_local_open_prep_launchers_use_pre_open_only() -> None:
+    """Local helper launchers must pass --pre-open-only to run_open_prep.
+
+    This prevents accidental multi-day snapshot generation outside the
+    daily GitHub Actions workflow.
+    """
+    suite = (_REPO_ROOT / "scripts" / "start_open_prep_suite.py").read_text(encoding="utf-8")
+    vd_open = (_REPO_ROOT / "scripts" / "vd_open_prep.sh").read_text(encoding="utf-8")
+    vd_watch = (_REPO_ROOT / "scripts" / "vd_watch.sh").read_text(encoding="utf-8")
+    assert "--pre-open-only" in suite, "start_open_prep_suite.py must pass --pre-open-only"
+    assert "--pre-open-only" in vd_open, "vd_open_prep.sh must pass --pre-open-only"
+    assert "--pre-open-only" in vd_watch, "vd_watch.sh must pass --pre-open-only"

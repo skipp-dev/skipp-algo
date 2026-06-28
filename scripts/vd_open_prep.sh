@@ -100,7 +100,7 @@ _run_pipeline() {
   PIPELINE_LOG="$PROJECT_DIR/artifacts/open_prep/latest/pipeline_run.log"
   mkdir -p "$(dirname "$PIPELINE_LOG")"
 
-  if PYTHONPATH="$PROJECT_DIR" "$PYTHON" -m open_prep.run_open_prep > /dev/null 2>"$PIPELINE_LOG"; then
+  if PYTHONPATH="$PROJECT_DIR" "$PYTHON" -m open_prep.run_open_prep --pre-open-only > /dev/null 2>"$PIPELINE_LOG"; then
     return 0
   else
     return 1

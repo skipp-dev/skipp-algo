@@ -56,7 +56,7 @@ _run_pipeline() {
   echo "⏳ Pipeline wird ausgeführt …"
   cd "$PROJECT_DIR"
   local log="/tmp/vd_watch_pipeline.log"
-  if "$VENV_PYTHON" -m open_prep.run_open_prep > /dev/null 2>"$log"; then
+  if "$VENV_PYTHON" -m open_prep.run_open_prep --pre-open-only > /dev/null 2>"$log"; then
     echo "✅ Pipeline OK  ·  $(date '+%H:%M:%S')"
   else
     echo "⚠️  Pipeline-Fehler (exit $?) — Log: $log"

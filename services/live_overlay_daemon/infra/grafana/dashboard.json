@@ -1041,7 +1041,7 @@
       },
       "targets": [
         {
-          "expr": "(signals_producer_watchlist_symbols{job=~\"signals_producer\"} > bool 0) * (signals_producer_open_prep_snapshot_loaded{job=~\"signals_producer\"} > bool 0) * (clamp_min(signals_producer_last_poll_age_seconds{job=~\"signals_producer\"}, 1) < bool 300) or vector(0)",
+          "expr": "(   (signals_producer_watchlist_symbols{job=~\"signals_producer\"} > bool 0) * (signals_producer_open_prep_snapshot_loaded{job=~\"signals_producer\"} > bool 0) * ((signals_producer_last_poll_age_seconds{job=~\"signals_producer\"} or on() vector(999999)) < bool 300) ) or on() vector(0)",
           "legendFormat": "__auto",
           "instant": true,
           "datasource": {
@@ -1117,7 +1117,7 @@
       },
       "targets": [
         {
-          "expr": "signals_producer_open_prep_snapshot_loaded{job=~\"signals_producer\"} or vector(0)",
+          "expr": "signals_producer_open_prep_snapshot_loaded{job=~\"signals_producer\"} or on() vector(0)",
           "legendFormat": "__auto",
           "instant": true,
           "datasource": {
@@ -1193,7 +1193,7 @@
       },
       "targets": [
         {
-          "expr": "signals_producer_watchlist_symbols{job=~\"signals_producer\"} or vector(0)",
+          "expr": "signals_producer_watchlist_symbols{job=~\"signals_producer\"} or on() vector(0)",
           "legendFormat": "__auto",
           "instant": true,
           "datasource": {
@@ -1237,7 +1237,7 @@
       },
       "targets": [
         {
-          "expr": "signals_producer_last_poll_age_seconds{job=~\"signals_producer\"} or vector(0)",
+          "expr": "signals_producer_last_poll_age_seconds{job=~\"signals_producer\"} or on() vector(999999)",
           "legendFormat": "__auto",
           "instant": true,
           "datasource": {
