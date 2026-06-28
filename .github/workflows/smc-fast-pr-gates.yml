@@ -257,6 +257,10 @@ jobs:
         if: steps.gate.outputs.run_heavy == 'true'
         run: ruff check .
 
+      - name: Verify live overlay dashboard is up to date
+        if: steps.gate.outputs.run_heavy == 'true'
+        run: python scripts/update_overlay_dashboard.py --check
+
       - name: Run fast provider and smoke health checks
         if: steps.gate.outputs.run_heavy == 'true'
         run: |

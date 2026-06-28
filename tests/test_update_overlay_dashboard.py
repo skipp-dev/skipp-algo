@@ -415,6 +415,7 @@ def test_update_script_check_mode_fails_on_stale_dashboard(tmp_path: Path) -> No
     # Remove a self-healed panel so the updater would mutate the dashboard.
     data["panels"] = [p for p in data["panels"] if p.get("title") != "UptimeRobot Monitor States"]
     dst.write_text(json.dumps(data, indent=2), encoding="utf-8")
+    before = dst.read_text(encoding="utf-8")
 
     result = subprocess.run(
         [sys.executable, str(script), "--check", str(dst)],
@@ -422,6 +423,8 @@ def test_update_script_check_mode_fails_on_stale_dashboard(tmp_path: Path) -> No
         capture_output=True,
         text=True,
     )
+    after = dst.read_text(encoding="utf-8")
 
     assert result.returncode == 1, result.stderr + result.stdout
     assert "is not up to date" in result.stdout
+    assert after == before
