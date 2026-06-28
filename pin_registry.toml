@@ -482,6 +482,11 @@ frozen_major = "v7"
 # `snap.get("stories") or snap.get("items")` — two aliases for the same
 # news-snapshot key in different provider shapes).
 "services/live_overlay_daemon/compute.py" = 2
+# 2026-06-28 (PR #3007): metrics.py pre-exists on main but was not yet
+# ledgered. The three chains are benign label/value fallbacks (e.g.
+# workflow/event/symbol level defaults) or int-cast normalisation of
+# optional counter fields; they do not cross semantically distinct keys.
+"services/live_overlay_daemon/metrics.py" = 3
 "scripts/smc_analyst_enrichment.py" = 5
 "scripts/smc_compression_regime.py" = 1
 "scripts/smc_hero_state.py" = 1

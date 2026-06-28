@@ -1257,6 +1257,9 @@ def main(argv: list[str] | None = None) -> int:
         changed = _co_locate_external_integration_details(data) or changed
         if changed:
             data["version"] = int(data.get("version", 0) or 0) + 1
+        # Generic/placeholder Railway URLs are never acceptable, even in
+        # --check mode: the committed dashboard must be production-ready.
+        _fail_if_generic_railway_links_remain(data)
         if check:
             if data != original:
                 print(f"{dashboard_path} is not up to date")
@@ -1265,8 +1268,9 @@ def main(argv: list[str] | None = None) -> int:
             return 0
         if changed:
             _save_dashboard(dashboard_path, data)
-        _fail_if_generic_railway_links_remain(data)
-        print(f"Updated {dashboard_path} (v1, version={data.get('version')})")
+            print(f"Updated {dashboard_path} (v1, version={data.get('version')})")
+        else:
+            print(f"{dashboard_path} is already up to date")
         return 0
 
     # Top-level status panels: consistent semantic colors.
