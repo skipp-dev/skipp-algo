@@ -3,11 +3,8 @@
 //
 // Env vars required (set in Railway):
 //   OVERLAY_SECRET_TOKEN    — same token used by /smc_live
-//   OVERLAY_SERVICE_URL     — scrape address without scheme, e.g. public
-//                             liveoverlaydaemon-production.up.railway.app or private
-//                             liveoverlaydaemon.railway.internal:PORT. Private
-//                             networking requires the runtime PORT; do not use a
-//                             bare .railway.internal host.
+//   OVERLAY_SERVICE_URL     — host:port only, e.g. liveoverlaydaemon-production.up.railway.app
+//                             or liveoverlaydaemon.railway.internal:PORT (no scheme)
 //   SIGNALS_SERVICE_URL     — host:port for smc-signals-producer, e.g. smc-signals-producer.railway.internal:PORT
 //   GRAFANA_CLOUD_PROM_URL  — Grafana Cloud Prometheus remote-write URL
 //   GRAFANA_CLOUD_USER      — Grafana Cloud stack user (numeric ID)

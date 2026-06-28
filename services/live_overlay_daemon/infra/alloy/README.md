@@ -18,8 +18,7 @@ of Prometheus target labels, scrape logs, and remote-write metadata.
    ```
    OVERLAY_SECRET_TOKEN=<same as main daemon>
    # Current production uses the public Railway host without scheme.
-   # Private networking can use liveoverlaydaemon.railway.internal:<PORT>
-   # after the live daemon runtime PORT is verified from inside Railway.
+   # Private networking can use liveoverlaydaemon.railway.internal:<PORT>.
    OVERLAY_SERVICE_URL=liveoverlaydaemon-production.up.railway.app
    GRAFANA_CLOUD_PROM_URL=https://prometheus-prod-XX-prod-XX.grafana.net/api/prom/push
    GRAFANA_CLOUD_USER=<numeric stack ID>

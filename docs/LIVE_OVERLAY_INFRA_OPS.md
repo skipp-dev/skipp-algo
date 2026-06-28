@@ -143,7 +143,7 @@ curl https://liveoverlaydaemon-production.up.railway.app/ready
 | `GITHUB_WORKFLOW_MONITOR_TOKEN` | live_overlay_daemon | optional | GitHub PAT für Workflow-Bridge |
 | `GITHUB_WORKFLOW_MONITOR_REPO` | live_overlay_daemon | optional | `owner/repo`, default `skippALGO/skipp-algo` |
 | `NEWS_SNAPSHOT_PATH` | live_overlay_daemon | optional | Pfad zum News-Snapshot-JSON |
-| `OVERLAY_SERVICE_URL` | metrics-collector | ✅ | Scrape target ohne Scheme, aktuell `liveoverlaydaemon-production.up.railway.app`; bei Private Networking `liveoverlaydaemon.railway.internal:<PORT>` nach Runtime-Port-Verifikation |
+| `OVERLAY_SERVICE_URL` | metrics-collector | ✅ | Scrape target ohne Scheme, aktuell `liveoverlaydaemon-production.up.railway.app`; bei Private Networking `liveoverlaydaemon.railway.internal:<PORT>` |
 | `SIGNALS_SERVICE_URL` | live_overlay_daemon, metrics-collector | ✅ | `smc-signals-producer.railway.internal:PORT` — internal host:port of the signals producer; Alloy scrapes `/metrics`, live_overlay_daemon fetches `/signals` |
 | `GRAFANA_CLOUD_PROM_URL` | metrics-collector | ✅ | Grafana Cloud Remote-Write-URL |
 | `GRAFANA_CLOUD_USER` | metrics-collector | ✅ | Grafana Cloud Stack-ID (numerisch) |
@@ -578,8 +578,8 @@ curl -s https://liveoverlaydaemon-production.up.railway.app/ready | python3 -m j
 # Prometheus-Metriken (Basic Auth)
 TOKEN=$(security find-generic-password -s skipp.grafana.api -a "$USER" -w)  # Achtung: Overlay-Token verwenden!
 # Besser via railway run:
-railway run -s metrics-collector curl -sL -u "metrics:$OVERLAY_SECRET_TOKEN" \
-  "http://$OVERLAY_SERVICE_URL/metrics" | head -30
+railway run -s metrics-collector curl -s -u "metrics:$OVERLAY_SECRET_TOKEN" \
+  "https://$OVERLAY_SERVICE_URL/metrics" | head -30
 
 # Logs
 railway logs -s live_overlay_daemon --tail 100
