@@ -741,7 +741,7 @@ def _ensure_railway_resource_links(data: dict[str, Any]) -> bool:
         kept: list[dict[str, Any]] = []
         for link in links:
             url = link.get("url", "")
-            if any(url.startswith(generic) for generic in _GENERIC_RAILWAY_URLS):
+            if url in _GENERIC_RAILWAY_URLS:
                 changed = True
                 continue
             kept.append(link)
@@ -754,17 +754,22 @@ def _ensure_railway_resource_links(data: dict[str, Any]) -> bool:
             for item in obj:
                 if isinstance(item, dict) and "url" in item:
                     url = item.get("url", "")
-                    if any(url.startswith(generic) for generic in _GENERIC_RAILWAY_URLS):
-                        # Keep the same title if it maps to a known concrete link,
-                        # otherwise drop the stale generic entry.
-                        title = item.get("title", "")
-                        title_to_key = {
-                            "Railway logs": "live_overlay_logs",
-                            "Railway deployments": "live_overlay_deployments",
-                            "Railway metrics": "live_overlay_metrics",
-                        }
+                    title = item.get("title", "")
+                    title_to_key = {
+                        "Railway logs": "live_overlay_logs",
+                        "Railway deployments": "live_overlay_deployments",
+                        "Railway metrics": "live_overlay_metrics",
+                    }
+                    # Replace stale generic URLs and update concrete Railway URLs
+                    # when environment variables (and therefore the URL) change.
+                    if url in _GENERIC_RAILWAY_URLS or (
+                        title in title_to_key and url.startswith("https://railway.com/")
+                    ):
                         if title in title_to_key:
-                            new_list.append(_railway_link(title, title_to_key[title]))
+                            new_link = _railway_link(title, title_to_key[title])
+                            new_list.append(new_link)
+                            if new_link != item:
+                                changed = True
                         else:
                             changed = True
                         continue
@@ -797,6 +802,136 @@ def _ensure_railway_resource_links(data: dict[str, Any]) -> bool:
             changed = True
 
     return changed
+
+
+
+
+def _ensure_signal_pipeline_links(data: dict[str, Any]) -> bool:
+    """Add drilldown links to the top-level Signal Pipeline Ready panel."""
+    changed = False
+    panel = _v1_panel_by_title(data, "Signal Pipeline Ready")
+    if not panel:
+        return changed
+    existing_urls = {link.get("url", "") for link in panel.get("links", [])}
+    wanted = [
+        _railway_link("Collector / Scrape Targets", "live_overlay_metrics"),
+        _railway_link("signals-producer Railway logs", "signals_producer_logs"),
+    ]
+    # Use a dashboard-internal link for the collector row viewPanel.
+    wanted[0] = {
+        "title": "Collector / Scrape Targets",
+        "type": "link",
+        "url": "/d/smc-live-overlay-v1?orgId=1&viewPanel=2133310722",
+        "targetBlank": True,
+    }
+    links = list(panel.get("links", []))
+    for link in wanted:
+        if link["url"] not in existing_urls:
+            links.append(link)
+            changed = True
+    if changed:
+        panel["links"] = links
+    return changed
+
+
+def _fix_triage_guide_signal_path(data: dict[str, Any]) -> bool:
+    """Ensure the triage guide mentions the signals-producer readiness path."""
+    changed = False
+    for panel in _iter_v1_panels(data):
+        if panel.get("title") != "Incident Triage Guide":
+            continue
+        options = panel.setdefault("options", {})
+        content = options.get("content", "")
+        if not content:
+            continue
+        step = (
+            "7. If **Signal Pipeline Ready** is red: check **Open-Prep Snapshot**, "
+            "**Watchlist Symbols**, **Producer Poll Age**, then Collector / Scrape Targets "
+            "and signals-producer Railway logs."
+        )
+        if step in content:
+            continue
+        # Insert before the Quick links separator.
+        marker = "\n\n---\n**Quick links**"
+        if marker in content:
+            content = content.replace(marker, "\n" + step + marker)
+        else:
+            content = content + "\n" + step
+        options["content"] = content
+        changed = True
+    return changed
+
+
+def _fix_market_traffic_health_description(data: dict[str, Any]) -> bool:
+    """Make the Market Traffic Health description match its US-only query."""
+    changed = False
+    panel = _v1_panel_by_title(data, "Market Traffic Health")
+    if not panel:
+        return changed
+    wanted = (
+        "Synthetic signal that amplifies request health while the US regular "
+        "trading session is open and suppresses it when closed."
+    )
+    if panel.get("description") != wanted:
+        panel["description"] = wanted
+        changed = True
+    return changed
+
+
+def _collapse_service_owner_rows(data: dict[str, Any]) -> bool:
+    """Collapse detail rows that are secondary during first-minute triage."""
+    changed = False
+    detail_rows = {
+        "External Integrations",
+        "Reliability Drill-down",
+        "Provider Health",
+        "Collector / Scrape Targets",
+        "Railway Resources",
+    }
+    for panel in data.get("panels", []):
+        if panel.get("type") == "row" and panel.get("title") in detail_rows:
+            if panel.get("collapsed") is not True:
+                panel["collapsed"] = True
+                changed = True
+    return changed
+
+
+def _co_locate_external_integration_details(data: dict[str, Any]) -> bool:
+    """Move external-integration detail panels to follow the External Integrations row.
+
+    The dashboard keeps a flat top-level panel list so existing v1 tooling can
+    continue to iterate panels directly; only the order and collapsed flag change.
+    """
+    changed = False
+    panels = data.get("panels", [])
+    titles_to_move = {
+        "Bridge Scrape Health Timeline",
+        "GitHub Workflows — Latest Run Detail",
+    }
+    move_indices = [
+        i for i, p in enumerate(panels)
+        if p.get("title") in titles_to_move
+    ]
+    if not move_indices:
+        return changed
+    external_idx = next(
+        (i for i, p in enumerate(panels) if p.get("type") == "row" and p.get("title") == "External Integrations"),
+        None,
+    )
+    if external_idx is None:
+        return changed
+    # If the desired panels already sit directly after the row header, do nothing.
+    expected_order = ["Bridge Scrape Health Timeline", "GitHub Workflows — Latest Run Detail"]
+    slice_after = panels[external_idx + 1 : external_idx + 1 + len(expected_order)]
+    if [p.get("title") for p in slice_after] == expected_order:
+        return False
+    # Pop in reverse order so indices remain stable.
+    moved = []
+    for i in reversed(move_indices):
+        moved.append(panels.pop(i))
+    for mp in reversed(moved):
+        panels.insert(external_idx + 1, mp)
+    return True
 
 
 def _fail_if_generic_railway_links_remain(data: dict[str, Any]) -> None:
@@ -863,7 +998,7 @@ def main(argv: list[str] | None = None) -> int:
         # something actually changed).
         changed = _ensure_railway_resource_links(data)
         changed = _fix_triage_guide_railway_links(data) or changed
-        changed = _ensure_uptimerobot_panel(data)
+        changed = _ensure_uptimerobot_panel(data) or changed
         changed = _fix_bridge_scrapes_panel(data) or changed
         changed = _fix_bridge_error_panels(data) or changed
         changed = _fix_bridge_state_panel_legends(data) or changed
@@ -871,6 +1006,11 @@ def main(argv: list[str] | None = None) -> int:
         changed = _fix_github_workflow_timeline_panel(data) or changed
         changed = _ensure_v1_incident_drilldown_links(data) or changed
         changed = _ensure_v1_service_owner_row_descriptions(data) or changed
+        changed = _ensure_signal_pipeline_links(data) or changed
+        changed = _fix_triage_guide_signal_path(data) or changed
+        changed = _fix_market_traffic_health_description(data) or changed
+        changed = _collapse_service_owner_rows(data) or changed
+        changed = _co_locate_external_integration_details(data) or changed
         if changed:
             data["version"] = int(data.get("version", 0) or 0) + 1
         _save_dashboard(dashboard_path, data)

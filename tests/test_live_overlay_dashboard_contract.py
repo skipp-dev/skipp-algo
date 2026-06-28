@@ -162,7 +162,7 @@ def test_market_status_description_matches_major_session_metric() -> None:
 def test_dashboard_railway_metrics_bridge_query_does_not_filter_value_inside_max() -> None:
     """Railway Metrics Bridge must show 0 when disabled, not drop the series."""
     dashboard = json.loads(_DASHBOARD_JSON.read_text(encoding="utf-8"))
-    panel = next(p for p in dashboard["panels"] if p.get("title") == "Railway Metrics Bridge")
+    panel = next(p for p in _dashboard_panels(dashboard) if p.get("title") == "Railway Metrics Bridge")
     expr = panel["targets"][0]["expr"]
     assert "max(live_overlay_railway_metrics_enabled" in expr
     assert "== 1" not in expr, "value selector inside max() hides the disabled state"
@@ -185,7 +185,7 @@ def test_dashboard_market_open_request_health_uses_fixed_rate_range() -> None:
 def test_dashboard_bridge_scrapes_aggregates_by_job() -> None:
     """External Checks should not hide a disabled job behind a global min()."""
     dashboard = json.loads(_DASHBOARD_JSON.read_text(encoding="utf-8"))
-    panel = next(p for p in dashboard["panels"] if p.get("title") == "External Checks")
+    panel = next(p for p in _dashboard_panels(dashboard) if p.get("title") == "External Checks")
     expr = panel["targets"][0]["expr"]
     assert "min by (job)" in expr
     assert 'or on(job) label_replace(vector(0), "job", "live_overlay", "", "")' in expr
@@ -195,8 +195,9 @@ def test_dashboard_bridge_scrapes_aggregates_by_job() -> None:
 def test_dashboard_bridge_state_panels_aggregate_by_job() -> None:
     """Bridge state panels must expose per-job state without an always-present 0 fallback."""
     dashboard = json.loads(_DASHBOARD_JSON.read_text(encoding="utf-8"))
+    panels = _dashboard_panels(dashboard)
     for title in ("UptimeRobot Bridge", "GitHub Workflow Bridge"):
-        panel = next(p for p in dashboard["panels"] if p.get("title") == title)
+        panel = next(p for p in panels if p.get("title") == title)
         expr = panel["targets"][0]["expr"]
         assert "max by (job)" in expr, f"{title} should aggregate by job"
         assert "+ on(job)" in expr, f"{title} should join enabled/success by job"
@@ -236,27 +237,30 @@ def test_dashboard_restart_causes_panel_is_unique_and_groups_by_cause() -> None:
 
 
 def test_dashboard_rows_are_either_expanded_or_contain_children() -> None:
-    """Rows without nested child panels must not claim to be collapsed.
+    """Rows follow the new convention: top-level rows expanded, service-owner details collapsed.
 
-    Grafana only lazy-loads rows that actually contain child panels in
-    ``row.panels``.  Empty collapsed rows (``panels: []``) provide no load
-    benefit and hide the detail panels that follow in the top-level list.
+    Detail rows keep their panels in the flat top-level list for compatibility
+    with the v1 updater; collapsing the row header still reduces first-load noise.
     """
     dashboard = json.loads(_DASHBOARD_JSON.read_text(encoding="utf-8"))
-    expanded = {"Overview", "Health", "Status", "Collector / Scrape Targets"}
+    expanded = {"Overview", "Health", "Status", "Incident Overview", "Operational Drill-down"}
+    collapsed = {
+        "External Integrations",
+        "Reliability Drill-down",
+        "Provider Health",
+        "Collector / Scrape Targets",
+        "Railway Resources",
+    }
     rows = [p for p in dashboard["panels"] if p.get("type") == "row"]
     titles = {r["title"] for r in rows}
     for title in expanded:
         if title in titles:
             row = next(r for r in rows if r["title"] == title)
             assert row.get("collapsed") is False, f"row {title} should be expanded"
-    for row in rows:
-        if row["title"] not in expanded:
-            children = row.get("panels") or []
-            if not children:
-                assert row.get("collapsed") is False, (
-                    f"row {row['title']} has no child panels and must not be collapsed"
-                )
+    for title in collapsed:
+        if title in titles:
+            row = next(r for r in rows if r["title"] == title)
+            assert row.get("collapsed") is True, f"row {title} should be collapsed"
 
 
 def test_dashboard_has_process_resident_memory_panel() -> None:
@@ -265,7 +269,7 @@ def test_dashboard_has_process_resident_memory_panel() -> None:
     panels = _dashboard_panels(dashboard)
     panel = next(p for p in panels if p.get("title") == "Process Resident Memory")
     gp = panel["gridPos"]
-    assert gp["y"] == 14 and gp["x"] == 20 and gp["w"] == 4 and gp["h"] == 3, gp
+    assert gp["y"] == 13 and gp["x"] == 20 and gp["w"] == 4 and gp["h"] == 3, gp
     expr = panel["targets"][0]["expr"]
     assert "live_overlay_process_resident_memory_bytes" in expr, expr
 
@@ -351,7 +355,8 @@ def test_dashboard_has_collector_scrape_targets_row() -> None:
     """A Collector row with up and memory panels for alloy/signals_producer/live_overlay must exist."""
     dashboard = json.loads(_DASHBOARD_JSON.read_text(encoding="utf-8"))
     row = next(p for p in dashboard["panels"] if p.get("type") == "row" and p.get("title") == "Collector / Scrape Targets")
-    assert row.get("collapsed") is False
+    # Service-owner detail rows are collapsed by default to reduce first-load noise.
+    assert row.get("collapsed") is True
     titles = {p.get("title") for p in _dashboard_panels(dashboard)}
     assert "Scrape Targets Up" in titles
     assert "Collector Resident Memory" in titles
@@ -576,12 +581,12 @@ def test_dashboard_user_impact_block_is_promoted_to_top() -> None:
     by_title = {p.get("title"): p for p in panels}
     for title in PROMOTED_SLO_TITLES:
         assert title in by_title, f"missing panel: {title}"
-    assert by_title["Success Rate (%)"]["gridPos"]["y"] == 26
-    assert by_title["Market Traffic Health"]["gridPos"]["y"] == 26
-    assert by_title["Market Data Freshness"]["gridPos"]["y"] == 26
-    assert by_title["Core Metrics Present"]["gridPos"]["y"] == 26
-    assert by_title["Latency vs. SLO (ms)"]["gridPos"]["y"] == 32
-    assert by_title["Error Budget Burn Rate"]["gridPos"]["y"] == 32
+    assert by_title["Success Rate (%)"]["gridPos"]["y"] == 23
+    assert by_title["Market Traffic Health"]["gridPos"]["y"] == 23
+    assert by_title["Market Data Freshness"]["gridPos"]["y"] == 23
+    assert by_title["Core Metrics Present"]["gridPos"]["y"] == 23
+    assert by_title["Latency vs. SLO (ms)"]["gridPos"]["y"] == 28
+    assert by_title["Error Budget Burn Rate"]["gridPos"]["y"] == 28
 
 
 def test_dashboard_title_uses_api_not_daemon() -> None:
@@ -673,7 +678,7 @@ def test_dashboard_external_details_are_not_in_incident_overview() -> None:
         r for r in rows if r["title"] == "Operational Drill-down"
     )["gridPos"]["y"]
     external_detail = next(
-        p for p in dashboard["panels"] if p.get("title") == "UptimeRobot Monitor States"
+        p for p in _dashboard_panels(dashboard) if p.get("title") == "UptimeRobot Monitor States"
     )
     assert external_detail["gridPos"]["y"] > incident_end
 
@@ -739,7 +744,7 @@ def test_dashboard_incident_rows_have_descriptions() -> None:
 def test_dashboard_top_incident_path_is_above_drilldown() -> None:
     """All top-level incident signal panels must appear before Operational Drill-down."""
     dashboard = json.loads(_DASHBOARD_JSON.read_text(encoding="utf-8"))
-    y = {p["title"]: p["gridPos"]["y"] for p in dashboard["panels"] if "title" in p}
+    y = {p["title"]: p["gridPos"]["y"] for p in _dashboard_panels(dashboard) if "title" in p}
 
     for title in (
         "Overall Health",
@@ -877,7 +882,8 @@ def test_dashboard_has_producer_poll_age_panel() -> None:
     assert "Producer Poll Age" in titles
 
 
-def test_dashboard_signal_readiness_panels_are_at_y17() -> None:
+def test_dashboard_signal_readiness_panels_are_at_y16() -> None:
+    """Signal readiness panels share a single row directly above Global Market Sessions."""
     dashboard = json.loads(_DASHBOARD_JSON.read_text(encoding="utf-8"))
     panels = _dashboard_panels(dashboard)
     readiness = [p for p in panels if p.get("title") in (
@@ -885,7 +891,7 @@ def test_dashboard_signal_readiness_panels_are_at_y17() -> None:
     )]
     assert len(readiness) == 4
     for panel in readiness:
-        assert panel["gridPos"]["y"] == 17, panel["title"]
+        assert panel["gridPos"]["y"] == 16, panel["title"]
 
 
 def test_alert_rules_include_signals_producer_readiness_group() -> None:
@@ -924,3 +930,74 @@ def test_alert_rules_poll_stale_uses_last_poll_age() -> None:
     assert "> bool 300" in expr, "alert must fire when the metric is missing or stale"
     assert "or on() vector(1)" in expr, "label-safe fallback required for missing series"
     assert rule["labels"]["severity"] == "warning"
+
+
+# --------------------------------------------------------------------------- #
+# Fifth UX-layout review follow-up assertions (2026-06-30)
+# --------------------------------------------------------------------------- #
+
+
+def test_dashboard_signal_pipeline_ready_has_drilldown_links() -> None:
+    """A red Signal Pipeline Ready panel must offer a next click."""
+    dashboard = json.loads(_DASHBOARD_JSON.read_text(encoding="utf-8"))
+    panels = _dashboard_panels(dashboard)
+    panel = next(p for p in panels if p.get("title") == "Signal Pipeline Ready")
+    links = panel.get("links") or []
+    assert links, "Signal Pipeline Ready needs at least one drilldown link"
+    assert all(link.get("targetBlank") for link in links), "drilldown links should open in a new tab"
+    urls = {link.get("url", "") for link in links}
+    assert any("viewPanel=2133310722" in url for url in urls), "missing Collector / Scrape Targets drilldown"
+    assert any("/service/" in url for url in urls), "missing service-scoped Railway link"
+
+
+def test_dashboard_triage_guide_includes_signal_pipeline_path() -> None:
+    """The 3-a.m. guide must include the new signal-producer readiness action path."""
+    dashboard = json.loads(_DASHBOARD_JSON.read_text(encoding="utf-8"))
+    panels = {p.get("title"): p for p in _dashboard_panels(dashboard)}
+    content = panels["Incident Triage Guide"].get("options", {}).get("content", "")
+    assert "Signal Pipeline Ready" in content
+    assert "Open-Prep Snapshot" in content
+    assert "Producer Poll Age" in content
+
+
+def test_dashboard_market_traffic_health_description_is_us_only() -> None:
+    """The description must not claim Europe coverage when the query is US-only."""
+    dashboard = json.loads(_DASHBOARD_JSON.read_text(encoding="utf-8"))
+    panels = _dashboard_panels(dashboard)
+    panel = next(p for p in panels if p.get("title") == "Market Traffic Health")
+    expr = panel["targets"][0]["expr"]
+    description = panel.get("description", "")
+    assert "live_overlay_market_us_open" in expr
+    assert "Europe" not in description, description
+
+
+def test_dashboard_detail_rows_collapsed_by_default() -> None:
+    """Service-owner detail rows should be collapsed to reduce first-load noise."""
+    dashboard = json.loads(_DASHBOARD_JSON.read_text(encoding="utf-8"))
+    detail_rows = {
+        "External Integrations",
+        "Reliability Drill-down",
+        "Provider Health",
+        "Collector / Scrape Targets",
+        "Railway Resources",
+    }
+    rows = {p["title"]: p for p in dashboard["panels"] if p.get("type") == "row"}
+    for title in detail_rows:
+        assert rows[title].get("collapsed") is True, f"{title} should be collapsed by default"
+    assert rows["Incident Overview"].get("collapsed") is False
+    assert rows["Operational Drill-down"].get("collapsed") is False
+
+
+def test_dashboard_external_integration_details_are_co_located() -> None:
+    """External-integration root-cause detail panels must live inside External Integrations."""
+    dashboard = json.loads(_DASHBOARD_JSON.read_text(encoding="utf-8"))
+    panels = _dashboard_panels(dashboard)
+    by_title = {p.get("title"): p for p in panels}
+    external_row_y = by_title["External Integrations"]["gridPos"]["y"]
+    next_row_y = next(
+        p["gridPos"]["y"] for p in dashboard["panels"]
+        if p.get("type") == "row" and p["gridPos"]["y"] > external_row_y
+    )
+    for title in ("Bridge Scrape Health Timeline", "GitHub Workflows — Latest Run Detail"):
+        y = by_title[title]["gridPos"]["y"]
+        assert external_row_y < y < next_row_y, f"{title} y={y} not inside External Integrations"
