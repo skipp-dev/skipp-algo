@@ -1087,16 +1087,8 @@ groups:
       datasourceUid: grafanacloud-prom
       model:
         expr: 'live_overlay_bridge_enabled{job="live_overlay"} == 1
-
           and on(job, bridge)
-
-          live_overlay_bridge_configured{job="live_overlay"} == 1
-
-          and on(job, bridge)
-
-          live_overlay_bridge_scrape_success{job="live_overlay"} == 0
-
-          '
+          live_overlay_bridge_scrape_success{job="live_overlay"} == 0'
         instant: true
         refId: A
     - refId: C
@@ -1113,31 +1105,22 @@ groups:
           query:
             params:
             - A
-    for: 5m
+    for: 10m
     labels:
       severity: warning
     annotations:
-      summary: A configured live-overlay bridge is failing to scrape
-      runbook: Check bridge credentials and upstream API health. Inspect live_overlay_bridge_error_info
-        for error codes.
-  - uid: lo-bridge-stale
-    title: Live Overlay bridge data stale
+      summary: Live Overlay bridge scrape failed
+      runbook: Check bridge error_info, API tokens, quotas, and upstream service status.
+  - uid: lo-bridge-last-success-stale
+    title: Live Overlay bridge last success stale
     condition: C
     data:
     - refId: A
       datasourceUid: grafanacloud-prom
       model:
         expr: 'live_overlay_bridge_enabled{job="live_overlay"} == 1
-
           and on(job, bridge)
-
-          live_overlay_bridge_scrape_success{job="live_overlay"} == 1
-
-          and on(job, bridge)
-
-          live_overlay_bridge_last_success_age_seconds{job="live_overlay"} > 900
-
-          '
+          live_overlay_bridge_last_success_age_seconds{job="live_overlay"} > 900'
         instant: true
         refId: A
     - refId: C
@@ -1154,12 +1137,12 @@ groups:
           query:
             params:
             - A
-    for: 5m
+    for: 10m
     labels:
       severity: warning
     annotations:
-      summary: A configured live-overlay bridge has not refreshed in > 15 min
-      runbook: Check bridge polling thread and upstream API latency.
+      summary: Live Overlay bridge has not succeeded recently
+      runbook: Inspect live_overlay_bridge_error_info and bridge-specific detail panels.
 - orgId: 1
   name: signals-producer-readiness
   folder: SMC Live Overlay

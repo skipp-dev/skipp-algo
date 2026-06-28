@@ -1641,7 +1641,7 @@ def render_metrics(startup_ts: float) -> str:
         configured=railway_configured,
         scrape_success=railway_ok,
         last_success_age_seconds=railway_age,
-        scrape_duration_seconds=None,
+        scrape_duration_seconds=railway_snapshot.get("scrape_duration_seconds"),
         error_code=str(error)[:200] if error else None,
     )
 
