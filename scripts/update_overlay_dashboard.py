@@ -1000,6 +1000,9 @@ def _fix_core_metrics_present_panel(data: dict[str, Any]) -> bool:
     A partial exporter regression can still scrape uptime_seconds while
     dropping market_us_open, overlay_fresh, or last_bar_age_known. Counting
     missing critical series makes the panel turn red in those cases.
+
+    The set also includes the HTTP/SLO traffic counters and latency histogram
+    count so missing request/error/latency telemetry is surfaced as red.
     """
     changed = False
     for panel in _iter_v1_panels(data):
@@ -1018,6 +1021,14 @@ def _fix_core_metrics_present_panel(data: dict[str, Any]) -> bool:
                 '  absent(live_overlay_market_us_open{job=~"$job"}) or vector(0)\n'
                 ") + (\n"
                 '  absent(live_overlay_last_bar_age_known{job=~"$job"}) or vector(0)\n'
+                ") + (\n"
+                '  absent(live_overlay_smc_live_requests_total{job=~"$job"}) or vector(0)\n'
+                ") + (\n"
+                '  absent(live_overlay_smc_live_success_total{job=~"$job"}) or vector(0)\n'
+                ") + (\n"
+                '  absent(live_overlay_smc_live_errors_total{job=~"$job"}) or vector(0)\n'
+                ") + (\n"
+                '  absent(live_overlay_smc_live_latency_ms_count{job=~"$job"}) or vector(0)\n'
                 ")"
             )
             if expr != new_expr:
@@ -1029,7 +1040,11 @@ def _fix_core_metrics_present_panel(data: dict[str, Any]) -> bool:
             _value_mapping(1, "1 MISSING", COLOR_WARN),
             _value_mapping(2, "2 MISSING", COLOR_DEGRADED),
             _value_mapping(3, "3 MISSING", COLOR_ERROR),
-            _value_mapping(4, "ALL MISSING", COLOR_ERROR),
+            _value_mapping(4, "4 MISSING", COLOR_ERROR),
+            _value_mapping(5, "5 MISSING", COLOR_ERROR),
+            _value_mapping(6, "6 MISSING", COLOR_ERROR),
+            _value_mapping(7, "7 MISSING", COLOR_ERROR),
+            _value_mapping(8, "ALL MISSING", COLOR_ERROR),
         ]
         if defaults.get("mappings") != desired_mappings:
             defaults["mappings"] = desired_mappings

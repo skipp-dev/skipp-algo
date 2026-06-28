@@ -129,6 +129,7 @@ def _fetch_snapshot(api_key: str) -> dict[str, Any]:
         "enabled": 1,
         "ok": 1,
         "fetched_at_unix": time.time(),
+        "last_success_fetched_at_unix": time.time(),
         "counts": counts,
         "avg_response_time_ms": avg_response_time_ms,
         "monitors": monitors,
@@ -161,12 +162,16 @@ def snapshot() -> dict[str, Any]:
 
         try:
             fresh = _fetch_snapshot(api_key)
+            if fresh.get("ok"):
+                fresh.setdefault("last_success_fetched_at_unix", fresh.get("fetched_at_unix", 0.0))
         except Exception as exc:  # pragma: no cover - exercised via tests using monkeypatch
             error_code = _classify_error(exc)
+            prev_last_success = (_cached_snapshot or {}).get("last_success_fetched_at_unix", 0.0)
             fresh = {
                 "enabled": 1,
                 "ok": 0,
                 "fetched_at_unix": time.time(),
+                "last_success_fetched_at_unix": prev_last_success,
                 "counts": {"total": 0, "up": 0, "down": 0, "paused": 0, "unknown": 0},
                 "avg_response_time_ms": None,
                 "monitors": [],

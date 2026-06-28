@@ -11,6 +11,8 @@ from __future__ import annotations
 
 import json
 import math
+import re
+import time
 from pathlib import Path
 
 import pytest
@@ -1792,3 +1794,109 @@ def test_render_metrics_exports_generic_bridge_contract(
     assert 'live_overlay_bridge_configured{bridge="railway_metrics"} 0' in body
     assert 'live_overlay_bridge_scrape_success{bridge="railway_metrics"} 0' in body
     assert 'live_overlay_bridge_error_info{bridge="railway_metrics",error="missing_configuration"} 1' in body
+
+
+def test_render_metrics_includes_expected_market_traffic_gauge(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Gauge reflects LIVE_OVERLAY_EXPECT_MARKET_TRAFFIC env var."""
+    import services.live_overlay_daemon.metrics as metrics_mod
+
+    _patch_common(
+        monkeypatch,
+        feed_ready=True,
+        market_open=True,
+        bar_count=10,
+        overlay_symbols=5,
+        overlay_age=60.0,
+    )
+    monkeypatch.setenv("LIVE_OVERLAY_EXPECT_MARKET_TRAFFIC", "1")
+
+    body = metrics_mod.render_metrics(startup_ts=100.0)
+
+    assert "# TYPE live_overlay_expected_market_traffic gauge" in body
+    assert "live_overlay_expected_market_traffic 1" in body
+
+
+def test_render_metrics_expected_market_traffic_defaults_to_zero(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    import services.live_overlay_daemon.metrics as metrics_mod
+
+    _patch_common(
+        monkeypatch,
+        feed_ready=True,
+        market_open=True,
+        bar_count=10,
+        overlay_symbols=5,
+        overlay_age=60.0,
+    )
+    monkeypatch.delenv("LIVE_OVERLAY_EXPECT_MARKET_TRAFFIC", raising=False)
+
+    body = metrics_mod.render_metrics(startup_ts=100.0)
+
+    assert "live_overlay_expected_market_traffic 0" in body
+
+
+def test_render_metrics_bridge_last_success_age_preserved_on_failure(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """After a failed poll the bridge last_success_age must not reset to now."""
+    import services.live_overlay_daemon.metrics as metrics_mod
+
+    _patch_common(
+        monkeypatch,
+        feed_ready=True,
+        market_open=True,
+        bar_count=10,
+        overlay_symbols=5,
+        overlay_age=60.0,
+    )
+    past = time.time() - 600.0
+    monkeypatch.setattr(
+        metrics_mod.uptimerobot_bridge,
+        "snapshot",
+        lambda: {
+            "enabled": 1,
+            "ok": 0,
+            "fetched_at_unix": time.time(),
+            "last_success_fetched_at_unix": past,
+            "error_code": "timeout",
+            "counts": {"total": 0, "up": 0, "down": 0, "paused": 0, "unknown": 0},
+            "avg_response_time_ms": None,
+            "monitors": [],
+        },
+    )
+    monkeypatch.setattr(
+        metrics_mod.github_workflow_bridge,
+        "snapshot",
+        lambda: {
+            "enabled": 1,
+            "ok": 0,
+            "fetched_at_unix": time.time(),
+            "last_success_fetched_at_unix": past,
+            "error_code": "http_error",
+            "counts": {"seen": 0, "success": 0, "failed": 0, "in_progress": 0, "queued": 0},
+            "latest_run_age_seconds": None,
+            "latest_run_duration_seconds": None,
+            "workflows": [],
+        },
+    )
+
+    body = metrics_mod.render_metrics(startup_ts=100.0)
+
+    ur_age_match = re.search(
+        r'live_overlay_bridge_last_success_age_seconds\{bridge="uptimerobot"\} ([0-9.eE+-]+)',
+        body,
+    )
+    assert ur_age_match is not None
+    ur_age = float(ur_age_match.group(1))
+    assert ur_age >= 590.0, f"uptimerobot last_success_age too small: {ur_age}"
+
+    gh_age_match = re.search(
+        r'live_overlay_bridge_last_success_age_seconds\{bridge="github_workflow"\} ([0-9.eE+-]+)',
+        body,
+    )
+    assert gh_age_match is not None
+    gh_age = float(gh_age_match.group(1))
+    assert gh_age >= 590.0, f"github_workflow last_success_age too small: {gh_age}"

@@ -1674,7 +1674,7 @@
       },
       "targets": [
         {
-          "expr": "(\n  absent(live_overlay_uptime_seconds{job=~\"$job\"}) or vector(0)\n) + (\n  absent(live_overlay_overlay_fresh{job=~\"$job\"}) or vector(0)\n) + (\n  absent(live_overlay_market_us_open{job=~\"$job\"}) or vector(0)\n) + (\n  absent(live_overlay_last_bar_age_known{job=~\"$job\"}) or vector(0)\n)",
+          "expr": "(\n  absent(live_overlay_uptime_seconds{job=~\"$job\"}) or vector(0)\n) + (\n  absent(live_overlay_overlay_fresh{job=~\"$job\"}) or vector(0)\n) + (\n  absent(live_overlay_market_us_open{job=~\"$job\"}) or vector(0)\n) + (\n  absent(live_overlay_last_bar_age_known{job=~\"$job\"}) or vector(0)\n) + (\n  absent(live_overlay_smc_live_requests_total{job=~\"$job\"}) or vector(0)\n) + (\n  absent(live_overlay_smc_live_success_total{job=~\"$job\"}) or vector(0)\n) + (\n  absent(live_overlay_smc_live_errors_total{job=~\"$job\"}) or vector(0)\n) + (\n  absent(live_overlay_smc_live_latency_ms_count{job=~\"$job\"}) or vector(0)\n)",
           "legendFormat": "core_metrics_present",
           "datasource": {
             "type": "prometheus",
@@ -1736,6 +1736,42 @@
               "type": "value",
               "options": {
                 "4": {
+                  "text": "4 MISSING",
+                  "color": "dark-red"
+                }
+              }
+            },
+            {
+              "type": "value",
+              "options": {
+                "5": {
+                  "text": "5 MISSING",
+                  "color": "dark-red"
+                }
+              }
+            },
+            {
+              "type": "value",
+              "options": {
+                "6": {
+                  "text": "6 MISSING",
+                  "color": "dark-red"
+                }
+              }
+            },
+            {
+              "type": "value",
+              "options": {
+                "7": {
+                  "text": "7 MISSING",
+                  "color": "dark-red"
+                }
+              }
+            },
+            {
+              "type": "value",
+              "options": {
+                "8": {
                   "text": "ALL MISSING",
                   "color": "dark-red"
                 }
@@ -5860,6 +5896,6 @@
   "timezone": "utc",
   "title": "SMC Live Overlay API",
   "uid": "smc-live-overlay-v1",
-  "version": 41,
+  "version": 42,
   "description": "Live-overlay daemon operational dashboard: feed health, worker liveness, SMC overlay freshness, external bridge status, provider health, daily experiment metrics, and Railway container resources."
 }

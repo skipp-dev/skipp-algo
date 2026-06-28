@@ -225,6 +225,21 @@ def test_dashboard_railway_bridge_state_uses_enabled_plus_success() -> None:
     assert "== 1" not in expr
 
 
+def test_alert_rules_include_expected_traffic_missing_alert() -> None:
+    """Expected traffic alert must fire when expected traffic is absent during US open."""
+    rules_doc = yaml.safe_load(_ALERT_RULES_YAML.read_text(encoding="utf-8"))
+    rules = [r for group in rules_doc["groups"] for r in group["rules"]]
+    rule = next(r for r in rules if r.get("uid") == "lo-request-rate-absent-open")
+    expr = rule["data"][0]["model"]["expr"]
+
+    assert "live_overlay_expected_market_traffic" in expr
+    assert "live_overlay_market_us_open" in expr
+    assert "live_overlay_uptime_seconds" in expr
+    assert "live_overlay_smc_live_requests_total" in expr
+    assert "increase(" not in expr
+    assert rule.get("for") in ("10m", "10")
+
+
 def test_alert_rules_include_generic_bridge_failure_alert() -> None:
     """Generic bridge failure alert must use enabled + scrape_success without configured gate."""
     rules_doc = yaml.safe_load(_ALERT_RULES_YAML.read_text(encoding="utf-8"))

@@ -243,3 +243,50 @@ def test_snapshot_parallel_fetch_error_is_coalesced() -> None:
     assert all(r.get("enabled") == 1 for r in results)
     assert all(r.get("ok") == 0 for r in results)
     assert all(r.get("error") == "TimeoutError" for r in results)
+
+
+def test_fetch_snapshot_records_last_success_timestamp(monkeypatch: pytest.MonkeyPatch) -> None:
+    import services.live_overlay_daemon.uptimerobot_bridge as bridge
+
+    monkeypatch.setattr(bridge.config, "uptimerobot_api_key", lambda: "secret")
+    monkeypatch.setattr(bridge.config, "uptimerobot_timeout_secs", lambda: 5)
+    monkeypatch.setattr(bridge.time, "time", lambda: 1_700_000_000.0)
+    monkeypatch.setattr(
+        bridge,
+        "_fetch_snapshot",
+        lambda _api_key: {
+            "enabled": 1,
+            "ok": 1,
+            "fetched_at_unix": 1_700_000_000.0,
+            "counts": {"total": 0, "up": 0, "down": 0, "paused": 0, "unknown": 0},
+            "avg_response_time_ms": None,
+            "monitors": [],
+        },
+    )
+
+    snap = bridge.snapshot()
+    assert snap["last_success_fetched_at_unix"] == 1_700_000_000.0
+
+
+def test_failed_snapshot_preserves_last_success_timestamp(monkeypatch: pytest.MonkeyPatch) -> None:
+    import services.live_overlay_daemon.uptimerobot_bridge as bridge
+
+    bridge._cached_snapshot = {
+        "last_success_fetched_at_unix": 1_700_000_000.0,
+    }
+    bridge._cached_at_monotonic = 0.0
+
+    monkeypatch.setattr(bridge.config, "uptimerobot_api_key", lambda: "secret")
+    monkeypatch.setattr(bridge.config, "uptimerobot_poll_ttl_secs", lambda: 300)
+    monkeypatch.setattr(bridge.time, "time", lambda: 1_700_000_300.0)
+    monkeypatch.setattr(bridge.time, "monotonic", lambda: 300.0)
+    monkeypatch.setattr(
+        bridge,
+        "_fetch_snapshot",
+        lambda _api_key: (_ for _ in ()).throw(TimeoutError("boom")),
+    )
+
+    snap = bridge.snapshot()
+    assert snap["ok"] == 0
+    assert snap["last_success_fetched_at_unix"] == 1_700_000_000.0
+    assert snap["fetched_at_unix"] == 1_700_000_300.0

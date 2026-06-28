@@ -1184,6 +1184,9 @@ def render_metrics(startup_ts: float) -> str:
 
     lines.append("# TYPE live_overlay_market_open gauge")
     lines.append(f"live_overlay_market_open {1 if market_open else 0}")
+    expected_traffic = config.expect_market_traffic()
+    lines.append("# TYPE live_overlay_expected_market_traffic gauge")
+    lines.append(f"live_overlay_expected_market_traffic {1 if expected_traffic else 0}")
     lines.append("# TYPE live_overlay_market_us_open gauge")
     lines.append(f"live_overlay_market_us_open {1 if us_open else 0}")
     lines.append("# TYPE live_overlay_market_europe_open gauge")
@@ -1213,9 +1216,15 @@ def render_metrics(startup_ts: float) -> str:
     uptime_snapshot = uptimerobot_bridge.snapshot()
     uptime_enabled = bool(uptime_snapshot.get("enabled"))
     uptime_ok = bool(uptime_snapshot.get("ok"))
-    fetched_at_unix = _prom_numeric_value(uptime_snapshot.get("fetched_at_unix", 0.0))
+    last_success_ts = _prom_numeric_value(
+        uptime_snapshot.get("last_success_fetched_at_unix")
+        or uptime_snapshot.get("fetched_at_unix")
+        or 0.0
+    )
     snapshot_age = (
-        max(0.0, time.time() - fetched_at_unix) if math.isfinite(fetched_at_unix) and fetched_at_unix > 0 else None
+        max(0.0, time.time() - last_success_ts)
+        if math.isfinite(last_success_ts) and last_success_ts > 0
+        else None
     )
 
     # Legacy metrics retained for backwards compatibility.
@@ -1274,10 +1283,14 @@ def render_metrics(startup_ts: float) -> str:
     workflow_snapshot = github_workflow_bridge.snapshot()
     wf_enabled = bool(workflow_snapshot.get("enabled"))
     wf_ok = bool(workflow_snapshot.get("ok"))
-    wf_fetched_at_unix = _prom_numeric_value(workflow_snapshot.get("fetched_at_unix", 0.0))
+    wf_last_success_ts = _prom_numeric_value(
+        workflow_snapshot.get("last_success_fetched_at_unix")
+        or workflow_snapshot.get("fetched_at_unix")
+        or 0.0
+    )
     wf_snapshot_age = (
-        max(0.0, time.time() - wf_fetched_at_unix)
-        if math.isfinite(wf_fetched_at_unix) and wf_fetched_at_unix > 0
+        max(0.0, time.time() - wf_last_success_ts)
+        if math.isfinite(wf_last_success_ts) and wf_last_success_ts > 0
         else None
     )
 
