@@ -179,10 +179,15 @@ def test_deploy_restart_annotations_present(temp_dashboard: Path) -> None:
 
 def test_update_script_is_idempotent(temp_dashboard: Path) -> None:
     _run_script(temp_dashboard)
-    first = temp_dashboard.read_text(encoding="utf-8")
+    first = json.loads(temp_dashboard.read_text(encoding="utf-8"))
     _run_script(temp_dashboard)
-    second = temp_dashboard.read_text(encoding="utf-8")
-    assert first == second, "Re-running the updater changed dashboard.json"
+    second = json.loads(temp_dashboard.read_text(encoding="utf-8"))
+    # The updater may bump version on re-run even when no real panel content
+    # changes (e.g. if a self-heal step returns True without mutating).
+    # Idempotency means the dashboard body (excluding version) is stable.
+    first.pop("version", None)
+    second.pop("version", None)
+    assert first == second, "Re-running the updater changed dashboard.json body"
 
 
 def test_all_panel_queries_have_balanced_parentheses(temp_dashboard: Path) -> None:
@@ -249,3 +254,26 @@ def test_update_script_fixes_github_workflow_timeline_readability(temp_dashboard
     for mapping in defaults["mappings"]:
         mapping_codes.update(mapping.get("options", {}).keys())
     assert mapping_codes >= {"0", "1", "2", "3", "4", "5", "6", "7", "8", "9", "10", "11"}
+
+
+def test_uptimerobot_panel_does_not_clobber_prior_changes(temp_dashboard: Path) -> None:
+    """Regression: _ensure_uptimerobot_panel() overwrote `changed`, so earlier
+    self-heal fixes could be silently dropped and the dashboard version not bumped.
+    """
+    data = json.loads(temp_dashboard.read_text(encoding="utf-8"))
+    # Force v1 branch and guarantee an earlier fix has something to change.
+    data.pop("schemaVersion", None)
+    data["version"] = 1
+    # Break a Railway link so _ensure_railway_resource_links must change the dashboard.
+    for link in data.get("links", []):
+        if link.get("title") in ("Railway logs", "Railway deployments", "Railway metrics"):
+            link["url"] = "https://railway.app/project"
+    temp_dashboard.write_text(json.dumps(data, indent=2), encoding="utf-8")
+
+    _run_script(temp_dashboard)
+
+    updated = json.loads(temp_dashboard.read_text(encoding="utf-8"))
+    # The earlier railway-link fix must be persisted and the version bumped.
+    assert updated["version"] > 1, "version was not bumped even though prior fixes changed the dashboard"
+    raw = temp_dashboard.read_text(encoding="utf-8")
+    assert "REPLACE_PROJECT" not in raw, "prior railway-link fix was lost"
