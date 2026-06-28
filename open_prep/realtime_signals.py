@@ -2399,6 +2399,12 @@ class RealtimeEngine:
     # ------------------------------------------------------------------
     # Poll once — main detection loop
     # ------------------------------------------------------------------
+    def _mark_poll_success(self, poll_start: float) -> None:
+        """Track poll duration and mark the poll as successfully completed."""
+        self.last_poll_duration = time.monotonic() - poll_start
+        self.last_poll_success_epoch = time.time()
+        self.last_poll_duration_seconds = self.last_poll_duration
+
     def poll_once(self) -> list[RealtimeSignal]:
         """Run one poll cycle: fetch quotes → detect signals → persist.
 
@@ -2444,8 +2450,7 @@ class RealtimeEngine:
             with self._lock:
                 self._active_signals.clear()
             self._save_signals(disabled_reason=self._client_disabled_reason)
-            self.last_poll_duration = time.monotonic() - poll_start
-            self.last_poll_duration_seconds = self.last_poll_duration
+            self._mark_poll_success(poll_start)
             return []
 
         # ── Newsstack: prefer async poller, fall back to synchronous ──
@@ -2479,8 +2484,7 @@ class RealtimeEngine:
         if not quotes:
             logger.debug("No quotes received in poll cycle")
             self._save_signals()
-            self.last_poll_duration = time.monotonic() - poll_start
-            self.last_poll_duration_seconds = self.last_poll_duration
+            self._mark_poll_success(poll_start)
             return new_signals
 
         self._poll_seq += 1
@@ -2506,8 +2510,7 @@ class RealtimeEngine:
             with self._lock:
                 self._active_signals.clear()
             self._save_signals()
-            self.last_poll_duration = time.monotonic() - poll_start
-            self.last_poll_duration_seconds = self.last_poll_duration
+            self._mark_poll_success(poll_start)
             return []
 
         # Build symbol→watchlist entry map
@@ -2870,11 +2873,7 @@ class RealtimeEngine:
         self._save_signals()
 
         # Semantic readiness: successful poll completion
-        self.last_poll_success_epoch = time.time()
-
-        # Track poll duration for adaptive sleep
-        self.last_poll_duration = time.monotonic() - poll_start
-        self.last_poll_duration_seconds = self.last_poll_duration
+        self._mark_poll_success(poll_start)
 
         if new_signals:
             logger.info(

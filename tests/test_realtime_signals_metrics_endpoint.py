@@ -239,3 +239,31 @@ def test_readyz_returns_200_when_ready(monkeypatch: pytest.MonkeyPatch) -> None:
         assert body.strip() == "ready"
     finally:
         server.shutdown()
+
+
+# ---------------------------------------------------------------------------
+# _mark_poll_success timing contract
+# ---------------------------------------------------------------------------
+
+def test_mark_poll_success_sets_duration_before_epoch() -> None:
+    """Duration and success epoch must be recorded in one atomic helper."""
+    engine = rs.RealtimeEngine()
+    engine._watchlist = [{"symbol": "AAPL"}]
+    start = time.monotonic() - 0.05
+    engine._mark_poll_success(start)
+    assert engine.last_poll_duration >= 0.05
+    assert engine.last_poll_duration_seconds == engine.last_poll_duration
+    assert engine.last_poll_success_epoch > 0
+
+
+def test_collect_process_metrics_uses_last_poll_duration_seconds() -> None:
+    """The duration gauge must reflect the engine\'s last_poll_duration_seconds."""
+    engine = SimpleNamespace(
+        _watchlist=[{"symbol": "AAPL"}],
+        open_prep_snapshot_loaded=1.0,
+        open_prep_snapshot_age_seconds=0.0,
+        last_poll_success_epoch=time.time(),
+        last_poll_duration_seconds=2.5,
+    )
+    body = rs._collect_process_metrics(engine)
+    assert "signals_producer_last_poll_duration_seconds 2.500" in body

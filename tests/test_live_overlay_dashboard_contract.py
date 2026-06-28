@@ -829,6 +829,8 @@ def test_dashboard_signal_pipeline_ready_panel_uses_boolean_expression() -> None
     assert "signals_producer_open_prep_snapshot_loaded" in expr
     assert "signals_producer_last_poll_age_seconds" in expr
     assert "bool" in expr
+    # Age==0 (before first poll) must not be treated as ready.
+    assert "clamp_min" in expr
 
 
 def test_dashboard_has_open_prep_snapshot_panel() -> None:

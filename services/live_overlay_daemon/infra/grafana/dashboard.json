@@ -1028,7 +1028,7 @@
       "id": 2165782567,
       "title": "Signal Pipeline Ready",
       "type": "stat",
-      "description": "1 = healthy: watchlist loaded, Open-Prep snapshot present, and a poll succeeded within the last 5 minutes. 0 = pipeline not ready.",
+      "description": "1 = healthy: watchlist loaded, Open-Prep snapshot present, and a poll succeeded within the last 5 minutes. Age=0 is treated as not-ready. 0 = pipeline not ready.",
       "datasource": {
         "type": "prometheus",
         "uid": "grafanacloud-prom"
@@ -1041,7 +1041,7 @@
       },
       "targets": [
         {
-          "expr": "(signals_producer_watchlist_symbols{job=~\"signals_producer\"} > bool 0) * (signals_producer_open_prep_snapshot_loaded{job=~\"signals_producer\"} > bool 0) * (signals_producer_last_poll_age_seconds{job=~\"signals_producer\"} < bool 300) or vector(0)",
+          "expr": "(signals_producer_watchlist_symbols{job=~\"signals_producer\"} > bool 0) * (signals_producer_open_prep_snapshot_loaded{job=~\"signals_producer\"} > bool 0) * (clamp_min(signals_producer_last_poll_age_seconds{job=~\"signals_producer\"}, 1) < bool 300) or vector(0)",
           "legendFormat": "__auto",
           "instant": true,
           "datasource": {
@@ -1180,7 +1180,7 @@
       "id": 2165782569,
       "title": "Watchlist Symbols",
       "type": "stat",
-      "description": "Number of symbols in the active signals-producer watchlist.",
+      "description": "Number of symbols loaded into the realtime signal watchlist.",
       "datasource": {
         "type": "prometheus",
         "uid": "grafanacloud-prom"
@@ -1224,7 +1224,7 @@
       "id": 2165782570,
       "title": "Producer Poll Age",
       "type": "stat",
-      "description": "Seconds since the last successful signals-producer poll cycle.",
+      "description": "Seconds since the last successful realtime signal poll completed (age=0 before first poll).",
       "datasource": {
         "type": "prometheus",
         "uid": "grafanacloud-prom"
