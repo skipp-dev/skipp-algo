@@ -121,8 +121,8 @@ _FROZEN_SITES: frozenset[tuple[str, int]] = frozenset(
         ("open_prep/realtime_signals.py", 303),
         ("open_prep/realtime_signals.py", 378),
         ("open_prep/realtime_signals.py", 2011),
-        ("open_prep/realtime_signals.py", 3167),
-        ("open_prep/realtime_signals.py", 3154),
+        ("open_prep/realtime_signals.py", 3166),
+        ("open_prep/realtime_signals.py", 3153),
         # 2026-06-11 (eval-findings D7): technical_analysis import block
         # +8 lines (1943→1951, 1945→1953).
         ("open_prep/run_open_prep.py", 2038),
