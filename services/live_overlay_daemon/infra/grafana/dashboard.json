@@ -2045,6 +2045,10 @@
           "fields": "",
           "values": false
         }
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "grafanacloud-prom"
       }
     },
     {
@@ -5962,6 +5966,6 @@
   "timezone": "utc",
   "title": "SMC Live Overlay API",
   "uid": "smc-live-overlay-v1",
-  "version": 43,
+  "version": 44,
   "description": "Live-overlay daemon operational dashboard: feed health, worker liveness, SMC overlay freshness, external bridge status, provider health, daily experiment metrics, and Railway container resources."
 }

@@ -175,6 +175,7 @@ TRAFFIC_ALERT_ARMED_PANEL: dict[str, Any] = {
         "LIVE_OVERLAY_EXPECT_MARKET_TRAFFIC; 1 means ARMED and 0 means NOT ARMED."
     ),
     "gridPos": {"x": 18, "y": _TRAFFIC_ALERT_ARMED_Y, "w": 6, "h": _TRAFFIC_ALERT_ARMED_H},
+    "datasource": {"type": "prometheus", "uid": "grafanacloud-prom"},
     "targets": [
         {
             "expr": 'live_overlay_expected_market_traffic{job=~"$job"}',
