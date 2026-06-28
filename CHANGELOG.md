@@ -5,6 +5,38 @@
 All notable changes to this project are documented in this file.
 
 ## [Unreleased]
+
+### Fixed (2026-06-28) — Live overlay bridge contract follow-up
+
+- `services/live_overlay_daemon/railway_metrics.py`:
+  - Added stable bridge error codes (`missing_configuration`, `network_error`,
+    `timeout`, `fetch_error`) and `_failed_snapshot()` helper that preserves
+    cached service data while marking the scrape as failed.
+  - Snapshot now records `scrape_duration_seconds` on success and explicit
+    `None` for disabled/misconfigured/failed states.
+- `services/live_overlay_daemon/metrics.py`:
+  - Forwards Railway `scrape_duration_seconds` into the generic
+    `live_overlay_bridge_*{bridge="railway_metrics"}` contract.
+- `services/live_overlay_daemon/infra/grafana/alert-rules.yaml`:
+  - Bridge scrape-failure and stale alerts now use `enabled + success` only
+    (dropping the redundant `configured` gate) and evaluate for `10m`.
+- `services/live_overlay_daemon/infra/grafana/dashboard.json`:
+  - **Railway Metrics Error** panel now queries the generic
+    `live_overlay_bridge_error_info` series instead of the legacy
+    `live_overlay_railway_metrics_error_info` gauge.
+- `services/live_overlay_daemon/OPS.md`:
+  - **Market Traffic Health** section now describes US-regular-session-only
+    gating, matching the dashboard query and removing the stale major-session
+    language.
+- `tests/test_railway_metrics.py`:
+  - Added parametrized truth-table test for the generic Railway bridge metrics.
+  - Updated cache-on-error and GraphQL-error tests to assert stable error codes.
+- `tests/test_live_overlay_dashboard_contract.py`:
+  - Added contract tests for the Railway bridge state query and the generic
+    bridge failure alert.
+- `tests/test_global_statement_budget.py`:
+  - Re-pinned `railway_metrics.py` global-statement ledger lines after the
+    `_failed_snapshot()` insertion.
 ### Fixed (2026-06-28) — Live overlay dashboard UX follow-up tests and drilldown links
 
 - `scripts/update_overlay_dashboard.py`:
