@@ -829,8 +829,34 @@ def test_dashboard_signal_pipeline_ready_panel_uses_boolean_expression() -> None
     assert "signals_producer_open_prep_snapshot_loaded" in expr
     assert "signals_producer_last_poll_age_seconds" in expr
     assert "bool" in expr
-    # Age==0 (before first poll) must not be treated as ready.
-    assert "clamp_min" in expr
+    # Age==0 (before first poll) must not be treated as ready; missing series
+    # must fall back via label-safe vector so the panel never goes blank.
+    assert "clamp_min" not in expr
+    assert " or on() vector(" in expr
+
+
+def test_dashboard_open_prep_snapshot_panel_uses_label_safe_fallback() -> None:
+    dashboard = json.loads(_DASHBOARD_JSON.read_text(encoding="utf-8"))
+    panels = _dashboard_panels(dashboard)
+    panel = next(p for p in panels if p.get("title") == "Open-Prep Snapshot")
+    expr = panel["targets"][0]["expr"]
+    assert " or on() vector(0)" in expr
+
+
+def test_dashboard_watchlist_symbols_panel_uses_label_safe_fallback() -> None:
+    dashboard = json.loads(_DASHBOARD_JSON.read_text(encoding="utf-8"))
+    panels = _dashboard_panels(dashboard)
+    panel = next(p for p in panels if p.get("title") == "Watchlist Symbols")
+    expr = panel["targets"][0]["expr"]
+    assert " or on() vector(0)" in expr
+
+
+def test_dashboard_producer_poll_age_panel_uses_label_safe_fallback() -> None:
+    dashboard = json.loads(_DASHBOARD_JSON.read_text(encoding="utf-8"))
+    panels = _dashboard_panels(dashboard)
+    panel = next(p for p in panels if p.get("title") == "Producer Poll Age")
+    expr = panel["targets"][0]["expr"]
+    assert " or on() vector(999999)" in expr
 
 
 def test_dashboard_has_open_prep_snapshot_panel() -> None:
@@ -874,6 +900,8 @@ def test_alert_rules_watchlist_empty_uses_watchlist_symbols() -> None:
     rule = next(r for r in group["rules"] if r.get("uid") == "sp-watchlist-empty")
     expr = rule["data"][0]["model"]["expr"]
     assert "signals_producer_watchlist_symbols" in expr
+    assert "== bool 0" in expr, "alert must fire when the metric is missing or zero"
+    assert "or on() vector(1)" in expr, "label-safe fallback required for missing series"
     assert rule["labels"]["severity"] == "warning"
 
 
@@ -893,4 +921,6 @@ def test_alert_rules_poll_stale_uses_last_poll_age() -> None:
     expr = rule["data"][0]["model"]["expr"]
     assert "signals_producer_last_poll_age_seconds" in expr
     assert "300" in expr
+    assert "> bool 300" in expr, "alert must fire when the metric is missing or stale"
+    assert "or on() vector(1)" in expr, "label-safe fallback required for missing series"
     assert rule["labels"]["severity"] == "warning"

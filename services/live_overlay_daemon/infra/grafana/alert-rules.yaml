@@ -909,7 +909,7 @@ groups:
           - refId: A
             datasourceUid: grafanacloud-prom
             model:
-              expr: signals_producer_watchlist_symbols{job="signals_producer"} == 0
+              expr: (signals_producer_watchlist_symbols{job="signals_producer"} == bool 0) or on() vector(1)
               instant: true
           - refId: C
             datasourceUid: __expr__
@@ -957,7 +957,7 @@ groups:
           - refId: A
             datasourceUid: grafanacloud-prom
             model:
-              expr: (signals_producer_last_poll_age_seconds{job="signals_producer"} > 300) or vector(0)
+              expr: (signals_producer_last_poll_age_seconds{job="signals_producer"} > bool 300) or on() vector(1)
               instant: true
           - refId: C
             datasourceUid: __expr__

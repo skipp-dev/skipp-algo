@@ -38,7 +38,7 @@ def _run_open_prep(repo_root: Path, python_exe: str) -> None:
     try:
         with tmp_file.open("w", encoding="utf-8") as fh:
             subprocess.run(
-                [python_exe, "-m", "open_prep.run_open_prep"],
+                [python_exe, "-m", "open_prep.run_open_prep", "--pre-open-only"],
                 cwd=str(repo_root),
                 stdout=fh,
                 check=True,
