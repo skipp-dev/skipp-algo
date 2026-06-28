@@ -1663,12 +1663,17 @@ def render_metrics(startup_ts: float) -> str:
 
     # --- Railway container resource metrics ---
     railway_snapshot = railway_metrics.snapshot()
+    railway_enabled = bool(railway_snapshot.get("enabled"))
+    railway_ok = bool(railway_snapshot.get("ok"))
+    lines.append("# TYPE live_overlay_railway_metrics_configured gauge")
+    lines.append(f"live_overlay_railway_metrics_configured {1 if railway_enabled else 0}")
+    lines.append("# TYPE live_overlay_railway_metrics_scrape_success gauge")
+    lines.append(f"live_overlay_railway_metrics_scrape_success {1 if railway_ok else 0}")
+    # Backwards-compatible metric: historically this combined configured + ok.
     lines.append("# TYPE live_overlay_railway_metrics_enabled gauge")
-    if railway_snapshot.get("enabled"):
-        lines.append(
-            f"live_overlay_railway_metrics_enabled {1 if railway_snapshot.get('ok') else 0}"
-        )
+    lines.append(f"live_overlay_railway_metrics_enabled {1 if (railway_enabled and railway_ok) else 0}")
 
+    if railway_enabled:
         fetched_at = railway_snapshot.get("fetched_at_unix", 0.0)
         if fetched_at > 0:
             age_seconds = time.time() - fetched_at

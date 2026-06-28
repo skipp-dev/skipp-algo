@@ -260,3 +260,40 @@ def test_railway_metrics_disabled_when_no_credentials(monkeypatch: pytest.Monkey
     monkeypatch.setenv("RAILWAY_ENVIRONMENT_ID", "")
     importlib.reload(config)
     assert config.railway_metrics_enabled() is False
+
+
+def test_render_metrics_emits_configured_and_success_gauges() -> None:
+    from services.live_overlay_daemon import metrics
+
+    snapshot = {
+        "enabled": True,
+        "ok": True,
+        "fetched_at_unix": 1_000_000.0,
+        "error": None,
+        "services": [],
+    }
+    with patch.object(metrics.railway_metrics, "snapshot", return_value=snapshot):
+        text = metrics.render_metrics(startup_ts=1_000_000.0)
+
+    assert "live_overlay_railway_metrics_configured 1" in text
+    assert "live_overlay_railway_metrics_scrape_success 1" in text
+    assert "live_overlay_railway_metrics_enabled 1" in text
+
+
+def test_render_metrics_scrape_error_still_exposes_configured() -> None:
+    from services.live_overlay_daemon import metrics
+
+    snapshot = {
+        "enabled": True,
+        "ok": False,
+        "fetched_at_unix": 0.0,
+        "error": " GraphQL error",
+        "services": [],
+    }
+    with patch.object(metrics.railway_metrics, "snapshot", return_value=snapshot):
+        text = metrics.render_metrics(startup_ts=1_000_000.0)
+
+    assert "live_overlay_railway_metrics_configured 1" in text
+    assert "live_overlay_railway_metrics_scrape_success 0" in text
+    assert "live_overlay_railway_metrics_enabled 0" in text
+    assert "live_overlay_railway_metrics_error_info" in text
