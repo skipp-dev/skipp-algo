@@ -42,19 +42,19 @@
     {
       "title": "Railway logs",
       "type": "link",
-      "url": "https://railway.com/project/REPLACE_PROJECT_ID/service/REPLACE_LIVE_OVERLAY_SERVICE_ID/logs?environmentId=REPLACE_ENVIRONMENT_ID",
+      "url": "https://railway.com/project/0616a3b7-7b7f-41d1-8fac-a0b8922c94ca/service/705582c5-ba8b-4c6e-848c-33bffe0a61b0/logs?environmentId=470fbd0f-894d-46cd-8722-6b072d255d99",
       "targetBlank": true
     },
     {
       "title": "Railway deployments",
       "type": "link",
-      "url": "https://railway.com/project/REPLACE_PROJECT_ID/service/REPLACE_LIVE_OVERLAY_SERVICE_ID/deployments?environmentId=REPLACE_ENVIRONMENT_ID",
+      "url": "https://railway.com/project/0616a3b7-7b7f-41d1-8fac-a0b8922c94ca/service/705582c5-ba8b-4c6e-848c-33bffe0a61b0/deployments?environmentId=470fbd0f-894d-46cd-8722-6b072d255d99",
       "targetBlank": true
     },
     {
       "title": "Railway metrics",
       "type": "link",
-      "url": "https://railway.com/project/REPLACE_PROJECT_ID/service/REPLACE_LIVE_OVERLAY_SERVICE_ID/metrics?environmentId=REPLACE_ENVIRONMENT_ID",
+      "url": "https://railway.com/project/0616a3b7-7b7f-41d1-8fac-a0b8922c94ca/service/705582c5-ba8b-4c6e-848c-33bffe0a61b0/metrics?environmentId=470fbd0f-894d-46cd-8722-6b072d255d99",
       "targetBlank": true
     }
   ],
@@ -163,7 +163,7 @@
                   {
                     "title": "Railway logs",
                     "type": "link",
-                    "url": "https://railway.com/project/REPLACE_PROJECT_ID/service/REPLACE_LIVE_OVERLAY_SERVICE_ID/logs?environmentId=REPLACE_ENVIRONMENT_ID",
+                    "url": "https://railway.com/project/0616a3b7-7b7f-41d1-8fac-a0b8922c94ca/service/705582c5-ba8b-4c6e-848c-33bffe0a61b0/logs?environmentId=470fbd0f-894d-46cd-8722-6b072d255d99",
                     "targetBlank": true
                   }
                 ]
@@ -221,7 +221,7 @@
       },
       "options": {
         "mode": "markdown",
-        "content": "**Incident triage**\n\n1. Check **Active Alerts** first.\n2. If **Feed Healthy** is red: check Databento credentials, feed reconnects, and Railway logs.\n3. If **Workers Healthy** is red: open Worker Liveness and restart the daemon if a worker is dead.\n4. If **Overlay Fresh** is red: check Compute Cycle Errors and Overlay & Bar Age.\n5. If traffic is missing while **Market Status** is open: check TradingView rollout, auth denied, and request rate.\n6. If dashboards show no data: check Collector / Scrape Targets.\n\nRunbook: [README](https://github.com/skippALGO/skipp-algo/blob/main/services/live_overlay_daemon/README.md)\n\n---\n**Quick links** \u00b7 [Railway logs](https://railway.com/project/REPLACE_PROJECT_ID/service/REPLACE_LIVE_OVERLAY_SERVICE_ID/logs?environmentId=REPLACE_ENVIRONMENT_ID) \u00b7 [Railway deployments](https://railway.com/project/REPLACE_PROJECT_ID/service/REPLACE_LIVE_OVERLAY_SERVICE_ID/deployments?environmentId=REPLACE_ENVIRONMENT_ID) \u00b7 [GitHub Actions](https://github.com/skippALGO/skipp-algo/actions) \u00b7 [Runbook: live-overlay on-call](https://github.com/skippALGO/skipp-algo/blob/main/services/live_overlay_daemon/OPS.md)"
+        "content": "**Incident triage**\n\n1. Check **Active Alerts** first.\n2. If **Feed Healthy** is red: check Databento credentials, feed reconnects, and Railway logs.\n3. If **Workers Healthy** is red: open Worker Liveness and restart the daemon if a worker is dead.\n4. If **Overlay Fresh** is red: check Compute Cycle Errors and Overlay & Bar Age.\n5. If traffic is missing while **Market Status** is open: check TradingView rollout, auth denied, and request rate.\n6. If dashboards show no data: check Collector / Scrape Targets.\n\nRunbook: [README](https://github.com/skippALGO/skipp-algo/blob/main/services/live_overlay_daemon/README.md)\n\n---\n**Quick links** \u00b7 [Railway logs](https://railway.com/project/0616a3b7-7b7f-41d1-8fac-a0b8922c94ca/service/705582c5-ba8b-4c6e-848c-33bffe0a61b0/logs?environmentId=470fbd0f-894d-46cd-8722-6b072d255d99) \u00b7 [Railway deployments](https://railway.com/project/0616a3b7-7b7f-41d1-8fac-a0b8922c94ca/service/705582c5-ba8b-4c6e-848c-33bffe0a61b0/deployments?environmentId=470fbd0f-894d-46cd-8722-6b072d255d99) \u00b7 [GitHub Actions](https://github.com/skippALGO/skipp-algo/actions) \u00b7 [Runbook: live-overlay on-call](https://github.com/skippALGO/skipp-algo/blob/main/services/live_overlay_daemon/OPS.md)"
       },
       "datasource": {
         "type": "prometheus",
@@ -528,7 +528,7 @@
         {
           "title": "External Integrations",
           "type": "link",
-          "url": "/d/smc-live-overlay-v1?orgId=1&viewPanel=2503",
+          "url": "/d/smc-live-overlay-v1?orgId=1&viewPanel=692020449",
           "targetBlank": true
         }
       ]
@@ -1017,7 +1017,7 @@
             {
               "title": "Railway metrics",
               "type": "link",
-              "url": "https://railway.com/project/REPLACE_PROJECT_ID/service/REPLACE_LIVE_OVERLAY_SERVICE_ID/metrics?environmentId=REPLACE_ENVIRONMENT_ID",
+              "url": "https://railway.com/project/0616a3b7-7b7f-41d1-8fac-a0b8922c94ca/service/705582c5-ba8b-4c6e-848c-33bffe0a61b0/metrics?environmentId=470fbd0f-894d-46cd-8722-6b072d255d99",
               "targetBlank": true
             }
           ]
@@ -1402,7 +1402,7 @@
         {
           "title": "Collector / Scrape Targets",
           "type": "link",
-          "url": "/d/smc-live-overlay-v1?orgId=1&viewPanel=4374",
+          "url": "/d/smc-live-overlay-v1?orgId=1&viewPanel=2133310722",
           "targetBlank": true
         }
       ]
@@ -3868,7 +3868,7 @@
       },
       "collapsed": false,
       "panels": [],
-      "description": "Row grouping for live news provider health.",
+      "description": "Service-owner detail: live news provider health and provider-level degradation context.",
       "datasource": {
         "type": "prometheus",
         "uid": "grafanacloud-prom"
@@ -4420,7 +4420,7 @@
       },
       "panels": [],
       "id": 2133310722,
-      "description": "Telemetry pipeline health: scrape target liveness and collector memory."
+      "description": "Service-owner detail: telemetry pipeline health, scrape target liveness, and collector memory."
     },
     {
       "title": "Scrape Targets Up",
@@ -4880,7 +4880,7 @@
         "type": "prometheus",
         "uid": "grafanacloud-prom"
       },
-      "description": "Railway container capacity and bridge health for service-owner review."
+      "description": "Service-owner detail: Railway container capacity and bridge health for production operations."
     },
     {
       "title": "Railway Metrics Bridge",
@@ -4947,7 +4947,7 @@
             {
               "title": "Railway deployments",
               "type": "link",
-              "url": "https://railway.com/project/REPLACE_PROJECT_ID/service/REPLACE_LIVE_OVERLAY_SERVICE_ID/deployments?environmentId=REPLACE_ENVIRONMENT_ID",
+              "url": "https://railway.com/project/0616a3b7-7b7f-41d1-8fac-a0b8922c94ca/service/705582c5-ba8b-4c6e-848c-33bffe0a61b0/deployments?environmentId=470fbd0f-894d-46cd-8722-6b072d255d99",
               "targetBlank": true
             }
           ]
@@ -5429,6 +5429,6 @@
   "timezone": "utc",
   "title": "SMC Live Overlay API",
   "uid": "smc-live-overlay-v1",
-  "version": 32,
+  "version": 33,
   "description": "Live-overlay daemon operational dashboard: feed health, worker liveness, SMC overlay freshness, external bridge status, provider health, daily experiment metrics, and Railway container resources."
 }
