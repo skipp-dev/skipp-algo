@@ -944,7 +944,8 @@ def test_dashboard_signal_pipeline_ready_links_to_concrete_detail_panels() -> No
     by_title = {p.get("title"): p for p in panels}
     by_id = {str(p.get("id")): p for p in panels if p.get("id") is not None}
 
-    panel = by_title["Signal Pipeline Ready"]
+    panel = by_title.get("Signal Pipeline Ready")
+    assert panel is not None, "Signal Pipeline Ready panel missing from dashboard"
     links = panel.get("links") or []
     assert links, "Signal Pipeline Ready needs at least one drilldown link"
     assert all(link.get("targetBlank") for link in links), "drilldown links should open in a new tab"
@@ -958,7 +959,9 @@ def test_dashboard_signal_pipeline_ready_links_to_concrete_detail_panels() -> No
     }
     for panel_id, metric in expected.items():
         assert any(f"viewPanel={panel_id}" in url for url in urls), f"missing drilldown to panel {panel_id}"
-        targets = by_id[panel_id].get("targets", [])
+        target_panel = by_id.get(panel_id)
+        assert target_panel is not None, f"drilldown target panel {panel_id} missing"
+        targets = target_panel.get("targets", [])
         exprs = " ".join(t.get("expr", "") for t in targets)
         assert metric in exprs, f"panel {panel_id} does not contain expected metric {metric!r}"
 
