@@ -454,9 +454,20 @@ After rollout, verify:
 live_overlay_expected_market_traffic{job="live_overlay"} == 1
 ```
 
-Local, dev, and warm-standby deployments should normally leave the value at
-`0`.
+The dashboard tile **Traffic Alert Armed** shows the same gauge:
 
+- `0` = `NOT ARMED`
+- `1` = `ARMED`
+
+Production also has a guard alert:
+
+```promql
+live_overlay_expected_market_traffic{job="live_overlay"} == bool 0
+```
+
+If this fires in production, set `LIVE_OVERLAY_EXPECT_MARKET_TRAFFIC=1` before
+trusting the first-zero traffic alerts. Local, dev, and warm-standby deployments
+should normally leave the value at `0`.
 
 ### Dashboard masking semantics
 

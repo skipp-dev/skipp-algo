@@ -143,7 +143,7 @@ curl https://liveoverlaydaemon-production.up.railway.app/ready
 | `GITHUB_WORKFLOW_MONITOR_TOKEN` | live_overlay_daemon | optional | GitHub PAT für Workflow-Bridge |
 | `GITHUB_WORKFLOW_MONITOR_REPO` | live_overlay_daemon | optional | `owner/repo`, default `skippALGO/skipp-algo` |
 | `NEWS_SNAPSHOT_PATH` | live_overlay_daemon | optional | Pfad zum News-Snapshot-JSON |
-| `OVERLAY_SERVICE_URL` | metrics-collector | ✅ | Scrape target ohne Scheme, aktuell `liveoverlaydaemon-production.up.railway.app`; bei Private Networking `liveoverlaydaemon.railway.internal:<PORT>` |
+| `OVERLAY_SERVICE_URL` | metrics-collector | ✅ | Scrape target ohne Scheme, aktuell `liveoverlaydaemon-production.up.railway.app`; bei Private Networking `liveoverlaydaemon.railway.internal:<PORT>` nach Runtime-Port-Verifikation |
 | `SIGNALS_SERVICE_URL` | live_overlay_daemon, metrics-collector | ✅ | `smc-signals-producer.railway.internal:PORT` — internal host:port of the signals producer; Alloy scrapes `/metrics`, live_overlay_daemon fetches `/signals` |
 | `GRAFANA_CLOUD_PROM_URL` | metrics-collector | ✅ | Grafana Cloud Remote-Write-URL |
 | `GRAFANA_CLOUD_USER` | metrics-collector | ✅ | Grafana Cloud Stack-ID (numerisch) |
@@ -462,6 +462,55 @@ CI-Workflows und exportiert ihn als Prometheus-Gauges.
 | Entwickler-Mac → Grafana API | HTTPS Bearer | Keychain `skipp.grafana.api` | Push | manuell / bei Dashboard-Update |
 | Railway → GitHub | HTTPS | Railway OAuth App | Pull (Webhook) | bei git push |
 | Pine Script → `live_overlay_daemon /smc_live` | HTTPS | `OVERLAY_SECRET_TOKEN` im URL-Pfad | Pull | bei Chart-Request |
+
+### Private Networking fuer `live_overlay` Metrics
+
+Alloy kann den Daemon privat scrapen, sobald der Runtime-Port der Railway
+Deployment-Instanz bekannt ist:
+
+```env
+OVERLAY_SERVICE_URL=liveoverlaydaemon.railway.internal:<PORT>
+```
+
+Nicht setzen:
+
+```env
+OVERLAY_SERVICE_URL=liveoverlaydaemon.railway.internal
+```
+
+Ohne Port kann Alloy den privaten Host nicht sicher scrapen. Nach der Umstellung
+sofort in Grafana pruefen:
+
+```promql
+up{job="live_overlay"} == 1
+increase(prometheus_remote_storage_samples_failed_total{job="alloy"}[10m]) == 0
+```
+
+Bis der Port sicher verifiziert ist, bleibt der public Railway Host die sichere
+Production-Konfiguration.
+
+### `/smc_live` Synthetic-Canary-Entscheidung
+
+Keinen Production-`OVERLAY_SECRET_TOKEN` in UptimeRobot hinterlegen. Der Token
+ist nicht separat fuer UptimeRobot rotierbar und wird auch von Pine-Consumern
+sowie `/metrics` Basic Auth verwendet.
+
+Der aktuelle Schutz bleibt:
+
+- UptimeRobot prueft unauthentifizierte Liveness-/Readiness-Endpunkte.
+- Grafana erkennt fehlenden `/smc_live`-Traffic ueber
+  `LIVE_OVERLAY_EXPECT_MARKET_TRAFFIC=1` und Request-Rate-Alerts.
+- Auth-Probleme laufen ueber `live_overlay_smc_live_auth_denied`.
+
+Plan fuer spaeter:
+
+1. Bevorzugt einen nicht geheimen Contract-Endpoint wie
+   `/ready/smc_live_contract` ergaenzen.
+2. Alternativ einen internen Synthetic-Check aus `metrics-collector` ueber
+   Railway Private Networking bauen, aber mit eigenem, nicht mit Pine geteiltem
+   Token.
+3. Ohne sicheren Auth-Split bleibt der Grafana First-Zero-Traffic-Alert die
+   End-to-End-Absicherung.
 
 ### Private Networking fuer `live_overlay` Metrics
 
