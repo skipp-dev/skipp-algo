@@ -310,14 +310,14 @@ def test_alert_rules_use_railway_memory_ratio_thresholds() -> None:
     warning = _alert_rule("lo-railway-memory-ratio-high")
     warning_expr = warning["data"][0]["model"]["expr"]
     assert "live_overlay_railway_service_memory_used_ratio" in warning_expr
-    assert "> 0.75" in warning_expr
+    assert "> bool 0.75" in warning_expr
     assert "service_id" in warning_expr
     assert warning["labels"]["severity"] == "warning"
 
     critical = _alert_rule("lo-railway-memory-ratio-critical")
     critical_expr = critical["data"][0]["model"]["expr"]
     assert "live_overlay_railway_service_memory_used_ratio" in critical_expr
-    assert "> 0.90" in critical_expr
+    assert "> bool 0.90" in critical_expr
     assert "service_id" in critical_expr
     assert critical["labels"]["severity"] == "critical"
 
@@ -341,7 +341,21 @@ def test_alert_rules_include_generic_bridge_failure_alert() -> None:
     assert "live_overlay_bridge_enabled" in expr
     assert "live_overlay_bridge_scrape_success" in expr
     assert "on(job, bridge)" in expr
+    assert "== bool 1" in expr
+    assert "== bool 0" in expr
     assert "live_overlay_bridge_configured" not in expr
+
+
+def test_alert_rules_include_generic_bridge_stale_alert() -> None:
+    """Generic bridge stale alert must return explicit zeroes for healthy bridges."""
+    rule = _alert_rule("lo-bridge-last-success-stale")
+    expr = rule["data"][0]["model"]["expr"]
+
+    assert "live_overlay_bridge_enabled" in expr
+    assert "live_overlay_bridge_last_success_age_seconds" in expr
+    assert "on(job, bridge)" in expr
+    assert "== bool 1" in expr
+    assert "> bool" in expr
 
 
 def test_dashboard_bridge_state_panels_aggregate_by_job() -> None:
