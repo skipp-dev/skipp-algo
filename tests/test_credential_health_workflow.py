@@ -172,6 +172,9 @@ def test_workflow_checks_snapshot_branch_ruleset_assumption(workflow_text: str) 
     assert "Ruleset assumption guard" in workflow_text
     assert rules_api in workflow_text
     assert "BRANCH_RULES_JSON" in workflow_text
+    assert "requires only repository Metadata read for fine-grained tokens" in workflow_text
+    assert "Keep this guard on github.token" in workflow_text
+    assert "instead of requiring GH_PAT for a read-only inspection" in workflow_text
     assert "except json.JSONDecodeError" in workflow_text
     assert "if not isinstance(rules, list):" in workflow_text
     assert 'blocking = {"non_fast_forward", "pull_request", "required_status_checks"}' in workflow_text

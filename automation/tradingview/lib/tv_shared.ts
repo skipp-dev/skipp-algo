@@ -4843,6 +4843,11 @@ export async function addExistingScriptToChartViaIndicators(
 }
 
 export async function setEditorContent(page: Page, code: string): Promise<void> {
+  // Timeout contract: CI sets TV_STEP_TIMEOUT_MS and leaves the editor-specific
+  // env vars unset, so these fallbacks raise slow editor operations with the
+  // active step budget while keeping a 90s content floor and 45s prepare floor.
+  // Explicit TV_SET_EDITOR_CONTENT_TIMEOUT_MS / TV_EDITOR_PREPARE_TIMEOUT_MS
+  // values are operator overrides and intentionally win over the fallback.
   const editorContentTimeoutMs = numEnv("TV_SET_EDITOR_CONTENT_TIMEOUT_MS", Math.max(stepTimeoutMs(), 90_000));
   await runTrackedStep(page, `setEditorContent:${code.length}`, async () => {
     const editorPrepareTimeoutMs = numEnv("TV_EDITOR_PREPARE_TIMEOUT_MS", Math.max(stepTimeoutMs(), 45_000));
