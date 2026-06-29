@@ -60,7 +60,11 @@ def test_update_script_adds_uptimerobot_state_timeline(tmp_path: Path) -> None:
     panel = next(p for p in updated["panels"] if p["title"] == "UptimeRobot Monitor States")
     assert panel["type"] == "state-timeline"
     # Per-monitor status-code metrics are named live_overlay_uptimerobot_monitor_<id>_status_code
-    assert "live_overlay_uptimerobot_monitor_.*_status_code" in panel["targets"][0]["expr"]
+    target = panel["targets"][0]
+    assert "live_overlay_uptimerobot_monitor_.*_status_code" in target["expr"]
+    assert 'job=~"$job"' in target["expr"]
+    assert 'job="$job"' not in target["expr"]
+    assert target["datasource"] == {"type": "prometheus", "uid": "grafanacloud-prom"}
     options = panel["fieldConfig"]["defaults"]["mappings"][0]["options"]
     assert options["0"]["text"] == "PAUSED"
     assert options["1"]["text"] == "NOT CHECKED"
@@ -218,11 +222,39 @@ def test_update_script_re_adds_missing_uptimerobot_panel_idempotently(tmp_path: 
     assert second["version"] > first["version"]
     titles = {p.get("title") for p in second["panels"]}
     assert "UptimeRobot Monitor States" in titles
+    panel = next(p for p in second["panels"] if p.get("title") == "UptimeRobot Monitor States")
+    assert panel["targets"][0]["expr"] == (
+        '{__name__=~"live_overlay_uptimerobot_monitor_.*_status_code",job=~"$job"}'
+    )
+    assert panel["targets"][0]["datasource"] == {"type": "prometheus", "uid": "grafanacloud-prom"}
 
     # Third run must be idempotent.
     _run_script(dst)
     third = json.loads(dst.read_text(encoding="utf-8"))
     assert third["version"] == second["version"]
+
+
+def test_update_script_heals_existing_uptimerobot_target(tmp_path: Path) -> None:
+    repo_root = Path(__file__).resolve().parents[1]
+    src = repo_root / "services" / "live_overlay_daemon" / "infra" / "grafana" / "dashboard.json"
+    dst = tmp_path / "dashboard.json"
+    shutil.copy(src, dst)
+
+    data = json.loads(dst.read_text(encoding="utf-8"))
+    before_version = int(data.get("version", 0) or 0)
+    panel = next(p for p in data["panels"] if p.get("title") == "UptimeRobot Monitor States")
+    panel["targets"][0]["expr"] = '{__name__=~"live_overlay_uptimerobot_monitor_.*_status_code",job="$job"}'
+    panel["targets"][0].pop("datasource", None)
+    dst.write_text(json.dumps(data, indent=2), encoding="utf-8")
+
+    _run_script(dst)
+
+    updated = json.loads(dst.read_text(encoding="utf-8"))
+    assert updated["version"] > before_version
+    panel = next(p for p in updated["panels"] if p.get("title") == "UptimeRobot Monitor States")
+    target = panel["targets"][0]
+    assert target["expr"] == '{__name__=~"live_overlay_uptimerobot_monitor_.*_status_code",job=~"$job"}'
+    assert target["datasource"] == {"type": "prometheus", "uid": "grafanacloud-prom"}
 
 
 def test_all_panel_queries_have_balanced_parentheses(temp_dashboard: Path) -> None:

@@ -99,7 +99,11 @@ def test_publish_step_contract_pinned(workflow_doc: dict) -> None:
     assert verify_index is not None, "dashboard publish must verify generated dashboard drift"
     verify_step = steps[verify_index]
     assert isinstance(verify_step, dict)
-    assert verify_step.get("run") == "python scripts/update_overlay_dashboard.py --check"
+    verify_run = verify_step.get("run") or ""
+    assert "python scripts/update_overlay_dashboard.py" in verify_run
+    assert "services/live_overlay_daemon/infra/grafana/dashboard.json" in verify_run
+    assert "services/live_overlay_daemon/infra/grafana/dashboard-signals-experiments.json" in verify_run
+    assert verify_run.count("--check") == 2
     assert "env" not in verify_step, "dashboard drift check must not require publish secrets"
 
     publish_index = next(

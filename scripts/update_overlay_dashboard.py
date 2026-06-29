@@ -90,6 +90,7 @@ BRIDGE_CONTRACT_FAMILIES = (
     "live_overlay_bridge_last_scrape_duration_seconds",
 )
 COLOR_STARTING = "dark-yellow"
+PROMETHEUS_DATASOURCE = {"type": "prometheus", "uid": "grafanacloud-prom"}
 # Canonical phase-code colors for the GitHub Workflow Status timeline.
 _GITHUB_WORKFLOW_PHASE_COLORS: dict[int, tuple[str, str]] = {
     0: ("Unknown", COLOR_NEUTRAL),
@@ -134,8 +135,9 @@ UPTIMEROBOT_PANEL: dict[str, Any] = {
     "gridPos": {"h": 6, "w": 12, "x": 0, "y": 61},
     "targets": [
         {
-            "expr": '{__name__=~"live_overlay_uptimerobot_monitor_.*_status_code",job="$job"}',
+            "expr": '{__name__=~"live_overlay_uptimerobot_monitor_.*_status_code",job=~"$job"}',
             "legendFormat": "{{__name__}}",
+            "datasource": PROMETHEUS_DATASOURCE,
         }
     ],
     "options": {
@@ -384,14 +386,28 @@ def _fix_github_workflow_timeline_panel(data: dict[str, Any]) -> bool:
 def _ensure_uptimerobot_panel(data: dict[str, Any]) -> bool:
     """Self-heal the classic UptimeRobot state-timeline panel.
 
-    Returns True when the panel was (re)added so the caller can bump the
-    dashboard version; returns False (no-op) when it is already present.
+    Returns True when the panel was added or its query contract was repaired so
+    the caller can bump the dashboard version.
     """
-    for panel in _iter_v1_panels(data):
-        if panel.get("title") == "UptimeRobot Monitor States":
-            return False
-    data.setdefault("panels", []).append(copy.deepcopy(UPTIMEROBOT_PANEL))
-    return True
+    panel = _v1_panel_by_title(data, "UptimeRobot Monitor States")
+    if panel is None:
+        data.setdefault("panels", []).append(copy.deepcopy(UPTIMEROBOT_PANEL))
+        return True
+
+    changed = False
+    desired_target = UPTIMEROBOT_PANEL["targets"][0]
+    targets = panel.setdefault("targets", [])
+    if not targets:
+        targets.append(copy.deepcopy(desired_target))
+        return True
+    if not isinstance(targets[0], dict):
+        targets[0] = copy.deepcopy(desired_target)
+        return True
+    for key, value in desired_target.items():
+        if targets[0].get(key) != value:
+            targets[0][key] = copy.deepcopy(value)
+            changed = True
+    return changed
 
 
 def _shift_v1_panels_at_or_after_y(

@@ -1399,8 +1399,12 @@
       },
       "targets": [
         {
-          "expr": "{__name__=~\"live_overlay_uptimerobot_monitor_.*_status_code\",job=\"$job\"}",
-          "legendFormat": "{{__name__}}"
+          "expr": "{__name__=~\"live_overlay_uptimerobot_monitor_.*_status_code\",job=~\"$job\"}",
+          "legendFormat": "{{__name__}}",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "grafanacloud-prom"
+          }
         }
       ],
       "options": {
@@ -1525,6 +1529,6 @@
   "timezone": "utc",
   "title": "SMC Live Overlay Daemon — Signals & Experiments",
   "uid": "smc-live-overlay-signals-v1",
-  "version": 2,
+  "version": 3,
   "weekStart": ""
 }
