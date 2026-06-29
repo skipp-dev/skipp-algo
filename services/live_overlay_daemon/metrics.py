@@ -906,6 +906,7 @@ def _append_bridge_metrics(
     Low-cardinality labels only: ``bridge`` and a stable ``error``.
     """
     error = error_code or "none"
+    escaped_error = _escape_label_value(error)
 
     lines.append("# TYPE live_overlay_bridge_enabled gauge")
     lines.append(f'live_overlay_bridge_enabled{{bridge="{bridge}"}} {1 if enabled else 0}')
@@ -929,7 +930,10 @@ def _append_bridge_metrics(
         )
 
     lines.append("# TYPE live_overlay_bridge_error_info gauge")
-    lines.append(f'live_overlay_bridge_error_info{{bridge="{bridge}",error="{error}"}} {0 if error == "none" else 1}')
+    lines.append(
+        f'live_overlay_bridge_error_info{{bridge="{bridge}",error="{escaped_error}"}} '
+        f"{0 if error == 'none' else 1}"
+    )
 
 
 def render_metrics(startup_ts: float) -> str:
@@ -1215,6 +1219,7 @@ def render_metrics(startup_ts: float) -> str:
     # --- Optional UptimeRobot bridge ---
     uptime_snapshot = uptimerobot_bridge.snapshot()
     uptime_enabled = bool(uptime_snapshot.get("enabled"))
+    uptime_configured = bool(uptime_snapshot.get("configured", uptime_enabled))
     uptime_ok = bool(uptime_snapshot.get("ok"))
     last_success_ts = _prom_numeric_value(
         uptime_snapshot.get("last_success_fetched_at_unix")
@@ -1227,29 +1232,16 @@ def render_metrics(startup_ts: float) -> str:
         else None
     )
 
-    # Legacy metrics retained for backwards compatibility.
-    lines.append("# TYPE live_overlay_uptimerobot_bridge_enabled gauge")
-    lines.append(f"live_overlay_uptimerobot_bridge_enabled {1 if uptime_enabled else 0}")
-    lines.append("# TYPE live_overlay_uptimerobot_scrape_success gauge")
-    lines.append(f"live_overlay_uptimerobot_scrape_success {1 if uptime_ok else 0}")
-    if snapshot_age is not None:
-        lines.append("# TYPE live_overlay_uptimerobot_snapshot_age_seconds gauge")
-        lines.append(f"live_overlay_uptimerobot_snapshot_age_seconds {snapshot_age:.1f}")
-
     error_code = str(uptime_snapshot.get("error_code") or "")
-    if error_code:
-        escaped = _escape_label_value(error_code)
-        lines.append("# TYPE live_overlay_uptimerobot_scrape_error_info gauge")
-        lines.append(f'live_overlay_uptimerobot_scrape_error_info{{error_code="{escaped}"}} 1')
 
     _append_bridge_metrics(
         lines,
         bridge="uptimerobot",
         enabled=uptime_enabled,
-        configured=uptime_enabled,
+        configured=uptime_configured,
         scrape_success=uptime_ok,
         last_success_age_seconds=snapshot_age,
-        scrape_duration_seconds=None,
+        scrape_duration_seconds=uptime_snapshot.get("scrape_duration_seconds"),
         error_code=error_code or None,
     )
 
@@ -1282,6 +1274,7 @@ def render_metrics(startup_ts: float) -> str:
     # --- Optional GitHub workflow bridge ---
     workflow_snapshot = github_workflow_bridge.snapshot()
     wf_enabled = bool(workflow_snapshot.get("enabled"))
+    wf_configured = bool(workflow_snapshot.get("configured", wf_enabled))
     wf_ok = bool(workflow_snapshot.get("ok"))
     wf_last_success_ts = _prom_numeric_value(
         workflow_snapshot.get("last_success_fetched_at_unix")
@@ -1294,29 +1287,16 @@ def render_metrics(startup_ts: float) -> str:
         else None
     )
 
-    # Legacy metrics retained for backwards compatibility.
-    lines.append("# TYPE live_overlay_github_workflow_bridge_enabled gauge")
-    lines.append(f"live_overlay_github_workflow_bridge_enabled {1 if wf_enabled else 0}")
-    lines.append("# TYPE live_overlay_github_workflow_scrape_success gauge")
-    lines.append(f"live_overlay_github_workflow_scrape_success {1 if wf_ok else 0}")
-    if wf_snapshot_age is not None:
-        lines.append("# TYPE live_overlay_github_workflow_snapshot_age_seconds gauge")
-        lines.append(f"live_overlay_github_workflow_snapshot_age_seconds {wf_snapshot_age:.1f}")
-
     wf_error_code = str(workflow_snapshot.get("error_code") or "")
-    if wf_error_code:
-        escaped = _escape_label_value(wf_error_code)
-        lines.append("# TYPE live_overlay_github_workflow_scrape_error_info gauge")
-        lines.append(f'live_overlay_github_workflow_scrape_error_info{{error_code="{escaped}"}} 1')
 
     _append_bridge_metrics(
         lines,
         bridge="github_workflow",
         enabled=wf_enabled,
-        configured=wf_enabled,
+        configured=wf_configured,
         scrape_success=wf_ok,
         last_success_age_seconds=wf_snapshot_age,
-        scrape_duration_seconds=None,
+        scrape_duration_seconds=workflow_snapshot.get("scrape_duration_seconds"),
         error_code=wf_error_code or None,
     )
 
@@ -1631,25 +1611,7 @@ def render_metrics(startup_ts: float) -> str:
         else None
     )
 
-    # Legacy metrics retained for backwards compatibility.
-    lines.append("# TYPE live_overlay_railway_metrics_configured gauge")
-    lines.append(f"live_overlay_railway_metrics_configured {1 if railway_configured else 0}")
-    lines.append("# TYPE live_overlay_railway_metrics_scrape_success gauge")
-    lines.append(f"live_overlay_railway_metrics_scrape_success {1 if railway_ok else 0}")
-    # Backwards-compatible metric: historically this combined configured + ok.
-    lines.append("# TYPE live_overlay_railway_metrics_enabled gauge")
-    lines.append(f"live_overlay_railway_metrics_enabled {1 if (railway_enabled and railway_ok) else 0}")
-
-    if railway_enabled and railway_age is not None:
-        lines.append("# TYPE live_overlay_railway_metrics_age_seconds gauge")
-        lines.append(f"live_overlay_railway_metrics_age_seconds {railway_age:.1f}")
-
     error = railway_snapshot.get("error")
-    if error:
-        # Surface error as an info metric with the error text as label
-        escaped_error = _escape_label_value(str(error)[:200])
-        lines.append("# TYPE live_overlay_railway_metrics_error_info gauge")
-        lines.append(f'live_overlay_railway_metrics_error_info{{error="{escaped_error}"}} 1')
 
     _append_bridge_metrics(
         lines,
@@ -1749,9 +1711,6 @@ def render_metrics(startup_ts: float) -> str:
                     f'live_overlay_railway_service_network_tx_gb{{service="{service_name}",service_id="{service_id}"}} '
                     f"{_prom_numeric_value(tx_gb)}"
                 )
-    else:
-        lines.append("live_overlay_railway_metrics_enabled 0")
-
     # --- Process-level metrics (CPU, memory, FDs, GC) ---
     lines.extend(_collect_process_metrics(startup_ts))
 

@@ -270,6 +270,33 @@ def test_update_script_fixes_bridge_error_panels(temp_dashboard: Path) -> None:
         assert 'error!="none"' in expr, f"{title}: {expr[:200]}"
 
 
+def test_update_script_fixes_bridge_snapshot_age_panels(temp_dashboard: Path) -> None:
+    """Bridge snapshot-age panels must use the generic last-success family."""
+    data_before = json.loads(temp_dashboard.read_text(encoding="utf-8"))
+    cases = (
+        ("UptimeRobot Snapshot Age", "uptimerobot", "live_overlay_uptimerobot_snapshot_age_seconds"),
+        (
+            "GitHub Workflow Snapshot Age",
+            "github_workflow",
+            "live_overlay_github_workflow_snapshot_age_seconds",
+        ),
+    )
+    for title, _bridge, legacy_metric in cases:
+        panel = next(p for p in data_before["panels"] if p.get("title") == title)
+        panel["targets"][0]["expr"] = f'{legacy_metric}{{job=~"$job"}}'
+    temp_dashboard.write_text(json.dumps(data_before), encoding="utf-8")
+
+    _run_script(temp_dashboard)
+    data = json.loads(temp_dashboard.read_text(encoding="utf-8"))
+    for title, bridge, legacy_metric in cases:
+        panel = next(p for p in data["panels"] if p.get("title") == title)
+        expr = panel["targets"][0]["expr"]
+        assert "live_overlay_bridge_last_success_age_seconds" in expr
+        assert "live_overlay_bridge_enabled" in expr
+        assert f'bridge="{bridge}"' in expr
+        assert legacy_metric not in expr
+
+
 def test_update_script_adds_railway_status_panels(temp_dashboard: Path) -> None:
     """Railway row should use the generic bridge contract and expose error class."""
     _run_script(temp_dashboard)
@@ -283,6 +310,18 @@ def test_update_script_adds_railway_status_panels(temp_dashboard: Path) -> None:
     assert "live_overlay_bridge_enabled" in bridge["targets"][0]["expr"]
     assert "live_overlay_bridge_scrape_success" in bridge["targets"][0]["expr"]
     assert 'bridge="railway_metrics"' in bridge["targets"][0]["expr"]
+    assert "live_overlay_railway_metrics_enabled" not in bridge["targets"][0]["expr"]
+
+    age = next(p for p in data["panels"] if p.get("title") == "Railway Metrics Snapshot Age")
+    assert "live_overlay_bridge_last_success_age_seconds" in age["targets"][0]["expr"]
+    assert "live_overlay_bridge_scrape_success" in age["targets"][0]["expr"]
+    assert 'bridge="railway_metrics"' in age["targets"][0]["expr"]
+    assert "live_overlay_railway_metrics_age_seconds" not in age["targets"][0]["expr"]
+
+    error = next(p for p in data["panels"] if p.get("title") == "Railway Metrics Error")
+    assert "live_overlay_bridge_error_info" in error["targets"][0]["expr"]
+    assert 'bridge="railway_metrics"' in error["targets"][0]["expr"]
+    assert "live_overlay_railway_metrics_error_info" not in error["targets"][0]["expr"]
 
 
 def test_update_script_fixes_github_workflow_timeline_readability(temp_dashboard: Path) -> None:
@@ -439,12 +478,13 @@ def test_update_script_repairs_bridge_metrics_present_contract_family_coverage(
         "scrape_success",
         "error_info",
         "last_success_age_seconds",
+        "last_scrape_duration_seconds",
     ):
         assert family in expr
-    assert expr.startswith("15 - (")
+    assert expr.startswith("18 - (")
     assert "group by (__name__, bridge)" in expr
     assert (
-        'live_overlay_bridge_(enabled|configured|scrape_success|error_info|last_success_age_seconds)'
+        'live_overlay_bridge_(enabled|configured|scrape_success|error_info|last_success_age_seconds|last_scrape_duration_seconds)'
         in expr
     )
     assert "sum(absent(live_overlay_bridge_" not in expr

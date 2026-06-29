@@ -127,6 +127,7 @@ def _fetch_snapshot(api_key: str) -> dict[str, Any]:
     avg_response_time_ms = sum(response_times) / len(response_times) if response_times else None
     return {
         "enabled": 1,
+        "configured": 1,
         "ok": 1,
         "fetched_at_unix": time.time(),
         "last_success_fetched_at_unix": time.time(),
@@ -144,8 +145,10 @@ def snapshot() -> dict[str, Any]:
     if not api_key:
         return {
             "enabled": 0,
+            "configured": 0,
             "ok": 0,
             "fetched_at_unix": 0.0,
+            "scrape_duration_seconds": None,
             "counts": {"total": 0, "up": 0, "down": 0, "paused": 0, "unknown": 0},
             "avg_response_time_ms": None,
             "monitors": [],
@@ -160,8 +163,10 @@ def snapshot() -> dict[str, Any]:
         if _cached_snapshot is not None and (now_mono - _cached_at_monotonic) < ttl:
             return dict(_cached_snapshot)
 
+        started = time.monotonic()
         try:
             fresh = _fetch_snapshot(api_key)
+            fresh["scrape_duration_seconds"] = time.monotonic() - started
             if fresh.get("ok"):
                 fresh.setdefault("last_success_fetched_at_unix", fresh.get("fetched_at_unix", 0.0))
         except Exception as exc:  # pragma: no cover - exercised via tests using monkeypatch
@@ -169,9 +174,11 @@ def snapshot() -> dict[str, Any]:
             prev_last_success = (_cached_snapshot or {}).get("last_success_fetched_at_unix", 0.0)
             fresh = {
                 "enabled": 1,
+                "configured": 1,
                 "ok": 0,
                 "fetched_at_unix": time.time(),
                 "last_success_fetched_at_unix": prev_last_success,
+                "scrape_duration_seconds": time.monotonic() - started,
                 "counts": {"total": 0, "up": 0, "down": 0, "paused": 0, "unknown": 0},
                 "avg_response_time_ms": None,
                 "monitors": [],

@@ -475,14 +475,8 @@ observability.py (structured log lines + in-process counters)
 | `live_overlay_experiment_family_*` | gauge | metrics.py per-family experiment series (`hit_rate`, `n_events`) |
 | `live_overlay_experiment_verdict_*` | gauge | metrics.py verdict series (`status_code`, `delta_hr`, `underpowered`, optional `p_value`) |
 | `live_overlay_experiment_day_family_*` | gauge | metrics.py per-day history timeline/backfill series (`hit_rate`, `n_events`) |
-| `live_overlay_uptimerobot_bridge_enabled` | gauge | uptimerobot_bridge.py |
-| `live_overlay_uptimerobot_scrape_success` | gauge | uptimerobot_bridge.py |
-| `live_overlay_uptimerobot_snapshot_age_seconds` | gauge | uptimerobot_bridge.py |
 | `live_overlay_uptimerobot_monitors_*_total` | gauge | uptimerobot_bridge.py (`_total` suffix reflects a count, but value is a snapshot) |
 | `live_overlay_uptimerobot_monitor_<id>_*` | gauge | uptimerobot_bridge.py |
-| `live_overlay_github_workflow_bridge_enabled` | gauge | github_workflow_bridge.py |
-| `live_overlay_github_workflow_scrape_success` | gauge | github_workflow_bridge.py |
-| `live_overlay_github_workflow_snapshot_age_seconds` | gauge | github_workflow_bridge.py |
 | `live_overlay_github_workflow_runs_*_total` | gauge | github_workflow_bridge.py (`_total` suffix reflects a count, but value is a snapshot) |
 | `live_overlay_github_workflow_latest_run_*_seconds` | gauge | github_workflow_bridge.py aggregate latest run age/duration |
 | `live_overlay_github_workflow_phase_code{workflow_id,workflow,event}` | gauge | metrics.py per-workflow timeline series |
@@ -496,11 +490,6 @@ observability.py (structured log lines + in-process counters)
 | `live_overlay_bridge_last_scrape_duration_seconds{bridge}` | gauge | duration of the last bridge scrape attempt |
 | `live_overlay_bridge_error_info{bridge,error}` | gauge | 1 when the bridge last scrape failed with the labelled error |
 | `live_overlay_expected_market_traffic` | gauge | 1 when `LIVE_OVERLAY_EXPECT_MARKET_TRAFFIC=1` arms the first-zero traffic alert |
-| `live_overlay_railway_metrics_configured` | gauge | metrics.py Railway API credentials configured (legacy) |
-| `live_overlay_railway_metrics_scrape_success` | gauge | metrics.py Railway API snapshot last poll OK (legacy) |
-| `live_overlay_railway_metrics_enabled` | gauge | metrics.py backwards-compatible alias: `configured && scrape_success` (legacy) |
-| `live_overlay_railway_metrics_age_seconds` | gauge | metrics.py Railway API snapshot age |
-| `live_overlay_railway_metrics_error_info{error}` | gauge | metrics.py Railway API snapshot error |
 | `live_overlay_railway_service_cpu_cores{service,service_id}` | gauge | metrics.py Railway per-service CPU cores |
 | `live_overlay_railway_service_memory_gb{service,service_id}` | gauge | metrics.py Railway per-service memory usage |
 

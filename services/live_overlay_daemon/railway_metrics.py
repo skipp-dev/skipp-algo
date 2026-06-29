@@ -250,17 +250,23 @@ def snapshot() -> dict[str, Any]:
         logger.warning("Railway metrics poll failed (network): %s", exc)
         with _LOCK:
             cached = _CACHE
-        return _failed_snapshot("network_error", cached=cached)
+        failed = _failed_snapshot("network_error", cached=cached)
+        failed["scrape_duration_seconds"] = time.monotonic() - started
+        return failed
     except TimeoutError:
         logger.warning("Railway metrics poll timed out")
         with _LOCK:
             cached = _CACHE
-        return _failed_snapshot("timeout", cached=cached)
+        failed = _failed_snapshot("timeout", cached=cached)
+        failed["scrape_duration_seconds"] = time.monotonic() - started
+        return failed
     except (OSError, ValueError, RuntimeError) as exc:
         logger.warning("Railway metrics poll failed: %s", exc)
         with _LOCK:
             cached = _CACHE
-        return _failed_snapshot("fetch_error", cached=cached)
+        failed = _failed_snapshot("fetch_error", cached=cached)
+        failed["scrape_duration_seconds"] = time.monotonic() - started
+        return failed
 
     ttl = config.railway_metrics_poll_ttl_secs()
     with _LOCK:
