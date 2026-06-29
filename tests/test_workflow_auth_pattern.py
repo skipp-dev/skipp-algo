@@ -31,8 +31,8 @@ WORKFLOWS_DIR = ROOT / ".github" / "workflows"
 _SAFE_LINE_PATTERNS: tuple[re.Pattern[str], ...] = (
     # 1) Graceful fallback on the same line.
     re.compile(r"git\s+push\b[^\n]*\|\|"),
-    # 2) Conditional opener: ``if git push ... ; then`` (also negated).
-    re.compile(r"\bif\s+!?\s*git\s+push\b"),
+    # 2) Conditional opener: ``if git push ... ; then``.
+    re.compile(r"\bif\s+git\s+push\b"),
     # 3) Explicit non-main target via shell var (BRANCH / TARGET_BRANCH /
     #    auto/* literal).
     re.compile(r"git\s+push\b[^\n]*(?:\$\{?BRANCH|\$\{?TARGET_BRANCH|auto/|HEAD:\$\{?BRANCH)"),
