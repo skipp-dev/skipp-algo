@@ -43,6 +43,11 @@ def test_workflow_runs_daily_at_06_utc(workflow: dict) -> None:
     assert "0 6 * * *" in crons, f"expected daily 06:00 UTC cron, got {crons!r}"
 
 
+def test_workflow_live_window_marker_is_first_line(workflow_text: str) -> None:
+    first_line = workflow_text.splitlines()[0]
+    assert first_line.startswith("# live-window: mutating-on-cron"), first_line
+
+
 def test_workflow_supports_manual_dispatch(workflow: dict) -> None:
     on = workflow.get(True) or workflow.get("on")
     assert "workflow_dispatch" in on, "must allow manual operator runs"
