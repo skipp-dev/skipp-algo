@@ -104,7 +104,6 @@ ignore = [
     "E501",   # line too long (handled by formatter)
     "B905",   # zip strict (Python 3.10+ only, many cases don't need it)
     "A001",   # shadowing builtins (some legacy names)
-    "A002",   # shadowing builtins (argument names)
     "N802",   # function name lowercase (test names, Pine helpers)
     "N803",   # argument name lowercase (Pine-style names)
     "N806",   # variable name lowercase (Pine-style names)

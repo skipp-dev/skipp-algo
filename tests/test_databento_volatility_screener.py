@@ -475,7 +475,7 @@ def test_import_databento_closes_new_idle_event_loops(monkeypatch) -> None:
     fake_module = types.SimpleNamespace(Historical=object)
     original_import = __import__
 
-    def fake_import(name, globals=None, locals=None, fromlist=(), level=0):
+    def fake_import(name, globals=None, locals=None, fromlist=(), level=0):  # noqa: A002 - mirrors __import__
         if name == "databento":
             sys.modules[name] = fake_module
             return fake_module
