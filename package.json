@@ -38,6 +38,7 @@
     "tv:verify": "bash scripts/tv_verify_publish_chain.sh",
     "tv:verify:report-only": "bash scripts/tv_verify_publish_chain.sh --report-only",
     "tv:evidence-summary": "python3 scripts/tv_publish_evidence_summary.py",
+    "node:bootstrap-worktree": "bash scripts/bootstrap_node_worktree.sh",
     "tsc:check": "tsc --noEmit"
   },
   "dependencies": {
