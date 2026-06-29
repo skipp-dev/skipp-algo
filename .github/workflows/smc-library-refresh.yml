@@ -1069,6 +1069,7 @@ jobs:
           TV_HEADLESS: "1"
           TV_STORAGE_STATE: automation/tradingview/auth/storage-state.json
           TV_STORAGE_STATE_MAX_AGE_HOURS: "72"
+          TV_STEP_TIMEOUT_MS: "90000"
         run: |
           npx tsx scripts/tv_publish_micro_library.ts \
             --manifest pine/generated/smc_micro_profiles_generated.json \

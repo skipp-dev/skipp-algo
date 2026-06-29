@@ -65,3 +65,12 @@ def test_ensure_pine_editor_keeps_internal_close_modal_recovery() -> None:
         re.S,
     )
     assert pattern.search(source), 'ensurePineEditor must keep the closeModal recovery sequence inside the retry loop'
+
+
+def test_set_editor_content_prepare_timeout_respects_ci_step_budget() -> None:
+    source = _read(TV_SHARED_PATH)
+
+    assert 'numEnv("TV_SET_EDITOR_CONTENT_TIMEOUT_MS", Math.max(stepTimeoutMs(), 90_000))' in source
+    assert 'numEnv("TV_EDITOR_PREPARE_TIMEOUT_MS", Math.max(stepTimeoutMs(), 45_000))' in source
+    assert '}, editorPrepareTimeoutMs);' in source
+    assert '}, editorContentTimeoutMs);' in source
