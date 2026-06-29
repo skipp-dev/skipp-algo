@@ -24,7 +24,8 @@ on:
         default: false
 
 permissions:
-  contents: write  # needed for bot/* branch push
+  contents: read
+  issues: write  # fallback issue creation uses github.token when GH_PAT is unavailable
 
 # Queue overlapping runs to avoid race conditions on history append
 concurrency:

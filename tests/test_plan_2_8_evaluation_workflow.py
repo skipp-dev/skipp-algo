@@ -14,9 +14,12 @@ WORKFLOW = (
 )
 
 
+def _workflow() -> dict:
+    return yaml.safe_load(WORKFLOW.read_text(encoding="utf-8"))
+
+
 def _steps() -> list[dict]:
-    workflow = yaml.safe_load(WORKFLOW.read_text(encoding="utf-8"))
-    return workflow["jobs"]["evaluate"]["steps"]
+    return _workflow()["jobs"]["evaluate"]["steps"]
 
 
 def _step(name: str) -> dict:
@@ -24,6 +27,14 @@ def _step(name: str) -> dict:
         if step.get("name") == name:
             return step
     raise AssertionError(f"step {name!r} not found")
+
+
+def test_workflow_permissions_support_issue_fallback_without_token_push() -> None:
+    permissions = _workflow()["permissions"]
+    assert permissions["contents"] == "read"
+    assert permissions["issues"] == "write"
+    publish_step = _step("Publish snapshots to rolling bot branch")
+    assert publish_step["env"]["GH_TOKEN"] == "${{ secrets.GH_PAT }}"
 
 
 def test_experiment_snapshot_publish_uses_explicit_force_with_lease_sha() -> None:
