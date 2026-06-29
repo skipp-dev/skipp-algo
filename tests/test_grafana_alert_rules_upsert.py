@@ -123,6 +123,24 @@ def test_build_rule_group_payload_shape() -> None:
     assert rule["execErrState"] == mod.DEFAULT_EXEC_ERR_STATE
 
 
+def test_build_rule_group_payload_sets_threshold_expression_refs() -> None:
+    """Grafana provisioning API requires threshold nodes to name their input ref."""
+    groups = mod.load_alert_groups(ALERT_RULES)
+    threshold_nodes = []
+    for group in groups:
+        payload = mod.build_rule_group_payload(group, "folder-uid-123")
+        for rule in payload["rules"]:
+            for node in rule["data"]:
+                model = node.get("model", {})
+                if node.get("datasourceUid") == "__expr__" and model.get("type") == "threshold":
+                    threshold_nodes.append((rule["uid"], model))
+
+    assert threshold_nodes, "expected threshold expression nodes in alert rules"
+    for uid, model in threshold_nodes:
+        expected = model["conditions"][0]["query"]["params"][0]
+        assert model.get("expression") == expected, uid
+
+
 # --------------------------------------------------------------------------- #
 # HTTP layer with mocked urlopen
 # --------------------------------------------------------------------------- #
@@ -258,7 +276,12 @@ def test_alert_rules_include_bridge_contract_missing() -> None:
     )
     exprs = [d["model"]["expr"] for d in rule["data"] if d.get("refId") in {"A", "B", "C"}]
     for bridge in ("uptimerobot", "github_workflow", "railway_metrics"):
-        assert any(f'bridge="{bridge}"' in e for e in exprs), f"missing bridge {bridge}"
+        expected = (
+            f'sum(absent(live_overlay_bridge_enabled{{job="live_overlay",bridge="{bridge}"}})'
+            " or on() vector(0))"
+        )
+        assert any(expected in " ".join(e.split()) for e in exprs), f"missing bridge {bridge}"
+    assert all(" or vector(0)" not in e for e in exprs)
     assert rule["labels"]["severity"] == "critical"
 
 

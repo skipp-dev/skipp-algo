@@ -5735,7 +5735,7 @@
     {
       "id": 124154101,
       "title": "Railway Disk Usage (GB)",
-      "description": "Disk usage per Railway service in GB.",
+      "description": "Disk usage per Railway service in GB. Railway may omit DISK_USAGE_GB; if no series is shown while Railway Metrics Bridge is OK, disk data is unavailable rather than scraped as zero.",
       "type": "timeseries",
       "datasource": {
         "type": "prometheus",
@@ -5753,7 +5753,8 @@
           "custom": {
             "drawStyle": "line",
             "lineInterpolation": "linear"
-          }
+          },
+          "noValue": "NO DISK DATA"
         },
         "overrides": []
       },
@@ -5920,7 +5921,7 @@
       },
       "targets": [
         {
-          "expr": "(\n  absent(live_overlay_bridge_enabled{job=~\"$job\",bridge=\"uptimerobot\"}) or vector(0)\n) + (\n  absent(live_overlay_bridge_enabled{job=~\"$job\",bridge=\"github_workflow\"}) or vector(0)\n) + (\n  absent(live_overlay_bridge_enabled{job=~\"$job\",bridge=\"railway_metrics\"}) or vector(0)\n)",
+          "expr": "sum(absent(live_overlay_bridge_enabled{job=~\"$job\",bridge=\"uptimerobot\"}) or on() vector(0))\n+\nsum(absent(live_overlay_bridge_enabled{job=~\"$job\",bridge=\"github_workflow\"}) or on() vector(0))\n+\nsum(absent(live_overlay_bridge_enabled{job=~\"$job\",bridge=\"railway_metrics\"}) or on() vector(0))",
           "legendFormat": "bridge_contracts_missing",
           "datasource": {
             "type": "prometheus",
