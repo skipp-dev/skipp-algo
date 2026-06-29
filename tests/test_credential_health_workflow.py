@@ -157,6 +157,28 @@ def test_workflow_preflights_snapshot_push_permission(workflow_text: str) -> Non
     assert workflow_text.index(skip_warning) < workflow_text.index('git commit -m "[skip ci]')
 
 
+def test_workflow_checks_snapshot_branch_ruleset_assumption(workflow_text: str) -> None:
+    """The bot snapshot branch must remain outside main-governance push rules."""
+    rules_api = (
+        'gh api \\\n'
+        '            -H "Accept: application/vnd.github+json" \\\n'
+        '            -H "X-GitHub-Api-Version: 2022-11-28" \\\n'
+        '            "repos/${GITHUB_REPOSITORY}/rules/branches/bot%2Flive-tv-credential-snapshot"'
+    )
+    dry_run = (
+        "git push --dry-run --force-with-lease=refs/heads/bot/live-tv-credential-snapshot "
+        '"${_remote_url}" "HEAD:refs/heads/bot/live-tv-credential-snapshot"'
+    )
+    assert "Ruleset assumption guard" in workflow_text
+    assert rules_api in workflow_text
+    assert "BRANCH_RULES_JSON" in workflow_text
+    assert 'blocking = {"non_fast_forward", "pull_request", "required_status_checks"}' in workflow_text
+    assert "no longer excluded " in workflow_text
+    assert "from blocking branch rules" in workflow_text
+    assert "continuing to dry-run push preflight" in workflow_text
+    assert workflow_text.index(rules_api) < workflow_text.index(dry_run)
+
+
 def test_workflow_uses_gh_pat_with_token_fallback(workflow_text: str) -> None:
     # Mirror the existing repo-wide pattern so the issue-opening step
     # works even when GH_PAT is unset (e.g. forks, first install).
