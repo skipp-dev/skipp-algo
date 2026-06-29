@@ -52,6 +52,9 @@ jobs:
           cache: pip
           cache-dependency-path: requirements.txt
 
+      - name: Verify live overlay dashboard is up to date
+        run: python scripts/update_overlay_dashboard.py --check
+
       - name: Publish dashboards (or dry-run)
         env:
           EVENT_NAME: ${{ github.event_name }}
