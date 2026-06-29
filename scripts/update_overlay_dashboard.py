@@ -817,13 +817,11 @@ def _ensure_bridge_metrics_present_panel(data: dict[str, Any]) -> bool:
         "targets": [
             {
                 "expr": (
-                    "(\n"
-                    '  absent(live_overlay_bridge_enabled{job=~"$job",bridge="uptimerobot"}) or vector(0)\n'
-                    ") + (\n"
-                    '  absent(live_overlay_bridge_enabled{job=~"$job",bridge="github_workflow"}) or vector(0)\n'
-                    ") + (\n"
-                    '  absent(live_overlay_bridge_enabled{job=~"$job",bridge="railway_metrics"}) or vector(0)\n'
-                    ")"
+                    'sum(absent(live_overlay_bridge_enabled{job=~"$job",bridge="uptimerobot"}) or on() vector(0))\n'
+                    "+\n"
+                    'sum(absent(live_overlay_bridge_enabled{job=~"$job",bridge="github_workflow"}) or on() vector(0))\n'
+                    "+\n"
+                    'sum(absent(live_overlay_bridge_enabled{job=~"$job",bridge="railway_metrics"}) or on() vector(0))'
                 ),
                 "legendFormat": "bridge_contracts_missing",
                 "datasource": {"type": "prometheus", "uid": "grafanacloud-prom"},

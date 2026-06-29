@@ -435,7 +435,12 @@ def test_dashboard_bridge_metrics_present_counts_generic_contracts() -> None:
     expr = panel["targets"][0]["expr"]
     for bridge in ("uptimerobot", "github_workflow", "railway_metrics"):
         assert f'bridge="{bridge}"' in expr, f"missing bridge {bridge} in {expr}"
+        assert (
+            f'sum(absent(live_overlay_bridge_enabled{{job=~"$job",bridge="{bridge}"}}) '
+            "or on() vector(0))"
+        ) in expr
     assert "absent(live_overlay_bridge_enabled" in expr
+    assert " or vector(0)" not in expr
     options = panel["fieldConfig"]["defaults"]["mappings"]
     assert any("ALL MISSING" in str(m) for m in options)
 
