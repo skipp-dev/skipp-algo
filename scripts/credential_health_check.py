@@ -85,8 +85,18 @@ def _loads_tv_storage_state(payload: str) -> Any:
             return json.loads(decoded)
         except (binascii.Error, gzip.BadGzipFile, OSError, UnicodeDecodeError, json.JSONDecodeError) as decode_exc:
             raise ValueError(
-                "storage_state is not valid JSON and gzip+base64 decode failed"
+                "storage_state is not valid JSON and gzip+base64 decode failed "
+                f"({_storage_state_decode_failure_reason(decode_exc)})"
             ) from decode_exc
+
+
+def _storage_state_decode_failure_reason(exc: Exception) -> str:
+    """Return a payload-free decode diagnostic for operator debugging."""
+    if isinstance(exc, json.JSONDecodeError):
+        return f"JSONDecodeError at line {exc.lineno} column {exc.colno}"
+    if isinstance(exc, UnicodeDecodeError):
+        return f"UnicodeDecodeError at byte {exc.start}"
+    return type(exc).__name__
 
 
 def probe_tv_storage_state(

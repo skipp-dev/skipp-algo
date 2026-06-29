@@ -86,6 +86,15 @@ def test_tv_storage_state_error_when_invalid_json() -> None:
     assert "not valid JSON" in r.message
 
 
+def test_tv_storage_state_decode_error_is_payload_free() -> None:
+    encoded_not_gzip = base64.b64encode(b"ab-not-gzip").decode("ascii")
+    r = probe_tv_storage_state(encoded_not_gzip, max_age_hours=72.0)
+    assert r.severity == "error"
+    assert "BadGzipFile" in r.message
+    assert "ab-not-gzip" not in r.message
+    assert "b'ab'" not in r.message
+
+
 def test_tv_storage_state_error_when_meta_missing() -> None:
     r = probe_tv_storage_state(_make_cookie(age_hours=1.0, drop_meta=True), max_age_hours=72.0)
     assert r.severity == "error"
