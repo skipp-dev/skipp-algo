@@ -434,14 +434,20 @@ def test_update_script_repairs_bridge_metrics_present_contract_family_coverage(
         p for p in updated["panels"] if p.get("title") == "Bridge Metrics Present"
     )["targets"][0]["expr"]
     for family in (
-        "live_overlay_bridge_enabled",
-        "live_overlay_bridge_configured",
-        "live_overlay_bridge_scrape_success",
-        "live_overlay_bridge_error_info",
-        "live_overlay_bridge_last_success_age_seconds",
+        "enabled",
+        "configured",
+        "scrape_success",
+        "error_info",
+        "last_success_age_seconds",
     ):
         assert family in expr
-    assert expr.count("sum(absent(live_overlay_bridge_") == 15
+    assert expr.startswith("15 - (")
+    assert "group by (__name__, bridge)" in expr
+    assert (
+        'live_overlay_bridge_(enabled|configured|scrape_success|error_info|last_success_age_seconds)'
+        in expr
+    )
+    assert "sum(absent(live_overlay_bridge_" not in expr
 
 
 def test_update_script_check_mode_passes_on_current_dashboard() -> None:

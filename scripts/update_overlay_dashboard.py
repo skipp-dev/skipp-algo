@@ -871,10 +871,21 @@ def _ensure_bridge_metrics_present_panel(data: dict[str, Any]) -> bool:
 
 
 def _bridge_contract_missing_expr(job_matcher: str) -> str:
-    return "\n+\n".join(
-        f'sum(absent({family}{{{job_matcher},bridge="{bridge}"}}) or on() vector(0))'
-        for bridge in BRIDGE_CONTRACT_BRIDGES
+    expected_contracts = len(BRIDGE_CONTRACT_BRIDGES) * len(BRIDGE_CONTRACT_FAMILIES)
+    family_regex = "|".join(
+        family.removeprefix("live_overlay_bridge_")
         for family in BRIDGE_CONTRACT_FAMILIES
+    )
+    bridge_regex = "|".join(BRIDGE_CONTRACT_BRIDGES)
+    return (
+        f"{expected_contracts} - (\n"
+        "  count(\n"
+        "    group by (__name__, bridge) (\n"
+        f'      {{__name__=~"live_overlay_bridge_({family_regex})",{job_matcher},bridge=~"{bridge_regex}"}}\n'
+        "    )\n"
+        "  )\n"
+        "  or on() vector(0)\n"
+        ")"
     )
 
 

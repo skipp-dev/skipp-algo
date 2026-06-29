@@ -448,20 +448,25 @@ def test_dashboard_bridge_metrics_present_counts_generic_contracts() -> None:
     panel = next(p for p in panels if p.get("title") == "Bridge Metrics Present")
     expr = panel["targets"][0]["expr"]
     families = (
-        "live_overlay_bridge_enabled",
-        "live_overlay_bridge_configured",
-        "live_overlay_bridge_scrape_success",
-        "live_overlay_bridge_error_info",
-        "live_overlay_bridge_last_success_age_seconds",
+        "enabled",
+        "configured",
+        "scrape_success",
+        "error_info",
+        "last_success_age_seconds",
     )
+    assert expr.startswith("15 - (")
+    assert "group by (__name__, bridge)" in expr
+    assert (
+        'live_overlay_bridge_(enabled|configured|scrape_success|error_info|last_success_age_seconds)'
+        in expr
+    )
+    assert 'job=~"$job"' in expr
+    assert 'bridge=~"uptimerobot|github_workflow|railway_metrics"' in expr
     for bridge in ("uptimerobot", "github_workflow", "railway_metrics"):
-        assert f'bridge="{bridge}"' in expr, f"missing bridge {bridge} in {expr}"
-        for family in families:
-            assert (
-                f'sum(absent({family}{{job=~"$job",bridge="{bridge}"}}) '
-                "or on() vector(0))"
-            ) in expr
-    assert expr.count("sum(absent(live_overlay_bridge_") == 15
+        assert bridge in expr, f"missing bridge {bridge} in {expr}"
+    for family in families:
+        assert family in expr, f"missing family {family} in {expr}"
+    assert "sum(absent(live_overlay_bridge_" not in expr
     assert " or vector(0)" not in expr
     options = panel["fieldConfig"]["defaults"]["mappings"]
     assert any("PRESENT" in str(m) for m in options)
