@@ -10,6 +10,8 @@ the test suite.
 
 from __future__ import annotations
 
+import base64
+import gzip
 import io
 import json
 from datetime import UTC, datetime, timedelta
@@ -56,6 +58,14 @@ def test_tv_storage_state_ok_when_fresh() -> None:
     assert r.details["age_hours"] < 2.0
 
 
+def test_tv_storage_state_accepts_gzip_base64_secret_format() -> None:
+    encoded = base64.b64encode(gzip.compress(_make_cookie(age_hours=1.0).encode("utf-8"))).decode("ascii")
+    r = probe_tv_storage_state(encoded, max_age_hours=72.0)
+    assert r.severity == "ok"
+    assert r.name == "tv_storage_state_age"
+    assert r.details["age_hours"] < 2.0
+
+
 def test_tv_storage_state_warn_at_80_percent_of_ttl() -> None:
     # 72h * 0.80 = 57.6h ; pick something just above the warn fraction.
     r = probe_tv_storage_state(_make_cookie(age_hours=60.0), max_age_hours=72.0)
@@ -74,6 +84,15 @@ def test_tv_storage_state_error_when_invalid_json() -> None:
     r = probe_tv_storage_state("{not json", max_age_hours=72.0)
     assert r.severity == "error"
     assert "not valid JSON" in r.message
+
+
+def test_tv_storage_state_decode_error_is_payload_free() -> None:
+    encoded_not_gzip = base64.b64encode(b"ab-not-gzip").decode("ascii")
+    r = probe_tv_storage_state(encoded_not_gzip, max_age_hours=72.0)
+    assert r.severity == "error"
+    assert "BadGzipFile" in r.message
+    assert "ab-not-gzip" not in r.message
+    assert "b'ab'" not in r.message
 
 
 def test_tv_storage_state_error_when_meta_missing() -> None:
@@ -151,6 +170,13 @@ def test_github_pat_ok_when_no_expiry_header() -> None:
 
 def test_github_pat_ok_when_far_from_expiry() -> None:
     future = (datetime.now(UTC) + timedelta(days=180)).isoformat()
+    r = probe_github_pat("ghp_dummy", opener=_fake_opener(expiration_header=future))
+    assert r.severity == "ok"
+    assert r.details["days_left"] > 90
+
+
+def test_github_pat_ok_when_expiry_header_uses_github_utc_format() -> None:
+    future = (datetime.now(UTC) + timedelta(days=180)).strftime("%Y-%m-%d %H:%M:%S UTC")
     r = probe_github_pat("ghp_dummy", opener=_fake_opener(expiration_header=future))
     assert r.severity == "ok"
     assert r.details["days_left"] > 90

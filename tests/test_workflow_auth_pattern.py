@@ -36,6 +36,9 @@ _SAFE_LINE_PATTERNS: tuple[re.Pattern[str], ...] = (
     # 3) Explicit non-main target via shell var (BRANCH / TARGET_BRANCH /
     #    auto/* literal).
     re.compile(r"git\s+push\b[^\n]*(?:\$\{?BRANCH|\$\{?TARGET_BRANCH|auto/|HEAD:\$\{?BRANCH)"),
+    # 4) Dry-run probes never mutate the remote; they are used as a
+    #    token-aware preflight before the real (wrapped) push.
+    re.compile(r"git\s+push\b[^\n]*--dry-run\b"),
 )
 
 _PUSH_RE = re.compile(r"\bgit\s+push\b")

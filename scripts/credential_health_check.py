@@ -34,6 +34,9 @@ Design:
 from __future__ import annotations
 
 import argparse
+import base64
+import binascii
+import gzip
 import json
 import os
 import sys
@@ -62,12 +65,38 @@ def _parse_iso(value: str) -> datetime | None:
         # ``datetime.fromisoformat`` in 3.11+ handles trailing "Z".
         if value.endswith("Z"):
             value = value[:-1] + "+00:00"
+        if value.endswith(" UTC"):
+            return datetime.strptime(value, "%Y-%m-%d %H:%M:%S UTC").replace(tzinfo=UTC)
         dt = datetime.fromisoformat(value)
     except (TypeError, ValueError):
         return None
     if dt.tzinfo is None:
         dt = dt.replace(tzinfo=UTC)
     return dt.astimezone(UTC)
+
+
+def _loads_tv_storage_state(payload: str) -> Any:
+    """Load TV storage_state from plain JSON or gzip+base64 JSON."""
+    try:
+        return json.loads(payload)
+    except json.JSONDecodeError:
+        try:
+            decoded = gzip.decompress(base64.b64decode(payload.strip(), validate=True)).decode("utf-8")
+            return json.loads(decoded)
+        except (binascii.Error, gzip.BadGzipFile, OSError, UnicodeDecodeError, json.JSONDecodeError) as decode_exc:
+            raise ValueError(
+                "storage_state is not valid JSON and gzip+base64 decode failed "
+                f"({_storage_state_decode_failure_reason(decode_exc)})"
+            ) from decode_exc
+
+
+def _storage_state_decode_failure_reason(exc: Exception) -> str:
+    """Return a payload-free decode diagnostic for operator debugging."""
+    if isinstance(exc, json.JSONDecodeError):
+        return f"JSONDecodeError at line {exc.lineno} column {exc.colno}"
+    if isinstance(exc, UnicodeDecodeError):
+        return f"UnicodeDecodeError at byte {exc.start}"
+    return type(exc).__name__
 
 
 def probe_tv_storage_state(
@@ -77,17 +106,19 @@ def probe_tv_storage_state(
 ) -> ProbeResult:
     """Probe a TradingView storage_state JSON payload.
 
-    The payload is expected to contain ``meta.authValidatedAt`` as an
-    ISO-8601 UTC timestamp (the same field consumed by
+    The payload may be raw JSON or gzip+base64 encoded JSON, matching
+    ``tradingview-storage-refresh.yml`` and ``smc-library-refresh.yml``.
+    The decoded storage state is expected to contain ``meta.authValidatedAt``
+    as an ISO-8601 UTC timestamp (the same field consumed by
     automation/tradingview/lib/tv_validation_model.ts).
     """
     now = now or datetime.now(UTC)
     name = "tv_storage_state_age"
 
     try:
-        data = json.loads(payload)
-    except json.JSONDecodeError as exc:
-        return ProbeResult(name, "error", f"storage_state is not valid JSON: {exc}")
+        data = _loads_tv_storage_state(payload)
+    except ValueError as exc:
+        return ProbeResult(name, "error", str(exc))
 
     meta = data.get("meta") if isinstance(data, dict) else None
     if not isinstance(meta, dict):
@@ -572,7 +603,10 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument(
         "--tv-storage-state-secret-env",
         default="TV_STORAGE_STATE",
-        help="Env var name holding the raw TV storage_state JSON (default: TV_STORAGE_STATE)",
+        help=(
+            "Env var name holding TV storage_state as raw JSON or gzip+base64 JSON "
+            "(default: TV_STORAGE_STATE)"
+        ),
     )
     parser.add_argument(
         "--tv-max-age-hours",
