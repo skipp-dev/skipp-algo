@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import sys
 import tomllib
 from pathlib import Path
 
@@ -23,6 +24,46 @@ def test_railway_start_command_runs_signal_engine() -> None:
     assert start == "python -m open_prep.realtime_signals"
     assert "--telemetry-port" not in start
     assert "$PORT" not in start
+
+
+def test_signal_engine_entrypoint_uses_port_env_for_telemetry_default(monkeypatch) -> None:
+    """Railway startCommand relies on the Python entrypoint reading PORT itself."""
+    import open_prep.realtime_signals as rs
+
+    captured_ports: list[int] = []
+    shutdowns: list[bool] = []
+
+    class _FakeServer:
+        def shutdown(self) -> None:
+            shutdowns.append(True)
+
+    class _FakeEngine:
+        def __init__(self, *, poll_interval: int, top_n: int, fast_mode: bool, ultra_mode: bool) -> None:
+            self.poll_interval = poll_interval
+            self.top_n = top_n
+            self.fast_mode = fast_mode
+            self.ultra_mode = ultra_mode
+            self.telemetry = rs.ScoreTelemetry()
+            self._async_newsstack = None
+
+        def poll_once(self) -> None:
+            raise KeyboardInterrupt
+
+    def _fake_start_telemetry_server(telemetry, *, port: int, engine):
+        captured_ports.append(port)
+        assert isinstance(telemetry, rs.ScoreTelemetry)
+        assert isinstance(engine, _FakeEngine)
+        return _FakeServer()
+
+    monkeypatch.setenv("PORT", "8765")
+    monkeypatch.setattr(sys, "argv", ["open_prep.realtime_signals"])
+    monkeypatch.setattr(rs, "RealtimeEngine", _FakeEngine)
+    monkeypatch.setattr(rs, "_start_telemetry_server", _fake_start_telemetry_server)
+
+    rs.main()
+
+    assert captured_ports == [8765]
+    assert shutdowns == [True]
 
 
 def test_railway_healthcheck_path_is_healthz() -> None:
