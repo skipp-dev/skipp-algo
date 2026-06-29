@@ -3001,16 +3001,19 @@ async function dismissPublishSurfaceAfterNoChange(page: Page): Promise<boolean> 
 async function capturePublishConfirmationEvidence(page: Page, scriptName?: string, timeoutMs = 4_000): Promise<{
   versionContextTexts: string[];
   bodyText: string;
+  publishSurfaceClosed: boolean;
 }> {
   const startedAt = Date.now();
   let bodyText = "";
   let versionContextTexts: string[] = [];
+  let publishSurfaceClosed = false;
 
   while (Date.now() - startedAt < timeoutMs) {
     if (scriptName) {
       versionContextTexts = await collectPublishedVersionContextTexts(page, scriptName).catch(() => []);
     }
     bodyText = await page.locator("body").innerText().catch(() => "");
+    publishSurfaceClosed = publishSurfaceClosed || !(await hasPublishSurface(page, 150));
 
     if (
       (scriptName && detectPublishedVersionFromContextTexts(versionContextTexts, scriptName) !== null)
@@ -3022,7 +3025,13 @@ async function capturePublishConfirmationEvidence(page: Page, scriptName?: strin
     await page.waitForTimeout(250).catch(() => undefined);
   }
 
-  return { versionContextTexts, bodyText };
+  tracePageEvent(
+    page,
+    "publish-confirm-evidence",
+    `surface_closed=${publishSurfaceClosed}:version_contexts=${versionContextTexts.length}:body_len=${bodyText.length}`,
+  );
+
+  return { versionContextTexts, bodyText, publishSurfaceClosed };
 }
 
 async function handlePublishNoChangeDialog(page: Page, timeoutMs = 500): Promise<boolean> {
@@ -5957,7 +5966,13 @@ export async function publishPrivateScript(
     title?: string;
     description?: string;
   } = {},
-): Promise<{ noChangeDetected: boolean; versionContextTexts: string[]; bodyText: string }> {
+): Promise<{
+  noChangeDetected: boolean;
+  publishConfirmed: boolean;
+  publishSurfaceClosedAfterConfirm: boolean;
+  versionContextTexts: string[];
+  bodyText: string;
+}> {
   await dismissSignInModal(page).catch(() => undefined);
   await ensurePineEditor(page).catch(() => undefined);
   let noChangeDetected = false;
@@ -6032,7 +6047,13 @@ export async function publishPrivateScript(
     if (await handlePublishNoChangeDialog(page, 750)) {
       noChangeDetected = true;
       await ensurePineEditor(page).catch(() => undefined);
-      return { noChangeDetected, versionContextTexts: [], bodyText: await page.locator("body").innerText().catch(() => "") };
+      return {
+        noChangeDetected,
+        publishConfirmed: false,
+        publishSurfaceClosedAfterConfirm: false,
+        versionContextTexts: [],
+        bodyText: await page.locator("body").innerText().catch(() => ""),
+      };
     }
   }
 
@@ -6073,11 +6094,23 @@ export async function publishPrivateScript(
     if (await handlePublishNoChangeDialog(page, 750)) {
       noChangeDetected = true;
       await ensurePineEditor(page).catch(() => undefined);
-      return { noChangeDetected, versionContextTexts: [], bodyText: await page.locator("body").innerText().catch(() => "") };
+      return {
+        noChangeDetected,
+        publishConfirmed: false,
+        publishSurfaceClosedAfterConfirm: false,
+        versionContextTexts: [],
+        bodyText: await page.locator("body").innerText().catch(() => ""),
+      };
     }
-    return { noChangeDetected, versionContextTexts: [], bodyText: openSurfaceBodyText || await page.locator("body").innerText().catch(() => "") };
+    throw new Error("Could not confirm TradingView publish flow after the publish surface opened");
   }
 
-  const evidence = await capturePublishConfirmationEvidence(page, options.scriptName, 4_000);
-  return { noChangeDetected, versionContextTexts: evidence.versionContextTexts, bodyText: evidence.bodyText };
+  const evidence = await capturePublishConfirmationEvidence(page, options.scriptName, 12_000);
+  return {
+    noChangeDetected,
+    publishConfirmed: true,
+    publishSurfaceClosedAfterConfirm: evidence.publishSurfaceClosed,
+    versionContextTexts: evidence.versionContextTexts,
+    bodyText: evidence.bodyText || openSurfaceBodyText,
+  };
 }

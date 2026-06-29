@@ -37,7 +37,7 @@ import {
 } from "../automation/tradingview/lib/tv_validation_model.js";
 
 export type IdentityVerificationMode = "script_context" | "not_verified";
-export type VersionVerificationMode = "version_context" | "idempotent_no_change" | "body_fallback" | "not_verified";
+export type VersionVerificationMode = "version_context" | "idempotent_no_change" | "publish_confirmation" | "body_fallback" | "not_verified";
 
 const EXPECTED_DEPRECATED_POLICY_MODE = "compatibility_only";
 const EXPECTED_DEPRECATED_FIELD_VERSION = "v8.0a";
@@ -138,6 +138,8 @@ type PublishReport = {
   openGateVerified: boolean;
   publishAttempted: boolean;
   publishOk: boolean;
+  publishConfirmed: boolean;
+  publishSurfaceClosedAfterConfirm: boolean;
   openedExistingScript: boolean;
   publishedScriptVerified: boolean;
   identityVerificationMode: IdentityVerificationMode;
@@ -630,7 +632,11 @@ export function resolvePublishReportState(options: {
   publishStatus: LibraryReleaseManifest["library"]["publishStatus"];
 } {
   const publishOk = options.identityVerificationMode === "script_context"
-    && (options.versionVerificationMode === "version_context" || options.versionVerificationMode === "idempotent_no_change")
+    && (
+      options.versionVerificationMode === "version_context"
+      || options.versionVerificationMode === "idempotent_no_change"
+      || options.versionVerificationMode === "publish_confirmation"
+    )
     && options.publishedVersion !== null
     && options.publishedVersion === options.expectedVersion;
 
@@ -679,7 +685,8 @@ export function resolvePublishPipelinePhase(options: {
 
   const identityOk = options.identityVerificationMode === "script_context";
   const versionOk = options.versionVerificationMode === "version_context"
-    || options.versionVerificationMode === "idempotent_no_change";
+    || options.versionVerificationMode === "idempotent_no_change"
+    || options.versionVerificationMode === "publish_confirmation";
 
   if (!identityOk) {
     return { completedPhase: "publish", failedAtStep: "identity_verification", resumeFrom: "publish" };
@@ -723,6 +730,29 @@ export function shouldPromoteNoChangeVersionEvidence(options: {
     );
 }
 
+function expectedImportPathMatchesVersion(expectedImportPath: string, expectedVersion: number): boolean {
+  return new RegExp(`/${expectedVersion}$`).test(expectedImportPath.trim());
+}
+
+export function shouldPromotePublishConfirmationVersionEvidence(options: {
+  publishConfirmed: boolean;
+  publishSurfaceClosedAfterConfirm: boolean;
+  publishNoChangeDetected: boolean;
+  identityVerificationMode: IdentityVerificationMode;
+  versionVerificationMode: VersionVerificationMode;
+  expectedImportPath: string;
+  expectedVersion: number;
+}): boolean {
+  return options.publishConfirmed
+    && options.publishSurfaceClosedAfterConfirm
+    && !options.publishNoChangeDetected
+    && options.identityVerificationMode === "script_context"
+    && options.versionVerificationMode === "not_verified"
+    && Number.isInteger(options.expectedVersion)
+    && options.expectedVersion > 0
+    && expectedImportPathMatchesVersion(options.expectedImportPath, options.expectedVersion);
+}
+
 export async function runPublishMicroLibraryCli(): Promise<number> {
   const cli = parseArgs();
   const runId = utcNow().replace(/[:.]/g, "-");
@@ -734,6 +764,8 @@ export async function runPublishMicroLibraryCli(): Promise<number> {
   let openGateVerified = false;
   let openedExistingScript = false;
   let publishAttempted = false;
+  let publishConfirmed = false;
+  let publishSurfaceClosedAfterConfirm = false;
   let publishedScriptVerified = false;
   let identityVerificationMode: PublishReport["identityVerificationMode"] = "not_verified";
   let versionVerificationMode: PublishReport["versionVerificationMode"] = "not_verified";
@@ -791,6 +823,8 @@ export async function runPublishMicroLibraryCli(): Promise<number> {
         title: details.libraryName,
       });
       publishNoChangeDetected = publishResult.noChangeDetected;
+      publishConfirmed = publishConfirmed || publishResult.publishConfirmed;
+      publishSurfaceClosedAfterConfirm = publishSurfaceClosedAfterConfirm || publishResult.publishSurfaceClosedAfterConfirm;
       await takeScreenshot(session.page, runId, `${details.libraryName}-published`, screenshots);
 
       identityEvidenceContext = await collectOpenScriptIdentityTexts(session.page, details.libraryName).catch(() => []);
@@ -828,6 +862,19 @@ export async function runPublishMicroLibraryCli(): Promise<number> {
         publishedVersion = details.libraryVersion;
       }
 
+      if (shouldPromotePublishConfirmationVersionEvidence({
+        publishConfirmed,
+        publishSurfaceClosedAfterConfirm,
+        publishNoChangeDetected,
+        identityVerificationMode,
+        versionVerificationMode,
+        expectedImportPath: details.recommendedImportPath,
+        expectedVersion: details.libraryVersion,
+      })) {
+        versionVerificationMode = "publish_confirmation";
+        publishedVersion = details.libraryVersion;
+      }
+
       if (!publishNoChangeDetected && identityVerificationMode === "script_context" && versionVerificationMode === "not_verified") {
         await ensurePineEditor(session.page);
         const retryPublishResult = await publishPrivateScript(session.page, {
@@ -835,6 +882,8 @@ export async function runPublishMicroLibraryCli(): Promise<number> {
           title: details.libraryName,
         });
         publishNoChangeDetected = publishNoChangeDetected || retryPublishResult.noChangeDetected;
+        publishConfirmed = publishConfirmed || retryPublishResult.publishConfirmed;
+        publishSurfaceClosedAfterConfirm = publishSurfaceClosedAfterConfirm || retryPublishResult.publishSurfaceClosedAfterConfirm;
         await takeScreenshot(session.page, runId, `${details.libraryName}-published-retry`, screenshots);
 
         identityEvidenceContext = await collectOpenScriptIdentityTexts(session.page, details.libraryName).catch(() => []);
@@ -872,10 +921,27 @@ export async function runPublishMicroLibraryCli(): Promise<number> {
           versionVerificationMode = "idempotent_no_change";
           publishedVersion = details.libraryVersion;
         }
+
+        if (shouldPromotePublishConfirmationVersionEvidence({
+          publishConfirmed,
+          publishSurfaceClosedAfterConfirm,
+          publishNoChangeDetected,
+          identityVerificationMode,
+          versionVerificationMode,
+          expectedImportPath: details.recommendedImportPath,
+          expectedVersion: details.libraryVersion,
+        })) {
+          versionVerificationMode = "publish_confirmation";
+          publishedVersion = details.libraryVersion;
+        }
       }
 
       let exactScriptVerified = identityVerificationMode === "script_context";
-      let exactVersionVerified = (versionVerificationMode === "version_context" || versionVerificationMode === "idempotent_no_change")
+      let exactVersionVerified = (
+        versionVerificationMode === "version_context"
+        || versionVerificationMode === "idempotent_no_change"
+        || versionVerificationMode === "publish_confirmation"
+      )
         && publishedVersion === details.libraryVersion;
 
       const shouldReopenPublishedScript = shouldReopenPublishedScriptAfterPublish({
@@ -915,8 +981,25 @@ export async function runPublishMicroLibraryCli(): Promise<number> {
           publishedVersion = details.libraryVersion;
         }
 
+        if (shouldPromotePublishConfirmationVersionEvidence({
+          publishConfirmed,
+          publishSurfaceClosedAfterConfirm,
+          publishNoChangeDetected,
+          identityVerificationMode,
+          versionVerificationMode,
+          expectedImportPath: details.recommendedImportPath,
+          expectedVersion: details.libraryVersion,
+        })) {
+          versionVerificationMode = "publish_confirmation";
+          publishedVersion = details.libraryVersion;
+        }
+
         exactScriptVerified = publishedScriptVerified || identityVerificationMode === "script_context";
-        exactVersionVerified = (versionVerificationMode === "version_context" || versionVerificationMode === "idempotent_no_change")
+        exactVersionVerified = (
+          versionVerificationMode === "version_context"
+          || versionVerificationMode === "idempotent_no_change"
+          || versionVerificationMode === "publish_confirmation"
+        )
           && publishedVersion === details.libraryVersion;
       }
 
@@ -969,6 +1052,8 @@ export async function runPublishMicroLibraryCli(): Promise<number> {
       openGateVerified,
       publishAttempted,
       publishOk: publishState.publishOk,
+      publishConfirmed,
+      publishSurfaceClosedAfterConfirm,
       openedExistingScript,
       publishedScriptVerified,
       identityVerificationMode,
@@ -1050,6 +1135,8 @@ export async function runPublishMicroLibraryCli(): Promise<number> {
       openGateVerified,
       publishAttempted,
       publishOk: publishState.publishOk,
+      publishConfirmed,
+      publishSurfaceClosedAfterConfirm,
       openedExistingScript,
       publishedScriptVerified,
       identityVerificationMode,
