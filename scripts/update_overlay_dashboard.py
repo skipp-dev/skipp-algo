@@ -79,6 +79,15 @@ COLOR_ERROR = "dark-red"
 COLOR_WARN = "dark-yellow"
 COLOR_DEGRADED = "dark-orange"
 COLOR_NEUTRAL = "gray"
+
+BRIDGE_CONTRACT_BRIDGES = ("uptimerobot", "github_workflow", "railway_metrics")
+BRIDGE_CONTRACT_FAMILIES = (
+    "live_overlay_bridge_enabled",
+    "live_overlay_bridge_configured",
+    "live_overlay_bridge_scrape_success",
+    "live_overlay_bridge_error_info",
+    "live_overlay_bridge_last_success_age_seconds",
+)
 COLOR_STARTING = "dark-yellow"
 # Canonical phase-code colors for the GitHub Workflow Status timeline.
 _GITHUB_WORKFLOW_PHASE_COLORS: dict[int, tuple[str, str]] = {
@@ -787,8 +796,33 @@ def _fix_bridge_scrape_health_timeline(data: dict[str, Any]) -> bool:
 
 def _ensure_bridge_metrics_present_panel(data: dict[str, Any]) -> bool:
     """Add a top-level panel that surfaces missing generic bridge contracts."""
-    if _v1_panel_by_title(data, "Bridge Metrics Present") is not None:
-        return False
+    desired_expr = _bridge_contract_missing_expr('job=~"$job"')
+    desired_defaults = _bridge_metrics_present_defaults()
+    existing = _v1_panel_by_title(data, "Bridge Metrics Present")
+    if existing is not None:
+        changed = False
+        targets = existing.setdefault("targets", [])
+        if not targets:
+            targets.append(
+                {
+                    "legendFormat": "bridge_contracts_missing",
+                    "datasource": {"type": "prometheus", "uid": "grafanacloud-prom"},
+                }
+            )
+            changed = True
+        target = targets[0]
+        if target.get("expr") != desired_expr:
+            target["expr"] = desired_expr
+            changed = True
+        if target.get("legendFormat") != "bridge_contracts_missing":
+            target["legendFormat"] = "bridge_contracts_missing"
+            changed = True
+        defaults = existing.setdefault("fieldConfig", {}).setdefault("defaults", {})
+        for key, value in desired_defaults.items():
+            if defaults.get(key) != value:
+                defaults[key] = copy.deepcopy(value)
+                changed = True
+        return changed
     core = _v1_panel_by_title(data, "Core Metrics Present")
     if core is None:
         return False
@@ -816,13 +850,7 @@ def _ensure_bridge_metrics_present_panel(data: dict[str, Any]) -> bool:
         "gridPos": {"x": 0, "y": insert_y, "w": 6, "h": 5},
         "targets": [
             {
-                "expr": (
-                    'sum(absent(live_overlay_bridge_enabled{job=~"$job",bridge="uptimerobot"}) or on() vector(0))\n'
-                    "+\n"
-                    'sum(absent(live_overlay_bridge_enabled{job=~"$job",bridge="github_workflow"}) or on() vector(0))\n'
-                    "+\n"
-                    'sum(absent(live_overlay_bridge_enabled{job=~"$job",bridge="railway_metrics"}) or on() vector(0))'
-                ),
+                "expr": desired_expr,
                 "legendFormat": "bridge_contracts_missing",
                 "datasource": {"type": "prometheus", "uid": "grafanacloud-prom"},
             }
@@ -833,29 +861,45 @@ def _ensure_bridge_metrics_present_panel(data: dict[str, Any]) -> bool:
             "reduceOptions": {"calcs": ["lastNotNull"], "fields": "", "values": False},
         },
         "fieldConfig": {
-            "defaults": {
-                "mappings": [
-                    {"type": "value", "options": {"0": {"text": "PRESENT", "color": "dark-green"}}},
-                    {"type": "value", "options": {"1": {"text": "1 MISSING", "color": "dark-yellow"}}},
-                    {"type": "value", "options": {"2": {"text": "2 MISSING", "color": "dark-orange"}}},
-                    {"type": "value", "options": {"3": {"text": "ALL MISSING", "color": "dark-red"}}},
-                ],
-                "thresholds": {
-                    "mode": "absolute",
-                    "steps": [
-                        {"color": "dark-green", "value": None},
-                        {"color": "dark-yellow", "value": 1},
-                        {"color": "dark-orange", "value": 2},
-                        {"color": "dark-red", "value": 3},
-                    ],
-                },
-            }
+            "defaults": desired_defaults
         },
         "datasource": {"type": "prometheus", "uid": "grafanacloud-prom"},
         "id": panel_id,
     }
     panels.append(new_panel)
     return True
+
+
+def _bridge_contract_missing_expr(job_matcher: str) -> str:
+    return "\n+\n".join(
+        f'sum(absent({family}{{{job_matcher},bridge="{bridge}"}}) or on() vector(0))'
+        for bridge in BRIDGE_CONTRACT_BRIDGES
+        for family in BRIDGE_CONTRACT_FAMILIES
+    )
+
+
+def _bridge_metrics_present_defaults() -> dict[str, Any]:
+    return {
+        "mappings": [
+            {
+                "type": "value",
+                "options": {
+                    "0": {"text": "PRESENT", "color": COLOR_OK},
+                    "1": {"text": "1 MISSING", "color": COLOR_WARN},
+                    "15": {"text": "ALL MISSING", "color": COLOR_ERROR},
+                },
+            }
+        ],
+        "thresholds": {
+            "mode": "absolute",
+            "steps": [
+                {"color": COLOR_OK, "value": None},
+                {"color": COLOR_WARN, "value": 1},
+                {"color": COLOR_DEGRADED, "value": 5},
+                {"color": COLOR_ERROR, "value": 10},
+            ],
+        },
+    }
 
 
 def _ensure_railway_status_panels(data: dict[str, Any]) -> bool:

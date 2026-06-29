@@ -495,10 +495,14 @@ chase false reds:
   `live_overlay_bridge_scrape_success{bridge="railway_metrics"}`. It
   distinguishes `DISABLED` (`0`), `SCRAPE ERROR` (`1`) and `OK` (`2`).
 
-- **Bridge Metrics Present** — counts how many of the generic bridge
-  contracts are absent (`uptimerobot`, `github_workflow`, `railway_metrics`).
-  This is the first signal that the exporter has stopped emitting the
-  `live_overlay_bridge_*` family even though the daemon is still scraped.
+- **Bridge Metrics Present** — counts how many required generic bridge
+  contract series are absent across `uptimerobot`, `github_workflow`, and
+  `railway_metrics`: `live_overlay_bridge_enabled`,
+  `live_overlay_bridge_configured`, `live_overlay_bridge_scrape_success`,
+  `live_overlay_bridge_error_info`, and
+  `live_overlay_bridge_last_success_age_seconds`. This is the first signal
+  that the exporter has stopped emitting part of the `live_overlay_bridge_*`
+  family even though the daemon is still scraped.
 
 
 ### Generic bridge troubleshooting contract
@@ -511,11 +515,11 @@ chase false reds:
 | Stale success | `live_overlay_bridge_last_success_age_seconds` exceeds threshold | Bridge may be failing or unable to refresh successful data. |
 | Absent bridge metrics | no `live_overlay_bridge_*` series | Exporter or metrics path may be broken; check `Bridge Metrics Present`, `Core Metrics Present`, and collector targets. |
 
-The alert **`lo-bridge-contract-missing`** fires when any of the three
-expected `live_overlay_bridge_enabled{bridge="..."}` series disappears for
-more than five minutes. Treat this as a critical exporter/metrics-path issue
-(not a bridge misconfiguration), because the generic contract must always be
-present when the daemon is scraped.
+The alert **`lo-bridge-contract-missing`** fires when any required generic
+bridge contract family disappears for any configured bridge for more than five
+minutes. Treat this as a critical exporter/metrics-path issue (not a bridge
+misconfiguration), because the generic contract must always be present when the
+daemon is scraped.
 
 
 ### Dashboard upsert via API
