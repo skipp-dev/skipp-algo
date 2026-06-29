@@ -220,9 +220,8 @@ jobs:
           print(base64.b64encode(compressed).decode(), end="")
           PYEOF
           )
-          echo "$PAYLOAD" | gh secret set TV_STORAGE_STATE \
-            --repo "${{ github.repository }}" \
-            --body -
+          printf '%s' "$PAYLOAD" | gh secret set TV_STORAGE_STATE \
+            --repo "${{ github.repository }}"
           echo "TV_STORAGE_STATE secret updated successfully."
 
       - name: Report success
