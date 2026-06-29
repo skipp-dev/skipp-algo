@@ -186,6 +186,37 @@ groups:
       summary: No symbols computed after 10 min uptime
       runbook: Service started but compute cycle never succeeded. Check feed + compute
         logs.
+  - uid: lo-bridge-contract-missing
+    title: Generic bridge contract missing
+    condition: D
+    data:
+    - refId: A
+      datasourceUid: grafanacloud-prom
+      model:
+        expr: absent(live_overlay_bridge_enabled{job="live_overlay",bridge="uptimerobot"})
+        instant: true
+    - refId: B
+      datasourceUid: grafanacloud-prom
+      model:
+        expr: absent(live_overlay_bridge_enabled{job="live_overlay",bridge="github_workflow"})
+        instant: true
+    - refId: C
+      datasourceUid: grafanacloud-prom
+      model:
+        expr: absent(live_overlay_bridge_enabled{job="live_overlay",bridge="railway_metrics"})
+        instant: true
+    - refId: D
+      datasourceUid: __expr__
+      model:
+        type: math
+        expression: ($A > 0) || ($B > 0) || ($C > 0)
+    for: 5m
+    labels:
+      severity: critical
+    annotations:
+      summary: One or more generic bridge contracts are missing from the scrape
+      runbook: Verify the live_overlay exporter is running and emitting live_overlay_bridge_enabled
+        for all configured bridges (uptimerobot, github_workflow, railway_metrics).
 - orgId: 1
   name: live-overlay-warning
   folder: SMC Live Overlay

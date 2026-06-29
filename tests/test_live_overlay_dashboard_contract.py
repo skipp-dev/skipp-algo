@@ -396,6 +396,64 @@ def test_dashboard_has_process_resident_memory_panel() -> None:
     assert "live_overlay_process_resident_memory_bytes" in expr, expr
 
 
+def test_dashboard_bridge_metrics_present_counts_generic_contracts() -> None:
+    """Bridge Metrics Present must count missing generic bridge contracts."""
+    dashboard = json.loads(_DASHBOARD_JSON.read_text(encoding="utf-8"))
+    panels = _dashboard_panels(dashboard)
+    panel = next(p for p in panels if p.get("title") == "Bridge Metrics Present")
+    expr = panel["targets"][0]["expr"]
+    for bridge in ("uptimerobot", "github_workflow", "railway_metrics"):
+        assert f'bridge="{bridge}"' in expr, f"missing bridge {bridge} in {expr}"
+    assert "absent(live_overlay_bridge_enabled" in expr
+    options = panel["fieldConfig"]["defaults"]["mappings"]
+    assert any("ALL MISSING" in str(m) for m in options)
+
+
+def test_dashboard_bridge_scrape_health_timeline_uses_generic_contract() -> None:
+    """Bridge Scrape Health Timeline must use the generic bridge contract."""
+    dashboard = json.loads(_DASHBOARD_JSON.read_text(encoding="utf-8"))
+    panels = _dashboard_panels(dashboard)
+    panel = next(p for p in panels if p.get("title") == "Bridge Scrape Health Timeline")
+    expr = panel["targets"][0]["expr"]
+    assert "live_overlay_bridge_enabled" in expr
+    assert "live_overlay_bridge_scrape_success" in expr
+    assert 'bridge=~"uptimerobot|github_workflow"' in expr
+    assert panel["targets"][0].get("legendFormat") == "{{bridge}}"
+
+
+def test_dashboard_bridge_state_panels_use_generic_contract() -> None:
+    """UptimeRobot/GitHub bridge stat panels must use the generic contract."""
+    dashboard = json.loads(_DASHBOARD_JSON.read_text(encoding="utf-8"))
+    panels = _dashboard_panels(dashboard)
+    for title, bridge in (
+        ("UptimeRobot Bridge", "uptimerobot"),
+        ("GitHub Workflow Bridge", "github_workflow"),
+    ):
+        panel = next(p for p in panels if p.get("title") == title)
+        expr = panel["targets"][0]["expr"]
+        assert "live_overlay_bridge_enabled" in expr
+        assert "live_overlay_bridge_scrape_success" in expr
+        assert f'bridge="{bridge}"' in expr
+        assert "or on() vector(0)" in expr
+        assert panel["targets"][0].get("legendFormat") == "{{job}}"
+
+
+def test_dashboard_bridge_error_panels_use_generic_contract() -> None:
+    """Bridge error panels must use the generic bridge_error_info metric."""
+    dashboard = json.loads(_DASHBOARD_JSON.read_text(encoding="utf-8"))
+    panels = _dashboard_panels(dashboard)
+    for title, bridge in (
+        ("UptimeRobot Bridge Error", "uptimerobot"),
+        ("GitHub Workflow Bridge Error", "github_workflow"),
+        ("Railway Metrics Error", "railway_metrics"),
+    ):
+        panel = next(p for p in panels if p.get("title") == title)
+        expr = panel["targets"][0]["expr"]
+        assert "live_overlay_bridge_error_info" in expr
+        assert f'bridge="{bridge}"' in expr
+        assert 'error!="none"' in expr
+
+
 def test_dashboard_grid_has_no_overlapping_panels() -> None:
     """All dashboard panels must occupy disjoint grid cells."""
     dashboard = json.loads(_DASHBOARD_JSON.read_text(encoding="utf-8"))
@@ -680,6 +738,7 @@ PROMOTED_SLO_TITLES = {
     "Market Traffic Health",
     "Market Data Freshness",
     "Core Metrics Present",
+    "Bridge Metrics Present",
     "Latency vs. SLO (ms)",
     "Error Budget Burn Rate",
     "Traffic Alert Armed",
@@ -697,9 +756,10 @@ def test_dashboard_user_impact_block_is_promoted_to_top() -> None:
     assert by_title["Market Traffic Health"]["gridPos"]["y"] == 23
     assert by_title["Market Data Freshness"]["gridPos"]["y"] == 23
     assert by_title["Core Metrics Present"]["gridPos"]["y"] == 23
-    assert by_title["Latency vs. SLO (ms)"]["gridPos"]["y"] == 28
-    assert by_title["Error Budget Burn Rate"]["gridPos"]["y"] == 28
-    assert by_title["Traffic Alert Armed"]["gridPos"]["y"] == 36
+    assert by_title["Bridge Metrics Present"]["gridPos"]["y"] == 28
+    assert by_title["Latency vs. SLO (ms)"]["gridPos"]["y"] == 33
+    assert by_title["Error Budget Burn Rate"]["gridPos"]["y"] == 33
+    assert by_title["Traffic Alert Armed"]["gridPos"]["y"] == 41
     assert by_title["Traffic Alert Armed"]["gridPos"]["y"] < by_title["Operational Drill-down"]["gridPos"]["y"]
 
 

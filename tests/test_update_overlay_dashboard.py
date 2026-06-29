@@ -251,13 +251,23 @@ def test_update_script_fixes_external_checks_query(temp_dashboard: Path) -> None
 
 
 def test_update_script_fixes_bridge_error_panels(temp_dashboard: Path) -> None:
-    """Bridge error panels must not count the healthy error_code="none" series."""
+    """Bridge error panels must use the generic contract and filter healthy series."""
+    data_before = json.loads(temp_dashboard.read_text(encoding="utf-8"))
+    for title, legacy_metric in (
+        ("UptimeRobot Bridge Error", "live_overlay_uptimerobot_scrape_error_info"),
+        ("GitHub Workflow Bridge Error", "live_overlay_github_workflow_scrape_error_info"),
+    ):
+        panel = next(p for p in data_before["panels"] if p.get("title") == title)
+        panel["targets"][0]["expr"] = f"max({legacy_metric}{{job=~\"$job\"}} or vector(0))"
+    temp_dashboard.write_text(json.dumps(data_before), encoding="utf-8")
+
     _run_script(temp_dashboard)
     data = json.loads(temp_dashboard.read_text(encoding="utf-8"))
-    for title in ("UptimeRobot Bridge Error", "GitHub Workflow Bridge Error"):
+    for title in ("UptimeRobot Bridge Error", "GitHub Workflow Bridge Error", "Railway Metrics Error"):
         panel = next(p for p in data["panels"] if p.get("title") == title)
         expr = panel["targets"][0]["expr"]
-        assert 'error_code!="none"' in expr, f"{title}: {expr[:200]}"
+        assert "live_overlay_bridge_error_info" in expr, f"{title} not migrated to generic metric"
+        assert 'error!="none"' in expr, f"{title}: {expr[:200]}"
 
 
 def test_update_script_adds_railway_status_panels(temp_dashboard: Path) -> None:

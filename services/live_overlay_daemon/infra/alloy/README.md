@@ -41,6 +41,28 @@ of Prometheus target labels, scrape logs, and remote-write metadata.
 - Get the Prometheus remote-write URL + user + API key from:
   Stack → Connections → Prometheus → Remote Write
 
+## Generic bridge contract
+
+The live overlay daemon exports a uniform family of bridge metrics so that
+dashboards and alerts do not depend on per-integration metric names:
+
+```promql
+live_overlay_bridge_enabled{bridge="uptimerobot"}
+live_overlay_bridge_configured{bridge="uptimerobot"}
+live_overlay_bridge_scrape_success{bridge="uptimerobot"}
+live_overlay_bridge_error_info{bridge="uptimerobot",error="none"}
+```
+
+`bridge` is one of `uptimerobot`, `github_workflow`, or `railway_metrics`.
+`enabled` is `1` when the bridge is turned on for this deployment;
+`configured` is `1` when the required credentials/environment are present;
+`scrape_success` is `1` when the last poll succeeded.
+`error_info` exposes the active error class (`error="none"` when healthy).
+
+If you add a new bridge, emit these four series with a new `bridge` label
+value and update both the dashboard alert `lo-bridge-contract-missing` and
+the `Bridge Metrics Present` panel so the contract is tracked end-to-end.
+
 ## Validation
 
 After deploying, verify in Grafana Cloud → Explore:

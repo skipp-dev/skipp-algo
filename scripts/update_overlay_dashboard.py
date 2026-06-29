@@ -163,7 +163,7 @@ UPTIMEROBOT_PANEL: dict[str, Any] = {
 
 
 _TRAFFIC_ALERT_ARMED_TITLE = "Traffic Alert Armed"
-_TRAFFIC_ALERT_ARMED_Y = 36
+_TRAFFIC_ALERT_ARMED_Y = 41
 _TRAFFIC_ALERT_ARMED_H = 4
 
 TRAFFIC_ALERT_ARMED_PANEL: dict[str, Any] = {
@@ -642,34 +642,33 @@ def _fix_bridge_error_panels(data: dict[str, Any]) -> bool:
     """Ensure bridge error panels use the generic bridge contract.
 
     Only surfaces real error labels; healthy scrapes use the ``none`` label
-    and are filtered out defensively.
+    and are filtered out defensively. Migration is unconditional by title so
+    legacy per-bridge metric names are always replaced.
     """
     changed = False
-    title_to_metric = {
-        "UptimeRobot Bridge Error": "live_overlay_bridge_error_info",
-        "GitHub Workflow Bridge Error": "live_overlay_bridge_error_info",
-        "Railway Metrics Bridge Error": "live_overlay_bridge_error_info",
-    }
     title_to_bridge = {
         "UptimeRobot Bridge Error": "uptimerobot",
         "GitHub Workflow Bridge Error": "github_workflow",
-        "Railway Metrics Bridge Error": "railway_metrics",
+        "Railway Metrics Error": "railway_metrics",
     }
     for panel in _iter_v1_panels(data):
-        metric = title_to_metric.get(panel.get("title", ""))
         bridge = title_to_bridge.get(panel.get("title", ""))
-        if not metric or not bridge:
+        if not bridge:
             continue
+        new_expr = (
+            f"max by (job, bridge, error) (\n"
+            f'  live_overlay_bridge_error_info{{job=~"$job",bridge="{bridge}",error!="none"}}\n'
+            f") or on() vector(0)"
+        )
         for target in panel.get("targets", []):
             expr = target.get("expr", "")
-            if metric not in expr or 'error!="none"' in expr:
+            if expr == new_expr:
                 continue
-            target["expr"] = (
-                f"max by (job, bridge, error) (\n"
-                f'  {metric}{{job=~"$job",bridge="{bridge}",error!="none"}}\n'
-                f") or vector(0)"
-            )
+            target["expr"] = new_expr
             changed = True
+            if target.get("legendFormat") != "{{error}}":
+                target["legendFormat"] = "{{error}}"
+                changed = True
     return changed
 
 
@@ -691,6 +690,174 @@ def _fix_bridge_state_panel_legends(data: dict[str, Any]) -> bool:
                     target["legendFormat"] = "{{job}}"
                     changed = True
     return changed
+
+
+def _fix_bridge_state_panels(data: dict[str, Any]) -> bool:
+    """Migrate UptimeRobot/GitHub bridge stat panels to the generic contract.
+
+    State is encoded as enabled + scrape_success: 0=DISABLED, 1=SCRAPE ERROR,
+    2=OK. The fallback is labeled so Grafana does not show an anonymous 0.
+    """
+    changed = False
+    title_to_bridge = {
+        "UptimeRobot Bridge": "uptimerobot",
+        "GitHub Workflow Bridge": "github_workflow",
+    }
+    for panel in _iter_v1_panels(data):
+        bridge = title_to_bridge.get(panel.get("title", ""))
+        if not bridge:
+            continue
+        new_expr = (
+            f'max by (job) (live_overlay_bridge_enabled{{job=~"$job",bridge="{bridge}"}})\n'
+            "+ on(job)\n"
+            f'max by (job) (live_overlay_bridge_scrape_success{{job=~"$job",bridge="{bridge}"}})\n'
+            'or on() vector(0)'
+        )
+        for target in panel.get("targets", []):
+            expr = target.get("expr", "")
+            if expr == new_expr:
+                continue
+            target["expr"] = new_expr
+            changed = True
+            if target.get("legendFormat") != "{{job}}":
+                target["legendFormat"] = "{{job}}"
+                changed = True
+    return changed
+
+
+def _fix_bridge_scrape_health_timeline(data: dict[str, Any]) -> bool:
+    """Bridge Scrape Health Timeline uses the generic bridge contract."""
+    panel = _v1_panel_by_title(data, "Bridge Scrape Health Timeline")
+    if panel is None:
+        return False
+    changed = False
+    new_expr = (
+        "max by (bridge) (\n"
+        '  max_over_time(live_overlay_bridge_enabled{job=~"$job",bridge=~"uptimerobot|github_workflow"}[5m])\n'
+        "  +\n"
+        '  max_over_time(live_overlay_bridge_scrape_success{job=~"$job",bridge=~"uptimerobot|github_workflow"}[5m])\n'
+        ")"
+    )
+    target = panel.get("targets", [{}])[0]
+    if target.get("expr") != new_expr:
+        panel["targets"] = [
+            {
+                "expr": new_expr,
+                "legendFormat": "{{bridge}}",
+                "instant": False,
+                "range": True,
+                "datasource": {"type": "prometheus", "uid": "grafanacloud-prom"},
+            }
+        ]
+        changed = True
+    desired_description = (
+        "External bridge scrape health over time (UptimeRobot + GitHub Workflows). "
+        "DISABLED = bridge not configured; SCRAPE ERROR = configured but failing; OK = healthy."
+    )
+    if panel.get("description") != desired_description:
+        panel["description"] = desired_description
+        changed = True
+    defaults = panel.setdefault("fieldConfig", {}).setdefault("defaults", {})
+    desired_mappings = [
+        {
+            "type": "value",
+            "options": {
+                "0": {"text": "DISABLED", "color": "gray"},
+                "1": {"text": "SCRAPE ERROR", "color": "dark-red"},
+                "2": {"text": "OK", "color": "dark-green"},
+            },
+        }
+    ]
+    if defaults.get("mappings") != desired_mappings:
+        defaults["mappings"] = desired_mappings
+        changed = True
+    desired_thresholds = {
+        "mode": "absolute",
+        "steps": [
+            {"color": "gray", "value": None},
+            {"color": "dark-red", "value": 1},
+            {"color": "dark-green", "value": 2},
+        ],
+    }
+    if defaults.get("thresholds") != desired_thresholds:
+        defaults["thresholds"] = desired_thresholds
+        changed = True
+    return changed
+
+
+def _ensure_bridge_metrics_present_panel(data: dict[str, Any]) -> bool:
+    """Add a top-level panel that surfaces missing generic bridge contracts."""
+    if _v1_panel_by_title(data, "Bridge Metrics Present") is not None:
+        return False
+    core = _v1_panel_by_title(data, "Core Metrics Present")
+    if core is None:
+        return False
+    panels = data.get("panels", [])
+    insert_y = core["gridPos"]["y"] + core["gridPos"]["h"]
+    for panel in panels:
+        gp = panel.get("gridPos", {})
+        y = gp.get("y")
+        if isinstance(y, int) and y >= insert_y:
+            gp["y"] = y + 5
+
+    panel_id = 1
+    for panel in _iter_v1_panels(data):
+        pid = panel.get("id")
+        if isinstance(pid, int) and pid >= panel_id:
+            panel_id = pid + 1
+
+    new_panel = {
+        "title": "Bridge Metrics Present",
+        "type": "stat",
+        "description": (
+            "Counts how many of the generic bridge contracts are absent. "
+            "A non-zero value means the exporter or metrics path is broken, not that a bridge is disabled."
+        ),
+        "gridPos": {"x": 0, "y": insert_y, "w": 6, "h": 5},
+        "targets": [
+            {
+                "expr": (
+                    "(\n"
+                    '  absent(live_overlay_bridge_enabled{job=~"$job",bridge="uptimerobot"}) or vector(0)\n'
+                    ") + (\n"
+                    '  absent(live_overlay_bridge_enabled{job=~"$job",bridge="github_workflow"}) or vector(0)\n'
+                    ") + (\n"
+                    '  absent(live_overlay_bridge_enabled{job=~"$job",bridge="railway_metrics"}) or vector(0)\n'
+                    ")"
+                ),
+                "legendFormat": "bridge_contracts_missing",
+                "datasource": {"type": "prometheus", "uid": "grafanacloud-prom"},
+            }
+        ],
+        "options": {
+            "colorMode": "background_solid",
+            "graphMode": "none",
+            "reduceOptions": {"calcs": ["lastNotNull"], "fields": "", "values": False},
+        },
+        "fieldConfig": {
+            "defaults": {
+                "mappings": [
+                    {"type": "value", "options": {"0": {"text": "PRESENT", "color": "dark-green"}}},
+                    {"type": "value", "options": {"1": {"text": "1 MISSING", "color": "dark-yellow"}}},
+                    {"type": "value", "options": {"2": {"text": "2 MISSING", "color": "dark-orange"}}},
+                    {"type": "value", "options": {"3": {"text": "ALL MISSING", "color": "dark-red"}}},
+                ],
+                "thresholds": {
+                    "mode": "absolute",
+                    "steps": [
+                        {"color": "dark-green", "value": None},
+                        {"color": "dark-yellow", "value": 1},
+                        {"color": "dark-orange", "value": 2},
+                        {"color": "dark-red", "value": 3},
+                    ],
+                },
+            }
+        },
+        "datasource": {"type": "prometheus", "uid": "grafanacloud-prom"},
+        "id": panel_id,
+    }
+    panels.append(new_panel)
+    return True
 
 
 def _ensure_railway_status_panels(data: dict[str, Any]) -> bool:
@@ -1358,9 +1525,12 @@ def main(argv: list[str] | None = None) -> int:
         changed = _fix_triage_guide_railway_links(data) or changed
         changed = _ensure_uptimerobot_panel(data) or changed
         changed = _fix_bridge_scrapes_panel(data) or changed
+        changed = _fix_bridge_state_panels(data) or changed
         changed = _fix_bridge_error_panels(data) or changed
         changed = _fix_bridge_state_panel_legends(data) or changed
+        changed = _fix_bridge_scrape_health_timeline(data) or changed
         changed = _ensure_railway_status_panels(data) or changed
+        changed = _ensure_bridge_metrics_present_panel(data) or changed
         changed = _fix_github_workflow_timeline_panel(data) or changed
         changed = _ensure_v1_incident_drilldown_links(data) or changed
         changed = _ensure_v1_service_owner_row_descriptions(data) or changed
