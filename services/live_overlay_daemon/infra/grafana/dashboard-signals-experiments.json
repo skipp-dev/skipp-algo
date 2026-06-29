@@ -33,6 +33,24 @@
       "type": "link",
       "url": "https://github.com/skippALGO/skipp-algo/blob/main/services/live_overlay_daemon/README.md",
       "targetBlank": true
+    },
+    {
+      "title": "Railway logs",
+      "type": "link",
+      "url": "https://railway.com/project/0616a3b7-7b7f-41d1-8fac-a0b8922c94ca/service/705582c5-ba8b-4c6e-848c-33bffe0a61b0/logs?environmentId=470fbd0f-894d-46cd-8722-6b072d255d99",
+      "targetBlank": true
+    },
+    {
+      "title": "Railway deployments",
+      "type": "link",
+      "url": "https://railway.com/project/0616a3b7-7b7f-41d1-8fac-a0b8922c94ca/service/705582c5-ba8b-4c6e-848c-33bffe0a61b0/deployments?environmentId=470fbd0f-894d-46cd-8722-6b072d255d99",
+      "targetBlank": true
+    },
+    {
+      "title": "Railway metrics",
+      "type": "link",
+      "url": "https://railway.com/project/0616a3b7-7b7f-41d1-8fac-a0b8922c94ca/service/705582c5-ba8b-4c6e-848c-33bffe0a61b0/metrics?environmentId=470fbd0f-894d-46cd-8722-6b072d255d99",
+      "targetBlank": true
     }
   ],
   "liveNow": false,
@@ -1177,6 +1195,72 @@
       "id": 1103734831
     },
     {
+      "id": 2165782571,
+      "title": "Traffic Alert Armed",
+      "type": "stat",
+      "description": "Is production first-zero traffic alerting armed? Shows LIVE_OVERLAY_EXPECT_MARKET_TRAFFIC; 1 means ARMED and 0 means NOT ARMED.",
+      "gridPos": {
+        "x": 18,
+        "y": 41,
+        "w": 6,
+        "h": 4
+      },
+      "targets": [
+        {
+          "expr": "live_overlay_expected_market_traffic{job=~\"$job\"}",
+          "legendFormat": "expected_market_traffic",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "grafanacloud-prom"
+          }
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "mappings": [
+            {
+              "type": "value",
+              "options": {
+                "0": {
+                  "text": "NOT ARMED",
+                  "color": "dark-red"
+                },
+                "1": {
+                  "text": "ARMED",
+                  "color": "dark-green"
+                }
+              }
+            }
+          ],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "dark-red",
+                "value": null
+              },
+              {
+                "color": "dark-green",
+                "value": 1
+              }
+            ]
+          },
+          "noValue": "NO SIGNAL"
+        }
+      },
+      "options": {
+        "colorMode": "background_solid",
+        "graphMode": "none",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        }
+      }
+    },
+    {
       "title": "Per-Day Family Hit-Rate — History (backfilled)",
       "type": "table",
       "description": "Retained per-day history from plan_2_8_history.jsonl: exact hit-rate and sample size for each run date / timeframe / family. Backfills the daily statistics immediately (no need to wait for Prometheus to accumulate). Sort by Run Date to read the day-by-day timeline.",
@@ -1302,6 +1386,90 @@
         "uid": "grafanacloud-prom"
       },
       "id": 1756997640
+    },
+    {
+      "title": "UptimeRobot Monitor States",
+      "type": "state-timeline",
+      "description": "Per-monitor UptimeRobot state over time. paused = monitor intentionally paused; unknown = unrecognized status code.",
+      "gridPos": {
+        "h": 6,
+        "w": 12,
+        "x": 0,
+        "y": 61
+      },
+      "targets": [
+        {
+          "expr": "{__name__=~\"live_overlay_uptimerobot_monitor_.*_status_code\",job=\"$job\"}",
+          "legendFormat": "{{__name__}}"
+        }
+      ],
+      "options": {
+        "tooltip": {
+          "mode": "multi",
+          "sort": "none"
+        },
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": false
+        },
+        "rowHeight": 0.9
+      },
+      "fieldConfig": {
+        "defaults": {
+          "mappings": [
+            {
+              "type": "value",
+              "options": {
+                "0": {
+                  "text": "PAUSED",
+                  "color": "gray"
+                },
+                "1": {
+                  "text": "NOT CHECKED",
+                  "color": "purple"
+                },
+                "2": {
+                  "text": "UP",
+                  "color": "green"
+                },
+                "8": {
+                  "text": "DOWN",
+                  "color": "red"
+                },
+                "9": {
+                  "text": "DOWN",
+                  "color": "red"
+                }
+              }
+            }
+          ],
+          "color": {
+            "mode": "thresholds"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "gray",
+                "value": null
+              },
+              {
+                "color": "purple",
+                "value": 1
+              },
+              {
+                "color": "green",
+                "value": 2
+              },
+              {
+                "color": "red",
+                "value": 8
+              }
+            ]
+          }
+        }
+      }
     }
   ],
   "refresh": "1m",
@@ -1357,6 +1525,6 @@
   "timezone": "utc",
   "title": "SMC Live Overlay Daemon — Signals & Experiments",
   "uid": "smc-live-overlay-signals-v1",
-  "version": 1,
+  "version": 2,
   "weekStart": ""
 }
