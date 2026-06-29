@@ -7,6 +7,7 @@ import test from "node:test";
 import {
   resolvePreMutationOpenGate,
   resolvePublishPipelinePhase,
+  readProductCutSummary,
   resolvePublishReportState,
   shouldPromoteNoChangeVersionEvidence,
   shouldPromotePublishConfirmationVersionEvidence,
@@ -250,6 +251,16 @@ test("publish confirmation promotion requires closed surface, exact identity, an
     expectedImportPath: "owner_a/smc_micro_profiles_generated/3",
     expectedVersion: 2,
   }), false);
+});
+
+test("product-cut summary accepts an intentionally empty deprecated group list", () => {
+  const summary = readProductCutSummary();
+
+  assert.equal(summary.deprecatedFieldPolicy.mode, "compatibility_only");
+  assert.equal(summary.deprecatedFieldPolicy.extensionAllowed, false);
+  assert.deepEqual(summary.deprecatedFieldPolicy.deprecatedGroups, []);
+  assert.ok(summary.mainlineFiles.length > 0);
+  assert.ok(summary.contracts.engine.length > 0);
 });
 
 test("body fallback version evidence never upgrades publish status even with fallback version present", () => {
