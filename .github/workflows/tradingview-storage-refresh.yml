@@ -1,5 +1,5 @@
 name: tradingview-storage-refresh
-# live-window: mutating-on-cron  # F-V6-F2.1 (schedule-only + secrets:write via GH_PAT)
+# live-window: mutating-on-cron  # F-V6-F2.1 (schedule-only + Actions secret write token)
 
 # Automated zero-touch refresh of the TV_STORAGE_STATE secret.
 #
@@ -22,9 +22,10 @@ name: tradingview-storage-refresh
 #                    setup page; used by otplib to generate the 6-digit
 #                    code without human intervention.
 #
-# On success the freshly captured JSON is written back to the repo
-# secret TV_STORAGE_STATE via `gh secret set`, using GH_PAT which must
-# have the `secrets:write` (repo) scope.
+# On success the freshly captured JSON is written back to the repo secret
+# TV_STORAGE_STATE via `gh secret set`, using TV_STORAGE_STATE_WRITE_TOKEN.
+# GH_PAT remains for issue/bot-branch workflows; the secret writer is split
+# out because bot/PR PATs may not be allowed to mutate Actions secrets.
 #
 # If login fails (CAPTCHA, IP block, TradingView anti-bot) the job
 # fails loudly and the credential-health-check.yml daily probe will
@@ -36,7 +37,8 @@ name: tradingview-storage-refresh
 #   TV_USERNAME      — optional fallback TradingView login e-mail / username
 #   TV_PASSWORD      — optional fallback TradingView password
 #   TV_TOTP_SECRET   — optional fallback TOTP Base32 seed
-#   GH_PAT           — Personal Access Token with repo + secrets:write scope
+#   GH_PAT           — optional fallback token for failure issue creation
+#   TV_STORAGE_STATE_WRITE_TOKEN — token allowed to update Actions secrets
 #
 # The workflow intentionally does NOT fall back to github.token because
 # github.token cannot write repository secrets.
@@ -76,6 +78,21 @@ jobs:
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
         with:
           fetch-depth: 1
+
+      - name: Preflight GitHub secret write token
+        env:
+          GH_TOKEN: ${{ secrets.TV_STORAGE_STATE_WRITE_TOKEN }}
+        run: |
+          set -euo pipefail
+          if [ -z "${GH_TOKEN:-}" ]; then
+            echo "::error::TV_STORAGE_STATE_WRITE_TOKEN is not configured; cannot rotate TV_STORAGE_STATE."
+            exit 1
+          fi
+          if ! gh api "repos/${GITHUB_REPOSITORY}/actions/secrets/public-key" >/dev/null; then
+            echo "::error::TV_STORAGE_STATE_WRITE_TOKEN cannot access the Actions secrets API for ${GITHUB_REPOSITORY}; cannot rotate TV_STORAGE_STATE."
+            exit 1
+          fi
+          echo "TV_STORAGE_STATE_WRITE_TOKEN can access the Actions secrets API."
 
       # xvfb provides a virtual display so Playwright can run headed
       # (required for TradingView's login page to function correctly).
@@ -186,9 +203,13 @@ jobs:
 
       - name: Write refreshed secret back to GitHub
         env:
-          GH_TOKEN: ${{ secrets.GH_PAT }}
+          GH_TOKEN: ${{ secrets.TV_STORAGE_STATE_WRITE_TOKEN }}
         run: |
           set -euo pipefail
+          if [ -z "${GH_TOKEN:-}" ]; then
+            echo "::error::TV_STORAGE_STATE_WRITE_TOKEN is not configured; cannot rotate TV_STORAGE_STATE."
+            exit 1
+          fi
           # Compress + base64-encode exactly as smc-library-refresh.yml expects.
           PAYLOAD=$(python3 - <<'PYEOF'
           import base64, gzip, json, pathlib, sys
@@ -225,6 +246,7 @@ jobs:
           The automated TradingView storage-state refresh failed at ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}.
 
           **Likely causes**
+          - \`TV_STORAGE_STATE_WRITE_TOKEN\` missing or lacking access to Actions secrets
           - Existing \`TV_STORAGE_STATE\` bootstrap session is no longer accepted by TradingView
           - CAPTCHA / IP-based anti-bot challenge (most common)
           - TradingView login page layout changed (script selectors need update)

@@ -82,10 +82,23 @@ def test_capture_script_supports_headless_bootstrap_without_login_secrets() -> N
     assert "cli.persistentProfileDir || existingStorageStatePath ? cli.chartUrl : cli.loginUrl" in text
 
 
-def test_uses_gh_pat_for_secret_write(workflow_text: str) -> None:
+def test_secret_write_uses_dedicated_token(workflow_text: str) -> None:
     write_block = workflow_text_after(workflow_text, "Write refreshed secret back to GitHub")
-    assert "GH_TOKEN: ${{ secrets.GH_PAT }}" in write_block
+    assert "GH_TOKEN: ${{ secrets.TV_STORAGE_STATE_WRITE_TOKEN }}" in write_block
+    assert "GH_TOKEN: ${{ secrets.GH_PAT }}" not in write_block
     assert "gh secret set TV_STORAGE_STATE" in write_block
+
+
+def test_secret_write_token_preflight_runs_before_capture(workflow_text: str) -> None:
+    assert "Preflight GitHub secret write token" in workflow_text
+    assert "TV_STORAGE_STATE_WRITE_TOKEN is not configured" in workflow_text
+    assert 'gh api "repos/${GITHUB_REPOSITORY}/actions/secrets/public-key"' in workflow_text
+    assert workflow_text.index("Preflight GitHub secret write token") < workflow_text.index(
+        "Capture TradingView storage state"
+    )
+    assert workflow_text.index("Preflight GitHub secret write token") < workflow_text.index(
+        "Write refreshed secret back to GitHub"
+    )
 
 
 def test_capture_and_validate_steps_are_fail_loud(workflow_text: str) -> None:
