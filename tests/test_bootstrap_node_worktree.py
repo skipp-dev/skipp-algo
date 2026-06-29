@@ -19,6 +19,20 @@ def test_package_json_exposes_node_worktree_bootstrap_shortcut() -> None:
     )
 
 
+@pytest.mark.skipif(shutil.which("bash") is None, reason="bash is required for repo shell helpers")
+def test_bootstrap_node_worktree_help_contains_only_comment_preamble() -> None:
+    result = subprocess.run(
+        ["bash", str(SCRIPT), "--help"],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+
+    assert result.returncode == 0
+    assert "Usage:" in result.stdout
+    assert "set -euo pipefail" not in result.stdout
+
+
 def _write_node_checkout(root: Path, lock_text: str) -> None:
     root.mkdir(parents=True)
     (root / "package.json").write_text('{"private":true}\n', encoding="utf-8")
