@@ -348,6 +348,36 @@ groups:
       runbook: Check TradingView consumer health, token rollout, and upstream network
         path. The deployment expects traffic (LIVE_OVERLAY_EXPECT_MARKET_TRAFFIC=1)
         but no requests have been observed since open.
+  - uid: lo-expected-traffic-not-armed
+    title: Expected traffic alert is not armed
+    condition: C
+    data:
+    - refId: A
+      datasourceUid: grafanacloud-prom
+      model:
+        expr: live_overlay_expected_market_traffic{job="live_overlay"} == bool 0
+        instant: true
+    - refId: C
+      datasourceUid: __expr__
+      model:
+        type: threshold
+        conditions:
+        - evaluator:
+            type: gt
+            params:
+            - 0
+          operator:
+            type: and
+          query:
+            params:
+            - A
+    for: 15m
+    labels:
+      severity: warning
+    annotations:
+      summary: Production first-zero traffic alerting is not armed
+      runbook: Set LIVE_OVERLAY_EXPECT_MARKET_TRAFFIC=1 for production if TradingView/Pine
+        traffic is expected; leave non-prod and warm-standby deployments at 0.
   - uid: lo-request-rate-drop-open
     title: Request rate near zero while market open
     condition: C
@@ -534,6 +564,70 @@ groups:
     annotations:
       summary: UptimeRobot bridge data is stale
       runbook: Check UptimeRobot API key/quota and bridge scrape health state.
+  - uid: lo-uptimerobot-monitor-count-mismatch
+    title: UptimeRobot monitor count mismatch
+    condition: C
+    data:
+    - refId: A
+      datasourceUid: grafanacloud-prom
+      model:
+        expr: '(live_overlay_uptimerobot_bridge_enabled{job="live_overlay"} == 1)
+          * on(job)
+          (live_overlay_uptimerobot_monitors_total{job="live_overlay"} != bool 5)'
+        instant: true
+    - refId: C
+      datasourceUid: __expr__
+      model:
+        type: threshold
+        conditions:
+        - evaluator:
+            type: gt
+            params:
+            - 0
+          operator:
+            type: and
+          query:
+            params:
+            - A
+    for: 10m
+    labels:
+      severity: warning
+    annotations:
+      summary: UptimeRobot bridge is not reporting the expected 5 production monitors
+      runbook: Verify UPTIMEROBOT_MONITOR_IDS in Railway and the UptimeRobot dashboard;
+        production currently expects exactly 5 monitors.
+  - uid: lo-uptimerobot-monitor-down
+    title: UptimeRobot monitor down
+    condition: C
+    data:
+    - refId: A
+      datasourceUid: grafanacloud-prom
+      model:
+        expr: '(live_overlay_uptimerobot_bridge_enabled{job="live_overlay"} == 1)
+          * on(job)
+          (live_overlay_uptimerobot_monitors_down_total{job="live_overlay"} > bool 0)'
+        instant: true
+    - refId: C
+      datasourceUid: __expr__
+      model:
+        type: threshold
+        conditions:
+        - evaluator:
+            type: gt
+            params:
+            - 0
+          operator:
+            type: and
+          query:
+            params:
+            - A
+    for: 5m
+    labels:
+      severity: critical
+    annotations:
+      summary: One or more UptimeRobot production monitors are down
+      runbook: Open UptimeRobot and the External Integrations row; correlate failed
+        checks with Railway /health, /ready, /version and public endpoint probes.
   - uid: lo-github-workflow-snapshot-stale
     title: GitHub workflow snapshot stale
     condition: C
@@ -992,6 +1086,68 @@ groups:
     annotations:
       summary: smc-live-overlay memory exceeds 900 MB — OOM kill imminent
       runbook: Railway 1 GB limit. Check feed accumulation and reconnect cycles.
+  - uid: lo-railway-memory-ratio-high
+    title: Railway service memory ratio > 75%
+    condition: C
+    data:
+    - refId: A
+      datasourceUid: grafanacloud-prom
+      model:
+        expr: max by (service, service_id) (live_overlay_railway_service_memory_used_ratio{job="live_overlay"})
+          > 0.75
+        instant: true
+    - refId: C
+      datasourceUid: __expr__
+      model:
+        type: threshold
+        conditions:
+        - evaluator:
+            type: gt
+            params:
+            - 0
+          operator:
+            type: and
+          query:
+            params:
+            - A
+    for: 10m
+    labels:
+      severity: warning
+    annotations:
+      summary: Railway service memory is above 75% of its configured limit
+      runbook: Check the Railway Resources row, service logs and recent deploys;
+        ratio-based alerting follows the actual memory limit per service.
+  - uid: lo-railway-memory-ratio-critical
+    title: Railway service memory ratio > 90%
+    condition: C
+    data:
+    - refId: A
+      datasourceUid: grafanacloud-prom
+      model:
+        expr: max by (service, service_id) (live_overlay_railway_service_memory_used_ratio{job="live_overlay"})
+          > 0.90
+        instant: true
+    - refId: C
+      datasourceUid: __expr__
+      model:
+        type: threshold
+        conditions:
+        - evaluator:
+            type: gt
+            params:
+            - 0
+          operator:
+            type: and
+          query:
+            params:
+            - A
+    for: 5m
+    labels:
+      severity: critical
+    annotations:
+      summary: Railway service memory is above 90% of its configured limit
+      runbook: Immediate OOM risk. Inspect service-specific Railway memory, restart
+        if growth is monotonic, and check feed/bridge buffers.
   - uid: alloy-scrape-self-down
     title: Alloy self-scrape target down
     condition: C
@@ -1113,6 +1269,37 @@ groups:
       summary: One or more Railway services are unreachable from Alloy
       runbook: Check Railway internal networking. Verify OVERLAY_SERVICE_URL and SIGNALS_SERVICE_URL
         env vars. Target service may have crashed.
+  - uid: alloy-remote-write-failures
+    title: Alloy remote-write failures
+    condition: C
+    data:
+    - refId: A
+      datasourceUid: grafanacloud-prom
+      model:
+        expr: increase(prometheus_remote_storage_samples_failed_total{job="alloy"}[10m])
+          > 0
+        instant: true
+    - refId: C
+      datasourceUid: __expr__
+      model:
+        type: threshold
+        conditions:
+        - evaluator:
+            type: gt
+            params:
+            - 0
+          operator:
+            type: and
+          query:
+            params:
+            - A
+    for: 5m
+    labels:
+      severity: warning
+    annotations:
+      summary: Alloy is failing to remote-write samples to Grafana Cloud
+      runbook: Check metrics-collector logs, GRAFANA_CLOUD_* credentials, network
+        egress and WAL/backlog state before assuming target services are healthy.
   - uid: lo-bridge-scrape-failed
     title: Live Overlay bridge scrape failed
     condition: C

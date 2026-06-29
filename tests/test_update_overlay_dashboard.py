@@ -357,6 +357,25 @@ def test_update_script_core_metrics_present_checks_critical_series(temp_dashboar
     assert any(m.get("options", {}).get("8") for m in mappings) or "8 MISSING" in str(mappings)
 
 
+def test_update_script_re_adds_traffic_alert_armed_without_extra_shift(temp_dashboard: Path) -> None:
+    """Traffic Alert Armed is self-healed without repeatedly moving lower rows."""
+    _run_script(temp_dashboard)
+    data = json.loads(temp_dashboard.read_text(encoding="utf-8"))
+    operational_y = next(p for p in data["panels"] if p.get("title") == "Operational Drill-down")["gridPos"]["y"]
+    data["panels"] = [p for p in data["panels"] if p.get("title") != "Traffic Alert Armed"]
+    temp_dashboard.write_text(json.dumps(data, indent=2), encoding="utf-8")
+
+    _run_script(temp_dashboard)
+
+    updated = json.loads(temp_dashboard.read_text(encoding="utf-8"))
+    panel = next(p for p in updated["panels"] if p.get("title") == "Traffic Alert Armed")
+    assert panel["targets"][0]["expr"] == 'live_overlay_expected_market_traffic{job=~"$job"}'
+    assert panel["fieldConfig"]["defaults"]["mappings"][0]["options"]["0"]["text"] == "NOT ARMED"
+    assert panel["fieldConfig"]["defaults"]["mappings"][0]["options"]["1"]["text"] == "ARMED"
+    updated_operational = next(p for p in updated["panels"] if p.get("title") == "Operational Drill-down")
+    assert updated_operational["gridPos"]["y"] == operational_y
+
+
 def test_update_script_railway_bridge_uses_generic_bridge_contract(temp_dashboard: Path) -> None:
     """Railway Metrics Bridge panel should use the generic bridge contract."""
     _run_script(temp_dashboard)
@@ -396,6 +415,7 @@ def test_update_script_check_mode_fails_on_stale_dashboard(tmp_path: Path) -> No
     # Remove a self-healed panel so the updater would mutate the dashboard.
     data["panels"] = [p for p in data["panels"] if p.get("title") != "UptimeRobot Monitor States"]
     dst.write_text(json.dumps(data, indent=2), encoding="utf-8")
+    before = dst.read_text(encoding="utf-8")
 
     result = subprocess.run(
         [sys.executable, str(script), "--check", str(dst)],
@@ -403,6 +423,8 @@ def test_update_script_check_mode_fails_on_stale_dashboard(tmp_path: Path) -> No
         capture_output=True,
         text=True,
     )
+    after = dst.read_text(encoding="utf-8")
 
     assert result.returncode == 1, result.stderr + result.stdout
     assert "is not up to date" in result.stdout
+    assert after == before

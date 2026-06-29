@@ -212,8 +212,9 @@ All numeric fields are `null`, all bool fields are `false`, `stale: true`.
 | `TRADINGVIEW_CREDENTIAL_SNAPSHOT_URL_TOKEN` | ❌ | *(unset)* | Optional bearer token for `TRADINGVIEW_CREDENTIAL_SNAPSHOT_URL` |
 | `OVERLAY_TRADINGVIEW_CREDENTIAL_CACHE_TTL_SECS` | ❌ | `3600` | Credential-health report cache TTL in seconds (range 60–86400) |
 | `OVERLAY_MAX_FEED_FAILURES` | ❌ | `50` | Circuit-breaker threshold for consecutive feed failures (range 1–1000) |
+| `LIVE_OVERLAY_EXPECT_MARKET_TRAFFIC` | ❌ | `0` | Set to `1` in production deployments that should receive TradingView/Pine `/smc_live` traffic during US market-open windows; arms the first-zero traffic alert |
 | `UPTIMEROBOT_API_KEY` | ❌ | *(unset)* | Enables optional UptimeRobot API bridge metrics in `/metrics` |
-| `UPTIMEROBOT_MONITOR_IDS` | ❌ | *(all monitors)* | Comma-separated monitor IDs to include in bridge poll |
+| `UPTIMEROBOT_MONITOR_IDS` | ❌ | *(all monitors)* | Comma-separated monitor IDs to include in bridge poll; production allowlist: `803309701,803341452,803343155,803343156,803362511` |
 | `UPTIMEROBOT_TIMEOUT_SECS` | ❌ | `5` | UptimeRobot API timeout in seconds (range 1–30) |
 | `UPTIMEROBOT_POLL_TTL_SECS` | ❌ | `30` | In-process cache TTL for UptimeRobot snapshot (range 5–300) |
 | `GITHUB_WORKFLOW_MONITOR_TOKEN` | ❌ | *(unset)* | Enables optional GitHub Actions workflow bridge metrics in `/metrics` |
@@ -319,7 +320,8 @@ those instead.
 ### Railway.app (production)
 
 - **URL:** `https://liveoverlaydaemon-production.up.railway.app`
-- **Plan:** Starter (512 MB RAM)
+- **Railway service:** `live_overlay_daemon`
+- **Runtime memory limit:** currently reported by Railway metrics as 8 GB
 - **Builder:** Dockerfile (`services/live_overlay_daemon/Dockerfile`)
 - **Root Directory:** *(empty — repo root is build context)*
 - **Branch:** `main` (switch after merging `feat/live-overlay-daemon`)
@@ -534,7 +536,7 @@ observability.py (structured log lines + in-process counters)
 | `overlay_age_seconds > max_stale_secs` | high | Compute not running |
 | `overlay_symbols == 0` after 10 min | critical | No symbols computed |
 
-### Grafana dashboard layout (v33)
+### Grafana dashboard layout (v43)
 
 The operations dashboard `services/live_overlay_daemon/infra/grafana/dashboard.json`
 is organized for 3-a.m. incident triage:
@@ -548,8 +550,9 @@ is organized for 3-a.m. incident triage:
   no grid overlaps so an on-call engineer can read the health story at a glance.
 - **User-impact / SLO block** — immediately after the root-cause row:
   `Success Rate (%)`, `Market Traffic Health`, `Market Data Freshness`,
-  `Core Metrics Present`, `Latency vs. SLO (ms)`, and `Error Budget Burn Rate`
-  are promoted to the top so SLO pages require no scrolling.
+  `Core Metrics Present`, `Latency vs. SLO (ms)`, `Error Budget Burn Rate`, and
+  `Traffic Alert Armed` are promoted to the top so SLO pages require no
+  scrolling.
 - **Context after health** — `Service Status`, `Uptime`, symbol counts,
   `Process Resident Memory`, and `Global Market Sessions` follow below.
   `CLOSED` sessions and `IDLE (MARKET CLOSED)` states are shown in gray, not
@@ -603,6 +606,11 @@ Operational UX additions:
   `Process Resident Memory`, and `Railway Metrics Bridge` panels include
   direct links to Railway logs, deployments, metrics, and the on-call runbook.
 - Railway panels now have thresholds (memory ratio, snapshot age).
+- `Traffic Alert Armed` shows `live_overlay_expected_market_traffic` directly
+  with `NOT ARMED` / `ARMED` value mappings.
+- Alert rules guard the UptimeRobot production monitor count (`5`), any
+  UptimeRobot monitors down, Railway memory-used ratio (`75%` warning, `90%`
+  critical), and Alloy remote-write failures.
 - The `$job` template variable is hidden (`hide: 2`) and labeled
   `Prometheus job (advanced)`; it defaults to `live_overlay` and keeps the UI
   approachable for stakeholders.
@@ -688,6 +696,10 @@ corner (toggle off in indicator settings).
 - Wrong token returns **404** (not 401/403) to avoid leaking the route structure.
 - Keep the Pine script **invite-only** or private. Rotate `OVERLAY_SECRET_TOKEN`
   monthly: update Railway env var → update Pine script input → redeploy.
+- Do not put `OVERLAY_SECRET_TOKEN` into UptimeRobot for a `/smc_live`
+  synthetic check. UptimeRobot monitors only unauthenticated liveness/readiness
+  probes; `/smc_live` traffic expectations are covered by Grafana request-rate
+  alerts.
 - `OVERLAY_SECRET_TOKEN` is never logged.
 
 ---
