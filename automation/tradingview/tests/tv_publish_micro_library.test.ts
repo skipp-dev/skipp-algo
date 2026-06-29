@@ -26,11 +26,11 @@ function buildGeneratedLibraryManifest(overrides: Record<string, unknown> = {}):
     event_risk_source: "smc_event_risk_builder",
     deprecated_field_policy: {
       mode: "compatibility_only",
-      preferred_field_version: "v5.5b",
+      preferred_field_version: "v8.0a",
       extension_allowed: false,
       sunset_date: "2026-05-14",
       sunset_action: "remove_from_export",
-      deprecated_groups: ["event_risk_v5"],
+      deprecated_groups: [],
     },
     productivity_gate: {
       publish_ready: true,

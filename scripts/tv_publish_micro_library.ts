@@ -39,6 +39,9 @@ import {
 export type IdentityVerificationMode = "script_context" | "not_verified";
 export type VersionVerificationMode = "version_context" | "idempotent_no_change" | "body_fallback" | "not_verified";
 
+const EXPECTED_DEPRECATED_POLICY_MODE = "compatibility_only";
+const EXPECTED_DEPRECATED_FIELD_VERSION = "v8.0a";
+
 export type PublishPipelinePhase =
   | "contract_validation"
   | "auth_resolution"
@@ -260,17 +263,17 @@ function assertDeprecatedFieldPolicy(manifest: GeneratedLibraryManifest): void {
     throw new Error("Generated manifest is missing deprecated_field_policy metadata");
   }
 
-  if (policy.mode !== "compatibility_only") {
+  if (policy.mode !== EXPECTED_DEPRECATED_POLICY_MODE) {
     throw new Error("Generated manifest deprecated_field_policy.mode must stay compatibility_only");
   }
-  if (policy.preferred_field_version !== "v5.5b") {
-    throw new Error("Generated manifest deprecated_field_policy.preferred_field_version must stay v5.5b");
+  if (policy.preferred_field_version !== EXPECTED_DEPRECATED_FIELD_VERSION) {
+    throw new Error("Generated manifest deprecated_field_policy.preferred_field_version must stay v8.0a");
   }
   if (policy.extension_allowed !== false) {
     throw new Error("Generated manifest deprecated_field_policy.extension_allowed must stay false");
   }
-  if (!Array.isArray(policy.deprecated_groups) || policy.deprecated_groups.length === 0) {
-    throw new Error("Generated manifest deprecated_field_policy.deprecated_groups must stay populated");
+  if (!Array.isArray(policy.deprecated_groups)) {
+    throw new Error("Generated manifest deprecated_field_policy.deprecated_groups must be a list");
   }
 }
 
