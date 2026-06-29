@@ -10,6 +10,7 @@ import { inspectTradingViewStorageState } from "../automation/tradingview/lib/tv
 
 type CliArgs = {
   out: string;
+  inputStorageState?: string;
   loginUrl: string;
   chartUrl: string;
   waitTimeoutMs: number;
@@ -135,6 +136,10 @@ function parseArgs(): CliArgs {
         process.env.TV_STORAGE_STATE || "automation/tradingview/auth/storage-state.json",
       ),
     ),
+    inputStorageState: (getFlag(
+      "--input-storage-state",
+      process.env.TV_STORAGE_STATE_INPUT || "",
+    ) || "").trim() || undefined,
     loginUrl: getFlag(
       "--login-url",
       process.env.TV_LOGIN_URL || "https://www.tradingview.com/accounts/signin/",
@@ -258,6 +263,21 @@ async function main(): Promise<number> {
   const cli = parseArgs();
 
   fs.mkdirSync(path.dirname(cli.out), { recursive: true });
+  const storageStatePath = cli.inputStorageState
+    ? path.resolve(cli.inputStorageState)
+    : undefined;
+  const existingStorageStatePath =
+    storageStatePath && fs.existsSync(storageStatePath) ? storageStatePath : undefined;
+
+  if (storageStatePath && !existingStorageStatePath) {
+    console.warn(`Input storage state not found, continuing without bootstrap: ${storageStatePath}`);
+  }
+
+  if (cli.headless && !existingStorageStatePath && (!cli.username || !cli.password)) {
+    throw new Error(
+      "Headless TradingView storage-state capture requires TV_STORAGE_STATE_INPUT or TV_USERNAME/TV_PASSWORD fallback credentials.",
+    );
+  }
 
   let browser: import("playwright").Browser;
   let context: import("playwright").BrowserContext;
@@ -284,6 +304,7 @@ async function main(): Promise<number> {
 
     context = await browser.newContext({
       viewport: { width: 1440, height: 1100 },
+      ...(existingStorageStatePath ? { storageState: existingStorageStatePath } : {}),
     });
 
     page = await context.newPage();
@@ -293,6 +314,9 @@ async function main(): Promise<number> {
   console.log("TradingView storage-state capture");
   console.log("--------------------------------");
   console.log(`Output file : ${cli.out}`);
+  if (existingStorageStatePath) {
+    console.log(`Input state : ${existingStorageStatePath}`);
+  }
   console.log(`Login URL   : ${cli.loginUrl}`);
   console.log(`Chart URL   : ${cli.chartUrl}`);
   if (cli.persistentProfileDir) {
@@ -312,9 +336,22 @@ async function main(): Promise<number> {
   }
   console.log("");
 
-  await page.goto(cli.persistentProfileDir ? cli.chartUrl : cli.loginUrl, { waitUntil: "domcontentloaded" });
+  await page.goto(cli.persistentProfileDir || existingStorageStatePath ? cli.chartUrl : cli.loginUrl, {
+    waitUntil: "domcontentloaded",
+  });
 
-  await attemptAutomatedLogin(page, cli);
+  const initialDiagnostics = await collectPageAuthDiagnostics(page).catch(() => undefined);
+  const shouldTryLogin = Boolean(
+    cli.username
+    && cli.password
+    && (!existingStorageStatePath || initialDiagnostics?.signInSignals || !page.url().includes("/chart")),
+  );
+  if (shouldTryLogin) {
+    if (!page.url().includes("/accounts/signin")) {
+      await page.goto(cli.loginUrl, { waitUntil: "domcontentloaded" });
+    }
+    await attemptAutomatedLogin(page, cli);
+  }
 
   await waitForUserOrAuthenticatedChart(page, context, cli);
 

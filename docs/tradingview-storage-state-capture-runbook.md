@@ -50,6 +50,7 @@ login in that case.
 | `--out` | `TV_STORAGE_STATE` | `automation/tradingview/auth/storage-state.json` |
 | `--login-url` | `TV_LOGIN_URL` | `https://www.tradingview.com/accounts/signin/` |
 | `--chart-url` | `TV_CHART_URL` | `https://www.tradingview.com/chart/` |
+| `--input-storage-state` | `TV_STORAGE_STATE_INPUT` | unset |
 | `--wait-timeout-ms` | `TV_STORAGE_WAIT_TIMEOUT_MS` | `900000` (15 min) |
 | `--poll-interval-ms` | `TV_STORAGE_POLL_INTERVAL_MS` | `3000` |
 | `--persistent-profile-dir` | `TV_PERSISTENT_PROFILE_DIR` | unset |
@@ -58,6 +59,13 @@ login in that case.
 
 **Never** put `TV_USERNAME`/`TV_PASSWORD` on the command line in shared
 shells (history leak); export them in the session or just log in manually.
+
+The scheduled `tradingview-storage-refresh.yml` uses
+`--input-storage-state` with the current `TV_STORAGE_STATE` secret as a
+bootstrap. In the healthy path the existing session is verified against a
+live chart and re-written with a fresh `meta.authValidatedAt`, so
+`TV_USERNAME`/`TV_PASSWORD`/`TV_TOTP_SECRET` are only needed as fallback
+when TradingView no longer accepts the bootstrap session.
 
 ## 3. Standard procedure (storage-state mode)
 

@@ -216,13 +216,7 @@ codes = ["E402", "I001"]
 # for any NEW orphan.
 # ---------------------------------------------------------------------------
 [workflow_orphan_inventory]
-allowed = [
-  # tradingview-storage-refresh.yml: ops-only cron that refreshes the
-  # TV_STORAGE_STATE secret headlessly; tested end-to-end via the
-  # credential-health-check.yml probe. CI integration would require live
-  # TradingView credentials. Added 2026-06-24 (#2904).
-  "tradingview-storage-refresh.yml",
-]
+allowed = []
 
 # ---------------------------------------------------------------------------
 # test_workflow_set_plus_e_inventory.py — workflows allowed to use

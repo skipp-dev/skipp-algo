@@ -11,7 +11,11 @@ name: tradingview-storage-refresh
 # manually re-captured.
 #
 # This workflow solves that by proactively refreshing the cookie every
-# 48 h (well before the 72 h deadline).  It logs in headlessly via:
+# 48 h (well before the 72 h deadline).  The normal path bootstraps from
+# the current TV_STORAGE_STATE secret, verifies that it still opens a
+# TradingView chart, and writes a freshly validated storage-state back.
+# If the bootstrap session is no longer accepted by TradingView, the
+# workflow can fall back to headless login via:
 #   TV_USERNAME    — TradingView account e-mail / username
 #   TV_PASSWORD    — account password
 #   TV_TOTP_SECRET — TOTP seed (Base32) from the Authenticator-App 2FA
@@ -28,9 +32,10 @@ name: tradingview-storage-refresh
 #
 # Required secrets
 # ----------------
-#   TV_USERNAME      — TradingView login e-mail / username
-#   TV_PASSWORD      — TradingView password
-#   TV_TOTP_SECRET   — TOTP Base32 seed (set via `gh secret set TV_TOTP_SECRET`)
+#   TV_STORAGE_STATE — current Playwright storage-state JSON or gzip+base64
+#   TV_USERNAME      — optional fallback TradingView login e-mail / username
+#   TV_PASSWORD      — optional fallback TradingView password
+#   TV_TOTP_SECRET   — optional fallback TOTP Base32 seed
 #   GH_PAT           — Personal Access Token with repo + secrets:write scope
 #
 # The workflow intentionally does NOT fall back to github.token because
@@ -93,12 +98,52 @@ jobs:
       - name: Install Playwright Chromium browser
         run: npx playwright install --with-deps chromium
 
+      - name: Prepare current storage state bootstrap
+        env:
+          TV_STORAGE_STATE_SECRET: ${{ secrets.TV_STORAGE_STATE }}
+        run: |
+          set -euo pipefail
+          mkdir -p automation/tradingview/auth
+          python3 - <<'PY'
+          import base64
+          import gzip
+          import json
+          import os
+          import sys
+          from pathlib import Path
+
+          raw = os.environ.get("TV_STORAGE_STATE_SECRET", "").strip()
+          if not raw:
+              print("::warning::TV_STORAGE_STATE secret is empty; capture must use TV_USERNAME/TV_PASSWORD fallback.")
+              sys.exit(0)
+
+          if raw.startswith("{"):
+              payload = raw
+          else:
+              try:
+                  payload = gzip.decompress(base64.b64decode(raw)).decode("utf-8")
+              except Exception as exc:
+                  print(f"::warning::Could not decode TV_STORAGE_STATE bootstrap; capture must use login fallback: {exc}")
+                  sys.exit(0)
+
+          try:
+              json.loads(payload)
+          except json.JSONDecodeError as exc:
+              print(f"::warning::Invalid TV_STORAGE_STATE bootstrap JSON; capture must use login fallback: {exc}")
+              sys.exit(0)
+
+          path = Path("automation/tradingview/auth/bootstrap-storage-state.json")
+          path.write_text(payload if payload.endswith("\n") else payload + "\n", encoding="utf-8")
+          print(f"Prepared TradingView storage-state bootstrap: {path}")
+          PY
+
       - name: Capture TradingView storage state
         id: capture
         env:
           TV_USERNAME: ${{ secrets.TV_USERNAME }}
           TV_PASSWORD: ${{ secrets.TV_PASSWORD }}
           TV_TOTP_SECRET: ${{ secrets.TV_TOTP_SECRET }}
+          TV_STORAGE_STATE_INPUT: automation/tradingview/auth/bootstrap-storage-state.json
           # TV_HEADLESS=1 activates headless mode in the script (uses the
           # virtual display via DISPLAY=:99 set above).
           TV_HEADLESS: "1"
@@ -110,6 +155,7 @@ jobs:
           set -euo pipefail
           npx tsx scripts/create_tradingview_storage_state.ts \
             --headless \
+            --input-storage-state automation/tradingview/auth/bootstrap-storage-state.json \
             --out automation/tradingview/auth/storage-state.json
 
       - name: Validate captured storage state
@@ -179,10 +225,11 @@ jobs:
           The automated TradingView storage-state refresh failed at ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}.
 
           **Likely causes**
+          - Existing \`TV_STORAGE_STATE\` bootstrap session is no longer accepted by TradingView
           - CAPTCHA / IP-based anti-bot challenge (most common)
           - TradingView login page layout changed (script selectors need update)
           - \`TV_TOTP_SECRET\` rotated or TOTP clock skew
-          - \`TV_USERNAME\` / \`TV_PASSWORD\` changed
+          - \`TV_USERNAME\` / \`TV_PASSWORD\` missing or changed
 
           **Immediate action**
           Run \`npm run tv:storage-state\` locally, log in manually, then update the secret:
