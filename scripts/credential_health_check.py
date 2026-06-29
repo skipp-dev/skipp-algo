@@ -65,6 +65,8 @@ def _parse_iso(value: str) -> datetime | None:
         # ``datetime.fromisoformat`` in 3.11+ handles trailing "Z".
         if value.endswith("Z"):
             value = value[:-1] + "+00:00"
+        if value.endswith(" UTC"):
+            return datetime.strptime(value, "%Y-%m-%d %H:%M:%S UTC").replace(tzinfo=UTC)
         dt = datetime.fromisoformat(value)
     except (TypeError, ValueError):
         return None

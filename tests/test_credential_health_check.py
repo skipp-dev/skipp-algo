@@ -166,6 +166,13 @@ def test_github_pat_ok_when_far_from_expiry() -> None:
     assert r.details["days_left"] > 90
 
 
+def test_github_pat_ok_when_expiry_header_uses_github_utc_format() -> None:
+    future = (datetime.now(UTC) + timedelta(days=180)).strftime("%Y-%m-%d %H:%M:%S UTC")
+    r = probe_github_pat("ghp_dummy", opener=_fake_opener(expiration_header=future))
+    assert r.severity == "ok"
+    assert r.details["days_left"] > 90
+
+
 def test_github_pat_warn_at_30_days_left() -> None:
     future = (datetime.now(UTC) + timedelta(days=20)).isoformat()
     r = probe_github_pat("ghp_dummy", opener=_fake_opener(expiration_header=future))
