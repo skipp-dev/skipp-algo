@@ -4783,7 +4783,9 @@ export async function addExistingScriptToChartViaIndicators(
 }
 
 export async function setEditorContent(page: Page, code: string): Promise<void> {
+  const editorContentTimeoutMs = numEnv("TV_SET_EDITOR_CONTENT_TIMEOUT_MS", Math.max(stepTimeoutMs(), 90_000));
   await runTrackedStep(page, `setEditorContent:${code.length}`, async () => {
+    const editorPrepareTimeoutMs = numEnv("TV_EDITOR_PREPARE_TIMEOUT_MS", Math.max(stepTimeoutMs(), 45_000));
     const runEditorSubstep = async <T>(name: string, action: () => Promise<T>, timeoutMs = 12_000): Promise<T> =>
       runTrackedStep(page, `editor:${name}`, action, timeoutMs);
     const keyboardChunkSize = numEnv("TV_EDITOR_CHUNK_CHARS", 25_000);
@@ -4795,7 +4797,7 @@ export async function setEditorContent(page: Page, code: string): Promise<void> 
     await runEditorSubstep("prepare", async () => {
       await dismissCookieBanner(page);
       await ensurePineEditor(page);
-    });
+    }, editorPrepareTimeoutMs);
     tracePageEvent(page, "editor-trace", "prepare:ok");
 
     const writeViaKeyboard = async (input: Locator): Promise<boolean> => {
@@ -5335,7 +5337,7 @@ export async function setEditorContent(page: Page, code: string): Promise<void> 
     throw new Error(
       `Could not write Pine editor content via visible hosts: ${formatEditorDiagnostics(diagnostics)}; lifecycle ${formatPageLifecycleDiagnostics(lifecycleDiagnostics)}${screenshotMessage}`,
     );
-  });
+  }, editorContentTimeoutMs);
 }
 
 export async function saveScript(page: Page, scriptName: string): Promise<void> {

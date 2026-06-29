@@ -368,6 +368,11 @@ def test_readonly_preflight_has_retry_wrapper() -> None:
         "Retry wrapper must NOT leak onto the mutating publish step — "
         "an actual publish failure must surface on the first attempt."
     )
+    assert 'TV_STEP_TIMEOUT_MS: "90000"' in publish_block, (
+        "The mutating publish step must keep the same CI-sized TV step budget "
+        "as the readonly preflight, while still surfacing publish failures on "
+        "the first attempt."
+    )
     assert "TV_PREFLIGHT_MAX_ATTEMPTS" not in post_release_block, (
         "Retry wrapper must NOT leak onto post-release validation — that "
         "step already has continue-on-error: true semantics and additional "
