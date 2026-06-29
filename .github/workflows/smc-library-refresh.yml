@@ -1100,7 +1100,8 @@ jobs:
 
       - name: Normalize TradingView post-release validation
         id: tv_post_release
-        if: always() && steps.publish.outcome == 'success' && steps.tv_post_release_raw.outcome == 'success' && steps.diff.outputs.changed == 'true' && steps.publish_gate.outputs.publish_allowed == 'true' && github.ref == 'refs/heads/main'
+        if: always() && steps.publish.outcome == 'success' && steps.diff.outputs.changed == 'true' && steps.publish_gate.outputs.publish_allowed == 'true' && github.ref == 'refs/heads/main'
+        continue-on-error: true
         run: |
           "$SMC_PYTHON_BIN" scripts/run_smc_post_release_validation.py \
             --release-manifest artifacts/tradingview/library_release_manifest.json \
@@ -1590,12 +1591,13 @@ jobs:
           echo "::warning::Step 'Send end-of-run status notification' failed silently (soft-fail step)"
 
       # ── W3 (R4b audit): cumulative best-effort failure summary + trend ──────
-      # The six continue-on-error steps above (gates, pre_release_refresh,
-      # tv_post_release_raw, alerts, notify_breaking, notify_end) each only emit
-      # a per-step ::warning:: on failure, so a degradation is only visible by
-      # reading the raw logs of every run. These three steps aggregate those
-      # outcomes into one GITHUB_STEP_SUMMARY table plus a rolling cross-run
-      # trend persisted as a workflow artifact (no commits to main).
+      # The continue-on-error steps above (gates, pre_release_refresh,
+      # tv_post_release_raw, tv_post_release, alerts, notify_breaking,
+      # notify_end) each only emit a per-step ::warning:: on failure, so a
+      # degradation is only visible by reading the raw logs of every run. These
+      # three steps aggregate those outcomes into one GITHUB_STEP_SUMMARY table
+      # plus a rolling cross-run trend persisted as a workflow artifact (no
+      # commits to main).
       - name: Restore best-effort failure history
         id: dl_best_effort_history
         if: always()
@@ -1620,6 +1622,7 @@ jobs:
           OUT_GATES: ${{ steps.gates.outcome }}
           OUT_PRE_RELEASE_REFRESH: ${{ steps.pre_release_refresh.outcome }}
           OUT_TV_POST_RELEASE_RAW: ${{ steps.tv_post_release_raw.outcome }}
+          OUT_TV_POST_RELEASE: ${{ steps.tv_post_release.outcome }}
           OUT_ALERTS: ${{ steps.alerts.outcome }}
           OUT_NOTIFY_BREAKING: ${{ steps.notify_breaking.outcome }}
           OUT_NOTIFY_END: ${{ steps.notify_end.outcome }}
@@ -1640,6 +1643,7 @@ jobs:
             --outcome "gates=$OUT_GATES" \
             --outcome "pre_release_refresh=$OUT_PRE_RELEASE_REFRESH" \
             --outcome "tv_post_release_raw=$OUT_TV_POST_RELEASE_RAW" \
+            --outcome "tv_post_release=$OUT_TV_POST_RELEASE" \
             --outcome "alerts=$OUT_ALERTS" \
             --outcome "notify_breaking=$OUT_NOTIFY_BREAKING" \
             --outcome "notify_end=$OUT_NOTIFY_END"

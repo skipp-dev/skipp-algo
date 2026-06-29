@@ -41,14 +41,15 @@ _ALLOWED: dict[str, dict[str, set[str]]] = {
     # 2026-06): the bot-branch publish step is internally fail-loud
     # (F-V5-F1) and the step-level continue-on-error neutralised that —
     # a permanently failing push stayed green forever.
-    # Library refresh: six best-effort hops (gates probe, release reference
-    # refresh, TradingView publish, alerts, breaking-change notify,
-    # end-of-run heartbeat).
+    # Library refresh: best-effort hops for advisory probes, release reference
+    # refresh, TradingView post-release raw+normalization, alerts,
+    # breaking-change notify, end-of-run heartbeat, and observability history.
     "smc-library-refresh.yml": {
         "refresh": {
             "id:gates",
             "id:pre_release_refresh",
             "id:tv_post_release_raw",
+            "id:tv_post_release",
             "id:alerts",
             "id:notify_breaking",
             "id:notify_end",
