@@ -259,19 +259,50 @@ def test_alert_rules_include_expected_traffic_armed_guard() -> None:
 
 
 def test_alert_rules_guard_uptimerobot_monitor_count_and_down_total() -> None:
-    """UptimeRobot bridge must enforce the production monitor set and down count."""
+    """UptimeRobot monitor alerts must gate on the generic bridge contract."""
     count_rule = _alert_rule("lo-uptimerobot-monitor-count-mismatch")
     count_expr = count_rule["data"][0]["model"]["expr"]
-    assert "live_overlay_uptimerobot_bridge_enabled" in count_expr
+    assert (
+        'live_overlay_bridge_enabled{job="live_overlay",bridge="uptimerobot"}'
+        in count_expr
+    )
+    assert "live_overlay_uptimerobot_bridge_enabled" not in count_expr
     assert "live_overlay_uptimerobot_monitors_total" in count_expr
     assert "!= bool 5" in count_expr
 
     down_rule = _alert_rule("lo-uptimerobot-monitor-down")
     down_expr = down_rule["data"][0]["model"]["expr"]
-    assert "live_overlay_uptimerobot_bridge_enabled" in down_expr
+    assert (
+        'live_overlay_bridge_enabled{job="live_overlay",bridge="uptimerobot"}'
+        in down_expr
+    )
+    assert "live_overlay_uptimerobot_bridge_enabled" not in down_expr
     assert "live_overlay_uptimerobot_monitors_down_total" in down_expr
     assert "> bool 0" in down_expr
     assert down_rule["labels"]["severity"] == "critical"
+
+
+def test_alert_rules_use_generic_bridge_last_success_age_for_external_staleness() -> None:
+    """Bridge stale alerts should use the generic last-success metric family."""
+    cases = {
+        "lo-uptimerobot-snapshot-stale": (
+            "uptimerobot",
+            "live_overlay_uptimerobot_snapshot_age_seconds",
+        ),
+        "lo-github-workflow-snapshot-stale": (
+            "github_workflow",
+            "live_overlay_github_workflow_snapshot_age_seconds",
+        ),
+    }
+    for uid, (bridge, legacy_metric) in cases.items():
+        expr = _alert_rule(uid)["data"][0]["model"]["expr"]
+
+        assert (
+            f'live_overlay_bridge_last_success_age_seconds{{job="live_overlay",bridge="{bridge}"}}'
+            in expr
+        )
+        assert f'live_overlay_bridge_enabled{{job="live_overlay",bridge="{bridge}"}}' in expr
+        assert legacy_metric not in expr
 
 
 def test_alert_rules_use_railway_memory_ratio_thresholds() -> None:

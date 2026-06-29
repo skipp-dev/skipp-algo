@@ -262,6 +262,24 @@ def test_alert_rules_include_bridge_contract_missing() -> None:
     assert rule["labels"]["severity"] == "critical"
 
 
+def test_alert_rules_gate_external_bridge_alerts_on_generic_contract() -> None:
+    """External bridge alerts should not use legacy bridge-enabled gauges."""
+    groups = mod.load_alert_groups(ALERT_RULES)
+    rules_by_uid = {rule["uid"]: rule for group in groups for rule in group["rules"]}
+    expected = {
+        "lo-uptimerobot-snapshot-stale": "uptimerobot",
+        "lo-uptimerobot-monitor-count-mismatch": "uptimerobot",
+        "lo-uptimerobot-monitor-down": "uptimerobot",
+        "lo-github-workflow-snapshot-stale": "github_workflow",
+    }
+
+    for uid, bridge in expected.items():
+        expr = rules_by_uid[uid]["data"][0]["model"]["expr"]
+        assert f'live_overlay_bridge_enabled{{job="live_overlay",bridge="{bridge}"}}' in expr
+        assert "live_overlay_uptimerobot_bridge_enabled" not in expr
+        assert "live_overlay_github_workflow_bridge_enabled" not in expr
+
+
 def test_alert_rules_include_tradingview_credential_age() -> None:
     groups = mod.load_alert_groups(ALERT_RULES)
     uids = {r["uid"] for g in groups for r in g["rules"]}

@@ -573,7 +573,9 @@ groups:
     - refId: A
       datasourceUid: grafanacloud-prom
       model:
-        expr: live_overlay_uptimerobot_snapshot_age_seconds{job="live_overlay"}
+        expr: 'live_overlay_bridge_last_success_age_seconds{job="live_overlay",bridge="uptimerobot"}
+          and on(job, bridge)
+          (live_overlay_bridge_enabled{job="live_overlay",bridge="uptimerobot"} == 1)'
         instant: true
     - refId: C
       datasourceUid: __expr__
@@ -602,9 +604,9 @@ groups:
     - refId: A
       datasourceUid: grafanacloud-prom
       model:
-        expr: '(live_overlay_uptimerobot_bridge_enabled{job="live_overlay"} == 1)
-          * on(job)
-          (live_overlay_uptimerobot_monitors_total{job="live_overlay"} != bool 5)'
+        expr: '(live_overlay_uptimerobot_monitors_total{job="live_overlay"} != bool 5)
+          and on(job)
+          (live_overlay_bridge_enabled{job="live_overlay",bridge="uptimerobot"} == 1)'
         instant: true
     - refId: C
       datasourceUid: __expr__
@@ -634,9 +636,9 @@ groups:
     - refId: A
       datasourceUid: grafanacloud-prom
       model:
-        expr: '(live_overlay_uptimerobot_bridge_enabled{job="live_overlay"} == 1)
-          * on(job)
-          (live_overlay_uptimerobot_monitors_down_total{job="live_overlay"} > bool 0)'
+        expr: '(live_overlay_uptimerobot_monitors_down_total{job="live_overlay"} > bool 0)
+          and on(job)
+          (live_overlay_bridge_enabled{job="live_overlay",bridge="uptimerobot"} == 1)'
         instant: true
     - refId: C
       datasourceUid: __expr__
@@ -666,7 +668,10 @@ groups:
     - refId: A
       datasourceUid: grafanacloud-prom
       model:
-        expr: live_overlay_github_workflow_snapshot_age_seconds{job="live_overlay"}
+        expr: 'live_overlay_bridge_last_success_age_seconds{job="live_overlay",bridge="github_workflow"}
+          and on(job, bridge)
+          (live_overlay_bridge_enabled{job="live_overlay",bridge="github_workflow"}
+          == 1)'
         instant: true
     - refId: C
       datasourceUid: __expr__

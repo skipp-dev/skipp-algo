@@ -723,18 +723,20 @@ Implementation: `services/live_overlay_daemon/uptimerobot_bridge.py`
 ### Production guards
 
 Production expects exactly five UptimeRobot monitors in the bridge allowlist.
-Grafana alerts enforce both the count and the external-down state:
+Grafana alerts enforce both the count and the external-down state. These alerts
+gate on the generic bridge contract while keeping the UptimeRobot-specific
+monitor count gauges as the domain signal:
 
 ```promql
-(live_overlay_uptimerobot_bridge_enabled{job="live_overlay"} == 1)
-* on(job)
 (live_overlay_uptimerobot_monitors_total{job="live_overlay"} != bool 5)
+and on(job)
+(live_overlay_bridge_enabled{job="live_overlay",bridge="uptimerobot"} == 1)
 ```
 
 ```promql
-(live_overlay_uptimerobot_bridge_enabled{job="live_overlay"} == 1)
-* on(job)
 (live_overlay_uptimerobot_monitors_down_total{job="live_overlay"} > bool 0)
+and on(job)
+(live_overlay_bridge_enabled{job="live_overlay",bridge="uptimerobot"} == 1)
 ```
 
 If the count alert fires, compare `UPTIMEROBOT_MONITOR_IDS` in Railway with the
