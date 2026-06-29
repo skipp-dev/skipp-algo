@@ -512,6 +512,55 @@ Plan fuer spaeter:
 3. Ohne sicheren Auth-Split bleibt der Grafana First-Zero-Traffic-Alert die
    End-to-End-Absicherung.
 
+### Private Networking fuer `live_overlay` Metrics
+
+Alloy kann den Daemon privat scrapen, sobald der Runtime-Port der Railway
+Deployment-Instanz bekannt ist:
+
+```env
+OVERLAY_SERVICE_URL=liveoverlaydaemon.railway.internal:<PORT>
+```
+
+Nicht setzen:
+
+```env
+OVERLAY_SERVICE_URL=liveoverlaydaemon.railway.internal
+```
+
+Ohne Port kann Alloy den privaten Host nicht sicher scrapen. Nach der Umstellung
+sofort in Grafana pruefen:
+
+```promql
+up{job="live_overlay"} == 1
+increase(prometheus_remote_storage_samples_failed_total{job="alloy"}[10m]) == 0
+```
+
+Bis der Port sicher verifiziert ist, bleibt der public Railway Host die sichere
+Production-Konfiguration.
+
+### `/smc_live` Synthetic-Canary-Entscheidung
+
+Keinen Production-`OVERLAY_SECRET_TOKEN` in UptimeRobot hinterlegen. Der Token
+ist nicht separat fuer UptimeRobot rotierbar und wird auch von Pine-Consumern
+sowie `/metrics` Basic Auth verwendet.
+
+Der aktuelle Schutz bleibt:
+
+- UptimeRobot prueft unauthentifizierte Liveness-/Readiness-Endpunkte.
+- Grafana erkennt fehlenden `/smc_live`-Traffic ueber
+  `LIVE_OVERLAY_EXPECT_MARKET_TRAFFIC=1` und Request-Rate-Alerts.
+- Auth-Probleme laufen ueber `live_overlay_smc_live_auth_denied`.
+
+Plan fuer spaeter:
+
+1. Bevorzugt einen nicht geheimen Contract-Endpoint wie
+   `/ready/smc_live_contract` ergaenzen.
+2. Alternativ einen internen Synthetic-Check aus `metrics-collector` ueber
+   Railway Private Networking bauen, aber mit eigenem, nicht mit Pine geteiltem
+   Token.
+3. Ohne sicheren Auth-Split bleibt der Grafana First-Zero-Traffic-Alert die
+   End-to-End-Absicherung.
+
 ---
 
 ## 7. Credentials-Übersicht
@@ -578,8 +627,8 @@ curl -s https://liveoverlaydaemon-production.up.railway.app/ready | python3 -m j
 # Prometheus-Metriken (Basic Auth)
 TOKEN=$(security find-generic-password -s skipp.grafana.api -a "$USER" -w)  # Achtung: Overlay-Token verwenden!
 # Besser via railway run:
-railway run -s metrics-collector curl -sL -u "metrics:$OVERLAY_SECRET_TOKEN" \
-  "http://$OVERLAY_SERVICE_URL/metrics" | head -30
+railway run -s metrics-collector curl -s -u "metrics:$OVERLAY_SECRET_TOKEN" \
+  "https://$OVERLAY_SERVICE_URL/metrics" | head -30
 
 # Logs
 railway logs -s live_overlay_daemon --tail 100
