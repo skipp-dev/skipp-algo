@@ -1007,6 +1007,29 @@ def _ensure_railway_status_panels(data: dict[str, Any]) -> bool:
     return True
 
 
+def _fix_railway_disk_panel_no_data(data: dict[str, Any]) -> bool:
+    """Make the optional Railway disk metric absence explicit in the panel."""
+    panel = _v1_panel_by_title(data, "Railway Disk Usage (GB)")
+    if panel is None:
+        return False
+
+    changed = False
+    description = (
+        "Disk usage per Railway service in GB. Railway may omit DISK_USAGE_GB; "
+        "if no series is shown while Railway Metrics Bridge is OK, disk data is unavailable rather than scraped as zero."
+    )
+    if panel.get("description") != description:
+        panel["description"] = description
+        changed = True
+
+    defaults = panel.setdefault("fieldConfig", {}).setdefault("defaults", {})
+    if defaults.get("noValue") != "NO DISK DATA":
+        defaults["noValue"] = "NO DISK DATA"
+        changed = True
+
+    return changed
+
+
 def _railway_link(title: str, key: str) -> dict[str, Any]:
     """Return a Grafana v1 dashboard link object for a concrete Railway URL."""
     return {
@@ -1528,6 +1551,7 @@ def main(argv: list[str] | None = None) -> int:
         changed = _fix_bridge_state_panel_legends(data) or changed
         changed = _fix_bridge_scrape_health_timeline(data) or changed
         changed = _ensure_railway_status_panels(data) or changed
+        changed = _fix_railway_disk_panel_no_data(data) or changed
         changed = _ensure_bridge_metrics_present_panel(data) or changed
         changed = _fix_github_workflow_timeline_panel(data) or changed
         changed = _ensure_v1_incident_drilldown_links(data) or changed

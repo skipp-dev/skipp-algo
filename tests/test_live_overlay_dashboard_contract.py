@@ -459,6 +459,19 @@ def test_dashboard_bridge_metrics_present_counts_generic_contracts() -> None:
     assert any("ALL MISSING" in str(m) for m in options)
 
 
+def test_railway_disk_panel_explains_optional_no_data_state() -> None:
+    """Railway disk data can be absent even when the bridge is healthy."""
+    dashboard = json.loads(_DASHBOARD_JSON.read_text(encoding="utf-8"))
+    panels = _dashboard_panels(dashboard)
+    panel = next(p for p in panels if p.get("title") == "Railway Disk Usage (GB)")
+
+    description = panel.get("description", "")
+    assert "DISK_USAGE_GB" in description
+    assert "Railway Metrics Bridge is OK" in description
+    assert "scraped as zero" in description
+    assert panel["fieldConfig"]["defaults"].get("noValue") == "NO DISK DATA"
+
+
 def test_dashboard_bridge_scrape_health_timeline_uses_generic_contract() -> None:
     """Bridge Scrape Health Timeline must use the generic bridge contract."""
     dashboard = json.loads(_DASHBOARD_JSON.read_text(encoding="utf-8"))

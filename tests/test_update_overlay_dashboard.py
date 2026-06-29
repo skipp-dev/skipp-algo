@@ -305,6 +305,24 @@ def test_update_script_fixes_github_workflow_timeline_readability(temp_dashboard
     assert mapping_codes >= {"0", "1", "2", "3", "4", "5", "6", "7", "8", "9", "10", "11"}
 
 
+def test_update_script_clarifies_optional_railway_disk_metric(temp_dashboard: Path) -> None:
+    data = json.loads(temp_dashboard.read_text(encoding="utf-8"))
+    data["version"] = 1
+    panel = next(p for p in data["panels"] if p.get("title") == "Railway Disk Usage (GB)")
+    panel["description"] = "Disk usage per Railway service in GB."
+    panel["fieldConfig"]["defaults"].pop("noValue", None)
+    temp_dashboard.write_text(json.dumps(data, indent=2), encoding="utf-8")
+
+    _run_script(temp_dashboard)
+
+    updated = json.loads(temp_dashboard.read_text(encoding="utf-8"))
+    panel = next(p for p in updated["panels"] if p.get("title") == "Railway Disk Usage (GB)")
+    assert "DISK_USAGE_GB" in panel["description"]
+    assert "Railway Metrics Bridge is OK" in panel["description"]
+    assert panel["fieldConfig"]["defaults"]["noValue"] == "NO DISK DATA"
+    assert updated["version"] > 1
+
+
 def test_uptimerobot_panel_does_not_clobber_prior_changes(temp_dashboard: Path) -> None:
     """Regression: _ensure_uptimerobot_panel() overwrote `changed`, so earlier
     self-heal fixes could be silently dropped and the dashboard version not bumped.

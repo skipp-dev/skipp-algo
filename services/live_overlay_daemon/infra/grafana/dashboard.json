@@ -5735,7 +5735,7 @@
     {
       "id": 124154101,
       "title": "Railway Disk Usage (GB)",
-      "description": "Disk usage per Railway service in GB.",
+      "description": "Disk usage per Railway service in GB. Railway may omit DISK_USAGE_GB; if no series is shown while Railway Metrics Bridge is OK, disk data is unavailable rather than scraped as zero.",
       "type": "timeseries",
       "datasource": {
         "type": "prometheus",
@@ -5753,7 +5753,8 @@
           "custom": {
             "drawStyle": "line",
             "lineInterpolation": "linear"
-          }
+          },
+          "noValue": "NO DISK DATA"
         },
         "overrides": []
       },
