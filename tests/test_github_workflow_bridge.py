@@ -5,6 +5,17 @@ from __future__ import annotations
 import pytest
 
 
+@pytest.fixture(autouse=True)
+def reset_workflow_bridge_cache() -> None:
+    import services.live_overlay_daemon.github_workflow_bridge as bridge
+
+    bridge._cached_snapshot = None
+    bridge._cached_at_monotonic = 0.0
+    yield
+    bridge._cached_snapshot = None
+    bridge._cached_at_monotonic = 0.0
+
+
 def test_iso_age_seconds_parses_utc_z_timestamp(monkeypatch: pytest.MonkeyPatch) -> None:
     import services.live_overlay_daemon.github_workflow_bridge as bridge
 
