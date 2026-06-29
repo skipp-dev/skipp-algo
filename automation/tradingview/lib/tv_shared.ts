@@ -1772,6 +1772,7 @@ export async function clickVisibleWithFallback(
   tracePrefix: string,
   timeoutMs = 2_000,
   settleMs = 500,
+  effectCheck?: () => Promise<boolean>,
 ): Promise<boolean> {
   // Centralised hover-tooltip dismissal (issue #2849).
   // Moving to (0, 0) before the first candidate loop causes TradingView to
@@ -1779,6 +1780,21 @@ export async function clickVisibleWithFallback(
   await page.mouse.move(0, 0).catch(() => undefined);
 
   let missingCandidates = 0;
+  const settleClickEffect = async (effectDetail: string): Promise<boolean> => {
+    await page.waitForTimeout(settleMs);
+    if (!effectCheck) {
+      return true;
+    }
+
+    const effectVisible = await effectCheck().catch(() => false);
+    if (effectVisible) {
+      tracePageEvent(page, `${tracePrefix}-effect-ok`, effectDetail);
+      return true;
+    }
+
+    tracePageEvent(page, `${tracePrefix}-no-effect`, effectDetail);
+    return false;
+  };
 
   for (const [index, locator] of candidates.entries()) {
     const candidate = await firstVisibleLocator(locator, timeoutMs);
@@ -1818,8 +1834,9 @@ export async function clickVisibleWithFallback(
     try {
       await candidate.scrollIntoViewIfNeeded().catch(() => undefined);
       await candidate.click({ timeout: timeoutMs + 1_000 });
-      await page.waitForTimeout(settleMs);
-      return true;
+      if (await settleClickEffect(`candidate:${index}:click`)) {
+        return true;
+      }
     } catch (error: unknown) {
       const message = error instanceof Error ? error.message : String(error);
       tracePageEvent(page, `${tracePrefix}-click-error`, `candidate:${index}:${message}`);
@@ -1828,8 +1845,9 @@ export async function clickVisibleWithFallback(
     try {
       await candidate.hover({ timeout: timeoutMs }).catch(() => undefined);
       await candidate.click({ timeout: timeoutMs + 1_000 });
-      await page.waitForTimeout(settleMs);
-      return true;
+      if (await settleClickEffect(`candidate:${index}:hover-click`)) {
+        return true;
+      }
     } catch (error: unknown) {
       const message = error instanceof Error ? error.message : String(error);
       tracePageEvent(page, `${tracePrefix}-hover-click-error`, `candidate:${index}:${message}`);
@@ -1837,8 +1855,9 @@ export async function clickVisibleWithFallback(
 
     try {
       await candidate.click({ timeout: timeoutMs, force: true });
-      await page.waitForTimeout(settleMs);
-      return true;
+      if (await settleClickEffect(`candidate:${index}:force`)) {
+        return true;
+      }
     } catch (error: unknown) {
       const message = error instanceof Error ? error.message : String(error);
       tracePageEvent(page, `${tracePrefix}-force-error`, `candidate:${index}:${message}`);
@@ -1857,8 +1876,9 @@ export async function clickVisibleWithFallback(
       for (const [positionIndex, position] of offsetPositions.entries()) {
         try {
           await candidate.click({ timeout: timeoutMs, position });
-          await page.waitForTimeout(settleMs);
-          return true;
+          if (await settleClickEffect(`candidate:${index}:offset:${positionIndex}`)) {
+            return true;
+          }
         } catch (error: unknown) {
           const message = error instanceof Error ? error.message : String(error);
           tracePageEvent(page, `${tracePrefix}-offset-error`, `candidate:${index}:${positionIndex}:${message}`);
@@ -1909,8 +1929,9 @@ export async function clickVisibleWithFallback(
       });
       if (pointerBypassed) {
         tracePageEvent(page, `${tracePrefix}-pointer-bypass-ok`, `candidate:${index}`);
-        await page.waitForTimeout(settleMs);
-        return true;
+        if (await settleClickEffect(`candidate:${index}:pointer-bypass`)) {
+          return true;
+        }
       }
       tracePageEvent(page, `${tracePrefix}-pointer-bypass-miss`, `candidate:${index}`);
     } catch (error: unknown) {
@@ -1935,8 +1956,9 @@ export async function clickVisibleWithFallback(
         element.click();
       });
       tracePageEvent(page, `${tracePrefix}-dom-ok`, `candidate:${index}`);
-      await page.waitForTimeout(settleMs);
-      return true;
+      if (await settleClickEffect(`candidate:${index}:dom`)) {
+        return true;
+      }
     } catch (error: unknown) {
       const message = error instanceof Error ? error.message : String(error);
       tracePageEvent(page, `${tracePrefix}-dom-error`, `candidate:${index}:${message}`);
@@ -4670,7 +4692,14 @@ async function closePineEditorIfVisible(page: Page): Promise<void> {
     dialog.getByRole("button", { name: /close/i }),
     dialog.locator('button[aria-label="Close"], button[title="Close"], [role="button"][aria-label="Close"], [data-name*="close" i]'),
   ];
-  const clickedClose = await clickVisibleWithFallback(page, closeCandidates, "pine-editor-close", 1_000, 400).catch(() => false);
+  const clickedClose = await clickVisibleWithFallback(
+    page,
+    closeCandidates,
+    "pine-editor-close",
+    1_000,
+    400,
+    async () => !(await dialog.isVisible({ timeout: 250 }).catch(() => false)),
+  ).catch(() => false);
   if (!clickedClose) {
     await page.keyboard.press("Escape").catch(() => undefined);
     await page.waitForTimeout(400);
@@ -5557,6 +5586,28 @@ export async function assertNoVisibleCompileError(page: Page): Promise<void> {
   }
 }
 
+async function hasAddToChartClickEffect(page: Page, scriptName?: string): Promise<boolean> {
+  const updateOnChartVisible = await hasVisibleLocatorFast([
+    page.getByRole("button", { name: /update on chart/i }),
+    page.getByText(/update on chart/i),
+  ], 250);
+  if (updateOnChartVisible) {
+    return true;
+  }
+
+  const addToChartStillVisible = await hasVisibleLocatorFast(tvSelectors.addToChart(page), 250);
+  if (!addToChartStillVisible) {
+    return true;
+  }
+
+  if (!scriptName) {
+    return false;
+  }
+
+  const state = await collectVisibleChartScriptState(page, scriptName).catch(() => null);
+  return Boolean(state && isScriptVisibleOnChart(state));
+}
+
 async function settleChartSurfaceAfterInsert(page: Page, scriptName: string, phase: string, allowTextMatchOnly = true): Promise<boolean> {
   for (let attempt = 0; attempt < 4; attempt += 1) {
     await dismissSignInModal(page);
@@ -5677,7 +5728,14 @@ export async function addCurrentScriptToChart(page: Page, scriptName?: string, o
       }
     }
 
-    const clicked = await clickVisibleWithFallback(page, tvSelectors.addToChart(page), "add-to-chart", 2_000, 2_500);
+    const clicked = await clickVisibleWithFallback(
+      page,
+      tvSelectors.addToChart(page),
+      "add-to-chart",
+      2_000,
+      2_500,
+      scriptName ? async () => hasAddToChartClickEffect(page, scriptName) : undefined,
+    );
     if (clicked) {
       if (!scriptName) {
         await dismissSignInModal(page);
