@@ -9,6 +9,7 @@ import {
   resolvePublishPipelinePhase,
   resolvePublishReportState,
   shouldPromoteNoChangeVersionEvidence,
+  shouldPromotePublishConfirmationVersionEvidence,
   shouldReopenPublishedScriptAfterPublish,
   verifyPublishContract,
 } from "../../../scripts/tv_publish_micro_library.js";
@@ -85,7 +86,7 @@ test("early open gate fail resolves to not_verified instead of manual publish re
   });
 });
 
-test("publish report success requires separate identity and version verification", () => {
+test("publish report success requires exact identity and approved version verification", () => {
   assert.deepEqual(resolvePublishReportState({
     openGateAttempted: true,
     publishAttempted: true,
@@ -105,6 +106,20 @@ test("publish report success requires separate identity and version verification
     publishAttempted: true,
     identityVerificationMode: "script_context",
     versionVerificationMode: "idempotent_no_change",
+    publishedVersion: 7,
+    expectedVersion: 7,
+    repoCoreValidationOk: true,
+  }), {
+    ok: true,
+    publishOk: true,
+    publishStatus: "published",
+  });
+
+  assert.deepEqual(resolvePublishReportState({
+    openGateAttempted: true,
+    publishAttempted: true,
+    identityVerificationMode: "script_context",
+    versionVerificationMode: "publish_confirmation",
     publishedVersion: 7,
     expectedVersion: 7,
     repoCoreValidationOk: true,
@@ -182,6 +197,58 @@ test("no-change version promotion rejects missing identity and missing import-pa
     versionVerificationMode: "not_verified",
     bodyText: "no exact publish evidence here",
     expectedImportPath: "owner_a/smc_micro_profiles_generated/2",
+  }), false);
+});
+
+test("publish confirmation promotion requires closed surface, exact identity, and matching manifest version", () => {
+  assert.equal(shouldPromotePublishConfirmationVersionEvidence({
+    publishConfirmed: true,
+    publishSurfaceClosedAfterConfirm: true,
+    publishNoChangeDetected: false,
+    identityVerificationMode: "script_context",
+    versionVerificationMode: "not_verified",
+    expectedImportPath: "owner_a/smc_micro_profiles_generated/2",
+    expectedVersion: 2,
+  }), true);
+
+  assert.equal(shouldPromotePublishConfirmationVersionEvidence({
+    publishConfirmed: true,
+    publishSurfaceClosedAfterConfirm: false,
+    publishNoChangeDetected: false,
+    identityVerificationMode: "script_context",
+    versionVerificationMode: "not_verified",
+    expectedImportPath: "owner_a/smc_micro_profiles_generated/2",
+    expectedVersion: 2,
+  }), false);
+
+  assert.equal(shouldPromotePublishConfirmationVersionEvidence({
+    publishConfirmed: true,
+    publishSurfaceClosedAfterConfirm: true,
+    publishNoChangeDetected: false,
+    identityVerificationMode: "not_verified",
+    versionVerificationMode: "not_verified",
+    expectedImportPath: "owner_a/smc_micro_profiles_generated/2",
+    expectedVersion: 2,
+  }), false);
+
+  assert.equal(shouldPromotePublishConfirmationVersionEvidence({
+    publishConfirmed: true,
+    publishSurfaceClosedAfterConfirm: true,
+    publishNoChangeDetected: true,
+    identityVerificationMode: "script_context",
+    versionVerificationMode: "not_verified",
+    expectedImportPath: "owner_a/smc_micro_profiles_generated/2",
+    expectedVersion: 2,
+  }), false);
+
+  assert.equal(shouldPromotePublishConfirmationVersionEvidence({
+    publishConfirmed: true,
+    publishSurfaceClosedAfterConfirm: true,
+    publishNoChangeDetected: false,
+    identityVerificationMode: "script_context",
+    versionVerificationMode: "not_verified",
+    expectedImportPath: "owner_a/smc_micro_profiles_generated/3",
+    expectedVersion: 2,
   }), false);
 });
 
