@@ -10,6 +10,8 @@ the test suite.
 
 from __future__ import annotations
 
+import base64
+import gzip
 import io
 import json
 from datetime import UTC, datetime, timedelta
@@ -51,6 +53,14 @@ def _make_cookie(age_hours: float | None, *, drop_meta: bool = False) -> str:
 
 def test_tv_storage_state_ok_when_fresh() -> None:
     r = probe_tv_storage_state(_make_cookie(age_hours=1.0), max_age_hours=72.0)
+    assert r.severity == "ok"
+    assert r.name == "tv_storage_state_age"
+    assert r.details["age_hours"] < 2.0
+
+
+def test_tv_storage_state_accepts_gzip_base64_secret_format() -> None:
+    encoded = base64.b64encode(gzip.compress(_make_cookie(age_hours=1.0).encode("utf-8"))).decode("ascii")
+    r = probe_tv_storage_state(encoded, max_age_hours=72.0)
     assert r.severity == "ok"
     assert r.name == "tv_storage_state_age"
     assert r.details["age_hours"] < 2.0

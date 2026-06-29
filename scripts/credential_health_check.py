@@ -34,6 +34,9 @@ Design:
 from __future__ import annotations
 
 import argparse
+import base64
+import binascii
+import gzip
 import json
 import os
 import sys
@@ -70,6 +73,20 @@ def _parse_iso(value: str) -> datetime | None:
     return dt.astimezone(UTC)
 
 
+def _loads_tv_storage_state(payload: str) -> Any:
+    """Load TV storage_state from plain JSON or gzip+base64 JSON."""
+    try:
+        return json.loads(payload)
+    except json.JSONDecodeError:
+        try:
+            decoded = gzip.decompress(base64.b64decode(payload.strip(), validate=True)).decode("utf-8")
+            return json.loads(decoded)
+        except (binascii.Error, gzip.BadGzipFile, OSError, UnicodeDecodeError, json.JSONDecodeError) as decode_exc:
+            raise ValueError(
+                "storage_state is not valid JSON and gzip+base64 decode failed"
+            ) from decode_exc
+
+
 def probe_tv_storage_state(
     payload: str,
     max_age_hours: float,
@@ -77,17 +94,19 @@ def probe_tv_storage_state(
 ) -> ProbeResult:
     """Probe a TradingView storage_state JSON payload.
 
-    The payload is expected to contain ``meta.authValidatedAt`` as an
-    ISO-8601 UTC timestamp (the same field consumed by
+    The payload may be raw JSON or gzip+base64 encoded JSON, matching
+    ``tradingview-storage-refresh.yml`` and ``smc-library-refresh.yml``.
+    The decoded storage state is expected to contain ``meta.authValidatedAt``
+    as an ISO-8601 UTC timestamp (the same field consumed by
     automation/tradingview/lib/tv_validation_model.ts).
     """
     now = now or datetime.now(UTC)
     name = "tv_storage_state_age"
 
     try:
-        data = json.loads(payload)
-    except json.JSONDecodeError as exc:
-        return ProbeResult(name, "error", f"storage_state is not valid JSON: {exc}")
+        data = _loads_tv_storage_state(payload)
+    except ValueError as exc:
+        return ProbeResult(name, "error", str(exc))
 
     meta = data.get("meta") if isinstance(data, dict) else None
     if not isinstance(meta, dict):
@@ -572,7 +591,10 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument(
         "--tv-storage-state-secret-env",
         default="TV_STORAGE_STATE",
-        help="Env var name holding the raw TV storage_state JSON (default: TV_STORAGE_STATE)",
+        help=(
+            "Env var name holding TV storage_state as raw JSON or gzip+base64 JSON "
+            "(default: TV_STORAGE_STATE)"
+        ),
     )
     parser.add_argument(
         "--tv-max-age-hours",
