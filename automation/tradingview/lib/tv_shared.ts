@@ -4717,7 +4717,10 @@ async function closePineEditorIfVisible(page: Page): Promise<void> {
     "pine-editor-close",
     1_000,
     400,
-    async () => !(await dialog.isVisible({ timeout: 250 }).catch(() => false)),
+    async () => {
+      const dialogStillVisible = await dialog.isVisible({ timeout: 250 }).catch(() => true);
+      return !dialogStillVisible;
+    },
   ).catch(() => false);
   if (!clickedClose) {
     await page.keyboard.press("Escape").catch(() => undefined);
