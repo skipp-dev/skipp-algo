@@ -87,14 +87,32 @@ def test_publish_step_contract_pinned(workflow_doc: dict) -> None:
     assert isinstance(checkout, dict), "Checkout step missing"
     assert checkout.get("uses") == "actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd"
 
-    publish_step = next(
+    verify_index = next(
         (
-            step
-            for step in steps
+            index
+            for index, step in enumerate(steps)
+            if isinstance(step, dict)
+            and step.get("name") == "Verify live overlay dashboard is up to date"
+        ),
+        None,
+    )
+    assert verify_index is not None, "dashboard publish must verify generated dashboard drift"
+    verify_step = steps[verify_index]
+    assert isinstance(verify_step, dict)
+    assert verify_step.get("run") == "python scripts/update_overlay_dashboard.py --check"
+    assert "env" not in verify_step, "dashboard drift check must not require publish secrets"
+
+    publish_index = next(
+        (
+            index
+            for index, step in enumerate(steps)
             if isinstance(step, dict) and step.get("name") == "Publish dashboards (or dry-run)"
         ),
         None,
     )
+    assert publish_index is not None, "publish step missing"
+    assert verify_index < publish_index, "dashboard drift check must run before publish"
+    publish_step = steps[publish_index]
     assert isinstance(publish_step, dict), "publish step missing"
 
     run = publish_step.get("run") or ""
