@@ -20,18 +20,32 @@ def workflow_text() -> str:
 
 
 @pytest.fixture(scope="module")
-def workflow(workflow_text: str) -> dict:
-    return yaml.safe_load(workflow_text)
+def workflow(workflow_text: str) -> dict[object, object]:
+    parsed = yaml.safe_load(workflow_text)
+    assert isinstance(parsed, dict), f"expected workflow YAML mapping, got {type(parsed).__name__}"
+    return parsed
+
+
+def workflow_text_after(workflow_text: str, marker: str) -> str:
+    assert marker in workflow_text, f"expected workflow marker {marker!r}"
+    return workflow_text.split(marker, 1)[1]
 
 
 def test_workflow_name_referenced(workflow_text: str) -> None:
     assert "name: tradingview-storage-refresh" in workflow_text
 
 
-def test_schedule_pinned_48h(workflow: dict) -> None:
+def test_schedule_pinned_48h(workflow: dict[object, object]) -> None:
     on = workflow.get("on") if "on" in workflow else workflow.get(True)
-    schedule = on.get("schedule", [])
-    crons = [entry.get("cron") for entry in schedule]
+    assert isinstance(on, dict), f"expected workflow 'on' mapping, got {type(on).__name__}"
+    schedule = on.get("schedule")
+    assert isinstance(schedule, list), f"expected schedule list, got {type(schedule).__name__}"
+    crons = []
+    for entry in schedule:
+        assert isinstance(entry, dict), f"expected schedule entry mapping, got {entry!r}"
+        cron = entry.get("cron")
+        assert isinstance(cron, str), f"expected schedule cron string, got {cron!r}"
+        crons.append(cron)
     assert "0 3 */2 * *" in crons, f"expected 48 h cron, got {crons!r}"
 
 
@@ -69,7 +83,7 @@ def test_capture_script_supports_headless_bootstrap_without_login_secrets() -> N
 
 
 def test_uses_gh_pat_for_secret_write(workflow_text: str) -> None:
-    write_block = workflow_text.split("Write refreshed secret back to GitHub")[1]
+    write_block = workflow_text_after(workflow_text, "Write refreshed secret back to GitHub")
     assert "GH_TOKEN: ${{ secrets.GH_PAT }}" in write_block
     assert "gh secret set TV_STORAGE_STATE" in write_block
 
@@ -80,7 +94,7 @@ def test_capture_and_validate_steps_are_fail_loud(workflow_text: str) -> None:
         re.compile(r"\|\|\s*true"),
         re.compile(r";\s*true"),
     ]
-    critical_tail = workflow_text.split("Capture TradingView storage state")[1]
+    critical_tail = workflow_text_after(workflow_text, "Capture TradingView storage state")
     for pattern in forbidden:
         assert not pattern.search(critical_tail), (
             f"capture/validate steps must be fail-loud, found {pattern.pattern!r}"
@@ -103,5 +117,5 @@ def test_failure_issues_use_cron_failure_label(workflow_text: str) -> None:
 
 
 def test_force_with_lease_not_used_for_secret_write(workflow_text: str) -> None:
-    write_block = workflow_text.split("Write refreshed secret back to GitHub")[1]
+    write_block = workflow_text_after(workflow_text, "Write refreshed secret back to GitHub")
     assert "force-with-lease" not in write_block
