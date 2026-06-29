@@ -12,6 +12,7 @@ import {
   resolvePublishNoChangeCleanupActions,
   resolveOpenScriptIdentityEvidence,
   resolveOpenScriptSearchNames,
+  resolveTradingViewPageAuthState,
   openScriptSurfaceScopeLooksReady,
   settingsDialogTitleMatchesScriptName,
   resolveTradingViewHeadlessDefault,
@@ -824,6 +825,36 @@ test("TV_SKIP_AUTH_STATE_VALIDATION emits a warning and bypasses validation", ()
   }
 
   assert.equal(messages.some((message) => message.includes("TV_SKIP_AUTH_STATE_VALIDATION=1 is set")), true);
+});
+
+test("TradingView page auth state rejects explicit anonymous HTML", () => {
+  const state = resolveTradingViewPageAuthState({
+    url: "https://www.tradingview.com/chart/",
+    htmlClass: "is-not-authenticated theme-light",
+    bodyText: "AAPL chart",
+    accountProbeStatuses: [403, 403],
+    accountProbeAuthenticated: false,
+    accountProbeAnonymous: true,
+  });
+
+  assert.equal(state.authenticated, false);
+  assert.equal(state.explicitlyAnonymous, true);
+  assert.equal(state.reason, "html_class_is_not_authenticated");
+});
+
+test("TradingView page auth state accepts positive account probe", () => {
+  const state = resolveTradingViewPageAuthState({
+    url: "https://www.tradingview.com/chart/",
+    htmlClass: "theme-light",
+    bodyText: "AAPL chart",
+    accountProbeStatuses: [200],
+    accountProbeAuthenticated: true,
+    accountProbeAnonymous: false,
+  });
+
+  assert.equal(state.authenticated, true);
+  assert.equal(state.explicitlyAnonymous, false);
+  assert.equal(state.reason, "account_probe_authenticated");
 });
 
 // Regression coverage for findLegendRowWrappers. Two production fixes shipped

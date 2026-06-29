@@ -202,6 +202,26 @@ export const tvSelectors = {
     ];
   },
 
+  openScriptRow(page: Page, scriptName: string): Locator[] {
+    const [exact] = scriptNamePatterns(scriptName);
+    const indicatorsDialog = page.locator('[data-name="indicators-dialog"]');
+    const dialog = page.locator('[role="dialog"]');
+    const menuInner = page.locator('[data-name="menu-inner"]');
+    const openDialogRows = '[data-id], [role="option"], [role="menuitem"], [class*="item" i], [class*="row" i], [class*="title" i]';
+
+    return [
+      indicatorsDialog.locator('[data-id^="USER;"]').filter({ hasText: exact }),
+      menuInner.locator('[data-id^="USER;"]').filter({ hasText: exact }),
+      dialog.locator('[data-id^="USER;"]').filter({ hasText: exact }),
+      indicatorsDialog.locator(openDialogRows).filter({ hasText: exact }),
+      menuInner.locator(openDialogRows).filter({ hasText: exact }),
+      dialog.locator(openDialogRows).filter({ hasText: exact }),
+      indicatorsDialog.getByText(exact),
+      menuInner.getByText(exact),
+      dialog.getByText(exact),
+    ];
+  },
+
   publishedVersionContext(page: Page, scriptName: string): Locator[] {
     const exactVersionContext = publishedVersionContextPattern(scriptName);
 

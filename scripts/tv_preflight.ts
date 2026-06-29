@@ -11,13 +11,13 @@ import {
   closeTradingViewSession,
   collectEditorDiagnostics,
   collectPageLifecycleDiagnostics,
+  collectTradingViewPageAuthState,
   collectVisibleInputLabels,
   diagnoseInputContract,
   ensurePineEditor,
   gotoChart,
   isScriptVisibleOnChartSurface,
   isExactScriptNameMatch,
-  isSignInModalVisible,
   newTradingViewSession,
   openFreshUntitledPineDraft,
   openExistingScript,
@@ -615,9 +615,12 @@ async function main(): Promise<number> {
       let usedFreshDraftPath = false;
 
       await gotoChart(session.page);
-      targetResult.auth_ok = !(await isSignInModalVisible(session.page).catch(() => true));
+      const pageAuthState = await collectTradingViewPageAuthState(session.page).catch(() => null);
+      targetResult.auth_ok = Boolean(pageAuthState?.authenticated);
       if (targetResult.auth_ok !== true) {
-        throw new Error(`Reusable TradingView auth did not survive chart open for ${target.scriptName}`);
+        throw new Error(
+          `Reusable TradingView auth did not survive chart open for ${target.scriptName}: ${pageAuthState?.reason ?? "auth_state_probe_failed"}`,
+        );
       }
 
       targetResult.chart_ok = /tradingview\.com\/chart/i.test(session.page.url());

@@ -7,6 +7,7 @@ import { chromium } from "playwright";
 import { authenticator } from "otplib";
 
 import { inspectTradingViewStorageState } from "../automation/tradingview/lib/tv_validation_model.js";
+import { collectTradingViewPageAuthState } from "../automation/tradingview/lib/tv_shared.js";
 
 type CliArgs = {
   out: string;
@@ -27,8 +28,10 @@ async function collectPageAuthDiagnostics(page: import("playwright").Page): Prom
   title: string;
   bodyPreview: string;
   signInSignals: boolean;
+  authenticated: boolean;
+  authReason: string;
 }> {
-  return page.evaluate(() => {
+  const domDiagnostics = await page.evaluate(() => {
     const bodyText = (document.body?.innerText || "").replace(/\s+/g, " ").trim();
     return {
       url: location.href,
@@ -37,6 +40,14 @@ async function collectPageAuthDiagnostics(page: import("playwright").Page): Prom
       signInSignals: /sign in|log in|email|password|continue with google/i.test(bodyText),
     };
   });
+  const pageAuthState = await collectTradingViewPageAuthState(page).catch(() => null);
+
+  return {
+    ...domDiagnostics,
+    signInSignals: domDiagnostics.signInSignals || pageAuthState?.explicitlyAnonymous === true || pageAuthState?.authenticated === false,
+    authenticated: pageAuthState?.authenticated === true,
+    authReason: pageAuthState?.reason ?? "auth_state_probe_failed",
+  };
 }
 
 async function assistTwoFactorSubmission(
@@ -191,6 +202,7 @@ async function waitForUserOrAuthenticatedChart(
     if (
       authDiagnostics?.url.includes("/chart") &&
       !authDiagnostics.signInSignals &&
+      authDiagnostics.authenticated &&
       (inspection?.looksAuthenticated || Boolean(cli.persistentProfileDir))
     ) {
       console.log("Authenticated TradingView chart session detected.");
@@ -376,43 +388,26 @@ async function main(): Promise<number> {
     );
   }
 
-  if (authDiagnostics.signInSignals || (!inspection.looksAuthenticated && !cli.persistentProfileDir)) {
+  if (authDiagnostics.signInSignals || !authDiagnostics.authenticated || (!inspection.looksAuthenticated && !cli.persistentProfileDir)) {
     const cookiePreview = inspection.cookieNames.slice(0, 8).join(", ") || "none";
     const storagePreview = inspection.localStorageKeys.slice(0, 8).join(", ") || "none";
     throw new Error(
-      `Captured TradingView session still looks anonymous. URL: ${authDiagnostics.url}. Title: ${authDiagnostics.title}. Body preview: ${JSON.stringify(authDiagnostics.bodyPreview)}. Cookies: ${cookiePreview}. Local storage keys: ${storagePreview}. Log in fully, dismiss any sign-in overlay, open the chart, then rerun npm run tv:storage-state.`,
+      `Captured TradingView session still looks anonymous. Reason: ${authDiagnostics.authReason}. URL: ${authDiagnostics.url}. Title: ${authDiagnostics.title}. Body preview: ${JSON.stringify(authDiagnostics.bodyPreview)}. Cookies: ${cookiePreview}. Local storage keys: ${storagePreview}. Log in fully, dismiss any sign-in overlay, open the chart, then rerun npm run tv:storage-state.`,
     );
   }
 
-  let storageStateToWrite: Record<string, unknown>;
-
-  if (!inspection.looksAuthenticated && cli.persistentProfileDir) {
-    console.warn(
-      `Warning: storageState heuristics still look anonymous, but the persistent Chromium profile at ${cli.persistentProfileDir} was kept because the chart page is active without visible sign-in prompts. Use TV_PERSISTENT_PROFILE_DIR=${cli.persistentProfileDir} for preflight and release runs.`,
-    );
-
-    storageStateToWrite = {
-      ...(storageState as Record<string, unknown>),
-      meta: {
-        authValidatedByChartAccess: true,
-        authValidatedAt: new Date().toISOString(),
-        validationMode: "persistent_profile_chart_access",
-        chartUrl: authDiagnostics.url,
-      },
-    };
-  } else {
-    // Normal authenticated session: always write meta.authValidatedAt so that
-    // credential_health_check.py (which requires meta.authValidatedAt) does not
-    // report "storage_state missing meta block".
-    storageStateToWrite = {
-      ...(storageState as Record<string, unknown>),
-      meta: {
-        authValidatedAt: new Date().toISOString(),
-        validationMode: "standard_session",
-        chartUrl: authDiagnostics.url,
-      },
-    };
-  }
+  // Normal authenticated session: always write meta.authValidatedAt so that
+  // credential_health_check.py (which requires meta.authValidatedAt) does not
+  // report "storage_state missing meta block".
+  const storageStateToWrite: Record<string, unknown> = {
+    ...(storageState as Record<string, unknown>),
+    meta: {
+      authValidatedAt: new Date().toISOString(),
+      validationMode: "standard_session",
+      chartUrl: authDiagnostics.url,
+      authReason: authDiagnostics.authReason,
+    },
+  };
 
   fs.writeFileSync(cli.out, JSON.stringify(storageStateToWrite, null, 2) + "\n", "utf-8");
 

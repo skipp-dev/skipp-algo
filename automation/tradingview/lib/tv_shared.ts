@@ -23,6 +23,22 @@ export type TradingViewSession = {
   authResolution: TradingViewAuthResolution;
 };
 
+export type TradingViewPageAuthEvidence = {
+  url: string;
+  htmlClass: string;
+  bodyText: string;
+  accountProbeStatuses: number[];
+  accountProbeAuthenticated: boolean;
+  accountProbeAnonymous: boolean;
+};
+
+export type TradingViewPageAuthState = {
+  authenticated: boolean;
+  explicitlyAnonymous: boolean;
+  reason: string;
+  evidence: TradingViewPageAuthEvidence;
+};
+
 export type VisibleCount = {
   total: number;
   visible: number;
@@ -231,6 +247,103 @@ export function validateTradingViewStorageState(storageStatePath: string): void 
   throw new Error(
     `TV_STORAGE_STATE does not look authenticated. Cookies: ${cookiePreview}. Local storage keys: ${storagePreview}. Refresh it with npm run tv:storage-state after logging in and opening the chart, or set TV_SKIP_AUTH_STATE_VALIDATION=1 to bypass this check.`,
   );
+}
+
+export function resolveTradingViewPageAuthState(evidence: TradingViewPageAuthEvidence): TradingViewPageAuthState {
+  const htmlClass = normalizeUiText(evidence.htmlClass).toLowerCase();
+  const bodyText = normalizeUiText(evidence.bodyText).toLowerCase();
+  const hasAnonymousClass = /(?:^|\s)is-not-authenticated(?:\s|$)/.test(htmlClass);
+  const hasAuthenticatedClass = /(?:^|\s)is-authenticated(?:\s|$)/.test(htmlClass);
+  const hasSignInSignals = /sign in|log in|email|password|continue with google/i.test(bodyText);
+  const explicitlyAnonymous = hasAnonymousClass
+    || hasSignInSignals
+    || (evidence.accountProbeAnonymous && !evidence.accountProbeAuthenticated);
+
+  if (explicitlyAnonymous) {
+    const reason = hasAnonymousClass
+      ? "html_class_is_not_authenticated"
+      : hasSignInSignals
+        ? "signin_signals_visible"
+        : `account_probe_rejected:${evidence.accountProbeStatuses.join(",") || "unknown"}`;
+    return {
+      authenticated: false,
+      explicitlyAnonymous: true,
+      reason,
+      evidence,
+    };
+  }
+
+  if (evidence.accountProbeAuthenticated) {
+    return {
+      authenticated: true,
+      explicitlyAnonymous: false,
+      reason: "account_probe_authenticated",
+      evidence,
+    };
+  }
+
+  if (hasAuthenticatedClass) {
+    return {
+      authenticated: true,
+      explicitlyAnonymous: false,
+      reason: "html_class_is_authenticated",
+      evidence,
+    };
+  }
+
+  return {
+    authenticated: false,
+    explicitlyAnonymous: false,
+    reason: `no_positive_auth_evidence:${evidence.accountProbeStatuses.join(",") || "no_probe"}`,
+    evidence,
+  };
+}
+
+export async function collectTradingViewPageAuthState(page: Page): Promise<TradingViewPageAuthState> {
+  const pageEvidence = await page.evaluate(() => ({
+    url: location.href,
+    htmlClass: String(document.documentElement?.className || ""),
+    bodyText: String(document.body?.innerText || "").replace(/\s+/g, " ").trim().slice(0, 2_000),
+  }));
+
+  const probeEndpoints = [
+    "/api/v1/user/profile/me/",
+    "/api/v1/users/me/",
+  ];
+  const probeResults = await page.evaluate(async (endpoints) => {
+    const results: Array<{ status: number; contentType: string; preview: string }> = [];
+    for (const endpoint of endpoints) {
+      try {
+        const response = await fetch(endpoint, {
+          credentials: "include",
+          headers: { accept: "application/json, text/plain, */*" },
+        });
+        const contentType = response.headers.get("content-type") || "";
+        const preview = (await response.text()).slice(0, 500);
+        results.push({ status: response.status, contentType, preview });
+      } catch {
+        results.push({ status: 0, contentType: "", preview: "" });
+      }
+    }
+    return results;
+  }, probeEndpoints).catch(() => []);
+
+  const accountProbeStatuses = probeResults.map((result) => result.status);
+  const accountProbeAuthenticated = probeResults.some((result) => result.status >= 200 && result.status < 300);
+  const accountProbeAnonymous = probeResults.some((result) =>
+    result.status === 401
+    || result.status === 403
+    || /is-not-authenticated|authentication credentials|not authenticated|login required|sign in/i.test(result.preview)
+  );
+
+  return resolveTradingViewPageAuthState({
+    url: pageEvidence.url,
+    htmlClass: pageEvidence.htmlClass,
+    bodyText: pageEvidence.bodyText,
+    accountProbeStatuses,
+    accountProbeAuthenticated,
+    accountProbeAnonymous,
+  });
 }
 
 function pushLifecycleEvent(tracker: PageLifecycleTracker, type: string, detail?: string): void {
@@ -4598,7 +4711,7 @@ export async function openExistingScript(page: Page, scriptName: string): Promis
 
       const clickedScript = await clickVisibleWithFallback(
         page,
-        tvSelectors.scriptRow(page, searchName, { strict: true }),
+        tvSelectors.openScriptRow(page, searchName),
         "open-script-row",
         3_000,
         1_000,
@@ -4608,7 +4721,7 @@ export async function openExistingScript(page: Page, scriptName: string): Promis
       let dialogStillVisible = await hasVisibleOpenScriptSurface(page, 750);
 
       if (dialogStillVisible && clickedScript) {
-        await doubleClickVisible(page, tvSelectors.scriptRow(page, searchName, { strict: true }), "open-script-row-confirm", 2_000, 1_000);
+        await doubleClickVisible(page, tvSelectors.openScriptRow(page, searchName), "open-script-row-confirm", 2_000, 1_000);
         dialogStillVisible = await hasVisibleOpenScriptSurface(page, 750);
       }
 
