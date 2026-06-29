@@ -54,6 +54,16 @@ def test_workflow_permissions_are_minimal(workflow: dict) -> None:
     assert perms.get("issues") == "write", "needs issues:write to file cron-failure issue"
     # No more than the two declared — defense against scope creep.
     assert set(perms.keys()) <= {"contents", "issues"}, f"unexpected extra permissions: {perms}"
+    job_perms = workflow["jobs"]["probe"].get("permissions") or {}
+    assert job_perms.get("contents") == "write", (
+        "probe job needs contents:write to publish bot/live-tv-credential-snapshot"
+    )
+    assert job_perms.get("issues") == "write", (
+        "job-level permissions override workflow defaults, so issues:write must be repeated"
+    )
+    assert set(job_perms.keys()) <= {"contents", "issues"}, (
+        f"unexpected probe job permissions: {job_perms}"
+    )
 
 
 def test_workflow_probe_step_invokes_the_script(workflow_text: str) -> None:
@@ -117,7 +127,7 @@ def test_workflow_uploads_report_artifact(workflow_text: str) -> None:
 
 
 def test_workflow_preflights_snapshot_push_permission(workflow_text: str) -> None:
-    """Snapshot publish should skip cleanly when GH_PAT cannot push the bot branch."""
+    """Snapshot publish should skip cleanly when the job token cannot push the bot branch."""
     # The preflight must use a real git push --dry-run against the target
     # ref, not ``gh api .permissions.push`` which only reflects repository
     # membership/role, not branch ruleset or PAT scope reality. It also needs
@@ -132,7 +142,8 @@ def test_workflow_preflights_snapshot_push_permission(workflow_text: str) -> Non
         'git fetch "${_remote_url}" '
         '"+refs/heads/bot/live-tv-credential-snapshot:refs/remotes/origin/bot/live-tv-credential-snapshot"'
     )
-    skip_warning = "GH_PAT cannot push to bot/live-tv-credential-snapshot; skipping publish"
+    skip_warning = "GITHUB_TOKEN cannot push to bot/live-tv-credential-snapshot; skipping publish"
+    assert "GH_TOKEN: ${{ github.token }}" in workflow_text
     assert dry_run in workflow_text
     assert lease_fetch in workflow_text
     assert skip_warning in workflow_text

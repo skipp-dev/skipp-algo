@@ -51,6 +51,12 @@ _GITHUB_TOKEN_BOT_PUSH_ALLOWLIST: frozenset[str] = frozenset({
     # by this push, so the GITHUB_TOKEN suppression rule does not apply. The
     # job explicitly elevates to contents: write and actions: read.
     "smc-measurement-benchmark-rolling.yml",
+    # ADR-0024: credential-health-check.yml publishes only the rolling
+    # bot/live-tv-credential-snapshot cache cursor consumed by the live-overlay
+    # daemon via the GitHub Contents API. No downstream workflow is triggered
+    # by this push, so github.token is acceptable when the job explicitly
+    # elevates to contents: write.
+    "credential-health-check.yml",
 })
 
 # Sensitive actions that need fast-gates to trigger downstream.
