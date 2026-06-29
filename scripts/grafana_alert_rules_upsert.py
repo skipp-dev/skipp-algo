@@ -41,6 +41,7 @@ Run from the repository root::
 from __future__ import annotations
 
 import argparse
+import copy
 import json
 import os
 import re
@@ -193,6 +194,45 @@ def validate_alert_groups(groups: list[dict[str, Any]]) -> list[str]:
 DEFAULT_RELATIVE_TIME_RANGE: dict[str, int] = {"from": 300, "to": 0}
 
 
+def _threshold_expression(model: dict[str, Any]) -> str | None:
+    """Return the source refId for a Grafana threshold expression node."""
+    conditions = model.get("conditions")
+    if not isinstance(conditions, list) or not conditions:
+        return None
+    first = conditions[0]
+    if not isinstance(first, dict):
+        return None
+    query = first.get("query")
+    if not isinstance(query, dict):
+        return None
+    params = query.get("params")
+    if not isinstance(params, list) or not params:
+        return None
+    ref_id = params[0]
+    return ref_id if isinstance(ref_id, str) and ref_id.strip() else None
+
+
+def _normalize_expression_node(node: dict[str, Any]) -> dict[str, Any]:
+    """Return a provisioning-API-safe copy of one alert data node."""
+    out = copy.deepcopy(node)
+    rtr = out.get("relativeTimeRange")
+    if not isinstance(rtr, dict) or not rtr.get("from"):
+        out["relativeTimeRange"] = dict(DEFAULT_RELATIVE_TIME_RANGE)
+
+    model = out.get("model")
+    if not isinstance(model, dict):
+        return out
+    if (
+        out.get("datasourceUid") == "__expr__"
+        and model.get("type") == "threshold"
+        and not model.get("expression")
+    ):
+        expression = _threshold_expression(model)
+        if expression:
+            model["expression"] = expression
+    return out
+
+
 def _ensure_relative_time_range(data: list[dict[str, Any]]) -> list[dict[str, Any]]:
     """Return query data with a default relativeTimeRange when missing.
 
@@ -204,11 +244,7 @@ def _ensure_relative_time_range(data: list[dict[str, Any]]) -> list[dict[str, An
         if not isinstance(node, dict):
             out.append(node)
             continue
-        copy = dict(node)
-        rtr = copy.get("relativeTimeRange")
-        if not isinstance(rtr, dict) or not rtr.get("from"):
-            copy["relativeTimeRange"] = dict(DEFAULT_RELATIVE_TIME_RANGE)
-        out.append(copy)
+        out.append(_normalize_expression_node(node))
     return out
 
 

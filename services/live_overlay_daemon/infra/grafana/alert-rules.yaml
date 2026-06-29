@@ -193,17 +193,20 @@ groups:
     - refId: A
       datasourceUid: grafanacloud-prom
       model:
-        expr: absent(live_overlay_bridge_enabled{job="live_overlay",bridge="uptimerobot"})
+        expr: sum(absent(live_overlay_bridge_enabled{job="live_overlay",bridge="uptimerobot"})
+          or on() vector(0))
         instant: true
     - refId: B
       datasourceUid: grafanacloud-prom
       model:
-        expr: absent(live_overlay_bridge_enabled{job="live_overlay",bridge="github_workflow"})
+        expr: sum(absent(live_overlay_bridge_enabled{job="live_overlay",bridge="github_workflow"})
+          or on() vector(0))
         instant: true
     - refId: C
       datasourceUid: grafanacloud-prom
       model:
-        expr: absent(live_overlay_bridge_enabled{job="live_overlay",bridge="railway_metrics"})
+        expr: sum(absent(live_overlay_bridge_enabled{job="live_overlay",bridge="railway_metrics"})
+          or on() vector(0))
         instant: true
     - refId: D
       datasourceUid: __expr__
