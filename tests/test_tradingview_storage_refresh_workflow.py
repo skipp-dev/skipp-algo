@@ -87,6 +87,8 @@ def test_secret_write_uses_dedicated_token(workflow_text: str) -> None:
     assert "GH_TOKEN: ${{ secrets.TV_STORAGE_STATE_WRITE_TOKEN }}" in write_block
     assert "GH_TOKEN: ${{ secrets.GH_PAT }}" not in write_block
     assert "gh secret set TV_STORAGE_STATE" in write_block
+    assert 'printf \'%s\' "$PAYLOAD" | gh secret set TV_STORAGE_STATE' in write_block
+    assert "--body -" not in write_block
 
 
 def test_secret_write_token_preflight_runs_before_capture(workflow_text: str) -> None:
