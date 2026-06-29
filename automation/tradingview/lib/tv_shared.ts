@@ -3590,16 +3590,28 @@ async function resolveOpenedSettingsSurfaceToIndicatorDialog(
   return false;
 }
 
-export async function collectVisibleChartScriptState(page: Page, scriptName: string): Promise<VisibleChartScriptState> {
+type VisibleChartScriptStateProbeOptions = {
+  locatorTimeoutMs?: number;
+  legendButtonLimit?: number;
+  legendVisibleTimeoutMs?: number;
+  legendAncestorTextTimeoutMs?: number;
+};
+
+export async function collectVisibleChartScriptState(
+  page: Page,
+  scriptName: string,
+  options: VisibleChartScriptStateProbeOptions = {},
+): Promise<VisibleChartScriptState> {
   const [, scriptNamePattern, fuzzyPattern] = buildScriptNamePatterns(scriptName);
   const strategyPattern = /strategy report/i;
+  const locatorTimeoutMs = options.locatorTimeoutMs ?? 500;
 
-  const legendWrappers = await findLegendRowWrappers(page, scriptName).catch(() => []);
+  const legendWrappers = await findLegendRowWrappers(page, scriptName, options).catch(() => []);
   const hasLegendMatch = legendWrappers.length > 0;
   const hasStrategyReportMatch = await hasVisibleLocator([
     page.getByText(strategyPattern),
     page.getByRole("button", { name: strategyPattern }),
-  ], 500);
+  ], locatorTimeoutMs);
   const hasScriptNameMatch = await hasVisibleLocator([
     page.getByText(scriptNamePattern),
     page.getByText(fuzzyPattern),
@@ -3607,7 +3619,7 @@ export async function collectVisibleChartScriptState(page: Page, scriptName: str
     page.getByRole("button", { name: fuzzyPattern }),
     page.getByRole("link", { name: scriptNamePattern }),
     page.getByRole("link", { name: fuzzyPattern }),
-  ], 500);
+  ], locatorTimeoutMs);
 
   return {
     hasLegendMatch,
@@ -3644,9 +3656,16 @@ async function isScriptStrictlyVisibleOnChartSurface(page: Page, scriptName: str
   return isScriptVisibleOnChart(state);
 }
 
-export async function findLegendRowWrappers(page: Page, scriptName: string): Promise<Locator[]> {
+export async function findLegendRowWrappers(
+  page: Page,
+  scriptName: string,
+  options: VisibleChartScriptStateProbeOptions = {},
+): Promise<Locator[]> {
   const candidateNames = resolveOpenScriptSearchNames(scriptName);
   const patternsList = candidateNames.map((name) => buildScriptNamePatterns(name));
+  const buttonLimit = options.legendButtonLimit ?? 40;
+  const visibleTimeoutMs = options.legendVisibleTimeoutMs ?? 250;
+  const ancestorTextTimeoutMs = options.legendAncestorTextTimeoutMs ?? 300;
 
   // Start from the known legend-action buttons and walk UP the ancestor
   // chain to find the enclosing legend row.  TradingView wraps the buttons
@@ -3660,15 +3679,15 @@ export async function findLegendRowWrappers(page: Page, scriptName: string): Pro
   const matches: Array<{ locator: Locator; textLength: number }> = [];
   const seenKeys = new Set<string>();
 
-  for (let i = 0; i < Math.min(buttonCount, 40); i += 1) {
+  for (let i = 0; i < Math.min(buttonCount, buttonLimit); i += 1) {
     const btn = buttons.nth(i);
-    const visible = await btn.isVisible({ timeout: 250 }).catch(() => false);
+    const visible = await btn.isVisible({ timeout: visibleTimeoutMs }).catch(() => false);
     if (!visible) continue;
 
     for (const depth of [1, 2, 3, 4, 5]) {
       const xpath = new Array(depth).fill("..").join("/");
       const ancestor = btn.locator(`xpath=${xpath}`);
-      const text = normalizeUiText((await ancestor.innerText({ timeout: 300 }).catch(() => "")) || "");
+      const text = normalizeUiText((await ancestor.innerText({ timeout: ancestorTextTimeoutMs }).catch(() => "")) || "");
       if (!text || text.length > 300) continue;
 
       let matched = false;
@@ -5604,7 +5623,12 @@ async function hasAddToChartClickEffect(page: Page, scriptName?: string): Promis
     return false;
   }
 
-  const state = await collectVisibleChartScriptState(page, scriptName).catch(() => null);
+  const state = await collectVisibleChartScriptState(page, scriptName, {
+    locatorTimeoutMs: 150,
+    legendButtonLimit: 12,
+    legendVisibleTimeoutMs: 80,
+    legendAncestorTextTimeoutMs: 120,
+  }).catch(() => null);
   return Boolean(state && isScriptVisibleOnChart(state));
 }
 

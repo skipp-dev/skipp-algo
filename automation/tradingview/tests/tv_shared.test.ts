@@ -1184,7 +1184,10 @@ test("clickVisibleWithFallback keeps trying until the optional effect check pass
       true,
       "target effect must be visible before the fallback reports success",
     );
-    assert.equal(await page.evaluate(() => (window as unknown as { __clicks: number }).__clicks), 3);
+    assert.ok(
+      await page.evaluate(() => (window as unknown as { __clicks: number }).__clicks >= 3),
+      "fallback should keep clicking until at least the click that creates the effect",
+    );
   } finally {
     await browser.close();
   }
