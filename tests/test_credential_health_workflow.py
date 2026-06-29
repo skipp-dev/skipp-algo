@@ -116,6 +116,16 @@ def test_workflow_uploads_report_artifact(workflow_text: str) -> None:
     assert "credential_health.json" in workflow_text
 
 
+def test_workflow_preflights_snapshot_push_permission(workflow_text: str) -> None:
+    """Snapshot publish should skip cleanly when GH_PAT cannot push the bot branch."""
+    permission_probe = 'gh api "repos/${GITHUB_REPOSITORY}" --jq \'.permissions.push // false\''
+    skip_warning = "does not have push permission to ${GITHUB_REPOSITORY}; skipping publish"
+    assert permission_probe in workflow_text
+    assert skip_warning in workflow_text
+    assert workflow_text.index(permission_probe) < workflow_text.index('git commit -m "[skip ci]')
+    assert workflow_text.index(skip_warning) < workflow_text.index("git push --force-with-lease")
+
+
 def test_workflow_uses_gh_pat_with_token_fallback(workflow_text: str) -> None:
     # Mirror the existing repo-wide pattern so the issue-opening step
     # works even when GH_PAT is unset (e.g. forks, first install).
