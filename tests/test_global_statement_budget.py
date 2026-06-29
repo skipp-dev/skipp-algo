@@ -257,8 +257,9 @@ _FROZEN_SITES: frozenset[tuple[str, int, tuple[str, ...]]] = frozenset(
         # 2026-06-23: workflow bridge hardening (status/conclusion semantics,
         # owner/repo encoding and pagination note) shifted this global anchor.
         # 2026-06-28 monitoring follow-up: lines shifted by one because of last_success_fetched_at_unix setdefault.
-        ("services/live_overlay_daemon/github_workflow_bridge.py", 209, ("_cached_at_monotonic", "_cached_snapshot")),
-        ("services/live_overlay_daemon/uptimerobot_bridge.py", 141, ("_cached_at_monotonic", "_cached_snapshot")),
+        # 2026-06-30 bridge contract duration family shifted these anchors by one.
+        ("services/live_overlay_daemon/github_workflow_bridge.py", 210, ("_cached_at_monotonic", "_cached_snapshot")),
+        ("services/live_overlay_daemon/uptimerobot_bridge.py", 142, ("_cached_at_monotonic", "_cached_snapshot")),
         # 2026-06-24 (feat/railway-metrics): Railway GraphQL bridge for container
         # metrics exposes a lazily-refreshed TTL cache (mirroring uptimerobot).
         # 2026-06-25 (fix/live-overlay-bridge-contract-followup): added
@@ -266,8 +267,9 @@ _FROZEN_SITES: frozenset[tuple[str, int, tuple[str, ...]]] = frozenset(
         # 2026-06-28 (fix/live-overlay-monitoring-followup): added
         # last_success_fetched_at_unix tracking shifted snapshot() and
         # reset_cache() globals by three lines.
+        # 2026-06-30 bridge contract duration family shifted reset_cache().
         ("services/live_overlay_daemon/railway_metrics.py", 229, ("_CACHE", "_CACHE_EXPIRES_AT")),
-        ("services/live_overlay_daemon/railway_metrics.py", 274, ("_CACHE", "_CACHE_EXPIRES_AT")),
+        ("services/live_overlay_daemon/railway_metrics.py", 280, ("_CACHE", "_CACHE_EXPIRES_AT")),
         # 2026-06-19 (fix/live-overlay-post-merge-bugs): added non-finite JSON
         # sanitization helper and related imports, shifting _startup_ts line.
         # 2026-06-19 (Copilot follow-up): _VALID_TFS contract alignment shifted

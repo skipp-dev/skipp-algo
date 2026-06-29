@@ -213,8 +213,10 @@ def test_render_metrics_includes_railway_gauges() -> None:
 
     snapshot = {
         "enabled": True,
+        "configured": True,
         "ok": True,
         "fetched_at_unix": 1_000_000.0,
+        "scrape_duration_seconds": 0.321,
         "error": None,
         "services": [
             {
@@ -229,7 +231,11 @@ def test_render_metrics_includes_railway_gauges() -> None:
     with patch.object(metrics.railway_metrics, "snapshot", return_value=snapshot):
         text = metrics.render_metrics(startup_ts=1_000_000.0)
 
-    assert "live_overlay_railway_metrics_enabled 1" in text
+    assert 'live_overlay_bridge_enabled{bridge="railway_metrics"} 1' in text
+    assert 'live_overlay_bridge_configured{bridge="railway_metrics"} 1' in text
+    assert 'live_overlay_bridge_scrape_success{bridge="railway_metrics"} 1' in text
+    assert 'live_overlay_bridge_last_scrape_duration_seconds{bridge="railway_metrics"} 0.321' in text
+    assert "live_overlay_railway_metrics_enabled" not in text
     assert 'live_overlay_railway_service_cpu_cores{service="alpha",service_id="svc-a"} 0.25' in text
     assert 'live_overlay_railway_service_memory_gb{service="alpha",service_id="svc-a"} 0.5' in text
     assert 'live_overlay_railway_service_memory_used_ratio{service="alpha",service_id="svc-a"} 0.5' in text
@@ -240,15 +246,20 @@ def test_render_metrics_railway_disabled_emits_zero_gauge() -> None:
 
     snapshot = {
         "enabled": False,
+        "configured": False,
         "ok": False,
         "fetched_at_unix": 0.0,
+        "scrape_duration_seconds": None,
         "error": None,
         "services": [],
     }
     with patch.object(metrics.railway_metrics, "snapshot", return_value=snapshot):
         text = metrics.render_metrics(startup_ts=1_000_000.0)
 
-    assert "live_overlay_railway_metrics_enabled 0" in text
+    assert 'live_overlay_bridge_enabled{bridge="railway_metrics"} 0' in text
+    assert 'live_overlay_bridge_configured{bridge="railway_metrics"} 0' in text
+    assert 'live_overlay_bridge_scrape_success{bridge="railway_metrics"} 0' in text
+    assert "live_overlay_railway_metrics_enabled" not in text
     assert "live_overlay_railway_service_cpu_cores{" not in text
 
 
@@ -277,17 +288,23 @@ def test_render_metrics_emits_configured_and_success_gauges() -> None:
 
     snapshot = {
         "enabled": True,
+        "configured": True,
         "ok": True,
         "fetched_at_unix": 1_000_000.0,
+        "scrape_duration_seconds": 0.123,
         "error": None,
         "services": [],
     }
     with patch.object(metrics.railway_metrics, "snapshot", return_value=snapshot):
         text = metrics.render_metrics(startup_ts=1_000_000.0)
 
-    assert "live_overlay_railway_metrics_configured 1" in text
-    assert "live_overlay_railway_metrics_scrape_success 1" in text
-    assert "live_overlay_railway_metrics_enabled 1" in text
+    assert 'live_overlay_bridge_configured{bridge="railway_metrics"} 1' in text
+    assert 'live_overlay_bridge_scrape_success{bridge="railway_metrics"} 1' in text
+    assert 'live_overlay_bridge_enabled{bridge="railway_metrics"} 1' in text
+    assert 'live_overlay_bridge_last_scrape_duration_seconds{bridge="railway_metrics"} 0.123' in text
+    assert "live_overlay_railway_metrics_configured" not in text
+    assert "live_overlay_railway_metrics_scrape_success" not in text
+    assert "live_overlay_railway_metrics_enabled" not in text
 
 
 def test_render_metrics_scrape_error_still_exposes_configured() -> None:
@@ -295,18 +312,25 @@ def test_render_metrics_scrape_error_still_exposes_configured() -> None:
 
     snapshot = {
         "enabled": True,
+        "configured": True,
         "ok": False,
         "fetched_at_unix": 0.0,
+        "scrape_duration_seconds": 0.234,
         "error": " GraphQL error",
         "services": [],
     }
     with patch.object(metrics.railway_metrics, "snapshot", return_value=snapshot):
         text = metrics.render_metrics(startup_ts=1_000_000.0)
 
-    assert "live_overlay_railway_metrics_configured 1" in text
-    assert "live_overlay_railway_metrics_scrape_success 0" in text
-    assert "live_overlay_railway_metrics_enabled 0" in text
-    assert "live_overlay_railway_metrics_error_info" in text
+    assert 'live_overlay_bridge_configured{bridge="railway_metrics"} 1' in text
+    assert 'live_overlay_bridge_scrape_success{bridge="railway_metrics"} 0' in text
+    assert 'live_overlay_bridge_enabled{bridge="railway_metrics"} 1' in text
+    assert 'live_overlay_bridge_last_scrape_duration_seconds{bridge="railway_metrics"} 0.234' in text
+    assert 'live_overlay_bridge_error_info{bridge="railway_metrics",error=" GraphQL error"} 1' in text
+    assert "live_overlay_railway_metrics_configured" not in text
+    assert "live_overlay_railway_metrics_scrape_success" not in text
+    assert "live_overlay_railway_metrics_enabled" not in text
+    assert "live_overlay_railway_metrics_error_info" not in text
 
 
 @pytest.mark.parametrize(
@@ -329,7 +353,7 @@ def test_render_metrics_exports_railway_bridge_truth_table(
 
     snapshot = {
         "fetched_at_unix": 0.0,
-        "scrape_duration_seconds": None,
+        "scrape_duration_seconds": 0.123,
         "services": [],
         **snapshot,
     }
@@ -339,6 +363,7 @@ def test_render_metrics_exports_railway_bridge_truth_table(
     assert f'live_overlay_bridge_enabled{{bridge="railway_metrics"}} {enabled}' in text
     assert f'live_overlay_bridge_configured{{bridge="railway_metrics"}} {configured}' in text
     assert f'live_overlay_bridge_scrape_success{{bridge="railway_metrics"}} {success}' in text
+    assert 'live_overlay_bridge_last_scrape_duration_seconds{bridge="railway_metrics"} 0.123' in text
     assert f'live_overlay_bridge_error_info{{bridge="railway_metrics",error="{error}"}}' in text
 
 

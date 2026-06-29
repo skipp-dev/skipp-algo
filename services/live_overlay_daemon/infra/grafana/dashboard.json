@@ -3591,7 +3591,7 @@
       },
       "targets": [
         {
-          "expr": "(live_overlay_uptimerobot_snapshot_age_seconds{job=~\"$job\"} and on(job) (live_overlay_uptimerobot_bridge_enabled{job=~\"$job\"} == 1)) or (live_overlay_uptimerobot_bridge_enabled{job=~\"$job\"} * 0 - 1)",
+          "expr": "(\n  live_overlay_bridge_last_success_age_seconds{job=~\"$job\",bridge=\"uptimerobot\"}\n  and on(job, bridge) (\n    live_overlay_bridge_enabled{job=~\"$job\",bridge=\"uptimerobot\"} == 1\n  )\n)\nor on(job) (\n  max by (job) (live_overlay_bridge_enabled{job=~\"$job\",bridge=\"uptimerobot\"}) * 0 - 1\n)",
           "legendFormat": "snapshot_age",
           "datasource": {
             "type": "prometheus",
@@ -3894,7 +3894,7 @@
       },
       "targets": [
         {
-          "expr": "(live_overlay_github_workflow_snapshot_age_seconds{job=~\"$job\"} and on(job) (live_overlay_github_workflow_bridge_enabled{job=~\"$job\"} == 1)) or (live_overlay_github_workflow_bridge_enabled{job=~\"$job\"} * 0 - 1)",
+          "expr": "(\n  live_overlay_bridge_last_success_age_seconds{job=~\"$job\",bridge=\"github_workflow\"}\n  and on(job, bridge) (\n    live_overlay_bridge_enabled{job=~\"$job\",bridge=\"github_workflow\"} == 1\n  )\n)\nor on(job) (\n  max by (job) (live_overlay_bridge_enabled{job=~\"$job\",bridge=\"github_workflow\"}) * 0 - 1\n)",
           "legendFormat": "snapshot_age",
           "datasource": {
             "type": "prometheus",
@@ -5506,7 +5506,7 @@
       },
       "targets": [
         {
-          "expr": "live_overlay_railway_metrics_age_seconds{job=~\"$job\"} and on(job) (live_overlay_railway_metrics_scrape_success{job=~\"$job\"} == 1)",
+          "expr": "live_overlay_bridge_last_success_age_seconds{job=~\"$job\",bridge=\"railway_metrics\"} and on(job, bridge) (live_overlay_bridge_scrape_success{job=~\"$job\",bridge=\"railway_metrics\"} == 1)",
           "legendFormat": "age",
           "instant": true,
           "datasource": {
@@ -5921,7 +5921,7 @@
       },
       "targets": [
         {
-          "expr": "sum(absent(live_overlay_bridge_enabled{job=~\"$job\",bridge=\"uptimerobot\"}) or on() vector(0))\n+\nsum(absent(live_overlay_bridge_configured{job=~\"$job\",bridge=\"uptimerobot\"}) or on() vector(0))\n+\nsum(absent(live_overlay_bridge_scrape_success{job=~\"$job\",bridge=\"uptimerobot\"}) or on() vector(0))\n+\nsum(absent(live_overlay_bridge_error_info{job=~\"$job\",bridge=\"uptimerobot\"}) or on() vector(0))\n+\nsum(absent(live_overlay_bridge_last_success_age_seconds{job=~\"$job\",bridge=\"uptimerobot\"}) or on() vector(0))\n+\nsum(absent(live_overlay_bridge_enabled{job=~\"$job\",bridge=\"github_workflow\"}) or on() vector(0))\n+\nsum(absent(live_overlay_bridge_configured{job=~\"$job\",bridge=\"github_workflow\"}) or on() vector(0))\n+\nsum(absent(live_overlay_bridge_scrape_success{job=~\"$job\",bridge=\"github_workflow\"}) or on() vector(0))\n+\nsum(absent(live_overlay_bridge_error_info{job=~\"$job\",bridge=\"github_workflow\"}) or on() vector(0))\n+\nsum(absent(live_overlay_bridge_last_success_age_seconds{job=~\"$job\",bridge=\"github_workflow\"}) or on() vector(0))\n+\nsum(absent(live_overlay_bridge_enabled{job=~\"$job\",bridge=\"railway_metrics\"}) or on() vector(0))\n+\nsum(absent(live_overlay_bridge_configured{job=~\"$job\",bridge=\"railway_metrics\"}) or on() vector(0))\n+\nsum(absent(live_overlay_bridge_scrape_success{job=~\"$job\",bridge=\"railway_metrics\"}) or on() vector(0))\n+\nsum(absent(live_overlay_bridge_error_info{job=~\"$job\",bridge=\"railway_metrics\"}) or on() vector(0))\n+\nsum(absent(live_overlay_bridge_last_success_age_seconds{job=~\"$job\",bridge=\"railway_metrics\"}) or on() vector(0))",
+          "expr": "18 - (\n  count(\n    group by (__name__, bridge) (\n      {__name__=~\"live_overlay_bridge_(enabled|configured|scrape_success|error_info|last_success_age_seconds|last_scrape_duration_seconds)\",job=~\"$job\",bridge=~\"uptimerobot|github_workflow|railway_metrics\"}\n    )\n  )\n  or on() vector(0)\n)",
           "legendFormat": "bridge_contracts_missing",
           "datasource": {
             "type": "prometheus",
@@ -5954,7 +5954,7 @@
                   "text": "1 MISSING",
                   "color": "dark-yellow"
                 },
-                "15": {
+                "18": {
                   "text": "ALL MISSING",
                   "color": "dark-red"
                 }
@@ -6046,6 +6046,6 @@
   "timezone": "utc",
   "title": "SMC Live Overlay API",
   "uid": "smc-live-overlay-v1",
-  "version": 45,
+  "version": 48,
   "description": "Live-overlay daemon operational dashboard: feed health, worker liveness, SMC overlay freshness, external bridge status, provider health, daily experiment metrics, and Railway container resources."
 }

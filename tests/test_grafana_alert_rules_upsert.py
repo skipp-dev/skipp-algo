@@ -281,6 +281,7 @@ def test_alert_rules_include_bridge_contract_missing() -> None:
         "live_overlay_bridge_scrape_success",
         "live_overlay_bridge_error_info",
         "live_overlay_bridge_last_success_age_seconds",
+        "live_overlay_bridge_last_scrape_duration_seconds",
     )
     for bridge in ("uptimerobot", "github_workflow", "railway_metrics"):
         bridge_expr = next((e for e in exprs if f'bridge="{bridge}"' in e), "")
@@ -293,7 +294,7 @@ def test_alert_rules_include_bridge_contract_missing() -> None:
             )
             assert expected in normalized, f"missing {family} for {bridge}"
     assert all(" or vector(0)" not in e for e in exprs)
-    assert sum(e.count("sum(absent(live_overlay_bridge_") for e in exprs) == 15
+    assert sum(e.count("sum(absent(live_overlay_bridge_") for e in exprs) == 18
     assert rule["labels"]["severity"] == "critical"
 
 

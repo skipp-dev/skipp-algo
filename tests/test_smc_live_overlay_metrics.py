@@ -513,8 +513,11 @@ def test_render_metrics_includes_uptimerobot_bridge_snapshot(monkeypatch: pytest
         "snapshot",
         lambda: {
             "enabled": 1,
+            "configured": 1,
             "ok": 1,
             "fetched_at_unix": 1_700_000_000.0,
+            "last_success_fetched_at_unix": 1_700_000_000.0,
+            "scrape_duration_seconds": 0.123,
             "counts": {"total": 4, "up": 4, "down": 0, "paused": 0, "unknown": 0},
             "avg_response_time_ms": 101.5,
             "monitors": [
@@ -530,8 +533,12 @@ def test_render_metrics_includes_uptimerobot_bridge_snapshot(monkeypatch: pytest
 
     body = metrics_mod.render_metrics(startup_ts=100.0)
 
-    assert "live_overlay_uptimerobot_bridge_enabled 1" in body
-    assert "live_overlay_uptimerobot_scrape_success 1" in body
+    assert 'live_overlay_bridge_enabled{bridge="uptimerobot"} 1' in body
+    assert 'live_overlay_bridge_configured{bridge="uptimerobot"} 1' in body
+    assert 'live_overlay_bridge_scrape_success{bridge="uptimerobot"} 1' in body
+    assert 'live_overlay_bridge_last_scrape_duration_seconds{bridge="uptimerobot"} 0.123' in body
+    assert "live_overlay_uptimerobot_bridge_enabled" not in body
+    assert "live_overlay_uptimerobot_scrape_success" not in body
     assert "live_overlay_uptimerobot_monitors_total 4.0" in body
     assert "live_overlay_uptimerobot_monitors_up_total 4.0" in body
     assert "live_overlay_uptimerobot_monitors_response_time_ms_avg 101.5" in body
@@ -556,8 +563,10 @@ def test_render_metrics_handles_uptimerobot_bridge_disabled(monkeypatch: pytest.
         "snapshot",
         lambda: {
             "enabled": 0,
+            "configured": 0,
             "ok": 0,
             "fetched_at_unix": 0.0,
+            "scrape_duration_seconds": None,
             "counts": {"total": 0, "up": 0, "down": 0, "paused": 0, "unknown": 0},
             "avg_response_time_ms": None,
             "monitors": [],
@@ -566,8 +575,11 @@ def test_render_metrics_handles_uptimerobot_bridge_disabled(monkeypatch: pytest.
 
     body = metrics_mod.render_metrics(startup_ts=100.0)
 
-    assert "live_overlay_uptimerobot_bridge_enabled 0" in body
-    assert "live_overlay_uptimerobot_scrape_success 0" in body
+    assert 'live_overlay_bridge_enabled{bridge="uptimerobot"} 0' in body
+    assert 'live_overlay_bridge_configured{bridge="uptimerobot"} 0' in body
+    assert 'live_overlay_bridge_scrape_success{bridge="uptimerobot"} 0' in body
+    assert "live_overlay_uptimerobot_bridge_enabled" not in body
+    assert "live_overlay_uptimerobot_scrape_success" not in body
     assert "live_overlay_uptimerobot_monitors_total 0.0" in body
 
 
@@ -587,8 +599,11 @@ def test_render_metrics_includes_github_workflow_bridge_snapshot(monkeypatch: py
         "snapshot",
         lambda: {
             "enabled": 1,
+            "configured": 1,
             "ok": 1,
             "fetched_at_unix": 1_700_000_100.0,
+            "last_success_fetched_at_unix": 1_700_000_100.0,
+            "scrape_duration_seconds": 0.456,
             "counts": {
                 "seen": 4,
                 "success": 2,
@@ -614,8 +629,12 @@ def test_render_metrics_includes_github_workflow_bridge_snapshot(monkeypatch: py
 
     body = metrics_mod.render_metrics(startup_ts=100.0)
 
-    assert "live_overlay_github_workflow_bridge_enabled 1" in body
-    assert "live_overlay_github_workflow_scrape_success 1" in body
+    assert 'live_overlay_bridge_enabled{bridge="github_workflow"} 1' in body
+    assert 'live_overlay_bridge_configured{bridge="github_workflow"} 1' in body
+    assert 'live_overlay_bridge_scrape_success{bridge="github_workflow"} 1' in body
+    assert 'live_overlay_bridge_last_scrape_duration_seconds{bridge="github_workflow"} 0.456' in body
+    assert "live_overlay_github_workflow_bridge_enabled" not in body
+    assert "live_overlay_github_workflow_scrape_success" not in body
     assert "# TYPE live_overlay_github_workflow_runs_seen_total gauge" in body
     assert "live_overlay_github_workflow_runs_seen_total 4.0" in body
     assert "live_overlay_github_workflow_runs_success_total 2.0" in body
@@ -647,8 +666,10 @@ def test_render_metrics_handles_github_workflow_bridge_disabled(monkeypatch: pyt
         "snapshot",
         lambda: {
             "enabled": 0,
+            "configured": 0,
             "ok": 0,
             "fetched_at_unix": 0.0,
+            "scrape_duration_seconds": None,
             "counts": {
                 "seen": 0,
                 "success": 0,
@@ -664,8 +685,11 @@ def test_render_metrics_handles_github_workflow_bridge_disabled(monkeypatch: pyt
 
     body = metrics_mod.render_metrics(startup_ts=100.0)
 
-    assert "live_overlay_github_workflow_bridge_enabled 0" in body
-    assert "live_overlay_github_workflow_scrape_success 0" in body
+    assert 'live_overlay_bridge_enabled{bridge="github_workflow"} 0' in body
+    assert 'live_overlay_bridge_configured{bridge="github_workflow"} 0' in body
+    assert 'live_overlay_bridge_scrape_success{bridge="github_workflow"} 0' in body
+    assert "live_overlay_github_workflow_bridge_enabled" not in body
+    assert "live_overlay_github_workflow_scrape_success" not in body
     assert "live_overlay_github_workflow_runs_seen_total 0.0" in body
 
 
@@ -696,7 +720,8 @@ def test_render_metrics_escapes_uptimerobot_error_code_labels(monkeypatch: pytes
 
     body = metrics_mod.render_metrics(startup_ts=100.0)
 
-    assert 'live_overlay_uptimerobot_scrape_error_info{error_code="timeout\\\\\\\\\\"quoted"} 1' in body
+    assert 'live_overlay_bridge_error_info{bridge="uptimerobot",error="timeout\\\\\\\\\\"quoted"} 1' in body
+    assert "live_overlay_uptimerobot_scrape_error_info" not in body
 
 
 def test_render_metrics_escapes_github_workflow_error_code_labels(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -727,18 +752,14 @@ def test_render_metrics_escapes_github_workflow_error_code_labels(monkeypatch: p
 
     body = metrics_mod.render_metrics(startup_ts=100.0)
 
-    assert 'live_overlay_github_workflow_scrape_error_info{error_code="http\\\\\\\\\\"401"} 1' in body
+    assert 'live_overlay_bridge_error_info{bridge="github_workflow",error="http\\\\\\\\\\"401"} 1' in body
+    assert "live_overlay_github_workflow_scrape_error_info" not in body
 
 
 def test_render_metrics_bridge_error_info_absent_when_healthy(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """Healthy scrapes must not emit any scrape_error_info series.
-
-    Emitting a healthy `error_code="none"` series leaves stale real-error
-    samples in Prometheus for the staleness window, so dashboards briefly
-    show ERROR after recovery. Only emit the metric when an error is active.
-    """
+    """Healthy scrapes must not emit legacy scrape_error_info series."""
     import services.live_overlay_daemon.metrics as metrics_mod
 
     _patch_common(
@@ -779,6 +800,8 @@ def test_render_metrics_bridge_error_info_absent_when_healthy(
 
     body = metrics_mod.render_metrics(startup_ts=100.0)
 
+    assert 'live_overlay_bridge_error_info{bridge="uptimerobot",error="none"} 0' in body
+    assert 'live_overlay_bridge_error_info{bridge="github_workflow",error="none"} 0' in body
     assert "live_overlay_uptimerobot_scrape_error_info" not in body
     assert "live_overlay_github_workflow_scrape_error_info" not in body
 
@@ -826,8 +849,10 @@ def test_render_metrics_bridge_error_info_clears_after_recovery(
     )
 
     body = metrics_mod.render_metrics(startup_ts=100.0)
-    assert 'live_overlay_uptimerobot_scrape_error_info{error_code="timeout"} 1' in body
-    assert 'live_overlay_github_workflow_scrape_error_info{error_code="http401"} 1' in body
+    assert 'live_overlay_bridge_error_info{bridge="uptimerobot",error="timeout"} 1' in body
+    assert 'live_overlay_bridge_error_info{bridge="github_workflow",error="http401"} 1' in body
+    assert "live_overlay_uptimerobot_scrape_error_info" not in body
+    assert "live_overlay_github_workflow_scrape_error_info" not in body
 
     monkeypatch.setattr(
         metrics_mod.uptimerobot_bridge,
@@ -857,6 +882,10 @@ def test_render_metrics_bridge_error_info_clears_after_recovery(
         },
     )
     body = metrics_mod.render_metrics(startup_ts=100.0)
+    assert 'live_overlay_bridge_error_info{bridge="uptimerobot",error="none"} 0' in body
+    assert 'live_overlay_bridge_error_info{bridge="github_workflow",error="none"} 0' in body
+    assert 'live_overlay_bridge_error_info{bridge="uptimerobot",error="timeout"}' not in body
+    assert 'live_overlay_bridge_error_info{bridge="github_workflow",error="http401"}' not in body
     assert "live_overlay_uptimerobot_scrape_error_info" not in body
     assert "live_overlay_github_workflow_scrape_error_info" not in body
 
@@ -1743,8 +1772,11 @@ def test_render_metrics_exports_generic_bridge_contract(
         "snapshot",
         lambda: {
             "enabled": 1,
+            "configured": 1,
             "ok": 1,
             "fetched_at_unix": 1_700_000_000.0,
+            "last_success_fetched_at_unix": 1_700_000_000.0,
+            "scrape_duration_seconds": 0.111,
             "error_code": "",
             "counts": {"total": 0, "up": 0, "down": 0, "paused": 0, "unknown": 0},
             "avg_response_time_ms": None,
@@ -1756,8 +1788,10 @@ def test_render_metrics_exports_generic_bridge_contract(
         "snapshot",
         lambda: {
             "enabled": 1,
+            "configured": 1,
             "ok": 0,
             "fetched_at_unix": 0.0,
+            "scrape_duration_seconds": 0.222,
             "error_code": "http401",
             "counts": {"seen": 0, "success": 0, "failed": 0, "in_progress": 0, "queued": 0},
             "latest_run_age_seconds": None,
@@ -1773,6 +1807,7 @@ def test_render_metrics_exports_generic_bridge_contract(
             "configured": False,
             "ok": False,
             "fetched_at_unix": 0.0,
+            "scrape_duration_seconds": 0.333,
             "error": "missing_configuration",
             "services": [],
         },
@@ -1783,16 +1818,19 @@ def test_render_metrics_exports_generic_bridge_contract(
     assert 'live_overlay_bridge_enabled{bridge="uptimerobot"} 1' in body
     assert 'live_overlay_bridge_configured{bridge="uptimerobot"} 1' in body
     assert 'live_overlay_bridge_scrape_success{bridge="uptimerobot"} 1' in body
+    assert 'live_overlay_bridge_last_scrape_duration_seconds{bridge="uptimerobot"} 0.111' in body
     assert 'live_overlay_bridge_error_info{bridge="uptimerobot",error="none"} 0' in body
 
     assert 'live_overlay_bridge_enabled{bridge="github_workflow"} 1' in body
     assert 'live_overlay_bridge_configured{bridge="github_workflow"} 1' in body
     assert 'live_overlay_bridge_scrape_success{bridge="github_workflow"} 0' in body
+    assert 'live_overlay_bridge_last_scrape_duration_seconds{bridge="github_workflow"} 0.222' in body
     assert 'live_overlay_bridge_error_info{bridge="github_workflow",error="http401"} 1' in body
 
     assert 'live_overlay_bridge_enabled{bridge="railway_metrics"} 1' in body
     assert 'live_overlay_bridge_configured{bridge="railway_metrics"} 0' in body
     assert 'live_overlay_bridge_scrape_success{bridge="railway_metrics"} 0' in body
+    assert 'live_overlay_bridge_last_scrape_duration_seconds{bridge="railway_metrics"} 0.333' in body
     assert 'live_overlay_bridge_error_info{bridge="railway_metrics",error="missing_configuration"} 1' in body
 
 

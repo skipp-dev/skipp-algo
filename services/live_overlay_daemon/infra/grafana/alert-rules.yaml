@@ -203,6 +203,8 @@ groups:
           sum(absent(live_overlay_bridge_error_info{job="live_overlay",bridge="uptimerobot"}) or on() vector(0))
           +
           sum(absent(live_overlay_bridge_last_success_age_seconds{job="live_overlay",bridge="uptimerobot"}) or on() vector(0))
+          +
+          sum(absent(live_overlay_bridge_last_scrape_duration_seconds{job="live_overlay",bridge="uptimerobot"}) or on() vector(0))
         instant: true
     - refId: B
       datasourceUid: grafanacloud-prom
@@ -217,6 +219,8 @@ groups:
           sum(absent(live_overlay_bridge_error_info{job="live_overlay",bridge="github_workflow"}) or on() vector(0))
           +
           sum(absent(live_overlay_bridge_last_success_age_seconds{job="live_overlay",bridge="github_workflow"}) or on() vector(0))
+          +
+          sum(absent(live_overlay_bridge_last_scrape_duration_seconds{job="live_overlay",bridge="github_workflow"}) or on() vector(0))
         instant: true
     - refId: C
       datasourceUid: grafanacloud-prom
@@ -231,6 +235,8 @@ groups:
           sum(absent(live_overlay_bridge_error_info{job="live_overlay",bridge="railway_metrics"}) or on() vector(0))
           +
           sum(absent(live_overlay_bridge_last_success_age_seconds{job="live_overlay",bridge="railway_metrics"}) or on() vector(0))
+          +
+          sum(absent(live_overlay_bridge_last_scrape_duration_seconds{job="live_overlay",bridge="railway_metrics"}) or on() vector(0))
         instant: true
     - refId: D
       datasourceUid: __expr__

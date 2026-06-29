@@ -87,6 +87,7 @@ BRIDGE_CONTRACT_FAMILIES = (
     "live_overlay_bridge_scrape_success",
     "live_overlay_bridge_error_info",
     "live_overlay_bridge_last_success_age_seconds",
+    "live_overlay_bridge_last_scrape_duration_seconds",
 )
 COLOR_STARTING = "dark-yellow"
 # Canonical phase-code colors for the GitHub Workflow Status timeline.
@@ -681,6 +682,35 @@ def _fix_bridge_error_panels(data: dict[str, Any]) -> bool:
     return changed
 
 
+def _fix_bridge_snapshot_age_panels(data: dict[str, Any]) -> bool:
+    """Move bridge snapshot-age panels onto the generic bridge contract."""
+    changed = False
+    title_to_bridge = {
+        "UptimeRobot Snapshot Age": "uptimerobot",
+        "GitHub Workflow Snapshot Age": "github_workflow",
+    }
+    for panel in _iter_v1_panels(data):
+        bridge = title_to_bridge.get(panel.get("title", ""))
+        if not bridge:
+            continue
+        new_expr = (
+            "(\n"
+            f'  live_overlay_bridge_last_success_age_seconds{{job=~"$job",bridge="{bridge}"}}\n'
+            "  and on(job, bridge) (\n"
+            f'    live_overlay_bridge_enabled{{job=~"$job",bridge="{bridge}"}} == 1\n'
+            "  )\n"
+            ")\n"
+            "or on(job) (\n"
+            f'  max by (job) (live_overlay_bridge_enabled{{job=~"$job",bridge="{bridge}"}}) * 0 - 1\n'
+            ")"
+        )
+        for target in panel.get("targets", []):
+            if target.get("expr") != new_expr:
+                target["expr"] = new_expr
+                changed = True
+    return changed
+
+
 def _fix_bridge_state_panel_legends(data: dict[str, Any]) -> bool:
     """Keep per-job bridge state series distinguishable when $job is All."""
     changed = False
@@ -871,14 +901,26 @@ def _ensure_bridge_metrics_present_panel(data: dict[str, Any]) -> bool:
 
 
 def _bridge_contract_missing_expr(job_matcher: str) -> str:
-    return "\n+\n".join(
-        f'sum(absent({family}{{{job_matcher},bridge="{bridge}"}}) or on() vector(0))'
-        for bridge in BRIDGE_CONTRACT_BRIDGES
+    expected_contracts = len(BRIDGE_CONTRACT_BRIDGES) * len(BRIDGE_CONTRACT_FAMILIES)
+    family_regex = "|".join(
+        family.removeprefix("live_overlay_bridge_")
         for family in BRIDGE_CONTRACT_FAMILIES
+    )
+    bridge_regex = "|".join(BRIDGE_CONTRACT_BRIDGES)
+    return (
+        f"{expected_contracts} - (\n"
+        "  count(\n"
+        "    group by (__name__, bridge) (\n"
+        f'      {{__name__=~"live_overlay_bridge_({family_regex})",{job_matcher},bridge=~"{bridge_regex}"}}\n'
+        "    )\n"
+        "  )\n"
+        "  or on() vector(0)\n"
+        ")"
     )
 
 
 def _bridge_metrics_present_defaults() -> dict[str, Any]:
+    expected_contracts = len(BRIDGE_CONTRACT_BRIDGES) * len(BRIDGE_CONTRACT_FAMILIES)
     return {
         "mappings": [
             {
@@ -886,7 +928,7 @@ def _bridge_metrics_present_defaults() -> dict[str, Any]:
                 "options": {
                     "0": {"text": "PRESENT", "color": COLOR_OK},
                     "1": {"text": "1 MISSING", "color": COLOR_WARN},
-                    "15": {"text": "ALL MISSING", "color": COLOR_ERROR},
+                    str(expected_contracts): {"text": "ALL MISSING", "color": COLOR_ERROR},
                 },
             }
         ],
@@ -917,7 +959,22 @@ def _ensure_railway_status_panels(data: dict[str, Any]) -> bool:
         if panel.get("title") == "Railway Metrics Snapshot Age":
             for target in panel.get("targets", []):
                 expr = target.get("expr", "")
-                new_expr = 'live_overlay_railway_metrics_age_seconds{job=~"$job"} and on(job) (live_overlay_railway_metrics_scrape_success{job=~"$job"} == 1)'
+                new_expr = (
+                    'live_overlay_bridge_last_success_age_seconds{job=~"$job",bridge="railway_metrics"} '
+                    'and on(job, bridge) '
+                    '(live_overlay_bridge_scrape_success{job=~"$job",bridge="railway_metrics"} == 1)'
+                )
+                if expr != new_expr:
+                    target["expr"] = new_expr
+                    changed = True
+        if panel.get("title") == "Railway Metrics Error":
+            for target in panel.get("targets", []):
+                expr = target.get("expr", "")
+                new_expr = (
+                    "max by (job, bridge, error) (\n"
+                    '  live_overlay_bridge_error_info{job=~"$job",bridge="railway_metrics",error!="none"}\n'
+                    ") or on() vector(0)"
+                )
                 if expr != new_expr:
                     target["expr"] = new_expr
                     changed = True
@@ -952,7 +1009,11 @@ def _ensure_railway_status_panels(data: dict[str, Any]) -> bool:
             "gridPos": {"h": 3, "w": 4, "x": 0, "y": status_y},
             "targets": [
                 {
-                    "expr": 'max(live_overlay_railway_metrics_configured{job=~"$job"} == 1) + (max(live_overlay_railway_metrics_scrape_success{job=~"$job"} == 0) or vector(0))',
+                    "expr": (
+                        'max(live_overlay_bridge_enabled{job=~"$job",bridge="railway_metrics"} == 1) '
+                        '+ (max(live_overlay_bridge_scrape_success{job=~"$job",bridge="railway_metrics"} == 0) '
+                        'or vector(0))'
+                    ),
                     "legendFormat": "state",
                     "instant": True,
                     "datasource": datasource,
@@ -994,7 +1055,11 @@ def _ensure_railway_status_panels(data: dict[str, Any]) -> bool:
             "gridPos": {"h": 3, "w": 4, "x": 4, "y": status_y},
             "targets": [
                 {
-                    "expr": 'live_overlay_railway_metrics_age_seconds{job=~"$job"} and on(job) (live_overlay_railway_metrics_scrape_success{job=~"$job"} == 1)',
+                    "expr": (
+                        'live_overlay_bridge_last_success_age_seconds{job=~"$job",bridge="railway_metrics"} '
+                        'and on(job, bridge) '
+                        '(live_overlay_bridge_scrape_success{job=~"$job",bridge="railway_metrics"} == 1)'
+                    ),
                     "legendFormat": "age",
                     "instant": True,
                     "datasource": datasource,
@@ -1015,7 +1080,11 @@ def _ensure_railway_status_panels(data: dict[str, Any]) -> bool:
             "gridPos": {"h": 3, "w": 4, "x": 8, "y": status_y},
             "targets": [
                 {
-                    "expr": 'max(live_overlay_railway_metrics_error_info{job=~"$job",error!="none"} or vector(0))',
+                    "expr": (
+                        "max by (job, bridge, error) (\n"
+                        '  live_overlay_bridge_error_info{job=~"$job",bridge="railway_metrics",error!="none"}\n'
+                        ") or on() vector(0)"
+                    ),
                     "legendFormat": "{{error}}",
                     "instant": True,
                     "datasource": datasource,
@@ -1592,6 +1661,7 @@ def main(argv: list[str] | None = None) -> int:
         changed = _fix_bridge_scrapes_panel(data) or changed
         changed = _fix_bridge_state_panels(data) or changed
         changed = _fix_bridge_error_panels(data) or changed
+        changed = _fix_bridge_snapshot_age_panels(data) or changed
         changed = _fix_bridge_state_panel_legends(data) or changed
         changed = _fix_bridge_scrape_health_timeline(data) or changed
         changed = _ensure_railway_status_panels(data) or changed

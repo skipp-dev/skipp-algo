@@ -500,7 +500,8 @@ chase false reds:
   `railway_metrics`: `live_overlay_bridge_enabled`,
   `live_overlay_bridge_configured`, `live_overlay_bridge_scrape_success`,
   `live_overlay_bridge_error_info`, and
-  `live_overlay_bridge_last_success_age_seconds`. This is the first signal
+  `live_overlay_bridge_last_success_age_seconds`, and
+  `live_overlay_bridge_last_scrape_duration_seconds`. This is the first signal
   that the exporter has stopped emitting part of the `live_overlay_bridge_*`
   family even though the daemon is still scraped.
 
@@ -513,6 +514,7 @@ chase false reds:
 | Enabled and healthy | `live_overlay_bridge_enabled == 1` and `live_overlay_bridge_scrape_success == 1` | Last scrape succeeded. |
 | Enabled and failed | `live_overlay_bridge_enabled == 1` and `live_overlay_bridge_scrape_success == 0` | Bridge is configured but currently failing; investigate bridge logs and last error. |
 | Stale success | `live_overlay_bridge_last_success_age_seconds` exceeds threshold | Bridge may be failing or unable to refresh successful data. |
+| Slow scrape | `live_overlay_bridge_last_scrape_duration_seconds` rises unexpectedly | Bridge requests are completing but taking longer than normal. |
 | Absent bridge metrics | no `live_overlay_bridge_*` series | Exporter or metrics path may be broken; check `Bridge Metrics Present`, `Core Metrics Present`, and collector targets. |
 
 The alert **`lo-bridge-contract-missing`** fires when any required generic
@@ -687,11 +689,12 @@ Implementation: `services/live_overlay_daemon/uptimerobot_bridge.py`
 
 ### Exported metrics (UptimeRobot bridge)
 
+Bridge status is exported through the generic
+`live_overlay_bridge_*{bridge="uptimerobot"}` contract. The metrics below are
+UptimeRobot-specific detail series.
+
 | Metric | Type | Labels | Description |
 |--------|------|--------|-------------|
-| `live_overlay_uptimerobot_bridge_enabled` | gauge | — | 1 if the bridge is configured |
-| `live_overlay_uptimerobot_scrape_success` | gauge | — | 1 if last poll succeeded |
-| `live_overlay_uptimerobot_snapshot_age_seconds` | gauge | — | Seconds since last successful poll |
 | `live_overlay_uptimerobot_monitors_up_total` | gauge | — | Count of monitors currently UP |
 | `live_overlay_uptimerobot_monitors_down_total` | gauge | — | Count of monitors currently DOWN |
 | `live_overlay_uptimerobot_monitors_paused_total` | gauge | — | Count of monitors currently PAUSED |
@@ -776,11 +779,18 @@ Implementation: `services/live_overlay_daemon/github_workflow_bridge.py`
 
 ### Exported metrics
 
+Bridge status is exported through the generic
+`live_overlay_bridge_*{bridge="github_workflow"}` contract. The metrics below
+are GitHub-workflow-specific detail series.
+
 | Metric | Type | Description |
 |--------|------|-------------|
-| `live_overlay_github_workflow_bridge_enabled` | gauge | 1 if bridge is configured |
-| `live_overlay_github_workflow_scrape_success` | gauge | 1 if last poll succeeded |
-| `live_overlay_github_workflow_snapshot_age_seconds` | gauge | Seconds since last successful poll |
+| `live_overlay_github_workflow_runs_*_total` | gauge | Snapshot counts grouped by workflow-run state |
+| `live_overlay_github_workflow_latest_run_*_seconds` | gauge | Aggregate latest run age and duration |
+| `live_overlay_github_workflow_phase_code{workflow_id,workflow,event}` | gauge | Per-workflow timeline state |
+| `live_overlay_github_workflow_latest_success{workflow_id,workflow,event}` | gauge | Per-workflow latest success state |
+| `live_overlay_github_workflow_latest_age_seconds{workflow_id,workflow,event}` | gauge | Per-workflow latest run age |
+| `live_overlay_github_workflow_latest_duration_seconds{workflow_id,workflow,event}` | gauge | Per-workflow latest run duration |
 
 ---
 

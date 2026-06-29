@@ -305,6 +305,26 @@ def test_alert_rules_use_generic_bridge_last_success_age_for_external_staleness(
         assert legacy_metric not in expr
 
 
+def test_dashboard_bridge_snapshot_age_panels_use_generic_contract() -> None:
+    """Bridge snapshot-age panels should consume the generic last-success family."""
+    dashboard = json.loads(_DASHBOARD_JSON.read_text(encoding="utf-8"))
+    panels = {p.get("title"): p for p in _dashboard_panels(dashboard)}
+    cases = (
+        ("UptimeRobot Snapshot Age", "uptimerobot", "live_overlay_uptimerobot_snapshot_age_seconds"),
+        (
+            "GitHub Workflow Snapshot Age",
+            "github_workflow",
+            "live_overlay_github_workflow_snapshot_age_seconds",
+        ),
+        ("Railway Metrics Snapshot Age", "railway_metrics", "live_overlay_railway_metrics_age_seconds"),
+    )
+    for title, bridge, legacy_metric in cases:
+        expr = panels[title]["targets"][0]["expr"]
+        assert "live_overlay_bridge_last_success_age_seconds" in expr, expr
+        assert f'bridge="{bridge}"' in expr, expr
+        assert legacy_metric not in expr, expr
+
+
 def test_alert_rules_use_railway_memory_ratio_thresholds() -> None:
     """Railway memory alerts should use usage/limit ratio instead of only static RSS."""
     warning = _alert_rule("lo-railway-memory-ratio-high")
@@ -448,23 +468,34 @@ def test_dashboard_bridge_metrics_present_counts_generic_contracts() -> None:
     panel = next(p for p in panels if p.get("title") == "Bridge Metrics Present")
     expr = panel["targets"][0]["expr"]
     families = (
-        "live_overlay_bridge_enabled",
-        "live_overlay_bridge_configured",
-        "live_overlay_bridge_scrape_success",
-        "live_overlay_bridge_error_info",
-        "live_overlay_bridge_last_success_age_seconds",
+        "enabled",
+        "configured",
+        "scrape_success",
+        "error_info",
+        "last_success_age_seconds",
+        "last_scrape_duration_seconds",
     )
+    assert expr.startswith("18 - (")
+    assert "group by (__name__, bridge)" in expr
+    assert (
+        'live_overlay_bridge_(enabled|configured|scrape_success|error_info|last_success_age_seconds|last_scrape_duration_seconds)'
+        in expr
+    )
+    assert 'job=~"$job"' in expr
+    assert 'bridge=~"uptimerobot|github_workflow|railway_metrics"' in expr
     for bridge in ("uptimerobot", "github_workflow", "railway_metrics"):
-        assert f'bridge="{bridge}"' in expr, f"missing bridge {bridge} in {expr}"
-        for family in families:
-            assert (
-                f'sum(absent({family}{{job=~"$job",bridge="{bridge}"}}) '
-                "or on() vector(0))"
-            ) in expr
-    assert expr.count("sum(absent(live_overlay_bridge_") == 15
+        assert bridge in expr, f"missing bridge {bridge} in {expr}"
+    for family in families:
+        assert family in expr, f"missing family {family} in {expr}"
+    assert "sum(absent(live_overlay_bridge_" not in expr
     assert " or vector(0)" not in expr
-    options = panel["fieldConfig"]["defaults"]["mappings"]
-    assert any("PRESENT" in str(m) for m in options)
+    mappings = panel["fieldConfig"]["defaults"]["mappings"]
+    options: dict[str, dict[str, str]] = {}
+    for mapping in mappings:
+        options.update(mapping.get("options", {}))
+    assert options["0"]["text"] == "PRESENT"
+    assert options["18"]["text"] == "ALL MISSING"
+    assert "15" not in options
 
 
 def test_railway_disk_panel_explains_optional_no_data_state() -> None:
@@ -1339,7 +1370,12 @@ def test_dashboard_railway_bridge_shows_generic_contract() -> None:
     assert "live_overlay_bridge_enabled" in expr
     assert "live_overlay_bridge_scrape_success" in expr
     assert 'bridge="railway_metrics"' in expr
-    assert "live_overlay_railway_metrics_enabled" not in expr, expr
+    for legacy_metric in (
+        "live_overlay_railway_metrics_configured",
+        "live_overlay_railway_metrics_scrape_success",
+        "live_overlay_railway_metrics_enabled",
+    ):
+        assert legacy_metric not in expr, expr
     mappings = panel["fieldConfig"]["defaults"]["mappings"]
     options_keys = {k for m in mappings for k in m.get("options", {})}
     assert {"0", "1", "2"}.issubset(options_keys), options_keys
