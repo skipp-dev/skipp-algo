@@ -13,6 +13,7 @@ of Prometheus target labels, scrape logs, and remote-write metadata.
    - Name: `metrics-collector`
    - Root directory: `services/live_overlay_daemon/infra/alloy`
    - Builder: Dockerfile
+   - Healthcheck path: `/metrics`
 
 2. **Set environment variables** (Service Variables):
    ```
@@ -26,7 +27,17 @@ of Prometheus target labels, scrape logs, and remote-write metadata.
    GRAFANA_CLOUD_API_KEY=<API key with MetricsPublisher role>
    ```
 
-3. **No health check needed** — Alloy runs as a pure scraper without inbound traffic.
+3. **Health check** — Alloy's HTTP server must bind to the Railway-provided
+   port. The Dockerfile passes
+   `--server.http.listen-addr=0.0.0.0:${PORT}` after defaulting `PORT` to
+   `12345` for local runs, so Railway can reach the service healthcheck instead
+   of probing Alloy's default loopback listener. The repo-local
+   `railway.toml` sets the healthcheck path to `/metrics`, which Alloy exposes
+   on the same HTTP server.
+
+   The Dockerfile also defaults `ALLOY_SELF_ADDRESS` to `127.0.0.1:$PORT` so the
+   `alloy_self` scrape target follows the runtime port rather than staying
+   pinned to Alloy's default `12345`.
 
 4. **Networking**: Prefer Railway Private Networking for the main-daemon scrape
    once the runtime port is known. Do not set `OVERLAY_SERVICE_URL` to a bare

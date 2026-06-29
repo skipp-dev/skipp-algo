@@ -6,6 +6,33 @@ All notable changes to this project are documented in this file.
 
 ## [Unreleased]
 
+### Fixed (2026-06-29) — Railway healthcheck port bindings
+
+- `services/live_overlay_daemon/infra/alloy/Dockerfile`:
+  - Passes `--server.http.listen-addr=0.0.0.0:${PORT:-12345}` to `alloy run`
+    so the metrics collector binds to Railway's injected port instead of
+    Alloy's default loopback listener.
+  - Exports `ALLOY_SELF_ADDRESS=127.0.0.1:$PORT` by default so Alloy's
+    self-scrape target follows the Railway runtime port.
+- `services/live_overlay_daemon/infra/alloy/railway.toml`:
+  - Declares the metrics-collector Dockerfile service and `/metrics`
+    healthcheck path in repo config.
+- `services/signals_producer/railway.toml`:
+  - Passes `$PORT` explicitly as `--telemetry-port` so `/healthz` is served on
+    the Railway healthcheck port rather than relying on runtime defaults.
+- `services/live_overlay_daemon/railway.toml` and Dockerfile:
+  - Added regression coverage for the existing `0.0.0.0:$PORT` Railway
+    binding and `${PORT:-8000}` local fallback.
+- `tests/test_live_overlay_infra_alloy_contracts.py`:
+  - Added a Dockerfile contract pin for the Railway listen address.
+- `tests/test_signals_producer_service_contract.py`:
+  - Added a Railway start-command pin for the signals producer telemetry port.
+- `tests/test_live_overlay_daemon_service_contract.py`:
+  - Added Railway and Dockerfile contract pins for the live overlay daemon
+    healthcheck port binding.
+- `services/live_overlay_daemon/infra/alloy/README.md`:
+  - Documents the required Railway healthcheck binding.
+
 ### Fixed (2026-06-28) — Live overlay monitoring follow-up
 
 - `services/live_overlay_daemon/config.py`:

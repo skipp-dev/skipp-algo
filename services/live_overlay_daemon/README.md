@@ -335,6 +335,9 @@ those instead.
   `uvloop` / Databento TCP conflict (`TypeError: object Future can't be used in
   'await' expression` on reconnect).
 - Start command forces `--loop asyncio --http h11` for compatibility.
+- Railway start command binds `--host 0.0.0.0 --port $PORT` so `/health` is
+  reachable on the Railway healthcheck port. The Dockerfile local fallback uses
+  `${PORT:-8000}`.
 - The background feed thread creates its own event loop via
   `asyncio.new_event_loop()` + `asyncio.set_event_loop(loop)`.
 
