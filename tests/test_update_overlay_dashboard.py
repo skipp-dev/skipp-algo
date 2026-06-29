@@ -64,6 +64,7 @@ def test_update_script_adds_uptimerobot_state_timeline(tmp_path: Path) -> None:
     assert "live_overlay_uptimerobot_monitor_.*_status_code" in target["expr"]
     assert 'job=~"$job"' in target["expr"]
     assert 'job="$job"' not in target["expr"]
+    assert panel["datasource"] == {"type": "prometheus", "uid": "grafanacloud-prom"}
     assert target["datasource"] == {"type": "prometheus", "uid": "grafanacloud-prom"}
     options = panel["fieldConfig"]["defaults"]["mappings"][0]["options"]
     assert options["0"]["text"] == "PAUSED"
@@ -226,6 +227,7 @@ def test_update_script_re_adds_missing_uptimerobot_panel_idempotently(tmp_path: 
     assert panel["targets"][0]["expr"] == (
         '{__name__=~"live_overlay_uptimerobot_monitor_.*_status_code",job=~"$job"}'
     )
+    assert panel["datasource"] == {"type": "prometheus", "uid": "grafanacloud-prom"}
     assert panel["targets"][0]["datasource"] == {"type": "prometheus", "uid": "grafanacloud-prom"}
 
     # Third run must be idempotent.
@@ -244,6 +246,7 @@ def test_update_script_heals_existing_uptimerobot_target(tmp_path: Path) -> None
     before_version = int(data.get("version", 0) or 0)
     panel = next(p for p in data["panels"] if p.get("title") == "UptimeRobot Monitor States")
     panel["targets"][0]["expr"] = '{__name__=~"live_overlay_uptimerobot_monitor_.*_status_code",job="$job"}'
+    panel.pop("datasource", None)
     panel["targets"][0].pop("datasource", None)
     dst.write_text(json.dumps(data, indent=2), encoding="utf-8")
 
@@ -254,6 +257,7 @@ def test_update_script_heals_existing_uptimerobot_target(tmp_path: Path) -> None
     panel = next(p for p in updated["panels"] if p.get("title") == "UptimeRobot Monitor States")
     target = panel["targets"][0]
     assert target["expr"] == '{__name__=~"live_overlay_uptimerobot_monitor_.*_status_code",job=~"$job"}'
+    assert panel["datasource"] == {"type": "prometheus", "uid": "grafanacloud-prom"}
     assert target["datasource"] == {"type": "prometheus", "uid": "grafanacloud-prom"}
 
 
@@ -468,7 +472,9 @@ def test_update_script_re_adds_traffic_alert_armed_without_extra_shift(temp_dash
 
     updated = json.loads(temp_dashboard.read_text(encoding="utf-8"))
     panel = next(p for p in updated["panels"] if p.get("title") == "Traffic Alert Armed")
+    assert panel["datasource"] == {"type": "prometheus", "uid": "grafanacloud-prom"}
     assert panel["targets"][0]["expr"] == 'live_overlay_expected_market_traffic{job=~"$job"}'
+    assert panel["targets"][0]["datasource"] == {"type": "prometheus", "uid": "grafanacloud-prom"}
     assert panel["fieldConfig"]["defaults"]["mappings"][0]["options"]["0"]["text"] == "NOT ARMED"
     assert panel["fieldConfig"]["defaults"]["mappings"][0]["options"]["1"]["text"] == "ARMED"
     updated_operational = next(p for p in updated["panels"] if p.get("title") == "Operational Drill-down")

@@ -128,6 +128,7 @@ _GITHUB_WORKFLOW_TIMELINE_DESCRIPTION = (
 UPTIMEROBOT_PANEL: dict[str, Any] = {
     "title": "UptimeRobot Monitor States",
     "type": "state-timeline",
+    "datasource": PROMETHEUS_DATASOURCE,
     "description": (
         "Per-monitor UptimeRobot state over time. paused = monitor intentionally "
         "paused; unknown = unrecognized status code."
@@ -182,6 +183,7 @@ TRAFFIC_ALERT_ARMED_PANEL: dict[str, Any] = {
     "id": 2165782571,
     "title": _TRAFFIC_ALERT_ARMED_TITLE,
     "type": "stat",
+    "datasource": PROMETHEUS_DATASOURCE,
     "description": (
         "Is production first-zero traffic alerting armed? Shows "
         "LIVE_OVERLAY_EXPECT_MARKET_TRAFFIC; 1 means ARMED and 0 means NOT ARMED."
@@ -395,6 +397,9 @@ def _ensure_uptimerobot_panel(data: dict[str, Any]) -> bool:
         return True
 
     changed = False
+    if panel.get("datasource") != UPTIMEROBOT_PANEL["datasource"]:
+        panel["datasource"] = copy.deepcopy(UPTIMEROBOT_PANEL["datasource"])
+        changed = True
     desired_target = UPTIMEROBOT_PANEL["targets"][0]
     targets = panel.setdefault("targets", [])
     if not targets:
