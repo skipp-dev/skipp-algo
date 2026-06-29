@@ -34,6 +34,30 @@ def test_preflight_configs_use_canonical_product_cut_scopes() -> None:
     assert _load_json('automation/tradingview/preflight-smc-mainline.json') == {
         'productCutScope': 'smcMainline',
     }
+    assert _load_json('automation/tradingview/preflight-smc-mainline-open-only.json') == {
+        'targets': [
+            {
+                'file': 'SMC_Core_Engine.pine',
+                'scriptName': 'SMC Core',
+                'checkInputs': False,
+                'addToChart': False,
+            },
+            {
+                'file': 'SMC_Dashboard.pine',
+                'scriptName': 'SMC Decision Board',
+                'savedScriptName': 'SMC Long-Dip Dashboard v7',
+                'checkInputs': False,
+                'addToChart': False,
+            },
+            {
+                'file': 'SMC_Long_Strategy.pine',
+                'scriptName': 'SMC Long-Dip Strategy v7',
+                'savedScriptName': 'SMC Long-Dip Strategy v7',
+                'checkInputs': False,
+                'addToChart': False,
+            },
+        ],
+    }
     assert _load_json('automation/tradingview/preflight-decision-first.json') == {
         'productCutScope': 'smcDecisionFirst',
     }

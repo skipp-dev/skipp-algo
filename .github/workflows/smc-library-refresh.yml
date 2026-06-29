@@ -1012,7 +1012,7 @@ jobs:
             started_at="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
             start_ns=$(date +%s)
             npx tsx scripts/tv_preflight.ts \
-              --config automation/tradingview/preflight-smc-mainline.json \
+              --config automation/tradingview/preflight-smc-mainline-open-only.json \
               --execution-mode readonly \
               --out artifacts/tradingview/tv_preflight_ci.json
             status=$?
@@ -1660,4 +1660,3 @@ jobs:
           retention-days: 90
           if-no-files-found: warn
           overwrite: true
-

@@ -528,6 +528,12 @@ function buildReport(
   );
   const bindingGateSatisfied = bindingTargets.length === 0
     || bindingTargets.every((target) => target.binding_green === true);
+  const runtimeTargets = targets.filter((target) =>
+    target.script_found_on_chart_ok !== "not_run"
+      || target.runtime_smoke_ok !== "not_run"
+  );
+  const runtimeGateSatisfied = runtimeTargets.length === 0
+    || runtimeTargets.every((target) => target.runtime_green === true);
 
   return {
     generatedAt: utcNow(),
@@ -545,7 +551,7 @@ function buildReport(
       ui_green === true &&
       (executionMode === "readonly" || compile_green === true) &&
       bindingGateSatisfied &&
-      runtime_green === true &&
+      runtimeGateSatisfied &&
       targets.every((target) => target.overall_preflight_ok),
     targets,
   };

@@ -1,0 +1,24 @@
+{
+  "targets": [
+    {
+      "file": "SMC_Core_Engine.pine",
+      "scriptName": "SMC Core",
+      "checkInputs": false,
+      "addToChart": false
+    },
+    {
+      "file": "SMC_Dashboard.pine",
+      "scriptName": "SMC Decision Board",
+      "savedScriptName": "SMC Long-Dip Dashboard v7",
+      "checkInputs": false,
+      "addToChart": false
+    },
+    {
+      "file": "SMC_Long_Strategy.pine",
+      "scriptName": "SMC Long-Dip Strategy v7",
+      "savedScriptName": "SMC Long-Dip Strategy v7",
+      "checkInputs": false,
+      "addToChart": false
+    }
+  ]
+}

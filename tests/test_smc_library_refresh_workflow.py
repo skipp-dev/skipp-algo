@@ -353,6 +353,14 @@ def test_readonly_preflight_has_retry_wrapper() -> None:
     preflight_block = workflow_text[pre_idx:publish_idx]
     publish_block = workflow_text[publish_idx:post_idx]
     post_release_block = workflow_text[post_idx:]
+    assert "preflight-smc-mainline-open-only.json" in preflight_block, (
+        "Pre-publish readonly preflight must only prove reusable auth and "
+        "private script visibility. Full chart/input binding validation belongs "
+        "to post-release validation after the publish updates stale TV scripts."
+    )
+    assert "preflight-smc-mainline.json" in post_release_block, (
+        "Post-release validation must keep the full SMC mainline preflight."
+    )
     assert "TV_PREFLIGHT_MAX_ATTEMPTS" in preflight_block, (
         "TV_PREFLIGHT_MAX_ATTEMPTS must live inside the readonly preflight step block."
     )
