@@ -12,6 +12,11 @@ All notable changes to this project are documented in this file.
   - Passes `--server.http.listen-addr=0.0.0.0:${PORT:-12345}` to `alloy run`
     so the metrics collector binds to Railway's injected port instead of
     Alloy's default loopback listener.
+  - Exports `ALLOY_SELF_ADDRESS=127.0.0.1:$PORT` by default so Alloy's
+    self-scrape target follows the Railway runtime port.
+- `services/live_overlay_daemon/infra/alloy/railway.toml`:
+  - Declares the metrics-collector Dockerfile service and `/metrics`
+    healthcheck path in repo config.
 - `services/signals_producer/railway.toml`:
   - Passes `$PORT` explicitly as `--telemetry-port` so `/healthz` is served on
     the Railway healthcheck port rather than relying on runtime defaults.

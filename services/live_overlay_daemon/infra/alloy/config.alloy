@@ -12,6 +12,8 @@
 //   GRAFANA_CLOUD_PROM_URL  — Grafana Cloud Prometheus remote-write URL
 //   GRAFANA_CLOUD_USER      — Grafana Cloud stack user (numeric ID)
 //   GRAFANA_CLOUD_API_KEY   — Grafana Cloud API key (with MetricsPublisher role)
+//   ALLOY_SELF_ADDRESS      — optional self-scrape target; Dockerfile defaults
+//                             it to 127.0.0.1:$PORT
 
 // --- Scrape live_overlay_daemon /metrics ---
 prometheus.scrape "live_overlay" {
@@ -52,7 +54,7 @@ prometheus.scrape "signals_producer" {
 // --- Self-scrape: Alloy internal metrics (CPU/RAM of the agent itself) ---
 prometheus.scrape "alloy_self" {
   targets = [{
-    __address__ = "127.0.0.1:12345",
+    __address__ = sys.env("ALLOY_SELF_ADDRESS"),
     __metrics_path__ = "/metrics",
   }]
   scrape_interval = "30s"

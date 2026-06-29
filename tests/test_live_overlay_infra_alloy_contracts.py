@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import re
+import tomllib
 from pathlib import Path
 
 import pytest
@@ -47,6 +48,7 @@ def test_alloy_config_requires_expected_env_vars(alloy_config: str) -> None:
         "GRAFANA_CLOUD_PROM_URL",
         "GRAFANA_CLOUD_USER",
         "GRAFANA_CLOUD_API_KEY",
+        "ALLOY_SELF_ADDRESS",
     }
     found = set(re.findall(r'sys\.env\("([^"]+)"\)', alloy_config))
     assert required <= found, f"Missing required env vars: {required - found}"
@@ -90,6 +92,33 @@ def test_dockerfile_binds_http_server_to_railway_port() -> None:
 
     assert "ENTRYPOINT" in text
     assert "sh" in text and "-c" in text
+    assert 'PORT=\\"${PORT:-12345}\\"' in text
+    assert "export PORT" in text
+    assert 'ALLOY_SELF_ADDRESS=\\"${ALLOY_SELF_ADDRESS:-127.0.0.1:${PORT}}\\"' in text
+    assert "export ALLOY_SELF_ADDRESS" in text
     assert "exec alloy run" in text
-    assert "--server.http.listen-addr=0.0.0.0:${PORT:-12345}" in text
+    assert "--server.http.listen-addr=0.0.0.0:${PORT}" in text
     assert "/etc/alloy/config.alloy" in text
+
+
+def test_alloy_self_scrape_follows_runtime_port(alloy_config: str) -> None:
+    scrape = _block(alloy_config, 'prometheus.scrape "alloy_self"')
+    assert '__address__ = sys.env("ALLOY_SELF_ADDRESS")' in scrape
+    assert '__metrics_path__ = "/metrics"' in scrape
+
+
+def test_railway_config_declares_metrics_collector_healthcheck() -> None:
+    railway_config_path = _ALLOY_PATH.with_name("railway.toml")
+    assert railway_config_path.exists()
+
+    with open(railway_config_path, "rb") as fh:
+        config = tomllib.load(fh)
+
+    assert config["build"]["builder"] == "DOCKERFILE"
+    assert config["build"]["dockerfilePath"] == "Dockerfile"
+    assert config["deploy"]["healthcheckPath"] == "/metrics"
+    assert config["deploy"]["healthcheckTimeout"] == 60
+    assert config["deploy"]["restartPolicyType"] == "ON_FAILURE"
+    assert config["deploy"]["restartPolicyMaxRetries"] == 3
+    names = [service["name"] for service in config["services"]]
+    assert "metrics-collector" in names
