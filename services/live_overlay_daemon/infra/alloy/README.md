@@ -26,7 +26,10 @@ of Prometheus target labels, scrape logs, and remote-write metadata.
    GRAFANA_CLOUD_API_KEY=<API key with MetricsPublisher role>
    ```
 
-3. **No health check needed** — Alloy runs as a pure scraper without inbound traffic.
+3. **Health check** — Alloy's HTTP server must bind to the Railway-provided
+   port. The Dockerfile passes
+   `--server.http.listen-addr=0.0.0.0:${PORT:-12345}` so Railway can reach the
+   service healthcheck instead of probing Alloy's default loopback listener.
 
 4. **Networking**: Prefer Railway Private Networking for the main-daemon scrape
    once the runtime port is known. Do not set `OVERLAY_SERVICE_URL` to a bare

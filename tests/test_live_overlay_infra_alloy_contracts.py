@@ -82,3 +82,14 @@ def test_dockerfile_uses_pinned_alloy_version() -> None:
     assert version.startswith("v") and version[1:].replace(".", "", 2).isdigit(), (
         f"Unexpected Alloy version tag: {version}"
     )
+
+
+def test_dockerfile_binds_http_server_to_railway_port() -> None:
+    dockerfile = _ALLOY_PATH.with_name("Dockerfile")
+    text = dockerfile.read_text(encoding="utf-8")
+
+    assert "ENTRYPOINT" in text
+    assert "sh" in text and "-c" in text
+    assert "exec alloy run" in text
+    assert "--server.http.listen-addr=0.0.0.0:${PORT:-12345}" in text
+    assert "/etc/alloy/config.alloy" in text
