@@ -248,6 +248,38 @@ def test_alert_workers_degraded_and_overlay_stale_include_job_filter() -> None:
         assert 'job="live_overlay"' in expr, f"{uid} is missing job filter: {expr}"
 
 
+def test_alert_rules_include_bridge_contract_missing() -> None:
+    """Critical alert must fire when a generic bridge contract is absent."""
+    groups = mod.load_alert_groups(ALERT_RULES)
+    uids = {r["uid"] for g in groups for r in g["rules"]}
+    assert "lo-bridge-contract-missing" in uids
+    rule = next(
+        r for g in groups for r in g["rules"] if r["uid"] == "lo-bridge-contract-missing"
+    )
+    exprs = [d["model"]["expr"] for d in rule["data"] if d.get("refId") in {"A", "B", "C"}]
+    for bridge in ("uptimerobot", "github_workflow", "railway_metrics"):
+        assert any(f'bridge="{bridge}"' in e for e in exprs), f"missing bridge {bridge}"
+    assert rule["labels"]["severity"] == "critical"
+
+
+def test_alert_rules_gate_external_bridge_alerts_on_generic_contract() -> None:
+    """External bridge alerts should not use legacy bridge-enabled gauges."""
+    groups = mod.load_alert_groups(ALERT_RULES)
+    rules_by_uid = {rule["uid"]: rule for group in groups for rule in group["rules"]}
+    expected = {
+        "lo-uptimerobot-snapshot-stale": "uptimerobot",
+        "lo-uptimerobot-monitor-count-mismatch": "uptimerobot",
+        "lo-uptimerobot-monitor-down": "uptimerobot",
+        "lo-github-workflow-snapshot-stale": "github_workflow",
+    }
+
+    for uid, bridge in expected.items():
+        expr = rules_by_uid[uid]["data"][0]["model"]["expr"]
+        assert f'live_overlay_bridge_enabled{{job="live_overlay",bridge="{bridge}"}}' in expr
+        assert "live_overlay_uptimerobot_bridge_enabled" not in expr
+        assert "live_overlay_github_workflow_bridge_enabled" not in expr
+
+
 def test_alert_rules_include_tradingview_credential_age() -> None:
     groups = mod.load_alert_groups(ALERT_RULES)
     uids = {r["uid"] for g in groups for r in g["rules"]}

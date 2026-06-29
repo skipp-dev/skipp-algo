@@ -495,6 +495,11 @@ chase false reds:
   `live_overlay_bridge_scrape_success{bridge="railway_metrics"}`. It
   distinguishes `DISABLED` (`0`), `SCRAPE ERROR` (`1`) and `OK` (`2`).
 
+- **Bridge Metrics Present** — counts how many of the generic bridge
+  contracts are absent (`uptimerobot`, `github_workflow`, `railway_metrics`).
+  This is the first signal that the exporter has stopped emitting the
+  `live_overlay_bridge_*` family even though the daemon is still scraped.
+
 
 ### Generic bridge troubleshooting contract
 
@@ -504,7 +509,13 @@ chase false reds:
 | Enabled and healthy | `live_overlay_bridge_enabled == 1` and `live_overlay_bridge_scrape_success == 1` | Last scrape succeeded. |
 | Enabled and failed | `live_overlay_bridge_enabled == 1` and `live_overlay_bridge_scrape_success == 0` | Bridge is configured but currently failing; investigate bridge logs and last error. |
 | Stale success | `live_overlay_bridge_last_success_age_seconds` exceeds threshold | Bridge may be failing or unable to refresh successful data. |
-| Absent bridge metrics | no `live_overlay_bridge_*` series | Exporter or metrics path may be broken; check `Core Metrics Present` and collector targets. |
+| Absent bridge metrics | no `live_overlay_bridge_*` series | Exporter or metrics path may be broken; check `Bridge Metrics Present`, `Core Metrics Present`, and collector targets. |
+
+The alert **`lo-bridge-contract-missing`** fires when any of the three
+expected `live_overlay_bridge_enabled{bridge="..."}` series disappears for
+more than five minutes. Treat this as a critical exporter/metrics-path issue
+(not a bridge misconfiguration), because the generic contract must always be
+present when the daemon is scraped.
 
 
 ### Dashboard upsert via API
@@ -712,18 +723,20 @@ Implementation: `services/live_overlay_daemon/uptimerobot_bridge.py`
 ### Production guards
 
 Production expects exactly five UptimeRobot monitors in the bridge allowlist.
-Grafana alerts enforce both the count and the external-down state:
+Grafana alerts enforce both the count and the external-down state. These alerts
+gate on the generic bridge contract while keeping the UptimeRobot-specific
+monitor count gauges as the domain signal:
 
 ```promql
-(live_overlay_uptimerobot_bridge_enabled{job="live_overlay"} == 1)
-* on(job)
 (live_overlay_uptimerobot_monitors_total{job="live_overlay"} != bool 5)
+and on(job)
+(live_overlay_bridge_enabled{job="live_overlay",bridge="uptimerobot"} == 1)
 ```
 
 ```promql
-(live_overlay_uptimerobot_bridge_enabled{job="live_overlay"} == 1)
-* on(job)
 (live_overlay_uptimerobot_monitors_down_total{job="live_overlay"} > bool 0)
+and on(job)
+(live_overlay_bridge_enabled{job="live_overlay",bridge="uptimerobot"} == 1)
 ```
 
 If the count alert fires, compare `UPTIMEROBOT_MONITOR_IDS` in Railway with the
