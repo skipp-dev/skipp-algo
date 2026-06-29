@@ -82,3 +82,25 @@ def test_rollup_manifest_lands_in_benchmark_dir_for_upload() -> None:
     # The manifest must live under the same out_dir so the Upload step
     # picks it up via the directory-level glob.
     assert "${{ steps.meta.outputs.out_dir }}/plan_2_8_tf_family_rollup.json" in run
+
+
+def test_experiment_snapshot_publish_uses_explicit_force_with_lease_sha() -> None:
+    run = _step("Publish experiment snapshot to rolling bot branch")["run"]
+    assert '_remote_ref="refs/heads/bot/live-experiment-snapshot"' in run
+    assert (
+        '_tracking_ref="refs/remotes/origin/bot/live-experiment-snapshot"'
+        in run
+    )
+    assert 'git fetch "${_remote_url}" "+${_remote_ref}:${_tracking_ref}"' in run
+    assert (
+        '_expected_sha="$(git rev-parse --verify "${_tracking_ref}" 2>/dev/null)"'
+        in run
+    )
+    assert '_zero_sha="0000000000000000000000000000000000000000"' in run
+    assert '_lease_expected="${_expected_sha}"' in run
+    assert '_lease_expected="${_zero_sha}"' in run
+    assert (
+        'git push "--force-with-lease=${_remote_ref}:${_lease_expected}" '
+        '"${_remote_url}" "HEAD:${_remote_ref}"'
+        in run
+    )
