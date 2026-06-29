@@ -397,7 +397,7 @@ function buildDefaultConsumers(): LibraryReleaseManifest["consumers"] {
   ];
 }
 
-function readProductCutSummary(): ProductCutSummary {
+export function readProductCutSummary(): ProductCutSummary {
   if (!fs.existsSync(DEFAULT_PRODUCT_CUT_MANIFEST_PATH)) {
     throw new Error(`Missing product-cut manifest: ${DEFAULT_PRODUCT_CUT_MANIFEST_PATH}`);
   }
@@ -448,7 +448,7 @@ function readProductCutSummary(): ProductCutSummary {
     || summary.deprecatedFieldPolicy.mode !== "compatibility_only"
     || summary.deprecatedFieldPolicy.preferredFieldVersion.length === 0
     || summary.deprecatedFieldPolicy.extensionAllowed !== false
-    || summary.deprecatedFieldPolicy.deprecatedGroups.length === 0
+    || !Array.isArray(summary.deprecatedFieldPolicy.deprecatedGroups)
   ) {
     throw new Error(`Product-cut manifest is incomplete: ${DEFAULT_PRODUCT_CUT_MANIFEST_PATH}`);
   }
