@@ -176,6 +176,8 @@ def test_workflow_checks_snapshot_branch_ruleset_assumption(workflow_text: str) 
     assert "if not isinstance(rules, list):" in workflow_text
     assert 'blocking = {"non_fast_forward", "pull_request", "required_status_checks"}' in workflow_text
     assert "if isinstance(rule, dict)" in workflow_text
+    assert "A detected blocking rule is intentional ruleset drift" in workflow_text
+    assert "fail this job loudly" in workflow_text
     assert "no longer excluded " in workflow_text
     assert "from blocking branch rules" in workflow_text
     assert "continuing to dry-run push preflight" in workflow_text
