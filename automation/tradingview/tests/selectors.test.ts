@@ -154,3 +154,44 @@ test("scriptRow exact locator tolerates semantic version suffixes", () => {
 
   assert.equal(calls.some((call) => call.includes("SkippALGO") && call.includes("version") && call.includes("v\\d+")), true);
 });
+
+test("openScriptRow is exact and dialog scoped without requiring USER data ids", () => {
+  const locatorCalls: string[] = [];
+  const filterCalls: string[] = [];
+  const textCalls: string[] = [];
+
+  const filteredScope = {
+    filter: (options: { hasText: RegExp }) => {
+      filterCalls.push(options.hasText.source);
+      return { kind: "filter" };
+    },
+  };
+  const scope = {
+    locator: (selector: string) => {
+      locatorCalls.push(selector);
+      return filteredScope;
+    },
+    getByText: (pattern: RegExp) => {
+      textCalls.push(pattern.source);
+      return { kind: "text" };
+    },
+  };
+  const fakePage = {
+    locator: (selector: string) => {
+      locatorCalls.push(selector);
+      return scope;
+    },
+  };
+
+  const locators = tvSelectors.openScriptRow(fakePage as never, "SMC Long-Dip Strategy v7");
+
+  assert.equal(locators.length, 9);
+  assert.equal(filterCalls.length, 6);
+  assert.equal(textCalls.length, 3);
+  assert.equal(locatorCalls.some((selector) => selector.includes('[data-id^="USER;"]')), true);
+  assert.equal(locatorCalls.some((selector) => selector.includes('[role="option"]')), true);
+  for (const pattern of [...filterCalls, ...textCalls]) {
+    assert.equal(pattern.startsWith("^SMC Long-Dip Strategy v7"), true);
+    assert.equal(pattern.endsWith("$"), true);
+  }
+});
