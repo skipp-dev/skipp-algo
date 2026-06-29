@@ -118,12 +118,32 @@ def test_workflow_uploads_report_artifact(workflow_text: str) -> None:
 
 def test_workflow_preflights_snapshot_push_permission(workflow_text: str) -> None:
     """Snapshot publish should skip cleanly when GH_PAT cannot push the bot branch."""
-    permission_probe = 'gh api "repos/${GITHUB_REPOSITORY}" --jq \'.permissions.push // false\''
-    skip_warning = "does not have push permission to ${GITHUB_REPOSITORY}; skipping publish"
-    assert permission_probe in workflow_text
+    # The preflight must use a real git push --dry-run against the target
+    # ref, not ``gh api .permissions.push`` which only reflects repository
+    # membership/role, not branch ruleset or PAT scope reality. It also needs
+    # the same force-with-lease shape as the real rolling-branch publish; a
+    # plain dry-run push can falsely reject valid non-fast-forward snapshot
+    # updates.
+    dry_run = (
+        "git push --dry-run --force-with-lease=refs/heads/bot/live-tv-credential-snapshot "
+        '"${_remote_url}" "HEAD:refs/heads/bot/live-tv-credential-snapshot"'
+    )
+    lease_fetch = (
+        'git fetch "${_remote_url}" '
+        '"+refs/heads/bot/live-tv-credential-snapshot:refs/remotes/origin/bot/live-tv-credential-snapshot"'
+    )
+    skip_warning = "GH_PAT cannot push to bot/live-tv-credential-snapshot; skipping publish"
+    assert dry_run in workflow_text
+    assert lease_fetch in workflow_text
     assert skip_warning in workflow_text
-    assert workflow_text.index(permission_probe) < workflow_text.index('git commit -m "[skip ci]')
-    assert workflow_text.index(skip_warning) < workflow_text.index("git push --force-with-lease")
+    # No commit or push may happen before the dry-run proves the token works.
+    assert workflow_text.index(lease_fetch) < workflow_text.index(dry_run)
+    assert workflow_text.index(dry_run) < workflow_text.index('git add -f "${stable_dir}"')
+    assert workflow_text.index(dry_run) < workflow_text.index('git commit -m "[skip ci]')
+    assert workflow_text.index(dry_run) < workflow_text.index("git push --force-with-lease")
+    # If the dry-run fails we must skip before staging/committing.
+    assert workflow_text.index(skip_warning) < workflow_text.index('git add -f "${stable_dir}"')
+    assert workflow_text.index(skip_warning) < workflow_text.index('git commit -m "[skip ci]')
 
 
 def test_workflow_uses_gh_pat_with_token_fallback(workflow_text: str) -> None:
