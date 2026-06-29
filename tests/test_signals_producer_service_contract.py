@@ -20,8 +20,9 @@ def test_railway_config_builds_from_dockerfile() -> None:
 def test_railway_start_command_runs_signal_engine() -> None:
     config = _load_railway_config()
     start = config["deploy"]["startCommand"]
-    assert "python -m open_prep.realtime_signals" in start
-    assert "--telemetry-port $PORT" in start
+    assert start == "python -m open_prep.realtime_signals"
+    assert "--telemetry-port" not in start
+    assert "$PORT" not in start
 
 
 def test_railway_healthcheck_path_is_healthz() -> None:

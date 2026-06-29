@@ -38,7 +38,7 @@ ENV PYTHONUNBUFFERED=1
 EXPOSE 8099
 
 # The realtime signal engine runs forever and serves /healthz + /signals.
-# Railway overrides this CMD with railway.toml:startCommand (which passes
-# $PORT as --telemetry-port); this is the local /
-# `docker run` fallback (no shell expansion, exec form, single source of truth).
+# Railway overrides this CMD with railway.toml:startCommand. The engine reads
+# PORT as the telemetry-port default itself, so neither path relies on shell
+# expansion for the local / `docker run` fallback.
 CMD ["python", "-m", "open_prep.realtime_signals"]
