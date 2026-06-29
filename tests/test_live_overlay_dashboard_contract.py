@@ -447,16 +447,24 @@ def test_dashboard_bridge_metrics_present_counts_generic_contracts() -> None:
     panels = _dashboard_panels(dashboard)
     panel = next(p for p in panels if p.get("title") == "Bridge Metrics Present")
     expr = panel["targets"][0]["expr"]
+    families = (
+        "live_overlay_bridge_enabled",
+        "live_overlay_bridge_configured",
+        "live_overlay_bridge_scrape_success",
+        "live_overlay_bridge_error_info",
+        "live_overlay_bridge_last_success_age_seconds",
+    )
     for bridge in ("uptimerobot", "github_workflow", "railway_metrics"):
         assert f'bridge="{bridge}"' in expr, f"missing bridge {bridge} in {expr}"
-        assert (
-            f'sum(absent(live_overlay_bridge_enabled{{job=~"$job",bridge="{bridge}"}}) '
-            "or on() vector(0))"
-        ) in expr
-    assert "absent(live_overlay_bridge_enabled" in expr
+        for family in families:
+            assert (
+                f'sum(absent({family}{{job=~"$job",bridge="{bridge}"}}) '
+                "or on() vector(0))"
+            ) in expr
+    assert expr.count("sum(absent(live_overlay_bridge_") == 15
     assert " or vector(0)" not in expr
     options = panel["fieldConfig"]["defaults"]["mappings"]
-    assert any("ALL MISSING" in str(m) for m in options)
+    assert any("PRESENT" in str(m) for m in options)
 
 
 def test_railway_disk_panel_explains_optional_no_data_state() -> None:

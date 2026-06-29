@@ -275,13 +275,25 @@ def test_alert_rules_include_bridge_contract_missing() -> None:
         r for g in groups for r in g["rules"] if r["uid"] == "lo-bridge-contract-missing"
     )
     exprs = [d["model"]["expr"] for d in rule["data"] if d.get("refId") in {"A", "B", "C"}]
+    families = (
+        "live_overlay_bridge_enabled",
+        "live_overlay_bridge_configured",
+        "live_overlay_bridge_scrape_success",
+        "live_overlay_bridge_error_info",
+        "live_overlay_bridge_last_success_age_seconds",
+    )
     for bridge in ("uptimerobot", "github_workflow", "railway_metrics"):
-        expected = (
-            f'sum(absent(live_overlay_bridge_enabled{{job="live_overlay",bridge="{bridge}"}})'
-            " or on() vector(0))"
-        )
-        assert any(expected in " ".join(e.split()) for e in exprs), f"missing bridge {bridge}"
+        bridge_expr = next((e for e in exprs if f'bridge="{bridge}"' in e), "")
+        assert bridge_expr, f"missing bridge {bridge}"
+        normalized = " ".join(bridge_expr.split())
+        for family in families:
+            expected = (
+                f'sum(absent({family}{{job="live_overlay",bridge="{bridge}"}})'
+                " or on() vector(0))"
+            )
+            assert expected in normalized, f"missing {family} for {bridge}"
     assert all(" or vector(0)" not in e for e in exprs)
+    assert sum(e.count("sum(absent(live_overlay_bridge_") for e in exprs) == 15
     assert rule["labels"]["severity"] == "critical"
 
 

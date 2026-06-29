@@ -416,6 +416,34 @@ def test_update_script_railway_bridge_uses_generic_bridge_contract(temp_dashboar
     assert "live_overlay_railway_metrics_enabled" not in expr
 
 
+def test_update_script_repairs_bridge_metrics_present_contract_family_coverage(
+    temp_dashboard: Path,
+) -> None:
+    data = json.loads(temp_dashboard.read_text(encoding="utf-8"))
+    panel = next(p for p in data["panels"] if p.get("title") == "Bridge Metrics Present")
+    panel["targets"][0]["expr"] = (
+        'sum(absent(live_overlay_bridge_enabled{job=~"$job",bridge="uptimerobot"}) '
+        "or on() vector(0))"
+    )
+    temp_dashboard.write_text(json.dumps(data, indent=2), encoding="utf-8")
+
+    _run_script(temp_dashboard)
+
+    updated = json.loads(temp_dashboard.read_text(encoding="utf-8"))
+    expr = next(
+        p for p in updated["panels"] if p.get("title") == "Bridge Metrics Present"
+    )["targets"][0]["expr"]
+    for family in (
+        "live_overlay_bridge_enabled",
+        "live_overlay_bridge_configured",
+        "live_overlay_bridge_scrape_success",
+        "live_overlay_bridge_error_info",
+        "live_overlay_bridge_last_success_age_seconds",
+    ):
+        assert family in expr
+    assert expr.count("sum(absent(live_overlay_bridge_") == 15
+
+
 def test_update_script_check_mode_passes_on_current_dashboard() -> None:
     repo_root = Path(__file__).resolve().parents[1]
     script = repo_root / "scripts" / "update_overlay_dashboard.py"
