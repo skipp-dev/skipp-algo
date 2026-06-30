@@ -20,6 +20,14 @@ All notable changes to this project are documented in this file.
 - `.github/workflows/smc-library-refresh.yml`:
   - Renamed the soft-fail post-release normalization step to explicitly mark
     it as best-effort for the continue-on-error semantics guard.
+### Fixed (2026-06-30) — TradingView add-to-chart effect tests
+
+- `automation/tradingview/lib/tv_shared.ts`:
+  - Exported `hasAddToChartClickEffect()` for focused add-to-chart click
+    effect coverage.
+- `automation/tradingview/tests/tv_shared.test.ts`:
+  - Added Playwright coverage for the Update-on-chart, disappeared Add button,
+    visible chart script, and negative no-effect branches.
 
 ### Fixed (2026-06-30) — Live overlay operations cleanup
 
