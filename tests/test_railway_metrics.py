@@ -209,6 +209,27 @@ def test_snapshot_reports_urlerror_wrapped_timeout_as_timeout() -> None:
     assert result["error"] == "timeout"
 
 
+def test_snapshot_reports_bare_timeout_as_timeout() -> None:
+    patches = _patch_enabled_config()
+    for p in patches:
+        p.start()
+    try:
+        with patch.object(
+            railway_metrics.urllib.request,
+            "urlopen",
+            side_effect=TimeoutError("timed out"),
+        ):
+            result = railway_metrics.snapshot()
+    finally:
+        for p in patches:
+            p.stop()
+
+    assert result["enabled"] is True
+    assert result["configured"] is True
+    assert result["ok"] is False
+    assert result["error"] == "timeout"
+
+
 def test_snapshot_reports_urlerror_network_failure_as_network_error() -> None:
     patches = _patch_enabled_config()
     for p in patches:

@@ -33,6 +33,7 @@ All notable changes to this project are documented in this file.
 - `tests/test_railway_metrics.py`:
   - Added regression coverage for wrapped timeout and non-timeout `URLError`
     bridge failures.
+  - Added regression coverage for direct `TimeoutError` bridge failures.
 - `tests/test_global_statement_budget.py`:
   - Refreshed the Railway metrics `reset_cache()` global anchor after the
     error-classification cleanup.
