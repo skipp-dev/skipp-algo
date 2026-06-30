@@ -22,15 +22,28 @@ MAX_PE_ADJUSTMENT = 0.2
 
 
 def _to_float(val: Any) -> float:
-    """Coerce *val* to float, returning 0.0 on failure."""
+    """Coerce *val* to float, returning 0.0 on failure or NaN.
+
+    NaN is treated as a failed coercion (no usable signal) rather than a
+    valid number: a NaN macro_bias / sector change must not survive into the
+    classifier, where ``_clamp`` would otherwise silently turn it into +1.0
+    (max bullish) and flip the regime.
+    """
     try:
-        return float(val)
+        f = float(val)
     except (TypeError, ValueError):
         return 0.0
+    return f if f == f else 0.0  # NaN check
 
 
 def _clamp(value: float, low: float, high: float) -> float:
-    return max(low, min(high, float(value)))
+    # NaN is "no signal", not a high score: clamp it to ``low`` instead of
+    # letting ``max(low, min(high, nan))`` silently return ``high`` (NaN
+    # compares False to everything, so ``min(high, nan)`` returns ``high``).
+    f = float(value)
+    if f != f:  # NaN
+        return low
+    return max(low, min(high, f))
 
 
 def _market_pe_modifier(market_pe_forward: float | None) -> tuple[float, str]:
