@@ -1482,6 +1482,9 @@ test("visible legend text settings fallback ignores matching text outside legend
         <button aria-label="Settings" style="position:absolute;left:20px;top:20px;width:80px;height:32px">
           Settings
         </button>
+        <button data-qa-id="legend-settings-action" style="position:absolute;left:20px;top:20px;width:80px;height:32px">
+          Legend Settings Elsewhere
+        </button>
         <script>
           document.getElementById("watchlist-row").addEventListener("dblclick", () => {
             document.getElementById("overlap-manager-root").innerHTML = [

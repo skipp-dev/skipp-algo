@@ -4271,6 +4271,43 @@ export function visibleLegendTextTargetKey(targetMeta: VisibleLegendTextTargetMe
   return `${stableIdentity}:${normalizedText}`;
 }
 
+async function legendTextWrapperHasNearbyAction(wrapper: Locator, target: Locator): Promise<boolean> {
+  const [wrapperBox, targetBox] = await Promise.all([
+    wrapper.boundingBox().catch(() => null),
+    target.boundingBox().catch(() => null),
+  ]);
+  if (!wrapperBox || !targetBox || wrapperBox.height > 180 || wrapperBox.width > 1_200) {
+    return false;
+  }
+
+  const actionLocators = [
+    ...tvSelectors.legendSettingsButtons(wrapper),
+    ...tvSelectors.legendMenuButtons(wrapper),
+  ];
+  const targetCenterY = targetBox.y + targetBox.height / 2;
+
+  for (const locator of actionLocators) {
+    const count = await locator.count().catch(() => 0);
+    for (let index = 0; index < Math.min(count, 4); index += 1) {
+      const button = locator.nth(index);
+      const visible = await button.isVisible({ timeout: 120 }).catch(() => false);
+      if (!visible) {
+        continue;
+      }
+      const buttonBox = await button.boundingBox().catch(() => null);
+      if (!buttonBox) {
+        continue;
+      }
+      const buttonCenterY = buttonBox.y + buttonBox.height / 2;
+      if (Math.abs(buttonCenterY - targetCenterY) <= 44) {
+        return true;
+      }
+    }
+  }
+
+  return false;
+}
+
 export async function openSettingsFromVisibleLegendText(page: Page, scriptName: string): Promise<boolean> {
   tracePageEvent(page, "script-settings-legend-text-start", scriptName);
   // This budget deliberately applies only to the visible legend-text heuristic.
@@ -4385,7 +4422,7 @@ export async function openSettingsFromVisibleLegendText(page: Page, scriptName: 
           'xpath=ancestor::*[.//button[@data-qa-id="legend-settings-action"] or .//button[@data-qa-id="legend-more-action"]][1]',
         ).first();
         const wrapperVisible = await actionableWrapper.isVisible({ timeout: 250 }).catch(() => false);
-        if (!wrapperVisible) {
+        if (!wrapperVisible || !(await legendTextWrapperHasNearbyAction(actionableWrapper, target))) {
           tracePageEvent(page, "script-settings-legend-text-skip-unscoped", `${scriptName}:${candidateIndex}:${locatorIndex}:${itemIndex}`);
           continue;
         }
