@@ -152,6 +152,27 @@ class TestGateAnnotation:
         assert gate["status"] == "ok"
         assert "tv_validation_stage" not in gate
 
+    def test_file_not_found_report_is_blocking_fail(self, tmp_path) -> None:
+        """Pin: missing report file → fail gate that is NOT soft-only."""
+        nonexistent = tmp_path / "no_such_report.json"
+        gate = _run_post_release_validation_gate(str(nonexistent))
+        assert gate["status"] == "fail"
+        assert "report not found" in gate["details"]["message"]
+        # No tv_validation_stage → _tv_gate_is_soft_only must return False,
+        # keeping the gate blocking.
+        assert "tv_validation_stage" not in gate
+        assert _tv_gate_is_soft_only(gate) is False
+
+    def test_unreadable_report_is_blocking_fail(self, tmp_path) -> None:
+        """Pin: unreadable (corrupt) report → fail gate that is NOT soft-only."""
+        corrupt = tmp_path / "corrupt_report.json"
+        corrupt.write_text("<<<not json>>>", encoding="utf-8")
+        gate = _run_post_release_validation_gate(str(corrupt))
+        assert gate["status"] == "fail"
+        assert "unreadable" in gate["details"]["message"]
+        assert "tv_validation_stage" not in gate
+        assert _tv_gate_is_soft_only(gate) is False
+
 
 class TestRunnerDowngrade:
     """Pin that main() unconditionally downgrades a soft-only TV gate."""
