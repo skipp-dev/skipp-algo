@@ -169,6 +169,26 @@ class TestNanHandling:
         # Only 1 of 2 sectors is positive -> breadth 0.5, NaN excluded.
         assert result["sector_breadth"] == 0.5
 
+    def test_nan_vix_level_is_normalized_to_none(self) -> None:
+        """A non-finite vix_level must be echoed as None, never NaN.
+
+        Regression: a NaN vix_level was echoed raw into the output and later
+        rendered as ``export const float VIX_LEVEL = nan`` in the generated
+        Pine library (a compile error). It must behave like 'unavailable'.
+        """
+        result = classify_market_regime(vix_level=float("nan"), macro_bias=0.0)
+        assert result["vix_level"] is None
+        # Downstream Pine literal guard: float(None or 0.0) == 0.0, valid.
+        assert float(result["vix_level"] or 0.0) == 0.0
+
+    def test_inf_vix_level_is_normalized_to_none(self) -> None:
+        result = classify_market_regime(vix_level=float("inf"), macro_bias=0.0)
+        assert result["vix_level"] is None
+
+    def test_finite_vix_level_is_preserved(self) -> None:
+        result = classify_market_regime(vix_level=18.5, macro_bias=0.0)
+        assert result["vix_level"] == 18.5
+
 
 class TestYieldCurveIntegration:
 

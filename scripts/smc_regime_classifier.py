@@ -9,6 +9,7 @@ inputs.
 """
 from __future__ import annotations
 
+import math
 from typing import Any
 
 # ── VIX thresholds ──────────────────────────────────────────────
@@ -90,6 +91,13 @@ def classify_market_regime(
     """
     sectors = sector_performance or []
     reasons: list[str] = []
+    # A non-finite vix_level means "unavailable", not a real reading. Normalize
+    # it to None so it is not echoed back into the output dict (and from there
+    # into ``export const float VIX_LEVEL = nan`` in the generated Pine library,
+    # which is a compile error — Pine has no ``nan`` literal). float('nan')
+    # passes the downstream ``... or 0.0`` guards because NaN is truthy.
+    if vix_level is not None and not math.isfinite(vix_level):
+        vix_level = None
     macro_bias_raw = _to_float(macro_bias)
     macro_bias_pe_adjustment, market_pe_regime = _market_pe_modifier(market_pe_forward)
     macro_bias_yc_adjustment = -0.2 if yield_curve_inverted else 0.0
