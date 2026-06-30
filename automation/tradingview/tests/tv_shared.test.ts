@@ -1451,7 +1451,6 @@ test("visible legend text settings fallback opens matching settings dialog from 
               '</div>',
             ].join("");
           }
-          document.getElementById("legend-title").addEventListener("dblclick", openSettings);
           document.getElementById("legend-settings").addEventListener("click", openSettings);
         </script>
       </body></html>
