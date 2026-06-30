@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import importlib
 import json
+from contextlib import ExitStack
 from typing import Any
 from unittest.mock import patch
 
@@ -210,19 +211,17 @@ def test_snapshot_reports_urlerror_wrapped_timeout_as_timeout() -> None:
 
 
 def test_snapshot_reports_bare_timeout_as_timeout() -> None:
-    patches = _patch_enabled_config()
-    for p in patches:
-        p.start()
-    try:
-        with patch.object(
-            railway_metrics.urllib.request,
-            "urlopen",
-            side_effect=TimeoutError("timed out"),
-        ):
-            result = railway_metrics.snapshot()
-    finally:
-        for p in patches:
-            p.stop()
+    with ExitStack() as stack:
+        for config_patch in _patch_enabled_config():
+            stack.enter_context(config_patch)
+        stack.enter_context(
+            patch.object(
+                railway_metrics.urllib.request,
+                "urlopen",
+                side_effect=TimeoutError("timed out"),
+            )
+        )
+        result = railway_metrics.snapshot()
 
     assert result["enabled"] is True
     assert result["configured"] is True
