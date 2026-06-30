@@ -45,6 +45,7 @@ All notable changes to this project are documented in this file.
 - `tests/test_global_statement_budget.py`:
   - Refreshed the Railway metrics `reset_cache()` global anchor after the
     error-classification cleanup.
+
 ### Fixed (2026-06-30) — Live overlay Railway port default
 
 - `services/live_overlay_daemon/railway.toml`:
