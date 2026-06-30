@@ -3598,22 +3598,10 @@ async function hasQuickVisibleScriptSettingsSurface(page: Page): Promise<boolean
   return false;
 }
 
-async function hasSettingsSurfaceDomHint(page: Page): Promise<boolean> {
+export async function hasSettingsSurfaceDomHint(page: Page): Promise<boolean> {
   return page.evaluate(() => {
-    const isVisible = (element: Element): boolean => {
-      const htmlElement = element as HTMLElement;
-      const rect = htmlElement.getBoundingClientRect();
-      if (rect.width <= 0 || rect.height <= 0) {
-        return false;
-      }
-
-      const style = window.getComputedStyle(htmlElement);
-      return style.visibility !== "hidden"
-        && style.display !== "none"
-        && Number(style.opacity || "1") > 0.01;
-    };
-
-    const textOf = (element: Element): string => ((element as HTMLElement).innerText || element.textContent || "").trim();
+    // Keep this page-context probe free of local helper functions; TS transforms
+    // can inject Node-side helpers that are unavailable inside the browser.
     const surfaceTextPattern = /\b(?:inputs|style|visibility|settings)\b/i;
     const settingsActionPattern = /^settings(?:\.\.\.)?$/i;
     const surfaceSelectors = [
@@ -3630,7 +3618,16 @@ async function hasSettingsSurfaceDomHint(page: Page): Promise<boolean> {
 
     for (const selector of surfaceSelectors) {
       for (const element of Array.from(document.querySelectorAll(selector)).slice(-8)) {
-        if (isVisible(element) && surfaceTextPattern.test(textOf(element))) {
+        const htmlElement = element as HTMLElement;
+        const rect = htmlElement.getBoundingClientRect();
+        const style = window.getComputedStyle(htmlElement);
+        const text = (htmlElement.innerText || element.textContent || "").trim();
+        const visible = rect.width > 0
+          && rect.height > 0
+          && style.visibility !== "hidden"
+          && style.display !== "none"
+          && Number(style.opacity || "1") > 0.01;
+        if (visible && surfaceTextPattern.test(text)) {
           return true;
         }
       }
@@ -3644,7 +3641,16 @@ async function hasSettingsSurfaceDomHint(page: Page): Promise<boolean> {
     ];
     for (const selector of actionSelectors) {
       for (const element of Array.from(document.querySelectorAll(selector)).slice(-80)) {
-        if (isVisible(element) && settingsActionPattern.test(textOf(element))) {
+        const htmlElement = element as HTMLElement;
+        const rect = htmlElement.getBoundingClientRect();
+        const style = window.getComputedStyle(htmlElement);
+        const text = (htmlElement.innerText || element.textContent || "").trim();
+        const visible = rect.width > 0
+          && rect.height > 0
+          && style.visibility !== "hidden"
+          && style.display !== "none"
+          && Number(style.opacity || "1") > 0.01;
+        if (visible && settingsActionPattern.test(text)) {
           return true;
         }
       }

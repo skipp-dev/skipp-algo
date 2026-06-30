@@ -30,6 +30,7 @@ import {
   ensurePineEditor,
   findLegendRowWrappers,
   isLegendTruncatedMatch,
+  hasSettingsSurfaceDomHint,
   dismissOverlapManagerOverlay,
   clickVisibleWithFallback,
   MAX_VISIBLE_LEGEND_TEXT_TARGETS,
@@ -1105,6 +1106,76 @@ test("findLegendRowWrappers matches ancestor with truncated TradingView display 
     2,
     "must match at depth 2 where the truncated text lives",
   );
+});
+
+test("settings surface DOM hint accepts visible settings dialogs and menus", async () => {
+  const browser = await chromium.launch({ headless: true });
+  const page = await browser.newPage();
+  try {
+    await page.setContent(`
+      <html><body>
+        <div id="overlap-manager-root">
+          <div role="dialog" style="position:absolute;left:40px;top:40px;width:320px;height:180px;background:white">
+            <h2>SMC Decision Board</h2>
+            <div>Inputs</div>
+            <div>Style</div>
+            <div>Visibility</div>
+          </div>
+        </div>
+      </body></html>
+    `);
+    assert.equal(await hasSettingsSurfaceDomHint(page), true);
+
+    await page.setContent(`
+      <html><body>
+        <div id="overlap-manager-root">
+          <div role="menu" style="position:absolute;left:40px;top:40px;width:180px;height:80px;background:white">
+            <div role="menuitem">Settings...</div>
+          </div>
+        </div>
+      </body></html>
+    `);
+    assert.equal(await hasSettingsSurfaceDomHint(page), true);
+  } finally {
+    await browser.close();
+  }
+});
+
+test("settings surface DOM hint accepts standalone visible Settings actions", async () => {
+  const browser = await chromium.launch({ headless: true });
+  const page = await browser.newPage();
+  try {
+    await page.setContent(`
+      <html><body>
+        <button style="position:absolute;left:40px;top:40px;width:96px;height:32px">Settings...</button>
+      </body></html>
+    `);
+
+    assert.equal(await hasSettingsSurfaceDomHint(page), true);
+  } finally {
+    await browser.close();
+  }
+});
+
+test("settings surface DOM hint ignores hidden or unrelated controls", async () => {
+  const browser = await chromium.launch({ headless: true });
+  const page = await browser.newPage();
+  try {
+    await page.setContent(`
+      <html><body>
+        <div id="overlap-manager-root">
+          <div role="dialog" style="display:none">
+            <div>Inputs Style Visibility</div>
+          </div>
+        </div>
+        <button style="position:absolute;left:40px;top:40px;width:96px;height:32px">Preferences</button>
+      </body></html>
+    `);
+
+    assert.equal(await hasSettingsSurfaceDomHint(page), false);
+  } finally {
+    await browser.close();
+  }
 });
 
 // --- clickVisibleWithFallback: centralised hover-tooltip dismissal (#2849) ---
