@@ -18,7 +18,7 @@ def _pine_float(value: Any, default: float = 0.0) -> float:
     """Coerce *value* to a finite float for Pine embedding.
 
     Pine has no ``nan``/``inf`` literal, so a non-finite value would make
-    the generated ``export const float NAME = nan`` line a compile error.
+    the generated Pine line ``export const float … = nan`` a compile error.
     Map any non-finite or uncoercible value to *default*.
     """
     try:
