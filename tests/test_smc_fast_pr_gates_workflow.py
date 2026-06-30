@@ -2,12 +2,35 @@ from __future__ import annotations
 
 from pathlib import Path
 
+import yaml
+
 ROOT = Path(__file__).resolve().parents[1]
 WORKFLOW_PATH = ROOT / ".github/workflows/smc-fast-pr-gates.yml"
 
 
 def _read(path: Path) -> str:
     return path.read_text(encoding="utf-8")
+
+
+def _workflow_doc() -> dict:
+    data = yaml.safe_load(_read(WORKFLOW_PATH))
+    assert isinstance(data, dict)
+    return data
+
+
+def _fast_gate_steps() -> list[dict]:
+    jobs = _workflow_doc()["jobs"]
+    fast_gates = jobs["fast-gates"]
+    steps = fast_gates["steps"]
+    assert isinstance(steps, list)
+    return steps
+
+
+def _step(name: str) -> dict:
+    for step in _fast_gate_steps():
+        if isinstance(step, dict) and step.get("name") == name:
+            return step
+    raise AssertionError(f"step {name!r} not found")
 
 
 def test_fast_pr_gates_workflow_runs_terminal_coverage_subset() -> None:
@@ -55,3 +78,16 @@ def test_fast_pr_gates_workflow_has_normalized_summary_step() -> None:
 def test_fast_pr_gates_cancel_in_progress_only_for_prs() -> None:
     workflow_text = _read(WORKFLOW_PATH)
     assert "cancel-in-progress: ${{ github.event_name == 'pull_request' }}" in workflow_text
+
+
+def test_fast_pr_gates_verify_both_live_overlay_dashboards() -> None:
+    step = _step("Verify live overlay dashboard is up to date")
+    run = step.get("run") or ""
+
+    assert "python scripts/update_overlay_dashboard.py" in run
+    assert "services/live_overlay_daemon/infra/grafana/dashboard.json" in run
+    assert (
+        "services/live_overlay_daemon/infra/grafana/dashboard-signals-experiments.json"
+        in run
+    )
+    assert run.count("--check") == 2

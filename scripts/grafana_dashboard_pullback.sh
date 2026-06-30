@@ -4,16 +4,22 @@
 set -euo pipefail
 
 GRAFANA_URL="https://bronzeporridge977.grafana.net"
-DASHBOARD_UID="smc-live-overlay-v1"
-TARGET="services/live_overlay_daemon/infra/grafana/dashboard.json"
+DASHBOARDS=(
+  "smc-live-overlay-v1|services/live_overlay_daemon/infra/grafana/dashboard.json"
+  "smc-live-overlay-signals-v1|services/live_overlay_daemon/infra/grafana/dashboard-signals-experiments.json"
+)
 
 API_KEY=$(security find-generic-password -s skipp.grafana.api -w)
 
-curl -s -H "Authorization: Bearer ${API_KEY}" \
-  "${GRAFANA_URL}/api/dashboards/uid/${DASHBOARD_UID}" \
-  | jq '.dashboard' \
-  > "${TARGET}"
+for dashboard in "${DASHBOARDS[@]}"; do
+  IFS="|" read -r DASHBOARD_UID TARGET <<< "${dashboard}"
 
-python scripts/update_overlay_dashboard.py
+  curl -fsS -H "Authorization: Bearer ${API_KEY}" \
+    "${GRAFANA_URL}/api/dashboards/uid/${DASHBOARD_UID}" \
+    | jq '.dashboard' \
+    > "${TARGET}"
 
-echo "Pulled dashboard to ${TARGET} and re-applied UX transforms."
+  python scripts/update_overlay_dashboard.py "${TARGET}"
+
+  echo "Pulled dashboard ${DASHBOARD_UID} to ${TARGET} and re-applied UX transforms."
+done

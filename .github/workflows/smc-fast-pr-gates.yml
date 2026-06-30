@@ -259,7 +259,13 @@ jobs:
 
       - name: Verify live overlay dashboard is up to date
         if: steps.gate.outputs.run_heavy == 'true'
-        run: python scripts/update_overlay_dashboard.py --check
+        run: |
+          python scripts/update_overlay_dashboard.py \
+            services/live_overlay_daemon/infra/grafana/dashboard.json \
+            --check
+          python scripts/update_overlay_dashboard.py \
+            services/live_overlay_daemon/infra/grafana/dashboard-signals-experiments.json \
+            --check
 
       - name: Run fast provider and smoke health checks
         if: steps.gate.outputs.run_heavy == 'true'
