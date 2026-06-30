@@ -119,8 +119,8 @@ def run_server() -> None:
     import uvicorn
 
     uvicorn.run(
-        "services.live_overlay_daemon.main:app",
-        host="0.0.0.0",
+        app,
+        host="0.0.0.0",  # noqa: S104 - Railway/container ingress must bind all interfaces.
         port=config.port(),
         workers=1,
         http="h11",

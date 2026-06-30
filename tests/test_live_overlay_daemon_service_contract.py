@@ -54,8 +54,8 @@ def test_python_entrypoint_uses_port_env_for_uvicorn_default(monkeypatch) -> Non
 
     captured: dict[str, object] = {}
 
-    def fake_run(app: str, **kwargs: object) -> None:
-        captured["app"] = app
+    def fake_run(app_obj: object, **kwargs: object) -> None:
+        captured["app"] = app_obj
         captured.update(kwargs)
 
     monkeypatch.setenv("PORT", "8765")
@@ -63,7 +63,7 @@ def test_python_entrypoint_uses_port_env_for_uvicorn_default(monkeypatch) -> Non
 
     main.run_server()
 
-    assert captured["app"] == "services.live_overlay_daemon.main:app"
+    assert captured["app"] is main.app
     assert captured["host"] == "0.0.0.0"
     assert captured["port"] == 8765
     assert captured["workers"] == 1
