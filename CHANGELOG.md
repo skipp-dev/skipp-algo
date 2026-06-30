@@ -39,6 +39,28 @@ All notable changes to this project are documented in this file.
 - `services/live_overlay_daemon/infra/alloy/README.md`:
   - Documents the required Railway healthcheck binding.
 
+### Fixed (2026-06-29) — SMC library refresh soft-failed TV normalization
+
+- `.github/workflows/smc-library-refresh.yml`:
+  - Normalizes the TradingView post-release validation report after a
+    soft-failed raw TV validation step so strict release gates still receive a
+    canonical report.
+  - Tracks the normalized `tv_post_release` best-effort outcome in the
+    existing failure-summary artifact.
+- `tests/test_smc_library_refresh_workflow.py`:
+  - Added a regression pin for running post-release normalization independent
+    of `steps.tv_post_release_raw.outcome == 'success'`.
+- `tests/test_workflow_continue_on_error_inventory.py`:
+  - Allowlisted `id:tv_post_release` with the same fail-loud downstream release
+    gate contract.
+- `scripts/run_smc_release_gates.py`:
+  - Classifies `POST_RELEASE_VALIDATION_FAILED` and `NO_TARGETS` as soft
+    missing-input TV validation failures so a missing raw TradingView artifact
+    does not keep strict release gates blocking after normalization.
+- `tests/test_smc_tv_validation_stage_normalization.py`:
+  - Added regression coverage for downgrading the synthetic missing-input
+    post-release validation report to `blocking: false`.
+
 ### Fixed (2026-06-28) — Live overlay monitoring follow-up
 
 - `services/live_overlay_daemon/config.py`:

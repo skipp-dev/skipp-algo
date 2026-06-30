@@ -162,6 +162,11 @@ _DATA_ABSENT_CODES = frozenset({
 # auth expiry) rather than an actual code or data problem in *our* system.
 
 _TV_EXTERNAL_DRIFT_CODES: frozenset[str] = frozenset({
+    # Post-release normalization could not evaluate TV output because one of
+    # its TV-side inputs was absent or unreadable (for example a missing raw
+    # readonly preflight report, corrupt JSON, or a report with no targets).
+    "POST_RELEASE_VALIDATION_FAILED",
+    "NO_TARGETS",
     # Auth / storage-state problems — external credential expiry or TV
     # session rotation, not a code defect.
     "AUTH_FAILED",
@@ -180,7 +185,6 @@ _TV_CODE_OR_DATA_CODES: frozenset[str] = frozenset({
     "MANIFEST_STALE",
     "MANIFEST_MISSING_TIMESTAMP",
     "READONLY_MODE_REQUIRED",
-    "NO_TARGETS",
 })
 
 
@@ -238,6 +242,14 @@ _TV_STAGE_AUTH_CODES: frozenset[str] = frozenset({
     "AUTH_NOT_REUSED",
 })
 
+# Post-release validation input is absent or unreadable — the normalizer can
+# only emit a synthetic failure report because it lacks a usable raw TV
+# validation artifact, manifest, or target set.
+_TV_STAGE_VALIDATION_INPUT_ABSENT_CODES: frozenset[str] = frozenset({
+    "POST_RELEASE_VALIDATION_FAILED",
+    "NO_TARGETS",
+})
+
 # Manifest / publish-state checks — happen before TV is even touched.
 _TV_STAGE_MANIFEST_CODES: frozenset[str] = frozenset({
     "PUBLISH_STATUS_NOT_PUBLISHED",
@@ -245,7 +257,6 @@ _TV_STAGE_MANIFEST_CODES: frozenset[str] = frozenset({
     "MANIFEST_STALE",
     "MANIFEST_MISSING_TIMESTAMP",
     "READONLY_MODE_REQUIRED",
-    "NO_TARGETS",
 })
 
 # Input-tab visibility — preflight discovers visible Pine inputs. WS1-FT-04
@@ -267,6 +278,8 @@ def _classify_tv_failure_stage(code: str) -> str:
     """Map a single failure code to a TV validation stage."""
     if code in _TV_STAGE_AUTH_CODES:
         return "auth"
+    if code in _TV_STAGE_VALIDATION_INPUT_ABSENT_CODES:
+        return "validation_input_absent"
     if code in _TV_STAGE_MANIFEST_CODES:
         return "manifest_or_publish"
     if code in _TV_STAGE_INPUT_VISIBILITY_CODES:
@@ -291,8 +304,8 @@ def classify_tv_validation_stage(gate: dict[str, Any]) -> dict[str, Any]:
     ``release_blocking``
         ``True`` when at least one failure is in a stage that should block a
         release (compile/add/runtime, manifest/publish). ``False`` when every
-        failure is in a soft-only stage (auth, input_visibility) that should
-        not block a live release per WS1-FT-04.
+        failure is in a soft-only stage (auth, validation_input_absent,
+        input_visibility) that should not block a live release per WS1-FT-04.
     """
     details = gate.get("details", {})
     failure_codes: list[str] = [
@@ -323,8 +336,8 @@ def _tv_gate_is_soft_only(gate: dict[str, Any]) -> bool:
 
     WS1-FT-04 mandates that a missing input tab must not block a live
     release; combined with the existing ``external_tv_drift`` carve-out for
-    pure auth failures this collapses to "no failure code is in a
-    release-blocking stage".
+    pure auth and missing-input failures this collapses to "no failure code
+    is in a release-blocking stage".
     """
     classification = classify_tv_validation_stage(gate)
     if classification["stage"] == "ok":

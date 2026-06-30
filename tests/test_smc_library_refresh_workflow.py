@@ -194,6 +194,26 @@ def test_refresh_workflow_passes_post_release_report_to_release_gates() -> None:
     assert workflow_text.index('- name: Normalize TradingView post-release validation') < workflow_text.index('- name: Run strict release gates')
 
 
+def test_refresh_workflow_normalizes_soft_failed_post_release_validation() -> None:
+    workflow_text = _read(WORKFLOW_PATH)
+
+    normalize_idx = workflow_text.index('- name: Normalize TradingView post-release validation')
+    gates_idx = workflow_text.index('- name: Run strict release gates', normalize_idx)
+    normalize_block = workflow_text[normalize_idx:gates_idx]
+
+    assert 'continue-on-error: true' in normalize_block
+    assert "steps.tv_post_release_raw.outcome == 'success'" not in normalize_block
+    assert 'scripts/run_smc_post_release_validation.py' in normalize_block
+    assert '--output artifacts/ci/smc_post_release_validation_report.json' in normalize_block
+    assert 'if "$SMC_PYTHON_BIN" scripts/run_smc_post_release_validation.py' in normalize_block
+    assert '_normalizer_rc=$?' in normalize_block
+    assert 'Post-release validation normalized status:' in normalize_block
+    assert 'Post-release validation primary blocker:' in normalize_block
+    assert 'Post-release validation failure codes:' in normalize_block
+    assert 'GITHUB_STEP_SUMMARY' in normalize_block
+    assert 'exit "${_normalizer_rc}"' in normalize_block
+
+
 def test_refresh_workflow_separates_pre_and_post_release_gate_reports() -> None:
     workflow_text = _read(WORKFLOW_PATH)
 
