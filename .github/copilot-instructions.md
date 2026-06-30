@@ -165,6 +165,13 @@ Startpunkt: `.github/workflow-templates/python-job.yml` oder `docs-lint.yml`.
 - Kein direkter Commit auf `main`/`master` — pre-commit Hook blockiert.
 - Jeder abgeschlossene Schritt = eigener Commit. >1 Datei pro Commit = Signal zum Aufteilen.
 - Nach Merge: Worktree entfernen (`git worktree remove --force`) und Branch löschen.
+- Worktree-Hygiene: Alte lokale `audit/*`- und `fix/*`-Worktrees nicht als aktive
+  Targets behandeln, bevor `git worktree list`, offener PR-Status und
+  `origin/main`-Vergleich geprüft sind.
+- Stale Worktree-Regel: Wenn kein offener PR existiert und der relevante Inhalt
+  bereits in `origin/main` enthalten ist oder `origin/main` verschlechtern würde,
+  nicht mergen. Als stale/verwaist reporten und nach User-Freigabe Worktree +
+  lokalen Branch löschen.
 - Env-Vars niemals umbenennen ohne explizite User-Freigabe. Vor Änderung: alle Consumer grepen.
 
 ---
@@ -344,6 +351,13 @@ Startpunkt: `.github/workflow-templates/python-job.yml` oder `docs-lint.yml`.
 - Kein direkter Commit auf `main`/`master` — pre-commit Hook blockiert.
 - Jeder abgeschlossene Schritt = eigener Commit. >1 Datei pro Commit = Signal zum Aufteilen.
 - Nach Merge: Worktree entfernen (`git worktree remove --force`) und Branch löschen.
+- Worktree-Hygiene: Alte lokale `audit/*`- und `fix/*`-Worktrees nicht als aktive
+  Targets behandeln, bevor `git worktree list`, offener PR-Status und
+  `origin/main`-Vergleich geprüft sind.
+- Stale Worktree-Regel: Wenn kein offener PR existiert und der relevante Inhalt
+  bereits in `origin/main` enthalten ist oder `origin/main` verschlechtern würde,
+  nicht mergen. Als stale/verwaist reporten und nach User-Freigabe Worktree +
+  lokalen Branch löschen.
 - Env-Vars niemals umbenennen ohne explizite User-Freigabe. Vor Änderung: alle Consumer grepen.
 
 ---
