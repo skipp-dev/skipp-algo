@@ -1661,7 +1661,18 @@ jobs:
         with:
           name: best-effort-failure-history
           path: artifacts/ci
-          workflow_conclusion: success
+          # The history artifact is uploaded on EVERY completed run (the upload
+          # step is `if: always()`), so the trend must roll forward from the
+          # last *completed* run — not only the last *successful* one. With
+          # `workflow_conclusion: success` a failing streak (e.g. a blocking
+          # release gate) stranded the history: the last successful run had no
+          # artifact and the failing runs that did were ineligible, producing a
+          # spurious "no artifacts found" and resetting the trend. `completed`
+          # matches any finished run regardless of conclusion, and
+          # `search_artifacts: true` walks back to the most recent run that
+          # actually stored the artifact (robust against cold-start runs).
+          workflow_conclusion: completed
+          search_artifacts: true
           if_no_artifact_found: warn
 
       - name: Best-effort failure summary
