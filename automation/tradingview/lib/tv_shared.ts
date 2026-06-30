@@ -2204,6 +2204,96 @@ async function clickVisibleWithFallbackOutsidePineDialog(
   return false;
 }
 
+
+type ChartSurfaceActionKind = "settings" | "more";
+
+async function findChartSurfaceActionButtonsForScript(
+  page: Page,
+  scriptName: string,
+  actionKind: ChartSurfaceActionKind,
+): Promise<Locator[]> {
+  const candidateNames = resolveOpenScriptSearchNames(scriptName);
+  const selectors = actionKind === "settings"
+    ? [
+      'button[data-qa-id="legend-settings-action"]',
+      'button[aria-label="Settings"]:not([data-name="header-toolbar-properties"])',
+      'button[title="Settings"]:not([data-name="header-toolbar-properties"])',
+      '[role="button"][aria-label="Settings"]:not([data-name="header-toolbar-properties"])',
+      '[role="button"][title="Settings"]:not([data-name="header-toolbar-properties"])',
+    ]
+    : [
+      'button[data-qa-id="legend-more-action"]',
+      'button[aria-label="More"]',
+      'button[title="More"]',
+      '[role="button"][aria-label="More"]',
+      '[role="button"][title="More"]',
+    ];
+  const matches: Array<{ locator: Locator; depth: number; text: string }> = [];
+  const seen = new Set<string>();
+
+  for (const selector of selectors) {
+    const locator = page.locator(selector);
+    const total = await locator.count().catch(() => 0);
+
+    for (let index = 0; index < Math.min(total, 80); index += 1) {
+      const candidate = locator.nth(index);
+      const visible = await candidate.isVisible({ timeout: 150 }).catch(() => false);
+      if (!visible) {
+        continue;
+      }
+
+      const match = await candidate.evaluate((node, names) => {
+        const normalize = (value: string): string => value.replace(/\s+/g, " ").trim().toLowerCase();
+        const candidateWords = (name: string): string[] => normalize(name)
+          .split(/\s+/)
+          .filter((part) => part.length > 0 && !/^v\d+(?:\.\d+)*$/.test(part));
+        const textMatchesName = (text: string, name: string): boolean => {
+          const normalizedName = normalize(name);
+          if (!text || !normalizedName) {
+            return false;
+          }
+          if (text.includes(normalizedName)) {
+            return true;
+          }
+
+          const words = candidateWords(name);
+          if (words.length < 2) {
+            return false;
+          }
+          return words.every((word) => text.includes(word) || text.includes(word.slice(0, Math.min(word.length, 4))));
+        };
+
+        let current: HTMLElement | null = (node as HTMLElement).parentElement;
+        for (let depth = 1; current && depth <= 8; depth += 1, current = current.parentElement) {
+          const text = normalize(current.innerText || current.textContent || "");
+          if (!text || text.length > 420) {
+            continue;
+          }
+          if (names.some((name) => textMatchesName(text, name))) {
+            return { depth, text: text.slice(0, 180) };
+          }
+        }
+
+        return null;
+      }, candidateNames).catch(() => null);
+
+      if (!match) {
+        continue;
+      }
+
+      const key = `${selector}:${index}:${match.depth}:${match.text}`;
+      if (seen.has(key)) {
+        continue;
+      }
+      seen.add(key);
+      matches.push({ locator: candidate, depth: match.depth, text: match.text });
+    }
+  }
+
+  matches.sort((left, right) => left.depth - right.depth || left.text.length - right.text.length);
+  return matches.slice(0, 8).map((entry) => entry.locator);
+}
+
 async function clickLegendControlWithFallback(
   page: Page,
   candidates: Locator[],
@@ -4442,45 +4532,49 @@ async function openSettingsFromScriptText(page: Page, scriptName: string): Promi
   return false;
 }
 
-async function openSettingsFromChartSurfaceControls(page: Page): Promise<boolean> {
-  tracePageEvent(page, "script-settings-surface-start", "chart-surface");
+async function openSettingsFromChartSurfaceControls(page: Page, scriptName: string): Promise<boolean> {
+  tracePageEvent(page, "script-settings-surface-start", scriptName);
+  const scopedSettingsButtons = await findChartSurfaceActionButtonsForScript(page, scriptName, "settings");
+  tracePageEvent(page, "script-settings-surface-settings-scoped-count", `${scriptName}:${scopedSettingsButtons.length}`);
   const clickedSettings = await clickVisibleWithFallbackOutsidePineDialog(
     page,
-    tvSelectors.chartSurfaceSettingsButtons(page),
+    scopedSettingsButtons,
     "script-settings-surface-settings",
     1_200,
     650,
     true,
   );
   if (clickedSettings) {
-    tracePageEvent(page, "script-settings-surface-settings-clicked", "chart-surface");
+    tracePageEvent(page, "script-settings-surface-settings-clicked", scriptName);
     if (await waitForSettingsSurface(page, 2_000)) {
-      tracePageEvent(page, "script-settings-surface-settings-ok", "chart-surface");
+      tracePageEvent(page, "script-settings-surface-settings-ok", scriptName);
       return true;
     }
-    tracePageEvent(page, "script-settings-surface-settings-no-surface", "chart-surface");
+    tracePageEvent(page, "script-settings-surface-settings-no-surface", scriptName);
     await closeModal(page);
   }
 
+  const scopedMoreButtons = await findChartSurfaceActionButtonsForScript(page, scriptName, "more");
+  tracePageEvent(page, "script-settings-surface-more-scoped-count", `${scriptName}:${scopedMoreButtons.length}`);
   const clickedMore = await clickVisibleWithFallbackOutsidePineDialog(
     page,
-    tvSelectors.chartSurfaceMoreButtons(page),
+    scopedMoreButtons,
     "script-settings-surface-more",
     1_200,
     650,
     true,
   );
   if (clickedMore) {
-    tracePageEvent(page, "script-settings-surface-more-clicked", "chart-surface");
+    tracePageEvent(page, "script-settings-surface-more-clicked", scriptName);
     if (await waitForSettingsSurface(page, 2_000)) {
-      tracePageEvent(page, "script-settings-surface-more-ok", "chart-surface");
+      tracePageEvent(page, "script-settings-surface-more-ok", scriptName);
       return true;
     }
-    tracePageEvent(page, "script-settings-surface-more-no-surface", "chart-surface");
+    tracePageEvent(page, "script-settings-surface-more-no-surface", scriptName);
     await closeModal(page);
   }
 
-  tracePageEvent(page, "script-settings-surface-miss", "chart-surface");
+  tracePageEvent(page, "script-settings-surface-miss", scriptName);
 
   return false;
 }
@@ -5936,7 +6030,7 @@ async function openSettingsForScriptOnce(page: Page, scriptName: string): Promis
     tracePageEvent(page, "script-settings-open-anchor-result", `${scriptName}:${openedMenu}`);
   }
   if (!openedMenu) {
-    openedMenu = await openSettingsFromChartSurfaceControls(page);
+    openedMenu = await openSettingsFromChartSurfaceControls(page, scriptName);
     tracePageEvent(page, "script-settings-open-surface-result", `${scriptName}:${openedMenu}`);
   }
   if (!openedMenu) {
