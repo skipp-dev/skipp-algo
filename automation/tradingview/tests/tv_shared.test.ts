@@ -873,6 +873,7 @@ test("TradingView page auth probe emits trace status monitoring", async () => {
 
   console.error = (...args: unknown[]) => {
     messages.push(args.map((arg) => String(arg)).join(" "));
+    originalError(...args);
   };
 
   try {
