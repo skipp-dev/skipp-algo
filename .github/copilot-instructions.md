@@ -168,10 +168,11 @@ Startpunkt: `.github/workflow-templates/python-job.yml` oder `docs-lint.yml`.
 - Worktree-Hygiene: Alte lokale `audit/*`- und `fix/*`-Worktrees nicht als aktive
   Targets behandeln, bevor `git worktree list`, offener PR-Status und
   `origin/main`-Vergleich geprüft sind.
-- Stale Worktree-Regel: Wenn kein offener PR existiert und der relevante Inhalt
-  bereits in `origin/main` enthalten ist oder `origin/main` verschlechtern würde,
-  nicht mergen. Als stale/verwaist reporten und nach User-Freigabe Worktree +
-  lokalen Branch löschen.
+- Stale Worktree-Regel: Wenn ein lokaler Worktree/Branch keinen offenen PR hat
+  und sein relevanter Inhalt bereits in `origin/main` enthalten ist oder
+  `origin/main` verschlechtern würde, diesen Worktree-Inhalt nicht mergen. Als
+  stale/verwaist reporten und nach User-Freigabe Worktree + lokalen Branch
+  löschen.
 - Env-Vars niemals umbenennen ohne explizite User-Freigabe. Vor Änderung: alle Consumer grepen.
 
 ---
@@ -354,10 +355,11 @@ Startpunkt: `.github/workflow-templates/python-job.yml` oder `docs-lint.yml`.
 - Worktree-Hygiene: Alte lokale `audit/*`- und `fix/*`-Worktrees nicht als aktive
   Targets behandeln, bevor `git worktree list`, offener PR-Status und
   `origin/main`-Vergleich geprüft sind.
-- Stale Worktree-Regel: Wenn kein offener PR existiert und der relevante Inhalt
-  bereits in `origin/main` enthalten ist oder `origin/main` verschlechtern würde,
-  nicht mergen. Als stale/verwaist reporten und nach User-Freigabe Worktree +
-  lokalen Branch löschen.
+- Stale Worktree-Regel: Wenn ein lokaler Worktree/Branch keinen offenen PR hat
+  und sein relevanter Inhalt bereits in `origin/main` enthalten ist oder
+  `origin/main` verschlechtern würde, diesen Worktree-Inhalt nicht mergen. Als
+  stale/verwaist reporten und nach User-Freigabe Worktree + lokalen Branch
+  löschen.
 - Env-Vars niemals umbenennen ohne explizite User-Freigabe. Vor Änderung: alle Consumer grepen.
 
 ---

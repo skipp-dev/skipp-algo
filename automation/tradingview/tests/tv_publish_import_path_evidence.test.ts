@@ -19,6 +19,10 @@ test("shared import-path evidence matcher requires exact token boundaries", () =
     false,
   );
   assert.equal(
+    hasExpectedImportPathEvidence("visible import prefix_owner_a/smc_micro_profiles_generated/2 as mp", expected),
+    false,
+  );
+  assert.equal(
     hasExpectedImportPathEvidence("visible import owner_a/smc_micro_profiles_generated/2 as mp", ""),
     false,
   );
