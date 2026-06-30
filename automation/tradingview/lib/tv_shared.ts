@@ -4258,10 +4258,11 @@ async function openSettingsFromVisibleLegendText(page: Page, scriptName: string)
 
       const total = await locator.count().catch(() => 0);
       for (let itemIndex = 0; itemIndex < Math.min(total, 12); itemIndex += 1) {
-        if (
-          attemptedTargets >= MAX_VISIBLE_LEGEND_TEXT_TARGETS
-          || Date.now() - startedAt > VISIBLE_LEGEND_TEXT_SETTINGS_BUDGET_MS
-        ) {
+        if (attemptedTargets >= MAX_VISIBLE_LEGEND_TEXT_TARGETS) {
+          tracePageEvent(page, "script-settings-legend-text-target-cap-exhausted", `${scriptName}:${attemptedTargets}`);
+          return false;
+        }
+        if (Date.now() - startedAt > VISIBLE_LEGEND_TEXT_SETTINGS_BUDGET_MS) {
           tracePageEvent(page, "script-settings-legend-text-budget-exhausted", `${scriptName}:${attemptedTargets}`);
           return false;
         }
