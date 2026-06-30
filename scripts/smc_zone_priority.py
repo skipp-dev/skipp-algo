@@ -82,7 +82,15 @@ _FAMILY_BASE_PRIORITY: dict[str, float] = {
 
 
 def _clamp(val: float, lo: float = 0.0, hi: float = 1.0) -> float:
-    return max(lo, min(hi, float(val)))
+    # NaN is "no signal", not a high score: clamp it to ``lo`` instead of
+    # letting ``max(lo, min(hi, nan))`` silently return ``hi`` (NaN compares
+    # False to everything, so ``min(hi, nan)`` returns ``hi``). Without this a
+    # NaN ensemble_score/news_heat would inflate the zone-priority score to its
+    # maximum. ``inf``/``-inf`` already clamp correctly via max/min.
+    f = float(val)
+    if f != f:  # NaN
+        return lo
+    return max(lo, min(hi, f))
 
 
 def _safe_float(val: Any, default: float = 0.0) -> float:

@@ -48,6 +48,34 @@ def test_clamp_within_bounds() -> None:
     assert _clamp(1.5) == 1.0
 
 
+def test_clamp_nan_maps_to_low_bound_not_high() -> None:
+    """NaN is 'no signal' and must clamp to ``lo`` (0.0), never silently to
+    ``hi`` (1.0). max(lo, min(hi, nan)) would otherwise return hi because NaN
+    compares False to everything.
+    """
+    assert _clamp(float("nan")) == 0.0
+    assert _clamp(float("nan"), lo=0.2, hi=0.9) == 0.2
+
+
+def test_clamp_infinities_clamp_to_bounds() -> None:
+    assert _clamp(float("inf")) == 1.0
+    assert _clamp(float("-inf")) == 0.0
+
+
+def test_build_zone_priority_nan_score_does_not_inflate_rank() -> None:
+    """A NaN ensemble_score must not silently inflate the zone-priority score.
+
+    Regression: float('nan') is truthy, so the production call site
+    ``ensemble_score=float(_eq.get('score') or 0.0)`` passes NaN straight
+    through. Before the NaN guard this produced a mid (B) rank instead of the
+    low rank a zero/absent signal should yield.
+    """
+    nan_out = build_zone_priority(regime="NEUTRAL", ensemble_score=float("nan"))
+    zero_out = build_zone_priority(regime="NEUTRAL", ensemble_score=0.0)
+    # NaN must behave like no signal (== 0.0 contribution), not max signal.
+    assert nan_out["ZONE_PRIORITY_SCORE"] == zero_out["ZONE_PRIORITY_SCORE"]
+
+
 # ── Risk-on scenario: high score ────────────────────────────────
 
 def test_risk_on_high_confidence_produces_high_score() -> None:
@@ -278,6 +306,26 @@ def test_select_top_family_complete_weights_unchanged_by_overlay() -> None:
     )
     # Identical assertion to test_fvg_boosted_in_rth_session.
     assert family == "FVG"
+
+
+def test_select_top_family_tie_break_is_order_independent() -> None:
+    """On an exact score tie the selected family must not depend on the key
+    insertion order of the calibrated-weights dict (which can vary when the
+    dict is deserialized from JSON). The overlay onto the canonical base
+    order pins a deterministic tie-break.
+    """
+    tied_a = {"OB": 0.5, "FVG": 0.5, "BOS": 0.5, "SWEEP": 0.5}
+    tied_b = {"SWEEP": 0.5, "BOS": 0.5, "FVG": 0.5, "OB": 0.5}
+    # ROTATION/UNKNOWN/no-htf/no-session triggers no bumps, so the tie holds.
+    family_a = _select_top_family(
+        regime="ROTATION", vol_regime="UNKNOWN", htf_aligned=False,
+        session_context=None, calibrated_family_weights=tied_a,
+    )
+    family_b = _select_top_family(
+        regime="ROTATION", vol_regime="UNKNOWN", htf_aligned=False,
+        session_context=None, calibrated_family_weights=tied_b,
+    )
+    assert family_a == family_b
 
 
 # ── Catalyst identification ────────────────────────────────────
