@@ -4382,7 +4382,7 @@ export async function openSettingsFromVisibleLegendText(page: Page, scriptName: 
         await target.hover({ timeout: 750 }).catch(() => undefined);
 
         const actionableWrapper = target.locator(
-          'xpath=ancestor::*[.//button[@data-qa-id="legend-settings-action"] or .//button[@data-qa-id="legend-more-action"] or .//*[@aria-label="Settings"] or .//*[@aria-label="More"]][1]',
+          'xpath=ancestor::*[.//button[@data-qa-id="legend-settings-action"] or .//button[@data-qa-id="legend-more-action"]][1]',
         ).first();
         const wrapperVisible = await actionableWrapper.isVisible({ timeout: 250 }).catch(() => false);
         if (!wrapperVisible) {

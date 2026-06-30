@@ -1479,6 +1479,9 @@ test("visible legend text settings fallback ignores matching text outside legend
         <div id="watchlist-row" style="position:absolute;left:80px;top:80px;width:320px;height:40px">
           SMC Decision Board
         </div>
+        <button aria-label="Settings" style="position:absolute;left:20px;top:20px;width:80px;height:32px">
+          Settings
+        </button>
         <script>
           document.getElementById("watchlist-row").addEventListener("dblclick", () => {
             document.getElementById("overlap-manager-root").innerHTML = [
