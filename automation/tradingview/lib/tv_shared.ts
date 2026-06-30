@@ -2280,11 +2280,7 @@ export async function findChartSurfaceActionButtonsForScript(
       for (let depth = 1; depth <= 8; depth += 1) {
         const xpath = new Array(depth).fill("..").join("/");
         const ancestor = candidate.locator(`xpath=${xpath}`);
-        const ancestorHandle = await ancestor.elementHandle({ timeout: 120 }).catch(() => null);
-        if (!ancestorHandle) {
-          continue;
-        }
-        const meta = await ancestorHandle.evaluate((node) => {
+        const meta = await ancestor.evaluate((node) => {
           if (!(node instanceof Element)) {
             return { tagName: "", text: "" };
           }
@@ -2293,9 +2289,7 @@ export async function findChartSurfaceActionButtonsForScript(
             tagName: element.tagName.toLowerCase(),
             text: (element.innerText || element.textContent || ""),
           };
-        }).catch(() => ({ tagName: "", text: "" })).finally(async () => {
-          await ancestorHandle.dispose().catch(() => undefined);
-        });
+        }, undefined, { timeout: 120 }).catch(() => ({ tagName: "", text: "" }));
         const tagName = meta.tagName;
         if (tagName === "body" || tagName === "html") {
           break;
