@@ -1098,7 +1098,7 @@ jobs:
         run: |
           echo "::warning::Step 'Run TradingView post-release validation' failed silently (soft-fail step)"
 
-      - name: Normalize TradingView post-release validation
+      - name: Best-effort normalize TradingView post-release validation
         id: tv_post_release
         if: always() && steps.publish.outcome == 'success' && steps.diff.outputs.changed == 'true' && steps.publish_gate.outputs.publish_allowed == 'true' && github.ref == 'refs/heads/main'
         # CONTINUE-ON-ERROR-INTENTIONAL: the normalizer emits the canonical post-release verdict; fail-on gate enforces blocking statuses later.

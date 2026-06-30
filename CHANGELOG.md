@@ -15,6 +15,11 @@ All notable changes to this project are documented in this file.
 - `automation/tradingview/tests/tv_shared.test.ts`:
   - Added Playwright coverage for settings dialog/menu DOM hints, visible
     `Settings...` actions, and hidden or unrelated controls.
+### Fixed (2026-06-30) — SMC library refresh advisory naming
+
+- `.github/workflows/smc-library-refresh.yml`:
+  - Renamed the soft-fail post-release normalization step to explicitly mark
+    it as best-effort for the continue-on-error semantics guard.
 
 ### Fixed (2026-06-30) — Live overlay operations cleanup
 
