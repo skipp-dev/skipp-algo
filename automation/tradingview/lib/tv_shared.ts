@@ -2250,6 +2250,32 @@ async function clickLegendControlWithFallback(
       tracePageEvent(page, `${tracePrefix}-force-error`, `candidate:${index}:${message}`);
     }
 
+    const box = await candidate.boundingBox().catch(() => null);
+    if (box && box.width > 6 && box.height > 6) {
+      tracePageEvent(page, `${tracePrefix}-offset-start`, `candidate:${index}:${Math.round(box.width)}x${Math.round(box.height)}`);
+      const offsetPositions = [
+        { x: Math.max(3, box.width - 4), y: Math.max(3, Math.min(box.height / 2, box.height - 3)) },
+        { x: 4, y: Math.max(3, Math.min(box.height / 2, box.height - 3)) },
+        { x: Math.max(3, Math.min(box.width / 2, box.width - 3)), y: 3 },
+        { x: Math.max(3, Math.min(box.width / 2, box.width - 3)), y: Math.max(3, box.height - 4) },
+      ];
+
+      for (const [positionIndex, position] of offsetPositions.entries()) {
+        try {
+          await candidate.click({ timeout: timeoutMs, position, force: true });
+          tracePageEvent(page, `${tracePrefix}-offset-ok`, `candidate:${index}:${positionIndex}`);
+          if (await settleLegendControlEffect(`candidate:${index}:offset:${positionIndex}`)) {
+            return true;
+          }
+        } catch (error: unknown) {
+          const message = error instanceof Error ? error.message : String(error);
+          tracePageEvent(page, `${tracePrefix}-offset-error`, `candidate:${index}:${positionIndex}:${message}`);
+        }
+      }
+    } else {
+      tracePageEvent(page, `${tracePrefix}-offset-skip`, `candidate:${index}:no-box`);
+    }
+
     try {
       const pointerBypassed = await candidate.evaluate((node) => {
         const element = node as HTMLElement;
@@ -3535,17 +3561,25 @@ async function isSettingsSurfaceVisible(page: Page, timeoutMs = 500): Promise<bo
   );
 }
 
+async function isSettingsSurfaceVisibleFast(page: Page): Promise<boolean> {
+  return (
+    (await hasQuickVisibleScriptSettingsSurface(page))
+    || (await hasVisibleLocatorFast(tvSelectors.settingsAction(page), 120))
+    || (await hasVisibleLocatorFast(tvSelectors.inputsTab(page), 120))
+  );
+}
+
 async function waitForSettingsSurface(page: Page, timeoutMs = 2_000): Promise<boolean> {
   const startedAt = Date.now();
 
   while (Date.now() - startedAt < timeoutMs) {
-    if (await isSettingsSurfaceVisible(page, 250)) {
+    if (await isSettingsSurfaceVisibleFast(page)) {
       return true;
     }
     await page.waitForTimeout(100);
   }
 
-  return isSettingsSurfaceVisible(page, 250);
+  return isSettingsSurfaceVisible(page, Math.min(250, Math.max(100, timeoutMs)));
 }
 
 async function resolveOpenedSettingsSurfaceToIndicatorDialog(
@@ -3565,15 +3599,17 @@ async function resolveOpenedSettingsSurfaceToIndicatorDialog(
 
   const actionClickTimeoutMs = Math.max(250, Math.min(600, timeoutMs));
   const actionSettleMs = Math.max(100, Math.min(250, Math.floor(actionClickTimeoutMs / 2)));
+  const actionEffectTimeoutMs = Math.max(250, Math.min(600, timeoutMs));
   const clickedSettings = await clickVisibleWithFallback(
     page,
     tvSelectors.settingsAction(page),
     `${tracePrefix}-action`,
     actionClickTimeoutMs,
     actionSettleMs,
+    async () => waitForScriptSettingsInputsSurface(page, actionEffectTimeoutMs),
   );
   tracePageEvent(page, `${tracePrefix}-action-result`, String(clickedSettings));
-  if (clickedSettings && (await waitForScriptSettingsInputsSurface(page, Math.max(250, Math.min(600, timeoutMs))))) {
+  if (clickedSettings) {
     tracePageEvent(page, `${tracePrefix}-script-settings-after-action`);
     return true;
   }
@@ -5865,9 +5901,10 @@ async function openSettingsForScriptOnce(page: Page, scriptName: string): Promis
     "script-settings-action",
     2_500,
     1_500,
+    async () => waitForScriptSettingsInputsSurface(page, 2_000),
   );
   tracePageEvent(page, "script-settings-open-menu-action-result", `${scriptName}:${clickedSettings}`);
-  if (clickedSettings && (await waitForScriptSettingsInputsSurface(page, 2_000))) {
+  if (clickedSettings) {
     tracePageEvent(page, "script-settings-open-indicator-dialog-after-action", scriptName);
     return verifyOpenedSettingsDialogIdentity(page, scriptName, "script-settings-open-action-dialog");
   }
