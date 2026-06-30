@@ -32,6 +32,11 @@ import {
   isLegendTruncatedMatch,
   dismissOverlapManagerOverlay,
   clickVisibleWithFallback,
+  MAX_VISIBLE_LEGEND_TEXT_TARGETS,
+  VISIBLE_LEGEND_TEXT_SETTINGS_BUDGET_MS,
+  visibleLegendTextBudgetExceeded,
+  visibleLegendTextTargetCapReached,
+  visibleLegendTextTargetKey,
 } from "../lib/tv_shared.js";
 
 const CORE_SCRIPT = "SMC Core";
@@ -1191,4 +1196,92 @@ test("clickVisibleWithFallback keeps trying until the optional effect check pass
   } finally {
     await browser.close();
   }
+});
+
+test("visible legend text target key follows stable DOM identity before geometry", () => {
+  const firstPosition = visibleLegendTextTargetKey({
+    text: " SMC Decision   Board ",
+    domPath: 'div[data-name="legend"]>span:nth-of-type(1)',
+    rect: { x: 10, y: 20, width: 180, height: 24 },
+  });
+  const afterScroll = visibleLegendTextTargetKey({
+    text: "SMC Decision Board",
+    domPath: 'div[data-name="legend"]>span:nth-of-type(1)',
+    rect: { x: 10, y: 460, width: 180, height: 24 },
+  });
+  const siblingWithSameTextAndBox = visibleLegendTextTargetKey({
+    text: "SMC Decision Board",
+    domPath: 'div[data-name="legend"]>span:nth-of-type(2)',
+    rect: { x: 10, y: 20, width: 180, height: 24 },
+  });
+
+  assert.equal(firstPosition, afterScroll);
+  assert.notEqual(firstPosition, siblingWithSameTextAndBox);
+});
+
+test("visible legend text target key falls back to geometry when DOM identity is absent", () => {
+  const first = visibleLegendTextTargetKey({
+    text: "SMC Decision Board",
+    rect: { x: 10, y: 20, width: 180, height: 24 },
+  });
+  const moved = visibleLegendTextTargetKey({
+    text: "SMC Decision Board",
+    rect: { x: 10, y: 460, width: 180, height: 24 },
+  });
+
+  assert.notEqual(first, moved);
+});
+
+test("visible legend text duplicate targets do not consume the attempt cap", () => {
+  const seen = new Set<string>();
+  let attemptedTargets = 0;
+  const candidates = [
+    {
+      text: "SMC Decision Board",
+      domPath: 'div[data-name="legend"]>span:nth-of-type(1)',
+      rect: { x: 10, y: 20, width: 180, height: 24 },
+    },
+    {
+      text: "SMC Decision Board",
+      domPath: 'div[data-name="legend"]>span:nth-of-type(1)',
+      rect: { x: 10, y: 460, width: 180, height: 24 },
+    },
+    {
+      text: "SMC Decision Board",
+      domPath: 'div[data-name="legend"]>span:nth-of-type(2)',
+      rect: { x: 10, y: 20, width: 180, height: 24 },
+    },
+  ];
+
+  for (const candidate of candidates) {
+    const key = visibleLegendTextTargetKey(candidate);
+    if (seen.has(key)) {
+      continue;
+    }
+    seen.add(key);
+    attemptedTargets += 1;
+  }
+
+  assert.equal(attemptedTargets, 2);
+  assert.equal(visibleLegendTextTargetCapReached(attemptedTargets), false);
+  assert.equal(visibleLegendTextTargetCapReached(MAX_VISIBLE_LEGEND_TEXT_TARGETS), true);
+});
+
+test("visible legend text budget is scoped to the legend-text heuristic", () => {
+  const startedAt = 1_000;
+
+  assert.equal(
+    visibleLegendTextBudgetExceeded(
+      startedAt,
+      startedAt + VISIBLE_LEGEND_TEXT_SETTINGS_BUDGET_MS,
+    ),
+    false,
+  );
+  assert.equal(
+    visibleLegendTextBudgetExceeded(
+      startedAt,
+      startedAt + VISIBLE_LEGEND_TEXT_SETTINGS_BUDGET_MS + 1,
+    ),
+    true,
+  );
 });
