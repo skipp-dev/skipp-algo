@@ -53,7 +53,15 @@ jobs:
           cache-dependency-path: requirements.txt
 
       - name: Verify live overlay dashboard is up to date
-        run: python scripts/update_overlay_dashboard.py --check
+        run: |
+          set -euo pipefail
+
+          python scripts/update_overlay_dashboard.py \
+            services/live_overlay_daemon/infra/grafana/dashboard.json \
+            --check
+          python scripts/update_overlay_dashboard.py \
+            services/live_overlay_daemon/infra/grafana/dashboard-signals-experiments.json \
+            --check
 
       - name: Publish dashboards (or dry-run)
         env:
