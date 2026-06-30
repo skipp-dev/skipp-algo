@@ -819,6 +819,7 @@ test("TV_SKIP_AUTH_STATE_VALIDATION emits a warning and bypasses validation", ()
   process.env.TV_SKIP_AUTH_STATE_VALIDATION = "1";
   console.error = (...args: unknown[]) => {
     messages.push(args.map((arg) => String(arg)).join(" "));
+    originalError(...args);
   };
 
   try {
