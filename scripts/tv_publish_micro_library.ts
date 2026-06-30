@@ -711,8 +711,19 @@ export function shouldReopenPublishedScriptAfterPublish(options: {
   return !options.publishNoChangeDetected || !options.exactScriptVerified || !options.exactVersionVerified;
 }
 
+function escapeRegExp(value: string): string {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
 function hasExpectedImportPathEvidence(bodyText: string, expectedImportPath: string): boolean {
-  return bodyText.replace(/\s+/g, " ").includes(expectedImportPath);
+  const normalizedBodyText = bodyText.replace(/\s+/g, " ");
+  const trimmedImportPath = expectedImportPath.trim();
+  if (trimmedImportPath.length === 0) {
+    return false;
+  }
+
+  const importPathPattern = new RegExp(`(^|[^A-Za-z0-9_./-])${escapeRegExp(trimmedImportPath)}(?=$|[^A-Za-z0-9_./-])`);
+  return importPathPattern.test(normalizedBodyText);
 }
 
 export function shouldPromoteNoChangeVersionEvidence(options: {
@@ -731,7 +742,8 @@ export function shouldPromoteNoChangeVersionEvidence(options: {
 }
 
 function expectedImportPathMatchesVersion(expectedImportPath: string, expectedVersion: number): boolean {
-  return new RegExp(`/${expectedVersion}$`).test(expectedImportPath.trim());
+  const versionSegment = expectedImportPath.trim().split("/").pop();
+  return versionSegment === String(expectedVersion);
 }
 
 export function shouldPromotePublishConfirmationVersionEvidence(options: {
