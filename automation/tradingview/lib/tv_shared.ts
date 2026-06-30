@@ -4276,7 +4276,7 @@ async function legendTextWrapperHasNearbyAction(wrapper: Locator, target: Locato
     wrapper.boundingBox().catch(() => null),
     target.boundingBox().catch(() => null),
   ]);
-  if (!wrapperBox || !targetBox || wrapperBox.height > 180 || wrapperBox.width > 1_200) {
+  if (!wrapperBox || !targetBox || wrapperBox.height > 180) {
     return false;
   }
 
