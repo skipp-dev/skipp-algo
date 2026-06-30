@@ -4230,8 +4230,14 @@ async function tryOpenScriptSettingsByDoubleClick(
 }
 
 
+const VISIBLE_LEGEND_TEXT_SETTINGS_BUDGET_MS = 8_000;
+const MAX_VISIBLE_LEGEND_TEXT_TARGETS = 3;
+
 async function openSettingsFromVisibleLegendText(page: Page, scriptName: string): Promise<boolean> {
   tracePageEvent(page, "script-settings-legend-text-start", scriptName);
+  const startedAt = Date.now();
+  let attemptedTargets = 0;
+  const seenTargets = new Set<string>();
   const candidateNames = resolveOpenScriptSearchNames(scriptName);
   const patternsList = candidateNames.map((name) => buildScriptNamePatterns(name));
 
@@ -4245,8 +4251,21 @@ async function openSettingsFromVisibleLegendText(page: Page, scriptName: string)
     ];
 
     for (const [locatorIndex, locator] of locators.entries()) {
+      if (Date.now() - startedAt > VISIBLE_LEGEND_TEXT_SETTINGS_BUDGET_MS) {
+        tracePageEvent(page, "script-settings-legend-text-budget-exhausted", `${scriptName}:${attemptedTargets}`);
+        return false;
+      }
+
       const total = await locator.count().catch(() => 0);
       for (let itemIndex = 0; itemIndex < Math.min(total, 12); itemIndex += 1) {
+        if (
+          attemptedTargets >= MAX_VISIBLE_LEGEND_TEXT_TARGETS
+          || Date.now() - startedAt > VISIBLE_LEGEND_TEXT_SETTINGS_BUDGET_MS
+        ) {
+          tracePageEvent(page, "script-settings-legend-text-budget-exhausted", `${scriptName}:${attemptedTargets}`);
+          return false;
+        }
+
         const target = locator.nth(itemIndex);
         const visible = await target.isVisible({ timeout: 250 }).catch(() => false);
         if (!visible) {
@@ -4256,8 +4275,15 @@ async function openSettingsFromVisibleLegendText(page: Page, scriptName: string)
         const targetMeta = await target.evaluate((node) => {
           const element = node as HTMLElement;
           const text = (element.innerText || element.textContent || "").replace(/\s+/g, " ").trim();
+          const rect = element.getBoundingClientRect();
           return {
             text,
+            rect: {
+              x: Math.round(rect.x),
+              y: Math.round(rect.y),
+              width: Math.round(rect.width),
+              height: Math.round(rect.height),
+            },
             inPineDialog: Boolean(element.closest('[data-name="pine-dialog"]')),
             inDialog: Boolean(element.closest('[role="dialog"], [data-name*="dialog" i], [class*="modal" i]')),
             inMenu: Boolean(element.closest('[role="menu"], [data-name*="menu" i]')),
@@ -4275,6 +4301,14 @@ async function openSettingsFromVisibleLegendText(page: Page, scriptName: string)
         if (!(loosePattern.test(normalizedText) || fuzzyPattern.test(normalizedText) || isLegendTruncatedMatch(normalizedText, candidate))) {
           continue;
         }
+
+        const targetKey = `${targetMeta.rect.x}:${targetMeta.rect.y}:${targetMeta.rect.width}:${targetMeta.rect.height}:${normalizedText}`;
+        if (seenTargets.has(targetKey)) {
+          tracePageEvent(page, "script-settings-legend-text-duplicate-skip", `${scriptName}:${candidateIndex}:${locatorIndex}:${itemIndex}`);
+          continue;
+        }
+        seenTargets.add(targetKey);
+        attemptedTargets += 1;
 
         tracePageEvent(
           page,
