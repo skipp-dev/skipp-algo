@@ -6,6 +6,16 @@ All notable changes to this project are documented in this file.
 
 ## [Unreleased]
 
+### Fixed (2026-06-30) — TradingView settings surface DOM hint
+
+- `automation/tradingview/lib/tv_shared.ts`:
+  - Exported `hasSettingsSurfaceDomHint()` for focused DOM-hint coverage.
+  - Keeps the browser-evaluated DOM probe free of transform-injected helper
+    references so it can run inside the page context.
+- `automation/tradingview/tests/tv_shared.test.ts`:
+  - Added Playwright coverage for settings dialog/menu DOM hints, visible
+    `Settings...` actions, and hidden or unrelated controls.
+
 ### Fixed (2026-06-30) — Live overlay operations cleanup
 
 - `services/live_overlay_daemon/railway_metrics.py`:
