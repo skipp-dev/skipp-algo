@@ -50,6 +50,7 @@ jobs:
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
         with:
           fetch-depth: 1
+          persist-credentials: false
 
       - name: Set up pinned Python
         uses: ./.github/actions/setup-python-pinned
@@ -203,8 +204,15 @@ jobs:
               echo "Path: \`artifacts/experiment/latest/\`"
             } >> "$GITHUB_STEP_SUMMARY"
           else
-            echo "::error::Experiment snapshot push failed"
-            exit 1
+            echo "::warning::Experiment snapshot push failed; evaluation artifacts were uploaded but the rolling bot snapshot was not refreshed"
+            {
+              echo "### ⚠️ Experiment snapshot publish failed (best-effort)"
+              echo ""
+              echo "The evaluation completed and artifacts were uploaded, but the optional"
+              echo "\`bot/live-experiment-snapshot\` publish failed. Rotate or verify"
+              echo "\`GH_PAT\` before relying on the live overlay snapshot cache."
+            } >> "$GITHUB_STEP_SUMMARY"
+            exit 0
           fi
 
       - name: Open issue on evaluation failure
