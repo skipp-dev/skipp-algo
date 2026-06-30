@@ -45,6 +45,7 @@ All notable changes to this project are documented in this file.
 - `tests/test_global_statement_budget.py`:
   - Refreshed the Railway metrics `reset_cache()` global anchor after the
     error-classification cleanup.
+
 ### Fixed (2026-06-30) — Live overlay Railway port default
 
 - `services/live_overlay_daemon/railway.toml`:
@@ -56,6 +57,15 @@ All notable changes to this project are documented in this file.
 - `tests/test_live_overlay_daemon_service_contract.py`:
   - Added a regression pin for the Python entrypoint's `PORT` handling and for
     keeping `$PORT` out of the Railway start command.
+
+### Fixed (2026-06-30) — TradingView legend text settings fallback tests
+
+- `automation/tradingview/lib/tv_shared.ts`:
+  - Requires visible legend text matches to have a legend action/settings
+    wrapper before attempting double-click or settings-button interactions.
+- `automation/tradingview/tests/tv_shared.test.ts`:
+  - Added Playwright coverage for opening settings from a visible legend text
+    row and for ignoring matching text outside legend actions.
 
 ### Fixed (2026-06-30) — Plan 2.8 evaluation snapshot publish
 

@@ -14,6 +14,7 @@ import {
   resolveOpenScriptSearchNames,
   resolveTradingViewPageAuthState,
   openScriptSurfaceScopeLooksReady,
+  openSettingsFromVisibleLegendText,
   settingsDialogTitleMatchesScriptName,
   resolveTradingViewHeadlessDefault,
   validateTradingViewStorageState,
@@ -1425,4 +1426,84 @@ test("visible legend text budget is scoped to the legend-text heuristic", () => 
     ),
     true,
   );
+});
+
+test("visible legend text settings fallback opens matching settings dialog from a legend row", async () => {
+  const browser = await chromium.launch({ headless: true });
+  const page = await browser.newPage();
+  try {
+    await page.setContent(`
+      <html><body>
+        <div id="overlap-manager-root"></div>
+        <div data-name="legend-source-item" style="position:absolute;left:80px;top:80px;width:320px;height:40px">
+          <span id="legend-title">SMC Decision Board</span>
+          <button id="legend-settings" data-qa-id="legend-settings-action" aria-label="Settings">Settings</button>
+        </div>
+        <script>
+          function openSettings() {
+            document.getElementById("overlap-manager-root").innerHTML = [
+              '<div role="dialog" data-name="indicator-properties-dialog" style="position:absolute;left:40px;top:140px;width:360px;height:220px;background:white">',
+              '<h2>SMC Decision Board</h2>',
+              '<div role="tab">Inputs</div>',
+              '<div>Style</div>',
+              '<div>Visibility</div>',
+              '<label>Length</label>',
+              '</div>',
+            ].join("");
+          }
+          document.getElementById("legend-settings").addEventListener("click", openSettings);
+        </script>
+      </body></html>
+    `);
+
+    const opened = await openSettingsFromVisibleLegendText(page, "SMC Decision Board");
+
+    assert.equal(opened, true);
+    assert.equal(
+      await page.locator('[data-name="indicator-properties-dialog"]').isVisible(),
+      true,
+    );
+  } finally {
+    await browser.close();
+  }
+});
+
+test("visible legend text settings fallback ignores matching text outside legend actions", async () => {
+  const browser = await chromium.launch({ headless: true });
+  const page = await browser.newPage();
+  try {
+    await page.setContent(`
+      <html><body>
+        <div id="overlap-manager-root"></div>
+        <div id="watchlist-row" style="position:absolute;left:80px;top:80px;width:320px;height:40px">
+          SMC Decision Board
+        </div>
+        <button aria-label="Settings" style="position:absolute;left:20px;top:20px;width:80px;height:32px">
+          Settings
+        </button>
+        <button data-qa-id="legend-settings-action" style="position:absolute;left:20px;top:20px;width:80px;height:32px">
+          Legend Settings Elsewhere
+        </button>
+        <script>
+          document.getElementById("watchlist-row").addEventListener("dblclick", () => {
+            document.getElementById("overlap-manager-root").innerHTML = [
+              '<div role="dialog" data-name="indicator-properties-dialog">',
+              '<h2>SMC Decision Board</h2>',
+              '<div role="tab">Inputs</div>',
+              '<div>Style</div>',
+              '<div>Visibility</div>',
+              '</div>',
+            ].join("");
+          });
+        </script>
+      </body></html>
+    `);
+
+    const opened = await openSettingsFromVisibleLegendText(page, "SMC Decision Board");
+
+    assert.equal(opened, false);
+    assert.equal(await page.locator('[data-name="indicator-properties-dialog"]').count(), 0);
+  } finally {
+    await browser.close();
+  }
 });
