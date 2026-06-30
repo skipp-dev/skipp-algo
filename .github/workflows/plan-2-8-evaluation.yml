@@ -24,7 +24,8 @@ on:
         default: false
 
 permissions:
-  contents: write  # needed for bot/* branch push
+  contents: read
+  issues: write  # fallback issue creation uses github.token when GH_PAT is unavailable
 
 # Queue overlapping runs to avoid race conditions on history append
 concurrency:
@@ -173,6 +174,8 @@ jobs:
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
 
           _remote_url="https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git"
+          _remote_ref="refs/heads/bot/live-experiment-snapshot"
+          _tracking_ref="refs/remotes/origin/bot/live-experiment-snapshot"
 
           git add -f "${stable_dir}"
 
@@ -183,9 +186,15 @@ jobs:
 
           git commit -m "[skip ci] chore: refresh Plan 2.8 evaluation snapshot"
 
-          git fetch "${_remote_url}" "+refs/heads/bot/live-experiment-snapshot:refs/remotes/origin/bot/live-experiment-snapshot" 2>/dev/null || true
+          git fetch "${_remote_url}" "+${_remote_ref}:${_tracking_ref}" 2>/dev/null || true
+          _zero_sha="0000000000000000000000000000000000000000"
+          if _expected_sha="$(git rev-parse --verify "${_tracking_ref}" 2>/dev/null)"; then
+            _lease_expected="${_expected_sha}"
+          else
+            _lease_expected="${_zero_sha}"
+          fi
 
-          if git push --force-with-lease=refs/heads/bot/live-experiment-snapshot "${_remote_url}" "HEAD:refs/heads/bot/live-experiment-snapshot"; then
+          if git push "--force-with-lease=${_remote_ref}:${_lease_expected}" "${_remote_url}" "HEAD:${_remote_ref}"; then
             echo "✅ Pushed experiment snapshots to bot/live-experiment-snapshot"
             {
               echo "### ✅ Experiment snapshot published"
@@ -199,7 +208,7 @@ jobs:
           fi
 
       - name: Open issue on evaluation failure
-        if: failure() && steps.evaluate.outputs.status == 'failed'
+        if: always() && (steps.evaluate.outcome == 'failure' || steps.evaluate.outputs.status == 'failed')
         env:
           GH_TOKEN: ${{ secrets.GH_PAT != '' && secrets.GH_PAT || github.token }}
           GH_REPO: ${{ github.repository }}
