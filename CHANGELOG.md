@@ -20,16 +20,13 @@ All notable changes to this project are documented in this file.
 - `services/signals_producer/railway.toml`:
   - Passes `$PORT` explicitly as `--telemetry-port` so `/healthz` is served on
     the Railway healthcheck port rather than relying on runtime defaults.
-- `services/live_overlay_daemon/railway.toml` and Dockerfile:
-  - Added regression coverage for the existing `0.0.0.0:$PORT` Railway
-    binding and `${PORT:-8000}` local fallback.
 - `tests/test_live_overlay_infra_alloy_contracts.py`:
   - Added a Dockerfile contract pin for the Railway listen address.
 - `tests/test_signals_producer_service_contract.py`:
   - Added a Railway start-command pin for the signals producer telemetry port.
 - `tests/test_live_overlay_daemon_service_contract.py`:
-  - Added Railway and Dockerfile contract pins for the live overlay daemon
-    healthcheck port binding.
+  - Added regression coverage for the live overlay daemon's existing
+    `0.0.0.0:$PORT` Railway binding and `${PORT:-8000}` Dockerfile fallback.
 - `services/live_overlay_daemon/infra/alloy/README.md`:
   - Documents the required Railway healthcheck binding.
 

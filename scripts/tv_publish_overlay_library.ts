@@ -4,6 +4,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
+import { hasExpectedImportPathEvidence } from "./tv_publish_import_path_evidence.js";
 import {
   addCurrentScriptToChart,
   assertNoVisibleCompileError,
@@ -25,6 +26,8 @@ import {
   waitForPostSaveCompileSettlement,
   writeJson,
 } from "../automation/tradingview/lib/tv_shared.js";
+
+export { hasExpectedImportPathEvidence };
 
 // Fast overlay companion publisher (Option-A fast/slow split, step 3).
 //
@@ -125,10 +128,6 @@ function parseArgs(): CliArgs {
     openExisting: hasFlag("--no-open-existing") ? false : true,
     allowCreate: hasFlag("--no-allow-create") ? false : true,
   };
-}
-
-export function hasExpectedImportPathEvidence(bodyText: string, expectedImportPath: string): boolean {
-  return bodyText.replace(/\s+/g, " ").includes(expectedImportPath);
 }
 
 // Narrow input so the contract can be unit-tested without constructing a full

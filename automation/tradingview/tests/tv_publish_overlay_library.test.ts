@@ -156,4 +156,12 @@ test("import-path evidence detects the expected path and rejects absence", () =>
     true,
   );
   assert.equal(hasExpectedImportPathEvidence("no path here", IMPORT_PATH), false);
+  assert.equal(
+    hasExpectedImportPathEvidence("publish dialog showing import preuss_steffen/smc_overlay_generated/10 as ov", IMPORT_PATH),
+    false,
+  );
+  assert.equal(
+    hasExpectedImportPathEvidence("publish dialog showing import preuss_steffen/smc_overlay_generated/1 as ov", ""),
+    false,
+  );
 });

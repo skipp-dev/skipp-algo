@@ -6,6 +6,7 @@ import path from "node:path";
 import { execFileSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
 
+import { hasExpectedImportPathEvidence } from "./tv_publish_import_path_evidence.js";
 import {
   addCurrentScriptToChart,
   assertNoVisibleCompileError,
@@ -711,10 +712,6 @@ export function shouldReopenPublishedScriptAfterPublish(options: {
   return !options.publishNoChangeDetected || !options.exactScriptVerified || !options.exactVersionVerified;
 }
 
-function hasExpectedImportPathEvidence(bodyText: string, expectedImportPath: string): boolean {
-  return bodyText.replace(/\s+/g, " ").includes(expectedImportPath);
-}
-
 export function shouldPromoteNoChangeVersionEvidence(options: {
   publishNoChangeDetected: boolean;
   identityVerificationMode: IdentityVerificationMode;
@@ -731,7 +728,8 @@ export function shouldPromoteNoChangeVersionEvidence(options: {
 }
 
 function expectedImportPathMatchesVersion(expectedImportPath: string, expectedVersion: number): boolean {
-  return new RegExp(`/${expectedVersion}$`).test(expectedImportPath.trim());
+  const versionSegment = expectedImportPath.trim().split("/").pop();
+  return versionSegment === String(expectedVersion);
 }
 
 export function shouldPromotePublishConfirmationVersionEvidence(options: {

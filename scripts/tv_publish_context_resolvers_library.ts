@@ -4,6 +4,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
+import { hasExpectedImportPathEvidence } from "./tv_publish_import_path_evidence.js";
 import {
   addCurrentScriptToChart,
   assertNoVisibleCompileError,
@@ -112,10 +113,6 @@ function parseArgs(): CliArgs {
     openExisting: hasFlag("--no-open-existing") ? false : true,
     allowCreate: hasFlag("--no-allow-create") ? false : true,
   };
-}
-
-function hasExpectedImportPathEvidence(bodyText: string, expectedImportPath: string): boolean {
-  return bodyText.replace(/\s+/g, " ").includes(expectedImportPath);
 }
 
 function verifyContextResolversPublishContract(cli: CliArgs): ContractDetails {
