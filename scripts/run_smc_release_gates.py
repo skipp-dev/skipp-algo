@@ -162,8 +162,9 @@ _DATA_ABSENT_CODES = frozenset({
 # auth expiry) rather than an actual code or data problem in *our* system.
 
 _TV_EXTERNAL_DRIFT_CODES: frozenset[str] = frozenset({
-    # Post-release normalization could not evaluate TV output because the
-    # readonly preflight failed or produced no target artifact.
+    # Post-release normalization could not evaluate TV output because one of
+    # its TV-side inputs was absent or unreadable (for example a missing raw
+    # readonly preflight report, corrupt JSON, or a report with no targets).
     "POST_RELEASE_VALIDATION_FAILED",
     "NO_TARGETS",
     # Auth / storage-state problems — external credential expiry or TV
@@ -241,9 +242,9 @@ _TV_STAGE_AUTH_CODES: frozenset[str] = frozenset({
     "AUTH_NOT_REUSED",
 })
 
-# Post-release validation input is absent — the readonly TV preflight failed
-# or produced no target artifact, so the normalizer can only emit a synthetic
-# failure report.
+# Post-release validation input is absent or unreadable — the normalizer can
+# only emit a synthetic failure report because it lacks a usable raw TV
+# validation artifact, manifest, or target set.
 _TV_STAGE_VALIDATION_INPUT_ABSENT_CODES: frozenset[str] = frozenset({
     "POST_RELEASE_VALIDATION_FAILED",
     "NO_TARGETS",
