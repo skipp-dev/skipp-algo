@@ -728,7 +728,11 @@ export function shouldPromoteNoChangeVersionEvidence(options: {
 }
 
 function expectedImportPathMatchesVersion(expectedImportPath: string, expectedVersion: number): boolean {
-  const versionSegment = expectedImportPath.trim().split("/").pop();
+  const trimmedImportPath = expectedImportPath.trim();
+  if (trimmedImportPath.length === 0) {
+    return false;
+  }
+  const versionSegment = trimmedImportPath.split("/").pop();
   return versionSegment === String(expectedVersion);
 }
 
