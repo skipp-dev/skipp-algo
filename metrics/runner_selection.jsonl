@@ -185,3 +185,4 @@
 {"event_name":"workflow_run","matched_runner_name":null,"reason":"forced_github_hosted","run_id":"28405799202","runner_environment":"github-hosted","ts":"2026-06-29T22:20:19Z","workflow":"smc-library-refresh"}
 {"event_name":"schedule","matched_runner_name":null,"reason":"forced_github_hosted","run_id":"28406928672","runner_environment":"github-hosted","ts":"2026-06-29T22:48:58Z","workflow":"smc-library-refresh"}
 {"event_name":"schedule","matched_runner_name":null,"reason":"forced_github_hosted","run_id":"28409096893","runner_environment":"github-hosted","ts":"2026-06-29T23:20:21Z","workflow":"smc-library-refresh"}
+{"event_name":"workflow_dispatch","matched_runner_name":null,"reason":"forced_github_hosted","run_id":"28411295566","runner_environment":"github-hosted","ts":"2026-06-30T00:14:12Z","workflow":"smc-library-refresh"}
