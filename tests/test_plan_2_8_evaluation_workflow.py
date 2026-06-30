@@ -37,6 +37,11 @@ def test_workflow_permissions_support_issue_fallback_without_token_push() -> Non
     assert publish_step["env"]["GH_TOKEN"] == "${{ secrets.GH_PAT }}"
 
 
+def test_checkout_does_not_persist_github_token_credentials() -> None:
+    checkout_step = _step("Checkout")
+    assert checkout_step["with"]["persist-credentials"] is False
+
+
 def test_experiment_snapshot_publish_uses_explicit_force_with_lease_sha() -> None:
     run = _step("Publish snapshots to rolling bot branch")["run"]
     assert '_remote_ref="refs/heads/bot/live-experiment-snapshot"' in run
@@ -61,6 +66,16 @@ def test_experiment_snapshot_publish_uses_explicit_force_with_lease_sha() -> Non
         "git push --force-with-lease=refs/heads/bot/live-experiment-snapshot"
         not in run
     )
+
+
+def test_experiment_snapshot_publish_failure_is_best_effort() -> None:
+    run = _step("Publish snapshots to rolling bot branch")["run"]
+    assert "::warning::Experiment snapshot push failed" in run
+    assert "Experiment snapshot publish failed (best-effort)" in run
+    assert "optional" in run
+    assert "GH_PAT" in run
+    assert "exit 1" not in run
+    assert "::error::Experiment snapshot push failed" not in run
 
 
 def test_evaluation_failure_issue_opens_for_failed_status_or_step_crash() -> None:

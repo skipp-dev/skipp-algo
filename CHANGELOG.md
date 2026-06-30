@@ -6,6 +6,15 @@ All notable changes to this project are documented in this file.
 
 ## [Unreleased]
 
+### Fixed (2026-06-30) — Plan 2.8 evaluation snapshot publish
+
+- `.github/workflows/plan-2-8-evaluation.yml`:
+  - Downgrades `bot/live-experiment-snapshot` push failures to a warning so
+    successful daily evaluations do not fail solely because the optional
+    rolling snapshot publish credential is expired or under-scoped.
+- `tests/test_plan_2_8_evaluation_workflow.py`:
+  - Added a regression pin for the best-effort publish failure path.
+
 ### Fixed (2026-06-29) — Railway healthcheck port bindings
 
 - `services/live_overlay_daemon/infra/alloy/Dockerfile`:
