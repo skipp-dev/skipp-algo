@@ -1,7 +1,9 @@
 from __future__ import annotations
 
+import sys
 import tomllib
 from pathlib import Path
+from types import SimpleNamespace
 
 _SERVICE_DIR = Path(__file__).resolve().parents[1] / "services" / "live_overlay_daemon"
 
@@ -21,11 +23,9 @@ def test_railway_start_command_binds_to_injected_port() -> None:
     config = _load_railway_config()
     start = config["deploy"]["startCommand"]
 
-    assert "uvicorn services.live_overlay_daemon.main:app" in start
-    assert "--host 0.0.0.0" in start
-    assert "--port $PORT" in start
-    assert "--http h11" in start
-    assert "--loop asyncio" in start
+    assert start == "python -m services.live_overlay_daemon.main"
+    assert "$PORT" not in start
+    assert "--port" not in start
 
 
 def test_railway_healthcheck_path_is_health() -> None:
@@ -43,8 +43,29 @@ def test_dockerfile_local_fallback_binds_to_port_env() -> None:
     dockerfile = (_SERVICE_DIR / "Dockerfile").read_text(encoding="utf-8")
 
     assert "CMD" in dockerfile
-    assert "sh" in dockerfile and "-c" in dockerfile
-    assert "uvicorn services.live_overlay_daemon.main:app" in dockerfile
-    assert "--host 0.0.0.0" in dockerfile
-    assert "--port ${PORT:-8000}" in dockerfile
+    assert '["python", "-m", "services.live_overlay_daemon.main"]' in dockerfile
+    assert "$PORT" not in dockerfile
+    assert "--port" not in dockerfile
     assert "USER appuser" in dockerfile
+
+
+def test_python_entrypoint_uses_port_env_for_uvicorn_default(monkeypatch) -> None:
+    from services.live_overlay_daemon import main
+
+    captured: dict[str, object] = {}
+
+    def fake_run(app_obj: object, **kwargs: object) -> None:
+        captured["app"] = app_obj
+        captured.update(kwargs)
+
+    monkeypatch.setenv("PORT", "8765")
+    monkeypatch.setitem(sys.modules, "uvicorn", SimpleNamespace(run=fake_run))
+
+    main.run_server()
+
+    assert captured["app"] is main.app
+    assert captured["host"] == "0.0.0.0"
+    assert captured["port"] == 8765
+    assert captured["workers"] == 1
+    assert captured["http"] == "h11"
+    assert captured["loop"] == "asyncio"

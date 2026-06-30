@@ -109,6 +109,26 @@ app = FastAPI(
 )
 
 
+def run_server() -> None:
+    """Run the daemon with runtime PORT handling inside Python.
+
+    Railway does not reliably shell-expand ``$PORT`` inside ``startCommand``.
+    Keep the process entrypoint argument-free and resolve the runtime port here
+    instead, matching the signals producer deployment contract.
+    """
+    import uvicorn
+
+    uvicorn.run(
+        app,
+        host="0.0.0.0",  # noqa: S104 - Railway/container ingress must bind all interfaces.
+        port=config.port(),
+        workers=1,
+        http="h11",
+        loop="asyncio",
+        log_level=config.log_level(),
+    )
+
+
 # ---------------------------------------------------------------------------
 # /health — no auth, process liveness only (Railway/Uptime)
 # ---------------------------------------------------------------------------
@@ -420,3 +440,7 @@ def _ct_eq(a: str, b: str) -> bool:
     a_digest = hashlib.sha256(a_bytes).digest()
     b_digest = hashlib.sha256(b.encode()).digest()
     return hmac.compare_digest(a_digest, b_digest)
+
+
+if __name__ == "__main__":
+    run_server()

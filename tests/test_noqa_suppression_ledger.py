@@ -113,6 +113,9 @@ _FROZEN_SITES: dict[str, int] = {
     "scripts/smc_zone_priority_calibration.py": 2,
     "scripts/start_open_prep_suite.py": 3,
     "smc_integration/release_policy.py": 1,
+    # 2026-06-30 (Railway live-overlay daemon): S104 is intentional because
+    # container ingress requires binding uvicorn to all interfaces.
+    "services/live_overlay_daemon/main.py": 1,
     # E402 after sys.path bootstrap (system review 2026-04-30):
     # both scripts insert repo root into sys.path before importing
     # first-party modules; ruff-isort cannot statically prove the
