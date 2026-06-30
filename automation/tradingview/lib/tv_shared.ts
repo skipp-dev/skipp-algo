@@ -2280,13 +2280,25 @@ export async function findChartSurfaceActionButtonsForScript(
       for (let depth = 1; depth <= 8; depth += 1) {
         const xpath = new Array(depth).fill("..").join("/");
         const ancestor = candidate.locator(`xpath=${xpath}`);
-        const tagName = await ancestor.evaluate((node) => (
-          node instanceof Element ? node.tagName.toLowerCase() : ""
-        )).catch(() => "");
+        const ancestorHandle = await ancestor.elementHandle({ timeout: 120 }).catch(() => null);
+        if (!ancestorHandle) {
+          continue;
+        }
+        const meta = await ancestorHandle.evaluate((node) => {
+          if (!(node instanceof Element)) {
+            return { tagName: "", text: "" };
+          }
+          const element = node as HTMLElement;
+          return {
+            tagName: element.tagName.toLowerCase(),
+            text: (element.innerText || element.textContent || ""),
+          };
+        }).catch(() => ({ tagName: "", text: "" }));
+        const tagName = meta.tagName;
         if (tagName === "body" || tagName === "html") {
           break;
         }
-        const text = normalizeUiText((await ancestor.innerText({ timeout: 120 }).catch(() => "")) || "");
+        const text = normalizeUiText(meta.text || "");
         if (!text || text.length > 420) {
           continue;
         }
