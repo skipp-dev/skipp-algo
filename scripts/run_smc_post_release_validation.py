@@ -73,8 +73,11 @@ _FAILURE_CODE_TO_CLASS: dict[str, str] = {
     "AUTH_FAILED": FAILURE_CLASS_AUTH,
     # Surface drift: the Settings input tab for a target was not visible
     # (preflight). WS1-FT-04 already downgrades this in the release-gate
-    # runner; here we just label it for triage.
+    # runner; here we just label it for triage. ``TARGET_PREFLIGHT_FAILED``
+    # is the per-target counterpart: the script loaded on the chart but its
+    # Settings/Inputs surface could not be opened (UI-interaction flake).
     "PREFLIGHT_FAILED": FAILURE_CLASS_SURFACE_DRIFT,
+    "TARGET_PREFLIGHT_FAILED": FAILURE_CLASS_SURFACE_DRIFT,
     # Policy: validation refused to run because the readonly contract was
     # not satisfied.
     "READONLY_MODE_REQUIRED": FAILURE_CLASS_POLICY,
