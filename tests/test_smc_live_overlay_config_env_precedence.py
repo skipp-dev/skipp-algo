@@ -97,3 +97,43 @@ class TestSignalsServiceConfig:
         cfg = _import_config_fresh()
         assert cfg.signals_service_url() == "smc-signals-producer.railway.internal"
         assert cfg.signals_internal_token() == "railway-token"
+
+
+class TestPortRangeValidation:
+    """PORT must resolve to a bindable TCP port, never a silent random bind
+    (PORT=0) or an out-of-range value that crashes uvicorn.
+    """
+
+    def test_valid_port_is_returned(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        monkeypatch.setenv("PORT", "8765")
+        cfg = _import_config_fresh()
+        assert cfg.port() == 8765
+
+    def test_zero_port_falls_back_to_default(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        # PORT=0 would otherwise make the OS pick a random ephemeral port,
+        # which Railway routing/health checks cannot reach.
+        monkeypatch.setenv("PORT", "0")
+        cfg = _import_config_fresh()
+        assert cfg.port() == 8000
+
+    def test_negative_port_falls_back_to_default(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        monkeypatch.setenv("PORT", "-1")
+        cfg = _import_config_fresh()
+        assert cfg.port() == 8000
+
+    def test_above_max_port_falls_back_to_default(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        # > 65535 would raise OverflowError at socket bind time.
+        monkeypatch.setenv("PORT", "70000")
+        cfg = _import_config_fresh()
+        assert cfg.port() == 8000
+
+    def test_boundary_ports_are_accepted(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        for value, expected in (("1", 1), ("65535", 65535)):
+            monkeypatch.setenv("PORT", value)
+            cfg = _import_config_fresh()
+            assert cfg.port() == expected
+
+    def test_unparseable_port_falls_back_to_default(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        monkeypatch.setenv("PORT", "abc")
+        cfg = _import_config_fresh()
+        assert cfg.port() == 8000

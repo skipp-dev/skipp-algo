@@ -362,7 +362,19 @@ def max_feed_failures() -> int:
 
 
 def port() -> int:
-    return _optional_int("PORT", 8000)
+    raw = _optional_int("PORT", 8000)
+    if not 1 <= raw <= 65535:
+        # An out-of-range PORT must not silently bind a random ephemeral port
+        # (raw == 0) or crash uvicorn with an opaque OverflowError (raw < 0 or
+        # raw > 65535). Fall back to the documented default, like an
+        # unparseable PORT does, so the failure mode is logged and predictable.
+        logger.warning(
+            "PORT=%d is outside the valid TCP range [1, 65535]; "
+            "falling back to default 8000",
+            raw,
+        )
+        return 8000
+    return raw
 
 
 def log_level() -> str:
