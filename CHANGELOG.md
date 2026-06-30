@@ -45,6 +45,17 @@ All notable changes to this project are documented in this file.
 - `tests/test_global_statement_budget.py`:
   - Refreshed the Railway metrics `reset_cache()` global anchor after the
     error-classification cleanup.
+### Fixed (2026-06-30) — TradingView chart surface settings scope tests
+
+- `automation/tradingview/lib/tv_shared.ts`:
+  - Reworked chart-surface settings/more button scoping to inspect nearest
+    non-page ancestors via Playwright locators instead of an in-page evaluate
+    block.
+  - Ignores `body` / `html` ancestors so unrelated chart-surface controls do
+    not inherit a script-name match from elsewhere on the page.
+- `automation/tradingview/tests/tv_shared.test.ts`:
+  - Added coverage for scoped Settings and More controls and for avoiding
+    false matches from standalone version-like words.
 
 ### Fixed (2026-06-30) — Live overlay Railway port default
 

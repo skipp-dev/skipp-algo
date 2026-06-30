@@ -2214,7 +2214,34 @@ async function clickVisibleWithFallbackOutsidePineDialog(
 
 type ChartSurfaceActionKind = "settings" | "more";
 
-async function findChartSurfaceActionButtonsForScript(
+function chartSurfaceCandidateWords(name: string): string[] {
+  return normalizeUiText(name)
+    .toLowerCase()
+    .split(/\s+/)
+    .filter((part) => part.length > 0 && !/^v\d+(?:\.\d+)*$/.test(part));
+}
+
+function chartSurfaceTextMatchesName(text: string, name: string): boolean {
+  const normalizedText = normalizeUiText(text).toLowerCase();
+  const normalizedName = normalizeUiText(name).toLowerCase();
+  if (!normalizedText || !normalizedName) {
+    return false;
+  }
+  if (normalizedText.includes(normalizedName)) {
+    return true;
+  }
+
+  const words = chartSurfaceCandidateWords(name);
+  if (words.length < 2) {
+    return false;
+  }
+  return words.every((word) => (
+    normalizedText.includes(word)
+    || normalizedText.includes(word.slice(0, Math.min(word.length, 4)))
+  ));
+}
+
+export async function findChartSurfaceActionButtonsForScript(
   page: Page,
   scriptName: string,
   actionKind: ChartSurfaceActionKind,
@@ -2249,40 +2276,25 @@ async function findChartSurfaceActionButtonsForScript(
         continue;
       }
 
-      const match = await candidate.evaluate((node, names) => {
-        const normalize = (value: string): string => value.replace(/\s+/g, " ").trim().toLowerCase();
-        const candidateWords = (name: string): string[] => normalize(name)
-          .split(/\s+/)
-          .filter((part) => part.length > 0 && !/^v\d+(?:\.\d+)*$/.test(part));
-        const textMatchesName = (text: string, name: string): boolean => {
-          const normalizedName = normalize(name);
-          if (!text || !normalizedName) {
-            return false;
-          }
-          if (text.includes(normalizedName)) {
-            return true;
-          }
-
-          const words = candidateWords(name);
-          if (words.length < 2) {
-            return false;
-          }
-          return words.every((word) => text.includes(word) || text.includes(word.slice(0, Math.min(word.length, 4))));
-        };
-
-        let current: HTMLElement | null = (node as HTMLElement).parentElement;
-        for (let depth = 1; current && depth <= 8; depth += 1, current = current.parentElement) {
-          const text = normalize(current.innerText || current.textContent || "");
-          if (!text || text.length > 420) {
-            continue;
-          }
-          if (names.some((name) => textMatchesName(text, name))) {
-            return { depth, text: text.slice(0, 180) };
-          }
+      let match: { depth: number; text: string } | null = null;
+      for (let depth = 1; depth <= 8; depth += 1) {
+        const xpath = new Array(depth).fill("..").join("/");
+        const ancestor = candidate.locator(`xpath=${xpath}`);
+        const tagName = await ancestor.evaluate((node) => (
+          node instanceof Element ? node.tagName.toLowerCase() : ""
+        )).catch(() => "");
+        if (tagName === "body" || tagName === "html") {
+          break;
         }
-
-        return null;
-      }, candidateNames).catch(() => null);
+        const text = normalizeUiText((await ancestor.innerText({ timeout: 120 }).catch(() => "")) || "");
+        if (!text || text.length > 420) {
+          continue;
+        }
+        if (candidateNames.some((name) => chartSurfaceTextMatchesName(text, name))) {
+          match = { depth, text: text.slice(0, 180) };
+          break;
+        }
+      }
 
       if (!match) {
         continue;
