@@ -334,10 +334,11 @@ those instead.
 - `uvicorn` is used **without** `[standard]` extras to avoid the
   `uvloop` / Databento TCP conflict (`TypeError: object Future can't be used in
   'await' expression` on reconnect).
-- Start command forces `--loop asyncio --http h11` for compatibility.
-- Railway start command binds `--host 0.0.0.0 --port $PORT` so `/health` is
-  reachable on the Railway healthcheck port. The Dockerfile local fallback uses
-  `${PORT:-8000}`.
+- The Python entrypoint starts uvicorn with `--loop asyncio --http h11` for
+  compatibility.
+- Railway start command runs `python -m services.live_overlay_daemon.main`.
+  The Python entrypoint reads `PORT` itself and binds `0.0.0.0`, avoiding
+  fragile `$PORT` shell expansion in `railway.toml`.
 - The background feed thread creates its own event loop via
   `asyncio.new_event_loop()` + `asyncio.set_event_loop(loop)`.
 
@@ -346,8 +347,7 @@ those instead.
 ```bash
 cd skipp-algo
 DATABENTO_API_KEY=xxx OVERLAY_SECRET_TOKEN=mysecret \
-  uvicorn services.live_overlay_daemon.main:app \
-  --host 0.0.0.0 --port 8000 --workers 1 --loop asyncio --http h11
+  PORT=8000 python -m services.live_overlay_daemon.main
 ```
 
 ```bash

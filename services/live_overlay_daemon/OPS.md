@@ -119,7 +119,7 @@ builder = "DOCKERFILE"
 dockerfilePath = "services/live_overlay_daemon/Dockerfile"
 
 [deploy]
-startCommand = "uvicorn services.live_overlay_daemon.main:app --host 0.0.0.0 --port $PORT --workers 1 --http h11 --loop asyncio"
+startCommand = "python -m services.live_overlay_daemon.main"
 healthcheckPath = "/health"
 healthcheckTimeout = 60
 restartPolicyType = "ON_FAILURE"
