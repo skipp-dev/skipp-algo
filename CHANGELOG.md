@@ -46,6 +46,18 @@ All notable changes to this project are documented in this file.
   - Refreshed the Railway metrics `reset_cache()` global anchor after the
     error-classification cleanup.
 
+### Fixed (2026-06-30) — Live overlay Railway port default
+
+- `services/live_overlay_daemon/railway.toml`:
+  - Runs `python -m services.live_overlay_daemon.main` so Railway does not need
+    to shell-expand `$PORT` inside `startCommand`.
+- `services/live_overlay_daemon/main.py`:
+  - Added the module entrypoint that binds uvicorn to `0.0.0.0` and reads
+    `PORT` from the runtime environment, defaulting to `8000` locally.
+- `tests/test_live_overlay_daemon_service_contract.py`:
+  - Added a regression pin for the Python entrypoint's `PORT` handling and for
+    keeping `$PORT` out of the Railway start command.
+
 ### Fixed (2026-06-30) — TradingView chart surface settings scope tests
 
 - `automation/tradingview/lib/tv_shared.ts`:
