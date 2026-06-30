@@ -9,3 +9,7 @@
 
 skipp-dev <221361569+skipp-dev@users.noreply.github.com> <preuss.steffen@yahoo.com>
 skipp-dev <221361569+skipp-dev@users.noreply.github.com> <skipp-dev@users.noreply.github.com>
+# Defensive: the maintainer's Cisco Enterprise Managed User (EMU) account.
+# It has no commits here (EMU cannot collaborate on this personal repo), but
+# fold its no-reply email too in case of an accidental local commit.
+skipp-dev <221361569+skipp-dev@users.noreply.github.com> <227788186+spreuss_cisco@users.noreply.github.com>
