@@ -2293,7 +2293,9 @@ export async function findChartSurfaceActionButtonsForScript(
             tagName: element.tagName.toLowerCase(),
             text: (element.innerText || element.textContent || ""),
           };
-        }).catch(() => ({ tagName: "", text: "" }));
+        }).catch(() => ({ tagName: "", text: "" })).finally(async () => {
+          await ancestorHandle.dispose().catch(() => undefined);
+        });
         const tagName = meta.tagName;
         if (tagName === "body" || tagName === "html") {
           break;
