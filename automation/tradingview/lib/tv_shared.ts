@@ -4230,11 +4230,46 @@ async function tryOpenScriptSettingsByDoubleClick(
 }
 
 
-const VISIBLE_LEGEND_TEXT_SETTINGS_BUDGET_MS = 8_000;
-const MAX_VISIBLE_LEGEND_TEXT_TARGETS = 3;
+export const VISIBLE_LEGEND_TEXT_SETTINGS_BUDGET_MS = 8_000;
+export const MAX_VISIBLE_LEGEND_TEXT_TARGETS = 3;
+
+export type VisibleLegendTextTargetMeta = {
+  text: string;
+  rect: {
+    x: number;
+    y: number;
+    width: number;
+    height: number;
+  };
+  domPath?: string | null;
+};
+
+export function visibleLegendTextBudgetExceeded(startedAtMs: number, nowMs: number = Date.now()): boolean {
+  return nowMs - startedAtMs > VISIBLE_LEGEND_TEXT_SETTINGS_BUDGET_MS;
+}
+
+export function visibleLegendTextTargetCapReached(attemptedTargets: number): boolean {
+  return attemptedTargets >= MAX_VISIBLE_LEGEND_TEXT_TARGETS;
+}
+
+export function visibleLegendTextTargetKey(targetMeta: VisibleLegendTextTargetMeta): string {
+  const normalizedText = normalizeUiText(targetMeta.text);
+  const domPath = normalizeUiText(targetMeta.domPath ?? "");
+  const stableIdentity = domPath
+    || [
+      targetMeta.rect.x,
+      targetMeta.rect.y,
+      targetMeta.rect.width,
+      targetMeta.rect.height,
+    ].join(":");
+  return `${stableIdentity}:${normalizedText}`;
+}
 
 async function openSettingsFromVisibleLegendText(page: Page, scriptName: string): Promise<boolean> {
   tracePageEvent(page, "script-settings-legend-text-start", scriptName);
+  // This budget deliberately applies only to the visible legend-text heuristic.
+  // Earlier cleanup inside openSettingsForScriptOnce and later fallback paths
+  // keep their own step-level timeout budget.
   const startedAt = Date.now();
   let attemptedTargets = 0;
   const seenTargets = new Set<string>();
@@ -4251,18 +4286,18 @@ async function openSettingsFromVisibleLegendText(page: Page, scriptName: string)
     ];
 
     for (const [locatorIndex, locator] of locators.entries()) {
-      if (Date.now() - startedAt > VISIBLE_LEGEND_TEXT_SETTINGS_BUDGET_MS) {
+      if (visibleLegendTextBudgetExceeded(startedAt)) {
         tracePageEvent(page, "script-settings-legend-text-budget-exhausted", `${scriptName}:${attemptedTargets}`);
         return false;
       }
 
       const total = await locator.count().catch(() => 0);
       for (let itemIndex = 0; itemIndex < Math.min(total, 12); itemIndex += 1) {
-        if (attemptedTargets >= MAX_VISIBLE_LEGEND_TEXT_TARGETS) {
+        if (visibleLegendTextTargetCapReached(attemptedTargets)) {
           tracePageEvent(page, "script-settings-legend-text-target-cap-exhausted", `${scriptName}:${attemptedTargets}`);
           return false;
         }
-        if (Date.now() - startedAt > VISIBLE_LEGEND_TEXT_SETTINGS_BUDGET_MS) {
+        if (visibleLegendTextBudgetExceeded(startedAt)) {
           tracePageEvent(page, "script-settings-legend-text-budget-exhausted", `${scriptName}:${attemptedTargets}`);
           return false;
         }
@@ -4277,6 +4312,26 @@ async function openSettingsFromVisibleLegendText(page: Page, scriptName: string)
           const element = node as HTMLElement;
           const text = (element.innerText || element.textContent || "").replace(/\s+/g, " ").trim();
           const rect = element.getBoundingClientRect();
+          const pathParts: string[] = [];
+          let current: HTMLElement | null = element;
+          while (current && current !== document.body && pathParts.length < 8) {
+            const parent: HTMLElement | null = current.parentElement;
+            const tagName = current.tagName.toLowerCase();
+            const currentTagName = current.tagName;
+            const siblingIndex = parent
+              ? Array.from(parent.children)
+                .filter((child: Element) => child.tagName === currentTagName)
+                .indexOf(current) + 1
+              : 1;
+            const stableAttrs = [
+              current.id ? `#${current.id}` : "",
+              current.getAttribute("data-name") ? `[data-name="${current.getAttribute("data-name")}"]` : "",
+              current.getAttribute("data-qa-id") ? `[data-qa-id="${current.getAttribute("data-qa-id")}"]` : "",
+              current.getAttribute("role") ? `[role="${current.getAttribute("role")}"]` : "",
+            ].join("");
+            pathParts.push(`${tagName}${stableAttrs}:nth-of-type(${siblingIndex})`);
+            current = parent;
+          }
           return {
             text,
             rect: {
@@ -4285,6 +4340,7 @@ async function openSettingsFromVisibleLegendText(page: Page, scriptName: string)
               width: Math.round(rect.width),
               height: Math.round(rect.height),
             },
+            domPath: pathParts.reverse().join(">"),
             inPineDialog: Boolean(element.closest('[data-name="pine-dialog"]')),
             inDialog: Boolean(element.closest('[role="dialog"], [data-name*="dialog" i], [class*="modal" i]')),
             inMenu: Boolean(element.closest('[role="menu"], [data-name*="menu" i]')),
@@ -4303,7 +4359,7 @@ async function openSettingsFromVisibleLegendText(page: Page, scriptName: string)
           continue;
         }
 
-        const targetKey = `${targetMeta.rect.x}:${targetMeta.rect.y}:${targetMeta.rect.width}:${targetMeta.rect.height}:${normalizedText}`;
+        const targetKey = visibleLegendTextTargetKey(targetMeta);
         if (seenTargets.has(targetKey)) {
           tracePageEvent(page, "script-settings-legend-text-duplicate-skip", `${scriptName}:${candidateIndex}:${locatorIndex}:${itemIndex}`);
           continue;

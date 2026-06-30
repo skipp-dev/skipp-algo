@@ -95,18 +95,23 @@ def test_tradingview_timeout_budget_contract_is_documented() -> None:
 def test_visible_legend_text_settings_fallback_has_distinct_exhaustion_events() -> None:
     source = _read(TV_SHARED_PATH)
 
-    assert 'const VISIBLE_LEGEND_TEXT_SETTINGS_BUDGET_MS = 8_000;' in source
-    assert 'const MAX_VISIBLE_LEGEND_TEXT_TARGETS = 3;' in source
+    assert 'export const VISIBLE_LEGEND_TEXT_SETTINGS_BUDGET_MS = 8_000;' in source
+    assert 'export const MAX_VISIBLE_LEGEND_TEXT_TARGETS = 3;' in source
+    assert "visibleLegendTextBudgetExceeded(startedAt)" in source
+    assert "visibleLegendTextTargetCapReached(attemptedTargets)" in source
+    assert "visibleLegendTextTargetKey(targetMeta)" in source
+    assert "domPath: pathParts.reverse().join" in source
+    assert "This budget deliberately applies only to the visible legend-text heuristic." in source
     assert 'tracePageEvent(page, "script-settings-legend-text-budget-exhausted"' in source
     assert 'tracePageEvent(page, "script-settings-legend-text-target-cap-exhausted"' in source
     assert re.search(
-        r"if \(attemptedTargets >= MAX_VISIBLE_LEGEND_TEXT_TARGETS\) \{\s*"
+        r"if \(visibleLegendTextTargetCapReached\(attemptedTargets\)\) \{\s*"
         r'tracePageEvent\(page, "script-settings-legend-text-target-cap-exhausted"',
         source,
         re.S,
     )
     assert re.search(
-        r"if \(Date\.now\(\) - startedAt > VISIBLE_LEGEND_TEXT_SETTINGS_BUDGET_MS\) \{\s*"
+        r"if \(visibleLegendTextBudgetExceeded\(startedAt\)\) \{\s*"
         r'tracePageEvent\(page, "script-settings-legend-text-budget-exhausted"',
         source,
         re.S,
