@@ -206,7 +206,7 @@ test("no-change version promotion rejects import-path version substring evidence
     publishNoChangeDetected: true,
     identityVerificationMode: "not_verified",
     versionVerificationMode: "not_verified",
-    bodyText: "visible import owner_a/smc_micro_profiles_generated/12 as mp",
+    bodyText: "visible import owner_a/smc_micro_profiles_generated/20 as mp",
     expectedImportPath: "owner_a/smc_micro_profiles_generated/2",
   }), false);
 });
