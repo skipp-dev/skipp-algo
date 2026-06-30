@@ -11,6 +11,13 @@ The preflight now records the chosen auth source explicitly.
 - `auth_mode`
 - `auth_source_path`
 - `auth_reused_ok`
+- target-level `auth_reason`
+- target-level `auth_probe_statuses`
+
+The page-auth probe also emits a live `[tv-trace] auth-state-probe` log line
+with the resolved reason and account probe status codes. Use that line in the
+first live run after TradingView auth changes to confirm whether the API probes
+are working or whether the HTML fallback made the decision.
 
 ## Resolution Order
 
