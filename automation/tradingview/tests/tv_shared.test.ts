@@ -1149,3 +1149,46 @@ test("clickVisibleWithFallback dismisses hover-only [data-id] overlay via mouse.
     await browser.close();
   }
 });
+
+test("clickVisibleWithFallback keeps trying until the optional effect check passes", async () => {
+  const browser = await chromium.launch({ headless: true });
+  const page = await browser.newPage();
+  try {
+    await page.setContent(`
+      <html><body>
+        <button id="target" style="position:absolute;left:100px;top:100px">Click me</button>
+        <script>
+          window.__clicks = 0;
+          document.getElementById("target").addEventListener("click", function() {
+            window.__clicks += 1;
+            if (window.__clicks >= 3 && !document.querySelector('[data-name="clicked"]')) {
+              document.body.insertAdjacentHTML("beforeend", '<div data-name="clicked">ok</div>');
+            }
+          });
+        </script>
+      </body></html>
+    `);
+
+    const clicked = await clickVisibleWithFallback(
+      page,
+      [page.locator("#target")],
+      "effect-checked-click",
+      2_000,
+      50,
+      async () => page.locator('[data-name="clicked"]').isVisible({ timeout: 50 }).catch(() => false),
+    );
+
+    assert.equal(clicked, true, "click fallback must keep trying after no-effect clicks");
+    assert.equal(
+      await page.locator('[data-name="clicked"]').isVisible(),
+      true,
+      "target effect must be visible before the fallback reports success",
+    );
+    assert.ok(
+      await page.evaluate(() => (window as unknown as { __clicks: number }).__clicks >= 3),
+      "fallback should keep clicking until at least the click that creates the effect",
+    );
+  } finally {
+    await browser.close();
+  }
+});
