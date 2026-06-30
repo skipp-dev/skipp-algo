@@ -2285,11 +2285,15 @@ export async function findChartSurfaceActionButtonsForScript(
             return { tagName: "", text: "" };
           }
           const element = node as HTMLElement;
+          const tagName = element.tagName.toLowerCase();
+          if (tagName === "body" || tagName === "html") {
+            return { tagName, text: "" };
+          }
           return {
-            tagName: element.tagName.toLowerCase(),
+            tagName,
             text: (element.innerText || element.textContent || ""),
           };
-        }, undefined, { timeout: 120 }).catch(() => ({ tagName: "", text: "" }));
+        }, undefined, { timeout: 250 }).catch(() => ({ tagName: "", text: "" }));
         const tagName = meta.tagName;
         if (tagName === "body" || tagName === "html") {
           break;
