@@ -4229,6 +4229,105 @@ async function tryOpenScriptSettingsByDoubleClick(
   return false;
 }
 
+
+async function openSettingsFromVisibleLegendText(page: Page, scriptName: string): Promise<boolean> {
+  tracePageEvent(page, "script-settings-legend-text-start", scriptName);
+  const candidateNames = resolveOpenScriptSearchNames(scriptName);
+  const patternsList = candidateNames.map((name) => buildScriptNamePatterns(name));
+
+  for (const [candidateIndex, candidate] of candidateNames.entries()) {
+    const [exactPattern, loosePattern, fuzzyPattern] = patternsList[candidateIndex];
+    const locators = [
+      page.getByText(exactPattern),
+      page.getByText(loosePattern),
+      page.getByText(fuzzyPattern),
+      page.locator('[title], [aria-label]').filter({ hasText: loosePattern }),
+    ];
+
+    for (const [locatorIndex, locator] of locators.entries()) {
+      const total = await locator.count().catch(() => 0);
+      for (let itemIndex = 0; itemIndex < Math.min(total, 12); itemIndex += 1) {
+        const target = locator.nth(itemIndex);
+        const visible = await target.isVisible({ timeout: 250 }).catch(() => false);
+        if (!visible) {
+          continue;
+        }
+
+        const targetMeta = await target.evaluate((node) => {
+          const element = node as HTMLElement;
+          const text = (element.innerText || element.textContent || "").replace(/\s+/g, " ").trim();
+          return {
+            text,
+            inPineDialog: Boolean(element.closest('[data-name="pine-dialog"]')),
+            inDialog: Boolean(element.closest('[role="dialog"], [data-name*="dialog" i], [class*="modal" i]')),
+            inMenu: Boolean(element.closest('[role="menu"], [data-name*="menu" i]')),
+          };
+        }).catch(() => null);
+        if (!targetMeta || targetMeta.inPineDialog || targetMeta.inDialog || targetMeta.inMenu) {
+          tracePageEvent(page, "script-settings-legend-text-skip-surface", `${scriptName}:${candidateIndex}:${locatorIndex}:${itemIndex}`);
+          continue;
+        }
+
+        const normalizedText = normalizeUiText(targetMeta.text);
+        if (!normalizedText || normalizedText.length > 220) {
+          continue;
+        }
+        if (!(loosePattern.test(normalizedText) || fuzzyPattern.test(normalizedText) || isLegendTruncatedMatch(normalizedText, candidate))) {
+          continue;
+        }
+
+        tracePageEvent(
+          page,
+          "script-settings-legend-text-visible",
+          `${scriptName}:${candidateIndex}:${locatorIndex}:${itemIndex}:${normalizedText.slice(0, 140)}`,
+        );
+        await target.scrollIntoViewIfNeeded().catch(() => undefined);
+        await target.hover({ timeout: 750 }).catch(() => undefined);
+
+        if (await tryOpenScriptSettingsByDoubleClick(
+          page,
+          target,
+          "script-settings-legend-text-dblclick-start",
+          "script-settings-legend-text-dblclick-ok",
+          `${scriptName}:${candidateIndex}:${locatorIndex}:${itemIndex}`,
+        )) {
+          return verifyOpenedSettingsDialogIdentity(page, scriptName, "script-settings-legend-text-dblclick");
+        }
+
+        const actionableWrapper = target.locator(
+          'xpath=ancestor::*[.//button[@data-qa-id="legend-settings-action"] or .//button[@data-qa-id="legend-more-action"] or .//*[@aria-label="Settings"] or .//*[@aria-label="More"]][1]',
+        ).first();
+        const wrapperVisible = await actionableWrapper.isVisible({ timeout: 250 }).catch(() => false);
+        if (!wrapperVisible) {
+          continue;
+        }
+
+        await actionableWrapper.hover({ timeout: 750 }).catch(() => undefined);
+        const clickedDirectSettings = await clickLegendControlWithFallback(
+          page,
+          tvSelectors.legendSettingsButtons(actionableWrapper),
+          "script-settings-legend-text-direct",
+          400,
+          120,
+          async () => hasSettingsSurfaceDomHint(page),
+        );
+        if (clickedDirectSettings) {
+          tracePageEvent(page, "script-settings-legend-text-direct-clicked", `${scriptName}:${candidateIndex}:${locatorIndex}:${itemIndex}`);
+          if (await waitForScriptSettingsInputsSurface(page, 350)) {
+            return verifyOpenedSettingsDialogIdentity(page, scriptName, "script-settings-legend-text-direct-surface");
+          }
+          if (await resolveOpenedSettingsSurfaceToIndicatorDialog(page, "script-settings-legend-text-direct", 350)) {
+            return verifyOpenedSettingsDialogIdentity(page, scriptName, "script-settings-legend-text-direct-dialog");
+          }
+        }
+      }
+    }
+  }
+
+  tracePageEvent(page, "script-settings-legend-text-miss", scriptName);
+  return false;
+}
+
 async function openSettingsFromLegendContainer(page: Page, scriptName: string): Promise<boolean> {
   tracePageEvent(page, "script-settings-legend-container-start", scriptName);
   const candidateNames = resolveOpenScriptSearchNames(scriptName);
@@ -6009,8 +6108,12 @@ async function openSettingsForScriptOnce(page: Page, scriptName: string): Promis
   await dismissSignInModal(page);
   await closePineEditorIfVisible(page);
   tracePageEvent(page, "script-settings-open-start", scriptName);
-  let openedMenu = await openSettingsFromLegendContainer(page, scriptName);
-  tracePageEvent(page, "script-settings-open-legend-result", `${scriptName}:${openedMenu}`);
+  let openedMenu = await openSettingsFromVisibleLegendText(page, scriptName);
+  tracePageEvent(page, "script-settings-open-legend-text-result", `${scriptName}:${openedMenu}`);
+  if (!openedMenu) {
+    openedMenu = await openSettingsFromLegendContainer(page, scriptName);
+    tracePageEvent(page, "script-settings-open-legend-result", `${scriptName}:${openedMenu}`);
+  }
   if (!openedMenu) {
     openedMenu = await openSettingsFromScriptText(page, scriptName);
     tracePageEvent(page, "script-settings-open-text-result", `${scriptName}:${openedMenu}`);
