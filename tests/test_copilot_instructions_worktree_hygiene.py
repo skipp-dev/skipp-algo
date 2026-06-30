@@ -12,8 +12,12 @@ def _text() -> str:
     return INSTRUCTIONS.read_text(encoding="utf-8")
 
 
+def _one_line() -> str:
+    return " ".join(_text().split())
+
+
 def test_stale_audit_and_fix_worktree_hygiene_is_documented() -> None:
-    text = _text()
+    text = _one_line()
     assert "Worktree-Hygiene" in text
     assert "Alte lokale `audit/*`- und `fix/*`-Worktrees" in text
     assert "`git worktree list`, offener PR-Status und" in text
