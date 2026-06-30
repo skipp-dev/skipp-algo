@@ -4168,7 +4168,7 @@ async function openSettingsFromLegendContainer(page: Page, scriptName: string): 
       "script-settings-legend-wrapper-direct",
       500,
       150,
-      async () => isSettingsSurfaceVisibleFast(page),
+      async () => hasSettingsSurfaceDomHint(page),
     );
     if (clickedDirectSettings) {
       tracePageEvent(page, "script-settings-legend-wrapper-direct-clicked", scriptName);
@@ -4186,7 +4186,7 @@ async function openSettingsFromLegendContainer(page: Page, scriptName: string): 
       "script-settings-legend-wrapper-menu",
       500,
       150,
-      async () => isSettingsSurfaceVisibleFast(page),
+      async () => hasSettingsSurfaceDomHint(page),
     );
     if (clickedMenu) {
       tracePageEvent(page, "script-settings-legend-wrapper-menu-clicked", scriptName);
@@ -4254,7 +4254,7 @@ async function openSettingsFromLegendContainer(page: Page, scriptName: string): 
           "script-settings-legend-direct",
           500,
           150,
-          async () => isSettingsSurfaceVisibleFast(page),
+          async () => hasSettingsSurfaceDomHint(page),
         );
         if (clickedDirectSettings) {
           tracePageEvent(page, "script-settings-legend-direct-clicked", `${scriptName}:${containerIndex}:${candidate}`);
@@ -4274,7 +4274,7 @@ async function openSettingsFromLegendContainer(page: Page, scriptName: string): 
           "script-settings-legend",
           500,
           150,
-          async () => isSettingsSurfaceVisibleFast(page),
+          async () => hasSettingsSurfaceDomHint(page),
         );
         if (clickedMenu) {
           tracePageEvent(page, "script-settings-legend-container-clicked", `${scriptName}:${containerIndex}:${candidate}`);
