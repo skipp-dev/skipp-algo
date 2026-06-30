@@ -1341,6 +1341,8 @@ class TestTvResilienceClassification:
                 "failures": [
                     {"code": "AUTH_FAILED"},
                     {"code": "PREFLIGHT_FAILED"},
+                    {"code": "POST_RELEASE_VALIDATION_FAILED"},
+                    {"code": "NO_TARGETS"},
                 ],
             },
         }

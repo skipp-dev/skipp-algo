@@ -63,6 +63,13 @@ class TestStageClassification:
         assert result["stage"] == "auth"
         assert result["release_blocking"] is False
 
+    def test_missing_post_release_input_is_soft(self) -> None:
+        result = classify_tv_validation_stage(
+            _gate_with(["POST_RELEASE_VALIDATION_FAILED", "NO_TARGETS"])
+        )
+        assert result["stage"] == "validation_input_absent"
+        assert result["release_blocking"] is False
+
     def test_mixed_stages_label_is_mixed(self) -> None:
         result = classify_tv_validation_stage(
             _gate_with(["PREFLIGHT_FAILED", "TARGET_FAILED"])
@@ -89,6 +96,11 @@ class TestSoftOnlyHelper:
     def test_auth_only_is_soft(self) -> None:
         assert _tv_gate_is_soft_only(_gate_with(["AUTH_FAILED"])) is True
 
+    def test_missing_post_release_input_is_soft(self) -> None:
+        assert _tv_gate_is_soft_only(
+            _gate_with(["POST_RELEASE_VALIDATION_FAILED", "NO_TARGETS"])
+        ) is True
+
     def test_compile_add_runtime_is_not_soft(self) -> None:
         assert _tv_gate_is_soft_only(_gate_with(["TARGET_FAILED"])) is False
 
@@ -113,6 +125,22 @@ class TestGateAnnotation:
         assert stage_block["release_blocking"] is False
         codes = [entry["code"] for entry in stage_block["per_code"]]
         assert codes == ["PREFLIGHT_FAILED"]
+
+    def test_missing_input_report_is_external_and_non_blocking_stage(
+        self, tmp_path
+    ) -> None:
+        report = tmp_path / "validation_report.json"
+        report.write_text(
+            '{"overall_status": "fail", "validated_target_count": 0, '
+            '"failures": [{"code": "POST_RELEASE_VALIDATION_FAILED"}]}',
+            encoding="utf-8",
+        )
+        gate = _run_post_release_validation_gate(str(report))
+        assert gate["status"] == "fail"
+        assert gate["tv_failure_class"] == "external_tv_drift"
+        stage_block = gate["tv_validation_stage"]
+        assert stage_block["stage"] == "validation_input_absent"
+        assert stage_block["release_blocking"] is False
 
     def test_ok_gate_has_no_stage_block(self, tmp_path) -> None:
         report = tmp_path / "validation_report.json"
@@ -184,4 +212,58 @@ class TestRunnerDowngrade:
         assert post_release["blocking"] is False
         assert post_release.get("tv_soft_only_downgraded") is True
         assert "post_release_validation" in report_payload["runner"]["tv_soft_downgrades"]
+        assert report_payload["operational_release_pass"] is True
+
+    def test_main_downgrades_missing_post_release_input_outside_ci_mode(
+        self, tmp_path
+    ) -> None:
+        from scripts import run_smc_release_gates as runner
+
+        validation_report = tmp_path / "validation_report.json"
+        validation_report.write_text(
+            '{"overall_status": "fail", "validated_target_count": 0, '
+            '"failures": [{"code": "POST_RELEASE_VALIDATION_FAILED"}]}',
+            encoding="utf-8",
+        )
+
+        ok_gate = {"name": "noop", "status": "ok", "details": {}}
+
+        def _noop_provider(*_a, **_kw):
+            return {
+                "overall_status": "ok",
+                "domain_alerts": [],
+                "failures": [],
+                "warnings": [],
+                "degradations_detected": [],
+                "smoke_bundles": {("AAPL", "1m"): {}},
+                "smoke_test_results": [{"symbol": "AAPL", "timeframe": "1m"}],
+            }
+
+        with mock.patch.object(runner, "run_provider_health_check", _noop_provider), \
+            mock.patch.object(runner, "_run_reference_bundle_gate", lambda *a, **kw: dict(ok_gate)), \
+            mock.patch.object(runner, "_run_publish_contract_gate", lambda *a, **kw: dict(ok_gate)), \
+            mock.patch.object(runner, "_run_measurement_gate", lambda *a, **kw: dict(ok_gate)), \
+            mock.patch.object(runner, "build_evidence_lane_gate", lambda: dict(ok_gate)):
+            output = tmp_path / "report.json"
+            argv = [
+                "run_smc_release_gates",
+                "--symbols", "AAPL",
+                "--timeframes", "1m",
+                "--output", str(output),
+                "--post-release-validation-report", str(validation_report),
+            ]
+            with mock.patch("sys.argv", argv):
+                exit_code = runner.main()
+
+        assert exit_code == 0
+        import json
+        report_payload = json.loads(output.read_text(encoding="utf-8"))
+        post_release = next(
+            g for g in report_payload["gates"] if g["name"] == "post_release_validation"
+        )
+        assert post_release["status"] == "fail"
+        assert post_release["blocking"] is False
+        assert post_release["tv_failure_class"] == "external_tv_drift"
+        assert post_release["tv_validation_stage"]["stage"] == "validation_input_absent"
+        assert post_release.get("tv_soft_only_downgraded") is True
         assert report_payload["operational_release_pass"] is True
