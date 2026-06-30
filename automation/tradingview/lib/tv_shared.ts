@@ -5996,7 +5996,7 @@ export async function assertNoVisibleCompileError(page: Page): Promise<void> {
   }
 }
 
-async function hasAddToChartClickEffect(page: Page, scriptName?: string): Promise<boolean> {
+export async function hasAddToChartClickEffect(page: Page, scriptName?: string): Promise<boolean> {
   const updateOnChartVisible = await hasVisibleLocatorFast([
     page.getByRole("button", { name: /update on chart/i }),
     page.getByText(/update on chart/i),

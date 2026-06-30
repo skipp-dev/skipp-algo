@@ -32,6 +32,7 @@ import {
   isLegendTruncatedMatch,
   hasSettingsSurfaceDomHint,
   dismissOverlapManagerOverlay,
+  hasAddToChartClickEffect,
   clickVisibleWithFallback,
   MAX_VISIBLE_LEGEND_TEXT_TARGETS,
   VISIBLE_LEGEND_TEXT_SETTINGS_BUDGET_MS,
@@ -1263,6 +1264,75 @@ test("clickVisibleWithFallback keeps trying until the optional effect check pass
     assert.ok(
       await page.evaluate(() => (window as unknown as { __clicks: number }).__clicks >= 3),
       "fallback should keep clicking until at least the click that creates the effect",
+    );
+  } finally {
+    await browser.close();
+  }
+});
+
+test("hasAddToChartClickEffect accepts update state and missing Add button", async () => {
+  const browser = await chromium.launch({ headless: true });
+  const page = await browser.newPage();
+  try {
+    await page.setContent(`
+      <html><body>
+        <button>Add to chart</button>
+        <button>Update on chart</button>
+      </body></html>
+    `);
+    assert.equal(
+      await hasAddToChartClickEffect(page, CORE_SCRIPT),
+      true,
+      "visible Update on chart control means the add click had an effect",
+    );
+
+    await page.setContent(`
+      <html><body>
+        <main>No add-to-chart action is visible anymore</main>
+      </body></html>
+    `);
+    assert.equal(
+      await hasAddToChartClickEffect(page, CORE_SCRIPT),
+      true,
+      "a disappeared Add to chart control is accepted as click effect",
+    );
+  } finally {
+    await browser.close();
+  }
+});
+
+test("hasAddToChartClickEffect uses visible chart script state when Add button remains", async () => {
+  const browser = await chromium.launch({ headless: true });
+  const page = await browser.newPage();
+  try {
+    await page.setContent(`
+      <html><body>
+        <button>Add to chart</button>
+        <section data-name="legend-row" style="position:absolute;left:20px;top:20px;width:260px;height:48px">
+          <span>${CORE_SCRIPT}</span>
+          <button data-qa-id="legend-settings-action">Settings</button>
+        </section>
+      </body></html>
+    `);
+    assert.equal(
+      await hasAddToChartClickEffect(page, CORE_SCRIPT),
+      true,
+      "visible legend evidence for the script confirms the add click effect even while the button remains",
+    );
+
+    await page.setContent(`
+      <html><body>
+        <button>Add to chart</button>
+        <section data-name="legend-row" style="position:absolute;left:20px;top:20px;width:260px;height:48px">
+          <span>Unrelated Script</span>
+          <button data-qa-id="legend-settings-action">Settings</button>
+        </section>
+      </body></html>
+    `);
+    assert.equal(
+      await hasAddToChartClickEffect(page, CORE_SCRIPT),
+      false,
+      "visible Add button plus unrelated chart text is not enough",
     );
   } finally {
     await browser.close();
