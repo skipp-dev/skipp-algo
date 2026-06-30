@@ -6,13 +6,36 @@ All notable changes to this project are documented in this file.
 
 ## [Unreleased]
 
+### Fixed (2026-06-30) — Live overlay operations cleanup
+
+- `services/live_overlay_daemon/railway_metrics.py`:
+  - Classifies `URLError(TimeoutError(...))` Railway GraphQL failures as
+    `timeout` instead of generic `network_error`.
+- `services/live_overlay_daemon/OPS.md`:
+  - Clarified that `live_overlay_market_us_open` is the intentional
+    US-regular-session gate for **Market Traffic Health**; the historical bug
+    was missing request-counter data during no-traffic startup.
+- `tests/test_railway_metrics.py`:
+  - Added regression coverage for wrapped timeout and non-timeout `URLError`
+    bridge failures.
+- `tests/test_global_statement_budget.py`:
+  - Refreshed the Railway metrics `reset_cache()` global anchor after the
+    error-classification cleanup.
+
 ### Fixed (2026-06-30) — Plan 2.8 evaluation snapshot publish
 
 - `.github/workflows/plan-2-8-evaluation.yml`:
+  - Uses an explicit SHA-populated `--force-with-lease` when publishing
+    `bot/live-experiment-snapshot`, avoiding implicit lease resolution.
+  - Sets `persist-credentials: false` on checkout and limits workflow
+    permissions to `contents: read` plus `issues: write`; the bot-branch push
+    continues to use `GH_PAT`.
   - Downgrades `bot/live-experiment-snapshot` push failures to a warning so
     successful daily evaluations do not fail solely because the optional
     rolling snapshot publish credential is expired or under-scoped.
 - `tests/test_plan_2_8_evaluation_workflow.py`:
+  - Added regression pins for explicit force-with-lease, checkout credential
+    persistence, and issue-fallback permissions.
   - Added a regression pin for the best-effort publish failure path.
 
 ### Fixed (2026-06-29) — Railway healthcheck port bindings
