@@ -56,6 +56,24 @@ class TestStageClassification:
         assert result["stage"] == "input_visibility"
         assert result["release_blocking"] is False
 
+    def test_target_preflight_failed_is_soft(self) -> None:
+        # A target that loaded on the chart but whose Settings/Inputs surface
+        # could not be opened is a UI-interaction flake, not semantic drift.
+        # It belongs in the soft input-visibility stage, never compile/runtime.
+        result = classify_tv_validation_stage(_gate_with(["TARGET_PREFLIGHT_FAILED"]))
+        assert result["stage"] == "input_visibility"
+        assert result["release_blocking"] is False
+
+    def test_run_628_surface_shape_is_soft(self) -> None:
+        # The exact run-628 shape once the surface failure is classified
+        # correctly: report-level PREFLIGHT_FAILED + target-level
+        # TARGET_PREFLIGHT_FAILED. Both soft → the gate must not block.
+        result = classify_tv_validation_stage(
+            _gate_with(["PREFLIGHT_FAILED", "TARGET_PREFLIGHT_FAILED"])
+        )
+        assert result["stage"] == "input_visibility"
+        assert result["release_blocking"] is False
+
     def test_auth_only_is_soft(self) -> None:
         result = classify_tv_validation_stage(
             _gate_with(["AUTH_FAILED", "AUTH_NOT_REUSED"])
@@ -103,6 +121,17 @@ class TestSoftOnlyHelper:
 
     def test_compile_add_runtime_is_not_soft(self) -> None:
         assert _tv_gate_is_soft_only(_gate_with(["TARGET_FAILED"])) is False
+
+    def test_target_preflight_failed_only_is_soft(self) -> None:
+        assert _tv_gate_is_soft_only(_gate_with(["TARGET_PREFLIGHT_FAILED"])) is True
+
+    def test_run_628_surface_shape_is_soft(self) -> None:
+        assert (
+            _tv_gate_is_soft_only(
+                _gate_with(["PREFLIGHT_FAILED", "TARGET_PREFLIGHT_FAILED"])
+            )
+            is True
+        )
 
     def test_no_failures_is_not_soft(self) -> None:
         # An OK gate is never "soft-only" — the predicate only applies to

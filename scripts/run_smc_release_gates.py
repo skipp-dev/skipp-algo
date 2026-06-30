@@ -175,6 +175,7 @@ _TV_EXTERNAL_DRIFT_CODES: frozenset[str] = frozenset({
     # selectors, modals, or page layout changed on TV side.
     "PREFLIGHT_FAILED",
     "TARGET_FAILED",
+    "TARGET_PREFLIGHT_FAILED",
 })
 
 # Failure codes that represent *our* code/data responsibility even when
@@ -262,9 +263,12 @@ _TV_STAGE_MANIFEST_CODES: frozenset[str] = frozenset({
 # Input-tab visibility — preflight discovers visible Pine inputs. WS1-FT-04
 # explicitly carves this stage out: a missing visible Settings input tab
 # must not block the release, only the real runtime path (compile, add to
-# chart, runtime check) should.
+# chart, runtime check) should. ``TARGET_PREFLIGHT_FAILED`` is the
+# per-target surface flake (script loaded on the chart but its Settings/
+# Inputs surface could not be opened) and shares this soft stage.
 _TV_STAGE_INPUT_VISIBILITY_CODES: frozenset[str] = frozenset({
     "PREFLIGHT_FAILED",
+    "TARGET_PREFLIGHT_FAILED",
 })
 
 # Compile / add-to-chart / runtime — the actual runtime pipeline. A failure
