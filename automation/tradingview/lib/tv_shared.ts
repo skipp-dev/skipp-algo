@@ -3508,6 +3508,62 @@ async function hasQuickVisibleScriptSettingsSurface(page: Page): Promise<boolean
   return false;
 }
 
+async function hasSettingsSurfaceDomHint(page: Page): Promise<boolean> {
+  return page.evaluate(() => {
+    const isVisible = (element: Element): boolean => {
+      const htmlElement = element as HTMLElement;
+      const rect = htmlElement.getBoundingClientRect();
+      if (rect.width <= 0 || rect.height <= 0) {
+        return false;
+      }
+
+      const style = window.getComputedStyle(htmlElement);
+      return style.visibility !== "hidden"
+        && style.display !== "none"
+        && Number(style.opacity || "1") > 0.01;
+    };
+
+    const textOf = (element: Element): string => ((element as HTMLElement).innerText || element.textContent || "").trim();
+    const surfaceTextPattern = /\b(?:inputs|style|visibility|settings)\b/i;
+    const settingsActionPattern = /^settings(?:\.\.\.)?$/i;
+    const surfaceSelectors = [
+      '#overlap-manager-root [role="dialog"]',
+      '#overlap-manager-root [data-name*="dialog" i]',
+      '#overlap-manager-root [class*="dialog" i]',
+      '#overlap-manager-root [class*="modal" i]',
+      '#overlap-manager-root [role="menu"]',
+      '#overlap-manager-root [data-name*="menu" i]',
+      '#overlap-manager-root [class*="menu" i]',
+      '[role="dialog"]',
+      '[role="menu"]',
+    ];
+
+    for (const selector of surfaceSelectors) {
+      for (const element of Array.from(document.querySelectorAll(selector)).slice(-8)) {
+        if (isVisible(element) && surfaceTextPattern.test(textOf(element))) {
+          return true;
+        }
+      }
+    }
+
+    const actionSelectors = [
+      '[role="menuitem"]',
+      '[role="button"]',
+      'button',
+      '[role="tab"]',
+    ];
+    for (const selector of actionSelectors) {
+      for (const element of Array.from(document.querySelectorAll(selector)).slice(-80)) {
+        if (isVisible(element) && settingsActionPattern.test(textOf(element))) {
+          return true;
+        }
+      }
+    }
+
+    return false;
+  }).catch(() => false);
+}
+
 async function hasScriptSettingsInputsSurface(page: Page): Promise<boolean> {
   return (await hasQuickVisibleScriptSettingsSurface(page))
     || (await hasIndicatorSettingsDialog(page))
@@ -3564,6 +3620,7 @@ async function isSettingsSurfaceVisible(page: Page, timeoutMs = 500): Promise<bo
 async function isSettingsSurfaceVisibleFast(page: Page): Promise<boolean> {
   return (
     (await hasQuickVisibleScriptSettingsSurface(page))
+    || (await hasSettingsSurfaceDomHint(page))
     || (await hasVisibleLocatorFast(tvSelectors.settingsAction(page), 120))
     || (await hasVisibleLocatorFast(tvSelectors.inputsTab(page), 120))
   );
@@ -4111,7 +4168,7 @@ async function openSettingsFromLegendContainer(page: Page, scriptName: string): 
       "script-settings-legend-wrapper-direct",
       500,
       150,
-      async () => waitForSettingsSurface(page, 350),
+      async () => isSettingsSurfaceVisibleFast(page),
     );
     if (clickedDirectSettings) {
       tracePageEvent(page, "script-settings-legend-wrapper-direct-clicked", scriptName);
@@ -4129,7 +4186,7 @@ async function openSettingsFromLegendContainer(page: Page, scriptName: string): 
       "script-settings-legend-wrapper-menu",
       500,
       150,
-      async () => waitForSettingsSurface(page, 350),
+      async () => isSettingsSurfaceVisibleFast(page),
     );
     if (clickedMenu) {
       tracePageEvent(page, "script-settings-legend-wrapper-menu-clicked", scriptName);
@@ -4197,7 +4254,7 @@ async function openSettingsFromLegendContainer(page: Page, scriptName: string): 
           "script-settings-legend-direct",
           500,
           150,
-          async () => waitForSettingsSurface(page, 350),
+          async () => isSettingsSurfaceVisibleFast(page),
         );
         if (clickedDirectSettings) {
           tracePageEvent(page, "script-settings-legend-direct-clicked", `${scriptName}:${containerIndex}:${candidate}`);
@@ -4217,7 +4274,7 @@ async function openSettingsFromLegendContainer(page: Page, scriptName: string): 
           "script-settings-legend",
           500,
           150,
-          async () => waitForSettingsSurface(page, 350),
+          async () => isSettingsSurfaceVisibleFast(page),
         );
         if (clickedMenu) {
           tracePageEvent(page, "script-settings-legend-container-clicked", `${scriptName}:${containerIndex}:${candidate}`);
