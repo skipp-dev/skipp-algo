@@ -1272,8 +1272,8 @@ test("clickVisibleWithFallback keeps trying until the optional effect check pass
 
 test("hasAddToChartClickEffect accepts update state and missing Add button", async () => {
   const browser = await chromium.launch({ headless: true });
-  const page = await browser.newPage();
   try {
+    const page = await browser.newPage();
     await page.setContent(`
       <html><body>
         <button>Add to chart</button>
@@ -1303,8 +1303,8 @@ test("hasAddToChartClickEffect accepts update state and missing Add button", asy
 
 test("hasAddToChartClickEffect uses visible chart script state when Add button remains", async () => {
   const browser = await chromium.launch({ headless: true });
-  const page = await browser.newPage();
   try {
+    const page = await browser.newPage();
     await page.setContent(`
       <html><body>
         <button>Add to chart</button>
