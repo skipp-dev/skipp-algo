@@ -1101,13 +1101,65 @@ jobs:
       - name: Normalize TradingView post-release validation
         id: tv_post_release
         if: always() && steps.publish.outcome == 'success' && steps.diff.outputs.changed == 'true' && steps.publish_gate.outputs.publish_allowed == 'true' && github.ref == 'refs/heads/main'
+        # CONTINUE-ON-ERROR-INTENTIONAL: the normalizer emits the canonical post-release verdict; fail-on gate enforces blocking statuses later.
         continue-on-error: true
         run: |
-          "$SMC_PYTHON_BIN" scripts/run_smc_post_release_validation.py \
-            --release-manifest artifacts/tradingview/library_release_manifest.json \
-            --validation-report artifacts/tradingview/tv_post_release_validation.json \
-            --ci-mode \
-            --output artifacts/ci/smc_post_release_validation_report.json
+          if "$SMC_PYTHON_BIN" scripts/run_smc_post_release_validation.py \
+              --release-manifest artifacts/tradingview/library_release_manifest.json \
+              --validation-report artifacts/tradingview/tv_post_release_validation.json \
+              --ci-mode \
+              --output artifacts/ci/smc_post_release_validation_report.json; then
+            _normalizer_rc=0
+          else
+            _normalizer_rc=$?
+          fi
+          "$SMC_PYTHON_BIN" - <<'PY'
+          import json
+          import os
+          from pathlib import Path
+
+          report_path = Path("artifacts/ci/smc_post_release_validation_report.json")
+          if not report_path.exists():
+            print("::warning::Post-release validation normalizer did not write a report")
+            raise SystemExit(0)
+
+          try:
+            report = json.loads(report_path.read_text(encoding="utf-8"))
+          except Exception as exc:
+            print(f"::warning::Post-release validation report is unreadable: {exc}")
+            raise SystemExit(0)
+
+          classification = report.get("failure_classification") if isinstance(report, dict) else {}
+          failures = report.get("failures") if isinstance(report, dict) else []
+          primary = classification.get("primary_blocker") if isinstance(classification, dict) else None
+          codes = [
+            str(item.get("code"))
+            for item in failures
+            if isinstance(item, dict) and item.get("code")
+          ]
+          status = report.get("overall_status", "unknown") if isinstance(report, dict) else "unknown"
+          print(f"Post-release validation normalized status: {status}")
+          if primary:
+            print(f"Post-release validation primary blocker: {primary}")
+          if codes:
+            print(f"Post-release validation failure codes: {', '.join(codes)}")
+          with Path.cwd().joinpath("artifacts/ci/post_release_summary.txt").open("w", encoding="utf-8") as handle:
+            handle.write(f"status={status}\n")
+            if primary:
+              handle.write(f"primary_blocker={primary}\n")
+            if codes:
+              handle.write(f"failure_codes={','.join(codes)}\n")
+          step_summary = os.environ.get("GITHUB_STEP_SUMMARY")
+          if step_summary:
+            with open(step_summary, "a", encoding="utf-8") as summary:
+              summary.write("### TradingView post-release normalization\n\n")
+              summary.write(f"- Status: `{status}`\n")
+              if primary:
+                summary.write(f"- Primary blocker: `{primary}`\n")
+              if codes:
+                summary.write(f"- Failure codes: `{', '.join(codes)}`\n")
+          PY
+          exit "${_normalizer_rc}"
 
       - name: Run strict release gates
         id: release_gates
