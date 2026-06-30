@@ -107,6 +107,66 @@ def test_verify_post_release_validation_rejects_failed_target(tmp_path: Path) ->
         verify_post_release_validation(release_manifest_path, validation_report_path)
 
 
+def test_verify_post_release_validation_emits_soft_code_for_settings_open_failure(tmp_path: Path) -> None:
+    # A target that loaded on the chart but whose Settings/Inputs surface could
+    # not be opened is a UI-interaction (surface) flake, not semantic drift. It
+    # must emit the soft ``TARGET_PREFLIGHT_FAILED`` code so the release gate can
+    # downgrade it — never the blocking ``TARGET_FAILED``. Regression for
+    # smc-library-refresh run 628 (2026-06-30): "Could not open script menu for
+    # settings: SMC Decision Board".
+    release_manifest_path = tmp_path / "library_release_manifest.json"
+    validation_report_path = tmp_path / "tv_post_release_validation.json"
+
+    report = _valid_report()
+    report["overall_preflight_ok"] = False
+    report["targets"] = [
+        {
+            "scriptName": "SMC Decision Board",
+            "overall_preflight_ok": False,
+            "script_found_on_chart_ok": True,
+            "settings_open_ok": False,
+            "error": "Could not open script menu for settings: SMC Decision Board",
+        }
+    ]
+    _write_json(release_manifest_path, _valid_manifest())
+    _write_json(validation_report_path, report)
+
+    with pytest.raises(RuntimeError) as exc_info:
+        verify_post_release_validation(release_manifest_path, validation_report_path)
+
+    codes = getattr(exc_info.value, "failure_codes", [])
+    assert "TARGET_PREFLIGHT_FAILED" in codes
+    assert "TARGET_FAILED" not in codes
+
+
+def test_verify_post_release_validation_keeps_target_failed_for_chart_load_failure(tmp_path: Path) -> None:
+    # A target that never became visible on the chart is a real load/runtime
+    # failure (the published script could not be added), so it must remain the
+    # blocking ``TARGET_FAILED`` and NOT be downgraded to the soft surface code.
+    release_manifest_path = tmp_path / "library_release_manifest.json"
+    validation_report_path = tmp_path / "tv_post_release_validation.json"
+
+    report = _valid_report()
+    report["overall_preflight_ok"] = False
+    report["targets"] = [
+        {
+            "scriptName": "SMC Decision Board",
+            "overall_preflight_ok": False,
+            "script_found_on_chart_ok": False,
+            "error": "Script did not become visible on chart after add-to-chart",
+        }
+    ]
+    _write_json(release_manifest_path, _valid_manifest())
+    _write_json(validation_report_path, report)
+
+    with pytest.raises(RuntimeError) as exc_info:
+        verify_post_release_validation(release_manifest_path, validation_report_path)
+
+    codes = getattr(exc_info.value, "failure_codes", [])
+    assert "TARGET_FAILED" in codes
+    assert "TARGET_PREFLIGHT_FAILED" not in codes
+
+
 def test_verify_post_release_validation_skips_manifest_rewrite_when_path_is_unchanged(tmp_path: Path) -> None:
     release_manifest_path = tmp_path / "library_release_manifest.json"
     validation_report_path = tmp_path / "tv_post_release_validation.json"

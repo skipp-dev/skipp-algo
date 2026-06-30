@@ -22,6 +22,7 @@ POST_RELEASE_FAILURE_CODES = (
     "AUTH_FAILED",
     "PREFLIGHT_FAILED",
     "TARGET_FAILED",
+    "TARGET_PREFLIGHT_FAILED",
     "NO_TARGETS",
 )
 
@@ -151,8 +152,22 @@ def verify_post_release_validation(
             label = str(target.get("scriptName") or target.get("file") or "unknown_target")
             target_error = str(target.get("error") or "overall_preflight_ok=false")
             failures.append(f"target {label} failed post-release validation: {target_error}")
-            if "TARGET_FAILED" not in failure_codes:
-                failure_codes.append("TARGET_FAILED")
+            # WS1-FT-04 stage split: a target that loaded on the chart but whose
+            # Settings/Inputs surface could not be opened is a UI-interaction
+            # (surface) flake, not semantic drift. Emit the soft
+            # TARGET_PREFLIGHT_FAILED so the release gate downgrades it instead of
+            # hard-blocking. Reserve the blocking TARGET_FAILED for real
+            # load/compile/runtime failures: the script never became visible on
+            # the chart, or its input contract drifted after the surface opened.
+            # Regression: smc-library-refresh run 628 (2026-06-30,
+            # "Could not open script menu for settings: SMC Decision Board").
+            surface_only = (
+                target.get("script_found_on_chart_ok") is True
+                and target.get("settings_open_ok") is not True
+            )
+            code = "TARGET_PREFLIGHT_FAILED" if surface_only else "TARGET_FAILED"
+            if code not in failure_codes:
+                failure_codes.append(code)
 
     if failures:
         exc = RuntimeError("; ".join(failures))
