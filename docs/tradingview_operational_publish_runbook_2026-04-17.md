@@ -269,6 +269,24 @@ Preflight fails
 | Micro library CI publish pipeline | `smc-library-refresh.yml` | high |
 | Post-release manifest validation | `verify_tradingview_post_release.py` | high |
 
+### CI Timeout Budget Contract
+
+The TradingView automation has one shared step budget and two editor-specific
+substep budgets:
+
+| Env var | Default behavior | Intended use |
+|---------|------------------|--------------|
+| `TV_STEP_TIMEOUT_MS` | Shared default for tracked Playwright steps; CI sets it to `90000` in the readonly preflight and mutating publish steps. | Raise the whole TradingView step budget for slow CI chart/editor hydration. |
+| `TV_SET_EDITOR_CONTENT_TIMEOUT_MS` | When unset, defaults to `Math.max(TV_STEP_TIMEOUT_MS, 90000)`. | Override only for a targeted editor-content investigation. CI should normally leave it unset. |
+| `TV_EDITOR_PREPARE_TIMEOUT_MS` | When unset, defaults to `Math.max(TV_STEP_TIMEOUT_MS, 45000)`. | Override only for a targeted Pine-editor preparation investigation. CI should normally leave it unset. |
+
+In other words, raising `TV_STEP_TIMEOUT_MS` above 90s also raises the default
+editor-content budget. Lowering `TV_STEP_TIMEOUT_MS` does not reduce editor
+content below 90s or editor prepare below 45s. Explicit editor-specific env vars
+are operator overrides and intentionally win over those defaults, so do not set
+them below the CI floor in workflows unless you are debugging a local timeout
+path.
+
 ### What Remains Manual
 
 | Capability | Reason | Risk |

@@ -5,6 +5,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 TV_SHARED_PATH = ROOT / "automation/tradingview/lib/tv_shared.ts"
+RUNBOOK_PATH = ROOT / "docs/tradingview_operational_publish_runbook_2026-04-17.md"
 
 
 def _read(path: Path) -> str:
@@ -70,7 +71,22 @@ def test_ensure_pine_editor_keeps_internal_close_modal_recovery() -> None:
 def test_set_editor_content_prepare_timeout_respects_ci_step_budget() -> None:
     source = _read(TV_SHARED_PATH)
 
+    assert "Timeout contract: CI sets TV_STEP_TIMEOUT_MS" in source
+    assert "values are operator overrides and intentionally win over the fallback" in source
     assert 'numEnv("TV_SET_EDITOR_CONTENT_TIMEOUT_MS", Math.max(stepTimeoutMs(), 90_000))' in source
     assert 'numEnv("TV_EDITOR_PREPARE_TIMEOUT_MS", Math.max(stepTimeoutMs(), 45_000))' in source
     assert '}, editorPrepareTimeoutMs);' in source
     assert '}, editorContentTimeoutMs);' in source
+
+
+def test_tradingview_timeout_budget_contract_is_documented() -> None:
+    runbook = _read(RUNBOOK_PATH)
+
+    assert "CI Timeout Budget Contract" in runbook
+    assert "`TV_STEP_TIMEOUT_MS`" in runbook
+    assert "`TV_SET_EDITOR_CONTENT_TIMEOUT_MS`" in runbook
+    assert "`TV_EDITOR_PREPARE_TIMEOUT_MS`" in runbook
+    assert "defaults to `Math.max(TV_STEP_TIMEOUT_MS, 90000)`" in runbook
+    assert "defaults to `Math.max(TV_STEP_TIMEOUT_MS, 45000)`" in runbook
+    assert "Explicit editor-specific env vars" in runbook
+    assert "intentionally win over those defaults" in runbook
