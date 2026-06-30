@@ -3664,7 +3664,10 @@ export async function hasSettingsSurfaceDomHint(page: Page): Promise<boolean> {
     }
 
     return false;
-  }).catch(() => false);
+  }).catch((error: unknown) => {
+    tracePageEvent(page, "settings-surface-dom-hint-error", String(error));
+    return false;
+  });
 }
 
 async function hasScriptSettingsInputsSurface(page: Page): Promise<boolean> {
