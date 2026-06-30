@@ -261,6 +261,29 @@ def test_update_script_heals_existing_uptimerobot_target(tmp_path: Path) -> None
     assert target["datasource"] == {"type": "prometheus", "uid": "grafanacloud-prom"}
 
 
+def test_update_script_heals_malformed_uptimerobot_targets(tmp_path: Path) -> None:
+    repo_root = Path(__file__).resolve().parents[1]
+    src = repo_root / "services" / "live_overlay_daemon" / "infra" / "grafana" / "dashboard.json"
+    dst = tmp_path / "dashboard.json"
+    shutil.copy(src, dst)
+
+    data = json.loads(dst.read_text(encoding="utf-8"))
+    before_version = int(data.get("version", 0) or 0)
+    panel = next(p for p in data["panels"] if p.get("title") == "UptimeRobot Monitor States")
+    panel["targets"] = {"expr": "malformed manual edit"}
+    dst.write_text(json.dumps(data, indent=2), encoding="utf-8")
+
+    _run_script(dst)
+
+    updated = json.loads(dst.read_text(encoding="utf-8"))
+    assert updated["version"] > before_version
+    panel = next(p for p in updated["panels"] if p.get("title") == "UptimeRobot Monitor States")
+    target = panel["targets"][0]
+    assert target["expr"] == '{__name__=~"live_overlay_uptimerobot_monitor_.*_status_code",job=~"$job"}'
+    assert panel["datasource"] == {"type": "prometheus", "uid": "grafanacloud-prom"}
+    assert target["datasource"] == {"type": "prometheus", "uid": "grafanacloud-prom"}
+
+
 def test_all_panel_queries_have_balanced_parentheses(temp_dashboard: Path) -> None:
     _run_script(temp_dashboard)
     data = json.loads(temp_dashboard.read_text(encoding="utf-8"))

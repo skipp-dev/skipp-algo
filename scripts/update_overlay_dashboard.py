@@ -401,7 +401,11 @@ def _ensure_uptimerobot_panel(data: dict[str, Any]) -> bool:
         panel["datasource"] = copy.deepcopy(UPTIMEROBOT_PANEL["datasource"])
         changed = True
     desired_target = UPTIMEROBOT_PANEL["targets"][0]
-    targets = panel.setdefault("targets", [])
+    targets = panel.get("targets")
+    if not isinstance(targets, list):
+        targets = []
+        panel["targets"] = targets
+        changed = True
     if not targets:
         targets.append(copy.deepcopy(desired_target))
         return True
