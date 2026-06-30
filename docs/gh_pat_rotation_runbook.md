@@ -63,10 +63,13 @@ grep -rln "GH_PAT" .github/workflows/
 ## Required token scopes
 
 The token must be able to: push commits to `bot/*` branches, open and update
-pull requests, and create issues. Prefer a **fine-grained** PAT scoped to the
-single repository.
+pull requests, and create issues.
 
-### Fine-grained PAT (recommended)
+**Decision (2026-07-01): `GH_PAT` is standardised on a fine-grained PAT**
+scoped to the single repository. Use the classic option only as an emergency
+fallback when org policy temporarily blocks issuing a fine-grained token.
+
+### Fine-grained PAT (standard)
 
 Repository access: only `skipp-dev/skipp-algo`. Permissions:
 
@@ -78,13 +81,14 @@ Repository access: only `skipp-dev/skipp-algo`. Permissions:
 | Workflows | Read and write | bot PRs that touch `.github/workflows/**` |
 | Metadata | Read | mandatory; branch-rule and repo reads |
 
-### Classic PAT (fallback)
-
-Scopes: `repo` (full) and `workflow`. Broader than necessary — use only if a
-fine-grained token cannot be issued.
-
 Set the expiry to the maximum the org policy allows (ideally 1 year) so the
 rotation cadence stays predictable.
+
+### Classic PAT (emergency fallback only)
+
+Scopes: `repo` (full) and `workflow`. Broader than necessary — use only if a
+fine-grained token genuinely cannot be issued, and replace it with a
+fine-grained token at the next rotation.
 
 ---
 
@@ -92,8 +96,9 @@ rotation cadence stays predictable.
 
 1. Create the new token under the bot/service account that owns the existing
    `GH_PAT` (keep ownership stable so commit attribution does not change).
-   Use **GitHub Settings -> Developer settings -> Personal access tokens**
-   and apply the scopes from the table above.
+   Use **GitHub Settings -> Developer settings -> Personal access tokens ->
+   Fine-grained tokens**, scope it to `skipp-dev/skipp-algo`, and apply the
+   permissions from the fine-grained table above.
 2. Copy the token value once; it is shown only at creation time.
 3. Update the repository secret: **Repo Settings -> Secrets and variables ->
    Actions -> `GH_PAT` -> Update secret**. Paste the new value and save.
