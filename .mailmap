@@ -1,0 +1,11 @@
+# Consolidate the maintainer's commit identity across email/name variants so
+# `git shortlog`, `git log`, and GitHub's contributor views show one person.
+#
+# Canonical identity:
+#   skipp-dev <221361569+skipp-dev@users.noreply.github.com>
+#
+# Format: <canonical-name> <canonical-email> <old-email>
+# (mapping by old-email also folds in any name variant that used it).
+
+skipp-dev <221361569+skipp-dev@users.noreply.github.com> <preuss.steffen@yahoo.com>
+skipp-dev <221361569+skipp-dev@users.noreply.github.com> <skipp-dev@users.noreply.github.com>
