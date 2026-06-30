@@ -208,7 +208,7 @@ jobs:
           fi
 
       - name: Open issue on evaluation failure
-        if: failure() && steps.evaluate.outputs.status == 'failed'
+        if: always() && (steps.evaluate.outcome == 'failure' || steps.evaluate.outputs.status == 'failed')
         env:
           GH_TOKEN: ${{ secrets.GH_PAT != '' && secrets.GH_PAT || github.token }}
           GH_REPO: ${{ github.repository }}

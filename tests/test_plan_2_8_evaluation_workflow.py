@@ -61,3 +61,12 @@ def test_experiment_snapshot_publish_uses_explicit_force_with_lease_sha() -> Non
         "git push --force-with-lease=refs/heads/bot/live-experiment-snapshot"
         not in run
     )
+
+
+def test_evaluation_failure_issue_opens_for_failed_status_or_step_crash() -> None:
+    issue_step = _step("Open issue on evaluation failure")
+    assert issue_step["if"] == (
+        "always() && "
+        "(steps.evaluate.outcome == 'failure' || "
+        "steps.evaluate.outputs.status == 'failed')"
+    )
