@@ -191,6 +191,16 @@ test("no-change version promotion still accepts import-path body evidence withou
   }), true);
 });
 
+test("no-change version promotion rejects empty expected import path evidence", () => {
+  assert.equal(shouldPromoteNoChangeVersionEvidence({
+    publishNoChangeDetected: true,
+    identityVerificationMode: "not_verified",
+    versionVerificationMode: "not_verified",
+    bodyText: "visible import owner_a/smc_micro_profiles_generated/2 as mp",
+    expectedImportPath: "",
+  }), false);
+});
+
 test("no-change version promotion rejects import-path version substring evidence", () => {
   assert.equal(shouldPromoteNoChangeVersionEvidence({
     publishNoChangeDetected: true,
