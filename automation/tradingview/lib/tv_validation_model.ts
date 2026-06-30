@@ -7,6 +7,8 @@ export type TradingViewStorageState = {
     authValidatedAt?: string;
     validationMode?: string;
     chartUrl?: string;
+    authReason?: string;
+    authProbeStatuses?: number[];
   };
   cookies?: Array<{
     name?: string;

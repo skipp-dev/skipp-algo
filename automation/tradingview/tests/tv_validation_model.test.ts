@@ -173,6 +173,8 @@ test("chart-validated storage state metadata is accepted as reusable auth", () =
       authValidatedAt: "2026-03-24T08:00:00.000Z",
       validationMode: "persistent_profile_chart_access",
       chartUrl: "https://www.tradingview.com/chart/",
+      authReason: "account_probe_authenticated",
+      authProbeStatuses: [200],
     },
     cookies: [{ name: "cookiePrivacyPreferenceBannerProduction", value: "1" }],
     origins: [],

@@ -30,6 +30,7 @@ async function collectPageAuthDiagnostics(page: import("playwright").Page): Prom
   signInSignals: boolean;
   authenticated: boolean;
   authReason: string;
+  authProbeStatuses: number[];
 }> {
   const domDiagnostics = await page.evaluate(() => {
     const bodyText = (document.body?.innerText || "").replace(/\s+/g, " ").trim();
@@ -47,6 +48,7 @@ async function collectPageAuthDiagnostics(page: import("playwright").Page): Prom
     signInSignals: domDiagnostics.signInSignals || pageAuthState?.explicitlyAnonymous === true || pageAuthState?.authenticated === false,
     authenticated: pageAuthState?.authenticated === true,
     authReason: pageAuthState?.reason ?? "auth_state_probe_failed",
+    authProbeStatuses: pageAuthState?.evidence.accountProbeStatuses ?? [],
   };
 }
 
@@ -391,8 +393,11 @@ async function main(): Promise<number> {
   if (authDiagnostics.signInSignals || !authDiagnostics.authenticated || (!inspection.looksAuthenticated && !cli.persistentProfileDir)) {
     const cookiePreview = inspection.cookieNames.slice(0, 8).join(", ") || "none";
     const storagePreview = inspection.localStorageKeys.slice(0, 8).join(", ") || "none";
+    const probePreview = authDiagnostics.authProbeStatuses.length > 0
+      ? authDiagnostics.authProbeStatuses.join(",")
+      : "no_probe";
     throw new Error(
-      `Captured TradingView session still looks anonymous. Reason: ${authDiagnostics.authReason}. URL: ${authDiagnostics.url}. Title: ${authDiagnostics.title}. Body preview: ${JSON.stringify(authDiagnostics.bodyPreview)}. Cookies: ${cookiePreview}. Local storage keys: ${storagePreview}. Log in fully, dismiss any sign-in overlay, open the chart, then rerun npm run tv:storage-state.`,
+      `Captured TradingView session still looks anonymous. Reason: ${authDiagnostics.authReason}. Auth probe statuses: ${probePreview}. URL: ${authDiagnostics.url}. Title: ${authDiagnostics.title}. Body preview: ${JSON.stringify(authDiagnostics.bodyPreview)}. Cookies: ${cookiePreview}. Local storage keys: ${storagePreview}. Log in fully, dismiss any sign-in overlay, open the chart, then rerun npm run tv:storage-state.`,
     );
   }
 
@@ -406,6 +411,7 @@ async function main(): Promise<number> {
       validationMode: "standard_session",
       chartUrl: authDiagnostics.url,
       authReason: authDiagnostics.authReason,
+      authProbeStatuses: authDiagnostics.authProbeStatuses,
     },
   };
 

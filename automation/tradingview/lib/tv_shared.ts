@@ -336,7 +336,7 @@ export async function collectTradingViewPageAuthState(page: Page): Promise<Tradi
     || /is-not-authenticated|authentication credentials|not authenticated|login required|sign in/i.test(result.preview)
   );
 
-  return resolveTradingViewPageAuthState({
+  const state = resolveTradingViewPageAuthState({
     url: pageEvidence.url,
     htmlClass: pageEvidence.htmlClass,
     bodyText: pageEvidence.bodyText,
@@ -344,6 +344,13 @@ export async function collectTradingViewPageAuthState(page: Page): Promise<Tradi
     accountProbeAuthenticated,
     accountProbeAnonymous,
   });
+  const statusSummary = accountProbeStatuses.length > 0 ? accountProbeStatuses.join(",") : "no_probe";
+  tracePageEvent(
+    page,
+    "auth-state-probe",
+    `authenticated=${state.authenticated}; explicitlyAnonymous=${state.explicitlyAnonymous}; reason=${state.reason}; accountProbeStatuses=${statusSummary}; accountProbeAuthenticated=${accountProbeAuthenticated}; accountProbeAnonymous=${accountProbeAnonymous}`,
+  );
+  return state;
 }
 
 function pushLifecycleEvent(tracker: PageLifecycleTracker, type: string, detail?: string): void {
