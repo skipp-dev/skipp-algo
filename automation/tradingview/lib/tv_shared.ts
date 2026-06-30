@@ -4271,7 +4271,7 @@ export function visibleLegendTextTargetKey(targetMeta: VisibleLegendTextTargetMe
   return `${stableIdentity}:${normalizedText}`;
 }
 
-async function openSettingsFromVisibleLegendText(page: Page, scriptName: string): Promise<boolean> {
+export async function openSettingsFromVisibleLegendText(page: Page, scriptName: string): Promise<boolean> {
   tracePageEvent(page, "script-settings-legend-text-start", scriptName);
   // This budget deliberately applies only to the visible legend-text heuristic.
   // Earlier cleanup inside openSettingsForScriptOnce and later fallback paths
@@ -4381,6 +4381,15 @@ async function openSettingsFromVisibleLegendText(page: Page, scriptName: string)
         await target.scrollIntoViewIfNeeded().catch(() => undefined);
         await target.hover({ timeout: 750 }).catch(() => undefined);
 
+        const actionableWrapper = target.locator(
+          'xpath=ancestor::*[.//button[@data-qa-id="legend-settings-action"] or .//button[@data-qa-id="legend-more-action"] or .//*[@aria-label="Settings"] or .//*[@aria-label="More"]][1]',
+        ).first();
+        const wrapperVisible = await actionableWrapper.isVisible({ timeout: 250 }).catch(() => false);
+        if (!wrapperVisible) {
+          tracePageEvent(page, "script-settings-legend-text-skip-unscoped", `${scriptName}:${candidateIndex}:${locatorIndex}:${itemIndex}`);
+          continue;
+        }
+
         if (await tryOpenScriptSettingsByDoubleClick(
           page,
           target,
@@ -4389,14 +4398,6 @@ async function openSettingsFromVisibleLegendText(page: Page, scriptName: string)
           `${scriptName}:${candidateIndex}:${locatorIndex}:${itemIndex}`,
         )) {
           return verifyOpenedSettingsDialogIdentity(page, scriptName, "script-settings-legend-text-dblclick");
-        }
-
-        const actionableWrapper = target.locator(
-          'xpath=ancestor::*[.//button[@data-qa-id="legend-settings-action"] or .//button[@data-qa-id="legend-more-action"] or .//*[@aria-label="Settings"] or .//*[@aria-label="More"]][1]',
-        ).first();
-        const wrapperVisible = await actionableWrapper.isVisible({ timeout: 250 }).catch(() => false);
-        if (!wrapperVisible) {
-          continue;
         }
 
         await actionableWrapper.hover({ timeout: 750 }).catch(() => undefined);

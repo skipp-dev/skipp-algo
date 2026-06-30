@@ -45,6 +45,14 @@ All notable changes to this project are documented in this file.
 - `tests/test_global_statement_budget.py`:
   - Refreshed the Railway metrics `reset_cache()` global anchor after the
     error-classification cleanup.
+### Fixed (2026-06-30) — TradingView legend text settings fallback tests
+
+- `automation/tradingview/lib/tv_shared.ts`:
+  - Requires visible legend text matches to have a legend action/settings
+    wrapper before attempting double-click or settings-button interactions.
+- `automation/tradingview/tests/tv_shared.test.ts`:
+  - Added Playwright coverage for opening settings from a visible legend text
+    row and for ignoring matching text outside legend actions.
 
 ### Fixed (2026-06-30) — Plan 2.8 evaluation snapshot publish
 
