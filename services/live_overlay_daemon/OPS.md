@@ -368,9 +368,13 @@ series were absent from `/metrics`. Grafana's `rate()` over a missing series
 returns no data, which the panel rendered as `0.00 %`. This looked like a
 service outage even though the daemon was healthy and simply had no requests.
 
-The same root cause made the **Market-open Request Health** panel flip between
-`MARKET_CLOSED` and `OPEN_NO_TRAFFIC` because the synthetic signal depends on
-whether request traffic is present.
+The same root cause made older **Market Traffic Health** revisions hard to
+interpret during no-traffic startup. `live_overlay_market_us_open` was still the
+correct US-session gate, but missing request counters could make the traffic
+half of the expression collapse to no data. The current dashboard keeps
+`live_overlay_market_us_open` for US regular-session gating and relies on seeded
+request counters plus explicit `or vector(0)` fallbacks for the no-traffic
+state.
 
 #### Code fix
 

@@ -246,25 +246,12 @@ def snapshot() -> dict[str, Any]:
     try:
         fresh = _fetch()
         fresh["scrape_duration_seconds"] = time.monotonic() - started
-    except urllib.error.URLError as exc:
-        logger.warning("Railway metrics poll failed (network): %s", exc)
+    except (urllib.error.URLError, TimeoutError, OSError, ValueError, RuntimeError) as exc:
+        error = _classify_fetch_error(exc)
+        logger.warning("Railway metrics poll failed (%s): %s", error, exc)
         with _LOCK:
             cached = _CACHE
-        failed = _failed_snapshot("network_error", cached=cached)
-        failed["scrape_duration_seconds"] = time.monotonic() - started
-        return failed
-    except TimeoutError:
-        logger.warning("Railway metrics poll timed out")
-        with _LOCK:
-            cached = _CACHE
-        failed = _failed_snapshot("timeout", cached=cached)
-        failed["scrape_duration_seconds"] = time.monotonic() - started
-        return failed
-    except (OSError, ValueError, RuntimeError) as exc:
-        logger.warning("Railway metrics poll failed: %s", exc)
-        with _LOCK:
-            cached = _CACHE
-        failed = _failed_snapshot("fetch_error", cached=cached)
+        failed = _failed_snapshot(error, cached=cached)
         failed["scrape_duration_seconds"] = time.monotonic() - started
         return failed
 
@@ -281,3 +268,16 @@ def reset_cache() -> None:
     with _LOCK:
         _CACHE = None
         _CACHE_EXPIRES_AT = 0.0
+
+
+def _classify_fetch_error(exc: Exception) -> str:
+    """Map Railway fetch exceptions to stable bridge error codes."""
+    reason = getattr(exc, "reason", None)
+    names = [type(exc).__name__]
+    if reason is not None:
+        names.append(type(reason).__name__)
+    if any("Timeout" in name for name in names):
+        return "timeout"
+    if isinstance(exc, urllib.error.URLError):
+        return "network_error"
+    return "fetch_error"
