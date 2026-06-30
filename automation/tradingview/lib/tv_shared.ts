@@ -6325,21 +6325,39 @@ export async function openSettingsForScript(
   options: { allowChartRefresh?: boolean } = {},
 ): Promise<boolean> {
   const allowChartRefresh = options.allowChartRefresh === true;
-  const totalTimeoutMs = allowChartRefresh ? Math.max(stepTimeoutMs(), 70_000) : stepTimeoutMs();
+  // Both modes retry the settings-menu open once. The open is inherently flaky:
+  // the TradingView chart legend races with pointer-intercepting overlays (e.g.
+  // the "publish" menu item), so a single attempt fails transiently. The
+  // mutating path recovers by destructively refreshing the chart instance; the
+  // readonly path (post-release validation) must NOT mutate the chart, so it
+  // retries with a non-destructive settle instead. Without a readonly retry a
+  // single transient flake hard-failed post-release validation and escalated to
+  // a blocking release gate (smc-library-refresh run 628, 2026-06-30).
+  const maxAttempts = 2;
+  const totalTimeoutMs = allowChartRefresh
+    ? Math.max(stepTimeoutMs(), 70_000)
+    : Math.max(stepTimeoutMs(), 60_000);
 
   return runTrackedStep(page, `openSettingsForScript:${scriptName}`, async () => {
     let lastError: unknown;
 
-    for (let attempt = 0; attempt < (allowChartRefresh ? 2 : 1); attempt += 1) {
+    for (let attempt = 0; attempt < maxAttempts; attempt += 1) {
       if (attempt > 0) {
         tracePageEvent(page, "script-settings-open-retry-start", `${scriptName}:attempt=${attempt + 1}`);
         await closeModal(page).catch(() => undefined);
         await dismissSignInModal(page).catch(() => undefined);
-        const removedCount = await refreshChartScriptInstance(page, scriptName);
-        tracePageEvent(page, "script-settings-open-refresh-ok", `${scriptName}:removed=${removedCount}`);
-        const visibleAfterRefresh = await isScriptVisibleOnChartSurface(page, scriptName).catch(() => false);
-        if (!visibleAfterRefresh) {
-          throw new Error(`Script was not visible on chart after refresh before reopening settings: ${scriptName}`);
+        if (allowChartRefresh) {
+          const removedCount = await refreshChartScriptInstance(page, scriptName);
+          tracePageEvent(page, "script-settings-open-refresh-ok", `${scriptName}:removed=${removedCount}`);
+          const visibleAfterRefresh = await isScriptVisibleOnChartSurface(page, scriptName).catch(() => false);
+          if (!visibleAfterRefresh) {
+            throw new Error(`Script was not visible on chart after refresh before reopening settings: ${scriptName}`);
+          }
+        } else {
+          // Readonly retry: settle the surface and reopen the menu without
+          // mutating chart state (no instance refresh / re-add).
+          tracePageEvent(page, "script-settings-open-readonly-retry", `${scriptName}:attempt=${attempt + 1}`);
+          await page.waitForTimeout(750);
         }
       }
 
