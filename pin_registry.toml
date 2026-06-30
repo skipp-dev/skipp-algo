@@ -141,6 +141,13 @@ file = "streamlit_terminal_alerts.py"
 line = 76
 codes = ["S104"]
 
+# services/live_overlay_daemon/main.py:123 — Bandit S104 intentional:
+# Railway/container ingress requires binding the daemon to all interfaces.
+[[noqa_budget.sites]]
+file = "services/live_overlay_daemon/main.py"
+line = 123
+codes = ["S104"]
+
 # governance/run_manifest.py:73 — Bandit S603 false positive:
 # subprocess.check_output called with a shutil.which("git") executable
 # and a hardcoded argv list. No untrusted input.
