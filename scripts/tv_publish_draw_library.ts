@@ -4,6 +4,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
+import { hasExpectedImportPathEvidence } from "./tv_publish_import_path_evidence.js";
 import {
   addCurrentScriptToChart,
   assertNoVisibleCompileError,
@@ -25,6 +26,8 @@ import {
   waitForPostSaveCompileSettlement,
   writeJson,
 } from "../automation/tradingview/lib/tv_shared.js";
+
+export { hasExpectedImportPathEvidence };
 
 type IdentityVerificationMode = "script_context" | "not_verified";
 type VersionVerificationMode = "version_context" | "idempotent_no_change" | "body_fallback" | "not_verified";
@@ -112,21 +115,6 @@ function parseArgs(): CliArgs {
     openExisting: hasFlag("--no-open-existing") ? false : true,
     allowCreate: hasFlag("--no-allow-create") ? false : true,
   };
-}
-
-function escapeRegExp(value: string): string {
-  return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-}
-
-export function hasExpectedImportPathEvidence(bodyText: string, expectedImportPath: string): boolean {
-  const normalizedBodyText = bodyText.replace(/\s+/g, " ");
-  const trimmedImportPath = expectedImportPath.trim();
-  if (trimmedImportPath.length === 0) {
-    return false;
-  }
-
-  const importPathPattern = new RegExp(`(^|[^A-Za-z0-9_./-])${escapeRegExp(trimmedImportPath)}(?=$|[^A-Za-z0-9_./-])`);
-  return importPathPattern.test(normalizedBodyText);
 }
 
 function verifyDrawPublishContract(cli: CliArgs): ContractDetails {
