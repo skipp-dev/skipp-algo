@@ -156,7 +156,7 @@ def test_refresh_workflow_runs_post_release_validation_before_commit() -> None:
 
     assert '--strict-measurement-shadow' not in workflow_text
     assert '- name: Run TradingView post-release validation' in workflow_text
-    assert '- name: Normalize TradingView post-release validation' in workflow_text
+    assert '- name: Best-effort normalize TradingView post-release validation' in workflow_text
     assert '- name: Refresh gate evidence summary after post-release validation' in workflow_text
     assert 'TV_STORAGE_STATE_MAX_AGE_HOURS: "72"' in workflow_text
     assert 'tv_post_release_validation.json' in workflow_text
@@ -191,13 +191,13 @@ def test_refresh_workflow_passes_post_release_report_to_release_gates() -> None:
 
     assert '- name: Run strict release gates' in workflow_text
     assert '--post-release-validation-report artifacts/ci/smc_post_release_validation_report.json' in workflow_text
-    assert workflow_text.index('- name: Normalize TradingView post-release validation') < workflow_text.index('- name: Run strict release gates')
+    assert workflow_text.index('- name: Best-effort normalize TradingView post-release validation') < workflow_text.index('- name: Run strict release gates')
 
 
 def test_refresh_workflow_normalizes_soft_failed_post_release_validation() -> None:
     workflow_text = _read(WORKFLOW_PATH)
 
-    normalize_idx = workflow_text.index('- name: Normalize TradingView post-release validation')
+    normalize_idx = workflow_text.index('- name: Best-effort normalize TradingView post-release validation')
     gates_idx = workflow_text.index('- name: Run strict release gates', normalize_idx)
     normalize_block = workflow_text[normalize_idx:gates_idx]
 
