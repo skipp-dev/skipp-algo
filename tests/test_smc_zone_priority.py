@@ -221,6 +221,65 @@ def test_multiplicative_preserves_no_bump_baseline() -> None:
     assert add == mul
 
 
+# ── Partial calibrated weights (regression: KeyError on missing family) ──
+
+def test_select_top_family_partial_weights_does_not_raise() -> None:
+    """A calibration artifact missing canonical families (e.g. BOS/SWEEP)
+    must not raise KeyError when a context bump targets the missing family.
+
+    RISK_ON + htf_aligned applies a BOS bump; EXTREME vol applies a SWEEP
+    bump. Both are extremely common production contexts, so a partial
+    ``family_weights`` artifact would otherwise crash the enrichment.
+    """
+    partial = {"OB": 0.5, "FVG": 0.5}  # BOS and SWEEP dropped
+    family = _select_top_family(
+        regime="RISK_ON", vol_regime="EXTREME", htf_aligned=True,
+        calibrated_family_weights=partial,
+    )
+    assert family in ("OB", "FVG", "BOS", "SWEEP")
+
+
+def test_select_top_family_partial_weights_falls_back_to_priors() -> None:
+    """Missing families inherit the hand-tuned base prior rather than
+    vanishing, so they can still win when their prior + bumps dominate.
+    """
+    # Only OB supplied (low); BOS/FVG/SWEEP must fall back to base priors.
+    # EXTREME vol adds +0.15 to SWEEP (prior 0.73 -> 0.88), which should
+    # beat the supplied OB=0.10 and the unbumped priors.
+    partial = {"OB": 0.10}
+    family = _select_top_family(
+        regime="RISK_OFF", vol_regime="EXTREME", htf_aligned=False,
+        calibrated_family_weights=partial,
+    )
+    assert family == "SWEEP"
+
+
+def test_build_zone_priority_partial_weights_does_not_raise() -> None:
+    """End-to-end public API: a partial ``calibrated_family_weights`` (as
+    could be loaded from a truncated/old zone_priority_calibration.json)
+    must degrade gracefully instead of raising KeyError.
+    """
+    partial = {"OB": 0.5, "FVG": 0.5}  # BOS and SWEEP dropped
+    result = build_zone_priority(
+        regime="RISK_ON", vol_regime="EXTREME", htf_aligned=True,
+        calibrated_family_weights=partial,
+    )
+    assert result["ZONE_PRIORITY_TOP_FAMILY"] in ("OB", "FVG", "BOS", "SWEEP")
+
+
+def test_select_top_family_complete_weights_unchanged_by_overlay() -> None:
+    """The overlay fix must not change selection for complete weight dicts:
+    a full calibrated dict still wins exactly as before.
+    """
+    weights = {"OB": 0.72, "FVG": 0.70, "BOS": 0.65, "SWEEP": 0.60}
+    family = _select_top_family(
+        regime="NEUTRAL", vol_regime="HIGH_VOL", htf_aligned=False,
+        session_context="RTH", calibrated_family_weights=weights,
+    )
+    # Identical assertion to test_fvg_boosted_in_rth_session.
+    assert family == "FVG"
+
+
 # ── Catalyst identification ────────────────────────────────────
 
 def test_news_catalyst_when_heat_high() -> None:

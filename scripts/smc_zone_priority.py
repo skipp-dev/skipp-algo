@@ -174,8 +174,13 @@ def _select_top_family(
     on :data:`DEFAULT_FAMILY_SCORE_COMBINATION` for resolution rules.
     """
     mode = _resolve_family_score_combination(family_score_combination)
-    base = calibrated_family_weights if calibrated_family_weights else _FAMILY_BASE_PRIORITY
-    scores = dict(base)
+    # Overlay any (possibly partial) calibrated weights onto the full
+    # hand-tuned base so every canonical family is always present.  A
+    # calibration artifact that drops a family (older schema, truncated or
+    # hand-edited JSON) must fall back to its prior, not raise KeyError when
+    # a context bump targets the missing family (e.g. BOS on RISK_ON+HTF or
+    # SWEEP on EXTREME vol).
+    scores = {**_FAMILY_BASE_PRIORITY, **(calibrated_family_weights or {})}
 
     # OB favored in normal / low-vol regimes with HTF alignment
     if htf_aligned:
