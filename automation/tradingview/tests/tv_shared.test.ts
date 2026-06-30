@@ -4,6 +4,7 @@ import { chromium } from "playwright";
 
 import {
   buildScriptNamePatterns,
+  collectTradingViewPageAuthState,
   countOrderedCodeBlockOccurrences,
   collectVisibleLocatorMetadata,
   editorDiagnosticsSuggestOpenHost,
@@ -819,6 +820,7 @@ test("TV_SKIP_AUTH_STATE_VALIDATION emits a warning and bypasses validation", ()
   process.env.TV_SKIP_AUTH_STATE_VALIDATION = "1";
   console.error = (...args: unknown[]) => {
     messages.push(args.map((arg) => String(arg)).join(" "));
+    originalError(...args);
   };
 
   try {
@@ -863,6 +865,49 @@ test("TradingView page auth state accepts positive account probe", () => {
   assert.equal(state.authenticated, true);
   assert.equal(state.explicitlyAnonymous, false);
   assert.equal(state.reason, "account_probe_authenticated");
+});
+
+test("TradingView page auth probe emits trace status monitoring", async () => {
+  const browser = await chromium.launch({ headless: true });
+  const messages: string[] = [];
+  const originalError = console.error;
+
+  console.error = (...args: unknown[]) => {
+    messages.push(args.map((arg) => String(arg)).join(" "));
+    originalError(...args);
+  };
+
+  try {
+    const page = await browser.newPage();
+    await page.route("**/chart/", (route) => route.fulfill({
+      contentType: "text/html",
+      body: '<!doctype html><html class="theme-light"><body>AAPL chart</body></html>',
+    }));
+    await page.route("**/api/v1/user/profile/me/", (route) => route.fulfill({
+      status: 403,
+      contentType: "text/plain",
+      body: "authentication credentials missing",
+    }));
+    await page.route("**/api/v1/users/me/", (route) => route.fulfill({
+      status: 403,
+      contentType: "text/plain",
+      body: "authentication credentials missing",
+    }));
+
+    await page.goto("https://www.tradingview.com/chart/");
+    const state = await collectTradingViewPageAuthState(page);
+
+    assert.equal(state.authenticated, false);
+    assert.equal(state.reason, "account_probe_rejected:403,403");
+    assert.equal(messages.some((message) =>
+      message.includes("[tv-trace] auth-state-probe")
+      && message.includes("accountProbeStatuses=403,403")
+      && message.includes("reason=account_probe_rejected:403,403")
+    ), true);
+  } finally {
+    console.error = originalError;
+    await browser.close();
+  }
 });
 
 // Regression coverage for findLegendRowWrappers. Two production fixes shipped

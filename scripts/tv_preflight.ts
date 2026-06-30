@@ -91,6 +91,8 @@ type TargetResult = {
   auth_source_path: string | null;
   auth_reused_ok: boolean;
   auth_ok: VerificationStatus;
+  auth_reason: string | null;
+  auth_probe_statuses: number[];
   chart_ok: VerificationStatus;
   editor_ok: VerificationStatus;
   compile_ok: VerificationStatus;
@@ -461,6 +463,8 @@ function buildInitialTargetResult(
     auth_source_path: authResolution.authSourcePath,
     auth_reused_ok: authResolution.authReusedOk,
     auth_ok: "not_run",
+    auth_reason: null,
+    auth_probe_statuses: [],
     chart_ok: "not_run",
     editor_ok: "not_run",
     compile_ok: "not_run",
@@ -623,9 +627,11 @@ async function main(): Promise<number> {
       await gotoChart(session.page);
       const pageAuthState = await collectTradingViewPageAuthState(session.page).catch(() => null);
       targetResult.auth_ok = Boolean(pageAuthState?.authenticated);
+      targetResult.auth_reason = pageAuthState?.reason ?? "auth_state_probe_failed";
+      targetResult.auth_probe_statuses = pageAuthState?.evidence.accountProbeStatuses ?? [];
       if (targetResult.auth_ok !== true) {
         throw new Error(
-          `Reusable TradingView auth did not survive chart open for ${target.scriptName}: ${pageAuthState?.reason ?? "auth_state_probe_failed"}`,
+          `Reusable TradingView auth did not survive chart open for ${target.scriptName}: ${targetResult.auth_reason}`,
         );
       }
 
