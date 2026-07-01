@@ -30,6 +30,8 @@ jobs:
   mirror:
     runs-on: ${{ vars.SMC_GH_HOSTED_RUNNER || 'ubuntu-latest' }}
     timeout-minutes: 20
+    env:
+      MIRROR_PAT: ${{ secrets.SPREUSS_CISCO_MIRROR_PAT }}
     steps:
       - name: Checkout full history
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
@@ -38,7 +40,7 @@ jobs:
 
       - name: Validate mirror secret presence
         run: |
-          if [[ -z "${{ secrets.SPREUSS_CISCO_MIRROR_PAT }}" ]]; then
+          if [[ -z "$MIRROR_PAT" ]]; then
             echo "::notice::Missing secret SPREUSS_CISCO_MIRROR_PAT; skipping mirror push."
             exit 0
           fi
@@ -49,10 +51,10 @@ jobs:
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
 
       - name: Push branch and tag mirror
-        if: ${{ secrets.SPREUSS_CISCO_MIRROR_PAT != '' }}
+        if: ${{ env.MIRROR_PAT != '' }}
         run: |
           set -euo pipefail
-          mirror_url="https://x-access-token:${{ secrets.SPREUSS_CISCO_MIRROR_PAT }}@github.com/spreuss_cisco/spreuss_cisco-skipp-algo.git"
+          mirror_url="https://x-access-token:${MIRROR_PAT}@github.com/spreuss_cisco/spreuss_cisco-skipp-algo.git"
           git remote remove github-mirror >/dev/null 2>&1 || true
           git remote add github-mirror "$mirror_url"
 
