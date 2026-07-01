@@ -82,7 +82,9 @@ def test_signal_engine_entrypoint_uses_port_env_for_telemetry_default(monkeypatc
         # must fall back to the default rather than being silently accepted.
         ("-1", 8099),
         ("0", 8099),
-        ("080", 8099),
+        ("080", 80),
+        ("01", 1),
+        ("00001", 1),
         ("+8099", 8099),
         (" -5 ", 8099),
         # Non-ASCII numerals and out-of-range values are rejected.

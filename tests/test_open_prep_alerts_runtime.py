@@ -161,3 +161,18 @@ def test_traderspost_payload_avoids_false_sell_for_non_finite_gap() -> None:
     assert nan_payload["action"] == "buy"
     assert none_payload["action"] == "buy"
     assert short_payload["action"] == "sell"
+
+
+def test_generic_payload_sanitizes_non_finite_values() -> None:
+    payload = alerts._format_generic_payload(
+        {
+            "symbol": "AAA",
+            "gap_pct": float("nan"),
+            "score": float("inf"),
+            "confidence_tier": "STANDARD",
+        },
+        regime="RISK_ON",
+    )
+
+    assert payload["gap_pct"] is None
+    assert payload["score"] is None

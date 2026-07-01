@@ -215,11 +215,13 @@ def _format_discord_payload(candidate: dict[str, Any], regime: str | None = None
 
 def _format_generic_payload(candidate: dict[str, Any], regime: str | None = None) -> dict[str, Any]:
     """Format a generic JSON webhook payload."""
+    gap_pct = _sanitize_payload_for_json(candidate.get("gap_pct"))
+    score = _sanitize_payload_for_json(candidate.get("score"))
     return {
         "event": "open_prep_signal",
         "symbol": candidate.get("symbol"),
-        "gap_pct": candidate.get("gap_pct"),
-        "score": candidate.get("score"),
+        "gap_pct": gap_pct,
+        "score": score,
         "confidence_tier": candidate.get("confidence_tier"),
         "gap_bucket": candidate.get("gap_bucket") or candidate.get("gap_class"),
         "regime": regime,
