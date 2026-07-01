@@ -101,3 +101,56 @@ def test_dispatch_alerts_allows_only_one_in_flight_send_per_target(monkeypatch) 
     assert second_results == []
     assert calls == ["https://hooks.example.com/slack"]
     assert alerts._is_throttled("AAA", 600, target_scope="AAA::slack") is True
+
+
+def _multi_target_config() -> dict:
+    return {
+        "enabled": True,
+        "min_confidence_tier": "HIGH_CONVICTION",
+        "throttle_seconds": 600,
+        "targets": [
+            {"name": "slack", "url": "https://hooks.example.com/slack", "type": "generic"},
+            {"name": "discord", "url": "https://hooks.example.com/discord", "type": "generic"},
+        ],
+    }
+
+
+def test_concurrent_dispatch_for_same_symbol_does_not_double_fan_out(monkeypatch) -> None:
+    """Two concurrent dispatch calls for one symbol with multiple targets must
+    not both fan out: only one call reserves the symbol slot, the other is a
+    no-op, and no target is ever alerted more than once."""
+    call_lock = threading.Lock()
+    calls: list[str] = []
+    ready = threading.Barrier(2, timeout=5)
+
+    def recording_send(url: str, _payload, _headers=None):
+        with call_lock:
+            calls.append(url)
+        return {"status": 200}
+
+    monkeypatch.setattr(alerts, "_send_webhook", recording_send)
+
+    results: list[list[dict]] = []
+    results_lock = threading.Lock()
+
+    def worker() -> None:
+        ready.wait(timeout=5)
+        out = alerts.dispatch_alerts(_ranked(), regime="RISK_ON", config=_multi_target_config())
+        with results_lock:
+            results.append(out)
+
+    threads = [threading.Thread(target=worker) for _ in range(2)]
+    for thread in threads:
+        thread.start()
+    for thread in threads:
+        thread.join(timeout=5)
+
+    # Exactly one dispatch call proceeded; the concurrent one was a no-op.
+    non_empty = [r for r in results if r]
+    assert len(non_empty) == 1
+    # No target received more than one webhook for the symbol.
+    assert sorted(calls) == [
+        "https://hooks.example.com/discord",
+        "https://hooks.example.com/slack",
+    ]
+    assert alerts._is_throttled("AAA", 600) is True

@@ -3174,10 +3174,20 @@ def _env_int(key: str, default: int) -> int:
     if not value:
         return default
     try:
-        return int(value)
+        parsed = int(value)
     except ValueError:
         logger.warning("Invalid %s=%r, using default %d", key, raw, default)
         return default
+    # PORT-style integers must be strictly positive per the service contract.
+    # Reject sign-prefixed ("+8099", "-1") and non-positive ("0") values so
+    # they fall back to the default instead of being silently accepted.
+    if not value.isdigit() or parsed <= 0:
+        logger.warning(
+            "Invalid %s=%r (must be a positive integer), using default %d",
+            key, raw, default,
+        )
+        return default
+    return parsed
 
 
 if __name__ == "__main__":

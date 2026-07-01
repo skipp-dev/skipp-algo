@@ -308,7 +308,11 @@ def dispatch_alerts(
             continue
 
         symbol = candidate.get("symbol", "")
-        if _is_throttled(symbol, throttle):
+        # Atomically reserve the symbol-level throttle slot up front so that
+        # concurrent dispatch_alerts() calls for the same symbol cannot both
+        # pass the symbol gate and fan out to different target scopes. The
+        # reservation is rolled back below when nothing was delivered.
+        if not _check_and_mark(symbol, throttle):
             logger.debug("Throttled alert for %s", symbol)
             continue
 
@@ -354,9 +358,13 @@ def dispatch_alerts(
                 "status": status,
             })
 
-        # Mark symbol-level throttle only when all targets were delivered
+        # Refresh the symbol-level throttle when every target was delivered.
+        # On a total failure (nothing sent) release the reservation so a
+        # later retry can proceed; partial success keeps it to avoid dupes.
         if sent_targets > 0 and failed_targets == 0:
             _mark_sent(symbol)
+        elif sent_targets == 0:
+            _clear_sent(symbol)
 
     if results:
         logger.info("Dispatched %d alert(s)", len(results))
