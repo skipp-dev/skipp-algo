@@ -10,6 +10,7 @@ from scripts.generate_smc_micro_profiles import (
     LISTS,
     _bucket_median,
     _bucket_quantile,
+    _pine_float,
     _safe_bool,
     add_bucket_features,
     apply_candidate_rules,
@@ -462,6 +463,52 @@ def test_write_library_with_full_enrichment(tmp_path: Path) -> None:
     assert "export const string VOLATILITY_PROXY_SYMBOL" not in text
     assert 'ENSEMBLE_QUALITY_TIER = "good"' in text
     assert 'ENSEMBLE_AVAILABLE_COMPONENTS = "bias,heuristic,vol_regime"' in text
+
+
+def test_pine_float_maps_non_finite_to_default() -> None:
+    assert _pine_float(1.5) == 1.5
+    assert _pine_float(0.0) == 0.0
+    assert _pine_float(None) == 0.0
+    assert _pine_float("not-a-number") == 0.0
+    assert _pine_float(float("nan")) == 0.0
+    assert _pine_float(float("inf")) == 0.0
+    assert _pine_float(float("-inf")) == 0.0
+    assert _pine_float(float("nan"), 1.0) == 1.0
+
+
+def test_write_library_never_emits_nan_or_inf_pine_literals(tmp_path: Path) -> None:
+    """The Pine serialization boundary must never emit ``nan``/``inf`` float
+    literals (a compile error in Pine), regardless of non-finite enrichment
+    values reaching it.
+    """
+    out = tmp_path / "lib.pine"
+    nan, inf = float("nan"), float("inf")
+    enrichment = {
+        "regime": {
+            "regime": "NEUTRAL", "vix_level": 20.0, "macro_bias": 0.0,
+            "macro_bias_raw": nan, "sector_breadth": 0.5,
+            "market_pe_forward": nan, "macro_bias_pe_adjustment": nan,
+        },
+        "news": {"news_heat_global": nan},
+        "layering": {"global_heat": nan, "global_strength": inf},
+        "ensemble_quality": {"score": nan},
+        "volatility_regime": {"confidence": nan, "raw_atr_ratio": nan},
+        "short_interest": {"market_short_interest_avg": nan},
+        "treasury": {
+            "treasury_10y_yield": nan, "treasury_2y_yield": nan,
+            "yield_curve_spread": inf, "yield_curve_inverted": False,
+        },
+    }
+    write_pine_library(out, _EMPTY_LISTS, "2026-03-28", 200, enrichment=enrichment)
+    text = out.read_text(encoding="utf-8")
+    offending = [
+        line.strip()
+        for line in text.splitlines()
+        if "= nan" in line.lower()
+        or "= inf" in line.lower()
+        or "= -inf" in line.lower()
+    ]
+    assert offending == [], f"non-finite Pine literals emitted: {offending}"
 
 
 def test_write_library_partial_enrichment(tmp_path: Path) -> None:
