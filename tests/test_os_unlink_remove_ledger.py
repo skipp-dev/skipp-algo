@@ -90,7 +90,9 @@ def _os_delete_sites() -> set[tuple[str, int, str]]:
 OS_DELETE_LEDGER: set[tuple[str, int, str]] = {
     ("newsstack_fmp/open_prep_export.py", 35, "unlink"),
     ("newsstack_fmp/store_sqlite.py", 143, "remove"),
-    ("open_prep/alerts.py", 79, "unlink"),
+    # 2026-07-01: alerts payload/url hardening inserted helper functions;
+    # cleanup unlink site shifted 79 -> 80.
+    ("open_prep/alerts.py", 80, "unlink"),
     ("open_prep/candidate_weights.py", 154, "unlink"),
     ("open_prep/diff.py", 68, "unlink"),
     # 2026-06-13 (audit-e2/aw7-reader-observability, PR #2759): _load_previous_latest
