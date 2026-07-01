@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 import urllib.error
 
 from open_prep import alerts
@@ -73,3 +74,53 @@ def test_send_webhook_blocks_private_url() -> None:
     out = alerts._send_webhook("http://127.0.0.1/hook", {"x": 1})
     assert out["status"] == 0
     assert "unsafe_url" in str(out.get("error", ""))
+
+
+def test_send_webhook_blocks_invalid_host_characters() -> None:
+    nul_out = alerts._send_webhook("https://example.com\x00evil.com/webhook", {"x": 1})
+    assert nul_out["status"] == 0
+    assert "unsafe_url" in str(nul_out.get("error", ""))
+
+    ws_out = alerts._send_webhook("https:// user:pass@example.com/webhook", {"x": 1})
+    assert ws_out["status"] == 0
+    assert "unsafe_url" in str(ws_out.get("error", ""))
+
+
+def test_send_webhook_sanitizes_non_finite_floats(monkeypatch) -> None:
+    class _Resp:
+        status = 200
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, exc_type, exc, tb):
+            return False
+
+        def read(self):
+            return b'{"ok": true}'
+
+    captured_bodies: list[bytes] = []
+
+    class _FakeOpener:
+        def open(self, req, timeout=10):
+            captured_bodies.append(req.data)
+            return _Resp()
+
+    monkeypatch.setattr("urllib.request.build_opener", lambda *args, **kwargs: _FakeOpener())
+
+    out = alerts._send_webhook(
+        "https://hooks.example.com/tp",
+        {
+            "gap_pct": float("nan"),
+            "score": float("inf"),
+            "nested": {"value": float("-inf")},
+            "items": [1.0, float("nan")],
+        },
+    )
+    assert out["status"] == 200
+    assert len(captured_bodies) == 1
+    decoded = json.loads(captured_bodies[0].decode("utf-8"))
+    assert decoded["gap_pct"] is None
+    assert decoded["score"] is None
+    assert decoded["nested"]["value"] is None
+    assert decoded["items"] == [1.0, None]

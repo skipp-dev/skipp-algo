@@ -3178,12 +3178,12 @@ def _env_int(key: str, default: int) -> int:
     except ValueError:
         logger.warning("Invalid %s=%r, using default %d", key, raw, default)
         return default
-    # PORT-style integers must be strictly positive per the service contract.
-    # Reject sign-prefixed ("+8099", "-1") and non-positive ("0") values so
-    # they fall back to the default instead of being silently accepted.
-    if not value.isdigit() or parsed <= 0:
+    # PORT-style integers must be strict ASCII digits in the valid TCP range.
+    # Reject sign-prefixed values and non-ASCII numerals so surprising inputs
+    # fall back to default rather than being silently accepted.
+    if not value.isascii() or not value.isdigit() or parsed <= 0 or parsed > 65535:
         logger.warning(
-            "Invalid %s=%r (must be a positive integer), using default %d",
+            "Invalid %s=%r (must be ASCII digits in range 1..65535), using default %d",
             key, raw, default,
         )
         return default

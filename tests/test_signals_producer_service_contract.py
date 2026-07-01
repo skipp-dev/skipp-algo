@@ -77,12 +77,18 @@ def test_signal_engine_entrypoint_uses_port_env_for_telemetry_default(monkeypatc
         ("abc", 8099),
         ("8098", 8098),
         (" 8097 ", 8097),
+        ("65535", 65535),
         # Non-positive and sign-prefixed values violate the PORT contract and
         # must fall back to the default rather than being silently accepted.
         ("-1", 8099),
         ("0", 8099),
         ("+8099", 8099),
         (" -5 ", 8099),
+        # Non-ASCII numerals and out-of-range values are rejected.
+        ("٨٠٩٩", 8099),
+        ("८१२३", 8099),
+        ("65536", 8099),
+        ("999999999999999999999999999999", 8099),
     ],
 )
 def test_signal_engine_port_env_parsing_falls_back(port_value: str, expected: int, monkeypatch) -> None:
@@ -130,7 +136,7 @@ def _extract_exact_pin(path: Path, package: str) -> str | None:
         if "#" in line:
             line = line.split("#", 1)[0].strip()
         if line.startswith(needle):
-            return line[len(needle):].strip()
+            return line[len(needle) :].strip()
     return None
 
 

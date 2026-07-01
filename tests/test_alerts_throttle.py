@@ -73,6 +73,19 @@ def test_dispatch_alerts_rolls_back_target_throttle_when_send_fails(monkeypatch)
     assert alerts._is_throttled("AAA", 600, target_scope="AAA::slack") is False
 
 
+def test_dispatch_alerts_rolls_back_target_throttle_when_send_raises(monkeypatch) -> None:
+    def _boom(*_args, **_kwargs):
+        raise RuntimeError("send failed")
+
+    monkeypatch.setattr(alerts, "_send_webhook", _boom)
+
+    results = alerts.dispatch_alerts(_ranked(), regime="RISK_ON", config=_config())
+
+    assert results == [{"symbol": "AAA", "target": "slack", "status": 0}]
+    assert alerts._is_throttled("AAA", 600) is False
+    assert alerts._is_throttled("AAA", 600, target_scope="AAA::slack") is False
+
+
 def test_dispatch_alerts_skips_non_dict_candidates(monkeypatch, caplog) -> None:
     calls: list[str] = []
 
@@ -99,6 +112,8 @@ def test_prune_stale_entries_clears_when_throttle_non_positive() -> None:
     alerts._prune_stale_entries(throttle_seconds=0)
 
     assert alerts._last_sent == {}
+
+
 def test_dispatch_alerts_allows_only_one_in_flight_send_per_target(monkeypatch) -> None:
     send_started = threading.Event()
     release_send = threading.Event()
@@ -127,6 +142,8 @@ def test_dispatch_alerts_allows_only_one_in_flight_send_per_target(monkeypatch) 
     assert second_results == []
     assert calls == ["https://hooks.example.com/slack"]
     assert alerts._is_throttled("AAA", 600, target_scope="AAA::slack") is True
+
+
 def _multi_target_config() -> dict:
     return {
         "enabled": True,
