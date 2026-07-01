@@ -92,7 +92,8 @@ OS_DELETE_LEDGER: set[tuple[str, int, str]] = {
     ("newsstack_fmp/store_sqlite.py", 143, "remove"),
     # 2026-07-01: alerts payload/url hardening inserted helper functions;
     # cleanup unlink site shifted 79 -> 80.
-    ("open_prep/alerts.py", 80, "unlink"),
+    # 2026-07-02: SSRF path/query hardening shifted unlink 80 -> 81.
+    ("open_prep/alerts.py", 81, "unlink"),
     ("open_prep/candidate_weights.py", 154, "unlink"),
     ("open_prep/diff.py", 68, "unlink"),
     # 2026-06-13 (audit-e2/aw7-reader-observability, PR #2759): _load_previous_latest

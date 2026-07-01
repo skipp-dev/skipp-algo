@@ -170,7 +170,9 @@ URLLIB_REQUEST_POST_LEDGER: set[tuple[str, int]] = {
     # Open-prep alerts dispatcher (Slack/webhook).
     # 2026-07-01: alert candidate/throttle hardening + payload/url guards
     # shifted 439 -> 476.
-    ("open_prep/alerts.py", 476),
+    # 2026-07-02: SSRF path/query hardening inserted helper logic;
+    # POST Request line shifted 476 -> 512.
+    ("open_prep/alerts.py", 512),
     # 2026-06-21: UptimeRobot bridge polls monitor API with low-level
     # urllib.request.Request(..., method="POST") + timeout discipline.
     ("services/live_overlay_daemon/uptimerobot_bridge.py", 84),
