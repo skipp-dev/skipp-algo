@@ -612,6 +612,11 @@ Operational UX additions:
 - `Pine Polling Watchdog` (top Incident Overview row, next to `Overall Health`)
   shows `live_overlay_expected_market_traffic` directly with `NOT ARMED` /
   `ARMED` value mappings.
+- Während der Pre-Rollout-Phase (Pine `request.get()`-Consumer noch nicht live)
+  bleibt der Watchdog bewusst `NOT ARMED`
+  (`LIVE_OVERLAY_EXPECT_MARKET_TRAFFIC=0`), damit "no polling" nicht als
+  Incident paged. Beim Go-Live des Consumers auf `1` umstellen und den
+  Reminder-Alert `lo-expected-traffic-not-armed` wieder aktivieren.
 - Alert rules guard the UptimeRobot production monitor count (`5`), any
   UptimeRobot monitors down, Railway memory-used ratio (`75%` warning, `90%`
   critical), and Alloy remote-write failures.

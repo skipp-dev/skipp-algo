@@ -452,6 +452,12 @@ Therefore the panel expression reads:
 - `2` = `TRAFFIC_OK` — US regular session is open and `/smc_live` traffic is
   present.
 
+In der UI sind diese Stati bewusst lesbarer benannt:
+
+- `0` = `MARKET CLOSED`
+- `1` = `OPEN · NO PINE POLLING`
+- `2` = `PINE POLLING OK`
+
 #### Expected market traffic alert rollout
 
 `LIVE_OVERLAY_EXPECT_MARKET_TRAFFIC` controls whether the deployment expects
@@ -487,6 +493,33 @@ live_overlay_expected_market_traffic{job="live_overlay"} == bool 0
 If this fires in production, set `LIVE_OVERLAY_EXPECT_MARKET_TRAFFIC=1` before
 trusting the first-zero traffic alerts. Local, dev, and warm-standby deployments
 should normally leave the value at `0`.
+
+#### Rollout-Modus: Pine consumer noch nicht live
+
+Wenn der TradingView/Pine `request.get()`-Consumer noch nicht ausgerollt ist,
+ist "no traffic" **erwartet**. In diesem Modus soll die Deployment-Instanz
+nicht auf fehlendes `/smc_live`-Polling alarmieren.
+
+Setze daher:
+
+```env
+LIVE_OVERLAY_EXPECT_MARKET_TRAFFIC=0
+```
+
+Zusätzlich ist der Reminder-Alert `lo-expected-traffic-not-armed` bewusst auf
+`isPaused: true` gesetzt, damit die absichtlich unarmed Phase nicht paget.
+
+Sobald der Pine-Consumer produktiv pollt:
+
+1. `LIVE_OVERLAY_EXPECT_MARKET_TRAFFIC=1` setzen.
+2. `lo-expected-traffic-not-armed` wieder aktivieren (`isPaused: false`).
+3. Alert-Rules erneut anwenden (`scripts/grafana_alert_rules_upsert.py`).
+
+Erwartetes Ergebnis danach:
+
+- `Pine Polling Watchdog` = `ARMED`
+- `Market Traffic Health` wechselt bei Polling von
+  `OPEN · NO PINE POLLING` auf `PINE POLLING OK`.
 
 ### Dashboard masking semantics
 
