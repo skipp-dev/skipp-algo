@@ -6,7 +6,7 @@ All notable changes to this project are documented in this file.
 
 ## [Unreleased]
 
-### Fixed (2026-07-01) — Grafana alert-rule false-firing (sp-snapshot-missing, news-stale)
+### Fixed (2026-07-01) — Grafana alert-rule false-firing (sp-snapshot-missing, news-stale, lo-request-rate-absent-open)
 
 - `sp-snapshot-missing` alert expression changed from
   `(1 - signals_producer_open_prep_snapshot_loaded) or vector(1)` to
@@ -26,6 +26,20 @@ All notable changes to this project are documented in this file.
   consumer bakes only 3×/day, so a 3 h staleness floor still detects a genuinely
   stalled producer well before consumption is affected while eliminating the
   recurrent drift-induced false alarm. Annotation updated accordingly.
+- `lo-request-rate-absent-open` expression changed from an `and on(job)` chain
+  to multiplicative gating. The rule combined a `> bool 600` uptime guard and a
+  `< bool 0.001` request-rate guard via `and on(job)`, but a `bool` comparison
+  always yields a present series (0 or 1) and `and` matches on series
+  *presence*, not truth — so neither guard actually gated. The expression
+  collapsed to `expected_market_traffic == 1 and market_us_open == 1`, firing
+  continuously through every US session while `LIVE_OVERLAY_EXPECT_MARKET_TRAFFIC=1`,
+  even with healthy request traffic (observed firing ~45 min during a normal
+  open). The multiplicative form `expected_market_traffic * market_us_open *
+  (uptime_seconds > bool 600) * (rate(smc_live_requests_total[10m]) < bool 0.001)`
+  gates on all four conditions and resolves once real traffic is present. This
+  mirrors the sibling rule `lo-request-rate-drop-open`, which already multiplies
+  its guards. Contract test `test_alert_rules_include_expected_traffic_missing_alert`
+  now pins the multiplicative form and forbids `and on(`.
 
 ### Fixed (2026-06-30) — TradingView settings surface DOM hint
 
