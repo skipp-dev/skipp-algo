@@ -121,8 +121,8 @@ def is_open_prep_benzinga_core_news_enabled() -> bool:
 
 
 def is_newsapi_ai_enabled() -> bool:
-    """Return True iff ``ENABLE_NEWSAPI_AI`` is set to ``"1"`` (default ON)."""
-    return _bool_env("ENABLE_NEWSAPI_AI", "1")
+    """Return True iff ``ENABLE_NEWSAPI_AI`` is set to ``"1"`` (default OFF)."""
+    return _bool_env("ENABLE_NEWSAPI_AI", "0")
 
 
 def is_uw_news_enabled() -> bool:
