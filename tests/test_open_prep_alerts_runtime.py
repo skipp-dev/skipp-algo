@@ -86,6 +86,18 @@ def test_send_webhook_blocks_invalid_host_characters() -> None:
     assert "unsafe_url" in str(ws_out.get("error", ""))
 
 
+def test_send_webhook_blocks_suspicious_local_hints_in_query() -> None:
+    out = alerts._send_webhook("https://hooks.example.com?@127.0.0.1/secret", {"x": 1})
+    assert out["status"] == 0
+    assert "unsafe_url" in str(out.get("error", ""))
+
+
+def test_send_webhook_blocks_control_characters_in_path() -> None:
+    out = alerts._send_webhook("https://hooks.example.com/webhook\n@127.0.0.1/admin", {"x": 1})
+    assert out["status"] == 0
+    assert "unsafe_url" in str(out.get("error", ""))
+
+
 def test_send_webhook_sanitizes_non_finite_floats(monkeypatch) -> None:
     class _Resp:
         status = 200
@@ -149,3 +161,18 @@ def test_traderspost_payload_avoids_false_sell_for_non_finite_gap() -> None:
     assert nan_payload["action"] == "buy"
     assert none_payload["action"] == "buy"
     assert short_payload["action"] == "sell"
+
+
+def test_generic_payload_sanitizes_non_finite_values() -> None:
+    payload = alerts._format_generic_payload(
+        {
+            "symbol": "AAA",
+            "gap_pct": float("nan"),
+            "score": float("inf"),
+            "confidence_tier": "STANDARD",
+        },
+        regime="RISK_ON",
+    )
+
+    assert payload["gap_pct"] is None
+    assert payload["score"] is None

@@ -66,7 +66,9 @@ _LOOPBACK = re.compile(r"localhost|127\.0\.0\.1", re.IGNORECASE)
 _FROZEN_LOOPBACK_COUNTS: dict[str, int] = {
     "streamlit_terminal_alerts.py": 1,
     "streamlit_terminal.py": 1,
-    "open_prep/alerts.py": 1,
+    # 2026-07-02: SSRF path/query hardening added private/local hint checks
+    # (e.g., 127.0.0.1 token detection) in alerts URL validation.
+    "open_prep/alerts.py": 2,
     "open_prep/realtime_signals.py": 1,
     "newsstack_fmp/enrich.py": 1,
 }
