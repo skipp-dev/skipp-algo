@@ -124,8 +124,6 @@ def test_send_webhook_sanitizes_non_finite_floats(monkeypatch) -> None:
     assert decoded["score"] is None
     assert decoded["nested"]["value"] is None
     assert decoded["items"] == [1.0, None]
-
-
 def test_format_payloads_tolerate_non_numeric_gap_and_score() -> None:
     candidate = {
         "symbol": "AAA",
