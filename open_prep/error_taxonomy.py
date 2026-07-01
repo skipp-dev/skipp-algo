@@ -94,13 +94,13 @@ def retry(
     def decorator(fn):
         @functools.wraps(fn)
         def wrapper(*args, **kwargs):
+            if attempts < 1:
+                raise ValueError(f"attempts must be >= 1, got {attempts}")
             delay = 1.0
-            last_exc: Exception | None = None
             for attempt in range(1, attempts + 1):
                 try:
                     return fn(*args, **kwargs)
                 except retryable_exceptions as exc:
-                    last_exc = exc
                     if attempt >= attempts:
                         raise
                     if on_retry is not None:
@@ -116,8 +116,5 @@ def retry(
                     )
                     time.sleep(max(sleep_time, 0))
                     delay = min(delay * backoff, max_delay)
-            # Should not reach here, but just in case
-            if last_exc:
-                raise last_exc
         return wrapper
     return decorator

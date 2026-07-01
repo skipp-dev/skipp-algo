@@ -1,0 +1,103 @@
+from __future__ import annotations
+
+import threading
+from collections.abc import Generator
+
+import pytest
+
+from open_prep import alerts
+
+
+@pytest.fixture(autouse=True)
+def _clear_throttle_state() -> Generator[None, None, None]:
+    with alerts._throttle_lock:
+        alerts._last_sent.clear()
+    yield
+    with alerts._throttle_lock:
+        alerts._last_sent.clear()
+
+
+def _config() -> dict:
+    return {
+        "enabled": True,
+        "min_confidence_tier": "HIGH_CONVICTION",
+        "throttle_seconds": 600,
+        "targets": [
+            {"name": "slack", "url": "https://hooks.example.com/slack", "type": "generic"},
+        ],
+    }
+
+
+def _ranked() -> list[dict]:
+    return [
+        {
+            "symbol": "AAA",
+            "confidence_tier": "HIGH_CONVICTION",
+            "gap_pct": 2.0,
+            "score": 9.0,
+        }
+    ]
+
+
+def test_check_and_mark_is_atomic_for_concurrent_callers() -> None:
+    worker_count = 32
+    barrier = threading.Barrier(worker_count)
+    result_lock = threading.Lock()
+    results: list[bool] = []
+
+    def worker() -> None:
+        barrier.wait(timeout=5)
+        allowed = alerts._check_and_mark("AAA", 600, target_scope="AAA::slack")
+        with result_lock:
+            results.append(allowed)
+
+    threads = [threading.Thread(target=worker) for _ in range(worker_count)]
+    for thread in threads:
+        thread.start()
+    for thread in threads:
+        thread.join(timeout=5)
+
+    assert len(results) == worker_count
+    assert results.count(True) == 1
+    assert results.count(False) == worker_count - 1
+    assert alerts._is_throttled("AAA", 600, target_scope="AAA::slack") is True
+
+
+def test_dispatch_alerts_rolls_back_target_throttle_when_send_fails(monkeypatch) -> None:
+    monkeypatch.setattr(alerts, "_send_webhook", lambda *_args, **_kwargs: {"status": 503})
+
+    results = alerts.dispatch_alerts(_ranked(), regime="RISK_ON", config=_config())
+
+    assert results == [{"symbol": "AAA", "target": "slack", "status": 503}]
+    assert alerts._is_throttled("AAA", 600) is False
+    assert alerts._is_throttled("AAA", 600, target_scope="AAA::slack") is False
+
+
+def test_dispatch_alerts_allows_only_one_in_flight_send_per_target(monkeypatch) -> None:
+    send_started = threading.Event()
+    release_send = threading.Event()
+    calls: list[str] = []
+
+    def slow_send(url: str, _payload, _headers=None):
+        calls.append(url)
+        send_started.set()
+        assert release_send.wait(timeout=5)
+        return {"status": 200}
+
+    monkeypatch.setattr(alerts, "_send_webhook", slow_send)
+
+    first = threading.Thread(
+        target=alerts.dispatch_alerts,
+        args=(_ranked(),),
+        kwargs={"regime": "RISK_ON", "config": _config()},
+    )
+    first.start()
+    assert send_started.wait(timeout=5)
+
+    second_results = alerts.dispatch_alerts(_ranked(), regime="RISK_ON", config=_config())
+    release_send.set()
+    first.join(timeout=5)
+
+    assert second_results == []
+    assert calls == ["https://hooks.example.com/slack"]
+    assert alerts._is_throttled("AAA", 600, target_scope="AAA::slack") is True

@@ -114,6 +114,24 @@ def _mark_sent(symbol: str, *, target_scope: str | None = None) -> None:
         _last_sent[key] = time.time()
 
 
+def _check_and_mark(symbol: str, throttle_seconds: int, *, target_scope: str | None = None) -> bool:
+    """Atomically reserve a throttle slot for an alert send."""
+    key = _throttle_key(symbol, target_scope)
+    now = time.time()
+    with _throttle_lock:
+        last = _last_sent.get(key, 0.0)
+        if (now - last) < throttle_seconds:
+            return False
+        _last_sent[key] = now
+        return True
+
+
+def _clear_sent(symbol: str, *, target_scope: str | None = None) -> None:
+    key = _throttle_key(symbol, target_scope)
+    with _throttle_lock:
+        _last_sent.pop(key, None)
+
+
 def _prune_stale_entries(throttle_seconds: int) -> None:
     """Remove entries older than throttle window to cap memory usage."""
     with _throttle_lock:
@@ -303,9 +321,8 @@ def dispatch_alerts(
                 continue
             target_name = str(target.get("name", target_type) or target_type)
             target_scope = f"{symbol}::{target_name}"
-            if _is_throttled(symbol, throttle, target_scope=target_scope):
+            if not _check_and_mark(symbol, throttle, target_scope=target_scope):
                 logger.debug("Throttled alert for %s/%s", symbol, target_name)
-                sent_targets += 1  # already delivered previously
                 continue
 
             try:
@@ -320,6 +337,7 @@ def dispatch_alerts(
             except Exception:
                 logger.warning("Failed to format alert payload for %s/%s", symbol, target_type, exc_info=True)
                 failed_targets += 1
+                _clear_sent(symbol, target_scope=target_scope)
                 continue
 
             result = _send_webhook(url, payload, target.get("headers"))
@@ -328,6 +346,7 @@ def dispatch_alerts(
                 _mark_sent(symbol, target_scope=target_scope)
                 sent_targets += 1
             else:
+                _clear_sent(symbol, target_scope=target_scope)
                 failed_targets += 1
             results.append({
                 "symbol": symbol,

@@ -13,13 +13,14 @@ logger = logging.getLogger(__name__)
 def to_float(value: Any, default: float = 0.0) -> float:
     """Safely parse numeric-like values to float with default fallback.
 
-    Returns *default* for ``None``, non-numeric strings, **and** ``NaN``
-    values so that downstream arithmetic never silently propagates NaN.
+    Returns *default* for ``None``, non-numeric strings, ``NaN``, and
+    infinities so that downstream arithmetic never silently propagates
+    non-finite values.
     """
     try:
         f = float(value)
-        return default if math.isnan(f) else f
-    except (TypeError, ValueError):
+        return f if math.isfinite(f) else default
+    except (TypeError, ValueError, OverflowError):
         return default
 
 

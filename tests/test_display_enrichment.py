@@ -38,6 +38,10 @@ class TestToFloat:
     def test_nan(self):
         assert to_float(float("nan")) == 0.0
 
+    def test_infinity(self):
+        assert to_float(float("inf")) == 0.0
+        assert to_float(float("-inf"), default=-1.0) == -1.0
+
     def test_int(self):
         assert to_float(42) == 42.0
 
