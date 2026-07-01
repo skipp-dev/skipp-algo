@@ -113,11 +113,11 @@ _FROZEN_SITES: frozenset[tuple[str, int]] = frozenset(
         ("newsstack_fmp/pipeline.py", 1259),
         ("newsstack_fmp/store_sqlite.py", 81),
         ("newsstack_fmp/store_sqlite.py", 86),
-        # 2026-07-01: alert candidate/throttle hardening shifted
-        # webhook retry sleeps down; sleeps unchanged: webhook
-        # retry-backoff paths.
-        ("open_prep/alerts.py", 452),
-        ("open_prep/alerts.py", 462),
+        # 2026-07-01: alert candidate/throttle hardening + payload/url guards
+        # shifted webhook retry sleeps 452/462 -> 489/499; semantics
+        # unchanged: webhook retry-backoff paths.
+        ("open_prep/alerts.py", 489),
+        ("open_prep/alerts.py", 499),
         ("open_prep/error_taxonomy.py", 117),
         # 2026-06-28 (semantic monitoring): all realtime_signals sleep sites
         # shifted +20/+20/+72/+80/+80 lines by readiness metrics.

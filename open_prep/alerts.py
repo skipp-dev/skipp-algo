@@ -10,6 +10,7 @@ import contextlib
 import ipaddress
 import json
 import logging
+import math
 import os
 import socket
 import ssl
@@ -233,6 +234,22 @@ _FORMATTERS = {
 }
 
 
+def _contains_control_or_whitespace(value: str) -> bool:
+    return any((ch.isspace() or ord(ch) < 32 or ord(ch) == 127) for ch in value)
+
+
+def _sanitize_payload_for_json(value: Any) -> Any:
+    if isinstance(value, float):
+        return value if math.isfinite(value) else None
+    if isinstance(value, dict):
+        return {key: _sanitize_payload_for_json(item) for key, item in value.items()}
+    if isinstance(value, list):
+        return [_sanitize_payload_for_json(item) for item in value]
+    if isinstance(value, tuple):
+        return [_sanitize_payload_for_json(item) for item in value]
+    return value
+
+
 def _is_safe_webhook_url(url: str) -> tuple[bool, str]:
     """Best-effort SSRF guard for outbound webhook targets."""
     try:
@@ -243,7 +260,11 @@ def _is_safe_webhook_url(url: str) -> tuple[bool, str]:
     if parsed.scheme not in {"https", "http"}:
         return False, "unsupported_scheme"
 
-    host = (parsed.hostname or "").strip().lower()
+    raw_netloc = parsed.netloc or ""
+    host = parsed.hostname or ""
+    if _contains_control_or_whitespace(raw_netloc) or _contains_control_or_whitespace(host):
+        return False, "invalid_host_chars"
+    host = host.strip().lower()
     if not host:
         return False, "missing_host"
 
@@ -360,7 +381,18 @@ def dispatch_alerts(
                 _clear_sent(symbol, target_scope=target_scope)
                 continue
 
-            result = _send_webhook(url, payload, target.get("headers"))
+            try:
+                result = _send_webhook(url, payload, target.get("headers"))
+            except Exception:
+                logger.warning("Failed to send alert payload for %s/%s", symbol, target_type, exc_info=True)
+                _clear_sent(symbol, target_scope=target_scope)
+                failed_targets += 1
+                results.append({
+                    "symbol": symbol,
+                    "target": target_name,
+                    "status": 0,
+                })
+                continue
             status = result.get("status", 0)
             if 200 <= status < 300:
                 _mark_sent(symbol, target_scope=target_scope)
@@ -412,7 +444,12 @@ def _send_webhook(
     if headers:
         hdrs.update(headers)
 
-    data = json.dumps(payload, allow_nan=False, default=str).encode("utf-8")
+    try:
+        normalized_payload = _sanitize_payload_for_json(payload)
+        data = json.dumps(normalized_payload, allow_nan=False, default=str).encode("utf-8")
+    except (TypeError, ValueError) as exc:
+        logger.warning("Webhook payload serialization error for %s: %s", url, exc)
+        return {"status": 0, "error": "invalid_payload"}
 
     # Build an SSL context — prefer certifi if installed, else default.
     try:

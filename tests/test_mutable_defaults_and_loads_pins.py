@@ -100,7 +100,9 @@ _JSON_LOAD_RE = re.compile(r"\bjson\.load\s*\(")
 
 _FROZEN_JSON_LOAD_SITES: frozenset[tuple[str, int]] = frozenset(
     {
-        ("open_prep/alerts.py", 55),
+        # 2026-07-01: alerts payload/url hardening inserted helper functions;
+        # json.load site shifted 55 -> 56.
+        ("open_prep/alerts.py", 56),
         ("open_prep/diff.py", 79),
         # 2026-06-11 (backfill defer-unpublished): sentinel+helper block
         # above shifted 61→80, 81→100; pytest write-guard import +4 → 84/104.
