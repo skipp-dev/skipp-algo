@@ -245,6 +245,16 @@ def test_alert_rules_include_expected_traffic_missing_alert() -> None:
     assert "live_overlay_smc_live_requests_total" in expr
     assert "increase(" not in expr
     assert rule.get("for") in ("10m", "10")
+    # Regression pin (#3096 sibling bug class): the uptime and request-rate
+    # guards must gate multiplicatively. Chaining `and on(job)` with a
+    # `> bool`/`< bool` operand never gates, because a bool comparison is
+    # always a present series and `and` matches on series presence, not truth —
+    # the rule then fired continuously through every US session regardless of
+    # real traffic. Mirror the sibling `lo-request-rate-drop-open` product form.
+    assert "and on(" not in expr
+    assert "*" in expr
+    assert "> bool 600" in expr
+    assert "< bool 0.001" in expr
 
 
 def test_alert_rules_include_expected_traffic_armed_guard() -> None:

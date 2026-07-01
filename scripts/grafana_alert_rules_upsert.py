@@ -103,6 +103,103 @@ def load_alert_groups(path: Path) -> list[dict[str, Any]]:
     return groups
 
 
+# --------------------------------------------------------------------------- #
+# PromQL gating anti-pattern linter
+# --------------------------------------------------------------------------- #
+# Two production alerts have false-fired because a PromQL *set* operator
+# (``and`` / ``unless`` / ``or``) was handed an operand that is *always a
+# present series*, so it silently failed to gate:
+#
+#   * ``lo-request-rate-absent-open`` chained ``... and on(job) (rate < bool
+#     0.001)``.  A ``bool`` comparison always yields a 0/1 series and ``and``
+#     matches on series *presence*, not truth -> the guard never gated and the
+#     alert fired through every US session.  Fix: multiply the 0/1 guards.
+#   * ``sp-snapshot-missing`` used ``(1 - metric{labels}) or vector(1)``.  The
+#     labelled left series never matches the empty-label ``vector(1)`` without
+#     ``on()``, so the fallback ``{}=1`` was *always* appended and the alert
+#     fired permanently.  Fix: ``or on() vector(1)``.
+#
+# Same class.  This linter encodes the invariant so neither the CI tests nor
+# the deploy path can regress, and code review no longer has to reason about
+# vector-matching semantics by hand.
+
+_BOOL_CMP_RE = re.compile(r"\bbool\b")
+# Left operands reduced to the empty label set ``{}`` (so an ``or vector()``
+# fallback matches correctly without an explicit ``on()``).
+_LABEL_FREE_LHS_RE = re.compile(
+    r"^\(*\s*(?:sum|count|avg|min|max|group|stddev|stdvar|topk|bottomk|"
+    r"quantile|count_values|histogram_quantile|scalar|vector)\b"
+)
+_MATCH_MODIFIER = r"(?:\s*(?:on|ignoring)\s*\([^)]*\))?"
+
+
+def _top_level_setops(expr: str) -> list[tuple[str, int, int]]:
+    """Return ``(op, start, end)`` for each set operator at paren depth 0."""
+    ops: list[tuple[str, int, int]] = []
+    depth = 0
+    for m in re.finditer(r"\(|\)|\b(?:and|unless|or)\b", expr):
+        tok = m.group(0)
+        if tok == "(":
+            depth += 1
+        elif tok == ")":
+            depth -= 1
+        elif depth == 0:
+            ops.append((tok, m.start(), m.end()))
+    return ops
+
+
+def _operand_start(expr: str, before: int) -> int:
+    """Return the index where the left operand ending at ``before`` begins."""
+    i = before - 1
+    depth = 0
+    while i >= 0:
+        c = expr[i]
+        if c == ")":
+            depth += 1
+        elif c == "(":
+            if depth == 0:
+                return i + 1
+            depth -= 1
+        i -= 1
+    return 0
+
+
+def find_promql_gating_antipatterns(expr: str) -> list[str]:
+    """Return findings for set-operator gating anti-patterns (empty == clean)."""
+    findings: list[str] = []
+    ops = _top_level_setops(expr)
+
+    # Detector A: ``and``/``unless`` whose right (gating) operand is a bool
+    # comparison -- a bool result is always present, so it never gates.
+    for idx, (op, _start, end) in enumerate(ops):
+        if op not in ("and", "unless"):
+            continue
+        nxt = ops[idx + 1][1] if idx + 1 < len(ops) else len(expr)
+        rhs = re.sub(r"^\s*(?:on|ignoring)\s*\([^)]*\)", "", expr[end:nxt])
+        if _BOOL_CMP_RE.search(rhs):
+            findings.append(
+                f"`{op}` is gated by a `bool` comparison (`{rhs.strip()[:70]}`): "
+                f"a bool result is always a present series, so `{op}` never "
+                f"gates on it -- combine 0/1 guards with arithmetic (`*`)."
+            )
+
+    # Detector B: ``or vector()/scalar()`` fallback without ``on()``/``ignoring()``
+    # over a label-retaining left operand -- the empty-label fallback never
+    # matches, so it is always appended and the alert fires permanently.
+    for m in re.finditer(r"\bor\b(" + _MATCH_MODIFIER + r")\s*(vector|scalar)\s*\(", expr):
+        if m.group(1).strip():
+            continue
+        lhs = expr[_operand_start(expr, m.start()):m.start()].strip()
+        if not _LABEL_FREE_LHS_RE.match(lhs):
+            findings.append(
+                f"`or {m.group(2)}(...)` fallback without `on()`/`ignoring()` over "
+                f"a label-retaining left operand (`{lhs[:70]}`): the empty-label "
+                f"fallback never matches, so it is always appended and the alert "
+                f"fires permanently -- use `or on() {m.group(2)}(...)`."
+            )
+    return findings
+
+
 def validate_alert_groups(groups: list[dict[str, Any]]) -> list[str]:
     """Return a list of human-readable structural errors (empty == valid).
 
@@ -179,8 +276,17 @@ def validate_alert_groups(groups: list[dict[str, Any]]) -> list[str]:
                     ref_ids.add(ref_id)
                 if not isinstance(node.get("datasourceUid"), str):
                     errors.append(f"{rwhere}: data[{di}] missing 'datasourceUid'")
-                if not isinstance(node.get("model"), dict):
+                model = node.get("model")
+                if not isinstance(model, dict):
                     errors.append(f"{rwhere}: data[{di}] missing 'model' mapping")
+                elif node.get("datasourceUid") not in (None, "__expr__"):
+                    expr = model.get("expr")
+                    if isinstance(expr, str) and expr.strip():
+                        for finding in find_promql_gating_antipatterns(expr):
+                            errors.append(
+                                f"{rwhere}: data[{di}] PromQL gating anti-pattern"
+                                f" -- {finding}"
+                            )
             if isinstance(condition, str) and condition not in ref_ids:
                 errors.append(
                     f"{rwhere}: condition '{condition}' not among data refIds "
