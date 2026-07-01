@@ -169,7 +169,7 @@ _FROZEN_SITES: frozenset[tuple[str, int, tuple[str, ...]]] = frozenset(
                 "_social_sentiment_blocked",
             ),
         ),
-        ("terminal_spike_scanner.py", 96, ("_YF_UNIVERSE_CACHE",)),
+        ("terminal_spike_scanner.py", 97, ("_YF_UNIVERSE_CACHE",)),
         # 2026-06-10 (#2670 W3): TechnicalResult gained a `source` field +
         # dc_replace import, shifting the four global sites +6 (212/213/245/262
         # -> 218/219/251/268).
