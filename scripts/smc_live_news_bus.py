@@ -13,7 +13,7 @@ from pathlib import Path
 from typing import Any
 
 from newsstack_fmp.common_types import NewsItem
-from newsstack_fmp.ingest_benzinga import BenzingaRestAdapter
+from newsstack_fmp.ingest_benzinga import BenzingaRssAdapter
 from newsstack_fmp.ingest_benzinga import fetch_benzinga_quantified_news as _fetch_benzinga_quantified
 from newsstack_fmp.ingest_fmp import FmpAdapter
 from newsstack_fmp.normalize import normalize_newsapi_ai
@@ -339,26 +339,22 @@ def fetch_live_news_benzinga(
     cursor: float,
     page_size: int,
 ) -> ProviderPollResult:
-    if not api_key:
-        return _disabled_provider("benzinga", cursor=cursor, error="missing_api_key")
+    # Switched from BenzingaRestAdapter (paid API, returned 401 since the
+    # subscription lapsed — run 628, 2026-06-30) to BenzingaRssAdapter (free
+    # public RSS feed, no API key required). The api_key parameter is kept for
+    # signature compatibility with the bus dispatch but is ignored.
     universe = set(symbols)
-    adapter = BenzingaRestAdapter(api_key)
-    try:
-        batch = _fetch_cached_live_provider_batch(
-            provider="benzinga_rest",
-            scope={"page_size": page_size},
-            cursor=cursor,
-            fetcher=lambda: adapter.fetch_news(
-                updated_since=None,
-                page_size=page_size,
-            ),
-        )
-    finally:
-        adapter.client.close()
+    adapter = BenzingaRssAdapter()
+    batch = _fetch_cached_live_provider_batch(
+        provider="benzinga_rss",
+        scope={"page_size": page_size},
+        cursor=cursor,
+        fetcher=lambda: adapter.fetch_news(min_epoch=cursor),
+    )
     candidates = [
         candidate
         for item in batch.items
-        if (candidate := _candidate_from_news_item(item, provider_bucket="benzinga", provider_name="benzinga_rest", universe=universe)) is not None
+        if (candidate := _candidate_from_news_item(item, provider_bucket="benzinga", provider_name="benzinga_rss", universe=universe)) is not None
     ]
     return ProviderPollResult(provider="benzinga", ok=True, items=candidates, raw_count=batch.raw_count, cursor=batch.cursor)
 

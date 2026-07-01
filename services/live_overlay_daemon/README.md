@@ -181,7 +181,7 @@ All numeric fields are `null`, all bool fields are `false`, `stale: true`.
 |----------|----------|---------|-------|
 | `DATABENTO_API_KEY` | ✅ | — | Set in Railway env vars |
 | `OVERLAY_SECRET_TOKEN` | ✅ | — | Embedded in Pine URL path |
-| `PORT` | ❌ | `8000` | Injected by Railway automatically |
+| `PORT` | ✅ (production) | `8000` (code default), production pin `8080` | Pin explicitly in Railway for stable private host:port contracts |
 | `LOG_LEVEL` | ❌ | `info` | Uvicorn-compatible level (`critical`,`error`,`warning`,`info`,`debug`,`trace`) |
 | `OVERLAY_REFRESH_SECS` | ❌ | `1800` | Full overlay compute cycle interval (seconds) |
 | `OVERLAY_FLOW_REFRESH_SECS` | ❌ | `300` | Flow-patch cycle interval (seconds) |
@@ -191,10 +191,10 @@ All numeric fields are `null`, all bool fields are `false`, `stale: true`.
 | `OVERLAY_NEWS_CACHE_TTL_SECS` | ❌ | `600` | News snapshot cache TTL in seconds (range 60–3600) |
 | `NEWS_SNAPSHOT_URL` | ❌ | *(unset)* | Optional HTTPS URL for news snapshot; takes precedence over local path |
 | `NEWS_SNAPSHOT_URL_TOKEN` | ❌ | *(unset)* | Optional bearer token for `NEWS_SNAPSHOT_URL` |
-| `SIGNALS_SNAPSHOT_PATH` | ❌ | *(repo root)*`/artifacts/open_prep/latest/latest_realtime_signals.json` | Local realtime-signals snapshot path |
-| `SIGNALS_SNAPSHOT_URL` | ❌ | *(unset)* | Optional HTTPS URL for realtime-signals snapshot |
-| `SIGNALS_SNAPSHOT_URL_TOKEN` | ❌ | *(unset)* | Optional bearer token for `SIGNALS_SNAPSHOT_URL` |
-| `SIGNALS_SERVICE_URL` | ❌ | *(unset)* | Internal Railway hostname/URL of `smc-signals-producer`; takes precedence over all other signal sources |
+| `SIGNALS_SNAPSHOT_PATH` | ❌ | *(repo root)*`/artifacts/open_prep/latest/latest_realtime_signals.json` | Local realtime-signals snapshot path; production override is `/app/data/latest_realtime_signals.json` on a Railway volume |
+| `SIGNALS_SNAPSHOT_URL` | ❌ | *(unset)* | Optional legacy HTTPS fallback for realtime-signals snapshot (disabled in production lean mode) |
+| `SIGNALS_SNAPSHOT_URL_TOKEN` | ❌ | *(unset)* | Optional bearer token for `SIGNALS_SNAPSHOT_URL` (disabled in production lean mode) |
+| `SIGNALS_SERVICE_URL` | ❌ | *(unset)* | Internal Railway hostname/URL of `smc-signals-producer`; takes precedence over all other signal sources. Production: `${{smc-signals-producer.RAILWAY_PRIVATE_DOMAIN}}:8080` |
 | `SIGNALS_INTERNAL_TOKEN` | ❌ | *(unset)* | Bearer token used when calling `SIGNALS_SERVICE_URL` |
 | `OVERLAY_SIGNALS_CACHE_TTL_SECS` | ❌ | `120` | Signals snapshot cache TTL in seconds (range 30–1800) |
 | `OVERLAY_SIGNALS_MAX_AGE_SECS` | ❌ | `480` | Age threshold after which signals snapshot is stale (range 60–7200) |
@@ -275,11 +275,13 @@ those instead.
   `https://api.github.com/repos/skippALGO/skipp-algo/contents/<path>?ref=<bot-branch>`
   with a fine-grained PAT (`Contents: Read`) in the `*_URL_TOKEN`.
 - **Realtime signals on Railway** are fetched live from the internal
-  `smc-signals-producer` service. Set `SIGNALS_SERVICE_URL` to the Railway
-  private hostname (e.g. `smc-signals-producer.railway.internal`) and
-  `SIGNALS_INTERNAL_TOKEN` to the bearer token the producer requires. This
-  source takes precedence over all other signal sources; on failure the daemon
-  falls back to `SIGNALS_SNAPSHOT_URL`, then the local `SIGNALS_SNAPSHOT_PATH`.
+  `smc-signals-producer` service. Production uses lean mode:
+  `SIGNALS_SERVICE_URL=${{smc-signals-producer.RAILWAY_PRIVATE_DOMAIN}}:8080`,
+  `SIGNALS_INTERNAL_TOKEN=<shared bearer token>`,
+  `SIGNALS_SNAPSHOT_URL`/`SIGNALS_SNAPSHOT_URL_TOKEN` unset, and
+  `SIGNALS_SNAPSHOT_PATH=/app/data/latest_realtime_signals.json`.
+  This source takes precedence over all other signal sources; successful
+  payloads are written through to the local path as restart-safe cache.
 - **Realtime signals without a producer** — `latest_realtime_signals.json` is
   written only by `open_prep/realtime_signals.py` on the live trading host. To
   feed the hosted daemon when no producer is reachable, run
@@ -302,16 +304,26 @@ those instead.
   GitHub Contents API URLs (`api.github.com/repos/.../contents/...`).
   Authenticated non-GitHub URLs no longer receive GitHub-specific `Accept`
   headers.
-- **Write-through persistence:** on every successful `*_URL` fetch the daemon
+- **Write-through persistence:** on every successful producer/`*_URL` fetch the daemon
   atomically writes the payload back to its `*_SNAPSHOT_PATH`
   (exclusive temp file + `os.replace`). Temp filenames include
   `pid.thread_id.time_ns` to avoid collisions under concurrent writers.
-  On Railway, mount a volume and set the `*_PATH`
-  vars to `/data/...` so a cold start reads the last-good copy instead of the
-  baked seed. The volume mounts as root and the image runs as a non-root
-  `appuser`, so set `RAILWAY_RUN_UID=0` to enable the write-through (it is
-  best-effort and never blocks serving fresh URL data). See
+  On Railway, mount a volume at `/app/data` and set the `*_PATH`
+  vars to `/app/data/...` so a cold start reads the last-good copy instead of
+  the baked seed. See
   [OPS.md](OPS.md#snapshot-delivery--volume-persistence) for the exact commands.
+
+### Railway production baseline (recommended)
+
+- `live_overlay_daemon`: `PORT=8080`
+- `smc-signals-producer`: `PORT=8080`
+- `live_overlay_daemon`: `SIGNALS_SERVICE_URL=${{smc-signals-producer.RAILWAY_PRIVATE_DOMAIN}}:8080`
+- `metrics-collector`: `OVERLAY_SERVICE_URL=${{live_overlay_daemon.RAILWAY_PRIVATE_DOMAIN}}:8080`
+- `metrics-collector`: `SIGNALS_SERVICE_URL=${{smc-signals-producer.RAILWAY_PRIVATE_DOMAIN}}:8080`
+
+Do not use `${{service.PORT}}` references for inter-service URLs: Railway
+injects `PORT` at runtime, but this value is not reliably available as a stored
+service variable reference.
 
 ---
 
