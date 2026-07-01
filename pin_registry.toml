@@ -116,7 +116,7 @@
 # 2026-06-22: line shifted 251 -> 287 after ADR-0025 App Platform migration
 # (/apis dashboard.grafana.app/v1); urlopen now in shared _request_json helper.
 # 2026-06-23: shifted 287 -> 296 after annotations-robustness fix.
-"scripts/publish_overlay_dashboard.py" = [296]
+"scripts/publish_overlay_dashboard.py" = [303]
 "terminal_finnhub.py" = [245]
 "terminal_tradingview_news.py" = [423]
 # 2026-06-22: Grafana dashboard upsert helper; fixed HTTPS URL, explicit timeout= via Request socket.

@@ -184,7 +184,9 @@ _FROZEN_URLOPEN_SITES: frozenset[tuple[str, int]] = frozenset(
         # Line shifted 251 -> 287 after ADR-0025 App Platform (/apis
         # dashboard.grafana.app/v1) migration; urlopen now in shared _request_json.
         # 2026-06-23: shifted 287 -> 296 after annotations-robustness fix.
-        ("scripts/publish_overlay_dashboard.py", 296),
+        # 2026-07-01: shifted 296 -> 303 by invalid-namespace fallback branch
+        # in _post() (extra GET/POST fallback handling).
+        ("scripts/publish_overlay_dashboard.py", 303),
         # 2026-06-23 (audit follow-up F2/F3): NEWS/SIGNALS/TRADINGVIEW JSON
         # fetchers delegate into one shared helper (_fetch_json_snapshot_url),
         # reducing four urlopen sites to two while preserving timeout discipline.
