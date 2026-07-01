@@ -59,6 +59,7 @@ from scripts.bake_overlay_library import (
     overlay_fields as extract_overlay_fields,
 )
 from scripts.generate_smc_micro_profiles import (
+    _pine_float,
     render_csv_export,
 )
 from scripts.smc_atomic_write import atomic_write_text
@@ -104,14 +105,14 @@ def render_overlay_pine_lines(
     lines.append("")
     lines.append("// ── Market Regime ──")
     lines.append(f'export const string MARKET_REGIME = "{regime.get("regime", "NEUTRAL")}"')
-    lines.append(f'export const float VIX_LEVEL = {float(regime.get("vix_level") or 0.0)}')
-    lines.append(f'export const float MACRO_BIAS = {float(regime.get("macro_bias") or 0.0)}')
+    lines.append(f'export const float VIX_LEVEL = {_pine_float(regime.get("vix_level") or 0.0)}')
+    lines.append(f'export const float MACRO_BIAS = {_pine_float(regime.get("macro_bias") or 0.0)}')
     _raw = regime.get("macro_bias_raw")
-    lines.append(f'export const float MACRO_BIAS_RAW = {float(_raw if _raw is not None else 0.0)}')
-    lines.append(f'export const float MACRO_BIAS_PE_ADJUSTMENT = {float(regime.get("macro_bias_pe_adjustment") or 0.0)}')
-    lines.append(f'export const float MARKET_PE_FORWARD = {float(regime.get("market_pe_forward") or 0.0)}')
+    lines.append(f'export const float MACRO_BIAS_RAW = {_pine_float(_raw if _raw is not None else 0.0)}')
+    lines.append(f'export const float MACRO_BIAS_PE_ADJUSTMENT = {_pine_float(regime.get("macro_bias_pe_adjustment") or 0.0)}')
+    lines.append(f'export const float MARKET_PE_FORWARD = {_pine_float(regime.get("market_pe_forward") or 0.0)}')
     lines.append(f'export const string MARKET_PE_REGIME = "{regime.get("market_pe_regime") or "UNKNOWN"}"')
-    lines.append(f'export const float SECTOR_BREADTH = {float(regime.get("sector_breadth") or 0.0)}')
+    lines.append(f'export const float SECTOR_BREADTH = {_pine_float(regime.get("sector_breadth") or 0.0)}')
 
     # ── News Sentiment ──────────────────────────────────────────
     news = enrichment.get("news") or {}
@@ -120,7 +121,7 @@ def render_overlay_pine_lines(
     lines.append(render_csv_export("NEWS_BULLISH_TICKERS", news.get("bullish_tickers") or []))
     lines.append(render_csv_export("NEWS_BEARISH_TICKERS", news.get("bearish_tickers") or []))
     lines.append(render_csv_export("NEWS_NEUTRAL_TICKERS", news.get("neutral_tickers") or []))
-    lines.append(f'export const float NEWS_HEAT_GLOBAL = {float(news.get("news_heat_global") or 0.0)}')
+    lines.append(f'export const float NEWS_HEAT_GLOBAL = {_pine_float(news.get("news_heat_global") or 0.0)}')
     lines.append(render_csv_export("TICKER_HEAT_MAP", _split_csv_string(news.get("ticker_heat_map") or "")))
     lines.append(f'export const string NEWS_CATEGORY_MAP = "{news.get("news_category_map") or ""}"')
     lines.append(f'export const string NEWS_COUNT_MAP = "{news.get("news_count_map") or ""}"')
@@ -144,8 +145,8 @@ def render_overlay_pine_lines(
     lay = enrichment.get("layering") or {}
     lines.append("")
     lines.append("// ── Layering / Global Tone ──")
-    lines.append(f'export const float GLOBAL_HEAT = {float(lay.get("global_heat") or 0.0)}')
-    lines.append(f'export const float GLOBAL_STRENGTH = {float(lay.get("global_strength") or 0.0)}')
+    lines.append(f'export const float GLOBAL_HEAT = {_pine_float(lay.get("global_heat") or 0.0)}')
+    lines.append(f'export const float GLOBAL_STRENGTH = {_pine_float(lay.get("global_strength") or 0.0)}')
     lines.append(f'export const string TONE = "{lay.get("tone") or "NEUTRAL"}"')
     lines.append(f'export const string TRADE_STATE = "{lay.get("trade_state") or "ALLOWED"}"')
 
