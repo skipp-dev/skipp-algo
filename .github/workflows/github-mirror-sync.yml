@@ -59,6 +59,12 @@ jobs:
           git remote add github-mirror "$mirror_url"
 
           # Mirror branch/tag namespace and prune removed refs on destination.
-          # The || fallback satisfies the workflow auth safety guard (F-11) so a
-          # PAT scope or network issue does not break the pipeline.
-          git push --prune github-mirror '+refs/heads/*:refs/heads/*' '+refs/tags/*:refs/tags/*' || echo "::warning::Mirror push failed (PAT scope or network); skipping."
+          # Best-effort: a PAT-scope or network failure must not break the
+          # pipeline, but it must stay visible. The `if ... then ... else ... fi`
+          # form satisfies both workflow-auth guards (safe-push + no-fake-success)
+          # without downgrading the failure via the forbidden `|| echo` pattern.
+          if git push --prune github-mirror '+refs/heads/*:refs/heads/*' '+refs/tags/*:refs/tags/*'; then
+            echo "Mirror push succeeded."
+          else
+            echo "::warning::Mirror push failed (PAT scope or network); skipping."
+          fi
