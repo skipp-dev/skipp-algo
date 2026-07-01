@@ -337,6 +337,40 @@ def test_post_falls_back_to_legacy_on_apis_404(monkeypatch: pytest.MonkeyPatch) 
     assert calls[-1][1].endswith("/api/dashboards/db")
 
 
+def test_post_falls_back_to_legacy_on_invalid_namespace_from_get(monkeypatch: pytest.MonkeyPatch) -> None:
+    calls: list[tuple[str, str]] = []
+
+    def fake_request_json(url, _token, *, method, payload=None):
+        calls.append((method, url))
+        if method == "GET":
+            return 403, {"message": "invalid namespace"}
+        return 200, {"metadata": {"name": "u1"}}
+
+    monkeypatch.setattr("scripts.publish_overlay_dashboard._request_json", fake_request_json)
+    _body, endpoint = _post("h", "t", _apis_payload(), namespace="default", uid="u1", message="m")
+
+    assert endpoint == "POST https://h/api/dashboards/db"
+    assert calls[-1][1].endswith("/api/dashboards/db")
+
+
+def test_post_falls_back_to_legacy_on_invalid_namespace_from_write(monkeypatch: pytest.MonkeyPatch) -> None:
+    calls: list[tuple[str, str]] = []
+
+    def fake_request_json(url, _token, *, method, payload=None):
+        calls.append((method, url))
+        if method == "GET":
+            return 404, {}
+        if "/apis/" in url:
+            return 403, {"message": "invalid namespace"}
+        return 200, {"metadata": {"name": "u1"}}
+
+    monkeypatch.setattr("scripts.publish_overlay_dashboard._request_json", fake_request_json)
+    _body, endpoint = _post("h", "t", _apis_payload(), namespace="default", uid="u1", message="m")
+
+    assert endpoint == "POST https://h/api/dashboards/db"
+    assert calls[-1][1].endswith("/api/dashboards/db")
+
+
 def test_post_raises_on_404_when_app_platform_base_is_reachable(monkeypatch: pytest.MonkeyPatch) -> None:
     """404 from PUT/POST while the App Platform base is reachable must raise, not fall back."""
 

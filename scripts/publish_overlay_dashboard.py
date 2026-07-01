@@ -273,6 +273,13 @@ def _apis_collection(host: str, namespace: str) -> str:
     return f"https://{host}/apis/dashboard.grafana.app/v1/namespaces/{namespace}/dashboards"
 
 
+def _is_invalid_namespace_error(status: int, body: dict[str, Any]) -> bool:
+    if status not in {400, 403, 404}:
+        return False
+    message = str(body.get("message", "")).strip().lower()
+    return "invalid namespace" in message
+
+
 def _request_json(
     url: str,
     token: str,
@@ -339,7 +346,27 @@ def _post(
     echoed on PUT, so concurrent UI edits surface as 409 instead of being
     silently overwritten.
     """
-    resource_version = _get_resource_version(host, token, namespace, uid)
+    get_status, get_body = _request_json(f"{_apis_collection(host, namespace)}/{uid}", token, method="GET")
+    if get_status == 404:
+        resource_version = None
+    elif _is_invalid_namespace_error(get_status, get_body):
+        legacy = _prepare_legacy_payload(payload["spec"], message)
+        status, body = _request_json(f"https://{host}/api/dashboards/db", token, method="POST", payload=legacy)
+        if status >= 400:
+            raise SystemExit(f"Grafana API error {status} (legacy fallback): {body.get('message', body)}")
+        return body, f"POST https://{host}/api/dashboards/db"
+    elif get_status >= 400:
+        raise SystemExit(f"Grafana API error {get_status} on GET dashboard: {get_body.get('message', get_body)}")
+    else:
+        rv = get_body.get("metadata", {}).get("resourceVersion")
+        if rv is None:
+            raise SystemExit(
+                f"Grafana API returned 200 for dashboard {uid!r} but "
+                "`metadata.resourceVersion` is absent — cannot proceed with "
+                "optimistic-concurrency PUT (see ADR-0025)."
+            )
+        resource_version = str(rv)
+
     if resource_version is None:
         url, method = _apis_collection(host, namespace), "POST"
     else:
@@ -347,6 +374,12 @@ def _post(
         payload = {**payload, "metadata": {**payload["metadata"], "resourceVersion": resource_version}}
 
     status, body = _request_json(url, token, method=method, payload=payload)
+    if _is_invalid_namespace_error(status, body):
+        legacy = _prepare_legacy_payload(payload["spec"], message)
+        status, body = _request_json(f"https://{host}/api/dashboards/db", token, method="POST", payload=legacy)
+        if status >= 400:
+            raise SystemExit(f"Grafana API error {status} (legacy fallback): {body.get('message', body)}")
+        return body, f"POST https://{host}/api/dashboards/db"
     if status == 404:
         # A 404 can mean the App Platform API group is absent (stack-level) or
         # a wrong namespace / missing permissions (config error).  Probe the
