@@ -39,8 +39,8 @@ jobs:
       - name: Validate mirror secret presence
         run: |
           if [[ -z "${{ secrets.SPREUSS_CISCO_MIRROR_PAT }}" ]]; then
-            echo "::error::Missing secret SPREUSS_CISCO_MIRROR_PAT"
-            exit 1
+            echo "::notice::Missing secret SPREUSS_CISCO_MIRROR_PAT; skipping mirror push."
+            exit 0
           fi
 
       - name: Configure git identity
@@ -49,6 +49,7 @@ jobs:
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
 
       - name: Push branch and tag mirror
+        if: ${{ secrets.SPREUSS_CISCO_MIRROR_PAT != '' }}
         run: |
           set -euo pipefail
           mirror_url="https://x-access-token:${{ secrets.SPREUSS_CISCO_MIRROR_PAT }}@github.com/spreuss_cisco/spreuss_cisco-skipp-algo.git"
