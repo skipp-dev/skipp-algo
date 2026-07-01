@@ -224,7 +224,9 @@ codes = ["E402", "I001"]
 # for any NEW orphan.
 # ---------------------------------------------------------------------------
 [workflow_orphan_inventory]
-allowed = []
+# github-mirror-sync.yml (2026-07-01): intentional orphan workflow for
+# repository mirroring; no dedicated test contract yet.
+allowed = ["github-mirror-sync.yml"]
 
 # ---------------------------------------------------------------------------
 # test_workflow_set_plus_e_inventory.py — workflows allowed to use
