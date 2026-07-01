@@ -6,6 +6,7 @@ from pathlib import Path
 
 import pytest
 
+_REPO_ROOT = Path(__file__).resolve().parents[1]
 _SERVICE_DIR = Path(__file__).resolve().parents[1] / "services" / "signals_producer"
 
 
@@ -118,3 +119,30 @@ def test_dockerfile_copies_open_prep_and_runs_engine() -> None:
 
 def test_requirements_file_exists() -> None:
     assert (_SERVICE_DIR / "requirements.txt").is_file()
+
+
+def _extract_exact_pin(path: Path, package: str) -> str | None:
+    needle = f"{package}=="
+    for raw_line in path.read_text(encoding="utf-8").splitlines():
+        line = raw_line.strip()
+        if not line or line.startswith("#"):
+            continue
+        if "#" in line:
+            line = line.split("#", 1)[0].strip()
+        if line.startswith(needle):
+            return line[len(needle):].strip()
+    return None
+
+
+def test_signals_producer_httpx_pin_matches_root_requirements() -> None:
+    root_requirements = _REPO_ROOT / "requirements.txt"
+    service_requirements = _SERVICE_DIR / "requirements.txt"
+
+    root_httpx = _extract_exact_pin(root_requirements, "httpx")
+    service_httpx = _extract_exact_pin(service_requirements, "httpx")
+
+    assert root_httpx is not None, "Root requirements.txt must pin httpx with =="
+    assert service_httpx is not None, "signals_producer requirements.txt must pin httpx with =="
+    assert service_httpx == root_httpx, (
+        "signals_producer httpx pin drifted from root requirements.txt; keep both pins aligned"
+    )
