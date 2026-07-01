@@ -14,8 +14,6 @@ from collections import Counter
 from concurrent.futures import ThreadPoolExecutor
 
 import pytest
-from hypothesis import given, settings
-from hypothesis import strategies as st
 
 import services.live_overlay_daemon.request_hotspots as hotspots
 
@@ -129,32 +127,10 @@ def test_record_request_fuzz_does_not_crash(symbol: str, tf: str) -> None:
 
 
 # ---------------------------------------------------------------------------
-# Property-based tests (Hypothesis)
+# Deterministic property checks (CI-safe, no optional deps)
 # ---------------------------------------------------------------------------
 
-symbol_strategy = st.text(
-    alphabet=st.characters(whitelist_categories=("L", "N", "S")),
-    min_size=0,
-    max_size=15,
-)
-tf_strategy = st.sampled_from(["1m", "5m", "15m", "1H", "4H", "1D", "", "  ", "5M"])
-
-
-@given(st.lists(st.tuples(symbol_strategy, tf_strategy), min_size=0, max_size=200))
-@settings(max_examples=200, deadline=None)
-def test_record_request_count_invariant(records: list[tuple[str, str]]) -> None:
-    """Total symbol/timeframe counts are bounded after any input sequence."""
-    hotspots.reset()
-    for sym, tf in records:
-        hotspots.record_request(sym, tf)
-    snap = hotspots.snapshot()
-    assert snap["symbol_count"] <= hotspots._MAX_TRACKED_KEYS
-    assert snap["tf_count"] <= hotspots._MAX_TRACKED_KEYS
-    assert all(isinstance(c, int) and c > 0 for _, c in snap["top_symbols"])
-    assert all(isinstance(c, int) and c > 0 for _, c in snap["top_tfs"])
-
-
-@given(st.integers(min_value=-5, max_value=20))
+@pytest.mark.parametrize("top_n", list(range(-5, 21)))
 def test_snapshot_top_n_returns_at_most_n_items(top_n: int) -> None:
     """snapshot(top_n) must return at most top_n items when top_n >= 0."""
     hotspots.reset()
@@ -169,8 +145,18 @@ def test_snapshot_top_n_returns_at_most_n_items(top_n: int) -> None:
         assert len(snap["top_tfs"]) <= top_n
 
 
-@given(st.lists(st.tuples(symbol_strategy, tf_strategy), min_size=1, max_size=100))
-@settings(max_examples=100, deadline=None)
+@pytest.mark.parametrize(
+    "records",
+    [
+        [("nvda", "5m")],
+        [(" nvda ", " 5m "), ("NVDA", "5m")],
+        [("AAPL", "1H"), ("aapl", "1H"), (" AAPL", "1H ")],
+        [("", "5m"), (" ", "5m"), ("MSFT", "")],
+        [("EURUSD", "1m"), ("BTCUSD", "15m"), ("TSLA", "4H")],
+        [("🔥", "5m"), ("日本語", "1D"), ("ΕΛΛΗΝΙΚΑ", "1H")],
+        [(f"S{i % 7}", "5m") for i in range(80)],
+    ],
+)
 def test_record_request_idempotent_for_same_normalized_input(records: list[tuple[str, str]]) -> None:
     """Recording the same normalized input twice doubles its count but not key count."""
     hotspots.reset()
@@ -189,6 +175,33 @@ def test_record_request_idempotent_for_same_normalized_input(records: list[tuple
     second_sym_counts = Counter(dict(second["top_symbols"]))
     for sym, count in first_sym_counts.items():
         assert second_sym_counts[sym] == count * 2
+
+
+def test_record_request_count_invariant_with_large_deterministic_mix() -> None:
+    """Total symbol/timeframe counts are bounded after a large mixed sequence."""
+    hotspots.reset()
+
+    records: list[tuple[str, str]] = [(f"P{i:05d}", "5m") for i in range(2500)]
+    records.extend(
+        [
+            (" nvda ", " 5m "),
+            ("NVDA", "5m"),
+            ("", "5m"),
+            (" ", "1H"),
+            ("MSFT", ""),
+            ("🔥", "1m"),
+            ("日本語", "1D"),
+        ]
+    )
+
+    for sym, tf in records:
+        hotspots.record_request(sym, tf)
+
+    snap = hotspots.snapshot(top_n=200)
+    assert snap["symbol_count"] <= hotspots._MAX_TRACKED_KEYS
+    assert snap["tf_count"] <= hotspots._MAX_TRACKED_KEYS
+    assert all(isinstance(c, int) and c > 0 for _, c in snap["top_symbols"])
+    assert all(isinstance(c, int) and c > 0 for _, c in snap["top_tfs"])
 
 
 # ---------------------------------------------------------------------------
