@@ -7,7 +7,7 @@ from pathlib import Path
 # Ensure scripts/ is importable
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "scripts"))
 
-from smc_regime_classifier import classify_market_regime
+from smc_regime_classifier import _clamp, _to_float, classify_market_regime
 
 
 class TestRiskOff:
@@ -113,6 +113,81 @@ class TestEdgeCases:
             "reasons",
         }
         assert isinstance(result["reasons"], list)
+
+
+class TestNanHandling:
+    """NaN inputs must be treated as 'no signal' (0.0 / low bound), never
+    silently coerced to the maximum (+1.0) which would flip the regime.
+    """
+
+    def test_to_float_nan_returns_zero(self) -> None:
+        assert _to_float(float("nan")) == 0.0
+        assert _to_float("nan") == 0.0
+
+    def test_to_float_valid_and_invalid(self) -> None:
+        assert _to_float("1.5") == 1.5
+        assert _to_float(None) == 0.0
+        assert _to_float("not-a-number") == 0.0
+
+    def test_clamp_nan_maps_to_low_not_high(self) -> None:
+        assert _clamp(float("nan"), -1.0, 1.0) == -1.0
+        assert _clamp(float("inf"), -1.0, 1.0) == 1.0
+        assert _clamp(float("-inf"), -1.0, 1.0) == -1.0
+
+    def test_nan_macro_bias_does_not_force_risk_on(self) -> None:
+        """Regression: a NaN macro_bias must behave like 0.0, not +1.0.
+
+        With 0.6 breadth and a neutral bias the regime is NEUTRAL; before the
+        guard, NaN -> +1.0 silently satisfied the ``>= 0.3 and breadth >= 0.6``
+        RISK_ON branch and flipped the regime.
+        """
+        sectors = [
+            {"sector": "a", "changesPercentage": 0.2},
+            {"sector": "b", "changesPercentage": 0.2},
+            {"sector": "c", "changesPercentage": 0.2},
+            {"sector": "d", "changesPercentage": -0.2},
+            {"sector": "e", "changesPercentage": -0.2},
+        ]
+        nan_result = classify_market_regime(
+            vix_level=20.0, macro_bias=float("nan"), sector_performance=sectors
+        )
+        zero_result = classify_market_regime(
+            vix_level=20.0, macro_bias=0.0, sector_performance=sectors
+        )
+        assert nan_result["regime"] == zero_result["regime"]
+        assert nan_result["macro_bias"] == zero_result["macro_bias"]
+
+    def test_nan_sector_change_is_neutral_not_positive(self) -> None:
+        """A NaN sector change must not count toward breadth."""
+        sectors = [
+            {"sector": "a", "changesPercentage": float("nan")},
+            {"sector": "b", "changesPercentage": 1.0},
+        ]
+        result = classify_market_regime(
+            vix_level=20.0, macro_bias=0.0, sector_performance=sectors
+        )
+        # Only 1 of 2 sectors is positive -> breadth 0.5, NaN excluded.
+        assert result["sector_breadth"] == 0.5
+
+    def test_nan_vix_level_is_normalized_to_none(self) -> None:
+        """A non-finite vix_level must be echoed as None, never NaN.
+
+        Regression: a NaN vix_level was echoed raw into the output and later
+        rendered as ``export const float VIX_LEVEL = nan`` in the generated
+        Pine library (a compile error). It must behave like 'unavailable'.
+        """
+        result = classify_market_regime(vix_level=float("nan"), macro_bias=0.0)
+        assert result["vix_level"] is None
+        # Downstream Pine literal guard: float(None or 0.0) == 0.0, valid.
+        assert float(result["vix_level"] or 0.0) == 0.0
+
+    def test_inf_vix_level_is_normalized_to_none(self) -> None:
+        result = classify_market_regime(vix_level=float("inf"), macro_bias=0.0)
+        assert result["vix_level"] is None
+
+    def test_finite_vix_level_is_preserved(self) -> None:
+        result = classify_market_regime(vix_level=18.5, macro_bias=0.0)
+        assert result["vix_level"] == 18.5
 
 
 class TestYieldCurveIntegration:
