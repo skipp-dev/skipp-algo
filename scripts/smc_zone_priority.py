@@ -27,6 +27,7 @@ Usage::
 """
 from __future__ import annotations
 
+import math
 from typing import Any
 
 # ── Defaults ────────────────────────────────────────────────────
@@ -188,7 +189,17 @@ def _select_top_family(
     # hand-edited JSON) must fall back to its prior, not raise KeyError when
     # a context bump targets the missing family (e.g. BOS on RISK_ON+HTF or
     # SWEEP on EXTREME vol).
-    scores = {**_FAMILY_BASE_PRIORITY, **(calibrated_family_weights or {})}
+    #
+    # Sanitize each override: a NaN weight makes ``max(scores, key=...)`` below
+    # order-dependent (NaN compares False to everything), so a single NaN in a
+    # calibration artifact would non-deterministically pick the top family —
+    # the same failure class as #3080.  Non-finite (NaN/±inf) or non-numeric
+    # weights therefore fall back to the family's hand-tuned base priority.
+    scores = dict(_FAMILY_BASE_PRIORITY)
+    for family, weight in (calibrated_family_weights or {}).items():
+        fallback = scores.get(family, 0.0)
+        safe_weight = _safe_float(weight, default=fallback)
+        scores[family] = safe_weight if math.isfinite(safe_weight) else fallback
 
     # OB favored in normal / low-vol regimes with HTF alignment
     if htf_aligned:
@@ -329,6 +340,16 @@ def build_zone_priority(
         (contextual → global → hand-tuned) applies.
     """
     result = dict(DEFAULTS)
+
+    # Coerce numeric inputs defensively.  Enrichment can hand us ``None`` or a
+    # non-numeric value (e.g. the production call site
+    # ``ensemble_score=float(_eq.get('score') or 0.0)`` still passes ``None``
+    # straight through when the key holds ``null``); without this the
+    # downstream ``_clamp`` / comparisons raise ``TypeError``.  NaN is
+    # normalised to 0.0 ("no signal"), matching the ``_clamp`` NaN contract.
+    ensemble_score = _safe_float(ensemble_score)
+    news_heat = _safe_float(news_heat)
+    zone_proj_score = _safe_float(zone_proj_score)
 
     # ── Phase F: Resolve context-aware family weights ───────────
     effective_weights = calibrated_family_weights
