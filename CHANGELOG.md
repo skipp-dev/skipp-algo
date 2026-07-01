@@ -31,6 +31,11 @@ All notable changes to this project are documented in this file.
 - **Market Traffic Health** value mappings made human-readable: `MARKET_CLOSED`
   → "MARKET CLOSED", `OPEN_NO_TRAFFIC` → "OPEN · NO PINE POLLING", `TRAFFIC_OK`
   → "PINE POLLING OK".
+- Paused `lo-expected-traffic-not-armed` (`isPaused: true`) while the Pine
+  `request.get()` consumer is not yet rolled out and the production deployment is
+  intentionally unarmed (`LIVE_OVERLAY_EXPECT_MARKET_TRAFFIC=0` on Railway); the
+  rule's own runbook already condones the not-armed state during rollout, so it
+  no longer pages. Set `isPaused: false` and re-upsert when arming for production.
 
 ### Added (2026-07-01) — PromQL gating anti-pattern guard
 

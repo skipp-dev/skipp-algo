@@ -419,6 +419,12 @@ groups:
         OVERLAY_SECRET_TOKEN rollout, and the Railway public endpoint.
   - uid: lo-expected-traffic-not-armed
     title: Pine-polling watchdog is turned off
+    # Paused 2026-07-01: the TradingView/Pine request.get() consumer is not yet
+    # rolled out, so this deployment is deliberately unarmed
+    # (LIVE_OVERLAY_EXPECT_MARKET_TRAFFIC=0). This rule's own runbook condones the
+    # not-armed state during rollout, so the nag is stood down rather than paging.
+    # Set isPaused: false (and re-upsert) when arming for production.
+    isPaused: true
     condition: C
     data:
     - refId: A
