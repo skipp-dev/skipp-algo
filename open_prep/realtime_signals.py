@@ -3078,7 +3078,7 @@ def main() -> None:
         "--ultra", action="store_true",
         help="Ultra-fast 2s polling for VisiData near-realtime breakout monitoring",
     )
-    _default_port = int(os.getenv("PORT", "8099"))
+    _default_port = _env_int("PORT", 8099)
     parser.add_argument(
         "--telemetry-port", type=int, default=_default_port,
         help="Port for the telemetry HTTP endpoint (0 to disable, default: $PORT or 8099)",
@@ -3164,6 +3164,20 @@ def main() -> None:
         except Exception as exc:
             logger.error("Poll error: %s", exc, exc_info=True)
             time.sleep(max(10, engine.poll_interval))
+
+
+def _env_int(key: str, default: int) -> int:
+    raw = os.getenv(key)
+    if raw is None:
+        return default
+    value = raw.strip()
+    if not value:
+        return default
+    try:
+        return int(value)
+    except ValueError:
+        logger.warning("Invalid %s=%r, using default %d", key, raw, default)
+        return default
 
 
 if __name__ == "__main__":

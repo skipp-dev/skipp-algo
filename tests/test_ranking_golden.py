@@ -35,6 +35,7 @@ in the same PR.
 from __future__ import annotations
 
 import json
+import math
 import os
 from pathlib import Path
 from typing import Any
@@ -193,6 +194,38 @@ def test_ranking_pipeline_is_deterministic() -> None:
     first = _run_pipeline()
     second = _run_pipeline()
     assert first == second, "rank_candidates_v2 produced non-deterministic output"
+
+
+def test_infinite_analyst_catalyst_score_cannot_dominate_ranking() -> None:
+    """Non-finite input fields must not propagate into final scores."""
+    data = _load_input()
+    params = data["params"]
+    sc = data["side_channels"]
+    quotes = data["quotes"]
+    target_symbol = quotes[0]["symbol"]
+    quotes[0]["analyst_catalyst_score"] = float("inf")
+
+    ranked, _filtered_out = rank_candidates_v2(
+        quotes=quotes,
+        bias=float(params["bias"]),
+        top_n=int(params["top_n"]),
+        news_scores=sc.get("news_scores"),
+        news_metrics=sc.get("news_metrics"),
+        sector_changes=sc.get("sector_changes"),
+        symbol_sectors=sc.get("symbol_sectors"),
+        institutional_scores=sc.get("institutional_scores"),
+        estimate_revisions=sc.get("estimate_revisions"),
+        weight_label=str(params["weight_label"]),
+        vix_level=params.get("vix_level"),
+        gate_tracker=None,
+        dirty_manager=None,
+    )
+
+    assert ranked, "fixture should produce ranked candidates"
+    assert all(math.isfinite(row["score"]) for row in ranked)
+    by_symbol = {row["symbol"]: row for row in ranked}
+    assert math.isfinite(by_symbol[target_symbol]["score"])
+    assert by_symbol[target_symbol]["analyst_catalyst_score"] == 0.0
 
 
 def test_known_archetype_filter_decisions() -> None:

@@ -4,6 +4,8 @@ import sys
 import tomllib
 from pathlib import Path
 
+import pytest
+
 _SERVICE_DIR = Path(__file__).resolve().parents[1] / "services" / "signals_producer"
 
 
@@ -64,6 +66,23 @@ def test_signal_engine_entrypoint_uses_port_env_for_telemetry_default(monkeypatc
 
     assert captured_ports == [8765]
     assert shutdowns == [True]
+
+
+@pytest.mark.parametrize(
+    ("port_value", "expected"),
+    [
+        ("", 8099),
+        ("   ", 8099),
+        ("abc", 8099),
+        ("8098", 8098),
+        (" 8097 ", 8097),
+    ],
+)
+def test_signal_engine_port_env_parsing_falls_back(port_value: str, expected: int, monkeypatch) -> None:
+    import open_prep.realtime_signals as rs
+
+    monkeypatch.setenv("PORT", port_value)
+    assert rs._env_int("PORT", 8099) == expected
 
 
 def test_railway_healthcheck_path_is_healthz() -> None:

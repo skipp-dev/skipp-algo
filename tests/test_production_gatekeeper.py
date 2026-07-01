@@ -1007,12 +1007,19 @@ class TestToFloatNanGuard:
         assert result == 0.0
         assert not math.isnan(result)
 
-    def test_inf_passes_through(self):
-        """Arrange: pass float('inf'). Assert: inf is NOT NaN, passes through."""
+    def test_inf_returns_default(self):
+        """Arrange: pass float('inf'). Assert: returns 0.0 (non-finite guard)."""
         from open_prep.utils import to_float
 
         result = to_float(float("inf"))
-        assert result == float("inf")
+        assert result == 0.0
+
+    def test_inf_returns_custom_default(self):
+        """Arrange: pass infinity with default=-1. Assert: returns -1."""
+        from open_prep.utils import to_float
+
+        result = to_float(float("-inf"), default=-1.0)
+        assert result == -1.0
 
     def test_normal_values_unaffected(self):
         """Arrange: normal numeric values. Assert: unchanged."""
