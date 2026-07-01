@@ -6,6 +6,27 @@ All notable changes to this project are documented in this file.
 
 ## [Unreleased]
 
+### Fixed (2026-07-01) — Grafana alert-rule false-firing (sp-snapshot-missing, news-stale)
+
+- `sp-snapshot-missing` alert expression changed from
+  `(1 - signals_producer_open_prep_snapshot_loaded) or vector(1)` to
+  `... or on() vector(1)`. Without `on()` the `or` never matched the labelled
+  left-hand series against the empty-label `vector(1)`, so the fallback series
+  `{}=1` was *always* appended and the threshold (`> 0`) tripped permanently —
+  the alert fired continuously even while `open_prep_snapshot_loaded == 1`
+  (observed firing for 2d+ on a healthy producer). The `on()` clause matches on
+  the empty label set, so the fallback is emitted *only* when the metric series
+  is genuinely absent. This aligns the rule with its siblings
+  `sp-watchlist-empty` and `sp-poll-stale`, which already use `or on() vector(1)`.
+- `lo-news-snapshot-stale` threshold relaxed from `> bool 3600` (1 h) to
+  `> bool 10800` (3 h). The producing `smc-live-newsapi-refresh` cron is hourly,
+  but GitHub Actions schedule drift routinely stretches daytime spacing to
+  ~2 h (observed max gap 2 h 23 m), so the 1 h threshold plus `for: 15m` fired
+  in nearly every daytime cycle despite a healthy pipeline. The Pine-library
+  consumer bakes only 3×/day, so a 3 h staleness floor still detects a genuinely
+  stalled producer well before consumption is affected while eliminating the
+  recurrent drift-induced false alarm. Annotation updated accordingly.
+
 ### Fixed (2026-06-30) — TradingView settings surface DOM hint
 
 - `automation/tradingview/lib/tv_shared.ts`:

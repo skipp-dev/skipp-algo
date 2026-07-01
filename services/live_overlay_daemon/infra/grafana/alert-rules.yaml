@@ -889,7 +889,7 @@ groups:
       datasourceUid: grafanacloud-prom
       model:
         expr: live_overlay_provider_news_snapshot_loaded{job="live_overlay"} * (live_overlay_provider_news_snapshot_age_seconds{job="live_overlay"}
-          > bool 3600)
+          > bool 10800)
         instant: true
     - refId: C
       datasourceUid: __expr__
@@ -909,7 +909,7 @@ groups:
     labels:
       severity: warning
     annotations:
-      summary: News provider snapshot is older than 1 hour
+      summary: News provider snapshot is older than 3 hours
       runbook: Check NEWS_SNAPSHOT_PATH producer job and file update cadence; inspect
         fetched_at_unix in snapshot.
   - uid: lo-tradingview-credential-age-high
@@ -1478,7 +1478,7 @@ groups:
       datasourceUid: grafanacloud-prom
       model:
         expr: (1 - signals_producer_open_prep_snapshot_loaded{job="signals_producer"})
-          or vector(1)
+          or on() vector(1)
         instant: true
     - refId: C
       datasourceUid: __expr__
