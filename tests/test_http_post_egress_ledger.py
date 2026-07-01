@@ -168,8 +168,8 @@ URLLIB_REQUEST_POST_LEDGER: set[tuple[str, int]] = {
     # Pushover messages API.
     ("terminal_notifications.py", 316),
     # Open-prep alerts dispatcher (Slack/webhook).
-    # 2026-07-01: atomic symbol-level throttle reservation shifted 414 -> 422.
-    ("open_prep/alerts.py", 422),
+    # 2026-07-01: alert candidate/throttle hardening shifted 422 -> 439.
+    ("open_prep/alerts.py", 439),
     # 2026-06-21: UptimeRobot bridge polls monitor API with low-level
     # urllib.request.Request(..., method="POST") + timeout discipline.
     ("services/live_overlay_daemon/uptimerobot_bridge.py", 84),

@@ -1019,7 +1019,7 @@ def _start_telemetry_server(
         t = threading.Thread(target=server.serve_forever, daemon=True)
         t.start()
         _update_telemetry_status(enabled=True, requested_port=port, active_port=int(server.server_port), bind_host=bind_host, error=None)
-        logger.info("Telemetry HTTP server listening on http://%s:%d", bind_host, port)
+        logger.info("Telemetry HTTP server listening on http://%s:%d", bind_host, int(server.server_port))
         return server
     except OSError as exc:
         logger.warning("Could not start telemetry server on port %d: %s", port, type(exc).__name__, exc_info=True)

@@ -135,12 +135,21 @@ def _clear_sent(symbol: str, *, target_scope: str | None = None) -> None:
 def _prune_stale_entries(throttle_seconds: int) -> None:
     """Remove entries older than throttle window to cap memory usage."""
     with _throttle_lock:
-        if len(_last_sent) <= _LAST_SENT_MAX:
+        if not _last_sent:
+            return
+        if throttle_seconds <= 0:
+            _last_sent.clear()
             return
         now = time.time()
         stale = [k for k, v in _last_sent.items() if (now - v) >= throttle_seconds]
         for k in stale:
             del _last_sent[k]
+        if len(_last_sent) <= _LAST_SENT_MAX:
+            return
+        # If we're still above cap with mostly-fresh entries, drop oldest keys.
+        overflow = len(_last_sent) - _LAST_SENT_MAX
+        for key, _timestamp in sorted(_last_sent.items(), key=lambda item: item[1])[:overflow]:
+            del _last_sent[key]
 
 
 # ---------------------------------------------------------------------------
@@ -297,7 +306,14 @@ def dispatch_alerts(
 
     _prune_stale_entries(throttle)
 
-    for candidate in ranked:
+    for idx, candidate in enumerate(ranked):
+        if not isinstance(candidate, dict):
+            logger.warning(
+                "Skipping invalid candidate at index %d: expected dict, got %s",
+                idx,
+                type(candidate).__name__,
+            )
+            continue
         tier = candidate.get("confidence_tier", "STANDARD")
         try:
             tier_idx = tier_priority.index(tier)
@@ -359,11 +375,12 @@ def dispatch_alerts(
             })
 
         # Refresh the symbol-level throttle when every target was delivered.
-        # On a total failure (nothing sent) release the reservation so a
-        # later retry can proceed; partial success keeps it to avoid dupes.
+        # On any non-complete delivery release the reservation so subsequent
+        # calls can retry failed targets while target-level throttles still
+        # suppress duplicates for already-successful targets.
         if sent_targets > 0 and failed_targets == 0:
             _mark_sent(symbol)
-        elif sent_targets == 0:
+        else:
             _clear_sent(symbol)
 
     if results:
