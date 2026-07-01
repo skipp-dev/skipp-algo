@@ -40,8 +40,10 @@ _REQUIREMENT_FILES = {
 # scripts/databento_production_workbook.py::_memory_snapshot.
 # 2026-06-07: bumped 25 -> 26 to add pytest-split>=0.11.0 for the
 # duration-balanced 4-shard sharding of the `validate` CI job.
+# 2026-07-01: bumped 27 -> 28 to include the pyyaml exact pin used by
+# workflow/dependency-discipline tooling.
 _DEP_LINE_BUDGETS = {
-    "requirements.txt": 27,
+    "requirements.txt": 28,
     "requirements-gpu.txt": 1,
 }
 
