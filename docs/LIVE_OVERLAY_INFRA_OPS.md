@@ -136,20 +136,25 @@ curl https://liveoverlaydaemon-production.up.railway.app/ready
 |----------|---------|---------|--------------|
 | `DATABENTO_API_KEY` | live_overlay_daemon | ✅ | Databento API key (Unlimited) |
 | `OVERLAY_SECRET_TOKEN` | live_overlay_daemon | ✅ | Shared Secret für `/metrics` Basic Auth und `/smc_live` URL |
-| `PORT` | live_overlay_daemon | ✅ | von Railway injiziert |
+| `PORT` | live_overlay_daemon | ✅ | Production-Pin auf `8080` (nicht auf `${{...PORT}}` referenzieren) |
 | `LIVE_OVERLAY_EXPECT_MARKET_TRAFFIC` | live_overlay_daemon | optional | `1` in Production, wenn TradingView/Pine-Traffic während US Market Open erwartet wird; default `0` lässt den First-Zero-Traffic-Alert deaktiviert |
 | `UPTIMEROBOT_API_KEY` | live_overlay_daemon | optional | API-Key für UptimeRobot-Bridge |
 | `UPTIMEROBOT_MONITOR_IDS` | live_overlay_daemon | optional | Kommagetrennte Monitor-IDs; Production-Allowlist: `803309701,803341452,803343155,803343156,803362511` |
 | `GITHUB_WORKFLOW_MONITOR_TOKEN` | live_overlay_daemon | optional | GitHub PAT für Workflow-Bridge |
 | `GITHUB_WORKFLOW_MONITOR_REPO` | live_overlay_daemon | optional | `owner/repo`, default `skippALGO/skipp-algo` |
 | `NEWS_SNAPSHOT_PATH` | live_overlay_daemon | optional | Pfad zum News-Snapshot-JSON |
-| `OVERLAY_SERVICE_URL` | metrics-collector | ✅ | Scrape target ohne Scheme, aktuell `liveoverlaydaemon-production.up.railway.app`; bei Private Networking `liveoverlaydaemon.railway.internal:<PORT>` nach Runtime-Port-Verifikation |
-| `SIGNALS_SERVICE_URL` | live_overlay_daemon, metrics-collector | ✅ | `smc-signals-producer.railway.internal:PORT` — internal host:port of the signals producer; Alloy scrapes `/metrics`, live_overlay_daemon fetches `/signals` |
+| `OVERLAY_SERVICE_URL` | metrics-collector | ✅ | Scrape target ohne Scheme, production: `${{live_overlay_daemon.RAILWAY_PRIVATE_DOMAIN}}:8080` |
+| `SIGNALS_SERVICE_URL` | live_overlay_daemon, metrics-collector | ✅ | `${{smc-signals-producer.RAILWAY_PRIVATE_DOMAIN}}:8080` — internal host:port of the signals producer; Alloy scrapes `/metrics`, live_overlay_daemon fetches `/signals` |
 | `GRAFANA_CLOUD_PROM_URL` | metrics-collector | ✅ | Grafana Cloud Remote-Write-URL |
 | `GRAFANA_CLOUD_USER` | metrics-collector | ✅ | Grafana Cloud Stack-ID (numerisch) |
 | `GRAFANA_CLOUD_API_KEY` | metrics-collector | ✅ | Grafana Cloud API-Key (MetricsPublisher) |
 | `OVERLAY_SECRET_TOKEN` | metrics-collector | ✅ | gleicher Token wie in live_overlay_daemon |
 | `SIGNALS_INTERNAL_TOKEN` | live_overlay_daemon, metrics-collector, smc-signals-producer | ✅ | Shared-Secret für `/signals`- und `/metrics`-Endpoint (Bearer-Token); live_overlay_daemon und Alloy senden diesen Token beim Aufruf |
+
+**Wichtig:** `${{service.PORT}}` ist für diese Verträge nicht robust, weil
+`PORT` zwar zur Laufzeit injiziert wird, aber nicht zuverlässig als gespeicherte
+Service-Variable referenzierbar ist. Deshalb in Production `PORT=8080` explizit
+setzen und private Domains mit `:8080` referenzieren.
 
 ### Alloy-Konfiguration aktualisieren
 

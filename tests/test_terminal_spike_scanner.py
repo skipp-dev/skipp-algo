@@ -6,6 +6,7 @@ formatting, asset type heuristics, row building, and filtering.
 
 from __future__ import annotations
 
+import math
 from typing import Any
 
 from terminal_spike_scanner import (
@@ -211,6 +212,16 @@ class TestSafeFloat:
     def test_custom_default(self):
         assert _safe_float(None, default=-1.0) == -1.0
 
+    def test_rejects_non_finite(self):
+        # Regression: NaN/inf must be coerced to the default, otherwise they
+        # slip past ``price <= 0`` guards and crash ``int(...)`` in
+        # ``build_spike_rows``.
+        assert _safe_float(float("nan")) == 0.0
+        assert _safe_float(float("inf")) == 0.0
+        assert _safe_float(float("-inf")) == 0.0
+        assert _safe_float("nan", default=7.0) == 7.0
+        assert _safe_float("inf", default=7.0) == 7.0
+
 
 # ═══════════════════════════════════════════════════════════════
 # build_spike_rows
@@ -226,6 +237,24 @@ class TestBuildSpikeRows:
         assert rows[0]["symbol"] == "AAPL"
         assert rows[0]["spike_dir"] == "UP"
         assert rows[0]["source"] == "gainer"
+
+    def test_non_finite_numeric_fields_do_not_crash(self):
+        # Regression: a single malformed numeric (NaN/inf) in any row must not
+        # crash the whole table build via ``int(float("nan"))`` /
+        # ``int(float("inf"))``. Every field is coerced to a finite value.
+        for bad in (float("nan"), float("inf"), "nan", "inf"):
+            rows = build_spike_rows(
+                [_raw(symbol="AAA", changesPercentage=5.0, volume=bad,
+                      avgVolume=bad, price=bad, change=bad)],
+                [], [],
+            )
+            assert len(rows) == 1
+            row = rows[0]
+            assert row["volume"] == 0
+            assert row["avg_volume"] == 0
+            assert math.isfinite(row["price"])
+            assert math.isfinite(row["change_pct"])
+            assert math.isfinite(row["change"])
 
     def test_basic_loser(self):
         rows = build_spike_rows(
@@ -250,7 +279,6 @@ class TestBuildSpikeRows:
             [_raw(symbol="AAPL", changesPercentage=3.0)],
         )
         assert len(rows) == 1  # deduped
-
     def test_sorted_by_abs_change(self):
         rows = build_spike_rows(
             [_raw(symbol="A", changesPercentage=2.0)],

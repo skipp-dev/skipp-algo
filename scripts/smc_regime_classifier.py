@@ -9,6 +9,7 @@ inputs.
 """
 from __future__ import annotations
 
+import math
 from typing import Any
 
 # ── VIX thresholds ──────────────────────────────────────────────
@@ -22,15 +23,28 @@ MAX_PE_ADJUSTMENT = 0.2
 
 
 def _to_float(val: Any) -> float:
-    """Coerce *val* to float, returning 0.0 on failure."""
+    """Coerce *val* to float, returning 0.0 on failure or NaN.
+
+    NaN is treated as a failed coercion (no usable signal) rather than a
+    valid number: a NaN macro_bias / sector change must not survive into the
+    classifier, where ``_clamp`` would otherwise silently turn it into +1.0
+    (max bullish) and flip the regime.
+    """
     try:
-        return float(val)
+        f = float(val)
     except (TypeError, ValueError):
         return 0.0
+    return f if f == f else 0.0  # NaN check
 
 
 def _clamp(value: float, low: float, high: float) -> float:
-    return max(low, min(high, float(value)))
+    # NaN is "no signal", not a high score: clamp it to ``low`` instead of
+    # letting ``max(low, min(high, nan))`` silently return ``high`` (NaN
+    # compares False to everything, so ``min(high, nan)`` returns ``high``).
+    f = float(value)
+    if f != f:  # NaN
+        return low
+    return max(low, min(high, f))
 
 
 def _market_pe_modifier(market_pe_forward: float | None) -> tuple[float, str]:
@@ -77,6 +91,13 @@ def classify_market_regime(
     """
     sectors = sector_performance or []
     reasons: list[str] = []
+    # A non-finite vix_level means "unavailable", not a real reading. Normalize
+    # it to None so it is not echoed back into the output dict (and from there
+    # into ``export const float VIX_LEVEL = nan`` in the generated Pine library,
+    # which is a compile error — Pine has no ``nan`` literal). float('nan')
+    # passes the downstream ``... or 0.0`` guards because NaN is truthy.
+    if vix_level is not None and not math.isfinite(vix_level):
+        vix_level = None
     macro_bias_raw = _to_float(macro_bias)
     macro_bias_pe_adjustment, market_pe_regime = _market_pe_modifier(market_pe_forward)
     macro_bias_yc_adjustment = -0.2 if yield_curve_inverted else 0.0
