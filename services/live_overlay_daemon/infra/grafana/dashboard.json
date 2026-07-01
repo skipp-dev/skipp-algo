@@ -84,7 +84,7 @@
       },
       "targets": [
         {
-          "expr": "max(live_overlay_health_status_code{job=~\"$job\"}) or vector(0)",
+          "expr": "live_overlay_health_status_code{job=~\"$job\"} or on() vector(0)",
           "legendFormat": "health_code",
           "datasource": {
             "type": "prometheus",
@@ -190,9 +190,9 @@
       "title": "Active Alerts",
       "type": "alertlist",
       "gridPos": {
-        "x": 8,
+        "x": 12,
         "y": 1,
-        "w": 16,
+        "w": 12,
         "h": 5
       },
       "options": {
@@ -730,7 +730,7 @@
       },
       "targets": [
         {
-          "expr": "max(live_overlay_health_status_code{job=~\"$job\"}) or vector(0)",
+          "expr": "live_overlay_health_status_code{job=~\"$job\"} or on() vector(0)",
           "legendFormat": "Health state",
           "datasource": {
             "type": "prometheus",
@@ -1526,7 +1526,7 @@
       },
       "targets": [
         {
-          "expr": "(live_overlay_market_us_open{job=~\"$job\"} or vector(0)) + ((live_overlay_market_us_open{job=~\"$job\"} or vector(0)) * (((rate(live_overlay_smc_live_requests_total{job=~\"$job\"}[5m]) or vector(0)) > bool 0.001)))",
+          "expr": "(live_overlay_market_us_open{job=~\"$job\"} or on() vector(0)) + ((live_overlay_market_us_open{job=~\"$job\"} or on() vector(0)) * (((rate(live_overlay_smc_live_requests_total{job=~\"$job\"}[5m]) or on() vector(0)) > bool 0.001)))",
           "legendFormat": "open_req_health",
           "datasource": {
             "type": "prometheus",
@@ -1552,15 +1552,15 @@
               "type": "value",
               "options": {
                 "0": {
-                  "text": "MARKET_CLOSED",
+                  "text": "MARKET CLOSED",
                   "color": "gray"
                 },
                 "1": {
-                  "text": "OPEN_NO_TRAFFIC",
+                  "text": "OPEN · NO PINE POLLING",
                   "color": "yellow"
                 },
                 "2": {
-                  "text": "TRAFFIC_OK",
+                  "text": "PINE POLLING OK",
                   "color": "green"
                 }
               }
@@ -1983,14 +1983,14 @@
     },
     {
       "id": 2165782571,
-      "title": "Traffic Alert Armed",
+      "title": "Pine Polling Watchdog",
       "type": "stat",
-      "description": "Is production first-zero traffic alerting armed? Shows LIVE_OVERLAY_EXPECT_MARKET_TRAFFIC; 1 means ARMED and 0 means NOT ARMED.",
+      "description": "Is the TradingView/Pine /smc_live polling watchdog armed? Shows LIVE_OVERLAY_EXPECT_MARKET_TRAFFIC. ARMED = a stalled or absent Pine consumer will alert during US market open; NOT ARMED = the watchdog is stood down.",
       "gridPos": {
-        "x": 18,
-        "y": 41,
-        "w": 6,
-        "h": 4
+        "x": 8,
+        "y": 1,
+        "w": 4,
+        "h": 5
       },
       "targets": [
         {
@@ -2252,7 +2252,7 @@
       },
       "targets": [
         {
-          "expr": "rate(live_overlay_full_compute_cycle_errors{job=~\"$job\"}[$__rate_interval]) or vector(0)",
+          "expr": "rate(live_overlay_full_compute_cycle_errors{job=~\"$job\"}[$__rate_interval]) or on() vector(0)",
           "legendFormat": "full compute errors",
           "datasource": {
             "type": "prometheus",
@@ -2260,7 +2260,7 @@
           }
         },
         {
-          "expr": "rate(live_overlay_flow_patch_cycle_errors{job=~\"$job\"}[$__rate_interval]) or vector(0)",
+          "expr": "rate(live_overlay_flow_patch_cycle_errors{job=~\"$job\"}[$__rate_interval]) or on() vector(0)",
           "legendFormat": "flow patch errors",
           "datasource": {
             "type": "prometheus",

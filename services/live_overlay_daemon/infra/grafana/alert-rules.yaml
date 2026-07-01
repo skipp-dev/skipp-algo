@@ -380,16 +380,16 @@ groups:
       runbook: Potential token drift or probing. Validate OVERLAY_SECRET_TOKEN rollout
         in Pine consumers.
   - uid: lo-request-rate-absent-open
-    title: Expected request traffic missing while US market open
+    title: TradingView/Pine is not polling the live overlay (US market open)
     condition: C
     data:
     - refId: A
       datasourceUid: grafanacloud-prom
       model:
-        expr: live_overlay_expected_market_traffic{job="live_overlay"} == 1
-          and on(job) live_overlay_market_us_open{job="live_overlay"} == 1
-          and on(job) live_overlay_uptime_seconds{job="live_overlay"} > bool 600
-          and on(job) rate(live_overlay_smc_live_requests_total{job="live_overlay"}[10m]) < bool 0.001
+        expr: live_overlay_expected_market_traffic{job="live_overlay"} *
+          live_overlay_market_us_open{job="live_overlay"} *
+          (live_overlay_uptime_seconds{job="live_overlay"} > bool 600) *
+          (rate(live_overlay_smc_live_requests_total{job="live_overlay"}[10m]) < bool 0.001)
         instant: true
     - refId: C
       datasourceUid: __expr__
@@ -409,12 +409,22 @@ groups:
     labels:
       severity: warning
     annotations:
-      summary: Expected smc_live traffic is missing during US market open
-      runbook: Check TradingView consumer health, token rollout, and upstream network
-        path. The deployment expects traffic (LIVE_OVERLAY_EXPECT_MARKET_TRAFFIC=1)
-        but no requests have been observed since open.
+      summary: No TradingView/Pine /smc_live requests since the US market opened,
+        while polling is expected
+      runbook: The Pine request.get() overlay consumer has sent zero /smc_live
+        requests since the US market opened, but this deployment is armed to expect
+        it (LIVE_OVERLAY_EXPECT_MARKET_TRAFFIC=1). If the Pine consumer is not live
+        yet, set LIVE_OVERLAY_EXPECT_MARKET_TRAFFIC=0 to stand the watchdog down.
+        If it should be polling, check the published Pine request URL,
+        OVERLAY_SECRET_TOKEN rollout, and the Railway public endpoint.
   - uid: lo-expected-traffic-not-armed
-    title: Expected traffic alert is not armed
+    title: Pine-polling watchdog is turned off
+    # Paused 2026-07-01: the TradingView/Pine request.get() consumer is not yet
+    # rolled out, so this deployment is deliberately unarmed
+    # (LIVE_OVERLAY_EXPECT_MARKET_TRAFFIC=0). This rule's own runbook condones the
+    # not-armed state during rollout, so the nag is stood down rather than paging.
+    # Set isPaused: false (and re-upsert) when arming for production.
+    isPaused: true
     condition: C
     data:
     - refId: A
@@ -440,11 +450,14 @@ groups:
     labels:
       severity: warning
     annotations:
-      summary: Production first-zero traffic alerting is not armed
-      runbook: Set LIVE_OVERLAY_EXPECT_MARKET_TRAFFIC=1 for production if TradingView/Pine
-        traffic is expected; leave non-prod and warm-standby deployments at 0.
+      summary: The TradingView/Pine /smc_live polling watchdog is disabled
+        (LIVE_OVERLAY_EXPECT_MARKET_TRAFFIC=0)
+      runbook: Once the Pine request.get() overlay is live in production, set
+        LIVE_OVERLAY_EXPECT_MARKET_TRAFFIC=1 so a stalled or absent Pine consumer
+        alerts. Leave 0 for dev, warm-standby, or while the consumer is not yet
+        rolled out.
   - uid: lo-request-rate-drop-open
-    title: Request rate near zero while market open
+    title: TradingView/Pine polling dropped to zero (US market open)
     condition: C
     data:
     - refId: A
@@ -473,9 +486,11 @@ groups:
     labels:
       severity: warning
     annotations:
-      summary: Incoming smc_live request rate dropped near zero during market-open
-      runbook: Check TradingView consumer health, token rollout, and upstream network
-        path.
+      summary: TradingView/Pine was polling /smc_live earlier today but has dropped
+        to near zero while the US market is open
+      runbook: Pine was polling /smc_live earlier today but has stopped. Check the
+        Pine consumer/chart, OVERLAY_SECRET_TOKEN rollout, and the Railway public
+        endpoint.
   - uid: lo-compute-errors-rate
     title: Compute cycle errors
     condition: C
@@ -889,7 +904,7 @@ groups:
       datasourceUid: grafanacloud-prom
       model:
         expr: live_overlay_provider_news_snapshot_loaded{job="live_overlay"} * (live_overlay_provider_news_snapshot_age_seconds{job="live_overlay"}
-          > bool 3600)
+          > bool 10800)
         instant: true
     - refId: C
       datasourceUid: __expr__
@@ -909,7 +924,7 @@ groups:
     labels:
       severity: warning
     annotations:
-      summary: News provider snapshot is older than 1 hour
+      summary: News provider snapshot is older than 3 hours
       runbook: Check NEWS_SNAPSHOT_PATH producer job and file update cadence; inspect
         fetched_at_unix in snapshot.
   - uid: lo-tradingview-credential-age-high
@@ -1478,7 +1493,7 @@ groups:
       datasourceUid: grafanacloud-prom
       model:
         expr: (1 - signals_producer_open_prep_snapshot_loaded{job="signals_producer"})
-          or vector(1)
+          or on() vector(1)
         instant: true
     - refId: C
       datasourceUid: __expr__

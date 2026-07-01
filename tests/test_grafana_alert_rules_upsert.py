@@ -35,6 +35,109 @@ mod = _load()
 
 
 # --------------------------------------------------------------------------- #
+# PromQL gating anti-pattern linter (regression guard for the false-firing class)
+# --------------------------------------------------------------------------- #
+
+# Verbatim pre-fix expressions of the two production alerts that false-fired.
+# The linter MUST flag both; the shipped rules MUST stay clean.
+_HISTORICAL_BUGS = {
+    "lo-request-rate-absent-open (bool comparison used as an `and` gate)": (
+        'live_overlay_expected_market_traffic{job="live_overlay"} == 1 '
+        'and on(job) live_overlay_market_us_open{job="live_overlay"} == 1 '
+        'and on(job) live_overlay_uptime_seconds{job="live_overlay"} > bool 600 '
+        'and on(job) rate(live_overlay_smc_live_requests_total{job="live_overlay"}[10m]) '
+        '< bool 0.001'
+    ),
+    "sp-snapshot-missing (`or vector()` without `on()`)": (
+        '(1 - signals_producer_open_prep_snapshot_loaded{job="signals_producer"}) '
+        'or vector(1)'
+    ),
+}
+
+
+@pytest.mark.parametrize("label,expr", sorted(_HISTORICAL_BUGS.items()))
+def test_linter_flags_historical_gating_bugs(label: str, expr: str) -> None:
+    assert mod.find_promql_gating_antipatterns(expr), f"linter missed: {label}"
+
+
+def _promql_exprs():
+    for group in mod.load_alert_groups(ALERT_RULES):
+        for rule in group["rules"]:
+            for node in rule.get("data", []):
+                model = node.get("model", {})
+                if node.get("datasourceUid") not in (None, "__expr__") and isinstance(
+                    model.get("expr"), str
+                ):
+                    yield rule.get("uid"), model["expr"]
+
+
+def test_all_alert_rules_free_of_gating_antipatterns() -> None:
+    offenders = {
+        uid: findings
+        for uid, expr in _promql_exprs()
+        if (findings := mod.find_promql_gating_antipatterns(expr))
+    }
+    assert not offenders, f"gating anti-patterns found: {offenders}"
+
+
+def test_valid_gating_patterns_are_not_flagged() -> None:
+    # bool comparison as the *value* (left) operand with a real filter gate.
+    assert not mod.find_promql_gating_antipatterns(
+        '(live_overlay_uptimerobot_monitors_down_total{job="live_overlay"} > bool 0) '
+        'and on(job) (live_overlay_bridge_enabled{job="live_overlay",bridge="uptimerobot"} == 1)'
+    )
+    # label-safe `or on() vector()` fallback.
+    assert not mod.find_promql_gating_antipatterns(
+        '(signals_producer_watchlist_symbols{job="signals_producer"} == bool 0) or on() vector(1)'
+    )
+    # aggregation reduces the LHS to {} labels, so `or vector(0)` matches.
+    assert not mod.find_promql_gating_antipatterns(
+        'sum(increase(live_overlay_full_compute_cycle_errors{job="live_overlay"}[15m])) or vector(0)'
+    )
+    # multiplicative gating (the shipped fix form).
+    assert not mod.find_promql_gating_antipatterns(
+        'live_overlay_expected_market_traffic{job="live_overlay"} * '
+        'live_overlay_market_us_open{job="live_overlay"} * '
+        '(live_overlay_uptime_seconds{job="live_overlay"} > bool 600) * '
+        '(rate(live_overlay_smc_live_requests_total{job="live_overlay"}[10m]) < bool 0.001)'
+    )
+
+
+def test_validator_rejects_gating_antipattern() -> None:
+    bad = [
+        {
+            "name": "g",
+            "folder": "F",
+            "interval": "1m",
+            "rules": [
+                {
+                    "uid": "x",
+                    "title": "x",
+                    "for": "5m",
+                    "condition": "C",
+                    "data": [
+                        {
+                            "refId": "A",
+                            "datasourceUid": "grafanacloud-prom",
+                            "model": {
+                                "expr": 'foo{job="j"} == 1 and on(job) bar{job="j"} > bool 3'
+                            },
+                        },
+                        {
+                            "refId": "C",
+                            "datasourceUid": "__expr__",
+                            "model": {"type": "threshold"},
+                        },
+                    ],
+                }
+            ],
+        }
+    ]
+    errors = mod.validate_alert_groups(bad)
+    assert any("gating anti-pattern" in e for e in errors), errors
+
+
+# --------------------------------------------------------------------------- #
 # parse_interval_seconds
 # --------------------------------------------------------------------------- #
 @pytest.mark.parametrize(

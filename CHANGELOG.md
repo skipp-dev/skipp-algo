@@ -6,6 +6,94 @@ All notable changes to this project are documented in this file.
 
 ## [Unreleased]
 
+### Changed (2026-07-01) — Human-readable overlay alert wording + Pine Polling Watchdog panel
+
+- Rewrote the three traffic/market alert rules so the message names the actual
+  mechanism (TradingView/Pine `request.get()` polling) instead of the ambiguous
+  "expected request traffic". UIDs and expressions are unchanged — only titles,
+  summaries, and runbooks:
+  - `lo-request-rate-absent-open`: "Expected request traffic missing while US
+    market open" → "TradingView/Pine is not polling the live overlay (US market
+    open)".
+  - `lo-expected-traffic-not-armed`: "Expected traffic alert is not armed" →
+    "Pine-polling watchdog is turned off".
+  - `lo-request-rate-drop-open`: "Request rate near zero while market open" →
+    "TradingView/Pine polling dropped to zero (US market open)".
+  Runbooks now spell out the two resolutions (arm vs. stand down via
+  `LIVE_OVERLAY_EXPECT_MARKET_TRAFFIC`) and where to look (published Pine URL,
+  `OVERLAY_SECRET_TOKEN`, Railway public endpoint).
+- Renamed the confusing **"Traffic Alert Armed"** dashboard tile to **"Pine
+  Polling Watchdog"** and moved it into the top *Incident Overview* row, directly
+  next to **Overall Health** (was buried at `y=41`). Active Alerts narrows from
+  `w=16` to `w=12` to make room; no other panels move. Generator
+  (`scripts/update_overlay_dashboard.py`) and pinned layout contract tests
+  updated accordingly.
+- **Market Traffic Health** value mappings made human-readable: `MARKET_CLOSED`
+  → "MARKET CLOSED", `OPEN_NO_TRAFFIC` → "OPEN · NO PINE POLLING", `TRAFFIC_OK`
+  → "PINE POLLING OK".
+- Paused `lo-expected-traffic-not-armed` (`isPaused: true`) while the Pine
+  `request.get()` consumer is not yet rolled out and the production deployment is
+  intentionally unarmed (`LIVE_OVERLAY_EXPECT_MARKET_TRAFFIC=0` on Railway); the
+  rule's own runbook already condones the not-armed state during rollout, so it
+  no longer pages. Set `isPaused: false` and re-upsert when arming for production.
+
+### Added (2026-07-01) — PromQL gating anti-pattern guard
+
+- New linter `find_promql_gating_antipatterns()` in
+  `scripts/grafana_alert_rules_upsert.py`, wired into `validate_alert_groups`
+  (so the deploy path rejects a bad rule before it reaches Grafana) and pinned
+  by `tests/test_grafana_alert_rules_upsert.py` (CI). It encodes the invariant
+  behind the recent false-firing fixes so the whole bug class cannot recur or
+  ship:
+  - **Detector A** — an `and`/`unless` operator whose right/gating operand is a
+    `bool` comparison. A bool result is always a present 0/1 series, so the
+    operator never gates on it; combine 0/1 guards with `*` instead. (Would
+    have caught `lo-request-rate-absent-open`.)
+  - **Detector B** — an `or vector()`/`or scalar()` fallback without
+    `on()`/`ignoring()` over a label-retaining left operand. The empty-label
+    fallback never matches the labelled series, so it is always appended and
+    the alert fires permanently; use `or on() vector()`. (Would have caught
+    `sp-snapshot-missing`.)
+  A regression corpus pins that the linter flags both historical bugs while the
+  current 48 rules stay clean, and valid patterns (bool-as-value operand,
+  `or on() vector()`, aggregation-reduced `or vector()`, multiplicative gating)
+  are explicitly asserted clean to prevent false positives.
+
+### Fixed (2026-07-01) — Grafana alert-rule false-firing (sp-snapshot-missing, news-stale, lo-request-rate-absent-open)
+
+- `sp-snapshot-missing` alert expression changed from
+  `(1 - signals_producer_open_prep_snapshot_loaded) or vector(1)` to
+  `... or on() vector(1)`. Without `on()` the `or` never matched the labelled
+  left-hand series against the empty-label `vector(1)`, so the fallback series
+  `{}=1` was *always* appended and the threshold (`> 0`) tripped permanently —
+  the alert fired continuously even while `open_prep_snapshot_loaded == 1`
+  (observed firing for 2d+ on a healthy producer). The `on()` clause matches on
+  the empty label set, so the fallback is emitted *only* when the metric series
+  is genuinely absent. This aligns the rule with its siblings
+  `sp-watchlist-empty` and `sp-poll-stale`, which already use `or on() vector(1)`.
+- `lo-news-snapshot-stale` threshold relaxed from `> bool 3600` (1 h) to
+  `> bool 10800` (3 h). The producing `smc-live-newsapi-refresh` cron is hourly,
+  but GitHub Actions schedule drift routinely stretches daytime spacing to
+  ~2 h (observed max gap 2 h 23 m), so the 1 h threshold plus `for: 15m` fired
+  in nearly every daytime cycle despite a healthy pipeline. The Pine-library
+  consumer bakes only 3×/day, so a 3 h staleness floor still detects a genuinely
+  stalled producer well before consumption is affected while eliminating the
+  recurrent drift-induced false alarm. Annotation updated accordingly.
+- `lo-request-rate-absent-open` expression changed from an `and on(job)` chain
+  to multiplicative gating. The rule combined a `> bool 600` uptime guard and a
+  `< bool 0.001` request-rate guard via `and on(job)`, but a `bool` comparison
+  always yields a present series (0 or 1) and `and` matches on series
+  *presence*, not truth — so neither guard actually gated. The expression
+  collapsed to `expected_market_traffic == 1 and market_us_open == 1`, firing
+  continuously through every US session while `LIVE_OVERLAY_EXPECT_MARKET_TRAFFIC=1`,
+  even with healthy request traffic (observed firing ~45 min during a normal
+  open). The multiplicative form `expected_market_traffic * market_us_open *
+  (uptime_seconds > bool 600) * (rate(smc_live_requests_total[10m]) < bool 0.001)`
+  gates on all four conditions and resolves once real traffic is present. This
+  mirrors the sibling rule `lo-request-rate-drop-open`, which already multiplies
+  its guards. Contract test `test_alert_rules_include_expected_traffic_missing_alert`
+  now pins the multiplicative form and forbids `and on(`.
+
 ### Fixed (2026-06-30) — TradingView settings surface DOM hint
 
 - `automation/tradingview/lib/tv_shared.ts`:
