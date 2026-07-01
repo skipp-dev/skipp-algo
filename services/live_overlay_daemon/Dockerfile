@@ -20,6 +20,8 @@ RUN groupadd -r appuser && useradd -r -g appuser -d /app -s /sbin/nologin appuse
     && chown -R appuser:appuser /app
 USER appuser
 
+# Documentary default; runtime port is resolved by config.port() from the
+# PORT env var (Railway injects it dynamically, so the bind port may differ).
 EXPOSE 8000
 
 CMD ["python", "-m", "services.live_overlay_daemon.main"]
