@@ -84,7 +84,7 @@
       },
       "targets": [
         {
-          "expr": "live_overlay_health_status_code{job=~\"$job\"} or on() vector(0)",
+          "expr": "max(live_overlay_health_status_code{job=~\"$job\"}) or on() vector(0)",
           "legendFormat": "health_code",
           "datasource": {
             "type": "prometheus",
@@ -730,7 +730,7 @@
       },
       "targets": [
         {
-          "expr": "live_overlay_health_status_code{job=~\"$job\"} or on() vector(0)",
+          "expr": "max(live_overlay_health_status_code{job=~\"$job\"}) or on() vector(0)",
           "legendFormat": "Health state",
           "datasource": {
             "type": "prometheus",
@@ -1526,7 +1526,7 @@
       },
       "targets": [
         {
-          "expr": "(live_overlay_market_us_open{job=~\"$job\"} or on() vector(0)) + ((live_overlay_market_us_open{job=~\"$job\"} or on() vector(0)) * (((rate(live_overlay_smc_live_requests_total{job=~\"$job\"}[5m]) or on() vector(0)) > bool 0.001)))",
+          "expr": "max((live_overlay_market_us_open{job=~\"$job\"} or on() vector(0)) + ((live_overlay_market_us_open{job=~\"$job\"} or on() vector(0)) * (((rate(live_overlay_smc_live_requests_total{job=~\"$job\"}[5m]) or on() vector(0)) > bool 0.001))))",
           "legendFormat": "open_req_health",
           "datasource": {
             "type": "prometheus",

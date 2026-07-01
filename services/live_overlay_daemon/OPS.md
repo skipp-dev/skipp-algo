@@ -705,8 +705,16 @@ live_overlay_market_us_open{job="live_overlay"}
 The Overall Health ampel uses:
 
 ```promql
-live_overlay_health_status_code{job=~"$job"} or vector(0)
+max(live_overlay_health_status_code{job=~"$job"}) or vector(0)
 ```
+
+The `max(...)` wrapper collapses the scraped, labelled series to a single
+empty-label series so the `or vector(0)` fallback deduplicates instead of
+adding a phantom second tile. Without it, the stat panel renders two values
+(the real code plus a spurious `0`/UNKNOWN) because `vector(0)` carries an
+empty label set that never matches the scraped `{job,instance}` series. The
+`0`/UNKNOWN value therefore only appears when the metric is genuinely absent
+(scrape down) — `compute_daemon_health_status` itself never emits `0`.
 
 Value mappings:
 
@@ -715,7 +723,7 @@ Value mappings:
 | 3 | HEALTHY | Feed, workers, overlay all healthy |
 | 2 | IDLE | Market closed before the first bar |
 | 1 | STARTING | Daemon still waiting on feed, workers or overlay freshness |
-| 0 | UNKNOWN | Status metric missing or scrape not available |
+| 0 | UNKNOWN | Status metric missing or scrape not available (fallback only — never emitted by the daemon) |
 
 #### Deploy/restart annotations
 
