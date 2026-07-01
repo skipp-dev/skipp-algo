@@ -48,6 +48,34 @@ def test_clamp_within_bounds() -> None:
     assert _clamp(1.5) == 1.0
 
 
+def test_clamp_nan_maps_to_low_bound_not_high() -> None:
+    """NaN is 'no signal' and must clamp to ``lo`` (0.0), never silently to
+    ``hi`` (1.0). max(lo, min(hi, nan)) would otherwise return hi because NaN
+    compares False to everything.
+    """
+    assert _clamp(float("nan")) == 0.0
+    assert _clamp(float("nan"), lo=0.2, hi=0.9) == 0.2
+
+
+def test_clamp_infinities_clamp_to_bounds() -> None:
+    assert _clamp(float("inf")) == 1.0
+    assert _clamp(float("-inf")) == 0.0
+
+
+def test_build_zone_priority_nan_score_does_not_inflate_rank() -> None:
+    """A NaN ensemble_score must not silently inflate the zone-priority score.
+
+    Regression: float('nan') is truthy, so the production call site
+    ``ensemble_score=float(_eq.get('score') or 0.0)`` passes NaN straight
+    through. Before the NaN guard this produced a mid (B) rank instead of the
+    low rank a zero/absent signal should yield.
+    """
+    nan_out = build_zone_priority(regime="NEUTRAL", ensemble_score=float("nan"))
+    zero_out = build_zone_priority(regime="NEUTRAL", ensemble_score=0.0)
+    # NaN must behave like no signal (== 0.0 contribution), not max signal.
+    assert nan_out["ZONE_PRIORITY_SCORE"] == zero_out["ZONE_PRIORITY_SCORE"]
+
+
 # ── Risk-on scenario: high score ────────────────────────────────
 
 def test_risk_on_high_confidence_produces_high_score() -> None:
@@ -219,6 +247,85 @@ def test_multiplicative_preserves_no_bump_baseline() -> None:
         session_context=None, family_score_combination="multiplicative",
     )
     assert add == mul
+
+
+# ── Partial calibrated weights (regression: KeyError on missing family) ──
+
+def test_select_top_family_partial_weights_does_not_raise() -> None:
+    """A calibration artifact missing canonical families (e.g. BOS/SWEEP)
+    must not raise KeyError when a context bump targets the missing family.
+
+    RISK_ON + htf_aligned applies a BOS bump; EXTREME vol applies a SWEEP
+    bump. Both are extremely common production contexts, so a partial
+    ``family_weights`` artifact would otherwise crash the enrichment.
+    """
+    partial = {"OB": 0.5, "FVG": 0.5}  # BOS and SWEEP dropped
+    family = _select_top_family(
+        regime="RISK_ON", vol_regime="EXTREME", htf_aligned=True,
+        calibrated_family_weights=partial,
+    )
+    assert family in ("OB", "FVG", "BOS", "SWEEP")
+
+
+def test_select_top_family_partial_weights_falls_back_to_priors() -> None:
+    """Missing families inherit the hand-tuned base prior rather than
+    vanishing, so they can still win when their prior + bumps dominate.
+    """
+    # Only OB supplied (low); BOS/FVG/SWEEP must fall back to base priors.
+    # EXTREME vol adds +0.15 to SWEEP (prior 0.73 -> 0.88), which should
+    # beat the supplied OB=0.10 and the unbumped priors.
+    partial = {"OB": 0.10}
+    family = _select_top_family(
+        regime="RISK_OFF", vol_regime="EXTREME", htf_aligned=False,
+        calibrated_family_weights=partial,
+    )
+    assert family == "SWEEP"
+
+
+def test_build_zone_priority_partial_weights_does_not_raise() -> None:
+    """End-to-end public API: a partial ``calibrated_family_weights`` (as
+    could be loaded from a truncated/old zone_priority_calibration.json)
+    must degrade gracefully instead of raising KeyError.
+    """
+    partial = {"OB": 0.5, "FVG": 0.5}  # BOS and SWEEP dropped
+    result = build_zone_priority(
+        regime="RISK_ON", vol_regime="EXTREME", htf_aligned=True,
+        calibrated_family_weights=partial,
+    )
+    assert result["ZONE_PRIORITY_TOP_FAMILY"] in ("OB", "FVG", "BOS", "SWEEP")
+
+
+def test_select_top_family_complete_weights_unchanged_by_overlay() -> None:
+    """The overlay fix must not change selection for complete weight dicts:
+    a full calibrated dict still wins exactly as before.
+    """
+    weights = {"OB": 0.72, "FVG": 0.70, "BOS": 0.65, "SWEEP": 0.60}
+    family = _select_top_family(
+        regime="NEUTRAL", vol_regime="HIGH_VOL", htf_aligned=False,
+        session_context="RTH", calibrated_family_weights=weights,
+    )
+    # Identical assertion to test_fvg_boosted_in_rth_session.
+    assert family == "FVG"
+
+
+def test_select_top_family_tie_break_is_order_independent() -> None:
+    """On an exact score tie the selected family must not depend on the key
+    insertion order of the calibrated-weights dict (which can vary when the
+    dict is deserialized from JSON). The overlay onto the canonical base
+    order pins a deterministic tie-break.
+    """
+    tied_a = {"OB": 0.5, "FVG": 0.5, "BOS": 0.5, "SWEEP": 0.5}
+    tied_b = {"SWEEP": 0.5, "BOS": 0.5, "FVG": 0.5, "OB": 0.5}
+    # ROTATION/UNKNOWN/no-htf/no-session triggers no bumps, so the tie holds.
+    family_a = _select_top_family(
+        regime="ROTATION", vol_regime="UNKNOWN", htf_aligned=False,
+        session_context=None, calibrated_family_weights=tied_a,
+    )
+    family_b = _select_top_family(
+        regime="ROTATION", vol_regime="UNKNOWN", htf_aligned=False,
+        session_context=None, calibrated_family_weights=tied_b,
+    )
+    assert family_a == family_b
 
 
 # ── Catalyst identification ────────────────────────────────────
