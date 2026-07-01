@@ -26,6 +26,7 @@ tested independently.
 from __future__ import annotations
 
 import logging
+import math
 import time
 from collections import deque
 from dataclasses import dataclass
@@ -153,7 +154,10 @@ class SpikeDetector:
             # Record snapshot
             buf = self._price_buf.get(symbol)
             if buf is None:
-                buf = deque(maxlen=120)  # ~2 min at 1s polls, plenty
+                # Use a time-pruned deque instead of a fixed maxlen so
+                # large lookback windows (e.g. 300s) are not silently
+                # disabled by count-based truncation.
+                buf = deque()
                 self._price_buf[symbol] = buf
             buf.append(_PriceSnapshot(price=price, ts=now))
 
@@ -289,9 +293,16 @@ def _safe_float(val: Any, default: float = 0.0) -> float:
     if val is None:
         return default
     try:
-        return float(val)
+        result = float(val)
     except (ValueError, TypeError):
         return default
+    # Reject non-finite values (NaN, +inf, -inf). These slip past numeric
+    # guards like ``price <= 0`` (NaN comparisons are always False) and crash
+    # downstream ``int(...)`` conversions, so they must never enter the buffer
+    # or an emitted ``SpikeEvent``.
+    if not math.isfinite(result):
+        return default
+    return result
 
 
 def _asset_type(symbol: str, name: str = "") -> str:
