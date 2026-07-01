@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import math
 import time
 from unittest.mock import patch
 
@@ -33,6 +34,27 @@ class TestSpikeDetectorInit:
         assert d.spike_threshold_pct == 2.0
         assert d.lookback_s == 30.0
         assert d.cooldown_s == 60.0
+
+    @pytest.mark.parametrize(
+        ("kwargs", "field"),
+        [
+            ({"lookback_s": 0.0}, "lookback_s"),
+            ({"lookback_s": -1.0}, "lookback_s"),
+            ({"lookback_s": float("nan")}, "lookback_s"),
+            ({"lookback_s": float("inf")}, "lookback_s"),
+            ({"spike_threshold_pct": 0.0}, "spike_threshold_pct"),
+            ({"spike_threshold_pct": -1.0}, "spike_threshold_pct"),
+            ({"spike_threshold_pct": float("nan")}, "spike_threshold_pct"),
+            ({"spike_threshold_pct": float("inf")}, "spike_threshold_pct"),
+        ],
+    )
+    def test_rejects_invalid_detection_params(
+        self,
+        kwargs: dict[str, float],
+        field: str,
+    ) -> None:
+        with pytest.raises(ValueError, match=field):
+            SpikeDetector(**kwargs)
 
 
 class TestSpikeDetectorUpdate:
@@ -226,6 +248,23 @@ class TestSpikeDetectorPruneOldEvents:
 
         assert d.event_count == 0  # OLD event pruned, NEW has no spike yet
 
+    def test_large_lookback_window_still_detects_spike(self) -> None:
+        # Regression for RISK C: a fixed count-based buffer can silently
+        # disable detection when lookback_s exceeds its time span.
+        d = SpikeDetector(spike_threshold_pct=1.0, lookback_s=300.0, cooldown_s=0.0)
+        now = time.time()
+
+        for i in range(302):
+            price = 110.0 if i == 301 else 100.0
+            with patch("terminal_spike_detector.time") as mock_time:
+                mock_time.time.return_value = now + float(i)
+                result = d.update([{"symbol": "LONG", "price": price}])
+
+        assert len(result) == 1
+        assert result[0].symbol == "LONG"
+        assert result[0].direction == "UP"
+        assert result[0].spike_pct == pytest.approx(10.0, abs=0.1)
+
 
 # ═══════════════════════════════════════════════════════════════════════════
 # SpikeEvent
@@ -302,3 +341,95 @@ class TestFormatTimeEt:
         assert isinstance(result, str)
         # Should contain AM or PM
         assert "AM" in result or "PM" in result
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+# Non-finite input hardening (regression)
+# ═══════════════════════════════════════════════════════════════════════════
+
+
+class TestNonFiniteInputs:
+    """Regression tests: NaN/inf in provider payloads must never crash the
+    poll loop nor enter the buffer / emitted events.
+
+    Background
+    ----------
+    FMP occasionally returns ``"nan"``/``null``/oversized numerics for thinly
+    traded tickers. Two bugs existed before the ``math.isfinite`` guard in
+    ``_safe_float``:
+
+    * BUG A — a spike-triggering quote with ``volume`` NaN/inf crashed
+      ``update()`` via ``int(float("nan"))`` (``ValueError``) /
+      ``int(float("inf"))`` (``OverflowError``), aborting the whole poll.
+    * BUG B — ``price = NaN`` slipped past the ``price <= 0`` guard (NaN
+      comparisons are always False), poisoned the price buffer, and produced
+      a phantom ``DOWN`` spike with ``spike_pct == nan``.
+    """
+
+    @pytest.mark.parametrize("bad_volume", [float("nan"), float("inf"), "nan", "inf"])
+    def test_non_finite_volume_does_not_crash(self, bad_volume) -> None:
+        # BUG A regression.
+        d = SpikeDetector(spike_threshold_pct=1.0, lookback_s=5.0, cooldown_s=0.0)
+        now = time.time()
+        with patch("terminal_spike_detector.time") as mock_time:
+            mock_time.time.return_value = now
+            d.update([{"symbol": "TSLA", "price": 100.0, "volume": 1}])
+
+        with patch("terminal_spike_detector.time") as mock_time:
+            mock_time.time.return_value = now + 6.0
+            result = d.update([{"symbol": "TSLA", "price": 105.0, "volume": bad_volume}])
+
+        assert len(result) == 1
+        assert result[0].volume == 0  # coerced to default, not crashed
+
+    @pytest.mark.parametrize("bad_price", [float("nan"), float("inf"), float("-inf")])
+    def test_non_finite_price_is_skipped(self, bad_price) -> None:
+        # BUG B regression — behaves like price <= 0 (skipped, not tracked).
+        d = SpikeDetector(spike_threshold_pct=1.0, lookback_s=5.0, cooldown_s=0.0)
+        result = d.update([{"symbol": "NANP", "price": bad_price}])
+        assert result == []
+        assert d.symbols_tracked == 0
+
+    def test_nan_price_does_not_poison_buffer(self) -> None:
+        # BUG B regression — a NaN observation must not produce a later
+        # phantom spike with NaN fields once a real price arrives.
+        d = SpikeDetector(spike_threshold_pct=1.0, lookback_s=5.0, cooldown_s=0.0)
+        now = time.time()
+        with patch("terminal_spike_detector.time") as mock_time:
+            mock_time.time.return_value = now
+            d.update([{"symbol": "POI", "price": float("nan")}])
+
+        with patch("terminal_spike_detector.time") as mock_time:
+            mock_time.time.return_value = now + 6.0
+            result = d.update([{"symbol": "POI", "price": 100.0}])
+
+        assert result == []  # first real price = new baseline, no spike
+
+    @pytest.mark.parametrize("bad_changes", [float("nan"), float("inf")])
+    def test_non_finite_change_fields_coerced(self, bad_changes) -> None:
+        # A spike with NaN/inf changesPercentage/change must emit finite fields.
+        d = SpikeDetector(spike_threshold_pct=1.0, lookback_s=5.0, cooldown_s=0.0)
+        now = time.time()
+        with patch("terminal_spike_detector.time") as mock_time:
+            mock_time.time.return_value = now
+            d.update([{"symbol": "AMC", "price": 10.0}])
+
+        with patch("terminal_spike_detector.time") as mock_time:
+            mock_time.time.return_value = now + 6.0
+            result = d.update([{
+                "symbol": "AMC", "price": 11.0,
+                "changesPercentage": bad_changes, "change": bad_changes,
+            }])
+
+        assert len(result) == 1
+        assert math.isfinite(result[0].change_pct)
+        assert math.isfinite(result[0].change)
+
+    def test_safe_float_rejects_non_finite(self) -> None:
+        from terminal_spike_detector import _safe_float
+
+        assert _safe_float(float("nan")) == 0.0
+        assert _safe_float(float("inf")) == 0.0
+        assert _safe_float(float("-inf")) == 0.0
+        assert _safe_float("nan", 42.0) == 42.0
+        assert _safe_float(123.5) == 123.5  # finite values unaffected

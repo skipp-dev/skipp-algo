@@ -58,6 +58,30 @@ All notable changes to this project are documented in this file.
   - Added a regression pin for the Python entrypoint's `PORT` handling and for
     keeping `$PORT` out of the Railway start command.
 
+### Fixed (2026-06-30) — TradingView chart surface settings scope tests
+
+- `automation/tradingview/lib/tv_shared.ts`:
+  - Reworked chart-surface settings/more button scoping to inspect nearest
+    non-page ancestors via Playwright locators instead of an in-page evaluate
+    block.
+  - Ignores `body` / `html` ancestors so unrelated chart-surface controls do
+    not inherit a script-name match from elsewhere on the page.
+- `automation/tradingview/tests/tv_shared.test.ts`:
+  - Added coverage for scoped Settings and More controls and for avoiding
+    false matches from standalone version-like words.
+
+### Fixed (2026-06-30) — Live overlay Railway port default
+
+- `services/live_overlay_daemon/railway.toml`:
+  - Runs `python -m services.live_overlay_daemon.main` so Railway does not need
+    to shell-expand `$PORT` inside `startCommand`.
+- `services/live_overlay_daemon/main.py`:
+  - Added the module entrypoint that binds uvicorn to `0.0.0.0` and reads
+    `PORT` from the runtime environment, defaulting to `8000` locally.
+- `tests/test_live_overlay_daemon_service_contract.py`:
+  - Added a regression pin for the Python entrypoint's `PORT` handling and for
+    keeping `$PORT` out of the Railway start command.
+
 ### Fixed (2026-06-30) — TradingView legend text settings fallback tests
 
 - `automation/tradingview/lib/tv_shared.ts`:
