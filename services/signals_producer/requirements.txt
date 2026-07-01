@@ -8,6 +8,6 @@ python-dateutil==2.9.0.post0
 python-dotenv==1.2.2
 
 # newsstack_fmp dependencies (added 2026-06-24, PR: newsstack-in-image)
-httpx==0.27.2          # HTTP client used by BenzingaRestAdapter + FmpAdapter
+httpx==0.28.1          # keep aligned with root requirements.txt to avoid runtime drift
 feedparser==6.0.11     # lenient RSS/Atom parser for BenzingaRssAdapter
 certifi==2026.4.22     # CA bundle used by terminal_tradingview_news SSL context

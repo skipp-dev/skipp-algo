@@ -69,6 +69,42 @@ def test_start_telemetry_server_falls_back_to_ephemeral_port(monkeypatch, tmp_pa
     assert "requested port 8099 unavailable" in telemetry["error"].lower()
 
 
+def test_start_telemetry_server_logs_active_port_for_zero_request(monkeypatch, caplog, tmp_path: Path) -> None:
+    monkeypatch.setattr(rs, "_RT_ENGINE_TELEMETRY_FILE", tmp_path / "realtime_telemetry.json")
+
+    class _FakeServer:
+        def __init__(self, port: int) -> None:
+            self.server_port = port
+
+        def serve_forever(self) -> None:
+            return None
+
+    class _FakeThread:
+        def __init__(self, *, target, daemon: bool) -> None:
+            self._target = target
+            self.daemon = daemon
+
+        def start(self) -> None:
+            return None
+
+    def _fake_http_server(_address, _handler):
+        return _FakeServer(8123)
+
+    import http.server
+    import threading
+
+    monkeypatch.setattr(http.server, "HTTPServer", _fake_http_server)
+    monkeypatch.setattr(threading, "Thread", _FakeThread)
+
+    with caplog.at_level("INFO", logger="open_prep.realtime_signals"):
+        server = rs._start_telemetry_server(rs.ScoreTelemetry(), port=0)
+
+    assert server is not None
+    telemetry = rs.get_rt_engine_telemetry_status()
+    assert telemetry["active_port"] == 8123
+    assert "http://0.0.0.0:8123" in caplog.text
+
+
 def test_technical_scorer_uses_stale_cache_when_call_spacing_blocks_fetch(monkeypatch) -> None:
     scorer = rs.TechnicalScorer()
     now = 10_000.0
