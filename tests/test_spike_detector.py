@@ -35,6 +35,27 @@ class TestSpikeDetectorInit:
         assert d.lookback_s == 30.0
         assert d.cooldown_s == 60.0
 
+    @pytest.mark.parametrize(
+        ("kwargs", "field"),
+        [
+            ({"lookback_s": 0.0}, "lookback_s"),
+            ({"lookback_s": -1.0}, "lookback_s"),
+            ({"lookback_s": float("nan")}, "lookback_s"),
+            ({"lookback_s": float("inf")}, "lookback_s"),
+            ({"spike_threshold_pct": 0.0}, "spike_threshold_pct"),
+            ({"spike_threshold_pct": -1.0}, "spike_threshold_pct"),
+            ({"spike_threshold_pct": float("nan")}, "spike_threshold_pct"),
+            ({"spike_threshold_pct": float("inf")}, "spike_threshold_pct"),
+        ],
+    )
+    def test_rejects_invalid_detection_params(
+        self,
+        kwargs: dict[str, float],
+        field: str,
+    ) -> None:
+        with pytest.raises(ValueError, match=field):
+            SpikeDetector(**kwargs)
+
 
 class TestSpikeDetectorUpdate:
     def test_first_poll_returns_no_spikes(self) -> None:

@@ -101,6 +101,11 @@ class SpikeDetector:
         max_event_age_s: float = 3600.0,
         cooldown_s: float = 120.0,
     ) -> None:
+        if not math.isfinite(spike_threshold_pct) or spike_threshold_pct <= 0:
+            raise ValueError("spike_threshold_pct must be a finite positive value")
+        if not math.isfinite(lookback_s) or lookback_s <= 0:
+            raise ValueError("lookback_s must be a finite positive value")
+
         self.spike_threshold_pct = spike_threshold_pct
         self.lookback_s = lookback_s
         self.max_history = max_history

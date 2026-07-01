@@ -199,6 +199,23 @@ def test_fetch_news_min_epoch_filters_old():
     assert items == []
 
 
+@pytest.mark.parametrize("min_epoch", [float("nan"), float("inf"), float("-inf")])
+def test_fetch_news_non_finite_min_epoch_returns_no_items(min_epoch: float):
+    parse_calls = 0
+
+    def _parse(url, **_kw):
+        nonlocal parse_calls
+        parse_calls += 1
+        return {"entries": [_make_entry(guid=f"guid-{url}")], "bozo": False}
+
+    with _mock_feedparser(_parse):
+        adapter = BenzingaRssAdapter()
+        items = adapter.fetch_news(min_epoch=min_epoch)
+
+    assert items == []
+    assert parse_calls == 0
+
+
 def test_fetch_news_tolerates_bozo_with_no_entries():
     def _parse(url, **_kw):
         return {"entries": [], "bozo": True, "bozo_exception": Exception("parse error")}
@@ -219,9 +236,19 @@ def test_fetch_news_tolerates_network_error():
     assert items == []
 
 
-def test_fetch_news_no_feedparser():
+def test_fetch_news_no_feedparser(monkeypatch: pytest.MonkeyPatch):
     """If feedparser is not installed, returns empty list (no exception)."""
+    import builtins
+
     old = sys.modules.pop("feedparser", None)
+    real_import = builtins.__import__
+
+    def _raise_for_feedparser(name, globals=None, locals=None, fromlist=(), level=0):
+        if name == "feedparser":
+            raise ImportError("blocked feedparser")
+        return real_import(name, globals, locals, fromlist, level)
+
+    monkeypatch.setattr(builtins, "__import__", _raise_for_feedparser)
     try:
         adapter = BenzingaRssAdapter()
         items = adapter.fetch_news()

@@ -27,6 +27,7 @@ import collections
 import concurrent.futures
 import json
 import logging
+import math
 import queue
 import re
 import threading
@@ -950,6 +951,12 @@ class BenzingaRssAdapter:
 
         Returns a list sorted oldest-first by ``published_ts``.
         """
+        if not math.isfinite(min_epoch):
+            logger.warning(
+                "BenzingaRSS: non-finite min_epoch=%r; returning no items", min_epoch
+            )
+            return []
+
         try:
             import feedparser  # type: ignore[import-untyped]
         except ImportError as exc:
