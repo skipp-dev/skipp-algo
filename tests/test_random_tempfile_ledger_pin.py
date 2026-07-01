@@ -76,7 +76,9 @@ _TEMPFILE_LEDGER: frozenset[tuple[str, int, str]] = frozenset({
     ("governance/alpha_ledger.py", 70, "mkstemp"),
     ("newsstack_fmp/open_prep_export.py", 25, "mkstemp"),
     ("newsstack_fmp/shared_fetch.py", 258, "mkstemp"),
-    ("open_prep/alerts.py", 68, "mkstemp"),
+    # 2026-07-01: alerts payload/url hardening inserted helper functions;
+    # mkstemp site shifted 68 -> 69.
+    ("open_prep/alerts.py", 69, "mkstemp"),
     ("open_prep/candidate_weights.py", 146, "mkstemp"),
     ("open_prep/diff.py", 57, "mkstemp"),
     # 2026-06-13 (audit-e2/aw7-reader-observability, PR #2759): _load_previous_latest
