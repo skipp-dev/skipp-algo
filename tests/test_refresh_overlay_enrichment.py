@@ -146,6 +146,28 @@ class TestRenderOverlayPineLines:
         assert "HIGH_IMPACT_NEWS_COUNT = 2" in text
         assert 'MOST_MENTIONED_TICKER = "AAPL"' in text
 
+    def test_never_emits_nan_or_inf_pine_literals(self) -> None:
+        """The overlay Pine boundary must never emit ``nan``/``inf`` float
+        literals, regardless of non-finite enrichment values.
+        """
+        nan, inf = float("nan"), float("inf")
+        enr = _make_enrichment(
+            regime={
+                "vix_level": nan, "macro_bias_raw": nan,
+                "macro_bias_pe_adjustment": nan, "market_pe_forward": inf,
+                "sector_breadth": nan,
+            },
+            news={"news_heat_global": nan},
+            layering={"global_heat": nan, "global_strength": inf},
+        )
+        lines = render_overlay_pine_lines(enr)
+        offending = [
+            ln.strip()
+            for ln in lines
+            if "= nan" in ln.lower() or "= inf" in ln.lower() or "= -inf" in ln.lower()
+        ]
+        assert offending == [], f"non-finite Pine literals emitted: {offending}"
+
     def test_calendar_values_rendered(self) -> None:
         enr = _make_enrichment()
         lines = render_overlay_pine_lines(enr)
