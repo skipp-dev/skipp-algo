@@ -554,9 +554,8 @@ is organized for 3-a.m. incident triage:
   no grid overlaps so an on-call engineer can read the health story at a glance.
 - **User-impact / SLO block** — immediately after the root-cause row:
   `Success Rate (%)`, `Market Traffic Health`, `Market Data Freshness`,
-  `Core Metrics Present`, `Latency vs. SLO (ms)`, `Error Budget Burn Rate`, and
-  `Traffic Alert Armed` are promoted to the top so SLO pages require no
-  scrolling.
+  `Core Metrics Present`, `Latency vs. SLO (ms)`, and `Error Budget Burn Rate`
+  are promoted to the top so SLO pages require no scrolling.
 - **Context after health** — `Service Status`, `Uptime`, symbol counts,
   `Process Resident Memory`, and `Global Market Sessions` follow below.
   `CLOSED` sessions and `IDLE (MARKET CLOSED)` states are shown in gray, not
@@ -610,8 +609,14 @@ Operational UX additions:
   `Process Resident Memory`, and `Railway Metrics Bridge` panels include
   direct links to Railway logs, deployments, metrics, and the on-call runbook.
 - Railway panels now have thresholds (memory ratio, snapshot age).
-- `Traffic Alert Armed` shows `live_overlay_expected_market_traffic` directly
-  with `NOT ARMED` / `ARMED` value mappings.
+- `Pine Polling Watchdog` (top Incident Overview row, next to `Overall Health`)
+  shows `live_overlay_expected_market_traffic` directly with `NOT ARMED` /
+  `ARMED` value mappings.
+- Während der Pre-Rollout-Phase (Pine `request.get()`-Consumer noch nicht live)
+  bleibt der Watchdog bewusst `NOT ARMED`
+  (`LIVE_OVERLAY_EXPECT_MARKET_TRAFFIC=0`), damit "no polling" nicht als
+  Incident paged. Beim Go-Live des Consumers auf `1` umstellen und den
+  Reminder-Alert `lo-expected-traffic-not-armed` wieder aktivieren.
 - Alert rules guard the UptimeRobot production monitor count (`5`), any
   UptimeRobot monitors down, Railway memory-used ratio (`75%` warning, `90%`
   critical), and Alloy remote-write failures.

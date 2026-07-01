@@ -484,17 +484,17 @@ def test_update_script_core_metrics_present_checks_critical_series(temp_dashboar
 
 
 def test_update_script_re_adds_traffic_alert_armed_without_extra_shift(temp_dashboard: Path) -> None:
-    """Traffic Alert Armed is self-healed without repeatedly moving lower rows."""
+    """Pine Polling Watchdog is self-healed without repeatedly moving lower rows."""
     _run_script(temp_dashboard)
     data = json.loads(temp_dashboard.read_text(encoding="utf-8"))
     operational_y = next(p for p in data["panels"] if p.get("title") == "Operational Drill-down")["gridPos"]["y"]
-    data["panels"] = [p for p in data["panels"] if p.get("title") != "Traffic Alert Armed"]
+    data["panels"] = [p for p in data["panels"] if p.get("title") != "Pine Polling Watchdog"]
     temp_dashboard.write_text(json.dumps(data, indent=2), encoding="utf-8")
 
     _run_script(temp_dashboard)
 
     updated = json.loads(temp_dashboard.read_text(encoding="utf-8"))
-    panel = next(p for p in updated["panels"] if p.get("title") == "Traffic Alert Armed")
+    panel = next(p for p in updated["panels"] if p.get("title") == "Pine Polling Watchdog")
     assert panel["datasource"] == {"type": "prometheus", "uid": "grafanacloud-prom"}
     assert panel["targets"][0]["expr"] == 'live_overlay_expected_market_traffic{job=~"$job"}'
     assert panel["targets"][0]["datasource"] == {"type": "prometheus", "uid": "grafanacloud-prom"}

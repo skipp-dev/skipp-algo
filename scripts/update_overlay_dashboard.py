@@ -175,9 +175,9 @@ UPTIMEROBOT_PANEL: dict[str, Any] = {
 }
 
 
-_TRAFFIC_ALERT_ARMED_TITLE = "Traffic Alert Armed"
-_TRAFFIC_ALERT_ARMED_Y = 41
-_TRAFFIC_ALERT_ARMED_H = 4
+_TRAFFIC_ALERT_ARMED_TITLE = "Pine Polling Watchdog"
+_TRAFFIC_ALERT_ARMED_Y = 1
+_TRAFFIC_ALERT_ARMED_H = 5
 
 TRAFFIC_ALERT_ARMED_PANEL: dict[str, Any] = {
     "id": 2165782571,
@@ -185,10 +185,12 @@ TRAFFIC_ALERT_ARMED_PANEL: dict[str, Any] = {
     "type": "stat",
     "datasource": PROMETHEUS_DATASOURCE,
     "description": (
-        "Is production first-zero traffic alerting armed? Shows "
-        "LIVE_OVERLAY_EXPECT_MARKET_TRAFFIC; 1 means ARMED and 0 means NOT ARMED."
+        "Is the TradingView/Pine /smc_live polling watchdog armed? Shows "
+        "LIVE_OVERLAY_EXPECT_MARKET_TRAFFIC. ARMED = a stalled or absent Pine "
+        "consumer will alert during US market open; NOT ARMED = the watchdog is "
+        "stood down."
     ),
-    "gridPos": {"x": 18, "y": _TRAFFIC_ALERT_ARMED_Y, "w": 6, "h": _TRAFFIC_ALERT_ARMED_H},
+    "gridPos": {"x": 8, "y": _TRAFFIC_ALERT_ARMED_Y, "w": 4, "h": _TRAFFIC_ALERT_ARMED_H},
     "targets": [
         {
             "expr": 'live_overlay_expected_market_traffic{job=~"$job"}',
