@@ -99,8 +99,6 @@ def test_prune_stale_entries_clears_when_throttle_non_positive() -> None:
     alerts._prune_stale_entries(throttle_seconds=0)
 
     assert alerts._last_sent == {}
-
-
 def test_dispatch_alerts_allows_only_one_in_flight_send_per_target(monkeypatch) -> None:
     send_started = threading.Event()
     release_send = threading.Event()
@@ -129,8 +127,6 @@ def test_dispatch_alerts_allows_only_one_in_flight_send_per_target(monkeypatch) 
     assert second_results == []
     assert calls == ["https://hooks.example.com/slack"]
     assert alerts._is_throttled("AAA", 600, target_scope="AAA::slack") is True
-
-
 def _multi_target_config() -> dict:
     return {
         "enabled": True,
