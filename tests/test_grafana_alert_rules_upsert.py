@@ -55,7 +55,7 @@ _HISTORICAL_BUGS = {
 }
 
 
-@pytest.mark.parametrize("label,expr", list(_HISTORICAL_BUGS.items()))
+@pytest.mark.parametrize("label,expr", sorted(_HISTORICAL_BUGS.items()))
 def test_linter_flags_historical_gating_bugs(label: str, expr: str) -> None:
     assert mod.find_promql_gating_antipatterns(expr), f"linter missed: {label}"
 

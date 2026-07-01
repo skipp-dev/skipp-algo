@@ -1198,12 +1198,12 @@
       "id": 2165782571,
       "title": "Pine Polling Watchdog",
       "type": "stat",
-      "description": "Is production first-zero traffic alerting armed? Shows LIVE_OVERLAY_EXPECT_MARKET_TRAFFIC; 1 means ARMED and 0 means NOT ARMED.",
+      "description": "Is the TradingView/Pine /smc_live polling watchdog armed? Shows LIVE_OVERLAY_EXPECT_MARKET_TRAFFIC. ARMED = a stalled or absent Pine consumer will alert during US market open; NOT ARMED = the watchdog is stood down.",
       "gridPos": {
-        "x": 18,
-        "y": 41,
-        "w": 6,
-        "h": 4
+        "x": 8,
+        "y": 1,
+        "w": 4,
+        "h": 5
       },
       "targets": [
         {
@@ -1537,6 +1537,6 @@
   "timezone": "utc",
   "title": "SMC Live Overlay Daemon — Signals & Experiments",
   "uid": "smc-live-overlay-signals-v1",
-  "version": 5,
+  "version": 6,
   "weekStart": ""
 }
