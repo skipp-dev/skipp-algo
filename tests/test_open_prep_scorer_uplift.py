@@ -23,6 +23,7 @@ from typing import Any
 import pytest
 
 from open_prep import scorer as sc
+from open_prep.dirty_flag_manager import PipelineDirtyManager
 
 # ---------------------------------------------------------------------------
 # load_weight_set / save_weight_set
@@ -316,6 +317,21 @@ def test_rank_candidates_v2_handles_non_finite_scores_deterministically(monkeypa
     assert aapl["score"] == -1_000_000_000.0
     assert "non_finite_score" in aapl.get("warn_flags", "")
     assert [r["symbol"] for r in ranked][-1] == "AAPL"
+
+
+def test_rank_candidates_v2_sanitizes_non_finite_cached_scores() -> None:
+    quotes = [_make_passing_quote("AAPL")]
+    dirty = PipelineDirtyManager()
+
+    ranked, _ = sc.rank_candidates_v2(quotes, bias=0.5, top_n=10, dirty_manager=dirty)
+    assert ranked[0]["symbol"] == "AAPL"
+
+    # Simulate poisoned cache content from a prior buggy run.
+    dirty._cache["AAPL"]["score"] = float("nan")
+
+    ranked_2, _ = sc.rank_candidates_v2(quotes, bias=0.5, top_n=10, dirty_manager=dirty)
+    assert ranked_2[0]["score"] == -1_000_000_000.0
+    assert "non_finite_score" in ranked_2[0].get("warn_flags", "")
 
 
 def test_rank_candidates_v2_filters_hard_block_to_filtered_out() -> None:

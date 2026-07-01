@@ -939,21 +939,16 @@ def rank_candidates_v2(
         if dirty_manager is not None:
             fp = dirty_manager.fingerprint(fr.symbol, fr.features)
             if dirty_manager.is_clean(fr.symbol, fp):
-                scored.append(dirty_manager.get_cached(fr.symbol))
+                row = dirty_manager.get_cached(fr.symbol)
+                _sanitize_non_finite_score(row, symbol=fr.symbol, gate_tracker=gate_tracker, source="cache")
+                scored.append(row)
                 continue
             row = score_candidate(fr, bias, weights)
             dirty_manager.update(fr.symbol, fp, row)
         else:
             row = score_candidate(fr, bias, weights)
 
-        score_value = _to_float(row.get("score"), default=float("nan"))
-        if not math.isfinite(score_value):
-            gate_tracker.reject(fr.symbol, "non_finite_score", {"score": row.get("score")})
-            warn_flags = str(row.get("warn_flags", "") or "").strip()
-            row["warn_flags"] = "|".join(part for part in [warn_flags, "non_finite_score"] if part)
-            row["score"] = -1_000_000_000.0
-        else:
-            row["score"] = score_value
+        _sanitize_non_finite_score(row, symbol=fr.symbol, gate_tracker=gate_tracker, source="scored")
 
         scored.append(row)
 
@@ -1023,3 +1018,21 @@ def rank_candidates_v2(
             )
 
     return ranked, filtered_out
+
+
+def _sanitize_non_finite_score(
+    row: dict[str, Any],
+    *,
+    symbol: str,
+    gate_tracker: GateTracker,
+    source: str,
+) -> None:
+    """Normalize row['score'] to a finite value; mark and down-rank invalid ones."""
+    score_value = _to_float(row.get("score"), default=float("nan"))
+    if not math.isfinite(score_value):
+        gate_tracker.reject(symbol, "non_finite_score", {"score": row.get("score"), "source": source})
+        warn_flags = str(row.get("warn_flags", "") or "").strip()
+        row["warn_flags"] = "|".join(part for part in [warn_flags, "non_finite_score"] if part)
+        row["score"] = -1_000_000_000.0
+    else:
+        row["score"] = score_value

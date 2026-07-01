@@ -68,6 +68,9 @@ def test_poll_once_does_not_hold_active_signals_lock(tmp_path: Path, monkeypatch
     )
 
     engine = rs.RealtimeEngine(poll_interval=10, fmp_client=client)
+    # Keep race test offline: do not hit synchronous newsstack network fetch.
+    engine._ns_poll_fn = lambda _cfg: []
+    engine._ns_cfg_cls = lambda: None
 
     lock_events: list[str] = []
     real_lock = engine._lock
@@ -124,6 +127,9 @@ def test_get_active_signals_races_with_poll_once(tmp_path: Path, monkeypatch: An
     )
 
     engine = rs.RealtimeEngine(poll_interval=10, fmp_client=client)
+    # Keep race test offline: do not hit synchronous newsstack network fetch.
+    engine._ns_poll_fn = lambda _cfg: []
+    engine._ns_cfg_cls = lambda: None
 
     errors: list[Exception] = []
     stop = threading.Event()
