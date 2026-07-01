@@ -3,6 +3,7 @@ from __future__ import annotations
 import argparse
 import json
 import logging
+import math
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, cast
@@ -11,6 +12,20 @@ import pandas as pd
 
 from scripts.smc_atomic_write import atomic_write_csv, atomic_write_text
 from scripts.smc_enrichment_types import EnrichmentDict
+
+
+def _pine_float(value: Any, default: float = 0.0) -> float:
+    """Coerce *value* to a finite float for Pine embedding.
+
+    Pine has no ``nan``/``inf`` literal, so a non-finite value would make
+    the generated Pine line ``export const float … = nan`` a compile error.
+    Map any non-finite or uncoercible value to *default*.
+    """
+    try:
+        f = float(value)
+    except (TypeError, ValueError):
+        return float(default)
+    return f if math.isfinite(f) else float(default)
 from smc_core.schema_version import SCHEMA_VERSION, classify_version_change
 
 logger = logging.getLogger(__name__)
@@ -703,14 +718,14 @@ def write_pine_library(
     regime = enr.get("regime") or {}
     content.append("// ── Market Regime ──")
     content.append(f'export const string MARKET_REGIME = "{regime.get("regime", "NEUTRAL")}"')
-    content.append(f'export const float VIX_LEVEL = {float(regime.get("vix_level") or 0.0)}')
-    content.append(f'export const float MACRO_BIAS = {float(regime.get("macro_bias") or 0.0)}')
+    content.append(f'export const float VIX_LEVEL = {_pine_float(regime.get("vix_level") or 0.0)}')
+    content.append(f'export const float MACRO_BIAS = {_pine_float(regime.get("macro_bias") or 0.0)}')
     _raw = regime.get("macro_bias_raw")
-    content.append(f'export const float MACRO_BIAS_RAW = {float(_raw if _raw is not None else 0.0)}')
-    content.append(f'export const float MACRO_BIAS_PE_ADJUSTMENT = {float(regime.get("macro_bias_pe_adjustment") or 0.0)}')
-    content.append(f'export const float MARKET_PE_FORWARD = {float(regime.get("market_pe_forward") or 0.0)}')
+    content.append(f'export const float MACRO_BIAS_RAW = {_pine_float(_raw if _raw is not None else 0.0)}')
+    content.append(f'export const float MACRO_BIAS_PE_ADJUSTMENT = {_pine_float(regime.get("macro_bias_pe_adjustment") or 0.0)}')
+    content.append(f'export const float MARKET_PE_FORWARD = {_pine_float(regime.get("market_pe_forward") or 0.0)}')
     content.append(f'export const string MARKET_PE_REGIME = "{regime.get("market_pe_regime") or "UNKNOWN"}"')
-    content.append(f'export const float SECTOR_BREADTH = {float(regime.get("sector_breadth") or 0.0)}')
+    content.append(f'export const float SECTOR_BREADTH = {_pine_float(regime.get("sector_breadth") or 0.0)}')
     content.append("")
 
     # ── News enrichment ─────────────────────────────────────────
@@ -719,7 +734,7 @@ def write_pine_library(
     content.append(render_csv_export("NEWS_BULLISH_TICKERS", news.get("bullish_tickers") or []))
     content.append(render_csv_export("NEWS_BEARISH_TICKERS", news.get("bearish_tickers") or []))
     content.append(render_csv_export("NEWS_NEUTRAL_TICKERS", news.get("neutral_tickers") or []))
-    content.append(f'export const float NEWS_HEAT_GLOBAL = {float(news.get("news_heat_global") or 0.0)}')
+    content.append(f'export const float NEWS_HEAT_GLOBAL = {_pine_float(news.get("news_heat_global") or 0.0)}')
     content.append(render_csv_export("TICKER_HEAT_MAP", split_csv_string(news.get("ticker_heat_map") or "")))
     # WP-NW4: category, count, breaking, most-mentioned fields
     content.append(f'export const string NEWS_CATEGORY_MAP = "{news.get("news_category_map") or ""}"')
@@ -744,8 +759,8 @@ def write_pine_library(
     # ── Layering enrichment ─────────────────────────────────────
     lay = enr.get("layering") or {}
     content.append("// ── Layering / Global Tone ──")
-    content.append(f'export const float GLOBAL_HEAT = {float(lay.get("global_heat") or 0.0)}')
-    content.append(f'export const float GLOBAL_STRENGTH = {float(lay.get("global_strength") or 0.0)}')
+    content.append(f'export const float GLOBAL_HEAT = {_pine_float(lay.get("global_heat") or 0.0)}')
+    content.append(f'export const float GLOBAL_STRENGTH = {_pine_float(lay.get("global_strength") or 0.0)}')
     content.append(f'export const string TONE = "{lay.get("tone") or "NEUTRAL"}"')
     content.append(f'export const string TRADE_STATE = "{lay.get("trade_state") or "ALLOWED"}"')
     content.append("")
@@ -805,8 +820,8 @@ def write_pine_library(
     vreg = enr.get("volatility_regime") or {}
     content.append("// ── Volatility Regime ──")
     content.append(f'export const string VOLATILITY_REGIME = "{vreg.get("label") or "NORMAL"}"')
-    content.append(f'export const float VOLATILITY_REGIME_CONFIDENCE = {float(vreg.get("confidence") or 0.0)}')
-    content.append(f'export const float VOLATILITY_ATR_RATIO = {float(vreg.get("raw_atr_ratio") or 1.0)}')
+    content.append(f'export const float VOLATILITY_REGIME_CONFIDENCE = {_pine_float(vreg.get("confidence") or 0.0)}')
+    content.append(f'export const float VOLATILITY_ATR_RATIO = {_pine_float(vreg.get("raw_atr_ratio") or 1.0)}')
     content.append(f'export const string VOLATILITY_MODEL_SOURCE = "{vreg.get("model_source") or "atr_fallback"}"')
     if debug_mode:
         content.append(f'export const string VOLATILITY_FALLBACK_REASON = "{vreg.get("fallback_reason") or ""}"')
@@ -817,7 +832,7 @@ def write_pine_library(
     # ── Ensemble quality ───────────────────────────────────────
     eq = enr.get("ensemble_quality") or {}
     content.append("// ── Ensemble Quality ──")
-    content.append(f'export const float ENSEMBLE_QUALITY_SCORE = {float(eq.get("score") or 0.0)}')
+    content.append(f'export const float ENSEMBLE_QUALITY_SCORE = {_pine_float(eq.get("score") or 0.0)}')
     content.append(f'export const string ENSEMBLE_QUALITY_TIER = "{eq.get("tier") or "low"}"')
     content.append(f'export const string ENSEMBLE_AVAILABLE_COMPONENTS = "{",".join(eq.get("available_components") or [])}"')
     content.append("")
@@ -828,15 +843,15 @@ def write_pine_library(
     fq = enr.get("flow_qualifier") or {}
     content.append("")
     content.append("// ── Flow Qualifier ──")
-    content.append(f'export const float REL_VOL = {float(fq.get("REL_VOL", _FQ_DEFAULTS["REL_VOL"]))}')
-    content.append(f'export const float REL_ACTIVITY = {float(fq.get("REL_ACTIVITY", _FQ_DEFAULTS["REL_ACTIVITY"]))}')
-    content.append(f'export const float REL_SIZE = {float(fq.get("REL_SIZE", _FQ_DEFAULTS["REL_SIZE"]))}')
-    content.append(f'export const float DELTA_PROXY_PCT = {float(fq.get("DELTA_PROXY_PCT", _FQ_DEFAULTS["DELTA_PROXY_PCT"]))}')
+    content.append(f'export const float REL_VOL = {_pine_float(fq.get("REL_VOL", _FQ_DEFAULTS["REL_VOL"]))}')
+    content.append(f'export const float REL_ACTIVITY = {_pine_float(fq.get("REL_ACTIVITY", _FQ_DEFAULTS["REL_ACTIVITY"]))}')
+    content.append(f'export const float REL_SIZE = {_pine_float(fq.get("REL_SIZE", _FQ_DEFAULTS["REL_SIZE"]))}')
+    content.append(f'export const float DELTA_PROXY_PCT = {_pine_float(fq.get("DELTA_PROXY_PCT", _FQ_DEFAULTS["DELTA_PROXY_PCT"]))}')
     content.append(f'export const bool FLOW_LONG_OK = {_pine_bool(fq.get("FLOW_LONG_OK", _FQ_DEFAULTS["FLOW_LONG_OK"]))}')
     content.append(f'export const bool FLOW_SHORT_OK = {_pine_bool(fq.get("FLOW_SHORT_OK", _FQ_DEFAULTS["FLOW_SHORT_OK"]))}')
-    content.append(f'export const float ATS_VALUE = {float(fq.get("ATS_VALUE", _FQ_DEFAULTS["ATS_VALUE"]))}')
-    content.append(f'export const float ATS_CHANGE_PCT = {float(fq.get("ATS_CHANGE_PCT", _FQ_DEFAULTS["ATS_CHANGE_PCT"]))}')
-    content.append(f'export const float ATS_ZSCORE = {float(fq.get("ATS_ZSCORE", _FQ_DEFAULTS["ATS_ZSCORE"]))}')
+    content.append(f'export const float ATS_VALUE = {_pine_float(fq.get("ATS_VALUE", _FQ_DEFAULTS["ATS_VALUE"]))}')
+    content.append(f'export const float ATS_CHANGE_PCT = {_pine_float(fq.get("ATS_CHANGE_PCT", _FQ_DEFAULTS["ATS_CHANGE_PCT"]))}')
+    content.append(f'export const float ATS_ZSCORE = {_pine_float(fq.get("ATS_ZSCORE", _FQ_DEFAULTS["ATS_ZSCORE"]))}')
     content.append(f'export const string ATS_STATE = "{fq.get("ATS_STATE", _FQ_DEFAULTS["ATS_STATE"])}"')
     content.append(f'export const bool ATS_SPIKE_UP = {_pine_bool(fq.get("ATS_SPIKE_UP", _FQ_DEFAULTS["ATS_SPIKE_UP"]))}')
     content.append(f'export const bool ATS_SPIKE_DOWN = {_pine_bool(fq.get("ATS_SPIKE_DOWN", _FQ_DEFAULTS["ATS_SPIKE_DOWN"]))}')
@@ -853,7 +868,7 @@ def write_pine_library(
     content.append(f'export const bool SQUEEZE_RELEASED = {_pine_bool(cr.get("SQUEEZE_RELEASED", _CR_DEFAULTS["SQUEEZE_RELEASED"]))}')
     content.append(f'export const string SQUEEZE_MOMENTUM_BIAS = "{cr.get("SQUEEZE_MOMENTUM_BIAS", _CR_DEFAULTS["SQUEEZE_MOMENTUM_BIAS"])}"')
     content.append(f'export const string ATR_REGIME = "{cr.get("ATR_REGIME", _CR_DEFAULTS["ATR_REGIME"])}"')
-    content.append(f'export const float ATR_RATIO = {float(cr.get("ATR_RATIO", _CR_DEFAULTS["ATR_RATIO"]))}')
+    content.append(f'export const float ATR_RATIO = {_pine_float(cr.get("ATR_RATIO", _CR_DEFAULTS["ATR_RATIO"]))}')
 
     # ── v5.5b Lean: Event Risk Light ─────────────────────────────
     from scripts.smc_event_risk_builder import DEFAULTS as _ER_DEFAULTS
@@ -909,7 +924,7 @@ def write_pine_library(
     content.append("")
     content.append("// ── Order Block Context Light (v5.5b) ──")
     content.append(f'export const string PRIMARY_OB_SIDE = "{obl.get("PRIMARY_OB_SIDE", _OBL_DEFAULTS["PRIMARY_OB_SIDE"])}"')
-    content.append(f'export const float PRIMARY_OB_DISTANCE = {float(obl.get("PRIMARY_OB_DISTANCE", _OBL_DEFAULTS["PRIMARY_OB_DISTANCE"]))}')
+    content.append(f'export const float PRIMARY_OB_DISTANCE = {_pine_float(obl.get("PRIMARY_OB_DISTANCE", _OBL_DEFAULTS["PRIMARY_OB_DISTANCE"]))}')
     content.append(f'export const bool OB_FRESH = {_pine_bool(obl.get("OB_FRESH", _OBL_DEFAULTS["OB_FRESH"]))}')
     content.append(f'export const int OB_AGE_BARS = {int(obl.get("OB_AGE_BARS", _OBL_DEFAULTS["OB_AGE_BARS"]))}')
     content.append(f'export const string OB_MITIGATION_STATE = "{obl.get("OB_MITIGATION_STATE", _OBL_DEFAULTS["OB_MITIGATION_STATE"])}"')
@@ -921,8 +936,8 @@ def write_pine_library(
     content.append("")
     content.append("// ── FVG / Imbalance Lifecycle Light (v5.5b) ──")
     content.append(f'export const string PRIMARY_FVG_SIDE = "{fvgl.get("PRIMARY_FVG_SIDE", _FVGL_DEFAULTS["PRIMARY_FVG_SIDE"])}"')
-    content.append(f'export const float PRIMARY_FVG_DISTANCE = {float(fvgl.get("PRIMARY_FVG_DISTANCE", _FVGL_DEFAULTS["PRIMARY_FVG_DISTANCE"]))}')
-    content.append(f'export const float FVG_FILL_PCT = {float(fvgl.get("FVG_FILL_PCT", _FVGL_DEFAULTS["FVG_FILL_PCT"]))}')
+    content.append(f'export const float PRIMARY_FVG_DISTANCE = {_pine_float(fvgl.get("PRIMARY_FVG_DISTANCE", _FVGL_DEFAULTS["PRIMARY_FVG_DISTANCE"]))}')
+    content.append(f'export const float FVG_FILL_PCT = {_pine_float(fvgl.get("FVG_FILL_PCT", _FVGL_DEFAULTS["FVG_FILL_PCT"]))}')
     content.append(f'export const int FVG_MATURITY_LEVEL = {int(fvgl.get("FVG_MATURITY_LEVEL", _FVGL_DEFAULTS["FVG_MATURITY_LEVEL"]))}')
     content.append(f'export const bool FVG_FRESH = {_pine_bool(fvgl.get("FVG_FRESH", _FVGL_DEFAULTS["FVG_FRESH"]))}')
     content.append(f'export const bool FVG_INVALIDATED = {_pine_bool(fvgl.get("FVG_INVALIDATED", _FVGL_DEFAULTS["FVG_INVALIDATED"]))}')
@@ -942,7 +957,7 @@ def write_pine_library(
     lp = enr.get("liquidity_pools") or {}
     content.append("")
     content.append("// ── Liquidity Pools ──")
-    content.append(f'export const float BUY_SIDE_POOL_LEVEL = {float(lp.get("BUY_SIDE_POOL_LEVEL", _LP_DEFAULTS["BUY_SIDE_POOL_LEVEL"]))}')
+    content.append(f'export const float BUY_SIDE_POOL_LEVEL = {_pine_float(lp.get("BUY_SIDE_POOL_LEVEL", _LP_DEFAULTS["BUY_SIDE_POOL_LEVEL"]))}')
     content.append(f'export const int BUY_SIDE_POOL_STRENGTH = {int(lp.get("BUY_SIDE_POOL_STRENGTH", _LP_DEFAULTS["BUY_SIDE_POOL_STRENGTH"]))}')
 
     # ── Liquidity Sweeps Extended ─────────────────────────────────
@@ -984,16 +999,16 @@ def write_pine_library(
     content.append("// ── Short Interest ──")
     content.append(f'export const string SHORT_SQUEEZE_RISK_TICKERS = "{",".join(si.get("short_squeeze_risk_tickers") or [])}"')
     content.append(f'export const string HIGH_SHORT_INTEREST_TICKERS = "{",".join(si.get("high_short_interest_tickers") or [])}"')
-    content.append(f'export const float MARKET_SHORT_INTEREST_AVG = {float(si.get("market_short_interest_avg") or 0.0)}')
+    content.append(f'export const float MARKET_SHORT_INTEREST_AVG = {_pine_float(si.get("market_short_interest_avg") or 0.0)}')
     content.append(f'export const bool SHORT_INTEREST_EXTREME = {_pine_bool(si.get("short_interest_extreme"))}')
 
     # ── Treasury / Yield Curve (v6) ─────────────────────────────
     tr = enr.get("treasury") or {}
     content.append("")
     content.append("// ── Treasury / Yield Curve ──")
-    content.append(f'export const float TREASURY_10Y_YIELD = {float(tr.get("treasury_10y_yield") or 0.0)}')
-    content.append(f'export const float TREASURY_2Y_YIELD = {float(tr.get("treasury_2y_yield") or 0.0)}')
-    content.append(f'export const float YIELD_CURVE_SPREAD = {float(tr.get("yield_curve_spread") or 0.0)}')
+    content.append(f'export const float TREASURY_10Y_YIELD = {_pine_float(tr.get("treasury_10y_yield") or 0.0)}')
+    content.append(f'export const float TREASURY_2Y_YIELD = {_pine_float(tr.get("treasury_2y_yield") or 0.0)}')
+    content.append(f'export const float YIELD_CURVE_SPREAD = {_pine_float(tr.get("yield_curve_spread") or 0.0)}')
     content.append(f'export const bool YIELD_CURVE_INVERTED = {_pine_bool(tr.get("yield_curve_inverted"))}')
 
     # ── Sector Rotation (v6) ────────────────────────────────────
@@ -1138,13 +1153,13 @@ def write_pine_library(
     )
     content.append(
         f"export const float ZONE_CAL_CONFIDENCE = "
-        f"{float(consumer.get('ZONE_CAL_CONFIDENCE', _ZH_DEFAULTS['ZONE_CAL_CONFIDENCE'])):.4f}"
+        f"{_pine_float(consumer.get('ZONE_CAL_CONFIDENCE', _ZH_DEFAULTS['ZONE_CAL_CONFIDENCE'])):.4f}"
     )
     for fam in _ZH_FAMILIES:
         key = f"ZONE_HR_{fam}"
         content.append(
             f"export const float {key} = "
-            f"{float(consumer.get(key, _ZH_DEFAULTS[key])):.4f}"
+            f"{_pine_float(consumer.get(key, _ZH_DEFAULTS[key])):.4f}"
         )
     content.append(
         f'export const string ZONE_CAL_TREND = '
