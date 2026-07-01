@@ -1,0 +1,321 @@
+{
+  "schema_version": 1,
+  "scoring_root": "artifacts/ci/measurement_benchmark_rolling/2026-07-01",
+  "timeframes": [
+    "5m",
+    "10m",
+    "15m",
+    "30m",
+    "1H",
+    "4H",
+    "1D"
+  ],
+  "files_scanned": 140,
+  "per_tf": {
+    "5m": {
+      "n_events": 418,
+      "symbols": [
+        "AAPL",
+        "AMZN",
+        "BAC",
+        "CAT",
+        "COP",
+        "CVX",
+        "GOOGL",
+        "GS",
+        "HD",
+        "JNJ",
+        "JPM",
+        "META",
+        "MS",
+        "MSFT",
+        "NVDA",
+        "OXY",
+        "TSLA",
+        "UNH",
+        "V",
+        "XOM"
+      ],
+      "families": {
+        "BOS": {
+          "n_events": 70,
+          "hit_rate": 0.92857
+        },
+        "OB": {
+          "n_events": 28,
+          "hit_rate": 0.0
+        },
+        "FVG": {
+          "n_events": 320,
+          "hit_rate": 0.5
+        }
+      },
+      "hit_rate": 0.5382765550239235
+    },
+    "10m": {
+      "n_events": 418,
+      "symbols": [
+        "AAPL",
+        "AMZN",
+        "BAC",
+        "CAT",
+        "COP",
+        "CVX",
+        "GOOGL",
+        "GS",
+        "HD",
+        "JNJ",
+        "JPM",
+        "META",
+        "MS",
+        "MSFT",
+        "NVDA",
+        "OXY",
+        "TSLA",
+        "UNH",
+        "V",
+        "XOM"
+      ],
+      "families": {
+        "BOS": {
+          "n_events": 70,
+          "hit_rate": 0.92857
+        },
+        "OB": {
+          "n_events": 28,
+          "hit_rate": 0.0
+        },
+        "FVG": {
+          "n_events": 320,
+          "hit_rate": 0.5
+        }
+      },
+      "hit_rate": 0.5382765550239235
+    },
+    "15m": {
+      "n_events": 418,
+      "symbols": [
+        "AAPL",
+        "AMZN",
+        "BAC",
+        "CAT",
+        "COP",
+        "CVX",
+        "GOOGL",
+        "GS",
+        "HD",
+        "JNJ",
+        "JPM",
+        "META",
+        "MS",
+        "MSFT",
+        "NVDA",
+        "OXY",
+        "TSLA",
+        "UNH",
+        "V",
+        "XOM"
+      ],
+      "families": {
+        "BOS": {
+          "n_events": 70,
+          "hit_rate": 0.92857
+        },
+        "OB": {
+          "n_events": 28,
+          "hit_rate": 0.0
+        },
+        "FVG": {
+          "n_events": 320,
+          "hit_rate": 0.5
+        }
+      },
+      "hit_rate": 0.5382765550239235
+    },
+    "30m": {
+      "n_events": 418,
+      "symbols": [
+        "AAPL",
+        "AMZN",
+        "BAC",
+        "CAT",
+        "COP",
+        "CVX",
+        "GOOGL",
+        "GS",
+        "HD",
+        "JNJ",
+        "JPM",
+        "META",
+        "MS",
+        "MSFT",
+        "NVDA",
+        "OXY",
+        "TSLA",
+        "UNH",
+        "V",
+        "XOM"
+      ],
+      "families": {
+        "BOS": {
+          "n_events": 70,
+          "hit_rate": 0.92857
+        },
+        "OB": {
+          "n_events": 28,
+          "hit_rate": 0.0
+        },
+        "FVG": {
+          "n_events": 320,
+          "hit_rate": 0.5
+        }
+      },
+      "hit_rate": 0.5382765550239235
+    },
+    "1H": {
+      "n_events": 418,
+      "symbols": [
+        "AAPL",
+        "AMZN",
+        "BAC",
+        "CAT",
+        "COP",
+        "CVX",
+        "GOOGL",
+        "GS",
+        "HD",
+        "JNJ",
+        "JPM",
+        "META",
+        "MS",
+        "MSFT",
+        "NVDA",
+        "OXY",
+        "TSLA",
+        "UNH",
+        "V",
+        "XOM"
+      ],
+      "families": {
+        "BOS": {
+          "n_events": 70,
+          "hit_rate": 0.92857
+        },
+        "OB": {
+          "n_events": 28,
+          "hit_rate": 0.0
+        },
+        "FVG": {
+          "n_events": 320,
+          "hit_rate": 0.5
+        }
+      },
+      "hit_rate": 0.5382765550239235
+    },
+    "4H": {
+      "n_events": 418,
+      "symbols": [
+        "AAPL",
+        "AMZN",
+        "BAC",
+        "CAT",
+        "COP",
+        "CVX",
+        "GOOGL",
+        "GS",
+        "HD",
+        "JNJ",
+        "JPM",
+        "META",
+        "MS",
+        "MSFT",
+        "NVDA",
+        "OXY",
+        "TSLA",
+        "UNH",
+        "V",
+        "XOM"
+      ],
+      "families": {
+        "BOS": {
+          "n_events": 70,
+          "hit_rate": 0.92857
+        },
+        "OB": {
+          "n_events": 28,
+          "hit_rate": 0.0
+        },
+        "FVG": {
+          "n_events": 320,
+          "hit_rate": 0.5
+        }
+      },
+      "hit_rate": 0.5382765550239235
+    },
+    "1D": {
+      "n_events": 271,
+      "symbols": [
+        "AAPL",
+        "AMZN",
+        "BAC",
+        "CAT",
+        "COP",
+        "CVX",
+        "GOOGL",
+        "GS",
+        "HD",
+        "JNJ",
+        "JPM",
+        "META",
+        "MS",
+        "MSFT",
+        "NVDA",
+        "OXY",
+        "TSLA",
+        "UNH",
+        "V",
+        "XOM"
+      ],
+      "families": {
+        "BOS": {
+          "n_events": 52,
+          "hit_rate": 1.0
+        },
+        "FVG": {
+          "n_events": 88,
+          "hit_rate": 0.3181863636363636
+        },
+        "SWEEP": {
+          "n_events": 57,
+          "hit_rate": 0.6666666666666666
+        },
+        "OB": {
+          "n_events": 74,
+          "hit_rate": 0.7027054054054055
+        }
+      },
+      "hit_rate": 0.6273055350553506
+    }
+  },
+  "unknown_timeframes": {},
+  "n_skipped_malformed": 0,
+  "skipped_malformed": [],
+  "phase_e2_verdict": {
+    "fvg_ttf_5m_vs_baseline": {
+      "status": "degenerate_aliased_input",
+      "n_a": 320,
+      "hr_a": 0.5,
+      "n_b": 640,
+      "hr_b": 0.5,
+      "reason": "arm A and every baseline slice carry identical n_events/hit_rate; input slices are aliased copies (e.g. cross-TF structure fallback), so delta_hr would compare an arm against itself"
+    },
+    "bos_stability_4h_vs_baseline": {
+      "status": "degenerate_aliased_input",
+      "n_a": 70,
+      "hr_a": 0.92857,
+      "n_b": 140,
+      "hr_b": 0.92857,
+      "reason": "arm A and every baseline slice carry identical n_events/hit_rate; input slices are aliased copies (e.g. cross-TF structure fallback), so delta_hr would compare an arm against itself"
+    }
+  }
+}
