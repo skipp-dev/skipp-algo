@@ -71,7 +71,7 @@ All files created in `artifacts/live_overlay/`:
 | 1w | swing_trade | 71.8% | 183 | 71.2% | +0.6pp |
 
 **Impact:** All experiment panels will now show live data:
-- **Snapshot Age:** ~1 hour (from generation timestamp)
+- **Snapshot Age:** ~1 hour (point-in-time value observed at report time on 2026-06-25 for the experiment rollup; not an alert threshold — the `lo-news-snapshot-stale` alert separately tolerates up to 3 h and applies to `news_snapshot.json`)
 - **Files Scanned:** 487
 - **FVG 5m Verdict:** "measured" (green/success)
 - **BOS 4H Verdict:** "measured" (green/success)
