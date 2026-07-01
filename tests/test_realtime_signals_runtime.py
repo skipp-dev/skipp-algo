@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 from collections import deque
 from pathlib import Path
 
@@ -202,3 +203,46 @@ def test_session_boundary_triggers_watchlist_rebuild(monkeypatch) -> None:
     assert engine._quote_hashes == {}
     assert engine._avg_vol_cache == {"AAA": 100_000}  # preserved across session boundary (Fix #5)
     assert engine._new_entrant_set == {"AAA"}
+
+
+def test_save_signals_sanitizes_non_finite_values(monkeypatch, tmp_path: Path) -> None:
+    monkeypatch.setattr(rs.RealtimeEngine, "_load_watchlist", lambda self: None)
+    monkeypatch.setattr(rs.RealtimeEngine, "_restore_signals_from_disk", lambda self: None)
+    monkeypatch.setattr(rs, "SIGNALS_PATH", tmp_path / "latest_realtime_signals.json")
+    monkeypatch.setattr(rs, "VD_SIGNALS_PATH", tmp_path / "latest_vd_signals.jsonl")
+
+    engine = rs.RealtimeEngine(fmp_client=None)
+    engine._watchlist = [{"symbol": "AAA"}]
+    engine._vd_rows = {"AAA": {"symbol": "AAA", "score": float("nan"), "delta": float("inf")}}
+    engine._active_signals = [
+        rs.RealtimeSignal(
+            symbol="AAA",
+            level="A1",
+            direction="LONG",
+            pattern="BREAKOUT",
+            price=100.0,
+            prev_close=99.0,
+            change_pct=1.0,
+            volume_ratio=2.0,
+            score=5.0,
+            confidence_tier="HIGH_CONVICTION",
+            atr_pct=0.5,
+            freshness=1.0,
+            fired_at="2026-01-01T00:00:00+00:00",
+            fired_epoch=1.0,
+            details={"adx": float("nan"), "nested": {"x": float("-inf")}},
+        )
+    ]
+
+    engine._save_signals()
+
+    signals_raw = rs.SIGNALS_PATH.read_text(encoding="utf-8")
+    vd_raw = rs.VD_SIGNALS_PATH.read_text(encoding="utf-8")
+    assert "NaN" not in signals_raw
+    assert "Infinity" not in signals_raw
+    assert "NaN" not in vd_raw
+    assert "Infinity" not in vd_raw
+
+    signals_payload = json.loads(signals_raw)
+    assert signals_payload["signals"][0]["details"]["adx"] is None
+    assert signals_payload["signals"][0]["details"]["nested"]["x"] is None

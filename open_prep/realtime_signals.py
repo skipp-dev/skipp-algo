@@ -747,9 +747,9 @@ class ScoreTelemetry:
         """Return a JSON-serialisable summary of accumulated metrics."""
 
         def _stats(d: deque[float]) -> dict[str, float]:
-            if not d:
+            vals = sorted(v for v in d if (v == v and v not in (float("inf"), float("-inf"))))
+            if not vals:
                 return {"min": 0.0, "mean": 0.0, "max": 0.0, "count": 0}
-            vals = sorted(d)
             n = len(vals)
             return {
                 "min": round(vals[0], 4),
@@ -2946,10 +2946,10 @@ class RealtimeEngine:
             try:
                 with os.fdopen(tmp_fd, "w", encoding="utf-8") as fh:
                     # Meta row first — immediately visible in VisiData
-                    fh.write(json.dumps(_meta_row, default=str, allow_nan=False))
+                    fh.write(json.dumps(_replace_non_finite(_meta_row), default=str, allow_nan=False))
                     fh.write("\n")
                     for row in self._vd_rows.values():
-                        fh.write(json.dumps(row, default=str, allow_nan=False))
+                        fh.write(json.dumps(_replace_non_finite(row), default=str, allow_nan=False))
                         fh.write("\n")
                     # NO fsync — speed over durability for VisiData snapshots
                 os.replace(tmp_path, VD_SIGNALS_PATH)
@@ -2992,7 +2992,7 @@ class RealtimeEngine:
             )
             try:
                 with os.fdopen(tmp_fd, "w", encoding="utf-8") as fh:
-                    json.dump(payload, fh, indent=2, default=str, allow_nan=False)
+                    json.dump(_replace_non_finite(payload), fh, indent=2, default=str, allow_nan=False)
                     fh.write("\n")
                     fh.flush()
                     os.fsync(fh.fileno())
@@ -3188,6 +3188,18 @@ def _env_int(key: str, default: int) -> int:
         )
         return default
     return parsed
+
+
+def _replace_non_finite(value: Any) -> Any:
+    if isinstance(value, float):
+        return value if (value == value and value not in (float("inf"), float("-inf"))) else None
+    if isinstance(value, dict):
+        return {key: _replace_non_finite(item) for key, item in value.items()}
+    if isinstance(value, list):
+        return [_replace_non_finite(item) for item in value]
+    if isinstance(value, tuple):
+        return [_replace_non_finite(item) for item in value]
+    return value
 
 
 if __name__ == "__main__":

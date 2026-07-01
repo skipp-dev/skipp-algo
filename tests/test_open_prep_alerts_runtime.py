@@ -124,3 +124,30 @@ def test_send_webhook_sanitizes_non_finite_floats(monkeypatch) -> None:
     assert decoded["score"] is None
     assert decoded["nested"]["value"] is None
     assert decoded["items"] == [1.0, None]
+
+
+def test_format_payloads_tolerate_non_numeric_gap_and_score() -> None:
+    candidate = {
+        "symbol": "AAA",
+        "gap_pct": "positive",
+        "score": "N/A",
+        "confidence_tier": "STANDARD",
+    }
+
+    slack = alerts._format_slack_payload(candidate, regime="RISK_ON")
+    discord = alerts._format_discord_payload(candidate, regime="RISK_ON")
+
+    assert "gap +0.0%" in slack["text"]
+    assert "score 0.00" in slack["blocks"][0]["text"]["text"]
+    assert "gap +0.0%" in discord["content"]
+    assert "score 0.00" in discord["content"]
+
+
+def test_traderspost_payload_avoids_false_sell_for_non_finite_gap() -> None:
+    nan_payload = alerts._format_traderspost_payload({"symbol": "AAA", "gap_pct": float("nan")})
+    none_payload = alerts._format_traderspost_payload({"symbol": "AAA", "gap_pct": None})
+    short_payload = alerts._format_traderspost_payload({"symbol": "AAA", "gap_pct": "-1.5"})
+
+    assert nan_payload["action"] == "buy"
+    assert none_payload["action"] == "buy"
+    assert short_payload["action"] == "sell"
