@@ -3057,7 +3057,7 @@ def _load_atr_cache(as_of: date, period: int) -> tuple[dict[str, float], dict[st
             str(k).upper(): mv
             for k, v in dict(payload.get("momentum_z_by_symbol", {})).items()
             if str(k).upper() in atr_map
-            and math.isfinite(mv := _to_float(v, default=0.0))
+            and math.isfinite(mv := _to_float(v, default=float("nan")))
         }
         prev_close_map = {
             str(k).upper(): pv
