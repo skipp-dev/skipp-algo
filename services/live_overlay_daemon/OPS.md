@@ -82,7 +82,7 @@ Required Alloy environment variables:
 | Variable | Source | Purpose |
 |----------|--------|---------|
 | `OVERLAY_SECRET_TOKEN` | Same as daemon | Basic-auth password for `/metrics` |
-| `OVERLAY_SERVICE_URL` | Railway host:port without scheme, e.g. public `liveoverlaydaemon-production.up.railway.app` or private `liveoverlaydaemon.railway.internal:<PORT>` | Scrape target host:port |
+| `OVERLAY_SERVICE_URL` | Railway host:port without scheme. Production uses private networking: `liveoverlaydaemon.railway.internal:8080` | Scrape target host:port |
 | `GRAFANA_CLOUD_PROM_URL` | Grafana Cloud stack settings | Remote-write URL |
 | `GRAFANA_CLOUD_USER` | Grafana Cloud stack settings | Remote-write user |
 | `GRAFANA_CLOUD_API_KEY` | Grafana Cloud API key | Remote-write password |
@@ -95,11 +95,25 @@ Alloy self-metrics are scraped as `job="alloy"`. The alert
 so remote-write drops are visible even when the scrape targets themselves still
 look healthy.
 
-Private Railway networking is supported by `OVERLAY_SERVICE_URL`, but do not set
-a bare `.railway.internal` host. The value must include the live daemon runtime
-port, e.g. `liveoverlaydaemon.railway.internal:<PORT>`. Keep the public Railway
-host in production until the runtime port has been verified from inside Railway,
-then switch the metrics-collector variable and confirm:
+Private Railway networking is required in production. Do not set a bare
+`.railway.internal` host; always include `host:port`.
+
+Use Railway service-variable references so the dependency is visible in the
+Railway canvas and does not depend on copy/pasted literals:
+
+```bash
+railway variable set -s metrics-collector -e production \
+  'OVERLAY_SERVICE_URL=${{live_overlay_daemon.RAILWAY_PRIVATE_DOMAIN}}:8080'
+
+railway variable set -s metrics-collector -e production \
+  'SIGNALS_SERVICE_URL=${{smc-signals-producer.RAILWAY_PRIVATE_DOMAIN}}:8080'
+```
+
+`PORT` is runtime-injected by Railway and is not a stored variable, so
+`${{service.PORT}}` references are not safe. Pin `PORT=8080` explicitly on
+`live_overlay_daemon` and `smc-signals-producer`.
+
+Confirm scraper health after any variable change:
 
 ```promql
 up{job="live_overlay"} == 1
@@ -137,7 +151,7 @@ name = "live_overlay_daemon"
 |----------|----------|---------|---------|
 | `DATABENTO_API_KEY` | yes | — | Databento live feed API key |
 | `OVERLAY_SECRET_TOKEN` | yes | — | HMAC + `/metrics` basic-auth secret |
-| `PORT` | yes | Railway injects | HTTP listen port |
+| `PORT` | yes | `8080` (production pin) | HTTP listen port |
 | `LIVE_OVERLAY_EXPECT_MARKET_TRAFFIC` | no | `0` | Set to `1` in production deployments that should receive TradingView/Pine `/smc_live` traffic during US market-open windows; arms the first-zero traffic alert |
 | `LIVE_OVERLAY_INGEST_QUEUE_MAX` | no | 10000 | Max queued bars before drop |
 | `LIVE_OVERLAY_EXPECT_MARKET_TRAFFIC` | no | `0` | Set to `1` in production deployments that should receive TradingView/Pine `/smc_live` traffic during US market-open windows. Arms the first-zero traffic alert. Leave `0` for local/dev/warm-standby. |
@@ -152,9 +166,9 @@ name = "live_overlay_daemon"
 | `NEWS_SNAPSHOT_URL` | no | — | Optional HTTPS URL for live news snapshot |
 | `NEWS_SNAPSHOT_URL_TOKEN` | no | — | Optional bearer token for `NEWS_SNAPSHOT_URL` |
 | `NEWS_SNAPSHOT_PATH` | no | `artifacts/live_overlay/news_snapshot.json` | Local news snapshot path; point at the volume (`/data/...`) for write-through persistence |
-| `SIGNALS_SNAPSHOT_PATH` | no | — | Local realtime-signals snapshot path |
-| `SIGNALS_SNAPSHOT_URL` | no | — | Optional HTTPS URL for realtime-signals snapshot |
-| `SIGNALS_SNAPSHOT_URL_TOKEN` | no | — | Optional bearer token for `SIGNALS_SNAPSHOT_URL` |
+| `SIGNALS_SNAPSHOT_PATH` | no | `artifacts/open_prep/latest/latest_realtime_signals.json` (production override: `/app/data/latest_realtime_signals.json`) | Local realtime-signals snapshot path (write-through cache) |
+| `SIGNALS_SNAPSHOT_URL` | no | — | Optional legacy HTTPS fallback for realtime-signals snapshot (disabled in production lean mode) |
+| `SIGNALS_SNAPSHOT_URL_TOKEN` | no | — | Optional bearer token for `SIGNALS_SNAPSHOT_URL` (disabled in production lean mode) |
 | `SIGNALS_SERVICE_URL` | no | — | Internal Railway hostname/URL of `smc-signals-producer`; takes precedence |
 | `SIGNALS_INTERNAL_TOKEN` | no | — | Bearer token used when calling `SIGNALS_SERVICE_URL` |
 | `OVERLAY_SIGNALS_CACHE_TTL_SECS` | no | — | Signals snapshot cache TTL |
@@ -218,7 +232,7 @@ If the deployment is local, dev, or warm-standby, leave the value at `0`.
 | Variable | Purpose |
 |----------|---------|
 | `OVERLAY_SECRET_TOKEN` | `/metrics` basic-auth password |
-| `OVERLAY_SERVICE_URL` | Scrape target without scheme, e.g. `liveoverlaydaemon-production.up.railway.app` or `liveoverlaydaemon.railway.internal:<PORT>` |
+| `OVERLAY_SERVICE_URL` | Scrape target without scheme. Production: `liveoverlaydaemon.railway.internal:8080` |
 | `GRAFANA_CLOUD_PROM_URL` | Grafana Cloud remote-write URL |
 | `GRAFANA_CLOUD_USER` | Grafana Cloud stack user |
 | `GRAFANA_CLOUD_API_KEY` | Grafana Cloud API key |
@@ -252,11 +266,15 @@ same step so they do not leak into later jobs/artifacts.
 The `*_URL` form is `https://api.github.com/repos/skippALGO/skipp-algo/contents/<stable-path>?ref=<bot-branch>` with a fine-grained PAT (`Contents: Read`, repo `skipp-algo` only) in the matching `*_URL_TOKEN`.
 
 **Realtime signals on Railway are fetched live from `smc-signals-producer`.**
-Set `SIGNALS_SERVICE_URL` to the Railway private hostname/URL and
-`SIGNALS_INTERNAL_TOKEN` to the producer bearer token. The daemon calls the
-producer's `/signals.json` endpoint first and only falls back to
-`SIGNALS_SNAPSHOT_URL` / `SIGNALS_SNAPSHOT_PATH` when the producer is
-unreachable or unconfigured.
+Production uses lean mode:
+
+- `SIGNALS_SERVICE_URL=${{smc-signals-producer.RAILWAY_PRIVATE_DOMAIN}}:8080`
+- `SIGNALS_INTERNAL_TOKEN=<shared bearer token>`
+- `SIGNALS_SNAPSHOT_URL` and `SIGNALS_SNAPSHOT_URL_TOKEN` unset
+- `SIGNALS_SNAPSHOT_PATH=/app/data/latest_realtime_signals.json`
+
+In this mode the daemon reads live producer data first and persists successful
+payloads to the local path as restart-safe cache.
 
 **Realtime signals have no CI producer.** `latest_realtime_signals.json` is
 written only by `open_prep/realtime_signals.py` on the live trading host. Run
@@ -293,23 +311,20 @@ Runtime URL fetchers in `compute.py` also scope the GitHub raw `Accept` header
 to actual GitHub Contents API URLs only, avoiding GitHub-specific headers on
 authenticated non-GitHub snapshot endpoints.
 
-**Write-through persistence (Railway volume).** On every successful `*_URL`
-fetch the daemon atomically writes the payload back to its `*_SNAPSHOT_PATH`
-(`tempfile` + `os.replace`). Mount a Railway volume and point the `*_PATH`
-vars at it so a cold start (or a momentary URL outage) reads the last-good
-copy from the volume instead of the baked seed.
+**Write-through persistence (Railway volume).** On every successful producer/
+URL fetch the daemon atomically writes the payload back to its
+`*_SNAPSHOT_PATH` (`tempfile` + `os.replace`). Mount a Railway volume and point
+the `*_PATH` vars at it so a cold start (or a momentary outage) reads the
+last-good copy from the volume instead of the baked seed.
 
-- Create the volume (interactive — pick service `live_overlay_daemon`, mount path `/data`):
+- Create the volume (for daemon service, mount path `/app/data`):
 
 ```bash
-railway volume add
+railway volume add -s live_overlay_daemon -e production -m /app/data
 ```
 
-- The volume mounts as **root**. The daemon image runs as a non-root
-  `appuser`, so writes to `/data` fail unless the service runs as root.
-  Set `RAILWAY_RUN_UID=0` to enable write-through (the write-through is
-  best-effort: without it the daemon still serves fresh data from the URL,
-  it just cannot persist across restarts).
+- Keep `SIGNALS_SNAPSHOT_PATH=/app/data/latest_realtime_signals.json` so
+  realtime-signal writes persist across daemon restarts.
 - Volumes are **not** config-as-code; do not add them to `railway.toml`
   (only `build`/`deploy` settings are supported there).
 

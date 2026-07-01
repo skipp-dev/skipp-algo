@@ -683,3 +683,79 @@ def test_poll_live_news_bus_can_run_newsapi_only() -> None:
     assert snapshot["providers"]["tv"]["error"] == "disabled"
     assert snapshot["providers"]["newsapi_ai"]["new_item_count"] == 1
     assert next_state["provider_state"]["newsapi_ai"]["last_seen_news_uri"] == "uri-feed-3"
+
+
+# ── Benzinga RSS migration (run 628 follow-up) ──────────────────────
+
+
+def test_fetch_live_news_benzinga_uses_rss_adapter_not_rest() -> None:
+    """The benzinga provider must use the free BenzingaRssAdapter (RSS feed),
+    not the BenzingaRestAdapter (paid API). The REST adapter returned 401
+    since the subscription lapsed (smc-library-refresh run 628, 2026-06-30).
+    """
+    from unittest.mock import MagicMock
+
+    now_ts = 1_750_000_000.0
+    item = NewsItem(
+        provider="benzinga_rss",
+        item_id="rss-1",
+        headline="AAPL rallies",
+        snippet="",
+        published_ts=now_ts - 30.0,
+        updated_ts=now_ts - 30.0,
+        tickers=["AAPL"],
+        url="https://benzinga.com/news/rss-1",
+        source="Benzinga",
+    )
+
+    mock_adapter = MagicMock()
+    mock_adapter.fetch_news.return_value = [item]
+
+    def _passthrough_batch(*, provider, scope, cursor, fetcher):
+        items = fetcher()
+        return CachedNewsBatch(
+            provider=provider, scope=scope or {}, items=items,
+            raw_items=list(items), raw_count=len(items),
+            cursor=max(cursor, *(it.published_ts for it in items), 0.0) if items else cursor,
+            fetched_at=now_ts,
+        )
+
+    with (
+        patch("scripts.smc_live_news_bus.BenzingaRssAdapter", return_value=mock_adapter),
+        patch("scripts.smc_live_news_bus._fetch_cached_live_provider_batch", side_effect=_passthrough_batch),
+    ):
+        result = bus.fetch_live_news_benzinga(
+            api_key="",  # empty key — must NOT disable the provider
+            symbols=["AAPL"],
+            cursor=0.0,
+            page_size=50,
+        )
+
+    mock_adapter.fetch_news.assert_called_once()
+    assert result.ok is True
+    assert result.provider == "benzinga"
+    assert len(result.items) == 1
+    assert result.items[0].provider_name == "benzinga_rss"
+
+
+def test_fetch_live_news_benzinga_works_without_api_key() -> None:
+    """RSS needs no key — an empty/missing api_key must NOT return the
+    disabled-provider sentinel (which the old REST path did).
+    """
+    from unittest.mock import MagicMock
+
+    mock_adapter = MagicMock()
+    mock_adapter.fetch_news.return_value = []
+
+    with patch("scripts.smc_live_news_bus.BenzingaRssAdapter", return_value=mock_adapter):
+        result = bus.fetch_live_news_benzinga(
+            api_key="",
+            symbols=["AAPL"],
+            cursor=0.0,
+            page_size=50,
+        )
+
+    assert result.ok is True
+    assert result.provider == "benzinga"
+    # Must NOT have an error field indicating disabled
+    assert not getattr(result, "error", None)
