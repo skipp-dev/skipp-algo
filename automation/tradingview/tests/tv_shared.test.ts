@@ -30,6 +30,7 @@ import {
   uiTextContainsExactScriptName,
   verifyOpenScriptIdentity,
   ensurePineEditor,
+  findChartSurfaceActionButtonsForScript,
   findLegendRowWrappers,
   isLegendTruncatedMatch,
   hasSettingsSurfaceDomHint,
@@ -1010,6 +1011,97 @@ test("findLegendRowWrappers skips invisible legend buttons", async () => {
   const wrappers = await findLegendRowWrappers(makeLegendPage([hiddenButton]) as never, scriptName);
 
   assert.equal(wrappers.length, 0, "invisible legend buttons must be ignored");
+});
+
+test("chart surface action button scope keeps only controls whose ancestor names the script", async () => {
+  const browser = await chromium.launch({ headless: true });
+  const page = await browser.newPage();
+  try {
+    await page.setContent(`
+      <html><body>
+        <button data-name="header-toolbar-properties" aria-label="Settings">Chart settings</button>
+        <section id="wrong-row">
+          <span>SMC Core</span>
+          <button id="wrong-settings" aria-label="Settings">Settings</button>
+        </section>
+        <section id="target-row">
+          <span>SMC Decision Board v7</span>
+          <button id="target-settings" aria-label="Settings">Settings</button>
+        </section>
+      </body></html>
+    `);
+
+    const buttons = await findChartSurfaceActionButtonsForScript(
+      page,
+      "SMC Decision Board v7",
+      "settings",
+    );
+
+    assert.equal(buttons.length, 1);
+    assert.equal(await buttons[0].getAttribute("id"), "target-settings");
+  } finally {
+    await browser.close();
+  }
+});
+
+test("chart surface action button scope matches More controls by nearest script ancestor", async () => {
+  const browser = await chromium.launch({ headless: true });
+  const page = await browser.newPage();
+  try {
+    await page.setContent(`
+      <html><body>
+        <section id="target-row">
+          <span>SMC Long-Dip Dashboard v7</span>
+          <button id="target-more" aria-label="More">More</button>
+        </section>
+        <section id="wrong-row">
+          <span>SMC Long-Dip Strategy v7</span>
+          <button id="wrong-more" aria-label="More">More</button>
+        </section>
+      </body></html>
+    `);
+
+    const buttons = await findChartSurfaceActionButtonsForScript(
+      page,
+      "SMC Long-Dip Dashboard v7",
+      "more",
+    );
+
+    assert.equal(buttons.length, 1);
+    assert.equal(await buttons[0].getAttribute("id"), "target-more");
+  } finally {
+    await browser.close();
+  }
+});
+
+test("chart surface action scope does not let version-like words match alone", async () => {
+  const browser = await chromium.launch({ headless: true });
+  const page = await browser.newPage();
+  try {
+    await page.setContent(`
+      <html><body>
+        <section id="version-only-row">
+          <span>v123</span>
+          <button id="version-only-settings" aria-label="Settings">Settings</button>
+        </section>
+        <section id="target-row">
+          <span>v123 Strategy</span>
+          <button id="target-settings" aria-label="Settings">Settings</button>
+        </section>
+      </body></html>
+    `);
+
+    const buttons = await findChartSurfaceActionButtonsForScript(
+      page,
+      "v123 Strategy",
+      "settings",
+    );
+
+    assert.equal(buttons.length, 1);
+    assert.equal(await buttons[0].getAttribute("id"), "target-settings");
+  } finally {
+    await browser.close();
+  }
 });
 
 // --- isLegendTruncatedMatch: TradingView name truncation ---
