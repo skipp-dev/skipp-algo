@@ -243,10 +243,10 @@ def test_fetch_news_no_feedparser(monkeypatch: pytest.MonkeyPatch):
     old = sys.modules.pop("feedparser", None)
     real_import = builtins.__import__
 
-    def _raise_for_feedparser(name, globals=None, locals=None, fromlist=(), level=0):
+    def _raise_for_feedparser(name, *args, **kwargs):
         if name == "feedparser":
             raise ImportError("blocked feedparser")
-        return real_import(name, globals, locals, fromlist, level)
+        return real_import(name, *args, **kwargs)
 
     monkeypatch.setattr(builtins, "__import__", _raise_for_feedparser)
     try:
