@@ -25,5 +25,7 @@
     "notebook.formatOnSave.enabled": true,
     "workbench.editor.highlightModifiedTabs": true,
     "genieai.enableConversationHistory": true,
-    "python.REPL.enableREPLSmartSend": false
+    "python.REPL.enableREPLSmartSend": false,
+    "chat.agent.sandbox.allowNetwork": true,
+    "chat.permissions.default": "autopilot"
 }
