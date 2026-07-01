@@ -6,6 +6,32 @@ All notable changes to this project are documented in this file.
 
 ## [Unreleased]
 
+### Changed (2026-07-01) — Human-readable overlay alert wording + Pine Polling Watchdog panel
+
+- Rewrote the three traffic/market alert rules so the message names the actual
+  mechanism (TradingView/Pine `request.get()` polling) instead of the ambiguous
+  "expected request traffic". UIDs and expressions are unchanged — only titles,
+  summaries, and runbooks:
+  - `lo-request-rate-absent-open`: "Expected request traffic missing while US
+    market open" → "TradingView/Pine is not polling the live overlay (US market
+    open)".
+  - `lo-expected-traffic-not-armed`: "Expected traffic alert is not armed" →
+    "Pine-polling watchdog is turned off".
+  - `lo-request-rate-drop-open`: "Request rate near zero while market open" →
+    "TradingView/Pine polling dropped to zero (US market open)".
+  Runbooks now spell out the two resolutions (arm vs. stand down via
+  `LIVE_OVERLAY_EXPECT_MARKET_TRAFFIC`) and where to look (published Pine URL,
+  `OVERLAY_SECRET_TOKEN`, Railway public endpoint).
+- Renamed the confusing **"Traffic Alert Armed"** dashboard tile to **"Pine
+  Polling Watchdog"** and moved it into the top *Incident Overview* row, directly
+  next to **Overall Health** (was buried at `y=41`). Active Alerts narrows from
+  `w=16` to `w=12` to make room; no other panels move. Generator
+  (`scripts/update_overlay_dashboard.py`) and pinned layout contract tests
+  updated accordingly.
+- **Market Traffic Health** value mappings made human-readable: `MARKET_CLOSED`
+  → "MARKET CLOSED", `OPEN_NO_TRAFFIC` → "OPEN · NO PINE POLLING", `TRAFFIC_OK`
+  → "PINE POLLING OK".
+
 ### Added (2026-07-01) — PromQL gating anti-pattern guard
 
 - New linter `find_promql_gating_antipatterns()` in

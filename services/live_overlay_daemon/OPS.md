@@ -473,7 +473,7 @@ After rollout, verify:
 live_overlay_expected_market_traffic{job="live_overlay"} == 1
 ```
 
-The dashboard tile **Traffic Alert Armed** shows the same gauge:
+The dashboard tile **Pine Polling Watchdog** shows the same gauge:
 
 - `0` = `NOT ARMED`
 - `1` = `ARMED`
