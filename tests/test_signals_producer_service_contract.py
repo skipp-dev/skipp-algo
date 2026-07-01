@@ -136,7 +136,7 @@ def _extract_exact_pin(path: Path, package: str) -> str | None:
         if "#" in line:
             line = line.split("#", 1)[0].strip()
         if line.startswith(needle):
-            return line[len(needle) :].strip()
+            return line[len(needle):].strip()
     return None
 
 
