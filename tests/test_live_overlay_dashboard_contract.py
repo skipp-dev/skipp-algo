@@ -811,7 +811,7 @@ def test_compute_cycle_errors_panel_has_vector_zero_guard() -> None:
     panels = _dashboard_panels(dashboard)
     panel = next(p for p in panels if p.get("title") == "Compute Cycle Errors")
     for target in panel["targets"]:
-        assert "or vector(0)" in target.get("expr", "")
+        assert "or on() vector(0)" in target.get("expr", "")
 
 
 def test_burn_rate_red_threshold_matches_alert() -> None:
