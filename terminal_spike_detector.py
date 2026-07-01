@@ -26,6 +26,7 @@ tested independently.
 from __future__ import annotations
 
 import logging
+import math
 import time
 from collections import deque
 from dataclasses import dataclass
@@ -100,6 +101,11 @@ class SpikeDetector:
         max_event_age_s: float = 3600.0,
         cooldown_s: float = 120.0,
     ) -> None:
+        if not math.isfinite(spike_threshold_pct) or spike_threshold_pct <= 0:
+            raise ValueError("spike_threshold_pct must be a finite positive value")
+        if not math.isfinite(lookback_s) or lookback_s <= 0:
+            raise ValueError("lookback_s must be a finite positive value")
+
         self.spike_threshold_pct = spike_threshold_pct
         self.lookback_s = lookback_s
         self.max_history = max_history
@@ -153,7 +159,10 @@ class SpikeDetector:
             # Record snapshot
             buf = self._price_buf.get(symbol)
             if buf is None:
-                buf = deque(maxlen=120)  # ~2 min at 1s polls, plenty
+                # Use a time-pruned deque instead of a fixed maxlen so
+                # large lookback windows (e.g. 300s) are not silently
+                # disabled by count-based truncation.
+                buf = deque()
                 self._price_buf[symbol] = buf
             buf.append(_PriceSnapshot(price=price, ts=now))
 
@@ -289,9 +298,16 @@ def _safe_float(val: Any, default: float = 0.0) -> float:
     if val is None:
         return default
     try:
-        return float(val)
+        result = float(val)
     except (ValueError, TypeError):
         return default
+    # Reject non-finite values (NaN, +inf, -inf). These slip past numeric
+    # guards like ``price <= 0`` (NaN comparisons are always False) and crash
+    # downstream ``int(...)`` conversions, so they must never enter the buffer
+    # or an emitted ``SpikeEvent``.
+    if not math.isfinite(result):
+        return default
+    return result
 
 
 def _asset_type(symbol: str, name: str = "") -> str:

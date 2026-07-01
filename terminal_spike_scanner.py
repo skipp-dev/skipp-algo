@@ -18,6 +18,7 @@ from __future__ import annotations
 
 import contextlib
 import logging
+import math
 import re
 import time
 from datetime import datetime
@@ -414,13 +415,22 @@ def asset_type_label(symbol: str, name: str = "") -> str:
 
 
 def _safe_float(val: Any, default: float = 0.0) -> float:
-    """Coerce a value to float safely."""
+    """Coerce a value to float safely.
+
+    Non-finite results (NaN, +inf, -inf) are rejected and replaced with
+    ``default``. Otherwise they slip past numeric guards like ``price <= 0``
+    (NaN comparisons are always False) and crash downstream ``int(...)``
+    conversions in ``build_spike_rows`` / ``merge_extended_hours_quotes``.
+    """
     if val is None:
         return default
     try:
-        return float(val)
+        result = float(val)
     except (ValueError, TypeError):
         return default
+    if not math.isfinite(result):
+        return default
+    return result
 
 
 def build_spike_rows(
