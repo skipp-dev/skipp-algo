@@ -105,6 +105,18 @@ def test_dispatch_alerts_skips_non_dict_candidates(monkeypatch, caplog) -> None:
     assert "Skipping invalid candidate at index 1" in caplog.text
 
 
+def test_dispatch_alerts_warns_on_unknown_min_confidence_tier(monkeypatch, caplog) -> None:
+    monkeypatch.setattr(alerts, "_send_webhook", lambda *_args, **_kwargs: {"status": 200})
+    config = _config()
+    config["min_confidence_tier"] = "STANDARD_"
+
+    with caplog.at_level("WARNING", logger="open_prep.alerts"):
+        results = alerts.dispatch_alerts(_ranked(), regime="RISK_ON", config=config)
+
+    assert results == [{"symbol": "AAA", "target": "slack", "status": 200}]
+    assert "Unknown min_confidence_tier='STANDARD_'; defaulting to HIGH_CONVICTION" in caplog.text
+
+
 def test_prune_stale_entries_clears_when_throttle_non_positive() -> None:
     with alerts._throttle_lock:
         alerts._last_sent.update({"A": 1.0, "B": 2.0})

@@ -616,3 +616,16 @@ def test_score_telemetry_respects_maxlen() -> None:
     # poll_count tracks total calls, but the deque is capped at maxlen=2.
     assert snap["poll_count"] == 5
     assert snap["score_diff"]["count"] <= 2
+
+
+def test_score_telemetry_snapshot_ignores_non_finite_values() -> None:
+    tel = ScoreTelemetry(maxlen=10)
+    tel.record(signals=[], score_diff=float("nan"), volume_ratio=float("inf"), change_pct=float("-inf"))
+
+    snap = tel.snapshot()
+
+    assert snap["score_diff"]["count"] == 0
+    assert snap["volume_ratio"]["count"] == 0
+    assert snap["change_pct"]["count"] == 0
+    # Must stay strictly JSON-compliant for telemetry handlers using allow_nan=False.
+    json.dumps(snap, allow_nan=False)

@@ -166,11 +166,11 @@ TIER_LABELS = {
 
 def _format_traderspost_payload(candidate: dict[str, Any]) -> dict[str, Any]:
     """Format a payload for TradersPost webhook."""
-    gap = (candidate.get("gap_pct", 0) or 0)
+    gap = _coerce_finite_float(candidate.get("gap_pct", 0), default=0.0)
     return {
         "ticker": candidate.get("symbol", ""),
-        "action": "buy" if gap > 0 else "sell",
-        "sentiment": "bullish" if gap > 0 else "bearish",
+        "action": "sell" if gap < 0 else "buy",
+        "sentiment": "bearish" if gap < 0 else "bullish",
         "price": candidate.get("price") or candidate.get("prev_close"),
     }
 
@@ -178,8 +178,8 @@ def _format_traderspost_payload(candidate: dict[str, Any]) -> dict[str, Any]:
 def _format_slack_payload(candidate: dict[str, Any], regime: str | None = None) -> dict[str, Any]:
     """Format a Slack-compatible payload."""
     sym = candidate.get("symbol", "?")
-    gap = candidate.get("gap_pct", 0) or 0
-    score = candidate.get("score", 0) or 0
+    gap = _coerce_finite_float(candidate.get("gap_pct", 0), default=0.0)
+    score = _coerce_finite_float(candidate.get("score", 0), default=0.0)
     tier = candidate.get("confidence_tier", "STANDARD")
     tier_label = TIER_LABELS.get(tier, tier)
 
@@ -202,8 +202,8 @@ def _format_slack_payload(candidate: dict[str, Any], regime: str | None = None) 
 def _format_discord_payload(candidate: dict[str, Any], regime: str | None = None) -> dict[str, Any]:
     """Format a Discord-compatible webhook payload."""
     sym = candidate.get("symbol", "?")
-    gap = candidate.get("gap_pct", 0) or 0
-    score = candidate.get("score", 0) or 0
+    gap = _coerce_finite_float(candidate.get("gap_pct", 0), default=0.0)
+    score = _coerce_finite_float(candidate.get("score", 0), default=0.0)
     tier = candidate.get("confidence_tier", "STANDARD")
     tier_label = TIER_LABELS.get(tier, tier)
 
@@ -321,7 +321,7 @@ def dispatch_alerts(
     try:
         min_idx = tier_priority.index(min_tier)
     except ValueError:
-        min_idx = 0
+        min_idx = _warn_unknown_min_tier(min_tier)
 
     results: list[dict[str, Any]] = []
 
@@ -508,6 +508,19 @@ def _send_webhook(
     # All retries exhausted (should only reach here after 429 retries)
     logger.warning("Webhook retries exhausted for %s", masked_url)
     return {"status": 429, "error": type(last_exc).__name__ if last_exc else "retries exhausted"}
+
+
+def _coerce_finite_float(value: Any, *, default: float = 0.0) -> float:
+    try:
+        parsed = float(value)
+    except (TypeError, ValueError):
+        return default
+    return parsed if math.isfinite(parsed) else default
+
+
+def _warn_unknown_min_tier(min_tier: Any) -> int:
+    logger.warning("Unknown min_confidence_tier=%r; defaulting to HIGH_CONVICTION", min_tier)
+    return 0
 
 
 # ---------------------------------------------------------------------------
