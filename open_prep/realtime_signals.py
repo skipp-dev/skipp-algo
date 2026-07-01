@@ -3181,7 +3181,8 @@ def _env_int(key: str, default: int) -> int:
     # PORT-style integers must be strict ASCII digits in the valid TCP range.
     # Reject sign-prefixed values and non-ASCII numerals so surprising inputs
     # fall back to default rather than being silently accepted.
-    if not value.isascii() or not value.isdigit() or parsed <= 0 or parsed > 65535:
+    has_leading_zero = len(value) > 1 and value.startswith("0")
+    if not value.isascii() or not value.isdigit() or has_leading_zero or parsed <= 0 or parsed > 65535:
         logger.warning(
             "Invalid %s=%r (must be ASCII digits in range 1..65535), using default %d",
             key, raw, default,

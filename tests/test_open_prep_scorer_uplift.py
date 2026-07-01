@@ -297,6 +297,27 @@ def test_rank_candidates_v2_with_vix_adds_adaptive_gates() -> None:
         assert "adaptive_gate_warning" in row
 
 
+def test_rank_candidates_v2_handles_non_finite_scores_deterministically(monkeypatch: pytest.MonkeyPatch) -> None:
+    quotes = [_make_passing_quote("AAPL"), _make_passing_quote("MSFT")]
+    original = sc.score_candidate
+
+    def _fake_score_candidate(fr, bias, weights):  # type: ignore[no-untyped-def]
+        row = original(fr, bias, weights)
+        if row["symbol"] == "AAPL":
+            row["score"] = float("nan")
+        return row
+
+    monkeypatch.setattr(sc, "score_candidate", _fake_score_candidate)
+
+    ranked, _ = sc.rank_candidates_v2(quotes, bias=0.5, top_n=10, vix_level=20.0)
+
+    # Non-finite score is sanitized to a deterministic low finite value.
+    aapl = next(r for r in ranked if r["symbol"] == "AAPL")
+    assert aapl["score"] == -1_000_000_000.0
+    assert "non_finite_score" in aapl.get("warn_flags", "")
+    assert [r["symbol"] for r in ranked][-1] == "AAPL"
+
+
 def test_rank_candidates_v2_filters_hard_block_to_filtered_out() -> None:
     bad = _make_passing_quote("BAD")
     bad["price"] = 1.0  # below MIN_PRICE_THRESHOLD → hard-block

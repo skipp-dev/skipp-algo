@@ -12,6 +12,7 @@ import json
 import logging
 import math
 import os
+import re
 import socket
 import ssl
 import tempfile
@@ -238,6 +239,31 @@ def _contains_control_or_whitespace(value: str) -> bool:
     return any((ch.isspace() or ord(ch) < 32 or ord(ch) == 127) for ch in value)
 
 
+def _contains_private_or_local_hint(value: str) -> bool:
+    """Detect private/local address hints in non-host URL components."""
+    if not value:
+        return False
+    for token in re.split(r"[^0-9A-Za-z:.\[\]-]+", value.lower()):
+        if not token:
+            continue
+        if token in {"localhost", "localhost.localdomain", "::1", "[::1]"}:
+            return True
+        if token.startswith("127.") or token.startswith("10.") or token.startswith("192.168."):
+            return True
+        if token.startswith("169.254.") or token.startswith("fe80:"):
+            return True
+        if token.startswith("172."):
+            parts = token.split(".")
+            if len(parts) >= 2:
+                try:
+                    second = int(parts[1])
+                except ValueError:
+                    second = -1
+                if 16 <= second <= 31:
+                    return True
+    return False
+
+
 def _sanitize_payload_for_json(value: Any) -> Any:
     if isinstance(value, float):
         return value if math.isfinite(value) else None
@@ -264,6 +290,16 @@ def _is_safe_webhook_url(url: str) -> tuple[bool, str]:
     host = parsed.hostname or ""
     if _contains_control_or_whitespace(raw_netloc) or _contains_control_or_whitespace(host):
         return False, "invalid_host_chars"
+    non_host_parts = [
+        parsed.path or "",
+        parsed.params or "",
+        parsed.query or "",
+        parsed.fragment or "",
+    ]
+    if any(_contains_control_or_whitespace(part) for part in non_host_parts):
+        return False, "invalid_url_chars"
+    if _contains_private_or_local_hint(" ".join(non_host_parts)):
+        return False, "suspicious_local_hint"
     host = host.strip().lower()
     if not host:
         return False, "missing_host"

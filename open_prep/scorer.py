@@ -945,6 +945,16 @@ def rank_candidates_v2(
             dirty_manager.update(fr.symbol, fp, row)
         else:
             row = score_candidate(fr, bias, weights)
+
+        score_value = _to_float(row.get("score"), default=float("nan"))
+        if not math.isfinite(score_value):
+            gate_tracker.reject(fr.symbol, "non_finite_score", {"score": row.get("score")})
+            warn_flags = str(row.get("warn_flags", "") or "").strip()
+            row["warn_flags"] = "|".join(part for part in [warn_flags, "non_finite_score"] if part)
+            row["score"] = -1_000_000_000.0
+        else:
+            row["score"] = score_value
+
         scored.append(row)
 
     # --- Adaptive gating (#4): soft annotation, fail-open ---
