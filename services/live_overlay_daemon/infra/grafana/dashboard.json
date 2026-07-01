@@ -84,7 +84,7 @@
       },
       "targets": [
         {
-          "expr": "live_overlay_health_status_code{job=~\"$job\"} or vector(0)",
+          "expr": "max(live_overlay_health_status_code{job=~\"$job\"}) or vector(0)",
           "legendFormat": "health_code",
           "datasource": {
             "type": "prometheus",
@@ -730,7 +730,7 @@
       },
       "targets": [
         {
-          "expr": "live_overlay_health_status_code{job=~\"$job\"} or vector(0)",
+          "expr": "max(live_overlay_health_status_code{job=~\"$job\"}) or vector(0)",
           "legendFormat": "Health state",
           "datasource": {
             "type": "prometheus",
