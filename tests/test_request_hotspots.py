@@ -43,3 +43,26 @@ def test_hot_symbol_survives_probe_flood() -> None:
     snap = hotspots.snapshot(top_n=1)
     assert snap["symbol_count"] <= hotspots._MAX_TRACKED_KEYS
     assert ("NVDA", 100) in snap["top_symbols"]
+
+
+def test_eviction_boundary_is_strictly_above_cap() -> None:
+    """Pin the eviction trigger to ``len(counter) > _MAX_TRACKED_KEYS``.
+
+    At exactly ``_MAX_TRACKED_KEYS`` distinct keys no eviction must occur, and
+    only the ``_MAX_TRACKED_KEYS + 1``-th distinct key drives the counter down
+    to ``_EVICT_TO``. This nails the strict ``>`` comparison: an off-by-one
+    mutation to ``>=`` would evict already at the cap (leaving ``_EVICT_TO``
+    keys) and fail the first assertion below.
+    """
+    cap = hotspots._MAX_TRACKED_KEYS
+    hotspots.reset()
+
+    # Fill to exactly the cap; a single timeframe keeps the tf counter at 1 so
+    # it never triggers its own eviction and confounds the symbol assertions.
+    for i in range(cap):
+        hotspots.record_request(f"K{i:05d}", "5m")
+    assert hotspots.snapshot()["symbol_count"] == cap
+
+    # One more distinct key crosses the cap and evicts down to the watermark.
+    hotspots.record_request(f"K{cap:05d}", "5m")
+    assert hotspots.snapshot()["symbol_count"] == hotspots._EVICT_TO
