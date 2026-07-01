@@ -328,6 +328,73 @@ def test_select_top_family_tie_break_is_order_independent() -> None:
     assert family_a == family_b
 
 
+# ── Input coercion (regression: None / non-numeric enrichment) ──
+
+def test_build_zone_priority_none_numeric_inputs_do_not_raise() -> None:
+    """Enrichment can hand ``None`` for the numeric inputs (e.g. a null
+    ``ensemble_score`` in the snapshot). These must degrade to the neutral
+    default instead of raising ``TypeError`` inside ``_clamp`` / comparisons.
+    """
+    baseline = build_zone_priority(regime="NEUTRAL")
+    none_out = build_zone_priority(
+        regime="NEUTRAL", ensemble_score=None, news_heat=None, zone_proj_score=None,
+    )
+    assert none_out["ZONE_PRIORITY_SCORE"] == baseline["ZONE_PRIORITY_SCORE"]
+    assert none_out["ZONE_PRIORITY_RANK"] == baseline["ZONE_PRIORITY_RANK"]
+
+
+def test_build_zone_priority_non_numeric_inputs_fall_back_to_default() -> None:
+    """A non-numeric string input must not crash: it coerces to the 0.0
+    default (no signal) rather than raising ``ValueError``.
+    """
+    baseline = build_zone_priority(regime="NEUTRAL")
+    garbage_out = build_zone_priority(
+        regime="NEUTRAL", ensemble_score="n/a", news_heat="",
+    )
+    assert garbage_out["ZONE_PRIORITY_SCORE"] == baseline["ZONE_PRIORITY_SCORE"]
+
+
+# ── Calibrated-weight sanitization (regression: #3080 NaN class) ──
+
+def test_select_top_family_nan_calibrated_weight_falls_back_to_base() -> None:
+    """A NaN weight must not win selection. ``max(scores, key=...)`` with a
+    NaN is order-dependent (NaN compares False to everything), so an
+    unsanitized NaN in ``OB`` could non-deterministically pick ``OB``. The
+    NaN must fall back to the ``OB`` base prior (0.82), letting a real
+    ``FVG`` weight of 0.9 win.  (ROTATION/UNKNOWN/no-htf/no-session → no bumps.)
+    """
+    weights = {"OB": float("nan"), "FVG": 0.9, "BOS": 0.1, "SWEEP": 0.1}
+    family = _select_top_family(
+        regime="ROTATION", vol_regime="UNKNOWN", htf_aligned=False,
+        session_context=None, calibrated_family_weights=weights,
+    )
+    assert family == "FVG"
+
+
+def test_select_top_family_inf_calibrated_weight_falls_back_to_base() -> None:
+    """An ``inf`` weight would deterministically but wrongly dominate the
+    ``max``; it must fall back to the family base prior like NaN does.
+    """
+    weights = {"OB": float("inf"), "FVG": 0.9, "BOS": 0.1, "SWEEP": 0.1}
+    family = _select_top_family(
+        regime="ROTATION", vol_regime="UNKNOWN", htf_aligned=False,
+        session_context=None, calibrated_family_weights=weights,
+    )
+    assert family == "FVG"
+
+
+def test_select_top_family_valid_calibrated_weight_still_wins() -> None:
+    """Guard against over-sanitizing: a finite, legitimately dominant weight
+    must still win exactly as before the sanitization change.
+    """
+    weights = {"OB": 0.95, "FVG": 0.5, "BOS": 0.5, "SWEEP": 0.5}
+    family = _select_top_family(
+        regime="ROTATION", vol_regime="UNKNOWN", htf_aligned=False,
+        session_context=None, calibrated_family_weights=weights,
+    )
+    assert family == "OB"
+
+
 # ── Catalyst identification ────────────────────────────────────
 
 def test_news_catalyst_when_heat_high() -> None:

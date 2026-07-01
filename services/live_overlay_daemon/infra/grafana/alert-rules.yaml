@@ -386,10 +386,10 @@ groups:
     - refId: A
       datasourceUid: grafanacloud-prom
       model:
-        expr: live_overlay_expected_market_traffic{job="live_overlay"} == 1
-          and on(job) live_overlay_market_us_open{job="live_overlay"} == 1
-          and on(job) live_overlay_uptime_seconds{job="live_overlay"} > bool 600
-          and on(job) rate(live_overlay_smc_live_requests_total{job="live_overlay"}[10m]) < bool 0.001
+        expr: live_overlay_expected_market_traffic{job="live_overlay"} *
+          live_overlay_market_us_open{job="live_overlay"} *
+          (live_overlay_uptime_seconds{job="live_overlay"} > bool 600) *
+          (rate(live_overlay_smc_live_requests_total{job="live_overlay"}[10m]) < bool 0.001)
         instant: true
     - refId: C
       datasourceUid: __expr__
