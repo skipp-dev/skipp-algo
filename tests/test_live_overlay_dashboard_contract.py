@@ -811,7 +811,7 @@ def test_compute_cycle_errors_panel_has_vector_zero_guard() -> None:
     panels = _dashboard_panels(dashboard)
     panel = next(p for p in panels if p.get("title") == "Compute Cycle Errors")
     for target in panel["targets"]:
-        assert "or vector(0)" in target.get("expr", "")
+        assert "or on() vector(0)" in target.get("expr", "")
 
 
 def test_burn_rate_red_threshold_matches_alert() -> None:
@@ -853,7 +853,6 @@ PROMOTED_SLO_TITLES = {
     "Bridge Metrics Present",
     "Latency vs. SLO (ms)",
     "Error Budget Burn Rate",
-    "Traffic Alert Armed",
 }
 
 
@@ -871,8 +870,6 @@ def test_dashboard_user_impact_block_is_promoted_to_top() -> None:
     assert by_title["Bridge Metrics Present"]["gridPos"]["y"] == 28
     assert by_title["Latency vs. SLO (ms)"]["gridPos"]["y"] == 33
     assert by_title["Error Budget Burn Rate"]["gridPos"]["y"] == 33
-    assert by_title["Traffic Alert Armed"]["gridPos"]["y"] == 41
-    assert by_title["Traffic Alert Armed"]["gridPos"]["y"] < by_title["Operational Drill-down"]["gridPos"]["y"]
 
 
 def test_dashboard_title_uses_api_not_daemon() -> None:
@@ -1034,7 +1031,7 @@ def test_dashboard_top_incident_path_is_above_drilldown() -> None:
         "Core Metrics Present",
         "Latency vs. SLO (ms)",
         "Error Budget Burn Rate",
-        "Traffic Alert Armed",
+        "Pine Polling Watchdog",
     ):
         assert y[title] < y["Operational Drill-down"], title
 
@@ -1357,10 +1354,11 @@ def test_dashboard_core_metrics_present_checks_critical_series() -> None:
 
 
 def test_dashboard_traffic_alert_armed_tile_uses_expected_market_traffic() -> None:
-    """Traffic Alert Armed must show the production arming flag directly."""
+    """Pine Polling Watchdog shows the arming flag directly, in the top incident row."""
     dashboard = json.loads(_DASHBOARD_JSON.read_text(encoding="utf-8"))
     panels = {p.get("title"): p for p in _dashboard_panels(dashboard)}
-    panel = panels["Traffic Alert Armed"]
+    panel = panels["Pine Polling Watchdog"]
+    assert panel["gridPos"]["y"] == 1 and panel["gridPos"]["x"] == 8
     expr = panel["targets"][0]["expr"]
     mappings = panel["fieldConfig"]["defaults"]["mappings"]
     labels = {v["text"]: v["color"] for m in mappings for v in (m.get("options") or {}).values()}

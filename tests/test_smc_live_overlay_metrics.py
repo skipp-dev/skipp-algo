@@ -1208,7 +1208,7 @@ def test_dashboard_service_status_panel_maps_starting_state() -> None:
     dashboard_path = repo_root / "services" / "live_overlay_daemon" / "infra" / "grafana" / "dashboard.json"
     dashboard = json.loads(dashboard_path.read_text(encoding="utf-8"))
     panel = next(p for p in dashboard["panels"] if p.get("title") == "Service Status")
-    assert panel["targets"][0]["expr"] == 'live_overlay_health_status_code{job=~"$job"} or vector(0)'
+    assert panel["targets"][0]["expr"] == 'live_overlay_health_status_code{job=~"$job"} or on() vector(0)'
     options = panel["fieldConfig"]["defaults"]["mappings"][0]["options"]
     assert options.get("1", {}).get("text") == "STARTING"
     assert options.get("2", {}).get("text") == "IDLE (MARKET CLOSED)"
@@ -1220,7 +1220,7 @@ def test_dashboard_overall_health_distinguishes_starting_from_idle() -> None:
     dashboard_path = repo_root / "services" / "live_overlay_daemon" / "infra" / "grafana" / "dashboard.json"
     dashboard = json.loads(dashboard_path.read_text(encoding="utf-8"))
     panel = next(p for p in dashboard["panels"] if p.get("title") == "Overall Health")
-    assert panel["targets"][0]["expr"] == 'live_overlay_health_status_code{job=~"$job"} or vector(0)'
+    assert panel["targets"][0]["expr"] == 'live_overlay_health_status_code{job=~"$job"} or on() vector(0)'
     options = panel["fieldConfig"]["defaults"]["mappings"][0]["options"]
     assert options.get("1", {}).get("text") == "STARTING"
     assert options.get("2", {}).get("text") == "IDLE (MARKET CLOSED)"
