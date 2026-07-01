@@ -1182,7 +1182,7 @@ def test_render_metrics_handles_trading_signals_snapshot_missing(
 
 
 def test_alert_rules_split_news_snapshot_unavailable_and_stale() -> None:
-    """Unavailable snapshot (loaded==0) and stale snapshot (age>3600) must be separate alerts."""
+    """Unavailable snapshot (loaded==0) and stale snapshot (age>10800) must be separate alerts."""
     import yaml
 
     repo_root = Path(__file__).resolve().parents[1]
@@ -1200,7 +1200,7 @@ def test_alert_rules_split_news_snapshot_unavailable_and_stale() -> None:
 
     stale = next(r for r in warning_group["rules"] if r.get("uid") == "lo-news-snapshot-stale")
     assert "snapshot_age_seconds" in stale["data"][0]["model"]["expr"]
-    assert "> bool 3600" in stale["data"][0]["model"]["expr"]
+    assert "> bool 10800" in stale["data"][0]["model"]["expr"]
 
 
 def test_dashboard_service_status_panel_maps_starting_state() -> None:

@@ -1194,6 +1194,7 @@ def test_alert_rules_snapshot_missing_uses_snapshot_loaded() -> None:
     rule = next(r for r in group["rules"] if r.get("uid") == "sp-snapshot-missing")
     expr = rule["data"][0]["model"]["expr"]
     assert "signals_producer_open_prep_snapshot_loaded" in expr
+    assert "or on() vector(1)" in expr, "label-safe fallback required for missing series"
     assert rule["labels"]["severity"] == "warning"
 
 
