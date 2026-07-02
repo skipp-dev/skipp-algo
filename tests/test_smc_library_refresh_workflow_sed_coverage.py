@@ -35,7 +35,6 @@ EXPECTED_CONSUMERS: set[str] = {
     "SMC_HTF_Confluence.pine",
     "SMC_Event_Overlay.pine",
     "SMC_Breakout_Overlay.pine",
-    "SMC_Hold_Manager.pine",
 }
 
 EXCLUDED_PARTS = {"tests", "generated", "node_modules", ".git", "pine"}
