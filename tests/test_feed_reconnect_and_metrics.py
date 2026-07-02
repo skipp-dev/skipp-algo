@@ -247,13 +247,17 @@ class TestFeedMissingApiKey:
 class TestFeedBackpressureDropCadence:
     """Drop warning cadence must be driven by drop count, not pushed-bar count."""
 
-    def test_queue_drop_counter_increments_and_warns_on_100th_drop(self) -> None:
+    def test_queue_drop_counter_increments_and_warns_on_first_and_100th_drop(self) -> None:
         feed = _reload_feed_module()
 
         with feed._backpressure_lock:
             feed._backpressure["ingest_queue_dropped_total"] = 0.0
 
-        for _ in range(99):
+        dropped_total = feed._record_queue_drop()
+        assert dropped_total == 1.0
+        assert feed._should_log_queue_drop_warning(dropped_total) is True
+
+        for _ in range(98):
             dropped_total = feed._record_queue_drop()
             assert feed._should_log_queue_drop_warning(dropped_total) is False
 

@@ -255,8 +255,14 @@ export function resolveTradingViewPageAuthState(evidence: TradingViewPageAuthEvi
   const hasAnonymousClass = /(?:^|\s)is-not-authenticated(?:\s|$)/.test(htmlClass);
   const hasAuthenticatedClass = /(?:^|\s)is-authenticated(?:\s|$)/.test(htmlClass);
   const hasSignInSignals = /sign in|log in|email|password|continue with google/i.test(bodyText);
+  // A positive live account probe (HTTP 2xx from /user/profile/me) is the
+  // strongest, most-current authentication evidence. The body-text sign-in
+  // heuristic is fuzzy — words like "email" appear throughout an authenticated
+  // UI (e.g. "Email notifications") — so it must NOT override a confirmed
+  // probe, or a logged-in session gets misclassified as anonymous and triggers
+  // spurious re-login/recovery. Mirrors the guard on the probe-anonymous term.
   const explicitlyAnonymous = hasAnonymousClass
-    || hasSignInSignals
+    || (hasSignInSignals && !evidence.accountProbeAuthenticated)
     || (evidence.accountProbeAnonymous && !evidence.accountProbeAuthenticated);
 
   if (explicitlyAnonymous) {
