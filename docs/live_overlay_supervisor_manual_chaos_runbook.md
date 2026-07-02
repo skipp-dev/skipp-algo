@@ -3,6 +3,41 @@
 Status: 2026-07-02
 Scope: Manual operator validation for WP1 self-heal supervisor behavior (feed worker death, stale feed, fatal config).
 
+## Quick start (5 minutes)
+
+Use this when you need a rapid confidence check before the full run.
+
+1. Confirm readiness is healthy.
+2. Capture baseline metrics (worker alive gauges + supervisor heal counter).
+3. Inject one short transient fault.
+4. Wait 60-90s (2 supervisor cycles) and confirm auto-recovery.
+5. Record evidence and stop.
+
+```bash
+# 1) Baseline readiness
+curl -sS -o /tmp/ready_before.json -w "HTTP %{http_code}\n" "https://<daemon-host>/ready"
+cat /tmp/ready_before.json
+
+# 2) Baseline worker/heal metrics
+curl -sS -u "metrics:${OVERLAY_SECRET_TOKEN}" "https://<daemon-host>/metrics" \
+  | grep -E "live_overlay_feed_supervisor_heals_total|live_overlay_worker_.*_alive|live_overlay_feed_healthy"
+
+# 3) Inject a short transient fault in staging (example: temporary Databento path interruption)
+#    Keep it brief, then restore connectivity.
+
+# 4) Verify recovery after 60-90s
+curl -sS -o /tmp/ready_after.json -w "HTTP %{http_code}\n" "https://<daemon-host>/ready"
+cat /tmp/ready_after.json
+curl -sS -u "metrics:${OVERLAY_SECRET_TOKEN}" "https://<daemon-host>/metrics" \
+  | grep -E "live_overlay_feed_supervisor_heals_total|live_overlay_worker_live_feed_alive"
+```
+
+Quick-start pass:
+
+- `/ready` is `HTTP 200` after recovery.
+- `workers_healthy=true` and feed worker alive gauge is back to `1`.
+- `live_overlay_feed_supervisor_heals_total` increased by at least `+1` after the induced fault.
+
 ## 1. Goal and pass criteria
 
 Goal: Prove that the daemon self-heals transient worker failures and escalates only after configured limits.
