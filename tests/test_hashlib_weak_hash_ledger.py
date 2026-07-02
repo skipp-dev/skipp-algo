@@ -67,13 +67,13 @@ _FROZEN_SITES: dict[str, dict[str, frozenset[int]]] = {
     # 2026-06-10 (#2670 W9): timestamp_substitutions disclosure shifted +5.
     "databento_volatility_screener.py": {"sha1": frozenset({400, 482, 698, 716})},
     "newsstack_fmp/normalize.py": {
-        "md5": frozenset({132, 255}),
-        "sha1": frozenset({336, 422, 460, 504}),
+        "md5": frozenset({144, 267}),
+        "sha1": frozenset({348, 434, 472, 516}),
     },
     "newsstack_fmp/scoring.py": {"sha1": frozenset({123})},
     "newsstack_fmp/shared_fetch.py": {
-        "md5": frozenset({77}),
-        "sha1": frozenset({186}),
+        "md5": frozenset({92}),
+        "sha1": frozenset({201}),
     },
     "open_prep/dirty_flag_manager.py": {"md5": frozenset({74})},
     # 2026-06-25: shifted 1250 -> 1331 by AsyncNewsstackPoller telemetry additions.

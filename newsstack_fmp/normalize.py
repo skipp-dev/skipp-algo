@@ -20,6 +20,7 @@ from __future__ import annotations
 
 import hashlib
 import logging
+import time
 from datetime import UTC
 from typing import Any
 from zoneinfo import ZoneInfo as _ZoneInfo
@@ -39,6 +40,10 @@ _ET = _ZoneInfo("America/New_York")
 # "5" or "12" are ambiguously parsed by dateutil (e.g. "5" → Feb 5)
 # and can silently drift cursors.
 _MIN_DATE_LEN = 8
+
+# Tolerated provider clock drift (WP-A): timestamps beyond now + this many
+# seconds are treated as 'no timestamp available' (epoch 0.0).
+_MAX_FUTURE_SKEW_SECS = 300.0
 
 
 def _to_epoch(s: str, *, naive_tz: Any = UTC) -> float:
@@ -61,10 +66,17 @@ def _to_epoch(s: str, *, naive_tz: Any = UTC) -> float:
         dt = dtparser.parse(s_stripped)
         if dt.tzinfo is None:
             dt = dt.replace(tzinfo=naive_tz)
-        return float(dt.timestamp())
+        parsed = float(dt.timestamp())
     except Exception:
         logger.warning("Unparseable date %r — returning epoch 0.", s_stripped[:80])
         return 0.0
+    # Defense-in-depth (WP-A): a future-dated timestamp (embargoed release,
+    # provider clock drift, mis-parsed year) is treated as 'no timestamp' so
+    # it neither advances cursors nor yields negative news_age_minutes.
+    if parsed > time.time() + _MAX_FUTURE_SKEW_SECS:
+        logger.warning("Future-dated timestamp %r (> now+skew) — returning epoch 0.", s_stripped[:80])
+        return 0.0
+    return parsed
 
 
 def _normalize_ticker_token(value: Any) -> str:
