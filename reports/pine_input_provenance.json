@@ -93,7 +93,7 @@
           "lineno": 47,
           "varname": "show_arrows",
           "kind": "bool",
-          "label": "Show ▲/▼ markers",
+          "label": "Show \u25b2/\u25bc markers",
           "group": "g_vis",
           "has_display_none": false,
           "visibility": null
@@ -138,7 +138,7 @@
           "lineno": 55,
           "varname": "atrMult",
           "kind": "float",
-          "label": "ATR × mult → SL",
+          "label": "ATR \u00d7 mult \u2192 SL",
           "group": "g_sim",
           "has_display_none": false,
           "visibility": null
@@ -3931,7 +3931,7 @@
           "visibility": null
         },
         {
-          "lineno": 118,
+          "lineno": 128,
           "varname": "show_performance",
           "kind": "bool",
           "label": "Show Performance Table",
