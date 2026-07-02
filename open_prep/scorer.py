@@ -343,6 +343,10 @@ def filter_candidate(
     if bias < -0.25 and bias > RISK_OFF_EXTREME_THRESHOLD:
         filter_reasons.append("macro_bias_short")
     if premarket_stale:
+        # Advisory only (WP-D6): premarket_stale flags a stale premarket quote so
+        # the row is scored with neutralized premarket fields — it is NOT a hard
+        # block. The fail-closed staleness gate lives upstream in
+        # run_open_prep._compute_gap_for_quote (missing_quote_timestamp).
         filter_reasons.append("premarket_stale")
     if premarket_spread_bps is not None and premarket_spread_bps > PREMARKET_SPREAD_MAX_BPS:
         filter_reasons.append("spread_too_wide")
