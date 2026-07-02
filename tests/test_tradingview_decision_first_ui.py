@@ -701,5 +701,5 @@ def test_universe_status_is_exact_and_user_visible_across_surfaces() -> None:
     assert 'dashboard_universe_tt = dashboard_universe_detail + "\\n\\n" + dashboard_universe_matrix' in dashboard
     assert 'dashboard_row_tt(smc_dashboard, 77, "Universe Status", dashboard_universe_badge' in dashboard
     assert 'strict_universe_entries = input.bool(false, "Strict Universe Mode"' in strategy
-    assert 'bool universe_gate_ok = not strict_universe_entries or backtest_mode or strategy_universe_status_code == 3 or strategy_universe_status_code == 2' in strategy
+    assert 'bool universe_gate_ok = not strict_universe_entries or not snapshot_gates_live or strategy_universe_status_code == 3 or strategy_universe_status_code == 2' in strategy
     assert 'bool can_stage_entry = selected_state and quality_ok and risk_levels_ok and regime_gate_ok and universe_gate_ok' in strategy
