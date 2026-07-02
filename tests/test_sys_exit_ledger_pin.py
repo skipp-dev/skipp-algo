@@ -40,16 +40,16 @@ _DIR_EXCLUDE = frozenset({
 
 # Frozen ledger of legitimate `sys.exit()` sites (CLI entry-points only).
 _SYS_EXIT_LEDGER: frozenset[tuple[str, int]] = frozenset({
-    ("open_prep/candidate_weights.py", 240),
+    ("open_prep/candidate_weights.py", 244),
     # 2026-06-13 (audit-e2/aw7-reader-observability, PR #2759): _load_previous_latest
     #   DEBUG log insertion shifted CLI exit from 358 → 359.
-    ("open_prep/feature_importance_report.py", 359),
+    ("open_prep/feature_importance_report.py", 360),
     # 2026-06-12 (backlog-resilience): main() exits non-zero when
     # store_daily_outcomes failed — the daily workflow's primary artifact
     # (outcomes_<date>.json) must not fail silently green.
     # 2026-06-12 (copilot-followup): rename + 3-line comment → 5931.
     # 2026-06-25: feature-flag helper addition shifted 6045 -> 6049.
-    ("open_prep/run_open_prep.py", 6049),
+    ("open_prep/run_open_prep.py", 6065),
     # 2026-06-02 (#2497): +68 lines after the `provenance` subcommand block
     # was inserted above the lint dispatch (was 400, 402).
     ("pine_input_surface.py", 468),
