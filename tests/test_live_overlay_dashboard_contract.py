@@ -352,6 +352,33 @@ def test_alert_rules_use_railway_memory_ratio_thresholds() -> None:
     assert critical["labels"]["severity"] == "critical"
 
 
+def _memory_threshold(rule: dict) -> float:
+    """Extract the static RSS byte-threshold (in MiB) from a threshold rule."""
+    for datum in rule["data"]:
+        model = datum["model"]
+        if model.get("type") == "threshold":
+            return float(model["conditions"][0]["evaluator"]["params"][0])
+    raise AssertionError(f"no threshold condition in rule {rule.get('uid')!r}")
+
+
+def test_signals_producer_memory_warning_aligns_with_railway_ratio_policy() -> None:
+    """The static Signals Producer RSS warning must sit at 75% of the ~1 GiB
+    Railway tier (768 MiB), matching the blessed usage-ratio policy
+    (lo-railway-memory-ratio-high at 0.75). The prior 512 MiB (~50%) value sat
+    below the process's legitimate steady-state footprint and fired
+    continuously without an OOM. The critical stays at 900 MiB (≈88%), aligned
+    with the dashboard red threshold and the 0.90 ratio-critical."""
+    warning = _alert_rule("sp-memory-high")
+    assert warning["labels"]["severity"] == "warning"
+    assert _memory_threshold(warning) == 768
+    assert "768" in warning["title"]
+
+    critical = _alert_rule("sp-memory-critical")
+    assert critical["labels"]["severity"] == "critical"
+    assert _memory_threshold(critical) == 900
+
+
+
 def test_alert_rules_include_alloy_remote_write_failure_guard() -> None:
     """Alloy must alert when remote-write starts dropping samples."""
     rule = _alert_rule("alloy-remote-write-failures")
