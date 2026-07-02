@@ -387,7 +387,7 @@ def test_non_finite_sibling_score_does_not_pollute_confidence_tiers(
 
     monkeypatch.setattr(sc, "score_candidate", _poison_one)
 
-    poisoned_quotes = list(healthy) + [_minimal("BAD", 5.0)]
+    poisoned_quotes = [*healthy, _minimal("BAD", 5.0)]
     poisoned_ranked, _ = sc.rank_candidates_v2(poisoned_quotes, bias=0.2, top_n=20)
     poisoned_tiers = {r["symbol"]: r["confidence_tier"] for r in poisoned_ranked}
 
