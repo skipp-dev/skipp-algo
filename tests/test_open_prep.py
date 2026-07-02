@@ -2840,6 +2840,8 @@ class TestPlaybook(unittest.TestCase):
             "gap_pct": 4.0,
             "gap_available": True,
             "ext_hours_score": 2.0,
+            "volume": 3_000_000.0,
+            "avg_volume": 1_000_000.0,  # rvol = 3.0 (assign_playbook uses volume/avg_volume)
             "volume_ratio": 3.0,
             "price": 180.0,
             "atr": 3.0,
@@ -2857,7 +2859,13 @@ class TestPlaybook(unittest.TestCase):
             news_metrics_entry={},
             now_utc=datetime.now(UTC),
         )
-        self.assertIn(result.playbook, ["GAP_AND_GO", "GAP_FADE", "POST_NEWS_DRIFT", "NO_TRADE"])
+        # Deterministic: strong gap + high RVOL + strong tape + RISK_ON +
+        # good liquidity ⇒ GAP_AND_GO at full size (not a vacuous set-membership
+        # check that can never fail).
+        self.assertEqual(result.playbook, "GAP_AND_GO")
+        self.assertEqual(result.execution_quality, "GOOD")
+        self.assertEqual(result.size_adjustment, 1.0)
+        self.assertEqual(result.max_loss_pct, 0.50)
 
     def test_classify_fda_event(self):
         from open_prep.playbook import EVENT_SCHEDULED, classify_news_event
