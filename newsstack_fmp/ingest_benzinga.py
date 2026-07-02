@@ -842,7 +842,14 @@ def _process_parsed_feed(
             if not parsed.get("entries"):
                 return items
         for entry in parsed.get("entries", []):
-            item = _entry_to_news_item(entry, source_url=feed_url)
+            try:
+                item = _entry_to_news_item(entry, source_url=feed_url)
+            except Exception:
+                # A single malformed entry must not drop entries k+1..N (WP-C1b).
+                with adapter._lock:
+                    adapter.fetch_errors += 1
+                logger.debug("BenzingaRSS: skipping malformed RSS entry", exc_info=True)
+                continue
             if item is None:
                 continue
             with adapter._lock:

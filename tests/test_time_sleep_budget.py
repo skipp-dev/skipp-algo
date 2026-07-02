@@ -147,7 +147,7 @@ _FROZEN_SITES: frozenset[tuple[str, int]] = frozenset(
         # parallel fetch worker (line 901 after thread-safety follow-up).
         ("newsstack_fmp/ingest_benzinga.py", 199),
         ("newsstack_fmp/ingest_benzinga.py", 210),
-        ("newsstack_fmp/ingest_benzinga.py", 901),
+        ("newsstack_fmp/ingest_benzinga.py", 908),
     }
 )
 
