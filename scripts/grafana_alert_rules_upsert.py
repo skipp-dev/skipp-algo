@@ -597,19 +597,30 @@ def main(argv: list[str] | None = None) -> int:
 
     try:
         key = _api_key()
+        total = len(groups)
+        applied = 0
         for group in groups:
             written = upsert_group(
                 group, key, create_folder=not args.no_create_folder
             )
+            applied += 1
             print(
                 f"Upserted group '{group['name']}' "
                 f"({written} rule(s)) in folder '{group['folder']}'."
             )
         reconcile_orphan_groups(groups, key, prune=args.prune)
     except urllib.error.HTTPError as exc:
+        print(
+            f"PARTIAL APPLY: {applied}/{total} groups updated — alerting is in a "
+            f"mixed state; re-run to converge.", file=sys.stderr,
+        )
         print(f"HTTP {exc.code}: {exc.read().decode('utf-8')}", file=sys.stderr)
         return 1
     except (urllib.error.URLError, RuntimeError, subprocess.CalledProcessError) as exc:
+        print(
+            f"PARTIAL APPLY: {applied}/{total} groups updated — alerting is in a "
+            f"mixed state; re-run to converge.", file=sys.stderr,
+        )
         print(f"Alert rules upsert failed: {exc}", file=sys.stderr)
         return 1
 

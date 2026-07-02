@@ -32,6 +32,7 @@ import queue
 import re
 import threading
 import time
+from html import unescape as _html_unescape
 from typing import Any
 
 import httpx
@@ -768,7 +769,7 @@ def _entry_to_news_item(entry: Any, *, source_url: str) -> NewsItem | None:
         or getattr(entry, "link", None)
         or ""
     ).strip()
-    title: str = (getattr(entry, "title", None) or "").strip()
+    title: str = _html_unescape((getattr(entry, "title", None) or "").strip())[:300]
     if not guid or not title:
         return None
 
@@ -793,7 +794,7 @@ def _entry_to_news_item(entry: Any, *, source_url: str) -> NewsItem | None:
     snippet: str = ""
     summary = getattr(entry, "summary", None) or ""
     if summary:
-        snippet = re.sub(r"<[^>]+>", "", summary).strip()[:500]
+        snippet = _html_unescape(re.sub(r"<[^>]+>", "", summary)).strip()[:500]
 
     author: str = (
         getattr(entry, "author", None)

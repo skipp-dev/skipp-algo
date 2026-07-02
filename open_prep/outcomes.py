@@ -407,7 +407,9 @@ def prepare_outcome_snapshot(
     for row in ranked:
         gap_pct = _safe_float(row.get("gap_pct"))
         rvol = _safe_float(row.get("volume"))
-        avg_vol = _safe_float(row.get("avg_volume"), default=1.0)
+        # Missing avg_volume must not masquerade as rvol=raw_volume: default 0.0
+        # so the guard below yields an honest 0.0 instead of a huge ratio (WP-D7).
+        avg_vol = _safe_float(row.get("avg_volume"), default=0.0)
         rvol_ratio = (rvol / avg_vol) if avg_vol > 0 else 0.0
 
         records.append({

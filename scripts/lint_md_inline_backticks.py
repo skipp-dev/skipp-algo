@@ -167,13 +167,15 @@ def lint_file(path: Path) -> list[Finding]:
                 fence_token = tok
                 fence_len = run_len
                 continue
-            # CommonMark §4.5: a closing code-fence must use the same token
-            # AND be at least as long as the opener. A shorter run inside the
-            # fence is content (e.g. ``` inside a ```` block).
+            # CommonMark §4.5: a closing code-fence must use the same token,
+            # be at least as long as the opener, AND carry no info string.
+            # A shorter run, a different token, or a trailing info string is
+            # content / a new opener, not a close (WP-D9).
             if (
                 fence_token is not None
                 and tok == fence_token
                 and run_len >= fence_len
+                and line[m.end():].strip() == ""
             ):
                 in_fence = False
                 fence_token = None
@@ -183,7 +185,10 @@ def lint_file(path: Path) -> list[Finding]:
         if in_fence:
             continue
 
-        stripped = _strip_balanced_inline_runs(line)
+        # Neutralize escaped backticks (``\``) before run-pairing so an escaped
+        # literal never counts as an opening/closing inline delimiter (WP-D11).
+        scan_line = line.replace("\\`", "\x00")
+        stripped = _strip_balanced_inline_runs(scan_line)
         leftover = _RUN_RE.search(stripped)
         if leftover is None:
             continue
@@ -202,13 +207,16 @@ def lint_file(path: Path) -> list[Finding]:
 
 
 def iter_markdown_files(targets: Iterable[Path]) -> Iterable[Path]:
+    _MD_SUFFIXES = {".md", ".markdown", ".mdx"}
     for t in targets:
         if t.is_file():
-            if t.suffix.lower() == ".md":
+            if t.suffix.lower() in _MD_SUFFIXES:
                 yield t
             continue
         if t.is_dir():
-            yield from sorted(t.rglob("*.md"))
+            yield from sorted(
+                p for p in t.rglob("*") if p.suffix.lower() in _MD_SUFFIXES
+            )
 
 
 def main(argv: list[str] | None = None) -> int:
