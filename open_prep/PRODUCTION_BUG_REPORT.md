@@ -42,12 +42,16 @@
 
 ## 2. scorer.py
 
-### HIGH — Score component 40 % cap uses pre-cap total as denominator
+### RESOLVED (2026-07-02, PR #3114) — Score component 40 % cap uses pre-cap total as denominator
 
-- **Location:** `score_candidate()`, lines ~465-490
-- **Bug:** `_total_positive` is computed as the sum of *all* uncapped positive components, then `_cap = 0.40 * _total_positive`. Each component is subsequently capped to `_cap`. But after capping one dominant component, the remaining components are still capped against the **original uncapped total**, not the new effective total. This means one component can be capped to 40 %, but the cap value is inflated by the very component that was capped.
-- **Impact:** Scenario: gap_component = 8.0, all others = 0.5 each (sum of 13 others = 6.5). `_total_positive = 14.5`, `_cap = 5.8`. Gap is capped from 8.0 → 5.8 (= 40 % of 14.5). But 5.8 / (5.8+6.5) = 47.1 % of post-cap total, violating the intended 40 % invariant. The score is slightly more concentrated in the dominant component than the 40 % cap promises.
-- **Fix:** Apply iterative re-capping: after capping, recompute `_total_positive` from capped values and repeat until stable, or accept 40 % of *post-cap* total as the threshold.
+- **Resolution:** Der Pre-Cap-Denominator ist jetzt das *dokumentierte, beabsichtigte*
+  Design. Der hier ursprünglich vorgeschlagene Fix („iterative re-capping … repeat
+  until stable") wurde implementiert und **zurückgebaut**: Er ist mathematisch
+  nicht-konvergent, sobald weniger als drei vergleichbare positive Komponenten
+  existieren, und crushte dominante Komponenten geometrisch auf `raw * 0.40**5`
+  (~1 % des Werts). Den Loop **nicht** wieder einführen.
+- **Analyse & Regression-Guard:** `tests/test_scorer_component_cap_convergence.py`,
+  Kommentar `#8 Score Component Cap` in `open_prep/scorer.py`.
 
 ### MEDIUM — `macro_component` only rewards positive bias
 
