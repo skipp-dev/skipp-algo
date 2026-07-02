@@ -557,10 +557,16 @@ def stop() -> None:
             "overlay_refresh": _refresh_thread is not None and _refresh_thread.is_alive(),
             "flow_refresh": _flow_refresh_thread is not None and _flow_refresh_thread.is_alive(),
         }
-        if any(still_alive.values()):
-            logger.warning("Stop requested; bounded joins ended with workers still alive: %s", still_alive)
-        else:
-            logger.info("All feed threads stopped.")
+        # Late teardown: logging handlers may already have closed streams
+        # (e.g. pytest capture or atexit ordering).  Guard against ValueError
+        # so stop() never raises during interpreter shutdown.
+        try:
+            if any(still_alive.values()):
+                logger.warning("Stop requested; bounded joins ended with workers still alive: %s", still_alive)
+            else:
+                logger.info("All feed threads stopped.")
+        except (ValueError, OSError):
+            pass
 
 
 def is_ready() -> bool:
