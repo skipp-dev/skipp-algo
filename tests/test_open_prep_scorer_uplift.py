@@ -76,6 +76,20 @@ def test_load_weight_set_non_dict_payload_falls_back(
     assert out == sc.DEFAULT_WEIGHTS
 
 
+def test_load_weight_set_ignores_non_finite_weights(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    # json.load accepts Infinity/NaN by default; an inf weight would produce a
+    # non-finite score and silently down-rank the symbol. Fall back to default.
+    monkeypatch.setattr(sc, "OUTCOMES_DIR", tmp_path)
+    (tmp_path / "weights_poison.json").write_text('{"gap": Infinity, "rvol": NaN, "macro": 2.5}')
+    out = sc.load_weight_set("poison")
+    assert out["gap"] == sc.DEFAULT_WEIGHTS["gap"]
+    assert out["rvol"] == sc.DEFAULT_WEIGHTS["rvol"]
+    # finite overrides still apply
+    assert out["macro"] == 2.5
+
+
 def test_save_weight_set_roundtrips_via_load(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
@@ -332,6 +346,59 @@ def test_rank_candidates_v2_sanitizes_non_finite_cached_scores() -> None:
     ranked_2, _ = sc.rank_candidates_v2(quotes, bias=0.5, top_n=10, dirty_manager=dirty)
     assert ranked_2[0]["score"] == -1_000_000_000.0
     assert "non_finite_score" in ranked_2[0].get("warn_flags", "")
+
+
+def test_non_finite_sibling_score_does_not_pollute_confidence_tiers(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Metamorphic/regression: a single symbol whose score is non-finite
+    (sanitized to the -1e9 sentinel) must NOT change the confidence tiers
+    assigned to the healthy sibling symbols.
+
+    Previously the -1e9 down-rank sentinel was included in ``all_scores``,
+    which is the distribution used for the mean±σ tiering.  One poisoned
+    row dragged the mean to ~-1e8 and inflated σ, silently collapsing every
+    genuine STANDARD / HIGH_CONVICTION candidate to WATCHLIST.
+    """
+    def _minimal(symbol: str, gap: float) -> dict[str, Any]:
+        return {
+            "symbol": symbol, "price": 50.0, "gap_pct": gap, "gap_available": True,
+            "volume": 1_000_000, "avgVolume": 500_000, "atr": 1.5,
+            "momentum_z_score": 1.0, "volume_ratio": 3.0,
+        }
+
+    # Spread of gaps so at least one healthy symbol earns a non-WATCHLIST tier.
+    gaps = [2.0, 3.0, 4.0, 8.0, 15.0, 30.0]
+    healthy = [_minimal(f"S{i}", g) for i, g in enumerate(gaps)]
+
+    clean_ranked, _ = sc.rank_candidates_v2(list(healthy), bias=0.2, top_n=20)
+    clean_tiers = {r["symbol"]: r["confidence_tier"] for r in clean_ranked}
+    # Guard: the fixture must actually produce a non-WATCHLIST tier, else the
+    # test would pass vacuously.
+    assert any(t != "WATCHLIST" for t in clean_tiers.values()), clean_tiers
+
+    original = sc.score_candidate
+
+    def _poison_one(fr, bias, weights):  # type: ignore[no-untyped-def]
+        row = original(fr, bias, weights)
+        if row["symbol"] == "BAD":
+            row["score"] = float("inf")
+        return row
+
+    monkeypatch.setattr(sc, "score_candidate", _poison_one)
+
+    poisoned_quotes = list(healthy) + [_minimal("BAD", 5.0)]
+    poisoned_ranked, _ = sc.rank_candidates_v2(poisoned_quotes, bias=0.2, top_n=20)
+    poisoned_tiers = {r["symbol"]: r["confidence_tier"] for r in poisoned_ranked}
+
+    # The poisoned row is sanitized + down-ranked as before.
+    assert poisoned_tiers["BAD"] == "WATCHLIST"
+    # The healthy symbols keep their original tiers — no silent demotion.
+    for sym, tier in clean_tiers.items():
+        assert poisoned_tiers[sym] == tier, (
+            f"{sym} tier changed from {tier} to {poisoned_tiers[sym]} "
+            "due to a poisoned sibling score"
+        )
 
 
 def test_rank_candidates_v2_filters_hard_block_to_filtered_out() -> None:

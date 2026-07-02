@@ -122,7 +122,14 @@ def load_weight_set(label: str = "default") -> dict[str, float]:
                 data = json.load(fh)
             if isinstance(data, dict):
                 merged = dict(DEFAULT_WEIGHTS)
-                merged.update({k: float(v) for k, v in data.items() if isinstance(v, (int, float))})
+                # Ignore non-finite weights (NaN/Inf) — json.load accepts them by
+                # default, but an inf/NaN weight would produce a non-finite score
+                # and get the symbol silently down-ranked. Keep the default instead.
+                merged.update({
+                    k: float(v)
+                    for k, v in data.items()
+                    if isinstance(v, (int, float)) and math.isfinite(float(v))
+                })
                 return merged
         except Exception:
             logger.warning("Failed to load weight set '%s', using default.", label, exc_info=True)
@@ -935,12 +942,17 @@ def rank_candidates_v2(
 
     # --- Stage 2: Score (with dirty-flag skip) ---
     scored: list[dict[str, Any]] = []
+    # Rows whose score was non-finite and down-ranked to the sentinel. These
+    # must be excluded from the tiering distribution (below) so a single
+    # poisoned score cannot pollute the mean±σ used to tier healthy siblings.
+    sanitized_row_ids: set[int] = set()
     for fr in passed:
         if dirty_manager is not None:
             fp = dirty_manager.fingerprint(fr.symbol, fr.features)
             if dirty_manager.is_clean(fr.symbol, fp):
                 row = dirty_manager.get_cached(fr.symbol)
-                _sanitize_non_finite_score(row, symbol=fr.symbol, gate_tracker=gate_tracker, source="cache")
+                if _sanitize_non_finite_score(row, symbol=fr.symbol, gate_tracker=gate_tracker, source="cache"):
+                    sanitized_row_ids.add(id(row))
                 scored.append(row)
                 continue
             row = score_candidate(fr, bias, weights)
@@ -948,7 +960,8 @@ def rank_candidates_v2(
         else:
             row = score_candidate(fr, bias, weights)
 
-        _sanitize_non_finite_score(row, symbol=fr.symbol, gate_tracker=gate_tracker, source="scored")
+        if _sanitize_non_finite_score(row, symbol=fr.symbol, gate_tracker=gate_tracker, source="scored"):
+            sanitized_row_ids.add(id(row))
 
         scored.append(row)
 
@@ -977,11 +990,17 @@ def rank_candidates_v2(
     scored.sort(key=lambda r: (-r["score"], r["symbol"]))
 
     # --- Tiered confidence ---
-    all_scores = [r["score"] for r in scored]
+    # Exclude non-finite/down-ranked rows: their -1e9 sentinel would otherwise
+    # skew the mean±σ distribution and silently collapse every healthy
+    # candidate to WATCHLIST.  Sentinel rows are tiered as WATCHLIST directly.
+    all_scores = [r["score"] for r in scored if id(r) not in sanitized_row_ids]
     for row in scored:
-        row["confidence_tier"] = classify_confidence_tier(
-            row["score"], all_scores, row.get("warn_flags", ""),
-        )
+        if id(row) in sanitized_row_ids:
+            row["confidence_tier"] = "WATCHLIST"
+        else:
+            row["confidence_tier"] = classify_confidence_tier(
+                row["score"], all_scores, row.get("warn_flags", ""),
+            )
 
     ranked = scored[:top_n]
 
@@ -1026,13 +1045,18 @@ def _sanitize_non_finite_score(
     symbol: str,
     gate_tracker: GateTracker,
     source: str,
-) -> None:
-    """Normalize row['score'] to a finite value; mark and down-rank invalid ones."""
+) -> bool:
+    """Normalize row['score'] to a finite value; mark and down-rank invalid ones.
+
+    Returns ``True`` when the score was non-finite and had to be down-ranked to
+    the sentinel, so callers can exclude the row from distribution statistics.
+    """
     score_value = _to_float(row.get("score"), default=float("nan"))
     if not math.isfinite(score_value):
         gate_tracker.reject(symbol, "non_finite_score", {"score": row.get("score"), "source": source})
         warn_flags = str(row.get("warn_flags", "") or "").strip()
         row["warn_flags"] = "|".join(part for part in [warn_flags, "non_finite_score"] if part)
         row["score"] = -1_000_000_000.0
-    else:
-        row["score"] = score_value
+        return True
+    row["score"] = score_value
+    return False
