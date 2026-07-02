@@ -155,7 +155,7 @@ OS_DELETE_LEDGER: set[tuple[str, int, str]] = {
     # 2026-06-12 (copilot-followup): rename + 3-line comment → 5802.
     # 2026-06-25: feature-flag helper additions shifted 5916 -> 5920.
     ("open_prep/run_open_prep.py", 5920, "unlink"),
-    ("open_prep/scorer.py", 149, "unlink"),
+    ("open_prep/scorer.py", 156, "unlink"),
     ("open_prep/watchlist.py", 74, "unlink"),
     ("smc_core/benchmark.py", 39, "unlink"),
     ("smc_core/ensemble_quality.py", 58, "unlink"),
