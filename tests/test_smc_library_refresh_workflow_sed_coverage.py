@@ -23,6 +23,7 @@ EXPECTED_CONSUMERS: set[str] = {
     "SMC_Dashboard.pine",
     "SMC_Mobile_Dashboard.pine",
     "SMC_Long_Strategy.pine",
+    "SMC_Hold_Manager.pine",
     "SkippALGO_Confluence.pine",
     "SMC_Structure_Context.pine",
     "SMC_Session_Context.pine",
