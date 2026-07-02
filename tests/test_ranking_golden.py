@@ -254,6 +254,22 @@ def test_known_archetype_filter_decisions() -> None:
     )
 
 
+def test_rumor_never_outranks_confirmed_catalyst() -> None:
+    """CHANGELOG §B: unverified social chatter must not out-rank confirmed
+    catalysts. Executable form of the invariant — ``REGEN_RANKING_GOLDEN``
+    rewrites the fixture, but this assertion re-derives the relationship
+    from the live pipeline and cannot be absorbed by a regen.
+    """
+    actual = _run_pipeline()
+    by_symbol = {row["symbol"]: row for row in actual["ranked"]}
+    assert "NVDA" in by_symbol, "NVDA (confirmed-earnings archetype) missing"
+    assert "PUMP" in by_symbol, "PUMP (TIER_3 rumor archetype) missing"
+    assert by_symbol["NVDA"]["score"] > by_symbol["PUMP"]["score"], (
+        "TIER_3 rumor archetype (PUMP) out-ranks the tier-1 "
+        "confirmed-earnings archetype (NVDA)"
+    )
+
+
 def test_counter_trend_and_rumor_penalties_stack() -> None:
     """CTRD archetype triggers BOTH multiplicative final-score penalties.
 
