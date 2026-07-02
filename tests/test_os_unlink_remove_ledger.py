@@ -94,11 +94,11 @@ OS_DELETE_LEDGER: set[tuple[str, int, str]] = {
     # cleanup unlink site shifted 79 -> 80.
     # 2026-07-02: SSRF path/query hardening shifted unlink 80 -> 81.
     ("open_prep/alerts.py", 81, "unlink"),
-    ("open_prep/candidate_weights.py", 154, "unlink"),
+    ("open_prep/candidate_weights.py", 158, "unlink"),
     ("open_prep/diff.py", 68, "unlink"),
     # 2026-06-13 (audit-e2/aw7-reader-observability, PR #2759): _load_previous_latest
     #   DEBUG log insertion shifted unlink from 257 → 258.
-    ("open_prep/feature_importance_report.py", 258, "unlink"),
+    ("open_prep/feature_importance_report.py", 259, "unlink"),
     # 2026-06-11 (backfill defer-unpublished): 97→116, 539→589.
     # 2026-06-11 (eval-findings B1/B2): direction+triple-barrier code in
     # compute_pnl_from_bars + backfill loop shifted 589→668.
@@ -123,7 +123,7 @@ OS_DELETE_LEDGER: set[tuple[str, int, str]] = {
     # 2026-06-12 (backlog-resilience): non-list warning in
     # _load_outcomes_range +6 → 587.
     # 2026-07-02 (WP6 formula-era gate): cutoff constant block +8 → 595.
-    ("open_prep/outcomes.py", 610, "unlink"),
+    ("open_prep/outcomes.py", 612, "unlink"),
     ("open_prep/realtime_signals.py", 125, "remove"),
     # 2026-06-25: AsyncNewsstackPoller telemetry additions shifted
     # 2783 -> 2862 and 2828 -> 2907.
@@ -145,17 +145,17 @@ OS_DELETE_LEDGER: set[tuple[str, int, str]] = {
     # 2026-06-25: feature-flag helper additions shifted
     # 3131 -> 3135 and 3483 -> 3487.
     ("open_prep/run_open_prep.py", 3135, "unlink"),
-    ("open_prep/run_open_prep.py", 3487, "unlink"),
+    ("open_prep/run_open_prep.py", 3503, "unlink"),
     # 2026-06-11 (Copilot sweep #2688): VIX9D fail-closed guard +5;
     # 2026-06-12 (merge #2713 into #2696): net +1 → 5512/5790.
     # 2026-06-25: feature-flag helper additions shifted 5621 -> 5625.
-    ("open_prep/run_open_prep.py", 5625, "unlink"),
+    ("open_prep/run_open_prep.py", 5641, "unlink"),
     # 2026-06-11 (trend-state features): 5731→5742, enrichment-loop
     # stamping + lookback comment added above; eval-findings 5742→5765.
     # 2026-06-12 (backlog-resilience): fail-loud outcome storage +9 → 5799.
     # 2026-06-12 (copilot-followup): rename + 3-line comment → 5802.
     # 2026-06-25: feature-flag helper additions shifted 5916 -> 5920.
-    ("open_prep/run_open_prep.py", 5920, "unlink"),
+    ("open_prep/run_open_prep.py", 5936, "unlink"),
     ("open_prep/scorer.py", 156, "unlink"),
     ("open_prep/watchlist.py", 74, "unlink"),
     ("smc_core/benchmark.py", 39, "unlink"),
