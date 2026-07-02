@@ -46,6 +46,7 @@ logging.getLogger("databento.live.client").setLevel(logging.WARNING)
 logger = logging.getLogger(__name__)
 
 _startup_ts: float = 0.0
+_startup_epoch: float = 0.0
 
 _VALID_TFS: frozenset[str] = frozenset(compute.supported_timeframes())
 
@@ -69,7 +70,7 @@ def _json_safe(value: Any) -> Any:
 
 @asynccontextmanager
 async def _lifespan(app: FastAPI):
-    global _startup_ts
+    global _startup_ts, _startup_epoch
     logger.info("Starting SMC Live Overlay Daemon …")
     observability.metric_counter("live_overlay.daemon.start_attempt")
     observability.metric_counter("live_overlay.daemon.restarts_total")
@@ -84,6 +85,7 @@ async def _lifespan(app: FastAPI):
 
         feed.start()
         _startup_ts = time.monotonic()
+        _startup_epoch = time.time()
         logger.info(
             "Daemon started — refresh=%ds flow=%ds rolling=%d bars",
             config.refresh_secs(),
@@ -186,6 +188,11 @@ def ready() -> JSONResponse:
         workers_healthy=workers_healthy,
         overlay_fresh=overlay_fresh,
     )
+    # WP1c: a dead worker thread is a genuine zombie that a restart fixes, so
+    # surface it as HTTP 503 for the platform healthcheck. Idle states
+    # (market closed / overlay warming up) keep every worker thread alive, so
+    # they stay 200 and never trigger an overnight restart loop.
+    http_status = 200 if workers_healthy else 503
     return JSONResponse(
         {
             "status": status,
@@ -206,7 +213,8 @@ def ready() -> JSONResponse:
                 else round(overlay_age, 1)
             ),
             "ts": datetime.datetime.now(datetime.UTC).isoformat(),
-        }
+        },
+        status_code=http_status,
     )
 
 
@@ -226,7 +234,7 @@ def prometheus_metrics_legacy(token: str = Path(...)) -> PlainTextResponse:
     if not _ct_eq(token, expected):
         raise HTTPException(status_code=404)
 
-    body = metrics.render_metrics(_startup_ts)
+    body = metrics.render_metrics(_startup_ts, _startup_epoch)
     return PlainTextResponse(body, media_type="text/plain; version=0.0.4; charset=utf-8")
 
 
@@ -270,7 +278,7 @@ def prometheus_metrics(request: Request) -> PlainTextResponse:
     if password is None or not _ct_eq(password, expected):
         raise HTTPException(status_code=401, headers={"WWW-Authenticate": "Basic"})
 
-    body = metrics.render_metrics(_startup_ts)
+    body = metrics.render_metrics(_startup_ts, _startup_epoch)
     return PlainTextResponse(body, media_type="text/plain; version=0.0.4; charset=utf-8")
 
 

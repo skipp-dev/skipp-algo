@@ -22,6 +22,7 @@ from __future__ import annotations
 import asyncio
 import atexit
 import logging
+import os
 import queue
 import threading
 import time
@@ -29,7 +30,7 @@ from typing import Any
 
 import databento as db
 
-from . import cache, compute, config
+from . import cache, compute, config, market_hours
 from .observability import metric_counter
 
 logger = logging.getLogger(__name__)
@@ -52,6 +53,11 @@ _runtime: dict[str, Any] = {
     "ingest_thread": None,
     "ingest_queue": None,
     "ingest_queue_max": 0,
+    # Supervisor self-heal (WP1): the active db.Live() client (so the
+    # supervisor can break a blocked iterator) and the supervisor thread
+    # handle. Kept in _runtime to avoid a new module-level `global` statement.
+    "supervisor_thread": None,
+    "active_client": None,
 }
 _metrics_lock = threading.Lock()
 _metrics: dict[str, int] = {
@@ -60,6 +66,7 @@ _metrics: dict[str, int] = {
     "unexpected_errors": 0,
     "circuit_breakers": 0,
     "partial_restarts": 0,
+    "supervisor_heals": 0,
 }
 _backpressure_lock = threading.Lock()
 _backpressure: dict[str, float] = {
@@ -71,6 +78,18 @@ _backpressure: dict[str, float] = {
 
 # Guard all lifecycle mutations (start/stop/worker reads) against races.
 _lifecycle_lock = threading.Lock()
+
+# ── Supervisor self-heal (WP1) ──────────────────────────────────────────────
+# Guards _runtime["active_client"] so the supervisor can break a blocked
+# ``for record in client:`` iterator during a silent stall.
+_active_client_lock = threading.Lock()
+# Set on a non-retryable configuration error so the supervisor escalates to a
+# process restart (operator attention) instead of futile self-heal attempts.
+_fatal_config_error = threading.Event()
+
+_SUPERVISOR_INTERVAL_SECS = 30.0
+_STALL_MAX_BAR_AGE_SECS = 180.0   # 3 min without a bar during RTH = stall
+_SELF_HEAL_MAX_ATTEMPTS = 3
 
 
 # ---------------------------------------------------------------------------
@@ -206,10 +225,13 @@ def _run_feed_loop(stop: threading.Event) -> None:
                     # DATABENTO_API_KEY) — retrying only creates log noise
                     # and delays operator feedback.
                     _feed_ready.clear()
+                    _fatal_config_error.set()
                     logger.critical("Non-retryable feed configuration error: %s", exc)
                     break
 
                 client = db.Live(key=key)
+                with _active_client_lock:
+                    _runtime["active_client"] = client
                 client.subscribe(
                     dataset="EQUS.MINI",
                     schema="ohlcv-1m",
@@ -306,6 +328,8 @@ def _run_feed_loop(stop: threading.Event) -> None:
                 _feed_ready.clear()
                 logger.warning("db.Live() unexpected error: %s", exc, exc_info=True)
             finally:
+                with _active_client_lock:
+                    _runtime["active_client"] = None
                 if client is not None:
                     try:
                         client.stop()
@@ -421,6 +445,99 @@ def _run_flow_refresh_loop(stop: threading.Event) -> None:
     logger.info("Flow refresh thread stopped.")
 
 
+# ---------------------------------------------------------------------------
+# Supervisor — self-heal dead/stalled workers (WP1)
+# ---------------------------------------------------------------------------
+
+def _escalate_to_platform_restart(code: int = 1) -> None:
+    """Terminate the process so the platform restart policy (Railway
+    ``ON_FAILURE``) takes over.
+
+    Isolated behind a module-level function so tests can monkeypatch it: a
+    ``SystemExit`` raised in a non-main thread does NOT stop the process, so
+    ``os._exit`` is the only reliable escalation from the supervisor thread.
+    """
+    os._exit(code)
+
+
+def _supervisor_break_stalled_client() -> None:
+    """Break a blocked ``for record in client:`` loop so the feed thread runs
+    into its reconnect path. Safe no-op when no client is currently active."""
+    with _active_client_lock:
+        client = _runtime.get("active_client")
+    if client is None:
+        return
+    try:
+        client.stop()
+    except Exception:
+        logger.debug("supervisor client.stop() failed", exc_info=True)
+
+
+def _run_supervisor_loop(stop: threading.Event) -> None:
+    """Self-heal dead/stalled feed workers; escalate to a process restart so
+    the platform ``ON_FAILURE`` policy takes over when healing keeps failing.
+
+    Detection every ``_SUPERVISOR_INTERVAL_SECS``:
+      * dead worker threads via ``worker_liveness()``;
+      * silent feed stalls (no bar for > ``_STALL_MAX_BAR_AGE_SECS`` during a
+        US regular session) via ``last_bar_age_secs()``.
+    Remediation, in order:
+      * a stall breaks the blocked iterator with ``client.stop()`` so the feed
+        loop reconnects;
+      * dead workers are re-armed via the idempotent ``start()`` partial restart;
+      * a non-retryable config error, or ``_SELF_HEAL_MAX_ATTEMPTS`` exhausted,
+        escalates to a process restart.
+    """
+    heal_attempts = 0
+    while not stop.wait(_SUPERVISOR_INTERVAL_SECS):
+        if _fatal_config_error.is_set():
+            logger.critical(
+                "Supervisor: non-retryable feed configuration error — "
+                "escalating to process restart for operator attention."
+            )
+            _escalate_to_platform_restart()
+            return
+
+        workers = worker_liveness()
+        stalled = False
+        if market_hours.is_us_regular_session_open():
+            age = last_bar_age_secs()
+            stalled = age is not None and age > _STALL_MAX_BAR_AGE_SECS
+
+        if all(workers.values()) and not stalled:
+            heal_attempts = 0
+            continue
+
+        heal_attempts += 1
+        _inc_metric("supervisor_heals")
+        logger.critical(
+            "Supervisor: workers=%s stalled=%s — heal attempt %d/%d",
+            workers, stalled, heal_attempts, _SELF_HEAL_MAX_ATTEMPTS,
+        )
+        if heal_attempts > _SELF_HEAL_MAX_ATTEMPTS:
+            logger.critical(
+                "Supervisor: self-heal exhausted (%d/%d) — escalating; "
+                "platform ON_FAILURE policy restarts the process.",
+                _SELF_HEAL_MAX_ATTEMPTS, _SELF_HEAL_MAX_ATTEMPTS,
+            )
+            _escalate_to_platform_restart()
+            return
+
+        if stalled:
+            # Break the blocked iterator → feed loop enters its reconnect path.
+            _supervisor_break_stalled_client()
+        if not all(workers.values()):
+            # Idempotent partial restart under the lifecycle lock; re-arms only
+            # dead threads. The supervisor itself stays alive, so _do_start's
+            # supervisor branch is a no-op.
+            try:
+                start()
+            except Exception:
+                logger.error("Supervisor partial restart failed", exc_info=True)
+
+    logger.info("Supervisor thread stopped.")
+
+
 def start() -> None:
     """Start the three background threads (feed + refresh + flow refresh)."""
     with _lifecycle_lock:
@@ -454,9 +571,11 @@ def _do_start() -> None:
     ingest_alive = ingest_thread is not None and ingest_thread.is_alive()
     refresh_alive = _refresh_thread is not None and _refresh_thread.is_alive()
     flow_alive = _flow_refresh_thread is not None and _flow_refresh_thread.is_alive()
+    supervisor_thread = _runtime.get("supervisor_thread")
+    supervisor_alive = supervisor_thread is not None and supervisor_thread.is_alive()
 
     # Idempotent no-op when every worker is already healthy.
-    if feed_alive and ingest_alive and refresh_alive and flow_alive:
+    if feed_alive and ingest_alive and refresh_alive and flow_alive and supervisor_alive:
         logger.warning("start() called while all workers alive — ignoring")
         return
 
@@ -500,6 +619,17 @@ def _do_start() -> None:
         _flow_refresh_thread.start()
         started.append("flow-refresh")
 
+    # Supervisor self-heal thread (WP1): tracked in _runtime so it can be
+    # re-armed by an idempotent partial restart if it ever dies.
+    if not supervisor_alive:
+        supervisor_thread = threading.Thread(
+            target=_run_supervisor_loop, args=(_stop_event,), daemon=True,
+            name="live-overlay-supervisor",
+        )
+        supervisor_thread.start()
+        _runtime["supervisor_thread"] = supervisor_thread
+        started.append("live-overlay-supervisor")
+
     if started and (feed_alive or ingest_alive or refresh_alive or flow_alive):
         _inc_metric("partial_restarts")
 
@@ -540,6 +670,9 @@ def stop() -> None:
             _refresh_thread.join(timeout=5)
         if _flow_refresh_thread is not None and _flow_refresh_thread.is_alive() and hasattr(_flow_refresh_thread, "join"):
             _flow_refresh_thread.join(timeout=5)
+        supervisor_thread = _runtime.get("supervisor_thread")
+        if supervisor_thread is not None and supervisor_thread.is_alive() and hasattr(supervisor_thread, "join"):
+            supervisor_thread.join(timeout=5)
 
         if _feed_thread is None or not _feed_thread.is_alive():
             _feed_thread = None
@@ -549,6 +682,8 @@ def stop() -> None:
             _runtime["ingest_thread"] = None
         if _flow_refresh_thread is None or not _flow_refresh_thread.is_alive():
             _flow_refresh_thread = None
+        if supervisor_thread is None or not supervisor_thread.is_alive():
+            _runtime["supervisor_thread"] = None
         # Defensive clear after joins: the feed thread can still race to set
         # readiness during shutdown; stop() must always end in not-ready state.
         _feed_ready.clear()
