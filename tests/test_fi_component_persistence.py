@@ -17,17 +17,28 @@ fix:
 from __future__ import annotations
 
 import json
-from datetime import date
+from datetime import date, timedelta
 from pathlib import Path
 
 import pytest
 
 from open_prep.outcomes import (
+    _SCORE_FORMULA_ERA_CUTOFF,
     FEATURE_KEYS,
     FEATURE_TO_WEIGHT_KEY,
     compute_feature_importance,
     prepare_outcome_snapshot,
 )
+
+# Derive every formula-era fixture date from the production cutoff constant so
+# the next cutoff bump can't silently re-break these fixtures the way this suite
+# had to be repaired for the 2026-07-02 cutoff.
+_CUTOFF = _SCORE_FORMULA_ERA_CUTOFF
+_AT_CUTOFF = _CUTOFF.isoformat()  # kept: formula-era gate is strict `<`
+_POST_CUTOFF_1 = (_CUTOFF + timedelta(days=1)).isoformat()
+_POST_CUTOFF_2 = (_CUTOFF + timedelta(days=2)).isoformat()
+_PRE_CUTOFF = (_CUTOFF - timedelta(days=1)).isoformat()  # dropped by formula-era gate
+_LEGACY_DATE = (_CUTOFF - timedelta(days=31)).isoformat()  # pre-fix all-zero rows
 
 
 def _ranked_row(symbol: str = "NVDA", **overrides) -> dict:
@@ -181,13 +192,13 @@ class TestSampleDedup:
         # fill starts at 0.1 (not 0.0): an all-zero weighted vector would
         # be era-gated as a legacy row (audit D-2) and skew the count.
         rows = [
-            _fi_sample(f"SYM{i}", "2026-06-08", win=bool(i % 2), fill=0.1 * (i + 1))
+            _fi_sample(f"SYM{i}", _AT_CUTOFF, win=bool(i % 2), fill=0.1 * (i + 1))
             for i in range(12)
         ]
         for fname in (
-            "fi_samples_2026-06-08.jsonl",
-            "fi_samples_2026-06-09.jsonl",
-            "fi_samples_2026-06-10.jsonl",
+            f"fi_samples_{_AT_CUTOFF}.jsonl",
+            f"fi_samples_{_POST_CUTOFF_1}.jsonl",
+            f"fi_samples_{_POST_CUTOFF_2}.jsonl",
         ):
             (tmp_path / fname).write_text("\n".join(rows) + "\n", encoding="utf-8")
 
@@ -209,7 +220,7 @@ class TestSampleDedup:
         row = {key: 0.5 for key in FEATURE_KEYS}
         row["profitable_30m"] = True
         lines = [json.dumps(row)] * 12
-        (tmp_path / "fi_samples_2026-06-10.jsonl").write_text(
+        (tmp_path / f"fi_samples_{_LEGACY_DATE}.jsonl").write_text(
             "\n".join(lines) + "\n", encoding="utf-8",
         )
         report = compute_feature_importance(lookback_days=30)
@@ -241,17 +252,17 @@ class TestReaderEraGate:
         monkeypatch.setattr("open_prep.outcomes.FEATURE_IMPORTANCE_DIR", tmp_path)
         monkeypatch.setenv("OPEN_PREP_FI_BACKEND", "cpu")
         legacy = [
-            _legacy_zero_sample(f"OLD{i}", "2026-06-01", win=bool(i % 2))
+            _legacy_zero_sample(f"OLD{i}", _LEGACY_DATE, win=bool(i % 2))
             for i in range(8)
         ]
         clean = [
-            _fi_sample(f"NEW{i}", "2026-06-12", win=bool(i % 2), fill=0.1 * (i + 1))
+            _fi_sample(f"NEW{i}", _AT_CUTOFF, win=bool(i % 2), fill=0.1 * (i + 1))
             for i in range(12)
         ]
-        (tmp_path / "fi_samples_2026-06-01.jsonl").write_text(
+        (tmp_path / f"fi_samples_{_LEGACY_DATE}.jsonl").write_text(
             "\n".join(legacy) + "\n", encoding="utf-8",
         )
-        (tmp_path / "fi_samples_2026-06-12.jsonl").write_text(
+        (tmp_path / f"fi_samples_{_AT_CUTOFF}.jsonl").write_text(
             "\n".join(clean) + "\n", encoding="utf-8",
         )
 
@@ -271,10 +282,10 @@ class TestReaderEraGate:
         monkeypatch.setattr("open_prep.outcomes.FEATURE_IMPORTANCE_DIR", tmp_path)
         monkeypatch.setenv("OPEN_PREP_FI_BACKEND", "cpu")
         legacy = [
-            _legacy_zero_sample(f"OLD{i}", "2026-06-01", win=bool(i % 2))
+            _legacy_zero_sample(f"OLD{i}", _LEGACY_DATE, win=bool(i % 2))
             for i in range(20)
         ]
-        (tmp_path / "fi_samples_2026-06-01.jsonl").write_text(
+        (tmp_path / f"fi_samples_{_LEGACY_DATE}.jsonl").write_text(
             "\n".join(legacy) + "\n", encoding="utf-8",
         )
 
@@ -293,15 +304,83 @@ class TestReaderEraGate:
         rows = []
         for i in range(12):
             row = json.loads(
-                _fi_sample(f"SYM{i}", "2026-06-12", win=bool(i % 2), fill=0.0)
+                _fi_sample(f"SYM{i}", _AT_CUTOFF, win=bool(i % 2), fill=0.0)
             )
             row["gap_component"] = 0.5 + 0.1 * i  # one real non-zero component
             rows.append(json.dumps(row))
-        (tmp_path / "fi_samples_2026-06-12.jsonl").write_text(
+        (tmp_path / f"fi_samples_{_AT_CUTOFF}.jsonl").write_text(
             "\n".join(rows) + "\n", encoding="utf-8",
         )
 
         report = compute_feature_importance(lookback_days=30)
         assert "error" not in report
         assert report["era_gated_samples_dropped"] == 0
+        assert report["labeled_samples"] == 12
+
+
+# ── 5. Formula-era gate (2026-07-02, PR #3114) ────────────────────────────────
+
+
+class TestFormulaEraGate:
+    """Rows scored before the component-cap rewrite live on a different
+    feature scale; pooling them with post-rewrite rows poisons the stats.
+    The all-zero D-2 gate can't catch a *clean* pre-cutoff row (fill>0), so
+    the formula-era date gate is the only thing that drops it — this suite is
+    its only coverage (regression for the drop path at outcomes.py)."""
+
+    def test_clean_pre_cutoff_rows_dropped_by_formula_era_gate(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        monkeypatch.setattr("open_prep.outcomes.FEATURE_IMPORTANCE_DIR", tmp_path)
+        monkeypatch.setenv("OPEN_PREP_FI_BACKEND", "cpu")
+        # Clean pre-cutoff rows: fill>0 so they survive the all-zero D-2 gate
+        # and reach the formula-era gate, which must drop them for being
+        # scored on the pre-rewrite feature scale.
+        pre = [
+            _fi_sample(f"PRE{i}", _PRE_CUTOFF, win=bool(i % 2), fill=0.1 * (i + 1))
+            for i in range(4)
+        ]
+        post = [
+            _fi_sample(f"NEW{i}", _AT_CUTOFF, win=bool(i % 2), fill=0.1 * (i + 1))
+            for i in range(12)
+        ]
+        (tmp_path / f"fi_samples_{_PRE_CUTOFF}.jsonl").write_text(
+            "\n".join(pre) + "\n", encoding="utf-8",
+        )
+        (tmp_path / f"fi_samples_{_AT_CUTOFF}.jsonl").write_text(
+            "\n".join(post) + "\n", encoding="utf-8",
+        )
+
+        report = compute_feature_importance(lookback_days=30)
+        assert "error" not in report
+        assert report["era_gated_samples_dropped"] == 0, (
+            "clean fill>0 rows must not be caught by the all-zero D-2 gate"
+        )
+        assert report["formula_era_samples_dropped"] == 4, (
+            "clean rows dated before the cutoff must be dropped by the "
+            "formula-era gate — flipping `<` to `<=`/`>` would leak the "
+            "pre-rewrite feature scale into the matrix"
+        )
+        assert report["labeled_samples"] == 12, (
+            "pre-cutoff rows must be excluded from the feature matrix"
+        )
+
+    def test_row_exactly_at_cutoff_is_kept(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        """The gate is strict `<`: a row dated exactly on the cutoff is
+        post-rewrite and must survive."""
+        monkeypatch.setattr("open_prep.outcomes.FEATURE_IMPORTANCE_DIR", tmp_path)
+        monkeypatch.setenv("OPEN_PREP_FI_BACKEND", "cpu")
+        rows = [
+            _fi_sample(f"AT{i}", _AT_CUTOFF, win=bool(i % 2), fill=0.1 * (i + 1))
+            for i in range(12)
+        ]
+        (tmp_path / f"fi_samples_{_AT_CUTOFF}.jsonl").write_text(
+            "\n".join(rows) + "\n", encoding="utf-8",
+        )
+
+        report = compute_feature_importance(lookback_days=30)
+        assert "error" not in report
+        assert report["formula_era_samples_dropped"] == 0
         assert report["labeled_samples"] == 12
