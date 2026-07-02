@@ -249,9 +249,11 @@ _FROZEN_SITES: frozenset[tuple[str, int, tuple[str, ...]]] = frozenset(
         # statements to 362/420/496.
         # 2026-06-22 follow-ups shifted these anchors to 365/423/512.
         # Post-merge sync with main shifted these anchors to 374/432/521.
-        ("services/live_overlay_daemon/feed.py", 374, ("_last_bar_at",)),
-        ("services/live_overlay_daemon/feed.py", 432, ("_feed_thread", "_flow_refresh_thread", "_refresh_thread")),
-        ("services/live_overlay_daemon/feed.py", 521, ("_feed_thread", "_flow_refresh_thread", "_refresh_thread")),
+        # WP1 supervisor self-heal (active-client tracking + supervisor block)
+        # shifted these anchors to 398/549/651.
+        ("services/live_overlay_daemon/feed.py", 398, ("_last_bar_at",)),
+        ("services/live_overlay_daemon/feed.py", 549, ("_feed_thread", "_flow_refresh_thread", "_refresh_thread")),
+        ("services/live_overlay_daemon/feed.py", 651, ("_feed_thread", "_flow_refresh_thread", "_refresh_thread")),
         # 2026-06-21: optional external bridge snapshot caches are guarded by
         # module locks and cached via module-level singleton snapshots.
         # 2026-06-23: workflow bridge hardening (status/conclusion semantics,
@@ -279,7 +281,8 @@ _FROZEN_SITES: frozenset[tuple[str, int, tuple[str, ...]]] = frozenset(
         # basic-auth endpoint updates) shifted _startup_ts to line 71.
         # 2026-06-21 (auth decode hardening): binascii import shifted
         # _startup_ts to line 72.
-        ("services/live_overlay_daemon/main.py", 72, ("_startup_ts",)),
+        # WP2 epoch clock added `global _startup_ts, _startup_epoch` (line 73).
+        ("services/live_overlay_daemon/main.py", 73, ("_startup_epoch", "_startup_ts")),
     }
 )
 

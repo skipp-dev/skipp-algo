@@ -64,14 +64,17 @@ bool quality_ok = na(src_quality_score) ? false : src_quality_score >= min_quali
 bool regime_allows_entry = mp.TRADE_STATE != "BLOCKED"
 bool no_macro_event_block = not mp.HIGH_IMPACT_MACRO_TODAY or mp.MARKET_REGIME != "RISK_OFF"
 bool not_earnings_ticker = not str.contains(mp.EARNINGS_TODAY_TICKERS, syminfo.ticker)
-bool regime_gate_ok = use_regime_gate and not backtest_mode ? (regime_allows_entry and no_macro_event_block and not_earnings_ticker) : true
+// Snapshot-gates apply LIVE only: mp.* is a single-day snapshot that Pine
+// broadcasts as a constant onto ALL historical bars (look-ahead in backtest).
+bool snapshot_gates_live = barstate.isrealtime and not backtest_mode
+bool regime_gate_ok = use_regime_gate and snapshot_gates_live ? (regime_allows_entry and no_macro_event_block and not_earnings_ticker) : true
 string strategy_symbol_key = syminfo.ticker
 string strategy_symbol_key_qualified = syminfo.tickerid
 bool strategy_universe_initialized = mp.UNIVERSE_TICKERS != ""
 bool strategy_ticker_in_universe = strategy_universe_initialized and u.csv_has_symbol_token(mp.UNIVERSE_TICKERS, strategy_symbol_key, strategy_symbol_key_qualified)
 bool strategy_universe_partial_context = strategy_ticker_in_universe and (mp.PROVIDER_COUNT == 0 or mp.STALE_PROVIDERS != "" or mp.EVENT_PROVIDER_STATUS != "ok")
 int strategy_universe_status_code = u.universe_status_code(strategy_universe_initialized, strategy_ticker_in_universe, strategy_universe_partial_context)
-bool universe_gate_ok = not strict_universe_entries or backtest_mode or strategy_universe_status_code == 3 or strategy_universe_status_code == 2
+bool universe_gate_ok = not strict_universe_entries or not snapshot_gates_live or strategy_universe_status_code == 3 or strategy_universe_status_code == 2
 string universe_strict_block_text = strict_universe_entries and not backtest_mode ? u.universe_status_strategy_text(strategy_universe_status_code) : ""
 
 // Entry/exit logic is evaluated from confirmed BUS inputs; no intrabar lookahead is used in this strategy wrapper.
@@ -89,8 +92,15 @@ var float active_take_profit = na
 if strategy.position_size <= 0
     if can_stage_entry
         strategy.entry("L", strategy.long, stop = src_trigger)
+        // Arm the protective exit immediately (Pine holds from_entry exits
+        // pending until the entry fills), so invalidation applies on the
+        // entry bar itself — the post-fill block below then overrides it with
+        // the frozen active_* levels via the same order id.
+        strategy.exit("L Exit", "L", stop = src_invalidation,
+                      limit = use_take_profit ? take_profit_price : na)
     else
         strategy.cancel("L")
+        strategy.cancel("L Exit")
 
 if strategy.position_size > 0 and strategy.position_size[1] <= 0
     active_entry_stop := src_trigger
@@ -128,6 +138,13 @@ var float gross_loss = 0.0
 var float best_trade_r = 0.0
 var float worst_trade_r = 0.0
 
+// Sample equity every bar — including during the first still-open trade — so
+// max drawdown is not blind until the first trade closes.
+float current_equity = strategy.equity
+peak_equity := math.max(peak_equity, current_equity)
+float dd_pct = peak_equity > 0 ? (peak_equity - current_equity) / peak_equity * 100.0 : 0.0
+max_drawdown_pct := math.max(max_drawdown_pct, dd_pct)
+
 if strategy.closedtrades > 0
     total_trades := strategy.closedtrades
     winning_trades := strategy.wintrades
@@ -135,14 +152,11 @@ if strategy.closedtrades > 0
     gross_profit := strategy.grossprofit
     gross_loss := math.abs(strategy.grossloss)
 
-    float current_equity = strategy.equity
-    peak_equity := math.max(peak_equity, current_equity)
-    float dd_pct = peak_equity > 0 ? (peak_equity - current_equity) / peak_equity * 100.0 : 0.0
-    max_drawdown_pct := math.max(max_drawdown_pct, dd_pct)
-
-float win_rate = total_trades > 0 ? winning_trades / total_trades * 100.0 : 0.0
+float win_rate = total_trades > 0 ? 100.0 * winning_trades / total_trades : 0.0
 float profit_factor = gross_loss > 0 ? gross_profit / gross_loss : 0.0
-float avg_r = total_trades > 0 ? strategy.netprofit / (total_trades * (strategy.initial_capital * 0.01)) : 0.0
+// Honest per-trade return: fixed-1-contract sizing has no fixed 1%-risk unit,
+// so express the average as % of initial capital rather than a fake R multiple.
+float avg_trade_pct = total_trades > 0 ? (strategy.netprofit / strategy.initial_capital) * 100.0 / total_trades : 0.0
 
 var table perf_tbl = table.new(position.bottom_left, 2, 9, border_width = 0)
 
@@ -170,7 +184,7 @@ if show_performance and barstate.islast
     perf_row(perf_tbl, 4, "Profit Factor", str.tostring(profit_factor, '#.##'), pf_bg, txt)
     perf_row(perf_tbl, 5, "Net Profit", str.tostring(strategy.netprofit, '#.##'), strategy.netprofit >= 0 ? ok_bg : bad_bg, txt)
     perf_row(perf_tbl, 6, "Max Drawdown", str.tostring(max_drawdown_pct, '#.#') + "%", dd_bg, txt)
-    perf_row(perf_tbl, 7, "Avg Trade", str.tostring(total_trades > 0 ? strategy.netprofit / total_trades : 0.0, '#.##'), total_trades > 0 and strategy.netprofit / total_trades > 0 ? ok_bg : warn_bg, txt)
+    perf_row(perf_tbl, 7, "Avg Trade %", str.tostring(avg_trade_pct, '#.##') + "%", total_trades > 0 and avg_trade_pct > 0 ? ok_bg : warn_bg, txt)
     perf_row(perf_tbl, 8, "Mode", backtest_mode ? "Backtest (pure signal)" : use_regime_gate ? "Live (regime gated)" : "Live (ungated)", header_bg, txt)
 else if barstate.islast and not show_performance
     table.clear(perf_tbl, 0, 0, 1, 8)

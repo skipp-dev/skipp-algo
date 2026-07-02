@@ -8,6 +8,9 @@ groups:
   - uid: lo-scrape-missing
     title: Metrics scrape missing
     condition: C
+    # absent() yields an empty vector when HEALTHY → NoData is the normal state,
+    # not the alarm. The alarm fires via absent()==1; keep NoData quiet.
+    noDataState: OK
     data:
     - refId: A
       datasourceUid: grafanacloud-prom
@@ -37,6 +40,8 @@ groups:
   - uid: lo-core-signal-missing
     title: Core readiness signal missing
     condition: C
+    # absent()==1 is the alarm; a healthy empty vector must not page as NoData.
+    noDataState: OK
     data:
     - refId: A
       datasourceUid: grafanacloud-prom
@@ -251,6 +256,191 @@ groups:
       runbook: Verify the live_overlay exporter is running and emitting all required
         live_overlay_bridge_* contract families for all configured bridges (uptimerobot,
         github_workflow, railway_metrics).
+  - uid: sp-memory-critical
+    title: Signals Producer RSS > 900 MB
+    condition: C
+    data:
+    - refId: A
+      datasourceUid: grafanacloud-prom
+      model:
+        expr: signals_producer_process_resident_memory_bytes{job="signals_producer"}
+          / 1024 / 1024
+        instant: true
+    - refId: C
+      datasourceUid: __expr__
+      model:
+        type: threshold
+        conditions:
+        - evaluator:
+            type: gt
+            params:
+            - 900
+          operator:
+            type: and
+          query:
+            params:
+            - A
+    for: 3m
+    labels:
+      severity: critical
+    annotations:
+      summary: smc-signals-producer memory exceeds 900 MB — OOM kill imminent
+      runbook: 'Railway free tier: 1 GB limit. Immediately inspect /metrics for FD
+        leak. May need manual restart.'
+  - uid: sp-scrape-down
+    title: Signals Producer scrape target down
+    condition: C
+    data:
+    - refId: A
+      datasourceUid: grafanacloud-prom
+      model:
+        expr: up{job="signals_producer"}
+        instant: true
+    - refId: C
+      datasourceUid: __expr__
+      model:
+        type: threshold
+        conditions:
+        - evaluator:
+            type: lt
+            params:
+            - 1
+          operator:
+            type: and
+          query:
+            params:
+            - A
+    for: 3m
+    labels:
+      severity: critical
+    annotations:
+      summary: Cannot scrape smc-signals-producer /metrics — container may be down
+      runbook: Check Railway deploy logs. Verify SIGNALS_SERVICE_URL env var in Alloy
+        service. Check UptimeRobot /healthz.
+  - uid: lo-memory-critical
+    title: Live Overlay RSS > 900 MB
+    condition: C
+    data:
+    - refId: A
+      datasourceUid: grafanacloud-prom
+      model:
+        expr: live_overlay_process_resident_memory_bytes{job="live_overlay"} / 1024
+          / 1024
+        instant: true
+    - refId: C
+      datasourceUid: __expr__
+      model:
+        type: threshold
+        conditions:
+        - evaluator:
+            type: gt
+            params:
+            - 900
+          operator:
+            type: and
+          query:
+            params:
+            - A
+    for: 3m
+    labels:
+      severity: critical
+    annotations:
+      summary: smc-live-overlay memory exceeds 900 MB — OOM kill imminent
+      runbook: Railway 1 GB limit. Check feed accumulation and reconnect cycles.
+  - uid: alloy-scrape-self-down
+    title: Alloy self-scrape target down
+    condition: C
+    data:
+    - refId: A
+      datasourceUid: grafanacloud-prom
+      model:
+        expr: up{job="alloy"}
+        instant: true
+    - refId: C
+      datasourceUid: __expr__
+      model:
+        type: threshold
+        conditions:
+        - evaluator:
+            type: lt
+            params:
+            - 1
+          operator:
+            type: and
+          query:
+            params:
+            - A
+    for: 3m
+    labels:
+      severity: critical
+    annotations:
+      summary: Alloy self-scrape failing — metrics pipeline is blind
+      runbook: If Alloy self-scrape is down, NO metrics from any container reach Grafana.
+        Check Railway deploy logs for alloy container crash/OOM.
+  - uid: alloy-memory-critical
+    title: Alloy RSS > 512 MB
+    condition: C
+    data:
+    - refId: A
+      datasourceUid: grafanacloud-prom
+      model:
+        expr: process_resident_memory_bytes{job="alloy"} / 1024 / 1024
+        instant: true
+    - refId: C
+      datasourceUid: __expr__
+      model:
+        type: threshold
+        conditions:
+        - evaluator:
+            type: gt
+            params:
+            - 512
+          operator:
+            type: and
+          query:
+            params:
+            - A
+    for: 3m
+    labels:
+      severity: critical
+    annotations:
+      summary: Alloy (metric-collector) memory exceeds 512 MB — OOM risk
+      runbook: Railway container limit applies. Alloy should use < 100 MB normally.
+        Check for WAL corruption or stuck remote-write.
+  - uid: alloy-targets-down
+    title: Alloy scrape targets unreachable
+    condition: C
+    # The expr includes absent(up{...}); a healthy all-present fleet yields an
+    # empty vector → NoData is normal. Alarm fires via the >0 count / absent==1.
+    noDataState: OK
+    data:
+    - refId: A
+      datasourceUid: grafanacloud-prom
+      model:
+        expr: (count(up{job=~"signals_producer|live_overlay"} == 0) > 0) or absent(up{job="signals_producer"})
+          or absent(up{job="live_overlay"})
+        instant: true
+    - refId: C
+      datasourceUid: __expr__
+      model:
+        type: threshold
+        conditions:
+        - evaluator:
+            type: gt
+            params:
+            - 0
+          operator:
+            type: and
+          query:
+            params:
+            - A
+    for: 3m
+    labels:
+      severity: critical
+    annotations:
+      summary: One or more Railway services are unreachable from Alloy
+      runbook: Check Railway internal networking. Verify OVERLAY_SERVICE_URL and SIGNALS_SERVICE_URL
+        env vars. Target service may have crashed.
 - orgId: 1
   name: live-overlay-warning
   folder: SMC Live Overlay
@@ -837,6 +1027,8 @@ groups:
   - uid: lo-news-snapshot-series-missing
     title: News snapshot series missing
     condition: C
+    # absent()==1 is the alarm; a healthy empty vector must not page as NoData.
+    noDataState: OK
     data:
     - refId: A
       datasourceUid: grafanacloud-prom
@@ -1047,6 +1239,7 @@ groups:
     labels:
       severity: warning
     annotations:
+    annotations:
       summary: smc-signals-producer memory exceeds 768 MB for > 5 min
       runbook: 'Warning at 75% of the ~1 GiB Railway tier (critical stays at 900 MB
         ≈ 88%), aligned with the Railway usage-ratio policy (lo-railway-memory-ratio-high
@@ -1055,67 +1248,6 @@ groups:
         fired continuously without an OOM. If RSS is genuinely climbing toward 900 MB,
         check for a memory leak in poll_once / newsstack poller and consider recycling
         the Railway instance.'
-  - uid: sp-memory-critical
-    title: Signals Producer RSS > 900 MB
-    condition: C
-    data:
-    - refId: A
-      datasourceUid: grafanacloud-prom
-      model:
-        expr: signals_producer_process_resident_memory_bytes{job="signals_producer"}
-          / 1024 / 1024
-        instant: true
-    - refId: C
-      datasourceUid: __expr__
-      model:
-        type: threshold
-        conditions:
-        - evaluator:
-            type: gt
-            params:
-            - 900
-          operator:
-            type: and
-          query:
-            params:
-            - A
-    for: 3m
-    labels:
-      severity: critical
-    annotations:
-      summary: smc-signals-producer memory exceeds 900 MB — OOM kill imminent
-      runbook: 'Railway free tier: 1 GB limit. Immediately inspect /metrics for FD
-        leak. May need manual restart.'
-  - uid: sp-scrape-down
-    title: Signals Producer scrape target down
-    condition: C
-    data:
-    - refId: A
-      datasourceUid: grafanacloud-prom
-      model:
-        expr: up{job="signals_producer"}
-        instant: true
-    - refId: C
-      datasourceUid: __expr__
-      model:
-        type: threshold
-        conditions:
-        - evaluator:
-            type: lt
-            params:
-            - 1
-          operator:
-            type: and
-          query:
-            params:
-            - A
-    for: 3m
-    labels:
-      severity: critical
-    annotations:
-      summary: Cannot scrape smc-signals-producer /metrics — container may be down
-      runbook: Check Railway deploy logs. Verify SIGNALS_SERVICE_URL env var in Alloy
-        service. Check UptimeRobot /healthz.
   - uid: lo-memory-high
     title: Live Overlay RSS > 512 MB
     condition: C
@@ -1146,36 +1278,6 @@ groups:
     annotations:
       summary: smc-live-overlay memory exceeds 512 MB for > 5 min
       runbook: Check Databento feed buffer sizes and GC stats. Consider restart.
-  - uid: lo-memory-critical
-    title: Live Overlay RSS > 900 MB
-    condition: C
-    data:
-    - refId: A
-      datasourceUid: grafanacloud-prom
-      model:
-        expr: live_overlay_process_resident_memory_bytes{job="live_overlay"} / 1024
-          / 1024
-        instant: true
-    - refId: C
-      datasourceUid: __expr__
-      model:
-        type: threshold
-        conditions:
-        - evaluator:
-            type: gt
-            params:
-            - 900
-          operator:
-            type: and
-          query:
-            params:
-            - A
-    for: 3m
-    labels:
-      severity: critical
-    annotations:
-      summary: smc-live-overlay memory exceeds 900 MB — OOM kill imminent
-      runbook: Railway 1 GB limit. Check feed accumulation and reconnect cycles.
   - uid: lo-railway-memory-ratio-high
     title: Railway service memory ratio > 75%
     condition: C
@@ -1238,36 +1340,6 @@ groups:
       summary: Railway service memory is above 90% of its configured limit
       runbook: Immediate OOM risk. Inspect service-specific Railway memory, restart
         if growth is monotonic, and check feed/bridge buffers.
-  - uid: alloy-scrape-self-down
-    title: Alloy self-scrape target down
-    condition: C
-    data:
-    - refId: A
-      datasourceUid: grafanacloud-prom
-      model:
-        expr: up{job="alloy"}
-        instant: true
-    - refId: C
-      datasourceUid: __expr__
-      model:
-        type: threshold
-        conditions:
-        - evaluator:
-            type: lt
-            params:
-            - 1
-          operator:
-            type: and
-          query:
-            params:
-            - A
-    for: 3m
-    labels:
-      severity: critical
-    annotations:
-      summary: Alloy self-scrape failing — metrics pipeline is blind
-      runbook: If Alloy self-scrape is down, NO metrics from any container reach Grafana.
-        Check Railway deploy logs for alloy container crash/OOM.
   - uid: alloy-memory-high
     title: Alloy RSS > 256 MB
     condition: C
@@ -1298,67 +1370,6 @@ groups:
       summary: Alloy (metric-collector) memory exceeds 256 MB for > 5 min
       runbook: Alloy is lightweight; high memory suggests scrape target explosion
         or WAL buildup. Check remote-write backlog.
-  - uid: alloy-memory-critical
-    title: Alloy RSS > 512 MB
-    condition: C
-    data:
-    - refId: A
-      datasourceUid: grafanacloud-prom
-      model:
-        expr: process_resident_memory_bytes{job="alloy"} / 1024 / 1024
-        instant: true
-    - refId: C
-      datasourceUid: __expr__
-      model:
-        type: threshold
-        conditions:
-        - evaluator:
-            type: gt
-            params:
-            - 512
-          operator:
-            type: and
-          query:
-            params:
-            - A
-    for: 3m
-    labels:
-      severity: critical
-    annotations:
-      summary: Alloy (metric-collector) memory exceeds 512 MB — OOM risk
-      runbook: Railway container limit applies. Alloy should use < 100 MB normally.
-        Check for WAL corruption or stuck remote-write.
-  - uid: alloy-targets-down
-    title: Alloy scrape targets unreachable
-    condition: C
-    data:
-    - refId: A
-      datasourceUid: grafanacloud-prom
-      model:
-        expr: (count(up{job=~"signals_producer|live_overlay"} == 0) > 0) or absent(up{job="signals_producer"})
-          or absent(up{job="live_overlay"})
-        instant: true
-    - refId: C
-      datasourceUid: __expr__
-      model:
-        type: threshold
-        conditions:
-        - evaluator:
-            type: gt
-            params:
-            - 0
-          operator:
-            type: and
-          query:
-            params:
-            - A
-    for: 3m
-    labels:
-      severity: critical
-    annotations:
-      summary: One or more Railway services are unreachable from Alloy
-      runbook: Check Railway internal networking. Verify OVERLAY_SERVICE_URL and SIGNALS_SERVICE_URL
-        env vars. Target service may have crashed.
   - uid: alloy-remote-write-failures
     title: Alloy remote-write failures
     condition: C

@@ -807,8 +807,12 @@ def _provider_health_snapshot() -> dict[str, object]:
     }
 
 
-def _collect_process_metrics(startup_ts: float) -> list[str]:
+def _collect_process_metrics(startup_ts: float, startup_epoch: float = 0.0) -> list[str]:
     """Emit process-level resource metrics (CPU, RSS, FDs, GC).
+
+    ``startup_ts`` is ``time.monotonic()`` (drift-free deltas → uptime);
+    ``startup_epoch`` is ``time.time()`` (wall-clock → Prometheus
+    ``start_time_seconds``). Mixing the two produced a ~55-year uptime.
 
     Pure-stdlib implementation — no prometheus_client dependency. Uses
     /proc/self/status on Linux (Railway containers) and resource.getrusage
@@ -872,8 +876,8 @@ def _collect_process_metrics(startup_ts: float) -> list[str]:
 
     # Start time and uptime
     lines.append(f"# TYPE {prefix}_start_time_seconds gauge")
-    lines.append(f"{prefix}_start_time_seconds {startup_ts:.3f}")
-    uptime = time.time() - startup_ts if startup_ts > 0 else 0
+    lines.append(f"{prefix}_start_time_seconds {startup_epoch:.3f}")
+    uptime = time.monotonic() - startup_ts if startup_ts > 0 else 0
     lines.append(f"# TYPE {prefix}_uptime_seconds gauge")
     lines.append(f"{prefix}_uptime_seconds {uptime:.1f}")
 
@@ -936,7 +940,7 @@ def _append_bridge_metrics(
     )
 
 
-def render_metrics(startup_ts: float) -> str:
+def render_metrics(startup_ts: float, startup_epoch: float = 0.0) -> str:
     """Return Prometheus text-format exposition of all daemon metrics."""
     lines: list[str] = []
 
@@ -1712,7 +1716,7 @@ def render_metrics(startup_ts: float) -> str:
                     f"{_prom_numeric_value(tx_gb)}"
                 )
     # --- Process-level metrics (CPU, memory, FDs, GC) ---
-    lines.extend(_collect_process_metrics(startup_ts))
+    lines.extend(_collect_process_metrics(startup_ts, startup_epoch))
 
     lines.append("")  # trailing newline
     return "\n".join(lines)

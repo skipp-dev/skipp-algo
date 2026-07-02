@@ -222,8 +222,11 @@ def test_build_rule_group_payload_shape() -> None:
         assert key in rule, f"missing {key} in provisioned rule"
     assert rule["folderUID"] == "folder-uid-123"
     assert rule["ruleGroup"] == group["name"]
-    assert rule["noDataState"] == mod.DEFAULT_NO_DATA_STATE
-    assert rule["execErrState"] == mod.DEFAULT_EXEC_ERR_STATE
+    # The builder passes through a per-rule noDataState/execErrState when set
+    # (WP3b pins several absent() rules to "OK"), else applies the default.
+    src_rule = group["rules"][0]
+    assert rule["noDataState"] == src_rule.get("noDataState", mod.DEFAULT_NO_DATA_STATE)
+    assert rule["execErrState"] == src_rule.get("execErrState", mod.DEFAULT_EXEC_ERR_STATE)
 
 
 def test_build_rule_group_payload_sets_threshold_expression_refs() -> None:
@@ -470,3 +473,38 @@ def test_build_provisioned_rule_adds_default_relative_time_range() -> None:
             assert node["relativeTimeRange"] == {"from": 300, "to": 0}
     finally:
         rule["data"] = original_data
+
+
+# --------------------------------------------------------------------------- #
+# WP3 — critical-rule cadence + absent() NoData handling
+# --------------------------------------------------------------------------- #
+def _groups_by_name() -> dict[str, dict[str, Any]]:
+    return {g["name"]: g for g in mod.load_alert_groups(ALERT_RULES)}
+
+
+def test_critical_rules_live_in_the_one_minute_group() -> None:
+    """severity:critical rules whose `for:` is shorter than an eval interval
+    must sit in the 1m group so paging is not delayed by a 5m cadence (WP3a)."""
+    groups = _groups_by_name()
+    critical = groups["live-overlay-critical"]
+    warning = groups["live-overlay-warning"]
+    assert mod.parse_interval_seconds(critical["interval"]) == 60
+    crit_uids = {r["uid"] for r in critical["rules"]}
+    warn_uids = {r["uid"] for r in warning["rules"]}
+    for uid in (
+        "sp-memory-critical", "sp-scrape-down", "lo-memory-critical",
+        "alloy-scrape-self-down", "alloy-memory-critical", "alloy-targets-down",
+    ):
+        assert uid in crit_uids, f"{uid} must be in the 1m critical group"
+        assert uid not in warn_uids, f"{uid} must not remain in the 5m warning group"
+
+
+def test_absent_rules_pin_nodata_state_ok() -> None:
+    """absent()-based rules are healthy when the vector is empty, so NoData is
+    the normal state and must not page (WP3b)."""
+    all_rules = {r["uid"]: r for g in mod.load_alert_groups(ALERT_RULES) for r in g["rules"]}
+    for uid in (
+        "lo-scrape-missing", "lo-core-signal-missing",
+        "lo-news-snapshot-series-missing", "alloy-targets-down",
+    ):
+        assert all_rules[uid].get("noDataState") == "OK", f"{uid} must pin noDataState: OK"

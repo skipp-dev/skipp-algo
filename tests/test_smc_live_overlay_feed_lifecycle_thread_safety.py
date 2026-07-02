@@ -45,6 +45,7 @@ def test_concurrent_start_serializes_lifecycle(monkeypatch: pytest.MonkeyPatch) 
     feed_mod._refresh_thread = None
     feed_mod._flow_refresh_thread = None
     feed_mod._runtime["ingest_thread"] = None
+    feed_mod._runtime["supervisor_thread"] = None
 
     created: queue.Queue[str] = queue.Queue()
     release_start = threading.Event()
@@ -92,15 +93,20 @@ def test_concurrent_start_serializes_lifecycle(monkeypatch: pytest.MonkeyPatch) 
         created_list.append(created.get_nowait())
 
     assert not errs, errs
-    # With serialization only one caller creates the 4 workers.
-    assert len(created_list) == 4, f"expected 4, got {len(created_list)}: {created_list}"
-    assert sorted(created_list) == ["flow-refresh", "ingest-processor", "live-feed", "overlay-refresh"]
+    # With serialization only one caller creates the 5 workers (4 feed workers
+    # + supervisor self-heal thread).
+    assert len(created_list) == 5, f"expected 5, got {len(created_list)}: {created_list}"
+    assert sorted(created_list) == [
+        "flow-refresh", "ingest-processor", "live-feed",
+        "live-overlay-supervisor", "overlay-refresh",
+    ]
 
     feed_mod._stop_event.set()
     feed_mod._feed_thread = None
     feed_mod._refresh_thread = None
     feed_mod._flow_refresh_thread = None
     feed_mod._runtime["ingest_thread"] = None
+    feed_mod._runtime["supervisor_thread"] = None
 
 
 def test_stop_clears_feed_ready_under_lifecycle_lock(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -212,3 +218,138 @@ def test_stop_does_not_raise_on_closed_logging_stream(monkeypatch: pytest.Monkey
     finally:
         _feed_logger.removeHandler(handler)
         feed_mod._stop_event.clear()
+
+
+# ── Supervisor self-heal (WP1) ───────────────────────────────────────────────
+
+
+def test_supervisor_break_stalled_client_calls_stop() -> None:
+    """A stall must break the active client's blocked iterator via stop()."""
+    import services.live_overlay_daemon.feed as feed_mod
+
+    calls: list[str] = []
+
+    class _FakeClient:
+        def stop(self) -> None:
+            calls.append("stop")
+
+    with feed_mod._active_client_lock:
+        feed_mod._runtime["active_client"] = _FakeClient()
+    try:
+        feed_mod._supervisor_break_stalled_client()
+    finally:
+        with feed_mod._active_client_lock:
+            feed_mod._runtime["active_client"] = None
+    assert calls == ["stop"]
+
+
+def test_supervisor_break_stalled_client_noop_without_client() -> None:
+    """No active client → break is a safe no-op (must not raise)."""
+    import services.live_overlay_daemon.feed as feed_mod
+
+    with feed_mod._active_client_lock:
+        feed_mod._runtime["active_client"] = None
+    feed_mod._supervisor_break_stalled_client()
+
+
+def test_supervisor_escalates_on_fatal_config_error(monkeypatch: pytest.MonkeyPatch) -> None:
+    """A non-retryable config error must escalate to a process restart, never
+    loop forever trying to self-heal."""
+    import services.live_overlay_daemon.feed as feed_mod
+
+    stop = threading.Event()
+    escalated: list[int] = []
+
+    def _fake_escalate(code: int = 1) -> None:
+        escalated.append(code)
+        stop.set()  # emulate os._exit ending the loop
+
+    monkeypatch.setattr(feed_mod, "_SUPERVISOR_INTERVAL_SECS", 0.01)
+    monkeypatch.setattr(feed_mod, "_escalate_to_platform_restart", _fake_escalate)
+    feed_mod._fatal_config_error.set()
+    try:
+        feed_mod._run_supervisor_loop(stop)
+    finally:
+        feed_mod._fatal_config_error.clear()
+    assert escalated == [1]
+
+
+def test_supervisor_heals_dead_worker_via_partial_restart(monkeypatch: pytest.MonkeyPatch) -> None:
+    """A dead worker thread must trigger the idempotent start() partial restart."""
+    import services.live_overlay_daemon.feed as feed_mod
+
+    stop = threading.Event()
+    started: list[int] = []
+    escalated: list[int] = []
+
+    monkeypatch.setattr(feed_mod, "_SUPERVISOR_INTERVAL_SECS", 0.01)
+    monkeypatch.setattr(
+        feed_mod, "worker_liveness",
+        lambda: {"live_feed": False, "ingest_processor": True, "overlay_refresh": True, "flow_refresh": True},
+    )
+    monkeypatch.setattr(feed_mod.market_hours, "is_us_regular_session_open", lambda: False)
+
+    def _fake_start() -> None:
+        started.append(1)
+        stop.set()
+
+    monkeypatch.setattr(feed_mod, "start", _fake_start)
+    monkeypatch.setattr(feed_mod, "_escalate_to_platform_restart", lambda code=1: escalated.append(code))
+    feed_mod._fatal_config_error.clear()
+    feed_mod._run_supervisor_loop(stop)
+    assert started == [1]
+    assert escalated == []
+
+
+def test_supervisor_breaks_stall_during_session(monkeypatch: pytest.MonkeyPatch) -> None:
+    """A silent feed stall during RTH must break the client (not restart, since
+    the worker threads are still alive)."""
+    import services.live_overlay_daemon.feed as feed_mod
+
+    stop = threading.Event()
+    broke: list[int] = []
+
+    monkeypatch.setattr(feed_mod, "_SUPERVISOR_INTERVAL_SECS", 0.01)
+    monkeypatch.setattr(
+        feed_mod, "worker_liveness",
+        lambda: {"live_feed": True, "ingest_processor": True, "overlay_refresh": True, "flow_refresh": True},
+    )
+    monkeypatch.setattr(feed_mod.market_hours, "is_us_regular_session_open", lambda: True)
+    monkeypatch.setattr(feed_mod, "last_bar_age_secs", lambda: feed_mod._STALL_MAX_BAR_AGE_SECS + 10.0)
+
+    def _fake_break() -> None:
+        broke.append(1)
+        stop.set()
+
+    monkeypatch.setattr(feed_mod, "_supervisor_break_stalled_client", _fake_break)
+    monkeypatch.setattr(feed_mod, "start", lambda: None)
+    monkeypatch.setattr(feed_mod, "_escalate_to_platform_restart", lambda code=1: None)
+    feed_mod._fatal_config_error.clear()
+    feed_mod._run_supervisor_loop(stop)
+    assert broke == [1]
+
+
+def test_supervisor_escalates_after_max_heal_attempts(monkeypatch: pytest.MonkeyPatch) -> None:
+    """When partial restarts keep failing, the supervisor escalates to a
+    process restart after _SELF_HEAL_MAX_ATTEMPTS."""
+    import services.live_overlay_daemon.feed as feed_mod
+
+    stop = threading.Event()
+    escalated: list[int] = []
+
+    monkeypatch.setattr(feed_mod, "_SUPERVISOR_INTERVAL_SECS", 0.001)
+    monkeypatch.setattr(
+        feed_mod, "worker_liveness",
+        lambda: {"live_feed": False, "ingest_processor": True, "overlay_refresh": True, "flow_refresh": True},
+    )
+    monkeypatch.setattr(feed_mod.market_hours, "is_us_regular_session_open", lambda: False)
+    monkeypatch.setattr(feed_mod, "start", lambda: None)  # heal never fixes it
+
+    def _fake_escalate(code: int = 1) -> None:
+        escalated.append(code)
+        stop.set()
+
+    monkeypatch.setattr(feed_mod, "_escalate_to_platform_restart", _fake_escalate)
+    feed_mod._fatal_config_error.clear()
+    feed_mod._run_supervisor_loop(stop)
+    assert escalated == [1]
