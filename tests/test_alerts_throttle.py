@@ -105,6 +105,26 @@ def test_dispatch_alerts_skips_non_dict_candidates(monkeypatch, caplog) -> None:
     assert "Skipping invalid candidate at index 1" in caplog.text
 
 
+def test_dispatch_alerts_skips_non_dict_targets(monkeypatch, caplog) -> None:
+    calls: list[str] = []
+
+    def _fake_send(url: str, _payload, _headers=None):
+        calls.append(url)
+        return {"status": 200}
+
+    monkeypatch.setattr(alerts, "_send_webhook", _fake_send)
+    config = _config()
+    config["targets"] = [None, "BAD", config["targets"][0]]  # type: ignore[list-item]
+
+    with caplog.at_level("WARNING", logger="open_prep.alerts"):
+        results = alerts.dispatch_alerts(_ranked(), regime="RISK_ON", config=config)  # type: ignore[arg-type]
+
+    assert results == [{"symbol": "AAA", "target": "slack", "status": 200}]
+    assert calls == ["https://hooks.example.com/slack"]
+    assert "Skipping invalid target at index 0" in caplog.text
+    assert "Skipping invalid target at index 1" in caplog.text
+
+
 def test_dispatch_alerts_warns_on_unknown_min_confidence_tier(monkeypatch, caplog) -> None:
     monkeypatch.setattr(alerts, "_send_webhook", lambda *_args, **_kwargs: {"status": 200})
     config = _config()

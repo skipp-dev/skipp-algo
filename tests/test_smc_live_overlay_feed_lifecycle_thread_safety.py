@@ -179,3 +179,36 @@ def test_worker_liveness_runs_under_lifecycle_lock(monkeypatch: pytest.MonkeyPat
     for result in liveness_results:
         assert set(result.keys()) == {"live_feed", "ingest_processor", "overlay_refresh", "flow_refresh"}
         assert all(isinstance(v, bool) for v in result.values())
+
+
+def test_stop_does_not_raise_on_closed_logging_stream(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Regression: stop() must not raise when a logging handler's stream is
+    already closed (e.g. pytest capture teardown or atexit ordering).
+
+    Before the fix, ``logger.info("All feed threads stopped.")`` would
+    trigger ``ValueError: I/O operation on closed file`` during late
+    interpreter shutdown.
+    """
+    import io
+    import logging as _logging
+
+    import services.live_overlay_daemon.feed as feed_mod
+
+    feed_mod._stop_event.clear()
+    monkeypatch.setattr(feed_mod, "_feed_thread", None)
+    monkeypatch.setattr(feed_mod, "_refresh_thread", None)
+    monkeypatch.setattr(feed_mod, "_flow_refresh_thread", None)
+    feed_mod._runtime["ingest_thread"] = None
+
+    # Attach a handler whose stream is already closed.
+    closed_stream = io.StringIO()
+    closed_stream.close()
+    handler = _logging.StreamHandler(closed_stream)
+    _feed_logger = _logging.getLogger("services.live_overlay_daemon.feed")
+    _feed_logger.addHandler(handler)
+    try:
+        # Must not raise ValueError.
+        feed_mod.stop()
+    finally:
+        _feed_logger.removeHandler(handler)
+        feed_mod._stop_event.clear()

@@ -172,8 +172,9 @@ URLLIB_REQUEST_POST_LEDGER: set[tuple[str, int]] = {
     # shifted 439 -> 476.
     # 2026-07-02: SSRF path/query hardening inserted helper logic;
     # POST Request line shifted 476 -> 512.
-    # 2026-07-02: generic-payload finite-normalization shifted POST 512 -> 514.
-    ("open_prep/alerts.py", 514),
+    # 2026-07-02: target-host canonicalization + invalid-target guard shifted
+    # POST Request line 514 -> 533.
+    ("open_prep/alerts.py", 533),
     # 2026-06-21: UptimeRobot bridge polls monitor API with low-level
     # urllib.request.Request(..., method="POST") + timeout discipline.
     ("services/live_overlay_daemon/uptimerobot_bridge.py", 84),
