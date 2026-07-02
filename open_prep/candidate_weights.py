@@ -50,6 +50,7 @@ from typing import Any
 from zoneinfo import ZoneInfo as _ZoneInfo
 
 from open_prep.outcomes import (
+    _MIN_TUNING_SAMPLES,
     check_scorer_drift,
     compute_feature_importance,
     compute_weight_adjustments,
@@ -63,7 +64,10 @@ _ET = _ZoneInfo("America/New_York")
 
 CANDIDATE_RUN_LOG_DIR = Path("artifacts/open_prep/candidate_weights")
 CANDIDATE_LABEL = "candidate"
-DEFAULT_MIN_SAMPLES = 30
+# Align with the governance tuning gate (eval-findings B3): n=30 gives
+# correlation-estimate σ ≈ 0.19 with ~19 features — weight updates at that
+# sample size are noise-fitting. Reference the single source of truth.
+DEFAULT_MIN_SAMPLES = _MIN_TUNING_SAMPLES
 DEFAULT_MAX_DRIFT = 0.50
 
 

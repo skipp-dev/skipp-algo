@@ -705,6 +705,8 @@ def _provider_health_snapshot() -> dict[str, object]:
     snapshot_loaded = 0.0
     snapshot_age_seconds = 0.0
     snapshot_age_known = 0.0
+    ingest_age_seconds = 0.0
+    ingest_age_known = 0.0
     providers_obj: object = {}
 
     if isinstance(raw, dict) and raw:
@@ -718,6 +720,17 @@ def _provider_health_snapshot() -> dict[str, object]:
         if snapshot_ts is not None:
             snapshot_age_known = 1.0
             snapshot_age_seconds = max(0.0, time.time() - snapshot_ts)
+        # last_ingest_success_at advances only when new items were accepted
+        # (WP-C1c); it is the correct key for a 'news not flowing' alert since
+        # generated_at refreshes every producer tick regardless of ingest.
+        ingest_raw = raw.get("last_ingest_success_at")
+        try:
+            ingest_ts = float(ingest_raw) if ingest_raw is not None else 0.0
+        except (TypeError, ValueError):
+            ingest_ts = 0.0
+        if ingest_ts > 0.0:
+            ingest_age_known = 1.0
+            ingest_age_seconds = max(0.0, time.time() - ingest_ts)
 
     providers = providers_obj if isinstance(providers_obj, dict) else {}
 
@@ -790,6 +803,8 @@ def _provider_health_snapshot() -> dict[str, object]:
         "news_snapshot_loaded": snapshot_loaded,
         "news_snapshot_age_seconds": snapshot_age_seconds,
         "news_snapshot_age_known": snapshot_age_known,
+        "news_last_ingest_age_seconds": ingest_age_seconds,
+        "news_last_ingest_age_known": ingest_age_known,
         "news_providers_total": float(total),
         "news_providers_ok_total": float(ok),
         "news_providers_degraded_total": float(degraded),
@@ -1076,6 +1091,8 @@ def render_metrics(startup_ts: float, startup_epoch: float = 0.0) -> str:
         "news_snapshot_loaded",
         "news_snapshot_age_seconds",
         "news_snapshot_age_known",
+        "news_last_ingest_age_seconds",
+        "news_last_ingest_age_known",
         "news_providers_total",
         "news_providers_ok_total",
         "news_providers_degraded_total",

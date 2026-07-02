@@ -1119,6 +1119,40 @@ groups:
       summary: News provider snapshot is older than 3 hours
       runbook: Check NEWS_SNAPSHOT_PATH producer job and file update cadence; inspect
         fetched_at_unix in snapshot.
+  - uid: lo-news-ingest-stale
+    title: News ingest stale (no new stories accepted)
+    condition: C
+    data:
+    - refId: A
+      datasourceUid: grafanacloud-prom
+      model:
+        expr: live_overlay_provider_news_last_ingest_age_seconds{job="live_overlay"}
+          and on(job, instance) (live_overlay_provider_news_last_ingest_age_known{job="live_overlay"}
+          == 1)
+        instant: true
+    - refId: C
+      datasourceUid: __expr__
+      model:
+        type: threshold
+        conditions:
+        - evaluator:
+            type: gt
+            params:
+            - 21600
+          operator:
+            type: and
+          query:
+            params:
+            - A
+    for: 30m
+    labels:
+      severity: warning
+    annotations:
+      summary: No new news stories ingested in over 6 hours
+      runbook: News flows in bursts, so a quiet window is normal; a 6h+ gap during
+        market hours indicates the producer accepts fetches but no new items (cursor
+        stuck, provider auth, or upstream outage). Inspect last_ingest_success_at in
+        the snapshot vs generated_at.
   - uid: lo-tradingview-credential-age-high
     title: TradingView credential age high
     condition: C

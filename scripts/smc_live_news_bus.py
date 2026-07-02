@@ -641,7 +641,15 @@ def _normalize_state(payload: dict[str, Any] | None) -> dict[str, Any]:
                 "source_rank": int(raw_value.get("source_rank") or 4),
                 "last_seen_ts": _coerce_timestamp(raw_value.get("last_seen_ts")),
             }
-    return {"provider_cursors": cursors, "provider_state": provider_state, "story_state": story_state}
+    last_ingest_success_at = _coerce_timestamp(
+        raw_payload.get("last_ingest_success_at") if isinstance(raw_payload, dict) else None
+    )
+    return {
+        "provider_cursors": cursors,
+        "provider_state": provider_state,
+        "story_state": story_state,
+        "last_ingest_success_at": last_ingest_success_at,
+    }
 
 
 def load_live_news_state(path: Path) -> dict[str, Any]:
@@ -804,6 +812,7 @@ def poll_live_news_bus(
         if isinstance(payload, dict)
     }
     story_state = dict(normalized_state["story_state"])
+    prior_last_ingest = _coerce_timestamp(normalized_state.get("last_ingest_success_at"))
 
     fetch_specs: list[tuple[str, Any, dict[str, Any]]] = []
     if include_benzinga:
@@ -1015,8 +1024,16 @@ def poll_live_news_bus(
     active_stories.sort(key=lambda item: (-float(item["news_catalyst_score"]), -float(item["published_ts"])))
     news_catalyst_by_symbol = _build_news_catalyst_by_symbol(active_stories)
 
+    # last_ingest_success_at advances only when new items were actually
+    # accepted this cycle (WP-C1c). A stale alert keyed on generated_at would
+    # never fire because the producer tick refreshes every run regardless of
+    # whether any real news was ingested.
+    total_new_items = sum(len(provider_results[provider].items) for provider in PROVIDER_ORDER)
+    last_ingest_success_at = now_ts if total_new_items > 0 else prior_last_ingest
+
     snapshot = {
         "generated_at": _isoformat_utc(now_ts),
+        "last_ingest_success_at": last_ingest_success_at,
         "symbols": normalized_symbols,
         "provider_cursors": provider_cursors,
         "legacy_cursor": provider_cursors["legacy_cursor"],
@@ -1054,6 +1071,7 @@ def poll_live_news_bus(
         "provider_cursors": provider_cursors,
         "provider_state": provider_state,
         "story_state": story_state,
+        "last_ingest_success_at": last_ingest_success_at,
     }
     return snapshot, next_state
 

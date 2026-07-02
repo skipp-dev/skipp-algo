@@ -89,8 +89,8 @@ def _all_time_sleep_sites() -> list[tuple[str, int]]:
 _FROZEN_SITES: frozenset[tuple[str, int]] = frozenset(
     {
         # 2026-06-24 feat/benzinga-rss: REST client retry backoff.
-        ("newsstack_fmp/ingest_benzinga.py", 199),
-        ("newsstack_fmp/ingest_benzinga.py", 210),
+        ("newsstack_fmp/ingest_benzinga.py", 200),
+        ("newsstack_fmp/ingest_benzinga.py", 211),
         ("newsstack_fmp/ingest_fmp.py", 136),
         ("newsstack_fmp/ingest_fmp.py", 154),
         # PR #2154: ingest_fmp_filings.py shifted +8 (121→129, 134→142)
@@ -109,7 +109,7 @@ _FROZEN_SITES: frozenset[tuple[str, int]] = frozenset(
         ("open_prep/macro.py", 822),
         ("newsstack_fmp/ingest_fmp_political.py", 122),
         ("newsstack_fmp/ingest_fmp_political.py", 135),
-        ("newsstack_fmp/shared_fetch.py", 297),
+        ("newsstack_fmp/shared_fetch.py", 312),
         ("newsstack_fmp/pipeline.py", 1259),
         ("newsstack_fmp/store_sqlite.py", 81),
         ("newsstack_fmp/store_sqlite.py", 86),
@@ -145,9 +145,9 @@ _FROZEN_SITES: frozenset[tuple[str, int]] = frozenset(
         # (198→199, 209→210 after RSS improvements).
         # 2026-06-24 feat/benzinga-rss-improvements: added retry sleep in
         # parallel fetch worker (line 901 after thread-safety follow-up).
-        ("newsstack_fmp/ingest_benzinga.py", 199),
-        ("newsstack_fmp/ingest_benzinga.py", 210),
-        ("newsstack_fmp/ingest_benzinga.py", 901),
+        ("newsstack_fmp/ingest_benzinga.py", 200),
+        ("newsstack_fmp/ingest_benzinga.py", 211),
+        ("newsstack_fmp/ingest_benzinga.py", 909),
     }
 )
 

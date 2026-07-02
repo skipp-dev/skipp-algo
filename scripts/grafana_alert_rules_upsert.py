@@ -21,8 +21,13 @@ This script bridges the gap. It parses the file format and upserts each rule
     PUT /api/v1/provisioning/folder/{folderUID}/rule-groups/{group}
 
 which overwrites the whole group (adds new rules, updates changed ones, removes
-rules deleted from the repo). The result is a 1:1 reproducible deploy that cannot
-silently drift from ``alert-rules.yaml``.
+rules deleted from the repo). The result is a 1:1 reproducible deploy of the
+groups defined in ``alert-rules.yaml``.
+
+Groups *removed* from the YAML are not deleted from Grafana automatically: the
+per-group PUT cannot see groups it is not given. Pass ``--prune`` to delete live
+rule groups (in the folders this file manages) that are absent from the YAML;
+without it, such orphans are reported as warnings so drift is at least visible.
 
 Auth
 ----
@@ -480,6 +485,66 @@ def upsert_group(group: dict[str, Any], key: str, *, create_folder: bool = True)
     return len(payload["rules"])
 
 
+def live_groups_by_folder(key: str) -> dict[str, set[str]]:
+    """Return live provisioned rule-group names keyed by folder UID.
+
+    Reads all provisioned alert rules (``GET /api/v1/provisioning/alert-rules``)
+    and buckets their ``ruleGroup`` by ``folderUID`` so orphan groups (present
+    in Grafana but absent from the YAML) can be detected.
+    """
+    rules = _request("GET", "/api/v1/provisioning/alert-rules", key) or []
+    out: dict[str, set[str]] = {}
+    for rule in rules:
+        if not isinstance(rule, dict):
+            continue
+        folder_uid = str(rule.get("folderUID") or "")
+        group = str(rule.get("ruleGroup") or "")
+        if folder_uid and group:
+            out.setdefault(folder_uid, set()).add(group)
+    return out
+
+
+def delete_rule_group(folder_uid: str, group: str, key: str) -> None:
+    """Delete a provisioned rule group (destructive; only via --prune)."""
+    _request(
+        "DELETE",
+        f"/api/v1/provisioning/folder/{folder_uid}/rule-groups/{group}",
+        key,
+        extra_headers={"X-Disable-Provenance": "true"},
+    )
+
+
+def reconcile_orphan_groups(
+    groups: list[dict[str, Any]], key: str, *, prune: bool = False
+) -> list[str]:
+    """Report (and optionally prune) live groups absent from the YAML.
+
+    Only folders that appear in the YAML are inspected, so groups in unrelated
+    folders are never touched. Returns the list of orphan ``folder/group``
+    labels found (pruned or warned).
+    """
+    # desired[folder_uid] = {group names from YAML}
+    desired: dict[str, set[str]] = {}
+    folder_titles: dict[str, str] = {}
+    for group in groups:
+        folder_uid = resolve_folder_uid(group["folder"], key, create=False)
+        desired.setdefault(folder_uid, set()).add(group["name"])
+        folder_titles[folder_uid] = group["folder"]
+
+    live = live_groups_by_folder(key)
+    orphans: list[str] = []
+    for folder_uid, desired_groups in desired.items():
+        for live_name in sorted(live.get(folder_uid, set()) - desired_groups):
+            label = f"{folder_titles.get(folder_uid, folder_uid)}/{live_name}"
+            orphans.append(label)
+            if prune:
+                delete_rule_group(folder_uid, live_name, key)
+                print(f"pruned orphan group: {label}")
+            else:
+                print(f"WARNING: orphan live group not in YAML: {label}", file=sys.stderr)
+    return orphans
+
+
 # --------------------------------------------------------------------------- #
 # CLI
 # --------------------------------------------------------------------------- #
@@ -497,6 +562,12 @@ def main(argv: list[str] | None = None) -> int:
         "--no-create-folder",
         action="store_true",
         help="fail instead of creating a missing Grafana folder",
+    )
+    parser.add_argument(
+        "--prune",
+        action="store_true",
+        help="delete live rule groups (in managed folders) absent from the YAML "
+        "(default: only warn about orphans)",
     )
     args = parser.parse_args(argv)
 
@@ -526,18 +597,30 @@ def main(argv: list[str] | None = None) -> int:
 
     try:
         key = _api_key()
+        total = len(groups)
+        applied = 0
         for group in groups:
             written = upsert_group(
                 group, key, create_folder=not args.no_create_folder
             )
+            applied += 1
             print(
                 f"Upserted group '{group['name']}' "
                 f"({written} rule(s)) in folder '{group['folder']}'."
             )
+        reconcile_orphan_groups(groups, key, prune=args.prune)
     except urllib.error.HTTPError as exc:
+        print(
+            f"PARTIAL APPLY: {applied}/{total} groups updated — alerting is in a "
+            f"mixed state; re-run to converge.", file=sys.stderr,
+        )
         print(f"HTTP {exc.code}: {exc.read().decode('utf-8')}", file=sys.stderr)
         return 1
     except (urllib.error.URLError, RuntimeError, subprocess.CalledProcessError) as exc:
+        print(
+            f"PARTIAL APPLY: {applied}/{total} groups updated — alerting is in a "
+            f"mixed state; re-run to converge.", file=sys.stderr,
+        )
         print(f"Alert rules upsert failed: {exc}", file=sys.stderr)
         return 1
 

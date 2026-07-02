@@ -196,15 +196,28 @@ class SqliteStore:
 
     @_retry_on_locked
     def mark_seen(self, provider: str, item_id: str, ts: float) -> bool:
-        """Return True if newly inserted; False if already seen."""
-        try:
-            with self._lock:
+        """True → process (brand-new OR strictly newer update); False → duplicate."""
+        with self._lock:
+            row = self.conn.execute(
+                "SELECT ts FROM seen WHERE provider=? AND item_id=?",
+                (provider, item_id),
+            ).fetchone()
+            if row is None:
                 self.conn.execute(
                     "INSERT INTO seen(provider,item_id,ts) VALUES(?,?,?)",
                     (provider, item_id, ts),
                 )
                 return True
-        except sqlite3.IntegrityError:
+            if ts > float(row[0]):
+                # A strictly newer update to a story we already saw: advance the
+                # stored ts and reprocess so corrections/escalations supersede
+                # the stale version (WP-B3). Downstream export is idempotent per
+                # (provider, item_id) via best_by_ticker re-scoring each cycle.
+                self.conn.execute(
+                    "UPDATE seen SET ts=? WHERE provider=? AND item_id=?",
+                    (ts, provider, item_id),
+                )
+                return True
             return False
 
     @_retry_on_locked

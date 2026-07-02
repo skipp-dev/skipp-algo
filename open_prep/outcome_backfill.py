@@ -444,6 +444,7 @@ def backfill_outcomes(
         "resolved": total_resolved,
         "skipped": total_skipped,
         "failed": total_failed,
+        "unresolved_no_bars": total_failed,  # survivorship: labels never assigned (WP-D1)
         "deferred": total_deferred,
         "dates_processed": len(dates),
     }

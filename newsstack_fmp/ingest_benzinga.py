@@ -32,6 +32,7 @@ import queue
 import re
 import threading
 import time
+from html import unescape as _html_unescape
 from typing import Any
 
 import httpx
@@ -768,7 +769,7 @@ def _entry_to_news_item(entry: Any, *, source_url: str) -> NewsItem | None:
         or getattr(entry, "link", None)
         or ""
     ).strip()
-    title: str = (getattr(entry, "title", None) or "").strip()
+    title: str = _html_unescape((getattr(entry, "title", None) or "").strip())[:300]
     if not guid or not title:
         return None
 
@@ -793,7 +794,7 @@ def _entry_to_news_item(entry: Any, *, source_url: str) -> NewsItem | None:
     snippet: str = ""
     summary = getattr(entry, "summary", None) or ""
     if summary:
-        snippet = re.sub(r"<[^>]+>", "", summary).strip()[:500]
+        snippet = _html_unescape(re.sub(r"<[^>]+>", "", summary)).strip()[:500]
 
     author: str = (
         getattr(entry, "author", None)
@@ -842,7 +843,14 @@ def _process_parsed_feed(
             if not parsed.get("entries"):
                 return items
         for entry in parsed.get("entries", []):
-            item = _entry_to_news_item(entry, source_url=feed_url)
+            try:
+                item = _entry_to_news_item(entry, source_url=feed_url)
+            except Exception:
+                # A single malformed entry must not drop entries k+1..N (WP-C1b).
+                with adapter._lock:
+                    adapter.fetch_errors += 1
+                logger.debug("BenzingaRSS: skipping malformed RSS entry", exc_info=True)
+                continue
             if item is None:
                 continue
             with adapter._lock:

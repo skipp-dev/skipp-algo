@@ -3474,7 +3474,11 @@ else:
             if _rank_fc_missing and _intel_enabled():
                 try:
                     for _sym in _rank_fc_missing:
-                        _fc = fetch_forecast(_sym)
+                        try:
+                            _fc = fetch_forecast(_sym)
+                        except Exception:
+                            logger.debug("forecast failed for %s", _sym, exc_info=True)
+                            continue
                         if _fc.has_data and _fc.price_target:
                             _rank_forecasts[_sym] = {
                                 "price_target": {
@@ -3793,7 +3797,11 @@ else:
             if _act_fc_missing and _intel_enabled():
                 try:
                     for _sym in _act_fc_missing:
-                        _fc = fetch_forecast(_sym)
+                        try:
+                            _fc = fetch_forecast(_sym)
+                        except Exception:
+                            logger.debug("forecast failed for %s", _sym, exc_info=True)
+                            continue
                         if _fc.has_data and _fc.price_target:
                             _act_forecasts[_sym] = {
                                 "price_target": {
@@ -4142,7 +4150,11 @@ else:
             if _seg_fc_missing and _intel_enabled():
                 try:
                     for _sym in _seg_fc_missing:
-                        _fc = fetch_forecast(_sym)
+                        try:
+                            _fc = fetch_forecast(_sym)
+                        except Exception:
+                            logger.debug("forecast failed for %s", _sym, exc_info=True)
+                            continue
                         if _fc.has_data and _fc.price_target:
                             _seg_forecasts[_sym] = {
                                 "price_target": {

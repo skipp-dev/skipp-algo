@@ -342,13 +342,14 @@ class TestSqliteStore(unittest.TestCase):
         self.assertEqual(count2, 2)
 
     def test_prune_seen(self):
-        self.store.mark_seen("p", "old", time.time() - 7200)
-        self.store.mark_seen("p", "new", time.time())
+        now = time.time()
+        self.store.mark_seen("p", "old", now - 7200)
+        self.store.mark_seen("p", "new", now)
         self.store.prune_seen(3600)
         # "old" was pruned → can be re-inserted (returns True)
-        self.assertTrue(self.store.mark_seen("p", "old", time.time()))
-        # "new" still exists → cannot be re-inserted (returns False)
-        self.assertFalse(self.store.mark_seen("p", "new", time.time()))
+        self.assertTrue(self.store.mark_seen("p", "old", now))
+        # "new" still exists at the same ts → not a newer update (returns False)
+        self.assertFalse(self.store.mark_seen("p", "new", now))
 
 
 class TestSqliteStorePrune(unittest.TestCase):
@@ -357,13 +358,14 @@ class TestSqliteStorePrune(unittest.TestCase):
         from newsstack_fmp.store_sqlite import SqliteStore
 
         store = SqliteStore(":memory:")
-        store.mark_seen("p", "old", time.time() - 7200)
-        store.mark_seen("p", "new", time.time())
+        now = time.time()
+        store.mark_seen("p", "old", now - 7200)
+        store.mark_seen("p", "new", now)
         store.prune_seen(3600)
         # "old" was pruned → can be re-inserted
-        self.assertTrue(store.mark_seen("p", "old", time.time()))
-        # "new" still exists → cannot be inserted
-        self.assertFalse(store.mark_seen("p", "new", time.time()))
+        self.assertTrue(store.mark_seen("p", "old", now))
+        # "new" still exists at the same ts → not a newer update
+        self.assertFalse(store.mark_seen("p", "new", now))
 
 
 if __name__ == "__main__":

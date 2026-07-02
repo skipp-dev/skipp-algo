@@ -125,7 +125,8 @@
 # 2026-06-22 review follow-up: _api_key hardening shifted urlopen site 274 -> 281.
 # 2026-06-27: added default relativeTimeRange handling for instant alert queries.
 # 2026-07-01: added PromQL gating anti-pattern linter above validate_alert_groups; shifted urlopen site 340 -> 446.
-"scripts/grafana_alert_rules_upsert.py" = [446]
+# 2026-07-02: WP-C5 orphan-group reconcile docstring + helpers shifted urlopen site 446 -> 451.
+"scripts/grafana_alert_rules_upsert.py" = [451]
 # 2026-06-24: Railway GraphQL API bridge for container metrics; fixed https
 # endpoint (backboard.railway.com/graphql/v2), explicit timeout= via Request.
 "services/live_overlay_daemon/railway_metrics.py" = [85]
@@ -517,7 +518,7 @@ frozen_major = "v7"
 "terminal_catalyst_state.py" = 3
 "terminal_export.py" = 3
 "terminal_feed_state.py" = 9
-"terminal_forecast.py" = 2
+"terminal_forecast.py" = 1
 "terminal_live_story_state.py" = 2
 "terminal_poller.py" = 4
 "terminal_posture_state.py" = 2

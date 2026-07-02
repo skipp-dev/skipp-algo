@@ -238,16 +238,28 @@ def compute_hit_rates(
     for rec in records:
         gap_pct = _safe_float(rec.get("gap_pct"))
         rvol = _safe_float(rec.get("rvol"))
-        profitable = rec.get("profitable_30m")
-        pnl = _safe_float(rec.get("pnl_30m_pct"))
+        # Direction-signed label when present, falling back to the legacy
+        # long-only label for old records (eval-findings C3a).
+        profitable = rec.get("profitable_30m_directional")
+        if profitable is None:
+            profitable = rec.get("profitable_30m")
+        pnl = _safe_float(
+            rec.get("pnl_30m_pct_signed", rec.get("pnl_30m_pct")), default=0.0,
+        )
 
         gb = _gap_bucket_label(gap_pct)
         rb = _rvol_bucket_label(rvol)
         key = f"{gb}:{rb}"
 
         if key not in buckets:
-            buckets[key] = {"total": 0, "profitable": 0, "pnl_sum": 0.0}
+            buckets[key] = {"total": 0, "profitable": 0, "pnl_sum": 0.0, "unresolved": 0}
 
+        # Unresolved (profitable is None) must not dilute the denominator —
+        # 32/140 unresolved dragged the rate from 0.722 down to 0.557
+        # (eval-findings B1). Track them separately so survivorship is visible.
+        if profitable is None:
+            buckets[key]["unresolved"] += 1
+            continue
         buckets[key]["total"] += 1
         if profitable is True:
             buckets[key]["profitable"] += 1
@@ -259,6 +271,7 @@ def compute_hit_rates(
         result[key] = {
             "total": total,
             "profitable": data["profitable"],
+            "unresolved": data.get("unresolved", 0),
             "hit_rate": round(data["profitable"] / total, 4) if total > 0 else 0.0,
             "avg_pnl_pct": round(data["pnl_sum"] / total, 4) if total > 0 else 0.0,
         }
@@ -283,6 +296,7 @@ def get_symbol_hit_rate(
         return {
             "historical_hit_rate": stats["hit_rate"],
             "historical_sample_size": stats["total"],
+            "historical_unresolved": stats.get("unresolved", 0),
             "historical_avg_pnl_pct": stats["avg_pnl_pct"],
             "gap_bucket": gb,
             "rvol_bucket": rb,
@@ -290,6 +304,7 @@ def get_symbol_hit_rate(
     return {
         "historical_hit_rate": None,
         "historical_sample_size": 0,
+        "historical_unresolved": 0,
         "historical_avg_pnl_pct": None,
         "gap_bucket": gb,
         "rvol_bucket": rb,
@@ -392,7 +407,9 @@ def prepare_outcome_snapshot(
     for row in ranked:
         gap_pct = _safe_float(row.get("gap_pct"))
         rvol = _safe_float(row.get("volume"))
-        avg_vol = _safe_float(row.get("avg_volume"), default=1.0)
+        # Missing avg_volume must not masquerade as rvol=raw_volume: default 0.0
+        # so the guard below yields an honest 0.0 instead of a huge ratio (WP-D7).
+        avg_vol = _safe_float(row.get("avg_volume"), default=0.0)
         rvol_ratio = (rvol / avg_vol) if avg_vol > 0 else 0.0
 
         records.append({

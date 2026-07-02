@@ -44,14 +44,15 @@ from pathlib import Path
 from typing import Any
 from zoneinfo import ZoneInfo as _ZoneInfo
 
-from open_prep.outcomes import compute_feature_importance
+from open_prep.outcomes import _MIN_TUNING_SAMPLES, compute_feature_importance
 
 logger = logging.getLogger("open_prep.feature_importance_report")
 
 _ET = _ZoneInfo("America/New_York")
 
 FI_REPORT_DIR = Path("artifacts/open_prep/feature_importance")
-DEFAULT_MIN_SAMPLES = 30
+# Align the report default with the governance tuning gate (eval-findings B3).
+DEFAULT_MIN_SAMPLES = _MIN_TUNING_SAMPLES
 
 # Drift gate: how far a feature's ranking position may shift between
 # consecutive `ok` runs before we surface a ``ranking_drift`` warning.

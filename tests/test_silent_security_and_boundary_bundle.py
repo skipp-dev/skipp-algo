@@ -180,10 +180,10 @@ def test_no_warnings_ignore_in_prod() -> None:
 
 _FROZEN_BASIC_CONFIG_SITES: frozenset[tuple[str, int]] = frozenset({
     ("newsstack_fmp/run.py", 22),
-    ("open_prep/candidate_weights.py", 207),
+    ("open_prep/candidate_weights.py", 211),
     # 2026-06-13 (audit-e2/aw7-reader-observability, PR #2759): _load_previous_latest
     #   DEBUG log insertion shifted logging.basicConfig from 305 → 306.
-    ("open_prep/feature_importance_report.py", 306),
+    ("open_prep/feature_importance_report.py", 307),
     # 2026-06-11 (backfill defer-unpublished): 418→457.
     # 2026-06-11 (eval-findings B1/B2): direction+TB code shifted 457→536.
     # 2026-06-11 (c10b FI component persistence): era-gate block 536→558.
@@ -192,13 +192,13 @@ _FROZEN_BASIC_CONFIG_SITES: frozenset[tuple[str, int]] = frozenset({
     # combined — measured 579.
     # 2026-06-12 (Copilot #2729): main() exit-semantics docstring +6 → 585.
     # 2026-06-17 (F1 lint fix): remove unused import sys → 585→584.
-    ("open_prep/outcome_backfill.py", 584),
+    ("open_prep/outcome_backfill.py", 585),
     # 2026-06-25: AsyncNewsstackPoller telemetry additions shifted
     # 2913 -> 2992; feature-flag helper additions shifted run_open_prep
     # 6059 -> 6063.
     # 2026-06-28 (semantic monitoring): shifted +80 lines by readiness metrics.
     ("open_prep/realtime_signals.py", 3088),
-    ("open_prep/run_open_prep.py", 6063),
+    ("open_prep/run_open_prep.py", 6079),
     # 2026-06-16 (feat/live-overlay-daemon): entry-point main.py configures
     # root logger at startup (Railway container, no other logger setup).
     # 2026-06-19 (fix/live-overlay-post-merge-bugs): import additions for

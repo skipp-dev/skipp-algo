@@ -18,6 +18,7 @@ DEFAULT_SHARED_NEWS_CACHE_DIR = "artifacts/shared_news_cache"
 DEFAULT_SHARED_NEWS_CACHE_TTL_SECONDS = 90.0
 _LOCK_POLL_INTERVAL_SECONDS = 0.05
 _LOCK_TIMEOUT_SECONDS = 15.0
+_MAX_FUTURE_SKEW_SECS = 300.0  # tolerated provider clock drift
 _PROVIDER_TTL_ENV_KEYS = {
     "newsapi_ai": "NEWSAPI_AI_SHARED_CACHE_TTL_SECONDS",
 }
@@ -66,6 +67,20 @@ def filter_news_items_since(items: list[NewsItem], min_cursor: float) -> list[Ne
     if threshold <= 0.0:
         return list(items)
     return [item for item in items if news_item_timestamp(item) > threshold]
+
+
+def _clamped_cursor(min_cursor: float, items: list[NewsItem], *, now: float) -> float:
+    """Advance the cursor only past plausible (non-future) item timestamps.
+
+    A single future-dated item (embargoed press release, provider clock
+    drift, mis-parsed date) must never jump the persisted cursor past 'now' —
+    the ``> min_cursor`` filter would then silently drop ALL real news until
+    wall-clock catches up.
+    """
+    ceiling = float(now) + _MAX_FUTURE_SKEW_SECS
+    floor = max(float(min_cursor or 0.0), 0.0)
+    plausible = [ts for item in items if (ts := news_item_timestamp(item)) <= ceiling]
+    return min(max([floor, *plausible], default=floor), ceiling)
 
 
 def tv_headline_to_news_item(headline: Any) -> NewsItem:
@@ -140,7 +155,7 @@ def fetch_cached_batch(
             items=raw_items,
             raw_items=list(raw_items),
             raw_count=len(raw_items),
-            cursor=max([max(float(min_cursor or 0.0), 0.0), *[news_item_timestamp(item) for item in raw_items]], default=max(float(min_cursor or 0.0), 0.0)),
+            cursor=_clamped_cursor(min_cursor, raw_items, now=fetched_at),
             fetched_at=fetched_at,
             from_cache=False,
         )

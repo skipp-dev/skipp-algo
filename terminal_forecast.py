@@ -34,11 +34,34 @@ except ImportError:
 
 
 def _make_fmp_client(api_key: str) -> FMPClientLike:
-    return make_fmp_client(api_key, retry_attempts=1, timeout_seconds=10.0)
+    return make_fmp_client(api_key, retry_attempts=2, timeout_seconds=10.0)
 
 
 def _fmp_key() -> str:
     return os.environ.get("FMP_API_KEY", "")
+
+
+def _f(d: dict, k: str, default: float = 0.0) -> float:
+    """Null-safe float: covers MISSING key AND explicit JSON null.
+
+    ``d.get(k, 0)`` returns ``None`` (not the default) when the key exists with
+    a null value, and ``float(None)`` raises — so a single null field aborts the
+    whole FMP parse (WP-C4).
+    """
+    try:
+        v = d.get(k)
+        return float(v) if v is not None else float(default)
+    except (TypeError, ValueError):
+        return float(default)
+
+
+def _i(d: dict, k: str, default: int = 0) -> int:
+    """Null-safe int: covers MISSING key AND explicit JSON null."""
+    try:
+        v = d.get(k)
+        return int(v) if v is not None else int(default)
+    except (TypeError, ValueError):
+        return int(default)
 
 
 # ── Rating label mapping ────────────────────────────────────────
@@ -225,14 +248,14 @@ def _fetch_fmp(sym: str) -> ForecastResult | None:
     pt_data = client.get_price_target_consensus(sym)
     if pt_data:
         d = pt_data
-        current = float(_profile.get("price", 0))
+        current = _f(_profile, "price")
 
         result.price_target = PriceTarget(
             current_price=current,
-            target_high=float(d.get("targetHigh", 0)),
-            target_low=float(d.get("targetLow", 0)),
-            target_mean=float(d.get("targetConsensus", 0)),
-            target_median=float(d.get("targetMedian", 0)),
+            target_high=_f(d, "targetHigh"),
+            target_low=_f(d, "targetLow"),
+            target_mean=_f(d, "targetConsensus"),
+            target_median=_f(d, "targetMedian"),
         )
         got_anything = True
 
@@ -240,23 +263,23 @@ def _fetch_fmp(sym: str) -> ForecastResult | None:
         pts_data = client.get_price_target_summary(sym)
         if pts_data:
             s = pts_data
-            result.price_target.last_month_avg = float(s.get("lastMonthAvgPriceTarget", 0))
-            result.price_target.last_month_count = int(s.get("lastMonthCount", 0))
-            result.price_target.last_quarter_avg = float(s.get("lastQuarterAvgPriceTarget", 0))
-            result.price_target.last_quarter_count = int(s.get("lastQuarterCount", 0))
-            result.price_target.last_year_avg = float(s.get("lastYearAvgPriceTarget", 0))
-            result.price_target.last_year_count = int(s.get("lastYearCount", 0))
+            result.price_target.last_month_avg = _f(s, "lastMonthAvgPriceTarget")
+            result.price_target.last_month_count = _i(s, "lastMonthCount")
+            result.price_target.last_quarter_avg = _f(s, "lastQuarterAvgPriceTarget")
+            result.price_target.last_quarter_count = _i(s, "lastQuarterCount")
+            result.price_target.last_year_avg = _f(s, "lastYearAvgPriceTarget")
+            result.price_target.last_year_count = _i(s, "lastYearCount")
 
     # 2) Grades Consensus (analyst ratings)
     gc_data = client.get_grades_consensus(sym)
     if gc_data:
         d = gc_data
         result.rating = AnalystRating(
-            strong_buy=int(d.get("strongBuy", 0)),
-            buy=int(d.get("buy", 0)),
-            hold=int(d.get("hold", 0)),
-            sell=int(d.get("sell", 0)),
-            strong_sell=int(d.get("strongSell", 0)),
+            strong_buy=_i(d, "strongBuy"),
+            buy=_i(d, "buy"),
+            hold=_i(d, "hold"),
+            sell=_i(d, "sell"),
+            strong_sell=_i(d, "strongSell"),
             consensus_label=str(d.get("consensus", "")),
         )
         got_anything = True
@@ -268,12 +291,12 @@ def _fetch_fmp(sym: str) -> ForecastResult | None:
             date_str = d.get("date", "")
             result.eps_estimates.append(EPSEstimate(
                 period=date_str,
-                avg=float(d.get("epsAvg", 0)),
-                low=float(d.get("epsLow", 0)),
-                high=float(d.get("epsHigh", 0)),
-                num_analysts=int(d.get("numAnalystsEps", 0) or d.get("numberOfAnalysts", 0)),
-                revenue_avg=float(d.get("revenueAvg", 0)),
-                ebitda_avg=float(d.get("ebitdaAvg", 0)),
+                avg=_f(d, "epsAvg"),
+                low=_f(d, "epsLow"),
+                high=_f(d, "epsHigh"),
+                num_analysts=_i(d, "numAnalystsEps") or _i(d, "numberOfAnalysts"),
+                revenue_avg=_f(d, "revenueAvg"),
+                ebitda_avg=_f(d, "ebitdaAvg"),
             ))
         got_anything = True
 
@@ -401,7 +424,11 @@ def fetch_forecast(symbol: str, *, force: bool = False) -> ForecastResult:
                     return cached
 
     # Try FMP first (primary)
-    result = _fetch_fmp(sym)
+    try:
+        result = _fetch_fmp(sym)
+    except Exception:
+        log.debug("FMP forecast failed for %s", sym, exc_info=True)
+        result = None
 
     # Fallback to yfinance
     if result is None:
