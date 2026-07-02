@@ -868,6 +868,42 @@ test("TradingView page auth state accepts positive account probe", () => {
   assert.equal(state.reason, "account_probe_authenticated");
 });
 
+test("positive account probe wins over fuzzy sign-in body text", () => {
+  // Regression: an authenticated UI commonly contains the word "email"
+  // ("Email notifications", account settings, etc.). A confirmed HTTP 2xx
+  // account probe must NOT be overridden by that fuzzy body-text heuristic,
+  // otherwise a logged-in session is misclassified as anonymous and triggers
+  // spurious re-login/recovery.
+  const state = resolveTradingViewPageAuthState({
+    url: "https://www.tradingview.com/chart/",
+    htmlClass: "theme-light",
+    bodyText: "Watchlist  Email notifications  Sign in to sync  Account settings",
+    accountProbeStatuses: [200],
+    accountProbeAuthenticated: true,
+    accountProbeAnonymous: false,
+  });
+
+  assert.equal(state.authenticated, true);
+  assert.equal(state.explicitlyAnonymous, false);
+  assert.equal(state.reason, "account_probe_authenticated");
+});
+
+test("sign-in body text still marks anonymous when probe is not authenticated", () => {
+  // The heuristic must remain active when there is no positive probe.
+  const state = resolveTradingViewPageAuthState({
+    url: "https://www.tradingview.com/",
+    htmlClass: "theme-light",
+    bodyText: "Sign in  Email  Password  Continue with Google",
+    accountProbeStatuses: [],
+    accountProbeAuthenticated: false,
+    accountProbeAnonymous: false,
+  });
+
+  assert.equal(state.authenticated, false);
+  assert.equal(state.explicitlyAnonymous, true);
+  assert.equal(state.reason, "signin_signals_visible");
+});
+
 test("TradingView page auth probe emits trace status monitoring", async () => {
   const browser = await chromium.launch({ headless: true });
   const messages: string[] = [];
