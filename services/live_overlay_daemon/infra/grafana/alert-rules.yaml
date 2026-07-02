@@ -1020,7 +1020,7 @@ groups:
       runbook: Check Railway deployment logs and restart_cause counters for crash
         loop.
   - uid: sp-memory-high
-    title: Signals Producer RSS > 512 MB
+    title: Signals Producer RSS > 768 MB
     condition: C
     data:
     - refId: A
@@ -1037,7 +1037,7 @@ groups:
         - evaluator:
             type: gt
             params:
-            - 512
+            - 768
           operator:
             type: and
           query:
@@ -1047,9 +1047,14 @@ groups:
     labels:
       severity: warning
     annotations:
-      summary: smc-signals-producer memory exceeds 512 MB for > 5 min
-      runbook: Check for memory leak in poll_once / newsstack poller. Consider recycling
-        the Railway instance.
+      summary: smc-signals-producer memory exceeds 768 MB for > 5 min
+      runbook: 'Warning at 75% of the ~1 GiB Railway tier (critical stays at 900 MB
+        ≈ 88%), aligned with the Railway usage-ratio policy (lo-railway-memory-ratio-high
+        at 0.75). The prior 512 MB (~50%) threshold sat below the process''s legitimate
+        steady-state footprint (numpy/pandas/feedparser/httpx + watchlist state) and
+        fired continuously without an OOM. If RSS is genuinely climbing toward 900 MB,
+        check for a memory leak in poll_once / newsstack poller and consider recycling
+        the Railway instance.'
   - uid: sp-memory-critical
     title: Signals Producer RSS > 900 MB
     condition: C
