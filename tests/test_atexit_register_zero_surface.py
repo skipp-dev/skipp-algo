@@ -95,7 +95,9 @@ ATEXIT_REGISTER_ALLOWED: set[tuple[str, int]] = {
     # provider-news/ingest rework shifted the same single-hook register.
     # 2026-06-25 (fix/overlay-dashboard-metrics): dashboard/metrics updates
     # shifted feed.start() atexit.register one line up (still unregister-then-register).
-    ("services/live_overlay_daemon/feed.py", 514),
+    # 2026-07-02: reconcile pre-existing drift left by #3113 (feed drop-logging
+    # shifted the single register hook 514 -> 515 without refreshing this pin).
+    ("services/live_overlay_daemon/feed.py", 515),
 }
 
 
