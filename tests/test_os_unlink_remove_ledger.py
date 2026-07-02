@@ -110,7 +110,7 @@ OS_DELETE_LEDGER: set[tuple[str, int, str]] = {
     ("open_prep/outcome_backfill.py", 124, "unlink"),
     # 2026-06-12 (Copilot #2729): main() exit-semantics docstring +6 → 717.
     # 2026-06-17 (F1 lint fix): remove unused import sys → 717→716.
-    ("open_prep/outcome_backfill.py", 716, "unlink"),
+    ("open_prep/outcome_backfill.py", 717, "unlink"),
     ("open_prep/outcomes.py", 161, "unlink"),
     # 2026-06-11 (trend-state features): 431→449, snapshot keys +
     # FEATURE_KEYS/PASS_THROUGH block added above.
@@ -123,7 +123,7 @@ OS_DELETE_LEDGER: set[tuple[str, int, str]] = {
     # 2026-06-12 (backlog-resilience): non-list warning in
     # _load_outcomes_range +6 → 587.
     # 2026-07-02 (WP6 formula-era gate): cutoff constant block +8 → 595.
-    ("open_prep/outcomes.py", 595, "unlink"),
+    ("open_prep/outcomes.py", 610, "unlink"),
     ("open_prep/realtime_signals.py", 125, "remove"),
     # 2026-06-25: AsyncNewsstackPoller telemetry additions shifted
     # 2783 -> 2862 and 2828 -> 2907.

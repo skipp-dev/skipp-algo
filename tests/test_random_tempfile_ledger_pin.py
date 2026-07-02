@@ -75,7 +75,7 @@ _TEMPFILE_LEDGER: frozenset[tuple[str, int, str]] = frozenset({
     ("databento_volatility_screener.py", 604, "mkstemp"),
     ("governance/alpha_ledger.py", 70, "mkstemp"),
     ("newsstack_fmp/open_prep_export.py", 25, "mkstemp"),
-    ("newsstack_fmp/shared_fetch.py", 258, "mkstemp"),
+    ("newsstack_fmp/shared_fetch.py", 273, "mkstemp"),
     # 2026-07-01: alerts payload/url hardening inserted helper functions;
     # mkstemp site shifted 68 -> 69.
     # 2026-07-02: SSRF path/query hardening shifted mkstemp 69 -> 70.
@@ -95,7 +95,7 @@ _TEMPFILE_LEDGER: frozenset[tuple[str, int, str]] = frozenset({
     # combined — measured 703; outcomes.py guard shift → 152.
     # 2026-06-12 (Copilot #2729): main() exit-semantics docstring +6 → 709.
     # 2026-06-17 (F1 lint fix): remove unused import sys → 709→708.
-    ("open_prep/outcome_backfill.py", 708, "mkstemp"),
+    ("open_prep/outcome_backfill.py", 709, "mkstemp"),
     ("open_prep/outcomes.py", 152, "mkstemp"),
     # 2026-06-11 (trend-state features): 419→437, snapshot keys +
     # FEATURE_KEYS/PASS_THROUGH block added above.
@@ -106,7 +106,7 @@ _TEMPFILE_LEDGER: frozenset[tuple[str, int, str]] = frozenset({
     # 2026-06-12 (backlog-resilience): non-list warning in
     # _load_outcomes_range +6 → 575.
     # 2026-07-02 (WP6 formula-era gate): cutoff constant block +8 → 583.
-    ("open_prep/outcomes.py", 583, "mkstemp"),
+    ("open_prep/outcomes.py", 598, "mkstemp"),
     ("open_prep/realtime_signals.py", 117, "mkstemp"),
     # 2026-06-25: AsyncNewsstackPoller telemetry additions shifted
     # 2768 -> 2849 and 2815 -> 2896.

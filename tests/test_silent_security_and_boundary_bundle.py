@@ -192,7 +192,7 @@ _FROZEN_BASIC_CONFIG_SITES: frozenset[tuple[str, int]] = frozenset({
     # combined — measured 579.
     # 2026-06-12 (Copilot #2729): main() exit-semantics docstring +6 → 585.
     # 2026-06-17 (F1 lint fix): remove unused import sys → 585→584.
-    ("open_prep/outcome_backfill.py", 584),
+    ("open_prep/outcome_backfill.py", 585),
     # 2026-06-25: AsyncNewsstackPoller telemetry additions shifted
     # 2913 -> 2992; feature-flag helper additions shifted run_open_prep
     # 6059 -> 6063.
