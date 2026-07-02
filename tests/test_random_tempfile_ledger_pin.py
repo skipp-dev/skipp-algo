@@ -105,7 +105,8 @@ _TEMPFILE_LEDGER: frozenset[tuple[str, int, str]] = frozenset({
     # + component flattening shifted 531→555.
     # 2026-06-12 (backlog-resilience): non-list warning in
     # _load_outcomes_range +6 → 575.
-    ("open_prep/outcomes.py", 575, "mkstemp"),
+    # 2026-07-02 (WP6 formula-era gate): cutoff constant block +8 → 583.
+    ("open_prep/outcomes.py", 583, "mkstemp"),
     ("open_prep/realtime_signals.py", 117, "mkstemp"),
     # 2026-06-25: AsyncNewsstackPoller telemetry additions shifted
     # 2768 -> 2849 and 2815 -> 2896.
