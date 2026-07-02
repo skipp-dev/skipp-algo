@@ -599,10 +599,24 @@ def score_candidate(
     ewma_component = w.get("ewma", 0.4) * apply_diminishing_returns(max(min(ewma_raw, 1.0), 0.0))
 
     # --- #8  Score Component Cap (40%) ---
-    # Prevent any single positive component from dominating > 40% of the
-    # total positive contribution.  Iterative: re-compute total after each
-    # capping pass until convergence (prevents single-pass overshoot where
-    # a capped component still exceeds 40% of the post-cap total).
+    # Prevent any single positive component from dominating more than
+    # SCORE_COMPONENT_CAP_FRACTION (40%) of the total positive contribution.
+    #
+    # This caps against the *pre-cap* total in a single pass. The previous
+    # implementation re-computed the total after every pass and iterated up to
+    # five times "until convergence". That approach is mathematically
+    # non-convergent whenever fewer than three comparable positive components
+    # exist: a lone component is always 100% of the running total (two equal
+    # components are always 50% each), so the invariant can never be met, the
+    # ``changed`` flag never clears, and the dominant component is
+    # geometrically crushed by the cap fraction every pass
+    # (``value * 0.40**5 ≈ 0.0102 * value``). That silently gutted the score of
+    # high-conviction setups whose edge is concentrated in one or two
+    # dimensions and made the result depend on the magic iteration count.
+    #
+    # Capping once against the stable pre-cap total bounds every component to
+    # <= 40% of the total positive signal, is idempotent, and never depends on
+    # an iteration count.
     _components = {
         "gap": gap_component,
         "gap_sector_rel": gap_sector_rel_component,
@@ -620,18 +634,12 @@ def score_candidate(
         "estimate_rev": estimate_rev_component,
         "ewma": ewma_component,
     }
-    for _ in range(5):  # max 5 iterations; typically converges in 2
-        _total_positive = sum(max(v, 0.0) for v in _components.values())
-        if _total_positive <= 0:
-            break
+    _total_positive = sum(max(v, 0.0) for v in _components.values())
+    if _total_positive > 0:
         _cap = SCORE_COMPONENT_CAP_FRACTION * _total_positive
-        changed = False
         for k, v in _components.items():
             if v > _cap:
                 _components[k] = _cap
-                changed = True
-        if not changed:
-            break
 
     gap_component = _components["gap"]
     gap_sector_rel_component = _components["gap_sector_rel"]
