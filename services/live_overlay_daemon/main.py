@@ -128,6 +128,7 @@ def run_server() -> None:
         http="h11",
         loop="asyncio",
         log_level=config.log_level(),
+        access_log=False,  # /{token}/… routes: token must never reach stdout/Railway logs (README §Security)
     )
 
 
