@@ -77,6 +77,54 @@ test("openScript excludes the chart indicators entry point", () => {
   assert.equal(calls.some((call) => /indicators/i.test(call)), false);
 });
 
+test("publishButtons excludes chart-publish header candidates from generic publish fallbacks", () => {
+  const locatorSelectors: string[] = [];
+  const andCalls: string[] = [];
+  const filterCalls: string[] = [];
+
+  const makeLocator = (source: string) => ({
+    and: (_other: unknown) => {
+      andCalls.push(source);
+      return makeLocator(source);
+    },
+    filter: (options: { hasText?: RegExp }) => {
+      filterCalls.push(`${source}:${options.hasText?.source ?? ""}`);
+      return makeLocator(source);
+    },
+  });
+
+  const fakePage = {
+    getByRole: (_role: string, options: { name: RegExp }) => makeLocator(`role:${options.name.source}`),
+    getByText: (pattern: RegExp) => makeLocator(`text:${pattern.source}`),
+    locator: (selector: string) => {
+      locatorSelectors.push(selector);
+      return makeLocator(`locator:${selector}`);
+    },
+  };
+
+  const locators = tvSelectors.publishButtons(fakePage as never);
+
+  assert.equal(locators.length, 10);
+  assert.equal(
+    locatorSelectors.some((selector) => selector.includes(':not(.publish-chart-button):not(.publish-chart-button *)')),
+    true,
+  );
+  assert.equal(
+    locatorSelectors
+      .filter((selector) =>
+        selector.includes('button:not([aria-label*="share" i]):not([data-tooltip*="share" i])')
+        || selector.includes('[role="button"]:not([aria-label*="share" i]):not([data-tooltip*="share" i])')
+        || selector.includes('[class*="button" i]:not([aria-label*="share" i]):not([data-tooltip*="share" i])')
+        || selector.includes('[data-name*="button" i]:not([aria-label*="share" i]):not([data-tooltip*="share" i])'),
+      )
+      .every((selector) => selector.includes(':not(.publish-chart-button):not(.publish-chart-button *)')),
+    true,
+  );
+  assert.equal(andCalls.includes("role:^publish$"), true);
+  assert.equal(andCalls.includes("text:^publish$"), true);
+  assert.equal(filterCalls.length >= 4, true);
+});
+
 test("openScriptIdentity probes exact and fuzzy title contexts", () => {
   const calls: string[] = [];
   const fakeScopedLocator = {

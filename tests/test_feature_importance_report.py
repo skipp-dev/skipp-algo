@@ -175,13 +175,13 @@ class TestBackendSelection:
         import open_prep.outcomes as outcomes
 
         monkeypatch.setattr(outcomes, "FEATURE_IMPORTANCE_DIR", tmp_path)
-        sample_path = tmp_path / "fi_samples_2026-05-15.jsonl"
+        sample_path = tmp_path / "fi_samples_2026-07-02.jsonl"
         sample_path.write_text(
             "\n".join(
                 json.dumps(
                     {
                         "symbol": f"SYM{i}",
-                        "date": "2026-05-15",
+                        "date": "2026-07-02",
                         "profitable_30m": bool(i % 2),
                         **{key: float(i + idx) for idx, key in enumerate(outcomes.FEATURE_KEYS)},
                     }
@@ -204,13 +204,13 @@ class TestBackendSelection:
         import open_prep.outcomes as outcomes
 
         monkeypatch.setattr(outcomes, "FEATURE_IMPORTANCE_DIR", tmp_path)
-        sample_path = tmp_path / "fi_samples_2026-05-15.jsonl"
+        sample_path = tmp_path / "fi_samples_2026-07-02.jsonl"
         # Distinct symbols: identical (symbol, date) rows would be removed
         # by the dedup layer, which is not what this test measures.
         good_a = json.dumps(
             {
                 "symbol": "SYM1",
-                "date": "2026-05-15",
+                "date": "2026-07-02",
                 "profitable_30m": True,
                 **{key: float(idx) for idx, key in enumerate(outcomes.FEATURE_KEYS)},
             }
@@ -218,7 +218,7 @@ class TestBackendSelection:
         good_b = json.dumps(
             {
                 "symbol": "SYM2",
-                "date": "2026-05-15",
+                "date": "2026-07-02",
                 "profitable_30m": True,
                 **{key: float(idx) for idx, key in enumerate(outcomes.FEATURE_KEYS)},
             }

@@ -26,16 +26,17 @@ independent of any iteration count.
 component is capped to ``raw * 0.40`` (not the old ``raw * 0.40**5`` crush).
 
 `test_each_component_capped_to_fraction_of_precap_total` asserts the exact
-single-pass projection via a Hypothesis property, catching both an under-shoot
-(the old crush) and any component exceeding the cap.
+single-pass projection over a seeded random sweep (repo convention: the
+``*_invariants_property.py`` tests deliberately avoid a ``hypothesis``
+dependency so the suite runs in every production workflow), catching both an
+under-shoot (the old crush) and any component exceeding the cap.
 """
 
 from __future__ import annotations
 
+import random
+import unittest.mock as _mock
 from typing import Any
-
-from hypothesis import example, given, settings
-from hypothesis import strategies as st
 
 from open_prep import scorer as sc
 
@@ -147,74 +148,53 @@ def test_single_dominant_component_capped_once_not_crushed() -> None:
     assert breakdown["gap_component"] > crushed
 
 
-def _uncapped_positive_total(fr: Any) -> float:
-    """Sum of positive score components with the cap disabled (fraction=1.0).
-
-    With the fraction set to 1.0 the cap threshold equals the running total,
-    so no component can ever exceed it and nothing is capped — giving the raw
-    pre-cap positive total.
-    """
-    import unittest.mock as _mock
-
-    with _mock.patch.object(sc, "SCORE_COMPONENT_CAP_FRACTION", 1.0):
-        row = sc.score_candidate(fr, bias=0.0)
-    breakdown = row["score_breakdown"]
-    return sum(breakdown[k] for k in _POSITIVE_BREAKDOWN_KEYS if breakdown[k] > 0.0)
-
-
-@settings(max_examples=200, deadline=None)
-@given(
-    gap=st.floats(min_value=0.0, max_value=9.0),
-    rvol=st.floats(min_value=0.0, max_value=5.0),
-    news=st.floats(min_value=0.0, max_value=1.0),
-)
-# Guarantee the pathological single-dominant case is always exercised.
-@example(gap=8.0, rvol=0.0, news=0.0)
-def test_each_component_capped_to_fraction_of_precap_total(
-    gap: float, rvol: float, news: float
-) -> None:
+def test_each_component_capped_to_fraction_of_precap_total() -> None:
     """Achievable invariant: each positive component == min(raw, 40% of the
-    pre-cap total).
+    pre-cap total). Seeded sweep (repo convention: no hypothesis dependency).
 
     An *upper*-bound-only invariant would be trivially satisfied by the old
     geometric-crush bug (crushed values are smaller). This asserts the exact
     single-pass projection, so an under-shoot (crush) or a divergent loop is
     caught in both directions.
     """
-    def _make_fr() -> Any:
-        fr = _neutralized_fr()
-        fr.features["gap_pct_for_scoring"] = gap
-        fr.features["rel_vol_capped"] = rvol
-        fr.features["news_score"] = news
-        return fr
+    rng = random.Random(0x5C08E)
+    # Pathological single-dominant case always first (formerly @example).
+    cases = [(8.0, 0.0, 0.0)] + [
+        (rng.uniform(0.0, 9.0), rng.uniform(0.0, 5.0), rng.uniform(0.0, 1.0))
+        for _ in range(40)
+    ]
+    for gap, rvol, news in cases:
+        def _make_fr(gap: float = gap, rvol: float = rvol, news: float = news) -> Any:
+            fr = _neutralized_fr()
+            fr.features["gap_pct_for_scoring"] = gap
+            fr.features["rel_vol_capped"] = rvol
+            fr.features["news_score"] = news
+            return fr
 
-    precap_total = _uncapped_positive_total(_make_fr())
-    if precap_total <= 0.0:
-        return
-    cap = sc.SCORE_COMPONENT_CAP_FRACTION * precap_total
-
-    # Uncapped per-component values (cap disabled).
-    import unittest.mock as _mock
-
-    with _mock.patch.object(sc, "SCORE_COMPONENT_CAP_FRACTION", 1.0):
-        raw_breakdown = sc.score_candidate(_make_fr(), bias=0.0)["score_breakdown"]
-
-    # Capped per-component values (real cap fraction).
-    capped_breakdown = sc.score_candidate(_make_fr(), bias=0.0)["score_breakdown"]
-
-    eps = 1e-3  # tolerate 4-decimal rounding in score_breakdown
-    for key in _POSITIVE_BREAKDOWN_KEYS:
-        raw_v = raw_breakdown[key]
-        if raw_v <= 0.0:
-            continue
-        expected = min(raw_v, cap)
-        assert abs(capped_breakdown[key] - expected) <= eps, (
-            f"{key}: got {capped_breakdown[key]}, expected min(raw={raw_v}, "
-            f"cap={cap}) = {expected}"
+        # Single uncapped run; derive precap_total from it.
+        with _mock.patch.object(sc, "SCORE_COMPONENT_CAP_FRACTION", 1.0):
+            raw_breakdown = sc.score_candidate(_make_fr(), bias=0.0)["score_breakdown"]
+        precap_total = sum(
+            raw_breakdown[k] for k in _POSITIVE_BREAKDOWN_KEYS if raw_breakdown[k] > 0.0
         )
+        if precap_total <= 0.0:
+            continue
+        cap = sc.SCORE_COMPONENT_CAP_FRACTION * precap_total
 
-    # And the headline invariant: no component exceeds the cap.
-    positives = [capped_breakdown[k] for k in _POSITIVE_BREAKDOWN_KEYS if capped_breakdown[k] > 0.0]
-    if positives:
+        capped_breakdown = sc.score_candidate(_make_fr(), bias=0.0)["score_breakdown"]
+
+        eps = 1e-3  # tolerate 4-decimal rounding in score_breakdown
+        for key in _POSITIVE_BREAKDOWN_KEYS:
+            raw_v = raw_breakdown[key]
+            if raw_v <= 0.0:
+                continue
+            expected = min(raw_v, cap)
+            assert abs(capped_breakdown[key] - expected) <= eps, (
+                f"gap={gap} rvol={rvol} news={news} {key}: "
+                f"got {capped_breakdown[key]}, expected {expected}"
+            )
+        positives = [
+            capped_breakdown[k] for k in _POSITIVE_BREAKDOWN_KEYS if capped_breakdown[k] > 0.0
+        ]
         assert max(positives) <= cap + eps
 

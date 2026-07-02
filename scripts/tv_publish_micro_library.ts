@@ -878,51 +878,22 @@ export async function runPublishMicroLibraryCli(): Promise<number> {
       }
 
       if (!publishNoChangeDetected && identityVerificationMode === "script_context" && versionVerificationMode === "not_verified") {
-        await ensurePineEditor(session.page);
-        const retryPublishResult = await publishPrivateScript(session.page, {
-          scriptName: details.libraryName,
-          title: details.libraryName,
-        });
-        publishNoChangeDetected = publishNoChangeDetected || retryPublishResult.noChangeDetected;
-        publishConfirmed = publishConfirmed || retryPublishResult.publishConfirmed;
-        publishSurfaceClosedAfterConfirm = publishSurfaceClosedAfterConfirm || retryPublishResult.publishSurfaceClosedAfterConfirm;
-        await takeScreenshot(session.page, runId, `${details.libraryName}-published-retry`, screenshots);
-
-        identityEvidenceContext = await collectOpenScriptIdentityTexts(session.page, details.libraryName).catch(() => []);
         versionEvidenceContext = [
           ...new Set([
             ...versionEvidenceContext,
-            ...retryPublishResult.versionContextTexts,
             ...(await collectPublishedVersionContextTexts(session.page, details.libraryName).catch(() => [])),
           ]),
         ];
         publishEvidenceContext = versionEvidenceContext;
-        bodyText = retryPublishResult.bodyText || await session.page.locator("body").innerText().catch(() => "");
-        identityEvidence = resolveOpenScriptIdentityEvidence(details.libraryName, {
-          dialogStillVisible: false,
-          editorContextTexts: identityEvidenceContext,
-          bodyText,
-        });
+        bodyText = await session.page.locator("body").innerText().catch(() => "");
         publishEvidence = resolvePublishedVersionEvidence({
           scriptName: details.libraryName,
           versionContextTexts: versionEvidenceContext,
           bodyText,
         });
-        identityVerificationMode = identityEvidence.verificationMode;
         versionVerificationMode = publishEvidence.verificationMode;
         publishedVersion = publishEvidence.publishedVersion;
         fallbackPublishedVersion = publishEvidence.fallbackVersion;
-
-        if (shouldPromoteNoChangeVersionEvidence({
-          publishNoChangeDetected,
-          identityVerificationMode,
-          versionVerificationMode,
-          bodyText,
-          expectedImportPath: details.recommendedImportPath,
-        })) {
-          versionVerificationMode = "idempotent_no_change";
-          publishedVersion = details.libraryVersion;
-        }
 
         if (shouldPromotePublishConfirmationVersionEvidence({
           publishConfirmed,
@@ -935,6 +906,73 @@ export async function runPublishMicroLibraryCli(): Promise<number> {
         })) {
           versionVerificationMode = "publish_confirmation";
           publishedVersion = details.libraryVersion;
+        }
+
+        if (versionVerificationMode === "not_verified") {
+          try {
+            await ensurePineEditor(session.page);
+            const retryPublishResult = await publishPrivateScript(session.page, {
+              scriptName: details.libraryName,
+              title: details.libraryName,
+            });
+            publishNoChangeDetected = publishNoChangeDetected || retryPublishResult.noChangeDetected;
+            publishConfirmed = publishConfirmed || retryPublishResult.publishConfirmed;
+            publishSurfaceClosedAfterConfirm = publishSurfaceClosedAfterConfirm || retryPublishResult.publishSurfaceClosedAfterConfirm;
+            await takeScreenshot(session.page, runId, `${details.libraryName}-published-retry`, screenshots);
+
+            identityEvidenceContext = await collectOpenScriptIdentityTexts(session.page, details.libraryName).catch(() => []);
+            versionEvidenceContext = [
+              ...new Set([
+                ...versionEvidenceContext,
+                ...retryPublishResult.versionContextTexts,
+                ...(await collectPublishedVersionContextTexts(session.page, details.libraryName).catch(() => [])),
+              ]),
+            ];
+            publishEvidenceContext = versionEvidenceContext;
+            bodyText = retryPublishResult.bodyText || await session.page.locator("body").innerText().catch(() => "");
+            identityEvidence = resolveOpenScriptIdentityEvidence(details.libraryName, {
+              dialogStillVisible: false,
+              editorContextTexts: identityEvidenceContext,
+              bodyText,
+            });
+            publishEvidence = resolvePublishedVersionEvidence({
+              scriptName: details.libraryName,
+              versionContextTexts: versionEvidenceContext,
+              bodyText,
+            });
+            identityVerificationMode = identityEvidence.verificationMode;
+            versionVerificationMode = publishEvidence.verificationMode;
+            publishedVersion = publishEvidence.publishedVersion;
+            fallbackPublishedVersion = publishEvidence.fallbackVersion;
+
+            if (shouldPromoteNoChangeVersionEvidence({
+              publishNoChangeDetected,
+              identityVerificationMode,
+              versionVerificationMode,
+              bodyText,
+              expectedImportPath: details.recommendedImportPath,
+            })) {
+              versionVerificationMode = "idempotent_no_change";
+              publishedVersion = details.libraryVersion;
+            }
+
+            if (shouldPromotePublishConfirmationVersionEvidence({
+              publishConfirmed,
+              publishSurfaceClosedAfterConfirm,
+              publishNoChangeDetected,
+              identityVerificationMode,
+              versionVerificationMode,
+              expectedImportPath: details.recommendedImportPath,
+              expectedVersion: details.libraryVersion,
+            })) {
+              versionVerificationMode = "publish_confirmation";
+              publishedVersion = details.libraryVersion;
+            }
+          } catch (retryError: unknown) {
+            const retryMessage = retryError instanceof Error ? retryError.message : String(retryError);
+            console.error(`[tv-publish] publish-retry-failed: ${retryMessage}`);
+            await takeScreenshot(session.page, runId, `${details.libraryName}-publish-retry-failed`, screenshots).catch(() => undefined);
+          }
         }
       }
 

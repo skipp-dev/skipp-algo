@@ -516,6 +516,14 @@ FEATURE_TO_WEIGHT_KEY: dict[str, str] = {
 
 FEATURE_IMPORTANCE_DIR = OUTCOMES_DIR / "feature_importance"
 _MAX_RING_BUFFER = 100_000
+
+# Formula-era gate (2026-07-02, PR #3114): the component-cap rewrite rescaled
+# concentration-dominant components (e.g. gap_component ~0.1 -> ~6.0 for the
+# same archetype, because the old loop crushed lone components to raw*0.40**5).
+# Pooling pre/post-rewrite samples into one Pearson/Cohen's-d window mixes two
+# non-stationary feature scales, so drop pre-rewrite rows — same pattern as the
+# 2026-06-11 all-zero legacy gate below.
+_SCORE_FORMULA_ERA_CUTOFF = date(2026, 7, 2)
 FI_BACKEND_AUTO = "auto"
 FI_BACKEND_CPU = "cpu"
 FI_BACKEND_GPU = "gpu"
@@ -934,6 +942,35 @@ def compute_feature_importance(
         )
     labeled = component_complete
 
+    # Formula-era gate (2026-07-02, PR #3114): drop rows scored before the
+    # component-cap rewrite. Their concentration-dominant components live on a
+    # different scale (crushed to raw*0.40**5), so pooling them with post-rewrite
+    # rows mixes two non-stationary feature scales and poisons the statistics.
+    # A sample whose ``date`` is absent or unparseable is kept (conservative,
+    # mirrors the dedup path that keeps synthetic/legacy rows).
+    formula_era_samples_dropped = 0
+    post_rewrite: list[dict[str, Any]] = []
+    for s in labeled:
+        raw_d = s.get("date")
+        sample_date: date | None = None
+        if raw_d:
+            try:
+                sample_date = date.fromisoformat(str(raw_d)[:10])
+            except ValueError:
+                sample_date = None
+        if sample_date is not None and sample_date < _SCORE_FORMULA_ERA_CUTOFF:
+            formula_era_samples_dropped += 1
+            continue
+        post_rewrite.append(s)
+    if formula_era_samples_dropped:
+        logger.warning(
+            "FI report: dropped %d/%d labeled samples scored before the "
+            "2026-07-02 component-cap rewrite (pre-rewrite feature scale)",
+            formula_era_samples_dropped,
+            len(labeled),
+        )
+    labeled = post_rewrite
+
     if len(labeled) < 10:
         return {
             "error": "insufficient labeled samples",
@@ -941,6 +978,7 @@ def compute_feature_importance(
             "labeled_samples": len(labeled),
             "duplicate_samples_dropped": duplicate_samples_dropped,
             "era_gated_samples_dropped": era_gated_samples_dropped,
+            "formula_era_samples_dropped": formula_era_samples_dropped,
             "backend": backend,
         }
 
@@ -951,6 +989,7 @@ def compute_feature_importance(
         "labeled_samples": len(labeled),
         "duplicate_samples_dropped": duplicate_samples_dropped,
         "era_gated_samples_dropped": era_gated_samples_dropped,
+        "formula_era_samples_dropped": formula_era_samples_dropped,
         "features": {},
         "recommendations": [],
         "backend": backend,

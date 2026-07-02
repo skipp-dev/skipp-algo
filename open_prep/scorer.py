@@ -599,24 +599,12 @@ def score_candidate(
     ewma_component = w.get("ewma", 0.4) * apply_diminishing_returns(max(min(ewma_raw, 1.0), 0.0))
 
     # --- #8  Score Component Cap (40%) ---
-    # Prevent any single positive component from dominating more than
-    # SCORE_COMPONENT_CAP_FRACTION (40%) of the total positive contribution.
-    #
-    # This caps against the *pre-cap* total in a single pass. The previous
-    # implementation re-computed the total after every pass and iterated up to
-    # five times "until convergence". That approach is mathematically
-    # non-convergent whenever fewer than three comparable positive components
-    # exist: a lone component is always 100% of the running total (two equal
-    # components are always 50% each), so the invariant can never be met, the
-    # ``changed`` flag never clears, and the dominant component is
-    # geometrically crushed by the cap fraction every pass
-    # (``value * 0.40**5 ≈ 0.0102 * value``). That silently gutted the score of
-    # high-conviction setups whose edge is concentrated in one or two
-    # dimensions and made the result depend on the magic iteration count.
-    #
-    # Capping once against the stable pre-cap total bounds every component to
-    # <= 40% of the total positive signal, is idempotent, and never depends on
-    # an iteration count.
+    # Cap each positive component ONCE against the stable pre-cap positive
+    # total (component <= SCORE_COMPONENT_CAP_FRACTION * total). Deliberately
+    # NOT iterated: re-computing the total after each pass is non-convergent
+    # for concentrated setups and geometrically crushes the dominant
+    # component. Full analysis + regression guard:
+    # tests/test_scorer_component_cap_convergence.py
     _components = {
         "gap": gap_component,
         "gap_sector_rel": gap_sector_rel_component,

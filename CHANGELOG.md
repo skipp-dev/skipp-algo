@@ -6,6 +6,28 @@ All notable changes to this project are documented in this file.
 
 ## [Unreleased]
 
+### Fixed (2026-07-02) — Score component 40 % cap no longer geometrically crushes concentrated setups
+
+- `open_prep/scorer.py` `score_candidate()`: the component cap previously
+  re-computed the total positive contribution after every pass and iterated up
+  to five times "until convergence". That loop is mathematically non-convergent
+  whenever fewer than three comparable positive components exist (a lone
+  component is always 100 % of the running total, two equal components 50 %
+  each), so it ran all five passes and crushed the dominant component to
+  `raw * 0.40**5` (~1 % of its value). High-conviction setups whose edge was
+  concentrated in one or two dimensions were silently gutted. The cap now runs
+  ONCE against the stable pre-cap total (`component <= 0.40 * pre_cap_total`);
+  it is idempotent and independent of any iteration count. Analysis + regression
+  guard: `tests/test_scorer_component_cap_convergence.py` (PR #3114).
+- **Bekannter Nebeneffekt:** Das relative Confidence-Tiering (mean+1σ,
+  `scorer.py`) demotet im Archetyp-Golden LEAD von STANDARD zu WATCHLIST —
+  LEADs eigener Score ist unverändert (9.375); die Grenze verschob sich von
+  9.233 auf 9.519, weil PUMPs zuvor gecrushter Score auf 9.69 stieg.
+  Deployments mit `min_confidence_tier="STANDARD"` alerten ab diesem Release
+  PUMP-artige statt LEAD-artige Kandidaten. Der Shipped-Default
+  (`HIGH_CONVICTION`, `open_prep/alerts.py`) ist **nicht** betroffen; ein
+  Config-/Env-Sweep fand keinen `STANDARD`-Consumer im Repo.
+
 ### Changed (2026-07-01) — Human-readable overlay alert wording + Pine Polling Watchdog panel
 
 - Rewrote the three traffic/market alert rules so the message names the actual
