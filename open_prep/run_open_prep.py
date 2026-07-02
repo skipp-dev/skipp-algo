@@ -3149,6 +3149,11 @@ def _incremental_atr_from_eod_bulk(
     as_of: date,
     atr_period: int,
 ) -> tuple[dict[str, float], dict[str, float], dict[str, float]]:
+    # A pre-EOD run or a non-trading as_of (holiday/weekend) has no completed
+    # session to fold into ATR incrementally (WP-C2a); defer to the per-symbol
+    # fetch path instead of persisting a stale/absent bar as prev_close.
+    if not _is_us_equity_trading_day(as_of):
+        return {}, {}, {}
     prev_day = _prev_trading_day(as_of)
     prev_atr_map, prev_momentum_map, prev_close_map = _load_atr_cache(prev_day, atr_period)
     if not prev_atr_map or not prev_close_map:
@@ -3177,6 +3182,17 @@ def _incremental_atr_from_eod_bulk(
             or not math.isfinite(prev_close)
             or prev_close <= 0.0
         ):
+            continue
+
+        # Guard against a stale/wrong session (pre-EOD run, holiday feed lag):
+        # only fold the bar in when its date matches as_of, otherwise the
+        # per-symbol fetch path handles it (WP-C2a).
+        row_date = str(eod_row.get("date") or "")[:10]
+        if row_date and row_date != as_of.isoformat():
+            logger.debug(
+                "ATR incremental: skipping %s — EOD row date %s != as_of %s",
+                sym, row_date, as_of.isoformat(),
+            )
             continue
 
         high = _to_float(eod_row.get("high"), default=float("nan"))
