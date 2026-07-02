@@ -181,13 +181,13 @@ class TestSampleDedup:
         # fill starts at 0.1 (not 0.0): an all-zero weighted vector would
         # be era-gated as a legacy row (audit D-2) and skew the count.
         rows = [
-            _fi_sample(f"SYM{i}", "2026-06-08", win=bool(i % 2), fill=0.1 * (i + 1))
+            _fi_sample(f"SYM{i}", "2026-07-02", win=bool(i % 2), fill=0.1 * (i + 1))
             for i in range(12)
         ]
         for fname in (
-            "fi_samples_2026-06-08.jsonl",
-            "fi_samples_2026-06-09.jsonl",
-            "fi_samples_2026-06-10.jsonl",
+            "fi_samples_2026-07-02.jsonl",
+            "fi_samples_2026-07-03.jsonl",
+            "fi_samples_2026-07-04.jsonl",
         ):
             (tmp_path / fname).write_text("\n".join(rows) + "\n", encoding="utf-8")
 
@@ -245,13 +245,13 @@ class TestReaderEraGate:
             for i in range(8)
         ]
         clean = [
-            _fi_sample(f"NEW{i}", "2026-06-12", win=bool(i % 2), fill=0.1 * (i + 1))
+            _fi_sample(f"NEW{i}", "2026-07-02", win=bool(i % 2), fill=0.1 * (i + 1))
             for i in range(12)
         ]
         (tmp_path / "fi_samples_2026-06-01.jsonl").write_text(
             "\n".join(legacy) + "\n", encoding="utf-8",
         )
-        (tmp_path / "fi_samples_2026-06-12.jsonl").write_text(
+        (tmp_path / "fi_samples_2026-07-02.jsonl").write_text(
             "\n".join(clean) + "\n", encoding="utf-8",
         )
 
@@ -293,11 +293,11 @@ class TestReaderEraGate:
         rows = []
         for i in range(12):
             row = json.loads(
-                _fi_sample(f"SYM{i}", "2026-06-12", win=bool(i % 2), fill=0.0)
+                _fi_sample(f"SYM{i}", "2026-07-02", win=bool(i % 2), fill=0.0)
             )
             row["gap_component"] = 0.5 + 0.1 * i  # one real non-zero component
             rows.append(json.dumps(row))
-        (tmp_path / "fi_samples_2026-06-12.jsonl").write_text(
+        (tmp_path / "fi_samples_2026-07-02.jsonl").write_text(
             "\n".join(rows) + "\n", encoding="utf-8",
         )
 
