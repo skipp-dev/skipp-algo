@@ -76,6 +76,20 @@ def test_send_webhook_blocks_private_url() -> None:
     assert "unsafe_url" in str(out.get("error", ""))
 
 
+def test_send_webhook_blocks_urlencoded_loopback_hosts() -> None:
+    variants = [
+        "http://127%2e0%2e0%2e1/hook",
+        "http://%31%32%37%2e%30%2e%30%2e%31/hook",
+        "http://127.0.0.1./hook",
+        "http://localhost.localdomain./hook",
+    ]
+
+    for url in variants:
+        out = alerts._send_webhook(url, {"x": 1})
+        assert out["status"] == 0
+        assert "unsafe_url" in str(out.get("error", ""))
+
+
 def test_send_webhook_blocks_invalid_host_characters() -> None:
     nul_out = alerts._send_webhook("https://example.com\x00evil.com/webhook", {"x": 1})
     assert nul_out["status"] == 0

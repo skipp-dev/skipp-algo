@@ -302,7 +302,19 @@ def _is_safe_webhook_url(url: str) -> tuple[bool, str]:
         return False, "invalid_url_chars"
     if _contains_private_or_local_hint(" ".join(non_host_parts)):
         return False, "suspicious_local_hint"
-    host = host.strip().lower()
+    # Canonicalize URL-encoded host labels before safety checks so
+    # loopback/private hosts cannot bypass validation via %2e etc.
+    decoded_host = host
+    for _ in range(3):
+        unquoted = urllib.parse.unquote(decoded_host)
+        if unquoted == decoded_host:
+            break
+        decoded_host = unquoted
+
+    if _contains_control_or_whitespace(decoded_host):
+        return False, "invalid_host_chars"
+
+    host = decoded_host.strip().lower().rstrip(".")
     if not host:
         return False, "missing_host"
 
@@ -393,7 +405,14 @@ def dispatch_alerts(
 
         sent_targets = 0
         failed_targets = 0
-        for target in targets:
+        for idx, target in enumerate(targets):
+            if not isinstance(target, dict):
+                logger.warning(
+                    "Skipping invalid target at index %d: expected dict, got %s",
+                    idx,
+                    type(target).__name__,
+                )
+                continue
             target_type = target.get("type", "generic")
             url = target.get("url", "")
             if not url:
