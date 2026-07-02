@@ -155,8 +155,9 @@ def _record_queue_drop() -> float:
 
 
 def _should_log_queue_drop_warning(dropped_total: float) -> bool:
-    """Emit warning every 100 dropped bars (based on drop counter)."""
-    return int(dropped_total) % 100 == 0
+    """Emit warning on first drop, then every 100 dropped bars."""
+    dropped_count = int(dropped_total)
+    return dropped_count > 0 and (dropped_count == 1 or dropped_count % 100 == 0)
 
 
 def _record_queue_lag_ms(lag_ms: float) -> None:
