@@ -287,17 +287,23 @@ export const tvSelectors = {
   },
 
   publishButtons(page: Page): Locator[] {
+    // The header-level "publish-chart-button" publishes chart layouts/ideas,
+    // not Pine scripts. Exclude it and all descendants from generic "Publish"
+    // fallbacks to avoid opening the wrong flow.
+    const notChart = ':not(.publish-chart-button):not(.publish-chart-button *)';
+    const notShare = ':not([aria-label*="share" i]):not([data-tooltip*="share" i])';
+
     return [
       page.getByRole("button", { name: /publish script/i }),
       page.getByRole("button", { name: /publish library/i }),
-      page.getByRole("button", { name: /^publish$/i }),
-      page.locator('button:not([aria-label*="share" i]):not([data-tooltip*="share" i])').filter({ hasText: /^publish$/i }),
-      page.locator('[role="button"]:not([aria-label*="share" i]):not([data-tooltip*="share" i])').filter({ hasText: /^publish$/i }),
-      page.locator('[class*="button" i]:not([aria-label*="share" i]):not([data-tooltip*="share" i])').filter({ hasText: /^publish$/i }),
-      page.locator('[data-name*="button" i]:not([aria-label*="share" i]):not([data-tooltip*="share" i])').filter({ hasText: /^publish$/i }),
+      page.getByRole("button", { name: /^publish$/i }).and(page.locator(notChart)),
+      page.locator(`button${notShare}${notChart}`).filter({ hasText: /^publish$/i }),
+      page.locator(`[role="button"]${notShare}${notChart}`).filter({ hasText: /^publish$/i }),
+      page.locator(`[class*="button" i]${notShare}${notChart}`).filter({ hasText: /^publish$/i }),
+      page.locator(`[data-name*="button" i]${notShare}${notChart}`).filter({ hasText: /^publish$/i }),
       page.getByText(/publish script/i),
       page.getByText(/publish library/i),
-      page.getByText(/^publish$/i),
+      page.getByText(/^publish$/i).and(page.locator(notChart)),
     ];
   },
 

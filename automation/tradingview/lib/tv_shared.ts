@@ -2985,6 +2985,8 @@ async function getVisibleCompileErrorDetails(page: Page, timeoutMs = 500): Promi
 }
 
 async function openPublishSurface(page: Page, timeoutMs = 4_000): Promise<boolean> {
+  await dismissSymbolSearchDialog(page).catch(() => undefined);
+
   const openedMenu = await clickVisibleWithFallback(
     page,
     tvSelectors.currentScriptMenu(page),
@@ -3033,21 +3035,6 @@ async function openPublishSurface(page: Page, timeoutMs = 4_000): Promise<boolea
 
   tracePageEvent(page, "publish-open", `no-surface:pine-dialog:${openedPineDialogButton}`);
 
-  await closePineEditorIfVisible(page).catch(() => undefined);
-  const openedOutsidePine = await clickVisibleWithFallbackOutsidePineDialog(
-    page,
-    tvSelectors.publishButtons(page),
-    "publish-open-outside-pine",
-    timeoutMs,
-    750,
-  );
-  if (openedOutsidePine && await waitForPublishSurface(page, 2_000)) {
-    tracePageEvent(page, "publish-open", "surface-visible:outside-pine");
-    return true;
-  }
-
-  tracePageEvent(page, "publish-open", `no-surface:outside-pine:${openedOutsidePine}`);
-
   for (const [index, locator] of tvSelectors.publishButtons(page).entries()) {
     const clicked = await clickVisibleWithFallback(
       page,
@@ -3067,6 +3054,21 @@ async function openPublishSurface(page: Page, timeoutMs = 4_000): Promise<boolea
 
     tracePageEvent(page, "publish-open", `no-surface:candidate:${index}`);
   }
+
+  await closePineEditorIfVisible(page).catch(() => undefined);
+  const openedOutsidePine = await clickVisibleWithFallbackOutsidePineDialog(
+    page,
+    tvSelectors.publishButtons(page),
+    "publish-open-outside-pine",
+    timeoutMs,
+    750,
+  );
+  if (openedOutsidePine && await waitForPublishSurface(page, 2_000)) {
+    tracePageEvent(page, "publish-open", "surface-visible:outside-pine");
+    return true;
+  }
+
+  tracePageEvent(page, "publish-open", `no-surface:outside-pine:${openedOutsidePine}`);
 
   return false;
 }
@@ -4912,6 +4914,36 @@ async function dismissSignInModal(page: Page): Promise<boolean> {
   return false;
 }
 
+async function dismissSymbolSearchDialog(page: Page, timeoutMs = 750): Promise<boolean> {
+  const dialog = page
+    .locator(
+      '#overlap-manager-root [role="dialog"], #overlap-manager-root [class*="dialog" i], #overlap-manager-root [data-name*="dialog" i]',
+    )
+    .filter({ hasText: /add symbol/i })
+    .last();
+
+  if (!(await dialog.isVisible({ timeout: 200 }).catch(() => false))) {
+    return false;
+  }
+
+  tracePageEvent(page, "dismiss-symbol-search", "found");
+  const closeButton = dialog
+    .locator('[data-name="close"], button[aria-label*="close" i], [class*="close" i]')
+    .first();
+  if (await closeButton.isVisible({ timeout: 200 }).catch(() => false)) {
+    await closeButton.click({ timeout: timeoutMs }).catch(() => undefined);
+  }
+
+  if (await dialog.isVisible({ timeout: 200 }).catch(() => false)) {
+    await page.keyboard.press("Escape").catch(() => undefined);
+    await page.waitForTimeout(200).catch(() => undefined);
+  }
+
+  const dismissed = !(await dialog.isVisible({ timeout: 200 }).catch(() => false));
+  tracePageEvent(page, "dismiss-symbol-search", dismissed ? "dismissed" : "still-visible");
+  return dismissed;
+}
+
 export async function dismissCookieBanner(page: Page): Promise<boolean> {
   let dismissed = false;
 
@@ -6548,6 +6580,7 @@ export async function publishPrivateScript(
   bodyText: string;
 }> {
   await dismissSignInModal(page).catch(() => undefined);
+  await dismissSymbolSearchDialog(page).catch(() => undefined);
   await ensurePineEditor(page).catch(() => undefined);
   let noChangeDetected = false;
 
