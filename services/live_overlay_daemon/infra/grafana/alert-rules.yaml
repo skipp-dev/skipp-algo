@@ -1275,7 +1275,6 @@ groups:
     labels:
       severity: warning
     annotations:
-    annotations:
       summary: smc-signals-producer memory exceeds 768 MB for > 5 min
       runbook: 'Warning at 75% of the ~1 GiB Railway tier (critical stays at 900 MB
         ≈ 88%), aligned with the Railway usage-ratio policy (lo-railway-memory-ratio-high
