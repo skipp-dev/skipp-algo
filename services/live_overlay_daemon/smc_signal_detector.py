@@ -31,6 +31,13 @@ from services.live_overlay_daemon.smc_ringbuffer import (
     make_rjb_down,
     make_rjb_up,
 )
+from services.live_overlay_daemon.smc_advanced_patterns import (
+    HVBDetector,
+    PPDDClassifier,
+    LiquidityClusterDetector,
+    BrokenFractalDetector,
+    BoSRefinement,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -77,6 +84,20 @@ class SmcSignalDetector:
         self.history: list[Candle] = []
         self.signals: list[SignalEvent] = []
 
+        # Advanced pattern detectors
+        self.hvb_detector = HVBDetector(lookback=20, hvb_threshold=1.5)
+        self.ppdd_classifier = PPDDClassifier(atr_multiple=2.0)
+        self.liquidity_detector = LiquidityClusterDetector(
+            cluster_distance_atr=0.5, min_confluences=2
+        )
+        self.fractal_detector = BrokenFractalDetector()
+        self.bos_refiner = BoSRefinement()
+
+        # Volatility tracking for PPDD
+        self.atr_history: list[float] = []
+        self.swing_highs: list[float] = []
+        self.swing_lows: list[float] = []
+
     def process_candle(self, candle: Candle) -> list[SignalEvent]:
         """Detect structures on new candle.
 
@@ -99,10 +120,13 @@ class SmcSignalDetector:
         # Check for breaches (mitigation)
         self._detect_mitigations(t)
 
-        # Detect new patterns
+        # Detect core SMC patterns
         self._detect_order_blocks(t, t1, t2)
         self._detect_fair_value_gaps(t, t2)
         self._detect_rejection_blocks(t, t1, t2)
+
+        # Detect advanced patterns (HVB, Broken Fractal, etc.)
+        self._detect_advanced_patterns(t)
 
         return self.signals
 
@@ -236,6 +260,60 @@ class SmcSignalDetector:
                     event_type="created",
                 )
             )
+
+    def _detect_advanced_patterns(self, t: Candle) -> None:
+        """Detect HVB, PPDD, Broken Fractal, Liquidity Clusters."""
+        # HVB Detection
+        hvb = self.hvb_detector.detect(
+            bar_index=t.bar_index,
+            volume=t.volume,
+            close=t.close,
+            open=t.open,
+            high=t.high,
+            low=t.low,
+        )
+        if hvb.is_hvb:
+            logger.debug(
+                f"[HVB] High Volume Bar at {t.bar_index}: {hvb.volume_ratio:.2f}x avg"
+            )
+
+        # Track swing highs/lows for liquidity detection
+        self._update_swing_points(t.high, t.low)
+
+        # Detect Broken Fractal pattern
+        bf = self.fractal_detector.detect(
+            bar_index=t.bar_index,
+            high=t.high,
+            low=t.low,
+            close=t.close,
+        )
+        if bf and bf.confirmed:
+            logger.debug(
+                f"[BrokenFractal] {bf.break_direction.upper()} break confirmed at {t.bar_index}"
+            )
+
+    def _update_swing_points(self, high: float, low: float) -> None:
+        """Track swing highs/lows for liquidity cluster detection."""
+        self.swing_highs.append(high)
+        self.swing_lows.append(low)
+
+        # Keep last 50 swings
+        if len(self.swing_highs) > 50:
+            self.swing_highs.pop(0)
+        if len(self.swing_lows) > 50:
+            self.swing_lows.pop(0)
+
+    def _calculate_atr(self, t: Candle, t1: Optional[Candle] = None) -> float:
+        """Simple ATR calculation for PPDD & liquidity clustering."""
+        if t1 is None:
+            return (t.high - t.low) * 0.5
+
+        tr = max(
+            t.high - t.low,
+            abs(t.high - t1.close),
+            abs(t.low - t1.close),
+        )
+        return tr
 
     def get_active_structures(self) -> list[SmcBox]:
         """Return all unmitigated boxes (for current state/dashboard)."""
