@@ -55,21 +55,53 @@ jobs:
               print(f'- {lib}: {date}')
           " >> $GITHUB_STEP_SUMMARY
 
+      - name: Write TradingView storage state
+        env:
+          TV_STORAGE_STATE_SECRET: ${{ secrets.TV_STORAGE_STATE }}
+        run: |
+          mkdir -p automation/tradingview/auth
+          python3 - <<'PY'
+          import base64
+          import gzip
+          import json
+          import os
+          from pathlib import Path
+
+          raw = os.environ['TV_STORAGE_STATE_SECRET']
+          trimmed = raw.strip()
+          if not trimmed:
+            raise SystemExit('TV_STORAGE_STATE secret is empty')
+
+          if trimmed.startswith('{'):
+            payload = trimmed
+          else:
+            try:
+              payload = gzip.decompress(base64.b64decode(trimmed)).decode('utf-8')
+            except Exception as exc:
+              raise SystemExit(f'TV_STORAGE_STATE is neither raw JSON nor gzip+base64: {exc}')
+
+          try:
+            json.loads(payload)
+          except json.JSONDecodeError as exc:
+            raise SystemExit(f'Invalid TV_STORAGE_STATE JSON payload: {exc}')
+
+          output_path = Path('automation/tradingview/auth/storage-state.json')
+          output_path.write_text(payload if payload.endswith('\n') else payload + '\n', encoding='utf-8')
+          PY
+
       - name: Fetch library sources from TradingView
         id: sync
         env:
-          # In production, this would use TradingView API token
-          # For now, it logs warnings and requires manual update
-          TRADINGVIEW_API_TOKEN: ${{ secrets.TRADINGVIEW_API_TOKEN }}
+          TV_HEADLESS: "1"
+          TV_STORAGE_STATE: automation/tradingview/auth/storage-state.json
+          TV_STORAGE_STATE_MAX_AGE_HOURS: "72"
         run: |
           FORCE_FLAG=""
           if [ "${{ github.event.inputs.force_update }}" = "true" ]; then
             FORCE_FLAG="--force"
           fi
 
-          python scripts/sync_tradingview_libraries.py \
-            --log-level INFO \
-            $FORCE_FLAG || echo "sync_status=warning" >> $GITHUB_OUTPUT
+          npx tsx scripts/tv_fetch_smc_libraries.ts $FORCE_FLAG
 
       - name: Check for changes
         id: diff

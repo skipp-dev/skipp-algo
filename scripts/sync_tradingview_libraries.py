@@ -132,21 +132,12 @@ def update_library_versions_toml(
 def fetch_library_source(user: str, lib: str, version: str) -> Optional[str]:
     """Fetch library source from TradingView.
 
-    NOTE: This is a placeholder. In production, you would either:
-    1. Use TradingView API (requires authentication)
-    2. Web-scrape the library page (brittle, may break)
-    3. Use manual copy-paste workflow with CI job approval
+    NOTE: Automated fetching is now handled by scripts/tv_fetch_smc_libraries.ts
+    which uses Playwright + TV_STORAGE_STATE (same auth as publishing).
 
-    For now, this logs an error and returns None, requiring manual intervention.
+    This Python script now only validates already-fetched libraries.
     """
-    tv_url = f"https://www.tradingview.com/script/{user.lower()}{lib.lower()}{version}/"
-    logger.warning(
-        f"Automated fetch not implemented. To update {lib}:\n"
-        f"  1. Open: {tv_url}\n"
-        f"  2. Copy full source code\n"
-        f"  3. Paste into local file\n"
-        f"  4. Re-run with --manual-update"
-    )
+    logger.debug(f"Skipping fetch for {lib} (handled by tv_fetch_smc_libraries.ts)")
     return None
 
 
