@@ -1444,6 +1444,70 @@ test("clickVisibleWithFallback keeps trying until the optional effect check pass
   }
 });
 
+test("clickVisibleWithFallback clears a persistent pointer-events interceptor via early JS bypass", async () => {
+  // Regression guard for the smc-library-refresh publish failure (run
+  // 28627787950): TradingView's persistent price-axis value overlay
+  // (valueValue-* inside js-rootresizer__contents) intercepts pointer events
+  // on the "Add to chart" control. Unlike a hover tooltip it does NOT vanish on
+  // mouse.move(0,0), so plain click/hover/force/offset all fail with
+  // "intercepts pointer events". Only the JS pointer-events bypass clears it —
+  // and it must fire EARLY (on the interception signature) rather than after
+  // ~13s of doomed retries that would eat the step timeout.
+  const browser = await chromium.launch({ headless: true });
+  const page = await browser.newPage();
+  const traces: string[] = [];
+  const origError = console.error;
+  console.error = (...args: unknown[]) => {
+    traces.push(args.map((a) => String(a)).join(" "));
+  };
+  try {
+    await page.setContent(`
+      <html><body>
+        <button id="target"
+                style="position:absolute;left:100px;top:100px;width:120px;height:40px">Add to chart</button>
+        <div class="js-rootresizer__contents" style="position:fixed;inset:0;z-index:9999;pointer-events:none">
+          <div class="valueValue-YTFIJ62h"
+               style="position:fixed;left:80px;top:90px;width:200px;height:80px;pointer-events:all">112.45</div>
+        </div>
+        <script>
+          // Persistent overlay: unlike a hover tooltip, mouse.move(0,0) must NOT remove it.
+          // Insert the marker idempotently so the effect-check locator stays
+          // single-match (multiple markers would trip strict-mode).
+          document.getElementById("target").addEventListener("click", function() {
+            if (!document.querySelector('[data-name="clicked"]')) {
+              document.body.insertAdjacentHTML("beforeend", '<div data-name="clicked">ok</div>');
+            }
+          });
+        </script>
+      </body></html>
+    `);
+
+    const clicked = await clickVisibleWithFallback(
+      page,
+      [page.locator("#target")],
+      "add-to-chart",
+      300, // small timeout so the doomed direct click fails fast
+      50,
+      async () => page.locator('[data-name="clicked"]').isVisible({ timeout: 50 }).catch(() => false),
+    );
+
+    assert.equal(clicked, true, "must click through a persistent pointer-events interceptor");
+    assert.equal(
+      await page.locator('[data-name="clicked"]').isVisible(),
+      true,
+      "target must receive the click after the JS bypass neutralises the overlay",
+    );
+  } finally {
+    console.error = origError;
+    await browser.close();
+  }
+
+  assert.ok(
+    traces.some((t) => t.includes("add-to-chart-pointer-bypass-ok") && t.includes("early")),
+    "the early pointer-events bypass fast-path must fire on the interception signature",
+  );
+});
+
 test("hasAddToChartClickEffect accepts update state and missing Add button", async () => {
   const browser = await chromium.launch({ headless: true });
   try {
