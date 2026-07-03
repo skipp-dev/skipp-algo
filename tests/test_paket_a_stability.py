@@ -140,6 +140,7 @@ class TestA2MetaDomainVisibility:
 # A3 – Plan-loader harmonization / structure_resolution_mode
 # ---------------------------------------------------------------------------
 from smc_integration.sources import structure_artifact_json
+from tests.helpers.smc_test_artifacts import make_minimal_workbook
 
 
 class TestA3StructureResolutionMode:
@@ -156,7 +157,7 @@ class TestA3StructureResolutionMode:
 
         from smc_integration.structure_batch import write_structure_artifacts_from_workbook
 
-        workbook = Path(__file__).resolve().parents[1] / "databento_volatility_production_20260307_114724.xlsx"
+        workbook = make_minimal_workbook(tmp_path)
         write_structure_artifacts_from_workbook(
             workbook=workbook,
             timeframe="1D",

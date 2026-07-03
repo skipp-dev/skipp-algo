@@ -9,13 +9,13 @@ import pandas as pd
 
 from smc_integration import structure_batch
 from smc_integration.structure_batch import write_structure_artifacts_from_workbook
+from tests.helpers.smc_test_artifacts import make_minimal_workbook
 
 ROOT = Path(__file__).resolve().parents[1]
-WORKBOOK = ROOT / "databento_volatility_production_20260307_114724.xlsx"
 
 
-def _sample_symbol() -> str:
-    daily = pd.read_excel(WORKBOOK, sheet_name="daily_bars")
+def _sample_symbol(workbook: Path) -> str:
+    daily = pd.read_excel(workbook, sheet_name="daily_bars")
     symbols = sorted({str(item).strip().upper() for item in daily["symbol"].dropna().tolist() if str(item).strip()})
     return symbols[0]
 
@@ -24,13 +24,14 @@ def _schema(path: str) -> dict:
     return cast(dict, json.loads((ROOT / path).read_text(encoding="utf-8")))
 
 
-def test_structure_artifact_contract_is_schema_valid_and_consistent() -> None:
-    symbol = _sample_symbol()
-    output_dir = ROOT / "reports" / "_tmp_structure_contract"
+def test_structure_artifact_contract_is_schema_valid_and_consistent(tmp_path: Path) -> None:
+    workbook = make_minimal_workbook(tmp_path)
+    symbol = _sample_symbol(workbook)
+    output_dir = tmp_path / "reports" / "_tmp_structure_contract"
     output_dir.mkdir(parents=True, exist_ok=True)
 
     manifest = write_structure_artifacts_from_workbook(
-        workbook=WORKBOOK,
+        workbook=workbook,
         timeframe="1D",
         symbols=[symbol],
         output_dir=output_dir,
@@ -38,7 +39,7 @@ def test_structure_artifact_contract_is_schema_valid_and_consistent() -> None:
         structure_profile="hybrid_default",
     )
 
-    path = ROOT / manifest["artifacts"][0]["artifact_path"]
+    path = tmp_path / manifest["artifacts"][0]["artifact_path"]
     payload = json.loads(path.read_text(encoding="utf-8"))
 
     schema = _schema("spec/smc_structure_artifact.schema.json")
@@ -82,6 +83,7 @@ def test_explicit_workbook_does_not_use_inferred_canonical_export_bundle(
     monkeypatch,
     tmp_path: Path,
 ) -> None:
+    workbook = make_minimal_workbook(tmp_path)
     output_dir = tmp_path / "reports" / "smc_structure_artifacts"
     inferred_bundle_root = tmp_path / "artifacts" / "smc_microstructure_exports"
     inferred_bundle_root.mkdir(parents=True, exist_ok=True)
@@ -91,7 +93,7 @@ def test_explicit_workbook_does_not_use_inferred_canonical_export_bundle(
         structure_batch,
         "resolve_structure_artifact_inputs",
         lambda **kwargs: {
-            "workbook_path": WORKBOOK,
+            "workbook_path": workbook,
             "export_bundle_root": inferred_bundle_root,
             "structure_artifacts_dir": output_dir,
             "single_structure_artifact_path": None,
@@ -174,7 +176,7 @@ def test_explicit_workbook_does_not_use_inferred_canonical_export_bundle(
     )
 
     manifest = write_structure_artifacts_from_workbook(
-        workbook=WORKBOOK,
+        workbook=workbook,
         timeframe="15m",
         symbols=["AAPL"],
         output_dir=output_dir,
@@ -182,7 +184,7 @@ def test_explicit_workbook_does_not_use_inferred_canonical_export_bundle(
     )
 
     assert manifest["counts"]["artifacts_written"] == 1
-    assert captured["workbook"] == WORKBOOK
+    assert captured["workbook"] == workbook
     assert captured["export_bundle_root"] is None
 
 
@@ -190,6 +192,7 @@ def test_explicit_workbook_does_not_use_inferred_canonical_workbook(
     monkeypatch,
     tmp_path: Path,
 ) -> None:
+    workbook = make_minimal_workbook(tmp_path)
     output_dir = tmp_path / "reports" / "smc_structure_artifacts"
     canonical_workbook = tmp_path / "artifacts" / "smc_microstructure_exports" / "databento_volatility_production_workbook.xlsx"
     canonical_workbook.parent.mkdir(parents=True, exist_ok=True)
@@ -283,7 +286,7 @@ def test_explicit_workbook_does_not_use_inferred_canonical_workbook(
     )
 
     manifest = write_structure_artifacts_from_workbook(
-        workbook=WORKBOOK,
+        workbook=workbook,
         timeframe="15m",
         symbols=["AAPL"],
         output_dir=output_dir,
@@ -291,5 +294,5 @@ def test_explicit_workbook_does_not_use_inferred_canonical_workbook(
     )
 
     assert manifest["counts"]["artifacts_written"] == 1
-    assert captured["workbook"] == WORKBOOK
+    assert captured["workbook"] == workbook
     assert captured["export_bundle_root"] is None
