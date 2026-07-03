@@ -109,7 +109,7 @@ _FROZEN_SITES: frozenset[tuple[str, int]] = frozenset(
         ("open_prep/macro.py", 822),
         ("newsstack_fmp/ingest_fmp_political.py", 122),
         ("newsstack_fmp/ingest_fmp_political.py", 135),
-        ("newsstack_fmp/shared_fetch.py", 312),
+        ("newsstack_fmp/shared_fetch.py", 337),
         ("newsstack_fmp/pipeline.py", 1259),
         ("newsstack_fmp/store_sqlite.py", 81),
         ("newsstack_fmp/store_sqlite.py", 86),
@@ -147,7 +147,7 @@ _FROZEN_SITES: frozenset[tuple[str, int]] = frozenset(
         # parallel fetch worker (line 901 after thread-safety follow-up).
         ("newsstack_fmp/ingest_benzinga.py", 200),
         ("newsstack_fmp/ingest_benzinga.py", 211),
-        ("newsstack_fmp/ingest_benzinga.py", 909),
+        ("newsstack_fmp/ingest_benzinga.py", 919),
     }
 )
 

@@ -243,9 +243,12 @@ def compute_hit_rates(
         profitable = rec.get("profitable_30m_directional")
         if profitable is None:
             profitable = rec.get("profitable_30m")
-        pnl = _safe_float(
-            rec.get("pnl_30m_pct_signed", rec.get("pnl_30m_pct")), default=0.0,
-        )
+        # dict.get(k, default) only falls back on MISSING keys — an explicit
+        # null in pnl_30m_pct_signed must also fall through to the legacy field.
+        pnl_raw = rec.get("pnl_30m_pct_signed")
+        if pnl_raw is None:
+            pnl_raw = rec.get("pnl_30m_pct")
+        pnl = _safe_float(pnl_raw, default=0.0)
 
         gb = _gap_bucket_label(gap_pct)
         rb = _rvol_bucket_label(rvol)
