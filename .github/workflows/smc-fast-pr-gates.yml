@@ -132,6 +132,20 @@ jobs:
         if: steps.gate.outputs.run_heavy == 'true'
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
 
+      # Audit P2 MED: enforce the single-maintainer authorship mandate. Every
+      # commit in the PR range must be authored AND committed by an approved
+      # identity (see scripts/check_commit_authors.py + .mailmap); catches an
+      # accidental corporate-config (spreuss_cisco) commit that would otherwise
+      # merge unnoticed.
+      - name: Enforce approved commit authors
+        if: steps.gate.outputs.run_heavy == 'true' && github.event_name == 'pull_request'
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          git fetch --depth=500 origin "$BASE_SHA" "$HEAD_SHA" 2>/dev/null || true
+          python scripts/check_commit_authors.py --range "${BASE_SHA}..${HEAD_SHA}"
+
       - name: Announce selected runner
         if: steps.gate.outputs.run_heavy == 'true'
         run: |
