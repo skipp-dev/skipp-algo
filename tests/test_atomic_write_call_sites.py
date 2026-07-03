@@ -120,6 +120,7 @@ _ALLOWED_RAW_WRITE_FILES: dict[str, str] = {
     # History is an append-only JSONL (mode='a', fsync-durable).
     # Snapshot uses the mkstemp+fdopen+fsync+os.replace atomic pattern.
     "scripts/best_effort_failure_trend.py": "JSONL history append (mode='a', fsync-durable) + mkstemp+fdopen+fsync+os.replace atomic snapshot (PR #2840)",
+    "scripts/pine_library_freshness.py": "mkstemp + fdopen + os.replace atomic pattern (stamps the '// Last refreshed:' marker into pine/skipp_*.pine libraries)",
     # smc_atomic_write itself implements the primitive — exempt by definition.
     "scripts/smc_atomic_write.py": "implements the atomic write primitive",
     # --- open_prep/ surface (Deep-Review 2026-04-27 scope expansion) ---
