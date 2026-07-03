@@ -14,7 +14,7 @@ B. Dockerfile FROM form-sanity
    ---------------------------
    Single base-image discipline: every ``FROM`` line must have an explicit
    tag and must NOT use ``:latest``. The current ledger is exactly one FROM
-   line (``python:3.13-slim AS base``); any addition is gated by this test.
+   line (``python:3.12-slim AS base``); any addition is gated by this test.
 
 Defense-only, no production code changes.
 """
@@ -181,7 +181,7 @@ def test_dockerfile_from_has_explicit_tag() -> None:
         # Must contain ':' (tag) or '@sha256:' (digest).
         assert ":" in ref, (
             f"Dockerfile L{lineno}: base image {ref!r} lacks explicit tag or digest. "
-            "Pin a tag like python:3.13-slim or a sha256 digest."
+            "Pin a tag like python:3.12-slim or a sha256 digest."
         )
 
 
