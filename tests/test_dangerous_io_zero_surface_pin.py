@@ -100,8 +100,8 @@ def _attr_call_sites(attr_owner: str, attr_name: str) -> set[tuple[str, int]]:
 OS_KILL_ALLOWED: set[tuple[str, int]] = {
     # Signal-0 PID liveness probes in _detect_rt_engine_pid(): existing PID
     # file check and pgrep result validation.
-    ("open_prep/realtime_signals.py", 205),
-    ("open_prep/realtime_signals.py", 235),
+    ("open_prep/realtime_signals.py", 207),
+    ("open_prep/realtime_signals.py", 237),
     # Signal-0 PID liveness probe for the IB-client-id leasing registry
     # (claims an IB API client_id slot only if the previous owner is gone).
     ("scripts/ib_client_id.py", 81),
