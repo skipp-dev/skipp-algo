@@ -100,6 +100,37 @@ def is_us_equity_trading_day(d: date) -> bool:
     return not (d.month == 12 and d in us_equity_market_holidays(d.year + 1))
 
 
+def is_us_equity_early_close_day(d: date) -> bool:
+    """Return ``True`` when NYSE regular session closes early (13:00 ET).
+
+    Covers the recurring early-close pattern we can determine deterministically
+    from the holiday calendar without external feeds:
+    - Day after Thanksgiving (Friday)
+    - Christmas Eve (when it is itself a trading day)
+    - July 3 (when it is itself a trading day)
+    """
+    if not is_us_equity_trading_day(d):
+        return False
+
+    thanksgiving = nth_weekday_of_month(d.year, 11, 3, 4)
+    if d == thanksgiving + timedelta(days=1):
+        return True
+
+    if d.month == 12 and d.day == 24:
+        return True
+
+    return bool(d.month == 7 and d.day == 3)
+
+
+def regular_session_close_minutes(d: date) -> int:
+    """Return regular-session close minute offset from midnight ET.
+
+    ``16:00`` on normal trading days and ``13:00`` on known recurring
+    early-close days.
+    """
+    return 13 * 60 if is_us_equity_early_close_day(d) else 16 * 60
+
+
 # ── Next / previous trading day ────────────────────────────────
 
 
