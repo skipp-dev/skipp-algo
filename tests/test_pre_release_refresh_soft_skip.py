@@ -454,6 +454,54 @@ def test_soft_skip_for_build_failed_workbook_fallback_intraday_marker(
     assert report["runner"]["exit_code"] == 78
 
 
+def test_soft_skip_for_build_failed_no_bundle_nor_workbook_marker(
+    script_module: ModuleType,
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    """After #3128 untracked the daily workbook, an input-less runner emits
+    'neither export bundle root nor workbook is available' for 1D as well as
+    intraday. That is the same missing-input condition and must soft-skip.
+
+    Reproduces the exact regression that hard-failed deeper-gates run
+    28644199154 (rc=1 instead of rc=78).
+    """
+    _patch_resolution_to_empty(script_module, monkeypatch, tmp_path)
+
+    def _return_no_bundle_nor_workbook(**_kwargs: object) -> dict:
+        return {
+            "errors": [
+                {
+                    "code": "BUILD_SYMBOL_ARTIFACT_FAILED",
+                    "symbol": "AAPL",
+                    "timeframe": "1D",
+                    "error": "missing structure input: neither export bundle root nor workbook is available",
+                },
+            ],
+            "counts": {"symbols_requested": 1, "artifacts_written": 0},
+        }
+
+    monkeypatch.setattr(
+        script_module,
+        "write_structure_artifacts_from_workbook",
+        _return_no_bundle_nor_workbook,
+    )
+
+    out = tmp_path / "report.json"
+    rc = _run_main(
+        script_module,
+        monkeypatch,
+        extra_argv=["--soft-skip-on-missing-inputs"],
+        output_path=out,
+    )
+
+    assert rc == 78, "no-bundle-nor-workbook BUILD_SYMBOL_ARTIFACT_FAILED must soft-skip"
+    report = _read_report(out)
+    assert report["overall_status"] == "skipped"
+    assert report["runner"]["soft_skipped"] is True
+    assert report["runner"]["exit_code"] == 78
+
+
 def test_no_soft_skip_for_build_failed_without_workbook_fallback_marker(
     script_module: ModuleType,
     monkeypatch: pytest.MonkeyPatch,
