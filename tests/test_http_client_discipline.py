@@ -196,9 +196,9 @@ _FROZEN_URLOPEN_SITES: frozenset[tuple[str, int]] = frozenset(
         #   * experiment text fetcher (rollup/history) with GitHub-contents
         #     Accept-header hardening via parsed URL checks.
         # 2026-06-26 (PR #2962): shifted/expanded by the producer client.
-        ("services/live_overlay_daemon/compute.py", 230),
-        ("services/live_overlay_daemon/compute.py", 389),
-        ("services/live_overlay_daemon/compute.py", 581),
+        ("services/live_overlay_daemon/compute.py", 235),
+        ("services/live_overlay_daemon/compute.py", 394),
+        ("services/live_overlay_daemon/compute.py", 586),
         # 2026-06-24: Railway GraphQL API bridge for container metrics polling;
         # fixed https endpoint (backboard.railway.com), explicit timeout discipline.
         ("services/live_overlay_daemon/railway_metrics.py", 85),

@@ -1954,16 +1954,22 @@ class RealtimeEngine:
             return
         sym_set = set(symbols)
 
+        # symbol → first matching watchlist entry (first-wins, mirrors the
+        # prior linear `break`-on-first scans). Built once so the enrichment
+        # loops are O(1) lookups instead of O(n²) rescans (audit P3 MED).
+        wl_by_sym: dict[str, dict] = {}
+        for _w in self._watchlist:
+            _k = str(_w.get("symbol", "")).strip().upper()
+            if _k and _k not in wl_by_sym:
+                wl_by_sym[_k] = _w
+
         # Identify symbols that still need avgVolume enrichment
         need_avg_vol: set[str] = set()
         for sym in symbols:
             if sym in self._avg_vol_cache:
                 continue  # already have it from a previous cycle
-            wl_avg = 0.0
-            for w in self._watchlist:
-                if str(w.get("symbol", "")).strip().upper() == sym:
-                    wl_avg = _safe_float(w.get("avg_volume"), 0.0)
-                    break
+            _entry = wl_by_sym.get(sym)
+            wl_avg = _safe_float(_entry.get("avg_volume"), 0.0) if _entry is not None else 0.0
             if wl_avg < 1000:
                 need_avg_vol.add(sym)
 
@@ -1981,11 +1987,9 @@ class RealtimeEngine:
                     )
                     if avg_vol >= 1000:
                         self._avg_vol_cache[sym] = avg_vol
-                        for w in self._watchlist:
-                            if str(w.get("symbol", "")).strip().upper() == sym:
-                                if _safe_float(w.get("avg_volume"), 0.0) < 1000:
-                                    w["avg_volume"] = avg_vol
-                                break
+                        _entry = wl_by_sym.get(sym)
+                        if _entry is not None and _safe_float(_entry.get("avg_volume"), 0.0) < 1000:
+                            _entry["avg_volume"] = avg_vol
                         enriched_count += 1
                 logger.info(
                     "Bulk profile enriched %d/%d symbols with avgVolume",
@@ -2003,11 +2007,9 @@ class RealtimeEngine:
                         )
                         if avg_vol >= 1000:
                             self._avg_vol_cache[sym] = avg_vol
-                            for w in self._watchlist:
-                                if str(w.get("symbol", "")).strip().upper() == sym:
-                                    if _safe_float(w.get("avg_volume"), 0.0) < 1000:
-                                        w["avg_volume"] = avg_vol
-                                    break
+                            _entry = wl_by_sym.get(sym)
+                            if _entry is not None and _safe_float(_entry.get("avg_volume"), 0.0) < 1000:
+                                _entry["avg_volume"] = avg_vol
                         time.sleep(0.15)  # throttle
                     except Exception as exc2:
                         logger.debug("Profile fetch failed for %s: %s", sym, exc2)
@@ -2028,14 +2030,13 @@ class RealtimeEngine:
                 sym = str(item.get("symbol") or "").strip().upper()
                 if sym in sym_set:
                     self._earnings_today_cache[sym] = item
-                    # Update watchlist entry
-                    for w in self._watchlist:
-                        if str(w.get("symbol", "")).strip().upper() == sym:
-                            w["earnings_today"] = True
-                            raw_time = str(item.get("time") or item.get("releaseTime") or "").strip().lower()
-                            w["earnings_timing"] = raw_time or None
-                            logger.info("Earnings today: %s (timing=%s)", sym, raw_time or "unknown")
-                            break
+                    # Update watchlist entry (O(1) via prebuilt map)
+                    _entry = wl_by_sym.get(sym)
+                    if _entry is not None:
+                        _entry["earnings_today"] = True
+                        raw_time = str(item.get("time") or item.get("releaseTime") or "").strip().lower()
+                        _entry["earnings_timing"] = raw_time or None
+                        logger.info("Earnings today: %s (timing=%s)", sym, raw_time or "unknown")
         except Exception as exc:
             logger.debug("Earnings calendar fetch failed: %s", exc)
 
@@ -2734,11 +2735,14 @@ class RealtimeEngine:
             cur_price = _safe_float(q.get("price") or q.get("lastPrice"), 0.0)
             cur_prev_close = _safe_float(q.get("previousClose"), 0.0)
             cur_volume = _safe_float(q.get("volume"), 0.0)
-            # Use watchlist fallback for avgVolume (FMP batch quote omits it)
+            # Use watchlist fallback for avgVolume (FMP batch quote omits it).
+            # Reuse the wl_map built earlier this poll instead of rescanning the
+            # ~900-entry watchlist per active signal (audit P3 LOW). Key uses the
+            # same strip().upper() normalization as wl_map.
             wl_avg = 0.0
-            wl_match = [w for w in self._watchlist if w.get("symbol") == sig.symbol]
-            if wl_match:
-                wl_avg = _safe_float(wl_match[0].get("avg_volume"), 0.0)
+            wl_entry = wl_map.get(str(sig.symbol).strip().upper())
+            if wl_entry is not None:
+                wl_avg = _safe_float(wl_entry.get("avg_volume"), 0.0)
             cur_avg_vol = _safe_float(q.get("avgVolume") or wl_avg, 0.0)
             if cur_avg_vol < 1000:
                 requalified.append(sig)  # can't verify — keep

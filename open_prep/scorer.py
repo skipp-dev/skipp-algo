@@ -839,26 +839,50 @@ def score_candidate(
 # Tiered confidence
 # ---------------------------------------------------------------------------
 
+def _confidence_tier_stats(all_scores: list[float]) -> tuple[float, float] | None:
+    """Return ``(mean, std)`` for tiering, or ``None`` when < 5 samples.
+
+    Computed once per ranking run so ``classify_confidence_tier`` does not
+    recompute mean + Bessel variance for every scored row (O(n²) → O(n)).
+    """
+    n = len(all_scores)
+    if n < 5:
+        return None
+    mean = sum(all_scores) / n
+    variance = sum((x - mean) ** 2 for x in all_scores) / (n - 1)
+    std = math.sqrt(variance) if variance > 0 else 0.001
+    return mean, std
+
+
 def classify_confidence_tier(
     score: float,
     all_scores: list[float],
     warn_flags: str = "",
+    *,
+    _stats: tuple[float, float] | None = None,
 ) -> str:
     """Classify a candidate into a confidence tier.
 
     - HIGH_CONVICTION: score > mean + 2σ AND no warn_flags
     - STANDARD: score > mean + 1σ
     - WATCHLIST: everything else
+
+    ``_stats`` may carry a precomputed ``(mean, std)`` (see
+    :func:`_confidence_tier_stats`) so callers ranking many rows avoid the
+    per-row O(n) recomputation.
     """
     if len(all_scores) < 5:
         # With fewer than 5 samples, Bessel's correction makes stdev
         # unreliable — default to STANDARD to avoid spurious tiers.
         return "STANDARD"
 
-    n = len(all_scores)
-    mean = sum(all_scores) / n
-    variance = sum((x - mean) ** 2 for x in all_scores) / (n - 1)
-    std = math.sqrt(variance) if variance > 0 else 0.001
+    if _stats is not None:
+        mean, std = _stats
+    else:
+        n = len(all_scores)
+        mean = sum(all_scores) / n
+        variance = sum((x - mean) ** 2 for x in all_scores) / (n - 1)
+        std = math.sqrt(variance) if variance > 0 else 0.001
 
     if score > mean + 2 * std and not warn_flags.strip():
         return "HIGH_CONVICTION"
@@ -994,12 +1018,13 @@ def rank_candidates_v2(
     # skew the mean±σ distribution and silently collapse every healthy
     # candidate to WATCHLIST.  Sentinel rows are tiered as WATCHLIST directly.
     all_scores = [r["score"] for r in scored if id(r) not in sanitized_row_ids]
+    tier_stats = _confidence_tier_stats(all_scores)
     for row in scored:
         if id(row) in sanitized_row_ids:
             row["confidence_tier"] = "WATCHLIST"
         else:
             row["confidence_tier"] = classify_confidence_tier(
-                row["score"], all_scores, row.get("warn_flags", ""),
+                row["score"], all_scores, row.get("warn_flags", ""), _stats=tier_stats,
             )
 
     ranked = scored[:top_n]

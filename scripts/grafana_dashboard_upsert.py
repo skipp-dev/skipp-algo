@@ -67,6 +67,11 @@ def main() -> int:
     except urllib.error.HTTPError as exc:
         print(f"HTTP {exc.code}: {exc.read().decode('utf-8')}", file=sys.stderr)
         return 1
+    except (urllib.error.URLError, TimeoutError) as exc:
+        # Connection refused / DNS / timeout must not escape as an unhandled
+        # traceback (HTTPError is caught above; URLError covers the rest).
+        print(f"Dashboard upsert failed: {exc}", file=sys.stderr)
+        return 1
 
 
 if __name__ == "__main__":
