@@ -1129,8 +1129,7 @@ groups:
         expr: (live_overlay_provider_news_last_ingest_age_seconds{job="live_overlay"}
           and on(job, instance) (live_overlay_provider_news_last_ingest_age_known{job="live_overlay"}
           == 1))
-          and on() (day_of_week() > 0) and on() (day_of_week() < 6)
-          and on() (hour() >= 12) and on() (hour() < 21)
+          and on(job, instance) (live_overlay_market_us_open{job="live_overlay"} == 1)
         instant: true
     - refId: C
       datasourceUid: __expr__
@@ -1147,14 +1146,22 @@ groups:
             params:
             - A
     for: 30m
+    # The market_us_open gate empties the expr outside RTH (nights, weekends,
+    # NYSE holidays) — that is a stand-down, not an incident. Without this the
+    # Grafana default (NoData) raised a spurious DatasourceNoData instance
+    # every night (observed 2026-07-03, pending from 10:40 UTC while ingest
+    # was healthy).
+    noDataState: OK
     labels:
       severity: warning
     annotations:
       summary: No new news stories ingested in over 6 hours
-      runbook: News flows in bursts, so a quiet window is normal; a 6h+ gap during
-        market hours indicates the producer accepts fetches but no new items (cursor
-        stuck, provider auth, or upstream outage). Inspect last_ingest_success_at in
-        the snapshot vs generated_at.
+      runbook: News flows in bursts, so a quiet window is normal; a 6h+ gap while
+        the US regular session is open (live_overlay_market_us_open gates this
+        rule holiday-aware — the prior Mon-Fri/12-21-UTC arithmetic fired on NYSE
+        holidays) indicates the producer accepts fetches but no new items (cursor
+        stuck, provider auth, or upstream outage). Inspect last_ingest_success_at
+        in the snapshot vs generated_at.
   - uid: lo-tradingview-credential-age-high
     title: TradingView credential age high
     condition: C
