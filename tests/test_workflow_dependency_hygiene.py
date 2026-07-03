@@ -1,4 +1,4 @@
-"""Audit guard: workflows must install requirements.txt before ``pip install -e .``.
+"""Audit guard: workflows must install runtime requirements before ``pip install -e .``.
 
 History: ``f2-promotion-gate-daily`` failed on 2026-04-30 with
 ``ModuleNotFoundError: pandas`` because the workflow installed only the project
@@ -15,14 +15,25 @@ import pathlib
 import pytest
 
 _WORKFLOWS_REQUIRING_REQUIREMENTS_TXT = (
-    "f2-promotion-gate-daily.yml",
     "f2-weekly-digest.yml",
     "feature-importance-daily.yml",
+)
+_WORKFLOWS_REQUIRING_REQUIREMENTS_LOCK = (
+    "f2-promotion-gate-daily.yml",
 )
 
 
 @pytest.mark.parametrize("workflow_name", _WORKFLOWS_REQUIRING_REQUIREMENTS_TXT)
-def test_workflow_installs_requirements_before_editable(workflow_name: str) -> None:
+def test_workflow_installs_requirements_txt_before_editable(workflow_name: str) -> None:
+    _assert_runtime_requirements_before_editable(workflow_name, "requirements.txt")
+
+
+@pytest.mark.parametrize("workflow_name", _WORKFLOWS_REQUIRING_REQUIREMENTS_LOCK)
+def test_workflow_installs_requirements_lock_before_editable(workflow_name: str) -> None:
+    _assert_runtime_requirements_before_editable(workflow_name, "requirements.lock")
+
+
+def _assert_runtime_requirements_before_editable(workflow_name: str, requirements_file: str) -> None:
     workflow_path = (
         pathlib.Path(__file__).resolve().parents[1]
         / ".github"
@@ -54,11 +65,11 @@ def test_workflow_installs_requirements_before_editable(workflow_name: str) -> N
 
     haystack = _strip_comments(body)
 
-    needle_requirements = "pip install -r requirements.txt"
+    needle_requirements = f"pip install -r {requirements_file}"
     needle_editable = "pip install -e ."
 
     assert needle_requirements in haystack, (
-        f"{workflow_name}: missing 'pip install -r requirements.txt' install step"
+        f"{workflow_name}: missing 'pip install -r {requirements_file}' install step"
         " (regression of F-V5-B1 / F-CI-D1)"
     )
     assert needle_editable in haystack, (
@@ -68,6 +79,6 @@ def test_workflow_installs_requirements_before_editable(workflow_name: str) -> N
     idx_requirements = haystack.index(needle_requirements)
     idx_editable = haystack.index(needle_editable)
     assert idx_requirements < idx_editable, (
-        f"{workflow_name}: requirements.txt must be installed BEFORE 'pip install -e .'"
+        f"{workflow_name}: {requirements_file} must be installed BEFORE 'pip install -e .'"
         " or the editable install will not pick up missing transitive deps"
     )

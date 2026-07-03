@@ -1,5 +1,5 @@
 # ── SkippALGO Terminal — production image ──────────────────────
-FROM python:3.13-slim AS base
+FROM python:3.12-slim AS base
 
 WORKDIR /app
 
@@ -9,8 +9,8 @@ RUN apt-get update && \
         build-essential curl ca-certificates && \
     rm -rf /var/lib/apt/lists/*
 
-COPY requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txt
+COPY requirements.lock .
+RUN pip install --no-cache-dir --require-hashes -r requirements.lock
 
 # Copy app code (excluding dev artifacts via .dockerignore)
 COPY . .

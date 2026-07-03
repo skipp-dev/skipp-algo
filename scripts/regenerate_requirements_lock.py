@@ -55,6 +55,9 @@ def main(argv: list[str] | None = None) -> int:
         _REQ_OUT,
         "--python-version",
         _PYTHON_VERSION,
+        "--python-platform",
+        "linux",
+        "--generate-hashes",
     ]
     if args.upgrade:
         cmd.append("--upgrade")
