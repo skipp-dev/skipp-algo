@@ -67,16 +67,16 @@ jobs:
       - name: Setup Python
         uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v6
         with:
-          python-version: "3.13"
+          python-version: "3.12"
           cache: "pip"
-          cache-dependency-path: "requirements.txt"
+          cache-dependency-path: "requirements.lock"
 
       - name: Install dependencies
         # Mirror the validate job in ci.yml, which is the contract that
         # proves this dependency set is sufficient.
         run: |
           python -m pip install --upgrade pip
-          python -m pip install -r requirements.txt pytest pyyaml
+          python -m pip install -r requirements.lock pytest pyyaml
 
       # ADR-0023 §4.1: download the scored FamilyEvent records of the
       # CURRENT UTC day from the rolling benchmark workflow.  The

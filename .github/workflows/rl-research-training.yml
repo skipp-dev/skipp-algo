@@ -113,7 +113,7 @@ jobs:
         with:
           cache: pip
           cache-dependency-path: |
-            requirements.txt
+            requirements.lock
             requirements-rl.txt
             requirements-rl-gpu.txt
 
@@ -144,7 +144,7 @@ jobs:
       - name: Install dependencies
         run: |
           "$SMC_PYTHON_BIN" -m pip install --upgrade pip
-          "$SMC_PYTHON_BIN" -m pip install -r requirements.txt
+          "$SMC_PYTHON_BIN" -m pip install -r requirements.lock
           "$SMC_PYTHON_BIN" -m pip install -r requirements-rl.txt
 
       - name: Install CUDA-enabled torch
