@@ -3,6 +3,7 @@
 
 //@version=6
 library("skipp_labels", overlay = true)
+// Last refreshed: 2026-07-03
 
 // --------------------------------------------------
 // Label text safety

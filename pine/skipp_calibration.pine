@@ -3,6 +3,7 @@
 
 //@version=6
 library("skipp_calibration", overlay = true)
+// Last refreshed: 2026-07-03
 
 import preuss_steffen/skipp_math/1 as m
 
