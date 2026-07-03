@@ -23,6 +23,7 @@ certifi==2026.4.22
 coverage==7.14.0
 pytest-cov==7.1.0
 pytest-xdist==3.8.0
+hypothesis==6.112.2
 # pytest-split powers the duration-balanced matrix sharding of the `validate`
 # job (4 shards via --splits/--group). See docs/perf and .test_durations.
 pytest-split==0.11.0
