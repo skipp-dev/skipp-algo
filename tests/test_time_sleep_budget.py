@@ -124,11 +124,11 @@ _FROZEN_SITES: frozenset[tuple[str, int]] = frozenset(
         ("open_prep/error_taxonomy.py", 117),
         # 2026-06-28 (semantic monitoring): all realtime_signals sleep sites
         # shifted +20/+20/+72/+80/+80 lines by readiness metrics.
-        ("open_prep/realtime_signals.py", 303),
-        ("open_prep/realtime_signals.py", 378),
-        ("open_prep/realtime_signals.py", 2013),
-        ("open_prep/realtime_signals.py", 3189),
-        ("open_prep/realtime_signals.py", 3176),
+        ("open_prep/realtime_signals.py", 305),
+        ("open_prep/realtime_signals.py", 380),
+        ("open_prep/realtime_signals.py", 2021),
+        ("open_prep/realtime_signals.py", 3197),
+        ("open_prep/realtime_signals.py", 3184),
         # 2026-06-11 (eval-findings D7): technical_analysis import block
         # +8 lines (1943→1951, 1945→1953).
         ("open_prep/run_open_prep.py", 2038),

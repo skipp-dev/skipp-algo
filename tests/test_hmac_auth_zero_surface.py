@@ -46,8 +46,8 @@ HMAC_ALLOWED: set[tuple[str, int, str]] = {
     # the reviewed constant-time token compare call 422 → 442.
     # 2026-06-24 (signals auth): realtime /signals bearer-token checks use
     # constant-time comparison at two call sites.
-    ("open_prep/realtime_signals.py", 960, "compare_digest"),
-    ("open_prep/realtime_signals.py", 991, "compare_digest"),
+    ("open_prep/realtime_signals.py", 968, "compare_digest"),
+    ("open_prep/realtime_signals.py", 999, "compare_digest"),
     ("services/live_overlay_daemon/main.py", 451, "compare_digest"),
 }
 
