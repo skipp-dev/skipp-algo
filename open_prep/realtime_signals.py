@@ -34,7 +34,7 @@ Usage::
 """
 from __future__ import annotations
 
-from typing import Any
+from typing import Any, ClassVar
 
 fcntl: Any | None
 try:
@@ -2406,6 +2406,42 @@ class RealtimeEngine:
         self.last_poll_success_epoch = time.time()
         self.last_poll_duration_seconds = self.last_poll_duration
 
+    _LEVEL_RANK: ClassVar[dict[str, int]] = {"A0": 0, "A1": 1, "A2": 2}
+
+    def _reconcile_new_signal(
+        self, sym: str, signal: RealtimeSignal, new_signals: list,
+    ) -> None:
+        """Merge a freshly-detected signal against the active set for *sym*.
+
+        Lifecycle rules (mutates ``self._active_signals`` under the lock and
+        appends the kept signal to ``new_signals``):
+
+        - **Level upgrade** (A2→A1→A0, lower rank): replace the active signal.
+        - **Direction flip** (same/higher rank but opposite direction): replace.
+        - **Same/lower level, same direction**: dedupe (skip — no re-fire).
+        - **No active signal** for the symbol: append.
+        """
+        with self._lock:
+            existing = [
+                s for s in self._active_signals
+                if s.symbol == sym and not s.is_expired()
+            ]
+            if existing:
+                latest = existing[-1]
+                new_rank = self._LEVEL_RANK.get(signal.level, 3)
+                old_rank = self._LEVEL_RANK.get(latest.level, 3)
+                if new_rank < old_rank:
+                    # Upgrade: A2→A1, A1→A0, etc.
+                    self._active_signals = [s for s in self._active_signals if s.symbol != sym]
+                    new_signals.append(signal)
+                elif signal.direction != latest.direction:
+                    # Direction change: replace
+                    self._active_signals = [s for s in self._active_signals if s.symbol != sym]
+                    new_signals.append(signal)
+                # else: same or lower level, same direction — skip
+            else:
+                new_signals.append(signal)
+
     def poll_once(self) -> list[RealtimeSignal]:
         """Run one poll cycle: fetch quotes → detect signals → persist.
 
@@ -2571,24 +2607,7 @@ class RealtimeEngine:
                             self._dynamic_cooldown.record_transition(sym, signal.direction)
 
                 # Check if we already have an active signal for this symbol
-                _level_rank = {"A0": 0, "A1": 1, "A2": 2}
-                with self._lock:
-                    existing = [s for s in self._active_signals if s.symbol == sym and not s.is_expired()]
-                    if existing:
-                        latest = existing[-1]
-                        new_rank = _level_rank.get(signal.level, 3)
-                        old_rank = _level_rank.get(latest.level, 3)
-                        if new_rank < old_rank:
-                            # Upgrade: A2→A1, A1→A0, etc.
-                            self._active_signals = [s for s in self._active_signals if s.symbol != sym]
-                            new_signals.append(signal)
-                        elif signal.direction != latest.direction:
-                            # Direction change: replace
-                            self._active_signals = [s for s in self._active_signals if s.symbol != sym]
-                            new_signals.append(signal)
-                        # else: same or lower level, same direction — skip
-                    else:
-                        new_signals.append(signal)
+                self._reconcile_new_signal(sym, signal, new_signals)
 
             # Track price for next cycle
             price = _safe_float(quote.get("price") or quote.get("lastPrice"), 0.0)
