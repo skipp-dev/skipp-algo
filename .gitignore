@@ -53,6 +53,10 @@ node_modules/
 # Databento generated cache/runtime artifacts
 artifacts/databento_volatility_cache/
 artifacts/databento_reference_cache/
+databento_volatility_production_*.xlsx
+
+# Local editor MCP server config (may contain tokens)
+.vscode/mcp.json
 
 # Local NewsAPI / shared-news probe and cache artifacts
 artifacts/manual_newsapi_*/
