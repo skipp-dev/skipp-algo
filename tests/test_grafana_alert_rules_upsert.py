@@ -200,6 +200,31 @@ def test_repo_alert_rules_are_structurally_valid() -> None:
     assert errors == [], "alert-rules.yaml structural errors:\n" + "\n".join(errors)
 
 
+def test_load_alert_groups_rejects_duplicate_mapping_keys(tmp_path: Path) -> None:
+    """Regression guard (2026-07-03): sp-memory-high carried a duplicated
+    ``annotations:`` key. PyYAML silently keeps the last value (a reorder
+    would null summary/runbook without any signal) and go-yaml — Grafana's
+    file-provisioning parser — hard-rejects the document. The loader must
+    fail loudly instead of shipping either behaviour."""
+    doc = tmp_path / "rules.yaml"
+    doc.write_text(
+        "apiVersion: 1\n"
+        "groups:\n"
+        "- name: g1\n"
+        "  folder: f\n"
+        "  interval: 1m\n"
+        "  rules:\n"
+        "  - uid: r1\n"
+        "    title: t\n"
+        "    annotations:\n"
+        "    annotations:\n"
+        "      summary: s\n",
+        encoding="utf-8",
+    )
+    with pytest.raises(ValueError, match="duplicate YAML mapping key 'annotations'"):
+        mod.load_alert_groups(doc)
+
+
 def test_repo_alert_rule_uids_are_globally_unique() -> None:
     groups = mod.load_alert_groups(ALERT_RULES)
     uids = [r["uid"] for g in groups for r in g["rules"]]

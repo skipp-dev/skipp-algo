@@ -27,6 +27,8 @@ import sys
 from pathlib import Path
 from typing import Any
 
+import pytest
+
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 
@@ -415,51 +417,65 @@ class TestStringVolumeCoercion:
 class TestNewsScoreFiniteCoercion:
     """Non-finite news scores must be treated as invalid/missing, not propagated."""
 
-    def test_nan_sentiment_score_is_treated_as_missing(self):
+    def test_nan_sentiment_score_is_treated_as_missing(self, monkeypatch: pytest.MonkeyPatch):
         compute = _compute()
-        compute._load_news_snapshot = lambda: {
-            "stories": [{"tickers": ["AAPL"], "sentiment_score": float("nan")}]
-        }
+        monkeypatch.setattr(
+            compute,
+            "_load_news_snapshot",
+            lambda: {"stories": [{"tickers": ["AAPL"], "sentiment_score": float("nan")}]},
+        )
 
         fields = compute._get_news_fields("AAPL")
 
         assert fields["news_strength"] is None
         assert fields["news_bias"] is None
 
-    def test_inf_news_score_is_treated_as_missing(self):
+    def test_inf_news_score_is_treated_as_missing(self, monkeypatch: pytest.MonkeyPatch):
         compute = _compute()
-        compute._load_news_snapshot = lambda: {
-            "stories": [{"tickers": ["AAPL"], "news_score": "inf"}]
-        }
+        monkeypatch.setattr(
+            compute,
+            "_load_news_snapshot",
+            lambda: {"stories": [{"tickers": ["AAPL"], "news_score": "inf"}]},
+        )
 
         fields = compute._get_news_fields("AAPL")
 
         assert fields["news_strength"] is None
         assert fields["news_bias"] is None
 
-    def test_global_news_fields_reject_non_finite_scores(self):
+    def test_global_news_fields_reject_non_finite_scores(self, monkeypatch: pytest.MonkeyPatch):
         compute = _compute()
-        compute._load_news_snapshot = lambda: {
-            "stories": [
-                {"sentiment_score": float("nan")},
-                {"news_score": "-inf"},
-            ]
-        }
+        monkeypatch.setattr(
+            compute,
+            "_load_news_snapshot",
+            lambda: {
+                "stories": [
+                    {"sentiment_score": float("nan")},
+                    {"news_score": "-inf"},
+                ]
+            },
+        )
 
         fields = compute._get_global_news_fields()
 
         assert fields["tone"] == "NEUTRAL"
         assert fields["global_heat"] is None
 
-    def test_mixed_finite_and_non_finite_scores_keep_only_finite_samples(self):
+    def test_mixed_finite_and_non_finite_scores_keep_only_finite_samples(
+        self, monkeypatch: pytest.MonkeyPatch
+    ):
         compute = _compute()
-        compute._load_news_snapshot = lambda: {
-            "stories": [
-                {"tickers": ["AAPL"], "sentiment_score": "nan"},
-                {"tickers": ["AAPL"], "news_score": 0.6},
-                {"tickers": ["AAPL"], "news_score": "-inf"},
-            ]
-        }
+        monkeypatch.setattr(
+            compute,
+            "_load_news_snapshot",
+            lambda: {
+                "stories": [
+                    {"tickers": ["AAPL"], "sentiment_score": "nan"},
+                    {"tickers": ["AAPL"], "news_score": 0.6},
+                    {"tickers": ["AAPL"], "news_score": "-inf"},
+                ]
+            },
+        )
 
         sym = compute._get_news_fields("AAPL")
         glob = compute._get_global_news_fields()
@@ -486,18 +502,24 @@ class TestNewsScoreFiniteCoercion:
         assert ats["ats_zscore"] is None
         assert ats["ats_state"] is None
 
-    def test_invalid_sentiment_falls_back_to_valid_news_score(self):
+    def test_invalid_sentiment_falls_back_to_valid_news_score(
+        self, monkeypatch: pytest.MonkeyPatch
+    ):
         """Regression: malformed sentiment_score must not mask valid news_score."""
         compute = _compute()
-        compute._load_news_snapshot = lambda: {
-            "stories": [
-                {
-                    "tickers": ["AAPL"],
-                    "sentiment_score": "nan",
-                    "news_score": 0.9,
-                }
-            ]
-        }
+        monkeypatch.setattr(
+            compute,
+            "_load_news_snapshot",
+            lambda: {
+                "stories": [
+                    {
+                        "tickers": ["AAPL"],
+                        "sentiment_score": "nan",
+                        "news_score": 0.9,
+                    }
+                ]
+            },
+        )
 
         sym = compute._get_news_fields("AAPL")
         glob = compute._get_global_news_fields()
@@ -612,4 +634,3 @@ class TestBoundaryThresholdAndOverlayPatch:
         assert payload is not None
         assert payload["vix_level"] == 20.0
         assert payload["flow_rel_vol"] == 1.5
-

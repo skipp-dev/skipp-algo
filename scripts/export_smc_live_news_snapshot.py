@@ -71,7 +71,17 @@ def main() -> None:
     )
     include_benzinga = not bool(args.skip_benzinga or args.newsapi_only)
     include_fmp = not bool(args.skip_fmp or args.newsapi_only)
-    include_newsapi_ai = not bool(args.skip_newsapi_ai)
+    # Explicit CLI flags win; otherwise ``None`` defers to the
+    # ENABLE_NEWSAPI_AI SSOT pause switch (default OFF) resolved inside
+    # poll_live_news_bus — the previous ``not skip`` default kept the
+    # provider enabled whenever a key was present, bypassing the pause.
+    include_newsapi_ai: bool | None
+    if args.newsapi_only:
+        include_newsapi_ai = True
+    elif args.skip_newsapi_ai:
+        include_newsapi_ai = False
+    else:
+        include_newsapi_ai = None
     include_tradingview = not bool(args.skip_tradingview or args.newsapi_only)
 
     snapshot = export_live_news_snapshot(
