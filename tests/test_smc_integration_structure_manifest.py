@@ -6,24 +6,25 @@ from pathlib import Path
 import pandas as pd
 
 from smc_integration.structure_batch import write_structure_artifacts_from_workbook
+from tests.helpers.smc_test_artifacts import make_minimal_workbook
 
 ROOT = Path(__file__).resolve().parents[1]
-WORKBOOK = ROOT / "databento_volatility_production_20260307_114724.xlsx"
 
 
-def _sample_symbols(limit: int = 2) -> list[str]:
-    daily = pd.read_excel(WORKBOOK, sheet_name="daily_bars")
+def _sample_symbols(workbook: Path, limit: int = 2) -> list[str]:
+    daily = pd.read_excel(workbook, sheet_name="daily_bars")
     symbols = sorted({str(item).strip().upper() for item in daily["symbol"].dropna().tolist() if str(item).strip()})
     return symbols[:limit]
 
 
-def test_structure_manifest_contains_required_keys() -> None:
-    symbols = _sample_symbols(limit=2)
-    output_dir = ROOT / "reports" / "_tmp_structure_manifest_keys"
+def test_structure_manifest_contains_required_keys(tmp_path: Path) -> None:
+    workbook = make_minimal_workbook(tmp_path)
+    symbols = _sample_symbols(workbook, limit=2)
+    output_dir = tmp_path / "reports" / "_tmp_structure_manifest_keys"
     output_dir.mkdir(parents=True, exist_ok=True)
 
     manifest = write_structure_artifacts_from_workbook(
-        workbook=WORKBOOK,
+        workbook=workbook,
         timeframe="1D",
         symbols=symbols,
         output_dir=output_dir,
@@ -36,13 +37,14 @@ def test_structure_manifest_contains_required_keys() -> None:
     assert "event_logic_versions" in manifest
 
 
-def test_structure_manifest_counts_and_flags_are_correct() -> None:
-    symbols = _sample_symbols(limit=2)
-    output_dir = ROOT / "reports" / "_tmp_structure_manifest_counts"
+def test_structure_manifest_counts_and_flags_are_correct(tmp_path: Path) -> None:
+    workbook = make_minimal_workbook(tmp_path)
+    symbols = _sample_symbols(workbook, limit=2)
+    output_dir = tmp_path / "reports" / "_tmp_structure_manifest_counts"
     output_dir.mkdir(parents=True, exist_ok=True)
 
     manifest = write_structure_artifacts_from_workbook(
-        workbook=WORKBOOK,
+        workbook=workbook,
         timeframe="1D",
         symbols=symbols,
         output_dir=output_dir,
@@ -74,13 +76,14 @@ def test_structure_manifest_counts_and_flags_are_correct() -> None:
     assert manifest["event_logic_versions"] == ["v2"]
 
 
-def test_structure_manifest_category_flags_match_artifact_payload() -> None:
-    symbols = _sample_symbols(limit=1)
-    output_dir = ROOT / "reports" / "_tmp_structure_manifest_match"
+def test_structure_manifest_category_flags_match_artifact_payload(tmp_path: Path) -> None:
+    workbook = make_minimal_workbook(tmp_path)
+    symbols = _sample_symbols(workbook, limit=1)
+    output_dir = tmp_path / "reports" / "_tmp_structure_manifest_match"
     output_dir.mkdir(parents=True, exist_ok=True)
 
     manifest = write_structure_artifacts_from_workbook(
-        workbook=WORKBOOK,
+        workbook=workbook,
         timeframe="1D",
         symbols=symbols,
         output_dir=output_dir,
@@ -88,7 +91,7 @@ def test_structure_manifest_category_flags_match_artifact_payload() -> None:
     )
 
     row = manifest["artifacts"][0]
-    payload = json.loads((ROOT / row["artifact_path"]).read_text(encoding="utf-8"))
+    payload = json.loads((tmp_path / row["artifact_path"]).read_text(encoding="utf-8"))
     coverage = payload["coverage"]
 
     assert row["coverage_mode"] == coverage["mode"]
@@ -102,13 +105,14 @@ def test_structure_manifest_category_flags_match_artifact_payload() -> None:
     assert row["liquidity_sweeps_count"] == payload["diagnostics"]["counts"]["liquidity_sweeps"]
 
 
-def test_structure_manifest_paths_are_deterministic() -> None:
-    symbols = _sample_symbols(limit=1)
-    output_dir = ROOT / "reports" / "_tmp_structure_manifest_paths"
+def test_structure_manifest_paths_are_deterministic(tmp_path: Path) -> None:
+    workbook = make_minimal_workbook(tmp_path)
+    symbols = _sample_symbols(workbook, limit=1)
+    output_dir = tmp_path / "reports" / "_tmp_structure_manifest_paths"
     output_dir.mkdir(parents=True, exist_ok=True)
 
     manifest = write_structure_artifacts_from_workbook(
-        workbook=WORKBOOK,
+        workbook=workbook,
         timeframe="1D",
         symbols=symbols,
         output_dir=output_dir,
@@ -119,20 +123,21 @@ def test_structure_manifest_paths_are_deterministic() -> None:
     assert str(manifest["manifest_path"]).endswith("manifest_1D.json")
 
 
-def test_structure_manifest_is_json_stable() -> None:
-    symbols = _sample_symbols(limit=1)
-    output_dir = ROOT / "reports" / "_tmp_structure_manifest_stable"
+def test_structure_manifest_is_json_stable(tmp_path: Path) -> None:
+    workbook = make_minimal_workbook(tmp_path)
+    symbols = _sample_symbols(workbook, limit=1)
+    output_dir = tmp_path / "reports" / "_tmp_structure_manifest_stable"
     output_dir.mkdir(parents=True, exist_ok=True)
 
     one = write_structure_artifacts_from_workbook(
-        workbook=WORKBOOK,
+        workbook=workbook,
         timeframe="1D",
         symbols=symbols,
         output_dir=output_dir,
         generated_at=1709254000.0,
     )
     two = write_structure_artifacts_from_workbook(
-        workbook=WORKBOOK,
+        workbook=workbook,
         timeframe="1D",
         symbols=symbols,
         output_dir=output_dir,
