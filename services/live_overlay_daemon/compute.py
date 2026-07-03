@@ -258,6 +258,11 @@ def _fetch_news_url(url: str, token: str, timeout: float = 10.0) -> dict[str, An
 
 
 def _load_news_snapshot() -> dict[str, Any]:
+    snapshot, _loaded_at = _load_news_snapshot_with_stamp()
+    return snapshot
+
+
+def _load_news_snapshot_with_stamp() -> tuple[dict[str, Any], float]:
     global _news_cache, _news_loaded_at, _news_checked_at
     with _news_lock:
         now = time.monotonic()
@@ -265,7 +270,7 @@ def _load_news_snapshot() -> dict[str, Any]:
 
         # Happy path: we already have a successful load within the TTL.
         if _news_loaded_at > 0.0 and now - _news_loaded_at < ttl:
-            return dict(_news_cache)
+            return dict(_news_cache), _news_loaded_at
 
         # Rate-limit all read attempts (success or failure) so a missing file
         # or corrupted JSON does not generate a read/log storm.  We keep
@@ -273,7 +278,7 @@ def _load_news_snapshot() -> dict[str, Any]:
         # appears after an earlier "file not found" is picked up as soon as the
         # rate-limit window expires instead of being ignored for the full TTL.
         if _news_checked_at > 0.0 and now - _news_checked_at < ttl:
-            return dict(_news_cache)
+            return dict(_news_cache), _news_loaded_at
 
         _news_checked_at = now
 
@@ -289,12 +294,12 @@ def _load_news_snapshot() -> dict[str, Any]:
                     config.news_snapshot_path(),
                     json.dumps(fetched, separators=(",", ":")),
                 )
-                return dict(_news_cache)
+                return dict(_news_cache), _news_loaded_at
 
         path = config.news_snapshot_path()
         if not path.exists():
             _news_cache = {}
-            return {}
+            return {}, _news_loaded_at
         try:
             raw = json.loads(path.read_text(encoding="utf-8"))
             _news_cache = raw if isinstance(raw, dict) else {}
@@ -302,7 +307,7 @@ def _load_news_snapshot() -> dict[str, Any]:
         except Exception:
             logger.warning("Failed to load news snapshot from %s", path, exc_info=True)
             _news_cache = {}
-        return dict(_news_cache)
+        return dict(_news_cache), _news_loaded_at
 
 
 def _fetch_signals_url(
@@ -762,22 +767,25 @@ def _news_ticker_score_index() -> dict[str, list[float]]:
     reused for every per-symbol lookup within the TTL window.
     """
     global _news_index, _news_index_built_at
-    snap = _load_news_snapshot()
+    snap, loaded_at = _load_news_snapshot_with_stamp()
     with _news_lock:
-        if _news_index_built_at >= 0.0 and _news_index_built_at == _news_loaded_at:
+        if _news_index_built_at >= 0.0 and _news_index_built_at == loaded_at:
             return _news_index
-        stories = snap.get("stories") or snap.get("items") or []
-        index: dict[str, list[float]] = {}
-        for story in stories:
-            if not isinstance(story, dict):
-                continue
-            score = _story_score(story)
-            if score is None:
-                continue
-            for ticker in _normalize_story_tickers(story.get("tickers")):
-                index.setdefault(ticker, []).append(score)
+    stories = snap.get("stories") or snap.get("items") or []
+    index: dict[str, list[float]] = {}
+    for story in stories:
+        if not isinstance(story, dict):
+            continue
+        score = _story_score(story)
+        if score is None:
+            continue
+        for ticker in _normalize_story_tickers(story.get("tickers")):
+            index.setdefault(ticker, []).append(score)
+    with _news_lock:
+        if _news_index_built_at >= 0.0 and _news_index_built_at == loaded_at:
+            return _news_index
         _news_index = index
-        _news_index_built_at = _news_loaded_at
+        _news_index_built_at = loaded_at
         return _news_index
 
 

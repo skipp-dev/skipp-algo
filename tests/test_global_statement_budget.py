@@ -228,25 +228,27 @@ _FROZEN_SITES: frozenset[tuple[str, int, tuple[str, ...]]] = frozenset(
         # 2026-06-26 (feat/overlay-consume-signals-service, PR #2962):
         # producer-first signal loader + http://*.railway.internal guard shifted
         # the news/signals/credential/experiment/experiment_history anchors.
-        ("services/live_overlay_daemon/compute.py", 261, ("_news_cache", "_news_checked_at", "_news_loaded_at")),
+        # 2026-07-03 correctness lane: _load_news_snapshot_with_stamp() returns
+        # snapshot + loaded_at atomically for the ticker index TOCTOU fix.
+        ("services/live_overlay_daemon/compute.py", 266, ("_news_cache", "_news_checked_at", "_news_loaded_at")),
         # 2026-07-03 (audit P3 HIGH): ticker->scores news index cache built once
         # per snapshot load; new module-global pair.
-        ("services/live_overlay_daemon/compute.py", 764, ("_news_index", "_news_index_built_at")),
+        ("services/live_overlay_daemon/compute.py", 769, ("_news_index", "_news_index_built_at")),
         # 2026-06-23 (feat/grafana-trading-signals): realtime trading-signals
         # snapshot loader mirrors the news snapshot caching pattern.
         # 2026-06-26 (PR #2962): shifted by producer client code.
-        ("services/live_overlay_daemon/compute.py", 421, ("_signals_cache", "_signals_checked_at", "_signals_loaded_at")),
+        ("services/live_overlay_daemon/compute.py", 426, ("_signals_cache", "_signals_checked_at", "_signals_loaded_at")),
         # 2026-06-23 (feat/grafana-tv-credential-age): credential-health report
         # loader mirrors the same snapshot caching pattern.
         # 2026-06-26 (PR #2962): shifted by producer client code.
-        ("services/live_overlay_daemon/compute.py", 508, ("_tradingview_credential_cache", "_tradingview_credential_checked_at", "_tradingview_credential_loaded_at")),
+        ("services/live_overlay_daemon/compute.py", 513, ("_tradingview_credential_cache", "_tradingview_credential_checked_at", "_tradingview_credential_loaded_at")),
         # 2026-06-23 (feat/grafana-experiment-timeline): daily experiment rollup
         # + per-day history loaders mirror the same snapshot caching pattern.
         # 2026-06-24 (feat/live-overlay-credential-health): +5 lines for
         # _load_credential_health_snapshot alias shifted globals to 520/568.
         # 2026-06-26 (PR #2962): shifted by producer client code.
-        ("services/live_overlay_daemon/compute.py", 627, ("_experiment_cache", "_experiment_checked_at", "_experiment_loaded_at")),
-        ("services/live_overlay_daemon/compute.py", 675, ("_experiment_history_cache", "_experiment_history_checked_at", "_experiment_history_loaded_at")),
+        ("services/live_overlay_daemon/compute.py", 632, ("_experiment_cache", "_experiment_checked_at", "_experiment_loaded_at")),
+        ("services/live_overlay_daemon/compute.py", 680, ("_experiment_history_cache", "_experiment_history_checked_at", "_experiment_history_loaded_at")),
         # 2026-06-21 (provider/bridge + queue backpressure follow-ups):
         # feed.py gained additional helper/config blocks, shifting global
         # statements to 362/420/496.
@@ -254,9 +256,12 @@ _FROZEN_SITES: frozenset[tuple[str, int, tuple[str, ...]]] = frozenset(
         # Post-merge sync with main shifted these anchors to 374/432/521.
         # WP1 supervisor self-heal (active-client tracking + supervisor block)
         # shifted these anchors to 398/549/651.
-        ("services/live_overlay_daemon/feed.py", 398, ("_last_bar_at",)),
-        ("services/live_overlay_daemon/feed.py", 549, ("_feed_thread", "_flow_refresh_thread", "_refresh_thread")),
-        ("services/live_overlay_daemon/feed.py", 651, ("_feed_thread", "_flow_refresh_thread", "_refresh_thread")),
+        # 2026-07-03 correctness lane: _feed_connected_at tracks connected-but-
+        # never-first-bar stalls; reset_lifecycle_for_restart shifted start/stop.
+        ("services/live_overlay_daemon/feed.py", 209, ("_feed_connected_at",)),
+        ("services/live_overlay_daemon/feed.py", 402, ("_last_bar_at",)),
+        ("services/live_overlay_daemon/feed.py", 566, ("_feed_thread", "_flow_refresh_thread", "_refresh_thread")),
+        ("services/live_overlay_daemon/feed.py", 665, ("_feed_thread", "_flow_refresh_thread", "_refresh_thread")),
         # 2026-06-21: optional external bridge snapshot caches are guarded by
         # module locks and cached via module-level singleton snapshots.
         # 2026-06-23: workflow bridge hardening (status/conclusion semantics,

@@ -655,11 +655,14 @@ def score_candidate(
     risk_off_penalty = abs(min(bias, 0.0)) * w["risk_off_penalty_multiplier"]
 
     # --- Risk penalty (#3) ---
+    # ``f["spread_pct"]`` is stored as fraction-of-price (e.g. 10 bps -> 0.001).
+    # technical_analysis expects percentage points (0.1 for 10 bps).
+    spread_pct_for_models = max(_to_float(f.get("spread_pct"), default=0.0) * 100.0, 0.0)
     risk_penalty_val = compute_risk_penalty(
         price=f["price"],
         atr=f["atr"],
         volume_ratio=f.get("rel_vol", 0.0),
-        spread_pct=f.get("spread_pct", 0.0),
+        spread_pct=spread_pct_for_models,
     )
 
     score = (
@@ -715,7 +718,7 @@ def score_candidate(
         momentum_z=momentum_z,
         volume_ratio=f.get("rel_vol", 1.0),
         atr_pct=_to_float(f.get("atr_pct"), default=0.0),
-        spread_pct=f.get("spread_pct", 0.0),
+        spread_pct=spread_pct_for_models,
     )
 
     nm = f.get("news_metrics") or {}

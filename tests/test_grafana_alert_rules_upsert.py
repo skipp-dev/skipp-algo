@@ -137,6 +137,43 @@ def test_validator_rejects_gating_antipattern() -> None:
     assert any("gating anti-pattern" in e for e in errors), errors
 
 
+def test_validator_requires_no_data_state_for_gated_empty_vectors() -> None:
+    bad = [
+        {
+            "name": "g",
+            "folder": "F",
+            "interval": "1m",
+            "rules": [
+                {
+                    "uid": "gated",
+                    "title": "gated",
+                    "for": "5m",
+                    "condition": "C",
+                    "data": [
+                        {
+                            "refId": "A",
+                            "datasourceUid": "grafanacloud-prom",
+                            "model": {
+                                "expr": 'foo{job="j"} and on(job) (bar{job="j"} == 1)'
+                            },
+                        },
+                        {
+                            "refId": "C",
+                            "datasourceUid": "__expr__",
+                            "model": {"type": "threshold"},
+                        },
+                    ],
+                }
+            ],
+        }
+    ]
+    errors = mod.validate_alert_groups(bad)
+    assert any("declare noDataState explicitly" in e for e in errors), errors
+
+    bad[0]["rules"][0]["noDataState"] = "OK"
+    assert mod.validate_alert_groups(bad) == []
+
+
 # --------------------------------------------------------------------------- #
 # parse_interval_seconds
 # --------------------------------------------------------------------------- #

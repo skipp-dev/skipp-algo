@@ -728,7 +728,7 @@ def _provider_health_snapshot() -> dict[str, object]:
             ingest_ts = float(ingest_raw) if ingest_raw is not None else 0.0
         except (TypeError, ValueError):
             ingest_ts = 0.0
-        if ingest_ts > 0.0:
+        if math.isfinite(ingest_ts) and ingest_ts > 0.0:
             ingest_age_known = 1.0
             ingest_age_seconds = max(0.0, time.time() - ingest_ts)
 

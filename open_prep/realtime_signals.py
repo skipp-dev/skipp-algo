@@ -57,7 +57,7 @@ from dataclasses import asdict, dataclass, field
 from datetime import UTC, datetime
 from pathlib import Path
 
-from newsstack_fmp._market_cal import is_us_equity_trading_day
+from newsstack_fmp._market_cal import is_us_equity_trading_day, regular_session_close_minutes
 
 from .macro import FMPClient
 from .signal_decay import adaptive_freshness_decay
@@ -638,7 +638,7 @@ def _expected_cumulative_volume_fraction() -> float:
         return 1.0  # weekend — no adjustment
 
     open_min = 9 * 60 + 30   # 9:30 ET
-    close_min = 16 * 60      # 16:00 ET
+    close_min = regular_session_close_minutes(now_et.date())
     now_min = now_et.hour * 60 + now_et.minute
 
     if now_min < open_min:

@@ -21,6 +21,7 @@ import math
 import os
 import tempfile
 from collections import deque
+from collections.abc import Iterable
 from dataclasses import dataclass
 from datetime import date, datetime
 from pathlib import Path
@@ -768,6 +769,26 @@ def _build_feature_importance_arrays(
     return feature_matrix, outcomes
 
 
+def _normalize_sample_dates(sample_dates: Iterable[str | date] | None) -> set[str] | None:
+    if sample_dates is None:
+        return None
+    normalized: set[str] = set()
+    for raw in sample_dates:
+        if raw is None:
+            continue
+        if isinstance(raw, date):
+            normalized.add(raw.isoformat())
+            continue
+        text = str(raw).strip()
+        if not text:
+            continue
+        try:
+            normalized.add(date.fromisoformat(text[:10]).isoformat())
+        except ValueError:
+            continue
+    return normalized
+
+
 def _compute_feature_statistics(
     feature_matrix: Any,
     outcomes: Any,
@@ -865,6 +886,7 @@ def _compute_feature_statistics_gpu(
 
 def compute_feature_importance(
     lookback_days: int = 30,
+    sample_dates: Iterable[str | date] | None = None,
 ) -> dict[str, Any]:
     """Offline report: which score components predict profitable_30m?
 
@@ -885,6 +907,7 @@ def compute_feature_importance(
 
     files = sorted(FEATURE_IMPORTANCE_DIR.glob("fi_samples_*.jsonl"), reverse=True)
     samples: list[dict[str, Any]] = []
+    selected_dates = _normalize_sample_dates(sample_dates)
     loaded_dates: set[date] = set()
     for path in files:
         file_date = _extract_date_from_stem(path.stem, prefix="fi_samples_")
@@ -932,6 +955,20 @@ def compute_feature_importance(
             seen_keys.add(dedup_key)
         deduped.append(sample)
     samples = deduped
+
+    if selected_dates is not None:
+        scoped: list[dict[str, Any]] = []
+        for sample in samples:
+            raw_d = sample.get("date")
+            if not raw_d:
+                continue
+            try:
+                sample_date = date.fromisoformat(str(raw_d)[:10]).isoformat()
+            except ValueError:
+                continue
+            if sample_date in selected_dates:
+                scoped.append(sample)
+        samples = scoped
 
     # Filter to samples with known outcome
     labeled = [s for s in samples if s.get("profitable_30m") is not None]
@@ -999,6 +1036,7 @@ def compute_feature_importance(
             "duplicate_samples_dropped": duplicate_samples_dropped,
             "era_gated_samples_dropped": era_gated_samples_dropped,
             "formula_era_samples_dropped": formula_era_samples_dropped,
+            "sample_dates_filter": sorted(selected_dates) if selected_dates is not None else None,
             "backend": backend,
         }
 
@@ -1010,6 +1048,7 @@ def compute_feature_importance(
         "duplicate_samples_dropped": duplicate_samples_dropped,
         "era_gated_samples_dropped": era_gated_samples_dropped,
         "formula_era_samples_dropped": formula_era_samples_dropped,
+        "sample_dates_filter": sorted(selected_dates) if selected_dates is not None else None,
         "features": {},
         "recommendations": [],
         "backend": backend,

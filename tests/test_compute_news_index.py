@@ -25,11 +25,11 @@ def _install_snapshot(monkeypatch, snap: dict) -> None:
     monkeypatch.setattr(compute.config, "news_snapshot_url", lambda: "")
     # Force _load_news_snapshot to accept our in-memory snapshot by stubbing
     # the loader to populate the cache with a fresh monotonic load time.
-    def _fake_load() -> dict:
+    def _fake_load_with_stamp() -> tuple[dict, float]:
         compute._news_cache = snap
         compute._news_loaded_at = time.monotonic()
-        return dict(snap)
-    monkeypatch.setattr(compute, "_load_news_snapshot", _fake_load)
+        return dict(snap), compute._news_loaded_at
+    monkeypatch.setattr(compute, "_load_news_snapshot_with_stamp", _fake_load_with_stamp)
 
 
 def test_index_multi_ticker_story_scores_each_ticker(monkeypatch) -> None:

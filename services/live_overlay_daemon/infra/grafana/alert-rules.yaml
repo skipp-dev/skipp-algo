@@ -502,7 +502,7 @@ groups:
           query:
             params:
             - A
-    for: 1m
+    for: 5m
     labels:
       severity: high
     annotations:
@@ -799,6 +799,7 @@ groups:
             params:
             - A
     for: 10m
+    noDataState: OK
     labels:
       severity: warning
     annotations:
@@ -831,6 +832,7 @@ groups:
             params:
             - A
     for: 10m
+    noDataState: OK
     labels:
       severity: warning
     annotations:
@@ -862,6 +864,7 @@ groups:
             params:
             - A
     for: 10m
+    noDataState: OK
     labels:
       severity: warning
     annotations:
@@ -894,6 +897,7 @@ groups:
             params:
             - A
     for: 5m
+    noDataState: OK
     labels:
       severity: critical
     annotations:
@@ -927,6 +931,7 @@ groups:
             params:
             - A
     for: 10m
+    noDataState: OK
     labels:
       severity: warning
     annotations:
@@ -985,7 +990,7 @@ groups:
           query:
             params:
             - A
-    for: 1m
+    for: 5m
     labels:
       severity: high
     annotations:
@@ -1188,6 +1193,7 @@ groups:
             params:
             - A
     for: 5m
+    noDataState: OK
     labels:
       severity: high
     annotations:
@@ -1291,7 +1297,7 @@ groups:
         check for a memory leak in poll_once / newsstack poller and consider recycling
         the Railway instance.'
   - uid: lo-memory-high
-    title: Live Overlay RSS > 512 MB
+    title: Live Overlay RSS > 768 MB
     condition: C
     data:
     - refId: A
@@ -1308,7 +1314,7 @@ groups:
         - evaluator:
             type: gt
             params:
-            - 512
+            - 768
           operator:
             type: and
           query:
@@ -1318,8 +1324,11 @@ groups:
     labels:
       severity: warning
     annotations:
-      summary: smc-live-overlay memory exceeds 512 MB for > 5 min
-      runbook: Check Databento feed buffer sizes and GC stats. Consider restart.
+      summary: smc-live-overlay memory exceeds 768 MB for > 5 min
+      runbook: Warning at 75% of the ~1 GiB Railway tier, aligned with the
+        Railway usage-ratio policy (lo-railway-memory-ratio-high at 0.75).
+        If RSS climbs toward 900 MB, check Databento feed buffers, bridge
+        snapshots and GC; consider recycling the Railway instance.
   - uid: lo-railway-memory-ratio-high
     title: Railway service memory ratio > 75%
     condition: C
@@ -1345,6 +1354,7 @@ groups:
             params:
             - A
     for: 10m
+    noDataState: OK
     labels:
       severity: warning
     annotations:
@@ -1376,6 +1386,7 @@ groups:
             params:
             - A
     for: 5m
+    noDataState: OK
     labels:
       severity: critical
     annotations:
@@ -1420,7 +1431,6 @@ groups:
       datasourceUid: grafanacloud-prom
       model:
         expr: increase(prometheus_remote_storage_samples_failed_total{job="alloy"}[10m])
-          > 0
         instant: true
     - refId: C
       datasourceUid: __expr__
@@ -1437,6 +1447,7 @@ groups:
             params:
             - A
     for: 5m
+    noDataState: OK
     labels:
       severity: warning
     annotations:

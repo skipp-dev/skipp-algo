@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import math
 from typing import Any
 
 from .technical_analysis import calculate_support_resistance_targets
@@ -194,6 +195,26 @@ def build_trade_cards(
             entry_trigger = playbook.get("entry_trigger", entry_trigger)
             invalidation = playbook.get("invalidation", invalidation)
 
+        precomputed_volume_ratio = _to_float(row.get("volume_ratio"), default=float("nan"))
+        avg_volume = _to_float(row.get("avg_volume"), default=0.0)
+        raw_volume = _to_float(row.get("volume"), default=0.0)
+        if math.isfinite(precomputed_volume_ratio) and precomputed_volume_ratio > 0.0:
+            volume_ratio = round(precomputed_volume_ratio, 2)
+            volume_ratio_masked = False
+        elif avg_volume > 0.0:
+            volume_ratio = round(raw_volume / avg_volume, 2)
+            volume_ratio_masked = False
+        else:
+            volume_ratio = None
+            volume_ratio_masked = True
+
+        if row.get("is_hvb") is not None:
+            is_hvb = bool(row.get("is_hvb"))
+        elif volume_ratio_masked:
+            is_hvb = False
+        else:
+            is_hvb = raw_volume > 2 * avg_volume
+
         cards.append(
             {
                 "symbol": symbol,
@@ -207,8 +228,9 @@ def build_trade_cards(
                     "macro_bias": round(bias, 4),
                     "candidate_score": row.get("score"),
                     "gap_pct": row.get("gap_pct"),
-                    "volume_ratio": round(_to_float(row.get("volume"), default=0.0) / max(_to_float(row.get("avg_volume"), default=1.0), 1.0), 2),
-                    "is_hvb": _to_float(row.get("volume"), default=0.0) > 2 * max(_to_float(row.get("avg_volume"), default=1.0), 1.0),
+                    "volume_ratio": volume_ratio,
+                    "volume_ratio_masked": volume_ratio_masked,
+                    "is_hvb": is_hvb,
                     "momentum_z_score": row.get("momentum_z_score"),
                     "earnings_today": row.get("earnings_today", False),
                     "earnings_timing": row.get("earnings_timing"),

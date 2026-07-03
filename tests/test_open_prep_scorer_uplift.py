@@ -304,6 +304,44 @@ def test_rank_candidates_v2_assigns_confidence_tier() -> None:
     assert all("confidence_tier" in r for r in ranked)
 
 
+def test_score_candidate_converts_spread_fraction_to_percent_for_models(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    quote = _make_passing_quote("AAPL")
+    quote["premarket_spread_bps"] = 50.0  # 0.5% spread
+    fr = sc.filter_candidate(quote, bias=0.5)
+
+    captured: dict[str, float] = {}
+
+    def _fake_risk_penalty(
+        price: float,
+        atr: float | None,
+        volume_ratio: float,
+        spread_pct: float = 0.0,
+    ) -> float:
+        captured["risk"] = spread_pct
+        return 0.0
+
+    def _fake_entry_probability(
+        score: float,
+        momentum_z: float = 0.0,
+        volume_ratio: float = 1.0,
+        atr_pct: float = 0.0,
+        spread_pct: float = 0.0,
+        **_kwargs: Any,
+    ) -> float:
+        captured["entry"] = spread_pct
+        return 0.5
+
+    monkeypatch.setattr(sc, "compute_risk_penalty", _fake_risk_penalty)
+    monkeypatch.setattr(sc, "compute_entry_probability", _fake_entry_probability)
+
+    _ = sc.score_candidate(fr, bias=0.5, weights=dict(sc.DEFAULT_WEIGHTS))
+
+    assert captured["risk"] == pytest.approx(0.5)
+    assert captured["entry"] == pytest.approx(0.5)
+
+
 def test_rank_candidates_v2_with_vix_adds_adaptive_gates() -> None:
     quotes = [_make_passing_quote("AAPL"), _make_passing_quote("MSFT")]
     ranked, _ = sc.rank_candidates_v2(quotes, bias=0.5, top_n=10, vix_level=20.0)
