@@ -57,6 +57,8 @@ from dataclasses import asdict, dataclass, field
 from datetime import UTC, datetime
 from pathlib import Path
 
+from newsstack_fmp._market_cal import is_us_equity_trading_day
+
 from .macro import FMPClient
 from .signal_decay import adaptive_freshness_decay
 from .utils import to_float as _safe_float
@@ -699,6 +701,12 @@ def _is_within_market_hours() -> bool:
 
     # Monday=0, Sunday=6
     if now_et.weekday() >= 5:
+        return False
+
+    # NYSE full-day holiday: FMP quotes carry the previous session's prints, so
+    # without this gate the engine fires false A0/A1 breakouts across the whole
+    # watchlist on a closed day (e.g. observed Independence Day 2026-07-03).
+    if not is_us_equity_trading_day(now_et.date()):
         return False
 
     hour = now_et.hour

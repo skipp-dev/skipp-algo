@@ -149,7 +149,8 @@ SUBPROCESS_RUN_LEDGER: set[tuple[str, int]] = {
     # branch-local realtime_signals layout.
     # Shifted 190 -> 191 after import hmac + lock fix added lines above.
     # 2026-06-28 (semantic monitoring): shifted +20 lines by _extract_snapshot_epoch helper.
-    ("open_prep/realtime_signals.py", 215),
+    # 2026-07-03 (WP-4 holiday gate): shifted +2 (import block above).
+    ("open_prep/realtime_signals.py", 217),
     # 2026-06-22: Grafana dashboard publish script keychain token lookup.
     # Line shifted 151 -> 173 after ADR-0025 App Platform (/apis
     # dashboard.grafana.app/v1) migration added namespace/folder args above.
@@ -163,7 +164,8 @@ SUBPROCESS_POPEN_LEDGER: set[tuple[str, int]] = {
     # Detached re-launch of the realtime-signals daemon.
     # Shifted 336 -> 337 -> 341 after import hmac + lock fix + do_HEAD addition.
     # 2026-06-28 (semantic monitoring): shifted +20 lines by _extract_snapshot_epoch helper.
-    ("open_prep/realtime_signals.py", 365),
+    # 2026-07-03 (WP-4 holiday gate): shifted +2 (import block above).
+    ("open_prep/realtime_signals.py", 367),
 }
 
 
