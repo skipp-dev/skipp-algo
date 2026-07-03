@@ -1056,7 +1056,7 @@
               },
               {
                 "color": "yellow",
-                "value": 536870912
+                "value": 805306368
               },
               {
                 "color": "red",
@@ -5702,11 +5702,11 @@
               },
               {
                 "color": "yellow",
-                "value": 0.7
+                "value": 0.75
               },
               {
                 "color": "red",
-                "value": 0.85
+                "value": 0.90
               }
             ]
           }

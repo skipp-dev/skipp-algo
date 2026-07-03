@@ -96,7 +96,9 @@ def _dynamic_getattr_sites() -> set[tuple[str, int]]:
 DYNAMIC_GETATTR_LEDGER: set[tuple[str, int]] = {
     # 2026-06-22 (ingest-stop sentinel wakeup): helper block growth shifted
     # _record_to_bar dynamic getattr site 81 -> 82.
-    ("services/live_overlay_daemon/feed.py", 101),
+    # 2026-07-03 correctness lane: _feed_connected_at global shifted
+    # _record_to_bar dynamic getattr site 101 -> 102.
+    ("services/live_overlay_daemon/feed.py", 102),
     ("smc_core/event_ledger.py", 79),
     ("smc_core/scoring.py", 308),
     ("streamlit_terminal_alerts.py", 41),

@@ -287,6 +287,12 @@ def validate_alert_groups(groups: list[dict[str, Any]]) -> list[str]:
                 elif node.get("datasourceUid") not in (None, "__expr__"):
                     expr = model.get("expr")
                     if isinstance(expr, str) and expr.strip():
+                        if " and on(" in expr and "noDataState" not in rule:
+                            errors.append(
+                                f"{rwhere}: rule '{uid}': gated expr can evaluate "
+                                "to empty -- declare noDataState explicitly "
+                                "(OK for stand-down gates)"
+                            )
                         for finding in find_promql_gating_antipatterns(expr):
                             errors.append(
                                 f"{rwhere}: data[{di}] PromQL gating anti-pattern"

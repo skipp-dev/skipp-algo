@@ -1376,6 +1376,32 @@ def test_provider_health_snapshot_classifies_state_reason_and_consumed(
     assert health["news_provider_consumed"]["newsapi_ai"] == 1.0
 
 
+@pytest.mark.parametrize("last_ingest_success_at", [float("inf"), float("-inf"), float("nan")])
+def test_provider_health_ignores_non_finite_ingest_marker(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, last_ingest_success_at: float
+) -> None:
+    import services.live_overlay_daemon.compute as compute_mod
+    import services.live_overlay_daemon.metrics as metrics_mod
+
+    snapshot = {
+        "fetched_at_unix": 0,
+        "last_ingest_success_at": last_ingest_success_at,
+        "providers": {"newsapi_ai": {"ok": True, "error": None}},
+    }
+    snap_path = tmp_path / "smc_live_news_snapshot.json"
+    snap_path.write_text(json.dumps(snapshot), encoding="utf-8")
+    monkeypatch.setattr(metrics_mod.config, "news_snapshot_path", lambda: snap_path)
+    monkeypatch.setattr(compute_mod.config, "news_snapshot_url", lambda: "")
+    monkeypatch.setattr(compute_mod, "_news_loaded_at", 0.0)
+    monkeypatch.setattr(compute_mod, "_news_checked_at", 0.0)
+    monkeypatch.setattr(compute_mod, "_news_cache", {})
+
+    health = metrics_mod._provider_health_snapshot()
+
+    assert health["news_last_ingest_age_known"] == 0.0
+    assert health["news_last_ingest_age_seconds"] == 0.0
+
+
 def test_provider_health_snapshot_all_disabled_except_consumed_ok(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:

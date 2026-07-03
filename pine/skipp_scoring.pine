@@ -97,7 +97,7 @@ export bin2D(float score, float trendScore, int binsA, int binsB, float[] cutsAr
 // @function Fill quantile cuts from sorted array
 export fill_cuts(float[] sorted, float[] cuts, int bins) =>
     int cutCount = bins - 1
-    if cutCount > 0
+    if cutCount > 0 and array.size(sorted) > 0
         int n = array.size(sorted)
         for i = 0 to cutCount - 1
             float frac = (i + 1.0) / bins
@@ -106,7 +106,9 @@ export fill_cuts(float[] sorted, float[] cuts, int bins) =>
 
 // @function Bin using quantile cuts with uniform fallback
 export bin_quantile(float score, float[] cuts, int bins) =>
-    if array.size(cuts) == 0 or na(array.get(cuts, 0))
+    if na(score)
+        int(na)
+    else if array.size(cuts) == 0 or na(array.get(cuts, 0))
         bin(score, bins)
     else
         int b = 0
