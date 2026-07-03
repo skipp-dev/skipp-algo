@@ -1,0 +1,61 @@
+# live-window: any-trigger  # F-PINE-LIB-FRESHNESS (2026-07-03)
+# Pine Library Freshness Guard
+#
+# The five hand-authored shared libraries (pine/skipp_*.pine) ship to
+# TradingView (imported via `import preuss_steffen/<lib>/1`) but — unlike the
+# code-generated libraries under pine/generated/ that smc-library-refresh.yml
+# keeps current — had no scheduled freshness mechanism and could silently rot.
+#
+# This workflow runs `scripts/pine_library_freshness.py --check` on a monthly
+# cadence (and on PRs touching the libraries or this guard). When a library's
+# `// Last refreshed:` marker exceeds the max-age threshold the build turns
+# red, prompting a review + refresh PR
+# (`python scripts/pine_library_freshness.py --update`).
+#
+# Lightweight stdlib-only check → runs directly on the hosted runner (no
+# self-hosted routing needed; see tests/test_workflow_runner_pinned.py).
+name: pine-library-freshness
+
+on:
+  schedule:
+    - cron: "0 7 1 * *"  # 07:00 UTC on the 1st of each month
+  pull_request:
+    paths:
+      - "pine/skipp_*.pine"
+      - "scripts/pine_library_freshness.py"
+      - "tests/test_pine_library_freshness.py"
+      - ".github/workflows/pine-library-freshness.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+env:
+  PYTHONUNBUFFERED: "1"
+  PYTHONPATH: ${{ github.workspace }}
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: "true"
+
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  freshness-check:
+    name: check pine library freshness
+    runs-on: ${{ vars.SMC_GH_HOSTED_RUNNER || 'ubuntu-latest' }}
+    timeout-minutes: 10
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+
+      - name: Set up pinned Python
+        uses: ./.github/actions/setup-python-pinned
+
+      - name: Run pine library freshness check
+        run: |
+          python scripts/pine_library_freshness.py --check
