@@ -107,7 +107,7 @@ squeezeOn    = overlayFresh and sqzStr  != "" ? str.tonumber(sqzStr, 0.0) : na
 // indicators, not here — mirrors the news/flow/squeeze handling above.
 vixLevel     = overlayFresh and vixStr      != "" ? str.tonumber(vixStr, na)  : na
 toneOvl      = overlayFresh and toneStr     != "" ? toneStr                   : ""
-    globalHeatOvl = overlayFresh and ghStr       != "" ? str.tonumber(ghStr, na) : na
+globalHeatOvl = overlayFresh and ghStr      != "" ? nz(str.tonumber(ghStr), na) : na
 flowDelta    = overlayFresh and fdpStr      != "" ? str.tonumber(fdpStr, na)  : na
 atsStateOvl  = overlayFresh and atsStateStr != "" ? atsStateStr               : ""
 atsZscore    = overlayFresh and atszStr     != "" ? str.tonumber(atszStr, na) : na

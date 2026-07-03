@@ -49,6 +49,7 @@ _flow_refresh_thread: threading.Thread | None = None
 _stop_event = threading.Event()
 _feed_ready = threading.Event()
 _last_bar_at: float = 0.0
+_feed_connected_at: float = 0.0
 _runtime: dict[str, Any] = {
     "ingest_thread": None,
     "ingest_queue": None,
@@ -205,6 +206,7 @@ _last_bar_lock = threading.Lock()
 
 def _run_feed_loop(stop: threading.Event) -> None:
     """Persistent reconnect loop for the db.Live() consumer."""
+    global _feed_connected_at
     # databento.live uses asyncio internally. Background threads have no
     # event loop by default — set one explicitly to avoid uvloop transport errors.
     loop = asyncio.new_event_loop()
@@ -238,6 +240,7 @@ def _run_feed_loop(stop: threading.Event) -> None:
                     symbols="ALL_SYMBOLS",
                     stype_in="raw_symbol",
                 )
+                _feed_connected_at = time.monotonic()
                 logger.info("db.Live() connected — subscribing EQUS.MINI ohlcv-1m ALL_SYMBOLS")
                 consecutive_failures = 0
 
@@ -330,6 +333,7 @@ def _run_feed_loop(stop: threading.Event) -> None:
             finally:
                 with _active_client_lock:
                     _runtime["active_client"] = None
+                _feed_connected_at = 0.0
                 if client is not None:
                     try:
                         client.stop()
@@ -502,7 +506,12 @@ def _run_supervisor_loop(stop: threading.Event) -> None:
         stalled = False
         if market_hours.is_us_regular_session_open():
             age = last_bar_age_secs()
-            stalled = age is not None and age > _STALL_MAX_BAR_AGE_SECS
+            if age is not None:
+                stalled = age > _STALL_MAX_BAR_AGE_SECS
+            elif _feed_connected_at > 0:
+                # Connected but never delivered a single bar: entitlement or
+                # empty-subscription wedges are operationally stale too.
+                stalled = (time.monotonic() - _feed_connected_at) > _STALL_MAX_BAR_AGE_SECS
 
         if all(workers.values()) and not stalled:
             heal_attempts = 0
@@ -527,6 +536,8 @@ def _run_supervisor_loop(stop: threading.Event) -> None:
             # Break the blocked iterator → feed loop enters its reconnect path.
             _supervisor_break_stalled_client()
         if not all(workers.values()):
+            if stop.is_set():
+                return
             # Idempotent partial restart under the lifecycle lock; re-arms only
             # dead threads. The supervisor itself stays alive, so _do_start's
             # supervisor branch is a no-op.
@@ -542,6 +553,12 @@ def start() -> None:
     """Start the three background threads (feed + refresh + flow refresh)."""
     with _lifecycle_lock:
         _do_start()
+
+
+def reset_lifecycle_for_restart() -> None:
+    """Explicit opt-in for controlled stop() -> start() restart sequences."""
+    with _lifecycle_lock:
+        _stop_event.clear()
 
 
 def _do_start() -> None:
@@ -579,12 +596,9 @@ def _do_start() -> None:
         logger.warning("start() called while all workers alive — ignoring")
         return
 
-    # If shutdown is in progress and some workers are still alive, avoid restart race.
-    if _stop_event.is_set() and (feed_alive or ingest_alive or refresh_alive or flow_alive):
-        logger.warning("start() called while stop event is set and workers are still alive — ignoring")
+    if _stop_event.is_set():
+        logger.warning("start() called while stop event is set — ignoring")
         return
-
-    _stop_event.clear()
 
     started: list[str] = []
     if not feed_alive:

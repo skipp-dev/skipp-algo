@@ -113,60 +113,66 @@ export cal_roll_update(int[] calCnt, float[] calSumP, float[] calSumY,
      int[] bBuf, float[] pBuf, float[] yBuf,
      float p, float y, int maxLen) =>
     int B = array.size(calCnt)
-    int bi = m.safe_get_int(array.new_int(1, int(math.floor(p * B))), 0, 0)
-    bi := bi < 0 ? 0 : bi > (B - 1) ? (B - 1) : bi
-    array.push(bBuf, bi)
-    array.push(pBuf, p)
-    array.push(yBuf, y)
-    array.set(calCnt,  bi, array.get(calCnt,  bi) + 1)
-    array.set(calSumP, bi, array.get(calSumP, bi) + p)
-    array.set(calSumY, bi, array.get(calSumY, bi) + y)
-    if array.size(bBuf) > maxLen
-        int bOld = array.shift(bBuf)
-        float pOld = array.shift(pBuf)
-        float yOld = array.shift(yBuf)
-        array.set(calCnt,  bOld, math.max(0, array.get(calCnt,  bOld) - 1))
-        array.set(calSumP, bOld, array.get(calSumP, bOld) - pOld)
-        array.set(calSumY, bOld, array.get(calSumY, bOld) - yOld)
+    if na(p) or array.size(calCnt) == 0
+        na
+    else
+        int bi = m.safe_get_int(array.new_int(1, int(math.floor(p * B))), 0, 0)
+        bi := bi < 0 ? 0 : bi > (B - 1) ? (B - 1) : bi
+        array.push(bBuf, bi)
+        array.push(pBuf, p)
+        array.push(yBuf, y)
+        array.set(calCnt,  bi, array.get(calCnt,  bi) + 1)
+        array.set(calSumP, bi, array.get(calSumP, bi) + p)
+        array.set(calSumY, bi, array.get(calSumY, bi) + y)
+        if array.size(bBuf) > maxLen
+            int bOld = array.shift(bBuf)
+            float pOld = array.shift(pBuf)
+            float yOld = array.shift(yBuf)
+            array.set(calCnt,  bOld, math.max(0, array.get(calCnt,  bOld) - 1))
+            array.set(calSumP, bOld, array.get(calSumP, bOld) - pOld)
+            array.set(calSumY, bOld, array.get(calSumY, bOld) - yOld)
 
 // @function Rolling calibration update for 3-way calibration
 export cal_roll_update3(int[] calCnt, float[] calSumP, float[] calSumY,
      int[] bBuf, float[] pBuf, float[] yBuf,
      float pU, float pF, float pD, int outcome,
      int evalBuckets, int maxLen) =>
-    int B = evalBuckets
-    float yU = outcome == 1  ? 1.0 : 0.0
-    float yF = outcome == 0  ? 1.0 : 0.0
-    float yD = outcome == -1 ? 1.0 : 0.0
-    int biU = int(math.floor(pU * B))
-    biU := biU < 0 ? 0 : biU > (B - 1) ? (B - 1) : biU
-    int biF = int(math.floor(pF * B))
-    biF := biF < 0 ? 0 : biF > (B - 1) ? (B - 1) : biF
-    int biD = int(math.floor(pD * B))
-    biD := biD < 0 ? 0 : biD > (B - 1) ? (B - 1) : biD
-    int idxU = 0 * B + biU
-    int idxF = 1 * B + biF
-    int idxD = 2 * B + biD
-    array.push(bBuf, idxU), array.push(pBuf, pU), array.push(yBuf, yU)
-    array.push(bBuf, idxF), array.push(pBuf, pF), array.push(yBuf, yF)
-    array.push(bBuf, idxD), array.push(pBuf, pD), array.push(yBuf, yD)
-    array.set(calCnt,  idxU, array.get(calCnt,  idxU) + 1)
-    array.set(calSumP, idxU, array.get(calSumP, idxU) + pU)
-    array.set(calSumY, idxU, array.get(calSumY, idxU) + yU)
-    array.set(calCnt,  idxF, array.get(calCnt,  idxF) + 1)
-    array.set(calSumP, idxF, array.get(calSumP, idxF) + pF)
-    array.set(calSumY, idxF, array.get(calSumY, idxF) + yF)
-    array.set(calCnt,  idxD, array.get(calCnt,  idxD) + 1)
-    array.set(calSumP, idxD, array.get(calSumP, idxD) + pD)
-    array.set(calSumY, idxD, array.get(calSumY, idxD) + yD)
-    int maxLen3 = maxLen * 3
-    while array.size(bBuf) > maxLen3
-        int bOld = array.shift(bBuf)
-        float pOld = array.shift(pBuf)
-        float yOld = array.shift(yBuf)
-        array.set(calCnt,  bOld, math.max(0, array.get(calCnt,  bOld) - 1))
-        array.set(calSumP, bOld, array.get(calSumP, bOld) - pOld)
-        array.set(calSumY, bOld, array.get(calSumY, bOld) - yOld)
+    if na(pU) or na(pF) or na(pD) or array.size(calCnt) == 0 or evalBuckets <= 0
+        na
+    else
+        int B = evalBuckets
+        float yU = outcome == 1  ? 1.0 : 0.0
+        float yF = outcome == 0  ? 1.0 : 0.0
+        float yD = outcome == -1 ? 1.0 : 0.0
+        int biU = int(math.floor(pU * B))
+        biU := biU < 0 ? 0 : biU > (B - 1) ? (B - 1) : biU
+        int biF = int(math.floor(pF * B))
+        biF := biF < 0 ? 0 : biF > (B - 1) ? (B - 1) : biF
+        int biD = int(math.floor(pD * B))
+        biD := biD < 0 ? 0 : biD > (B - 1) ? (B - 1) : biD
+        int idxU = 0 * B + biU
+        int idxF = 1 * B + biF
+        int idxD = 2 * B + biD
+        array.push(bBuf, idxU), array.push(pBuf, pU), array.push(yBuf, yU)
+        array.push(bBuf, idxF), array.push(pBuf, pF), array.push(yBuf, yF)
+        array.push(bBuf, idxD), array.push(pBuf, pD), array.push(yBuf, yD)
+        array.set(calCnt,  idxU, array.get(calCnt,  idxU) + 1)
+        array.set(calSumP, idxU, array.get(calSumP, idxU) + pU)
+        array.set(calSumY, idxU, array.get(calSumY, idxU) + yU)
+        array.set(calCnt,  idxF, array.get(calCnt,  idxF) + 1)
+        array.set(calSumP, idxF, array.get(calSumP, idxF) + pF)
+        array.set(calSumY, idxF, array.get(calSumY, idxF) + yF)
+        array.set(calCnt,  idxD, array.get(calCnt,  idxD) + 1)
+        array.set(calSumP, idxD, array.get(calSumP, idxD) + pD)
+        array.set(calSumY, idxD, array.get(calSumY, idxD) + yD)
+        int maxLen3 = maxLen * 3
+        while array.size(bBuf) > maxLen3
+            int bOld = array.shift(bBuf)
+            float pOld = array.shift(pBuf)
+            float yOld = array.shift(yBuf)
+            array.set(calCnt,  bOld, math.max(0, array.get(calCnt,  bOld) - 1))
+            array.set(calSumP, bOld, array.get(calSumP, bOld) - pOld)
+            array.set(calSumY, bOld, array.get(calSumY, bOld) - yOld)
 
 // --------------------------------------------------
 // Blending
