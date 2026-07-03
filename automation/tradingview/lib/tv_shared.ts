@@ -1844,6 +1844,70 @@ export async function clickVisibleWithFallback(
       tracePageEvent(page, `${tracePrefix}-candidate-meta`, `candidate:${index}:${candidateMeta}`);
     }
 
+    // JS pointer-events bypass: walk the elements stacked at the candidate's
+    // centre, temporarily disable their pointer-events, dispatch the click,
+    // then restore. This is the ONLY strategy that defeats TradingView's
+    // persistent price-axis / legend value overlays (e.g. valueValue-* inside
+    // js-rootresizer) — plain hover/force/offset clicks all re-hit the same
+    // stacked interceptor. Kept as a named helper so it can run BOTH as an
+    // early fast-path on a pointer-interception error and as the ladder's
+    // penultimate fallback.
+    const tryPointerEventsBypass = async (reason: string): Promise<boolean> => {
+      const bypassBox = await candidate.boundingBox().catch(() => null);
+      if (!bypassBox) {
+        tracePageEvent(page, `${tracePrefix}-pointer-bypass-skip`, `candidate:${index}:no-box:${reason}`);
+        return false;
+      }
+      try {
+        const pointerBypassed = await candidate.evaluate((node) => {
+          const element = node as HTMLElement;
+          const rect = element.getBoundingClientRect();
+          const x = rect.left + Math.max(2, Math.min(rect.width / 2, rect.width - 2));
+          const y = rect.top + Math.max(2, Math.min(rect.height / 2, rect.height - 2));
+          const patched: Array<{ element: HTMLElement; value: string }> = [];
+
+          let hit = document.elementFromPoint(x, y) as HTMLElement | null;
+          while (hit && hit !== element && !element.contains(hit) && patched.length < 6) {
+            patched.push({ element: hit, value: hit.style.pointerEvents });
+            hit.style.pointerEvents = "none";
+            hit = document.elementFromPoint(x, y) as HTMLElement | null;
+          }
+
+          const targetReady = hit === element || Boolean(hit && element.contains(hit));
+          if (targetReady) {
+            element.dispatchEvent(
+              new MouseEvent("click", {
+                bubbles: true,
+                cancelable: true,
+                composed: true,
+                clientX: x,
+                clientY: y,
+                view: window,
+              }),
+            );
+            element.click();
+          }
+
+          for (const entry of patched.reverse()) {
+            entry.element.style.pointerEvents = entry.value;
+          }
+
+          return targetReady;
+        });
+        if (pointerBypassed) {
+          tracePageEvent(page, `${tracePrefix}-pointer-bypass-ok`, `candidate:${index}:${reason}`);
+          if (await settleClickEffect(`candidate:${index}:pointer-bypass`)) {
+            return true;
+          }
+        }
+        tracePageEvent(page, `${tracePrefix}-pointer-bypass-miss`, `candidate:${index}:${reason}`);
+      } catch (error: unknown) {
+        const message = error instanceof Error ? error.message : String(error);
+        tracePageEvent(page, `${tracePrefix}-pointer-bypass-error`, `candidate:${index}:${message}`);
+      }
+      return false;
+    };
+
     try {
       await candidate.scrollIntoViewIfNeeded().catch(() => undefined);
       await candidate.click({ timeout: timeoutMs + 1_000 });
@@ -1853,6 +1917,13 @@ export async function clickVisibleWithFallback(
     } catch (error: unknown) {
       const message = error instanceof Error ? error.message : String(error);
       tracePageEvent(page, `${tracePrefix}-click-error`, `candidate:${index}:${message}`);
+      // Fast-path: a pointer-events interception (persistent chart overlay)
+      // cannot be cleared by hover/force/offset — they re-hit the same stacked
+      // element. Jump straight to the JS bypass and skip ~13s of doomed retries
+      // that would otherwise eat the step timeout before the bypass runs.
+      if (message.includes("intercepts pointer events") && (await tryPointerEventsBypass("early"))) {
+        return true;
+      }
     }
 
     try {
@@ -1904,52 +1975,10 @@ export async function clickVisibleWithFallback(
       continue;
     }
 
-    try {
-      const pointerBypassed = await candidate.evaluate((node) => {
-        const element = node as HTMLElement;
-        const rect = element.getBoundingClientRect();
-        const x = rect.left + Math.max(2, Math.min(rect.width / 2, rect.width - 2));
-        const y = rect.top + Math.max(2, Math.min(rect.height / 2, rect.height - 2));
-        const patched: Array<{ element: HTMLElement; value: string }> = [];
-
-        let hit = document.elementFromPoint(x, y) as HTMLElement | null;
-        while (hit && hit !== element && !element.contains(hit) && patched.length < 6) {
-          patched.push({ element: hit, value: hit.style.pointerEvents });
-          hit.style.pointerEvents = "none";
-          hit = document.elementFromPoint(x, y) as HTMLElement | null;
-        }
-
-        const targetReady = hit === element || Boolean(hit && element.contains(hit));
-        if (targetReady) {
-          element.dispatchEvent(
-            new MouseEvent("click", {
-              bubbles: true,
-              cancelable: true,
-              composed: true,
-              clientX: x,
-              clientY: y,
-              view: window,
-            }),
-          );
-          element.click();
-        }
-
-        for (const entry of patched.reverse()) {
-          entry.element.style.pointerEvents = entry.value;
-        }
-
-        return targetReady;
-      });
-      if (pointerBypassed) {
-        tracePageEvent(page, `${tracePrefix}-pointer-bypass-ok`, `candidate:${index}`);
-        if (await settleClickEffect(`candidate:${index}:pointer-bypass`)) {
-          return true;
-        }
-      }
-      tracePageEvent(page, `${tracePrefix}-pointer-bypass-miss`, `candidate:${index}`);
-    } catch (error: unknown) {
-      const message = error instanceof Error ? error.message : String(error);
-      tracePageEvent(page, `${tracePrefix}-pointer-bypass-error`, `candidate:${index}:${message}`);
+    // Ladder fallback: same JS bypass, reached when the earlier fast-path did
+    // not fire (e.g. offset/force failed for a non-interception reason).
+    if (await tryPointerEventsBypass("ladder")) {
+      return true;
     }
 
     try {
