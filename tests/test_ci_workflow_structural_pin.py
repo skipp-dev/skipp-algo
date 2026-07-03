@@ -144,15 +144,23 @@ def test_bot_pr_short_circuit_gate_present(validate_job: dict) -> None:
         None,
     )
     assert gate is not None, (
-        "validate MUST contain a step with id=`gate` that sets run_heavy=false "
+        "validate MUST contain a step with id=`gate` that decides run_heavy "
         "for bot data-only PRs (`head_ref == bot/*`); without it every bot "
         "artifact PR re-runs the full ~40 min suite for zero signal."
     )
     run = gate.get("run") or ""
     assert "bot/*" in run, "gate step MUST match the `bot/*` head_ref pattern"
-    assert "run_heavy=false" in run, "gate step MUST emit run_heavy=false on match"
-    assert "run_heavy=true" in run, "gate step MUST emit run_heavy=true otherwise"
-    assert 'github.event_name' in run and "pull_request" in run, (
+    # Audit P2 HIGH: the gate must verify changed PATHS (not just the branch
+    # name), emitting run_heavy from the per-file allow-list check and failing
+    # closed to run_heavy=true.
+    assert "run_heavy=$heavy" in run, (
+        "gate step MUST emit run_heavy from the per-file path check"
+    )
+    assert ".filename" in run, (
+        "gate step MUST enumerate the PR's changed files for the allow-list"
+    )
+    assert "run_heavy=true" in run, "gate step MUST fail closed to run_heavy=true"
+    assert 'EVENT_NAME' in run and "pull_request" in run, (
         "gate step MUST scope the bot-PR short-circuit to pull_request events only"
     )
 

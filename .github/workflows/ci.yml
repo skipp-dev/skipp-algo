@@ -53,25 +53,63 @@ jobs:
     # genuinely need local Windows/GPU/cache characteristics.
     runs-on: ${{ vars.SMC_GH_HOSTED_RUNNER || 'ubuntu-latest' }}
     timeout-minutes: 45
+    permissions:
+      contents: read
+      pull-requests: read  # list changed files for the bot/* path allow-list
     steps:
       # Bot data-only PRs (e.g. `bot/run-open-prep-*`, `bot/outcome-backfill-*`)
-      # only touch `artifacts/open_prep/**` JSON artifacts and never change code,
+      # only touch data/docs/generated artifacts and never change source code,
       # so the full pytest suite (~40 min) adds no signal. We keep the job so
-      # the required `validate` status check still reports, but short-circuit
-      # all real steps below — the job reports success in seconds.
+      # the `validate` status check still reports, but short-circuit the real
+      # steps for such PRs.
+      #
+      # Audit P2 HIGH: skipping on branch NAME alone let arbitrary code ride a
+      # `bot/*` branch to main untested. We now verify the *changed paths*:
+      # heavy validation is skipped ONLY when every changed file is a
+      # data/docs/generated artifact; any source path forces the full suite.
+      # Fail closed (run heavy) on any error listing the diff.
       - name: Determine if heavy validation should run
         id: gate
         env:
           # env-indirection instead of direct ${{ }} interpolation in run: block
           # — hardens against script-injection via branch names (Audit M-1).
           HEAD_REF: ${{ github.head_ref }}
+          EVENT_NAME: ${{ github.event_name }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          REPO: ${{ github.repository }}
+          GH_TOKEN: ${{ github.token }}
         run: |
-          if [[ "${{ github.event_name }}" == "pull_request" && "$HEAD_REF" == bot/* ]]; then
-            echo "Bot data-only PR detected (head=$HEAD_REF); skipping heavy validation."
-            echo "run_heavy=false" >> "$GITHUB_OUTPUT"
-          else
+          if [[ "$EVENT_NAME" != "pull_request" || "$HEAD_REF" != bot/* ]]; then
             echo "run_heavy=true" >> "$GITHUB_OUTPUT"
+            exit 0
           fi
+          if ! files=$(gh api "repos/${REPO}/pulls/${PR_NUMBER}/files" --paginate --jq '.[].filename' 2>/dev/null); then
+            echo "Could not list PR files — running heavy validation (fail-closed)."
+            echo "run_heavy=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          if [[ -z "$files" ]]; then
+            echo "Empty PR file list — running heavy validation (fail-closed)."
+            echo "run_heavy=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          heavy=false
+          while IFS= read -r f; do
+            [[ -z "$f" ]] && continue
+            case "$f" in
+              artifacts/*|docs/*|reports/*|pine/generated/*|*.pine) ;;
+              *)
+                heavy=true
+                echo "non-data path on bot/* PR forces heavy validation: $f"
+                ;;
+            esac
+          done <<< "$files"
+          if [[ "$heavy" == "true" ]]; then
+            echo "Bot PR ($HEAD_REF) touches source paths — running heavy validation."
+          else
+            echo "Bot data-only PR ($HEAD_REF); skipping heavy validation."
+          fi
+          echo "run_heavy=$heavy" >> "$GITHUB_OUTPUT"
       - name: Checkout
         if: steps.gate.outputs.run_heavy == 'true'
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
