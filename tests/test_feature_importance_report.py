@@ -229,6 +229,42 @@ class TestBackendSelection:
         report = outcomes.compute_feature_importance(lookback_days=1)
         assert report["labeled_samples"] == 2
 
+    def test_compute_feature_importance_respects_sample_dates_filter(self, monkeypatch, tmp_path: Path) -> None:
+        import open_prep.outcomes as outcomes
+
+        monkeypatch.setattr(outcomes, "FEATURE_IMPORTANCE_DIR", tmp_path)
+        d1 = tmp_path / "fi_samples_2026-07-02.jsonl"
+        d2 = tmp_path / "fi_samples_2026-07-03.jsonl"
+
+        def _row(symbol: str, run_date: str, profitable: bool, base: float) -> str:
+            return json.dumps(
+                {
+                    "symbol": symbol,
+                    "date": run_date,
+                    "profitable_30m": profitable,
+                    **{key: base + float(idx) for idx, key in enumerate(outcomes.FEATURE_KEYS)},
+                }
+            )
+
+        d1.write_text(
+            "\n".join(_row(f"A{i}", "2026-07-02", bool(i % 2), float(i)) for i in range(12)) + "\n",
+            encoding="utf-8",
+        )
+        d2.write_text(
+            "\n".join(_row(f"B{i}", "2026-07-03", bool(i % 2), float(i + 100)) for i in range(12)) + "\n",
+            encoding="utf-8",
+        )
+
+        report = outcomes.compute_feature_importance(
+            lookback_days=2,
+            sample_dates=["2026-07-03"],
+        )
+
+        assert "error" not in report
+        assert report["labeled_samples"] == 12
+        assert report["total_samples"] == 12
+        assert report["sample_dates_filter"] == ["2026-07-03"]
+
 
 # ── Ranking drift detection (E4) ─────────────────────────────────────
 

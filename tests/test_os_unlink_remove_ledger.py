@@ -94,7 +94,9 @@ OS_DELETE_LEDGER: set[tuple[str, int, str]] = {
     # cleanup unlink site shifted 79 -> 80.
     # 2026-07-02: SSRF path/query hardening shifted unlink 80 -> 81.
     ("open_prep/alerts.py", 81, "unlink"),
-    ("open_prep/candidate_weights.py", 158, "unlink"),
+    # 2026-07-03 (WP-3 holdout rescoring): helper additions shifted
+    # unlink cleanup from 158 -> 480.
+    ("open_prep/candidate_weights.py", 480, "unlink"),
     ("open_prep/diff.py", 68, "unlink"),
     # 2026-06-13 (audit-e2/aw7-reader-observability, PR #2759): _load_previous_latest
     #   DEBUG log insertion shifted unlink from 257 → 258.
@@ -111,7 +113,7 @@ OS_DELETE_LEDGER: set[tuple[str, int, str]] = {
     # 2026-06-12 (Copilot #2729): main() exit-semantics docstring +6 → 717.
     # 2026-06-17 (F1 lint fix): remove unused import sys → 717→716.
     ("open_prep/outcome_backfill.py", 717, "unlink"),
-    ("open_prep/outcomes.py", 161, "unlink"),
+    ("open_prep/outcomes.py", 162, "unlink"),
     # 2026-06-11 (trend-state features): 431→449, snapshot keys +
     # FEATURE_KEYS/PASS_THROUGH block added above.
     # 2026-06-11 (eval-findings B5/B1): gap-playbook report +
@@ -123,7 +125,7 @@ OS_DELETE_LEDGER: set[tuple[str, int, str]] = {
     # 2026-06-12 (backlog-resilience): non-list warning in
     # _load_outcomes_range +6 → 587.
     # 2026-07-02 (WP6 formula-era gate): cutoff constant block +8 → 595.
-    ("open_prep/outcomes.py", 615, "unlink"),
+    ("open_prep/outcomes.py", 616, "unlink"),
     ("open_prep/realtime_signals.py", 127, "remove"),
     # 2026-06-25: AsyncNewsstackPoller telemetry additions shifted
     # 2783 -> 2862 and 2828 -> 2907.

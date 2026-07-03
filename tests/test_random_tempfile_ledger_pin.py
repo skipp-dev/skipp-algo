@@ -80,7 +80,9 @@ _TEMPFILE_LEDGER: frozenset[tuple[str, int, str]] = frozenset({
     # mkstemp site shifted 68 -> 69.
     # 2026-07-02: SSRF path/query hardening shifted mkstemp 69 -> 70.
     ("open_prep/alerts.py", 70, "mkstemp"),
-    ("open_prep/candidate_weights.py", 150, "mkstemp"),
+    # 2026-07-03 (WP-3 holdout rescoring): helper additions shifted mkstemp
+    # site from 150 -> 472.
+    ("open_prep/candidate_weights.py", 472, "mkstemp"),
     ("open_prep/diff.py", 57, "mkstemp"),
     # 2026-06-13 (audit-e2/aw7-reader-observability, PR #2759): _load_previous_latest
     #   DEBUG log insertion shifted mkstemp from 249 → 250.
@@ -96,7 +98,7 @@ _TEMPFILE_LEDGER: frozenset[tuple[str, int, str]] = frozenset({
     # 2026-06-12 (Copilot #2729): main() exit-semantics docstring +6 → 709.
     # 2026-06-17 (F1 lint fix): remove unused import sys → 709→708.
     ("open_prep/outcome_backfill.py", 709, "mkstemp"),
-    ("open_prep/outcomes.py", 152, "mkstemp"),
+    ("open_prep/outcomes.py", 153, "mkstemp"),
     # 2026-06-11 (trend-state features): 419→437, snapshot keys +
     # FEATURE_KEYS/PASS_THROUGH block added above.
     # 2026-06-11 (eval-findings B5/B1): gap-playbook report + direction
@@ -106,7 +108,8 @@ _TEMPFILE_LEDGER: frozenset[tuple[str, int, str]] = frozenset({
     # 2026-06-12 (backlog-resilience): non-list warning in
     # _load_outcomes_range +6 → 575.
     # 2026-07-02 (WP6 formula-era gate): cutoff constant block +8 → 583.
-    ("open_prep/outcomes.py", 603, "mkstemp"),
+    # 2026-07-03 (WP-3 sample_dates helper): +1 -> 604.
+    ("open_prep/outcomes.py", 604, "mkstemp"),
     # 2026-07-03 (WP-4 holiday gate): +2 (import) then +8 below the gate.
     ("open_prep/realtime_signals.py", 119, "mkstemp"),
     # 2026-06-25: AsyncNewsstackPoller telemetry additions shifted
