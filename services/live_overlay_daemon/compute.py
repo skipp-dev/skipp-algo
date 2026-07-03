@@ -57,6 +57,11 @@ _news_cache: dict[str, Any] = {}
 _news_loaded_at: float = 0.0
 _news_checked_at: float = 0.0
 _news_lock = threading.Lock()
+# ticker -> list[score] index, built once per snapshot load (audit P3 HIGH):
+# avoids re-scanning all stories with a fresh ticker-list allocation per
+# symbol on every build_payload / non-5m /smc_live request.
+_news_index: dict[str, list[float]] = {}
+_news_index_built_at: float = -1.0
 _NEWS_USER_AGENT = "live-overlay-daemon-news/1"
 
 # ---------------------------------------------------------------------------
@@ -711,59 +716,75 @@ def _load_experiment_history() -> list[dict[str, Any]]:
         return [dict(r) for r in _experiment_history_cache]
 
 
+def _normalize_story_tickers(raw: Any) -> list[str]:
+    """Normalize a story's ``tickers`` field to an uppercase ticker list."""
+    if isinstance(raw, str):
+        raw_items: list[Any] = [raw]
+    elif isinstance(raw, (list, tuple, set)):
+        raw_items = list(raw)
+    else:
+        return []
+    out: list[str] = []
+    for item in raw_items:
+        if not isinstance(item, str):
+            continue
+        ticker = item.strip().upper()
+        if ticker:
+            out.append(ticker)
+    return out
+
+
+def _story_score(story: dict[str, Any]) -> float | None:
+    """Prefer sentiment_score when present (including 0.0), else news_score.
+
+    Invalid/non-finite values are treated as missing (None), not as a
+    neutral 0.0 sample.
+    """
+    if "sentiment_score" in story and story.get("sentiment_score") is not None:
+        if (score := _coerce_finite_float(story["sentiment_score"])) is not None:
+            return score
+        # Malformed sentiment_score should not mask a valid news_score.
+        if "news_score" in story and story.get("news_score") is not None:
+            return _coerce_finite_float(story["news_score"])
+        return None
+    if "news_score" in story and story.get("news_score") is not None:
+        if (score := _coerce_finite_float(story["news_score"])) is not None:
+            return score
+        return None
+    return None
+
+
+def _news_ticker_score_index() -> dict[str, list[float]]:
+    """Return a ``ticker -> [scores]`` index, rebuilt once per snapshot load.
+
+    Replaces the previous O(symbols x stories) rescan (audit P3 HIGH): the
+    index is built a single time whenever the news snapshot is (re)loaded and
+    reused for every per-symbol lookup within the TTL window.
+    """
+    global _news_index, _news_index_built_at
+    snap = _load_news_snapshot()
+    with _news_lock:
+        if _news_index_built_at >= 0.0 and _news_index_built_at == _news_loaded_at:
+            return _news_index
+        stories = snap.get("stories") or snap.get("items") or []
+        index: dict[str, list[float]] = {}
+        for story in stories:
+            if not isinstance(story, dict):
+                continue
+            score = _story_score(story)
+            if score is None:
+                continue
+            for ticker in _normalize_story_tickers(story.get("tickers")):
+                index.setdefault(ticker, []).append(score)
+        _news_index = index
+        _news_index_built_at = _news_loaded_at
+        return _news_index
+
+
 def _get_news_fields(symbol: str) -> dict[str, Any]:
     """Extract news_strength and news_bias for a symbol from the snapshot."""
-    snap = _load_news_snapshot()
-    stories = snap.get("stories") or snap.get("items") or []
-    sym_upper = symbol.upper()
-
-    def _normalize_tickers(raw: Any) -> list[str]:
-        """Normalize story tickers to a safe uppercase ticker list."""
-        if isinstance(raw, str):
-            raw_items: list[Any] = [raw]
-        elif isinstance(raw, (list, tuple, set)):
-            raw_items = raw
-        else:
-            return []
-
-        out: list[str] = []
-        for item in raw_items:
-            if not isinstance(item, str):
-                continue
-            ticker = item.strip().upper()
-            if ticker:
-                out.append(ticker)
-        return out
-
-    def _score(story: dict[str, Any]) -> float | None:
-        """Prefer sentiment_score when present (including 0.0), else news_score.
-
-        Invalid/non-finite values are treated as missing (None), not as a
-        neutral 0.0 sample.
-        """
-        if "sentiment_score" in story and story.get("sentiment_score") is not None:
-            if (score := _coerce_finite_float(story["sentiment_score"])) is not None:
-                return score
-            # Malformed sentiment_score should not mask a valid news_score.
-            if "news_score" in story and story.get("news_score") is not None:
-                return _coerce_finite_float(story["news_score"])
-            return None
-        if "news_score" in story and story.get("news_score") is not None:
-            if (score := _coerce_finite_float(story["news_score"])) is not None:
-                return score
-            return None
-        return None
-
-    scores: list[float] = []
-    for story in stories:
-        if not isinstance(story, dict):
-            continue
-        tickers = _normalize_tickers(story.get("tickers"))
-        if sym_upper not in tickers:
-            continue
-        if (score := _score(story)) is not None:
-            scores.append(score)
-
+    index = _news_ticker_score_index()
+    scores = index.get(symbol.upper())
     if not scores:
         return {"news_strength": None, "news_bias": None}
 

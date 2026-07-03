@@ -595,10 +595,12 @@ def main(argv: list[str] | None = None) -> int:
         print("--dry-run: not contacting Grafana.")
         return 0
 
+    # Bind before the try so the PARTIAL-APPLY diagnostic in the except blocks
+    # is safe even when _api_key() raises before the upsert loop starts.
+    total = len(groups)
+    applied = 0
     try:
         key = _api_key()
-        total = len(groups)
-        applied = 0
         for group in groups:
             written = upsert_group(
                 group, key, create_folder=not args.no_create_folder
