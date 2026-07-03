@@ -65,7 +65,9 @@ _FROZEN_LEDGER: dict[str, int] = {
     "SMC_Event_Overlay.pine": 13,
     "SMC_Exit_Signal.pine": 13,
     "SMC_HTF_Confluence.pine": 8,
-    "SMC_Hold_Manager.pine": 10,
+    # 2026-07-03 correctness lane: +1 var latch to detect the Arm Long
+    # input toggle on the last bar; history indexing cannot see input edges.
+    "SMC_Hold_Manager.pine": 11,
     "SMC_Imbalance_Context.pine": 14,
     "SMC_Liquidity_Context.pine": 12,
     "SMC_Liquidity_Structure.pine": 9,
@@ -104,7 +106,7 @@ _FROZEN_LEDGER: dict[str, int] = {
     "test_div.pine": 2,
 }
 
-_TOTAL_BUDGET = 990  # bumped 2026-06-16 (feat/live-overlay-daemon): +4 var decls in pine/smc_live_overlay_consumer.pine (DAEMON_URL, TOKEN, SHOW_TABLE, _tbl); was 986.
+_TOTAL_BUDGET = 991  # bumped 2026-07-03 (correctness lane): +1 Arm Long var latch in SMC_Hold_Manager.pine; was 990.
 
 
 def _iter_pine() -> list[Path]:

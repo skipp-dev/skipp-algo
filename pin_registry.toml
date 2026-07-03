@@ -112,7 +112,7 @@
 # shifted sites to [230, 379, 571].
 # 2026-06-26 (fixup): suffix-safe railway.internal check shifted sites
 # to [230, 389, 581].
-"services/live_overlay_daemon/compute.py" = [235, 394, 586]
+"services/live_overlay_daemon/compute.py" = [235, 399, 591]
 # 2026-06-22: line shifted 251 -> 287 after ADR-0025 App Platform migration
 # (/apis dashboard.grafana.app/v1); urlopen now in shared _request_json helper.
 # 2026-06-23: shifted 287 -> 296 after annotations-robustness fix.
@@ -126,7 +126,8 @@
 # 2026-06-27: added default relativeTimeRange handling for instant alert queries.
 # 2026-07-01: added PromQL gating anti-pattern linter above validate_alert_groups; shifted urlopen site 340 -> 446.
 # 2026-07-02: WP-C5 orphan-group reconcile docstring + helpers shifted urlopen site 446 -> 451.
-"scripts/grafana_alert_rules_upsert.py" = [451]
+# 2026-07-03: correctness-lane NoData validator shifted urlopen site 451 -> 457.
+"scripts/grafana_alert_rules_upsert.py" = [457]
 # 2026-06-24: Railway GraphQL API bridge for container metrics; fixed https
 # endpoint (backboard.railway.com/graphql/v2), explicit timeout= via Request.
 "services/live_overlay_daemon/railway_metrics.py" = [85]
@@ -163,6 +164,7 @@ codes = ["S603"]
 # after PR #2233 mainline merge restored the older realtime_signals
 # layout used by this branch.
 # 2026-06-28 (semantic monitoring): shifted +20 lines by _extract_snapshot_epoch helper.
+# 2026-07-03 (WP-4 holiday gate): +2 (import block above).
 [[noqa_budget.sites]]
 file = "open_prep/realtime_signals.py"
 line = 217

@@ -43,8 +43,16 @@ def _make_entry(
 
 
 def _mock_feedparser(parse_fn):
-    """Context-manager: inject a fake feedparser into sys.modules."""
+    """Context-manager: inject a fake feedparser into sys.modules.
+
+    Also stubs the module's ``_rss_http_get`` so ``_fetch_single_feed`` never
+    hits the network — feedparser now parses bytes we fetch ourselves (the
+    real ``feedparser.parse`` has no ``timeout`` kwarg), so tests must supply
+    the HTTP boundary too.
+    """
     import contextlib
+
+    import newsstack_fmp.ingest_benzinga as _bz
 
     @contextlib.contextmanager
     def _ctx():
@@ -52,9 +60,15 @@ def _mock_feedparser(parse_fn):
         mock_fp.parse = parse_fn
         old = sys.modules.get("feedparser")
         sys.modules["feedparser"] = mock_fp
+        old_get = _bz._rss_http_get
+        # Return per-URL bytes so fake ``parse`` fns that key off their input
+        # (guid=f"guid-{content}") still differentiate feeds now that parse
+        # receives fetched content instead of the feed URL.
+        _bz._rss_http_get = lambda feed_url, *, timeout: feed_url.encode()
         try:
             yield mock_fp
         finally:
+            _bz._rss_http_get = old_get
             if old is None:
                 sys.modules.pop("feedparser", None)
             else:
@@ -258,20 +272,41 @@ def test_fetch_news_no_feedparser(monkeypatch: pytest.MonkeyPatch):
             sys.modules["feedparser"] = old
 
 
-def test_fetch_news_passes_timeout_to_feedparser():
-    """RSS-1: timeout kwarg must be forwarded to feedparser.parse()."""
-    captured_kwargs: list[dict] = []
+def test_fetch_news_enforces_timeout_on_http_not_feedparser(monkeypatch):
+    """RSS-1: the network timeout is enforced on the HTTP fetch, and
+    ``feedparser.parse`` is called with content only (NO ``timeout`` kwarg —
+    feedparser 6.x raises TypeError on it, which previously killed every fetch).
+    """
+    import newsstack_fmp.ingest_benzinga as _bz
 
-    def _parse(url, **kw):
-        captured_kwargs.append(kw)
+    captured_timeouts: list[int] = []
+    captured_parse_args: list[tuple] = []
+    captured_parse_kwargs: list[dict] = []
+
+    def _fake_get(feed_url, *, timeout):
+        captured_timeouts.append(timeout)
+        return b"<rss></rss>"
+
+    def _parse(*args, **kw):
+        captured_parse_args.append(args)
+        captured_parse_kwargs.append(kw)
         return {"entries": [], "bozo": False}
 
-    with _mock_feedparser(_parse):
-        adapter = BenzingaRssAdapter(timeout=7)
-        adapter.fetch_news()
+    mock_fp = ModuleType("feedparser")
+    mock_fp.parse = _parse
+    monkeypatch.setitem(sys.modules, "feedparser", mock_fp)
+    monkeypatch.setattr(_bz, "_rss_http_get", _fake_get)
 
-    assert captured_kwargs
-    assert all(kw.get("timeout") == 7 for kw in captured_kwargs)
+    adapter = BenzingaRssAdapter(timeout=7)
+    adapter.fetch_news()
+
+    assert captured_timeouts, "HTTP fetch must run"
+    assert all(t == 7 for t in captured_timeouts), "timeout must reach the HTTP layer"
+    assert captured_parse_args, "feedparser.parse must be called with content"
+    assert captured_parse_args[0][0] == b"<rss></rss>", "parse receives fetched bytes"
+    assert all("timeout" not in kw for kw in captured_parse_kwargs), (
+        "feedparser.parse must NOT receive a timeout kwarg (unsupported in 6.x)"
+    )
 
 
 def test_seen_guids_bounded():
@@ -415,7 +450,10 @@ def test_fetch_news_parallel_fetches_all_feeds():
         "https://benzinga.com/feed/c",
     )
 
-    def _parse(url, **_kw):
+    def _parse(content, **_kw):
+        # parse now receives fetched bytes; the mock http layer returns the
+        # feed URL encoded, so decode back to keep the per-feed assertion.
+        url = content.decode() if isinstance(content, bytes) else content
         return {"entries": [_make_entry(guid=f"guid-{url}", title=f"From {url}")], "bozo": False}
 
     with _mock_feedparser(_parse):

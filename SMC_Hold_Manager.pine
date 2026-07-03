@@ -91,22 +91,25 @@ if i_reset_now and barstate.islast
 
 // ── 4.  ARMING & ENTRY ───────────────────────────────────────────────
 bool can_act = (not i_close_only) or barstate.isconfirmed
-// `i_arm_long` is an input.bool — constant across the historical bar series after
-// (re)compile, so a `not i_arm_long[1]` rising-edge can never fire mid-series.
-// Detect the toggle exactly once on the realtime/last bar instead.
-arm_edge_now = i_arm_long and barstate.islast and (not i_arm_long[1])
+// Detect the settings toggle via a var latch — the history operator cannot
+// see it because an input.bool is constant across the whole series.
+var bool prev_arm = false
+bool arm_edge_now = barstate.islast and i_arm_long and not prev_arm
 
 if can_act and state == 0 and arm_edge_now and i_entry > 0 and i_stop > 0 and i_stop < i_entry
     state         := 1
     entry_price   := i_entry
     initial_stop  := i_stop
     active_stop   := i_stop
-    float risk_R  := entry_price - initial_stop
+    float risk_R  = entry_price - initial_stop
     t1_price      := entry_price + risk_R * i_t1_R
     t2_price      := entry_price + risk_R * i_t2_R
     entry_bar     := bar_index
     entry_time_ms := time
     t1_hit        := false
+
+if barstate.islast
+    prev_arm := i_arm_long
 
 // Trigger-Touch erkennen — naive: Bar handelt durch Entry.
 bool entry_touch = state == 1 and low <= entry_price and high >= entry_price
@@ -115,7 +118,7 @@ if can_act and entry_touch
 
 // ── 5.  HOLD-MANAGEMENT ──────────────────────────────────────────────────────
 float atr     = ta_lib.atr(i_atr_len)
-float chand   = high - atr * i_atr_mult
+float chand   = high[1] - atr[1] * i_atr_mult
 // Chandelier-Trail nur erhöhen, nie senken — adressiert Long-Asymmetrie.
 if state == 2 and i_use_chand and not i_simple_mode and not na(chand)
     active_stop := math.max(active_stop, chand)

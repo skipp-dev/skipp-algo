@@ -378,6 +378,26 @@ def test_signals_producer_memory_warning_aligns_with_railway_ratio_policy() -> N
     assert _memory_threshold(critical) == 900
 
 
+def test_live_overlay_memory_warning_aligns_with_railway_ratio_policy() -> None:
+    """The static live-overlay RSS warning follows the same 768 MiB policy."""
+    warning = _alert_rule("lo-memory-high")
+    assert warning["labels"]["severity"] == "warning"
+    assert _memory_threshold(warning) == 768
+    assert "768" in warning["title"]
+
+
+def test_dashboard_memory_thresholds_align_with_alert_policy() -> None:
+    dashboard = json.loads(_DASHBOARD_JSON.read_text(encoding="utf-8"))
+    panels = {p.get("title"): p for p in _dashboard_panels(dashboard)}
+
+    memory_steps = panels["Process Resident Memory"]["fieldConfig"]["defaults"]["thresholds"]["steps"]
+    assert memory_steps[1]["value"] == 805306368
+    assert memory_steps[2]["value"] == 943718400
+
+    ratio_steps = panels["Railway Memory Used Ratio"]["fieldConfig"]["defaults"]["thresholds"]["steps"]
+    assert ratio_steps[1]["value"] == 0.75
+    assert ratio_steps[2]["value"] == 0.90
+
 
 def test_alert_rules_include_alloy_remote_write_failure_guard() -> None:
     """Alloy must alert when remote-write starts dropping samples."""
@@ -386,7 +406,8 @@ def test_alert_rules_include_alloy_remote_write_failure_guard() -> None:
 
     assert "increase(prometheus_remote_storage_samples_failed_total" in expr
     assert '{job="alloy"}[10m]' in expr
-    assert "> 0" in expr
+    assert "> 0" not in expr
+    assert rule["noDataState"] == "OK"
     assert rule["labels"]["severity"] == "warning"
 
 
