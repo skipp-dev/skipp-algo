@@ -842,11 +842,13 @@ def _process_parsed_feed(
             )
             if not parsed.get("entries"):
                 return items
+        malformed = 0
         for entry in parsed.get("entries", []):
             try:
                 item = _entry_to_news_item(entry, source_url=feed_url)
             except Exception:
                 # A single malformed entry must not drop entries k+1..N (WP-C1b).
+                malformed += 1
                 with adapter._lock:
                     adapter.fetch_errors += 1
                 logger.debug("BenzingaRSS: skipping malformed RSS entry", exc_info=True)
@@ -867,6 +869,14 @@ def _process_parsed_feed(
                 if len(adapter._seen_guids_set) > len(adapter._seen_guids):
                     adapter._seen_guids_set = set(adapter._seen_guids)
             items.append(item)
+        if malformed:
+            # One aggregated warning per poll (not per entry) keeps malformed
+            # feeds visible in logs without spamming (WP-5).
+            logger.warning(
+                "BenzingaRSS: skipped %d malformed entries from %s",
+                malformed,
+                feed_url,
+            )
     except Exception as exc:
         with adapter._lock:
             adapter.fetch_errors += 1

@@ -42,8 +42,9 @@ _ET = _ZoneInfo("America/New_York")
 _MIN_DATE_LEN = 8
 
 # Tolerated provider clock drift (WP-A): timestamps beyond now + this many
-# seconds are treated as 'no timestamp available' (epoch 0.0).
-_MAX_FUTURE_SKEW_SECS = 300.0
+# seconds are treated as 'no timestamp available' (epoch 0.0). Single source of
+# truth — shared_fetch imports this to avoid constant drift.
+MAX_FUTURE_SKEW_SECS = 300.0
 
 
 def _to_epoch(s: str, *, naive_tz: Any = UTC) -> float:
@@ -73,7 +74,7 @@ def _to_epoch(s: str, *, naive_tz: Any = UTC) -> float:
     # Defense-in-depth (WP-A): a future-dated timestamp (embargoed release,
     # provider clock drift, mis-parsed year) is treated as 'no timestamp' so
     # it neither advances cursors nor yields negative news_age_minutes.
-    if parsed > time.time() + _MAX_FUTURE_SKEW_SECS:
+    if parsed > time.time() + MAX_FUTURE_SKEW_SECS:
         logger.warning("Future-dated timestamp %r (> now+skew) — returning epoch 0.", s_stripped[:80])
         return 0.0
     return parsed

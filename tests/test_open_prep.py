@@ -4260,3 +4260,39 @@ class TestB10MixedDateSorting(unittest.TestCase):
             1.0,
             f"z={val!r}: expected chronological sort placing spike last (z > 1.0)",
         )
+
+
+class ComputeHitRatesPnlFallbackTest(unittest.TestCase):
+    """WP-4: an explicit null in pnl_30m_pct_signed must fall through to the
+    legacy pnl_30m_pct field, not resolve to 0.0 via dict.get(k, default)."""
+
+    def _single_bucket(self, rec: dict) -> dict:
+        from open_prep import outcomes
+
+        with patch.object(outcomes, "_load_outcomes_range", return_value=[rec]):
+            result = outcomes.compute_hit_rates(lookback_days=20)
+        self.assertEqual(len(result), 1, f"expected exactly one bucket: {result!r}")
+        return next(iter(result.values()))
+
+    def test_explicit_null_signed_pnl_falls_back_to_legacy(self) -> None:
+        rec = {
+            "gap_pct": 5.0,
+            "rvol": 2.0,
+            "profitable_30m": True,
+            "pnl_30m_pct_signed": None,  # explicit null, not a missing key
+            "pnl_30m_pct": 0.8,
+        }
+        bucket = self._single_bucket(rec)
+        self.assertEqual(bucket["total"], 1)
+        self.assertEqual(bucket["avg_pnl_pct"], 0.8)
+
+    def test_both_pnl_fields_missing_counts_row_with_zero_pnl(self) -> None:
+        rec = {
+            "gap_pct": 5.0,
+            "rvol": 2.0,
+            "profitable_30m": True,
+            # both pnl fields absent
+        }
+        bucket = self._single_bucket(rec)
+        self.assertEqual(bucket["total"], 1)
+        self.assertEqual(bucket["avg_pnl_pct"], 0.0)

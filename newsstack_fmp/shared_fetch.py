@@ -2,6 +2,8 @@ from __future__ import annotations
 
 import hashlib
 import json
+import logging
+import math
 import os
 import stat
 import tempfile
@@ -13,12 +15,14 @@ from pathlib import Path
 from typing import Any
 
 from .common_types import NewsItem
+from .normalize import MAX_FUTURE_SKEW_SECS as _MAX_FUTURE_SKEW_SECS
+
+logger = logging.getLogger(__name__)
 
 DEFAULT_SHARED_NEWS_CACHE_DIR = "artifacts/shared_news_cache"
 DEFAULT_SHARED_NEWS_CACHE_TTL_SECONDS = 90.0
 _LOCK_POLL_INTERVAL_SECONDS = 0.05
 _LOCK_TIMEOUT_SECONDS = 15.0
-_MAX_FUTURE_SKEW_SECS = 300.0  # tolerated provider clock drift
 _PROVIDER_TTL_ENV_KEYS = {
     "newsapi_ai": "NEWSAPI_AI_SHARED_CACHE_TTL_SECONDS",
 }
@@ -77,8 +81,29 @@ def _clamped_cursor(min_cursor: float, items: list[NewsItem], *, now: float) -> 
     the ``> min_cursor`` filter would then silently drop ALL real news until
     wall-clock catches up.
     """
-    ceiling = float(now) + _MAX_FUTURE_SKEW_SECS
-    floor = max(float(min_cursor or 0.0), 0.0)
+    now_float = float(now)
+    # Guard against negative/malformed wall-clock: a negative or non-finite
+    # 'now' would place the ceiling before the floor and defeat the clamp.
+    if now_float < 0.0 or not math.isfinite(now_float):
+        floor = float(min_cursor or 0.0)
+        return floor if math.isfinite(floor) and floor >= 0.0 else 0.0
+    ceiling = now_float + _MAX_FUTURE_SKEW_SECS
+    floor = float(min_cursor or 0.0)
+    if not math.isfinite(floor) or floor < 0.0:
+        # A corrupted persisted cursor (NaN/inf/negative) must reset, never
+        # poison the return value via max(nan, 0.0) == nan.
+        floor = 0.0
+    if floor > ceiling:
+        # Self-heal: a cursor poisoned BEFORE this clamp shipped must not keep
+        # dropping ALL real news until wall-clock catches up (months, for a
+        # mis-parsed year). Rewinding is safe: (provider, item_id) dedup in
+        # mark_seen makes re-processing idempotent and reclaims dropped news.
+        logger.warning(
+            "Persisted news cursor %.0f lies beyond now+skew (%.0f) — self-healing.",
+            floor,
+            ceiling,
+        )
+        floor = ceiling
     plausible = [ts for item in items if (ts := news_item_timestamp(item)) <= ceiling]
     return min(max([floor, *plausible], default=floor), ceiling)
 

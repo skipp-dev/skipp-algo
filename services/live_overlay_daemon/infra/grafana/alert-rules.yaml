@@ -1126,9 +1126,11 @@ groups:
     - refId: A
       datasourceUid: grafanacloud-prom
       model:
-        expr: live_overlay_provider_news_last_ingest_age_seconds{job="live_overlay"}
+        expr: (live_overlay_provider_news_last_ingest_age_seconds{job="live_overlay"}
           and on(job, instance) (live_overlay_provider_news_last_ingest_age_known{job="live_overlay"}
-          == 1)
+          == 1))
+          and on() (day_of_week() > 0) and on() (day_of_week() < 6)
+          and on() (hour() >= 12) and on() (hour() < 21)
         instant: true
     - refId: C
       datasourceUid: __expr__
