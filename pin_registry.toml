@@ -164,6 +164,7 @@ codes = ["S603"]
 # after PR #2233 mainline merge restored the older realtime_signals
 # layout used by this branch.
 # 2026-06-28 (semantic monitoring): shifted +20 lines by _extract_snapshot_epoch helper.
+# 2026-07-03 (WP-4 holiday gate): +2 (import block above).
 [[noqa_budget.sites]]
 file = "open_prep/realtime_signals.py"
 line = 217
