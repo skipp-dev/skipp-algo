@@ -78,6 +78,68 @@ class TestGenerationStates:
         assert isinstance(rec["weights"], dict)
         assert rec["drift_violations"]
 
+    def test_generate_candidate_scopes_fi_to_train_dates_and_reports_holdout(self, monkeypatch) -> None:
+        calls: list[dict] = []
+
+        def _fake_fi(**kw):
+            calls.append(kw)
+            return _make_fi_report(labeled=250)
+
+        monkeypatch.setattr(cw, "compute_feature_importance", _fake_fi)
+        monkeypatch.setattr(
+            cw,
+            "_collect_fi_sample_dates",
+            lambda **kw: ["2026-07-01", "2026-07-02", "2026-07-03"],
+        )
+        monkeypatch.setattr(
+            cw,
+            "_load_fi_holdout_samples",
+            lambda sample_dates: [
+                {
+                    "symbol": "AAA",
+                    "date": sample_dates[0],
+                    "profitable_30m": True,
+                },
+                {
+                    "symbol": "BBB",
+                    "date": sample_dates[0],
+                    "profitable_30m": False,
+                },
+            ],
+        )
+
+        def _fake_rescore(sample, weights):
+            if sample["symbol"] == "AAA":
+                return float(weights["news"])
+            return float(weights["rvol"])
+
+        monkeypatch.setattr(cw, "_rescore_sample_with_weights", _fake_rescore)
+
+        rec = cw.generate_candidate(min_samples=30)
+
+        assert rec["status"] == "ok"
+        assert calls
+        assert calls[0].get("sample_dates") == ["2026-07-01", "2026-07-02"]
+        assert rec["train_dates"] == ["2026-07-01", "2026-07-02"]
+        assert rec["holdout_dates"] == ["2026-07-03"]
+        assert rec["holdout"]["default"]["labeled_samples"] == 2
+        assert rec["holdout"]["candidate"]["labeled_samples"] == 2
+        assert rec["holdout"]["hit_rate_delta"] is not None
+
+    def test_generate_candidate_without_holdout_dates_keeps_holdout_empty(self, monkeypatch) -> None:
+        monkeypatch.setattr(cw, "compute_feature_importance", lambda **kw: _make_fi_report(labeled=250))
+        monkeypatch.setattr(cw, "_collect_fi_sample_dates", lambda **kw: ["2026-07-03"])
+        monkeypatch.setattr(cw, "_load_fi_holdout_samples", lambda sample_dates: [])
+
+        rec = cw.generate_candidate(min_samples=30)
+
+        assert rec["status"] == "ok"
+        assert rec["train_dates"] == ["2026-07-03"]
+        assert rec["holdout_dates"] == []
+        assert rec["holdout"]["default"]["hit_rate"] is None
+        assert rec["holdout"]["candidate"]["hit_rate"] is None
+        assert rec["holdout"]["hit_rate_delta"] is None
+
 
 # ── Persistence + drift-gate enforcement ─────────────────────────────
 
