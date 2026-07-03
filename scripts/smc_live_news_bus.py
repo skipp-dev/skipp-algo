@@ -813,6 +813,13 @@ def poll_live_news_bus(
     }
     story_state = dict(normalized_state["story_state"])
     prior_last_ingest = _coerce_timestamp(normalized_state.get("last_ingest_success_at"))
+    if prior_last_ingest <= 0.0:
+        # Bootstrap: age counts from producer start. Without this, a pipeline
+        # that has NEVER successfully ingested (auth broken from deploy,
+        # poisoned cursor) keeps last_ingest_success_at at 0 forever, so the
+        # ingest_age_known marker stays 0 and the stale-ingest alert can never
+        # arm — silencing exactly the failure it was built to catch.
+        prior_last_ingest = now_ts
 
     fetch_specs: list[tuple[str, Any, dict[str, Any]]] = []
     if include_benzinga:

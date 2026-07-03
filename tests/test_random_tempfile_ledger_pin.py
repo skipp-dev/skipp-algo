@@ -75,7 +75,7 @@ _TEMPFILE_LEDGER: frozenset[tuple[str, int, str]] = frozenset({
     ("databento_volatility_screener.py", 604, "mkstemp"),
     ("governance/alpha_ledger.py", 70, "mkstemp"),
     ("newsstack_fmp/open_prep_export.py", 25, "mkstemp"),
-    ("newsstack_fmp/shared_fetch.py", 273, "mkstemp"),
+    ("newsstack_fmp/shared_fetch.py", 298, "mkstemp"),
     # 2026-07-01: alerts payload/url hardening inserted helper functions;
     # mkstemp site shifted 68 -> 69.
     # 2026-07-02: SSRF path/query hardening shifted mkstemp 69 -> 70.
@@ -106,7 +106,7 @@ _TEMPFILE_LEDGER: frozenset[tuple[str, int, str]] = frozenset({
     # 2026-06-12 (backlog-resilience): non-list warning in
     # _load_outcomes_range +6 → 575.
     # 2026-07-02 (WP6 formula-era gate): cutoff constant block +8 → 583.
-    ("open_prep/outcomes.py", 600, "mkstemp"),
+    ("open_prep/outcomes.py", 603, "mkstemp"),
     ("open_prep/realtime_signals.py", 117, "mkstemp"),
     # 2026-06-25: AsyncNewsstackPoller telemetry additions shifted
     # 2768 -> 2849 and 2815 -> 2896.

@@ -123,7 +123,7 @@ OS_DELETE_LEDGER: set[tuple[str, int, str]] = {
     # 2026-06-12 (backlog-resilience): non-list warning in
     # _load_outcomes_range +6 → 587.
     # 2026-07-02 (WP6 formula-era gate): cutoff constant block +8 → 595.
-    ("open_prep/outcomes.py", 612, "unlink"),
+    ("open_prep/outcomes.py", 615, "unlink"),
     ("open_prep/realtime_signals.py", 125, "remove"),
     # 2026-06-25: AsyncNewsstackPoller telemetry additions shifted
     # 2783 -> 2862 and 2828 -> 2907.
