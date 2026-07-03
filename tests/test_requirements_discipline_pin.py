@@ -43,7 +43,9 @@ _REQUIREMENT_FILES = {
 # 2026-07-01: bumped 27 -> 28 to include the pyyaml exact pin used by
 # workflow/dependency-discipline tooling.
 _DEP_LINE_BUDGETS = {
-    "requirements.txt": 28,
+    # 2026-07-03: 28 → 29 for hypothesis==6.112.2 (property-based test lib,
+    # exact-pinned) already present on main; budget bump was missing.
+    "requirements.txt": 29,
     "requirements-gpu.txt": 1,
 }
 
