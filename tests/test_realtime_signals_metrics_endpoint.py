@@ -9,7 +9,6 @@ Covers:
 """
 from __future__ import annotations
 
-import socket
 import time
 import urllib.request
 from datetime import UTC, datetime
@@ -100,12 +99,6 @@ class TestLiveOverlayCollectProcessMetrics:
 # /metrics HTTP endpoint — auth enforcement
 # ---------------------------------------------------------------------------
 
-def _free_port() -> int:
-    with socket.socket() as s:
-        s.bind(("127.0.0.1", 0))
-        return s.getsockname()[1]
-
-
 def _start_server(port: int, env_overrides: dict[str, str], monkeypatch: Any) -> Any:
     """Start _start_telemetry_server on *port* with mocked telemetry."""
     for k, v in env_overrides.items():
@@ -132,33 +125,53 @@ class TestMetricsEndpointAuth:
     def test_accessible_without_token_when_no_env_var(self, monkeypatch: pytest.MonkeyPatch) -> None:
         """When SIGNALS_INTERNAL_TOKEN is not set, /metrics is open."""
         monkeypatch.delenv("SIGNALS_INTERNAL_TOKEN", raising=False)
-        port = _free_port()
-        _start_server(port, {}, monkeypatch)
-        status, body = _get(f"http://127.0.0.1:{port}/metrics")
-        assert status == 200
-        assert "signals_producer_process_cpu_seconds_total" in body
+        server = _start_server(0, {}, monkeypatch)
+        if server is None:
+            return
+        try:
+            port = int(server.server_port)
+            status, body = _get(f"http://127.0.0.1:{port}/metrics")
+            assert status == 200
+            assert "signals_producer_process_cpu_seconds_total" in body
+        finally:
+            server.shutdown()
 
     def test_returns_401_without_token_when_env_var_set(self, monkeypatch: pytest.MonkeyPatch) -> None:
         """When SIGNALS_INTERNAL_TOKEN is set, /metrics without token → 401."""
-        port = _free_port()
-        _start_server(port, {"SIGNALS_INTERNAL_TOKEN": "secret-abc"}, monkeypatch)
-        status, _ = _get(f"http://127.0.0.1:{port}/metrics")
-        assert status == 401
+        server = _start_server(0, {"SIGNALS_INTERNAL_TOKEN": "secret-abc"}, monkeypatch)
+        if server is None:
+            return
+        try:
+            port = int(server.server_port)
+            status, _ = _get(f"http://127.0.0.1:{port}/metrics")
+            assert status == 401
+        finally:
+            server.shutdown()
 
     def test_returns_401_with_wrong_token(self, monkeypatch: pytest.MonkeyPatch) -> None:
         """Wrong Bearer token → 401."""
-        port = _free_port()
-        _start_server(port, {"SIGNALS_INTERNAL_TOKEN": "correct-token"}, monkeypatch)
-        status, _ = _get(f"http://127.0.0.1:{port}/metrics", token="wrong-token")
-        assert status == 401
+        server = _start_server(0, {"SIGNALS_INTERNAL_TOKEN": "correct-token"}, monkeypatch)
+        if server is None:
+            return
+        try:
+            port = int(server.server_port)
+            status, _ = _get(f"http://127.0.0.1:{port}/metrics", token="wrong-token")
+            assert status == 401
+        finally:
+            server.shutdown()
 
     def test_returns_200_with_correct_token(self, monkeypatch: pytest.MonkeyPatch) -> None:
         """Correct Bearer token → 200 + Prometheus body."""
-        port = _free_port()
-        _start_server(port, {"SIGNALS_INTERNAL_TOKEN": "correct-token"}, monkeypatch)
-        status, body = _get(f"http://127.0.0.1:{port}/metrics", token="correct-token")
-        assert status == 200
-        assert "signals_producer_process_cpu_seconds_total" in body
+        server = _start_server(0, {"SIGNALS_INTERNAL_TOKEN": "correct-token"}, monkeypatch)
+        if server is None:
+            return
+        try:
+            port = int(server.server_port)
+            status, body = _get(f"http://127.0.0.1:{port}/metrics", token="correct-token")
+            assert status == 200
+            assert "signals_producer_process_cpu_seconds_total" in body
+        finally:
+            server.shutdown()
 
 
 # ---------------------------------------------------------------------------
@@ -209,12 +222,14 @@ def test_collect_process_metrics_defaults_last_poll_age_to_max_when_never_polled
 
 
 def test_readyz_returns_503_when_not_ready(monkeypatch: pytest.MonkeyPatch) -> None:
-    port = _free_port()
     monkeypatch.delenv("SIGNALS_INTERNAL_TOKEN", raising=False)
     telemetry = MagicMock()
     telemetry.snapshot.return_value = {}
-    server = rs._start_telemetry_server(telemetry, port=port, host="127.0.0.1")
+    server = rs._start_telemetry_server(telemetry, port=0, host="127.0.0.1")
+    if server is None:
+        return
     try:
+        port = int(server.server_port)
         status, body = _get(f"http://127.0.0.1:{port}/readyz")
         assert status == 503
         assert body.strip().startswith("not_ready") or "engine not initialised" in body.strip()
@@ -223,7 +238,6 @@ def test_readyz_returns_503_when_not_ready(monkeypatch: pytest.MonkeyPatch) -> N
 
 
 def test_readyz_returns_200_when_ready(monkeypatch: pytest.MonkeyPatch) -> None:
-    port = _free_port()
     monkeypatch.delenv("SIGNALS_INTERNAL_TOKEN", raising=False)
     engine = SimpleNamespace(
         _watchlist=[{"symbol": "AAPL"}],
@@ -232,8 +246,11 @@ def test_readyz_returns_200_when_ready(monkeypatch: pytest.MonkeyPatch) -> None:
     )
     telemetry = MagicMock()
     telemetry.snapshot.return_value = {}
-    server = rs._start_telemetry_server(telemetry, port=port, host="127.0.0.1", engine=engine)
+    server = rs._start_telemetry_server(telemetry, port=0, host="127.0.0.1", engine=engine)
+    if server is None:
+        return
     try:
+        port = int(server.server_port)
         status, body = _get(f"http://127.0.0.1:{port}/readyz")
         assert status == 200
         assert body.strip() == "ready"

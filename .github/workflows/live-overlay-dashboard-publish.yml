@@ -91,25 +91,34 @@ jobs:
             esac
           fi
 
+          # Preflight: validate payload generation for EVERY dashboard before
+          # mutating anything (audit P2 LOW). Without this, a failure on the
+          # 2nd dashboard after the 1st is already published leaves Grafana
+          # half-updated.
           for DASHBOARD_PATH in "${DASHBOARDS[@]}"; do
-            if [[ "${dry_run}" == "true" ]]; then
-              echo "Manual dry-run: validating payload generation for ${DASHBOARD_PATH} (no network publish)."
-              python scripts/publish_overlay_dashboard.py \
-                "${DASHBOARD_PATH}" \
-                --host "${HOST}" \
-                --namespace stacks-1697741 \
-                --folder cfpozahbhfzswc \
-                --dry-run \
-                --token "dry-run-token" \
-                --no-keychain
-              continue
-            fi
+            echo "Preflight dry-run: validating payload for ${DASHBOARD_PATH} (no network publish)."
+            python scripts/publish_overlay_dashboard.py \
+              "${DASHBOARD_PATH}" \
+              --host "${HOST}" \
+              --namespace stacks-1697741 \
+              --folder cfpozahbhfzswc \
+              --dry-run \
+              --token "dry-run-token" \
+              --no-keychain
+          done
 
-            test -n "${GRAFANA_API_TOKEN:-}" || {
-              echo "::error::GRAFANA_API_TOKEN secret is required for dashboard publish."
-              exit 1
-            }
+          if [[ "${dry_run}" == "true" ]]; then
+            echo "Manual dry-run complete for all dashboards (no network publish)."
+            exit 0
+          fi
 
+          test -n "${GRAFANA_API_TOKEN:-}" || {
+            echo "::error::GRAFANA_API_TOKEN secret is required for dashboard publish."
+            exit 1
+          }
+
+          # All dashboards passed preflight — now publish them.
+          for DASHBOARD_PATH in "${DASHBOARDS[@]}"; do
             echo "Publishing ${DASHBOARD_PATH} to ${HOST}."
             python scripts/publish_overlay_dashboard.py \
               "${DASHBOARD_PATH}" \

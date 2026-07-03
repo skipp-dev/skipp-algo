@@ -86,7 +86,15 @@ def test_single_validate_job_with_bot_pr_gate() -> None:
     assert "bot/*" in gate_step["run"], (
         "bot-PR short-circuit must keep matching ``bot/*`` head refs"
     )
-    assert "run_heavy=false" in gate_step["run"]
+    # Audit P2 HIGH: the gate must verify changed PATHS, not just the branch
+    # name — a bot/* branch touching source code must run heavy validation.
+    assert "run_heavy=$heavy" in gate_step["run"], (
+        "gate must emit run_heavy from the per-file path check, not a "
+        "name-only run_heavy=false"
+    )
+    assert ".filename" in gate_step["run"], (
+        "gate must list the PR's changed files to enforce the path allow-list"
+    )
     assert "run_heavy=true" in gate_step["run"]
 
 

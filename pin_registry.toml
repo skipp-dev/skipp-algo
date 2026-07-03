@@ -338,6 +338,13 @@ file = "scripts/grafana_alert_rules_upsert.py"
 attr = "run"
 count = 1
 
+# scripts/check_commit_authors.py: reads git log/config to enforce the approved
+# author mandate. Constant `git` argv list, no shell=True, no user input.
+[[subprocess_shell_injection_pin.sites]]
+file = "scripts/check_commit_authors.py"
+attr = "run"
+count = 1
+
 # scripts/publish_overlay_dashboard.py: local macOS Keychain read for Grafana
 # token lookup before authenticated dashboard publish.
 [[subprocess_shell_injection_pin.sites]]

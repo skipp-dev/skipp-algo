@@ -10,7 +10,9 @@ Für jeden offenen PR in skippALGO/skipp-algo — in dieser Reihenfolge abarbeit
 3. **Merge-Konflikte prüfen**: `gh pr view <nr> --json mergeable`
    - Falls CONFLICTING: `git fetch origin && git checkout <branch> && git merge origin/main`, Konflikte lösen, committen, pushen
    - Bei Konflikten in `docs/DECISIONS.md` oder `artifacts/experiments/`: immer `--theirs` (main) nehmen
-4. **Mergen**: `gh pr merge <nr> --squash --admin --delete-branch`
+4. **Mergen**: `gh pr merge <nr> --squash --auto --delete-branch`
+   - Falls `mergeStateStatus == BEHIND`: `gh api repos/skippALGO/skipp-algo/pulls/<nr>/update-branch -X PUT`, dann erneut `--auto` armen
+   - Kein `--admin`: Branch-Protection-Checks dürfen nicht per Bypass umgangen werden
 5. **Nach jedem Merge**: `git checkout main && git pull --ff-only`
 
 Regeln:

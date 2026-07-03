@@ -65,31 +65,86 @@ jobs:
     needs: select-runner
     runs-on: ${{ fromJson(needs.select-runner.outputs.runs_on_json) }}
     timeout-minutes: 35
+    permissions:
+      contents: read
+      pull-requests: read  # list changed files for the bot/* path allow-list
 
     steps:
       # Bot data-only PRs (e.g. `bot/run-open-prep-*`, `bot/outcome-backfill-*`)
-      # only touch `artifacts/open_prep/**` JSON artifacts and never change code,
+      # only touch data/docs/generated artifacts and never change source code,
       # so the heavy SMC integration suite would just burn ~22 min for no signal.
-      # We still keep this job (the ruleset requires `fast-gates` as a status
-      # check) but short-circuit all heavy steps below — the job itself reports
-      # success in seconds, unblocking auto-merge.
+      # We keep this job (the ruleset requires `fast-gates` as a status check)
+      # but short-circuit the heavy steps for such PRs.
+      #
+      # Audit P2 HIGH: skipping on branch NAME alone let arbitrary code ride a
+      # `bot/*` branch to main untested. We now verify the *changed paths*: heavy
+      # gates are skipped ONLY when every changed file is a data/docs/generated
+      # artifact. Any source path (*.py, scripts/, services/, .github/, …) forces
+      # heavy gates. Fail closed (run heavy) on any error listing the diff.
       - name: Determine if heavy gates should run
         id: gate
         env:
           # env-indirection instead of direct ${{ }} interpolation in run: block
           # — hardens against script-injection via branch names (Audit M-1).
           HEAD_REF: ${{ github.head_ref }}
+          EVENT_NAME: ${{ github.event_name }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          REPO: ${{ github.repository }}
+          GH_TOKEN: ${{ github.token }}
         run: |
-          if [[ "${{ github.event_name }}" == "pull_request" && "$HEAD_REF" == bot/* ]]; then
-            echo "Bot data-only PR detected (head=$HEAD_REF); skipping heavy fast-gates."
-            echo "run_heavy=false" >> "$GITHUB_OUTPUT"
-          else
+          if [[ "$EVENT_NAME" != "pull_request" || "$HEAD_REF" != bot/* ]]; then
             echo "run_heavy=true" >> "$GITHUB_OUTPUT"
+            exit 0
           fi
+          # bot/* PR — inspect the changed paths.
+          if ! files=$(gh api "repos/${REPO}/pulls/${PR_NUMBER}/files" --paginate --jq '.[].filename' 2>/dev/null); then
+            echo "Could not list PR files — running heavy gates (fail-closed)."
+            echo "run_heavy=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          if [[ -z "$files" ]]; then
+            echo "Empty PR file list — running heavy gates (fail-closed)."
+            echo "run_heavy=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          heavy=false
+          while IFS= read -r f; do
+            [[ -z "$f" ]] && continue
+            case "$f" in
+              # Data/docs/generated artifacts the bot workflows legitimately
+              # produce. Pine is published to TradingView, never executed by CI
+              # or the Python services, so *.pine / pine/generated are safe here.
+              artifacts/*|docs/*|reports/*|pine/generated/*|*.pine) ;;
+              *)
+                heavy=true
+                echo "non-data path on bot/* PR forces heavy gates: $f"
+                ;;
+            esac
+          done <<< "$files"
+          if [[ "$heavy" == "true" ]]; then
+            echo "Bot PR ($HEAD_REF) touches source paths — running heavy gates."
+          else
+            echo "Bot data-only PR ($HEAD_REF); skipping heavy fast-gates."
+          fi
+          echo "run_heavy=$heavy" >> "$GITHUB_OUTPUT"
 
       - name: Checkout
         if: steps.gate.outputs.run_heavy == 'true'
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+
+      # Audit P2 MED: enforce the single-maintainer authorship mandate. Every
+      # commit in the PR range must be authored AND committed by an approved
+      # identity (see scripts/check_commit_authors.py + .mailmap); catches an
+      # accidental corporate-config (spreuss_cisco) commit that would otherwise
+      # merge unnoticed.
+      - name: Enforce approved commit authors
+        if: steps.gate.outputs.run_heavy == 'true' && github.event_name == 'pull_request'
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          git fetch --depth=500 origin "$BASE_SHA" "$HEAD_SHA" 2>/dev/null || true
+          python scripts/check_commit_authors.py --range "${BASE_SHA}..${HEAD_SHA}"
 
       - name: Announce selected runner
         if: steps.gate.outputs.run_heavy == 'true'

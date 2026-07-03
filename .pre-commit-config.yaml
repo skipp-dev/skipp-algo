@@ -58,3 +58,14 @@ repos:
         language: python
         pass_filenames: false
         stages: [pre-commit]
+
+      # Authorship-mandate guard (audit P2 MED): reject a commit made under a
+      # non-approved git user.email (e.g. a corporate EMU / spreuss_cisco
+      # config) before it is created. The PR-range equivalent runs in
+      # fast-gates via scripts/check_commit_authors.py --range.
+      - id: approved-commit-author
+        name: approved commit author (no corporate/EMU identity)
+        entry: python scripts/check_commit_authors.py --check-config
+        language: system
+        pass_filenames: false
+        stages: [pre-commit]

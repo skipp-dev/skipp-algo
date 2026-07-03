@@ -140,6 +140,7 @@ _FROZEN_SITES: dict[str, int] = {
     # 2026-06-16 (PR #2799): S607 suppressed — git is the only subprocess
     # call; the path is intentionally partial (PATH-resolved).
     "scripts/check_branch_safety.py": 1,
+    "scripts/check_commit_authors.py": 1,
     "scripts/execute_ibkr_watchlist.py": 1,
     "scripts/export_open_prep_lists.py": 2,
     "scripts/export_open_prep_reports.py": 2,
