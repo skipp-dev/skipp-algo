@@ -884,6 +884,29 @@ def _process_parsed_feed(
     return items
 
 
+def _rss_http_get(feed_url: str, *, timeout: int) -> bytes:
+    """Fetch raw RSS bytes over HTTP with an enforced network timeout.
+
+    ``feedparser.parse()`` (feedparser 6.x) has NO network-timeout parameter:
+    passing ``timeout=`` raises ``TypeError: parse() got an unexpected keyword
+    argument 'timeout'``, which — caught by the broad retry guard below — made
+    every Benzinga RSS fetch fail silently and return no items. Fetch the bytes
+    ourselves (httpx supports timeouts) and hand feedparser inert content so it
+    never touches the network.
+    """
+    response = httpx.get(
+        feed_url,
+        headers={
+            "User-Agent": _RSS_USER_AGENT,
+            "Accept": "application/rss+xml, application/xml, */*",
+        },
+        timeout=timeout,
+        follow_redirects=True,
+    )
+    response.raise_for_status()
+    return response.content
+
+
 def _fetch_single_feed(
     feed_url: str,
     *,
@@ -898,13 +921,8 @@ def _fetch_single_feed(
     """
     for attempt in range(max_attempts):
         try:
-            parsed = feedparser.parse(
-                feed_url,
-                agent=_RSS_USER_AGENT,
-                request_headers={"Accept": "application/rss+xml, application/xml, */*"},
-                timeout=timeout,
-            )
-            return parsed
+            content = _rss_http_get(feed_url, timeout=timeout)
+            return feedparser.parse(content)
         except _RSS_RETRYABLE_EXCEPTIONS as exc:
             if attempt < max_attempts - 1:
                 wait = 2 ** attempt

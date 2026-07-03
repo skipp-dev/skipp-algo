@@ -145,9 +145,11 @@ _FROZEN_SITES: frozenset[tuple[str, int]] = frozenset(
         # (198→199, 209→210 after RSS improvements).
         # 2026-06-24 feat/benzinga-rss-improvements: added retry sleep in
         # parallel fetch worker (line 901 after thread-safety follow-up).
+        # 2026-07-03: shifted 919 -> 937 by the new _rss_http_get() helper
+        # (feedparser.parse has no timeout kwarg; fetch bytes via httpx first).
         ("newsstack_fmp/ingest_benzinga.py", 200),
         ("newsstack_fmp/ingest_benzinga.py", 211),
-        ("newsstack_fmp/ingest_benzinga.py", 919),
+        ("newsstack_fmp/ingest_benzinga.py", 937),
     }
 )
 
