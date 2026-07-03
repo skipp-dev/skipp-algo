@@ -285,6 +285,15 @@ def test_expected_cumulative_volume_fraction_after_close_returns_one(
     assert _expected_cumulative_volume_fraction() == pytest.approx(1.0)
 
 
+def test_expected_cumulative_volume_fraction_early_close_after_13_et_returns_one(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    # 2026-11-27 is Friday after Thanksgiving (NYSE early close at 13:00 ET).
+    # 19:00 UTC = 14:00 ET, i.e. already after regular-session close.
+    _patch_now_to(monkeypatch, datetime(2026, 11, 27, 19, 0, tzinfo=UTC))
+    assert _expected_cumulative_volume_fraction() == pytest.approx(1.0)
+
+
 # ---------------------------------------------------------------------------
 # Misc small helpers
 # ---------------------------------------------------------------------------
