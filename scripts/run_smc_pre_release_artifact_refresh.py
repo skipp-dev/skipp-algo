@@ -380,8 +380,19 @@ def main() -> int:
     #   against artifact smc_deeper_refresh_report.json from run
     #   25271677690 (12 symbols × 4 intraday TFs = 48 inner failures,
     #   all carrying this exact error prefix).
+    # * (``BUILD_SYMBOL_ARTIFACT_FAILED``, "neither export bundle root nor
+    #   workbook is available") — since #3128 untracked the daily production
+    #   workbook (databento_volatility_production_*.xlsx), an input-less
+    #   runner (deeper-gates push / schedule) no longer even has the daily
+    #   fallback, so the producer now raises this message for 1D as well as
+    #   intraday instead of "workbook fallback is only supported for 1d".
+    #   This is the same missing-input condition and must soft-skip, not
+    #   hard-fail. Verified against smc_deeper_refresh_report.json from run
+    #   28644199154 (REFRESH_MANIFEST_ERRORS + REFRESH_INCOMPLETE_REFERENCE_SET,
+    #   12 inner failures each, all carrying this prefix).
     _MISSING_INPUT_INNER_PATTERNS: tuple[tuple[str, str], ...] = (
         ("BUILD_SYMBOL_ARTIFACT_FAILED", "workbook fallback is only supported for 1d"),
+        ("BUILD_SYMBOL_ARTIFACT_FAILED", "neither export bundle root nor workbook is available"),
     )
 
     def _inner_indicates_missing_input(inner: dict[str, Any]) -> bool:
