@@ -102,7 +102,10 @@ class TestLiveOverlayCollectProcessMetrics:
 
 def _free_port() -> int:
     with socket.socket() as s:
-        s.bind(("127.0.0.1", 0))
+        try:
+            s.bind(("127.0.0.1", 0))
+        except PermissionError:
+            pytest.skip("socket bind is not permitted in this test environment")
         return s.getsockname()[1]
 
 
