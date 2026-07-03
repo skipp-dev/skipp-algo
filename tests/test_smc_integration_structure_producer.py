@@ -8,13 +8,14 @@ from scripts.export_smc_structure_artifact import (
     export_structure_artifact,
 )
 from smc_core.schema_version import SCHEMA_VERSION
+from tests.helpers.smc_test_artifacts import make_minimal_workbook
 
 ROOT = Path(__file__).resolve().parents[1]
-WORKBOOK_PATH = ROOT / "databento_volatility_production_20260307_114724.xlsx"
 
 
-def test_structure_producer_emits_honest_structure_payload() -> None:
-    payload = build_structure_artifact_payload(workbook=WORKBOOK_PATH, generated_at=1709253600.0)
+def test_structure_producer_emits_honest_structure_payload(tmp_path: Path) -> None:
+    workbook = make_minimal_workbook(tmp_path)
+    payload = build_structure_artifact_payload(workbook=workbook, generated_at=1709253600.0)
 
     assert payload["structure_coverage"] in {"full", "partial", "none"}
     assert isinstance(payload["entries"], list)
@@ -49,9 +50,10 @@ def test_structure_producer_emits_honest_structure_payload() -> None:
 
 
 def test_structure_producer_can_write_json_artifact(tmp_path: Path) -> None:
+    workbook = make_minimal_workbook(tmp_path)
     output = tmp_path / "smc_structure_artifact.json"
     written = export_structure_artifact(
-        workbook=WORKBOOK_PATH,
+        workbook=workbook,
         output=output,
         generated_at=1709253600.0,
     )
@@ -62,9 +64,10 @@ def test_structure_producer_can_write_json_artifact(tmp_path: Path) -> None:
     assert payload["source"]["sheet"] == "daily_bars"
 
 
-def test_structure_producer_records_selected_profile() -> None:
+def test_structure_producer_records_selected_profile(tmp_path: Path) -> None:
+    workbook = make_minimal_workbook(tmp_path)
     payload = build_structure_artifact_payload(
-        workbook=WORKBOOK_PATH,
+        workbook=workbook,
         generated_at=1709253600.0,
         structure_profile="conservative",
     )

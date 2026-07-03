@@ -11,15 +11,17 @@ from smc_core.schema_version import SCHEMA_VERSION
 from smc_integration import artifact_resolution
 from smc_integration.sources import structure_artifact_json
 from smc_integration.structure_batch import write_structure_artifacts_from_workbook
+from tests.helpers.smc_test_artifacts import make_minimal_workbook
 
 ROOT = Path(__file__).resolve().parents[1]
 WORKBOOK_PATH = ROOT / "databento_volatility_production_20260307_114724.xlsx"
 
 
 def test_structure_artifact_provider_loads_explicit_structure(monkeypatch, tmp_path: Path) -> None:
+    workbook = make_minimal_workbook(tmp_path)
     artifact_path = tmp_path / "smc_structure_artifact.json"
     export_structure_artifact(
-        workbook=WORKBOOK_PATH,
+        workbook=workbook,
         output=artifact_path,
         generated_at=1709253600.0,
     )
@@ -46,11 +48,12 @@ def test_structure_artifact_provider_has_no_meta_domain() -> None:
 
 
 def test_structure_artifact_provider_resolves_manifest_artifact(monkeypatch, tmp_path: Path) -> None:
+    workbook = make_minimal_workbook(tmp_path)
     artifact_dir = tmp_path / "reports" / "smc_structure_artifacts"
     artifact_dir.mkdir(parents=True, exist_ok=True)
 
     manifest = write_structure_artifacts_from_workbook(
-        workbook=WORKBOOK_PATH,
+        workbook=workbook,
         timeframe="1D",
         symbols=["AAPL"],
         output_dir=artifact_dir,
