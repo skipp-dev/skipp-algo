@@ -117,7 +117,7 @@ def test_detect_mitigation(detector: SmcSignalDetector) -> None:
     signals = detector.process_candle(c3)
 
     # OB created at bar 2, top=103, bottom=98
-    ob = [s.box for s in signals if s.box_type == BoxType.ORDER_BLOCK][0]
+    ob = next(s.box for s in signals if s.box_type == BoxType.ORDER_BLOCK)
     assert not ob.is_mitigated
 
     # Move price above top
@@ -171,7 +171,6 @@ def test_get_structures_by_type(detector: SmcSignalDetector) -> None:
     detector.process_candle(c3)
 
     obs = detector.get_structures_by_type(BoxType.ORDER_BLOCK)
-    fvgs = detector.get_structures_by_type(BoxType.FAIR_VALUE_GAP)
     assert len(obs) > 0
     # FVG might not trigger depending on exact values
 

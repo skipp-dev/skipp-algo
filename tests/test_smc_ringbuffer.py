@@ -11,7 +11,6 @@ Validates:
 from __future__ import annotations
 
 import math
-import pytest
 
 from services.live_overlay_daemon.smc_ringbuffer import (
     BoxType,
@@ -19,20 +18,14 @@ from services.live_overlay_daemon.smc_ringbuffer import (
     RingBuffer,
     SmcBox,
     SmcBoxManager,
-    is_down,
-    is_fvg_down,
     is_fvg_up,
-    is_ob_down,
     is_ob_up,
     is_rjb_down,
-    is_rjb_up,
     is_up,
-    make_fvg_down,
     make_fvg_up,
     make_ob_down,
     make_ob_up,
     make_rjb_down,
-    make_rjb_up,
 )
 
 
@@ -282,13 +275,13 @@ class TestPredicateFunctions:
     """Test candle pattern detection guards."""
 
     def test_is_up_valid(self) -> None:
-        assert is_up(close=105.0, open=100.0)
-        assert not is_up(close=95.0, open=100.0)
-        assert not is_up(close=100.0, open=100.0)  # Doji
+        assert is_up(close=105.0, open_=100.0)
+        assert not is_up(close=95.0, open_=100.0)
+        assert not is_up(close=100.0, open_=100.0)  # Doji
 
     def test_is_up_guards_nan(self) -> None:
-        assert not is_up(close=math.nan, open=100.0)
-        assert not is_up(close=105.0, open=math.nan)
+        assert not is_up(close=math.nan, open_=100.0)
+        assert not is_up(close=105.0, open_=math.nan)
 
     def test_is_ob_up(self) -> None:
         """Bullish OB: trapped bear, then bullish close above resistance."""

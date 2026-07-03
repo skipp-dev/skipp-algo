@@ -8,10 +8,8 @@ Pattern: OHLC candle stream → detected structures → signal webhook/API.
 
 from __future__ import annotations
 
-import dataclasses
 import logging
 from dataclasses import dataclass
-from typing import Optional
 
 from services.live_overlay_daemon.smc_ringbuffer import (
     BoxType,
@@ -138,7 +136,7 @@ class SmcSignalDetector:
             box = make_ob_up(t.bar_index, t2.high, t1.low, t2.low)
             evicted = self.box_manager.add_box(box)
             if evicted:
-                logger.debug(f"Evicted old OB+ from bar {evicted.created_at}")
+                logger.debug("Evicted old OB+ from bar %s", evicted.created_at)
             self.signals.append(
                 SignalEvent(
                     bar_index=t.bar_index,
@@ -158,7 +156,7 @@ class SmcSignalDetector:
             box = make_ob_down(t.bar_index, t1.high, t2.high, t2.low)
             evicted = self.box_manager.add_box(box)
             if evicted:
-                logger.debug(f"Evicted old OB- from bar {evicted.created_at}")
+                logger.debug("Evicted old OB- from bar %s", evicted.created_at)
             self.signals.append(
                 SignalEvent(
                     bar_index=t.bar_index,
@@ -176,7 +174,7 @@ class SmcSignalDetector:
             box = make_fvg_up(t.bar_index, t.low, t2.high)
             evicted = self.box_manager.add_box(box)
             if evicted:
-                logger.debug(f"Evicted old FVG+ from bar {evicted.created_at}")
+                logger.debug("Evicted old FVG+ from bar %s", evicted.created_at)
             self.signals.append(
                 SignalEvent(
                     bar_index=t.bar_index,
@@ -192,7 +190,7 @@ class SmcSignalDetector:
             box = make_fvg_down(t.bar_index, t.high, t2.low)
             evicted = self.box_manager.add_box(box)
             if evicted:
-                logger.debug(f"Evicted old FVG- from bar {evicted.created_at}")
+                logger.debug("Evicted old FVG- from bar %s", evicted.created_at)
             self.signals.append(
                 SignalEvent(
                     bar_index=t.bar_index,
@@ -210,7 +208,7 @@ class SmcSignalDetector:
             box = make_rjb_down(t.bar_index, t2.high, t2.close)
             evicted = self.box_manager.add_box(box)
             if evicted:
-                logger.debug(f"Evicted old RJB- from bar {evicted.created_at}")
+                logger.debug("Evicted old RJB- from bar %s", evicted.created_at)
             self.signals.append(
                 SignalEvent(
                     bar_index=t.bar_index,
@@ -226,7 +224,7 @@ class SmcSignalDetector:
             box = make_rjb_up(t.bar_index, t2.close, t2.low)
             evicted = self.box_manager.add_box(box)
             if evicted:
-                logger.debug(f"Evicted old RJB+ from bar {evicted.created_at}")
+                logger.debug("Evicted old RJB+ from bar %s", evicted.created_at)
             self.signals.append(
                 SignalEvent(
                     bar_index=t.bar_index,
