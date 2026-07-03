@@ -26,9 +26,9 @@ on:
         type: boolean
         default: true
       allow_create:
-        description: "Allow creating the TradingView script if it does not exist yet (first publish)."
+        description: "Allow creating the TradingView script if it does not exist yet (first publish only; default false to avoid duplicate-script creation)."
         type: boolean
-        default: true
+        default: false
 
 permissions:
   contents: read
