@@ -239,7 +239,10 @@ codes = ["E402", "I001"]
 # openprep-pine-panel-publish.yml (2026-07-04, plan B2): dispatch-only
 # TradingView publisher for the generated Open-Prep panel; no PR-triggered
 # test contract (mirrors the manual smc-overlay publish posture).
-allowed = ["github-mirror-sync.yml", "sync-tradingview-pine-libraries.yml", "openprep-pine-panel-publish.yml"]
+# openprep-pine-panel-daily-trigger.yml (2026-07-04, post-first-publish):
+# workflow_run bridge that dispatches the publisher after successful daily
+# producer schedule runs on main; intentionally contract-light/orphan.
+allowed = ["github-mirror-sync.yml", "sync-tradingview-pine-libraries.yml", "openprep-pine-panel-publish.yml", "openprep-pine-panel-daily-trigger.yml"]
 
 # ---------------------------------------------------------------------------
 # test_workflow_set_plus_e_inventory.py — workflows allowed to use
