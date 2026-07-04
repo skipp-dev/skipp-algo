@@ -15,10 +15,14 @@ concurrency:
   group: sync-pine-libraries
   cancel-in-progress: false
 
+env:
+  PYTHONPATH: ${{ github.workspace }}
+  PYTHONUNBUFFERED: "1"
+
 jobs:
   sync:
     name: Sync SMC Libraries
-    runs-on: ubuntu-latest
+    runs-on: ${{ vars.SMC_GH_HOSTED_RUNNER || 'ubuntu-latest' }}
     timeout-minutes: 20
     permissions:
       contents: write
@@ -192,8 +196,10 @@ jobs:
 
   notify:
     name: Notify if stale
-    runs-on: ubuntu-latest
+    runs-on: ${{ vars.SMC_GH_HOSTED_RUNNER || 'ubuntu-latest' }}
     timeout-minutes: 5
+    permissions:
+      contents: read
     if: always()
     needs: sync
 
