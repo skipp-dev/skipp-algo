@@ -119,8 +119,10 @@ _FROZEN_SITES: frozenset[tuple[str, int]] = frozenset(
         # 2026-07-02: SSRF path/query hardening shifted 489/499 -> 525/535.
         # 2026-07-02: target-host canonicalization + invalid-target guard
         # shifted webhook retry sleeps 527/537 -> 546/556.
-        ("open_prep/alerts.py", 546),
-        ("open_prep/alerts.py", 556),
+        # 2026-07-04 (Workstream C): weather line + alert_weather_change added
+        # above shifted the retry-backoff sleeps 546->595, 556->605.
+        ("open_prep/alerts.py", 595),
+        ("open_prep/alerts.py", 605),
         ("open_prep/error_taxonomy.py", 117),
         # 2026-06-28 (semantic monitoring): all realtime_signals sleep sites
         # shifted +20/+20/+72/+80/+80 lines by readiness metrics.
