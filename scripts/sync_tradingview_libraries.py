@@ -28,6 +28,13 @@ TRADINGVIEW_LIBRARIES = {
         "local_path": "pine/generated/smc_overlay_generated.pine",
         "critical": False,
     },
+    "smc_micro_profiles_generated": {
+        "user": "preuss_steffen",
+        "lib": "smc_micro_profiles_generated",
+        "version": "1",
+        "local_path": "pine/generated/smc_micro_profiles_generated.pine",
+        "critical": False,
+    },
     "smc_profile_engine": {
         "user": "preuss_steffen",
         "lib": "smc_profile_engine",
@@ -90,7 +97,7 @@ def compare_files(local_path: Path, new_content: str) -> bool:
     """Return True if content differs from local file."""
     if not local_path.exists():
         return True  # New file
-    return local_path.read_text() != new_content
+    return local_path.read_text(encoding="utf-8") != new_content
 
 
 def update_library_versions_toml(
@@ -106,7 +113,7 @@ def update_library_versions_toml(
         logger.warning(f"{toml_path} does not exist, skipping version update")
         return
 
-    content = toml_path.read_text()
+    content = toml_path.read_text(encoding="utf-8")
 
     # Update or add library entry
     # This is a simplified regex replacement; a proper TOML parser would be better
@@ -121,7 +128,7 @@ def update_library_versions_toml(
 
     if updated_content != content:
         if not dry_run:
-            toml_path.write_text(updated_content)  # ATOMIC-WRITE-EXEMPT: local pine-sync metadata write, not a concurrently-read surface
+            toml_path.write_text(updated_content, encoding="utf-8")  # ATOMIC-WRITE-EXEMPT: local pine-sync metadata write, not a concurrently-read surface
             logger.info(f"Updated version metadata for {lib_name}")
         else:
             logger.info(f"[DRY-RUN] Would update version metadata for {lib_name}")
@@ -157,7 +164,15 @@ def sync_library(
     # Fetch source from TradingView
     source = fetch_library_source(config["user"], config["lib"], config["version"])
     if source is None:
-        logger.error(f"Failed to fetch {lib_name}")
+        # Fetching is delegated to scripts/tv_fetch_smc_libraries.ts; this
+        # script only validates the already-fetched local copy.
+        if not local_path.exists():
+            logger.error(f"{lib_name}: local copy missing at {local_path}")
+            return False
+        if not validate_pine_syntax(local_path.read_text(encoding="utf-8"), lib_name):
+            logger.error(f"{lib_name}: local copy failed syntax validation")
+            return False
+        logger.info(f"{lib_name}: local copy validated (fetch handled by tv_fetch_smc_libraries.ts)")
         return False
 
     # Validate syntax
@@ -172,7 +187,7 @@ def sync_library(
 
     # Write to disk
     if not dry_run:
-        local_path.write_text(source)  # ATOMIC-WRITE-EXEMPT: local pine-sync library write, not a concurrently-read surface
+        local_path.write_text(source, encoding="utf-8")  # ATOMIC-WRITE-EXEMPT: local pine-sync library write, not a concurrently-read surface
         logger.info(f"Updated {local_path}")
     else:
         logger.info(f"[DRY-RUN] Would update {local_path}")
@@ -191,8 +206,11 @@ def validate_imports(root: Path = Path(".")) -> bool:
     """
     errors = []
 
-    for pine_file in root.glob("*.pine"):
-        content = pine_file.read_text()
+    skip_dirs = {"node_modules", ".git"}
+    for pine_file in sorted(root.rglob("*.pine")):
+        if any(part in skip_dirs or part.startswith(".") for part in pine_file.parts):
+            continue
+        content = pine_file.read_text(encoding="utf-8")
         imports = re.findall(r'import\s+(\S+)\s+as\s+(\w+)', content)
 
         for lib_path, alias in imports:

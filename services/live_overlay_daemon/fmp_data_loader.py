@@ -14,6 +14,7 @@ from __future__ import annotations
 
 import json
 import logging
+import math
 import os
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
@@ -167,20 +168,31 @@ class FMPDataLoader:
             by_ts = {row.get("date"): row for row in raw_rows if row.get("date")}
             ordered = [by_ts[ts] for ts in sorted(by_ts)]
 
-            # Convert FMP format to backtest format
+            # Convert FMP format to backtest format. Skip rows with
+            # missing / non-finite OHLC so NaN/inf never reaches the
+            # ATR calculation or the backtester.
             candles = []
-            for i, candle in enumerate(ordered):
-                parsed = {
-                    "bar_index": i,
+            for candle in ordered:
+                try:
+                    o = float(candle.get("open", 0))
+                    h = float(candle.get("high", 0))
+                    lo = float(candle.get("low", 0))
+                    c = float(candle.get("close", 0))
+                    vol = int(candle.get("volume", 0) or 0)
+                except (TypeError, ValueError):
+                    continue
+                if not all(math.isfinite(v) for v in (o, h, lo, c)):
+                    continue
+                candles.append({
+                    "bar_index": len(candles),
                     "timestamp": candle.get("date"),
-                    "open": float(candle.get("open", 0)),
-                    "high": float(candle.get("high", 0)),
-                    "low": float(candle.get("low", 0)),
-                    "close": float(candle.get("close", 0)),
-                    "volume": int(candle.get("volume", 0)),
+                    "open": o,
+                    "high": h,
+                    "low": lo,
+                    "close": c,
+                    "volume": vol,
                     "atr": None,  # Will calculate
-                }
-                candles.append(parsed)
+                })
 
             logger.info("[FMP] Loaded %s candles", len(candles))
 
@@ -286,9 +298,25 @@ class FMPDataLoader:
             logger.warning("Could not fetch SOFR/IORB data")
             return {}
 
-        # Create lookup maps
-        sofr_map = {item.get("date"): float(item.get("value", 0)) for item in sofr_data}
-        iorb_map = {item.get("date"): float(item.get("value", 0)) for item in iorb_data}
+        # Create lookup maps; drop missing / non-finite values so a null
+        # or NaN rate never reaches the spread computation.
+        def _finite(raw) -> float | None:
+            try:
+                val = float(raw)
+            except (TypeError, ValueError):
+                return None
+            return val if math.isfinite(val) else None
+
+        sofr_map = {
+            item.get("date"): v
+            for item in sofr_data
+            if item.get("date") and (v := _finite(item.get("value"))) is not None
+        }
+        iorb_map = {
+            item.get("date"): v
+            for item in iorb_data
+            if item.get("date") and (v := _finite(item.get("value"))) is not None
+        }
 
         # Merge by date
         spread_map = {}

@@ -268,6 +268,10 @@ class TargetProjector:
 class StrongImpulseDetector:
     """Complete Strong Impulse Signal system."""
 
+    # Impulses fully transition through their phases within a few bars;
+    # anything older is stale and only leaks memory in the daemon.
+    MAX_IMPULSE_AGE_BARS = 50
+
     def __init__(self, propulsion_threshold: float = 6.0):
         self.propulsion_threshold = propulsion_threshold
         self.ignition_detector = IgnitionCandleDetector()
@@ -275,6 +279,15 @@ class StrongImpulseDetector:
         self.invalidation_calc = InvalidationLevelCalculator()
         self.target_projector = TargetProjector()
         self.active_impulses: dict[int, ImpulseSignal] = {}
+
+    def _prune_stale_impulses(self, bar_index: int) -> None:
+        stale = [
+            pulse_bar
+            for pulse_bar in self.active_impulses
+            if bar_index - pulse_bar > self.MAX_IMPULSE_AGE_BARS
+        ]
+        for pulse_bar in stale:
+            del self.active_impulses[pulse_bar]
 
     def detect_impulse(
         self,
@@ -292,6 +305,8 @@ class StrongImpulseDetector:
 
         Returns: ImpulseSignal if strong impulse detected, else None.
         """
+        self._prune_stale_impulses(bar_index)
+
         # Step 1: Detect ignition candle
         ignition = self.ignition_detector.detect(
             bar_index=bar_index,
@@ -374,6 +389,8 @@ class StrongImpulseDetector:
 
         Returns: List of updated signals.
         """
+        self._prune_stale_impulses(bar_index)
+
         updated_signals = []
 
         for pulse_bar, signal in list(self.active_impulses.items()):

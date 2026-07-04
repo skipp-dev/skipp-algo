@@ -13,6 +13,7 @@ Used by SmcSignalDetector for signal filtering + confluence.
 from __future__ import annotations
 
 import logging
+import math
 from dataclasses import dataclass
 from enum import Enum
 
@@ -305,6 +306,8 @@ class LiquidityClusterDetector:
 
     def _risk_level(self, cluster_price: float, current_price: float) -> str:
         """Classify risk based on distance from current price."""
+        if current_price <= 0 or not math.isfinite(current_price):
+            return "high"  # Degenerate price data: treat as highest risk
         distance_pct = abs(cluster_price - current_price) / current_price
         if distance_pct < 0.01:
             return "high"  # Very close, high risk
@@ -316,8 +319,17 @@ class LiquidityClusterDetector:
 class BrokenFractalDetector:
     """Detect Broken Fractal pattern: Structure → Opposite → Break."""
 
+    # Only the last 3 entries are read; keep a small buffer so the
+    # per-bar history cannot grow without bound in the daemon.
+    MAX_FRACTAL_HISTORY = 64
+
     def __init__(self):
         self.fractal_history: list[dict] = []
+
+    def _record(self, high: float, low: float, close: float) -> None:
+        self.fractal_history.append({"high": high, "low": low, "close": close})
+        if len(self.fractal_history) > self.MAX_FRACTAL_HISTORY:
+            del self.fractal_history[: -self.MAX_FRACTAL_HISTORY]
 
     def detect(
         self,
@@ -340,7 +352,7 @@ class BrokenFractalDetector:
         # This is a basic version; full implementation would track multi-level structures
 
         if len(self.fractal_history) < 3:
-            self.fractal_history.append({"high": high, "low": low, "close": close})
+            self._record(high, low, close)
             return None
 
         # Get last 3 fractal points
@@ -381,7 +393,7 @@ class BrokenFractalDetector:
                 entry_box_bottom=low,
             )
 
-        self.fractal_history.append({"high": high, "low": low, "close": close})
+        self._record(high, low, close)
         return None
 
 

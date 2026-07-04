@@ -56,6 +56,8 @@ _DIR_EXCLUDE = {
 #     (53 → 56, 97 → 100, 133 → 136) due to header edits; count unchanged.
 #   - scripts/phase5_perf_trend.py: FIXED (encoding="utf-8" added, line 163);
 #     entry removed from _FROZEN_SITES.
+#   - scripts/sync_tradingview_libraries.py: FIXED 2026-07-04 (encoding="utf-8"
+#     added to all read_text/write_text sites); entry removed from _FROZEN_SITES.
 _FROZEN_SITES: dict[str, frozenset[int]] = {
     # 2026-06-28 (semantic monitoring): shifted +20 lines by readiness metrics.
     "open_prep/realtime_signals.py": frozenset({206}),
@@ -67,7 +69,6 @@ _FROZEN_SITES: dict[str, frozenset[int]] = {
     # surfaced by a branch-wide ledger run (TOML/Pine round-trips; content
     # is ASCII-safe, encoding default acceptable until a dedicated sweep).
     "scripts/check_pine_library_age.py": frozenset({34}),
-    "scripts/sync_tradingview_libraries.py": frozenset({93, 109, 124, 175, 195}),
 }
 _FROZEN_TOTAL = sum(len(v) for v in _FROZEN_SITES.values())
 

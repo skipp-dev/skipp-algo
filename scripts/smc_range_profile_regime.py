@@ -178,7 +178,9 @@ def _atr(highs: pd.Series, lows: pd.Series, closes: pd.Series) -> float:
         h = float(highs.iloc[i])
         lo = float(lows.iloc[i])
         pc = float(closes.iloc[i - 1])
-        tr_vals.append(max(h - lo, abs(h - pc), abs(lo - pc)))
+        tr = max(h - lo, abs(h - pc), abs(lo - pc))
+        if np.isfinite(tr):
+            tr_vals.append(tr)
     return float(np.mean(tr_vals)) if tr_vals else 0.0
 
 
