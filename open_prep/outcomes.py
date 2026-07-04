@@ -447,6 +447,14 @@ def prepare_outcome_snapshot(
             # eval D5). > 1 ⇒ inverted short-term structure ⇒ imminent
             # event risk priced in. Market-wide (same for all rows).
             "vix9d_vix_ratio": row.get("vix9d_vix_ratio"),
+            # Market-microstructure context (observe-only; regime-study
+            # plan 2026-07): do moves run, do stocks differentiate, how
+            # much lockstep? Market-wide (same for all rows in a run).
+            "market_efficiency_ratio": row.get("market_efficiency_ratio"),
+            "intraday_efficiency_ratio": row.get("intraday_efficiency_ratio"),
+            "cs_dispersion": row.get("cs_dispersion"),
+            "avg_pair_correlation": row.get("avg_pair_correlation"),
+            "market_weather": row.get("market_weather"),
             # Direction-aware labeling inputs (eval-findings B1/B2):
             # ``direction`` signs the PnL during backfill; ``atr_pct``
             # scales the triple-barrier levels; ``playbook`` enables
@@ -500,6 +508,10 @@ FEATURE_KEYS: list[str] = [
     "gap_range_pos",
     "eps_surprise_pct",
     "vix9d_vix_ratio",
+    "market_efficiency_ratio",
+    "intraday_efficiency_ratio",
+    "cs_dispersion",
+    "avg_pair_correlation",
 ]
 
 # Observe-only features: recorded in outcome records + FI samples but
@@ -513,6 +525,10 @@ PASS_THROUGH_FEATURE_KEYS: frozenset[str] = frozenset({
     "gap_range_pos",
     "eps_surprise_pct",
     "vix9d_vix_ratio",
+    "market_efficiency_ratio",
+    "intraday_efficiency_ratio",
+    "cs_dispersion",
+    "avg_pair_correlation",
 })
 
 # G1: Explicit mapping from feature importance keys → scorer weight keys.

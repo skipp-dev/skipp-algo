@@ -49,6 +49,7 @@ from .outcomes import (
     prepare_outcome_snapshot,
     store_daily_outcomes,
 )
+from .market_microstructure import compute_microstructure_snapshot
 from .playbook import assign_playbooks
 from .regime import apply_regime_adjustments, classify_regime, reset_regime_state
 
@@ -5471,6 +5472,22 @@ def generate_open_prep_result(
     except Exception as exc:
         logger.warning("VIX9D fetch failed: %s", type(exc).__name__, exc_info=True)
 
+    # Market-microstructure snapshot (observe-only; regime-study plan
+    # 2026-07): efficiency ratio, cross-sectional dispersion, avg pairwise
+    # correlation + display-only market_weather. Recorded per outcome row
+    # for feature-importance evidence; NOT wired into regime classification
+    # or scoring (see outcomes.PASS_THROUGH_FEATURE_KEYS).
+    micro_snapshot = None
+    try:
+        micro_snapshot = compute_microstructure_snapshot(
+            client=data_client, symbols=symbol_list,
+        )
+        logger.info("Market microstructure: %s", micro_snapshot.to_log_line())
+    except Exception as exc:
+        logger.warning(
+            "Microstructure snapshot failed: %s", type(exc).__name__, exc_info=True
+        )
+
     # Enrich symbol_sectors with profile lookups for symbols missing sector
     # info (typically mover-seeded symbols not from the screener).  Only
     # fetch profiles for symbols that have a gap (likely v2 candidates)
@@ -5763,6 +5780,15 @@ def generate_open_prep_result(
         # VIX term-structure ratio (observe-only; eval-findings D5).
         # Market-wide — identical for every candidate in this run.
         row["vix9d_vix_ratio"] = vix9d_vix_ratio
+
+        # Market-microstructure context (observe-only; regime-study plan
+        # 2026-07). Market-wide — identical for every candidate in this run.
+        if micro_snapshot is not None:
+            row["market_efficiency_ratio"] = micro_snapshot.market_efficiency_ratio
+            row["intraday_efficiency_ratio"] = micro_snapshot.intraday_efficiency_ratio
+            row["cs_dispersion"] = micro_snapshot.cs_dispersion
+            row["avg_pair_correlation"] = micro_snapshot.avg_pair_correlation
+            row["market_weather"] = micro_snapshot.market_weather
 
     # --- Playbook assignment (6-step professional news-trading engine) ---
     playbook_results = assign_playbooks(
