@@ -94,6 +94,7 @@ def test_snapshot_persists_market_weather(monkeypatch, tmp_path) -> None:
     """save_result_snapshot must keep market_weather, else the weather-change
     alert can never fire (prev is always None)."""
     import json as _json
+
     from open_prep import diff as diff_mod
 
     monkeypatch.setattr(diff_mod, "LAST_RESULT_PATH", tmp_path / "last_result.json")
