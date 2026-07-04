@@ -10,6 +10,8 @@ from __future__ import annotations
 
 import math
 
+import pytest
+
 from open_prep import market_microstructure as mm
 
 
@@ -43,6 +45,26 @@ def test_percentile_rank() -> None:
     assert mm._percentile_rank(hist, 0.0) == 0.0
     assert mm._percentile_rank(hist, 5.0) == 100.0
     assert mm._percentile_rank([], 1.0) is None
+
+
+@pytest.mark.parametrize("bad", [float("inf"), float("-inf"), float("nan")])
+def test_percentile_rank_rejects_non_finite_value(bad: float) -> None:
+    assert mm._percentile_rank([1.0, 2.0, 3.0], bad) is None
+
+
+@pytest.mark.parametrize("bad", [float("inf"), float("-inf"), float("nan")])
+def test_weather_summary_line_renders_nonfinite_as_na(bad: float) -> None:
+    line = mm.weather_summary_line(
+        "GREEN",
+        er_intraday=bad,
+        dispersion=bad,
+        correlation=bad,
+    )
+    assert "inf" not in line
+    assert "nan" not in line.casefold()
+    assert "ER n/a" in line
+    assert "Disp n/a" in line
+    assert "Korr n/a" in line
 
 
 def test_sample_symbols_dedups_and_drops_fundish_and_brka() -> None:

@@ -45,6 +45,27 @@ def test_extract_panel_reduces_and_sorts() -> None:
     assert panel["candidates"][1]["rvol"] is None
 
 
+def test_extract_panel_truncates_long_strings() -> None:
+    long_symbol = "A" * 1000
+    long_playbook = "B" * 1000
+    panel = gen.extract_panel(
+        [
+            {
+                "date": "2026-07-04",
+                "symbol": long_symbol,
+                "score": 1.0,
+                "confidence_tier": "STANDARD",
+                "regime": "ROTATION",
+                "market_weather": "GREEN",
+                "playbook_name": long_playbook,
+            }
+        ]
+    )
+    row = panel["candidates"][0]
+    assert len(row["symbol"]) == gen.MAX_SYMBOL_LEN
+    assert len(row["playbook"]) == gen.MAX_NAME_LEN
+
+
 def test_extract_panel_empty() -> None:
     panel = gen.extract_panel([])
     assert panel["candidates"] == []
@@ -87,6 +108,19 @@ def test_build_pine_structure_and_freshness() -> None:
     # Emoji weather badge is a literal char, not a surrogate escape.
     assert "\\ud83d" not in pine
     assert "\U0001F7E2" in pine
+
+
+@pytest.mark.parametrize(
+    ("raw", "expected"),
+    [
+        ("2025-07-03", (2025, 7, 3)),
+        ("2025-07-03T12:00:00Z", (2025, 7, 3)),
+        ("2025-99-99", (0, 0, 0)),
+        ("garbage", (0, 0, 0)),
+    ],
+)
+def test_parse_date_ymd(raw: str, expected: tuple[int, int, int]) -> None:
+    assert gen._parse_date_ymd(raw) == expected
 
 
 def test_build_pine_empty_is_valid_stub() -> None:

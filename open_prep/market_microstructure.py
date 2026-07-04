@@ -30,6 +30,7 @@ Thresholds are fixed-but-arbitrary and not validated.
 from __future__ import annotations
 
 import logging
+import math
 import statistics
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass, field
@@ -91,7 +92,9 @@ def weather_summary_line(
     )
 
     def _f(value: float | None, suffix: str = "") -> str:
-        return "n/a" if value is None else f"{value:.2f}{suffix}"
+        if value is None or not math.isfinite(value):
+            return "n/a"
+        return f"{value:.2f}{suffix}"
 
     metrics = f"ER {_f(er_intraday)}, Disp {_f(dispersion, '%')}, Korr {_f(correlation)}"
     return f"{emoji} {label} — {phrase} ({metrics})"
@@ -172,10 +175,13 @@ def _kaufman_er(closes: list[float], window: int) -> float | None:
 
 def _percentile_rank(history: list[float], value: float) -> float | None:
     """Share of trailing values strictly below ``value`` (0..100)."""
-    if not history:
+    if not history or not math.isfinite(value):
         return None
-    below = sum(1 for h in history if h < value)
-    return 100.0 * below / len(history)
+    finite_history = [h for h in history if math.isfinite(h)]
+    if not finite_history:
+        return None
+    below = sum(1 for h in finite_history if h < value)
+    return 100.0 * below / len(finite_history)
 
 
 def _sample_symbols(symbols: list[str], limit: int) -> list[str]:
@@ -411,7 +417,9 @@ def compute_microstructure_snapshot(
         )
 
     def _round(v: float | None, nd: int = 4) -> float | None:
-        return round(v, nd) if v is not None else None
+        if v is None or not math.isfinite(v):
+            return None
+        return round(v, nd)
 
     return MicrostructureSnapshot(
         market_efficiency_ratio=_round(todays["er"]),
