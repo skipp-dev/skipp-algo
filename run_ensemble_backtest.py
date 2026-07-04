@@ -14,7 +14,7 @@ import json
 import logging
 import os
 import sys
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Optional
 
@@ -73,8 +73,8 @@ def run_backtest(
         print("   Set FMP_API_KEY environment variable")
         sys.exit(1)
 
-    end_date = datetime.now().strftime("%Y-%m-%d")
-    start_date = (datetime.now() - timedelta(days=days)).strftime("%Y-%m-%d")
+    end_date = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+    start_date = (datetime.now(timezone.utc) - timedelta(days=days)).strftime("%Y-%m-%d")
 
     print(f"    Symbol: {symbol}")
     print(f"    Period: {start_date} to {end_date}")
@@ -105,7 +105,7 @@ def run_backtest(
         macro_candles = loader.map_macro_to_candles(candles, sofr_iorb_map)
         print(f"✅ Mapped to {len(macro_candles)} candles with macro data")
     except Exception as e:
-        logger.warning(f"Could not load macro data: {e}")
+        logger.warning("Could not load macro data: %s", e)
         macro_candles = {}
         sofr_iorb_map = {}
         print(f"⚠️  Proceeding without macro data")
@@ -139,6 +139,8 @@ def run_backtest(
     print(f"\n[4/5] Exporting results...")
 
     # Save metrics
+    # ATOMIC-WRITE-EXEMPT: standalone backtest CLI writing local result files
+    # to an operator-chosen output dir; not a concurrently-read production surface.
     metrics_file = Path(output_dir) / f"{symbol}_{timeframe}_metrics.json"
     with open(metrics_file, "w", encoding="utf-8") as f:
         json.dump(metrics.to_dict(), f, indent=2)
@@ -150,6 +152,8 @@ def run_backtest(
     print(f"   Trades: {trades_file}")
 
     # Save report
+    # ATOMIC-WRITE-EXEMPT: standalone backtest CLI writing a local report file
+    # to an operator-chosen output dir; not a concurrently-read production surface.
     report_file = Path(output_dir) / f"{symbol}_{timeframe}_report.txt"
     with open(report_file, "w", encoding="utf-8") as f:
         f.write(bt.print_report(metrics))

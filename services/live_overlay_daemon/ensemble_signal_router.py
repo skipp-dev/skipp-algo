@@ -144,8 +144,11 @@ class EnsembleSignalRouter:
                 volatility_suppressed = True
                 atr_str = f"{atr_ratio:.2f}" if atr_ratio else "N/A"
                 logger.debug(
-                    f"[Ensemble] Volatility filter suppressed signal @ {bar_index}: "
-                    f"{reason}, ATR_Ratio={atr_str}"
+                    "[Ensemble] Volatility filter suppressed signal @ %s: "
+                    "%s, ATR_Ratio=%s",
+                    bar_index,
+                    reason,
+                    atr_str,
                 )
                 return None
 
@@ -156,8 +159,10 @@ class EnsembleSignalRouter:
         # Check if macro stress should suppress signals
         if self.macro_filter.should_suppress_signals():
             logger.debug(
-                f"[Ensemble] Macro stress active: {self.macro_filter.regime.regime}, "
-                f"spread={self.macro_filter.sofr_iorb_spread_bp:.1f}bp"
+                "[Ensemble] Macro stress active: %s, "
+                "spread=%.1fbp",
+                self.macro_filter.regime.regime,
+                self.macro_filter.sofr_iorb_spread_bp,
             )
             # Suppress but continue to monitor
             confidence_multiplier = self.macro_filter.get_confidence_multiplier()
@@ -224,8 +229,12 @@ class EnsembleSignalRouter:
             self.latest_ensemble_signal = final_signal
             self.signal_history.append(final_signal)
             logger.info(
-                f"[Ensemble] SIGNAL {final_signal.direction.upper()} @ {bar_index}: "
-                f"sources={final_signal.sources_count}, confidence={final_signal.confidence:.2f}"
+                "[Ensemble] SIGNAL %s @ %s: "
+                "sources=%s, confidence=%.2f",
+                final_signal.direction.upper(),
+                bar_index,
+                final_signal.sources_count,
+                final_signal.confidence,
             )
 
         return final_signal
@@ -275,8 +284,11 @@ class EnsembleSignalRouter:
         if long_votes and short_votes:
             # Conflict: systems disagree
             logger.warning(
-                f"[Ensemble] CONFLICT at {bar_index}: {len(long_votes)} longs, "
-                f"{len(short_votes)} shorts. SUPPRESSING."
+                "[Ensemble] CONFLICT at %s: %s longs, "
+                "%s shorts. SUPPRESSING.",
+                bar_index,
+                len(long_votes),
+                len(short_votes),
             )
             return None
 
@@ -301,8 +313,11 @@ class EnsembleSignalRouter:
         # Require minimum sources for entry
         if len(votes) < self.minimum_sources:
             logger.debug(
-                f"[Ensemble] Signal suppressed at {bar_index}: "
-                f"{len(votes)} source(s) < {self.minimum_sources} required"
+                "[Ensemble] Signal suppressed at %s: "
+                "%s source(s) < %s required",
+                bar_index,
+                len(votes),
+                self.minimum_sources,
             )
             return None
 

@@ -143,7 +143,7 @@ class IgnitionCandleDetector:
         if not all_criteria_met:
             return None
 
-        logger.debug(f"[Impulse] Ignition candle {direction} at {bar_index}")
+        logger.debug("[Impulse] Ignition candle %s at %s", direction, bar_index)
 
         return IgnitionCandle(
             bar_index=bar_index,
@@ -308,7 +308,7 @@ class StrongImpulseDetector:
         if not ignition:
             return None
 
-        logger.debug(f"[Impulse] Ignition detected {ignition.direction} at {bar_index}")
+        logger.debug("[Impulse] Ignition detected %s at %s", ignition.direction, bar_index)
 
         # Step 2: Calculate propulsion strength
         direction = "long" if ignition.direction == "bullish" else "short"
@@ -321,13 +321,15 @@ class StrongImpulseDetector:
 
         if not propulsion.is_strong_impulse(threshold=self.propulsion_threshold):
             logger.debug(
-                f"[Impulse] Weak propulsion: {propulsion.total_strength:.1f}/10"
+                "[Impulse] Weak propulsion: %.1f/10", propulsion.total_strength
             )
             return None
 
         logger.info(
-            f"[Impulse] STRONG IMPULSE {direction} at {bar_index}: "
-            f"propulsion={propulsion.total_strength:.1f}/10"
+            "[Impulse] STRONG IMPULSE %s at %s: propulsion=%.1f/10",
+            direction,
+            bar_index,
+            propulsion.total_strength,
         )
 
         # Step 3: Calculate invalidation level

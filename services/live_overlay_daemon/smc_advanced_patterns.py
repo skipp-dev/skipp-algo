@@ -352,7 +352,7 @@ class BrokenFractalDetector:
 
         # Check if we broke the initial high (bullish fractal break)
         if high > last_high:
-            logger.debug(f"[BF] Broken Fractal UP at {bar_index}: {high} > {last_high}")
+            logger.debug("[BF] Broken Fractal UP at %s: %s > %s", bar_index, high, last_high)
             return BrokenFractal(
                 level=level,
                 initial_fractal_high=last_high,
@@ -369,7 +369,7 @@ class BrokenFractalDetector:
 
         # Check if we broke the initial low (bearish fractal break)
         if low < last_low:
-            logger.debug(f"[BF] Broken Fractal DOWN at {bar_index}: {low} < {last_low}")
+            logger.debug("[BF] Broken Fractal DOWN at %s: %s < %s", bar_index, low, last_low)
             return BrokenFractal(
                 level=level,
                 initial_fractal_high=last_high,

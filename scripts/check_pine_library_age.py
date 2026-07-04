@@ -14,7 +14,7 @@ from __future__ import annotations
 import argparse
 import logging
 import sys
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 logger = logging.getLogger(__name__)
@@ -63,7 +63,7 @@ def check_library_age(
         logger.error("No library entries found in LIBRARY_VERSIONS.toml")
         return False
 
-    today = datetime.utcnow().date()
+    today = datetime.now(timezone.utc).date()
     threshold_date = today - timedelta(days=max_days)
     failed = False
 

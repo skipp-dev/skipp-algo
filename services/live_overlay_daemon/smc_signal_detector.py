@@ -272,7 +272,7 @@ class SmcSignalDetector:
         )
         if hvb.is_hvb:
             logger.debug(
-                f"[HVB] High Volume Bar at {t.bar_index}: {hvb.volume_ratio:.2f}x avg"
+                "[HVB] High Volume Bar at %s: %.2fx avg", t.bar_index, hvb.volume_ratio
             )
 
         # Track swing highs/lows for liquidity detection
@@ -287,7 +287,7 @@ class SmcSignalDetector:
         )
         if bf and bf.confirmed:
             logger.debug(
-                f"[BrokenFractal] {bf.break_direction.upper()} break confirmed at {t.bar_index}"
+                "[BrokenFractal] %s break confirmed at %s", bf.break_direction.upper(), t.bar_index
             )
 
     def _update_swing_points(self, high: float, low: float) -> None:

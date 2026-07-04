@@ -371,9 +371,14 @@ class TripleConfluenceNavigator:
             return None
 
         logger.debug(
-            f"[Confluence] {confluence.direction} signal: "
-            f"C={confluence.cardwell_signal} R={confluence.rsi_supertrend_signal} "
-            f"S={confluence.structure_signal} strength={confluence.alignment_strength:.2f}"
+            "[Confluence] %s signal: "
+            "C=%s R=%s "
+            "S=%s strength=%.2f",
+            confluence.direction,
+            confluence.cardwell_signal,
+            confluence.rsi_supertrend_signal,
+            confluence.structure_signal,
+            confluence.alignment_strength,
         )
 
         # Step 3: Check HTF bias alignment
@@ -383,12 +388,15 @@ class TripleConfluenceNavigator:
         )
 
         if not htf_aligned:
-            logger.debug(f"[Confluence] HTF bias misaligned: HTF={htf_bias}, signal={confluence.direction}")
+            logger.debug("[Confluence] HTF bias misaligned: HTF=%s, signal=%s", htf_bias, confluence.direction)
             return None
 
         logger.info(
-            f"[Confluence] TRIPLE CONFLUENCE {confluence.direction} at {bar_index}: "
-            f"strength={confluence.alignment_strength:.2f}"
+            "[Confluence] TRIPLE CONFLUENCE %s at %s: "
+            "strength=%.2f",
+            confluence.direction,
+            bar_index,
+            confluence.alignment_strength,
         )
 
         # Step 4: Calculate dynamic R/R

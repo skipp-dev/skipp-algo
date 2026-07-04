@@ -294,7 +294,7 @@ class SmtSniperValidator:
         if not sweep:
             return None
 
-        logger.debug(f"[SMT] Sweep detected {sweep.direction} at {bar_index}")
+        logger.debug("[SMT] Sweep detected %s at %s", sweep.direction, bar_index)
 
         # Step 2: Calculate quality score
         # Determine direction from sweep
@@ -315,7 +315,7 @@ class SmtSniperValidator:
 
         if not correlations_valid:
             logger.debug(
-                f"[SMT] Correlation validation failed ({corr_strength:.2f})"
+                "[SMT] Correlation validation failed (%.2f)", corr_strength
             )
             return None
 
@@ -330,12 +330,14 @@ class SmtSniperValidator:
 
         # Step 4: Check if high quality
         if not quality.is_high_quality(threshold=self.quality_threshold):
-            logger.debug(f"[SMT] Low quality score: {quality.total_score:.0f}")
+            logger.debug("[SMT] Low quality score: %.0f", quality.total_score)
             return None
 
         logger.info(
-            f"[SMT] High-quality signal {signal_direction} @ {bar_index}: "
-            f"score={quality.total_score:.0f}"
+            "[SMT] High-quality signal %s @ %s: score=%.0f",
+            signal_direction,
+            bar_index,
+            quality.total_score,
         )
 
         # Step 5: Build signal with risk management

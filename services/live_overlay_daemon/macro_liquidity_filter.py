@@ -19,7 +19,7 @@ import dataclasses
 import logging
 from dataclasses import dataclass
 from typing import Optional
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 
 logger = logging.getLogger(__name__)
 
@@ -53,8 +53,8 @@ class MacroLiquidityFilter:
         stress_level=0,
         regime='normal',
         is_stressed=False,
-        timestamp=datetime.utcnow(),
-        last_update=datetime.utcnow(),
+        timestamp=datetime.now(timezone.utc),
+        last_update=datetime.now(timezone.utc),
         bars_in_stress=0,
     ))
 
@@ -115,8 +115,8 @@ class MacroLiquidityFilter:
             stress_level=stress_level,
             regime=regime_name,
             is_stressed=is_stressed,
-            timestamp=datetime.utcnow(),
-            last_update=datetime.utcnow(),
+            timestamp=datetime.now(timezone.utc),
+            last_update=datetime.now(timezone.utc),
             bars_in_stress=bars_in_stress,
         )
 
@@ -125,8 +125,10 @@ class MacroLiquidityFilter:
             self.regime_history.pop(0)
 
         logger.debug(
-            f"[Macro] LSI update: spread={spread_bp:.1f}bp, regime={regime_name}, "
-            f"stress={'ON' if is_stressed else 'OFF'}"
+            "[Macro] LSI update: spread=%.1fbp, regime=%s, stress=%s",
+            spread_bp,
+            regime_name,
+            'ON' if is_stressed else 'OFF',
         )
 
         return self.regime
@@ -169,8 +171,8 @@ class MacroLiquidityFilter:
             stress_level=0,
             regime='normal',
             is_stressed=False,
-            timestamp=datetime.utcnow(),
-            last_update=datetime.utcnow(),
+            timestamp=datetime.now(timezone.utc),
+            last_update=datetime.now(timezone.utc),
             bars_in_stress=0,
         )
         self.spread_history.clear()

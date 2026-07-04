@@ -14,7 +14,7 @@ from __future__ import annotations
 
 import logging
 import os
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import Optional
 import httpx
 import json
@@ -44,7 +44,7 @@ class FMPDataLoader:
 
         self.session = httpx.Client(timeout=30.0, follow_redirects=True)
 
-        logger.info("[FMP] Initialized with API key (last 4 chars: ...%s)" % self.api_key[-4:])
+        logger.info("[FMP] Initialized with API key (last 4 chars: ...%s)", self.api_key[-4:])
 
     def _build_url(self, path: str, params: dict) -> str:
         """Build FMP URL with API key and parameters."""
@@ -98,7 +98,7 @@ class FMPDataLoader:
             except Exception as e:
                 last_exc = e
                 if attempt == 0:
-                    logger.warning(f"[FMP] Retry {symbol} {from_date}..{to_date}: {e}")
+                    logger.warning("[FMP] Retry %s %s..%s: %s", symbol, from_date, to_date, e)
         raise last_exc  # type: ignore[misc]
 
     def get_historical_price(
@@ -123,7 +123,7 @@ class FMPDataLoader:
 
         Returns: List of OHLC dicts
         """
-        logger.info(f"[FMP] Fetching {symbol} {period}...")
+        logger.info("[FMP] Fetching %s %s...", symbol, period)
 
         try:
             chunk_days = self._CHUNK_DAYS_BY_PERIOD.get(period)
@@ -131,11 +131,13 @@ class FMPDataLoader:
                 # No range (or daily data): single request as before
                 raw_rows = self._fetch_chart_rows(symbol, period, from_date, to_date)
             else:
-                start = datetime.strptime(from_date, "%Y-%m-%d")
+                # Keep all three tz-aware (UTC) so the chunk-loop comparisons
+                # never mix naive/aware datetimes.
+                start = datetime.strptime(from_date, "%Y-%m-%d").replace(tzinfo=timezone.utc)
                 end = (
-                    datetime.strptime(to_date, "%Y-%m-%d")
+                    datetime.strptime(to_date, "%Y-%m-%d").replace(tzinfo=timezone.utc)
                     if to_date
-                    else datetime.now()
+                    else datetime.now(timezone.utc)
                 )
                 raw_rows = []
                 chunk_start = start
@@ -151,10 +153,10 @@ class FMPDataLoader:
                     raw_rows.extend(rows)
                     n_chunks += 1
                     chunk_start = chunk_end + timedelta(days=1)
-                logger.info(f"[FMP] {symbol}: stitched {n_chunks} chunks")
+                logger.info("[FMP] %s: stitched %s chunks", symbol, n_chunks)
 
             if not raw_rows:
-                logger.warning(f"No data returned for {symbol}")
+                logger.warning("No data returned for %s", symbol)
                 return []
 
             # Dedupe by timestamp (chunk edges can overlap), then sort
@@ -178,7 +180,7 @@ class FMPDataLoader:
                 }
                 candles.append(parsed)
 
-            logger.info(f"[FMP] Loaded {len(candles)} candles")
+            logger.info("[FMP] Loaded %s candles", len(candles))
 
             # Calculate ATR (14-period simple)
             self._calculate_atr(candles, period=14)
@@ -186,7 +188,7 @@ class FMPDataLoader:
             return candles
 
         except Exception as e:
-            logger.error(f"[FMP] Error fetching {symbol}: {e}")
+            logger.error("[FMP] Error fetching %s: %s", symbol, e)
             raise
 
     def get_intraday_price(
@@ -240,7 +242,7 @@ class FMPDataLoader:
 
         Returns: List of {date, value} dicts
         """
-        logger.info(f"[FMP] Fetching {indicator}...")
+        logger.info("[FMP] Fetching %s...", indicator)
 
         path = f"/stable/economic/{indicator}"
         params = {"limit": limit}
@@ -252,14 +254,14 @@ class FMPDataLoader:
             data = resp.json()
 
             if isinstance(data, dict) and "error" in data:
-                logger.warning(f"Economic data not available: {indicator}")
+                logger.warning("Economic data not available: %s", indicator)
                 return []
 
-            logger.info(f"[FMP] Loaded {len(data)} data points for {indicator}")
+            logger.info("[FMP] Loaded %s data points for %s", len(data), indicator)
             return data
 
         except Exception as e:
-            logger.error(f"[FMP] Error fetching {indicator}: {e}")
+            logger.error("[FMP] Error fetching %s: %s", indicator, e)
             return []
 
     def get_sofr_iorb_spread(
@@ -292,7 +294,7 @@ class FMPDataLoader:
             if date in iorb_map:
                 spread_map[date] = (sofr_map[date], iorb_map[date])
 
-        logger.info(f"[FMP] Loaded SOFR/IORB for {len(spread_map)} days")
+        logger.info("[FMP] Loaded SOFR/IORB for %s days", len(spread_map))
         return spread_map
 
     def map_macro_to_candles(
@@ -325,7 +327,7 @@ class FMPDataLoader:
             if date_str in sofr_iorb_map:
                 result[candle["bar_index"]] = sofr_iorb_map[date_str]
 
-        logger.info(f"[FMP] Mapped SOFR/IORB to {len(result)}/{len(candles)} candles")
+        logger.info("[FMP] Mapped SOFR/IORB to %s/%s candles", len(result), len(candles))
         return result
 
     @staticmethod
@@ -360,13 +362,13 @@ class FMPDataLoader:
         """Save candles to JSON file."""
         with open(filepath, "w", encoding="utf-8") as f:
             json.dump(candles, f, indent=2)
-        logger.info(f"[FMP] Saved {len(candles)} candles to {filepath}")
+        logger.info("[FMP] Saved %s candles to %s", len(candles), filepath)
 
     def load_from_json(self, filepath: str) -> list[dict]:
         """Load candles from JSON file."""
         with open(filepath, "r", encoding="utf-8") as f:
             candles = json.load(f)
-        logger.info(f"[FMP] Loaded {len(candles)} candles from {filepath}")
+        logger.info("[FMP] Loaded %s candles from %s", len(candles), filepath)
         return candles
 
 
@@ -378,8 +380,8 @@ def main():
     loader = FMPDataLoader()
 
     # Fetch NVDA 1h data (last 6 months)
-    end_date = datetime.now().strftime("%Y-%m-%d")
-    start_date = (datetime.now() - timedelta(days=180)).strftime("%Y-%m-%d")
+    end_date = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+    start_date = (datetime.now(timezone.utc) - timedelta(days=180)).strftime("%Y-%m-%d")
 
     print(f"[Backtest] Fetching NVDA data from {start_date} to {end_date}...")
     candles = loader.get_historical_price(

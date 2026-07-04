@@ -168,7 +168,7 @@ class EnsembleBacktester:
         ]
         """
         self.candles = candles
-        logger.info(f"[Backtest] Loaded {len(candles)} candles for {self.symbol}")
+        logger.info("[Backtest] Loaded %s candles for %s", len(candles), self.symbol)
 
     def load_sofr_iorb_data(self, data: dict[int, tuple[float, float]]) -> None:
         """Load SOFR/IORB spread data.
@@ -176,14 +176,18 @@ class EnsembleBacktester:
         Format: {bar_index: (sofr_rate, iorb_rate), ...}
         """
         self.sofr_iorb_map = data
-        logger.info(f"[Backtest] Loaded SOFR/IORB data for {len(data)} bars")
+        logger.info("[Backtest] Loaded SOFR/IORB data for %s bars", len(data))
 
     def run_backtest(self) -> BacktestMetrics:
         """Run complete backtest through all candles."""
         logger.info(
-            f"[Backtest] Starting: {self.symbol} {self.timeframe}, "
-            f"{len(self.candles)} bars, "
-            f"risk={self.risk_per_trade*100:.1f}%"
+            "[Backtest] Starting: %s %s, "
+            "%s bars, "
+            "risk=%.1f%%",
+            self.symbol,
+            self.timeframe,
+            len(self.candles),
+            self.risk_per_trade * 100,
         )
 
         for i, candle in enumerate(self.candles):
@@ -213,10 +217,14 @@ class EnsembleBacktester:
         metrics = self._calculate_metrics()
 
         logger.info(
-            f"[Backtest] Complete: {metrics.total_trades} trades, "
-            f"Win Rate: {metrics.win_rate:.1f}%, "
-            f"Sharpe: {metrics.sharpe_ratio:.2f}, "
-            f"Max DD: {metrics.max_drawdown:.1f}%"
+            "[Backtest] Complete: %s trades, "
+            "Win Rate: %.1f%%, "
+            "Sharpe: %.2f, "
+            "Max DD: %.1f%%",
+            metrics.total_trades,
+            metrics.win_rate,
+            metrics.sharpe_ratio,
+            metrics.max_drawdown,
         )
 
         return metrics
@@ -269,9 +277,15 @@ class EnsembleBacktester:
 
         self.open_trades[bar_index] = trade
         logger.debug(
-            f"[Trade] OPEN {signal.direction.upper()} @ bar {bar_index}: "
-            f"entry={signal.entry_price:.2f}, sl={signal.stop_loss:.2f}, "
-            f"tp={signal.take_profit:.2f}, conf={signal.confidence:.2f}"
+            "[Trade] OPEN %s @ bar %s: "
+            "entry=%.2f, sl=%.2f, "
+            "tp=%.2f, conf=%.2f",
+            signal.direction.upper(),
+            bar_index,
+            signal.entry_price,
+            signal.stop_loss,
+            signal.take_profit,
+            signal.confidence,
         )
 
     def _check_trade_exits(self, bar_index: int, candle: dict) -> None:
@@ -327,8 +341,13 @@ class EnsembleBacktester:
             del self.open_trades[trade.entry_bar]
 
         logger.debug(
-            f"[Trade] CLOSE {trade.direction.upper()} @ bar {bar_index}: "
-            f"exit={exit_price:.2f}, PnL={pnl_pct:+.2f}%, reason={exit_reason}"
+            "[Trade] CLOSE %s @ bar %s: "
+            "exit=%.2f, PnL=%+.2f%%, reason=%s",
+            trade.direction.upper(),
+            bar_index,
+            exit_price,
+            pnl_pct,
+            exit_reason,
         )
 
         # Update equity
@@ -581,4 +600,4 @@ class EnsembleBacktester:
                     "win": trade.win,
                 })
 
-        logger.info(f"[Backtest] Exported {len(self.trades)} trades to {filepath}")
+        logger.info("[Backtest] Exported %s trades to %s", len(self.trades), filepath)
