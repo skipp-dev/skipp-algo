@@ -140,7 +140,7 @@ def run_backtest(
 
     # Save metrics
     metrics_file = Path(output_dir) / f"{symbol}_{timeframe}_metrics.json"
-    with open(metrics_file, "w") as f:
+    with open(metrics_file, "w", encoding="utf-8") as f:
         json.dump(metrics.to_dict(), f, indent=2)
     print(f"   Metrics: {metrics_file}")
 
@@ -151,7 +151,7 @@ def run_backtest(
 
     # Save report
     report_file = Path(output_dir) / f"{symbol}_{timeframe}_report.txt"
-    with open(report_file, "w") as f:
+    with open(report_file, "w", encoding="utf-8") as f:
         f.write(bt.print_report(metrics))
     print(f"   Report: {report_file}")
 

@@ -41,16 +41,11 @@ _DIR_EXCLUDE = {
 
 # Frozen ledger — fully fixed (2026-06-17, G1 encoding discipline sweep).
 # Was 2 sites across 2 files (2026-04-25); all now have encoding="utf-8".
-# 2026-07-04 rebaseline: ensemble research CLI tooling was committed
-# (WP-3 bundle) without a ledger refresh — JSON/CSV artifact writes in the
-# standalone backtest runner, trades-CSV export, and loader save/load
-# helpers (ASCII/JSON payloads). Line numbers reflect the warmup_bars +
-# entry_time additions (2026-07-04).
-_FROZEN_SITES: dict[str, frozenset[int]] = {
-    "run_ensemble_backtest.py": frozenset({143, 154}),
-    "services/live_overlay_daemon/ensemble_backtester.py": frozenset({543}),
-    "services/live_overlay_daemon/fmp_data_loader.py": frozenset({362, 368}),
-}
+# 2026-07-04: the WP-3 backtest-tooling open() sites (standalone runner
+# metrics/report writes, trades-CSV export, loader save/load) were given
+# explicit encoding="utf-8" rather than ledgered — the stricter
+# open-encoding-discipline guards accept no exception. Ledger back to empty.
+_FROZEN_SITES: dict[str, frozenset[int]] = {}
 _FROZEN_TOTAL = sum(len(v) for v in _FROZEN_SITES.values())
 
 

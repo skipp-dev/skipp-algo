@@ -540,7 +540,7 @@ class EnsembleBacktester:
         """Export all trades to CSV for further analysis."""
         import csv
 
-        with open(filepath, "w", newline="") as f:
+        with open(filepath, "w", newline="", encoding="utf-8") as f:
             writer = csv.DictWriter(
                 f,
                 fieldnames=[

@@ -358,13 +358,13 @@ class FMPDataLoader:
 
     def save_to_json(self, candles: list[dict], filepath: str) -> None:
         """Save candles to JSON file."""
-        with open(filepath, "w") as f:
+        with open(filepath, "w", encoding="utf-8") as f:
             json.dump(candles, f, indent=2)
         logger.info(f"[FMP] Saved {len(candles)} candles to {filepath}")
 
     def load_from_json(self, filepath: str) -> list[dict]:
         """Load candles from JSON file."""
-        with open(filepath, "r") as f:
+        with open(filepath, "r", encoding="utf-8") as f:
             candles = json.load(f)
         logger.info(f"[FMP] Loaded {len(candles)} candles from {filepath}")
         return candles
