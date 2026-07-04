@@ -134,7 +134,7 @@ _FROZEN_JSON_LOAD_SITES: frozenset[tuple[str, int]] = frozenset(
         # 2026-07-04 (WP-3 backtest tooling): FMPDataLoader.load_from_json parses
         # a local candle-cache file written by its own save_to_json (operator-
         # supplied path in the standalone backtest runner), not untrusted input.
-        ("services/live_overlay_daemon/fmp_data_loader.py", 368),
+        ("services/live_overlay_daemon/fmp_data_loader.py", 370),
     }
 )
 
@@ -198,7 +198,8 @@ _FROZEN_ENV_SUBSCRIPT_SITES: frozenset[tuple[str, int]] = frozenset(
         # 2026-07-04 (WP-3 backtest CLI): `os.environ["FMP_API_KEY"] = args.api_key`
         # exports the --api-key CLI arg for the data loader. A deliberate WRITE
         # (not a read), so .get() does not apply; hard-fail is acceptable.
-        ("run_ensemble_backtest.py", 302),
+        # (Line moved 302 -> 306 by the atomic-write-exempt markers added above.)
+        ("run_ensemble_backtest.py", 306),
     }
 )
 
