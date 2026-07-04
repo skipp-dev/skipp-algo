@@ -114,7 +114,7 @@ def apply_volatility_filter_to_backtest(candles, filter_obj):
         close = candle.get("close", 0)
 
         # Update filter
-        atr = filter_obj.calculate_atr(high, low, close)
+        filter_obj.calculate_atr(high, low, close)
         is_tradeable, reason = filter_obj.is_tradeable()
 
         results.append({

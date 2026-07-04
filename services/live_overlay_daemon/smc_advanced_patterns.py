@@ -12,12 +12,9 @@ Used by SmcSignalDetector for signal filtering + confluence.
 
 from __future__ import annotations
 
-import dataclasses
 import logging
-import math
 from dataclasses import dataclass
 from enum import Enum
-from typing import Optional
 
 logger = logging.getLogger(__name__)
 
@@ -329,7 +326,7 @@ class BrokenFractalDetector:
         low: float,
         close: float,
         level: StructureLevel = StructureLevel.LEVEL_1,
-    ) -> Optional[BrokenFractal]:
+    ) -> BrokenFractal | None:
         """
         Detect Broken Fractal pattern.
 
@@ -395,7 +392,7 @@ class BoSRefinement:
         self,
         break_price: float,
         direction: str,
-        nested_level: Optional[StructureLevel] = None,
+        nested_level: StructureLevel | None = None,
     ) -> dict:
         """
         Validate BoS with nested structure.

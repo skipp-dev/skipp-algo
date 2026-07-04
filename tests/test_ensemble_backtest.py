@@ -7,12 +7,12 @@ Demonstrates how to:
 4. Export trades for further analysis
 """
 
-import pytest
 from datetime import datetime, timedelta
+
+import pytest
 
 from services.live_overlay_daemon.ensemble_backtester import (
     EnsembleBacktester,
-    BacktestMetrics,
 )
 
 
@@ -188,7 +188,7 @@ class TestEnsembleBacktest:
         candles = generate_uptrend_data(num_bars=100)
         bt.load_candles(candles)
 
-        metrics = bt.run_backtest()
+        bt.run_backtest()
 
         # Equity curve should be tracked
         assert len(bt.equity_curve) >= 1
@@ -241,11 +241,11 @@ class TestEnsembleBacktest:
         candles = generate_uptrend_data(num_bars=200)
         bt.load_candles(candles)
 
-        metrics = bt.run_backtest()
+        bt.run_backtest()
 
         # Check that we never had overlapping trades
         for i, trade1 in enumerate(bt.trades):
-            for trade2 in bt.trades[i + 1:]:
+            for _trade2 in bt.trades[i + 1:]:
                 # If trade1 not closed before trade2 opens
                 assert trade1.exit_bar is not None  # Always closed
 

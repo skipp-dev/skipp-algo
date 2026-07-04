@@ -12,18 +12,15 @@ Routes final signals with conflict resolution and confidence scoring.
 
 from __future__ import annotations
 
-import dataclasses
 import logging
-import numpy as np
 from dataclasses import dataclass
-from typing import Optional
 from enum import Enum
 
+from services.live_overlay_daemon.macro_liquidity_filter import LiquidityRegime, MacroLiquidityFilter
 from services.live_overlay_daemon.smc_signal_detector import SmcSignalDetector
-from services.live_overlay_daemon.smt_sniper_validator import SmtSniperValidator, SmtSniperSignal
-from services.live_overlay_daemon.strong_impulse_detector import StrongImpulseDetector, ImpulseSignal
+from services.live_overlay_daemon.smt_sniper_validator import SmtSniperSignal, SmtSniperValidator
+from services.live_overlay_daemon.strong_impulse_detector import ImpulseSignal, StrongImpulseDetector
 from services.live_overlay_daemon.triple_confluence_navigator import TripleConfluenceNavigator, TripleConfluenceSignal
-from services.live_overlay_daemon.macro_liquidity_filter import MacroLiquidityFilter, LiquidityRegime
 from services.live_overlay_daemon.volatility_filter import VolatilityFilter
 
 logger = logging.getLogger(__name__)
@@ -61,11 +58,11 @@ class EnsembleSignal:
     confidence: float  # 0-1 (weighted average)
     sources: list[SignalSource]  # Which systems voted
     sources_count: int  # How many systems voted
-    smt_signal: Optional[SmtSniperSignal] = None
-    impulse_signal: Optional[ImpulseSignal] = None
-    confluence_signal: Optional[TripleConfluenceSignal] = None
-    liquidity_regime: Optional[LiquidityRegime] = None
-    conflict: Optional[ConflictResolution] = None
+    smt_signal: SmtSniperSignal | None = None
+    impulse_signal: ImpulseSignal | None = None
+    confluence_signal: TripleConfluenceSignal | None = None
+    liquidity_regime: LiquidityRegime | None = None
+    conflict: ConflictResolution | None = None
 
 
 class EnsembleSignalRouter:
@@ -104,7 +101,7 @@ class EnsembleSignalRouter:
         ) if enable_volatility_filter else None
 
         # Signal routing
-        self.latest_ensemble_signal: Optional[EnsembleSignal] = None
+        self.latest_ensemble_signal: EnsembleSignal | None = None
         self.signal_history: list[EnsembleSignal] = []
 
     def process_candle(
@@ -117,9 +114,9 @@ class EnsembleSignalRouter:
         atr: float,
         volume: int,
         htf_bias: str = "neutral",
-        sofr_rate: Optional[float] = None,
-        iorb_rate: Optional[float] = None,
-    ) -> Optional[EnsembleSignal]:
+        sofr_rate: float | None = None,
+        iorb_rate: float | None = None,
+    ) -> EnsembleSignal | None:
         """Process one candle through complete ensemble.
 
         Args:
@@ -134,14 +131,12 @@ class EnsembleSignalRouter:
         Returns: EnsembleSignal if consensus reached, else None
         """
         # Step -1: Check volatility regime (SKIP if too calm or too choppy)
-        volatility_suppressed = False
         if self.enable_volatility_filter and self.volatility_filter:
             self.volatility_filter.calculate_atr(high, low, close)
             is_tradeable, reason = self.volatility_filter.is_tradeable()
             atr_ratio = self.volatility_filter.get_atr_ratio()
 
             if not is_tradeable:
-                volatility_suppressed = True
                 atr_str = f"{atr_ratio:.2f}" if atr_ratio else "N/A"
                 logger.debug(
                     "[Ensemble] Volatility filter suppressed signal @ %s: "
@@ -170,7 +165,7 @@ class EnsembleSignalRouter:
             confidence_multiplier = 1.0
 
         # Step 1: SMC Pattern Detection
-        smc_signals = self.smc_detector.process_candle(
+        self.smc_detector.process_candle(
             self._make_smc_candle(bar_index, open, high, low, close, volume)
         )
 
@@ -242,11 +237,11 @@ class EnsembleSignalRouter:
     def _merge_signals(
         self,
         bar_index: int,
-        smt_signal: Optional[SmtSniperSignal],
-        impulse_signal: Optional[ImpulseSignal],
-        confluence_signal: Optional[TripleConfluenceSignal],
+        smt_signal: SmtSniperSignal | None,
+        impulse_signal: ImpulseSignal | None,
+        confluence_signal: TripleConfluenceSignal | None,
         confidence_multiplier: float = 1.0,
-    ) -> Optional[EnsembleSignal]:
+    ) -> EnsembleSignal | None:
         """Merge signals from all 3 systems with conflict resolution."""
 
         # Collect votes

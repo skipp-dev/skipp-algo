@@ -12,12 +12,9 @@ Based on: "Strong Impulse Signals [ProjectSyndicate]" TradingView indicator
 
 from __future__ import annotations
 
-import dataclasses
 import logging
-import math
 from dataclasses import dataclass
 from enum import Enum
-from typing import Optional
 
 logger = logging.getLogger(__name__)
 
@@ -81,7 +78,7 @@ class ImpulseSignal:
     target_2: float  # Mid-range
     target_3: float  # Aggressive
     confirmation_bars: int  # How many bars until confirmed
-    coil_start_bar: Optional[int] = None
+    coil_start_bar: int | None = None
 
 
 class IgnitionCandleDetector:
@@ -99,7 +96,7 @@ class IgnitionCandleDetector:
         low: float,
         close: float,
         atr: float,
-    ) -> Optional[IgnitionCandle]:
+    ) -> IgnitionCandle | None:
         """
         Detect ignition candle using 3 criteria:
         1. Extends beyond recent range
@@ -122,7 +119,7 @@ class IgnitionCandleDetector:
         if len(self.price_history) < 2:
             return None  # Not enough history
         recent_high = max(h["high"] for h in self.price_history[:-1])
-        recent_low = min(l["low"] for l in self.price_history[:-1])
+        recent_low = min(row["low"] for row in self.price_history[:-1])
 
         # Criterion 1: Extends beyond recent range
         extends_beyond = high > recent_high or low < recent_low
@@ -289,7 +286,7 @@ class StrongImpulseDetector:
         atr: float,
         recent_momentum: float,  # 0-1
         volume_ratio: float,  # current / avg
-    ) -> Optional[ImpulseSignal]:
+    ) -> ImpulseSignal | None:
         """
         Run complete impulse detection pipeline.
 

@@ -8,12 +8,11 @@ Tests:
 5. Signal quality and confidence scoring
 """
 
+
 import pytest
-from datetime import datetime
 
+from services.live_overlay_daemon.ensemble_signal_router import EnsembleSignalRouter
 from services.live_overlay_daemon.macro_liquidity_filter import MacroLiquidityFilter
-from services.live_overlay_daemon.ensemble_signal_router import EnsembleSignalRouter, SignalSource
-
 
 # ============================================================================
 # MACRO LIQUIDITY FILTER TESTS
@@ -293,7 +292,7 @@ class TestRealMarketScenarios:
         # Strong 30-bar uptrend
         for i in range(30):
             close = 100 + i * 0.5
-            signal = router.process_candle(
+            router.process_candle(
                 bar_index=i,
                 open=close - 0.5,
                 high=close + 1.0,
@@ -315,7 +314,7 @@ class TestRealMarketScenarios:
         # Strong 30-bar downtrend
         for i in range(30):
             close = 100 - i * 0.5
-            signal = router.process_candle(
+            router.process_candle(
                 bar_index=i,
                 open=close + 0.5,
                 high=close + 0.5,
@@ -338,7 +337,7 @@ class TestRealMarketScenarios:
         for i in range(20):
             is_up = i % 2 == 0
             close = 100 + (2 if is_up else -2)
-            signal = router.process_candle(
+            router.process_candle(
                 bar_index=i,
                 open=100,
                 high=102,
@@ -408,7 +407,7 @@ class TestEdgeCases:
         router = EnsembleSignalRouter()
 
         # First 2 bars should not crash (though systems may still generate signals)
-        signal1 = router.process_candle(
+        router.process_candle(
             bar_index=0,
             open=100,
             high=102,
@@ -419,7 +418,7 @@ class TestEdgeCases:
         )
         # Signal may or may not fire depending on system startup
 
-        signal2 = router.process_candle(
+        router.process_candle(
             bar_index=1,
             open=101,
             high=103,
@@ -454,7 +453,7 @@ class TestEdgeCases:
         """Should handle large price gaps."""
         router = EnsembleSignalRouter()
 
-        signal = router.process_candle(
+        router.process_candle(
             bar_index=1,
             open=100,
             high=120,
@@ -472,7 +471,7 @@ class TestEdgeCases:
 
         # Generate many signals (unlikely but test anyway)
         for i in range(100):
-            signal = router.process_candle(
+            router.process_candle(
                 bar_index=i,
                 open=100 + i * 0.1,
                 high=102 + i * 0.1,

@@ -14,12 +14,11 @@ import json
 import logging
 import os
 import sys
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
-from typing import Optional
 
+from services.live_overlay_daemon.ensemble_backtester import EnsembleBacktester
 from services.live_overlay_daemon.fmp_data_loader import FMPDataLoader
-from services.live_overlay_daemon.ensemble_backtester import EnsembleBacktester, BacktestMetrics
 
 logging.basicConfig(
     level=logging.INFO,
@@ -38,7 +37,7 @@ def run_backtest(
     minimum_sources: int = 2,
     enable_volatility_filter: bool = True,
     warmup_bars: int = 0,
-    eval_last_bars: Optional[int] = None,
+    eval_last_bars: int | None = None,
 ) -> dict:
     """Run complete ensemble backtest pipeline.
 
@@ -65,7 +64,7 @@ def run_backtest(
     print("=" * 80)
 
     # Step 1: Load data from FMP
-    print(f"\n[1/5] Loading data from FMP...")
+    print("\n[1/5] Loading data from FMP...")
     try:
         loader = FMPDataLoader()
     except ValueError as e:
@@ -73,8 +72,8 @@ def run_backtest(
         print("   Set FMP_API_KEY environment variable")
         sys.exit(1)
 
-    end_date = datetime.now(timezone.utc).strftime("%Y-%m-%d")
-    start_date = (datetime.now(timezone.utc) - timedelta(days=days)).strftime("%Y-%m-%d")
+    end_date = datetime.now(UTC).strftime("%Y-%m-%d")
+    start_date = (datetime.now(UTC) - timedelta(days=days)).strftime("%Y-%m-%d")
 
     print(f"    Symbol: {symbol}")
     print(f"    Period: {start_date} to {end_date}")
@@ -99,7 +98,7 @@ def run_backtest(
     print(f"✅ Loaded {len(candles)} candles")
 
     # Step 2: Load macro data
-    print(f"\n[2/5] Loading macro data (SOFR/IORB)...")
+    print("\n[2/5] Loading macro data (SOFR/IORB)...")
     try:
         sofr_iorb_map = loader.get_sofr_iorb_spread(from_date=start_date)
         macro_candles = loader.map_macro_to_candles(candles, sofr_iorb_map)
@@ -108,10 +107,10 @@ def run_backtest(
         logger.warning("Could not load macro data: %s", e)
         macro_candles = {}
         sofr_iorb_map = {}
-        print(f"⚠️  Proceeding without macro data")
+        print("⚠️  Proceeding without macro data")
 
     # Step 3: Run backtest
-    print(f"\n[3/5] Running ensemble backtest...")
+    print("\n[3/5] Running ensemble backtest...")
     if eval_last_bars is not None:
         warmup_bars = max(0, len(candles) - int(eval_last_bars))
     if warmup_bars:
@@ -136,7 +135,7 @@ def run_backtest(
     print(f"✅ Backtest complete: {metrics.total_trades} trades")
 
     # Step 4: Export results
-    print(f"\n[4/5] Exporting results...")
+    print("\n[4/5] Exporting results...")
 
     # Save metrics
     # ATOMIC-WRITE-EXEMPT: standalone backtest CLI writing local result files
@@ -160,7 +159,7 @@ def run_backtest(
     print(f"   Report: {report_file}")
 
     # Step 5: Print summary
-    print(f"\n[5/5] Summary:")
+    print("\n[5/5] Summary:")
     bt.print_report(metrics)
 
     # Decision
@@ -175,12 +174,12 @@ def run_backtest(
     )
 
     if go_live:
-        print(f"\n✅ PASS — Metrics acceptable for paper trading")
+        print("\n✅ PASS — Metrics acceptable for paper trading")
         print(f"   Win Rate: {metrics.win_rate:.1f}% ✅")
         print(f"   Sharpe:   {metrics.sharpe_ratio:.2f} ✅")
         print(f"   Max DD:   {metrics.max_drawdown:.1f}% ✅")
     else:
-        print(f"\n⚠️  NEEDS WORK — Consider optimizing:")
+        print("\n⚠️  NEEDS WORK — Consider optimizing:")
         if metrics.win_rate <= 55:
             print(f"   Win Rate: {metrics.win_rate:.1f}% (target > 55%)")
         if metrics.sharpe_ratio <= 1.3:
@@ -201,7 +200,7 @@ def run_backtest(
     }
 
 
-def run_multi_symbol_backtest(symbols: list[str] = None, days: int = 180):
+def run_multi_symbol_backtest(symbols: list[str] | None = None, days: int = 180):
     """Run backtest for multiple symbols and compare."""
     if symbols is None:
         symbols = ["NVDA", "AAPL", "MSFT", "SPY", "QQQ"]

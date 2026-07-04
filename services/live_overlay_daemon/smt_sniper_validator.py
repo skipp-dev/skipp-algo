@@ -12,11 +12,8 @@ Based on: "SMT Sniper Entry Engine [trade_w_samet]" TradingView indicator
 
 from __future__ import annotations
 
-import dataclasses
 import logging
-import math
 from dataclasses import dataclass
-from typing import Optional
 
 logger = logging.getLogger(__name__)
 
@@ -30,7 +27,7 @@ class LiquiditySweep:
     sweep_depth_atr: float  # How many ATR deep
     direction: str  # 'up' | 'down'
     confirmed: bool  # Bounce-back confirmed?
-    confirmation_bar_index: Optional[int] = None
+    confirmation_bar_index: int | None = None
 
 
 @dataclass
@@ -86,7 +83,7 @@ class LiquiditySweepDetector:
         low: float,
         close: float,
         atr: float,
-    ) -> Optional[LiquiditySweep]:
+    ) -> LiquiditySweep | None:
         """
         Detect if price swept below recent lows or above recent highs.
 
@@ -164,7 +161,7 @@ class SmtQualityScorer:
 
     def calculate(
         self,
-        sweep: Optional[LiquiditySweep],
+        sweep: LiquiditySweep | None,
         structure_score: float,  # 0-1
         correlation_strength: float,  # 0-1
         momentum_score: float,  # 0-1
@@ -222,7 +219,7 @@ class SmtCorrelationValidator:
             return True, 0.5  # Neutral if no correlations
 
         aligned_count = 0
-        for market, direction in correlated_markets.items():
+        for _market, direction in correlated_markets.items():
             if direction == primary_direction:
                 aligned_count += 1
 
@@ -282,7 +279,7 @@ class SmtSniperValidator:
         structure_score: float,  # 0-1 how well aligned with OB/FVG
         correlated_markets: dict[str, str],  # market -> direction
         recent_momentum: float,  # 0-1
-    ) -> Optional[SmtSniperSignal]:
+    ) -> SmtSniperSignal | None:
         """
         Run complete SMT Sniper validation pipeline.
 

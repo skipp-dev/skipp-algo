@@ -19,14 +19,11 @@ import dataclasses
 import logging
 import statistics
 from dataclasses import dataclass
-from datetime import datetime, timedelta
-from typing import Optional
-import json
+from datetime import datetime
 
 from services.live_overlay_daemon.ensemble_signal_router import (
-    EnsembleSignalRouter,
     EnsembleSignal,
-    SignalSource,
+    EnsembleSignalRouter,
 )
 
 logger = logging.getLogger(__name__)
@@ -46,16 +43,16 @@ class Trade:
     sources_count: int
 
     # Exit (filled during backtest)
-    exit_bar: Optional[int] = None
-    exit_price: Optional[float] = None
-    exit_time: Optional[datetime] = None
-    exit_reason: Optional[str] = None  # 'tp' | 'sl' | 'timeout' | 'no_exit'
+    exit_bar: int | None = None
+    exit_price: float | None = None
+    exit_time: datetime | None = None
+    exit_reason: str | None = None  # 'tp' | 'sl' | 'timeout' | 'no_exit'
 
     # P&L
-    pnl: Optional[float] = None
-    pnl_pct: Optional[float] = None
-    bars_held: Optional[int] = None
-    win: Optional[bool] = None
+    pnl: float | None = None
+    pnl_pct: float | None = None
+    bars_held: int | None = None
+    win: bool | None = None
 
     def is_closed(self) -> bool:
         """True if trade has been exited."""
@@ -229,7 +226,7 @@ class EnsembleBacktester:
 
         return metrics
 
-    def _process_candle(self, candle: dict) -> Optional[EnsembleSignal]:
+    def _process_candle(self, candle: dict) -> EnsembleSignal | None:
         """Process single candle through ensemble."""
         bar_index = candle["bar_index"]
 
@@ -295,18 +292,12 @@ class EnsembleBacktester:
             exit_price = None
 
             # Check TP
-            if trade.direction == "long" and candle["high"] >= trade.take_profit:
-                exit_price = trade.take_profit
-                exit_reason = "tp"
-            elif trade.direction == "short" and candle["low"] <= trade.take_profit:
+            if (trade.direction == "long" and candle["high"] >= trade.take_profit) or (trade.direction == "short" and candle["low"] <= trade.take_profit):
                 exit_price = trade.take_profit
                 exit_reason = "tp"
 
             # Check SL
-            elif trade.direction == "long" and candle["low"] <= trade.stop_loss:
-                exit_price = trade.stop_loss
-                exit_reason = "sl"
-            elif trade.direction == "short" and candle["high"] >= trade.stop_loss:
+            elif (trade.direction == "long" and candle["low"] <= trade.stop_loss) or (trade.direction == "short" and candle["high"] >= trade.stop_loss):
                 exit_price = trade.stop_loss
                 exit_reason = "sl"
 

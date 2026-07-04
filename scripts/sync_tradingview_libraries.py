@@ -15,9 +15,7 @@ import argparse
 import datetime
 import logging
 import re
-import subprocess
 from pathlib import Path
-from typing import Optional
 
 logger = logging.getLogger(__name__)
 
@@ -129,7 +127,7 @@ def update_library_versions_toml(
             logger.info(f"[DRY-RUN] Would update version metadata for {lib_name}")
 
 
-def fetch_library_source(user: str, lib: str, version: str) -> Optional[str]:
+def fetch_library_source(user: str, lib: str, version: str) -> str | None:
     """Fetch library source from TradingView.
 
     NOTE: Automated fetching is now handled by scripts/tv_fetch_smc_libraries.ts
@@ -199,7 +197,7 @@ def validate_imports(root: Path = Path(".")) -> bool:
 
         for lib_path, alias in imports:
             try:
-                user, lib_name, version = lib_path.split("/")
+                _user, lib_name, _version = lib_path.split("/")
             except ValueError:
                 errors.append(f"{pine_file}: Invalid import syntax '{lib_path}'")
                 continue

@@ -11,6 +11,13 @@ from __future__ import annotations
 import logging
 from dataclasses import dataclass
 
+from services.live_overlay_daemon.smc_advanced_patterns import (
+    BoSRefinement,
+    BrokenFractalDetector,
+    HVBDetector,
+    LiquidityClusterDetector,
+    PPDDClassifier,
+)
 from services.live_overlay_daemon.smc_ringbuffer import (
     BoxType,
     Direction,
@@ -28,13 +35,6 @@ from services.live_overlay_daemon.smc_ringbuffer import (
     make_ob_up,
     make_rjb_down,
     make_rjb_up,
-)
-from services.live_overlay_daemon.smc_advanced_patterns import (
-    HVBDetector,
-    PPDDClassifier,
-    LiquidityClusterDetector,
-    BrokenFractalDetector,
-    BoSRefinement,
 )
 
 logger = logging.getLogger(__name__)
@@ -301,7 +301,7 @@ class SmcSignalDetector:
         if len(self.swing_lows) > 50:
             self.swing_lows.pop(0)
 
-    def _calculate_atr(self, t: Candle, t1: Optional[Candle] = None) -> float:
+    def _calculate_atr(self, t: Candle, t1: Candle | None = None) -> float:
         """Simple ATR calculation for PPDD & liquidity clustering."""
         if t1 is None:
             return (t.high - t.low) * 0.5

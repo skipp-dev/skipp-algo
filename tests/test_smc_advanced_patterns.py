@@ -1,16 +1,12 @@
 """Tests for SMC Advanced Patterns (HVB, PPDD, Liquidity, Broken Fractal)."""
 
-import pytest
 
 from services.live_overlay_daemon.smc_advanced_patterns import (
-    BrokenFractal,
     BrokenFractalDetector,
     HVBDetector,
     LiquidityCluster,
     LiquidityClusterDetector,
     PPDDClassifier,
-    PPDDOrderBlock,
-    StructureLevel,
 )
 
 

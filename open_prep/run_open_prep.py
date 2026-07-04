@@ -42,6 +42,7 @@ from .macro import (
     get_consensus,
     macro_bias_with_components,
 )
+from .market_microstructure import compute_microstructure_snapshot
 from .news import build_news_scores
 from .outcomes import (
     compute_hit_rates,
@@ -49,7 +50,6 @@ from .outcomes import (
     prepare_outcome_snapshot,
     store_daily_outcomes,
 )
-from .market_microstructure import compute_microstructure_snapshot
 from .playbook import assign_playbooks
 from .regime import apply_regime_adjustments, classify_regime, reset_regime_state
 
