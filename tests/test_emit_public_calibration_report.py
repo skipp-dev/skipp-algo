@@ -564,3 +564,18 @@ def test_main_with_invalid_family_record_returns_one(tmp_path: Path, capsys: pyt
     assert rc == 1
     err = capsys.readouterr().err
     assert "C12" in err or "missing required keys" in err
+
+
+def test_append_public_history_retention_zero_keeps_nothing(tmp_path: Path) -> None:
+    """Bug-hunt r4: existing[-0:] kept the whole file for retention=0."""
+    out = tmp_path / "calibration_report_public.json"
+    report = {
+        "status": "ok",
+        "generated_at": "2026-04-23T21:00:00+00:00",
+        "n_events": 10,
+        "weighted_hit_rate": 0.7,
+        "metrics": {"smooth_ece": 0.1, "ece": 0.11},
+        "source": {"commit_sha": "abc"},
+    }
+    history_path = append_public_history(out, report, retention=0)
+    assert history_path.read_text(encoding="utf-8").strip() == ""

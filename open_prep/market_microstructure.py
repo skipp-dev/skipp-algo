@@ -185,6 +185,8 @@ def _percentile_rank(history: list[float], value: float) -> float | None:
 
 
 def _sample_symbols(symbols: list[str], limit: int) -> list[str]:
+    if limit <= 0:
+        return []
     out: list[str] = []
     seen: set[str] = set()
     for sym in symbols:

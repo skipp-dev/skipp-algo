@@ -367,4 +367,6 @@ class EnsembleSignalRouter:
 
     def get_signal_history(self, limit: int = 20) -> list[EnsembleSignal]:
         """Get recent signals."""
+        if limit <= 0:
+            return []  # [-0:] would return the WHOLE history
         return self.signal_history[-limit:]

@@ -108,7 +108,8 @@ def rotate(
 
     if max_rows is not None and len(kept) > max_rows:
         dropped_cap = len(kept) - max_rows
-        kept = kept[-max_rows:]  # keep newest
+        # [-0:] would keep everything; max_rows=0 must keep nothing.
+        kept = kept[-max_rows:] if max_rows > 0 else []  # keep newest
 
     corrupt_kept = [] if drop_corrupt else corrupt
     corrupt_dropped = len(corrupt) if drop_corrupt else 0

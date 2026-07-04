@@ -1,5 +1,8 @@
 import assert from "node:assert/strict";
+import fs from "node:fs";
+import path from "node:path";
 import test from "node:test";
+import { fileURLToPath } from "node:url";
 import { chromium } from "playwright";
 
 import {
@@ -1742,5 +1745,27 @@ test("visible legend text settings fallback ignores matching text outside legend
     assert.equal(await page.locator('[data-name="indicator-properties-dialog"]').count(), 0);
   } finally {
     await browser.close();
+  }
+});
+
+test("pointer-events bypass restores overlay styles in finally (bug-hunt r4)", () => {
+  // Regression guard: every pointer-events bypass block must restore the
+  // patched overlay styles in a finally, so a synchronously throwing click
+  // (e.g. page-patched click()) cannot leave overlays pointer-events:none.
+  const sharedSource = fs.readFileSync(
+    path.join(path.dirname(fileURLToPath(import.meta.url)), "..", "lib", "tv_shared.ts"),
+    "utf8",
+  );
+  const marker = "const patched: Array<{ element: HTMLElement; value: string }> = [];";
+  const blocks = sharedSource.split(marker).slice(1);
+  assert.ok(blocks.length >= 3, `expected >= 3 pointer-events bypass sites, found ${blocks.length}`);
+  for (const [index, block] of blocks.entries()) {
+    const restoreIndex = block.indexOf("entry.element.style.pointerEvents = entry.value");
+    const finallyIndex = block.indexOf("} finally {");
+    assert.ok(restoreIndex !== -1, `bypass site ${index}: restore loop missing`);
+    assert.ok(
+      finallyIndex !== -1 && finallyIndex < restoreIndex,
+      `bypass site ${index}: pointer-events restore must live inside a finally block`,
+    );
   }
 });

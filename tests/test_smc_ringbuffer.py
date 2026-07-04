@@ -354,3 +354,57 @@ class TestBoxFactories:
         assert box.box_type == BoxType.REJECTION_BLOCK
         assert box.direction == Direction.BEARISH
         assert box.strength == 0.6  # Weaker signal
+
+
+class TestFactoryBoundsOrdering:
+    """Bug-hunt round 4: factories must never emit inverted boxes.
+
+    With corrupt candle data (high < low, close outside [low, high]) the
+    factories previously produced ``top < bottom``; such a box satisfies
+    ``is_breached`` on nearly every candle and is silently mitigated on
+    the next bar — silent structure loss.
+    """
+
+    def test_ob_up_corrupt_candle_reproduces_report(self) -> None:
+        from services.live_overlay_daemon.smc_ringbuffer import make_fvg_down, make_rjb_up
+
+        # Report repro: high_t2 below both lows.
+        box = make_ob_up(bar_index=10, high_t2=-1.0, low_t1=0.0, low_t2=0.0)
+        assert box.top >= box.bottom
+        assert (box.top, box.bottom) == (0.0, -1.0)
+
+        # All remaining factories with equally corrupt inputs.
+        assert make_ob_down(bar_index=10, high_t1=-1.0, high_t2=-2.0, low_t2=5.0).top >= \
+            make_ob_down(bar_index=10, high_t1=-1.0, high_t2=-2.0, low_t2=5.0).bottom
+        assert make_fvg_up(bar_index=10, low_t=1.0, high_t2=2.0).top >= 1.0
+        assert make_fvg_down(bar_index=10, high_t=5.0, low_t2=1.0).top >= \
+            make_fvg_down(bar_index=10, high_t=5.0, low_t2=1.0).bottom
+        assert make_rjb_down(bar_index=10, high_t2=1.0, close_t2=2.0).top == 2.0
+        assert make_rjb_up(bar_index=10, close_t2=1.0, low_t2=2.0).top == 2.0
+
+    def test_sane_inputs_keep_exact_semantics(self) -> None:
+        from services.live_overlay_daemon.smc_ringbuffer import make_fvg_down, make_rjb_up
+
+        ob_up = make_ob_up(bar_index=10, high_t2=100.0, low_t1=97.0, low_t2=96.0)
+        assert (ob_up.top, ob_up.bottom) == (100.0, 96.0)
+
+        ob_down = make_ob_down(bar_index=10, high_t1=105.0, high_t2=104.0, low_t2=99.0)
+        assert (ob_down.top, ob_down.bottom) == (105.0, 99.0)
+
+        fvg_up = make_fvg_up(bar_index=10, low_t=102.0, high_t2=100.0)
+        assert (fvg_up.top, fvg_up.bottom) == (102.0, 100.0)
+
+        fvg_down = make_fvg_down(bar_index=10, high_t=98.0, low_t2=100.0)
+        assert (fvg_down.top, fvg_down.bottom) == (100.0, 98.0)
+
+        rjb_down = make_rjb_down(bar_index=10, high_t2=101.0, close_t2=100.0)
+        assert (rjb_down.top, rjb_down.bottom) == (101.0, 100.0)
+
+        rjb_up = make_rjb_up(bar_index=10, close_t2=100.0, low_t2=99.0)
+        assert (rjb_up.top, rjb_up.bottom) == (100.0, 99.0)
+
+    def test_normalized_box_not_instantly_breached(self) -> None:
+        # An inverted box would be breached by virtually any candle; the
+        # normalized box must survive an in-range candle.
+        box = make_ob_up(bar_index=10, high_t2=-1.0, low_t1=0.0, low_t2=0.0)
+        assert not box.is_breached(high=-0.5, low=-0.9)

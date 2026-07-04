@@ -320,13 +320,24 @@ def is_rjb_up(
 # ============================================================================
 
 
+def _ordered_bounds(a: float, b: float) -> tuple[float, float]:
+    """Return ``(top, bottom)`` with ``top >= bottom``.
+
+    Guards against corrupt candle data (e.g. ``high < low``) which would
+    otherwise produce an inverted box that ``is_breached`` mitigates on the
+    very next candle — silent structure loss.
+    """
+    return (a, b) if a >= b else (b, a)
+
+
 def make_ob_up(bar_index: int, high_t2: float, low_t1: float, low_t2: float) -> SmcBox:
     """Factory: bullish order block."""
+    top, bottom = _ordered_bounds(high_t2, min(low_t1, low_t2))
     return SmcBox(
         left=bar_index - 2,
         right=bar_index,
-        top=high_t2,
-        bottom=min(low_t1, low_t2),
+        top=top,
+        bottom=bottom,
         box_type=BoxType.ORDER_BLOCK,
         direction=Direction.BULLISH,
         created_at=bar_index,
@@ -337,11 +348,12 @@ def make_ob_up(bar_index: int, high_t2: float, low_t1: float, low_t2: float) -> 
 
 def make_ob_down(bar_index: int, high_t1: float, high_t2: float, low_t2: float) -> SmcBox:
     """Factory: bearish order block."""
+    top, bottom = _ordered_bounds(max(high_t1, high_t2), low_t2)
     return SmcBox(
         left=bar_index - 2,
         right=bar_index,
-        top=max(high_t1, high_t2),
-        bottom=low_t2,
+        top=top,
+        bottom=bottom,
         box_type=BoxType.ORDER_BLOCK,
         direction=Direction.BEARISH,
         created_at=bar_index,
@@ -352,11 +364,12 @@ def make_ob_down(bar_index: int, high_t1: float, high_t2: float, low_t2: float) 
 
 def make_fvg_up(bar_index: int, low_t: float, high_t2: float) -> SmcBox:
     """Factory: bullish fair value gap."""
+    top, bottom = _ordered_bounds(low_t, high_t2)
     return SmcBox(
         left=bar_index - 2,
         right=bar_index,
-        top=low_t,
-        bottom=high_t2,
+        top=top,
+        bottom=bottom,
         box_type=BoxType.FAIR_VALUE_GAP,
         direction=Direction.BULLISH,
         created_at=bar_index,
@@ -367,11 +380,12 @@ def make_fvg_up(bar_index: int, low_t: float, high_t2: float) -> SmcBox:
 
 def make_fvg_down(bar_index: int, high_t: float, low_t2: float) -> SmcBox:
     """Factory: bearish fair value gap."""
+    top, bottom = _ordered_bounds(low_t2, high_t)
     return SmcBox(
         left=bar_index - 2,
         right=bar_index,
-        top=low_t2,
-        bottom=high_t,
+        top=top,
+        bottom=bottom,
         box_type=BoxType.FAIR_VALUE_GAP,
         direction=Direction.BEARISH,
         created_at=bar_index,
@@ -382,11 +396,12 @@ def make_fvg_down(bar_index: int, high_t: float, low_t2: float) -> SmcBox:
 
 def make_rjb_down(bar_index: int, high_t2: float, close_t2: float) -> SmcBox:
     """Factory: bearish rejection block (weak OB)."""
+    top, bottom = _ordered_bounds(high_t2, close_t2)
     return SmcBox(
         left=bar_index - 2,
         right=bar_index,
-        top=high_t2,
-        bottom=close_t2,
+        top=top,
+        bottom=bottom,
         box_type=BoxType.REJECTION_BLOCK,
         direction=Direction.BEARISH,
         created_at=bar_index,
@@ -397,11 +412,12 @@ def make_rjb_down(bar_index: int, high_t2: float, close_t2: float) -> SmcBox:
 
 def make_rjb_up(bar_index: int, close_t2: float, low_t2: float) -> SmcBox:
     """Factory: bullish rejection block."""
+    top, bottom = _ordered_bounds(close_t2, low_t2)
     return SmcBox(
         left=bar_index - 2,
         right=bar_index,
-        top=close_t2,
-        bottom=low_t2,
+        top=top,
+        bottom=bottom,
         box_type=BoxType.REJECTION_BLOCK,
         direction=Direction.BULLISH,
         created_at=bar_index,
