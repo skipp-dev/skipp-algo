@@ -373,7 +373,7 @@ class TripleConfluenceNavigator:
         logger.debug(
             f"[Confluence] {confluence.direction} signal: "
             f"C={confluence.cardwell_signal} R={confluence.rsi_supertrend_signal} "
-            f"S={confluence.structure_signal}"
+            f"S={confluence.structure_signal} strength={confluence.alignment_strength:.2f}"
         )
 
         # Step 3: Check HTF bias alignment

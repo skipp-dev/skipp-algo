@@ -271,7 +271,8 @@ class TargetProjector:
 class StrongImpulseDetector:
     """Complete Strong Impulse Signal system."""
 
-    def __init__(self):
+    def __init__(self, propulsion_threshold: float = 6.0):
+        self.propulsion_threshold = propulsion_threshold
         self.ignition_detector = IgnitionCandleDetector()
         self.propulsion_scorer = PropulsionStrengthScorer()
         self.invalidation_calc = InvalidationLevelCalculator()
@@ -318,7 +319,7 @@ class StrongImpulseDetector:
             volume_ratio=volume_ratio,
         )
 
-        if not propulsion.is_strong_impulse(threshold=6.0):
+        if not propulsion.is_strong_impulse(threshold=self.propulsion_threshold):
             logger.debug(
                 f"[Impulse] Weak propulsion: {propulsion.total_strength:.1f}/10"
             )

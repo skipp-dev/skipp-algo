@@ -82,6 +82,10 @@ _FROZEN_PRINT_COUNTS: dict[str, int] = {
     "run_ensemble_backtest.py": 51,
     "services/live_overlay_daemon/ensemble_backtester.py": 1,
     "services/live_overlay_daemon/fmp_data_loader.py": 8,
+    # 2026-07-04 (frozen ensemble regime experiment): volatility_filter.py
+    # is archived research scaffolding; its 15 prints are all inside a
+    # __main__ demo block documenting the ATR-ratio trading zones.
+    "services/live_overlay_daemon/volatility_filter.py": 15,
 }
 _FROZEN_PRINT_TOTAL = sum(_FROZEN_PRINT_COUNTS.values())
 

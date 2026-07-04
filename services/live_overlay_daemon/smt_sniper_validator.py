@@ -265,7 +265,8 @@ class SmtConfirmationWindow:
 class SmtSniperValidator:
     """Complete SMT Sniper Entry Engine."""
 
-    def __init__(self):
+    def __init__(self, quality_threshold: float = 70.0):
+        self.quality_threshold = quality_threshold
         self.sweep_detector = LiquiditySweepDetector(sweep_threshold_atr=0.5)
         self.quality_scorer = SmtQualityScorer()
         self.correlation_validator = SmtCorrelationValidator()
@@ -328,7 +329,7 @@ class SmtSniperValidator:
         )
 
         # Step 4: Check if high quality
-        if not quality.is_high_quality(threshold=70.0):
+        if not quality.is_high_quality(threshold=self.quality_threshold):
             logger.debug(f"[SMT] Low quality score: {quality.total_score:.0f}")
             return None
 

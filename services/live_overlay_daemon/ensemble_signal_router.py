@@ -5,6 +5,7 @@ Combines:
 2. Strong Impulse Signals (ignition + propulsion)
 3. Triple Confluence Navigator (3-way alignment gate)
 4. Macro Liquidity Filter (SOFR-IORB stress suppression)
+5. Volatility Filter (ATR regime detection - NEW)
 
 Routes final signals with conflict resolution and confidence scoring.
 """
@@ -13,6 +14,7 @@ from __future__ import annotations
 
 import dataclasses
 import logging
+import numpy as np
 from dataclasses import dataclass
 from typing import Optional
 from enum import Enum
@@ -22,6 +24,7 @@ from services.live_overlay_daemon.smt_sniper_validator import SmtSniperValidator
 from services.live_overlay_daemon.strong_impulse_detector import StrongImpulseDetector, ImpulseSignal
 from services.live_overlay_daemon.triple_confluence_navigator import TripleConfluenceNavigator, TripleConfluenceSignal
 from services.live_overlay_daemon.macro_liquidity_filter import MacroLiquidityFilter, LiquidityRegime
+from services.live_overlay_daemon.volatility_filter import VolatilityFilter
 
 logger = logging.getLogger(__name__)
 
@@ -68,18 +71,37 @@ class EnsembleSignal:
 class EnsembleSignalRouter:
     """Orchestrates all 4 systems and routes final signals."""
 
-    def __init__(self, max_smc_boxes: int = 10):
+    def __init__(
+        self,
+        max_smc_boxes: int = 10,
+        smt_quality_threshold: float = 70.0,
+        impulse_propulsion_threshold: float = 6.0,
+        minimum_sources: int = 2,
+        enable_volatility_filter: bool = True,
+        atr_ratio_min: float = 0.8,
+        atr_ratio_max: float = 1.5,
+    ):
         # Core detectors
         self.smc_detector = SmcSignalDetector(max_boxes_per_direction=max_smc_boxes)
-        self.smt_sniper = SmtSniperValidator()
-        self.impulse_detector = StrongImpulseDetector()
+        self.smt_sniper = SmtSniperValidator(quality_threshold=smt_quality_threshold)
+        self.impulse_detector = StrongImpulseDetector(propulsion_threshold=impulse_propulsion_threshold)
         self.confluence_nav = TripleConfluenceNavigator()
+        self.minimum_sources = minimum_sources
 
         # Macro filter
         self.macro_filter = MacroLiquidityFilter(
             stress_threshold_bp=5.0,
             extreme_threshold_bp=15.0,
         )
+
+        # Volatility filter
+        self.enable_volatility_filter = enable_volatility_filter
+        self.volatility_filter = VolatilityFilter(
+            atr_period=14,
+            sma_period=20,
+            ratio_min=atr_ratio_min,
+            ratio_max=atr_ratio_max,
+        ) if enable_volatility_filter else None
 
         # Signal routing
         self.latest_ensemble_signal: Optional[EnsembleSignal] = None
@@ -111,6 +133,22 @@ class EnsembleSignalRouter:
 
         Returns: EnsembleSignal if consensus reached, else None
         """
+        # Step -1: Check volatility regime (SKIP if too calm or too choppy)
+        volatility_suppressed = False
+        if self.enable_volatility_filter and self.volatility_filter:
+            self.volatility_filter.calculate_atr(high, low, close)
+            is_tradeable, reason = self.volatility_filter.is_tradeable()
+            atr_ratio = self.volatility_filter.get_atr_ratio()
+
+            if not is_tradeable:
+                volatility_suppressed = True
+                atr_str = f"{atr_ratio:.2f}" if atr_ratio else "N/A"
+                logger.debug(
+                    f"[Ensemble] Volatility filter suppressed signal @ {bar_index}: "
+                    f"{reason}, ATR_Ratio={atr_str}"
+                )
+                return None
+
         # Step 0: Update macro regime
         if sofr_rate and iorb_rate:
             self.macro_filter.update(sofr_rate, iorb_rate, bar_index)
@@ -259,6 +297,14 @@ class EnsembleSignalRouter:
         )
 
         sources = [v[2] for v in votes]
+
+        # Require minimum sources for entry
+        if len(votes) < self.minimum_sources:
+            logger.debug(
+                f"[Ensemble] Signal suppressed at {bar_index}: "
+                f"{len(votes)} source(s) < {self.minimum_sources} required"
+            )
+            return None
 
         return EnsembleSignal(
             bar_index=bar_index,
