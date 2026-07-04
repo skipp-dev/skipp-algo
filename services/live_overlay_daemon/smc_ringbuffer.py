@@ -63,6 +63,14 @@ class SmcBox:
     # Metadata
     strength: float = 1.0  # 0.0-1.0 confidence/robustness
 
+    def __post_init__(self):
+        """Normalize bounds: an inverted box (top < bottom, e.g. from corrupt
+        candle data or a buggy construction site) would satisfy is_breached on
+        virtually any candle and be silently mitigated — silent structure loss.
+        """
+        if self.bottom > self.top:
+            self.top, self.bottom = self.bottom, self.top
+
     def width(self) -> int:
         """Bar count spanned by this box."""
         return max(0, self.right - self.left)
@@ -98,6 +106,10 @@ class RingBuffer[T]:
 
     def __post_init__(self):
         """Initialize deque with fixed max_len."""
+        if self.max_size <= 0:
+            # deque(maxlen=0) is legal but append() would treat the empty
+            # buffer as "full" and crash on self._buffer[0] (IndexError).
+            raise ValueError(f"RingBuffer max_size must be positive, got {self.max_size}")
         self._buffer = deque(maxlen=self.max_size)
 
     def append(self, item: T) -> T | None:

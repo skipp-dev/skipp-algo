@@ -118,6 +118,10 @@ class HVBDetector:
             lookback: Candles to average for volume baseline
             hvb_threshold: volume/avg_volume ratio to classify as HVB (default 1.5x)
         """
+        if lookback < 1:
+            # lookback=0 would trim volume_history to empty right before the
+            # rolling-average division -> ZeroDivisionError.
+            raise ValueError(f"HVBDetector lookback must be >= 1, got {lookback}")
         self.lookback = lookback
         self.hvb_threshold = hvb_threshold
         self.volume_history: list[int] = []
