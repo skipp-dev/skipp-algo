@@ -67,7 +67,7 @@ _FROZEN_SITES: dict[str, frozenset[int]] = {
     # surfaced by a branch-wide ledger run (TOML/Pine round-trips; content
     # is ASCII-safe, encoding default acceptable until a dedicated sweep).
     "scripts/check_pine_library_age.py": frozenset({34}),
-    "scripts/sync_tradingview_libraries.py": frozenset({95, 111, 126, 177, 197}),
+    "scripts/sync_tradingview_libraries.py": frozenset({93, 109, 124, 175, 195}),
 }
 _FROZEN_TOTAL = sum(len(v) for v in _FROZEN_SITES.values())
 
