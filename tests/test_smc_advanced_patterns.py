@@ -120,6 +120,22 @@ class TestPPDDClassifier:
         assert ob.is_premium is True
         assert ob.is_discount is False
 
+    def test_classify_rejects_non_finite_inputs(self):
+        """NaN input previously classified as a max-strength discount:
+        min(1.0, nan) == 1.0 and every `nan > price` comparison is False."""
+        import pytest
+
+        classifier = PPDDClassifier(atr_multiple=2.0)
+        bad_cases = [
+            dict(ob_top=float("nan"), ob_bottom=100.0, current_price=105.0, atr=1.0),
+            dict(ob_top=110.0, ob_bottom=float("inf"), current_price=105.0, atr=1.0),
+            dict(ob_top=110.0, ob_bottom=100.0, current_price=float("nan"), atr=1.0),
+            dict(ob_top=110.0, ob_bottom=100.0, current_price=105.0, atr=float("nan")),
+        ]
+        for kwargs in bad_cases:
+            with pytest.raises(ValueError, match="must be finite"):
+                classifier.classify(direction="bullish", **kwargs)
+
     def test_hvb_confirmation_strength(self):
         """OB strength should increase with HVB confirmation."""
         classifier = PPDDClassifier(atr_multiple=2.0)

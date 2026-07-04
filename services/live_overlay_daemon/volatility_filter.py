@@ -69,7 +69,11 @@ class VolatilityFilter:
         current_atr = self.atr_history[-1]
         atr_sma = np.mean(self.atr_history[-self.sma_period:])
 
-        if atr_sma == 0:
+        # `atr_sma == 0` misses NaN (NaN == 0 is False). A NaN ratio would slip
+        # past the `ratio is None` check in is_tradeable and, since every
+        # `NaN < min` / `NaN > max` comparison is False, return (True,
+        # "tradeable") — failing OPEN and disabling the choppy-market gate.
+        if not np.isfinite(atr_sma) or atr_sma == 0 or not np.isfinite(current_atr):
             return None
 
         return current_atr / atr_sma

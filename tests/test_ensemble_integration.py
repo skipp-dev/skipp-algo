@@ -13,6 +13,7 @@ import pytest
 
 from services.live_overlay_daemon.ensemble_signal_router import EnsembleSignalRouter
 from services.live_overlay_daemon.macro_liquidity_filter import MacroLiquidityFilter
+from services.live_overlay_daemon.volatility_filter import VolatilityFilter
 
 # ============================================================================
 # MACRO LIQUIDITY FILTER TESTS
@@ -49,6 +50,21 @@ class TestMacroLiquidityFilter:
         assert regime.is_stressed is True
         assert regime.stress_level == 10
 
+    def test_non_finite_rates_keep_last_regime(self):
+        """NaN/Inf rates previously produced a contradictory regime
+        ('extreme_stress' + stress_level 10 but is_stressed=False, failing
+        open). Now the last known regime is kept, state uncorrupted."""
+        mlf = MacroLiquidityFilter()
+        good = mlf.update(sofr_rate=4.33, iorb_rate=4.32)  # 'normal'
+        history_len = len(mlf.spread_history)
+
+        for sofr, iorb in ((float("nan"), 4.32), (4.33, float("inf"))):
+            regime = mlf.update(sofr_rate=sofr, iorb_rate=iorb)
+            assert regime is good  # unchanged, not a mislabeled extreme_stress
+            assert regime.is_stressed is False
+        # Non-finite updates must not pollute the spread history either.
+        assert len(mlf.spread_history) == history_len
+
     def test_stress_suppression_threshold(self):
         """Should suppress signals when stressed."""
         mlf = MacroLiquidityFilter(stress_threshold_bp=5.0)
@@ -82,6 +98,37 @@ class TestMacroLiquidityFilter:
 
         assert len(mlf.spread_history) == 5
         assert mlf.spread_history[-1] > mlf.spread_history[0]
+
+
+# ============================================================================
+# VOLATILITY FILTER TESTS
+# ============================================================================
+
+
+class TestVolatilityFilterFiniteGuard:
+    """NaN ATR previously produced a NaN ratio that slipped past the `is None`
+    check and returned (True, 'tradeable') — failing open."""
+
+    def test_nan_atr_yields_none_ratio_and_not_tradeable(self):
+        vf = VolatilityFilter(atr_period=3, sma_period=5)
+        # Seed a full SMA window, then inject a NaN candle.
+        for _ in range(5):
+            vf.calculate_atr(high=101.0, low=99.0, close=100.0)
+        vf.calculate_atr(high=float("nan"), low=99.0, close=100.0)
+
+        assert vf.get_atr_ratio() is None
+        tradeable, reason = vf.is_tradeable()
+        assert tradeable is False
+        assert reason == "insufficient_data"
+
+    def test_finite_series_still_tradeable(self):
+        vf = VolatilityFilter(atr_period=3, sma_period=5)
+        for _ in range(6):
+            vf.calculate_atr(high=101.0, low=99.0, close=100.0)
+        ratio = vf.get_atr_ratio()
+        assert ratio is not None
+        import math as _math
+        assert _math.isfinite(ratio)
 
 
 # ============================================================================

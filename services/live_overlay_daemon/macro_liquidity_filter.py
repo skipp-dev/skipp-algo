@@ -17,6 +17,7 @@ from __future__ import annotations
 
 import dataclasses
 import logging
+import math
 from dataclasses import dataclass
 from datetime import UTC, datetime
 
@@ -76,6 +77,19 @@ class MacroLiquidityFilter:
 
         Returns: Updated LiquidityRegime
         """
+        # Non-finite rates would produce a NaN spread: every `NaN < threshold`
+        # is False, so the regime chain falls through to 'extreme_stress'
+        # (stress_level=10) while `is_stressed = NaN > threshold` is False —
+        # a contradictory regime that fails OPEN (does not suppress). Fail-safe
+        # instead: keep the last known regime rather than corrupt state, and
+        # do not abort the per-bar backtest loop.
+        if not (math.isfinite(sofr_rate) and math.isfinite(iorb_rate)):
+            logger.debug(
+                "MacroLiquidityFilter: non-finite rates (sofr=%s, iorb=%s); regime unchanged",
+                sofr_rate, iorb_rate,
+            )
+            return self.regime
+
         # Convert to basis points
         spread_bp = (sofr_rate - iorb_rate) * 100.0
         self.sofr_iorb_spread_bp = spread_bp

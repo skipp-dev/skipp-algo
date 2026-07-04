@@ -67,7 +67,17 @@ class SmcBox:
         """Normalize bounds: an inverted box (top < bottom, e.g. from corrupt
         candle data or a buggy construction site) would satisfy is_breached on
         virtually any candle and be silently mitigated — silent structure loss.
+
+        A non-finite bound is worse: every ``a > nan`` comparison is False, so
+        the inversion swap is skipped AND is_breached can never fire, leaving
+        the box active forever (silent structure *retention*). Reject it
+        fail-fast, consistent with the other construction guards in this module
+        (RingBuffer/SmcBoxManager capacity).
         """
+        if not (math.isfinite(self.top) and math.isfinite(self.bottom)):
+            raise ValueError(
+                f"SmcBox bounds must be finite, got top={self.top}, bottom={self.bottom}"
+            )
         if self.bottom > self.top:
             self.top, self.bottom = self.bottom, self.top
 

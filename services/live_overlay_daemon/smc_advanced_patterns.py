@@ -13,6 +13,7 @@ Used by SmcSignalDetector for signal filtering + confluence.
 from __future__ import annotations
 
 import logging
+import math
 from dataclasses import dataclass
 from enum import Enum
 
@@ -181,6 +182,14 @@ class PPDDClassifier:
         Premium = OB formed above current price (resistance)
         Discount = OB formed below current price (support)
         """
+        # Fail-fast on non-finite inputs: NaN would make every comparison
+        # False (so a box misclassifies as discount) and, via min(1.0, nan)
+        # == 1.0 in Python, report maximum strength for garbage data.
+        if not all(math.isfinite(x) for x in (ob_top, ob_bottom, current_price, atr)):
+            raise ValueError(
+                "PPDD classify inputs must be finite: "
+                f"ob_top={ob_top}, ob_bottom={ob_bottom}, current_price={current_price}, atr={atr}"
+            )
         ob_center = (ob_top + ob_bottom) / 2
 
         is_premium = False

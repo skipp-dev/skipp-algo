@@ -215,6 +215,30 @@ class TestSmcBoxBoundsNormalization:
         )
         assert (box.top, box.bottom) == (110.0, 100.0)
 
+    def test_nan_bounds_rejected(self) -> None:
+        # A NaN bound skips the inversion swap (nan comparisons are False) and
+        # makes is_breached always False -> the box never mitigates and lives
+        # forever (silent structure retention). Reject fail-fast instead.
+        import pytest
+
+        for top, bottom in ((float("nan"), 100.0), (110.0, float("nan"))):
+            with pytest.raises(ValueError, match="bounds must be finite"):
+                SmcBox(
+                    left=0, right=2, top=top, bottom=bottom,
+                    box_type=BoxType.FAIR_VALUE_GAP, direction=Direction.BULLISH,
+                    created_at=2,
+                )
+
+    def test_inf_bounds_rejected(self) -> None:
+        import pytest
+
+        with pytest.raises(ValueError, match="bounds must be finite"):
+            SmcBox(
+                left=0, right=2, top=float("inf"), bottom=100.0,
+                box_type=BoxType.ORDER_BLOCK, direction=Direction.BULLISH,
+                created_at=2,
+            )
+
 
 class TestSmcBoxManager:
     """Test unified box manager with direction separation."""
