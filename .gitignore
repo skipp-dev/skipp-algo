@@ -90,6 +90,11 @@ artifacts/ops_run_time*.txt
 artifacts/tmp_*.py
 artifacts/ops_run_measure.py
 
+# Local research scratch archive (ensemble/regime study 2026-07 — dumps, logs,
+# per-run JSON; ~5k files). Kept local, never committed. See memory + the
+# artifacts/research/ensemble_2026-07/README for provenance.
+artifacts/research/
+
 # Editable-install metadata (added 2026-04-23 with pyproject [tool.setuptools] block)
 *.egg-info/
 
