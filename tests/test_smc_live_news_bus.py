@@ -470,6 +470,7 @@ def test_poll_live_news_bus_passes_and_persists_newsapi_feed_uri() -> None:
             symbols=["AAPL"],
             state=initial_state,
             newsapi_ai_key="newsapi",
+            include_newsapi_ai=True,
             include_tradingview=True,
             now_ts=now_ts,
         )
@@ -521,6 +522,7 @@ def test_poll_live_news_bus_exports_newsapi_no_recent_matches_status() -> None:
                 "story_state": {},
             },
             newsapi_ai_key="newsapi",
+            include_newsapi_ai=True,
             include_tradingview=True,
             now_ts=now_ts,
         )
@@ -595,6 +597,7 @@ def test_poll_live_news_bus_redacts_provider_error_secrets() -> None:
             symbols=["AAPL"],
             state=None,
             newsapi_ai_key="newsapi",
+            include_newsapi_ai=True,
             include_tradingview=True,
             now_ts=now_ts,
         )
@@ -662,6 +665,7 @@ def test_poll_live_news_bus_can_run_newsapi_only() -> None:
             symbols=["AAPL"],
             state=None,
             newsapi_ai_key="newsapi",
+            include_newsapi_ai=True,
             include_benzinga=False,
             include_fmp=False,
             include_fmp_articles=False,

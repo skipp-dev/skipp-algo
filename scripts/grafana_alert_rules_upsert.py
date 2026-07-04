@@ -99,7 +99,35 @@ def load_alert_groups(path: Path) -> list[dict[str, Any]]:
     """Load and return the ``groups`` list from a file-provisioning YAML document."""
     import yaml  # local import: keeps ``--help`` working without PyYAML installed
 
-    document = yaml.safe_load(path.read_text(encoding="utf-8"))
+    # Duplicate mapping keys are silent data loss with PyYAML (last key wins:
+    # a duplicated ``annotations:`` above the real one is tolerated, reordered
+    # it silently nulls summary/runbook) and a hard parse error with go-yaml
+    # (Grafana file provisioning). Reject them at load time so the drift can
+    # never reach the API.
+    class _DupKeyLoader(yaml.SafeLoader):
+        pass
+
+    def _construct_no_dup_mapping(
+        loader: yaml.SafeLoader, node: Any, deep: bool = False
+    ) -> dict[Any, Any]:
+        keys = [loader.construct_object(key_node, deep=deep) for key_node, _ in node.value]
+        seen: set[Any] = set()
+        for key in keys:
+            if key in seen:
+                raise ValueError(
+                    f"{path}: duplicate YAML mapping key {key!r} near line "
+                    f"{node.start_mark.line + 1} — PyYAML silently keeps only "
+                    "the last value and go-yaml (Grafana provisioning) rejects "
+                    "the document"
+                )
+            seen.add(key)
+        return yaml.SafeLoader.construct_mapping(loader, node, deep)
+
+    _DupKeyLoader.add_constructor(
+        yaml.resolver.BaseResolver.DEFAULT_MAPPING_TAG, _construct_no_dup_mapping
+    )
+
+    document = yaml.load(path.read_text(encoding="utf-8"), Loader=_DupKeyLoader)  # noqa: S506
     if not isinstance(document, dict):
         raise ValueError(f"{path}: top-level YAML must be a mapping")
     groups = document.get("groups")

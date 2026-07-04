@@ -62,6 +62,7 @@ _news_lock = threading.Lock()
 # symbol on every build_payload / non-5m /smc_live request.
 _news_index: dict[str, list[float]] = {}
 _news_index_built_at: float = -1.0
+_news_index_cache_key: tuple[int, float, int, int] | None = None
 _NEWS_USER_AGENT = "live-overlay-daemon-news/1"
 
 # ---------------------------------------------------------------------------
@@ -308,6 +309,9 @@ def _load_news_snapshot_with_stamp() -> tuple[dict[str, Any], float]:
             logger.warning("Failed to load news snapshot from %s", path, exc_info=True)
             _news_cache = {}
         return dict(_news_cache), _news_loaded_at
+
+
+_DEFAULT_LOAD_NEWS_SNAPSHOT = _load_news_snapshot
 
 
 def _fetch_signals_url(
@@ -766,12 +770,23 @@ def _news_ticker_score_index() -> dict[str, list[float]]:
     index is built a single time whenever the news snapshot is (re)loaded and
     reused for every per-symbol lookup within the TTL window.
     """
-    global _news_index, _news_index_built_at
-    snap, loaded_at = _load_news_snapshot_with_stamp()
-    with _news_lock:
-        if _news_index_built_at >= 0.0 and _news_index_built_at == loaded_at:
-            return _news_index
+    global _news_index, _news_index_built_at, _news_index_cache_key
+    if _load_news_snapshot is _DEFAULT_LOAD_NEWS_SNAPSHOT:
+        snap, loaded_at = _load_news_snapshot_with_stamp()
+        loader_id = id(_load_news_snapshot_with_stamp)
+    else:
+        # Unit tests often monkeypatch the public loader directly. Honour that
+        # hook and key the index by the returned snapshot so stale index entries
+        # cannot leak across patched snapshots.
+        snap = _load_news_snapshot()
+        loaded_at = _news_loaded_at
+        loader_id = id(_load_news_snapshot)
     stories = snap.get("stories") or snap.get("items") or []
+    story_count = len(stories) if hasattr(stories, "__len__") else -1
+    cache_key = (loader_id, loaded_at, id(stories), story_count)
+    with _news_lock:
+        if _news_index_cache_key == cache_key:
+            return _news_index
     index: dict[str, list[float]] = {}
     for story in stories:
         if not isinstance(story, dict):
@@ -782,10 +797,11 @@ def _news_ticker_score_index() -> dict[str, list[float]]:
         for ticker in _normalize_story_tickers(story.get("tickers")):
             index.setdefault(ticker, []).append(score)
     with _news_lock:
-        if _news_index_built_at >= 0.0 and _news_index_built_at == loaded_at:
+        if _news_index_cache_key == cache_key:
             return _news_index
         _news_index = index
         _news_index_built_at = loaded_at
+        _news_index_cache_key = cache_key
         return _news_index
 
 

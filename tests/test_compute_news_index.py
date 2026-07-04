@@ -18,6 +18,7 @@ def _reset_news_state() -> None:
     compute._news_checked_at = 0.0
     compute._news_index = {}
     compute._news_index_built_at = -1.0
+    compute._news_index_cache_key = None
 
 
 def _install_snapshot(monkeypatch, snap: dict) -> None:
@@ -76,3 +77,17 @@ def test_index_rebuilds_on_snapshot_reload(monkeypatch) -> None:
     # Reload with a different snapshot; loaded_at advances → index rebuilds.
     _install_snapshot(monkeypatch, {"stories": [{"tickers": ["AAPL"], "news_score": -0.5}]})
     assert compute._get_news_fields("AAPL")["news_bias"] == "BEARISH"
+
+
+def test_index_honours_monkeypatched_public_snapshot_loader(monkeypatch) -> None:
+    _reset_news_state()
+    monkeypatch.setattr(
+        compute,
+        "_load_news_snapshot",
+        lambda: {"stories": [{"tickers": ["AAPL"], "news_score": 0.6}]},
+    )
+
+    fields = compute._get_news_fields("AAPL")
+
+    assert fields["news_bias"] == "BULLISH"
+    assert fields["news_strength"] == 0.6

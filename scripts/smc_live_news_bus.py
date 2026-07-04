@@ -788,7 +788,7 @@ def poll_live_news_bus(
     newsapi_ai_key: str = "",
     include_benzinga: bool = True,
     include_fmp: bool = True,
-    include_newsapi_ai: bool = True,
+    include_newsapi_ai: bool | None = None,
     include_tradingview: bool = True,
     include_fmp_articles: bool = True,
     page_size: int = 100,
@@ -802,6 +802,15 @@ def poll_live_news_bus(
     max_state_stories: int = DEFAULT_MAX_STATE_STORIES,
     now_ts: float | None = None,
 ) -> tuple[dict[str, Any], dict[str, Any]]:
+    if include_newsapi_ai is None:
+        # SSOT pause switch (paused 2026-07-03): NewsAPI.ai runs only when
+        # ENABLE_NEWSAPI_AI=1. The previous hardcoded ``True`` default made
+        # the live news bus ignore the central flag that already gates the
+        # newsstack pipeline (newsstack_fmp/config.py enable_newsapi_ai),
+        # so the provider stayed active with a mere key present.
+        from open_prep.feature_flags import is_newsapi_ai_enabled
+
+        include_newsapi_ai = is_newsapi_ai_enabled()
     now_ts = float(now_ts if now_ts is not None else time.time())
     normalized_symbols = _normalize_symbols(symbols)
     normalized_state = _normalize_state(state)
@@ -1181,7 +1190,9 @@ def export_live_news_snapshot(
     newsapi_ai_key: str = "",
     include_benzinga: bool = True,
     include_fmp: bool = True,
-    include_newsapi_ai: bool = True,
+    # None -> resolved from the ENABLE_NEWSAPI_AI SSOT flag in
+    # poll_live_news_bus (paused by default; see comment there).
+    include_newsapi_ai: bool | None = None,
     include_tradingview: bool = True,
     include_fmp_articles: bool = True,
     page_size: int = 100,

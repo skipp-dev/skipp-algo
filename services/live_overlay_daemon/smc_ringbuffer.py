@@ -9,14 +9,10 @@ Pattern: Real-time signal streaming with bounded memory for live market data.
 
 from __future__ import annotations
 
-import dataclasses
 import enum
 import math
 from collections import deque
 from dataclasses import dataclass, field
-from typing import Callable, Generic, Optional, TypeVar
-
-T = TypeVar("T")
 
 
 class BoxType(enum.Enum):
@@ -58,7 +54,7 @@ class SmcBox:
     # State
     created_at: int  # Creation bar_index
     is_mitigated: bool = False
-    mitigated_at: Optional[int] = None
+    mitigated_at: int | None = None
 
     # Visual config
     color: str = "#00FF00"  # Hex; updated to mitigation_color on breach
@@ -88,7 +84,7 @@ class SmcBox:
 
 
 @dataclass
-class RingBuffer(Generic[T]):
+class RingBuffer[T]:
     """Fixed-size circular buffer with O(1) append + eviction.
 
     Replaces TradingView's array.shift() (O(n)) with deque maxlen (O(1)).
@@ -104,7 +100,7 @@ class RingBuffer(Generic[T]):
         """Initialize deque with fixed max_len."""
         self._buffer = deque(maxlen=self.max_size)
 
-    def append(self, item: T) -> Optional[T]:
+    def append(self, item: T) -> T | None:
         """Add item; return evicted item if buffer was full, else None.
 
         O(1) operation.
@@ -122,17 +118,17 @@ class RingBuffer(Generic[T]):
         """True if at capacity."""
         return len(self._buffer) == self.max_size
 
-    def get(self, index: int) -> Optional[T]:
+    def get(self, index: int) -> T | None:
         """0-indexed access (0 = oldest)."""
         if 0 <= index < len(self._buffer):
             return self._buffer[index]
         return None
 
-    def get_latest(self) -> Optional[T]:
+    def get_latest(self) -> T | None:
         """Most recently added item."""
         return self._buffer[-1] if self._buffer else None
 
-    def get_oldest(self) -> Optional[T]:
+    def get_oldest(self) -> T | None:
         """Oldest item (will be evicted next)."""
         return self._buffer[0] if self._buffer else None
 
@@ -162,7 +158,7 @@ class SmcBoxManager:
         self.bullish_boxes = RingBuffer[SmcBox](self.max_boxes_per_direction)
         self.bearish_boxes = RingBuffer[SmcBox](self.max_boxes_per_direction)
 
-    def add_box(self, box: SmcBox) -> Optional[SmcBox]:
+    def add_box(self, box: SmcBox) -> SmcBox | None:
         """Append box to appropriate direction buffer.
 
         Returns evicted box if buffer was full, else None.
@@ -230,14 +226,14 @@ class SmcBoxManager:
 # ============================================================================
 
 
-def is_up(close: float, open: float) -> bool:
+def is_up(close: float, open_: float) -> bool:
     """Bullish candle."""
-    return not (math.isnan(close) or math.isnan(open)) and close > open
+    return not (math.isnan(close) or math.isnan(open_)) and close > open_
 
 
-def is_down(close: float, open: float) -> bool:
+def is_down(close: float, open_: float) -> bool:
     """Bearish candle."""
-    return not (math.isnan(close) or math.isnan(open)) and close < open
+    return not (math.isnan(close) or math.isnan(open_)) and close < open_
 
 
 def is_ob_up(
