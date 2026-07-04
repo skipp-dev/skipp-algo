@@ -1,0 +1,101 @@
+{
+  "candidates": [
+    {
+      "direction": "long",
+      "gap_pct": 0.0,
+      "playbook": "GAP_FADE",
+      "rvol": 1.3825,
+      "score": 6.174,
+      "symbol": "MCD",
+      "tier": "STANDARD"
+    },
+    {
+      "direction": "long",
+      "gap_pct": 0.0,
+      "playbook": "GAP_FADE",
+      "rvol": 1.0399,
+      "score": 5.7373,
+      "symbol": "AAPL",
+      "tier": "STANDARD"
+    },
+    {
+      "direction": "long",
+      "gap_pct": 0.0,
+      "playbook": "GAP_FADE",
+      "rvol": 1.0999,
+      "score": 5.3466,
+      "symbol": "NFLX",
+      "tier": "STANDARD"
+    },
+    {
+      "direction": "long",
+      "gap_pct": 0.0,
+      "playbook": "GAP_FADE",
+      "rvol": 0.9078,
+      "score": 5.21,
+      "symbol": "ACN",
+      "tier": "STANDARD"
+    },
+    {
+      "direction": "long",
+      "gap_pct": 0.0,
+      "playbook": "GAP_FADE",
+      "rvol": 0.8782,
+      "score": 5.1112,
+      "symbol": "ADBE",
+      "tier": "STANDARD"
+    },
+    {
+      "direction": "long",
+      "gap_pct": 0.0,
+      "playbook": "GAP_FADE",
+      "rvol": 1.3835,
+      "score": 4.6878,
+      "symbol": "PLTR",
+      "tier": "STANDARD"
+    },
+    {
+      "direction": "long",
+      "gap_pct": 0.0,
+      "playbook": "NO_TRADE",
+      "rvol": 0.4389,
+      "score": 4.4689,
+      "symbol": "HD",
+      "tier": "STANDARD"
+    },
+    {
+      "direction": "long",
+      "gap_pct": 0.0,
+      "playbook": "NO_TRADE",
+      "rvol": 1.1994,
+      "score": 4.4581,
+      "symbol": "SPGI",
+      "tier": "STANDARD"
+    },
+    {
+      "direction": "long",
+      "gap_pct": 0.0,
+      "playbook": "GAP_FADE",
+      "rvol": 0.732,
+      "score": 4.2416,
+      "symbol": "CVX",
+      "tier": "STANDARD"
+    },
+    {
+      "direction": "long",
+      "gap_pct": 0.0,
+      "playbook": "GAP_FADE",
+      "rvol": 0.7273,
+      "score": 4.2247,
+      "symbol": "DIS",
+      "tier": "STANDARD"
+    }
+  ],
+  "correlation": 0.1135,
+  "date": "2026-07-04",
+  "dispersion": 3.5573,
+  "er_daily": 0.252,
+  "er_intraday": 0.2319,
+  "regime": "ROTATION",
+  "weather": "GREEN"
+}
