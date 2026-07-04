@@ -19,6 +19,7 @@ jobs:
   sync:
     name: Sync SMC Libraries
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     permissions:
       contents: write
       pull-requests: write
@@ -192,6 +193,7 @@ jobs:
   notify:
     name: Notify if stale
     runs-on: ubuntu-latest
+    timeout-minutes: 5
     if: always()
     needs: sync
 
