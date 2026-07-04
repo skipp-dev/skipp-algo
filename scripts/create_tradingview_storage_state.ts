@@ -32,6 +32,9 @@ async function collectPageAuthDiagnostics(page: import("playwright").Page): Prom
   authReason: string;
   authProbeStatuses: number[];
 }> {
+  // Fail-soft like the auth-state probe below: a crashed page / destroyed
+  // execution context must degrade to empty diagnostics, not throw past the
+  // callers that rely on this function's best-effort contract.
   const domDiagnostics = await page.evaluate(() => {
     const bodyText = (document.body?.innerText || "").replace(/\s+/g, " ").trim();
     return {
@@ -40,7 +43,7 @@ async function collectPageAuthDiagnostics(page: import("playwright").Page): Prom
       bodyPreview: bodyText.slice(0, 240),
       signInSignals: /sign in|log in|email|password|continue with google/i.test(bodyText),
     };
-  });
+  }).catch(() => ({ url: "", title: "", bodyPreview: "", signInSignals: false }));
   const pageAuthState = await collectTradingViewPageAuthState(page).catch(() => null);
 
   return {

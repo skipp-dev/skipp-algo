@@ -158,6 +158,64 @@ class TestSmcBox:
         assert box.right == 20
 
 
+class TestRingBufferCapacityValidation:
+    """Bug-hunt round 5: max_size=0 crashed with IndexError on first append."""
+
+    def test_zero_capacity_rejected_at_construction(self) -> None:
+        import pytest
+
+        with pytest.raises(ValueError, match="max_size must be positive"):
+            RingBuffer[int](max_size=0)
+        with pytest.raises(ValueError, match="max_size must be positive"):
+            RingBuffer[int](max_size=-1)
+
+    def test_box_manager_zero_capacity_rejected(self) -> None:
+        import pytest
+
+        with pytest.raises(ValueError, match="max_size must be positive"):
+            SmcBoxManager(max_boxes_per_direction=0)
+
+    def test_capacity_one_still_works(self) -> None:
+        buf = RingBuffer[int](max_size=1)
+        assert buf.append(1) is None
+        assert buf.append(2) == 1  # evicts oldest
+        assert buf.get_latest() == 2
+
+
+class TestSmcBoxBoundsNormalization:
+    """Bug-hunt round 5: directly-constructed inverted boxes (top < bottom)
+    satisfied is_breached on virtually any candle -> silent mitigation."""
+
+    def _inverted(self) -> SmcBox:
+        return SmcBox(
+            left=0,
+            right=2,
+            top=100.0,
+            bottom=110.0,
+            box_type=BoxType.FAIR_VALUE_GAP,
+            direction=Direction.BULLISH,
+            created_at=2,
+        )
+
+    def test_inverted_bounds_are_normalized(self) -> None:
+        box = self._inverted()
+        assert (box.top, box.bottom) == (110.0, 100.0)
+
+    def test_normalized_box_not_breached_inside_zone(self) -> None:
+        box = self._inverted()
+        # Report repro: candle inside the zone must NOT count as breached.
+        assert not box.is_breached(high=105.0, low=102.0)
+        assert box.is_breached(high=111.0, low=102.0)
+
+    def test_ordered_bounds_unchanged(self) -> None:
+        box = SmcBox(
+            left=0, right=2, top=110.0, bottom=100.0,
+            box_type=BoxType.ORDER_BLOCK, direction=Direction.BEARISH,
+            created_at=2,
+        )
+        assert (box.top, box.bottom) == (110.0, 100.0)
+
+
 class TestSmcBoxManager:
     """Test unified box manager with direction separation."""
 
