@@ -74,6 +74,14 @@ _FROZEN_PRINT_COUNTS: dict[str, int] = {
     # report JSON to stdout when --output is omitted (documented CLI output
     # channel, invoked as ``python governance/family_verdict.py --report ...``).
     "governance/family_verdict.py": 1,
+    # 2026-07-04 rebaseline: ensemble research CLI tooling was committed
+    # (WP-3 bundle) without a ledger refresh. run_ensemble_backtest.py is a
+    # standalone CLI backtest runner whose progress/report output is
+    # print-based by design; ensemble_backtester prints the generated
+    # report; fmp_data_loader has a print-based main() demo.
+    "run_ensemble_backtest.py": 51,
+    "services/live_overlay_daemon/ensemble_backtester.py": 1,
+    "services/live_overlay_daemon/fmp_data_loader.py": 8,
 }
 _FROZEN_PRINT_TOTAL = sum(_FROZEN_PRINT_COUNTS.values())
 

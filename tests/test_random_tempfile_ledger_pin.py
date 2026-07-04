@@ -109,7 +109,9 @@ _TEMPFILE_LEDGER: frozenset[tuple[str, int, str]] = frozenset({
     # _load_outcomes_range +6 → 575.
     # 2026-07-02 (WP6 formula-era gate): cutoff constant block +8 → 583.
     # 2026-07-03 (WP-3 sample_dates helper): +1 -> 604.
-    ("open_prep/outcomes.py", 604, "mkstemp"),
+    # 2026-07-04 (market-microstructure observe-only): snapshot fields +
+    # FEATURE_KEYS/PASS_THROUGH entries +16 -> 620.
+    ("open_prep/outcomes.py", 620, "mkstemp"),
     # 2026-07-03 (WP-4 holiday gate): +2 (import) then +8 below the gate.
     ("open_prep/realtime_signals.py", 119, "mkstemp"),
     # 2026-06-25: AsyncNewsstackPoller telemetry additions shifted

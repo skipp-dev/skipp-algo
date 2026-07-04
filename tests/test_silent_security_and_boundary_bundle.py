@@ -200,7 +200,9 @@ _FROZEN_BASIC_CONFIG_SITES: frozenset[tuple[str, int]] = frozenset({
     # 6059 -> 6063.
     # 2026-06-28 (semantic monitoring): shifted +80 lines by readiness metrics.
     ("open_prep/realtime_signals.py", 3119),
-    ("open_prep/run_open_prep.py", 6079),
+    # 2026-07-04 (market-microstructure observe-only): import + snapshot
+    # block + row-loop fields shifted 6079 -> 6105.
+    ("open_prep/run_open_prep.py", 6105),
     # 2026-06-16 (feat/live-overlay-daemon): entry-point main.py configures
     # root logger at startup (Railway container, no other logger setup).
     # 2026-06-19 (fix/live-overlay-post-merge-bugs): import additions for
@@ -214,6 +216,11 @@ _FROZEN_BASIC_CONFIG_SITES: frozenset[tuple[str, int]] = frozenset({
     ("services/live_overlay_daemon/main.py", 40),
     # WP-H (PR #2612): 35 -> 37, VIX import + helper block added above.
     ("smc_tv_bridge/smc_api.py", 37),
+    # 2026-07-04 rebaseline (WP-3 backtest CLI, missed in the prior sweep):
+    # run_ensemble_backtest.py is a standalone entry-point runner
+    # (python run_ensemble_backtest.py ...) that configures the root logger
+    # at import; the Phase-0a `from typing import Optional` shifted it 22 -> 24.
+    ("run_ensemble_backtest.py", 24),
 })
 
 

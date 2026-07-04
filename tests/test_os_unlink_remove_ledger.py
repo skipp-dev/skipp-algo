@@ -125,7 +125,9 @@ OS_DELETE_LEDGER: set[tuple[str, int, str]] = {
     # 2026-06-12 (backlog-resilience): non-list warning in
     # _load_outcomes_range +6 → 587.
     # 2026-07-02 (WP6 formula-era gate): cutoff constant block +8 → 595.
-    ("open_prep/outcomes.py", 616, "unlink"),
+    # 2026-07-04 (market-microstructure observe-only): snapshot fields +
+    # FEATURE_KEYS/PASS_THROUGH entries +16 → 632.
+    ("open_prep/outcomes.py", 632, "unlink"),
     ("open_prep/realtime_signals.py", 127, "remove"),
     # 2026-06-25: AsyncNewsstackPoller telemetry additions shifted
     # 2783 -> 2862 and 2828 -> 2907.
@@ -141,23 +143,30 @@ OS_DELETE_LEDGER: set[tuple[str, int, str]] = {
     # 2026-06-19 (B10 non-padded date extension): _parse_calendar_date
     # extended; multiple insertion points produced non-uniform shifts.
     # 2026-06-25: feature-flag helper additions shifted 2308 -> 2312.
-    ("open_prep/run_open_prep.py", 2312, "unlink"),
+    # 2026-07-04 (market-microstructure observe-only): import +1 → 2313.
+    ("open_prep/run_open_prep.py", 2313, "unlink"),
     # 2026-06-10 (#2670 W2/W4): regime_source + premarket source-disclosure
     # edits shifted the later unlink sites (+20/+20/+20/+25).
     # 2026-06-25: feature-flag helper additions shifted
     # 3131 -> 3135 and 3483 -> 3487.
-    ("open_prep/run_open_prep.py", 3135, "unlink"),
-    ("open_prep/run_open_prep.py", 3503, "unlink"),
+    # 2026-07-04 (market-microstructure observe-only): import +1 →
+    # 3136/3504.
+    ("open_prep/run_open_prep.py", 3136, "unlink"),
+    ("open_prep/run_open_prep.py", 3504, "unlink"),
     # 2026-06-11 (Copilot sweep #2688): VIX9D fail-closed guard +5;
     # 2026-06-12 (merge #2713 into #2696): net +1 → 5512/5790.
     # 2026-06-25: feature-flag helper additions shifted 5621 -> 5625.
-    ("open_prep/run_open_prep.py", 5641, "unlink"),
+    # 2026-07-04 (market-microstructure observe-only): import + snapshot
+    # block shifted 5641 -> 5658.
+    ("open_prep/run_open_prep.py", 5658, "unlink"),
     # 2026-06-11 (trend-state features): 5731→5742, enrichment-loop
     # stamping + lookback comment added above; eval-findings 5742→5765.
     # 2026-06-12 (backlog-resilience): fail-loud outcome storage +9 → 5799.
     # 2026-06-12 (copilot-followup): rename + 3-line comment → 5802.
     # 2026-06-25: feature-flag helper additions shifted 5916 -> 5920.
-    ("open_prep/run_open_prep.py", 5936, "unlink"),
+    # 2026-07-04 (market-microstructure observe-only): import + snapshot
+    # block + row-loop fields shifted 5936 -> 5962.
+    ("open_prep/run_open_prep.py", 5962, "unlink"),
     ("open_prep/scorer.py", 156, "unlink"),
     ("open_prep/watchlist.py", 74, "unlink"),
     ("smc_core/benchmark.py", 39, "unlink"),

@@ -51,7 +51,15 @@ _SYS_EXIT_LEDGER: frozenset[tuple[str, int]] = frozenset({
     # (outcomes_<date>.json) must not fail silently green.
     # 2026-06-12 (copilot-followup): rename + 3-line comment → 5931.
     # 2026-06-25: feature-flag helper addition shifted 6045 -> 6049.
-    ("open_prep/run_open_prep.py", 6065),
+    # 2026-07-04 (market-microstructure observe-only): import + snapshot
+    # block + row-loop fields shifted 6065 -> 6091.
+    ("open_prep/run_open_prep.py", 6091),
+    # 2026-07-04: ensemble backtest CLI runner (standalone research tool):
+    # FMP_API_KEY guard + data-fetch failure exits. warmup_bars/
+    # eval_last_bars param additions shifted 68/87/91 -> 74/93/97.
+    ("run_ensemble_backtest.py", 74),
+    ("run_ensemble_backtest.py", 93),
+    ("run_ensemble_backtest.py", 97),
     # 2026-06-02 (#2497): +68 lines after the `provenance` subcommand block
     # was inserted above the lint dispatch (was 400, 402).
     ("pine_input_surface.py", 468),
