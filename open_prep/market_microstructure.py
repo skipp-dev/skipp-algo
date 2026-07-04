@@ -56,6 +56,46 @@ WEATHER_YELLOW = "YELLOW"
 WEATHER_RED = "RED"
 WEATHER_UNKNOWN = "UNKNOWN"
 
+# Canonical weather wording (emoji, short label, plain-language phrase). Shared
+# by the Pine panel generator (scripts/generate_openprep_pine_panel.py) and the
+# Slack/Discord/generic alert formatters (open_prep/alerts.py) so every channel
+# speaks one language.
+WEATHER_LABELS: dict[str, tuple[str, str, str]] = {
+    WEATHER_GREEN: ("\U0001F7E2", "Breakout-Wetter", "Bewegungen laufen aktuell durch"),
+    WEATHER_YELLOW: ("\U0001F7E1", "Durchwachsen", "gemischtes Bild"),
+    WEATHER_RED: ("\U0001F534", "Sägemarkt", "Bewegungen verpuffen (Mean-Reversion)"),
+    WEATHER_UNKNOWN: ("⚪", "Unbekannt", "zu wenig Daten"),
+}
+
+
+def weather_badge_label(weather: str | None) -> tuple[str, str]:
+    """(emoji, short label) for a weather code — for compact UI like the Pine panel header."""
+    emoji, label, _phrase = WEATHER_LABELS.get(
+        str(weather or "").upper(), WEATHER_LABELS[WEATHER_UNKNOWN]
+    )
+    return emoji, label
+
+
+def weather_summary_line(
+    weather: str | None,
+    *,
+    er_intraday: float | None = None,
+    dispersion: float | None = None,
+    correlation: float | None = None,
+) -> str:
+    """One plain-language line shared by alerts and panels, e.g.
+    ``🟢 Breakout-Wetter — Bewegungen laufen aktuell durch (ER 0.23, Disp 3.56%, Korr 0.11)``.
+    """
+    emoji, label, phrase = WEATHER_LABELS.get(
+        str(weather or "").upper(), WEATHER_LABELS[WEATHER_UNKNOWN]
+    )
+
+    def _f(value: float | None, suffix: str = "") -> str:
+        return "n/a" if value is None else f"{value:.2f}{suffix}"
+
+    metrics = f"ER {_f(er_intraday)}, Disp {_f(dispersion, '%')}, Korr {_f(correlation)}"
+    return f"{emoji} {label} — {phrase} ({metrics})"
+
 # Known FMP screener leakage: mutual funds/ETF tickers that survive the
 # is_etf/is_fund filters (e.g. VTSAX). Five-letter X-suffix is the classic
 # US mutual-fund ticker convention.

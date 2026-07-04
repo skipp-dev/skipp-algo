@@ -59,20 +59,12 @@ from pathlib import Path
 from typing import Any
 
 from scripts._logging_init import init_cli_logging
+from open_prep.market_microstructure import weather_badge_label
 
 PINE_HEADER = "//@version=6"
 DEFAULT_OUTPUT = Path("pine/generated/openprep_daily_panel.pine")
 DEFAULT_OUTCOMES_DIR = Path("artifacts/open_prep/outcomes")
 MAX_ROWS = 12  # Pine table stays readable; excess candidates are dropped.
-
-# Weather → (emoji badge, plain-language label). Traffic-light wording kept
-# in sync with the alert formatters (Workstream C).
-_WEATHER_LABELS: dict[str, tuple[str, str]] = {
-    "GREEN": ("\U0001F7E2", "Breakout-Wetter"),   # 🟢 moves follow through
-    "YELLOW": ("\U0001F7E1", "Durchwachsen"),      # 🟡 mixed
-    "RED": ("\U0001F534", "Saegemarkt"),           # 🔴 choppy / mean-reverting
-    "UNKNOWN": ("⚪", "Unbekannt"),            # ⚪ insufficient data
-}
 
 
 def _safe_float(value: Any) -> float | None:
@@ -170,7 +162,7 @@ def build_pine(panel: dict[str, Any], *, generated_at: str, source: str,
     date = panel.get("date")
     cands = panel.get("candidates", [])
     weather = str(panel.get("weather") or "UNKNOWN").upper()
-    badge, weather_label = _WEATHER_LABELS.get(weather, _WEATHER_LABELS["UNKNOWN"])
+    badge, weather_label = weather_badge_label(weather)
 
     # Split the ISO date into ints for the freshness timestamp; fall back to
     # a clearly-stale sentinel so a malformed/absent date greys the panel.
