@@ -16,7 +16,7 @@ import logging
 import os
 from datetime import datetime, timedelta
 from typing import Optional
-import requests
+import httpx
 import json
 from urllib.parse import urlencode
 
@@ -42,8 +42,7 @@ class FMPDataLoader:
         if not self.api_key:
             raise ValueError("FMP_API_KEY not provided and not in env")
 
-        self.session = requests.Session()
-        self.session.timeout = 30
+        self.session = httpx.Client(timeout=30.0, follow_redirects=True)
 
         logger.info("[FMP] Initialized with API key (last 4 chars: ...%s)" % self.api_key[-4:])
 
