@@ -487,3 +487,12 @@ class TestEdgeCases:
 
 if __name__ == "__main__":
     pytest.main([__file__, "-v"])
+
+
+def test_signal_history_limit_zero_returns_empty():
+    """Bug-hunt r4: signal_history[-0:] returned the WHOLE history."""
+    router = EnsembleSignalRouter()
+    router.signal_history.extend(object() for _ in range(5))
+    assert router.get_signal_history(limit=0) == []
+    assert router.get_signal_history(limit=-1) == []
+    assert len(router.get_signal_history(limit=2)) == 2

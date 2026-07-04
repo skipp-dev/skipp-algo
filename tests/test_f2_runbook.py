@@ -192,3 +192,13 @@ def test_long_reason_truncated_in_markdown(tmp_path: Path) -> None:
     assert "..." in md
     # Full 200-char blob not present.
     assert "x" * 200 not in md
+
+
+def test_load_ring_tail_zero_returns_empty(tmp_path: Path) -> None:
+    """Bug-hunt r4: data[-0:] returned the WHOLE ring for ring_tail=0."""
+    from scripts.f2_runbook import _load_ring_tail
+
+    history = tmp_path / "ring.json"
+    history.write_text(json.dumps([{"i": 1}, {"i": 2}, {"i": 3}]), encoding="utf-8")
+    assert _load_ring_tail(history, 0) == []
+    assert _load_ring_tail(history, 2) == [{"i": 2}, {"i": 3}]

@@ -1866,33 +1866,38 @@ export async function clickVisibleWithFallback(
           const y = rect.top + Math.max(2, Math.min(rect.height / 2, rect.height - 2));
           const patched: Array<{ element: HTMLElement; value: string }> = [];
 
-          let hit = document.elementFromPoint(x, y) as HTMLElement | null;
-          while (hit && hit !== element && !element.contains(hit) && patched.length < 6) {
-            patched.push({ element: hit, value: hit.style.pointerEvents });
-            hit.style.pointerEvents = "none";
-            hit = document.elementFromPoint(x, y) as HTMLElement | null;
-          }
+          // Restore in finally: if the dispatched click throws synchronously
+          // (e.g. a page-patched click()), the stacked overlays must not be
+          // left with pointer-events:none for the rest of the session.
+          try {
+            let hit = document.elementFromPoint(x, y) as HTMLElement | null;
+            while (hit && hit !== element && !element.contains(hit) && patched.length < 6) {
+              patched.push({ element: hit, value: hit.style.pointerEvents });
+              hit.style.pointerEvents = "none";
+              hit = document.elementFromPoint(x, y) as HTMLElement | null;
+            }
 
-          const targetReady = hit === element || Boolean(hit && element.contains(hit));
-          if (targetReady) {
-            element.dispatchEvent(
-              new MouseEvent("click", {
-                bubbles: true,
-                cancelable: true,
-                composed: true,
-                clientX: x,
-                clientY: y,
-                view: window,
-              }),
-            );
-            element.click();
-          }
+            const targetReady = hit === element || Boolean(hit && element.contains(hit));
+            if (targetReady) {
+              element.dispatchEvent(
+                new MouseEvent("click", {
+                  bubbles: true,
+                  cancelable: true,
+                  composed: true,
+                  clientX: x,
+                  clientY: y,
+                  view: window,
+                }),
+              );
+              element.click();
+            }
 
-          for (const entry of patched.reverse()) {
-            entry.element.style.pointerEvents = entry.value;
+            return targetReady;
+          } finally {
+            for (const entry of patched.reverse()) {
+              entry.element.style.pointerEvents = entry.value;
+            }
           }
-
-          return targetReady;
         });
         if (pointerBypassed) {
           tracePageEvent(page, `${tracePrefix}-pointer-bypass-ok`, `candidate:${index}:${reason}`);
@@ -2170,33 +2175,38 @@ async function clickVisibleWithFallbackOutsidePineDialog(
           const y = rect.top + Math.max(2, Math.min(rect.height / 2, rect.height - 2));
           const patched: Array<{ element: HTMLElement; value: string }> = [];
 
-          let hit = document.elementFromPoint(x, y) as HTMLElement | null;
-          while (hit && hit !== element && !element.contains(hit) && patched.length < 6) {
-            patched.push({ element: hit, value: hit.style.pointerEvents });
-            hit.style.pointerEvents = "none";
-            hit = document.elementFromPoint(x, y) as HTMLElement | null;
-          }
+          // Restore in finally: if the dispatched click throws synchronously
+          // (e.g. a page-patched click()), the stacked overlays must not be
+          // left with pointer-events:none for the rest of the session.
+          try {
+            let hit = document.elementFromPoint(x, y) as HTMLElement | null;
+            while (hit && hit !== element && !element.contains(hit) && patched.length < 6) {
+              patched.push({ element: hit, value: hit.style.pointerEvents });
+              hit.style.pointerEvents = "none";
+              hit = document.elementFromPoint(x, y) as HTMLElement | null;
+            }
 
-          const targetReady = hit === element || Boolean(hit && element.contains(hit));
-          if (targetReady) {
-            element.dispatchEvent(
-              new MouseEvent("click", {
-                bubbles: true,
-                cancelable: true,
-                composed: true,
-                clientX: x,
-                clientY: y,
-                view: window,
-              }),
-            );
-            element.click();
-          }
+            const targetReady = hit === element || Boolean(hit && element.contains(hit));
+            if (targetReady) {
+              element.dispatchEvent(
+                new MouseEvent("click", {
+                  bubbles: true,
+                  cancelable: true,
+                  composed: true,
+                  clientX: x,
+                  clientY: y,
+                  view: window,
+                }),
+              );
+              element.click();
+            }
 
-          for (const entry of patched.reverse()) {
-            entry.element.style.pointerEvents = entry.value;
+            return targetReady;
+          } finally {
+            for (const entry of patched.reverse()) {
+              entry.element.style.pointerEvents = entry.value;
+            }
           }
-
-          return targetReady;
         });
         if (pointerBypassed) {
           tracePageEvent(page, `${tracePrefix}-pointer-bypass-ok`, `candidate:${index}:${itemIndex}`);
@@ -2440,35 +2450,40 @@ async function clickLegendControlWithFallback(
         const y = rect.top + Math.max(2, Math.min(rect.height / 2, rect.height - 2));
         const patched: Array<{ element: HTMLElement; value: string }> = [];
 
-        let hit = document.elementFromPoint(x, y) as HTMLElement | null;
-        while (hit && hit !== element && !element.contains(hit) && patched.length < 6) {
-          patched.push({ element: hit, value: hit.style.pointerEvents });
-          hit.style.pointerEvents = 'none';
-          hit = document.elementFromPoint(x, y) as HTMLElement | null;
-        }
-
-        const targetReady = hit === element || Boolean(hit && element.contains(hit));
-        if (targetReady) {
-          for (const eventType of ['pointerdown', 'mousedown', 'pointerup', 'mouseup', 'click']) {
-            element.dispatchEvent(
-              new MouseEvent(eventType, {
-                bubbles: true,
-                cancelable: true,
-                composed: true,
-                clientX: x,
-                clientY: y,
-                view: window,
-              }),
-            );
+        // Restore in finally: if the dispatched click throws synchronously
+        // (e.g. a page-patched click()), the stacked overlays must not be
+        // left with pointer-events:none for the rest of the session.
+        try {
+          let hit = document.elementFromPoint(x, y) as HTMLElement | null;
+          while (hit && hit !== element && !element.contains(hit) && patched.length < 6) {
+            patched.push({ element: hit, value: hit.style.pointerEvents });
+            hit.style.pointerEvents = 'none';
+            hit = document.elementFromPoint(x, y) as HTMLElement | null;
           }
-          element.click();
-        }
 
-        for (const entry of patched.reverse()) {
-          entry.element.style.pointerEvents = entry.value;
-        }
+          const targetReady = hit === element || Boolean(hit && element.contains(hit));
+          if (targetReady) {
+            for (const eventType of ['pointerdown', 'mousedown', 'pointerup', 'mouseup', 'click']) {
+              element.dispatchEvent(
+                new MouseEvent(eventType, {
+                  bubbles: true,
+                  cancelable: true,
+                  composed: true,
+                  clientX: x,
+                  clientY: y,
+                  view: window,
+                }),
+              );
+            }
+            element.click();
+          }
 
-        return targetReady;
+          return targetReady;
+        } finally {
+          for (const entry of patched.reverse()) {
+            entry.element.style.pointerEvents = entry.value;
+          }
+        }
       });
       if (pointerBypassed) {
         tracePageEvent(page, `${tracePrefix}-pointer-bypass-ok`, `candidate:${index}`);
@@ -3439,36 +3454,41 @@ async function snapshotDialogAcrossScroll(page: Page, dialog: Locator): Promise<
   const dialogBox = await dialog.boundingBox().catch(() => null);
   let previousPosition = 0;
 
-  for (const position of plan.positions) {
-    await scrollDialogTo(dialog, position);
-    if (plan.positions.length > 1) {
-      if (dialogBox) {
-        await page.mouse.move(dialogBox.x + dialogBox.width / 2, dialogBox.y + Math.min(dialogBox.height / 2, Math.max(dialogBox.height - 24, 24))).catch(() => undefined);
-        await page.mouse.wheel(0, position - previousPosition).catch(() => undefined);
+  // Restore in finally: an unguarded await inside the loop (e.g.
+  // waitForTimeout on a closing page) must not leave the dialog scrolled
+  // away from its original position.
+  try {
+    for (const position of plan.positions) {
+      await scrollDialogTo(dialog, position);
+      if (plan.positions.length > 1) {
+        if (dialogBox) {
+          await page.mouse.move(dialogBox.x + dialogBox.width / 2, dialogBox.y + Math.min(dialogBox.height / 2, Math.max(dialogBox.height - 24, 24))).catch(() => undefined);
+          await page.mouse.wheel(0, position - previousPosition).catch(() => undefined);
+        }
+        await page.waitForTimeout(80);
       }
-      await page.waitForTimeout(80);
-    }
-    previousPosition = position;
+      previousPosition = position;
 
-    const snapshot = await snapshotDialog(dialog).catch(() => null);
-    if (!snapshot) {
-      continue;
-    }
+      const snapshot = await snapshotDialog(dialog).catch(() => null);
+      if (!snapshot) {
+        continue;
+      }
 
-    if (snapshot.title) {
-      titles.add(snapshot.title);
-    }
-    if (snapshot.text) {
-      texts.add(snapshot.text);
-    }
-    for (const labelText of snapshot.labelTexts ?? []) {
-      if (labelText) {
-        labelTexts.add(labelText);
+      if (snapshot.title) {
+        titles.add(snapshot.title);
+      }
+      if (snapshot.text) {
+        texts.add(snapshot.text);
+      }
+      for (const labelText of snapshot.labelTexts ?? []) {
+        if (labelText) {
+          labelTexts.add(labelText);
+        }
       }
     }
+  } finally {
+    await scrollDialogTo(dialog, plan.restoreTop);
   }
-
-  await scrollDialogTo(dialog, plan.restoreTop);
 
   return {
     title: [...titles][0] ?? "",

@@ -42,6 +42,8 @@ def _load_ring_tail(history_path: Path, n: int) -> list[dict[str, Any]]:
         return []
     if not isinstance(data, list):
         return []
+    if n <= 0:
+        return []  # [-0:] would return the WHOLE ring
     return data[-n:]
 
 

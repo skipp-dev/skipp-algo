@@ -172,3 +172,13 @@ def test_cli_error_on_missing_history(
     ])
     assert rc == 1
     assert "history not found" in capsys.readouterr().err
+
+
+def test_rotate_max_rows_zero_drops_everything(tmp_path: Path) -> None:
+    """Bug-hunt r4: kept[-0:] kept ALL rows while stats claimed all dropped."""
+    history = tmp_path / "hist.jsonl"
+    _write(history, [_snap("2026-04-21T07:00:00Z"), _snap("2026-04-22T07:00:00Z")])
+    summary = rot.rotate(history_path=history, max_rows=0)
+    assert summary["after"] == 0
+    assert summary["dropped_cap"] == 2
+    assert history.read_text(encoding="utf-8").strip() == ""

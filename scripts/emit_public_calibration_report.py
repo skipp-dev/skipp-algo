@@ -370,7 +370,8 @@ def append_public_history(
 
     existing.append(entry)
     if len(existing) > retention:
-        existing = existing[-retention:]
+        # [-0:] would keep everything; retention=0 must keep nothing.
+        existing = existing[-retention:] if retention > 0 else []
 
     atomic_write_text("\n".join(json.dumps(e, sort_keys=True) for e in existing) + "\n", history_path)
     return history_path

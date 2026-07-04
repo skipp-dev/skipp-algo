@@ -193,3 +193,10 @@ def test_snapshot_survives_nan_and_inf_closes() -> None:
         snap.avg_pair_correlation,
     ):
         assert value is None or math.isfinite(value)
+
+
+def test_sample_symbols_limit_zero_returns_empty() -> None:
+    # Bug-hunt round 4: limit=0 previously returned one element because the
+    # break check ran only after the first append.
+    assert mm._sample_symbols(["AAPL", "MCD"], limit=0) == []
+    assert mm._sample_symbols(["AAPL"], limit=-3) == []
