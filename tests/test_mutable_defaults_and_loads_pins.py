@@ -131,6 +131,10 @@ _FROZEN_JSON_LOAD_SITES: frozenset[tuple[str, int]] = frozenset(
         # 2026-06-19 (timeframe expansion): added 10m/30m map entries near
         # the top-level TF dictionaries, shifting 419 -> 425.
         ("smc_tv_bridge/smc_api.py", 425),
+        # 2026-07-04 (WP-3 backtest tooling): FMPDataLoader.load_from_json parses
+        # a local candle-cache file written by its own save_to_json (operator-
+        # supplied path in the standalone backtest runner), not untrusted input.
+        ("services/live_overlay_daemon/fmp_data_loader.py", 368),
     }
 )
 
@@ -191,6 +195,10 @@ _FROZEN_ENV_SUBSCRIPT_SITES: frozenset[tuple[str, int]] = frozenset(
         ("open_prep/realtime_signals.py", 3098),
         ("open_prep/streamlit_monitor.py", 79),  # +1 from import time as _time (PR #2764)
         ("streamlit_terminal.py", 327),
+        # 2026-07-04 (WP-3 backtest CLI): `os.environ["FMP_API_KEY"] = args.api_key`
+        # exports the --api-key CLI arg for the data loader. A deliberate WRITE
+        # (not a read), so .get() does not apply; hard-fail is acceptable.
+        ("run_ensemble_backtest.py", 302),
     }
 )
 
