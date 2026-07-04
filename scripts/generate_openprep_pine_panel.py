@@ -59,8 +59,8 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
-from scripts._logging_init import init_cli_logging
 from open_prep.market_microstructure import weather_badge_label
+from scripts._logging_init import init_cli_logging
 
 PINE_HEADER = "//@version=6"
 DEFAULT_OUTPUT = Path("pine/generated/openprep_daily_panel.pine")
