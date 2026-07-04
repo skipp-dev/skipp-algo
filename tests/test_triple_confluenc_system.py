@@ -1,25 +1,20 @@
 """Tests for all 3 advanced systems: SMT Sniper, Strong Impulse, Triple Confluence."""
 
-import pytest
 
 from services.live_overlay_daemon.smt_sniper_validator import (
     LiquiditySweepDetector,
     SmtQualityScorer,
-    SmtSniperValidator,
 )
 from services.live_overlay_daemon.strong_impulse_detector import (
     IgnitionCandleDetector,
     PropulsionStrengthScorer,
-    StrongImpulseDetector,
 )
 from services.live_overlay_daemon.triple_confluence_navigator import (
-    AdaptiveRsiSupertrend,
     CardwellMomentum,
     KalmanFilterState,
     MarketStructure,
     TripleConfluenceNavigator,
 )
-
 
 # ============================================================================
 # SMT SNIPER TESTS
@@ -207,7 +202,7 @@ class TestCardwellMomentum:
 
         # Uptrend
         for close in [100, 101, 102, 103, 104]:
-            signal = cm.update(close)
+            cm.update(close)
 
         assert cm.signal == "bullish"
 

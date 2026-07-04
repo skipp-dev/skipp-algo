@@ -18,8 +18,7 @@ from __future__ import annotations
 import dataclasses
 import logging
 from dataclasses import dataclass
-from typing import Optional
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime
 
 logger = logging.getLogger(__name__)
 
@@ -53,8 +52,8 @@ class MacroLiquidityFilter:
         stress_level=0,
         regime='normal',
         is_stressed=False,
-        timestamp=datetime.now(timezone.utc),
-        last_update=datetime.now(timezone.utc),
+        timestamp=datetime.now(UTC),
+        last_update=datetime.now(UTC),
         bars_in_stress=0,
     ))
 
@@ -115,8 +114,8 @@ class MacroLiquidityFilter:
             stress_level=stress_level,
             regime=regime_name,
             is_stressed=is_stressed,
-            timestamp=datetime.now(timezone.utc),
-            last_update=datetime.now(timezone.utc),
+            timestamp=datetime.now(UTC),
+            last_update=datetime.now(UTC),
             bars_in_stress=bars_in_stress,
         )
 
@@ -171,8 +170,8 @@ class MacroLiquidityFilter:
             stress_level=0,
             regime='normal',
             is_stressed=False,
-            timestamp=datetime.now(timezone.utc),
-            last_update=datetime.now(timezone.utc),
+            timestamp=datetime.now(UTC),
+            last_update=datetime.now(UTC),
             bars_in_stress=0,
         )
         self.spread_history.clear()
@@ -181,7 +180,7 @@ class MacroLiquidityFilter:
 
 def estimate_daily_spread_from_history(
     spread_history: list[float],
-) -> Optional[float]:
+) -> float | None:
     """Estimate current daily spread from intraday history.
 
     Since SOFR/IORB only update once daily, use rolling average

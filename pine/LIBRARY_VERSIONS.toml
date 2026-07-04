@@ -1,0 +1,15 @@
+[libraries]
+smc_bus_private = { version = "1", tradingview_updated = "2026-07-03", local_synced = "2026-07-03" }
+smc_context_resolvers = { version = "1", tradingview_updated = "2026-07-03", local_synced = "2026-07-03" }
+smc_core_types = { version = "1", tradingview_updated = "2026-07-03", local_synced = "2026-07-03" }
+smc_draw = { version = "1", tradingview_updated = "2026-07-03", local_synced = "2026-07-03" }
+smc_lifecycle_private = { version = "1", tradingview_updated = "2026-07-03", local_synced = "2026-07-03" }
+smc_micro_profiles_generated = { version = "1", tradingview_updated = "2026-07-03", local_synced = "2026-07-03" }
+smc_observability_private = { version = "1", tradingview_updated = "2026-07-03", local_synced = "2026-07-03" }
+smc_overlay_generated = { version = "1", tradingview_updated = "2026-07-03", local_synced = "2026-07-03" }
+smc_profile_engine = { version = "1", tradingview_updated = "2026-07-03", local_synced = "2026-07-03" }
+
+[changelog]
+entries = [
+  "2026-07-03: Initial automated Playwright/TV_STORAGE_STATE sync manifest for SMC library freshness gating.",
+]

@@ -97,6 +97,9 @@ def extract_panel(rows: list[dict[str, Any]]) -> dict[str, Any]:
         return {"date": None, "candidates": []}
 
     head = rows[0]
+    regime = head.get("regime")
+    if regime is None:
+        regime = head.get("regime_at_entry")
     candidates: list[dict[str, Any]] = []
     for row in rows:
         symbol = row.get("symbol")
@@ -117,7 +120,7 @@ def extract_panel(rows: list[dict[str, Any]]) -> dict[str, Any]:
 
     return {
         "date": head.get("date"),
-        "regime": str(head.get("regime") or head.get("regime_at_entry") or "-"),
+        "regime": str(regime if regime is not None else "-"),
         "weather": str(head.get("market_weather") or "UNKNOWN").upper(),
         "er_daily": _safe_float(head.get("market_efficiency_ratio")),
         "er_intraday": _safe_float(head.get("intraday_efficiency_ratio")),

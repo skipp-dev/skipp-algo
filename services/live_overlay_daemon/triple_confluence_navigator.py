@@ -12,11 +12,8 @@ Based on: "Triple Confluence Navigator [MarkitTick]" TradingView indicator
 
 from __future__ import annotations
 
-import dataclasses
 import logging
-import math
 from dataclasses import dataclass, field
-from typing import Optional
 
 logger = logging.getLogger(__name__)
 
@@ -128,7 +125,7 @@ class AdaptiveRsiSupertrend:
 
         # Adaptive multiplier based on volatility
         volatility_ratio = atr_value / (close * 0.02) if close > 0 else 1.0
-        adaptive_mult = self.multiplier * volatility_ratio
+        self.multiplier * volatility_ratio
 
         # Determine signal
         if close > self.supertrend and self.rsi_value > 50:
@@ -317,7 +314,7 @@ class TripleConfluenceNavigator:
         atr: float,
         volume: float,
         htf_bias: str = "neutral",  # From HTF
-    ) -> Optional[TripleConfluenceSignal]:
+    ) -> TripleConfluenceSignal | None:
         """
         Process new candle through triple confluence system.
 
@@ -332,13 +329,8 @@ class TripleConfluenceNavigator:
 
         self.htf_bias = htf_bias
 
-        # Get previous values
-        prev_close = self.price_history[-2]["close"] if len(self.price_history) > 1 else close
-        prev_high = max(h["high"] for h in self.price_history[:-1]) if len(self.price_history) > 1 else high
-        prev_low = min(l["low"] for l in self.price_history[:-1]) if len(self.price_history) > 1 else low
-
         # Step 1: Update all 3 confluence sources
-        cardwell_signal = self.cardwell.update(
+        self.cardwell.update(
             close=close,
             fast_period=9,
             slow_period=21,
@@ -346,14 +338,14 @@ class TripleConfluenceNavigator:
             slow_ma_prev=self.cardwell.slow_ma,
         )
 
-        rsi_signal = self.rsi_supertrend.update(
+        self.rsi_supertrend.update(
             close=close,
             high=high,
             low=low,
             atr_value=atr,
         )
 
-        structure_signal = self.structure.update(
+        self.structure.update(
             high=high,
             low=low,
             pivot_high_prev=self.structure.pivot_high,

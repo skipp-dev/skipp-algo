@@ -12,13 +12,15 @@ This loader mirrors the pattern from open_prep.macro.FMPClient
 
 from __future__ import annotations
 
+import json
 import logging
 import os
-from datetime import datetime, timedelta, timezone
-from typing import Optional
-import httpx
-import json
+from datetime import UTC, datetime, timedelta
+from pathlib import Path
+from typing import ClassVar
 from urllib.parse import urlencode
+
+import httpx
 
 logger = logging.getLogger(__name__)
 
@@ -32,7 +34,7 @@ class FMPDataLoader:
 
     STABLE_BASE_URL = "https://financialmodelingprep.com"
 
-    def __init__(self, api_key: Optional[str] = None):
+    def __init__(self, api_key: str | None = None):
         """Initialize FMP loader.
 
         Args:
@@ -60,7 +62,7 @@ class FMPDataLoader:
     # The /stable/historical-chart endpoint caps each response to roughly
     # 3 months of intraday bars regardless of the requested from/to span,
     # so longer ranges must be fetched in date chunks and stitched.
-    _CHUNK_DAYS_BY_PERIOD = {
+    _CHUNK_DAYS_BY_PERIOD: ClassVar[dict[str, int]] = {
         "1min": 2,
         "5min": 7,
         "15min": 20,
@@ -73,8 +75,8 @@ class FMPDataLoader:
         self,
         symbol: str,
         period: str,
-        from_date: Optional[str],
-        to_date: Optional[str],
+        from_date: str | None,
+        to_date: str | None,
     ) -> list[dict]:
         """Single historical-chart request; returns raw FMP rows (newest first)."""
         path = f"/stable/historical-chart/{period}"
@@ -86,7 +88,7 @@ class FMPDataLoader:
 
         url = self._build_url(path, params)
 
-        last_exc: Optional[Exception] = None
+        last_exc: Exception | None = None
         for attempt in range(2):
             try:
                 resp = self.session.get(url, timeout=30)
@@ -105,8 +107,8 @@ class FMPDataLoader:
         self,
         symbol: str,
         period: str = "1hour",
-        from_date: Optional[str] = None,
-        to_date: Optional[str] = None,
+        from_date: str | None = None,
+        to_date: str | None = None,
         limit: int = 5000,
     ) -> list[dict]:
         """Fetch historical OHLC data from FMP stable API.
@@ -133,11 +135,11 @@ class FMPDataLoader:
             else:
                 # Keep all three tz-aware (UTC) so the chunk-loop comparisons
                 # never mix naive/aware datetimes.
-                start = datetime.strptime(from_date, "%Y-%m-%d").replace(tzinfo=timezone.utc)
+                start = datetime.strptime(from_date, "%Y-%m-%d").replace(tzinfo=UTC)
                 end = (
-                    datetime.strptime(to_date, "%Y-%m-%d").replace(tzinfo=timezone.utc)
+                    datetime.strptime(to_date, "%Y-%m-%d").replace(tzinfo=UTC)
                     if to_date
-                    else datetime.now(timezone.utc)
+                    else datetime.now(UTC)
                 )
                 raw_rows = []
                 chunk_start = start
@@ -209,8 +211,8 @@ class FMPDataLoader:
     def get_daily_price(
         self,
         symbol: str,
-        from_date: Optional[str] = None,
-        to_date: Optional[str] = None,
+        from_date: str | None = None,
+        to_date: str | None = None,
     ) -> list[dict]:
         """Fetch daily OHLC data.
 
@@ -266,7 +268,7 @@ class FMPDataLoader:
 
     def get_sofr_iorb_spread(
         self,
-        from_date: Optional[str] = None,
+        from_date: str | None = None,
     ) -> dict[str, tuple[float, float]]:
         """Get SOFR and IORB rates, return as daily spread.
 
@@ -374,14 +376,13 @@ class FMPDataLoader:
 
 def main():
     """Example usage."""
-    import sys
 
     # Initialize loader
     loader = FMPDataLoader()
 
     # Fetch NVDA 1h data (last 6 months)
-    end_date = datetime.now(timezone.utc).strftime("%Y-%m-%d")
-    start_date = (datetime.now(timezone.utc) - timedelta(days=180)).strftime("%Y-%m-%d")
+    end_date = datetime.now(UTC).strftime("%Y-%m-%d")
+    start_date = (datetime.now(UTC) - timedelta(days=180)).strftime("%Y-%m-%d")
 
     print(f"[Backtest] Fetching NVDA data from {start_date} to {end_date}...")
     candles = loader.get_historical_price(
@@ -403,12 +404,14 @@ def main():
     macro_candles = loader.map_macro_to_candles(candles, sofr_iorb_map)
 
     # Save for backtest
-    loader.save_to_json(candles, "/tmp/nvda_1h.json")
+    output_path = "artifacts/dev/nvda_1h.json"
+    Path(output_path).parent.mkdir(parents=True, exist_ok=True)
+    loader.save_to_json(candles, output_path)
 
-    print(f"\n✅ Data ready for backtest:")
+    print("\n✅ Data ready for backtest:")
     print(f"   Candles: {len(candles)}")
     print(f"   Macro points: {len(macro_candles)}")
-    print(f"   File: /tmp/nvda_1h.json")
+    print(f"   File: {output_path}")
 
 
 if __name__ == "__main__":
