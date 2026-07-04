@@ -1543,7 +1543,7 @@ class TechnicalScorer:
             elif "MACD" in name and "STOCHASTIC" not in name:
                 macd_signal = str(osc.get("action", "NEUTRAL")).upper()
             elif name.startswith("ADX"):
-                adx = float(val)
+                adx = _safe_float(val, 0.0)  # not float(): non-finite ADX would collapse score to STRONG_BUY via min(nan/50,1.0)
             elif "WILLIAMS" in name or name.startswith("WILL"):
                 williams = float(val)
 

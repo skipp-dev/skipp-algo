@@ -483,6 +483,40 @@ def test_extract_and_score_strong_sell_when_overbought_rsi_and_sell_macd() -> No
     assert out["technical_score"] <= 0.4
 
 
+@pytest.mark.parametrize("bad_adx", [float("nan"), float("inf"), "nan", "garbage"])
+def test_extract_and_score_non_finite_adx_does_not_flip_bearish_to_strong_buy(bad_adx) -> None:
+    """Regression: a non-finite ADX previously leaked through ``min(adx/50, 1.0)``
+    as NaN and collapsed the score to 1.0 via ``max(0.0, min(1.0, nan))`` →
+    STRONG_BUY, overriding an otherwise strongly-bearish read. _safe_float now
+    coerces it to 0.0 ("no trend"), so ADX contributes nothing."""
+    s = _fresh_scorer()
+    res = _FakeTechnicalResult(
+        osc_detail=[
+            {"name": "RSI (14)", "value": 82.0, "action": "SELL"},  # overbought → bearish
+            {"name": "MACD Level (12, 26)", "value": 0.0, "action": "SELL"},
+            {"name": "ADX (14)", "value": bad_adx},
+        ],
+        ma_buy=0,
+        ma_sell=10,
+        ma_neutral=2,
+        summary_signal="STRONG_SELL",
+    )
+    out = s._extract_and_score(res)
+    assert out["adx"] == 0.0                        # non-finite coerced to no-trend
+    assert out["technical_signal"] != "STRONG_BUY"
+    assert out["technical_score"] <= 0.5            # stays bearish, not collapsed to 1.0
+
+
+def test_extract_and_score_valid_adx_still_amplifies() -> None:
+    """A finite ADX must still pass through unchanged (no regression)."""
+    s = _fresh_scorer()
+    res = _FakeTechnicalResult(
+        osc_detail=[{"name": "ADX (14)", "value": 35.0}],
+    )
+    out = s._extract_and_score(res)
+    assert out["adx"] == pytest.approx(35.0)
+
+
 def test_extract_and_score_neutral_when_no_indicators_present() -> None:
     s = _fresh_scorer()
     out = s._extract_and_score(_FakeTechnicalResult())
