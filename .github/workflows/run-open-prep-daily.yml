@@ -242,7 +242,7 @@ jobs:
           # `if git push` positive form is what tests/test_workflow_auth_pattern.py
           # requires (it disallows the `if !` negation). Surface real push
           # failures as a red job, not a swallowed warning.
-          if git push --force-with-lease=refs/remotes/origin/bot/live-open-prep-snapshot origin "HEAD:refs/heads/bot/live-open-prep-snapshot"; then
+          if git push --force-with-lease=refs/heads/bot/live-open-prep-snapshot origin "HEAD:refs/heads/bot/live-open-prep-snapshot"; then
             echo "Pushed open-prep snapshot to bot/live-open-prep-snapshot."
             git checkout --quiet "$START_SHA"
             rm -f "$SNAPSHOT"
