@@ -9,7 +9,6 @@ from open_prep.market_microstructure import (
     weather_summary_line,
 )
 
-
 # --- shared wording -------------------------------------------------------
 
 def test_weather_badge_label_and_summary_line() -> None:
