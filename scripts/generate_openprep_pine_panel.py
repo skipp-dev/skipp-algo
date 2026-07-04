@@ -52,6 +52,7 @@ if _BOOTSTRAP_ROOT not in sys.path:
 
 import argparse
 import json
+import math
 import os
 import sys
 from datetime import UTC, datetime
@@ -71,9 +72,12 @@ def _safe_float(value: Any) -> float | None:
     try:
         if value is None:
             return None
-        return float(value)
+        f = float(value)
     except (TypeError, ValueError):
         return None
+    # NaN/Inf would be emitted verbatim into Pine ("nan"/"inf" are not Pine
+    # literals) and fail the fail-closed publisher; treat them as missing.
+    return f if math.isfinite(f) else None
 
 
 def discover_latest_outcomes(search_dir: Path) -> Path | None:
@@ -142,7 +146,10 @@ def _q(value: str) -> str:
 
 
 def _pine_float(value: float | None, nd: int = 4) -> str:
-    return "na" if value is None else f"{round(value, nd)}"
+    if value is None or not math.isfinite(value):
+        return "na"
+    # Fixed-point (never scientific notation — "1e+16" is not a Pine literal).
+    return f"{value:.{nd}f}"
 
 
 def _pine_str_array(name: str, values: list[str]) -> str:

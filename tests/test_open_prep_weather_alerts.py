@@ -78,6 +78,33 @@ def test_alert_weather_change_suppressed_cases() -> None:
     assert alerts.alert_weather_change("GREEN", "RED", {"enabled": False, "targets": []}) == []
 
 
+def test_alert_weather_change_tolerates_non_dict_target(monkeypatch) -> None:
+    """A malformed target entry must be skipped, not crash the alert path."""
+    sent: list[dict] = []
+    monkeypatch.setattr(alerts, "_send_webhook", lambda u, p, h=None: (sent.append(p) or {"status": "ok"}))
+    cfg = {"enabled": True, "targets": ["not-a-dict", {"name": "t", "url": "https://example.test/hook"}]}
+    results = alerts.alert_weather_change("GREEN", "RED", cfg)
+    assert len(results) == 1 and len(sent) == 1
+    # Same guard on the pre-existing regime-change alert (shared pattern).
+    sent.clear()
+    results = alerts.alert_regime_change("RISK_ON", "ROTATION", cfg)
+    assert len(results) == 1 and len(sent) == 1
+
+
+def test_snapshot_persists_market_weather(monkeypatch, tmp_path) -> None:
+    """save_result_snapshot must keep market_weather, else the weather-change
+    alert can never fire (prev is always None)."""
+    import json as _json
+    from open_prep import diff as diff_mod
+
+    monkeypatch.setattr(diff_mod, "LAST_RESULT_PATH", tmp_path / "last_result.json")
+    path = diff_mod.save_result_snapshot(
+        {"generated_at": "t", "regime": "ROTATION", "market_weather": "GREEN", "candidates": []}
+    )
+    saved = _json.loads(path.read_text(encoding="utf-8"))
+    assert saved["market_weather"] == "GREEN"
+
+
 def test_alert_weather_change_fires_on_real_change(monkeypatch) -> None:
     sent: list[dict] = []
 

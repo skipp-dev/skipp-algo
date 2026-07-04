@@ -51,6 +51,19 @@ def test_extract_panel_empty() -> None:
     assert panel["date"] is None
 
 
+def test_pine_float_never_emits_invalid_literals() -> None:
+    """nan/inf/scientific notation are not Pine literals — must become na /
+    fixed-point (a 'nan' in the panel is a TradingView compile error)."""
+    assert gen._pine_float(float("nan")) == "na"
+    assert gen._pine_float(float("inf")) == "na"
+    assert gen._pine_float(1e16) == "10000000000000000.0000"
+    assert "e" not in gen._pine_float(1e-7)
+    # _safe_float filters non-finite ingress (json.loads accepts NaN tokens).
+    assert gen._safe_float(float("nan")) is None
+    assert gen._safe_float("inf") is None
+    assert gen._safe_float("3.5") == 3.5
+
+
 def test_pine_string_literal_escaping() -> None:
     # Double-quotes escaped; emoji kept literal (not \\uXXXX).
     assert gen._q('a"b') == '"a\\"b"'

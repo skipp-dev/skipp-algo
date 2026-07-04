@@ -657,6 +657,9 @@ def alert_regime_change(
     }
 
     for target in config.get("targets", []):
+        if not isinstance(target, dict):
+            logger.warning("Skipping invalid regime-alert target: expected dict, got %s", type(target).__name__)
+            continue
         url = target.get("url", "")
         if url:
             r = _send_webhook(url, regime_payload, target.get("headers"))
@@ -708,6 +711,9 @@ def alert_weather_change(
     }
 
     for target in config.get("targets", []):
+        if not isinstance(target, dict):
+            logger.warning("Skipping invalid weather-alert target: expected dict, got %s", type(target).__name__)
+            continue
         url = target.get("url", "")
         if url:
             r = _send_webhook(url, weather_payload, target.get("headers"))

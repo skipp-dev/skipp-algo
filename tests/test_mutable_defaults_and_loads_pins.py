@@ -104,7 +104,7 @@ _FROZEN_JSON_LOAD_SITES: frozenset[tuple[str, int]] = frozenset(
         # json.load site shifted 55 -> 56.
         # 2026-07-02: SSRF path/query hardening shifted 56 -> 57.
         ("open_prep/alerts.py", 59),
-        ("open_prep/diff.py", 79),
+        ("open_prep/diff.py", 82),
         # 2026-06-11 (backfill defer-unpublished): sentinel+helper block
         # above shifted 61→80, 81→100; pytest write-guard import +4 → 84/104.
         # 2026-06-17 (F1 lint fix): remove unused import sys → 84→83, 104→103.

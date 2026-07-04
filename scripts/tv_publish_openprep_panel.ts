@@ -155,6 +155,11 @@ export async function runPublishOpenPrepPanelCli(): Promise<number> {
   let publishBodyText = "";
 
   try {
+    if (!cli.openExisting && !cli.allowCreate) {
+      throw new Error(
+        "--no-open-existing combined with --no-allow-create cannot publish: it would neither update the existing script nor be allowed to create one.",
+      );
+    }
     details = verifyPanelPublishContract(cli);
     const session = await newTradingViewSession();
     try {
