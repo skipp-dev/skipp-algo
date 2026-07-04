@@ -85,10 +85,12 @@ _KNOWN_HOTSPOTS: Final[frozenset[tuple[str, int]]] = frozenset(
         ("scripts/smc_range_regime.py", 126),
         # scripts/smc_range_profile_regime.py — breakout / value-area /
         # liquidity / centre snapshots, all from closed-bar profile.
+        # PR #3150 added a finite-TR guard in `_atr`, shifting downstream
+        # profile/liquidity/predictive snapshot sites by 2 lines.
         ("scripts/smc_range_profile_regime.py", 137),
-        ("scripts/smc_range_profile_regime.py", 226),
-        ("scripts/smc_range_profile_regime.py", 256),
-        ("scripts/smc_range_profile_regime.py", 278),
+        ("scripts/smc_range_profile_regime.py", 228),
+        ("scripts/smc_range_profile_regime.py", 258),
+        ("scripts/smc_range_profile_regime.py", 280),
         # scripts/databento_preopen_fast.py — premarket "last" close
         # snapshot from already-closed pre-market session window.
         # PR #2198 main churn added 1 line near top, shifting 430 -> 431.
