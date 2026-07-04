@@ -518,7 +518,8 @@ class TestWebhookStub:
     def test_skipped_when_low_score(self) -> None:
         from terminal_export import fire_webhook
         ci = self._make_ci(news_score=0.30)
-        result = fire_webhook(ci, url="https://example.com/webhook", min_score=0.70)
+        with patch("terminal_export.validate_webhook_url", return_value=(True, "")):
+            result = fire_webhook(ci, url="https://example.com/webhook", min_score=0.70)
         assert result is None
 
     @patch("terminal_export.httpx.Client")
@@ -535,7 +536,8 @@ class TestWebhookStub:
         mock_client_cls.return_value = mock_client
 
         ci = self._make_ci(news_score=0.90)
-        result = fire_webhook(ci, url="https://example.com/webhook")
+        with patch("terminal_export.validate_webhook_url", return_value=(True, "")):
+            result = fire_webhook(ci, url="https://example.com/webhook")
         assert result == {"ok": True}
         mock_client.post.assert_called_once()
 
@@ -569,7 +571,8 @@ class TestWebhookStub:
             catalyst_actionable=True,
             catalyst_age_minutes=4.0,
         )
-        result = fire_webhook(ci, url="https://example.com/webhook", min_score=0.70)
+        with patch("terminal_export.validate_webhook_url", return_value=(True, "")):
+            result = fire_webhook(ci, url="https://example.com/webhook", min_score=0.70)
         assert result == {"ok": True}
 
         call_kwargs = mock_client.post.call_args
@@ -599,7 +602,8 @@ class TestWebhookStub:
             reaction_state="CONFLICTED",
             reaction_actionable=False,
         )
-        result = fire_webhook(ci, url="https://example.com/webhook")
+        with patch("terminal_export.validate_webhook_url", return_value=(True, "")):
+            result = fire_webhook(ci, url="https://example.com/webhook")
         assert result is None
         mock_client_cls.assert_not_called()
 

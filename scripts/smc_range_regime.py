@@ -145,7 +145,9 @@ def _derive_regime(df: pd.DataFrame, result: dict[str, Any]) -> dict[str, Any]:
         h = float(highs.iloc[i])
         lo = float(lows.iloc[i])
         pc = float(closes.iloc[i - 1])
-        tr_vals.append(max(h - lo, abs(h - pc), abs(lo - pc)))
+        tr = max(h - lo, abs(h - pc), abs(lo - pc))
+        if np.isfinite(tr):
+            tr_vals.append(tr)
     atr = float(np.mean(tr_vals)) if tr_vals else 0.0
 
     # Regime classification — breakout uses prior-bar range + ATR

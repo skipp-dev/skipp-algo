@@ -36,9 +36,13 @@ class VolatilityFilter:
 
         # Cache for ATR values
         self.atr_history = []
+        self.prev_close = None
 
     def calculate_atr(self, high, low, close):
         """Calculate True Range and ATR for a candle."""
+        prev_close = self.prev_close
+        self.prev_close = close
+
         if len(self.atr_history) == 0:
             # Initialize with TR
             tr = high - low
@@ -46,20 +50,28 @@ class VolatilityFilter:
             return tr
 
         # True Range = max(high-low, |high-prev_close|, |low-prev_close|)
-        prev_close = close  # simplified; in real code would track previous
-        tr = max(high - low, abs(high - prev_close), abs(low - prev_close))
+        if prev_close is None:
+            tr = high - low
+        else:
+            tr = max(high - low, abs(high - prev_close), abs(low - prev_close))
 
         # Wilder's smoothing for ATR
         if len(self.atr_history) < self.atr_period:
             self.atr_history.append(tr)
             # Not enough data yet, return average TR
-            return sum(self.atr_history) / len(self.atr_history)
+            result = sum(self.atr_history) / len(self.atr_history)
         else:
             # Wilder's ATR = (prev_ATR * (period-1) + TR) / period
             prev_atr = self.atr_history[-1]
-            atr = (prev_atr * (self.atr_period - 1) + tr) / self.atr_period
-            self.atr_history.append(atr)
-            return atr
+            result = (prev_atr * (self.atr_period - 1) + tr) / self.atr_period
+            self.atr_history.append(result)
+
+        # Only the trailing SMA window (and last ATR) is ever read;
+        # cap the history so long-running daemons don't leak memory.
+        max_keep = max(self.sma_period, self.atr_period)
+        if len(self.atr_history) > max_keep:
+            del self.atr_history[:-max_keep]
+        return result
 
     def get_atr_ratio(self):
         """Get current ATR / SMA(ATR, 20)."""
@@ -98,6 +110,7 @@ class VolatilityFilter:
     def reset(self):
         """Reset for new backtest."""
         self.atr_history = []
+        self.prev_close = None
 
 
 # Example usage for backtesting

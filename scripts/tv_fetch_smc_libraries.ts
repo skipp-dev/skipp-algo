@@ -14,6 +14,10 @@ type LibraryConfig = {
   owner: string;
   version: string;
   local_path: string;
+  // Canonical published-script URL (hash slug), from
+  // docs/tradingview-manual-publish-checklist.md. TradingView script URLs
+  // cannot be derived from owner/name/version alone.
+  script_url: string | null;
 };
 
 const LIBRARIES: LibraryConfig[] = [
@@ -22,36 +26,49 @@ const LIBRARIES: LibraryConfig[] = [
     owner: "preuss_steffen",
     version: "1",
     local_path: "pine/generated/smc_overlay_generated.pine",
+    script_url: null, // No published-script URL documented yet
+  },
+  {
+    name: "smc_micro_profiles_generated",
+    owner: "preuss_steffen",
+    version: "1",
+    local_path: "pine/generated/smc_micro_profiles_generated.pine",
+    script_url: "https://www.tradingview.com/script/3q50DUTi-smc-micro-profiles-generated/",
   },
   {
     name: "smc_profile_engine",
     owner: "preuss_steffen",
     version: "1",
     local_path: "SMC++/smc_profile_engine.pine",
+    script_url: "https://www.tradingview.com/script/MLVulTa9/",
   },
   {
     name: "smc_context_resolvers",
     owner: "preuss_steffen",
     version: "1",
     local_path: "SMC++/smc_context_resolvers.pine",
+    script_url: "https://www.tradingview.com/script/xqizvhmk/",
   },
   {
     name: "smc_observability_private",
     owner: "preuss_steffen",
     version: "1",
     local_path: "SMC++/smc_observability_private.pine",
+    script_url: "https://www.tradingview.com/script/Pk1mf5ut-smc-observability-private/",
   },
   {
     name: "smc_bus_private",
     owner: "preuss_steffen",
     version: "1",
     local_path: "SMC++/smc_bus_private.pine",
+    script_url: "https://www.tradingview.com/script/aaxpWQEV-smc-bus-private/",
   },
   {
     name: "smc_lifecycle_private",
     owner: "preuss_steffen",
     version: "1",
     local_path: "SMC++/smc_lifecycle_private.pine",
+    script_url: "https://www.tradingview.com/script/4van2T9D-smc-lifecycle-private/",
   },
 ];
 
@@ -59,7 +76,14 @@ async function fetchLibrarySource(
   session: any,
   lib: LibraryConfig,
 ): Promise<string | null> {
-  const tvUrl = `https://www.tradingview.com/script/${lib.owner.toLowerCase()}${lib.name.toLowerCase()}${lib.version}/`;
+  if (!lib.script_url) {
+    console.error(
+      `[${lib.name}] No published-script URL configured. Add the script slug ` +
+        `from docs/tradingview-manual-publish-checklist.md to LIBRARIES.`,
+    );
+    return null;
+  }
+  const tvUrl = lib.script_url;
 
   console.log(`[${lib.name}] Fetching from ${tvUrl}`);
 

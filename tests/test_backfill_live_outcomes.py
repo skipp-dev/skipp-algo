@@ -199,3 +199,33 @@ def test_atomic_write_leaves_no_tmp_file(tmp_path: Path) -> None:
     backfill_live_outcomes(path)
     leftovers = list(tmp_path.glob("*.tmp"))
     assert leftovers == []
+
+
+# ---------------------------------------------------------------------------
+# Bug-hunt round 3: corrupt prices must raise ValueError, not ZeroDivisionError
+# ---------------------------------------------------------------------------
+
+
+def test_compute_trade_outcome_rejects_zero_entry_price() -> None:
+    with pytest.raises(ValueError, match="entry_price must be positive"):
+        compute_trade_outcome(
+            entry_price=0.0, stop_loss=-1.0, close_price=1.0, size_usd=100.0
+        )
+
+
+def test_compute_trade_outcome_rejects_negative_entry_price() -> None:
+    with pytest.raises(ValueError, match="entry_price must be positive"):
+        compute_trade_outcome(
+            entry_price=-5.0, stop_loss=-6.0, close_price=1.0, size_usd=100.0
+        )
+
+
+def test_compute_trade_outcome_rejects_non_finite_inputs() -> None:
+    with pytest.raises(ValueError, match="finite"):
+        compute_trade_outcome(
+            entry_price=float("nan"), stop_loss=1.0, close_price=1.0, size_usd=100.0
+        )
+    with pytest.raises(ValueError, match="finite"):
+        compute_trade_outcome(
+            entry_price=10.0, stop_loss=9.0, close_price=float("inf"), size_usd=100.0
+        )

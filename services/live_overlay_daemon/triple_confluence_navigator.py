@@ -304,6 +304,11 @@ class TripleConfluenceNavigator:
         self.price_history: list[dict] = []
         self.htf_bias: str = "neutral"  # From higher timeframe
 
+    @staticmethod
+    def _htf_aligned(htf_bias: str, direction: str) -> bool:
+        """Neutral HTF bias allows all signals; otherwise it must match."""
+        return htf_bias == "neutral" or htf_bias == direction
+
     def process_candle(
         self,
         bar_index: int,
@@ -374,10 +379,7 @@ class TripleConfluenceNavigator:
         )
 
         # Step 3: Check HTF bias alignment
-        htf_aligned = (
-            htf_bias == "neutral"
-            or htf_bias == confluence.direction.split("long" if confluence.direction == "long" else "short")[0]
-        )
+        htf_aligned = self._htf_aligned(htf_bias, confluence.direction)
 
         if not htf_aligned:
             logger.debug("[Confluence] HTF bias misaligned: HTF=%s, signal=%s", htf_bias, confluence.direction)

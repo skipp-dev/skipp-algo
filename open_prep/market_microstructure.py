@@ -211,9 +211,11 @@ def _fetch_eod_closes(client: Any, symbol: str, date_from: date, date_to: date) 
         d, c = r.get("date"), r.get("close")
         if d and c is not None:
             try:
-                out[str(d)] = float(c)
+                val = float(c)
             except (TypeError, ValueError):
                 continue
+            if math.isfinite(val):
+                out[str(d)] = val
     return out
 
 
@@ -231,9 +233,11 @@ def _fetch_intraday_er(client: Any, symbol: str) -> float | None:
         if c is None:
             continue
         try:
-            closes.append(float(c))
+            val = float(c)
         except (TypeError, ValueError):
             continue
+        if math.isfinite(val):
+            closes.append(val)
     return _kaufman_er(closes, ER_INTRADAY_BARS)
 
 

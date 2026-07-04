@@ -68,6 +68,10 @@ class EnsembleSignal:
 class EnsembleSignalRouter:
     """Orchestrates all 4 systems and routes final signals."""
 
+    # Cap so the per-signal history cannot grow without bound in the daemon;
+    # get_signal_history() reads at most the tail.
+    MAX_SIGNAL_HISTORY = 500
+
     def __init__(
         self,
         max_smc_boxes: int = 10,
@@ -221,8 +225,7 @@ class EnsembleSignalRouter:
         )
 
         if final_signal:
-            self.latest_ensemble_signal = final_signal
-            self.signal_history.append(final_signal)
+            self._record_signal(final_signal)
             logger.info(
                 "[Ensemble] SIGNAL %s @ %s: "
                 "sources=%s, confidence=%.2f",
@@ -233,6 +236,12 @@ class EnsembleSignalRouter:
             )
 
         return final_signal
+
+    def _record_signal(self, final_signal: EnsembleSignal) -> None:
+        self.latest_ensemble_signal = final_signal
+        self.signal_history.append(final_signal)
+        if len(self.signal_history) > self.MAX_SIGNAL_HISTORY:
+            del self.signal_history[: -self.MAX_SIGNAL_HISTORY]
 
     def _merge_signals(
         self,

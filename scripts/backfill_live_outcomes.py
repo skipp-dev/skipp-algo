@@ -28,6 +28,7 @@ from __future__ import annotations
 
 import json
 import logging
+import math
 import os
 import tempfile
 from pathlib import Path
@@ -118,8 +119,14 @@ def compute_trade_outcome(
     ValueError
         If ``entry_price == stop_loss`` (zero-risk trade — this should
         have been blocked by ``smc_to_ibkr_adapter`` already; defence
-        in depth).
+        in depth), or if any price is non-finite / ``entry_price <= 0``
+        (corrupt ledger data — a zero entry would otherwise divide by
+        zero below).
     """
+    if not all(math.isfinite(v) for v in (entry_price, stop_loss, close_price, size_usd)):
+        raise ValueError("entry_price, stop_loss, close_price and size_usd must be finite")
+    if entry_price <= 0:
+        raise ValueError("entry_price must be positive; corrupt ledger record")
     risk_per_share = entry_price - stop_loss
     if risk_per_share == 0:
         raise ValueError(

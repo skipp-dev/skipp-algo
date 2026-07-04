@@ -91,8 +91,6 @@ class SmcSignalDetector:
         self.fractal_detector = BrokenFractalDetector()
         self.bos_refiner = BoSRefinement()
 
-        # Volatility tracking for PPDD
-        self.atr_history: list[float] = []
         self.swing_highs: list[float] = []
         self.swing_lows: list[float] = []
 
@@ -103,6 +101,10 @@ class SmcSignalDetector:
         """
         self.signals.clear()
         self.history.append(candle)
+        # Only the last 3 candles are read; keep a small buffer so the
+        # per-candle history cannot grow without bound in the daemon.
+        if len(self.history) > 10:
+            del self.history[:-10]
 
         # Need 2 prior candles for pattern detection
         if len(self.history) < 3:
@@ -300,18 +302,6 @@ class SmcSignalDetector:
             self.swing_highs.pop(0)
         if len(self.swing_lows) > 50:
             self.swing_lows.pop(0)
-
-    def _calculate_atr(self, t: Candle, t1: Candle | None = None) -> float:
-        """Simple ATR calculation for PPDD & liquidity clustering."""
-        if t1 is None:
-            return (t.high - t.low) * 0.5
-
-        tr = max(
-            t.high - t.low,
-            abs(t.high - t1.close),
-            abs(t.low - t1.close),
-        )
-        return tr
 
     def get_active_structures(self) -> list[SmcBox]:
         """Return all unmitigated boxes (for current state/dashboard)."""

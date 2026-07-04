@@ -354,7 +354,7 @@ class SmtSniperValidator:
             distance_to_sl * 3.0
         )
 
-        risk_reward = distance_to_sl / distance_to_sl if distance_to_sl > 0 else 1.0
+        risk_reward = abs(tp1 - entry_price) / distance_to_sl if distance_to_sl > 0 else 1.0
 
         # Register for confirmation window
         self.confirmation_window.add_sweep(sweep)
