@@ -20,6 +20,10 @@ env:
   PYTHONPATH: ${{ github.workspace }}
   PYTHONUNBUFFERED: "1"
 
+defaults:
+  run:
+    shell: bash
+
 jobs:
   sync:
     name: Sync SMC Libraries
