@@ -200,9 +200,9 @@ _FROZEN_SITES: frozenset[tuple[str, int, tuple[str, ...]]] = frozenset(
         # cache.py set_vix global line 198 -> 210.
         # 2026-06-20 (cache defensive copy): added copy import shifted globals +1.
         ("services/live_overlay_daemon/cache.py", 49, ("_max_symbols", "_rolling_bars_cap")),
-        ("services/live_overlay_daemon/cache.py", 69, ("_last_eviction_at",)),
-        ("services/live_overlay_daemon/cache.py", 146, ("_overlay_computed_at",)),
-        ("services/live_overlay_daemon/cache.py", 216, ("_vix_level",)),
+        ("services/live_overlay_daemon/cache.py", 71, ("_last_eviction_at",)),
+        ("services/live_overlay_daemon/cache.py", 148, ("_overlay_computed_at",)),
+        ("services/live_overlay_daemon/cache.py", 218, ("_vix_level",)),
         # 2026-06-19 (fix/live-overlay-post-merge-bugs): separate _news_checked_at
         # from _news_loaded_at so missing-file rate-limiting does not pin the
         # success cache for the full TTL when a snapshot appears later.

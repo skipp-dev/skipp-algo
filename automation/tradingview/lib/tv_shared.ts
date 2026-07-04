@@ -306,11 +306,14 @@ export function resolveTradingViewPageAuthState(evidence: TradingViewPageAuthEvi
 }
 
 export async function collectTradingViewPageAuthState(page: Page): Promise<TradingViewPageAuthState> {
+  // Fail-soft like the probe evaluate below: a crashed page / destroyed
+  // execution context must yield a controlled "no evidence" state instead
+  // of throwing out of the auth probe and aborting recovery loops.
   const pageEvidence = await page.evaluate(() => ({
     url: location.href,
     htmlClass: String(document.documentElement?.className || ""),
     bodyText: String(document.body?.innerText || "").replace(/\s+/g, " ").trim().slice(0, 2_000),
-  }));
+  })).catch(() => ({ url: "", htmlClass: "", bodyText: "" }));
 
   const probeEndpoints = [
     "/api/v1/user/profile/me/",

@@ -947,6 +947,26 @@ test("TradingView page auth probe emits trace status monitoring", async () => {
   }
 });
 
+test("TradingView page auth probe fails soft when page evaluate crashes (bug-hunt r5)", async () => {
+  // A destroyed execution context (closed page / crashed renderer) must yield
+  // a controlled "no evidence" state instead of throwing out of the probe and
+  // aborting recovery loops. Previously only the endpoint-probe evaluate was
+  // .catch()-guarded; the page-evidence evaluate threw.
+  const browser = await chromium.launch({ headless: true });
+  try {
+    const page = await browser.newPage();
+    await page.close();
+
+    const state = await collectTradingViewPageAuthState(page);
+
+    assert.equal(state.authenticated, false);
+    assert.equal(state.explicitlyAnonymous, false);
+    assert.equal(state.reason, "no_positive_auth_evidence:no_probe");
+  } finally {
+    await browser.close();
+  }
+});
+
 // Regression coverage for findLegendRowWrappers. Two production fixes shipped
 // during the SMC library-refresh debugging both passed the existing tests yet
 // failed in production:

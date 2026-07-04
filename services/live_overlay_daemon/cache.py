@@ -47,6 +47,8 @@ _vix_level: float | None = None
 
 def init_bar_cache(rolling_bars: int, *, max_symbols: int = 2000) -> None:
     global _rolling_bars_cap, _max_symbols
+    if rolling_bars < 1:
+        raise ValueError(f"rolling_bars must be >= 1, got {rolling_bars}")
     if max_symbols < 1:
         raise ValueError(f"max_symbols must be >= 1, got {max_symbols}")
     with _bar_lock:
