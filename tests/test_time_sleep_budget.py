@@ -131,8 +131,10 @@ _FROZEN_SITES: frozenset[tuple[str, int]] = frozenset(
         ("open_prep/realtime_signals.py", 3184),
         # 2026-06-11 (eval-findings D7): technical_analysis import block
         # +8 lines (1943→1951, 1945→1953).
-        ("open_prep/run_open_prep.py", 2038),
-        ("open_prep/run_open_prep.py", 2040),
+        # 2026-07-04 (market-microstructure observe-only): module import
+        # shifted these rate-limit sleeps +1 (2038->2039, 2040->2041).
+        ("open_prep/run_open_prep.py", 2039),
+        ("open_prep/run_open_prep.py", 2041),
         ("newsstack_fmp/_bz_http.py", 44),
         ("terminal_bitcoin.py", 846),
         ("terminal_bitcoin.py", 848),

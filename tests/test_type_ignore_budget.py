@@ -118,6 +118,11 @@ _FROZEN_FILE_COUNTS: dict[str, int] = {
     "smc_integration/measurement_evidence.py": 1,  # 2026-06-24: datetime subtraction type narrowing
     "open_prep/realtime_signals.py": 1,  # 2026-06-24: _resource=None POSIX-guard shim (type: ignore[assignment])
     "services/live_overlay_daemon/metrics.py": 2,  # 2026-06-24: resource=None POSIX-guard shim (type: ignore[assignment]) + possibly-undefined
+    # 2026-07-04 rebaseline (WP-3 backtest CLI, missed in prior sweep):
+    # `raise last_exc  # type: ignore[misc]` after a retry loop — last_exc is
+    # Optional[Exception] but provably set on every failure path; mypy can't
+    # narrow it across the loop. Frozen backtest tooling.
+    "services/live_overlay_daemon/fmp_data_loader.py": 1,
 }
 
 
