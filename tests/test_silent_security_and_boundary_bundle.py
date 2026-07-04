@@ -220,7 +220,7 @@ _FROZEN_BASIC_CONFIG_SITES: frozenset[tuple[str, int]] = frozenset({
     # run_ensemble_backtest.py is a standalone entry-point runner
     # (python run_ensemble_backtest.py ...) that configures the root logger
     # at import; the Phase-0a `from typing import Optional` shifted it 22 -> 24.
-    ("run_ensemble_backtest.py", 24),
+    ("run_ensemble_backtest.py", 23),
 })
 
 
