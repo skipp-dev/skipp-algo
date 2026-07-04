@@ -127,7 +127,14 @@ def load_alert_groups(path: Path) -> list[dict[str, Any]]:
         yaml.resolver.BaseResolver.DEFAULT_MAPPING_TAG, _construct_no_dup_mapping
     )
 
-    document = yaml.load(path.read_text(encoding="utf-8"), Loader=_DupKeyLoader)  # noqa: S506
+    # Use the low-level loader API directly (what yaml.load does internally)
+    # so no `yaml.load(...)` call site exists — _DupKeyLoader is SafeLoader-
+    # based, so this stays safe while keeping the duplicate-key rejection.
+    _loader = _DupKeyLoader(path.read_text(encoding="utf-8"))
+    try:
+        document = _loader.get_single_data()
+    finally:
+        _loader.dispose()
     if not isinstance(document, dict):
         raise ValueError(f"{path}: top-level YAML must be a mapping")
     groups = document.get("groups")

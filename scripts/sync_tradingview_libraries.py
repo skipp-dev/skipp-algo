@@ -123,7 +123,7 @@ def update_library_versions_toml(
 
     if updated_content != content:
         if not dry_run:
-            toml_path.write_text(updated_content)
+            toml_path.write_text(updated_content)  # ATOMIC-WRITE-EXEMPT: local pine-sync metadata write, not a concurrently-read surface
             logger.info(f"Updated version metadata for {lib_name}")
         else:
             logger.info(f"[DRY-RUN] Would update version metadata for {lib_name}")
@@ -174,7 +174,7 @@ def sync_library(
 
     # Write to disk
     if not dry_run:
-        local_path.write_text(source)
+        local_path.write_text(source)  # ATOMIC-WRITE-EXEMPT: local pine-sync library write, not a concurrently-read surface
         logger.info(f"Updated {local_path}")
     else:
         logger.info(f"[DRY-RUN] Would update {local_path}")
