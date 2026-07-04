@@ -2,6 +2,12 @@
 
 Fetches OHLC data and macro indicators from FMP API.
 Prepares data for ensemble backtesting.
+
+Uses the FMP stable API endpoints (as of 2025):
+  - https://financialmodelingprep.com/stable/historical-chart/{period}/{symbol}
+  - https://financialmodelingprep.com/stable/economic/{indicator}
+
+This loader mirrors the pattern from open_prep.macro.FMPClient
 """
 
 from __future__ import annotations
@@ -12,14 +18,19 @@ from datetime import datetime, timedelta
 from typing import Optional
 import requests
 import json
+from urllib.parse import urlencode
 
 logger = logging.getLogger(__name__)
 
 
 class FMPDataLoader:
-    """Load historical OHLC and macro data from FMP."""
+    """Load historical OHLC and macro data from FMP stable API.
 
-    BASE_URL = "https://financialmodelingprep.com/api/v3"
+    Uses https://financialmodelingprep.com/stable/ endpoints
+    which are the current, non-deprecated FMP endpoints.
+    """
+
+    STABLE_BASE_URL = "https://financialmodelingprep.com"
 
     def __init__(self, api_key: Optional[str] = None):
         """Initialize FMP loader.
@@ -36,6 +47,61 @@ class FMPDataLoader:
 
         logger.info("[FMP] Initialized with API key (last 4 chars: ...%s)" % self.api_key[-4:])
 
+    def _build_url(self, path: str, params: dict) -> str:
+        """Build FMP URL with API key and parameters."""
+        query = {k: v for k, v in params.items() if v is not None}
+        if self.api_key:
+            query["apikey"] = self.api_key
+
+        base_url = self.STABLE_BASE_URL  # Use stable base
+        if not query:
+            return f"{base_url}{path}"
+        return f"{base_url}{path}?{urlencode(query, doseq=True)}"
+
+    # The /stable/historical-chart endpoint caps each response to roughly
+    # 3 months of intraday bars regardless of the requested from/to span,
+    # so longer ranges must be fetched in date chunks and stitched.
+    _CHUNK_DAYS_BY_PERIOD = {
+        "1min": 2,
+        "5min": 7,
+        "15min": 20,
+        "30min": 30,
+        "1hour": 45,
+        "4hour": 120,
+    }
+
+    def _fetch_chart_rows(
+        self,
+        symbol: str,
+        period: str,
+        from_date: Optional[str],
+        to_date: Optional[str],
+    ) -> list[dict]:
+        """Single historical-chart request; returns raw FMP rows (newest first)."""
+        path = f"/stable/historical-chart/{period}"
+        params = {"symbol": symbol}
+        if from_date:
+            params["from"] = from_date
+        if to_date:
+            params["to"] = to_date
+
+        url = self._build_url(path, params)
+
+        last_exc: Optional[Exception] = None
+        for attempt in range(2):
+            try:
+                resp = self.session.get(url, timeout=30)
+                resp.raise_for_status()
+                data = resp.json()
+                if isinstance(data, dict) and "error" in data:
+                    raise ValueError(f"FMP API error: {data['error']}")
+                return data if isinstance(data, list) else []
+            except Exception as e:
+                last_exc = e
+                if attempt == 0:
+                    logger.warning(f"[FMP] Retry {symbol} {from_date}..{to_date}: {e}")
+        raise last_exc  # type: ignore[misc]
+
     def get_historical_price(
         self,
         symbol: str,
@@ -44,42 +110,63 @@ class FMPDataLoader:
         to_date: Optional[str] = None,
         limit: int = 5000,
     ) -> list[dict]:
-        """Fetch historical OHLC data.
+        """Fetch historical OHLC data from FMP stable API.
+
+        Ranges longer than the endpoint's per-request window are fetched in
+        date chunks and stitched (deduped by timestamp, chronological).
 
         Args:
             symbol: Stock symbol (e.g., "NVDA")
-            period: "1min", "5min", "15min", "30min", "1hour", "4hour", "daily"
-            from_date: Start date (YYYY-MM-DD)
-            to_date: End date (YYYY-MM-DD)
+            period: "1min", "5min", "15min", "30min", "1hour", "4hour", "1day" (not "daily")
+            from_date: Start date (YYYY-MM-DD) - optional
+            to_date: End date (YYYY-MM-DD) - optional
             limit: Max candles to return
 
         Returns: List of OHLC dicts
         """
         logger.info(f"[FMP] Fetching {symbol} {period}...")
 
-        url = f"{self.BASE_URL}/historical-chart/{period}/{symbol}"
-        params = {"apikey": self.api_key, "limit": limit}
-
-        if from_date:
-            params["from"] = from_date
-        if to_date:
-            params["to"] = to_date
-
         try:
-            resp = self.session.get(url, params=params, timeout=30)
-            resp.raise_for_status()
-            data = resp.json()
+            chunk_days = self._CHUNK_DAYS_BY_PERIOD.get(period)
+            if not from_date or not chunk_days:
+                # No range (or daily data): single request as before
+                raw_rows = self._fetch_chart_rows(symbol, period, from_date, to_date)
+            else:
+                start = datetime.strptime(from_date, "%Y-%m-%d")
+                end = (
+                    datetime.strptime(to_date, "%Y-%m-%d")
+                    if to_date
+                    else datetime.now()
+                )
+                raw_rows = []
+                chunk_start = start
+                n_chunks = 0
+                while chunk_start <= end:
+                    chunk_end = min(chunk_start + timedelta(days=chunk_days), end)
+                    rows = self._fetch_chart_rows(
+                        symbol,
+                        period,
+                        chunk_start.strftime("%Y-%m-%d"),
+                        chunk_end.strftime("%Y-%m-%d"),
+                    )
+                    raw_rows.extend(rows)
+                    n_chunks += 1
+                    chunk_start = chunk_end + timedelta(days=1)
+                logger.info(f"[FMP] {symbol}: stitched {n_chunks} chunks")
 
-            if isinstance(data, dict) and "error" in data:
-                raise ValueError(f"FMP API error: {data['error']}")
-
-            if not data:
+            if not raw_rows:
                 logger.warning(f"No data returned for {symbol}")
                 return []
 
+            # Dedupe by timestamp (chunk edges can overlap), then sort
+            # chronologically. FMP timestamps are "YYYY-MM-DD HH:MM:SS",
+            # so lexicographic order == chronological order.
+            by_ts = {row.get("date"): row for row in raw_rows if row.get("date")}
+            ordered = [by_ts[ts] for ts in sorted(by_ts)]
+
             # Convert FMP format to backtest format
             candles = []
-            for i, candle in enumerate(reversed(data)):  # Reverse to chronological order
+            for i, candle in enumerate(ordered):
                 parsed = {
                     "bar_index": i,
                     "timestamp": candle.get("date"),
@@ -156,11 +243,12 @@ class FMPDataLoader:
         """
         logger.info(f"[FMP] Fetching {indicator}...")
 
-        url = f"{self.BASE_URL}/economic/{indicator}"
-        params = {"apikey": self.api_key, "limit": limit}
+        path = f"/stable/economic/{indicator}"
+        params = {"limit": limit}
+        url = self._build_url(path, params)
 
         try:
-            resp = self.session.get(url, params=params, timeout=30)
+            resp = self.session.get(url, timeout=30)
             resp.raise_for_status()
             data = resp.json()
 

@@ -12,9 +12,11 @@ Usage:
 import argparse
 import json
 import logging
+import os
 import sys
 from datetime import datetime, timedelta
 from pathlib import Path
+from typing import Optional
 
 from services.live_overlay_daemon.fmp_data_loader import FMPDataLoader
 from services.live_overlay_daemon.ensemble_backtester import EnsembleBacktester, BacktestMetrics
@@ -31,6 +33,12 @@ def run_backtest(
     days: int = 180,
     timeframe: str = "1hour",
     output_dir: str = "./backtest_results",
+    smt_quality_threshold: float = 70.0,
+    impulse_propulsion_threshold: float = 6.0,
+    minimum_sources: int = 2,
+    enable_volatility_filter: bool = True,
+    warmup_bars: int = 0,
+    eval_last_bars: Optional[int] = None,
 ) -> dict:
     """Run complete ensemble backtest pipeline.
 
@@ -39,6 +47,13 @@ def run_backtest(
         days: How many days of historical data
         timeframe: "1min", "5min", "15min", "30min", "1hour", "daily"
         output_dir: Where to save results
+        smt_quality_threshold: SMT quality gate (60-70)
+        impulse_propulsion_threshold: Impulse propulsion gate (5.5-6.5)
+        minimum_sources: Minimum systems for signal (1-3)
+        enable_volatility_filter: Enable ATR-based volatility filter (default True)
+        warmup_bars: Initial bars that only warm up system state (no entries)
+        eval_last_bars: If set, evaluate only the last N bars — warmup_bars is
+            derived as max(0, total_candles - N), overriding warmup_bars
 
     Returns: Results dict with metrics and metadata
     """
@@ -97,11 +112,20 @@ def run_backtest(
 
     # Step 3: Run backtest
     print(f"\n[3/5] Running ensemble backtest...")
+    if eval_last_bars is not None:
+        warmup_bars = max(0, len(candles) - int(eval_last_bars))
+    if warmup_bars:
+        print(f"    Warm-up: first {warmup_bars} bars (no entries)")
     bt = EnsembleBacktester(
         symbol=symbol,
         timeframe=timeframe,
         initial_capital=100_000,
         risk_per_trade=0.02,
+        smt_quality_threshold=smt_quality_threshold,
+        impulse_propulsion_threshold=impulse_propulsion_threshold,
+        minimum_sources=minimum_sources,
+        enable_volatility_filter=enable_volatility_filter,
+        warmup_bars=warmup_bars,
     )
 
     bt.load_candles(candles)
@@ -166,6 +190,7 @@ def run_backtest(
         "start_date": start_date,
         "end_date": end_date,
         "total_candles": len(candles),
+        "warmup_bars": warmup_bars,
         "metrics": metrics.to_dict(),
         "go_live": go_live,
         "output_dir": output_dir,
@@ -263,8 +288,18 @@ if __name__ == "__main__":
         default="./backtest_results",
         help="Output directory for results",
     )
+    parser.add_argument(
+        "--api-key",
+        type=str,
+        default=None,
+        help="FMP API key (or use FMP_API_KEY env var)",
+    )
 
     args = parser.parse_args()
+
+    # Set API key if provided
+    if args.api_key:
+        os.environ["FMP_API_KEY"] = args.api_key
 
     if args.multi:
         results = run_multi_symbol_backtest(days=args.days)

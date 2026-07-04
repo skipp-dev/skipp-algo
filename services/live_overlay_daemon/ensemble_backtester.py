@@ -123,13 +123,28 @@ class EnsembleBacktester:
         timeframe: str = "1h",
         initial_capital: float = 100000.0,
         risk_per_trade: float = 0.02,  # 2% of capital
+        smt_quality_threshold: float = 70.0,
+        impulse_propulsion_threshold: float = 6.0,
+        minimum_sources: int = 2,
+        enable_volatility_filter: bool = True,
+        warmup_bars: int = 0,
     ):
         self.symbol = symbol
         self.timeframe = timeframe
         self.initial_capital = initial_capital
         self.risk_per_trade = risk_per_trade
+        # Bars at the start of the series during which the ensemble systems
+        # warm up (candles are processed, state accumulates) but entry
+        # signals are discarded. Makes results independent of cold-start
+        # indicator state at the evaluation window's first bar.
+        self.warmup_bars = max(int(warmup_bars), 0)
 
-        self.router = EnsembleSignalRouter()
+        self.router = EnsembleSignalRouter(
+            smt_quality_threshold=smt_quality_threshold,
+            impulse_propulsion_threshold=impulse_propulsion_threshold,
+            minimum_sources=minimum_sources,
+            enable_volatility_filter=enable_volatility_filter,
+        )
         self.trades: list[Trade] = []
         self.open_trades: dict[int, Trade] = {}  # bar_index -> Trade
 
@@ -178,8 +193,9 @@ class EnsembleBacktester:
             # Handle open trades (check for exits)
             self._check_trade_exits(i, candle)
 
-            # Handle new signals (open trades)
-            if signal:
+            # Handle new signals (open trades); warm-up bars only build
+            # system state and never open positions
+            if signal and i >= self.warmup_bars:
                 self._open_trade(i, signal, candle)
 
         # Close any remaining open trades at final price
@@ -529,6 +545,7 @@ class EnsembleBacktester:
                 f,
                 fieldnames=[
                     "entry_bar",
+                    "entry_time",
                     "entry_price",
                     "direction",
                     "stop_loss",
@@ -548,6 +565,7 @@ class EnsembleBacktester:
             for trade in self.trades:
                 writer.writerow({
                     "entry_bar": trade.entry_bar,
+                    "entry_time": trade.entry_time.isoformat() if trade.entry_time else "",
                     "entry_price": f"{trade.entry_price:.2f}",
                     "direction": trade.direction,
                     "stop_loss": f"{trade.stop_loss:.2f}",
