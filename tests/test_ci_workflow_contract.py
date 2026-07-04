@@ -82,12 +82,17 @@ def test_single_validate_job_with_bot_pr_gate() -> None:
     gate_step = next(
         (s for s in job["steps"] if s.get("id") == "gate"), None
     )
-    assert gate_step is not None, "bot-PR short-circuit step ``gate`` missing"
+    assert gate_step is not None, "validate gate step missing"
+    assert "Pull request CI is status-only" in gate_step["run"]
+    assert "Non-main push CI is status-only" in gate_step["run"]
+    assert "workflow_dispatch" in gate_step["run"]
+    assert "REF_NAME" in gate_step["run"]
+    assert "run_heavy=false" in gate_step["run"]
     assert "bot/*" in gate_step["run"], (
-        "bot-PR short-circuit must keep matching ``bot/*`` head refs"
+        "bot branch path allow-list fallback must keep matching ``bot/*`` head refs"
     )
-    # Audit P2 HIGH: the gate must verify changed PATHS, not just the branch
-    # name — a bot/* branch touching source code must run heavy validation.
+    # Audit P2 HIGH: the legacy bot path fallback must still verify changed
+    # PATHS, not just the branch name.
     assert "run_heavy=$heavy" in gate_step["run"], (
         "gate must emit run_heavy from the per-file path check, not a "
         "name-only run_heavy=false"
@@ -107,21 +112,22 @@ def test_runs_on_uses_github_hosted_var() -> None:
     assert "ubuntu-latest" in job["runs-on"], "fallback ubuntu-latest required"
 
 
-def test_three_pytest_invocation_lanes_present() -> None:
-    """Coverage-on-main, testmon-fast-lane, no-coverage are 3 distinct gates."""
+def test_two_pytest_invocation_lanes_present() -> None:
+    """Coverage-on-main and no-coverage PR/non-main are distinct gates."""
     steps = _load()["jobs"]["validate"]["steps"]
     runs = [s.get("run", "") for s in steps if "pytest" in s.get("run", "")]
-    assert len(runs) == 3, (
-        f"expected exactly 3 pytest lanes (testmon, no-cov, with-cov); got {len(runs)}"
+    assert len(runs) == 2, (
+        f"expected exactly 2 pytest lanes (no-cov, with-cov); got {len(runs)}"
     )
     joined = "\n".join(runs)
-    assert "--testmon" in joined, "testmon fast lane removed"
+    assert "--testmon" not in joined, "testmon must stay out of merge-critical validate lanes"
     assert "--cov" in joined and "--cov-report=term-missing:skip-covered" in joined, (
         "coverage lane removed or report format changed"
     )
-    assert joined.count("-n auto --dist=loadscope --splits 4 --group") == 2, (
-        "xdist parallelism or pytest-split sharding dropped from non-testmon lanes"
+    assert joined.count("-n auto --dist=loadscope --splits 4 --group") == 1, (
+        "xdist parallelism should remain only on the main coverage lane"
     )
+    assert joined.count("--splits 4 --group") == 2, "pytest-split sharding dropped from validate lanes"
 
 
 def test_coverage_lane_gated_on_main_push_only() -> None:

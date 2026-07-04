@@ -144,15 +144,28 @@ def test_bot_pr_short_circuit_gate_present(validate_job: dict) -> None:
         None,
     )
     assert gate is not None, (
-        "validate MUST contain a step with id=`gate` that decides run_heavy "
-        "for bot data-only PRs (`head_ref == bot/*`); without it every bot "
-        "artifact PR re-runs the full ~40 min suite for zero signal."
+        "validate MUST contain a step with id=`gate` that decides run_heavy."
     )
     run = gate.get("run") or ""
+    assert "Pull request CI is status-only" in run, (
+        "pull_request validate runs MUST stay status-only to avoid GitHub "
+        "merge-ref validate(4) zombies."
+    )
+    assert "Non-main push CI is status-only" in run, (
+        "non-main push validate runs MUST stay status-only; otherwise PR "
+        "branches can inherit stuck validate(4) push checks."
+    )
+    assert "workflow_dispatch" in run and "Manual CI dispatch runs heavy validation" in run, (
+        "manual workflow_dispatch MUST remain available for explicit heavy branch validation."
+    )
+    assert "REF_NAME" in run and "main" in run, (
+        "gate step MUST distinguish main pushes from PR branch pushes via ref_name."
+    )
+    assert "run_heavy=false" in run, "pull_request gate MUST emit run_heavy=false"
     assert "bot/*" in run, "gate step MUST match the `bot/*` head_ref pattern"
-    # Audit P2 HIGH: the gate must verify changed PATHS (not just the branch
-    # name), emitting run_heavy from the per-file allow-list check and failing
-    # closed to run_heavy=true.
+    # Audit P2 HIGH: the legacy bot fallback must verify changed PATHS (not
+    # just the branch name), emitting run_heavy from the per-file allow-list
+    # check and failing closed to run_heavy=true.
     assert "run_heavy=$heavy" in run, (
         "gate step MUST emit run_heavy from the per-file path check"
     )
@@ -161,7 +174,7 @@ def test_bot_pr_short_circuit_gate_present(validate_job: dict) -> None:
     )
     assert "run_heavy=true" in run, "gate step MUST fail closed to run_heavy=true"
     assert 'EVENT_NAME' in run and "pull_request" in run, (
-        "gate step MUST scope the bot-PR short-circuit to pull_request events only"
+        "gate step MUST branch on pull_request events explicitly"
     )
 
 
@@ -182,9 +195,19 @@ def test_pytest_lanes_pinned(validate_job: dict) -> None:
         "(PR-no-coverage + main-with-coverage); a testmon fast lane is optional."
     )
     # The full-suite lanes are duration-balanced and sharded across the matrix
-    # (pytest-split). `--dist=loadscope` keeps a module's tests on a single
-    # xdist worker so module-level caches stay warm within a shard.
-    fast_lanes = [
+    # (pytest-split). The PR/non-main lane intentionally stays serial inside
+    # each shard because xdist has produced validate(4) runner hangs there.
+    split_lanes = [
+        run
+        for _, run in pytest_runs
+        if "--splits 4" in run and "--group" in run
+    ]
+    assert len(split_lanes) >= 2, (
+        "Both the PR-no-coverage and main-with-coverage pytest lanes MUST use "
+        "`--splits 4 --group ${{ matrix.group }}` so the full suite is sharded "
+        "across the matrix; without it the validate job exceeds its 45-min budget."
+    )
+    xdist_lanes = [
         run
         for _, run in pytest_runs
         if "-n auto" in run
@@ -192,15 +215,13 @@ def test_pytest_lanes_pinned(validate_job: dict) -> None:
         and "--splits 4" in run
         and "--group" in run
     ]
-    assert len(fast_lanes) >= 2, (
-        "Both the PR-no-coverage and main-with-coverage pytest lanes MUST use "
-        "`-n auto --dist=loadscope --splits 4 --group ${{ matrix.group }}` so the "
-        "full suite is sharded across the matrix; without it the validate job "
-        "exceeds its 45-min budget on full suites."
+    assert len(xdist_lanes) == 1, (
+        "Only the main coverage lane should use xdist; PR/non-main stays serial "
+        "inside each pytest-split shard for validate(4) stability."
     )
-    for run in fast_lanes:
+    for run in split_lanes:
         assert "--maxfail=1" in run, (
-            "Parallel pytest lanes MUST stop on first failure (`--maxfail=1`); "
+            "Pytest validate lanes MUST stop on first failure (`--maxfail=1`); "
             "otherwise a single broken test consumes the full runner budget."
         )
     coverage_lanes = [run for _, run in pytest_runs if "--cov" in run]
