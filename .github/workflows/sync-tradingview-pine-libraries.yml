@@ -1,4 +1,5 @@
 name: Sync TradingView Pine Libraries
+# live-window: mutating-on-cron
 
 on:
   schedule:
@@ -100,9 +101,11 @@ jobs:
           TV_HEADLESS: "1"
           TV_STORAGE_STATE: automation/tradingview/auth/storage-state.json
           TV_STORAGE_STATE_MAX_AGE_HOURS: "72"
+          # env-indirect the dispatch input (no ${{ }} inside run: — shell-injection guard)
+          FORCE_UPDATE: ${{ github.event.inputs.force_update }}
         run: |
           FORCE_FLAG=""
-          if [ "${{ github.event.inputs.force_update }}" = "true" ]; then
+          if [ "$FORCE_UPDATE" = "true" ]; then
             FORCE_FLAG="--force"
           fi
 
