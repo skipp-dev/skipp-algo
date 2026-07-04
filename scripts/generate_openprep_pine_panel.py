@@ -56,6 +56,7 @@ import math
 import os
 import sys
 from datetime import UTC, datetime
+from datetime import date as _date
 from pathlib import Path
 from typing import Any
 
@@ -66,6 +67,8 @@ PINE_HEADER = "//@version=6"
 DEFAULT_OUTPUT = Path("pine/generated/openprep_daily_panel.pine")
 DEFAULT_OUTCOMES_DIR = Path("artifacts/open_prep/outcomes")
 MAX_ROWS = 12  # Pine table stays readable; excess candidates are dropped.
+MAX_SYMBOL_LEN = 32
+MAX_NAME_LEN = 64
 
 
 def _safe_float(value: Any) -> float | None:
@@ -78,6 +81,24 @@ def _safe_float(value: Any) -> float | None:
     # NaN/Inf would be emitted verbatim into Pine ("nan"/"inf" are not Pine
     # literals) and fail the fail-closed publisher; treat them as missing.
     return f if math.isfinite(f) else None
+
+
+def _truncate(value: Any, max_len: int) -> str:
+    text = str(value or "")
+    return text[:max_len]
+
+
+def _parse_date_ymd(value: Any) -> tuple[int, int, int]:
+    if isinstance(value, _date):
+        return value.year, value.month, value.day
+    if isinstance(value, str):
+        token = value.split("T", 1)[0].split(" ", 1)[0].strip()
+        try:
+            d = _date.fromisoformat(token)
+            return d.year, d.month, d.day
+        except ValueError:
+            return 0, 0, 0
+    return 0, 0, 0
 
 
 def discover_latest_outcomes(search_dir: Path) -> Path | None:
@@ -111,10 +132,10 @@ def extract_panel(rows: list[dict[str, Any]]) -> dict[str, Any]:
             continue
         candidates.append(
             {
-                "symbol": str(symbol).upper(),
+                "symbol": _truncate(symbol, MAX_SYMBOL_LEN).upper(),
                 "score": _safe_float(row.get("score")) or 0.0,
                 "tier": str(row.get("confidence_tier") or "-"),
-                "playbook": str(row.get("playbook_name") or "-"),
+                "playbook": _truncate(row.get("playbook_name") or "-", MAX_NAME_LEN),
                 "direction": str(row.get("direction") or "-"),
                 "gap_pct": _safe_float(row.get("gap_pct")),
                 "rvol": _safe_float(row.get("rvol")),
@@ -176,12 +197,7 @@ def build_pine(panel: dict[str, Any], *, generated_at: str, source: str,
 
     # Split the ISO date into ints for the freshness timestamp; fall back to
     # a clearly-stale sentinel so a malformed/absent date greys the panel.
-    year = month = day = 0
-    if isinstance(date, str) and len(date) >= 10:
-        try:
-            year, month, day = (int(date[0:4]), int(date[5:7]), int(date[8:10]))
-        except ValueError:
-            year = month = day = 0
+    year, month, day = _parse_date_ymd(date)
 
     header = [
         PINE_HEADER,
@@ -288,7 +304,10 @@ def build_pine(panel: dict[str, Any], *, generated_at: str, source: str,
         "",
     ]
 
-    return "\n".join(header + consts + body) + "\n"
+    lines = header + consts + body
+    while lines and lines[-1] == "":
+        lines.pop()
+    return "\n".join(lines) + "\n"
 
 
 def write_outputs(snippet: str, panel: dict[str, Any], output_path: Path) -> Path:
