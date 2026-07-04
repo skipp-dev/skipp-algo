@@ -69,6 +69,24 @@ class TestHVBDetector:
         assert hvb.is_hvb is False
         assert hvb.volume_ratio < 1.5
 
+    def test_volume_history_is_bounded_by_lookback(self):
+        """deque(maxlen) refactor: rolling window must not grow past lookback."""
+        detector = HVBDetector(lookback=3, hvb_threshold=1.5)
+        for i in range(1000):
+            detector.detect(bar_index=i, volume=100, close=100, open=99, high=101, low=99)
+        assert len(detector.volume_history) == 3
+
+    def test_rolling_average_matches_last_lookback_bars(self):
+        """avg_volume must reflect only the trailing `lookback` volumes
+        (incl. the current bar) — behaviour preserved from the list+pop(0) impl."""
+        detector = HVBDetector(lookback=3, hvb_threshold=999)  # threshold high: measure avg only
+        for volume in (10, 20, 30):
+            detector.detect(bar_index=0, volume=volume, close=100, open=99, high=101, low=99)
+        # Window is now [10, 20, 30]; next bar evicts 10 -> [20, 30, 60].
+        hvb = detector.detect(bar_index=4, volume=60, close=100, open=99, high=101, low=99)
+        assert hvb.avg_volume == (20 + 30 + 60) / 3
+        assert list(detector.volume_history) == [20, 30, 60]
+
 
 class TestPPDDClassifier:
     """Test Premium/Discount OrderBlock classification."""

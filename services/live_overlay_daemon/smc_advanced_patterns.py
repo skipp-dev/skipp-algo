@@ -14,6 +14,7 @@ from __future__ import annotations
 
 import logging
 import math
+from collections import deque
 from dataclasses import dataclass
 from enum import Enum
 
@@ -124,7 +125,10 @@ class HVBDetector:
             raise ValueError(f"HVBDetector lookback must be >= 1, got {lookback}")
         self.lookback = lookback
         self.hvb_threshold = hvb_threshold
-        self.volume_history: list[int] = []
+        # maxlen makes the rolling window self-bounding: the oldest entry is
+        # evicted in O(1) on append, so no manual len()/pop(0) trim (O(n)) and
+        # no way to forget the bound and leak in the long-running daemon.
+        self.volume_history: deque[int] = deque(maxlen=lookback)
 
     def detect(
         self,
@@ -136,9 +140,7 @@ class HVBDetector:
         low: float,
     ) -> HVBBar:
         """Detect if current bar is HVB based on rolling average."""
-        self.volume_history.append(volume)
-        if len(self.volume_history) > self.lookback:
-            self.volume_history.pop(0)
+        self.volume_history.append(volume)  # deque(maxlen) auto-evicts oldest
 
         avg_volume = sum(self.volume_history) / len(self.volume_history)
         volume_ratio = volume / avg_volume if avg_volume > 0 else 0.0
