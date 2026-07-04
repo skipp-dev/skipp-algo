@@ -35,14 +35,13 @@ jobs:
 
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
         with:
           fetch-depth: 1
 
-      - name: Set up Python
-        uses: actions/setup-python@v5
+      - name: Set up pinned Python
+        uses: ./.github/actions/setup-python-pinned
         with:
-          python-version: '3.12'
           cache: 'pip'
 
       - name: Validate Pine library syntax (dry-run)
@@ -132,7 +131,7 @@ jobs:
 
       - name: Create PR if updated
         if: steps.diff.outputs.has_changes == 'true'
-        uses: peter-evans/create-pull-request@v7
+        uses: peter-evans/create-pull-request@22a9089034f40e5a961c8808d113e2c98fb63676 # v7.0.11
         env:
           # PR-creating step must bind GH_PAT so the resulting PR triggers
           # downstream fast-gates (github.token-created PRs don't). Safe
@@ -195,11 +194,20 @@ jobs:
 
       - name: Summary
         if: always()
+        env:
+          HAS_CHANGES: ${{ steps.diff.outputs.has_changes }}
+          REPOSITORY: ${{ github.repository }}
+          RUN_ID: ${{ github.run_id }}
+          SERVER_URL: ${{ github.server_url }}
         run: |
           echo "## ✅ Sync Complete" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
-          echo "**Status:** $([ '${{ steps.diff.outputs.has_changes }}' = 'true' ] && echo '🔄 PR Created' || echo '✅ No Changes')" >> $GITHUB_STEP_SUMMARY
-          echo "**Run:** [${{ github.run_id }}](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }})" >> $GITHUB_STEP_SUMMARY
+          if [ "$HAS_CHANGES" = "true" ]; then
+            echo "**Status:** 🔄 PR Created" >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo "**Status:** ✅ No Changes" >> "$GITHUB_STEP_SUMMARY"
+          fi
+          echo "**Run:** [${RUN_ID}](${SERVER_URL}/${REPOSITORY}/actions/runs/${RUN_ID})" >> "$GITHUB_STEP_SUMMARY"
 
   notify:
     name: Notify if stale
