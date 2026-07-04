@@ -81,6 +81,9 @@ _FROZEN_SITES: dict[str, int] = {
     "scripts/e2e_smoke_ci.py": 2,
     # Rebaselined 2026-05-03 (after PR #2035): see check_pine_legacy_drift.py.
     "scripts/emit_fvg_context_pine.py": 2,
+    # 2026-07-04 (plan B1): repo-root bootstrap so the Open-Prep Pine panel
+    # generator works under both `python -m scripts.X` and `python scripts/X.py`.
+    "scripts/generate_openprep_pine_panel.py": 1,
     "scripts/execute_ibkr_watchlist.py": 1,
     "scripts/export_open_prep_lists.py": 1,
     "scripts/export_open_prep_reports.py": 1,

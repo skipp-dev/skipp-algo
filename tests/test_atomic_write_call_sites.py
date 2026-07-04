@@ -116,6 +116,10 @@ _ALLOWED_RAW_WRITE_FILES: dict[str, str] = {
     # C13/T4 cron wiring so push-mode validate stops shipping red.
     "scripts/runner_selection_metrics.py": "runner-selection JSONL append (mode='a', append-only metrics ledger; PR #2779)",
     "scripts/c10c_aggregate_per_bar.py": "c10c research/analysis one-shot (ATOMIC-WRITE-EXEMPT, local jsonl write)",
+    # 2026-07-04 (WP-3 backtest CLI): standalone runner writes local
+    # metrics.json / report.txt to an operator-chosen output dir (one-shot,
+    # not pipeline-consumed); also carries inline ATOMIC-WRITE-EXEMPT markers.
+    "run_ensemble_backtest.py": "standalone backtest CLI local result files (one-shot, not pipeline-consumed)",
     # W3 (R4b audit, 2026-06-17): best-effort failure trend tracker.
     # History is an append-only JSONL (mode='a', fsync-durable).
     # Snapshot uses the mkstemp+fdopen+fsync+os.replace atomic pattern.

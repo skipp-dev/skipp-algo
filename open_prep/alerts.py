@@ -22,6 +22,8 @@ import urllib.parse
 from pathlib import Path
 from typing import Any
 
+from .market_microstructure import WEATHER_UNKNOWN, weather_summary_line
+
 logger = logging.getLogger("open_prep.alerts")
 
 ALERT_CONFIG_PATH = Path("artifacts/open_prep/alert_config.json")
@@ -176,7 +178,36 @@ def _format_traderspost_payload(candidate: dict[str, Any]) -> dict[str, Any]:
     }
 
 
-def _format_slack_payload(candidate: dict[str, Any], regime: str | None = None) -> dict[str, Any]:
+def _weather_line(weather: dict[str, Any] | None) -> str | None:
+    """Plain-language market-weather line for an alert, or ``None`` when the
+    microstructure snapshot is absent. Uses the shared wording so Slack /
+    Discord / generic / the Pine panel all speak one language (Workstream C)."""
+    if not isinstance(weather, dict):
+        return None
+    code = weather.get("market_weather")
+    if not code:
+        return None
+
+    def _num(value: Any) -> float | None:
+        try:
+            f = float(value)
+        except (TypeError, ValueError):
+            return None
+        return f if math.isfinite(f) else None
+
+    return weather_summary_line(
+        code,
+        er_intraday=_num(weather.get("intraday_efficiency_ratio")),
+        dispersion=_num(weather.get("cs_dispersion")),
+        correlation=_num(weather.get("avg_pair_correlation")),
+    )
+
+
+def _format_slack_payload(
+    candidate: dict[str, Any],
+    regime: str | None = None,
+    weather: dict[str, Any] | None = None,
+) -> dict[str, Any]:
     """Format a Slack-compatible payload."""
     sym = candidate.get("symbol", "?")
     gap = _coerce_finite_float(candidate.get("gap_pct", 0), default=0.0)
@@ -184,23 +215,29 @@ def _format_slack_payload(candidate: dict[str, Any], regime: str | None = None) 
     tier = candidate.get("confidence_tier", "STANDARD")
     tier_label = TIER_LABELS.get(tier, tier)
 
+    lines = [
+        f"*{tier_label}*",
+        f"*{sym}*  gap {gap:+.1f}%  score {score:.2f}",
+        f"Regime: {regime or 'N/A'}",
+    ]
+    weather_line = _weather_line(weather)
+    if weather_line:
+        lines.append(weather_line)
+
     blocks = [
         {
             "type": "section",
-            "text": {
-                "type": "mrkdwn",
-                "text": (
-                    f"*{tier_label}*\n"
-                    f"*{sym}*  gap {gap:+.1f}%  score {score:.2f}\n"
-                    f"Regime: {regime or 'N/A'}"
-                ),
-            },
+            "text": {"type": "mrkdwn", "text": "\n".join(lines)},
         }
     ]
     return {"blocks": blocks, "text": f"{tier_label}: {sym} gap {gap:+.1f}%"}
 
 
-def _format_discord_payload(candidate: dict[str, Any], regime: str | None = None) -> dict[str, Any]:
+def _format_discord_payload(
+    candidate: dict[str, Any],
+    regime: str | None = None,
+    weather: dict[str, Any] | None = None,
+) -> dict[str, Any]:
     """Format a Discord-compatible webhook payload."""
     sym = candidate.get("symbol", "?")
     gap = _coerce_finite_float(candidate.get("gap_pct", 0), default=0.0)
@@ -208,16 +245,23 @@ def _format_discord_payload(candidate: dict[str, Any], regime: str | None = None
     tier = candidate.get("confidence_tier", "STANDARD")
     tier_label = TIER_LABELS.get(tier, tier)
 
-    return {
-        "content": f"{tier_label}\n**{sym}** — gap {gap:+.1f}% — score {score:.2f} — regime: {regime or 'N/A'}",
-    }
+    content = f"{tier_label}\n**{sym}** — gap {gap:+.1f}% — score {score:.2f} — regime: {regime or 'N/A'}"
+    weather_line = _weather_line(weather)
+    if weather_line:
+        content += f"\n{weather_line}"
+
+    return {"content": content}
 
 
-def _format_generic_payload(candidate: dict[str, Any], regime: str | None = None) -> dict[str, Any]:
+def _format_generic_payload(
+    candidate: dict[str, Any],
+    regime: str | None = None,
+    weather: dict[str, Any] | None = None,
+) -> dict[str, Any]:
     """Format a generic JSON webhook payload."""
     gap_pct = _sanitize_payload_for_json(candidate.get("gap_pct"))
     score = _sanitize_payload_for_json(candidate.get("score"))
-    return {
+    payload: dict[str, Any] = {
         "event": "open_prep_signal",
         "symbol": candidate.get("symbol"),
         "gap_pct": gap_pct,
@@ -227,6 +271,10 @@ def _format_generic_payload(candidate: dict[str, Any], regime: str | None = None
         "regime": regime,
         "timestamp": time.time(),
     }
+    if isinstance(weather, dict) and weather.get("market_weather"):
+        payload["market_weather"] = weather.get("market_weather")
+        payload["weather_summary"] = _weather_line(weather)
+    return payload
 
 
 _FORMATTERS = {
@@ -349,6 +397,7 @@ def dispatch_alerts(
     ranked: list[dict[str, Any]],
     regime: str | None = None,
     config: dict[str, Any] | None = None,
+    weather: dict[str, Any] | None = None,
 ) -> list[dict[str, Any]]:
     """Send alerts for qualifying candidates.
 
@@ -427,11 +476,11 @@ def dispatch_alerts(
                 if target_type == "traderspost":
                     payload = _format_traderspost_payload(candidate)
                 elif target_type == "slack":
-                    payload = _format_slack_payload(candidate, regime=regime)
+                    payload = _format_slack_payload(candidate, regime=regime, weather=weather)
                 elif target_type == "discord":
-                    payload = _format_discord_payload(candidate, regime=regime)
+                    payload = _format_discord_payload(candidate, regime=regime, weather=weather)
                 else:
-                    payload = _format_generic_payload(candidate, regime=regime)
+                    payload = _format_generic_payload(candidate, regime=regime, weather=weather)
             except Exception:
                 logger.warning("Failed to format alert payload for %s/%s", symbol, target_type, exc_info=True)
                 failed_targets += 1
@@ -608,9 +657,66 @@ def alert_regime_change(
     }
 
     for target in config.get("targets", []):
+        if not isinstance(target, dict):
+            logger.warning("Skipping invalid regime-alert target: expected dict, got %s", type(target).__name__)
+            continue
         url = target.get("url", "")
         if url:
             r = _send_webhook(url, regime_payload, target.get("headers"))
+            results.append({"target": target.get("name"), "status": r.get("status")})
+
+    return results
+
+
+# ---------------------------------------------------------------------------
+# Weather-change alert (one-shot per run)
+# ---------------------------------------------------------------------------
+
+def alert_weather_change(
+    prev_weather: str | None,
+    new_weather: str | None,
+    config: dict[str, Any] | None = None,
+    *,
+    weather_line: str | None = None,
+) -> list[dict[str, Any]]:
+    """Fire an alert when the market-weather traffic light changes.
+
+    Hysteresis: transitions to or from ``UNKNOWN`` (data gaps) are suppressed —
+    they are the main flicker source and are not a real regime shift. A finer
+    percentile-buffer hysteresis around the GREEN/RED thresholds belongs in the
+    weather classifier itself and is a separate follow-up.
+    """
+    if not prev_weather or not new_weather:
+        return []
+    prev = str(prev_weather).upper()
+    new = str(new_weather).upper()
+    if prev == new:
+        return []
+    if prev == WEATHER_UNKNOWN or new == WEATHER_UNKNOWN:
+        return []
+
+    if config is None:
+        config = load_alert_config()
+
+    if not config.get("enabled", False):
+        return []
+
+    results: list[dict[str, Any]] = []
+    weather_payload = {
+        "event": "weather_change",
+        "previous": prev,
+        "current": new,
+        "summary": weather_line,
+        "timestamp": time.time(),
+    }
+
+    for target in config.get("targets", []):
+        if not isinstance(target, dict):
+            logger.warning("Skipping invalid weather-alert target: expected dict, got %s", type(target).__name__)
+            continue
+        url = target.get("url", "")
+        if url:
+            r = _send_webhook(url, weather_payload, target.get("headers"))
             results.append({"target": target.get("name"), "status": r.get("status")})
 
     return results

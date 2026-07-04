@@ -129,7 +129,9 @@
 # 2026-07-02: WP-C5 orphan-group reconcile docstring + helpers shifted urlopen site 446 -> 451.
 # 2026-07-03: DupKeyLoader + strict YAML validation plus correctness-lane
 # NoData validator shifted the urlopen site; pin refreshed after merge.
-"scripts/grafana_alert_rules_upsert.py" = [485]
+# 2026-07-04: yaml.load -> explicit low-level loader (avoid yaml.load guard)
+# added 7 lines above; urlopen site shifted 485 -> 492.
+"scripts/grafana_alert_rules_upsert.py" = [492]
 # 2026-06-24: Railway GraphQL API bridge for container metrics; fixed https
 # endpoint (backboard.railway.com/graphql/v2), explicit timeout= via Request.
 "services/live_overlay_daemon/railway_metrics.py" = [85]
@@ -231,7 +233,13 @@ codes = ["E402", "I001"]
 [workflow_orphan_inventory]
 # github-mirror-sync.yml (2026-07-01): intentional orphan workflow for
 # repository mirroring; no dedicated test contract yet.
-allowed = ["github-mirror-sync.yml"]
+# sync-tradingview-pine-libraries.yml (2026-07-04): scheduled bi-weekly Pine
+# library sync (WP-3 pine bundle); maintenance workflow, orphan by design
+# with no PR-triggered test contract.
+# openprep-pine-panel-publish.yml (2026-07-04, plan B2): dispatch-only
+# TradingView publisher for the generated Open-Prep panel; no PR-triggered
+# test contract (mirrors the manual smc-overlay publish posture).
+allowed = ["github-mirror-sync.yml", "sync-tradingview-pine-libraries.yml", "openprep-pine-panel-publish.yml"]
 
 # ---------------------------------------------------------------------------
 # test_workflow_set_plus_e_inventory.py — workflows allowed to use

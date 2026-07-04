@@ -42,6 +42,9 @@ def save_result_snapshot(result: dict[str, Any]) -> Path:
     snapshot: dict[str, Any] = {
         "ts": result.get("generated_at"),
         "regime": result.get("regime"),
+        # Market-wide weather persists so the next run's alert_weather_change
+        # can compare against it (mirrors regime).
+        "market_weather": result.get("market_weather"),
         "candidates": [],
     }
     for c in result.get("candidates", []):

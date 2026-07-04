@@ -103,10 +103,14 @@ _FROZEN_LEDGER: dict[str, int] = {
     "pine/legacy/VWAP_Reclaim_Strategy.pine": 19,
     "pine/legacy/Volume_Weighted_Trend_SkippAlgo.pine": 3,
     "pine/smc_live_overlay_consumer.pine": 4,  # 2026-06-16 (feat/live-overlay-daemon): DAEMON_URL, TOKEN, SHOW_TABLE, _tbl
+    # 2026-07-04 (plan B1): generated open-prep daily panel — 11 PANEL_* consts
+    # + 7 candidate arrays + var table + var hdrs. Count is stable regardless
+    # of candidate count (arrays are single `array.from(...)` decls).
+    "pine/generated/openprep_daily_panel.pine": 20,
     "test_div.pine": 2,
 }
 
-_TOTAL_BUDGET = 991  # bumped 2026-07-03 (correctness lane): +1 Arm Long var latch in SMC_Hold_Manager.pine; was 990.
+_TOTAL_BUDGET = 1011  # bumped 2026-07-04 (plan B1): +20 generated open-prep panel; was 991.
 
 
 def _iter_pine() -> list[Path]:

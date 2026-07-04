@@ -1,0 +1,167 @@
+# Open-Prep Pine Panel Publish — plan Workstream B2 (dispatch-first)
+# live-window: manual-only
+#
+# Manual companion that publishes the generated Open-Prep daily panel
+# (pine/generated/openprep_daily_panel.pine, an indicator produced by
+# scripts/generate_openprep_pine_panel.py) to TradingView. By default it
+# regenerates the panel from the newest committed outcomes file so the
+# published artifact matches current data, then runs the fail-closed
+# Playwright publisher (scripts/tv_publish_openprep_panel.ts).
+#
+# TradingView is a single shared external target, so this workflow is
+# workflow_dispatch ONLY (no cron yet) — a human deliberately triggers each
+# publish. Once proven, a daily cron (workflow_run off run-open-prep-daily)
+# can be added. It never pushes to the repo; it only publishes to TradingView
+# and uploads the publish report + screenshots as a run artifact.
+#
+# First publish: dispatch once with allow_create=true to create the
+# "Open-Prep Daily Panel" script; every later run updates it in place.
+#
+# Required secret:
+#   TV_STORAGE_STATE — TradingView Playwright storage-state (raw JSON or gzip+base64)
+
+name: openprep-pine-panel-publish
+
+on:
+  workflow_dispatch:
+    inputs:
+      regenerate:
+        description: "Regenerate the panel from the newest committed outcomes file before publishing."
+        type: boolean
+        default: true
+      allow_create:
+        description: "Allow creating the TradingView script if it does not exist yet (first publish only; default false to avoid duplicate-script creation)."
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+concurrency:
+  # Serialize Open-Prep panel publishes — TradingView is a single shared target.
+  group: openprep-pine-panel-publish
+  cancel-in-progress: false
+
+# Top-level env so PYTHONUNBUFFERED / PYTHONPATH propagate to every step,
+# including the direct python scripts/generate_openprep_pine_panel.py invoke.
+env:
+  PYTHONUNBUFFERED: "1"
+  PYTHONPATH: ${{ github.workspace }}
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: "true"
+
+# Force bash for every run: step (the repo can dispatch onto a Windows
+# self-hosted runner where the default shell is PowerShell).
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  publish-openprep-panel:
+    runs-on: ${{ vars.SMC_GH_HOSTED_RUNNER || 'ubuntu-latest' }}
+    timeout-minutes: 30
+    steps:
+      - name: Checkout
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+        with:
+          persist-credentials: false
+
+      - name: Set up pinned Python
+        uses: ./.github/actions/setup-python-pinned
+        with:
+          cache: pip
+          cache-dependency-path: requirements.txt
+
+      - name: Set up Node
+        uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6
+        with:
+          node-version: "20"
+          cache: "npm"
+          cache-dependency-path: package-lock.json
+
+      - name: Install Node dependencies
+        run: npm ci
+
+      - name: Install Playwright browser (chromium)
+        run: npx playwright install chromium
+
+      - name: Install Playwright system deps (chromium)
+        run: npx playwright install-deps chromium
+
+      - name: Regenerate panel from newest committed outcomes
+        if: ${{ inputs.regenerate }}
+        run: |
+          python scripts/generate_openprep_pine_panel.py
+          # Surface whether the freshly-generated panel matched the committed artifact.
+          git --no-pager diff --stat -- pine/generated/openprep_daily_panel.pine pine/generated/openprep_daily_panel.json || true
+
+      - name: Write TradingView storage state
+        env:
+          TV_STORAGE_STATE_SECRET: ${{ secrets.TV_STORAGE_STATE }}
+        run: |
+          mkdir -p automation/tradingview/auth
+          python - <<'PY'
+          import base64
+          import gzip
+          import json
+          import os
+          from pathlib import Path
+
+          raw = os.environ['TV_STORAGE_STATE_SECRET']
+          trimmed = raw.strip()
+          if not trimmed:
+            raise SystemExit('TV_STORAGE_STATE secret is empty')
+
+          if trimmed.startswith('{'):
+            payload = trimmed
+          else:
+            try:
+              payload = gzip.decompress(base64.b64decode(trimmed)).decode('utf-8')
+            except Exception as exc:
+              raise SystemExit(f'TV_STORAGE_STATE is neither raw JSON nor gzip+base64: {exc}')
+
+          try:
+            json.loads(payload)
+          except json.JSONDecodeError as exc:
+            raise SystemExit(f'Invalid TV_STORAGE_STATE JSON payload: {exc}')
+
+          output_path = Path('automation/tradingview/auth/storage-state.json')
+          output_path.write_text(payload if payload.endswith('\n') else payload + '\n', encoding='utf-8')
+          PY
+
+      - name: Validate TradingView storage state JSON
+        run: |
+          python - <<'PY'
+          import json
+          from pathlib import Path
+
+          path = Path("automation/tradingview/auth/storage-state.json")
+          try:
+              json.loads(path.read_text(encoding="utf-8"))
+          except json.JSONDecodeError as exc:
+              raise SystemExit(f"Invalid TV_STORAGE_STATE JSON in {path}: {exc}")
+          PY
+
+      - name: Publish Open-Prep panel to TradingView
+        id: publish
+        env:
+          TV_HEADLESS: "1"
+          TV_STORAGE_STATE: automation/tradingview/auth/storage-state.json
+          TV_STORAGE_STATE_MAX_AGE_HOURS: "72"
+          ALLOW_CREATE: ${{ inputs.allow_create && 'true' || 'false' }}
+        run: |
+          flags=()
+          if [ "$ALLOW_CREATE" != "true" ]; then
+            flags+=(--no-allow-create)
+          fi
+          npx tsx scripts/tv_publish_openprep_panel.ts "${flags[@]}"
+
+      - name: Upload publish report + screenshots
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: openprep-panel-publish-report
+          path: |
+            automation/tradingview/reports/publish-openprep-panel-*.json
+            automation/tradingview/reports/screenshots/**
+          if-no-files-found: ignore
+          retention-days: 14

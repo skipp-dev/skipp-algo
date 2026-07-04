@@ -103,8 +103,8 @@ _FROZEN_JSON_LOAD_SITES: frozenset[tuple[str, int]] = frozenset(
         # 2026-07-01: alerts payload/url hardening inserted helper functions;
         # json.load site shifted 55 -> 56.
         # 2026-07-02: SSRF path/query hardening shifted 56 -> 57.
-        ("open_prep/alerts.py", 57),
-        ("open_prep/diff.py", 79),
+        ("open_prep/alerts.py", 59),
+        ("open_prep/diff.py", 82),
         # 2026-06-11 (backfill defer-unpublished): sentinel+helper block
         # above shifted 61→80, 81→100; pytest write-guard import +4 → 84/104.
         # 2026-06-17 (F1 lint fix): remove unused import sys → 84→83, 104→103.
@@ -131,6 +131,10 @@ _FROZEN_JSON_LOAD_SITES: frozenset[tuple[str, int]] = frozenset(
         # 2026-06-19 (timeframe expansion): added 10m/30m map entries near
         # the top-level TF dictionaries, shifting 419 -> 425.
         ("smc_tv_bridge/smc_api.py", 425),
+        # 2026-07-04 (WP-3 backtest tooling): FMPDataLoader.load_from_json parses
+        # a local candle-cache file written by its own save_to_json (operator-
+        # supplied path in the standalone backtest runner), not untrusted input.
+        ("services/live_overlay_daemon/fmp_data_loader.py", 372),
     }
 )
 
@@ -191,6 +195,12 @@ _FROZEN_ENV_SUBSCRIPT_SITES: frozenset[tuple[str, int]] = frozenset(
         ("open_prep/realtime_signals.py", 3098),
         ("open_prep/streamlit_monitor.py", 79),  # +1 from import time as _time (PR #2764)
         ("streamlit_terminal.py", 327),
+        # 2026-07-04 (WP-3 backtest CLI): `os.environ["FMP_API_KEY"] = args.api_key`
+        # exports the --api-key CLI arg for the data loader. A deliberate WRITE
+        # (not a read), so .get() does not apply; hard-fail is acceptable.
+        # (Line moved 302 -> 306 -> 305 by the atomic-write-exempt markers and
+        # lint cleanup above.)
+        ("run_ensemble_backtest.py", 305),
     }
 )
 

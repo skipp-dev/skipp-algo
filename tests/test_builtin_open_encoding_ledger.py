@@ -41,6 +41,10 @@ _DIR_EXCLUDE = {
 
 # Frozen ledger — fully fixed (2026-06-17, G1 encoding discipline sweep).
 # Was 2 sites across 2 files (2026-04-25); all now have encoding="utf-8".
+# 2026-07-04: the WP-3 backtest-tooling open() sites (standalone runner
+# metrics/report writes, trades-CSV export, loader save/load) were given
+# explicit encoding="utf-8" rather than ledgered — the stricter
+# open-encoding-discipline guards accept no exception. Ledger back to empty.
 _FROZEN_SITES: dict[str, frozenset[int]] = {}
 _FROZEN_TOTAL = sum(len(v) for v in _FROZEN_SITES.values())
 

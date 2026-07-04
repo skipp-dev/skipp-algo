@@ -82,6 +82,10 @@ _FROZEN_SITES: dict[tuple[str, str], int] = {
     # 2026-06-16 (feat/live-overlay-daemon): .env loader respects pre-set env vars
     # via setdefault — never overwrites operator-configured values.
     ("services/live_overlay_daemon/config.py", _OP_SDFLT): 1,
+    # 2026-07-04 rebaseline (ensemble research CLI, WP-3 bundle without
+    # ledger refresh): --api-key CLI arg is exported as FMP_API_KEY for the
+    # data loader in the single-process standalone backtest runner.
+    ("run_ensemble_backtest.py", _OP_WRITE): 1,
 }
 _FROZEN_TOTAL = sum(_FROZEN_SITES.values())
 

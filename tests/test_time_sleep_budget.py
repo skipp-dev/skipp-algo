@@ -119,8 +119,10 @@ _FROZEN_SITES: frozenset[tuple[str, int]] = frozenset(
         # 2026-07-02: SSRF path/query hardening shifted 489/499 -> 525/535.
         # 2026-07-02: target-host canonicalization + invalid-target guard
         # shifted webhook retry sleeps 527/537 -> 546/556.
-        ("open_prep/alerts.py", 546),
-        ("open_prep/alerts.py", 556),
+        # 2026-07-04 (Workstream C): weather line + alert_weather_change added
+        # above shifted the retry-backoff sleeps 546->595, 556->605.
+        ("open_prep/alerts.py", 595),
+        ("open_prep/alerts.py", 605),
         ("open_prep/error_taxonomy.py", 117),
         # 2026-06-28 (semantic monitoring): all realtime_signals sleep sites
         # shifted +20/+20/+72/+80/+80 lines by readiness metrics.
@@ -131,8 +133,10 @@ _FROZEN_SITES: frozenset[tuple[str, int]] = frozenset(
         ("open_prep/realtime_signals.py", 3184),
         # 2026-06-11 (eval-findings D7): technical_analysis import block
         # +8 lines (1943→1951, 1945→1953).
-        ("open_prep/run_open_prep.py", 2038),
-        ("open_prep/run_open_prep.py", 2040),
+        # 2026-07-04 (market-microstructure observe-only): module import
+        # shifted these rate-limit sleeps +1 (2038->2039, 2040->2041).
+        ("open_prep/run_open_prep.py", 2039),
+        ("open_prep/run_open_prep.py", 2041),
         ("newsstack_fmp/_bz_http.py", 44),
         ("terminal_bitcoin.py", 846),
         ("terminal_bitcoin.py", 848),

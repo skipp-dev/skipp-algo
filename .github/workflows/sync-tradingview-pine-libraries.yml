@@ -1,0 +1,226 @@
+name: Sync TradingView Pine Libraries
+# live-window: mutating-on-cron
+
+on:
+  schedule:
+    # Every 2 weeks on Monday at 09:00 UTC
+    - cron: '0 9 * * 1'
+  workflow_dispatch:
+    inputs:
+      force_update:
+        description: 'Force update all libraries even if unchanged'
+        required: false
+        default: 'false'
+
+concurrency:
+  group: sync-pine-libraries
+  cancel-in-progress: false
+
+env:
+  PYTHONPATH: ${{ github.workspace }}
+  PYTHONUNBUFFERED: "1"
+
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  sync:
+    name: Sync SMC Libraries
+    runs-on: ${{ vars.SMC_GH_HOSTED_RUNNER || 'ubuntu-latest' }}
+    timeout-minutes: 20
+    permissions:
+      contents: write
+      pull-requests: write
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+        with:
+          fetch-depth: 1
+
+      - name: Set up pinned Python
+        uses: ./.github/actions/setup-python-pinned
+        with:
+          cache: 'pip'
+
+      - name: Validate Pine library syntax (dry-run)
+        run: |
+          python scripts/sync_tradingview_libraries.py \
+            --dry-run \
+            --log-level DEBUG
+
+      - name: Report library age
+        run: |
+          echo "## 📚 Pine Library Status" >> $GITHUB_STEP_SUMMARY
+          python -c "
+          import re
+          from pathlib import Path
+
+          toml = Path('pine/LIBRARY_VERSIONS.toml').read_text()
+          libraries = re.findall(r'(\w+) = \{.*?tradingview_updated = \"(\d{4}-\d{2}-\d{2})\".*?\}', toml)
+
+          for lib, date in sorted(libraries):
+              print(f'- {lib}: {date}')
+          " >> $GITHUB_STEP_SUMMARY
+
+      - name: Write TradingView storage state
+        env:
+          TV_STORAGE_STATE_SECRET: ${{ secrets.TV_STORAGE_STATE }}
+        run: |
+          mkdir -p automation/tradingview/auth
+          python3 - <<'PY'
+          import base64
+          import gzip
+          import json
+          import os
+          from pathlib import Path
+
+          raw = os.environ['TV_STORAGE_STATE_SECRET']
+          trimmed = raw.strip()
+          if not trimmed:
+            raise SystemExit('TV_STORAGE_STATE secret is empty')
+
+          if trimmed.startswith('{'):
+            payload = trimmed
+          else:
+            try:
+              payload = gzip.decompress(base64.b64decode(trimmed)).decode('utf-8')
+            except Exception as exc:
+              raise SystemExit(f'TV_STORAGE_STATE is neither raw JSON nor gzip+base64: {exc}')
+
+          try:
+            json.loads(payload)
+          except json.JSONDecodeError as exc:
+            raise SystemExit(f'Invalid TV_STORAGE_STATE JSON payload: {exc}')
+
+          output_path = Path('automation/tradingview/auth/storage-state.json')
+          output_path.write_text(payload if payload.endswith('\n') else payload + '\n', encoding='utf-8')
+          PY
+
+      - name: Fetch library sources from TradingView
+        id: sync
+        env:
+          TV_HEADLESS: "1"
+          TV_STORAGE_STATE: automation/tradingview/auth/storage-state.json
+          TV_STORAGE_STATE_MAX_AGE_HOURS: "72"
+          # env-indirect the dispatch input (no ${{ }} inside run: — shell-injection guard)
+          FORCE_UPDATE: ${{ github.event.inputs.force_update }}
+        run: |
+          FORCE_FLAG=""
+          if [ "$FORCE_UPDATE" = "true" ]; then
+            FORCE_FLAG="--force"
+          fi
+
+          npx tsx scripts/tv_fetch_smc_libraries.ts $FORCE_FLAG
+
+      - name: Check for changes
+        id: diff
+        run: |
+          if git diff --quiet SMC++ pine/generated/; then
+            echo "has_changes=false" >> $GITHUB_OUTPUT
+          else
+            echo "has_changes=true" >> $GITHUB_OUTPUT
+            git diff --stat SMC++ pine/generated/ >> $GITHUB_STEP_SUMMARY
+          fi
+
+      - name: Validate imports
+        if: steps.diff.outputs.has_changes == 'true'
+        run: |
+          python scripts/sync_tradingview_libraries.py --validate-only
+
+      - name: Create PR if updated
+        if: steps.diff.outputs.has_changes == 'true'
+        uses: peter-evans/create-pull-request@22a9089034f40e5a961c8808d113e2c98fb63676 # v7.0.11
+        env:
+          # PR-creating step must bind GH_PAT so the resulting PR triggers
+          # downstream fast-gates (github.token-created PRs don't). Safe
+          # fallback to github.token when GH_PAT isn't configured.
+          GH_TOKEN: ${{ secrets.GH_PAT != '' && secrets.GH_PAT || github.token }}
+        with:
+          token: ${{ secrets.GH_PAT != '' && secrets.GH_PAT || github.token }}
+          commit-message: |
+            chore(pine): sync TradingView SMC libraries
+
+            Auto-synced on ${{ github.event.schedule || 'manual trigger' }}
+
+            Libraries updated:
+            - smc_profile_engine
+            - smc_context_resolvers
+            - smc_observability_private
+            - smc_bus_private
+            - smc_lifecycle_private
+            - smc_overlay_generated
+
+            **⚠️ Review for breaking changes in:**
+            - Signal resolver logic (smc_context_resolvers)
+            - State machine gates (smc_lifecycle_private)
+            - Bus encoding schema (smc_bus_private)
+            - Debug/observability modes (smc_observability_private)
+
+            See: pine/PINE_LIBRARIES_AUDIT.md
+          branch: chore/sync-tradingview-pine-libraries-${{ github.run_id }}
+          title: 'chore(pine): sync TradingView SMC libraries'
+          body: |
+            ## 📦 Automated Library Sync
+
+            Updated Pine Script libraries from TradingView sources.
+
+            ### Updated Libraries
+            - smc_profile_engine
+            - smc_context_resolvers
+            - smc_observability_private
+            - smc_bus_private
+            - smc_lifecycle_private
+            - smc_overlay_generated
+
+            ### Pre-merge Checklist
+            - [ ] Verify no breaking changes in core resolver logic
+            - [ ] Check state machine gate updates
+            - [ ] Validate bus row encoding unchanged
+            - [ ] Test SMC_Core_Engine with new libraries
+            - [ ] Review debug mode observability changes
+
+            ### Testing
+            ```bash
+            pytest tests/test_pine_input_surface.py -v
+            python scripts/sync_tradingview_libraries.py --validate-only
+            ```
+
+            See: [Pine Libraries Audit](pine/PINE_LIBRARIES_AUDIT.md)
+          labels: pine-libraries, automated
+          delete-branch: true
+          reviewers: ${{ github.repository_owner }}
+
+      - name: Summary
+        if: always()
+        env:
+          HAS_CHANGES: ${{ steps.diff.outputs.has_changes }}
+          REPOSITORY: ${{ github.repository }}
+          RUN_ID: ${{ github.run_id }}
+          SERVER_URL: ${{ github.server_url }}
+        run: |
+          echo "## ✅ Sync Complete" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          if [ "$HAS_CHANGES" = "true" ]; then
+            echo "**Status:** 🔄 PR Created" >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo "**Status:** ✅ No Changes" >> "$GITHUB_STEP_SUMMARY"
+          fi
+          echo "**Run:** [${RUN_ID}](${SERVER_URL}/${REPOSITORY}/actions/runs/${RUN_ID})" >> "$GITHUB_STEP_SUMMARY"
+
+  notify:
+    name: Notify if stale
+    runs-on: ${{ vars.SMC_GH_HOSTED_RUNNER || 'ubuntu-latest' }}
+    timeout-minutes: 5
+    permissions:
+      contents: read
+    if: always()
+    needs: sync
+
+    steps:
+      - name: Check library age
+        run: |
+          # TODO: Parse LIBRARY_VERSIONS.toml and check if any library is >7 days old
+          # If so, post Slack alert or GitHub issue
+          echo "Library freshness check (to be implemented)"

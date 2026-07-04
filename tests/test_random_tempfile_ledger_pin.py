@@ -79,11 +79,11 @@ _TEMPFILE_LEDGER: frozenset[tuple[str, int, str]] = frozenset({
     # 2026-07-01: alerts payload/url hardening inserted helper functions;
     # mkstemp site shifted 68 -> 69.
     # 2026-07-02: SSRF path/query hardening shifted mkstemp 69 -> 70.
-    ("open_prep/alerts.py", 70, "mkstemp"),
+    ("open_prep/alerts.py", 72, "mkstemp"),
     # 2026-07-03 (WP-3 holdout rescoring): helper additions shifted mkstemp
     # site from 150 -> 472.
     ("open_prep/candidate_weights.py", 472, "mkstemp"),
-    ("open_prep/diff.py", 57, "mkstemp"),
+    ("open_prep/diff.py", 60, "mkstemp"),
     # 2026-06-13 (audit-e2/aw7-reader-observability, PR #2759): _load_previous_latest
     #   DEBUG log insertion shifted mkstemp from 249 → 250.
     ("open_prep/feature_importance_report.py", 251, "mkstemp"),
@@ -109,7 +109,9 @@ _TEMPFILE_LEDGER: frozenset[tuple[str, int, str]] = frozenset({
     # _load_outcomes_range +6 → 575.
     # 2026-07-02 (WP6 formula-era gate): cutoff constant block +8 → 583.
     # 2026-07-03 (WP-3 sample_dates helper): +1 -> 604.
-    ("open_prep/outcomes.py", 604, "mkstemp"),
+    # 2026-07-04 (market-microstructure observe-only): snapshot fields +
+    # FEATURE_KEYS/PASS_THROUGH entries +16 -> 620.
+    ("open_prep/outcomes.py", 620, "mkstemp"),
     # 2026-07-03 (WP-4 holiday gate): +2 (import) then +8 below the gate.
     ("open_prep/realtime_signals.py", 119, "mkstemp"),
     # 2026-06-25: AsyncNewsstackPoller telemetry additions shifted

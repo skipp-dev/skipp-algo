@@ -18,7 +18,7 @@ from pathlib import Path
 from typing import Any
 from zoneinfo import ZoneInfo
 
-from .alerts import alert_regime_change, dispatch_alerts, load_alert_config
+from .alerts import alert_regime_change, alert_weather_change, dispatch_alerts, load_alert_config
 from .bea import build_bea_audit_payload
 from .config_validation import compute_config_diff, validate_weights
 from .diff import (
@@ -42,6 +42,7 @@ from .macro import (
     get_consensus,
     macro_bias_with_components,
 )
+from .market_microstructure import compute_microstructure_snapshot, weather_summary_line
 from .news import build_news_scores
 from .outcomes import (
     compute_hit_rates,
@@ -5471,6 +5472,22 @@ def generate_open_prep_result(
     except Exception as exc:
         logger.warning("VIX9D fetch failed: %s", type(exc).__name__, exc_info=True)
 
+    # Market-microstructure snapshot (observe-only; regime-study plan
+    # 2026-07): efficiency ratio, cross-sectional dispersion, avg pairwise
+    # correlation + display-only market_weather. Recorded per outcome row
+    # for feature-importance evidence; NOT wired into regime classification
+    # or scoring (see outcomes.PASS_THROUGH_FEATURE_KEYS).
+    micro_snapshot = None
+    try:
+        micro_snapshot = compute_microstructure_snapshot(
+            client=data_client, symbols=symbol_list,
+        )
+        logger.info("Market microstructure: %s", micro_snapshot.to_log_line())
+    except Exception as exc:
+        logger.warning(
+            "Microstructure snapshot failed: %s", type(exc).__name__, exc_info=True
+        )
+
     # Enrich symbol_sectors with profile lookups for symbols missing sector
     # info (typically mover-seeded symbols not from the screener).  Only
     # fetch profiles for symbols that have a gap (likely v2 candidates)
@@ -5764,6 +5781,15 @@ def generate_open_prep_result(
         # Market-wide — identical for every candidate in this run.
         row["vix9d_vix_ratio"] = vix9d_vix_ratio
 
+        # Market-microstructure context (observe-only; regime-study plan
+        # 2026-07). Market-wide — identical for every candidate in this run.
+        if micro_snapshot is not None:
+            row["market_efficiency_ratio"] = micro_snapshot.market_efficiency_ratio
+            row["intraday_efficiency_ratio"] = micro_snapshot.intraday_efficiency_ratio
+            row["cs_dispersion"] = micro_snapshot.cs_dispersion
+            row["avg_pair_correlation"] = micro_snapshot.avg_pair_correlation
+            row["market_weather"] = micro_snapshot.market_weather
+
     # --- Playbook assignment (6-step professional news-trading engine) ---
     playbook_results = assign_playbooks(
         candidates=ranked_v2,
@@ -5785,6 +5811,9 @@ def generate_open_prep_result(
     diff_current = {
         "generated_at": run_dt.isoformat(),
         "regime": regime_snapshot.regime,
+        # Market-wide weather at the top level so next run can detect changes
+        # (mirrors how ``regime`` persists for alert_regime_change).
+        "market_weather": micro_snapshot.market_weather if micro_snapshot is not None else None,
         "candidates": ranked_v2,
     }
     run_diff = compute_diff(prev_snapshot, diff_current)
@@ -5793,13 +5822,33 @@ def generate_open_prep_result(
 
     # Alert dispatch
     alert_config = load_alert_config()
+    weather_ctx = micro_snapshot.to_dict() if micro_snapshot is not None else None
     alert_results: list[dict[str, Any]] = []
     try:
         # Regime change alert
         prev_regime = prev_snapshot.get("regime") if prev_snapshot else None
         alert_results.extend(alert_regime_change(prev_regime, regime_snapshot.regime, alert_config))
+        # Weather (market-microstructure) change alert — same wording as the panel/alerts
+        if micro_snapshot is not None:
+            prev_weather = prev_snapshot.get("market_weather") if prev_snapshot else None
+            weather_line = weather_summary_line(
+                micro_snapshot.market_weather,
+                er_intraday=micro_snapshot.intraday_efficiency_ratio,
+                dispersion=micro_snapshot.cs_dispersion,
+                correlation=micro_snapshot.avg_pair_correlation,
+            )
+            alert_results.extend(
+                alert_weather_change(
+                    prev_weather,
+                    micro_snapshot.market_weather,
+                    alert_config,
+                    weather_line=weather_line,
+                )
+            )
         # Candidate alerts
-        alert_results.extend(dispatch_alerts(ranked_v2, regime=regime_snapshot.regime, config=alert_config))
+        alert_results.extend(
+            dispatch_alerts(ranked_v2, regime=regime_snapshot.regime, config=alert_config, weather=weather_ctx)
+        )
     except Exception as exc:
         logger.warning("Alert dispatch error: %s", type(exc).__name__, exc_info=True)
 
