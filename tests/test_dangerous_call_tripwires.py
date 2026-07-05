@@ -49,7 +49,10 @@ _DIR_EXCLUDE = frozenset(
 
 def _iter_prod_py() -> Iterable[Path]:
     for p in sorted(ROOT.rglob("*.py")):
-        if any(part in _DIR_EXCLUDE for part in p.parts):
+        # Filter on repo-relative parts: an absolute ancestor whose name is in
+        # _DIR_EXCLUDE (e.g. a ``venv/`` or ``docs/`` parent) must not exclude
+        # every file and silently disable this tripwire.
+        if any(part in _DIR_EXCLUDE for part in p.relative_to(ROOT).parts):
             continue
         yield p
 
