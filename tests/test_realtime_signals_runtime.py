@@ -57,7 +57,7 @@ def test_start_telemetry_server_falls_back_to_ephemeral_port(monkeypatch, tmp_pa
     import http.server
     import threading
 
-    monkeypatch.setattr(http.server, "HTTPServer", _fake_http_server)
+    monkeypatch.setattr(http.server, "ThreadingHTTPServer", _fake_http_server)
     monkeypatch.setattr(threading, "Thread", _FakeThread)
 
     server = rs._start_telemetry_server(rs.ScoreTelemetry(), port=8099)
@@ -94,7 +94,7 @@ def test_start_telemetry_server_logs_active_port_for_zero_request(monkeypatch, c
     import http.server
     import threading
 
-    monkeypatch.setattr(http.server, "HTTPServer", _fake_http_server)
+    monkeypatch.setattr(http.server, "ThreadingHTTPServer", _fake_http_server)
     monkeypatch.setattr(threading, "Thread", _FakeThread)
 
     with caplog.at_level("INFO", logger="open_prep.realtime_signals"):
@@ -246,3 +246,24 @@ def test_save_signals_sanitizes_non_finite_values(monkeypatch, tmp_path: Path) -
     signals_payload = json.loads(signals_raw)
     assert signals_payload["signals"][0]["details"]["adx"] is None
     assert signals_payload["signals"][0]["details"]["nested"]["x"] is None
+
+
+def test_telemetry_server_is_threaded(monkeypatch, tmp_path: Path) -> None:
+    """Regression: the telemetry endpoint must serve requests concurrently.
+
+    A single-threaded HTTPServer let one slow /metrics scrape block /healthz
+    past Railway's ~30s timeout. It is now a ThreadingHTTPServer.
+    """
+    import socketserver
+
+    monkeypatch.setattr(rs, "_RT_ENGINE_TELEMETRY_FILE", tmp_path / "realtime_telemetry.json")
+
+    # port=0 → ephemeral, always bindable, so this exercises the real server.
+    server = rs._start_telemetry_server(rs.ScoreTelemetry(), port=0)
+    assert server is not None
+    try:
+        assert isinstance(server, socketserver.ThreadingMixIn)
+        assert getattr(server, "daemon_threads", False) is True
+    finally:
+        server.shutdown()
+        server.server_close()
