@@ -289,6 +289,22 @@ class TestBacktesterBoundsAndGuards:
         # Never hits TP (1e9) or SL (-1e9).
         return {"high": 101.0, "low": 99.0, "close": 100.0}
 
+    def test_non_finite_entry_price_signal_is_refused(self):
+        # F5-twin: a non-finite/non-positive entry price would make every PnL%
+        # (Trade.calculate_pnl divides by entry_price with only a `!= 0` guard)
+        # NaN and poison persisted metrics. The trade must be refused at open.
+        import types
+
+        bt = EnsembleBacktester(symbol="TEST", initial_capital=100_000.0)
+        for bad_entry in (float("inf"), float("nan"), 0.0, -5.0):
+            bt.open_trades.clear()
+            sig = types.SimpleNamespace(
+                entry_price=bad_entry, direction="long",
+                stop_loss=1.0, take_profit=2.0, confidence=0.9, sources_count=2,
+            )
+            bt._open_trade(0, sig, {"timestamp": "2024-01-01T00:00:00"})
+            assert bt.open_trades == {}
+
     def test_empty_candles_run_returns_zero_metrics(self):
         bt = EnsembleBacktester(symbol="TEST")
         bt.load_candles([])

@@ -89,7 +89,8 @@ _TEMPFILE_LEDGER: frozenset[tuple[str, int, str]] = frozenset({
     ("open_prep/feature_importance_report.py", 251, "mkstemp"),
     # 2026-06-11 (backfill defer-unpublished): 88→107, 531→581.
     # 2026-06-17 (F1 lint fix): remove unused import sys → 116→115.
-    ("open_prep/outcome_backfill.py", 115, "mkstemp"),
+    # 2026-07-05 (bug-hunt round 7): import math → 115→116.
+    ("open_prep/outcome_backfill.py", 116, "mkstemp"),
     # 2026-06-11 (eval-findings B1/B2): direction+TB code shifted 581→660.
     # 2026-06-11 (c10b FI component persistence): era-gate block 660→682.
     # 2026-06-11 (Copilot sweep #2677): deferred-summary accounting 682→694.
@@ -97,7 +98,9 @@ _TEMPFILE_LEDGER: frozenset[tuple[str, int, str]] = frozenset({
     # combined — measured 703; outcomes.py guard shift → 152.
     # 2026-06-12 (Copilot #2729): main() exit-semantics docstring +6 → 709.
     # 2026-06-17 (F1 lint fix): remove unused import sys → 709→708.
-    ("open_prep/outcome_backfill.py", 716, "mkstemp"),
+    # 2026-07-05 (bug-hunt round 7): import math + non-finite entry/exit
+    # price guard in compute_pnl_from_bars → 716→721.
+    ("open_prep/outcome_backfill.py", 721, "mkstemp"),
     ("open_prep/outcomes.py", 153, "mkstemp"),
     # 2026-06-11 (trend-state features): 419→437, snapshot keys +
     # FEATURE_KEYS/PASS_THROUGH block added above.
