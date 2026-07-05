@@ -148,6 +148,23 @@ def _snapshot_persist_max_bytes() -> int:
     return parsed
 
 
+def _url_host_if_valid(url: str) -> str | None:
+    """Hostname of ``url`` iff it parses and any port is in range, else ``None``.
+
+    ``urlsplit`` raises ``ValueError`` on malformed input (e.g. a stray ``[`` →
+    "Invalid IPv6 URL") and ``.port`` raises ``ValueError`` for an out-of-range
+    port; both must be caught so a garbage config value is treated as invalid
+    rather than crashing the caller (mirrors :func:`_is_github_contents_api_url`).
+    """
+    try:
+        parsed = urllib.parse.urlsplit(url)
+        _ = parsed.port  # accessing .port validates its range (raises ValueError)
+        host = parsed.hostname
+    except ValueError:
+        return None
+    return host or None
+
+
 def _validate_https_url(env_name: str, url: str) -> bool:
     """Return ``True`` iff ``url`` is an https URL; warn and return ``False`` otherwise.
 
@@ -155,7 +172,7 @@ def _validate_https_url(env_name: str, url: str) -> bool:
     misconfigured plain-http (or empty) endpoint is rejected rather than fetched,
     with one consistent warning that names the offending env var.
     """
-    if url.lower().startswith("https://") and urllib.parse.urlsplit(url).hostname:
+    if url.lower().startswith("https://") and _url_host_if_valid(url) is not None:
         return True
     logger.warning("%s must be an https URL with a host; ignoring %r", env_name, url)
     return False
@@ -359,43 +376,46 @@ def _is_valid_service_url(url: str) -> bool:
 
     lower = stripped.lower()
     if lower.startswith("https://"):
-        # Require a real host — reject a scheme-only value like "https://".
-        return bool(urllib.parse.urlsplit(stripped).hostname)
+        # Require a real, parseable host: rejects a scheme-only "https://", an
+        # out-of-range port, and malformed input like "[" (would otherwise crash).
+        return _url_host_if_valid(stripped) is not None
     if lower.startswith("http://"):
         # Restrict plain HTTP to the Railway private network.
-        host = urllib.parse.urlsplit(stripped).hostname or ""
-        return _is_railway_internal_host(host)
+        host = _url_host_if_valid(stripped)
+        return host is not None and _is_railway_internal_host(host)
     # Bare hostname/path: only Railway private-network hostnames are accepted.
-    parsed = urllib.parse.urlsplit("http://" + stripped)
-    host = parsed.hostname or ""
-    return _is_railway_internal_host(host)
+    host = _url_host_if_valid("http://" + stripped)
+    return host is not None and _is_railway_internal_host(host)
 
 
 def _signals_service_url_to_full(base: str) -> str:
     """Turn a host or base path into the producer ``/signals.json`` endpoint.
 
-    Idempotent: a base that already ends in ``/signals.json`` is returned as-is
-    (an ``http://`` scheme is prepended for bare hosts), so a
-    ``SIGNALS_SERVICE_URL`` set to the *full* producer URL is not turned into
-    ``.../signals.json/signals.json`` — which would make every fetch fail and
-    silently fall back to the snapshot/file source.
+    Parses the value with urllib so only the *path* drives idempotency and any
+    query/fragment is preserved: a base whose path already ends in
+    ``/signals.json`` keeps its path (a full ``SIGNALS_SERVICE_URL`` is not
+    doubled into ``.../signals.json/signals.json``), while ``?x=1`` / ``#frag``
+    ride along instead of being swallowed into the appended path. A bare host
+    gets an ``http://`` scheme; a non-http(s) scheme (``ftp://`` …), a missing
+    host (``https://``), or an out-of-range port yields ``""`` rather than a
+    mangled endpoint that every fetch would 404 on and silently fall back from.
     """
     base = base.strip()
     if not base:
         return ""
-    # Detect the scheme BEFORE stripping trailing slashes: rstrip("/") on a
-    # scheme-only value collapses "https://" to "https:", which would then be
-    # mistaken for a bare host and prefixed with http://.
-    if not (base.lower().startswith("http://") or base.lower().startswith("https://")):
+    if "://" not in base:
         base = f"http://{base}"
-    base = base.rstrip("/")
-    # A scheme-only value ("https://") is now "https:" — no host — so the
-    # endpoint would be nonsense ("http://https:/signals.json"). Reject it.
-    if base.lower() in ("http:", "https:"):
+    try:
+        parsed = urllib.parse.urlsplit(base)
+        _ = parsed.port  # accessing .port validates its range (raises ValueError)
+    except ValueError:
         return ""
-    if base.lower().endswith("/signals.json"):
-        return base
-    return f"{base}/signals.json"
+    if parsed.scheme not in ("http", "https") or not parsed.hostname:
+        return ""
+    path = parsed.path.rstrip("/")
+    if not path.endswith("/signals.json"):
+        path = f"{path}/signals.json"
+    return urllib.parse.urlunsplit((parsed.scheme, parsed.netloc, path, parsed.query, parsed.fragment))
 
 
 def _fetch_signals_service(
