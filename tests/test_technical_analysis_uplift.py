@@ -346,6 +346,16 @@ def test_validate_data_quality_overbought_rsi_flagged() -> None:
     assert "rsi_extreme" in res.issues
 
 
+def test_validate_data_quality_zero_avg_volume_not_masked_by_alias() -> None:
+    # Falsy-`or` regression: a legitimate avg_volume of 0.0 must still flag
+    # avg_volume_zero even when a nonzero `avgVolume` alias key is present.
+    res = validate_data_quality({
+        "price": 10.0, "volume": 1_000.0,
+        "avg_volume": 0.0, "avgVolume": 5_000_000.0, "rsi": 50.0,
+    })
+    assert "avg_volume_zero" in res.issues
+
+
 # ---------------------------------------------------------------------------
 # GateTracker
 # ---------------------------------------------------------------------------
@@ -389,6 +399,15 @@ def test_gate_tracker_uses_score_or_price_aliases_for_value() -> None:
     detail = t.summary()["by_gate_detail"]
     assert detail["score_gate"]["avg_deficit"] == pytest.approx(0.1)
     assert detail["price_gate"]["avg_deficit"] == pytest.approx(1.0)
+
+
+def test_gate_tracker_tracks_deficit_for_zero_value() -> None:
+    # Falsy-`or` regression: a gate metric of exactly 0.0 is a legitimate value
+    # whose deficit must be tracked, not masked by `or` into a missing alias.
+    t = GateTracker()
+    t.reject("AAPL", "zero_gate", {"value": 0.0, "threshold": 5.0})
+    detail = t.summary()["by_gate_detail"]["zero_gate"]
+    assert detail["avg_deficit"] == pytest.approx(5.0)
 
 
 def test_gate_tracker_bottleneck_report_flags_high_rate_gates() -> None:

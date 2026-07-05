@@ -48,6 +48,7 @@ import {
   visibleLegendTextTargetCapReached,
   visibleLegendTextTargetKey,
 } from "../lib/tv_shared.js";
+import { tvSelectors } from "../selectors.js";
 
 const CORE_SCRIPT = "SMC Core";
 const DECISION_BOARD_SCRIPT = "SMC Decision Board";
@@ -1395,6 +1396,43 @@ test("settings surface DOM hint accepts standalone visible Settings actions", as
   }
 });
 
+test("settings surface DOM hint accepts an icon/emoji-prefixed Settings action", async () => {
+  // TradingView commonly renders the action with a leading gear glyph, so the
+  // innerText is e.g. "⚙ Settings" — the anchored regex must tolerate it.
+  const browser = await chromium.launch({ headless: true });
+  const page = await browser.newPage();
+  try {
+    await page.setContent(`
+      <html><body>
+        <button style="position:absolute;left:40px;top:40px;width:96px;height:32px">⚙ Settings</button>
+      </body></html>
+    `);
+
+    assert.equal(await hasSettingsSurfaceDomHint(page), true);
+  } finally {
+    await browser.close();
+  }
+});
+
+test("settings surface DOM hint rejects Settings as a substring of a larger label", async () => {
+  // The loosened regex must not start matching phrases where "settings" is
+  // only part of the label (would fire on legends/toolbars that aren't the
+  // per-script Settings action).
+  const browser = await chromium.launch({ headless: true });
+  const page = await browser.newPage();
+  try {
+    await page.setContent(`
+      <html><body>
+        <button style="position:absolute;left:40px;top:40px;width:120px;height:32px">Chart Settings</button>
+      </body></html>
+    `);
+
+    assert.equal(await hasSettingsSurfaceDomHint(page), false);
+  } finally {
+    await browser.close();
+  }
+});
+
 test("settings surface DOM hint ignores hidden or unrelated controls", async () => {
   const browser = await chromium.launch({ headless: true });
   const page = await browser.newPage();
@@ -1411,6 +1449,47 @@ test("settings surface DOM hint ignores hidden or unrelated controls", async () 
     `);
 
     assert.equal(await hasSettingsSurfaceDomHint(page), false);
+  } finally {
+    await browser.close();
+  }
+});
+
+test("settingsAction selector matches an icon-prefixed menuitem Settings action", async () => {
+  // Twin of the hasSettingsSurfaceDomHint fix: a [role=menuitem] "⚙ Settings"
+  // (no aria-label/title, not a <button>) is only reachable via the loosened
+  // text regex.
+  const browser = await chromium.launch({ headless: true });
+  const page = await browser.newPage();
+  try {
+    await page.setContent(`
+      <html><body>
+        <div role="menu"><div role="menuitem">⚙ Settings</div></div>
+      </body></html>
+    `);
+    let matched = 0;
+    for (const locator of tvSelectors.settingsAction(page)) {
+      matched += await locator.count().catch(() => 0);
+    }
+    assert.ok(matched > 0, "expected settingsAction to match a decorated menuitem");
+  } finally {
+    await browser.close();
+  }
+});
+
+test("publishContinue selector matches a Continue button with a trailing stepper glyph", async () => {
+  const browser = await chromium.launch({ headless: true });
+  const page = await browser.newPage();
+  try {
+    await page.setContent(`
+      <html><body>
+        <div id="overlap-manager-root"><button>Continue →</button></div>
+      </body></html>
+    `);
+    let matched = 0;
+    for (const locator of tvSelectors.publishContinue(page)) {
+      matched += await locator.count().catch(() => 0);
+    }
+    assert.ok(matched > 0, "expected publishContinue to match a decorated Continue button");
   } finally {
     await browser.close();
   }

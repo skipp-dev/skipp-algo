@@ -333,6 +333,12 @@ class TripleConfluenceNavigator:
 
         Returns: TripleConfluenceSignal if confluence confirmed, else None.
         """
+        # Non-finite OHLC or ATR would poison persisted state (pivot_high/low
+        # via max/min, supertrend = (high+low)/2) and flow into the dynamic
+        # risk/reward entry/stop/target levels; skip corrupt candles.
+        if not all(math.isfinite(v) for v in (open, high, low, close, atr)):
+            return None
+
         self.price_history.append(
             {"open": open, "high": high, "low": low, "close": close}
         )
