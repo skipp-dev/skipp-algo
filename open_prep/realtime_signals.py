@@ -919,7 +919,7 @@ def _start_telemetry_server(
     (audit PR #2913 F2; ``/metrics`` token-gate added by audit F6).
     """
     import threading
-    from http.server import BaseHTTPRequestHandler, HTTPServer
+    from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
     bind_host = host or os.getenv("TELEMETRY_BIND_HOST", "0.0.0.0")
 
@@ -1023,7 +1023,7 @@ def _start_telemetry_server(
             pass
 
     try:
-        server = HTTPServer((bind_host, port), _Handler)
+        server = ThreadingHTTPServer((bind_host, port), _Handler)  # threaded: one slow scrape must not block /healthz
         t = threading.Thread(target=server.serve_forever, daemon=True)
         t.start()
         _update_telemetry_status(enabled=True, requested_port=port, active_port=int(server.server_port), bind_host=bind_host, error=None)
@@ -1032,7 +1032,7 @@ def _start_telemetry_server(
     except OSError as exc:
         logger.warning("Could not start telemetry server on port %d: %s", port, type(exc).__name__, exc_info=True)
         try:
-            fallback_server = HTTPServer((bind_host, 0), _Handler)
+            fallback_server = ThreadingHTTPServer((bind_host, 0), _Handler)
             t = threading.Thread(target=fallback_server.serve_forever, daemon=True)
             t.start()
             fallback_port = int(fallback_server.server_port)
