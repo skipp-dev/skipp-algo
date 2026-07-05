@@ -841,7 +841,6 @@ export async function runPublishMicroLibraryCli(): Promise<number> {
       let identityEvidence = resolveOpenScriptIdentityEvidence(details.libraryName, {
         dialogStillVisible: false,
         editorContextTexts: identityEvidenceContext,
-        bodyText,
       });
       let publishEvidence = resolvePublishedVersionEvidence({
         scriptName: details.libraryName,
@@ -933,7 +932,6 @@ export async function runPublishMicroLibraryCli(): Promise<number> {
             identityEvidence = resolveOpenScriptIdentityEvidence(details.libraryName, {
               dialogStillVisible: false,
               editorContextTexts: identityEvidenceContext,
-              bodyText,
             });
             publishEvidence = resolvePublishedVersionEvidence({
               scriptName: details.libraryName,
@@ -998,7 +996,6 @@ export async function runPublishMicroLibraryCli(): Promise<number> {
         identityEvidence = resolveOpenScriptIdentityEvidence(details.libraryName, {
           dialogStillVisible: false,
           editorContextTexts: identityEvidenceContext,
-          bodyText,
         });
         publishEvidence = resolvePublishedVersionEvidence({
           scriptName: details.libraryName,

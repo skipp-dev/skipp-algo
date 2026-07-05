@@ -227,7 +227,6 @@ export async function runPublishDrawLibraryCli(): Promise<number> {
       let identityEvidence = resolveOpenScriptIdentityEvidence(details.scriptName, {
         dialogStillVisible: false,
         editorContextTexts: identityEvidenceContext,
-        bodyText,
       });
       let versionEvidence = resolvePublishedVersionEvidence({
         scriptName: details.scriptName,
@@ -272,7 +271,6 @@ export async function runPublishDrawLibraryCli(): Promise<number> {
         identityEvidence = resolveOpenScriptIdentityEvidence(details.scriptName, {
           dialogStillVisible: false,
           editorContextTexts: identityEvidenceContext,
-          bodyText,
         });
         versionEvidence = resolvePublishedVersionEvidence({
           scriptName: details.scriptName,
@@ -307,7 +305,6 @@ export async function runPublishDrawLibraryCli(): Promise<number> {
         identityEvidence = resolveOpenScriptIdentityEvidence(details.scriptName, {
           dialogStillVisible: false,
           editorContextTexts: identityEvidenceContext,
-          bodyText,
         });
         versionEvidence = resolvePublishedVersionEvidence({
           scriptName: details.scriptName,
