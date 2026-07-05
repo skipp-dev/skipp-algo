@@ -586,6 +586,13 @@ def main(argv: list[str] | None = None) -> int:
         level=logging.INFO,
         format="%(asctime)s %(levelname)-8s %(name)s — %(message)s",
     )
+    # Install the same secret-scrubbing log filter the other unattended
+    # entrypoints use (run_open_prep.py, streamlit_terminal.py). This module's
+    # exception logging (e.g. "Databento fetch failed ... %s", exc) can echo a
+    # provider URL/key in the raw message; the redaction net must be armed here
+    # too. Local import keeps line-pinned sites above stable.
+    from open_prep.log_redaction import apply_global_log_redaction
+    apply_global_log_redaction()
 
     target_dates: list[date] | None = None
     if args.date:

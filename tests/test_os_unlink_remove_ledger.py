@@ -112,7 +112,7 @@ OS_DELETE_LEDGER: set[tuple[str, int, str]] = {
     ("open_prep/outcome_backfill.py", 124, "unlink"),
     # 2026-06-12 (Copilot #2729): main() exit-semantics docstring +6 → 717.
     # 2026-06-17 (F1 lint fix): remove unused import sys → 717→716.
-    ("open_prep/outcome_backfill.py", 717, "unlink"),
+    ("open_prep/outcome_backfill.py", 724, "unlink"),
     ("open_prep/outcomes.py", 162, "unlink"),
     # 2026-06-11 (trend-state features): 431→449, snapshot keys +
     # FEATURE_KEYS/PASS_THROUGH block added above.

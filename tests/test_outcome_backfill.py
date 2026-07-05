@@ -725,3 +725,20 @@ class TestZonePriorityOutcomeWiring:
         rows = [{"symbol": "TSLA", "score": 50.0}]
         _enrich_zone_priority(rows, None, {})
         assert rows[0]["zone_priority_rank"] in ("A", "B", "C", "D")
+
+
+def test_main_installs_log_redaction_filter(monkeypatch: pytest.MonkeyPatch) -> None:
+    """main() must arm the global secret-scrubbing log filter (like the other
+    unattended entrypoints) before doing any work that logs exception text."""
+    calls: list[bool] = []
+    monkeypatch.setattr(
+        "open_prep.log_redaction.apply_global_log_redaction",
+        lambda: calls.append(True),
+    )
+    monkeypatch.setattr(
+        "open_prep.outcome_backfill.backfill_outcomes",
+        lambda **_kw: {"resolved": 1, "skipped": 0, "failed": 0, "deferred": 0, "dates_processed": 1},
+    )
+    rc = main(["--dry-run"])
+    assert rc == 0
+    assert calls == [True]
