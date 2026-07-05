@@ -236,7 +236,9 @@ _FROZEN_SITES: frozenset[tuple[str, int, tuple[str, ...]]] = frozenset(
         # per snapshot load; new module-global pair.
         # 2026-07-03 PR #3136 follow-up: _news_index_cache_key prevents stale
         # index reuse when tests monkeypatch the public news loader directly.
-        ("services/live_overlay_daemon/compute.py", 792, ("_news_index", "_news_index_built_at", "_news_index_cache_key")),
+        # 2026-07-05 (fix/experiment-history-numeric-sort): _history_sort_key
+        # helper added before _parse_history_lines shifted this +17 (792->809).
+        ("services/live_overlay_daemon/compute.py", 809, ("_news_index", "_news_index_built_at", "_news_index_cache_key")),
         # 2026-06-23 (feat/grafana-trading-signals): realtime trading-signals
         # snapshot loader mirrors the news snapshot caching pattern.
         # 2026-06-26 (PR #2962): shifted by producer client code.
@@ -250,8 +252,11 @@ _FROZEN_SITES: frozenset[tuple[str, int, tuple[str, ...]]] = frozenset(
         # 2026-06-24 (feat/live-overlay-credential-health): +5 lines for
         # _load_credential_health_snapshot alias shifted globals to 520/568.
         # 2026-06-26 (PR #2962): shifted by producer client code.
-        ("services/live_overlay_daemon/compute.py", 655, ("_experiment_cache", "_experiment_checked_at", "_experiment_loaded_at")),
-        ("services/live_overlay_daemon/compute.py", 703, ("_experiment_history_cache", "_experiment_history_checked_at", "_experiment_history_loaded_at")),
+        # 2026-07-05 (fix/experiment-history-numeric-sort): _history_sort_key
+        # helper added before _parse_history_lines shifted these +17
+        # (655->672, 703->720).
+        ("services/live_overlay_daemon/compute.py", 672, ("_experiment_cache", "_experiment_checked_at", "_experiment_loaded_at")),
+        ("services/live_overlay_daemon/compute.py", 720, ("_experiment_history_cache", "_experiment_history_checked_at", "_experiment_history_loaded_at")),
         # 2026-06-21 (provider/bridge + queue backpressure follow-ups):
         # feed.py gained additional helper/config blocks, shifting global
         # statements to 362/420/496.
