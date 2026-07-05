@@ -113,7 +113,7 @@
 # 2026-06-26 (fixup): suffix-safe railway.internal check shifted sites
 # to [230, 389, 581].
 # 2026-07-03 PR #3136 follow-up: news-index cache-key metadata shifted sites.
-"services/live_overlay_daemon/compute.py" = [236, 413, 605]
+"services/live_overlay_daemon/compute.py" = [253, 442, 634]
 # 2026-06-22: line shifted 251 -> 287 after ADR-0025 App Platform migration
 # (/apis dashboard.grafana.app/v1); urlopen now in shared _request_json helper.
 # 2026-06-23: shifted 287 -> 296 after annotations-robustness fix.
