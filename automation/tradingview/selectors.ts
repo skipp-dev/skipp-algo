@@ -77,6 +77,20 @@ export interface ScriptRowOptions {
   strict?: boolean;
 }
 
+// The publish-flow "Continue" button may carry a leading/trailing decoration
+// glyph — a stepper arrow ("Continue →" / "Continue ›"), an ellipsis, or a
+// gear icon — so a bare-word regex would miss it. But the decoration must be an
+// actual glyph or whitespace, NOT sentence punctuation: a label like
+// "Continue?" is a confirmation *question* (a distinct, possibly destructive
+// dialog). The old `[^a-z0-9]*` matched that "?" and could mis-click it, so we
+// restrict tolerated decoration to a positive set (whitespace, arrows,
+// ellipsis, gear + emoji variation selector) instead. Exported for unit tests.
+const CONTINUE_DECORATION = "[\\s\\u2026\\u2699\\ufe0f\\u2192\\u2794\\u203a\\u00bb\\u25b8\\u25b6\\u27f6\\u21d2]";
+export const PUBLISH_CONTINUE_LABEL = new RegExp(
+  `^${CONTINUE_DECORATION}*continue${CONTINUE_DECORATION}*$`,
+  "i",
+);
+
 export const tvSelectors = {
   pineEditor(page: Page): Locator[] {
     return [
@@ -413,16 +427,18 @@ export const tvSelectors = {
   publishContinue(page: Page): Locator[] {
     const surface = publishSurface(page);
 
-    // Tolerate a trailing stepper glyph ("Continue →"/"Continue ›") — this
-    // group has no substring/attribute fallback, so an anchored bare-word regex
-    // would miss every branch. `[^a-z0-9]` still rejects "Continue editing".
+    // Tolerate a leading/trailing decoration glyph ("Continue →"/"Continue ›")
+    // via PUBLISH_CONTINUE_LABEL — this group has no substring/attribute
+    // fallback, so an anchored bare-word regex would miss every branch. The
+    // positive decoration set still rejects both "Continue editing" and the
+    // "Continue?" confirmation question.
     return [
-      surface.getByRole("button", { name: /^[^a-z0-9]*continue[^a-z0-9]*$/i }).last(),
-      surface.getByText(/^[^a-z0-9]*continue[^a-z0-9]*$/i).last(),
-      page.locator('#overlap-manager-root').getByRole("button", { name: /^[^a-z0-9]*continue[^a-z0-9]*$/i }).last(),
-      page.locator('#overlap-manager-root button').filter({ hasText: /^[^a-z0-9]*continue[^a-z0-9]*$/i }).last(),
-      page.locator('#overlap-manager-root [role="button"]').filter({ hasText: /^[^a-z0-9]*continue[^a-z0-9]*$/i }).last(),
-      page.locator('#overlap-manager-root').getByText(/^[^a-z0-9]*continue[^a-z0-9]*$/i).last(),
+      surface.getByRole("button", { name: PUBLISH_CONTINUE_LABEL }).last(),
+      surface.getByText(PUBLISH_CONTINUE_LABEL).last(),
+      page.locator('#overlap-manager-root').getByRole("button", { name: PUBLISH_CONTINUE_LABEL }).last(),
+      page.locator('#overlap-manager-root button').filter({ hasText: PUBLISH_CONTINUE_LABEL }).last(),
+      page.locator('#overlap-manager-root [role="button"]').filter({ hasText: PUBLISH_CONTINUE_LABEL }).last(),
+      page.locator('#overlap-manager-root').getByText(PUBLISH_CONTINUE_LABEL).last(),
     ];
   },
 

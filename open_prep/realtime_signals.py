@@ -447,7 +447,7 @@ class QuoteDeltaTracker:
             streak = 0
 
         self._streaks[symbol] = streak
-        poll_age = now - prev["epoch"]
+        poll_age = max(0.0, now - prev["epoch"])  # clamp backward wall-clock jumps
         self._prev[symbol] = {"price": price, "volume": volume, "epoch": now}
 
         return {
