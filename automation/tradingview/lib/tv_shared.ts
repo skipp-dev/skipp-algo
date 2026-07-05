@@ -264,9 +264,18 @@ export function resolveTradingViewPageAuthState(evidence: TradingViewPageAuthEvi
   // 401/403 from /user/profile/me) is intentionally NOT gated on the HTML
   // class: a live "not authenticated" API response outranks a possibly-stale
   // `is-authenticated` class, so an expired session is still caught.
-  const explicitlyAnonymous = hasAnonymousClass
-    || (hasSignInSignals && !evidence.accountProbeAuthenticated && !hasAuthenticatedClass)
-    || (evidence.accountProbeAnonymous && !evidence.accountProbeAuthenticated);
+  //
+  // Symmetrically, a confirmed live 2xx account probe is authoritative and
+  // short-circuits EVERY anonymity heuristic — including a possibly-stale
+  // `is-not-authenticated` HTML class. Gating the whole term on
+  // `!accountProbeAuthenticated` makes the live probe the strongest,
+  // most-current signal in both directions; without it a transient/stale
+  // anonymous class would misclassify a logged-in session and trigger spurious
+  // re-login/recovery loops.
+  const explicitlyAnonymous = !evidence.accountProbeAuthenticated
+    && (hasAnonymousClass
+      || (hasSignInSignals && !hasAuthenticatedClass)
+      || evidence.accountProbeAnonymous);
 
   if (explicitlyAnonymous) {
     const reason = hasAnonymousClass
