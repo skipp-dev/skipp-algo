@@ -209,9 +209,16 @@ def compute_adx_from_bars(
     """
     if len(bars) < 2 * period + 1:
         return None
-    highs = [float(b.get("high", 0.0) or 0.0) for b in bars]
-    lows = [float(b.get("low", 0.0) or 0.0) for b in bars]
-    closes = [float(b.get("close", 0.0) or 0.0) for b in bars]
+    highs = [_safe_float(b.get("high")) for b in bars]
+    lows = [_safe_float(b.get("low")) for b in bars]
+    closes = [_safe_float(b.get("close")) for b in bars]
+    # Fail-closed on a missing/non-finite price. `_safe_float` coerces
+    # None/NaN/±inf to 0.0, and — unlike gap/bb, which reject non-positive
+    # bounds downstream — the ADX math has no such guard, so an injected 0.0
+    # produces a distorted extreme ADX that flips regime detection to TRENDING.
+    # Equity OHLC are always > 0, so any <= 0 is corrupt.
+    if any(p <= 0 for p in (*highs, *lows, *closes)):
+        return None
 
     plus_dm: list[float] = []
     minus_dm: list[float] = []
@@ -268,7 +275,7 @@ def compute_bb_width_pct_from_bars(
     """
     if len(bars) < period:
         return None
-    closes = [float(b.get("close", 0.0) or 0.0) for b in bars[-period:]]
+    closes = [_safe_float(b.get("close")) for b in bars[-period:]]
     middle = sum(closes) / period
     if middle <= 0:
         return None
@@ -290,11 +297,11 @@ def compute_gap_range_position(
     feature (eval-findings C4, 2026-06-11). Returns ``None`` when the prior
     bar or price is unusable (fail-closed).
     """
-    if not bars or current_price <= 0:
+    if not bars or not math.isfinite(current_price) or current_price <= 0:
         return None
     prior = bars[-1]
-    high = float(prior.get("high", 0.0) or 0.0)
-    low = float(prior.get("low", 0.0) or 0.0)
+    high = _safe_float(prior.get("high"))
+    low = _safe_float(prior.get("low"))
     if high <= 0 or low <= 0 or high <= low:
         return None
     return round((current_price - low) / (high - low), 4)
