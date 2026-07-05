@@ -139,6 +139,35 @@ class TestGapRangePosition:
         assert compute_gap_range_position(bars, 101.0) is None
 
 
+class TestBareFloatNonFiniteGuards:
+    """The compute_* indicators read OHLC via bare float() rather than the
+    module's _safe_float convention, so a +inf/NaN bar produced a NaN/misleading
+    persisted feature. They now coerce non-finite inputs to 0.0 (via _safe_float)
+    or fail-closed."""
+
+    def test_bb_width_ignores_non_finite_close(self) -> None:
+        bars = _make_bars([100.0] * 25)
+        bars[10]["close"] = float("inf")
+        w = compute_bb_width_pct_from_bars(bars)
+        assert w is None or math.isfinite(w)
+
+    def test_adx_ignores_non_finite_high(self) -> None:
+        bars = _make_bars([100.0 + i for i in range(40)])
+        bars[5]["high"] = float("nan")
+        adx = compute_adx_from_bars(bars)
+        assert adx is None or math.isfinite(adx)
+
+    def test_gap_range_rejects_non_finite_prior_high(self) -> None:
+        bars = _make_bars([100.0])
+        bars[-1]["high"] = float("inf")
+        assert compute_gap_range_position(bars, 100.0) is None
+
+    def test_gap_range_rejects_non_finite_current_price(self) -> None:
+        bars = _make_bars([100.0])
+        assert compute_gap_range_position(bars, float("inf")) is None
+        assert compute_gap_range_position(bars, float("nan")) is None
+
+
 # ── B1: direction inference ─────────────────────────────────────────────────
 
 class TestInferTradeDirection:
