@@ -102,6 +102,18 @@ class TestComputePnlFromBars:
         assert result["profitable_30m"] is False
         assert result["pnl_30m_pct"] == 0.0
 
+    def test_non_finite_entry_price_stays_unresolved(self) -> None:
+        # +inf entry slips past a bare `<= 0` check and makes pnl_pct NaN; the
+        # record must be left unresolved (None), not labelled with NaN.
+        d = date(2026, 4, 17)
+        df = _make_bars_df("BAD", d, open_price=float("inf"), close_price=100.0)
+        assert compute_pnl_from_bars(df, "BAD", d) is None
+
+    def test_non_finite_exit_price_stays_unresolved(self) -> None:
+        d = date(2026, 4, 17)
+        df = _make_bars_df("BAD", d, open_price=100.0, close_price=float("inf"))
+        assert compute_pnl_from_bars(df, "BAD", d) is None
+
     def test_empty_df_returns_none(self) -> None:
         assert compute_pnl_from_bars(pd.DataFrame(), "X", date(2026, 1, 1)) is None
 

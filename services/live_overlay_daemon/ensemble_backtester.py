@@ -17,6 +17,7 @@ from __future__ import annotations
 
 import dataclasses
 import logging
+import math
 import statistics
 from dataclasses import dataclass
 from datetime import datetime
@@ -307,10 +308,24 @@ class EnsembleBacktester:
         if self.open_trades:
             return
 
+        # A non-finite or non-positive entry price would make every PnL / PnL%
+        # non-finite — Trade.calculate_pnl divides by entry_price with only a
+        # bare `!= 0` guard, so +inf/NaN slips through and poisons total_pnl,
+        # Sharpe, and drawdown. Refuse the trade at the boundary rather than
+        # record an unresolvable position.
+        entry_price = self._fill_price(signal.entry_price, signal.direction, is_entry=True)
+        if not math.isfinite(entry_price) or entry_price <= 0:
+            logger.warning(
+                "[Trade] Skipping open at bar %s: non-finite/non-positive entry price %s",
+                bar_index,
+                entry_price,
+            )
+            return
+
         # Create trade
         trade = Trade(
             entry_bar=bar_index,
-            entry_price=self._fill_price(signal.entry_price, signal.direction, is_entry=True),
+            entry_price=entry_price,
             entry_time=datetime.fromisoformat(candle.get("timestamp", "2024-01-01T00:00:00")),
             direction=signal.direction,
             stop_loss=signal.stop_loss,
@@ -470,7 +485,7 @@ class EnsembleBacktester:
         # Drawdown
         max_dd, dd_range = self._calculate_max_drawdown()
 
-        # Sharpe / Sortino
+        # Sharpe / Sortino: annualize by sqrt(periods), not periods (a Sharpe ratio scales with the sqrt of the horizon).
         returns = [
             (self.equity_curve[i + 1] - self.equity_curve[i]) / self.equity_curve[i]
             for i in range(len(self.equity_curve) - 1)
@@ -479,7 +494,7 @@ class EnsembleBacktester:
         if returns:
             mean_return = statistics.mean(returns)
             std_return = statistics.stdev(returns) if len(returns) > 1 else 0.01
-            sharpe = (mean_return / std_return * 252) if std_return > 0 else 0
+            sharpe = (mean_return / std_return * (252 ** 0.5)) if std_return > 0 else 0
         else:
             sharpe = 0
 
@@ -487,7 +502,7 @@ class EnsembleBacktester:
         downside_returns = [r for r in returns if r < 0]
         if downside_returns and len(downside_returns) > 1:
             downside_std = statistics.stdev(downside_returns)
-            sortino = (mean_return / downside_std * 252) if downside_std > 0 else 0
+            sortino = (mean_return / downside_std * (252 ** 0.5)) if downside_std > 0 else 0
         else:
             sortino = 0
 
