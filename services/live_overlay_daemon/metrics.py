@@ -44,11 +44,18 @@ def _sanitize_name(name: str) -> str:
     - map dots/dashes to underscores
     - collapse all remaining non [a-z0-9_] chars to underscores
     - collapse repeated underscores and trim edge underscores
+    - prefix with ``_`` when the token starts with a digit so the result
+      always matches the Prometheus metric-name grammar
+      ``[a-zA-Z_:][a-zA-Z0-9_:]*``
     - fallback to ``unknown`` when nothing remains
     """
     token = str(name).strip().lower().replace(".", "_").replace("-", "_")
     token = re.sub(r"[^a-z0-9_]", "_", token)
     token = re.sub(r"_+", "_", token).strip("_")
+    # Prometheus metric names may not begin with a digit; prefix preserves
+    # semantic digits (e.g. timeframe "5m", monitor id "803343156").
+    if token and token[0].isdigit():
+        token = f"_{token}"
     return token or "unknown"
 
 
