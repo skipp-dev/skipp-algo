@@ -333,6 +333,23 @@ def test_signals_service_url_to_full_with_host_and_url() -> None:
     ) == "https://producer/signals.json"
     # Empty base yields "" (defensive), not the malformed "http:///signals.json".
     assert compute._signals_service_url_to_full("") == ""
+    # A scheme-only value (host missing — e.g. a copy-paste typo) must not be
+    # mangled into "http://https:/signals.json"; reject it with "". The scheme
+    # has to be detected BEFORE rstrip("/") collapses "https://" to "https:".
+    assert compute._signals_service_url_to_full("https://") == ""
+    assert compute._signals_service_url_to_full("HTTPS://") == ""
+    assert compute._signals_service_url_to_full("http://") == ""
+    assert compute._signals_service_url_to_full("https:///") == ""
+
+
+def test_validate_https_url_requires_host() -> None:
+    # Gate shared by every *_URL snapshot fetcher — a scheme-only value must be
+    # rejected, not accepted as a valid https URL (it would fetch and fail).
+    assert compute._validate_https_url("NEWS_SNAPSHOT_URL", "https://host/x.json") is True
+    assert compute._validate_https_url("NEWS_SNAPSHOT_URL", "https://") is False
+    assert compute._validate_https_url("NEWS_SNAPSHOT_URL", "HTTPS://") is False
+    assert compute._validate_https_url("NEWS_SNAPSHOT_URL", "http://host") is False
+    assert compute._validate_https_url("NEWS_SNAPSHOT_URL", "") is False
 
 
 def test_is_valid_service_url() -> None:
@@ -342,6 +359,9 @@ def test_is_valid_service_url() -> None:
     assert compute._is_valid_service_url("http://host") is False
     assert compute._is_valid_service_url("http://example.com") is False
     assert compute._is_valid_service_url("https://host") is True
+    # Scheme-only https (no host) must be rejected, not accepted as valid.
+    assert compute._is_valid_service_url("https://") is False
+    assert compute._is_valid_service_url("HTTPS://") is False
     assert compute._is_valid_service_url("example.com") is False
     assert compute._is_valid_service_url("   ") is False
     assert compute._is_valid_service_url("") is False
