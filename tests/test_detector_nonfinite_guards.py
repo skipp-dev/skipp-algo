@@ -13,6 +13,7 @@ import math
 
 from services.live_overlay_daemon.strong_impulse_detector import (
     IgnitionCandle,
+    InvalidationLevelCalculator,
     PropulsionStrengthScorer,
 )
 from services.live_overlay_daemon.triple_confluence_navigator import MarketStructure
@@ -106,3 +107,45 @@ class TestMarketStructureNonFiniteGuard:
         sig = ms.update(high=106.0, low=99.0, pivot_high_prev=105.0, pivot_low_prev=95.0)
         assert sig == "bullish"
         assert ms.break_of_structure is True
+
+
+class TestInvalidationLevelCalculatorGuards:
+    """A corrupt ATR must not flip the invalidation to the wrong side of price
+    or make it non-finite. This path IS reachable: ignition detection is
+    atr-independent and propulsion can clear the threshold from its other
+    factors, and the backtester defaults atr to (high-low)*1.5 — negative for
+    an inverted high<low bar."""
+
+    def _ignition(self) -> IgnitionCandle:
+        return IgnitionCandle(
+            bar_index=0, open=100.0, high=105.0, low=95.0, close=104.0,
+            body_size=4.0, range=10.0, direction="bullish",
+        )
+
+    def test_negative_atr_keeps_long_invalidation_below_low(self):
+        calc = InvalidationLevelCalculator()
+        ig = self._ignition()
+        inv = calc.calculate_invalidation(ig, "long", atr=-2.0)
+        # A negative ATR previously produced low + |atr|*0.5 (above the low).
+        assert inv <= ig.low
+        assert math.isfinite(inv)
+
+    def test_negative_atr_keeps_short_invalidation_above_high(self):
+        calc = InvalidationLevelCalculator()
+        ig = self._ignition()
+        inv = calc.calculate_invalidation(ig, "short", atr=-2.0)
+        assert inv >= ig.high
+        assert math.isfinite(inv)
+
+    def test_non_finite_atr_yields_finite_invalidation(self):
+        calc = InvalidationLevelCalculator()
+        ig = self._ignition()
+        for bad in (float("nan"), float("inf"), float("-inf")):
+            assert math.isfinite(calc.calculate_invalidation(ig, "long", atr=bad))
+            assert math.isfinite(calc.calculate_invalidation(ig, "short", atr=bad))
+
+    def test_positive_atr_still_applies_half_atr_buffer(self):
+        calc = InvalidationLevelCalculator()
+        ig = self._ignition()
+        assert calc.calculate_invalidation(ig, "long", atr=2.0) == ig.low - 1.0
+        assert calc.calculate_invalidation(ig, "short", atr=2.0) == ig.high + 1.0
