@@ -213,7 +213,6 @@ export async function runPublishOpenPrepPanelCli(): Promise<number> {
       let identityEvidence = resolveOpenScriptIdentityEvidence(details.scriptName, {
         dialogStillVisible: false,
         editorContextTexts: identityEvidenceContext,
-        bodyText,
       });
       identityVerificationMode = identityEvidence.verificationMode;
 
@@ -225,7 +224,6 @@ export async function runPublishOpenPrepPanelCli(): Promise<number> {
         identityEvidence = resolveOpenScriptIdentityEvidence(details.scriptName, {
           dialogStillVisible: false,
           editorContextTexts: identityEvidenceContext,
-          bodyText,
         });
         identityVerificationMode = identityEvidence.verificationMode;
       }

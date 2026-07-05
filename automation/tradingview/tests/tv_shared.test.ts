@@ -416,7 +416,6 @@ test("verifyOpenScriptIdentity fails when dialog closes but wrong script is open
   assert.equal(verifyOpenScriptIdentity(CORE_SCRIPT, {
     dialogStillVisible: false,
     editorContextTexts: [DECISION_BOARD_SCRIPT],
-    bodyText: "SMC Core appears in the scripts list",
   }), false);
 });
 
@@ -424,7 +423,6 @@ test("verifyOpenScriptIdentity fails for similar-name match only", () => {
   assert.equal(verifyOpenScriptIdentity(CORE_SCRIPT, {
     dialogStillVisible: false,
     editorContextTexts: ["SMC Core Suite"],
-    bodyText: CORE_SCRIPT,
   }), false);
 });
 
@@ -432,7 +430,6 @@ test("verifyOpenScriptIdentity passes for truncated canonical title", () => {
   assert.equal(verifyOpenScriptIdentity(DECISION_BOARD_SCRIPT, {
     dialogStillVisible: false,
     editorContextTexts: [DECISION_BOARD_TRUNCATED],
-    bodyText: `Workspace body ${DECISION_BOARD_SCRIPT}`,
   }), true);
 });
 
@@ -440,7 +437,6 @@ test("verifyOpenScriptIdentity passes for exact name in editor context", () => {
   assert.equal(verifyOpenScriptIdentity(CORE_SCRIPT, {
     dialogStillVisible: false,
     editorContextTexts: [CORE_SCRIPT],
-    bodyText: `Workspace body ${CORE_SCRIPT}`,
   }), true);
 });
 
@@ -448,7 +444,6 @@ test("verifyOpenScriptIdentity tolerates truncated companion context", () => {
   assert.equal(verifyOpenScriptIdentity(DECISION_BOARD_SCRIPT, {
     dialogStillVisible: false,
     editorContextTexts: [DECISION_BOARD_SCRIPT, DECISION_BOARD_TRUNCATED],
-    bodyText: `Workspace body ${DECISION_BOARD_SCRIPT}`,
   }), true);
 });
 
@@ -456,7 +451,6 @@ test("verifyOpenScriptIdentity tolerates spaced-letter companion context", () =>
   assert.equal(verifyOpenScriptIdentity(CORE_SCRIPT, {
     dialogStillVisible: false,
     editorContextTexts: [CORE_SCRIPT, "S M C C o r e"],
-    bodyText: `Workspace body ${CORE_SCRIPT}`,
   }), true);
 });
 
@@ -467,7 +461,6 @@ test("verifyOpenScriptIdentity tolerates version-metadata companion context", ()
       "smc_micro_profiles_generated",
       "s m c _ m i c r o _ p r o f i l e s _ g e n e r a t e d Version: 13.0 (05.04.2026 19:43)",
     ],
-    bodyText: "Workspace body smc_micro_profiles_generated",
   }), true);
 });
 
@@ -478,7 +471,6 @@ test("verifyOpenScriptIdentity tolerates import-line companion context", () => {
       "smc_micro_profiles_generated",
       "// import preuss_steffen/smc_micro_profiles_generated/1 as mp",
     ],
-    bodyText: "Workspace body smc_micro_profiles_generated",
   }), true);
 });
 
@@ -489,7 +481,6 @@ test("verifyOpenScriptIdentity tolerates Pine declaration companion context when
       CORE_SCRIPT,
       'indicator("SMC Core Engine", "SMC Core", overlay = true)',
     ],
-    bodyText: `Workspace body ${CORE_SCRIPT}`,
   }), true);
 });
 
@@ -501,7 +492,6 @@ test("verifyOpenScriptIdentity tolerates non-identity editor code companion cont
       "preuss_steffen/smc_core_types/1",
       "lBreakMode, ct.SignalMode) live in smc_core_types",
     ],
-    bodyText: `Workspace body ${CORE_SCRIPT}`,
   }), true);
 });
 
@@ -509,7 +499,6 @@ test("verifyOpenScriptIdentity accepts semantic version suffix context", () => {
   assert.equal(verifyOpenScriptIdentity("SkippALGO", {
     dialogStillVisible: false,
     editorContextTexts: ["SkippALGO v6.3.13"],
-    bodyText: "Workspace body SkippALGO v6.3.13",
   }), true);
 });
 
@@ -517,7 +506,6 @@ test("verifyOpenScriptIdentity fails closed on conflicting canonical editor cont
   assert.equal(verifyOpenScriptIdentity(CORE_SCRIPT, {
     dialogStillVisible: false,
     editorContextTexts: [CORE_SCRIPT, DECISION_BOARD_SCRIPT],
-    bodyText: `Workspace body ${CORE_SCRIPT}`,
   }), false);
 });
 
@@ -539,7 +527,6 @@ test("verifyOpenScriptIdentity treats lone parenthesized version suffix as confl
   assert.equal(verifyOpenScriptIdentity(CORE_SCRIPT, {
     dialogStillVisible: false,
     editorContextTexts: ["SMC Core (v2)"],
-    bodyText: `Workspace body ${CORE_SCRIPT}`,
   }), false);
 });
 
@@ -554,7 +541,6 @@ test("verifyOpenScriptIdentity rejects lone copy suffix", () => {
   assert.equal(verifyOpenScriptIdentity(CORE_SCRIPT, {
     dialogStillVisible: false,
     editorContextTexts: ["SMC Core - copy"],
-    bodyText: `Workspace body ${CORE_SCRIPT}`,
   }), false);
 });
 
@@ -569,7 +555,6 @@ test("verifyOpenScriptIdentity fails when body text matches accidentally but edi
   assert.equal(verifyOpenScriptIdentity(CORE_SCRIPT, {
     dialogStillVisible: false,
     editorContextTexts: [],
-    bodyText: "Search results still mention SMC Core",
   }), false);
 });
 
