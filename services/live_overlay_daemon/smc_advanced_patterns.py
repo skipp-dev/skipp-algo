@@ -190,6 +190,15 @@ class PPDDClassifier:
         Premium = OB formed above current price (resistance)
         Discount = OB formed below current price (support)
         """
+        # A PPDD block is a price zone; non-finite bounds/price silently corrupt
+        # premium/discount classification and strength. Reject like the SMC box
+        # factories rather than emit a NaN-bounded block.
+        if not all(math.isfinite(v) for v in (ob_top, ob_bottom, current_price, atr)):
+            raise ValueError(
+                f"PPDDClassifier.classify requires finite inputs; got "
+                f"ob_top={ob_top!r}, ob_bottom={ob_bottom!r}, "
+                f"current_price={current_price!r}, atr={atr!r}"
+            )
         ob_center = (ob_top + ob_bottom) / 2
 
         is_premium = False
