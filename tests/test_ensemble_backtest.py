@@ -7,6 +7,7 @@ Demonstrates how to:
 4. Export trades for further analysis
 """
 
+import statistics
 from datetime import datetime, timedelta
 
 import pytest
@@ -420,6 +421,57 @@ class TestBacktesterRealism:
         bt = EnsembleBacktester(symbol="T", initial_capital=5000.0)
         assert bt.initial_capital == 5000.0
         assert bt.equity_curve == [5000.0]
+
+
+class TestSharpeSortinoAnnualization:
+    """Sharpe/Sortino must annualize per-trade equity returns by sqrt(252),
+    NOT by 252. The linear factor inflated both ratios by sqrt(252) ~= 15.9x,
+    making every backtest's risk-adjusted metric absurdly high and useless for
+    ranking strategies. Every other Sharpe in the repo (stats_helpers,
+    performance_metrics, psr_robust) already uses sqrt(periods_per_year)."""
+
+    def _closed_trade(self, pnl):
+        from services.live_overlay_daemon.ensemble_backtester import Trade
+
+        return Trade(
+            entry_bar=0, entry_price=100.0, entry_time=datetime(2024, 1, 1),
+            direction="long", stop_loss=95.0, take_profit=110.0,
+            confidence=0.8, sources_count=2,
+            exit_bar=1, exit_price=100.0 + pnl / 100.0, exit_reason="tp",
+            bars_held=1, pnl=pnl, pnl_pct=pnl / 100.0, win=pnl > 0,
+        )
+
+    # Equity curve with two up and two down steps -> a well-defined stdev and
+    # >= 2 downside returns so both Sharpe and Sortino are exercised.
+    _EQUITY = (100_000.0, 101_000.0, 100_000.0, 101_500.0, 100_500.0)
+
+    def _returns(self):
+        eq = self._EQUITY
+        return [(eq[i + 1] - eq[i]) / eq[i] for i in range(len(eq) - 1)]
+
+    def test_sharpe_uses_sqrt_not_linear_annualization(self):
+        bt = EnsembleBacktester(symbol="T")
+        bt.trades = [self._closed_trade(1000.0), self._closed_trade(-500.0)]
+        bt.equity_curve = list(self._EQUITY)
+        m = bt._calculate_metrics()
+
+        returns = self._returns()
+        mean = statistics.mean(returns)
+        std = statistics.stdev(returns)
+        assert m.sharpe_ratio == pytest.approx(mean / std * (252 ** 0.5), rel=1e-9)
+        # Regression guard: the old bug multiplied by 252 (sqrt(252) too large).
+        assert abs(m.sharpe_ratio) < abs(mean / std * 252) * 0.1
+
+    def test_sortino_uses_sqrt_not_linear_annualization(self):
+        bt = EnsembleBacktester(symbol="T")
+        bt.trades = [self._closed_trade(1000.0), self._closed_trade(-500.0)]
+        bt.equity_curve = list(self._EQUITY)
+        m = bt._calculate_metrics()
+
+        returns = self._returns()
+        mean = statistics.mean(returns)
+        downside_std = statistics.stdev([r for r in returns if r < 0])
+        assert m.sortino_ratio == pytest.approx(mean / downside_std * (252 ** 0.5), rel=1e-9)
 
 
 if __name__ == "__main__":
