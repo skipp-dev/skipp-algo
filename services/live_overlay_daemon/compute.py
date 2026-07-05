@@ -155,9 +155,9 @@ def _validate_https_url(env_name: str, url: str) -> bool:
     misconfigured plain-http (or empty) endpoint is rejected rather than fetched,
     with one consistent warning that names the offending env var.
     """
-    if url.lower().startswith("https://"):
+    if url.lower().startswith("https://") and urllib.parse.urlsplit(url).hostname:
         return True
-    logger.warning("%s must be an https URL; ignoring %r", env_name, url)
+    logger.warning("%s must be an https URL with a host; ignoring %r", env_name, url)
     return False
 
 
@@ -359,7 +359,8 @@ def _is_valid_service_url(url: str) -> bool:
 
     lower = stripped.lower()
     if lower.startswith("https://"):
-        return True
+        # Require a real host — reject a scheme-only value like "https://".
+        return bool(urllib.parse.urlsplit(stripped).hostname)
     if lower.startswith("http://"):
         # Restrict plain HTTP to the Railway private network.
         host = urllib.parse.urlsplit(stripped).hostname or ""
@@ -379,11 +380,19 @@ def _signals_service_url_to_full(base: str) -> str:
     ``.../signals.json/signals.json`` — which would make every fetch fail and
     silently fall back to the snapshot/file source.
     """
-    base = base.strip().rstrip("/")
+    base = base.strip()
     if not base:
         return ""
+    # Detect the scheme BEFORE stripping trailing slashes: rstrip("/") on a
+    # scheme-only value collapses "https://" to "https:", which would then be
+    # mistaken for a bare host and prefixed with http://.
     if not (base.lower().startswith("http://") or base.lower().startswith("https://")):
         base = f"http://{base}"
+    base = base.rstrip("/")
+    # A scheme-only value ("https://") is now "https:" — no host — so the
+    # endpoint would be nonsense ("http://https:/signals.json"). Reject it.
+    if base.lower() in ("http:", "https:"):
+        return ""
     if base.lower().endswith("/signals.json"):
         return base
     return f"{base}/signals.json"
