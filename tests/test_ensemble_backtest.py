@@ -443,7 +443,7 @@ class TestSharpeSortinoAnnualization:
 
     # Equity curve with two up and two down steps -> a well-defined stdev and
     # >= 2 downside returns so both Sharpe and Sortino are exercised.
-    _EQUITY = [100_000.0, 101_000.0, 100_000.0, 101_500.0, 100_500.0]
+    _EQUITY = (100_000.0, 101_000.0, 100_000.0, 101_500.0, 100_500.0)
 
     def _returns(self):
         eq = self._EQUITY
