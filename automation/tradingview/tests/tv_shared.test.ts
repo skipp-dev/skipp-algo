@@ -1867,7 +1867,7 @@ test("collectTradingViewPageAuthState traces a crashed evidence/probe evaluate i
   }
 });
 
-test("assertNoVisibleCompileError traces a crashed body read instead of silently reporting a clean compile", async () => {
+test("assertNoVisibleCompileError fails closed (throws) and traces when the body read crashes", async () => {
   const crashingPage = {
     locator: () => ({
       innerText: async () => {
@@ -1878,10 +1878,14 @@ test("assertNoVisibleCompileError traces a crashed body read instead of silently
 
   const capture = captureConsoleError();
   try {
-    // Fail-soft: a crashed page must not throw here (that would abort the flow),
-    // but it also must NOT be silently treated as a clean compile...
-    await assert.doesNotReject(() => assertNoVisibleCompileError(crashingPage));
-    // ...so the unreadable body must surface a distinct trace event.
+    // As a hard pre-publish gate, an unreadable/crashed body is an UNKNOWN
+    // compile state, not a clean one — it must throw so callers (tv_publish_*,
+    // tv_preflight) abort instead of publishing on an unverified compile.
+    await assert.rejects(
+      () => assertNoVisibleCompileError(crashingPage),
+      /page body is unreadable/,
+    );
+    // The crash is still surfaced as a distinct trace before the throw.
     assert.ok(
       capture.lines.some((line) => line.includes("compile-error-marker-body-read-failed")),
       "expected a compile-error-marker-body-read-failed trace",

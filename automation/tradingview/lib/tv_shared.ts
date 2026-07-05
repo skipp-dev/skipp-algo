@@ -6216,10 +6216,19 @@ export async function waitForPostSaveCompileSettlement(page: Page, scriptName: s
 
 export async function assertNoVisibleCompileError(page: Page): Promise<void> {
   const hit = await getVisibleCompileErrorMarker(page);
-  // Only a real marker string asserts a compile error. An UNREADABLE crash
-  // stays fail-soft (non-blocking) — the trace already surfaces the crash.
   if (typeof hit === "string") {
     throw new Error(`Visible compile error detected: ${hit}`);
+  }
+  // This is a HARD compile gate: every caller (tv_publish_*, tv_preflight
+  // mutating path) treats a non-throw as "compile clean" and proceeds to
+  // publish. An unreadable body (crashed/destroyed context) is NOT a clean
+  // compile — it is an unknown compile state — so it must fail CLOSED here and
+  // abort the publish, rather than being silently read as success.
+  // (waitForPostSaveCompileSettlement, which polls, keeps the UNREADABLE case
+  // non-blocking on purpose; this assertion is always run right after it as the
+  // authoritative final gate.)
+  if (hit === COMPILE_PROBE_UNREADABLE) {
+    throw new Error("Visible compile error check failed: page body is unreadable (crashed/destroyed context)");
   }
 }
 
