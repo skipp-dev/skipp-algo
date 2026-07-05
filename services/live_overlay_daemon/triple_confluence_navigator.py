@@ -101,7 +101,6 @@ class AdaptiveRsiSupertrend:
     supertrend: float = 0.0
     signal: str = "neutral"  # 'bullish' | 'bearish' | 'neutral'
     atr: float = 0.0
-    multiplier: float = 3.0  # Volatility multiplier for bands
 
     def update(
         self,
@@ -124,11 +123,10 @@ class AdaptiveRsiSupertrend:
         self.supertrend = hl_avg
         self.atr = atr_value
 
-        # Adaptive multiplier based on volatility
-        volatility_ratio = atr_value / (close * 0.02) if close > 0 else 1.0
-        self.multiplier * volatility_ratio
-
         # Determine signal
+        # NOTE: rsi_value is a fixed-neutral placeholder (see above), so this
+        # branch currently always resolves to "neutral" until a real RSI is
+        # wired in — intentional, not a bug.
         if close > self.supertrend and self.rsi_value > 50:
             self.signal = "bullish"
         elif close < self.supertrend and self.rsi_value < 50:
