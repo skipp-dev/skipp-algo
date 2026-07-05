@@ -7,6 +7,7 @@ import { chromium, type Page } from "playwright";
 
 import {
   assertNoVisibleCompileError,
+  probeRuntimeSmoke,
   buildScriptNamePatterns,
   collectTradingViewPageAuthState,
   countOrderedCodeBlockOccurrences,
@@ -47,6 +48,7 @@ import {
   visibleLegendTextTargetCapReached,
   visibleLegendTextTargetKey,
 } from "../lib/tv_shared.js";
+import { tvSelectors } from "../selectors.js";
 
 const CORE_SCRIPT = "SMC Core";
 const DECISION_BOARD_SCRIPT = "SMC Decision Board";
@@ -414,7 +416,6 @@ test("verifyOpenScriptIdentity fails when dialog closes but wrong script is open
   assert.equal(verifyOpenScriptIdentity(CORE_SCRIPT, {
     dialogStillVisible: false,
     editorContextTexts: [DECISION_BOARD_SCRIPT],
-    bodyText: "SMC Core appears in the scripts list",
   }), false);
 });
 
@@ -422,7 +423,6 @@ test("verifyOpenScriptIdentity fails for similar-name match only", () => {
   assert.equal(verifyOpenScriptIdentity(CORE_SCRIPT, {
     dialogStillVisible: false,
     editorContextTexts: ["SMC Core Suite"],
-    bodyText: CORE_SCRIPT,
   }), false);
 });
 
@@ -430,7 +430,6 @@ test("verifyOpenScriptIdentity passes for truncated canonical title", () => {
   assert.equal(verifyOpenScriptIdentity(DECISION_BOARD_SCRIPT, {
     dialogStillVisible: false,
     editorContextTexts: [DECISION_BOARD_TRUNCATED],
-    bodyText: `Workspace body ${DECISION_BOARD_SCRIPT}`,
   }), true);
 });
 
@@ -438,7 +437,6 @@ test("verifyOpenScriptIdentity passes for exact name in editor context", () => {
   assert.equal(verifyOpenScriptIdentity(CORE_SCRIPT, {
     dialogStillVisible: false,
     editorContextTexts: [CORE_SCRIPT],
-    bodyText: `Workspace body ${CORE_SCRIPT}`,
   }), true);
 });
 
@@ -446,7 +444,6 @@ test("verifyOpenScriptIdentity tolerates truncated companion context", () => {
   assert.equal(verifyOpenScriptIdentity(DECISION_BOARD_SCRIPT, {
     dialogStillVisible: false,
     editorContextTexts: [DECISION_BOARD_SCRIPT, DECISION_BOARD_TRUNCATED],
-    bodyText: `Workspace body ${DECISION_BOARD_SCRIPT}`,
   }), true);
 });
 
@@ -454,7 +451,6 @@ test("verifyOpenScriptIdentity tolerates spaced-letter companion context", () =>
   assert.equal(verifyOpenScriptIdentity(CORE_SCRIPT, {
     dialogStillVisible: false,
     editorContextTexts: [CORE_SCRIPT, "S M C C o r e"],
-    bodyText: `Workspace body ${CORE_SCRIPT}`,
   }), true);
 });
 
@@ -465,7 +461,6 @@ test("verifyOpenScriptIdentity tolerates version-metadata companion context", ()
       "smc_micro_profiles_generated",
       "s m c _ m i c r o _ p r o f i l e s _ g e n e r a t e d Version: 13.0 (05.04.2026 19:43)",
     ],
-    bodyText: "Workspace body smc_micro_profiles_generated",
   }), true);
 });
 
@@ -476,7 +471,6 @@ test("verifyOpenScriptIdentity tolerates import-line companion context", () => {
       "smc_micro_profiles_generated",
       "// import preuss_steffen/smc_micro_profiles_generated/1 as mp",
     ],
-    bodyText: "Workspace body smc_micro_profiles_generated",
   }), true);
 });
 
@@ -487,7 +481,6 @@ test("verifyOpenScriptIdentity tolerates Pine declaration companion context when
       CORE_SCRIPT,
       'indicator("SMC Core Engine", "SMC Core", overlay = true)',
     ],
-    bodyText: `Workspace body ${CORE_SCRIPT}`,
   }), true);
 });
 
@@ -499,7 +492,6 @@ test("verifyOpenScriptIdentity tolerates non-identity editor code companion cont
       "preuss_steffen/smc_core_types/1",
       "lBreakMode, ct.SignalMode) live in smc_core_types",
     ],
-    bodyText: `Workspace body ${CORE_SCRIPT}`,
   }), true);
 });
 
@@ -507,7 +499,6 @@ test("verifyOpenScriptIdentity accepts semantic version suffix context", () => {
   assert.equal(verifyOpenScriptIdentity("SkippALGO", {
     dialogStillVisible: false,
     editorContextTexts: ["SkippALGO v6.3.13"],
-    bodyText: "Workspace body SkippALGO v6.3.13",
   }), true);
 });
 
@@ -515,7 +506,6 @@ test("verifyOpenScriptIdentity fails closed on conflicting canonical editor cont
   assert.equal(verifyOpenScriptIdentity(CORE_SCRIPT, {
     dialogStillVisible: false,
     editorContextTexts: [CORE_SCRIPT, DECISION_BOARD_SCRIPT],
-    bodyText: `Workspace body ${CORE_SCRIPT}`,
   }), false);
 });
 
@@ -537,7 +527,6 @@ test("verifyOpenScriptIdentity treats lone parenthesized version suffix as confl
   assert.equal(verifyOpenScriptIdentity(CORE_SCRIPT, {
     dialogStillVisible: false,
     editorContextTexts: ["SMC Core (v2)"],
-    bodyText: `Workspace body ${CORE_SCRIPT}`,
   }), false);
 });
 
@@ -552,7 +541,6 @@ test("verifyOpenScriptIdentity rejects lone copy suffix", () => {
   assert.equal(verifyOpenScriptIdentity(CORE_SCRIPT, {
     dialogStillVisible: false,
     editorContextTexts: ["SMC Core - copy"],
-    bodyText: `Workspace body ${CORE_SCRIPT}`,
   }), false);
 });
 
@@ -567,7 +555,6 @@ test("verifyOpenScriptIdentity fails when body text matches accidentally but edi
   assert.equal(verifyOpenScriptIdentity(CORE_SCRIPT, {
     dialogStillVisible: false,
     editorContextTexts: [],
-    bodyText: "Search results still mention SMC Core",
   }), false);
 });
 
@@ -1441,6 +1428,47 @@ test("settings surface DOM hint ignores hidden or unrelated controls", async () 
   }
 });
 
+test("settingsAction selector matches an icon-prefixed menuitem Settings action", async () => {
+  // Twin of the hasSettingsSurfaceDomHint fix: a [role=menuitem] "⚙ Settings"
+  // (no aria-label/title, not a <button>) is only reachable via the loosened
+  // text regex.
+  const browser = await chromium.launch({ headless: true });
+  const page = await browser.newPage();
+  try {
+    await page.setContent(`
+      <html><body>
+        <div role="menu"><div role="menuitem">⚙ Settings</div></div>
+      </body></html>
+    `);
+    let matched = 0;
+    for (const locator of tvSelectors.settingsAction(page)) {
+      matched += await locator.count().catch(() => 0);
+    }
+    assert.ok(matched > 0, "expected settingsAction to match a decorated menuitem");
+  } finally {
+    await browser.close();
+  }
+});
+
+test("publishContinue selector matches a Continue button with a trailing stepper glyph", async () => {
+  const browser = await chromium.launch({ headless: true });
+  const page = await browser.newPage();
+  try {
+    await page.setContent(`
+      <html><body>
+        <div id="overlap-manager-root"><button>Continue →</button></div>
+      </body></html>
+    `);
+    let matched = 0;
+    for (const locator of tvSelectors.publishContinue(page)) {
+      matched += await locator.count().catch(() => 0);
+    }
+    assert.ok(matched > 0, "expected publishContinue to match a decorated Continue button");
+  } finally {
+    await browser.close();
+  }
+});
+
 // --- clickVisibleWithFallback: centralised hover-tooltip dismissal (#2849) ---
 
 test("clickVisibleWithFallback dismisses hover-only [data-id] overlay via mouse.move(0,0) without dismissOverlapManagerOverlay", async () => {
@@ -1892,7 +1920,7 @@ test("collectTradingViewPageAuthState traces a crashed evidence/probe evaluate i
   }
 });
 
-test("assertNoVisibleCompileError traces a crashed body read instead of silently reporting a clean compile", async () => {
+test("assertNoVisibleCompileError fails closed (throws) and traces when the body read crashes", async () => {
   const crashingPage = {
     locator: () => ({
       innerText: async () => {
@@ -1903,15 +1931,41 @@ test("assertNoVisibleCompileError traces a crashed body read instead of silently
 
   const capture = captureConsoleError();
   try {
-    // Fail-soft: a crashed page must not throw here (that would abort the flow),
-    // but it also must NOT be silently treated as a clean compile...
-    await assert.doesNotReject(() => assertNoVisibleCompileError(crashingPage));
-    // ...so the unreadable body must surface a distinct trace event.
+    // As a hard pre-publish gate, an unreadable/crashed body is an UNKNOWN
+    // compile state, not a clean one — it must throw so callers (tv_publish_*,
+    // tv_preflight) abort instead of publishing on an unverified compile.
+    await assert.rejects(
+      () => assertNoVisibleCompileError(crashingPage),
+      /page body is unreadable/,
+    );
+    // The crash is still surfaced as a distinct trace before the throw.
     assert.ok(
       capture.lines.some((line) => line.includes("compile-error-marker-body-read-failed")),
       "expected a compile-error-marker-body-read-failed trace",
     );
   } finally {
     capture.restore();
+  }
+});
+
+test("probeRuntimeSmoke fails closed on a crashed compile probe instead of reporting a clean compile (bug-hunt r7)", async () => {
+  // #3168 made getVisibleCompileErrorMarker trace a crashed body read but still
+  // return the "no marker" value, so probeRuntimeSmoke reported `compileError:
+  // null` — a fail-OPEN: a crashed page reads as a clean compile, and if the
+  // script happens to be visible the smoke gate passes. The compile field must
+  // now carry the probe-failure sentinel value.
+  const browser = await chromium.launch({ headless: true });
+  try {
+    const page = await browser.newPage();
+    // Destroyed execution context: the compile-marker body read rejects, which
+    // getVisibleCompileErrorMarker now reports as unreadable rather than clean.
+    await page.close();
+
+    const result = await probeRuntimeSmoke(page, "SMC Core");
+
+    assert.equal(result.compileError, "runtime_smoke_probe_failed");
+    assert.equal(result.ok, false);
+  } finally {
+    await browser.close();
   }
 });

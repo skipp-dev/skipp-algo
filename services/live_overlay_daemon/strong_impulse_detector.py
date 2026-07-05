@@ -104,6 +104,17 @@ class IgnitionCandleDetector:
         2. Body dominates bar (body > range * 0.66)
         3. Closes at extreme end (close near high or low)
         """
+        # Reject corrupt candle geometry up front, before it lands in
+        # price_history: a non-finite OHLC value would poison the recent
+        # high/low max()/min() for every later bar (cf. the #3164 fractal-history
+        # fix), and an inverted high < low would seed a bogus recent range and,
+        # if it met the criteria, produce a negative-range IgnitionCandle that
+        # PropulsionStrengthScorer silently floors to 0 instead of surfacing.
+        if not all(math.isfinite(v) for v in (open, high, low, close)):
+            return None
+        if high < low:
+            return None
+
         self.price_history.append(
             {"open": open, "high": high, "low": low, "close": close}
         )
@@ -114,7 +125,7 @@ class IgnitionCandleDetector:
         body = abs(close - open)
         range_ = high - low
 
-        if range_ == 0:
+        if range_ == 0:  # flat candle — no ignition possible
             return None
 
         if len(self.price_history) < 2:
@@ -334,6 +345,16 @@ class StrongImpulseDetector:
         """
         self._prune_stale_impulses(bar_index)
 
+        # A non-finite or non-positive ATR is degenerate volatility. The
+        # propulsion ATR-displacement factor would silently zero (masking the
+        # corruption), yet a signal could still clear the threshold from its
+        # remaining factors on top of a zero-buffer stop. Reject at the boundary
+        # rather than emit an impulse on unusable volatility. (The `atr > 0`
+        # guard inside PropulsionStrengthScorer.calculate stays as defense in
+        # depth for direct scorer calls.)
+        if not (math.isfinite(atr) and atr > 0):
+            return None
+
         # Step 1: Detect ignition candle
         ignition = self.ignition_detector.detect(
             bar_index=bar_index,
@@ -421,7 +442,18 @@ class StrongImpulseDetector:
         updated_signals = []
 
         for pulse_bar, signal in list(self.active_impulses.items()):
-            bars_since = bar_index - pulse_bar
+            # An out-of-order (smaller) or duplicate bar_index would make this
+            # negative, storing a negative confirmation_bars count and — since
+            # a backward bar confirms nothing — it must not advance any phase.
+            # Clamp to >= 0.
+            bars_since = max(0, bar_index - pulse_bar)
+
+            # An out-of-order bar (bar_index < the ignition bar — e.g. a
+            # reconnect, backfill, or duplicate feed) must not drive the phase
+            # machine backwards or write a negative confirmation_bars. Leave the
+            # signal's last valid state untouched and skip it for this bar.
+            if bars_since < 0:
+                continue
 
             # Transition to BREAK phase
             if bars_since == 1 and signal.phase == ImpulsePhase.IGNITION:

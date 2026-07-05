@@ -95,7 +95,7 @@ def test_telemetry_server_honours_bind_host_env(monkeypatch) -> None:
     import http.server
     import threading
 
-    monkeypatch.setattr(http.server, "HTTPServer", _fake_http_server)
+    monkeypatch.setattr(http.server, "ThreadingHTTPServer", _fake_http_server)
     monkeypatch.setattr(threading, "Thread", _FakeThread)
 
     server = rs._start_telemetry_server(rs.ScoreTelemetry(), port=8099)
@@ -129,7 +129,7 @@ def test_telemetry_server_explicit_host_overrides_env(monkeypatch) -> None:
     import http.server
     import threading
 
-    monkeypatch.setattr(http.server, "HTTPServer", _fake_http_server)
+    monkeypatch.setattr(http.server, "ThreadingHTTPServer", _fake_http_server)
     monkeypatch.setattr(threading, "Thread", _FakeThread)
 
     rs._start_telemetry_server(rs.ScoreTelemetry(), port=8099, host="127.0.0.1")
@@ -174,7 +174,7 @@ def _build_handler(monkeypatch, *, engine=None):
     import http.server
     import threading
 
-    monkeypatch.setattr(http.server, "HTTPServer", _fake_http_server)
+    monkeypatch.setattr(http.server, "ThreadingHTTPServer", _fake_http_server)
     monkeypatch.setattr(threading, "Thread", _FakeThread)
 
     rs._start_telemetry_server(rs.ScoreTelemetry(), port=8099, engine=engine)
