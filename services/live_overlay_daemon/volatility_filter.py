@@ -15,6 +15,8 @@ This filters out both extremes:
   - Too choppy → noise, random signals
 """
 
+import math
+
 import numpy as np
 
 
@@ -40,6 +42,12 @@ class VolatilityFilter:
 
     def calculate_atr(self, high, low, close):
         """Calculate True Range and ATR for a candle."""
+        # A non-finite (NaN / ±inf) candle must not poison atr_history or
+        # prev_close: a single NaN would make every future ATR — and the ratio
+        # the trade gate reads — NaN forever. Skip it and keep the last ATR.
+        if not (math.isfinite(high) and math.isfinite(low) and math.isfinite(close)):
+            return self.atr_history[-1] if self.atr_history else None
+
         prev_close = self.prev_close
         self.prev_close = close
 
@@ -81,10 +89,11 @@ class VolatilityFilter:
         current_atr = self.atr_history[-1]
         atr_sma = np.mean(self.atr_history[-self.sma_period:])
 
-        if atr_sma == 0:
+        if atr_sma == 0 or not math.isfinite(atr_sma) or not math.isfinite(current_atr):
             return None
 
-        return current_atr / atr_sma
+        ratio = current_atr / atr_sma
+        return ratio if math.isfinite(ratio) else None
 
     def is_tradeable(self):
         """
@@ -98,6 +107,12 @@ class VolatilityFilter:
 
         if ratio is None:
             return False, "insufficient_data"
+
+        # Fail CLOSED on corrupt data: a NaN ratio makes both threshold
+        # comparisons below False and would otherwise fall through to
+        # "tradeable" — opening the gate on garbage instead of skipping.
+        if not math.isfinite(ratio):
+            return False, "non_finite_atr"
 
         if ratio < self.ratio_min:
             return False, "too_calm"

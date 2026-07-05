@@ -13,6 +13,7 @@ Based on: "SMT Sniper Entry Engine [trade_w_samet]" TradingView indicator
 from __future__ import annotations
 
 import logging
+import math
 from dataclasses import dataclass
 
 logger = logging.getLogger(__name__)
@@ -89,6 +90,13 @@ class LiquiditySweepDetector:
 
         Returns: LiquiditySweep if detected, else None.
         """
+        # Reject non-finite (NaN / ±inf) inputs: they poison recent_extremes
+        # (recent_high/low via max/min) and flow into sweep_price / the stop and
+        # target levels validate_entry builds from this sweep. This also guards
+        # the whole validate_entry pipeline, whose only price source is here.
+        if not all(math.isfinite(v) for v in (high, low, close, atr)):
+            return None
+
         self.recent_extremes["highs"].append(high)
         self.recent_extremes["lows"].append(low)
 

@@ -184,6 +184,15 @@ class PPDDClassifier:
         Premium = OB formed above current price (resistance)
         Discount = OB formed below current price (support)
         """
+        # A PPDD block is a price zone; non-finite bounds/price silently corrupt
+        # premium/discount classification and strength. Reject like the SMC box
+        # factories rather than emit a NaN-bounded block.
+        if not all(math.isfinite(v) for v in (ob_top, ob_bottom, current_price, atr)):
+            raise ValueError(
+                f"PPDDClassifier.classify requires finite inputs; got "
+                f"ob_top={ob_top!r}, ob_bottom={ob_bottom!r}, "
+                f"current_price={current_price!r}, atr={atr!r}"
+            )
         ob_center = (ob_top + ob_bottom) / 2
 
         is_premium = False
@@ -242,6 +251,11 @@ class LiquidityClusterDetector:
         if not swing_highs and not swing_lows:
             return []
 
+        # Non-finite current_price/atr would make every zone bound and the
+        # proximity sort non-finite; refuse to emit clusters from corrupt data.
+        if not (math.isfinite(current_price) and math.isfinite(atr)):
+            return []
+
         cluster_distance = self.cluster_distance_atr * atr
 
         # Group swing highs
@@ -289,6 +303,9 @@ class LiquidityClusterDetector:
         self, prices: list[float], distance: float
     ) -> list[tuple[float, int]]:
         """Group nearby prices into clusters."""
+        # Drop non-finite prices first: sorted() with a NaN present yields a
+        # garbage partial order that corrupts cluster grouping and centers.
+        prices = [p for p in prices if math.isfinite(p)]
         if not prices:
             return []
 
@@ -354,6 +371,12 @@ class BrokenFractalDetector:
         3. Break of initial fractal
         4. Confirmation: trapped traders exit
         """
+        # Reject non-finite (NaN / ±inf) OHLC: it would poison fractal_history
+        # (last_high/last_low via max/min) and yield entry_box levels with NaN
+        # bounds.
+        if not all(math.isfinite(v) for v in (high, low, close)):
+            return None
+
         # Simplified detection: track recent highs/lows
         # This is a basic version; full implementation would track multi-level structures
 

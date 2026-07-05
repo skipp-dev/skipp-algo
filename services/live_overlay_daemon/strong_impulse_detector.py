@@ -13,6 +13,7 @@ Based on: "Strong Impulse Signals [ProjectSyndicate]" TradingView indicator
 from __future__ import annotations
 
 import logging
+import math
 from dataclasses import dataclass
 from enum import Enum
 
@@ -103,6 +104,11 @@ class IgnitionCandleDetector:
         2. Body dominates bar (body > range * 0.66)
         3. Closes at extreme end (close near high or low)
         """
+        # Reject non-finite (NaN / ±inf) OHLC: it would poison price_history
+        # (recent_high/low via max/min) and yield an ignition candle with a
+        # NaN range/levels.
+        if not all(math.isfinite(v) for v in (open, high, low, close)):
+            return None
         self.price_history.append(
             {"open": open, "high": high, "low": low, "close": close}
         )
@@ -305,6 +311,12 @@ class StrongImpulseDetector:
 
         Returns: ImpulseSignal if strong impulse detected, else None.
         """
+        # Non-finite OHLC or ATR would flow into invalidation/target levels
+        # (e.g. low - atr*0.5, entry + range*mult) and produce NaN/inf prices;
+        # skip the whole pipeline for corrupt data.
+        if not all(math.isfinite(v) for v in (open, high, low, close, atr)):
+            return None
+
         self._prune_stale_impulses(bar_index)
 
         # Step 1: Detect ignition candle
