@@ -6183,6 +6183,19 @@ async function getVisibleCompileErrorMarker(
   return markers.find((marker) => bodyText.includes(marker)) ?? null;
 }
 
+/**
+ * Waits (up to ~7s) for the post-save "Save script" dialog to close and throws
+ * if a real compile-error *marker string* becomes visible while the compile
+ * settles.
+ *
+ * NOT a hard compile gate. This is a settling **poller**: an unreadable body
+ * (crashed/destroyed context) is deliberately non-blocking — it can be a
+ * transient mid-poll blip — so this function returns normally if the body stays
+ * unreadable through the timeout. Callers that need an actual compile
+ * *decision* MUST call {@link assertNoVisibleCompileError} immediately after;
+ * that is the authoritative gate and it fails closed on an unreadable body.
+ * Every current caller (`tv_publish_*`, `tv_preflight`) already pairs the two.
+ */
 export async function waitForPostSaveCompileSettlement(page: Page, scriptName: string): Promise<void> {
   await runTrackedStep(page, `waitForPostSaveCompileSettlement:${scriptName}`, async () => {
     const timeoutMs = 7_000;
