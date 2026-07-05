@@ -130,6 +130,12 @@ class EnsembleBacktester:
     ):
         self.symbol = symbol
         self.timeframe = timeframe
+        # initial_capital is the denominator for total return, per-bar equity
+        # returns (Sharpe), and drawdown; a non-positive value makes all three
+        # divide by zero. Reject at construction rather than crash later in
+        # _calculate_metrics on an already-completed backtest.
+        if not initial_capital > 0:
+            raise ValueError(f"initial_capital must be positive, got {initial_capital}")
         self.initial_capital = initial_capital
         self.risk_per_trade = risk_per_trade
         # Backtest-realism knobs (default 0 → results identical to before, so
