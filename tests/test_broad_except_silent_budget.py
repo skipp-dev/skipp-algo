@@ -91,9 +91,9 @@ _FROZEN_SITE_COUNTS: dict[str, int] = {
 }
 
 
-def _iter_first_party_py_files() -> list[Path]:
+def _iter_first_party_py_files(root: Path = _REPO_ROOT) -> list[Path]:
     files: list[Path] = []
-    for entry in _REPO_ROOT.iterdir():
+    for entry in root.iterdir():
         if entry.name.startswith("."):
             continue
         if entry.name in _DIR_EXCLUDE:
@@ -102,12 +102,48 @@ def _iter_first_party_py_files() -> list[Path]:
             files.append(entry)
         elif entry.is_dir():
             for path in entry.rglob("*.py"):
-                if any(part.startswith(".") for part in path.parts):
+                # Filter on repo-*relative* parts, never the absolute path:
+                # the repo can be checked out under a dot-dir (e.g. a
+                # ``.claude/worktrees/…`` worktree) or under a dir whose name
+                # is in _DIR_EXCLUDE (e.g. ``venv/…``). Matching absolute parts
+                # would then skip *every* subdirectory file and silently
+                # disable this tripwire.
+                rel_parts = path.relative_to(root).parts
+                if any(part.startswith(".") for part in rel_parts):
                     continue
-                if any(part in _DIR_EXCLUDE for part in path.parts):
+                if any(part in _DIR_EXCLUDE for part in rel_parts):
                     continue
                 files.append(path)
     return sorted(files)
+
+
+def test_walk_survives_dot_dir_or_excluded_ancestor(tmp_path: Path) -> None:
+    """The tree walk must filter on repo-*relative* parts, not absolute ones.
+
+    Regression guard: a repo checked out under an ancestor whose name starts
+    with ``.`` (e.g. a ``.claude/worktrees/…`` git worktree) or collides with
+    ``_DIR_EXCLUDE`` (e.g. a ``venv/`` parent) previously matched that ancestor
+    in ``path.parts`` and skipped **every** subdirectory file — silently
+    disabling this tripwire (and every sibling budget/ledger guard sharing the
+    walk). Only top-level ``*.py`` files (which bypass the parts filter) were
+    still scanned, so the pin could not fail closed.
+    """
+    for ancestor in (".claude/worktrees/wt", "venv/checkout"):
+        repo = tmp_path / ancestor / "repo"
+        (repo / "pkg" / "sub").mkdir(parents=True)
+        (repo / "top.py").write_text("x = 1\n", encoding="utf-8")
+        (repo / "pkg" / "mod.py").write_text("y = 1\n", encoding="utf-8")
+        (repo / "pkg" / "sub" / "deep.py").write_text("z = 1\n", encoding="utf-8")
+        # A genuinely repo-internal excluded dir must STILL be skipped.
+        (repo / "tests").mkdir()
+        (repo / "tests" / "t.py").write_text("t = 1\n", encoding="utf-8")
+
+        found = {p.relative_to(repo).as_posix() for p in _iter_first_party_py_files(repo)}
+
+        assert "top.py" in found
+        assert "pkg/mod.py" in found, f"subdir file skipped under {ancestor!r}"
+        assert "pkg/sub/deep.py" in found, f"nested file skipped under {ancestor!r}"
+        assert "tests/t.py" not in found, "repo-internal exclude must still apply"
 
 
 def _is_broad_except(handler: ast.ExceptHandler) -> bool:

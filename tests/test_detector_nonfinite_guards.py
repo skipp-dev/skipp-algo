@@ -11,10 +11,15 @@ from __future__ import annotations
 
 import math
 
+import pytest
+
 from services.live_overlay_daemon.strong_impulse_detector import (
     IgnitionCandle,
+    ImpulsePhase,
+    ImpulseSignal,
     InvalidationLevelCalculator,
     PropulsionStrengthScorer,
+    StrongImpulseDetector,
 )
 from services.live_overlay_daemon.triple_confluence_navigator import MarketStructure
 from services.live_overlay_daemon.volatility_filter import VolatilityFilter
@@ -149,3 +154,38 @@ class TestInvalidationLevelCalculatorGuards:
         ig = self._ignition()
         assert calc.calculate_invalidation(ig, "long", atr=2.0) == ig.low - 1.0
         assert calc.calculate_invalidation(ig, "short", atr=2.0) == ig.high + 1.0
+
+
+class TestStrongImpulseDetectorBoundaryGuards:
+    """update_phase must never store a negative confirmation count, and
+    detect_impulse must not emit a signal on non-finite / non-positive ATR
+    (the ATR-displacement factor would silently zero while other factors clear
+    the threshold, on top of a zero-buffer stop)."""
+
+    def _armed_signal(self) -> ImpulseSignal:
+        return ImpulseSignal(
+            bar_index=10, phase=ImpulsePhase.IGNITION, direction="long",
+            ignition_bar=10, propulsion_strength=7.0, entry_price=100.0,
+            invalidation_level=99.0, target_1=101.0, target_2=102.0,
+            target_3=103.0, confirmation_bars=0,
+        )
+
+    def test_out_of_order_bar_clamps_confirmation_bars(self):
+        det = StrongImpulseDetector()
+        det.active_impulses[10] = self._armed_signal()
+        out = det.update_phase(bar_index=5, high=101.0, low=99.0, close=100.0)
+        assert out[0].confirmation_bars >= 0
+        # A backward bar advances nothing.
+        assert out[0].phase == ImpulsePhase.IGNITION
+
+    @pytest.mark.parametrize(
+        "bad_atr", [-5.0, 0.0, float("nan"), float("inf"), float("-inf")]
+    )
+    def test_non_finite_or_nonpositive_atr_emits_no_signal(self, bad_atr):
+        det = StrongImpulseDetector(propulsion_threshold=6.0)
+        # A strong bar whose non-ATR factors alone clear the threshold.
+        sig = det.detect_impulse(
+            bar_index=3, open=100.0, high=110.0, low=99.0, close=109.5,
+            atr=bad_atr, recent_momentum=1.0, volume_ratio=3.0,
+        )
+        assert sig is None
