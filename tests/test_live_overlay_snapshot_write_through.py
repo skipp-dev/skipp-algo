@@ -319,6 +319,20 @@ def test_signals_service_url_to_full_with_host_and_url() -> None:
     assert compute._signals_service_url_to_full("https://producer/path/") == (
         "https://producer/path/signals.json"
     )
+    # Idempotent: a base that already includes the /signals.json endpoint (e.g.
+    # SIGNALS_SERVICE_URL set to the full producer URL) must NOT get it appended
+    # a second time — otherwise every fetch 404s and silently falls back.
+    assert compute._signals_service_url_to_full(
+        "https://smc-signals-producer.railway.internal/signals.json"
+    ) == "https://smc-signals-producer.railway.internal/signals.json"
+    assert compute._signals_service_url_to_full(
+        "smc-signals-producer.railway.internal/signals.json"
+    ) == "http://smc-signals-producer.railway.internal/signals.json"
+    assert compute._signals_service_url_to_full(
+        "https://producer/signals.json/"  # trailing slash still idempotent
+    ) == "https://producer/signals.json"
+    # Empty base yields "" (defensive), not the malformed "http:///signals.json".
+    assert compute._signals_service_url_to_full("") == ""
 
 
 def test_is_valid_service_url() -> None:

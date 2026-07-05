@@ -371,12 +371,22 @@ def _is_valid_service_url(url: str) -> bool:
 
 
 def _signals_service_url_to_full(base: str) -> str:
-    """Turn a host or base path into the producer ``/signals.json`` endpoint."""
+    """Turn a host or base path into the producer ``/signals.json`` endpoint.
+
+    Idempotent: a base that already ends in ``/signals.json`` is returned as-is
+    (an ``http://`` scheme is prepended for bare hosts), so a
+    ``SIGNALS_SERVICE_URL`` set to the *full* producer URL is not turned into
+    ``.../signals.json/signals.json`` — which would make every fetch fail and
+    silently fall back to the snapshot/file source.
+    """
     base = base.strip().rstrip("/")
-    lower = base.lower()
-    if lower.startswith("http://") or lower.startswith("https://"):
-        return f"{base}/signals.json"
-    return f"http://{base}/signals.json"
+    if not base:
+        return ""
+    if not (base.lower().startswith("http://") or base.lower().startswith("https://")):
+        base = f"http://{base}"
+    if base.lower().endswith("/signals.json"):
+        return base
+    return f"{base}/signals.json"
 
 
 def _fetch_signals_service(
