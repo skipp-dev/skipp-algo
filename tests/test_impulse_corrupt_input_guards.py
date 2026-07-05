@@ -103,3 +103,24 @@ def test_update_phase_in_order_still_advances() -> None:
     updated = detector.update_phase(bar_index=11, high=108.0, low=100.0, close=105.0)
     assert len(updated) == 1
     assert updated[0].confirmation_bars == 1
+
+
+def test_update_phase_duplicate_bar_index_is_skipped() -> None:
+    """A duplicate feed bar at the ignition bar_index confirms nothing and must
+    be skipped, not returned as an 'update' with confirmation_bars=0.
+    """
+    detector = StrongImpulseDetector(propulsion_threshold=0.0)
+    detector.ignition_detector.detect(
+        bar_index=9, open=100.0, high=101.0, low=99.0, close=100.5, atr=1.0
+    )
+    signal = detector.detect_impulse(
+        bar_index=10, open=100.0, high=110.0, low=99.0, close=109.0,
+        atr=1.0, recent_momentum=0.9, volume_ratio=2.0,
+    )
+    assert signal is not None
+    assert signal.confirmation_bars == 0
+
+    # Duplicate of the ignition bar (bar 10 again) must be skipped.
+    updated = detector.update_phase(bar_index=10, high=108.0, low=100.0, close=105.0)
+    assert updated == []
+    assert signal.confirmation_bars == 0
