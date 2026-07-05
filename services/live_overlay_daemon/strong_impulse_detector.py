@@ -246,10 +246,18 @@ class InvalidationLevelCalculator:
         For long: invalidation = low - 0.5*ATR
         For short: invalidation = high + 0.5*ATR
         """
+        # A negative ATR would flip the buffer to the wrong side of price (a
+        # long invalidation *above* the ignition low), and a non-finite ATR
+        # would produce a NaN stop that poisons the signal. Ignition detection
+        # is atr-independent and propulsion can clear the threshold from its
+        # other factors, so this path IS reachable with a corrupt ATR. Clamp to
+        # a zero buffer (invalidation at the ignition extreme), matching the
+        # `atr > 0` convention used by propulsion displacement and PPDD.
+        buffer = atr * 0.5 if (math.isfinite(atr) and atr > 0) else 0.0
         if direction == "long":
-            return ignition.low - (atr * 0.5)
+            return ignition.low - buffer
         else:
-            return ignition.high + (atr * 0.5)
+            return ignition.high + buffer
 
 
 class TargetProjector:

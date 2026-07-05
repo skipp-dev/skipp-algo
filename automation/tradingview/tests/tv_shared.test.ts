@@ -3,9 +3,10 @@ import fs from "node:fs";
 import path from "node:path";
 import test from "node:test";
 import { fileURLToPath } from "node:url";
-import { chromium } from "playwright";
+import { chromium, type Page } from "playwright";
 
 import {
+  assertNoVisibleCompileError,
   buildScriptNamePatterns,
   collectTradingViewPageAuthState,
   countOrderedCodeBlockOccurrences,
@@ -1825,5 +1826,66 @@ test("pointer-events bypass restores overlay styles in finally (bug-hunt r4)", (
       finallyIndex !== -1 && finallyIndex < restoreIndex,
       `bypass site ${index}: pointer-events restore must live inside a finally block`,
     );
+  }
+});
+
+function captureConsoleError(): { lines: string[]; restore: () => void } {
+  const lines: string[] = [];
+  const original = console.error;
+  console.error = (...args: unknown[]) => {
+    lines.push(args.map((a) => (a instanceof Error ? a.message : String(a))).join(" "));
+  };
+  return { lines, restore: () => { console.error = original; } };
+}
+
+test("collectTradingViewPageAuthState traces a crashed evidence/probe evaluate instead of swallowing it", async () => {
+  const crashingPage = {
+    evaluate: async () => {
+      throw new Error("Execution context was destroyed, most likely because of a navigation");
+    },
+  } as unknown as Page;
+
+  const capture = captureConsoleError();
+  try {
+    const state = await collectTradingViewPageAuthState(crashingPage);
+    // Fail-soft contract preserved: a crashed context yields a controlled
+    // negative rather than throwing out of the auth probe.
+    assert.equal(state.authenticated, false);
+    // Observability: the crash must be distinguishable from a real logout, so
+    // both swallowed evaluates emit a distinct diagnostic event.
+    assert.ok(
+      capture.lines.some((line) => line.includes("auth-state-probe-eval-failed")),
+      "expected an auth-state-probe-eval-failed trace",
+    );
+    assert.ok(
+      capture.lines.some((line) => line.includes("auth-state-probe-fetch-failed")),
+      "expected an auth-state-probe-fetch-failed trace",
+    );
+  } finally {
+    capture.restore();
+  }
+});
+
+test("assertNoVisibleCompileError traces a crashed body read instead of silently reporting a clean compile", async () => {
+  const crashingPage = {
+    locator: () => ({
+      innerText: async () => {
+        throw new Error("Execution context was destroyed, most likely because of a navigation");
+      },
+    }),
+  } as unknown as Page;
+
+  const capture = captureConsoleError();
+  try {
+    // Fail-soft: a crashed page must not throw here (that would abort the flow),
+    // but it also must NOT be silently treated as a clean compile...
+    await assert.doesNotReject(() => assertNoVisibleCompileError(crashingPage));
+    // ...so the unreadable body must surface a distinct trace event.
+    assert.ok(
+      capture.lines.some((line) => line.includes("compile-error-marker-body-read-failed")),
+      "expected a compile-error-marker-body-read-failed trace",
+    );
+  } finally {
+    capture.restore();
   }
 });
