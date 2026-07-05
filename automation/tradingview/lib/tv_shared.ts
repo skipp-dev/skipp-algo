@@ -313,7 +313,17 @@ export async function collectTradingViewPageAuthState(page: Page): Promise<Tradi
     url: location.href,
     htmlClass: String(document.documentElement?.className || ""),
     bodyText: String(document.body?.innerText || "").replace(/\s+/g, " ").trim().slice(0, 2_000),
-  })).catch(() => ({ url: "", htmlClass: "", bodyText: "" }));
+  })).catch((error: unknown) => {
+    // Fail-soft must not be silent: without this event a crashed probe is
+    // indistinguishable from a genuinely-unauthenticated page, so the recovery
+    // loop can't tell "retry the probe" from "re-authenticate".
+    tracePageEvent(
+      page,
+      "auth-state-probe-error",
+      `pageEvidence evaluate failed: ${error instanceof Error ? error.message : String(error)}`,
+    );
+    return { url: "", htmlClass: "", bodyText: "" };
+  });
 
   const probeEndpoints = [
     "/api/v1/user/profile/me/",
@@ -335,7 +345,14 @@ export async function collectTradingViewPageAuthState(page: Page): Promise<Tradi
       }
     }
     return results;
-  }, probeEndpoints).catch(() => []);
+  }, probeEndpoints).catch((error: unknown) => {
+    tracePageEvent(
+      page,
+      "auth-state-probe-error",
+      `accountProbe evaluate failed: ${error instanceof Error ? error.message : String(error)}`,
+    );
+    return [] as Array<{ status: number; contentType: string; preview: string }>;
+  });
 
   const accountProbeStatuses = probeResults.map((result) => result.status);
   const accountProbeAuthenticated = probeResults.some((result) => result.status >= 200 && result.status < 300);
@@ -6108,7 +6125,18 @@ export async function saveScript(page: Page, scriptName: string): Promise<void> 
 }
 
 async function getVisibleCompileErrorMarker(page: Page): Promise<string | null> {
-  const bodyText = normalizeUiText((await page.locator("body").innerText().catch(() => "")) || "").toLowerCase();
+  const rawBodyText = await page.locator("body").innerText().catch((error: unknown) => {
+    // A rejected innerText means the page/context is gone. Without this event
+    // the empty body silently reads as "no compile error", so a crashed page
+    // passes the compile gate indistinguishably from a genuinely clean compile.
+    tracePageEvent(
+      page,
+      "compile-error-probe-error",
+      `body innerText failed: ${error instanceof Error ? error.message : String(error)}`,
+    );
+    return "";
+  });
+  const bodyText = normalizeUiText(rawBodyText || "").toLowerCase();
 
   const markers = [
     "syntax error",

@@ -10,9 +10,12 @@ Pattern: Real-time signal streaming with bounded memory for live market data.
 from __future__ import annotations
 
 import enum
+import logging
 import math
 from collections import deque
 from dataclasses import dataclass, field
+
+logger = logging.getLogger(__name__)
 
 
 class BoxType(enum.Enum):
@@ -67,8 +70,22 @@ class SmcBox:
         """Normalize bounds: an inverted box (top < bottom, e.g. from corrupt
         candle data or a buggy construction site) would satisfy is_breached on
         virtually any candle and be silently mitigated — silent structure loss.
+
+        Normalization stays (it prevents the instant-mitigation bug) but is no
+        longer silent: an inverted box means the caller fed corrupt data, so we
+        emit a warning that surfaces the root cause instead of masking it.
         """
         if self.bottom > self.top:
+            logger.warning(
+                "SmcBox constructed with inverted bounds (top=%r < bottom=%r) for a "
+                "%s %s box created_at=%s; normalising by swap — inspect the caller "
+                "for corrupt candle data (e.g. high < low).",
+                self.top,
+                self.bottom,
+                self.direction.name,
+                self.box_type.name,
+                self.created_at,
+            )
             self.top, self.bottom = self.bottom, self.top
 
     def width(self) -> int:
@@ -338,8 +355,21 @@ def _ordered_bounds(a: float, b: float) -> tuple[float, float]:
     Guards against corrupt candle data (e.g. ``high < low``) which would
     otherwise produce an inverted box that ``is_breached`` mitigates on the
     very next candle — silent structure loss.
+
+    Ordering an already-inverted pair means the factory received corrupt
+    inputs, so we warn rather than repair silently. (The subsequent
+    ``SmcBox.__post_init__`` sees an already-ordered pair and stays quiet, so
+    the warning fires exactly once per corrupt construction.)
     """
-    return (a, b) if a >= b else (b, a)
+    if a >= b:
+        return (a, b)
+    logger.warning(
+        "Ordering inverted box bounds (a=%r < b=%r); inspect the caller for "
+        "corrupt candle data (e.g. high < low).",
+        a,
+        b,
+    )
+    return (b, a)
 
 
 def make_ob_up(bar_index: int, high_t2: float, low_t1: float, low_t2: float) -> SmcBox:

@@ -215,6 +215,39 @@ class TestSmcBoxBoundsNormalization:
         )
         assert (box.top, box.bottom) == (110.0, 100.0)
 
+    def test_inverted_bounds_emit_warning(self, caplog) -> None:
+        """Bug-hunt round 6: normalization must not be silent.
+
+        Swapping stays (prevents instant-mitigation) but an inverted box means
+        the caller fed corrupt data, so a warning must surface the root cause.
+        """
+        import logging
+
+        with caplog.at_level(
+            logging.WARNING, logger="services.live_overlay_daemon.smc_ringbuffer"
+        ):
+            box = self._inverted()
+        assert (box.top, box.bottom) == (110.0, 100.0)
+        warnings = [r for r in caplog.records if r.levelno == logging.WARNING]
+        assert any("inverted bounds" in r.getMessage() for r in warnings), (
+            f"expected an inverted-bounds warning, got: "
+            f"{[r.getMessage() for r in warnings]}"
+        )
+
+    def test_ordered_bounds_construction_is_silent(self, caplog) -> None:
+        """The happy path (top >= bottom) must stay warning-free."""
+        import logging
+
+        with caplog.at_level(
+            logging.WARNING, logger="services.live_overlay_daemon.smc_ringbuffer"
+        ):
+            SmcBox(
+                left=0, right=2, top=110.0, bottom=100.0,
+                box_type=BoxType.ORDER_BLOCK, direction=Direction.BEARISH,
+                created_at=2,
+            )
+        assert not [r for r in caplog.records if r.levelno == logging.WARNING]
+
 
 class TestSmcBoxManager:
     """Test unified box manager with direction separation."""
@@ -466,3 +499,33 @@ class TestFactoryBoundsOrdering:
         # normalized box must survive an in-range candle.
         box = make_ob_up(bar_index=10, high_t2=-1.0, low_t1=0.0, low_t2=0.0)
         assert not box.is_breached(high=-0.5, low=-0.9)
+
+    def test_corrupt_inputs_warn_exactly_once(self, caplog) -> None:
+        """Bug-hunt round 6: _ordered_bounds warns on inverted factory inputs.
+
+        The warning fires once in _ordered_bounds; SmcBox.__post_init__ then
+        sees an already-ordered pair and stays quiet (no double warning).
+        """
+        import logging
+
+        with caplog.at_level(
+            logging.WARNING, logger="services.live_overlay_daemon.smc_ringbuffer"
+        ):
+            box = make_ob_up(bar_index=10, high_t2=-1.0, low_t1=0.0, low_t2=0.0)
+        assert box.top >= box.bottom
+        warnings = [r for r in caplog.records if r.levelno == logging.WARNING]
+        assert len(warnings) == 1, (
+            f"expected exactly one warning, got: {[r.getMessage() for r in warnings]}"
+        )
+        assert "inverted box bounds" in warnings[0].getMessage()
+
+    def test_sane_factory_inputs_are_silent(self, caplog) -> None:
+        """Normal candle data must not produce spurious warnings."""
+        import logging
+
+        with caplog.at_level(
+            logging.WARNING, logger="services.live_overlay_daemon.smc_ringbuffer"
+        ):
+            make_ob_up(bar_index=10, high_t2=100.0, low_t1=97.0, low_t2=96.0)
+            make_ob_down(bar_index=10, high_t1=105.0, high_t2=104.0, low_t2=99.0)
+        assert not [r for r in caplog.records if r.levelno == logging.WARNING]

@@ -43,7 +43,16 @@ async function collectPageAuthDiagnostics(page: import("playwright").Page): Prom
       bodyPreview: bodyText.slice(0, 240),
       signInSignals: /sign in|log in|email|password|continue with google/i.test(bodyText),
     };
-  }).catch(() => ({ url: "", title: "", bodyPreview: "", signInSignals: false }));
+  }).catch((error: unknown) => {
+    // Fail-soft, but not silent: a crashed evaluate yields signInSignals:false,
+    // which reads as "not obviously anonymous" — surface the failure so it is
+    // not confused with a genuine page-state signal.
+    console.warn(
+      `[tv-auth] page auth diagnostics evaluate failed: `
+        + `${error instanceof Error ? error.message : String(error)}`,
+    );
+    return { url: "", title: "", bodyPreview: "", signInSignals: false };
+  });
   const pageAuthState = await collectTradingViewPageAuthState(page).catch(() => null);
 
   return {

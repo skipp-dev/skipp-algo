@@ -164,6 +164,35 @@ test("missing reusable auth sources resolves to fresh_login", () => {
   assert.equal(resolution.authReusedOk, false);
 });
 
+test("corrupt storage-state JSON warns instead of silently collapsing (bug-hunt r6)", () => {
+  // A corrupt/truncated storage-state file must not be silently indistinguishable
+  // from a genuinely-unauthenticated file: the discarded "Invalid JSON in …"
+  // error is surfaced via console.warn before falling back.
+  const tempDir = makeTempDir("tv-auth-corrupt-json-");
+  const storageStatePath = path.join(tempDir, "storage-state.json");
+  fs.mkdirSync(path.dirname(storageStatePath), { recursive: true });
+  fs.writeFileSync(storageStatePath, "{ this is not valid json", "utf-8");
+
+  const warnings: string[] = [];
+  const originalWarn = console.warn;
+  console.warn = (...args: unknown[]) => {
+    warnings.push(args.map((arg) => String(arg)).join(" "));
+  };
+  try {
+    const resolution = resolveTradingViewAuthResolution({ TV_STORAGE_STATE: storageStatePath });
+    // Still fail-soft: a corrupt file resolves to fresh_login (no reusable auth).
+    assert.equal(resolution.authReusedOk, false);
+  } finally {
+    console.warn = originalWarn;
+  }
+
+  assert.equal(
+    warnings.some((message) => message.includes("could not be parsed") && message.includes("Invalid JSON")),
+    true,
+    `expected a corrupt-storage-state warning, got: ${JSON.stringify(warnings)}`,
+  );
+});
+
 test("chart-validated storage state metadata is accepted as reusable auth", () => {
   const tempDir = makeTempDir("tv-auth-chart-validated-");
   const storageStatePath = path.join(tempDir, "storage-state.json");

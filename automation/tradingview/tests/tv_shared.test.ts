@@ -28,6 +28,7 @@ import {
   detectPublishedVersionFromBody,
   isScriptVisibleOnChartState,
   parseInputSourceLabels,
+  probeRuntimeSmoke,
   resolvePublishedVersionEvidence,
   scriptNameAppearsInUiText,
   uiTextContainsExactScriptName,
@@ -966,6 +967,73 @@ test("TradingView page auth probe fails soft when page evaluate crashes (bug-hun
     assert.equal(state.explicitlyAnonymous, false);
     assert.equal(state.reason, "no_positive_auth_evidence:no_probe");
   } finally {
+    await browser.close();
+  }
+});
+
+test("TradingView page auth probe traces a diagnostic when evaluate crashes (bug-hunt r6)", async () => {
+  // Fail-soft must not be silent: when the page-evidence / account-probe
+  // evaluate rejects (crashed renderer / destroyed context), the .catch()
+  // handlers previously swallowed the error and only the summary
+  // "auth-state-probe" event (with empty evidence) was emitted. The operator
+  // then could not tell "probe crashed" from "genuinely not authenticated".
+  const browser = await chromium.launch({ headless: true });
+  const messages: string[] = [];
+  const originalError = console.error;
+  console.error = (...args: unknown[]) => {
+    messages.push(args.map((arg) => String(arg)).join(" "));
+  };
+  try {
+    const page = await browser.newPage();
+    await page.close();
+
+    const state = await collectTradingViewPageAuthState(page);
+
+    // Still fail-soft: no throw, controlled "no evidence" state.
+    assert.equal(state.authenticated, false);
+    assert.equal(state.explicitlyAnonymous, false);
+
+    // ...but no longer silent: a diagnostic trace event is emitted so the
+    // crashed-probe case is distinguishable from a real anonymous page.
+    assert.equal(
+      messages.some((message) => message.includes("[tv-trace] auth-state-probe-error")),
+      true,
+      `expected an auth-state-probe-error trace event, got: ${JSON.stringify(messages)}`,
+    );
+  } finally {
+    console.error = originalError;
+    await browser.close();
+  }
+});
+
+test("compile-error probe traces a diagnostic when body read crashes (bug-hunt r6)", async () => {
+  // Same silent-failure class as the auth probe, but for the compile gate:
+  // getVisibleCompileErrorMarker reads body innerText and defaults to "" on a
+  // crashed page, which reads as "no compile error" — a false gate pass. The
+  // failure must now be traced so a crashed page is distinguishable from a
+  // genuinely clean compile.
+  const browser = await chromium.launch({ headless: true });
+  const messages: string[] = [];
+  const originalError = console.error;
+  console.error = (...args: unknown[]) => {
+    messages.push(args.map((arg) => String(arg)).join(" "));
+  };
+  try {
+    const page = await browser.newPage();
+    await page.close();
+
+    const result = await probeRuntimeSmoke(page, "SMC Core");
+
+    // Still fail-soft: no throw.
+    assert.equal(result.ok, false);
+
+    assert.equal(
+      messages.some((message) => message.includes("[tv-trace] compile-error-probe-error")),
+      true,
+      `expected a compile-error-probe-error trace event, got: ${JSON.stringify(messages)}`,
+    );
+  } finally {
+    console.error = originalError;
     await browser.close();
   }
 });
