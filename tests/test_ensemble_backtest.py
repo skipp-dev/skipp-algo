@@ -349,5 +349,65 @@ class TestCompareSystemsBenchmark:
         assert metrics.max_drawdown > -15  # Limited drawdown
 
 
+class TestBacktesterRealism:
+    """Backtest-realism knobs: worst-case fills on ambiguous TP+SL bars, and
+    opt-in slippage/commission (default 0 → results identical to before)."""
+
+    def _trade(self, bt, direction="long", entry=100.0, sl=95.0, tp=110.0, entry_bar=0):
+        from services.live_overlay_daemon.ensemble_backtester import Trade
+
+        trade = Trade(
+            entry_bar=entry_bar, entry_price=entry, entry_time=datetime(2024, 1, 1),
+            direction=direction, stop_loss=sl, take_profit=tp, confidence=0.8, sources_count=2,
+        )
+        bt.open_trades[entry_bar] = trade
+        return trade
+
+    def test_ambiguous_bar_resolves_to_stop_loss(self):
+        bt = EnsembleBacktester(symbol="T")
+        trade = self._trade(bt)  # long: sl=95, tp=110
+        # A bar that touches BOTH the take-profit (110) and stop-loss (95).
+        bt._check_trade_exits(bar_index=1, candle={"high": 111.0, "low": 94.0, "close": 100.0})
+        assert trade.exit_reason == "sl"  # worst case, not the optimistic "tp"
+        assert bt.ambiguous_bar_exits == 1
+
+    def test_clean_tp_and_sl_bars_unaffected(self):
+        bt = EnsembleBacktester(symbol="T")
+        tp_trade = self._trade(bt, entry_bar=0)
+        bt._check_trade_exits(bar_index=1, candle={"high": 111.0, "low": 96.0, "close": 108.0})
+        assert tp_trade.exit_reason == "tp"
+
+        bt2 = EnsembleBacktester(symbol="T")
+        sl_trade = self._trade(bt2, entry_bar=0)
+        bt2._check_trade_exits(bar_index=1, candle={"high": 108.0, "low": 94.0, "close": 96.0})
+        assert sl_trade.exit_reason == "sl"
+        assert bt.ambiguous_bar_exits == 0 and bt2.ambiguous_bar_exits == 0
+
+    def test_slippage_default_zero_is_identity(self):
+        bt = EnsembleBacktester(symbol="T")
+        assert bt._fill_price(100.0, "long", is_entry=True) == 100.0
+        assert bt._fill_price(100.0, "short", is_entry=False) == 100.0
+
+    def test_slippage_worsens_every_fill(self):
+        bt = EnsembleBacktester(symbol="T", slippage_bps=10.0)  # 0.1%
+        assert bt._fill_price(100.0, "long", is_entry=True) == pytest.approx(100.1)   # buy higher
+        assert bt._fill_price(100.0, "long", is_entry=False) == pytest.approx(99.9)   # sell lower
+        assert bt._fill_price(100.0, "short", is_entry=True) == pytest.approx(99.9)   # short-sell lower
+        assert bt._fill_price(100.0, "short", is_entry=False) == pytest.approx(100.1)  # cover higher
+
+    def test_commission_deducted_round_trip(self):
+        bt = EnsembleBacktester(symbol="T", commission_per_fill=0.5)
+        trade = self._trade(bt, entry=100.0, tp=110.0)
+        bt._close_trade(trade, bar_index=1, exit_price=110.0, exit_reason="tp")
+        assert trade.pnl == pytest.approx(9.0)  # +10 gross − 2×0.5 commission
+
+    def test_defaults_leave_pnl_unchanged(self):
+        bt = EnsembleBacktester(symbol="T")  # slippage_bps=0, commission=0
+        trade = self._trade(bt, entry=100.0, tp=110.0)
+        bt._close_trade(trade, bar_index=1, exit_price=110.0, exit_reason="tp")
+        assert trade.pnl == pytest.approx(10.0)
+        assert trade.exit_price == pytest.approx(110.0)
+
+
 if __name__ == "__main__":
     pytest.main([__file__, "-v"])

@@ -125,11 +125,25 @@ class EnsembleBacktester:
         minimum_sources: int = 2,
         enable_volatility_filter: bool = True,
         warmup_bars: int = 0,
+        slippage_bps: float = 0.0,
+        commission_per_fill: float = 0.0,
     ):
         self.symbol = symbol
         self.timeframe = timeframe
         self.initial_capital = initial_capital
         self.risk_per_trade = risk_per_trade
+        # Backtest-realism knobs (default 0 → results identical to before, so
+        # existing baselines are unchanged; opt in to model real fills).
+        #   slippage_bps: per-fill adverse price move in basis points of price
+        #     (worsens both entry and exit).
+        #   commission_per_fill: fixed cost deducted per fill (2× per round-trip).
+        self.slippage_bps = max(0.0, float(slippage_bps))
+        self.commission_per_fill = max(0.0, float(commission_per_fill))
+        # Count of trades that exited on a bar where BOTH take-profit and
+        # stop-loss were touched — OHLC can't resolve intrabar order, so we
+        # assume the worst case (SL first). Surfaced so an inflated win rate
+        # driven by many ambiguous bars is not silently hidden.
+        self.ambiguous_bar_exits = 0
         # Bars at the start of the series during which the ensemble systems
         # warm up (candles are processed, state accumulates) but entry
         # signals are discarded. Makes results independent of cold-start
@@ -226,6 +240,17 @@ class EnsembleBacktester:
             metrics.max_drawdown,
         )
 
+        if self.ambiguous_bar_exits > 0:
+            total = max(1, metrics.total_trades)
+            logger.warning(
+                "[Backtest] %s/%s trades (%.1f%%) exited on bars where BOTH TP "
+                "and SL were touched — resolved worst-case (SL first); true "
+                "results depend on unavailable intrabar sequencing.",
+                self.ambiguous_bar_exits,
+                metrics.total_trades,
+                100.0 * self.ambiguous_bar_exits / total,
+            )
+
         return metrics
 
     def _process_candle(self, candle: dict) -> EnsembleSignal | None:
@@ -256,6 +281,20 @@ class EnsembleBacktester:
 
         return signal
 
+    def _fill_price(self, price: float, direction: str, *, is_entry: bool) -> float:
+        """Apply adverse slippage (bps of price) to a fill price.
+
+        Default ``slippage_bps == 0`` returns the price unchanged. Otherwise the
+        fill is always worse than the trigger: entries fill higher for longs /
+        lower for shorts, exits fill lower for longs / higher for shorts.
+        """
+        if self.slippage_bps <= 0:
+            return price
+        factor = self.slippage_bps / 10_000.0
+        long_side = direction == "long"
+        worse_up = (is_entry and long_side) or (not is_entry and not long_side)
+        return price * (1.0 + factor) if worse_up else price * (1.0 - factor)
+
     def _open_trade(self, bar_index: int, signal: EnsembleSignal, candle: dict) -> None:
         """Open new trade from signal."""
         # Skip if already have open trade (one at a time)
@@ -265,7 +304,7 @@ class EnsembleBacktester:
         # Create trade
         trade = Trade(
             entry_bar=bar_index,
-            entry_price=signal.entry_price,
+            entry_price=self._fill_price(signal.entry_price, signal.direction, is_entry=True),
             entry_time=datetime.fromisoformat(candle.get("timestamp", "2024-01-01T00:00:00")),
             direction=signal.direction,
             stop_loss=signal.stop_loss,
@@ -293,16 +332,29 @@ class EnsembleBacktester:
             exit_reason = None
             exit_price = None
 
-            # Check TP
-            if (trade.direction == "long" and candle["high"] >= trade.take_profit) or (trade.direction == "short" and candle["low"] <= trade.take_profit):
-                exit_price = trade.take_profit
-                exit_reason = "tp"
+            tp_hit = (
+                (trade.direction == "long" and candle["high"] >= trade.take_profit)
+                or (trade.direction == "short" and candle["low"] <= trade.take_profit)
+            )
+            sl_hit = (
+                (trade.direction == "long" and candle["low"] <= trade.stop_loss)
+                or (trade.direction == "short" and candle["high"] >= trade.stop_loss)
+            )
 
-            # Check SL
-            elif (trade.direction == "long" and candle["low"] <= trade.stop_loss) or (trade.direction == "short" and candle["high"] >= trade.stop_loss):
+            if tp_hit and sl_hit:
+                # Both levels touched in the same bar. OHLC cannot tell which
+                # came first, so the optimistic "TP first" assumption would
+                # systematically inflate results. Assume the worst case (SL
+                # first) and count the ambiguity so it stays visible.
+                self.ambiguous_bar_exits += 1
                 exit_price = trade.stop_loss
                 exit_reason = "sl"
-
+            elif tp_hit:
+                exit_price = trade.take_profit
+                exit_reason = "tp"
+            elif sl_hit:
+                exit_price = trade.stop_loss
+                exit_reason = "sl"
             # Check timeout (100 bars max). `>= 100` closes at exactly 100 bars
             # held; `> 100` kept the trade open for 101 bars, contradicting the
             # documented cap.
@@ -321,10 +373,15 @@ class EnsembleBacktester:
         exit_reason: str,
     ) -> None:
         """Close trade and record P&L."""
-        pnl, pnl_pct = trade.calculate_pnl(exit_price)
+        fill_price = self._fill_price(exit_price, trade.direction, is_entry=False)
+        pnl, pnl_pct = trade.calculate_pnl(fill_price)
+        # Round-trip commission: one fill on entry, one on exit.
+        if self.commission_per_fill > 0:
+            pnl -= 2.0 * self.commission_per_fill
+            pnl_pct = (pnl / trade.entry_price) * 100 if trade.entry_price != 0 else 0.0
 
         trade.exit_bar = bar_index
-        trade.exit_price = exit_price
+        trade.exit_price = fill_price
         trade.exit_reason = exit_reason
         trade.bars_held = bar_index - trade.entry_bar
         trade.pnl = pnl
