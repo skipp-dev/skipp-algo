@@ -102,6 +102,32 @@ class TestEnsembleSignalRouter:
         assert router.confluence_nav is not None
         assert router.macro_filter is not None
 
+    def test_zero_macro_rates_still_update_regime(self):
+        """B31: 0.0 is a valid SOFR/IORB rate (zero-lower-bound / fallback); it
+        must not be treated as 'unset' via truthiness and silently skip the
+        macro-regime update. ``None`` (genuinely unset) must still skip.
+
+        The volatility filter is disabled so the macro step (step 0) is reached
+        on bar 0 instead of being short-circuited by the warmup gate.
+        """
+        for sofr, iorb in [(0.0, 0.0), (0.0, 4.9), (4.33, 0.0)]:
+            router = EnsembleSignalRouter(enable_volatility_filter=False)
+            router.process_candle(
+                bar_index=0, open=100, high=101, low=99, close=100.5,
+                atr=1.0, volume=1000, sofr_rate=sofr, iorb_rate=iorb,
+            )
+            assert len(router.macro_filter.spread_history) == 1, (
+                f"sofr={sofr}, iorb={iorb} must update the macro regime"
+            )
+
+        # None (truly unset) must NOT update.
+        router = EnsembleSignalRouter(enable_volatility_filter=False)
+        router.process_candle(
+            bar_index=0, open=100, high=101, low=99, close=100.5,
+            atr=1.0, volume=1000,
+        )
+        assert len(router.macro_filter.spread_history) == 0
+
     def test_single_system_signal(self):
         """Should process single-system signal (Confluence only)."""
         router = EnsembleSignalRouter()
