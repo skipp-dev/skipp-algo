@@ -199,8 +199,10 @@ class EnsembleBacktester:
             if signal and i >= self.warmup_bars:
                 self._open_trade(i, signal, candle)
 
-        # Close any remaining open trades at final price
-        if self.open_trades:
+        # Close any remaining open trades at final price. Guard candles too:
+        # the `open_trades` check alone would still index candles[-1] on an
+        # empty series (IndexError) if a trade were ever open without candles.
+        if self.open_trades and self.candles:
             final_candle = self.candles[-1]
             for trade in list(self.open_trades.values()):
                 self._close_trade(
@@ -301,8 +303,10 @@ class EnsembleBacktester:
                 exit_price = trade.stop_loss
                 exit_reason = "sl"
 
-            # Check timeout (100 bars max)
-            elif bar_index - trade.entry_bar > 100:
+            # Check timeout (100 bars max). `>= 100` closes at exactly 100 bars
+            # held; `> 100` kept the trade open for 101 bars, contradicting the
+            # documented cap.
+            elif bar_index - trade.entry_bar >= 100:
                 exit_price = candle["close"]
                 exit_reason = "timeout"
 

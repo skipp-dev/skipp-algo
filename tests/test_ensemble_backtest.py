@@ -264,6 +264,60 @@ class TestEnsembleBacktest:
         assert f"{metrics.win_rate:.1f}" in report
 
 
+class TestBacktesterBoundsAndGuards:
+    """Bug-hunt: empty-candle guard on the final-close path, and the timeout
+    boundary matching the documented '100 bars max' cap."""
+
+    def _open_trade(self, bt, entry_bar=0):
+        from services.live_overlay_daemon.ensemble_backtester import Trade
+
+        trade = Trade(
+            entry_bar=entry_bar,
+            entry_price=100.0,
+            entry_time=datetime(2024, 1, 1),
+            direction="long",
+            stop_loss=-1e9,     # unreachable → only timeout can close
+            take_profit=1e9,
+            confidence=0.8,
+            sources_count=2,
+        )
+        bt.open_trades[entry_bar] = trade
+        return trade
+
+    def _neutral_candle(self):
+        # Never hits TP (1e9) or SL (-1e9).
+        return {"high": 101.0, "low": 99.0, "close": 100.0}
+
+    def test_empty_candles_run_returns_zero_metrics(self):
+        bt = EnsembleBacktester(symbol="TEST")
+        bt.load_candles([])
+        metrics = bt.run_backtest()
+        assert metrics.total_trades == 0
+
+    def test_final_close_does_not_index_empty_candles(self):
+        # Guard regression: an open trade with no candles must not raise
+        # IndexError on candles[-1] in the end-of-backtest close path.
+        bt = EnsembleBacktester(symbol="TEST")
+        bt.load_candles([])
+        self._open_trade(bt)
+        metrics = bt.run_backtest()  # must not raise
+        assert metrics is not None
+
+    def test_timeout_closes_at_exactly_100_bars(self):
+        bt = EnsembleBacktester(symbol="TEST")
+        trade = self._open_trade(bt, entry_bar=0)
+        candle = self._neutral_candle()
+
+        # 99 bars held: below the cap → still open.
+        bt._check_trade_exits(bar_index=99, candle=candle)
+        assert trade.exit_bar is None
+
+        # 100 bars held: at the cap → closed via timeout, bars_held == 100.
+        bt._check_trade_exits(bar_index=100, candle=candle)
+        assert trade.exit_reason == "timeout"
+        assert trade.bars_held == 100
+
+
 class TestCompareSystemsBenchmark:
     """Benchmark: Compare individual vs ensemble performance."""
 
