@@ -37,6 +37,23 @@ def test_sanitize_name_rejects_invalid_prometheus_characters() -> None:
     assert metrics_mod._sanitize_name("__$$$__") == "unknown"
 
 
+def test_sanitize_name_prefixes_leading_digits() -> None:
+    """Prometheus metric names must not start with a digit.
+
+    Prefixing with ``_`` preserves semantic digits (timeframe ``5m``,
+    monitor id ``803343156``) instead of stripping them and creating
+    collisions.
+    """
+    import services.live_overlay_daemon.metrics as metrics_mod
+
+    assert metrics_mod._sanitize_name("123ABC") == "_123abc"
+    assert metrics_mod._sanitize_name("1e9-symbol") == "_1e9_symbol"
+    assert metrics_mod._sanitize_name("456") == "_456"
+    assert metrics_mod._sanitize_name("00_abc") == "_00_abc"
+    assert metrics_mod._sanitize_name("5m") == "_5m"
+    assert metrics_mod._sanitize_name("15m") == "_15m"
+
+
 def test_sanitize_name_collapses_runs_of_separators() -> None:
     import services.live_overlay_daemon.metrics as metrics_mod
 
@@ -456,8 +473,8 @@ def test_render_metrics_emits_hotspot_gauges(monkeypatch: pytest.MonkeyPatch) ->
     assert "live_overlay_hotspot_timeframes_tracked 2.0" in body
     assert "live_overlay_hotspot_symbol_nvda_requests_total 12.0" in body
     assert "live_overlay_hotspot_symbol_aapl_requests_total 7.0" in body
-    assert "live_overlay_hotspot_tf_5m_requests_total 15.0" in body
-    assert "live_overlay_hotspot_tf_1h_requests_total 4.0" in body
+    assert "live_overlay_hotspot_tf__5m_requests_total 15.0" in body
+    assert "live_overlay_hotspot_tf__1h_requests_total 4.0" in body
 
 
 def test_observability_rejects_non_finite_values() -> None:
@@ -583,9 +600,9 @@ def test_render_metrics_includes_uptimerobot_bridge_snapshot(monkeypatch: pytest
     assert "live_overlay_uptimerobot_monitors_total 4.0" in body
     assert "live_overlay_uptimerobot_monitors_up_total 4.0" in body
     assert "live_overlay_uptimerobot_monitors_response_time_ms_avg 101.5" in body
-    assert "live_overlay_uptimerobot_monitor_803343156_up 1.0" in body
-    assert "live_overlay_uptimerobot_monitor_803343156_status_code 2.0" in body
-    assert "live_overlay_uptimerobot_monitor_803343156_response_time_ms 98.0" in body
+    assert "live_overlay_uptimerobot_monitor__803343156_up 1.0" in body
+    assert "live_overlay_uptimerobot_monitor__803343156_status_code 2.0" in body
+    assert "live_overlay_uptimerobot_monitor__803343156_response_time_ms 98.0" in body
 
 
 def test_render_metrics_handles_uptimerobot_bridge_disabled(monkeypatch: pytest.MonkeyPatch) -> None:
