@@ -466,3 +466,128 @@ class TestFactoryBoundsOrdering:
         # normalized box must survive an in-range candle.
         box = make_ob_up(bar_index=10, high_t2=-1.0, low_t1=0.0, low_t2=0.0)
         assert not box.is_breached(high=-0.5, low=-0.9)
+
+
+class TestNonFiniteRejection:
+    """Bug-hunt: non-finite (NaN / ±inf) price inputs must be rejected, not
+    turned into boxes with NaN bounds (which never mitigate and silently
+    corrupt ranking / signal routing downstream)."""
+
+    def test_ordered_bounds_rejects_nonfinite(self) -> None:
+        import math
+
+        import pytest
+
+        from services.live_overlay_daemon.smc_ringbuffer import _ordered_bounds
+
+        for bad in (math.nan, math.inf, -math.inf):
+            with pytest.raises(ValueError):
+                _ordered_bounds(0.0, bad)
+            with pytest.raises(ValueError):
+                _ordered_bounds(bad, 0.0)
+
+    def test_ordered_bounds_idempotent_for_finite(self) -> None:
+        from services.live_overlay_daemon.smc_ringbuffer import _ordered_bounds
+
+        # Regression: with NaN the a >= b test is always False, so the swap
+        # branch fired and the result oscillated. Finite inputs must be a
+        # stable fixed point.
+        once = _ordered_bounds(100.0, 110.0)
+        assert once == _ordered_bounds(*once)
+        assert once == (110.0, 100.0)
+
+    def test_all_factories_reject_nan(self) -> None:
+        import pytest
+
+        from services.live_overlay_daemon.smc_ringbuffer import (
+            make_fvg_down,
+            make_fvg_up,
+            make_ob_down,
+            make_ob_up,
+            make_rjb_down,
+            make_rjb_up,
+        )
+
+        nan = float("nan")
+        with pytest.raises(ValueError):
+            make_ob_up(0, nan, 99.0, 98.0)
+        with pytest.raises(ValueError):
+            make_ob_up(0, 100.0, nan, 98.0)  # low_t1 — the arg is_ob_up never guards
+        with pytest.raises(ValueError):
+            make_ob_down(0, nan, 101.0, 99.0)  # high_t1 — the arg is_ob_down never guards
+        with pytest.raises(ValueError):
+            make_fvg_up(0, nan, 100.0)
+        with pytest.raises(ValueError):
+            make_fvg_down(0, nan, 100.0)
+        with pytest.raises(ValueError):
+            make_rjb_down(0, 100.0, nan)
+        with pytest.raises(ValueError):
+            make_rjb_up(0, nan, 99.0)
+
+    def test_all_factories_reject_infinity(self) -> None:
+        import pytest
+
+        from services.live_overlay_daemon.smc_ringbuffer import (
+            make_fvg_down,
+            make_fvg_up,
+            make_ob_down,
+            make_ob_up,
+            make_rjb_down,
+            make_rjb_up,
+        )
+
+        inf = float("inf")
+        with pytest.raises(ValueError):
+            make_ob_up(0, inf, 99.0, 98.0)
+        with pytest.raises(ValueError):
+            make_ob_down(0, 100.0, inf, 99.0)
+        with pytest.raises(ValueError):
+            make_fvg_up(0, 100.0, inf)
+        with pytest.raises(ValueError):
+            make_fvg_down(0, inf, 100.0)
+        with pytest.raises(ValueError):
+            make_rjb_down(0, inf, 99.0)
+        with pytest.raises(ValueError):
+            make_rjb_up(0, 100.0, -inf)
+
+    def test_finite_factory_inputs_still_build_boxes(self) -> None:
+        # The guard must not regress the happy path.
+        box = make_ob_up(bar_index=10, high_t2=100.0, low_t1=97.0, low_t2=96.0)
+        assert (box.top, box.bottom) == (100.0, 96.0)
+
+    def test_predicates_reject_infinity_not_just_nan(self) -> None:
+        # Systemic amplifier: guards used math.isnan, so +inf passed every
+        # predicate and produced infinite boxes that never mitigate. Guards
+        # now use math.isfinite, so ±inf is rejected too.
+        from services.live_overlay_daemon.smc_ringbuffer import (
+            is_down,
+            is_fvg_down,
+            is_ob_down,
+            is_up,
+        )
+
+        inf = float("inf")
+        assert is_up(inf, 0.0) is False
+        assert is_down(-inf, 0.0) is False
+        assert is_fvg_up(inf, 100.0) is False
+        assert is_fvg_down(-inf, 100.0) is False
+        # OB predicates: an inf in any guarded field is rejected.
+        assert is_ob_up(
+            close_t=103.0, open_t=99.0, close_t1=98.8, open_t1=99.5,
+            high_t1=inf, high_t2=100.0, low_t2=98.5,
+        ) is False
+        assert is_ob_down(
+            close_t=96.5, open_t=102.0, close_t1=102.5, open_t1=102.0,
+            low_t1=-inf, high_t2=102.5, low_t2=96.0,
+        ) is False
+
+    def test_is_breached_ignores_infinite_candle(self) -> None:
+        # An inf candle high would satisfy `high > top` and spuriously mitigate.
+        box = SmcBox(
+            left=0, right=1, top=110.0, bottom=100.0,
+            box_type=BoxType.ORDER_BLOCK, direction=Direction.BULLISH, created_at=0,
+        )
+        assert box.is_breached(high=float("inf"), low=105.0) is False
+        assert box.is_breached(high=float("-inf"), low=105.0) is False
+        # A real breach still registers.
+        assert box.is_breached(high=115.0, low=105.0) is True

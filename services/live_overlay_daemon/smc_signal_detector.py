@@ -9,6 +9,7 @@ Pattern: OHLC candle stream → detected structures → signal webhook/API.
 from __future__ import annotations
 
 import logging
+import math
 from dataclasses import dataclass
 
 from services.live_overlay_daemon.smc_advanced_patterns import (
@@ -61,6 +62,16 @@ class SignalEvent:
     direction: Direction
     box: SmcBox
     event_type: str  # 'created' | 'mitigated'
+
+
+def _candle_ohlc_is_finite(candle: Candle) -> bool:
+    """True if every OHLC field is finite (no NaN / ±inf)."""
+    return (
+        math.isfinite(candle.open)
+        and math.isfinite(candle.high)
+        and math.isfinite(candle.low)
+        and math.isfinite(candle.close)
+    )
 
 
 class SmcSignalDetector:
@@ -117,13 +128,24 @@ class SmcSignalDetector:
         # Extend all box right edges (time marches forward)
         self.box_manager.extend_right_edges(candle.bar_index)
 
-        # Check for breaches (mitigation)
+        # Check for breaches (mitigation) — check_mitigation guards NaN high/low.
         self._detect_mitigations(t)
 
-        # Detect core SMC patterns
-        self._detect_order_blocks(t, t1, t2)
-        self._detect_fair_value_gaps(t, t2)
-        self._detect_rejection_blocks(t, t1, t2)
+        # Non-finite OHLC anywhere in the 3-bar detection window would flow into
+        # the make_* factories and produce boxes with NaN bounds — silently
+        # invalid signals that never mitigate (``high > nan`` is always False).
+        # Skip core pattern creation for a corrupt window instead of emitting
+        # them. (The factories also reject non-finite inputs as a hard backstop.)
+        if _candle_ohlc_is_finite(t) and _candle_ohlc_is_finite(t1) and _candle_ohlc_is_finite(t2):
+            self._detect_order_blocks(t, t1, t2)
+            self._detect_fair_value_gaps(t, t2)
+            self._detect_rejection_blocks(t, t1, t2)
+        else:
+            logger.warning(
+                "Skipping SMC OB/FVG/RJB detection at bar %s: non-finite OHLC in "
+                "detection window (t/t1/t2)",
+                t.bar_index,
+            )
 
         # Detect advanced patterns (HVB, Broken Fractal, etc.)
         self._detect_advanced_patterns(t)

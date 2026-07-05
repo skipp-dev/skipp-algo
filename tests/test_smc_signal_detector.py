@@ -208,3 +208,51 @@ def test_max_boxes_eviction(detector: SmcSignalDetector) -> None:
     bullish = [b for b in active if b.direction == Direction.BULLISH]
     # Should have evicted oldest, keep only 2 newest
     assert len(bullish) <= 2
+
+
+class TestNonFiniteWindowGuard:
+    """Bug-hunt: a non-finite OHLC in the 3-bar detection window must not
+    produce boxes with NaN/inf bounds (silent, never-mitigating bad signals)."""
+
+    def test_nan_candle_creates_no_structure(self, caplog) -> None:
+        import logging
+        import math
+
+        det = SmcSignalDetector(max_boxes_per_direction=10)
+        # A bullish-OB-shaped sequence, but the previous bar's low is NaN — the
+        # exact arg (low_t1) that is_ob_up never guarded and make_ob_up consumes.
+        candles = [
+            Candle(bar_index=0, open=100.0, high=101.0, low=99.0, close=100.0, volume=1000),
+            Candle(bar_index=1, open=100.0, high=101.0, low=99.0, close=100.0, volume=1000),
+            Candle(bar_index=2, open=102.0, high=103.0, low=98.0, close=99.0, volume=1000),
+            Candle(bar_index=3, open=99.5, high=100.0, low=float("nan"), close=98.8, volume=1000),
+            Candle(bar_index=4, open=99.0, high=104.0, low=98.5, close=103.0, volume=2000),
+        ]
+        created = []
+        with caplog.at_level(
+            logging.WARNING, logger="services.live_overlay_daemon.smc_signal_detector"
+        ):
+            for c in candles:
+                created += [s for s in det.process_candle(c) if s.event_type == "created"]
+
+        # No created signal, and nothing active, carries non-finite bounds.
+        assert all(math.isfinite(s.box.top) and math.isfinite(s.box.bottom) for s in created)
+        assert all(
+            math.isfinite(b.top) and math.isfinite(b.bottom)
+            for b in det.get_active_structures()
+        )
+        # The corrupt window was surfaced, not silently swallowed.
+        assert any("non-finite OHLC" in r.getMessage() for r in caplog.records)
+
+    def test_detection_resumes_after_corrupt_candle(self) -> None:
+        det = SmcSignalDetector(max_boxes_per_direction=10)
+        # One corrupt candle, then a clean bullish-OB sequence well clear of it.
+        det.process_candle(Candle(bar_index=0, open=100.0, high=float("inf"), low=99.0, close=100.0, volume=0))
+        det.process_candle(Candle(bar_index=1, open=102.0, high=103.0, low=98.0, close=99.0, volume=1000))
+        det.process_candle(Candle(bar_index=2, open=99.5, high=100.0, low=98.5, close=98.8, volume=1000))
+        signals = det.process_candle(
+            Candle(bar_index=3, open=99.0, high=104.0, low=98.5, close=103.0, volume=2000)
+        )
+        ob = [s for s in signals if s.box_type == BoxType.ORDER_BLOCK and s.direction == Direction.BULLISH]
+        assert len(ob) == 1
+        assert ob[0].event_type == "created"
