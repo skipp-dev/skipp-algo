@@ -108,7 +108,7 @@ class SmcSignalDetector:
 
         # Need 2 prior candles for pattern detection
         if len(self.history) < 3:
-            return self.signals
+            return list(self.signals)
 
         t = self.history[-1]  # Current
         t1 = self.history[-2]  # -1 bar
@@ -128,7 +128,9 @@ class SmcSignalDetector:
         # Detect advanced patterns (HVB, Broken Fractal, etc.)
         self._detect_advanced_patterns(t)
 
-        return self.signals
+        # Return a copy: self.signals is cleared and reused on the next call,
+        # so handing out the internal list would mutate a prior caller's result.
+        return list(self.signals)
 
     def _detect_mitigations(self, t: Candle) -> None:
         """Scan all boxes for breach; emit 'mitigated' signals."""

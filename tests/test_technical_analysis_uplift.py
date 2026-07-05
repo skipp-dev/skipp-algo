@@ -743,3 +743,16 @@ def test_dataclass_default_factory_isolation() -> None:
     b = DataQualityResult(passed=False)
     a.issues.append("x")
     assert b.issues == []
+
+
+def test_safe_float_rejects_non_finite() -> None:
+    # Must match the sibling utils.to_float: ±inf, like NaN, collapses to the
+    # default so an inf OHLC value cannot poison EMA / slope / S-R features.
+    assert ta._safe_float(float("inf")) == 0.0
+    assert ta._safe_float(float("-inf")) == 0.0
+    assert ta._safe_float(float("nan")) == 0.0
+    assert ta._safe_float(float("inf"), default=1.5) == 1.5
+    # Finite values pass through unchanged.
+    assert ta._safe_float(3.5) == 3.5
+    assert ta._safe_float("42.0") == 42.0
+    assert ta._safe_float(None) == 0.0

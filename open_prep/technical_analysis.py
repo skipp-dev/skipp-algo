@@ -44,10 +44,10 @@ def _unit_scale(value: float | None, lower: float, upper: float, default: float 
 
 
 def _safe_float(v: Any, default: float = 0.0) -> float:
-    """Safely convert to float; NaN → default."""
+    """Safely convert to float; non-finite (NaN/±inf) → default."""
     try:
         f = float(v)
-        return default if math.isnan(f) else f
+        return f if math.isfinite(f) else default
     except (TypeError, ValueError):
         return default
 

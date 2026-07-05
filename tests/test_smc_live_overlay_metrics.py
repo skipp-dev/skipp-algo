@@ -2009,3 +2009,36 @@ def test_render_metrics_bridge_last_success_age_preserved_on_failure(
     assert gh_age_match is not None
     gh_age = float(gh_age_match.group(1))
     assert gh_age >= 590.0, f"github_workflow last_success_age too small: {gh_age}"
+
+
+def test_escape_label_value_neutralises_format_breakers() -> None:
+    import services.live_overlay_daemon.metrics as metrics_mod
+
+    esc = metrics_mod._escape_label_value
+    assert esc('svc"x') == 'svc\\"x'          # quote escaped
+    assert esc("a\\b") == "a\\\\b"            # backslash escaped
+    assert esc("a\nb") == "a b"               # newline neutralised
+    assert esc("a\rb") == "a b"               # carriage return neutralised (F4)
+
+
+def test_render_metrics_escapes_railway_service_id(monkeypatch: pytest.MonkeyPatch) -> None:
+    import services.live_overlay_daemon.metrics as metrics_mod
+    import services.live_overlay_daemon.railway_metrics as railway_metrics
+
+    _patch_common(monkeypatch, feed_ready=True, market_open=True, bar_count=10, overlay_symbols=5, overlay_age=60.0)
+    monkeypatch.setattr(
+        railway_metrics,
+        "snapshot",
+        lambda: {
+            "enabled": True,
+            "configured": True,
+            "ok": True,
+            "services": [{"service": "web", "service_id": 'svc"x', "cpu_cores": 0.5}],
+        },
+    )
+
+    body = metrics_mod.render_metrics(startup_ts=100.0)
+
+    # A raw quote in service_id would break the exposition format; it must be escaped.
+    assert 'service_id="svc\\"x"' in body
+    assert 'service_id="svc"x"' not in body
