@@ -496,7 +496,9 @@ frozen_major = "v7"
 "open_prep/scorer.py" = 3
 "open_prep/screen.py" = 1
 "open_prep/streamlit_monitor.py" = 10
-"open_prep/technical_analysis.py" = 4
+# 2026-07-05 (bug-hunt round 7): all 4 field-preference chains replaced with
+# is-None coalescing (validate_data_quality avg_volume/momentum_z/rel_vol +
+# GateTracker deficit value). File no longer has any chain → entry removed.
 "open_prep/trade_cards.py" = 1
 "scripts/credential_health_check.py" = 1
 "scripts/databento_production_export.py" = 1

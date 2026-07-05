@@ -360,6 +360,19 @@ def test_quote_delta_tracker_first_update_is_baseline() -> None:
     assert delta["streak"] == 0
 
 
+def test_quote_delta_tracker_backward_clock_clamps_poll_age() -> None:
+    # A backward wall-clock jump (NTP correction) between two polls must not
+    # persist a negative poll age. Seed the prior poll's epoch in the future,
+    # then update — poll_age must clamp to 0.0, matching the sibling metric.
+    import time
+
+    tracker = QuoteDeltaTracker()
+    tracker.update("AAPL", price=100.0, volume=1000)
+    tracker._prev["AAPL"]["epoch"] = time.time() + 1000.0
+    delta = tracker.update("AAPL", price=101.0, volume=1500)
+    assert delta["poll_age_s"] == 0.0
+
+
 def test_quote_delta_tracker_up_tick_streak_grows() -> None:
     tracker = QuoteDeltaTracker()
     tracker.update("AAPL", price=100.0, volume=1000)

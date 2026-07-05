@@ -19,6 +19,7 @@ from __future__ import annotations
 import argparse
 import json
 import logging
+import math
 import os
 import tempfile
 from datetime import date, datetime
@@ -201,7 +202,11 @@ def compute_pnl_from_bars(
     entry_price = float(open_bar["open"])
     exit_price = float(exit_bar["close"])
 
-    if entry_price <= 0:
+    # A non-finite entry/exit price (e.g. +inf/NaN from a corrupt bar) slips
+    # past a bare `<= 0` check and makes pnl_pct NaN, which would still be
+    # written as a normal-looking (e.g. profitable_30m=False) outcome. Reject
+    # so the record stays unresolved instead of being labelled with NaN.
+    if not (math.isfinite(entry_price) and math.isfinite(exit_price)) or entry_price <= 0:
         return None
 
     pnl_pct = round((exit_price - entry_price) / entry_price * 100, 4)
