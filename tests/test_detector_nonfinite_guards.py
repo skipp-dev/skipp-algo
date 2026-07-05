@@ -170,13 +170,17 @@ class TestStrongImpulseDetectorBoundaryGuards:
             target_3=103.0, confirmation_bars=0,
         )
 
-    def test_out_of_order_bar_clamps_confirmation_bars(self):
+    def test_out_of_order_bar_is_skipped_not_advanced(self):
         det = StrongImpulseDetector()
-        det.active_impulses[10] = self._armed_signal()
+        signal = self._armed_signal()
+        det.active_impulses[10] = signal
+        # A backward (out-of-order) bar confirms nothing: it must be skipped, not
+        # returned with a `max(0, …)`-clamped confirmation_bars.
         out = det.update_phase(bar_index=5, high=101.0, low=99.0, close=100.0)
-        assert out[0].confirmation_bars >= 0
-        # A backward bar advances nothing.
-        assert out[0].phase == ImpulsePhase.IGNITION
+        assert out == []
+        # The signal's own state is left untouched.
+        assert signal.phase == ImpulsePhase.IGNITION
+        assert signal.confirmation_bars == 0
 
     @pytest.mark.parametrize(
         "bad_atr", [-5.0, 0.0, float("nan"), float("inf"), float("-inf")]

@@ -5749,10 +5749,11 @@
       },
       "fieldConfig": {
         "defaults": {
-          "unit": "gbytes",
+          "unit": "decgbytes",
           "custom": {
             "drawStyle": "line",
-            "lineInterpolation": "linear"
+            "lineInterpolation": "linear",
+            "axisLabel": "GB"
           },
           "noValue": "NO DISK DATA"
         },
@@ -5794,10 +5795,11 @@
       },
       "fieldConfig": {
         "defaults": {
-          "unit": "gbytes",
+          "unit": "decgbytes",
           "custom": {
             "drawStyle": "line",
-            "lineInterpolation": "linear"
+            "lineInterpolation": "linear",
+            "axisLabel": "GB"
           }
         },
         "overrides": []
@@ -5838,10 +5840,11 @@
       },
       "fieldConfig": {
         "defaults": {
-          "unit": "gbytes",
+          "unit": "decgbytes",
           "custom": {
             "drawStyle": "line",
-            "lineInterpolation": "linear"
+            "lineInterpolation": "linear",
+            "axisLabel": "GB"
           }
         },
         "overrides": []
@@ -5882,10 +5885,11 @@
       },
       "fieldConfig": {
         "defaults": {
-          "unit": "gbytes",
+          "unit": "decgbytes",
           "custom": {
             "drawStyle": "line",
-            "lineInterpolation": "linear"
+            "lineInterpolation": "linear",
+            "axisLabel": "GB"
           }
         },
         "overrides": []
