@@ -907,6 +907,44 @@ test("sign-in body text still marks anonymous when probe is not authenticated", 
   assert.equal(state.reason, "signin_signals_visible");
 });
 
+test("is-authenticated HTML class wins over fuzzy sign-in body text", () => {
+  // Regression: an authenticated page carrying the explicit `is-authenticated`
+  // class often also contains fuzzy sign-in words ("Email notifications", a
+  // footer "Sign in to sync" promo). The explicit class must not be overridden
+  // by that heuristic — mirroring the protection the positive probe already has.
+  const state = resolveTradingViewPageAuthState({
+    url: "https://www.tradingview.com/chart/",
+    htmlClass: "is-authenticated theme-light",
+    bodyText: "Sign in  Email  Password",
+    accountProbeStatuses: [],
+    accountProbeAuthenticated: false,
+    accountProbeAnonymous: false,
+  });
+
+  assert.equal(state.authenticated, true);
+  assert.equal(state.explicitlyAnonymous, false);
+  assert.equal(state.reason, "html_class_is_authenticated");
+});
+
+test("live rejected account probe still wins over a stale is-authenticated class", () => {
+  // Deliberate precedence: a live 401/403 from /user/profile/me is authoritative
+  // and current, so it outranks a possibly-stale `is-authenticated` HTML class
+  // (e.g. an expired session on a not-yet-refreshed page). Only the fuzzy
+  // body-text heuristic is gated on the class, NOT the probe-anonymous term.
+  const state = resolveTradingViewPageAuthState({
+    url: "https://www.tradingview.com/chart/",
+    htmlClass: "is-authenticated theme-light",
+    bodyText: "AAPL chart",
+    accountProbeStatuses: [401],
+    accountProbeAuthenticated: false,
+    accountProbeAnonymous: true,
+  });
+
+  assert.equal(state.authenticated, false);
+  assert.equal(state.explicitlyAnonymous, true);
+  assert.equal(state.reason, "account_probe_rejected:401");
+});
+
 test("TradingView page auth probe emits trace status monitoring", async () => {
   const browser = await chromium.launch({ headless: true });
   const messages: string[] = [];
