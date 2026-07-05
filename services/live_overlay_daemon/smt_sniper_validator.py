@@ -13,6 +13,7 @@ Based on: "SMT Sniper Entry Engine [trade_w_samet]" TradingView indicator
 from __future__ import annotations
 
 import logging
+import math
 from dataclasses import dataclass
 
 logger = logging.getLogger(__name__)
@@ -339,9 +340,15 @@ class SmtSniperValidator:
 
         # Step 5: Build signal with risk management
         entry_price = close
-        stop_loss = sweep.sweep_price - atr
+        # A non-finite or non-positive ATR (a corrupt feed value) would place
+        # the stop on the WRONG side of the sweep — a long stop ABOVE
+        # sweep_price — or make it NaN/inf, which then poisons distance_to_sl
+        # and every take-profit below. Clamp the ATR buffer to zero, matching
+        # the `atr > 0 else 0` guard used for depth_atr in SweepDetector.detect.
+        atr_buffer = atr if (math.isfinite(atr) and atr > 0) else 0.0
+        stop_loss = sweep.sweep_price - atr_buffer
         if signal_direction == "short":
-            stop_loss = sweep.sweep_price + atr
+            stop_loss = sweep.sweep_price + atr_buffer
 
         distance_to_sl = abs(entry_price - stop_loss)
         tp1 = entry_price + (distance_to_sl * 1.5) if signal_direction == "long" else entry_price - (

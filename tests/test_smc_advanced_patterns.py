@@ -224,6 +224,68 @@ class TestLiquidityClusterDetector:
         if clusters:
             assert clusters[0].risk_level == "high"  # Very close = high risk
 
+    def test_negative_atr_does_not_produce_inverted_zone(self):
+        """A negative ATR must not invert zones (zone_top < zone_bottom)."""
+        detector = LiquidityClusterDetector(
+            cluster_distance_atr=1.0, min_confluences=1
+        )
+
+        clusters = detector.detect_clusters(
+            swing_highs=[100.0],
+            swing_lows=[],
+            current_price=100.0,
+            atr=-2.0,
+        )
+
+        # Degenerate volatility -> no clusters, and never an inverted zone.
+        assert clusters == []
+
+    def test_non_finite_atr_yields_no_clusters(self):
+        """NaN/inf ATR must not produce NaN/±inf zone bounds."""
+        detector = LiquidityClusterDetector(
+            cluster_distance_atr=0.5, min_confluences=1
+        )
+
+        for bad_atr in (float("nan"), float("inf"), float("-inf")):
+            clusters = detector.detect_clusters(
+                swing_highs=[100.0, 100.2],
+                swing_lows=[],
+                current_price=100.0,
+                atr=bad_atr,
+            )
+            assert clusters == []
+
+    def test_zero_atr_yields_no_clusters(self):
+        """Zero volatility is degenerate: no meaningful (zero-width) clusters."""
+        detector = LiquidityClusterDetector(
+            cluster_distance_atr=0.5, min_confluences=1
+        )
+
+        clusters = detector.detect_clusters(
+            swing_highs=[100.0, 100.0],
+            swing_lows=[],
+            current_price=100.0,
+            atr=0.0,
+        )
+        assert clusters == []
+
+    def test_positive_atr_zone_invariant_holds(self):
+        """Sanity: a valid ATR still yields zone_top >= zone_bottom."""
+        detector = LiquidityClusterDetector(
+            cluster_distance_atr=0.5, min_confluences=2
+        )
+
+        clusters = detector.detect_clusters(
+            swing_highs=[110.0, 110.5],
+            swing_lows=[],
+            current_price=100.0,
+            atr=10.0,
+        )
+        assert clusters
+        for cluster in clusters:
+            assert cluster.zone_top >= cluster.zone_bottom
+            assert cluster.zone_width >= 0
+
 
 class TestBrokenFractalDetector:
     """Test Broken Fractal pattern detection."""

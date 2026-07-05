@@ -311,12 +311,23 @@ export function resolveTradingViewPageAuthState(evidence: TradingViewPageAuthEvi
 export async function collectTradingViewPageAuthState(page: Page): Promise<TradingViewPageAuthState> {
   // Fail-soft like the probe evaluate below: a crashed page / destroyed
   // execution context must yield a controlled "no evidence" state instead
-  // of throwing out of the auth probe and aborting recovery loops.
+  // of throwing out of the auth probe and aborting recovery loops. But the
+  // failure must NOT be swallowed silently: empty evidence resolves to
+  // `no_positive_auth_evidence`, indistinguishable from a real logout, so a
+  // distinct trace event is emitted to let operators (and recovery loops) tell
+  // a crashed context — "reload the page" — apart from "re-login".
   const pageEvidence = await page.evaluate(() => ({
     url: location.href,
     htmlClass: String(document.documentElement?.className || ""),
     bodyText: String(document.body?.innerText || "").replace(/\s+/g, " ").trim().slice(0, 2_000),
-  })).catch(() => ({ url: "", htmlClass: "", bodyText: "" }));
+  })).catch((error: unknown) => {
+    tracePageEvent(
+      page,
+      "auth-state-probe-eval-failed",
+      error instanceof Error ? error.message : String(error),
+    );
+    return { url: "", htmlClass: "", bodyText: "" };
+  });
 
   const probeEndpoints = [
     "/api/v1/user/profile/me/",
@@ -338,7 +349,17 @@ export async function collectTradingViewPageAuthState(page: Page): Promise<Tradi
       }
     }
     return results;
-  }, probeEndpoints).catch(() => []);
+  }, probeEndpoints).catch((error: unknown) => {
+    // Same rationale as the evidence probe above: a rejected account probe
+    // must be visible, not silently degraded to an empty status list that
+    // looks identical to a page that genuinely returned no probe results.
+    tracePageEvent(
+      page,
+      "auth-state-probe-fetch-failed",
+      error instanceof Error ? error.message : String(error),
+    );
+    return [];
+  });
 
   const accountProbeStatuses = probeResults.map((result) => result.status);
   const accountProbeAuthenticated = probeResults.some((result) => result.status >= 200 && result.status < 300);
@@ -2970,7 +2991,18 @@ async function collectVisibleOverlayTextSnippets(page: Page, timeoutMs = 500): P
 async function getVisibleCompileErrorDetails(page: Page, timeoutMs = 500): Promise<string | null> {
   const compileDialog = await findVisibleDialogByText(page, /compilation error|cannot compile due to an error|view error/i, timeoutMs);
   if (!compileDialog) {
-    const bodyText = normalizeUiText((await page.locator("body").innerText().catch(() => "")) || "");
+    const bodyText = normalizeUiText((await page.locator("body").innerText().catch((error: unknown) => {
+      // Same fail-open hazard as getVisibleCompileErrorMarker: a crashed
+      // context makes the body unreadable -> "" -> null ("no details"), which
+      // is silently downgraded to a generic "Could not open publish flow"
+      // error, losing the compile-error attribution. Trace the crash.
+      tracePageEvent(
+        page,
+        "compile-error-details-body-read-failed",
+        error instanceof Error ? error.message : String(error),
+      );
+      return "";
+    })) || "");
     if (!bodyText) {
       return null;
     }
@@ -6111,7 +6143,19 @@ export async function saveScript(page: Page, scriptName: string): Promise<void> 
 }
 
 async function getVisibleCompileErrorMarker(page: Page): Promise<string | null> {
-  const bodyText = normalizeUiText((await page.locator("body").innerText().catch(() => "")) || "").toLowerCase();
+  const bodyText = normalizeUiText((await page.locator("body").innerText().catch((error: unknown) => {
+    // Fail-OPEN hazard: a crashed/destroyed context makes the body unreadable,
+    // and an empty read matches no marker below -> null -> "no compile error".
+    // assertNoVisibleCompileError / waitForPostSaveCompileSettlement then treat
+    // a crashed page as a clean compile. Emit a trace so the crash is visible
+    // instead of being silently reported as success.
+    tracePageEvent(
+      page,
+      "compile-error-marker-body-read-failed",
+      error instanceof Error ? error.message : String(error),
+    );
+    return "";
+  })) || "").toLowerCase();
 
   const markers = [
     "syntax error",
