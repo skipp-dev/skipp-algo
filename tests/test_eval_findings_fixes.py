@@ -111,6 +111,18 @@ class TestBbWidthFromBars:
     def test_non_positive_middle_returns_none(self) -> None:
         assert compute_bb_width_pct_from_bars(_make_bars([0.0] * 25)) is None
 
+    def test_extreme_close_fails_closed_not_overflow(self) -> None:
+        # A single extreme close overflows `(c - middle) ** 2` (OverflowError);
+        # many large closes make the sum of squares +inf. `_safe_float` only
+        # coerces NaN/±inf, not extreme finite values, so both must fail-closed
+        # to None — never crash or return a non-finite width.
+        single = _make_bars([0.0] * 19 + [1.5e154])
+        assert compute_bb_width_pct_from_bars(single) is None
+        # Each close is < 1e154 (a per-close bound would pass), yet the sum of
+        # squared deviations overflows to +inf.
+        multi = _make_bars([0.0] * 10 + [0.9e154] * 10)
+        assert compute_bb_width_pct_from_bars(multi) is None
+
 
 # ── C4: gap_range_pos ───────────────────────────────────────────────────────
 

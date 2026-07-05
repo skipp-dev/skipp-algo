@@ -279,9 +279,20 @@ def compute_bb_width_pct_from_bars(
     middle = sum(closes) / period
     if middle <= 0:
         return None
-    variance = sum((c - middle) ** 2 for c in closes) / period
-    std = variance ** 0.5
-    return round((2.0 * num_std * std) / middle * 100.0, 4)
+    # Closes of extreme magnitude (corrupt feed data) overflow the float range
+    # in the squared-deviation sum: a single term raises OverflowError, and many
+    # large terms sum to +inf. `_safe_float` only coerces NaN/±inf, not extreme
+    # finite values, so guard both paths and fail-closed instead of crashing or
+    # returning a non-finite width. (A per-close magnitude bound is insufficient:
+    # closes individually under the threshold can still sum to overflow.)
+    try:
+        variance = sum((c - middle) ** 2 for c in closes) / period
+    except OverflowError:
+        return None
+    width = (2.0 * num_std * variance ** 0.5) / middle * 100.0
+    if not math.isfinite(width):
+        return None
+    return round(width, 4)
 
 
 def compute_gap_range_position(
