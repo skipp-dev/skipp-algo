@@ -413,13 +413,16 @@ export const tvSelectors = {
   publishContinue(page: Page): Locator[] {
     const surface = publishSurface(page);
 
+    // Tolerate a trailing stepper glyph ("Continue →"/"Continue ›") — this
+    // group has no substring/attribute fallback, so an anchored bare-word regex
+    // would miss every branch. `[^a-z0-9]` still rejects "Continue editing".
     return [
-      surface.getByRole("button", { name: /^continue$/i }).last(),
-      surface.getByText(/^continue$/i).last(),
-      page.locator('#overlap-manager-root').getByRole("button", { name: /^continue$/i }).last(),
-      page.locator('#overlap-manager-root button').filter({ hasText: /^continue$/i }).last(),
-      page.locator('#overlap-manager-root [role="button"]').filter({ hasText: /^continue$/i }).last(),
-      page.locator('#overlap-manager-root').getByText(/^continue$/i).last(),
+      surface.getByRole("button", { name: /^[^a-z0-9]*continue[^a-z0-9]*$/i }).last(),
+      surface.getByText(/^[^a-z0-9]*continue[^a-z0-9]*$/i).last(),
+      page.locator('#overlap-manager-root').getByRole("button", { name: /^[^a-z0-9]*continue[^a-z0-9]*$/i }).last(),
+      page.locator('#overlap-manager-root button').filter({ hasText: /^[^a-z0-9]*continue[^a-z0-9]*$/i }).last(),
+      page.locator('#overlap-manager-root [role="button"]').filter({ hasText: /^[^a-z0-9]*continue[^a-z0-9]*$/i }).last(),
+      page.locator('#overlap-manager-root').getByText(/^[^a-z0-9]*continue[^a-z0-9]*$/i).last(),
     ];
   },
 
@@ -489,15 +492,19 @@ export const tvSelectors = {
   },
 
   settingsAction(page: Page): Locator[] {
+    // The text regexes tolerate a leading/trailing gear glyph, emoji, arrow or
+    // "..." ("⚙ Settings") — anchoring only on the bare word would miss the
+    // menuitem/role-button branches that lack an aria-label/title/has-text
+    // fallback. `[^a-z0-9]` still rejects phrases like "Chart Settings".
     return [
-      page.locator('[role="menu"] [role="menuitem"]').filter({ hasText: /^settings(\.\.\.)?$/i }),
-      page.locator('[role="menu"] [role="button"]').filter({ hasText: /^settings(\.\.\.)?$/i }),
+      page.locator('[role="menu"] [role="menuitem"]').filter({ hasText: /^[^a-z0-9]*settings[^a-z0-9]*$/i }),
+      page.locator('[role="menu"] [role="button"]').filter({ hasText: /^[^a-z0-9]*settings[^a-z0-9]*$/i }),
       page.locator('[role="menu"] [role="button"][aria-label="Settings"]'),
       page.locator('[role="menu"] button[title="Settings"]'),
       page.locator('[role="menu"] button[title^="Settings" i]'),
       page.locator('[role="menu"] button:has-text("Settings")'),
-      page.locator('[data-name*="menu" i]').getByText(/^settings(\.\.\.)?$/i),
-      page.locator('[role="menu"]').getByText(/^settings(\.\.\.)?$/i),
+      page.locator('[data-name*="menu" i]').getByText(/^[^a-z0-9]*settings[^a-z0-9]*$/i),
+      page.locator('[role="menu"]').getByText(/^[^a-z0-9]*settings[^a-z0-9]*$/i),
     ];
   },
 
