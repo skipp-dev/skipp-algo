@@ -4273,6 +4273,18 @@ class TestB10MixedDateSorting(unittest.TestCase):
             f"z={val!r}: expected chronological sort placing spike last (z > 1.0)",
         )
 
+    def test_momentum_z_score_extreme_close_fails_soft_not_overflow(self):
+        # A corrupt-but-finite extreme close passes the `isfinite and > 0`
+        # filter, produces an extreme return, and its squared deviation
+        # overflows the float range inside the variance sum. That raises
+        # OverflowError *before* the isfinite guards, which would crash the
+        # daily momentum computation. It must fail-soft to a neutral z=0.0.
+        candles = [{"date": f"2024-01-{d:02d}", "close": 100.0 + d} for d in range(1, 12)]
+        candles.append({"date": "2024-02-01", "close": 1e300})  # corrupt spike
+        val = run_open_prep._momentum_z_score_from_eod(candles, period=50)
+        self.assertEqual(val, 0.0)
+        self.assertTrue(math.isfinite(val))
+
 
 class ComputeHitRatesPnlFallbackTest(unittest.TestCase):
     """WP-4: an explicit null in pnl_30m_pct_signed must fall through to the
