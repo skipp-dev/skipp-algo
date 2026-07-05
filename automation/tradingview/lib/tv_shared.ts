@@ -6161,21 +6161,34 @@ export async function saveScript(page: Page, scriptName: string): Promise<void> 
   });
 }
 
-async function getVisibleCompileErrorMarker(page: Page): Promise<string | null> {
-  const bodyText = normalizeUiText((await page.locator("body").innerText().catch((error: unknown) => {
-    // Fail-OPEN hazard: a crashed/destroyed context makes the body unreadable,
-    // and an empty read matches no marker below -> null -> "no compile error".
-    // assertNoVisibleCompileError / waitForPostSaveCompileSettlement then treat
-    // a crashed page as a clean compile. Emit a trace so the crash is visible
-    // instead of being silently reported as success.
+// Returned when the page body cannot be read at all (crashed/destroyed
+// context). Lets callers distinguish "readable, no compile-error marker
+// present" (-> null) from "could not check" (-> this sentinel). A caller that
+// gates on a clean compile MUST treat unreadable as a probe failure, never as
+// a clean result — otherwise a crashed page reads as a successful compile.
+const COMPILE_PROBE_UNREADABLE = Symbol("compile-probe-unreadable");
+
+async function getVisibleCompileErrorMarker(
+  page: Page,
+): Promise<string | typeof COMPILE_PROBE_UNREADABLE | null> {
+  let bodyUnreadable = false;
+  const rawBody = await page.locator("body").innerText().catch((error: unknown) => {
+    // A crashed/destroyed context makes the body unreadable. Trace it, and
+    // signal the crash via the sentinel below so it is never conflated with a
+    // genuinely clean compile.
     tracePageEvent(
       page,
       "compile-error-marker-body-read-failed",
       error instanceof Error ? error.message : String(error),
     );
+    bodyUnreadable = true;
     return "";
-  })) || "").toLowerCase();
+  });
+  if (bodyUnreadable) {
+    return COMPILE_PROBE_UNREADABLE;
+  }
 
+  const bodyText = normalizeUiText(rawBody || "").toLowerCase();
   const markers = [
     "syntax error",
     "compilation error",
@@ -6189,6 +6202,19 @@ async function getVisibleCompileErrorMarker(page: Page): Promise<string | null> 
   return markers.find((marker) => bodyText.includes(marker)) ?? null;
 }
 
+/**
+ * Waits (up to ~7s) for the post-save "Save script" dialog to close and throws
+ * if a real compile-error *marker string* becomes visible while the compile
+ * settles.
+ *
+ * NOT a hard compile gate. This is a settling **poller**: an unreadable body
+ * (crashed/destroyed context) is deliberately non-blocking — it can be a
+ * transient mid-poll blip — so this function returns normally if the body stays
+ * unreadable through the timeout. Callers that need an actual compile
+ * *decision* MUST call {@link assertNoVisibleCompileError} immediately after;
+ * that is the authoritative gate and it fails closed on an unreadable body.
+ * Every current caller (`tv_publish_*`, `tv_preflight`) already pairs the two.
+ */
 export async function waitForPostSaveCompileSettlement(page: Page, scriptName: string): Promise<void> {
   await runTrackedStep(page, `waitForPostSaveCompileSettlement:${scriptName}`, async () => {
     const timeoutMs = 7_000;
@@ -6203,7 +6229,10 @@ export async function waitForPostSaveCompileSettlement(page: Page, scriptName: s
       }
 
       const compileErrorMarker = await getVisibleCompileErrorMarker(page);
-      if (compileErrorMarker) {
+      // Only a real marker string is a compile error. UNREADABLE (a crashed
+      // read) stays non-blocking here — keep polling — per the round-6 decision
+      // that a transient read failure must not spuriously fail a save.
+      if (typeof compileErrorMarker === "string") {
         throw new Error(`Visible compile error detected after save for ${scriptName}: ${compileErrorMarker}`);
       }
 
@@ -6211,7 +6240,7 @@ export async function waitForPostSaveCompileSettlement(page: Page, scriptName: s
     }
 
     const finalCompileErrorMarker = await getVisibleCompileErrorMarker(page);
-    if (finalCompileErrorMarker) {
+    if (typeof finalCompileErrorMarker === "string") {
       throw new Error(`Visible compile error detected after save for ${scriptName}: ${finalCompileErrorMarker}`);
     }
   });
@@ -6219,8 +6248,19 @@ export async function waitForPostSaveCompileSettlement(page: Page, scriptName: s
 
 export async function assertNoVisibleCompileError(page: Page): Promise<void> {
   const hit = await getVisibleCompileErrorMarker(page);
-  if (hit) {
+  if (typeof hit === "string") {
     throw new Error(`Visible compile error detected: ${hit}`);
+  }
+  // This is a HARD compile gate: every caller (tv_publish_*, tv_preflight
+  // mutating path) treats a non-throw as "compile clean" and proceeds to
+  // publish. An unreadable body (crashed/destroyed context) is NOT a clean
+  // compile — it is an unknown compile state — so it must fail CLOSED here and
+  // abort the publish, rather than being silently read as success.
+  // (waitForPostSaveCompileSettlement, which polls, keeps the UNREADABLE case
+  // non-blocking on purpose; this assertion is always run right after it as the
+  // authoritative final gate.)
+  if (hit === COMPILE_PROBE_UNREADABLE) {
+    throw new Error("Visible compile error check failed: page body is unreadable (crashed/destroyed context)");
   }
 }
 
@@ -6652,7 +6692,12 @@ export async function probeRuntimeSmoke(
 }> {
   const scriptVisible = await isScriptVisibleOnChartSurface(page, scriptName).catch(() => false);
   const signInModalVisible = await isSignInModalVisible(page).catch(() => false);
-  const compileError = await getVisibleCompileErrorMarker(page).catch(() => "runtime_smoke_probe_failed");
+  // getVisibleCompileErrorMarker is fail-soft (never throws), so the .catch is
+  // only a defensive backstop. The real crash signal is the UNREADABLE
+  // sentinel: map it to a probe-failure value so a crashed body read fails the
+  // smoke gate CLOSED instead of masquerading as a clean compile (`null`).
+  const compileMarker = await getVisibleCompileErrorMarker(page).catch(() => "runtime_smoke_probe_failed" as const);
+  const compileError = compileMarker === COMPILE_PROBE_UNREADABLE ? "runtime_smoke_probe_failed" : compileMarker;
 
   return {
     ok: scriptVisible && !signInModalVisible && !compileError,
