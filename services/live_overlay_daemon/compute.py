@@ -639,6 +639,23 @@ def _fetch_experiment_url(
         return None
 
 
+def _history_sort_key(row: dict[str, Any]) -> tuple[int, float, str]:
+    """Chronological sort key for a Plan 2.8 history row.
+
+    ``captured_at`` is normally an ISO-8601 string (which sorts chronologically
+    as text), but the parser also tolerates a numeric Unix timestamp — and a
+    plain ``str()`` key would order those lexically (``"1000"`` before ``"99"``),
+    breaking chronology and the ``max_days`` tail-slice retention. Numeric
+    timestamps therefore sort by value; everything else keeps sorting as text.
+    """
+    captured_at = row.get("captured_at", "")
+    if isinstance(captured_at, (int, float)) and not isinstance(captured_at, bool):
+        ts = float(captured_at)
+        if math.isfinite(ts):
+            return (0, ts, "")
+    return (1, 0.0, str(captured_at))
+
+
 def _parse_history_lines(text: str, max_days: int) -> list[dict[str, Any]]:
     """Parse a Plan 2.8 history JSONL body into the most recent per-day dicts.
 
@@ -658,7 +675,7 @@ def _parse_history_lines(text: str, max_days: int) -> list[dict[str, Any]]:
             rows.append(obj)
     # JSONL is append-ordered, but sort defensively on captured_at so a backfill
     # line interleaved out of order still renders chronologically.
-    rows.sort(key=lambda r: str(r.get("captured_at", "")))
+    rows.sort(key=_history_sort_key)
     if max_days > 0 and len(rows) > max_days:
         rows = rows[-max_days:]
     return rows
