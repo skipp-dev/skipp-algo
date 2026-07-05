@@ -85,7 +85,6 @@ float take_profit_price = na
 if use_take_profit and risk_levels_ok
     take_profit_price := src_trigger + risk_per_unit * take_profit_r
 
-var float active_entry_stop = na
 var float active_invalidation = na
 var float active_take_profit = na
 
@@ -103,7 +102,6 @@ if strategy.position_size <= 0
         strategy.cancel("L Exit")
 
 if strategy.position_size > 0 and strategy.position_size[1] <= 0
-    active_entry_stop := src_trigger
     active_invalidation := src_invalidation
     active_take_profit := use_take_profit ? take_profit_price : na
 
@@ -113,7 +111,6 @@ if strategy.position_size > 0
     if not na(exit_stop)
         strategy.exit("L Exit", "L", stop = exit_stop, limit = exit_limit)
 else
-    active_entry_stop := na
     active_invalidation := na
     active_take_profit := na
 

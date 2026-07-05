@@ -1694,7 +1694,7 @@ resolve_long_overhead_alert_text(bool use_overhead_zone_filter, float headroom_t
     string overhead_text = 'off'
     if use_overhead_zone_filter
         overhead_text := 'clear'
-        if not na(headroom_to_overhead) and not na(planned_risk)
+        if not na(headroom_to_overhead) and not na(planned_risk) and planned_risk != 0
             overhead_text := str.tostring(headroom_to_overhead / planned_risk, '#.##') + 'R'
     overhead_text
 
@@ -2073,7 +2073,7 @@ method update(FVG this) =>
             if this.fill_current_level > fill_src
                 this.filled := this.fill_target_level > fill_src
                 this.fill_current_level := math.min(this.fill_current_level, fill_src)
-                this.fill_current_ratio := (this.left_top.price - this.fill_current_level) / (this.left_top.price - this.right_bottom.price)
+                this.fill_current_ratio := (this.left_top.price - this.fill_current_level) / math.max(this.left_top.price - this.right_bottom.price, syminfo.mintick)
                 if this.filled
                     this.fill_time := time_close
                     this.fill_index := bar_index + 1
@@ -2085,7 +2085,7 @@ method update(FVG this) =>
             if this.fill_current_level < fill_src
                 this.filled := this.fill_target_level < fill_src
                 this.fill_current_level := math.max(this.fill_current_level, fill_src)
-                this.fill_current_ratio := (this.fill_current_level - this.right_bottom.price) / (this.left_top.price - this.right_bottom.price)
+                this.fill_current_ratio := (this.fill_current_level - this.right_bottom.price) / math.max(this.left_top.price - this.right_bottom.price, syminfo.mintick)
                 if this.filled
                     this.fill_time := time_close
                     this.fill_index := bar_index + 1
