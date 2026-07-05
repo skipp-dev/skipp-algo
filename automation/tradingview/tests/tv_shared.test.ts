@@ -7,6 +7,7 @@ import { chromium, type Page } from "playwright";
 
 import {
   assertNoVisibleCompileError,
+  probeRuntimeSmoke,
   buildScriptNamePatterns,
   collectTradingViewPageAuthState,
   countOrderedCodeBlockOccurrences,
@@ -1887,5 +1888,27 @@ test("assertNoVisibleCompileError traces a crashed body read instead of silently
     );
   } finally {
     capture.restore();
+  }
+});
+
+test("probeRuntimeSmoke fails closed on a crashed compile probe instead of reporting a clean compile (bug-hunt r7)", async () => {
+  // #3168 made getVisibleCompileErrorMarker trace a crashed body read but still
+  // return the "no marker" value, so probeRuntimeSmoke reported `compileError:
+  // null` — a fail-OPEN: a crashed page reads as a clean compile, and if the
+  // script happens to be visible the smoke gate passes. The compile field must
+  // now carry the probe-failure sentinel value.
+  const browser = await chromium.launch({ headless: true });
+  try {
+    const page = await browser.newPage();
+    // Destroyed execution context: the compile-marker body read rejects, which
+    // getVisibleCompileErrorMarker now reports as unreadable rather than clean.
+    await page.close();
+
+    const result = await probeRuntimeSmoke(page, "SMC Core");
+
+    assert.equal(result.compileError, "runtime_smoke_probe_failed");
+    assert.equal(result.ok, false);
+  } finally {
+    await browser.close();
   }
 });
