@@ -2129,7 +2129,7 @@ def _enrich_symbol_sectors_from_profiles(
         # Use enriched gap_pct (set by apply_gap_mode_to_quotes) if available,
         # fall back to raw changesPercentage from the quote.
         gap = abs(_to_float(
-            q.get("gap_pct") or q.get("changesPercentage"),
+            q.get("gap_pct", q.get("changesPercentage")),
             default=0.0,
         ))
         if gap >= _MIN_GAP_FOR_SECTOR_LOOKUP:
@@ -5520,7 +5520,7 @@ def generate_open_prep_result(
             if not sec:
                 continue
             chg = _to_float(
-                q.get("changesPercentage") or q.get("changePercentage") or q.get("gap_pct"),
+                q.get("changesPercentage", q.get("changePercentage", q.get("gap_pct"))),
                 default=0.0,
             )
             _sector_sums[sec] = _sector_sums.get(sec, 0.0) + chg

@@ -98,7 +98,7 @@ def _derive_regime(df: pd.DataFrame, result: dict[str, Any]) -> dict[str, Any]:
     if not {"high", "low", "close"}.issubset(df.columns):
         return result
 
-    df = df.dropna(subset=["high", "low", "close"]).reset_index(drop=True)
+    df = df.replace([np.inf, -np.inf], np.nan).dropna(subset=["high", "low", "close"]).reset_index(drop=True)
     if len(df) < 3:
         return result
 

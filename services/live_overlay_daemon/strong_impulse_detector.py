@@ -345,6 +345,16 @@ class StrongImpulseDetector:
         """
         self._prune_stale_impulses(bar_index)
 
+        # A non-finite or non-positive ATR is degenerate volatility. The
+        # propulsion ATR-displacement factor would silently zero (masking the
+        # corruption), yet a signal could still clear the threshold from its
+        # remaining factors on top of a zero-buffer stop. Reject at the boundary
+        # rather than emit an impulse on unusable volatility. (The `atr > 0`
+        # guard inside PropulsionStrengthScorer.calculate stays as defense in
+        # depth for direct scorer calls.)
+        if not (math.isfinite(atr) and atr > 0):
+            return None
+
         # Step 1: Detect ignition candle
         ignition = self.ignition_detector.detect(
             bar_index=bar_index,
@@ -432,7 +442,11 @@ class StrongImpulseDetector:
         updated_signals = []
 
         for pulse_bar, signal in list(self.active_impulses.items()):
-            bars_since = bar_index - pulse_bar
+            # An out-of-order (smaller) or duplicate bar_index would make this
+            # negative, storing a negative confirmation_bars count and — since
+            # a backward bar confirms nothing — it must not advance any phase.
+            # Clamp to >= 0.
+            bars_since = max(0, bar_index - pulse_bar)
 
             # An out-of-order bar (bar_index < the ignition bar — e.g. a
             # reconnect, backfill, or duplicate feed) must not drive the phase

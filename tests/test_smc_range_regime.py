@@ -15,6 +15,8 @@
 """
 from __future__ import annotations
 
+import math
+
 import pandas as pd
 
 from scripts.smc_range_regime import DEFAULTS, build_range_regime
@@ -116,6 +118,20 @@ class TestNoneInputs:
         df = pd.DataFrame({"open": [1, 2], "high": [2, 3], "low": [0, 1], "close": [1, 2]})
         result = build_range_regime(snapshot=df)
         assert result == DEFAULTS
+
+    def test_non_finite_bar_is_dropped(self):
+        # `.astype(float)` does not strip ±inf (dropna only removes NaN), so an
+        # inf high produced a NaN RANGE_WIDTH_PCT / inf RANGE_HIGH. The inf row
+        # must be dropped before the range computation.
+        df = pd.DataFrame({
+            "open":  [100, 102, 104, 106, 108, 110, 112, 114, 116, 118],
+            "high":  [102, 104, float("inf"), 108, 110, 112, 114, 116, 118, 120],
+            "low":   [99, 101, 103, 105, 107, 109, 111, 113, 115, 117],
+            "close": [101, 103, 105, 107, 109, 111, 113, 115, 117, 119],
+        })
+        result = build_range_regime(snapshot=df)
+        assert math.isfinite(result["RANGE_HIGH"])
+        assert math.isfinite(result["RANGE_WIDTH_PCT"])
 
 
 class TestTrendingRegime:

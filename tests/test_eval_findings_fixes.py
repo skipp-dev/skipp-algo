@@ -139,6 +139,47 @@ class TestGapRangePosition:
         assert compute_gap_range_position(bars, 101.0) is None
 
 
+class TestBareFloatNonFiniteGuards:
+    """The compute_* indicators read OHLC via bare float() rather than the
+    module's _safe_float convention, so a +inf/NaN bar produced a NaN/misleading
+    persisted feature. They now coerce non-finite inputs to 0.0 (via _safe_float)
+    or fail-closed."""
+
+    def test_bb_width_ignores_non_finite_close(self) -> None:
+        bars = _make_bars([100.0] * 25)
+        bars[10]["close"] = float("inf")
+        w = compute_bb_width_pct_from_bars(bars)
+        assert w is None or math.isfinite(w)
+
+    def test_adx_fails_closed_on_missing_or_nonfinite_price(self) -> None:
+        # A missing/non-finite price is coerced to 0.0 by _safe_float; the ADX
+        # math has no downstream non-positive guard (unlike gap/bb), so the
+        # injected 0.0 would otherwise yield a distorted extreme ADX. Fail-closed.
+        for bad in (float("nan"), float("inf"), float("-inf"), None):
+            bars = _make_bars([100.0 + i for i in range(40)])
+            bars[5]["high"] = bad
+            assert compute_adx_from_bars(bars) is None
+        # Missing key entirely (get() -> None -> 0.0) is also corrupt.
+        bars = _make_bars([100.0 + i for i in range(40)])
+        del bars[5]["low"]
+        assert compute_adx_from_bars(bars) is None
+
+    def test_adx_still_computes_for_all_valid_prices(self) -> None:
+        # The guard must not reject a clean trending window.
+        adx = compute_adx_from_bars(_make_bars([100.0 + 2.0 * i for i in range(60)]))
+        assert adx is not None and math.isfinite(adx) and adx > 25.0
+
+    def test_gap_range_rejects_non_finite_prior_high(self) -> None:
+        bars = _make_bars([100.0])
+        bars[-1]["high"] = float("inf")
+        assert compute_gap_range_position(bars, 100.0) is None
+
+    def test_gap_range_rejects_non_finite_current_price(self) -> None:
+        bars = _make_bars([100.0])
+        assert compute_gap_range_position(bars, float("inf")) is None
+        assert compute_gap_range_position(bars, float("nan")) is None
+
+
 # ── B1: direction inference ─────────────────────────────────────────────────
 
 class TestInferTradeDirection:

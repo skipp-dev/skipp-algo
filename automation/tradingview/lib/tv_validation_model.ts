@@ -359,7 +359,17 @@ export function resolveTradingViewAuthResolution(env: NodeJS.ProcessEnv = proces
     try {
       storageStatePayload = readJson<TradingViewStorageState>(storageStatePath as string);
       storageStateInspection = inspectTradingViewStorageState(storageStatePayload);
-    } catch {
+    } catch (error) {
+      // A corrupt / truncated storage-state file collapses to
+      // "storage_state_invalid" below — the exact same fallbackReason as a
+      // file that is simply not authenticated. Surface readJson's rich
+      // "Invalid JSON in <path>: …" message so the two are distinguishable in
+      // logs instead of silently discarding the parse error.
+      console.warn(
+        `[tv-auth] storage-state at ${storageStatePath as string} could not be parsed/inspected; treating as invalid: ${
+          error instanceof Error ? error.message : String(error)
+        }`,
+      );
       storageStatePayload = null;
       storageStateInspection = null;
     }
