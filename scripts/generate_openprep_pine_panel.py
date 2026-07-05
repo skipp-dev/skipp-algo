@@ -116,7 +116,7 @@ def extract_panel(rows: list[dict[str, Any]]) -> dict[str, Any]:
     Market-wide fields (date, regime, weather, microstructure metrics) are
     identical across a run's rows, so they are read from the first row.
     Per-candidate fields become one entry each, sorted by score descending
-    and capped at ``MAX_ROWS``.
+    (ties broken by symbol ascending) and capped at ``MAX_ROWS``.
     """
     if not rows:
         return {"date": None, "candidates": []}
@@ -141,7 +141,10 @@ def extract_panel(rows: list[dict[str, Any]]) -> dict[str, Any]:
                 "rvol": _safe_float(row.get("rvol")),
             }
         )
-    candidates.sort(key=lambda c: c["score"], reverse=True)
+    # Secondary key (symbol asc) makes the order — and therefore which
+    # candidates survive the MAX_ROWS cap — deterministic when scores tie.
+    # Without it, the daily-published panel depends on incoming row order.
+    candidates.sort(key=lambda c: (-c["score"], c["symbol"]))
 
     return {
         "date": head.get("date"),

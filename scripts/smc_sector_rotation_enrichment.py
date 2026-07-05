@@ -27,7 +27,9 @@ def compute_sector_rotation(sector_data: list[dict[str, Any]]) -> dict[str, Any]
         except (TypeError, ValueError):
             return 0.0
 
-    ranked = sorted(sector_data, key=_change, reverse=True)
+    # Sector name breaks ties so the top-3 leading / bottom-3 lagging *sets*
+    # (persisted in the SMC micro-base artifact) don't depend on input order.
+    ranked = sorted(sector_data, key=lambda s: (-_change(s), str(s.get("sector", "")).strip()))
     names = [str(s.get("sector", "")).strip() for s in ranked if str(s.get("sector", "")).strip()]
 
     return {

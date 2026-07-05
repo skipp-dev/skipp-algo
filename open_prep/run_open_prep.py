@@ -1226,7 +1226,7 @@ def _fetch_sector_performance(client: FMPClient) -> list[dict[str, Any]]:
             "sector_emoji": emoji,
         })
 
-    sectors.sort(key=lambda r: r.get("changesPercentage", 0.0), reverse=True)
+    sectors.sort(key=lambda r: (-r.get("changesPercentage", 0.0), r.get("sector", "")))  # sector name breaks ties → reproducible artifact
     return sectors
 
 
@@ -3530,7 +3530,7 @@ def _pick_symbols_for_pmh(
         is_mover = bool(pm.get("is_premarket_mover"))
         # Give movers a sorting boost so they appear first
         rows.append((sym, score + (100.0 if is_mover else 0.0)))
-    rows.sort(key=lambda x: x[1], reverse=True)
+    rows.sort(key=lambda x: (-x[1], x[0]))  # symbol breaks ties → deterministic top-`cap` set (non-mover tail all ties at 0.0)
     return [sym for sym, _ in rows[:cap]]
 
 

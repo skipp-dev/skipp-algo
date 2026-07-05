@@ -2402,6 +2402,18 @@ class TestPickSymbolsForPMH(unittest.TestCase):
         result = _pick_symbols_for_pmh(symbols, pm_ctx, top_n_ext=10)
         self.assertEqual(result.count("X"), 1)
 
+    def test_tie_break_by_symbol_is_deterministic(self):
+        # The non-mover tail all ties at score 0.0; the top-`cap` set must be
+        # decided by symbol (ascending), not by incoming symbol order.
+        from open_prep.run_open_prep import _pick_symbols_for_pmh
+
+        pm_ctx = {s: {"is_premarket_mover": False, "ext_hours_score": 0.0}
+                  for s in ("A", "B", "C", "D")}
+        forward = _pick_symbols_for_pmh(["D", "C", "B", "A"], pm_ctx, top_n_ext=2)
+        reverse = _pick_symbols_for_pmh(["A", "B", "C", "D"], pm_ctx, top_n_ext=2)
+        self.assertEqual(forward, ["A", "B"])
+        self.assertEqual(forward, reverse)  # input order must not matter
+
 
 class TestAtrRobustness(unittest.TestCase):
     def test_calculate_atr_accepts_exact_period_bars(self):

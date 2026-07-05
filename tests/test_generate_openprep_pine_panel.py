@@ -45,6 +45,30 @@ def test_extract_panel_reduces_and_sorts() -> None:
     assert panel["candidates"][1]["rvol"] is None
 
 
+def test_extract_panel_tie_break_is_deterministic() -> None:
+    """Equal scores must resolve by symbol ascending, regardless of the
+    incoming row order, so the daily-published panel is reproducible."""
+    tied = [
+        {"date": "2026-07-04", "symbol": sym, "score": 5.0, "market_weather": "GREEN"}
+        for sym in ("CCC", "AAA", "BBB")
+    ]
+    order_a = [c["symbol"] for c in gen.extract_panel(tied)["candidates"]]
+    order_b = [c["symbol"] for c in gen.extract_panel(list(reversed(tied)))["candidates"]]
+    assert order_a == ["AAA", "BBB", "CCC"]
+    assert order_a == order_b  # input order must not change the output
+
+
+def test_extract_panel_tie_break_respects_score_first() -> None:
+    """Symbol only breaks ties — a higher score still wins over a lower one
+    even when its symbol sorts later alphabetically."""
+    rows = [
+        {"date": "d", "symbol": "AAA", "score": 1.0, "market_weather": "GREEN"},
+        {"date": "d", "symbol": "ZZZ", "score": 9.0, "market_weather": "GREEN"},
+    ]
+    syms = [c["symbol"] for c in gen.extract_panel(rows)["candidates"]]
+    assert syms == ["ZZZ", "AAA"]
+
+
 def test_extract_panel_truncates_long_strings() -> None:
     long_symbol = "A" * 1000
     long_playbook = "B" * 1000
