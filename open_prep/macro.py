@@ -12,7 +12,7 @@ import ssl
 import threading
 import time
 import urllib.error
-from concurrent.futures import ThreadPoolExecutor, TimeoutError as FuturesTimeoutError, as_completed
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from dataclasses import dataclass, field
 from datetime import UTC, date, datetime
 from email.utils import parsedate_to_datetime
@@ -1037,6 +1037,10 @@ class FMPClient:
             # recorded as failed and the run continues with partial results —
             # matching the ``as_completed(timeout=…)`` + shutdown-policy pattern
             # used by every batch loop in run_open_prep.py.
+            # Imported locally so the module's top-level concurrent.futures line
+            # (and every line-pinned site below it) is untouched.
+            from concurrent.futures import TimeoutError as FuturesTimeoutError
+
             batch_deadline_seconds = self._quote_batch_deadline_seconds()
             executor = ThreadPoolExecutor(max_workers=worker_count, thread_name_prefix="fmp-quote")
             future_map = {
