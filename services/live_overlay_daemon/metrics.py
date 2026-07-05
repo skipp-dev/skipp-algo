@@ -189,7 +189,15 @@ def _provider_reason_message(status: object, error: str) -> str:
 
 
 def _escape_label_value(value: object) -> str:
-    return str(value).replace("\\", "\\\\").replace('"', '\\"').replace("\n", " ")
+    # Backslash and double-quote are the Prometheus label-value escapes; \n and
+    # \r must not appear raw (a carriage return would truncate/break the line).
+    return (
+        str(value)
+        .replace("\\", "\\\\")
+        .replace('"', '\\"')
+        .replace("\n", " ")
+        .replace("\r", " ")
+    )
 
 
 def _workflow_labels(workflow: Mapping[str, object]) -> str:
@@ -1656,7 +1664,7 @@ def render_metrics(startup_ts: float, startup_epoch: float = 0.0) -> str:
         lines.append("# TYPE live_overlay_railway_service_cpu_cores gauge")
         for svc in services:
             service_name = _sanitize_name(svc.get("service", "unknown"))
-            service_id = svc.get("service_id", "unknown")
+            service_id = _escape_label_value(svc.get("service_id", "unknown"))
             cpu = svc.get("cpu_cores")
             if cpu is not None:
                 lines.append(
@@ -1668,7 +1676,7 @@ def render_metrics(startup_ts: float, startup_epoch: float = 0.0) -> str:
         lines.append("# TYPE live_overlay_railway_service_memory_gb gauge")
         for svc in services:
             service_name = _sanitize_name(svc.get("service", "unknown"))
-            service_id = svc.get("service_id", "unknown")
+            service_id = _escape_label_value(svc.get("service_id", "unknown"))
             memory_gb = svc.get("memory_gb")
             if memory_gb is not None:
                 lines.append(
@@ -1680,7 +1688,7 @@ def render_metrics(startup_ts: float, startup_epoch: float = 0.0) -> str:
         lines.append("# TYPE live_overlay_railway_service_memory_limit_gb gauge")
         for svc in services:
             service_name = _sanitize_name(svc.get("service", "unknown"))
-            service_id = svc.get("service_id", "unknown")
+            service_id = _escape_label_value(svc.get("service_id", "unknown"))
             limit_gb = svc.get("memory_limit_gb")
             if limit_gb is not None:
                 lines.append(
@@ -1692,7 +1700,7 @@ def render_metrics(startup_ts: float, startup_epoch: float = 0.0) -> str:
         lines.append("# TYPE live_overlay_railway_service_memory_used_ratio gauge")
         for svc in services:
             service_name = _sanitize_name(svc.get("service", "unknown"))
-            service_id = svc.get("service_id", "unknown")
+            service_id = _escape_label_value(svc.get("service_id", "unknown"))
             memory_gb = svc.get("memory_gb")
             limit_gb = svc.get("memory_limit_gb")
             if memory_gb is not None and limit_gb is not None and limit_gb > 0:
@@ -1706,7 +1714,7 @@ def render_metrics(startup_ts: float, startup_epoch: float = 0.0) -> str:
         lines.append("# TYPE live_overlay_railway_service_disk_gb gauge")
         for svc in services:
             service_name = _sanitize_name(svc.get("service", "unknown"))
-            service_id = svc.get("service_id", "unknown")
+            service_id = _escape_label_value(svc.get("service_id", "unknown"))
             disk_gb = svc.get("disk_gb")
             if disk_gb is not None:
                 lines.append(
@@ -1718,7 +1726,7 @@ def render_metrics(startup_ts: float, startup_epoch: float = 0.0) -> str:
         lines.append("# TYPE live_overlay_railway_service_network_rx_gb gauge")
         for svc in services:
             service_name = _sanitize_name(svc.get("service", "unknown"))
-            service_id = svc.get("service_id", "unknown")
+            service_id = _escape_label_value(svc.get("service_id", "unknown"))
             rx_gb = svc.get("network_rx_gb")
             if rx_gb is not None:
                 lines.append(
@@ -1730,7 +1738,7 @@ def render_metrics(startup_ts: float, startup_epoch: float = 0.0) -> str:
         lines.append("# TYPE live_overlay_railway_service_network_tx_gb gauge")
         for svc in services:
             service_name = _sanitize_name(svc.get("service", "unknown"))
-            service_id = svc.get("service_id", "unknown")
+            service_id = _escape_label_value(svc.get("service_id", "unknown"))
             tx_gb = svc.get("network_tx_gb")
             if tx_gb is not None:
                 lines.append(

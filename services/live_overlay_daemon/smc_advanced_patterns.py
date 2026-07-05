@@ -363,6 +363,12 @@ class BrokenFractalDetector:
         # Simplified detection: track recent highs/lows
         # This is a basic version; full implementation would track multi-level structures
 
+        # A non-finite bar must not enter fractal_history: a stored NaN/inf
+        # poisons the max()/min() over the trailing window and confirms a
+        # bogus break against later finite bars.
+        if not all(math.isfinite(v) for v in (high, low, close)):
+            return None
+
         if len(self.fractal_history) < 3:
             self._record(high, low, close)
             return None

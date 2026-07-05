@@ -195,7 +195,11 @@ class PropulsionStrengthScorer:
             if ignition.direction == "bullish"
             else (ignition.close - ignition.low)
         )
-        close_position = min(2.0, (1.0 - range_from_extreme / ignition.range) * 2.0)
+        # Guard a zero range (high == low → ZeroDivisionError).
+        if ignition.range > 0:
+            close_position = min(2.0, (1.0 - range_from_extreme / ignition.range) * 2.0)
+        else:
+            close_position = 0.0
 
         # Factor 4: Momentum
         momentum_score = min(2.0, recent_momentum * 2.0)
@@ -203,12 +207,18 @@ class PropulsionStrengthScorer:
         # Factor 5: Volume Confirmation
         volume_confirmation = min(2.0, (volume_ratio - 1.0) * 2.0)
 
-        total = (
+        # A "strength" is non-negative by definition. On corrupt bars several
+        # factors (body_dominance from a bearish body, close_position/volume
+        # from a close outside [low, high] or low volume) can go negative and
+        # drag the sum below 0; floor it at 0. Genuine weak impulses stay well
+        # below the propulsion threshold either way.
+        total = max(
+            0.0,
             atr_displacement
             + body_dominance
             + close_position
             + momentum_score
-            + volume_confirmation
+            + volume_confirmation,
         )
 
         return PropulsionStrength(

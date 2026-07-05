@@ -189,7 +189,7 @@ class SmcBoxManager:
         O(n) where n = total active boxes (typically 20 for 10 bullish + 10 bearish).
         Call once per candle.
         """
-        if math.isnan(high) or math.isnan(low):
+        if not (math.isfinite(high) and math.isfinite(low)):
             return
 
         for box in self.bullish_boxes:
@@ -243,12 +243,12 @@ class SmcBoxManager:
 
 def is_up(close: float, open_: float) -> bool:
     """Bullish candle."""
-    return not (math.isnan(close) or math.isnan(open_)) and close > open_
+    return math.isfinite(close) and math.isfinite(open_) and close > open_
 
 
 def is_down(close: float, open_: float) -> bool:
     """Bearish candle."""
-    return not (math.isnan(close) or math.isnan(open_)) and close < open_
+    return math.isfinite(close) and math.isfinite(open_) and close < open_
 
 
 def is_ob_up(
@@ -264,7 +264,7 @@ def is_ob_up(
         close_t1, open_t1, high_t1: previous bar data
         high_t2, low_t2: trapped candle bounds
     """
-    if any(math.isnan(x) for x in [close_t, open_t, close_t1, open_t1, high_t1, high_t2, low_t2]):
+    if not all(math.isfinite(x) for x in [close_t, open_t, close_t1, open_t1, high_t1, high_t2, low_t2]):
         return False
     return is_down(close_t1, open_t1) and is_up(close_t, open_t) and close_t > high_t1
 
@@ -275,7 +275,7 @@ def is_ob_down(
     high_t2: float, low_t2: float,
 ) -> bool:
     """Bearish Order Block: trapped bull → bearish engulf below support."""
-    if any(math.isnan(x) for x in [close_t, open_t, close_t1, open_t1, low_t1, high_t2, low_t2]):
+    if not all(math.isfinite(x) for x in [close_t, open_t, close_t1, open_t1, low_t1, high_t2, low_t2]):
         return False
     return is_up(close_t1, open_t1) and is_down(close_t, open_t) and close_t < low_t1
 
@@ -285,12 +285,12 @@ def is_fvg_up(low_t: float, high_t2: float) -> bool:
 
     Pattern: two bars ago closes high, then gap up on current bar.
     """
-    return not (math.isnan(low_t) or math.isnan(high_t2)) and low_t > high_t2
+    return math.isfinite(low_t) and math.isfinite(high_t2) and low_t > high_t2
 
 
 def is_fvg_down(high_t: float, low_t2: float) -> bool:
     """Bearish Fair Value Gap: gap between current high and 2-bar-ago low."""
-    return not (math.isnan(high_t) or math.isnan(low_t2)) and high_t < low_t2
+    return math.isfinite(high_t) and math.isfinite(low_t2) and high_t < low_t2
 
 
 def is_rjb_down(
@@ -307,7 +307,7 @@ def is_rjb_down(
         close_t2, high_t2: trapped candle close/high
         threshold: wick coverage % (0.2 = <50% of wick covered = rejection)
     """
-    if any(math.isnan(x) for x in [high_t1, close_t2, high_t2]):
+    if not all(math.isfinite(x) for x in [high_t1, close_t2, high_t2]):
         return False
     wick_size = high_t2 - close_t2
     if wick_size <= 0:
@@ -321,7 +321,7 @@ def is_rjb_up(
     threshold: float = 0.2,
 ) -> bool:
     """Rejection Block Up: weak rejection at trapped candle low."""
-    if any(math.isnan(x) for x in [low_t1, close_t2, low_t2]):
+    if not all(math.isfinite(x) for x in [low_t1, close_t2, low_t2]):
         return False
     wick_size = close_t2 - low_t2
     if wick_size <= 0:
