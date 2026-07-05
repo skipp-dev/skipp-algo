@@ -147,21 +147,21 @@ OS_DELETE_LEDGER: set[tuple[str, int, str]] = {
     # extended; multiple insertion points produced non-uniform shifts.
     # 2026-06-25: feature-flag helper additions shifted 2308 -> 2312.
     # 2026-07-04 (market-microstructure observe-only): import +1 → 2313.
-    ("open_prep/run_open_prep.py", 2313, "unlink"),
+    ("open_prep/run_open_prep.py", 2321, "unlink"),
     # 2026-06-10 (#2670 W2/W4): regime_source + premarket source-disclosure
     # edits shifted the later unlink sites (+20/+20/+20/+25).
     # 2026-06-25: feature-flag helper additions shifted
     # 3131 -> 3135 and 3483 -> 3487.
     # 2026-07-04 (market-microstructure observe-only): import +1 →
     # 3136/3504.
-    ("open_prep/run_open_prep.py", 3136, "unlink"),
-    ("open_prep/run_open_prep.py", 3504, "unlink"),
+    ("open_prep/run_open_prep.py", 3144, "unlink"),
+    ("open_prep/run_open_prep.py", 3512, "unlink"),
     # 2026-06-11 (Copilot sweep #2688): VIX9D fail-closed guard +5;
     # 2026-06-12 (merge #2713 into #2696): net +1 → 5512/5790.
     # 2026-06-25: feature-flag helper additions shifted 5621 -> 5625.
     # 2026-07-04 (market-microstructure observe-only): import + snapshot
     # block shifted 5641 -> 5658.
-    ("open_prep/run_open_prep.py", 5658, "unlink"),
+    ("open_prep/run_open_prep.py", 5666, "unlink"),
     # 2026-06-11 (trend-state features): 5731→5742, enrichment-loop
     # stamping + lookback comment added above; eval-findings 5742→5765.
     # 2026-06-12 (backlog-resilience): fail-loud outcome storage +9 → 5799.
@@ -169,7 +169,7 @@ OS_DELETE_LEDGER: set[tuple[str, int, str]] = {
     # 2026-06-25: feature-flag helper additions shifted 5916 -> 5920.
     # 2026-07-04 (market-microstructure observe-only): import + snapshot
     # block + row-loop fields shifted 5936 -> 5962.
-    ("open_prep/run_open_prep.py", 5985, "unlink"),
+    ("open_prep/run_open_prep.py", 5993, "unlink"),
     ("open_prep/scorer.py", 156, "unlink"),
     ("open_prep/watchlist.py", 74, "unlink"),
     ("smc_core/benchmark.py", 39, "unlink"),

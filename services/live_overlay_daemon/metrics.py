@@ -651,6 +651,27 @@ def _experiment_snapshot() -> dict[str, object]:
     }
 
 
+def _experiment_history_run_date(captured_at: object) -> str:
+    """Derive a ``YYYY-MM-DD`` run date from a snapshot ``captured_at``.
+
+    ``captured_at`` is normally an ISO-8601 string written by the Plan 2.8
+    archive step, but a numeric Unix timestamp is tolerated the same way
+    :func:`compute._parse_history_lines` tolerates it, so a numeric value is
+    converted to its UTC date instead of silently dropping the whole row.
+    """
+    if isinstance(captured_at, str):
+        return captured_at[:10]
+    if isinstance(captured_at, (int, float)) and not isinstance(captured_at, bool):
+        ts = float(captured_at)
+        if not math.isfinite(ts) or ts <= 0:
+            return ""
+        try:
+            return datetime.datetime.fromtimestamp(ts, tz=datetime.UTC).strftime("%Y-%m-%d")
+        except (ValueError, OverflowError, OSError):
+            return ""
+    return ""
+
+
 def _experiment_history() -> list[dict[str, object]]:
     """Flatten the per-day Plan 2.8 history into per-(day, TF, family) rows.
 
@@ -664,8 +685,7 @@ def _experiment_history() -> list[dict[str, object]]:
     for snapshot in compute._load_experiment_history():
         if not isinstance(snapshot, dict):
             continue
-        captured_at = snapshot.get("captured_at")
-        run_date = str(captured_at)[:10] if isinstance(captured_at, str) else ""
+        run_date = _experiment_history_run_date(snapshot.get("captured_at"))
         if not run_date:
             continue
         _tf_rows, family_rows = _experiment_per_tf_rows(snapshot.get("per_tf"))
