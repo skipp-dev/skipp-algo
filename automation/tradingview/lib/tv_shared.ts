@@ -1235,7 +1235,6 @@ function significantCodeLines(text: string): string[] {
 export function verifyOpenScriptIdentity(scriptName: string, options: {
   dialogStillVisible: boolean;
   editorContextTexts: string[];
-  bodyText?: string;
 }): boolean {
   if (options.dialogStillVisible) {
     return false;
@@ -1258,7 +1257,6 @@ export function verifyOpenScriptIdentity(scriptName: string, options: {
 export function resolveOpenScriptIdentityEvidence(scriptName: string, options: {
   dialogStillVisible: boolean;
   editorContextTexts: string[];
-  bodyText?: string;
 }): {
   verified: boolean;
   verificationMode: "script_context" | "not_verified";
@@ -1283,7 +1281,6 @@ async function waitForAnyOpenScriptIdentity(page: Page, scriptNames: string[], t
       if (verifyOpenScriptIdentity(scriptName, {
         dialogStillVisible,
         editorContextTexts,
-        bodyText,
       })) {
         return true;
       }
@@ -6127,7 +6124,6 @@ export async function saveScript(page: Page, scriptName: string): Promise<void> 
       const identityEvidence = resolveOpenScriptIdentityEvidence(scriptName, {
         dialogStillVisible,
         editorContextTexts: identityTexts,
-        bodyText,
       });
       if (identityEvidence.verified) {
         return;
