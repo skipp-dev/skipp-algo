@@ -853,6 +853,17 @@ class FMPClient:
             configured = 4
         return max(1, min(configured, 8, max(symbol_count, 1)))
 
+    def _quote_batch_deadline_seconds(self) -> float:
+        """Wall-clock ceiling for the concurrent ``get_batch_quotes`` fetch.
+
+        Derived from the per-request budget (``timeout_seconds`` ×
+        ``retry_attempts``) plus a fixed margin for backoff sleeps and
+        scheduling, so a single worst-case-but-successful call is never cut
+        off while a stalled endpoint still cannot hang the pipeline. Exposed
+        as a method (not an inline literal) so tests can shorten it.
+        """
+        return self.timeout_seconds * max(self.retry_attempts, 1) + 15.0
+
     def get_last_quote_fetch_diagnostics(self) -> dict[str, Any]:
         diagnostics = dict(self._last_quote_fetch_diagnostics)
         for key in (
@@ -1017,12 +1028,28 @@ class FMPClient:
                     continue
                 rows_by_symbol[fetched_symbol] = symbol_rows
         else:
-            with ThreadPoolExecutor(max_workers=worker_count, thread_name_prefix="fmp-quote") as executor:
-                future_map = {
-                    executor.submit(fetch_symbol_quote, symbol): symbol
-                    for symbol in deduped_symbols
-                }
-                for future in as_completed(future_map):
+            # Batch-level deadline so a stalled/slow FMP endpoint cannot hang the
+            # daily pipeline: without it, ``as_completed`` (and the executor join
+            # on exit) block until every worker's own ``retry_attempts × timeout``
+            # budget is exhausted, which for a saturated pool is waves of that.
+            # The deadline comfortably exceeds one worst-case call so legitimate
+            # slow-but-successful fetches are not cut off; anything past it is
+            # recorded as failed and the run continues with partial results —
+            # matching the ``as_completed(timeout=…)`` + shutdown-policy pattern
+            # used by every batch loop in run_open_prep.py.
+            # Imported locally so the module's top-level concurrent.futures line
+            # (and every line-pinned site below it) is untouched.
+            from concurrent.futures import TimeoutError as FuturesTimeoutError
+
+            batch_deadline_seconds = self._quote_batch_deadline_seconds()
+            executor = ThreadPoolExecutor(max_workers=worker_count, thread_name_prefix="fmp-quote")
+            future_map = {
+                executor.submit(fetch_symbol_quote, symbol): symbol
+                for symbol in deduped_symbols
+            }
+            timed_out = False
+            try:
+                for future in as_completed(future_map, timeout=batch_deadline_seconds):
                     requested_symbol = future_map[future]
                     try:
                         fetched_symbol, symbol_rows, error = future.result()
@@ -1032,6 +1059,26 @@ class FMPClient:
                         failed_symbol_errors[fetched_symbol] = error
                         continue
                     rows_by_symbol[fetched_symbol] = symbol_rows
+            except FuturesTimeoutError:
+                timed_out = True
+                for pending, pending_symbol in future_map.items():
+                    if not pending.done():
+                        failed_symbol_errors.setdefault(
+                            pending_symbol, "quote fetch exceeded batch deadline"
+                        )
+                logger.warning(
+                    "FMP batch quote fetch exceeded %.0fs batch deadline; "
+                    "continuing with %d/%d symbols.",
+                    batch_deadline_seconds,
+                    len(rows_by_symbol),
+                    len(deduped_symbols),
+                )
+            finally:
+                # On the deadline path, do not block the daily pipeline joining
+                # hung workers: cancel pending submissions and let any in-flight
+                # urlopen() expire on its own socket timeout. On the normal path
+                # every future is already done, so wait=True is a cheap join.
+                executor.shutdown(wait=not timed_out, cancel_futures=timed_out)
 
         rows: list[dict[str, Any]] = []
         fetched_unique_symbols: list[str] = []
