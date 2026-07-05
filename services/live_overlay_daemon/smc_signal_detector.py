@@ -162,18 +162,21 @@ class SmcSignalDetector:
             high_t2=t2.high, low_t2=t2.low,
         ):
             box = make_ob_up(t.bar_index, t2.high, t1.low, t2.low)
-            evicted = self.box_manager.add_box(box)
-            if evicted:
-                logger.debug("Evicted old OB+ from bar %s", evicted.created_at)
-            self.signals.append(
-                SignalEvent(
-                    bar_index=t.bar_index,
-                    box_type=BoxType.ORDER_BLOCK,
-                    direction=Direction.BULLISH,
-                    box=box,
-                    event_type="created",
+            # Factory returns None on non-finite/corrupt bounds (t1.low is not
+            # covered by is_ob_up) — skip rather than route a corrupt box.
+            if box is not None:
+                evicted = self.box_manager.add_box(box)
+                if evicted:
+                    logger.debug("Evicted old OB+ from bar %s", evicted.created_at)
+                self.signals.append(
+                    SignalEvent(
+                        bar_index=t.bar_index,
+                        box_type=BoxType.ORDER_BLOCK,
+                        direction=Direction.BULLISH,
+                        box=box,
+                        event_type="created",
+                    )
                 )
-            )
 
         # Bearish OB
         if is_ob_down(
@@ -182,86 +185,93 @@ class SmcSignalDetector:
             high_t2=t2.high, low_t2=t2.low,
         ):
             box = make_ob_down(t.bar_index, t1.high, t2.high, t2.low)
-            evicted = self.box_manager.add_box(box)
-            if evicted:
-                logger.debug("Evicted old OB- from bar %s", evicted.created_at)
-            self.signals.append(
-                SignalEvent(
-                    bar_index=t.bar_index,
-                    box_type=BoxType.ORDER_BLOCK,
-                    direction=Direction.BEARISH,
-                    box=box,
-                    event_type="created",
+            # Factory returns None on non-finite/corrupt bounds (t1.high is not
+            # covered by is_ob_down) — skip rather than route a corrupt box.
+            if box is not None:
+                evicted = self.box_manager.add_box(box)
+                if evicted:
+                    logger.debug("Evicted old OB- from bar %s", evicted.created_at)
+                self.signals.append(
+                    SignalEvent(
+                        bar_index=t.bar_index,
+                        box_type=BoxType.ORDER_BLOCK,
+                        direction=Direction.BEARISH,
+                        box=box,
+                        event_type="created",
+                    )
                 )
-            )
 
     def _detect_fair_value_gaps(self, t: Candle, t2: Candle) -> None:
         """Bullish and bearish fair value gaps."""
         # Bullish FVG: gap between current low and 2-bar-ago high
         if is_fvg_up(low_t=t.low, high_t2=t2.high):
             box = make_fvg_up(t.bar_index, t.low, t2.high)
-            evicted = self.box_manager.add_box(box)
-            if evicted:
-                logger.debug("Evicted old FVG+ from bar %s", evicted.created_at)
-            self.signals.append(
-                SignalEvent(
-                    bar_index=t.bar_index,
-                    box_type=BoxType.FAIR_VALUE_GAP,
-                    direction=Direction.BULLISH,
-                    box=box,
-                    event_type="created",
+            if box is not None:
+                evicted = self.box_manager.add_box(box)
+                if evicted:
+                    logger.debug("Evicted old FVG+ from bar %s", evicted.created_at)
+                self.signals.append(
+                    SignalEvent(
+                        bar_index=t.bar_index,
+                        box_type=BoxType.FAIR_VALUE_GAP,
+                        direction=Direction.BULLISH,
+                        box=box,
+                        event_type="created",
+                    )
                 )
-            )
 
         # Bearish FVG
         if is_fvg_down(high_t=t.high, low_t2=t2.low):
             box = make_fvg_down(t.bar_index, t.high, t2.low)
-            evicted = self.box_manager.add_box(box)
-            if evicted:
-                logger.debug("Evicted old FVG- from bar %s", evicted.created_at)
-            self.signals.append(
-                SignalEvent(
-                    bar_index=t.bar_index,
-                    box_type=BoxType.FAIR_VALUE_GAP,
-                    direction=Direction.BEARISH,
-                    box=box,
-                    event_type="created",
+            if box is not None:
+                evicted = self.box_manager.add_box(box)
+                if evicted:
+                    logger.debug("Evicted old FVG- from bar %s", evicted.created_at)
+                self.signals.append(
+                    SignalEvent(
+                        bar_index=t.bar_index,
+                        box_type=BoxType.FAIR_VALUE_GAP,
+                        direction=Direction.BEARISH,
+                        box=box,
+                        event_type="created",
+                    )
                 )
-            )
 
     def _detect_rejection_blocks(self, t: Candle, t1: Candle, t2: Candle) -> None:
         """Weak OBs: rejection blocks (reduced signal strength)."""
         # Bearish RJB: weak rejection at trapped candle high
         if is_rjb_down(high_t1=t1.high, close_t2=t2.close, high_t2=t2.high, threshold=0.2):
             box = make_rjb_down(t.bar_index, t2.high, t2.close)
-            evicted = self.box_manager.add_box(box)
-            if evicted:
-                logger.debug("Evicted old RJB- from bar %s", evicted.created_at)
-            self.signals.append(
-                SignalEvent(
-                    bar_index=t.bar_index,
-                    box_type=BoxType.REJECTION_BLOCK,
-                    direction=Direction.BEARISH,
-                    box=box,
-                    event_type="created",
+            if box is not None:
+                evicted = self.box_manager.add_box(box)
+                if evicted:
+                    logger.debug("Evicted old RJB- from bar %s", evicted.created_at)
+                self.signals.append(
+                    SignalEvent(
+                        bar_index=t.bar_index,
+                        box_type=BoxType.REJECTION_BLOCK,
+                        direction=Direction.BEARISH,
+                        box=box,
+                        event_type="created",
+                    )
                 )
-            )
 
         # Bullish RJB
         if is_rjb_up(low_t1=t1.low, close_t2=t2.close, low_t2=t2.low, threshold=0.2):
             box = make_rjb_up(t.bar_index, t2.close, t2.low)
-            evicted = self.box_manager.add_box(box)
-            if evicted:
-                logger.debug("Evicted old RJB+ from bar %s", evicted.created_at)
-            self.signals.append(
-                SignalEvent(
-                    bar_index=t.bar_index,
-                    box_type=BoxType.REJECTION_BLOCK,
-                    direction=Direction.BULLISH,
-                    box=box,
-                    event_type="created",
+            if box is not None:
+                evicted = self.box_manager.add_box(box)
+                if evicted:
+                    logger.debug("Evicted old RJB+ from bar %s", evicted.created_at)
+                self.signals.append(
+                    SignalEvent(
+                        bar_index=t.bar_index,
+                        box_type=BoxType.REJECTION_BLOCK,
+                        direction=Direction.BULLISH,
+                        box=box,
+                        event_type="created",
+                    )
                 )
-            )
 
     def _detect_advanced_patterns(self, t: Candle) -> None:
         """Detect HVB, PPDD, Broken Fractal, Liquidity Clusters."""
