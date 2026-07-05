@@ -1173,6 +1173,10 @@ function hasConflictingCanonicalEditorContext(scriptName: string, editorContextT
   });
 }
 
+// NOTE: despite "Contains", this is an EXACT (normalized, case-insensitive)
+// equality check, not a substring test — callers rely on that to avoid matching
+// a script name inside a longer label (e.g. "SMC Core" must not match
+// "SMC Core Engine"). Kept as-is for compatibility; name is legacy.
 export function uiTextContainsExactScriptName(scriptName: string, uiText: string): boolean {
   const normalizedScriptName = normalizeUiText(scriptName);
   if (!normalizedScriptName) {
@@ -3729,7 +3733,12 @@ export async function hasSettingsSurfaceDomHint(page: Page): Promise<boolean> {
     // Keep this page-context probe free of local helper functions; TS transforms
     // can inject Node-side helpers that are unavailable inside the browser.
     const surfaceTextPattern = /\b(?:inputs|style|visibility|settings)\b/i;
-    const settingsActionPattern = /^settings(?:\.\.\.)?$/i;
+    // Tolerate a leading/trailing icon, emoji or whitespace on an otherwise
+    // "Settings"/"Settings..." button (e.g. "⚙ Settings"): strip the non-letter
+    // decoration around the word instead of anchoring on the raw innerText,
+    // which missed icon-prefixed buttons. Still anchored around the word so
+    // multi-word labels like "Chart settings" / "Reset settings" don't match.
+    const settingsActionPattern = /^[^\p{L}]*settings(?:\.\.\.|…)?[^\p{L}.…]*$/iu;
     const surfaceSelectors = [
       '#overlap-manager-root [role="dialog"]',
       '#overlap-manager-root [data-name*="dialog" i]',

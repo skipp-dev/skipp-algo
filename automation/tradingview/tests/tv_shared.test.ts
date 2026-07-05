@@ -1394,6 +1394,32 @@ test("settings surface DOM hint accepts standalone visible Settings actions", as
   }
 });
 
+test("settings surface DOM hint accepts an icon/emoji-prefixed Settings action but not multi-word labels", async () => {
+  const browser = await chromium.launch({ headless: true });
+  const page = await browser.newPage();
+  try {
+    // Regression: an anchored /^settings$/ missed a leading gear icon on the
+    // visible button text ("⚙ Settings"), so the hint never fired.
+    for (const label of ["⚙ Settings", "⚙ Settings", "Settings ⚙", "⚙️ Settings…"]) {
+      await page.setContent(
+        `<html><body><button style="position:absolute;left:40px;top:40px;width:120px;height:32px">${label}</button></body></html>`,
+      );
+      assert.equal(await hasSettingsSurfaceDomHint(page), true, `expected hint for "${label}"`);
+    }
+
+    // The anchor must still exclude multi-word labels that merely contain the
+    // word "settings" (a standalone button, not inside a settings surface).
+    for (const label of ["Chart settings", "Reset settings", "Settings and preferences"]) {
+      await page.setContent(
+        `<html><body><button style="position:absolute;left:40px;top:40px;width:180px;height:32px">${label}</button></body></html>`,
+      );
+      assert.equal(await hasSettingsSurfaceDomHint(page), false, `expected no hint for "${label}"`);
+    }
+  } finally {
+    await browser.close();
+  }
+});
+
 test("settings surface DOM hint ignores hidden or unrelated controls", async () => {
   const browser = await chromium.launch({ headless: true });
   const page = await browser.newPage();
