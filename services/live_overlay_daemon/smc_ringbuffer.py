@@ -64,10 +64,19 @@ class SmcBox:
     strength: float = 1.0  # 0.0-1.0 confidence/robustness
 
     def __post_init__(self):
-        """Normalize bounds: an inverted box (top < bottom, e.g. from corrupt
-        candle data or a buggy construction site) would satisfy is_breached on
-        virtually any candle and be silently mitigated — silent structure loss.
+        """Enforce the box invariant at construction: finite, ordered bounds.
+
+        A non-finite bound (NaN / ±inf from corrupt candle data or a buggy
+        construction site) silently poisons breach detection, ranking and
+        signal routing downstream, so reject it here rather than let a
+        plausible-looking but corrupt box exist. Inverted-but-finite bounds are
+        normalised (top < bottom would otherwise mitigate on virtually any
+        candle — silent structure loss).
         """
+        if not math.isfinite(self.top) or not math.isfinite(self.bottom):
+            raise ValueError(
+                f"SmcBox requires finite bounds, got top={self.top!r}, bottom={self.bottom!r}"
+            )
         if self.bottom > self.top:
             self.top, self.bottom = self.bottom, self.top
 
@@ -85,6 +94,12 @@ class SmcBox:
         # corrupt high=inf / low=-inf tick would otherwise silently wipe every
         # active box. isfinite covers both, where the old isnan missed ±inf.
         if not math.isfinite(high) or not math.isfinite(low):
+            return False
+        # Defence-in-depth for a box whose own bounds are corrupt (e.g. built
+        # via a deserialization path that bypasses __post_init__): a box with
+        # top=inf would report breached the instant low < a finite bottom.
+        # Never act on a corrupt box.
+        if not math.isfinite(self.top) or not math.isfinite(self.bottom):
             return False
         # Bullish box breached if high > top; Bearish if low < bottom
         return high > self.top or low < self.bottom
@@ -335,18 +350,39 @@ def is_rjb_up(
 # ============================================================================
 
 
+def _require_finite(**named: float) -> None:
+    """Reject non-finite (NaN / ±inf) price inputs to a box factory.
+
+    SMC boxes are price *zones*; a non-finite bound silently corrupts breach
+    detection, ranking and signal routing downstream. Reject corrupt feed data
+    at construction with a clear per-argument message instead of relying on the
+    ``SmcBox`` invariant to raise on an opaque swapped/min-maxed value.
+    """
+    bad = [f"{name}={value!r}" for name, value in named.items() if not math.isfinite(value)]
+    if bad:
+        raise ValueError(
+            f"SMC box construction requires finite price inputs; got {', '.join(bad)}"
+        )
+
+
 def _ordered_bounds(a: float, b: float) -> tuple[float, float]:
     """Return ``(top, bottom)`` with ``top >= bottom``.
 
     Guards against corrupt candle data (e.g. ``high < low``) which would
     otherwise produce an inverted box that ``is_breached`` mitigates on the
     very next candle — silent structure loss.
+
+    Non-finite inputs are rejected: ``a >= b`` is always ``False`` for NaN, so
+    the swap branch would fire and the result would oscillate under repeated
+    application (never satisfying ``top >= bottom``).
     """
+    _require_finite(a=a, b=b)
     return (a, b) if a >= b else (b, a)
 
 
 def make_ob_up(bar_index: int, high_t2: float, low_t1: float, low_t2: float) -> SmcBox:
     """Factory: bullish order block."""
+    _require_finite(high_t2=high_t2, low_t1=low_t1, low_t2=low_t2)
     top, bottom = _ordered_bounds(high_t2, min(low_t1, low_t2))
     return SmcBox(
         left=bar_index - 2,
@@ -363,6 +399,7 @@ def make_ob_up(bar_index: int, high_t2: float, low_t1: float, low_t2: float) -> 
 
 def make_ob_down(bar_index: int, high_t1: float, high_t2: float, low_t2: float) -> SmcBox:
     """Factory: bearish order block."""
+    _require_finite(high_t1=high_t1, high_t2=high_t2, low_t2=low_t2)
     top, bottom = _ordered_bounds(max(high_t1, high_t2), low_t2)
     return SmcBox(
         left=bar_index - 2,
@@ -379,6 +416,7 @@ def make_ob_down(bar_index: int, high_t1: float, high_t2: float, low_t2: float) 
 
 def make_fvg_up(bar_index: int, low_t: float, high_t2: float) -> SmcBox:
     """Factory: bullish fair value gap."""
+    _require_finite(low_t=low_t, high_t2=high_t2)
     top, bottom = _ordered_bounds(low_t, high_t2)
     return SmcBox(
         left=bar_index - 2,
@@ -395,6 +433,7 @@ def make_fvg_up(bar_index: int, low_t: float, high_t2: float) -> SmcBox:
 
 def make_fvg_down(bar_index: int, high_t: float, low_t2: float) -> SmcBox:
     """Factory: bearish fair value gap."""
+    _require_finite(high_t=high_t, low_t2=low_t2)
     top, bottom = _ordered_bounds(low_t2, high_t)
     return SmcBox(
         left=bar_index - 2,
@@ -411,6 +450,7 @@ def make_fvg_down(bar_index: int, high_t: float, low_t2: float) -> SmcBox:
 
 def make_rjb_down(bar_index: int, high_t2: float, close_t2: float) -> SmcBox:
     """Factory: bearish rejection block (weak OB)."""
+    _require_finite(high_t2=high_t2, close_t2=close_t2)
     top, bottom = _ordered_bounds(high_t2, close_t2)
     return SmcBox(
         left=bar_index - 2,
@@ -427,6 +467,7 @@ def make_rjb_down(bar_index: int, high_t2: float, close_t2: float) -> SmcBox:
 
 def make_rjb_up(bar_index: int, close_t2: float, low_t2: float) -> SmcBox:
     """Factory: bullish rejection block."""
+    _require_finite(close_t2=close_t2, low_t2=low_t2)
     top, bottom = _ordered_bounds(close_t2, low_t2)
     return SmcBox(
         left=bar_index - 2,

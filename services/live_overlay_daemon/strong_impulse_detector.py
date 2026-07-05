@@ -104,6 +104,11 @@ class IgnitionCandleDetector:
         2. Body dominates bar (body > range * 0.66)
         3. Closes at extreme end (close near high or low)
         """
+        # Reject non-finite (NaN / ±inf) OHLC: it would poison price_history
+        # (recent_high/low via max/min) and yield an ignition candle with a
+        # NaN/inf range that propagates into propulsion, targets and R/R.
+        if not all(math.isfinite(v) for v in (open, high, low, close)):
+            return None
         self.price_history.append(
             {"open": open, "high": high, "low": low, "close": close}
         )
@@ -422,6 +427,12 @@ class StrongImpulseDetector:
 
         for pulse_bar, signal in list(self.active_impulses.items()):
             bars_since = bar_index - pulse_bar
+
+            # Out-of-order feed: a bar earlier than the impulse's own ignition
+            # bar cannot confirm it. Skip rather than record a negative
+            # confirmation_bars (which corrupts phase/age accounting downstream).
+            if bars_since < 0:
+                continue
 
             # Transition to BREAK phase
             if bars_since == 1 and signal.phase == ImpulsePhase.IGNITION:
