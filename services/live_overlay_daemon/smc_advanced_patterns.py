@@ -140,15 +140,21 @@ class HVBDetector:
         low: float,
     ) -> HVBBar:
         """Detect if current bar is HVB based on rolling average."""
-        self.volume_history.append(volume)  # deque(maxlen) auto-evicts oldest
+        # Corrupt volume (negative or non-finite) must not poison the rolling
+        # average or fabricate an HVB: a single negative value drags the mean
+        # toward zero so the next normal bar reads as a huge volume spike.
+        # Treat it as zero, matching compute._coerce_volume's rejection of
+        # negatives/non-finite.
+        vol = volume if math.isfinite(volume) and volume >= 0 else 0
+        self.volume_history.append(vol)  # deque(maxlen) auto-evicts oldest
 
         avg_volume = sum(self.volume_history) / len(self.volume_history)
-        volume_ratio = volume / avg_volume if avg_volume > 0 else 0.0
+        volume_ratio = vol / avg_volume if avg_volume > 0 else 0.0
         is_hvb = volume_ratio > self.hvb_threshold
 
         return HVBBar(
             bar_index=bar_index,
-            volume=volume,
+            volume=vol,
             avg_volume=avg_volume,
             volume_ratio=volume_ratio,
             is_hvb=is_hvb,

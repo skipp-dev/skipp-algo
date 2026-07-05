@@ -117,7 +117,12 @@ def _estimate_histogram_quantile_ms(
     for upper, cumulative in bucket_points:
         if cumulative >= target:
             if upper == float("inf"):
-                return prev_upper
+                # Only the +Inf bucket carried the target: every observation
+                # exceeds the finite bucket bounds, so no finite quantile can
+                # be interpolated. Returning prev_upper's initial 0.0 here would
+                # report a misleadingly-perfect 0 ms while real latencies blow
+                # the SLO — omit the metric (None) instead in that case.
+                return prev_upper if prev_upper > 0.0 else None
             span = cumulative - prev_cumulative
             if span <= 0:
                 return upper

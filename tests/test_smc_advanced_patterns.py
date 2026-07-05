@@ -87,6 +87,24 @@ class TestHVBDetector:
         assert hvb.avg_volume == (20 + 30 + 60) / 3
         assert list(detector.volume_history) == [20, 30, 60]
 
+    def test_rejects_negative_volume_in_history(self):
+        """A negative volume must not poison the rolling average and fabricate
+        an HVB on the next normal bar (repro: [100, -100, 1] flipped is_hvb)."""
+        detector = HVBDetector(lookback=3, hvb_threshold=1.5)
+        results = [
+            detector.detect(bar_index=i, volume=v, close=100.0, open=100.0, high=100.0, low=100.0)
+            for i, v in enumerate([100, -100, 1])
+        ]
+        # -100 is clamped to 0 in the window, so avg stays sane and vol=1 is tiny.
+        assert results[2].is_hvb is False
+        assert list(detector.volume_history) == [100, 0, 1]
+
+    def test_rejects_non_finite_volume(self):
+        detector = HVBDetector(lookback=3, hvb_threshold=1.5)
+        bar = detector.detect(bar_index=0, volume=float("inf"), close=100.0, open=100.0, high=100.0, low=100.0)
+        assert bar.is_hvb is False
+        assert list(detector.volume_history) == [0]
+
 
 class TestPPDDClassifier:
     """Test Premium/Discount OrderBlock classification."""

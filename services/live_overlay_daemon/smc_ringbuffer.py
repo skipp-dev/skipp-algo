@@ -81,7 +81,10 @@ class SmcBox:
 
     def is_breached(self, high: float, low: float) -> bool:
         """True if current candle pierces the box (either boundary)."""
-        if math.isnan(high) or math.isnan(low):
+        # Non-finite prices (NaN and ±inf) must never mitigate a box: a single
+        # corrupt high=inf / low=-inf tick would otherwise silently wipe every
+        # active box. isfinite covers both, where the old isnan missed ±inf.
+        if not math.isfinite(high) or not math.isfinite(low):
             return False
         # Bullish box breached if high > top; Bearish if low < bottom
         return high > self.top or low < self.bottom

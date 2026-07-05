@@ -140,6 +140,22 @@ class TestSmcBox:
         assert not box.is_breached(high=math.nan, low=98.0)
         assert not box.is_breached(high=101.0, low=math.nan)
 
+    def test_is_breached_guards_infinite(self) -> None:
+        """±inf must not mitigate a box (a corrupt tick would wipe every box)."""
+        box = SmcBox(
+            left=10,
+            right=15,
+            top=100.0,
+            bottom=95.0,
+            box_type=BoxType.ORDER_BLOCK,
+            direction=Direction.BULLISH,
+            created_at=10,
+        )
+        assert not box.is_breached(high=math.inf, low=98.0)
+        assert not box.is_breached(high=99.0, low=-math.inf)
+        # A real finite breach must still register.
+        assert box.is_breached(high=101.0, low=98.0)
+
     def test_update_right(self) -> None:
         """Extend right edge forward."""
         box = SmcBox(
