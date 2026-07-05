@@ -104,6 +104,17 @@ class IgnitionCandleDetector:
         2. Body dominates bar (body > range * 0.66)
         3. Closes at extreme end (close near high or low)
         """
+        # Reject corrupt candle geometry up front, before it lands in
+        # price_history: a non-finite OHLC value would poison the recent
+        # high/low max()/min() for every later bar (cf. the #3164 fractal-history
+        # fix), and an inverted high < low would seed a bogus recent range and,
+        # if it met the criteria, produce a negative-range IgnitionCandle that
+        # PropulsionStrengthScorer silently floors to 0 instead of surfacing.
+        if not all(math.isfinite(v) for v in (open, high, low, close)):
+            return None
+        if high < low:
+            return None
+
         self.price_history.append(
             {"open": open, "high": high, "low": low, "close": close}
         )
@@ -114,7 +125,7 @@ class IgnitionCandleDetector:
         body = abs(close - open)
         range_ = high - low
 
-        if range_ == 0:
+        if range_ == 0:  # flat candle — no ignition possible
             return None
 
         if len(self.price_history) < 2:
@@ -436,6 +447,13 @@ class StrongImpulseDetector:
             # a backward bar confirms nothing — it must not advance any phase.
             # Clamp to >= 0.
             bars_since = max(0, bar_index - pulse_bar)
+
+            # An out-of-order bar (bar_index < the ignition bar — e.g. a
+            # reconnect, backfill, or duplicate feed) must not drive the phase
+            # machine backwards or write a negative confirmation_bars. Leave the
+            # signal's last valid state untouched and skip it for this bar.
+            if bars_since < 0:
+                continue
 
             # Transition to BREAK phase
             if bars_since == 1 and signal.phase == ImpulsePhase.IGNITION:

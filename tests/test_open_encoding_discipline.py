@@ -74,9 +74,13 @@ def _iter_first_party_py_files() -> list[Path]:
             files.append(entry)
         elif entry.is_dir():
             for path in entry.rglob("*.py"):
-                if any(part.startswith(".") for part in path.parts):
+                # Filter on repo-relative parts: an absolute ancestor dir (a
+                # ``.claude/worktrees/…`` checkout, or a ``venv/`` parent) must
+                # not skip every subdirectory file and silently disable the pin.
+                rel_parts = path.relative_to(_REPO_ROOT).parts
+                if any(part.startswith(".") for part in rel_parts):
                     continue
-                if any(part in _DIR_EXCLUDE for part in path.parts):
+                if any(part in _DIR_EXCLUDE for part in rel_parts):
                     continue
                 files.append(path)
     return sorted(files)
