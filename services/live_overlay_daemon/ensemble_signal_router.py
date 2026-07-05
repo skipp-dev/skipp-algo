@@ -151,8 +151,11 @@ class EnsembleSignalRouter:
                 )
                 return None
 
-        # Step 0: Update macro regime
-        if sofr_rate and iorb_rate:
+        # Step 0: Update macro regime. Use `is not None` (not truthiness): 0.0 is
+        # a valid SOFR/IORB rate (zero-lower-bound / fallback), and treating it as
+        # "unset" would silently freeze the macro regime while the caller supplied
+        # real rates.
+        if sofr_rate is not None and iorb_rate is not None:
             self.macro_filter.update(sofr_rate, iorb_rate, bar_index)
 
         # Check if macro stress should suppress signals
