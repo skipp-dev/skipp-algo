@@ -52,6 +52,20 @@ def _safe_float(v: Any, default: float = 0.0) -> float:
         return default
 
 
+def _coalesce(*values: Any) -> Any:
+    """First value that is not None.
+
+    Unlike ``a or b``, a legitimate falsy value (0, 0.0, "", False) from the
+    primary source is preserved instead of being silently replaced by the
+    fallback — e.g. a real ``avg_volume`` of 0.0 must not be masked by an
+    ``avgVolume`` alias key.
+    """
+    for v in values:
+        if v is not None:
+            return v
+    return None
+
+
 # ═══════════════════════════════════════════════════════════════════════════
 # #2  Diminishing Returns
 # ═══════════════════════════════════════════════════════════════════════════
@@ -545,10 +559,10 @@ def validate_data_quality(candidate: dict[str, Any]) -> DataQualityResult:
 
     price = _safe_float(candidate.get("price"))
     volume = _safe_float(candidate.get("volume"))
-    avg_volume = _safe_float(candidate.get("avg_volume") or candidate.get("avgVolume"))
+    avg_volume = _safe_float(_coalesce(candidate.get("avg_volume"), candidate.get("avgVolume")))
     rsi = _safe_float(candidate.get("rsi"), default=50.0)
-    momentum_z = _safe_float(candidate.get("momentum_z_score") or candidate.get("momentum_z"))
-    rel_vol = _safe_float(candidate.get("volume_ratio") or candidate.get("rel_vol"))
+    momentum_z = _safe_float(_coalesce(candidate.get("momentum_z_score"), candidate.get("momentum_z")))
+    rel_vol = _safe_float(_coalesce(candidate.get("volume_ratio"), candidate.get("rel_vol")))
 
     if price <= 0.0:
         issues.append("price_zero")
@@ -613,8 +627,12 @@ class GateTracker:
         entry: dict[str, Any] = {"symbol": symbol, "gate": gate}
         if details:
             entry["details"] = details
-            # Track deficit if value/threshold provided
-            val = details.get("value") or details.get("score") or details.get("price")
+            # Track deficit if value/threshold provided. Use is-None coalescing:
+            # a gate metric of exactly 0.0 is a legitimate value whose deficit
+            # must still be tracked, not masked by `or` into a fallback key.
+            val = _coalesce(
+                details.get("value"), details.get("score"), details.get("price")
+            )
             thr = details.get("threshold")
             if val is not None and thr is not None:
                 try:

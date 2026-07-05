@@ -17,6 +17,7 @@ from __future__ import annotations
 
 import dataclasses
 import logging
+import math
 import statistics
 from dataclasses import dataclass
 from datetime import datetime
@@ -307,10 +308,24 @@ class EnsembleBacktester:
         if self.open_trades:
             return
 
+        # A non-finite or non-positive entry price would make every PnL / PnL%
+        # non-finite — Trade.calculate_pnl divides by entry_price with only a
+        # bare `!= 0` guard, so +inf/NaN slips through and poisons total_pnl,
+        # Sharpe, and drawdown. Refuse the trade at the boundary rather than
+        # record an unresolvable position.
+        entry_price = self._fill_price(signal.entry_price, signal.direction, is_entry=True)
+        if not math.isfinite(entry_price) or entry_price <= 0:
+            logger.warning(
+                "[Trade] Skipping open at bar %s: non-finite/non-positive entry price %s",
+                bar_index,
+                entry_price,
+            )
+            return
+
         # Create trade
         trade = Trade(
             entry_bar=bar_index,
-            entry_price=self._fill_price(signal.entry_price, signal.direction, is_entry=True),
+            entry_price=entry_price,
             entry_time=datetime.fromisoformat(candle.get("timestamp", "2024-01-01T00:00:00")),
             direction=signal.direction,
             stop_loss=signal.stop_loss,
