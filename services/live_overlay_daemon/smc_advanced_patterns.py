@@ -248,6 +248,14 @@ class LiquidityClusterDetector:
         if not swing_highs and not swing_lows:
             return []
 
+        # A non-positive or non-finite ATR makes cluster_distance <= 0 / NaN,
+        # which inverts every zone (zone_top < zone_bottom) and silently breaks
+        # the LiquidityCluster invariant that contains_price()/zone_width rely
+        # on. Degenerate volatility yields no meaningful clusters; mirror the
+        # `atr > 0` guard already used by PPDDClassifier.classify.
+        if not math.isfinite(atr) or atr <= 0:
+            return []
+
         cluster_distance = self.cluster_distance_atr * atr
 
         # Group swing highs

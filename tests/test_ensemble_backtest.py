@@ -408,6 +408,19 @@ class TestBacktesterRealism:
         assert trade.pnl == pytest.approx(10.0)
         assert trade.exit_price == pytest.approx(110.0)
 
+    @pytest.mark.parametrize("bad_capital", [0.0, 0, -1000.0, float("nan")])
+    def test_non_positive_initial_capital_rejected(self, bad_capital):
+        # initial_capital is the denominator for total return, Sharpe returns,
+        # and drawdown; a non-positive (or NaN) value must fail at construction
+        # rather than raise ZeroDivisionError later inside _calculate_metrics.
+        with pytest.raises(ValueError, match="initial_capital must be positive"):
+            EnsembleBacktester(symbol="T", initial_capital=bad_capital)
+
+    def test_positive_initial_capital_still_accepted(self):
+        bt = EnsembleBacktester(symbol="T", initial_capital=5000.0)
+        assert bt.initial_capital == 5000.0
+        assert bt.equity_curve == [5000.0]
+
 
 if __name__ == "__main__":
     pytest.main([__file__, "-v"])

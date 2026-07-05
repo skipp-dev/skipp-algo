@@ -402,9 +402,15 @@ class TripleConfluenceNavigator:
         )
 
         # Step 4: Calculate dynamic R/R
+        # Clamp a non-finite / non-positive ATR to a zero buffer so the stop
+        # stays on the correct side of price (a negative ATR would put a long
+        # stop ABOVE `low`) and never becomes NaN/inf. Mirrors the high/low
+        # finiteness guard earlier in this method and the `atr > 0` convention
+        # used across the detector cluster.
+        atr_buffer = atr if (math.isfinite(atr) and atr > 0) else 0.0
         stop_loss = (
-            low - atr if confluence.direction == "long"
-            else high + atr
+            low - atr_buffer if confluence.direction == "long"
+            else high + atr_buffer
         )
 
         risk_reward = DynamicRiskReward.calculate(
