@@ -122,6 +122,11 @@ docs/audit-*.md
 # Continue IDE config (machine-local, contains absolute paths)
 .continue/
 
+# Claude Code + Cursor local state (agent worktrees, settings.local.json,
+# .mdc rules) — machine-local tooling, never project files.
+.claude/
+.cursor/
+
 # mutmut setup.cfg (contains absolute machine paths, not portable)
 setup.cfg
 
