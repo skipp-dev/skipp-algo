@@ -287,6 +287,49 @@ test("invalid storage state json falls back to persistent profile", () => {
   assert.equal(resolution.fallbackReason, "storage_state_invalid");
 });
 
+test("corrupt storage-state json warns before collapsing to storage_state_invalid (bug-hunt r6)", () => {
+  // Corrupt JSON lands on the same "storage_state_invalid" fallbackReason as a
+  // file that is simply not authenticated (see the two tests above). Previously
+  // readJson's rich "Invalid JSON in <path>" error was swallowed, so the two
+  // were indistinguishable in logs. Behavior is unchanged; a diagnostic warning
+  // is now emitted before the fallback.
+  const tempDir = makeTempDir("tv-auth-invalid-json-warn-");
+  const storageStatePath = path.join(tempDir, "storage-state.json");
+  const profileDir = path.join(tempDir, "profile");
+  fs.mkdirSync(profileDir, { recursive: true });
+  fs.writeFileSync(storageStatePath, "{ not-valid-json", "utf-8");
+
+  const warnings: string[] = [];
+  const originalWarn = console.warn;
+  console.warn = (...args: unknown[]) => {
+    warnings.push(args.map((arg) => String(arg)).join(" "));
+  };
+
+  let resolution;
+  try {
+    resolution = resolveTradingViewAuthResolution({
+      TV_STORAGE_STATE: storageStatePath,
+      TV_PERSISTENT_PROFILE_DIR: profileDir,
+    });
+  } finally {
+    console.warn = originalWarn;
+  }
+
+  // Behavior preserved.
+  assert.equal(resolution.fallbackReason, "storage_state_invalid");
+
+  // Observability added: the swallowed parse error is surfaced, not discarded.
+  assert.equal(
+    warnings.some((message) =>
+      message.includes("[tv-auth]")
+      && message.includes(storageStatePath)
+      && message.includes("Invalid JSON"),
+    ),
+    true,
+    `expected a corrupt-JSON warning, saw: ${JSON.stringify(warnings)}`,
+  );
+});
+
 test("invalid storage state json without fallback stays non-reusable", () => {
   const tempDir = makeTempDir("tv-auth-invalid-json-no-fallback-");
   const storageStatePath = path.join(tempDir, "storage-state.json");

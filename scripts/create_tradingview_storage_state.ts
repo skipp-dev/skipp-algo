@@ -43,7 +43,14 @@ async function collectPageAuthDiagnostics(page: import("playwright").Page): Prom
       bodyPreview: bodyText.slice(0, 240),
       signInSignals: /sign in|log in|email|password|continue with google/i.test(bodyText),
     };
-  }).catch(() => ({ url: "", title: "", bodyPreview: "", signInSignals: false }));
+  }).catch((error) => {
+    // Clone of the auth-state probe evaluate in tv_shared: a crashed execution
+    // context returns the same empty diagnostics as a legitimately blank page.
+    // Warn so the swallowed failure is visible to the operator running this
+    // interactive script instead of looking like a genuinely signed-out page.
+    console.warn(`[tv-auth] page auth diagnostics DOM probe crashed; using empty diagnostics: ${error instanceof Error ? error.message : String(error)}`);
+    return { url: "", title: "", bodyPreview: "", signInSignals: false };
+  });
   const pageAuthState = await collectTradingViewPageAuthState(page).catch(() => null);
 
   return {
