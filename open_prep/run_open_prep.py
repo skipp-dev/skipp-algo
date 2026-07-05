@@ -686,7 +686,15 @@ def _momentum_z_score_from_eod(candles: list[dict], period: int = 50) -> float:
     mean_ret = sum(window) / float(len(window))
     if not math.isfinite(mean_ret):
         return 0.0
-    variance = sum((r - mean_ret) ** 2 for r in window) / float(len(window) - 1)
+    # A corrupt-but-finite extreme close (passes the `isfinite and > 0` filter
+    # above) yields an extreme return whose squared deviation overflows the
+    # float range: a single term raises OverflowError *before* the isfinite
+    # guard below can fire. Fail-soft to a neutral z-score (0.0), matching the
+    # other guards here and the same fix applied to compute_bb_width_pct_from_bars.
+    try:
+        variance = sum((r - mean_ret) ** 2 for r in window) / float(len(window) - 1)
+    except OverflowError:
+        return 0.0
     if not math.isfinite(variance) or variance < 0.0:
         return 0.0
     std_ret = variance**0.5

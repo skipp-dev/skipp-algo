@@ -148,6 +148,23 @@ def _snapshot_persist_max_bytes() -> int:
     return parsed
 
 
+def _url_host_if_valid(url: str) -> str | None:
+    """Hostname of ``url`` iff it parses and any port is in range, else ``None``.
+
+    ``urlsplit`` raises ``ValueError`` on malformed input (e.g. a stray ``[`` →
+    "Invalid IPv6 URL") and ``.port`` raises ``ValueError`` for an out-of-range
+    port; both must be caught so a garbage config value is treated as invalid
+    rather than crashing the caller (mirrors :func:`_is_github_contents_api_url`).
+    """
+    try:
+        parsed = urllib.parse.urlsplit(url)
+        _ = parsed.port  # accessing .port validates its range (raises ValueError)
+        host = parsed.hostname
+    except ValueError:
+        return None
+    return host or None
+
+
 def _validate_https_url(env_name: str, url: str) -> bool:
     """Return ``True`` iff ``url`` is an https URL; warn and return ``False`` otherwise.
 
@@ -155,9 +172,9 @@ def _validate_https_url(env_name: str, url: str) -> bool:
     misconfigured plain-http (or empty) endpoint is rejected rather than fetched,
     with one consistent warning that names the offending env var.
     """
-    if url.lower().startswith("https://"):
+    if url.lower().startswith("https://") and _url_host_if_valid(url) is not None:
         return True
-    logger.warning("%s must be an https URL; ignoring %r", env_name, url)
+    logger.warning("%s must be an https URL with a host; ignoring %r", env_name, url)
     return False
 
 
@@ -359,24 +376,46 @@ def _is_valid_service_url(url: str) -> bool:
 
     lower = stripped.lower()
     if lower.startswith("https://"):
-        return True
+        # Require a real, parseable host: rejects a scheme-only "https://", an
+        # out-of-range port, and malformed input like "[" (would otherwise crash).
+        return _url_host_if_valid(stripped) is not None
     if lower.startswith("http://"):
         # Restrict plain HTTP to the Railway private network.
-        host = urllib.parse.urlsplit(stripped).hostname or ""
-        return _is_railway_internal_host(host)
+        host = _url_host_if_valid(stripped)
+        return host is not None and _is_railway_internal_host(host)
     # Bare hostname/path: only Railway private-network hostnames are accepted.
-    parsed = urllib.parse.urlsplit("http://" + stripped)
-    host = parsed.hostname or ""
-    return _is_railway_internal_host(host)
+    host = _url_host_if_valid("http://" + stripped)
+    return host is not None and _is_railway_internal_host(host)
 
 
 def _signals_service_url_to_full(base: str) -> str:
-    """Turn a host or base path into the producer ``/signals.json`` endpoint."""
-    base = base.strip().rstrip("/")
-    lower = base.lower()
-    if lower.startswith("http://") or lower.startswith("https://"):
-        return f"{base}/signals.json"
-    return f"http://{base}/signals.json"
+    """Turn a host or base path into the producer ``/signals.json`` endpoint.
+
+    Parses the value with urllib so only the *path* drives idempotency and any
+    query/fragment is preserved: a base whose path already ends in
+    ``/signals.json`` keeps its path (a full ``SIGNALS_SERVICE_URL`` is not
+    doubled into ``.../signals.json/signals.json``), while ``?x=1`` / ``#frag``
+    ride along instead of being swallowed into the appended path. A bare host
+    gets an ``http://`` scheme; a non-http(s) scheme (``ftp://`` …), a missing
+    host (``https://``), or an out-of-range port yields ``""`` rather than a
+    mangled endpoint that every fetch would 404 on and silently fall back from.
+    """
+    base = base.strip()
+    if not base:
+        return ""
+    if "://" not in base:
+        base = f"http://{base}"
+    try:
+        parsed = urllib.parse.urlsplit(base)
+        _ = parsed.port  # accessing .port validates its range (raises ValueError)
+    except ValueError:
+        return ""
+    if parsed.scheme not in ("http", "https") or not parsed.hostname:
+        return ""
+    path = parsed.path.rstrip("/")
+    if not path.endswith("/signals.json"):
+        path = f"{path}/signals.json"
+    return urllib.parse.urlunsplit((parsed.scheme, parsed.netloc, path, parsed.query, parsed.fragment))
 
 
 def _fetch_signals_service(
@@ -600,6 +639,23 @@ def _fetch_experiment_url(
         return None
 
 
+def _history_sort_key(row: dict[str, Any]) -> tuple[int, float, str]:
+    """Chronological sort key for a Plan 2.8 history row.
+
+    ``captured_at`` is normally an ISO-8601 string (which sorts chronologically
+    as text), but the parser also tolerates a numeric Unix timestamp — and a
+    plain ``str()`` key would order those lexically (``"1000"`` before ``"99"``),
+    breaking chronology and the ``max_days`` tail-slice retention. Numeric
+    timestamps therefore sort by value; everything else keeps sorting as text.
+    """
+    captured_at = row.get("captured_at", "")
+    if isinstance(captured_at, (int, float)) and not isinstance(captured_at, bool):
+        ts = float(captured_at)
+        if math.isfinite(ts):
+            return (0, ts, "")
+    return (1, 0.0, str(captured_at))
+
+
 def _parse_history_lines(text: str, max_days: int) -> list[dict[str, Any]]:
     """Parse a Plan 2.8 history JSONL body into the most recent per-day dicts.
 
@@ -619,7 +675,7 @@ def _parse_history_lines(text: str, max_days: int) -> list[dict[str, Any]]:
             rows.append(obj)
     # JSONL is append-ordered, but sort defensively on captured_at so a backfill
     # line interleaved out of order still renders chronologically.
-    rows.sort(key=lambda r: str(r.get("captured_at", "")))
+    rows.sort(key=_history_sort_key)
     if max_days > 0 and len(rows) > max_days:
         rows = rows[-max_days:]
     return rows

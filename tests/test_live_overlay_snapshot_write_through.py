@@ -319,6 +319,64 @@ def test_signals_service_url_to_full_with_host_and_url() -> None:
     assert compute._signals_service_url_to_full("https://producer/path/") == (
         "https://producer/path/signals.json"
     )
+    # Idempotent: a base that already includes the /signals.json endpoint (e.g.
+    # SIGNALS_SERVICE_URL set to the full producer URL) must NOT get it appended
+    # a second time — otherwise every fetch 404s and silently falls back.
+    assert compute._signals_service_url_to_full(
+        "https://smc-signals-producer.railway.internal/signals.json"
+    ) == "https://smc-signals-producer.railway.internal/signals.json"
+    assert compute._signals_service_url_to_full(
+        "smc-signals-producer.railway.internal/signals.json"
+    ) == "http://smc-signals-producer.railway.internal/signals.json"
+    assert compute._signals_service_url_to_full(
+        "https://producer/signals.json/"  # trailing slash still idempotent
+    ) == "https://producer/signals.json"
+    # Empty base yields "" (defensive), not the malformed "http:///signals.json".
+    assert compute._signals_service_url_to_full("") == ""
+    # A scheme-only value (host missing — e.g. a copy-paste typo) must not be
+    # mangled into "http://https:/signals.json"; reject it with "". The scheme
+    # has to be detected BEFORE rstrip("/") collapses "https://" to "https:".
+    assert compute._signals_service_url_to_full("https://") == ""
+    assert compute._signals_service_url_to_full("HTTPS://") == ""
+    assert compute._signals_service_url_to_full("http://") == ""
+    assert compute._signals_service_url_to_full("https:///") == ""
+    # A non-http(s) scheme must be rejected, not mangled into
+    # "http://ftp://host/signals.json".
+    assert compute._signals_service_url_to_full("ftp://host") == ""
+    assert compute._signals_service_url_to_full("file:///etc/passwd") == ""
+    assert compute._signals_service_url_to_full("javascript://alert(1)") == ""
+    # Idempotency is path-based: a query/fragment must ride along, not get
+    # swallowed into the appended path ("...signals.json?x=1/signals.json").
+    assert (
+        compute._signals_service_url_to_full("https://host/signals.json?x=1")
+        == "https://host/signals.json?x=1"
+    )
+    assert (
+        compute._signals_service_url_to_full("https://host/signals.json#frag")
+        == "https://host/signals.json#frag"
+    )
+    # A base with a query but no endpoint path still gets /signals.json appended
+    # to the PATH (before the query), not to the end of the string.
+    assert (
+        compute._signals_service_url_to_full("https://host?x=1")
+        == "https://host/signals.json?x=1"
+    )
+    # Out-of-range port -> "" (rather than a broken endpoint that 404s).
+    assert compute._signals_service_url_to_full("https://host:999999") == ""
+
+
+def test_validate_https_url_requires_host() -> None:
+    # Gate shared by every *_URL snapshot fetcher — a scheme-only value must be
+    # rejected, not accepted as a valid https URL (it would fetch and fail).
+    assert compute._validate_https_url("NEWS_SNAPSHOT_URL", "https://host/x.json") is True
+    assert compute._validate_https_url("NEWS_SNAPSHOT_URL", "https://") is False
+    assert compute._validate_https_url("NEWS_SNAPSHOT_URL", "HTTPS://") is False
+    assert compute._validate_https_url("NEWS_SNAPSHOT_URL", "http://host") is False
+    assert compute._validate_https_url("NEWS_SNAPSHOT_URL", "") is False
+    # Out-of-range port must be rejected, not accepted then fetched.
+    assert compute._validate_https_url("NEWS_SNAPSHOT_URL", "https://host:999999") is False
+    # Malformed input must not crash the gate (urlsplit raises ValueError).
+    assert compute._validate_https_url("NEWS_SNAPSHOT_URL", "https://[") is False
 
 
 def test_is_valid_service_url() -> None:
@@ -328,6 +386,9 @@ def test_is_valid_service_url() -> None:
     assert compute._is_valid_service_url("http://host") is False
     assert compute._is_valid_service_url("http://example.com") is False
     assert compute._is_valid_service_url("https://host") is True
+    # Scheme-only https (no host) must be rejected, not accepted as valid.
+    assert compute._is_valid_service_url("https://") is False
+    assert compute._is_valid_service_url("HTTPS://") is False
     assert compute._is_valid_service_url("example.com") is False
     assert compute._is_valid_service_url("   ") is False
     assert compute._is_valid_service_url("") is False
@@ -338,3 +399,10 @@ def test_is_valid_service_url() -> None:
     assert compute._is_valid_service_url("http://evil.railway.internal.attacker.com") is False
     assert compute._is_valid_service_url("railway.internal") is False
     assert compute._is_valid_service_url("http://railway.internal") is False
+    # Out-of-range port must be rejected (urlsplit.port raises ValueError).
+    # (An empty port "https://host:" is a valid URL — default port — so accepted.)
+    assert compute._is_valid_service_url("https://host:999999") is False
+    # Malformed input must return False, not raise ValueError ("Invalid IPv6 URL").
+    assert compute._is_valid_service_url("[") is False
+    assert compute._is_valid_service_url("http://[") is False
+    assert compute._is_valid_service_url("https://[") is False

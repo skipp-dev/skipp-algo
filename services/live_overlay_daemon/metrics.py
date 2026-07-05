@@ -44,11 +44,18 @@ def _sanitize_name(name: str) -> str:
     - map dots/dashes to underscores
     - collapse all remaining non [a-z0-9_] chars to underscores
     - collapse repeated underscores and trim edge underscores
+    - prefix with ``_`` when the token starts with a digit so the result
+      always matches the Prometheus metric-name grammar
+      ``[a-zA-Z_:][a-zA-Z0-9_:]*``
     - fallback to ``unknown`` when nothing remains
     """
     token = str(name).strip().lower().replace(".", "_").replace("-", "_")
     token = re.sub(r"[^a-z0-9_]", "_", token)
     token = re.sub(r"_+", "_", token).strip("_")
+    # Prometheus metric names may not begin with a digit; prefix preserves
+    # semantic digits (e.g. timeframe "5m", monitor id "803343156").
+    if token and token[0].isdigit():
+        token = f"_{token}"
     return token or "unknown"
 
 
@@ -644,6 +651,37 @@ def _experiment_snapshot() -> dict[str, object]:
     }
 
 
+def _experiment_history_run_date(captured_at: object) -> str:
+    """Derive a ``YYYY-MM-DD`` run date from a snapshot ``captured_at``.
+
+    ``captured_at`` is normally an ISO-8601 string written by the Plan 2.8
+    archive step, but a numeric Unix timestamp is tolerated the same way
+    :func:`compute._parse_history_lines` tolerates it, so a numeric value is
+    converted to its UTC date instead of silently dropping the whole row.
+    """
+    if isinstance(captured_at, str):
+        # Validate the date prefix instead of blindly slicing: a non-date string
+        # (or a malformed date like "2026-04-2") must be dropped (""), not passed
+        # through as a bogus run_date. Honors this helper's "junk inputs never
+        # yield a bogus date" contract — which the numeric branch already
+        # enforces — and mirrors _snapshot_timestamp's validate-or-None parsing.
+        prefix = captured_at[:10]
+        try:
+            datetime.date.fromisoformat(prefix)
+        except ValueError:
+            return ""
+        return prefix
+    if isinstance(captured_at, (int, float)) and not isinstance(captured_at, bool):
+        ts = float(captured_at)
+        if not math.isfinite(ts) or ts <= 0:
+            return ""
+        try:
+            return datetime.datetime.fromtimestamp(ts, tz=datetime.UTC).strftime("%Y-%m-%d")
+        except (ValueError, OverflowError, OSError):
+            return ""
+    return ""
+
+
 def _experiment_history() -> list[dict[str, object]]:
     """Flatten the per-day Plan 2.8 history into per-(day, TF, family) rows.
 
@@ -657,8 +695,7 @@ def _experiment_history() -> list[dict[str, object]]:
     for snapshot in compute._load_experiment_history():
         if not isinstance(snapshot, dict):
             continue
-        captured_at = snapshot.get("captured_at")
-        run_date = str(captured_at)[:10] if isinstance(captured_at, str) else ""
+        run_date = _experiment_history_run_date(snapshot.get("captured_at"))
         if not run_date:
             continue
         _tf_rows, family_rows = _experiment_per_tf_rows(snapshot.get("per_tf"))

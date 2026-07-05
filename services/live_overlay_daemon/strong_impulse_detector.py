@@ -442,18 +442,16 @@ class StrongImpulseDetector:
         updated_signals = []
 
         for pulse_bar, signal in list(self.active_impulses.items()):
-            # An out-of-order (smaller) or duplicate bar_index would make this
-            # negative, storing a negative confirmation_bars count and — since
-            # a backward bar confirms nothing — it must not advance any phase.
-            # Clamp to >= 0.
-            bars_since = max(0, bar_index - pulse_bar)
-
-            # An out-of-order bar (bar_index < the ignition bar — e.g. a
-            # reconnect, backfill, or duplicate feed) must not drive the phase
-            # machine backwards or write a negative confirmation_bars. Leave the
-            # signal's last valid state untouched and skip it for this bar.
-            if bars_since < 0:
+            # An out-of-order (smaller) or duplicate (equal) bar_index — e.g. a
+            # reconnect, backfill or duplicate feed — confirms nothing and must
+            # not advance the phase machine or (re)write confirmation_bars; skip
+            # it, leaving the signal's last valid state untouched. Guard on
+            # `bar_index <= pulse_bar` rather than the previous `max(0, …)`
+            # clamp, which made the negativity check below dead code so an
+            # out-of-order/duplicate bar was still (wrongly) returned as updated.
+            if bar_index <= pulse_bar:
                 continue
+            bars_since = bar_index - pulse_bar
 
             # Transition to BREAK phase
             if bars_since == 1 and signal.phase == ImpulsePhase.IGNITION:
