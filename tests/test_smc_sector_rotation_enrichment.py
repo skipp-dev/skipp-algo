@@ -24,6 +24,20 @@ class TestComputeSectorRotation:
         assert result["sector_strongest"] == "Technology"
         assert result["sector_weakest"] == "Utilities"
 
+    def test_tie_break_is_deterministic(self) -> None:
+        # Equal changesPercentage must resolve by sector name, so the top-3
+        # leading / bottom-3 lagging sets don't depend on input order.
+        data = [
+            {"sector": "Delta", "changesPercentage": 1.0},
+            {"sector": "Alpha", "changesPercentage": 1.0},
+            {"sector": "Charlie", "changesPercentage": 1.0},
+            {"sector": "Bravo", "changesPercentage": -1.0},
+        ]
+        a = compute_sector_rotation(data)
+        b = compute_sector_rotation(list(reversed(data)))
+        assert a["sector_leading"] == ["Alpha", "Charlie", "Delta"]
+        assert a == b  # input order must not change the result
+
     def test_empty_data(self) -> None:
         result = compute_sector_rotation([])
         assert result["sector_leading"] == []
