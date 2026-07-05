@@ -660,7 +660,17 @@ def _experiment_history_run_date(captured_at: object) -> str:
     converted to its UTC date instead of silently dropping the whole row.
     """
     if isinstance(captured_at, str):
-        return captured_at[:10]
+        # Validate the date prefix instead of blindly slicing: a non-date string
+        # (or a malformed date like "2026-04-2") must be dropped (""), not passed
+        # through as a bogus run_date. Honors this helper's "junk inputs never
+        # yield a bogus date" contract — which the numeric branch already
+        # enforces — and mirrors _snapshot_timestamp's validate-or-None parsing.
+        prefix = captured_at[:10]
+        try:
+            datetime.date.fromisoformat(prefix)
+        except ValueError:
+            return ""
+        return prefix
     if isinstance(captured_at, (int, float)) and not isinstance(captured_at, bool):
         ts = float(captured_at)
         if not math.isfinite(ts) or ts <= 0:

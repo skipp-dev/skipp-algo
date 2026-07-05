@@ -62,9 +62,16 @@ def test_experiment_history_run_date_helper() -> None:
     from services.live_overlay_daemon.metrics import _experiment_history_run_date
 
     assert _experiment_history_run_date("2026-04-21T00:00:00Z") == "2026-04-21"
+    assert _experiment_history_run_date("2026-04-21") == "2026-04-21"  # date-only ISO
     assert _experiment_history_run_date(1700000000) == "2023-11-14"
     # Out-of-contract / junk inputs never raise and never yield a bogus date.
     assert _experiment_history_run_date(True) == ""
     assert _experiment_history_run_date(float("nan")) == ""
     assert _experiment_history_run_date(-1) == ""
     assert _experiment_history_run_date(None) == ""
+    # Junk STRINGS must be dropped too (not sliced into a bogus run_date) —
+    # otherwise a non-date ``captured_at`` leaks a garbage date into Grafana.
+    assert _experiment_history_run_date("not-a-date") == ""
+    assert _experiment_history_run_date("0") == ""
+    assert _experiment_history_run_date("2026-04-2") == ""  # malformed (not zero-padded)
+    assert _experiment_history_run_date("") == ""
