@@ -13,6 +13,7 @@ Based on: "Strong Impulse Signals [ProjectSyndicate]" TradingView indicator
 from __future__ import annotations
 
 import logging
+import math
 from dataclasses import dataclass
 from enum import Enum
 
@@ -172,6 +173,14 @@ class PropulsionStrengthScorer:
 
         Returns: PropulsionStrength (0-10)
         """
+        # min(2.0, NaN) returns 2.0 in Python (NaN < 2.0 is False), so a
+        # non-finite momentum/volume input would silently award the MAXIMUM
+        # score and could push a weak impulse past the threshold. Coerce them
+        # to neutral (no boost) first. (Currently the router passes constant
+        # placeholders, so this is a guard against feed-derived values later.)
+        recent_momentum = recent_momentum if math.isfinite(recent_momentum) else 0.0
+        volume_ratio = volume_ratio if math.isfinite(volume_ratio) else 1.0
+
         # Factor 1: ATR Displacement (how many ATR did it move?)
         displacement = (ignition.range / atr) if atr > 0 else 0
         atr_displacement = min(2.0, displacement / 2.0)

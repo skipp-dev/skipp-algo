@@ -347,6 +347,47 @@ def test_render_metrics_emits_latency_quantile_gauges(monkeypatch: pytest.Monkey
     assert 0 < p10 < p100 < p1000, "histogram buckets not sorted numerically"
 
 
+def test_estimate_histogram_quantile_ms_inf_only_bucket_is_none() -> None:
+    """All observations in the +Inf bucket (every latency exceeds the finite
+    bounds) must NOT interpolate to a misleadingly-perfect 0.0 ms."""
+    import services.live_overlay_daemon.metrics as metrics_mod
+
+    counters = {
+        "lat.count": 100.0,
+        "lat.bucket_le_inf": 100.0,
+    }
+    for q in (0.95, 0.99, 0.5):
+        result = metrics_mod._estimate_histogram_quantile_ms(counters, base_name="lat", quantile=q)
+        assert result is None
+
+    # A finite bucket carrying the target still interpolates normally.
+    counters_finite = {
+        "lat.count": 100.0,
+        "lat.bucket_le_100": 96.0,
+        "lat.bucket_le_inf": 100.0,
+    }
+    assert metrics_mod._estimate_histogram_quantile_ms(counters_finite, base_name="lat", quantile=0.95) is not None
+
+
+def test_render_metrics_omits_latency_quantiles_when_only_inf_bucket(monkeypatch: pytest.MonkeyPatch) -> None:
+    import services.live_overlay_daemon.metrics as metrics_mod
+    import services.live_overlay_daemon.observability as obs
+
+    _patch_common(monkeypatch, feed_ready=True, market_open=True, bar_count=10, overlay_symbols=5, overlay_age=60.0)
+    with obs._counter_lock:
+        obs._counters.clear()
+        obs._counters["live_overlay.smc_live_latency.count"] = 100.0
+        obs._counters["live_overlay.smc_live_latency.bucket_le_inf"] = 100.0
+
+    body = metrics_mod.render_metrics(startup_ts=100.0)
+
+    # The metric is omitted (no misleading `... 0.000` line).
+    assert "live_overlay_smc_live_latency_p95_ms 0.000" not in body
+    assert "live_overlay_smc_live_latency_p99_ms 0.000" not in body
+    assert "live_overlay_smc_live_latency_p95_ms " not in body
+    assert "live_overlay_smc_live_latency_p99_ms " not in body
+
+
 def test_render_metrics_emits_age_known_gauges(monkeypatch: pytest.MonkeyPatch) -> None:
     import services.live_overlay_daemon.metrics as metrics_mod
 

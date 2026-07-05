@@ -13,6 +13,7 @@ Based on: "Triple Confluence Navigator [MarkitTick]" TradingView indicator
 from __future__ import annotations
 
 import logging
+import math
 from dataclasses import dataclass, field
 
 logger = logging.getLogger(__name__)
@@ -159,6 +160,15 @@ class MarketStructure:
 
         BoS = close above recent pivot high or below recent pivot low.
         """
+        # A non-finite high/low would emit a spurious break-of-structure vote
+        # (+inf > prev is True) and permanently poison the persisted pivots via
+        # max(inf, x) / min(-inf, x). Treat a corrupt bar as structurally
+        # neutral and leave the pivots untouched.
+        if not (math.isfinite(high) and math.isfinite(low)):
+            self.break_of_structure = False
+            self.signal = "neutral"
+            return self.signal
+
         self.pivot_high = max(high, pivot_high_prev)
         self.pivot_low = min(low, pivot_low_prev)
 

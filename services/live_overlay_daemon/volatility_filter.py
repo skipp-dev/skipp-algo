@@ -40,8 +40,16 @@ class VolatilityFilter:
 
     def calculate_atr(self, high, low, close):
         """Calculate True Range and ATR for a candle."""
+        # A corrupt bar must not poison atr_history: a single non-finite high/
+        # low appends NaN/inf which Wilder smoothing then propagates forever,
+        # and an inverted (high < low) bar appends a negative "range". Skip the
+        # update and reuse the last ATR instead.
+        if not (np.isfinite(high) and np.isfinite(low)) or high < low:
+            return self.atr_history[-1] if self.atr_history else 0.0
+
         prev_close = self.prev_close
-        self.prev_close = close
+        # Only carry a finite close into the next bar's true-range gap term.
+        self.prev_close = close if np.isfinite(close) else None
 
         if len(self.atr_history) == 0:
             # Initialize with TR
