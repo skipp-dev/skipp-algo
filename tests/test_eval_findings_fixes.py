@@ -151,11 +151,23 @@ class TestBareFloatNonFiniteGuards:
         w = compute_bb_width_pct_from_bars(bars)
         assert w is None or math.isfinite(w)
 
-    def test_adx_ignores_non_finite_high(self) -> None:
+    def test_adx_fails_closed_on_missing_or_nonfinite_price(self) -> None:
+        # A missing/non-finite price is coerced to 0.0 by _safe_float; the ADX
+        # math has no downstream non-positive guard (unlike gap/bb), so the
+        # injected 0.0 would otherwise yield a distorted extreme ADX. Fail-closed.
+        for bad in (float("nan"), float("inf"), float("-inf"), None):
+            bars = _make_bars([100.0 + i for i in range(40)])
+            bars[5]["high"] = bad
+            assert compute_adx_from_bars(bars) is None
+        # Missing key entirely (get() -> None -> 0.0) is also corrupt.
         bars = _make_bars([100.0 + i for i in range(40)])
-        bars[5]["high"] = float("nan")
-        adx = compute_adx_from_bars(bars)
-        assert adx is None or math.isfinite(adx)
+        del bars[5]["low"]
+        assert compute_adx_from_bars(bars) is None
+
+    def test_adx_still_computes_for_all_valid_prices(self) -> None:
+        # The guard must not reject a clean trending window.
+        adx = compute_adx_from_bars(_make_bars([100.0 + 2.0 * i for i in range(60)]))
+        assert adx is not None and math.isfinite(adx) and adx > 25.0
 
     def test_gap_range_rejects_non_finite_prior_high(self) -> None:
         bars = _make_bars([100.0])

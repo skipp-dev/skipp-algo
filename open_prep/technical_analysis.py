@@ -198,6 +198,13 @@ def compute_adx_from_bars(
     highs = [_safe_float(b.get("high")) for b in bars]
     lows = [_safe_float(b.get("low")) for b in bars]
     closes = [_safe_float(b.get("close")) for b in bars]
+    # Fail-closed on a missing/non-finite price. `_safe_float` coerces
+    # None/NaN/±inf to 0.0, and — unlike gap/bb, which reject non-positive
+    # bounds downstream — the ADX math has no such guard, so an injected 0.0
+    # produces a distorted extreme ADX that flips regime detection to TRENDING.
+    # Equity OHLC are always > 0, so any <= 0 is corrupt.
+    if any(p <= 0 for p in (*highs, *lows, *closes)):
+        return None
 
     plus_dm: list[float] = []
     minus_dm: list[float] = []
