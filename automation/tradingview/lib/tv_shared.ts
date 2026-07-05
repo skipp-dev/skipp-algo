@@ -1173,6 +1173,12 @@ function hasConflictingCanonicalEditorContext(scriptName: string, editorContextT
   });
 }
 
+/**
+ * Strict identity primitive: normalized, case-insensitive EQUALITY (not
+ * substring containment, despite the historical "Contains" name). It is the
+ * deliberately-strict base other matchers build on — callers that want
+ * truncation/version-suffix tolerance use the looser helpers instead.
+ */
 export function uiTextContainsExactScriptName(scriptName: string, uiText: string): boolean {
   const normalizedScriptName = normalizeUiText(scriptName);
   if (!normalizedScriptName) {
@@ -3729,7 +3735,11 @@ export async function hasSettingsSurfaceDomHint(page: Page): Promise<boolean> {
     // Keep this page-context probe free of local helper functions; TS transforms
     // can inject Node-side helpers that are unavailable inside the browser.
     const surfaceTextPattern = /\b(?:inputs|style|visibility|settings)\b/i;
-    const settingsActionPattern = /^settings(?:\.\.\.)?$/i;
+    // Allow leading/trailing decoration (a gear/× glyph, emoji, whitespace, or
+    // the "..." suffix) around the word — TradingView often renders the action
+    // as "⚙ Settings". The [^a-z0-9] guards (case-insensitive) still reject
+    // phrases where "settings" is only a substring, e.g. "Chart Settings".
+    const settingsActionPattern = /^[^a-z0-9]*settings[^a-z0-9]*$/i;
     const surfaceSelectors = [
       '#overlap-manager-root [role="dialog"]',
       '#overlap-manager-root [data-name*="dialog" i]',
