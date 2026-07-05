@@ -359,7 +359,15 @@ export function resolveTradingViewAuthResolution(env: NodeJS.ProcessEnv = proces
     try {
       storageStatePayload = readJson<TradingViewStorageState>(storageStatePath as string);
       storageStateInspection = inspectTradingViewStorageState(storageStatePayload);
-    } catch {
+    } catch (error) {
+      // Don't collapse a corrupt/truncated storage-state file into a silent
+      // "storage_state_invalid": readJson raises a rich "Invalid JSON in …"
+      // error that would otherwise be indistinguishable from a genuinely
+      // unauthenticated file. Surface it so operators can tell them apart.
+      console.warn(
+        `[tv-auth] storage state at ${storageStatePath} could not be parsed: `
+          + `${error instanceof Error ? error.message : String(error)}`,
+      );
       storageStatePayload = null;
       storageStateInspection = null;
     }
