@@ -97,7 +97,7 @@ _TEMPFILE_LEDGER: frozenset[tuple[str, int, str]] = frozenset({
     # combined — measured 703; outcomes.py guard shift → 152.
     # 2026-06-12 (Copilot #2729): main() exit-semantics docstring +6 → 709.
     # 2026-06-17 (F1 lint fix): remove unused import sys → 709→708.
-    ("open_prep/outcome_backfill.py", 709, "mkstemp"),
+    ("open_prep/outcome_backfill.py", 716, "mkstemp"),
     ("open_prep/outcomes.py", 153, "mkstemp"),
     # 2026-06-11 (trend-state features): 419→437, snapshot keys +
     # FEATURE_KEYS/PASS_THROUGH block added above.
