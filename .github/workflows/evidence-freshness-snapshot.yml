@@ -1,0 +1,147 @@
+name: evidence-freshness-snapshot
+# live-window: mutating-on-cron  # Daily evidence-chain freshness snapshot (2026-07-06)
+
+# Produces the evidence-freshness snapshot the live-overlay daemon serves as
+# Prometheus gauges (services/live_overlay_daemon/evidence_freshness_bridge.py).
+# This is the monitoring layer that was missing during the 2026-06/07 silent
+# freeze: it measures the OUTPUT age of the ADR-0023 evidence chain — magnitude
+# ledger, data/phase-a-audit branch, cumulative paper fills (§5 track), WSH
+# snapshot — so a frozen producer becomes a red Grafana panel + alert instead
+# of staying green for weeks.
+#
+# Publishes to the rolling bot/live-evidence-freshness branch (mirrors
+# plan-2-8-evaluation.yml) so the daemon can fetch via
+# EVIDENCE_FRESHNESS_SNAPSHOT_URL without a persistent volume.
+#
+# Self-covering: if THIS workflow stops, the daemon's snapshot-age gauge keeps
+# growing and the "Evidence snapshot stale" alert fires; and its own runs are
+# covered by the generic per-workflow alert rules.
+
+on:
+  schedule:
+    # 05:00 UTC daily — after the C13 reconcile (~03-04 UTC) and the daily
+    # ledger/promotion-gate crons (13:30-14:00 UTC the prior day) so the
+    # snapshot reflects the freshest evidence.
+    - cron: "0 5 * * *"
+  workflow_dispatch:
+
+permissions:
+  # The publish step writes the rolling bot/live-evidence-freshness branch.
+  # It authenticates via GH_PAT (a secret) so the actual push does not rely on
+  # GITHUB_TOKEN, but the mutating-on-cron marker requires a declared write.
+  contents: write
+
+concurrency:
+  group: evidence-freshness-snapshot
+  cancel-in-progress: false
+
+defaults:
+  run:
+    shell: bash
+
+env:
+  PYTHONUNBUFFERED: "1"
+  PYTHONPATH: ${{ github.workspace }}
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: "true"
+
+jobs:
+  snapshot:
+    runs-on: ${{ vars.SMC_GH_HOSTED_RUNNER || 'ubuntu-latest' }}
+    timeout-minutes: 15
+    steps:
+      - name: Checkout
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+        with:
+          fetch-depth: 1
+          persist-credentials: false
+
+      - name: Set up pinned Python
+        uses: ./.github/actions/setup-python-pinned
+
+      - name: Fetch data/phase-a-audit branch
+        env:
+          GH_TOKEN: ${{ secrets.GH_PAT != '' && secrets.GH_PAT || github.token }}
+        run: |
+          set -euo pipefail
+          _url="https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git"
+          # Fail-soft: the producer degrades to "audit branch unknown" if the
+          # branch is missing, it must not abort the snapshot.
+          git fetch "${_url}" \
+            "+refs/heads/data/phase-a-audit:refs/remotes/origin/data/phase-a-audit" \
+            2>/dev/null || echo "::warning::data/phase-a-audit fetch failed; audit/fills fields will be empty"
+
+      - name: Build evidence-freshness snapshot
+        id: build
+        run: |
+          set -euo pipefail
+          mkdir -p artifacts/monitoring
+          python -m scripts.build_evidence_freshness_snapshot \
+            --audit-branch origin/data/phase-a-audit \
+            --output artifacts/monitoring/evidence_freshness.json
+          echo "status=success" >> "$GITHUB_OUTPUT"
+
+      - name: Upload snapshot artifact
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: evidence-freshness-${{ github.run_id }}
+          path: artifacts/monitoring/evidence_freshness.json
+          if-no-files-found: warn
+          retention-days: 14
+
+      - name: Publish snapshot to rolling bot branch
+        # Mirrors plan-2-8-evaluation.yml: publish to bot/live-evidence-freshness
+        # so the daemon fetches via EVIDENCE_FRESHNESS_SNAPSHOT_URL.
+        if: steps.build.outputs.status == 'success'
+        env:
+          GH_TOKEN: ${{ secrets.GH_PAT }}
+        run: |
+          set -euo pipefail
+          if [ -z "${GH_TOKEN:-}" ]; then
+            echo "::warning::GH_PAT not configured; skipping publish to bot/live-evidence-freshness"
+            exit 0
+          fi
+
+          snapshot="artifacts/monitoring/evidence_freshness.json"
+          if [ ! -s "${snapshot}" ]; then
+            echo "No snapshot produced; nothing to publish."
+            exit 0
+          fi
+
+          stable_dir="artifacts/monitoring/latest"
+          mkdir -p "${stable_dir}"
+          cp "${snapshot}" "${stable_dir}/evidence_freshness.json"
+
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+          _remote_url="https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git"
+          _remote_ref="refs/heads/bot/live-evidence-freshness"
+          _tracking_ref="refs/remotes/origin/bot/live-evidence-freshness"
+
+          git add -f "${stable_dir}"
+          if git diff --cached --quiet; then
+            echo "No evidence-freshness snapshot changes to commit."
+            exit 0
+          fi
+          git commit -m "[skip ci] chore: refresh evidence-freshness snapshot"
+
+          git fetch "${_remote_url}" "+${_remote_ref}:${_tracking_ref}" 2>/dev/null || true
+          _zero_sha="0000000000000000000000000000000000000000"
+          if _expected_sha="$(git rev-parse --verify "${_tracking_ref}" 2>/dev/null)"; then
+            _lease_expected="${_expected_sha}"
+          else
+            _lease_expected="${_zero_sha}"
+          fi
+
+          if git push "--force-with-lease=${_remote_ref}:${_lease_expected}" "${_remote_url}" "HEAD:${_remote_ref}"; then
+            echo "✅ Pushed evidence-freshness snapshot to bot/live-evidence-freshness"
+            {
+              echo "### ✅ Evidence-freshness snapshot published"
+              echo ""
+              echo "Branch: \`bot/live-evidence-freshness\`"
+              echo "Path: \`artifacts/monitoring/latest/evidence_freshness.json\`"
+            } >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo "::warning::evidence-freshness snapshot push failed; the uploaded artifact is still available"
+          fi

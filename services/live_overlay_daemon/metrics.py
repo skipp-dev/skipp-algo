@@ -20,6 +20,7 @@ from . import (
     cache,
     compute,
     config,
+    evidence_freshness_bridge,
     feed,
     github_workflow_bridge,
     observability,
@@ -1782,8 +1783,83 @@ def render_metrics(startup_ts: float, startup_epoch: float = 0.0) -> str:
                     f'live_overlay_railway_service_network_tx_gb{{service="{service_name}",service_id="{service_id}"}} '
                     f"{_prom_numeric_value(tx_gb)}"
                 )
+    # ----- Evidence-freshness (ADR-0023 chain output age) ------------------
+    # Serves the freshness of the evidence chain that stayed silently frozen
+    # in 2026-06/07: magnitude ledger, data/phase-a-audit branch, paper-fills
+    # progress, WSH snapshot. Sourced from the CI-produced snapshot via
+    # evidence_freshness_bridge (URL or local fallback). If the producer stops,
+    # snapshot_age_seconds keeps growing and the "Evidence snapshot stale"
+    # alert fires — the failure mode is self-covering, unlike the silent
+    # freeze it replaces.
+    lines.extend(_render_evidence_freshness_metrics())
+
     # --- Process-level metrics (CPU, memory, FDs, GC) ---
     lines.extend(_collect_process_metrics(startup_ts, startup_epoch))
 
     lines.append("")  # trailing newline
     return "\n".join(lines)
+
+
+def _render_evidence_freshness_metrics() -> list[str]:
+    """Prometheus gauges for the ADR-0023 evidence-chain output freshness."""
+    snap = evidence_freshness_bridge.snapshot()
+    lines: list[str] = []
+
+    loaded = _prom_numeric_value(snap.get("loaded", 0.0))
+    lines.append("# TYPE live_overlay_evidence_freshness_loaded gauge")
+    lines.append(f"live_overlay_evidence_freshness_loaded {loaded}")
+
+    # Age of the snapshot itself (producer heartbeat). Known only once loaded.
+    generated_at = _prom_numeric_value(snap.get("generated_at_unix", 0.0))
+    snap_age_known = 1.0 if generated_at > 0 else 0.0
+    snap_age = max(0.0, time.time() - generated_at) if generated_at > 0 else 0.0
+    lines.append("# TYPE live_overlay_evidence_freshness_snapshot_age_known gauge")
+    lines.append(f"live_overlay_evidence_freshness_snapshot_age_known {snap_age_known}")
+    lines.append("# TYPE live_overlay_evidence_freshness_snapshot_age_seconds gauge")
+    lines.append(f"live_overlay_evidence_freshness_snapshot_age_seconds {snap_age:.1f}")
+
+    def _emit_age(metric: str, date_str: str) -> None:
+        age = evidence_freshness_bridge.age_seconds_from_date(date_str)
+        known = 1.0 if age is not None else 0.0
+        lines.append(f"# TYPE {metric}_known gauge")
+        lines.append(f"{metric}_known {known}")
+        lines.append(f"# TYPE {metric}_seconds gauge")
+        lines.append(f"{metric}_seconds {(age if age is not None else 0.0):.1f}")
+
+    ledger = snap.get("ledger") or {}
+    _emit_age("live_overlay_evidence_ledger_age", str(ledger.get("newest_date", "")))
+    lines.append("# TYPE live_overlay_evidence_ledger_rows gauge")
+    lines.append(f"live_overlay_evidence_ledger_rows {_prom_numeric_value(ledger.get('rows', 0))}")
+    lines.append("# TYPE live_overlay_evidence_ledger_candidate_pass gauge")
+    lines.append(
+        "live_overlay_evidence_ledger_candidate_pass "
+        f"{_prom_numeric_value(ledger.get('candidate_pass', 0))}"
+    )
+    # Info metric carries the measurement plane + newest date as labels so the
+    # dashboard shows BOS@1D vs BOS@15m without a separate query.
+    lines.append("# TYPE live_overlay_evidence_ledger_info gauge")
+    lines.append(
+        "live_overlay_evidence_ledger_info{"
+        f'plane="{_escape_label_value(str(ledger.get("plane", "") or "unknown"))}",'
+        f'newest_date="{_escape_label_value(str(ledger.get("newest_date", "") or "none"))}"'
+        "} 1"
+    )
+
+    audit = snap.get("audit_branch") or {}
+    _emit_age("live_overlay_evidence_audit_branch_age", str(audit.get("last_commit_date", "")))
+
+    fills = snap.get("fills") or {}
+    lines.append("# TYPE live_overlay_evidence_fills_filled_total gauge")
+    lines.append(
+        f"live_overlay_evidence_fills_filled_total {_prom_numeric_value(fills.get('filled_cumulative', 0))}"
+    )
+    lines.append("# TYPE live_overlay_evidence_fills_closed_total gauge")
+    lines.append(
+        f"live_overlay_evidence_fills_closed_total {_prom_numeric_value(fills.get('closed_cumulative', 0))}"
+    )
+    lines.append("# TYPE live_overlay_evidence_fills_target gauge")
+    lines.append(f"live_overlay_evidence_fills_target {_prom_numeric_value(fills.get('target', 0))}")
+
+    wsh = snap.get("wsh") or {}
+    _emit_age("live_overlay_evidence_wsh_age", str(wsh.get("newest_date", "")))
+    return lines

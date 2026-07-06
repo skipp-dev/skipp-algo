@@ -259,6 +259,36 @@ def experiment_snapshot_url_token() -> str:
     return _optional_str("EXPERIMENT_SNAPSHOT_URL_TOKEN", "")
 
 
+def evidence_freshness_snapshot_path() -> Path:
+    """Local path to the evidence-freshness snapshot JSON.
+
+    Produced by ``scripts/build_evidence_freshness_snapshot.py`` in CI and
+    served as Prometheus gauges so a silently frozen ADR-0023 ledger /
+    ``data/phase-a-audit`` branch / paper-fills chain becomes visible (the
+    2026-06/07 blind-spot). Off-host daemons should set
+    :func:`evidence_freshness_snapshot_url` to the published branch instead.
+    """
+    raw = _optional_str(
+        "EVIDENCE_FRESHNESS_SNAPSHOT_PATH",
+        str(_REPO_ROOT / "artifacts" / "monitoring" / "evidence_freshness.json"),
+    )
+    return Path(raw)
+
+
+def evidence_freshness_snapshot_url() -> str:
+    """Optional https URL the daemon fetches the evidence-freshness snapshot from.
+
+    When set it takes precedence over :func:`evidence_freshness_snapshot_path`;
+    on any fetch failure the daemon falls back to the local path.
+    """
+    return _optional_str("EVIDENCE_FRESHNESS_SNAPSHOT_URL", "")
+
+
+def evidence_freshness_snapshot_url_token() -> str:
+    """Optional bearer token for :func:`evidence_freshness_snapshot_url`."""
+    return _optional_str("EVIDENCE_FRESHNESS_SNAPSHOT_URL_TOKEN", "")
+
+
 def experiment_history_path() -> Path:
     """Local path to the Plan 2.8 per-day history JSONL.
 

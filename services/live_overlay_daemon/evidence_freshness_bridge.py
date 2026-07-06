@@ -1,0 +1,145 @@
+"""Evidence-freshness bridge — serves the ADR-0023 evidence chain's output age.
+
+Consumer half of the monitoring layer added after the 2026-06/07 blind-spot
+(see ``scripts/build_evidence_freshness_snapshot.py`` for the why). The producer
+writes a compact snapshot; this bridge fetches it (runtime URL, local-file
+fallback) and normalizes it into the fields ``metrics.render_metrics`` turns
+into Prometheus gauges. It never raises — a missing / unreadable snapshot
+yields ``loaded=0`` and the snapshot-age gauge stops advancing, which the
+``Evidence snapshot stale`` alert catches.
+"""
+from __future__ import annotations
+
+import json
+import threading
+import time
+import urllib.request
+from datetime import UTC, date, datetime
+from typing import Any
+
+from . import config
+
+_cache_lock = threading.Lock()
+_cached: dict[str, Any] | None = None
+_cached_at_monotonic = 0.0
+
+
+def _midnight_epoch(date_str: str) -> float | None:
+    """UTC-midnight epoch for a ``YYYY-MM-DD`` string, or ``None`` if unparseable."""
+    try:
+        d = date.fromisoformat(str(date_str))
+    except (TypeError, ValueError):
+        return None
+    return datetime(d.year, d.month, d.day, tzinfo=UTC).timestamp()
+
+
+def age_seconds_from_date(date_str: str, *, now: float | None = None) -> float | None:
+    """Seconds between UTC-midnight of ``date_str`` and ``now`` (never negative)."""
+    epoch = _midnight_epoch(date_str)
+    if epoch is None:
+        return None
+    return max(0.0, (time.time() if now is None else now) - epoch)
+
+
+def _empty(loaded: float, error: str) -> dict[str, Any]:
+    return {
+        "loaded": loaded,
+        "generated_at_unix": 0.0,
+        "ledger": {"newest_date": "", "plane": "", "rows": 0, "candidate_pass": 0},
+        "audit_branch": {"last_commit_date": ""},
+        "fills": {
+            "filled_cumulative": 0,
+            "closed_cumulative": 0,
+            "target": 0,
+            "newest_incubation_date": "",
+        },
+        "wsh": {"newest_date": "", "status": ""},
+        "error": error,
+    }
+
+
+def _coerce(raw: dict[str, Any]) -> dict[str, Any]:
+    """Normalize a parsed snapshot into a fixed shape; tolerate missing keys."""
+    ledger = raw.get("ledger") if isinstance(raw.get("ledger"), dict) else {}
+    audit = raw.get("audit_branch") if isinstance(raw.get("audit_branch"), dict) else {}
+    fills = raw.get("fills") if isinstance(raw.get("fills"), dict) else {}
+    wsh = raw.get("wsh") if isinstance(raw.get("wsh"), dict) else {}
+
+    def _num(value: Any) -> float:
+        return float(value) if isinstance(value, (int, float)) and not isinstance(value, bool) else 0.0
+
+    return {
+        "loaded": 1.0,
+        "generated_at_unix": _num(raw.get("generated_at_unix")),
+        "ledger": {
+            "newest_date": str(ledger.get("newest_date", "") or ""),
+            "plane": str(ledger.get("plane", "") or ""),
+            "rows": _num(ledger.get("rows")),
+            "candidate_pass": _num(ledger.get("candidate_pass")),
+        },
+        "audit_branch": {"last_commit_date": str(audit.get("last_commit_date", "") or "")},
+        "fills": {
+            "filled_cumulative": _num(fills.get("filled_cumulative")),
+            "closed_cumulative": _num(fills.get("closed_cumulative")),
+            "target": _num(fills.get("target")),
+            "newest_incubation_date": str(fills.get("newest_incubation_date", "") or ""),
+        },
+        "wsh": {
+            "newest_date": str(wsh.get("newest_date", "") or ""),
+            "status": str(wsh.get("status", "") or ""),
+        },
+        "error": "",
+    }
+
+
+def _fetch_url(url: str, token: str, timeout: float = 10.0) -> str | None:
+    if not url.lower().startswith("https://"):
+        return None
+    headers = {"Accept": "application/json", "User-Agent": "skipp-evidence-freshness/1.0"}
+    if token:
+        headers["Authorization"] = f"Bearer {token}"
+    try:
+        request = urllib.request.Request(url, headers=headers)
+        with urllib.request.urlopen(request, timeout=timeout) as response:
+            return response.read().decode("utf-8")
+    except Exception:
+        return None
+
+
+def _load_raw() -> dict[str, Any]:
+    """Fetch + parse the snapshot (URL first, local fallback); never raises."""
+    url = config.evidence_freshness_snapshot_url()
+    if url:
+        body = _fetch_url(url, config.evidence_freshness_snapshot_url_token())
+        if body is not None:
+            try:
+                parsed = json.loads(body)
+            except ValueError:
+                parsed = None
+            if isinstance(parsed, dict):
+                return _coerce(parsed)
+
+    path = config.evidence_freshness_snapshot_path()
+    if not path.exists():
+        return _empty(0.0, "missing_snapshot")
+    try:
+        parsed = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return _empty(0.0, "unreadable_snapshot")
+    if not isinstance(parsed, dict):
+        return _empty(0.0, "malformed_snapshot")
+    return _coerce(parsed)
+
+
+def snapshot() -> dict[str, Any]:
+    """Return the cached evidence-freshness snapshot; never raises."""
+    global _cached, _cached_at_monotonic
+    ttl = config.experiment_cache_ttl_secs()
+    with _cache_lock:
+        now_mono = time.monotonic()
+        if _cached is not None and (now_mono - _cached_at_monotonic) < ttl:
+            return dict(_cached)
+        fresh = _load_raw()
+        _cached = fresh
+        _cached_at_monotonic = time.monotonic()
+        return dict(fresh)

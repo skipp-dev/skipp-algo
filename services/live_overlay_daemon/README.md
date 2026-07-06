@@ -201,6 +201,9 @@ All numeric fields are `null`, all bool fields are `false`, `stale: true`.
 | `EXPERIMENT_SNAPSHOT_PATH` | ❌ | *(repo root)*`/artifacts/live_overlay/plan_2_8_tf_family_rollup.json` | Local daily experiment rollup snapshot |
 | `EXPERIMENT_SNAPSHOT_URL` | ❌ | *(unset)* | Optional HTTPS URL for daily experiment rollup snapshot |
 | `EXPERIMENT_SNAPSHOT_URL_TOKEN` | ❌ | *(unset)* | Optional bearer token for `EXPERIMENT_SNAPSHOT_URL` |
+| `EVIDENCE_FRESHNESS_SNAPSHOT_PATH` | ❌ | *(repo root)*`/artifacts/monitoring/evidence_freshness.json` | Local evidence-freshness snapshot (ADR-0023 chain freshness gauges) |
+| `EVIDENCE_FRESHNESS_SNAPSHOT_URL` | ❌ | *(unset)* | Optional HTTPS URL for the evidence-freshness snapshot (raw `bot/live-evidence-freshness` file) |
+| `EVIDENCE_FRESHNESS_SNAPSHOT_URL_TOKEN` | ❌ | *(unset)* | Optional bearer token for `EVIDENCE_FRESHNESS_SNAPSHOT_URL` |
 | `EXPERIMENT_HISTORY_PATH` | ❌ | *(repo root)*`/artifacts/ci/measurement_benchmark_rolling/latest/plan_2_8_history.jsonl` | Local per-day experiment history JSONL |
 | `EXPERIMENT_HISTORY_URL` | ❌ | *(unset)* | Optional HTTPS URL for per-day experiment history JSONL |
 | `EXPERIMENT_HISTORY_URL_TOKEN` | ❌ | *(unset)* | Optional bearer token for `EXPERIMENT_HISTORY_URL` |

@@ -5706,7 +5706,7 @@
               },
               {
                 "color": "red",
-                "value": 0.90
+                "value": 0.9
               }
             ]
           }
@@ -5993,6 +5993,403 @@
         "uid": "grafanacloud-prom"
       },
       "id": 2165782572
+    },
+    {
+      "id": 950010001,
+      "title": "Evidence Freshness (§5 Track)",
+      "type": "row",
+      "collapsed": false,
+      "gridPos": {
+        "x": 0,
+        "y": 246,
+        "w": 24,
+        "h": 1
+      },
+      "description": "Output-freshness of the ADR-0023 evidence chain (magnitude ledger, phase-a-audit branch, paper fills, WSH). Added after the 2026-06/07 silent freeze that stayed green for weeks."
+    },
+    {
+      "id": 950010002,
+      "title": "Paper Fills Closed (§5 track)",
+      "type": "stat",
+      "description": "Cumulative closed paper trades toward the ADR-0023 §5 gate (needs >= 20). filled/target shown alongside. This 0->20 counter is the single most important number until Stage 3.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "grafanacloud-prom"
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 247,
+        "w": 6,
+        "h": 6
+      },
+      "links": [],
+      "targets": [
+        {
+          "expr": "live_overlay_evidence_fills_closed_total{job=~\"$job\"}",
+          "legendFormat": "closed",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "grafanacloud-prom"
+          }
+        },
+        {
+          "expr": "live_overlay_evidence_fills_filled_total{job=~\"$job\"}",
+          "legendFormat": "filled",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "grafanacloud-prom"
+          }
+        },
+        {
+          "expr": "live_overlay_evidence_fills_target{job=~\"$job\"}",
+          "legendFormat": "target",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "grafanacloud-prom"
+          }
+        }
+      ],
+      "options": {
+        "colorMode": "background_solid",
+        "graphMode": "none",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        }
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "",
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "red",
+                "value": null
+              },
+              {
+                "color": "yellow",
+                "value": 1
+              },
+              {
+                "color": "green",
+                "value": 20
+              }
+            ]
+          }
+        },
+        "overrides": []
+      }
+    },
+    {
+      "id": 950010003,
+      "title": "Magnitude Ledger Age (days)",
+      "type": "stat",
+      "description": "Age of the newest magnitude shadow-ledger row. > 3 days = the daily measurement froze (the exact 2026-06/07 blind-spot). Rows / candidate-PASS / plane shown for context.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "grafanacloud-prom"
+      },
+      "gridPos": {
+        "x": 6,
+        "y": 247,
+        "w": 6,
+        "h": 6
+      },
+      "links": [],
+      "targets": [
+        {
+          "expr": "live_overlay_evidence_ledger_age_seconds{job=~\"$job\"} / 86400",
+          "legendFormat": "ledger age (d)",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "grafanacloud-prom"
+          }
+        },
+        {
+          "expr": "live_overlay_evidence_ledger_rows{job=~\"$job\"}",
+          "legendFormat": "rows",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "grafanacloud-prom"
+          }
+        },
+        {
+          "expr": "live_overlay_evidence_ledger_candidate_pass{job=~\"$job\"}",
+          "legendFormat": "candidate PASS",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "grafanacloud-prom"
+          }
+        },
+        {
+          "expr": "live_overlay_evidence_ledger_info{job=~\"$job\"}",
+          "legendFormat": "{{plane}} @ {{newest_date}}",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "grafanacloud-prom"
+          }
+        }
+      ],
+      "options": {
+        "colorMode": "background_solid",
+        "graphMode": "none",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        }
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "",
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "red",
+                "value": 3
+              }
+            ]
+          }
+        },
+        "overrides": []
+      }
+    },
+    {
+      "id": 950010004,
+      "title": "Evidence Data Availability",
+      "type": "stat",
+      "description": "1 = the corresponding evidence date is known/parseable, 0 = unknown (snapshot missing that field). Guards against a stale age reading 0 being mistaken for fresh.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "grafanacloud-prom"
+      },
+      "gridPos": {
+        "x": 12,
+        "y": 247,
+        "w": 6,
+        "h": 6
+      },
+      "links": [],
+      "targets": [
+        {
+          "expr": "live_overlay_evidence_freshness_snapshot_age_known{job=~\"$job\"}",
+          "legendFormat": "snapshot",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "grafanacloud-prom"
+          }
+        },
+        {
+          "expr": "live_overlay_evidence_ledger_age_known{job=~\"$job\"}",
+          "legendFormat": "ledger",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "grafanacloud-prom"
+          }
+        },
+        {
+          "expr": "live_overlay_evidence_audit_branch_age_known{job=~\"$job\"}",
+          "legendFormat": "audit branch",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "grafanacloud-prom"
+          }
+        },
+        {
+          "expr": "live_overlay_evidence_wsh_age_known{job=~\"$job\"}",
+          "legendFormat": "wsh",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "grafanacloud-prom"
+          }
+        }
+      ],
+      "options": {
+        "colorMode": "background_solid",
+        "graphMode": "none",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        }
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "",
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "red",
+                "value": null
+              },
+              {
+                "color": "green",
+                "value": 1
+              }
+            ]
+          }
+        },
+        "overrides": []
+      }
+    },
+    {
+      "id": 950010005,
+      "title": "Evidence Chain Age (days)",
+      "type": "timeseries",
+      "description": "Age in days of each evidence-chain output vs its staleness budget: ledger 3d, audit branch 4d, WSH 7d, snapshot 1d. A rising line crossing its budget is a frozen producer.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "grafanacloud-prom"
+      },
+      "gridPos": {
+        "x": 18,
+        "y": 247,
+        "w": 6,
+        "h": 6
+      },
+      "links": [],
+      "targets": [
+        {
+          "expr": "live_overlay_evidence_ledger_age_seconds{job=~\"$job\"} / 86400",
+          "legendFormat": "ledger",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "grafanacloud-prom"
+          }
+        },
+        {
+          "expr": "live_overlay_evidence_audit_branch_age_seconds{job=~\"$job\"} / 86400",
+          "legendFormat": "audit branch",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "grafanacloud-prom"
+          }
+        },
+        {
+          "expr": "live_overlay_evidence_wsh_age_seconds{job=~\"$job\"} / 86400",
+          "legendFormat": "wsh",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "grafanacloud-prom"
+          }
+        },
+        {
+          "expr": "live_overlay_evidence_freshness_snapshot_age_seconds{job=~\"$job\"} / 86400",
+          "legendFormat": "snapshot",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "grafanacloud-prom"
+          }
+        }
+      ],
+      "options": {
+        "tooltip": {
+          "mode": "multi",
+          "sort": "none"
+        },
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true,
+          "calcs": [
+            "lastNotNull"
+          ]
+        }
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "d",
+          "custom": {
+            "drawStyle": "line",
+            "lineWidth": 2,
+            "fillOpacity": 8
+          }
+        },
+        "overrides": []
+      }
+    },
+    {
+      "id": 950010050,
+      "title": "GitHub Crons — Newest Run (agg)",
+      "type": "stat",
+      "description": "Aggregate across all monitored workflows: age and duration of the single newest run the daemon has seen. A large age here means the whole GitHub-Actions cron fleet has gone quiet (complements the per-workflow rules).",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "grafanacloud-prom"
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 253,
+        "w": 6,
+        "h": 5
+      },
+      "links": [],
+      "targets": [
+        {
+          "expr": "live_overlay_github_workflow_latest_run_age_seconds{job=~\"$job\"} / 3600",
+          "legendFormat": "newest run age (h)",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "grafanacloud-prom"
+          }
+        },
+        {
+          "expr": "live_overlay_github_workflow_latest_run_duration_seconds{job=~\"$job\"} / 60",
+          "legendFormat": "newest run duration (min)",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "grafanacloud-prom"
+          }
+        }
+      ],
+      "options": {
+        "colorMode": "background_solid",
+        "graphMode": "none",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        }
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "",
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "red",
+                "value": 48
+              }
+            ]
+          }
+        },
+        "overrides": []
+      }
     }
   ],
   "schemaVersion": 39,

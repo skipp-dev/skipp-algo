@@ -96,6 +96,9 @@
 # timeout= and fixed https endpoint domains.
 "services/live_overlay_daemon/github_workflow_bridge.py" = [115]
 "services/live_overlay_daemon/uptimerobot_bridge.py" = [91]
+# 2026-07-06 (feat/evidence-freshness-monitoring): evidence-freshness snapshot
+# fetcher, https-only with explicit timeout= (mirrors the workflow bridge).
+"services/live_overlay_daemon/evidence_freshness_bridge.py" = [103]
 # 2026-06-23: live-overlay runtime snapshot fetchers in compute.py remain
 # https-only with explicit timeout=. 2026-06-23 (audit follow-up F2/F3):
 # NEWS/SIGNALS/TRADINGVIEW JSON loaders delegate into one shared
@@ -321,6 +324,14 @@ count = 1
 # publish-cadence stats. Token-list args, read-only dev helper.
 [[subprocess_shell_injection_pin.sites]]
 file = "scripts/analyze_publish_cadence.py"
+attr = "run"
+count = 1
+
+# scripts/build_evidence_freshness_snapshot.py: single `_git` helper wrapping
+# read-only git queries (ls-tree/show/log) for the evidence-freshness snapshot.
+# Fixed token-list argv, no shell, no untrusted input.
+[[subprocess_shell_injection_pin.sites]]
+file = "scripts/build_evidence_freshness_snapshot.py"
 attr = "run"
 count = 1
 
