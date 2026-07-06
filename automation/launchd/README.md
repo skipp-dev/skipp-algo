@@ -16,6 +16,7 @@ consumes whatever artefacts the local jobs commit + push into
 | `com.skippalgo.c13.phase-a.plist` | 09:28 ET (Mon-Fri) | `scripts.build_phase_a_inputs` + `scripts.run_smc_live_incubation --phase paper --place-paper-orders` | `cache/live/setups_<DATE>.jsonl`, `cache/live/gate_status.json`, `cache/live/incubation_<DATE>.jsonl` (bracket sets submitted to the PAPER TWS) |
 | `com.skippalgo.c13.ibkr-smoke.plist` | **08:00 ET (Mon-Fri)** | `scripts.smoke_smc_to_ibkr_adapter --mode live` | `cache/live/smoke_<DATE>.jsonl`; writes `cache/live/smoke_HALT` on failure |
 | `com.skippalgo.c13.reconcile.plist` | 23:05 local (Mon-Fri) | `scripts.reconcile_incubation_fills` | stamps `fill_price`/`close_price`/`close_action`/`size_usd` + PnL/R onto `cache/live/incubation_<DATE>.jsonl` and publishes it (the §5 measurable paper fills) |
+| `com.skippalgo.c13.tws-reminder.plist` | 09:13 + 22:50 local (Mon-Fri) | `run-c13-tws-reminder.sh` (system tools only, no venv) | macOS notification 15 min before each IBKR-bound window — posts ONLY when nothing listens on the paper port |
 | `com.skippalgo.c13.audit-push.plist` | 17:30 ET (Mon-Fri) | `git push origin data/phase-a-audit` | n/a (commits today's audit artefacts to the dedicated, unprotected `data/phase-a-audit` branch, bootstrapped on first run) |
 
 The IBKR-bound jobs (`collect-imbalance`, `phase-a`) use the rotating
@@ -67,7 +68,7 @@ REPO="$(pwd)"   # run from the repo root
 
 # 1. Substitute the placeholder and copy plists into the per-user
 #    LaunchAgents directory.
-for label in collect-imbalance wsh-earnings phase-a-export phase-a ibkr-smoke reconcile audit-push; do
+for label in collect-imbalance wsh-earnings phase-a-export phase-a ibkr-smoke reconcile tws-reminder audit-push; do
     sed -e "s|__REPO_PATH__|${REPO}|g" \
         -e "s|__HOME__|${HOME}|g" \
         "automation/launchd/com.skippalgo.c13.${label}.plist" \
@@ -75,13 +76,13 @@ for label in collect-imbalance wsh-earnings phase-a-export phase-a ibkr-smoke re
 done
 
 # 2. Bootstrap into the user's launchd domain.
-for label in collect-imbalance wsh-earnings phase-a-export phase-a ibkr-smoke reconcile audit-push; do
+for label in collect-imbalance wsh-earnings phase-a-export phase-a ibkr-smoke reconcile tws-reminder audit-push; do
     launchctl bootstrap "gui/$(id -u)" \
         "${HOME}/Library/LaunchAgents/com.skippalgo.c13.${label}.plist"
 done
 
 # 3. Verify they are loaded.
-for label in collect-imbalance wsh-earnings phase-a-export phase-a ibkr-smoke reconcile audit-push; do
+for label in collect-imbalance wsh-earnings phase-a-export phase-a ibkr-smoke reconcile tws-reminder audit-push; do
     launchctl print "gui/$(id -u)/com.skippalgo.c13.${label}" | head -2
 done
 
@@ -93,7 +94,7 @@ launchctl kickstart -k "gui/$(id -u)/com.skippalgo.c13.phase-a-export"
 ## Uninstall
 
 ```bash
-for label in collect-imbalance wsh-earnings phase-a-export phase-a ibkr-smoke reconcile audit-push; do
+for label in collect-imbalance wsh-earnings phase-a-export phase-a ibkr-smoke reconcile tws-reminder audit-push; do
     launchctl bootout "gui/$(id -u)/com.skippalgo.c13.${label}" 2>/dev/null || true
 done
 rm ~/Library/LaunchAgents/com.skippalgo.c13.*.plist
