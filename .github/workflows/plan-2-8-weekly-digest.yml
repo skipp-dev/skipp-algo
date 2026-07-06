@@ -13264,6 +13264,15 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
+
+          # Repo hier kann Issues deaktiviert haben -- `gh issue create`
+          # wuerde dann fehlschlagen. Vorher unentdeckt, weil dieser Pfad nur
+          # feuert wenn has_alerts=True tatsaechlich zutrifft.
+          if [ "$(gh repo view --json hasIssuesEnabled --jq '.hasIssuesEnabled')" != "true" ]; then
+            echo "::warning title=plan-2-8-weekly-digest::GitHub Issues sind fuer dieses Repo deaktiviert -- kann kein Drift-Alert-Issue oeffnen. has_alerts=True fuer diesen Lauf, siehe Step Summary / Artefakte fuer Details."
+            exit 0
+          fi
+
           # Re-render the issue body with the workflow-run URL footer
           # so the link survives even after the artifact is gone.
           history="$(find artifacts/latest_bench -name plan_2_8_history.jsonl -print -quit)"
@@ -13301,6 +13310,15 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
+
+          # Repo hier kann Issues deaktiviert haben -- `gh issue list` faellt
+          # dann still auf "keine offenen Issues" zurueck. Explizite Warnung
+          # statt eines irrefuehrenden "No open drift-alert issues to close".
+          if [ "$(gh repo view --json hasIssuesEnabled --jq '.hasIssuesEnabled')" != "true" ]; then
+            echo "::warning title=plan-2-8-weekly-digest::GitHub Issues sind fuer dieses Repo deaktiviert -- kann keine Drift-Alert-Issues schliessen (bzw. gab es sowieso keine, da sie nie geoeffnet werden konnten)."
+            exit 0
+          fi
+
           # When the weekly digest finds no comparable slice over
           # threshold, close any still-open drift-alert issues with
           # a short note pointing at this run. Idempotent: a no-op

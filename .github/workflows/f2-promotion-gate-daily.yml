@@ -441,6 +441,16 @@ jobs:
           GH_REPO:  ${{ github.repository }}
         run: |
           set -e
+
+          # Repo hier kann Issues deaktiviert haben -- `gh issue create`/
+          # `comment` wuerde dann fehlschlagen. Das darf die eigentliche
+          # Gate-Failure (Rollback bereits durch den gate-Step signalisiert)
+          # nicht mit einer verwirrenden zweiten roten Annotation ueberdecken.
+          if [ "$(gh repo view "$GH_REPO" --json hasIssuesEnabled --jq '.hasIssuesEnabled')" != "true" ]; then
+            echo "::warning title=f2-promotion-gate-daily::GitHub Issues sind auf ${GH_REPO} deaktiviert -- kann kein Rollback-Issue oeffnen/aktualisieren. Die Gate-Failure oben (rc=2) ist bis auf Weiteres der Alarm."
+            exit 0
+          fi
+
           python scripts/f2_render_rollback_issue.py \
             --report "${{ steps.gate.outputs.report }}" \
             --date   "${{ steps.date.outputs.value }}" \

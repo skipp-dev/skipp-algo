@@ -238,6 +238,14 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GH_PAT != '' && secrets.GH_PAT || github.token }}
         run: |
+          # Repo hier kann Issues deaktiviert haben -- `gh issue create`
+          # wuerde dann fehlschlagen und den Operator nie erreichen, ohne
+          # dass irgendwo eine sichtbare Warnung dazu steht.
+          if [ "$(gh repo view "${{ github.repository }}" --json hasIssuesEnabled --jq '.hasIssuesEnabled')" != "true" ]; then
+            echo "::warning title=tradingview-storage-refresh::GitHub Issues sind auf ${{ github.repository }} deaktiviert -- kann kein Failure-Issue oeffnen. Die Job-Failure oben ist bis auf Weiteres der Alarm; TV_STORAGE_STATE manuell pruefen."
+            exit 0
+          fi
+
           gh issue create \
             --repo "${{ github.repository }}" \
             --title "🔐 tradingview-storage-refresh failed — manual cookie refresh required" \

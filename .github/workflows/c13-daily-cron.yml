@@ -481,6 +481,15 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
+          # Repo hier kann Issues deaktiviert haben -- `gh issue list`/
+          # `create` wuerde dann fehlschlagen und den eigentlichen
+          # Step-Failure-Alarm (siehe rc-Werte oben) mit einer verwirrenden
+          # zweiten roten Annotation ueberdecken.
+          if [ "$(gh repo view --json hasIssuesEnabled --jq '.hasIssuesEnabled')" != "true" ]; then
+            echo "::warning title=c13-daily-cron::GitHub Issues sind fuer dieses Repo deaktiviert -- kann kein Failure-Issue oeffnen. Die Step-Failure oben ist bis auf Weiteres der Alarm."
+            exit 0
+          fi
+
           DATE="${{ steps.date.outputs.date }}"
           TITLE="C13 daily-cron failure ${DATE}"
           if gh issue list --label cron-failure --search "in:title \"${TITLE}\"" --state open | grep -q "${TITLE}"; then
