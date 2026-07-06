@@ -204,6 +204,14 @@ def test_render_metrics_prometheus_format_and_trailing_newline(monkeypatch: pyte
         'live_overlay_provider_news_info{provider="tv",state="degraded",'
         'reason="API key missing",consumed="true"} 1' in body
     )
+    # Evidence-freshness gauges are always emitted (fail-soft to loaded=0 when
+    # no snapshot is present), so the ADR-0023 chain-freshness alerts always
+    # have a series to evaluate.
+    assert "# TYPE live_overlay_evidence_freshness_loaded gauge" in body
+    assert "# TYPE live_overlay_evidence_ledger_age_seconds gauge" in body
+    assert "# TYPE live_overlay_evidence_audit_branch_age_seconds gauge" in body
+    assert "# TYPE live_overlay_evidence_fills_closed_total gauge" in body
+    assert "live_overlay_evidence_ledger_info{plane=" in body
 
 
 def test_render_metrics_health_status_ok(monkeypatch: pytest.MonkeyPatch) -> None:

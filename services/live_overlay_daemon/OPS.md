@@ -176,6 +176,9 @@ name = "live_overlay_daemon"
 | `EXPERIMENT_SNAPSHOT_PATH` | no | `artifacts/live_overlay/plan_2_8_tf_family_rollup.json` | Local daily experiment rollup snapshot path |
 | `EXPERIMENT_SNAPSHOT_URL` | no | — | Optional HTTPS URL for experiment rollup snapshot |
 | `EXPERIMENT_SNAPSHOT_URL_TOKEN` | no | — | Optional bearer token for `EXPERIMENT_SNAPSHOT_URL` |
+| `EVIDENCE_FRESHNESS_SNAPSHOT_PATH` | no | `artifacts/monitoring/evidence_freshness.json` | Local evidence-freshness snapshot path (ADR-0023 chain freshness gauges) |
+| `EVIDENCE_FRESHNESS_SNAPSHOT_URL` | no | — | Optional HTTPS URL for the evidence-freshness snapshot; set to the raw `bot/live-evidence-freshness` `artifacts/monitoring/latest/evidence_freshness.json` so the off-host daemon serves fresh ledger/audit/fills gauges |
+| `EVIDENCE_FRESHNESS_SNAPSHOT_URL_TOKEN` | no | — | Optional bearer token for `EVIDENCE_FRESHNESS_SNAPSHOT_URL` |
 | `EXPERIMENT_HISTORY_PATH` | no | — | Local daily experiment history JSONL path |
 | `EXPERIMENT_HISTORY_URL` | no | — | Optional HTTPS URL for experiment history JSONL |
 | `EXPERIMENT_HISTORY_URL_TOKEN` | no | — | Optional bearer token for `EXPERIMENT_HISTORY_URL` |

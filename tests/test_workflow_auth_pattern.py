@@ -172,6 +172,11 @@ _FORCE_LEASE_ALLOWLIST: frozenset[str] = frozenset({
     # plan-2-8-evaluation.yml: rolling bot/live-experiment-snapshot refresh
     # for the Plan 2.8 TF-family evaluation artifact stream. See ADR-0024.
     "plan-2-8-evaluation.yml",
+    # evidence-freshness-snapshot.yml: rolling bot/live-evidence-freshness
+    # refresh for the ADR-0023 evidence-chain freshness gauges the daemon
+    # serves; force-with-lease with prior fetch (same pattern as
+    # plan-2-8-evaluation). See ADR-0024.
+    "evidence-freshness-snapshot.yml",
 })
 
 _FORCE_RE = re.compile(r"git\s+push\b[^\n]*--force")

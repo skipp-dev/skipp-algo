@@ -1,0 +1,22 @@
+{
+  "audit_branch": {
+    "last_commit_date": "2026-07-06"
+  },
+  "fills": {
+    "closed_cumulative": 0,
+    "filled_cumulative": 0,
+    "newest_incubation_date": "2026-07-06",
+    "target": 20
+  },
+  "generated_at_unix": 1783348132.361699,
+  "ledger": {
+    "candidate_pass": 2,
+    "newest_date": "2026-06-11",
+    "plane": "15m",
+    "rows": 4
+  },
+  "wsh": {
+    "newest_date": "2026-06-11",
+    "status": "degraded:no-events"
+  }
+}
