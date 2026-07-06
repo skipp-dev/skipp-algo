@@ -624,6 +624,78 @@ with urllib.request.urlopen(req) as resp:
     print(resp.status, resp.read().decode("utf-8"))
 ```
 
+### Evidence-freshness monitoring — go-live runbook
+
+Bringing the ADR-0023 evidence-freshness monitoring (per-workflow alerts,
+evidence-chain freshness gauges, the §2/§5 per-family sample panel) live in
+Grafana. The code + config ship in the repo, but deploy to Grafana Cloud is
+**manual** (there is no CI upsert), so these steps are required once.
+
+**Prerequisite:** PRs #3215 (plane/gate governance) and #3216 (per-family
+sample panel) are merged to `main`; run from a fresh top-level checkout:
+
+```bash
+cd ~/Documents/skipp-algo && git checkout main && git pull --ff-only
+```
+
+1. **Push the alert rules** (validate first, then apply — needs the Grafana
+   API key in the keychain, `skipp.grafana.api`):
+
+   ```bash
+   python scripts/grafana_alert_rules_upsert.py --dry-run   # validate, no network
+   python scripts/grafana_alert_rules_upsert.py             # apply
+   ```
+
+   Adds the `evidence-and-workflow-freshness` group (ledger-stale,
+   audit-branch-stale, snapshot-stale, wsh-stale, plus the three per-workflow
+   alerts). Do **not** pass `--prune` unless you intend to delete live groups
+   absent from the repo.
+
+2. **Push the dashboard:**
+
+   ```bash
+   python scripts/grafana_dashboard_upsert.py
+   ```
+
+   Adds the "Evidence Freshness (§5 Track)" row incl. the "Samples toward
+   §2/§5 (need 40 / family)" panel.
+
+3. **Wire the data feed** (otherwise the panels are empty / go stale):
+
+   * Run the producer once so it publishes the snapshot to
+     `bot/live-evidence-freshness`:
+
+     ```bash
+     gh workflow run evidence-freshness-snapshot.yml
+     ```
+
+   * Set two env vars on the **`live_overlay_daemon`** Railway service, then
+     redeploy:
+
+     ```
+     EVIDENCE_FRESHNESS_SNAPSHOT_URL=https://api.github.com/repos/<OWNER>/skipp-algo/contents/artifacts/monitoring/latest/evidence_freshness.json?ref=bot/live-evidence-freshness
+     EVIDENCE_FRESHNESS_SNAPSHOT_URL_TOKEN=<fine-grained PAT, Contents:Read, skipp-algo only>
+     ```
+
+     For `<OWNER>` and the token, mirror the already-working snapshot vars
+     (`SIGNALS_SNAPSHOT_URL` / `EXPERIMENT_SNAPSHOT_URL`) — same owner, reuse
+     the same PAT.
+
+4. **Verify:**
+
+   ```bash
+   curl -s https://<daemon-host>/metrics | grep live_overlay_evidence_samples
+   ```
+
+   Expect `live_overlay_evidence_samples_usable{family="BOS",classification="operational"} …`
+   and `live_overlay_evidence_samples_target 40`. In Grafana the new row shows
+   BOS with coloured progress toward 40, SWEEP/controls greyed, and the alerts
+   listed under the `SMC Live Overlay` folder.
+
+Without step 3's env vars the daemon serves the checked-in seed snapshot; its
+`generated_at` ages and the "Evidence snapshot stale" alert fires after 24h —
+at which point that alert is a true signal that step 3 is missing.
+
 ### Pull-back workflow (when someone edited in the UI)
 
 ```bash
