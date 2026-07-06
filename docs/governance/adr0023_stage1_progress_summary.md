@@ -99,17 +99,18 @@ profit per trade noticeably — and stays clearly positive **even in the
 pessimistic case** (the lower confidence bound). This is the first hard evidence
 that the magnitude axis carries not only statistically but **economically**.
 
-> **Scope note (added 2026-07-06):** the PASS verdicts above are the
-> *estimator* (`governance/epnl_after_cost.py`) run on reconstructed event
-> aggregates with an **assumed flat 5 bps cost** — a preliminary estimate,
-> not the recordable §5 verdict. The formal Stage-3 §5 check stays **pending**
-> until the empirical cost model is fed by enough measurable C8 Phase-A paper
-> fills — **`MIN_TRADES = 40` per family** (the code's floor; earlier prose's
-> "≥ 20" was wrong, corrected 2026-07-06), which makes SWEEP effectively
-> unmeasurable on §5 (see
+> **Scope note (added 2026-07-06, corrected post-review):** the PASS verdicts
+> above are the *estimator* (`governance/epnl_after_cost.py`) run on
+> reconstructed event aggregates with an **assumed flat 5 bps cost** — a
+> preliminary estimate, not the recordable §5 verdict. The formal Stage-3 §5
+> check stays **pending** until the 1D FamilyEvent pool holds
+> **`MIN_TRADES = MIN_OOS_SAMPLES = 40` triggered score+return samples per
+> family** — the SAME pool the §2 AUC reads (§5 does NOT consume C13 paper
+> fills; those carry no family and feed Phase-B). Earlier prose's "≥ 20 paper
+> fills" was wrong on both count and source (corrected 2026-07-06). SWEEP is
+> too rare on the daily plane to reach 40, hence unmeasurable on §5 (see
 > [adr0023_plane_and_gate_clarification.md](adr0023_plane_and_gate_clarification.md)).
-> This table does NOT unlock Stage 3; the two documents previously
-> read as contradicting each other on this point.
+> This table does NOT unlock Stage 3.
 
 ## 3. Infrastructure built to support this
 

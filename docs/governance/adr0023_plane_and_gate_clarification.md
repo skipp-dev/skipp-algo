@@ -15,18 +15,23 @@ ADR-0023 arms **BOS** and **SWEEP** (Stage 2) on a **15m** SMC magnitude
 proof (AUC 0.62 / 0.69, large out-of-sample n). But three different things
 were being treated as one:
 
-| Plane / stream | What it measures | Timeframe | State |
+| Plane / stream | What it measures | Source | State |
 |---|---|---|---|
-| **15m magnitude proof** | Does SMC structure predict move size? (the arming) | 15m intraday | **frozen** — proof complete, pipeline dead (no fresh 15m events) |
-| **1D magnitude measurement** | Same question, on daily bars (CI rolling-bench) | 1D | bootstrapping (thin; heartbeats until `MIN_OOS`) |
-| **§5 E[PnL]-after-cost** | Do the trades make money after costs? (the Stage-3 gate) | **daily** (open-prep swing, `smc_orb_vwap_hold`) | not started — needs C13 paper fills |
+| **15m magnitude proof** | Does SMC structure predict move size? (the arming) | 15m FamilyEvents (frozen local store) | **frozen** — proof complete, pipeline dead |
+| **1D magnitude measurement — §2 AUC AND §5 E[PnL]** | Does the score resolve move-size (§2) AND is it profitable after cost (§5)? | the SAME 1D FamilyEvent pool (rolling-bench → `accumulate_family_events`) | bootstrapping (thin; heartbeats until 40 samples/family) |
+| **C13 paper trading** | Does the open-prep swing *execution* survive live paper fills? | `smc_orb_vwap_hold` incubation fills | feeds **Phase-B**, NOT this gate |
 
-The **load-bearing fact**: the operational system that actually risks capital —
-open-prep daily swing setups sized by magnitude, and the §5 gate that measures
-them — runs on the **daily** timeframe. The 15m result was the *discovery*, not
-the plane the money trades. Yet the arming, the daily measurement, and the §5
-gate were being read as if they were one coherent "BOS/SWEEP magnitude edge",
-when they are three experiments on two timeframes.
+The **load-bearing fact** (corrected 2026-07-06 after review): **§5 does NOT
+measure C13 paper trades.** `scripts/run_epnl_after_cost_gate.py` reads
+**FamilyEvent records** and runs `extract_family_calibration_samples` — the
+*same* producer the §2 resolution gate uses. So §2 (AUC) and §5 (E[PnL]) are
+two checks on the **one** 1D FamilyEvent pool, both blocked by the same
+`MIN_TRADES = MIN_OOS_SAMPLES = 40` samples/family floor. The C13
+`smc_orb_vwap_hold` paper fills carry no SMC family and no move-size score, so
+they cannot feed §5 at all — they feed the separate **C8 Phase-A→B→C execution
+promotion ladder** (`evaluate_phase_criteria.py`). Three streams, three roles;
+the earlier framing that "§5 measures the daily paper trades / needs C13 paper
+fills" was wrong.
 
 ## 2. The decision
 
@@ -41,13 +46,20 @@ when they are three experiments on two timeframes.
   and does **not** demote a 15m arming.
 - **§5 E[PnL]-after-cost = the binding Stage-2→3 gate.** The handover's own
   logic already subordinates the AUC to §5: "a resolution pass that does not
-  convert to positive sized E[PnL] after costs is a recordable negative." The
-  economically-relevant confirmation is inherently daily (it measures the daily
-  paper trades) and needs `MIN_TRADES = 40` triggered fills per family.
+  convert to positive sized E[PnL] after costs is a recordable negative." But
+  §5 reads the **same 1D FamilyEvent pool** as the §2 AUC (not the C13 paper
+  fills) and needs 40 triggered samples/family — so §5 and the 1D AUC become
+  measurable at the same time, from the same data.
+- **C13 paper trading = Phase-B, orthogonal to this gate.** It promotes the
+  open-prep `smc_orb_vwap_hold` *execution* from paper to real capital
+  (`evaluate_phase_criteria.py`). Valuable, but it does **not** advance
+  ADR-0023 Stage 3; running the C13 paper cron does nothing for §5.
 
-"Stage 2 stable over multiple windows", operationally, therefore means: **BOS
-delivers durably positive magnitude-sized E[PnL] after costs on the daily
-paper track (§5)** — monitored, as an early-warning, by the 1D AUC.
+"Stage 2 stable over multiple windows", operationally, therefore means: **the
+1D FamilyEvent pool reaches 40 BOS samples and BOS clears both the §2
+resolution bar and the §5 E[PnL]-after-cost bar** — a data-accumulation problem
+in the rolling-bench/`accumulate_family_events` pipeline (which the reseed +
+score-persistence work addresses), NOT a paper-trading problem.
 
 ## 3. Consequences (implemented in this change)
 
@@ -58,9 +70,20 @@ paper track (§5)** — monitored, as an early-warning, by the 1D AUC.
    cannot revoke a 15m arming. The weekly judgement still runs as a health
    monitor; only enforcement is gated. (`scripts/eval_magnitude_shadow_weekly.py`)
 
+   **Consequence to accept explicitly:** with the 15m proof frozen in the
+   archive (never read by the weekly job) and the live 1D ledger cross-plane-
+   suppressed, the weekly **auto-demotion safety net is now dormant** — no
+   ledger can currently demote the armed BOS/SWEEP. This is intended (a 1D
+   result must not revoke a 15m arming), but it means the real decay control
+   for the armed families is §5's economic verdict, not the weekly AUC. When
+   the 1D pool eventually clears 40/family, BOS's 1D verdicts should become the
+   armed plane for 1D (a future `armed_plane` update), re-activating demotion
+   on the plane that actually trades.
+
 2. **§5 threshold corrected: 40, not 20.** The binding count is
-   `MIN_TRADES = MIN_OOS_SAMPLES = 40` triggered fills **per family**
-   (`governance/epnl_after_cost.py`), not the "≥ 20" earlier prose used. This
+   `MIN_TRADES = MIN_OOS_SAMPLES = 40` triggered FamilyEvent **samples per
+   family** (`governance/epnl_after_cost.py`; these are score+return samples
+   from the 1D pool, NOT paper fills), not the "≥ 20" earlier prose used. This
    roughly doubles the time to a first BOS §5 verdict and makes SWEEP
    effectively unmeasurable on §5. The handover and progress-summary docs are
    corrected.

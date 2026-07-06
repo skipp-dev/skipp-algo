@@ -324,6 +324,37 @@ def test_main_single_plane_rows_still_judged(tmp_path):
     assert rc == 0
 
 
+def test_main_null_plane_heartbeat_does_not_trip_mix_guard(tmp_path):
+    """Post-review finding C1: a pure-1D ledger containing one heartbeat row
+    whose plane is null (underivable bar interval) must NOT read as a
+    {'1D','15m'} plane mix (rc=1). None means 'unknown', not '15m'."""
+    import json
+
+    ledger = tmp_path / "ledger.jsonl"
+    rows = [
+        {**_row(date="2026-07-06", family="BOS", status="INCONCLUSIVE"), "plane": "1D"},
+        {**_row(date="2026-07-07", family="BOS", status="INCONCLUSIVE"), "plane": None},
+    ]
+    ledger.write_text("\n".join(json.dumps(r) for r in rows) + "\n")
+    rc = main(["--ledger", str(ledger), "--k", "1", "--n", "1"])
+    assert rc == 0  # not rc=1 (spurious mix); all-INCONCLUSIVE → no demotion
+
+
+def test_main_genuine_plane_mix_still_refused(tmp_path, capsys):
+    """The guard must still refuse a REAL mix of two known planes."""
+    import json
+
+    ledger = tmp_path / "ledger.jsonl"
+    rows = [
+        {**_row(date="2026-06-11", family="BOS", status="PASS"), "plane": "15m"},
+        {**_row(date="2026-07-06", family="BOS", status="PASS"), "plane": "1D"},
+    ]
+    ledger.write_text("\n".join(json.dumps(r) for r in rows) + "\n")
+    rc = main(["--ledger", str(ledger), "--k", "1", "--n", "1"])
+    assert rc == 1
+    assert "mixes measurement planes" in capsys.readouterr().err
+
+
 def test_all_thin_heartbeat_weeks_are_inconclusive_and_never_demote():
     """A ledger of nothing but thin-day heartbeat rows (INCONCLUSIVE, 1D)
     must produce INCONCLUSIVE weeks and, crucially, must NOT auto-demote the

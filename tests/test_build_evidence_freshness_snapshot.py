@@ -63,6 +63,20 @@ def test_build_snapshot_samples_missing_family_defaults_to_zero():
     )
     assert snap["samples"]["per_family"]["SWEEP"]["usable"] == 0
 
+
+def test_build_snapshot_samples_clamped_to_target():
+    """On a MEASURED row n_oos is the OOS fold size (hundreds/thousands), not
+    the accumulation count. Clamp to 40 so the gauge reads '40/40 = at the
+    bar' instead of a confusing '2370/40' (post-review finding)."""
+    rows = [{"date": "2026-07-08", "family": "BOS", "n_oos": 2370, "plane": "1D", "status": "PASS"}]
+    snap = build_snapshot(
+        ledger_rows=rows, incubation_records=[], audit_commit_date="",
+        newest_incubation_date="", wsh_date="", wsh_status="",
+        generated_at_unix=1_783_000_000.0,
+    )
+    assert snap["samples"]["per_family"]["BOS"]["usable"] == SAMPLES_TARGET == 40
+
+
 # --------------------------------------------------------------------------- #
 # summarize_ledger
 # --------------------------------------------------------------------------- #

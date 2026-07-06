@@ -15,7 +15,7 @@ consumes whatever artefacts the local jobs commit + push into
 | `com.skippalgo.c13.phase-a-export.plist` | 09:18 ET (Mon-Fri) | `scripts.export_open_prep_lists` | `reports/open_prep_trade_cards_<TS>.csv` |
 | `com.skippalgo.c13.phase-a.plist` | 09:28 ET (Mon-Fri) | `scripts.build_phase_a_inputs` + `scripts.run_smc_live_incubation --phase paper --place-paper-orders` | `cache/live/setups_<DATE>.jsonl`, `cache/live/gate_status.json`, `cache/live/incubation_<DATE>.jsonl` (bracket sets submitted to the PAPER TWS) |
 | `com.skippalgo.c13.ibkr-smoke.plist` | **08:00 ET (Mon-Fri)** | `scripts.smoke_smc_to_ibkr_adapter --mode live` | `cache/live/smoke_<DATE>.jsonl`; writes `cache/live/smoke_HALT` on failure |
-| `com.skippalgo.c13.reconcile.plist` | 23:05 local (Mon-Fri) | `scripts.reconcile_incubation_fills` | stamps `fill_price`/`close_price`/`close_action`/`size_usd` + PnL/R onto `cache/live/incubation_<DATE>.jsonl` and publishes it (the §5 measurable paper fills) |
+| `com.skippalgo.c13.reconcile.plist` | 23:05 local (Mon-Fri) | `scripts.reconcile_incubation_fills` | stamps `fill_price`/`close_price`/`close_action`/`size_usd` + PnL/R onto `cache/live/incubation_<DATE>.jsonl` and publishes it (Phase-B execution-promotion fills — NOT the ADR-0023 §5 gate) |
 | `com.skippalgo.c13.tws-reminder.plist` | 09:13 + 22:50 local (Mon-Fri) | `run-c13-tws-reminder.sh` (system tools only, no venv) | macOS notification 15 min before each IBKR-bound window — posts ONLY when nothing listens on the paper port |
 | `com.skippalgo.c13.audit-push.plist` | 17:30 ET (Mon-Fri) | `git push origin data/phase-a-audit` | n/a (commits today's audit artefacts to the dedicated, unprotected `data/phase-a-audit` branch, bootstrapped on first run) |
 
@@ -27,8 +27,13 @@ the long-lived `~/IB_mon` monitoring service or with each other.
 
 `com.skippalgo.c13.phase-a.plist` runs `run_smc_live_incubation.py`
 with `--phase paper --place-paper-orders` (C13b T1.2, enabled
-2026-07-06 to produce the measurable paper fills the ADR-0023 §5
-E[PnL]-after-cost gate requires). The submitter carries a built-in
+2026-07-06 to produce measurable paper fills for the **C8 Phase-A→B
+execution-promotion ladder** — `scripts/evaluate_phase_criteria.py`).
+**Correction (2026-07-06, post-review):** these fills do NOT feed the
+ADR-0023 §5 E[PnL] gate — §5 reads FamilyEvent `(score, return)`
+samples from the magnitude-benchmark pool, and these open-prep
+`smc_orb_vwap_hold` fills carry no SMC family. Running this cron
+advances Phase-B, not ADR-0023 Stage 3. The submitter carries a built-in
 paper-port guard (7497/4002 only) and the CLI refuses
 `--place-paper-orders` on any live phase, so a mis-configured TWS can
 never receive real orders from this cron. **However**, before loading

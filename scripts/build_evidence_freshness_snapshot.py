@@ -158,12 +158,19 @@ def build_snapshot(
     # each tagged with its governance classification so the dashboard can grey
     # out non-operational families (SWEEP = proof_of_concept_15m; FVG/OB =
     # control). This — not the C13 fills — is the honest distance to §5.
+    #
+    # Clamp to SAMPLES_TARGET (post-review finding: n_oos means "usable
+    # calibration samples" on a thin heartbeat row but "OOS walk-forward
+    # fold size" — hundreds/thousands — on a MEASURED row). Reporting the raw
+    # count would make a family jump from "16/40" to "2370/40" the day it
+    # becomes measurable. Clamping shows "40/40" = "at/over the bar", so the
+    # gauge reads as honest progress-to-measurability in both regimes.
     per_family = ledger.get("usable_samples") or {}
     samples = {
         "target": SAMPLES_TARGET,
         "per_family": {
             fam: {
-                "usable": int(per_family.get(fam, 0)),
+                "usable": min(int(per_family.get(fam, 0)), SAMPLES_TARGET),
                 "classification": classification_of(fam),
             }
             for fam in ALL_FAMILIES
