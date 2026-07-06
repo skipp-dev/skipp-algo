@@ -69,6 +69,7 @@ from typing import Any
 from governance.magnitude_resolution_gate import MAG_AUC_CI_LOW_FLOOR
 from governance.magnitude_stage_policy import (
     DEFAULT_POLICY_PATH,
+    classification_of,
     demote_family,
     load_policy,
     save_policy,
@@ -507,6 +508,13 @@ def render_text(report: dict[str, Any]) -> str:
         f"(k={report['k_required']} of n={report['n_window']} ISO weeks, "
         f"anchor={report.get('anchor_week')}, latest={report['latest_date']})"
     )
+    if report.get("cross_plane_demotion_suppressed"):
+        lines.append(
+            f"  PLANE: ledger={report.get('ledger_plane')} vs "
+            f"armed={report.get('armed_plane')} — cross-plane, demotion "
+            "SUPPRESSED (health-monitor only; a 1D result cannot demote a "
+            "15m arming)."
+        )
     for family, v in report["families"].items():
         auc = v["latest_auc"]
         ci = v["latest_ci_low"]
@@ -516,11 +524,13 @@ def render_text(report: dict[str, Any]) -> str:
         trend = " ci-low→floor" if v["ci_low_trending_to_floor"] else ""
         spark = sparkline(v.get("auc_window", []))
         spark_s = f" [{spark}]" if spark else ""
+        cls = classification_of(family)
+        cls_s = f" <{cls}>" if cls != "operational" else ""
         lines.append(
             f"  {family:<6}[{v['role']:<9}] "
             f"pass {v['pass_count']}/{v['n_window']}wk "
             f"(need {v['k_required']}, measurable {v['window_size']}){spark_s} "
-            f"AUC={auc_s} CIlow={ci_s} {health}{trend}"
+            f"AUC={auc_s} CIlow={ci_s} {health}{trend}{cls_s}"
         )
         if v["role"] == "candidate" and not v["stage2_eligible"]:
             remaining = max(0, v["k_required"] - v["pass_count"])
@@ -656,9 +666,30 @@ def main(argv: list[str] | None = None) -> int:
 
     report = evaluate_weekly(rows, k=args.k, n=args.n)
     report["armed_families"] = sorted(policy.armed_families)
-    demotions = evaluate_demotions(report, policy.armed_families)
+
+    # Cross-plane non-demotion (2026-07-06, plane/gate memo). The mix guard
+    # above proved the ledger is single-plane; if that plane differs from the
+    # plane the arming was judged on (`policy.armed_plane`), the k-of-n on
+    # this ledger measures a DIFFERENT edge and must not demote the arming
+    # (e.g. a thin/failing 1D result cannot revoke a family armed on the 15m
+    # proof — those are different experiments). The weekly judgement still
+    # runs as a health monitor; only the enforcement side is suppressed.
+    ledger_plane = next(iter(planes))
+    cross_plane = ledger_plane != policy.armed_plane
+    report["ledger_plane"] = ledger_plane
+    report["armed_plane"] = policy.armed_plane
+    report["cross_plane_demotion_suppressed"] = cross_plane
+
+    demotions = [] if cross_plane else evaluate_demotions(report, policy.armed_families)
     report["demotions"] = demotions
     report["demotions_applied"] = False
+    if cross_plane:
+        print(
+            f"::notice::cross-plane: ledger plane {ledger_plane!r} != armed "
+            f"plane {policy.armed_plane!r}; demotion suppressed (health-monitor "
+            "only). See adr0023_plane_and_gate_clarification.md.",
+            file=sys.stderr,
+        )
 
     if demotions and args.apply_demotions:
         latest = report.get("latest_date") or ""

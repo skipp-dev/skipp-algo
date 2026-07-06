@@ -43,6 +43,35 @@ DEFAULT_POLICY_PATH = Path("governance") / "magnitude_stage_policy.json"
 # The only stages the rollout defines (handover §3).
 _VALID_STAGES = (1, 2, 3)
 
+# The plane the current arming was established on. The 2026-06-11 arming rests
+# on the 15m magnitude proof; the daily CI measures the 1D plane. Demotion is
+# suppressed when the evaluated ledger's plane differs from this (a 1D result
+# cannot demote a 15m arming — see adr0023_plane_and_gate_clarification.md).
+DEFAULT_ARMED_PLANE = "15m"
+
+# Governance classification of the four families (ADR-0023 plane/gate memo,
+# 2026-07-06). This is a stable stance, not per-run state, so it lives as a
+# git-versioned constant rather than in the mutable policy JSON.
+#
+# * operational          — dense enough to confirm on the DAILY operational
+#   plane (open-prep swing + §5 E[PnL]); the viable Stage-3 candidate.
+# * proof_of_concept_15m — a clean 15m magnitude proof that does NOT translate
+#   to a confirmable daily edge: too rare on 1D for the AUC (MIN_OOS=40) AND
+#   for §5 (MIN_TRADES=40 fills/family). Stays armed (fail-closed) but is not
+#   expected to reach operational confirmation.
+# * control              — negative-control family (never a candidate).
+FAMILY_CLASSIFICATION: dict[str, str] = {
+    "BOS": "operational",
+    "SWEEP": "proof_of_concept_15m",
+    "FVG": "control",
+    "OB": "control",
+}
+
+
+def classification_of(family: str) -> str:
+    """Governance class of *family* (``"unclassified"`` if unknown)."""
+    return FAMILY_CLASSIFICATION.get(family, "unclassified")
+
 
 @dataclass(frozen=True)
 class MagnitudeStagePolicy:
@@ -60,6 +89,9 @@ class MagnitudeStagePolicy:
     armed_families: frozenset[str] = frozenset()
     k: int = 3
     n: int = 4
+    # Plane the arming was judged on. Demotion only applies when the evaluated
+    # ledger is on this same plane (cross-plane non-demotion, 2026-07-06).
+    armed_plane: str = DEFAULT_ARMED_PLANE
     history: tuple[dict[str, Any], ...] = field(default_factory=tuple)
 
     def __post_init__(self) -> None:
@@ -67,6 +99,8 @@ class MagnitudeStagePolicy:
             raise ValueError(f"stage must be one of {_VALID_STAGES}, got {self.stage!r}")
         if not (1 <= self.k <= self.n):
             raise ValueError(f"require 1 <= k <= n, got k={self.k} n={self.n}")
+        if not isinstance(self.armed_plane, str) or not self.armed_plane.strip():
+            raise ValueError(f"armed_plane must be a non-empty string, got {self.armed_plane!r}")
         if self.stage == 1 and self.armed_families:
             raise ValueError(
                 "stage 1 is measure-only; armed_families must be empty "
@@ -120,6 +154,10 @@ def load_policy(path: str | Path = DEFAULT_POLICY_PATH) -> MagnitudeStagePolicy:
             armed_families=frozenset(armed),
             k=int(payload.get("k", 3)),
             n=int(payload.get("n", 4)),
+            # Optional + backward-compatible: a v1 policy without the field
+            # (e.g. the pre-2026-07 arming) defaults to the 15m plane it was
+            # judged on.
+            armed_plane=str(payload.get("armed_plane", DEFAULT_ARMED_PLANE)),
             history=tuple(history),
         )
     except (TypeError, ValueError) as exc:
@@ -134,6 +172,7 @@ def policy_to_dict(policy: MagnitudeStagePolicy) -> dict[str, Any]:
         "armed_families": sorted(policy.armed_families),
         "k": policy.k,
         "n": policy.n,
+        "armed_plane": policy.armed_plane,
         "history": list(policy.history),
     }
 
@@ -177,9 +216,12 @@ def demote_family(
 
 
 __all__ = [
+    "DEFAULT_ARMED_PLANE",
     "DEFAULT_POLICY_PATH",
+    "FAMILY_CLASSIFICATION",
     "MAGNITUDE_STAGE_POLICY_SCHEMA_VERSION",
     "MagnitudeStagePolicy",
+    "classification_of",
     "demote_family",
     "load_policy",
     "policy_to_dict",
