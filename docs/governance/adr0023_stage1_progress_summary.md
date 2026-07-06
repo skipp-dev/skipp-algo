@@ -90,6 +90,15 @@ profit per trade noticeably — and stays clearly positive **even in the
 pessimistic case** (the lower confidence bound). This is the first hard evidence
 that the magnitude axis carries not only statistically but **economically**.
 
+> **Scope note (added 2026-07-06):** the PASS verdicts above are the
+> *estimator* (`governance/epnl_after_cost.py`) run on reconstructed event
+> aggregates with an **assumed flat 5 bps cost** — a preliminary estimate,
+> not the recordable §5 verdict. The formal Stage-3 §5 check stays **pending**
+> until the empirical cost model is fed by ≥ 20 measurable C8 Phase-A paper
+> fills, exactly as `adr0023_live_rollout_handover.md` §"Stage 3 blockers"
+> records. This table does NOT unlock Stage 3; the two documents previously
+> read as contradicting each other on this point.
+
 ## 3. Infrastructure built to support this
 
 So these findings do not become a flash in the pan, we built a staged,

@@ -133,3 +133,31 @@ def test_commit_back_gap_guard_present_and_fail_loud() -> None:
     assert "GAP_BUDGET_DAYS" in run
     assert "sys.exit(1)" in run  # fail-loud on gap breach
     assert "::error title=adr0023-gap-check::" in run
+
+
+def test_gap_guard_failure_does_not_block_selfheal() -> None:
+    """Self-heal contract (2026-07-06): a breached gap budget keeps the run
+    red, but the ledger append and commit-back must still execute — they are
+    the only steps that can close the gap. Without this the guard deadlocks
+    the workflow red forever once the budget is breached (observed
+    2026-06-22..07-03 with the 25d-stale seed ledger)."""
+    data = _load()
+    job = data["jobs"]["magnitude-shadow"]
+    by_id_or_name = {
+        (step.get("id") or step.get("name")): step for step in job["steps"]
+    }
+    guard = next(
+        step for step in job["steps"] if "gap" in step.get("name", "").lower()
+    )
+    assert guard.get("id") == "gap_guard"
+    append_if = str(by_id_or_name["ledger"].get("if", ""))
+    assert "steps.gap_guard.outcome == 'failure'" in append_if
+    assert "success()" in append_if
+    commit_back = next(
+        step
+        for step in job["steps"]
+        if step.get("name", "").lower().startswith("commit shadow ledger back")
+    )
+    commit_if = str(commit_back.get("if", ""))
+    assert "steps.gap_guard.outcome == 'failure'" in commit_if
+    assert "success()" in commit_if

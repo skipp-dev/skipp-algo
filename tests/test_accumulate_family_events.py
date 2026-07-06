@@ -145,6 +145,88 @@ def test_dedup_distinct_families_not_merged(tmp_path: Path):
     assert len(result) == 2
 
 
+def test_dedup_backfills_score_from_superseded_copy(tmp_path: Path):
+    """A scored day-0 detection must survive an unscored day-k re-detection.
+
+    This is the exact 2026-06/07 all_thin failure mode: the re-detected copy
+    has the longer forward window but lost its score (anchor drifted below
+    the trailing ATR window), and keeping only the longest-forward copy
+    silently discarded every score in the pool.
+    """
+    ts = _ts_days_ago(5)
+    scored_short = _event("BOS", ts, n_closes=2, score=1.7)
+    scored_short["regime"] = "trend"
+    scored_short["relative_volume"] = 1.3
+    unscored_long = _event("BOS", ts, n_closes=9, score=None)
+    del unscored_long["entry_price"]
+    f1 = tmp_path / "day0.json"
+    f2 = tmp_path / "day5.json"
+    f1.write_text(json.dumps([scored_short]))
+    f2.write_text(json.dumps([unscored_long]))
+    result = accumulate([f1, f2], max_age_days=30)
+    assert len(result) == 1
+    merged = result[0]
+    assert len(merged["forward_closes"]) == 9
+    assert merged["score"] == 1.7
+    assert merged["regime"] == "trend"
+    assert merged["relative_volume"] == 1.3
+    assert merged["entry_price"] == 100.0
+
+
+def test_dedup_backfill_is_file_order_independent(tmp_path: Path):
+    """Same merge result when the unscored long copy comes first."""
+    ts = _ts_days_ago(5)
+    scored_short = _event("SWEEP", ts, n_closes=1, score=2.4)
+    unscored_long = _event("SWEEP", ts, n_closes=6, score=None)
+    f1 = tmp_path / "a.json"
+    f2 = tmp_path / "b.json"
+    f1.write_text(json.dumps([unscored_long]))
+    f2.write_text(json.dumps([scored_short]))
+    result = accumulate([f1, f2], max_age_days=30)
+    assert len(result) == 1
+    assert len(result[0]["forward_closes"]) == 6
+    assert result[0]["score"] == 2.4
+
+
+def test_dedup_winner_fields_not_overwritten_by_loser(tmp_path: Path):
+    """When both copies carry a field, the longest-forward copy wins it."""
+    ts = _ts_days_ago(2)
+    short = _event("OB", ts, n_closes=2, score=9.9)
+    long = _event("OB", ts, n_closes=5, score=1.1)
+    f1 = tmp_path / "a.json"
+    f2 = tmp_path / "b.json"
+    f1.write_text(json.dumps([short]))
+    f2.write_text(json.dumps([long]))
+    result = accumulate([f1, f2], max_age_days=30)
+    assert len(result) == 1
+    assert result[0]["score"] == 1.1
+
+
+def test_dedup_score_persists_across_chained_daily_merges(tmp_path: Path):
+    """Rolling previous+current merges must not lose the score over days.
+
+    Mirrors the production wiring: day N's accumulated output is day N+1's
+    --previous input, so the merged (scored, long-forward) copy from day 1
+    must keep beating later unscored re-detections.
+    """
+    ts = _ts_days_ago(10)
+    day0 = _event("FVG", ts, n_closes=1, score=3.2)
+    day1 = _event("FVG", ts, n_closes=4, score=None)
+    day2 = _event("FVG", ts, n_closes=8, score=None)
+    files = []
+    for i, evt in enumerate((day0, day1, day2)):
+        f = tmp_path / f"day{i}.json"
+        f.write_text(json.dumps([evt]))
+        files.append(f)
+    # Chain: accumulated(day0, day1) -> prev.json; accumulate(prev, day2).
+    prev = tmp_path / "prev.json"
+    prev.write_text(json.dumps(accumulate(files[:2], max_age_days=30)))
+    result = accumulate([prev, files[2]], max_age_days=30)
+    assert len(result) == 1
+    assert len(result[0]["forward_closes"]) == 8
+    assert result[0]["score"] == 3.2
+
+
 # ---------------------------------------------------------------------------
 # accumulate: age filter
 # ---------------------------------------------------------------------------
