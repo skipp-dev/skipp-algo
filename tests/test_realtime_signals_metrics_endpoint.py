@@ -94,6 +94,24 @@ class TestLiveOverlayCollectProcessMetrics:
         body = "\n".join(lines)
         assert "live_overlay_process_uptime_seconds" in body
 
+    def test_build_info_reads_railway_commit(self, monkeypatch) -> None:
+        # The deployed commit must be answerable from Grafana so a no-op
+        # redeploy (old image re-run) is visible instead of silent.
+        from services.live_overlay_daemon.metrics import _collect_process_metrics as _lo_metrics
+        monkeypatch.setenv("RAILWAY_GIT_COMMIT_SHA", "4450b1049deadbeef")
+        monkeypatch.setenv("RAILWAY_GIT_BRANCH", "main")
+        body = "\n".join(_lo_metrics(startup_ts=time.time() - 5.0))
+        assert 'live_overlay_build_info{commit="4450b1049deadbeef",branch="main"} 1' in body
+
+    def test_build_info_defaults_to_unknown(self, monkeypatch) -> None:
+        # Local/dev runs (no Railway env) still emit the gauge with a
+        # non-empty label -- never a blank commit label.
+        from services.live_overlay_daemon.metrics import _collect_process_metrics as _lo_metrics
+        monkeypatch.delenv("RAILWAY_GIT_COMMIT_SHA", raising=False)
+        monkeypatch.delenv("RAILWAY_GIT_BRANCH", raising=False)
+        body = "\n".join(_lo_metrics(startup_ts=time.time() - 5.0))
+        assert 'live_overlay_build_info{commit="unknown",branch="unknown"} 1' in body
+
 
 # ---------------------------------------------------------------------------
 # /metrics HTTP endpoint — auth enforcement

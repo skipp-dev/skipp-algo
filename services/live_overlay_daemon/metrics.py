@@ -947,6 +947,24 @@ def _collect_process_metrics(startup_ts: float, startup_epoch: float = 0.0) -> l
     lines.append(f"# TYPE {prefix}_uptime_seconds gauge")
     lines.append(f"{prefix}_uptime_seconds {uptime:.1f}")
 
+    # Build identity — expose the deployed commit so "is the right code
+    # running?" is answerable straight from Grafana (this exact blind spot
+    # cost two silent no-op redeploys on 2026-07-06). Railway injects
+    # RAILWAY_GIT_*; the value is always 1 with the identity carried in
+    # labels (Prometheus info-metric convention). Falls back to "unknown"
+    # on local/dev runs where the env is absent, so the label is never empty.
+    commit = os.getenv("RAILWAY_GIT_COMMIT_SHA", "").strip()
+    if not commit:
+        commit = "unknown"
+    branch = os.getenv("RAILWAY_GIT_BRANCH", "").strip()
+    if not branch:
+        branch = "unknown"
+    lines.append("# TYPE live_overlay_build_info gauge")
+    lines.append(
+        f'live_overlay_build_info{{commit="{_escape_label_value(commit)}",'
+        f'branch="{_escape_label_value(branch)}"}} 1'
+    )
+
     # Python GC collections
     gc_stats = gc.get_stats()
     lines.append(f"# TYPE {prefix}_python_gc_collections_total counter")
