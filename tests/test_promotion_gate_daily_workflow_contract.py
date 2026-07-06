@@ -139,3 +139,35 @@ def test_bundle_step_feeds_magnitude_shadow_ledger() -> None:
         "ledger path drifted from the adr0023-magnitude-shadow-daily "
         "commit-back location"
     )
+
+
+def test_bundle_step_consumes_accumulated_events_pool() -> None:
+    """Tier-1 direction wiring (2026-07-06).
+
+    The gate's direction metrics (PSR/MinTRL/FDR) must be measured on the
+    SAME accumulated FamilyEvent pool the magnitude axis consumes — the
+    EV-20 Tier-1 verdicts exist only for the 15m plane and must not be the
+    gate's sole direction evidence for the 1D pool. Without the download +
+    --events flag the Tier-1 fields silently revert to permanent None."""
+    steps = _load()["jobs"]["promotion-gate"]["steps"]
+    download = next(
+        (
+            s
+            for s in steps
+            if "scored-family-events-accumulated"
+            in str((s.get("with") or {}).get("name", ""))
+        ),
+        None,
+    )
+    assert download is not None, (
+        "accumulated-events download step missing; Tier-1 direction "
+        "metrics would silently stay unmeasured"
+    )
+    assert (download.get("with") or {}).get("if_no_artifact_found") == "warn", (
+        "accumulated-events download must stay fail-soft (measure-only path)"
+    )
+    bundle_step = next(s for s in steps if s.get("id") == "bundle")
+    assert "--events" in bundle_step["run"], (
+        "bundle step no longer passes the accumulated pool; Tier-1 "
+        "direction fields would silently revert to permanent None"
+    )

@@ -6,6 +6,21 @@
 > is still dormant, and exactly how to operate the staged rollout** — so none
 > of it has to be re-derived from memory.
 >
+> **⚠️ Measurement-plane discontinuity (added 2026-07-06).** The §2 proof and
+> the 2026-06-11 ledger seed rows were graded on **15m events** from the local
+> production store (`BOS@15m`, `SWEEP@15m` — verified from the events file's
+> 900 s forward-bar spacing). The daily CI continuation
+> (`adr0023-magnitude-shadow-daily` fed by the rolling-bench accumulated
+> pool) grades **1D events** (`BOS@1D`, …). These are **two different event
+> populations under the same family names**: the armed Stage-2 designation
+> rests on the 15m proof, while the CI feed measures the 1D plane, whose
+> magnitude edge is so far unproven. Consequences: (a) new ledger rows carry
+> a `plane` column (see §4.2; the seed rows predate it — treat their absent
+> plane as `15m`); (b) the weekly k-of-n evaluator must never pool rows
+> across different `plane` values — a k-of-n window mixing `15m` seed rows
+> with `1D` CI rows would silently combine two experiments; (c) any quoted
+> family verdict needs the plane suffix.
+>
 > **Status (2026-06-11).** §2 acceptance bar RESOLVED on real data. The
 > `magnitude_resolution_floor` check is wired into the promotion gate, the
 > Stage-1 ledger verdicts feed the gate's snapshot fields daily (§5 item 2),
@@ -325,9 +340,16 @@ Cadence and evidence-honesty rules:
 - Columns:
 
   ```
-  date, events_hash, seed, family, n_oos, magnitude_auc, auc_ci_low,
-  baseline_resolution, perm_null_p95, perm_p, passes, fail_reasons
+  date, events_hash, seed, family, role, n_oos, magnitude_auc, auc_ci_low,
+  baseline_resolution, perm_null_p95, perm_p, passes, status, fail_reasons,
+  plane
   ```
+
+- `plane` (added 2026-07-06): measurement plane derived from the events'
+  forward-bar spacing (`"15m"`, `"1D"`, …; `null` when underivable). Rows
+  that predate the column are legacy **15m** seed rows (see the
+  measurement-plane discontinuity warning in the header). The weekly
+  evaluator refuses to judge a ledger that mixes plane values.
 - Never overwrite history — drift analysis needs the full series.
 - The same numbers feed the promotion-gate snapshot fields
   (`magnitude_resolution_pass`, `magnitude_auc`) so the **gate sees them too**,

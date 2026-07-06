@@ -292,6 +292,38 @@ def test_main_stale_anchor_warns_but_rc_unchanged(tmp_path, capsys):
     assert "warning: ledger anchor 2026-01-05" in capsys.readouterr().err
 
 
+def test_main_mixed_measurement_planes_fail_loud(tmp_path, capsys):
+    """Plane guard (2026-07-06, handover header): the 15m seed rows and the
+    1D CI continuation are different experiments — a k-of-n window pooled
+    across planes must be refused, not judged."""
+    import json
+
+    ledger = tmp_path / "ledger.jsonl"
+    seed_row = _row(date="2026-06-11", family="BOS", status="PASS")  # legacy 15m
+    ci_row = {**_row(date="2026-07-06", family="BOS", status="PASS"), "plane": "1D"}
+    ledger.write_text("\n".join(json.dumps(r) for r in (seed_row, ci_row)) + "\n")
+    rc = main(["--ledger", str(ledger), "--k", "1", "--n", "1"])
+    assert rc == 1
+    err = capsys.readouterr().err
+    assert "mixes measurement planes" in err
+    assert "15m" in err and "1D" in err
+
+
+def test_main_single_plane_rows_still_judged(tmp_path):
+    """Uniformly stamped rows (all 1D) pass the plane guard. (One family
+    FAILs so the all-PASS red-flag rc=2 does not mask the guard result.)"""
+    import json
+
+    ledger = tmp_path / "ledger.jsonl"
+    rows = [
+        {**_row(date="2026-07-06", family="BOS", status="PASS"), "plane": "1D"},
+        {**_row(date="2026-07-06", family="SWEEP", status="FAIL"), "plane": "1D"},
+    ]
+    ledger.write_text("\n".join(json.dumps(r) for r in rows) + "\n")
+    rc = main(["--ledger", str(ledger), "--k", "1", "--n", "1"])
+    assert rc == 0
+
+
 # ---- render + main ------------------------------------------------------
 
 

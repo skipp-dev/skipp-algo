@@ -160,6 +160,22 @@ jobs:
           echo "Reason: \`${{ steps.download.outputs.reason }}\`" >> "$GITHUB_STEP_SUMMARY"
           echo "Date:   \`${{ steps.date.outputs.value }}\`" >> "$GITHUB_STEP_SUMMARY"
 
+      # Tier-1 direction metrics input (2026-07-06): the 30-day accumulated
+      # FamilyEvent pool produced by accumulate_family_events.py in the
+      # rolling-bench workflow — the same pool the ADR-0023 magnitude shadow
+      # consumes, so the gate's direction and magnitude axes measure the
+      # SAME event population (measurement plane recorded in provenance).
+      # Fail-soft: a miss leaves the Tier-1 fields None ("not measured").
+      - name: Download accumulated family events (Tier-1 direction input)
+        if: steps.download.outputs.status == 'ready'
+        uses: dawidd6/action-download-artifact@b6e2e70617bc3265edd6dab6c906732b2f1ae151 # v21
+        with:
+          workflow: smc-measurement-benchmark-rolling.yml
+          name: scored-family-events-accumulated
+          path: artifacts/ci/scored_family_events_accumulated
+          workflow_conclusion: success
+          if_no_artifact_found: warn
+
       - name: Build FamilyMetrics bundle
         if: steps.download.outputs.status == 'ready'
         id: bundle
@@ -170,11 +186,13 @@ jobs:
           # ledger is committed back to the repo by the 13:30 UTC
           # adr0023-magnitude-shadow-daily run, so this 14:00 UTC checkout
           # already carries today's row. Fail-soft when absent/empty.
+          EVENTS_POOL="$(find artifacts/ci/scored_family_events_accumulated -name 'accumulated_family_events.json' -type f 2>/dev/null | head -1)"
           python scripts/build_promotion_gate_bundle.py \
             --scoring-root     "${{ steps.download.outputs.scoring_root }}" \
             --output           "${BUNDLE}" \
             --date             "${{ steps.date.outputs.value }}" \
-            --magnitude-ledger artifacts/governance/magnitude_resolution_shadow.jsonl
+            --magnitude-ledger artifacts/governance/magnitude_resolution_shadow.jsonl \
+            ${EVENTS_POOL:+--events "${EVENTS_POOL}"}
           echo "path=${BUNDLE}" >> "$GITHUB_OUTPUT"
 
       - name: Run PromotionGate
