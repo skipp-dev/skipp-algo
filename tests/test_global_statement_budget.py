@@ -238,7 +238,9 @@ _FROZEN_SITES: frozenset[tuple[str, int, tuple[str, ...]]] = frozenset(
         # index reuse when tests monkeypatch the public news loader directly.
         # 2026-07-05 (live-overlay parser fixes): _history_sort_key plus
         # URL-parsing helpers shifted this anchor to 829.
-        ("services/live_overlay_daemon/compute.py", 829, ("_news_index", "_news_index_built_at", "_news_index_cache_key")),
+        # 2026-07-06 (bug-hunt B1/B2): _has_captured_at helper + expanded
+        # _parse_history_lines shifted this anchor to 853.
+        ("services/live_overlay_daemon/compute.py", 853, ("_news_index", "_news_index_built_at", "_news_index_cache_key")),
         # 2026-06-23 (feat/grafana-trading-signals): realtime trading-signals
         # snapshot loader mirrors the news snapshot caching pattern.
         # 2026-06-26 (PR #2962): shifted by producer client code.
@@ -254,8 +256,10 @@ _FROZEN_SITES: frozenset[tuple[str, int, tuple[str, ...]]] = frozenset(
         # 2026-06-26 (PR #2962): shifted by producer client code.
         # 2026-07-05 (live-overlay parser fixes): _history_sort_key plus
         # URL-parsing helpers shifted these anchors to 692/740.
-        ("services/live_overlay_daemon/compute.py", 692, ("_experiment_cache", "_experiment_checked_at", "_experiment_loaded_at")),
-        ("services/live_overlay_daemon/compute.py", 740, ("_experiment_history_cache", "_experiment_history_checked_at", "_experiment_history_loaded_at")),
+        # 2026-07-06 (bug-hunt B1/B2): _has_captured_at helper + expanded
+        # _parse_history_lines shifted these anchors to 716/764.
+        ("services/live_overlay_daemon/compute.py", 716, ("_experiment_cache", "_experiment_checked_at", "_experiment_loaded_at")),
+        ("services/live_overlay_daemon/compute.py", 764, ("_experiment_history_cache", "_experiment_history_checked_at", "_experiment_history_loaded_at")),
         # 2026-06-21 (provider/bridge + queue backpressure follow-ups):
         # feed.py gained additional helper/config blocks, shifting global
         # statements to 362/420/496.
