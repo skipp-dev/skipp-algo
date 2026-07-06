@@ -103,6 +103,59 @@ def test_build_rows_tags_roles_and_sorts() -> None:
     assert set(bos) == set(shadow.LEDGER_COLUMNS)
 
 
+def test_build_rows_stamp_measurement_plane() -> None:
+    """Rows record the plane their events were graded on (None when the
+    caller cannot derive one). BOS@15m and BOS@1D are different experiments
+    — the plane column is what keeps them distinguishable in the ledger."""
+    report = _report({"BOS": _result(passes=True, mag_auc=0.62)})
+    stamped = shadow.build_ledger_rows(
+        report, date="2026-07-06", events_hash="abc", plane="1D"
+    )
+    assert stamped[0]["plane"] == "1D"
+    unstamped = shadow.build_ledger_rows(
+        report, date="2026-07-06", events_hash="abc"
+    )
+    assert unstamped[0]["plane"] is None
+    assert set(stamped[0]) == set(shadow.LEDGER_COLUMNS)
+
+
+# --------------------------------------------------------------------------- #
+# derive_measurement_plane
+# --------------------------------------------------------------------------- #
+def _plane_event(bar_seconds: float, n_forward: int = 4) -> dict:
+    anchor = 1_780_000_000.0
+    return {
+        "family": "BOS",
+        "anchor_ts": anchor,
+        "forward_timestamps": [
+            anchor + (i + 1) * bar_seconds for i in range(n_forward)
+        ],
+    }
+
+
+def test_derive_plane_labels_daily_and_intraday() -> None:
+    assert shadow.derive_measurement_plane([_plane_event(86_400.0)]) == "1D"
+    assert shadow.derive_measurement_plane([_plane_event(900.0)]) == "15m"
+
+
+def test_derive_plane_mode_survives_weekend_gaps() -> None:
+    """Weekend gaps (3-day intervals) are rarer than the in-session cadence
+    and must not flip the modal label."""
+    daily = [_plane_event(86_400.0, n_forward=6) for _ in range(5)]
+    weekend = _plane_event(86_400.0, n_forward=6)
+    weekend["forward_timestamps"][3] += 2 * 86_400.0  # one Fri->Mon gap
+    assert shadow.derive_measurement_plane([*daily, weekend]) == "1D"
+
+
+def test_derive_plane_unknown_interval_renders_seconds() -> None:
+    assert shadow.derive_measurement_plane([_plane_event(1234.0)]) == "1234s"
+
+
+def test_derive_plane_empty_or_unusable_is_none() -> None:
+    assert shadow.derive_measurement_plane([]) is None
+    assert shadow.derive_measurement_plane([{"forward_timestamps": []}]) is None
+
+
 # --------------------------------------------------------------------------- #
 # load_ledger / merge_rows
 # --------------------------------------------------------------------------- #

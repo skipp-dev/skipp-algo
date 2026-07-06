@@ -7,6 +7,16 @@
 > **not** edited after seeing results. Outcome: the v1 score clears the full bar
 > for **2 of 4** families (BOS, SWEEP); FVG and OB miss on the discrimination
 > floor. Per the goalpost rule the misses are recorded as negatives, not re-tuned.
+>
+> **Measurement plane: 15m (added 2026-07-06).** All verdicts in this document
+> were measured on **15m intraday events** — verified from the events file's
+> forward-bar spacing (900 s dominant interval in
+> `events_v3_abs_opra.json`). The family horizons therefore resolve in
+> wall-clock terms of SWEEP 3×15m = 45 min up to BOS 8×15m = 2 h, and every
+> family name below should be read as `BOS@15m`, `SWEEP@15m` etc. The CI
+> rolling-bench continuation feed ships **1D events** (`BOS@1D`, …) — a
+> *different* event population whose verdicts must not be pooled with these
+> (ledger rows now carry an explicit `plane` column for exactly this reason).
 
 ## 1. Pre-registered question
 

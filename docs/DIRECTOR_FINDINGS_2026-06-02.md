@@ -79,6 +79,13 @@ Alles, was diesen Nachweis nicht direkt voranbringt, ist nachrangig.
 
 ## 6. EV-20 — Erstes echtes Verdict (run 26791442554, 5 Decisions)
 
+> **Messebene: 15m (Anmerkung 2026-07-06).** Alle EV-20-Verdicts in diesem
+> Abschnitt wurden auf **15m-Intraday-Strukturen** gemessen (verifiziert an
+> `context.timeframe = 15m` in den archivierten
+> `governance/promotion_decisions/`-JSONs) — Familiennamen hier sind als
+> `BOS@15m`, `OB@15m` usw. zu lesen. Sie sagen nichts über dieselben Familien
+> auf anderen Zeitebenen aus (der tägliche CI-Pfad misst `@1D`).
+
 Die 16+5 geretteten Decisions wurden ausgewertet (`python -m governance.family_verdict`).
 Das Ergebnis ist über alle 5 Runs **konsistent** und liefert den ersten echten
 Produktdatenpunkt:

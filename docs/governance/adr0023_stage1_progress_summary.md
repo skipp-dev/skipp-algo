@@ -9,6 +9,15 @@
 >
 > **Status: 2026-06-06.** Stage-1 wiring complete; rollout stays in shadow
 > (measure-only). No live capital is sized differently yet.
+>
+> **Measurement plane (added 2026-07-06):** every result quoted in this
+> document — the move-size AUC table *and* the §5 profitability table — was
+> measured on **15m intraday events** (read `BOS@15m`, `SWEEP@15m`, …; SWEEP's
+> 3-bar horizon is 45 minutes, BOS's 8-bar horizon is 2 hours). The daily CI
+> continuation measures a **different population**: 1D events (`BOS@1D`, …,
+> horizons of 3–8 trading days). Results do not transfer between planes and
+> must never be quoted without the plane suffix — the shadow ledger now
+> stamps each row with its `plane` for exactly this reason.
 
 ## The core result in one sentence
 

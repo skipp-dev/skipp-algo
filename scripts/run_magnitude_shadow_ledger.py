@@ -51,8 +51,10 @@ import argparse
 import hashlib
 import json
 import sys
+from collections import Counter
 from datetime import UTC, datetime
 from datetime import date as _date
+from itertools import pairwise
 from typing import Any
 
 from governance.family_returns import (
@@ -95,6 +97,7 @@ LEDGER_COLUMNS = (
     "passes",
     "status",
     "fail_reasons",
+    "plane",
 )
 
 
@@ -114,6 +117,49 @@ def events_content_hash(events: list[dict[str, Any]]) -> str:
     """Stable short content hash of the event list (order-sensitive)."""
     canonical = json.dumps(events, sort_keys=True, separators=(",", ":"))
     return hashlib.sha256(canonical.encode("utf-8")).hexdigest()[:16]
+
+
+# Human-readable labels for the bar intervals the event feeds actually
+# ship. Anything else is rendered as raw seconds — a label must never
+# hide an unexpected cadence.
+_PLANE_LABELS: dict[int, str] = {
+    300: "5m",
+    600: "10m",
+    900: "15m",
+    1800: "30m",
+    3600: "1H",
+    14400: "4H",
+    86400: "1D",
+}
+
+
+def derive_measurement_plane(events: list[dict[str, Any]]) -> str | None:
+    """Modal forward-bar interval of *events*, as a human-readable label.
+
+    Derived from the data, never asserted: the feed switched planes once
+    already (the 2026-06-11 seed rows were graded on 15m events from the
+    local production store, the CI rolling-bench pool ships 1D events).
+    Stamping each ledger row with its measured plane keeps the weekly
+    k-of-n evaluator and every downstream reader able to tell the two
+    populations apart — pooling BOS@15m with BOS@1D under one family name
+    would silently mix two different experiments. The mode is robust
+    against weekend/overnight gaps, which appear as rare large intervals
+    next to the dominant in-session cadence.
+    """
+    intervals: Counter[int] = Counter()
+    for event in events:
+        stamps = event.get("forward_timestamps") or []
+        for first, second in pairwise(stamps):
+            try:
+                delta = int(float(second) - float(first))
+            except (TypeError, ValueError):
+                continue
+            if delta > 0:
+                intervals[delta] += 1
+    if not intervals:
+        return None
+    modal = intervals.most_common(1)[0][0]
+    return _PLANE_LABELS.get(modal, f"{modal}s")
 
 
 def classify_family(result: dict[str, Any]) -> tuple[str, list[str]]:
@@ -138,7 +184,11 @@ def classify_family(result: dict[str, Any]) -> tuple[str, list[str]]:
 
 
 def build_ledger_rows(
-    report: dict[str, Any], *, date: str, events_hash: str
+    report: dict[str, Any],
+    *,
+    date: str,
+    events_hash: str,
+    plane: str | None = None,
 ) -> list[dict[str, Any]]:
     """One tidy ledger row per measured family, sorted by family."""
     seed = int(report.get("seed", DEFAULT_SEED))
@@ -161,6 +211,11 @@ def build_ledger_rows(
                 "passes": bool(result.get("passes", False)),
                 "status": status,
                 "fail_reasons": fail_reasons,
+                # Measurement plane derived from the events' forward bars
+                # (e.g. "1D" / "15m"); None when underivable. Rows graded
+                # on different planes are different experiments — the
+                # weekly k-of-n must never pool across plane values.
+                "plane": plane,
             }
         )
     return rows
@@ -243,10 +298,13 @@ def append_shadow_ledger(
     ledger_path: str = DEFAULT_LEDGER,
     date: str | None = None,
     events_hash: str,
+    plane: str | None = None,
 ) -> list[dict[str, Any]]:
     """Build today's rows, merge into the ledger, and write it atomically."""
     date = date or _today_utc()
-    new_rows = build_ledger_rows(report, date=date, events_hash=events_hash)
+    new_rows = build_ledger_rows(
+        report, date=date, events_hash=events_hash, plane=plane
+    )
     merged = merge_rows(load_ledger(ledger_path), new_rows)
     rendered = "\n".join(json.dumps(row, sort_keys=True) for row in merged)
     atomic_write_text(rendered + "\n", ledger_path)
@@ -409,6 +467,7 @@ def main(argv: list[str] | None = None) -> int:
             ledger_path=args.ledger,
             date=obs_date,
             events_hash=events_hash,
+            plane=derive_measurement_plane(events),
         )
     except ValueError as exc:
         # W7-1: corrupt existing ledger — refuse to merge/rewrite on top of

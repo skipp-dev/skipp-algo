@@ -635,6 +635,25 @@ def main(argv: list[str] | None = None) -> int:
         print(f"error: empty or missing ledger: {args.ledger}", file=sys.stderr)
         return 3
 
+    # Measurement-plane guard (2026-07-06, handover header): the 2026-06-11
+    # seed rows were graded on 15m events (they predate the `plane` column —
+    # absent means legacy 15m), the CI continuation grades 1D events. A
+    # k-of-n window pooled across planes would silently combine two
+    # different experiments — and worse, apply demotions to an armed set
+    # whose designation rests on the other plane. Refuse loudly; the
+    # operator must decide the evaluation-plane policy before the first
+    # mixed window is judged.
+    planes = {str(row.get("plane") or "15m") for row in rows}
+    if len(planes) > 1:
+        print(
+            "error: ledger mixes measurement planes "
+            f"{sorted(planes)} — k-of-n across planes is invalid. "
+            "Split the evaluation by plane (e.g. archive the 15m seed rows "
+            "or filter --ledger) before judging this window.",
+            file=sys.stderr,
+        )
+        return 1
+
     report = evaluate_weekly(rows, k=args.k, n=args.n)
     report["armed_families"] = sorted(policy.armed_families)
     demotions = evaluate_demotions(report, policy.armed_families)

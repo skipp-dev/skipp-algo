@@ -306,3 +306,126 @@ def test_producer_path_bundler_rejects_unknown_family(tmp_path: Path) -> None:
     )
     assert rc == 1
     assert not (tmp_path / "bundle.json").exists()
+
+
+# --------------------------------------------------------------------------- #
+# Tier-1 direction metrics from the accumulated events pool (2026-07-06)
+# --------------------------------------------------------------------------- #
+
+
+def _tier1_events(
+    n: int,
+    *,
+    family: str = "BOS",
+    start_ts: float = 1_770_000_000.0,  # 2026-02, well before the --date below
+    bar_seconds: float = 86_400.0,
+    n_forward: int = 9,
+) -> list[dict]:
+    """Synthetic triggered FamilyEvents with varying positive returns.
+
+    ``entry_mode="immediate"`` + ``n_forward`` >= the BOS horizon (8 bars)
+    means every event yields a realized return. The per-event drift varies
+    deterministically so the return series has non-zero variance (PSR needs
+    a dispersion estimate).
+    """
+    events = []
+    for i in range(n):
+        anchor = start_ts + i * bar_seconds
+        drift = 0.5 + (i % 5) * 0.3
+        closes = [100.0 + (j + 1) * drift for j in range(n_forward)]
+        events.append(
+            {
+                "family": family,
+                "anchor_ts": anchor,
+                "direction": "UP",
+                "entry_mode": "immediate",
+                "entry_price": 100.0,
+                "forward_closes": closes,
+                "forward_highs": [c + 1.0 for c in closes],
+                "forward_lows": [c - 1.0 for c in closes],
+                "forward_timestamps": [
+                    anchor + (j + 1) * bar_seconds for j in range(n_forward)
+                ],
+            }
+        )
+    return events
+
+
+def _build_with_events(tmp_path: Path, events: list[dict]) -> list[dict]:
+    events_path = tmp_path / "pool.json"
+    events_path.write_text(json.dumps(events), encoding="utf-8")
+    bundle_path = tmp_path / "bundle_events.json"
+    rc = build_bundle_main(
+        [
+            "--scoring-root",
+            str(tmp_path / "no_scoring_root"),
+            "--output",
+            str(bundle_path),
+            "--date",
+            "2026-07-06",
+            "--magnitude-ledger",
+            "",
+            "--events",
+            str(events_path),
+        ]
+    )
+    assert rc == 0
+    return json.loads(bundle_path.read_text(encoding="utf-8"))
+
+
+def test_bundle_fills_tier1_direction_metrics_from_events_pool(tmp_path: Path) -> None:
+    """>=30 triggered returns => PSR/MinTRL/BH-FDR measured on the pool,
+    measurement plane derived from the events' bar cadence."""
+    bundle = _build_with_events(tmp_path, _tier1_events(35))
+    bos = next(e for e in bundle if e["family"] == "BOS")
+    assert bos["psr"] is not None
+    assert bos["fdr_pvalue"] is not None
+    assert bos["extras"]["n_triggered_returns"] == 35.0
+    assert bos["provenance"]["measurement_plane"] == "1D"
+    assert bos["provenance"]["tier1_return_rule"] == "touch_then_horizon_close"
+    # Families absent from the pool stay honestly unmeasured.
+    ob = next(e for e in bundle if e["family"] == "OB")
+    assert ob["psr"] is None
+    assert ob["fdr_pvalue"] is None
+    assert "n_triggered_returns" not in ob["extras"]
+    # The plane label is population-level provenance: present on every entry.
+    assert ob["provenance"]["measurement_plane"] == "1D"
+
+
+def test_bundle_tier1_below_psr_floor_stays_unmeasured(tmp_path: Path) -> None:
+    """<30 triggered returns => the PSR floor inside build_family_metrics
+    refuses the computation and the family stays None (fail-soft warning)."""
+    bundle = _build_with_events(tmp_path, _tier1_events(5))
+    bos = next(e for e in bundle if e["family"] == "BOS")
+    assert bos["psr"] is None
+    assert bos["mintrl_years"] is None
+    assert bos["fdr_pvalue"] is None
+
+
+def test_bundle_tier1_derives_15m_plane(tmp_path: Path) -> None:
+    bundle = _build_with_events(
+        tmp_path, _tier1_events(5, bar_seconds=900.0)
+    )
+    bos = next(e for e in bundle if e["family"] == "BOS")
+    assert bos["provenance"]["measurement_plane"] == "15m"
+
+
+def test_bundle_missing_events_file_is_fail_soft(tmp_path: Path) -> None:
+    bundle_path = tmp_path / "bundle_missing_events.json"
+    rc = build_bundle_main(
+        [
+            "--scoring-root",
+            str(tmp_path / "no_scoring_root"),
+            "--output",
+            str(bundle_path),
+            "--magnitude-ledger",
+            "",
+            "--events",
+            str(tmp_path / "does_not_exist.json"),
+        ]
+    )
+    assert rc == 0
+    bundle = json.loads(bundle_path.read_text(encoding="utf-8"))
+    for entry in bundle:
+        assert entry["psr"] is None
+        assert "measurement_plane" not in entry["provenance"]
