@@ -58,6 +58,15 @@ jobs:
       - name: Set up pinned Python
         uses: ./.github/actions/setup-python-pinned
 
+      - name: Install snapshot builder dependency (numpy)
+        # build_evidence_freshness_snapshot imports CANDIDATE_FAMILIES from
+        # run_magnitude_shadow_ledger -> governance.family_walkforward ->
+        # ml.walkforward, which imports numpy at module import time.
+        run: |
+          set -euo pipefail
+          python -m pip install --upgrade pip
+          python -m pip install "numpy>=2,<3"
+
       - name: Fetch data/phase-a-audit branch
         env:
           GH_TOKEN: ${{ secrets.GH_PAT != '' && secrets.GH_PAT || github.token }}
