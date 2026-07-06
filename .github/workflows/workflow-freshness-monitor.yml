@@ -158,6 +158,17 @@ jobs:
           OVERALL: ${{ steps.probe.outputs.overall }}
         run: |
           set -euo pipefail
+
+          # Repo hier kann Issues deaktiviert haben -- `gh issue create`/
+          # `comment` wuerde dann hart fehlschlagen und faelschlicherweise
+          # wie ein kaputter Monitor aussehen, obwohl die eigentliche
+          # Alarmierung (Step Summary + Job-Fail im naechsten Step) korrekt
+          # funktioniert. Degradiere hier weich statt den Job zu crashen.
+          if [ "$(gh repo view "$GH_REPO" --json hasIssuesEnabled --jq '.hasIssuesEnabled')" != "true" ]; then
+            echo "::warning title=workflow-freshness-monitor::GitHub Issues sind auf ${GH_REPO} deaktiviert -- kann kein Alert-Issue oeffnen/aktualisieren (overall=${OVERALL}). Step Summary oben und der Job-Fail im naechsten Step sind bis auf Weiteres der Alarm."
+            exit 0
+          fi
+
           TITLE="workflow-freshness: ${OVERALL} -- daily probe ($(date -u +%Y-%m-%d))"
           BODY_FILE=$(mktemp)
           {

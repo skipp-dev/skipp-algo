@@ -222,6 +222,16 @@ jobs:
           GH_REPO: ${{ github.repository }}
         run: |
           set -euo pipefail
+
+          # Repo hier kann Issues deaktiviert haben -- `gh issue create`
+          # wuerde dann fehlschlagen. Vorher war das mit `|| true` komplett
+          # stumm geschluckt (kein Alarm, keine Annotation); jetzt zumindest
+          # eine sichtbare Warnung statt eines lautlosen No-ops.
+          if [ "$(gh repo view "$GH_REPO" --json hasIssuesEnabled --jq '.hasIssuesEnabled')" != "true" ]; then
+            echo "::warning title=plan-2-8-evaluation::GitHub Issues sind auf ${GH_REPO} deaktiviert -- kann kein Failure-Issue oeffnen. Die Job-Failure oben ist bis auf Weiteres der Alarm."
+            exit 0
+          fi
+
           TITLE="plan-2-8-evaluation: failed — daily run ($(date -u +%Y-%m-%d))"
           BODY_FILE=$(mktemp)
           {

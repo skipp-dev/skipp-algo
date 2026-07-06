@@ -280,6 +280,17 @@ jobs:
           OVERALL: ${{ steps.probe.outputs.overall }}
         run: |
           set -euo pipefail
+
+          # Repo hier hat Issues deaktiviert (has_issues=false) -- `gh issue
+          # create`/`comment` wuerde hart fehlschlagen und faelschlicherweise
+          # wie ein kaputter Watchdog aussehen, obwohl die eigentliche
+          # Alarmierung (Step Summary + Job-Fail im naechsten Step) korrekt
+          # funktioniert. Degradiere hier weich statt den Job zu crashen.
+          if [ "$(gh repo view "$GH_REPO" --json hasIssuesEnabled --jq '.hasIssuesEnabled')" != "true" ]; then
+            echo "::warning title=meta-watchdog::GitHub Issues sind auf ${GH_REPO} deaktiviert -- kann kein Alert-Issue oeffnen/aktualisieren (overall=${OVERALL}, dag_status=${{ steps.dag.outputs.dag_status }}). Step Summary oben und der Job-Fail im naechsten Step sind bis auf Weiteres der Alarm."
+            exit 0
+          fi
+
           # Neutraler Titel (analog workflow-freshness-monitor): overall=error
           # kann auch ein API-/Config-Fehler des Probes sein, nicht zwingend
           # ein gestorbener Monitor — Details stehen im Body.
