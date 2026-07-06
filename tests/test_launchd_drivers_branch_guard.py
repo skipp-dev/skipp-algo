@@ -42,6 +42,9 @@ DRIVERS = [
     # the worktree-push logic inline and silently drifted from the lib's
     # R1/R4/R5 hardening; it now consumes the shared helper like the rest.
     REPO / "automation" / "launchd" / "run-c13-audit-push.sh",
+    # C13 revival (2026-07-06): the reconcile-fills stage publishes the
+    # fill-stamped audit file through the same shared helper.
+    REPO / "automation" / "launchd" / "run-c13-reconcile.sh",
 ]
 
 
@@ -86,6 +89,9 @@ def _data_branch_sandbox(tmp_path):
     _run(["git", "checkout", "-q", "-b", "data/phase-a-audit"], work, env)
     _run(["git", "push", "-q", "origin", "data/phase-a-audit"], work, env)
     _run(["git", "checkout", "-q", "main"], work, env)
+    # Isolate the persistent publishing clone per test — without this the
+    # helper would write to the real ${HOME}/.cache location.
+    env["C13_DATA_CLONE_DIR"] = str(tmp_path / "publish-clone")
     return work, env
 
 
@@ -154,49 +160,75 @@ def test_helper_marks_degraded_when_no_files(tmp_path):
     assert (work / "cache" / ".push_status").read_text().startswith("degraded:no-files")
 
 
-def test_helper_recovers_from_stale_worktree_registration(tmp_path):
-    """R1 regression: a SIGKILL / power-loss can leave a stale worktree
-    registration (.git/worktrees/<name>) whose directory no longer exists.
-    ``git worktree add`` used to fail on such registrations, killing the
-    agent *before* any marker was written.  The lib must prune stale entries
-    first so the push still succeeds and the marker is always written."""
+def test_helper_selfheals_corrupted_publishing_clone(tmp_path):
+    """A SIGKILL / power-loss can leave the persistent publishing clone in
+    an unusable state (interrupted fetch, half-written objects). The lib
+    must wipe and re-clone once instead of dying markerless."""
     work, env = _data_branch_sandbox(tmp_path)
 
-    # Simulate a stale registration: add a worktree, then rm -rf the dir
-    # WITHOUT calling ``git worktree remove`` (the SIGKILL scenario).
-    stale_dir = tmp_path / "stale-wt"
-    _run(
-        ["git", "worktree", "add", "--detach", str(stale_dir),
-         "origin/data/phase-a-audit"],
-        work, env,
-    )
-    shutil.rmtree(stale_dir)  # path gone, .git/worktrees entry remains
-
-    # Verify the stale entry is actually present (pre-condition).
-    wt_list = _run(["git", "worktree", "list"], work, env).stdout
-    assert "stale" in wt_list.lower() or str(stale_dir) in wt_list, (
-        "test setup failed: no stale worktree entry found"
-    )
+    # Corrupt the publishing clone: valid directory, broken git internals.
+    clone = tmp_path / "publish-clone"
+    (clone / ".git").mkdir(parents=True)
+    (clone / ".git" / "HEAD").write_text("garbage, not a ref\n")
 
     (work / "cache" / "wsh").mkdir(parents=True)
     (work / "cache" / "wsh" / "20260428.jsonl").write_text('{"x":2}\n')
 
-    driver_sh = work / "driver_stale.sh"
+    driver_sh = work / "driver_corrupt.sh"
     driver_sh.write_text(textwrap.dedent(f"""
     set -euo pipefail
     cd "{work}"
     source "{LIB}"
-    push_to_data_branch "snapshot 20260428" "cache/wsh/.push_status_stale" \\
+    push_to_data_branch "snapshot 20260428" "cache/wsh/.push_status_corrupt" \\
         "cache/wsh/20260428.jsonl"
     """))
     result = _run(["bash", str(driver_sh)], work, env)
     assert result.returncode == 0, result.stderr
 
     # A marker MUST have been written — no markerless death.
-    marker_path = work / "cache" / "wsh" / ".push_status_stale"
-    assert marker_path.exists(), "marker missing after stale-worktree run"
+    marker_path = work / "cache" / "wsh" / ".push_status_corrupt"
+    assert marker_path.exists(), "marker missing after corrupted-clone run"
     marker = marker_path.read_text()
     assert marker.startswith("ok:"), f"unexpected marker: {marker}"
+
+
+def test_helper_publishes_despite_failing_primary_prepush_hook(tmp_path):
+    """C13 revival regression pin (2026-07-06): the worktree-based publish
+    shared the primary clone's client-side hooks, so the code repo's
+    pre-push guard suite ran against every data publish and aborted it —
+    the audit branch froze from 2026-06-12 onward. The dedicated publishing
+    clone has no hooks installed, so a hook that would fail (or rewrite
+    files) in the PRIMARY clone must not affect the data publish."""
+    work, env = _data_branch_sandbox(tmp_path)
+
+    hook = work / ".git" / "hooks" / "pre-push"
+    hook.write_text("#!/bin/sh\necho 'primary pre-push guard: refusing' >&2\nexit 1\n")
+    hook.chmod(0o755)
+
+    (work / "cache" / "wsh").mkdir(parents=True)
+    (work / "cache" / "wsh" / "20260429.jsonl").write_text('{"x":3}\n')
+
+    driver_sh = work / "driver_hook.sh"
+    driver_sh.write_text(textwrap.dedent(f"""
+    set -euo pipefail
+    cd "{work}"
+    source "{LIB}"
+    push_to_data_branch "snapshot 20260429" "cache/wsh/.push_status_hook" \\
+        "cache/wsh/20260429.jsonl"
+    """))
+    result = _run(["bash", str(driver_sh)], work, env)
+    assert result.returncode == 0, result.stderr
+
+    marker = (work / "cache" / "wsh" / ".push_status_hook").read_text()
+    assert marker.startswith("ok:pushed"), marker
+
+    # The artefact really landed despite the failing primary hook.
+    _run(["git", "fetch", "-q", "origin", "data/phase-a-audit"], work, env)
+    listed = _run(
+        ["git", "ls-tree", "-r", "--name-only", "origin/data/phase-a-audit"],
+        work, env,
+    ).stdout
+    assert "cache/wsh/20260429.jsonl" in listed, listed
 
 
 @pytest.mark.parametrize("driver", DRIVERS, ids=lambda p: p.name)
@@ -238,6 +270,7 @@ VENV_GUARD_DRIVERS = [
     REPO / "automation" / "launchd" / "run-c13-imbalance.sh",
     REPO / "automation" / "launchd" / "run-c13-phase-a.sh",
     REPO / "automation" / "launchd" / "run-c13-phase-a-export.sh",
+    REPO / "automation" / "launchd" / "run-c13-reconcile.sh",
 ]
 
 

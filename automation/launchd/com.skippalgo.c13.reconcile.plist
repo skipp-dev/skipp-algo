@@ -1,0 +1,44 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN"
+  "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>Label</key>
+    <string>com.skippalgo.c13.reconcile</string>
+
+    <key>ProgramArguments</key>
+    <array>
+        <string>/bin/bash</string>
+        <!-- REPLACE __REPO_PATH__ with the absolute path to your local
+             skipp-algo checkout when copying this plist to
+             ~/Library/LaunchAgents/. See automation/launchd/README.md. -->
+        <string>__REPO_PATH__/automation/launchd/run-c13-reconcile.sh</string>
+    </array>
+
+    <!-- 23:05 local time Mon-Fri — after the US cash close in both EU/US
+         DST regimes (including the mismatch weeks), while the paper TWS
+         still holds the day's executions. Requires TWS (paper) running. -->
+    <key>StartCalendarInterval</key>
+    <array>
+        <dict><key>Weekday</key><integer>1</integer><key>Hour</key><integer>23</integer><key>Minute</key><integer>5</integer></dict>
+        <dict><key>Weekday</key><integer>2</integer><key>Hour</key><integer>23</integer><key>Minute</key><integer>5</integer></dict>
+        <dict><key>Weekday</key><integer>3</integer><key>Hour</key><integer>23</integer><key>Minute</key><integer>5</integer></dict>
+        <dict><key>Weekday</key><integer>4</integer><key>Hour</key><integer>23</integer><key>Minute</key><integer>5</integer></dict>
+        <dict><key>Weekday</key><integer>5</integer><key>Hour</key><integer>23</integer><key>Minute</key><integer>5</integer></dict>
+    </array>
+
+    <key>RunAtLoad</key>
+    <false/>
+
+    <key>StandardOutPath</key>
+    <string>__HOME__/Library/Logs/skippalgo/skippalgo-c13-reconcile.log</string>
+    <key>StandardErrorPath</key>
+    <string>__HOME__/Library/Logs/skippalgo/skippalgo-c13-reconcile.err</string>
+
+    <key>EnvironmentVariables</key>
+    <dict>
+        <key>PATH</key>
+        <string>/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin</string>
+    </dict>
+</dict>
+</plist>
