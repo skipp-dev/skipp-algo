@@ -6,17 +6,38 @@
     "closed_cumulative": 0,
     "filled_cumulative": 0,
     "newest_incubation_date": "2026-07-06",
-    "target": 20
+    "target": 40
   },
-  "generated_at_unix": 1783348132.361699,
+  "generated_at_unix": 0.0,
   "ledger": {
-    "candidate_pass": 2,
-    "newest_date": "2026-06-11",
-    "plane": "15m",
-    "rows": 4
+    "candidate_pass": 0,
+    "newest_date": "",
+    "plane": "",
+    "rows": 0
+  },
+  "samples": {
+    "per_family": {
+      "BOS": {
+        "classification": "operational",
+        "usable": 0
+      },
+      "FVG": {
+        "classification": "control",
+        "usable": 0
+      },
+      "OB": {
+        "classification": "control",
+        "usable": 0
+      },
+      "SWEEP": {
+        "classification": "proof_of_concept_15m",
+        "usable": 0
+      }
+    },
+    "target": 40
   },
   "wsh": {
-    "newest_date": "2026-06-11",
+    "newest_date": "2026-07-06",
     "status": "degraded:no-events"
   }
 }

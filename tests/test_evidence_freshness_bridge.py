@@ -1,12 +1,79 @@
 """Tests for the daemon-side evidence_freshness_bridge (URL/local, fail-soft)."""
 from __future__ import annotations
 
+import base64
 import json
 from pathlib import Path
 
 import pytest
 
 from services.live_overlay_daemon import evidence_freshness_bridge as bridge
+
+# --------------------------------------------------------------------------- #
+# GitHub Contents-API handling (post-review finding 1: base64 envelope)
+# --------------------------------------------------------------------------- #
+
+
+def test_is_github_contents_api_url():
+    assert bridge._is_github_contents_api_url(
+        "https://api.github.com/repos/o/r/contents/a/b.json?ref=bot/x"
+    )
+    assert not bridge._is_github_contents_api_url(
+        "https://raw.githubusercontent.com/o/r/bot/x/a/b.json"
+    )
+    assert not bridge._is_github_contents_api_url("https://example.com/x.json")
+
+
+def test_contents_api_url_requests_raw_accept(monkeypatch):
+    """The Contents-API URL must send Accept: vnd.github.raw+json so GitHub
+    returns the file, not the base64 envelope (the silent-green bug)."""
+    captured = {}
+
+    class _Resp:
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *a):
+            return False
+
+        def read(self):
+            return b'{"generated_at_unix": 1.0}'
+
+    def _fake_urlopen(request, timeout=10.0):
+        captured["accept"] = request.headers.get("Accept")
+        return _Resp()
+
+    monkeypatch.setattr(bridge.urllib.request, "urlopen", _fake_urlopen)
+    bridge._fetch_url("https://api.github.com/repos/o/r/contents/x.json?ref=b", "tok")
+    assert captured["accept"] == "application/vnd.github.raw+json"
+
+
+def test_decode_github_envelope():
+    inner = {"generated_at_unix": 5.0, "samples": {"target": 40}}
+    env = {
+        "name": "evidence_freshness.json",
+        "encoding": "base64",
+        "content": base64.b64encode(json.dumps(inner).encode()).decode(),
+    }
+    assert bridge._decode_github_envelope(env) == inner
+    # A raw snapshot (no envelope) is passed through as not-an-envelope.
+    assert bridge._decode_github_envelope({"generated_at_unix": 5.0}) is None
+
+
+def test_load_raw_decodes_base64_envelope(monkeypatch, tmp_path):
+    """Belt-and-suspenders: even if a proxy returns the base64 envelope, the
+    bridge must decode it instead of coercing an empty (silent-green) snapshot."""
+    inner = {
+        "generated_at_unix": 9.0,
+        "samples": {"target": 40, "per_family": {"BOS": {"usable": 7, "classification": "operational"}}},
+    }
+    env = json.dumps({"encoding": "base64", "content": base64.b64encode(json.dumps(inner).encode()).decode()})
+    monkeypatch.setenv("EVIDENCE_FRESHNESS_SNAPSHOT_URL", "https://api.github.com/repos/o/r/contents/x.json?ref=b")
+    monkeypatch.setattr(bridge, "_fetch_url", lambda *a, **k: env)
+    snap = bridge.snapshot()
+    assert snap["loaded"] == 1.0
+    assert snap["generated_at_unix"] == 9.0
+    assert snap["samples"]["per_family"]["BOS"]["usable"] == 7.0
 
 
 @pytest.fixture(autouse=True)

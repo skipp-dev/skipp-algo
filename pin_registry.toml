@@ -98,7 +98,7 @@
 "services/live_overlay_daemon/uptimerobot_bridge.py" = [91]
 # 2026-07-06 (feat/evidence-freshness-monitoring): evidence-freshness snapshot
 # fetcher, https-only with explicit timeout= (mirrors the workflow bridge).
-"services/live_overlay_daemon/evidence_freshness_bridge.py" = [115]
+"services/live_overlay_daemon/evidence_freshness_bridge.py" = [137]
 # 2026-06-23: live-overlay runtime snapshot fetchers in compute.py remain
 # https-only with explicit timeout=. 2026-06-23 (audit follow-up F2/F3):
 # NEWS/SIGNALS/TRADINGVIEW JSON loaders delegate into one shared

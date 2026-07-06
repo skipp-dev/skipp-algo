@@ -1760,8 +1760,14 @@ groups:
     data:
     - refId: A
       datasourceUid: grafanacloud-prom
+      # 432000s = 5 days. The append cron is weekday-only, so over a weekend
+      # the newest row is Friday and the once-daily snapshot lags a further
+      # day; at 3 days this false-fired every Monday. 5 days absorbs a normal
+      # weekend + a Monday holiday + the snapshot lag, while still catching a
+      # genuinely stuck cron well inside its 10-day commit-back gap budget
+      # (post-review finding: threshold mis-sized vs Mon-Fri cadence).
       model:
-        expr: live_overlay_evidence_ledger_age_seconds{job="live_overlay"} > 259200
+        expr: live_overlay_evidence_ledger_age_seconds{job="live_overlay"} > 432000
         instant: true
     - refId: C
       datasourceUid: __expr__
@@ -1781,10 +1787,49 @@ groups:
     labels:
       severity: critical
     annotations:
-      summary: The magnitude shadow ledger's newest row is older than 3 days -- the daily measurement
+      summary: The magnitude shadow ledger's newest row is older than 5 days -- the daily measurement
         stopped growing (the 2026-06/07 silent freeze).
       runbook: Check adr0023-magnitude-shadow-daily runs and the accumulate_family_events pool; the ledger
         should gain a row every weekday.
+  - uid: lo-evidence-ledger-empty
+    title: ADR-0023 magnitude ledger empty
+    condition: C
+    # An EMPTY ledger reads as age-unknown (age=0), not age-old, so the
+    # stale rule above can never fire on it — the exact hole that let the
+    # post-#3213 empty 1D ledger read as "fresh". This rule alarms on a
+    # ledger that has stayed at zero rows for > 3 days (a cold start is fine;
+    # a persistently empty ledger means the daily cron never committed a row
+    # / the accumulated pool never became available). noDataState OK: a
+    # healthy non-empty ledger yields no series here.
+    noDataState: OK
+    data:
+    - refId: A
+      datasourceUid: grafanacloud-prom
+      model:
+        expr: live_overlay_evidence_ledger_rows{job="live_overlay"} < 1
+        instant: true
+    - refId: C
+      datasourceUid: __expr__
+      model:
+        type: threshold
+        conditions:
+        - evaluator:
+            type: gt
+            params:
+            - 0
+          operator:
+            type: and
+          query:
+            params:
+            - A
+    for: 3d
+    labels:
+      severity: critical
+    annotations:
+      summary: The magnitude shadow (1D) ledger has had zero rows for > 3 days -- the daily measurement
+        is not committing rows (distinct from a cold start).
+      runbook: Check that adr0023-magnitude-shadow-daily commits a row each weekday and that the
+        accumulated FamilyEvent pool is available (dispatch the one-time reseed if not).
   - uid: lo-evidence-audit-branch-stale
     title: Phase-A audit branch stale
     condition: C

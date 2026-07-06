@@ -10,9 +10,11 @@ yields ``loaded=0`` and the snapshot-age gauge stops advancing, which the
 """
 from __future__ import annotations
 
+import base64
 import json
 import threading
 import time
+import urllib.parse
 import urllib.request
 from datetime import UTC, date, datetime
 from typing import Any
@@ -104,10 +106,30 @@ def _coerce(raw: dict[str, Any]) -> dict[str, Any]:
     }
 
 
+def _is_github_contents_api_url(url: str) -> bool:
+    """True when ``url`` is a GitHub Contents API endpoint (mirrors compute)."""
+    try:
+        parsed = urllib.parse.urlsplit(url)
+    except ValueError:
+        return False
+    return (
+        parsed.netloc.lower() == "api.github.com"
+        and "/repos/" in parsed.path.lower()
+        and "/contents/" in parsed.path.lower()
+    )
+
+
 def _fetch_url(url: str, token: str, timeout: float = 10.0) -> str | None:
     if not url.lower().startswith("https://"):
         return None
     headers = {"Accept": "application/json", "User-Agent": "skipp-evidence-freshness/1.0"}
+    # GitHub's Contents API returns a base64 metadata envelope for the default
+    # Accept; ask for the raw file instead (same fix the news/experiment
+    # bridges already carry — compute._is_github_contents_api_url). Without
+    # this, the documented Contents-API URL decodes to an EMPTY snapshot with
+    # loaded=1, keeping the stale alert silently green (post-review finding 1).
+    if _is_github_contents_api_url(url):
+        headers["Accept"] = "application/vnd.github.raw+json"
     if token:
         headers["Authorization"] = f"Bearer {token}"
     try:
@@ -116,6 +138,24 @@ def _fetch_url(url: str, token: str, timeout: float = 10.0) -> str | None:
             return response.read().decode("utf-8")
     except Exception:
         return None
+
+
+def _decode_github_envelope(parsed: dict[str, Any]) -> dict[str, Any] | None:
+    """Decode a GitHub Contents API base64 envelope to the inner JSON dict.
+
+    Belt-and-suspenders: even if the raw-Accept upgrade above is stripped by a
+    proxy or a stale token, recognise ``{content, encoding: "base64"}`` and
+    decode it rather than silently treating the envelope as an empty snapshot.
+    Returns ``None`` when *parsed* is not such an envelope.
+    """
+    if str(parsed.get("encoding", "")).lower() != "base64" or "content" not in parsed:
+        return None
+    try:
+        inner = base64.b64decode(str(parsed["content"])).decode("utf-8")
+        decoded = json.loads(inner)
+    except (ValueError, TypeError):
+        return None
+    return decoded if isinstance(decoded, dict) else None
 
 
 def _load_raw() -> dict[str, Any]:
@@ -129,7 +169,7 @@ def _load_raw() -> dict[str, Any]:
             except ValueError:
                 parsed = None
             if isinstance(parsed, dict):
-                return _coerce(parsed)
+                return _coerce(_decode_github_envelope(parsed) or parsed)
 
     path = config.evidence_freshness_snapshot_path()
     if not path.exists():

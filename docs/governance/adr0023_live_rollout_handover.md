@@ -428,15 +428,16 @@ Daily PASS/FAIL is noisy; **decisions are made weekly**, not daily:
    model (`governance/execution_costs.py` +
    `scripts/calibrate_execution_costs.py`) exist; the gate consumes the
    conservative (CI-high) round-turn cost via `--cost-calibration`
-   (fail-closed when unmeasurable). Awaiting C8 Phase-A paper sessions to
-   produce enough measurable fills before the §5 verdict can be recorded.
-   **Threshold correction (2026-07-06):** the binding count is
-   `MIN_TRADES = MIN_OOS_SAMPLES = 40` triggered fills **per family**
-   (`governance/epnl_after_cost.py`; below it a family is INCONCLUSIVE, not
-   passable) — NOT the "≥ 20" figure earlier prose used. This roughly doubles
-   the time to a first BOS §5 verdict (~40 daily paper fills) and makes SWEEP
-   effectively unmeasurable on §5 too (too rare on the daily plane), which is
-   why SWEEP is reclassified `proof_of_concept_15m` — see
+   (fail-closed when unmeasurable). **Source + threshold correction
+   (2026-07-06, post-review):** §5 reads **FamilyEvent records** and runs
+   `extract_family_calibration_samples` — the *same* 1D pool the §2 AUC uses,
+   NOT the C13 paper fills (those carry no SMC family and feed Phase-B, not
+   §5). The binding count is `MIN_TRADES = MIN_OOS_SAMPLES = 40` triggered
+   score+return **samples per family** (`governance/epnl_after_cost.py`; below
+   it a family is INCONCLUSIVE) — not the "≥ 20" figure earlier prose used, and
+   not "paper fills". So §5 and the 1D AUC become measurable together, once the
+   pool holds 40 BOS samples; SWEEP is too rare on the daily plane for either,
+   hence `proof_of_concept_15m` — see
    [adr0023_plane_and_gate_clarification.md](adr0023_plane_and_gate_clarification.md).
 
 2. **The pipeline step that fills the snapshot fields.**

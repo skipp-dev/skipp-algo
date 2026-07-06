@@ -68,6 +68,7 @@ from typing import Any
 
 from governance.magnitude_resolution_gate import MAG_AUC_CI_LOW_FLOOR
 from governance.magnitude_stage_policy import (
+    DEFAULT_ARMED_PLANE,
     DEFAULT_POLICY_PATH,
     classification_of,
     demote_family,
@@ -646,23 +647,37 @@ def main(argv: list[str] | None = None) -> int:
         return 3
 
     # Measurement-plane guard (2026-07-06, handover header): the 2026-06-11
-    # seed rows were graded on 15m events (they predate the `plane` column —
-    # absent means legacy 15m), the CI continuation grades 1D events. A
-    # k-of-n window pooled across planes would silently combine two
-    # different experiments — and worse, apply demotions to an armed set
-    # whose designation rests on the other plane. Refuse loudly; the
-    # operator must decide the evaluation-plane policy before the first
-    # mixed window is judged.
-    planes = {str(row.get("plane") or "15m") for row in rows}
-    if len(planes) > 1:
+    # seed rows were graded on 15m events, the CI continuation grades 1D
+    # events. A k-of-n window pooled across planes would silently combine two
+    # different experiments — and worse, apply demotions to an armed set whose
+    # designation rests on the other plane. Refuse loudly on a GENUINE mix.
+    #
+    # Post-review fix (finding C1): distinguish an ABSENT plane column from an
+    # explicit ``plane: null``. A legacy pre-column row (no key) still means
+    # 15m by convention. But a thin-day heartbeat whose events lack a derivable
+    # bar interval writes ``plane: null`` (key present, value None) — that means
+    # "unknown", not "15m". The earlier ``row.get("plane") or "15m"`` folded
+    # both into "15m", so a pure-1D ledger with one underivable heartbeat looked
+    # like {"1D","15m"} and turned the weekly job spuriously red.
+    known_planes: set[str] = set()
+    for row in rows:
+        if "plane" not in row:
+            known_planes.add(DEFAULT_ARMED_PLANE)  # legacy: absent column == 15m
+        elif row["plane"]:
+            known_planes.add(str(row["plane"]))
+        # else: explicit null/empty plane == unknown → excluded from the mix set
+    if len(known_planes) > 1:
         print(
             "error: ledger mixes measurement planes "
-            f"{sorted(planes)} — k-of-n across planes is invalid. "
+            f"{sorted(known_planes)} — k-of-n across planes is invalid. "
             "Split the evaluation by plane (e.g. archive the 15m seed rows "
             "or filter --ledger) before judging this window.",
             file=sys.stderr,
         )
         return 1
+    # Empty set = a legacy all-absent ledger → the "absent means 15m"
+    # convention; otherwise the single known plane is the ledger's plane.
+    planes = known_planes or {DEFAULT_ARMED_PLANE}
 
     report = evaluate_weekly(rows, k=args.k, n=args.n)
     report["armed_families"] = sorted(policy.armed_families)
