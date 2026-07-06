@@ -656,12 +656,36 @@ def _history_sort_key(row: dict[str, Any]) -> tuple[int, float, str]:
     return (1, 0.0, str(captured_at))
 
 
+def _has_captured_at(value: object) -> bool:
+    """Return ``True`` iff ``value`` is a usable ``captured_at`` timestamp.
+
+    A numeric ``0`` / ``0.0`` is a valid Unix timestamp (1970-01-01) and MUST be
+    kept — the previous ``obj.get("captured_at")`` truthiness guard silently
+    dropped it, contradicting :func:`_history_sort_key` and
+    ``metrics._experiment_history_run_date`` which both explicitly tolerate a
+    numeric ``captured_at``. Only a missing (``None``), empty-string, boolean, or
+    non-scalar value is treated as absent; any number or non-empty string is kept.
+    """
+    if value is None or isinstance(value, bool):
+        return False
+    if isinstance(value, (int, float)):
+        return True
+    if isinstance(value, str):
+        return value.strip() != ""
+    return False
+
+
 def _parse_history_lines(text: str, max_days: int) -> list[dict[str, Any]]:
     """Parse a Plan 2.8 history JSONL body into the most recent per-day dicts.
 
     Malformed lines are skipped. The newest ``max_days`` snapshots are returned
     in chronological order (oldest first) so Grafana renders them left-to-right.
+    A non-positive ``max_days`` selects zero days and returns an empty list (the
+    live caller clamps to ``[1, 366]``, so this only guards direct/defensive use
+    and avoids the previous silent "return everything" behaviour).
     """
+    if max_days <= 0:
+        return []
     rows: list[dict[str, Any]] = []
     for line in text.splitlines():
         line = line.strip()
@@ -671,12 +695,12 @@ def _parse_history_lines(text: str, max_days: int) -> list[dict[str, Any]]:
             obj = json.loads(line)
         except ValueError:
             continue
-        if isinstance(obj, dict) and obj.get("captured_at"):
+        if isinstance(obj, dict) and _has_captured_at(obj.get("captured_at")):
             rows.append(obj)
     # JSONL is append-ordered, but sort defensively on captured_at so a backfill
     # line interleaved out of order still renders chronologically.
     rows.sort(key=_history_sort_key)
-    if max_days > 0 and len(rows) > max_days:
+    if len(rows) > max_days:
         rows = rows[-max_days:]
     return rows
 

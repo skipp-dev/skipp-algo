@@ -22,6 +22,7 @@ Roadmap: docs/IMPROVEMENTS_C2_C12_ROADMAP_2026-04-26.md#c71
 """
 from __future__ import annotations
 
+import math
 from collections.abc import Iterable, Mapping, Sequence
 from dataclasses import dataclass
 from pathlib import Path
@@ -52,19 +53,32 @@ def sparkline(values: Sequence[float]) -> str:
     """Render a sequence of floats as a fixed-charset ASCII sparkline.
 
     Empty input → empty string. Constant input → all-mid characters
-    (avoids divide-by-zero). Caller is responsible for windowing.
+    (avoids divide-by-zero). Non-finite values (NaN / ±inf) render as the
+    mid character rather than crashing, and are excluded from the min/max
+    range; a span that overflows to inf falls back to all-mid too. Caller is
+    responsible for windowing.
     """
     if not values:
         return ""
-    lo = min(values)
-    hi = max(values)
-    if hi - lo < 1e-12:
-        return _SPARK_CHARS[len(_SPARK_CHARS) // 2] * len(values)
+    mid = _SPARK_CHARS[len(_SPARK_CHARS) // 2]
+    finite = [v for v in values if math.isfinite(v)]
+    if not finite:
+        return mid * len(values)
+    lo = min(finite)
+    hi = max(finite)
     span = hi - lo
+    if not math.isfinite(span) or span < 1e-12:
+        return mid * len(values)
     n = len(_SPARK_CHARS) - 1
-    return "".join(
-        _SPARK_CHARS[round((v - lo) / span * n)] for v in values
-    )
+    cells: list[str] = []
+    for v in values:
+        if not math.isfinite(v):
+            cells.append(mid)
+            continue
+        idx = round((v - lo) / span * n)
+        idx = 0 if idx < 0 else n if idx > n else idx
+        cells.append(_SPARK_CHARS[idx])
+    return "".join(cells)
 
 
 @dataclass(frozen=True)
@@ -78,13 +92,37 @@ class FamilyCard:
 
 
 def _top_blocker(blockers: Iterable[Mapping[str, object]]) -> str:
-    """Highest-severity blocker as 'severity/check: message'; '' on empty."""
+    """Highest-severity blocker as 'severity/check: message'; '' on empty.
+
+    Every field is read with a default so a partial blocker dict (missing
+    ``check`` / ``message`` / ``severity``) renders a best-effort string rather
+    than raising ``KeyError`` — mirroring the ``.get`` already used for sorting.
+    """
     items = list(blockers)
     if not items:
         return ""
     items.sort(key=lambda b: -_SEVERITY_RANK.get(str(b.get("severity", "info")), 0))
     top = items[0]
-    return f"{top['severity']}/{top['check']}: {top['message']}"
+    severity = top.get("severity", "info")
+    check = top.get("check", "?")
+    message = top.get("message", "")
+    return f"{severity}/{check}: {message}"
+
+
+def _fmt_metric(value: object) -> str:
+    """Format a single metric value as a 4-decimal float, defensively.
+
+    A non-numeric or non-finite value (empty string, ``None``, ``NaN`` …) is
+    rendered as its ``str()`` instead of raising ``ValueError`` / ``TypeError``,
+    so a malformed metrics payload cannot crash the whole panel.
+    """
+    try:
+        parsed = float(cast("float", value))
+    except (TypeError, ValueError):
+        return str(value)
+    if not math.isfinite(parsed):
+        return str(value)
+    return f"{parsed:.4f}"
 
 
 def _metrics_summary(metrics: Mapping[str, float]) -> str:
@@ -92,7 +130,7 @@ def _metrics_summary(metrics: Mapping[str, float]) -> str:
     if not metrics:
         return "(no metrics)"
     keys = sorted(metrics)
-    return ", ".join(f"{k}={float(metrics[k]):.4f}" for k in keys)
+    return ", ".join(f"{k}={_fmt_metric(metrics[k])}" for k in keys)
 
 
 def build_card(
@@ -103,8 +141,20 @@ def build_card(
     """Construct a ``FamilyCard`` from a ``Decision`` dict + optional history."""
     raw_blockers = decision.get("blockers") or ()
     raw_metrics = decision.get("metrics") or {}
-    blockers = list(cast("Iterable[Mapping[str, object]]", raw_blockers))
-    metrics = dict(cast("Mapping[str, float]", raw_metrics))
+    # Defensive: a malformed decision may carry a non-list ``blockers`` or a
+    # non-mapping ``metrics`` (e.g. a bare string). ``list("ab")`` /
+    # ``dict("0")`` would otherwise crash the whole panel, so coerce anything
+    # that is not the expected container shape to empty rather than raising.
+    blockers = (
+        list(cast("Iterable[Mapping[str, object]]", raw_blockers))
+        if isinstance(raw_blockers, (list, tuple))
+        else []
+    )
+    metrics = (
+        dict(cast("Mapping[str, float]", raw_metrics))
+        if isinstance(raw_metrics, Mapping)
+        else {}
+    )
     posture = str(decision.get("posture", "red"))
     family = decision.get("family")
     if family is None:
