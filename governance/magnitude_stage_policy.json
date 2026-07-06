@@ -7,6 +7,7 @@
   ],
   "k": 3,
   "n": 4,
+  "armed_plane": "15m",
   "history": [
     {
       "action": "arm",
@@ -19,6 +20,12 @@
       "family": "SWEEP",
       "reason": "ADR-0023 Stage 2 armed for the \u00a72-qualified candidate families (handover \u00a73). Fail-closed: arming only escalates an unmeasured move-size resolution to an info blocker and enforces a measured FAIL; it enables no sizing. Auto-demotion via scripts/eval_magnitude_shadow_weekly.py --apply-demotions.",
       "date": "2026-06-11"
+    },
+    {
+      "action": "clarify",
+      "family": "SWEEP",
+      "reason": "ADR-0023 plane/gate clarification (adr0023_plane_and_gate_clarification.md, 2026-07-06): SWEEP reclassified proof_of_concept_15m. Its 15m magnitude proof is valid but does not translate to a confirmable daily edge \u2014 too rare on 1D for the AUC (MIN_OOS=40) and for \u00a75 (MIN_TRADES=40 fills/family). SWEEP stays ARMED (fail-closed) but is not expected to reach operational confirmation. armed_plane recorded as 15m; the daily 1D evaluator is a health monitor and does not demote cross-plane.",
+      "date": "2026-07-06"
     }
   ]
 }

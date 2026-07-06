@@ -103,9 +103,12 @@ that the magnitude axis carries not only statistically but **economically**.
 > *estimator* (`governance/epnl_after_cost.py`) run on reconstructed event
 > aggregates with an **assumed flat 5 bps cost** — a preliminary estimate,
 > not the recordable §5 verdict. The formal Stage-3 §5 check stays **pending**
-> until the empirical cost model is fed by ≥ 20 measurable C8 Phase-A paper
-> fills, exactly as `adr0023_live_rollout_handover.md` §"Stage 3 blockers"
-> records. This table does NOT unlock Stage 3; the two documents previously
+> until the empirical cost model is fed by enough measurable C8 Phase-A paper
+> fills — **`MIN_TRADES = 40` per family** (the code's floor; earlier prose's
+> "≥ 20" was wrong, corrected 2026-07-06), which makes SWEEP effectively
+> unmeasurable on §5 (see
+> [adr0023_plane_and_gate_clarification.md](adr0023_plane_and_gate_clarification.md)).
+> This table does NOT unlock Stage 3; the two documents previously
 > read as contradicting each other on this point.
 
 ## 3. Infrastructure built to support this

@@ -429,7 +429,15 @@ Daily PASS/FAIL is noisy; **decisions are made weekly**, not daily:
    `scripts/calibrate_execution_costs.py`) exist; the gate consumes the
    conservative (CI-high) round-turn cost via `--cost-calibration`
    (fail-closed when unmeasurable). Awaiting C8 Phase-A paper sessions to
-   produce ≥ 20 measurable fills before the §5 verdict can be recorded.
+   produce enough measurable fills before the §5 verdict can be recorded.
+   **Threshold correction (2026-07-06):** the binding count is
+   `MIN_TRADES = MIN_OOS_SAMPLES = 40` triggered fills **per family**
+   (`governance/epnl_after_cost.py`; below it a family is INCONCLUSIVE, not
+   passable) — NOT the "≥ 20" figure earlier prose used. This roughly doubles
+   the time to a first BOS §5 verdict (~40 daily paper fills) and makes SWEEP
+   effectively unmeasurable on §5 too (too rare on the daily plane), which is
+   why SWEEP is reclassified `proof_of_concept_15m` — see
+   [adr0023_plane_and_gate_clarification.md](adr0023_plane_and_gate_clarification.md).
 
 2. **The pipeline step that fills the snapshot fields.**
    *Status 2026-06-11: wired, twice over.* The Stage-1 runner

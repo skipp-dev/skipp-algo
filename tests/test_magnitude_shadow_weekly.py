@@ -614,6 +614,49 @@ def test_main_apply_demotions_rewrites_policy_and_returns_4(tmp_path):
     assert payload["history"][-1]["family"] == "BOS"
 
 
+def test_main_cross_plane_suppresses_demotion(tmp_path, capsys):
+    """Cross-plane non-demotion (plane/gate memo): a full-window FAIL streak
+    on the 1D ledger must NOT demote a family armed on the 15m plane — the
+    two planes are different experiments. The weekly judgement still renders
+    (health monitor), but the policy is left untouched."""
+    import json
+
+    ledger = tmp_path / "ledger.jsonl"
+    # A FAIL streak that WOULD demote if it were on the armed plane…
+    rows = [{**r, "plane": "1D"} for r in _streak("BOS", ["FAIL", "FAIL", "FAIL", "FAIL"])]
+    _write_ledger(ledger, rows)
+    policy = tmp_path / "policy.json"
+    _write_policy(policy, ["BOS"])  # armed_plane defaults to 15m
+    rc = main(["--ledger", str(ledger), "--policy", str(policy), "--apply-demotions"])
+    # …but the ledger is 1D and the arming is 15m → suppressed → no demotion.
+    assert rc == 0
+    payload = json.loads(policy.read_text(encoding="utf-8"))
+    assert payload["armed_families"] == ["BOS"], "cross-plane demotion must be suppressed"
+    err = capsys.readouterr().err
+    assert "cross-plane" in err and "demotion suppressed" in err
+
+
+def test_main_same_plane_still_demotes(tmp_path):
+    """Guard against over-suppression: a FAIL streak on the SAME plane the
+    family was armed on must still demote (1D ledger + 1D-armed policy)."""
+    import json
+
+    ledger = tmp_path / "ledger.jsonl"
+    rows = [{**r, "plane": "1D"} for r in _streak("BOS", ["FAIL", "FAIL", "FAIL", "FAIL"])]
+    _write_ledger(ledger, rows)
+    policy = tmp_path / "policy.json"
+    policy.write_text(
+        json.dumps({
+            "schema_version": 1, "stage": 2, "armed_families": ["BOS"],
+            "k": 3, "n": 4, "armed_plane": "1D", "history": [],
+        }),
+        encoding="utf-8",
+    )
+    rc = main(["--ledger", str(ledger), "--policy", str(policy), "--apply-demotions"])
+    assert rc == 4
+    assert json.loads(policy.read_text(encoding="utf-8"))["armed_families"] == []
+
+
 def test_main_without_apply_reports_pending_and_returns_0(tmp_path, capsys):
     import json
 
