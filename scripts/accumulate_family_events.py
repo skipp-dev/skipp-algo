@@ -13,12 +13,26 @@ out-of-sample folds.
 Deduplication rule (Score-Persistenz):
     Events are keyed by ``(family, anchor_ts)``.  When the same event appears
     in multiple daily snapshots (re-detected as *open* structure), the version
-    with the *longest* ``forward_closes`` list is kept: each successive day
+    with the *longest* ``forward_closes`` list wins: each successive day
     the benchmark appends one more day of realized bars, so the newest version
     carries the most complete outcome window, which is the one to use for
     return calculation.  This is NOT lookahead: the forward bars were already
     generated at event-formation time in each separate daily run; we merely
     keep the most informative copy.
+
+    Anchor-time fields missing from the winner are backfilled from the loser
+    (the actual Score-Persistenz half of the fix).  ``score``, ``regime``,
+    ``relative_volume`` etc. are computed from the trailing bars at anchor
+    time; a later re-detection sees the anchor drifted toward the start of
+    the sliding bar window, the trailing ATR window (14 bars) no longer
+    fits, and the re-detected copy carries NO score.  Keeping only the
+    longest-forward copy therefore silently discarded every score after
+    ~3 days — the pool converged to "long forward windows, no scores"
+    and the magnitude walk-forward saw 0 usable samples (observed
+    2026-06-12..07-03: every daily run ended all_thin, the shadow ledger
+    never grew past its 2026-06-11 seed).  Backfilling anchor-time fields
+    from the older copy is not lookahead either: they were measured when
+    the event formed, strictly from bars at or before the anchor.
 
 Age filter:
     Events whose ``anchor_ts`` is older than a rolling N × 86 400-second
@@ -77,6 +91,40 @@ def _forward_len(event: dict[str, Any]) -> int:
     return len(event.get("forward_closes") or [])
 
 
+# Fields computed strictly from bars at or before the anchor. They are
+# immutable per (family, anchor_ts) but disappear from later re-detections
+# once the anchor drifts below the trailing-window requirement (ATR period,
+# regime/relative-volume lookbacks) in the sliding benchmark bar window.
+_ANCHOR_TIME_FIELDS: tuple[str, ...] = (
+    "score",
+    "regime",
+    "relative_volume",
+    "vrvp_va_pos",
+    "vrvp_vpoc_dist",
+    "entry_price",
+    "entry_mode",
+    "zone_low",
+    "zone_high",
+)
+
+
+def _merge_event(
+    winner: dict[str, Any], loser: dict[str, Any]
+) -> dict[str, Any]:
+    """Winner's copy, with anchor-time fields backfilled from the loser.
+
+    The winner (longest forward window) keeps every field it has; only
+    anchor-time fields it *lacks* are carried over from the loser, so a
+    scored day-0 detection survives being superseded by an unscored
+    day-k re-detection.
+    """
+    merged = dict(winner)
+    for field in _ANCHOR_TIME_FIELDS:
+        if merged.get(field) is None and loser.get(field) is not None:
+            merged[field] = loser[field]
+    return merged
+
+
 def _cutoff_ts(max_age_days: int) -> float:
     """Epoch-seconds cutoff: events older than this are dropped."""
     now = datetime.now(UTC)
@@ -92,7 +140,9 @@ def accumulate(
     """Merge *input_files* into a single deduplicated event list.
 
     Deduplication key: ``(family, anchor_ts)``.
-    Tie-break: keep the event with the longest ``forward_closes`` list.
+    Tie-break: the event with the longest ``forward_closes`` list wins;
+    anchor-time fields the winner lacks are backfilled from the loser
+    (Score-Persistenz — see module docstring).
     Age filter: drop events older than ``max_age_days`` calendar days.
     """
     by_key: dict[tuple[str, float], dict[str, Any]] = {}
@@ -115,8 +165,12 @@ def accumulate(
 
             key = (family, anchor_ts)
             existing = by_key.get(key)
-            if existing is None or _forward_len(event) > _forward_len(existing):
+            if existing is None:
                 by_key[key] = event
+            elif _forward_len(event) > _forward_len(existing):
+                by_key[key] = _merge_event(event, existing)
+            else:
+                by_key[key] = _merge_event(existing, event)
 
     # Sort by anchor_ts ascending so consumers get a deterministic order.
     return sorted(by_key.values(), key=lambda e: float(e.get("anchor_ts", 0)))
@@ -180,11 +234,19 @@ def main(argv: list[str] | None = None) -> int:
     atomic_write_json(merged, output_path, indent=2, sort_keys=True)
 
     family_counts: dict[str, int] = {}
+    scored_counts: dict[str, int] = {}
     for event in merged:
-        family_counts[str(event.get("family", "?"))] = (
-            family_counts.get(str(event.get("family", "?")), 0) + 1
-        )
-    count_str = " | ".join(f"{f}:{n}" for f, n in sorted(family_counts.items()))
+        family = str(event.get("family", "?"))
+        family_counts[family] = family_counts.get(family, 0) + 1
+        if event.get("score") is not None:
+            scored_counts[family] = scored_counts.get(family, 0) + 1
+    # Scored counts make Score-Persistenz observable in the rolling-bench
+    # log: without them weeks of silent score loss looked identical to a
+    # healthy pool (the 2026-06/07 all_thin incident).
+    count_str = " | ".join(
+        f"{f}:{n} (scored {scored_counts.get(f, 0)})"
+        for f, n in sorted(family_counts.items())
+    )
     print(
         f"accumulate_family_events: {len(merged)} events after merge "
         f"(max_age_days={args.max_age_days})"
