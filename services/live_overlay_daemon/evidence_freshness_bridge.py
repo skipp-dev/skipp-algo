@@ -47,6 +47,7 @@ def _empty(loaded: float, error: str) -> dict[str, Any]:
         "generated_at_unix": 0.0,
         "ledger": {"newest_date": "", "plane": "", "rows": 0, "candidate_pass": 0},
         "audit_branch": {"last_commit_date": ""},
+        "samples": {"target": 0, "per_family": {}},
         "fills": {
             "filled_cumulative": 0,
             "closed_cumulative": 0,
@@ -62,11 +63,21 @@ def _coerce(raw: dict[str, Any]) -> dict[str, Any]:
     """Normalize a parsed snapshot into a fixed shape; tolerate missing keys."""
     ledger = raw.get("ledger") if isinstance(raw.get("ledger"), dict) else {}
     audit = raw.get("audit_branch") if isinstance(raw.get("audit_branch"), dict) else {}
+    samples = raw.get("samples") if isinstance(raw.get("samples"), dict) else {}
     fills = raw.get("fills") if isinstance(raw.get("fills"), dict) else {}
     wsh = raw.get("wsh") if isinstance(raw.get("wsh"), dict) else {}
 
     def _num(value: Any) -> float:
         return float(value) if isinstance(value, (int, float)) and not isinstance(value, bool) else 0.0
+
+    per_family_raw = samples.get("per_family") if isinstance(samples.get("per_family"), dict) else {}
+    per_family = {
+        str(fam): {
+            "usable": _num(v.get("usable")) if isinstance(v, dict) else 0.0,
+            "classification": str(v.get("classification", "") or "") if isinstance(v, dict) else "",
+        }
+        for fam, v in per_family_raw.items()
+    }
 
     return {
         "loaded": 1.0,
@@ -78,6 +89,7 @@ def _coerce(raw: dict[str, Any]) -> dict[str, Any]:
             "candidate_pass": _num(ledger.get("candidate_pass")),
         },
         "audit_branch": {"last_commit_date": str(audit.get("last_commit_date", "") or "")},
+        "samples": {"target": _num(samples.get("target")), "per_family": per_family},
         "fills": {
             "filled_cumulative": _num(fills.get("filled_cumulative")),
             "closed_cumulative": _num(fills.get("closed_cumulative")),

@@ -46,17 +46,27 @@ from typing import Any
 # Reuse the exact fill/close vocabulary the reconcile + backfill stages write,
 # so the §5 counter here can never drift from what those stages consider a
 # fill / a closed trade.
+from governance.magnitude_stage_policy import classification_of
 from scripts.backfill_live_outcomes import _CLOSED_ACTIONS
-from scripts.run_magnitude_shadow_ledger import CANDIDATE_FAMILIES
+from scripts.run_magnitude_shadow_ledger import ALL_FAMILIES, CANDIDATE_FAMILIES
 from scripts.smc_atomic_write import atomic_write_json
 
 DEFAULT_OUTPUT = "artifacts/monitoring/evidence_freshness.json"
 DEFAULT_LEDGER = "artifacts/governance/magnitude_resolution_shadow.jsonl"
 DEFAULT_AUDIT_BRANCH = "data/phase-a-audit"
-# ADR-0023 §5 needs >= 20 measurable paper fills before the E[PnL]-after-cost
-# verdict can be recorded. Surfaced as a gauge so the dashboard can render a
-# 0 -> 20 progress bar and the operator sees the single most important number.
-FILLS_TARGET = 20
+
+# The real distance to a §5 (and §2) verdict is per-family usable FamilyEvent
+# samples: run_epnl_after_cost_gate.py reads FamilyEvent records and needs
+# MIN_TRADES = MIN_OOS_SAMPLES = 40 triggered score+return samples PER FAMILY
+# (below that a family is INCONCLUSIVE, not passable). That count is exactly
+# the per-family n_oos the daily ledger already records. §5 does NOT consume
+# the C13 paper fills (open-prep swing trades carry no SMC family).
+SAMPLES_TARGET = 40
+
+# C13 paper-trading fill counts. This is operational activity (is the paper
+# pipeline alive and filling?), NOT the §5 gate — kept for visibility but
+# clearly distinguished from the §5 sample progress above.
+FILLS_TARGET = SAMPLES_TARGET
 
 
 def _parse_iso_date(value: Any) -> date | None:
@@ -92,11 +102,21 @@ def summarize_ledger(rows: list[dict[str, Any]]) -> dict[str, Any]:
         if r.get("family") in CANDIDATE_FAMILIES
         and (r.get("status") == "PASS" or r.get("passes") is True)
     )
+    # Per-family usable-sample count on the newest date (n_oos): the real
+    # distance to §2/§5 measurability (need SAMPLES_TARGET each). Present on
+    # both measured rows and thin-day heartbeat rows.
+    usable_samples: dict[str, int] = {}
+    for r in newest_rows:
+        fam = r.get("family")
+        n = r.get("n_oos")
+        if isinstance(fam, str) and isinstance(n, (int, float)) and not isinstance(n, bool):
+            usable_samples[fam] = int(n)
     return {
         "newest_date": newest_iso,
         "plane": plane,
         "rows": len(rows),
         "candidate_pass": candidate_pass,
+        "usable_samples": usable_samples,
     }
 
 
@@ -134,9 +154,25 @@ def build_snapshot(
     fills = summarize_fills(incubation_records)
     fills["target"] = FILLS_TARGET
     fills["newest_incubation_date"] = newest_incubation_date
+    # The §2/§5 progress track: per-family usable samples toward SAMPLES_TARGET,
+    # each tagged with its governance classification so the dashboard can grey
+    # out non-operational families (SWEEP = proof_of_concept_15m; FVG/OB =
+    # control). This — not the C13 fills — is the honest distance to §5.
+    per_family = ledger.get("usable_samples") or {}
+    samples = {
+        "target": SAMPLES_TARGET,
+        "per_family": {
+            fam: {
+                "usable": int(per_family.get(fam, 0)),
+                "classification": classification_of(fam),
+            }
+            for fam in ALL_FAMILIES
+        },
+    }
     return {
         "generated_at_unix": float(generated_at_unix),
         "ledger": ledger,
+        "samples": samples,
         "audit_branch": {"last_commit_date": audit_commit_date},
         "fills": fills,
         "wsh": {"newest_date": wsh_date, "status": wsh_status},

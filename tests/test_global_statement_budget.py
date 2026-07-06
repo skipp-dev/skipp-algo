@@ -283,7 +283,7 @@ _FROZEN_SITES: frozenset[tuple[str, int, tuple[str, ...]]] = frozenset(
         ("services/live_overlay_daemon/uptimerobot_bridge.py", 142, ("_cached_at_monotonic", "_cached_snapshot")),
         # 2026-07-06 (feat/evidence-freshness-monitoring): evidence bridge mirrors
         # the github_workflow_bridge snapshot-cache singleton (same TTL pattern).
-        ("services/live_overlay_daemon/evidence_freshness_bridge.py", 136, ("_cached", "_cached_at_monotonic")),
+        ("services/live_overlay_daemon/evidence_freshness_bridge.py", 148, ("_cached", "_cached_at_monotonic")),
         # 2026-06-24 (feat/railway-metrics): Railway GraphQL bridge for container
         # metrics exposes a lazily-refreshed TTL cache (mirroring uptimerobot).
         # 2026-06-25 (fix/live-overlay-bridge-contract-followup): added

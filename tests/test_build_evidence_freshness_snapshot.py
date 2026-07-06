@@ -3,10 +3,65 @@ from __future__ import annotations
 
 from scripts.build_evidence_freshness_snapshot import (
     FILLS_TARGET,
+    SAMPLES_TARGET,
     build_snapshot,
     summarize_fills,
     summarize_ledger,
 )
+
+# --------------------------------------------------------------------------- #
+# per-family usable samples (the real §2/§5 progress, 2026-07-06)
+# --------------------------------------------------------------------------- #
+
+
+def test_samples_target_is_40_per_family():
+    # §5 reads FamilyEvent records; MIN_TRADES = MIN_OOS_SAMPLES = 40 / family.
+    assert SAMPLES_TARGET == 40
+
+
+def test_summarize_ledger_extracts_per_family_usable_samples():
+    rows = [
+        {"date": "2026-07-08", "family": "BOS", "n_oos": 16, "plane": "1D"},
+        {"date": "2026-07-08", "family": "SWEEP", "n_oos": 9, "plane": "1D"},
+        {"date": "2026-07-07", "family": "BOS", "n_oos": 3, "plane": "1D"},  # older, ignored
+    ]
+    out = summarize_ledger(rows)
+    assert out["usable_samples"] == {"BOS": 16, "SWEEP": 9}
+
+
+def test_build_snapshot_samples_section_tags_classification():
+    rows = [
+        {"date": "2026-07-08", "family": "BOS", "n_oos": 16, "plane": "1D"},
+        {"date": "2026-07-08", "family": "SWEEP", "n_oos": 9, "plane": "1D"},
+        {"date": "2026-07-08", "family": "FVG", "n_oos": 10, "plane": "1D"},
+        {"date": "2026-07-08", "family": "OB", "n_oos": 4, "plane": "1D"},
+    ]
+    snap = build_snapshot(
+        ledger_rows=rows,
+        incubation_records=[],
+        audit_commit_date="2026-07-08",
+        newest_incubation_date="2026-07-08",
+        wsh_date="",
+        wsh_status="",
+        generated_at_unix=1_783_000_000.0,
+    )
+    s = snap["samples"]
+    assert s["target"] == 40
+    assert s["per_family"]["BOS"] == {"usable": 16, "classification": "operational"}
+    assert s["per_family"]["SWEEP"] == {"usable": 9, "classification": "proof_of_concept_15m"}
+    assert s["per_family"]["FVG"]["classification"] == "control"
+    # All four families always present (missing → 0), so the panel never has a gap.
+    assert set(s["per_family"]) == {"BOS", "SWEEP", "FVG", "OB"}
+
+
+def test_build_snapshot_samples_missing_family_defaults_to_zero():
+    rows = [{"date": "2026-07-08", "family": "BOS", "n_oos": 5, "plane": "1D"}]
+    snap = build_snapshot(
+        ledger_rows=rows, incubation_records=[], audit_commit_date="",
+        newest_incubation_date="", wsh_date="", wsh_status="",
+        generated_at_unix=1_783_000_000.0,
+    )
+    assert snap["samples"]["per_family"]["SWEEP"]["usable"] == 0
 
 # --------------------------------------------------------------------------- #
 # summarize_ledger

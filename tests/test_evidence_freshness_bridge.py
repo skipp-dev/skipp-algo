@@ -66,6 +66,34 @@ def test_valid_snapshot_is_normalized(monkeypatch, tmp_path):
     assert snap["fills"]["closed_cumulative"] == 1.0
 
 
+def test_samples_section_is_normalized(monkeypatch, tmp_path):
+    p = _write(
+        tmp_path,
+        {
+            "generated_at_unix": 1_783_000_000.0,
+            "samples": {
+                "target": 40,
+                "per_family": {
+                    "BOS": {"usable": 16, "classification": "operational"},
+                    "SWEEP": {"usable": 9, "classification": "proof_of_concept_15m"},
+                },
+            },
+        },
+    )
+    monkeypatch.setenv("EVIDENCE_FRESHNESS_SNAPSHOT_PATH", str(p))
+    snap = bridge.snapshot()
+    assert snap["samples"]["target"] == 40.0
+    assert snap["samples"]["per_family"]["BOS"] == {"usable": 16.0, "classification": "operational"}
+    assert snap["samples"]["per_family"]["SWEEP"]["classification"] == "proof_of_concept_15m"
+
+
+def test_missing_samples_section_defaults_empty(monkeypatch, tmp_path):
+    p = _write(tmp_path, {"generated_at_unix": 1_783_000_000.0})
+    monkeypatch.setenv("EVIDENCE_FRESHNESS_SNAPSHOT_PATH", str(p))
+    snap = bridge.snapshot()
+    assert snap["samples"] == {"target": 0.0, "per_family": {}}
+
+
 def test_partial_snapshot_tolerated(monkeypatch, tmp_path):
     """A snapshot missing whole sections must not raise — missing sections
     normalize to their empty defaults."""

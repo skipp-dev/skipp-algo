@@ -212,6 +212,8 @@ def test_render_metrics_prometheus_format_and_trailing_newline(monkeypatch: pyte
     assert "# TYPE live_overlay_evidence_audit_branch_age_seconds gauge" in body
     assert "# TYPE live_overlay_evidence_fills_closed_total gauge" in body
     assert "live_overlay_evidence_ledger_info{plane=" in body
+    # §2/§5 per-family sample-progress gauge (the real distance to §5).
+    assert "# TYPE live_overlay_evidence_samples_target gauge" in body
 
 
 def test_render_metrics_health_status_ok(monkeypatch: pytest.MonkeyPatch) -> None:

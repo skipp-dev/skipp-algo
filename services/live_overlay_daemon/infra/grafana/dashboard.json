@@ -6009,9 +6009,9 @@
     },
     {
       "id": 950010002,
-      "title": "Paper Fills Closed (§5 track)",
+      "title": "Samples toward §2/§5 (need 40 / family)",
       "type": "stat",
-      "description": "Cumulative closed paper trades toward the ADR-0023 §5 gate (needs >= 20). filled/target shown alongside. This 0->20 counter is the single most important number until Stage 3.",
+      "description": "Per-family usable FamilyEvent samples (score+triggered return) toward the §2/§5 measurability bar — MIN_OOS = MIN_TRADES = 40 PER FAMILY. This, not the C13 paper fills, is the real distance to a §5 verdict (§5 reads FamilyEvent records). BOS is the only operational candidate; SWEEP is proof_of_concept_15m (too rare on daily to reach 40) and the controls (FVG/OB) are greyed out.",
       "datasource": {
         "type": "prometheus",
         "uid": "grafanacloud-prom"
@@ -6025,23 +6025,15 @@
       "links": [],
       "targets": [
         {
-          "expr": "live_overlay_evidence_fills_closed_total{job=~\"$job\"}",
-          "legendFormat": "closed",
+          "expr": "live_overlay_evidence_samples_usable{job=~\"$job\"}",
+          "legendFormat": "{{family}}",
           "datasource": {
             "type": "prometheus",
             "uid": "grafanacloud-prom"
           }
         },
         {
-          "expr": "live_overlay_evidence_fills_filled_total{job=~\"$job\"}",
-          "legendFormat": "filled",
-          "datasource": {
-            "type": "prometheus",
-            "uid": "grafanacloud-prom"
-          }
-        },
-        {
-          "expr": "live_overlay_evidence_fills_target{job=~\"$job\"}",
+          "expr": "live_overlay_evidence_samples_target{job=~\"$job\"}",
           "legendFormat": "target",
           "datasource": {
             "type": "prometheus",
@@ -6063,6 +6055,8 @@
       "fieldConfig": {
         "defaults": {
           "unit": "",
+          "min": 0,
+          "max": 40,
           "mappings": [],
           "thresholds": {
             "mode": "absolute",
@@ -6077,12 +6071,89 @@
               },
               {
                 "color": "green",
-                "value": 20
+                "value": 40
               }
             ]
           }
         },
-        "overrides": []
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "SWEEP"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "text"
+                }
+              },
+              {
+                "id": "displayName",
+                "value": "SWEEP (n/a — proof of concept)"
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "FVG"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "text"
+                }
+              },
+              {
+                "id": "displayName",
+                "value": "FVG (control)"
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "OB"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "text"
+                }
+              },
+              {
+                "id": "displayName",
+                "value": "OB (control)"
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "target"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "blue"
+                }
+              },
+              {
+                "id": "displayName",
+                "value": "target (40)"
+              }
+            ]
+          }
+        ]
       }
     },
     {
@@ -6384,6 +6455,76 @@
               {
                 "color": "red",
                 "value": 48
+              }
+            ]
+          }
+        },
+        "overrides": []
+      }
+    },
+    {
+      "id": 950010051,
+      "title": "Paper-Trading Fills (C13 activity, not §5)",
+      "type": "stat",
+      "description": "C13 paper-trading fill activity — is the paper pipeline alive and filling? closed/filled counts across all incubation records. This is operational health, NOT the §5 gate (§5 measures per-family FamilyEvent samples — see the samples panel). The open-prep swing trades carry no SMC family, so they cannot be attributed per family.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "grafanacloud-prom"
+      },
+      "gridPos": {
+        "x": 6,
+        "y": 253,
+        "w": 6,
+        "h": 5
+      },
+      "links": [],
+      "targets": [
+        {
+          "expr": "live_overlay_evidence_fills_closed_total{job=~\"$job\"}",
+          "legendFormat": "closed",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "grafanacloud-prom"
+          }
+        },
+        {
+          "expr": "live_overlay_evidence_fills_filled_total{job=~\"$job\"}",
+          "legendFormat": "filled",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "grafanacloud-prom"
+          }
+        },
+        {
+          "expr": "live_overlay_evidence_fills_target{job=~\"$job\"}",
+          "legendFormat": "target",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "grafanacloud-prom"
+          }
+        }
+      ],
+      "options": {
+        "colorMode": "value",
+        "graphMode": "none",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        }
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "",
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "text",
+                "value": null
               }
             ]
           }
