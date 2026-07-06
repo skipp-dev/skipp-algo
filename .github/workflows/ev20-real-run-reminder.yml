@@ -34,6 +34,9 @@ concurrency:
   group: ev20-real-run-reminder
   cancel-in-progress: false
 
+env:
+  PYTHONUNBUFFERED: "1"
+
 defaults:
   run:
     shell: bash
