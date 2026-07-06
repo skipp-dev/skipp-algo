@@ -182,16 +182,19 @@ jobs:
         run: |
           mkdir -p artifacts
           BUNDLE="artifacts/promotion_gate_bundle_${{ steps.date.outputs.value }}.json"
-          # --magnitude-ledger: ADR-0023 Stage-1 snapshot wiring. The shadow
-          # ledger is committed back to the repo by the 13:30 UTC
-          # adr0023-magnitude-shadow-daily run, so this 14:00 UTC checkout
-          # already carries today's row. Fail-soft when absent/empty.
+          # --magnitude-ledger: the armed candidates' magnitude verdict rests
+          # on the frozen 15m PROOF (BOS/SWEEP PASS, 2026-06-11), which lives
+          # in the _15m_seed archive. The active magnitude_resolution_shadow
+          # ledger is now the LIVE 1D measurement track (thin heartbeats until
+          # a family reaches MIN_OOS), a different, unproven plane — feeding it
+          # here would wrongly flip the gate's magnitude fields to "not
+          # measured". Read the 15m proof. Fail-soft when absent/empty.
           EVENTS_POOL="$(find artifacts/ci/scored_family_events_accumulated -name 'accumulated_family_events.json' -type f 2>/dev/null | head -1)"
           python scripts/build_promotion_gate_bundle.py \
             --scoring-root     "${{ steps.download.outputs.scoring_root }}" \
             --output           "${BUNDLE}" \
             --date             "${{ steps.date.outputs.value }}" \
-            --magnitude-ledger artifacts/governance/magnitude_resolution_shadow.jsonl \
+            --magnitude-ledger artifacts/governance/magnitude_resolution_shadow_15m_seed.jsonl \
             ${EVENTS_POOL:+--events "${EVENTS_POOL}"}
           echo "path=${BUNDLE}" >> "$GITHUB_OUTPUT"
 

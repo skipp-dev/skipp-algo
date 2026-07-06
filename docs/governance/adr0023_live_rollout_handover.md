@@ -350,6 +350,23 @@ Cadence and evidence-honesty rules:
   that predate the column are legacy **15m** seed rows (see the
   measurement-plane discontinuity warning in the header). The weekly
   evaluator refuses to judge a ledger that mixes plane values.
+- **Ledger split (2026-07-06).** Because the plane guard refuses a mixed
+  ledger, the two planes now live in two files:
+  `magnitude_resolution_shadow.jsonl` is the **live 1D measurement track**
+  (what the daily cron + weekly evaluator read/write);
+  `magnitude_resolution_shadow_15m_seed.jsonl` is the **frozen 15m proof**
+  (the BOS/SWEEP PASS the armed status rests on), read only by the
+  promotion gate. Nothing pools the two.
+- **Thin-day heartbeat (2026-07-06).** When the 1D pool is too thin for any
+  family to reach `MIN_OOS`, the daily runner appends one **INCONCLUSIVE**
+  heartbeat row per family (`fail_reasons=["all_thin"]`, `n_oos` = per-family
+  usable-sample count) instead of nothing. This advances the committed ledger
+  daily on a fresh feed, so the commit-back gap guard now tracks pipeline
+  **liveness** rather than verdict production. A genuinely frozen feed (same
+  `events_hash`) still returns rc=5 and appends nothing, so the guard still
+  escalates. Heartbeat rows never vote in the k-of-n (INCONCLUSIVE) and never
+  count toward the demotion window, so armed BOS/SWEEP are never demoted by
+  thin days.
 - Never overwrite history — drift analysis needs the full series.
 - The same numbers feed the promotion-gate snapshot fields
   (`magnitude_resolution_pass`, `magnitude_auc`) so the **gate sees them too**,

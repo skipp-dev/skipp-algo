@@ -120,6 +120,100 @@ def test_build_rows_stamp_measurement_plane() -> None:
 
 
 # --------------------------------------------------------------------------- #
+# build_heartbeat_rows (fresh-but-thin day)
+# --------------------------------------------------------------------------- #
+def _triggered_event(family: str, anchor_ts: float, n_forward: int = 10) -> dict:
+    """An immediate-entry event that yields a triggered return + score."""
+    closes = [100.0 + i for i in range(n_forward)]
+    return {
+        "family": family,
+        "anchor_ts": anchor_ts,
+        "direction": "UP",
+        "entry_mode": "immediate",
+        "entry_price": 100.0,
+        "score": 1.5,
+        "forward_closes": closes,
+        "forward_highs": [c + 1 for c in closes],
+        "forward_lows": [c - 1 for c in closes],
+        "forward_timestamps": [anchor_ts + (i + 1) * 86_400 for i in range(n_forward)],
+    }
+
+
+def test_heartbeat_rows_one_inconclusive_per_family() -> None:
+    events = [
+        _triggered_event("BOS", 1_780_000_000.0),
+        _triggered_event("BOS", 1_780_100_000.0),
+        _triggered_event("SWEEP", 1_780_200_000.0),
+    ]
+    rows = shadow.build_heartbeat_rows(
+        events, date="2026-07-06", events_hash="h", plane="1D", cost_bps=5.0
+    )
+    # One row per family, all four families present, all INCONCLUSIVE.
+    assert [r["family"] for r in rows] == list(shadow.ALL_FAMILIES)
+    assert all(r["status"] == "INCONCLUSIVE" for r in rows)
+    assert all(r["fail_reasons"] == ["all_thin"] for r in rows)
+    assert all(r["passes"] is False for r in rows)
+    assert all(r["plane"] == "1D" for r in rows)
+    # n_oos carries the per-family usable (score + triggered return) count.
+    by_fam = {r["family"]: r["n_oos"] for r in rows}
+    assert by_fam["BOS"] == 2
+    assert by_fam["SWEEP"] == 1
+    assert by_fam["OB"] == 0
+    # Schema parity with measured rows.
+    assert set(rows[0]) == set(shadow.LEDGER_COLUMNS)
+
+
+def test_heartbeat_rows_roles_match_candidate_set() -> None:
+    rows = shadow.build_heartbeat_rows(
+        [], date="2026-07-06", events_hash="h", plane="1D", cost_bps=5.0
+    )
+    roles = {r["family"]: r["role"] for r in rows}
+    assert roles == {
+        "BOS": "candidate",
+        "SWEEP": "candidate",
+        "OB": "control",
+        "FVG": "control",
+    }
+    assert all(r["n_oos"] == 0 for r in rows)
+
+
+def test_main_thin_feed_appends_heartbeat_and_advances_ledger(tmp_path, capsys) -> None:
+    """Regression: a fresh-but-thin feed must ADVANCE the committed ledger
+    (heartbeat rows) instead of appending nothing and freezing it — the
+    behaviour that made the gap guard fire red every day in 2026-07."""
+    events = [_triggered_event("BOS", 1_780_000_000.0 + i * 90_000) for i in range(3)]
+    events_path = tmp_path / "events.json"
+    events_path.write_text(json.dumps(events))
+    ledger = tmp_path / "shadow_1d.jsonl"
+    rc = shadow.main([str(events_path), "--ledger", str(ledger), "--date", "2026-07-06"])
+    assert rc == 3  # all_thin verdict code is unchanged...
+    rows = [json.loads(ln) for ln in ledger.read_text().splitlines() if ln.strip()]
+    # ...but the ledger now carries today's heartbeat rows (was: empty).
+    assert {r["family"] for r in rows} == set(shadow.ALL_FAMILIES)
+    assert all(r["date"] == "2026-07-06" for r in rows)
+    assert all(r["status"] == "INCONCLUSIVE" for r in rows)
+
+
+def test_main_stale_feed_still_appends_nothing(tmp_path, capsys) -> None:
+    """W7-2: a re-served frozen feed (same events_hash, earlier date) must
+    STILL return rc=5 and NOT heartbeat — a genuinely stalled pipeline has to
+    keep the gap guard escalating."""
+    events = [_triggered_event("BOS", 1_780_000_000.0)]
+    events_path = tmp_path / "events.json"
+    events_path.write_text(json.dumps(events))
+    ledger = tmp_path / "shadow_1d.jsonl"
+    # Seed the ledger with the same events_hash under an EARLIER date.
+    ehash = shadow.events_content_hash(events)
+    seed_row = {**shadow.build_heartbeat_rows(events, date="2026-07-01", events_hash=ehash, plane="1D", cost_bps=5.0)[0]}
+    ledger.write_text(json.dumps(seed_row, sort_keys=True) + "\n")
+    rc = shadow.main([str(events_path), "--ledger", str(ledger), "--date", "2026-07-06"])
+    assert rc == 5
+    rows = [json.loads(ln) for ln in ledger.read_text().splitlines() if ln.strip()]
+    # No 2026-07-06 row was appended — the frozen feed does not advance the ledger.
+    assert all(r["date"] != "2026-07-06" for r in rows)
+
+
+# --------------------------------------------------------------------------- #
 # derive_measurement_plane
 # --------------------------------------------------------------------------- #
 def _plane_event(bar_seconds: float, n_forward: int = 4) -> dict:

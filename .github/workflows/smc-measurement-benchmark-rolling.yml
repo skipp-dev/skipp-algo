@@ -56,6 +56,18 @@ on:
         description: "Comma-separated timeframes (default: 5m,10m,15m,30m,1H,4H,1D)"
         required: false
         default: "5m,10m,15m,30m,1H,4H,1D"
+      reseed_accumulated:
+        # 2026-07-06: one-time un-poisoning of the accumulated FamilyEvent
+        # pool. The pool was built for weeks by the pre-score-persistence
+        # accumulator, which stripped the score off every aged event, so the
+        # magnitude walk-forward saw ~0 usable samples. When true, the
+        # accumulate step ignores the (poisoned) previous artifact and uses
+        # the committed clean rebuild as --previous instead, so subsequent
+        # runs grow from a healthy base. Dispatch ONCE; leave false normally.
+        description: "One-time: reseed the accumulated pool from the committed clean rebuild"
+        required: false
+        type: boolean
+        default: false
 
 permissions:
   # WF-AUTH-1 (2026-06-26): the rolling benchmark must both (a) read cross-
@@ -585,12 +597,20 @@ jobs:
         if: always()
         env:
           OUT_DIR: ${{ steps.meta.outputs.out_dir || 'artifacts/ci/measurement_benchmark_rolling' }}
+          RESEED: ${{ inputs.reseed_accumulated }}
+          RESEED_SEED_FILE: artifacts/ci/scored_family_events_accumulated_reseed.json
         run: |
           set +e
           CURRENT="${OUT_DIR}/scored_family_events.json"
           PREV_DIR="artifacts/ci/scored_family_events_accumulated_prev"
           PREV=""
-          if [ -d "${PREV_DIR}" ]; then
+          # Reseed path (one-time dispatch): ignore the poisoned downloaded
+          # pool and merge today's events onto the committed clean rebuild
+          # instead, so the re-uploaded artifact becomes a healthy baseline.
+          if [ "${RESEED}" = "true" ] && [ -s "${RESEED_SEED_FILE}" ]; then
+            PREV="${RESEED_SEED_FILE}"
+            echo "::notice ::reseed_accumulated=true — merging today onto the committed clean rebuild ${RESEED_SEED_FILE}"
+          elif [ -d "${PREV_DIR}" ]; then
             PREV="$(find "${PREV_DIR}" -name 'accumulated_family_events.json' -type f 2>/dev/null | head -1)"
           fi
           ACCUMULATED="${OUT_DIR}/accumulated_family_events.json"

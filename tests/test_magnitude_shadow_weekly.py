@@ -324,6 +324,25 @@ def test_main_single_plane_rows_still_judged(tmp_path):
     assert rc == 0
 
 
+def test_all_thin_heartbeat_weeks_are_inconclusive_and_never_demote():
+    """A ledger of nothing but thin-day heartbeat rows (INCONCLUSIVE, 1D)
+    must produce INCONCLUSIVE weeks and, crucially, must NOT auto-demote the
+    armed candidates — thin evidence is not a measured regression. This is
+    the property that makes the daily heartbeat safe for armed BOS/SWEEP."""
+    # 6 consecutive weekly INCONCLUSIVE heartbeats for each candidate.
+    rows: list[dict[str, object]] = []
+    for fam in ("BOS", "SWEEP"):
+        for r in _streak(fam, ["INCONCLUSIVE"] * 6):
+            rows.append({**r, "plane": "1D", "fail_reasons": ["all_thin"]})
+    report = evaluate_weekly(rows, k=3, n=4)
+    for fam in ("BOS", "SWEEP"):
+        v = report["families"][fam]
+        # No measurable weeks accumulate, so the demotion window never fills.
+        assert v["window_size"] == 0, fam
+    demotions = evaluate_demotions(report, frozenset({"BOS", "SWEEP"}))
+    assert demotions == [], "thin heartbeats must never demote armed families"
+
+
 # ---- render + main ------------------------------------------------------
 
 

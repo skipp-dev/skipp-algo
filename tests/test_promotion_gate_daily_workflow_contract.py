@@ -121,10 +121,11 @@ def test_download_step_iterates_last_8_runs() -> None:
 def test_bundle_step_feeds_magnitude_shadow_ledger() -> None:
     """ADR-0023 Stage-1 snapshot wiring (handover §5 item 2).
 
-    The bundle step must pass the committed-back shadow ledger so the
-    candidate families' magnitude_resolution_pass / magnitude_auc reach the
-    gate. Without this flag the fields stay None and the ok_magnitude
-    branch is permanently dormant — Stage-1 would measure into a void.
+    The bundle step must feed the frozen 15m PROOF archive (the plane the
+    armed BOS/SWEEP magnitude verdict was established on), NOT the active
+    magnitude_resolution_shadow ledger — which is now the live 1D
+    measurement track (thin heartbeats). Feeding the 1D track here would
+    wrongly flip the gate's magnitude fields to "not measured".
     """
     bundle_step = next(
         s for s in _load()["jobs"]["promotion-gate"]["steps"]
@@ -135,9 +136,9 @@ def test_bundle_step_feeds_magnitude_shadow_ledger() -> None:
         "bundle step no longer feeds the move-size shadow ledger; the "
         "promotion gate's magnitude fields would silently revert to dormant"
     )
-    assert "artifacts/governance/magnitude_resolution_shadow.jsonl" in body, (
-        "ledger path drifted from the adr0023-magnitude-shadow-daily "
-        "commit-back location"
+    assert "artifacts/governance/magnitude_resolution_shadow_15m_seed.jsonl" in body, (
+        "the gate must read the frozen 15m proof archive, not the live 1D "
+        "measurement track (magnitude_resolution_shadow.jsonl)"
     )
 
 

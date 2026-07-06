@@ -15,6 +15,20 @@ name: adr0023-magnitude-shadow-daily
 # repo so that the shadow ledger accumulates across daily runs. The
 # candidate families are BOS and SWEEP; FVG and OB are controls.
 #
+# Measurement plane (2026-07): this ledger is the LIVE 1D measurement
+# track. The frozen 15m PROOF (the BOS/SWEEP PASS the armed status rests
+# on) lives in magnitude_resolution_shadow_15m_seed.jsonl and is read
+# only by the promotion gate — the two planes are never pooled (a k-of-n
+# across planes is invalid; see the weekly evaluator's plane guard).
+#
+# Thin-day heartbeat: when the 1D pool is too thin for any family to
+# reach MIN_OOS, the runner appends one INCONCLUSIVE heartbeat row per
+# family (recording per-family usable-sample counts) instead of nothing,
+# so the committed ledger advances daily on a fresh feed. The gap guard
+# below therefore tracks pipeline LIVENESS, not verdict production — a
+# genuinely frozen feed (same events_hash) still appends nothing (rc=5)
+# and the guard escalates.
+#
 # Events source: the rolling production events export is NOT checked into
 # the repo, so a scheduled run with no events resolves to status=no_data
 # and still completes green — the Stage-1 wall-clock keeps ticking. To

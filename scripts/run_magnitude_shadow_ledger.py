@@ -75,6 +75,10 @@ from scripts.smc_atomic_write import atomic_write_text
 
 DEFAULT_LEDGER = "artifacts/governance/magnitude_resolution_shadow.jsonl"
 
+# All four magnitude families, in a stable order (matches governance.types
+# EventFamily). Used to emit a complete heartbeat row-set on a thin day.
+ALL_FAMILIES: tuple[str, ...] = ("BOS", "OB", "FVG", "SWEEP")
+
 # Families that cleared the ADR-0023 §2 bar on real data; the rest are tracked
 # as the negative-control group. This is a *monitoring designation*, not a
 # bar — a control that later crosses above the unchanged bar is recorded as a
@@ -221,6 +225,58 @@ def build_ledger_rows(
     return rows
 
 
+def build_heartbeat_rows(
+    events: list[dict[str, Any]],
+    *,
+    date: str,
+    events_hash: str,
+    plane: str | None,
+    cost_bps: float,
+    seed: int = DEFAULT_SEED,
+) -> list[dict[str, Any]]:
+    """One INCONCLUSIVE heartbeat row per family for a fresh-but-thin day.
+
+    When the walk-forward measures NO family (every family too thin to
+    assemble MIN_OOS shared points) the run used to append nothing, which
+    froze the committed ledger date and made the commit-back gap guard fire
+    red every day — indistinguishable from a genuinely dead pipeline (the
+    2026-07 blind-spot). These heartbeat rows record that the pipeline RAN on
+    fresh events but had thin input: ``status="INCONCLUSIVE"`` (the exact same
+    verdict a below-``MIN_OOS`` family already gets, so the weekly k-of-n and
+    auto-demotion treat them identically — they never vote and never count
+    toward ``window_size``), with ``n_oos`` carrying the per-family usable
+    sample count and ``fail_reasons=["all_thin"]`` recording WHY.
+
+    Only called on the fresh-feed path: a re-served frozen feed returns rc=5
+    (W7-2) before reaching here, so a truly stalled pipeline still stops
+    advancing the ledger and the gap guard still escalates.
+    """
+    samples = extract_family_calibration_samples(events, cost_bps=cost_bps)
+    rows: list[dict[str, Any]] = []
+    for family in ALL_FAMILIES:
+        n_usable = len(samples.get(family, {}).get("scores", []))
+        rows.append(
+            {
+                "date": date,
+                "events_hash": events_hash,
+                "seed": int(seed),
+                "family": family,
+                "role": "candidate" if family in CANDIDATE_FAMILIES else "control",
+                "n_oos": n_usable,
+                "magnitude_auc": None,
+                "auc_ci_low": None,
+                "baseline_resolution": None,
+                "perm_null_p95": None,
+                "perm_p": None,
+                "passes": False,
+                "status": "INCONCLUSIVE",
+                "fail_reasons": ["all_thin"],
+                "plane": plane,
+            }
+        )
+    return rows
+
+
 def load_ledger(path: str) -> list[dict[str, Any]]:
     """Read an existing JSONL ledger, failing CLOSED on malformed lines.
 
@@ -292,6 +348,21 @@ def merge_rows(
     )
 
 
+def append_rows(
+    rows: list[dict[str, Any]], *, ledger_path: str = DEFAULT_LEDGER
+) -> list[dict[str, Any]]:
+    """Merge *rows* into the ledger and write it atomically; return *rows*.
+
+    Shared persist path for both measured verdicts and thin-day heartbeats.
+    Raises ``ValueError`` (via ``load_ledger``) on a corrupt existing ledger
+    so callers surface rc 1 instead of overwriting history.
+    """
+    merged = merge_rows(load_ledger(ledger_path), rows)
+    rendered = "\n".join(json.dumps(row, sort_keys=True) for row in merged)
+    atomic_write_text(rendered + "\n", ledger_path)
+    return rows
+
+
 def append_shadow_ledger(
     report: dict[str, Any],
     *,
@@ -305,10 +376,7 @@ def append_shadow_ledger(
     new_rows = build_ledger_rows(
         report, date=date, events_hash=events_hash, plane=plane
     )
-    merged = merge_rows(load_ledger(ledger_path), new_rows)
-    rendered = "\n".join(json.dumps(row, sort_keys=True) for row in merged)
-    atomic_write_text(rendered + "\n", ledger_path)
-    return new_rows
+    return append_rows(new_rows, ledger_path=ledger_path)
 
 
 def _summarize(new_rows: list[dict[str, Any]]) -> str:
@@ -461,14 +529,32 @@ def main(argv: list[str] | None = None) -> int:
         seed=args.seed,
     )
 
+    plane = derive_measurement_plane(events)
     try:
-        new_rows = append_shadow_ledger(
-            report,
-            ledger_path=args.ledger,
-            date=obs_date,
-            events_hash=events_hash,
-            plane=derive_measurement_plane(events),
-        )
+        if report["results"]:
+            new_rows = append_shadow_ledger(
+                report,
+                ledger_path=args.ledger,
+                date=obs_date,
+                events_hash=events_hash,
+                plane=plane,
+            )
+        else:
+            # All-thin on a FRESH feed: append INCONCLUSIVE heartbeat rows so
+            # the ledger tracks pipeline liveness (the gap guard) rather than
+            # verdict production. A frozen feed returned rc=5 above, so this
+            # only advances the ledger on genuinely-new-but-thin evidence.
+            new_rows = append_rows(
+                build_heartbeat_rows(
+                    events,
+                    date=obs_date,
+                    events_hash=events_hash,
+                    plane=plane,
+                    cost_bps=args.cost_bps,
+                    seed=args.seed,
+                ),
+                ledger_path=args.ledger,
+            )
     except ValueError as exc:
         # W7-1: corrupt existing ledger — refuse to merge/rewrite on top of
         # it. Surfacing rc 1 turns the daily workflow red instead of
