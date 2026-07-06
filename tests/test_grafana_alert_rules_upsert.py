@@ -10,6 +10,7 @@ previously disabled the FMP / TradingView providers.
 from __future__ import annotations
 
 import importlib.util
+import re
 import sys
 from pathlib import Path
 from typing import Any
@@ -78,6 +79,27 @@ def test_all_alert_rules_free_of_gating_antipatterns() -> None:
         if (findings := mod.find_promql_gating_antipatterns(expr))
     }
     assert not offenders, f"gating anti-patterns found: {offenders}"
+
+
+def test_lt_comparisons_use_bool_modifier() -> None:
+    """A `<`/`<=` comparison feeding a Grafana `gt 0` threshold must carry the
+    `bool` modifier. Without it the query returns the value on the small side
+    of the comparison -- 0 for an empty-count gauge -- so the threshold reads
+    `0 > 0 = false` and the alarm can NEVER fire. This regressed live in
+    ``lo-evidence-ledger-empty`` (``ledger_rows < 1``, verified inert
+    2026-07-06); ``< bool 1`` restores 1/0 semantics. The ``>``-threshold
+    rules (age/uptime) are unaffected -- their surviving value is always
+    large-positive, so ``gt 0`` holds.
+    """
+
+    def _lt_without_bool(expr: str) -> bool:
+        return any(
+            not expr[m.end():].lstrip().startswith("bool")
+            for m in re.finditer(r"<=?", expr)
+        )
+
+    offenders = {uid: expr for uid, expr in _promql_exprs() if _lt_without_bool(expr)}
+    assert not offenders, f"`<`/`<=` without `bool` (inert against a gt-0 threshold): {offenders}"
 
 
 def test_valid_gating_patterns_are_not_flagged() -> None:

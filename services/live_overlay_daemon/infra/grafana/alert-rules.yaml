@@ -1799,14 +1799,19 @@ groups:
     # post-#3213 empty 1D ledger read as "fresh". This rule alarms on a
     # ledger that has stayed at zero rows for > 3 days (a cold start is fine;
     # a persistently empty ledger means the daily cron never committed a row
-    # / the accumulated pool never became available). noDataState OK: a
-    # healthy non-empty ledger yields no series here.
+    # / the accumulated pool never became available). The `< bool 1` modifier
+    # is load-bearing: a bare `< 1` filter returns the row VALUE (0) on an
+    # empty ledger, so the Grafana `gt 0` threshold below reads 0 > 0 = false
+    # and the alarm could NEVER fire (verified live 2026-07-06). `bool` maps
+    # the comparison to 1/0, so an empty ledger yields 1 and the threshold
+    # trips. noDataState OK: only a missing metric (daemon down) yields no
+    # series, which is a separate liveness concern.
     noDataState: OK
     data:
     - refId: A
       datasourceUid: grafanacloud-prom
       model:
-        expr: live_overlay_evidence_ledger_rows{job="live_overlay"} < 1
+        expr: live_overlay_evidence_ledger_rows{job="live_overlay"} < bool 1
         instant: true
     - refId: C
       datasourceUid: __expr__
