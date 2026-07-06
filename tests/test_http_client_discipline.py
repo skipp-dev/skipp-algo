@@ -175,7 +175,7 @@ _FROZEN_URLOPEN_SITES: frozenset[tuple[str, int]] = frozenset(
         ("services/live_overlay_daemon/github_workflow_bridge.py", 115),
         ("services/live_overlay_daemon/uptimerobot_bridge.py", 91),
         # 2026-07-06: evidence-freshness snapshot fetcher, https-only + timeout=.
-        ("services/live_overlay_daemon/evidence_freshness_bridge.py", 103),
+        ("services/live_overlay_daemon/evidence_freshness_bridge.py", 115),
         # 2026-06-23: signals-producer consumer hook — _fetch_json_url pulls
         # the open-prep snapshot from OPEN_PREP_SNAPSHOT_URL with explicit
         # timeout discipline (Railway worker without local artifact).

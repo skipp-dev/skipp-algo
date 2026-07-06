@@ -1848,6 +1848,30 @@ def _render_evidence_freshness_metrics() -> list[str]:
     audit = snap.get("audit_branch") or {}
     _emit_age("live_overlay_evidence_audit_branch_age", str(audit.get("last_commit_date", "")))
 
+    # §2/§5 progress: per-family usable FamilyEvent samples toward the target
+    # (40). This is the REAL distance to a §5 verdict — §5 reads FamilyEvent
+    # records, not the C13 paper fills below. Each series is labelled with the
+    # family's governance classification so the dashboard can grey out
+    # non-operational families (SWEEP proof_of_concept, FVG/OB control).
+    samples = snap.get("samples") or {}
+    lines.append("# TYPE live_overlay_evidence_samples_target gauge")
+    lines.append(f"live_overlay_evidence_samples_target {_prom_numeric_value(samples.get('target', 0))}")
+    per_family = samples.get("per_family") or {}
+    if per_family:
+        lines.append("# TYPE live_overlay_evidence_samples_usable gauge")
+        for family, row in sorted(per_family.items()):
+            classification = str((row or {}).get("classification", "") or "unknown")
+            usable = (row or {}).get("usable", 0)
+            lines.append(
+                "live_overlay_evidence_samples_usable{"
+                f'family="{_escape_label_value(family)}",'
+                f'classification="{_escape_label_value(classification)}"'
+                f"}} {_prom_numeric_value(usable)}"
+            )
+
+    # C13 paper-trading fill activity (operational health — is paper trading
+    # filling?). NOT the §5 gate; kept for visibility, distinct from the
+    # per-family sample progress above.
     fills = snap.get("fills") or {}
     lines.append("# TYPE live_overlay_evidence_fills_filled_total gauge")
     lines.append(
