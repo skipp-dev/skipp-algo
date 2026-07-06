@@ -1,0 +1,156 @@
+# live-window: mutating-on-cron  # monthly operator reminder, issues:write only (2026-07-06)
+name: ev20-real-run-reminder
+
+# Monthly operator reminder for the governed EV-20 Tier-1 confirmatory run
+# (edge-pipeline-real-run.yml). That pipeline is deliberately `manual-only`:
+# each run spends Databento credits and archives promotion decisions via a
+# human-reviewed PR, and repeated automatic re-runs over overlapping windows
+# would pseudo-replicate the same data (goalpost rule). A cron must therefore
+# NEVER dispatch it.
+#
+# This workflow is the agreed middle ground (operator decision 2026-07-06):
+# the cron only NOTIFIES. It checks when the last SUCCESSFUL real run
+# happened, computes the suggested fresh rolling 3-month out-of-sample
+# window, and opens/updates a reminder issue with the ready-to-paste dispatch
+# command. When GitHub Issues are disabled on the repo it degrades to a
+# step-summary + warning annotation (same pattern as meta-watchdog). It
+# never triggers the pipeline itself.
+#
+# Skip rule: a successful edge-pipeline-real-run within the last 25 days
+# counts as "this month is covered" — the reminder exits quietly instead of
+# nagging right after a manual run.
+
+on:
+  schedule:
+    - cron: "0 9 1 * *" # 09:00 UTC on the 1st of each month
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  issues: write
+  actions: read
+
+concurrency:
+  group: ev20-real-run-reminder
+  cancel-in-progress: false
+
+env:
+  PYTHONUNBUFFERED: "1"
+
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  remind:
+    runs-on: ${{ vars.SMC_GH_HOSTED_RUNNER || 'ubuntu-latest' }}
+    timeout-minutes: 10
+    steps:
+      - name: Check last real run and compute suggested window
+        id: probe
+        env:
+          GH_TOKEN: ${{ secrets.GH_PAT != '' && secrets.GH_PAT || github.token }}
+          GH_REPO: ${{ github.repository }}
+          SKIP_IF_SUCCESS_WITHIN_DAYS: "25"
+        run: |
+          set -euo pipefail
+
+          # Newest SUCCESSFUL run of the governed pipeline. Failed attempts
+          # do not count as coverage — the point of the reminder is a fresh
+          # archived verdict, not a fresh attempt.
+          LAST_SUCCESS="$(gh run list --repo "$GH_REPO" \
+            --workflow edge-pipeline-real-run.yml \
+            --status success --limit 1 \
+            --json createdAt --jq '.[0].createdAt // ""' || echo "")"
+
+          AGE_DAYS=""
+          DUE="true"
+          if [ -n "${LAST_SUCCESS}" ]; then
+            AGE_DAYS=$(( ( $(date -u +%s) - $(date -u -d "${LAST_SUCCESS}" +%s) ) / 86400 ))
+            if [ "${AGE_DAYS}" -le "${SKIP_IF_SUCCESS_WITHIN_DAYS}" ]; then
+              DUE="false"
+            fi
+          fi
+
+          # Suggested rolling 3-month out-of-sample window: [first day of
+          # the month 3 months ago, first day of the current month). Each
+          # monthly run therefore adds one fresh month; windows are never
+          # re-tested wholesale.
+          WINDOW_END="$(date -u +%Y-%m-01)"
+          WINDOW_START="$(date -u -d "${WINDOW_END} -3 months" +%Y-%m-%d)"
+
+          {
+            echo "due=${DUE}"
+            echo "last_success=${LAST_SUCCESS:-none}"
+            echo "age_days=${AGE_DAYS:-n/a}"
+            echo "window_start=${WINDOW_START}"
+            echo "window_end=${WINDOW_END}"
+          } >> "$GITHUB_OUTPUT"
+
+          {
+            echo "## ev20-real-run-reminder"
+            echo ""
+            echo "- last successful edge-pipeline-real-run: \`${LAST_SUCCESS:-none}\` (age: ${AGE_DAYS:-n/a} days)"
+            echo "- reminder due: \`${DUE}\`"
+            echo "- suggested window: \`${WINDOW_START}\` -> \`${WINDOW_END}\` (exclusive)"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+          if [ "${DUE}" = "false" ]; then
+            echo "::notice title=ev20-real-run-reminder::last successful run is ${AGE_DAYS} days old (budget ${SKIP_IF_SUCCESS_WITHIN_DAYS}d) — this month is covered, no reminder needed"
+          fi
+
+      - name: Open / update reminder issue
+        if: steps.probe.outputs.due == 'true'
+        env:
+          GH_TOKEN: ${{ secrets.GH_PAT != '' && secrets.GH_PAT || github.token }}
+          GH_REPO: ${{ github.repository }}
+          LAST_SUCCESS: ${{ steps.probe.outputs.last_success }}
+          AGE_DAYS: ${{ steps.probe.outputs.age_days }}
+          WINDOW_START: ${{ steps.probe.outputs.window_start }}
+          WINDOW_END: ${{ steps.probe.outputs.window_end }}
+        run: |
+          set -euo pipefail
+
+          # Same soft-degrade as meta-watchdog (#3203): with Issues disabled
+          # on the repo, `gh issue create`/`comment` would crash the job and
+          # look like a broken reminder. The Step Summary above plus this
+          # warning ARE the reminder in that mode.
+          if [ "$(gh repo view "$GH_REPO" --json hasIssuesEnabled --jq '.hasIssuesEnabled')" != "true" ]; then
+            echo "::warning title=ev20-real-run-reminder::EV-20 confirmatory run is due (last success: ${LAST_SUCCESS}, ${AGE_DAYS} days ago). GitHub Issues are disabled on ${GH_REPO}, so no issue can be opened — dispatch manually: edge-pipeline-real-run.yml with start=${WINDOW_START} end=${WINDOW_END}."
+            exit 0
+          fi
+
+          TITLE="EV-20 real-run reminder ($(date -u +%Y-%m))"
+          BODY_FILE=$(mktemp)
+          {
+            echo "The monthly reminder found no successful \`edge-pipeline-real-run\` within the last 25 days."
+            echo ""
+            echo "- Last successful run: \`${LAST_SUCCESS}\` (${AGE_DAYS} days ago)"
+            echo "- Suggested fresh out-of-sample window: \`${WINDOW_START}\` -> \`${WINDOW_END}\` (exclusive end)"
+            echo ""
+            echo "Ready-to-paste dispatch (deliberately NOT automated — the run spends"
+            echo "Databento credits and archives governed promotion decisions for human review):"
+            echo ""
+            echo '```'
+            echo "gh workflow run edge-pipeline-real-run.yml -f start=${WINDOW_START} -f end=${WINDOW_END}"
+            echo '```'
+            echo ""
+            echo "Operator notes:"
+            echo "- The EV-20 pipeline measures the **15m plane** (\`BOS@15m\`, ...) — its verdicts say nothing about the 1D daily-gate population."
+            echo "- Also re-run ad hoc after any material scoring/calibration change; the archived decision then supersedes this month's verdict."
+            echo "- Runbook: docs/edge_first_real_run_runbook.md"
+            echo ""
+            echo "Run: https://github.com/${GH_REPO}/actions/runs/${{ github.run_id }}"
+          } > "$BODY_FILE"
+
+          existing=$(gh issue list --repo "$GH_REPO" --state open \
+            --search "$TITLE in:title" --json number --jq '.[0].number' || echo "")
+          if [ -n "$existing" ]; then
+            gh issue comment "$existing" --repo "$GH_REPO" --body-file "$BODY_FILE"
+            echo "::notice title=ev20-real-run-reminder::updated existing reminder issue #${existing}"
+          else
+            gh issue create --repo "$GH_REPO" \
+              --title "$TITLE" --body-file "$BODY_FILE" \
+              --label automated
+            echo "::notice title=ev20-real-run-reminder::opened reminder issue"
+          fi
