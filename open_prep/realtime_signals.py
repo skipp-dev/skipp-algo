@@ -144,7 +144,7 @@ def _extract_snapshot_epoch(data: dict[str, Any] | None) -> float:
     """Best-effort epoch extraction from an Open-Prep snapshot."""
     if not data:
         return 0.0
-    raw = data.get("generated_at")
+    raw = data.get("generated_at") or data.get("run_datetime_utc")  # run payloads only set run_datetime_utc top-level
     if isinstance(raw, (int, float)):
         return float(raw)
     if isinstance(raw, str):
@@ -1914,7 +1914,7 @@ class RealtimeEngine:
             if self.top_n > 0:
                 full = full[:self.top_n]
 
-            self._watchlist = full
+            self._watchlist = full or self._watchlist  # degraded-empty snapshot: keep last-good (fresh boot stays [])
 
             # Semantic readiness: snapshot/watchlist state
             now = time.time()

@@ -213,6 +213,32 @@ jobs:
             echo "::warning::run produced no $SNAPSHOT; skipping snapshot publish."
             exit 0
           fi
+          # Degraded-empty guard (2026-07-06): a run whose FMP calls all failed
+          # (e.g. invalid API key -> HTTP 401 across the board) still writes a
+          # structurally valid but EMPTY snapshot. Publishing it force-replaces
+          # the last-good snapshot and blanks the realtime signals-producer
+          # watchlist (observed 2026-07-04/05: sp-watchlist-empty fired for
+          # 2 days after an all-401 run overwrote the rolling branch). Fail
+          # loud BEFORE the push so the branch keeps serving last-good data.
+          "$SMC_PYTHON_BIN" - "$SNAPSHOT" <<'PY'
+          import json, sys
+
+          with open(sys.argv[1], encoding="utf-8") as fh:
+              data = json.load(fh)
+          ranked = len(data.get("ranked_v2") or [])
+          quotes = len(data.get("enriched_quotes") or [])
+          telemetry = (data.get("run_status") or {}).get("quote_telemetry") or {}
+          all_failed = bool(telemetry.get("quote_fetch_all_failed"))
+          if all_failed or (ranked == 0 and quotes == 0):
+              print(
+                  "::error::open-prep run is degraded-empty "
+                  f"(ranked_v2={ranked}, enriched_quotes={quotes}, "
+                  f"quote_fetch_all_failed={all_failed}); refusing to overwrite "
+                  "the last-good bot/live-open-prep-snapshot branch."
+              )
+              sys.exit(1)
+          print(f"snapshot content OK: ranked_v2={ranked}, enriched_quotes={quotes}")
+          PY
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git remote set-url origin "https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git"

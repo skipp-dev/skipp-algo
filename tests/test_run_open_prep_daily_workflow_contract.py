@@ -184,6 +184,28 @@ def test_snapshot_publish_keeps_snapshot_until_after_git_add() -> None:
     assert 'rm -f "$SNAPSHOT"' not in pre_add
 
 
+def test_snapshot_publish_refuses_degraded_empty_snapshot() -> None:
+    """A run whose FMP calls all fail (e.g. invalid API key -> HTTP 401)
+    still writes a structurally valid but EMPTY snapshot. Publishing it
+    force-replaces last-good and blanks the signals-producer watchlist
+    (observed 2026-07-04/05: sp-watchlist-empty fired for ~2 days). The
+    publish step must validate snapshot content and fail before the push.
+    """
+    step = _snapshot_publish_step()
+    run = str(step["run"])
+    assert "quote_fetch_all_failed" in run, (
+        "publish step must inspect run_status.quote_telemetry.quote_fetch_all_failed"
+    )
+    assert "ranked_v2" in run and "enriched_quotes" in run, (
+        "publish step must check ranked_v2/enriched_quotes emptiness"
+    )
+    guard_pos = run.index("quote_fetch_all_failed")
+    push_pos = run.index("git push --force-with-lease")
+    assert guard_pos < push_pos, (
+        "the degraded-empty content guard must run BEFORE the branch push"
+    )
+
+
 def test_snapshot_publish_uses_gh_pat_token() -> None:
     step = _snapshot_publish_step()
     token = str((step.get("env") or {}).get("GH_TOKEN", ""))

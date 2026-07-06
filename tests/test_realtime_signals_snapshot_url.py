@@ -383,3 +383,80 @@ def test_signals_route_reads_token_per_request(monkeypatch, tmp_path) -> None:
     assert rejected.status == 401, (
         f"Expected 401 for stale token, got {rejected.status}"
     )
+
+
+# ─── Degraded-empty snapshot resilience (2026-07-04/05 incident) ────────────
+#
+# An all-401 open-prep run published a structurally valid but EMPTY snapshot
+# to bot/live-open-prep-snapshot; every reload then replaced the producer's
+# 900+-symbol watchlist with [] and sp-watchlist-empty fired for ~2 days.
+
+_EMPTY_SNAPSHOT: dict = {
+    "ranked_v2": [],
+    "filtered_out_v2": [],
+    "enriched_quotes": [],
+    "run_datetime_utc": "2026-07-05T00:13:46+00:00",
+    "diff": {},
+}
+
+
+def _isolated_engine(monkeypatch, tmp_path):
+    """Engine whose constructor cannot see a real snapshot (env/file)."""
+    from pathlib import Path
+
+    monkeypatch.delenv("OPEN_PREP_SNAPSHOT_URL", raising=False)
+    monkeypatch.setattr(rs, "LATEST_RUN_PATH", Path(tmp_path) / "missing.json")
+    monkeypatch.setattr(rs, "_LEGACY_RUN_PATH", Path(tmp_path) / "missing2.json")
+    monkeypatch.setattr(rs.RealtimeEngine, "_enrich_watchlist_live", lambda self: None)
+    return rs.RealtimeEngine(poll_interval=10, fmp_client=None)
+
+
+def test_load_watchlist_keeps_last_good_on_empty_snapshot(monkeypatch, tmp_path) -> None:
+    """A degraded-empty snapshot must not blank a previously loaded watchlist."""
+    engine = _isolated_engine(monkeypatch, tmp_path)
+    engine._watchlist = [{"symbol": "NVDA"}, {"symbol": "AAPL"}]
+    engine.watchlist_symbols = 2
+
+    monkeypatch.setenv("OPEN_PREP_SNAPSHOT_URL", "https://example.test/snapshot.json")
+    monkeypatch.setattr(rs, "_fetch_json_url", lambda url, timeout=15.0: dict(_EMPTY_SNAPSHOT))
+
+    engine._load_watchlist()
+
+    assert [r["symbol"] for r in engine._watchlist] == ["NVDA", "AAPL"], (
+        "empty snapshot must keep the last-good watchlist"
+    )
+    assert engine.watchlist_symbols == 2
+
+
+def test_load_watchlist_fresh_boot_empty_snapshot_stays_empty(monkeypatch, tmp_path) -> None:
+    """On a fresh boot (no last-good) an empty snapshot must stay empty so
+    the sp-watchlist-empty alert still fires — keep-last-good must not
+    fabricate readiness."""
+    engine = _isolated_engine(monkeypatch, tmp_path)
+    assert engine._watchlist == []
+
+    monkeypatch.setenv("OPEN_PREP_SNAPSHOT_URL", "https://example.test/snapshot.json")
+    monkeypatch.setattr(rs, "_fetch_json_url", lambda url, timeout=15.0: dict(_EMPTY_SNAPSHOT))
+
+    engine._load_watchlist()
+
+    assert engine._watchlist == []
+    assert engine.watchlist_symbols == 0
+    assert engine.watchlist_load_success == 0.0
+
+
+def test_extract_snapshot_epoch_falls_back_to_run_datetime_utc() -> None:
+    """Snapshots never carry a top-level ``generated_at`` (only the diff
+    sub-object does); without the ``run_datetime_utc`` fallback the age
+    gauge reported ``now - 0`` (~56 years)."""
+    epoch = rs._extract_snapshot_epoch({"run_datetime_utc": "2026-07-05T00:13:46+00:00"})
+    assert abs(epoch - 1783210426.0) < 1.0
+
+    # Explicit top-level generated_at (if ever added) must win.
+    both = rs._extract_snapshot_epoch(
+        {"generated_at": 1000.0, "run_datetime_utc": "2026-07-05T00:13:46+00:00"}
+    )
+    assert both == 1000.0
+
+    assert rs._extract_snapshot_epoch(None) == 0.0
+    assert rs._extract_snapshot_epoch({}) == 0.0
