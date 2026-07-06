@@ -6,11 +6,17 @@
 #
 # Pipeline:
 #   1. build_phase_a_inputs.py   → cache/live/setups_<DATE>.jsonl + gate_status.json
-#   2. run_smc_live_incubation.py --phase paper   → cache/live/incubation_<DATE>.jsonl
+#   2. run_smc_live_incubation.py --phase paper --place-paper-orders
+#        → cache/live/incubation_<DATE>.jsonl (bracket sets on the PAPER TWS)
 #
-# Phase-A is STRICTLY --phase paper (audit_only). Promotion to
-# --phase live_small or live_full is a Phase-B decision and requires a
-# real --account-state-json snapshot (see scripts/run_smc_live_incubation.py).
+# Phase-A is STRICTLY --phase paper. Since 2026-07-06 (C13b T1.2, operator
+# decision) the runner SUBMITS the surviving intents to the IBKR *paper*
+# account via --place-paper-orders — the flag carries a built-in paper-port
+# guard and run_smc_live_incubation refuses it on any live phase. This is
+# what produces the measurable paper fills the ADR-0023 §5 E[PnL]-after-cost
+# check is gated on (>=20 fills). Promotion to --phase live_small or
+# live_full remains a Phase-B decision and requires a real
+# --account-state-json snapshot (see scripts/run_smc_live_incubation.py).
 #
 # Repo policy: never --force, never --no-verify.
 
@@ -117,15 +123,21 @@ else
     echo "phase-a cron: no WSH snapshot found under cache/wsh/; earnings filter SKIPPED (no data)" >&2
 fi
 
-# 3. Run the orchestrator. --phase paper means submit_fn defaults to
-#    the no-op stub inside run_smc_live_incubation.py, so no IBKR
-#    orders are placed even if TWS is running on a live account.
+# 3. Run the orchestrator. --place-paper-orders (C13b T1.2, 2026-07-06)
+#    swaps the no-op audit stub for the paper submitter: surviving intents
+#    are transmitted as bracket sets to the IBKR *paper* TWS on 127.0.0.1.
+#    The submitter hard-refuses non-paper ports and the CLI refuses the
+#    flag on any live phase, so a mis-configured TWS can never receive
+#    real orders from this cron. Requires TWS (paper) to be running at
+#    09:28 local — a down TWS makes the submit batch fail loudly
+#    (action=submit_failed in the audit JSONL), never silently.
 #    SA-02 (audit 2026-06-14): wrap the runner call so a non-zero exit
 #    writes a DEGRADED marker before aborting — required for machine-
 #    detectable monitoring of silent incubation failures.
 # shellcheck disable=SC2086
 "${PY}" -m scripts.run_smc_live_incubation \
     --phase paper \
+    --place-paper-orders \
     --setups "${SETUPS}" \
     --gate-statuses "${GATES}" \
     --audit-output "${AUDIT}" \
