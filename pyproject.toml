@@ -129,6 +129,7 @@ ignore = [
 # (fixed-argv subprocess calls to repo-local tools / gh / git, reviewed 2026-06-12,
 # PR #2713); remove entries as files get cleaned up.
 "scripts/analyze_publish_cadence.py" = ["S603", "S607"]
+"scripts/build_evidence_freshness_snapshot.py" = ["S603", "S607"]
 "scripts/check_tradingview_storage_state_security.py" = ["S607"]
 "scripts/measure_databento_ops_run.py" = ["S603"]
 "scripts/phase5_perf_trend.py" = ["S603", "S607"]

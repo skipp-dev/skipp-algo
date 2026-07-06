@@ -1616,3 +1616,235 @@ groups:
       summary: smc-signals-producer has not completed a poll cycle in > 5 min
       runbook: Check producer logs for FMP client failures, network errors, or telemetry
         server crashes.
+- orgId: 1
+  name: evidence-and-workflow-freshness
+  folder: SMC Live Overlay
+  interval: 1m
+  rules:
+  - uid: lo-workflow-run-failed
+    title: Monitored workflow latest run failed
+    condition: C
+    noDataState: OK
+    data:
+    - refId: A
+      datasourceUid: grafanacloud-prom
+      model:
+        expr: max by (workflow) ((live_overlay_github_workflow_phase_code{job="live_overlay"} == 4) or
+          (live_overlay_github_workflow_phase_code{job="live_overlay"} == 5) or (live_overlay_github_workflow_phase_code{job="live_overlay"}
+          == 8) or (live_overlay_github_workflow_phase_code{job="live_overlay"} == 10) or (live_overlay_github_workflow_phase_code{job="live_overlay"}
+          == 11))
+        instant: true
+    - refId: C
+      datasourceUid: __expr__
+      model:
+        type: threshold
+        conditions:
+        - evaluator:
+            type: gt
+            params:
+            - 0
+          operator:
+            type: and
+          query:
+            params:
+            - A
+    for: 30m
+    labels:
+      severity: warning
+    annotations:
+      summary: A monitored GitHub Actions workflow's latest run ended in failure/cancelled/timed_out/startup_failure/stale.
+      runbook: Open the named workflow in GitHub Actions; direct signal the adr0023/promotion/c13 crons
+        were missing (red for weeks unseen).
+  - uid: lo-workflow-no-green-24h
+    title: Monitored workflow no successful run in 24h
+    condition: C
+    noDataState: OK
+    data:
+    - refId: A
+      datasourceUid: grafanacloud-prom
+      model:
+        expr: min by (workflow) (live_overlay_github_workflow_latest_success{job="live_overlay"}) == 0
+        instant: true
+    - refId: C
+      datasourceUid: __expr__
+      model:
+        type: threshold
+        conditions:
+        - evaluator:
+            type: gt
+            params:
+            - 0
+          operator:
+            type: and
+          query:
+            params:
+            - A
+    for: 24h
+    labels:
+      severity: warning
+    annotations:
+      summary: A monitored workflow has had no successful run for 24h (daily crons should reset this each
+        day).
+      runbook: Check the workflow's recent runs; a persistent 0 means the daily cron is failing or not
+        firing.
+  - uid: lo-workflow-run-stale
+    title: Monitored workflow has not run recently
+    condition: C
+    noDataState: OK
+    data:
+    - refId: A
+      datasourceUid: grafanacloud-prom
+      model:
+        expr: max by (workflow) (live_overlay_github_workflow_latest_age_seconds{job="live_overlay"})
+          > 172800
+        instant: true
+    - refId: C
+      datasourceUid: __expr__
+      model:
+        type: threshold
+        conditions:
+        - evaluator:
+            type: gt
+            params:
+            - 0
+          operator:
+            type: and
+          query:
+            params:
+            - A
+    for: 1h
+    labels:
+      severity: warning
+    annotations:
+      summary: A monitored workflow's newest run is older than 48h -- the cron may be disabled or never
+        firing.
+      runbook: Verify the workflow schedule and that GitHub Actions crons are enabled (60-day inactivity
+        auto-disables them).
+  - uid: lo-evidence-snapshot-stale
+    title: Evidence snapshot stale
+    condition: C
+    noDataState: OK
+    data:
+    - refId: A
+      datasourceUid: grafanacloud-prom
+      model:
+        expr: (live_overlay_evidence_freshness_loaded{job="live_overlay"} == 0) or (live_overlay_evidence_freshness_snapshot_age_seconds{job="live_overlay"}
+          > 86400)
+        instant: true
+    - refId: C
+      datasourceUid: __expr__
+      model:
+        type: threshold
+        conditions:
+        - evaluator:
+            type: gt
+            params:
+            - 0
+          operator:
+            type: and
+          query:
+            params:
+            - A
+    for: 30m
+    labels:
+      severity: critical
+    annotations:
+      summary: The evidence-freshness snapshot is missing or older than 24h -- the producer workflow has
+        stopped.
+      runbook: Run/inspect .github/workflows/evidence-freshness-snapshot.yml; without it the ledger/audit/fills
+        freshness signals go blind.
+  - uid: lo-evidence-ledger-stale
+    title: ADR-0023 magnitude ledger stale
+    condition: C
+    noDataState: OK
+    data:
+    - refId: A
+      datasourceUid: grafanacloud-prom
+      model:
+        expr: live_overlay_evidence_ledger_age_seconds{job="live_overlay"} > 259200
+        instant: true
+    - refId: C
+      datasourceUid: __expr__
+      model:
+        type: threshold
+        conditions:
+        - evaluator:
+            type: gt
+            params:
+            - 0
+          operator:
+            type: and
+          query:
+            params:
+            - A
+    for: 1h
+    labels:
+      severity: critical
+    annotations:
+      summary: The magnitude shadow ledger's newest row is older than 3 days -- the daily measurement
+        stopped growing (the 2026-06/07 silent freeze).
+      runbook: Check adr0023-magnitude-shadow-daily runs and the accumulate_family_events pool; the ledger
+        should gain a row every weekday.
+  - uid: lo-evidence-audit-branch-stale
+    title: Phase-A audit branch stale
+    condition: C
+    noDataState: OK
+    data:
+    - refId: A
+      datasourceUid: grafanacloud-prom
+      model:
+        expr: live_overlay_evidence_audit_branch_age_seconds{job="live_overlay"} > 345600
+        instant: true
+    - refId: C
+      datasourceUid: __expr__
+      model:
+        type: threshold
+        conditions:
+        - evaluator:
+            type: gt
+            params:
+            - 0
+          operator:
+            type: and
+          query:
+            params:
+            - A
+    for: 1h
+    labels:
+      severity: critical
+    annotations:
+      summary: The data/phase-a-audit branch has had no commit in > 4 days -- the C13 audit-push / reconcile
+        publish has stopped.
+      runbook: Check the c13 reconcile/audit-push launchd jobs and lib_c13_data_push.sh publish clone;
+        the branch should gain commits on trading days.
+  - uid: lo-evidence-wsh-stale
+    title: WSH earnings snapshot stale
+    condition: C
+    noDataState: OK
+    data:
+    - refId: A
+      datasourceUid: grafanacloud-prom
+      model:
+        expr: live_overlay_evidence_wsh_age_seconds{job="live_overlay"} > 604800
+        instant: true
+    - refId: C
+      datasourceUid: __expr__
+      model:
+        type: threshold
+        conditions:
+        - evaluator:
+            type: gt
+            params:
+            - 0
+          operator:
+            type: and
+          query:
+            params:
+            - A
+    for: 2h
+    labels:
+      severity: warning
+    annotations:
+      summary: The WSH earnings snapshot on the audit branch is older than 7 days (secondary earnings
+        filter; looser budget).
+      runbook: 'Known limitation: the WSH filter needs IBKR conIds on the watchlist rows; see automation/launchd/README.md.'
