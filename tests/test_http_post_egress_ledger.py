@@ -179,7 +179,8 @@ URLLIB_REQUEST_POST_LEDGER: set[tuple[str, int]] = {
     # urllib.request.Request(..., method="POST") + timeout discipline.
     ("services/live_overlay_daemon/uptimerobot_bridge.py", 84),
     # 2026-06-24: Railway GraphQL API for container metrics polling.
-    ("services/live_overlay_daemon/railway_metrics.py", 74),
+    # 2026-07-07: `import math` for the non-finite guard shifted this 74 -> 75.
+    ("services/live_overlay_daemon/railway_metrics.py", 75),
     # 2026-06-22: the Grafana dashboard publisher previously pinned here as a
     # literal Request(method="POST"). ADR-0025 consolidated its GET/POST/PUT
     # egress into a single method-agnostic urllib.request.Request in

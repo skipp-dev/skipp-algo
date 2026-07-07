@@ -205,7 +205,8 @@ _FROZEN_URLOPEN_SITES: frozenset[tuple[str, int]] = frozenset(
         ("services/live_overlay_daemon/compute.py", 634),
         # 2026-06-24: Railway GraphQL API bridge for container metrics polling;
         # fixed https endpoint (backboard.railway.com), explicit timeout discipline.
-        ("services/live_overlay_daemon/railway_metrics.py", 85),
+        # 2026-07-07: `import math` for the non-finite guard shifted this 85 -> 86.
+        ("services/live_overlay_daemon/railway_metrics.py", 86),
     }
 )
 

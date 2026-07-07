@@ -294,8 +294,10 @@ _FROZEN_SITES: frozenset[tuple[str, int, tuple[str, ...]]] = frozenset(
         # 2026-06-30 bridge contract duration family shifted reset_cache().
         # 2026-06-30 Railway metrics error-classification cleanup moved helper
         # code below reset_cache(), shifting only the reset_cache() anchor.
-        ("services/live_overlay_daemon/railway_metrics.py", 229, ("_CACHE", "_CACHE_EXPIRES_AT")),
-        ("services/live_overlay_daemon/railway_metrics.py", 267, ("_CACHE", "_CACHE_EXPIRES_AT")),
+        # 2026-07-07 non-finite guard in _latest_value (+ import math) shifted
+        # snapshot() and reset_cache() globals by seven lines (229->236, 267->274).
+        ("services/live_overlay_daemon/railway_metrics.py", 236, ("_CACHE", "_CACHE_EXPIRES_AT")),
+        ("services/live_overlay_daemon/railway_metrics.py", 274, ("_CACHE", "_CACHE_EXPIRES_AT")),
         # 2026-06-19 (fix/live-overlay-post-merge-bugs): added non-finite JSON
         # sanitization helper and related imports, shifting _startup_ts line.
         # 2026-06-19 (Copilot follow-up): _VALID_TFS contract alignment shifted

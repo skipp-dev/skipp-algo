@@ -77,6 +77,23 @@ def test_latest_value_skips_invalid_points() -> None:
     assert railway_metrics._latest_value(values) == 9.0
 
 
+def test_latest_value_skips_non_finite_values() -> None:
+    # json.loads decodes NaN/Infinity tokens, so a non-finite sample must be
+    # dropped like any other invalid point and the last finite reading wins.
+    assert railway_metrics._latest_value(
+        [{"ts": 1, "value": 42.0}, {"ts": 2, "value": float("nan")}]
+    ) == 42.0
+    assert railway_metrics._latest_value(
+        [{"ts": 1, "value": -1.0}, {"ts": 2, "value": float("inf")}]
+    ) == -1.0
+    # A non-finite timestamp is equally untrustworthy and must be ignored.
+    assert railway_metrics._latest_value(
+        [{"ts": 1, "value": 7.0}, {"ts": float("inf"), "value": 9.0}]
+    ) == 7.0
+    # All-non-finite series collapses to "no reading".
+    assert railway_metrics._latest_value([{"ts": 1, "value": float("nan")}]) is None
+
+
 def test_latest_value_empty_returns_none() -> None:
     assert railway_metrics._latest_value([]) is None
 
