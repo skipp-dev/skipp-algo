@@ -498,7 +498,14 @@ frozen_major = "v7"
 # stored label wins when present (snapshot-time truth).
 "open_prep/outcomes.py" = 1
 "open_prep/playbook.py" = 1
-"open_prep/realtime_signals.py" = 12
+# 2026-07-07 audit (chain added by #3201, watchlist-empty alert):
+# _extract_snapshot_epoch coalesces the two payload-specific timestamp fields
+# `generated_at` (screener payloads) and `run_datetime_utc` (run payloads set
+# only the latter top-level) — a benign alias. A present-but-falsy generated_at
+# (0 / "") correctly falls through to the alternative and both branches yield
+# 0.0, so there is no masked legitimate value → budget bumped, not refactored.
+# 12 → 13.
+"open_prep/realtime_signals.py" = 13
 # 2026-07-05 (bug-hunt round 7 follow-up): 2 falsy-`or` chains that masked a
 # legitimate 0.0 replaced with nested dict.get (is-present coalesce) — the
 # sector-lookup gate (gap_pct vs raw change) and the derived sector-average
