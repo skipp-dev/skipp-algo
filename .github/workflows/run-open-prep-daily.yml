@@ -204,7 +204,7 @@ jobs:
         # realtime-signals producer) need a git-tracked, stable-path copy
         # of latest_open_prep_run.json. The `main-governance` ruleset blocks
         # bare pushes to main and a daily PR would add noise, so — exactly
-        # like smc-live-newsapi-refresh — we force-update the dedicated
+        # like smc-live-news-refresh — we force-update the dedicated
         # `bot/live-open-prep-snapshot` branch (allowed: `bot/*` is excluded
         # from the ruleset). No `continue-on-error`: the block is fail-loud so
         # a permanently broken push (expired PAT, ruleset change) shows red.

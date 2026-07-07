@@ -297,7 +297,7 @@ allowed = ["github-mirror-sync.yml", "sync-tradingview-pine-libraries.yml", "ope
 # adds one more set+e capture in the provider-credential preflight,
 # so the frozen count is 4.
 "smc-library-refresh.yml" = 4
-"smc-live-newsapi-refresh.yml" = 1
+"smc-live-news-refresh.yml" = 1
 # ADR-0023 Option B (Issue #2706): accumulate_events step uses `set +e` so
 # that a failed accumulation never marks the rolling-bench run failed; the
 # daily scored_family_events.json artifact is still uploaded as fallback.

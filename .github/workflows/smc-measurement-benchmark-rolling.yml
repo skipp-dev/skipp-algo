@@ -465,7 +465,7 @@ jobs:
           true
 
       - name: Publish experiment snapshot to rolling bot branch
-        # Mirrors smc-live-newsapi-refresh.yml's "Publish snapshot to rolling
+        # Mirrors smc-live-news-refresh.yml's "Publish snapshot to rolling
         # bot branch": the live-overlay daemon reads the daily experiment
         # rollup + history from the rolling `bot/live-experiment-snapshot`
         # branch via the GitHub Contents API (EXPERIMENT_SNAPSHOT_URL /

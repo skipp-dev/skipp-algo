@@ -37,7 +37,7 @@ from tests._workflow_yaml import (
 # ``name:<step-name>``. Adding/removing entries here MUST be paired with a
 # CHANGELOG entry justifying the silent-fail tolerance.
 _ALLOWED: dict[str, dict[str, set[str]]] = {
-    # smc-live-newsapi-refresh.yml entry removed (Workflow-Audit MITTEL-11,
+    # smc-live-news-refresh.yml entry removed (Workflow-Audit MITTEL-11,
     # 2026-06): the bot-branch publish step is internally fail-loud
     # (F-V5-F1) and the step-level continue-on-error neutralised that —
     # a permanently failing push stayed green forever.

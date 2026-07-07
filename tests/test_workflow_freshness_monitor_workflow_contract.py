@@ -145,7 +145,7 @@ _MONITORED_WORKFLOWS = (
     "adr0023-magnitude-shadow-daily.yml",
     "adr0023-magnitude-stage1-weekly.yml",
     "g23-ab-watchdog.yml",
-    "smc-live-newsapi-refresh.yml",
+    "smc-live-news-refresh.yml",
     "smc-measurement-benchmark-rolling.yml",
 )
 
