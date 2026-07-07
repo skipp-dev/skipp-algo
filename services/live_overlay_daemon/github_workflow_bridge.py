@@ -183,7 +183,7 @@ def _fetch_snapshot(token: str) -> dict[str, Any]:
             counts["in_progress"] += 1
         elif status == "completed" and conclusion == "success":
             counts["success"] += 1
-        elif status == "completed":
+        elif status == "completed" and conclusion in _FAILURE_CONCLUSIONS:
             counts["failed"] += 1
 
         age = _iso_age_seconds(run.get("created_at"))

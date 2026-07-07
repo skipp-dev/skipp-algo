@@ -254,6 +254,29 @@ def test_timed_out_and_startup_failure_count_as_failure_verdicts(
         assert row["latest_success"] == 0, bad
 
 
+def test_counts_failed_excludes_non_verdict_conclusions(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    # counts["failed"] -> the CI dashboard's "failed" line. It must mean genuine
+    # failures (matching the latest_success verdict), not "every completed run
+    # that isn't success": a merge-train cancel / skip / stale is not a failure,
+    # it only bumps "seen". Previously all four below counted as failed.
+    runs = [
+        {"workflow_id": 3, "name": "CI", "event": "push", "status": "completed",
+         "conclusion": "cancelled", "created_at": "2026-06-22T10:30:00Z"},
+        {"workflow_id": 4, "name": "CI2", "event": "push", "status": "completed",
+         "conclusion": "skipped", "created_at": "2026-06-22T10:20:00Z"},
+        {"workflow_id": 5, "name": "CI3", "event": "push", "status": "completed",
+         "conclusion": "stale", "created_at": "2026-06-22T10:10:00Z"},
+        {"workflow_id": 6, "name": "CI4", "event": "push", "status": "completed",
+         "conclusion": "failure", "created_at": "2026-06-22T10:00:00Z"},
+    ]
+    counts = _fetch_with_runs(monkeypatch, runs)["counts"]
+    assert counts["seen"] == 4
+    assert counts["success"] == 0
+    assert counts["failed"] == 1  # only the genuine failure, not cancel/skip/stale
+
+
 def _capture_fetch_url(monkeypatch: pytest.MonkeyPatch, branch: str) -> dict[str, str]:
     import services.live_overlay_daemon.github_workflow_bridge as bridge
 
