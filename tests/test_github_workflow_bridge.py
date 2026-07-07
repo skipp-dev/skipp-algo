@@ -142,6 +142,54 @@ def test_fetch_snapshot_separates_status_from_conclusion(
     assert row["conclusion"] == "unknown"
 
 
+def _fetch_with_runs(monkeypatch: pytest.MonkeyPatch, runs: list[dict]) -> dict:
+    import services.live_overlay_daemon.github_workflow_bridge as bridge
+
+    monkeypatch.setattr(bridge.config, "github_workflow_repo", lambda: ("o", "r"))
+    monkeypatch.setattr(bridge.config, "github_workflow_per_page", lambda: 30)
+    monkeypatch.setattr(bridge.config, "github_workflow_timeout_secs", lambda: 5)
+    monkeypatch.setattr(bridge.time, "time", lambda: 1_782_122_460.0)
+    monkeypatch.setattr(
+        bridge, "_github_request_json", lambda *a, **k: {"workflow_runs": runs}
+    )
+    return bridge._fetch_snapshot("token")
+
+
+def test_latest_success_comes_from_newest_completed_run(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """An in-flight newest run has no verdict yet: latest_success must reflect
+    the newest COMPLETED run. Counting in-flight as "not green" made every
+    long-running workflow flap the no-green-24h alarm for its whole runtime
+    (observed with smc-library-refresh, 2026-07-07)."""
+    runs = [
+        {"workflow_id": 7, "name": "lib", "event": "schedule", "status": "in_progress",
+         "conclusion": None, "created_at": "2026-06-22T10:30:00Z"},
+        {"workflow_id": 7, "name": "lib", "event": "schedule", "status": "completed",
+         "conclusion": "success", "created_at": "2026-06-22T09:00:00Z"},
+    ]
+    row = _fetch_with_runs(monkeypatch, runs)["workflows"][0]
+    assert row["status"] == "in_progress"  # newest run still drives lifecycle
+    assert row["latest_success"] == 1      # verdict from the completed run
+    assert "latest_success_final" not in row  # internal marker never leaks
+
+
+def test_latest_success_zero_when_newest_completed_run_failed(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    # Newest completed = failure; an even older success must NOT win.
+    runs = [
+        {"workflow_id": 7, "name": "lib", "event": "push", "status": "in_progress",
+         "conclusion": None, "created_at": "2026-06-22T10:30:00Z"},
+        {"workflow_id": 7, "name": "lib", "event": "push", "status": "completed",
+         "conclusion": "failure", "created_at": "2026-06-22T09:00:00Z"},
+        {"workflow_id": 7, "name": "lib", "event": "push", "status": "completed",
+         "conclusion": "success", "created_at": "2026-06-22T08:00:00Z"},
+    ]
+    row = _fetch_with_runs(monkeypatch, runs)["workflows"][0]
+    assert row["latest_success"] == 0
+
+
 def _capture_fetch_url(monkeypatch: pytest.MonkeyPatch, branch: str) -> dict[str, str]:
     import services.live_overlay_daemon.github_workflow_bridge as bridge
 

@@ -196,10 +196,25 @@ def _fetch_snapshot(token: str) -> dict[str, Any]:
                 # remain "unknown" until GitHub marks completion.
                 "conclusion": conclusion or "unknown",
                 "phase_code": _phase_code(status, conclusion),
-                "latest_success": 1 if status == "completed" and conclusion == "success" else 0,
+                # Provisional: finalized from the newest COMPLETED run below.
+                "latest_success": 0,
                 "latest_age_seconds": age,
                 "latest_duration_seconds": duration,
             }
+        # latest_success reflects the newest COMPLETED run, not the newest run:
+        # a long in-flight run has no verdict yet, and counting it as "not
+        # green" made every 20-min workflow flap the no-green-24h alarm pending
+        # for its whole runtime (observed with smc-library-refresh 2026-07-07).
+        # Runs arrive newest-first, so the first completed run per workflow is
+        # the verdict; later (older) completed runs must not overwrite it.
+        row = workflows_latest[workflow_id]
+        if status == "completed" and "latest_success_final" not in row:
+            row["latest_success"] = 1 if conclusion == "success" else 0
+            row["latest_success_final"] = True
+
+    # Drop the internal finalization marker before the snapshot is exposed.
+    for row in workflows_latest.values():
+        row.pop("latest_success_final", None)
 
     return {
         "enabled": 1,
