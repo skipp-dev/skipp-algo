@@ -928,7 +928,7 @@ SECTION_ORDER = [
     "API Quality (SLO)",
     "Daemon Operations",
     "External Integrations (CI / Uptime)",
-    "Providers (News / TradingView)",
+    "Providers (Feeds, News & Credentials)",
     "Infrastructure (Railway / Collector)",
 ]
 
@@ -961,6 +961,39 @@ def test_dashboard_sections_are_user_first_and_all_expanded() -> None:
     for r in rows:
         assert r.get("collapsed") is False, f"{r['title']} must be expanded"
         assert r.get("description"), f"{r['title']} needs a section description"
+
+
+def test_dashboard_databento_and_fmp_are_surfaced_as_providers() -> None:
+    """Databento (market-data feed) and FMP credential health must be visible in
+    the Providers section — a user should see the feeds they actually use."""
+    dashboard = json.loads(_DASHBOARD_JSON.read_text(encoding="utf-8"))
+    for title in ("Databento API Key", "Databento Delivery Age", "FMP API Key"):
+        assert _section_of(dashboard, title) == "Providers (Feeds, News & Credentials)", title
+    panel = next(p for p in _dashboard_panels(dashboard) if p.get("title") == "Databento Delivery Age")
+    assert "databento_delivery_staleness_days" in panel["targets"][0]["expr"]
+
+
+def test_dashboard_bridge_tiles_show_state_word_not_job_name() -> None:
+    """The scrape-bridge tiles must show the state word only (textMode=value),
+    not the meaningless Prometheus job label, and read the current instant."""
+    dashboard = json.loads(_DASHBOARD_JSON.read_text(encoding="utf-8"))
+    for title in ("GitHub Workflow Bridge", "UptimeRobot Bridge"):
+        panel = next(p for p in _dashboard_panels(dashboard) if p.get("title") == title)
+        assert panel["options"].get("textMode") == "value", title
+        assert panel["targets"][0].get("instant") is True, title
+        assert "scrap" in panel.get("description", "").lower(), title
+
+
+def test_dashboard_traffic_wording_is_disambiguated() -> None:
+    """'traffic' must never be bare: overlay-request panels must name the source
+    (Pine/overlay /smc_live), so a user knows WHICH traffic is meant."""
+    dashboard = json.loads(_DASHBOARD_JSON.read_text(encoding="utf-8"))
+    by = {p.get("title"): p for p in _dashboard_panels(dashboard)}
+    sr = by["Success Rate (%)"]
+    assert sr["fieldConfig"]["defaults"].get("noValue") != "NO TRAFFIC"
+    assert "/smc_live" in sr.get("description", "")
+    mth = by["Market Traffic Health"].get("description", "").lower()
+    assert "overlay" in mth or "pine" in mth, mth
 
 
 def test_dashboard_user_impact_block_is_promoted_to_top() -> None:
@@ -1188,7 +1221,7 @@ def test_dashboard_detail_rows_are_marked_as_service_owner_details() -> None:
     dashboard = json.loads(_DASHBOARD_JSON.read_text(encoding="utf-8"))
     detail_rows = {
         "API Quality (SLO)", "Daemon Operations",
-        "External Integrations (CI / Uptime)", "Providers (News / TradingView)",
+        "External Integrations (CI / Uptime)", "Providers (Feeds, News & Credentials)",
         "Infrastructure (Railway / Collector)",
     }
     rows = {p["title"]: p for p in dashboard["panels"] if p.get("type") == "row"}

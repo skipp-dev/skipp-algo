@@ -223,7 +223,7 @@
       },
       "options": {
         "mode": "markdown",
-        "content": "**Incident triage**\n\n1. Check **Active Alerts** first.\n2. If **Feed Healthy** is red: check Databento credentials, feed reconnects, and Railway logs.\n3. If **Workers Healthy** is red: open Worker Liveness and restart the daemon if a worker is dead.\n4. If **Overlay Fresh** is red: check Compute Cycle Errors and Overlay & Bar Age.\n5. If traffic is missing while **Market Status** is open: check TradingView rollout, auth denied, and request rate.\n6. If dashboards show no data: check Collector / Scrape Targets.\n\nRunbook: [README](https://github.com/skippALGO/skipp-algo/blob/main/services/live_overlay_daemon/README.md)\n7. If **Signal Pipeline Ready** is red: check **Open-Prep Snapshot**, **Watchlist Symbols**, **Producer Poll Age**, then Collector / Scrape Targets and signals-producer Railway logs.\n\n---\n**Quick links** · [Railway logs](https://railway.com/project/0616a3b7-7b7f-41d1-8fac-a0b8922c94ca/service/705582c5-ba8b-4c6e-848c-33bffe0a61b0/logs?environmentId=470fbd0f-894d-46cd-8722-6b072d255d99) · [Railway deployments](https://railway.com/project/0616a3b7-7b7f-41d1-8fac-a0b8922c94ca/service/705582c5-ba8b-4c6e-848c-33bffe0a61b0/deployments?environmentId=470fbd0f-894d-46cd-8722-6b072d255d99) · [GitHub Actions](https://github.com/skippALGO/skipp-algo/actions) · [Runbook: live-overlay on-call](https://github.com/skippALGO/skipp-algo/blob/main/services/live_overlay_daemon/OPS.md)"
+        "content": "**Incident triage**\n\n1. Check **Active Alerts** first.\n2. If **Feed Healthy** is red: check Databento credentials, feed reconnects, and Railway logs.\n3. If **Workers Healthy** is red: open Worker Liveness and restart the daemon if a worker is dead.\n4. If **Overlay Fresh** is red: check Compute Cycle Errors and Overlay & Bar Age.\n5. If Pine/overlay requests are missing while **Market Status** is open: check TradingView rollout, auth denied, and request rate.\n6. If dashboards show no data: check Collector / Scrape Targets.\n\nRunbook: [README](https://github.com/skippALGO/skipp-algo/blob/main/services/live_overlay_daemon/README.md)\n7. If **Signal Pipeline Ready** is red: check **Open-Prep Snapshot**, **Watchlist Symbols**, **Producer Poll Age**, then Collector / Scrape Targets and signals-producer Railway logs.\n\n---\n**Quick links** · [Railway logs](https://railway.com/project/0616a3b7-7b7f-41d1-8fac-a0b8922c94ca/service/705582c5-ba8b-4c6e-848c-33bffe0a61b0/logs?environmentId=470fbd0f-894d-46cd-8722-6b072d255d99) · [Railway deployments](https://railway.com/project/0616a3b7-7b7f-41d1-8fac-a0b8922c94ca/service/705582c5-ba8b-4c6e-848c-33bffe0a61b0/deployments?environmentId=470fbd0f-894d-46cd-8722-6b072d255d99) · [GitHub Actions](https://github.com/skippALGO/skipp-algo/actions) · [Runbook: live-overlay on-call](https://github.com/skippALGO/skipp-algo/blob/main/services/live_overlay_daemon/OPS.md)"
       },
       "datasource": {
         "type": "prometheus",
@@ -1614,7 +1614,7 @@
           "noValue": "NO DATA"
         }
       },
-      "description": "Synthetic signal that amplifies request health while the US regular trading session is open and suppresses it when closed.",
+      "description": "Are Pine/TradingView clients polling the /smc_live overlay endpoint? Synthetic signal that amplifies this overlay-request health while the US regular trading session is open and suppresses it when the market is closed. (This is NOT news/provider traffic.)",
       "datasource": {
         "type": "prometheus",
         "uid": "grafanacloud-prom"
@@ -2473,10 +2473,10 @@
               }
             ]
           },
-          "noValue": "NO TRAFFIC"
+          "noValue": "NO REQUESTS"
         }
       },
-      "description": "Percentage of recent /smc_live HTTP requests that completed successfully. Displays NO TRAFFIC when no requests are observed.",
+      "description": "Percentage of recent /smc_live overlay HTTP requests (from Pine/TradingView) that completed successfully. Shows NO REQUESTS when none are observed.",
       "datasource": {
         "type": "prometheus",
         "uid": "grafanacloud-prom"
@@ -4026,7 +4026,8 @@
           "datasource": {
             "type": "prometheus",
             "uid": "grafanacloud-prom"
-          }
+          },
+          "instant": true
         }
       ],
       "options": {
@@ -4038,7 +4039,8 @@
           ],
           "fields": "",
           "values": false
-        }
+        },
+        "textMode": "value"
       },
       "fieldConfig": {
         "defaults": {
@@ -4073,7 +4075,7 @@
           "noValue": "NO DATA"
         }
       },
-      "description": "Whether the GitHub workflow bridge is enabled and its last scrape succeeded.",
+      "description": "Is the daemon successfully SCRAPING the GitHub-Actions workflow monitor? OK = scraped & healthy · SCRAPE ERROR = configured but the scrape is failing · DISABLED = monitor not configured. (This is the monitoring bridge itself — actual workflow pass/fail is in the panels below.)",
       "datasource": {
         "type": "prometheus",
         "uid": "grafanacloud-prom"
@@ -4089,7 +4091,7 @@
         "w": 6,
         "h": 4
       },
-      "description": "Bridge error flag across the selected jobs/instances (0=OK, 1=ERROR).",
+      "description": "Last scrape error from the GitHub-Actions workflow monitoring bridge (OK = none).",
       "targets": [
         {
           "expr": "max by (job, bridge, error) (\n  live_overlay_bridge_error_info{job=~\"$job\",bridge=\"github_workflow\",error!=\"none\"}\n) or on() vector(0)",
@@ -4140,7 +4142,8 @@
           ],
           "fields": "",
           "values": false
-        }
+        },
+        "textMode": "value"
       },
       "datasource": {
         "type": "prometheus",
@@ -4322,7 +4325,8 @@
           "datasource": {
             "type": "prometheus",
             "uid": "grafanacloud-prom"
-          }
+          },
+          "instant": true
         }
       ],
       "options": {
@@ -4334,7 +4338,8 @@
           ],
           "fields": "",
           "values": false
-        }
+        },
+        "textMode": "value"
       },
       "fieldConfig": {
         "defaults": {
@@ -4369,7 +4374,7 @@
           "noValue": "NO DATA"
         }
       },
-      "description": "Whether the UptimeRobot API bridge is enabled and its last scrape succeeded.",
+      "description": "Is the daemon successfully SCRAPING the UptimeRobot monitor? OK = scraped & healthy · SCRAPE ERROR = configured but failing · DISABLED = not configured. (Individual monitor states are in the panels below.)",
       "datasource": {
         "type": "prometheus",
         "uid": "grafanacloud-prom"
@@ -4385,7 +4390,7 @@
         "w": 6,
         "h": 4
       },
-      "description": "Bridge error flag across the selected jobs/instances (0=OK, 1=ERROR).",
+      "description": "Last scrape error from the UptimeRobot monitoring bridge (OK = none).",
       "targets": [
         {
           "expr": "max by (job, bridge, error) (\n  live_overlay_bridge_error_info{job=~\"$job\",bridge=\"uptimerobot\",error!=\"none\"}\n) or on() vector(0)",
@@ -4436,7 +4441,8 @@
           ],
           "fields": "",
           "values": false
-        }
+        },
+        "textMode": "value"
       },
       "datasource": {
         "type": "prometheus",
@@ -5340,9 +5346,9 @@
     },
     {
       "type": "row",
-      "title": "Providers (News / TradingView)",
+      "title": "Providers (Feeds, News & Credentials)",
       "collapsed": false,
-      "description": "Upstream data providers: news ingest state and TradingView credential validity. Service-owner detail.",
+      "description": "Upstream data providers: Databento market-data feed + FMP + TradingView credential/delivery health, and news ingest state. (Databento feed VOLUME — bars/symbols — is in the Live Data Chain section.) Service-owner detail.",
       "gridPos": {
         "h": 1,
         "w": 24,
@@ -5353,11 +5359,221 @@
       "panels": []
     },
     {
+      "id": 3900001,
+      "title": "Databento API Key",
+      "type": "stat",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "grafanacloud-prom"
+      },
+      "description": "Is the Databento market-data API key valid? (The feed itself — bars/symbols/queue — is in the Live Data Chain section.)",
+      "gridPos": {
+        "h": 5,
+        "w": 6,
+        "x": 0,
+        "y": 214
+      },
+      "targets": [
+        {
+          "expr": "live_overlay_credential_health_databento_api_key_valid{job=~\"$job\"}",
+          "legendFormat": "Databento API Key",
+          "instant": true,
+          "datasource": {
+            "type": "prometheus",
+            "uid": "grafanacloud-prom"
+          }
+        }
+      ],
+      "options": {
+        "colorMode": "background",
+        "graphMode": "none",
+        "textMode": "value",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        }
+      },
+      "fieldConfig": {
+        "defaults": {
+          "noValue": "NO DATA",
+          "mappings": [
+            {
+              "type": "value",
+              "options": {
+                "0": {
+                  "text": "INVALID",
+                  "color": "red"
+                },
+                "1": {
+                  "text": "VALID",
+                  "color": "green"
+                }
+              }
+            }
+          ],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "red",
+                "value": null
+              },
+              {
+                "color": "green",
+                "value": 1
+              }
+            ]
+          }
+        },
+        "overrides": []
+      }
+    },
+    {
+      "id": 3900002,
+      "title": "Databento Delivery Age",
+      "type": "stat",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "grafanacloud-prom"
+      },
+      "description": "Days since Databento last delivered market data (DBEQ.BASIC). Good < 3d; a growing gap means the feed is falling behind.",
+      "gridPos": {
+        "h": 5,
+        "w": 6,
+        "x": 6,
+        "y": 214
+      },
+      "targets": [
+        {
+          "expr": "live_overlay_credential_health_databento_delivery_staleness_days{job=~\"$job\"}",
+          "legendFormat": "delivery age",
+          "instant": true,
+          "datasource": {
+            "type": "prometheus",
+            "uid": "grafanacloud-prom"
+          }
+        }
+      ],
+      "options": {
+        "colorMode": "background",
+        "graphMode": "none",
+        "textMode": "value",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        }
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "d",
+          "noValue": "NO DATA",
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "yellow",
+                "value": 3
+              },
+              {
+                "color": "red",
+                "value": 7
+              }
+            ]
+          }
+        },
+        "overrides": []
+      }
+    },
+    {
+      "id": 3900003,
+      "title": "FMP API Key",
+      "type": "stat",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "grafanacloud-prom"
+      },
+      "description": "Is the FMP (news + fundamentals) API key valid? NOTE: FMP data-VOLUME / quota is not yet instrumented — see follow-up work.",
+      "gridPos": {
+        "h": 5,
+        "w": 6,
+        "x": 12,
+        "y": 214
+      },
+      "targets": [
+        {
+          "expr": "live_overlay_credential_health_fmp_api_key_valid{job=~\"$job\"}",
+          "legendFormat": "FMP API Key",
+          "instant": true,
+          "datasource": {
+            "type": "prometheus",
+            "uid": "grafanacloud-prom"
+          }
+        }
+      ],
+      "options": {
+        "colorMode": "background",
+        "graphMode": "none",
+        "textMode": "value",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        }
+      },
+      "fieldConfig": {
+        "defaults": {
+          "noValue": "NO DATA",
+          "mappings": [
+            {
+              "type": "value",
+              "options": {
+                "0": {
+                  "text": "INVALID",
+                  "color": "red"
+                },
+                "1": {
+                  "text": "VALID",
+                  "color": "green"
+                }
+              }
+            }
+          ],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "red",
+                "value": null
+              },
+              {
+                "color": "green",
+                "value": 1
+              }
+            ]
+          }
+        },
+        "overrides": []
+      }
+    },
+    {
       "title": "TradingView Credential Status",
       "type": "stat",
       "description": "Whether the latest credential-health report considers the TradingView storage-state login valid (severity not error). 1 = valid (cached login still within the 72h TTL), 0 = expired/error → re-capture TV_STORAGE_STATE. N/A when no report has been ingested yet.",
       "gridPos": {
-        "x": 0,
+        "x": 18,
         "y": 214,
         "w": 6,
         "h": 5
@@ -5427,8 +5643,8 @@
       "type": "stat",
       "description": "Hours since the TradingView Playwright storage-state login (meta.authValidatedAt) was last validated, from the daily credential-health report (tv_storage_state_age probe). Policy TTL is 72h: green < 57.6h (80% warn band), yellow 57.6–72h, red once the cached login is older than 72h and must be re-captured. N/A when no report/age is available.",
       "gridPos": {
-        "x": 6,
-        "y": 214,
+        "x": 0,
+        "y": 219,
         "w": 6,
         "h": 5
       },
@@ -5493,7 +5709,7 @@
       "description": "Legend for News Provider panels directly below.",
       "gridPos": {
         "x": 0,
-        "y": 219,
+        "y": 224,
         "w": 24,
         "h": 2
       },
@@ -5512,7 +5728,7 @@
       "type": "timeseries",
       "gridPos": {
         "x": 0,
-        "y": 221,
+        "y": 226,
         "w": 24,
         "h": 10
       },
@@ -5608,7 +5824,7 @@
       "type": "state-timeline",
       "gridPos": {
         "x": 0,
-        "y": 231,
+        "y": 236,
         "w": 12,
         "h": 8
       },
@@ -5703,7 +5919,7 @@
       "type": "timeseries",
       "gridPos": {
         "x": 12,
-        "y": 231,
+        "y": 236,
         "w": 6,
         "h": 8
       },
@@ -5752,7 +5968,7 @@
       "type": "timeseries",
       "gridPos": {
         "x": 18,
-        "y": 231,
+        "y": 236,
         "w": 6,
         "h": 8
       },
@@ -5833,7 +6049,7 @@
       "type": "timeseries",
       "gridPos": {
         "x": 0,
-        "y": 239,
+        "y": 244,
         "w": 12,
         "h": 8
       },
@@ -5884,7 +6100,7 @@
       "type": "table",
       "gridPos": {
         "x": 12,
-        "y": 239,
+        "y": 244,
         "w": 12,
         "h": 8
       },
@@ -6045,7 +6261,7 @@
         "h": 1,
         "w": 24,
         "x": 0,
-        "y": 247
+        "y": 252
       },
       "id": 1007,
       "panels": []
@@ -6056,7 +6272,7 @@
       "description": "Whether the Railway metrics bridge is enabled and its last poll succeeded.",
       "gridPos": {
         "x": 0,
-        "y": 248,
+        "y": 253,
         "w": 4,
         "h": 3
       },
@@ -6206,7 +6422,7 @@
       "description": "Seconds since the last successful Railway metrics poll.",
       "gridPos": {
         "x": 4,
-        "y": 248,
+        "y": 253,
         "w": 4,
         "h": 3
       },
@@ -6270,7 +6486,7 @@
       "description": "Latest Railway metrics bridge error class. OK when healthy.",
       "gridPos": {
         "x": 8,
-        "y": 248,
+        "y": 253,
         "w": 4,
         "h": 3
       },
@@ -6345,7 +6561,7 @@
       },
       "gridPos": {
         "x": 12,
-        "y": 248,
+        "y": 253,
         "w": 8,
         "h": 7
       },
@@ -6391,7 +6607,7 @@
       },
       "gridPos": {
         "x": 0,
-        "y": 255,
+        "y": 260,
         "w": 8,
         "h": 7
       },
@@ -6454,7 +6670,7 @@
       },
       "gridPos": {
         "x": 8,
-        "y": 255,
+        "y": 260,
         "w": 8,
         "h": 7
       },
@@ -6501,7 +6717,7 @@
       },
       "gridPos": {
         "x": 16,
-        "y": 255,
+        "y": 260,
         "w": 8,
         "h": 7
       },
@@ -6549,7 +6765,7 @@
       },
       "gridPos": {
         "x": 0,
-        "y": 262,
+        "y": 267,
         "w": 8,
         "h": 7
       },
@@ -6596,7 +6812,7 @@
       },
       "gridPos": {
         "x": 8,
-        "y": 262,
+        "y": 267,
         "w": 8,
         "h": 7
       },
@@ -6641,7 +6857,7 @@
       },
       "gridPos": {
         "x": 0,
-        "y": 269,
+        "y": 274,
         "w": 12,
         "h": 8
       },
@@ -6679,7 +6895,7 @@
       },
       "gridPos": {
         "x": 12,
-        "y": 269,
+        "y": 274,
         "w": 12,
         "h": 8
       },
@@ -6762,6 +6978,6 @@
   "timezone": "utc",
   "title": "SMC Live Overlay API",
   "uid": "smc-live-overlay-v1",
-  "version": 49,
+  "version": 51,
   "description": "Live-overlay daemon operational dashboard: feed health, worker liveness, SMC overlay freshness, external bridge status, provider health, daily experiment metrics, and Railway container resources."
 }

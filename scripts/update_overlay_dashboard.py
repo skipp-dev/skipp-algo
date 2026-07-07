@@ -1565,8 +1565,10 @@ def _fix_market_traffic_health_description(data: dict[str, Any]) -> bool:
     if not panel:
         return changed
     wanted = (
-        "Synthetic signal that amplifies request health while the US regular "
-        "trading session is open and suppresses it when closed."
+        "Are Pine/TradingView clients polling the /smc_live overlay endpoint? "
+        "Synthetic signal that amplifies this overlay-request health while the US "
+        "regular trading session is open and suppresses it when the market is "
+        "closed. (This is NOT news/provider traffic.)"
     )
     if panel.get("description") != wanted:
         panel["description"] = wanted
