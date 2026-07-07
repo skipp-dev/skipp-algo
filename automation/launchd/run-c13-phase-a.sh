@@ -23,6 +23,16 @@
 set -euo pipefail
 
 REPO="$(cd "$(dirname "$0")/../.." && pwd)"
+
+# ET timezone gate: the plist fires at three candidate LOCAL times bracketing
+# the 09:28 ET target across US/EU DST; proceed only in the true ET window. On a
+# non-ET Mac (e.g. Europe/Berlin) the old single "09:28" plist fired at 03:28 ET
+# — ~6h before the US open — so the ORB paper orders never filled (root-caused
+# 2026-07-07). See lib_c13_et_gate.sh. Order placement has no catch-up (you
+# cannot place opening orders late), so gating at the top is correct.
+source "$(dirname "$0")/lib_c13_et_gate.sh"
+c13_require_et_window "$REPO" 09 28 10 phase-a || exit 0
+
 VENV="${C13_VENV:-${REPO}/.venv}"
 
 DATE="$(date -u +%Y-%m-%d)"

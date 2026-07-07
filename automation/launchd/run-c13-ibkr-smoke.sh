@@ -28,6 +28,15 @@
 set -euo pipefail
 
 REPO="$(cd "$(dirname "$0")/../.." && pwd)"
+
+# ET timezone gate: the plist fires at three candidate LOCAL times bracketing
+# the 08:00 ET target across US/EU DST; proceed only in the true ET window. On a
+# non-ET Mac the old single "08:00" plist ran at 02:00 ET — overnight, when TWS
+# is off — so the round-trip always ConnectionRefused and tripped smoke_HALT
+# every day (root-caused 2026-07-07). See lib_c13_et_gate.sh.
+source "$(dirname "$0")/lib_c13_et_gate.sh"
+c13_require_et_window "$REPO" 08 00 10 ibkr-smoke || exit 0
+
 VENV="${C13_VENV:-${REPO}/.venv}"
 DATE="$(date -u +%Y-%m-%d)"
 AUDIT="${REPO}/cache/live/smoke_${DATE}.jsonl"
