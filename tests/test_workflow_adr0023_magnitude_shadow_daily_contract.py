@@ -54,7 +54,37 @@ def test_workflow_dispatch_exposes_events_path_and_seed() -> None:
 
 def test_permissions_allow_ledger_commit_back() -> None:
     data = _load()
-    assert data["permissions"] == {"contents": "write", "actions": "read"}
+    # pull-requests: write since the PR-flow commit-back (2026-07-07): the
+    # main ruleset rejects direct pushes, so the ledger lands via a bot PR.
+    assert data["permissions"] == {
+        "contents": "write",
+        "actions": "read",
+        "pull-requests": "write",
+    }
+
+
+def test_commit_back_lands_via_auto_merge_pr_and_fails_loud() -> None:
+    """The main-governance ruleset rejects bare pushes to main (GH013), so a
+    direct-push commit-back can NEVER land. Worse, the old retry loop's
+    exhausted path warned-and-exited-0 — run 28873289633 (2026-07-07) lost
+    the FIRST post-reseed 1D ledger row while staying green. Pin the bot-PR
+    flow and its fail-loud posture."""
+    data = _load()
+    job = data["jobs"]["magnitude-shadow"]
+    step = next(s for s in job["steps"] if "Commit shadow ledger" in s.get("name", ""))
+    run = step["run"]
+    # Bot-PR flow, mirroring g23-ab-watchdog.
+    assert "gh pr create" in run
+    assert "--auto" in run and "gh pr merge" in run
+    assert "bot/adr0023-shadow-ledger-" in run
+    # Never a direct push to main.
+    assert "HEAD:main" not in run
+    # GH_PAT indirection so the PR triggers the required fast-gates check
+    # (PRs created with github.token do not trigger workflows).
+    assert "secrets.GH_PAT" in str(step.get("env", {}).get("GH_TOKEN", ""))
+    # Fail-loud: no swallowed exhaustion path.
+    assert "will accumulate next run" not in run
+    assert "set -euo pipefail" in run
 
 
 def test_job_invokes_shadow_ledger_script() -> None:
