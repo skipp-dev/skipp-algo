@@ -1982,3 +1982,78 @@ groups:
         stalled (paper TWS down/unreachable?).
       runbook: Check the paper TWS/IBKR gateway is up on port 7497 during the 09:28 ET order window and the
         23:05 reconcile; inspect cache/live/smoke_HALT and the newest incubation_<DATE>.jsonl fill_price fields.
+  - uid: lo-fmp-bandwidth-approaching
+    title: FMP bandwidth approaching monthly quota
+    condition: C
+    # FMP meters a rolling-30-day DATA-VOLUME quota (150 GB); a "90% used" email
+    # was previously our only signal. Fires when our recorded FMP byte
+    # consumption this month reaches >=80% of the configured limit. The usage
+    # snapshot accumulates by calendar month -- a close proxy for FMP's rolling
+    # meter. `for: 1h` rides out a single scrape.
+    noDataState: OK
+    data:
+    - refId: A
+      datasourceUid: grafanacloud-prom
+      model:
+        expr: live_overlay_provider_usage_bytes{job="live_overlay",provider="fmp"}
+          / on(provider) live_overlay_provider_bandwidth_limit_bytes{job="live_overlay",provider="fmp"}
+          > 0.80
+        instant: true
+    - refId: C
+      datasourceUid: __expr__
+      model:
+        type: threshold
+        conditions:
+        - evaluator:
+            type: gt
+            params:
+            - 0
+          operator:
+            type: and
+          query:
+            params:
+            - A
+    for: 1h
+    labels:
+      severity: warning
+    annotations:
+      summary: FMP data-volume consumption this month has reached >=80% of the configured monthly
+        bandwidth quota (150 GB default).
+      runbook: Check the FMP dashboard usage; reduce poll frequency / page limits in newsstack_fmp/config.py
+        (FMP_*_LIMIT) or raise FMP_MONTHLY_BANDWIDTH_LIMIT_BYTES if the plan tier changed.
+  - uid: lo-fmp-bandwidth-critical
+    title: FMP bandwidth near monthly quota
+    condition: C
+    # Escalation of lo-fmp-bandwidth-approaching: >=95% of the FMP monthly volume
+    # quota -- exhaustion (and blanket ingest failures) is imminent.
+    noDataState: OK
+    data:
+    - refId: A
+      datasourceUid: grafanacloud-prom
+      model:
+        expr: live_overlay_provider_usage_bytes{job="live_overlay",provider="fmp"}
+          / on(provider) live_overlay_provider_bandwidth_limit_bytes{job="live_overlay",provider="fmp"}
+          > 0.95
+        instant: true
+    - refId: C
+      datasourceUid: __expr__
+      model:
+        type: threshold
+        conditions:
+        - evaluator:
+            type: gt
+            params:
+            - 0
+          operator:
+            type: and
+          query:
+            params:
+            - A
+    for: 15m
+    labels:
+      severity: critical
+    annotations:
+      summary: FMP data-volume consumption this month has reached >=95% of the monthly bandwidth
+        quota -- ingest will start failing when the quota is exhausted.
+      runbook: Immediately reduce FMP polling (newsstack_fmp/config.py FMP_*_LIMIT / poll interval) or
+        upgrade the FMP plan; raise FMP_MONTHLY_BANDWIDTH_LIMIT_BYTES to match a new plan.

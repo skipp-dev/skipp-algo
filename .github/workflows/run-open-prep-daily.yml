@@ -258,6 +258,14 @@ jobs:
           # actions/checkout's full (non-sparse) tree and confused readers
           # (audit PR #2913 F4); removed without behavior change.
           git add -f "$SNAPSHOT"
+          # Ride the same bot branch with the provider API-usage snapshot
+          # (bytes/calls per provider this month) so the daemon can surface FMP
+          # bandwidth consumption. Best-effort: absent on the first run before
+          # any ingest recorded, and never blocks the open-prep publish.
+          USAGE_SNAPSHOT="artifacts/monitoring/provider_usage.json"
+          if [ -f "$USAGE_SNAPSHOT" ]; then
+            git add -f "$USAGE_SNAPSHOT"
+          fi
           if git diff --cached --quiet; then
             echo "No open-prep snapshot changes to publish."
             git checkout --quiet "$START_SHA"
