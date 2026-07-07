@@ -109,6 +109,7 @@ FULL_REQUIRED_PATH_TRIPWIRES: tuple[str, ...] = (
     "tests/test_family_verdict.py",
     "tests/test_family_walkforward_config.py",
     "tests/test_fast_gates_silent_skip_coverage.py",
+    "tests/test_field_preference_chain_ledger.py",
     "tests/test_global_statement_budget.py",
     "tests/test_hashlib_weak_hash_ledger.py",
     "tests/test_http_client_discipline.py",
