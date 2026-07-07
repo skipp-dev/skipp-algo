@@ -63,6 +63,21 @@ def test_summarize_fills_skips_unusable_executions():
     assert summarize_fills(fills) == {}
 
 
+def test_summarize_fills_rejects_non_finite_inputs():
+    # NaN/inf pass the ``<= 0`` guard (all NaN comparisons are False) and would
+    # otherwise produce a NaN avg_price that gets written as non-standard JSON
+    # ``NaN`` and crashes the downstream backfill. Drop them like any unusable
+    # fill so the record stays honestly unfilled.
+    assert summarize_fills([_fill("smc-A-entry", 2, float("nan"))]) == {}
+    assert summarize_fills([_fill("smc-A-entry", float("inf"), 100.0)]) == {}
+    assert summarize_fills([_fill("smc-A-entry", 2, float("-inf"))]) == {}
+    # A good fill alongside a corrupt one still summarizes; the bad one drops.
+    out = summarize_fills(
+        [_fill("smc-A-entry", 2, float("nan")), _fill("smc-A-entry", 2, 100.0)]
+    )
+    assert out == {"smc-A-entry": {"shares": 2.0, "avg_price": 100.0}}
+
+
 # ---------------------------------------------------------------------------
 # legs_by_intent
 # ---------------------------------------------------------------------------
