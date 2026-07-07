@@ -56,6 +56,9 @@ on:
 permissions:
   contents: write
   actions: read
+  # gh pr create / gh pr merge --auto in the ledger commit-back step:
+  # without this scope the PR call 403s when GH_PAT is unset.
+  pull-requests: write
 
 concurrency:
   group: adr0023-magnitude-shadow-daily
@@ -400,42 +403,50 @@ jobs:
       # none_resolve, all_thin, or stale_feed (i.e. NOT error / no_data) and
       # the file actually changed vs HEAD (stale_feed appends nothing, so it
       # falls through to the unchanged-skip below).
-      - name: Commit shadow ledger back to repo
+      - name: Commit shadow ledger back via PR
         # `success() || gap_guard failed` mirrors the append step: a
         # breached gap budget must not prevent persisting the very rows
         # that close the gap (self-heal; see gap-guard comment).
+        #
+        # PR-flow, not a direct push: the `main-governance` ruleset rejects
+        # bare pushes to main (GH013: PR + fast-gates required), so the old
+        # rebase/retry push loop could NEVER land — and its exhausted-retries
+        # path warned-and-exited-0, silently dropping the measured row
+        # (observed 2026-07-07, run 28873289633: the FIRST post-reseed 1D row
+        # was lost while the run stayed green). Mirror the g23-watchdog bot
+        # pattern: push a bot/* branch + auto-merge PR; bot data-only PRs take
+        # the fast-gates short-circuit. GH_PAT (not GITHUB_TOKEN) so the PR
+        # actually triggers the required fast-gates check. Fail LOUD on any
+        # landing failure — the self-heal append recovers the rows next run,
+        # but the operator must see red, not green.
         if: >
           (success() || steps.gap_guard.outcome == 'failure')
           && steps.ledger.outputs.status != 'error'
           && steps.ledger.outputs.status != 'no_data'
           && steps.ledger.outputs.status != ''
         env:
-          GITHUB_TOKEN: ${{ github.token }}
+          GH_TOKEN: ${{ secrets.GH_PAT != '' && secrets.GH_PAT || github.token }}
         run: |
+          set -euo pipefail
           git diff --quiet artifacts/governance/magnitude_resolution_shadow.jsonl && {
             echo "::notice title=adr0023-magnitude-shadow::ledger unchanged — skipping commit-back"
             exit 0
           }
           git config user.name  "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          BRANCH="bot/adr0023-shadow-ledger-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
+          git checkout -b "$BRANCH"
           git add artifacts/governance/magnitude_resolution_shadow.jsonl
           git commit -m "chore(adr0023): accumulate shadow ledger $(date -u +%Y-%m-%d)"
-          git remote set-url origin "https://x-access-token:${GITHUB_TOKEN}@github.com/${GITHUB_REPOSITORY}"
-          # Race-safe push: main can move between checkout and push (other
-          # scheduled jobs also commit back). Rebase our single ledger commit
-          # onto the latest origin/main and retry on non-fast-forward reject.
-          for attempt in 1 2 3; do
-            git fetch origin main --quiet || true
-            if ! git rebase origin/main; then
-              git rebase --abort 2>/dev/null || true
-              echo "::warning title=adr0023-magnitude-shadow::rebase onto origin/main failed (ledger conflict?); skipping commit-back this run"
-              exit 0
-            fi
-            if git push origin HEAD:main; then
-              echo "::notice title=adr0023-magnitude-shadow::ledger committed back (attempt ${attempt})"
-              exit 0
-            fi
-            echo "::warning title=adr0023-magnitude-shadow::push attempt ${attempt} rejected (non-fast-forward); retrying"
-          done
-          echo "::warning title=adr0023-magnitude-shadow::commit-back exhausted retries; will accumulate next run"
-          exit 0
+          git remote set-url origin "https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}"
+          git push -u origin "$BRANCH"
+          gh pr create \
+            --base main \
+            --head "$BRANCH" \
+            --label automated \
+            --title "chore(adr0023): accumulate shadow ledger $(date -u +%Y-%m-%d)" \
+            --body "Automated ADR-0023 magnitude shadow-ledger commit-back from run ${GITHUB_RUN_ID}. Direct pushes to main are rejected by the ruleset; this bot PR auto-merges once fast-gates completes." 2>pr_err.log \
+            || { rc=$?; if grep -qi 'already exists' pr_err.log; then echo "PR already exists for ${BRANCH}"; else cat pr_err.log; exit $rc; fi; }
+          gh pr merge "$BRANCH" --auto --squash --delete-branch 2>merge_err.log \
+            || { rc=$?; if grep -qiE 'already (merged|closed)|cannot be merged' merge_err.log; then echo "auto-merge already armed or completed for ${BRANCH}"; else cat merge_err.log; exit $rc; fi; }
+          echo "::notice title=adr0023-magnitude-shadow::ledger PR opened + auto-merge armed (${BRANCH})"
