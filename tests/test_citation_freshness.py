@@ -148,6 +148,13 @@ _ALLOWLISTED_SYMBOLS: frozenset[str] = frozenset(
         "subprocess.foo",
         "session.post",          # truncated requests.Session.post example
         "Path.write_text",       # truncated pathlib.Path.write_text example
+        # Truncated pathlib.Path.parts reference (walk-robustness docstring in
+        # tests/test_broad_except_silent_budget.py, #3173). Resolution is
+        # env-dependent flake: `import path` only succeeds when the third-party
+        # path.py package happens to be a transitive dependency -- it resolved
+        # in validate until 2026-07-06 and broke on 2026-07-07 with no code
+        # change to either file.
+        "path.parts",
         "scripts.run_ab_comparison",       # script not importable as module (no __init__.py)
         "scripts.emit_fvg_context_pine",   # script not importable as module (no __init__.py)
         # Pine Script (TradingView) qualified identifiers, not Python.
