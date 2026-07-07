@@ -98,6 +98,22 @@ def test_latest_value_empty_returns_none() -> None:
     assert railway_metrics._latest_value([]) is None
 
 
+def test_latest_value_is_order_independent_for_duplicate_timestamps() -> None:
+    # Railway does not guarantee the value-series order. With the old ``>=``
+    # the last duplicate-ts point in the list won, so the same data could
+    # yield a different reading between scrapes. The (ts, value) running max
+    # is order-independent and resolves the tie deterministically.
+    points = [
+        {"ts": 1.0, "value": 1.0},
+        {"ts": 2.0, "value": 2.0},
+        {"ts": 3.0, "value": 3.0},
+        {"ts": 3.0, "value": 99.0},
+    ]
+    forward = railway_metrics._latest_value(points)
+    backward = railway_metrics._latest_value(list(reversed(points)))
+    assert forward == backward == 99.0
+
+
 def test_build_services_collapses_series_per_service() -> None:
     results = json.loads(_metrics_body().decode())["data"]["metrics"]
     services = railway_metrics._build_services(results, {"svc-a": "alpha"})
@@ -111,6 +127,22 @@ def test_build_services_collapses_series_per_service() -> None:
     # svc-b has no friendly name -> falls back to the id.
     assert by_id["svc-b"]["service"] == "svc-b"
     assert by_id["svc-b"]["cpu_cores"] == 0.05
+
+
+def test_build_services_surfaces_last_finite_value_for_non_finite_newest() -> None:
+    # A still-aggregating newest bucket can be NaN/Inf (json accepts those
+    # tokens). _build_services must surface the last finite reading, never a
+    # non-finite one and never drop the service outright.
+    results = [
+        {
+            "measurement": "CPU_USAGE",
+            "tags": {"serviceId": "svc-a"},
+            "values": [{"ts": 1, "value": 0.5}, {"ts": 2, "value": float("nan")}],
+        }
+    ]
+    services = railway_metrics._build_services(results, {})
+    assert len(services) == 1
+    assert services[0]["cpu_cores"] == 0.5
 
 
 def test_snapshot_disabled_when_flag_off() -> None:
@@ -479,6 +511,19 @@ def test_failed_snapshot_preserves_last_success_from_cache() -> None:
     assert failed["ok"] is False
     assert failed["fetched_at_unix"] == 1_000_000.0
     assert failed["last_success_fetched_at_unix"] == 1_000_000.0
+
+
+def test_failed_snapshot_never_infers_last_success_from_fetched_at() -> None:
+    """A cache with a fetched_at time but no recorded success must not claim one.
+
+    fetched_at_unix marks the last *attempt*; using it as the last *success*
+    would make the Grafana "last success age" panel/alert read healthy after a
+    poll that never actually succeeded.
+    """
+    cached = {"fetched_at_unix": 1234.0, "services": []}
+    failed = railway_metrics._failed_snapshot("network_error", cached=cached)
+    assert failed["fetched_at_unix"] == 1234.0
+    assert failed["last_success_fetched_at_unix"] == 0.0
 
 
 def test_render_metrics_uses_last_success_for_bridge_age() -> None:
