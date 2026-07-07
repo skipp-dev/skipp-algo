@@ -158,7 +158,16 @@ jobs:
           INPUT_RESET_STATE: ${{ github.event.inputs.reset_state }}
           NEWSAPI_AI_SHARED_CACHE_TTL_SECONDS: "3900"  # 65 min — keeps cache warm across hourly cadence + light overrun jitter (was 25 s for 5-min cron)
         run: |
-          test -n "${NEWSAPI_KEY}" || { echo "::error::NEWSAPI_KEY secret is required"; exit 1; }
+          # 2026-07-08: NewsAPI.ai is being retired (budget; Benzinga News API
+          # subscribed instead). It is no longer REQUIRED — the snapshot builds
+          # from Benzinga (RSS + quantified), FMP and TradingView, and the
+          # NewsAPI.ai lane self-disables gracefully when the key is absent
+          # (_disabled_provider). Soft-warn instead of hard-failing so the
+          # hourly cron does not go red the moment the NEWSAPI_KEY secret is
+          # removed. (Full removal of the lane/rename is a follow-up.)
+          if [ -z "${NEWSAPI_KEY:-}" ]; then
+            echo "::warning::NEWSAPI_KEY not set — NewsAPI.ai lane disabled; snapshot builds from Benzinga + FMP + TradingView."
+          fi
 
           SYMBOLS="${INPUT_SYMBOLS:-}"
           # A2 (2026-06-10): INPUT_* already env-var-isolated;
