@@ -375,6 +375,14 @@ def build_news_scores(
 
         # Subtract 2h mentions from 24h count so articles are not double-counted
         # across both recency windows (2h articles are already boosted at 0.5).
+        #
+        # NOTE: this is a COVERAGE-INTENSITY score, not catalyst quality — it
+        # counts recency-weighted article mentions only. Sentiment, event class
+        # and materiality are computed above but deliberately NOT part of the
+        # score (explainability metadata only): 4 lawsuit articles score the
+        # same as 4 FDA-approval articles. The persisted field name
+        # ``news_catalyst_score`` is a historical misnomer kept for the data
+        # contract (see config_validation.py).
         mentions_24h_only = max(row["mentions_24h"] - row["mentions_2h"], 0)
         score = min(2.0, row["mentions_2h"] * 0.5 + mentions_24h_only * 0.15)
         row["news_catalyst_score"] = round(score, 4)

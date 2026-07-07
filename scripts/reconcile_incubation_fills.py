@@ -159,13 +159,21 @@ def reconcile_records(
     records: list[dict[str, Any]],
     intent_legs: dict[str, dict[str, dict[str, float]]],
 ) -> tuple[list[dict[str, Any]], dict[str, int]]:
-    """Stamp fills onto reconcilable records; pure + idempotent.
+    """Stamp fills onto reconcilable records IN PLACE; state-idempotent.
 
-    Re-running with the same executions is a no-op on already-closed
-    records (their action left ``_RECONCILABLE_ACTIONS``); a record that
-    only reached ``filled`` earlier upgrades to closed when the exit leg
-    has filled by the later run. With duplicate intent_id records (same-day
-    retry) only the newest stampable record receives fills.
+    NOT pure: the passed record dicts are mutated directly (fill_price,
+    size_usd, action, close_price, reconciled_at) and the same list object
+    is returned; ``reconciled_at`` is refreshed from the wall clock on every
+    stamping and skip diagnostics are printed. Idempotence holds at the
+    STATE level, not byte level: re-running with the same executions
+    converges to identical action/fill values and is a no-op on
+    already-closed records (their action left ``_RECONCILABLE_ACTIONS``),
+    but a still-``filled`` record is re-stamped each run (fresh
+    ``reconciled_at``, counted again in ``counts["entry_filled"]``), so the
+    serialized JSONL is not guaranteed byte-identical across runs. A record
+    that only reached ``filled`` earlier upgrades to closed when the exit
+    leg has filled by the later run. With duplicate intent_id records
+    (same-day retry) only the newest stampable record receives fills.
     """
     counts = {"reconcilable": 0, "entry_filled": 0, "closed": 0, "duplicate_skipped": 0}
     newest_by_intent = _newest_stampable_index(records)

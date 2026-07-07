@@ -51,7 +51,7 @@ DEFAULT_WEIGHTS: dict[str, float] = {
     "gap_sector_relative": 0.6,
     "rvol": 1.2,
     "macro": 0.7,
-    "momentum_z": 0.5,
+    "momentum_z": 0.5,  # z-score of the LATEST single-day return (≤50d window), may lag one session — not multi-day momentum
     "hvb": 0.3,
     "earnings_bmo": 1.5,
     # news weight raised from 0.8 → 2.5 so a tier-1 confirmed news catalyst
@@ -59,16 +59,16 @@ DEFAULT_WEIGHTS: dict[str, float] = {
     # See NEWS_SOURCE_TIER_MULTIPLIERS for tier discounting and
     # LOW_TIER_NEWS_RUMOR_PENALTY for the final-score haircut applied when
     # an unverified rumor is the catalyst.
-    "news": 2.5,
+    "news": 2.5,  # scores MENTION INTENSITY (2h/24h article counts), not catalyst quality — see news.py + config_validation.py
     "ext_hours": 1.0,
     "analyst_catalyst": 0.5,  # misnomer: coverage BREADTH (count/10, cap 2.0), not a rating action — see config_validation.py
-    "vwap_distance": 0.4,
+    "vwap_distance": 0.4,  # PRIOR-DAY daily VWAP vs prior close (positive = weak close), no premarket data — see compute_vwap_distance_pct
     "freshness_decay": 0.3,
-    "institutional_quality": 0.3,
-    "estimate_revision": 0.4,
-    "ewma": 0.4,
+    "institutional_quality": 0.3,  # DEAD in production: not passed at the rank_candidates_v2 callsite → constant 0 — see config_validation.py
+    "estimate_revision": 0.4,  # DEAD: no producer exists anywhere → constant 0 — see config_validation.py
+    "ewma": 0.4,  # ENERGY-weighted MA (vol×range), not exponential; constant 0.5 (daily_bars never set) — see config_validation.py
     # Penalties (applied as subtractions)
-    "liquidity_penalty": 1.5,
+    "liquidity_penalty": 1.5,  # price<$5 proxy, UNREACHABLE for tradable rows (price_below_5 hard-blocks first); no volume-based malus exists
     "corporate_action_penalty": 1.0,
     "risk_off_penalty_multiplier": 2.0,
 }
@@ -206,7 +206,7 @@ def compute_vwap_distance_pct(
     vwap: float | None,
     prev_close: float | None,
 ) -> float:
-    """Distance from premarket VWAP to prior day's close, as %."""
+    """% distance of the PRIOR-DAY daily VWAP from prior close (positive = weak close; premarket is NOT involved)."""
     if vwap is None or prev_close is None or prev_close <= 0 or vwap <= 0:
         return 0.0
     return ((vwap - prev_close) / prev_close) * 100.0
