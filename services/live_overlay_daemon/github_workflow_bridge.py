@@ -25,6 +25,17 @@ _cache_lock = threading.Lock()
 _cached_snapshot: dict[str, Any] | None = None
 _cached_at_monotonic = 0.0
 
+# Conclusions that constitute a workflow-health VERDICT for ``latest_success``.
+# A cancelled / skipped / stale / neutral / action_required run says nothing
+# about health — the common case is a merge-train concurrency cancel (rapid
+# merges cancel older in-flight CI runs), and treating that cancel as
+# "not green" flapped the no-green-24h alarm (2026-07-07). Only a genuine
+# success or failure finalizes the verdict; non-verdict conclusions are
+# skipped so an older CONCLUSIVE run supplies it.
+_GREEN_CONCLUSION = "success"
+_FAILURE_CONCLUSIONS = frozenset({"failure", "timed_out", "startup_failure"})
+_VERDICT_CONCLUSIONS = frozenset({_GREEN_CONCLUSION}) | _FAILURE_CONCLUSIONS
+
 
 def _phase_code(status: str, conclusion: str | None) -> int:
     if status == "queued":
@@ -201,15 +212,21 @@ def _fetch_snapshot(token: str) -> dict[str, Any]:
                 "latest_age_seconds": age,
                 "latest_duration_seconds": duration,
             }
-        # latest_success reflects the newest COMPLETED run, not the newest run:
-        # a long in-flight run has no verdict yet, and counting it as "not
-        # green" made every 20-min workflow flap the no-green-24h alarm pending
-        # for its whole runtime (observed with smc-library-refresh 2026-07-07).
-        # Runs arrive newest-first, so the first completed run per workflow is
-        # the verdict; later (older) completed runs must not overwrite it.
+        # latest_success reflects the newest run that reached a VERDICT
+        # (success or a genuine failure), not merely the newest completed run:
+        # a long in-flight run has no verdict yet, and a cancelled/skipped run
+        # (merge-train concurrency cancel) is not a health signal either.
+        # Counting either as "not green" flapped the no-green-24h alarm
+        # (in-flight: smc-library-refresh; cancelled: CI merge train, both
+        # 2026-07-07). Runs arrive newest-first, so the first verdict run per
+        # workflow wins; non-verdict runs are skipped, older verdicts ignored.
         row = workflows_latest[workflow_id]
-        if status == "completed" and "latest_success_final" not in row:
-            row["latest_success"] = 1 if conclusion == "success" else 0
+        if (
+            status == "completed"
+            and conclusion in _VERDICT_CONCLUSIONS
+            and "latest_success_final" not in row
+        ):
+            row["latest_success"] = 1 if conclusion == _GREEN_CONCLUSION else 0
             row["latest_success_final"] = True
 
     # Drop the internal finalization marker before the snapshot is exposed.
