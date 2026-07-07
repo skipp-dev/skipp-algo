@@ -81,10 +81,10 @@ jobs:
         if: steps.gate.outputs.run == 'true'
         # EXACTLY the token-only env `railway up` is proven to work with
         # (2026-07-07 07:49 deploy). Empirically (dispatch 28859622704): adding
-        # RAILWAY_PROJECT_ID to the env makes `railway up` fail instantly under
-        # a project token, and `railway deployment list` does not work under a
-        # project token at all ("No linked project found") -- so the verify
-        # step below uses the public GraphQL API instead of the CLI.
+        # a project-id env var makes `railway up` fail instantly under a
+        # project token, and the CLI's deployment-list subcommand does not work
+        # under a project token at all ("No linked project found") -- so the
+        # verify step below uses the public GraphQL API instead of the CLI.
         env:
           RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
           DEPLOY_GIT_BRANCH: ${{ github.ref_name }}
