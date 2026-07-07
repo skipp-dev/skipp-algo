@@ -2041,6 +2041,145 @@ def test_render_metrics_bridge_last_success_age_preserved_on_failure(
     assert gh_age >= 590.0, f"github_workflow last_success_age too small: {gh_age}"
 
 
+def test_render_metrics_never_succeeded_bridge_age_falls_back_to_uptime(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A bridge failing since boot (last_success == 0) must report the time
+    since daemon start — NOT a near-zero age fabricated from the failed
+    attempt's ``fetched_at``. The old ``or fetched_at_unix`` fallback kept
+    the >180s/>900s staleness alerts permanently blind in exactly the
+    failing-from-boot case they exist for."""
+    import services.live_overlay_daemon.metrics as metrics_mod
+
+    _patch_common(
+        monkeypatch,
+        feed_ready=True,
+        market_open=True,
+        bar_count=10,
+        overlay_symbols=5,
+        overlay_age=60.0,
+    )
+    monkeypatch.setattr(
+        metrics_mod.uptimerobot_bridge,
+        "snapshot",
+        lambda: {
+            "enabled": 1,
+            "ok": 0,
+            "fetched_at_unix": time.time(),  # failed ATTEMPT is fresh
+            "last_success_fetched_at_unix": 0.0,  # never succeeded
+            "error_code": "timeout",
+            "counts": {"total": 0, "up": 0, "down": 0, "paused": 0, "unknown": 0},
+            "avg_response_time_ms": None,
+            "monitors": [],
+        },
+    )
+    monkeypatch.setattr(
+        metrics_mod.github_workflow_bridge,
+        "snapshot",
+        lambda: {
+            "enabled": 1,
+            "ok": 0,
+            "fetched_at_unix": time.time(),
+            "last_success_fetched_at_unix": 0.0,
+            "error_code": "http_error",
+            "counts": {"seen": 0, "success": 0, "failed": 0, "in_progress": 0, "queued": 0},
+            "latest_run_age_seconds": None,
+            "latest_run_duration_seconds": None,
+            "workflows": [],
+        },
+    )
+
+    startup_epoch = time.time() - 1200.0  # daemon has been up 20 minutes
+    body = metrics_mod.render_metrics(startup_ts=100.0, startup_epoch=startup_epoch)
+
+    for bridge in ("uptimerobot", "github_workflow"):
+        match = re.search(
+            rf'live_overlay_bridge_last_success_age_seconds\{{bridge="{bridge}"\}} ([0-9.eE+-]+)',
+            body,
+        )
+        assert match is not None, f"{bridge}: age series missing for never-succeeded bridge"
+        age = float(match.group(1))
+        assert age >= 1190.0, (
+            f"{bridge}: never-succeeded age must be >= uptime (~1200s), got {age} — "
+            "a small value means the failed attempt's fetched_at leaked back in"
+        )
+
+
+def test_render_metrics_disabled_bridge_still_omits_last_success_age(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The uptime fallback must NOT apply to a disabled bridge — its age
+    series stays omitted so a deliberately disabled bridge cannot trip the
+    staleness alerts."""
+    import services.live_overlay_daemon.metrics as metrics_mod
+
+    _patch_common(
+        monkeypatch,
+        feed_ready=True,
+        market_open=True,
+        bar_count=10,
+        overlay_symbols=5,
+        overlay_age=60.0,
+    )
+    monkeypatch.setattr(
+        metrics_mod.uptimerobot_bridge,
+        "snapshot",
+        lambda: {
+            "enabled": 0,
+            "ok": 0,
+            "fetched_at_unix": 0.0,
+            "last_success_fetched_at_unix": 0.0,
+            "error_code": "",
+            "counts": {"total": 0, "up": 0, "down": 0, "paused": 0, "unknown": 0},
+            "avg_response_time_ms": None,
+            "monitors": [],
+        },
+    )
+
+    body = metrics_mod.render_metrics(
+        startup_ts=100.0, startup_epoch=time.time() - 1200.0
+    )
+    assert 'live_overlay_bridge_last_success_age_seconds{bridge="uptimerobot"}' not in body
+
+
+def test_render_metrics_experiment_stale_gauge_wired_to_config(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """OVERLAY_EXPERIMENT_MAX_AGE_SECS is finally wired: the exporter emits a
+    0/1 stale verdict against config.experiment_max_age_secs() (mirroring the
+    trading-signals pattern). Unknown age must read not-stale."""
+    import services.live_overlay_daemon.metrics as metrics_mod
+
+    _patch_common(
+        monkeypatch,
+        feed_ready=True,
+        market_open=True,
+        bar_count=10,
+        overlay_symbols=5,
+        overlay_age=60.0,
+    )
+    # Dated scoring_root far in the past -> age known and >> any max age.
+    rollup = {
+        "schema_version": 1,
+        "scoring_root": "/x/artifacts/ci/measurement_benchmark_rolling/2026-06-21",
+        "files_scanned": 1,
+        "per_tf": {},
+        "phase_e2_verdict": {},
+    }
+    monkeypatch.setattr(metrics_mod.compute, "_load_experiment_snapshot", lambda: rollup)
+    monkeypatch.setattr(metrics_mod.compute, "_load_experiment_history", lambda: [])
+
+    body = metrics_mod.render_metrics(startup_ts=100.0)
+    assert "live_overlay_experiment_snapshot_max_age_seconds" in body
+    assert "live_overlay_experiment_snapshot_stale 1.0" in body
+
+    # Missing snapshot -> age unknown -> must NOT read stale.
+    monkeypatch.setattr(metrics_mod.compute, "_load_experiment_snapshot", lambda: {})
+    body = metrics_mod.render_metrics(startup_ts=100.0)
+    assert "live_overlay_experiment_snapshot_age_known 0.0" in body
+    assert "live_overlay_experiment_snapshot_stale 0.0" in body
+
+
 def test_escape_label_value_neutralises_format_breakers() -> None:
     import services.live_overlay_daemon.metrics as metrics_mod
 

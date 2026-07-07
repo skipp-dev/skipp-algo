@@ -562,9 +562,33 @@ def test_alert_rules_include_daemon_restarts_high() -> None:
         r for g in groups for r in g["rules"] if r["uid"] == "lo-daemon-restarts-high"
     )
     expr = rule["data"][0]["model"]["expr"]
-    assert "increase(live_overlay_daemon_restarts_total" in expr
+    # Restarts are detected via CHANGES of the start-time gauge. The old
+    # expr (increase over live_overlay_daemon_restarts_total) was inert:
+    # that "counter" is a constant 1 per process, Prometheus never sees a
+    # reset across restarts, and increase() was always 0 — the crash-loop
+    # alert could never fire (fixed 2026-07-07).
+    assert "changes(live_overlay_process_start_time_seconds" in expr
+    assert "live_overlay_daemon_restarts_total" not in expr
     assert "[24h]" in expr
     assert rule["labels"]["severity"] == "high"
+
+
+def test_alert_rules_include_staleness_and_supervisor_heal_rules() -> None:
+    """The 2026-07-07 audit additions: signals/experiment staleness and the
+    recurring-supervisor-heal alert must exist and reference their metrics."""
+    groups = mod.load_alert_groups(ALERT_RULES)
+    rules = {r["uid"]: r for g in groups for r in g["rules"]}
+
+    signals = rules["lo-trading-signals-snapshot-stale"]
+    assert "live_overlay_trading_signals_snapshot_stale" in signals["data"][0]["model"]["expr"]
+
+    experiment = rules["lo-experiment-snapshot-stale"]
+    assert "live_overlay_experiment_snapshot_stale" in experiment["data"][0]["model"]["expr"]
+
+    heals = rules["lo-feed-supervisor-heals-recurring"]
+    heals_expr = heals["data"][0]["model"]["expr"]
+    assert "increase(live_overlay_feed_supervisor_heals" in heals_expr
+    assert "[1h]" in heals_expr
 
 
 def test_build_provisioned_rule_adds_default_relative_time_range() -> None:

@@ -1015,6 +1015,34 @@ def _collect_process_metrics(startup_ts: float, startup_epoch: float = 0.0) -> l
     return lines
 
 
+def _bridge_last_success_age(
+    last_success_ts: float,
+    *,
+    enabled: bool,
+    configured: bool,
+    startup_epoch: float,
+) -> float | None:
+    """Age of the bridge's last SUCCESSFUL poll — never fabricated.
+
+    ``last_success_ts > 0`` → real age since that success. ``0`` means the
+    bridge has never succeeded in this process (all bridges preserve a cached
+    ``last_success_fetched_at_unix`` across later failures, so zero cannot
+    mean "lost during a failure"): for an enabled+configured bridge return
+    the time since daemon start instead — a truthful lower bound for "time
+    without a success" that keeps the series present (contract alert stays
+    satisfied) and lets the staleness alerts fire once thresholds are
+    exceeded. Previously the callers fell back to ``fetched_at_unix``, the
+    timestamp of the failed ATTEMPT, which reported a near-zero age while a
+    bridge was failing from boot and kept the stale alerts permanently blind.
+    Disabled/unconfigured bridges return None (series omitted, as before).
+    """
+    if math.isfinite(last_success_ts) and last_success_ts > 0:
+        return max(0.0, time.time() - last_success_ts)
+    if enabled and configured and startup_epoch > 0:
+        return max(0.0, time.time() - startup_epoch)
+    return None
+
+
 def _append_bridge_metrics(
     lines: list[str],
     *,
@@ -1352,15 +1380,22 @@ def render_metrics(startup_ts: float, startup_epoch: float = 0.0) -> str:
     uptime_enabled = bool(uptime_snapshot.get("enabled"))
     uptime_configured = bool(uptime_snapshot.get("configured", uptime_enabled))
     uptime_ok = bool(uptime_snapshot.get("ok"))
+    # Age comes from last_success ONLY — never from fetched_at, which on a
+    # failed poll is the timestamp of the failed ATTEMPT and fabricated a
+    # near-zero "last success age" while a bridge was failing from boot,
+    # keeping the stale alerts blind. Never-succeeded-yet (both bridges
+    # preserve a cached last_success across later failures, so ts==0 means
+    # exactly that): report time since daemon start — the truthful lower
+    # bound for "time without a success" — so the series stays present for
+    # the contract alert and staleness fires once thresholds are exceeded.
     last_success_ts = _prom_numeric_value(
-        uptime_snapshot.get("last_success_fetched_at_unix")
-        or uptime_snapshot.get("fetched_at_unix")
-        or 0.0
+        uptime_snapshot.get("last_success_fetched_at_unix") or 0.0
     )
-    snapshot_age = (
-        max(0.0, time.time() - last_success_ts)
-        if math.isfinite(last_success_ts) and last_success_ts > 0
-        else None
+    snapshot_age = _bridge_last_success_age(
+        last_success_ts,
+        enabled=uptime_enabled,
+        configured=uptime_configured,
+        startup_epoch=startup_epoch,
     )
 
     error_code = str(uptime_snapshot.get("error_code") or "")
@@ -1407,15 +1442,16 @@ def render_metrics(startup_ts: float, startup_epoch: float = 0.0) -> str:
     wf_enabled = bool(workflow_snapshot.get("enabled"))
     wf_configured = bool(workflow_snapshot.get("configured", wf_enabled))
     wf_ok = bool(workflow_snapshot.get("ok"))
+    # last_success only — see the uptimerobot block above for the rationale
+    # (fetched_at on a failed poll fabricated a fresh "last success age").
     wf_last_success_ts = _prom_numeric_value(
-        workflow_snapshot.get("last_success_fetched_at_unix")
-        or workflow_snapshot.get("fetched_at_unix")
-        or 0.0
+        workflow_snapshot.get("last_success_fetched_at_unix") or 0.0
     )
-    wf_snapshot_age = (
-        max(0.0, time.time() - wf_last_success_ts)
-        if math.isfinite(wf_last_success_ts) and wf_last_success_ts > 0
-        else None
+    wf_snapshot_age = _bridge_last_success_age(
+        wf_last_success_ts,
+        enabled=wf_enabled,
+        configured=wf_configured,
+        startup_epoch=startup_epoch,
     )
 
     wf_error_code = str(workflow_snapshot.get("error_code") or "")
@@ -1631,6 +1667,22 @@ def render_metrics(startup_ts: float, startup_epoch: float = 0.0) -> str:
     age_value = experiment["age_seconds"]
     age_float = float(age_value) if isinstance(age_value, (int, float)) else 0.0
     lines.append(f"live_overlay_experiment_snapshot_age_seconds {age_float:.1f}")
+    # Staleness verdict mirrors the trading-signals pattern: this wires the
+    # documented-but-previously-inert OVERLAY_EXPERIMENT_MAX_AGE_SECS knob
+    # (config.experiment_max_age_secs, default 36h) to an alertable 0/1 gauge.
+    # Unknown age (age_known == 0) reads as not-stale so a fresh daemon does
+    # not page before the first snapshot load.
+    experiment_max_age = float(config.experiment_max_age_secs())
+    experiment_age_known = _prom_numeric_value(experiment["age_known"])
+    experiment_stale = (
+        1.0
+        if experiment_age_known > 0 and age_float > experiment_max_age
+        else 0.0
+    )
+    lines.append("# TYPE live_overlay_experiment_snapshot_max_age_seconds gauge")
+    lines.append(f"live_overlay_experiment_snapshot_max_age_seconds {experiment_max_age:.1f}")
+    lines.append("# TYPE live_overlay_experiment_snapshot_stale gauge")
+    lines.append(f"live_overlay_experiment_snapshot_stale {experiment_stale:.1f}")
     lines.append("# TYPE live_overlay_experiment_files_scanned gauge")
     lines.append(f"live_overlay_experiment_files_scanned {_prom_numeric_value(experiment['files_scanned'])}")
 
@@ -1731,15 +1783,15 @@ def render_metrics(startup_ts: float, startup_epoch: float = 0.0) -> str:
     railway_enabled = bool(railway_snapshot.get("enabled"))
     railway_configured = bool(railway_snapshot.get("configured", railway_enabled))
     railway_ok = bool(railway_snapshot.get("ok"))
+    # last_success only — see the uptimerobot block above for the rationale.
     railway_last_success_ts = _prom_numeric_value(
-        railway_snapshot.get("last_success_fetched_at_unix")
-        or railway_snapshot.get("fetched_at_unix")
-        or 0.0
+        railway_snapshot.get("last_success_fetched_at_unix") or 0.0
     )
-    railway_age = (
-        max(0.0, time.time() - railway_last_success_ts)
-        if math.isfinite(railway_last_success_ts) and railway_last_success_ts > 0
-        else None
+    railway_age = _bridge_last_success_age(
+        railway_last_success_ts,
+        enabled=railway_enabled,
+        configured=railway_configured,
+        startup_epoch=startup_epoch,
     )
 
     error = railway_snapshot.get("error")
