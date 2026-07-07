@@ -437,4 +437,17 @@ def build_news_scores(
             row["source_rank"] = 3
             row["event_labels_all"] = []
 
+        # --- Directional news score (evaluation pass-through, NOT scored) ---
+        # The weighted `news` component is deliberately a direction-blind
+        # mention counter (see the misnomer note above); changing it mid-c10b
+        # would corrupt the experiment's feature history. This SIGNED variant
+        # (mention intensity × average article sentiment, so bearish press
+        # reads negative) is logged as a pass-through column instead, so its
+        # predictive value against pnl_30m_pct_signed can be evaluated BEFORE
+        # any weight ever moves. Range ≈ [-2, +2]; 0.0 when no articles or
+        # neutral coverage.
+        row["news_directional_score"] = round(
+            row["news_catalyst_score"] * float(row.get("sentiment_score") or 0.0), 4
+        )
+
     return scores, metrics

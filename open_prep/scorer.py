@@ -504,6 +504,11 @@ def filter_candidate(
         "upgrade_downgrade_firm": quote.get("upgrade_downgrade_firm", ""),
         "upgrade_downgrade_date": quote.get("upgrade_downgrade_date"),
         # Playbook-relevant news enrichment (via news.py)
+        # Signed mention-intensity × avg-sentiment variant; evaluation
+        # pass-through only (weight 0) — see news.py for the rationale.
+        "news_directional_score": _to_float(
+            (news_metrics_entry or {}).get("news_directional_score"), default=0.0
+        ),
         "news_event_class": (news_metrics_entry or {}).get("event_class", "UNKNOWN"),
         "news_event_label": (news_metrics_entry or {}).get("event_label", "generic"),
         "news_event_labels_all": (news_metrics_entry or {}).get("event_labels_all", []),
@@ -784,6 +789,7 @@ def score_candidate(
         "news_sentiment_emoji": nm.get("sentiment_emoji", "🟡"),
         "news_sentiment_label": nm.get("sentiment_label", "neutral"),
         "news_sentiment_score": nm.get("sentiment_score", 0.0),
+        "news_directional_score": round(f["news_directional_score"], 4),
         "upgrade_downgrade_emoji": f["upgrade_downgrade_emoji"],
         "upgrade_downgrade_label": f["upgrade_downgrade_label"],
         "upgrade_downgrade_action": f["upgrade_downgrade_action"],
