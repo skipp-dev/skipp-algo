@@ -484,10 +484,15 @@ def test_update_script_core_metrics_present_checks_critical_series(temp_dashboar
 
 
 def test_update_script_re_adds_traffic_alert_armed_without_extra_shift(temp_dashboard: Path) -> None:
-    """Pine Polling Watchdog is self-healed without repeatedly moving lower rows."""
+    """Pine Polling Watchdog is self-healed (re-added with correct content) when
+    removed, without shifting the rest of the reflow-owned layout — the updater
+    no longer forces positions (2026-07-07 user-first redesign)."""
     _run_script(temp_dashboard)
     data = json.loads(temp_dashboard.read_text(encoding="utf-8"))
-    operational_y = next(p for p in data["panels"] if p.get("title") == "Operational Drill-down")["gridPos"]["y"]
+    # A stable reference deep in the dashboard: its y must not move when the
+    # watchdog tile is re-added.
+    ref_title = "Railway CPU Cores"
+    ref_y_before = next(p for p in data["panels"] if p.get("title") == ref_title)["gridPos"]["y"]
     data["panels"] = [p for p in data["panels"] if p.get("title") != "Pine Polling Watchdog"]
     temp_dashboard.write_text(json.dumps(data, indent=2), encoding="utf-8")
 
@@ -500,8 +505,8 @@ def test_update_script_re_adds_traffic_alert_armed_without_extra_shift(temp_dash
     assert panel["targets"][0]["datasource"] == {"type": "prometheus", "uid": "grafanacloud-prom"}
     assert panel["fieldConfig"]["defaults"]["mappings"][0]["options"]["0"]["text"] == "NOT ARMED"
     assert panel["fieldConfig"]["defaults"]["mappings"][0]["options"]["1"]["text"] == "ARMED"
-    updated_operational = next(p for p in updated["panels"] if p.get("title") == "Operational Drill-down")
-    assert updated_operational["gridPos"]["y"] == operational_y
+    ref_y_after = next(p for p in updated["panels"] if p.get("title") == ref_title)["gridPos"]["y"]
+    assert ref_y_after == ref_y_before, "re-adding the watchdog must not shift other panels"
 
 
 def test_update_script_railway_bridge_uses_generic_bridge_contract(temp_dashboard: Path) -> None:

@@ -223,7 +223,9 @@ TRAFFIC_ALERT_ARMED_PANEL: dict[str, Any] = {
         }
     },
     "options": {
-        "colorMode": "background_solid",
+        # Muted tint, not a flat solid fill — matches the 2026-07-07 calm-palette
+        # redesign where binary/health tiles use colorMode "background".
+        "colorMode": "background",
         "graphMode": "none",
         "reduceOptions": {
             "calcs": ["lastNotNull"],
@@ -475,7 +477,13 @@ def _ensure_traffic_alert_armed_panel(data: dict[str, Any]) -> bool:
         panels.insert(insert_at, desired)
         return True
 
+    # Content-only reconcile for an EXISTING tile: layout (gridPos) is owned by
+    # the committed dashboard (the 2026-07-07 user-first reflow), so this
+    # updater no longer forces the tile back to a fixed y/x. It still keeps the
+    # query, mappings, datasource and labelling in sync.
     for key, value in desired.items():
+        if key == "gridPos":
+            continue
         if panel.get(key) != value:
             panel[key] = copy.deepcopy(value)
             changed = True
@@ -1557,8 +1565,10 @@ def _fix_market_traffic_health_description(data: dict[str, Any]) -> bool:
     if not panel:
         return changed
     wanted = (
-        "Synthetic signal that amplifies request health while the US regular "
-        "trading session is open and suppresses it when closed."
+        "Are Pine/TradingView clients polling the /smc_live overlay endpoint? "
+        "Synthetic signal that amplifies this overlay-request health while the US "
+        "regular trading session is open and suppresses it when the market is "
+        "closed. (This is NOT news/provider traffic.)"
     )
     if panel.get("description") != wanted:
         panel["description"] = wanted

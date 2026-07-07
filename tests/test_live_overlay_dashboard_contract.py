@@ -509,12 +509,11 @@ def test_dashboard_rows_are_either_expanded_or_contain_children() -> None:
 
 
 def test_dashboard_has_process_resident_memory_panel() -> None:
-    """A process-resident-memory panel must sit in the secondary top row and match the memory alerts."""
+    """Process resident memory must live in the Daemon Operations section and match the memory alerts."""
     dashboard = json.loads(_DASHBOARD_JSON.read_text(encoding="utf-8"))
     panels = _dashboard_panels(dashboard)
     panel = next(p for p in panels if p.get("title") == "Process Resident Memory")
-    gp = panel["gridPos"]
-    assert gp["y"] == 13 and gp["x"] == 20 and gp["w"] == 4 and gp["h"] == 3, gp
+    assert _section_of(dashboard, "Process Resident Memory") == "Daemon Operations"
     expr = panel["targets"][0]["expr"]
     assert "live_overlay_process_resident_memory_bytes" in expr, expr
 
@@ -693,16 +692,17 @@ def test_dashboard_refresh_rate_reduced() -> None:
 
 
 def test_dashboard_has_collector_scrape_targets_row() -> None:
-    """A Collector row with up and memory panels for alloy/signals_producer/live_overlay must exist."""
+    """Collector scrape-target panels must live in the Infrastructure section (expanded)."""
     dashboard = json.loads(_DASHBOARD_JSON.read_text(encoding="utf-8"))
     row = next(
-        p for p in dashboard["panels"] if p.get("type") == "row" and p.get("title") == "Collector / Scrape Targets"
+        p for p in dashboard["panels"]
+        if p.get("type") == "row" and p.get("title") == "Infrastructure (Railway / Collector)"
     )
-    # Service-owner detail rows are collapsed by default to reduce first-load noise.
-    assert row.get("collapsed") is True
+    assert row.get("collapsed") is False
     titles = {p.get("title") for p in _dashboard_panels(dashboard)}
     assert "Scrape Targets Up" in titles
     assert "Collector Resident Memory" in titles
+    assert _section_of(dashboard, "Scrape Targets Up") == "Infrastructure (Railway / Collector)"
 
 
 def test_dashboard_latency_panel_uses_only_histogram_quantile() -> None:
@@ -764,13 +764,24 @@ def test_dashboard_hotspots_timeframes_legend_uses_timeframe_label() -> None:
     assert all("{{tf}}" not in legend for legend in legends), legends
 
 
-def test_dashboard_y12_grid_gap_is_closed() -> None:
-    """The x=0..24 slot at y=10 must be fully occupied by the health-cause stat row."""
+def test_dashboard_has_no_horizontal_gaps_within_stat_rows() -> None:
+    """Stat tiles packed on the same y must tile x=0 leftward with no gaps, so
+    a section reads as a clean grid rather than scattered tiles."""
     dashboard = json.loads(_DASHBOARD_JSON.read_text(encoding="utf-8"))
-    panels = _dashboard_panels(dashboard)
-    at_y10 = [p for p in panels if p.get("gridPos", {}).get("y") == 10]
-    xs = {p["gridPos"]["x"] for p in at_y10}
-    assert {0, 4, 8, 12, 16, 20}.issubset(xs), f"y=10 health-cause panels occupy x positions {xs}"
+    panels = [p for p in _dashboard_panels(dashboard) if p.get("type") != "row"]
+    by_y: dict[int, list[dict]] = {}
+    for p in panels:
+        by_y.setdefault(p["gridPos"]["y"], []).append(p)
+    for y, row in by_y.items():
+        row.sort(key=lambda p: p["gridPos"]["x"])
+        cursor = 0
+        for p in row:
+            gp = p["gridPos"]
+            assert gp["x"] == cursor, (
+                f"gap/overlap at y={y}: {p.get('title')} starts at x={gp['x']}, expected {cursor}"
+            )
+            cursor += gp["w"]
+        assert cursor <= 24, f"row at y={y} overflows 24 columns ({cursor})"
 
 
 def test_latency_alert_uses_histogram_quantile_bucket() -> None:
@@ -903,21 +914,111 @@ PROMOTED_SLO_TITLES = {
     "Error Budget Burn Rate",
 }
 
+# --------------------------------------------------------------------------- #
+# User-first section design (2026-07-07 product-owner redesign): one long
+# always-expanded dashboard, sections ordered by who reads them first —
+# at-a-glance status and trading evidence up top, service-owner drill-downs
+# below. No collapsed rows (scrolling over clicking). These helpers assert the
+# design by section membership + ordering rather than brittle exact positions.
+# --------------------------------------------------------------------------- #
+SECTION_ORDER = [
+    "Status at a Glance",
+    "Trading Evidence & Governance (§2 / §5 Track)",
+    "Live Data Chain (Feed → Overlay → Pine)",
+    "API Quality (SLO)",
+    "Daemon Operations",
+    "External Integrations (CI / Uptime)",
+    "Providers (Feeds, News & Credentials)",
+    "Infrastructure (Railway / Collector)",
+]
+
+
+def _rows_in_order(dashboard: dict) -> list[dict]:
+    return [
+        p
+        for p in sorted(dashboard["panels"], key=lambda p: p["gridPos"]["y"])
+        if p.get("type") == "row"
+    ]
+
+
+def _section_of(dashboard: dict, title: str) -> str | None:
+    """Return the section-row title whose y-band contains the given panel."""
+    panel = next(p for p in _dashboard_panels(dashboard) if p.get("title") == title)
+    py = panel["gridPos"]["y"]
+    current = None
+    for r in _rows_in_order(dashboard):
+        if r["gridPos"]["y"] <= py:
+            current = r["title"]
+    return current
+
+
+def test_dashboard_sections_are_user_first_and_all_expanded() -> None:
+    """The 8 sections must appear in the approved user-first order, every one
+    expanded (no collapsed rows — scrolling is preferred over clicking)."""
+    dashboard = json.loads(_DASHBOARD_JSON.read_text(encoding="utf-8"))
+    rows = _rows_in_order(dashboard)
+    assert [r["title"] for r in rows] == SECTION_ORDER
+    for r in rows:
+        assert r.get("collapsed") is False, f"{r['title']} must be expanded"
+        assert r.get("description"), f"{r['title']} needs a section description"
+
+
+def test_dashboard_databento_and_fmp_are_surfaced_as_providers() -> None:
+    """Databento (market-data feed) and FMP credential health must be visible in
+    the Providers section — a user should see the feeds they actually use."""
+    dashboard = json.loads(_DASHBOARD_JSON.read_text(encoding="utf-8"))
+    for title in ("Databento API Key", "Databento Delivery Age", "FMP API Key"):
+        assert _section_of(dashboard, title) == "Providers (Feeds, News & Credentials)", title
+    panel = next(p for p in _dashboard_panels(dashboard) if p.get("title") == "Databento Delivery Age")
+    assert "databento_delivery_staleness_days" in panel["targets"][0]["expr"]
+
+
+def test_dashboard_fmp_bandwidth_panels_present() -> None:
+    """FMP data-VOLUME (bandwidth quota) panels must be in the Providers section
+    so the FMP 90%-quota concern is visible/alertable from the dashboard."""
+    dashboard = json.loads(_DASHBOARD_JSON.read_text(encoding="utf-8"))
+    for title in ("FMP Bandwidth Used (%)", "FMP Bandwidth Used (GB)", "Provider Data Volume (this month)"):
+        assert _section_of(dashboard, title) == "Providers (Feeds, News & Credentials)", title
+    pct = next(p for p in _dashboard_panels(dashboard) if p.get("title") == "FMP Bandwidth Used (%)")
+    expr = pct["targets"][0]["expr"]
+    assert "live_overlay_provider_usage_bytes" in expr
+    assert "live_overlay_provider_bandwidth_limit_bytes" in expr
+
+
+def test_dashboard_bridge_tiles_show_state_word_not_job_name() -> None:
+    """The scrape-bridge tiles must show the state word only (textMode=value),
+    not the meaningless Prometheus job label, and read the current instant."""
+    dashboard = json.loads(_DASHBOARD_JSON.read_text(encoding="utf-8"))
+    for title in ("GitHub Workflow Bridge", "UptimeRobot Bridge"):
+        panel = next(p for p in _dashboard_panels(dashboard) if p.get("title") == title)
+        assert panel["options"].get("textMode") == "value", title
+        assert panel["targets"][0].get("instant") is True, title
+        assert "scrap" in panel.get("description", "").lower(), title
+
+
+def test_dashboard_traffic_wording_is_disambiguated() -> None:
+    """'traffic' must never be bare: overlay-request panels must name the source
+    (Pine/overlay /smc_live), so a user knows WHICH traffic is meant."""
+    dashboard = json.loads(_DASHBOARD_JSON.read_text(encoding="utf-8"))
+    by = {p.get("title"): p for p in _dashboard_panels(dashboard)}
+    sr = by["Success Rate (%)"]
+    assert sr["fieldConfig"]["defaults"].get("noValue") != "NO TRAFFIC"
+    assert "/smc_live" in sr.get("description", "")
+    mth = by["Market Traffic Health"].get("description", "").lower()
+    assert "overlay" in mth or "pine" in mth, mth
+
 
 def test_dashboard_user_impact_block_is_promoted_to_top() -> None:
-    """User-impact/SLO panels must sit directly after the root-cause stat row."""
+    """SLO / user-impact panels must sit in the API Quality (SLO) section,
+    which is above the service-owner Daemon Operations drill-down."""
     dashboard = json.loads(_DASHBOARD_JSON.read_text(encoding="utf-8"))
-    panels = _dashboard_panels(dashboard)
-    by_title = {p.get("title"): p for p in panels}
+    by_title = {p.get("title"): p for p in _dashboard_panels(dashboard)}
     for title in PROMOTED_SLO_TITLES:
         assert title in by_title, f"missing panel: {title}"
-    assert by_title["Success Rate (%)"]["gridPos"]["y"] == 23
-    assert by_title["Market Traffic Health"]["gridPos"]["y"] == 23
-    assert by_title["Market Data Freshness"]["gridPos"]["y"] == 23
-    assert by_title["Core Metrics Present"]["gridPos"]["y"] == 23
-    assert by_title["Bridge Metrics Present"]["gridPos"]["y"] == 28
-    assert by_title["Latency vs. SLO (ms)"]["gridPos"]["y"] == 33
-    assert by_title["Error Budget Burn Rate"]["gridPos"]["y"] == 33
+    for title in ("Success Rate (%)", "Latency vs. SLO (ms)", "Error Budget Burn Rate"):
+        assert _section_of(dashboard, title) == "API Quality (SLO)", title
+    rows = {r["title"]: r["gridPos"]["y"] for r in _rows_in_order(dashboard)}
+    assert rows["API Quality (SLO)"] < rows["Daemon Operations"]
 
 
 def test_dashboard_title_uses_api_not_daemon() -> None:
@@ -953,10 +1054,12 @@ def test_dashboard_idle_state_is_gray_not_orange() -> None:
 
 
 def test_dashboard_incident_overview_row_renamed_and_compacted() -> None:
-    """The first row must be renamed to Incident Overview."""
+    """The first row is the at-a-glance status section and holds the key tiles."""
     dashboard = json.loads(_DASHBOARD_JSON.read_text(encoding="utf-8"))
     row = next(p for p in dashboard["panels"] if p.get("type") == "row" and p.get("gridPos", {}).get("y") == 0)
-    assert row["title"] == "Incident Overview"
+    assert row["title"] == "Status at a Glance"
+    for title in ("Overall Health", "Active Alerts"):
+        assert _section_of(dashboard, title) == "Status at a Glance", title
 
 
 def test_dashboard_uptimerobot_monitor_states_moved_to_external_integrations() -> None:
@@ -999,28 +1102,22 @@ def test_dashboard_has_no_grid_overlaps() -> None:
 
 
 def test_dashboard_external_details_are_not_in_incident_overview() -> None:
-    """External-integration detail must not appear inside the first triage section."""
+    """External-integration detail must live in its own section, not top status."""
     dashboard = json.loads(_DASHBOARD_JSON.read_text(encoding="utf-8"))
-    rows = sorted(
-        [p for p in dashboard["panels"] if p.get("type") == "row"],
-        key=lambda p: p["gridPos"]["y"],
-    )
-    incident_end = next(r for r in rows if r["title"] == "Operational Drill-down")["gridPos"]["y"]
-    external_detail = next(p for p in _dashboard_panels(dashboard) if p.get("title") == "UptimeRobot Monitor States")
-    assert external_detail["gridPos"]["y"] > incident_end
+    assert _section_of(dashboard, "UptimeRobot Monitor States") == "External Integrations (CI / Uptime)"
 
 
 def test_dashboard_operational_drill_down_row_exists() -> None:
-    """A dedicated drill-down row must split incident overview from root-cause details."""
+    """A dedicated Daemon Operations section must hold the service-owner details."""
     dashboard = json.loads(_DASHBOARD_JSON.read_text(encoding="utf-8"))
     titles = {p.get("title") for p in dashboard["panels"] if p.get("type") == "row"}
-    assert "Operational Drill-down" in titles
+    assert "Daemon Operations" in titles
 
 
 def test_dashboard_reliability_row_renamed() -> None:
-    """The former SLO & Reliability row must reflect its new drill-down role."""
+    """The Daemon Operations section header must explain its restart/backpressure role."""
     dashboard = json.loads(_DASHBOARD_JSON.read_text(encoding="utf-8"))
-    row = next(p for p in dashboard["panels"] if p.get("type") == "row" and p.get("title") == "Reliability Drill-down")
+    row = next(p for p in dashboard["panels"] if p.get("type") == "row" and p.get("title") == "Daemon Operations")
     assert "restart" in row.get("description", "").lower()
     assert "backpressure" in row.get("description", "").lower()
 
@@ -1054,12 +1151,7 @@ def test_dashboard_triage_guide_has_quick_links() -> None:
 def test_dashboard_incident_rows_have_descriptions() -> None:
     """Row headers must explain their purpose for 3-a.m. triage."""
     dashboard = json.loads(_DASHBOARD_JSON.read_text(encoding="utf-8"))
-    required = {
-        "Incident Overview",
-        "Operational Drill-down",
-        "Collector / Scrape Targets",
-        "Railway Resources",
-    }
+    required = set(SECTION_ORDER)
     rows = {p["title"]: p for p in dashboard["panels"] if p.get("type") == "row"}
     for title in required:
         assert rows[title].get("description"), title
@@ -1070,6 +1162,8 @@ def test_dashboard_top_incident_path_is_above_drilldown() -> None:
     dashboard = json.loads(_DASHBOARD_JSON.read_text(encoding="utf-8"))
     y = {p["title"]: p["gridPos"]["y"] for p in _dashboard_panels(dashboard) if "title" in p}
 
+    rows = {r["title"]: r["gridPos"]["y"] for r in _rows_in_order(dashboard)}
+    drilldown_start = rows["Daemon Operations"]
     for title in (
         "Overall Health",
         "Active Alerts",
@@ -1081,7 +1175,7 @@ def test_dashboard_top_incident_path_is_above_drilldown() -> None:
         "Error Budget Burn Rate",
         "Pine Polling Watchdog",
     ):
-        assert y[title] < y["Operational Drill-down"], title
+        assert y[title] < drilldown_start, title
 
 
 def test_dashboard_top_tiles_have_drilldown_links() -> None:
@@ -1137,7 +1231,11 @@ def test_dashboard_drilldown_links_target_real_panels() -> None:
 def test_dashboard_detail_rows_are_marked_as_service_owner_details() -> None:
     """Detail rows must explicitly describe themselves as service-owner details."""
     dashboard = json.loads(_DASHBOARD_JSON.read_text(encoding="utf-8"))
-    detail_rows = {"Provider Health", "Collector / Scrape Targets", "Railway Resources"}
+    detail_rows = {
+        "API Quality (SLO)", "Daemon Operations",
+        "External Integrations (CI / Uptime)", "Providers (Feeds, News & Credentials)",
+        "Infrastructure (Railway / Collector)",
+    }
     rows = {p["title"]: p for p in dashboard["panels"] if p.get("type") == "row"}
     for title in detail_rows:
         desc = rows[title].get("description", "")
@@ -1212,18 +1310,19 @@ def test_dashboard_has_producer_poll_age_panel() -> None:
     assert "Producer Poll Age" in titles
 
 
-def test_dashboard_signal_readiness_panels_are_at_y16() -> None:
-    """Signal readiness panels share a single row directly above Global Market Sessions."""
+def test_dashboard_signal_readiness_panels_are_grouped() -> None:
+    """The four signal-readiness tiles must stay grouped together inside the
+    Live Data Chain section (same row band), not scattered."""
     dashboard = json.loads(_DASHBOARD_JSON.read_text(encoding="utf-8"))
-    panels = _dashboard_panels(dashboard)
-    readiness = [
-        p
-        for p in panels
-        if p.get("title") in ("Signal Pipeline Ready", "Open-Prep Snapshot", "Watchlist Symbols", "Producer Poll Age")
-    ]
+    names = ("Signal Pipeline Ready", "Open-Prep Snapshot", "Watchlist Symbols", "Producer Poll Age")
+    readiness = [p for p in _dashboard_panels(dashboard) if p.get("title") in names]
     assert len(readiness) == 4
     for panel in readiness:
-        assert panel["gridPos"]["y"] == 16, panel["title"]
+        assert _section_of(dashboard, panel["title"]) == "Live Data Chain (Feed → Overlay → Pine)"
+    ys = {p["gridPos"]["y"] for p in readiness}
+    assert max(ys) - min(ys) <= max(p["gridPos"]["h"] for p in readiness), (
+        f"readiness tiles are not grouped on one band: y={sorted(ys)}"
+    )
 
 
 def test_alert_rules_include_signals_producer_readiness_group() -> None:
@@ -1329,35 +1428,22 @@ def test_dashboard_market_traffic_health_explains_us_market_context() -> None:
     assert "europe" not in description, description
 
 
-def test_dashboard_detail_rows_collapsed_by_default() -> None:
-    """Service-owner detail rows should be collapsed to reduce first-load noise."""
+def test_dashboard_no_row_is_collapsed() -> None:
+    """Redesign contract: every section is expanded so content is visible by
+    scrolling — no click-to-expand tabs (2026-07-07 product-owner decision)."""
     dashboard = json.loads(_DASHBOARD_JSON.read_text(encoding="utf-8"))
-    detail_rows = {
-        "External Integrations",
-        "Reliability Drill-down",
-        "Provider Health",
-        "Collector / Scrape Targets",
-        "Railway Resources",
-    }
-    rows = {p["title"]: p for p in dashboard["panels"] if p.get("type") == "row"}
-    for title in detail_rows:
-        assert rows[title].get("collapsed") is True, f"{title} should be collapsed by default"
-    assert rows["Incident Overview"].get("collapsed") is False
-    assert rows["Operational Drill-down"].get("collapsed") is False
+    for row in _rows_in_order(dashboard):
+        assert row.get("collapsed") is False, f"{row['title']} must not be collapsed"
+        assert not row.get("panels"), (
+            f"{row['title']} must not nest panels (expanded rows keep panels at top level)"
+        )
 
 
 def test_dashboard_external_integration_details_are_co_located() -> None:
-    """External-integration root-cause detail panels must live inside External Integrations."""
+    """External-integration detail panels must live inside the External Integrations section."""
     dashboard = json.loads(_DASHBOARD_JSON.read_text(encoding="utf-8"))
-    panels = _dashboard_panels(dashboard)
-    by_title = {p.get("title"): p for p in panels}
-    external_row_y = by_title["External Integrations"]["gridPos"]["y"]
-    next_row_y = next(
-        p["gridPos"]["y"] for p in dashboard["panels"] if p.get("type") == "row" and p["gridPos"]["y"] > external_row_y
-    )
     for title in ("Bridge Scrape Health Timeline", "GitHub Workflows — Latest Run Detail"):
-        y = by_title[title]["gridPos"]["y"]
-        assert external_row_y < y < next_row_y, f"{title} y={y} not inside External Integrations"
+        assert _section_of(dashboard, title) == "External Integrations (CI / Uptime)", title
 
 
 def test_dashboard_external_checks_ignores_unconfigured_bridges() -> None:
@@ -1406,7 +1492,7 @@ def test_dashboard_traffic_alert_armed_tile_uses_expected_market_traffic() -> No
     dashboard = json.loads(_DASHBOARD_JSON.read_text(encoding="utf-8"))
     panels = {p.get("title"): p for p in _dashboard_panels(dashboard)}
     panel = panels["Pine Polling Watchdog"]
-    assert panel["gridPos"]["y"] == 1 and panel["gridPos"]["x"] == 8
+    assert _section_of(dashboard, "Pine Polling Watchdog") == "Status at a Glance"
     expr = panel["targets"][0]["expr"]
     mappings = panel["fieldConfig"]["defaults"]["mappings"]
     labels = {v["text"]: v["color"] for m in mappings for v in (m.get("options") or {}).values()}
@@ -1416,7 +1502,8 @@ def test_dashboard_traffic_alert_armed_tile_uses_expected_market_traffic() -> No
     assert labels["NOT ARMED"] == "dark-red"
     assert labels["ARMED"] == "dark-green"
     assert panel["fieldConfig"]["defaults"].get("noValue") == "NO SIGNAL"
-    assert panel["gridPos"]["y"] < panels["Operational Drill-down"]["gridPos"]["y"]
+    rows = {r["title"]: r["gridPos"]["y"] for r in _rows_in_order(dashboard)}
+    assert panel["gridPos"]["y"] < rows["Daemon Operations"]
 
 
 def test_dashboard_railway_bridge_shows_generic_contract() -> None:
