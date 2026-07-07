@@ -102,6 +102,29 @@ def test_lt_comparisons_use_bool_modifier() -> None:
     assert not offenders, f"`<`/`<=` without `bool` (inert against a gt-0 threshold): {offenders}"
 
 
+def test_equality_zero_comparisons_use_bool_modifier() -> None:
+    """`x == 0` feeding a Grafana `gt 0` threshold is inert for the same reason
+    as ``< 1``: the match returns the value 0, and ``0 > 0`` is false. Require
+    ``== bool 0``. Found live 2026-07-07 in ``lo-workflow-no-green-24h``
+    (``min(...) == 0``) and the ``loaded == 0`` leg of ``lo-evidence-snapshot``.
+
+    ``count()``/``sum()`` wrappers are exempt: they return a positive
+    cardinality (``count(up == 0) > 0``), not the compared value.
+    """
+    # Drop count()/sum() argument bodies (one level of nesting) so the exempt
+    # cardinality pattern is not flagged.
+    agg = re.compile(r"\b(?:count|sum)\s*\((?:[^()]|\([^()]*\))*\)")
+    # `== 0` (bad) vs `== bool 0` (good): the bool form has `bool` between the
+    # operator and the 0, so `==\s*0` never matches it.
+    bare_eq_zero = re.compile(r"==\s*0(?![.0-9])")
+
+    def _has_bare_eq_zero(expr: str) -> bool:
+        return bare_eq_zero.search(agg.sub("", expr)) is not None
+
+    offenders = {uid: expr for uid, expr in _promql_exprs() if _has_bare_eq_zero(expr)}
+    assert not offenders, f"`== 0` without `bool` (inert against a gt-0 threshold): {offenders}"
+
+
 def test_valid_gating_patterns_are_not_flagged() -> None:
     # bool comparison as the *value* (left) operand with a real filter gate.
     assert not mod.find_promql_gating_antipatterns(

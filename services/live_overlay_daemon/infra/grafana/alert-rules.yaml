@@ -1663,7 +1663,10 @@ groups:
     - refId: A
       datasourceUid: grafanacloud-prom
       model:
-        expr: min by (workflow) (live_overlay_github_workflow_latest_success{job="live_overlay"}) == 0
+        # `== bool 0`, not `== 0`: a bare filter returns the value 0 on a match,
+        # and the gt-0 threshold then reads 0>0=false -- inert. bool maps it to
+        # 1 so a failed latest run actually fires (found 2026-07-07).
+        expr: min by (workflow) (live_overlay_github_workflow_latest_success{job="live_overlay"}) == bool 0
         instant: true
     - refId: C
       datasourceUid: __expr__
@@ -1720,16 +1723,22 @@ groups:
         firing.
       runbook: Verify the workflow schedule and that GitHub Actions crons are enabled (60-day inactivity
         auto-disables them).
-  - uid: lo-evidence-snapshot-stale
-    title: Evidence snapshot stale
+  - uid: lo-evidence-snapshot-unloadable
+    title: Evidence snapshot unloadable
     condition: C
+    # loaded==0 means the bridge could not read the snapshot at all (missing
+    # URL/token, base64 envelope, network). `< bool 1` maps that to 1 so the
+    # gt-0 threshold trips; a bare `loaded == 0` returns the value 0 and reads
+    # 0>0=false -- inert (same class as lo-evidence-ledger-empty, found
+    # 2026-07-07). This MUST be its own rule: an unloadable snapshot reports
+    # snapshot_age_seconds=0, so the stale (age>86400) rule below can never
+    # catch it.
     noDataState: OK
     data:
     - refId: A
       datasourceUid: grafanacloud-prom
       model:
-        expr: (live_overlay_evidence_freshness_loaded{job="live_overlay"} == 0) or (live_overlay_evidence_freshness_snapshot_age_seconds{job="live_overlay"}
-          > 86400)
+        expr: live_overlay_evidence_freshness_loaded{job="live_overlay"} < bool 1
         instant: true
     - refId: C
       datasourceUid: __expr__
@@ -1749,10 +1758,42 @@ groups:
     labels:
       severity: critical
     annotations:
-      summary: The evidence-freshness snapshot is missing or older than 24h -- the producer workflow has
-        stopped.
+      summary: The evidence-freshness bridge cannot load the snapshot (loaded=0) -- the ledger/audit/fills
+        freshness signals are blind.
+      runbook: Check EVIDENCE_FRESHNESS_SNAPSHOT_URL(_TOKEN) on the daemon and that the producer branch
+        exists; see services/live_overlay_daemon/evidence_freshness_bridge.py.
+  - uid: lo-evidence-snapshot-stale
+    title: Evidence snapshot stale
+    condition: C
+    noDataState: OK
+    data:
+    - refId: A
+      datasourceUid: grafanacloud-prom
+      model:
+        expr: live_overlay_evidence_freshness_snapshot_age_seconds{job="live_overlay"} > 86400
+        instant: true
+    - refId: C
+      datasourceUid: __expr__
+      model:
+        type: threshold
+        conditions:
+        - evaluator:
+            type: gt
+            params:
+            - 0
+          operator:
+            type: and
+          query:
+            params:
+            - A
+    for: 30m
+    labels:
+      severity: critical
+    annotations:
+      summary: The evidence-freshness snapshot loads but is older than 24h -- the producer workflow has
+        stopped committing.
       runbook: Run/inspect .github/workflows/evidence-freshness-snapshot.yml; without it the ledger/audit/fills
-        freshness signals go blind.
+        freshness signals go stale.
   - uid: lo-evidence-ledger-stale
     title: ADR-0023 magnitude ledger stale
     condition: C
