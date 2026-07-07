@@ -87,6 +87,38 @@ def test_concurrent_in_window_fires_let_exactly_one_proceed(tmp_path: Path) -> N
     assert sorted(codes) == [0] + [1] * (racers - 1), f"codes={codes}"
 
 
+def test_gate_surfaces_real_write_error_instead_of_faking_already_ran(tmp_path: Path) -> None:
+    # A genuine filesystem failure on the marker write (disk full, missing or
+    # unwritable cache dir) must be reported as a write error, not masqueraded
+    # as the benign "already ran" exactly-once skip -- otherwise phase-a
+    # silently does not run and the operator sees a message hiding the cause.
+    #
+    # Force the failure by putting a *file* where the gate expects the
+    # ``cache/live`` directory: ``mkdir -p`` and the marker write then fail
+    # with ENOTDIR (which even root cannot bypass), and the marker path cannot
+    # exist -- so the gate must take the write-error branch, not "already ran".
+    (tmp_path / "cache").mkdir()
+    (tmp_path / "cache" / "live").write_text("")  # a file where a dir belongs
+
+    proc = subprocess.run(
+        [
+            "bash",
+            "-c",
+            f'source "{_LIB}"; c13_require_et_window "{tmp_path}" 09 28 10 testjob',
+        ],
+        env={
+            "PATH": "/usr/bin:/bin",
+            "C13_GATE_NOW_ET": "09:28",
+            "C13_GATE_NOW_DOW": "1",
+        },
+        capture_output=True,
+        text=True,
+    )
+    assert proc.returncode != 0
+    assert "FAILED to write marker" in proc.stderr
+    assert "already ran" not in proc.stderr
+
+
 # --------------------------------------------------------------------------- #
 # The plist candidate LOCAL hours must bracket the ET target across DST so that
 # exactly one candidate maps to the ET target regardless of the US/EU offset.

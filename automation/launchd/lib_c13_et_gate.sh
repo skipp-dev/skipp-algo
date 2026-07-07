@@ -77,10 +77,19 @@ c13_require_et_window() {
     # `set -o noclobber` is scoped to a subshell so it does not leak to callers.
     local marker="${repo}/cache/live/.c13_gate_${job}_${et_date}"
     mkdir -p "${repo}/cache/live"
-    if ! (set -o noclobber; printf '%s ET %s:%s (target %s:%s)\n' \
+    if (set -o noclobber; printf '%s ET %s:%s (target %s:%s)\n' \
             "$et_date" "$et_hh" "$et_mm" "$thh" "$tmm" > "$marker") 2>/dev/null; then
-        echo "c13-gate[$job]: already ran for ET ${et_date} — skip." >&2
-        return 1
+        return 0
     fi
-    return 0
+    # The create failed. `2>/dev/null` hid *why*, so classify it here instead of
+    # blaming every failure on "already ran": if the marker exists another racer
+    # won (or we already ran today) — skip quietly; if it does NOT exist the
+    # write itself failed (disk full, unwritable cache dir, bad perms) and must
+    # be surfaced loudly rather than masqueraded as a benign exactly-once skip.
+    if [ -e "$marker" ]; then
+        echo "c13-gate[$job]: already ran for ET ${et_date} — skip." >&2
+    else
+        echo "c13-gate[$job]: FAILED to write marker ${marker} (disk full / perms?) — skip." >&2
+    fi
+    return 1
 }
