@@ -24,6 +24,7 @@ from . import (
     feed,
     github_workflow_bridge,
     observability,
+    provider_usage_bridge,
     railway_metrics,
     request_hotspots,
     uptimerobot_bridge,
@@ -1851,11 +1852,66 @@ def render_metrics(startup_ts: float, startup_epoch: float = 0.0) -> str:
     # freeze it replaces.
     lines.extend(_render_evidence_freshness_metrics())
 
+    # Provider API data-VOLUME (bytes) consumed this month, per REST provider,
+    # from the ingest-side usage snapshot. Makes the FMP bandwidth quota (the
+    # "90% used" blind spot) visible + alertable; the limit gauge lets the
+    # dashboard show a percentage.
+    lines.extend(_render_provider_usage_metrics())
+
     # --- Process-level metrics (CPU, memory, FDs, GC) ---
     lines.extend(_collect_process_metrics(startup_ts, startup_epoch))
 
     lines.append("")  # trailing newline
     return "\n".join(lines)
+
+
+def _render_provider_usage_metrics() -> list[str]:
+    """Prometheus gauges for per-provider API data-volume consumption."""
+    snap = provider_usage_bridge.snapshot()
+    lines: list[str] = []
+
+    loaded = _prom_numeric_value(snap.get("loaded", 0.0))
+    lines.append("# TYPE live_overlay_provider_usage_loaded gauge")
+    lines.append(f"live_overlay_provider_usage_loaded {loaded}")
+
+    age = snap.get("snapshot_age_seconds")
+    age_known = 1.0 if isinstance(age, (int, float)) else 0.0
+    lines.append("# TYPE live_overlay_provider_usage_snapshot_age_known gauge")
+    lines.append(f"live_overlay_provider_usage_snapshot_age_known {age_known}")
+    lines.append("# TYPE live_overlay_provider_usage_snapshot_age_seconds gauge")
+    lines.append(
+        f"live_overlay_provider_usage_snapshot_age_seconds {float(age) if age_known else 0.0:.1f}"
+    )
+
+    providers = snap.get("providers") or {}
+    lines.append("# TYPE live_overlay_provider_usage_bytes gauge")
+    lines.append("# TYPE live_overlay_provider_usage_calls gauge")
+    lines.append("# TYPE live_overlay_provider_usage_records gauge")
+    for name in sorted(providers):
+        vals = providers[name] or {}
+        label = _escape_label_value(name)
+        lines.append(
+            f'live_overlay_provider_usage_bytes{{provider="{label}"}} '
+            f"{_prom_numeric_value(vals.get('bytes', 0))}"
+        )
+        lines.append(
+            f'live_overlay_provider_usage_calls{{provider="{label}"}} '
+            f"{_prom_numeric_value(vals.get('calls', 0))}"
+        )
+        lines.append(
+            f'live_overlay_provider_usage_records{{provider="{label}"}} '
+            f"{_prom_numeric_value(vals.get('records', 0))}"
+        )
+
+    # The FMP plan's monthly bandwidth quota (bytes) so the dashboard can show a
+    # percentage and alert before it is exhausted. Always emitted so the panel
+    # never goes blank before the first usage snapshot lands.
+    lines.append("# TYPE live_overlay_provider_bandwidth_limit_bytes gauge")
+    lines.append(
+        'live_overlay_provider_bandwidth_limit_bytes{provider="fmp"} '
+        f"{float(config.fmp_monthly_bandwidth_limit_bytes())}"
+    )
+    return lines
 
 
 def _render_evidence_freshness_metrics() -> list[str]:

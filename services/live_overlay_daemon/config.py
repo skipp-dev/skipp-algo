@@ -289,6 +289,45 @@ def evidence_freshness_snapshot_url_token() -> str:
     return _optional_str("EVIDENCE_FRESHNESS_SNAPSHOT_URL_TOKEN", "")
 
 
+def provider_usage_snapshot_path() -> Path:
+    """Local path to the provider API-usage snapshot JSON.
+
+    Produced by the ingest layer (``newsstack_fmp/provider_usage.py``) and
+    surfaced as Prometheus gauges so provider DATA-VOLUME consumption is
+    visible (the FMP-quota blind spot: a "90% of bandwidth used" email was the
+    only signal). Off-host daemons set :func:`provider_usage_snapshot_url`.
+    """
+    raw = _optional_str(
+        "PROVIDER_USAGE_SNAPSHOT_PATH",
+        str(_REPO_ROOT / "artifacts" / "monitoring" / "provider_usage.json"),
+    )
+    return Path(raw)
+
+
+def provider_usage_snapshot_url() -> str:
+    """Optional https URL the daemon fetches the provider-usage snapshot from.
+
+    Takes precedence over :func:`provider_usage_snapshot_path`; on any fetch
+    failure the daemon falls back to the local path.
+    """
+    return _optional_str("PROVIDER_USAGE_SNAPSHOT_URL", "")
+
+
+def provider_usage_snapshot_url_token() -> str:
+    """Optional bearer token for :func:`provider_usage_snapshot_url`."""
+    return _optional_str("PROVIDER_USAGE_SNAPSHOT_URL_TOKEN", "")
+
+
+def fmp_monthly_bandwidth_limit_bytes() -> int:
+    """FMP plan's rolling-30-day bandwidth quota, in bytes (default 150 GB).
+
+    Surfaced as a gauge so the dashboard can show FMP data-volume used as a
+    percentage and alert before the quota is exhausted. The monthly-accumulated
+    usage snapshot is a close proxy for FMP's rolling-30-day meter.
+    """
+    return _optional_int("FMP_MONTHLY_BANDWIDTH_LIMIT_BYTES", 150_000_000_000)
+
+
 def experiment_history_path() -> Path:
     """Local path to the Plan 2.8 per-day history JSONL.
 
