@@ -136,6 +136,14 @@ class FmpAdapter:
                     time.sleep(wait)
                     continue
                 r.raise_for_status()
+                # Provider-usage telemetry (fail-soft): record the metered
+                # response volume so the daemon can surface monthly FMP usage.
+                try:
+                    from newsstack_fmp import provider_usage
+
+                    provider_usage.record("fmp", response_bytes=len(r.content))
+                except Exception as usage_exc:  # never let telemetry break an ingest
+                    logger.debug("provider-usage record skipped: %s", usage_exc)
                 return r
             except httpx.HTTPStatusError as exc:
                 raise httpx.HTTPStatusError(
