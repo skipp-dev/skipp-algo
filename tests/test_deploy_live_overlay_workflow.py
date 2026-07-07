@@ -64,11 +64,31 @@ def test_concurrency_never_cancels_an_in_flight_deploy() -> None:
 
 def test_deploy_is_gated_on_railway_token() -> None:
     text = _text()
-    # Absent secret -> notice + exit 0, so the file is inert until configured.
+    # Absent secret -> notice, gate output false, so the file is inert.
     assert "Missing secret RAILWAY_TOKEN" in text
     assert "secrets.RAILWAY_TOKEN" in text
-    # Both the install and deploy steps are guarded on the token being present.
-    assert text.count("env.RAILWAY_TOKEN != ''") >= 2
+    # Steps gate on the token-presence output (step env is invisible to `if:`).
+    assert "steps.gate.outputs.run == 'true'" in text
+
+
+def test_railway_token_is_scoped_to_steps_not_the_job() -> None:
+    # Defense-in-depth: checkout/install must not see the token.
+    job = _doc()["jobs"]["deploy"]
+    assert "RAILWAY_TOKEN" not in (job.get("env") or {})
+
+
+def test_railway_cli_install_ignores_lifecycle_scripts() -> None:
+    assert "--ignore-scripts" in _text()
+
+
+def test_deploy_is_verified_not_fire_and_forget() -> None:
+    text = _text()
+    # `railway up --detach` returns before the deploy completes; a verify step
+    # must poll the NEW deployment (vs a recorded baseline) to terminal SUCCESS.
+    assert "Verify deployment" in text
+    assert "railway deployment list" in text
+    assert "baseline" in text
+    assert "ended in status" in text
 
 
 def test_deploy_uses_the_sha_stamping_wrapper_with_branch() -> None:

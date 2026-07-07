@@ -48,30 +48,77 @@ defaults:
 jobs:
   deploy:
     runs-on: ${{ vars.SMC_GH_HOSTED_RUNNER || 'ubuntu-latest' }}
-    timeout-minutes: 20
-    env:
-      RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
-      DEPLOY_GIT_BRANCH: ${{ github.ref_name }}
+    timeout-minutes: 25
     steps:
       - name: Checkout
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
 
-      - name: Validate Railway token presence
+      # The token is scoped to only the steps that use it (gate/deploy/verify),
+      # not checkout/install. A step output gates the rest, because step-level
+      # env is not visible to a step's own `if:`.
+      - name: Check Railway token presence
+        id: gate
+        env:
+          RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
         run: |
           if [[ -z "$RAILWAY_TOKEN" ]]; then
             echo "::notice::Missing secret RAILWAY_TOKEN; skipping deploy."
-            exit 0
+            echo "run=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "run=true" >> "$GITHUB_OUTPUT"
           fi
 
       - name: Install Railway CLI
-        if: ${{ env.RAILWAY_TOKEN != '' }}
-        # SC-02 (supply-chain): exact pin, no floating range.
+        if: steps.gate.outputs.run == 'true'
+        # SC-02 (supply-chain): exact pin, no floating range. --ignore-scripts
+        # blocks arbitrary npm lifecycle scripts from the dependency tree.
         run: |
           set -euo pipefail
-          npm install -g @railway/cli@5.23.3
+          npm install -g --ignore-scripts @railway/cli@5.23.3
 
       - name: Deploy live_overlay_daemon (SHA-stamped)
-        if: ${{ env.RAILWAY_TOKEN != '' }}
+        id: deploy
+        if: steps.gate.outputs.run == 'true'
+        env:
+          RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
+          DEPLOY_GIT_BRANCH: ${{ github.ref_name }}
         run: |
           set -euo pipefail
+          # Record the newest deployment BEFORE deploying so the verify step
+          # correlates to OUR new deployment (not a stale prior SUCCESS).
+          baseline=$(railway deployment list --service live_overlay_daemon \
+            --environment production --json 2>/dev/null | jq -r '.[0].id // "none"')
+          echo "baseline=$baseline" >> "$GITHUB_OUTPUT"
+          echo "Baseline (pre-deploy) newest deployment: $baseline"
           scripts/deploy_live_overlay.sh
+
+      - name: Verify deployment reached SUCCESS
+        if: steps.gate.outputs.run == 'true'
+        env:
+          RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
+        # `railway up --detach` returns after the upload, so a Railway-side
+        # build/healthcheck failure would otherwise leave CI green while the old
+        # container keeps serving -- the exact silent no-op class this workflow
+        # exists to kill. Wait for a NEW deployment to reach a terminal state
+        # and fail on anything but SUCCESS.
+        run: |
+          set -euo pipefail
+          baseline="${{ steps.deploy.outputs.baseline }}"
+          for i in $(seq 1 42); do
+            # `|| true` so a transient API blip yields an empty line instead of
+            # tripping set -e; parse via parameter expansion (no read/set -e trap).
+            line="$(railway deployment list --service live_overlay_daemon \
+              --environment production --json 2>/dev/null \
+              | jq -r '.[0] | "\(.id) \(.status)"' || true)"
+            id="${line%% *}"; status="${line##* }"
+            echo "[$i] newest deployment ${id:0:8}: ${status:-none} (baseline ${baseline:0:8})"
+            if [[ -n "$id" && "$id" != "$baseline" ]]; then
+              case "$status" in
+                SUCCESS) echo "New deployment healthy."; exit 0 ;;
+                FAILED|CRASHED|REMOVED|SKIPPED)
+                  echo "::error::New deployment ended in status $status"; exit 1 ;;
+              esac
+            fi
+            sleep 20
+          done
+          echo "::error::New deployment did not reach SUCCESS within ~14 min"; exit 1
