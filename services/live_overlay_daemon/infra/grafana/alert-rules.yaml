@@ -1939,3 +1939,46 @@ groups:
       summary: The WSH earnings snapshot on the audit branch is older than 7 days (secondary earnings
         filter; looser budget).
       runbook: 'Known limitation: the WSH filter needs IBKR conIds on the watchlist rows; see automation/launchd/README.md.'
+  - uid: lo-evidence-incubation-fills-stalled
+    title: C8 incubation fills stalled
+    condition: C
+    # The C8 execution-promotion ladder needs closed paper trades, but orders can
+    # be submitted every day while NOTHING fills (paper TWS down/unreachable) -- a
+    # silent stall that never advances the ladder toward live capital. Fires when
+    # no fill has ever landed (filled_total == bool 0) AND incubation is actively
+    # fresh (newest record < 5d) AND that age is known. Multiplicative gating: the
+    # product is 1 only when all three hold, so the gt-0 threshold fires. A genuine
+    # pause lets the incubation age go stale (>5d), dropping the gate, so an
+    # intentional stop does not page. `for: 3d` rides out the normal ramp-up
+    # before the first fills land.
+    noDataState: OK
+    data:
+    - refId: A
+      datasourceUid: grafanacloud-prom
+      model:
+        expr: (live_overlay_evidence_fills_filled_total{job="live_overlay"} == bool 0)
+          * (live_overlay_evidence_fills_newest_incubation_age_seconds{job="live_overlay"} < bool 432000)
+          * live_overlay_evidence_fills_newest_incubation_age_known{job="live_overlay"}
+        instant: true
+    - refId: C
+      datasourceUid: __expr__
+      model:
+        type: threshold
+        conditions:
+        - evaluator:
+            type: gt
+            params:
+            - 0
+          operator:
+            type: and
+          query:
+            params:
+            - A
+    for: 3d
+    labels:
+      severity: warning
+    annotations:
+      summary: The C8 paper-incubation ladder is submitting orders but 0 have ever filled -- execution is
+        stalled (paper TWS down/unreachable?).
+      runbook: Check the paper TWS/IBKR gateway is up on port 7497 during the 09:28 ET order window and the
+        23:05 reconcile; inspect cache/live/smoke_HALT and the newest incubation_<DATE>.jsonl fill_price fields.

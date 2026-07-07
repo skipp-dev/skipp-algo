@@ -1941,6 +1941,13 @@ def _render_evidence_freshness_metrics() -> list[str]:
     )
     lines.append("# TYPE live_overlay_evidence_fills_target gauge")
     lines.append(f"live_overlay_evidence_fills_target {_prom_numeric_value(fills.get('target', 0))}")
+    # Age of the newest incubation record: distinguishes "actively submitting
+    # orders but nothing fills" (a stalled C8 ladder) from "no trading at all"
+    # (intentional pause / holidays). Powers lo-evidence-incubation-fills-stalled.
+    _emit_age(
+        "live_overlay_evidence_fills_newest_incubation_age",
+        str(fills.get("newest_incubation_date", "")),
+    )
 
     wsh = snap.get("wsh") or {}
     _emit_age("live_overlay_evidence_wsh_age", str(wsh.get("newest_date", "")))
