@@ -963,6 +963,21 @@ def test_dashboard_sections_are_user_first_and_all_expanded() -> None:
         assert r.get("description"), f"{r['title']} needs a section description"
 
 
+def test_dashboard_has_top_cross_link_banner() -> None:
+    """A slim text banner at the very top permanently shows a described link to
+    the paired Signals & Experiments dashboard (not just a hover tooltip)."""
+    dashboard = json.loads(_DASHBOARD_JSON.read_text(encoding="utf-8"))
+    banner = next((p for p in _dashboard_panels(dashboard) if p.get("id") == 999), None)
+    assert banner is not None, "top cross-link banner missing"
+    assert banner["type"] == "text"
+    assert banner["gridPos"]["y"] == 0
+    content = banner["options"]["content"]
+    assert "/d/smc-live-overlay-signals-v1" in content
+    assert "Signals & Experiments" in content
+    # It is the topmost panel — no section row sits above it.
+    assert _rows_in_order(dashboard)[0]["gridPos"]["y"] >= banner["gridPos"]["h"]
+
+
 def test_dashboard_databento_and_fmp_are_surfaced_as_providers() -> None:
     """Databento (market-data feed) and FMP credential health must be visible in
     the Providers section — a user should see the feeds they actually use."""
@@ -1054,9 +1069,10 @@ def test_dashboard_idle_state_is_gray_not_orange() -> None:
 
 
 def test_dashboard_incident_overview_row_renamed_and_compacted() -> None:
-    """The first row is the at-a-glance status section and holds the key tiles."""
+    """The first section row is the at-a-glance status section and holds the key
+    tiles (a slim cross-link banner sits above it at the very top)."""
     dashboard = json.loads(_DASHBOARD_JSON.read_text(encoding="utf-8"))
-    row = next(p for p in dashboard["panels"] if p.get("type") == "row" and p.get("gridPos", {}).get("y") == 0)
+    row = _rows_in_order(dashboard)[0]  # lowest-y row
     assert row["title"] == "Status at a Glance"
     for title in ("Overall Health", "Active Alerts"):
         assert _section_of(dashboard, title) == "Status at a Glance", title
