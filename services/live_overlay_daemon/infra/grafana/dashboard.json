@@ -22,6 +22,18 @@
   "id": null,
   "links": [
     {
+      "title": "→ Signals & Experiments",
+      "type": "link",
+      "url": "/d/smc-live-overlay-signals-v1",
+      "tooltip": "Trading-signal & strategy-experiment view: active signals, breakouts, signal score, FVG 5m / BOS 4H verdicts, and family hit-rate over time.",
+      "icon": "dashboard",
+      "targetBlank": false,
+      "keepTime": true,
+      "includeVars": false,
+      "asDropdown": false,
+      "tags": []
+    },
+    {
       "title": "Daemon Runbook",
       "type": "link",
       "url": "https://github.com/skippALGO/skipp-algo/blob/main/services/live_overlay_daemon/README.md",
@@ -32,12 +44,6 @@
       "type": "link",
       "url": "https://github.com/skippALGO/skipp-algo/blob/main/services/live_overlay_daemon/infra/grafana/alert-rules.yaml",
       "targetBlank": true
-    },
-    {
-      "title": "Signals & Experiments Dashboard",
-      "type": "link",
-      "url": "/d/smc-live-overlay-signals-v1",
-      "targetBlank": false
     },
     {
       "title": "Railway logs",
