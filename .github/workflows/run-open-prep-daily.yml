@@ -144,6 +144,12 @@ jobs:
           FMP_API_KEY: ${{ secrets.FMP_API_KEY }}
           DATABENTO_API_KEY: ${{ secrets.DATABENTO_API_KEY }}
           BENZINGA_API_KEY: ${{ secrets.BENZINGA_API_KEY }}
+          # Benzinga Core News (2026-07-08): per-ticker news via /api/v2/news
+          # (BenzingaRestAdapter). FMP's general article feed misses most
+          # small-cap gappers; Benzinga's ticker-filtered feed fills that gap,
+          # which is where the news_catalyst_score / news_directional_score
+          # signal is thinnest. Gate default is OFF; requires BENZINGA_API_KEY.
+          OPEN_PREP_ENABLE_BENZINGA_CORE_NEWS: "1"
           OPEN_PREP_LOG_LEVEL: INFO
           OPEN_PREP_CODE_VERSION: ${{ github.sha }}
           # A2 (2026-06-10): env-var indirection for user-supplied inputs.
