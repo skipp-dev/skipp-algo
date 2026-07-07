@@ -102,7 +102,7 @@ def test_entry_fill_stamps_filled_with_size_usd():
     assert rec["action"] == "filled"
     assert rec["fill_price"] == 101.5
     assert rec["size_usd"] == 203.0  # avg_price * quantity(2)
-    assert counts == {"reconcilable": 1, "entry_filled": 1, "closed": 0}
+    assert counts == {"reconcilable": 1, "entry_filled": 1, "closed": 0, "duplicate_skipped": 0}
 
 
 def test_tp_exit_closes_as_tp_hit():
@@ -146,7 +146,7 @@ def test_audit_only_and_closed_records_never_touched():
     }
     out, counts = reconcile_records(records, legs)
     assert [r["action"] for r in out] == ["audit_only", "tp_hit", "submit_failed"]
-    assert counts == {"reconcilable": 0, "entry_filled": 0, "closed": 0}
+    assert counts == {"reconcilable": 0, "entry_filled": 0, "closed": 0, "duplicate_skipped": 0}
 
 
 def test_filled_record_upgrades_to_closed_on_rerun():
@@ -176,7 +176,78 @@ def test_unfilled_intent_stays_paper_submitted():
     out, counts = reconcile_records(records, {})
     assert out[0]["action"] == "paper_submitted"
     assert out[0]["fill_price"] is None
-    assert counts == {"reconcilable": 1, "entry_filled": 0, "closed": 0}
+    assert counts == {"reconcilable": 1, "entry_filled": 0, "closed": 0, "duplicate_skipped": 0}
+
+
+# ---------------------------------------------------------------------------
+# Duplicate intent_ids (same-day retry after a DEGRADED run)
+# ---------------------------------------------------------------------------
+
+
+def _dup_legs() -> dict:
+    return legs_by_intent(
+        summarize_fills(
+            [_fill("smc-A-entry", 2, 101.0), _fill("smc-A-tp", 2, 110.0)]
+        )
+    )
+
+
+def test_duplicate_intent_stamps_only_the_newest_record():
+    """A same-day retry re-submits the SAME intent_ids; one IB fill must not
+    be copied onto every duplicate (that would inflate the C8 fill/closed
+    counts N-fold — root-caused 2026-07-07)."""
+    records = [
+        _record("smc-A", ts="2026-07-07T07:28:00+00:00"),   # phantom morning submit
+        _record("smc-A", ts="2026-07-07T13:40:00+00:00"),   # retry that actually rests
+    ]
+    out, counts = reconcile_records(records, _dup_legs())
+    assert out[0]["action"] == "paper_submitted"  # superseded: untouched
+    assert out[0]["fill_price"] is None
+    assert out[1]["action"] == "tp_hit"           # newest: stamped + closed
+    assert out[1]["fill_price"] == 101.0
+    assert counts["closed"] == 1
+    assert counts["duplicate_skipped"] == 1
+
+
+def test_duplicate_intent_rerun_is_idempotent_on_the_same_winner():
+    # After run 1 the winner is closed (tp_hit); run 2 must keep skipping the
+    # old duplicate instead of drifting the fills onto it.
+    records = [
+        _record("smc-A", ts="2026-07-07T07:28:00+00:00"),
+        _record("smc-A", ts="2026-07-07T13:40:00+00:00"),
+    ]
+    legs = _dup_legs()
+    out, _ = reconcile_records(records, legs)
+    out, counts = reconcile_records(out, legs)
+    assert out[0]["fill_price"] is None
+    assert out[0]["action"] == "paper_submitted"
+    assert out[1]["action"] == "tp_hit"
+    assert counts["duplicate_skipped"] == 1
+
+
+def test_duplicate_tie_on_ts_prefers_later_file_order():
+    # Records are appended chronologically; identical ts -> the later row wins.
+    records = [
+        _record("smc-A", ts="2026-07-07T13:40:00+00:00"),
+        _record("smc-A", ts="2026-07-07T13:40:00+00:00"),
+    ]
+    out, counts = reconcile_records(records, _dup_legs())
+    assert out[0]["fill_price"] is None
+    assert out[1]["fill_price"] == 101.0
+    assert counts["duplicate_skipped"] == 1
+
+
+def test_audit_only_record_never_steals_the_stamp():
+    # A newer audit-only re-run (no --place-paper-orders) is not stampable and
+    # must not shadow the real submission that owns the resting bracket.
+    records = [
+        _record("smc-A", ts="2026-07-07T07:28:00+00:00"),
+        _record("smc-A", action="audit_only", ts="2026-07-07T13:40:00+00:00"),
+    ]
+    out, counts = reconcile_records(records, _dup_legs())
+    assert out[0]["action"] == "tp_hit"      # real submission stamped
+    assert out[1]["action"] == "audit_only"  # untouched
+    assert counts["duplicate_skipped"] == 0
 
 
 # ---------------------------------------------------------------------------
