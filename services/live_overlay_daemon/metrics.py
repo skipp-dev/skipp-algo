@@ -873,6 +873,53 @@ def _provider_health_snapshot() -> dict[str, object]:
     }
 
 
+def _read_build_stamp() -> tuple[str, str]:
+    """Read the ``(commit, branch)`` baked into the image at deploy time.
+
+    ``scripts/deploy_live_overlay.sh`` stamps the real values into
+    ``build_stamp.txt`` before ``railway up`` (a CLI upload injects no
+    ``RAILWAY_GIT_*`` vars). Returns empty strings when the stamp is missing
+    or still the ``unknown`` placeholder, so callers fall through cleanly.
+    """
+    import pathlib
+
+    stamp = pathlib.Path(__file__).with_name("build_stamp.txt")
+    try:
+        raw = stamp.read_text(encoding="utf-8").splitlines()
+    except OSError:
+        return "", ""
+    commit = raw[0].strip() if raw else ""
+    branch = raw[1].strip() if len(raw) > 1 else ""
+    return (
+        "" if commit == "unknown" else commit,
+        "" if branch == "unknown" else branch,
+    )
+
+
+def _build_identity() -> tuple[str, str]:
+    """Return the deployed ``(commit, branch)``.
+
+    Precedence: ``RAILWAY_GIT_*`` (set on GitHub-connected deploys) wins, then
+    the build stamp baked in by the ``railway up`` wrapper, then ``"unknown"``
+    -- the label is never empty.
+    """
+    import os
+
+    commit = os.getenv("RAILWAY_GIT_COMMIT_SHA", "").strip()
+    branch = os.getenv("RAILWAY_GIT_BRANCH", "").strip()
+    if not commit or not branch:
+        stamp_commit, stamp_branch = _read_build_stamp()
+        if not commit:
+            commit = stamp_commit
+        if not branch:
+            branch = stamp_branch
+    if not commit:
+        commit = "unknown"
+    if not branch:
+        branch = "unknown"
+    return commit, branch
+
+
 def _collect_process_metrics(startup_ts: float, startup_epoch: float = 0.0) -> list[str]:
     """Emit process-level resource metrics (CPU, RSS, FDs, GC).
 
@@ -949,16 +996,9 @@ def _collect_process_metrics(startup_ts: float, startup_epoch: float = 0.0) -> l
 
     # Build identity — expose the deployed commit so "is the right code
     # running?" is answerable straight from Grafana (this exact blind spot
-    # cost two silent no-op redeploys on 2026-07-06). Railway injects
-    # RAILWAY_GIT_*; the value is always 1 with the identity carried in
-    # labels (Prometheus info-metric convention). Falls back to "unknown"
-    # on local/dev runs where the env is absent, so the label is never empty.
-    commit = os.getenv("RAILWAY_GIT_COMMIT_SHA", "").strip()
-    if not commit:
-        commit = "unknown"
-    branch = os.getenv("RAILWAY_GIT_BRANCH", "").strip()
-    if not branch:
-        branch = "unknown"
+    # cost two silent no-op redeploys on 2026-07-06). Value is always 1 with
+    # the identity in labels (Prometheus info-metric convention); never blank.
+    commit, branch = _build_identity()
     lines.append("# TYPE live_overlay_build_info gauge")
     lines.append(
         f'live_overlay_build_info{{commit="{_escape_label_value(commit)}",'
