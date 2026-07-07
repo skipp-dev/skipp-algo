@@ -10,6 +10,14 @@ set -euo pipefail
 # overridden via environment variables (set in the LaunchAgent plist's
 # ``EnvironmentVariables`` block) for non-default paths.
 REPO="$(cd "$(dirname "$0")/../.." && pwd)"
+
+# ET timezone gate: the plist fires at three candidate LOCAL times bracketing
+# the 09:28 ET target across US/EU DST; proceed only in the true ET window
+# (lib_c13_et_gate.sh). Root-caused 2026-07-07: a non-ET Mac fired these ~6h off.
+# Keeps its catch-up: the gate proceeds once per ET day in the window, and
+# lib_c13_catchup backfills any business days missed while asleep from that run.
+source "$(dirname "$0")/lib_c13_et_gate.sh"
+c13_require_et_window "$REPO" 09 28 10 collect-imbalance || exit 0
 VENV="${C13_VENV:-${REPO}/.venv}"
 WATCHLIST="${C13_WATCHLIST:-${REPO}/reports/databento_watchlist_top5_pre1530.csv}"
 

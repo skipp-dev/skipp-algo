@@ -10,6 +10,13 @@
 set -euo pipefail
 
 REPO="$(cd "$(dirname "$0")/../.." && pwd)"
+
+# ET timezone gate: the plist fires at three candidate LOCAL times bracketing
+# the 09:18 ET target across US/EU DST; proceed only in the true ET window
+# (lib_c13_et_gate.sh). Root-caused 2026-07-07: a non-ET Mac fired these ~6h off.
+# Feeds phase-a's trade cards, so it must export at the true 09:18 ET.
+source "$(dirname "$0")/lib_c13_et_gate.sh"
+c13_require_et_window "$REPO" 09 18 10 phase-a-export || exit 0
 VENV="${C13_VENV:-${REPO}/.venv}"
 
 DATE="$(date -u +%Y-%m-%d)"

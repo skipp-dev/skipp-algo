@@ -30,6 +30,13 @@
 c13_require_et_window() {
     local repo="$1" thh="$2" tmm="$3" tol="$4" job="$5"
 
+    # Bypass for tests that exercise a wrapper's downstream pipeline (venv /
+    # collector / marker paths) rather than the gate itself. Production never
+    # sets this; the gate's own behaviour is covered by tests/test_c13_et_gate.py.
+    if [ "${C13_SKIP_ET_GATE:-0}" = "1" ]; then
+        return 0
+    fi
+
     local et_date et_dow et_hh et_mm
     et_date="$(TZ=America/New_York date +%Y-%m-%d)"
     # Test hooks: override the ET wall clock / weekday deterministically.

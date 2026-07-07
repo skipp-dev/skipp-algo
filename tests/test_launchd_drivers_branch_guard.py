@@ -369,6 +369,9 @@ def test_driver_writes_degraded_marker_on_missing_venv(
             ["bash", str(driver)],
             env={
                 **os.environ,
+                # Bypass the ET scheduling gate: this test exercises the
+                # driver's venv/collector pipeline, not the gate.
+                "C13_SKIP_ET_GATE": "1",
                 "C13_VENV": str(tmp_path / "no-such-venv"),
                 "C13_WATCHLIST": "/dev/null",
             },
@@ -429,6 +432,9 @@ def test_driver_writes_degraded_marker_on_missing_python(
             ["bash", str(driver)],
             env={
                 **os.environ,
+                # Bypass the ET scheduling gate: this test exercises the
+                # driver's venv/collector pipeline, not the gate.
+                "C13_SKIP_ET_GATE": "1",
                 "C13_VENV": str(fake_venv),
                 "C13_WATCHLIST": "/dev/null",
             },
@@ -483,6 +489,9 @@ def test_imbalance_sh_writes_degraded_marker_on_collector_failure(tmp_path):
             ["bash", str(REPO / "automation" / "launchd" / "run-c13-imbalance.sh")],
             env={
                 **os.environ,
+                # Bypass the ET scheduling gate: this test exercises the
+                # driver's venv/collector pipeline, not the gate.
+                "C13_SKIP_ET_GATE": "1",
                 "C13_VENV": str(fake_venv),
                 "C13_WATCHLIST": "/dev/null",
             },

@@ -72,8 +72,12 @@ def test_gate_runs_exactly_once_per_et_day(tmp_path: Path) -> None:
 @pytest.mark.parametrize(
     "plist_name,et_hour",
     [
-        ("com.skippalgo.c13.phase-a.plist", 9),      # 09:28 ET
-        ("com.skippalgo.c13.ibkr-smoke.plist", 8),   # 08:00 ET
+        ("com.skippalgo.c13.phase-a.plist", 9),            # 09:28 ET
+        ("com.skippalgo.c13.ibkr-smoke.plist", 8),         # 08:00 ET
+        ("com.skippalgo.c13.phase-a-export.plist", 9),     # 09:18 ET
+        ("com.skippalgo.c13.collect-imbalance.plist", 9),  # 09:28 ET
+        ("com.skippalgo.c13.wsh-earnings.plist", 16),      # 16:30 ET
+        ("com.skippalgo.c13.audit-push.plist", 17),        # 17:30 ET (+7h wraps)
     ],
 )
 def test_plist_candidate_hours_cover_dst_offsets(plist_name: str, et_hour: int) -> None:
@@ -92,6 +96,12 @@ def test_plist_candidate_hours_cover_dst_offsets(plist_name: str, et_hour: int) 
     weekdays = {int(w) for w, _h, _m in entries}
     # Berlin<->ET is +5h / +6h / +7h across the mismatched US/EU DST windows,
     # so exactly one candidate maps onto the ET target every day of the year.
-    assert hours == {et_hour + 5, et_hour + 6, et_hour + 7}, hours
-    # Mon-Fri only (launchd Weekday 1..5), no weekend fires.
-    assert weekdays == {1, 2, 3, 4, 5}
+    offsets = (5, 6, 7)
+    assert hours == {(et_hour + off) % 24 for off in offsets}, hours
+    # A candidate that crosses midnight (ET+off >= 24, e.g. audit-push 17:30 ET
+    # +7h = 00:30 next-day Berlin) carries a Berlin weekday of ET-weekday + 1,
+    # so the full set spans Mon..Sat; otherwise Mon..Fri.
+    if any(et_hour + off >= 24 for off in offsets):
+        assert weekdays == {1, 2, 3, 4, 5, 6}, weekdays
+    else:
+        assert weekdays == {1, 2, 3, 4, 5}, weekdays

@@ -12,6 +12,14 @@
 set -euo pipefail
 
 REPO="$(cd "$(dirname "$0")/../.." && pwd)"
+
+# ET timezone gate: the plist fires at three candidate LOCAL times bracketing
+# the 17:30 ET target across US/EU DST; proceed only in the true ET window
+# (lib_c13_et_gate.sh). Root-caused 2026-07-07: a non-ET Mac fired these ~6h off.
+# 17:30 ET; the +7h candidate crosses midnight (00:30 next-day Berlin), so its
+# plist Weekday entries are shifted +1 -- the gate keys off the true ET weekday.
+source "$(dirname "$0")/lib_c13_et_gate.sh"
+c13_require_et_window "$REPO" 17 30 10 audit-push || exit 0
 DATE="$(date -u +%Y-%m-%d)"
 
 cd "${REPO}"
