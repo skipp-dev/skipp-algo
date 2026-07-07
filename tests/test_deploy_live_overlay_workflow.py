@@ -91,6 +91,30 @@ def test_deploy_is_verified_not_fire_and_forget() -> None:
     assert "ended in status" in text
 
 
+def test_deployment_list_has_project_context() -> None:
+    # Unlike `railway up`, `railway deployment list` does NOT resolve the
+    # project from the token: in an unlinked CI checkout it dies instantly with
+    # "No linked project found". Five deploys failed silently on 2026-07-07
+    # before this env var supplied the context.
+    text = _text()
+    assert text.count("RAILWAY_PROJECT_ID:") >= 2, (
+        "deploy AND verify steps need RAILWAY_PROJECT_ID for railway deployment list"
+    )
+
+
+def test_baseline_capture_is_fail_soft_and_stderr_visible() -> None:
+    text = _text()
+    # A baseline failure must not kill the deploy (the 2026-07-07 incident) and
+    # its cause must never be swallowed.
+    assert "Baseline capture failed" in text
+    assert "2>/dev/null" not in text, (
+        "never silence railway stderr -- a hidden error cost five deploys"
+    )
+    # Fallback correlator when the baseline id is unavailable.
+    assert "started=" in text
+    assert "fromdateiso8601" in text
+
+
 def test_deploy_uses_the_sha_stamping_wrapper_with_branch() -> None:
     text = _text()
     assert "scripts/deploy_live_overlay.sh" in text

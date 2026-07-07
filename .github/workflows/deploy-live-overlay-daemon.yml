@@ -81,13 +81,31 @@ jobs:
         if: steps.gate.outputs.run == 'true'
         env:
           RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
+          # Unlike `railway up`, `railway deployment list` does NOT resolve the
+          # project from the token -- from an unlinked directory (a fresh CI
+          # checkout) it dies instantly with "No linked project found". The env
+          # var supplies the context without a `railway link` step. Root-caused
+          # 2026-07-07 after five silent deploy failures (the old baseline
+          # capture also silenced stderr, hiding the cause -- never again).
+          RAILWAY_PROJECT_ID: 0616a3b7-7b7f-41d1-8fac-a0b8922c94ca
           DEPLOY_GIT_BRANCH: ${{ github.ref_name }}
         run: |
           set -euo pipefail
+          # Job start epoch: the verify step's fallback correlator when the
+          # baseline id is unavailable.
+          started=$(date -u +%s)
+          echo "started=$started" >> "$GITHUB_OUTPUT"
           # Record the newest deployment BEFORE deploying so the verify step
           # correlates to OUR new deployment (not a stale prior SUCCESS).
-          baseline=$(railway deployment list --service live_overlay_daemon \
-            --environment production --json 2>/dev/null | jq -r '.[0].id // "none"')
+          # Fail-soft with stderr VISIBLE: a baseline failure must not kill the
+          # deploy, and its cause must never be invisible.
+          baseline="unknown"
+          if base_json=$(railway deployment list --service live_overlay_daemon \
+              --environment production --json); then
+            baseline=$(jq -r '.[0].id // "unknown"' <<<"$base_json" || echo "unknown")
+          else
+            echo "::warning::Baseline capture failed (railway deployment list); verify will correlate by creation time instead."
+          fi
           echo "baseline=$baseline" >> "$GITHUB_OUTPUT"
           echo "Baseline (pre-deploy) newest deployment: $baseline"
           scripts/deploy_live_overlay.sh
@@ -96,27 +114,38 @@ jobs:
         if: steps.gate.outputs.run == 'true'
         env:
           RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
+          RAILWAY_PROJECT_ID: 0616a3b7-7b7f-41d1-8fac-a0b8922c94ca
         # `railway up --detach` returns after the upload, so a Railway-side
         # build/healthcheck failure would otherwise leave CI green while the old
         # container keeps serving -- the exact silent no-op class this workflow
-        # exists to kill. Wait for a NEW deployment to reach a terminal state
-        # and fail on anything but SUCCESS.
+        # exists to kill. Wait for a NEW deployment (id != baseline, or created
+        # after the job started when the baseline id is unknown) to reach a
+        # terminal state and fail on anything but SUCCESS.
         run: |
           set -euo pipefail
           baseline="${{ steps.deploy.outputs.baseline }}"
+          started="${{ steps.deploy.outputs.started }}"
           for i in $(seq 1 42); do
             # `|| true` so a transient API blip yields an empty line instead of
-            # tripping set -e; parse via parameter expansion (no read/set -e trap).
+            # tripping set -e; stderr stays visible in the log.
             line="$(railway deployment list --service live_overlay_daemon \
-              --environment production --json 2>/dev/null \
-              | jq -r '.[0] | "\(.id) \(.status)"' || true)"
-            id="${line%% *}"; status="${line##* }"
-            echo "[$i] newest deployment ${id:0:8}: ${status:-none} (baseline ${baseline:0:8})"
-            if [[ -n "$id" && "$id" != "$baseline" ]]; then
-              case "$status" in
+              --environment production --json \
+              | jq -r '.[0] | [.id, .status, ((.createdAt // "1970-01-01T00:00:00Z") | sub("\\.[0-9]+Z$"; "Z") | fromdateiso8601)] | @tsv' || true)"
+            IFS=$'\t' read -r dep_id dep_status dep_created <<<"$line" || true
+            echo "[$i] newest deployment ${dep_id:0:8}: ${dep_status:-none} created=${dep_created:-?} (baseline ${baseline:0:8}, started ${started})"
+            is_new=false
+            if [[ -n "${dep_id:-}" ]]; then
+              if [[ "$baseline" != "unknown" && -n "$baseline" ]]; then
+                [[ "$dep_id" != "$baseline" ]] && is_new=true
+              elif [[ -n "${dep_created:-}" && "${dep_created:-0}" -ge "${started:-0}" ]]; then
+                is_new=true
+              fi
+            fi
+            if [[ "$is_new" == "true" ]]; then
+              case "$dep_status" in
                 SUCCESS) echo "New deployment healthy."; exit 0 ;;
                 FAILED|CRASHED|REMOVED|SKIPPED)
-                  echo "::error::New deployment ended in status $status"; exit 1 ;;
+                  echo "::error::New deployment ended in status $dep_status"; exit 1 ;;
               esac
             fi
             sleep 20
