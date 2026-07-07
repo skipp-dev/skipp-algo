@@ -84,35 +84,36 @@ def test_railway_cli_install_ignores_lifecycle_scripts() -> None:
 def test_deploy_is_verified_not_fire_and_forget() -> None:
     text = _text()
     # `railway up --detach` returns before the deploy completes; a verify step
-    # must poll the NEW deployment (vs a recorded baseline) to terminal SUCCESS.
+    # must poll until a deployment CREATED AFTER the job started reaches
+    # terminal SUCCESS (a stale prior SUCCESS can never false-pass).
     assert "Verify deployment" in text
-    assert "railway deployment list" in text
-    assert "baseline" in text
+    assert "started=" in text
+    assert "fromdateiso8601" in text
     assert "ended in status" in text
 
 
-def test_deployment_list_has_project_context() -> None:
-    # Unlike `railway up`, `railway deployment list` does NOT resolve the
-    # project from the token: in an unlinked CI checkout it dies instantly with
-    # "No linked project found". Five deploys failed silently on 2026-07-07
-    # before this env var supplied the context.
+def test_verify_uses_graphql_not_the_cli_list() -> None:
+    # Empirical (2026-07-07, dispatches 28856828169 + 28859622704): under a
+    # project token the CLI's `railway deployment list` dies with "No linked
+    # project found" (with or without RAILWAY_PROJECT_ID), so verify must use
+    # the public GraphQL API, where project tokens are first-class.
     text = _text()
-    assert text.count("RAILWAY_PROJECT_ID:") >= 2, (
-        "deploy AND verify steps need RAILWAY_PROJECT_ID for railway deployment list"
-    )
+    assert "Project-Access-Token" in text
+    assert "backboard.railway.com/graphql" in text
+    assert "railway deployment list" not in text
 
 
-def test_baseline_capture_is_fail_soft_and_stderr_visible() -> None:
-    text = _text()
-    # A baseline failure must not kill the deploy (the 2026-07-07 incident) and
-    # its cause must never be swallowed.
-    assert "Baseline capture failed" in text
-    assert "2>/dev/null" not in text, (
-        "never silence railway stderr -- a hidden error cost five deploys"
-    )
-    # Fallback correlator when the baseline id is unavailable.
-    assert "started=" in text
-    assert "fromdateiso8601" in text
+def test_railway_up_env_stays_token_only() -> None:
+    # Empirical (dispatch 28859622704): RAILWAY_PROJECT_ID in the env makes
+    # `railway up` fail instantly under a project token. The deploy step must
+    # keep the exact token-only env the 07:49Z deploy proved working.
+    assert "RAILWAY_PROJECT_ID" not in _text()
+
+
+def test_no_stderr_silencing_anywhere() -> None:
+    # A silenced stderr hid the root cause across five failed deploys
+    # (2026-07-07). Never again -- errors must reach the log.
+    assert "2>/dev/null" not in _text()
 
 
 def test_deploy_uses_the_sha_stamping_wrapper_with_branch() -> None:
