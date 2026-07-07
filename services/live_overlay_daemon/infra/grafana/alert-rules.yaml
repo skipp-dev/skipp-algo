@@ -1237,7 +1237,13 @@ groups:
     - refId: A
       datasourceUid: grafanacloud-prom
       model:
-        expr: sum(increase(live_overlay_daemon_restarts_total{job="live_overlay"}[24h]))
+        # Restarts are counted as CHANGES of the process start-time gauge.
+        # The previous expr used increase(live_overlay_daemon_restarts_total),
+        # but that "counter" is set to 1 once per process and stays constant —
+        # Prometheus sees 1,1,1,... across restarts (no reset detectable), so
+        # increase() was always 0 and this crash-loop alert could NEVER fire
+        # (found 2026-07-07). start_time_seconds jumps on every restart.
+        expr: sum(changes(live_overlay_process_start_time_seconds{job="live_overlay"}[24h]))
         instant: true
     - refId: C
       datasourceUid: __expr__
@@ -1260,6 +1266,109 @@ groups:
       summary: More than 3 daemon restarts in the last 24 h
       runbook: Check Railway deployment logs and restart_cause counters for crash
         loop.
+  - uid: lo-feed-supervisor-heals-recurring
+    title: Feed supervisor healing repeatedly (1h)
+    condition: C
+    data:
+    - refId: A
+      datasourceUid: grafanacloud-prom
+      model:
+        # supervisor_heals increments on every silent automatic feed-worker
+        # restart. One heal is routine; a recurring rate means the feed is
+        # flapping and only the supervisor is masking it (previously this
+        # counter was exported but consumed by NO alert or dashboard).
+        expr: sum(increase(live_overlay_feed_supervisor_heals{job="live_overlay"}[1h]))
+        instant: true
+    - refId: C
+      datasourceUid: __expr__
+      model:
+        type: threshold
+        conditions:
+        - evaluator:
+            type: gt
+            params:
+            - 2
+          operator:
+            type: and
+          query:
+            params:
+            - A
+    for: 5m
+    labels:
+      severity: warning
+    annotations:
+      summary: Feed supervisor healed workers more than twice in the last hour
+      runbook: The feed is crash-flapping behind the supervisor. Check
+        live_overlay_feed_bento_errors / circuit_breakers and Databento status
+        before the self-healing hides a real outage.
+  - uid: lo-trading-signals-snapshot-stale
+    title: Trading signals snapshot stale
+    condition: C
+    data:
+    - refId: A
+      datasourceUid: grafanacloud-prom
+      model:
+        # The exporter already computes the staleness verdict against the
+        # configured OVERLAY_SIGNALS_MAX_AGE_SECS threshold — this 0/1 gauge
+        # existed but no alert consumed it (found 2026-07-07).
+        expr: max(live_overlay_trading_signals_snapshot_stale{job="live_overlay"})
+        instant: true
+    - refId: C
+      datasourceUid: __expr__
+      model:
+        type: threshold
+        conditions:
+        - evaluator:
+            type: gt
+            params:
+            - 0
+          operator:
+            type: and
+          query:
+            params:
+            - A
+    for: 10m
+    labels:
+      severity: warning
+    annotations:
+      summary: Realtime signals snapshot exceeded its configured max age
+      runbook: The A0/A1 signals feed (producer or snapshot URL/path) has not
+        refreshed within OVERLAY_SIGNALS_MAX_AGE_SECS. Check the
+        smc-signals-producer service and the snapshot publishing branch.
+  - uid: lo-experiment-snapshot-stale
+    title: Experiment rollup snapshot stale
+    condition: C
+    data:
+    - refId: A
+      datasourceUid: grafanacloud-prom
+      model:
+        # Wires the documented OVERLAY_EXPERIMENT_MAX_AGE_SECS knob (default
+        # 36h, tolerates one skipped daily run) to an alert. Before 2026-07-07
+        # the knob existed in config/README/OPS but was connected to nothing.
+        expr: max(live_overlay_experiment_snapshot_stale{job="live_overlay"})
+        instant: true
+    - refId: C
+      datasourceUid: __expr__
+      model:
+        type: threshold
+        conditions:
+        - evaluator:
+            type: gt
+            params:
+            - 0
+          operator:
+            type: and
+          query:
+            params:
+            - A
+    for: 30m
+    labels:
+      severity: warning
+    annotations:
+      summary: Plan 2.8 experiment rollup exceeded its configured max age
+      runbook: The daily measurement-benchmark producer has not published a
+        fresh rollup within OVERLAY_EXPERIMENT_MAX_AGE_SECS. Check the rolling
+        benchmark workflow and the bot/live-experiment-snapshot branch.
   - uid: sp-memory-high
     title: Signals Producer RSS > 768 MB
     condition: C
