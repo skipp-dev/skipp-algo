@@ -6531,6 +6531,54 @@
         },
         "overrides": []
       }
+    },
+    {
+      "id": 2165782573,
+      "title": "Deployed build (commit @ branch)",
+      "type": "stat",
+      "description": "The commit + branch currently running in the daemon, from live_overlay_build_info. 'unknown' means a deploy without a git stamp (e.g. bare railway up). Use it to confirm a deploy actually shipped the intended commit.",
+      "gridPos": {
+        "x": 0,
+        "y": 258,
+        "w": 8,
+        "h": 4
+      },
+      "targets": [
+        {
+          "expr": "live_overlay_build_info{job=~\"$job\"}",
+          "legendFormat": "{{branch}} @ {{commit}}",
+          "instant": true,
+          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "grafanacloud-prom"
+          }
+        }
+      ],
+      "options": {
+        "colorMode": "none",
+        "graphMode": "none",
+        "textMode": "name",
+        "justifyMode": "auto",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        }
+      },
+      "fieldConfig": {
+        "defaults": {
+          "mappings": [],
+          "noValue": "no build_info (pre-#3221 image?)"
+        },
+        "overrides": []
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "grafanacloud-prom"
+      }
     }
   ],
   "schemaVersion": 39,
