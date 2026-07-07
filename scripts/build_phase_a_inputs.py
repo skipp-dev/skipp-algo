@@ -45,8 +45,27 @@ from scripts.smc_atomic_write import atomic_write_json, atomic_write_text
 # during the build so a typo or new setup family is caught instead of
 # silently bypassing the gate-status mechanism.
 _SETUP_TYPE_TO_VARIANT: dict[str, str] = {
+    # All three labels ``_setup_from_bias`` (open_prep/trade_cards.py) can
+    # emit. They are bias-dependent flavors of the SAME open-prep swing
+    # playbook, executed by the same bracket engine; the variant key is the
+    # C8 execution-promotion accounting bucket (fills / closed-trade counts),
+    # not a signal-alpha claim. Pre-market exports always produced the
+    # neutral label, so only it was mapped -- the first correctly-timed
+    # post-open export (2026-07-07 15:18 CEST, ET-gate fix #3235) emitted
+    # 'ORB / Gap&Go' and DEGRADED phase-a on the fail-loud unmapped guard.
     "ORB or VWAP-Hold": "smc_orb_vwap_hold",
+    "ORB / Gap&Go": "smc_orb_vwap_hold",
+    "VWAP-Reclaim only": "smc_orb_vwap_hold",
+    # Playbook-driven labels (playbook JSON present in the export).
+    "Gap & Go (Trend Continuation)": "smc_orb_vwap_hold",
+    "Gap Fade (Mean Reversion)": "smc_orb_vwap_hold",
+    "Post-News Drift (Swing 1–3d)": "smc_orb_vwap_hold",
 }
+
+# Labels that must NOT become orders: the playbook explicitly said no-trade.
+# Skipped (with a log line), never mapped -- mapping them would trade days
+# the playbook told us to sit out.
+_SETUP_TYPE_SKIP: frozenset[str] = frozenset({"No Trade — Playbook"})
 
 
 # Maximum number of calendar days a trade-cards CSV may be older than the
@@ -177,6 +196,14 @@ def build_setups_from_trade_cards(
     with trade_cards_csv.open("r", encoding="utf-8", newline="") as fh:
         reader = csv.DictReader(fh)
         for row in reader:
+            setup_type = (row.get("setup_type") or "").strip()
+            if setup_type in _SETUP_TYPE_SKIP:
+                # Explicit playbook no-trade: sit out, loudly but not fatally.
+                print(
+                    f"build_phase_a_inputs: skipping {row.get('symbol', '?')} "
+                    f"(setup_type {setup_type!r} is a no-trade label)"
+                )
+                continue
             setups.append(_row_to_setup(row, trade_date=trade_date, quantity=quantity))
     return setups
 

@@ -144,6 +144,44 @@ def test_setup_type_mapping_table_is_non_empty() -> None:
     assert "ORB or VWAP-Hold" in _SETUP_TYPE_TO_VARIANT
 
 
+def test_every_trade_cards_label_is_mapped() -> None:
+    """Coupling guard: every setup label the trade-cards generator can emit
+    must be mapped, or phase-a DEGRADEDs at runtime on the fail-loud
+    unmapped-type guard. Found live 2026-07-07: pre-market exports only ever
+    produced the neutral bias label, so 'ORB / Gap&Go' (bias >= 0.25) stayed
+    unmapped until the first correctly-timed post-open export hit it.
+
+    The labels are extracted from ``_setup_type_from_bias``'s return
+    statements so a NEW label added there breaks this test at PR time, not at
+    15:28 CEST.
+    """
+    import ast
+    import inspect
+
+    from open_prep import trade_cards
+
+    tree = ast.parse(inspect.getsource(trade_cards._setup_type_from_bias))
+    labels = {
+        node.value.value
+        for node in ast.walk(tree)
+        if isinstance(node, ast.Return)
+        and isinstance(node.value, ast.Constant)
+        and isinstance(node.value.value, str)
+    }
+    assert labels, "no string labels found in _setup_type_from_bias -- extractor broken?"
+    from scripts.build_phase_a_inputs import _SETUP_TYPE_SKIP
+
+    handled = set(_SETUP_TYPE_TO_VARIANT) | set(_SETUP_TYPE_SKIP)
+    unhandled = labels - handled
+    assert not unhandled, (
+        f"trade-cards labels neither mapped nor skip-listed (phase-a would "
+        f"DEGRADE at runtime): {sorted(unhandled)}"
+    )
+    # A label must never be both: skip wins silently over the mapping today,
+    # and that ambiguity should be a conscious decision, not an accident.
+    assert not (set(_SETUP_TYPE_TO_VARIANT) & set(_SETUP_TYPE_SKIP))
+
+
 # ---------------------------------------------------------------------------
 # B1 (audit pass-4, 2026-06-10) — trade-cards staleness guard
 # ---------------------------------------------------------------------------
