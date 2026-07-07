@@ -104,13 +104,40 @@ class TestLiveOverlayCollectProcessMetrics:
         assert 'live_overlay_build_info{commit="4450b1049deadbeef",branch="main"} 1' in body
 
     def test_build_info_defaults_to_unknown(self, monkeypatch) -> None:
-        # Local/dev runs (no Railway env) still emit the gauge with a
-        # non-empty label -- never a blank commit label.
-        from services.live_overlay_daemon.metrics import _collect_process_metrics as _lo_metrics
+        # No Railway env AND no baked stamp -> the gauge still emits a
+        # non-empty label, never a blank commit.
+        import services.live_overlay_daemon.metrics as metrics_mod
         monkeypatch.delenv("RAILWAY_GIT_COMMIT_SHA", raising=False)
         monkeypatch.delenv("RAILWAY_GIT_BRANCH", raising=False)
-        body = "\n".join(_lo_metrics(startup_ts=time.time() - 5.0))
+        monkeypatch.setattr(metrics_mod, "_read_build_stamp", lambda: ("", ""))
+        body = "\n".join(metrics_mod._collect_process_metrics(startup_ts=time.time() - 5.0))
         assert 'live_overlay_build_info{commit="unknown",branch="unknown"} 1' in body
+
+    def test_build_info_reads_stamp_when_env_absent(self, monkeypatch) -> None:
+        # `railway up` sets no RAILWAY_GIT_* vars; the deploy wrapper bakes the
+        # SHA into build_stamp.txt and the daemon reads it as the fallback.
+        import services.live_overlay_daemon.metrics as metrics_mod
+        monkeypatch.delenv("RAILWAY_GIT_COMMIT_SHA", raising=False)
+        monkeypatch.delenv("RAILWAY_GIT_BRANCH", raising=False)
+        monkeypatch.setattr(metrics_mod, "_read_build_stamp", lambda: ("abc123def456", "feat/x"))
+        body = "\n".join(metrics_mod._collect_process_metrics(startup_ts=time.time() - 5.0))
+        assert 'live_overlay_build_info{commit="abc123def456",branch="feat/x"} 1' in body
+
+    def test_build_info_env_wins_over_stamp(self, monkeypatch) -> None:
+        # A GitHub-connected deploy (RAILWAY_GIT_* present) is authoritative
+        # over any baked stamp.
+        import services.live_overlay_daemon.metrics as metrics_mod
+        monkeypatch.setenv("RAILWAY_GIT_COMMIT_SHA", "envsha")
+        monkeypatch.setenv("RAILWAY_GIT_BRANCH", "main")
+        monkeypatch.setattr(metrics_mod, "_read_build_stamp", lambda: ("stampsha", "stampbranch"))
+        body = "\n".join(metrics_mod._collect_process_metrics(startup_ts=time.time() - 5.0))
+        assert 'live_overlay_build_info{commit="envsha",branch="main"} 1' in body
+
+    def test_read_build_stamp_placeholder_is_empty(self) -> None:
+        # The committed placeholder ("unknown") reads as empty so the gauge
+        # shows "unknown", not the literal word as a commit SHA.
+        from services.live_overlay_daemon.metrics import _read_build_stamp
+        assert _read_build_stamp() == ("", "")
 
 
 # ---------------------------------------------------------------------------
