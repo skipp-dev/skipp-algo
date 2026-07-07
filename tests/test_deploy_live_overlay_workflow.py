@@ -111,9 +111,11 @@ def test_verify_uses_graphql_not_the_cli_list() -> None:
 
 
 def test_railway_up_env_stays_token_only() -> None:
-    # Empirical (dispatch 28859622704): RAILWAY_PROJECT_ID in the env makes
-    # `railway up` fail instantly under a project token. The deploy step must
-    # keep the exact token-only env the 07:49Z deploy proved working.
+    # Keep the exact token-only env the successful deploys (07:49Z main,
+    # dispatch 28860288937) are proven to work with. A project-id env var is
+    # unnecessary (verify uses GraphQL) and was present in a failed
+    # configuration; whether it CAUSED that failure is unproven (the dead-shim
+    # CLI confounded it) -- so simply do not reintroduce unproven variables.
     assert "RAILWAY_PROJECT_ID" not in _text()
 
 
