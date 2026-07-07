@@ -78,6 +78,18 @@ def test_summarize_fills_rejects_non_finite_inputs():
     assert out == {"smc-A-entry": {"shares": 2.0, "avg_price": 100.0}}
 
 
+def test_summarize_fills_rejects_overflowing_notional():
+    # shares and price are each finite but their product overflows to inf
+    # (1e308 * 1e308), which would poison avg_price and write non-standard JSON
+    # ``Infinity`` — the same failure class the finite guards above prevent.
+    assert summarize_fills([_fill("smc-A-entry", 1e308, 1e308)]) == {}
+    # A finite-product fill for the same ref still summarizes; the overflow drops.
+    out = summarize_fills(
+        [_fill("smc-A-entry", 1e308, 1e308), _fill("smc-A-entry", 2, 100.0)]
+    )
+    assert out == {"smc-A-entry": {"shares": 2.0, "avg_price": 100.0}}
+
+
 # ---------------------------------------------------------------------------
 # legs_by_intent
 # ---------------------------------------------------------------------------

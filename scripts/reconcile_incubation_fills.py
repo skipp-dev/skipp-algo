@@ -92,9 +92,16 @@ def summarize_fills(fills: list[Any]) -> dict[str, dict[str, float]]:
             continue
         if shares <= 0 or price <= 0:
             continue
+        # Even finite shares and price can multiply to a non-finite notional
+        # (e.g. 1e308 * 1e308 overflows to inf), which poisons avg_price and the
+        # JSONL exactly like a non-finite input. Drop the fill if the product
+        # overflows rather than aggregate it.
+        notional = shares * price
+        if not math.isfinite(notional):
+            continue
         slot = agg.setdefault(order_ref, {"shares": 0.0, "notional": 0.0})
         slot["shares"] += shares
-        slot["notional"] += shares * price
+        slot["notional"] += notional
     return {
         ref: {"shares": v["shares"], "avg_price": v["notional"] / v["shares"]}
         for ref, v in agg.items()
