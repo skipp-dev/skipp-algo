@@ -160,6 +160,44 @@ def test_helper_marks_degraded_when_no_files(tmp_path):
     assert (work / "cache" / ".push_status").read_text().startswith("degraded:no-files")
 
 
+def test_helper_marks_degraded_when_staging_fails(tmp_path):
+    """A mkdir/cp/add failure while staging into the publishing clone must
+    write a ``degraded:stage-failed`` marker and return 1 — not abort via
+    the caller's ``set -e`` with no marker at all (R6, 2026-07-07).
+
+    Provocation: plant a regular FILE named ``cache/wsh`` on the data
+    branch. The publishing clone checks it out faithfully (the self-heal
+    does not fire — the clone mirrors the branch exactly), so
+    ``mkdir -p <clone>/cache/wsh`` in the stage loop fails with ENOTDIR.
+    """
+    work, env = _data_branch_sandbox(tmp_path)
+    _run(["git", "checkout", "-q", "data/phase-a-audit"], work, env)
+    (work / "cache").mkdir(exist_ok=True)
+    (work / "cache" / "wsh").write_text("blocker: a file where a dir belongs\n")
+    _run(["git", "add", "cache/wsh"], work, env)
+    _run(["git", "commit", "-q", "-m", "plant blocker file"], work, env)
+    _run(["git", "push", "-q", "origin", "data/phase-a-audit"], work, env)
+    _run(["git", "checkout", "-q", "main"], work, env)
+
+    # In the work tree (main) the path is free again — create the artefact.
+    (work / "cache" / "wsh").mkdir(parents=True, exist_ok=True)
+    (work / "cache" / "wsh" / "x.jsonl").write_text('{"x":1}\n')
+
+    driver = work / "driver.sh"
+    driver.write_text(textwrap.dedent(f"""
+    set -uo pipefail
+    cd "{work}"
+    source "{LIB}"
+    push_to_data_branch "stage fail" "cache/.push_status" \\
+        "cache/wsh/x.jsonl"
+    echo "rc=$?"
+    """))
+    result = _run(["bash", str(driver)], work, env)
+    assert "rc=1" in result.stdout, result.stdout + result.stderr
+    marker = (work / "cache" / ".push_status").read_text()
+    assert marker.startswith("degraded:stage-failed"), marker
+
+
 def test_helper_selfheals_corrupted_publishing_clone(tmp_path):
     """A SIGKILL / power-loss can leave the persistent publishing clone in
     an unusable state (interrupted fetch, half-written objects). The lib
@@ -516,25 +554,24 @@ def test_imbalance_sh_writes_degraded_marker_on_collector_failure(tmp_path):
 
 def test_phase_a_sh_incubation_failure_path_writes_degraded_marker() -> None:
     """Static guard: run-c13-phase-a.sh must wrap run_smc_live_incubation
-    in a catchable ``if``/``else`` shell branch and call
-    ``_write_marker "DEGRADED"`` on failure.
+    so a non-zero exit is CATCHABLE under ``set -e`` and writes the
+    DEGRADED marker.
 
-    SA-02 regression guard (audit 2026-06-14).
-    The subprocess equivalent is impractical (requires a multi-step fake
-    venv that passes build_phase_a_inputs but fails the runner), so we
-    enforce the invariant via source inspection instead.
+    SA-02 regression guard (audit 2026-06-14), tightened 2026-07-07: the
+    previous acceptance of a bare ``cmd; _run_exit=$?`` sequence was a
+    loophole — under ``set -e`` the script dies on the cmd line itself and
+    the capture/if lines are dead code, so the guard passed while the
+    marker was silently skipped on every runner crash. Only genuinely
+    set-e-safe forms are accepted now: ``if ! cmd`` or ``cmd || var=$?``.
     """
     text = (REPO / "automation" / "launchd" / "run-c13-phase-a.sh").read_text()
     assert (
         'if ! "${PY}" -m scripts.run_smc_live_incubation' in text
-        or 'if "${PY}" -m scripts.run_smc_live_incubation' in text
-        # cbcb6195: refactored to capture exit-code so the logged value is
-        # accurate; pattern is: run cmd, then _run_exit=$?, then if-check.
-        or ('_run_exit=$?' in text and 'if [ "${_run_exit}" -ne 0 ]' in text)
+        or "|| _run_exit=$?" in text
     ), (
-        "run-c13-phase-a.sh: run_smc_live_incubation must be wrapped in "
-        "a catchable shell branch so a non-zero exit can be caught — "
-        "SA-02 fix missing."
+        "run-c13-phase-a.sh: run_smc_live_incubation must be wrapped in a "
+        "set-e-SAFE catch (`if ! cmd` or `cmd || _run_exit=$?`). A bare "
+        "`cmd; _run_exit=$?` is dead code under set -e — SA-02 fix missing."
     )
     assert '_write_marker "DEGRADED" "incubation-failed:' in text, (
         "run-c13-phase-a.sh: DEGRADED marker write missing for incubation "
@@ -544,3 +581,68 @@ def test_phase_a_sh_incubation_failure_path_writes_degraded_marker() -> None:
     assert '_write_marker "SUCCESS" "incubation-complete:' in text, (
         "run-c13-phase-a.sh: SUCCESS marker write on happy path not found."
     )
+
+
+def test_phase_a_sh_runner_failure_writes_degraded_marker_end_to_end(tmp_path):
+    """Behavioral SA-02 guard: run the real script with a fake venv whose
+    python passes build_phase_a_inputs but fails run_smc_live_incubation —
+    the DEGRADED marker must be written and the runner's exit code must
+    propagate. (The static guard above cannot see whether the catch is
+    reachable; this test can — it is exactly the check that would have
+    caught the 2026-07-07 dead ``cmd; _run_exit=$?`` capture.)
+    """
+    today = _utc_today()
+
+    fake_venv = tmp_path / "venv"
+    bin_dir = fake_venv / "bin"
+    bin_dir.mkdir(parents=True)
+    (bin_dir / "activate").write_text("# fake activate\n")
+    fake_python = bin_dir / "python"
+    # Arg-inspecting stub: succeed for the inputs builder, fail (exit 7)
+    # for the incubation runner so the failure path is exercised.
+    fake_python.write_text(
+        "#!/bin/bash\n"
+        'case "$*" in\n'
+        "  *run_smc_live_incubation*) exit 7 ;;\n"
+        "  *) exit 0 ;;\n"
+        "esac\n"
+    )
+    fake_python.chmod(0o755)
+
+    marker_path = REPO / "cache" / "live" / f".phase_a_status_{today}"
+    # Preserve a real production marker for today (the daily cron may have
+    # run before this test) and restore it afterwards.
+    saved = marker_path.read_text() if marker_path.exists() else None
+    marker_path.unlink(missing_ok=True)
+
+    try:
+        result = subprocess.run(
+            ["bash", str(REPO / "automation" / "launchd" / "run-c13-phase-a.sh")],
+            env={
+                **os.environ,
+                # Bypass the ET gate: this test exercises the runner failure
+                # path, not the scheduling window.
+                "C13_SKIP_ET_GATE": "1",
+                "C13_VENV": str(fake_venv),
+            },
+            capture_output=True,
+            text=True,
+            cwd=str(REPO),
+        )
+        assert result.returncode == 7, (
+            "run-c13-phase-a.sh must propagate the runner's exit code.\n"
+            f"returncode={result.returncode}\nstdout: {result.stdout[:400]}\n"
+            f"stderr: {result.stderr[:400]}"
+        )
+        assert marker_path.exists(), (
+            "run-c13-phase-a.sh: no DEGRADED marker written on runner "
+            f"failure.\nstdout: {result.stdout[:400]}\nstderr: {result.stderr[:400]}"
+        )
+        content = marker_path.read_text()
+        assert content.startswith("DEGRADED|incubation-failed:"), (
+            f"unexpected marker content: {content!r}"
+        )
+    finally:
+        marker_path.unlink(missing_ok=True)
+        if saved is not None:
+            marker_path.write_text(saved)
