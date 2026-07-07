@@ -65,6 +65,28 @@ def test_gate_runs_exactly_once_per_et_day(tmp_path: Path) -> None:
     assert _run_gate(tmp_path, "09:28", 1, "09", "28", "10") != 0
 
 
+def test_concurrent_in_window_fires_let_exactly_one_proceed(tmp_path: Path) -> None:
+    # The exactly-once marker must hold under CONCURRENCY, not just sequential
+    # calls: a launchd wake-from-sleep catch-up can race the regular fire. A
+    # non-atomic check-then-write marker lets several racers past the [ -e ]
+    # check at once -> duplicate paper orders for phase-a. The O_EXCL marker
+    # create guarantees a single winner no matter how the racers interleave.
+    from concurrent.futures import ThreadPoolExecutor
+
+    racers = 16
+    with ThreadPoolExecutor(max_workers=racers) as pool:
+        codes = list(
+            pool.map(
+                lambda _: _run_gate(tmp_path, "09:28", 1, "09", "28", "10"),
+                range(racers),
+            )
+        )
+    assert codes.count(0) == 1, f"expected exactly one winner, got codes={codes}"
+    # Every non-winner must have skipped cleanly (the gate's return 1), never
+    # crashed or produced some other exit status.
+    assert sorted(codes) == [0] + [1] * (racers - 1), f"codes={codes}"
+
+
 # --------------------------------------------------------------------------- #
 # The plist candidate LOCAL hours must bracket the ET target across DST so that
 # exactly one candidate maps to the ET target regardless of the US/EU offset.

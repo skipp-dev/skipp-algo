@@ -66,14 +66,21 @@ c13_require_et_window() {
     fi
 
     # Exactly-once per ET day: a second in-window candidate fire (or a launchd
-    # catch-up after wake) must not double-run — for phase-a that would mean
-    # duplicate paper orders.
+    # catch-up after wake racing the regular fire) must not double-run — for
+    # phase-a that would mean duplicate paper orders.
+    #
+    # A plain `[ -e "$marker" ]` check followed by a separate write is a TOCTOU
+    # race: two concurrent fires can both see the marker missing and both
+    # proceed. Instead create the marker with O_EXCL semantics — bash's
+    # `noclobber` `>` refuses to open an existing file — so exactly one racer
+    # wins the create and the rest fall through to the skip branch. The
+    # `set -o noclobber` is scoped to a subshell so it does not leak to callers.
     local marker="${repo}/cache/live/.c13_gate_${job}_${et_date}"
-    if [ -e "$marker" ]; then
+    mkdir -p "${repo}/cache/live"
+    if ! (set -o noclobber; printf '%s ET %s:%s (target %s:%s)\n' \
+            "$et_date" "$et_hh" "$et_mm" "$thh" "$tmm" > "$marker") 2>/dev/null; then
         echo "c13-gate[$job]: already ran for ET ${et_date} — skip." >&2
         return 1
     fi
-    mkdir -p "${repo}/cache/live"
-    printf '%s ET %s:%s (target %s:%s)\n' "$et_date" "$et_hh" "$et_mm" "$thh" "$tmm" > "$marker"
     return 0
 }
