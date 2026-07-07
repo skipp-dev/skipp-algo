@@ -190,6 +190,70 @@ def test_latest_success_zero_when_newest_completed_run_failed(
     assert row["latest_success"] == 0
 
 
+def test_latest_success_skips_cancelled_to_the_newest_verdict(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A merge-train concurrency cancel is NOT a health verdict: the newest
+    completed run being ``cancelled`` must not count as "not green". Skip it
+    and take the newest run that actually reached success/failure (observed
+    2026-07-07: rapid merges cancelled CI runs and flapped the alarm)."""
+    runs = [
+        {"workflow_id": 3, "name": "CI", "event": "push", "status": "completed",
+         "conclusion": "cancelled", "created_at": "2026-06-22T10:30:00Z"},
+        {"workflow_id": 3, "name": "CI", "event": "push", "status": "completed",
+         "conclusion": "success", "created_at": "2026-06-22T10:00:00Z"},
+    ]
+    row = _fetch_with_runs(monkeypatch, runs)["workflows"][0]
+    assert row["latest_success"] == 1
+
+
+def test_latest_success_skips_skipped_and_stale_conclusions(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    # skipped / stale are non-verdict too — only a genuine failure below wins.
+    runs = [
+        {"workflow_id": 3, "name": "CI", "event": "push", "status": "completed",
+         "conclusion": "skipped", "created_at": "2026-06-22T10:30:00Z"},
+        {"workflow_id": 3, "name": "CI", "event": "push", "status": "completed",
+         "conclusion": "stale", "created_at": "2026-06-22T10:15:00Z"},
+        {"workflow_id": 3, "name": "CI", "event": "push", "status": "completed",
+         "conclusion": "failure", "created_at": "2026-06-22T10:00:00Z"},
+    ]
+    row = _fetch_with_runs(monkeypatch, runs)["workflows"][0]
+    assert row["latest_success"] == 0
+
+
+def test_latest_success_stays_zero_when_only_cancelled_runs_seen(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    # No verdict anywhere in the window -> conservative 0 (the 24h `for:`
+    # absorbs it); a workflow that only ever cancels IS worth surfacing.
+    runs = [
+        {"workflow_id": 3, "name": "CI", "event": "push", "status": "completed",
+         "conclusion": "cancelled", "created_at": "2026-06-22T10:30:00Z"},
+        {"workflow_id": 3, "name": "CI", "event": "push", "status": "completed",
+         "conclusion": "cancelled", "created_at": "2026-06-22T10:00:00Z"},
+    ]
+    row = _fetch_with_runs(monkeypatch, runs)["workflows"][0]
+    assert row["latest_success"] == 0
+    assert "latest_success_final" not in row
+
+
+def test_timed_out_and_startup_failure_count_as_failure_verdicts(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    # Genuine failure modes (not cancellations) must still read as not-green.
+    for bad in ("timed_out", "startup_failure"):
+        runs = [
+            {"workflow_id": 3, "name": "CI", "event": "push", "status": "completed",
+             "conclusion": bad, "created_at": "2026-06-22T10:30:00Z"},
+            {"workflow_id": 3, "name": "CI", "event": "push", "status": "completed",
+             "conclusion": "success", "created_at": "2026-06-22T10:00:00Z"},
+        ]
+        row = _fetch_with_runs(monkeypatch, runs)["workflows"][0]
+        assert row["latest_success"] == 0, bad
+
+
 def _capture_fetch_url(monkeypatch: pytest.MonkeyPatch, branch: str) -> dict[str, str]:
     import services.live_overlay_daemon.github_workflow_bridge as bridge
 
