@@ -3931,7 +3931,7 @@
           "visibility": null
         },
         {
-          "lineno": 128,
+          "lineno": 125,
           "varname": "show_performance",
           "kind": "bool",
           "label": "Show Performance Table",
