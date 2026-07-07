@@ -92,7 +92,7 @@ _FROZEN_SITES: frozenset[tuple[str, int]] = frozenset(
         ("newsstack_fmp/ingest_benzinga.py", 200),
         ("newsstack_fmp/ingest_benzinga.py", 211),
         ("newsstack_fmp/ingest_fmp.py", 136),
-        ("newsstack_fmp/ingest_fmp.py", 154),
+        ("newsstack_fmp/ingest_fmp.py", 162),
         # PR #2154: ingest_fmp_filings.py shifted +8 (121→129, 134→142)
         # by the FMP-13F probe instrumentation + retry-after-Header parser.
         # Both sleeps remain legit retry-backoff (HTTP 429 + connect error).

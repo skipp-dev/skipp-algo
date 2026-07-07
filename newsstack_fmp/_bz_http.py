@@ -238,6 +238,22 @@ def _parse_retry_after_seconds(raw_value: Any) -> float | None:
     )
 
 
+def _usage_provider(label: str | None) -> str:
+    """Bucket an endpoint label onto a provider name for usage telemetry.
+
+    This shared HTTP layer serves Benzinga and Unusual Whales; the label
+    (e.g. ``benzinga_news``, ``uw_news``) names the endpoint, so its prefix
+    identifies the billed provider. Defaults to ``benzinga`` (the module's
+    primary provider) when no label is given.
+    """
+    lab = str(label or "").strip().lower()
+    if lab.startswith(("uw", "unusual")):
+        return "unusual_whales"
+    if lab.startswith("benzinga"):
+        return "benzinga"
+    return lab or "benzinga"
+
+
 def _request_with_retry(
     client: httpx.Client,
     url: str,
@@ -260,7 +276,16 @@ def _request_with_retry(
     if label is not None and is_endpoint_disabled(label):
         raise BenzingaEndpointDisabledError(label)
     try:
-        return _attempt_bz_get(client, url, params)
+        resp = _attempt_bz_get(client, url, params)
+        # Provider-usage telemetry (fail-soft): record the metered response
+        # volume, bucketed by provider derived from the endpoint label.
+        try:
+            from newsstack_fmp import provider_usage
+
+            provider_usage.record(_usage_provider(label), response_bytes=len(resp.content))
+        except Exception as usage_exc:  # never let telemetry break an ingest
+            logger.debug("provider-usage record skipped: %s", usage_exc)
+        return resp
     except httpx.HTTPStatusError as exc:
         # Auto-disable on tier-limited / retired-URL responses so the
         # next poll skips the wasted round-trip.
