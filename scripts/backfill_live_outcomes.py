@@ -141,20 +141,21 @@ def compute_trade_outcome(
 def _backfill_record(record: dict[str, Any]) -> dict[str, Any]:
     """Return a copy of ``record`` with outcome fields populated if possible."""
     if PNL_KEY in record and record[PNL_KEY] is not None:
-        return record  # already backfilled, idempotent.
+        return dict(record)  # already backfilled, idempotent.
     action = record.get("action")
     if action not in _CLOSED_ACTIONS:
-        return record  # trade not yet closed.
+        return dict(record)  # trade not yet closed.
     try:
         entry_price = float(record["entry_price"])
         stop_loss = float(record["stop_loss"])
         size_usd = float(record["size_usd"])
         close_price = float(record["close_price"])
     except (KeyError, TypeError, ValueError):
-        # Missing / non-numeric fields — leave the record as-is so the
-        # operator can fix the upstream stream rather than silently
-        # dropping the trade.
-        return record
+        # Missing / non-numeric fields — leave the record content as-is so
+        # the operator can fix the upstream stream rather than silently
+        # dropping the trade. Still a copy: the docstring promises one on
+        # EVERY path, so callers may safely mutate the result.
+        return dict(record)
 
     pnl_usd, r_multiple = compute_trade_outcome(
         entry_price=entry_price,

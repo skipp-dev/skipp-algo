@@ -375,6 +375,14 @@ def build_news_scores(
 
         # Subtract 2h mentions from 24h count so articles are not double-counted
         # across both recency windows (2h articles are already boosted at 0.5).
+        #
+        # NOTE: this is a COVERAGE-INTENSITY score, not catalyst quality — it
+        # counts recency-weighted article mentions only. Sentiment, event class
+        # and materiality are computed above but deliberately NOT part of the
+        # score (explainability metadata only): 4 lawsuit articles score the
+        # same as 4 FDA-approval articles. The persisted field name
+        # ``news_catalyst_score`` is a historical misnomer kept for the data
+        # contract (see config_validation.py).
         mentions_24h_only = max(row["mentions_24h"] - row["mentions_2h"], 0)
         score = min(2.0, row["mentions_2h"] * 0.5 + mentions_24h_only * 0.15)
         row["news_catalyst_score"] = round(score, 4)
@@ -428,5 +436,18 @@ def build_news_scores(
             row["source_tier"] = "TIER_3"
             row["source_rank"] = 3
             row["event_labels_all"] = []
+
+        # --- Directional news score (evaluation pass-through, NOT scored) ---
+        # The weighted `news` component is deliberately a direction-blind
+        # mention counter (see the misnomer note above); changing it mid-c10b
+        # would corrupt the experiment's feature history. This SIGNED variant
+        # (mention intensity × average article sentiment, so bearish press
+        # reads negative) is logged as a pass-through column instead, so its
+        # predictive value against pnl_30m_pct_signed can be evaluated BEFORE
+        # any weight ever moves. Range ≈ [-2, +2]; 0.0 when no articles or
+        # neutral coverage.
+        row["news_directional_score"] = round(
+            row["news_catalyst_score"] * float(row.get("sentiment_score") or 0.0), 4
+        )
 
     return scores, metrics

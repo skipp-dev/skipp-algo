@@ -49,6 +49,11 @@ _WEIGHT_BOUNDS: dict[str, tuple[float, float]] = {
     "momentum_z": (-2.0, 5.0),
     "hvb": (0.0, 3.0),
     "earnings_bmo": (0.0, 3.0),
+    # "news" scores COVERAGE INTENSITY, not catalyst quality: the underlying
+    # news_catalyst_score is a recency-weighted MENTION COUNT (2h/24h windows,
+    # news.py). Sentiment / event class / materiality are computed but are
+    # explainability metadata only — they do not move the score. Interpret the
+    # c10b feature `news_component` as "press volume", not "catalyst strength".
     "news": (0.0, 5.0),
     "ext_hours": (0.0, 3.0),
     # "analyst_catalyst" is a historical misnomer: the component scores analyst
@@ -61,13 +66,32 @@ _WEIGHT_BOUNDS: dict[str, tuple[float, float]] = {
     # schema. Rename (or a true rating-action catalyst taking this slot) is
     # deferred to a schema-version bump after c10b concludes.
     "analyst_catalyst": (0.0, 3.0),
+    # "vwap_distance" uses the PRIOR-DAY daily VWAP vs the prior close
+    # (positive = the previous session closed BELOW its own VWAP, i.e. a weak
+    # close). No premarket data is involved despite earlier docs claiming so.
     "vwap_distance": (-2.0, 3.0),
     "freshness_decay": (0.0, 3.0),
+    # DEAD COMPONENTS (audit 2026-07-07, verified over 430 outcome events):
+    # - "institutional_quality": constant 0 in production — `institutional_scores`
+    #   is not passed at the rank_candidates_v2 callsite (run_open_prep.py), and
+    #   the fetched 13F data measures holder COUNT, not quality, anyway.
+    # - "estimate_revision": constant 0 — no producer exists anywhere in the
+    #   repo (neither static estimates nor revisions are ever computed).
+    # Both still appear as c10b feature columns: interpret a 0 importance as
+    # "data was never there", NOT as "no edge in this signal". Keys are kept
+    # for the schema/feature contract; wire-or-remove is an open decision.
     "institutional_quality": (0.0, 3.0),
     "estimate_revision": (0.0, 3.0),
+    # "liquidity_penalty" is a price<$5 proxy that is UNREACHABLE for tradable
+    # candidates (price_below_5 hard-blocks before scoring). There is no
+    # volume-based liquidity malus in the score today.
     "liquidity_penalty": (0.0, 5.0),
     "corporate_action_penalty": (0.0, 5.0),
     "risk_off_penalty_multiplier": (0.0, 5.0),
+    # "ewma" = ENERGY-weighted (volume × true-range) moving-average zone score,
+    # not the industry-standard exponentially-weighted MA. Currently a constant
+    # 0.5 for every symbol because quote["daily_bars"] is never populated in
+    # open_prep — ranking-neutral offset; also absent from outcomes.FEATURE_KEYS.
     "ewma": (0.0, 3.0),
 }
 
