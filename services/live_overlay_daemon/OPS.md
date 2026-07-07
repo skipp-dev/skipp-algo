@@ -143,6 +143,30 @@ restartPolicyMaxRetries = 3
 name = "live_overlay_daemon"
 ```
 
+### Deployment
+
+The daemon deploys **only via CI**, not Railway's native GitHub trigger — its
+Railway service source is intentionally `none`, so a merge to `main` never
+auto-deploys on Railway's side. Instead
+`.github/workflows/deploy-live-overlay-daemon.yml` runs on every `main` push
+that touches `services/live_overlay_daemon/**` (or on `workflow_dispatch`) and
+calls `scripts/deploy_live_overlay.sh`, which stamps the git commit + branch
+into the image (`build_stamp.txt`) and runs `railway up`. A verify step then
+polls Railway until the new deployment reaches `SUCCESS`, so a build/healthcheck
+failure fails CI instead of silently leaving the old container running.
+
+- Repo secret **`RAILWAY_TOKEN`** must be a Railway **project token** scoped to
+  the `production` environment — an account/API token yields
+  `Invalid RAILWAY_TOKEN`. Without the secret the workflow no-ops with a notice.
+- **Manual deploy**: `scripts/deploy_live_overlay.sh` from a clean checkout
+  (needs a local `railway login`), or re-run the workflow from the Actions UI.
+- **Never** use Railway's "Redeploy" button for a code update — it re-runs the
+  *existing* image (same commit); that caused two silent no-op redeploys on
+  2026-07-06.
+- **Verify a deploy** in Grafana via the **Deployed build (commit @ branch)**
+  panel / `live_overlay_build_info{commit,branch}` — it must show the intended
+  commit (`unknown` = an image without a git stamp).
+
 ### Environment variables
 
 #### Daemon (`live_overlay_daemon`)
