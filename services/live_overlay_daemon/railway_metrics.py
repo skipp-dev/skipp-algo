@@ -89,7 +89,7 @@ def _post_graphql(
 
 
 def _latest_value(values: list[dict[str, Any]]) -> float | None:
-    """Return the most recent finite numeric ``value`` from a Railway value series."""
+    """Return the newest finite ``value`` from a Railway series (order-independent)."""
     latest_ts: float | None = None
     latest_value: float | None = None
     for point in values:
@@ -104,7 +104,9 @@ def _latest_value(values: list[dict[str, Any]]) -> float | None:
         # reading wins instead of poisoning the Prometheus gauge with ``nan``.
         if not math.isfinite(ts) or not math.isfinite(value):
             continue
-        if latest_ts is None or ts >= latest_ts:
+        # Running max of (ts, value): order-independent (Railway's response
+        # order is not guaranteed) and breaks equal-ts ties deterministically.
+        if latest_ts is None or (ts, value) > (latest_ts, latest_value):
             latest_ts = ts
             latest_value = value
     return latest_value
@@ -220,7 +222,9 @@ def _failed_snapshot(
         }
     )
     base.setdefault("fetched_at_unix", 0.0)
-    base.setdefault("last_success_fetched_at_unix", base.get("fetched_at_unix", 0.0))
+    # A failed scrape must never fabricate a success time: fall back to 0.0
+    # ("never succeeded"), not to fetched_at_unix (the failed-attempt time).
+    base.setdefault("last_success_fetched_at_unix", 0.0)
     base.setdefault("scrape_duration_seconds", None)
     base.setdefault("services", [])
     return base
