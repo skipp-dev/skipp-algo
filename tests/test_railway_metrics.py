@@ -145,6 +145,24 @@ def test_build_services_surfaces_last_finite_value_for_non_finite_newest() -> No
     assert services[0]["cpu_cores"] == 0.5
 
 
+def test_build_services_handles_mixed_service_id_types() -> None:
+    # Railway's serviceId is a string, but a schema-violating response (or a
+    # hand-built cache/mock) could mix str and int ids. Sorting the collapsed
+    # records must not raise TypeError -- snapshot() does not catch it, so it
+    # would escape the documented "never raises" contract.
+    results = [
+        {"measurement": "CPU_USAGE", "tags": {"serviceId": "svc-a"}, "values": [{"ts": 1, "value": 0.1}]},
+        {"measurement": "CPU_USAGE", "tags": {"serviceId": 1}, "values": [{"ts": 1, "value": 0.2}]},
+    ]
+    services = railway_metrics._build_services(results, {})
+    assert len(services) == 2
+    assert {str(s["service_id"]) for s in services} == {"svc-a", "1"}
+    # Deterministic order regardless of the mixed key types.
+    assert [s["service_id"] for s in services] == sorted(
+        (s["service_id"] for s in services), key=str
+    )
+
+
 def test_snapshot_disabled_when_flag_off() -> None:
     with patch.object(railway_metrics.config, "railway_metrics_enabled", return_value=False):
         result = railway_metrics.snapshot()
