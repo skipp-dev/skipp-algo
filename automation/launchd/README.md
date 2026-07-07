@@ -145,8 +145,11 @@ root-caused as the reason the ORB paper orders never filled (placed pre-market)
 and the pre-market TWS smoke always tripped `smoke_HALT` (ran 02:00 ET,
 overnight, TWS off).
 
-**The two market-critical jobs are made timezone-correct** without assuming the
-Mac's zone, via [`lib_c13_et_gate.sh`](lib_c13_et_gate.sh):
+**All six ET-scheduled jobs are made timezone-correct** without assuming the
+Mac's zone, via [`lib_c13_et_gate.sh`](lib_c13_et_gate.sh) — `phase-a`,
+`ibkr-smoke`, `phase-a-export`, `collect-imbalance`, `wsh-earnings` and
+`audit-push`. (`reconcile` and `tws-reminder` are *local*-time by design and
+are not gated.)
 
 - The plist fires at the **three candidate local times** that bracket the
   Berlin↔ET offset (+5 / +6 / +7 h across the mismatched US/EU DST windows) —
@@ -158,16 +161,24 @@ Mac's zone, via [`lib_c13_et_gate.sh`](lib_c13_et_gate.sh):
   duplicate paper orders.
 
 Correct year-round with no hardcoded offset. **On an ET Mac** it still works
-(the 09:28-ET candidate is one of the three and the gate passes it), but you may
+(the ET-time candidate is one of the three and the gate passes it), but you may
 simplify the plist back to the single ET time and drop the two extras.
+
+Two special cases:
+
+- **`audit-push`** (17:30 ET): the `+7 h` candidate crosses midnight (00:30
+  next-day Berlin), so its plist `Weekday` entries are shifted `+1` (Tue–Sat);
+  the gate still keys off the true ET weekday, so it passes correctly.
+- **`collect-imbalance`** keeps its [catch-up](#missed-run-catch-up--backfill):
+  the gate proceeds once per ET day inside the window, and `lib_c13_catchup`
+  backfills any business days missed while asleep from that in-window run.
+
+Tests that exercise a wrapper's downstream pipeline set `C13_SKIP_ET_GATE=1` to
+bypass the gate (production never does; the gate's own behaviour is covered by
+`tests/test_c13_et_gate.py`).
 
 **After changing a gated plist you must re-install it** (re-run the `sed`
 substitution + `launchctl bootout`/`bootstrap` for that label; see *Install*).
-
-> Still raw-local (fire ~6 h early on a Berlin Mac, follow-up): `phase-a-export`,
-> `collect-imbalance`, `wsh-earnings`, `audit-push`. These are data-collection /
-> push jobs (not order placement), so early firing degrades rather than breaks
-> them; `collect-imbalance` also has catch-up, which needs a catch-up-aware gate.
 
 ## Missed-run catch-up / backfill
 
