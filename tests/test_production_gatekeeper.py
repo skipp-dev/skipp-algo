@@ -692,6 +692,13 @@ class TestInsiderTradingSafeFloat:
     """_fetch_insider_trading must not crash on non-numeric statistics fields
     returned from /stable/insider-trading/statistics (P-3 fix)."""
 
+    @pytest.fixture(autouse=True)
+    def _enable_extended_enrichment(self, monkeypatch):
+        # The extended-enrichment gate defaults OFF (audit 2026-07-07: no
+        # production reader consumed these fields). These tests exercise the
+        # fetch logic itself, so switch the gate on.
+        monkeypatch.setenv("OPEN_PREP_EXTENDED_ENRICHMENT", "1")
+
     def test_non_numeric_acquired_transactions(self):
         """Arrange: acquiredTransactions='N/A'. Assert: no crash, treated as 0."""
         from open_prep.run_open_prep import _fetch_insider_trading
@@ -748,6 +755,13 @@ class TestInsiderTradingSafeFloat:
 
 class TestInsiderStatisticsQuarterly:
     """_fetch_insider_trading uses /stable/insider-trading/statistics (PR-D3)."""
+
+    @pytest.fixture(autouse=True)
+    def _enable_extended_enrichment(self, monkeypatch):
+        # The extended-enrichment gate defaults OFF (audit 2026-07-07: no
+        # production reader consumed these fields). These tests exercise the
+        # fetch logic itself, so switch the gate on.
+        monkeypatch.setenv("OPEN_PREP_EXTENDED_ENRICHMENT", "1")
 
     def test_latest_quarter_picked_when_unordered(self):
         """API may return rows out of order — code must sort desc by (year, quarter)."""
@@ -1616,6 +1630,13 @@ class TestBeneficialOwnershipEnrichment:
     """_fetch_beneficial_ownership aggregates SC 13D/G filings and flags
     fresh ones inside the configured window."""
 
+    @pytest.fixture(autouse=True)
+    def _enable_extended_enrichment(self, monkeypatch):
+        # The extended-enrichment gate defaults OFF (audit 2026-07-07: no
+        # production reader consumed these fields). These tests exercise the
+        # fetch logic itself, so switch the gate on.
+        monkeypatch.setenv("OPEN_PREP_EXTENDED_ENRICHMENT", "1")
+
     def test_recent_filing_within_window_is_flagged(self):
         from open_prep.run_open_prep import _fetch_beneficial_ownership
 
@@ -1728,6 +1749,13 @@ class TestBeneficialOwnershipEnrichment:
 class TestPoliticalTradesEnrichment:
     """_fetch_political_trades aggregates Senate + House disclosures, scoped
     to the universe and the freshness window."""
+
+    @pytest.fixture(autouse=True)
+    def _enable_extended_enrichment(self, monkeypatch):
+        # The extended-enrichment gate defaults OFF (audit 2026-07-07: no
+        # production reader consumed these fields). These tests exercise the
+        # fetch logic itself, so switch the gate on.
+        monkeypatch.setenv("OPEN_PREP_EXTENDED_ENRICHMENT", "1")
 
     def test_fresh_senate_buy_aggregates_correctly(self):
         from open_prep.run_open_prep import _fetch_political_trades

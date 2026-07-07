@@ -1243,6 +1243,22 @@ def _fetch_sector_performance(client: FMPClient) -> list[dict[str, Any]]:
 # ---------------------------------------------------------------------------
 _MAX_INSIDER_STATS_LOOKUPS = 30  # Cap parallel API calls
 
+
+def _extended_enrichment_enabled() -> bool:
+    """Gate for the five enrichment fetches with no production reader.
+
+    Audit 2026-07-07: insider statistics, 13F institutional ownership,
+    beneficial ownership (SC 13D/G), Finnhub peers and political trades are
+    fetched (mostly one API call PER SYMBOL per run) and persisted, but no
+    production code reads any of the resulting fields — pure API budget and
+    wall-clock cost. Until a consumer exists they default OFF. Set
+    ``OPEN_PREP_EXTENDED_ENRICHMENT=1`` to re-enable; every downstream path
+    already handles the empty-dict default (it is the same shape as an API
+    failure), so gating is behavior-neutral for the rest of the run.
+    """
+    return os.getenv("OPEN_PREP_EXTENDED_ENRICHMENT", "0").strip() == "1"
+
+
 def _fetch_insider_trading(
     *,
     client: FMPClient,
@@ -1257,6 +1273,8 @@ def _fetch_insider_trading(
 
     Returns a dict keyed by symbol with insider-trade summary fields.
     """
+    if not _extended_enrichment_enabled():
+        return {}
     del limit_per_symbol  # signature preserved for callers
     universe = [s.upper() for s in symbols if s]
     if not universe:
@@ -1375,6 +1393,8 @@ def _fetch_beneficial_ownership(
     Returns dict keyed by symbol with the most recent filing summary plus a
     ``beneficial_owner_recent`` flag for filings inside ``fresh_days``.
     """
+    if not _extended_enrichment_enabled():
+        return {}
     result: dict[str, dict[str, Any]] = {}
     cap = min(len(symbols), _MAX_BENEFICIAL_OWNERSHIP_LOOKUPS)
     batch = [str(s).strip().upper() for s in symbols[:cap] if str(s).strip()]
@@ -1476,6 +1496,8 @@ def _fetch_political_trades(
     Single broad call per chamber (not per symbol) — disclosures already
     span the whole market. We then index by symbol and freshness.
     """
+    if not _extended_enrichment_enabled():
+        return {}
     universe_set = {s.upper() for s in symbols if s}
     if not universe_set:
         return {}
@@ -1578,6 +1600,8 @@ def _fetch_institutional_ownership(
     Returns dict keyed by symbol with ownership fields.
     Uses parallel fetching to avoid 30s+ sequential latency.
     """
+    if not _extended_enrichment_enabled():
+        return {}
     result: dict[str, dict[str, Any]] = {}
     cap = min(len(symbols), _MAX_INST_OWNERSHIP_LOOKUPS)
     batch = [str(s).strip().upper() for s in symbols[:cap] if str(s).strip()]
@@ -1905,6 +1929,8 @@ def _fetch_finnhub_peers(
 ) -> dict[str, list[str]]:
     """Fetch company peers for each symbol. Returns dict[sym -> [peer_symbols]]."""
     result: dict[str, list[str]] = {}
+    if not _extended_enrichment_enabled():
+        return result
     if finnhub_client is None or not getattr(finnhub_client, "available", lambda: False)():
         return result
 
@@ -5022,6 +5048,11 @@ def generate_open_prep_result(
             q["identifier_change_aliases"] = pm.get("identifier_change_aliases", "")
             q["corporate_action_penalty"] = pm.get("corporate_action_penalty", 0.0)
             q["analyst_catalyst_score"] = pm.get("analyst_catalyst_score", 0.0)
+            # Audit 2026-07-07: the paid price-target value used to die here —
+            # fetched, stored in premarket, and read by nobody. Copy it onto
+            # the quote so the scorer can surface implied upside (display
+            # field, weight 0 — not part of the score).
+            q["analyst_price_target"] = pm.get("analyst_price_target")
             q["days_since_last_earnings"] = pm.get("days_since_last_earnings")
             q["days_to_next_earnings"] = pm.get("days_to_next_earnings")
             q["earnings_risk_window"] = pm.get("earnings_risk_window", False)

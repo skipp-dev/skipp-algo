@@ -32,6 +32,7 @@
         "hod_reclaim"
       ],
       "analyst_catalyst_score": 0.4,
+      "analyst_implied_upside_pct": null,
       "atr": 2.8,
       "atr_pct": 2.32,
       "avg_volume": 50000000.0,
@@ -151,6 +152,7 @@
         "hod_reclaim"
       ],
       "analyst_catalyst_score": 0.0,
+      "analyst_implied_upside_pct": null,
       "atr": 0.8,
       "atr_pct": 6.45,
       "avg_volume": 400000.0,
@@ -270,6 +272,7 @@
         "hod_reclaim"
       ],
       "analyst_catalyst_score": 0.2,
+      "analyst_implied_upside_pct": null,
       "atr": 1.4,
       "atr_pct": 3.1,
       "avg_volume": 600000.0,
@@ -386,6 +389,7 @@
         "hod_reclaim"
       ],
       "analyst_catalyst_score": 0.2,
+      "analyst_implied_upside_pct": null,
       "atr": 2.1,
       "atr_pct": 2.39,
       "avg_volume": 1500000.0,
@@ -502,6 +506,7 @@
         "hod_reclaim"
       ],
       "analyst_catalyst_score": 0.15,
+      "analyst_implied_upside_pct": null,
       "atr": 1.2,
       "atr_pct": 2.18,
       "avg_volume": 700000.0,
@@ -621,6 +626,7 @@
         "hod_reclaim"
       ],
       "analyst_catalyst_score": 0.05,
+      "analyst_implied_upside_pct": null,
       "atr": 0.95,
       "atr_pct": 2.64,
       "avg_volume": 500000.0,
@@ -739,6 +745,7 @@
         "hod_reclaim"
       ],
       "analyst_catalyst_score": 0.1,
+      "analyst_implied_upside_pct": null,
       "atr": 1.4,
       "atr_pct": 2.26,
       "avg_volume": 700000.0,
@@ -857,6 +864,7 @@
         "hod_reclaim"
       ],
       "analyst_catalyst_score": 0.1,
+      "analyst_implied_upside_pct": null,
       "atr": 1.1,
       "atr_pct": 3.83,
       "avg_volume": 850000.0,
@@ -973,6 +981,7 @@
         "hod_reclaim"
       ],
       "analyst_catalyst_score": 0.0,
+      "analyst_implied_upside_pct": null,
       "atr": 1.3,
       "atr_pct": 3.1,
       "avg_volume": 600000.0,
@@ -1092,6 +1101,7 @@
         "hod_reclaim"
       ],
       "analyst_catalyst_score": 0.0,
+      "analyst_implied_upside_pct": null,
       "atr": 0.95,
       "atr_pct": 2.5,
       "avg_volume": 1200000.0,
