@@ -142,6 +142,39 @@ def test_fetch_snapshot_separates_status_from_conclusion(
     assert row["conclusion"] == "unknown"
 
 
+def _capture_fetch_url(monkeypatch: pytest.MonkeyPatch, branch: str) -> dict[str, str]:
+    import services.live_overlay_daemon.github_workflow_bridge as bridge
+
+    captured: dict[str, str] = {}
+
+    def _capture(url: str, _token: str, _timeout: int) -> dict[str, object]:
+        captured["url"] = url
+        return {"workflow_runs": []}
+
+    monkeypatch.setattr(bridge.config, "github_workflow_repo", lambda: ("o", "r"))
+    monkeypatch.setattr(bridge.config, "github_workflow_per_page", lambda: 30)
+    monkeypatch.setattr(bridge.config, "github_workflow_timeout_secs", lambda: 5)
+    monkeypatch.setattr(bridge.config, "github_workflow_branch", lambda: branch)
+    monkeypatch.setattr(bridge.time, "time", lambda: 1.0)
+    monkeypatch.setattr(bridge, "_github_request_json", _capture)
+    bridge._fetch_snapshot("token")
+    return captured
+
+
+def test_fetch_snapshot_scopes_to_main_branch_by_default(monkeypatch: pytest.MonkeyPatch) -> None:
+    # main-scoped health: a green feature-branch run must not mask a red main run.
+    captured = _capture_fetch_url(monkeypatch, "main")
+    assert "branch=main" in captured["url"]
+
+
+def test_fetch_snapshot_tracks_all_branches_when_branch_disabled(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    # Empty branch config restores the pre-2026-07 all-branches behaviour.
+    captured = _capture_fetch_url(monkeypatch, "")
+    assert "branch=" not in captured["url"]
+
+
 def test_fetch_snapshot_records_last_success_timestamp(monkeypatch: pytest.MonkeyPatch) -> None:
     import services.live_overlay_daemon.github_workflow_bridge as bridge
 
