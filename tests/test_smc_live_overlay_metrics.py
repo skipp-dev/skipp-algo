@@ -211,6 +211,9 @@ def test_render_metrics_prometheus_format_and_trailing_newline(monkeypatch: pyte
     assert "# TYPE live_overlay_evidence_ledger_age_seconds gauge" in body
     assert "# TYPE live_overlay_evidence_audit_branch_age_seconds gauge" in body
     assert "# TYPE live_overlay_evidence_fills_closed_total gauge" in body
+    # Newest-incubation age powers lo-evidence-incubation-fills-stalled: it
+    # distinguishes "submitting but nothing fills" from "no trading at all".
+    assert "# TYPE live_overlay_evidence_fills_newest_incubation_age_seconds gauge" in body
     assert "live_overlay_evidence_ledger_info{plane=" in body
     # §2/§5 per-family sample-progress gauge (the real distance to §5).
     assert "# TYPE live_overlay_evidence_samples_target gauge" in body
