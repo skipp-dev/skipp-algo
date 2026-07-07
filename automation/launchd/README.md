@@ -135,10 +135,39 @@ The smoke JSONL can be pushed to the audit branch together with the other artefa
 bash automation/launchd/run-c13-audit-push.sh
 ```
 
-## DST handling
+## Timezone (ET) scheduling
 
-Plists schedule by **local clock** (`StartCalendarInterval`), so daylight
-savings is handled by the OS. No EST/EDT branching needed.
+`StartCalendarInterval` fires by the Mac's **local clock** — which equals US
+market time only if the Mac itself runs on `America/New_York`. On a non-ET Mac
+(e.g. `Europe/Berlin`) a plist that says `09:28` fires at 09:28 **local** =
+03:28 ET, ~6 h before the US open. That is not academic: on 2026-07-07 it was
+root-caused as the reason the ORB paper orders never filled (placed pre-market)
+and the pre-market TWS smoke always tripped `smoke_HALT` (ran 02:00 ET,
+overnight, TWS off).
+
+**The two market-critical jobs are made timezone-correct** without assuming the
+Mac's zone, via [`lib_c13_et_gate.sh`](lib_c13_et_gate.sh):
+
+- The plist fires at the **three candidate local times** that bracket the
+  Berlin↔ET offset (+5 / +6 / +7 h across the mismatched US/EU DST windows) —
+  e.g. `phase-a` 09:28 ET → 14:28 / 15:28 / 16:28; `ibkr-smoke` 08:00 ET →
+  13:00 / 14:00 / 15:00.
+- The wrapper's `c13_require_et_window` reads the **true** ET wall clock
+  (`TZ=America/New_York`, which tracks US DST) and lets exactly **one** fire per
+  ET weekday proceed; the others no-op. A once-per-ET-day marker prevents
+  duplicate paper orders.
+
+Correct year-round with no hardcoded offset. **On an ET Mac** it still works
+(the 09:28-ET candidate is one of the three and the gate passes it), but you may
+simplify the plist back to the single ET time and drop the two extras.
+
+**After changing a gated plist you must re-install it** (re-run the `sed`
+substitution + `launchctl bootout`/`bootstrap` for that label; see *Install*).
+
+> Still raw-local (fire ~6 h early on a Berlin Mac, follow-up): `phase-a-export`,
+> `collect-imbalance`, `wsh-earnings`, `audit-push`. These are data-collection /
+> push jobs (not order placement), so early firing degrades rather than breaks
+> them; `collect-imbalance` also has catch-up, which needs a catch-up-aware gate.
 
 ## Missed-run catch-up / backfill
 
