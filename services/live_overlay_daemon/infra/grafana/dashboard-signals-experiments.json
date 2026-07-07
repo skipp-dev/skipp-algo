@@ -62,6 +62,24 @@
   "liveNow": false,
   "panels": [
     {
+      "id": 999,
+      "type": "text",
+      "title": "",
+      "datasource": null,
+      "description": "Cross-link to the paired Live Overlay Operations dashboard.",
+      "gridPos": {
+        "h": 2,
+        "w": 24,
+        "x": 0,
+        "y": 0
+      },
+      "transparent": true,
+      "options": {
+        "mode": "markdown",
+        "content": "🔗 **[→ Live Overlay Operations](/d/smc-live-overlay-v1?orgId=1)** — operations & infrastructure: overall health, live data chain (feed→overlay→Pine), API SLO, daemon ops, providers (incl. FMP bandwidth) and Railway resources."
+      }
+    },
+    {
       "title": "Active Trading Signals",
       "type": "stat",
       "description": "Number of currently active realtime breakout signals (A0 pre-breakout + A1 confirmed) the engine snapshot is reporting.",
@@ -69,7 +87,7 @@
         "h": 6,
         "w": 6,
         "x": 0,
-        "y": 0
+        "y": 2
       },
       "targets": [
         {
@@ -131,7 +149,7 @@
         "h": 6,
         "w": 6,
         "x": 6,
-        "y": 0
+        "y": 2
       },
       "targets": [
         {
@@ -230,7 +248,7 @@
         "h": 6,
         "w": 6,
         "x": 12,
-        "y": 0
+        "y": 2
       },
       "targets": [
         {
@@ -297,7 +315,7 @@
         "h": 6,
         "w": 6,
         "x": 18,
-        "y": 0
+        "y": 2
       },
       "targets": [
         {
@@ -359,7 +377,7 @@
         "h": 10,
         "w": 24,
         "x": 0,
-        "y": 6
+        "y": 8
       },
       "targets": [
         {
@@ -677,7 +695,7 @@
         "h": 8,
         "w": 24,
         "x": 0,
-        "y": 16
+        "y": 18
       },
       "targets": [
         {
@@ -732,7 +750,7 @@
         "h": 5,
         "w": 6,
         "x": 0,
-        "y": 24
+        "y": 26
       },
       "targets": [
         {
@@ -794,7 +812,7 @@
         "h": 5,
         "w": 6,
         "x": 6,
-        "y": 24
+        "y": 26
       },
       "targets": [
         {
@@ -852,7 +870,7 @@
         "h": 5,
         "w": 6,
         "x": 12,
-        "y": 24
+        "y": 26
       },
       "targets": [
         {
@@ -937,7 +955,7 @@
         "h": 5,
         "w": 6,
         "x": 18,
-        "y": 24
+        "y": 26
       },
       "targets": [
         {
@@ -1022,7 +1040,7 @@
         "h": 9,
         "w": 24,
         "x": 0,
-        "y": 29
+        "y": 31
       },
       "targets": [
         {
@@ -1148,7 +1166,7 @@
         "h": 8,
         "w": 24,
         "x": 0,
-        "y": 38
+        "y": 40
       },
       "targets": [
         {
@@ -1207,7 +1225,7 @@
       "description": "Is the TradingView/Pine /smc_live polling watchdog armed? Shows LIVE_OVERLAY_EXPECT_MARKET_TRAFFIC. ARMED = a stalled or absent Pine consumer will alert during US market open; NOT ARMED = the watchdog is stood down.",
       "gridPos": {
         "x": 8,
-        "y": 1,
+        "y": 3,
         "w": 4,
         "h": 5
       },
@@ -1278,7 +1296,7 @@
         "h": 10,
         "w": 24,
         "x": 0,
-        "y": 46
+        "y": 48
       },
       "targets": [
         {
@@ -1405,7 +1423,7 @@
         "h": 6,
         "w": 12,
         "x": 0,
-        "y": 61
+        "y": 63
       },
       "targets": [
         {
