@@ -70,26 +70,36 @@ jobs:
 
       - name: Install Railway CLI
         if: steps.gate.outputs.run == 'true'
-        # SC-02 (supply-chain): exact pin, no floating range. --ignore-scripts
-        # blocks arbitrary npm lifecycle scripts from the dependency tree.
+        # SC-02 (supply-chain): exact pin, no floating range. Deliberately NO
+        # npm script suppression: @railway/cli fetches its platform binary in
+        # `postinstall` (node ./npm-install/postinstall.js), so suppressing
+        # lifecycle scripts leaves a dead shim -- `railway` then exits 1 with
+        # zero output, which silently killed every deploy from 07:55Z to 10:38Z
+        # on 2026-07-07 (five main merges + two dispatch tests). The exact
+        # version pin is the supply-chain control here; a sanity call proves
+        # the binary is real before we trust it with a deploy.
         run: |
           set -euo pipefail
-          npm install -g --ignore-scripts @railway/cli@5.23.3
+          npm install -g @railway/cli@5.23.3
+          railway --version
 
       - name: Deploy live_overlay_daemon (SHA-stamped)
         id: deploy
         if: steps.gate.outputs.run == 'true'
+        # EXACTLY the token-only env `railway up` is proven to work with
+        # (2026-07-07 07:49 deploy). Empirically (dispatch 28859622704): adding
+        # a project-id env var makes `railway up` fail instantly under a
+        # project token, and the CLI's deployment-list subcommand does not work
+        # under a project token at all ("No linked project found") -- so the
+        # verify step below uses the public GraphQL API instead of the CLI.
         env:
           RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
           DEPLOY_GIT_BRANCH: ${{ github.ref_name }}
         run: |
           set -euo pipefail
-          # Record the newest deployment BEFORE deploying so the verify step
-          # correlates to OUR new deployment (not a stale prior SUCCESS).
-          baseline=$(railway deployment list --service live_overlay_daemon \
-            --environment production --json 2>/dev/null | jq -r '.[0].id // "none"')
-          echo "baseline=$baseline" >> "$GITHUB_OUTPUT"
-          echo "Baseline (pre-deploy) newest deployment: $baseline"
+          # Job start epoch: the verify step accepts only deployments created
+          # after this instant, so a stale prior SUCCESS can never false-pass.
+          echo "started=$(date -u +%s)" >> "$GITHUB_OUTPUT"
           scripts/deploy_live_overlay.sh
 
       - name: Verify deployment reached SUCCESS
@@ -99,26 +109,31 @@ jobs:
         # `railway up --detach` returns after the upload, so a Railway-side
         # build/healthcheck failure would otherwise leave CI green while the old
         # container keeps serving -- the exact silent no-op class this workflow
-        # exists to kill. Wait for a NEW deployment to reach a terminal state
-        # and fail on anything but SUCCESS.
+        # exists to kill. Poll the Railway GraphQL API (project tokens are
+        # first-class there, via the Project-Access-Token header; the CLI's
+        # `deployment list` rejects them) until a deployment CREATED AFTER the
+        # job started reaches a terminal state; fail on anything but SUCCESS.
         run: |
           set -euo pipefail
-          baseline="${{ steps.deploy.outputs.baseline }}"
+          started="${{ steps.deploy.outputs.started }}"
+          payload='{"query":"query { deployments(first: 1, input: { projectId: \"0616a3b7-7b7f-41d1-8fac-a0b8922c94ca\", environmentId: \"470fbd0f-894d-46cd-8722-6b072d255d99\", serviceId: \"705582c5-ba8b-4c6e-848c-33bffe0a61b0\" }) { edges { node { id status createdAt } } } }"}'
           for i in $(seq 1 42); do
-            # `|| true` so a transient API blip yields an empty line instead of
-            # tripping set -e; parse via parameter expansion (no read/set -e trap).
-            line="$(railway deployment list --service live_overlay_daemon \
-              --environment production --json 2>/dev/null \
-              | jq -r '.[0] | "\(.id) \(.status)"' || true)"
-            id="${line%% *}"; status="${line##* }"
-            echo "[$i] newest deployment ${id:0:8}: ${status:-none} (baseline ${baseline:0:8})"
-            if [[ -n "$id" && "$id" != "$baseline" ]]; then
-              case "$status" in
+            # Fail-soft per poll (transient API blips), errors VISIBLE.
+            resp="$(curl -sS -m 15 -H "Project-Access-Token: ${RAILWAY_TOKEN}" \
+              -H "Content-Type: application/json" \
+              -d "$payload" https://backboard.railway.com/graphql/v2 || true)"
+            errs="$(jq -r '.errors[]?.message // empty' <<<"$resp" || true)"
+            [[ -n "$errs" ]] && echo "[$i] GraphQL error: $errs"
+            line="$(jq -r '.data.deployments.edges[0].node // empty | [.id, .status, ((.createdAt // "1970-01-01T00:00:00Z") | sub("\\.[0-9]+Z$"; "Z") | fromdateiso8601)] | @tsv' <<<"$resp" || true)"
+            IFS=$'\t' read -r dep_id dep_status dep_created <<<"$line" || true
+            echo "[$i] newest deployment ${dep_id:0:8}: ${dep_status:-none} created=${dep_created:-?} (job started ${started})"
+            if [[ -n "${dep_id:-}" && -n "${dep_created:-}" && "${dep_created:-0}" -ge "${started:-0}" ]]; then
+              case "$dep_status" in
                 SUCCESS) echo "New deployment healthy."; exit 0 ;;
                 FAILED|CRASHED|REMOVED|SKIPPED)
-                  echo "::error::New deployment ended in status $status"; exit 1 ;;
+                  echo "::error::New deployment ended in status $dep_status"; exit 1 ;;
               esac
             fi
             sleep 20
           done
-          echo "::error::New deployment did not reach SUCCESS within ~14 min"; exit 1
+          echo "::error::No new deployment reached SUCCESS within ~14 min"; exit 1
