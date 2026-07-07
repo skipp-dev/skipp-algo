@@ -267,7 +267,7 @@ RISK_OFF_PENALTY_MULTIPLIER = 2.0
 WEIGHT_NEWS = 0.8
 WEIGHT_EXT_HOURS = 1.0
 WEIGHT_CORPORATE_ACTION_PENALTY = 1.0
-WEIGHT_ANALYST_CATALYST = 0.5
+WEIGHT_ANALYST_CATALYST = 0.5  # misnomer: coverage BREADTH proxy, not a rating action — see config_validation.py
 
 
 def rank_candidates(

@@ -496,7 +496,7 @@ FEATURE_KEYS: list[str] = [
     "earnings_bmo_component",
     "news_component",
     "ext_hours_component",
-    "analyst_catalyst_component",
+    "analyst_catalyst_component",  # legacy name; measures analyst COVERAGE breadth (see config_validation.py)
     "vwap_distance_component",
     "freshness_component",
     "institutional_component",
@@ -543,7 +543,7 @@ FEATURE_TO_WEIGHT_KEY: dict[str, str] = {
     "earnings_bmo_component": "earnings_bmo",
     "news_component": "news",
     "ext_hours_component": "ext_hours",
-    "analyst_catalyst_component": "analyst_catalyst",
+    "analyst_catalyst_component": "analyst_catalyst",  # feature measures coverage breadth, NOT a rating action
     "vwap_distance_component": "vwap_distance",
     "freshness_component": "freshness_decay",
     "institutional_component": "institutional_quality",

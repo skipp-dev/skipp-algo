@@ -172,7 +172,7 @@ def _build_filter_result_from_fi_sample(sample: dict[str, Any]) -> scorer_mod.Fi
     earnings_bmo_component = float(sample.get("earnings_bmo_component") or 0.0)
     news_component = float(sample.get("news_component") or 0.0)
     ext_component = float(sample.get("ext_hours_component") or 0.0)
-    analyst_component = float(sample.get("analyst_catalyst_component") or 0.0)
+    analyst_component = float(sample.get("analyst_catalyst_component") or 0.0)  # coverage breadth (legacy key name)
     vwap_component = float(sample.get("vwap_distance_component") or 0.0)
     freshness_component = float(sample.get("freshness_component") or 0.0)
     institutional_component = float(sample.get("institutional_component") or 0.0)

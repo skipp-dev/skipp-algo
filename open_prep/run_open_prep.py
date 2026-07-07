@@ -2345,7 +2345,7 @@ def _summarize_data_capabilities(data_capabilities: dict[str, dict[str, Any]]) -
     }
 
 
-def _fetch_analyst_catalyst(
+def _fetch_analyst_coverage(  # measures coverage BREADTH; keys keep the legacy "analyst_catalyst" name (data contract)
     *,
     client: FMPClient,
     symbols: list[str],
@@ -2370,13 +2370,13 @@ def _fetch_analyst_catalyst(
                 row.get("lastQuarterCount") or row.get("lastYearCount") or row.get("allTimeCount"),
                 default=0.0,
             )
-            catalyst = 0.0
+            coverage_score = 0.0  # NOT a fresh rating-action catalyst: pure coverage-breadth proxy
             if avg_target == avg_target and coverage > 0.0:
-                catalyst = min(max((coverage / 10.0), 0.0), 2.0)
+                coverage_score = min(max((coverage / 10.0), 0.0), 2.0)  # analysts covering / 10, capped at 2.0
             return sym, {
                 "analyst_price_target": None if avg_target != avg_target else avg_target,
                 "analyst_coverage_count": int(max(coverage, 0.0)),
-                "analyst_catalyst_score": round(catalyst, 4),
+                "analyst_catalyst_score": round(coverage_score, 4),  # legacy key name kept: outcomes/c10b/weights contract
             }
         except Exception as exc:
             logger.debug("analyst enrichment failed for %s: %s", sym, exc)
@@ -2560,9 +2560,9 @@ def _fetch_premarket_context(
             premarket[sym].setdefault("identifier_change_aliases", "")
             premarket[sym].setdefault("corporate_action_penalty", 0.0)
 
-    # --- Analyst catalyst ---
+    # --- Analyst coverage (fields keep the legacy analyst_catalyst_* names) ---
     try:
-        analyst = _fetch_analyst_catalyst(
+        analyst = _fetch_analyst_coverage(
             client=client,
             symbols=symbols,
             limit=analyst_catalyst_limit,
@@ -2579,8 +2579,8 @@ def _fetch_premarket_context(
                 )
             )
     except Exception as exc:
-        logger.warning("Analyst catalyst fetch failed: %s", exc, exc_info=True)
-        errors.append(f"analyst_catalyst: {_APIKEY_RE.sub(r'\1=***', str(exc))}")
+        logger.warning("Analyst coverage fetch failed: %s", exc, exc_info=True)
+        errors.append(f"analyst_coverage: {_APIKEY_RE.sub(r'\1=***', str(exc))}")
         for sym in symbols:
             premarket[sym].setdefault("analyst_price_target", None)
             premarket[sym].setdefault("analyst_coverage_count", 0)
