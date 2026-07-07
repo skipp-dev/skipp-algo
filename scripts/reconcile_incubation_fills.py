@@ -39,6 +39,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import math
 import sys
 from datetime import UTC, datetime
 from pathlib import Path
@@ -82,6 +83,12 @@ def summarize_fills(fills: list[Any]) -> dict[str, dict[str, float]]:
             shares = float(getattr(execution, "shares", 0) or 0)
             price = float(getattr(execution, "price", 0) or 0)
         except (TypeError, ValueError):
+            continue
+        # NaN/inf slip past the ``<= 0`` guard below (every NaN comparison is
+        # False), then flow into ``avg_price`` and get written as non-standard
+        # ``NaN`` fill_price/size_usd, which crashes the downstream backfill.
+        # Drop a non-finite fill like any other unusable one.
+        if not math.isfinite(shares) or not math.isfinite(price):
             continue
         if shares <= 0 or price <= 0:
             continue
