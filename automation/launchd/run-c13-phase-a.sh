@@ -144,15 +144,20 @@ fi
 #    SA-02 (audit 2026-06-14): wrap the runner call so a non-zero exit
 #    writes a DEGRADED marker before aborting — required for machine-
 #    detectable monitoring of silent incubation failures.
+# NOTE: the exit code MUST be captured with the ``|| var=$?`` idiom (as in
+# run-c13-ibkr-smoke.sh). A bare ``cmd; _run_exit=$?`` is dead code under
+# ``set -e``: a non-zero exit aborts the script on the cmd line itself and
+# the DEGRADED branch below never runs (found 2026-07-07 — the marker was
+# silently skipped on every runner crash).
 # shellcheck disable=SC2086
+_run_exit=0
 "${PY}" -m scripts.run_smc_live_incubation \
     --phase paper \
     --place-paper-orders \
     --setups "${SETUPS}" \
     --gate-statuses "${GATES}" \
     --audit-output "${AUDIT}" \
-    ${WSH_FLAG}
-_run_exit=$?
+    ${WSH_FLAG} || _run_exit=$?
 if [ "${_run_exit}" -ne 0 ]; then
     echo "phase-a cron: run_smc_live_incubation FAILED (exit ${_run_exit}) — see above for details" >&2
     _write_marker "DEGRADED" "incubation-failed:audit=${AUDIT}"
