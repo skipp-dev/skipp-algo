@@ -38,6 +38,7 @@ FAST_TEST_FILES: frozenset[str] = frozenset({
     "test_builtin_open_encoding_ledger.py",
     "test_dynamic_getattr_ledger.py",
     "test_dynamic_import_and_todo_tripwires.py",
+    "test_field_preference_chain_ledger.py",
     "test_global_statement_budget.py",
     "test_hashlib_weak_hash_ledger.py",
     "test_http_client_discipline.py",
