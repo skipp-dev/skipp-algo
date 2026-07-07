@@ -137,7 +137,10 @@ def _build_services(
             },
         )
         record[field] = latest
-    return [by_service[key] for key in sorted(by_service)]
+    # Sort by str(id): a schema-violating response or hand-built cache can mix
+    # str and int serviceIds, and a bare ``sorted`` would then raise a TypeError
+    # that ``snapshot`` does not catch. ``metrics`` renders the id via ``str``.
+    return [by_service[key] for key in sorted(by_service, key=str)]
 
 
 def _fetch() -> dict[str, Any]:
