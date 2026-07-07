@@ -443,6 +443,12 @@ def prepare_outcome_snapshot(
             # binary earnings_bmo flag ignores SUE size/sign; PEAD
             # literature says the magnitude drives the drift).
             "eps_surprise_pct": row.get("eps_surprise_pct"),
+            # Signed news score: mention intensity × avg sentiment
+            # (observe-only; audit 2026-07-07 — the weighted `news`
+            # component is direction-blind by contract until c10b ends;
+            # this column collects the FI evidence for a directional
+            # variant BEFORE any weight moves).
+            "news_directional_score": row.get("news_directional_score"),
             # VIX 9-day / 30-day term-structure ratio (observe-only;
             # eval D5). > 1 ⇒ inverted short-term structure ⇒ imminent
             # event risk priced in. Market-wide (same for all rows).
@@ -512,12 +518,14 @@ FEATURE_KEYS: list[str] = [
     "intraday_efficiency_ratio",
     "cs_dispersion",
     "avg_pair_correlation",
+    "news_directional_score",
 ]
 
 # Observe-only features: recorded in outcome records + FI samples but
 # intentionally NOT mapped to a scorer weight.  Promotion to a weighted
 # component requires feature-importance evidence first.
 PASS_THROUGH_FEATURE_KEYS: frozenset[str] = frozenset({
+    "news_directional_score",
     "zone_priority_score",
     "trend_alignment",
     "dist_to_ema20_pct",
