@@ -137,7 +137,9 @@
 "scripts/grafana_alert_rules_upsert.py" = [492]
 # 2026-06-24: Railway GraphQL API bridge for container metrics; fixed https
 # endpoint (backboard.railway.com/graphql/v2), explicit timeout= via Request.
-"services/live_overlay_daemon/railway_metrics.py" = [85]
+# 2026-07-07: `import math` added for the non-finite guard in _latest_value;
+# urlopen site shifted 85 -> 86.
+"services/live_overlay_daemon/railway_metrics.py" = [86]
 
 # ---------------------------------------------------------------------------
 # test_noqa_budget.py — frozen noqa-suppression sites.

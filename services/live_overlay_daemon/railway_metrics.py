@@ -21,6 +21,7 @@ from __future__ import annotations
 
 import json
 import logging
+import math
 import threading
 import time
 import urllib.error
@@ -88,7 +89,7 @@ def _post_graphql(
 
 
 def _latest_value(values: list[dict[str, Any]]) -> float | None:
-    """Return the most recent numeric ``value`` from a Railway value series."""
+    """Return the most recent finite numeric ``value`` from a Railway value series."""
     latest_ts: float | None = None
     latest_value: float | None = None
     for point in values:
@@ -96,6 +97,12 @@ def _latest_value(values: list[dict[str, Any]]) -> float | None:
             ts = float(point["ts"])
             value = float(point["value"])
         except (KeyError, TypeError, ValueError):
+            continue
+        # ``json.loads`` accepts the non-standard NaN/Infinity tokens, so a
+        # still-aggregating or corrupt Railway sample can carry a non-finite
+        # value. Skip it like any other invalid point so the last *finite*
+        # reading wins instead of poisoning the Prometheus gauge with ``nan``.
+        if not math.isfinite(ts) or not math.isfinite(value):
             continue
         if latest_ts is None or ts >= latest_ts:
             latest_ts = ts
