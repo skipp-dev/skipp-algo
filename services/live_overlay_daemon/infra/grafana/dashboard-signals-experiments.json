@@ -80,6 +80,20 @@
       }
     },
     {
+      "type": "row",
+      "title": "Live Trading Signals",
+      "collapsed": false,
+      "description": "What the live signal engine sees right now: active signals, breakouts, watched symbols, snapshot freshness, the Pine polling watchdog, and the current signal-score board.",
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 2
+      },
+      "id": 2000,
+      "panels": []
+    },
+    {
       "title": "Active Trading Signals",
       "type": "stat",
       "description": "Number of currently active realtime breakout signals (A0 pre-breakout + A1 confirmed) the engine snapshot is reporting.",
@@ -87,7 +101,7 @@
         "h": 6,
         "w": 6,
         "x": 0,
-        "y": 2
+        "y": 3
       },
       "targets": [
         {
@@ -118,7 +132,8 @@
               }
             ]
           },
-          "unit": "short"
+          "unit": "short",
+          "noValue": "NO DATA"
         },
         "overrides": []
       },
@@ -149,7 +164,7 @@
         "h": 6,
         "w": 6,
         "x": 6,
-        "y": 2
+        "y": 3
       },
       "targets": [
         {
@@ -191,7 +206,8 @@
               }
             ]
           },
-          "unit": "short"
+          "unit": "short",
+          "noValue": "NO DATA"
         },
         "overrides": [
           {
@@ -241,14 +257,77 @@
       "id": 1166193383
     },
     {
+      "title": "Watched Symbols",
+      "type": "stat",
+      "description": "How many symbols the realtime engine is actively polling for breakout signals.",
+      "gridPos": {
+        "h": 6,
+        "w": 6,
+        "x": 12,
+        "y": 3
+      },
+      "targets": [
+        {
+          "expr": "live_overlay_trading_signals_watched_total{job=~\"$job\"}",
+          "instant": true,
+          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "grafanacloud-prom"
+          }
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "gray",
+                "value": null
+              },
+              {
+                "color": "blue",
+                "value": 1
+              }
+            ]
+          },
+          "unit": "short",
+          "noValue": "NO DATA"
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "colorMode": "value",
+        "graphMode": "none",
+        "textMode": "auto",
+        "justifyMode": "auto"
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "grafanacloud-prom"
+      },
+      "id": 235629715
+    },
+    {
       "title": "Signals Snapshot Age",
       "type": "stat",
       "description": "Seconds since the realtime engine last wrote latest_realtime_signals.json. Red once the snapshot is older than the 480s (8 min) max signal age — stale signals should not be trusted. Shows N/A when the snapshot timestamp is unknown.",
       "gridPos": {
         "h": 6,
         "w": 6,
-        "x": 12,
-        "y": 2
+        "x": 18,
+        "y": 3
       },
       "targets": [
         {
@@ -296,7 +375,7 @@
           "fields": "",
           "values": false
         },
-        "colorMode": "background",
+        "colorMode": "value",
         "graphMode": "none",
         "textMode": "auto",
         "justifyMode": "auto"
@@ -308,19 +387,89 @@
       "id": 2138485144
     },
     {
-      "title": "Watched Symbols",
+      "id": 2165782571,
+      "title": "Pine Polling Watchdog",
       "type": "stat",
-      "description": "How many symbols the realtime engine is actively polling for breakout signals.",
+      "description": "Is the TradingView/Pine /smc_live polling watchdog armed? Shows LIVE_OVERLAY_EXPECT_MARKET_TRAFFIC. ARMED = a stalled or absent Pine consumer will alert during US market open; NOT ARMED = the watchdog is stood down.",
       "gridPos": {
-        "h": 6,
+        "x": 0,
+        "y": 9,
         "w": 6,
-        "x": 18,
-        "y": 2
+        "h": 5
       },
       "targets": [
         {
-          "expr": "live_overlay_trading_signals_watched_total{job=~\"$job\"}",
-          "instant": true,
+          "expr": "live_overlay_expected_market_traffic{job=~\"$job\"}",
+          "legendFormat": "expected_market_traffic",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "grafanacloud-prom"
+          }
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "mappings": [
+            {
+              "type": "value",
+              "options": {
+                "0": {
+                  "text": "NOT ARMED",
+                  "color": "dark-red"
+                },
+                "1": {
+                  "text": "ARMED",
+                  "color": "dark-green"
+                }
+              }
+            }
+          ],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "dark-red",
+                "value": null
+              },
+              {
+                "color": "dark-green",
+                "value": 1
+              }
+            ]
+          },
+          "noValue": "NO SIGNAL"
+        }
+      },
+      "options": {
+        "colorMode": "background",
+        "graphMode": "none",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        }
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "grafanacloud-prom"
+      }
+    },
+    {
+      "title": "Signal Score — Active Symbols",
+      "type": "timeseries",
+      "description": "Ranking score over time for each active breakout signal, labelled by symbol / level / direction. Lets you see which symbols are strengthening or fading.",
+      "gridPos": {
+        "h": 8,
+        "w": 24,
+        "x": 0,
+        "y": 14
+      },
+      "targets": [
+        {
+          "expr": "live_overlay_trading_signal_score{job=~\"$job\"}",
+          "legendFormat": "{{symbol}} {{level}} {{direction}}",
           "refId": "A",
           "datasource": {
             "type": "prometheus",
@@ -330,44 +479,37 @@
       ],
       "fieldConfig": {
         "defaults": {
-          "color": {
-            "mode": "thresholds"
-          },
-          "thresholds": {
-            "mode": "absolute",
-            "steps": [
-              {
-                "color": "gray",
-                "value": null
-              },
-              {
-                "color": "blue",
-                "value": 1
-              }
-            ]
+          "custom": {
+            "drawStyle": "line",
+            "lineInterpolation": "stepAfter",
+            "lineWidth": 2,
+            "fillOpacity": 10,
+            "showPoints": "auto",
+            "spanNulls": false
           },
           "unit": "short"
         },
         "overrides": []
       },
       "options": {
-        "reduceOptions": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "right",
           "calcs": [
-            "lastNotNull"
-          ],
-          "fields": "",
-          "values": false
+            "lastNotNull",
+            "max"
+          ]
         },
-        "colorMode": "value",
-        "graphMode": "none",
-        "textMode": "auto",
-        "justifyMode": "auto"
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
       },
       "datasource": {
         "type": "prometheus",
         "uid": "grafanacloud-prom"
       },
-      "id": 235629715
+      "id": 730705782
     },
     {
       "title": "Top Trading Signals — Latest Detail",
@@ -377,7 +519,7 @@
         "h": 10,
         "w": 24,
         "x": 0,
-        "y": 8
+        "y": 22
       },
       "targets": [
         {
@@ -688,59 +830,18 @@
       "id": 1878680845
     },
     {
-      "title": "Signal Score — Active Symbols",
-      "type": "timeseries",
-      "description": "Ranking score over time for each active breakout signal, labelled by symbol / level / direction. Lets you see which symbols are strengthening or fading.",
+      "type": "row",
+      "title": "Daily Experiment (Phase E2)",
+      "collapsed": false,
+      "description": "Strategy-validation tracking: the daily experiment's freshness, the FVG-5m / BOS-4H verdicts, per-family detail and family hit-rate over time (incl. backfilled history).",
       "gridPos": {
-        "h": 8,
+        "h": 1,
         "w": 24,
         "x": 0,
-        "y": 18
+        "y": 32
       },
-      "targets": [
-        {
-          "expr": "live_overlay_trading_signal_score{job=~\"$job\"}",
-          "legendFormat": "{{symbol}} {{level}} {{direction}}",
-          "refId": "A",
-          "datasource": {
-            "type": "prometheus",
-            "uid": "grafanacloud-prom"
-          }
-        }
-      ],
-      "fieldConfig": {
-        "defaults": {
-          "custom": {
-            "drawStyle": "line",
-            "lineInterpolation": "stepAfter",
-            "lineWidth": 2,
-            "fillOpacity": 10,
-            "showPoints": "auto",
-            "spanNulls": false
-          },
-          "unit": "short"
-        },
-        "overrides": []
-      },
-      "options": {
-        "legend": {
-          "displayMode": "table",
-          "placement": "right",
-          "calcs": [
-            "lastNotNull",
-            "max"
-          ]
-        },
-        "tooltip": {
-          "mode": "multi",
-          "sort": "desc"
-        }
-      },
-      "datasource": {
-        "type": "prometheus",
-        "uid": "grafanacloud-prom"
-      },
-      "id": 730705782
+      "id": 2001,
+      "panels": []
     },
     {
       "title": "Daily Experiment — Snapshot Age",
@@ -750,7 +851,7 @@
         "h": 5,
         "w": 6,
         "x": 0,
-        "y": 26
+        "y": 33
       },
       "targets": [
         {
@@ -788,7 +889,7 @@
         "overrides": []
       },
       "options": {
-        "colorMode": "background",
+        "colorMode": "value",
         "graphMode": "none",
         "reduceOptions": {
           "calcs": [
@@ -812,7 +913,7 @@
         "h": 5,
         "w": 6,
         "x": 6,
-        "y": 26
+        "y": 33
       },
       "targets": [
         {
@@ -870,7 +971,7 @@
         "h": 5,
         "w": 6,
         "x": 12,
-        "y": 26
+        "y": 33
       },
       "targets": [
         {
@@ -955,7 +1056,7 @@
         "h": 5,
         "w": 6,
         "x": 18,
-        "y": 26
+        "y": 33
       },
       "targets": [
         {
@@ -1040,7 +1141,7 @@
         "h": 9,
         "w": 24,
         "x": 0,
-        "y": 31
+        "y": 38
       },
       "targets": [
         {
@@ -1166,7 +1267,7 @@
         "h": 8,
         "w": 24,
         "x": 0,
-        "y": 40
+        "y": 47
       },
       "targets": [
         {
@@ -1219,76 +1320,6 @@
       "id": 1103734831
     },
     {
-      "id": 2165782571,
-      "title": "Pine Polling Watchdog",
-      "type": "stat",
-      "description": "Is the TradingView/Pine /smc_live polling watchdog armed? Shows LIVE_OVERLAY_EXPECT_MARKET_TRAFFIC. ARMED = a stalled or absent Pine consumer will alert during US market open; NOT ARMED = the watchdog is stood down.",
-      "gridPos": {
-        "x": 8,
-        "y": 3,
-        "w": 4,
-        "h": 5
-      },
-      "targets": [
-        {
-          "expr": "live_overlay_expected_market_traffic{job=~\"$job\"}",
-          "legendFormat": "expected_market_traffic",
-          "datasource": {
-            "type": "prometheus",
-            "uid": "grafanacloud-prom"
-          }
-        }
-      ],
-      "fieldConfig": {
-        "defaults": {
-          "mappings": [
-            {
-              "type": "value",
-              "options": {
-                "0": {
-                  "text": "NOT ARMED",
-                  "color": "dark-red"
-                },
-                "1": {
-                  "text": "ARMED",
-                  "color": "dark-green"
-                }
-              }
-            }
-          ],
-          "thresholds": {
-            "mode": "absolute",
-            "steps": [
-              {
-                "color": "dark-red",
-                "value": null
-              },
-              {
-                "color": "dark-green",
-                "value": 1
-              }
-            ]
-          },
-          "noValue": "NO SIGNAL"
-        }
-      },
-      "options": {
-        "colorMode": "background",
-        "graphMode": "none",
-        "reduceOptions": {
-          "calcs": [
-            "lastNotNull"
-          ],
-          "fields": "",
-          "values": false
-        }
-      },
-      "datasource": {
-        "type": "prometheus",
-        "uid": "grafanacloud-prom"
-      }
-    },
-    {
       "title": "Per-Day Family Hit-Rate — History (backfilled)",
       "type": "table",
       "description": "Retained per-day history from plan_2_8_history.jsonl: exact hit-rate and sample size for each run date / timeframe / family. Backfills the daily statistics immediately (no need to wait for Prometheus to accumulate). Sort by Run Date to read the day-by-day timeline.",
@@ -1296,7 +1327,7 @@
         "h": 10,
         "w": 24,
         "x": 0,
-        "y": 48
+        "y": 55
       },
       "targets": [
         {
@@ -1414,98 +1445,6 @@
         "uid": "grafanacloud-prom"
       },
       "id": 1756997640
-    },
-    {
-      "title": "UptimeRobot Monitor States",
-      "type": "state-timeline",
-      "description": "Per-monitor UptimeRobot state over time. paused = monitor intentionally paused; unknown = unrecognized status code.",
-      "gridPos": {
-        "h": 6,
-        "w": 12,
-        "x": 0,
-        "y": 63
-      },
-      "targets": [
-        {
-          "expr": "{__name__=~\"live_overlay_uptimerobot_monitor_.*_status_code\",job=~\"$job\"}",
-          "legendFormat": "{{__name__}}",
-          "datasource": {
-            "type": "prometheus",
-            "uid": "grafanacloud-prom"
-          }
-        }
-      ],
-      "options": {
-        "tooltip": {
-          "mode": "multi",
-          "sort": "none"
-        },
-        "legend": {
-          "displayMode": "list",
-          "placement": "bottom",
-          "showLegend": false
-        },
-        "rowHeight": 0.9
-      },
-      "fieldConfig": {
-        "defaults": {
-          "mappings": [
-            {
-              "type": "value",
-              "options": {
-                "0": {
-                  "text": "PAUSED",
-                  "color": "gray"
-                },
-                "1": {
-                  "text": "NOT CHECKED",
-                  "color": "purple"
-                },
-                "2": {
-                  "text": "UP",
-                  "color": "green"
-                },
-                "8": {
-                  "text": "DOWN",
-                  "color": "red"
-                },
-                "9": {
-                  "text": "DOWN",
-                  "color": "red"
-                }
-              }
-            }
-          ],
-          "color": {
-            "mode": "thresholds"
-          },
-          "thresholds": {
-            "mode": "absolute",
-            "steps": [
-              {
-                "color": "gray",
-                "value": null
-              },
-              {
-                "color": "purple",
-                "value": 1
-              },
-              {
-                "color": "green",
-                "value": 2
-              },
-              {
-                "color": "red",
-                "value": 8
-              }
-            ]
-          }
-        }
-      },
-      "datasource": {
-        "type": "prometheus",
-        "uid": "grafanacloud-prom"
-      }
     }
   ],
   "refresh": "1m",

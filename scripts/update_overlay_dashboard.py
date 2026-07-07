@@ -394,7 +394,13 @@ def _ensure_uptimerobot_panel(data: dict[str, Any]) -> bool:
 
     Returns True when the panel was added or its query contract was repaired so
     the caller can bump the dashboard version.
+
+    Scoped to the MAIN operations dashboard: UptimeRobot uptime monitoring
+    belongs there, not on the signals/experiments board (2026-07-08 redesign
+    removed it from signals). Without this gate the self-heal would re-add it.
     """
+    if data.get("uid") != "smc-live-overlay-v1":
+        return False
     panel = _v1_panel_by_title(data, "UptimeRobot Monitor States")
     if panel is None:
         data.setdefault("panels", []).append(copy.deepcopy(UPTIMEROBOT_PANEL))
