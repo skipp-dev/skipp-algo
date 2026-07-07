@@ -77,8 +77,15 @@ def test_railway_token_is_scoped_to_steps_not_the_job() -> None:
     assert "RAILWAY_TOKEN" not in (job.get("env") or {})
 
 
-def test_railway_cli_install_ignores_lifecycle_scripts() -> None:
-    assert "--ignore-scripts" in _text()
+def test_railway_cli_install_runs_postinstall_and_sanity_checks() -> None:
+    # @railway/cli fetches its platform binary in `postinstall`; suppressing
+    # npm lifecycle scripts leaves a dead shim that exits 1 with zero output
+    # (the root cause of every failed deploy on 2026-07-07, 07:55-10:38Z).
+    # The exact version pin is the supply-chain control; the sanity call
+    # proves the binary is real before the deploy trusts it.
+    text = _text()
+    assert "--ignore-scripts" not in text
+    assert "railway --version" in text
 
 
 def test_deploy_is_verified_not_fire_and_forget() -> None:

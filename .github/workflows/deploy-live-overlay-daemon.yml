@@ -70,11 +70,18 @@ jobs:
 
       - name: Install Railway CLI
         if: steps.gate.outputs.run == 'true'
-        # SC-02 (supply-chain): exact pin, no floating range. --ignore-scripts
-        # blocks arbitrary npm lifecycle scripts from the dependency tree.
+        # SC-02 (supply-chain): exact pin, no floating range. Deliberately NO
+        # npm script suppression: @railway/cli fetches its platform binary in
+        # `postinstall` (node ./npm-install/postinstall.js), so suppressing
+        # lifecycle scripts leaves a dead shim -- `railway` then exits 1 with
+        # zero output, which silently killed every deploy from 07:55Z to 10:38Z
+        # on 2026-07-07 (five main merges + two dispatch tests). The exact
+        # version pin is the supply-chain control here; a sanity call proves
+        # the binary is real before we trust it with a deploy.
         run: |
           set -euo pipefail
-          npm install -g --ignore-scripts @railway/cli@5.23.3
+          npm install -g @railway/cli@5.23.3
+          railway --version
 
       - name: Deploy live_overlay_daemon (SHA-stamped)
         id: deploy
