@@ -66,6 +66,24 @@
   ],
   "panels": [
     {
+      "id": 999,
+      "type": "text",
+      "title": "",
+      "datasource": null,
+      "description": "Cross-link to the paired Signals & Experiments dashboard.",
+      "gridPos": {
+        "h": 2,
+        "w": 24,
+        "x": 0,
+        "y": 0
+      },
+      "transparent": true,
+      "options": {
+        "mode": "markdown",
+        "content": "🔗 **[→ Signals & Experiments](/d/smc-live-overlay-signals-v1?orgId=1)** — trading signals & strategy experiments: active signals, breakouts, signal score, FVG 5m / BOS 4H verdicts, family hit-rate."
+      }
+    },
+    {
       "type": "row",
       "title": "Status at a Glance",
       "collapsed": false,
@@ -74,7 +92,7 @@
         "h": 1,
         "w": 24,
         "x": 0,
-        "y": 0
+        "y": 2
       },
       "id": 1000,
       "panels": []
@@ -85,7 +103,7 @@
       "description": "Single-pane triage signal. HEALTHY = feed, workers and overlay fresh; IDLE = market closed before the first bar; STARTING = daemon still waiting on feed/workers/overlay; UNKNOWN = status metric missing.",
       "gridPos": {
         "x": 0,
-        "y": 1,
+        "y": 3,
         "w": 8,
         "h": 5
       },
@@ -199,7 +217,7 @@
       "type": "alertlist",
       "gridPos": {
         "x": 8,
-        "y": 1,
+        "y": 3,
         "w": 12,
         "h": 5
       },
@@ -223,7 +241,7 @@
       "description": "Suggested first checks when Overall Health is not HEALTHY.",
       "gridPos": {
         "x": 0,
-        "y": 6,
+        "y": 8,
         "w": 24,
         "h": 4
       },
@@ -243,7 +261,7 @@
       "description": "Major session state (US regular or Europe regular); 1 = open, 0 = closed.",
       "gridPos": {
         "x": 0,
-        "y": 10,
+        "y": 12,
         "w": 4,
         "h": 3
       },
@@ -313,7 +331,7 @@
       "description": "Is the TradingView/Pine /smc_live polling watchdog armed? Shows LIVE_OVERLAY_EXPECT_MARKET_TRAFFIC. ARMED = a stalled or absent Pine consumer will alert during US market open; NOT ARMED = the watchdog is stood down.",
       "gridPos": {
         "x": 4,
-        "y": 10,
+        "y": 12,
         "w": 4,
         "h": 5
       },
@@ -381,7 +399,7 @@
       "type": "stat",
       "gridPos": {
         "x": 8,
-        "y": 10,
+        "y": 12,
         "w": 6,
         "h": 5
       },
@@ -528,7 +546,7 @@
       "description": "External bridge scrape health (UptimeRobot + GitHub Workflows).",
       "gridPos": {
         "x": 14,
-        "y": 10,
+        "y": 12,
         "w": 4,
         "h": 3
       },
@@ -657,7 +675,7 @@
       "description": "The commit + branch currently running in the daemon, from live_overlay_build_info. 'unknown' means a deploy without a git stamp (e.g. bare railway up). Use it to confirm a deploy actually shipped the intended commit.",
       "gridPos": {
         "x": 0,
-        "y": 15,
+        "y": 17,
         "w": 8,
         "h": 4
       },
@@ -707,7 +725,7 @@
         "h": 1,
         "w": 24,
         "x": 0,
-        "y": 19
+        "y": 21
       },
       "id": 1001,
       "panels": []
@@ -723,7 +741,7 @@
       },
       "gridPos": {
         "x": 0,
-        "y": 20,
+        "y": 22,
         "w": 6,
         "h": 6
       },
@@ -873,7 +891,7 @@
       },
       "gridPos": {
         "x": 6,
-        "y": 20,
+        "y": 22,
         "w": 6,
         "h": 6
       },
@@ -956,7 +974,7 @@
       },
       "gridPos": {
         "x": 12,
-        "y": 20,
+        "y": 22,
         "w": 6,
         "h": 6
       },
@@ -1039,7 +1057,7 @@
       },
       "gridPos": {
         "x": 18,
-        "y": 20,
+        "y": 22,
         "w": 6,
         "h": 5
       },
@@ -1106,7 +1124,7 @@
       },
       "gridPos": {
         "x": 0,
-        "y": 26,
+        "y": 28,
         "w": 6,
         "h": 5
       },
@@ -1177,7 +1195,7 @@
       },
       "gridPos": {
         "x": 6,
-        "y": 26,
+        "y": 28,
         "w": 6,
         "h": 6
       },
@@ -1251,7 +1269,7 @@
         "h": 1,
         "w": 24,
         "x": 0,
-        "y": 32
+        "y": 34
       },
       "id": 1002,
       "panels": []
@@ -1262,7 +1280,7 @@
       "description": "Live feed connection health (0 = unhealthy, 1 = healthy).",
       "gridPos": {
         "x": 0,
-        "y": 33,
+        "y": 35,
         "w": 4,
         "h": 3
       },
@@ -1339,7 +1357,7 @@
       "description": "Age of the newest bar received from Databento.",
       "gridPos": {
         "x": 4,
-        "y": 33,
+        "y": 35,
         "w": 4,
         "h": 3
       },
@@ -1407,7 +1425,7 @@
       "description": "Is the latest overlay calculation recent enough to trade on? Green means the last computed overlay is within the expected freshness window.",
       "gridPos": {
         "x": 8,
-        "y": 33,
+        "y": 35,
         "w": 4,
         "h": 3
       },
@@ -1483,7 +1501,7 @@
       "type": "stat",
       "gridPos": {
         "x": 12,
-        "y": 33,
+        "y": 35,
         "w": 6,
         "h": 5
       },
@@ -1554,7 +1572,7 @@
       "type": "stat",
       "gridPos": {
         "x": 18,
-        "y": 33,
+        "y": 35,
         "w": 6,
         "h": 5
       },
@@ -1632,7 +1650,7 @@
       "type": "stat",
       "gridPos": {
         "x": 0,
-        "y": 38,
+        "y": 40,
         "w": 4,
         "h": 3
       },
@@ -1695,7 +1713,7 @@
       "type": "stat",
       "gridPos": {
         "x": 4,
-        "y": 38,
+        "y": 40,
         "w": 4,
         "h": 3
       },
@@ -1749,7 +1767,7 @@
       "type": "stat",
       "gridPos": {
         "x": 8,
-        "y": 38,
+        "y": 40,
         "w": 4,
         "h": 3
       },
@@ -1800,7 +1818,7 @@
         "h": 3,
         "w": 6,
         "x": 12,
-        "y": 38
+        "y": 40
       },
       "targets": [
         {
@@ -1909,7 +1927,7 @@
         "h": 3,
         "w": 6,
         "x": 18,
-        "y": 38
+        "y": 40
       },
       "targets": [
         {
@@ -1986,7 +2004,7 @@
         "h": 3,
         "w": 6,
         "x": 0,
-        "y": 41
+        "y": 43
       },
       "targets": [
         {
@@ -2031,7 +2049,7 @@
         "h": 3,
         "w": 6,
         "x": 6,
-        "y": 41
+        "y": 43
       },
       "targets": [
         {
@@ -2068,7 +2086,7 @@
       "type": "state-timeline",
       "gridPos": {
         "x": 0,
-        "y": 44,
+        "y": 46,
         "w": 24,
         "h": 4
       },
@@ -2165,7 +2183,7 @@
       "type": "timeseries",
       "gridPos": {
         "x": 0,
-        "y": 48,
+        "y": 50,
         "w": 12,
         "h": 8
       },
@@ -2242,7 +2260,7 @@
       "type": "timeseries",
       "gridPos": {
         "x": 12,
-        "y": 48,
+        "y": 50,
         "w": 12,
         "h": 8
       },
@@ -2308,7 +2326,7 @@
       "type": "timeseries",
       "gridPos": {
         "x": 0,
-        "y": 56,
+        "y": 58,
         "w": 12,
         "h": 8
       },
@@ -2421,7 +2439,7 @@
         "h": 1,
         "w": 24,
         "x": 0,
-        "y": 64
+        "y": 66
       },
       "id": 1003,
       "panels": []
@@ -2431,7 +2449,7 @@
       "type": "stat",
       "gridPos": {
         "x": 0,
-        "y": 65,
+        "y": 67,
         "w": 6,
         "h": 5
       },
@@ -2502,7 +2520,7 @@
       "type": "timeseries",
       "gridPos": {
         "x": 6,
-        "y": 65,
+        "y": 67,
         "w": 12,
         "h": 8
       },
@@ -2589,7 +2607,7 @@
       "type": "timeseries",
       "gridPos": {
         "x": 0,
-        "y": 73,
+        "y": 75,
         "w": 12,
         "h": 8
       },
@@ -2683,7 +2701,7 @@
       "type": "timeseries",
       "gridPos": {
         "x": 12,
-        "y": 73,
+        "y": 75,
         "w": 12,
         "h": 8
       },
@@ -2789,7 +2807,7 @@
       "type": "timeseries",
       "gridPos": {
         "x": 0,
-        "y": 81,
+        "y": 83,
         "w": 12,
         "h": 8
       },
@@ -2867,7 +2885,7 @@
       "type": "timeseries",
       "gridPos": {
         "x": 12,
-        "y": 81,
+        "y": 83,
         "w": 12,
         "h": 8
       },
@@ -2938,7 +2956,7 @@
       "type": "timeseries",
       "gridPos": {
         "x": 0,
-        "y": 89,
+        "y": 91,
         "w": 12,
         "h": 8
       },
@@ -3009,7 +3027,7 @@
         "h": 1,
         "w": 24,
         "x": 0,
-        "y": 97
+        "y": 99
       },
       "id": 1004,
       "panels": []
@@ -3019,7 +3037,7 @@
       "type": "stat",
       "gridPos": {
         "x": 0,
-        "y": 98,
+        "y": 100,
         "w": 4,
         "h": 3
       },
@@ -3105,7 +3123,7 @@
       "type": "stat",
       "gridPos": {
         "x": 4,
-        "y": 98,
+        "y": 100,
         "w": 4,
         "h": 3
       },
@@ -3160,7 +3178,7 @@
       "description": "Daemon process resident memory as reported by the built-in Prometheus collector.",
       "gridPos": {
         "x": 8,
-        "y": 98,
+        "y": 100,
         "w": 4,
         "h": 3
       },
@@ -3228,7 +3246,7 @@
       "description": "Background thread liveness (1 = all alive, 0 = at least one dead).",
       "gridPos": {
         "x": 12,
-        "y": 98,
+        "y": 100,
         "w": 4,
         "h": 3
       },
@@ -3304,7 +3322,7 @@
       "type": "stat",
       "gridPos": {
         "x": 16,
-        "y": 98,
+        "y": 100,
         "w": 6,
         "h": 6
       },
@@ -3375,7 +3393,7 @@
       "type": "stat",
       "gridPos": {
         "x": 0,
-        "y": 104,
+        "y": 106,
         "w": 6,
         "h": 6
       },
@@ -3435,7 +3453,7 @@
       "type": "stat",
       "gridPos": {
         "x": 6,
-        "y": 104,
+        "y": 106,
         "w": 6,
         "h": 6
       },
@@ -3504,7 +3522,7 @@
       "type": "state-timeline",
       "gridPos": {
         "x": 12,
-        "y": 104,
+        "y": 106,
         "w": 12,
         "h": 6
       },
@@ -3601,7 +3619,7 @@
       "type": "state-timeline",
       "gridPos": {
         "x": 0,
-        "y": 110,
+        "y": 112,
         "w": 12,
         "h": 8
       },
@@ -3698,7 +3716,7 @@
       "type": "timeseries",
       "gridPos": {
         "x": 12,
-        "y": 110,
+        "y": 112,
         "w": 12,
         "h": 8
       },
@@ -3748,7 +3766,7 @@
       "type": "timeseries",
       "gridPos": {
         "x": 0,
-        "y": 118,
+        "y": 120,
         "w": 12,
         "h": 8
       },
@@ -3835,7 +3853,7 @@
       "type": "timeseries",
       "gridPos": {
         "x": 12,
-        "y": 118,
+        "y": 120,
         "w": 12,
         "h": 8
       },
@@ -3909,7 +3927,7 @@
       "type": "timeseries",
       "gridPos": {
         "x": 0,
-        "y": 126,
+        "y": 128,
         "w": 12,
         "h": 8
       },
@@ -3958,7 +3976,7 @@
       "type": "timeseries",
       "gridPos": {
         "x": 0,
-        "y": 134,
+        "y": 136,
         "w": 24,
         "h": 8
       },
@@ -4011,7 +4029,7 @@
         "h": 1,
         "w": 24,
         "x": 0,
-        "y": 142
+        "y": 144
       },
       "id": 1005,
       "panels": []
@@ -4021,7 +4039,7 @@
       "type": "stat",
       "gridPos": {
         "x": 0,
-        "y": 143,
+        "y": 145,
         "w": 6,
         "h": 4
       },
@@ -4093,7 +4111,7 @@
       "type": "stat",
       "gridPos": {
         "x": 6,
-        "y": 143,
+        "y": 145,
         "w": 6,
         "h": 4
       },
@@ -4162,7 +4180,7 @@
       "type": "stat",
       "gridPos": {
         "x": 12,
-        "y": 143,
+        "y": 145,
         "w": 6,
         "h": 4
       },
@@ -4239,7 +4257,7 @@
       "description": "Counts how many of the generic bridge contracts are absent. A non-zero value means the exporter or metrics path is broken, not that a bridge is disabled.",
       "gridPos": {
         "x": 18,
-        "y": 143,
+        "y": 145,
         "w": 6,
         "h": 5
       },
@@ -4320,7 +4338,7 @@
       "type": "stat",
       "gridPos": {
         "x": 0,
-        "y": 148,
+        "y": 150,
         "w": 6,
         "h": 4
       },
@@ -4392,7 +4410,7 @@
       "type": "stat",
       "gridPos": {
         "x": 6,
-        "y": 148,
+        "y": 150,
         "w": 6,
         "h": 4
       },
@@ -4461,7 +4479,7 @@
       "type": "stat",
       "gridPos": {
         "x": 12,
-        "y": 148,
+        "y": 150,
         "w": 6,
         "h": 4
       },
@@ -4537,7 +4555,7 @@
       "type": "timeseries",
       "gridPos": {
         "x": 0,
-        "y": 152,
+        "y": 154,
         "w": 12,
         "h": 8
       },
@@ -4619,7 +4637,7 @@
       "type": "timeseries",
       "gridPos": {
         "x": 12,
-        "y": 152,
+        "y": 154,
         "w": 12,
         "h": 8
       },
@@ -4714,7 +4732,7 @@
       "type": "table",
       "gridPos": {
         "x": 0,
-        "y": 160,
+        "y": 162,
         "w": 24,
         "h": 14
       },
@@ -4957,7 +4975,7 @@
       "type": "state-timeline",
       "gridPos": {
         "x": 0,
-        "y": 174,
+        "y": 176,
         "w": 12,
         "h": 8
       },
@@ -5041,7 +5059,7 @@
       "description": "Per-monitor UptimeRobot state over time. paused = monitor intentionally paused; unknown = unrecognized status code.",
       "gridPos": {
         "x": 0,
-        "y": 182,
+        "y": 184,
         "w": 24,
         "h": 6
       },
@@ -5133,7 +5151,7 @@
       "type": "state-timeline",
       "gridPos": {
         "x": 0,
-        "y": 188,
+        "y": 190,
         "w": 18,
         "h": 25
       },
@@ -5359,7 +5377,7 @@
         "h": 1,
         "w": 24,
         "x": 0,
-        "y": 213
+        "y": 215
       },
       "id": 1006,
       "panels": []
@@ -5377,7 +5395,7 @@
         "h": 5,
         "w": 6,
         "x": 0,
-        "y": 214
+        "y": 216
       },
       "targets": [
         {
@@ -5441,7 +5459,7 @@
         "h": 5,
         "w": 6,
         "x": 6,
-        "y": 214
+        "y": 216
       },
       "targets": [
         {
@@ -5497,7 +5515,7 @@
         "h": 5,
         "w": 6,
         "x": 12,
-        "y": 214
+        "y": 216
       },
       "targets": [
         {
@@ -5570,7 +5588,7 @@
         "h": 5,
         "w": 6,
         "x": 18,
-        "y": 214
+        "y": 216
       },
       "targets": [
         {
@@ -5634,7 +5652,7 @@
         "h": 5,
         "w": 6,
         "x": 0,
-        "y": 219
+        "y": 221
       },
       "targets": [
         {
@@ -5707,7 +5725,7 @@
         "h": 7,
         "w": 12,
         "x": 6,
-        "y": 219
+        "y": 221
       },
       "targets": [
         {
@@ -5748,7 +5766,7 @@
       "description": "Whether the latest credential-health report considers the TradingView storage-state login valid (severity not error). 1 = valid (cached login still within the 72h TTL), 0 = expired/error → re-capture TV_STORAGE_STATE. N/A when no report has been ingested yet.",
       "gridPos": {
         "x": 18,
-        "y": 219,
+        "y": 221,
         "w": 6,
         "h": 5
       },
@@ -5818,7 +5836,7 @@
       "description": "Hours since the TradingView Playwright storage-state login (meta.authValidatedAt) was last validated, from the daily credential-health report (tv_storage_state_age probe). Policy TTL is 72h: green < 57.6h (80% warn band), yellow 57.6–72h, red once the cached login is older than 72h and must be re-captured. N/A when no report/age is available.",
       "gridPos": {
         "x": 0,
-        "y": 226,
+        "y": 228,
         "w": 6,
         "h": 5
       },
@@ -5883,7 +5901,7 @@
       "description": "Legend for News Provider panels directly below.",
       "gridPos": {
         "x": 0,
-        "y": 231,
+        "y": 233,
         "w": 24,
         "h": 2
       },
@@ -5902,7 +5920,7 @@
       "type": "timeseries",
       "gridPos": {
         "x": 0,
-        "y": 233,
+        "y": 235,
         "w": 24,
         "h": 10
       },
@@ -5998,7 +6016,7 @@
       "type": "state-timeline",
       "gridPos": {
         "x": 0,
-        "y": 243,
+        "y": 245,
         "w": 12,
         "h": 8
       },
@@ -6093,7 +6111,7 @@
       "type": "timeseries",
       "gridPos": {
         "x": 12,
-        "y": 243,
+        "y": 245,
         "w": 6,
         "h": 8
       },
@@ -6142,7 +6160,7 @@
       "type": "timeseries",
       "gridPos": {
         "x": 18,
-        "y": 243,
+        "y": 245,
         "w": 6,
         "h": 8
       },
@@ -6223,7 +6241,7 @@
       "type": "timeseries",
       "gridPos": {
         "x": 0,
-        "y": 251,
+        "y": 253,
         "w": 12,
         "h": 8
       },
@@ -6274,7 +6292,7 @@
       "type": "table",
       "gridPos": {
         "x": 12,
-        "y": 251,
+        "y": 253,
         "w": 12,
         "h": 8
       },
@@ -6435,7 +6453,7 @@
         "h": 1,
         "w": 24,
         "x": 0,
-        "y": 259
+        "y": 261
       },
       "id": 1007,
       "panels": []
@@ -6446,7 +6464,7 @@
       "description": "Whether the Railway metrics bridge is enabled and its last poll succeeded.",
       "gridPos": {
         "x": 0,
-        "y": 260,
+        "y": 262,
         "w": 4,
         "h": 3
       },
@@ -6596,7 +6614,7 @@
       "description": "Seconds since the last successful Railway metrics poll.",
       "gridPos": {
         "x": 4,
-        "y": 260,
+        "y": 262,
         "w": 4,
         "h": 3
       },
@@ -6660,7 +6678,7 @@
       "description": "Latest Railway metrics bridge error class. OK when healthy.",
       "gridPos": {
         "x": 8,
-        "y": 260,
+        "y": 262,
         "w": 4,
         "h": 3
       },
@@ -6735,7 +6753,7 @@
       },
       "gridPos": {
         "x": 12,
-        "y": 260,
+        "y": 262,
         "w": 8,
         "h": 7
       },
@@ -6781,7 +6799,7 @@
       },
       "gridPos": {
         "x": 0,
-        "y": 267,
+        "y": 269,
         "w": 8,
         "h": 7
       },
@@ -6844,7 +6862,7 @@
       },
       "gridPos": {
         "x": 8,
-        "y": 267,
+        "y": 269,
         "w": 8,
         "h": 7
       },
@@ -6891,7 +6909,7 @@
       },
       "gridPos": {
         "x": 16,
-        "y": 267,
+        "y": 269,
         "w": 8,
         "h": 7
       },
@@ -6939,7 +6957,7 @@
       },
       "gridPos": {
         "x": 0,
-        "y": 274,
+        "y": 276,
         "w": 8,
         "h": 7
       },
@@ -6986,7 +7004,7 @@
       },
       "gridPos": {
         "x": 8,
-        "y": 274,
+        "y": 276,
         "w": 8,
         "h": 7
       },
@@ -7031,7 +7049,7 @@
       },
       "gridPos": {
         "x": 0,
-        "y": 281,
+        "y": 283,
         "w": 12,
         "h": 8
       },
@@ -7069,7 +7087,7 @@
       },
       "gridPos": {
         "x": 12,
-        "y": 281,
+        "y": 283,
         "w": 12,
         "h": 8
       },
@@ -7152,6 +7170,6 @@
   "timezone": "utc",
   "title": "SMC Live Overlay API",
   "uid": "smc-live-overlay-v1",
-  "version": 52,
+  "version": 53,
   "description": "Live-overlay daemon operational dashboard: feed health, worker liveness, SMC overlay freshness, external bridge status, provider health, daily experiment metrics, and Railway container resources."
 }
