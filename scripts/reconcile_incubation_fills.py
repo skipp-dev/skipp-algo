@@ -106,6 +106,41 @@ def legs_by_intent(by_ref: dict[str, dict[str, float]]) -> dict[str, dict[str, d
     return out
 
 
+# Actions a record can carry after stamping -- used (with the reconcilable
+# set) to pick the winner among duplicate intent_id records.
+_STAMPABLE_ACTIONS = _RECONCILABLE_ACTIONS | frozenset(_EXIT_LEG_ACTIONS.values())
+
+
+def _newest_stampable_index(records: list[dict[str, Any]]) -> dict[str, int]:
+    """Per intent_id: index of the newest record that is (or was) stampable.
+
+    A same-day retry after a DEGRADED run re-submits the SAME intent_ids
+    (they are ``smc-<SYM>-<DATE>-port<N>``), leaving duplicate
+    ``paper_submitted`` records in the audit file. Stamping every match
+    would copy one IB fill onto N records and inflate the C8 fill/closed
+    counts N-fold (root-caused 2026-07-07: five phantom pre-market records
+    + a planned catch-up run). Only the newest submission is the one whose
+    bracket actually rests at IB -- earlier ones were superseded, and their
+    fill stays honestly ``null``.
+
+    Newest = later ``ts`` (ISO-8601 sorts lexicographically); file order
+    breaks ties (records are appended chronologically). Already-stamped
+    records (filled/closed) count as candidates so idempotent re-runs keep
+    stamping the same winner instead of drifting to an older duplicate.
+    """
+    newest: dict[str, int] = {}
+    for idx, record in enumerate(records):
+        if record.get("action") not in _STAMPABLE_ACTIONS:
+            continue
+        intent_id = str(record.get("intent_id") or "")
+        if not intent_id:
+            continue
+        prev = newest.get(intent_id)
+        if prev is None or str(record.get("ts") or "") >= str(records[prev].get("ts") or ""):
+            newest[intent_id] = idx
+    return newest
+
+
 def reconcile_records(
     records: list[dict[str, Any]],
     intent_legs: dict[str, dict[str, dict[str, float]]],
@@ -115,13 +150,24 @@ def reconcile_records(
     Re-running with the same executions is a no-op on already-closed
     records (their action left ``_RECONCILABLE_ACTIONS``); a record that
     only reached ``filled`` earlier upgrades to closed when the exit leg
-    has filled by the later run.
+    has filled by the later run. With duplicate intent_id records (same-day
+    retry) only the newest stampable record receives fills.
     """
-    counts = {"reconcilable": 0, "entry_filled": 0, "closed": 0}
-    for record in records:
+    counts = {"reconcilable": 0, "entry_filled": 0, "closed": 0, "duplicate_skipped": 0}
+    newest_by_intent = _newest_stampable_index(records)
+    for idx, record in enumerate(records):
         if record.get("action") not in _RECONCILABLE_ACTIONS:
             continue
         counts["reconcilable"] += 1
+        intent_key = str(record.get("intent_id") or "")
+        if intent_key and newest_by_intent.get(intent_key) != idx:
+            # Superseded duplicate: a newer submission owns this intent_id.
+            counts["duplicate_skipped"] += 1
+            print(
+                f"reconcile: skipping superseded duplicate record for "
+                f"{intent_key!r} (a newer submission owns the fills)"
+            )
+            continue
         legs = intent_legs.get(str(record.get("intent_id") or ""))
         if not legs:
             continue
