@@ -9,7 +9,7 @@ Targets pure helpers and externally-mockable fetchers:
     `_atr14_by_symbol`
   * `compute_premarket_high_low`, `_pm_cache_save` / `_pm_cache_load`,
     `_fetch_premarket_high_low_bulk`
-  * `_fetch_analyst_catalyst`, `_fetch_earnings_distance_features`,
+  * `_fetch_analyst_coverage`, `_fetch_earnings_distance_features`,
     `_fetch_fmp_us_mid_large_universe`,
     `_fetch_benzinga_core_news_articles` (env / early-return paths only)
 """
@@ -469,19 +469,19 @@ def test_fetch_premarket_high_low_bulk_swallows_per_symbol_error(
 
 
 # ---------------------------------------------------------------------------
-# _fetch_analyst_catalyst
+# _fetch_analyst_coverage
 # ---------------------------------------------------------------------------
 
 
-def test_fetch_analyst_catalyst_returns_empty_when_limit_zero() -> None:
+def test_fetch_analyst_coverage_returns_empty_when_limit_zero() -> None:
     class _Client:
         def get_price_target_summary(self, *_a: Any) -> dict[str, Any]:
             raise AssertionError("should not be called")
 
-    assert rop._fetch_analyst_catalyst(client=_Client(), symbols=["AAPL"], limit=0) == {}
+    assert rop._fetch_analyst_coverage(client=_Client(), symbols=["AAPL"], limit=0) == {}
 
 
-def test_fetch_analyst_catalyst_aggregates_targets() -> None:
+def test_fetch_analyst_coverage_aggregates_targets() -> None:
     class _Client:
         def get_price_target_summary(self, sym: str) -> dict[str, Any]:
             if sym == "AAPL":
@@ -490,7 +490,7 @@ def test_fetch_analyst_catalyst_aggregates_targets() -> None:
                 return {}  # falsy → None
             raise RuntimeError("bad")
 
-    out = rop._fetch_analyst_catalyst(
+    out = rop._fetch_analyst_coverage(
         client=_Client(), symbols=["AAPL", "MSFT", "ERR"], limit=3,
     )
     assert "AAPL" in out

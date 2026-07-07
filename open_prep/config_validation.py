@@ -51,6 +51,15 @@ _WEIGHT_BOUNDS: dict[str, tuple[float, float]] = {
     "earnings_bmo": (0.0, 3.0),
     "news": (0.0, 5.0),
     "ext_hours": (0.0, 3.0),
+    # "analyst_catalyst" is a historical misnomer: the component scores analyst
+    # COVERAGE BREADTH (covering-analyst count / 10, capped at 2.0, sourced from
+    # FMP price-target-summary in run_open_prep._fetch_analyst_coverage). It is
+    # NOT a fresh rating-action (upgrade/downgrade) catalyst. The key name is
+    # kept because it is a live data contract: the c10b family-partition
+    # experiment logs `analyst_catalyst_component` as a feature column, 45+ days
+    # of outcomes history carry it, and weight configs validate against this
+    # schema. Rename (or a true rating-action catalyst taking this slot) is
+    # deferred to a schema-version bump after c10b concludes.
     "analyst_catalyst": (0.0, 3.0),
     "vwap_distance": (-2.0, 3.0),
     "freshness_decay": (0.0, 3.0),

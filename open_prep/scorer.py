@@ -61,7 +61,7 @@ DEFAULT_WEIGHTS: dict[str, float] = {
     # an unverified rumor is the catalyst.
     "news": 2.5,
     "ext_hours": 1.0,
-    "analyst_catalyst": 0.5,
+    "analyst_catalyst": 0.5,  # misnomer: coverage BREADTH (count/10, cap 2.0), not a rating action — see config_validation.py
     "vwap_distance": 0.4,
     "freshness_decay": 0.3,
     "institutional_quality": 0.3,
