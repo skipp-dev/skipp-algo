@@ -121,7 +121,16 @@ def _fetch_snapshot(token: str) -> dict[str, Any]:
     owner, repo = config.github_workflow_repo()
     timeout = config.github_workflow_timeout_secs()
     per_page = config.github_workflow_per_page()
-    params = urllib.parse.urlencode({"per_page": per_page})
+    query: dict[str, str] = {"per_page": str(per_page)}
+    branch = config.github_workflow_branch()
+    if branch:
+        # Scope to the default branch so a green feature-branch run cannot mask a
+        # red main run (and vice-versa): workflow health tracks main, not PRs.
+        # main runs are sparser than all-branch runs, so the same ``per_page``
+        # window spans more calendar time and still covers each workflow's latest
+        # main run. Empty branch (config) disables the filter.
+        query["branch"] = branch
+    params = urllib.parse.urlencode(query)
     # GitHub returns runs newest-first, so the first page already contains the most
     # recent run per workflow we care about; ``per_page`` is sized to cover the
     # configured workflow set, so we never need to paginate for "latest run" state.

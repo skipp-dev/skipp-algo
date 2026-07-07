@@ -509,6 +509,18 @@ def github_workflow_per_page() -> int:
     return _clamped_int("GITHUB_WORKFLOW_MONITOR_PER_PAGE", 30, 1, 100)
 
 
+def github_workflow_branch() -> str:
+    """Head branch the monitored runs are restricted to (default: ``main``).
+
+    Scoping to the default branch stops a green feature-branch run from masking
+    a red ``main`` run (and vice-versa) in ``latest_success`` / ``phase_code``.
+    Set to an empty string to disable the filter and track runs on all branches
+    (the pre-2026-07 behaviour). PR-only workflows (e.g. ``pr-title-concern-lint``)
+    have no main run and simply drop out of the main-scoped view.
+    """
+    return _optional_str("GITHUB_WORKFLOW_MONITOR_BRANCH", "main").strip()
+
+
 def restart_cause() -> str:
     """Deployment/runtime restart cause label for observability dashboards.
 
