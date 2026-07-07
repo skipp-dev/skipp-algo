@@ -23,10 +23,16 @@
   "id": null,
   "links": [
     {
-      "title": "Main Operations Dashboard",
+      "title": "→ Live Overlay Operations",
       "type": "link",
       "url": "/d/smc-live-overlay-v1",
-      "targetBlank": false
+      "tooltip": "Operations & infrastructure view: overall health, live data chain (feed→overlay→Pine), API SLO, daemon ops, providers (incl. FMP bandwidth) and Railway resources.",
+      "icon": "dashboard",
+      "targetBlank": false,
+      "keepTime": true,
+      "includeVars": false,
+      "asDropdown": false,
+      "tags": []
     },
     {
       "title": "Daemon Runbook",
