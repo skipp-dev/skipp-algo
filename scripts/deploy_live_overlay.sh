@@ -21,6 +21,12 @@ cd "$(git rev-parse --show-toplevel)"
 stamp="services/live_overlay_daemon/build_stamp.txt"
 commit="$(git rev-parse --short=12 HEAD)"
 branch="$(git rev-parse --abbrev-ref HEAD)"
+# CI checks the repo out in detached-HEAD state, so --abbrev-ref returns
+# "HEAD"; fall back to a caller-supplied branch (the deploy workflow passes
+# github.ref_name) so the stamp records "main", not "HEAD".
+if [ "$branch" = "HEAD" ]; then
+  branch="${DEPLOY_GIT_BRANCH:-detached}"
+fi
 
 # Restore the placeholder no matter how we exit (success, failure, Ctrl-C).
 trap 'git checkout -- "$stamp" 2>/dev/null || true' EXIT

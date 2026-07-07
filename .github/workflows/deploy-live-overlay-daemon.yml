@@ -1,0 +1,77 @@
+# live-window: any-trigger  # deploy-live-overlay-daemon (2026-07-07)
+#
+# Deterministic CI deploy for the live_overlay_daemon Railway service.
+#
+# Why this exists: Railway's native GitHub auto-deploy for this service is not
+# firing (the connection references the pre-rename `skippALGO` org slug; the
+# last git-triggered deploy stuck at an old commit), so merges to main did NOT
+# reach production and required a manual `railway up`. This workflow makes the
+# deploy deterministic: every main push that touches the daemon runs the
+# SHA-stamping wrapper, so production tracks main AND `live_overlay_build_info`
+# shows the real deployed commit.
+#
+# Requires the `RAILWAY_TOKEN` secret (a project token for the skipp-algo
+# project). Without it the job no-ops with a notice, so this file is inert
+# until the secret is added.
+#
+# If Railway's native auto-deploy is ever repaired, disable one of the two to
+# avoid double deploys (prefer this workflow — it stamps the commit).
+name: "deploy-live-overlay-daemon"
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "services/live_overlay_daemon/**"
+      - "scripts/deploy_live_overlay.sh"
+      - ".github/workflows/deploy-live-overlay-daemon.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  # One deploy at a time; never cancel an in-flight deploy (a half-applied
+  # container swap is worse than a slightly stale one). A newer run waits.
+  group: deploy-live-overlay-daemon
+  cancel-in-progress: false
+
+env:
+  PYTHONUNBUFFERED: "1"
+  PYTHONPATH: ${{ github.workspace }}
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: "true"
+
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  deploy:
+    runs-on: ${{ vars.SMC_GH_HOSTED_RUNNER || 'ubuntu-latest' }}
+    timeout-minutes: 20
+    env:
+      RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
+      DEPLOY_GIT_BRANCH: ${{ github.ref_name }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+
+      - name: Validate Railway token presence
+        run: |
+          if [[ -z "$RAILWAY_TOKEN" ]]; then
+            echo "::notice::Missing secret RAILWAY_TOKEN; skipping deploy."
+            exit 0
+          fi
+
+      - name: Install Railway CLI
+        if: ${{ env.RAILWAY_TOKEN != '' }}
+        # SC-02 (supply-chain): exact pin, no floating range.
+        run: |
+          set -euo pipefail
+          npm install -g @railway/cli@5.23.3
+
+      - name: Deploy live_overlay_daemon (SHA-stamped)
+        if: ${{ env.RAILWAY_TOKEN != '' }}
+        run: |
+          set -euo pipefail
+          scripts/deploy_live_overlay.sh
