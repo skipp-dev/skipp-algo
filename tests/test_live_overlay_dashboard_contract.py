@@ -973,6 +973,18 @@ def test_dashboard_databento_and_fmp_are_surfaced_as_providers() -> None:
     assert "databento_delivery_staleness_days" in panel["targets"][0]["expr"]
 
 
+def test_dashboard_fmp_bandwidth_panels_present() -> None:
+    """FMP data-VOLUME (bandwidth quota) panels must be in the Providers section
+    so the FMP 90%-quota concern is visible/alertable from the dashboard."""
+    dashboard = json.loads(_DASHBOARD_JSON.read_text(encoding="utf-8"))
+    for title in ("FMP Bandwidth Used (%)", "FMP Bandwidth Used (GB)", "Provider Data Volume (this month)"):
+        assert _section_of(dashboard, title) == "Providers (Feeds, News & Credentials)", title
+    pct = next(p for p in _dashboard_panels(dashboard) if p.get("title") == "FMP Bandwidth Used (%)")
+    expr = pct["targets"][0]["expr"]
+    assert "live_overlay_provider_usage_bytes" in expr
+    assert "live_overlay_provider_bandwidth_limit_bytes" in expr
+
+
 def test_dashboard_bridge_tiles_show_state_word_not_job_name() -> None:
     """The scrape-bridge tiles must show the state word only (textMode=value),
     not the meaningless Prometheus job label, and read the current instant."""

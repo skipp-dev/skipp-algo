@@ -5359,6 +5359,126 @@
       "panels": []
     },
     {
+      "id": 3900010,
+      "title": "FMP Bandwidth Used (%)",
+      "type": "stat",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "grafanacloud-prom"
+      },
+      "description": "FMP data-VOLUME consumed THIS MONTH as a percentage of the plan's monthly bandwidth quota (150 GB default). FMP meters bandwidth, not calls — a '90% used' email was our only prior signal. Counts from deployment (no back-history). Alerts: warning >=80%, critical >=95%.",
+      "gridPos": {
+        "h": 5,
+        "w": 6,
+        "x": 0,
+        "y": 214
+      },
+      "targets": [
+        {
+          "expr": "live_overlay_provider_usage_bytes{job=~\"$job\",provider=\"fmp\"} / on(provider) live_overlay_provider_bandwidth_limit_bytes{job=~\"$job\",provider=\"fmp\"} * 100",
+          "legendFormat": "fmp",
+          "instant": true,
+          "datasource": {
+            "type": "prometheus",
+            "uid": "grafanacloud-prom"
+          }
+        }
+      ],
+      "options": {
+        "colorMode": "background",
+        "graphMode": "none",
+        "textMode": "value",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        }
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percent",
+          "noValue": "NO DATA",
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "yellow",
+                "value": 80
+              },
+              {
+                "color": "red",
+                "value": 95
+              }
+            ]
+          }
+        },
+        "overrides": []
+      }
+    },
+    {
+      "id": 3900011,
+      "title": "FMP Bandwidth Used (GB)",
+      "type": "stat",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "grafanacloud-prom"
+      },
+      "description": "FMP data volume consumed this month (bytes, auto-scaled). Quota is 150 GB / rolling 30 days.",
+      "gridPos": {
+        "h": 5,
+        "w": 6,
+        "x": 6,
+        "y": 214
+      },
+      "targets": [
+        {
+          "expr": "live_overlay_provider_usage_bytes{job=~\"$job\",provider=\"fmp\"}",
+          "legendFormat": "fmp",
+          "instant": true,
+          "datasource": {
+            "type": "prometheus",
+            "uid": "grafanacloud-prom"
+          }
+        }
+      ],
+      "options": {
+        "colorMode": "background",
+        "graphMode": "none",
+        "textMode": "value",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        }
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "decbytes",
+          "noValue": "NO DATA",
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "text",
+                "value": null
+              }
+            ]
+          }
+        },
+        "overrides": []
+      }
+    },
+    {
       "id": 3900001,
       "title": "Databento API Key",
       "type": "stat",
@@ -5370,7 +5490,7 @@
       "gridPos": {
         "h": 5,
         "w": 6,
-        "x": 0,
+        "x": 12,
         "y": 214
       },
       "targets": [
@@ -5443,7 +5563,7 @@
       "gridPos": {
         "h": 5,
         "w": 6,
-        "x": 6,
+        "x": 18,
         "y": 214
       },
       "targets": [
@@ -5507,8 +5627,8 @@
       "gridPos": {
         "h": 5,
         "w": 6,
-        "x": 12,
-        "y": 214
+        "x": 0,
+        "y": 219
       },
       "targets": [
         {
@@ -5569,12 +5689,60 @@
       }
     },
     {
+      "id": 3900012,
+      "title": "Provider Data Volume (this month)",
+      "type": "timeseries",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "grafanacloud-prom"
+      },
+      "description": "Cumulative data volume (bytes, auto-scaled) consumed per REST provider this month, from the ingest usage snapshot. FMP is the metered one (150 GB quota); Benzinga/UW shown for context. Databento (streaming feed) volume is in the Live Data Chain section (bar counts).",
+      "gridPos": {
+        "h": 7,
+        "w": 12,
+        "x": 6,
+        "y": 219
+      },
+      "targets": [
+        {
+          "expr": "live_overlay_provider_usage_bytes{job=~\"$job\"}",
+          "legendFormat": "{{provider}}",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "grafanacloud-prom"
+          }
+        }
+      ],
+      "options": {
+        "legend": {
+          "showLegend": true,
+          "displayMode": "list",
+          "placement": "bottom"
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "decbytes",
+          "custom": {
+            "lineWidth": 1,
+            "fillOpacity": 8,
+            "showPoints": "never"
+          }
+        },
+        "overrides": []
+      }
+    },
+    {
       "title": "TradingView Credential Status",
       "type": "stat",
       "description": "Whether the latest credential-health report considers the TradingView storage-state login valid (severity not error). 1 = valid (cached login still within the 72h TTL), 0 = expired/error → re-capture TV_STORAGE_STATE. N/A when no report has been ingested yet.",
       "gridPos": {
         "x": 18,
-        "y": 214,
+        "y": 219,
         "w": 6,
         "h": 5
       },
@@ -5644,7 +5812,7 @@
       "description": "Hours since the TradingView Playwright storage-state login (meta.authValidatedAt) was last validated, from the daily credential-health report (tv_storage_state_age probe). Policy TTL is 72h: green < 57.6h (80% warn band), yellow 57.6–72h, red once the cached login is older than 72h and must be re-captured. N/A when no report/age is available.",
       "gridPos": {
         "x": 0,
-        "y": 219,
+        "y": 226,
         "w": 6,
         "h": 5
       },
@@ -5709,7 +5877,7 @@
       "description": "Legend for News Provider panels directly below.",
       "gridPos": {
         "x": 0,
-        "y": 224,
+        "y": 231,
         "w": 24,
         "h": 2
       },
@@ -5728,7 +5896,7 @@
       "type": "timeseries",
       "gridPos": {
         "x": 0,
-        "y": 226,
+        "y": 233,
         "w": 24,
         "h": 10
       },
@@ -5824,7 +5992,7 @@
       "type": "state-timeline",
       "gridPos": {
         "x": 0,
-        "y": 236,
+        "y": 243,
         "w": 12,
         "h": 8
       },
@@ -5919,7 +6087,7 @@
       "type": "timeseries",
       "gridPos": {
         "x": 12,
-        "y": 236,
+        "y": 243,
         "w": 6,
         "h": 8
       },
@@ -5968,7 +6136,7 @@
       "type": "timeseries",
       "gridPos": {
         "x": 18,
-        "y": 236,
+        "y": 243,
         "w": 6,
         "h": 8
       },
@@ -6049,7 +6217,7 @@
       "type": "timeseries",
       "gridPos": {
         "x": 0,
-        "y": 244,
+        "y": 251,
         "w": 12,
         "h": 8
       },
@@ -6100,7 +6268,7 @@
       "type": "table",
       "gridPos": {
         "x": 12,
-        "y": 244,
+        "y": 251,
         "w": 12,
         "h": 8
       },
@@ -6261,7 +6429,7 @@
         "h": 1,
         "w": 24,
         "x": 0,
-        "y": 252
+        "y": 259
       },
       "id": 1007,
       "panels": []
@@ -6272,7 +6440,7 @@
       "description": "Whether the Railway metrics bridge is enabled and its last poll succeeded.",
       "gridPos": {
         "x": 0,
-        "y": 253,
+        "y": 260,
         "w": 4,
         "h": 3
       },
@@ -6422,7 +6590,7 @@
       "description": "Seconds since the last successful Railway metrics poll.",
       "gridPos": {
         "x": 4,
-        "y": 253,
+        "y": 260,
         "w": 4,
         "h": 3
       },
@@ -6486,7 +6654,7 @@
       "description": "Latest Railway metrics bridge error class. OK when healthy.",
       "gridPos": {
         "x": 8,
-        "y": 253,
+        "y": 260,
         "w": 4,
         "h": 3
       },
@@ -6561,7 +6729,7 @@
       },
       "gridPos": {
         "x": 12,
-        "y": 253,
+        "y": 260,
         "w": 8,
         "h": 7
       },
@@ -6607,7 +6775,7 @@
       },
       "gridPos": {
         "x": 0,
-        "y": 260,
+        "y": 267,
         "w": 8,
         "h": 7
       },
@@ -6670,7 +6838,7 @@
       },
       "gridPos": {
         "x": 8,
-        "y": 260,
+        "y": 267,
         "w": 8,
         "h": 7
       },
@@ -6717,7 +6885,7 @@
       },
       "gridPos": {
         "x": 16,
-        "y": 260,
+        "y": 267,
         "w": 8,
         "h": 7
       },
@@ -6765,7 +6933,7 @@
       },
       "gridPos": {
         "x": 0,
-        "y": 267,
+        "y": 274,
         "w": 8,
         "h": 7
       },
@@ -6812,7 +6980,7 @@
       },
       "gridPos": {
         "x": 8,
-        "y": 267,
+        "y": 274,
         "w": 8,
         "h": 7
       },
@@ -6857,7 +7025,7 @@
       },
       "gridPos": {
         "x": 0,
-        "y": 274,
+        "y": 281,
         "w": 12,
         "h": 8
       },
@@ -6895,7 +7063,7 @@
       },
       "gridPos": {
         "x": 12,
-        "y": 274,
+        "y": 281,
         "w": 12,
         "h": 8
       },
@@ -6978,6 +7146,6 @@
   "timezone": "utc",
   "title": "SMC Live Overlay API",
   "uid": "smc-live-overlay-v1",
-  "version": 51,
+  "version": 52,
   "description": "Live-overlay daemon operational dashboard: feed health, worker liveness, SMC overlay freshness, external bridge status, provider health, daily experiment metrics, and Railway container resources."
 }
