@@ -135,8 +135,8 @@ _FROZEN_SITES: frozenset[tuple[str, int]] = frozenset(
         # +8 lines (1943→1951, 1945→1953).
         # 2026-07-04 (market-microstructure observe-only): module import
         # shifted these rate-limit sleeps +1 (2038->2039, 2040->2041).
-        ("open_prep/run_open_prep.py", 2047),
-        ("open_prep/run_open_prep.py", 2049),
+        ("open_prep/run_open_prep.py", 2073),  # 2026-07-07 enrichment gate (+helper/gates/q-copy) shifted run_open_prep pins (2047->2073)
+        ("open_prep/run_open_prep.py", 2075),  # (2049->2075)
         ("newsstack_fmp/_bz_http.py", 44),
         ("terminal_bitcoin.py", 846),
         ("terminal_bitcoin.py", 848),

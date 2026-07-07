@@ -620,3 +620,42 @@ def test_fetch_benzinga_core_news_articles_no_normalized_symbols(
     articles, err = rop._fetch_benzinga_core_news_articles(symbols=["", "  "])
     assert articles == []
     assert err is None
+
+
+# ---------------------------------------------------------------------------
+# _extended_enrichment_enabled gate (audit 2026-07-07)
+# ---------------------------------------------------------------------------
+
+
+class _NoCallClient:
+    """Any attribute access means an API call was attempted while gated off."""
+
+    def __getattr__(self, name: str) -> Any:
+        raise AssertionError(f"API access {name!r} while extended enrichment is OFF")
+
+
+def test_extended_enrichment_gate_defaults_off(monkeypatch: pytest.MonkeyPatch) -> None:
+    """The five no-production-reader enrichment fetches must be no-ops by
+    default: no API call, empty-dict result (the shape every caller already
+    handles as the API-failure default)."""
+    monkeypatch.delenv("OPEN_PREP_EXTENDED_ENRICHMENT", raising=False)
+    today = date(2026, 7, 7)
+    assert rop._fetch_insider_trading(client=_NoCallClient(), symbols=["AAPL"]) == {}
+    assert rop._fetch_institutional_ownership(client=_NoCallClient(), symbols=["AAPL"]) == {}
+    assert rop._fetch_beneficial_ownership(client=_NoCallClient(), symbols=["AAPL"], today=today) == {}
+    assert rop._fetch_political_trades(client=_NoCallClient(), symbols=["AAPL"], today=today) == {}
+    assert rop._fetch_finnhub_peers(finnhub_client=_NoCallClient(), symbols=["AAPL"]) == {}
+
+
+def test_extended_enrichment_gate_env_reenables(monkeypatch: pytest.MonkeyPatch) -> None:
+    """OPEN_PREP_EXTENDED_ENRICHMENT=1 restores the fetch path end-to-end."""
+    monkeypatch.setenv("OPEN_PREP_EXTENDED_ENRICHMENT", "1")
+
+    class _Client:
+        def get_insider_trading_statistics(self, sym: str) -> list[dict[str, Any]]:
+            return [{"symbol": sym, "year": 2026, "quarter": 2,
+                     "acquiredTransactions": 3, "disposedTransactions": 1,
+                     "totalAcquired": 300, "totalDisposed": 100}]
+
+    out = rop._fetch_insider_trading(client=_Client(), symbols=["AAPL"])
+    assert "AAPL" in out

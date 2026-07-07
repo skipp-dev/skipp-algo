@@ -305,6 +305,16 @@ def filter_candidate(
         premarket_spread_bps = None if math.isnan(val) else val
     corporate_action_penalty = _to_float(quote.get("corporate_action_penalty"), default=0.0)
     analyst_catalyst_score = _to_float(quote.get("analyst_catalyst_score"), default=0.0)
+    # Display-only (weight 0, never scored): implied upside to the average
+    # analyst price target. The target was fetched-but-unread until the
+    # 2026-07-07 audit; surfacing it costs nothing — it rides the same API
+    # response that already feeds analyst_catalyst_score.
+    analyst_price_target = _to_float(quote.get("analyst_price_target"), default=float("nan"))
+    analyst_implied_upside_pct: float | None = (
+        round(((analyst_price_target / price) - 1.0) * 100.0, 2)
+        if math.isfinite(analyst_price_target) and analyst_price_target > 0 and price > 0
+        else None
+    )
     split_today = bool(quote.get("split_today", False))
     dividend_today = bool(quote.get("dividend_today", False))
     ipo_window = bool(quote.get("ipo_window", False))
@@ -458,6 +468,7 @@ def filter_candidate(
         "premarket_change_pct": premarket_change_pct,
         "corporate_action_penalty": corporate_action_penalty,
         "analyst_catalyst_score": analyst_catalyst_score,
+        "analyst_implied_upside_pct": analyst_implied_upside_pct,
         "split_today": split_today,
         "dividend_today": dividend_today,
         "ipo_window": ipo_window,
@@ -767,6 +778,7 @@ def score_candidate(
         "ipo_window": f["ipo_window"],
         "corporate_action_penalty": round(max(f["corporate_action_penalty"], 0.0), 4),
         "analyst_catalyst_score": round(f["analyst_catalyst_score"], 4),
+        "analyst_implied_upside_pct": f["analyst_implied_upside_pct"],
         "macro_bias": round(bias, 4),
         "news_catalyst_score": round(news_score, 4),
         "news_sentiment_emoji": nm.get("sentiment_emoji", "🟡"),

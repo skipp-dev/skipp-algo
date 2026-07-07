@@ -468,3 +468,27 @@ def test_rank_candidates_v2_passes_news_and_sector_data() -> None:
     assert row["symbol"] == "AAPL"
     assert row["news_catalyst_score"] == pytest.approx(0.7, abs=0.01)
     assert row["institutional_quality"] == pytest.approx(0.6, abs=0.01)
+
+
+def test_analyst_implied_upside_is_display_only() -> None:
+    """The implied-upside display field (audit 2026-07-07: the fetched price
+    target previously had no reader) must surface in features and the ranked
+    row without changing the score (weight 0 / never part of scoring)."""
+    quote = _make_passing_quote("AAPL")
+    quote["price"] = 100.0
+    quote["analyst_price_target"] = 120.0
+    fr = sc.filter_candidate(quote, bias=0.5)
+    assert fr.features["analyst_implied_upside_pct"] == 20.0
+
+    baseline = _make_passing_quote("AAPL")
+    baseline["price"] = 100.0
+    baseline.pop("analyst_price_target", None)
+    fr_baseline = sc.filter_candidate(baseline, bias=0.5)
+    assert fr_baseline.features["analyst_implied_upside_pct"] is None
+
+    ranked_with, _ = sc.rank_candidates_v2([quote], bias=0.5, top_n=5)
+    ranked_without, _ = sc.rank_candidates_v2([baseline], bias=0.5, top_n=5)
+    assert ranked_with[0]["analyst_implied_upside_pct"] == 20.0
+    assert ranked_without[0]["analyst_implied_upside_pct"] is None
+    # Display-only: the presence of a price target must not move the score.
+    assert ranked_with[0]["score"] == ranked_without[0]["score"]
