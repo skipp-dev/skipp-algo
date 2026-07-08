@@ -48,6 +48,16 @@ logger = logging.getLogger(__name__)
 _STRENGTH = {"A0": 3, "A1": 2, "A2": 1}
 _EMOJI = {"A0": "🔴", "A1": "🟠", "A2": "🟡"}
 
+# High-conviction A1 tag. An A1 sits between the A1 floor (vol>=1.0, |Δ|>=0.35%)
+# and the A0 floor (vol>=3.0, |Δ|>=1.5%) — see A0/A1 thresholds in
+# realtime_signals.py. Empirically A1 rarely *escalates* to A0 (~1% same-day, most
+# A0s fire de novo), so this is NOT an "about to be A0" predictor: it marks the A1s
+# that already sit in the upper half toward A0 on BOTH momentum axes, i.e. the ones
+# worth acting on vs the slow-grinder floor. Constants mirror the A0 floors at the
+# midpoint; kept local so this notifier stays import-light (no realtime_signals pull).
+_A1_STRONG_VOL_RATIO = 2.0   # midpoint of A1 floor 1.0 and A0 floor 3.0
+_A1_STRONG_CHANGE_PCT = 0.9  # ~midpoint of A1 floor 0.35% and A0 floor 1.5%
+
 # Per-process dedup state: (symbol, direction) -> (strength, last_notified_epoch).
 # Only advanced AFTER a POST is confirmed delivered (see notify_fresh_signals),
 # so a webhook outage retries next poll instead of silently suppressing for a
@@ -108,11 +118,26 @@ def _safe_float(value: Any, default: float = 0.0) -> float:
         return default
 
 
+def _is_high_conviction_a1(s: Any) -> bool:
+    """True for an A1 already leaning into A0 territory — volume AND move both
+    past the midpoint between the A1 and A0 floors, so it reads as conviction
+    rather than a slow grinder. Core fields only (always present); never raises."""
+    vol_ratio = _safe_float(getattr(s, "volume_ratio", 0.0))
+    abs_change = abs(_safe_float(getattr(s, "change_pct", 0.0)))
+    return vol_ratio >= _A1_STRONG_VOL_RATIO and abs_change >= _A1_STRONG_CHANGE_PCT
+
+
 def _fmt_signal(s: Any) -> str:
     lvl = str(getattr(s, "level", "") or "")
     # A2 is the early-warning tier (building momentum, not confirmed) — flag it
-    # so a glance never mistakes it for a confirmed A0/A1 breakout.
-    tail = " ⚠️early" if lvl == "A2" else ""
+    # so a glance never mistakes it for a confirmed A0/A1 breakout. A high-conviction
+    # A1 (upper half toward A0) gets ⭐ so the eye can triage the A1 stream at a glance.
+    if lvl == "A2":
+        tail = " ⚠️early"
+    elif lvl == "A1" and _is_high_conviction_a1(s):
+        tail = " ⭐near-A0"
+    else:
+        tail = ""
     # _safe_float so a None/garbage price/volume/change on one signal renders as
     # 0.0 instead of raising and killing the entire batch push (which would also
     # leave those signals marked-but-never-sent — see the delivery gate below).
