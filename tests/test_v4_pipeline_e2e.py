@@ -656,11 +656,11 @@ class TestFinalizePipelineE2E:
         )
 
         assert result["status"] == "ok"
-        assert result["stale_providers"] == "benzinga,calendar,fmp,newsapi_ai"
+        assert result["stale_providers"] == "benzinga,calendar,fmp"
 
         pine_text = Path(result["pine_paths"]["pine_path"]).read_text(encoding="utf-8")
         assert "PROVIDER_COUNT = 1" in pine_text
-        assert 'STALE_PROVIDERS = "benzinga,calendar,fmp,newsapi_ai"' in pine_text
+        assert 'STALE_PROVIDERS = "benzinga,calendar,fmp"' in pine_text
 
         manifest_path = Path(result["pine_paths"]["manifest_path"])
         manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
@@ -682,19 +682,20 @@ class TestFinalizePipelineE2E:
         report = json.loads(report_path.read_text(encoding="utf-8"))
         assert report["report_kind"] == "library_provider_diagnostics"
         assert report["overall_status"] == "warn"
-        assert report["stale_providers"] == ["benzinga", "calendar", "fmp", "newsapi_ai"]
+        assert report["stale_providers"] == ["benzinga", "calendar", "fmp"]
 
         news_diag = next(row for row in report["provider_domain_results"] if row["domain"] == "news")
         assert news_diag["provider_status"] == "no_data"
         assert news_diag["selected_provider"] == "none"
-        assert news_diag["attempts"][-1]["provider"] == "newsapi_ai"
+        # newsapi_ai retired 2026-07-08 — the chain ends at benzinga.
+        assert news_diag["attempts"][-1]["provider"] == "benzinga"
         assert news_diag["attempts"][-1]["provider_status"] == "config_missing"
 
     @patch("scripts.generate_smc_micro_base_from_databento._make_fmp_client")
     @patch("scripts.smc_provider_policy.fetch_news_newsapi_ai")
     @patch("scripts.smc_provider_policy.fetch_news_benzinga")
     @patch("scripts.smc_provider_policy.fetch_news_fmp")
-    def test_finalize_pipeline_reports_newsapi_fallback_semantics(
+    def test_finalize_pipeline_never_attempts_retired_newsapi(
         self,
         mock_news_fmp,
         mock_news_benzinga,
@@ -740,26 +741,21 @@ class TestFinalizePipelineE2E:
         report_path = Path(result["provider_diagnostics_report"])
         report = json.loads(report_path.read_text(encoding="utf-8"))
 
+        # Retirement pin (2026-07-08): newsapi_ai is out of the chain — even
+        # with a key supplied and a working mock, it must never be attempted
+        # and the news domain degrades to none after fmp+benzinga.
+        mock_news_newsapi.assert_not_called()
         assert report["report_kind"] == "library_provider_diagnostics"
         assert report["overall_status"] == "warn"
         assert report["stale_providers"] == ["benzinga", "fmp"]
 
         news_diag = next(row for row in report["provider_domain_results"] if row["domain"] == "news")
-        assert news_diag["selected_provider"] == "newsapi_ai"
-        assert news_diag["provider_status"] == "ok_no_recent_matches"
+        assert news_diag["selected_provider"] == "none"
+        assert news_diag["provider_status"] == "no_data"
         assert news_diag["stale_providers"] == ["fmp", "benzinga"]
-        assert [attempt["provider"] for attempt in news_diag["attempts"]] == ["fmp", "benzinga", "newsapi_ai"]
+        assert [attempt["provider"] for attempt in news_diag["attempts"]] == ["fmp", "benzinga"]
         assert news_diag["attempts"][0]["provider_status"] == "timeout"
         assert news_diag["attempts"][1]["provider_status"] == "timeout"
-        assert news_diag["attempts"][2]["provider_status"] == "ok_no_recent_matches"
-        assert news_diag["attempts"][2]["cursor_before_uri"] == "uri-feed-1"
-
-        assert report["failure_reasons"] == [{
-            "domain": "news",
-            "provider": "newsapi_ai",
-            "code": "LIBRARY_NEWS_OK_NO_RECENT_MATCHES",
-            "detail": "Event Registry reachable, but no recent symbol-matching NewsAPI.ai items were returned for the current feed window.",
-        }]
 
 
 # ── 4. generate_pine_library_from_base with real enrichment ─────────
@@ -788,7 +784,7 @@ class TestGeneratePineWithRealEnrichment:
         assert providers["regime_provider"] == "none"
         assert providers["news_provider"] == "none"
         assert providers["calendar_provider"] == "none"
-        assert providers["stale_providers"] == "benzinga,calendar,fmp,newsapi_ai"
+        assert providers["stale_providers"] == "benzinga,calendar,fmp"
 
         result = generate_pine_library_from_base(
             base_csv_path=base_csv,
@@ -799,7 +795,7 @@ class TestGeneratePineWithRealEnrichment:
         pine_text = result["pine_path"].read_text(encoding="utf-8")
 
         assert "PROVIDER_COUNT = 1" in pine_text
-        assert 'STALE_PROVIDERS = "benzinga,calendar,fmp,newsapi_ai"' in pine_text
+        assert 'STALE_PROVIDERS = "benzinga,calendar,fmp"' in pine_text
 
     @patch("scripts.generate_smc_micro_base_from_databento._make_fmp_client")
     def test_real_enrichment_renders_to_pine(self, mock_make, base_csv, tmp_path):

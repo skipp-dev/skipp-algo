@@ -890,6 +890,30 @@ def _collect_process_metrics(engine: Any | None = None) -> str:
         lines.append(f"# TYPE {_prefix}_last_poll_duration_seconds gauge")
         lines.append(f"{_prefix}_last_poll_duration_seconds {engine.last_poll_duration_seconds:.3f}")
 
+        # H3 (2026-07-08): FMP usage counters. The 24/7 producer is the
+        # single largest FMP consumer and previously ran past every
+        # bandwidth-quota check — only the ingest paths were instrumented
+        # (newsstack provider_usage). Reads the lazily created client's
+        # per-endpoint stats; absent client (key missing / never polled)
+        # simply emits nothing.
+        fmp_client = getattr(engine, "_client", None)
+        if fmp_client is not None and hasattr(fmp_client, "get_endpoint_usage_stats"):
+            try:
+                _usage = fmp_client.get_endpoint_usage_stats()
+            except Exception:  # pragma: no cover - stats must never break /metrics
+                _usage = {}
+            _req = sum(int(s.get("calls", 0)) for s in _usage.values())
+            _err = sum(int(s.get("errors", 0)) for s in _usage.values())
+            _rbytes = sum(int(s.get("response_bytes", 0)) for s in _usage.values())
+            lines.append(f"# HELP {_prefix}_fmp_requests_total FMP API requests since process start (all endpoints).")
+            lines.append(f"# TYPE {_prefix}_fmp_requests_total counter")
+            lines.append(f"{_prefix}_fmp_requests_total {_req}")
+            lines.append(f"# TYPE {_prefix}_fmp_request_errors_total counter")
+            lines.append(f"{_prefix}_fmp_request_errors_total {_err}")
+            lines.append(f"# HELP {_prefix}_fmp_response_bytes_total Decoded FMP response payload bytes since process start.")
+            lines.append(f"# TYPE {_prefix}_fmp_response_bytes_total counter")
+            lines.append(f"{_prefix}_fmp_response_bytes_total {_rbytes}")
+
     return "\n".join(lines) + "\n"
 
 

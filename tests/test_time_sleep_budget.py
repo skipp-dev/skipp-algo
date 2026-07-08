@@ -105,8 +105,8 @@ _FROZEN_SITES: frozenset[tuple[str, int]] = frozenset(
         # (776→784, 795→803).
         # 2026-06-13: profile-bulk pagination constant shifted +1
         # (784→785, 803→804); sleeps unchanged: retry-backoff paths.
-        ("open_prep/macro.py", 803),
-        ("open_prep/macro.py", 822),
+        ("open_prep/macro.py", 812),  # 2026-07-08 H3 response-bytes accounting shifted (+9)
+        ("open_prep/macro.py", 831),  # 2026-07-08 H3 response-bytes accounting shifted (+9)
         ("newsstack_fmp/ingest_fmp_political.py", 122),
         ("newsstack_fmp/ingest_fmp_political.py", 135),
         ("newsstack_fmp/shared_fetch.py", 337),
@@ -128,9 +128,9 @@ _FROZEN_SITES: frozenset[tuple[str, int]] = frozenset(
         # shifted +20/+20/+72/+80/+80 lines by readiness metrics.
         ("open_prep/realtime_signals.py", 305),
         ("open_prep/realtime_signals.py", 380),
-        ("open_prep/realtime_signals.py", 2021),
-        ("open_prep/realtime_signals.py", 3197),
-        ("open_prep/realtime_signals.py", 3184),
+        ("open_prep/realtime_signals.py", 2045),  # 2026-07-08 H3 shifted (+24)
+        ("open_prep/realtime_signals.py", 3221),  # 2026-07-08 H3 shifted (+24)
+        ("open_prep/realtime_signals.py", 3208),  # 2026-07-08 H3 shifted (+24)
         # 2026-06-11 (eval-findings D7): technical_analysis import block
         # +8 lines (1943→1951, 1945→1953).
         # 2026-07-04 (market-microstructure observe-only): module import

@@ -18,11 +18,18 @@ provider features.  Both are needed and should not be merged.
 
 Domain policies
 ---------------
-* **base_scan / microstructure** → Databento primary, no fallback
-* **regime** → FMP primary, no fallback (defaults used on failure)
-* **news** → FMP primary, Benzinga fallback
+* **regime** → FMP primary, no fallback (defaults used on failure;
+  ok=False when ALL sub-fetches failed)
+* **news** → FMP primary, Benzinga fallback (newsapi_ai dropped from the
+  chain 2026-07-08 — subscription cancelled, key dead; the adapter code
+  below remains only until the full retirement cleanup)
 * **calendar** → FMP primary, Benzinga fallback
 * **technical** → FMP primary, TradingView fallback
+
+(base_scan had a declared policy but NO adapter and no resolve_domain
+caller — resolve_domain("base_scan") always ended in no_data. Removed
+2026-07-08; the base-scan provider is hardcoded to Databento at its
+sole callsite in generate_smc_micro_base_from_databento.)
 
 Each adapter returns a ``(result_dict, provider_name)`` tuple so the
 orchestrator can record provenance.  On failure, the adapter raises and
@@ -63,15 +70,17 @@ class DomainPolicy:
         return (self.primary, *self.fallbacks)
 
 
-POLICY_BASE_SCAN = DomainPolicy("base_scan", primary="databento", fallbacks=())
 POLICY_REGIME = DomainPolicy("regime", primary="fmp", fallbacks=())
-POLICY_NEWS = DomainPolicy("news", primary="fmp", fallbacks=("benzinga", "newsapi_ai"))
+# newsapi_ai dropped 2026-07-08: subscription cancelled — a dead key in the
+# chain meant every FMP+Benzinga double-failure burned a doomed third
+# attempt and stamped a misleading newsapi_ai stale entry.
+POLICY_NEWS = DomainPolicy("news", primary="fmp", fallbacks=("benzinga",))
 POLICY_CALENDAR = DomainPolicy("calendar", primary="fmp", fallbacks=("benzinga",))
 POLICY_TECHNICAL = DomainPolicy("technical", primary="fmp", fallbacks=("tradingview",))
 
 ALL_POLICIES: dict[str, DomainPolicy] = {
     p.domain: p
-    for p in (POLICY_BASE_SCAN, POLICY_REGIME, POLICY_NEWS, POLICY_CALENDAR, POLICY_TECHNICAL)
+    for p in (POLICY_REGIME, POLICY_NEWS, POLICY_CALENDAR, POLICY_TECHNICAL)
 }
 
 
@@ -276,11 +285,22 @@ def fetch_regime_fmp(fmp: Any) -> ProviderResult:
         "macro_bias_pe_adjustment": float(regime.get("macro_bias_pe_adjustment") or 0.0),
         "sector_breadth": float(regime.get("sector_breadth") or 0.0),
     }
+    # L3 (2026-07-08): honour the ProviderResult contract ("ok=False when
+    # default data was used") — when ALL four sub-fetches failed, the
+    # returned regime is classified purely from baked-in defaults (VIX None,
+    # macro_bias 0.0, no sectors); reporting ok=True made status consumers
+    # show a healthy regime fetch on total provider failure. Partial
+    # failures keep ok=True: real data was used and `stale` carries the gaps.
+    all_defaults = {"fmp_vix", "fmp_sectors", "fmp_macro", "fmp_market_pe"}.issubset(set(stale))
+    meta: dict[str, Any] = {"diagnostics": diagnostics}
+    if all_defaults:
+        meta["provider_status"] = "no_data"
     return ProviderResult(
         data=regime,
         provider="fmp",
+        ok=not all_defaults,
         stale=stale,
-        meta={"diagnostics": diagnostics},
+        meta=meta,
     )
 
 
