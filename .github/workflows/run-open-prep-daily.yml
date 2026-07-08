@@ -139,6 +139,28 @@ jobs:
           "$SMC_PYTHON_BIN" -m pip install --upgrade pip
           "$SMC_PYTHON_BIN" -m pip install -r requirements.txt
 
+      - name: Restore provider-usage snapshot from bot/live-open-prep-snapshot
+        # H2 fix (2026-07-08): ProviderUsage.flush() accumulates by merging
+        # into the LOCAL artifacts/monitoring/provider_usage.json — but that
+        # file is untracked, so a fresh CI checkout starts from an empty base
+        # and the force-pushed snapshot only ever carried ONE run's deltas.
+        # The monthly FMP bandwidth-quota check therefore compared a single
+        # day's usage against the 150 GB monthly cap and was effectively
+        # inert. Restore the rolling snapshot before the run (soft-fail,
+        # mirrors the live-news state restore in smc-live-news-refresh.yml).
+        run: |
+          set +e
+          mkdir -p artifacts/monitoring
+          git fetch origin "+refs/heads/bot/live-open-prep-snapshot:refs/remotes/origin/bot/live-open-prep-snapshot" 2>/dev/null
+          if git cat-file -e "origin/bot/live-open-prep-snapshot:artifacts/monitoring/provider_usage.json" 2>/dev/null; then
+            git show "origin/bot/live-open-prep-snapshot:artifacts/monitoring/provider_usage.json" \
+              > artifacts/monitoring/provider_usage.json
+            echo "Restored provider-usage snapshot from bot/live-open-prep-snapshot."
+          else
+            echo "::notice::no prior provider-usage snapshot — starting a fresh accumulation"
+          fi
+          exit 0
+
       - name: Run open-prep scoring
         env:
           FMP_API_KEY: ${{ secrets.FMP_API_KEY }}

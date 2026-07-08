@@ -25,6 +25,7 @@ from scripts.credential_health_check import (
     DATABENTO_DELIVERY_MAX_STALENESS_DAYS,
     WARN_FRACTION,
     ProbeResult,
+    probe_benzinga,
     probe_databento,
     probe_databento_delivery,
     probe_fmp,
@@ -253,6 +254,7 @@ def test_probe_result_serializable() -> None:
         (probe_databento, "Databento", "databento_api_key"),
         (probe_fmp, "FMP", "fmp_api_key"),
         (probe_newsapi, "NewsAPI", "newsapi_key"),
+        (probe_benzinga, "Benzinga News API", "benzinga_key"),
     ],
 )
 def test_vendor_empty_key_is_error(probe, label, name) -> None:
@@ -263,14 +265,22 @@ def test_vendor_empty_key_is_error(probe, label, name) -> None:
     assert "empty" in r.message or "missing" in r.message
 
 
-@pytest.mark.parametrize("probe", [probe_databento, probe_fmp, probe_newsapi])
+@pytest.mark.parametrize("probe", [probe_databento, probe_fmp, probe_newsapi, probe_benzinga])
 def test_vendor_http_200_is_ok(probe) -> None:
     r = probe("dummy-key", opener=_fake_opener(status=200, body={}))
     assert r.severity == "ok"
     assert r.details["status"] == 200
 
 
-@pytest.mark.parametrize("probe, label", [(probe_databento, "Databento"), (probe_fmp, "FMP"), (probe_newsapi, "NewsAPI")])
+@pytest.mark.parametrize(
+    "probe, label",
+    [
+        (probe_databento, "Databento"),
+        (probe_fmp, "FMP"),
+        (probe_newsapi, "NewsAPI"),
+        (probe_benzinga, "Benzinga News API"),
+    ],
+)
 def test_vendor_401_is_error(probe, label) -> None:
     import urllib.error
 
@@ -288,7 +298,7 @@ def test_vendor_401_is_error(probe, label) -> None:
     assert r.details["status"] == 401
 
 
-@pytest.mark.parametrize("probe", [probe_databento, probe_fmp, probe_newsapi])
+@pytest.mark.parametrize("probe", [probe_databento, probe_fmp, probe_newsapi, probe_benzinga])
 def test_vendor_403_is_error(probe) -> None:
     import urllib.error
 
@@ -303,7 +313,7 @@ def test_vendor_403_is_error(probe) -> None:
     assert r.severity == "error"
 
 
-@pytest.mark.parametrize("probe", [probe_databento, probe_fmp, probe_newsapi])
+@pytest.mark.parametrize("probe", [probe_databento, probe_fmp, probe_newsapi, probe_benzinga])
 def test_vendor_429_is_warn(probe) -> None:
     import urllib.error
 
@@ -321,7 +331,7 @@ def test_vendor_429_is_warn(probe) -> None:
     assert r.details["retry_after"] == "unknown"  # no header → fallback
 
 
-@pytest.mark.parametrize("probe", [probe_databento, probe_fmp, probe_newsapi])
+@pytest.mark.parametrize("probe", [probe_databento, probe_fmp, probe_newsapi, probe_benzinga])
 def test_vendor_429_surfaces_retry_after_header(probe) -> None:
     """When the provider sends Retry-After the probe must surface it in details."""
     import http.client
@@ -343,7 +353,7 @@ def test_vendor_429_surfaces_retry_after_header(probe) -> None:
     assert "Retry-After=60s" in r.message
 
 
-@pytest.mark.parametrize("probe", [probe_databento, probe_fmp, probe_newsapi])
+@pytest.mark.parametrize("probe", [probe_databento, probe_fmp, probe_newsapi, probe_benzinga])
 def test_vendor_5xx_is_warn(probe) -> None:
     import urllib.error
 
@@ -360,7 +370,7 @@ def test_vendor_5xx_is_warn(probe) -> None:
     assert r.details["status"] == 503
 
 
-@pytest.mark.parametrize("probe", [probe_databento, probe_fmp, probe_newsapi])
+@pytest.mark.parametrize("probe", [probe_databento, probe_fmp, probe_newsapi, probe_benzinga])
 def test_vendor_network_error_is_warn(probe) -> None:
     import urllib.error
 
@@ -369,7 +379,7 @@ def test_vendor_network_error_is_warn(probe) -> None:
     assert "inconclusive" in r.message
 
 
-@pytest.mark.parametrize("probe", [probe_databento, probe_fmp, probe_newsapi])
+@pytest.mark.parametrize("probe", [probe_databento, probe_fmp, probe_newsapi, probe_benzinga])
 def test_vendor_unexpected_status_is_warn(probe) -> None:
     import urllib.error
 
@@ -385,7 +395,10 @@ def test_vendor_unexpected_status_is_warn(probe) -> None:
     assert "unexpected" in r.message
 
 
-@pytest.mark.parametrize("probe", [probe_databento, probe_fmp, probe_newsapi, probe_databento_delivery])
+@pytest.mark.parametrize(
+    "probe",
+    [probe_databento, probe_fmp, probe_newsapi, probe_benzinga, probe_databento_delivery],
+)
 def test_vendor_402_billing_is_error(probe) -> None:
     """HTTP 402 Payment Required = billing problem (e.g. unpaid invoice).
 
@@ -461,6 +474,24 @@ def test_newsapi_puts_key_in_query_string() -> None:
     req = opener.open.call_args[0][0]
     assert "apiKey=my-secret-key" in req.full_url
     assert "eventregistry.org" in req.full_url
+
+
+def test_benzinga_puts_key_in_query_string() -> None:
+    """Benzinga passes auth via the token query param; probe must hit the
+    cheapest authenticated endpoint (/api/v2/news, pageSize=1)."""
+    opener = _fake_opener(status=200, body={})
+    probe_benzinga("my-secret-key", opener=opener)
+    all_calls = opener.open.call_args_list
+    assert len(all_calls) == 1, (
+        f"probe_benzinga must make exactly one HTTP call; got {len(all_calls)}"
+    )
+    req = all_calls[0][0][0]
+    parsed = urlparse(req.full_url)
+    assert parsed.hostname == "api.benzinga.com", req.full_url
+    assert parsed.path == "/api/v2/news", req.full_url
+    params = parse_qs(parsed.query)
+    assert params.get("token") == ["my-secret-key"], req.full_url
+    assert params.get("pageSize") == ["1"], req.full_url
 
 
 # -- Databento delivery probe -------------------------------------------------

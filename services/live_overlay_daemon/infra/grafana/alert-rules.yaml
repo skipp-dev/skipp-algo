@@ -177,7 +177,12 @@ groups:
     - refId: D
       datasourceUid: grafanacloud-prom
       model:
-        expr: increase(live_overlay_daemon_restarts_total{job="live_overlay"}[10m])
+        # Restart detection via start-time changes — increase() over
+        # live_overlay_daemon_restarts_total (a constant-1 gauge) was
+        # always 0, so the "restarted AND 0 symbols before 600s uptime"
+        # fast path of this alert could never fire (found 2026-07-08;
+        # same inert class as lo-daemon-restarts-high, fixed 2026-07-07).
+        expr: changes(live_overlay_process_start_time_seconds{job="live_overlay"}[10m])
         instant: true
     - refId: E
       datasourceUid: grafanacloud-prom
@@ -220,9 +225,9 @@ groups:
           +
           sum(absent(live_overlay_bridge_error_info{job="live_overlay",bridge="uptimerobot"}) or on() vector(0))
           +
-          sum(absent(live_overlay_bridge_last_success_age_seconds{job="live_overlay",bridge="uptimerobot"}) or on() vector(0))
+          sum((absent(live_overlay_bridge_last_success_age_seconds{job="live_overlay",bridge="uptimerobot"}) and on() (max(live_overlay_bridge_enabled{job="live_overlay",bridge="uptimerobot"}) == 1)) or on() vector(0))
           +
-          sum(absent(live_overlay_bridge_last_scrape_duration_seconds{job="live_overlay",bridge="uptimerobot"}) or on() vector(0))
+          sum((absent(live_overlay_bridge_last_scrape_duration_seconds{job="live_overlay",bridge="uptimerobot"}) and on() (max(live_overlay_bridge_enabled{job="live_overlay",bridge="uptimerobot"}) == 1)) or on() vector(0))
         instant: true
     - refId: B
       datasourceUid: grafanacloud-prom
@@ -236,9 +241,9 @@ groups:
           +
           sum(absent(live_overlay_bridge_error_info{job="live_overlay",bridge="github_workflow"}) or on() vector(0))
           +
-          sum(absent(live_overlay_bridge_last_success_age_seconds{job="live_overlay",bridge="github_workflow"}) or on() vector(0))
+          sum((absent(live_overlay_bridge_last_success_age_seconds{job="live_overlay",bridge="github_workflow"}) and on() (max(live_overlay_bridge_enabled{job="live_overlay",bridge="github_workflow"}) == 1)) or on() vector(0))
           +
-          sum(absent(live_overlay_bridge_last_scrape_duration_seconds{job="live_overlay",bridge="github_workflow"}) or on() vector(0))
+          sum((absent(live_overlay_bridge_last_scrape_duration_seconds{job="live_overlay",bridge="github_workflow"}) and on() (max(live_overlay_bridge_enabled{job="live_overlay",bridge="github_workflow"}) == 1)) or on() vector(0))
         instant: true
     - refId: C
       datasourceUid: grafanacloud-prom
@@ -252,9 +257,9 @@ groups:
           +
           sum(absent(live_overlay_bridge_error_info{job="live_overlay",bridge="railway_metrics"}) or on() vector(0))
           +
-          sum(absent(live_overlay_bridge_last_success_age_seconds{job="live_overlay",bridge="railway_metrics"}) or on() vector(0))
+          sum((absent(live_overlay_bridge_last_success_age_seconds{job="live_overlay",bridge="railway_metrics"}) and on() (max(live_overlay_bridge_enabled{job="live_overlay",bridge="railway_metrics"}) == 1)) or on() vector(0))
           +
-          sum(absent(live_overlay_bridge_last_scrape_duration_seconds{job="live_overlay",bridge="railway_metrics"}) or on() vector(0))
+          sum((absent(live_overlay_bridge_last_scrape_duration_seconds{job="live_overlay",bridge="railway_metrics"}) and on() (max(live_overlay_bridge_enabled{job="live_overlay",bridge="railway_metrics"}) == 1)) or on() vector(0))
         instant: true
     - refId: D
       datasourceUid: __expr__
@@ -262,10 +267,19 @@ groups:
         type: math
         expression: ($A > 0) || ($B > 0) || ($C > 0)
     for: 5m
+    # Structurally unreachable: every leg ends in `or on() vector(0)`, so the
+    # queries always return a value whenever Prometheus answers. Declared to
+    # satisfy the gated-expr lint; a dead exporter still trips the four
+    # unconditional absent() legs, not NoData.
+    noDataState: OK
     labels:
       severity: critical
     annotations:
       summary: One or more generic bridge contracts are missing from the scrape
+      # 2026-07-08: the last_success_age / last_scrape_duration legs are gated
+      # on bridge_enabled == 1 — a deliberately DISABLED bridge omits those two
+      # series by design (metrics._bridge_last_success_age) and must not page
+      # critical. The four unconditional legs still catch a dead exporter.
       runbook: Verify the live_overlay exporter is running and emitting all required
         live_overlay_bridge_* contract families for all configured bridges (uptimerobot,
         github_workflow, railway_metrics).
@@ -1751,10 +1765,14 @@ groups:
     - refId: A
       datasourceUid: grafanacloud-prom
       model:
+        # Genuine failure verdicts only (failure=4, timed_out=8,
+        # startup_failure=10) — matching the #3251/#3253 doctrine that
+        # cancelled (5) and stale (11) are non-signals: a merge-train
+        # concurrency cancel as the newest run used to page "run failed"
+        # for up to 24h (found 2026-07-08).
         expr: max by (workflow) ((live_overlay_github_workflow_phase_code{job="live_overlay"} == 4) or
-          (live_overlay_github_workflow_phase_code{job="live_overlay"} == 5) or (live_overlay_github_workflow_phase_code{job="live_overlay"}
-          == 8) or (live_overlay_github_workflow_phase_code{job="live_overlay"} == 10) or (live_overlay_github_workflow_phase_code{job="live_overlay"}
-          == 11))
+          (live_overlay_github_workflow_phase_code{job="live_overlay"} == 8) or
+          (live_overlay_github_workflow_phase_code{job="live_overlay"} == 10))
         instant: true
     - refId: C
       datasourceUid: __expr__

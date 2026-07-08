@@ -6,7 +6,9 @@ Changes:
 - Make the $job variable multi-select with All option.
 - Replace job="$job" with job=~"$job" everywhere.
 - Rewrite dashboard annotations to use regex job matching.
-- Rename the resets() uptime panel to use live_overlay_daemon_restarts_total.
+- Point the restarts panel at changes(live_overlay_process_start_time_seconds)
+  (live_overlay_daemon_restarts_total is a constant-1 gauge — increase()/changes()
+  over it are always 0; found 2026-07-07/08).
 - Fix restart-cause panels to preserve __name__ in aggregation.
 - Fix GitHub workflow rate() queries to deriv() because counts are gauges.
 - Replace signals_producer container row with Railway metrics.
@@ -70,7 +72,7 @@ def _fix_resets_panel(panel: dict) -> None:
     panel["targets"] = [
         {
             "datasource": DATASOURCE,
-            "expr": 'sum(increase(live_overlay_daemon_restarts_total{job=~"$job"}[24h])) or vector(0)',
+            "expr": 'sum(changes(live_overlay_process_start_time_seconds{job=~"$job"}[24h])) or vector(0)',
             "refId": "A",
             "legendFormat": "restarts",
         }
@@ -271,7 +273,7 @@ def _rewrite_annotations(dashboard: dict) -> None:
         expr = annotation.get("expr", "")
         if "resets(live_overlay_uptime_seconds" in expr:
             annotation["expr"] = (
-                'changes(live_overlay_daemon_restarts_total{job=~"$job"}[10m]) > 0'
+                'changes(live_overlay_process_start_time_seconds{job=~"$job"}[10m]) > 0'
             )
 
 

@@ -367,10 +367,14 @@ def experiment_cache_ttl_secs() -> int:
 def experiment_max_age_secs() -> int:
     """Age (s) beyond which the daily experiment rollup is treated as stale.
 
-    The rolling benchmark runs roughly daily, so the default tolerates a
-    skipped run (~36h) before the snapshot-age panel turns red.
+    Default 96h, sized to the REAL cadence: the age anchors on midnight UTC
+    of the rollup's run_date, the benchmark runs Mon-Fri only and lands
+    ~13:30-17:30 UTC, so Friday's rollup is legitimately ~89.5h old when
+    Monday's arrives. The previous 36h default therefore fired every
+    weekend (~50h of false alarm) and most weekdays around noon (found
+    2026-07-08). 96h additionally tolerates one skipped weekday run.
     """
-    return _clamped_int("OVERLAY_EXPERIMENT_MAX_AGE_SECS", 129600, 3600, 1209600)
+    return _clamped_int("OVERLAY_EXPERIMENT_MAX_AGE_SECS", 345600, 3600, 1209600)
 
 
 def experiment_history_max_days() -> int:

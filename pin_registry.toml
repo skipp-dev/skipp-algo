@@ -288,6 +288,11 @@ allowed = ["github-mirror-sync.yml", "sync-tradingview-pine-libraries.yml", "ope
 "plan-2-8-weekly-digest.yml" = 382
 # Promotion-gate daily: post-#2421 baseline.
 "promotion-gate-daily.yml" = 2
+# run-open-prep-daily.yml (2026-07-08, H2): single fail-soft step restoring
+# the rolling provider-usage snapshot from bot/live-open-prep-snapshot before
+# scoring; a missing branch/file is the expected first-run state and must not
+# block the daily run. Absence is surfaced via ::notice::.
+"run-open-prep-daily.yml" = 1
 # Step-2b incremental activation (591c5bac): +1 from baseline for the
 # always-on dry-run preview's `set +e`/PREVIEW_RC wrap around plan_shards.
 "smc-databento-production-export-sharded.yml" = 2

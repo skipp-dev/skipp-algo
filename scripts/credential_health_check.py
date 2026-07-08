@@ -564,6 +564,26 @@ def probe_fmp(key: str, opener: Any = None) -> ProbeResult:
     )
 
 
+def probe_benzinga(key: str, opener: Any = None) -> ProbeResult:
+    """Probe a Benzinga News API key (load-bearing since 2026-07-08:
+    open_prep Core News lane + hourly live-news cron both depend on it,
+    and it is a trial key of unconfirmed tier — silent expiry would only
+    degrade both lanes with warnings).
+
+    Uses ``/api/v2/news`` with ``pageSize=1`` — the cheapest authenticated
+    call. Auth is via the ``token`` query parameter.
+    """
+    safe_key = key.strip() if key else ""
+    return _probe_http_vendor(
+        name="benzinga_key",
+        label="Benzinga News API",
+        key=key,
+        url=f"https://api.benzinga.com/api/v2/news?token={safe_key}&pageSize=1&displayOutput=abstract",
+        headers={"Accept": "application/json"},
+        opener=opener,
+    )
+
+
 def probe_newsapi(key: str, opener: Any = None) -> ProbeResult:
     """Probe a NewsAPI (Event Registry / newsapi.ai) key.
 
@@ -660,6 +680,16 @@ def main(argv: list[str] | None = None) -> int:
         help="Skip the NewsAPI key probe",
     )
     parser.add_argument(
+        "--benzinga-key-env",
+        default="BENZINGA_API_KEY",
+        help="Env var name holding the Benzinga key (default: BENZINGA_API_KEY)",
+    )
+    parser.add_argument(
+        "--skip-benzinga",
+        action="store_true",
+        help="Skip the Benzinga News API key probe",
+    )
+    parser.add_argument(
         "--output",
         help="Write JSON report to this path (in addition to stdout)",
     )
@@ -694,6 +724,9 @@ def main(argv: list[str] | None = None) -> int:
 
     if not args.skip_newsapi:
         results.append(probe_newsapi(os.environ.get(args.newsapi_key_env, "")))
+
+    if not args.skip_benzinga:
+        results.append(probe_benzinga(os.environ.get(args.benzinga_key_env, "")))
 
     if not results:
         # All probes disabled. That is a configuration error.
