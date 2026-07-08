@@ -382,3 +382,54 @@ def test_fetch_btc_news_uses_shared_news_path_and_fallback() -> None:
 # alternative.me is the sole F&G source for the crypto tile.
 # See docs/reviews/2026-04-24-system-review.md (P-6).
 
+
+
+def test_assemble_fmp_data_includes_curated_ratios(monkeypatch):
+    """Wired 2026-07-08: the module promised 'key ratios' since day one but
+    never called fetch_fmp_ratios — the ratios must reach the merged entry
+    (and thus the generic json.dumps LLM context) under stable keys."""
+    import terminal_fmp_insights as tfi
+
+    monkeypatch.setattr(
+        tfi, "fetch_fmp_quotes", lambda _k, _t: [{"symbol": "AAPL", "price": 190.0}]
+    )
+    monkeypatch.setattr(
+        tfi, "fetch_fmp_profiles", lambda _k, _t: [{"symbol": "AAPL", "sector": "Tech"}]
+    )
+    monkeypatch.setattr(
+        tfi,
+        "fetch_fmp_ratios",
+        lambda _k, _t: [
+            {
+                "symbol": "AAPL",
+                "peRatioTTM": 31.2,  # legacy alias must map to pe_ttm
+                "priceToBookRatioTTM": 44.1,
+                "netProfitMarginTTM": 0.25,
+                "someNoiseFieldTTM": 123.0,  # not in the curated set -> dropped
+            }
+        ],
+    )
+
+    out = tfi.assemble_fmp_data("key", ["AAPL"])
+    assert out["AAPL"]["quote"]["price"] == 190.0
+    assert out["AAPL"]["ratios"] == {
+        "pe_ttm": 31.2,
+        "price_to_book_ttm": 44.1,
+        "net_margin_ttm": 0.25,
+    }
+
+
+def test_assemble_fmp_data_tolerates_missing_ratios(monkeypatch):
+    """fetch_fmp_ratios caps at 10 tickers / fails soft — entries without a
+    ratio row must simply lack the 'ratios' key."""
+    import terminal_fmp_insights as tfi
+
+    monkeypatch.setattr(
+        tfi, "fetch_fmp_quotes", lambda _k, _t: [{"symbol": "MSFT", "price": 500.0}]
+    )
+    monkeypatch.setattr(tfi, "fetch_fmp_profiles", lambda _k, _t: [])
+    monkeypatch.setattr(tfi, "fetch_fmp_ratios", lambda _k, _t: [])
+
+    out = tfi.assemble_fmp_data("key", ["MSFT"])
+    assert "ratios" not in out["MSFT"]
+    assert out["MSFT"]["quote"]["price"] == 500.0

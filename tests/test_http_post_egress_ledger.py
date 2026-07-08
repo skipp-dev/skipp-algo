@@ -144,7 +144,7 @@ HTTP_POST_LEDGER: set[tuple[str, int]] = {
     ("terminal_export.py", 921),  # 2026-07-08: catalyst_score truth-fix comment shifted 916 -> 921
     # OpenAI chat completions — FMP insights enrichment.
     # Line shifted 402 → 409 (main merge for PR-J3 cache-key scoping).
-    ("terminal_fmp_insights.py", 409),
+    ("terminal_fmp_insights.py", 453),  # 2026-07-08 ratios wiring shifted (409->453)
     # Webhook fan-out from the live Streamlit terminal alert path
     # (httpx, follow_redirects=False, timeout=5s, dedup + budget cap).
     # Line shifted 2257 → 2274 (system review 2026-04-30).

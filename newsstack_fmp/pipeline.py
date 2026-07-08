@@ -166,9 +166,11 @@ def load_universe(path: str) -> set[str]:
         return set()
 
 
-def vwap_gate_stub(ticker: str) -> dict[str, Any]:
-    """Hook: later plug your VWAP reclaim detector here."""
-    return {"vwap_signal": "NA", "vwap_reclaim_go": False, "vwap_bias_up": None}
+# vwap_gate_stub removed 2026-07-08: it stamped a constant, never-read
+# {"vwap_signal": "NA", "vwap_reclaim_go": False, "vwap_bias_up": None}
+# into every exported candidate — a dead, always-false "signal" surface.
+# If a real VWAP reclaim detector lands, reintroduce it WITH an
+# implementation and a consumer.
 
 
 def _fetch_cached_provider_items(
@@ -472,8 +474,6 @@ def process_news_items(
 
             # Build candidate per ticker
             for tk in tickers:
-                vwap = vwap_gate_stub(tk)
-
                 cand: dict[str, Any] = {
                     "ticker": tk,
                     "headline": it.headline[:260],
@@ -488,7 +488,6 @@ def process_news_items(
                     "polarity": score.polarity,
                     "news_score": round(score.score, 4),
                     "warn_flags": list(warn_flags),
-                    "signals": {"vwap": vwap},
                     "published_ts": it.published_ts,
                     "updated_ts": it.updated_ts,
                     "_seen_ts": ts,
@@ -1028,8 +1027,8 @@ def poll_once(
 
     # Strip internal fields (prefixed with _) before exporting to JSON.
     # _seen_ts is used internally for pruning but must not leak into the
-    # public data contract.  Deep-copy so nested mutable values (signals,
-    # warn_flags, enrich) are fully detached from _best_by_ticker.
+    # public data contract.  Deep-copy so nested mutable values
+    # (warn_flags, enrich) are fully detached from _best_by_ticker.
     export_candidates = [
         copy.deepcopy({k: v for k, v in c.items() if not k.startswith("_")})
         for c in candidates
