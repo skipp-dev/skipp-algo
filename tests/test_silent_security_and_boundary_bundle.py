@@ -204,7 +204,7 @@ _FROZEN_BASIC_CONFIG_SITES: frozenset[tuple[str, int]] = frozenset({
     ("open_prep/realtime_signals.py", 3119),
     # 2026-07-04 (market-microstructure observe-only): import + snapshot
     # block + row-loop fields shifted 6079 -> 6105.
-    ("open_prep/run_open_prep.py", 6189),  # 2026-07-08 B-H1 priority-symbols + B-M2 era-gate shifted pins (6167->6189)
+    ("open_prep/run_open_prep.py", 6221),  # 2026-07-08 TV-priority helper + M10 knob shifted (6189->6221)
     # 2026-06-16 (feat/live-overlay-daemon): entry-point main.py configures
     # root logger at startup (Railway container, no other logger setup).
     # 2026-06-19 (fix/live-overlay-post-merge-bugs): import additions for

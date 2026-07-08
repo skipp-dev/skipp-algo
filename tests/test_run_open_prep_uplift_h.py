@@ -715,3 +715,66 @@ def test_benzinga_core_news_without_priority_keeps_old_order(
     )
     assert err is None
     assert captured[:2] == ["AAPL", "MSFT"], captured
+
+
+def test_tradingview_news_queries_priority_symbols_first(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Same mega-cap-bias fix as the Benzinga lane (2026-07-08): with only 8
+    default slots the bare [:max_symbols] slice was even more skewed. The
+    mover seed must fill the TV budget first."""
+    captured: list[list[str]] = []
+
+    def _fake_fetch_tv_multi(symbols: list[str], **_kw: Any) -> list[Any]:
+        captured.append(list(symbols))
+        return []
+
+    import terminal_tradingview_news as tvn
+
+    monkeypatch.setattr(tvn, "fetch_tv_multi", _fake_fetch_tv_multi)
+    monkeypatch.setenv("OPEN_PREP_TV_NEWS_MAX_SYMBOLS", "3")
+
+    universe = ["AAPL", "MSFT", "NVDA", "GOOG", "AMZN", "AMPG", "AKAN"]
+    _arts, err = rop._fetch_tradingview_news_articles(
+        symbols=universe, priority_symbols=["AMPG", "AKAN"]
+    )
+    assert err is None
+    assert captured == [["AMPG", "AKAN", "AAPL"]], captured
+
+
+def test_tradingview_news_without_priority_keeps_old_order(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    captured: list[list[str]] = []
+
+    def _fake_fetch_tv_multi(symbols: list[str], **_kw: Any) -> list[Any]:
+        captured.append(list(symbols))
+        return []
+
+    import terminal_tradingview_news as tvn
+
+    monkeypatch.setattr(tvn, "fetch_tv_multi", _fake_fetch_tv_multi)
+    monkeypatch.setenv("OPEN_PREP_TV_NEWS_MAX_SYMBOLS", "2")
+
+    _arts, err = rop._fetch_tradingview_news_articles(symbols=["AAPL", "MSFT", "NVDA"])
+    assert err is None
+    assert captured == [["AAPL", "MSFT"]], captured
+
+
+def test_priority_first_symbols_promotes_only_universe_members() -> None:
+    """Priority symbols outside the universe must not be injected."""
+    ordered = rop._priority_first_symbols(
+        ["AAPL", "MSFT", "AMPG"], ["AMPG", "ZZZZ"]
+    )
+    assert ordered == ["AMPG", "AAPL", "MSFT"]
+
+
+def test_earnings_distance_budget_env_knob(monkeypatch: pytest.MonkeyPatch) -> None:
+    """M10 (2026-07-08): the earnings-distance budget has its own knob;
+    unset preserves the historical coupling to analyst_catalyst_limit."""
+    monkeypatch.setenv("OPEN_PREP_EARNINGS_DISTANCE_MAX_SYMBOLS", "25")
+    assert rop._earnings_distance_max_symbols(80) == 25
+
+    monkeypatch.delenv("OPEN_PREP_EARNINGS_DISTANCE_MAX_SYMBOLS", raising=False)
+    assert rop._earnings_distance_max_symbols(80) == 80
+    assert rop._earnings_distance_max_symbols(-5) == 0
