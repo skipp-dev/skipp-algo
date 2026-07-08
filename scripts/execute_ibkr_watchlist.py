@@ -76,6 +76,12 @@ class IBKRExecutionConfig:
     cancel_unfilled_after: str | None = DEFAULT_CANCEL_UNFILLED_AFTER
     time_stop_after: str | None = DEFAULT_TIME_STOP_AFTER
     clock_timezone: str = DEFAULT_SCHEDULE_TIMEZONE
+    # Seconds to pump the ib_async event loop after placeOrder, waiting for IB
+    # to ACKNOWLEDGE each order (resting/terminal status) before the caller
+    # disconnects. placeOrder is asynchronous — without this wait the socket may
+    # close before the transmit=True bracket leg is flushed, so IB never
+    # registers the orders (phantom orders: submitted-in-audit, 0 fills).
+    ack_timeout_seconds: float = 10.0
 
 
 @dataclass(frozen=True)
@@ -785,6 +791,48 @@ def flatten_after(
     }
 
 
+# Order-status values that mean IB has ACKNOWLEDGED the order (it now rests on
+# IB's servers and survives our disconnect) or it has already resolved.
+_ACKNOWLEDGED_ORDER_STATUSES = frozenset(
+    {"PreSubmitted", "Submitted", "Filled", "Cancelled", "ApiCancelled", "Inactive"}
+)
+
+
+def _await_order_acknowledgements(
+    ib: Any,
+    trades: list[Any],
+    *,
+    timeout_seconds: float,
+    poll_seconds: float = 0.2,
+) -> bool:
+    """Pump the ib_async event loop until every ``trade`` is acknowledged by IB.
+
+    ``ib.placeOrder`` is asynchronous: it returns a ``Trade`` immediately but
+    the order (and, for a bracket, the ``transmit=True`` final leg that arms the
+    whole set) is only sent when the event loop runs. If the caller disconnects
+    before that, IB never registers the orders — the phantom-order failure mode
+    (audit says ``paper_submitted`` but nothing rests at IB and nothing ever
+    fills). Waiting here until each order reaches an acknowledged status makes
+    the disconnect safe. Returns ``True`` iff all orders were acknowledged; on
+    timeout returns ``False`` with the still-pending ones left as-is so the
+    caller records the true (non-final) status.
+    """
+    if not trades:
+        return True
+
+    def _all_acked() -> bool:
+        return all(
+            str(getattr(t.orderStatus, "status", "")) in _ACKNOWLEDGED_ORDER_STATUSES
+            for t in trades
+        )
+
+    waited = 0.0
+    while not _all_acked() and waited < timeout_seconds:
+        ib.sleep(poll_seconds)  # runs the event loop so pending sends flush
+        waited += poll_seconds
+    return _all_acked()
+
+
 def place_order_intents_with_ib(
     ib: Any,
     intents: list[IBKROrderIntent],
@@ -793,6 +841,8 @@ def place_order_intents_with_ib(
     execution_cfg: IBKRExecutionConfig,
 ) -> dict[str, Any]:
     placements: list[dict[str, Any]] = []
+    all_trades: list[Any] = []
+    status_records: list[tuple[dict[str, Any], Any]] = []
     entry_order_refs_by_symbol: dict[str, list[str]] = {}
     all_order_refs_by_symbol: dict[str, list[str]] = {}
     trade_dates_by_symbol: dict[str, str] = {}
@@ -832,19 +882,20 @@ def place_order_intents_with_ib(
         placed_orders = []
         for order in orders:
             trade = ib.placeOrder(contract, order)
-            placed_orders.append(
-                {
-                    "placed_at": datetime.now(ZoneInfo("UTC")).isoformat(),
-                    "order_id": int(order.orderId),
-                    "perm_id": int(order.permId or 0),
-                    "order_ref": str(order.orderRef),
-                    "order_type": str(order.orderType),
-                    "action": str(order.action),
-                    "lmt_price": float(order.lmtPrice) if getattr(order, "lmtPrice", None) not in (None, "") else None,
-                    "aux_price": float(order.auxPrice) if getattr(order, "auxPrice", None) not in (None, "") else None,
-                    "status": str(trade.orderStatus.status),
-                }
-            )
+            record = {
+                "placed_at": datetime.now(ZoneInfo("UTC")).isoformat(),
+                "order_id": int(order.orderId),
+                "perm_id": int(order.permId or 0),
+                "order_ref": str(order.orderRef),
+                "order_type": str(order.orderType),
+                "action": str(order.action),
+                "lmt_price": float(order.lmtPrice) if getattr(order, "lmtPrice", None) not in (None, "") else None,
+                "aux_price": float(order.auxPrice) if getattr(order, "auxPrice", None) not in (None, "") else None,
+                "status": str(trade.orderStatus.status),
+            }
+            placed_orders.append(record)
+            all_trades.append(trade)
+            status_records.append((record, trade))
 
         placements.append(
             {
@@ -856,6 +907,16 @@ def place_order_intents_with_ib(
                 "orders": placed_orders,
             }
         )
+
+    # Wait for IB to acknowledge every order BEFORE the caller disconnects, then
+    # refresh each record with the acknowledged status (the status read right
+    # after placeOrder is the transient pre-ack value). This is what makes the
+    # orders actually rest at IB and eventually fill.
+    _await_order_acknowledgements(
+        ib, all_trades, timeout_seconds=execution_cfg.ack_timeout_seconds
+    )
+    for record, trade in status_records:
+        record["status"] = str(getattr(trade.orderStatus, "status", record["status"]))
 
     return {
         "placements": placements,
