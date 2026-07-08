@@ -32,6 +32,16 @@ _REPO_ROOT = Path(__file__).resolve().parent.parent
 _WORKFLOWS = _REPO_ROOT / ".github" / "workflows"
 
 _HANDOFF_WORKFLOWS = {
+    # F-V8-cutover (2026-05-18): the DAILY producer is the SHARDED export;
+    # until 2026-07-08 this pin only covered the legacy workflow, so the
+    # workflow actually running every day had an unpinned guard — exactly
+    # the "harmless cleanup re-opens the race" hole this module exists for.
+    "smc-databento-production-export-sharded": {
+        "expected_group": "smc-databento-production-export-sharded-${{ github.ref }}",
+    },
+    # Legacy unsharded producer: workflow_dispatch-only emergency fallback
+    # since the cutover, but a manual dispatch can still overlap the
+    # consumer's cron tick — keep it pinned while the file exists.
     "smc-databento-production-export": {
         "expected_group": "smc-databento-production-export-${{ github.ref }}",
     },

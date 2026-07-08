@@ -41,13 +41,22 @@ def test_probe_step_invokes_freshness_script(workflow_text: str) -> None:
     )
 
 
-# Monitors that are NOT already on the freshness monitor's own watchlist.
-# Each entry must use `:any` — a red monitor run is alive; only the
-# ABSENCE of completed runs is the alarm.
+# All `:any`-mode entries across BOTH probe steps of meta-watchdog.yml.
+# `:any` because a RED run is proof of life — only the ABSENCE of
+# completed runs is the alarm.
+#
+# The first two form the meta-probe watchlist (the monitors that watch
+# everything else — the workflow's raison d'être). The last two are
+# advisory Library-Refresh DAG entries (`:any:weekday`, PR #2842) that
+# can complete red BY DESIGN (f2 gate fails when a spec is rolled back;
+# credential-health fails on TV-session expiry). NB: credential-health-
+# check is additionally on the freshness monitor's own watchlist — its
+# entry here is the weekday DAG view, not a replacement. (Comment fixed
+# 2026-07-08; it previously claimed no entry overlapped that watchlist.)
 _MONITORED_MONITORS = (
     "workflow-freshness-monitor.yml",
     "smc-export-cron-watchdog.yml",
-    # Library-Refresh DAG monitors (`:any:weekday`, added 2026-06-17 PR #2842):
+    # Library-Refresh DAG (`:any:weekday`, added 2026-06-17 PR #2842):
     "credential-health-check.yml",
     "f2-promotion-gate-daily.yml",
 )

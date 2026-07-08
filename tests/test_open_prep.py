@@ -4001,13 +4001,35 @@ class TestSR2AtomicLatestWrite(unittest.TestCase):
     """H-3: Latest result write must use atomic tempfile+replace pattern."""
 
     def test_latest_write_is_atomic(self):
-        """Verify the code path uses tempfile+replace (structural check)."""
+        """Verify the latest-write block uses tempfile+fsync+replace.
+
+        Hardened 2026-07-08: the old check only asserted ``mkstemp``
+        appeared SOMEWHERE in ``generate_open_prep_result`` — a function
+        with several unrelated cache writers. It would keep passing if
+        the latest block itself regressed to ``write_text``. Anchor on
+        the filename and assert the full idiom (incl. fsync-before-rename
+        ordering) inside that block only.
+        """
         import inspect
 
         from open_prep import run_open_prep
         source = inspect.getsource(run_open_prep.generate_open_prep_result)
-        # Must contain mkstemp (atomic write) not write_text (non-atomic)
-        self.assertIn("mkstemp", source, "Latest write should use tmpfile pattern")
+        anchor = source.index("latest_open_prep_run.json")
+        block = source[anchor : anchor + 1200]
+        self.assertIn("mkstemp", block, "latest write must create a tempfile in the target dir")
+        self.assertIn("os.fsync", block, "latest write must fsync before the rename")
+        self.assertIn("os.replace", block, "latest write must atomically replace the target")
+        self.assertLess(
+            block.index("os.fsync"),
+            block.index("os.replace"),
+            "fsync must happen BEFORE os.replace — replace-then-fsync can "
+            "publish a torn file across a crash",
+        )
+        self.assertNotIn(
+            "write_text",
+            block,
+            "latest write must not fall back to non-atomic write_text",
+        )
 
 
 class TestHitRateEnrichmentUsesVolumeRatio(unittest.TestCase):

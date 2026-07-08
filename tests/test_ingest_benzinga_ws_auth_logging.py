@@ -17,19 +17,41 @@ from newsstack_fmp import ingest_benzinga
 
 def test_benzinga_ws_subscribe_handshake_logs_on_failure():
     """Source-pin: the optional subscribe handshake MUST log at
-    debug with exc_info on failure, never silently swallow."""
+    debug with exc_info on failure, never silently swallow.
+
+    Hardened 2026-07-08: the old assertions matched the WHOLE module
+    source — any ``exc_info=True`` anywhere (or the phrase surviving in
+    a comment) kept them green even if the handshake handler regressed
+    to ``except: pass``. The legacy-pattern check was also pinned to an
+    exact 20-space indentation, so a re-indent would have blinded it.
+    Anchor on the handshake send and assert within that block only,
+    whitespace-normalised.
+    """
     src = inspect.getsource(ingest_benzinga)
-    # The legacy pattern MUST be gone.
-    assert "await ws.send(auth_msg)\n                    except Exception:\n                        pass" not in src, (
+    anchor = src.index("await ws.send(auth_msg)")
+    block = src[anchor : anchor + 900]
+    normalized = " ".join(block.split())
+    # The legacy silent-swallow pattern MUST be gone (indentation-proof).
+    assert "except Exception: pass" not in normalized, (
         "PR-K: silent except: pass on Benzinga WS subscribe handshake "
         "must be replaced with logger.debug(..., exc_info=True)."
     )
-    # The new pattern MUST be present.
-    assert "optional subscribe handshake" in src, (
+    # The handler itself (not some other code path) must log with traceback.
+    assert "logger.debug(" in block, (
+        "PR-K: the subscribe-handshake except handler must log at debug."
+    )
+    assert "exc_info=True" in block, (
+        "PR-K: Benzinga WS subscribe handshake failure must include "
+        "exc_info=True for operator triage."
+    )
+    assert "optional subscribe handshake" in block, (
         "PR-K: Benzinga WS subscribe handshake failure must be logged "
         "with a recognisable message."
     )
-    assert "exc_info=True" in src, (
-        "PR-K: Benzinga WS subscribe handshake failure must include "
-        "exc_info=True for operator triage."
+    # The handler must swallow-and-continue (handshake is optional): no
+    # re-raise inside the handler block.
+    handler_start = normalized.index("except Exception:")
+    handler = normalized[handler_start:]
+    assert "raise" not in handler.split("async for", 1)[0], (
+        "PR-K: the optional handshake must not abort the connection on failure"
     )
