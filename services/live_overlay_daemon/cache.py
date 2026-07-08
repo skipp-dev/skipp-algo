@@ -30,6 +30,27 @@ _rolling_bars_cap: int = 60  # set by feed.py on init
 _max_symbols: int = 2000  # configurable via init_bar_cache()
 _last_eviction_at: float = 0.0  # monotonic ts of last eviction pass (L5)
 _EVICT_INTERVAL_SECS: float = 60.0  # periodic eviction interval
+# Eviction-log throttle: cap-eviction fires once per new symbol while the cache
+# sits at capacity, so at market open it logs hundreds of single-symbol
+# evictions per second — enough to blow past Railway's 500 lines/s limit and get
+# real log lines dropped. Aggregate the churn and emit at most one INFO summary
+# per window instead (per-eviction detail stays available at DEBUG).
+_EVICT_SUMMARY_INTERVAL_SECS: float = 60.0  # min gap between eviction summaries
+
+
+class _EvictSummary:
+    """Throttle state for the aggregated eviction log. Mutated in place under
+    ``_bar_lock`` so no module-level ``global`` is needed (see
+    tests/test_global_statement_budget.py)."""
+
+    __slots__ = ("at", "pending")
+
+    def __init__(self) -> None:
+        self.pending: int = 0  # symbols evicted since the last summary line
+        self.at: float = 0.0  # monotonic ts of the last summary; 0.0 = unseeded
+
+
+_evict_summary = _EvictSummary()
 
 # OverlayCache: symbol → overlay payload dict (pre-computed)
 _overlay_lock = threading.Lock()
@@ -136,7 +157,23 @@ def _evict_n_stale_symbols_locked(n_evict: int) -> None:
     for sym in victims:
         _bars.pop(sym, None)
         _bar_last_update.pop(sym, None)
-    logger.info("Evicted %d stale symbols from bar cache (cap=%d)", len(victims), _max_symbols)
+    logger.debug("Evicted %d stale symbols from bar cache (cap=%d)", len(victims), _max_symbols)
+
+    # Throttle the INFO line: aggregate churn and emit at most one summary per
+    # _EVICT_SUMMARY_INTERVAL_SECS so steady cap-eviction can't flood the log.
+    _evict_summary.pending += len(victims)
+    now = time.monotonic()
+    if _evict_summary.at == 0.0:
+        _evict_summary.at = now
+        return
+    elapsed = now - _evict_summary.at
+    if elapsed >= _EVICT_SUMMARY_INTERVAL_SECS:
+        logger.info(
+            "Bar cache evicted %d stale symbols in the last %.0fs (cap=%d, tracked=%d)",
+            _evict_summary.pending, elapsed, _max_symbols, len(_bars),
+        )
+        _evict_summary.pending = 0
+        _evict_summary.at = now
 
 
 # ---------------------------------------------------------------------------
