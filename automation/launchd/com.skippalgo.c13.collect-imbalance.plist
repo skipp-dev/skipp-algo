@@ -15,8 +15,9 @@
         <string>__REPO_PATH__/automation/launchd/run-c13-imbalance.sh</string>
     </array>
 
-    <!-- 09:28 local time (ET on the Phase-A workstation) Mon-Fri.
-         StartCalendarInterval is local-clock so DST is handled by the OS. -->
+    <!-- 09:28 ET target, Mon-Fri. NOTE: StartCalendarInterval fires by the
+         Mac's LOCAL clock — exactly the mismatch root-caused 2026-07-07 —
+         hence the ET-bracket candidates + gate described below. -->
     <key>StartCalendarInterval</key>
     <!-- 09:28 ET target. launchd fires in LOCAL time; these are the three
          candidate local times bracketing the Berlin<->ET offset (+5/+6/+7h

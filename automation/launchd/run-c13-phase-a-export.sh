@@ -1,8 +1,10 @@
 #!/usr/bin/env bash
 # C13 Phase-A — daily local cron driver for fresh open_prep trade-cards.
 # Invoked by ~/Library/LaunchAgents/com.skippalgo.c13.phase-a-export.plist
-# on Mon-Fri @ 09:18 local time (10 minutes BEFORE the phase-a runner
-# at 09:28). Idempotent: writes timestamped CSV under reports/.
+# Mon-Fri targeting 09:18 ET (10 minutes BEFORE the phase-a runner at
+# 09:28 ET; the plist fires three ET-bracketing local times, the ET gate
+# below picks one). NOT idempotent on the artefact: every run writes a
+# NEW timestamped CSV under reports/.
 #
 # Output: reports/open_prep_trade_cards_<TS>.csv (consumed by the
 # subsequent build_phase_a_inputs.py invocation in run-c13-phase-a.sh).

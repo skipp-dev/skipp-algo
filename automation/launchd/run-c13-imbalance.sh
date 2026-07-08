@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
 # C13 / T8.2 — daily local cron driver for opening-imbalance collection.
 # Invoked by ~/Library/LaunchAgents/com.skippalgo.c13.collect-imbalance.plist
-# on Mon-Fri @ 09:28 local time. Idempotent on the artefact path.
+# Mon-Fri targeting 09:28 ET (plist fires three ET-bracketing local
+# times; the ET gate picks one). Idempotent on the artefact path.
 
 set -euo pipefail
 

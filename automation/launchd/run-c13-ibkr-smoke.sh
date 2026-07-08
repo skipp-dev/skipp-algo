@@ -6,8 +6,9 @@
 # 90 minutes before US-equity open (09:30 ET).
 #
 # What this does:
-#   1. Runs smoke_smc_to_ibkr_adapter.py --mode live against the Paper
-#      Gateway on 127.0.0.1:7497 (place + immediate cancel, no fills).
+#   1. Runs smoke_smc_to_ibkr_adapter.py --mode live against the paper
+#      TWS on 127.0.0.1:7497 (7497 = TWS paper port; the *Gateway* paper
+#      port would be 4002). Place + immediate cancel, no fills.
 #   2. Records the result to cache/live/smoke_<DATE>.jsonl (audit trail).
 #   3. On EXIT=3 (live smoke left non-terminal / leftover orders) writes
 #      cache/live/smoke_HALT — run_ibkr_open_execution.py reads this at

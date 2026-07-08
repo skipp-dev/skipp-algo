@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 # C13 Phase-A — daily local cron driver for the live-incubation runner
 # in PAPER mode. Invoked by
-# ~/Library/LaunchAgents/com.skippalgo.c13.phase-a.plist on Mon-Fri @
-# 09:28 local time.
+# ~/Library/LaunchAgents/com.skippalgo.c13.phase-a.plist Mon-Fri
+# targeting 09:28 ET (see the ET-gate comment below).
 #
 # Pipeline:
 #   1. build_phase_a_inputs.py   → cache/live/setups_<DATE>.jsonl + gate_status.json
@@ -12,9 +12,11 @@
 # Phase-A is STRICTLY --phase paper. Since 2026-07-06 (C13b T1.2, operator
 # decision) the runner SUBMITS the surviving intents to the IBKR *paper*
 # account via --place-paper-orders — the flag carries a built-in paper-port
-# guard and run_smc_live_incubation refuses it on any live phase. This is
-# what produces the measurable paper fills the ADR-0023 §5 E[PnL]-after-cost
-# check is gated on (>=20 fills). Promotion to --phase live_small or
+# guard and run_smc_live_incubation refuses it on any live phase. This
+# produces Phase-B execution-promotion fills — NOT the ADR-0023 §5
+# E[PnL]-after-cost gate input (that gate consumes the measurement
+# benchmark's scored_family_events.json; correction 2026-07-06, see
+# README.md). Promotion to --phase live_small or
 # live_full remains a Phase-B decision and requires a real
 # --account-state-json snapshot (see scripts/run_smc_live_incubation.py).
 #

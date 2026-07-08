@@ -14,8 +14,10 @@
 #   2. push_to_data_branch — publishes the reconciled audit file to
 #      data/phase-a-audit for the GH-hosted C13 cron.
 #
-# These reconciled records are the measurable paper fills the ADR-0023 §5
-# E[PnL]-after-cost gate is blocked on (>= 20 fills).
+# These reconciled records are Phase-B execution-promotion fills — they do
+# NOT feed the ADR-0023 §5 E[PnL]-after-cost gate (that gate consumes the
+# measurement benchmark's scored_family_events.json; correction 2026-07-06,
+# see README.md).
 #
 # Repo policy: never --force, never --no-verify.
 
