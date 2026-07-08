@@ -3194,6 +3194,17 @@ def main() -> None:
                 len(active), len(a0), len(a1), engine.last_poll_duration,
             )
 
+            # Push a notification the instant a fresh/strengthened breakout
+            # fires — faster than the snapshot -> Grafana path and hands-off.
+            # Opt-in + fail-soft: a no-op unless RT_SIGNAL_WEBHOOK_* is set, and
+            # it never raises (see open_prep/rt_notify.py).
+            try:
+                from open_prep import rt_notify
+
+                rt_notify.notify_fresh_signals(active)
+            except Exception:  # best-effort notifier — must never break polling
+                logger.debug("rt_notify hook failed", exc_info=True)
+
             if a0:
                 for s in a0:
                     logger.info(
