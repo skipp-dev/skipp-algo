@@ -982,9 +982,10 @@ def test_render_metrics_includes_trading_signals_snapshot(
         "poll_interval": 5,
         "poll_duration": 0.4,
         "watched_symbols": ["AAPL", "TSLA", "NVDA"],
-        "signal_count": 2,
+        "signal_count": 3,
         "a0_count": 1,
         "a1_count": 1,
+        "a2_count": 1,
         "disabled_reason": None,
         "signals": [
             {
@@ -1015,6 +1016,20 @@ def test_render_metrics_includes_trading_signals_snapshot(
                 "symbol_regime": "TREND_DOWN",
                 "news_category": "none",
             },
+            {
+                "symbol": "NVDA",
+                "level": "A2",
+                "direction": "LONG",
+                "confidence_tier": "LOW",
+                "score": 2.5,
+                "freshness": 0.95,
+                "technical_score": 0.20,
+                "change_pct": 0.8,
+                "technical_signal": "HOLD",
+                "macd_signal": "NEUTRAL",
+                "symbol_regime": "RANGE",
+                "news_category": "none",
+            },
         ],
     }
     monkeypatch.setattr(metrics_mod.compute, "_load_signals_snapshot", lambda: snapshot)
@@ -1022,9 +1037,13 @@ def test_render_metrics_includes_trading_signals_snapshot(
     body = metrics_mod.render_metrics(startup_ts=100.0)
 
     assert "live_overlay_trading_signals_loaded 1.0" in body
-    assert "live_overlay_trading_signals_active_total 2.0" in body
+    assert "live_overlay_trading_signals_active_total 3.0" in body
     assert "live_overlay_trading_signals_a0_total 1.0" in body
     assert "live_overlay_trading_signals_a1_total 1.0" in body
+    # A2 early-warning tier is a first-class counter (added 2026-07-08).
+    assert "live_overlay_trading_signals_a2_total 1.0" in body
+    # A2 signals also surface as labelled per-signal series (level="A2").
+    assert 'live_overlay_trading_signal_score{symbol="NVDA",level="A2"' in body
     assert "live_overlay_trading_signals_watched_total 3.0" in body
     assert "live_overlay_trading_signals_snapshot_age_known 1.0" in body
     # Per-signal series are labelled so Grafana can name/group each firing symbol.
@@ -1355,6 +1374,18 @@ def test_dashboard_has_trading_signals_panels() -> None:
     active = by_title["Active Trading Signals"]
     assert active["type"] == "stat"
     assert any("live_overlay_trading_signals_active_total" in t["expr"] for t in active["targets"])
+
+    # A2 early-warning tier is first-class on the dashboard (added 2026-07-08):
+    # its own stat tile + a coloured mapping in the detail table's Level column.
+    a2_tile = by_title["A2 Early-Warning"]
+    assert a2_tile["type"] == "stat"
+    assert any("live_overlay_trading_signals_a2_total" in t["expr"] for t in a2_tile["targets"])
+    level_ov = next(
+        ov for ov in by_title["Top Trading Signals — Latest Detail"]["fieldConfig"]["overrides"]
+        if ov["matcher"].get("options") == "Level"
+    )
+    mappings = next(p for p in level_ov["properties"] if p["id"] == "mappings")["value"][0]["options"]
+    assert {"A0", "A1", "A2"} <= set(mappings)
 
     age = by_title["Signals Snapshot Age"]
     assert age["fieldConfig"]["defaults"]["unit"] == "s"
