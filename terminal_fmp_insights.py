@@ -1,7 +1,7 @@
 """FMP AI Insights engine — LLM analysis enriched with FMP financial data.
 
 Mirrors the OpenAI-only ``terminal_ai_insights`` module but fetches
-real-time quotes and company profiles from FMP's REST API
+real-time quotes, company profiles and key TTM ratios from FMP's REST API
 before sending the enriched context to the LLM.  This allows side-by-side
 comparison of AI analysis with vs. without institutional-grade financial
 data from Financial Modeling Prep.
@@ -161,9 +161,14 @@ def assemble_fmp_data(
     api_key: str,
     tickers: list[str],
 ) -> dict[str, Any]:
-    """Fetch quotes and profiles for *tickers* and return merged dict.
+    """Fetch quotes, profiles and key TTM ratios for *tickers*, merged per ticker.
 
-    Returns a dict keyed by ticker with ``quote`` + ``profile`` data only. ``fetch_fmp_ratios`` exists but is currently unwired — key ratios never reach the LLM context.
+    Returns a dict keyed by ticker with ``quote`` + ``profile`` + ``ratios``.
+    Ratios were promised by this module since day one but never wired
+    (found 2026-07-08); ``fetch_fmp_ratios`` caps at 10 tickers internally,
+    so the tail of a 15-ticker batch may lack the ``ratios`` key. The raw
+    FMP ratio row is trimmed to a curated key set to keep the LLM context
+    within token budget.
     """
     if not api_key or not tickers:
         return {}
@@ -172,6 +177,7 @@ def assemble_fmp_data(
 
     quotes = fetch_fmp_quotes(api_key, unique_tickers)
     profiles = fetch_fmp_profiles(api_key, unique_tickers)
+    ratios = fetch_fmp_ratios(api_key, unique_tickers)
 
     # Index by symbol
     q_map: dict[str, dict] = {}
@@ -206,6 +212,41 @@ def assemble_fmp_data(
                 "beta": p.get("beta"),
             }
 
+    # Curated ratio set: the raw ratios-ttm row carries ~60 fields; this
+    # subset is what "key ratios" promised (valuation, leverage, margins,
+    # returns, liquidity) without blowing the LLM token budget. FMP has
+    # renamed several fields over the years (cf. _APPROXIMATE_PE_FIELDS in
+    # scripts/smc_fmp_client.py), so each logical ratio matches the first
+    # present alias and is emitted under a stable snake_case key.
+    _RATIO_FIELD_ALIASES: tuple[tuple[str, tuple[str, ...]], ...] = (
+        ("pe_ttm", ("priceToEarningsRatioTTM", "priceEarningsRatioTTM", "peRatioTTM", "peTTM")),
+        ("price_to_book_ttm", ("priceToBookRatioTTM", "priceBookValueRatioTTM")),
+        ("price_to_sales_ttm", ("priceToSalesRatioTTM",)),
+        ("debt_to_equity_ttm", ("debtToEquityRatioTTM", "debtEquityRatioTTM")),
+        ("return_on_equity_ttm", ("returnOnEquityTTM",)),
+        ("return_on_assets_ttm", ("returnOnAssetsTTM",)),
+        ("current_ratio_ttm", ("currentRatioTTM",)),
+        ("gross_margin_ttm", ("grossProfitMarginTTM",)),
+        ("operating_margin_ttm", ("operatingProfitMarginTTM",)),
+        ("net_margin_ttm", ("netProfitMarginTTM",)),
+        # NB: "dividendYielTTM" is a real (typo'd) legacy FMP field name.
+        ("dividend_yield_ttm", ("dividendYieldTTM", "dividendYielTTM")),
+        ("fcf_per_share_ttm", ("freeCashFlowPerShareTTM",)),
+    )
+    r_map: dict[str, dict] = {}
+    for r in ratios:
+        sym = (r.get("symbol") or "").upper()
+        if not sym:
+            continue
+        trimmed: dict[str, Any] = {}
+        for out_key, aliases in _RATIO_FIELD_ALIASES:
+            for alias in aliases:
+                if r.get(alias) is not None:
+                    trimmed[out_key] = r.get(alias)
+                    break
+        if trimmed:
+            r_map[sym] = trimmed
+
     result: dict[str, Any] = {}
     for tk in unique_tickers:
         entry: dict[str, Any] = {}
@@ -213,6 +254,8 @@ def assemble_fmp_data(
             entry["quote"] = q_map[tk]
         if tk in p_map:
             entry["profile"] = p_map[tk]
+        if tk in r_map:
+            entry["ratios"] = r_map[tk]
         if entry:
             result[tk] = entry
 
@@ -332,6 +375,7 @@ You have access to (when available in the data context):
 - A live feed of classified news articles with sentiment scores and ticker mentions
 - Real-time FMP quotes (price, change, volume, market cap, P/E, EPS)
 - Company profiles (sector, industry, beta, description)
+- Key TTM ratios (P/E, P/B, P/S, D/E, ROE, ROA, margins, dividend yield, FCF/share)
 - Technical indicators (RSI, MACD, Stochastic, ADX, moving averages) from TradingView/FMP
 - Economic calendar (GDP, CPI, FOMC, NFP — today's macro events with estimates vs actuals)
 - Sector performance (GICS sector % changes for rotation analysis)

@@ -80,7 +80,7 @@ class ScoreResult:
     score: float
     cluster_hash: str
     relevance: float  # 0.0–1.0 composite relevance (impact + clarity + entity specificity)
-    entity_count: int  # number of tickers mentioned
+    entity_count: int  # tickers mentioned; read by terminal_poller -> PollItem -> feed display
 
 
 def _norm(s: str) -> str:
