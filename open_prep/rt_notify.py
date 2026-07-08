@@ -49,13 +49,19 @@ _STRENGTH = {"A0": 3, "A1": 2, "A2": 1}
 _EMOJI = {"A0": "🔴", "A1": "🟠", "A2": "🟡"}
 
 # Per-process dedup state: (symbol, direction) -> (strength, last_notified_epoch).
+# Only advanced AFTER a POST is confirmed delivered (see notify_fresh_signals),
+# so a webhook outage retries next poll instead of silently suppressing for a
+# whole cooldown. In async mode the daemon POST thread writes this on success,
+# so every access is guarded by _LOCK.
 _NOTIFIED: dict[tuple[str, str], tuple[int, float]] = {}
 _STATE_TTL_SECS = 2 * 3600.0
+_LOCK = threading.Lock()
 
 
 def reset_state() -> None:
     """Clear the dedup state (tests / a manual re-arm)."""
-    _NOTIFIED.clear()
+    with _LOCK:
+        _NOTIFIED.clear()
 
 
 def _env(name: str, default: str = "") -> str:
@@ -93,16 +99,28 @@ def is_enabled() -> bool:
     return False
 
 
+def _safe_float(value: Any, default: float = 0.0) -> float:
+    """Coerce to float, never raising — a single corrupt signal field (None,
+    ``"n/a"``, …) must not blow up the whole batch notification."""
+    try:
+        return float(value)
+    except (TypeError, ValueError):
+        return default
+
+
 def _fmt_signal(s: Any) -> str:
     lvl = str(getattr(s, "level", "") or "")
     # A2 is the early-warning tier (building momentum, not confirmed) — flag it
     # so a glance never mistakes it for a confirmed A0/A1 breakout.
     tail = " ⚠️early" if lvl == "A2" else ""
+    # _safe_float so a None/garbage price/volume/change on one signal renders as
+    # 0.0 instead of raising and killing the entire batch push (which would also
+    # leave those signals marked-but-never-sent — see the delivery gate below).
     return (
         f"{_EMOJI.get(lvl, '•')} {lvl} {getattr(s, 'symbol', '?')} "
-        f"{getattr(s, 'direction', '')} ${float(getattr(s, 'price', 0.0)):.2f} "
-        f"vol×{float(getattr(s, 'volume_ratio', 0.0)):.1f} "
-        f"Δ{float(getattr(s, 'change_pct', 0.0)):+.1f}%{tail}"
+        f"{getattr(s, 'direction', '')} ${_safe_float(getattr(s, 'price', 0.0)):.2f} "
+        f"vol×{_safe_float(getattr(s, 'volume_ratio', 0.0)):.1f} "
+        f"Δ{_safe_float(getattr(s, 'change_pct', 0.0)):+.1f}%{tail}"
     )
 
 
@@ -180,15 +198,43 @@ def _http_post(url: str, *, timeout: float = 5.0, **kwargs: Any) -> bool:
         return False
 
 
-def _dispatch(msg: str) -> None:
+def _post_and_mark(url: str, *, marks: list[tuple[tuple[str, str], int]],
+                   ts: float, **kwargs: Any) -> bool:
+    """POST, and record the dedup ``marks`` ONLY on a confirmed delivery.
+
+    Runs inline (sync mode) or on the daemon thread (async) — either way the
+    dedup state advances solely on a successful POST, so a webhook outage is
+    retried on the next poll instead of being silently swallowed for a whole
+    cooldown. Writes ``_NOTIFIED`` under ``_LOCK`` since the async caller is a
+    separate thread.
+    """
+    ok = _http_post(url, **kwargs)
+    if ok and marks:
+        with _LOCK:
+            for key, strength in marks:
+                _NOTIFIED[key] = (strength, ts)
+    return ok
+
+
+def _dispatch(msg: str, marks: list[tuple[tuple[str, str], int]], ts: float) -> bool:
+    """Deliver ``msg`` and, on success, record ``marks`` in the dedup state.
+
+    Sync mode (RT_SIGNAL_WEBHOOK_SYNC=1): POST inline; returns True iff delivered.
+    Async mode (default): hand the POST to a daemon thread and return True to
+    mean *dispatched* — the thread performs the POST and marks state on success,
+    so a slow endpoint adds zero polling latency while a failure still retries.
+    """
     mode = _env("RT_SIGNAL_WEBHOOK_MODE", "generic")
     url, kwargs = _build_request(mode, msg)
     if not url:
-        return
+        return False
     if _env("RT_SIGNAL_WEBHOOK_SYNC") == "1":
-        _http_post(url, **kwargs)
-    else:
-        threading.Thread(target=_http_post, args=(url,), kwargs=kwargs, daemon=True).start()
+        return _post_and_mark(url, marks=marks, ts=ts, **kwargs)
+    threading.Thread(
+        target=_post_and_mark, args=(url,),
+        kwargs={"marks": marks, "ts": ts, **kwargs}, daemon=True,
+    ).start()
+    return True
 
 
 def notify_fresh_signals(signals: list[Any], *, now: float | None = None) -> list[str]:
@@ -196,8 +242,15 @@ def notify_fresh_signals(signals: list[Any], *, now: float | None = None) -> lis
 
     Deduplicates per (symbol, direction): a still-active signal is re-notified
     only when it upgrades to a stronger level (A2->A1->A0) or after the cooldown.
-    Returns the list of ``"SYMBOL DIRECTION LEVEL"`` keys that were notified
-    (empty when disabled or nothing fresh). Never raises.
+    The dedup state advances only once delivery is confirmed, so a webhook
+    outage retries on the next poll rather than suppressing the signal for a
+    whole cooldown.
+
+    Returns the ``"SYMBOL DIRECTION LEVEL"`` keys that were delivered — in sync
+    mode (``RT_SIGNAL_WEBHOOK_SYNC=1``) that means a confirmed POST; in the
+    default async mode it means *dispatched* to the delivery thread (the return
+    is advisory — the production caller ignores it). Empty when disabled,
+    nothing is fresh, or delivery failed. Never raises.
     """
     if not is_enabled() or not signals:
         return []
@@ -205,21 +258,24 @@ def notify_fresh_signals(signals: list[Any], *, now: float | None = None) -> lis
     levels = _levels()
     cooldown = _cooldown()
 
+    # Select candidates WITHOUT touching _NOTIFIED — the state is advanced only
+    # after _dispatch confirms delivery, so a failed POST re-fires next poll.
     fresh: list[Any] = []
-    for s in signals:
-        lvl = str(getattr(s, "level", "") or "")
-        if lvl not in levels:
-            continue
-        key = (str(getattr(s, "symbol", "")), str(getattr(s, "direction", "")))
-        strength = _STRENGTH.get(lvl, 0)
-        prev = _NOTIFIED.get(key)
-        if prev is None or strength > prev[0] or (ts - prev[1]) >= cooldown:
-            fresh.append(s)
-            _NOTIFIED[key] = (strength, ts)
-
-    # Evict stale dedup entries so the map cannot grow unbounded.
-    for k in [k for k, (_st, t) in _NOTIFIED.items() if ts - t > _STATE_TTL_SECS]:
-        _NOTIFIED.pop(k, None)
+    marks: list[tuple[tuple[str, str], int]] = []
+    with _LOCK:
+        for s in signals:
+            lvl = str(getattr(s, "level", "") or "")
+            if lvl not in levels:
+                continue
+            key = (str(getattr(s, "symbol", "")), str(getattr(s, "direction", "")))
+            strength = _STRENGTH.get(lvl, 0)
+            prev = _NOTIFIED.get(key)
+            if prev is None or strength > prev[0] or (ts - prev[1]) >= cooldown:
+                fresh.append(s)
+                marks.append((key, strength))
+        # Evict stale dedup entries so the map cannot grow unbounded.
+        for k in [k for k, (_st, t) in _NOTIFIED.items() if ts - t > _STATE_TTL_SECS]:
+            _NOTIFIED.pop(k, None)
 
     if not fresh:
         return []
@@ -227,7 +283,10 @@ def notify_fresh_signals(signals: list[Any], *, now: float | None = None) -> lis
     header = f"📈 {len(fresh)} fresh breakout signal{'s' if len(fresh) != 1 else ''}"
     msg = header + "\n" + "\n".join(_fmt_signal(s) for s in fresh)
     try:
-        _dispatch(msg)
-    except Exception:  # dispatch is best-effort
+        delivered = _dispatch(msg, marks, ts)
+    except Exception:  # dispatch is best-effort — never break the poll loop
         logger.debug("rt_notify dispatch failed", exc_info=True)
+        return []
+    if not delivered:
+        return []
     return [f"{getattr(s, 'symbol', '?')} {getattr(s, 'direction', '')} {getattr(s, 'level', '')}" for s in fresh]
