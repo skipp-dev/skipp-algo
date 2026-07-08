@@ -1002,10 +1002,11 @@ def _start_telemetry_server(
                         "signal_count": len(_active),
                         "a0_count": sum(1 for s in _active if s.level == "A0"),
                         "a1_count": sum(1 for s in _active if s.level == "A1"),
+                        "a2_count": sum(1 for s in _active if s.level == "A2"),
                         "status": "cold_start",
                     }
                 if not payload:
-                    payload = {"signals": [], "signal_count": 0, "a0_count": 0, "a1_count": 0, "status": "warming_up"}
+                    payload = {"signals": [], "signal_count": 0, "a0_count": 0, "a1_count": 0, "a2_count": 0, "status": "warming_up"}
                 try:
                     body = _json.dumps(payload, indent=2, allow_nan=False, default=str).encode()
                 except (ValueError, TypeError):
@@ -3038,6 +3039,7 @@ class RealtimeEngine:
             "signal_count": len(_snap),
             "a0_count": sum(1 for s in _snap if s.level == "A0"),
             "a1_count": sum(1 for s in _snap if s.level == "A1"),
+            "a2_count": sum(1 for s in _snap if s.level == "A2"),
             "disabled_reason": disabled_reason,
         }
         try:
@@ -3073,7 +3075,7 @@ class RealtimeEngine:
             If the file is older, a ``stale`` flag is set in the
             returned dict so callers can surface a warning.
         """
-        _empty: dict[str, Any] = {"signals": [], "signal_count": 0, "a0_count": 0, "a1_count": 0}
+        _empty: dict[str, Any] = {"signals": [], "signal_count": 0, "a0_count": 0, "a1_count": 0, "a2_count": 0}
         if not SIGNALS_PATH.exists():
             return _empty
         try:
@@ -3193,6 +3195,17 @@ def main() -> None:
                 "Poll complete — %d active signals (%d A0, %d A1), took %.1fs",
                 len(active), len(a0), len(a1), engine.last_poll_duration,
             )
+
+            # Push a notification the instant a fresh/strengthened breakout
+            # fires — faster than the snapshot -> Grafana path and hands-off.
+            # Opt-in + fail-soft: a no-op unless RT_SIGNAL_WEBHOOK_* is set, and
+            # it never raises (see open_prep/rt_notify.py).
+            try:
+                from open_prep import rt_notify
+
+                rt_notify.notify_fresh_signals(active)
+            except Exception:  # best-effort notifier — must never break polling
+                logger.debug("rt_notify hook failed", exc_info=True)
 
             if a0:
                 for s in a0:

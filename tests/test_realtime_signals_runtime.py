@@ -248,6 +248,37 @@ def test_save_signals_sanitizes_non_finite_values(monkeypatch, tmp_path: Path) -
     assert signals_payload["signals"][0]["details"]["nested"]["x"] is None
 
 
+def test_save_signals_counts_a2_level(monkeypatch, tmp_path: Path) -> None:
+    """The snapshot payload counts A2 (early-warning) alongside A0/A1 so the
+    daemon can expose live_overlay_trading_signals_a2_total (added 2026-07-08)."""
+    monkeypatch.setattr(rs.RealtimeEngine, "_load_watchlist", lambda self: None)
+    monkeypatch.setattr(rs.RealtimeEngine, "_restore_signals_from_disk", lambda self: None)
+    monkeypatch.setattr(rs, "SIGNALS_PATH", tmp_path / "latest_realtime_signals.json")
+    monkeypatch.setattr(rs, "VD_SIGNALS_PATH", tmp_path / "latest_vd_signals.jsonl")
+
+    def _sig(symbol: str, level: str) -> rs.RealtimeSignal:
+        return rs.RealtimeSignal(
+            symbol=symbol, level=level, direction="LONG", pattern="BREAKOUT",
+            price=100.0, prev_close=99.0, change_pct=1.0, volume_ratio=2.0,
+            score=5.0, confidence_tier="HIGH_CONVICTION", atr_pct=0.5,
+            freshness=1.0, fired_at="2026-01-01T00:00:00+00:00", fired_epoch=1.0,
+            details={},
+        )
+
+    engine = rs.RealtimeEngine(fmp_client=None)
+    engine._watchlist = []
+    engine._vd_rows = {}
+    engine._active_signals = [_sig("AAA", "A0"), _sig("BBB", "A1"), _sig("CCC", "A2"), _sig("DDD", "A2")]
+
+    engine._save_signals()
+
+    payload = json.loads(rs.SIGNALS_PATH.read_text(encoding="utf-8"))
+    assert payload["signal_count"] == 4
+    assert payload["a0_count"] == 1
+    assert payload["a1_count"] == 1
+    assert payload["a2_count"] == 2
+
+
 def test_telemetry_server_is_threaded(monkeypatch, tmp_path: Path) -> None:
     """Regression: the telemetry endpoint must serve requests concurrently.
 

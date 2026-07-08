@@ -128,9 +128,9 @@ _FROZEN_SITES: frozenset[tuple[str, int]] = frozenset(
         # shifted +20/+20/+72/+80/+80 lines by readiness metrics.
         ("open_prep/realtime_signals.py", 305),
         ("open_prep/realtime_signals.py", 380),
-        ("open_prep/realtime_signals.py", 2045),  # 2026-07-08 H3 shifted (+24)
-        ("open_prep/realtime_signals.py", 3221),  # 2026-07-08 H3 shifted (+24)
-        ("open_prep/realtime_signals.py", 3208),  # 2026-07-08 H3 shifted (+24)
+        ("open_prep/realtime_signals.py", 2046),  # 2026-07-08 H3 (+24) + a2_count (+1)
+        ("open_prep/realtime_signals.py", 3234),  # 2026-07-08 H3 (+24) + a2_count + rt_notify hook
+        ("open_prep/realtime_signals.py", 3221),  # 2026-07-08 H3 (+24) + a2_count + rt_notify hook
         # 2026-06-11 (eval-findings D7): technical_analysis import block
         # +8 lines (1943→1951, 1945→1953).
         # 2026-07-04 (market-microstructure observe-only): module import

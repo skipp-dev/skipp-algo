@@ -592,6 +592,28 @@ def test_alert_rules_include_daemon_restarts_high() -> None:
     assert rule["labels"]["severity"] == "high"
 
 
+def test_alert_rules_include_fresh_a1_only() -> None:
+    """Fresh-A1 alert on the per-signal freshness gauge (added 2026-07-08).
+    Fresh signals are transient, so `for` must be 0m and noDataState OK (absent
+    when no signal is fresh -> must not fire).
+
+    Operator decision 2026-07-08: there is NO fresh-A2 alert — A2 is the loosest
+    early-warning tier and stays a dashboard/push signal, not a pager."""
+    groups = mod.load_alert_groups(ALERT_RULES)
+    rules = {r["uid"]: r for g in groups for r in g["rules"]}
+
+    a1 = rules["lo-signal-fresh-a1"]
+    expr1 = a1["data"][0]["model"]["expr"]
+    assert 'live_overlay_trading_signal_freshness{job="live_overlay", level="A1"}' in expr1
+    assert "> 0.9" in expr1 and expr1.startswith("count(")
+    assert a1["for"] == "0m"
+    assert a1["noDataState"] == "OK"
+    assert a1["labels"]["severity"] == "high"
+
+    # A2 must NOT be an alert rule (early-warning tier stays non-paging).
+    assert "lo-signal-fresh-a2" not in rules
+
+
 def test_alert_rules_include_staleness_and_supervisor_heal_rules() -> None:
     """The 2026-07-07 audit additions: signals/experiment staleness and the
     recurring-supervisor-heal alert must exist and reference their metrics."""
