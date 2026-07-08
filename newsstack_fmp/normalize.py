@@ -54,8 +54,8 @@ def _to_epoch(s: str, *, naive_tz: Any = UTC) -> float:
     the caller can detect 'no timestamp available' and avoid advancing
     cursors past real item timestamps.
 
-    Naive datetimes (no timezone info) are assumed UTC to guarantee
-    deterministic results regardless of server timezone.
+    Naive datetimes (no timezone info) are localized to ``naive_tz`` (default UTC;
+    the FMP/Benzinga normalizers pass ``naive_tz=_ET``) for deterministic results.
     """
     if not s:
         return 0.0

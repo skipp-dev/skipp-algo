@@ -1,7 +1,7 @@
 """Push notifications for high-score terminal entries.
 
-Dispatches alerts to Telegram, Discord, and/or Pushover when a symbol
-with ``news_score >= threshold`` enters the rankings during market hours.
+Dispatches alerts to Telegram, Discord, and/or Pushover during market hours when
+``effective_posture_score(item) >= threshold`` AND ``effective_posture_actionable`` AND ``effective_attention_dispatchable`` all hold (gates on posture/attention state, NOT on ``news_score`` — corrected 2026-07-08).
 
 Configuration is read from environment variables:
 
@@ -511,7 +511,7 @@ def notify_high_score_items(
 
         if config.pushover_app_token and config.pushover_user_key:
             title = f"📡 {ticker} — Score {score:.2f}"
-            body = _format_message(item).replace("*", "")  # Pushover uses HTML, strip markdown
+            body = _format_message(item).replace("*", "")  # only strips '*' bold markers; '_…_' italics and '[Article](url)' markdown survive, and no html param is sent to Pushover
             article_url = item.get("url", "")
             ok = _send_pushover(
                 config.pushover_app_token,

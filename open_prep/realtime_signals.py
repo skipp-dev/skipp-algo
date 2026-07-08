@@ -1,12 +1,12 @@
-"""Realtime signal engine — FMP-polling breakout detector with A0/A1 alerting.
+"""Realtime signal engine — FMP-polling breakout detector with A0/A1/A2 alerting.
 
 Monitors top-N ranked candidates from the latest open_prep run, polls FMP
-at a configurable interval (default 45 s), and detects breakout signals.
+at a configurable interval (default 20 s), and detects breakout signals.
 
 Signal Levels
 -------------
   A0 — Immediate action: strong breakout confirmed with volume.
-  A1 — Watch closely: early breakout pattern forming, pre-confirmation.
+  A1 — Watch closely: early breakout forming.  A2 — Early warning, pre-A1.
 
 VisiData Integration
 --------------------
@@ -78,7 +78,7 @@ _LEGACY_RUN_PATH = Path(__file__).resolve().parent / "latest_open_prep_run.json"
 DEFAULT_POLL_INTERVAL = 20  # seconds (was 45 — faster detection)
 DEFAULT_TOP_N = 0  # 0 = monitor ALL symbols from pipeline (900+)
 
-# FMP batch-quote chunking: max symbols per request to avoid URL length limits
+# FMP batch-quote chunking: batching only — get_batch_quotes issues ONE request per symbol since the /stable migration, so there is no URL-length effect (corrected 2026-07-08)
 _BATCH_QUOTE_CHUNK_SIZE = 500
 
 # Signal level thresholds
@@ -98,8 +98,8 @@ A1_MAX_AGE_SECONDS = 300         # A1 → A2 after 5 min (was 10)
 VELOCITY_LOOKBACK = 5            # polls to look back for price velocity
 STALE_VELOCITY_PCT = 0.05        # <0.05% change over lookback = flat/stale
 
-# Multi-rail safety: minimum time between A0 signals per symbol (#7)
-A0_COOLDOWN_SECONDS = 600  # 10 minutes between A0 signals per symbol
+# Multi-rail safety (#7) — UNUSED as of 2026-07-08: nothing reads this constant;
+A0_COOLDOWN_SECONDS = 600  # the real per-symbol cooldown is DynamicCooldown (base 60/20/10 s, max 300/180 s)
 
 # Holiday/volume-regime: fraction of thin symbols triggering auto-detection (#9)
 THIN_VOLUME_FRACTION_SUSPEND = 0.80  # ≥80% thin → suspend all signals
@@ -613,11 +613,11 @@ def _run_poll_once_in_thread(
 def _expected_cumulative_volume_fraction() -> float:
     """Expected fraction of daily volume at current time of day.
 
-    Uses a front-loaded intraday model (volume "U-shape"):
-      - First 30 min (9:30-10:00): ~25% of daily volume
-      - 10:00-11:00: ~15% more (40% cumulative)
-      - 11:00-15:30: ~45% spread roughly evenly
-      - 15:30-16:00: ~15% closing surge
+    Uses a front-loaded intraday model (corrected 2026-07-08 — NOT a
+    U-shape, and there is no closing-surge step):
+      - First 30 min (9:30-10:00): 0 → 25% of daily volume (linear)
+      - 10:00-11:00 (elapsed 30-90 min): 25% → 40% (linear)
+      - 11:00-16:00 (elapsed 90-390 min): 40% → 100% single linear ramp
 
     Returns a value in [0.02, 1.0].  Used to normalize raw volume_ratio
     so that early-morning breakouts are detectable BEFORE cumulative
@@ -1657,7 +1657,7 @@ def _noop_fetch(symbol: str, interval: str = "1D") -> None:
 class RealtimeSignal:
     """A single realtime breakout signal."""
     symbol: str
-    level: str                        # "A0" or "A1"
+    level: str                        # "A0", "A1", or "A2"
     direction: str                    # "LONG", "SHORT", "B_UP", "B_DOWN"
     pattern: str                      # from detect_breakout
     price: float
@@ -1670,8 +1670,8 @@ class RealtimeSignal:
     freshness: float                  # 0..1 (signal strength decay)
     fired_at: str                     # ISO timestamp
     fired_epoch: float                # unix timestamp for sorting/expiry
-    level_since_at: str = ""          # ISO timestamp for current A0/A1 level start
-    level_since_epoch: float = 0.0    # unix timestamp for current A0/A1 level start
+    level_since_at: str = ""          # ISO timestamp for current A0/A1/A2 level start
+    level_since_epoch: float = 0.0    # unix timestamp for current A0/A1/A2 level start
     details: dict[str, Any] = field(default_factory=dict)
     symbol_regime: str = "NEUTRAL"
     # ── News catalyst enrichment (from newsstack_fmp) ──
@@ -2081,8 +2081,8 @@ class RealtimeEngine:
     def _fetch_realtime_quotes(self) -> dict[str, dict[str, Any]]:
         """Fetch current quotes for all watched symbols via FMP batch quote.
 
-        For large watchlists (900+ symbols), requests are chunked into
-        batches of ``_BATCH_QUOTE_CHUNK_SIZE`` to avoid URL-length limits.
+        For large watchlists (900+ symbols), symbols are processed in batches of
+        ``_BATCH_QUOTE_CHUNK_SIZE`` — loop batching only, no URL-length effect (get_batch_quotes issues one request per symbol since the /stable migration).
         """
         if self._client_disabled_reason:
             return {}
@@ -2601,7 +2601,7 @@ class RealtimeEngine:
                     signal.news_category = str(ns_data.get("category", ""))
                     signal.news_headline = str(ns_data.get("headline", ""))[:200]
                     signal.news_warn_flags = list(ns_data.get("warn_flags") or [])
-                    # Upgrade A1 → A0 if news catalyst is strong AND
+                    # Upgrade A1/A2 → A0 if news catalyst is strong AND
                     # the dynamic cooldown is not active for this symbol.
                     if signal.level in ("A1", "A2") and signal.news_score >= 0.80:
                         _vol_regime_ns = self._volume_regime.regime if hasattr(self._volume_regime, "regime") else "NORMAL"
@@ -3103,7 +3103,7 @@ def main() -> None:
     parser.add_argument("--reload-interval", type=int, default=300, help="Seconds between watchlist reloads")
     parser.add_argument(
         "--fast", action="store_true",
-        help="Enable fast/VisiData mode: 5s min poll interval, 30s base cooldown",
+        help="Enable fast/VisiData mode: 5s min poll interval, 20s base cooldown",
     )
     parser.add_argument(
         "--ultra", action="store_true",

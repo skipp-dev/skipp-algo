@@ -54,8 +54,8 @@ _CACHE_TTL = 180          # 3 min per symbol
 _CACHE_MAX_SIZE = 300     # max cached symbol results
 
 # Health monitoring
-_HEALTH_WINDOW = 600      # 10 min window
-_HEALTH_FAIL_THRESHOLD = 3  # consecutive failures before "degraded"
+_HEALTH_WINDOW = 600      # UNUSED — no time window is implemented; health uses consecutive_failures only (kept, marked 2026-07-08)
+_HEALTH_FAIL_THRESHOLD = 3  # consecutive failures at which status flips to "down"; "degraded" already starts at 1 failure
 _REQUEST_TIMEOUT = 8      # seconds
 
 # Rate control — avoid hammering the endpoint
@@ -64,7 +64,7 @@ _MIN_REQUEST_INTERVAL = 1.0  # seconds between HTTP requests
 # ── Exchange prefix mapping for symbol normalization ─────────────
 
 # TradingView uses EXCHANGE:TICKER format. We map common US tickers
-# to their exchange prefix.  For unknown exchanges we try NASDAQ first.
+# to their exchange prefix.  Unknown exchanges default to NASDAQ (single guess — no second attempt).
 _EXCHANGE_PREFIXES = {
     "AAPL": "NASDAQ", "MSFT": "NASDAQ", "GOOG": "NASDAQ", "GOOGL": "NASDAQ",
     "AMZN": "NASDAQ", "META": "NASDAQ", "NVDA": "NASDAQ", "TSLA": "NASDAQ",
@@ -365,7 +365,7 @@ def health_status() -> dict[str, Any]:
             "last_error": _health.last_error,
             "total_requests": _health.total_requests,
             "total_failures": _health.total_failures,
-            "uptime_pct": (
+            "uptime_pct": (  # request success rate since process start — no time component, not true uptime
                 round(100 * (1 - _health.total_failures / max(1, _health.total_requests)), 1)
             ),
         }

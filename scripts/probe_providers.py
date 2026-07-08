@@ -7,9 +7,9 @@ Usage:
     PYTHONPATH=. python scripts/probe_providers.py --json         # machine-readable
     PYTHONPATH=. python scripts/probe_providers.py --preflight --notify
 
-Exit codes:
-    0 = all probed providers OK (or only OPTIONAL ones degraded)
-    1 = at least one CRITICAL provider FAIL/SKIP/WARN
+Exit codes (corrected 2026-07-08 — the two modes differ):
+    --preflight: 0 = all CRITICAL providers OK; 1 = at least one CRITICAL provider FAIL/SKIP/WARN.
+    default:     0 = no probe reported FAIL (SKIP/WARN never fail, even on CRITICAL providers); 1 = at least one probe FAILed (critical or not)
 
 Each row reports: PROVIDER | STATUS | LATENCY | DETAIL
 Probes are tagged ``critical=True`` for surfaces actually consumed by the

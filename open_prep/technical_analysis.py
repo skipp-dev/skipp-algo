@@ -136,7 +136,7 @@ def compute_risk_penalty(
 def classify_instrument(price: float, atr_pct: float) -> str:
     """Classify a stock into penny / small_cap / mid_cap / large_cap.
 
-    Uses price and ATR-% (ATR / price * 100) as dual criteria.
+    Uses price and ATR-% (ATR / price * 100) as dual criteria. Note: despite the ``*_cap`` label names, NO market-capitalization data is used — the labels are price/volatility proxies only.
     """
     if price < 5.0 or atr_pct > 8.0:
         return "penny"
@@ -161,9 +161,9 @@ def compute_adaptive_gates(
 ) -> dict[str, float]:
     """Compute adaptive gate thresholds from VIX and instrument class.
 
-    • High VIX (>30)  → relax gates by 15 % (more opportunities)
-    • Low VIX  (<15)  → tighten gates by 15 % (demand stronger signals)
-    • Instrument class → ATR-ratio threshold varies
+    • High VIX (>30)  → relax score/trend gates by 15 % (more opportunities)
+    • Low VIX  (<15)  → tighten score/trend gates by 15 % (the VIX multiplier is NOT applied to the ATR threshold — corrected 2026-07-08)
+    • Instrument class → ATR-ratio threshold from ``atr_table``; ``base_atr_ratio_min`` is only a fallback for unknown classes
     """
     # VIX multiplier
     if vix_level > 30:
@@ -350,10 +350,10 @@ def detect_consolidation(
 ) -> dict[str, Any]:
     """Detect consolidation (tight range before potential breakout).
 
-    Uses three signals:
+    ``is_consolidating`` is decided by TWO signals only (corrected 2026-07-08):
       1. Bollinger-Band squeeze  — ``bb_width_pct < threshold``
       2. Weak ADX               — ``adx < 20``
-      3. ATR contraction         — ``atr_ratio < 1.5``
+    ATR contraction (``atr_ratio < 1.5``) does NOT gate ``is_consolidating``; it only feeds the composite ``score`` — and production call sites don't pass ``atr_ratio``, so the ATR sub-score is always the neutral 0.5.
 
     Returns::
 
@@ -568,7 +568,7 @@ def validate_data_quality(candidate: dict[str, Any]) -> DataQualityResult:
 
     1. **zero_volume**  — volume == 0 ⇒ no trading activity
     2. **rsi_extreme**  — RSI ≤ 0.1 or ≥ 99.9 ⇒ bad data / illiquid
-    3. **oversold_1.0_low_volume** — perfect oversold + thin volume = suspicious
+    3. **extreme_momentum_low_volume** — ``momentum_z <= -4.5`` and ``rel_vol < 0.3`` = suspicious (no RSI/oversold criterion — corrected 2026-07-08)
     4. **avg_volume_zero** — missing average-volume baseline
     5. **atr_missing** — ATR ≤ 0 ⇒ insufficient history
     6. **price_zero** — no valid price
@@ -1025,7 +1025,7 @@ def compute_entry_probability(
     float
         Probability in [0.0, 1.0].
     """
-    # Normalise score to roughly [0, 1] via a soft clamp
+    # Normalise score to [-1, 1] via a soft clamp (negative scores stay negative)
     score_norm = max(min(score / 5.0, 1.0), -1.0)
 
     # Momentum signal: tanh compression keeps it in [-1, 1]

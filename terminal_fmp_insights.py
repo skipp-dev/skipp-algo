@@ -1,7 +1,7 @@
 """FMP AI Insights engine — LLM analysis enriched with FMP financial data.
 
 Mirrors the OpenAI-only ``terminal_ai_insights`` module but fetches
-real-time quotes, company profiles, and key ratios from FMP's REST API
+real-time quotes and company profiles from FMP's REST API
 before sending the enriched context to the LLM.  This allows side-by-side
 comparison of AI analysis with vs. without institutional-grade financial
 data from Financial Modeling Prep.
@@ -161,9 +161,9 @@ def assemble_fmp_data(
     api_key: str,
     tickers: list[str],
 ) -> dict[str, Any]:
-    """Fetch quotes, profiles, and ratios for *tickers* and return merged dict.
+    """Fetch quotes and profiles for *tickers* and return merged dict.
 
-    Returns a dict keyed by ticker, each containing combined financial data.
+    Returns a dict keyed by ticker with ``quote`` + ``profile`` data only. ``fetch_fmp_ratios`` exists but is currently unwired — key ratios never reach the LLM context.
     """
     if not api_key or not tickers:
         return {}

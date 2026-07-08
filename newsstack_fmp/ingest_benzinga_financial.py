@@ -72,8 +72,8 @@ OWNERSHIP_URL = "https://api.benzinga.com/api/v2.1/ownership"
 class BenzingaFinancialAdapter:
     """Synchronous adapter for Benzinga Financial Data API endpoints.
 
-    Covers fundamentals, financials, ratios, company profiles,
-    price history, instruments, options activity, and more.
+    Covers fundamentals, financials, ratios, company profiles, price history,
+    instruments, and more (options-activity endpoint retired — no method here).
     """
 
     def __init__(self, api_key: str) -> None:

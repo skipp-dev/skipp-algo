@@ -1,6 +1,9 @@
 //@version=6
 // @description SMC Live Overlay Consumer — fetches live overlay data from the
-// Railway daemon and exposes all 16 fields as readable inputs/labels.
+// Railway daemon and parses/displays 15 data fields plus the stale status via
+// plot() series and a table (corrected 2026-07-08: the schema defines 19 data
+// fields; next_event_time, event_provider_status and asof_ts are not
+// displayed, and the only input is the token — no per-field inputs/labels).
 // Replace DAEMON_URL and TOKEN with your actual values before publishing.
 //
 // Security: the TOKEN is embedded in the URL. Keep this script invite-only
