@@ -46,13 +46,25 @@ export safe_log(float p) =>
     math.log(math.max(PROB_EPS(), p))
 
 // --------------------------------------------------
-// Percentile / rank
+// Range position (min-max normalisation)
 // --------------------------------------------------
 
-export pct_rank(series float x, simple int len) =>
+// @function Position of x inside its [lowest, highest] band over `len`
+//           bars, in [0, 1] (stochastic-%K style min-max normalisation).
+//           NOT a percentile rank: a single outlier high/low rescales
+//           every value; for skewed distributions this diverges strongly
+//           from ta.percentrank semantics.
+export range_position(series float x, simple int len) =>
     float lo = ta.lowest(x, len)
     float hi = ta.highest(x, len)
     hi == lo ? 0.5 : (x - lo) / (hi - lo)
+
+// @function DEPRECATED misnomer (2026-07-08): despite the name this is
+//           min-max range position, not a percentile rank — see
+//           range_position (identical behavior). Kept so existing
+//           importers keep compiling; new code must call range_position.
+export pct_rank(series float x, simple int len) =>
+    range_position(x, len)
 
 // --------------------------------------------------
 // Statistics

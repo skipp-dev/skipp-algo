@@ -103,7 +103,7 @@
       "type": ["boolean", "null"]
     },
     "event_provider_status": {
-      "description": "Event-risk. Health of the event-calendar/news provider (ok/no_data/calendar_missing/news_missing). Absent (or null) when not served fresh.",
+      "description": "Event-risk. Health of the event-calendar/news provider (ok/no_data/calendar_missing/news_missing; until the Phase-2 event wiring lands the producer sends the placeholder 'unavailable' — see compute._event_fields_for). Absent (or null) when not served fresh.",
       "type": ["string", "null"]
     }
   }

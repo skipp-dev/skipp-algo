@@ -1,9 +1,11 @@
 //@version=6
-// @description SMC Live Overlay Consumer — fetches live overlay data from the
-// Railway daemon and parses/displays 15 data fields plus the stale status via
-// plot() series and a table (corrected 2026-07-08: the schema defines 19 data
-// fields; next_event_time, event_provider_status and asof_ts are not
-// displayed, and the only input is the token — no per-field inputs/labels).
+// @description SMC Live Overlay Consumer — fetches the live overlay payload from
+// the Railway daemon, exposes the numeric/bool fields as importable plot() series
+// and renders a dashboard table (15 data fields + status/provider-health/data-age
+// + symbol/tf). The schema defines 19 data fields; next_event_time is not shown
+// yet — the producer sends a Phase-2 placeholder (always null). Staleness =
+// HTTP != 200 OR server-side "stale":true OR client-side age check (asof_ts
+// older than MAX_AGE_SEC, per the schema contract; wired 2026-07-08).
 // Replace DAEMON_URL and TOKEN with your actual values before publishing.
 //
 // Security: the TOKEN is embedded in the URL. Keep this script invite-only
@@ -16,6 +18,8 @@ indicator("SMC Live Overlay", overlay=false, max_labels_count=1)
 // ---------------------------------------------------------------------------
 var string DAEMON_URL = "https://liveoverlaydaemon-production.up.railway.app"
 var string TOKEN       = input.string("REPLACE_WITH_YOUR_TOKEN", title="Overlay Token", tooltip="OVERLAY_SECRET_TOKEN from Railway")
+// Deliberately NOT `var` (keeps the pinned var/varip budget untouched).
+MAX_AGE_SEC = input.int(900, title="Max Payload Age (sec)", minval=60, tooltip="Client-side freshness guard: payloads whose asof_ts is older than this render as STALE even when the daemon still answers 200 (frozen daemon / cached proxy).")
 
 // ---------------------------------------------------------------------------
 // Fetch overlay payload (once per bar close)
@@ -38,8 +42,18 @@ _url = DAEMON_URL + "/" + TOKEN + "/smc_live?symbol=" + _sym + "&tf=" + _tf
 // Parse JSON fields — parse once per bar, reuse for all field accesses
 // ---------------------------------------------------------------------------
 _ok                  = _resp_status == 200
-_stale               = not _ok or str.contains(_resp_body, "\"stale\":true")
-_parsed              = _stale ? na : json.parse(_resp_body)
+_server_stale        = not _ok or str.contains(_resp_body, "\"stale\":true")
+// Client-side age check (schema contract on asof_ts): a frozen daemon or a
+// caching proxy can keep answering 200 with an old body — the server-side
+// stale flag alone cannot catch that. Parse on any 200 body (valid JSON even
+// when server-stale); fail open when asof_ts is absent.
+_parsed0             = _ok ? json.parse(_resp_body) : na
+_asof_ts             = _ok ? nz(json.get(_parsed0, "asof_ts"), 0) : 0
+_age_sec             = _asof_ts > 0 ? math.max(0.0, timenow / 1000.0 - _asof_ts) : na
+_age_stale           = not na(_age_sec) and _age_sec > MAX_AGE_SEC
+_stale               = _server_stale or _age_stale
+_parsed              = _stale ? na : _parsed0
+_prov_status         = _ok ? str.tostring(json.get(_parsed0, "event_provider_status")) : "n/a"
 _news_strength       = _stale ? na : math.round(nz(json.get(_parsed, "news_strength"), 0), 4)
 _news_bias           = _stale ? "n/a" : str.tostring(json.get(_parsed, "news_bias"))
 _flow_rel_vol        = _stale ? na : math.round(nz(json.get(_parsed, "flow_rel_vol"), 0), 3)
@@ -76,7 +90,7 @@ plot(_sym_blocked ? 1.0 : 0.0, title="symbol_event_blocked", display=display.non
 // ---------------------------------------------------------------------------
 var bool SHOW_TABLE = input.bool(true, title="Show Dashboard Table")
 
-var table _tbl = table.new(position.top_right, 2, 18,
+var table _tbl = table.new(position.top_right, 2, 20,
     border_width=1, border_color=color.new(color.gray, 60),
     bgcolor=color.new(color.black, 75))
 
@@ -125,3 +139,10 @@ if SHOW_TABLE and barstate.islast
     table.cell(_tbl, 1, 16, _sym_blocked ? "BLOCKED" : "clear", text_color=_sym_blocked ? color.red : color.gray, text_size=size.small)
     table.cell(_tbl, 0, 17, "symbol",         text_color=color.gray,  text_size=size.small)
     table.cell(_tbl, 1, 17, _sym + " / " + _tf, text_color=color.white, text_size=size.small)
+    // Provider health + payload age (added 2026-07-08): "unavailable" is the
+    // honest Phase-2 placeholder — it tells the operator the event provider
+    // is not wired yet, not that something broke.
+    table.cell(_tbl, 0, 18, "event_provider", text_color=color.gray,  text_size=size.small)
+    table.cell(_tbl, 1, 18, _prov_status,     text_color=_prov_status == "ok" ? color.green : color.orange, text_size=size.small)
+    table.cell(_tbl, 0, 19, "data_age",       text_color=color.gray,  text_size=size.small)
+    table.cell(_tbl, 1, 19, na(_age_sec) ? "n/a" : str.tostring(math.round(_age_sec)) + "s", text_color=_age_stale ? color.red : color.white, text_size=size.small)
