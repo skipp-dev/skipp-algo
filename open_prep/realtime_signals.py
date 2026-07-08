@@ -606,6 +606,168 @@ def _run_poll_once_in_thread(
     if error is not None:
         raise error
     return result
+
+
+class NearA0Repoller:
+    """Opt-in background thread that re-polls the *near-A0 warm set* faster than
+    the full ~30 s cycle, so an A1/A2 escalating to A0 reaches Slack in seconds
+    instead of up to a full cycle late.
+
+    Default-off (``RT_NEAR_A0_REPOLL_SECS=0``). Design for safety on a live
+    producer:
+
+    * **Read-only** w.r.t. the engine's mutable state — it reuses the engine's
+      own ``_detect_signal`` (so a fast A0 is the *same* verdict the full poll
+      would reach, never a divergent replica) and only reads ``_watchlist`` /
+      ``_volume_regime`` / active signals.
+    * **Own FMP client** — the main poll thread's client (with its circuit
+      breaker / usage counters) is never shared across threads.
+    * **rt_notify dedup** — fresh A0s are pushed through the same per-(symbol,
+      direction) dedup as the full poll, so the next full cycle never
+      double-sends.
+
+    Scope: this accelerates the *escalation* path only (A1/A2 → A0). A de-novo
+    A0 on a symbol that was quiet last cycle is still first seen by the full
+    poll — nothing short of polling everything faster can change that.
+    """
+
+    def __init__(self, engine: Any, interval: float, *, client_factory: Any = None) -> None:
+        import threading
+        self._engine = engine
+        self._interval = max(float(interval), 2.0)
+        self._client_factory = client_factory  # injectable for tests
+        self._client: Any = None
+        self._thread: threading.Thread | None = None
+        self._stop = threading.Event()
+        self._lock = threading.Lock()
+        self.poll_count = 0
+        self.poll_errors = 0
+        self.a0_pushed = 0
+        self.last_warm_set_size = 0
+        self.last_success_at: float | None = None
+        self.last_error_msg: str | None = None
+
+    def start(self) -> None:
+        import threading
+        if self._thread is not None and self._thread.is_alive():
+            return
+        self._stop.clear()
+        self._thread = threading.Thread(target=self._loop, daemon=True, name="near-a0-repoll")
+        self._thread.start()
+        logger.info("Near-A0 re-poller started (interval=%.0fs)", self._interval)
+
+    def stop(self, timeout: float = 5.0) -> None:
+        self._stop.set()
+        if self._thread is not None:
+            self._thread.join(timeout=timeout)
+
+    def metrics(self) -> dict[str, Any]:
+        with self._lock:
+            return {
+                "poll_count": self.poll_count,
+                "poll_errors": self.poll_errors,
+                "a0_pushed": self.a0_pushed,
+                "last_warm_set_size": self.last_warm_set_size,
+                "last_success_at": self.last_success_at,
+                "last_error_msg": self.last_error_msg,
+            }
+
+    def _client_or_init(self) -> Any:
+        if self._client is None:
+            if self._client_factory is not None:
+                self._client = self._client_factory()
+            else:
+                from open_prep.macro import FMPClient
+                self._client = FMPClient.from_env()
+        return self._client
+
+    def _warm_set(self) -> list[str]:
+        """Current A1/A2 symbols — the ones one step below A0."""
+        active = self._engine.get_active_signals()  # errors bubble to _loop's guard
+        seen: set[str] = set()
+        out: list[str] = []
+        for s in active:
+            if str(getattr(s, "level", "")) in ("A1", "A2"):
+                sym = str(getattr(s, "symbol", "")).strip().upper()
+                if sym and sym not in seen:
+                    seen.add(sym)
+                    out.append(sym)
+        return out
+
+    def _fetch(self, client: Any, symbols: list[str]) -> dict[str, dict[str, Any]]:
+        quotes: dict[str, dict[str, Any]] = {}
+        raw = client.get_batch_quotes(symbols)  # warm set is small: one batch
+        for q in raw or []:
+            sym = str(q.get("symbol", "")).strip().upper()
+            if sym:
+                quotes[sym] = q
+        return quotes
+
+    def _detect_fresh_a0(self, quotes: dict[str, dict[str, Any]]) -> list[Any]:
+        eng = self._engine
+        thresholds = eng._volume_regime.adjusted_thresholds()
+        wl_map = {
+            str(r.get("symbol", "")).strip().upper(): r
+            for r in eng._watchlist if r.get("symbol")
+        }
+        news: dict[str, dict[str, Any]] = {}
+        if getattr(eng, "_async_newsstack", None) is not None:
+            news = eng._async_newsstack.latest()
+        fresh: list[Any] = []
+        for sym, quote in quotes.items():
+            try:
+                sig = eng._detect_signal(
+                    sym, quote, wl_map.get(sym, {}),
+                    regime_thresholds=thresholds,
+                    expected_volume_fraction=quote.get("expected_volume_fraction"),
+                )
+            except Exception:
+                continue  # one bad symbol must not sink the batch (bubble via _loop otherwise)
+            if sig is not None and getattr(sig, "level", "") == "A0":
+                nd = news.get(sym)
+                if nd:  # cheap news enrich so the early push still carries 📰
+                    sig.news_score = _safe_float(nd.get("news_score", 0))
+                    sig.news_category = str(nd.get("category", ""))
+                    sig.news_headline = str(nd.get("headline", ""))[:200]
+                fresh.append(sig)
+        return fresh
+
+    def _push(self, fresh: list[Any]) -> None:
+        from open_prep import rt_notify
+        pushed = rt_notify.notify_fresh_signals(fresh)
+        with self._lock:
+            self.a0_pushed += len(pushed)
+
+    def _tick(self) -> None:
+        if not _is_within_market_hours():
+            return  # no orders resting off-hours; skip the FMP call entirely
+        warm = self._warm_set()
+        with self._lock:
+            self.last_warm_set_size = len(warm)
+        if not warm:
+            return
+        quotes = self._fetch(self._client_or_init(), warm)
+        if not quotes:
+            return
+        fresh = self._detect_fresh_a0(quotes)
+        if fresh:
+            self._push(fresh)
+        with self._lock:
+            self.poll_count += 1
+            self.last_success_at = time.time()
+
+    def _loop(self) -> None:
+        while not self._stop.is_set():
+            try:
+                self._tick()
+            except Exception as exc:  # fail-soft — never let the fast lane die
+                with self._lock:
+                    self.poll_errors += 1
+                    self.last_error_msg = str(exc)
+                logger.debug("Near-A0 re-poll error: %s", exc)
+            self._stop.wait(self._interval)
+
+
 # ---------------------------------------------------------------------------
 # Market-hours gate
 # ---------------------------------------------------------------------------
@@ -1773,6 +1935,8 @@ class RealtimeEngine:
 
         # Async newsstack poller (started explicitly via start_async_newsstack)
         self._async_newsstack: AsyncNewsstackPoller | None = None
+        # Opt-in near-A0 fast-lane re-poller (started via start_near_a0_repoller)
+        self._near_a0_repoller: NearA0Repoller | None = None
 
         # VisiData snapshot: latest per-symbol row data
         self._vd_rows: dict[str, dict[str, Any]] = {}
@@ -2099,6 +2263,11 @@ class RealtimeEngine:
         """Start the background newsstack poller (call once at startup)."""
         self._async_newsstack = AsyncNewsstackPoller(poll_interval=poll_interval)
         self._async_newsstack.start()
+
+    def start_near_a0_repoller(self, interval: float) -> None:
+        """Start the opt-in near-A0 fast-lane re-poller (call once at startup)."""
+        self._near_a0_repoller = NearA0Repoller(self, interval)
+        self._near_a0_repoller.start()
 
     # ------------------------------------------------------------------
     # Fetch current quotes for watched symbols
@@ -3169,6 +3338,14 @@ def main() -> None:
         engine.start_async_newsstack(poll_interval=ns_interval)
         logger.info("Async newsstack started (interval=%ds)", ns_interval)
 
+    # Opt-in near-A0 fast lane: re-poll A1/A2 symbols every N seconds so an
+    # escalation to A0 pushes to Slack in seconds, not a full ~30s cycle late.
+    # Default 0 = off (no extra thread, no extra FMP calls).
+    near_a0_secs = _env_int("RT_NEAR_A0_REPOLL_SECS", 0)
+    if near_a0_secs > 0:
+        engine.start_near_a0_repoller(float(near_a0_secs))
+        logger.info("Near-A0 re-poller started (interval=%ds)", near_a0_secs)
+
     mode_label = "ULTRA" if args.ultra else ("FAST/VisiData" if args.fast else "standard")
     top_label = str(args.top_n) if args.top_n > 0 else "ALL"
     logger.info(
@@ -3225,6 +3402,9 @@ def main() -> None:
             # Stop async newsstack thread gracefully
             if engine._async_newsstack is not None:
                 engine._async_newsstack.stop()
+            # Stop the near-A0 fast-lane re-poller gracefully
+            if engine._near_a0_repoller is not None:
+                engine._near_a0_repoller.stop()
             # Shutdown telemetry HTTP server
             if telemetry_server is not None:
                 telemetry_server.shutdown()
