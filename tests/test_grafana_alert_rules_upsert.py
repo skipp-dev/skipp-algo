@@ -583,7 +583,12 @@ def test_alert_rules_include_daemon_restarts_high() -> None:
     # alert could never fire (fixed 2026-07-07).
     assert "changes(live_overlay_process_start_time_seconds" in expr
     assert "live_overlay_daemon_restarts_total" not in expr
-    assert "[24h]" in expr
+    # 15m, not 24h: a deploy also jumps start_time, and a busy day ships ~15
+    # daemon deploys — a 24h window read that as a crash loop and false-fired
+    # high for hours (2026-07-08). A real crash loop restarts many times within
+    # minutes, so a short window separates it from deploys spread over the day.
+    assert "[15m]" in expr
+    assert "[24h]" not in expr
     assert rule["labels"]["severity"] == "high"
 
 

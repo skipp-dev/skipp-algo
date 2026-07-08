@@ -1258,7 +1258,7 @@ groups:
       runbook: Ingest processor is falling behind. Check CPU, queue depth and dropped
         bars.
   - uid: lo-daemon-restarts-high
-    title: Daemon restarts high (24h)
+    title: Daemon restarts high (15m crash-loop)
     condition: C
     data:
     - refId: A
@@ -1270,7 +1270,12 @@ groups:
         # Prometheus sees 1,1,1,... across restarts (no reset detectable), so
         # increase() was always 0 and this crash-loop alert could NEVER fire
         # (found 2026-07-07). start_time_seconds jumps on every restart.
-        expr: sum(changes(live_overlay_process_start_time_seconds{job="live_overlay"}[24h]))
+        # Window is 15m, NOT 24h: a deploy also jumps start_time, and a busy day
+        # ships ~15 daemon deploys — a 24h window read that as a crash loop and
+        # false-fired high for hours (2026-07-08). A genuine crash loop restarts
+        # many times within minutes, so a short window separates it from routine
+        # deploys spread across the day while still catching the real thing.
+        expr: sum(changes(live_overlay_process_start_time_seconds{job="live_overlay"}[15m]))
         instant: true
     - refId: C
       datasourceUid: __expr__
@@ -1290,7 +1295,8 @@ groups:
     labels:
       severity: high
     annotations:
-      summary: More than 3 daemon restarts in the last 24 h
+      summary: More than 3 daemon restarts within 15 min (crash-loop; routine deploys spread over a day no
+        longer trip this).
       runbook: Check Railway deployment logs and restart_cause counters for crash
         loop.
   - uid: lo-feed-supervisor-heals-recurring
