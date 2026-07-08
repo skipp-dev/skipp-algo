@@ -488,11 +488,18 @@ def test_alert_rules_include_bridge_contract_missing() -> None:
         r for g in groups for r in g["rules"] if r["uid"] == "lo-bridge-contract-missing"
     )
     exprs = [d["model"]["expr"] for d in rule["data"] if d.get("refId") in {"A", "B", "C"}]
-    families = (
+    unconditional_families = (
         "live_overlay_bridge_enabled",
         "live_overlay_bridge_configured",
         "live_overlay_bridge_scrape_success",
         "live_overlay_bridge_error_info",
+    )
+    # 2026-07-08: these two families are only emitted for ENABLED bridges
+    # (metrics._bridge_last_success_age), so their absent() legs must be
+    # gated on bridge_enabled == 1 — a deliberately disabled bridge omits
+    # them by design and must not page critical. The four unconditional
+    # legs above still catch a dead exporter.
+    gated_families = (
         "live_overlay_bridge_last_success_age_seconds",
         "live_overlay_bridge_last_scrape_duration_seconds",
     )
@@ -500,14 +507,21 @@ def test_alert_rules_include_bridge_contract_missing() -> None:
         bridge_expr = next((e for e in exprs if f'bridge="{bridge}"' in e), "")
         assert bridge_expr, f"missing bridge {bridge}"
         normalized = " ".join(bridge_expr.split())
-        for family in families:
+        for family in unconditional_families:
             expected = (
                 f'sum(absent({family}{{job="live_overlay",bridge="{bridge}"}})'
                 " or on() vector(0))"
             )
             assert expected in normalized, f"missing {family} for {bridge}"
+        for family in gated_families:
+            expected = (
+                f'sum((absent({family}{{job="live_overlay",bridge="{bridge}"}})'
+                f' and on() (max(live_overlay_bridge_enabled{{job="live_overlay",bridge="{bridge}"}}) == 1))'
+                " or on() vector(0))"
+            )
+            assert expected in normalized, f"missing enabled-gate on {family} for {bridge}"
     assert all(" or vector(0)" not in e for e in exprs)
-    assert sum(e.count("sum(absent(live_overlay_bridge_") for e in exprs) == 18
+    assert sum(e.count("absent(live_overlay_bridge_") for e in exprs) == 18
     assert rule["labels"]["severity"] == "critical"
 
 

@@ -135,11 +135,54 @@ def test_run_step_uploads_outcomes_artifact_always() -> None:
 
 
 def _snapshot_publish_step() -> dict:
+    # Match on the push command, not merely the branch name: the
+    # provider-usage RESTORE step (2026-07-08) also references
+    # bot/live-open-prep-snapshot, and a first-match on the branch name
+    # would silently retarget every publish assertion at the wrong step.
     for step in _load()["jobs"]["run"]["steps"]:
-        if "bot/live-open-prep-snapshot" in str(step.get("run", "")):
+        if "git push --force-with-lease=refs/heads/bot/live-open-prep-snapshot" in str(
+            step.get("run", "")
+        ):
             return step
     raise AssertionError(
         "missing the open-prep snapshot publish step (bot/live-open-prep-snapshot)"
+    )
+
+
+def test_restores_provider_usage_snapshot_before_scoring() -> None:
+    """H2 (2026-07-08): ProviderUsage.flush() merges into the LOCAL
+    artifacts/monitoring/provider_usage.json — untracked, so a fresh CI
+    checkout starts from an empty base and the rolling snapshot only ever
+    carried one run's deltas (the monthly FMP bandwidth check was inert).
+    The workflow must restore the prior snapshot BEFORE scoring runs."""
+    steps = _load()["jobs"]["run"]["steps"]
+    restore_idx = next(
+        (
+            i
+            for i, s in enumerate(steps)
+            if "artifacts/monitoring/provider_usage.json" in str(s.get("run", ""))
+            and "git show" in str(s.get("run", ""))
+        ),
+        None,
+    )
+    assert restore_idx is not None, (
+        "missing the provider-usage snapshot restore step (git show from "
+        "bot/live-open-prep-snapshot into artifacts/monitoring/provider_usage.json)"
+    )
+    scoring_idx = next(
+        i for i, s in enumerate(steps) if str(s.get("name", "")) == "Run open-prep scoring"
+    )
+    assert restore_idx < scoring_idx, (
+        "provider-usage restore must run BEFORE 'Run open-prep scoring' or the "
+        "flush still accumulates into an empty base"
+    )
+    restore_run = str(steps[restore_idx]["run"])
+    assert "bot/live-open-prep-snapshot" in restore_run
+    assert "git cat-file -e" in restore_run, (
+        "restore must tolerate the branch/file not existing yet (first run)"
+    )
+    assert restore_run.rstrip().endswith("exit 0"), (
+        "restore must be soft-fail: a missing snapshot must never block the daily run"
     )
 
 

@@ -7,7 +7,7 @@
           "type": "prometheus",
           "uid": "grafanacloud-prom"
         },
-        "expr": "changes(live_overlay_daemon_restarts_total{job=~\"$job\"}[10m]) > 0",
+        "expr": "changes(live_overlay_process_start_time_seconds{job=~\"$job\"}[10m]) > 0",
         "tagKeys": "",
         "textFormat": "restart/deploy",
         "iconColor": "yellow",
@@ -65,7 +65,10 @@
       "id": 999,
       "type": "text",
       "title": "",
-      "datasource": null,
+      "datasource": {
+        "type": "prometheus",
+        "uid": "grafanacloud-prom"
+      },
       "description": "Cross-link to the paired Live Overlay Operations dashboard.",
       "gridPos": {
         "h": 2,
