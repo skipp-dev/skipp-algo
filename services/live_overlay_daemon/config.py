@@ -548,8 +548,16 @@ def github_workflow_poll_ttl_secs() -> int:
 
 
 def github_workflow_per_page() -> int:
-    """Number of workflow runs requested per poll."""
-    return _clamped_int("GITHUB_WORKFLOW_MONITOR_PER_PAGE", 30, 1, 100)
+    """Number of workflow runs requested per poll.
+
+    The single fetched page must reach back far enough to include each monitored
+    workflow's newest *verdict* run; if a low-frequency flow's last success/failure
+    scrolls past the window, ``latest_success`` falls back to its provisional 0 and
+    ``no-green-24h`` false-fires (seen for the databento export on a heavy main-push
+    day, 2026-07-08). Defaults to the max (100) so a busy day of main pushes does not
+    bury a sparse workflow's last verdict; raise via env / paginate if that recurs.
+    """
+    return _clamped_int("GITHUB_WORKFLOW_MONITOR_PER_PAGE", 100, 1, 100)
 
 
 def github_workflow_branch() -> str:
