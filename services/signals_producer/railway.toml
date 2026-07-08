@@ -1,6 +1,23 @@
 [build]
 builder = "DOCKERFILE"
 dockerfilePath = "services/signals_producer/Dockerfile"
+# Auto-deploy trigger paths (gitignore-style). The producer runs
+# `python -m open_prep.realtime_signals`, so its real code lives in open_prep/
+# and newsstack_fmp/ — NOT in services/signals_producer/ (which holds only the
+# Dockerfile + this file). Without open_prep/** here, changes there (e.g. the
+# 2026-07-08 rt_notify push hook) silently did NOT redeploy the producer.
+# Config-as-code watchPatterns OVERRIDE the dashboard setting, so this list must
+# be complete — add any new cross-repo runtime dependency of the producer here.
+# (terminal_technicals is a deferred import in realtime_signals and is
+# self-contained. Deeply-transitive changes can still be deployed manually via
+# `railway redeploy --service smc-signals-producer --from-source`.)
+watchPatterns = [
+    "open_prep/**",
+    "newsstack_fmp/**",
+    "terminal_technicals.py",
+    "requirements.txt",
+    "services/signals_producer/**",
+]
 
 [deploy]
 # Long-running worker: the realtime signal engine polls FMP forever and serves
