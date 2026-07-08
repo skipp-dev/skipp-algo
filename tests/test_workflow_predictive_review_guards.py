@@ -56,9 +56,12 @@ def test_rolling_benchmark_artifact_upload_has_meta_fallbacks() -> None:
 
 
 def test_live_news_secret_is_in_step_env_not_inline_shell() -> None:
-    body = _read_workflow("smc-live-newsapi-refresh.yml")
-    assert "NEWSAPI_KEY: ${{ secrets.NEWSAPI_KEY }}" in body
-    assert "NEWSAPI_KEY='${{ secrets.NEWSAPI_KEY }}'" not in body
+    # NewsAPI.ai retired 2026-07-08; assert the discipline on a still-present
+    # secret (FMP): secrets belong in step env, never interpolated inline.
+    body = _read_workflow("smc-live-news-refresh.yml")
+    assert "FMP_API_KEY: ${{ secrets.FMP_API_KEY }}" in body
+    assert "FMP_API_KEY='${{ secrets.FMP_API_KEY }}'" not in body
+    assert "NEWSAPI_KEY" not in body, "NEWSAPI_KEY must not be re-added (NewsAPI.ai retired)"
     assert "live-news state persistence warning" in body
 
 

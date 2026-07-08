@@ -1,9 +1,9 @@
-"""Structural pin for ``.github/workflows/smc-live-newsapi-refresh.yml``.
+"""Structural pin for ``.github/workflows/smc-live-news-refresh.yml``.
 
 Why this exists
 ===============
 
-`smc-live-newsapi-refresh.yml` is a mutating cron workflow (writes snapshot
+`smc-live-news-refresh.yml` is a mutating cron workflow (writes snapshot
 artifacts and force-updates `bot/live-news-snapshot`). Subtle structural drift
 in trigger cadence, concurrency policy, runner wiring, or push failure
 semantics can silently degrade freshness and state continuity.
@@ -20,7 +20,7 @@ import pytest
 import yaml
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
-WORKFLOW_PATH = REPO_ROOT / ".github" / "workflows" / "smc-live-newsapi-refresh.yml"
+WORKFLOW_PATH = REPO_ROOT / ".github" / "workflows" / "smc-live-news-refresh.yml"
 
 
 @pytest.fixture(scope="module")
@@ -51,7 +51,7 @@ def test_triggers_pinned(workflow_doc: dict) -> None:
 
     crons = [entry.get("cron") for entry in schedule if isinstance(entry, dict)]
     assert "2 * * * 1-5" in crons, (
-        "smc-live-newsapi-refresh cadence pin drifted: expected hourly weekday cron "
+        "smc-live-news-refresh cadence pin drifted: expected hourly weekday cron "
         "`2 * * * 1-5`"
     )
     assert "workflow_dispatch" in on_block, "workflow must support manual workflow_dispatch"
@@ -60,8 +60,8 @@ def test_triggers_pinned(workflow_doc: dict) -> None:
 def test_concurrency_contract_pinned(workflow_doc: dict) -> None:
     concurrency = workflow_doc.get("concurrency")
     assert isinstance(concurrency, dict), "workflow must declare `concurrency:`"
-    assert concurrency.get("group") == "smc-live-newsapi-refresh", (
-        "concurrency.group must stay pinned to smc-live-newsapi-refresh"
+    assert concurrency.get("group") == "smc-live-news-refresh", (
+        "concurrency.group must stay pinned to smc-live-news-refresh"
     )
     assert concurrency.get("cancel-in-progress") is False, (
         "cancel-in-progress must remain false to avoid killing in-flight mutable refresh runs"
@@ -105,7 +105,12 @@ def test_publish_step_remains_fail_loud(refresh_job: dict) -> None:
     assert "exit 1" in run, "publish step must remain fail-loud on push failure"
 
 
-def test_ttl_env_pin_present(refresh_job: dict) -> None:
+def test_refresh_step_wires_benzinga_and_stays_newsapi_free(refresh_job: dict) -> None:
+    """NewsAPI.ai retired 2026-07-08 (budget); Benzinga is the paid news source.
+
+    Replaces the old NEWSAPI_AI_SHARED_CACHE_TTL_SECONDS pin: the refresh step
+    must keep Benzinga wired and must NOT re-introduce the NEWSAPI_KEY env.
+    """
     steps = refresh_job.get("steps")
     assert isinstance(steps, list)
 
@@ -114,7 +119,7 @@ def test_ttl_env_pin_present(refresh_job: dict) -> None:
             step
             for step in steps
             if isinstance(step, dict)
-            and step.get("name") == "Refresh live news snapshot (NewsAPI.ai + FMP + Benzinga + TradingView)"
+            and step.get("name") == "Refresh live news snapshot (Benzinga + FMP + TradingView)"
         ),
         None,
     )
@@ -122,6 +127,7 @@ def test_ttl_env_pin_present(refresh_job: dict) -> None:
 
     env = refresh_step.get("env")
     assert isinstance(env, dict)
-    assert env.get("NEWSAPI_AI_SHARED_CACHE_TTL_SECONDS") == "3900", (
-        "NEWSAPI_AI_SHARED_CACHE_TTL_SECONDS pin drifted; expected 3900"
+    assert "NEWSAPI_KEY" not in env, "NEWSAPI_KEY must not be re-added (NewsAPI.ai retired)"
+    assert env.get("BENZINGA_API_KEY") == "${{ secrets.BENZINGA_API_KEY }}", (
+        "Benzinga key must stay wired into the refresh step"
     )

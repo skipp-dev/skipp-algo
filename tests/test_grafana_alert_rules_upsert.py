@@ -20,7 +20,7 @@ import pytest
 REPO = Path(__file__).resolve().parents[1]
 SCRIPT = REPO / "scripts" / "grafana_alert_rules_upsert.py"
 ALERT_RULES = REPO / "services" / "live_overlay_daemon" / "infra" / "grafana" / "alert-rules.yaml"
-NEWSAPI_WORKFLOW = REPO / ".github" / "workflows" / "smc-live-newsapi-refresh.yml"
+NEWSAPI_WORKFLOW = REPO / ".github" / "workflows" / "smc-live-news-refresh.yml"
 
 
 def _load():
@@ -455,7 +455,7 @@ def test_newsapi_refresh_workflow_keeps_fmp_and_tradingview_enabled() -> None:
         if ln.strip() and not ln.lstrip().startswith("#")
     ]
     assert not any("--newsapi-only" in ln for ln in active_lines), (
-        "smc-live-newsapi-refresh.yml must not run the export with --newsapi-only "
+        "smc-live-news-refresh.yml must not run the export with --newsapi-only "
         "(that disables FMP + TradingView despite active subscriptions)."
     )
     active_text = "\n".join(active_lines)

@@ -153,9 +153,9 @@ def test_inventory_contains_known_workflows() -> None:
 # ---------------------------------------------------------------------------
 
 _FORCE_LEASE_ALLOWLIST: frozenset[str] = frozenset({
-    # smc-live-newsapi-refresh.yml: rolling bot/live-news-snapshot cache
+    # smc-live-news-refresh.yml: rolling bot/live-news-snapshot cache
     # cursor; force-with-lease with prior fetch. See ADR-0024.
-    "smc-live-newsapi-refresh.yml",
+    "smc-live-news-refresh.yml",
     # run-open-prep-daily.yml: rolling bot/live-open-prep-snapshot snapshot of
     # latest_open_prep_run.json for the realtime-signals producer; isolated
     # detached-HEAD commit + force-with-lease with prior fetch. See ADR-0024.

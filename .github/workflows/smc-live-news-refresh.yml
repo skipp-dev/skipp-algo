@@ -1,5 +1,5 @@
 # live-window: mutating-on-cron  # F-V6-F2.1 (2026-05-02)
-name: smc-live-newsapi-refresh
+name: smc-live-news-refresh
 
 on:
   schedule:
@@ -24,7 +24,7 @@ permissions:
   contents: write
 
 concurrency:
-  group: smc-live-newsapi-refresh
+  group: smc-live-news-refresh
   # F-V5-C1 (2026-05-01): hourly cron — queue instead of kill mid-fetch.
   # Killing an in-flight NewsAPI page-iteration mid-call wastes the
   # spent quota and risks a half-written snapshot; serialising the
@@ -144,22 +144,19 @@ jobs:
           fi
           exit 0
 
-      - name: Refresh live news snapshot (NewsAPI.ai + FMP + Benzinga + TradingView)
+      - name: Refresh live news snapshot (Benzinga + FMP + TradingView)
         env:
-          NEWSAPI_KEY: ${{ secrets.NEWSAPI_KEY }}
-          # F (2026-06-22): FMP + TradingView re-enabled alongside NewsAPI.ai.
-          # FMP_API_KEY drives the fmp_stock / fmp_press / fmp_articles lanes
-          # (active subscription); TradingView is keyless. Benzinga is enabled
-          # when BENZINGA_API_KEY is present (RSS/REST subscription active).
+          # 2026-07-08: NewsAPI.ai retired (budget; Benzinga News API subscribed
+          # instead). Its secret + cache-TTL env were removed and the export
+          # runs with --skip-newsapi-ai (see below). FMP_API_KEY drives the
+          # fmp_stock / fmp_press / fmp_articles lanes; TradingView is keyless;
+          # Benzinga (RSS + quantified) is enabled when BENZINGA_API_KEY is set.
           FMP_API_KEY: ${{ secrets.FMP_API_KEY }}
           BENZINGA_API_KEY: ${{ secrets.BENZINGA_API_KEY }}
           INPUT_SYMBOLS: ${{ github.event.inputs.symbols }}
           INPUT_SYMBOL_LIMIT: ${{ github.event.inputs.symbol_limit }}
           INPUT_RESET_STATE: ${{ github.event.inputs.reset_state }}
-          NEWSAPI_AI_SHARED_CACHE_TTL_SECONDS: "3900"  # 65 min — keeps cache warm across hourly cadence + light overrun jitter (was 25 s for 5-min cron)
         run: |
-          test -n "${NEWSAPI_KEY}" || { echo "::error::NEWSAPI_KEY secret is required"; exit 1; }
-
           SYMBOLS="${INPUT_SYMBOLS:-}"
           # A2 (2026-06-10): INPUT_* already env-var-isolated;
           # adding format guards for defence-in-depth.
@@ -181,8 +178,7 @@ jobs:
             --symbols "$SYMBOLS" \
             --export-dir artifacts/smc_microstructure_exports \
             --symbol-limit "$SYMBOL_LIMIT" \
-            --newsapi-lookback-days 2 \
-            --newsapi-articles-per-request 100 \
+            --skip-newsapi-ai \
             --story-window-hours 24 \
             --output artifacts/smc_microstructure_exports/smc_live_news_snapshot.json \
             --state artifacts/smc_microstructure_exports/smc_live_news_state.json
@@ -191,7 +187,7 @@ jobs:
         if: always()
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
-          name: smc-live-newsapi-snapshot
+          name: smc-live-news-snapshot
           path: |
             artifacts/smc_microstructure_exports/smc_live_news_snapshot.json
             artifacts/smc_microstructure_exports/smc_live_news_state.json

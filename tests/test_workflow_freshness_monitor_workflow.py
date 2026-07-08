@@ -70,7 +70,7 @@ def test_monitors_critical_crons_with_budgets(text: str) -> None:
         "adr0023-magnitude-shadow-daily.yml=72:any:weekday",
         "adr0023-magnitude-stage1-weekly.yml=192",
         "g23-ab-watchdog.yml=72:any:weekday",
-        "smc-live-newsapi-refresh.yml=72:weekday",
+        "smc-live-news-refresh.yml=72:weekday",
     ]
     for spec in must_monitor:
         assert spec in text, f"freshness monitor is no longer probing {spec}"
