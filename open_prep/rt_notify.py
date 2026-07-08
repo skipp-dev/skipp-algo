@@ -25,7 +25,8 @@ Config (env):
   RT_SIGNAL_WEBHOOK_MODE     one of the modes above (default: generic)
   RT_SIGNAL_WEBHOOK_URL      destination URL (generic/slack/discord/ntfy)
   RT_SIGNAL_WEBHOOK_TOKEN    optional Bearer token for the generic mode
-  RT_SIGNAL_NOTIFY_LEVELS    comma list, default "A0,A1" (A2 is noisy — skipped)
+  RT_SIGNAL_NOTIFY_LEVELS    comma list, default "A0,A1,A2" (A2 = early-warning,
+                             marked "⚠️early"; set "A0,A1" to mute the noisy tier)
   RT_SIGNAL_NOTIFY_COOLDOWN_SECS  re-notify a still-active signal only after this
                                   many seconds (default 1800 = 30 min)
   RT_SIGNAL_WEBHOOK_SYNC     "1" to POST inline instead of on a thread (tests)
@@ -62,7 +63,10 @@ def _env(name: str, default: str = "") -> str:
 
 
 def _levels() -> set[str]:
-    raw = _env("RT_SIGNAL_NOTIFY_LEVELS", "A0,A1")
+    # Default includes A2 (early-warning) — it is marked "⚠️early" in the
+    # message so it reads as unconfirmed, not a confirmed breakout. Set
+    # RT_SIGNAL_NOTIFY_LEVELS="A0,A1" to mute the noisy tier.
+    raw = _env("RT_SIGNAL_NOTIFY_LEVELS", "A0,A1,A2")
     return {p.strip().upper() for p in raw.split(",") if p.strip()}
 
 
@@ -91,11 +95,14 @@ def is_enabled() -> bool:
 
 def _fmt_signal(s: Any) -> str:
     lvl = str(getattr(s, "level", "") or "")
+    # A2 is the early-warning tier (building momentum, not confirmed) — flag it
+    # so a glance never mistakes it for a confirmed A0/A1 breakout.
+    tail = " ⚠️early" if lvl == "A2" else ""
     return (
         f"{_EMOJI.get(lvl, '•')} {lvl} {getattr(s, 'symbol', '?')} "
         f"{getattr(s, 'direction', '')} ${float(getattr(s, 'price', 0.0)):.2f} "
         f"vol×{float(getattr(s, 'volume_ratio', 0.0)):.1f} "
-        f"Δ{float(getattr(s, 'change_pct', 0.0)):+.1f}%"
+        f"Δ{float(getattr(s, 'change_pct', 0.0)):+.1f}%{tail}"
     )
 
 

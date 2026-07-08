@@ -39,17 +39,32 @@ def test_disabled_by_default_is_a_noop(monkeypatch: pytest.MonkeyPatch) -> None:
     assert calls == []
 
 
-def test_generic_webhook_notifies_and_filters_a2(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_generic_webhook_notifies_all_levels_by_default_and_flags_a2(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     monkeypatch.setenv("RT_SIGNAL_WEBHOOK_URL", "https://hook.example/x")
     calls = _capture(monkeypatch)
     notified = rt_notify.notify_fresh_signals([_sig("AAPL", "A0"), _sig("NVDA", "A2")])
-    # A2 is not in the default A0,A1 level set.
-    assert notified == ["AAPL LONG A0"]
+    # Default level set is A0,A1,A2 — A2 early-warnings are included…
+    assert notified == ["AAPL LONG A0", "NVDA LONG A2"]
     assert len(calls) == 1
     url, kw = calls[0]
     assert url == "https://hook.example/x"
-    assert "AAPL" in kw["json"]["text"] and "A0" in kw["json"]["text"]
-    assert "NVDA" not in kw["json"]["text"]
+    text = kw["json"]["text"]
+    assert "AAPL" in text and "A0" in text and "NVDA" in text
+    # …but A2 is flagged so it never reads as a confirmed breakout.
+    assert "⚠️early" in text
+    a2_line = next(ln for ln in text.splitlines() if "NVDA" in ln)
+    assert a2_line.endswith("⚠️early")
+
+
+def test_levels_env_can_mute_a2(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("RT_SIGNAL_WEBHOOK_URL", "https://hook.example/x")
+    monkeypatch.setenv("RT_SIGNAL_NOTIFY_LEVELS", "A0,A1")
+    calls = _capture(monkeypatch)
+    notified = rt_notify.notify_fresh_signals([_sig("AAPL", "A0"), _sig("NVDA", "A2")])
+    assert notified == ["AAPL LONG A0"]
+    assert "NVDA" not in calls[0][1]["json"]["text"]
 
 
 def test_dedup_and_strengthen_and_cooldown(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -66,13 +81,6 @@ def test_dedup_and_strengthen_and_cooldown(monkeypatch: pytest.MonkeyPatch) -> N
     assert rt_notify.notify_fresh_signals([_sig("AAPL", "A1")], now=1200.0) == []
     # After the cooldown a still-active signal re-fires as a reminder.
     assert rt_notify.notify_fresh_signals([_sig("AAPL", "A1")], now=1900.0) == ["AAPL LONG A1"]
-
-
-def test_levels_env_widens_to_a2(monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setenv("RT_SIGNAL_WEBHOOK_URL", "https://hook.example/x")
-    monkeypatch.setenv("RT_SIGNAL_NOTIFY_LEVELS", "A0,A1,A2")
-    _capture(monkeypatch)
-    assert rt_notify.notify_fresh_signals([_sig("NVDA", "A2")]) == ["NVDA LONG A2"]
 
 
 @pytest.mark.parametrize(
