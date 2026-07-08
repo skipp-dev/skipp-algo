@@ -138,13 +138,13 @@ def _fetch_snapshot(token: str) -> dict[str, Any]:
         # Scope to the default branch so a green feature-branch run cannot mask a
         # red main run (and vice-versa): workflow health tracks main, not PRs.
         # main runs are sparser than all-branch runs, so the same ``per_page``
-        # window spans more calendar time and still covers each workflow's latest
-        # main run. Empty branch (config) disables the filter.
+        # window spans more calendar time. Empty branch (config) disables the
+        # filter; github_workflow_per_page documents the page-coverage requirement.
         query["branch"] = branch
     params = urllib.parse.urlencode(query)
-    # GitHub returns runs newest-first, so the first page already contains the most
-    # recent run per workflow we care about; ``per_page`` is sized to cover the
-    # configured workflow set, so we never need to paginate for "latest run" state.
+    # GitHub returns runs newest-first, so the first page holds the most recent
+    # runs; ``per_page`` (default 100) is sized so a monitored workflow's newest
+    # verdict stays on the page -- heavy main-push days can otherwise bury it.
     # ``owner``/``repo`` come from config but are percent-encoded defensively in case
     # they ever contain URL-significant characters.
     safe_owner = urllib.parse.quote(owner, safe="")
