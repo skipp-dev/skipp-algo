@@ -141,7 +141,7 @@ HTTP_POST_LEDGER: set[tuple[str, int]] = {
     # FMP/news export webhook (raw body, no redirects, HMAC-SHA256 signed,
     # SSRF-guarded via _is_safe_webhook_url). Line shifted 912 → 916
     # (deep-audit fallback-buffer lock refresh).
-    ("terminal_export.py", 916),
+    ("terminal_export.py", 921),  # 2026-07-08: catalyst_score truth-fix comment shifted 916 -> 921
     # OpenAI chat completions — FMP insights enrichment.
     # Line shifted 402 → 409 (main merge for PR-J3 cache-key scoping).
     ("terminal_fmp_insights.py", 409),

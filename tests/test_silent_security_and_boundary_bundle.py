@@ -196,7 +196,7 @@ _FROZEN_BASIC_CONFIG_SITES: frozenset[tuple[str, int]] = frozenset({
     # 2026-06-17 (F1 lint fix): remove unused import sys → 585→584.
     # 2026-07-05 (bug-hunt round 7): import math + non-finite entry/exit
     # price guard → 585→590.
-    ("open_prep/outcome_backfill.py", 590),
+    ("open_prep/outcome_backfill.py", 597),  # 2026-07-08 B-H1 priority-symbols + B-M2 era-gate shifted pins
     # 2026-06-25: AsyncNewsstackPoller telemetry additions shifted
     # 2913 -> 2992; feature-flag helper additions shifted run_open_prep
     # 6059 -> 6063.
@@ -204,7 +204,7 @@ _FROZEN_BASIC_CONFIG_SITES: frozenset[tuple[str, int]] = frozenset({
     ("open_prep/realtime_signals.py", 3119),
     # 2026-07-04 (market-microstructure observe-only): import + snapshot
     # block + row-loop fields shifted 6079 -> 6105.
-    ("open_prep/run_open_prep.py", 6167),  # 2026-07-07 enrichment gate (+helper/gates/q-copy) shifted run_open_prep pins (6136->6167)
+    ("open_prep/run_open_prep.py", 6189),  # 2026-07-08 B-H1 priority-symbols + B-M2 era-gate shifted pins (6167->6189)
     # 2026-06-16 (feat/live-overlay-daemon): entry-point main.py configures
     # root logger at startup (Railway container, no other logger setup).
     # 2026-06-19 (fix/live-overlay-post-merge-bugs): import additions for

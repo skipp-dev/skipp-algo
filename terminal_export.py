@@ -847,7 +847,12 @@ def fire_webhook(
         "headline": item.headline[:200],
         "score": round(effective_score, 4),
         "story_score": round(item.news_score, 4),
-        "catalyst_score": round(effective_score, 4) if item.catalyst_score is not None else None,
+        # The CATALYST score — not the posture score, which already ships
+        # above as "score". Before 2026-07-08 this field sent effective_score
+        # under the catalyst_score name (item.catalyst_score was only the
+        # None-gate), so webhook consumers received the posture value twice
+        # and the actual catalyst strength never left the process.
+        "catalyst_score": round(float(item.catalyst_score), 4) if item.catalyst_score is not None else None,
         "sentiment": effective_sentiment,
         "sentiment_score": item.sentiment_score,
         "event": item.event_label,

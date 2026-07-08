@@ -615,7 +615,7 @@ class FeatureImportanceCollector:
             "pnl_30m_pct": pnl_30m_pct,
         }
         for key in FEATURE_KEYS:
-            sample[key] = _safe_float(score_breakdown.get(key))
+            sample[key] = _safe_float(score_breakdown[key]) if key in score_breakdown else None  # None = not measured
         self._buffer.append(sample)
 
     def flush_to_disk(self, run_date: date | None = None) -> Path | None:
@@ -783,7 +783,18 @@ def _build_feature_importance_arrays(
     labeled: list[dict[str, Any]],
 ) -> tuple[np.ndarray, np.ndarray]:
     feature_matrix = np.asarray(
-        [[_safe_float(sample.get(key)) for key in FEATURE_KEYS] for sample in labeled],
+        # None/absent = "not measured" (a pass-through feature that did not
+        # exist when the sample was written, e.g. news_directional_score
+        # pre-2026-07-08). Encode as NaN so the per-feature statistics mask
+        # those rows — coercing to 0.0 laundered absence into a block of
+        # fabricated neutral measurements that diluted the FI evidence.
+        [
+            [
+                float("nan") if sample.get(key) is None else _safe_float(sample.get(key))
+                for key in FEATURE_KEYS
+            ]
+            for sample in labeled
+        ],
         dtype=np.float64,
     )
     outcomes = np.asarray(
@@ -827,8 +838,21 @@ def _compute_feature_statistics(
     for index, key in enumerate(FEATURE_KEYS):
         vals = feature_matrix[:, index].astype(xp.float64, copy=False)
 
-        centered_vals = vals - xp.mean(vals)
-        centered_outcomes = outcomes - xp.mean(outcomes)
+        # NaN = "not measured": the feature did not exist when the sample was
+        # written (era-gated pass-throughs, e.g. news_directional_score
+        # pre-2026-07-08). Mask those rows for THIS feature only — the sample
+        # still contributes to every feature it actually measured. Works for
+        # both backends (xp is numpy or cupy).
+        measured = ~xp.isnan(vals)
+        vals = vals[measured]
+        feature_outcomes = outcomes[measured]
+        feature_win_mask = win_mask[measured]
+        feature_loss_mask = loss_mask[measured]
+
+        centered_vals = vals - xp.mean(vals) if vals.size else vals
+        centered_outcomes = (
+            feature_outcomes - xp.mean(feature_outcomes) if vals.size else feature_outcomes
+        )
         denom = xp.sqrt(xp.sum(centered_vals * centered_vals)) * xp.sqrt(
             xp.sum(centered_outcomes * centered_outcomes),
         )
@@ -839,8 +863,8 @@ def _compute_feature_statistics(
             else 0.0
         )
 
-        wins = vals[win_mask]
-        losses = vals[loss_mask]
+        wins = vals[feature_win_mask]
+        losses = vals[feature_loss_mask]
         n_win = int(wins.size)
         n_loss = int(losses.size)
         mean_win = _to_python_float(xp.mean(wins)) if n_win else 0.0

@@ -659,3 +659,59 @@ def test_extended_enrichment_gate_env_reenables(monkeypatch: pytest.MonkeyPatch)
 
     out = rop._fetch_insider_trading(client=_Client(), symbols=["AAPL"])
     assert "AAPL" in out
+
+
+def test_benzinga_core_news_queries_priority_symbols_first(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """B-H1 (2026-07-08): the universe arrives mcap-descending with
+    movers/gappers APPENDED, so a bare [:max_symbols] slice spent the whole
+    per-ticker Benzinga budget on mega-caps. priority_symbols (the mover
+    seed) must be queried first."""
+    captured: list[str] = []
+
+    class _Adapter:
+        def __init__(self, **_kw: Any) -> None: ...
+
+        def fetch_news(self, *, tickers: str, **_kw: Any) -> list[dict]:
+            captured.extend(tickers.split(","))
+            return []
+
+    monkeypatch.setenv("BENZINGA_API_KEY", "test-key")
+    monkeypatch.setenv("OPEN_PREP_BENZINGA_CORE_NEWS_MAX_SYMBOLS", "3")
+    import newsstack_fmp.ingest_benzinga as bz
+
+    monkeypatch.setattr(bz, "BenzingaRestAdapter", _Adapter)
+
+    universe = ["AAPL", "MSFT", "NVDA", "GOOG", "AMZN", "AMPG", "AKAN"]
+    arts, err = rop._fetch_benzinga_core_news_articles(
+        symbols=universe, priority_symbols=["AMPG", "AKAN"]
+    )
+    assert err is None
+    # Movers first, then the mcap head fills the remaining slot.
+    assert captured[:3] == ["AMPG", "AKAN", "AAPL"], captured
+
+
+def test_benzinga_core_news_without_priority_keeps_old_order(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    captured: list[str] = []
+
+    class _Adapter:
+        def __init__(self, **_kw: Any) -> None: ...
+
+        def fetch_news(self, *, tickers: str, **_kw: Any) -> list[dict]:
+            captured.extend(tickers.split(","))
+            return []
+
+    monkeypatch.setenv("BENZINGA_API_KEY", "test-key")
+    monkeypatch.setenv("OPEN_PREP_BENZINGA_CORE_NEWS_MAX_SYMBOLS", "2")
+    import newsstack_fmp.ingest_benzinga as bz
+
+    monkeypatch.setattr(bz, "BenzingaRestAdapter", _Adapter)
+
+    arts, err = rop._fetch_benzinga_core_news_articles(
+        symbols=["AAPL", "MSFT", "NVDA"]
+    )
+    assert err is None
+    assert captured[:2] == ["AAPL", "MSFT"], captured

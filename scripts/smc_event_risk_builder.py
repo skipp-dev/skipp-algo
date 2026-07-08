@@ -176,8 +176,13 @@ def build_event_risk(
     high_risk_from_news: list[str] = []
     if isinstance(bearish_tickers, list) and bearish_tickers:
         high_risk_from_news = [str(t).strip().upper() for t in bearish_tickers if str(t).strip()]
-    # Heat > 0.8 means the overall news environment is extremely negative
-    if heat_global > 0.8 and not result["MARKET_EVENT_BLOCKED"]:
+    # news_heat_global is a SIGNED mean ticker polarity in [-1, +1]
+    # (smc_news_scorer): -1 = uniformly bearish, +1 = uniformly bullish.
+    # Escalate on an extremely NEGATIVE news environment. The previous
+    # condition (`> 0.8`) had the sign inverted — it escalated on euphoric
+    # bullish coverage and could never fire on the bearish extreme this
+    # guard exists for (found 2026-07-08).
+    if heat_global < -0.8 and not result["MARKET_EVENT_BLOCKED"]:
         result["EVENT_RISK_LEVEL"] = _max_risk_level(result["EVENT_RISK_LEVEL"], "ELEVATED")
 
     reference_change_tickers = _normalize_ticker_list(ref.get("reference_change_tickers", []))

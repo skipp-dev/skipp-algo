@@ -53,7 +53,7 @@ _SYS_EXIT_LEDGER: frozenset[tuple[str, int]] = frozenset({
     # 2026-06-25: feature-flag helper addition shifted 6045 -> 6049.
     # 2026-07-04 (market-microstructure observe-only): import + snapshot
     # block + row-loop fields shifted 6065 -> 6091.
-    ("open_prep/run_open_prep.py", 6153),  # 2026-07-07 enrichment gate (+helper/gates/q-copy) shifted run_open_prep pins (6122->6153)
+    ("open_prep/run_open_prep.py", 6175),  # 2026-07-08 B-H1 priority-symbols + B-M2 era-gate shifted pins (6153->6175)
     # 2026-07-04: ensemble backtest CLI runner (standalone research tool):
     # FMP_API_KEY guard + data-fetch failure exits. warmup_bars/
     # eval_last_bars param additions shifted 68/87/91 -> 74/93/97.

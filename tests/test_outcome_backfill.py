@@ -754,3 +754,48 @@ def test_main_installs_log_redaction_filter(monkeypatch: pytest.MonkeyPatch) -> 
     rc = main(["--dry-run"])
     assert rc == 0
     assert calls == [True]
+
+
+class TestPassThroughEraGate:
+    def test_absent_pass_through_key_is_not_fabricated_as_zero(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        """Pass-through features added AFTER a record was written (e.g.
+        news_directional_score, 2026-07-08) are absent from older in-era
+        records. The FI backfill must SKIP the key for those samples, not
+        fabricate 0.0 — that would launder "not measured" into "measured
+        neutral", the exact failure the era gate exists to prevent."""
+        from open_prep.outcomes import FEATURE_TO_WEIGHT_KEY
+
+        records = [
+            {
+                "symbol": "NVDA",
+                "date": "2026-07-07",
+                "score": 4.5,
+                "confidence_tier": "STANDARD",
+                "profitable_30m": True,
+                "pnl_30m_pct": 2.5,
+                **{key: 0.5 for key in FEATURE_TO_WEIGHT_KEY},
+                # deliberately NO news_directional_score (pre-pass-through era)
+            },
+        ]
+        monkeypatch.setattr(
+            "open_prep.outcomes._load_outcomes_range",
+            lambda lookback_days: records,
+        )
+        fi_dir = tmp_path / "fi"
+        fi_dir.mkdir()
+        monkeypatch.setattr("open_prep.outcomes.FEATURE_IMPORTANCE_DIR", fi_dir)
+
+        assert backfill_feature_importance(lookback_days=1) == 1
+        files = list(fi_dir.glob("fi_samples_*.jsonl"))
+        assert len(files) == 1
+        sample = json.loads(files[0].read_text(encoding="utf-8").splitlines()[0])
+        # Honest storage: the key is written as null ("not measured"), never
+        # as a fabricated 0.0 — and the FI statistics mask null rows per
+        # feature (NaN in the matrix) instead of treating them as neutral.
+        assert sample["news_directional_score"] is None, (
+            f"expected null for unmeasured pass-through, got {sample['news_directional_score']!r}"
+        )
+        # A weighted component that WAS measured keeps its real value.
+        assert sample["gap_component"] == 0.5

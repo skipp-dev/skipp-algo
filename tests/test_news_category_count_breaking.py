@@ -92,12 +92,23 @@ class TestMostMentioned:
 
 
 class TestHighImpactCount:
-    def test_high_impact_threshold(self) -> None:
-        """Ticker with many articles should appear in high-impact count."""
+    def test_single_high_impact_story_counts(self) -> None:
+        """One genuinely high-impact story (halt, impact 0.95 >= 0.85) counts —
+        the metric measures IMPACT, not mention volume (fixed 2026-07-08)."""
+        now = time.time()
+        result = compute_news_sentiment(
+            ["AAPL"],
+            [_art("AAPL trading halted pending news", "AAPL", now - 60)],
+        )
+        assert result["high_impact_news_count"] == 1
+
+    def test_many_routine_mentions_do_not_count(self) -> None:
+        """Six routine 'other'-category articles (impact 0.10) must NOT count.
+        The pre-fix formula counted any ticker with >= 5 articles."""
         now = time.time()
         articles = [_art(f"AAPL news {i}", "AAPL", now - i * 60) for i in range(6)]
         result = compute_news_sentiment(["AAPL"], articles)
-        assert result["high_impact_news_count"] >= 1
+        assert result["high_impact_news_count"] == 0
 
     def test_low_article_count_excluded(self) -> None:
         now = time.time()
