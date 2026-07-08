@@ -87,13 +87,6 @@ export bin(float score, int bins) =>
     int b = int(math.floor(u * bins))
     b < 0 ? 0 : b > (bins - 1) ? (bins - 1) : b
 
-// @function 2D bin index
-export bin2D(float score, float trendScore, int binsA, int binsB, float[] cutsArr) =>
-    int a = bin(score, binsA)
-    int b = int(math.floor((trendScore + 1.0) * 0.5 * binsB))
-    b := b < 0 ? 0 : b > (binsB - 1) ? (binsB - 1) : b
-    a * binsB + b
-
 // @function Fill quantile cuts from sorted array
 export fill_cuts(float[] sorted, float[] cuts, int bins) =>
     int cutCount = bins - 1
@@ -119,6 +112,21 @@ export bin_quantile(float score, float[] cuts, int bins) =>
             else
                 b := i + 1
         math.max(0, math.min(bins - 1, b))
+
+// @function 2D bin index. The score axis uses quantile cuts when
+//           `cutsArr` is populated and falls back to uniform binning
+//           otherwise (same contract as bin_quantile); the trend axis
+//           is always uniform. Fixed 2026-07-08: `cutsArr` was accepted
+//           but silently ignored (always uniform) — the exported
+//           function had no callers, so implementing the documented
+//           semantics breaks nobody and matches the legacy f_bin2D.
+//           (Declared after bin_quantile — Pine resolves calls only to
+//           previously defined functions.)
+export bin2D(float score, float trendScore, int binsA, int binsB, float[] cutsArr) =>
+    int a = bin_quantile(score, cutsArr, binsA)
+    int b = int(math.floor((trendScore + 1.0) * 0.5 * binsB))
+    b := b < 0 ? 0 : b > (binsB - 1) ? (binsB - 1) : b
+    a * binsB + b
 
 // @function Regime bin: 0=bear, 1=neutral, 2=bull
 export regime_bin(float trendScore) =>
