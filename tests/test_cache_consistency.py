@@ -121,3 +121,47 @@ def test_init_bar_cache_downscale_cleans_last_update() -> None:
     with cache._bar_lock:
         assert len(cache._bars) <= 2
         assert set(cache._bars.keys()) == set(cache._bar_last_update.keys())
+
+
+def test_cap_eviction_does_not_flood_info_logs(caplog: pytest.LogCaptureFixture) -> None:
+    """Steady cap-eviction (a new symbol arriving while the cache is full) must
+    NOT emit one INFO line per evicted symbol — at market open that is hundreds
+    per second, past Railway's 500 lines/s limit. The per-eviction line is DEBUG;
+    INFO is a single throttled aggregate summary."""
+    import logging
+    import time
+
+    import services.live_overlay_daemon.cache as cache
+
+    with cache._bar_lock:
+        cache._bars.clear()
+        cache._bar_last_update.clear()
+        cache._last_eviction_at = 0.0
+        cache._evict_summary.pending = 0
+        cache._evict_summary.at = 0.0
+
+    cache.init_bar_cache(rolling_bars=5, max_symbols=3)
+    for sym in ("AAPL", "MSFT", "TSLA"):
+        cache.push_bar(sym, {"open": 1.0, "close": 1.0})
+
+    # Burst: 200 new symbols, each triggers a single-symbol cap-eviction.
+    with caplog.at_level(logging.INFO, logger="services.live_overlay_daemon.cache"):
+        for i in range(200):
+            cache.push_bar(f"SYM{i}", {"open": 1.0, "close": 1.0})
+    flood = [r for r in caplog.records
+             if r.levelno >= logging.INFO and "evicted" in r.getMessage().lower()]
+    assert flood == [], f"cap-eviction flooded INFO with {len(flood)} lines"
+
+    # The churn accumulated silently; once the throttle window elapses exactly
+    # one aggregated summary fires, reporting the batched count.
+    with cache._bar_lock:
+        pending = cache._evict_summary.pending
+        cache._evict_summary.at = time.monotonic() - (cache._EVICT_SUMMARY_INTERVAL_SECS + 1)
+    assert pending > 1  # many evictions folded into one pending counter
+    caplog.clear()
+    with caplog.at_level(logging.INFO, logger="services.live_overlay_daemon.cache"):
+        cache.push_bar("ZZZZ", {"open": 1.0, "close": 1.0})
+    summaries = [r for r in caplog.records
+                 if r.levelno == logging.INFO and "evicted" in r.getMessage().lower()]
+    assert len(summaries) == 1, f"expected one aggregated summary, got {len(summaries)}"
+    assert f"evicted {pending + 1} stale" in summaries[0].getMessage()
