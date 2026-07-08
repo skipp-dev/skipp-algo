@@ -88,7 +88,7 @@ def _normalize_iso_date(raw: Any) -> str | None:
     return None
 
 
-def _collect_fi_sample_dates(*, lookback_days: int) -> list[str]:
+def _collect_fi_sample_dates(*, lookback_days: int) -> list[str]:  # NOTE (2026-07-08): lookback_days caps the NUMBER of most-recent sample DATES (one per trading-day file), not a calendar window — 30 "days" ≈ 30 trading days ≈ 6 calendar weeks
     if not FEATURE_IMPORTANCE_DIR.exists():
         return []
     files = sorted(FEATURE_IMPORTANCE_DIR.glob("fi_samples_*.jsonl"), reverse=True)

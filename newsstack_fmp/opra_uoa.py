@@ -38,9 +38,9 @@ implements the documented, replicable ones:
    ``size * price * 100`` (OCC contract multiplier) above a configurable
    minimum (default $25k) qualifies the trade for the UOA feed. The same
    `min_premium` kwarg semantics as the UW adapter are preserved.
-4. **Multi-leg flag** — if a sweep cluster contains both a call and a put
-   leg on the same underlying within the same window we mark
-   ``uw_multileg=True`` for compatibility.
+4. **Multi-leg flag** — if both a call and a put leg on the same underlying
+   trade inside the same time bucket we set ``uw_multileg=True`` on every row
+   of that bucket, independent of the sweep condition (non-sweep buckets too).
 
 The full raw OPRA record is preserved under ``_opra_raw`` mirroring the UW
 ``_uw_raw`` convention. The presence of ``_opra_raw`` instead of ``_uw_raw``

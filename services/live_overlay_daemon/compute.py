@@ -14,7 +14,7 @@ Field definitions (matching spec/smc_live_overlay.schema.json):
   news_bias            — "BULLISH" | "BEARISH" | "NEUTRAL"
   flow_rel_vol         — volume(last N bars) / avg_volume(rolling window)
   flow_delta_proxy_pct — (close - open) / open × 100 for most recent bar
-  squeeze_on           — True if Bollinger-band width < ATR threshold
+  squeeze_on           — int 0/1 on the JSON wire (1 = BB width < ATR threshold; null when unknown)
   ats_state            — "accumulation" | "distribution" | "neutral"
   ats_zscore           — z-score of last-bar volume vs rolling mean
   vix_level            — latest VIX level (from VIX symbol bars)

@@ -399,7 +399,7 @@ MOVERS_URL = "https://api.benzinga.com/api/v1/market/movers"
 
 
 def fetch_benzinga_movers(api_key: str) -> dict[str, list[dict[str, Any]]]:
-    """Fetch market movers (gainers, losers, most active).
+    """Fetch market movers (gainers and losers only — no most-active list).
 
     Returns dict with keys: ``gainers``, ``losers`` — each a list of
     dicts with keys: symbol, price, change, changePercent, volume,

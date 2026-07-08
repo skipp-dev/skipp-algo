@@ -1088,7 +1088,7 @@ def poll_once(
         "poll_interval_s": cfg.poll_interval_s,
         "universe_size": len(universe) if universe else None,
         "sources": meta_sources,
-        "ingest_counts": {
+        "ingest_counts": {  # cursor-filtered NEW valid items per lane (post-filter)
             "fmp": fmp_count,
             "benzinga": bz_count,
             "benzinga_rest": bz_rest_count,
@@ -1096,7 +1096,7 @@ def poll_once(
             "tradingview": tv_count,
             "newsapi_ai": newsapi_count,
         },
-        "ingest_counts_by_source": ingest_counts_by_source,
+        "ingest_counts_by_source": ingest_counts_by_source,  # RAW fetch counts BEFORE cursor/validity filtering — different semantics than ingest_counts, do not compare 1:1
         "total_candidates": len(candidates),
         "warnings": cycle_warnings,
     }

@@ -4,18 +4,18 @@ Provides comprehensive Bitcoin market data from multiple sources:
 1. **Real-time price/quote** — FMP cryptocurrency quote
 2. **Historical OHLCV** — FMP + yfinance for candlestick charts
 3. **Technical analysis** — TradingView via tradingview_ta (screener=crypto)
-4. **News/sentiment** — NewsAPI.ai + FMP articles filtered for Bitcoin
-5. **Social sentiment** — Finnhub social sentiment for crypto
-6. **Market cap / supply** — yfinance BTC-USD info
-7. **Fear & Greed index** — FMP fear-and-greed endpoint
-8. **Crypto movers** — FMP cryptocurrency gainers/losers
-9. **Exchange listings** — FMP cryptocurrency list
-10. **Tomorrow outlook** — Composite analysis from technicals + sentiment + F&G
+4. **News** — FMP articles filtered for Bitcoin (FMP-only; former
+   NewsAPI.ai / Finnhub social-sentiment claims removed 2026-07-08 — no such code exists here)
+5. **Market cap / supply** — yfinance BTC-USD info
+6. **Fear & Greed index** — alternative.me (sole source)
+7. **Crypto movers** — FMP cryptocurrency gainers/losers
+8. **Exchange listings** — FMP cryptocurrency list
+9. **Tomorrow outlook** — Composite analysis from technicals + sentiment + F&G
 
 Bitcoin markets are 24/7 — no market-hours restrictions apply.
 
 Primary source: FMP (``FMP_API_KEY``).
-Fallback/supplementary: yfinance, TradingView, NewsAPI.ai, Finnhub.
+Fallback/supplementary: yfinance, TradingView.
 """
 
 from __future__ import annotations
@@ -131,7 +131,7 @@ def _set_cached(key: str, val: Any) -> None:
     now = time.monotonic()
     with _cache_lock:
         _cache[key] = (now, val)
-        # Evict expired entries when cache grows large
+        # Evict entries older than a flat 600s once the cache grows large — known simplification: also evicts entries whose read-side TTL is longer (listings 3600s, last_good 6h) before they actually expire.
         if len(_cache) > 200:
             max_ttl = 600
             expired = [k for k, (ts, _) in _cache.items() if now - ts > max_ttl]
@@ -276,7 +276,7 @@ class BTCSupply:
     """Bitcoin market cap and supply info from yfinance."""
     market_cap: float = 0.0
     circulating_supply: float = 0.0
-    total_supply: float = 21_000_000.0  # fixed max
+    total_supply: float = 21_000_000.0  # max supply cap (21M); fetch_btc_supply never sets the actual total supply (~19.9M), so this field always reports the cap
     volume_24h: float = 0.0
     avg_volume_10d: float = 0.0
     fifty_day_avg: float = 0.0
@@ -385,8 +385,8 @@ def fetch_btc_ohlcv(
 ) -> list[dict[str, Any]]:
     """Fetch Bitcoin OHLCV data for charting.
 
-    Uses yfinance for intraday intervals (1m, 5m, 15m, 30m, 1h)
-    and FMP for daily data.
+    Uses yfinance for intraday intervals (1m, 5m, 15m, 30m, 1h, 90m) and FMP for daily data.
+    Note (2026-07-08): *period*/*interval* only take effect on the intraday yfinance path — the FMP daily path ignores both (fixed cap of 365 daily bars) and the final yfinance fallback hardcodes 60d/1d, so any non-intraday interval (e.g. "4h", "1w") silently returns daily bars.
 
     Returns list of dicts with keys: date, open, high, low, close, volume.
     """
@@ -634,7 +634,7 @@ def fetch_btc_technicals(interval: str = "1h") -> BTCTechnicals:
 def fetch_fear_greed() -> FearGreed | None:
     """Fetch Crypto Fear & Greed index from alternative.me (free, no key needed).
 
-    Falls back to FMP if alternative.me is unavailable.
+    alternative.me is the sole source (FMP fallback removed in P-6, 2026-04-30); on failure returns ``None``.
     """
     cached = _get_cached("fear_greed", _FG_TTL)
     if cached is not None:
@@ -723,7 +723,7 @@ def fetch_crypto_movers() -> dict[str, list[CryptoMover]]:
                 result["gainers"].append(mover)
             else:
                 result["losers"].append(mover)
-        # Sort and keep top movers
+        # Sort movers (nothing is truncated — all symbols from the batch stay)
         result["gainers"].sort(key=lambda m: m.change_pct, reverse=True)
         result["losers"].sort(key=lambda m: m.change_pct)
 
@@ -902,8 +902,8 @@ def fetch_btc_outlook() -> BTCOutlook:
     support = price * 0.95  # simple 5% below
     resistance = price * 1.05
 
-    # Try to get better S/R from technicals
-    # Estimate S/R from recent range
+    # Tighter S/R from the quote's day range (day_low*0.99 / day_high*1.01);
+    # technicals only gate this branch (tech_1d.rsi presence) — they don't compute the levels.
     if tech_1d and tech_1d.rsi is not None and price > 0 and quote:
         if quote.day_low > 0:
             support = quote.day_low * 0.99

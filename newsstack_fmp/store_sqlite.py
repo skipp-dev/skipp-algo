@@ -274,11 +274,11 @@ class SqliteStore:
             self.conn.execute("DELETE FROM clusters WHERE last_ts < ?", (cutoff,))
 
     def close(self, *, force: bool = False) -> None:
-        """Close the connection and remove from singleton registry.
+        """Close the connection (registry entry is kept — see below).
 
-        The instance stays in the registry so that existing references
-        can auto-reconnect via ``_reconnect()`` rather than hitting a
-        permanently dead connection.
+        The instance always stays in the singleton registry (it is never
+        removed) so that existing references can auto-reconnect via
+        ``_reconnect()`` rather than hitting a permanently dead connection.
 
         For shared on-disk singleton stores, ``close()`` defaults to a
         no-op to avoid frequent close/reopen churn in long-running apps.
