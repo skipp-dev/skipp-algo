@@ -88,6 +88,28 @@ def test_weak_a1_is_not_starred(monkeypatch: pytest.MonkeyPatch) -> None:
     assert "⭐" not in rt_notify._fmt_signal(_sig("AAPL", "A0"))
 
 
+def _sig_x(level: str, **extra: Any) -> Any:
+    base = dict(symbol="AAPL", level=level, direction="LONG", price=100.0,
+                volume_ratio=1.2, change_pct=0.5)  # below the ⭐ gate by default
+    base.update(extra)
+    return SimpleNamespace(**base)
+
+
+def test_corroboration_glyphs_news_and_technical() -> None:
+    # News catalyst only.
+    assert rt_notify._fmt_signal(_sig_x("A0", news_score=0.7)).endswith("📰")
+    # Strong technicals only.
+    assert rt_notify._fmt_signal(_sig_x("A0", technical_score=0.85)).endswith("📈")
+    # Both — 📰 before 📈, appended after the level tail.
+    both = rt_notify._fmt_signal(_sig_x("A1", volume_ratio=2.5, change_pct=1.2,
+                                        news_score=0.9, technical_score=0.9))
+    assert both.endswith("⭐near-A0 📰 📈")
+    # Below thresholds → no glyph (missing enrichment defaults never false-flag).
+    assert "📰" not in rt_notify._fmt_signal(_sig_x("A0", news_score=0.4))
+    assert "📈" not in rt_notify._fmt_signal(_sig_x("A0", technical_score=0.65))
+    assert rt_notify._fmt_signal(_sig_x("A0")).endswith("%")  # no fields set → clean
+
+
 def test_levels_env_can_mute_a2(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setenv("RT_SIGNAL_WEBHOOK_URL", "https://hook.example/x")
     monkeypatch.setenv("RT_SIGNAL_NOTIFY_LEVELS", "A0,A1")

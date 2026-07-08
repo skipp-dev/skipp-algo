@@ -58,6 +58,13 @@ _EMOJI = {"A0": "🔴", "A1": "🟠", "A2": "🟡"}
 _A1_STRONG_VOL_RATIO = 2.0   # midpoint of A1 floor 1.0 and A0 floor 3.0
 _A1_STRONG_CHANGE_PCT = 0.9  # ~midpoint of A1 floor 0.35% and A0 floor 1.5%
 
+# Corroboration glyphs — orthogonal context appended to any level's tail so a
+# glance sees WHY a breakout has backing beyond price+volume. Both fields are on
+# the 0..1 scale carried by RealtimeSignal (default 0.0 / 0.5 respectively), so a
+# missing enrichment never false-flags.
+_NEWS_CATALYST_MIN = 0.5     # news_score>=0.5 is the directional-upgrade bar in realtime_signals.py
+_STRONG_TECHNICAL_MIN = 0.7  # technical_score>=0.7 = strong bullish TA (0..1, neutral default 0.5)
+
 # Per-process dedup state: (symbol, direction) -> (strength, last_notified_epoch).
 # Only advanced AFTER a POST is confirmed delivered (see notify_fresh_signals),
 # so a webhook outage retries next poll instead of silently suppressing for a
@@ -127,6 +134,18 @@ def _is_high_conviction_a1(s: Any) -> bool:
     return vol_ratio >= _A1_STRONG_VOL_RATIO and abs_change >= _A1_STRONG_CHANGE_PCT
 
 
+def _corroboration_flags(s: Any) -> str:
+    """Glyphs for corroborating context, orthogonal to the level tail: 📰 a news
+    catalyst (news_score>=0.5), 📈 strong bullish technicals (technical_score>=0.7).
+    getattr-guarded so a signal lacking enrichment simply shows no glyph."""
+    flags = ""
+    if _safe_float(getattr(s, "news_score", 0.0)) >= _NEWS_CATALYST_MIN:
+        flags += " 📰"
+    if _safe_float(getattr(s, "technical_score", 0.0)) >= _STRONG_TECHNICAL_MIN:
+        flags += " 📈"
+    return flags
+
+
 def _fmt_signal(s: Any) -> str:
     lvl = str(getattr(s, "level", "") or "")
     # A2 is the early-warning tier (building momentum, not confirmed) — flag it
@@ -138,6 +157,8 @@ def _fmt_signal(s: Any) -> str:
         tail = " ⭐near-A0"
     else:
         tail = ""
+    # Corroboration glyphs (📰 news / 📈 technicals) append after the level tail.
+    tail += _corroboration_flags(s)
     # _safe_float so a None/garbage price/volume/change on one signal renders as
     # 0.0 instead of raising and killing the entire batch push (which would also
     # leave those signals marked-but-never-sent — see the delivery gate below).
