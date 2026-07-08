@@ -179,18 +179,31 @@ groups:
       model:
         expr: increase(live_overlay_daemon_restarts_total{job="live_overlay"}[10m])
         instant: true
+    - refId: E
+      datasourceUid: grafanacloud-prom
+      model:
+        expr: live_overlay_market_us_open{job="live_overlay"}
+        instant: true
+    # Gated on market-open ($E == 1): the equity feed only streams bars during
+    # US market hours, so zero symbols overnight is NORMAL — and a redeploy
+    # outside market hours (which wipes the in-memory overlay) would otherwise
+    # false-fire this critical every time (observed 2026-07-08: a docs-only
+    # daemon deploy at 05:51 UTC / 02:15 ET cleared 69 held symbols to 0 while
+    # the market was closed). During market hours, zero symbols after warmup is
+    # a real compute/feed failure and still fires.
     - refId: C
       datasourceUid: __expr__
       model:
         type: math
-        expression: $A == 0 && ($B > 600 || $D > 0)
+        expression: $A == 0 && $E == 1 && ($B > 600 || $D > 0)
     for: 5m
     labels:
       severity: critical
     annotations:
-      summary: No symbols computed after 10 min uptime
-      runbook: Service started but compute cycle never succeeded. Check feed + compute
-        logs.
+      summary: No symbols computed after 10 min uptime WHILE the US market is open
+      runbook: Service is up and the US market is open but the compute cycle never
+        produced symbols. Check feed + compute logs. (Zero symbols outside market
+        hours is expected and does not fire.)
   - uid: lo-bridge-contract-missing
     title: Generic bridge contract missing
     condition: D
