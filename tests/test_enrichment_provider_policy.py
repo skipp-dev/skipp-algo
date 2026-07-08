@@ -18,10 +18,8 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from scripts.smc_newsapi_ai import NewsApiAiProviderError
 from scripts.smc_provider_policy import (
     ALL_POLICIES,
-    POLICY_BASE_SCAN,
     POLICY_CALENDAR,
     POLICY_NEWS,
     POLICY_REGIME,
@@ -41,19 +39,26 @@ from scripts.smc_provider_policy import (
 
 
 class TestPolicyDeclarations:
-    def test_base_scan_is_databento_primary_no_fallback(self):
-        assert POLICY_BASE_SCAN.primary == "databento"
-        assert POLICY_BASE_SCAN.fallbacks == ()
-        assert POLICY_BASE_SCAN.all_providers == ("databento",)
+    def test_base_scan_policy_stays_removed(self):
+        """L4 (2026-07-08): base_scan had a declared policy but NO adapter
+        branch and no resolve_domain caller — resolving it always ended in
+        no_data. The provider is hardcoded to Databento at the sole callsite
+        (generate_smc_micro_base_from_databento). Pin the removal so the
+        dead policy entry does not quietly return."""
+        assert "base_scan" not in ALL_POLICIES
+        import scripts.smc_provider_policy as mod
+        assert not hasattr(mod, "POLICY_BASE_SCAN")
 
     def test_regime_is_fmp_primary_no_fallback(self):
         assert POLICY_REGIME.primary == "fmp"
         assert POLICY_REGIME.fallbacks == ()
 
     def test_news_is_fmp_primary_with_explicit_fallback_chain(self):
+        # newsapi_ai dropped 2026-07-08 (subscription cancelled — a dead key
+        # in the chain burned a doomed third attempt on every double-failure).
         assert POLICY_NEWS.primary == "fmp"
-        assert POLICY_NEWS.fallbacks == ("benzinga", "newsapi_ai")
-        assert POLICY_NEWS.all_providers == ("fmp", "benzinga", "newsapi_ai")
+        assert POLICY_NEWS.fallbacks == ("benzinga",)
+        assert POLICY_NEWS.all_providers == ("fmp", "benzinga")
 
     def test_calendar_is_fmp_primary_benzinga_fallback(self):
         assert POLICY_CALENDAR.primary == "fmp"
@@ -65,7 +70,7 @@ class TestPolicyDeclarations:
 
     def test_all_policies_registered(self):
         assert set(ALL_POLICIES.keys()) == {
-            "base_scan", "regime", "news", "calendar", "technical",
+            "regime", "news", "calendar", "technical",
         }
 
     def test_no_implicit_fallback_chains(self):
@@ -144,7 +149,8 @@ class TestProviderUnavailable:
         assert result.provider == "none"
         assert "fmp" in result.stale
         assert "benzinga" in result.stale
-        assert "newsapi_ai" in result.stale
+        # Retired 2026-07-08: the dead newsapi_ai key must no longer be tried.
+        assert "newsapi_ai" not in result.stale
 
     def test_calendar_all_fail_returns_safe_default(self):
         result = resolve_domain("calendar", fmp=None, benzinga_api_key="", symbols=["AAPL"])
@@ -191,42 +197,15 @@ class TestPartialProviderAvailability:
     @patch("scripts.smc_provider_policy.fetch_news_newsapi_ai")
     @patch("scripts.smc_provider_policy.fetch_news_benzinga")
     @patch("scripts.smc_provider_policy.fetch_news_fmp")
-    def test_news_fmp_and_benzinga_fail_newsapi_succeeds(self, mock_fmp, mock_bz, mock_newsapi):
+    def test_newsapi_ai_is_never_attempted_even_with_key(self, mock_fmp, mock_bz, mock_newsapi):
+        """Retirement pin (2026-07-08): the newsapi.ai subscription is
+        cancelled — even with a key AND cursor state supplied, the chain
+        must stop at Benzinga instead of burning a doomed third attempt."""
         mock_fmp.side_effect = RuntimeError("FMP timeout")
         mock_bz.side_effect = RuntimeError("Benzinga timeout")
         mock_newsapi.return_value = ProviderResult(
             data={"bullish_tickers": ["NVDA"], "bearish_tickers": []},
             provider="newsapi_ai",
-        )
-        result = resolve_domain(
-            "news",
-            fmp=MagicMock(),
-            benzinga_api_key="bz-key",
-            newsapi_ai_key="news-key",
-            symbols=["NVDA"],
-        )
-        assert result.ok is True
-        assert result.provider == "newsapi_ai"
-        assert "fmp" in result.stale
-        assert "benzinga" in result.stale
-
-    @patch("scripts.smc_provider_policy.fetch_news_newsapi_ai")
-    @patch("scripts.smc_provider_policy.fetch_news_benzinga")
-    @patch("scripts.smc_provider_policy.fetch_news_fmp")
-    def test_newsapi_fallback_receives_feed_cursor_state(self, mock_fmp, mock_bz, mock_newsapi):
-        mock_fmp.side_effect = RuntimeError("FMP timeout")
-        mock_bz.side_effect = RuntimeError("Benzinga timeout")
-        mock_newsapi.return_value = ProviderResult(
-            data={"bullish_tickers": [], "bearish_tickers": []},
-            provider="newsapi_ai",
-            meta={
-                "provider_status": "ok_no_recent_matches",
-                "status_detail": "Event Registry reachable, but no new symbol-matching NewsAPI.ai items were newer than the current cursor.",
-                "cursor_before_epoch": 123.0,
-                "cursor_before_uri": "uri-feed-1",
-                "raw_record_count": 0,
-                "matched_record_count": 0,
-            },
         )
 
         result = resolve_domain(
@@ -239,14 +218,12 @@ class TestPartialProviderAvailability:
             newsapi_ai_feed_after_uri="uri-feed-1",
         )
 
-        assert mock_newsapi.call_args.kwargs["article_feed_after_epoch"] == 123.0
-        assert mock_newsapi.call_args.kwargs["article_feed_after_uri"] == "uri-feed-1"
+        mock_newsapi.assert_not_called()
+        assert result.ok is False
+        assert result.provider == "none"
+        assert result.stale == ["fmp", "benzinga"]
         attempts = result.meta["attempts"]
-        assert [attempt["provider"] for attempt in attempts] == ["fmp", "benzinga", "newsapi_ai"]
-        assert attempts[0]["provider_status"] == "timeout"
-        assert attempts[0]["failure_class"] == "runtime"
-        assert attempts[-1]["provider_status"] == "ok_no_recent_matches"
-        assert attempts[-1]["cursor_before_uri"] == "uri-feed-1"
+        assert [attempt["provider"] for attempt in attempts] == ["fmp", "benzinga"]
 
     @patch("scripts.smc_provider_policy.fetch_calendar_benzinga")
     @patch("scripts.smc_provider_policy.fetch_calendar_fmp")
@@ -294,34 +271,10 @@ class TestPartialProviderAvailability:
         assert result.provider == "none"
         assert "fmp" in result.stale
         assert "benzinga" in result.stale
-        assert "newsapi_ai" in result.stale
+        # Retired 2026-07-08: the dead newsapi_ai key must no longer be tried.
+        assert "newsapi_ai" not in result.stale
 
-    @patch("scripts.smc_provider_policy.fetch_news_newsapi_ai")
-    @patch("scripts.smc_provider_policy.fetch_news_benzinga")
-    @patch("scripts.smc_provider_policy.fetch_news_fmp")
-    def test_newsapi_quota_exhausted_degrades_to_none(self, mock_fmp, mock_bz, mock_newsapi):
-        mock_fmp.side_effect = RuntimeError("FMP timeout")
-        mock_bz.side_effect = RuntimeError("Benzinga timeout")
-        mock_newsapi.side_effect = NewsApiAiProviderError(
-            "quota_exhausted",
-            "Event Registry token quota exhausted or paid plan required",
-            status_code=403,
-        )
 
-        result = resolve_domain(
-            "news",
-            fmp=MagicMock(),
-            benzinga_api_key="bz-key",
-            newsapi_ai_key="news-key",
-            symbols=["NVDA"],
-        )
-
-        assert result.ok is False
-        assert result.provider == "none"
-        assert result.stale == ["fmp", "benzinga", "newsapi_ai"]
-        assert result.meta["provider_status"] == "no_data"
-        assert result.meta["attempts"][-1]["provider_status"] == "quota_exhausted"
-        assert result.meta["attempts"][-1]["failure_class"] == "provider_error"
 
 
 # ── Test 5: Malformed payloads ──────────────────────────────────
@@ -1672,3 +1625,41 @@ class TestEventRiskWiring:
         # With no calendar or news data, safe defaults apply
         assert enrichment["event_risk"]["EVENT_WINDOW_STATE"] == "CLEAR"
         assert enrichment["event_risk"]["EVENT_RISK_LEVEL"] == "NONE"
+
+
+class TestRegimeCompleteDefaults:
+    """L3 (2026-07-08): the ProviderResult contract says ok=False when
+    default data was used — total sub-fetch failure must not masquerade
+    as a healthy regime fetch."""
+
+    def test_all_four_subfetches_failing_flips_ok_false(self):
+        fmp = MagicMock()
+        fmp.get_index_quote.side_effect = RuntimeError("down")
+        fmp.get_sector_performance.side_effect = RuntimeError("down")
+        fmp.get_macro_calendar.side_effect = RuntimeError("down")
+        fmp.get_market_pe_forward.side_effect = RuntimeError("down")
+
+        result = fetch_regime_fmp(fmp)
+
+        assert result.ok is False
+        assert result.provider == "fmp"
+        assert set(result.stale) == {"fmp_vix", "fmp_sectors", "fmp_macro", "fmp_market_pe"}
+        assert result.meta["provider_status"] == "no_data"
+        # The classified-from-defaults regime dict is still returned so
+        # diagnostics stay inspectable.
+        assert "regime" in result.data
+
+    def test_partial_failure_keeps_ok_true(self):
+        fmp = MagicMock()
+        fmp.get_index_quote.side_effect = RuntimeError("down")
+        fmp.get_sector_performance.return_value = [
+            {"sector": "Tech", "changesPercentage": "1.2%"}
+        ]
+        fmp.get_macro_calendar.return_value = []
+        fmp.get_market_pe_forward.return_value = None
+
+        result = fetch_regime_fmp(fmp)
+
+        assert result.ok is True
+        assert result.stale == ["fmp_vix"]
+        assert "provider_status" not in result.meta

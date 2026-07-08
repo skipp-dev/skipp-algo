@@ -329,3 +329,53 @@ def test_collect_process_metrics_uses_last_poll_duration_seconds() -> None:
     )
     body = rs._collect_process_metrics(engine)
     assert "signals_producer_last_poll_duration_seconds 2.500" in body
+
+
+# ---------------------------------------------------------------------------
+# H3 (2026-07-08): FMP usage counters — the 24/7 producer is the single
+# largest FMP consumer and previously ran past every bandwidth-quota check.
+# ---------------------------------------------------------------------------
+
+
+class TestFmpUsageCounters:
+    @staticmethod
+    def _engine(client: Any) -> SimpleNamespace:
+        return SimpleNamespace(
+            last_poll_success_epoch=time.time(),
+            last_poll_duration_seconds=0.5,
+            _watchlist=["AAPL"],
+            open_prep_snapshot_loaded=1,
+            open_prep_snapshot_age_seconds=10.0,
+            _client=client,
+        )
+
+    def test_exposes_fmp_totals_when_client_exists(self) -> None:
+        class _FakeClient:
+            def get_endpoint_usage_stats(self) -> dict[str, dict[str, int]]:
+                return {
+                    "/stable/quote": {"calls": 7, "errors": 1, "empty_responses": 0, "response_bytes": 1234},
+                    "/stable/profile": {"calls": 3, "errors": 0, "empty_responses": 0, "response_bytes": 766},
+                }
+
+        body = rs._collect_process_metrics(self._engine(_FakeClient()))
+        assert "signals_producer_fmp_requests_total 10" in body
+        assert "signals_producer_fmp_request_errors_total 1" in body
+        assert "signals_producer_fmp_response_bytes_total 2000" in body
+
+    def test_fmp_counters_absent_without_client(self) -> None:
+        """Lazy client not yet created (no key / never polled) — no series,
+        no crash."""
+        body = rs._collect_process_metrics(self._engine(None))
+        assert "fmp_requests_total" not in body
+
+    def test_fmp_client_bucket_accumulates_response_bytes(self) -> None:
+        """The macro.py side of H3: _request_once feeds response_bytes into
+        the per-endpoint bucket that /metrics sums up."""
+        from open_prep.macro import FMPClient
+
+        client = FMPClient(api_key="k")
+        client._record_endpoint_event("/stable/quote", calls=1, response_bytes=100)
+        client._record_endpoint_event("/stable/quote", response_bytes=50)
+        stats = client.get_endpoint_usage_stats()
+        assert stats["/stable/quote"]["response_bytes"] == 150
+        assert stats["/stable/quote"]["calls"] == 1

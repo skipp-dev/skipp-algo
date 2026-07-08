@@ -696,10 +696,10 @@ class FMPClient:
     stable_base_url: str = "https://financialmodelingprep.com"
     _circuit_breaker: _CircuitBreaker = field(default_factory=_CircuitBreaker, init=False, repr=False)
     _last_quote_fetch_diagnostics: dict[str, Any] = field(default_factory=dict, init=False, repr=False)
-    # G6 (2026-05-12): per-endpoint usage counters for provider-utilization audits.
-    # Tracks {endpoint_path: {"calls": int, "errors": int, "empty_responses": int}}.
+    # G6 (2026-05-12) + H3 (2026-07-08): per-endpoint usage counters.
+    # Tracks {path: {"calls", "errors", "empty_responses", "response_bytes"}}.
     # Read via get_endpoint_usage_stats(); intentionally process-local (no daemon
-    # threads, no persistence) so it stays cheap and side-effect-free.
+    # threads, no persistence). The signals-producer /metrics exposes the totals.
     _endpoint_usage_stats: dict[str, dict[str, int]] = field(default_factory=dict, init=False, repr=False)
     # R5 (2026-05-12): guards _endpoint_usage_stats against the
     # ThreadPoolExecutor in get_batch_quotes(). See
@@ -738,10 +738,15 @@ class FMPClient:
     def _request_once(self, path: str, params: dict[str, Any]) -> Any:
         request = Request(self._build_url(path, params), headers={"User-Agent": "skipp-algo/1.0"})
         with urlopen(request, timeout=self.timeout_seconds, context=_build_tls_context()) as response:
-            payload = response.read().decode("utf-8")
-        return self._parse_payload(path, payload)
+            raw = response.read()
+        # H3 (2026-07-08): byte-level usage accounting at the ONLY place the
+        # raw payload is visible. The 24/7 signals-producer polls quotes via
+        # this client and previously ran past every bandwidth-quota check
+        # (only the ingest paths were instrumented via provider_usage).
+        self._record_endpoint_event(path, response_bytes=len(raw))
+        return self._parse_payload(path, raw.decode("utf-8"))
 
-    def _record_endpoint_event(self, path: str, *, calls: int = 0, errors: int = 0, empty_responses: int = 0) -> None:
+    def _record_endpoint_event(self, path: str, *, calls: int = 0, errors: int = 0, empty_responses: int = 0, response_bytes: int = 0) -> None:
         """Increment per-endpoint counters (G6 instrumentation).
 
         Aggregates by exact ``path`` (e.g. "/stable/quote", "/stable/profile").
@@ -756,7 +761,7 @@ class FMPClient:
 
         with self._lock:
             bucket = self._endpoint_usage_stats.setdefault(
-                path, {"calls": 0, "errors": 0, "empty_responses": 0}
+                path, {"calls": 0, "errors": 0, "empty_responses": 0, "response_bytes": 0}
             )
             if calls:
                 bucket["calls"] += calls
@@ -764,6 +769,10 @@ class FMPClient:
                 bucket["errors"] += errors
             if empty_responses:
                 bucket["empty_responses"] += empty_responses
+            if response_bytes:
+                # Buckets created before the 2026-07-08 H3 field existed
+                # (same process, mixed call order) may lack the key.
+                bucket["response_bytes"] = bucket.get("response_bytes", 0) + response_bytes
 
     def get_endpoint_usage_stats(self) -> dict[str, dict[str, int]]:
         """Return a deep copy of per-endpoint usage counters (G6).
