@@ -84,6 +84,23 @@ class IBKRExecutionConfig:
     ack_timeout_seconds: float = 10.0
 
 
+def _round_to_min_tick(price: float) -> float:
+    """Snap ``price`` to the US-equity minimum price increment.
+
+    Reg NMS Rule 612: NMS-stock orders priced >= $1.00 must be in $0.01
+    increments, below $1.00 in $0.0001. A sub-tick price (e.g. a computed
+    take-profit like 154.918) is rejected by IB with **error 110** ("price
+    does not conform to the minimum price variation"), which silently cancels
+    the offending bracket leg; when that leg is the transmit=True arming leg
+    the whole set never rests and *nothing ever fills* — the root cause of the
+    stalled C8 paper incubation (2026-07-08). Snapping here guarantees every
+    IBKROrderIntent carries an exchange-valid price no matter which builder
+    produced it, and makes the audit record match what is actually sent to IB.
+    """
+    tick = 0.01 if abs(price) >= 1.0 else 0.0001
+    return round(round(price / tick) * tick, 4)
+
+
 @dataclass(frozen=True)
 class IBKROrderIntent:
     trade_date: date
@@ -102,6 +119,15 @@ class IBKROrderIntent:
     outside_rth: bool
     exit_mode: str
     order_ref: str
+
+    def __post_init__(self) -> None:
+        # Snap every field that reaches IB as an order price to the exchange
+        # min tick (frozen dataclass -> object.__setattr__). Without this a
+        # computed TP/SL keeps sub-penny precision and IB error-110s the leg,
+        # breaking the bracket so nothing fills. premarket_last/gap_pct are
+        # observational, not order prices, so they are left untouched.
+        for _field in ("entry_limit", "take_profit", "stop_loss", "trailing_stop_anchor"):
+            object.__setattr__(self, _field, _round_to_min_tick(getattr(self, _field)))
 
 
 def _normalize_trade_date(value: Any) -> date:

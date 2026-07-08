@@ -7,9 +7,11 @@ import pandas as pd
 from scripts.execute_ibkr_watchlist import (
     IBKRConnectionConfig,
     IBKRExecutionConfig,
+    IBKROrderIntent,
     _build_tp_trail_orders,
     _parse_time_of_day,
     _resolve_trigger_datetime,
+    _round_to_min_tick,
     build_order_intents,
     build_preview_payload,
     filter_watchlist,
@@ -72,7 +74,47 @@ def test_build_order_intents_creates_three_level_orders() -> None:
     assert [intent.level_tag for intent in intents] == ["L1", "L2", "L3"]
     assert [intent.quantity for intent in intents] == [120, 180, 220]
     assert intents[0].order_ref == "skipp-2026-03-08-BBB-L1"
-    assert intents[2].take_profit == 11.9729
+    # Snapped to the $0.01 min tick (was 11.9729): a sub-penny TP is rejected by
+    # IB with error 110 and silently cancels the bracket leg -> nothing fills.
+    assert intents[2].take_profit == 11.97
+
+
+def test_round_to_min_tick_snaps_sub_penny_prices() -> None:
+    # >= $1.00 -> penny grid (the exact TP/SL values IB error-110'd on 2026-07-08).
+    assert _round_to_min_tick(154.918) == 154.92
+    assert _round_to_min_tick(124.096) == 124.10
+    assert _round_to_min_tick(683.5306) == 683.53
+    assert _round_to_min_tick(196.93) == 196.93  # already valid -> unchanged
+    # < $1.00 -> 1/100-cent grid (Reg NMS sub-dollar tick).
+    assert _round_to_min_tick(0.4995) == 0.4995
+    assert _round_to_min_tick(0.49995) == 0.5
+
+
+def test_order_intent_snaps_every_order_price_to_min_tick() -> None:
+    # A computed bracket with sub-penny TP/SL must not survive to IB: every
+    # order-price field is snapped, so no leg can trip error 110 (nothing fills).
+    intent = IBKROrderIntent(
+        trade_date=date(2026, 7, 8),
+        symbol="PLTR",
+        watchlist_rank=1,
+        level_tag="L1",
+        quantity=1,
+        entry_limit=134.37,
+        take_profit=154.918,
+        stop_loss=124.096,
+        trailing_stop_pct=0.0,
+        trailing_stop_anchor=134.373,
+        premarket_last=134.37,
+        gap_pct=0.0,
+        tif="DAY",
+        outside_rth=True,
+        exit_mode="tp-stop",
+        order_ref="smc-PLTR-2026-07-08-port7497",
+    )
+    assert intent.entry_limit == 134.37
+    assert intent.take_profit == 154.92
+    assert intent.stop_loss == 124.10
+    assert intent.trailing_stop_anchor == 134.37
 
 
 def test_build_order_intents_rejects_invalid_price_values() -> None:
