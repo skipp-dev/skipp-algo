@@ -1406,41 +1406,10 @@ groups:
       runbook: See the "Top Trading Signals — Latest Detail" table on the
         Signals & Experiments dashboard (level A1, high freshness) for the
         symbol/direction. A1 is the confirmed tier — actionable.
-  - uid: lo-signal-fresh-a2
-    title: Fresh A2 early-warning signal
-    condition: C
-    data:
-    - refId: A
-      datasourceUid: grafanacloud-prom
-      model:
-        # A2 = early-warning tier (building momentum, NOT confirmed). Deliberately
-        # severity=info and non-paging: it is the loosest, noisiest tier — keep it
-        # a dashboard/alert-list signal, not a pager. Route info away from paging
-        # contact points. Added 2026-07-08.
-        expr: count(live_overlay_trading_signal_freshness{job="live_overlay", level="A2"} > 0.9)
-        instant: true
-    - refId: C
-      datasourceUid: __expr__
-      model:
-        type: threshold
-        conditions:
-        - evaluator:
-            type: gt
-            params:
-            - 0
-          operator:
-            type: and
-          query:
-            params:
-            - A
-    for: 0m
-    noDataState: OK
-    labels:
-      severity: info
-    annotations:
-      summary: A fresh A2 (early-warning, unconfirmed) signal is active right now
-      runbook: Early-warning only — building momentum, not a confirmed breakout.
-        Watch, do not act on A2 alone. See the Signals & Experiments dashboard.
+  # NOTE (operator decision 2026-07-08): no fresh-A2 alert. A2 is the loosest,
+  # noisiest early-warning tier — it stays a dashboard signal (the "A2
+  # Early-Warning" tile + the level="A2" table rows) and a push notification,
+  # NOT a Grafana alert. Only confirmed A1+ breakouts page.
   - uid: lo-experiment-snapshot-stale
     title: Experiment rollup snapshot stale
     condition: C

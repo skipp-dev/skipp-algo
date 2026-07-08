@@ -592,10 +592,13 @@ def test_alert_rules_include_daemon_restarts_high() -> None:
     assert rule["labels"]["severity"] == "high"
 
 
-def test_alert_rules_include_fresh_signal_alerts() -> None:
-    """Fresh-A1 (sharp) + fresh-A2 (soft) alerts on the per-signal freshness
-    gauge (added 2026-07-08). Fresh signals are transient, so `for` must be 0m
-    and noDataState OK (absent when no signal is fresh, must not fire)."""
+def test_alert_rules_include_fresh_a1_only() -> None:
+    """Fresh-A1 alert on the per-signal freshness gauge (added 2026-07-08).
+    Fresh signals are transient, so `for` must be 0m and noDataState OK (absent
+    when no signal is fresh -> must not fire).
+
+    Operator decision 2026-07-08: there is NO fresh-A2 alert — A2 is the loosest
+    early-warning tier and stays a dashboard/push signal, not a pager."""
     groups = mod.load_alert_groups(ALERT_RULES)
     rules = {r["uid"]: r for g in groups for r in g["rules"]}
 
@@ -607,13 +610,8 @@ def test_alert_rules_include_fresh_signal_alerts() -> None:
     assert a1["noDataState"] == "OK"
     assert a1["labels"]["severity"] == "high"
 
-    a2 = rules["lo-signal-fresh-a2"]
-    expr2 = a2["data"][0]["model"]["expr"]
-    assert 'level="A2"' in expr2
-    assert a2["for"] == "0m"
-    assert a2["noDataState"] == "OK"
-    # A2 is the loosest tier — deliberately info (non-paging), not high.
-    assert a2["labels"]["severity"] == "info"
+    # A2 must NOT be an alert rule (early-warning tier stays non-paging).
+    assert "lo-signal-fresh-a2" not in rules
 
 
 def test_alert_rules_include_staleness_and_supervisor_heal_rules() -> None:

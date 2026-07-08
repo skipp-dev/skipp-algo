@@ -231,7 +231,7 @@ _SIGNAL_SERIES_CAP = 50
 def _signal_labels(sig: Mapping[str, object]) -> str:
     """Render the ``symbol``/``level``/``direction``/``tier`` label set.
 
-    Surfacing the breakout level (A0 pre-breakout / A1 breakout), trade
+    Surfacing the breakout level (A0 = strongest confirmed / A1 = confirmed / A2 = early-warning), trade
     direction and confidence tier as labels lets Grafana name, colour and
     group each firing symbol instead of baking identity into the metric name.
     """
@@ -1525,7 +1525,7 @@ def render_metrics(startup_ts: float, startup_epoch: float = 0.0) -> str:
                 f"{{{_workflow_labels(workflow)}}} {_prom_numeric_value(workflow_duration)}"
             )
 
-    # ---- Realtime trading signals (A0 pre-breakout / A1 breakout) ----------
+    # ---- Realtime trading signals (A0 strongest / A1 confirmed / A2 early-warning) ----------
     # Sourced from the realtime engine snapshot via
     # compute._load_signals_snapshot (local file or SIGNALS_SNAPSHOT_URL).
     # Surfaced so Grafana can show which symbols are firing, their
