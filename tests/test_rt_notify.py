@@ -210,3 +210,46 @@ def test_corrupt_numeric_field_does_not_kill_the_batch(
     assert len(calls) == 1
     text = calls[0][1]["json"]["text"]
     assert "AAPL" in text and "NVDA" in text
+
+
+def test_ttl_eviction_runs_even_when_signals_empty(monkeypatch: pytest.MonkeyPatch) -> None:
+    """A stale dedup entry must not outlive its 2h TTL just because later polls
+    carry no signals — the eviction sweep now runs on empty polls too."""
+    monkeypatch.setenv("RT_SIGNAL_WEBHOOK_URL", "https://hook.example/x")
+    _capture(monkeypatch)
+    assert rt_notify.notify_fresh_signals([_sig("AAPL", "A0")], now=0.0) == ["AAPL LONG A0"]
+    assert ("AAPL", "LONG") in rt_notify._NOTIFIED
+    # An empty poll AFTER the TTL still evicts (was skipped by the early return).
+    assert rt_notify.notify_fresh_signals([], now=rt_notify._STATE_TTL_SECS + 1.0) == []
+    assert ("AAPL", "LONG") not in rt_notify._NOTIFIED
+
+
+def test_non_positive_cooldown_falls_back_to_default(monkeypatch: pytest.MonkeyPatch) -> None:
+    """A non-positive cooldown would re-fire the same still-active signal every
+    poll (webhook spam) — it must clamp to the 1800s default instead."""
+    monkeypatch.setenv("RT_SIGNAL_WEBHOOK_URL", "https://hook.example/x")
+    for bad in ("-1", "0", "-0.5"):
+        monkeypatch.setenv("RT_SIGNAL_NOTIFY_COOLDOWN_SECS", bad)
+        assert rt_notify._cooldown() == 1800.0
+    monkeypatch.setenv("RT_SIGNAL_NOTIFY_COOLDOWN_SECS", "-1")
+    _capture(monkeypatch)
+    # First A0 fires; the same still-active A0 shortly after does NOT re-fire.
+    assert rt_notify.notify_fresh_signals([_sig("AAPL", "A0")], now=100.0) == ["AAPL LONG A0"]
+    assert rt_notify.notify_fresh_signals([_sig("AAPL", "A0")], now=200.0) == []
+
+
+def test_unknown_level_tokens_are_dropped_and_warned_once(
+    monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture,
+) -> None:
+    """A typo like 'AO' (letter O) for 'A0' silently disabled that level; it is
+    now filtered to the valid set and warned about (once, not per poll)."""
+    monkeypatch.setenv("RT_SIGNAL_WEBHOOK_URL", "https://hook.example/x")
+    monkeypatch.setenv("RT_SIGNAL_NOTIFY_LEVELS", "AO,A1")
+    with caplog.at_level("WARNING", logger="open_prep.rt_notify"):
+        assert rt_notify._levels() == {"A1"}
+        rt_notify._levels()  # second call must NOT warn again
+    warnings = [r for r in caplog.records if "unrecognised" in r.getMessage().lower()]
+    assert len(warnings) == 1
+    # 'A0' typo'd as 'AO' is therefore not notified; 'A1' still is.
+    _capture(monkeypatch)
+    assert rt_notify.notify_fresh_signals([_sig("AAPL", "A0"), _sig("NVDA", "A1")]) == ["NVDA LONG A1"]

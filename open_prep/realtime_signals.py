@@ -492,13 +492,19 @@ class AsyncNewsstackPoller:
         self.cached_tickers_count: int = 0
 
     def start(self) -> None:
-        """Start the background polling thread (daemon)."""
+        """Start the background polling thread (daemon).
+
+        Idempotent and thread-safe: the check-and-create runs under ``_lock`` so
+        concurrent callers cannot each spawn a loop (a bare check-then-start
+        races — two callers both see ``_thread is None`` and start two threads).
+        """
         import threading
-        if self._thread is not None and self._thread.is_alive():
-            return
-        self._stop.clear()
-        self._thread = threading.Thread(target=self._loop, daemon=True, name="newsstack-bg")
-        self._thread.start()
+        with self._lock:
+            if self._thread is not None and self._thread.is_alive():
+                return
+            self._stop.clear()
+            self._thread = threading.Thread(target=self._loop, daemon=True, name="newsstack-bg")
+            self._thread.start()
         logger.info("Async newsstack poller started (interval=%.0fs)", self._interval)
 
     def stop(self, timeout: float = 5.0) -> None:
@@ -1363,8 +1369,11 @@ class VolumeRegimeDetector:
 
     def update(self, quotes: dict[str, dict[str, Any]]) -> str:
         if not quotes:
-            self.regime = "NORMAL"
-            self.thin_fraction = 0.0
+            # An empty quote map is a transient fetch failure, NOT evidence of
+            # normal volume. Resetting to NORMAL here would silently lift an
+            # active HOLIDAY_SUSPECT suspension on a single bad poll — keep the
+            # last known regime instead. (The distinct "quotes present but
+            # avgVolume unavailable" fail-open path below is unchanged.)
             return self.regime
 
         thin_count = 0
@@ -1564,13 +1573,21 @@ class TechnicalScorer:
             if val is None:
                 continue
             if name.startswith("RSI") and "14" in name:
-                rsi = float(val)
+                # None (skip), NOT 0.0, on a non-numeric/non-finite RSI (e.g. a
+                # provider "N/A"): raw float() would raise and break the poll, and
+                # 0.0 would read as deeply oversold → spurious STRONG_BUY. _r == _r
+                # is the NaN test (_safe_float yields NaN for bad/non-finite input).
+                _r = _safe_float(val, float("nan"))
+                rsi = _r if _r == _r else None
             elif "MACD" in name and "STOCHASTIC" not in name:
                 macd_signal = str(osc.get("action", "NEUTRAL")).upper()
             elif name.startswith("ADX"):
                 adx = _safe_float(val, 0.0)  # not float(): non-finite ADX would collapse score to STRONG_BUY via min(nan/50,1.0)
             elif "WILLIAMS" in name or name.startswith("WILL"):
-                williams = float(val)
+                # Same guard as RSI: bad/non-finite Williams → None (skip), not a
+                # raise and not a spurious 0.0.
+                _w = _safe_float(val, float("nan"))
+                williams = _w if _w == _w else None
 
         # MA vote counts
         ma_buy = int(result.ma_buy or 0)

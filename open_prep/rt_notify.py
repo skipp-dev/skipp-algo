@@ -47,6 +47,7 @@ logger = logging.getLogger(__name__)
 # Strength ordering: A0 is the highest bar (most volume+move), A2 the weakest.
 _STRENGTH = {"A0": 3, "A1": 2, "A2": 1}
 _EMOJI = {"A0": "🔴", "A1": "🟠", "A2": "🟡"}
+_VALID_LEVELS = frozenset(_STRENGTH)  # {"A0", "A1", "A2"}
 
 # Per-process dedup state: (symbol, direction) -> (strength, last_notified_epoch).
 # Only advanced AFTER a POST is confirmed delivered (see notify_fresh_signals),
@@ -56,16 +57,29 @@ _EMOJI = {"A0": "🔴", "A1": "🟠", "A2": "🟡"}
 _NOTIFIED: dict[tuple[str, str], tuple[int, float]] = {}
 _STATE_TTL_SECS = 2 * 3600.0
 _LOCK = threading.Lock()
+# Keys of one-shot config warnings already emitted. _levels()/_cooldown() run on
+# every poll, so an unconditional warning on a misconfig would flood the log
+# (the very thing we avoid elsewhere). Mutated in place → no `global` needed.
+_WARNED: set[str] = set()
 
 
 def reset_state() -> None:
     """Clear the dedup state (tests / a manual re-arm)."""
     with _LOCK:
         _NOTIFIED.clear()
+    _WARNED.clear()
 
 
 def _env(name: str, default: str = "") -> str:
     return os.environ.get(name, default).strip()
+
+
+def _warn_once(key: str, msg: str, *args: Any) -> None:
+    """Emit a config warning at most once per process (keyed) — the callers run
+    every poll, so warning unconditionally would itself flood the log."""
+    if key not in _WARNED:
+        _WARNED.add(key)
+        logger.warning(msg, *args)
 
 
 def _levels() -> set[str]:
@@ -73,14 +87,34 @@ def _levels() -> set[str]:
     # message so it reads as unconfirmed, not a confirmed breakout. Set
     # RT_SIGNAL_NOTIFY_LEVELS="A0,A1" to mute the noisy tier.
     raw = _env("RT_SIGNAL_NOTIFY_LEVELS", "A0,A1,A2")
-    return {p.strip().upper() for p in raw.split(",") if p.strip()}
+    tokens = {p.strip().upper() for p in raw.split(",") if p.strip()}
+    unknown = tokens - _VALID_LEVELS
+    if unknown:
+        _warn_once(
+            f"levels:{raw}",
+            "RT_SIGNAL_NOTIFY_LEVELS has unrecognised level(s) %s (valid: A0,A1,A2); "
+            "they are ignored — check for a typo like 'AO' vs 'A0'",
+            sorted(unknown),
+        )
+    return tokens & _VALID_LEVELS
 
 
 def _cooldown() -> float:
+    raw = _env("RT_SIGNAL_NOTIFY_COOLDOWN_SECS", "1800")
     try:
-        return max(0.0, float(_env("RT_SIGNAL_NOTIFY_COOLDOWN_SECS", "1800")))
+        secs = float(raw)
     except ValueError:
         return 1800.0
+    if secs <= 0:
+        # A non-positive cooldown re-fires the same still-active signal on every
+        # poll (webhook spam) — treat as misconfig and fall back to the default.
+        _warn_once(
+            f"cooldown:{raw}",
+            "RT_SIGNAL_NOTIFY_COOLDOWN_SECS=%r is non-positive; using default 1800s",
+            raw,
+        )
+        return 1800.0
+    return secs
 
 
 def is_enabled() -> bool:
@@ -252,7 +286,7 @@ def notify_fresh_signals(signals: list[Any], *, now: float | None = None) -> lis
     is advisory — the production caller ignores it). Empty when disabled,
     nothing is fresh, or delivery failed. Never raises.
     """
-    if not is_enabled() or not signals:
+    if not is_enabled():
         return []
     ts = time.time() if now is None else now
     levels = _levels()
@@ -263,7 +297,7 @@ def notify_fresh_signals(signals: list[Any], *, now: float | None = None) -> lis
     fresh: list[Any] = []
     marks: list[tuple[tuple[str, str], int]] = []
     with _LOCK:
-        for s in signals:
+        for s in signals or ():
             lvl = str(getattr(s, "level", "") or "")
             if lvl not in levels:
                 continue
@@ -273,7 +307,9 @@ def notify_fresh_signals(signals: list[Any], *, now: float | None = None) -> lis
             if prev is None or strength > prev[0] or (ts - prev[1]) >= cooldown:
                 fresh.append(s)
                 marks.append((key, strength))
-        # Evict stale dedup entries so the map cannot grow unbounded.
+        # Evict stale dedup entries so the map cannot grow unbounded. Runs even
+        # when `signals` is empty, so a stale entry can't outlive its TTL merely
+        # because no new signal happened to arrive on later polls.
         for k in [k for k, (_st, t) in _NOTIFIED.items() if ts - t > _STATE_TTL_SECS]:
             _NOTIFIED.pop(k, None)
 
