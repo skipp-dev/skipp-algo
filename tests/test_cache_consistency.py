@@ -20,6 +20,8 @@ def _restore_cache_module_state() -> None:
         rolling_bars_cap_snapshot = cache._rolling_bars_cap
         max_symbols_snapshot = cache._max_symbols
         last_eviction_at_snapshot = cache._last_eviction_at
+        evict_summary_pending_snapshot = cache._evict_summary.pending
+        evict_summary_at_snapshot = cache._evict_summary.at
 
     with cache._overlay_lock:
         overlay_snapshot = copy.deepcopy(cache._overlay)
@@ -43,6 +45,8 @@ def _restore_cache_module_state() -> None:
         cache._rolling_bars_cap = rolling_bars_cap_snapshot
         cache._max_symbols = max_symbols_snapshot
         cache._last_eviction_at = last_eviction_at_snapshot
+        cache._evict_summary.pending = evict_summary_pending_snapshot
+        cache._evict_summary.at = evict_summary_at_snapshot
 
     with cache._overlay_lock:
         cache._overlay.clear()
@@ -121,6 +125,17 @@ def test_init_bar_cache_downscale_cleans_last_update() -> None:
     with cache._bar_lock:
         assert len(cache._bars) <= 2
         assert set(cache._bars.keys()) == set(cache._bar_last_update.keys())
+
+
+def test_evict_summary_state_is_isolated_by_fixture() -> None:
+    """The autouse fixture must restore _evict_summary across tests."""
+    import services.live_overlay_daemon.cache as cache
+
+    # Mutate the module-level throttle state as if a prior test left it.
+    with cache._bar_lock:
+        cache._evict_summary.pending = 777
+        cache._evict_summary.at = 99999.0
+    # The fixture will restore it after this test function returns.
 
 
 def test_cap_eviction_does_not_flood_info_logs(caplog: pytest.LogCaptureFixture) -> None:
