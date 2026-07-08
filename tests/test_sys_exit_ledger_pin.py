@@ -42,7 +42,7 @@ _DIR_EXCLUDE = frozenset({
 _SYS_EXIT_LEDGER: frozenset[tuple[str, int]] = frozenset({
     # 2026-07-03 (WP-3 holdout rescoring): helper additions shifted CLI
     # guard exit from 244 -> 566.
-    ("open_prep/candidate_weights.py", 566),
+    ("open_prep/candidate_weights.py", 573),
     # 2026-06-13 (audit-e2/aw7-reader-observability, PR #2759): _load_previous_latest
     #   DEBUG log insertion shifted CLI exit from 358 → 359.
     ("open_prep/feature_importance_report.py", 360),

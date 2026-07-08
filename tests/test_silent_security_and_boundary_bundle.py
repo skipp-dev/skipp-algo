@@ -182,7 +182,7 @@ _FROZEN_BASIC_CONFIG_SITES: frozenset[tuple[str, int]] = frozenset({
     ("newsstack_fmp/run.py", 22),
     # 2026-07-03 (WP-3 holdout rescoring): helper additions shifted
     # logging.basicConfig from 211 -> 533.
-    ("open_prep/candidate_weights.py", 533),
+    ("open_prep/candidate_weights.py", 540),
     # 2026-06-13 (audit-e2/aw7-reader-observability, PR #2759): _load_previous_latest
     #   DEBUG log insertion shifted logging.basicConfig from 305 → 306.
     ("open_prep/feature_importance_report.py", 307),
