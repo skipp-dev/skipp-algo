@@ -126,5 +126,87 @@ def test_notify_is_fail_soft_when_post_raises(monkeypatch: pytest.MonkeyPatch) -
         raise RuntimeError("network down")
 
     monkeypatch.setattr(rt_notify, "_http_post", _boom)
-    # Must not raise — the poll loop depends on this.
-    assert rt_notify.notify_fresh_signals([_sig("AAPL", "A0")]) == ["AAPL LONG A0"]
+    # Must not raise — the poll loop depends on this. And since delivery failed,
+    # nothing was notified, so the return is empty (was: claimed the key).
+    assert rt_notify.notify_fresh_signals([_sig("AAPL", "A0")]) == []
+
+
+def test_failed_post_does_not_advance_dedup_state(monkeypatch: pytest.MonkeyPatch) -> None:
+    """A webhook that returns HTTP >= 400 (POST 'fails') must NOT mark the
+    signal notified — otherwise a transient outage silently suppresses it for a
+    whole cooldown. The next poll must re-attempt."""
+    monkeypatch.setenv("RT_SIGNAL_WEBHOOK_URL", "https://hook.example/x")
+    calls = {"n": 0}
+
+    def _failing_post(url: str, **kw: Any) -> bool:
+        calls["n"] += 1
+        return False
+
+    monkeypatch.setattr(rt_notify, "_http_post", _failing_post)
+    # Both calls re-attempt (state never advanced) and report nothing delivered.
+    assert rt_notify.notify_fresh_signals([_sig("AAPL", "A0")]) == []
+    assert rt_notify.notify_fresh_signals([_sig("AAPL", "A0")]) == []
+    assert calls["n"] == 2
+
+
+def test_raising_post_does_not_advance_dedup_state(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Same guarantee when the POST raises instead of returning False."""
+    monkeypatch.setenv("RT_SIGNAL_WEBHOOK_URL", "https://hook.example/x")
+    calls = {"n": 0}
+
+    def _booming_post(url: str, **kw: Any) -> bool:
+        calls["n"] += 1
+        raise RuntimeError("network down")
+
+    monkeypatch.setattr(rt_notify, "_http_post", _booming_post)
+    assert rt_notify.notify_fresh_signals([_sig("AAPL", "A0")]) == []
+    assert rt_notify.notify_fresh_signals([_sig("AAPL", "A0")]) == []
+    assert calls["n"] == 2
+
+
+def test_recovers_after_transient_failure(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Once the webhook recovers, the previously-failed signal is delivered and
+    only THEN deduplicated."""
+    monkeypatch.setenv("RT_SIGNAL_WEBHOOK_URL", "https://hook.example/x")
+    ok = {"v": False}
+    calls = {"n": 0}
+
+    def _flaky_post(url: str, **kw: Any) -> bool:
+        calls["n"] += 1
+        return ok["v"]
+
+    monkeypatch.setattr(rt_notify, "_http_post", _flaky_post)
+    assert rt_notify.notify_fresh_signals([_sig("AAPL", "A0")], now=1000.0) == []
+    ok["v"] = True
+    assert rt_notify.notify_fresh_signals([_sig("AAPL", "A0")], now=1010.0) == ["AAPL LONG A0"]
+    # Now deduplicated — no re-fire within cooldown, no extra POST.
+    assert rt_notify.notify_fresh_signals([_sig("AAPL", "A0")], now=1020.0) == []
+    assert calls["n"] == 2
+
+
+@pytest.mark.parametrize(
+    "field,bad_value",
+    [
+        ("price", None),
+        ("volume_ratio", None),
+        ("change_pct", None),
+        ("price", "not-a-number"),
+        ("change_pct", "not-a-number"),
+    ],
+)
+def test_corrupt_numeric_field_does_not_kill_the_batch(
+    monkeypatch: pytest.MonkeyPatch, field: str, bad_value: Any
+) -> None:
+    """A single signal with a None/garbage numeric field must not raise and
+    blow up the whole batch push (which would also mark every fresh signal
+    notified-but-never-sent). The bad field renders as 0.0."""
+    monkeypatch.setenv("RT_SIGNAL_WEBHOOK_URL", "https://hook.example/x")
+    calls = _capture(monkeypatch)
+    bad = _sig("AAPL", "A0")
+    setattr(bad, field, bad_value)
+    good = _sig("NVDA", "A1")
+    notified = rt_notify.notify_fresh_signals([bad, good])
+    assert notified == ["AAPL LONG A0", "NVDA LONG A1"]
+    assert len(calls) == 1
+    text = calls[0][1]["json"]["text"]
+    assert "AAPL" in text and "NVDA" in text
