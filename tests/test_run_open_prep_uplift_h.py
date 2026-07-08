@@ -684,7 +684,7 @@ def test_benzinga_core_news_queries_priority_symbols_first(
     monkeypatch.setattr(bz, "BenzingaRestAdapter", _Adapter)
 
     universe = ["AAPL", "MSFT", "NVDA", "GOOG", "AMZN", "AMPG", "AKAN"]
-    arts, err = rop._fetch_benzinga_core_news_articles(
+    _arts, err = rop._fetch_benzinga_core_news_articles(
         symbols=universe, priority_symbols=["AMPG", "AKAN"]
     )
     assert err is None
@@ -710,7 +710,7 @@ def test_benzinga_core_news_without_priority_keeps_old_order(
 
     monkeypatch.setattr(bz, "BenzingaRestAdapter", _Adapter)
 
-    arts, err = rop._fetch_benzinga_core_news_articles(
+    _arts, err = rop._fetch_benzinga_core_news_articles(
         symbols=["AAPL", "MSFT", "NVDA"]
     )
     assert err is None
