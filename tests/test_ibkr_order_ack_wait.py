@@ -17,6 +17,7 @@ from scripts.execute_ibkr_watchlist import (
     IBKROrderIntent,
     _await_order_acknowledgements,
     place_order_intents_with_ib,
+    pump_event_loop_until,
 )
 
 
@@ -50,6 +51,41 @@ def _intent() -> IBKROrderIntent:
         gap_pct=0.0, tif="DAY", outside_rth=False, exit_mode="tp-stop",
         order_ref="smc-2026-07-08-AAA-L1",
     )
+
+
+# --------------------------------------------------------------------------- #
+# pump_event_loop_until (the shared helper both paths delegate to)
+# --------------------------------------------------------------------------- #
+def test_pump_returns_true_without_sleeping_when_predicate_already_true() -> None:
+    class _IB:
+        slept = 0
+
+        def sleep(self, _s: float) -> None:  # pragma: no cover
+            self.slept += 1
+
+    ib = _IB()
+    assert pump_event_loop_until(ib, lambda: True, timeout_seconds=5.0) is True
+    assert ib.slept == 0
+
+
+def test_pump_runs_loop_until_predicate_flips() -> None:
+    state = {"n": 0}
+
+    class _IB:
+        def sleep(self, _s: float) -> None:
+            state["n"] += 1
+
+    ib = _IB()
+    assert pump_event_loop_until(ib, lambda: state["n"] >= 3, timeout_seconds=5.0, poll_seconds=0.1) is True
+    assert state["n"] == 3
+
+
+def test_pump_returns_false_on_timeout() -> None:
+    class _IB:
+        def sleep(self, _s: float) -> None:
+            pass
+
+    assert pump_event_loop_until(_IB(), lambda: False, timeout_seconds=0.3, poll_seconds=0.1) is False
 
 
 # --------------------------------------------------------------------------- #

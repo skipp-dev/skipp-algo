@@ -798,6 +798,31 @@ _ACKNOWLEDGED_ORDER_STATUSES = frozenset(
 )
 
 
+def pump_event_loop_until(
+    ib: Any,
+    predicate: Any,
+    *,
+    timeout_seconds: float,
+    poll_seconds: float = 0.25,
+) -> bool:
+    """Run the ib_async event loop (via ``ib.sleep``) until ``predicate()`` is
+    true or ``timeout_seconds`` elapses; return ``predicate()``'s final value.
+
+    THE single home of the "let IB react before we act/disconnect" rule.
+    ``placeOrder`` / ``cancelOrder`` are asynchronous — their messages only
+    reach the socket when the loop runs. Both the paper submitter (wait for the
+    ack before disconnecting) and the smoke round-trip (wait for the ack before
+    cancelling, and for terminal after) delegate here so the rule can never
+    drift apart between the two paths again (the divergence that let the
+    phantom-order bug ship: the smoke waited, the submitter did not).
+    """
+    waited = 0.0
+    while not predicate() and waited < timeout_seconds:
+        ib.sleep(poll_seconds)  # runs the event loop so pending sends flush
+        waited += poll_seconds
+    return predicate()
+
+
 def _await_order_acknowledgements(
     ib: Any,
     trades: list[Any],
@@ -826,11 +851,9 @@ def _await_order_acknowledgements(
             for t in trades
         )
 
-    waited = 0.0
-    while not _all_acked() and waited < timeout_seconds:
-        ib.sleep(poll_seconds)  # runs the event loop so pending sends flush
-        waited += poll_seconds
-    return _all_acked()
+    return pump_event_loop_until(
+        ib, _all_acked, timeout_seconds=timeout_seconds, poll_seconds=poll_seconds
+    )
 
 
 def place_order_intents_with_ib(
