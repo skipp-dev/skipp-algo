@@ -50,7 +50,7 @@ _ROUTED_WORKFLOWS = {
     "smc-measurement-benchmark.yml": {"worker_jobs": {"measurement-benchmark"}},
     "smc-measurement-benchmark-rolling.yml": {"worker_jobs": {"rolling-benchmark"}},
     "smc-databento-production-export.yml": {"worker_jobs": {"export"}},
-    "smc-live-newsapi-refresh.yml": {"worker_jobs": {"refresh"}},
+    "smc-live-news-refresh.yml": {"worker_jobs": {"refresh"}},
 }
 
 

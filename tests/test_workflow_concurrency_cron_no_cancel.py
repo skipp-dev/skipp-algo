@@ -40,10 +40,10 @@ _PR_LIKE_TRIGGERS = frozenset({"push", "pull_request", "pull_request_target"})
 # Pure-cron exemptions.  Add only with an explicit reason and a tracking
 # finding ID so the audit ledger stays honest.
 _EXEMPT_WORKFLOWS = {
-    # F-V5-C1 (#2011): smc-live-newsapi-refresh.yml is the *one* cron whose
+    # F-V5-C1 (#2011): smc-live-news-refresh.yml is the *one* cron whose
     # operator preference is to let a fresh poll preempt a stuck old one (the
     # whole point of the workflow is freshness, not artifact integrity).
-    "smc-live-newsapi-refresh.yml",
+    "smc-live-news-refresh.yml",
 }
 
 
