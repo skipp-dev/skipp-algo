@@ -240,10 +240,14 @@ def build_pine(panel: dict[str, Any], *, generated_at: str, source: str,
     ]
 
     body = [
-        "// ── Freshness guard: grey out when data is > 1 trading day old ──────",
+        "// ── Freshness guard: grey out when the snapshot is > 3 calendar days old ──",
         "panel_ts = PANEL_YEAR > 0 ? timestamp(PANEL_YEAR, PANEL_MONTH, PANEL_DAY, 0, 0) : 0",
         "age_days = panel_ts > 0 ? (timenow - panel_ts) / 86400000.0 : 1.0e9",
-        "is_stale = age_days > 3.0  // 1 trading day + weekend buffer",
+        # Comment fixed 2026-07-08: this is NOT "1 trading day" — measured from
+        # the snapshot date's midnight, a Friday panel greys from Monday 00:00
+        # (VERALTET on Monday morning until the new run lands) and a weekday
+        # panel tolerates up to two missed runs before greying.
+        "is_stale = age_days > 3.0  // 3 calendar days from the snapshot's midnight (Fri panel greys Mon 00:00; up to 2 missed weekday runs stay un-greyed)",
         "",
         "// ── Weather traffic-light colour ───────────────────────────────────",
         "weather_col = PANEL_WEATHER == \"GREEN\" ? color.new(color.green, 0) :"

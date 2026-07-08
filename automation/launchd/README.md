@@ -16,7 +16,7 @@ consumes whatever artefacts the local jobs commit + push into
 | `com.skippalgo.c13.phase-a.plist` | 09:28 ET (Mon-Fri) | `scripts.build_phase_a_inputs` + `scripts.run_smc_live_incubation --phase paper --place-paper-orders` | `cache/live/setups_<DATE>.jsonl`, `cache/live/gate_status.json`, `cache/live/incubation_<DATE>.jsonl` (bracket sets submitted to the PAPER TWS) |
 | `com.skippalgo.c13.ibkr-smoke.plist` | **08:00 ET (Mon-Fri)** | `scripts.smoke_smc_to_ibkr_adapter --mode live` | `cache/live/smoke_<DATE>.jsonl`; writes `cache/live/smoke_HALT` on failure |
 | `com.skippalgo.c13.reconcile.plist` | 23:05 local (Mon-Fri) | `scripts.reconcile_incubation_fills` | stamps `fill_price`/`close_price`/`close_action`/`size_usd` + PnL/R onto `cache/live/incubation_<DATE>.jsonl` and publishes it (Phase-B execution-promotion fills — NOT the ADR-0023 §5 gate) |
-| `com.skippalgo.c13.tws-reminder.plist` | 09:13 + 22:50 local (Mon-Fri) | `run-c13-tws-reminder.sh` (system tools only, no venv) | macOS notification 15 min before each IBKR-bound window — posts ONLY when nothing listens on the paper port |
+| `com.skippalgo.c13.tws-reminder.plist` | **07:45 ET** + 22:50 local (Mon-Fri) | `run-c13-tws-reminder.sh` (system tools + ET-gate lib, no venv) | macOS notification 15 min before the day's first TWS-bound window (08:00 ET ibkr-smoke; also covers 09:28 ET phase-a) and before the 23:05 local reconcile — posts ONLY when nothing listens on the paper port |
 | `com.skippalgo.c13.audit-push.plist` | 17:30 ET (Mon-Fri) | `git push origin data/phase-a-audit` | n/a (commits today's audit artefacts to the dedicated, unprotected `data/phase-a-audit` branch, bootstrapped on first run) |
 
 The IBKR-bound jobs (`collect-imbalance`, `phase-a`) use the rotating
@@ -145,11 +145,13 @@ root-caused as the reason the ORB paper orders never filled (placed pre-market)
 and the pre-market TWS smoke always tripped `smoke_HALT` (ran 02:00 ET,
 overnight, TWS off).
 
-**All six ET-scheduled jobs are made timezone-correct** without assuming the
+**All ET-scheduled jobs are made timezone-correct** without assuming the
 Mac's zone, via [`lib_c13_et_gate.sh`](lib_c13_et_gate.sh) — `phase-a`,
-`ibkr-smoke`, `phase-a-export`, `collect-imbalance`, `wsh-earnings` and
-`audit-push`. (`reconcile` and `tws-reminder` are *local*-time by design and
-are not gated.)
+`ibkr-smoke`, `phase-a-export`, `collect-imbalance`, `wsh-earnings`,
+`audit-push`, and the *morning* window of `tws-reminder` (07:45 ET; realigned
+2026-07-08 — its old 09:13 LOCAL fire hit ~03:13 ET and protected nothing).
+(`reconcile` and the reminder's *evening* 22:50 fire are local-time by
+design — the fill reconcile runs at 23:05 LOCAL — and are not gated.)
 
 - The plist fires at the **three candidate local times** that bracket the
   Berlin↔ET offset (+5 / +6 / +7 h across the mismatched US/EU DST windows) —

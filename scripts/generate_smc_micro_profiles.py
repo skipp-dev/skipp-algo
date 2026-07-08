@@ -662,7 +662,11 @@ def write_pine_library(
         "// ── Usage ──────────────────────────────────────────────────────",
         "// import preuss_steffen/smc_micro_profiles_generated/1 as mp",
         "//",
-        "// Fields are grouped into sections (v5.5b Lean, ~102 fields + 5 optional debug):",
+        # __FIELD_COUNT__ is substituted with the real export count at the
+        # end of this builder — a hardcoded number here drifted to ~half the
+        # actual surface (claimed ~102 while the library exported ~198;
+        # fixed 2026-07-08).
+        "// Fields are grouped into sections (v5.5b Lean, __FIELD_COUNT__ export fields in this build):",
         "// Deprecated v5-v5.3 compatibility groups removed (sunset 2026-04-14); only v5.5b Lean fields remain.",
         "//   Core/Meta       — ASOF_DATE, ASOF_TIME, UNIVERSE_SIZE, REFRESH_COUNT (+ UNIVERSE_ID, LOOKBACK_DAYS in debug mode)",
         "//   Microstructure  — *_TICKERS lists (clean_reclaim, stop_hunt_prone, …)",
@@ -1173,7 +1177,15 @@ def write_pine_library(
         f'"{consumer.get("ZONE_CAL_TRUST", _ZH_DEFAULTS["ZONE_CAL_TRUST"])}"'
     )
 
-    atomic_write_text("\n".join(content).rstrip() + "\n", path)
+    # Substitute the real export count into the header (multi-line entries
+    # like the *_TICKERS CSV exports contain one `export const` each, so
+    # count on the joined text, not on list entries).
+    joined = "\n".join(content).rstrip() + "\n"
+    field_count = sum(
+        1 for line in joined.splitlines() if line.startswith("export const")
+    )
+    joined = joined.replace("__FIELD_COUNT__", str(field_count))
+    atomic_write_text(joined, path)
 
 
 def render_output_path(root: Path, template: str, asof_date: str) -> Path:
