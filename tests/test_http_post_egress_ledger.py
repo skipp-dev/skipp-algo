@@ -136,6 +136,11 @@ def _request_method_post_sites() -> set[tuple[str, int]]:
 # Locked outbound HTTP POST surface — every entry is a reviewed,
 # legitimate egress edge to a known external service.
 HTTP_POST_LEDGER: set[tuple[str, int]] = {
+    # Fresh-breakout push notifier (2026-07-08): the single outbound-POST egress
+    # for user-configured realtime signal alerts (generic/slack/discord/ntfy/
+    # telegram/twilio_whatsapp/meta_whatsapp). Opt-in via RT_SIGNAL_WEBHOOK_*;
+    # fail-soft; destination + auth are user-supplied. See open_prep/rt_notify.py.
+    ("open_prep/rt_notify.py", 173),  # +7: A2 default-on + early-flag docs
     # Notification webhook fan-out (Discord/Slack-style).
     ("terminal_notifications.py", 279),
     # FMP/news export webhook (raw body, no redirects, HMAC-SHA256 signed,
