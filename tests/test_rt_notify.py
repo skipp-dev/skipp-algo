@@ -58,6 +58,36 @@ def test_generic_webhook_notifies_all_levels_by_default_and_flags_a2(
     assert a2_line.endswith("⚠️early")
 
 
+def test_high_conviction_a1_gets_near_a0_star(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("RT_SIGNAL_WEBHOOK_URL", "https://hook.example/x")
+    calls = _capture(monkeypatch)
+    # vol 2.4 / Δ3.1% are both past the midpoint toward the A0 floor -> ⭐.
+    notified = rt_notify.notify_fresh_signals([_sig("AAPL", "A1")])
+    text = calls[0][1]["json"]["text"]
+    a1_line = next(ln for ln in text.splitlines() if "AAPL" in ln)
+    assert a1_line.endswith("⭐near-A0")
+    # The dedup/return key is the raw level, unaffected by the presentational tag.
+    assert notified == ["AAPL LONG A1"]
+
+
+def test_weak_a1_is_not_starred(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("RT_SIGNAL_WEBHOOK_URL", "https://hook.example/x")
+    calls = _capture(monkeypatch)
+    # A slow-grinder A1: above the A1 floor but below the near-A0 midpoint on both axes.
+    weak = SimpleNamespace(symbol="XYZ", level="A1", direction="LONG", price=50.0,
+                           volume_ratio=1.3, change_pct=0.5, freshness=1.0)
+    rt_notify.notify_fresh_signals([weak])
+    a1_line = next(ln for ln in calls[0][1]["json"]["text"].splitlines() if "XYZ" in ln)
+    assert "⭐" not in a1_line and a1_line.endswith("%")
+    # One strong axis alone is not enough — both volume and move must lean A0.
+    assert rt_notify._is_high_conviction_a1(
+        SimpleNamespace(volume_ratio=3.5, change_pct=0.4)
+    ) is False
+    # The ⭐ is A1-only: an A0 line is never starred even though its momentum
+    # clears the gate (A0 is already the top tier).
+    assert "⭐" not in rt_notify._fmt_signal(_sig("AAPL", "A0"))
+
+
 def test_levels_env_can_mute_a2(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setenv("RT_SIGNAL_WEBHOOK_URL", "https://hook.example/x")
     monkeypatch.setenv("RT_SIGNAL_NOTIFY_LEVELS", "A0,A1")
