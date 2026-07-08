@@ -220,6 +220,13 @@ def _build_filter_result_from_fi_sample(sample: dict[str, Any]) -> scorer_mod.Fi
             analyst_component / DEFAULT_WEIGHTS["analyst_catalyst"]
             if DEFAULT_WEIGHTS["analyst_catalyst"] else 0.0
         ),
+        # FI holdout samples carry no analyst price-target data; None mirrors
+        # the scorer's "no consensus available" value (#3261 added the field
+        # to the scorer's row output, which reads it with a hard key).
+        "analyst_implied_upside_pct": None,
+        # Weight-0 evaluation pass-through (#3269); 0.0 is the scorer's own
+        # default when no news metrics are present.
+        "news_directional_score": 0.0,
         "split_today": False,
         "dividend_today": False,
         "ipo_window": False,

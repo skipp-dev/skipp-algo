@@ -96,7 +96,7 @@ OS_DELETE_LEDGER: set[tuple[str, int, str]] = {
     ("open_prep/alerts.py", 83, "unlink"),
     # 2026-07-03 (WP-3 holdout rescoring): helper additions shifted
     # unlink cleanup from 158 -> 480.
-    ("open_prep/candidate_weights.py", 480, "unlink"),
+    ("open_prep/candidate_weights.py", 487, "unlink"),  # 2026-07-08 FI hard-key parity fix shifted (+7)
     ("open_prep/diff.py", 71, "unlink"),
     # 2026-06-13 (audit-e2/aw7-reader-observability, PR #2759): _load_previous_latest
     #   DEBUG log insertion shifted unlink from 257 → 258.
