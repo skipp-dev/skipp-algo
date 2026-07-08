@@ -15,7 +15,8 @@
         <string>__REPO_PATH__/automation/launchd/run-c13-audit-push.sh</string>
     </array>
 
-    <!-- 17:30 local time (ET) Mon-Fri — one hour after US-equity close.
+    <!-- 17:30 ET target, Mon-Fri (via the ET-bracket candidates + gate
+         described below) — 90 minutes after the 16:00 ET US-equity close.
          Pushes today's incubation_<DATE>.jsonl + setups + gate_status
          to the dedicated, unprotected `data/phase-a-audit` branch
          (keeps cron-bot churn off main; bootstrapped on first run). -->

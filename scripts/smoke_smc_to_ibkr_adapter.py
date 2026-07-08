@@ -51,7 +51,7 @@ logger = logging.getLogger("smoke_smc_to_ibkr_adapter")
 DEFAULT_RISK_LIMITS_PATH = Path("configs/live_risk_limits.json")
 DEFAULT_AUDIT_DIR = Path("cache/live")
 DEFAULT_PAPER_HOST = "127.0.0.1"
-DEFAULT_PAPER_PORT = 7497  # IBKR Paper Gateway
+DEFAULT_PAPER_PORT = 7497  # TWS paper port (the Gateway paper port is 4002)
 DEFAULT_CLIENT_ID = 71  # Reserved for SMC live incubation
 
 

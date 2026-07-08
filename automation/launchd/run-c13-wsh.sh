@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
 # C13 / T7.1 — daily local cron driver for WSH earnings calendar pull.
 # Invoked by ~/Library/LaunchAgents/com.skippalgo.c13.wsh-earnings.plist
-# on Mon-Fri @ 16:30 local time. Idempotent on the artefact path.
+# Mon-Fri targeting 16:30 ET (plist fires three ET-bracketing local
+# times; the ET gate picks one). Idempotent on the artefact path.
 
 set -euo pipefail
 

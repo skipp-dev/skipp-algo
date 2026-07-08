@@ -159,3 +159,36 @@ def test_plist_candidate_hours_cover_dst_offsets(plist_name: str, et_hour: int) 
         assert weekdays == {1, 2, 3, 4, 5, 6}, weekdays
     else:
         assert weekdays == {1, 2, 3, 4, 5}, weekdays
+
+
+def test_tws_reminder_plist_mixes_et_morning_and_local_evening() -> None:
+    """The reminder has TWO windows on TWO clocks (realigned 2026-07-08).
+
+    Morning: 07:45 ET (15 min before the 08:00 ET ibkr-smoke, which writes
+    smoke_HALT when TWS is down) -> three DST-bracket candidates at
+    12:45/13:45/14:45 local, disambiguated by the ET gate in the wrapper.
+    Evening: 22:50 LOCAL, ungated, because the 23:05 fill reconcile is
+    deliberately local-time. The old single 09:13 LOCAL fire hit ~03:13 ET
+    and protected nothing — this pin prevents that regression."""
+    text = (
+        _REPO / "automation" / "launchd" / "com.skippalgo.c13.tws-reminder.plist"
+    ).read_text()
+    entries = re.findall(
+        r"<key>Weekday</key><integer>(\d+)</integer>"
+        r"<key>Hour</key><integer>(\d+)</integer>"
+        r"<key>Minute</key><integer>(\d+)</integer>",
+        text,
+    )
+    assert entries, "no compact schedule entries found"
+    morning = {(int(w), int(h)) for w, h, m in entries if int(m) == 45}
+    evening = {(int(w), int(h)) for w, h, m in entries if int(m) == 50}
+    assert {h for _w, h in morning} == {7 + off for off in (5, 6, 7)}, morning
+    assert {w for w, _h in morning} == {1, 2, 3, 4, 5}, morning
+    assert evening == {(w, 22) for w in (1, 2, 3, 4, 5)}, evening
+    assert len(entries) == len(morning) + len(evening), "unexpected extra entries"
+    # The wrapper must gate the morning candidates on true ET.
+    wrapper = (_REPO / "automation" / "launchd" / "run-c13-tws-reminder.sh").read_text()
+    assert "lib_c13_et_gate.sh" in wrapper
+    assert re.search(
+        r"c13_require_et_window\s+\"\$REPO\"\s+07\s+45\s+\d+\s+tws-reminder", wrapper
+    ), "morning reminder must target 07:45 ET via the shared gate"

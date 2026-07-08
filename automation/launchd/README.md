@@ -1,6 +1,6 @@
 # C13 Phase-A — local IBKR launchd jobs
 
-These two LaunchAgents drive the IBKR-bound jobs that **cannot** run on
+These LaunchAgents (eight plists, see table) drive the local jobs that **cannot** run on
 the GitHub-hosted cron because they require a live TWS / IB Gateway
 session. The unattended GH cron (`.github/workflows/c13-daily-cron.yml`)
 consumes whatever artefacts the local jobs commit + push into
@@ -8,7 +8,7 @@ consumes whatever artefacts the local jobs commit + push into
 
 ## Jobs
 
-| Plist | Schedule (local time) | Script | Output |
+| Plist | Schedule (target clock) | Script | Output |
 | --- | --- | --- | --- |
 | `com.skippalgo.c13.collect-imbalance.plist` | 09:28 ET (Mon-Fri) | `scripts.collect_opening_imbalances` | `cache/imbalance/<DATE>.jsonl` |
 | `com.skippalgo.c13.wsh-earnings.plist` | 16:30 ET (Mon-Fri) | `scripts.wsh_earnings_calendar` | `cache/wsh/<DATE>.jsonl` |
@@ -16,12 +16,15 @@ consumes whatever artefacts the local jobs commit + push into
 | `com.skippalgo.c13.phase-a.plist` | 09:28 ET (Mon-Fri) | `scripts.build_phase_a_inputs` + `scripts.run_smc_live_incubation --phase paper --place-paper-orders` | `cache/live/setups_<DATE>.jsonl`, `cache/live/gate_status.json`, `cache/live/incubation_<DATE>.jsonl` (bracket sets submitted to the PAPER TWS) |
 | `com.skippalgo.c13.ibkr-smoke.plist` | **08:00 ET (Mon-Fri)** | `scripts.smoke_smc_to_ibkr_adapter --mode live` | `cache/live/smoke_<DATE>.jsonl`; writes `cache/live/smoke_HALT` on failure |
 | `com.skippalgo.c13.reconcile.plist` | 23:05 local (Mon-Fri) | `scripts.reconcile_incubation_fills` | stamps `fill_price`/`close_price`/`close_action`/`size_usd` + PnL/R onto `cache/live/incubation_<DATE>.jsonl` and publishes it (Phase-B execution-promotion fills — NOT the ADR-0023 §5 gate) |
-| `com.skippalgo.c13.tws-reminder.plist` | 09:13 + 22:50 local (Mon-Fri) | `run-c13-tws-reminder.sh` (system tools only, no venv) | macOS notification 15 min before each IBKR-bound window — posts ONLY when nothing listens on the paper port |
+| `com.skippalgo.c13.tws-reminder.plist` | **07:45 ET** + 22:50 local (Mon-Fri) | `run-c13-tws-reminder.sh` (system tools + ET-gate lib, no venv) | macOS notification 15 min before the day's first TWS-bound window (08:00 ET ibkr-smoke; also covers 09:28 ET phase-a) and before the 23:05 local reconcile — posts ONLY when nothing listens on the paper port |
 | `com.skippalgo.c13.audit-push.plist` | 17:30 ET (Mon-Fri) | `git push origin data/phase-a-audit` | n/a (commits today's audit artefacts to the dedicated, unprotected `data/phase-a-audit` branch, bootstrapped on first run) |
 
-The IBKR-bound jobs (`collect-imbalance`, `phase-a`) use the rotating
+`collect-imbalance`, `wsh-earnings` and the smoke use the rotating
 clientId allocator (`scripts.ib_client_id`) so they never collide with
 the long-lived `~/IB_mon` monitoring service or with each other.
+`phase-a` does NOT — it connects with the fixed default clientId 71
+(`IBKRConnectionConfig`, scripts/execute_ibkr_watchlist.py; corrected
+2026-07-08, the allocator claim was never true for phase-a).
 
 ## Phase-A safety contract
 
@@ -40,8 +43,9 @@ never receive real orders from this cron. **However**, before loading
 this plist, verify the TWS header reads `PAPER` and Read-Only API is
 disabled in API Settings — see `docs/sprints/c13_live_incubation_phase_a.md`.
 
-The fills chain requires the paper TWS to be RUNNING at 09:28 local
-(submit) and 23:05 local (reconcile); a down TWS surfaces as
+The fills chain requires the paper TWS to be RUNNING at 09:28 ET
+(submit; ~14:28-16:28 Berlin depending on DST) and 23:05 local
+(reconcile); a down TWS surfaces as
 `action="submit_failed"` records resp. a red reconcile job — never
 silently.
 
@@ -64,7 +68,7 @@ must be substituted with your absolute checkout path before installing
 into `~/Library/LaunchAgents/` (the placeholder keeps the tracked plist
 files portable across workstations).
 
-Override `C13_VENV` (default: `$HOME/.venv`) and `C13_WATCHLIST`
+Override `C13_VENV` (default: `<REPO>/.venv`) and `C13_WATCHLIST`
 (default: `<REPO>/reports/databento_watchlist_top5_pre1530.csv`) via
 the plist's `EnvironmentVariables` block if your local layout differs.
 
@@ -91,8 +95,12 @@ for label in collect-imbalance wsh-earnings phase-a-export phase-a ibkr-smoke re
     launchctl print "gui/$(id -u)/com.skippalgo.c13.${label}" | head -2
 done
 
-# 4. Trigger a one-shot run to validate end-to-end (writes log under
-#    ${HOME}/Library/Logs/skippalgo/ — see Logging section below).
+# 4. Trigger a one-shot run (writes log under ${HOME}/Library/Logs/skippalgo/
+#    — see Logging section below). NOTE: outside the job's ET window (or when
+#    today's once-per-ET-day marker exists) the ET gate exits 0 immediately —
+#    the kickstart then validates only the gate-skip, not the pipeline. For a
+#    true end-to-end check, kickstart within the window or run the driver with
+#    C13_SKIP_ET_GATE=1 manually.
 launchctl kickstart -k "gui/$(id -u)/com.skippalgo.c13.phase-a-export"
 ```
 
@@ -109,8 +117,8 @@ rm ~/Library/LaunchAgents/com.skippalgo.c13.*.plist
 
 `com.skippalgo.c13.ibkr-smoke.plist` fires at **08:00 ET** (90 min before open).
 It runs `python -m scripts.smoke_smc_to_ibkr_adapter --mode live` (module
-invocation from the repo root): connects to the Paper Gateway
-on `127.0.0.1:7497`, places each intent as a limit order, waits for an ack, then
+invocation from the repo root): connects to the paper TWS
+on `127.0.0.1:7497` (7497 = TWS paper port; the Gateway paper port is 4002), places each intent as a limit order, waits for an ack, then
 cancels. Pure round-trip — no real fills.
 
 `run_ibkr_open_execution.py` performs a startup guard before connecting to TWS:
@@ -129,11 +137,11 @@ Remove it manually once the root cause is resolved:
 rm cache/live/smoke_HALT
 ```
 
-The smoke JSONL can be pushed to the audit branch together with the other artefacts via the hardened isolated-worktree helper:
-
-```bash
-bash automation/launchd/run-c13-audit-push.sh
-```
+Note: `run-c13-audit-push.sh` pushes only `incubation_<DATE>.jsonl`,
+`setups_<DATE>.jsonl` and `gate_status.json` — the smoke JSONL stays local
+(`cache/live/smoke_<DATE>.jsonl`); inspect it on the workstation when
+triaging a `smoke_HALT`. (Corrected 2026-07-08 — this section previously
+claimed audit-push also shipped the smoke files.)
 
 ## Timezone (ET) scheduling
 
@@ -145,11 +153,13 @@ root-caused as the reason the ORB paper orders never filled (placed pre-market)
 and the pre-market TWS smoke always tripped `smoke_HALT` (ran 02:00 ET,
 overnight, TWS off).
 
-**All six ET-scheduled jobs are made timezone-correct** without assuming the
+**All ET-scheduled jobs are made timezone-correct** without assuming the
 Mac's zone, via [`lib_c13_et_gate.sh`](lib_c13_et_gate.sh) — `phase-a`,
-`ibkr-smoke`, `phase-a-export`, `collect-imbalance`, `wsh-earnings` and
-`audit-push`. (`reconcile` and `tws-reminder` are *local*-time by design and
-are not gated.)
+`ibkr-smoke`, `phase-a-export`, `collect-imbalance`, `wsh-earnings`,
+`audit-push`, and the *morning* window of `tws-reminder` (07:45 ET; realigned
+2026-07-08 — its old 09:13 LOCAL fire hit ~03:13 ET and protected nothing).
+(`reconcile` and the reminder's *evening* 22:50 fire are local-time by
+design — the fill reconcile runs at 23:05 LOCAL — and are not gated.)
 
 - The plist fires at the **three candidate local times** that bracket the
   Berlin↔ET offset (+5 / +6 / +7 h across the mismatched US/EU DST windows) —
@@ -203,10 +213,10 @@ inside a single wake via [`lib_c13_catchup.sh`](lib_c13_catchup.sh):
 Wired into the **historical, per-run-date** jobs, where backfilling a past date
 reconstructs real state:
 
-| Driver | Marker dir / prefix | Success prefix |
-| --- | --- | --- |
-| `run-c13-imbalance.sh` | `cache/imbalance/.push_status_` | `ok:` |
-| `run-c13-phase-a.sh` | `cache/live/.phase_a_status_` | `SUCCESS\|` |
+| Driver | Marker dir / prefix | Success prefix | Catch-up wired? |
+| --- | --- | --- | --- |
+| `run-c13-imbalance.sh` | `cache/imbalance/.push_status_` | `ok:` | yes |
+| `run-c13-phase-a.sh` | `cache/live/.phase_a_status_` | `SUCCESS\|` | **no** — marker only (see note) |
 
 Note: `run-c13-phase-a.sh` writes a per-date status marker but does **not**
 invoke `c13_run_with_catchup`; it runs once on wake and produces an incubation

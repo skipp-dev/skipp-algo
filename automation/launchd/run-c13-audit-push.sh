@@ -3,11 +3,15 @@
 # dedicated `data/phase-a-audit` branch (keeps cron-bot churn off main).
 #
 # Invoked by ~/Library/LaunchAgents/com.skippalgo.c13.audit-push.plist
-# on Mon-Fri @ 17:30 local time (one hour after US-equity close).
+# Mon-Fri targeting 17:30 ET — 90 minutes after the 16:00 ET US-equity
+# close (the plist fires at three ET-bracketing local times; the ET gate
+# below lets exactly one proceed).
 #
-# Repo policy: never --force, never --no-verify. Branch is protected on
-# the remote; pushes use the same PAT-authenticated origin as the local
-# `git push` (gh CLI keyring credentials are reused by git).
+# Repo policy: never --force, never --no-verify. The target branch is a
+# dedicated, UNPROTECTED bot branch (`data/phase-a-audit`, excluded from
+# main-governance by design — see README.md); pushes use the same
+# PAT-authenticated origin as the local `git push` (gh CLI keyring
+# credentials are reused by git).
 
 set -euo pipefail
 

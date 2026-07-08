@@ -15,7 +15,8 @@
         <string>__REPO_PATH__/automation/launchd/run-c13-phase-a-export.sh</string>
     </array>
 
-    <!-- 09:18 local time (ET) Mon-Fri — 10 minutes BEFORE the phase-a
+    <!-- 09:18 ET target, Mon-Fri (via the ET-bracket candidates + gate
+         described below) — 10 minutes BEFORE the phase-a
          runner so fresh trade-cards land before build_phase_a_inputs.py
          picks them up. -->
     <key>StartCalendarInterval</key>

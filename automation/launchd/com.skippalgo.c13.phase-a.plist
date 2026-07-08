@@ -15,7 +15,8 @@
         <string>__REPO_PATH__/automation/launchd/run-c13-phase-a.sh</string>
     </array>
 
-    <!-- 09:28 local time (ET) Mon-Fri — 2 minutes before US-equity open.
+    <!-- 09:28 ET target, Mon-Fri — 2 minutes before US-equity open
+         (fired via the ET-bracket candidates + gate described below).
          Phase-A is paper-only; --phase paper means audit_only records
          even with TWS connected. Promotion to live_small / live_full is
          a Phase-B decision and requires a separate runner config. -->
