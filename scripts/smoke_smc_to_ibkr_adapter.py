@@ -40,6 +40,7 @@ from datetime import UTC, date, datetime
 from pathlib import Path
 from typing import Any
 
+from scripts.execute_ibkr_watchlist import pump_event_loop_until
 from scripts.smc_to_ibkr_adapter import (
     PHASE_B_RECOMMENDED_SIZE_SCALE,
     IBKRExecutionConfig,
@@ -327,13 +328,14 @@ def run_live(
     terminal_statuses = {"Filled", "Cancelled", "ApiCancelled", "Inactive"}
 
     def _wait_for_status(trade: Any, predicate: Any, max_seconds: float) -> str:
-        waited = 0.0
-        while waited < max_seconds:
-            status = str(getattr(trade.orderStatus, "status", ""))
-            if predicate(status):
-                return status
-            ib.sleep(0.25)
-            waited += 0.25
+        # Delegates to the shared event-loop pump so the "let IB react before we
+        # act" rule lives in exactly one place (see execute_ibkr_watchlist).
+        pump_event_loop_until(
+            ib,
+            lambda: predicate(str(getattr(trade.orderStatus, "status", ""))),
+            timeout_seconds=max_seconds,
+            poll_seconds=0.25,
+        )
         return str(getattr(trade.orderStatus, "status", ""))
 
     ib = IB()
