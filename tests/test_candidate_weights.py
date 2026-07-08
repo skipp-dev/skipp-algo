@@ -224,3 +224,34 @@ class TestMain:
         assert rc == 0
         assert not (tmp_path / "latest.json").exists()
         assert called == []
+
+
+def test_synthetic_fi_builder_covers_every_hard_scorer_key() -> None:
+    """Coupling guard: every hard ``f["key"]`` access in the scorer's row
+    builder must be constructed by ``_build_filter_result_from_fi_sample`` —
+    the parallel synthetic feature dict this module feeds back through the
+    scorer. Two same-day PRs (#3261 analyst_implied_upside_pct, #3269
+    news_directional_score) added hard keys only to the scorer and broke main
+    (validate-only KeyError); this pins the parity at PR time.
+    """
+    import ast
+    import inspect
+    import re
+
+    import open_prep.candidate_weights as cw
+    import open_prep.scorer as scorer_mod
+
+    hard = set(re.findall(r'f\["([a-z0-9_]+)"\]', inspect.getsource(scorer_mod)))
+    tree = ast.parse(inspect.getsource(cw._build_filter_result_from_fi_sample))
+    built: set[str] = set()
+    for node in ast.walk(tree):
+        if isinstance(node, ast.Dict):
+            built.update(
+                k.value for k in node.keys
+                if isinstance(k, ast.Constant) and isinstance(k.value, str)
+            )
+    missing = sorted(hard - built)
+    assert not missing, (
+        f"scorer reads these features with a hard key, but the synthetic FI "
+        f"builder never constructs them (main-only KeyError at runtime): {missing}"
+    )
