@@ -460,14 +460,105 @@
       }
     },
     {
-      "title": "Signal Score — Active Symbols",
-      "type": "timeseries",
-      "description": "Ranking score over time for each active breakout signal, labelled by symbol / level / direction. Lets you see which symbols are strengthening or fading.",
+      "id": 730705790,
+      "type": "text",
+      "title": "How to read & export this section",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "grafanacloud-prom"
+      },
+      "description": "Static help: interpreting an empty table and exporting the signal panels to Excel/CSV.",
       "gridPos": {
-        "h": 8,
+        "h": 3,
         "w": 24,
         "x": 0,
         "y": 14
+      },
+      "transparent": true,
+      "options": {
+        "mode": "markdown",
+        "content": "**Leer / kein Eintrag („No rows“)?** Die Signal-Panels zeigen Zeilen **nur solange aktive A0/A1-Breakouts laufen** (i. d. R. während der US-Handelszeit). Leer heißt *aktuell keine Live-Signale* — kein Fehler. Ob der Daemon überhaupt Daten hat, siehst du oben an **Active Trading Signals** (0 = ruhig) und **Signals Snapshot Age** (Alter niedrig = frisch; hoch oder „unknown“ = Quelle prüfen).  \n**Export nach Excel:** Panel-Menü (⋮ oben rechts am Panel) → **Inspect → Data → Download CSV** — die CSV öffnet direkt in Excel. Funktioniert für Tabelle und Zeitreihe."
+      }
+    },
+    {
+      "id": 730705791,
+      "type": "bargauge",
+      "title": "Signal Strength - Live Ranking (now)",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "grafanacloud-prom"
+      },
+      "description": "At-a-glance ranking of every active signal right now: one horizontal bar per symbol, coloured by score (grey <1, blue 1-5, green >=5). The big, readable snapshot - for history use the trend chart below, for detail the table. Empty = no active signals right now.",
+      "gridPos": {
+        "h": 12,
+        "w": 24,
+        "x": 0,
+        "y": 17
+      },
+      "targets": [
+        {
+          "expr": "live_overlay_trading_signal_score{job=~\"$job\"}",
+          "legendFormat": "{{symbol}} {{level}} {{direction}}",
+          "instant": true,
+          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "grafanacloud-prom"
+          }
+        }
+      ],
+      "options": {
+        "orientation": "horizontal",
+        "displayMode": "gradient",
+        "valueMode": "color",
+        "showUnfilled": true,
+        "minVizHeight": 14,
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        }
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "decimals": 1,
+          "min": 0,
+          "color": {
+            "mode": "thresholds"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "gray",
+                "value": null
+              },
+              {
+                "color": "blue",
+                "value": 1
+              },
+              {
+                "color": "green",
+                "value": 5
+              }
+            ]
+          }
+        },
+        "overrides": []
+      }
+    },
+    {
+      "title": "Signal Score — Active Symbols",
+      "type": "timeseries",
+      "description": "Trend of each active signal's ranking score over time - see which symbols are strengthening or fading. Full-width plot (legend moved below so the chart uses the whole width). For the at-a-glance 'now' view use the bar gauge above; for per-symbol detail use the table.",
+      "gridPos": {
+        "h": 9,
+        "w": 24,
+        "x": 0,
+        "y": 43
       },
       "targets": [
         {
@@ -486,8 +577,8 @@
             "drawStyle": "line",
             "lineInterpolation": "stepAfter",
             "lineWidth": 2,
-            "fillOpacity": 10,
-            "showPoints": "auto",
+            "fillOpacity": 8,
+            "showPoints": "never",
             "spanNulls": false
           },
           "unit": "short"
@@ -497,7 +588,7 @@
       "options": {
         "legend": {
           "displayMode": "table",
-          "placement": "right",
+          "placement": "bottom",
           "calcs": [
             "lastNotNull",
             "max"
@@ -517,12 +608,12 @@
     {
       "title": "Top Trading Signals — Latest Detail",
       "type": "table",
-      "description": "Per-symbol detail of the active breakout signals (top 50 by ranking score). Level A0 = pre-breakout, A1 = confirmed breakout; Direction is the trade bias; Score is the engine's v2 ranking; Tech is the 0–1 technical score; Change % is the intraday move; Freshness decays 1→0 as the signal ages. Driven by the labelled live_overlay_trading_signal_* gauges merged by symbol/level/direction/tier.",
+      "description": "Per-symbol detail of the active breakout signals (sorted by ranking score, highest first). Level A0 = pre-breakout, A1 = confirmed; Direction is the trade bias; Score is the engine's v2 ranking; Tech is the 0-1 technical score; Change % is the intraday move; Freshness decays 1->0 as the signal ages. Empty here = no active signals right now (rows only exist while breakouts fire) - not an error. Export: panel menu -> Inspect -> Data -> Download CSV (opens in Excel).",
       "gridPos": {
-        "h": 10,
+        "h": 14,
         "w": 24,
         "x": 0,
-        "y": 22
+        "y": 29
       },
       "targets": [
         {
@@ -841,7 +932,7 @@
         "h": 1,
         "w": 24,
         "x": 0,
-        "y": 32
+        "y": 52
       },
       "id": 2001,
       "panels": []
@@ -854,7 +945,7 @@
         "h": 5,
         "w": 6,
         "x": 0,
-        "y": 33
+        "y": 53
       },
       "targets": [
         {
@@ -916,7 +1007,7 @@
         "h": 5,
         "w": 6,
         "x": 6,
-        "y": 33
+        "y": 53
       },
       "targets": [
         {
@@ -974,7 +1065,7 @@
         "h": 5,
         "w": 6,
         "x": 12,
-        "y": 33
+        "y": 53
       },
       "targets": [
         {
@@ -1059,7 +1150,7 @@
         "h": 5,
         "w": 6,
         "x": 18,
-        "y": 33
+        "y": 53
       },
       "targets": [
         {
@@ -1144,7 +1235,7 @@
         "h": 9,
         "w": 24,
         "x": 0,
-        "y": 38
+        "y": 58
       },
       "targets": [
         {
@@ -1270,7 +1361,7 @@
         "h": 8,
         "w": 24,
         "x": 0,
-        "y": 47
+        "y": 67
       },
       "targets": [
         {
@@ -1330,7 +1421,7 @@
         "h": 10,
         "w": 24,
         "x": 0,
-        "y": 55
+        "y": 75
       },
       "targets": [
         {
