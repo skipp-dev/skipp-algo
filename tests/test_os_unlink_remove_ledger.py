@@ -154,14 +154,14 @@ OS_DELETE_LEDGER: set[tuple[str, int, str]] = {
     # 3131 -> 3135 and 3483 -> 3487.
     # 2026-07-04 (market-microstructure observe-only): import +1 →
     # 3136/3504.
-    ("open_prep/run_open_prep.py", 3170, "unlink"),
-    ("open_prep/run_open_prep.py", 3538, "unlink"),
+    ("open_prep/run_open_prep.py", 3185, "unlink"),  # 2026-07-08 TV-priority helper + M10 knob shifted (3170->3185)
+    ("open_prep/run_open_prep.py", 3553, "unlink"),  # 2026-07-08 TV-priority helper + M10 knob shifted (3538->3553)
     # 2026-06-11 (Copilot sweep #2688): VIX9D fail-closed guard +5;
     # 2026-06-12 (merge #2713 into #2696): net +1 → 5512/5790.
     # 2026-06-25: feature-flag helper additions shifted 5621 -> 5625.
     # 2026-07-04 (market-microstructure observe-only): import + snapshot
     # block shifted 5641 -> 5658.
-    ("open_prep/run_open_prep.py", 5719, "unlink"),
+    ("open_prep/run_open_prep.py", 5751, "unlink"),  # 2026-07-08 TV-priority helper + M10 knob shifted (5719->5751)
     # 2026-06-11 (trend-state features): 5731→5742, enrichment-loop
     # stamping + lookback comment added above; eval-findings 5742→5765.
     # 2026-06-12 (backlog-resilience): fail-loud outcome storage +9 → 5799.
@@ -169,7 +169,7 @@ OS_DELETE_LEDGER: set[tuple[str, int, str]] = {
     # 2026-06-25: feature-flag helper additions shifted 5916 -> 5920.
     # 2026-07-04 (market-microstructure observe-only): import + snapshot
     # block + row-loop fields shifted 5936 -> 5962.
-    ("open_prep/run_open_prep.py", 6046, "unlink"),
+    ("open_prep/run_open_prep.py", 6078, "unlink"),  # 2026-07-08 TV-priority helper + M10 knob shifted (6046->6078)
     ("open_prep/scorer.py", 156, "unlink"),
     ("open_prep/watchlist.py", 74, "unlink"),
     ("smc_core/benchmark.py", 39, "unlink"),

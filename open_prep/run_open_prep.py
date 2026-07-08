@@ -2431,6 +2431,21 @@ def _fetch_analyst_coverage(  # measures coverage BREADTH; keys keep the legacy 
     return result
 
 
+def _earnings_distance_max_symbols(analyst_catalyst_limit: int) -> int:
+    """Resolve the earnings-distance per-symbol fetch budget.
+
+    M10 (2026-07-08): this budget was silently coupled to the ANALYST-
+    catalyst knob — tuning analyst coverage quietly changed which symbols
+    get earnings_risk_window / no_trade_reason. Dedicated env knob
+    ``OPEN_PREP_EARNINGS_DISTANCE_MAX_SYMBOLS``; unset (or negative)
+    preserves the historical coupling to ``analyst_catalyst_limit``.
+    """
+    limit = _int_env("OPEN_PREP_EARNINGS_DISTANCE_MAX_SYMBOLS", -1)
+    if limit < 0:
+        limit = max(analyst_catalyst_limit, 0)
+    return limit
+
+
 def _fetch_earnings_distance_features(
     *,
     client: FMPClient,
@@ -2542,7 +2557,7 @@ def _fetch_premarket_context(
             client=client,
             symbols=symbols,
             today=today,
-            max_symbols=max(analyst_catalyst_limit, 0),
+            max_symbols=_earnings_distance_max_symbols(analyst_catalyst_limit),
         )
         for sym in symbols:
             premarket[sym].update(
@@ -3551,9 +3566,9 @@ def _pick_symbols_for_pmh(
 ) -> list[str]:
     """Pick attention symbols that should receive PMH/PML (movers + top ext_hours_score).
 
-    Returns at most *max_attention* symbols to prevent per-symbol intraday
-    fetches from dominating pipeline run-time.  Symbols are prioritised by
-    ext_hours_score so the most active movers always get PMH/PML data.
+    Caps the result at min(top_n_ext, MAX_ATTENTION=80) so per-symbol
+    intraday fetches cannot dominate pipeline run-time (a ``max_attention``
+    parameter does not exist). Premarket movers sort first (+100 boost).
     """
     MAX_ATTENTION = 80  # Hard cap to keep PMH/PML stage < 20s
     cap = min(top_n_ext, MAX_ATTENTION)
@@ -4154,7 +4169,9 @@ def _fetch_news_context_with_diagnostics(
         news_fetch_errors.append(f"fmp:{fmp_fetch_error}")
         logger.warning("FMP news fetch failed, continuing with remaining sources: %s", type(exc).__name__, exc_info=True)
 
-    tradingview_articles, tradingview_fetch_error = _fetch_tradingview_news_articles(symbols=symbols)
+    tradingview_articles, tradingview_fetch_error = _fetch_tradingview_news_articles(
+        symbols=symbols, priority_symbols=priority_symbols
+    )
     if tradingview_fetch_error:
         news_fetch_errors.append(f"tradingview:{tradingview_fetch_error}")
 
@@ -4448,7 +4465,30 @@ def _dedupe_news_articles(batches: list[list[dict[str, Any]]]) -> list[dict[str,
     return merged
 
 
-def _fetch_tradingview_news_articles(*, symbols: list[str]) -> tuple[list[dict[str, Any]], str | None]:
+def _priority_first_symbols(
+    symbols: list[str], priority_symbols: list[str] | None
+) -> list[str]:
+    """Reorder *symbols* so priority symbols (movers/gappers) come first.
+
+    The universe arrives market-cap-descending with movers APPENDED, so a
+    bare ``[:N]`` slice spends the whole per-ticker news budget on mega-caps
+    and never queries the small-cap gappers these lanes exist for (#3267;
+    found 2026-07-08). Only symbols already in the universe are promoted.
+    """
+    ordered = _normalize_symbols(symbols)
+    if priority_symbols:
+        universe = set(ordered)
+        priority = [s for s in _normalize_symbols(priority_symbols) if s in universe]
+        priority_set = set(priority)
+        ordered = priority + [s for s in ordered if s not in priority_set]
+    return ordered
+
+
+def _fetch_tradingview_news_articles(
+    *,
+    symbols: list[str],
+    priority_symbols: list[str] | None = None,
+) -> tuple[list[dict[str, Any]], str | None]:
     if not is_open_prep_tradingview_news_enabled():
         return [], None
 
@@ -4456,7 +4496,9 @@ def _fetch_tradingview_news_articles(*, symbols: list[str]) -> tuple[list[dict[s
     if max_symbols == 0:
         return [], None
 
-    limited_symbols = _normalize_symbols(symbols)[:max_symbols]
+    # Same mega-cap-bias fix as the Benzinga lane — with only 8 slots the
+    # bare slice was even more skewed here.
+    limited_symbols = _priority_first_symbols(symbols, priority_symbols)[:max_symbols]
     if not limited_symbols:
         return [], None
 
@@ -4503,18 +4545,8 @@ def _fetch_benzinga_core_news_articles(
     if max_symbols == 0:
         return [], None
 
-    # Priority-first ordering: the universe arrives market-cap-descending
-    # (movers/gappers are APPENDED), so a bare [:max_symbols] slice spent the
-    # whole per-ticker budget on mega-caps and never queried the small-cap
-    # gappers this lane was activated for (#3267; found 2026-07-08) — biasing
-    # news_catalyst_score toward the symbols that need it least. Movers first,
-    # then the rest, then cap.
-    ordered = _normalize_symbols(symbols)
-    if priority_symbols:
-        priority = [s for s in _normalize_symbols(priority_symbols) if s in set(ordered)]
-        priority_set = set(priority)
-        ordered = priority + [s for s in ordered if s not in priority_set]
-    normalized_symbols = ordered[:max_symbols]
+    # Priority-first ordering — rationale in _priority_first_symbols (#3267).
+    normalized_symbols = _priority_first_symbols(symbols, priority_symbols)[:max_symbols]
     if not normalized_symbols:
         return [], None
 
