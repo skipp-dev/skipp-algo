@@ -102,7 +102,7 @@ def compute_news_sentiment(
         age_hours = (
             max(0.0, (now_ts - published_ts) / 3600.0) if published_ts > 0 else 12.0
         )
-        # Exponential decay: 1 h → 1.0, 6 h → 0.65, 12 h → 0.42, 24 h → 0.18
+        # Exponential decay: 1 h → 0.93, 6 h → 0.65, 12 h → 0.42, 24 h → 0.18
         recency_weight = max(0.1, math.exp(-0.07 * age_hours))
 
         for ticker in valid_tickers:

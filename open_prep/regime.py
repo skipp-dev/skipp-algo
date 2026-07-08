@@ -289,7 +289,7 @@ class SymbolRegimeInfo:
     """Per-symbol regime classification result."""
 
     symbol: str
-    regime: str  # "TRENDING" | "RANGING"
+    regime: str  # "TRENDING" | "RANGING" | "NEUTRAL"
     adx: float
     bb_width_pct: float
 
@@ -307,9 +307,9 @@ def classify_symbol_regime(
     adx: float,
     bb_width_pct: float,
 ) -> SymbolRegimeInfo:
-    """Classify a single symbol as TRENDING or RANGING.
+    """Classify a single symbol as TRENDING, RANGING, or NEUTRAL.
 
-    Delegates to ``technical_analysis.detect_symbol_regime`` for the logic.
+    Delegates to ``technical_analysis.detect_symbol_regime`` for the logic. Note (2026-07-08): unused in production — the scorer uses ``technical_analysis.resolve_regime_weights`` with different multipliers instead of this per-symbol regime path.
     """
     regime = _detect_symbol_regime(adx, bb_width_pct)
     return SymbolRegimeInfo(
@@ -324,7 +324,7 @@ def apply_symbol_regime_adjustments(
     base_weights: dict[str, float],
     symbol_regime: str,
 ) -> dict[str, float]:
-    """Adjust scorer weights based on per-symbol regime.
+    """Adjust scorer weights based on per-symbol regime. Note (2026-07-08): unused in production — the scorer uses ``technical_analysis.resolve_regime_weights`` with different multipliers; the ``_WEIGHT_ADJ_SYMBOL_*`` tables above are a parallel, non-live adjustment table.
 
     Parameters
     ----------

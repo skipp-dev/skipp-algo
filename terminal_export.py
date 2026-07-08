@@ -66,9 +66,9 @@ logger = logging.getLogger(__name__)
 def _dedup_key(d: dict[str, Any]) -> str:
     """Build a collision-resistant dedup key for a news item.
 
-    When *item_id* is present and non-empty, the key is ``item_id:ticker``.
-    Otherwise fall back to ``ticker|provider|headline`` so that distinct
-    articles for the same ticker are never collapsed into one.
+    Priority order (corrected 2026-07-08): a non-empty *story_key* wins and
+    deliberately collapses the same story ACROSS tickers (no ticker in the key).
+    Otherwise ``item_id:ticker`` when *item_id* is present and non-empty; else ``ticker|provider|headline`` (distinct articles per ticker never collapse).
     """
     story_key = str(d.get("story_key") or "").strip()
     if story_key:
@@ -93,10 +93,10 @@ _FALLBACK_BUFFER_LOCK = threading.Lock()
 
 
 def get_fallback_buffer() -> list:
-    """Return a deep copy of the in-memory fallback buffer (operator inspection).
+    """Return a copy of the in-memory fallback buffer (operator inspection).
 
-    Each dict payload is copied so callers cannot mutate the buffer's contents
-    via the returned list.
+    Each dict payload gets a one-level shallow copy (``dict(p)``) — top-level keys
+    are protected, but nested lists/dicts remain shared with the buffer (not a deep copy).
     """
     with _FALLBACK_BUFFER_LOCK:
         return [dict(p) if isinstance(p, dict) else p for p in _FALLBACK_BUFFER]
@@ -159,10 +159,10 @@ def rewrite_jsonl(path: str, items: list[dict[str, Any]]) -> None:
 
     Items are written in **chronological order** (oldest ``published_ts``
     first) so the on-disk convention matches ``append_jsonl`` (newest at
-    the end).  ``load_jsonl_feed`` reverses the file on read, so the
-    newest items always appear first in memory.
+    the end).  ``load_jsonl_feed`` sorts by timestamp descending on read (not
+    a file reversal), so the newest items always appear first in memory.
     """
-    # Sort oldest-first before writing so subsequent load+reverse works
+    # Sort oldest-first before writing so the subsequent load (timestamp-desc sort) works
     sorted_items = sorted(
         items,
         key=lambda d: d.get("published_ts") or d.get("updated_ts") or 0,
@@ -342,7 +342,7 @@ def build_vd_snapshot(
     bz_options: list[dict[str, Any]] | None = None,
     open_prep_data: dict[str, Any] | None = None,
 ) -> list[dict[str, Any]]:
-    """Build one row per ticker from the full feed, ranked by best news_score.
+    """Build one row per ticker from the full feed (per-ticker selection = best news_score; output ranking = composite rank_score of 70% |price change| + 30% news_score, so order is dominated by |chg_pct| — corrected 2026-07-08).
 
     When *rt_quotes* is provided (from ``load_rt_quotes()``), the live
     quote fields (tick, streak, price, chg_pct, vol_ratio) are
@@ -784,9 +784,9 @@ def fire_webhook(
 ) -> dict[str, Any] | None:
     """POST a classified item to TradersPost (or any webhook receiver).
 
-    Guarded:
+    Guarded (corrected 2026-07-08):
     - If ``url`` is empty, returns ``None`` immediately (disabled).
-    - If ``item.news_score < min_score``, skips (not worth alerting).
+    - If attention is not active (``effective_attention_active`` falsy), returns ``None``; and if ``effective_posture_score(item) < min_score`` — the posture score with its fallback chain, NOT ``item.news_score`` — skips.
 
     Parameters
     ----------
@@ -799,7 +799,7 @@ def fire_webhook(
     timeout : float
         HTTP timeout in seconds.
     min_score : float
-        Minimum news_score to fire the webhook.
+        Minimum ``effective_posture_score(item)`` to fire the webhook (not a news_score threshold).
     _client : httpx.Client, optional
         Pre-created httpx client to reuse across multiple calls.
         When provided the caller is responsible for closing it.

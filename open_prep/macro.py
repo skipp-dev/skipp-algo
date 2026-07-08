@@ -87,7 +87,7 @@ def _today_et_date() -> date:
 def _prev_us_equity_trading_day(day: date) -> date:
     if _prev_trading_day is not None:
         return cast(date, _prev_trading_day(day))
-    probe = day
+    probe = day  # fallback without newsstack_fmp: skips WEEKENDS only — US market holidays may still be returned as a "trading day"
     for _ in range(10):
         try:
             probe = date.fromordinal(probe.toordinal() - 1)
@@ -1322,7 +1322,7 @@ class FMPClient:
             return []
         return list(data) if isinstance(data, list) else []
 
-    def get_premarket_movers(self) -> list[dict[str, Any]]:
+    def get_premarket_movers(self) -> list[dict[str, Any]]:  # NOTE (2026-07-08): fetches /stable/most-actives — the REGULAR-session most-active list, NOT true premarket movers (name kept for call-site stability)
         try:
             data = self._get("/stable/most-actives", {})
         except RuntimeError as exc:

@@ -6,7 +6,7 @@ empty/False values so existing callers continue to work without errors.
 
 .. note::
 
-   This 44-line stub is **not** the active NewsAPI ingestion path. The
+   This small stub is **not** the active NewsAPI ingestion path. The
    live implementation lives in :file:`scripts/smc_newsapi_ai.py` (~750
    lines) and serves the SMC newsapi feed-state pipeline.
 

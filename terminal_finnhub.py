@@ -477,7 +477,7 @@ class InsiderSentimentMonth:
 
 
 def _ymd_window(days_back: int) -> tuple[str, str]:
-    """Return (from_yyyymmdd, to_yyyymmdd) covering [today-N, today]."""
+    """Return (from_date, to_date) as dashed ISO ``YYYY-MM-DD`` strings covering [today-N, today] (the format the Finnhub API expects)."""
     import datetime as _dt
 
     today = _dt.date.today()

@@ -113,8 +113,8 @@ def assemble_context(
     """Build a compact JSON context string from the current terminal state.
 
     Returns a JSON string suitable for inclusion in an LLM prompt.
-    Limits to *max_articles* (sorted by ``news_score`` descending) to
-    stay within token budgets.
+    Limits to *max_articles* (sorted by ``abs(news_score)`` descending — strongly
+    negative articles rank at the top alongside positive) to stay within token budgets.
     """
     # --- Articles (compact representation) ---
     sorted_feed = sorted(feed, key=lambda d: abs(d.get("news_score", 0)), reverse=True)
@@ -231,7 +231,7 @@ def query_llm(
     """Send a question + context to the OpenAI chat-completions API.
 
     Returns an ``LLMResponse`` with the answer or an error message.
-    Uses an in-memory cache keyed on (question, context digest, model).
+    Uses an in-memory cache keyed on (question, context digest, model, SHA-256 fingerprint of the API key — prevents cross-account cache leaks, PR-J3).
     """
     if not api_key:
         return LLMResponse(
