@@ -259,7 +259,7 @@ def _trading_signals_snapshot() -> dict[str, object]:
     max_age_seconds = float(config.signals_max_age_secs())
     stale = 0.0
     signals_obj: object = []
-    counts = {"active": 0, "a0": 0, "a1": 0, "watched": 0}
+    counts = {"active": 0, "a0": 0, "a1": 0, "a2": 0, "watched": 0}
 
     if isinstance(raw, dict) and raw:
         loaded = 1.0
@@ -267,6 +267,7 @@ def _trading_signals_snapshot() -> dict[str, object]:
         counts["active"] = int(raw.get("signal_count", 0) or 0)
         counts["a0"] = int(raw.get("a0_count", 0) or 0)
         counts["a1"] = int(raw.get("a1_count", 0) or 0)
+        counts["a2"] = int(raw.get("a2_count", 0) or 0)
         watched = raw.get("watched_symbols") or []
         counts["watched"] = len(watched) if isinstance(watched, (list, tuple)) else 0
         updated_epoch = raw.get("updated_epoch")
@@ -1534,7 +1535,7 @@ def render_metrics(startup_ts: float, startup_epoch: float = 0.0) -> str:
     signals_snapshot = _trading_signals_snapshot()
     signal_counts = signals_snapshot["counts"]
     if not isinstance(signal_counts, dict):
-        signal_counts = {"active": 0, "a0": 0, "a1": 0, "watched": 0}
+        signal_counts = {"active": 0, "a0": 0, "a1": 0, "a2": 0, "watched": 0}
     lines.append("# TYPE live_overlay_trading_signals_loaded gauge")
     lines.append(f"live_overlay_trading_signals_loaded {_prom_numeric_value(signals_snapshot['loaded'])}")
     lines.append("# TYPE live_overlay_trading_signals_active_total gauge")
@@ -1543,6 +1544,11 @@ def render_metrics(startup_ts: float, startup_epoch: float = 0.0) -> str:
     lines.append(f"live_overlay_trading_signals_a0_total {_prom_numeric_value(signal_counts['a0'])}")
     lines.append("# TYPE live_overlay_trading_signals_a1_total gauge")
     lines.append(f"live_overlay_trading_signals_a1_total {_prom_numeric_value(signal_counts['a1'])}")
+    # A2 = early-warning tier (building momentum, not confirmed). Emitted since
+    # 2026-07-08 so Grafana can surface all three levels; the producer counts it
+    # in a2_count. active_total already includes A2.
+    lines.append("# TYPE live_overlay_trading_signals_a2_total gauge")
+    lines.append(f"live_overlay_trading_signals_a2_total {_prom_numeric_value(signal_counts['a2'])}")
     lines.append("# TYPE live_overlay_trading_signals_watched_total gauge")
     lines.append(f"live_overlay_trading_signals_watched_total {_prom_numeric_value(signal_counts['watched'])}")
     lines.append("# TYPE live_overlay_trading_signals_snapshot_age_known gauge")

@@ -460,6 +460,71 @@
       }
     },
     {
+      "title": "A2 Early-Warning",
+      "type": "stat",
+      "description": "Active A2 signals — the early-warning tier (building momentum, not yet confirmed). Looser than A1, so treat as watch-not-act. Emitted since 2026-07-08 (live_overlay_trading_signals_a2_total).",
+      "gridPos": {
+        "h": 5,
+        "w": 6,
+        "x": 6,
+        "y": 9
+      },
+      "targets": [
+        {
+          "expr": "live_overlay_trading_signals_a2_total{job=~\"$job\"}",
+          "instant": true,
+          "legendFormat": "A2 (early)",
+          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "grafanacloud-prom"
+          }
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "gray",
+                "value": null
+              },
+              {
+                "color": "orange",
+                "value": 1
+              }
+            ]
+          },
+          "unit": "short",
+          "noValue": "NO DATA"
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "colorMode": "value",
+        "graphMode": "none",
+        "textMode": "value_and_name",
+        "justifyMode": "auto",
+        "orientation": "horizontal"
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "grafanacloud-prom"
+      },
+      "id": 1166193384
+    },
+    {
       "id": 730705790,
       "type": "text",
       "title": "How to read & export this section",
@@ -725,6 +790,11 @@
                         "text": "A1 (breakout)",
                         "color": "green",
                         "index": 1
+                      },
+                      "A2": {
+                        "text": "A2 (early)",
+                        "color": "orange",
+                        "index": 2
                       }
                     }
                   }
