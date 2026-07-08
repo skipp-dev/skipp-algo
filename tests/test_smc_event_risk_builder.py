@@ -335,12 +335,22 @@ class TestCombinedScenarios:
         assert "TSLA" in result["HIGH_RISK_EVENT_TICKERS"]
         assert result["EVENT_RISK_LEVEL"] == "HIGH"
 
-    def test_high_news_heat_elevates_risk(self):
-        """News heat > 0.8 bumps EVENT_RISK_LEVEL to ELEVATED."""
+    def test_extremely_negative_news_heat_elevates_risk(self):
+        """news_heat_global is SIGNED mean polarity: < -0.8 (uniformly
+        bearish coverage) bumps EVENT_RISK_LEVEL to ELEVATED. The old
+        condition (> 0.8) was sign-inverted and escalated on euphoric
+        bullish coverage instead (fixed 2026-07-08)."""
         result = build_event_risk(
-            news={"bearish_tickers": ["AAPL"], "news_heat_global": 0.9},
+            news={"bearish_tickers": ["AAPL"], "news_heat_global": -0.9},
         )
         assert result["EVENT_RISK_LEVEL"] == "ELEVATED"
+
+    def test_extremely_bullish_news_heat_does_not_elevate_risk(self):
+        # Euphoric coverage is not the risk this guard watches for.
+        result = build_event_risk(
+            news={"bearish_tickers": [], "news_heat_global": 0.9},
+        )
+        assert result["EVENT_RISK_LEVEL"] != "ELEVATED"
 
     def test_reference_identifier_change_sets_symbol_risk(self):
         result = build_event_risk(

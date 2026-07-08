@@ -155,8 +155,14 @@ def compute_news_sentiment(
         f"{t}:{n}" for t, n in sorted(ticker_article_count.items())
     )
     breaking_tickers = sorted(breaking_tickers_set)
+    # Count tickers whose TOP story is genuinely high-impact (same 0.85 bar
+    # the breaking classifier uses, but category-agnostic). The previous
+    # formula counted tickers with >= 5 articles — pure mention VOLUME that
+    # ignored result.impact entirely, so five routine mentions outranked one
+    # FDA/halt story (found 2026-07-08; published to Pine as
+    # HIGH_IMPACT_NEWS_COUNT, so the name must tell the truth).
     high_impact_news_count = sum(
-        1 for n in ticker_article_count.values() if n >= 5
+        1 for (_cat, impact) in ticker_top_category.values() if impact >= 0.85
     )
     most_mentioned_ticker = (
         max(ticker_article_count, key=ticker_article_count.get)  # type: ignore[arg-type]

@@ -115,7 +115,7 @@ OS_DELETE_LEDGER: set[tuple[str, int, str]] = {
     # 2026-06-17 (F1 lint fix): remove unused import sys → 717→716.
     # 2026-07-05 (bug-hunt round 7): import math + non-finite entry/exit
     # price guard → 724→729.
-    ("open_prep/outcome_backfill.py", 729, "unlink"),
+    ("open_prep/outcome_backfill.py", 736, "unlink"),  # 2026-07-08 B-H1 priority-symbols + B-M2 era-gate shifted pins
     ("open_prep/outcomes.py", 162, "unlink"),
     # 2026-06-11 (trend-state features): 431→449, snapshot keys +
     # FEATURE_KEYS/PASS_THROUGH block added above.
@@ -161,7 +161,7 @@ OS_DELETE_LEDGER: set[tuple[str, int, str]] = {
     # 2026-06-25: feature-flag helper additions shifted 5621 -> 5625.
     # 2026-07-04 (market-microstructure observe-only): import + snapshot
     # block shifted 5641 -> 5658.
-    ("open_prep/run_open_prep.py", 5697, "unlink"),
+    ("open_prep/run_open_prep.py", 5719, "unlink"),
     # 2026-06-11 (trend-state features): 5731→5742, enrichment-loop
     # stamping + lookback comment added above; eval-findings 5742→5765.
     # 2026-06-12 (backlog-resilience): fail-loud outcome storage +9 → 5799.
@@ -169,7 +169,7 @@ OS_DELETE_LEDGER: set[tuple[str, int, str]] = {
     # 2026-06-25: feature-flag helper additions shifted 5916 -> 5920.
     # 2026-07-04 (market-microstructure observe-only): import + snapshot
     # block + row-loop fields shifted 5936 -> 5962.
-    ("open_prep/run_open_prep.py", 6024, "unlink"),
+    ("open_prep/run_open_prep.py", 6046, "unlink"),
     ("open_prep/scorer.py", 156, "unlink"),
     ("open_prep/watchlist.py", 74, "unlink"),
     ("smc_core/benchmark.py", 39, "unlink"),

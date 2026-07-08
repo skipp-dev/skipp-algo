@@ -503,7 +503,14 @@ def backfill_feature_importance(
     for rec in component_complete:
         breakdown: dict[str, float] = {}
         for key in FEATURE_KEYS:
-            breakdown[key] = float(rec.get(key, 0.0) or 0.0)
+            # The era gate above only requires the WEIGHTED component keys.
+            # Pass-through features added later (e.g. news_directional_score,
+            # 2026-07-08) are absent from older in-era records — skip them
+            # instead of fabricating 0.0, which would launder "not measured"
+            # into "measured neutral" (the exact failure the gate exists for).
+            if rec.get(key) is None:
+                continue
+            breakdown[key] = float(rec[key] or 0.0)
         collector.record(
             symbol=rec.get("symbol", ""),
             score_breakdown=breakdown,

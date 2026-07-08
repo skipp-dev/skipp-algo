@@ -4135,6 +4135,7 @@ def _fetch_news_context_with_diagnostics(
     client: FMPClient,
     symbols: list[str],
     include_benzinga: bool | None = None,
+    priority_symbols: list[str] | None = None,
 ) -> tuple[dict[str, float], dict[str, dict], str | None, dict[str, Any]]:
     news_scores: dict[str, float] = {}
     news_metrics: dict[str, dict] = {}
@@ -4159,7 +4160,9 @@ def _fetch_news_context_with_diagnostics(
 
     benzinga_enabled = is_open_prep_benzinga_core_news_enabled() if include_benzinga is None else bool(include_benzinga)
     if benzinga_enabled:
-        benzinga_articles, benzinga_fetch_error = _fetch_benzinga_core_news_articles(symbols=symbols)
+        benzinga_articles, benzinga_fetch_error = _fetch_benzinga_core_news_articles(
+            symbols=symbols, priority_symbols=priority_symbols
+        )
         if benzinga_fetch_error:
             news_fetch_errors.append(f"benzinga:{benzinga_fetch_error}")
 
@@ -4487,7 +4490,11 @@ def _fetch_tradingview_news_articles(*, symbols: list[str]) -> tuple[list[dict[s
     return articles, None
 
 
-def _fetch_benzinga_core_news_articles(*, symbols: list[str]) -> tuple[list[dict[str, Any]], str | None]:
+def _fetch_benzinga_core_news_articles(
+    *,
+    symbols: list[str],
+    priority_symbols: list[str] | None = None,
+) -> tuple[list[dict[str, Any]], str | None]:
     api_key = str(os.environ.get("BENZINGA_API_KEY") or "").strip()
     if not api_key:
         return [], "missing BENZINGA_API_KEY"
@@ -4496,7 +4503,18 @@ def _fetch_benzinga_core_news_articles(*, symbols: list[str]) -> tuple[list[dict
     if max_symbols == 0:
         return [], None
 
-    normalized_symbols = _normalize_symbols(symbols)[:max_symbols]
+    # Priority-first ordering: the universe arrives market-cap-descending
+    # (movers/gappers are APPENDED), so a bare [:max_symbols] slice spent the
+    # whole per-ticker budget on mega-caps and never queried the small-cap
+    # gappers this lane was activated for (#3267; found 2026-07-08) — biasing
+    # news_catalyst_score toward the symbols that need it least. Movers first,
+    # then the rest, then cap.
+    ordered = _normalize_symbols(symbols)
+    if priority_symbols:
+        priority = [s for s in _normalize_symbols(priority_symbols) if s in set(ordered)]
+        priority_set = set(priority)
+        ordered = priority + [s for s in ordered if s not in priority_set]
+    normalized_symbols = ordered[:max_symbols]
     if not normalized_symbols:
         return [], None
 
@@ -4989,6 +5007,10 @@ def generate_open_prep_result(
         news_scores, news_metrics, news_fetch_error, news_source_diagnostics = _fetch_news_context_with_diagnostics(
             client=data_client,
             symbols=symbol_list,
+            # Gappers/movers first for the ticker-budgeted Benzinga lane —
+            # they are appended to the mcap-sorted universe and would
+            # otherwise never make the per-ticker cut (B-H1, 2026-07-08).
+            priority_symbols=cached_mover_seed,
         )
     _progress(5, TOTAL_STAGES, f"Quotes + ATR für {len(symbol_list)} Symbole laden …")
     with _profiler.stage("Quotes + ATR laden"):

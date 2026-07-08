@@ -383,6 +383,13 @@ def fetch_live_news_benzinga_quantified(
         candidate
         for item in items
         if (candidate := _candidate_from_news_item(item, provider_bucket="benzinga_quantified", provider_name="benzinga_quantified", universe=universe)) is not None
+        # Cursor filter: the quantified endpoint has no min_epoch parameter
+        # (unlike the RSS adapter), so without this every poll re-emitted the
+        # same stories as "new items" — which kept last_ingest_success_at
+        # ("advances only when new items were actually accepted") forever
+        # fresh and inflated new_item_count with repeats (found 2026-07-08;
+        # dormant while the old key 401'd, live again with the new key).
+        and candidate.published_ts > cursor
     ]
     new_cursor = cursor
     for candidate in candidates:
