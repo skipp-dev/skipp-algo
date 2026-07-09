@@ -905,12 +905,15 @@ PROBES: list[Probe] = [
     Probe("Databento metadata.list_datasets", probe_databento_metadata, critical=True),
     Probe("Databento OPRA.PILLAR entitlement (UOA detector gate)", probe_databento_opra_entitlement, critical=False),
     Probe("Databento ohlcv-1d (AAPL,MSFT)", probe_databento_daily_bars, critical=True),
-    # Benzinga — only news + earnings calendar are on the standard tier
+    # Benzinga — news is the one critical surface (works via the Massive route).
+    # earnings-cal is non-critical: it SKIPs in massive mode (no Massive route,
+    # #3325) and FMP is the calendar primary anyway (smc_provider_policy
+    # POLICY_CALENDAR) — critical=True here would SKIP-block preflight in prod.
     Probe("Benzinga /api/v2/news", probe_benzinga_news, critical=True),
-    Probe("Benzinga /api/v2.1/calendar/earnings", probe_bz_calendar_earnings, critical=True),
-    # Benzinga — entitlement-gated or retired (Pro-tier / data-license only).
-    # Already short-circuited at runtime by _bz_http; kept here for visibility
-    # so a future re-grant or URL restoration is detected immediately.
+    Probe("Benzinga /api/v2.1/calendar/earnings", probe_bz_calendar_earnings, critical=False),
+    # Benzinga — direct-mode entitlement-gated or retired (Pro-tier / data-license
+    # only, short-circuited at runtime by _bz_http). quoteDelayed/movers now have an
+    # ACTIVE Massive-snapshot route (#3325); the rest stay visibility-only.
     Probe("Benzinga /api/v1/quoteDelayed", probe_benzinga_quotes, critical=False),
     Probe("Benzinga /api/v1/market/movers", probe_benzinga_movers, critical=False),
     Probe("Benzinga /api/v2/news/top", probe_bz_news_top, critical=False),
