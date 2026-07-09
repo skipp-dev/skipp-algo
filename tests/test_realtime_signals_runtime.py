@@ -250,7 +250,7 @@ def test_save_signals_sanitizes_non_finite_values(monkeypatch, tmp_path: Path) -
 
 def test_save_signals_counts_a2_level(monkeypatch, tmp_path: Path) -> None:
     """The snapshot payload counts A2 (early-warning) alongside A0/A1 so the
-    daemon can expose live_overlay_trading_signals_a2_total (added 2026-07-08)."""
+    daemon can expose live_overlay_trading_signals_a2 (added 2026-07-08)."""
     monkeypatch.setattr(rs.RealtimeEngine, "_load_watchlist", lambda self: None)
     monkeypatch.setattr(rs.RealtimeEngine, "_restore_signals_from_disk", lambda self: None)
     monkeypatch.setattr(rs, "SIGNALS_PATH", tmp_path / "latest_realtime_signals.json")

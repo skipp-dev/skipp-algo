@@ -108,7 +108,7 @@
       },
       "targets": [
         {
-          "expr": "live_overlay_trading_signals_active_total{job=~\"$job\"}",
+          "expr": "live_overlay_trading_signals_active{job=~\"$job\"}",
           "instant": true,
           "refId": "A",
           "datasource": {
@@ -171,7 +171,7 @@
       },
       "targets": [
         {
-          "expr": "live_overlay_trading_signals_a0_total{job=~\"$job\"}",
+          "expr": "live_overlay_trading_signals_a0{job=~\"$job\"}",
           "instant": true,
           "legendFormat": "A0 (strong)",
           "refId": "A",
@@ -181,7 +181,7 @@
           }
         },
         {
-          "expr": "live_overlay_trading_signals_a1_total{job=~\"$job\"}",
+          "expr": "live_overlay_trading_signals_a1{job=~\"$job\"}",
           "instant": true,
           "legendFormat": "A1 (breakout)",
           "refId": "B",
@@ -271,7 +271,7 @@
       },
       "targets": [
         {
-          "expr": "live_overlay_trading_signals_watched_total{job=~\"$job\"}",
+          "expr": "live_overlay_trading_signals_watched{job=~\"$job\"}",
           "instant": true,
           "refId": "A",
           "datasource": {
@@ -462,7 +462,7 @@
     {
       "title": "A2 Early-Warning",
       "type": "stat",
-      "description": "Active A2 signals — the early-warning tier (building momentum, not yet confirmed). Looser than A1, so treat as watch-not-act. Emitted since 2026-07-08 (live_overlay_trading_signals_a2_total).",
+      "description": "Active A2 signals — the early-warning tier (building momentum, not yet confirmed). Looser than A1, so treat as watch-not-act. Emitted since 2026-07-08 (live_overlay_trading_signals_a2).",
       "gridPos": {
         "h": 5,
         "w": 6,
@@ -471,7 +471,7 @@
       },
       "targets": [
         {
-          "expr": "live_overlay_trading_signals_a2_total{job=~\"$job\"}",
+          "expr": "live_overlay_trading_signals_a2{job=~\"$job\"}",
           "instant": true,
           "legendFormat": "A2 (early)",
           "refId": "A",
