@@ -6,16 +6,16 @@ the overlay payload for each symbol.
 
 All computations use only standard library + the bars already in cache.
 The news snapshot is normally read from a local file, but may instead be
-fetched at runtime from NEWS_SNAPSHOT_URL when that env var is set; no other
-module here performs network calls.
+fetched at runtime from NEWS_SNAPSHOT_URL; the signals, experiment, and
+TradingView-credential snapshots are likewise *_URL-fetchable at runtime.
 
 Field definitions (matching spec/smc_live_overlay.schema.json):
   news_strength        — [0.0, 1.0] composite news sentiment magnitude for symbol
-  news_bias            — "BULLISH" | "BEARISH" | "NEUTRAL"
-  flow_rel_vol         — volume(last N bars) / avg_volume(rolling window)
+  news_bias            — "BULLISH" | "BEARISH" | "NEUTRAL" | null
+  flow_rel_vol         — volume(current bar) / avg_volume(rolling window)
   flow_delta_proxy_pct — (close - open) / open × 100 for most recent bar
   squeeze_on           — int 0/1 on the JSON wire (1 = BB width < ATR threshold; null when unknown)
-  ats_state            — "accumulation" | "distribution" | "neutral"
+  ats_state            — "accumulation" | "distribution" | "neutral" | null
   ats_zscore           — z-score of last-bar volume vs rolling mean
   vix_level            — latest VIX level (from VIX symbol bars)
   tone                 — "BULLISH" | "BEARISH" | "NEUTRAL" (market-wide)

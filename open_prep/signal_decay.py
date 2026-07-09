@@ -13,7 +13,7 @@ Usage::
 
     from open_prep.signal_decay import adaptive_half_life, adaptive_freshness_decay
 
-    hl = adaptive_half_life(atr_pct=3.5)          # ~420s vs 600s baseline
+    hl = adaptive_half_life(atr_pct=3.5)          # ~563s (vs 1200s/180s max/min, 600s class baseline)
     score = adaptive_freshness_decay(120.0, atr_pct=3.5)  # 0..1
 """
 from __future__ import annotations

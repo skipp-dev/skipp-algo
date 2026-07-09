@@ -3,7 +3,7 @@
 Scans ``artifacts/reports/f2_promotion_gate_*.json`` and emits a
 GitHub Actions ``::warning::`` annotation when the most-recent
 contiguous run of reports has been stuck on a non-progressing
-decision for at least ``--threshold`` consecutive days.
+decision for at least ``--threshold`` consecutive reports.
 
 Non-progressing decisions:
 

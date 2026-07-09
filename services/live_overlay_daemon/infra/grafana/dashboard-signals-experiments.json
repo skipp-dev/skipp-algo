@@ -173,7 +173,7 @@
         {
           "expr": "live_overlay_trading_signals_a0{job=~\"$job\"}",
           "instant": true,
-          "legendFormat": "A0 (pre)",
+          "legendFormat": "A0 (strong)",
           "refId": "A",
           "datasource": {
             "type": "prometheus",
@@ -1010,7 +1010,7 @@
     {
       "title": "Daily Experiment — Snapshot Age",
       "type": "stat",
-      "description": "Age of the latest Plan 2.8 family rollup (scripts/plan_2_8_tf_family_rollup.py). The rolling benchmark runs ~daily; green < 24h, yellow < 36h, red beyond means a run was skipped. N/A when the run date cannot be derived.",
+      "description": "Age of the latest Plan 2.8 family rollup (scripts/plan_2_8_tf_family_rollup.py). The rolling benchmark runs Mon-Fri; green < 72h, yellow < 96h, red beyond 96h — the daemon's OVERLAY_EXPERIMENT_MAX_AGE_SECS staleness budget, where lo-experiment-snapshot-stale fires — means a run was skipped (Friday's rollup is legitimately ~89.5h old by Monday). N/A when the run date cannot be derived.",
       "gridPos": {
         "h": 5,
         "w": 6,
@@ -1041,11 +1041,11 @@
               },
               {
                 "color": "yellow",
-                "value": 86400
+                "value": 259200
               },
               {
                 "color": "red",
-                "value": 129600
+                "value": 345600
               }
             ]
           }

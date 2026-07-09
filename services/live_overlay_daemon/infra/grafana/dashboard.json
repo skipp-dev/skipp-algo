@@ -2747,7 +2747,7 @@
           }
         }
       },
-      "description": "Rate of bad events over 5m and 1h windows used for multi-window SLO alerting.",
+      "description": "Rate of bad events over 5m/30m/1h/6h windows used for multi-window SLO alerting.",
       "datasource": {
         "type": "prometheus",
         "uid": "grafanacloud-prom"

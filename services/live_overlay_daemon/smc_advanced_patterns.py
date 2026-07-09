@@ -60,7 +60,7 @@ class PPDDOrderBlock:
     direction: str  # 'bullish' | 'bearish'
     is_premium: bool  # True if OB formed in Premium (resistance) zone
     is_discount: bool  # True if OB formed in Discount (support) zone
-    strength: float  # 0.0-1.0: confluence count / max_possible_confluence
+    strength: float  # 0.0-1.0: ATR-distance normalization (min(1, |ob_center-price|/atr / atr_multiple)), not a confluence-count ratio
     hvb_confirmation: bool  # True if HVB present at OB formation
     created_at: int
     created_price: float
@@ -71,6 +71,9 @@ class PPDDOrderBlock:
             return "premium"
         if self.is_discount:
             return "discount"
+        # Unreachable today: PPDDClassifier.classify always sets is_premium and
+        # is_discount as exact complements (`not` each other), so one branch
+        # above always fires. Kept as a defensive default.
         return "neutral"
 
 
@@ -105,7 +108,7 @@ class BrokenFractal:
     break_price: float
     break_direction: str  # 'up' | 'down'
     confirmed: bool  # True if break confirmed on close
-    trapped_traders_escape: bool  # True if price reversed after break
+    trapped_traders_escape: bool  # currently always False — never set True (not yet wired)
     entry_box_top: float
     entry_box_bottom: float
 

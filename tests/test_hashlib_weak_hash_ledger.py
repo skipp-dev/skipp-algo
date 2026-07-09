@@ -71,7 +71,7 @@ _FROZEN_SITES: dict[str, dict[str, frozenset[int]]] = {
         "md5": frozenset({146, 277}),
         "sha1": frozenset({358, 444, 482, 526}),
     },
-    "newsstack_fmp/scoring.py": {"sha1": frozenset({123})},
+    "newsstack_fmp/scoring.py": {"sha1": frozenset({125})},  # +2 (2026-07-10): cluster_hash docstring truth-fix
     "newsstack_fmp/shared_fetch.py": {
         "md5": frozenset({117}),
         "sha1": frozenset({226}),
