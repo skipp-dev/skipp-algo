@@ -295,7 +295,7 @@ def compute_hit_rates(
 
         {
             "total": int,
-            "profitable": int,
+            "profitable": int, "unresolved": int,
             "hit_rate": float (0..1),
             "avg_pnl_pct": float,
         }
