@@ -13,7 +13,7 @@ Calendar (all use ``parameters[updated]=<epoch>`` for delta sync):
     - Guidance:           ``/api/v2.1/calendar/guidance``
     - Retail:             ``/api/v2.1/calendar/retail``
 
-Market Data:
+Market Data (``BENZINGA_PROVIDER=massive`` reroutes both to Massive snapshots):
     - Market Movers:      ``/api/v1/market/movers``
     - Delayed Quotes:     ``/api/v1/quoteDelayed``
 
