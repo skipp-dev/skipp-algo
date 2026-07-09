@@ -97,3 +97,28 @@ def test_store_daily_outcomes_atomic_on_failure(
     assert target.read_text(encoding="utf-8") == original
     leftovers = [p for p in tmp_outcomes_dir.iterdir() if p.suffix == ".tmp"]
     assert leftovers == [], f"unexpected .tmp leftovers: {leftovers}"
+
+
+def test_store_daily_outcomes_stamps_universe_source(tmp_outcomes_dir: Path) -> None:
+    """Provenance stamp: CI daily cron and local runs write the SAME filename
+    from different universes (found 2026-07-09) — the stamp is the only way a
+    consumer can tell which pipeline produced the file it is reading."""
+    records = [_record("NVDA"), _record("MSFT", profitable=False)]
+    path = outcomes.store_daily_outcomes(
+        date(2026, 7, 9), records, universe_source="fmp_us_mid_large"
+    )
+    stored = json.loads(path.read_text(encoding="utf-8"))
+    assert all(r["universe_source"] == "fmp_us_mid_large" for r in stored)
+
+
+def test_universe_stamp_optional_and_never_clobbers(tmp_outcomes_dir: Path) -> None:
+    # No stamp requested -> field absent (old callers unchanged).
+    plain = outcomes.store_daily_outcomes(date(2026, 7, 9), [_record("NVDA")])
+    assert "universe_source" not in json.loads(plain.read_text(encoding="utf-8"))[0]
+    # A record already carrying its origin keeps it (setdefault semantics).
+    pre = _record("MSFT")
+    pre["universe_source"] = "replay_historical"
+    path = outcomes.store_daily_outcomes(
+        date(2026, 7, 10), [pre], universe_source="fmp_us_mid_large"
+    )
+    assert json.loads(path.read_text(encoding="utf-8"))[0]["universe_source"] == "replay_historical"

@@ -36,6 +36,11 @@ GATES="cache/live/gate_status.json"
 # `C13 submitter on stale checkout` alert. push_to_data_branch skips it cleanly
 # if a fetch hiccup left it unwritten today.
 CHECKOUT_FRESHNESS="cache/live/checkout_freshness.json"
+# Traded-universe outcomes (universe_source=STATIC stamp) — the TradingView
+# panel publisher prefers this over the CI screener outcomes committed on
+# main (Option-a decision 2026-07-09). push_to_data_branch skips it quietly
+# when the morning export did not run.
+OUTCOMES="artifacts/open_prep/outcomes/outcomes_${DATE}.json"
 
 # Status marker so a degraded run is DETECTABLE rather than silently green.
 # Written on every exit path (degraded:* or ok:*). cache/live is gitignored
@@ -69,4 +74,5 @@ push_to_data_branch \
     "${AUDIT}" \
     "${SETUPS}" \
     "${GATES}" \
-    "${CHECKOUT_FRESHNESS}"
+    "${CHECKOUT_FRESHNESS}" \
+    "${OUTCOMES}"

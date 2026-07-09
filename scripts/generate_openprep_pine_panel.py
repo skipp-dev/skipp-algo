@@ -227,6 +227,9 @@ def extract_panel(
         "er_intraday": _safe_float(head.get("intraday_efficiency_ratio")),
         "dispersion": _safe_float(head.get("cs_dispersion")),
         "correlation": _safe_float(head.get("avg_pair_correlation")),
+        # Producing pipeline (stamped by store_daily_outcomes since 2026-07-09;
+        # None for older files) — surfaces the CI-vs-local universe shadowing.
+        "universe_source": (str(head.get("universe_source")) if head.get("universe_source") else None),
         "candidates": candidates[:MAX_ROWS],
     }
 
@@ -282,6 +285,9 @@ def build_pine(panel: dict[str, Any], *, generated_at: str, source: str,
         f"// generated_at: {generated_at}",
         f"// source_outcomes: {source}",
         f"// source_setups: {source_setups}",
+        # Which pipeline produced the outcomes (CI screener vs local run write
+        # the SAME filename from different universes — found 2026-07-09).
+        f"// universe_source: {panel.get('universe_source') or 'unknown'}",
         f"// source_commit_sha: {commit_sha or 'unknown'}",
         f"// candidates: {len(cands)}",
         "",
@@ -497,6 +503,18 @@ def main(argv: list[str] | None = None) -> int:
         return 1
 
     panel = extract_panel(rows, levels=levels)
+
+    # Loud when the setups universe is disjoint from the outcomes universe —
+    # levels loaded but ZERO candidates joined means the outcomes file came
+    # from a different pipeline than the one trading the setups (CI screener
+    # vs local run, found 2026-07-09). Silent before, the panel just showed
+    # "–" everywhere and looked like a bug in the join.
+    if levels and panel["candidates"] and all(c.get("entry") is None for c in panel["candidates"]):
+        logger.warning(
+            "setups/outcomes universes are disjoint: %d setup levels loaded but 0 of %d "
+            "candidates matched (outcomes universe_source=%s) — panel renders '–' levels",
+            len(levels), len(panel["candidates"]), panel.get("universe_source") or "unknown",
+        )
 
     # Absolute setups paths would bake a machine-local path into the committed
     # artifact; the basename (carrying the date) is the provenance that matters.

@@ -5965,7 +5965,7 @@ def generate_open_prep_result(
     try:
         _enrich_zone_priority(ranked_v2, regime_snapshot, news_scores)
         outcome_records = prepare_outcome_snapshot(ranked_v2, today)
-        store_daily_outcomes(today, outcome_records)
+        store_daily_outcomes(today, outcome_records, universe_source=universe_source)  # provenance stamp (CI vs local shadowing, 2026-07-09)
     except Exception as exc:
         outcome_persistence_error = f"{type(exc).__name__}: {exc}"
         logger.error("Outcome persistence pipeline error: %s", type(exc).__name__, exc_info=True)

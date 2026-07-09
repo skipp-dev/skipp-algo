@@ -96,8 +96,18 @@ def _rvol_bucket_label(rvol: float) -> str:
 def store_daily_outcomes(
     run_date: date,
     outcomes: list[dict[str, Any]],
+    *,
+    universe_source: str | None = None,
 ) -> Path:
     """Persist daily outcome records as the *full* daily aggregate.
+
+    ``universe_source`` stamps every record with the producing universe
+    (e.g. ``fmp_us_mid_large``) so consumers can tell which pipeline wrote
+    the file. The single-writer contract below holds *per environment*:
+    the CI daily cron and a local run write the SAME filename from
+    different universes (found 2026-07-09 — bot file: screener small caps;
+    local file: mega caps), and without the stamp that shadowing is
+    invisible to consumers (it silently emptied the panel's setups join).
 
     .. warning::
         This function performs an **atomic overwrite** of the per-day
@@ -147,6 +157,12 @@ def store_daily_outcomes(
         canonical_relative_paths=("artifacts/open_prep/outcomes",),
         caller="store_daily_outcomes",
     )
+    # Provenance stamp (setdefault: a record that already carries its origin
+    # is never clobbered — e.g. replayed/merged historical rows).
+    if universe_source:
+        for record in outcomes:
+            if isinstance(record, dict):
+                record.setdefault("universe_source", universe_source)
     OUTCOMES_DIR.mkdir(parents=True, exist_ok=True)
     path = OUTCOMES_DIR / f"outcomes_{run_date.isoformat()}.json"
     # Atomic write: tmp file + os.replace to avoid half-written files on crash.

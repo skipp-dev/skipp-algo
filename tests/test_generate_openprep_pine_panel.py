@@ -272,3 +272,80 @@ def test_main_errors_on_missing_explicit_setups(tmp_path) -> None:
                    "--setups-json", str(tmp_path / "missing.jsonl"),
                    "--output", str(tmp_path / "p.pine")])
     assert rc == 1
+
+
+def test_universe_source_flows_into_header_and_sidecar() -> None:
+    rows = [dict(_SAMPLE_ROWS[0], universe_source="fmp_us_mid_large")]
+    panel = gen.extract_panel(rows)
+    assert panel["universe_source"] == "fmp_us_mid_large"
+    pine = gen.build_pine(panel, generated_at="t", source="x", commit_sha=None)
+    assert "// universe_source: fmp_us_mid_large" in pine
+    # Old files without the stamp render as unknown, never crash.
+    pine_old = gen.build_pine(gen.extract_panel(_SAMPLE_ROWS), generated_at="t",
+                              source="x", commit_sha=None)
+    assert "// universe_source: unknown" in pine_old
+
+
+def test_disjoint_universes_warn_loudly(tmp_path, caplog) -> None:
+    """Levels loaded but zero candidates joined = the outcomes file came from a
+    DIFFERENT pipeline than the one trading the setups (CI screener vs local
+    run, found 2026-07-09). Must be loud, not a silent '–' panel."""
+    src = tmp_path / "outcomes_2026-07-04.json"
+    src.write_text(json.dumps(_SAMPLE_ROWS), encoding="utf-8")
+    setups = tmp_path / "setups_2026-07-04.jsonl"
+    setups.write_text(json.dumps(
+        [{"symbol": "BABU", "entry": 5.0, "stop_loss": 4.5, "take_profit": 6.0,
+          "trade_date": "2026-07-04"}]), encoding="utf-8")
+    import logging
+    with caplog.at_level(logging.WARNING):
+        rc = gen.main(["--outcomes-json", str(src), "--setups-json", str(setups),
+                       "--output", str(tmp_path / "p.pine")])
+    assert rc == 0
+    assert any("universes are disjoint" in r.message for r in caplog.records)
+
+
+def test_publish_workflow_joins_setups_from_data_branch() -> None:
+    """The publish workflow must fetch the date-matched setups from
+    data/phase-a-audit and hand them to the generator — otherwise the
+    published panel silently loses its levels column again."""
+    from pathlib import Path
+    wf = (Path(__file__).resolve().parents[1] / ".github" / "workflows"
+          / "openprep-pine-panel-publish.yml").read_text(encoding="utf-8")
+    assert "git fetch --depth 1 origin data/phase-a-audit" in wf
+    assert "setups_${panel_date}.jsonl" in wf
+    assert "--setups-json" in wf
+
+
+def test_publish_workflow_prefers_traded_outcomes_and_runs_evenings() -> None:
+    """Option-a (2026-07-09): the published panel shows the TRADED universe.
+    Pins the three moving parts: data-branch outcomes preference, the
+    after-hours schedule (post audit-push), and the posture marker."""
+    from pathlib import Path
+    wf_path = (Path(__file__).resolve().parents[1] / ".github" / "workflows"
+               / "openprep-pine-panel-publish.yml")
+    wf = wf_path.read_text(encoding="utf-8")
+    assert "--outcomes-json" in wf
+    assert "artifacts/open_prep/outcomes/" in wf
+    assert 'cron: "15 23 * * 1-5"' in wf  # after US close AND after 17:30 ET audit-push
+    assert "github.event_name == 'schedule'" in wf  # schedule runs always regenerate
+    assert "# live-window: off-hours-only" in wf.splitlines()[1]
+
+
+def test_audit_push_publishes_traded_outcomes() -> None:
+    """The audit-push driver must keep publishing the traded outcomes file —
+    the evening panel publish reads it from data/phase-a-audit."""
+    from pathlib import Path
+    sh = (Path(__file__).resolve().parents[1] / "automation" / "launchd"
+          / "run-c13-audit-push.sh").read_text(encoding="utf-8")
+    assert 'OUTCOMES="artifacts/open_prep/outcomes/outcomes_${DATE}.json"' in sh
+    assert '"${OUTCOMES}"' in sh
+
+
+def test_export_open_prep_lists_stamps_static_universe() -> None:
+    """The traded pipeline must stamp its outcomes as STATIC — without the
+    override both pipelines would inherit fmp_us_mid_large and the provenance
+    stamp could not distinguish them (the original 2026-07-09 confusion)."""
+    from pathlib import Path
+    src = (Path(__file__).resolve().parents[1] / "scripts"
+           / "export_open_prep_lists.py").read_text(encoding="utf-8")
+    assert "universe_source=UNIVERSE_SOURCE_STATIC" in src
