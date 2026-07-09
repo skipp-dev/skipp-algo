@@ -453,3 +453,45 @@ def test_build_execution_event_log_and_csv_export(tmp_path) -> None:
 # (single home; consolidated there per Copilot review #2691 — the dedicated
 # module is the superset: HALT, missing/stale/fresh/future-mtime JSONL,
 # yesterday-keyed JSONL, bypass flag).
+
+
+def test_round_to_min_tick_never_snaps_positive_price_to_zero() -> None:
+    # A tiny positive price (< half a tick) previously rounded to 0.0, which IB
+    # rejects with error 110 — the exact failure this snapping exists to avoid.
+    assert _round_to_min_tick(1e-12) == 0.0001
+    assert _round_to_min_tick(0.00004) == 0.0001  # rounds to 0 → floored to a tick
+    # Normal snapping is unchanged.
+    assert _round_to_min_tick(154.918) == 154.92
+    assert _round_to_min_tick(0.4995) == 0.4995
+
+
+def test_build_order_intents_rejects_nan_quantity_with_field_context() -> None:
+    watchlist = filter_watchlist(_sample_watchlist(), trade_date=date(2026, 3, 8)).copy()
+    sym = str(watchlist.iloc[0]["symbol"])
+    watchlist.loc[watchlist.index[0], "l1_quantity"] = float("nan")
+    try:
+        build_order_intents(watchlist, IBKRExecutionConfig(exit_mode="tp-stop"))
+        raise AssertionError("Expected ValueError for NaN quantity")
+    except ValueError as exc:
+        assert "l1_quantity" in str(exc) and sym in str(exc)
+
+
+def test_build_order_intents_rejects_nan_rank_with_field_context() -> None:
+    watchlist = filter_watchlist(_sample_watchlist(), trade_date=date(2026, 3, 8)).copy()
+    sym = str(watchlist.iloc[0]["symbol"])
+    watchlist.loc[watchlist.index[0], "watchlist_rank"] = float("nan")
+    try:
+        build_order_intents(watchlist, IBKRExecutionConfig(exit_mode="tp-stop"))
+        raise AssertionError("Expected ValueError for NaN rank")
+    except ValueError as exc:
+        assert "watchlist_rank" in str(exc) and sym in str(exc)
+
+
+def test_build_order_intents_tolerates_nan_gap_pct() -> None:
+    # gap_pct is informational — a NaN cell must neither crash nor poison the
+    # audit record; it collapses to 0.0 and orders still build.
+    watchlist = filter_watchlist(_sample_watchlist(), trade_date=date(2026, 3, 8)).copy()
+    watchlist.loc[watchlist.index[0], "prev_close_to_premarket_pct"] = float("nan")
+    intents = build_order_intents(watchlist, IBKRExecutionConfig(exit_mode="tp-stop"))
+    assert intents
+    assert all(i.gap_pct == 0.0 for i in intents)
