@@ -155,6 +155,34 @@ class TestTvThrottleNoLockHeldDuringSleep:
             throttle_thread.join(timeout=3.0)
 
 
+class TestTvThrottleClampsFutureLastCall:
+    """A _tv_last_call_ts in the FUTURE (backward system-clock step, or an
+    extreme concurrent burst) must never make _tv_throttle sleep longer than
+    `spacing`; without the max(0.0, elapsed) clamp it slept spacing + |elapsed|
+    (up to thousands of seconds)."""
+
+    def test_future_last_call_never_sleeps_longer_than_spacing(self):
+        import terminal_technicals as tt
+
+        original_base = tt._TV_MIN_CALL_SPACING_BASE
+        try:
+            tt._TV_MIN_CALL_SPACING_BASE = 2.0
+            with tt._tv_rate_lock:
+                tt._tv_last_call_ts = time.time() + 1000.0  # 1000s in the future
+                tt._tv_cooldown_until = 0.0
+                # Well past the post-429 window so BASE spacing (2.0s) applies,
+                # not the 20s post-429 spacing — makes the clamp bound tight.
+                tt._tv_cooldown_ended_at = time.time() - 10_000.0
+            with patch.object(tt.time, "sleep") as mock_sleep:  # capture, don't wait
+                tt._tv_throttle()
+            slept = mock_sleep.call_args[0][0] if mock_sleep.call_args else 0.0
+            assert slept <= tt._TV_MIN_CALL_SPACING_BASE + 0.01, (
+                f"clamp failed: slept {slept:.1f}s for a future _tv_last_call_ts"
+            )
+        finally:
+            tt._TV_MIN_CALL_SPACING_BASE = original_base
+
+
 # === Fix #10: Exchange resolution cache =====================================
 
 class TestExchangeCache:

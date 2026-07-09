@@ -177,14 +177,16 @@ _FROZEN_SITES: frozenset[tuple[str, int, tuple[str, ...]]] = frozenset(
         # -> 218/219/251/268).
         # 2026-06-19 (timeframe expansion): added 10m map/default interval,
         # shifting these global sites 219/220/252/269 -> 220/221/253/270.
-        ("terminal_technicals.py", 220, ("_tv_consecutive_429s", "_tv_cooldown_until")),
+        # 2026-07-09 (fix/tv-throttle-cooldown-fmp): removed dead _CACHE_ERROR_TTL_S
+        # const (line 175), shifting all four -1: 220/221/253/270 -> 219/220/252/269.
+        ("terminal_technicals.py", 219, ("_tv_consecutive_429s", "_tv_cooldown_until")),
         (
             "terminal_technicals.py",
-            221,
+            220,
             ("_tv_last_429_log_key", "_tv_last_429_log_ts", "_tv_suppressed_429_logs"),
         ),
-        ("terminal_technicals.py", 253, ("_tv_consecutive_429s",)),
-        ("terminal_technicals.py", 270, ("_tv_cooldown_ended_at", "_tv_last_call_ts")),
+        ("terminal_technicals.py", 252, ("_tv_consecutive_429s",)),
+        ("terminal_technicals.py", 269, ("_tv_cooldown_ended_at", "_tv_last_call_ts")),
         ("terminal_tradingview_news.py", 403, ("_last_request_ts",)),
         # 2026-06-16 (feat/live-overlay-daemon): daemon singletons guarded by
         # threading.Lock() per concurrency-shared-mutables guideline.
