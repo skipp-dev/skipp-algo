@@ -75,7 +75,15 @@ POLICY_REGIME = DomainPolicy("regime", primary="fmp", fallbacks=())
 # chain meant every FMP+Benzinga double-failure burned a doomed third
 # attempt and stamped a misleading newsapi_ai stale entry.
 POLICY_NEWS = DomainPolicy("news", primary="fmp", fallbacks=("benzinga",))
-POLICY_CALENDAR = DomainPolicy("calendar", primary="fmp", fallbacks=("benzinga",))
+# calendar Benzinga fallback dropped 2026-07-09: the only Benzinga key we hold
+# is a Massive key, which 401s api.benzinga.com/api/v2.1/calendar (the adapter
+# has no Massive route, unlike news #3318 / quotes-movers #3325), and the old
+# direct key is retired — so the fallback could never deliver, only stamp a
+# misleading benzinga stale entry on every FMP failure. FMP is comprehensive
+# (earnings/macro/splits/dividends/ipos) + unlimited. fetch_calendar_benzinga +
+# its dispatch branch are kept dormant (re-arm = add "benzinga" back here) for
+# a future bz-direct key or a Massive Earnings/Ratings pack.
+POLICY_CALENDAR = DomainPolicy("calendar", primary="fmp", fallbacks=())
 POLICY_TECHNICAL = DomainPolicy("technical", primary="fmp", fallbacks=("tradingview",))
 
 ALL_POLICIES: dict[str, DomainPolicy] = {
