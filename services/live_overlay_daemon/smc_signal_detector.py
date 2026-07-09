@@ -4,6 +4,9 @@ Real-time Order Block / FVG / RJB detection for streaming market data.
 Integrates with live_overlay_daemon for tick-by-tick signal routing.
 
 Pattern: OHLC candle stream → detected structures → signal webhook/API.
+
+NOTE: Only OB/FVG/RJB emit SignalEvents (created + mitigated). HVB and
+Broken-Fractal are computed for logging/confluence only and do not emit events.
 """
 
 from __future__ import annotations
@@ -12,11 +15,8 @@ import logging
 from dataclasses import dataclass
 
 from services.live_overlay_daemon.smc_advanced_patterns import (
-    BoSRefinement,
     BrokenFractalDetector,
     HVBDetector,
-    LiquidityClusterDetector,
-    PPDDClassifier,
 )
 from services.live_overlay_daemon.smc_ringbuffer import (
     BoxType,
@@ -84,12 +84,7 @@ class SmcSignalDetector:
 
         # Advanced pattern detectors
         self.hvb_detector = HVBDetector(lookback=20, hvb_threshold=1.5)
-        self.ppdd_classifier = PPDDClassifier(atr_multiple=2.0)
-        self.liquidity_detector = LiquidityClusterDetector(
-            cluster_distance_atr=0.5, min_confluences=2
-        )
         self.fractal_detector = BrokenFractalDetector()
-        self.bos_refiner = BoSRefinement()
 
         self.swing_highs: list[float] = []
         self.swing_lows: list[float] = []

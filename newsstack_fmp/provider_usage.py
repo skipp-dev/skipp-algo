@@ -5,8 +5,11 @@ Why this exists
 REST data providers (FMP first, but also Benzinga and Unusual Whales) meter a
 monthly **data volume**, not just a call count — an FMP "you've used 90% of your
 volume" email was the first and only signal we had, because nothing in the stack
-measured provider consumption. Every ingest client's HTTP layer records the
-response size (and item count) here; at run end the totals are flushed into a
+measured provider consumption. The FMP (ingest_fmp) and Benzinga/Massive
+(_bz_http) clients record response size here; NOTE: Unusual Whales, FMP-filings,
+and FMP-political ingest through their own clients and are NOT yet recorded (a
+metering blind spot). The item-count (``records``) field is not currently
+populated by any caller — it stays 0. At run end the totals are flushed into a
 monthly snapshot that the live-overlay daemon surfaces as Prometheus gauges.
 
 Accumulation model

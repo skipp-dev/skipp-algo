@@ -83,7 +83,7 @@ class FmpFilingsAdapter:
     """Synchronous adapter for FMP SEC filings bulk feeds.
 
     Implements both ``/sec-filings-8k`` (8-K material events) and
-    ``/sec-filings/13F-HR-latest`` (institutional 13F-HR holdings)
+    ``/sec-filings-13f`` (institutional 13F-HR holdings)
     endpoints, sharing the DISABLED-path short-circuit and retry policy.
     """
 

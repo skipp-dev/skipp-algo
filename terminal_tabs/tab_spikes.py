@@ -57,8 +57,8 @@ def render(feed: list[dict[str, Any]], *, current_session: str) -> None:
     session_label = SESSION_ICONS.get(current_session, current_session)
     st.subheader("🔎 Spike Scanner")
     st.caption(
-        f"**{session_label}** — FMP Gainers / Losers / Most Active "
-        "with volume-weighted spike scoring."
+        f"**{session_label}** — Gainers / Losers / Most Active "
+        "(yfinance real-time, FMP 15-min fallback) with volume-weighted spike scoring."
     )
 
     data = cached_spike_data(fmp_key)
