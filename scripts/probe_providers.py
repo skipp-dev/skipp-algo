@@ -418,12 +418,35 @@ def probe_databento_daily_bars() -> tuple[str, str]:
     return ("OK", f"AAPL close={aapl.get('close')} vol={vol_str}")
 
 
+def _benzinga_transport() -> str:
+    """Mirror of newsstack_fmp.ingest_benzinga.benzinga_provider (kept local so
+    the probe script stays runnable without the newsstack package path)."""
+    raw = os.getenv("BENZINGA_PROVIDER", "direct").strip().lower()
+    return raw if raw in ("direct", "massive") else "direct"
+
+
 def probe_benzinga_news() -> tuple[str, str]:
-    """Benzinga /api/v2/news — primary news feed."""
+    """Benzinga news feed — direct (/api/v2/news) or Massive (/benzinga/v2/news)."""
     import httpx
     key = os.getenv("BENZINGA_API_KEY", "")
     if not key:
         return ("SKIP", "BENZINGA_API_KEY missing")
+    if _benzinga_transport() == "massive":
+        r = httpx.get(
+            "https://api.massive.com/benzinga/v2/news",
+            params={"apiKey": key, "limit": 5},
+            headers={"Accept": "application/json"},
+            timeout=15.0,
+        )
+        if r.status_code != 200:
+            return ("FAIL", f"HTTP {r.status_code}: {r.text[:80]}")
+        rows = (r.json() or {}).get("results") or []
+        if not rows:
+            return ("WARN", "empty news list (massive)")
+        row = rows[0]
+        if "benzinga_id" not in row or "title" not in row:
+            return ("WARN", f"unexpected massive shape: {sorted(row.keys())[:6]}")
+        return ("OK", f"{len(rows)} items via massive, latest id={row.get('benzinga_id')} ({str(row.get('published') or '?')[:19]})")
     r = httpx.get(
         "https://api.benzinga.com/api/v2/news",
         params={"token": key, "pageSize": 5, "displayOutput": "abstract"},
@@ -449,6 +472,8 @@ def probe_benzinga_quotes() -> tuple[str, str]:
     key = os.getenv("BENZINGA_API_KEY", "")
     if not key:
         return ("SKIP", "BENZINGA_API_KEY missing")
+    if _benzinga_transport() == "massive":
+        return ("SKIP", "provider=massive: Benzinga-direct-only endpoint (not part of the Massive news pack)")
     r = httpx.get(
         "https://api.benzinga.com/api/v1/quoteDelayed",
         params={"token": key, "symbols": "AAPL,MSFT"},
@@ -469,6 +494,8 @@ def probe_benzinga_movers() -> tuple[str, str]:
     key = os.getenv("BENZINGA_API_KEY", "")
     if not key:
         return ("SKIP", "BENZINGA_API_KEY missing")
+    if _benzinga_transport() == "massive":
+        return ("SKIP", "provider=massive: Benzinga-direct-only endpoint (not part of the Massive news pack)")
     r = httpx.get(
         "https://api.benzinga.com/api/v1/market/movers",
         params={"token": key, "screenerQuery": "marketcap_gt_300000000",
@@ -489,6 +516,8 @@ def _bz_get(path: str, extra: dict[str, Any] | None = None) -> tuple[str, str]:
     key = os.getenv("BENZINGA_API_KEY", "")
     if not key:
         return ("SKIP", "BENZINGA_API_KEY missing")
+    if _benzinga_transport() == "massive":
+        return ("SKIP", "provider=massive: Benzinga-direct-only endpoint (not part of the Massive news pack)")
     params: dict[str, Any] = {"token": key}
     if extra:
         params.update(extra)

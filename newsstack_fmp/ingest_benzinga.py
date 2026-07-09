@@ -28,10 +28,12 @@ import concurrent.futures
 import json
 import logging
 import math
+import os
 import queue
 import re
 import threading
 import time
+from datetime import UTC, datetime
 from html import unescape as _html_unescape
 from typing import Any
 
@@ -50,6 +52,40 @@ logger = logging.getLogger(__name__)
 # =====================================================================
 
 BENZINGA_REST_BASE = "https://api.benzinga.com/api/v2/news"
+# Massive (formerly Polygon.io) resells Benzinga news as an expansion pack —
+# same content, different host/auth/params/schema. The paid key issued via
+# Massive is a MASSIVE key: api.benzinga.com answers it with 401 "anonymous"
+# (verified 2026-07-09), so the transport must be switchable per environment.
+BENZINGA_MASSIVE_REST_BASE = "https://api.massive.com/benzinga/v2/news"
+
+_VALID_BENZINGA_PROVIDERS = ("direct", "massive")
+
+
+def benzinga_provider() -> str:
+    """Resolve the Benzinga transport from ``BENZINGA_PROVIDER``.
+
+    ``direct``  — api.benzinga.com, ``token=`` auth (legacy/free key).
+    ``massive`` — api.massive.com/benzinga, ``apiKey=`` auth (paid key).
+
+    Defaults to ``direct`` so every existing deployment keeps working until
+    the env is flipped together with the matching key; garbage values fall
+    back to ``direct`` with a warning instead of silently breaking news.
+    """
+    raw = os.getenv("BENZINGA_PROVIDER", "direct").strip().lower()
+    if raw not in _VALID_BENZINGA_PROVIDERS:
+        logger.warning("BENZINGA_PROVIDER=%r invalid; falling back to 'direct'", raw)
+        return "direct"
+    return raw
+
+
+def _epoch_to_iso_utc(value: str) -> str:
+    """Massive ``.gte``/``.lte`` filters need ISO-8601 timestamps; the direct
+    API's ``updatedSince`` accepts epoch seconds. Coerce digit strings, pass
+    ISO (or anything else) through unchanged."""
+    stripped = str(value).strip()
+    if re.fullmatch(r"\d{9,12}", stripped):
+        return datetime.fromtimestamp(int(stripped), tz=UTC).strftime("%Y-%m-%dT%H:%M:%SZ")
+    return stripped
 
 
 def _coerce_benzinga_date_param(value: str | None) -> str | None:
@@ -80,8 +116,36 @@ def _build_news_params(
     tickers: str | None,
     display_output: str | None,
     ticker_param_name: str = "tickers",
+    provider: str = "direct",
 ) -> dict[str, Any]:
-    params: dict[str, Any] = {
+    if provider == "massive":
+        # Massive benzinga/v2/news dialect (verified against the live API
+        # 2026-07-09): apiKey auth, ``limit``, ISO ``.gte``/``.lte`` range
+        # filters, ``tickers`` filter works, ``channels`` accepted.
+        # ``topics``/``page``/``displayOutput`` have no equivalent — dropped
+        # (teaser/body are not part of the Massive payload; scoring is
+        # headline-based, see normalize_benzinga_rest).
+        params: dict[str, Any] = {"apiKey": api_key, "limit": page_size}
+        if updated_since:
+            params["last_updated.gte"] = _epoch_to_iso_utc(updated_since)
+        if publish_since:
+            params["published.gte"] = _epoch_to_iso_utc(publish_since)
+        if date_from:
+            params["published.gte"] = _epoch_to_iso_utc(date_from)
+        if date_to:
+            params["published.lte"] = _epoch_to_iso_utc(date_to)
+        if tickers:
+            params["tickers"] = tickers
+        if channels:
+            params["channels"] = channels
+        if topics or display_output or page:
+            logger.debug(
+                "Benzinga massive mode: dropping unsupported params "
+                "(topics=%r, displayOutput=%r, page=%r)", topics, display_output, page,
+            )
+        return params
+
+    params = {
         "token": api_key,
         "pageSize": page_size,
         "page": page,
@@ -128,12 +192,20 @@ def _historical_news_param_variants(base_params: dict[str, Any]) -> list[dict[st
 
 
 class BenzingaRestAdapter:
-    """Synchronous Benzinga REST news adapter using ``updatedSince``."""
+    """Synchronous Benzinga REST news adapter using ``updatedSince``.
 
-    def __init__(self, api_key: str) -> None:
+    ``provider`` selects the transport (``direct``/``massive``, see
+    :func:`benzinga_provider`); ``None`` resolves from ``BENZINGA_PROVIDER``.
+    """
+
+    def __init__(self, api_key: str, provider: str | None = None) -> None:
         if not api_key:
             raise RuntimeError("BENZINGA_API_KEY missing")
         self.api_key = api_key
+        self.provider = provider if provider in _VALID_BENZINGA_PROVIDERS else benzinga_provider()
+        self.base_url = (
+            BENZINGA_MASSIVE_REST_BASE if self.provider == "massive" else BENZINGA_REST_BASE
+        )
         self.client = httpx.Client(
             timeout=10.0,
             headers={"Accept": "application/json"},
@@ -179,8 +251,13 @@ class BenzingaRestAdapter:
             publish_since=publish_since,
             tickers=tickers,
             display_output=display_output,
+            provider=self.provider,
         )
-        request_variants = _historical_news_param_variants(params)
+        # The param-shape fallback dance exists for api.benzinga.com quirks
+        # only; the Massive dialect is a single canonical shape.
+        request_variants = (
+            [params] if self.provider == "massive" else _historical_news_param_variants(params)
+        )
 
         _RETRYABLE = {429, 500, 502, 503, 504}
         _MAX_ATTEMPTS = 3
@@ -190,7 +267,7 @@ class BenzingaRestAdapter:
             last_variant = variant_index == len(request_variants) - 1
             for attempt in range(_MAX_ATTEMPTS):
                 try:
-                    r = self.client.get(BENZINGA_REST_BASE, params=request_params)
+                    r = self.client.get(self.base_url, params=request_params)
                     if r.status_code in _RETRYABLE and attempt < _MAX_ATTEMPTS - 1:
                         logger.warning(
                             "Benzinga HTTP %s (attempt %d/%d) – retrying in %ds",
