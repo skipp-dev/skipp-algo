@@ -53,10 +53,12 @@ def _empty(loaded: float, error: str) -> dict[str, Any]:
         "fills": {
             "filled_cumulative": 0,
             "closed_cumulative": 0,
+            "submit_failed_cumulative": 0,
             "target": 0,
             "newest_incubation_date": "",
         },
         "wsh": {"newest_date": "", "status": ""},
+        "submitter": {"submit_code_behind_commits": 0, "known": 0},
         "error": error,
     }
 
@@ -68,6 +70,7 @@ def _coerce(raw: dict[str, Any]) -> dict[str, Any]:
     samples = raw.get("samples") if isinstance(raw.get("samples"), dict) else {}
     fills = raw.get("fills") if isinstance(raw.get("fills"), dict) else {}
     wsh = raw.get("wsh") if isinstance(raw.get("wsh"), dict) else {}
+    submitter = raw.get("submitter") if isinstance(raw.get("submitter"), dict) else {}
 
     def _num(value: Any) -> float:
         return float(value) if isinstance(value, (int, float)) and not isinstance(value, bool) else 0.0
@@ -95,12 +98,17 @@ def _coerce(raw: dict[str, Any]) -> dict[str, Any]:
         "fills": {
             "filled_cumulative": _num(fills.get("filled_cumulative")),
             "closed_cumulative": _num(fills.get("closed_cumulative")),
+            "submit_failed_cumulative": _num(fills.get("submit_failed_cumulative")),
             "target": _num(fills.get("target")),
             "newest_incubation_date": str(fills.get("newest_incubation_date", "") or ""),
         },
         "wsh": {
             "newest_date": str(wsh.get("newest_date", "") or ""),
             "status": str(wsh.get("status", "") or ""),
+        },
+        "submitter": {
+            "submit_code_behind_commits": _num(submitter.get("submit_code_behind_commits")),
+            "known": _num(submitter.get("known")),
         },
         "error": "",
     }

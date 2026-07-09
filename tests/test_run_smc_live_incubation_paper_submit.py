@@ -193,6 +193,62 @@ def test_paper_submit_fn_batch_exception_marks_only_that_batch_failed() -> None:
     assert result_by_id["trail-fail"] == "submit_failed"
 
 
+def test_paper_submit_fn_marks_dead_bracket_submit_failed() -> None:
+    """A bracket that places but lands NO resting leg (every leg cancelled, e.g.
+    IB error-110 on a sub-tick TP/SL) must record submit_failed, not a phantom
+    paper_submitted — the silent success that hid the 2026-07-08 C8 stall."""
+    intents = _intents()
+
+    def dead_placer(intents, *, connection_cfg, execution_cfg):
+        # Mirrors what place_order_intents_with_ib computes: all legs Cancelled
+        # -> rested=False. `placements` is non-empty (orders WERE placed).
+        return {
+            "placements": [
+                {
+                    "symbol": i.symbol,
+                    "rested": False,
+                    "orders": [
+                        {"order_ref": f"{i.order_ref}-entry", "status": "Cancelled"},
+                        {"order_ref": f"{i.order_ref}-tp", "status": "Cancelled"},
+                        {"order_ref": f"{i.order_ref}-sl", "status": "Cancelled"},
+                    ],
+                }
+                for i in intents
+            ]
+        }
+
+    submit = _build_paper_submit_fn(
+        connection_cfg=IBKRConnectionConfig(),
+        execution_cfg=IBKRWatchlistExecutionConfig(),
+        place_fn=dead_placer,
+    )
+
+    results = submit(intents)
+
+    assert results  # intents were processed
+    assert all(r["action"] == "submit_failed" for r in results)
+
+
+def test_paper_submit_fn_resting_bracket_is_submitted() -> None:
+    """A placement with >=1 resting leg (rested=True) records paper_submitted."""
+    intents = _intents()
+
+    def resting_placer(intents, *, connection_cfg, execution_cfg):
+        return {
+            "placements": [
+                {"symbol": i.symbol, "rested": True, "orders": []} for i in intents
+            ]
+        }
+
+    submit = _build_paper_submit_fn(
+        connection_cfg=IBKRConnectionConfig(),
+        execution_cfg=IBKRWatchlistExecutionConfig(),
+        place_fn=resting_placer,
+    )
+
+    assert all(r["action"] == "paper_submitted" for r in submit(intents))
+
+
 # ── CLI: --place-paper-orders wiring ───────────────────────────────
 
 

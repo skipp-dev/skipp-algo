@@ -31,6 +31,11 @@ cd "${REPO}"
 AUDIT="cache/live/incubation_${DATE}.jsonl"
 SETUPS="cache/live/setups_${DATE}.jsonl"
 GATES="cache/live/gate_status.json"
+# Deploy-hygiene sidecar written by run-c13-phase-a.sh: how far this Mac's
+# checkout is behind origin/main on the paper-submit order path. Powers the
+# `C13 submitter on stale checkout` alert. push_to_data_branch skips it cleanly
+# if a fetch hiccup left it unwritten today.
+CHECKOUT_FRESHNESS="cache/live/checkout_freshness.json"
 
 # Status marker so a degraded run is DETECTABLE rather than silently green.
 # Written on every exit path (degraded:* or ok:*). cache/live is gitignored
@@ -63,4 +68,5 @@ push_to_data_branch \
     "${STATUS_MARKER}" \
     "${AUDIT}" \
     "${SETUPS}" \
-    "${GATES}"
+    "${GATES}" \
+    "${CHECKOUT_FRESHNESS}"
