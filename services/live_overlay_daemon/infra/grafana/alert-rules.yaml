@@ -1878,6 +1878,50 @@ groups:
         day).
       runbook: Check the workflow's recent runs; a persistent 0 means the daily cron is failing or not
         firing.
+  - uid: lo-ci-full-suite-red
+    title: CI full-suite red on main
+    condition: C
+    # The generic no-green-24h rule above only catches a workflow that stays
+    # dark for a whole DAY. The main-push `CI` workflow runs the FULL pytest
+    # suite on every merge, so a red latest run means merged code broke tests
+    # that `fast-gates` (the only REQUIRED check) does not run — and auto-merge
+    # rides right over it. 2026-07-09: CI sat red ~5h through 6 merges, invisible
+    # under the 24h rule. Fire after 2h so a same-day regression pages while a
+    # quick red->green fix (a flake healed on the next push) rides out.
+    # `== bool 0` (not `== 0`): a bare filter yields 0 on a match and gt-0 reads
+    # 0>0=false -- inert; bool maps a red latest run to 1 so it actually fires.
+    # NOTE: this fires only while `CI` is in the daemon's watch scope
+    # (GITHUB_WORKFLOW_MONITOR_IDS unset = all workflows, the default).
+    noDataState: OK
+    data:
+    - refId: A
+      datasourceUid: grafanacloud-prom
+      model:
+        expr: min by (workflow) (live_overlay_github_workflow_latest_success{job="live_overlay",workflow="CI"})
+          == bool 0
+        instant: true
+    - refId: C
+      datasourceUid: __expr__
+      model:
+        type: threshold
+        conditions:
+        - evaluator:
+            type: gt
+            params:
+            - 0
+          operator:
+            type: and
+          query:
+            params:
+            - A
+    for: 2h
+    labels:
+      severity: warning
+    annotations:
+      summary: The main-push CI workflow (full pytest suite) has been red for 2h -- a merge broke tests
+        that the required fast-gates check does not run.
+      runbook: Open the newest CI run on main and find the failing test; fast-gates stays green because it
+        runs a subset. Fix-forward or revert; then confirm CI goes green on the next main push.
   - uid: lo-workflow-run-stale
     title: Monitored workflow has not run recently
     condition: C
