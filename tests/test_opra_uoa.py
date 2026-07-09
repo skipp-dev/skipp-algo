@@ -76,7 +76,7 @@ def test_premium_gate_admits_large_block():
     assert rec["ticker"] == "AAPL"
     assert rec["option_activity_type"] == "CALL"
     assert rec["cost_basis"] == pytest.approx(500_000.0)
-    assert rec["sentiment"] == "BULLISH"
+    assert rec["sentiment"] == "BEARISH"  # side="A" (Ask) = sell aggressor per Databento
     assert rec["aggressor_ind"] == "A"
 
 
@@ -175,8 +175,8 @@ def test_no_multileg_when_only_calls():
 @pytest.mark.parametrize(
     "side,expect_aggr,expect_sentiment",
     [
-        ("A", "A", "BULLISH"),
-        ("B", "B", "BEARISH"),
+        ("A", "A", "BEARISH"),  # Ask = sell aggressor (Databento)
+        ("B", "B", "BULLISH"),  # Bid = buy aggressor (Databento)
         ("N", "N", "NEUTRAL"),
         ("", "N", "NEUTRAL"),
         ("?", "N", "NEUTRAL"),
