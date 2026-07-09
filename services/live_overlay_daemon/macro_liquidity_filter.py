@@ -101,6 +101,10 @@ class MacroLiquidityFilter:
             stress_level = 10
             is_stressed = True
 
+        # Boundary is exclusive: at exactly stress_threshold_bp (5.0) the regime
+        # label is already 'stress' (the `< extreme` band above starts at >= 5.0)
+        # but is_stressed stays False — so 5.0 bp labels 'stress' without
+        # suppressing signals.
         is_stressed = spread_bp > self.stress_threshold_bp
 
         # Update bars in stress
@@ -154,8 +158,12 @@ class MacroLiquidityFilter:
     def get_confidence_multiplier(self) -> float:
         """Return signal confidence multiplier (0.0-1.0).
 
-        In normal regimes: 1.0
-        In stress: scales down to 0.3 (suppress but don't mute)
+        Computed as ``1.0 - get_regime_score()*0.7``. Per band:
+        - abundant (score 0.0): 1.0
+        - normal   (score 0.3): 0.79
+        - stress   (score 0.7): 0.51
+        - extreme  (score 1.0): 0.30
+        Only the abundant band is a full 1.0; every non-abundant band scales down.
         """
         risk_off_score = self.get_regime_score()
 

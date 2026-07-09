@@ -38,14 +38,9 @@ class IgnitionCandle:
     high: float
     low: float
     close: float
-    body_size: float  # close - open
+    body_size: float  # abs(close - open)
     range: float  # high - low
     direction: str  # 'bullish' | 'bearish'
-
-    def meets_criteria(self) -> bool:
-        """Check if candle meets ignition criteria."""
-        # Criteria: extend beyond recent range, body dominates, close at extreme
-        return self.body_size > 0  # Valid
 
 
 @dataclass
@@ -101,7 +96,7 @@ class IgnitionCandleDetector:
         """
         Detect ignition candle using 3 criteria:
         1. Extends beyond recent range
-        2. Body dominates bar (body > range * 0.66)
+        2. Body dominates bar (body > range * 0.6)
         3. Closes at extreme end (close near high or low)
         """
         # Reject corrupt candle geometry up front, before it lands in

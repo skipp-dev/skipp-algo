@@ -1,11 +1,16 @@
-"""Ensemble Signal Router — Orchestrates all 4 advanced trading systems.
+"""Ensemble Signal Router — combines 3 voting systems with 2 filters.
 
-Combines:
+Voting systems (each casts a directional vote in ``_merge_signals``):
 1. SMT Sniper Entry Engine (liquidity + quality validation)
 2. Strong Impulse Signals (ignition + propulsion)
 3. Triple Confluence Navigator (3-way alignment gate)
+
+Filters (gate/scale the vote; they do not vote):
 4. Macro Liquidity Filter (SOFR-IORB stress suppression)
-5. Volatility Filter (ATR regime detection - NEW)
+5. Volatility Filter (ATR regime detection)
+
+(SmcSignalDetector is also run each candle for structure state, but its
+patterns are not wired into the vote.)
 
 Routes final signals with conflict resolution and confidence scoring.
 """
@@ -35,18 +40,6 @@ class SignalSource(Enum):
 
 
 @dataclass
-class ConflictResolution:
-    """Conflict result when multiple systems disagree."""
-
-    has_conflict: bool
-    primary_source: SignalSource
-    secondary_sources: list[SignalSource]
-    agreement_count: int  # How many systems agreed
-    confidence: float  # 0-1 (higher = more agreement)
-    recommendation: str  # 'proceed' | 'suppress' | 'investigate'
-
-
-@dataclass
 class EnsembleSignal:
     """Final routed signal from ensemble."""
 
@@ -55,14 +48,13 @@ class EnsembleSignal:
     entry_price: float
     stop_loss: float
     take_profit: float
-    confidence: float  # 0-1 (weighted average)
+    confidence: float  # mean of fixed per-source confidence constants × macro multiplier
     sources: list[SignalSource]  # Which systems voted
     sources_count: int  # How many systems voted
     smt_signal: SmtSniperSignal | None = None
     impulse_signal: ImpulseSignal | None = None
     confluence_signal: TripleConfluenceSignal | None = None
     liquidity_regime: LiquidityRegime | None = None
-    conflict: ConflictResolution | None = None
 
 
 class EnsembleSignalRouter:
