@@ -18,6 +18,7 @@ consumes whatever artefacts the local jobs commit + push into
 | `com.skippalgo.c13.reconcile.plist` | 23:05 local (Mon-Fri) | `scripts.reconcile_incubation_fills` | stamps `fill_price`/`close_price`/`close_action`/`size_usd` + PnL/R onto `cache/live/incubation_<DATE>.jsonl` and publishes it (Phase-B execution-promotion fills — NOT the ADR-0023 §5 gate) |
 | `com.skippalgo.c13.tws-reminder.plist` | **07:45 ET** + 22:50 local (Mon-Fri) | `run-c13-tws-reminder.sh` (system tools + ET-gate lib, no venv) | macOS notification 15 min before the day's first TWS-bound window (08:00 ET ibkr-smoke; also covers 09:28 ET phase-a) and before the 23:05 local reconcile — posts ONLY when nothing listens on the paper port |
 | `com.skippalgo.c13.audit-push.plist` | 17:30 ET (Mon-Fri) | `git push origin data/phase-a-audit` | n/a (commits today's audit artefacts to the dedicated, unprotected `data/phase-a-audit` branch, bootstrapped on first run) |
+| `com.skippalgo.signals.calibration.plist` | 23:15 local (Mon-Fri, after the 23:05 reconcile) | `scripts.calibrate_signal_followthrough` | `artifacts/open_prep/signal_events/calibration_<DATE>.json` + `calibration_latest.json` — empirical P(follow-through &#124; level, vol bucket) from the day's signal events + FMP 1-min bars (measurement, not optimization); quiet no-op while `RT_SIGNAL_EVENT_LOG_DIR` logs no events; reads `FMP_API_KEY` from the plist env or `.env` |
 
 `collect-imbalance`, `wsh-earnings` and the smoke use the rotating
 clientId allocator (`scripts.ib_client_id`) so they never collide with
