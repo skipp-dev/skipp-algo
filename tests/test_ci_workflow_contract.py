@@ -42,11 +42,8 @@ def test_live_window_marker_any_trigger() -> None:
 
 def test_triggers_pinned() -> None:
     on_block = _on(_load())
-    # merge_group (2026-07-09): the full validate suite gates the merge-queue
-    # commit; validate (1..4) are required checks for the queue, so ci.yml must
-    # trigger on merge_group or the queue hangs.
-    assert set(on_block.keys()) == {"push", "pull_request", "workflow_dispatch", "merge_group"}, (
-        "ci.yml trigger surface drifted; expected push + pull_request + workflow_dispatch + merge_group"
+    assert set(on_block.keys()) == {"push", "pull_request", "workflow_dispatch"}, (
+        "ci.yml trigger surface drifted; expected push + pull_request + workflow_dispatch"
     )
     assert on_block["push"]["branches"] == ["**"], "push must cover all branches"
     assert on_block["pull_request"]["branches"] == ["**"], "PR must cover all branches"
