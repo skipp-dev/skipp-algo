@@ -316,3 +316,25 @@ def test_history_sort_key_nan_and_inf_are_not_numeric() -> None:
     assert compute._history_sort_key({"captured_at": float("nan")})[0] == 1
     assert compute._history_sort_key({"captured_at": float("inf")})[0] == 1
     assert compute._history_sort_key({"captured_at": float("-inf")})[0] == 1
+
+
+def test_compute_flow_fields_never_returns_non_finite() -> None:
+    """Finite-but-extreme inputs (a tiny divisor with a large numerator) overflow
+    to inf — the result guard must return None instead of leaking a non-finite
+    value into the (allow_nan=False) overlay payload."""
+    bars = [
+        {"open": 100.0, "close": 100.0, "volume": 1e-320},
+        {"open": 1e-300, "close": 1e300, "volume": 1e300},
+    ]
+    out = compute.compute_flow_fields(bars)
+    for key in ("flow_rel_vol", "flow_delta_proxy_pct"):
+        value = out[key]
+        assert value is None or math.isfinite(value), f"{key}={value!r} is non-finite"
+
+    # Sanity: ordinary inputs still produce real numbers (guard didn't over-reach).
+    normal = compute.compute_flow_fields([
+        {"open": 100.0, "close": 101.0, "volume": 1000.0},
+        {"open": 101.0, "close": 103.0, "volume": 2000.0},
+    ])
+    assert normal["flow_rel_vol"] == 2.0
+    assert normal["flow_delta_proxy_pct"] is not None and math.isfinite(normal["flow_delta_proxy_pct"])
