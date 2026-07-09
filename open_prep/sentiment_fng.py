@@ -27,9 +27,9 @@ treats sentiment as missing rather than aborting the pipeline):
         "fetched_at": "2026-04-27T20:30:11+00:00",
     }
 
-The bucket labels follow the same convention as
-``terminal_bitcoin.classify_fear_greed`` so dashboards can share a
-single colour mapping.
+The bucket cutoffs mirror the convention in
+``terminal_bitcoin.FearGreed`` (its ``.icon``/``.color``) so dashboards
+can share a single colour mapping.
 """
 
 from __future__ import annotations
@@ -65,7 +65,7 @@ _DEFAULT_TIMEOUT_SECONDS = 5.0
 
 
 def _bucket_label(value: float) -> str:
-    """Return the canonical 5-bucket label (mirrors terminal_bitcoin)."""
+    """Return the canonical 5-bucket label (mirrors terminal_bitcoin.FearGreed)."""
 
     if value <= 24:
         return "Extreme Fear"

@@ -113,7 +113,10 @@ def classify_news_event(title: str, content: str = "") -> dict[str, Any]:
     primary_class, primary_label = labels_found[0]
     all_labels = [lbl for _, lbl in labels_found]
 
-    # Materiality heuristic: unscheduled breaking > scheduled catalysts > structural
+    # Materiality derives from the PRIMARY label (labels_found[0], scheduled
+    # patterns are matched first) — this is match ORDER, not a materiality
+    # ranking, so a co-occurring higher-materiality unscheduled label (e.g. an
+    # M&A headline alongside earnings) can be masked by the scheduled one.
     materiality = _estimate_materiality(primary_class, primary_label, title)
 
     return {
@@ -289,6 +292,8 @@ _MIN_RVOL_FOR_GO = _THRESHOLDS.min_rvol_for_go
 _MIN_EXT_SCORE_FOR_GO = _THRESHOLDS.min_ext_score_for_go
 _FADE_GAP_OVERDONE = _THRESHOLDS.fade_gap_overdone
 _FADE_MAX_EXT_SCORE = _THRESHOLDS.fade_max_ext_score
+# NOTE: currently UNUSED — _compute_drift_score hardcodes the materiality gate
+# ("HIGH"/"MEDIUM"), so tuning drift_min_materiality in config has no effect today.
 _DRIFT_MIN_MATERIALITY = _THRESHOLDS.drift_min_materiality
 _MAX_SPREAD_BPS_FOR_TRADE = _THRESHOLDS.max_spread_bps_for_trade
 _CAUTION_SPREAD_BPS = _THRESHOLDS.caution_spread_bps
@@ -330,7 +335,7 @@ class PlaybookResult:
     # --- Step 4: Microstructure (Execution Guardrails) ---
     spread_bps: float | None
     dollar_volume_ok: bool
-    halt_risk: bool               # True if gap_pct > 10% or recent halt
+    halt_risk: bool               # True if abs(gap_pct) > 10% (up OR down; no halt-feed input)
     execution_quality: str         # GOOD / CAUTION / POOR
     size_adjustment: float         # 1.0 = full, 0.5 = half, 0.0 = no trade
 
@@ -503,7 +508,8 @@ def _execution_quality(
         elif spread_bps > _CAUTION_SPREAD_BPS:
             issues += 1
 
-    # Dollar volume check (require at least $1M avg daily)
+    # Dollar volume check (does NOT hard-require $1M: flags CAUTION below the
+    # CAUTION threshold ~$1M and POOR below the POOR threshold ~$500K; both stay tradeable)
     if price > 0 and avg_volume > 0:
         daily_dollar_vol = price * avg_volume
         if daily_dollar_vol < _MIN_DAILY_DOLLAR_VOLUME_POOR:
@@ -827,7 +833,7 @@ def assign_playbook(
         exit_plan=_exit_plan_for_playbook(playbook),
         # Step 4
         spread_bps=spread_bps,
-        dollar_volume_ok=price > 0 and avg_volume > 0 and (price * avg_volume) >= 500_000,
+        dollar_volume_ok=price > 0 and avg_volume > 0 and (price * avg_volume) >= _MIN_DAILY_DOLLAR_VOLUME_POOR,
         halt_risk=halt_risk,
         execution_quality=exec_quality,
         size_adjustment=size_adj,
