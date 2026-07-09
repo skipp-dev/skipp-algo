@@ -430,7 +430,6 @@ observability.py (structured log lines + in-process counters)
 | `live_overlay_market_europe_open` | gauge | market_hours.py |
 | `live_overlay_market_asia_open` | gauge | market_hours.py |
 | `live_overlay_daemon_restart_cause_<cause>_total` | counter | main.py/config.py |
-| `live_overlay_daemon_restarts_total` | counter | main.py |
 | `live_overlay_hotspot_symbols_tracked` | gauge | request_hotspots.py |
 | `live_overlay_hotspot_timeframes_tracked` | gauge | request_hotspots.py |
 | `live_overlay_hotspot_symbol_<symbol>_requests_total` | counter | request_hotspots.py |
