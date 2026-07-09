@@ -172,7 +172,6 @@ class TechnicalResult:
 # ── In-memory cache ──────────────────────────────────────────────────
 _cache: dict[tuple[str, str], TechnicalResult] = {}
 _CACHE_TTL_S = 180.0  # 3 minutes — keep data fresh for AI & tab displays
-_CACHE_ERROR_TTL_S = 1800.0  # 30 minutes for 429 errors (longer backoff)
 _CACHE_NOT_FOUND_TTL_S = 3600.0  # 1 hour for symbols not found on any exchange
 _CACHE_MAX_SIZE = 500  # evict expired entries when exceeded
 _cache_lock = threading.Lock()
@@ -285,7 +284,11 @@ def _tv_throttle() -> None:
             spacing = _TV_MIN_CALL_SPACING_BASE
         elapsed = now - _tv_last_call_ts
         if elapsed < spacing:
-            sleep_dur = spacing - elapsed
+            # Clamp elapsed at 0: a _tv_last_call_ts in the FUTURE (a backward
+            # system-clock step, or an extreme concurrent burst) makes elapsed
+            # negative and would otherwise sleep spacing + |elapsed| — up to
+            # thousands of seconds. The clamp caps any single wait at `spacing`.
+            sleep_dur = spacing - max(0.0, elapsed)
         # Optimistically update timestamp so concurrent callers don't
         # compute the same wait.
         _tv_last_call_ts = now + sleep_dur
@@ -427,10 +430,12 @@ def fetch_technicals(
         with _cache_lock:
             cached = _cache.get(key)
             if cached:
-                # Use longer TTL for error results to avoid hammering TradingView
-                if cached.error and "429" in cached.error:
-                    ttl = _CACHE_ERROR_TTL_S
-                elif cached.error and "not found" in cached.error.lower():
+                # "not found" rarely changes -> longer TTL; everything else uses
+                # the normal TTL. There is NO 429-specific TTL: a real rate-limit
+                # is cached as "Rate limited — cooldown Ns" (no "429" substring),
+                # so the old `"429" in cached.error` branch never fired — and the
+                # _tv_cooldown_until mechanism is the real TV backoff anyway.
+                if cached.error and "not found" in cached.error.lower():
                     ttl = _CACHE_NOT_FOUND_TTL_S
                 else:
                     ttl = _CACHE_TTL_S
