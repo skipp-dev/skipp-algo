@@ -33,6 +33,7 @@ from newsstack_fmp._bz_http import (
     _request_with_retry,
     log_fetch_warning,
 )
+from newsstack_fmp.ingest_benzinga import benzinga_provider
 
 from .normalize import normalize_benzinga_calendar_item
 
@@ -397,6 +398,102 @@ class BenzingaCalendarAdapter:
 
 MOVERS_URL = "https://api.benzinga.com/api/v1/market/movers"
 
+# Massive (ex-Polygon) native stock snapshots — the movers/quotes route when
+# BENZINGA_PROVIDER=massive (the paid Massive key; api.benzinga.com answers it
+# 401). Requires the Stocks Starter plan (15-min-delayed snapshots; verified
+# live 2026-07-09: gainers/tickers 200, quote `updated` age ~15.1 min).
+MASSIVE_SNAPSHOT_BASE = "https://api.massive.com/v2/snapshot/locale/us/markets/stocks"
+
+
+def _snap_num(value: Any) -> float | None:
+    """Positive finite number or None (explicit — 0/None/'' are not prices)."""
+    if isinstance(value, (int, float)) and not isinstance(value, bool) and value > 0:
+        return float(value)
+    return None
+
+
+def _massive_snapshot_tickers(client: httpx.Client, url: str, params: dict[str, Any], label: str) -> list[dict[str, Any]]:
+    """GET a Massive snapshot endpoint and return its ticker rows (fail-soft)."""
+    try:
+        r = _request_with_retry(client, url, params, label=label)
+        data = r.json()
+    except Exception as exc:
+        log_fetch_warning(label, exc)
+        return []
+    if not isinstance(data, dict):
+        return []
+    rows = data.get("tickers")
+    return rows if isinstance(rows, list) else []
+
+
+def _massive_snapshot_to_quote(t: dict[str, Any]) -> dict[str, Any]:
+    """Map one Massive snapshot ticker row to the flat Benzinga-quote shape.
+
+    ``min`` is the latest (15-min-delayed) minute bar -> best "last"; ``day``
+    covers today's session; ``prevDay`` yesterday. Fields the snapshot does
+    not carry (name, 52w high/low) stay ''/None — consumers .get() them.
+    """
+    day = t.get("day") if isinstance(t.get("day"), dict) else {}
+    minute = t.get("min") if isinstance(t.get("min"), dict) else {}
+    prev = t.get("prevDay") if isinstance(t.get("prevDay"), dict) else {}
+    last = _snap_num(minute.get("c"))
+    if last is None:
+        last = _snap_num(day.get("c"))
+    if last is None:
+        last = _snap_num(prev.get("c"))
+    # On the 15-min-delayed Starter feed the `day` aggregate is all-zero
+    # intraday (verified live 2026-07-09); the accumulated session volume
+    # lives in `min.av`. _snap_num turns those zeros into None (no bogus 0s).
+    volume = _snap_num(day.get("v"))
+    if volume is None:
+        volume = _snap_num(minute.get("av"))
+    return {
+        "symbol": str(t.get("ticker", "") or "").upper(),
+        "name": "",
+        "last": last,
+        "change": t.get("todaysChange"),
+        "changePercent": t.get("todaysChangePerc"),
+        "open": _snap_num(day.get("o")),
+        "high": _snap_num(day.get("h")),
+        "low": _snap_num(day.get("l")),
+        "close": _snap_num(day.get("c")),
+        "volume": volume,
+        "fiftyTwoWeekHigh": None,
+        "fiftyTwoWeekLow": None,
+        "previousClose": _snap_num(prev.get("c")),
+    }
+
+
+def _massive_mover_row(t: dict[str, Any]) -> dict[str, Any]:
+    """Map one Massive gainers/losers row to the Benzinga-movers row shape."""
+    q = _massive_snapshot_to_quote(t)
+    return {
+        "symbol": q["symbol"],
+        "price": q["last"],
+        "change": q["change"],
+        "changePercent": q["changePercent"],
+        "volume": q["volume"],
+        "averageVolume": None,
+        "marketCap": None,
+        "companyName": "",
+        "gicsSectorName": "",
+    }
+
+
+def _fetch_massive_movers(api_key: str) -> dict[str, list[dict[str, Any]]]:
+    """Movers via Massive snapshots (top-20 gainers + losers, 15-min delayed)."""
+    out: dict[str, list[dict[str, Any]]] = {"gainers": [], "losers": []}
+    with httpx.Client(timeout=10.0, headers={"Accept": "application/json"}) as client:
+        for direction in ("gainers", "losers"):
+            rows = _massive_snapshot_tickers(
+                client,
+                f"{MASSIVE_SNAPSHOT_BASE}/{direction}",
+                {"apiKey": api_key},
+                label=f"Massive movers {direction}",
+            )
+            out[direction] = [_massive_mover_row(t) for t in rows if isinstance(t, dict)]
+    return out
+
 
 def fetch_benzinga_movers(api_key: str) -> dict[str, list[dict[str, Any]]]:
     """Fetch market movers (gainers and losers only — no most-active list).
@@ -404,7 +501,13 @@ def fetch_benzinga_movers(api_key: str) -> dict[str, list[dict[str, Any]]]:
     Returns dict with keys: ``gainers``, ``losers`` — each a list of
     dicts with keys: symbol, price, change, changePercent, volume,
     averageVolume, marketCap, companyName, gicsSectorName, etc.
+
+    With ``BENZINGA_PROVIDER=massive`` the data comes from the Massive
+    snapshot endpoints instead (same row shape; snapshot-absent fields are
+    None/'' — averageVolume, marketCap, companyName, gicsSectorName).
     """
+    if benzinga_provider() == "massive":
+        return _fetch_massive_movers(api_key)
     with httpx.Client(timeout=10.0, headers={"Accept": "application/json"}) as client:
         try:
             r = _request_with_retry(client, MOVERS_URL, {"token": api_key}, label="Benzinga movers")
@@ -450,6 +553,10 @@ def fetch_benzinga_quotes(
         Flattened quote records with keys: symbol, name, last, change,
         changePercent, open, high, low, close, volume, fiftyTwoWeekHigh,
         fiftyTwoWeekLow, previousClose.
+
+    With ``BENZINGA_PROVIDER=massive`` the quotes come from the Massive
+    full-market snapshot (15-min delayed on Stocks Starter; same record
+    shape; name/52w-high/low are ''/None — the snapshot doesn't carry them).
     """
     if not symbols:
         return []
@@ -466,6 +573,20 @@ def fetch_benzinga_quotes(
             cleaned.append(stripped.upper())
     if not cleaned:
         return []
+
+    if benzinga_provider() == "massive":
+        results_m: list[dict[str, Any]] = []
+        with httpx.Client(timeout=10.0, headers={"Accept": "application/json"}) as client:
+            for start in range(0, len(cleaned), 50):  # keep bz-direct chunking symmetry
+                chunk = cleaned[start : start + 50]
+                rows = _massive_snapshot_tickers(
+                    client,
+                    f"{MASSIVE_SNAPSHOT_BASE}/tickers",
+                    {"apiKey": api_key, "tickers": ",".join(chunk)},
+                    label=f"Massive quotes chunk {start}-{start + len(chunk)}",
+                )
+                results_m.extend(_massive_snapshot_to_quote(t) for t in rows if isinstance(t, dict))
+        return results_m
 
     chunk_size = 50
     quotes_raw: list[dict[str, Any]] = []
