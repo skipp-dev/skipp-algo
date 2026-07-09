@@ -2196,7 +2196,7 @@ def _cached_today_outlook(
 ) -> dict[str, Any]:
     """Cache today outlook for 3 minutes."""
     try:
-        return compute_today_outlook(bz_key, fmp_key)
+        return compute_today_outlook(fmp_key)  # bz_key kept as cache key only (outlook is FMP-sourced now)
     except Exception:
         logger.warning("_cached_today_outlook failed", exc_info=True)
         return {}
@@ -2212,7 +2212,7 @@ def _cached_tomorrow_outlook(
     changes (caller passes today's ISO date).
     """
     try:
-        return compute_tomorrow_outlook(bz_key, fmp_key)
+        return compute_tomorrow_outlook(fmp_key)  # bz_key kept as cache key only (outlook is FMP-sourced now)
     except Exception:
         logger.warning("_cached_tomorrow_outlook failed", exc_info=True)
         return {}

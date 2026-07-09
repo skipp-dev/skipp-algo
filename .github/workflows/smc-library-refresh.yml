@@ -541,6 +541,13 @@ jobs:
           DATABENTO_API_KEY: ${{ secrets.DATABENTO_API_KEY }}
           FMP_API_KEY: ${{ secrets.FMP_API_KEY }}
           NEWSAPI_KEY: ${{ secrets.NEWSAPI_KEY }}
+          # Benzinga News API is load-bearing (2026-07-08: open_prep Core News +
+          # live-news cron). The Benzinga probe is not skipped here, so the
+          # key + transport MUST be wired in or the preflight aborts on an empty
+          # key regardless of the secret (fixed 2026-07-09). Mirrors the
+          # Generate step; Massive-reseller key needs BENZINGA_PROVIDER=massive.
+          BENZINGA_API_KEY: ${{ secrets.BENZINGA_API_KEY }}
+          BENZINGA_PROVIDER: ${{ vars.BENZINGA_PROVIDER || 'direct' }}
         run: |
           mkdir -p artifacts/ci
           newsapi_arg=()
