@@ -46,7 +46,7 @@ logger = logging.getLogger("open_prep.outcomes")
 
 _ET = _ZoneInfo("America/New_York")
 
-OUTCOMES_DIR = Path("artifacts/open_prep/outcomes")
+OUTCOMES_DIR = Path(os.environ.get("OPEN_PREP_OUTCOMES_DIR") or "artifacts/open_prep/outcomes")  # env override: local C13 export -> gitignored cache; CI keeps the canonical corpus (2026-07-09)
 
 # Bucket edges
 GAP_BUCKETS = [

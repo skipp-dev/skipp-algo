@@ -39,6 +39,25 @@ def _record(symbol: str = "NVDA") -> dict:
     }
 
 
+def test_outcomes_dir_honors_env_override(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """OPEN_PREP_OUTCOMES_DIR redirects OUTCOMES_DIR at import (the local C13
+    export points it at a gitignored cache path); unset keeps the canonical
+    corpus dir so the CI daily cron stays the single writer. Reloads back to
+    the default afterwards so the rest of the session sees the canonical dir."""
+    import importlib
+
+    monkeypatch.setenv("OPEN_PREP_OUTCOMES_DIR", str(tmp_path / "redir"))
+    try:
+        importlib.reload(outcomes)
+        assert tmp_path / "redir" == outcomes.OUTCOMES_DIR
+    finally:
+        monkeypatch.delenv("OPEN_PREP_OUTCOMES_DIR", raising=False)
+        importlib.reload(outcomes)  # restore canonical default for later tests
+    assert Path("artifacts/open_prep/outcomes") == outcomes.OUTCOMES_DIR
+
+
 def test_store_daily_outcomes_blocks_canonical_dir_under_pytest() -> None:
     """Unredirected OUTCOMES_DIR must fail loudly, not pollute the repo."""
     assert Path("artifacts/open_prep/outcomes") == outcomes.OUTCOMES_DIR, (

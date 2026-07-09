@@ -112,6 +112,9 @@ synthetic/
 cache/imbalance/
 cache/live/
 cache/wsh/
+# Local open_prep outcomes redirect (OPEN_PREP_OUTCOMES_DIR) — keeps the local
+# C13 export from shadowing/colliding with the CI-tracked corpus dir.
+cache/open_prep_outcomes/
 cache/*/.push_status_*
 cache/*/.feed_status_*
 cache/*/.ibkr_smoke_status_*

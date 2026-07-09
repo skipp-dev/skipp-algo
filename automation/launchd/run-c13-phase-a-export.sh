@@ -59,6 +59,13 @@ fi
 # open) must NOT block the downstream runner — it will fall back to the
 # most recent successful CSV via build_phase_a_inputs.py auto-discovery.
 export PYTHONPATH="${REPO}"
+# Redirect this local run's outcomes JSON out of the CI-tracked corpus dir
+# (artifacts/open_prep/outcomes/): the local export writes outcomes_<date>.json
+# from a different universe than the CI daily cron, and the untracked local file
+# otherwise blocks `git pull --ff-only` and shadows the corpus. The C13 pipeline
+# only consumes the trade-cards CSV, not this JSON, so a gitignored cache path is
+# harmless (see open_prep/outcomes.py OPEN_PREP_OUTCOMES_DIR).
+export OPEN_PREP_OUTCOMES_DIR="${REPO}/cache/open_prep_outcomes"
 if "${PY}" -m scripts.export_open_prep_lists; then
     _write_marker "SUCCESS" "export-complete:date=${DATE}"
 else
