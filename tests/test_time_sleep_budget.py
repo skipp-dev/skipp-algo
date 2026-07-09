@@ -128,9 +128,9 @@ _FROZEN_SITES: frozenset[tuple[str, int]] = frozenset(
         # shifted +20/+20/+72/+80/+80 lines by readiness metrics.
         ("open_prep/realtime_signals.py", 305),
         ("open_prep/realtime_signals.py", 380),
-        ("open_prep/realtime_signals.py", 2233),  # 2026-07-09 merge: near-a0+trade_context+review-invariants stacked
-        ("open_prep/realtime_signals.py", 3442),  # 2026-07-09 merge
-        ("open_prep/realtime_signals.py", 3458),  # 2026-07-09 merge
+        ("open_prep/realtime_signals.py", 2251),  # 2026-07-09 hysteresis/median (rebased on merged #3301)
+        ("open_prep/realtime_signals.py", 3463),  # 2026-07-09 hysteresis/median
+        ("open_prep/realtime_signals.py", 3479),  # 2026-07-09 hysteresis/median
         # 2026-06-11 (eval-findings D7): technical_analysis import block
         # +8 lines (1943→1951, 1945→1953).
         # 2026-07-04 (market-microstructure observe-only): module import
