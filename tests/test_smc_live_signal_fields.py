@@ -50,6 +50,16 @@ def test_passes_trade_context_through_unchanged(monkeypatch: pytest.MonkeyPatch)
     )
 
 
+def test_non_finite_trade_field_is_rejected(monkeypatch: pytest.MonkeyPatch) -> None:
+    # Defense-in-depth: a corrupt/overflowed producer value (float('inf')) must
+    # not pass _pos_float — inf > 0.0 is True — so it never reaches the
+    # allow_nan=False /smc_live payload. Finite siblings survive unchanged.
+    _patch_snapshot(monkeypatch, [_row("NVDA", "A0", trade_entry=float("inf"))])
+    fields = compute._get_signal_fields("NVDA")
+    assert fields["trade_entry"] is None
+    assert fields["trade_stop"] == 192.01
+
+
 def test_strongest_then_freshest_wins(monkeypatch: pytest.MonkeyPatch) -> None:
     _patch_snapshot(monkeypatch, [
         _row("NVDA", "A1", fired=2000.0),
