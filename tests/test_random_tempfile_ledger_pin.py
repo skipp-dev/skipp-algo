@@ -101,7 +101,7 @@ _TEMPFILE_LEDGER: frozenset[tuple[str, int, str]] = frozenset({
     # 2026-07-05 (bug-hunt round 7): import math + non-finite entry/exit
     # price guard in compute_pnl_from_bars → 716→721.
     ("open_prep/outcome_backfill.py", 728, "mkstemp"),  # 2026-07-08 B-H1 priority-symbols + B-M2 era-gate shifted pins
-    ("open_prep/outcomes.py", 153, "mkstemp"),
+    ("open_prep/outcomes.py", 169, "mkstemp"),  # 153→169 (2026-07-09): universe_source provenance stamp above
     # 2026-06-11 (trend-state features): 419→437, snapshot keys +
     # FEATURE_KEYS/PASS_THROUGH block added above.
     # 2026-06-11 (eval-findings B5/B1): gap-playbook report + direction
@@ -114,7 +114,7 @@ _TEMPFILE_LEDGER: frozenset[tuple[str, int, str]] = frozenset({
     # 2026-07-03 (WP-3 sample_dates helper): +1 -> 604.
     # 2026-07-04 (market-microstructure observe-only): snapshot fields +
     # FEATURE_KEYS/PASS_THROUGH entries +16 -> 620.
-    ("open_prep/outcomes.py", 628, "mkstemp"),  # 2026-07-07 news_directional_score pass-through shifted 620->628
+    ("open_prep/outcomes.py", 644, "mkstemp"),  # 628→644 (2026-07-09): universe_source provenance stamp above
     # 2026-07-03 (WP-4 holiday gate): +2 (import) then +8 below the gate.
     ("open_prep/realtime_signals.py", 119, "mkstemp"),
     # 2026-06-25: AsyncNewsstackPoller telemetry additions shifted
