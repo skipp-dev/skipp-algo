@@ -1046,28 +1046,10 @@ class TestPollerWrappers:
     # ratings wrapper was retired (no Massive route; Benzinga free key being
     # replaced). BenzingaCalendarAdapter.fetch_ratings itself stays covered above.
 
-    @patch("terminal_poller.BenzingaCalendarAdapter")
-    def test_fetch_benzinga_earnings_wrapper(self, MockAdapter):
-        from terminal_poller import fetch_benzinga_earnings
-
-        mock_instance = MockAdapter.return_value
-        mock_instance.fetch_earnings.return_value = [{"ticker": "NVDA", "eps": "2.0"}]
-
-        result = fetch_benzinga_earnings("key123", date_from="2025-01-01", date_to="2025-02-01")
-        assert len(result) == 1
-        assert result[0]["ticker"] == "NVDA"
-        mock_instance.close.assert_called_once()
-
-    @patch("terminal_poller.BenzingaCalendarAdapter")
-    def test_fetch_benzinga_economics_wrapper(self, MockAdapter):
-        from terminal_poller import fetch_benzinga_economics
-
-        mock_instance = MockAdapter.return_value
-        mock_instance.fetch_economics.return_value = [{"event_name": "NFP"}]
-
-        result = fetch_benzinga_economics("key123", importance=4)
-        assert result == [{"event_name": "NFP"}]
-        mock_instance.close.assert_called_once()
+    # fetch_benzinga_earnings / fetch_benzinga_economics wrapper tests removed
+    # 2026-07-09: those wrappers were retired when the outlook scorer + movers
+    # classifier were re-sourced to FMP (fetch_fmp_earnings). See
+    # test_terminal_poller_fmp_earnings.py for the FMP replacement coverage.
 
     @patch("terminal_poller.fetch_benzinga_movers")
     def test_fetch_benzinga_market_movers_wrapper(self, mock_fn):
