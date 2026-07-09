@@ -70,7 +70,7 @@ def normalize_bars(raw_bars: list[dict[str, Any]]) -> list[dict[str, float]]:
 
 
 def vol_bucket(volume_ratio: float) -> str:
-    """Bucket the entry volume ratio the same way the A0/A1/A2 ladder steps."""
+    """Bucket the entry volume ratio into fixed bands; 3.0/1.0 are the A0/A1 floors, 2.0/1.5 add resolution between."""
     if volume_ratio >= 3.0:
         return ">=3.0"
     if volume_ratio >= 2.0:
