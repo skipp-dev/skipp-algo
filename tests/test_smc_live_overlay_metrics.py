@@ -2242,3 +2242,38 @@ def test_render_metrics_escapes_railway_service_id(monkeypatch: pytest.MonkeyPat
     # A raw quote in service_id would break the exposition format; it must be escaped.
     assert 'service_id="svc\\"x"' in body
     assert 'service_id="svc"x"' not in body
+
+
+def test_render_metrics_tolerates_non_numeric_signal_counts(monkeypatch: pytest.MonkeyPatch) -> None:
+    """A corrupt SIGNALS snapshot with non-numeric/non-finite string counts must
+    NOT 500 the /metrics scrape (bare int("abc") raised ValueError synchronously
+    in render_metrics). Counts fall back to 0 and the scrape stays valid."""
+    import services.live_overlay_daemon.metrics as metrics_mod
+
+    _patch_common(
+        monkeypatch,
+        feed_ready=True,
+        market_open=True,
+        bar_count=10,
+        overlay_symbols=5,
+        overlay_age=60.0,
+    )
+    snapshot = {
+        "updated_epoch": time.time() - 30.0,
+        "watched_symbols": ["AAPL"],
+        "signal_count": "abc",
+        "a0_count": "x",
+        "a1_count": None,
+        "a2_count": float("nan"),
+        "signals": [],
+    }
+    monkeypatch.setattr(metrics_mod.compute, "_load_signals_snapshot", lambda: snapshot)
+
+    body = metrics_mod.render_metrics(startup_ts=100.0)  # must not raise
+    assert "live_overlay_trading_signals_active_total 0.0" in body
+    assert "live_overlay_trading_signals_a0_total 0.0" in body
+    assert "live_overlay_trading_signals_a1_total 0.0" in body
+    assert "live_overlay_trading_signals_a2_total 0.0" in body
+    # The snapshot still loaded and the (valid) watched list still parsed.
+    assert "live_overlay_trading_signals_loaded 1.0" in body
+    assert "live_overlay_trading_signals_watched_total 1.0" in body
