@@ -155,3 +155,32 @@ def test_quotes_massive_fail_soft_returns_empty(mock_req, monkeypatch: pytest.Mo
     monkeypatch.setenv("BENZINGA_PROVIDER", "massive")
     mock_req.side_effect = Exception("boom")
     assert fetch_benzinga_quotes("k", ["AAPL"]) == []
+
+
+# ── provider-usage bucketing for the Massive snapshot labels ─────────
+# Regression for #3325: the snapshot route passes labels like
+# "Massive movers gainers" / "Massive quotes chunk 0-50" to the instrumented
+# HTTP layer. Before the fix these matched neither the ``uw`` nor ``benzinga``
+# prefix and fell through to the raw label, so provider_usage minted one
+# garbage bucket per label (per chunk-range for quotes) instead of a single
+# billed-provider bucket. They must all collapse to ``massive``.
+
+
+def test_massive_labels_bucket_to_massive_provider():
+    from newsstack_fmp._bz_http import _usage_provider
+
+    assert _usage_provider("Massive movers gainers") == "massive"
+    assert _usage_provider("Massive movers losers") == "massive"
+    assert _usage_provider("Massive quotes chunk 0-50") == "massive"
+    assert _usage_provider("Massive quotes chunk 50-100") == "massive"
+
+
+def test_usage_bucketing_for_other_providers_unchanged():
+    from newsstack_fmp._bz_http import _usage_provider
+
+    assert _usage_provider("Benzinga movers") == "benzinga"
+    assert _usage_provider("Benzinga quotes") == "benzinga"
+    assert _usage_provider("uw_news") == "unusual_whales"
+    assert _usage_provider("unusual whales darkpool") == "unusual_whales"
+    assert _usage_provider(None) == "benzinga"
+    assert _usage_provider("") == "benzinga"

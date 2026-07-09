@@ -4,7 +4,7 @@ Fetches OHLC data and macro indicators from FMP API.
 Prepares data for ensemble backtesting.
 
 Uses the FMP stable API endpoints (as of 2025):
-  - https://financialmodelingprep.com/stable/historical-chart/{period}/{symbol}
+  - https://financialmodelingprep.com/stable/historical-chart/{period}?symbol={symbol}
   - https://financialmodelingprep.com/stable/economic/{indicator}
 
 This loader mirrors the pattern from open_prep.macro.FMPClient
@@ -122,7 +122,8 @@ class FMPDataLoader:
             period: "1min", "5min", "15min", "30min", "1hour", "4hour", "1day" (not "daily")
             from_date: Start date (YYYY-MM-DD) - optional
             to_date: End date (YYYY-MM-DD) - optional
-            limit: Max candles to return
+            limit: accepted for call-site compatibility; NOT currently applied
+                   (the body returns every candle in the window — no truncation)
 
         Returns: List of OHLC dicts
         """
@@ -210,7 +211,8 @@ class FMPDataLoader:
         symbol: str,
         interval: str = "1hour",
     ) -> list[dict]:
-        """Fetch latest intraday data (last 100 candles).
+        """Fetch latest intraday data for ``interval`` (returns the full window;
+        the ``limit=100`` below is currently a no-op — see get_historical_price).
 
         Args:
             symbol: Stock symbol

@@ -241,14 +241,17 @@ def _parse_retry_after_seconds(raw_value: Any) -> float | None:
 def _usage_provider(label: str | None) -> str:
     """Bucket an endpoint label onto a provider name for usage telemetry.
 
-    This shared HTTP layer serves Benzinga and Unusual Whales; the label
-    (e.g. ``benzinga_news``, ``uw_news``) names the endpoint, so its prefix
-    identifies the billed provider. Defaults to ``benzinga`` (the module's
-    primary provider) when no label is given.
+    This shared HTTP layer serves Benzinga, Unusual Whales, and Massive (the
+    ex-Polygon snapshot route used when ``BENZINGA_PROVIDER=massive``); the
+    label (e.g. ``benzinga_news``, ``uw_news``, ``Massive movers gainers``)
+    names the endpoint, so its prefix identifies the billed provider. Defaults
+    to ``benzinga`` (the module's primary provider) when no label is given.
     """
     lab = str(label or "").strip().lower()
     if lab.startswith(("uw", "unusual")):
         return "unusual_whales"
+    if lab.startswith("massive"):  # #3325 snapshot route; else fragments per-label
+        return "massive"
     if lab.startswith("benzinga"):
         return "benzinga"
     return lab or "benzinga"
