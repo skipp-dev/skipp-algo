@@ -31,6 +31,11 @@ cd "${REPO}"
 AUDIT="cache/live/incubation_${DATE}.jsonl"
 SETUPS="cache/live/setups_${DATE}.jsonl"
 GATES="cache/live/gate_status.json"
+# Traded-universe outcomes (universe_source=STATIC stamp) — the TradingView
+# panel publisher prefers this over the CI screener outcomes committed on
+# main (Option-a decision 2026-07-09). push_to_data_branch skips it quietly
+# when the morning export did not run.
+OUTCOMES="artifacts/open_prep/outcomes/outcomes_${DATE}.json"
 
 # Status marker so a degraded run is DETECTABLE rather than silently green.
 # Written on every exit path (degraded:* or ok:*). cache/live is gitignored
@@ -63,4 +68,5 @@ push_to_data_branch \
     "${STATUS_MARKER}" \
     "${AUDIT}" \
     "${SETUPS}" \
-    "${GATES}"
+    "${GATES}" \
+    "${OUTCOMES}"
