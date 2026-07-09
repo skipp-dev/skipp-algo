@@ -257,6 +257,8 @@ jobs:
           DATABENTO_API_KEY: ${{ secrets.DATABENTO_API_KEY }}
           FMP_API_KEY: ${{ secrets.FMP_API_KEY }}
           BENZINGA_API_KEY: ${{ secrets.BENZINGA_API_KEY }}
+          # Transport-Flip (Massive-Reseller-Key) — repo variable, default direct.
+          BENZINGA_PROVIDER: ${{ vars.BENZINGA_PROVIDER || 'direct' }}
           DATABENTO_DATASET: ${{ vars.DATABENTO_DATASET }}
           LOOKBACK_DAYS: ${{ inputs.lookback_days || '30' }}
           FORCE_REFRESH_FLAG: ${{ inputs.force_refresh == 'true' && '--force-refresh' || '' }}

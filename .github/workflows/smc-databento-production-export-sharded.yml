@@ -301,6 +301,8 @@ jobs:
           DATABENTO_API_KEY: ${{ secrets.DATABENTO_API_KEY }}
           FMP_API_KEY: ${{ secrets.FMP_API_KEY }}
           BENZINGA_API_KEY: ${{ secrets.BENZINGA_API_KEY }}
+          # Transport-Flip (Massive-Reseller-Key) — repo variable, default direct.
+          BENZINGA_PROVIDER: ${{ vars.BENZINGA_PROVIDER || 'direct' }}
           DATABENTO_DATASET: ${{ vars.DATABENTO_DATASET }}
           PYTHONUNBUFFERED: "1"
           # Q3a (post-Probe-v3): activate the parallel-fetch cure landed in

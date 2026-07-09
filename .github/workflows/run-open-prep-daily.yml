@@ -166,6 +166,8 @@ jobs:
           FMP_API_KEY: ${{ secrets.FMP_API_KEY }}
           DATABENTO_API_KEY: ${{ secrets.DATABENTO_API_KEY }}
           BENZINGA_API_KEY: ${{ secrets.BENZINGA_API_KEY }}
+          # Transport-Flip (Massive-Reseller-Key) — repo variable, default direct.
+          BENZINGA_PROVIDER: ${{ vars.BENZINGA_PROVIDER || 'direct' }}
           # Benzinga Core News (2026-07-08): per-ticker news via /api/v2/news
           # (BenzingaRestAdapter). FMP's general article feed misses most
           # small-cap gappers; Benzinga's ticker-filtered feed fills that gap,

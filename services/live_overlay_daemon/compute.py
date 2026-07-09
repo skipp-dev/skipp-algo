@@ -1149,13 +1149,19 @@ def compute_flow_fields(bars: list[dict[str, Any]]) -> dict[str, Any]:
 
     flow_rel_vol: float | None = None
     if avg_vol and avg_vol > 0 and last_vol is not None:
-        flow_rel_vol = round(last_vol / avg_vol, 4)
+        # A tiny avg_vol with a large last_vol overflows to inf even though both
+        # operands are finite — guard the RESULT, not just the divisor, so a
+        # non-finite ratio never reaches the (allow_nan=False) overlay payload.
+        ratio = last_vol / avg_vol
+        flow_rel_vol = round(ratio, 4) if math.isfinite(ratio) else None
 
     open_ = _coerce_finite_float(last_bar.get("open"))
     close_ = _coerce_finite_float(last_bar.get("close"))
     flow_delta: float | None = None
     if open_ is not None and open_ > 0 and close_ is not None:
-        flow_delta = round((close_ - open_) / open_ * 100, 4)
+        # Same finite-result guard: a near-zero open with a large close overflows.
+        delta = (close_ - open_) / open_ * 100
+        flow_delta = round(delta, 4) if math.isfinite(delta) else None
 
     return {"flow_rel_vol": flow_rel_vol, "flow_delta_proxy_pct": flow_delta}
 

@@ -495,3 +495,14 @@ def test_build_order_intents_tolerates_nan_gap_pct() -> None:
     intents = build_order_intents(watchlist, IBKRExecutionConfig(exit_mode="tp-stop"))
     assert intents
     assert all(i.gap_pct == 0.0 for i in intents)
+
+
+def test_round_to_min_tick_rejects_non_finite_price() -> None:
+    # NaN/inf can never be an exchange-valid tick — a bare round() would raise a
+    # cryptic ValueError/OverflowError. Fail loud with the value instead.
+    for bad in (float("nan"), float("inf"), float("-inf")):
+        try:
+            _round_to_min_tick(bad)
+            raise AssertionError(f"expected ValueError for {bad!r}")
+        except ValueError as exc:
+            assert "non-finite" in str(exc)

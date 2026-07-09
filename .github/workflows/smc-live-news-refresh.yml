@@ -153,6 +153,8 @@ jobs:
           # Benzinga (RSS + quantified) is enabled when BENZINGA_API_KEY is set.
           FMP_API_KEY: ${{ secrets.FMP_API_KEY }}
           BENZINGA_API_KEY: ${{ secrets.BENZINGA_API_KEY }}
+          # Transport-Flip (Massive-Reseller-Key) — repo variable, default direct.
+          BENZINGA_PROVIDER: ${{ vars.BENZINGA_PROVIDER || 'direct' }}
           INPUT_SYMBOLS: ${{ github.event.inputs.symbols }}
           INPUT_SYMBOL_LIMIT: ${{ github.event.inputs.symbol_limit }}
           INPUT_RESET_STATE: ${{ github.event.inputs.reset_state }}
