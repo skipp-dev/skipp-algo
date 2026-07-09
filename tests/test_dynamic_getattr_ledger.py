@@ -109,7 +109,7 @@ DYNAMIC_GETATTR_LEDGER: set[tuple[str, int]] = {
     ("terminal_attention_state.py", 45),
     ("terminal_catalyst_state.py", 31),
     ("terminal_live_story_state.py", 42),
-    ("terminal_poller.py", 1160),
+    ("terminal_poller.py", 1222),  # 2026-07-09: 1160->1222 (fetch_fmp_earnings added above _bz_calendar_call; outlook/classifier FMP re-sourcing)
     ("terminal_posture_state.py", 53),
     ("terminal_reaction_state.py", 49),
     ("terminal_resolution_state.py", 43),
