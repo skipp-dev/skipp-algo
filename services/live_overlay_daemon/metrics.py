@@ -15,6 +15,7 @@ import math
 import re
 import time
 from collections.abc import Mapping
+from typing import Any
 
 from . import (
     cache,
@@ -243,6 +244,28 @@ def _signal_labels(sig: Mapping[str, object]) -> str:
     )
 
 
+def _coerce_count(value: Any) -> int:
+    """Coerce an external-snapshot count to a non-negative int; 0 on anything
+    non-numeric / non-finite.
+
+    The daemon serves gauges from whatever ``SIGNALS_SNAPSHOT_URL`` / local JSON
+    it is pointed at, so a corrupt or hostile snapshot can carry string counts
+    (``"abc"``). A bare ``int("abc")`` raised ``ValueError`` synchronously in
+    :func:`render_metrics`, 500-ing the whole ``/metrics`` scrape (Grafana blind).
+    """
+    # bool is an int subclass, so float(True) == 1.0 — a JSON ``true`` count
+    # would silently expose as 1. A boolean is never a valid count → 0.
+    if isinstance(value, bool):
+        return 0
+    try:
+        numeric = float(value)
+    except (TypeError, ValueError):
+        return 0
+    if not math.isfinite(numeric):
+        return 0
+    return max(0, int(numeric))
+
+
 def _trading_signals_snapshot() -> dict[str, object]:
     """Derive trading-signal gauges from the realtime-engine snapshot.
 
@@ -264,10 +287,10 @@ def _trading_signals_snapshot() -> dict[str, object]:
     if isinstance(raw, dict) and raw:
         loaded = 1.0
         signals_obj = raw.get("signals") or []
-        counts["active"] = int(raw.get("signal_count", 0) or 0)
-        counts["a0"] = int(raw.get("a0_count", 0) or 0)
-        counts["a1"] = int(raw.get("a1_count", 0) or 0)
-        counts["a2"] = int(raw.get("a2_count", 0) or 0)
+        counts["active"] = _coerce_count(raw.get("signal_count"))
+        counts["a0"] = _coerce_count(raw.get("a0_count"))
+        counts["a1"] = _coerce_count(raw.get("a1_count"))
+        counts["a2"] = _coerce_count(raw.get("a2_count"))
         watched = raw.get("watched_symbols") or []
         counts["watched"] = len(watched) if isinstance(watched, (list, tuple)) else 0
         updated_epoch = raw.get("updated_epoch")
