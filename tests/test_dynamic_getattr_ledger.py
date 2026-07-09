@@ -94,6 +94,10 @@ def _dynamic_getattr_sites() -> set[tuple[str, int]]:
 # small ``Mapping[str, Callable]`` / TypedDict accessor so the set of
 # valid names is statically visible.
 DYNAMIC_GETATTR_LEDGER: set[tuple[str, int]] = {
+    # 2026-07-08 signal-event log: event_row() serialises a signal by iterating the
+    # module-level constant _FEATURE_FIELDS tuple — the valid name set is statically
+    # visible there, and it must accept both dataclass and SimpleNamespace signals.
+    ("open_prep/signal_events.py", 63),
     # 2026-06-22 (ingest-stop sentinel wakeup): helper block growth shifted
     # _record_to_bar dynamic getattr site 81 -> 82.
     # 2026-07-03 correctness lane: _feed_connected_at global shifted
