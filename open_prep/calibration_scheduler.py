@@ -13,7 +13,9 @@ day, so the FMP bar fetches never block signal polling.
 """
 from __future__ import annotations
 
+import json
 import logging
+import os
 
 logger = logging.getLogger(__name__)
 
@@ -43,9 +45,38 @@ def run_calibration_once(
         ])
         if rc == 0:
             logger.info("Nightly calibration wrote %s", out_path)
+            _log_bucket_readiness(out_path)
         else:
             logger.warning(
                 "Nightly calibration produced no table (rc=%s) — no events yet?", rc,
             )
     except Exception:  # best-effort — must never break the producer poll loop
         logger.debug("nightly calibration failed", exc_info=True)
+
+
+def _log_bucket_readiness(out_path: str) -> None:
+    """Emit a one-line arm-readiness summary so the "enough data yet?" check is a
+    log grep, not a volume dig: how many (level|vol_bucket) buckets already hold
+    >= RT_CALIBRATION_MIN_SAMPLES events (the floor the consumer needs to trust a
+    bucket's measured P). Best-effort; never raises."""
+    try:
+        min_n = int(os.environ.get("RT_CALIBRATION_MIN_SAMPLES", 20))
+    except (TypeError, ValueError):
+        min_n = 20
+    try:
+        with open(out_path, encoding="utf-8") as fh:
+            table = (json.load(fh) or {}).get("table", {}) or {}
+        ready = {
+            k: v for k, v in table.items()
+            if isinstance(v, dict) and isinstance(v.get("n"), (int, float)) and v["n"] >= min_n
+        }
+        detail = ", ".join(
+            f"{k} n={int(v['n'])} P={round(float(v.get('hit_target_rate', 0.0)) * 100)}%"
+            for k, v in sorted(ready.items())
+        ) or "none"
+        logger.info(
+            "Nightly calibration readiness: %d/%d buckets have n>=%d (arm-ready: %s)",
+            len(ready), len(table), min_n, detail,
+        )
+    except Exception:  # readiness logging must never break the calibration path
+        logger.debug("calibration readiness summary failed", exc_info=True)
