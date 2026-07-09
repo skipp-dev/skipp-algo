@@ -930,7 +930,7 @@ class ScoreTelemetry:
             return {
                 "min": round(vals[0], 4),
                 "mean": round(sum(vals) / n, 4),
-                "median": round(vals[n // 2], 4),
+                "median": round((vals[(n - 1) // 2] + vals[n // 2]) / 2, 4),
                 "max": round(vals[-1], 4),
                 "count": n,
             }
@@ -1449,12 +1449,20 @@ class GateHysteresis:
         proposed_level: str,
         volume_ratio: float,
         abs_change_pct: float,
+        a0_vol_threshold: float = A0_VOLUME_RATIO_MIN,
+        a0_chg_threshold: float = A0_PRICE_CHANGE_PCT_MIN,
     ) -> str:
         """Return the effective signal level after hysteresis filtering.
 
         If the proposed level differs from the current state and the metrics
         are within the margin band AND not enough time has passed, the level
         is kept unchanged rather than allowed to flip.
+
+        ``a0_vol_threshold`` / ``a0_chg_threshold`` are the *effective*
+        (regime-adjusted) A0 thresholds. They default to the absolute constants
+        for backward compatibility, but the caller passes the relaxed values in
+        LOW_VOLUME / HOLIDAY_SUSPECT so the "clearly A0" margin band tracks the
+        regime instead of blocking legitimate upgrades against the NORMAL bar.
         """
         now = time.monotonic()
         prev = self._state.get(symbol)
@@ -1470,13 +1478,14 @@ class GateHysteresis:
         if proposed_level == prev["level"]:
             return proposed_level  # no transition, nothing to gate
 
-        # Transition requested — check if it's clearly beyond threshold
-        a0_vol_margin = A0_VOLUME_RATIO_MIN * (1 - self._margin_pct)
-        a0_chg_margin = A0_PRICE_CHANGE_PCT_MIN * (1 - self._margin_pct)
+        # Transition requested — check if it's clearly beyond the *effective*
+        # (regime-adjusted) A0 threshold, not the absolute NORMAL constant.
+        a0_vol_margin = a0_vol_threshold * (1 - self._margin_pct)
+        a0_chg_margin = a0_chg_threshold * (1 - self._margin_pct)
 
         clearly_a0 = (
-            volume_ratio >= A0_VOLUME_RATIO_MIN * (1 + self._margin_pct)
-            and abs_change_pct >= A0_PRICE_CHANGE_PCT_MIN * (1 + self._margin_pct)
+            volume_ratio >= a0_vol_threshold * (1 + self._margin_pct)
+            and abs_change_pct >= a0_chg_threshold * (1 + self._margin_pct)
         )
         clearly_a1 = (
             volume_ratio < a0_vol_margin
@@ -1506,7 +1515,16 @@ class GateHysteresis:
         return str(prev["level"])
 
     def record(self, symbol: str, level: str) -> None:
-        """Record the level for a symbol without hysteresis evaluation."""
+        """Record the level for a symbol without hysteresis evaluation.
+
+        Honours ``max_state_size`` the same way :meth:`evaluate` does, so a new
+        symbol at capacity evicts the oldest entry rather than growing the map
+        unbounded. (Currently uncalled — this keeps the two write paths
+        consistent for any future caller.)
+        """
+        if symbol not in self._state and len(self._state) >= self._max_state_size:
+            oldest = next(iter(self._state))
+            del self._state[oldest]
         self._state[symbol] = {"level": level, "ts": time.monotonic()}
 
 
@@ -2490,8 +2508,11 @@ class RealtimeEngine:
                         )
 
         # ── #1  Gate hysteresis — prevent A0↔A1 flapping ───────────
+        # Pass the regime-adjusted A0 thresholds so the "clearly A0" band tracks
+        # the effective bar (e.g. relaxed in LOW_VOLUME), not the NORMAL constant.
         level = self._hysteresis.evaluate(
             symbol, level, volume_ratio, abs_change,
+            a0_vol_threshold=eff_a0_vol, a0_chg_threshold=eff_a0_chg,
         )
 
         # ── #12 Technical indicator confirmation/boost/penalty ───────
