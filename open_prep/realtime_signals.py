@@ -3346,6 +3346,17 @@ def main() -> None:
         engine.start_near_a0_repoller(float(near_a0_secs))
         logger.info("Near-A0 re-poller started (interval=%ds)", near_a0_secs)
 
+    # Opt-in persistent signal-event log (RT_SIGNAL_EVENT_LOG_DIR) — the data
+    # foundation for scripts/calibrate_signal_followthrough.py. Fail-soft.
+    event_logger = None
+    try:
+        from open_prep.signal_events import SignalEventLogger
+        event_logger = SignalEventLogger.from_env()
+        if event_logger is not None:
+            logger.info("Signal-event log enabled (RT_SIGNAL_EVENT_LOG_DIR)")
+    except Exception:
+        logger.debug("signal-event logger init failed", exc_info=True)
+
     mode_label = "ULTRA" if args.ultra else ("FAST/VisiData" if args.fast else "standard")
     top_label = str(args.top_n) if args.top_n > 0 else "ALL"
     logger.info(
@@ -3383,6 +3394,10 @@ def main() -> None:
                 rt_notify.notify_fresh_signals(active)
             except Exception:  # best-effort notifier — must never break polling
                 logger.debug("rt_notify hook failed", exc_info=True)
+
+            # Persist the fresh/strengthened events (record() is itself fail-soft).
+            if event_logger is not None:
+                event_logger.record(active)
 
             if a0:
                 for s in a0:
