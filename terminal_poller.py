@@ -1166,22 +1166,6 @@ def _bz_calendar_call(
         adapter.close()
 
 
-def fetch_benzinga_ratings(
-    api_key: str,
-    *,
-    date_from: str | None = None,
-    date_to: str | None = None,
-    page_size: int = 100,
-    importance: int | None = None,
-) -> list[dict[str, Any]]:
-    """Fetch analyst ratings from Benzinga (upgrades, downgrades, PT changes)."""
-    return _bz_calendar_call(
-        api_key, "fetch_ratings", "ratings",
-        date_from=date_from, date_to=date_to,
-        page_size=page_size, importance=importance,
-    )
-
-
 def fetch_benzinga_earnings(
     api_key: str,
     *,
@@ -1190,7 +1174,11 @@ def fetch_benzinga_earnings(
     page_size: int = 100,
     importance: int | None = None,
 ) -> list[dict[str, Any]]:
-    """Fetch earnings calendar from Benzinga (EPS, revenue estimates/actuals)."""
+    """Fetch earnings calendar from Benzinga (EPS, revenue estimates/actuals).
+
+    Direct-only (no Massive route). Kept for the daily-outlook scorer and the
+    movers-earnings classifier; degrades to [] as the Benzinga free key retires.
+    """
     return _bz_calendar_call(
         api_key, "fetch_earnings", "earnings",
         date_from=date_from, date_to=date_to,
@@ -1206,7 +1194,11 @@ def fetch_benzinga_economics(
     page_size: int = 100,
     importance: int | None = None,
 ) -> list[dict[str, Any]]:
-    """Fetch economic calendar from Benzinga (GDP, NFP, CPI, FOMC, etc.)."""
+    """Fetch economic calendar from Benzinga (GDP, NFP, CPI, FOMC, etc.).
+
+    Direct-only (no Massive route). Kept as a supplement to the FMP econ
+    calendar in the daily-outlook scorer; degrades to [] as the key retires.
+    """
     return _bz_calendar_call(
         api_key, "fetch_economics", "economics",
         date_from=date_from, date_to=date_to,
@@ -1229,22 +1221,6 @@ def fetch_benzinga_delayed_quotes(
     if fetch_benzinga_quotes is None:
         return []
     return fetch_benzinga_quotes(api_key, symbols)
-
-
-def fetch_benzinga_conference_calls(
-    api_key: str,
-    *,
-    tickers: str | None = None,
-    date_from: str | None = None,
-    date_to: str | None = None,
-    page_size: int = 100,
-) -> list[dict[str, Any]]:
-    """Fetch conference call schedule from Benzinga."""
-    return _bz_calendar_call(
-        api_key, "fetch_conference_calls", "conference calls",
-        tickers=tickers, date_from=date_from, date_to=date_to,
-        page_size=page_size,
-    )
 
 
 def fetch_benzinga_dividends(
@@ -1290,38 +1266,6 @@ def fetch_benzinga_ipos(
     """Fetch IPO calendar from Benzinga."""
     return _bz_calendar_call(
         api_key, "fetch_ipos", "IPOs",
-        date_from=date_from, date_to=date_to,
-        page_size=page_size, importance=importance,
-    )
-
-
-def fetch_benzinga_guidance(
-    api_key: str,
-    *,
-    date_from: str | None = None,
-    date_to: str | None = None,
-    page_size: int = 100,
-    importance: int | None = None,
-) -> list[dict[str, Any]]:
-    """Fetch earnings/revenue guidance from Benzinga."""
-    return _bz_calendar_call(
-        api_key, "fetch_guidance", "guidance",
-        date_from=date_from, date_to=date_to,
-        page_size=page_size, importance=importance,
-    )
-
-
-def fetch_benzinga_retail(
-    api_key: str,
-    *,
-    date_from: str | None = None,
-    date_to: str | None = None,
-    page_size: int = 100,
-    importance: int | None = None,
-) -> list[dict[str, Any]]:
-    """Fetch retail sales calendar from Benzinga."""
-    return _bz_calendar_call(
-        api_key, "fetch_retail", "retail",
         date_from=date_from, date_to=date_to,
         page_size=page_size, importance=importance,
     )

@@ -1042,27 +1042,9 @@ class TestWIIMBoost:
 class TestPollerWrappers:
     """Tests for the convenience wrapper functions in terminal_poller."""
 
-    @patch("terminal_poller.BenzingaCalendarAdapter")
-    def test_fetch_benzinga_ratings_wrapper(self, MockAdapter):
-        from terminal_poller import fetch_benzinga_ratings
-
-        mock_instance = MockAdapter.return_value
-        mock_instance.fetch_ratings.return_value = [{"ticker": "AAPL"}]
-
-        result = fetch_benzinga_ratings("key123", date_from="2025-01-01")
-        assert result == [{"ticker": "AAPL"}]
-        mock_instance.close.assert_called_once()
-
-    @patch("terminal_poller.BenzingaCalendarAdapter")
-    def test_fetch_benzinga_ratings_error(self, MockAdapter):
-        from terminal_poller import fetch_benzinga_ratings
-
-        mock_instance = MockAdapter.return_value
-        mock_instance.fetch_ratings.side_effect = Exception("API error")
-
-        result = fetch_benzinga_ratings("key123")
-        assert result == []
-        mock_instance.close.assert_called_once()
+    # fetch_benzinga_ratings wrapper tests removed 2026-07-09: the terminal
+    # ratings wrapper was retired (no Massive route; Benzinga free key being
+    # replaced). BenzingaCalendarAdapter.fetch_ratings itself stays covered above.
 
     @patch("terminal_poller.BenzingaCalendarAdapter")
     def test_fetch_benzinga_earnings_wrapper(self, MockAdapter):

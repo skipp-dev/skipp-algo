@@ -169,13 +169,7 @@ try:
         fetch_benzinga_channel_list as _fetch_bz_channels,
     )
     from terminal_poller import (
-        fetch_benzinga_conference_calls as _fetch_bz_conf_calls,
-    )
-    from terminal_poller import (
         fetch_benzinga_dividends as _fetch_bz_dividends,
-    )
-    from terminal_poller import (
-        fetch_benzinga_guidance as _fetch_bz_guidance,
     )
     from terminal_poller import (
         fetch_benzinga_ipos as _fetch_bz_ipos,
@@ -185,9 +179,6 @@ try:
     )
     from terminal_poller import (
         fetch_benzinga_quantified as _fetch_bz_quantified,
-    )
-    from terminal_poller import (
-        fetch_benzinga_retail as _fetch_bz_retail,
     )
     from terminal_poller import (
         fetch_benzinga_splits as _fetch_bz_splits,
@@ -202,12 +193,9 @@ except ImportError:  # pragma: no cover
     _fetch_bz_dividends = None  # type: ignore[assignment]
     _fetch_bz_splits = None  # type: ignore[assignment]
     _fetch_bz_ipos = None  # type: ignore[assignment]
-    _fetch_bz_guidance = None  # type: ignore[assignment]
-    _fetch_bz_retail = None  # type: ignore[assignment]
     _fetch_bz_top_news = None  # type: ignore[assignment]
     _fetch_bz_quantified = None  # type: ignore[assignment]
     _fetch_bz_channels = None  # type: ignore[assignment]
-    _fetch_bz_conf_calls = None  # type: ignore[assignment]
     _fetch_bz_news_by_channel = None  # type: ignore[assignment]
     _compute_power_gaps = None  # type: ignore[assignment]
     _DEFENSE_TICKERS = ""  # type: ignore[assignment]
@@ -334,42 +322,6 @@ def _cached_bz_ipos_op(api_key: str, from_d: str, to_d: str) -> list[dict[str, A
         return _fetch_bz_ipos(api_key, date_from=from_d, date_to=to_d) or []
     except Exception:
         logger.warning("_cached_bz_ipos_op failed", exc_info=True)
-        return []
-
-
-@st.cache_data(ttl=300, show_spinner=False)
-def _cached_bz_guidance_op(api_key: str, from_d: str, to_d: str) -> list[dict[str, Any]]:
-    """Cache Benzinga guidance calendar for 5 minutes."""
-    if _fetch_bz_guidance is None:
-        return []
-    try:
-        return _fetch_bz_guidance(api_key, date_from=from_d, date_to=to_d) or []
-    except Exception:
-        logger.warning("_cached_bz_guidance_op failed", exc_info=True)
-        return []
-
-
-@st.cache_data(ttl=300, show_spinner=False)
-def _cached_bz_retail_op(api_key: str, from_d: str, to_d: str) -> list[dict[str, Any]]:
-    """Cache Benzinga retail sales calendar for 5 minutes."""
-    if _fetch_bz_retail is None:
-        return []
-    try:
-        return _fetch_bz_retail(api_key, date_from=from_d, date_to=to_d) or []
-    except Exception:
-        logger.warning("_cached_bz_retail_op failed", exc_info=True)
-        return []
-
-
-@st.cache_data(ttl=300, show_spinner=False)
-def _cached_bz_conf_calls_op(api_key: str, from_d: str, to_d: str) -> list[dict[str, Any]]:
-    """Cache Benzinga conference calls calendar for 5 minutes."""
-    if _fetch_bz_conf_calls is None:
-        return []
-    try:
-        return _fetch_bz_conf_calls(api_key, date_from=from_d, date_to=to_d) or []
-    except Exception:
-        logger.warning("_cached_bz_conf_calls_op failed", exc_info=True)
         return []
 
 
@@ -2155,23 +2107,21 @@ def main() -> None:
             st.divider()
             st.subheader("📊 Benzinga Intelligence")
             st.caption(
-                "Full Benzinga data suite: Dividends, Splits, IPOs, "
-                "Guidance, Retail, Conference Calls, Top News, Quantified News, "
-                "Options Flow, Insider Trades, Power Gaps, Channel Browser. "
-                "UW: Dark Pool, Spot GEX, Market Tide."
+                "Benzinga suite: Dividends, Splits, IPOs (via Massive), Top News, "
+                "Quantified News, Options Flow, Insider Trades, Power Gaps, "
+                "Channel Browser. UW: Dark Pool, Spot GEX, Market Tide. "
+                "(guidance/retail/conf-calls retired 2026-07-09 — no Massive route.)"
             )
 
             _today = datetime.now(UTC).date()
             _bz_from = (_today - timedelta(days=7)).isoformat()
             _bz_to = (_today + timedelta(days=14)).isoformat()
 
-            (bz_op_divs, bz_op_splits, bz_op_ipos, bz_op_guid,
-             bz_op_retail, bz_op_conf, bz_op_top, bz_op_quant,
+            (bz_op_divs, bz_op_splits, bz_op_ipos, bz_op_top, bz_op_quant,
              bz_op_opts, bz_op_insider, bz_op_power_gaps,
              bz_op_channels,
              uw_op_dp, uw_op_gex, uw_op_tide) = st.tabs([
                 "💵 Dividends", "✂️ Splits", "🚀 IPOs",
-                "🔮 Guidance", "🛒 Retail", "📞 Conf Calls",
                 "📰 Top News",
                 "📈 Quantified", "🎰 Options",
                 "🔍 Insider Trades", "⚡ Power Gaps",
@@ -2239,36 +2189,6 @@ def main() -> None:
                                 )
                 else:
                     st.info("No IPO data found.")
-
-            # ── Guidance ──
-            with bz_op_guid:
-                guid_data = _cached_bz_guidance_op(bz_key, _bz_from, _bz_to)
-                if guid_data:
-                    df_g = pd.DataFrame(guid_data)
-                    _cols = [c for c in [
-                        "ticker", "name", "date", "period", "period_year",
-                        "eps_guidance_est", "eps_guidance_max", "eps_guidance_min",
-                        "revenue_guidance_est", "revenue_guidance_max",
-                        "revenue_guidance_min", "importance",
-                    ] if c in df_g.columns]
-                    st.caption(f"{len(df_g)} guidance item(s)")
-                    st.dataframe(df_g[_cols] if _cols else df_g, width="stretch", height=min(400, 40 + 35 * len(df_g)))
-                else:
-                    st.info("No guidance data found.")
-
-            # ── Retail ──
-            with bz_op_retail:
-                ret_data = _cached_bz_retail_op(bz_key, _bz_from, _bz_to)
-                if ret_data:
-                    df_r = pd.DataFrame(ret_data)
-                    _cols = [c for c in [
-                        "ticker", "name", "date", "period", "period_year",
-                        "sss", "sss_est", "retail_surprise", "importance",
-                    ] if c in df_r.columns]
-                    st.caption(f"{len(df_r)} retail item(s)")
-                    st.dataframe(df_r[_cols] if _cols else df_r, width="stretch", height=min(400, 40 + 35 * len(df_r)))
-                else:
-                    st.info("No retail sales data found.")
 
             # ── Top News ──
             with bz_op_top:
@@ -2359,43 +2279,6 @@ def main() -> None:
                         )
                 else:
                     st.info("Enter ticker(s) above to view options activity.")
-
-            # ── Conference Calls ──
-            with bz_op_conf:
-                conf_data = _cached_bz_conf_calls_op(bz_key, _bz_from, _bz_to)
-                if conf_data:
-                    df_cc = pd.DataFrame(conf_data)
-                    _cols = [c for c in [
-                        "ticker", "date", "start_time", "phone",
-                        "international_phone", "webcast_url",
-                        "period", "period_year", "importance",
-                    ] if c in df_cc.columns]
-                    st.caption(f"{len(df_cc)} conference call(s)")
-                    st.dataframe(
-                        df_cc[_cols] if _cols else df_cc,
-                        width="stretch",
-                        height=min(400, 40 + 35 * len(df_cc)),
-                    )
-
-                    # Upcoming calls
-                    _now_str = _today.isoformat()
-                    if "date" in df_cc.columns:
-                        upcoming = df_cc[df_cc["date"] >= _now_str]
-                        if not upcoming.empty:
-                            st.divider()
-                            st.markdown("**📞 Upcoming Conference Calls**")
-                            for _, row in upcoming.head(8).iterrows():
-                                _tk = _safe_md(str(row.get("ticker", "?")))
-                                _url = row.get("webcast_url", "")
-                                _start_time = row.get("start_time", "")
-                                link = f" | [Webcast]({_url})" if _url else ""
-                                st.markdown(
-                                    f"**{_tk}** — {row.get('date', '?')} {_start_time} | "
-                                    f"{row.get('period', '?')} {row.get('period_year', '')}"
-                                    f"{link}"
-                                )
-                else:
-                    st.info("No conference call data found.")
 
             # ── Insider Trades ──
             with bz_op_insider:
