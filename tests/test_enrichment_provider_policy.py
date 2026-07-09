@@ -60,9 +60,13 @@ class TestPolicyDeclarations:
         assert POLICY_NEWS.fallbacks == ("benzinga",)
         assert POLICY_NEWS.all_providers == ("fmp", "benzinga")
 
-    def test_calendar_is_fmp_primary_benzinga_fallback(self):
+    def test_calendar_is_fmp_primary_no_working_fallback(self):
+        # Benzinga fallback dropped 2026-07-09: our only Benzinga key is a Massive
+        # key (401s the api.benzinga.com calendar route; no Massive route), direct
+        # key retired — the fallback could never deliver. FMP is comprehensive +
+        # unlimited. Adapter/dispatch kept dormant (re-arm = add "benzinga" back).
         assert POLICY_CALENDAR.primary == "fmp"
-        assert POLICY_CALENDAR.fallbacks == ("benzinga",)
+        assert POLICY_CALENDAR.fallbacks == ()
 
     def test_technical_is_fmp_primary_tradingview_fallback(self):
         assert POLICY_TECHNICAL.primary == "fmp"
@@ -152,11 +156,14 @@ class TestProviderUnavailable:
         # Retired 2026-07-08: the dead newsapi_ai key must no longer be tried.
         assert "newsapi_ai" not in result.stale
 
-    def test_calendar_all_fail_returns_safe_default(self):
+    def test_calendar_fmp_fail_returns_safe_default(self):
+        # Calendar is FMP-only now (benzinga fallback dropped 2026-07-09): an FMP
+        # failure yields the safe default and stamps only "fmp" stale — never
+        # "benzinga", which is no longer in the chain.
         result = resolve_domain("calendar", fmp=None, benzinga_api_key="", symbols=["AAPL"])
         assert result.ok is False
         assert "fmp" in result.stale
-        assert "benzinga" in result.stale
+        assert "benzinga" not in result.stale
 
     @patch("scripts.smc_provider_policy.fetch_technical_tradingview")
     def test_technical_all_fail_returns_safe_default(self, mock_tradingview):
@@ -227,18 +234,19 @@ class TestPartialProviderAvailability:
 
     @patch("scripts.smc_provider_policy.fetch_calendar_benzinga")
     @patch("scripts.smc_provider_policy.fetch_calendar_fmp")
-    def test_calendar_fmp_fails_benzinga_succeeds(self, mock_fmp, mock_bz):
+    def test_calendar_benzinga_fallback_not_attempted(self, mock_fmp, mock_bz):
+        # Retirement pin (2026-07-09): the Benzinga calendar fallback was dropped
+        # (Massive key 401s the calendar route; direct key retired). Even with a
+        # key supplied, an FMP failure must NOT try Benzinga — it must stop at
+        # "none" with only "fmp" stale, mirroring the newsapi_ai retirement pin.
         mock_fmp.side_effect = RuntimeError("FMP down")
-        mock_bz.return_value = ProviderResult(
-            data={"earnings_today_tickers": "AAPL"},
-            provider="benzinga",
-        )
         result = resolve_domain(
             "calendar", fmp=MagicMock(), benzinga_api_key="bz-key", symbols=["AAPL"],
         )
-        assert result.ok is True
-        assert result.provider == "benzinga"
-        assert "fmp" in result.stale
+        mock_bz.assert_not_called()
+        assert result.ok is False
+        assert result.provider == "none"
+        assert result.stale == ["fmp"]
 
     @patch("scripts.smc_provider_policy.fetch_technical_tradingview")
     @patch("scripts.smc_provider_policy.fetch_technical_fmp")

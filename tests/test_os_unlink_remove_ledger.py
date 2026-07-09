@@ -110,13 +110,13 @@ OS_DELETE_LEDGER: set[tuple[str, int, str]] = {
     # combined — measured 125/711; outcomes.py guard shift → 161.
     # 2026-06-17 (F1 lint fix): remove unused import sys → 125→124.
     # 2026-07-05 (bug-hunt round 7): import math → 124→125.
-    ("open_prep/outcome_backfill.py", 125, "unlink"),
+    ("open_prep/outcome_backfill.py", 140, "unlink"),  # +15 2026-07-09: _outcomes_dir() call-time redirect
     # 2026-06-12 (Copilot #2729): main() exit-semantics docstring +6 → 717.
     # 2026-06-17 (F1 lint fix): remove unused import sys → 717→716.
     # 2026-07-05 (bug-hunt round 7): import math + non-finite entry/exit
     # price guard → 724→729.
-    ("open_prep/outcome_backfill.py", 736, "unlink"),  # 2026-07-08 B-H1 priority-symbols + B-M2 era-gate shifted pins
-    ("open_prep/outcomes.py", 194, "unlink"),  # 178→194 (2026-07-09): _outcomes_dir() helper + local var above
+    ("open_prep/outcome_backfill.py", 751, "unlink"),  # +15 2026-07-09: _outcomes_dir() call-time redirect
+    ("open_prep/outcomes.py", 218, "unlink"),  # 2026-07-09 robustness: outcomes hardening above
     # 2026-06-11 (trend-state features): 431→449, snapshot keys +
     # FEATURE_KEYS/PASS_THROUGH block added above.
     # 2026-06-11 (eval-findings B5/B1): gap-playbook report +
@@ -130,7 +130,7 @@ OS_DELETE_LEDGER: set[tuple[str, int, str]] = {
     # 2026-07-02 (WP6 formula-era gate): cutoff constant block +8 → 595.
     # 2026-07-04 (market-microstructure observe-only): snapshot fields +
     # FEATURE_KEYS/PASS_THROUGH entries +16 → 632.
-    ("open_prep/outcomes.py", 673, "unlink"),  # 656→673 (2026-07-09): _outcomes_dir() helper + local vars above
+    ("open_prep/outcomes.py", 709, "unlink"),  # 2026-07-09 robustness: outcomes hardening above
     ("open_prep/realtime_signals.py", 127, "remove"),
     # 2026-06-25: AsyncNewsstackPoller telemetry additions shifted
     # 2783 -> 2862 and 2828 -> 2907.

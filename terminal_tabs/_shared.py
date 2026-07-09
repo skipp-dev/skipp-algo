@@ -172,7 +172,7 @@ def cached_tomorrow_outlook(
 ) -> dict[str, Any]:
     """Cache tomorrow outlook for 5 minutes."""
     try:
-        return compute_tomorrow_outlook(bz_key, fmp_key)
+        return compute_tomorrow_outlook(fmp_key)  # bz_key kept as cache key only (outlook is FMP-sourced now)
     except Exception:
         logger.warning("cached_tomorrow_outlook failed", exc_info=True)
         return {}

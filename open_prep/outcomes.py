@@ -108,6 +108,24 @@ def _rvol_bucket_label(rvol: float) -> str:
 # Outcome storage
 # ---------------------------------------------------------------------------
 
+def _null_non_finite_floats(records: list[Any]) -> int:
+    """Replace NaN/inf float field values with None in-place; return the count.
+
+    Outcome records are flat dicts of scalars; a single non-finite float (e.g. a
+    ``gap_pct`` computed from a zero prev-close) would make ``json.dump`` raise
+    under ``allow_nan=False`` and lose the entire day's outcomes.
+    """
+    nulled = 0
+    for record in records:
+        if not isinstance(record, dict):
+            continue
+        for key, value in record.items():
+            if isinstance(value, float) and not math.isfinite(value):
+                record[key] = None
+                nulled += 1
+    return nulled
+
+
 def store_daily_outcomes(
     run_date: date,
     outcomes: list[dict[str, Any]],
@@ -179,6 +197,12 @@ def store_daily_outcomes(
         for record in outcomes:
             if isinstance(record, dict):
                 record.setdefault("universe_source", universe_source)
+    # NaN/inf from bad upstream data would make json.dump(allow_nan=False) raise
+    # and lose the whole day's outcomes. Null them so the write still succeeds,
+    # and warn so the upstream issue stays visible.
+    n_nulled = _null_non_finite_floats(outcomes)
+    if n_nulled:
+        logger.warning("Nulled %d non-finite float field(s) in outcome records before save", n_nulled)
     outcomes_dir.mkdir(parents=True, exist_ok=True)
     path = outcomes_dir / f"outcomes_{run_date.isoformat()}.json"
     # Atomic write: tmp file + os.replace to avoid half-written files on crash.
@@ -198,12 +222,18 @@ def store_daily_outcomes(
     # Rotate old outcome files beyond the retention window to prevent
     # unbounded disk growth.  Default: keep 90 days.
     try:
-        max_days = max(
-            int(float(os.environ.get("OPEN_PREP_OUTCOME_RETENTION_DAYS", "90") or "90")),
-            7,
+        # OverflowError: int(float("INF")) / int(float("1e309")) overflow and were
+        # NOT caught by the old (ValueError, TypeError) clause — that crashed the
+        # call AFTER the file had already been written.
+        requested_days = int(float(os.environ.get("OPEN_PREP_OUTCOME_RETENTION_DAYS", "90") or "90"))
+    except (ValueError, TypeError, OverflowError):
+        requested_days = 90
+    max_days = max(requested_days, 7)
+    if requested_days < 7:
+        logger.warning(
+            "OPEN_PREP_OUTCOME_RETENTION_DAYS=%d is below the 7-day floor; keeping 7 days",
+            requested_days,
         )
-    except (ValueError, TypeError):
-        max_days = 90
     try:
         all_files = sorted(outcomes_dir.glob("outcomes_*.json"))
         if len(all_files) > max_days:
@@ -226,15 +256,21 @@ def _load_outcomes_range(lookback_days: int = 20) -> list[dict[str, Any]]:
     loaded_dates: set[date] = set()
     for path in files:
         file_date = _extract_date_from_stem(path.stem, prefix="outcomes_")
-        if file_date is not None and file_date not in loaded_dates and len(loaded_dates) >= lookback_days:
+        if file_date is None:
+            # A non-dated ``outcomes_*.json`` (e.g. a stray backup) is not a daily
+            # outcomes file. The old code loaded it in full AND never counted it
+            # toward loaded_dates, so it silently bypassed lookback_days (a single
+            # huge backup could blow up memory / skew hit-rates). Skip it.
+            logger.warning("Skipping non-dated outcome file: %s", path.name)
+            continue
+        if file_date not in loaded_dates and len(loaded_dates) >= lookback_days:
             break
         try:
             with open(path, encoding="utf-8") as fh:
                 data = json.load(fh)
             if isinstance(data, list):
                 records.extend(data)
-                if file_date is not None:
-                    loaded_dates.add(file_date)
+                loaded_dates.add(file_date)
             else:
                 logger.warning(
                     "Outcome file %s contains %s, expected list — skipped",
@@ -259,7 +295,7 @@ def compute_hit_rates(
 
         {
             "total": int,
-            "profitable": int,
+            "profitable": int, "unresolved": int,
             "hit_rate": float (0..1),
             "avg_pnl_pct": float,
         }

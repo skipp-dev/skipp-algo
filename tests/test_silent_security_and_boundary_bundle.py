@@ -196,7 +196,7 @@ _FROZEN_BASIC_CONFIG_SITES: frozenset[tuple[str, int]] = frozenset({
     # 2026-06-17 (F1 lint fix): remove unused import sys → 585→584.
     # 2026-07-05 (bug-hunt round 7): import math + non-finite entry/exit
     # price guard → 585→590.
-    ("open_prep/outcome_backfill.py", 597),  # 2026-07-08 B-H1 priority-symbols + B-M2 era-gate shifted pins
+    ("open_prep/outcome_backfill.py", 612),  # +15 2026-07-09: _outcomes_dir() call-time redirect
     # 2026-06-25: AsyncNewsstackPoller telemetry additions shifted
     # 2913 -> 2992; feature-flag helper additions shifted run_open_prep
     # 6059 -> 6063.
