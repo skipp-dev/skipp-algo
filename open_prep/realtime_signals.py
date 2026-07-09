@@ -1645,7 +1645,7 @@ class TechnicalScorer:
         RSI oversold/overbought :  40%
         MA alignment            :  25%
         MACD cross              :  15%
-        ADX trend strength      :  10%
+        ADX trend strength      :  amplifies bias ≤20% (0 if no bias)
         Summary signal          :  10%
 
     The scorer degrades gracefully: if indicators are unavailable (rate
