@@ -201,9 +201,9 @@ _FROZEN_URLOPEN_SITES: frozenset[tuple[str, int]] = frozenset(
         # 2026-06-26 (PR #2962): shifted/expanded by the producer client.
         # 2026-07-03 PR #3136 follow-up: news-index cache-key metadata shifted
         # these existing timeout-guarded sites.
-        ("services/live_overlay_daemon/compute.py", 253),
-        ("services/live_overlay_daemon/compute.py", 442),
-        ("services/live_overlay_daemon/compute.py", 634),
+        ("services/live_overlay_daemon/compute.py", 257),  # +4 (2026-07-09): signal/trade-context docstring header
+        ("services/live_overlay_daemon/compute.py", 446),
+        ("services/live_overlay_daemon/compute.py", 638),
         # 2026-06-24: Railway GraphQL API bridge for container metrics polling;
         # fixed https endpoint (backboard.railway.com), explicit timeout discipline.
         # 2026-07-07: `import math` for the non-finite guard shifted this 85 -> 86.

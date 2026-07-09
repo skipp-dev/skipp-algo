@@ -216,7 +216,11 @@ def signals_internal_token() -> str:
 
 
 def signals_cache_ttl_secs() -> int:
-    return _clamped_int("OVERLAY_SIGNALS_CACHE_TTL_SECS", 120, 30, 1800)
+    # Default 30 (was 120): the producer refreshes its snapshot every ~35s
+    # poll cycle, so a 120s daemon cache added up to ~2min staleness to every
+    # signal consumer (Pine trade context, Grafana signal panels) for no
+    # gain. 30s ≈ the producer cadence; the fetch is one private-net GET.
+    return _clamped_int("OVERLAY_SIGNALS_CACHE_TTL_SECS", 30, 30, 1800)
 
 
 def signals_max_age_secs() -> int:

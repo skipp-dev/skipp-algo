@@ -7,5 +7,11 @@
   "news_strength": 0.42,
   "news_bias": "BULLISH",
   "flow_rel_vol": 1.85,
-  "squeeze_on": 1
+  "squeeze_on": 1,
+  "signal_level": "A0",
+  "signal_direction": "LONG",
+  "trade_entry": 196.93,
+  "trade_stop": 192.01,
+  "trade_target": 206.78,
+  "trade_r": 2.0
 }
