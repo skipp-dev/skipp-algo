@@ -427,6 +427,11 @@ def fetch_technicals(
     now = time.time()
 
     if not force:
+        # Evaluated OUTSIDE _cache_lock: _tv_is_cooling_down() takes
+        # _tv_rate_lock, and nesting the two locks would introduce a new
+        # lock-ordering constraint for no benefit (a stale snapshot here is
+        # harmless — the cooldown block below re-checks authoritatively).
+        cooling = _tv_is_cooling_down()
         with _cache_lock:
             cached = _cache.get(key)
             if cached:
@@ -440,7 +445,14 @@ def fetch_technicals(
                 else:
                     ttl = _CACHE_TTL_S
                 if (now - cached.ts) < ttl:
-                    return cached
+                    # During a TV cooldown a fresh TRANSIENT error (e.g. "Rate
+                    # limited") must not preempt the cooldown->FMP fallback
+                    # below — fall through so FMP gets a chance. "not found" is
+                    # a stable negative and returns early either way (FMP would
+                    # be hammered for a symbol that stably has no data).
+                    transient_error = bool(cached.error) and "not found" not in cached.error.lower()
+                    if not (transient_error and cooling):
+                        return cached
 
     # Check 429 cooldown — try FMP fallback, then stale cache, then error
     if _tv_is_cooling_down():
@@ -451,9 +463,14 @@ def fetch_technicals(
                 # source without mutating the cache entry (audit #2670 W3).
                 return dc_replace(cached, source="stale_cache")
 
-        # Try FMP fallback
+        # Try FMP fallback. Cache the hit (same as the _TV_AVAILABLE=False
+        # path): without this, every call during a cooldown re-hits FMP —
+        # the fresh entry serves follow-ups from the cache check above and
+        # keeps disclosing source="fmp_fallback".
         fmp_result = _fmp_fallback(sym, interval, now)
         if fmp_result is not None:
+            with _cache_lock:
+                _cache[key] = fmp_result
             return fmp_result
 
         # Return stale error cache or fresh error
