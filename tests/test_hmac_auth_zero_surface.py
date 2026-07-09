@@ -46,9 +46,14 @@ HMAC_ALLOWED: set[tuple[str, int, str]] = {
     # the reviewed constant-time token compare call 422 → 442.
     # 2026-06-24 (signals auth): realtime /signals bearer-token checks use
     # constant-time comparison at two call sites.
-    ("open_prep/realtime_signals.py", 968, "compare_digest"),
-    ("open_prep/realtime_signals.py", 999, "compare_digest"),
-    ("services/live_overlay_daemon/main.py", 451, "compare_digest"),
+    # 2026-07-09 (merge refresh): near-a0 re-poller (#3302) + trade-context
+    # (#3309) + review-invariants (#3301) shifted the two realtime /signals
+    # bearer-token compare sites 968/999 → 1160/1192 and the daemon HMAC compare
+    # 451 → 457. (This ledger is NOT in the fast-gates set, so it had drifted red
+    # on main unnoticed.)
+    ("open_prep/realtime_signals.py", 1160, "compare_digest"),
+    ("open_prep/realtime_signals.py", 1192, "compare_digest"),
+    ("services/live_overlay_daemon/main.py", 457, "compare_digest"),
 }
 
 _DIR_EXCLUDE = {
