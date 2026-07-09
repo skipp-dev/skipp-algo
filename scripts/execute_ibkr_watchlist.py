@@ -866,6 +866,13 @@ def flatten_after(
 _ACKNOWLEDGED_ORDER_STATUSES = frozenset(
     {"PreSubmitted", "Submitted", "Filled", "Cancelled", "ApiCancelled", "Inactive"}
 )
+# Subset of the above that means the order actually RESTS at IB and can still
+# fill. A bracket whose legs all reach Cancelled/ApiCancelled/Inactive (e.g.
+# every leg IB error-110'd on a sub-tick TP/SL price, 2026-07-08) is
+# "acknowledged" (terminal) but DEAD — nothing rests, nothing ever fills. The
+# submitter uses this to record ``submit_failed`` instead of a phantom
+# ``paper_submitted`` when a placement produced no resting order.
+_RESTING_ORDER_STATUSES = frozenset({"PreSubmitted", "Submitted", "Filled"})
 
 
 def pump_event_loop_until(
@@ -1010,6 +1017,14 @@ def place_order_intents_with_ib(
     )
     for record, trade in status_records:
         record["status"] = str(getattr(trade.orderStatus, "status", record["status"]))
+    # A placement "rested" iff >=1 of its (post-ack) legs is in a resting/filled
+    # status. If every leg is Cancelled/ApiCancelled/Inactive the bracket is dead
+    # (e.g. all legs IB error-110'd) — nothing rests, nothing fills — so the
+    # submitter must record submit_failed, not paper_submitted (2026-07-08 C8 stall).
+    for placement in placements:
+        placement["rested"] = any(
+            str(o.get("status", "")) in _RESTING_ORDER_STATUSES for o in placement["orders"]
+        )
 
     return {
         "placements": placements,

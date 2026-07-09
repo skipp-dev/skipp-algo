@@ -211,12 +211,49 @@ def test_render_metrics_prometheus_format_and_trailing_newline(monkeypatch: pyte
     assert "# TYPE live_overlay_evidence_ledger_age_seconds gauge" in body
     assert "# TYPE live_overlay_evidence_audit_branch_age_seconds gauge" in body
     assert "# TYPE live_overlay_evidence_fills_closed_total gauge" in body
+    # submit_failed_total powers lo-evidence-submit-failed (dead brackets), and
+    # the submit-code-behind gauges power lo-c13-submitter-stale-checkout.
+    assert "# TYPE live_overlay_evidence_fills_submit_failed_total gauge" in body
+    assert "# TYPE live_overlay_evidence_c13_submit_code_behind_commits gauge" in body
+    assert "# TYPE live_overlay_evidence_c13_submit_code_behind_commits_known gauge" in body
     # Newest-incubation age powers lo-evidence-incubation-fills-stalled: it
     # distinguishes "submitting but nothing fills" from "no trading at all".
     assert "# TYPE live_overlay_evidence_fills_newest_incubation_age_seconds gauge" in body
     assert "live_overlay_evidence_ledger_info{plane=" in body
     # §2/§5 per-family sample-progress gauge (the real distance to §5).
     assert "# TYPE live_overlay_evidence_samples_target gauge" in body
+
+
+def test_render_metrics_emits_submit_failed_and_stale_checkout_values(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The submit-failed count and the submitter behind-commits reading flow from
+    the evidence snapshot into their gauges (dead-bracket + deploy-gap)."""
+    import services.live_overlay_daemon.metrics as metrics_mod
+
+    snap = {
+        "loaded": 1.0,
+        "generated_at_unix": 1_783_000_000.0,
+        "ledger": {"newest_date": "", "plane": "", "rows": 0, "candidate_pass": 0},
+        "audit_branch": {"last_commit_date": ""},
+        "samples": {"target": 0, "per_family": {}},
+        "fills": {
+            "filled_cumulative": 0,
+            "closed_cumulative": 0,
+            "submit_failed_cumulative": 4,
+            "target": 40,
+            "newest_incubation_date": "2026-07-08",
+        },
+        "wsh": {"newest_date": "", "status": ""},
+        "submitter": {"submit_code_behind_commits": 7, "known": 1},
+        "error": "",
+    }
+    monkeypatch.setattr(metrics_mod.evidence_freshness_bridge, "snapshot", lambda: snap)
+
+    body = "\n".join(metrics_mod._render_evidence_freshness_metrics())
+    assert "live_overlay_evidence_fills_submit_failed_total 4.0" in body
+    assert "live_overlay_evidence_c13_submit_code_behind_commits 7.0" in body
+    assert "live_overlay_evidence_c13_submit_code_behind_commits_known 1.0" in body
 
 
 def test_render_metrics_health_status_ok(monkeypatch: pytest.MonkeyPatch) -> None:

@@ -2076,6 +2076,15 @@ def _render_evidence_freshness_metrics() -> list[str]:
     lines.append(
         f"live_overlay_evidence_fills_closed_total {_prom_numeric_value(fills.get('closed_cumulative', 0))}"
     )
+    # Paper submits that placed a bracket but landed no resting leg (all
+    # cancelled/rejected, e.g. IB error-110). With filled_total==0 this says
+    # "submits are actively dying", not merely "hasn't filled yet" — powers
+    # lo-evidence-submit-failed and would have surfaced the 2026-07-08 C8 stall.
+    lines.append("# TYPE live_overlay_evidence_fills_submit_failed_total gauge")
+    lines.append(
+        f"live_overlay_evidence_fills_submit_failed_total "
+        f"{_prom_numeric_value(fills.get('submit_failed_cumulative', 0))}"
+    )
     lines.append("# TYPE live_overlay_evidence_fills_target gauge")
     lines.append(f"live_overlay_evidence_fills_target {_prom_numeric_value(fills.get('target', 0))}")
     # Age of the newest incubation record: distinguishes "actively submitting
@@ -2084,6 +2093,24 @@ def _render_evidence_freshness_metrics() -> list[str]:
     _emit_age(
         "live_overlay_evidence_fills_newest_incubation_age",
         str(fills.get("newest_incubation_date", "")),
+    )
+
+    # Deploy-hygiene: commits the C13 submit Mac's checkout is behind origin/main
+    # on the paper-submit order path (published by run-c13-phase-a.sh). >0 means a
+    # merged fix (e.g. #3297's min-tick snap) is sitting undeployed on the box that
+    # actually submits — the silent gap that kept the C8 ladder at 0 fills for
+    # weeks. _known=0 when the Mac never published, so the alert stays silent
+    # rather than falsely green. Powers lo-c13-submitter-stale-checkout.
+    submitter = snap.get("submitter") or {}
+    lines.append("# TYPE live_overlay_evidence_c13_submit_code_behind_commits gauge")
+    lines.append(
+        f"live_overlay_evidence_c13_submit_code_behind_commits "
+        f"{_prom_numeric_value(submitter.get('submit_code_behind_commits', 0))}"
+    )
+    lines.append("# TYPE live_overlay_evidence_c13_submit_code_behind_commits_known gauge")
+    lines.append(
+        f"live_overlay_evidence_c13_submit_code_behind_commits_known "
+        f"{_prom_numeric_value(submitter.get('known', 0))}"
     )
 
     wsh = snap.get("wsh") or {}
