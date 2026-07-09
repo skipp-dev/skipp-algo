@@ -37,3 +37,31 @@ def test_load_range_reads_from_override(monkeypatch, tmp_path):
     # Read path honours the same override (write + read stay co-located).
     loaded = outcomes._load_outcomes_range(lookback_days=5)
     assert any(r.get("symbol") == "NVDA" for r in loaded)
+
+
+# --- outcome_backfill mirrors the same call-time redirect (2026-07-09) ---------
+
+def test_backfill_default_dir_is_canonical(monkeypatch):
+    from open_prep import outcome_backfill
+    monkeypatch.delenv("OPEN_PREP_OUTCOMES_DIR", raising=False)
+    assert outcome_backfill._outcomes_dir() == outcome_backfill.OUTCOMES_DIR
+
+
+def test_backfill_env_override_redirects_dir(monkeypatch, tmp_path):
+    from open_prep import outcome_backfill
+    monkeypatch.setenv("OPEN_PREP_OUTCOMES_DIR", str(tmp_path / "shadow"))
+    assert outcome_backfill._outcomes_dir() == tmp_path / "shadow"
+
+
+def test_backfill_load_reads_from_override(monkeypatch, tmp_path):
+    from open_prep import outcome_backfill, outcomes
+    shadow = tmp_path / "shadow"
+    monkeypatch.setenv("OPEN_PREP_OUTCOMES_DIR", str(shadow))
+    # A pending record (profitable_30m=None) written to the shadow dir…
+    outcomes.store_daily_outcomes(date(2021, 6, 1), [{"symbol": "NVDA", "profitable_30m": None}])
+    # …must be discovered by the backfiller reading through the SAME override.
+    assert outcome_backfill._load_pending_dates(lookback_days=3) == [date(2021, 6, 1)]
+    _path, records = outcome_backfill._load_outcome_file(date(2021, 6, 1))
+    assert records and records[0]["symbol"] == "NVDA"
+    # And nothing leaked into the CI-committed canonical dir.
+    assert not (outcome_backfill.OUTCOMES_DIR / "outcomes_2021-06-01.json").exists()
