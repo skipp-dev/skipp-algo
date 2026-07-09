@@ -110,6 +110,25 @@ def test_corroboration_glyphs_news_and_technical() -> None:
     assert rt_notify._fmt_signal(_sig_x("A0")).endswith("%")  # no fields set → clean
 
 
+def test_technical_glyph_is_direction_aware() -> None:
+    # Bullish TA (>=0.7) corroborates a LONG → 📈.
+    assert rt_notify._fmt_signal(_sig_x("A0", technical_score=0.85)).endswith("📈")
+    # Bullish TA on a SHORT is a conflict, not backing → NO glyph (the bug: it used
+    # to stamp 📈 "bullish technicals" onto a short, reading as backing).
+    short_bull = rt_notify._fmt_signal(_sig_x("A0", direction="SHORT", technical_score=0.85))
+    assert "📈" not in short_bull and "📉" not in short_bull
+    # Bearish TA (<=0.3) corroborates a SHORT → 📉.
+    assert rt_notify._fmt_signal(
+        _sig_x("A0", direction="SHORT", technical_score=0.15)).endswith("📉")
+    # Bearish TA on a LONG is a conflict → no glyph.
+    long_bear = rt_notify._fmt_signal(_sig_x("A0", direction="LONG", technical_score=0.15))
+    assert "📈" not in long_bear and "📉" not in long_bear
+    # Missing technical_score defaults to the NEUTRAL 0.5 → no glyph either way.
+    # Regression guard: a naive 0.0 default would false-flag 📉 on every short.
+    assert "📉" not in rt_notify._fmt_signal(_sig_x("A0", direction="SHORT"))
+    assert "📈" not in rt_notify._fmt_signal(_sig_x("A0", direction="LONG"))
+
+
 def test_levels_env_can_mute_a2(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setenv("RT_SIGNAL_WEBHOOK_URL", "https://hook.example/x")
     monkeypatch.setenv("RT_SIGNAL_NOTIFY_LEVELS", "A0,A1")
