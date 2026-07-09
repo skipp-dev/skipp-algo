@@ -261,6 +261,7 @@ def _build_paper_submit_fn(
         # completed batches are never lost due to a later-batch failure.
         audit_rows: list[dict[str, Any]] = []
         placements_total = 0
+        rested_total = 0
         for effective_exit_mode, grouped_intents in intents_by_exit_mode.items():
             call_execution_cfg = replace(execution_cfg, exit_mode=effective_exit_mode)
             try:
@@ -269,7 +270,11 @@ def _build_paper_submit_fn(
                     connection_cfg=connection_cfg,
                     execution_cfg=call_execution_cfg,
                 )
-                batch_placements = len(result.get("placements", []))
+                _placements = result.get("placements", [])
+                batch_placements = len(_placements)
+                # A placement counts as submitted only if >=1 leg RESTS at IB;
+                # placed-but-all-cancelled (IB error-110) does not (2026-07-08).
+                batch_rested = sum(1 for p in _placements if p.get("rested", True))
             except Exception as exc:  # audit integrity: catch per-batch, do not propagate mid-run
                 logger.warning(
                     "paper submit: batch exit_mode=%r raised %s: %s; "
@@ -280,8 +285,19 @@ def _build_paper_submit_fn(
                     len(grouped_intents),
                 )
                 batch_placements = 0
+                batch_rested = 0
             placements_total += batch_placements
-            batch_action = "paper_submitted" if batch_placements > 0 else "submit_failed"
+            rested_total += batch_rested
+            if batch_placements > 0 and batch_rested == 0:  # placed but every bracket died
+                logger.warning(
+                    "paper submit: exit_mode=%r placed %d bracket(s) but NONE rested "
+                    "(all legs cancelled/rejected — check TP/SL min-tick + paper TWS); "
+                    "marking %d intent(s) as submit_failed",
+                    effective_exit_mode,
+                    batch_placements,
+                    len(grouped_intents),
+                )
+            batch_action = "paper_submitted" if batch_rested > 0 else "submit_failed"
             audit_rows.extend(
                 {
                     "intent_id": intent.order_ref,
@@ -291,9 +307,10 @@ def _build_paper_submit_fn(
                 for intent in grouped_intents
             )
         logger.info(
-            "paper submit: transmitted %d bracket set(s) for %d intent(s) "
+            "paper submit: transmitted %d bracket set(s) (%d resting) for %d intent(s) "
             "on port %d",
             placements_total,
+            rested_total,
             len(intents),
             connection_cfg.port,
         )

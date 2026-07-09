@@ -140,7 +140,7 @@ HTTP_POST_LEDGER: set[tuple[str, int]] = {
     # for user-configured realtime signal alerts (generic/slack/discord/ntfy/
     # telegram/twilio_whatsapp/meta_whatsapp). Opt-in via RT_SIGNAL_WEBHOOK_*;
     # fail-soft; destination + auth are user-supplied. See open_prep/rt_notify.py.
-    ("open_prep/rt_notify.py", 211),  # 173→191→211 (2026-07-09): _fmt_trade_context added above (no new POST site)
+    ("open_prep/rt_notify.py", 291),  # 2026-07-09 merge: trade-context + A1 ⭐ tag + glyphs + review-invariants above the one POST site
     # Notification webhook fan-out (Discord/Slack-style).
     ("terminal_notifications.py", 279),
     # FMP/news export webhook (raw body, no redirects, HMAC-SHA256 signed,

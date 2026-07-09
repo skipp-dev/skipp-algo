@@ -89,8 +89,8 @@ def _all_time_sleep_sites() -> list[tuple[str, int]]:
 _FROZEN_SITES: frozenset[tuple[str, int]] = frozenset(
     {
         # 2026-06-24 feat/benzinga-rss: REST client retry backoff.
-        ("newsstack_fmp/ingest_benzinga.py", 200),
-        ("newsstack_fmp/ingest_benzinga.py", 211),
+        ("newsstack_fmp/ingest_benzinga.py", 277),  # 200→277 (2026-07-09): Massive provider mode above
+        ("newsstack_fmp/ingest_benzinga.py", 288),  # 211→288 (2026-07-09): Massive provider mode above
         ("newsstack_fmp/ingest_fmp.py", 136),
         ("newsstack_fmp/ingest_fmp.py", 162),
         # PR #2154: ingest_fmp_filings.py shifted +8 (121→129, 134→142)
@@ -128,9 +128,9 @@ _FROZEN_SITES: frozenset[tuple[str, int]] = frozenset(
         # shifted +20/+20/+72/+80/+80 lines by readiness metrics.
         ("open_prep/realtime_signals.py", 305),
         ("open_prep/realtime_signals.py", 380),
-        ("open_prep/realtime_signals.py", 2216),  # 2046→2210 (2026-07-08 NearA0Repoller), then →2216 (2026-07-09 trade_context attach)
-        ("open_prep/realtime_signals.py", 3441),  # →3429 (2026-07-08 NearA0Repoller wiring), then →3441 (2026-07-09 trade_context attach)
-        ("open_prep/realtime_signals.py", 3425),  # →3413 (2026-07-08 NearA0Repoller wiring), then →3425 (2026-07-09 trade_context attach)
+        ("open_prep/realtime_signals.py", 2233),  # 2026-07-09 merge: near-a0+trade_context+review-invariants stacked
+        ("open_prep/realtime_signals.py", 3442),  # 2026-07-09 merge
+        ("open_prep/realtime_signals.py", 3458),  # 2026-07-09 merge
         # 2026-06-11 (eval-findings D7): technical_analysis import block
         # +8 lines (1943→1951, 1945→1953).
         # 2026-07-04 (market-microstructure observe-only): module import
@@ -151,9 +151,9 @@ _FROZEN_SITES: frozenset[tuple[str, int]] = frozenset(
         # parallel fetch worker (line 901 after thread-safety follow-up).
         # 2026-07-03: shifted 919 -> 937 by the new _rss_http_get() helper
         # (feedparser.parse has no timeout kwarg; fetch bytes via httpx first).
-        ("newsstack_fmp/ingest_benzinga.py", 200),
-        ("newsstack_fmp/ingest_benzinga.py", 211),
-        ("newsstack_fmp/ingest_benzinga.py", 937),
+        ("newsstack_fmp/ingest_benzinga.py", 277),  # 200→277 (2026-07-09): Massive provider mode above
+        ("newsstack_fmp/ingest_benzinga.py", 288),  # 211→288 (2026-07-09): Massive provider mode above
+        ("newsstack_fmp/ingest_benzinga.py", 1014),  # 937→1014 (2026-07-09): Massive provider mode above
     }
 )
 

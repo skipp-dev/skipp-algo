@@ -175,14 +175,16 @@ _FROZEN_URLOPEN_SITES: frozenset[tuple[str, int]] = frozenset(
         ("services/live_overlay_daemon/github_workflow_bridge.py", 126),
         ("services/live_overlay_daemon/uptimerobot_bridge.py", 91),
         # 2026-07-06: evidence-freshness snapshot fetcher, https-only + timeout=.
-        ("services/live_overlay_daemon/evidence_freshness_bridge.py", 137),
+        # 2026-07-09 (fix/c8-deploy-robust): submit_failed + submitter fields in
+        # _empty/_coerce shifted this +8: 137->145.
+        ("services/live_overlay_daemon/evidence_freshness_bridge.py", 145),
         ("services/live_overlay_daemon/provider_usage_bridge.py", 96),
         # 2026-06-23: signals-producer consumer hook — _fetch_json_url pulls
         # the open-prep snapshot from OPEN_PREP_SNAPSHOT_URL with explicit
         # timeout discipline (Railway worker without local artifact).
         # Line shifted 792 -> 798 -> 802 -> 811 -> 901 -> 998 -> 1055 after
         # AsyncNewsstackPoller telemetry additions and semantic monitoring.
-        ("open_prep/realtime_signals.py", 1262),  # 1100→1262 (2026-07-08): NearA0Repoller class added above
+        ("open_prep/realtime_signals.py", 1268),  # 2026-07-09 merge: near-a0+trade_context+review-invariants
         # 2026-06-22: Grafana dashboard publisher API upsert over urllib.
         # Line shifted 251 -> 287 after ADR-0025 App Platform (/apis
         # dashboard.grafana.app/v1) migration; urlopen now in shared _request_json.

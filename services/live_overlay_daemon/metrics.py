@@ -15,6 +15,7 @@ import math
 import re
 import time
 from collections.abc import Mapping
+from typing import Any
 
 from . import (
     cache,
@@ -243,6 +244,28 @@ def _signal_labels(sig: Mapping[str, object]) -> str:
     )
 
 
+def _coerce_count(value: Any) -> int:
+    """Coerce an external-snapshot count to a non-negative int; 0 on anything
+    non-numeric / non-finite.
+
+    The daemon serves gauges from whatever ``SIGNALS_SNAPSHOT_URL`` / local JSON
+    it is pointed at, so a corrupt or hostile snapshot can carry string counts
+    (``"abc"``). A bare ``int("abc")`` raised ``ValueError`` synchronously in
+    :func:`render_metrics`, 500-ing the whole ``/metrics`` scrape (Grafana blind).
+    """
+    # bool is an int subclass, so float(True) == 1.0 — a JSON ``true`` count
+    # would silently expose as 1. A boolean is never a valid count → 0.
+    if isinstance(value, bool):
+        return 0
+    try:
+        numeric = float(value)
+    except (TypeError, ValueError):
+        return 0
+    if not math.isfinite(numeric):
+        return 0
+    return max(0, int(numeric))
+
+
 def _trading_signals_snapshot() -> dict[str, object]:
     """Derive trading-signal gauges from the realtime-engine snapshot.
 
@@ -264,10 +287,10 @@ def _trading_signals_snapshot() -> dict[str, object]:
     if isinstance(raw, dict) and raw:
         loaded = 1.0
         signals_obj = raw.get("signals") or []
-        counts["active"] = int(raw.get("signal_count", 0) or 0)
-        counts["a0"] = int(raw.get("a0_count", 0) or 0)
-        counts["a1"] = int(raw.get("a1_count", 0) or 0)
-        counts["a2"] = int(raw.get("a2_count", 0) or 0)
+        counts["active"] = _coerce_count(raw.get("signal_count"))
+        counts["a0"] = _coerce_count(raw.get("a0_count"))
+        counts["a1"] = _coerce_count(raw.get("a1_count"))
+        counts["a2"] = _coerce_count(raw.get("a2_count"))
         watched = raw.get("watched_symbols") or []
         counts["watched"] = len(watched) if isinstance(watched, (list, tuple)) else 0
         updated_epoch = raw.get("updated_epoch")
@@ -2053,6 +2076,15 @@ def _render_evidence_freshness_metrics() -> list[str]:
     lines.append(
         f"live_overlay_evidence_fills_closed_total {_prom_numeric_value(fills.get('closed_cumulative', 0))}"
     )
+    # Paper submits that placed a bracket but landed no resting leg (all
+    # cancelled/rejected, e.g. IB error-110). With filled_total==0 this says
+    # "submits are actively dying", not merely "hasn't filled yet" — powers
+    # lo-evidence-submit-failed and would have surfaced the 2026-07-08 C8 stall.
+    lines.append("# TYPE live_overlay_evidence_fills_submit_failed_total gauge")
+    lines.append(
+        f"live_overlay_evidence_fills_submit_failed_total "
+        f"{_prom_numeric_value(fills.get('submit_failed_cumulative', 0))}"
+    )
     lines.append("# TYPE live_overlay_evidence_fills_target gauge")
     lines.append(f"live_overlay_evidence_fills_target {_prom_numeric_value(fills.get('target', 0))}")
     # Age of the newest incubation record: distinguishes "actively submitting
@@ -2061,6 +2093,24 @@ def _render_evidence_freshness_metrics() -> list[str]:
     _emit_age(
         "live_overlay_evidence_fills_newest_incubation_age",
         str(fills.get("newest_incubation_date", "")),
+    )
+
+    # Deploy-hygiene: commits the C13 submit Mac's checkout is behind origin/main
+    # on the paper-submit order path (published by run-c13-phase-a.sh). >0 means a
+    # merged fix (e.g. #3297's min-tick snap) is sitting undeployed on the box that
+    # actually submits — the silent gap that kept the C8 ladder at 0 fills for
+    # weeks. _known=0 when the Mac never published, so the alert stays silent
+    # rather than falsely green. Powers lo-c13-submitter-stale-checkout.
+    submitter = snap.get("submitter") or {}
+    lines.append("# TYPE live_overlay_evidence_c13_submit_code_behind_commits gauge")
+    lines.append(
+        f"live_overlay_evidence_c13_submit_code_behind_commits "
+        f"{_prom_numeric_value(submitter.get('submit_code_behind_commits', 0))}"
+    )
+    lines.append("# TYPE live_overlay_evidence_c13_submit_code_behind_commits_known gauge")
+    lines.append(
+        f"live_overlay_evidence_c13_submit_code_behind_commits_known "
+        f"{_prom_numeric_value(submitter.get('known', 0))}"
     )
 
     wsh = snap.get("wsh") or {}

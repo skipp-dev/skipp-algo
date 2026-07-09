@@ -166,4 +166,43 @@ if [ "${_run_exit}" -ne 0 ]; then
     exit "${_run_exit}"
 fi
 
+# Deploy-hygiene guard (2026-07-09): this cron submits against THIS checkout with
+# NO auto-pull, so a fix merged to origin/main (e.g. #3297's min-tick snap) never
+# reaches the submitting Mac until someone pulls — the silent gap that kept the C8
+# ladder at 0 fills for weeks with every PR "merged" but undeployed. Publish how
+# many commits the paper-submit ORDER PATH is behind origin/main so the daemon can
+# emit it and the `C13 submitter on stale checkout` alert can page. audit-push
+# ships cache/live/checkout_freshness.json to the data branch; the CI snapshot
+# producer reads it. Best-effort + fully non-fatal (a fetch hiccup must never fail
+# the cron — orders already placed above) and runs AFTER the submit so the network
+# round-trip never delays the 09:28 order window.
+_publish_checkout_freshness() {
+    local out="${REPO}/cache/live/checkout_freshness.json"
+    # Only the order-path files matter — unrelated main churn must not page.
+    local -a paths=(
+        scripts/execute_ibkr_watchlist.py
+        scripts/smc_to_ibkr_adapter.py
+        scripts/run_smc_live_incubation.py
+        scripts/build_phase_a_inputs.py
+        automation/launchd/run-c13-phase-a.sh
+    )
+    # Bounded fetch so a dead network cannot hang the launchd slot indefinitely.
+    git -C "${REPO}" -c http.lowSpeedLimit=1000 -c http.lowSpeedTime=20 \
+        fetch --quiet origin main 2>/dev/null || return 0
+    local head origin_main behind now
+    head="$(git -C "${REPO}" rev-parse HEAD 2>/dev/null)" || return 0
+    origin_main="$(git -C "${REPO}" rev-parse origin/main 2>/dev/null)" || return 0
+    behind="$(git -C "${REPO}" rev-list --count HEAD..origin/main -- "${paths[@]}" 2>/dev/null)" || return 0
+    [[ "${behind}" =~ ^[0-9]+$ ]] || return 0
+    now="$(date -u +%s)"
+    mkdir -p "${REPO}/cache/live" 2>/dev/null || true
+    printf '{"submit_code_behind_commits": %s, "head": "%s", "origin_main": "%s", "checked_at_unix": %s}\n' \
+        "${behind}" "${head}" "${origin_main}" "${now}" > "${out}" 2>/dev/null || return 0
+    if [[ "${behind}" -gt 0 ]]; then
+        echo "phase-a cron: WARNING — submit order-path code is ${behind} commit(s) behind origin/main;" \
+             "a merged fix may be undeployed on this Mac. Run 'git pull --ff-only' in ${REPO}." >&2
+    fi
+}
+_publish_checkout_freshness || true
+
 _write_marker "SUCCESS" "incubation-complete:audit=${AUDIT}"

@@ -97,8 +97,21 @@ def _round_to_min_tick(price: float) -> float:
     IBKROrderIntent carries an exchange-valid price no matter which builder
     produced it, and makes the audit record match what is actually sent to IB.
     """
+    # A non-finite price can never be an exchange-valid tick: NaN raises a
+    # cryptic "cannot convert float NaN to integer" and inf an OverflowError in
+    # the round() below. Fail loud with the value instead. (In-path prices are
+    # already screened by _as_valid_price; this hardens the util for any other
+    # caller / future builder.)
+    if not math.isfinite(price):
+        raise ValueError(f"cannot snap a non-finite price to a min tick: {price!r}")
     tick = 0.01 if abs(price) >= 1.0 else 0.0001
-    return round(round(price / tick) * tick, 4)
+    snapped = round(round(price / tick) * tick, 4)
+    # A positive price must never snap to 0.0: a tiny value (< half a tick, e.g.
+    # 4e-5) rounds to zero, and IB rejects a 0 limit/stop with the very error
+    # 110 this function exists to prevent. Floor at one tick instead.
+    if price > 0 and snapped <= 0:
+        return tick
+    return snapped
 
 
 @dataclass(frozen=True)
@@ -234,6 +247,17 @@ def _as_valid_nonnegative_fraction(value: Any, *, field_name: str) -> float:
     if not math.isfinite(numeric) or numeric < 0:
         raise ValueError(f"{field_name} must be a finite number >= 0, got {value!r}")
     return numeric
+
+
+def _finite_or_zero(value: Any) -> float:
+    """Best-effort float for an INFORMATIONAL (non-price) field — never raises;
+    non-numeric / NaN / inf collapse to 0.0 so one bad audit cell can neither
+    crash order construction nor poison the record with a NaN."""
+    try:
+        numeric = float(value)
+    except (TypeError, ValueError):
+        return 0.0
+    return numeric if math.isfinite(numeric) else 0.0
 
 
 def _attempt_ibkr_reconnect(
@@ -425,12 +449,32 @@ def build_order_intents(watchlist: pd.DataFrame, execution_cfg: IBKRExecutionCon
     intents: list[IBKROrderIntent] = []
     for _, row in watchlist.iterrows():
         for level_tag in ("l1", "l2", "l3"):
-            quantity = int(row.get(f"{level_tag}_quantity", 0) or 0)
+            raw_qty = row.get(f"{level_tag}_quantity", 0)
+            try:
+                quantity = int(raw_qty or 0)
+            except (ValueError, TypeError) as exc:
+                # A NaN/garbage quantity (e.g. a missing DataFrame cell) makes a
+                # bare int() raise "cannot convert float NaN to integer" with no
+                # context. Fail loud WITH the symbol + field so the data bug is
+                # obvious — never silently drop an intended order.
+                bad_symbol = str(row.get("symbol", "?")).upper()
+                raise ValueError(
+                    f"{level_tag}_quantity for {bad_symbol} is not a valid integer "
+                    f"(got {raw_qty!r})"
+                ) from exc
             if quantity <= 0:
                 continue
             symbol = str(row["symbol"]).upper()
             trade_date = _normalize_trade_date(row["trade_date"])
-            rank = int(row["watchlist_rank"])
+            try:
+                rank = int(row["watchlist_rank"])
+            except (ValueError, TypeError) as exc:
+                # NaN/garbage rank (e.g. blank cell in an operator --watchlist-csv)
+                # crashes int() cryptically — fail loud WITH the symbol instead.
+                raise ValueError(
+                    f"watchlist_rank for {symbol} is not a valid integer "
+                    f"(got {row['watchlist_rank']!r})"
+                ) from exc
             order_ref = f"skipp-{trade_date.isoformat()}-{symbol}-{level_tag.upper()}"
 
             entry_limit = round(_as_valid_price(row[f"{level_tag}_limit_buy"], field_name=f"{level_tag}_limit_buy"), 4)
@@ -457,7 +501,7 @@ def build_order_intents(watchlist: pd.DataFrame, execution_cfg: IBKRExecutionCon
                     trailing_stop_pct=trailing_stop_pct,
                     trailing_stop_anchor=trailing_stop_anchor,
                     premarket_last=round(_as_valid_price(row["premarket_last"], field_name="premarket_last"), 4),
-                    gap_pct=float(row["prev_close_to_premarket_pct"]),
+                    gap_pct=_finite_or_zero(row["prev_close_to_premarket_pct"]),
                     tif=execution_cfg.tif,
                     outside_rth=execution_cfg.outside_rth,
                     exit_mode=execution_cfg.exit_mode,
@@ -822,6 +866,13 @@ def flatten_after(
 _ACKNOWLEDGED_ORDER_STATUSES = frozenset(
     {"PreSubmitted", "Submitted", "Filled", "Cancelled", "ApiCancelled", "Inactive"}
 )
+# Subset of the above that means the order actually RESTS at IB and can still
+# fill. A bracket whose legs all reach Cancelled/ApiCancelled/Inactive (e.g.
+# every leg IB error-110'd on a sub-tick TP/SL price, 2026-07-08) is
+# "acknowledged" (terminal) but DEAD — nothing rests, nothing ever fills. The
+# submitter uses this to record ``submit_failed`` instead of a phantom
+# ``paper_submitted`` when a placement produced no resting order.
+_RESTING_ORDER_STATUSES = frozenset({"PreSubmitted", "Submitted", "Filled"})
 
 
 def pump_event_loop_until(
@@ -966,6 +1017,14 @@ def place_order_intents_with_ib(
     )
     for record, trade in status_records:
         record["status"] = str(getattr(trade.orderStatus, "status", record["status"]))
+    # A placement "rested" iff >=1 of its (post-ack) legs is in a resting/filled
+    # status. If every leg is Cancelled/ApiCancelled/Inactive the bracket is dead
+    # (e.g. all legs IB error-110'd) — nothing rests, nothing fills — so the
+    # submitter must record submit_failed, not paper_submitted (2026-07-08 C8 stall).
+    for placement in placements:
+        placement["rested"] = any(
+            str(o.get("status", "")) in _RESTING_ORDER_STATUSES for o in placement["orders"]
+        )
 
     return {
         "placements": placements,

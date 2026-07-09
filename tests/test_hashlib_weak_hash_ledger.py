@@ -67,8 +67,9 @@ _FROZEN_SITES: dict[str, dict[str, frozenset[int]]] = {
     # 2026-06-10 (#2670 W9): timestamp_substitutions disclosure shifted +5.
     "databento_volatility_screener.py": {"sha1": frozenset({400, 482, 698, 716})},
     "newsstack_fmp/normalize.py": {
-        "md5": frozenset({145, 268}),
-        "sha1": frozenset({349, 435, 473, 517}),
+        # 2026-07-09: +1/+9 shift — html-unescape import + Massive-shape chains.
+        "md5": frozenset({146, 277}),
+        "sha1": frozenset({358, 444, 482, 526}),
     },
     "newsstack_fmp/scoring.py": {"sha1": frozenset({123})},
     "newsstack_fmp/shared_fetch.py": {
@@ -78,7 +79,7 @@ _FROZEN_SITES: dict[str, dict[str, frozenset[int]]] = {
     "open_prep/dirty_flag_manager.py": {"md5": frozenset({74})},
     # 2026-06-25: shifted 1250 -> 1331 by AsyncNewsstackPoller telemetry additions.
     # 2026-06-28 (semantic monitoring): shifted +53 lines by readiness metrics / _extract_snapshot_epoch.
-    "open_prep/realtime_signals.py": {"md5": frozenset({1593})},  # 1431→1593 (2026-07-08): NearA0Repoller class added above
+    "open_prep/realtime_signals.py": {"md5": frozenset({1602})},  # 2026-07-09 merge: near-a0+trade_context+review-invariants
     # #2334: offline simulation script mirrors build_cache_path's digest
     # computation to re-key probe paths. Non-security cache-fingerprint use.
     "scripts/simulate_cache_redesign_2334.py": {"sha1": frozenset({49})},

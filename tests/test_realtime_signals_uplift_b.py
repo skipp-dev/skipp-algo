@@ -627,3 +627,36 @@ def test_extract_and_score_macd_stochastic_is_ignored() -> None:
     # No real MACD entry → macd_signal stays None and score stays neutral.
     assert out["macd_signal"] is None
     assert out["technical_score"] == pytest.approx(0.5)
+
+
+def test_extract_and_score_survives_non_numeric_rsi_and_williams() -> None:
+    """A provider 'N/A'/'' oscillator value must not crash the poll scoring loop
+    (raw float() raised ValueError) and must be treated as absent (None) — NOT as
+    0.0, which for RSI would read as deeply oversold → a spurious STRONG_BUY."""
+    s = _fresh_scorer()
+    res = _FakeTechnicalResult(
+        osc_detail=[
+            {"name": "RSI (14)", "value": "N/A", "action": "NEUTRAL"},
+            {"name": "Williams %R (14)", "value": "", "action": "NEUTRAL"},
+            {"name": "ADX (14)", "value": 30.0},
+        ],
+        ma_buy=5,
+        ma_sell=5,
+        ma_neutral=0,
+    )
+    out = s._extract_and_score(res)  # must not raise
+    assert out["rsi"] is None
+    assert out["williams"] is None
+    assert out["technical_score"] == pytest.approx(0.5)
+    assert out["technical_signal"] not in {"STRONG_BUY", "STRONG_SELL"}
+
+
+def test_extract_and_score_skips_nan_rsi_rather_than_scoring_it() -> None:
+    """A NaN RSI must be dropped (None), never scored as 0.0 → strong buy."""
+    s = _fresh_scorer()
+    res = _FakeTechnicalResult(
+        osc_detail=[{"name": "RSI (14)", "value": float("nan"), "action": "NEUTRAL"}],
+    )
+    out = s._extract_and_score(res)
+    assert out["rsi"] is None
+    assert out["technical_score"] == pytest.approx(0.5)

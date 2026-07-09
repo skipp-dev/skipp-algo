@@ -239,6 +239,21 @@ def _overall_signal(buy: int, sell: int, neutral: int) -> str:
 
 # ── Main fetch function ─────────────────────────────────────────────
 
+def _opt_float(value: Any) -> float | None:
+    """Parse an FMP indicator value to float, or None when missing / non-numeric
+    / NaN. A provider '' / 'N/A' / null must skip the indicator (the downstream
+    ``_classify_*`` helpers already treat None as NEUTRAL), never raise — this
+    fallback runs UNGUARDED whenever TradingView is rate-limited, so a raw
+    ``float("N/A")`` here would crash the whole technicals fetch."""
+    if value is None:
+        return None
+    try:
+        parsed = float(value)
+    except (TypeError, ValueError):
+        return None
+    return parsed if parsed == parsed else None  # drop NaN (NaN != NaN)
+
+
 def fetch_fmp_technicals(symbol: str, interval: str = "1D") -> dict[str, Any] | None:
     """Fetch technical indicators from FMP and return a dict compatible with TechnicalResult fields.
 
@@ -276,10 +291,10 @@ def fetch_fmp_technicals(symbol: str, interval: str = "1D") -> dict[str, Any] | 
 
     for p in ma_periods:
         sma = _fetch_indicator(sym, timeframe, "sma", api_key, indicator_period=p)
-        sma_values[p] = float(sma["sma"]) if sma and sma.get("sma") is not None else None
+        sma_values[p] = _opt_float(sma.get("sma")) if sma else None
 
         ema = _fetch_indicator(sym, timeframe, "ema", api_key, indicator_period=p)
-        ema_values[p] = float(ema["ema"]) if ema and ema.get("ema") is not None else None
+        ema_values[p] = _opt_float(ema.get("ema")) if ema else None
 
     # If we got nothing at all, return None
     if price is None and rsi_data is None and not any(sma_values.values()):
@@ -290,7 +305,7 @@ def fetch_fmp_technicals(symbol: str, interval: str = "1D") -> dict[str, Any] | 
     osc_buy = osc_sell = osc_neutral = 0
 
     # RSI
-    rsi_val = float(rsi_data["rsi"]) if rsi_data and rsi_data.get("rsi") is not None else None
+    rsi_val = _opt_float(rsi_data.get("rsi")) if rsi_data else None
     rsi_action = _classify_rsi(rsi_val)
     if rsi_val is not None:
         osc_detail.append({"name": "RSI (14)", "value": round(rsi_val, 2), "action": rsi_action})
@@ -302,8 +317,8 @@ def fetch_fmp_technicals(symbol: str, interval: str = "1D") -> dict[str, Any] | 
             osc_neutral += 1
 
     # MACD
-    macd_val = float(macd_data["macd"]) if macd_data and macd_data.get("macd") is not None else None
-    macd_signal = float(macd_data["signal"]) if macd_data and macd_data.get("signal") is not None else None
+    macd_val = _opt_float(macd_data.get("macd")) if macd_data else None
+    macd_signal = _opt_float(macd_data.get("signal")) if macd_data else None
     macd_action = _classify_macd(macd_val, macd_signal)
     if macd_val is not None:
         osc_detail.append({"name": "MACD (12,26)", "value": round(macd_val, 2), "action": macd_action})
@@ -315,7 +330,7 @@ def fetch_fmp_technicals(symbol: str, interval: str = "1D") -> dict[str, Any] | 
             osc_neutral += 1
 
     # Stochastic
-    stoch_k = float(stoch_data["stochastic"]) if stoch_data and stoch_data.get("stochastic") is not None else None
+    stoch_k = _opt_float(stoch_data.get("stochastic")) if stoch_data else None
     stoch_action = _classify_stoch(stoch_k)
     if stoch_k is not None:
         osc_detail.append({"name": "Stochastic %K (14,3,3)", "value": round(stoch_k, 2), "action": stoch_action})
@@ -327,7 +342,7 @@ def fetch_fmp_technicals(symbol: str, interval: str = "1D") -> dict[str, Any] | 
             osc_neutral += 1
 
     # Williams %R
-    wr_val = float(williams_data["williams"]) if williams_data and williams_data.get("williams") is not None else None
+    wr_val = _opt_float(williams_data.get("williams")) if williams_data else None
     wr_action = _classify_williams(wr_val)
     if wr_val is not None:
         osc_detail.append({"name": "Williams %R (14)", "value": round(wr_val, 2), "action": wr_action})
@@ -339,7 +354,7 @@ def fetch_fmp_technicals(symbol: str, interval: str = "1D") -> dict[str, Any] | 
             osc_neutral += 1
 
     # ADX
-    adx_val = float(adx_data["adx"]) if adx_data and adx_data.get("adx") is not None else None
+    adx_val = _opt_float(adx_data.get("adx")) if adx_data else None
     adx_action = _classify_adx(adx_val)
     if adx_val is not None:
         osc_detail.append({"name": "ADX (14)", "value": round(adx_val, 2), "action": adx_action})

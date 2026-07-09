@@ -170,6 +170,37 @@ def test_place_records_acknowledged_status_not_transient() -> None:
     statuses = [o["status"] for p in out["placements"] for o in p["orders"]]
     # All three legs recorded as acknowledged, NOT the transient PendingSubmit.
     assert statuses == ["PreSubmitted", "PreSubmitted", "PreSubmitted"], statuses
+    # A resting leg -> the placement is marked rested (submitter records success).
+    assert out["placements"][0]["rested"] is True
+
+
+def test_place_marks_bracket_dead_when_all_legs_cancelled() -> None:
+    """Every leg reaching a cancelled/rejected terminal status (IB error-110 on a
+    sub-tick TP/SL, 2026-07-08) is 'acknowledged' but DEAD — nothing rests. The
+    placement must be marked rested=False so the submitter records submit_failed."""
+    placed: list[_Trade] = []
+
+    class _IB:
+        def qualifyContracts(self, _c: Any) -> None: ...
+
+        def bracketOrder(self, **_kw: Any) -> list[_Order]:
+            return [_Order("smc-AAA-entry", 1), _Order("smc-AAA-tp", 2), _Order("smc-AAA-sl", 3)]
+
+        def placeOrder(self, _contract: Any, _order: Any) -> _Trade:
+            t = _Trade("PendingSubmit")
+            placed.append(t)
+            return t
+
+        def sleep(self, _s: float) -> None:
+            for t in placed:  # IB rejects every leg on the min-tick violation
+                t.orderStatus.status = "Cancelled"
+
+    out = place_order_intents_with_ib(
+        _IB(), [_intent()],
+        connection_cfg=IBKRConnectionConfig(),
+        execution_cfg=_exec_cfg_tp_stop(),
+    )
+    assert out["placements"][0]["rested"] is False
 
 
 def _exec_cfg_tp_stop() -> Any:

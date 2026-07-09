@@ -137,7 +137,26 @@ def test_summarize_fills_counts_filled_and_closed():
         {"action": "audit_only", "fill_price": None},  # neither
     ]
     out = summarize_fills(records)
-    assert out == {"filled_cumulative": 3, "closed_cumulative": 2}
+    assert out == {
+        "filled_cumulative": 3,
+        "closed_cumulative": 2,
+        "submit_failed_cumulative": 0,
+    }
+
+
+def test_summarize_fills_counts_submit_failed():
+    # A placed-but-dead bracket (every leg cancelled/rejected) records
+    # submit_failed — the specific "submits are dying" signal (2026-07-08).
+    records = [
+        {"action": "submit_failed", "fill_price": None},
+        {"action": "submit_failed", "fill_price": None},
+        {"action": "paper_submitted", "fill_price": None},
+        {"action": "tp_hit", "fill_price": 101.0, "close_price": 110.0},
+    ]
+    out = summarize_fills(records)
+    assert out["submit_failed_cumulative"] == 2
+    assert out["filled_cumulative"] == 1
+    assert out["closed_cumulative"] == 1
 
 
 def test_summarize_fills_rejects_zero_and_bool_fill_price():
@@ -150,7 +169,11 @@ def test_summarize_fills_rejects_zero_and_bool_fill_price():
 
 
 def test_summarize_fills_empty():
-    assert summarize_fills([]) == {"filled_cumulative": 0, "closed_cumulative": 0}
+    assert summarize_fills([]) == {
+        "filled_cumulative": 0,
+        "closed_cumulative": 0,
+        "submit_failed_cumulative": 0,
+    }
 
 
 # --------------------------------------------------------------------------- #
@@ -173,6 +196,38 @@ def test_build_snapshot_shape():
     assert snap["ledger"]["plane"] == "15m"
     assert snap["audit_branch"]["last_commit_date"] == "2026-06-12"
     assert snap["fills"]["closed_cumulative"] == 1
+    assert snap["fills"]["submit_failed_cumulative"] == 0
     assert snap["fills"]["target"] == FILLS_TARGET
     assert snap["fills"]["newest_incubation_date"] == "2026-07-06"
     assert snap["wsh"] == {"newest_date": "2026-06-23", "status": "degraded:no-events"}
+    # No behind-commits reading passed -> known=0 so the stale-checkout alert
+    # stays silent rather than falsely green.
+    assert snap["submitter"] == {"submit_code_behind_commits": 0, "known": 0}
+
+
+def test_build_snapshot_submitter_behind_commits():
+    # A published reading surfaces as known=1 with the count carried through.
+    snap = build_snapshot(
+        ledger_rows=[],
+        incubation_records=[],
+        audit_commit_date="2026-07-08",
+        newest_incubation_date="2026-07-08",
+        wsh_date="",
+        wsh_status="",
+        generated_at_unix=1_751_800_000.0,
+        submit_code_behind_commits=3,
+    )
+    assert snap["submitter"] == {"submit_code_behind_commits": 3, "known": 1}
+    # Zero-but-known (Mac fully deployed) must still read as known so the alert
+    # can evaluate — distinct from "never published".
+    snap_zero = build_snapshot(
+        ledger_rows=[],
+        incubation_records=[],
+        audit_commit_date="2026-07-08",
+        newest_incubation_date="2026-07-08",
+        wsh_date="",
+        wsh_status="",
+        generated_at_unix=1_751_800_000.0,
+        submit_code_behind_commits=0,
+    )
+    assert snap_zero["submitter"] == {"submit_code_behind_commits": 0, "known": 1}

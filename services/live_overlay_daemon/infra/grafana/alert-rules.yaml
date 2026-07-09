@@ -2170,6 +2170,88 @@ groups:
         stalled (paper TWS down/unreachable?).
       runbook: Check the paper TWS/IBKR gateway is up on port 7497 during the 09:28 ET order window and the
         23:05 reconcile; inspect cache/live/smoke_HALT and the newest incubation_<DATE>.jsonl fill_price fields.
+  - uid: lo-evidence-submit-failed
+    title: C8 paper submits are failing
+    condition: C
+    # A paper bracket that places but lands no resting leg (every leg
+    # cancelled/rejected, e.g. IB error-110 on a sub-tick TP/SL) records
+    # submit_failed instead of a phantom paper_submitted (2026-07-08). Fires when
+    # >=1 such failure has happened AND nothing has EVER filled -- "submits are
+    # actively dying", the specific root cause the generic stall alert cannot name
+    # (and which it misses once incubation goes stale). Clears the moment any real
+    # fill lands (filled_total > 0). `for: 6h` rides out a single bad submit day.
+    noDataState: OK
+    data:
+    - refId: A
+      datasourceUid: grafanacloud-prom
+      model:
+        expr: (live_overlay_evidence_fills_submit_failed_total{job="live_overlay"} > bool 0)
+          * (live_overlay_evidence_fills_filled_total{job="live_overlay"} == bool 0)
+        instant: true
+    - refId: C
+      datasourceUid: __expr__
+      model:
+        type: threshold
+        conditions:
+        - evaluator:
+            type: gt
+            params:
+            - 0
+          operator:
+            type: and
+          query:
+            params:
+            - A
+    for: 6h
+    labels:
+      severity: warning
+    annotations:
+      summary: C8 paper submits are placing brackets that never rest (all legs cancelled/rejected, e.g. IB
+        error-110) and nothing has ever filled -- the bracket dies at submit.
+      runbook: Inspect the newest incubation_<DATE>.jsonl for action=submit_failed; check TP/SL prices snap to
+        the min tick (scripts/execute_ibkr_watchlist.py _round_to_min_tick) and the paper TWS is up on 7497.
+  - uid: lo-c13-submitter-stale-checkout
+    title: C13 submitter on stale checkout
+    condition: C
+    # The paper-submit cron runs against the C13 Mac's LOCAL checkout with no
+    # auto-pull; a fix merged to origin/main (e.g. #3297's min-tick snap) never
+    # reaches the box that submits until someone pulls. That gap kept the C8
+    # ladder at 0 fills for weeks with every PR "merged" but undeployed. Fires
+    # when the submit-order-path code on the Mac is behind origin/main (>0) AND
+    # that reading is known (the Mac published it). Unrelated main churn does NOT
+    # count -- only commits touching the submit path. `for: 12h` rides out a
+    # same-day merge->pull; pages if a submit fix stays undeployed past the next
+    # daily submit.
+    noDataState: OK
+    data:
+    - refId: A
+      datasourceUid: grafanacloud-prom
+      model:
+        expr: (live_overlay_evidence_c13_submit_code_behind_commits{job="live_overlay"} > bool 0)
+          * live_overlay_evidence_c13_submit_code_behind_commits_known{job="live_overlay"}
+        instant: true
+    - refId: C
+      datasourceUid: __expr__
+      model:
+        type: threshold
+        conditions:
+        - evaluator:
+            type: gt
+            params:
+            - 0
+          operator:
+            type: and
+          query:
+            params:
+            - A
+    for: 12h
+    labels:
+      severity: warning
+    annotations:
+      summary: The C13 paper-submit Mac is running order-path code behind origin/main -- a merged fix has not
+        been deployed to the box that submits; nothing new takes effect until it is pulled.
+      runbook: On the submit Mac, cd to the checkout and `git pull --ff-only` (never --no-verify); confirm
+        scripts/execute_ibkr_watchlist.py + run_smc_live_incubation.py match origin/main, then re-run phase-a.
   - uid: lo-fmp-bandwidth-approaching
     title: FMP bandwidth approaching monthly quota
     condition: C
