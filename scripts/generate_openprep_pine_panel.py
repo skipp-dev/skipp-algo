@@ -66,6 +66,12 @@ from scripts._logging_init import init_cli_logging
 PINE_HEADER = "//@version=6"
 DEFAULT_OUTPUT = Path("pine/generated/openprep_daily_panel.pine")
 DEFAULT_OUTCOMES_DIR = Path("artifacts/open_prep/outcomes")
+# C13 setups (cache/live/setups_<DATE>.jsonl) carry the OFFICIAL daily levels
+# (entry/stop_loss/take_profit) the paper trader submits. The panel joins them
+# per symbol when a date-matched file exists (local generation); in CI no
+# setups are committed, so the levels column honestly renders "–" until the
+# data plumbing lands (see PR notes).
+DEFAULT_SETUPS_DIR = Path("cache/live")
 MAX_ROWS = 12  # Pine table stays readable; excess candidates are dropped.
 MAX_SYMBOL_LEN = 32
 MAX_NAME_LEN = 64
@@ -110,13 +116,74 @@ def discover_latest_outcomes(search_dir: Path) -> Path | None:
     return candidates[-1] if candidates else None
 
 
-def extract_panel(rows: list[dict[str, Any]]) -> dict[str, Any]:
+def discover_setups_for_date(setups_dir: Path, date: Any) -> Path | None:
+    """Return ``setups_<date>.jsonl`` for the panel date, or ``None``.
+
+    Date-matched by construction: a stale setups file from another day can
+    never be joined onto today's candidates (wrong levels are worse than no
+    levels)."""
+    if not date:
+        return None
+    path = setups_dir / f"setups_{date}.jsonl"
+    return path if path.is_file() else None
+
+
+def load_setup_levels(path: Path, date: Any) -> dict[str, dict[str, float | None]]:
+    """Map ``symbol -> {entry, stop, target}`` from a C13 setups file.
+
+    The file is a JSON array (despite the .jsonl suffix); one-object-per-line
+    JSONL is tolerated for forward-compat. Rows whose ``trade_date`` differs
+    from the panel date are dropped (second layer of the date guard); garbage
+    rows and non-numeric levels degrade to ``None``, never raise.
+    """
+    try:
+        text = path.read_text(encoding="utf-8")
+    except OSError:
+        return {}
+    rows: list[Any] = []
+    try:
+        loaded = json.loads(text)
+        rows = loaded if isinstance(loaded, list) else [loaded]
+    except json.JSONDecodeError:
+        for line in text.splitlines():
+            line = line.strip()
+            if not line:
+                continue
+            try:
+                rows.append(json.loads(line))
+            except json.JSONDecodeError:
+                continue
+    levels: dict[str, dict[str, float | None]] = {}
+    for row in rows:
+        if not isinstance(row, dict):
+            continue
+        row_date = str(row.get("trade_date") or "")
+        if date and row_date and row_date != str(date):
+            continue
+        symbol = str(row.get("symbol") or "").strip().upper()
+        if not symbol:
+            continue
+        levels[symbol] = {
+            "entry": _safe_float(row.get("entry")),
+            "stop": _safe_float(row.get("stop_loss")),
+            "target": _safe_float(row.get("take_profit")),
+        }
+    return levels
+
+
+def extract_panel(
+    rows: list[dict[str, Any]],
+    levels: dict[str, dict[str, float | None]] | None = None,
+) -> dict[str, Any]:
     """Reduce outcome rows to the panel's data model.
 
     Market-wide fields (date, regime, weather, microstructure metrics) are
     identical across a run's rows, so they are read from the first row.
     Per-candidate fields become one entry each, sorted by score descending
     (ties broken by symbol ascending) and capped at ``MAX_ROWS``.
+
+    ``levels`` (from :func:`load_setup_levels`) joins the official C13
+    entry/stop/target per symbol; candidates without a setup keep ``None``.
     """
     if not rows:
         return {"date": None, "candidates": []}
@@ -125,20 +192,26 @@ def extract_panel(rows: list[dict[str, Any]]) -> dict[str, Any]:
     regime = head.get("regime")
     if regime is None:
         regime = head.get("regime_at_entry")
+    levels = levels or {}
     candidates: list[dict[str, Any]] = []
     for row in rows:
         symbol = row.get("symbol")
         if not symbol:
             continue
+        panel_symbol = _truncate(symbol, MAX_SYMBOL_LEN).upper()
+        row_levels = levels.get(panel_symbol) or {}
         candidates.append(
             {
-                "symbol": _truncate(symbol, MAX_SYMBOL_LEN).upper(),
+                "symbol": panel_symbol,
                 "score": _safe_float(row.get("score")) or 0.0,
                 "tier": str(row.get("confidence_tier") or "-"),
                 "playbook": _truncate(row.get("playbook_name") or "-", MAX_NAME_LEN),
                 "direction": str(row.get("direction") or "-"),
                 "gap_pct": _safe_float(row.get("gap_pct")),
                 "rvol": _safe_float(row.get("rvol")),
+                "entry": row_levels.get("entry"),
+                "stop": row_levels.get("stop"),
+                "target": row_levels.get("target"),
             }
         )
     # Secondary key (symbol asc) makes the order — and therefore which
@@ -191,7 +264,7 @@ def _pine_float_array(name: str, values: list[float | None]) -> str:
 
 
 def build_pine(panel: dict[str, Any], *, generated_at: str, source: str,
-               commit_sha: str | None) -> str:
+               commit_sha: str | None, source_setups: str = "none") -> str:
     """Render the deterministic Pine v6 panel for *panel*."""
     date = panel.get("date")
     cands = panel.get("candidates", [])
@@ -208,6 +281,7 @@ def build_pine(panel: dict[str, Any], *, generated_at: str, source: str,
         "// Open-Prep daily watchlist + market-weather panel (plan Workstream B1).",
         f"// generated_at: {generated_at}",
         f"// source_outcomes: {source}",
+        f"// source_setups: {source_setups}",
         f"// source_commit_sha: {commit_sha or 'unknown'}",
         f"// candidates: {len(cands)}",
         "",
@@ -236,6 +310,10 @@ def build_pine(panel: dict[str, Any], *, generated_at: str, source: str,
         _pine_str_array("P_DIR", [c["direction"] for c in cands]),
         _pine_float_array("P_GAP", [c["gap_pct"] for c in cands]),
         _pine_float_array("P_RVOL", [c["rvol"] for c in cands]),
+        # Official C13 levels from the date-matched setups file (na without one).
+        _pine_float_array("P_ENTRY", [c.get("entry") for c in cands]),
+        _pine_float_array("P_STOP", [c.get("stop") for c in cands]),
+        _pine_float_array("P_TGT", [c.get("target") for c in cands]),
         "",
     ]
 
@@ -264,8 +342,8 @@ def build_pine(panel: dict[str, Any], *, generated_at: str, source: str,
         "",
         "n = array.size(P_SYM)",
         "rows = n < 1 ? 4 : n + 3  // header + col-headers + candidates + footer",
-        "var table t = table.new(position.top_right, 7, rows, border_width = 1)",
-        "var array<string> hdrs = array.from(\"Symbol\", \"Playbook\", \"Dir\", \"Score\", \"Tier\", \"Gap%\", \"RVOL\")",
+        "var table t = table.new(position.top_right, 8, rows, border_width = 1)",
+        "var array<string> hdrs = array.from(\"Symbol\", \"Playbook\", \"Dir\", \"Score\", \"Tier\", \"Gap%\", \"RVOL\", \"L1 e/s/t\")",
         "",
         "if barstate.islast",
         "    txt_col = is_stale ? color.new(color.gray, 0) : color.white",
@@ -281,7 +359,7 @@ def build_pine(panel: dict[str, Any], *, generated_at: str, source: str,
         "    table.cell(t, 6, 0, is_stale ? \"VERALTET\" : \"live\", text_color = is_stale ? color.orange : color.lime, bgcolor = hdr_bg, text_size = size.small)",
         "",
         "    // Row 1 — column headers",
-        "    for c = 0 to 6",
+        "    for c = 0 to 7",
         "        table.cell(t, c, 1, array.get(hdrs, c), text_color = color.gray, bgcolor = color.new(color.navy, 40), text_size = size.tiny)",
         "",
         "    // Candidate rows",
@@ -303,6 +381,12 @@ def build_pine(panel: dict[str, Any], *, generated_at: str, source: str,
         "            table.cell(t, 4, r, array.get(P_TIER, i), text_color = color.gray, bgcolor = row_bg, text_size = size.tiny)",
         "            table.cell(t, 5, r, na(gapv) ? \"n/a\" : str.tostring(gapv, \"#.##\") + \"%\", text_color = txt_col, bgcolor = row_bg, text_size = size.tiny)",
         "            table.cell(t, 6, r, na(rvolv) ? \"n/a\" : str.tostring(rvolv, \"#.##\"), text_color = txt_col, bgcolor = row_bg, text_size = size.tiny)",
+        "            // Official C13 levels (setups join); \"–\" when no setup for this symbol/date.",
+        "            entryv = array.get(P_ENTRY, i)",
+        "            stopv = array.get(P_STOP, i)",
+        "            tgtv = array.get(P_TGT, i)",
+        "            lev_txt = na(entryv) ? \"–\" : str.tostring(entryv, \"#.##\") + \"/\" + (na(stopv) ? \"–\" : str.tostring(stopv, \"#.##\")) + \"/\" + (na(tgtv) ? \"–\" : str.tostring(tgtv, \"#.##\"))",
+        "            table.cell(t, 7, r, lev_txt, text_color = txt_col, bgcolor = row_bg, text_size = size.tiny)",
         "",
         "    // Footer — microstructure metrics",
         "    fr = n < 1 ? 3 : n + 2",
@@ -354,6 +438,20 @@ def _parse_args(argv: list[str] | None) -> argparse.Namespace:
              f"--outcomes-json is omitted (default: {DEFAULT_OUTCOMES_DIR}).",
     )
     parser.add_argument(
+        "--setups-json",
+        type=Path,
+        default=None,
+        help="Explicit C13 setups_<DATE>.jsonl path (official entry/stop/target "
+             "levels). Default: date-matched file under --setups-dir.",
+    )
+    parser.add_argument(
+        "--setups-dir",
+        type=Path,
+        default=DEFAULT_SETUPS_DIR,
+        help=f"Directory searched for setups_<panel-date>.jsonl when "
+             f"--setups-json is omitted (default: {DEFAULT_SETUPS_DIR}).",
+    )
+    parser.add_argument(
         "--output",
         type=Path,
         default=DEFAULT_OUTPUT,
@@ -387,13 +485,32 @@ def main(argv: list[str] | None = None) -> int:
     else:
         logger.warning("No outcomes file found; emitting stub panel.")
 
-    panel = extract_panel(rows)
+    # Official C13 levels: explicit --setups-json wins; otherwise discover the
+    # file date-matched to the panel date (a stale setups file never joins).
+    panel_date = rows[0].get("date") if rows else None
+    setups_path = args.setups_json or discover_setups_for_date(args.setups_dir, panel_date)
+    levels: dict[str, dict[str, float | None]] = {}
+    if setups_path is not None and setups_path.is_file():
+        levels = load_setup_levels(setups_path, panel_date)
+    elif args.setups_json is not None:
+        print(f"ERROR: setups file not found: {args.setups_json}", file=sys.stderr)
+        return 1
+
+    panel = extract_panel(rows, levels=levels)
+
+    # Absolute setups paths would bake a machine-local path into the committed
+    # artifact; the basename (carrying the date) is the provenance that matters.
+    if setups_path is None:
+        setups_label = "none"
+    else:
+        setups_label = setups_path.name if setups_path.is_absolute() else str(setups_path)
 
     snippet = build_pine(
         panel,
         generated_at=datetime.now(UTC).isoformat(),
         source=str(src_path) if src_path else "none",
         commit_sha=args.commit_sha,
+        source_setups=setups_label,
     )
 
     try:
