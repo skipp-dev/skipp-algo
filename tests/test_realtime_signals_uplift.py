@@ -651,3 +651,53 @@ def test_score_telemetry_snapshot_ignores_non_finite_values() -> None:
     assert snap["change_pct"]["count"] == 0
     # Must stay strictly JSON-compliant for telemetry handlers using allow_nan=False.
     json.dumps(snap, allow_nan=False)
+
+
+def test_hysteresis_uses_regime_adjusted_a0_thresholds() -> None:
+    """The 'clearly A0' hysteresis band must track the EFFECTIVE (regime-adjusted)
+    A0 threshold — in LOW_VOLUME a genuine upgrade must not be gated against the
+    stricter NORMAL constant (which delayed legitimate A1→A0 transitions)."""
+    eff_vol = rs.A0_VOLUME_RATIO_MIN * 0.8   # LOW_VOLUME relaxes ~20%
+    eff_chg = rs.A0_PRICE_CHANGE_PCT_MIN * 0.8
+    # Metric sits between the relaxed and absolute bars: clearly-A0 vs the
+    # effective threshold, but NOT vs the absolute one.
+    vol = (eff_vol + rs.A0_VOLUME_RATIO_MIN) / 2
+    chg = (eff_chg + rs.A0_PRICE_CHANGE_PCT_MIN) / 2
+
+    # Default (absolute) thresholds → not clearly-A0 → gated within min_hold.
+    h1 = rs.GateHysteresis(min_hold_seconds=9999.0)
+    h1.record("SYM", "A1")
+    assert h1.evaluate("SYM", "A0", volume_ratio=vol, abs_change_pct=chg) == "A1"
+
+    # Effective (relaxed) thresholds → clearly-A0 → upgrade allowed immediately.
+    h2 = rs.GateHysteresis(min_hold_seconds=9999.0)
+    h2.record("SYM", "A1")
+    assert (
+        h2.evaluate("SYM", "A0", volume_ratio=vol, abs_change_pct=chg,
+                    a0_vol_threshold=eff_vol, a0_chg_threshold=eff_chg)
+        == "A0"
+    )
+
+
+def test_hysteresis_record_honours_max_state_size() -> None:
+    """record() must cap _state like evaluate() does (was unbounded)."""
+    h = rs.GateHysteresis(max_state_size=3)
+    for i in range(10):
+        h.record(f"S{i}", "A1")
+    assert len(h._state) <= 3
+
+
+def test_score_telemetry_median_even_count_averages_two_middles() -> None:
+    """Median of an even-length series is the mean of the two middles, not the
+    upper-middle element (vals[n//2])."""
+    tel = rs.ScoreTelemetry()
+    for v in (1.0, 2.0, 3.0, 4.0):
+        tel._score_diffs.append(v)
+    stats = tel.snapshot()["score_diff"]
+    assert stats["count"] == 4
+    assert stats["median"] == 2.5  # (2+3)/2 — was vals[2] == 3.0
+    # Odd count still returns the middle element.
+    tel2 = rs.ScoreTelemetry()
+    for v in (1.0, 2.0, 3.0):
+        tel2._score_diffs.append(v)
+    assert tel2.snapshot()["score_diff"]["median"] == 2.0
