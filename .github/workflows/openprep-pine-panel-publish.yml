@@ -1,18 +1,21 @@
 # Open-Prep Pine Panel Publish — plan Workstream B2 (dispatch-first)
-# live-window: manual-only
+# live-window: off-hours-only
 #
-# Manual companion that publishes the generated Open-Prep daily panel
+# Publishes the generated Open-Prep daily panel
 # (pine/generated/openprep_daily_panel.pine, an indicator produced by
 # scripts/generate_openprep_pine_panel.py) to TradingView. By default it
-# regenerates the panel from the newest committed outcomes file so the
-# published artifact matches current data, then runs the fail-closed
-# Playwright publisher (scripts/tv_publish_openprep_panel.ts).
+# regenerates the panel before publishing — preferring the TRADED-universe
+# outcomes + setups from data/phase-a-audit over the CI screener outcomes
+# committed on main (Option-a decision 2026-07-09) — then runs the
+# fail-closed Playwright publisher (scripts/tv_publish_openprep_panel.ts).
 #
-# TradingView is a single shared external target, so this workflow is
-# workflow_dispatch ONLY (no cron yet) — a human deliberately triggers each
-# publish. Once proven, a daily cron (workflow_run off run-open-prep-daily)
-# can be added. It never pushes to the repo; it only publishes to TradingView
-# and uploads the publish report + screenshots as a run artifact.
+# Triggers: workflow_dispatch (human / daily-trigger bridge) plus an
+# after-hours cron at 23:15 UTC Mon-Fri — deliberately AFTER the 17:30 ET
+# local audit-push has landed the day's setups_<DATE>.jsonl +
+# outcomes_<DATE>.json on data/phase-a-audit, so the evening publish carries
+# the traded levels for the next session. No contents write permissions →
+# posture off-hours-only. It never pushes to the repo; it only publishes to
+# TradingView and uploads the publish report + screenshots as a run artifact.
 #
 # First publish: dispatch once with allow_create=true to create the
 # "Open-Prep Daily Panel" script; every later run updates it in place.
@@ -26,13 +29,18 @@ on:
   workflow_dispatch:
     inputs:
       regenerate:
-        description: "Regenerate the panel from the newest committed outcomes file before publishing."
+        description: "Regenerate the panel from the newest outcomes (data-branch traded file preferred) before publishing."
         type: boolean
         default: true
       allow_create:
         description: "Allow creating the TradingView script if it does not exist yet (first publish only; default false to avoid duplicate-script creation)."
         type: boolean
         default: false
+  schedule:
+    # 23:15 UTC Mon-Fri = 19:15/18:15 ET (EDT/EST): after the US close AND
+    # after the 17:30 ET audit-push, so the data branch already carries
+    # today's traded outcomes + setups. Schedule runs always regenerate.
+    - cron: "15 23 * * 1-5"
 
 permissions:
   contents: read
@@ -87,18 +95,34 @@ jobs:
       - name: Install Playwright system deps (chromium)
         run: npx playwright install-deps chromium
 
-      - name: Regenerate panel from newest committed outcomes
-        if: ${{ inputs.regenerate }}
+      - name: Regenerate panel (traded data-branch outcomes preferred)
+        if: ${{ inputs.regenerate || github.event_name == 'schedule' }}
         run: |
-          # Official C13 levels: the local audit-push publishes
-          # cache/live/setups_<DATE>.jsonl to data/phase-a-audit daily (17:30 ET).
-          # Fetch the file matching the newest committed outcomes date so the
-          # published panel carries the traded levels. Fail-soft on every step:
-          # no setups for the date (or a disjoint universe — the generator warns
-          # loudly about that) simply renders "–" in the levels column, as before.
+          # Option-a decision (2026-07-09): the PUBLISHED panel shows the
+          # TRADED universe. The local audit-push (17:30 ET) lands the traded,
+          # universe-stamped outcomes_<DATE>.json + setups_<DATE>.jsonl on
+          # data/phase-a-audit; prefer that outcomes file whenever its date is
+          # >= the newest CI screener file committed on main (which stays the
+          # fallback so the panel never goes empty). The realtime producer's
+          # fmp_us_mid_large snapshot is deliberately untouched — flipping THAT
+          # universe would shrink the 929-symbol signal watchlist to ~10.
+          # Fail-soft on every step; a disjoint universe still warns loudly in
+          # the generator.
           git fetch --depth 1 origin data/phase-a-audit || true
-          latest_outcomes="$(ls artifacts/open_prep/outcomes/outcomes_*.json 2>/dev/null | sort | tail -1)"
-          panel_date="$(basename "${latest_outcomes:-}" .json | sed 's/^outcomes_//')"
+          committed_latest="$(ls artifacts/open_prep/outcomes/outcomes_*.json 2>/dev/null | sort | tail -1)"
+          committed_date="$(basename "${committed_latest:-}" .json | sed 's/^outcomes_//')"
+          db_latest="$(git ls-tree -r --name-only origin/data/phase-a-audit -- artifacts/open_prep/outcomes/ 2>/dev/null | grep -E 'outcomes_[0-9-]+\.json$' | sort | tail -1)"
+          db_date="$(basename "${db_latest:-}" .json | sed 's/^outcomes_//')"
+          outcomes_args=()
+          panel_date="${committed_date}"
+          if [ -n "${db_date}" ] && { [ -z "${committed_date}" ] || [ ! "${db_date}" \< "${committed_date}" ]; }; then
+            git show "origin/data/phase-a-audit:${db_latest}" > /tmp/panel_outcomes.json
+            outcomes_args=(--outcomes-json /tmp/panel_outcomes.json)
+            panel_date="${db_date}"
+            echo "panel outcomes: using traded ${db_latest} from data/phase-a-audit"
+          else
+            echo "panel outcomes: no data-branch file >= ${committed_date:-?} — falling back to committed screener outcomes"
+          fi
           setups_args=()
           if [ -n "${panel_date}" ] && git cat-file -e "origin/data/phase-a-audit:cache/live/setups_${panel_date}.jsonl" 2>/dev/null; then
             git show "origin/data/phase-a-audit:cache/live/setups_${panel_date}.jsonl" > /tmp/panel_setups.jsonl
@@ -107,7 +131,7 @@ jobs:
           else
             echo "panel levels: no setups_${panel_date:-?}.jsonl on data/phase-a-audit — levels column renders '–'"
           fi
-          python scripts/generate_openprep_pine_panel.py "${setups_args[@]}"
+          python scripts/generate_openprep_pine_panel.py "${outcomes_args[@]}" "${setups_args[@]}"
           # Surface whether the freshly-generated panel matched the committed artifact.
           git --no-pager diff --stat -- pine/generated/openprep_daily_panel.pine pine/generated/openprep_daily_panel.json || true
 

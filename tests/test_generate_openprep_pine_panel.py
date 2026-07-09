@@ -314,3 +314,38 @@ def test_publish_workflow_joins_setups_from_data_branch() -> None:
     assert "git fetch --depth 1 origin data/phase-a-audit" in wf
     assert "setups_${panel_date}.jsonl" in wf
     assert "--setups-json" in wf
+
+
+def test_publish_workflow_prefers_traded_outcomes_and_runs_evenings() -> None:
+    """Option-a (2026-07-09): the published panel shows the TRADED universe.
+    Pins the three moving parts: data-branch outcomes preference, the
+    after-hours schedule (post audit-push), and the posture marker."""
+    from pathlib import Path
+    wf_path = (Path(__file__).resolve().parents[1] / ".github" / "workflows"
+               / "openprep-pine-panel-publish.yml")
+    wf = wf_path.read_text(encoding="utf-8")
+    assert "--outcomes-json" in wf
+    assert "artifacts/open_prep/outcomes/" in wf
+    assert 'cron: "15 23 * * 1-5"' in wf  # after US close AND after 17:30 ET audit-push
+    assert "github.event_name == 'schedule'" in wf  # schedule runs always regenerate
+    assert "# live-window: off-hours-only" in wf.splitlines()[1]
+
+
+def test_audit_push_publishes_traded_outcomes() -> None:
+    """The audit-push driver must keep publishing the traded outcomes file —
+    the evening panel publish reads it from data/phase-a-audit."""
+    from pathlib import Path
+    sh = (Path(__file__).resolve().parents[1] / "automation" / "launchd"
+          / "run-c13-audit-push.sh").read_text(encoding="utf-8")
+    assert 'OUTCOMES="artifacts/open_prep/outcomes/outcomes_${DATE}.json"' in sh
+    assert '"${OUTCOMES}"' in sh
+
+
+def test_export_open_prep_lists_stamps_static_universe() -> None:
+    """The traded pipeline must stamp its outcomes as STATIC — without the
+    override both pipelines would inherit fmp_us_mid_large and the provenance
+    stamp could not distinguish them (the original 2026-07-09 confusion)."""
+    from pathlib import Path
+    src = (Path(__file__).resolve().parents[1] / "scripts"
+           / "export_open_prep_lists.py").read_text(encoding="utf-8")
+    assert "universe_source=UNIVERSE_SOURCE_STATIC" in src

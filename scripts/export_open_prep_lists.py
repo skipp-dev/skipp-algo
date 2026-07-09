@@ -16,6 +16,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 # above must happen before any first-party `from scripts.` import.
 from open_prep.run_open_prep import (
     GAP_MODE_PREMARKET_INDICATIVE,
+    UNIVERSE_SOURCE_STATIC,
     generate_open_prep_result,
 )
 from scripts.smc_atomic_write import atomic_write_text
@@ -40,6 +41,11 @@ def main() -> None:
     version = now_utc.strftime("%Y%m%d_%H%M%SZ")
     result = generate_open_prep_result(
         symbols=DEFAULT_UNIVERSE,
+        # Truthful provenance stamp for outcomes_<date>.json: with explicit
+        # ``symbols`` the screener ignores universe_source, but WITHOUT this
+        # override the stamp would inherit the fmp_us_mid_large default and
+        # be indistinguishable from the CI screener run (found 2026-07-09).
+        universe_source=UNIVERSE_SOURCE_STATIC,
         days_ahead=3,
         top=10,
         trade_cards=5,
