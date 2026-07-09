@@ -97,6 +97,13 @@ def _round_to_min_tick(price: float) -> float:
     IBKROrderIntent carries an exchange-valid price no matter which builder
     produced it, and makes the audit record match what is actually sent to IB.
     """
+    # A non-finite price can never be an exchange-valid tick: NaN raises a
+    # cryptic "cannot convert float NaN to integer" and inf an OverflowError in
+    # the round() below. Fail loud with the value instead. (In-path prices are
+    # already screened by _as_valid_price; this hardens the util for any other
+    # caller / future builder.)
+    if not math.isfinite(price):
+        raise ValueError(f"cannot snap a non-finite price to a min tick: {price!r}")
     tick = 0.01 if abs(price) >= 1.0 else 0.0001
     snapped = round(round(price / tick) * tick, 4)
     # A positive price must never snap to 0.0: a tiny value (< half a tick, e.g.
