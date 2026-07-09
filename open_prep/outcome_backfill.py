@@ -39,6 +39,20 @@ logger = logging.getLogger("open_prep.outcome_backfill")
 # Re-use the canonical outcomes directory.
 OUTCOMES_DIR = Path("artifacts/open_prep/outcomes")
 
+
+def _outcomes_dir() -> Path:
+    """Effective outcomes dir, resolved at call time (mirrors ``outcomes._outcomes_dir``).
+
+    Local ``run_open_prep``/backfill runs set ``OPEN_PREP_OUTCOMES_DIR`` (a
+    gitignored shadow dir) so they stop writing the CI-committed canonical
+    ``artifacts/open_prep/outcomes/`` — a local write there leaves an untracked
+    file that collides with the incoming CI commit on the next ``git pull``.
+    Falls back to the module-level ``OUTCOMES_DIR`` (which the test-suite
+    monkeypatches) when the env var is unset. Resolved at call time because
+    ``run_open_prep`` loads ``.env`` only after importing this module."""
+    override = os.environ.get("OPEN_PREP_OUTCOMES_DIR", "").strip()
+    return Path(override) if override else OUTCOMES_DIR
+
 # RTH entry/exit window: 09:30–10:00 ET.
 _OPEN_TIME = dt_time(9, 30)
 _EXIT_TIME = dt_time(10, 0)
@@ -71,9 +85,10 @@ def _is_data_not_yet_published(exc: BaseException) -> bool:
 
 def _load_pending_dates(lookback_days: int = 1) -> list[date]:
     """Return dates that have at least one unresolved outcome record."""
-    if not OUTCOMES_DIR.exists():
+    outcomes_dir = _outcomes_dir()
+    if not outcomes_dir.exists():
         return []
-    files = sorted(OUTCOMES_DIR.glob("outcomes_*.json"), reverse=True)
+    files = sorted(outcomes_dir.glob("outcomes_*.json"), reverse=True)
     pending: list[date] = []
     loaded = 0
     for path in files:
@@ -97,7 +112,7 @@ def _load_pending_dates(lookback_days: int = 1) -> list[date]:
 
 def _load_outcome_file(run_date: date) -> tuple[Path, list[dict[str, Any]]]:
     """Load a single day's outcome records."""
-    path = OUTCOMES_DIR / f"outcomes_{run_date.isoformat()}.json"
+    path = _outcomes_dir() / f"outcomes_{run_date.isoformat()}.json"
     if not path.exists():
         return path, []
     with open(path, encoding="utf-8") as fh:

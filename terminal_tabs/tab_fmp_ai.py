@@ -13,7 +13,7 @@ import concurrent.futures
 import logging
 import os
 import time
-from datetime import UTC, datetime, timedelta
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 from zoneinfo import ZoneInfo as _ZoneInfo
@@ -51,8 +51,6 @@ except ImportError:
 
 try:
     from terminal_poller import (
-        fetch_benzinga_earnings,
-        fetch_benzinga_ratings,
         fetch_economic_calendar,
         fetch_sector_performance,
     )
@@ -283,69 +281,6 @@ def _analysis_worker_inner(
         if not forecasts_ctx:
             forecasts_ctx = cached.get("_cached_forecasts")
 
-        # --- Benzinga ratings ---
-        bz_ratings: list[dict[str, Any]] | None = None
-        if poller_available and benzinga_key:
-            try:
-                _today_str = datetime.now(_ET).date().isoformat()
-                _week_ago = (datetime.now(_ET).date() - timedelta(days=7)).isoformat()
-                _raw_ratings = fetch_benzinga_ratings(
-                    benzinga_key, date_from=_week_ago, date_to=_today_str, page_size=30,
-                )
-                if _raw_ratings:
-                    bz_ratings = [
-                        {
-                            "ticker": r.get("ticker", ""),
-                            "analyst": r.get("analyst", ""),
-                            "rating_current": r.get("rating_current", ""),
-                            "rating_prior": r.get("rating_prior", ""),
-                            "action": r.get("action_company", "") or r.get("action_pt", ""),
-                            "pt_current": r.get("pt_current", ""),
-                            "pt_prior": r.get("pt_prior", ""),
-                            "date": r.get("date", ""),
-                        }
-                        for r in _raw_ratings if r.get("ticker")
-                    ][:20]
-                    if bz_ratings:
-                        cache_updates["_cached_bz_ratings"] = bz_ratings
-            except Exception as exc:
-                logger.debug("FMP AI worker: Benzinga ratings failed: %s", exc)
-        if not bz_ratings:
-            bz_ratings = cached.get("_cached_bz_ratings")
-
-        # --- Benzinga earnings ---
-        bz_earnings: list[dict[str, Any]] | None = None
-        if poller_available and benzinga_key:
-            try:
-                _today_str = datetime.now(_ET).date().isoformat()
-                _week_ahead = (datetime.now(_ET).date() + timedelta(days=7)).isoformat()
-                _week_ago = (datetime.now(_ET).date() - timedelta(days=3)).isoformat()
-                _raw_earn = fetch_benzinga_earnings(
-                    benzinga_key, date_from=_week_ago, date_to=_week_ahead, page_size=30,
-                )
-                if _raw_earn:
-                    bz_earnings = [
-                        {
-                            "ticker": e.get("ticker", ""),
-                            "name": e.get("name", ""),
-                            "date": e.get("date", ""),
-                            "date_confirmed": e.get("date_confirmed", ""),
-                            "time": e.get("time", ""),
-                            "eps_estimate": e.get("eps_estimate"),
-                            "eps_actual": e.get("eps_actual"),
-                            "revenue_estimate": e.get("revenue_estimate"),
-                            "revenue_actual": e.get("revenue_actual"),
-                            "eps_surprise": e.get("eps_surprise"),
-                        }
-                        for e in _raw_earn if e.get("ticker")
-                    ][:20]
-                    if bz_earnings:
-                        cache_updates["_cached_bz_earnings"] = bz_earnings
-            except Exception as exc:
-                logger.debug("FMP AI worker: Benzinga earnings failed: %s", exc)
-        if not bz_earnings:
-            bz_earnings = cached.get("_cached_bz_earnings")
-
         # --- Insider trades ---
         insider_trades: list[dict[str, Any]] | None = None
         if fmp_key:
@@ -402,7 +337,7 @@ def _analysis_worker_inner(
         # --- Enrichment layer count ---
         _n_layers = sum(1 for x in [
             fmp_data, technicals, econ_cal, sector_perf,
-            social_sent, forecasts_ctx, bz_ratings, bz_earnings,
+            social_sent, forecasts_ctx,
             insider_trades, congress_trades, macro,
         ] if x)
 
@@ -416,8 +351,6 @@ def _analysis_worker_inner(
             sector_performance=sector_perf,
             social_sentiment=social_sent,
             analyst_forecasts=forecasts_ctx,
-            analyst_ratings=bz_ratings,
-            earnings_calendar=bz_earnings,
             insider_trades=insider_trades,
             congressional_trades=congress_trades,
             max_articles=40,
@@ -648,7 +581,7 @@ def render(feed: list[dict[str, Any]], *, current_session: str) -> None:
         _cache_keys = [
             "_cached_macro", "_cached_fmp_data", "_cached_fmp_technicals",
             "_cached_econ_cal", "_cached_sector_perf", "_cached_social_sent",
-            "_cached_forecasts", "_cached_bz_ratings", "_cached_bz_earnings",
+            "_cached_forecasts",
             "_cached_insider_trades", "_cached_congress_trades",
         ]
         _cached_snapshot = {k: st.session_state.get(k) for k in _cache_keys}

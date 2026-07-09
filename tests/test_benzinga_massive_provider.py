@@ -122,14 +122,69 @@ def test_normalize_direct_shape_unchanged() -> None:
 
 # ── probes ───────────────────────────────────────────────────────────────────
 
-def test_direct_only_probes_skip_in_massive_mode(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_quotes_movers_probes_hit_massive_snapshots(monkeypatch: pytest.MonkeyPatch) -> None:
+    """#3325: in massive mode the quotes/movers code path IS the Massive
+    snapshot — the probes must probe that (not SKIP, not the direct API)."""
+    import httpx
+
     import scripts.probe_providers as pp
 
     monkeypatch.setenv("BENZINGA_API_KEY", "k")
     monkeypatch.setenv("BENZINGA_PROVIDER", "massive")
+
+    calls: list[str] = []
+
+    class _Resp:
+        status_code = 200
+        text = ""
+
+        def json(self) -> dict:
+            return {"tickers": [{"ticker": "AAPL"}, {"ticker": "MSFT"}]}
+
+    def fake_get(url, **kwargs):
+        calls.append(url)
+        return _Resp()
+
+    monkeypatch.setattr(httpx, "get", fake_get)
+
+    status, msg = pp.probe_benzinga_quotes()
+    assert status == "OK" and "massive snapshot" in msg
+    status, msg = pp.probe_benzinga_movers()
+    assert status == "OK" and "massive" in msg
+    assert calls == [
+        "https://api.massive.com/v2/snapshot/locale/us/markets/stocks/tickers",
+        "https://api.massive.com/v2/snapshot/locale/us/markets/stocks/gainers",
+    ]
+
+
+def test_quotes_probe_warns_when_snapshot_not_entitled(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Without the Stocks plan the snapshot 403s — probe reports WARN (degraded
+    route), never a false OK and never a FAIL page."""
+    import httpx
+
+    import scripts.probe_providers as pp
+
+    monkeypatch.setenv("BENZINGA_API_KEY", "k")
+    monkeypatch.setenv("BENZINGA_PROVIDER", "massive")
+
+    class _Resp403:
+        status_code = 403
+        text = "NOT_AUTHORIZED"
+
+        def json(self) -> dict:  # pragma: no cover - not reached on 403
+            return {}
+
+    monkeypatch.setattr(httpx, "get", lambda url, **kw: _Resp403())
     for fn in (pp.probe_benzinga_quotes, pp.probe_benzinga_movers):
         status, msg = fn()
-        assert status == "SKIP" and "massive" in msg
+        assert status == "WARN" and "403" in msg
+
+
+def test_unrouted_direct_surfaces_still_skip_in_massive_mode(monkeypatch: pytest.MonkeyPatch) -> None:
+    import scripts.probe_providers as pp
+
+    monkeypatch.setenv("BENZINGA_API_KEY", "k")
+    monkeypatch.setenv("BENZINGA_PROVIDER", "massive")
     status, msg = pp._bz_get("/api/v2/anything")
     assert status == "SKIP" and "massive" in msg
 
