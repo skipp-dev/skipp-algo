@@ -48,6 +48,21 @@ _ET = _ZoneInfo("America/New_York")
 
 OUTCOMES_DIR = Path("artifacts/open_prep/outcomes")
 
+
+def _outcomes_dir() -> Path:
+    """Effective outcomes dir, resolved at call time (not import).
+
+    Local ``run_open_prep`` runs set ``OPEN_PREP_OUTCOMES_DIR`` (a gitignored
+    shadow dir) so they stop writing the CI-committed canonical
+    ``artifacts/open_prep/outcomes/``: that dir is UN-ignored in .gitignore and
+    committed daily by CI, so a local write leaves an untracked ``outcomes_<date>.json``
+    that collides with the incoming CI commit on the next ``git pull``. CI leaves
+    the var unset and keeps the canonical dir. Resolved at call time because
+    run_open_prep loads ``.env`` only after importing this module."""
+    override = os.environ.get("OPEN_PREP_OUTCOMES_DIR", "").strip()
+    return Path(override) if override else OUTCOMES_DIR
+
+
 # Bucket edges
 GAP_BUCKETS = [
     ("tiny", 0.0, 1.0),
@@ -152,8 +167,9 @@ def store_daily_outcomes(
             "pnl_30m_pct": 1.2,
         }
     """
+    outcomes_dir = _outcomes_dir()
     guard_against_canonical_repo_write_under_pytest(
-        OUTCOMES_DIR,
+        outcomes_dir,
         canonical_relative_paths=("artifacts/open_prep/outcomes",),
         caller="store_daily_outcomes",
     )
@@ -163,10 +179,10 @@ def store_daily_outcomes(
         for record in outcomes:
             if isinstance(record, dict):
                 record.setdefault("universe_source", universe_source)
-    OUTCOMES_DIR.mkdir(parents=True, exist_ok=True)
-    path = OUTCOMES_DIR / f"outcomes_{run_date.isoformat()}.json"
+    outcomes_dir.mkdir(parents=True, exist_ok=True)
+    path = outcomes_dir / f"outcomes_{run_date.isoformat()}.json"
     # Atomic write: tmp file + os.replace to avoid half-written files on crash.
-    fd, tmp_path = tempfile.mkstemp(dir=OUTCOMES_DIR, suffix=".tmp")
+    fd, tmp_path = tempfile.mkstemp(dir=outcomes_dir, suffix=".tmp")
     try:
         with os.fdopen(fd, "w", encoding="utf-8") as fh:
             json.dump(outcomes, fh, indent=2, default=str, allow_nan=False)
@@ -189,7 +205,7 @@ def store_daily_outcomes(
     except (ValueError, TypeError):
         max_days = 90
     try:
-        all_files = sorted(OUTCOMES_DIR.glob("outcomes_*.json"))
+        all_files = sorted(outcomes_dir.glob("outcomes_*.json"))
         if len(all_files) > max_days:
             for stale in all_files[: len(all_files) - max_days]:
                 stale.unlink(missing_ok=True)
@@ -202,9 +218,10 @@ def store_daily_outcomes(
 
 def _load_outcomes_range(lookback_days: int = 20) -> list[dict[str, Any]]:
     """Load outcome records from the last N days of stored files."""
-    if not OUTCOMES_DIR.exists():
+    outcomes_dir = _outcomes_dir()
+    if not outcomes_dir.exists():
         return []
-    files = sorted(OUTCOMES_DIR.glob("outcomes_*.json"), reverse=True)
+    files = sorted(outcomes_dir.glob("outcomes_*.json"), reverse=True)
     records: list[dict[str, Any]] = []
     loaded_dates: set[date] = set()
     for path in files:

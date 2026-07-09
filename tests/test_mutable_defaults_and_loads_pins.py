@@ -114,7 +114,7 @@ _FROZEN_JSON_LOAD_SITES: frozenset[tuple[str, int]] = frozenset(
         # 2026-06-11 (pytest write-guard): import + guard call in
         # store_daily_outcomes shifted 185→199.
         # 2026-07-03 (WP-3 sample_dates helper insertion): +1 -> 200.
-        ("open_prep/outcomes.py", 216),  # 200→216 (2026-07-09): universe_source provenance stamp above
+        ("open_prep/outcomes.py", 233),  # 216→233 (2026-07-09): _outcomes_dir() helper + local vars above
         # 2026-06-25: AsyncNewsstackPoller telemetry additions shifted
         # 1707 -> 1788 and 2852 -> 2933.
         # 2026-06-28 (semantic monitoring): shifted +64/+80 lines by readiness metrics.
