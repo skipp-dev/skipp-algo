@@ -592,6 +592,8 @@ jobs:
         env:
           FMP_API_KEY: ${{ secrets.FMP_API_KEY }}
           BENZINGA_API_KEY: ${{ secrets.BENZINGA_API_KEY }}
+          # Transport-Flip (Massive-Reseller-Key) — repo variable, default direct.
+          BENZINGA_PROVIDER: ${{ vars.BENZINGA_PROVIDER || 'direct' }}
           NEWSAPI_KEY: ${{ secrets.NEWSAPI_KEY }}
         run: |
           "$SMC_PYTHON_BIN" scripts/generate_smc_micro_base_from_databento.py \

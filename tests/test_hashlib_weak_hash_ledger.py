@@ -67,8 +67,9 @@ _FROZEN_SITES: dict[str, dict[str, frozenset[int]]] = {
     # 2026-06-10 (#2670 W9): timestamp_substitutions disclosure shifted +5.
     "databento_volatility_screener.py": {"sha1": frozenset({400, 482, 698, 716})},
     "newsstack_fmp/normalize.py": {
-        "md5": frozenset({145, 268}),
-        "sha1": frozenset({349, 435, 473, 517}),
+        # 2026-07-09: +1/+9 shift — html-unescape import + Massive-shape chains.
+        "md5": frozenset({146, 277}),
+        "sha1": frozenset({358, 444, 482, 526}),
     },
     "newsstack_fmp/scoring.py": {"sha1": frozenset({123})},
     "newsstack_fmp/shared_fetch.py": {

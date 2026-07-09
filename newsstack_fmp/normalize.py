@@ -22,6 +22,7 @@ import hashlib
 import logging
 import time
 from datetime import UTC
+from html import unescape as _html_unescape
 from typing import Any
 from zoneinfo import ZoneInfo as _ZoneInfo
 
@@ -194,16 +195,24 @@ def normalize_benzinga_quantified(it: dict[str, Any]) -> NewsItem:
 
 
 def normalize_benzinga_rest(it: dict[str, Any]) -> NewsItem:
-    """Normalise one Benzinga REST /api/v2/news item."""
-    item_id = str(it.get("id") or it.get("uuid") or "").strip()
-    headline = str(it.get("title") or it.get("headline") or "").strip()
-    snippet = str(it.get("teaser") or it.get("summary") or it.get("body") or "").strip()
+    """Normalise one Benzinga REST news item.
+
+    Handles BOTH transports (see ingest_benzinga.benzinga_provider): the
+    direct /api/v2/news shape (id/created/updated/teaser/stocks) and the
+    Massive /benzinga/v2/news shape (benzinga_id/published/last_updated/
+    tickers, NO teaser/body — snippet stays empty, scoring is headline-based).
+    """
+    item_id = str(it.get("id") or it.get("uuid") or it.get("benzinga_id") or "").strip()
+    # Massive titles arrive HTML-escaped ("S&amp;P 500") — unescape so keyword
+    # scoring matches; a no-op for already-clean direct-API titles.
+    headline = _html_unescape(str(it.get("title") or it.get("headline") or "")).strip()
+    snippet = _html_unescape(str(it.get("teaser") or it.get("summary") or it.get("body") or "")).strip()
     url = it.get("url") or it.get("link") or None
     source = str(it.get("source") or it.get("author") or "").strip()
     tickers = _extract_tickers(it)
 
     published = str(it.get("created") or it.get("published") or "").strip()
-    updated = str(it.get("updated") or published).strip()
+    updated = str(it.get("updated") or it.get("last_updated") or published).strip()
     pts = _to_epoch(published, naive_tz=_ET)
     uts = _to_epoch(updated, naive_tz=_ET)
 

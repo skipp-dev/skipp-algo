@@ -119,9 +119,11 @@ def test_valid_snapshot_is_normalized(monkeypatch, tmp_path):
             "generated_at_unix": 1_783_000_000.0,
             "ledger": {"newest_date": "2026-06-11", "plane": "15m", "rows": 4, "candidate_pass": 2},
             "audit_branch": {"last_commit_date": "2026-07-06"},
-            "fills": {"filled_cumulative": 3, "closed_cumulative": 1, "target": 20,
+            "fills": {"filled_cumulative": 3, "closed_cumulative": 1,
+                      "submit_failed_cumulative": 2, "target": 20,
                       "newest_incubation_date": "2026-07-06"},
             "wsh": {"newest_date": "2026-06-23", "status": "degraded:no-events"},
+            "submitter": {"submit_code_behind_commits": 5, "known": 1},
         },
     )
     monkeypatch.setenv("EVIDENCE_FRESHNESS_SNAPSHOT_PATH", str(p))
@@ -131,6 +133,18 @@ def test_valid_snapshot_is_normalized(monkeypatch, tmp_path):
     assert snap["ledger"]["candidate_pass"] == 2.0
     assert snap["audit_branch"]["last_commit_date"] == "2026-07-06"
     assert snap["fills"]["closed_cumulative"] == 1.0
+    assert snap["fills"]["submit_failed_cumulative"] == 2.0
+    assert snap["submitter"] == {"submit_code_behind_commits": 5.0, "known": 1.0}
+
+
+def test_submitter_section_defaults_when_absent(monkeypatch, tmp_path):
+    """A snapshot with no submitter section (old producer) normalizes to
+    known=0 so the stale-checkout alert stays silent, not falsely green."""
+    p = _write(tmp_path, {"generated_at_unix": 1_783_000_000.0})
+    monkeypatch.setenv("EVIDENCE_FRESHNESS_SNAPSHOT_PATH", str(p))
+    snap = bridge.snapshot()
+    assert snap["submitter"] == {"submit_code_behind_commits": 0.0, "known": 0.0}
+    assert snap["fills"]["submit_failed_cumulative"] == 0.0
 
 
 def test_samples_section_is_normalized(monkeypatch, tmp_path):

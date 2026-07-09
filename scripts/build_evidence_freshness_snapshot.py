@@ -127,16 +127,26 @@ def summarize_fills(records: list[dict[str, Any]]) -> dict[str, Any]:
       positive number by the reconcile stage).
     * closed  — the trade reached a terminal action (``_CLOSED_ACTIONS``); this
       is the count that feeds the ADR-0023 §5 gate.
+    * submit_failed — the paper submitter placed a bracket but no leg rested
+      (all cancelled/rejected, e.g. IB error-110). Distinguishes "submits are
+      dying" from "just hasn't filled yet"; powers the submit-failed alert.
     """
     filled = 0
     closed = 0
+    submit_failed = 0
     for record in records:
         fill_price = record.get("fill_price")
         if isinstance(fill_price, (int, float)) and not isinstance(fill_price, bool) and fill_price > 0:
             filled += 1
         if record.get("action") in _CLOSED_ACTIONS:
             closed += 1
-    return {"filled_cumulative": filled, "closed_cumulative": closed}
+        if record.get("action") == "submit_failed":
+            submit_failed += 1
+    return {
+        "filled_cumulative": filled,
+        "closed_cumulative": closed,
+        "submit_failed_cumulative": submit_failed,
+    }
 
 
 def build_snapshot(
@@ -148,8 +158,16 @@ def build_snapshot(
     wsh_date: str,
     wsh_status: str,
     generated_at_unix: float,
+    submit_code_behind_commits: int | None = None,
 ) -> dict[str, Any]:
-    """Assemble the snapshot dict from already-loaded inputs (pure)."""
+    """Assemble the snapshot dict from already-loaded inputs (pure).
+
+    ``submit_code_behind_commits`` is how many commits touching the paper-submit
+    order path the C13 Mac's checkout is behind origin/main (published by the
+    submit cron; see ``automation/launchd/run-c13-phase-a.sh``). ``None`` when
+    the Mac never published a reading — surfaced as ``known=0`` so the
+    stale-checkout alert stays silent rather than falsely green (2026-07-09).
+    """
     ledger = summarize_ledger(ledger_rows)
     fills = summarize_fills(incubation_records)
     fills["target"] = FILLS_TARGET
@@ -183,6 +201,10 @@ def build_snapshot(
         "audit_branch": {"last_commit_date": audit_commit_date},
         "fills": fills,
         "wsh": {"newest_date": wsh_date, "status": wsh_status},
+        "submitter": {
+            "submit_code_behind_commits": int(submit_code_behind_commits or 0),
+            "known": 1 if submit_code_behind_commits is not None else 0,
+        },
     }
 
 
@@ -296,6 +318,19 @@ def main(argv: list[str] | None = None) -> int:
         except json.JSONDecodeError:
             wsh_status = ""
 
+    # Deploy-hygiene: how far the C13 Mac's checkout is behind origin/main on the
+    # paper-submit order path, published by the submit cron (run-c13-phase-a.sh).
+    # None when never published (surfaced downstream as known=0, alert silent).
+    submit_code_behind_commits: int | None = None
+    freshness_raw = _read_audit_file(args.audit_branch, "cache/live/checkout_freshness.json")
+    if freshness_raw:
+        try:
+            _behind = json.loads(freshness_raw).get("submit_code_behind_commits")
+        except json.JSONDecodeError:
+            _behind = None
+        if isinstance(_behind, int) and not isinstance(_behind, bool) and _behind >= 0:
+            submit_code_behind_commits = _behind
+
     snapshot = build_snapshot(
         ledger_rows=ledger_rows,
         incubation_records=incubation_records,
@@ -304,6 +339,7 @@ def main(argv: list[str] | None = None) -> int:
         wsh_date=wsh_date,
         wsh_status=wsh_status,
         generated_at_unix=datetime.now(UTC).timestamp(),
+        submit_code_behind_commits=submit_code_behind_commits,
     )
     atomic_write_json(snapshot, Path(args.output), indent=2, sort_keys=True)
     print(

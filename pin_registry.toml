@@ -98,7 +98,9 @@
 "services/live_overlay_daemon/uptimerobot_bridge.py" = [91]
 # 2026-07-06 (feat/evidence-freshness-monitoring): evidence-freshness snapshot
 # fetcher, https-only with explicit timeout= (mirrors the workflow bridge).
-"services/live_overlay_daemon/evidence_freshness_bridge.py" = [137]
+# 2026-07-09 (fix/c8-deploy-robust): submit_failed + submitter fields added to
+# _empty/_coerce shifted the urlopen call +8: 137->145.
+"services/live_overlay_daemon/evidence_freshness_bridge.py" = [145]
 # 2026-07-07 (feat/provider-usage): provider data-volume snapshot fetcher,
 # https-only with explicit timeout= (mirrors the evidence-freshness bridge).
 "services/live_overlay_daemon/provider_usage_bridge.py" = [96]
@@ -496,7 +498,7 @@ frozen_major = "v7"
 "newsstack_fmp/ingest_benzinga_calendar.py" = 1
 "newsstack_fmp/ingest_benzinga_financial.py" = 1
 "newsstack_fmp/ingest_unusual_whales.py" = 13
-"newsstack_fmp/normalize.py" = 47
+"newsstack_fmp/normalize.py" = 48  # 47→48 (2026-07-09): Massive-shape chain (benzinga_id/last_updated) in normalize_benzinga_rest
 "newsstack_fmp/opra_uoa.py" = 6
 "newsstack_fmp/scoring.py" = 1
 "open_prep/alerts.py" = 2

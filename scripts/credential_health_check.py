@@ -566,19 +566,26 @@ def probe_fmp(key: str, opener: Any = None) -> ProbeResult:
 
 def probe_benzinga(key: str, opener: Any = None) -> ProbeResult:
     """Probe a Benzinga News API key (load-bearing since 2026-07-08:
-    open_prep Core News lane + hourly live-news cron both depend on it,
-    and it is a trial key of unconfirmed tier — silent expiry would only
-    degrade both lanes with warnings).
+    open_prep Core News lane + hourly live-news cron both depend on it).
 
-    Uses ``/api/v2/news`` with ``pageSize=1`` — the cheapest authenticated
-    call. Auth is via the ``token`` query parameter.
+    Transport follows ``BENZINGA_PROVIDER`` (mirrors
+    ``newsstack_fmp.ingest_benzinga.benzinga_provider``): ``massive`` probes
+    the Massive reseller route with ``apiKey=`` (the paid key is a Massive
+    key — api.benzinga.com answers it 401 "anonymous", verified 2026-07-09);
+    ``direct`` keeps the legacy ``token=`` call. Cheapest authenticated call
+    on either route (one news item).
     """
     safe_key = key.strip() if key else ""
+    provider = os.getenv("BENZINGA_PROVIDER", "direct").strip().lower()
+    if provider == "massive":
+        url = f"https://api.massive.com/benzinga/v2/news?apiKey={safe_key}&limit=1"
+    else:
+        url = f"https://api.benzinga.com/api/v2/news?token={safe_key}&pageSize=1&displayOutput=abstract"
     return _probe_http_vendor(
         name="benzinga_key",
-        label="Benzinga News API",
+        label="Benzinga News API" + (" (via Massive)" if provider == "massive" else ""),
         key=key,
-        url=f"https://api.benzinga.com/api/v2/news?token={safe_key}&pageSize=1&displayOutput=abstract",
+        url=url,
         headers={"Accept": "application/json"},
         opener=opener,
     )

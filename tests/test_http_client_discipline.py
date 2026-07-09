@@ -175,7 +175,9 @@ _FROZEN_URLOPEN_SITES: frozenset[tuple[str, int]] = frozenset(
         ("services/live_overlay_daemon/github_workflow_bridge.py", 126),
         ("services/live_overlay_daemon/uptimerobot_bridge.py", 91),
         # 2026-07-06: evidence-freshness snapshot fetcher, https-only + timeout=.
-        ("services/live_overlay_daemon/evidence_freshness_bridge.py", 137),
+        # 2026-07-09 (fix/c8-deploy-robust): submit_failed + submitter fields in
+        # _empty/_coerce shifted this +8: 137->145.
+        ("services/live_overlay_daemon/evidence_freshness_bridge.py", 145),
         ("services/live_overlay_daemon/provider_usage_bridge.py", 96),
         # 2026-06-23: signals-producer consumer hook — _fetch_json_url pulls
         # the open-prep snapshot from OPEN_PREP_SNAPSHOT_URL with explicit
