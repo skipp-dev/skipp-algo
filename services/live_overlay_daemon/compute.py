@@ -27,6 +27,10 @@ Field definitions (matching spec/smc_live_overlay.schema.json):
   market_event_blocked — bool
   symbol_event_blocked — bool
   event_provider_status — "ok" | "stale" | "unavailable"
+  signal_level         — "A0" | "A1" | "A2" | null (active realtime signal)
+  signal_direction     — e.g. "LONG" | "SHORT" | "B_UP" | "B_DOWN" | null
+  trade_entry/stop/target/r — ATR display bracket from the signals producer
+                         (open_prep/trade_context.py; same numbers as Slack)
   asof_ts              — Unix-Epoch seconds (int) of computation
   stale                — True if overlay_age > max_stale_secs
 """
@@ -1284,6 +1288,70 @@ def _event_fields_for(_symbol: str) -> dict[str, Any]:
     }
 
 
+# Strength ranking for picking the strongest active signal per symbol
+# (mirrors the producer's ladder: A0 strongest, A2 weakest).
+_SIGNAL_LEVEL_RANK = {"A0": 3, "A1": 2, "A2": 1}
+
+_NO_SIGNAL_FIELDS: dict[str, Any] = {
+    "signal_level": None,
+    "signal_direction": None,
+    "trade_entry": None,
+    "trade_stop": None,
+    "trade_target": None,
+    "trade_r": None,
+}
+
+
+def _get_signal_fields(symbol: str) -> dict[str, Any]:
+    """Realtime signal + ATR trade context for ``symbol`` from the signals snapshot.
+
+    Picks the strongest (then freshest) active A0/A1/A2 signal for the symbol
+    and passes its trade_* fields through unchanged — they are computed ONCE in
+    the producer (open_prep/trade_context.py), so the Pine overlay shows the
+    same numbers as the Slack push. All-null when the symbol has no active
+    signal, the snapshot is unavailable, or the producer predates the fields.
+    """
+    snap = _load_signals_snapshot()
+    rows = snap.get("signals") if isinstance(snap, dict) else None
+    if not isinstance(rows, list):
+        return dict(_NO_SIGNAL_FIELDS)
+    sym = symbol.upper().strip()
+    best: dict[str, Any] | None = None
+    best_key = (-1, float("-inf"))
+    for row in rows:
+        if not isinstance(row, dict) or str(row.get("symbol", "")).upper() != sym:
+            continue
+        rank = _SIGNAL_LEVEL_RANK.get(str(row.get("level", "")), 0)
+        if rank == 0:
+            continue
+        try:
+            fired = float(row.get("fired_epoch") or 0.0)
+        except (TypeError, ValueError):
+            fired = 0.0
+        if (rank, fired) > best_key:
+            best_key = (rank, fired)
+            best = row
+
+    if best is None:
+        return dict(_NO_SIGNAL_FIELDS)
+
+    def _pos_float(value: Any) -> float | None:
+        try:
+            number = float(value)
+        except (TypeError, ValueError):
+            return None
+        return number if number > 0.0 else None
+
+    return {
+        "signal_level": str(best.get("level")),
+        "signal_direction": str(best.get("direction") or "") or None,
+        "trade_entry": _pos_float(best.get("trade_entry")),
+        "trade_stop": _pos_float(best.get("trade_stop")),
+        "trade_target": _pos_float(best.get("trade_target")),
+        "trade_r": _pos_float(best.get("trade_r")),
+    }
+
+
 # ---------------------------------------------------------------------------
 # Full payload builder
 # ---------------------------------------------------------------------------
@@ -1313,6 +1381,7 @@ def build_payload(
     ats = compute_ats_fields(aggregated)
     vix = cache.get_vix()
     events = _event_fields_for(symbol)
+    signal_fields = _get_signal_fields(symbol)
 
     age = cache.overlay_age_secs()
     stale = (age > max_stale_secs) if age != float("inf") else True
@@ -1338,6 +1407,9 @@ def build_payload(
         "global_heat": global_fields.get("global_heat"),
         # Events
         **events,
+        # Realtime signal + ATR trade context (tf-independent; same numbers
+        # as the Slack push — see _get_signal_fields)
+        **signal_fields,
     }
 
 
