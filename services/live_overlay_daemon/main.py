@@ -388,6 +388,12 @@ def smc_live(
                     "market_event_blocked": False,
                     "symbol_event_blocked": False,
                     "event_provider_status": "unavailable",
+                    "signal_level": None,
+                    "signal_direction": None,
+                    "trade_entry": None,
+                    "trade_stop": None,
+                    "trade_target": None,
+                    "trade_r": None,
                 }
             )
 
