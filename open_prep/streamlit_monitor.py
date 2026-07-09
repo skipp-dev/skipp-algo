@@ -630,12 +630,12 @@ def _cached_uw_tide_op(api_key: str) -> list[dict[str, Any]]:
 
 
 @st.cache_data(ttl=120, show_spinner=False)
-def _cached_bz_power_gaps_op(api_key: str) -> list[dict[str, Any]]:
-    """Cache power gap classifications for 2 minutes."""
+def _cached_bz_power_gaps_op(api_key: str, fmp_api_key: str) -> list[dict[str, Any]]:
+    """Cache power gap classifications for 2 minutes (movers via api_key; earnings via FMP)."""
     if _compute_power_gaps is None:
         return []
     try:
-        return _compute_power_gaps(api_key) or []
+        return _compute_power_gaps(api_key, fmp_api_key) or []
     except Exception:
         logger.warning("_cached_bz_power_gaps_op failed", exc_info=True)
         return []
@@ -2403,7 +2403,7 @@ def main() -> None:
                 )
                 st.divider()
 
-                pg_data_op = _cached_bz_power_gaps_op(bz_key)
+                pg_data_op = _cached_bz_power_gaps_op(bz_key, os.environ.get("FMP_API_KEY", ""))
 
                 if pg_data_op:
                     df_pgop = pd.DataFrame(pg_data_op)
