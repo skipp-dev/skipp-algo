@@ -170,6 +170,26 @@ def _fmt_signal(s: Any) -> str:
     )
 
 
+def _fmt_trade_context(s: Any) -> str:
+    """Indented trade-context line (ATR bracket from open_prep/trade_context.py),
+    or "" when the signal carries no usable context — the alert line stays as-is.
+    Rendered as its own line so the level line above never gets pushed off-screen."""
+    entry = getattr(s, "trade_entry", None)
+    stop = getattr(s, "trade_stop", None)
+    target = getattr(s, "trade_target", None)
+    r_mult = getattr(s, "trade_r", None)
+    if entry is None or stop is None or target is None or not entry:
+        return ""
+    stop_pct = (stop - entry) / entry * 100.0
+    target_pct = (target - entry) / entry * 100.0
+    bullish = str(getattr(s, "direction", "")).upper() in ("LONG", "B_UP", "UP")
+    entry_op = "≤" if bullish else "≥"
+    return (
+        f"\n   ↳ entry {entry_op}{entry:.2f} · stop {stop:.2f} ({stop_pct:+.1f}%) · "
+        f"target {target:.2f} ({target_pct:+.1f}%) · R {_safe_float(r_mult, 0.0):.1f}"
+    )
+
+
 def _build_request(mode: str, msg: str) -> tuple[str, dict[str, Any]]:
     """Return ``(url, httpx_kwargs)`` for the configured destination.
 
@@ -327,7 +347,7 @@ def notify_fresh_signals(signals: list[Any], *, now: float | None = None) -> lis
         return []
 
     header = f"📈 {len(fresh)} fresh breakout signal{'s' if len(fresh) != 1 else ''}"
-    msg = header + "\n" + "\n".join(_fmt_signal(s) for s in fresh)
+    msg = header + "\n" + "\n".join(_fmt_signal(s) + _fmt_trade_context(s) for s in fresh)
     try:
         delivered = _dispatch(msg, marks, ts)
     except Exception:  # dispatch is best-effort — never break the poll loop
