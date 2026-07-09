@@ -236,9 +236,11 @@ def _failed_snapshot(
 def snapshot() -> dict[str, Any]:
     """Return a cached Railway metrics snapshot; never raises.
 
-    When the bridge is disabled or misconfigured, returns an ``enabled=False``
-    payload. On transient fetch errors, returns the last good cache if present,
-    otherwise an ``ok=False`` payload with the error message.
+    When the bridge is disabled, returns an ``enabled=False`` payload; when
+    enabled but missing required config, returns ``enabled=True, configured=False``
+    (the misconfigured-vs-disabled distinction the metrics deliberately expose).
+    On transient fetch errors, returns the last good cache if present, otherwise
+    an ``ok=False`` payload carrying a stable error *code* (not the raw message).
     """
     global _CACHE, _CACHE_EXPIRES_AT
 
