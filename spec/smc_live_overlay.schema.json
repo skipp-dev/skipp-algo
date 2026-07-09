@@ -4,7 +4,13 @@
   "title": "SMC live-overlay payload (smc-live-overlay/1)",
   "description": "Flat, Pine-friendly live-overlay payload served at GET /smc_live. It augments the 2x/day baked mp.* baseline that SMC_TV_Bridge.pine already carries. Every data field is optional and nullable: an absent or null field means the overlay has nothing fresher to say and Pine falls back to the baked mp.* value. The overlay may only add or tighten signals, never loosen them; a stale or unreachable endpoint degrades silently to the baked baseline.",
   "type": "object",
-  "required": ["schema", "symbol", "tf", "asof_ts", "stale"],
+  "required": [
+    "schema",
+    "symbol",
+    "tf",
+    "asof_ts",
+    "stale"
+  ],
   "additionalProperties": false,
   "properties": {
     "schema": {
@@ -19,7 +25,14 @@
     "tf": {
       "description": "Chart timeframe the overlay was computed for. Indicators are aggregated from 1-minute bars to this timeframe.",
       "type": "string",
-      "enum": ["5m", "10m", "15m", "30m", "1H", "4H"]
+      "enum": [
+        "5m",
+        "10m",
+        "15m",
+        "30m",
+        "1H",
+        "4H"
+      ]
     },
     "asof_ts": {
       "description": "Unix epoch seconds at which the overlay was produced. Pine compares this against OVERLAY_MAX_AGE_SEC to decide freshness.",
@@ -32,79 +45,191 @@
     },
     "news_strength": {
       "description": "B1. On-demand news intensity in [0,1] (live snapshot, ~5min fresh). Null when no fresh reading is available.",
-      "type": ["number", "null"],
+      "type": [
+        "number",
+        "null"
+      ],
       "minimum": 0,
       "maximum": 1
     },
     "news_bias": {
       "description": "B1. Directional news bias from the live snapshot. Null when undetermined.",
-      "type": ["string", "null"],
-      "enum": ["BULLISH", "BEARISH", "NEUTRAL", null]
+      "type": [
+        "string",
+        "null"
+      ],
+      "enum": [
+        "BULLISH",
+        "BEARISH",
+        "NEUTRAL",
+        null
+      ]
     },
     "flow_rel_vol": {
       "description": "B1. Relative volume vs baseline (>=0). Null when not served fresh (then Pine uses baked mp.flow_rel_vol).",
-      "type": ["number", "null"],
+      "type": [
+        "number",
+        "null"
+      ],
       "minimum": 0
     },
     "squeeze_on": {
       "description": "B1. Volatility-squeeze flag derived from the live volume regime (1=on, 0=off). Null when not served fresh.",
-      "type": ["integer", "null"],
-      "enum": [0, 1, null]
+      "type": [
+        "integer",
+        "null"
+      ],
+      "enum": [
+        0,
+        1,
+        null
+      ]
     },
     "vix_level": {
       "description": "B2. Spot VIX level (>=0) from the dedicated market-wide ^VIX quote path. Absent (or null) when not served fresh (then Pine uses the baked mp.* VIX baseline).",
-      "type": ["number", "null"],
+      "type": [
+        "number",
+        "null"
+      ],
       "minimum": 0
     },
     "flow_delta_proxy_pct": {
       "description": "B2. Signed order-flow delta proxy in percent from the live microstructure read. Absent (or null) when not served fresh (then Pine uses baked mp.* delta-proxy).",
-      "type": ["number", "null"]
+      "type": [
+        "number",
+        "null"
+      ]
     },
     "ats_state": {
       "description": "B2. Average-trade-size regime label (e.g. SPIKE_UP/ELEVATED/NEUTRAL) from the live microstructure read. Absent (or null) when not served fresh (then Pine uses baked mp.* ats_state).",
-      "type": ["string", "null"]
+      "type": [
+        "string",
+        "null"
+      ]
     },
     "ats_zscore": {
       "description": "B2. Average-trade-size z-score vs the 20-day baseline from the live microstructure read. Absent (or null) when not served fresh (then Pine uses baked mp.* ats_zscore).",
-      "type": ["number", "null"]
+      "type": [
+        "number",
+        "null"
+      ]
     },
     "tone": {
       "description": "B2. Aggregate market-tone label from the live snapshot. Absent (or null) when not served fresh (then Pine uses the baked mp.* tone).",
-      "type": ["string", "null"]
+      "type": [
+        "string",
+        "null"
+      ]
     },
     "global_heat": {
       "description": "B2/C. Aggregate directional heat in [-1,1] (0.7*signed-tech + 0.3*signed-news) from the live snapshot, derived through the same layering as the baked mp.* GLOBAL_HEAT. Absent (or null) when not served fresh (then Pine uses the baked mp.* global_heat).",
-      "type": ["number", "null"],
+      "type": [
+        "number",
+        "null"
+      ],
       "minimum": -1,
       "maximum": 1
     },
     "event_window_state": {
       "description": "Event-risk. Macro/earnings event-window state for the symbol (CLEAR/PRE_EVENT/ACTIVE/COOLDOWN) from the event calendar. Absent (or null) when not served fresh (then Pine keeps the baked mp.* event posture).",
-      "type": ["string", "null"]
+      "type": [
+        "string",
+        "null"
+      ]
     },
     "event_risk_level": {
       "description": "Event-risk. Aggregate event-risk level for the symbol (NONE/LOW/ELEVATED/HIGH). Absent (or null) when not served fresh.",
-      "type": ["string", "null"]
+      "type": [
+        "string",
+        "null"
+      ]
     },
     "next_event_name": {
       "description": "Event-risk. Human-readable name of the next known risk event for the symbol (e.g. an earnings announcement). Absent (or null) when none is known or not served fresh.",
-      "type": ["string", "null"]
+      "type": [
+        "string",
+        "null"
+      ]
     },
     "next_event_time": {
       "description": "Event-risk. Time-of-day label of the next known risk event for the symbol (e.g. \"14:00\", exchange-local). Absent (or null) when none is known or not served fresh.",
-      "type": ["string", "null"]
+      "type": [
+        "string",
+        "null"
+      ]
     },
     "market_event_blocked": {
       "description": "Event-risk. True when a market-wide event window blocks new entries. Absent (or null) when not served fresh; the overlay may only assert a block, never lift the baked posture.",
-      "type": ["boolean", "null"]
+      "type": [
+        "boolean",
+        "null"
+      ]
     },
     "symbol_event_blocked": {
       "description": "Event-risk. True when a symbol-specific event window (e.g. earnings inside the guard window) blocks new entries. Absent (or null) when not served fresh; the overlay may only assert a block, never lift the baked posture.",
-      "type": ["boolean", "null"]
+      "type": [
+        "boolean",
+        "null"
+      ]
     },
     "event_provider_status": {
-      "description": "Event-risk. Health of the event-calendar/news provider (ok/no_data/calendar_missing/news_missing; until the Phase-2 event wiring lands the producer sends the placeholder 'unavailable' — see compute._event_fields_for). Absent (or null) when not served fresh.",
-      "type": ["string", "null"]
+      "description": "Event-risk. Health of the event-calendar/news provider (ok/no_data/calendar_missing/news_missing; until the Phase-2 event wiring lands the producer sends the placeholder 'unavailable' \u2014 see compute._event_fields_for). Absent (or null) when not served fresh.",
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "signal_level": {
+      "description": "RT. Active realtime breakout signal level for the symbol (A0=confirmed, A1=forming, A2=early warning). Null when no active signal.",
+      "type": [
+        "string",
+        "null"
+      ],
+      "enum": [
+        "A0",
+        "A1",
+        "A2",
+        null
+      ]
+    },
+    "signal_direction": {
+      "description": "RT. Direction of the active realtime signal (e.g. LONG/SHORT/B_UP/B_DOWN). Null when no active signal.",
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "trade_entry": {
+      "description": "RT. Trade-context entry reference (signal price) from open_prep/trade_context.py \u2014 display guidance (same numbers as the Slack push), NOT order placement. Null when no active signal or no usable ATR.",
+      "type": [
+        "number",
+        "null"
+      ],
+      "exclusiveMinimum": 0
+    },
+    "trade_stop": {
+      "description": "RT. Trade-context ATR-based stop level from open_prep/trade_context.py \u2014 display guidance (same numbers as the Slack push), NOT order placement. Null when no active signal or no usable ATR.",
+      "type": [
+        "number",
+        "null"
+      ],
+      "exclusiveMinimum": 0
+    },
+    "trade_target": {
+      "description": "RT. Trade-context ATR-based target level from open_prep/trade_context.py \u2014 display guidance (same numbers as the Slack push), NOT order placement. Null when no active signal or no usable ATR.",
+      "type": [
+        "number",
+        "null"
+      ],
+      "exclusiveMinimum": 0
+    },
+    "trade_r": {
+      "description": "RT. Trade-context reward:risk multiple of the bracket from open_prep/trade_context.py \u2014 display guidance (same numbers as the Slack push), NOT order placement. Null when no active signal or no usable ATR.",
+      "type": [
+        "number",
+        "null"
+      ],
+      "exclusiveMinimum": 0
     }
   }
 }
