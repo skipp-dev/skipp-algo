@@ -467,13 +467,30 @@ def probe_benzinga_news() -> tuple[str, str]:
 
 
 def probe_benzinga_quotes() -> tuple[str, str]:
-    """Benzinga /api/v1/quoteDelayed — quotes endpoint (matches code path)."""
+    """Quotes probe — matches the code path per transport (#3325): massive
+    mode probes the Massive stock snapshot (Stocks Starter, 15-min delayed),
+    direct mode probes Benzinga /api/v1/quoteDelayed."""
     import httpx
     key = os.getenv("BENZINGA_API_KEY", "")
     if not key:
         return ("SKIP", "BENZINGA_API_KEY missing")
     if _benzinga_transport() == "massive":
-        return ("SKIP", "provider=massive: Benzinga-direct-only endpoint (not part of the Massive news pack)")
+        r = httpx.get(
+            "https://api.massive.com/v2/snapshot/locale/us/markets/stocks/tickers",
+            params={"apiKey": key, "tickers": "AAPL,MSFT"},
+            headers={"Accept": "application/json"},
+            timeout=15.0,
+        )
+        if r.status_code == 403:
+            return ("WARN", "massive snapshot 403 — Stocks plan not entitled (quotes route degraded)")
+        if r.status_code != 200:
+            return ("FAIL", f"massive snapshot HTTP {r.status_code}: {r.text[:80]}")
+        data = r.json()
+        tickers = data.get("tickers") if isinstance(data, dict) else None
+        count = len(tickers) if isinstance(tickers, list) else 0
+        if count == 0:
+            return ("WARN", "massive snapshot returned 0 tickers")
+        return ("OK", f"massive snapshot quotes for {count} symbols (15-min delayed)")
     r = httpx.get(
         "https://api.benzinga.com/api/v1/quoteDelayed",
         params={"token": key, "symbols": "AAPL,MSFT"},
@@ -489,13 +506,30 @@ def probe_benzinga_quotes() -> tuple[str, str]:
 
 
 def probe_benzinga_movers() -> tuple[str, str]:
-    """Benzinga /api/v1/market/movers — movers endpoint (matches code path)."""
+    """Movers probe — matches the code path per transport (#3325): massive
+    mode probes the Massive gainers snapshot (Stocks Starter, 15-min delayed),
+    direct mode probes Benzinga /api/v1/market/movers."""
     import httpx
     key = os.getenv("BENZINGA_API_KEY", "")
     if not key:
         return ("SKIP", "BENZINGA_API_KEY missing")
     if _benzinga_transport() == "massive":
-        return ("SKIP", "provider=massive: Benzinga-direct-only endpoint (not part of the Massive news pack)")
+        r = httpx.get(
+            "https://api.massive.com/v2/snapshot/locale/us/markets/stocks/gainers",
+            params={"apiKey": key},
+            headers={"Accept": "application/json"},
+            timeout=15.0,
+        )
+        if r.status_code == 403:
+            return ("WARN", "massive snapshot 403 — Stocks plan not entitled (movers route degraded)")
+        if r.status_code != 200:
+            return ("FAIL", f"massive snapshot HTTP {r.status_code}: {r.text[:80]}")
+        data = r.json()
+        tickers = data.get("tickers") if isinstance(data, dict) else None
+        count = len(tickers) if isinstance(tickers, list) else 0
+        if count == 0:
+            return ("WARN", "massive gainers snapshot returned 0 rows")
+        return ("OK", f"massive gainers snapshot: {count} rows (15-min delayed)")
     r = httpx.get(
         "https://api.benzinga.com/api/v1/market/movers",
         params={"token": key, "screenerQuery": "marketcap_gt_300000000",
@@ -517,7 +551,10 @@ def _bz_get(path: str, extra: dict[str, Any] | None = None) -> tuple[str, str]:
     if not key:
         return ("SKIP", "BENZINGA_API_KEY missing")
     if _benzinga_transport() == "massive":
-        return ("SKIP", "provider=massive: Benzinga-direct-only endpoint (not part of the Massive news pack)")
+        # These surfaces have no wired Massive route: the massive key answers
+        # 401 at api.benzinga.com, and on Massive they exist only as separate
+        # (unsubscribed) Benzinga add-on packs or not at all — see #3325.
+        return ("SKIP", "provider=massive: no Massive route for this endpoint (unsubscribed add-on pack or direct-only)")
     params: dict[str, Any] = {"token": key}
     if extra:
         params.update(extra)
