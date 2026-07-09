@@ -247,13 +247,13 @@ codes = ["E402", "I001"]
 # sync-tradingview-pine-libraries.yml (2026-07-04): scheduled bi-weekly Pine
 # library sync (WP-3 pine bundle); maintenance workflow, orphan by design
 # with no PR-triggered test contract.
-# openprep-pine-panel-publish.yml (2026-07-04, plan B2): dispatch-only
-# TradingView publisher for the generated Open-Prep panel; no PR-triggered
-# test contract (mirrors the manual smc-overlay publish posture).
+# openprep-pine-panel-publish.yml left the orphan list 2026-07-09: the
+# setups-join step (data/phase-a-audit fetch + --setups-json) is now pinned
+# by tests/test_generate_openprep_pine_panel.py.
 # openprep-pine-panel-daily-trigger.yml (2026-07-04, post-first-publish):
 # workflow_run bridge that dispatches the publisher after successful daily
 # producer schedule runs on main; intentionally contract-light/orphan.
-allowed = ["github-mirror-sync.yml", "sync-tradingview-pine-libraries.yml", "openprep-pine-panel-publish.yml", "openprep-pine-panel-daily-trigger.yml"]
+allowed = ["github-mirror-sync.yml", "sync-tradingview-pine-libraries.yml", "openprep-pine-panel-daily-trigger.yml"]
 
 # ---------------------------------------------------------------------------
 # test_workflow_set_plus_e_inventory.py — workflows allowed to use

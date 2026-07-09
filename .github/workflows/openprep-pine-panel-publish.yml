@@ -90,7 +90,24 @@ jobs:
       - name: Regenerate panel from newest committed outcomes
         if: ${{ inputs.regenerate }}
         run: |
-          python scripts/generate_openprep_pine_panel.py
+          # Official C13 levels: the local audit-push publishes
+          # cache/live/setups_<DATE>.jsonl to data/phase-a-audit daily (17:30 ET).
+          # Fetch the file matching the newest committed outcomes date so the
+          # published panel carries the traded levels. Fail-soft on every step:
+          # no setups for the date (or a disjoint universe — the generator warns
+          # loudly about that) simply renders "–" in the levels column, as before.
+          git fetch --depth 1 origin data/phase-a-audit || true
+          latest_outcomes="$(ls artifacts/open_prep/outcomes/outcomes_*.json 2>/dev/null | sort | tail -1)"
+          panel_date="$(basename "${latest_outcomes:-}" .json | sed 's/^outcomes_//')"
+          setups_args=()
+          if [ -n "${panel_date}" ] && git cat-file -e "origin/data/phase-a-audit:cache/live/setups_${panel_date}.jsonl" 2>/dev/null; then
+            git show "origin/data/phase-a-audit:cache/live/setups_${panel_date}.jsonl" > /tmp/panel_setups.jsonl
+            setups_args=(--setups-json /tmp/panel_setups.jsonl)
+            echo "panel levels: joined setups_${panel_date}.jsonl from data/phase-a-audit"
+          else
+            echo "panel levels: no setups_${panel_date:-?}.jsonl on data/phase-a-audit — levels column renders '–'"
+          fi
+          python scripts/generate_openprep_pine_panel.py "${setups_args[@]}"
           # Surface whether the freshly-generated panel matched the committed artifact.
           git --no-pager diff --stat -- pine/generated/openprep_daily_panel.pine pine/generated/openprep_daily_panel.json || true
 

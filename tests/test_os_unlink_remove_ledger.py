@@ -116,7 +116,7 @@ OS_DELETE_LEDGER: set[tuple[str, int, str]] = {
     # 2026-07-05 (bug-hunt round 7): import math + non-finite entry/exit
     # price guard → 724→729.
     ("open_prep/outcome_backfill.py", 736, "unlink"),  # 2026-07-08 B-H1 priority-symbols + B-M2 era-gate shifted pins
-    ("open_prep/outcomes.py", 162, "unlink"),
+    ("open_prep/outcomes.py", 178, "unlink"),  # 162→178 (2026-07-09): universe_source provenance stamp above
     # 2026-06-11 (trend-state features): 431→449, snapshot keys +
     # FEATURE_KEYS/PASS_THROUGH block added above.
     # 2026-06-11 (eval-findings B5/B1): gap-playbook report +
@@ -130,7 +130,7 @@ OS_DELETE_LEDGER: set[tuple[str, int, str]] = {
     # 2026-07-02 (WP6 formula-era gate): cutoff constant block +8 → 595.
     # 2026-07-04 (market-microstructure observe-only): snapshot fields +
     # FEATURE_KEYS/PASS_THROUGH entries +16 → 632.
-    ("open_prep/outcomes.py", 640, "unlink"),  # 2026-07-07 news_directional_score pass-through shifted 632->640
+    ("open_prep/outcomes.py", 656, "unlink"),  # 640→656 (2026-07-09): universe_source provenance stamp above
     ("open_prep/realtime_signals.py", 127, "remove"),
     # 2026-06-25: AsyncNewsstackPoller telemetry additions shifted
     # 2783 -> 2862 and 2828 -> 2907.
