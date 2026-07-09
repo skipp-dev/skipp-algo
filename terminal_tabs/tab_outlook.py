@@ -13,14 +13,11 @@ from terminal_tabs._shared import cached_tomorrow_outlook
 def render(feed: list[dict[str, Any]], *, current_session: str) -> None:
     """Render the Tomorrow Outlook tab."""
     cfg = st.session_state.cfg
-    bz_key = cfg.benzinga_api_key
+    bz_key = cfg.benzinga_api_key  # cache key only — outlook is FMP-sourced (#3351)
     fmp_key = cfg.fmp_api_key
 
-    if not bz_key and not fmp_key:
-        st.info(
-            "Set `BENZINGA_API_KEY` and/or `FMP_API_KEY` in `.env` "
-            "for tomorrow's outlook."
-        )
+    if not fmp_key:
+        st.info("Set `FMP_API_KEY` in `.env` for tomorrow's outlook.")
         return
 
     st.subheader("🌅 Tomorrow Outlook")

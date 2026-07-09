@@ -30,7 +30,7 @@ def render(feed: list[dict[str, Any]], *, current_session: str) -> None:
 
     st.subheader("🔥 Real-Time Top Movers")
     st.caption(
-        f"**{session_label}** — Live gainers & losers ranked by absolute price change. "
+        f"**{session_label}** — Live gainers & losers ranked by absolute percentage change. "
         "Auto-refreshes each cycle."
     )
 

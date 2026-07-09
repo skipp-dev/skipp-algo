@@ -91,8 +91,8 @@ _FROZEN_SITES: frozenset[tuple[str, int]] = frozenset(
         # 2026-06-24 feat/benzinga-rss: REST client retry backoff.
         ("newsstack_fmp/ingest_benzinga.py", 277),  # 200→277 (2026-07-09): Massive provider mode above
         ("newsstack_fmp/ingest_benzinga.py", 288),  # 211→288 (2026-07-09): Massive provider mode above
-        ("newsstack_fmp/ingest_fmp.py", 136),
-        ("newsstack_fmp/ingest_fmp.py", 162),
+        ("newsstack_fmp/ingest_fmp.py", 137),  # +1 (2026-07-10): docstring 3→4 endpoints
+        ("newsstack_fmp/ingest_fmp.py", 163),  # +1 (2026-07-10): docstring 3→4 endpoints
         # PR #2154: ingest_fmp_filings.py shifted +8 (121→129, 134→142)
         # by the FMP-13F probe instrumentation + retry-after-Header parser.
         # Both sleeps remain legit retry-backoff (HTTP 429 + connect error).
