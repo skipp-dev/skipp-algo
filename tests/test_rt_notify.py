@@ -210,3 +210,38 @@ def test_corrupt_numeric_field_does_not_kill_the_batch(
     assert len(calls) == 1
     text = calls[0][1]["json"]["text"]
     assert "AAPL" in text and "NVDA" in text
+
+
+def _sig_with_context(symbol: str, level: str, direction: str = "LONG") -> Any:
+    s = _sig(symbol, level, direction)
+    s.trade_entry, s.trade_stop, s.trade_target, s.trade_r = 200.0, 195.0, 210.0, 2.0
+    return s
+
+
+def test_trade_context_line_rendered_when_fields_present(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("RT_SIGNAL_WEBHOOK_URL", "https://hook.example/x")
+    calls = _capture(monkeypatch)
+    rt_notify.notify_fresh_signals([_sig_with_context("NVDA", "A0")])
+    text = calls[0][1]["json"]["text"]
+    lines = text.splitlines()
+    # Level line first, indented context line directly below it.
+    assert lines[1].startswith("🔴 A0 NVDA")
+    assert lines[2] == "   ↳ entry ≤200.00 · stop 195.00 (-2.5%) · target 210.00 (+5.0%) · R 2.0"
+
+
+def test_trade_context_line_bearish_uses_geq_entry(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("RT_SIGNAL_WEBHOOK_URL", "https://hook.example/x")
+    calls = _capture(monkeypatch)
+    s = _sig_with_context("TSLA", "A1", direction="SHORT")
+    s.trade_stop, s.trade_target = 205.0, 190.0  # inverted bracket
+    rt_notify.notify_fresh_signals([s])
+    ctx_line = calls[0][1]["json"]["text"].splitlines()[2]
+    assert ctx_line.startswith("   ↳ entry ≥200.00") and "stop 205.00 (+2.5%)" in ctx_line
+
+
+def test_no_trade_context_no_extra_line(monkeypatch: pytest.MonkeyPatch) -> None:
+    # A signal without trade fields (or entry=None) renders exactly one line.
+    monkeypatch.setenv("RT_SIGNAL_WEBHOOK_URL", "https://hook.example/x")
+    calls = _capture(monkeypatch)
+    rt_notify.notify_fresh_signals([_sig("AAPL", "A1")])
+    assert len(calls[0][1]["json"]["text"].splitlines()) == 2  # header + one signal line
