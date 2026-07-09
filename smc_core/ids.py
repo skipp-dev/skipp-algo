@@ -13,6 +13,7 @@ asset-class defaults or explicit tick sizes end-to-end.
 
 from __future__ import annotations
 
+import math
 from datetime import UTC, datetime
 from decimal import ROUND_HALF_UP, Decimal
 from zoneinfo import ZoneInfo
@@ -133,6 +134,11 @@ def quantize_price(
     3. *asset_class* default or inferred asset class  →  use class ticksize.
     4. Fall back to *decimals* parameter (backward-compatible default).
     """
+    # A non-finite price must never flow into ID quantization: NaN silently
+    # returns NaN (poisoning a supposedly-deterministic event ID / price), and
+    # inf raises a cryptic decimal.InvalidOperation. Fail loud with the value.
+    if not math.isfinite(price):
+        raise ValueError(f"cannot quantize a non-finite price: {price!r}")
     resolved_ticksize = _resolve_ticksize(ticksize=ticksize, symbol=symbol, asset_class=asset_class)
     if resolved_ticksize is not None:
         d = _decimals_for_ticksize(resolved_ticksize)

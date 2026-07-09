@@ -204,3 +204,13 @@ def test_bos_id_1d_session_override_changes_anchor() -> None:
 def test_unsupported_timeframe_raises() -> None:
     with pytest.raises(ValueError, match="unsupported timeframe"):
         quantize_time_to_tf(1709250000, "3m")
+
+
+def test_quantize_price_rejects_non_finite_price() -> None:
+    # A non-finite price silently returned NaN (poisoning the deterministic ID)
+    # or raised a cryptic decimal.InvalidOperation — both paths now fail loud.
+    for bad in (float("nan"), float("inf"), float("-inf")):
+        with pytest.raises(ValueError, match="non-finite"):
+            quantize_price(bad, ticksize=0.01)
+        with pytest.raises(ValueError, match="non-finite"):
+            quantize_price(bad)  # decimals fallback path
