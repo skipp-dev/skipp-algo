@@ -1254,7 +1254,8 @@ def compute_ats_fields(bars: list[dict[str, Any]]) -> dict[str, Any]:
 
     zscore: float | None = None
     if std_v > 0:
-        zscore = round((last_vol - mean_v) / std_v, 4)
+        _z = (last_vol - mean_v) / std_v  # tiny std_v + huge last_vol -> inf; guard like flow_rel_vol
+        zscore = round(_z, 4) if math.isfinite(_z) else None
 
     last_open = _coerce_finite_float(last_bar.get("open"))
     last_close = _coerce_finite_float(last_bar.get("close"))
@@ -1346,7 +1347,7 @@ def _get_signal_fields(symbol: str) -> dict[str, Any]:
             number = float(value)
         except (TypeError, ValueError):
             return None
-        return number if number > 0.0 else None
+        return number if (number > 0.0 and math.isfinite(number)) else None  # inf > 0.0 is True
 
     return {
         "signal_level": str(best.get("level")),

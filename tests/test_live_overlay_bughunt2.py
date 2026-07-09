@@ -108,6 +108,28 @@ class TestAtsFieldsVolumeAlignment:
         assert result == {"ats_state": None, "ats_zscore": None}
 
 
+class TestAtsFieldsNonFiniteZScore:
+    """Defense-in-depth: a finite-but-extreme last_vol over a tiny std_v
+    overflows (last_vol - mean_v) / std_v to inf. It must clamp to None (like
+    flow_rel_vol), so ats_zscore never reaches the allow_nan=False overlay
+    payload even before the _json_safe boundary neutralizes it."""
+
+    def test_ats_zscore_clamps_to_none_on_overflow(self):
+        import json
+
+        compute = _compute()
+        bars = [
+            {"open": 1.0, "close": 1.0, "volume": 1.0},
+            {"open": 1.0, "close": 1.0, "volume": 1.0000000000001},
+            {"open": 1.0, "close": 1.0, "volume": 1.0},
+            {"open": 1.0, "close": 1.0, "volume": 1.0000000000001},
+            {"open": 1.0, "close": 1.0, "volume": 1e308},
+        ]
+        result = compute.compute_ats_fields(bars)
+        assert result["ats_zscore"] is None, f"non-finite zscore leaked: {result['ats_zscore']!r}"
+        json.dumps(result, allow_nan=False)  # must not raise
+
+
 # ============================================================
 # B20 – compute_ats_fields: cross-bar price_delta
 # ============================================================
