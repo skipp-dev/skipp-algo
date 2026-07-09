@@ -8,8 +8,9 @@ pre-registered evaluation (regime_study plan, 2026-07).
 
 Metrics (all ex-ante — previous closes only):
 
-- ``market_efficiency_ratio``: Kaufman efficiency ratio on daily closes
-  (10-day window), median across the sample. High = multi-day moves run;
+- ``market_efficiency_ratio``: Kaufman efficiency ratio on the last 10
+  *available* daily closes (gaps collapsed — not strictly 10 contiguous
+  calendar days), median across the sample. High = multi-day moves run;
   low = the market saws.
 - ``intraday_efficiency_ratio``: same idea on 1-hour bars over the last
   ~5 trading days, median across a smaller subsample. High = intraday
