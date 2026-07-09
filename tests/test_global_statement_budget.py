@@ -201,10 +201,15 @@ _FROZEN_SITES: frozenset[tuple[str, int, tuple[str, ...]]] = frozenset(
         # allow_none_keys semantics for flow-field stale-state fixes, shifting
         # cache.py set_vix global line 198 -> 210.
         # 2026-06-20 (cache defensive copy): added copy import shifted globals +1.
-        ("services/live_overlay_daemon/cache.py", 49, ("_max_symbols", "_rolling_bars_cap")),
-        ("services/live_overlay_daemon/cache.py", 71, ("_last_eviction_at",)),
-        ("services/live_overlay_daemon/cache.py", 148, ("_overlay_computed_at",)),
-        ("services/live_overlay_daemon/cache.py", 218, ("_vix_level",)),
+        # 2026-07-08 (fix/cache-eviction-log-flood): throttled eviction-log state
+        # (_EvictSummary class + summary block in _evict_n_stale_symbols_locked)
+        # shifted cache.py globals 49/71/148/218 -> 70/92/185/255. The throttle
+        # uses in-place attribute mutation, NOT a new `global`, so the inventory
+        # count is unchanged.
+        ("services/live_overlay_daemon/cache.py", 70, ("_max_symbols", "_rolling_bars_cap")),
+        ("services/live_overlay_daemon/cache.py", 92, ("_last_eviction_at",)),
+        ("services/live_overlay_daemon/cache.py", 185, ("_overlay_computed_at",)),
+        ("services/live_overlay_daemon/cache.py", 255, ("_vix_level",)),
         # 2026-06-19 (fix/live-overlay-post-merge-bugs): separate _news_checked_at
         # from _news_loaded_at so missing-file rate-limiting does not pin the
         # success cache for the full TTL when a snapshot appears later.
