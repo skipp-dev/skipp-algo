@@ -2,18 +2,20 @@
 
 Provides access to Benzinga API endpoints beyond the core news feed:
 
-Calendar (all use ``parameters[updated]=<epoch>`` for delta sync):
-    - Analyst Ratings:    ``/api/v2.1/calendar/ratings``
-    - Earnings:           ``/api/v2.1/calendar/earnings``
-    - Economics:          ``/api/v2.1/calendar/economics``
-    - Conference Calls:   ``/api/v2.1/calendar/conference-calls``
-    - Dividends:          ``/api/v2.1/calendar/dividends``
-    - Splits:             ``/api/v2.1/calendar/splits``
-    - IPO:                ``/api/v2.1/calendar/ipos``
-    - Guidance:           ``/api/v2.1/calendar/guidance``
-    - Retail:             ``/api/v2.1/calendar/retail``
+Calendar (direct delta sync via ``parameters[updated]=<epoch>``, EXCEPT
+dividends/splits/ipos which are dual-transport — see :meth:`fetch_dividends`):
+    - Dividends:  ``/api/v2.1/calendar/dividends`` OR Massive ``/v3/reference/dividends``
+    - Splits:     ``/api/v2.1/calendar/splits``    OR Massive ``/v3/reference/splits``
+    - IPO:        ``/api/v2.1/calendar/ipos``      OR Massive ``/vX/reference/ipos``
+    - Earnings:   ``/api/v2.1/calendar/earnings``  (direct-only; outlook scorer /
+                  movers classifier / open-prep calendar fallback)
+    - Economics:  ``/api/v2.1/calendar/economics`` (direct-only; outlook scorer)
+    - Ratings/Guidance/Retail/Conference Calls: direct-only, no Massive route.
+      Retained as library methods, but the terminal calendar tabs/wrappers that
+      used them were retired 2026-07-09 (the Benzinga free key is being replaced
+      by Massive, which has no route for these) — no live app consumer left.
 
-Market Data:
+Market Data (``BENZINGA_PROVIDER=massive`` reroutes both to Massive snapshots):
     - Market Movers:      ``/api/v1/market/movers``
     - Delayed Quotes:     ``/api/v1/quoteDelayed``
 
@@ -271,10 +273,13 @@ class BenzingaCalendarAdapter:
     ) -> list[dict[str, Any]]:
         """Fetch dividend calendar.
 
-        Returns list of dicts with keys: ticker, name, exchange,
-        frequency, dividend, dividend_prior, dividend_type, dividend_yield,
-        ex_date, payable_date, record_date, importance, updated, etc.
+        With ``BENZINGA_PROVIDER=massive`` the rows come from Massive's native
+        ``/v3/reference/dividends`` mapped to the column names the terminal tab
+        consumes (ticker, date, ex_date, payable_date, record_date, dividend,
+        frequency); the direct Benzinga path returns the fuller native schema.
         """
+        if benzinga_provider() == "massive":
+            return _massive_dividends(self.api_key, date_from, date_to, page_size)
         return self._fetch_calendar(
             "dividends",
             updated_since=updated_since,
@@ -297,10 +302,12 @@ class BenzingaCalendarAdapter:
     ) -> list[dict[str, Any]]:
         """Fetch stock splits calendar.
 
-        Returns list of dicts with keys: ticker, exchange, ratio,
-        optionable, date_ex, date_recorded, date_distribution,
-        importance, updated, etc.
+        With ``BENZINGA_PROVIDER=massive`` the rows come from Massive's native
+        ``/v3/reference/splits`` mapped to ticker/date/date_ex/ratio; the direct
+        Benzinga path returns the fuller native schema.
         """
+        if benzinga_provider() == "massive":
+            return _massive_splits(self.api_key, date_from, date_to, page_size)
         return self._fetch_calendar(
             "splits",
             updated_since=updated_since,
@@ -323,11 +330,13 @@ class BenzingaCalendarAdapter:
     ) -> list[dict[str, Any]]:
         """Fetch IPO calendar.
 
-        Returns list of dicts with keys: ticker, exchange, name,
-        pricing_date, price_min, price_max, deal_status,
-        insider_lockup_days, offering_value, offering_shares,
-        lead_underwriters, importance, updated, etc.
+        With ``BENZINGA_PROVIDER=massive`` the rows come from Massive's native
+        ``/vX/reference/ipos`` mapped to ticker/name/exchange/pricing_date/
+        price_min/price_max/deal_status/offering_value; the direct Benzinga path
+        returns the fuller native schema.
         """
+        if benzinga_provider() == "massive":
+            return _massive_ipos(self.api_key, date_from, date_to, page_size)
         return self._fetch_calendar(
             "ipos",
             updated_since=updated_since,
@@ -403,6 +412,116 @@ MOVERS_URL = "https://api.benzinga.com/api/v1/market/movers"
 # 401). Requires the Stocks Starter plan (15-min-delayed snapshots; verified
 # live 2026-07-09: gainers/tickers 200, quote `updated` age ~15.1 min).
 MASSIVE_SNAPSHOT_BASE = "https://api.massive.com/v2/snapshot/locale/us/markets/stocks"
+
+# Massive (ex-Polygon) native reference endpoints — the dividends/splits/ipos
+# calendar route when BENZINGA_PROVIDER=massive. Native to the subscribed plan
+# (schema verified 2026-07-09 via massive.com/docs). The Benzinga free key is
+# being retired, so Massive is the replacement for these three; rows are mapped
+# to the same column names the terminal Benzinga-Intelligence tabs consume.
+MASSIVE_REFERENCE_BASE = "https://api.massive.com/v3/reference"
+MASSIVE_IPOS_URL = "https://api.massive.com/vX/reference/ipos"
+
+
+def _massive_reference_rows(
+    url: str, api_key: str, params: dict[str, Any], label: str
+) -> list[dict[str, Any]]:
+    """GET a Massive reference endpoint and return its ``results`` rows (fail-soft)."""
+    request_params: dict[str, Any] = {"apiKey": api_key}
+    request_params.update(params)
+    with httpx.Client(timeout=10.0, headers={"Accept": "application/json"}) as client:
+        try:
+            r = _request_with_retry(client, url, request_params, label=label)
+            data = r.json()
+        except Exception as exc:
+            log_fetch_warning(label, exc)
+            return []
+    rows = data.get("results") if isinstance(data, dict) else None
+    return rows if isinstance(rows, list) else []
+
+
+def _massive_dividends(
+    api_key: str, date_from: str | None, date_to: str | None, page_size: int
+) -> list[dict[str, Any]]:
+    """Massive /v3/reference/dividends -> the Benzinga-dividends row shape the UI consumes."""
+    params: dict[str, Any] = {"limit": min(page_size, 1000), "order": "desc", "sort": "ex_dividend_date"}
+    if date_from:
+        params["ex_dividend_date.gte"] = date_from
+    if date_to:
+        params["ex_dividend_date.lte"] = date_to
+    rows = _massive_reference_rows(
+        f"{MASSIVE_REFERENCE_BASE}/dividends", api_key, params, "Massive dividends"
+    )
+    out: list[dict[str, Any]] = []
+    for r in rows:
+        if not isinstance(r, dict):
+            continue
+        ex = r.get("ex_dividend_date", "")
+        out.append({
+            "ticker": str(r.get("ticker", "") or "").upper(),
+            "date": ex,
+            "ex_date": ex,
+            "payable_date": r.get("pay_date", ""),
+            "record_date": r.get("record_date", ""),
+            "dividend": r.get("cash_amount"),
+            "frequency": r.get("frequency"),
+        })
+    return out
+
+
+def _massive_splits(
+    api_key: str, date_from: str | None, date_to: str | None, page_size: int
+) -> list[dict[str, Any]]:
+    """Massive /v3/reference/splits -> the Benzinga-splits row shape the UI consumes."""
+    params: dict[str, Any] = {"limit": min(page_size, 1000), "order": "desc", "sort": "execution_date"}
+    if date_from:
+        params["execution_date.gte"] = date_from
+    if date_to:
+        params["execution_date.lte"] = date_to
+    rows = _massive_reference_rows(
+        f"{MASSIVE_REFERENCE_BASE}/splits", api_key, params, "Massive splits"
+    )
+    out: list[dict[str, Any]] = []
+    for r in rows:
+        if not isinstance(r, dict):
+            continue
+        split_from = r.get("split_from")
+        split_to = r.get("split_to")
+        ratio = f"{split_to}:{split_from}" if split_from and split_to else ""
+        ex = r.get("execution_date", "")
+        out.append({
+            "ticker": str(r.get("ticker", "") or "").upper(),
+            "date": ex,
+            "date_ex": ex,
+            "ratio": ratio,
+        })
+    return out
+
+
+def _massive_ipos(
+    api_key: str, date_from: str | None, date_to: str | None, page_size: int
+) -> list[dict[str, Any]]:
+    """Massive /vX/reference/ipos -> the Benzinga-ipos row shape the UI consumes."""
+    params: dict[str, Any] = {"limit": min(page_size, 1000), "order": "desc", "sort": "listing_date"}
+    if date_from:
+        params["listing_date.gte"] = date_from
+    if date_to:
+        params["listing_date.lte"] = date_to
+    rows = _massive_reference_rows(MASSIVE_IPOS_URL, api_key, params, "Massive ipos")
+    out: list[dict[str, Any]] = []
+    for r in rows:
+        if not isinstance(r, dict):
+            continue
+        out.append({
+            "ticker": str(r.get("ticker", "") or "").upper(),
+            "name": r.get("issuer_name", ""),
+            "exchange": r.get("primary_exchange", ""),
+            "pricing_date": r.get("listing_date", ""),
+            "price_min": r.get("lowest_offer_price"),
+            "price_max": r.get("highest_offer_price"),
+            "deal_status": r.get("ipo_status", ""),
+            "offering_value": r.get("total_offer_size"),
+        })
+    return out
 
 
 def _snap_num(value: Any) -> float | None:

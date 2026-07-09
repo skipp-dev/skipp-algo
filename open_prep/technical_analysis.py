@@ -1034,10 +1034,12 @@ def compute_entry_probability(
     # Volume signal: log-scale compression, above-average is positive
     volume_signal = max(min(math.log(max(volume_ratio, 0.1)) / math.log(5.0), 1.0), -1.0)
 
-    # Risk signal: penalise high spread, reward moderate volatility
+    # Risk signal: penalise wide spread; reward volatility MONOTONICALLY up to a
+    # 5% ATR cap (there is no mid-band peak — atr_pct>=5% all score the same +0.5,
+    # extreme vol is never penalised), then subtract the spread penalty.
     atr_term = min(atr_pct / 5.0, 1.0) if atr_pct > 0 else 0.0
     spread_term = min(spread_pct / 1.0, 1.0) if spread_pct > 0 else 0.0
-    risk_signal = atr_term * 0.5 - spread_term * 0.5  # moderate vol good, wide spread bad
+    risk_signal = atr_term * 0.5 - spread_term * 0.5  # +vol (capped at 5%) good, wide spread bad
 
     # Weighted composite
     composite = (
@@ -1230,7 +1232,9 @@ def calculate_ewma_score(
     if ewma_metrics["overextended"]:
         return 0.3
 
-    # Moderate distance above EWMA
+    # Moderate distance above EWMA (also the fall-through for the exact-boundary
+    # dist == -bounce/-breakdown edge, e.g. -5.00, which the strict `<` bands miss;
+    # harmless while ewma_score is inert in prod — daily_bars unset, see scorer.py).
     return 0.6
 
 
@@ -1249,10 +1253,13 @@ def resolve_regime_weights(
     Regimes:
       - ``TRENDING`` → boost momentum & ext-hours, dampen gap
       - ``RANGING``  → boost gap & rvol, dampen momentum
-      - ``NEUTRAL``  → return base weights unchanged
+      - ``NEUTRAL``  → no regime tilt (but the cap below still runs, so a
+        base weight already over-cap would be trimmed)
 
-    After adjustment an iterative cap prevents any single weight from
-    exceeding *component_cap* × sum-of-positive-weights.
+    After adjustment an iterative cap (bounded to 5 passes) trims any single
+    weight toward *component_cap* × sum-of-positive-weights. Because trimming
+    shrinks the positive-sum, a heavily dominant weight may not fully converge
+    within 5 passes — the cap is approximate, not a hard guarantee.
 
     Parameters
     ----------

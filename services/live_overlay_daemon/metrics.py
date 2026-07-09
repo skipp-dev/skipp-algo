@@ -988,7 +988,9 @@ def _collect_process_metrics(startup_ts: float, startup_epoch: float = 0.0) -> l
                 elif line.startswith("VmSize:"):
                     vm_bytes = int(line.split()[1]) * 1024
     except (OSError, ValueError):
-        # macOS fallback: ru_maxrss is in bytes on macOS, KB on Linux
+        # macOS fallback: ru_maxrss is in bytes on macOS, KB on Linux. NOTE: this
+        # is PEAK RSS, not current — so the gauge reports lifetime peak on the
+        # dev fallback path. Prod (Linux) uses /proc VmRSS above = true current RSS.
         if _resource_available and resource is not None:
             import sys
 
@@ -1698,7 +1700,7 @@ def render_metrics(startup_ts: float, startup_epoch: float = 0.0) -> str:
     lines.append(f"live_overlay_experiment_snapshot_age_seconds {age_float:.1f}")
     # Staleness verdict mirrors the trading-signals pattern: this wires the
     # documented-but-previously-inert OVERLAY_EXPERIMENT_MAX_AGE_SECS knob
-    # (config.experiment_max_age_secs, default 36h) to an alertable 0/1 gauge.
+    # (config.experiment_max_age_secs, default 96h) to an alertable 0/1 gauge.
     # Unknown age (age_known == 0) reads as not-stale so a fresh daemon does
     # not page before the first snapshot load.
     experiment_max_age = float(config.experiment_max_age_secs())
