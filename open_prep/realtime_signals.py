@@ -1871,6 +1871,12 @@ class RealtimeSignal:
     technical_signal: str = "NEUTRAL" # STRONG_BUY / BUY / NEUTRAL / SELL / STRONG_SELL
     rsi: float | None = None          # RSI-14 value (None if unavailable)
     macd_signal: str = ""             # MACD action: BUY / SELL / NEUTRAL
+    # ── ATR trade context (open_prep/trade_context.py) — display guidance for
+    # Slack/Pine consumers, NOT order placement (C13 computes its own levels).
+    trade_entry: float | None = None
+    trade_stop: float | None = None
+    trade_target: float | None = None
+    trade_r: float | None = None
 
     def to_dict(self) -> dict[str, Any]:
         return asdict(self)
@@ -2789,6 +2795,12 @@ class RealtimeEngine:
             ns_data = news_by_ticker.get(sym)
 
             if signal:
+                # ATR trade context (entry/stop/target/R) — one computation,
+                # consumed by BOTH the Slack push (rt_notify) and the Pine
+                # overlay (snapshot → daemon /smc_live). Fail-soft no-op when
+                # price/ATR/direction are unusable (fields stay None).
+                from open_prep import trade_context as _trade_context
+                _trade_context.attach(signal)
                 # Enrich with newsstack data
                 if ns_data:
                     signal.news_score = _safe_float(ns_data.get("news_score", 0))
