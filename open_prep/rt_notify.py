@@ -42,6 +42,10 @@ import threading
 import time
 from typing import Any
 
+# Calibrated follow-through P (fail-soft; returns None unless RT_CALIBRATION_ARMED
+# and enough data exist) — lets measured P replace the ⭐ midpoint heuristic below.
+from open_prep.calibration_lookup import follow_through_p as _calibrated_follow_through_p
+
 logger = logging.getLogger(__name__)
 
 # Strength ordering: A0 is the highest bar (most volume+move), A2 the weakest.
@@ -159,13 +163,34 @@ def _safe_float(value: Any, default: float = 0.0) -> float:
         return default
 
 
+# P(follow-through) at/above which a calibrated A1 earns the ⭐ (armed only).
+try:
+    _CALIBRATION_P_THRESHOLD = float(_env("RT_CALIBRATION_P_THRESHOLD", "0.5"))
+except (TypeError, ValueError):
+    _CALIBRATION_P_THRESHOLD = 0.5
+
+
 def _is_high_conviction_a1(s: Any) -> bool:
     """True for an A1 already leaning into A0 territory — volume AND move both
     past the midpoint between the A1 and A0 floors, so it reads as conviction
-    rather than a slow grinder. Core fields only (always present); never raises."""
+    rather than a slow grinder. Core fields only (always present); never raises.
+
+    Calibrated path (opt-in via RT_CALIBRATION_ARMED): once the nightly job has
+    enough follow-through data for this (level, vol_bucket), the measured P
+    replaces the hard-coded midpoints; otherwise it falls back to them."""
     vol_ratio = _safe_float(getattr(s, "volume_ratio", 0.0))
     abs_change = abs(_safe_float(getattr(s, "change_pct", 0.0)))
+    p = _calibrated_follow_through_p("A1", vol_ratio)
+    if p is not None:
+        return p >= _CALIBRATION_P_THRESHOLD
     return vol_ratio >= _A1_STRONG_VOL_RATIO and abs_change >= _A1_STRONG_CHANGE_PCT
+
+
+def _a1_conviction_label(s: Any) -> str:
+    """⭐ tail for a high-conviction A1: the measured follow-through P when the
+    calibration is armed and populated (e.g. " ⭐P58%"), else " ⭐near-A0"."""
+    p = _calibrated_follow_through_p("A1", _safe_float(getattr(s, "volume_ratio", 0.0)))
+    return f" ⭐P{round(p * 100)}%" if p is not None else " ⭐near-A0"
 
 
 def _corroboration_flags(s: Any) -> str:
@@ -188,7 +213,7 @@ def _fmt_signal(s: Any) -> str:
     if lvl == "A2":
         tail = " ⚠️early"
     elif lvl == "A1" and _is_high_conviction_a1(s):
-        tail = " ⭐near-A0"
+        tail = _a1_conviction_label(s)
     else:
         tail = ""
     # Corroboration glyphs (📰 news / 📈 technicals) append after the level tail.
