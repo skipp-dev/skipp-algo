@@ -253,6 +253,10 @@ def _coerce_count(value: Any) -> int:
     (``"abc"``). A bare ``int("abc")`` raised ``ValueError`` synchronously in
     :func:`render_metrics`, 500-ing the whole ``/metrics`` scrape (Grafana blind).
     """
+    # bool is an int subclass, so float(True) == 1.0 — a JSON ``true`` count
+    # would silently expose as 1. A boolean is never a valid count → 0.
+    if isinstance(value, bool):
+        return 0
     try:
         numeric = float(value)
     except (TypeError, ValueError):

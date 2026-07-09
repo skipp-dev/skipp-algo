@@ -2262,7 +2262,7 @@ def test_render_metrics_tolerates_non_numeric_signal_counts(monkeypatch: pytest.
         "updated_epoch": time.time() - 30.0,
         "watched_symbols": ["AAPL"],
         "signal_count": "abc",
-        "a0_count": "x",
+        "a0_count": True,  # JSON bool must NOT count as 1
         "a1_count": None,
         "a2_count": float("nan"),
         "signals": [],
@@ -2277,3 +2277,22 @@ def test_render_metrics_tolerates_non_numeric_signal_counts(monkeypatch: pytest.
     # The snapshot still loaded and the (valid) watched list still parsed.
     assert "live_overlay_trading_signals_loaded 1.0" in body
     assert "live_overlay_trading_signals_watched_total 1.0" in body
+
+
+def test_coerce_count_coerces_all_edge_inputs() -> None:
+    import services.live_overlay_daemon.metrics as metrics_mod
+
+    c = metrics_mod._coerce_count
+    # Valid counts pass through.
+    assert c(3) == 3
+    assert c("5") == 5
+    assert c(5.9) == 5  # truncates
+    # bool is an int subclass — must NOT count as 1 (float(True) == 1.0).
+    assert c(True) == 0
+    assert c(False) == 0
+    # Non-numeric / None / non-finite / negative all floor to 0.
+    assert c("abc") == 0
+    assert c(None) == 0
+    assert c(float("nan")) == 0
+    assert c(float("inf")) == 0
+    assert c(-4) == 0
