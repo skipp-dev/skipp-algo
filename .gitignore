@@ -40,6 +40,9 @@ artifacts/open_prep/outcomes/*.json
 # run-open-prep-daily / outcome-backfill workflows commit,
 # since they are the FI-corpus source of truth on main.
 !artifacts/open_prep/outcomes/outcomes_*.json
+# Local run_open_prep shadow (OPEN_PREP_OUTCOMES_DIR) — keeps local outcome
+# writes off the CI-committed canonical dir above (no untracked pull collisions).
+artifacts/open_prep/outcomes_local/
 
 # TradingView Playwright automation artifacts
 automation/tradingview/auth/storage-state.json

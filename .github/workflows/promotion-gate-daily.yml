@@ -189,7 +189,14 @@ jobs:
           # a family reaches MIN_OOS), a different, unproven plane — feeding it
           # here would wrongly flip the gate's magnitude fields to "not
           # measured". Read the 15m proof. Fail-soft when absent/empty.
-          EVENTS_POOL="$(find artifacts/ci/scored_family_events_accumulated -name 'accumulated_family_events.json' -type f 2>/dev/null | head -1)"
+          # Guard the find on the dir: the events download is if_no_artifact_found:warn,
+          # so on a thin day (no accumulated pool yet) the dir is absent and an
+          # unguarded `find <missing> | head` exits non-zero -> pipefail + set -e
+          # abort the whole step before python runs. (Idiom mirrors adr0023.)
+          EVENTS_POOL=""
+          if [ -d artifacts/ci/scored_family_events_accumulated ]; then
+            EVENTS_POOL="$(find artifacts/ci/scored_family_events_accumulated -name 'accumulated_family_events.json' -type f 2>/dev/null | head -1)"
+          fi
           python scripts/build_promotion_gate_bundle.py \
             --scoring-root     "${{ steps.download.outputs.scoring_root }}" \
             --output           "${BUNDLE}" \
