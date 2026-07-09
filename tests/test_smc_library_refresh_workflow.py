@@ -486,3 +486,22 @@ def test_refresh_runs_provider_preflight_before_generation() -> None:
     assert workflow_text.index('- name: Provider credential preflight') < workflow_text.index(
         '- name: Generate SMC library with v5 enrichment'
     )
+
+
+def test_preflight_step_wires_benzinga_key_and_provider() -> None:
+    """The preflight probes Benzinga (no --skip-benzinga) and Benzinga is
+    load-bearing (2026-07-08: open_prep Core News + live-news cron), so the
+    preflight STEP env must inject the key AND transport. File-level presence
+    (the later Generate step already has it) is not enough — the preflight
+    aborts on an empty key long before generation, so the gate would always
+    fail on Benzinga regardless of the secret (regression fixed 2026-07-09)."""
+    block = _step_block(_read(WORKFLOW_PATH), "Provider credential preflight")
+    assert "--skip-benzinga" not in block, (
+        "preflight probes Benzinga; if that ever changes, retire this guard"
+    )
+    assert "BENZINGA_API_KEY: ${{ secrets.BENZINGA_API_KEY }}" in block, (
+        "preflight step must pass BENZINGA_API_KEY into env or the probe sees an empty key"
+    )
+    assert "BENZINGA_PROVIDER:" in block, (
+        "preflight step must pass BENZINGA_PROVIDER — a Massive key on the direct transport 401s"
+    )
