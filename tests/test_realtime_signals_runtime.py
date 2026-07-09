@@ -298,3 +298,54 @@ def test_telemetry_server_is_threaded(monkeypatch, tmp_path: Path) -> None:
     finally:
         server.shutdown()
         server.server_close()
+
+
+def test_volume_regime_empty_quotes_preserves_prior_regime() -> None:
+    """A transient empty quote map (fetch hiccup) must NOT reset the regime to
+    NORMAL — that would silently lift an active HOLIDAY_SUSPECT suspension on a
+    single bad poll. The prior regime is kept unchanged."""
+    detector = rs.VolumeRegimeDetector()
+    detector.regime = "HOLIDAY_SUSPECT"
+    detector.thin_fraction = 0.9
+    assert detector.update({}) == "HOLIDAY_SUSPECT"
+    assert detector.regime == "HOLIDAY_SUSPECT"
+    assert detector.thin_fraction == 0.9  # no-op, not reset to 0.0
+
+
+def test_async_poller_start_spawns_one_thread_under_concurrency(
+    monkeypatch,
+) -> None:
+    """Concurrent start() calls must spawn exactly ONE background loop — a bare
+    check-then-start races (two callers both see _thread is None). The lock makes
+    the check-and-create atomic."""
+    import threading
+
+    poller = rs.AsyncNewsstackPoller()
+    # Cheap blocking loop so a started thread stays alive across sibling starts.
+    monkeypatch.setattr(poller, "_loop", lambda: poller._stop.wait())
+
+    real_thread_cls = threading.Thread
+    created: list = []
+
+    def _counting_thread(*args, **kwargs):
+        th = real_thread_cls(*args, **kwargs)
+        if kwargs.get("name") == "newsstack-bg":
+            created.append(th)
+        return th
+
+    monkeypatch.setattr(threading, "Thread", _counting_thread)
+    barrier = threading.Barrier(8)
+
+    def _racer() -> None:
+        barrier.wait()
+        poller.start()
+
+    racers = [real_thread_cls(target=_racer) for _ in range(8)]
+    try:
+        for r in racers:
+            r.start()
+        for r in racers:
+            r.join(timeout=5.0)
+        assert len(created) == 1
+    finally:
+        poller.stop(timeout=2.0)

@@ -72,3 +72,33 @@ class TestFMPTechnicalsCacheScoping:
         # Two writes with empty api_key should hit the same partition.
         t._cache_set("AAPL", "1D", "", {"v": 1})
         assert t._cache_get("AAPL", "1D", "") == {"v": 1}
+
+
+# ── Robustness: FMP indicator values that are 'N/A'/'' must not crash the
+#    (unguarded) technicals fallback (review 2026-07-08). ────────────────────
+
+def test_opt_float_drops_non_numeric_and_nan() -> None:
+    assert t._opt_float(42) == 42.0
+    assert t._opt_float("3.5") == 3.5
+    assert t._opt_float(None) is None
+    assert t._opt_float("N/A") is None
+    assert t._opt_float("") is None
+    assert t._opt_float(float("nan")) is None
+
+
+def test_fetch_fmp_technicals_survives_na_indicator_values(monkeypatch) -> None:
+    """A provider 'N/A' indicator field must skip that indicator, never raise —
+    fetch_fmp_technicals runs unguarded whenever TradingView is rate-limited."""
+    monkeypatch.setattr(t, "_get_api_key", lambda: "KEY")
+    monkeypatch.setattr(t, "_cache_get", lambda *a, **k: None)
+    monkeypatch.setattr(t, "_cache_set", lambda *a, **k: None)
+    monkeypatch.setattr(t, "_fetch_price", lambda *a, **k: 10.0)
+    monkeypatch.setattr(
+        t, "_fetch_indicator",
+        lambda sym, tf, kind, key, indicator_period=14: {kind: "N/A"},
+    )
+    out = t.fetch_fmp_technicals("AAA", "1D")  # must not raise
+    assert out is not None
+    # Every indicator was 'N/A' → dropped → no oscillator rows emitted.
+    assert not any("RSI" in o.get("name", "") for o in out["osc_detail"])
+    assert not any("Williams" in o.get("name", "") for o in out["osc_detail"])
