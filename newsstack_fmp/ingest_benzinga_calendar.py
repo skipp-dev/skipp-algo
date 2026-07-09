@@ -15,7 +15,7 @@ dividends/splits/ipos which are dual-transport — see :meth:`fetch_dividends`):
       used them were retired 2026-07-09 (the Benzinga free key is being replaced
       by Massive, which has no route for these) — no live app consumer left.
 
-Market Data:
+Market Data (``BENZINGA_PROVIDER=massive`` reroutes both to Massive snapshots):
     - Market Movers:      ``/api/v1/market/movers``
     - Delayed Quotes:     ``/api/v1/quoteDelayed``
 

@@ -28,7 +28,7 @@ except ImportError:
     Interval = None
     _TV_AVAILABLE = False
 
-# ── Interval labels (German matching TradingView UI) ─────────────────
+# ── Interval labels (TradingView interval codes: 1m…1M, not localized) ─
 INTERVAL_MAP: dict[str, str] = {}
 if _TV_AVAILABLE:
     INTERVAL_MAP = {
