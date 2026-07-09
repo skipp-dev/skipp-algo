@@ -88,7 +88,7 @@
 # 2026-06-25: shifted 1000 -> 1002 by stop-guard hardening in the poll loop.
 # 2026-06-28 (semantic monitoring): readiness metrics + _extract_snapshot_epoch
 # helper shifted the _fetch_json_url urlopen call +53 lines.
-"open_prep/realtime_signals.py" = [1106]  # +6 2026-07-08 review-invariants
+"open_prep/realtime_signals.py" = [1268]  # 2026-07-09 merge: near-a0+trade_context+review-invariants
 "scripts/probe_fmp_13f_endpoints.py" = [75]
 "scripts/resolve_workflow_runner.py" = [91]
 # 2026-06-21 (live-overlay bridge observability): optional external polling
@@ -119,7 +119,7 @@
 # 2026-06-26 (fixup): suffix-safe railway.internal check shifted sites
 # to [230, 389, 581].
 # 2026-07-03 PR #3136 follow-up: news-index cache-key metadata shifted sites.
-"services/live_overlay_daemon/compute.py" = [253, 442, 634]
+"services/live_overlay_daemon/compute.py" = [257, 446, 638]  # +4 (2026-07-09): signal/trade-context docstring header
 # 2026-06-22: line shifted 251 -> 287 after ADR-0025 App Platform migration
 # (/apis dashboard.grafana.app/v1); urlopen now in shared _request_json helper.
 # 2026-06-23: shifted 287 -> 296 after annotations-robustness fix.

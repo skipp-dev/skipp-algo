@@ -182,7 +182,7 @@ _FROZEN_URLOPEN_SITES: frozenset[tuple[str, int]] = frozenset(
         # timeout discipline (Railway worker without local artifact).
         # Line shifted 792 -> 798 -> 802 -> 811 -> 901 -> 998 -> 1055 after
         # AsyncNewsstackPoller telemetry additions and semantic monitoring.
-        ("open_prep/realtime_signals.py", 1106),  # +6 2026-07-08 review-invariants
+        ("open_prep/realtime_signals.py", 1268),  # 2026-07-09 merge: near-a0+trade_context+review-invariants
         # 2026-06-22: Grafana dashboard publisher API upsert over urllib.
         # Line shifted 251 -> 287 after ADR-0025 App Platform (/apis
         # dashboard.grafana.app/v1) migration; urlopen now in shared _request_json.
@@ -201,9 +201,9 @@ _FROZEN_URLOPEN_SITES: frozenset[tuple[str, int]] = frozenset(
         # 2026-06-26 (PR #2962): shifted/expanded by the producer client.
         # 2026-07-03 PR #3136 follow-up: news-index cache-key metadata shifted
         # these existing timeout-guarded sites.
-        ("services/live_overlay_daemon/compute.py", 253),
-        ("services/live_overlay_daemon/compute.py", 442),
-        ("services/live_overlay_daemon/compute.py", 634),
+        ("services/live_overlay_daemon/compute.py", 257),  # +4 (2026-07-09): signal/trade-context docstring header
+        ("services/live_overlay_daemon/compute.py", 446),
+        ("services/live_overlay_daemon/compute.py", 638),
         # 2026-06-24: Railway GraphQL API bridge for container metrics polling;
         # fixed https endpoint (backboard.railway.com), explicit timeout discipline.
         # 2026-07-07: `import math` for the non-finite guard shifted this 85 -> 86.

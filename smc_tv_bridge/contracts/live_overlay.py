@@ -76,6 +76,17 @@ class LiveOverlayPayload(BaseModel):
     symbol_event_blocked: bool | None = None
     event_provider_status: str | None = None
 
+    # --- Realtime signal / trade-context fields (A0/A1/A2 engine +
+    # open_prep/trade_context.py, passed through the daemon's signals
+    # snapshot — the SAME numbers the Slack push shows). Display guidance,
+    # not order placement. Null when the symbol has no active signal.
+    signal_level: Literal["A0", "A1", "A2"] | None = None
+    signal_direction: str | None = None
+    trade_entry: float | None = Field(default=None, gt=0.0)
+    trade_stop: float | None = Field(default=None, gt=0.0)
+    trade_target: float | None = Field(default=None, gt=0.0)
+    trade_r: float | None = Field(default=None, gt=0.0)
+
 
 def flatten_overlay(payload: LiveOverlayPayload) -> dict[str, object]:
     """Serialize ``payload`` to the canonical flat dict served at ``/smc_live``.

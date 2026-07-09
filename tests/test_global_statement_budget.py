@@ -238,7 +238,7 @@ _FROZEN_SITES: frozenset[tuple[str, int, tuple[str, ...]]] = frozenset(
         # 2026-07-03 correctness lane: _load_news_snapshot_with_stamp() returns
         # snapshot + loaded_at atomically for the ticker index TOCTOU fix.
         # 2026-07-03 PR #3136 follow-up: cache-key metadata shifted anchors.
-        ("services/live_overlay_daemon/compute.py", 284, ("_news_cache", "_news_checked_at", "_news_loaded_at")),
+        ("services/live_overlay_daemon/compute.py", 288, ("_news_cache", "_news_checked_at", "_news_loaded_at")),
         # 2026-07-03 (audit P3 HIGH): ticker->scores news index cache built once
         # per snapshot load; new module-global pair.
         # 2026-07-03 PR #3136 follow-up: _news_index_cache_key prevents stale
@@ -247,15 +247,15 @@ _FROZEN_SITES: frozenset[tuple[str, int, tuple[str, ...]]] = frozenset(
         # URL-parsing helpers shifted this anchor to 829.
         # 2026-07-06 (bug-hunt B1/B2): _has_captured_at helper + expanded
         # _parse_history_lines shifted this anchor to 853.
-        ("services/live_overlay_daemon/compute.py", 853, ("_news_index", "_news_index_built_at", "_news_index_cache_key")),
+        ("services/live_overlay_daemon/compute.py", 857, ("_news_index", "_news_index_built_at", "_news_index_cache_key")),
         # 2026-06-23 (feat/grafana-trading-signals): realtime trading-signals
         # snapshot loader mirrors the news snapshot caching pattern.
         # 2026-06-26 (PR #2962): shifted by producer client code.
-        ("services/live_overlay_daemon/compute.py", 469, ("_signals_cache", "_signals_checked_at", "_signals_loaded_at")),
+        ("services/live_overlay_daemon/compute.py", 473, ("_signals_cache", "_signals_checked_at", "_signals_loaded_at")),
         # 2026-06-23 (feat/grafana-tv-credential-age): credential-health report
         # loader mirrors the same snapshot caching pattern.
         # 2026-06-26 (PR #2962): shifted by producer client code.
-        ("services/live_overlay_daemon/compute.py", 556, ("_tradingview_credential_cache", "_tradingview_credential_checked_at", "_tradingview_credential_loaded_at")),
+        ("services/live_overlay_daemon/compute.py", 560, ("_tradingview_credential_cache", "_tradingview_credential_checked_at", "_tradingview_credential_loaded_at")),
         # 2026-06-23 (feat/grafana-experiment-timeline): daily experiment rollup
         # + per-day history loaders mirror the same snapshot caching pattern.
         # 2026-06-24 (feat/live-overlay-credential-health): +5 lines for
@@ -265,8 +265,8 @@ _FROZEN_SITES: frozenset[tuple[str, int, tuple[str, ...]]] = frozenset(
         # URL-parsing helpers shifted these anchors to 692/740.
         # 2026-07-06 (bug-hunt B1/B2): _has_captured_at helper + expanded
         # _parse_history_lines shifted these anchors to 716/764.
-        ("services/live_overlay_daemon/compute.py", 716, ("_experiment_cache", "_experiment_checked_at", "_experiment_loaded_at")),
-        ("services/live_overlay_daemon/compute.py", 764, ("_experiment_history_cache", "_experiment_history_checked_at", "_experiment_history_loaded_at")),
+        ("services/live_overlay_daemon/compute.py", 720, ("_experiment_cache", "_experiment_checked_at", "_experiment_loaded_at")),
+        ("services/live_overlay_daemon/compute.py", 768, ("_experiment_history_cache", "_experiment_history_checked_at", "_experiment_history_loaded_at")),
         # 2026-06-21 (provider/bridge + queue backpressure follow-ups):
         # feed.py gained additional helper/config blocks, shifting global
         # statements to 362/420/496.
