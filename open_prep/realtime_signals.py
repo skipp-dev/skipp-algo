@@ -3407,6 +3407,17 @@ def main() -> None:
     except Exception:
         logger.debug("signal-event logger init failed", exc_info=True)
 
+    # Opt-in nightly follow-through calibration (RT_CALIBRATION_UTC_HHMM="HH:MM"
+    # UTC, e.g. "21:30" ≈ 17:30 ET). Runs in-process because the event log lives
+    # on THIS service's Railway volume and a separate cron cannot share it; fires
+    # once per UTC day on a throwaway thread so the poll loop never blocks.
+    cal_hhmm = os.environ.get("RT_CALIBRATION_UTC_HHMM", "").strip()
+    cal_ev_dir = os.environ.get("RT_SIGNAL_EVENT_LOG_DIR", "")
+    cal_out = str(Path(cal_ev_dir).parent / "calibration_latest.json") if cal_ev_dir else ""
+    cal_last_day: str | None = None
+    if cal_hhmm and event_logger is not None:
+        logger.info("Nightly calibration scheduled (%s UTC -> %s)", cal_hhmm, cal_out)
+
     mode_label = "ULTRA" if args.ultra else ("FAST/VisiData" if args.fast else "standard")
     top_label = str(args.top_n) if args.top_n > 0 else "ALL"
     logger.info(
@@ -3448,6 +3459,18 @@ def main() -> None:
             # Persist the fresh/strengthened events (record() is itself fail-soft).
             if event_logger is not None:
                 event_logger.record(active)
+
+            # Nightly follow-through calibration — once per UTC day, off-thread
+            # (the poll loop must never block on the calibrator's FMP fetches).
+            if cal_hhmm and event_logger is not None:
+                _now = datetime.now(UTC)
+                _today = _now.strftime("%Y-%m-%d")
+                if cal_last_day != _today and _now.strftime("%H:%M") >= cal_hhmm:
+                    cal_last_day = _today
+                    from open_prep.calibration_scheduler import run_calibration_once
+                    threading.Thread(
+                        target=run_calibration_once, args=(cal_ev_dir, cal_out), daemon=True,
+                    ).start()
 
             if a0:
                 for s in a0:
