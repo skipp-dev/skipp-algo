@@ -106,11 +106,13 @@ _FROZEN_LEDGER: dict[str, int] = {
     # 2026-07-04 (plan B1): generated open-prep daily panel — 11 PANEL_* consts
     # + 7 candidate arrays + var table + var hdrs. Count is stable regardless
     # of candidate count (arrays are single `array.from(...)` decls).
-    "pine/generated/openprep_daily_panel.pine": 20,
+    # 2026-07-09: +3 (P_ENTRY/P_STOP/P_TGT — official C13 levels from the
+    # date-matched setups join).
+    "pine/generated/openprep_daily_panel.pine": 23,
     "test_div.pine": 2,
 }
 
-_TOTAL_BUDGET = 1011  # bumped 2026-07-04 (plan B1): +20 generated open-prep panel; was 991.
+_TOTAL_BUDGET = 1014  # bumped 2026-07-09: +3 panel level arrays; was 1011 (2026-07-04 plan B1, +20; before that 991).
 
 
 def _iter_pine() -> list[Path]:
