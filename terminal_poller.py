@@ -961,6 +961,68 @@ def fetch_economic_calendar(
         return []
 
 
+def fetch_fmp_earnings(
+    api_key: str,
+    from_date: str,
+    to_date: str,
+) -> list[dict[str, Any]]:
+    """Fetch the FMP earnings calendar, mapped to the row shape the outlook
+    scorer + power-gap classifier consume (replaces the retired Benzinga path).
+
+    Re-sourced 2026-07-09: the Benzinga free key is being replaced by Massive,
+    which has no earnings route. Field mapping mirrors the production
+    ``open_prep.run_open_prep._fetch_earnings_today``:
+
+    * ``symbol``        -> ``ticker``
+    * ``date``          -> ``date``
+    * ``time`` (rare on /stable; often absent) -> ``earnings_timing``
+    * ``epsActual`` / ``epsEstimated`` -> ``eps_surprise`` (actual-estimate) and
+      ``eps_surprise_percent`` — only meaningful once actuals are reported.
+
+    Returns ``[]`` on any error (fail-soft), like the other FMP fetchers here.
+    """
+    try:
+        rows = _make_fmp_client(api_key).get_earnings_calendar(
+            date.fromisoformat(from_date),
+            date.fromisoformat(to_date),
+        )
+    except Exception as exc:
+        log_fetch_warning("FMP earnings calendar", exc)
+        return []
+
+    def _to_float_or_none(value: Any) -> float | None:
+        try:
+            f = float(value)
+        except (TypeError, ValueError):
+            return None
+        # reject NaN/inf without importing math (f != f is True only for NaN)
+        return None if (f != f or f in (float("inf"), float("-inf"))) else f
+
+    out: list[dict[str, Any]] = []
+    for it in rows or []:
+        if not isinstance(it, dict):
+            continue
+        sym = str(it.get("symbol") or "").strip().upper()
+        if not sym:
+            continue
+        eps_a = _to_float_or_none(it.get("epsActual"))
+        eps_e = _to_float_or_none(it.get("epsEstimated"))
+        if eps_a is not None and eps_e is not None:
+            eps_surprise = eps_a - eps_e
+            eps_surprise_pct = ((eps_a - eps_e) / abs(eps_e) * 100.0) if abs(eps_e) > 0.0 else 0.0
+        else:
+            eps_surprise = 0.0
+            eps_surprise_pct = 0.0
+        out.append({
+            "ticker": sym,
+            "date": str(it.get("date") or ""),
+            "earnings_timing": (str(it.get("time") or it.get("releaseTime") or "").strip().lower() or None),
+            "eps_surprise": eps_surprise,
+            "eps_surprise_percent": eps_surprise_pct,
+        })
+    return out
+
+
 # ── FMP Ticker → GICS Sector Mapping ────────────────────────────
 
 
@@ -1166,52 +1228,11 @@ def _bz_calendar_call(
         adapter.close()
 
 
-def fetch_benzinga_ratings(
-    api_key: str,
-    *,
-    date_from: str | None = None,
-    date_to: str | None = None,
-    page_size: int = 100,
-    importance: int | None = None,
-) -> list[dict[str, Any]]:
-    """Fetch analyst ratings from Benzinga (upgrades, downgrades, PT changes)."""
-    return _bz_calendar_call(
-        api_key, "fetch_ratings", "ratings",
-        date_from=date_from, date_to=date_to,
-        page_size=page_size, importance=importance,
-    )
-
-
-def fetch_benzinga_earnings(
-    api_key: str,
-    *,
-    date_from: str | None = None,
-    date_to: str | None = None,
-    page_size: int = 100,
-    importance: int | None = None,
-) -> list[dict[str, Any]]:
-    """Fetch earnings calendar from Benzinga (EPS, revenue estimates/actuals)."""
-    return _bz_calendar_call(
-        api_key, "fetch_earnings", "earnings",
-        date_from=date_from, date_to=date_to,
-        page_size=page_size, importance=importance,
-    )
-
-
-def fetch_benzinga_economics(
-    api_key: str,
-    *,
-    date_from: str | None = None,
-    date_to: str | None = None,
-    page_size: int = 100,
-    importance: int | None = None,
-) -> list[dict[str, Any]]:
-    """Fetch economic calendar from Benzinga (GDP, NFP, CPI, FOMC, etc.)."""
-    return _bz_calendar_call(
-        api_key, "fetch_economics", "economics",
-        date_from=date_from, date_to=date_to,
-        page_size=page_size, importance=importance,
-    )
+# fetch_benzinga_earnings / fetch_benzinga_economics wrappers removed 2026-07-09:
+# the outlook scorer + movers-earnings classifier were re-sourced to FMP
+# (fetch_fmp_earnings / fetch_economic_calendar), so nothing consumes the
+# Benzinga earnings/economics calendar anymore. The adapter methods remain for
+# the (inert) open-prep calendar fallback + library completeness.
 
 
 def fetch_benzinga_market_movers(api_key: str) -> dict[str, list[dict[str, Any]]]:
@@ -1229,22 +1250,6 @@ def fetch_benzinga_delayed_quotes(
     if fetch_benzinga_quotes is None:
         return []
     return fetch_benzinga_quotes(api_key, symbols)
-
-
-def fetch_benzinga_conference_calls(
-    api_key: str,
-    *,
-    tickers: str | None = None,
-    date_from: str | None = None,
-    date_to: str | None = None,
-    page_size: int = 100,
-) -> list[dict[str, Any]]:
-    """Fetch conference call schedule from Benzinga."""
-    return _bz_calendar_call(
-        api_key, "fetch_conference_calls", "conference calls",
-        tickers=tickers, date_from=date_from, date_to=date_to,
-        page_size=page_size,
-    )
 
 
 def fetch_benzinga_dividends(
@@ -1290,38 +1295,6 @@ def fetch_benzinga_ipos(
     """Fetch IPO calendar from Benzinga."""
     return _bz_calendar_call(
         api_key, "fetch_ipos", "IPOs",
-        date_from=date_from, date_to=date_to,
-        page_size=page_size, importance=importance,
-    )
-
-
-def fetch_benzinga_guidance(
-    api_key: str,
-    *,
-    date_from: str | None = None,
-    date_to: str | None = None,
-    page_size: int = 100,
-    importance: int | None = None,
-) -> list[dict[str, Any]]:
-    """Fetch earnings/revenue guidance from Benzinga."""
-    return _bz_calendar_call(
-        api_key, "fetch_guidance", "guidance",
-        date_from=date_from, date_to=date_to,
-        page_size=page_size, importance=importance,
-    )
-
-
-def fetch_benzinga_retail(
-    api_key: str,
-    *,
-    date_from: str | None = None,
-    date_to: str | None = None,
-    page_size: int = 100,
-    importance: int | None = None,
-) -> list[dict[str, Any]]:
-    """Fetch retail sales calendar from Benzinga."""
-    return _bz_calendar_call(
-        api_key, "fetch_retail", "retail",
         date_from=date_from, date_to=date_to,
         page_size=page_size, importance=importance,
     )
@@ -1398,7 +1371,6 @@ def fetch_benzinga_news_by_channel(
 
 def _compute_outlook_for_date(
     target_date: date,
-    bz_api_key: str,
     fmp_api_key: str,
 ) -> dict[str, Any]:
     """Compute a trading-day outlook signal (🟢 / 🟡 / 🔴) for *target_date*.
@@ -1406,11 +1378,15 @@ def _compute_outlook_for_date(
     Shared core used by both ``compute_today_outlook`` and
     ``compute_tomorrow_outlook``.
 
+    Re-sourced 2026-07-09 from Benzinga to FMP (the Benzinga free key is being
+    replaced by Massive, which has no earnings/economics route).
+
     Factors
     -------
-    - Benzinga earnings calendar for *target_date* (BMO count)
+    - FMP earnings calendar for *target_date* (count; FMP /stable/earnings-
+      calendar carries no bmo/amc field, so the BMO-specific bonus no longer
+      fires — earnings density is the signal)
     - FMP economic calendar high-impact events for *target_date*
-    - Benzinga economics (FOMC, CPI, NFP, GDP) for *target_date*
     - Current sector performance balance (majority red = caution)
 
     Returns
@@ -1425,19 +1401,19 @@ def _compute_outlook_for_date(
     outlook_score = 0.0
     reasons: list[str] = []
 
-    # ── 1. Benzinga earnings ──
+    # ── 1. FMP earnings (Benzinga free key retired) ──
     earnings_day: list[dict[str, Any]] = []
     earnings_bmo: list[dict[str, Any]] = []
-    if bz_api_key:
+    if fmp_api_key:
         try:
-            earnings_all = fetch_benzinga_earnings(
-                bz_api_key, date_from=td_iso, date_to=td_iso,
-                page_size=500,
-            )
+            earnings_all = fetch_fmp_earnings(fmp_api_key, td_iso, td_iso)
             earnings_day = [
                 e for e in earnings_all
                 if str(e.get("date") or "").startswith(td_iso)
             ]
+            # FMP /stable/earnings-calendar carries no bmo/amc timing field, so
+            # this stays empty in practice — kept so a future timing source (or a
+            # bz-direct key) re-arms the BMO bonus without a code change.
             earnings_bmo = [
                 e for e in earnings_day
                 if str(e.get("earnings_timing") or e.get("time") or "").lower()
@@ -1476,32 +1452,8 @@ def _compute_outlook_for_date(
         except (KeyError, TypeError, ValueError, OSError) as exc:
             logger.warning("Outlook %s: FMP econ calendar failed: %s", td_iso, type(exc).__name__, exc_info=True)
 
-    # 2b) Benzinga economics calendar
-    if bz_api_key:
-        try:
-            bz_econ = fetch_benzinga_economics(
-                bz_api_key, date_from=td_iso, date_to=td_iso,
-                page_size=100, importance=0,
-            )
-            for ev in bz_econ:
-                imp = str(ev.get("importance", "")).lower()
-                ev_name = str(ev.get("event_name") or ev.get("name") or "")
-                if imp in {"0", "high"} or any(
-                    kw in ev_name.upper()
-                    for kw in ("CPI", "NFP", "FOMC", "GDP", "PCE", "PPI", "EMPLOYMENT")
-                ):
-                    already = any(
-                        h["event"].lower() == ev_name.lower() for h in hi_events
-                    )
-                    if not already:
-                        hi_events.append({
-                            "event": ev_name or "—",
-                            "date": str(ev.get("date") or td_iso),
-                            "country": str(ev.get("country") or "US"),
-                            "source": "Benzinga",
-                        })
-        except (KeyError, TypeError, ValueError, OSError) as exc:
-            logger.warning("Outlook %s: Benzinga econ calendar failed: %s", td_iso, type(exc).__name__, exc_info=True)
+    # (Benzinga economics supplement removed 2026-07-09 — the FMP econ calendar
+    # above is the high-impact source; the Benzinga free key is being retired.)
 
     if len(hi_events) >= 3:
         outlook_score -= 1.5
@@ -1577,7 +1529,6 @@ def _compute_outlook_for_date(
 
 
 def compute_today_outlook(
-    bz_api_key: str,
     fmp_api_key: str,
 ) -> dict[str, Any]:
     """Compute a today-trading-day outlook signal.
@@ -1600,14 +1551,13 @@ def compute_today_outlook(
             "notable_earnings": [],
             "sector_mood": "closed",
         }
-    result = _compute_outlook_for_date(today, bz_api_key, fmp_api_key)
+    result = _compute_outlook_for_date(today, fmp_api_key)
     # Backward-compat alias
     result["next_trading_day"] = result["target_date"]
     return result
 
 
 def compute_tomorrow_outlook(
-    bz_api_key: str,
     fmp_api_key: str,
 ) -> dict[str, Any]:
     """Compute a next-trading-day outlook signal (🟢 / 🟡 / 🔴).
@@ -1619,7 +1569,7 @@ def compute_tomorrow_outlook(
     """
     today = datetime.now(_ET).date()
     next_td = _next_trading_day(today)
-    result = _compute_outlook_for_date(next_td, bz_api_key, fmp_api_key)
+    result = _compute_outlook_for_date(next_td, fmp_api_key)
 
     # Backward-compatible aliases expected by UI layer
     result["next_trading_day"] = result["target_date"]
@@ -1635,6 +1585,7 @@ def compute_tomorrow_outlook(
 
 def compute_power_gaps(
     api_key: str,
+    fmp_api_key: str,
     *,
     peg_min_gap: float = 4.0,
     monster_min_gap: float = 8.0,
@@ -1643,7 +1594,9 @@ def compute_power_gaps(
 ) -> list[dict[str, Any]]:
     """Compute Power Earning Gap / Monster Gap classifications.
 
-    Cross-references Benzinga Market Movers with today's earnings calendar:
+    Cross-references market movers (``api_key``: Benzinga direct or Massive via
+    BENZINGA_PROVIDER) with today's **FMP** earnings calendar (``fmp_api_key``;
+    re-sourced 2026-07-09 from the retiring Benzinga free key):
 
     * **Power Earning Gap (PEG)**: gap ≥ *peg_min_gap* % AND earnings beat
       (``eps_surprise > 0``) AND relative-volume ≥ *peg_min_rvol*.
@@ -1720,8 +1673,9 @@ def compute_power_gaps(
     if not all_movers:
         return []
 
-    # 2) Fetch today's earnings to identify earnings gaps
-    earnings = fetch_benzinga_earnings(api_key, date_from=today, date_to=today, page_size=500)
+    # 2) Fetch today's earnings (FMP) to identify earnings gaps. FMP carries
+    #    eps_surprise via epsActual-epsEstimated once a name has reported.
+    earnings = fetch_fmp_earnings(fmp_api_key, today, today)
     earnings_map: dict[str, dict[str, Any]] = {}
     for e in earnings:
         tk = str(e.get("ticker", "")).upper()

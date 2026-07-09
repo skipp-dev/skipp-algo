@@ -2,18 +2,20 @@
 
 Provides access to Benzinga API endpoints beyond the core news feed:
 
-Calendar (all use ``parameters[updated]=<epoch>`` for delta sync):
-    - Analyst Ratings:    ``/api/v2.1/calendar/ratings``
-    - Earnings:           ``/api/v2.1/calendar/earnings``
-    - Economics:          ``/api/v2.1/calendar/economics``
-    - Conference Calls:   ``/api/v2.1/calendar/conference-calls``
-    - Dividends:          ``/api/v2.1/calendar/dividends``
-    - Splits:             ``/api/v2.1/calendar/splits``
-    - IPO:                ``/api/v2.1/calendar/ipos``
-    - Guidance:           ``/api/v2.1/calendar/guidance``
-    - Retail:             ``/api/v2.1/calendar/retail``
+Calendar (direct delta sync via ``parameters[updated]=<epoch>``, EXCEPT
+dividends/splits/ipos which are dual-transport — see :meth:`fetch_dividends`):
+    - Dividends:  ``/api/v2.1/calendar/dividends`` OR Massive ``/v3/reference/dividends``
+    - Splits:     ``/api/v2.1/calendar/splits``    OR Massive ``/v3/reference/splits``
+    - IPO:        ``/api/v2.1/calendar/ipos``      OR Massive ``/vX/reference/ipos``
+    - Earnings:   ``/api/v2.1/calendar/earnings``  (direct-only; outlook scorer /
+                  movers classifier / open-prep calendar fallback)
+    - Economics:  ``/api/v2.1/calendar/economics`` (direct-only; outlook scorer)
+    - Ratings/Guidance/Retail/Conference Calls: direct-only, no Massive route.
+      Retained as library methods, but the terminal calendar tabs/wrappers that
+      used them were retired 2026-07-09 (the Benzinga free key is being replaced
+      by Massive, which has no route for these) — no live app consumer left.
 
-Market Data:
+Market Data (``BENZINGA_PROVIDER=massive`` reroutes both to Massive snapshots):
     - Market Movers:      ``/api/v1/market/movers``
     - Delayed Quotes:     ``/api/v1/quoteDelayed``
 
@@ -33,6 +35,7 @@ from newsstack_fmp._bz_http import (
     _request_with_retry,
     log_fetch_warning,
 )
+from newsstack_fmp.ingest_benzinga import benzinga_provider
 
 from .normalize import normalize_benzinga_calendar_item
 
@@ -270,10 +273,13 @@ class BenzingaCalendarAdapter:
     ) -> list[dict[str, Any]]:
         """Fetch dividend calendar.
 
-        Returns list of dicts with keys: ticker, name, exchange,
-        frequency, dividend, dividend_prior, dividend_type, dividend_yield,
-        ex_date, payable_date, record_date, importance, updated, etc.
+        With ``BENZINGA_PROVIDER=massive`` the rows come from Massive's native
+        ``/v3/reference/dividends`` mapped to the column names the terminal tab
+        consumes (ticker, date, ex_date, payable_date, record_date, dividend,
+        frequency); the direct Benzinga path returns the fuller native schema.
         """
+        if benzinga_provider() == "massive":
+            return _massive_dividends(self.api_key, date_from, date_to, page_size)
         return self._fetch_calendar(
             "dividends",
             updated_since=updated_since,
@@ -296,10 +302,12 @@ class BenzingaCalendarAdapter:
     ) -> list[dict[str, Any]]:
         """Fetch stock splits calendar.
 
-        Returns list of dicts with keys: ticker, exchange, ratio,
-        optionable, date_ex, date_recorded, date_distribution,
-        importance, updated, etc.
+        With ``BENZINGA_PROVIDER=massive`` the rows come from Massive's native
+        ``/v3/reference/splits`` mapped to ticker/date/date_ex/ratio; the direct
+        Benzinga path returns the fuller native schema.
         """
+        if benzinga_provider() == "massive":
+            return _massive_splits(self.api_key, date_from, date_to, page_size)
         return self._fetch_calendar(
             "splits",
             updated_since=updated_since,
@@ -322,11 +330,13 @@ class BenzingaCalendarAdapter:
     ) -> list[dict[str, Any]]:
         """Fetch IPO calendar.
 
-        Returns list of dicts with keys: ticker, exchange, name,
-        pricing_date, price_min, price_max, deal_status,
-        insider_lockup_days, offering_value, offering_shares,
-        lead_underwriters, importance, updated, etc.
+        With ``BENZINGA_PROVIDER=massive`` the rows come from Massive's native
+        ``/vX/reference/ipos`` mapped to ticker/name/exchange/pricing_date/
+        price_min/price_max/deal_status/offering_value; the direct Benzinga path
+        returns the fuller native schema.
         """
+        if benzinga_provider() == "massive":
+            return _massive_ipos(self.api_key, date_from, date_to, page_size)
         return self._fetch_calendar(
             "ipos",
             updated_since=updated_since,
@@ -397,6 +407,212 @@ class BenzingaCalendarAdapter:
 
 MOVERS_URL = "https://api.benzinga.com/api/v1/market/movers"
 
+# Massive (ex-Polygon) native stock snapshots — the movers/quotes route when
+# BENZINGA_PROVIDER=massive (the paid Massive key; api.benzinga.com answers it
+# 401). Requires the Stocks Starter plan (15-min-delayed snapshots; verified
+# live 2026-07-09: gainers/tickers 200, quote `updated` age ~15.1 min).
+MASSIVE_SNAPSHOT_BASE = "https://api.massive.com/v2/snapshot/locale/us/markets/stocks"
+
+# Massive (ex-Polygon) native reference endpoints — the dividends/splits/ipos
+# calendar route when BENZINGA_PROVIDER=massive. Native to the subscribed plan
+# (schema verified 2026-07-09 via massive.com/docs). The Benzinga free key is
+# being retired, so Massive is the replacement for these three; rows are mapped
+# to the same column names the terminal Benzinga-Intelligence tabs consume.
+MASSIVE_REFERENCE_BASE = "https://api.massive.com/v3/reference"
+MASSIVE_IPOS_URL = "https://api.massive.com/vX/reference/ipos"
+
+
+def _massive_reference_rows(
+    url: str, api_key: str, params: dict[str, Any], label: str
+) -> list[dict[str, Any]]:
+    """GET a Massive reference endpoint and return its ``results`` rows (fail-soft)."""
+    request_params: dict[str, Any] = {"apiKey": api_key}
+    request_params.update(params)
+    with httpx.Client(timeout=10.0, headers={"Accept": "application/json"}) as client:
+        try:
+            r = _request_with_retry(client, url, request_params, label=label)
+            data = r.json()
+        except Exception as exc:
+            log_fetch_warning(label, exc)
+            return []
+    rows = data.get("results") if isinstance(data, dict) else None
+    return rows if isinstance(rows, list) else []
+
+
+def _massive_dividends(
+    api_key: str, date_from: str | None, date_to: str | None, page_size: int
+) -> list[dict[str, Any]]:
+    """Massive /v3/reference/dividends -> the Benzinga-dividends row shape the UI consumes."""
+    params: dict[str, Any] = {"limit": min(page_size, 1000), "order": "desc", "sort": "ex_dividend_date"}
+    if date_from:
+        params["ex_dividend_date.gte"] = date_from
+    if date_to:
+        params["ex_dividend_date.lte"] = date_to
+    rows = _massive_reference_rows(
+        f"{MASSIVE_REFERENCE_BASE}/dividends", api_key, params, "Massive dividends"
+    )
+    out: list[dict[str, Any]] = []
+    for r in rows:
+        if not isinstance(r, dict):
+            continue
+        ex = r.get("ex_dividend_date", "")
+        out.append({
+            "ticker": str(r.get("ticker", "") or "").upper(),
+            "date": ex,
+            "ex_date": ex,
+            "payable_date": r.get("pay_date", ""),
+            "record_date": r.get("record_date", ""),
+            "dividend": r.get("cash_amount"),
+            "frequency": r.get("frequency"),
+        })
+    return out
+
+
+def _massive_splits(
+    api_key: str, date_from: str | None, date_to: str | None, page_size: int
+) -> list[dict[str, Any]]:
+    """Massive /v3/reference/splits -> the Benzinga-splits row shape the UI consumes."""
+    params: dict[str, Any] = {"limit": min(page_size, 1000), "order": "desc", "sort": "execution_date"}
+    if date_from:
+        params["execution_date.gte"] = date_from
+    if date_to:
+        params["execution_date.lte"] = date_to
+    rows = _massive_reference_rows(
+        f"{MASSIVE_REFERENCE_BASE}/splits", api_key, params, "Massive splits"
+    )
+    out: list[dict[str, Any]] = []
+    for r in rows:
+        if not isinstance(r, dict):
+            continue
+        split_from = r.get("split_from")
+        split_to = r.get("split_to")
+        ratio = f"{split_to}:{split_from}" if split_from and split_to else ""
+        ex = r.get("execution_date", "")
+        out.append({
+            "ticker": str(r.get("ticker", "") or "").upper(),
+            "date": ex,
+            "date_ex": ex,
+            "ratio": ratio,
+        })
+    return out
+
+
+def _massive_ipos(
+    api_key: str, date_from: str | None, date_to: str | None, page_size: int
+) -> list[dict[str, Any]]:
+    """Massive /vX/reference/ipos -> the Benzinga-ipos row shape the UI consumes."""
+    params: dict[str, Any] = {"limit": min(page_size, 1000), "order": "desc", "sort": "listing_date"}
+    if date_from:
+        params["listing_date.gte"] = date_from
+    if date_to:
+        params["listing_date.lte"] = date_to
+    rows = _massive_reference_rows(MASSIVE_IPOS_URL, api_key, params, "Massive ipos")
+    out: list[dict[str, Any]] = []
+    for r in rows:
+        if not isinstance(r, dict):
+            continue
+        out.append({
+            "ticker": str(r.get("ticker", "") or "").upper(),
+            "name": r.get("issuer_name", ""),
+            "exchange": r.get("primary_exchange", ""),
+            "pricing_date": r.get("listing_date", ""),
+            "price_min": r.get("lowest_offer_price"),
+            "price_max": r.get("highest_offer_price"),
+            "deal_status": r.get("ipo_status", ""),
+            "offering_value": r.get("total_offer_size"),
+        })
+    return out
+
+
+def _snap_num(value: Any) -> float | None:
+    """Positive finite number or None (explicit — 0/None/'' are not prices)."""
+    if isinstance(value, (int, float)) and not isinstance(value, bool) and value > 0:
+        return float(value)
+    return None
+
+
+def _massive_snapshot_tickers(client: httpx.Client, url: str, params: dict[str, Any], label: str) -> list[dict[str, Any]]:
+    """GET a Massive snapshot endpoint and return its ticker rows (fail-soft)."""
+    try:
+        r = _request_with_retry(client, url, params, label=label)
+        data = r.json()
+    except Exception as exc:
+        log_fetch_warning(label, exc)
+        return []
+    if not isinstance(data, dict):
+        return []
+    rows = data.get("tickers")
+    return rows if isinstance(rows, list) else []
+
+
+def _massive_snapshot_to_quote(t: dict[str, Any]) -> dict[str, Any]:
+    """Map one Massive snapshot ticker row to the flat Benzinga-quote shape.
+
+    ``min`` is the latest (15-min-delayed) minute bar -> best "last"; ``day``
+    covers today's session; ``prevDay`` yesterday. Fields the snapshot does
+    not carry (name, 52w high/low) stay ''/None — consumers .get() them.
+    """
+    day = t.get("day") if isinstance(t.get("day"), dict) else {}
+    minute = t.get("min") if isinstance(t.get("min"), dict) else {}
+    prev = t.get("prevDay") if isinstance(t.get("prevDay"), dict) else {}
+    last = _snap_num(minute.get("c"))
+    if last is None:
+        last = _snap_num(day.get("c"))
+    if last is None:
+        last = _snap_num(prev.get("c"))
+    # On the 15-min-delayed Starter feed the `day` aggregate is all-zero
+    # intraday (verified live 2026-07-09); the accumulated session volume
+    # lives in `min.av`. _snap_num turns those zeros into None (no bogus 0s).
+    volume = _snap_num(day.get("v"))
+    if volume is None:
+        volume = _snap_num(minute.get("av"))
+    return {
+        "symbol": str(t.get("ticker", "") or "").upper(),
+        "name": "",
+        "last": last,
+        "change": t.get("todaysChange"),
+        "changePercent": t.get("todaysChangePerc"),
+        "open": _snap_num(day.get("o")),
+        "high": _snap_num(day.get("h")),
+        "low": _snap_num(day.get("l")),
+        "close": _snap_num(day.get("c")),
+        "volume": volume,
+        "fiftyTwoWeekHigh": None,
+        "fiftyTwoWeekLow": None,
+        "previousClose": _snap_num(prev.get("c")),
+    }
+
+
+def _massive_mover_row(t: dict[str, Any]) -> dict[str, Any]:
+    """Map one Massive gainers/losers row to the Benzinga-movers row shape."""
+    q = _massive_snapshot_to_quote(t)
+    return {
+        "symbol": q["symbol"],
+        "price": q["last"],
+        "change": q["change"],
+        "changePercent": q["changePercent"],
+        "volume": q["volume"],
+        "averageVolume": None,
+        "marketCap": None,
+        "companyName": "",
+        "gicsSectorName": "",
+    }
+
+
+def _fetch_massive_movers(api_key: str) -> dict[str, list[dict[str, Any]]]:
+    """Movers via Massive snapshots (top-20 gainers + losers, 15-min delayed)."""
+    out: dict[str, list[dict[str, Any]]] = {"gainers": [], "losers": []}
+    with httpx.Client(timeout=10.0, headers={"Accept": "application/json"}) as client:
+        for direction in ("gainers", "losers"):
+            rows = _massive_snapshot_tickers(
+                client,
+                f"{MASSIVE_SNAPSHOT_BASE}/{direction}",
+                {"apiKey": api_key},
+                label=f"Massive movers {direction}",
+            )
+            out[direction] = [_massive_mover_row(t) for t in rows if isinstance(t, dict)]
+    return out
+
 
 def fetch_benzinga_movers(api_key: str) -> dict[str, list[dict[str, Any]]]:
     """Fetch market movers (gainers and losers only — no most-active list).
@@ -404,7 +620,13 @@ def fetch_benzinga_movers(api_key: str) -> dict[str, list[dict[str, Any]]]:
     Returns dict with keys: ``gainers``, ``losers`` — each a list of
     dicts with keys: symbol, price, change, changePercent, volume,
     averageVolume, marketCap, companyName, gicsSectorName, etc.
+
+    With ``BENZINGA_PROVIDER=massive`` the data comes from the Massive
+    snapshot endpoints instead (same row shape; snapshot-absent fields are
+    None/'' — averageVolume, marketCap, companyName, gicsSectorName).
     """
+    if benzinga_provider() == "massive":
+        return _fetch_massive_movers(api_key)
     with httpx.Client(timeout=10.0, headers={"Accept": "application/json"}) as client:
         try:
             r = _request_with_retry(client, MOVERS_URL, {"token": api_key}, label="Benzinga movers")
@@ -450,6 +672,10 @@ def fetch_benzinga_quotes(
         Flattened quote records with keys: symbol, name, last, change,
         changePercent, open, high, low, close, volume, fiftyTwoWeekHigh,
         fiftyTwoWeekLow, previousClose.
+
+    With ``BENZINGA_PROVIDER=massive`` the quotes come from the Massive
+    full-market snapshot (15-min delayed on Stocks Starter; same record
+    shape; name/52w-high/low are ''/None — the snapshot doesn't carry them).
     """
     if not symbols:
         return []
@@ -466,6 +692,20 @@ def fetch_benzinga_quotes(
             cleaned.append(stripped.upper())
     if not cleaned:
         return []
+
+    if benzinga_provider() == "massive":
+        results_m: list[dict[str, Any]] = []
+        with httpx.Client(timeout=10.0, headers={"Accept": "application/json"}) as client:
+            for start in range(0, len(cleaned), 50):  # keep bz-direct chunking symmetry
+                chunk = cleaned[start : start + 50]
+                rows = _massive_snapshot_tickers(
+                    client,
+                    f"{MASSIVE_SNAPSHOT_BASE}/tickers",
+                    {"apiKey": api_key, "tickers": ",".join(chunk)},
+                    label=f"Massive quotes chunk {start}-{start + len(chunk)}",
+                )
+                results_m.extend(_massive_snapshot_to_quote(t) for t in rows if isinstance(t, dict))
+        return results_m
 
     chunk_size = 50
     quotes_raw: list[dict[str, Any]] = []

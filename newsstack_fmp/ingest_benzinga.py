@@ -119,12 +119,12 @@ def _build_news_params(
     provider: str = "direct",
 ) -> dict[str, Any]:
     if provider == "massive":
-        # Massive benzinga/v2/news dialect (verified against the live API
-        # 2026-07-09): apiKey auth, ``limit``, ISO ``.gte``/``.lte`` range
-        # filters, ``tickers`` filter works, ``channels`` accepted.
-        # ``topics``/``page``/``displayOutput`` have no equivalent — dropped
-        # (teaser/body are not part of the Massive payload; scoring is
-        # headline-based, see normalize_benzinga_rest).
+        # Massive benzinga/v2/news dialect (re-verified live 2026-07-09):
+        # apiKey auth, ``limit``, ISO ``.gte``/``.lte`` range filters,
+        # ``tickers``/``channels`` accepted. ``topics``/``page``/
+        # ``displayOutput`` have no equivalent — dropped. NOTE: Massive sends
+        # the full-mode payload BY DEFAULT (teaser+body ARE standard fields;
+        # scoring stays content-based — only wire headlines lack them).
         params: dict[str, Any] = {"apiKey": api_key, "limit": page_size}
         if updated_since:
             params["last_updated.gte"] = _epoch_to_iso_utc(updated_since)

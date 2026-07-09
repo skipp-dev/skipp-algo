@@ -59,6 +59,13 @@ fi
 # open) must NOT block the downstream runner — it will fall back to the
 # most recent successful CSV via build_phase_a_inputs.py auto-discovery.
 export PYTHONPATH="${REPO}"
+# Redirect this LOCAL export's outcome writes off the CI-committed canonical
+# corpus (see open_prep/outcomes.py OPEN_PREP_OUTCOMES_DIR): committed activation
+# so it holds on any machine without depending on a local .env. This export only
+# feeds phase-a's trade-cards CSV, never the outcomes JSON, so a gitignored
+# shadow path is harmless — and it stops the daily untracked outcomes_<date>.json
+# from colliding with CI's commit on git pull.
+export OPEN_PREP_OUTCOMES_DIR="${OPEN_PREP_OUTCOMES_DIR:-${REPO}/artifacts/open_prep/outcomes_local}"
 if "${PY}" -m scripts.export_open_prep_lists; then
     _write_marker "SUCCESS" "export-complete:date=${DATE}"
 else
