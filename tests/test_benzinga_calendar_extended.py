@@ -25,9 +25,7 @@ from newsstack_fmp.ingest_benzinga_calendar import BenzingaCalendarAdapter
 # Also test terminal_poller wrappers
 from terminal_poller import (
     fetch_benzinga_dividends,
-    fetch_benzinga_guidance,
     fetch_benzinga_ipos,
-    fetch_benzinga_retail,
     fetch_benzinga_splits,
 )
 
@@ -206,23 +204,10 @@ class TestTerminalPollerWrappers:
             result = fetch_benzinga_ipos("key")
             assert len(result) == 1
 
-    def test_fetch_benzinga_guidance_wraps(self):
-        with patch("terminal_poller.BenzingaCalendarAdapter") as MockAdapter:
-            mock_inst = MagicMock()
-            mock_inst.fetch_guidance.return_value = [{"ticker": "AAPL"}]
-            MockAdapter.return_value = mock_inst
-
-            result = fetch_benzinga_guidance("key")
-            assert len(result) == 1
-
-    def test_fetch_benzinga_retail_wraps(self):
-        with patch("terminal_poller.BenzingaCalendarAdapter") as MockAdapter:
-            mock_inst = MagicMock()
-            mock_inst.fetch_retail.return_value = [{"ticker": "WMT"}]
-            MockAdapter.return_value = mock_inst
-
-            result = fetch_benzinga_retail("key")
-            assert len(result) == 1
+    # fetch_benzinga_guidance / fetch_benzinga_retail wrapper tests removed
+    # 2026-07-09: those terminal wrappers were retired (no Massive route; free
+    # key being replaced). The adapter methods stay covered by TestFetchGuidance
+    # / TestFetchRetail above.
 
     def test_wrapper_returns_empty_on_error(self):
         """Wrappers should return empty list on exception, not crash."""
@@ -240,3 +225,98 @@ class TestTerminalPollerWrappers:
         with patch("terminal_poller.BenzingaCalendarAdapter", None):
             result = fetch_benzinga_dividends("key")
             assert result == []
+
+
+# ═══════════════════════════════════════════════════════════════
+# Massive-native routing (BENZINGA_PROVIDER=massive) for div/splits/ipos
+# ═══════════════════════════════════════════════════════════════
+
+
+class TestMassiveCalendarRouting:
+    """With BENZINGA_PROVIDER=massive, dividends/splits/ipos fetch from the
+    Massive reference endpoints and map to the Benzinga row shape the UI uses.
+    Ratings/earnings/economics/guidance/retail/conf-calls have no Massive route
+    and stay on the direct calendar path unchanged."""
+
+    @patch("newsstack_fmp.ingest_benzinga_calendar._request_with_retry")
+    def test_dividends_massive_maps_rows(self, mock_req, monkeypatch: pytest.MonkeyPatch):
+        monkeypatch.setenv("BENZINGA_PROVIDER", "massive")
+        resp = MagicMock()
+        resp.json.return_value = {"results": [{
+            "ticker": "aapl", "cash_amount": 0.25, "ex_dividend_date": "2026-07-10",
+            "pay_date": "2026-07-20", "record_date": "2026-07-11", "frequency": 4,
+        }]}
+        mock_req.return_value = resp
+
+        adapter = BenzingaCalendarAdapter("k")
+        rows = adapter.fetch_dividends(date_from="2026-07-01", date_to="2026-07-31")
+        adapter.close()
+
+        # hit the Massive reference host, not api.benzinga.com
+        assert "api.massive.com/v3/reference/dividends" in mock_req.call_args.args[1]
+        assert rows == [{
+            "ticker": "AAPL", "date": "2026-07-10", "ex_date": "2026-07-10",
+            "payable_date": "2026-07-20", "record_date": "2026-07-11",
+            "dividend": 0.25, "frequency": 4,
+        }]
+
+    @patch("newsstack_fmp.ingest_benzinga_calendar._request_with_retry")
+    def test_splits_massive_maps_ratio(self, mock_req, monkeypatch: pytest.MonkeyPatch):
+        monkeypatch.setenv("BENZINGA_PROVIDER", "massive")
+        resp = MagicMock()
+        resp.json.return_value = {"results": [{
+            "ticker": "nvda", "execution_date": "2026-07-15", "split_from": 1, "split_to": 10,
+        }]}
+        mock_req.return_value = resp
+
+        adapter = BenzingaCalendarAdapter("k")
+        rows = adapter.fetch_splits(date_from="2026-07-01")
+        adapter.close()
+
+        assert "api.massive.com/v3/reference/splits" in mock_req.call_args.args[1]
+        assert rows == [{"ticker": "NVDA", "date": "2026-07-15", "date_ex": "2026-07-15", "ratio": "10:1"}]
+
+    @patch("newsstack_fmp.ingest_benzinga_calendar._request_with_retry")
+    def test_ipos_massive_maps_rows(self, mock_req, monkeypatch: pytest.MonkeyPatch):
+        monkeypatch.setenv("BENZINGA_PROVIDER", "massive")
+        resp = MagicMock()
+        resp.json.return_value = {"results": [{
+            "ticker": "RDDT", "issuer_name": "Reddit Inc", "primary_exchange": "XNYS",
+            "listing_date": "2026-07-12", "lowest_offer_price": 31.0, "highest_offer_price": 34.0,
+            "ipo_status": "pending", "total_offer_size": 748000000,
+        }]}
+        mock_req.return_value = resp
+
+        adapter = BenzingaCalendarAdapter("k")
+        rows = adapter.fetch_ipos(date_from="2026-07-01")
+        adapter.close()
+
+        assert "api.massive.com/vX/reference/ipos" in mock_req.call_args.args[1]
+        assert rows[0]["ticker"] == "RDDT"
+        assert rows[0]["name"] == "Reddit Inc"
+        assert rows[0]["pricing_date"] == "2026-07-12"
+        assert rows[0]["price_min"] == 31.0 and rows[0]["price_max"] == 34.0
+        assert rows[0]["deal_status"] == "pending"
+
+    @patch("newsstack_fmp.ingest_benzinga_calendar._request_with_retry")
+    def test_dividends_direct_unchanged(self, mock_req, monkeypatch: pytest.MonkeyPatch):
+        monkeypatch.delenv("BENZINGA_PROVIDER", raising=False)  # default = direct
+        resp = MagicMock()
+        resp.status_code = 200
+        resp.json.return_value = {"dividends": [{"ticker": "AAPL"}]}
+        mock_req.return_value = resp
+
+        adapter = BenzingaCalendarAdapter("k")
+        adapter.fetch_dividends()
+        adapter.close()
+
+        # direct mode hits the Benzinga calendar host
+        assert "api.benzinga.com/api/v2.1/calendar/dividends" in mock_req.call_args.args[1]
+
+    @patch("newsstack_fmp.ingest_benzinga_calendar._request_with_retry")
+    def test_dividends_massive_fail_soft(self, mock_req, monkeypatch: pytest.MonkeyPatch):
+        monkeypatch.setenv("BENZINGA_PROVIDER", "massive")
+        mock_req.side_effect = Exception("boom")
+        adapter = BenzingaCalendarAdapter("k")
+        assert adapter.fetch_dividends() == []
+        adapter.close()
