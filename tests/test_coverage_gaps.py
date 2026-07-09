@@ -662,8 +662,13 @@ class TestBenzingaRestRetry(unittest.TestCase):
     def _make_adapter(self) -> Any:
         from newsstack_fmp.ingest_benzinga import BenzingaRestAdapter
 
-        adapter = BenzingaRestAdapter.__new__(BenzingaRestAdapter)
-        adapter.api_key = "test_key"
+        # Construct via the REAL __init__ (explicit provider so the test is
+        # env-independent), then swap the httpx client for a mock. The old
+        # ``__new__`` bypass skipped __init__ and broke on ANY new instance
+        # attribute — #3318's ``self.provider`` turned every main-push CI red
+        # while fast-gates (which doesn't run this file) stayed green.
+        adapter = BenzingaRestAdapter(api_key="test_key", provider="direct")
+        adapter.client.close()
         adapter.client = MagicMock(spec=httpx.Client)
         return adapter
 
