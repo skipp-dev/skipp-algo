@@ -7,7 +7,12 @@ turning the A0/A1/A2 heuristic into empirical numbers:
 
     P(favorable move >= target within horizon | level, volume-ratio bucket)
 
-plus the mean net return and the median favorable / adverse excursion (MFE/MAE).
+plus the mean net return and the median favorable / adverse excursion. Two
+methodology caveats: ``median_mae_pct`` is SIGNED entry-relative (bullish:
+``(low-entry)/entry`` — usually negative), not the conventional positive MAE
+magnitude; and events logged within ``--horizon-min`` of the end of the day's
+bar series keep full weight despite their truncated window, so measured P is
+biased slightly downward for late-session events.
 
 Pure functions (``normalize_bars`` / ``compute_outcome`` / ``aggregate``) hold all
 the maths and are unit-tested without network; only ``_fetch_bars`` and ``main``
