@@ -988,7 +988,9 @@ def _collect_process_metrics(startup_ts: float, startup_epoch: float = 0.0) -> l
                 elif line.startswith("VmSize:"):
                     vm_bytes = int(line.split()[1]) * 1024
     except (OSError, ValueError):
-        # macOS fallback: ru_maxrss is in bytes on macOS, KB on Linux
+        # macOS fallback: ru_maxrss is in bytes on macOS, KB on Linux. NOTE: this
+        # is PEAK RSS, not current — so the gauge reports lifetime peak on the
+        # dev fallback path. Prod (Linux) uses /proc VmRSS above = true current RSS.
         if _resource_available and resource is not None:
             import sys
 
@@ -1561,19 +1563,40 @@ def render_metrics(startup_ts: float, startup_epoch: float = 0.0) -> str:
         signal_counts = {"active": 0, "a0": 0, "a1": 0, "a2": 0, "watched": 0}
     lines.append("# TYPE live_overlay_trading_signals_loaded gauge")
     lines.append(f"live_overlay_trading_signals_loaded {_prom_numeric_value(signals_snapshot['loaded'])}")
+    # These are point-in-time gauges: currently-loaded signal counts that rise
+    # AND fall. The canonical names are suffix-less to match the Prometheus
+    # gauge convention (cf. trading_signals_loaded above); the historical
+    # *_total names are non-monotonic despite the counter-style suffix and are
+    # kept only as DEPRECATED aliases for dashboards not yet migrated (drop
+    # after the transition window — see the migration PR).
+    _sig_active = _prom_numeric_value(signal_counts['active'])
+    lines.append("# TYPE live_overlay_trading_signals_active gauge")
+    lines.append(f"live_overlay_trading_signals_active {_sig_active}")
     lines.append("# TYPE live_overlay_trading_signals_active_total gauge")
-    lines.append(f"live_overlay_trading_signals_active_total {_prom_numeric_value(signal_counts['active'])}")
+    lines.append(f"live_overlay_trading_signals_active_total {_sig_active}")
+    _sig_a0 = _prom_numeric_value(signal_counts['a0'])
+    lines.append("# TYPE live_overlay_trading_signals_a0 gauge")
+    lines.append(f"live_overlay_trading_signals_a0 {_sig_a0}")
     lines.append("# TYPE live_overlay_trading_signals_a0_total gauge")
-    lines.append(f"live_overlay_trading_signals_a0_total {_prom_numeric_value(signal_counts['a0'])}")
+    lines.append(f"live_overlay_trading_signals_a0_total {_sig_a0}")
+    _sig_a1 = _prom_numeric_value(signal_counts['a1'])
+    lines.append("# TYPE live_overlay_trading_signals_a1 gauge")
+    lines.append(f"live_overlay_trading_signals_a1 {_sig_a1}")
     lines.append("# TYPE live_overlay_trading_signals_a1_total gauge")
-    lines.append(f"live_overlay_trading_signals_a1_total {_prom_numeric_value(signal_counts['a1'])}")
+    lines.append(f"live_overlay_trading_signals_a1_total {_sig_a1}")
     # A2 = early-warning tier (building momentum, not confirmed). Emitted since
     # 2026-07-08 so Grafana can surface all three levels; the producer counts it
-    # in a2_count. active_total already includes A2.
+    # in a2_count. active already includes A2.
+    _sig_a2 = _prom_numeric_value(signal_counts['a2'])
+    lines.append("# TYPE live_overlay_trading_signals_a2 gauge")
+    lines.append(f"live_overlay_trading_signals_a2 {_sig_a2}")
     lines.append("# TYPE live_overlay_trading_signals_a2_total gauge")
-    lines.append(f"live_overlay_trading_signals_a2_total {_prom_numeric_value(signal_counts['a2'])}")
+    lines.append(f"live_overlay_trading_signals_a2_total {_sig_a2}")
+    _sig_watched = _prom_numeric_value(signal_counts['watched'])
+    lines.append("# TYPE live_overlay_trading_signals_watched gauge")
+    lines.append(f"live_overlay_trading_signals_watched {_sig_watched}")
     lines.append("# TYPE live_overlay_trading_signals_watched_total gauge")
-    lines.append(f"live_overlay_trading_signals_watched_total {_prom_numeric_value(signal_counts['watched'])}")
+    lines.append(f"live_overlay_trading_signals_watched_total {_sig_watched}")
     lines.append("# TYPE live_overlay_trading_signals_snapshot_age_known gauge")
     lines.append(
         f"live_overlay_trading_signals_snapshot_age_known {_prom_numeric_value(signals_snapshot['age_known'])}"
@@ -1698,7 +1721,7 @@ def render_metrics(startup_ts: float, startup_epoch: float = 0.0) -> str:
     lines.append(f"live_overlay_experiment_snapshot_age_seconds {age_float:.1f}")
     # Staleness verdict mirrors the trading-signals pattern: this wires the
     # documented-but-previously-inert OVERLAY_EXPERIMENT_MAX_AGE_SECS knob
-    # (config.experiment_max_age_secs, default 36h) to an alertable 0/1 gauge.
+    # (config.experiment_max_age_secs, default 96h) to an alertable 0/1 gauge.
     # Unknown age (age_known == 0) reads as not-stale so a fresh daemon does
     # not page before the first snapshot load.
     experiment_max_age = float(config.experiment_max_age_secs())

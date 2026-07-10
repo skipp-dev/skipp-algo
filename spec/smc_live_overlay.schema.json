@@ -74,7 +74,7 @@
       "minimum": 0
     },
     "squeeze_on": {
-      "description": "B1. Volatility-squeeze flag derived from the live volume regime (1=on, 0=off). Null when not served fresh.",
+      "description": "B1. Volatility-squeeze flag from a price-volatility read (Bollinger-band width < Keltner-channel width; no volume input) (1=on, 0=off). Null when not served fresh.",
       "type": [
         "integer",
         "null"
@@ -101,14 +101,14 @@
       ]
     },
     "ats_state": {
-      "description": "B2. Average-trade-size regime label (e.g. SPIKE_UP/ELEVATED/NEUTRAL) from the live microstructure read. Absent (or null) when not served fresh (then Pine uses baked mp.* ats_state).",
+      "description": "B2. Accumulation/distribution regime label from price-delta x volume-zscore: \"accumulation\" | \"distribution\" | \"neutral\". (\"ATS\" here is an accumulation/distribution read, not average-trade-size.) Absent (or null) when not served fresh (then Pine uses baked mp.* ats_state).",
       "type": [
         "string",
         "null"
       ]
     },
     "ats_zscore": {
-      "description": "B2. Average-trade-size z-score vs the 20-day baseline from the live microstructure read. Absent (or null) when not served fresh (then Pine uses baked mp.* ats_zscore).",
+      "description": "B2. Z-score of the last bar's volume vs the rolling intraday bar window (not average-trade-size, not a 20-day baseline). Absent (or null) when not served fresh (then Pine uses baked mp.* ats_zscore).",
       "type": [
         "number",
         "null"
@@ -122,7 +122,7 @@
       ]
     },
     "global_heat": {
-      "description": "B2/C. Aggregate directional heat in [-1,1] (0.7*signed-tech + 0.3*signed-news) from the live snapshot, derived through the same layering as the baked mp.* GLOBAL_HEAT. Absent (or null) when not served fresh (then Pine uses the baked mp.* global_heat).",
+      "description": "B2/C. Aggregate directional heat in [-1,1]: the clamped mean of per-story signed news scores (sentiment_score, else news_score) from the live snapshot; news-only (no technical term). Absent (or null) when not served fresh (then Pine uses the baked mp.* global_heat).",
       "type": [
         "number",
         "null"

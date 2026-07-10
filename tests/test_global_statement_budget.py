@@ -312,8 +312,8 @@ _FROZEN_SITES: frozenset[tuple[str, int, tuple[str, ...]]] = frozenset(
         # / _failed_snapshot shifted both globals by four more (236->240, 274->278).
         # 2026-07-07 str(id) sort-key rationale comment in _build_services shifted
         # both globals by three more (240->243, 278->281).
-        ("services/live_overlay_daemon/railway_metrics.py", 243, ("_CACHE", "_CACHE_EXPIRES_AT")),
-        ("services/live_overlay_daemon/railway_metrics.py", 281, ("_CACHE", "_CACHE_EXPIRES_AT")),
+        ("services/live_overlay_daemon/railway_metrics.py", 245, ("_CACHE", "_CACHE_EXPIRES_AT")),  # +2 (2026-07-09): snapshot() docstring truth-fix
+        ("services/live_overlay_daemon/railway_metrics.py", 283, ("_CACHE", "_CACHE_EXPIRES_AT")),  # +2 (2026-07-09): snapshot() docstring truth-fix
         # 2026-06-19 (fix/live-overlay-post-merge-bugs): added non-finite JSON
         # sanitization helper and related imports, shifting _startup_ts line.
         # 2026-06-19 (Copilot follow-up): _VALID_TFS contract alignment shifted

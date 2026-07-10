@@ -10,7 +10,7 @@ the title is generic.
 Enhanced with:
 - 16 category patterns (up from 8) covering macro, crypto, insider, buyback, etc.
 - Entity-level relevance scoring
-- Headline-similarity novelty detection via Jaccard coefficient
+- Novelty decay by exact cluster-hash count (NOT similarity/Jaccard — see cluster_hash)
 
 Works with both ``NewsItem`` objects and plain dicts (backward compat).
 """
@@ -68,7 +68,7 @@ _CATEGORY_POLARITY_NOISE: dict[str, re.Pattern[str]] = {
     ),
 }
 
-# ── Headline token set for Jaccard novelty ──────────────────────
+# ── Cluster-hash novelty (exact normalized-headline+tickers key) ─
 
 
 @dataclass(frozen=True)
@@ -79,7 +79,7 @@ class ScoreResult:
     polarity: float
     score: float
     cluster_hash: str
-    relevance: float  # 0.0–1.0 composite relevance (impact + clarity + entity specificity)
+    relevance: float  # 0.0–1.0 composite (impact*0.45 + clarity*0.30 + entity_bonus + novelty*0.15)
     entity_count: int  # tickers mentioned; read by terminal_poller -> PollItem -> feed display
 
 
@@ -116,7 +116,9 @@ def cluster_hash(headline: str, tickers: list[str]) -> str:
 
     Provider is intentionally excluded so that the same story from
     FMP + Benzinga maps to the same cluster and receives proper
-    novelty decay.
+    novelty decay — but this is an EXACT SHA-1 of normalized-headline +
+    tickers, so that only holds when both feeds phrase the (normalized)
+    headline byte-identically; near-duplicates hash apart and read as novel.
     """
     # Normalise tickers to uppercase so mixed-case inputs hash identically.
     key = f"{_norm(headline)}|{','.join(sorted(set(t.upper() for t in tickers)))}"

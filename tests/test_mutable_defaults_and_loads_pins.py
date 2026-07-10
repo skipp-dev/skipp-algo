@@ -107,6 +107,9 @@ _FROZEN_JSON_LOAD_SITES: frozenset[tuple[str, int]] = frozenset(
         # 2026-07-09 calibration consumer: guarded read of calibration_latest.json
         # (try/except OSError,ValueError; mtime-cached; volume-local file, not remote).
         ("open_prep/calibration_lookup.py", 75),
+        # 2026-07-09 calibration readiness log: guarded read-back of the just-written
+        # calibration_latest.json to log arm-ready bucket counts (try/except; volume-local).
+        ("open_prep/calibration_scheduler.py", 68),
         ("open_prep/diff.py", 82),
         # 2026-06-11 (backfill defer-unpublished): sentinel+helper block
         # above shifted 61→80, 81→100; pytest write-guard import +4 → 84/104.
@@ -138,7 +141,7 @@ _FROZEN_JSON_LOAD_SITES: frozenset[tuple[str, int]] = frozenset(
         # 2026-07-04 (WP-3 backtest tooling): FMPDataLoader.load_from_json parses
         # a local candle-cache file written by its own save_to_json (operator-
         # supplied path in the standalone backtest runner), not untrusted input.
-        ("services/live_overlay_daemon/fmp_data_loader.py", 400),
+        ("services/live_overlay_daemon/fmp_data_loader.py", 402),  # +2 (2026-07-09): limit/intraday docstring truth-fix above
     }
 )
 

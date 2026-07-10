@@ -1418,7 +1418,7 @@ groups:
       datasourceUid: grafanacloud-prom
       model:
         # Wires the documented OVERLAY_EXPERIMENT_MAX_AGE_SECS knob (default
-        # 36h, tolerates one skipped daily run) to an alert. Before 2026-07-07
+        # 96h, tolerates one skipped weekday run) to an alert. Before 2026-07-07
         # the knob existed in config/README/OPS but was connected to nothing.
         expr: max(live_overlay_experiment_snapshot_stale{job="live_overlay"})
         instant: true
@@ -1840,7 +1840,7 @@ groups:
     labels:
       severity: warning
     annotations:
-      summary: A monitored GitHub Actions workflow's latest run ended in failure/cancelled/timed_out/startup_failure/stale.
+      summary: A monitored GitHub Actions workflow's latest run ended in failure/timed_out/startup_failure (cancelled and stale are intentionally non-paging).
       runbook: Open the named workflow in GitHub Actions; direct signal the adr0023/promotion/c13 crons
         were missing (red for weeks unseen).
   - uid: lo-workflow-no-green-24h

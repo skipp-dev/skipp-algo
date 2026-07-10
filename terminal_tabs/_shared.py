@@ -154,12 +154,19 @@ def cached_spike_data(api_key: str) -> dict[str, list[dict[str, Any]]]:
         if _YF_AVAILABLE:
             yf_data = _yf_screen_movers()
             if yf_data["gainers"] or yf_data["losers"] or yf_data["actives"]:
+                for _lst in yf_data.values():
+                    for _it in _lst:
+                        _it["_mover_src"] = "YF"  # real-time; tag actual source
                 return yf_data
         if api_key:
             gainers = enrich_with_batch_quote(api_key, fetch_gainers(api_key))
             losers = enrich_with_batch_quote(api_key, fetch_losers(api_key))
             actives = enrich_with_batch_quote(api_key, fetch_most_active(api_key))
-            return {"gainers": gainers, "losers": losers, "actives": actives}
+            fmp_data = {"gainers": gainers, "losers": losers, "actives": actives}
+            for _lst in fmp_data.values():
+                for _it in _lst:
+                    _it["_mover_src"] = "FMP"  # 15-min delayed fallback
+            return fmp_data
         return {"gainers": [], "losers": [], "actives": []}
     except Exception:
         logger.warning("cached_spike_data failed", exc_info=True)
@@ -219,15 +226,16 @@ def build_unified_movers(
     now = time.time()
     result: dict[str, dict[str, Any]] = {}
 
-    # 1) FMP gainers/losers/actives (30s TTL)
+    # 1) yfinance-primary movers (FMP 15-min fallback); label reflects the real source
     if fmp_key:
         fmp_data = cached_spike_data(fmp_key)
-        for src_list, src_label in [
-            (fmp_data["gainers"], "FMP-Gainer"),
-            (fmp_data["losers"], "FMP-Loser"),
-            (fmp_data["actives"], "FMP-Active"),
+        for src_list, category in [
+            (fmp_data["gainers"], "Gainer"),
+            (fmp_data["losers"], "Loser"),
+            (fmp_data["actives"], "Active"),
         ]:
             for item in src_list:
+                src_label = f"{item.get('_mover_src', 'FMP')}-{category}"
                 sym = (item.get("symbol") or "").upper().strip()
                 if not sym:
                     continue

@@ -9,7 +9,7 @@ Architecture:
 
 Reconnect strategy:
   - On BentoError or connection drop, wait RECONNECT_DELAY_SECS and reconnect.
-  - On consecutive failures > MAX_RECONNECT_ATTEMPTS, log and sleep longer
+  - On consecutive failures >= MAX_RECONNECT_ATTEMPTS, log and sleep longer
     (avoids hammering the API on persistent outage).
 
 Thread safety:

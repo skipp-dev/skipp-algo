@@ -57,7 +57,7 @@ class SmcBox:
     mitigated_at: int | None = None
 
     # Visual config
-    color: str = "#00FF00"  # Hex; updated to mitigation_color on breach
+    color: str = "#00FF00"  # Hex; NOTE: not mutated on mitigation (only transparency changes)
     transparency: int = 90
 
     # Metadata
@@ -100,7 +100,7 @@ class SmcBox:
         # active box. isfinite covers both, where the old isnan missed ±inf.
         if not math.isfinite(high) or not math.isfinite(low):
             return False
-        # Bullish box breached if high > top; Bearish if low < bottom
+        # any box mitigates when price pierces either boundary (direction-agnostic)
         return high > self.top or low < self.bottom
 
     def update_right(self, new_right: int) -> None:
@@ -319,7 +319,7 @@ def is_rjb_down(
     Args:
         high_t1: signal candle high
         close_t2, high_t2: trapped candle close/high
-        threshold: wick coverage % (0.2 = <50% of wick covered = rejection)
+        threshold: wick coverage % (0.2 = <20% of wick covered = rejection)
     """
     if not all(math.isfinite(x) for x in [high_t1, close_t2, high_t2]):
         return False

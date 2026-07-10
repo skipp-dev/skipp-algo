@@ -30,9 +30,9 @@ implements the documented, replicable ones:
    sub-second window across different exchanges. OPRA tags each trade with a
    ``publisher_id``/``exchange`` field; >=3 exchange touches inside a 500 ms
    bucket marks the cluster as a sweep.
-2. **Aggressor classification** — OPRA `trades` carries the ``side`` field
-   (`A` = ask-side / aggressive buy, `B` = bid-side / aggressive sell,
-   `N` = neutral / cross). We pass this through into
+2. **Aggressor classification** — OPRA `trades` carries the ``side`` field.
+   Per Databento: `A` (Ask) = sell aggressor → bearish, `B` (Bid) = buy
+   aggressor → bullish, `N` = neutral / cross. We map this into
    ``aggressor_ind`` and ``sentiment``.
 3. **Block-trade premium gate** — total notional premium
    ``size * price * 100`` (OCC contract multiplier) above a configurable
@@ -136,19 +136,19 @@ class OpraDefinitionRecord:
 def _side_to_aggressor(side: str | None) -> tuple[str, str]:
     """Map OPRA ``side`` field to (aggressor_ind, sentiment) strings.
 
-    OPRA codes per Databento docs:
-      'A' = trade hit the ask (aggressive buyer)
-      'B' = trade hit the bid (aggressive seller)
-      'N' = no aggressor classification available (cross / unknown)
+    Databento ``side`` semantics (trades schema): Ask ('A') = a SELL
+    order / sell aggressor → bearish; Bid ('B') = a BUY order / buy
+    aggressor → bullish; None ('N') = no side specified (cross / unknown).
+    (Prior code had these reversed — see the false "aggressive buyer" note.)
 
     The Benzinga-compatible field set uses ``aggressor_ind`` as a free-text
     label ('A'/'B'/'N') and ``sentiment`` as 'BULLISH'/'BEARISH'/'NEUTRAL'.
     """
     s = (side or "").strip().upper()
     if s == "A":
-        return "A", "BULLISH"
+        return "A", "BEARISH"  # Ask = sell aggressor
     if s == "B":
-        return "B", "BEARISH"
+        return "B", "BULLISH"  # Bid = buy aggressor
     return "N", "NEUTRAL"
 
 

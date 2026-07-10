@@ -7,6 +7,10 @@ Implements multi-stage validation:
 4. Confirmed-close model (8-candle window)
 5. Non-repainting verification
 
+NOTE: items 4 and 5 are currently hardcoded/advisory, not enforced —
+validate_entry returns confirmation_window_active=True and non_repainting=True
+unconditionally, and confirm_bounce (which sets sweep.confirmed) is never called.
+
 Based on: "SMT Sniper Entry Engine [trade_w_samet]" TradingView indicator
 """
 
