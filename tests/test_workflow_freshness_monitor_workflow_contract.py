@@ -133,6 +133,10 @@ _MONITORED_WORKFLOWS = (
     "credential-health-check.yml",
     "c13-daily-cron.yml",
     "run-open-prep-daily.yml",
+    # Truth-audit 2026-07-10 (M4): the only FI-sample/label producer and
+    # the evening panel publisher were the two unwatched critical crons.
+    "open-prep-outcome-backfill.yml",
+    "openprep-pine-panel-publish.yml",
     "promotion-gate-daily.yml",
     "f2-promotion-gate-daily.yml",
     "fvg-quality-recal-shadow-daily.yml",

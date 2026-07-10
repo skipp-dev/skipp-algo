@@ -85,6 +85,8 @@ jobs:
             credential-health-check.yml=30 \
             c13-daily-cron.yml=72:weekday \
             run-open-prep-daily.yml=72:weekday \
+            open-prep-outcome-backfill.yml=72:weekday \
+            openprep-pine-panel-publish.yml=72:weekday \
             promotion-gate-daily.yml=72:weekday \
             f2-promotion-gate-daily.yml=72:any:weekday \
             fvg-quality-recal-shadow-daily.yml=72:weekday \

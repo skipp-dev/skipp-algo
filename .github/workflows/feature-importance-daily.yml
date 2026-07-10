@@ -3,25 +3,28 @@ name: feature-importance-daily
 
 # A1.D — G1 Feature-Importance Baseline Seed (Amendment A1.D).
 #
-# Runs the recurring feature-importance report so the raw daily samples in
-# artifacts/open_prep/outcomes/feature_importance/ accumulate and the
-# generated report in artifacts/open_prep/feature_importance/ stays fresh.
-# Without this cron the FI feedback loop stays stale and G1/G2/G3 in the
-# Q3/Q4 plan cannot start.
+# Runs the recurring feature-importance report (read-only over the raw
+# daily samples in artifacts/open_prep/outcomes/feature_importance/ —
+# those are written by open-prep-outcome-backfill's --feature-importance
+# flag, not here) so the generated report in
+# artifacts/open_prep/feature_importance/ stays fresh. Without this cron
+# the FI feedback loop stays stale and G1/G2/G3 in the Q3/Q4 plan
+# cannot start.
 #
-# This workflow is fail-soft: status=no_data is an annotation, not a
-# job failure, so the wall-clock countdown to the G1 acceptance gate
-# (≥ 5 sequential days, status=ok) keeps running even on weekends or
-# upstream-quiet days.
+# This workflow is fail-soft: status=no_data and status=insufficient_labels
+# are annotations, not job failures, so the run stays green even on
+# weekends or upstream-quiet days. Only annotated status=ok days (ok
+# requires >= 200 labeled samples) count toward the G1 acceptance gate
+# (>= 5 sequential days, status=ok).
 #
 # Nothing in this workflow mutates production calibration or pushes
 # code. Reports are uploaded as Actions artifacts only.
 
 on:
   schedule:
-    # 09:00 UTC daily — runs after smc-measurement-benchmark-rolling
-    # (07:30 UTC) so an outcome-backfill that depends on the same
-    # window has had time to land.
+    # 09:00 UTC daily — after the prior evening's
+    # open-prep-outcome-backfill (22:15 UTC weekdays) has landed its
+    # samples, so the report reads a complete day.
     - cron: "0 9 * * *"
   workflow_dispatch:
     inputs:
@@ -153,10 +156,14 @@ jobs:
           set +e
           "$SMC_PYTHON_BIN" -m open_prep.feature_importance_report --lookback "${LOOKBACK}" 2>&1 | tee fi_report.log
           rc=$?
-          # Treat status=no_data as success so the countdown to the
-          # G1 acceptance gate keeps ticking even before day-5.
+          # Fail-soft: no_data / insufficient_labels keep the job green
+          # but are annotated as themselves — only a real status=ok may
+          # be annotated ok, or the G1 countdown (>=5 days status=ok)
+          # reads as met while the report never left insufficient_labels.
           if grep -q "status=no_data" fi_report.log; then
             echo "fi_status=no_data" >> "$GITHUB_OUTPUT"
+          elif grep -q "status=insufficient_labels" fi_report.log; then
+            echo "fi_status=insufficient_labels" >> "$GITHUB_OUTPUT"
           elif [ "$rc" -ne 0 ]; then
             echo "fi_status=error" >> "$GITHUB_OUTPUT"
             exit "$rc"
