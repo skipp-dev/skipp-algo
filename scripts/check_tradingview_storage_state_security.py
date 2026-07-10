@@ -1,13 +1,14 @@
-"""Guard against committing plaintext TradingView Playwright auth state.
+"""Guard against committing TradingView Playwright auth material.
 
-TradingView Playwright ``storage-state.json`` files contain cookies,
-localStorage and IndexedDB-derived auth material. They are useful as local or
-CI secrets, but they must never become tracked repository content or release
-artifacts.
+The TradingView auth directories hold cookies, localStorage and browser
+profiles (storage-state JSON files, chromium/chrome profile dirs with
+``Cookies``/``Login Data``). They are useful as local or CI secrets, but
+NOTHING under them may ever become tracked repository content.
 
-This script scans tracked files (``git ls-files``) by default and fails if a
-tracked file looks like a plaintext Playwright storage-state artifact in the
-TradingView auth locations.
+This script scans tracked files (``git ls-files``) by default and fails if ANY
+tracked file lives under a TradingView auth location — mirroring the wholesale
+``automation/tradingview/auth/`` rule in .gitignore (2026-07-10: widened from
+two exact basenames, which missed byproducts like ``chrome-clone-profile/``).
 """
 from __future__ import annotations
 
@@ -25,11 +26,6 @@ SENSITIVE_AUTH_PREFIXES = (
     Path("automation/tradingview/auth"),
     Path("playwright/.auth"),
 )
-
-SENSITIVE_STORAGE_STATE_NAMES = {
-    "storage-state.json",
-    "storage_state.json",
-}
 
 
 @dataclass(frozen=True)
@@ -53,11 +49,15 @@ def _is_under(path: Path, prefix: Path) -> bool:
 
 
 def is_sensitive_storage_state_path(path: Path) -> bool:
-    """Return True for TradingView/Playwright auth-state file locations."""
+    """Return True for ANY path under a TradingView/Playwright auth directory.
+
+    2026-07-10: widened from exact-basename matching (storage-state.json /
+    storage_state.json) to whole-directory matching, mirroring the wholesale
+    .gitignore rule — profile byproducts (chrome-clone-profile/Cookies,
+    storage-state-refreshed.json, ...) are exactly as sensitive.
+    """
 
     rel = _normalise_relative(path)
-    if rel.name not in SENSITIVE_STORAGE_STATE_NAMES:
-        return False
     return any(_is_under(rel, prefix) for prefix in SENSITIVE_AUTH_PREFIXES)
 
 

@@ -155,13 +155,12 @@ Local consumers then run with
 
 ## 5. Security rules
 
-- `.gitignore` covers the two capture artifacts under
-  `automation/tradingview/auth/` — `storage-state.json` and
-  `chromium-profile/` — not the whole directory; keep any new auth
-  artifacts on that list. The `tv:auth-security` guard
-  (`scripts/check_tradingview_storage_state_security.py`) fails CI if a
-  plaintext storage-state artifact ever becomes tracked content. Run it
-  after every capture.
+- `.gitignore` ignores `automation/tradingview/auth/` **wholesale** — every
+  storage-state file, browser profile, and future byproduct under it (the
+  old per-file list proved leaky). The `tv:auth-security` guard
+  (`scripts/check_tradingview_storage_state_security.py`) is the backstop:
+  it fails CI if ANY file under an auth directory ever becomes tracked
+  content. Run it after every capture.
 - The capture contains live `sessionid`/`sessionid_sign` cookies —
   treat the file like a password. Do not attach it to issues, logs or
   artifacts.
