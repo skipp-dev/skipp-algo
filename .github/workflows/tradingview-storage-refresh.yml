@@ -94,9 +94,12 @@ jobs:
           fi
           echo "TV_STORAGE_STATE_WRITE_TOKEN can access the Actions secrets API."
 
-      # xvfb provides a virtual display so Playwright can run headed
-      # (required for TradingView's login page to function correctly).
-      # --auto-servernum picks a free display number automatically.
+      # xvfb provides a virtual display as a safety net for any HEADED debug run.
+      # NOTE: the capture below runs --headless (TV_HEADLESS=1) and does NOT use
+      # this display today — Xvfb only matters if the run is ever flipped headed.
+      # Screen size 1440x1100 is deliberately the STORAGE_STATE_CAPTURE_VIEWPORT
+      # from scripts/create_tradingview_storage_state.ts — keep the two in sync,
+      # or a headed run would clip the browser window.
       - name: Start virtual display (xvfb)
         run: |
           sudo apt-get install -y --no-install-recommends xvfb 2>/dev/null || true
@@ -161,8 +164,9 @@ jobs:
           TV_PASSWORD: ${{ secrets.TV_PASSWORD }}
           TV_TOTP_SECRET: ${{ secrets.TV_TOTP_SECRET }}
           TV_STORAGE_STATE_INPUT: automation/tradingview/auth/bootstrap-storage-state.json
-          # TV_HEADLESS=1 activates headless mode in the script (uses the
-          # virtual display via DISPLAY=:99 set above).
+          # TV_HEADLESS=1 activates headless mode in the script — a headless
+          # browser does NOT use the Xvfb display; DISPLAY=:99 above is only a
+          # safety net for headed debug runs.
           TV_HEADLESS: "1"
           TV_STORAGE_STATE: automation/tradingview/auth/storage-state.json
           # Tight timeout: if automated login doesn't complete in 3 min

@@ -16,6 +16,24 @@ const MISSING_BROWSER_ERROR = new Error(
     + "npx playwright install",
 );
 
+// Marker-1-only fixture: no "npx playwright install" remedy line — pins that the
+// "Executable doesn't exist" marker ALONE classifies (the docker-image variant
+// of Playwright's error has no install command in its message).
+const MISSING_BROWSER_ERROR_NO_REMEDY = new Error(
+  "browserType.launch: Executable doesn't exist at /ms-playwright/chromium-1208/chrome-linux/chrome",
+);
+
+// Playwright's missing-OS-DEPS error: bundled chromium IS installed; the remedy
+// line "sudo npx playwright install-deps" contains the substring
+// "npx playwright install" — this MUST NOT classify as missing-browser
+// (regression pin for the over-broad second marker removed 2026-07-10).
+const HOST_DEPS_ERROR = new Error(
+  "browserType.launch: Host system is missing dependencies to run browsers.\n"
+    + "Please install them with the following command:\n"
+    + "\n"
+    + "    sudo npx playwright install-deps\n",
+);
+
 test("resolveTradingViewLaunchOptions: no env vars -> bundled chromium, no channel/executablePath", () => {
   const options = resolveTradingViewLaunchOptions({});
   assert.equal(options.executablePath, undefined);
@@ -61,8 +79,51 @@ test("describeTradingViewLaunchTarget names the env var that selected the browse
 
 test("isMissingBrowserExecutableError: playwright install errors yes, other errors no", () => {
   assert.equal(isMissingBrowserExecutableError(MISSING_BROWSER_ERROR), true);
+  assert.equal(isMissingBrowserExecutableError(MISSING_BROWSER_ERROR_NO_REMEDY), true);
   assert.equal(isMissingBrowserExecutableError(new Error("Timeout 30000ms exceeded.")), false);
   assert.equal(isMissingBrowserExecutableError(new Error("ProcessSingleton: profile is in use")), false);
+});
+
+test("isMissingBrowserExecutableError: missing-OS-deps (install-deps) is NOT a missing browser", () => {
+  // The remedy line contains "npx playwright install" as a substring — the old
+  // second marker misclassified this; the browser is installed, OS libs are not.
+  assert.equal(isMissingBrowserExecutableError(HOST_DEPS_ERROR), false);
+});
+
+test("launchWithTradingViewFallback: missing-OS-deps error propagates untouched (no chrome retry)", async () => {
+  let calls = 0;
+  await assert.rejects(
+    launchWithTradingViewFallback(
+      async () => {
+        calls += 1;
+        throw HOST_DEPS_ERROR;
+      },
+      { headless: true },
+      { fallbackToChromeChannel: true, log: () => undefined },
+    ),
+    (error: unknown) => error === HOST_DEPS_ERROR, // same instance — root cause never masked
+  );
+  assert.equal(calls, 1);
+});
+
+test("launchWithTradingViewFallback: BOTH executablePath and channel in final options -> throws before launching", async () => {
+  let calls = 0;
+  await assert.rejects(
+    launchWithTradingViewFallback(
+      async () => {
+        calls += 1;
+        return "browser";
+      },
+      { headless: true, executablePath: "/opt/custom/chrome", channel: "msedge" },
+      { fallbackToChromeChannel: true, log: () => undefined },
+    ),
+    (error: unknown) => {
+      assert.ok(error instanceof Error);
+      assert.match(error.message, /BOTH executablePath and channel/);
+      return true;
+    },
+  );
+  assert.equal(calls, 0); // guard fires before any launch attempt
 });
 
 test("launchWithTradingViewFallback: success path launches once with the given options", async () => {
@@ -162,7 +223,10 @@ test("launchWithTradingViewFallback: env-selected browser never falls back; erro
 });
 
 test("launchWithTradingViewFallback: both attempts fail -> error carries both messages, cause = original", async () => {
-  const fallbackError = new Error("browserType.launch: Chromium distribution 'chrome' is not found");
+  const fallbackError = new Error(
+    "browserType.launch: Chromium distribution 'chrome' is not found\nsecond-line detail: sandbox denied",
+  );
+  const logs: string[] = [];
   let calls = 0;
   await assert.rejects(
     launchWithTradingViewFallback(
@@ -171,7 +235,7 @@ test("launchWithTradingViewFallback: both attempts fail -> error carries both me
         throw calls === 1 ? MISSING_BROWSER_ERROR : fallbackError;
       },
       { headless: true },
-      { fallbackToChromeChannel: true, log: () => undefined },
+      { fallbackToChromeChannel: true, log: (message) => logs.push(message) },
     ),
     (error: unknown) => {
       assert.ok(error instanceof Error);
@@ -183,4 +247,9 @@ test("launchWithTradingViewFallback: both attempts fail -> error carries both me
     },
   );
   assert.equal(calls, 2);
+  // The fallback failure's FULL detail (incl. lines >1) is preserved via the log
+  // channel — the thrown message keeps only first lines, cause stays the original.
+  assert.equal(logs.length, 2);
+  assert.match(logs[1], /chrome-channel fallback also failed/);
+  assert.match(logs[1], /second-line detail: sandbox denied/);
 });
