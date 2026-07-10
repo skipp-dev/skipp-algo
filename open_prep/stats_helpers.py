@@ -192,9 +192,10 @@ def probabilistic_sharpe(
             ``None``, computed from ``returns`` at the same frequency
             (i.e. ``annualize=False`` for the *internal* SR_hat used
             in the formula).
-        annualize: if True, both ``sharpe_hat`` (when computed
-            internally) and ``sr_star`` are interpreted as annualised
-            and converted back to per-period for the formula.
+        annualize: if True, ``sr_star`` and a *caller-provided* ``sharpe_hat``
+            are interpreted as annualised and converted back to per-period for
+            the formula. An internally-computed ``sharpe_hat`` is already
+            per-period (compute_sharpe(annualize=False)), so it is not converted.
         periods_per_year: only used when ``annualize=True``.
 
     Returns:

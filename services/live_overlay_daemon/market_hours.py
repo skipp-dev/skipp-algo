@@ -73,6 +73,8 @@ def is_us_regular_session_open(now_utc: datetime.datetime | None = None) -> bool
         zone_name="America/New_York",
         start_local=datetime.time(9, 30),
         end_local=datetime.time(16, 0),
+        # DST-naive fallback (only used when tzdata/ZoneInfo is unavailable):
+        # 13:30-20:00 UTC assumes EDT (UTC-4); off by +1h during EST (winter).
         fallback_start_utc=datetime.time(13, 30),
         fallback_end_utc=datetime.time(20, 0),
         holiday_calendar_code="NYSE",
@@ -87,6 +89,8 @@ def is_europe_regular_session_open(now_utc: datetime.datetime | None = None) -> 
         zone_name="Europe/London",
         start_local=datetime.time(8, 0),
         end_local=datetime.time(16, 30),
+        # DST-naive fallback (only used when tzdata/ZoneInfo is unavailable):
+        # 08:00-16:30 UTC assumes GMT (winter); off by -1h during BST (summer).
         fallback_start_utc=datetime.time(8, 0),
         fallback_end_utc=datetime.time(16, 30),
         holiday_calendar_code="GB",
@@ -107,18 +111,6 @@ def is_asia_regular_session_open(now_utc: datetime.datetime | None = None) -> bo
     )
 
 
-def is_any_regular_session_open(now_utc: datetime.datetime | None = None) -> bool:
-    """Return True when any major covered session (US or Europe) is open.
-
-    Used for the operator-facing ``live_overlay_market_open`` display gauge so the
-    dashboard does not show MARKET CLOSED while European exchanges trade ahead of
-    the US session. Feed/traffic/SLO gating stays bound to the US session via
-    ``is_us_regular_session_open`` because the upstream feed is US equities.
-    """
-    now_utc = now_utc or datetime.datetime.now(datetime.UTC)
-    return is_us_regular_session_open(now_utc) or is_europe_regular_session_open(now_utc)
-
-
 def compute_daemon_health_status(
     *,
     feed_healthy: bool,
@@ -127,7 +119,7 @@ def compute_daemon_health_status(
     market_open: bool,
     bar_count: int,
 ) -> str:
-    """Compute daemon status string used by /health and /metrics gauges."""
+    """Compute daemon status string used by /ready and /metrics gauges."""
     if feed_healthy and workers_healthy and overlay_fresh:
         return "ok"
     if (not market_open) and workers_healthy and (not feed_healthy) and bar_count == 0:

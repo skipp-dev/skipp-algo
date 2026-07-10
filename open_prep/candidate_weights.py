@@ -27,7 +27,7 @@ Status values:
 * ``drift_blocked``     — weights computed but drift-gate fired; the
                           candidate file is *not* written so the next
                           loader call still resolves to default.
-* ``error``             — unexpected failure; details captured.
+  (No ``error`` record is written: an unexpected failure logs + exits 2 below.)
 
 Exit codes:
 
