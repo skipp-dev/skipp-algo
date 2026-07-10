@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
-"""Sync Pine Script libraries from TradingView source.
+"""Validate locally-synced Pine Script libraries (validation-only).
 
-Fetches current versions of SMC libraries from TradingView public sources,
-validates syntax, and updates local copies if changed. Tracks update history
-in LIBRARY_VERSIONS.toml for audit trail.
+Fetching is delegated to scripts/tv_fetch_smc_libraries.ts (Playwright +
+TV_STORAGE_STATE); this script validates already-fetched local copies only
+(Pine syntax + import existence) and writes nothing in any invoked path.
 
 Usage:
     python scripts/sync_tradingview_libraries.py [--dry-run] [--force]

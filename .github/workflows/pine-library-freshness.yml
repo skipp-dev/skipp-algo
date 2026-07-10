@@ -3,8 +3,9 @@
 #
 # The five hand-authored shared libraries (pine/skipp_*.pine) ship to
 # TradingView (imported via `import preuss_steffen/<lib>/1`) but — unlike the
-# code-generated libraries under pine/generated/ that smc-library-refresh.yml
-# keeps current — had no scheduled freshness mechanism and could silently rot.
+# code-generated libraries under pine/generated/ that their publish workflows
+# keep current (micro_profiles via smc-library-refresh.yml, overlay via
+# smc-overlay-library-publish.yml) — had no freshness mechanism and could rot.
 #
 # This workflow runs `scripts/pine_library_freshness.py --check` on a monthly
 # cadence (and on PRs touching the libraries or this guard). When a library's
