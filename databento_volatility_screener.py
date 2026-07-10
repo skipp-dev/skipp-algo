@@ -126,7 +126,7 @@ def dump_cache_probe_log(out_path: str | Path) -> int:
 # Zero-behavior helper; same darwin/linux normalisation as the source-of-truth.
 try:
     import resource as _a8_resource  # POSIX-only stdlib; absent on Windows.
-except ImportError:  # pragma: no cover - CI runners are ubuntu-latest-l (POSIX).
+except ImportError:  # pragma: no cover - CI runners are GitHub-hosted Linux (POSIX).
     _a8_resource = None  # type: ignore[assignment]
 
 
@@ -145,7 +145,7 @@ def _rss_peak_mib() -> float | None:
 def _rss_current_mib() -> float | None:
     """Return process CURRENT RSS in MiB by reading ``/proc/self/status``.
 
-    Linux-only (returns ``None`` on macOS/Windows). CI runs on ubuntu-latest-l,
+    Linux-only (returns ``None`` on macOS/Windows). CI runs on GitHub-hosted Linux,
     so this is the relevant code path for A8 diagnosis.
     """
     try:
@@ -268,7 +268,7 @@ INTRADAY_SUMMARY_BATCH_SIZE = 500
 # ``runtime_unsupported_symbols`` mutations rely on GIL-atomic ``set.update``,
 # which means workers within one batch may not see each other's discoveries
 # until completion (acceptable: corrected on next run). Memory budget on
-# ubuntu-latest-l (16 GB): ~2 GB pandas frame per concurrent day -> 4 workers
+# GitHub-hosted Linux (~16 GB): ~2 GB pandas frame per concurrent day -> 4 workers
 # = 8 GB peak (50% headroom). Increase only with memory monitoring.
 INTRADAY_DAY_PARALLELISM = 4
 DATABENTO_SYMBOL_ALIASES = {
