@@ -187,8 +187,11 @@ export function describeTradingViewLaunchTarget(launchOptions: LaunchOptions): s
 }
 
 const MISSING_BROWSER_ERROR_MARKERS = [
-  "Executable doesn't exist", // Playwright registry: browser not downloaded
-  "npx playwright install", // Playwright's own remedy hint
+  // Playwright registry: browser not downloaded (covers the docker-image variant too).
+  // Deliberately NOT "npx playwright install": that is a substring of Playwright's
+  // missing-OS-deps remedy "npx playwright install-deps" — a different failure
+  // (browser IS installed) with a different fix, which must propagate untouched.
+  "Executable doesn't exist",
 ] as const;
 
 export function isMissingBrowserExecutableError(error: unknown): boolean {
@@ -222,6 +225,16 @@ export async function launchWithTradingViewFallback<T>(
   launchOptions: LaunchOptions,
   { fallbackToChromeChannel, log = (message) => console.warn(message) }: TradingViewLaunchFallbackOptions,
 ): Promise<T> {
+  // Enforce the at-most-one invariant on the FINAL options: caller overrides can
+  // recombine what resolveTradingViewLaunchOptions' env-level check cannot see
+  // (Playwright would silently prefer executablePath and the error attribution
+  // below would name an env var that never supplied the value).
+  if (launchOptions.executablePath && launchOptions.channel) {
+    throw new Error(
+      "Browser launch options carry BOTH executablePath and channel — they are mutually exclusive "
+      + "(from TV_CHROMIUM_EXECUTABLE_PATH / TV_BROWSER_CHANNEL or caller overrides); unset one.",
+    );
+  }
   try {
     return await launch(launchOptions);
   } catch (error) {
@@ -252,6 +265,10 @@ export async function launchWithTradingViewFallback<T>(
       return await launch({ ...launchOptions, channel: "chrome" });
     } catch (fallbackError) {
       const fallbackMessage = fallbackError instanceof Error ? fallbackError.message : String(fallbackError);
+      // Preserve the fallback failure's FULL detail via the log channel — the thrown
+      // error keeps cause = original (the actionable root cause), so without this
+      // log the reason system Chrome also failed would be truncated to one line.
+      log(`[tv-launch] chrome-channel fallback also failed:\n${fallbackMessage}`);
       throw new Error(
         "Bundled chromium is missing AND the chrome-channel fallback failed. Run `npx playwright install chromium`. "
         + `Original: ${message.split("\n")[0]} | Fallback: ${fallbackMessage.split("\n")[0]}`,
@@ -270,6 +287,24 @@ export async function launchTradingViewChromium(
     (options) => chromium.launch(options),
     { ...resolveTradingViewLaunchOptions(env), ...overrides },
     { fallbackToChromeChannel: true },
+  );
+}
+
+/**
+ * Persistent-profile launch: NEVER falls back to another browser build — a
+ * different build opening the long-lived TradingView auth profile corrupts its
+ * version (see TradingViewLaunchFallbackOptions). Using this helper instead of
+ * spelling the boolean makes the wrong pairing unwritable at call sites.
+ */
+export async function launchTradingViewPersistentContext(
+  userDataDir: string,
+  launchOptions: LaunchOptions,
+  viewport: { width: number; height: number },
+): Promise<BrowserContext> {
+  return launchWithTradingViewFallback(
+    (options) => chromium.launchPersistentContext(userDataDir, { ...options, viewport }),
+    launchOptions,
+    { fallbackToChromeChannel: false },
   );
 }
 
@@ -1613,13 +1648,10 @@ export async function newTradingViewSession(): Promise<TradingViewSession> {
     }
 
     fs.mkdirSync(authResolution.authSourcePath, { recursive: true });
-    const authProfileDir = authResolution.authSourcePath;
-    // fallbackToChromeChannel: false — never open the persistent auth profile with a
-    // different browser build than the one that owns it (see TradingViewLaunchFallbackOptions).
-    context = await launchWithTradingViewFallback(
-      (options) => chromium.launchPersistentContext(authProfileDir, { ...options, viewport: TRADINGVIEW_SESSION_VIEWPORT }),
+    context = await launchTradingViewPersistentContext(
+      authResolution.authSourcePath,
       launchOptions,
-      { fallbackToChromeChannel: false },
+      TRADINGVIEW_SESSION_VIEWPORT,
     );
     const launchedBrowser = context.browser();
     if (!launchedBrowser) {
@@ -1634,11 +1666,7 @@ export async function newTradingViewSession(): Promise<TradingViewSession> {
     const storageStatePath = authResolution.authSourcePath;
     validateTradingViewStorageState(storageStatePath);
 
-    browser = await launchWithTradingViewFallback(
-      (options) => chromium.launch(options),
-      launchOptions,
-      { fallbackToChromeChannel: true },
-    );
+    browser = await launchTradingViewChromium(); // re-resolves env: pure, and the mutual-exclusion throw already fired at the top-of-function resolve
     context = await browser.newContext({
       storageState: storageStatePath,
       viewport: TRADINGVIEW_SESSION_VIEWPORT,

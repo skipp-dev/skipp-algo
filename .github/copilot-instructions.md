@@ -84,9 +84,9 @@ gh pr view <N> --json mergeStateStatus,autoMergeRequest,reviewDecision
 
 | `mergeStateStatus` | Aktion |
 |---|---|
-| `BEHIND` | STOP-Regel oben (update-branch, `--auto` armiert lassen/setzen, kein Rebase) → **weitermachen** (kein manuelles CI-Warten) |
+| `BEHIND` | STOP-Regel oben (update-branch, kein Rebase); noch nicht armiert → `gh pr merge <N> --squash --auto` → **weitermachen** (kein manuelles CI-Warten) |
 | `DIRTY` | STOP-Regel oben (rebase) |
-| `BLOCKED` | Fehlende Checks abwarten — arm `--auto` wenn noch nicht gesetzt |
+| `BLOCKED` | Fehlende Checks abwarten — noch nicht armiert → `gh pr merge <N> --squash --auto` |
 | `MERGEABLE` + Checks grün | `gh pr merge <N> --squash` |
 
 **Kontrakt:** Nach `--auto` oder `update-branch` nie idle warten. Sofort nächste Aufgabe. Auf aktivem `main` tritt `BEHIND` oft erneut auf — Behandlung steht kanonisch in der STOP-Regel oben.
