@@ -3,17 +3,24 @@
 import fs from "node:fs";
 import path from "node:path";
 
-import { chromium } from "playwright";
 import { authenticator } from "otplib";
 
 import { inspectTradingViewStorageState } from "../automation/tradingview/lib/tv_validation_model.js";
 import {
   collectTradingViewPageAuthState,
-  launchWithTradingViewFallback,
+  launchTradingViewChromium,
+  launchTradingViewPersistentContext,
+  resolveTradingViewHeadlessDefault,
   resolveTradingViewLaunchOptions,
 } from "../automation/tradingview/lib/tv_shared.js";
 
-/** Viewport for the interactive storage-state capture session (differs from TRADINGVIEW_SESSION_VIEWPORT). */
+/**
+ * Viewport for the interactive storage-state capture session (differs from
+ * TRADINGVIEW_SESSION_VIEWPORT). Kept in sync with the Xvfb virtual-screen size
+ * in .github/workflows/tradingview-storage-refresh.yml ("1440x1100x24") — the CI
+ * capture currently runs --headless (Xvfb inert), but a headed CI run would clip
+ * if the two ever diverge.
+ */
 const STORAGE_STATE_CAPTURE_VIEWPORT = { width: 1440, height: 1100 } as const;
 
 type CliArgs = {
@@ -193,7 +200,9 @@ function parseArgs(): CliArgs {
     username: (getFlag("--username", process.env.TV_USERNAME || "") || "").trim() || undefined,
     password: (getFlag("--password", process.env.TV_PASSWORD || "") || "").trim() || undefined,
     totpSecret: (getFlag("--totp-secret", process.env.TV_TOTP_SECRET || "") || "").trim() || undefined,
-    headless: args.includes("--headless") || process.env.TV_HEADLESS === "1",
+    // Canonical TV_HEADLESS semantics ("1"/"true"/"yes"/"on" + CI fallback) — the
+    // previous `=== "1"` parse silently diverged from every other TV entry point.
+    headless: args.includes("--headless") || resolveTradingViewHeadlessDefault(process.env),
   };
 }
 
@@ -304,7 +313,9 @@ async function main(): Promise<number> {
     console.warn(`Input storage state not found, continuing without bootstrap: ${storageStatePath}`);
   }
 
-  if (cli.headless && !existingStorageStatePath && (!cli.username || !cli.password)) {
+  // Persistent-profile mode is exempt: it always launches HEADED (headless is
+  // ignored there), so an interactive login without credentials works fine.
+  if (cli.headless && !cli.persistentProfileDir && !existingStorageStatePath && (!cli.username || !cli.password)) {
     throw new Error(
       "Headless TradingView storage-state capture requires TV_STORAGE_STATE_INPUT or TV_USERNAME/TV_PASSWORD fallback credentials.",
     );
@@ -326,14 +337,10 @@ async function main(): Promise<number> {
     }
     const profileDir = cli.persistentProfileDir;
     fs.mkdirSync(profileDir, { recursive: true });
-    // fallbackToChromeChannel: false — this script MINTS the shared auth profile; letting a
-    // fallback create it under system Chrome would split profile ownership from the bundled
-    // chromium that newTradingViewSession later opens it with.
-    context = await launchWithTradingViewFallback(
-      (options) => chromium.launchPersistentContext(profileDir, { ...options, viewport: STORAGE_STATE_CAPTURE_VIEWPORT }),
-      launchOptions,
-      { fallbackToChromeChannel: false },
-    );
+    // Persistent helper: this script MINTS the shared auth profile — it must never
+    // be created under a different browser build than the bundled chromium that
+    // newTradingViewSession later opens it with.
+    context = await launchTradingViewPersistentContext(profileDir, launchOptions, STORAGE_STATE_CAPTURE_VIEWPORT);
     const launchedBrowser = context.browser();
     if (!launchedBrowser) {
       throw new Error(`Could not resolve browser for persistent TradingView profile: ${cli.persistentProfileDir}`);
@@ -341,11 +348,7 @@ async function main(): Promise<number> {
     browser = launchedBrowser;
     page = context.pages()[0] ?? (await context.newPage());
   } else {
-    browser = await launchWithTradingViewFallback(
-      (options) => chromium.launch(options),
-      { ...resolveTradingViewLaunchOptions(process.env), headless: cli.headless, slowMo: cli.headless ? 0 : 100 },
-      { fallbackToChromeChannel: true },
-    );
+    browser = await launchTradingViewChromium({ headless: cli.headless, slowMo: cli.headless ? 0 : 100 });
 
     context = await browser.newContext({
       viewport: STORAGE_STATE_CAPTURE_VIEWPORT,
