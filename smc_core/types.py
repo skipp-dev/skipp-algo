@@ -164,7 +164,7 @@ class ZoneStyle:
     trade_state: Literal["ALLOWED", "DISCOURAGED", "BLOCKED"]
     bias: Literal["LONG", "SHORT", "NEUTRAL"]
     strength: float
-    heat: float
+    heat: float  # signed directional heat in [-1,1]; positive=bullish, negative=bearish (polarity, not magnitude)
     tone: Literal["BULLISH", "BEARISH", "NEUTRAL", "WARNING"]
     emphasis: Literal["LOW", "MEDIUM", "HIGH"]
     reason_codes: list[ReasonCode] = field(default_factory=list)
