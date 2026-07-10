@@ -82,7 +82,7 @@ _TEMPFILE_LEDGER: frozenset[tuple[str, int, str]] = frozenset({
     ("open_prep/alerts.py", 72, "mkstemp"),
     # 2026-07-03 (WP-3 holdout rescoring): helper additions shifted mkstemp
     # site from 150 -> 472.
-    ("open_prep/candidate_weights.py", 479, "mkstemp"),
+    ("open_prep/candidate_weights.py", 480, "mkstemp"),  # 2026-07-10: eps_surprise_pct→recent_eps_surprise_pct reconstruction swap +1 (479->480)
     ("open_prep/diff.py", 60, "mkstemp"),
     # 2026-06-13 (audit-e2/aw7-reader-observability, PR #2759): _load_previous_latest
     #   DEBUG log insertion shifted mkstemp from 249 → 250.
@@ -114,7 +114,7 @@ _TEMPFILE_LEDGER: frozenset[tuple[str, int, str]] = frozenset({
     # 2026-07-03 (WP-3 sample_dates helper): +1 -> 604.
     # 2026-07-04 (market-microstructure observe-only): snapshot fields +
     # FEATURE_KEYS/PASS_THROUGH entries +16 -> 620.
-    ("open_prep/outcomes.py", 711, "mkstemp"),  # 2026-07-10: recent_eps_surprise observe-feature shifted (697->711)
+    ("open_prep/outcomes.py", 704, "mkstemp"),  # 2026-07-10: recent_eps_surprise observe-feature (697->711); dead eps_surprise_pct observe-col removed (711->704)
     # 2026-07-03 (WP-4 holiday gate): +2 (import) then +8 below the gate.
     ("open_prep/realtime_signals.py", 119, "mkstemp"),
     # 2026-06-25: AsyncNewsstackPoller telemetry additions shifted
