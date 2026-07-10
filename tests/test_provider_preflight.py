@@ -249,6 +249,28 @@ def test_status_pages_for_preserves_first_seen_order():
     ]
 
 
+def test_status_pages_benzinga_massive_transport_links_massive_console(monkeypatch):
+    """Under BENZINGA_PROVIDER=massive the failing request went to
+    api.massive.com — the alert must link Massive's status page, not Benzinga's
+    (truth-audit 2026-07-10)."""
+    monkeypatch.setenv("BENZINGA_PROVIDER", "massive")
+    blocking = [pp.ProbeResult("Benzinga /api/v2/news", "FAIL", 1.0, "", critical=True)]
+    assert pp._status_pages_for(blocking) == ["https://massive-status.com/"]
+
+
+def test_status_pages_benzinga_direct_links_benzinga_console(monkeypatch):
+    monkeypatch.delenv("BENZINGA_PROVIDER", raising=False)
+    blocking = [pp.ProbeResult("Benzinga /api/v2/news", "FAIL", 1.0, "", critical=True)]
+    assert pp._status_pages_for(blocking) == ["https://status.benzinga.com/"]
+
+
+def test_newsapi_probe_is_not_critical():
+    """NewsAPI.ai retired 2026-07-08 — a SKIP/FAIL on its visibility row must
+    never block preflight (mirrors the #3345-C earnings-cal demotion)."""
+    probe = next(p for p in pp.PROBES if "NewsAPI" in p.name)
+    assert probe.critical is False
+
+
 # ── _notify_blocking ────────────────────────────────────────────────
 
 

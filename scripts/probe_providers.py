@@ -850,8 +850,8 @@ def probe_openai() -> tuple[str, str]:
 
 
 def probe_newsapi_ai() -> tuple[str, str]:
-    """NewsAPI.ai (Event Registry) — note: terminal stub is decommissioned,
-    but scripts/smc_newsapi_ai.py is the active path."""
+    """NewsAPI.ai (Event Registry) — RETIRED 2026-07-08 (subscription
+    cancelled; nothing consumes it). Non-critical visibility row only."""
     import httpx
     key = os.getenv("NEWSAPI_KEY", "")
     if not key:
@@ -944,7 +944,12 @@ PROBES: list[Probe] = [
     # Misc
     Probe("NasdaqTrader symbol directory", probe_nasdaq_trader, critical=True),
     Probe("OpenAI /v1/models", probe_openai, critical=True),
-    Probe("NewsAPI.ai (Event Registry)", probe_newsapi_ai, critical=True),
+    # 2026-07-10 truth-audit: NewsAPI.ai retired 2026-07-08 (subscription
+    # cancelled; provider policy + live-news cron no longer reference it).
+    # critical=False mirrors the #3345-C earnings-cal demotion so preflight
+    # cannot false-block on a provider nothing consumes; the row stays for
+    # re-grant visibility.
+    Probe("NewsAPI.ai (Event Registry)", probe_newsapi_ai, critical=False),
 ]
 
 
@@ -1022,6 +1027,12 @@ _STATUS_PAGES: dict[str, str] = {
     "TradingView": "https://status.tradingview.com/",
 }
 
+# Under the Massive reseller transport (BENZINGA_PROVIDER=massive) the
+# "Benzinga"-named probes actually hit api.massive.com, so the on-call must
+# check Massive's console (massive-status.com, the Atlassian Statuspage
+# linked from massive.com/system), not Benzinga's.
+_MASSIVE_STATUS_PAGE = "https://massive-status.com/"
+
 
 def _status_pages_for(blocking: list[ProbeResult]) -> list[str]:
     """Return the de-duplicated set of status-page URLs that cover the
@@ -1029,7 +1040,11 @@ def _status_pages_for(blocking: list[ProbeResult]) -> list[str]:
     seen: list[str] = []
     for r in blocking:
         for tag, url in _STATUS_PAGES.items():
-            if tag in r.name and url not in seen:
+            if tag not in r.name:
+                continue
+            if tag == "Benzinga" and _benzinga_transport() == "massive":
+                url = _MASSIVE_STATUS_PAGE  # the failing request went to api.massive.com
+            if url not in seen:
                 seen.append(url)
     return seen
 
