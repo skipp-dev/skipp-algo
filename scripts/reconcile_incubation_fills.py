@@ -15,14 +15,19 @@ matches them to intents via the bracket legs' ``orderRef`` scheme
 ``scripts.execute_ibkr_watchlist``), and rewrites the audit JSONL:
 
 * entry leg filled              -> ``action="filled"``, ``fill_price``,
-                                   ``size_usd`` (= entry avg x quantity)
+                                   ``filled_shares``, ``size_usd`` (= entry VWAP
+                                   x FILLED shares — realized notional; a partial
+                                   entry also stamps ``partial_fill=True``)
 * take-profit leg filled        -> ``action="tp_hit"``, ``close_price``
 * stop / trail leg filled       -> ``action="stop_hit"``, ``close_price``
 
 It then calls :func:`scripts.backfill_live_outcomes.backfill_live_outcomes`
-so closed records carry ``outcome_pnl_usd`` / ``outcome_r_multiple``. These
-records are the **measurable paper fills** the ADR-0023 §5 E[PnL]-after-cost
-gate is blocked on (>= 20 fills).
+so closed records carry ``outcome_pnl_usd`` / ``outcome_r_multiple``. These are
+**Phase-B execution-promotion fills**; they do NOT feed the ADR-0023 §5
+E[PnL]-after-cost gate (that gate consumes the measurement benchmark's
+``scored_family_events.json`` + the ``calibrate_execution_costs`` report — its
+">= 20 fills" is ``MIN_FILL_SAMPLES`` from the calibrate path, not these
+records; correction 2026-07-06, mirrors ``run-c13-reconcile.sh``).
 
 Safety: connects **read-only** and refuses non-paper ports (7497 TWS paper /
 4002 Gateway paper) — same posture as the submit path's paper-port guard.
@@ -199,8 +204,17 @@ def reconcile_records(
             # bracket state — leave the record for manual inspection.
             continue
         record["fill_price"] = round(entry["avg_price"], 6)
-        quantity = record.get("quantity") or entry["shares"]
-        record["size_usd"] = round(entry["avg_price"] * float(quantity), 2)
+        # size_usd is the REALIZED notional, so use the actual FILLED shares
+        # (VWAP-aggregated in summarize_fills) — NOT the ordered ``quantity``.
+        # A partial entry fills fewer shares than ordered, so ordered-qty would
+        # overstate the notional (and the downstream $ P&L, which is
+        # pnl_per_dollar * size_usd) by ordered/filled.
+        filled_shares = float(entry["shares"])
+        record["filled_shares"] = round(filled_shares, 6)
+        record["size_usd"] = round(entry["avg_price"] * filled_shares, 2)
+        ordered = record.get("quantity")
+        if ordered is not None and filled_shares < float(ordered):
+            record["partial_fill"] = True
         record["action"] = "filled"
         counts["entry_filled"] += 1
         for suffix, close_action in _EXIT_LEG_ACTIONS.items():
