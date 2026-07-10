@@ -3,7 +3,7 @@ name: Sync TradingView Pine Libraries
 
 on:
   schedule:
-    # Every 2 weeks on Monday at 09:00 UTC
+    # Every Monday at 09:00 UTC (weekly — plain cron cannot express bi-weekly)
     - cron: '0 9 * * 1'
   workflow_dispatch:
     inputs:
@@ -151,6 +151,7 @@ jobs:
             - smc_bus_private
             - smc_lifecycle_private
             - smc_overlay_generated
+            - smc_micro_profiles_generated
 
             **⚠️ Review for breaking changes in:**
             - Signal resolver logic (smc_context_resolvers)
@@ -173,6 +174,7 @@ jobs:
             - smc_bus_private
             - smc_lifecycle_private
             - smc_overlay_generated
+            - smc_micro_profiles_generated
 
             ### Pre-merge Checklist
             - [ ] Verify no breaking changes in core resolver logic
@@ -200,7 +202,7 @@ jobs:
           RUN_ID: ${{ github.run_id }}
           SERVER_URL: ${{ github.server_url }}
         run: |
-          echo "## ✅ Sync Complete" >> $GITHUB_STEP_SUMMARY
+          echo "## Sync Summary" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           if [ "$HAS_CHANGES" = "true" ]; then
             echo "**Status:** 🔄 PR Created" >> "$GITHUB_STEP_SUMMARY"
