@@ -137,7 +137,10 @@ def load_setup_levels(path: Path, date: Any) -> dict[str, dict[str, float | None
     rows and non-numeric levels degrade to ``None``, never raise.
     """
     try:
-        text = path.read_text(encoding="utf-8")
+        # utf-8-sig strips a leading BOM if present; a plain utf-8 read leaves
+        # the BOM in the text, so json.loads raises AND the JSONL fallback's
+        # first line stays BOM-prefixed too -> silent {} -> the panel shows "-".
+        text = path.read_text(encoding="utf-8-sig")
     except OSError:
         return {}
     rows: list[Any] = []
@@ -198,7 +201,10 @@ def extract_panel(
         symbol = row.get("symbol")
         if not symbol:
             continue
-        panel_symbol = _truncate(symbol, MAX_SYMBOL_LEN).upper()
+        # .strip() before upper/truncate so an outcome symbol carrying stray
+        # whitespace (" AAPL ") still joins the setups levels, which are keyed
+        # by .strip().upper() (load_setup_levels) — otherwise C13 levels drop.
+        panel_symbol = _truncate(str(symbol).strip(), MAX_SYMBOL_LEN).upper()
         row_levels = levels.get(panel_symbol) or {}
         candidates.append(
             {
@@ -480,7 +486,7 @@ def main(argv: list[str] | None = None) -> int:
     rows: list[dict[str, Any]] = []
     if src_path is not None and src_path.is_file():
         try:
-            loaded = json.loads(src_path.read_text(encoding="utf-8"))
+            loaded = json.loads(src_path.read_text(encoding="utf-8-sig"))
         except (OSError, json.JSONDecodeError) as exc:
             print(f"ERROR: cannot read outcomes input {src_path}: {exc}", file=sys.stderr)
             return 1
