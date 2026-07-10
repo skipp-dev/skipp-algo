@@ -996,10 +996,6 @@ def _fetch_earnings_today(client: FMPClient, today: date) -> dict[str, dict[str,
         rev_actual = _to_float(item.get("revenueActual"), default=float("nan"))
         rev_estimate = _to_float(item.get("revenueEstimated"), default=float("nan"))
 
-        eps_surprise_pct: float | None = None
-        if not math.isnan(eps_actual) and not math.isnan(eps_estimate) and abs(eps_estimate) > 0.0:
-            eps_surprise_pct = ((eps_actual - eps_estimate) / abs(eps_estimate)) * 100.0
-
         rev_surprise_pct: float | None = None
         if not math.isnan(rev_actual) and not math.isnan(rev_estimate) and abs(rev_estimate) > 0.0:
             rev_surprise_pct = ((rev_actual - rev_estimate) / abs(rev_estimate)) * 100.0
@@ -1008,7 +1004,6 @@ def _fetch_earnings_today(client: FMPClient, today: date) -> dict[str, dict[str,
             "earnings_timing": raw_time or None,
             "eps_actual": None if math.isnan(eps_actual) else eps_actual,
             "eps_estimate": None if math.isnan(eps_estimate) else eps_estimate,
-            "eps_surprise_pct": eps_surprise_pct,
             "revenue_actual": None if math.isnan(rev_actual) else rev_actual,
             "revenue_estimate": None if math.isnan(rev_estimate) else rev_estimate,
             "revenue_surprise_pct": rev_surprise_pct,
@@ -2554,7 +2549,6 @@ def _fetch_premarket_context(
             premarket[sym]["earnings_timing"] = timing
             premarket[sym]["eps_actual"] = event.get("eps_actual")
             premarket[sym]["eps_estimate"] = event.get("eps_estimate")
-            premarket[sym]["eps_surprise_pct"] = event.get("eps_surprise_pct")
             premarket[sym]["revenue_actual"] = event.get("revenue_actual")
             premarket[sym]["revenue_estimate"] = event.get("revenue_estimate")
             premarket[sym]["revenue_surprise_pct"] = event.get("revenue_surprise_pct")
@@ -5123,7 +5117,6 @@ def generate_open_prep_result(
             q["days_since_last_earnings"] = pm.get("days_since_last_earnings")
             q["days_to_next_earnings"] = pm.get("days_to_next_earnings")
             q["earnings_risk_window"] = pm.get("earnings_risk_window", False)
-            q["eps_surprise_pct"] = pm.get("eps_surprise_pct")
             q["recent_eps_surprise_pct"] = pm.get("recent_eps_surprise_pct")
             q["revenue_surprise_pct"] = pm.get("revenue_surprise_pct")
 

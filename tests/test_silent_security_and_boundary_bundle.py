@@ -182,7 +182,7 @@ _FROZEN_BASIC_CONFIG_SITES: frozenset[tuple[str, int]] = frozenset({
     ("newsstack_fmp/run.py", 22),
     # 2026-07-03 (WP-3 holdout rescoring): helper additions shifted
     # logging.basicConfig from 211 -> 533.
-    ("open_prep/candidate_weights.py", 540),
+    ("open_prep/candidate_weights.py", 541),  # 2026-07-10: eps_surprise_pct→recent_eps_surprise_pct reconstruction swap +1 (540->541)
     # 2026-06-13 (audit-e2/aw7-reader-observability, PR #2759): _load_previous_latest
     #   DEBUG log insertion shifted logging.basicConfig from 305 → 306.
     ("open_prep/feature_importance_report.py", 307),
@@ -204,7 +204,7 @@ _FROZEN_BASIC_CONFIG_SITES: frozenset[tuple[str, int]] = frozenset({
     ("open_prep/realtime_signals.py", 3364),  # 2026-07-09 hysteresis/median (rebased on merged #3301)
     # 2026-07-04 (market-microstructure observe-only): import + snapshot
     # block + row-loop fields shifted 6079 -> 6105.
-    ("open_prep/run_open_prep.py", 6235),  # 2026-07-10: recent_eps_surprise (+quote-merge) shifted (6221->6235)
+    ("open_prep/run_open_prep.py", 6228),  # 2026-07-10: recent_eps_surprise (6221->6235); dead eps_surprise_pct removed (6235->6228)
     # 2026-06-16 (feat/live-overlay-daemon): entry-point main.py configures
     # root logger at startup (Railway container, no other logger setup).
     # 2026-06-19 (fix/live-overlay-post-merge-bugs): import additions for

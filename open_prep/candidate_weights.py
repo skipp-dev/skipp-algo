@@ -298,7 +298,8 @@ def _build_filter_result_from_fi_sample(sample: dict[str, Any]) -> scorer_mod.Fi
         "dist_to_ema20_pct": float(sample.get("dist_to_ema20_pct") or 0.0),
         "ema50_slope_pct": float(sample.get("ema50_slope_pct") or 0.0),
         "gap_range_pos": float(sample.get("gap_range_pos") or 0.0),
-        "eps_surprise_pct": float(sample.get("eps_surprise_pct") or 0.0),
+        "recent_eps_surprise_pct": float(sample.get("recent_eps_surprise_pct") or 0.0),
+        "days_since_last_earnings": float(sample.get("days_since_last_earnings") or 0.0),
         "vix9d_vix_ratio": float(sample.get("vix9d_vix_ratio") or 0.0),
     }
     return scorer_mod.FilterResult(
