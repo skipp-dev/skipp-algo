@@ -63,9 +63,9 @@ shells (history leak); export them in the session or just log in manually.
 ### Browser selection
 
 By default every TradingView session (this script and `newTradingViewSession`)
-launches Playwright's **pinned bundled Chromium** (`npx playwright install
-chromium`). Two env vars override that — they are **mutually exclusive** (set
-at most one):
+launches Playwright's **pinned bundled Chromium**
+(`npx playwright install chromium`). Two env vars override that — they are
+**mutually exclusive** (set at most one):
 
 | Env var | Effect |
 |---|---|
