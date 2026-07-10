@@ -797,6 +797,34 @@ class TestPlaceOrderIntents:
             place_order_intents([], connection_cfg=IBKRConnectionConfig(), execution_cfg=IBKRExecutionConfig())
         ib_instance.disconnect.assert_not_called()
 
+    def test_connect_readonly_defaults_false_for_transmission(self):
+        ib_instance = MagicMock()
+        ib_instance.isConnected.return_value = True
+        IB = MagicMock(return_value=ib_instance)
+        with (
+            _patch_ibkr_types(IB=IB),
+            patch.object(mod, "place_order_intents_with_ib", return_value={"placements": []}),
+        ):
+            place_order_intents([], connection_cfg=IBKRConnectionConfig(), execution_cfg=IBKRExecutionConfig())
+        assert ib_instance.connect.call_args.kwargs["readonly"] is False
+
+    def test_connect_honours_connection_cfg_readonly(self):
+        """A caller passing readonly=True gets a no-transmit read-only session
+        (previously ignored: connect hardcoded readonly=False)."""
+        ib_instance = MagicMock()
+        ib_instance.isConnected.return_value = True
+        IB = MagicMock(return_value=ib_instance)
+        with (
+            _patch_ibkr_types(IB=IB),
+            patch.object(mod, "place_order_intents_with_ib", return_value={"placements": []}),
+        ):
+            place_order_intents(
+                [],
+                connection_cfg=IBKRConnectionConfig(readonly=True),
+                execution_cfg=IBKRExecutionConfig(),
+            )
+        assert ib_instance.connect.call_args.kwargs["readonly"] is True
+
 
 # ── main / CLI ────────────────────────────────────────────────
 
