@@ -5,7 +5,7 @@
 | Signal | Sofort-Aktion |
 |---|---|
 | `mergeStateStatus == "DIRTY"` | `git fetch origin main && git rebase origin/main` → Konflikte lösen → `git push --force-with-lease` |
-| `mergeStateStatus == "BEHIND"` | **Auto-Merge armiert** (Squash-PR) → `gh api repos/skippALGO/skipp-algo/pulls/<N>/update-branch -X PUT`, `--auto` armiert lassen, weitermachen (kein Rebase/Force-Push — der kämpft gegen Auto-Merge). **Sonst (lokaler Branch ohne Auto-Merge)** → `git fetch origin main && git rebase origin/main && git push --force-with-lease` |
+| `mergeStateStatus == "BEHIND"` | **Auto-Merge armiert** (Squash-PR) → `gh api repos/skippALGO/skipp-algo/pulls/<N>/update-branch -X PUT`, `--auto` armiert lassen, weitermachen (kein Rebase/Force-Push — der kämpft gegen Auto-Merge; **niemals `--admin`** — Branch-Protection-Gate nicht umgehen). **Sonst (lokaler Branch ohne Auto-Merge)** → `git fetch origin main && git rebase origin/main && git push --force-with-lease` |
 | `git push` → `[remote rejected]` | `git fetch origin <branch> && git rebase origin/<branch> && git push --force-with-lease` |
 | Pre-commit Hook: falscher Branch | Checkout korrigieren → cherry-pick → neu committen |
 
@@ -25,7 +25,7 @@ find . -type d -name __pycache__ -exec rm -rf {} + 2>/dev/null
 # 3. Ruff
 .venv/bin/python -m ruff check --fix . && .venv/bin/python -m ruff check .
 
-# 4. Alle 7 Ledger-Pins (~15s) — VOLLSTÄNDIG, nicht kürzen
+# 4. Alle 8 Ledger-Pins (~15s) — VOLLSTÄNDIG, nicht kürzen
 .venv/bin/python -m pytest \
   tests/test_global_statement_budget.py \
   tests/test_noqa_budget.py \
@@ -84,12 +84,12 @@ gh pr view <N> --json mergeStateStatus,autoMergeRequest,reviewDecision
 
 | `mergeStateStatus` | Aktion |
 |---|---|
-| `BEHIND` | `gh api repos/skippALGO/skipp-algo/pulls/<N>/update-branch -X PUT` → `gh pr merge <N> --squash --auto` → **weitermachen** (kein manuelles CI-Warten) |
+| `BEHIND` | STOP-Regel oben (update-branch, `--auto` armiert lassen/setzen, kein Rebase) → **weitermachen** (kein manuelles CI-Warten) |
 | `DIRTY` | STOP-Regel oben (rebase) |
 | `BLOCKED` | Fehlende Checks abwarten — arm `--auto` wenn noch nicht gesetzt |
 | `MERGEABLE` + Checks grün | `gh pr merge <N> --squash` |
 
-**Kontrakt:** Nach `--auto` oder `update-branch` nie idle warten. Sofort nächste Aufgabe. Auf aktivem `main` wird `BEHIND` oft erneut auftreten — `--auto` armiert lassen und `update-branch` wiederholen; **niemals `--admin`** als Abkürzung (Branch-Protection-Gate nicht umgehen).
+**Kontrakt:** Nach `--auto` oder `update-branch` nie idle warten. Sofort nächste Aufgabe. Auf aktivem `main` tritt `BEHIND` oft erneut auf — Behandlung steht kanonisch in der STOP-Regel oben.
 
 **Alle PRs scannen:**
 ```bash

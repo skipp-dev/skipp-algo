@@ -3,10 +3,11 @@ import fs from "node:fs";
 import path from "node:path";
 import test from "node:test";
 import { fileURLToPath } from "node:url";
-import { chromium, type Page } from "playwright";
+import { type Page } from "playwright";
 
 import {
   assertNoVisibleCompileError,
+  launchTradingViewChromium,
   probeRuntimeSmoke,
   buildScriptNamePatterns,
   collectTradingViewPageAuthState,
@@ -99,7 +100,7 @@ test("editor diagnostics accept toolbar-only Pine editor states", () => {
 });
 
 test("ensurePineEditor recovers after closeModal clears a blocking dialog", async () => {
-  const browser = await chromium.launch({ headless: true });
+  const browser = await launchTradingViewChromium({ headless: true });
 
   try {
     const page = await browser.newPage();
@@ -142,7 +143,7 @@ test("ensurePineEditor neutralises #overlap-manager-root [data-id] blocker befor
   // blocked the Pine editor button. ensurePineEditor must call
   // dismissOverlapManagerOverlay() so the JS pointer-events bypass fires and
   // the Pine button becomes clickable.
-  const browser = await chromium.launch({ headless: true });
+  const browser = await launchTradingViewChromium({ headless: true });
   const page = await browser.newPage();
   try {
     await page.setContent(`
@@ -934,7 +935,7 @@ test("live rejected account probe still wins over a stale is-authenticated class
 });
 
 test("TradingView page auth probe emits trace status monitoring", async () => {
-  const browser = await chromium.launch({ headless: true });
+  const browser = await launchTradingViewChromium({ headless: true });
   const messages: string[] = [];
   const originalError = console.error;
 
@@ -981,7 +982,7 @@ test("TradingView page auth probe fails soft when page evaluate crashes (bug-hun
   // a controlled "no evidence" state instead of throwing out of the probe and
   // aborting recovery loops. Previously only the endpoint-probe evaluate was
   // .catch()-guarded; the page-evidence evaluate threw.
-  const browser = await chromium.launch({ headless: true });
+  const browser = await launchTradingViewChromium({ headless: true });
   try {
     const page = await browser.newPage();
     await page.close();
@@ -1099,7 +1100,7 @@ test("findLegendRowWrappers skips invisible legend buttons", async () => {
 });
 
 test("chart surface action button scope keeps only controls whose ancestor names the script", async () => {
-  const browser = await chromium.launch({ headless: true });
+  const browser = await launchTradingViewChromium({ headless: true });
   const page = await browser.newPage();
   try {
     await page.setContent(`
@@ -1130,7 +1131,7 @@ test("chart surface action button scope keeps only controls whose ancestor names
 });
 
 test("chart surface action button scope matches More controls by nearest script ancestor", async () => {
-  const browser = await chromium.launch({ headless: true });
+  const browser = await launchTradingViewChromium({ headless: true });
   const page = await browser.newPage();
   try {
     await page.setContent(`
@@ -1160,7 +1161,7 @@ test("chart surface action button scope matches More controls by nearest script 
 });
 
 test("chart surface action scope does not let version-like words match alone", async () => {
-  const browser = await chromium.launch({ headless: true });
+  const browser = await launchTradingViewChromium({ headless: true });
   const page = await browser.newPage();
   try {
     await page.setContent(`
@@ -1232,7 +1233,7 @@ test("isLegendTruncatedMatch exact full name matches", () => {
 // --- dismissOverlapManagerOverlay: #overlap-manager-root blocking overlay ---
 
 test("dismissOverlapManagerOverlay is a no-op when #overlap-manager-root has no [data-id] children", async () => {
-  const browser = await chromium.launch({ headless: true });
+  const browser = await launchTradingViewChromium({ headless: true });
   const page = await browser.newPage();
   try {
     await page.setContent(`
@@ -1255,7 +1256,7 @@ test("dismissOverlapManagerOverlay is a no-op when #overlap-manager-root has no 
 test("dismissOverlapManagerOverlay applies JS pointer-events:none when overlay persists after mouse-move + Escape", async () => {
   // Simulates the 4th-step fallback: a synthetic [data-id] overlay that will NOT
   // disappear after mouse.move(0,0) or Escape (no event listeners in static DOM).
-  const browser = await chromium.launch({ headless: true });
+  const browser = await launchTradingViewChromium({ headless: true });
   const page = await browser.newPage();
   try {
     await page.setContent(`
@@ -1290,7 +1291,7 @@ test("dismissOverlapManagerOverlay applies JS bypass for dynamic data-id tooltip
   // attempts indicates a hover-tooltip. Verify the full 4-step path fires:
   // mouse.move → outerHTML log → Escape (no-op in static DOM) → JS bypass.
   // Only the [data-id] element gets pointer-events:none; container is untouched.
-  const browser = await chromium.launch({ headless: true });
+  const browser = await launchTradingViewChromium({ headless: true });
   const page = await browser.newPage();
   try {
     await page.setContent(`
@@ -1333,7 +1334,7 @@ test("findLegendRowWrappers matches ancestor with truncated TradingView display 
 });
 
 test("settings surface DOM hint accepts visible settings dialogs and menus", async () => {
-  const browser = await chromium.launch({ headless: true });
+  const browser = await launchTradingViewChromium({ headless: true });
   const page = await browser.newPage();
   try {
     await page.setContent(`
@@ -1366,7 +1367,7 @@ test("settings surface DOM hint accepts visible settings dialogs and menus", asy
 });
 
 test("settings surface DOM hint accepts standalone visible Settings actions", async () => {
-  const browser = await chromium.launch({ headless: true });
+  const browser = await launchTradingViewChromium({ headless: true });
   const page = await browser.newPage();
   try {
     await page.setContent(`
@@ -1382,7 +1383,7 @@ test("settings surface DOM hint accepts standalone visible Settings actions", as
 });
 
 test("settings surface DOM hint accepts an icon/emoji-prefixed Settings action but not multi-word labels", async () => {
-  const browser = await chromium.launch({ headless: true });
+  const browser = await launchTradingViewChromium({ headless: true });
   const page = await browser.newPage();
   try {
     // Regression: an anchored /^settings$/ missed a leading gear icon on the
@@ -1408,7 +1409,7 @@ test("settings surface DOM hint accepts an icon/emoji-prefixed Settings action b
 });
 
 test("settings surface DOM hint ignores hidden or unrelated controls", async () => {
-  const browser = await chromium.launch({ headless: true });
+  const browser = await launchTradingViewChromium({ headless: true });
   const page = await browser.newPage();
   try {
     await page.setContent(`
@@ -1432,7 +1433,7 @@ test("settingsAction selector matches an icon-prefixed menuitem Settings action"
   // Twin of the hasSettingsSurfaceDomHint fix: a [role=menuitem] "⚙ Settings"
   // (no aria-label/title, not a <button>) is only reachable via the loosened
   // text regex.
-  const browser = await chromium.launch({ headless: true });
+  const browser = await launchTradingViewChromium({ headless: true });
   const page = await browser.newPage();
   try {
     await page.setContent(`
@@ -1451,7 +1452,7 @@ test("settingsAction selector matches an icon-prefixed menuitem Settings action"
 });
 
 test("publishContinue selector matches a Continue button with a trailing stepper glyph", async () => {
-  const browser = await chromium.launch({ headless: true });
+  const browser = await launchTradingViewChromium({ headless: true });
   const page = await browser.newPage();
   try {
     await page.setContent(`
@@ -1475,7 +1476,7 @@ test("clickVisibleWithFallback dismisses hover-only [data-id] overlay via mouse.
   // Regression guard for issue #2849: mouse.move(0,0) at the top of
   // clickVisibleWithFallback must cause a hover-only overlay to disappear so
   // the target button becomes clickable — without needing dismissOverlapManagerOverlay.
-  const browser = await chromium.launch({ headless: true });
+  const browser = await launchTradingViewChromium({ headless: true });
   const page = await browser.newPage();
   try {
     await page.setContent(`
@@ -1518,7 +1519,7 @@ test("clickVisibleWithFallback dismisses hover-only [data-id] overlay via mouse.
 });
 
 test("clickVisibleWithFallback keeps trying until the optional effect check passes", async () => {
-  const browser = await chromium.launch({ headless: true });
+  const browser = await launchTradingViewChromium({ headless: true });
   const page = await browser.newPage();
   try {
     await page.setContent(`
@@ -1569,7 +1570,7 @@ test("clickVisibleWithFallback clears a persistent pointer-events interceptor vi
   // "intercepts pointer events". Only the JS pointer-events bypass clears it —
   // and it must fire EARLY (on the interception signature) rather than after
   // ~13s of doomed retries that would eat the step timeout.
-  const browser = await chromium.launch({ headless: true });
+  const browser = await launchTradingViewChromium({ headless: true });
   const page = await browser.newPage();
   const traces: string[] = [];
   const origError = console.error;
@@ -1625,7 +1626,7 @@ test("clickVisibleWithFallback clears a persistent pointer-events interceptor vi
 });
 
 test("hasAddToChartClickEffect accepts update state and missing Add button", async () => {
-  const browser = await chromium.launch({ headless: true });
+  const browser = await launchTradingViewChromium({ headless: true });
   try {
     const page = await browser.newPage();
     await page.setContent(`
@@ -1656,7 +1657,7 @@ test("hasAddToChartClickEffect accepts update state and missing Add button", asy
 });
 
 test("hasAddToChartClickEffect uses visible chart script state when Add button remains", async () => {
-  const browser = await chromium.launch({ headless: true });
+  const browser = await launchTradingViewChromium({ headless: true });
   try {
     const page = await browser.newPage();
     await page.setContent(`
@@ -1782,7 +1783,7 @@ test("visible legend text budget is scoped to the legend-text heuristic", () => 
 });
 
 test("visible legend text settings fallback opens matching settings dialog from a legend row", async () => {
-  const browser = await chromium.launch({ headless: true });
+  const browser = await launchTradingViewChromium({ headless: true });
   const page = await browser.newPage();
   try {
     await page.setContent(`
@@ -1822,7 +1823,7 @@ test("visible legend text settings fallback opens matching settings dialog from 
 });
 
 test("visible legend text settings fallback ignores matching text outside legend actions", async () => {
-  const browser = await chromium.launch({ headless: true });
+  const browser = await launchTradingViewChromium({ headless: true });
   const page = await browser.newPage();
   try {
     await page.setContent(`
@@ -1954,7 +1955,7 @@ test("probeRuntimeSmoke fails closed on a crashed compile probe instead of repor
   // null` — a fail-OPEN: a crashed page reads as a clean compile, and if the
   // script happens to be visible the smoke gate passes. The compile field must
   // now carry the probe-failure sentinel value.
-  const browser = await chromium.launch({ headless: true });
+  const browser = await launchTradingViewChromium({ headless: true });
   try {
     const page = await browser.newPage();
     // Destroyed execution context: the compile-marker body read rejects, which
