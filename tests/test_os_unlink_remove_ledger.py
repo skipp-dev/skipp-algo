@@ -130,7 +130,7 @@ OS_DELETE_LEDGER: set[tuple[str, int, str]] = {
     # 2026-07-02 (WP6 formula-era gate): cutoff constant block +8 → 595.
     # 2026-07-04 (market-microstructure observe-only): snapshot fields +
     # FEATURE_KEYS/PASS_THROUGH entries +16 → 632.
-    ("open_prep/outcomes.py", 709, "unlink"),  # 2026-07-09 robustness: outcomes hardening above
+    ("open_prep/outcomes.py", 723, "unlink"),  # 2026-07-10: recent_eps_surprise observe-feature shifted (709->723)
     ("open_prep/realtime_signals.py", 127, "remove"),
     # 2026-06-25: AsyncNewsstackPoller telemetry additions shifted
     # 2783 -> 2862 and 2828 -> 2907.
@@ -154,14 +154,14 @@ OS_DELETE_LEDGER: set[tuple[str, int, str]] = {
     # 3131 -> 3135 and 3483 -> 3487.
     # 2026-07-04 (market-microstructure observe-only): import +1 →
     # 3136/3504.
-    ("open_prep/run_open_prep.py", 3185, "unlink"),  # 2026-07-08 TV-priority helper + M10 knob shifted (3170->3185)
-    ("open_prep/run_open_prep.py", 3553, "unlink"),  # 2026-07-08 TV-priority helper + M10 knob shifted (3538->3553)
+    ("open_prep/run_open_prep.py", 3198, "unlink"),  # 2026-07-10: recent_eps_surprise in _fetch_earnings_distance_features shifted (3185->3198)
+    ("open_prep/run_open_prep.py", 3566, "unlink"),  # 2026-07-10: recent_eps_surprise shifted (3553->3566)
     # 2026-06-11 (Copilot sweep #2688): VIX9D fail-closed guard +5;
     # 2026-06-12 (merge #2713 into #2696): net +1 → 5512/5790.
     # 2026-06-25: feature-flag helper additions shifted 5621 -> 5625.
     # 2026-07-04 (market-microstructure observe-only): import + snapshot
     # block shifted 5641 -> 5658.
-    ("open_prep/run_open_prep.py", 5751, "unlink"),  # 2026-07-08 TV-priority helper + M10 knob shifted (5719->5751)
+    ("open_prep/run_open_prep.py", 5765, "unlink"),  # 2026-07-10: recent_eps_surprise (+quote-merge) shifted (5751->5765)
     # 2026-06-11 (trend-state features): 5731→5742, enrichment-loop
     # stamping + lookback comment added above; eval-findings 5742→5765.
     # 2026-06-12 (backlog-resilience): fail-loud outcome storage +9 → 5799.
@@ -169,7 +169,7 @@ OS_DELETE_LEDGER: set[tuple[str, int, str]] = {
     # 2026-06-25: feature-flag helper additions shifted 5916 -> 5920.
     # 2026-07-04 (market-microstructure observe-only): import + snapshot
     # block + row-loop fields shifted 5936 -> 5962.
-    ("open_prep/run_open_prep.py", 6078, "unlink"),  # 2026-07-08 TV-priority helper + M10 knob shifted (6046->6078)
+    ("open_prep/run_open_prep.py", 6092, "unlink"),  # 2026-07-10: recent_eps_surprise (+quote-merge) shifted (6078->6092)
     ("open_prep/scorer.py", 156, "unlink"),
     ("open_prep/watchlist.py", 74, "unlink"),
     ("smc_core/benchmark.py", 39, "unlink"),
