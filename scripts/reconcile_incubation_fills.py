@@ -15,7 +15,9 @@ matches them to intents via the bracket legs' ``orderRef`` scheme
 ``scripts.execute_ibkr_watchlist``), and rewrites the audit JSONL:
 
 * entry leg filled              -> ``action="filled"``, ``fill_price``,
-                                   ``size_usd`` (= entry avg x quantity)
+                                   ``filled_shares``, ``size_usd`` (= entry VWAP
+                                   x FILLED shares — realized notional; a partial
+                                   entry also stamps ``partial_fill=True``)
 * take-profit leg filled        -> ``action="tp_hit"``, ``close_price``
 * stop / trail leg filled       -> ``action="stop_hit"``, ``close_price``
 
@@ -202,8 +204,17 @@ def reconcile_records(
             # bracket state — leave the record for manual inspection.
             continue
         record["fill_price"] = round(entry["avg_price"], 6)
-        quantity = record.get("quantity") or entry["shares"]
-        record["size_usd"] = round(entry["avg_price"] * float(quantity), 2)
+        # size_usd is the REALIZED notional, so use the actual FILLED shares
+        # (VWAP-aggregated in summarize_fills) — NOT the ordered ``quantity``.
+        # A partial entry fills fewer shares than ordered, so ordered-qty would
+        # overstate the notional (and the downstream $ P&L, which is
+        # pnl_per_dollar * size_usd) by ordered/filled.
+        filled_shares = float(entry["shares"])
+        record["filled_shares"] = round(filled_shares, 6)
+        record["size_usd"] = round(entry["avg_price"] * filled_shares, 2)
+        ordered = record.get("quantity")
+        if ordered is not None and filled_shares < float(ordered):
+            record["partial_fill"] = True
         record["action"] = "filled"
         counts["entry_filled"] += 1
         for suffix, close_action in _EXIT_LEG_ACTIONS.items():
