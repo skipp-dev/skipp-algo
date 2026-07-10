@@ -1,5 +1,6 @@
-"""One-shot reachability + data-shape probe for every external data/news
-provider used by the skipp-algo stack.
+"""One-shot reachability + data-shape probe for external data/news providers
+(NOT exhaustive: e.g. Massive reference routes dividends/splits/ipos are live
+in production but have no probe row here yet — see truth-audit 2026-07-10).
 
 Usage:
     PYTHONPATH=. python scripts/probe_providers.py                # full table
