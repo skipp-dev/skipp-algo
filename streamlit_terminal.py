@@ -4316,12 +4316,11 @@ else:
                 )
 
                 if _to_label != "⚪ MARKET CLOSED":
-                    _to_cols = st.columns(5)
+                    _to_cols = st.columns(4)
                     _to_cols[0].metric("Outlook Score", f"{today_outlook.get('outlook_score', 0):.2f}")
                     _to_cols[1].metric("Earnings Today", today_outlook.get("earnings_count", 0))
-                    _to_cols[2].metric("Earnings BMO", today_outlook.get("earnings_bmo_count", 0))
-                    _to_cols[3].metric("High-Impact Events", today_outlook.get("high_impact_events", 0))
-                    _to_cols[4].metric("Feed Sentiment", _feed_sentiment_label)
+                    _to_cols[2].metric("High-Impact Events", today_outlook.get("high_impact_events", 0))
+                    _to_cols[3].metric("Feed Sentiment", _feed_sentiment_label)
 
                     # High-impact events for today
                     _to_hi: list[dict[str, Any]] = today_outlook.get("high_impact_events_details") or []
@@ -4338,7 +4337,7 @@ else:
                     if _to_earn:
                         with st.expander(f"📊 Earnings Reporting Today ({len(_to_earn)})", expanded=False):
                             _to_df = pd.DataFrame(_to_earn)
-                            _to_disp = [c for c in ["ticker", "name", "timing"] if c in _to_df.columns]
+                            _to_disp = [c for c in ["ticker", "eps_surprise", "eps_surprise_percent"] if c in _to_df.columns]
                             st.dataframe(
                                 _to_df[_to_disp] if _to_disp else _to_df,
                                 width='stretch',
@@ -4372,12 +4371,11 @@ else:
             )
 
             # ── Key metrics ──
-            ocols = st.columns(5)
+            ocols = st.columns(4)
             ocols[0].metric("Outlook Score", f"{outlook.get('outlook_score', 0):.2f}")
             ocols[1].metric("Earnings Tomorrow", outlook.get("earnings_tomorrow_count", 0))
-            ocols[2].metric("Earnings BMO", outlook.get("earnings_bmo_tomorrow_count", 0))
-            ocols[3].metric("High-Impact Events", outlook.get("high_impact_events_tomorrow", 0))
-            ocols[4].metric("Feed Sentiment", _feed_sentiment_label)
+            ocols[2].metric("High-Impact Events", outlook.get("high_impact_events_tomorrow", 0))
+            ocols[3].metric("Feed Sentiment", _feed_sentiment_label)
 
             st.divider()
 
@@ -4443,7 +4441,7 @@ else:
             if notable:
                 st.subheader(f"📊 Earnings Reporting on {next_td_str}")
                 _ne_df = pd.DataFrame(notable)
-                display_cols = [c for c in ["ticker", "name", "timing"] if c in _ne_df.columns]
+                display_cols = [c for c in ["ticker", "eps_surprise", "eps_surprise_percent"] if c in _ne_df.columns]
                 st.dataframe(
                     _ne_df[display_cols] if display_cols else _ne_df,
                     width='stretch',

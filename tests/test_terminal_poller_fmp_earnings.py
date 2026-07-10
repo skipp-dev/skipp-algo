@@ -98,4 +98,5 @@ class TestOutlookUsesFmp:
         mock_earn.assert_called_once()
         assert mock_earn.call_args.args[0] == "fmp-key"
         assert result["earnings_count"] == 25
-        assert result["earnings_bmo_count"] == 0   # FMP has no bmo timing
+        # BMO removed 2026-07-10 (FMP has no bmo/amc timing, no other source has it)
+        assert "earnings_bmo_count" not in result
