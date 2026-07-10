@@ -40,7 +40,7 @@ _VIX_HYSTERESIS = 1.0  # require VIX to cross threshold by this margin to flip
 
 @dataclass
 class RegimeSnapshot:
-    """Immutable snapshot of the current market regime."""
+    """Snapshot of the current market regime (plain dataclass — NOT frozen/immutable)."""
 
     regime: str  # RISK_ON | RISK_OFF | ROTATION | NEUTRAL
     vix_level: float | None

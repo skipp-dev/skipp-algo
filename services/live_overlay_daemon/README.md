@@ -430,7 +430,6 @@ observability.py (structured log lines + in-process counters)
 | `live_overlay_market_europe_open` | gauge | market_hours.py |
 | `live_overlay_market_asia_open` | gauge | market_hours.py |
 | `live_overlay_daemon_restart_cause_<cause>_total` | counter | main.py/config.py |
-| `live_overlay_daemon_restarts_total` | counter | main.py |
 | `live_overlay_hotspot_symbols_tracked` | gauge | request_hotspots.py |
 | `live_overlay_hotspot_timeframes_tracked` | gauge | request_hotspots.py |
 | `live_overlay_hotspot_symbol_<symbol>_requests_total` | counter | request_hotspots.py |
@@ -458,10 +457,11 @@ observability.py (structured log lines + in-process counters)
 | `live_overlay_provider_news_<provider>_consumed` | gauge | metrics.py provider drill-down (`1=consumed`, `0=excluded/disabled`) |
 | `live_overlay_provider_news_info{provider,state,reason,consumed}` | gauge | metrics.py labeled provider reason/state info series |
 | `live_overlay_trading_signals_loaded` | gauge | metrics.py signals snapshot probe |
-| `live_overlay_trading_signals_active_total` | gauge | metrics.py signals snapshot probe (`_total` suffix reflects a count, but value is a snapshot) |
-| `live_overlay_trading_signals_a0_total` | gauge | metrics.py signals snapshot probe (`_total` suffix reflects a count, but value is a snapshot) |
-| `live_overlay_trading_signals_a1_total` | gauge | metrics.py signals snapshot probe (`_total` suffix reflects a count, but value is a snapshot) |
-| `live_overlay_trading_signals_watched_total` | gauge | metrics.py signals snapshot probe (`_total` suffix reflects a count, but value is a snapshot) |
+| `live_overlay_trading_signals_active` | gauge | signals snapshot probe (point-in-time count; deprecated alias `live_overlay_trading_signals_active_total`) |
+| `live_overlay_trading_signals_a0` | gauge | signals snapshot probe (point-in-time count; deprecated alias `live_overlay_trading_signals_a0_total`) |
+| `live_overlay_trading_signals_a1` | gauge | signals snapshot probe (point-in-time count; deprecated alias `live_overlay_trading_signals_a1_total`) |
+| `live_overlay_trading_signals_a2` | gauge | signals snapshot probe (A2 early-warning tier; deprecated alias `live_overlay_trading_signals_a2_total`) |
+| `live_overlay_trading_signals_watched` | gauge | signals snapshot probe (point-in-time count; deprecated alias `live_overlay_trading_signals_watched_total`) |
 | `live_overlay_trading_signals_snapshot_age_known` | gauge | metrics.py signals snapshot probe |
 | `live_overlay_trading_signals_snapshot_age_seconds` | gauge | metrics.py signals snapshot probe |
 | `live_overlay_trading_signals_snapshot_max_age_seconds` | gauge | metrics.py signals snapshot probe (configured staleness threshold) |

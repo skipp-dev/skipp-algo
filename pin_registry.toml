@@ -70,7 +70,7 @@
 # at L279 inside FMPClient._do_request; has timeout=self.timeout_seconds.
 "scripts/smc_fmp_client.py" = [279]
 "scripts/smc_alert_notifier.py" = [481]
-"scripts/verify_branch_protection.py" = [104]
+"scripts/verify_branch_protection.py" = [108]  # 104->108 (2026-07-09): ruleset-only cleanup shifted urlopen +4
 "terminal_notifications.py" = [255, 319]
 # 2026-06-10: bare-name urlopen() calls newly detected after expanding
 # _is_urlopen_call to match ast.Name in addition to ast.Attribute.

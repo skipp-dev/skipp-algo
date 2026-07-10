@@ -31,19 +31,23 @@ from typing import Any
 # Configuration
 # ---------------------------------------------------------------------------
 
-OWNER = "skippALGO"
+OWNER = "skipp-dev"  # current owner (was the stale "skippALGO" slug)
 REPO = "skipp-algo"
 BRANCH = "main"
 
-# Required status checks — the minimum blocking baseline.
+# Required status checks — the minimum blocking baseline. Rulesets are the sole
+# governance source since 2026-07-09 (classic branch protection was removed and
+# consolidated into the `main-governance` ruleset), so this is the BARE ruleset
+# context (the GitHub Actions job name), not the classic "workflow / job" path.
 REQUIRED_STATUS_CHECKS: list[str] = [
-    "smc-fast-pr-gates / fast-gates",
+    "fast-gates",
 ]
 
-# Optional additional status checks — recommended but not hard-required.
-RECOMMENDED_STATUS_CHECKS: list[str] = [
-    "CI / validate",
-]
+# No recommended-but-optional required checks. Gating on the full `validate`
+# suite before merge would need a merge queue, which is an organization-only
+# GitHub feature and unavailable on this user-owned repo; the
+# `lo-ci-full-suite-red` Grafana alert covers a red main-CI instead (2026-07-09).
+RECOMMENDED_STATUS_CHECKS: list[str] = []
 
 API_BASE = "https://api.github.com"
 
@@ -139,10 +143,15 @@ def _check_branch_protection(token: str, report: ProtectionReport) -> None:
         return
 
     if status == 404:
+        # Classic branch protection was removed 2026-07-09 in favour of the
+        # single `main-governance` ruleset; its absence is now EXPECTED. The
+        # ruleset check below is the authoritative verdict, so a missing classic
+        # layer is a warning, not a failure.
         report.add(
             "branch_protection_enabled",
-            False,
-            "No branch protection rule found for 'main'.",
+            True,
+            "No classic branch protection — governance is ruleset-only (expected).",
+            severity="warn",
         )
         return
 
@@ -203,8 +212,11 @@ def _check_branch_protection(token: str, report: ProtectionReport) -> None:
         checks_list = status_checks.get("checks", [])
         contexts = [c.get("context", "") for c in checks_list] if checks_list else status_checks.get("contexts", [])
 
+        # Match by bare job name so a bare REQUIRED entry (ruleset format) also
+        # matches a classic "workflow / job" context, mirroring _check_rulesets.
+        job_contexts = {c.split(" / ")[-1] for c in contexts}
         for req_check in REQUIRED_STATUS_CHECKS:
-            found = req_check in contexts
+            found = req_check in contexts or req_check.split(" / ")[-1] in job_contexts
             report.add(
                 f"required_check::{req_check}",
                 found,

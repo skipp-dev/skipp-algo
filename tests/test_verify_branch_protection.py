@@ -128,14 +128,18 @@ class TestCheckBranchProtection:
         assert report.passed is True
         assert any(r.name == "branch_protection_enabled" and r.severity == "warn" for r in report.results)
 
-    def test_no_protection_fails(self, mod: types.ModuleType) -> None:
+    def test_no_classic_protection_is_warn_rulesets_govern(self, mod: types.ModuleType) -> None:
+        """Classic branch protection was removed 2026-07-09 (ruleset-only); its
+        absence is a WARN, not a failure — the ruleset check is authoritative."""
         report = mod.ProtectionReport()
         with patch.object(mod, "_github_get", return_value=(404, {})):
             mod._check_branch_protection("fake-token", report)
 
-        assert report.passed is False
-        names = [r.name for r in report.results if not r.passed]
-        assert "branch_protection_enabled" in names
+        assert report.passed is True
+        assert any(
+            r.name == "branch_protection_enabled" and r.severity == "warn"
+            for r in report.results
+        )
 
     def test_missing_required_check_fails(self, mod: types.ModuleType) -> None:
         data = json.loads(json.dumps(_FULL_PROTECTION_RESPONSE))
@@ -145,7 +149,7 @@ class TestCheckBranchProtection:
             mod._check_branch_protection("fake-token", report)
 
         failed = [r for r in report.results if not r.passed and r.severity == "error"]
-        assert any("smc-fast-pr-gates" in r.name for r in failed)
+        assert any("fast-gates" in r.name for r in failed)
 
     def test_force_push_allowed_fails(self, mod: types.ModuleType) -> None:
         data = json.loads(json.dumps(_FULL_PROTECTION_RESPONSE))

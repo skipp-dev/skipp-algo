@@ -5,7 +5,7 @@ Implements 3-way confluence system:
 2. Adaptive RSI & Supertrend (volatility-based)
 3. Market Structure (swing-pivot + BoS)
 
-Signal fires only when ALL 3 align + HTF bias validation + dynamic R/R.
+Signal fires on a 2-of-3 majority (not all 3) + HTF bias validation + dynamic R/R.
 
 Based on: "Triple Confluence Navigator [MarkitTick]" TradingView indicator
 """
@@ -156,7 +156,8 @@ class MarketStructure:
         """
         Update market structure based on swing pivots.
 
-        BoS = close above recent pivot high or below recent pivot low.
+        BoS = high above recent pivot high or low below recent pivot low
+        (wick-based break, not close-confirmed).
         """
         # A non-finite high/low would emit a spurious break-of-structure vote
         # (+inf > prev is True) and permanently poison the persisted pivots via
@@ -193,7 +194,7 @@ class ConfluenceScore:
     cardwell_signal: str
     rsi_supertrend_signal: str
     structure_signal: str
-    aligned: bool  # True if all 3 agree
+    aligned: bool  # True on a 2-of-3 majority (not all 3)
     alignment_strength: float  # 0-1
     direction: str  # 'long' | 'short' | 'neutral'
 

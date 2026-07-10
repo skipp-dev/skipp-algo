@@ -1074,14 +1074,21 @@ def test_render_metrics_includes_trading_signals_snapshot(
     body = metrics_mod.render_metrics(startup_ts=100.0)
 
     assert "live_overlay_trading_signals_loaded 1.0" in body
+    # Canonical suffix-less gauges (point-in-time counts).
+    assert "live_overlay_trading_signals_active 3.0" in body
+    assert "live_overlay_trading_signals_a0 1.0" in body
+    assert "live_overlay_trading_signals_a1 1.0" in body
+    # A2 early-warning tier is a first-class gauge (added 2026-07-08).
+    assert "live_overlay_trading_signals_a2 1.0" in body
+    assert "live_overlay_trading_signals_watched 3.0" in body
+    # Deprecated *_total aliases stay emitted during the naming transition.
     assert "live_overlay_trading_signals_active_total 3.0" in body
     assert "live_overlay_trading_signals_a0_total 1.0" in body
     assert "live_overlay_trading_signals_a1_total 1.0" in body
-    # A2 early-warning tier is a first-class counter (added 2026-07-08).
     assert "live_overlay_trading_signals_a2_total 1.0" in body
+    assert "live_overlay_trading_signals_watched_total 3.0" in body
     # A2 signals also surface as labelled per-signal series (level="A2").
     assert 'live_overlay_trading_signal_score{symbol="NVDA",level="A2"' in body
-    assert "live_overlay_trading_signals_watched_total 3.0" in body
     assert "live_overlay_trading_signals_snapshot_age_known 1.0" in body
     # Per-signal series are labelled so Grafana can name/group each firing symbol.
     aapl = 'symbol="AAPL",level="A1",direction="LONG",tier="HIGH"'
@@ -1302,6 +1309,7 @@ def test_render_metrics_handles_trading_signals_snapshot_missing(
     body = metrics_mod.render_metrics(startup_ts=100.0)
 
     assert "live_overlay_trading_signals_loaded 0.0" in body
+    assert "live_overlay_trading_signals_active 0.0" in body
     assert "live_overlay_trading_signals_active_total 0.0" in body
     assert "live_overlay_trading_signals_snapshot_age_known 0.0" in body
     # No per-signal series when the snapshot is empty.
@@ -1410,13 +1418,13 @@ def test_dashboard_has_trading_signals_panels() -> None:
 
     active = by_title["Active Trading Signals"]
     assert active["type"] == "stat"
-    assert any("live_overlay_trading_signals_active_total" in t["expr"] for t in active["targets"])
+    assert any(t["expr"].startswith("live_overlay_trading_signals_active{") for t in active["targets"])
 
     # A2 early-warning tier is first-class on the dashboard (added 2026-07-08):
     # its own stat tile + a coloured mapping in the detail table's Level column.
     a2_tile = by_title["A2 Early-Warning"]
     assert a2_tile["type"] == "stat"
-    assert any("live_overlay_trading_signals_a2_total" in t["expr"] for t in a2_tile["targets"])
+    assert any(t["expr"].startswith("live_overlay_trading_signals_a2{") for t in a2_tile["targets"])
     level_ov = next(
         ov for ov in by_title["Top Trading Signals — Latest Detail"]["fieldConfig"]["overrides"]
         if ov["matcher"].get("options") == "Level"
@@ -2307,12 +2315,18 @@ def test_render_metrics_tolerates_non_numeric_signal_counts(monkeypatch: pytest.
     monkeypatch.setattr(metrics_mod.compute, "_load_signals_snapshot", lambda: snapshot)
 
     body = metrics_mod.render_metrics(startup_ts=100.0)  # must not raise
+    assert "live_overlay_trading_signals_active 0.0" in body
+    assert "live_overlay_trading_signals_a0 0.0" in body
+    assert "live_overlay_trading_signals_a1 0.0" in body
+    assert "live_overlay_trading_signals_a2 0.0" in body
+    # Deprecated *_total aliases stay emitted during the naming transition.
     assert "live_overlay_trading_signals_active_total 0.0" in body
     assert "live_overlay_trading_signals_a0_total 0.0" in body
     assert "live_overlay_trading_signals_a1_total 0.0" in body
     assert "live_overlay_trading_signals_a2_total 0.0" in body
     # The snapshot still loaded and the (valid) watched list still parsed.
     assert "live_overlay_trading_signals_loaded 1.0" in body
+    assert "live_overlay_trading_signals_watched 1.0" in body
     assert "live_overlay_trading_signals_watched_total 1.0" in body
 
 

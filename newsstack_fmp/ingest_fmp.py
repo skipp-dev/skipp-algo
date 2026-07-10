@@ -1,9 +1,10 @@
 """Synchronous FMP news ingestion adapter.
 
-Polls three endpoints:
+Polls up to four endpoints:
  1. /stable/news/stock-latest            (latest stock news)
  2. /stable/news/press-releases-latest   (press releases)
  3. /stable/fmp-articles                 (broad article feed)
+ 4. /stable/news/general-latest          (general feed; behind enable_fmp_general)
 
 Uses httpx synchronously so the adapter can be called from Streamlit
 refresh cycles without needing asyncio.
