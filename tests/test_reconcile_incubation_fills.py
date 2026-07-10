@@ -132,6 +132,32 @@ def test_entry_fill_stamps_filled_with_size_usd():
     assert counts == {"reconcilable": 1, "entry_filled": 1, "closed": 0, "duplicate_skipped": 0}
 
 
+def test_partial_entry_fill_sizes_from_filled_shares_not_ordered():
+    """A partial entry (filled < ordered) sizes from FILLED shares and flags it.
+
+    Using the ordered quantity would overstate the realized notional (and the
+    downstream $ P&L) by ordered/filled.
+    """
+    records = [_record("smc-A", quantity=10)]  # ordered 10
+    legs = {"smc-A": {"entry": {"shares": 2.0, "avg_price": 101.5}}}  # only 2 filled
+    out, _ = reconcile_records(records, legs)
+    rec = out[0]
+    assert rec["action"] == "filled"
+    assert rec["filled_shares"] == 2.0
+    assert rec["size_usd"] == 203.0  # 101.5 * 2 filled, NOT * 10 ordered (=1015.0)
+    assert rec["partial_fill"] is True
+
+
+def test_full_entry_fill_has_no_partial_flag():
+    """A full fill (filled == ordered) sizes from filled and carries no partial flag."""
+    records = [_record("smc-A", quantity=2)]
+    legs = {"smc-A": {"entry": {"shares": 2.0, "avg_price": 101.5}}}
+    out, _ = reconcile_records(records, legs)
+    rec = out[0]
+    assert rec["size_usd"] == 203.0
+    assert "partial_fill" not in rec
+
+
 def test_tp_exit_closes_as_tp_hit():
     records = [_record("smc-A")]
     legs = {
