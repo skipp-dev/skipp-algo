@@ -12,7 +12,7 @@ Usage::
 
     python -m open_prep.outcome_backfill                # backfill today
     python -m open_prep.outcome_backfill --date 2026-04-18
-    python -m open_prep.outcome_backfill --lookback 5   # last 5 days
+    python -m open_prep.outcome_backfill --lookback 5   # last 5 outcome files
 """
 from __future__ import annotations
 
@@ -581,8 +581,8 @@ def build_parser() -> argparse.ArgumentParser:
         "--require-progress",
         action="store_true",
         help=(
-            "Exit 3 when the run made zero progress "
-            "(resolved == 0 AND failed == 0 AND skipped == 0). "
+            "Exit 3 when the run made zero progress (resolved, "
+            "failed, skipped AND deferred all == 0). "
             "Use this in scheduled workflows that should never "
             "silently no-op (audit finding F-09)."
         ),

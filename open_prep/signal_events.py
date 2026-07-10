@@ -1,8 +1,8 @@
 """Persistent per-day signal-event log — the data foundation for a calibrated
 follow-through score.
 
-Every time a realtime breakout signal *first appears* at a level, or *strengthens*
-(A2 → A1 → A0), one JSON line is appended to
+When a realtime breakout signal *first appears* (once per ~12 h state TTL), or
+*strengthens* (A2 → A1 → A0), one JSON line is appended to
 ``<dir>/signal_events_<UTC-DATE>.jsonl`` capturing the signal's features at that
 instant. Later, ``scripts/calibrate_signal_followthrough.py`` joins each event to
 FMP 1-minute bars to measure what actually happened next, turning the A0/A1/A2
@@ -13,8 +13,11 @@ Opt-in and fail-soft:
 - every error is swallowed with a debug log, so a full disk / bad row can never
   stall the poll loop.
 
-Dedup mirrors rt_notify: one row per (symbol, direction) *level transition*, not
-one per poll — a still-active A1 re-detected every cycle is logged once.
+Dedup is STRICTER than rt_notify: one row per (symbol, direction) strength
+*increase* within the 12 h state TTL — there is no cooldown re-log (rt_notify
+re-fires a still-active level after its 30-min cooldown; a second same-day
+episode adds no second row here). Slack push counts therefore exceed event-log
+row counts by design; that is not data loss.
 """
 from __future__ import annotations
 

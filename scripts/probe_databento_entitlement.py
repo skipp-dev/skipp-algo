@@ -32,8 +32,9 @@ tier-upgrade decision (extend to OPRA.PILLAR? add imbalance schema?) has
 ground truth attached.
 
 This is a READ-ONLY probe. It does not write artifacts, send any data,
-or mutate state. No retries — a single failed metadata call exits non-
-zero so the failure is visible.
+or mutate state. No retries. Fail-loud is partial: only a failed/empty
+``list_datasets`` exits non-zero; per-dataset ``get_dataset_range``
+failures are printed as ``_error`` sentinels and the run still exits 0.
 """
 
 from __future__ import annotations

@@ -58,7 +58,10 @@ def _log_bucket_readiness(out_path: str) -> None:
     """Emit a one-line arm-readiness summary so the "enough data yet?" check is a
     log grep, not a volume dig: how many (level|vol_bucket) buckets already hold
     >= RT_CALIBRATION_MIN_SAMPLES events (the floor the consumer needs to trust a
-    bucket's measured P). Best-effort; never raises."""
+    bucket's measured P). NOTE: the headline count spans ALL levels, but today's
+    only consumer (rt_notify's near-A0 star) reads A1|* buckets exclusively — for
+    the arming decision check the A1|* keys in the detail string, not the
+    headline count. Best-effort; never raises."""
     try:
         min_n = int(os.environ.get("RT_CALIBRATION_MIN_SAMPLES", 20))
     except (TypeError, ValueError):
