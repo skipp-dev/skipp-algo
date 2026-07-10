@@ -65,7 +65,7 @@ def test_halts_when_manual_kill_switch_engaged(tmp_path: Path) -> None:
         now=_FROZEN_NOW,
     )
     assert summary["halted"] is True
-    assert summary["intents_submitted"] == 0
+    assert summary["intents_passed_to_submitter"] == 0
     [record] = _read_audit(audit)
     assert record["action"] == "halted"
     assert record["kill_switch_triggered"] is True
@@ -85,7 +85,7 @@ def test_red_variants_are_blocked(tmp_path: Path) -> None:
         audit_path=audit,
         now=_FROZEN_NOW,
     )
-    assert summary["intents_submitted"] == 0
+    assert summary["intents_passed_to_submitter"] == 0
     assert summary["audit_records_written"] == 0
 
 
@@ -100,7 +100,7 @@ def test_unknown_variants_fail_closed(tmp_path: Path) -> None:
         audit_path=audit,
         now=_FROZEN_NOW,
     )
-    assert summary["intents_submitted"] == 0
+    assert summary["intents_passed_to_submitter"] == 0
 
 
 def test_green_and_amber_variants_are_tradable(tmp_path: Path) -> None:
@@ -122,7 +122,7 @@ def test_green_and_amber_variants_are_tradable(tmp_path: Path) -> None:
         audit_path=audit,
         now=_FROZEN_NOW,
     )
-    assert summary["intents_submitted"] == 2
+    assert summary["intents_passed_to_submitter"] == 2
     audit_records = _read_audit(audit)
     symbols = {rec["symbol"] for rec in audit_records}
     assert symbols == {"BTC", "ETH"}
@@ -253,7 +253,7 @@ def test_cli_main_runs_end_to_end(tmp_path: Path, capsys) -> None:
     assert rc == 0
     summary = json.loads(capsys.readouterr().out)
     assert summary["phase"] == "paper"
-    assert summary["intents_submitted"] == 1
+    assert summary["intents_passed_to_submitter"] == 1
 
 
 def test_phase_defaults_table_is_complete() -> None:
@@ -521,7 +521,7 @@ def test_earnings_filter_blocks_intent_and_records_audit(tmp_path: Path) -> None
         earnings_filter=EarningsFilter(events_jsonl=wsh),
     )
 
-    assert summary["intents_submitted"] == 0
+    assert summary["intents_passed_to_submitter"] == 0
     assert summary["intents_earnings_blocked"] == 1
     assert submitted == []
     rows = _read_audit(audit)
@@ -555,6 +555,6 @@ def test_earnings_filter_missing_jsonl_is_no_op(tmp_path: Path) -> None:
         earnings_filter=EarningsFilter(events_jsonl=tmp_path / "missing.jsonl"),
     )
 
-    assert summary["intents_submitted"] == 1
+    assert summary["intents_passed_to_submitter"] == 1
     assert summary["intents_earnings_blocked"] == 0
     assert len(submit_calls) == 1

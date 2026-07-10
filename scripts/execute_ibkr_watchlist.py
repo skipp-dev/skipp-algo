@@ -1040,6 +1040,13 @@ def place_order_intents(
     connection_cfg: IBKRConnectionConfig,
     execution_cfg: IBKRExecutionConfig,
 ) -> dict[str, Any]:
+    """Connect and place ``intents``.
+
+    NOTE: this always opens a READ-WRITE session (``readonly=False`` below) so it
+    can transmit orders; ``connection_cfg.readonly`` is NOT consulted here (unlike
+    ``check_ibkr_connection`` / ``_attempt_ibkr_reconnect``, which honour it). Live
+    submission is gated instead by the port + ``assert_paper_account_if_paper_port``.
+    """
     IB, _, _, _, _ = _import_ibkr_types()
     ib = IB()
     try:
