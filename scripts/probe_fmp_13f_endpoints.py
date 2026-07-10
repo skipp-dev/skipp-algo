@@ -11,9 +11,11 @@ Usage::
 
     FMP_API_KEY=... python -m scripts.probe_fmp_13f_endpoints
 
-The script issues HTTP HEAD/GET requests to each candidate path with a small
-parameter set, prints status codes + payload heads, and exits non-zero if no
-working bulk 13F path is found. The output is intended to be pasted into the
+The script issues HTTP GET requests to each candidate path with a small
+parameter set, prints status codes + payload heads, and exits non-zero only
+when NO candidate returns 2xx — note the candidate list includes non-bulk
+helpers (cik_list, form-thirteen-date), so exit 0 does not by itself prove a
+working bulk 13F path. The output is intended to be pasted into the
 audit comment update PR.
 
 This is a READ-ONLY probe. It does not write artifacts, send notifications, or

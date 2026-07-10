@@ -14,8 +14,9 @@ next publish attempt fails.
 Design:
 
 * One lightweight request per probed credential: GitHub-API for ``GH_PAT``,
-  plus per-vendor metadata probes (Databento, FMP, NewsAPI) that burn at
-  most ~1 quota call/day each. Databento additionally gets a DELIVERY
+  plus per-vendor metadata probes (Databento, FMP, Benzinga/Massive; NewsAPI
+  exists but is workflow-skipped since its 2026-07-08 retirement) that burn
+  at most ~1 quota call/day each. Databento additionally gets a DELIVERY
   probe (``metadata.get_dataset_range``, free): billing failures (HTTP
   402 / suspended account) keep the auth probe green while data silently
   stops flowing — post-mortem 2026-06-12, unpaid invoice unnoticed 12 days.

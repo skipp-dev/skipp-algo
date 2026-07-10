@@ -1,8 +1,9 @@
 # Feature-Importance sample directory (Amendment A1.D)
 
 This directory holds daily JSONL ledgers `fi_samples_YYYY-MM-DD.jsonl`
-written by `open_prep.outcomes.persist_feature_importance_samples()` after
-each `open_prep` outcome-backfill run.
+written by `FeatureImportanceCollector.flush_to_disk()` (open_prep/outcomes.py),
+invoked via `open_prep.outcome_backfill --feature-importance` after each
+`open_prep` outcome-backfill run.
 
 > **⚠️ Data-validity note (2026-06-11, extended 2026-06-12):** every
 > `fi_samples_*.jsonl` file up to and including **2026-06-11** carries
@@ -27,8 +28,9 @@ each `open_prep` outcome-backfill run.
 > the report).
 
 
-Until the daily job has produced ≥ 5 sequential days of files,
-`open_prep.feature_importance_report` will return `status=no_data`.
+With zero samples on disk, `open_prep.feature_importance_report` returns
+`status=no_data`; with files present but fewer than 200 labeled samples
+it returns `status=insufficient_labels` (only then `status=ok`).
 
 Acceptance gate (G1 baseline → green):
 

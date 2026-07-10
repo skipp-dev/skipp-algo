@@ -109,7 +109,7 @@ _FROZEN_JSON_LOAD_SITES: frozenset[tuple[str, int]] = frozenset(
         ("open_prep/calibration_lookup.py", 75),
         # 2026-07-09 calibration readiness log: guarded read-back of the just-written
         # calibration_latest.json to log arm-ready bucket counts (try/except; volume-local).
-        ("open_prep/calibration_scheduler.py", 68),
+        ("open_prep/calibration_scheduler.py", 71),  # 2026-07-10 truth-audit docstring: 68->71
         ("open_prep/diff.py", 82),
         # 2026-06-11 (backfill defer-unpublished): sentinel+helper block
         # above shifted 61→80, 81→100; pytest write-guard import +4 → 84/104.

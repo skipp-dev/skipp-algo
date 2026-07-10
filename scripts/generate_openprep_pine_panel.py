@@ -14,7 +14,7 @@ metrics per row) and emits a Pine v6 indicator that draws a table:
   gap %, RVOL), highlighting the chart's own symbol when it is on the list;
 * a footer with the three microstructure metrics;
 * a **freshness guard** that greys the panel and shows a warning when the
-  baked data is more than one trading day old.
+  baked data is more than 3 calendar days old (weekend-safe threshold).
 
 Observe-only: the panel *shows* the run; it never drives scoring or playbook
 selection.
@@ -68,9 +68,9 @@ DEFAULT_OUTPUT = Path("pine/generated/openprep_daily_panel.pine")
 DEFAULT_OUTCOMES_DIR = Path("artifacts/open_prep/outcomes")
 # C13 setups (cache/live/setups_<DATE>.jsonl) carry the OFFICIAL daily levels
 # (entry/stop_loss/take_profit) the paper trader submits. The panel joins them
-# per symbol when a date-matched file exists (local generation); in CI no
-# setups are committed, so the levels column honestly renders "–" until the
-# data plumbing lands (see PR notes).
+# per symbol when a date-matched file exists (local generation); in CI the
+# publish workflow pipes setups_<date>.jsonl from data/phase-a-audit via
+# --setups-json (#3323); without a date-matched file the column renders "–".
 DEFAULT_SETUPS_DIR = Path("cache/live")
 MAX_ROWS = 12  # Pine table stays readable; excess candidates are dropped.
 MAX_SYMBOL_LEN = 32
