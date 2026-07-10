@@ -22,9 +22,12 @@ matches them to intents via the bracket legs' ``orderRef`` scheme
 * stop / trail leg filled       -> ``action="stop_hit"``, ``close_price``
 
 It then calls :func:`scripts.backfill_live_outcomes.backfill_live_outcomes`
-so closed records carry ``outcome_pnl_usd`` / ``outcome_r_multiple``. These
-records are the **measurable paper fills** the ADR-0023 §5 E[PnL]-after-cost
-gate is blocked on (>= 20 fills).
+so closed records carry ``outcome_pnl_usd`` / ``outcome_r_multiple``. These are
+**Phase-B execution-promotion fills**; they do NOT feed the ADR-0023 §5
+E[PnL]-after-cost gate (that gate consumes the measurement benchmark's
+``scored_family_events.json`` + the ``calibrate_execution_costs`` report — its
+">= 20 fills" is ``MIN_FILL_SAMPLES`` from the calibrate path, not these
+records; correction 2026-07-06, mirrors ``run-c13-reconcile.sh``).
 
 Safety: connects **read-only** and refuses non-paper ports (7497 TWS paper /
 4002 Gateway paper) — same posture as the submit path's paper-port guard.
