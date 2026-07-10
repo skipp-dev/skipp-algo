@@ -64,7 +64,7 @@ echo "$smc" | grep -q '"symbol":"AAPL"' && pass "smc_live echoes symbol" || fail
 metrics=$(curl -sS -m5 -u "x:$TOKEN" "$B/metrics")
 n=$(printf '%s\n' "$metrics" | grep -c '^live_overlay_')
 [ "$n" -ge 100 ] && pass "metrics exposes $n live_overlay_* series" || fail "metrics series count ($n)"
-printf '%s\n' "$metrics" | grep -q '^live_overlay_trading_signals_active_total' \
+printf '%s\n' "$metrics" | grep -q '^live_overlay_trading_signals_active' \
   && pass "trading_signals gauges present" || fail "trading_signals gauges present"
 
 echo

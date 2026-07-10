@@ -5,11 +5,9 @@ calculates performance metrics (win rate, Sharpe, drawdown, etc.).
 
 Usage:
     backtester = EnsembleBacktester(symbol='NVDA', timeframe='1h')
-    results = backtester.run_backtest(
-        start_date='2024-01-01',
-        end_date='2024-06-30',
-        sofr_iorb_file='sofr_iorb_historical.csv'
-    )
+    backtester.load_candles(candles)           # list[dict] of OHLC bars
+    backtester.load_sofr_iorb_data(sofr_iorb)  # {bar_index: (sofr, iorb)}
+    results = backtester.run_backtest()        # no args; uses loaded data
     backtester.print_report(results)
 """
 
@@ -89,7 +87,9 @@ class BacktestMetrics:
 
     # Risk metrics
     max_drawdown: float  # %
-    max_drawdown_bar_range: tuple[int, int]  # (from_bar, to_bar)
+    # (trade_idx, trade_idx) — equity-curve index (per closed trade), currently
+    # zero-width (from == to)
+    max_drawdown_bar_range: tuple[int, int]
 
     sharpe_ratio: float  # Risk-adjusted return
     sortino_ratio: float  # Downside risk only
@@ -105,7 +105,7 @@ class BacktestMetrics:
     avg_sources_count: float  # How many systems voted
 
     # Signal breakdown
-    signals_by_source: dict[str, int]  # Count by source
+    signals_by_source: dict[str, int]  # count by source-cardinality bucket ('single'/'multiple')
 
     def to_dict(self) -> dict:
         """Convert to JSON-serializable dict."""
@@ -485,7 +485,9 @@ class EnsembleBacktester:
         # Drawdown
         max_dd, dd_range = self._calculate_max_drawdown()
 
-        # Sharpe / Sortino: annualize by sqrt(periods), not periods (a Sharpe ratio scales with the sqrt of the horizon).
+        # Per-trade Sharpe/Sortino × sqrt(252): treats each closed trade as one
+        # trading day (approximation; not timeframe-aware). Returns below are
+        # per-closed-trade equity deltas, not calendar-daily.
         returns = [
             (self.equity_curve[i + 1] - self.equity_curve[i]) / self.equity_curve[i]
             for i in range(len(self.equity_curve) - 1)

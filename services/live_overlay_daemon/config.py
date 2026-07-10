@@ -49,8 +49,20 @@ def _load_env() -> None:
         key, _, value = line.partition("=")
         key = key.strip()
         value = value.strip()
-        if len(value) >= 2 and value[0] == value[-1] and value[0] in {'"', "'"}:
-            value = value[1:-1]
+        # Quoted value: take the content up to the closing quote (a trailing
+        # inline comment after it is dropped; a `#` inside the quotes is kept).
+        # Unquoted: drop a whitespace-preceded inline comment ("9000 # note" ->
+        # "9000") while keeping a bare "a#b". Without this, `PORT=9000 # note`
+        # parsed as "9000 # note" and silently fell back to the default port.
+        if value[:1] in {'"', "'"}:
+            end = value.find(value[0], 1)
+            if end != -1:
+                value = value[1:end]
+        else:
+            for _i in range(1, len(value)):
+                if value[_i] == "#" and value[_i - 1] in " \t":
+                    value = value[:_i].rstrip()
+                    break
         if key and key not in os.environ:
             os.environ.setdefault(key, value)
 
