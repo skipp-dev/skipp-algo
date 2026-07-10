@@ -193,3 +193,33 @@ def test_rejects_negative_quantity() -> None:
     cfg = IBKRExecutionConfig()
     with pytest.raises(ValueError, match="quantity must be positive"):
         build_ibkr_intents_from_smc_setups([_setup(quantity=-5)], cfg)
+
+
+@pytest.mark.parametrize("field", ["entry", "stop_loss", "take_profit"])
+@pytest.mark.parametrize("bad", [0.0, -1.0, float("nan"), float("inf")])
+def test_rejects_non_finite_or_non_positive_price(field: str, bad: float) -> None:
+    """A NaN/inf/<=0 price level must be rejected before a live BUY bracket is built."""
+    cfg = IBKRExecutionConfig()
+    with pytest.raises(ValueError, match="finite positive price"):
+        build_ibkr_intents_from_smc_setups([_setup(**{field: bad})], cfg)
+
+
+def test_rejects_take_profit_at_or_below_entry() -> None:
+    """Long-only: a take-profit at/below entry (short or swapped levels) is rejected."""
+    cfg = IBKRExecutionConfig()
+    with pytest.raises(ValueError, match="take_profit > entry > stop_loss"):
+        build_ibkr_intents_from_smc_setups([_setup(take_profit=101.00)], cfg)
+
+
+def test_rejects_stop_above_entry() -> None:
+    """Long-only: a stop ABOVE entry (wrong-direction bracket) is rejected."""
+    cfg = IBKRExecutionConfig()
+    with pytest.raises(ValueError, match="take_profit > entry > stop_loss"):
+        build_ibkr_intents_from_smc_setups([_setup(stop_loss=103.00)], cfg)
+
+
+def test_valid_long_setup_still_builds() -> None:
+    """The ordered valid setup (tp > entry > sl) is unaffected by the new guards."""
+    cfg = IBKRExecutionConfig()
+    [intent] = build_ibkr_intents_from_smc_setups([_setup()], cfg)
+    assert intent.take_profit > intent.entry_limit > intent.stop_loss
