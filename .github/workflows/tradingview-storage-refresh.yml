@@ -45,8 +45,8 @@ name: tradingview-storage-refresh
 
 on:
   schedule:
-    # Every 48 h: 03:00 UTC on even UTC days (Mon/Wed/Fri/Sun).
-    # The TTL is 72 h, so this gives a 24 h safety margin.
+    # 03:00 UTC on odd days-of-month (1,3,…,31) — ~every 48 h, worst-case
+    # gap 48 h. The TTL is 72 h, so this keeps a >=24 h safety margin.
     - cron: "0 3 */2 * *"
   workflow_dispatch: {}
 
