@@ -508,21 +508,21 @@ class TestSnapshotSchema:
             "symbol": "NVDA", "gap_pct": 5.0, "volume": 2_000_000,
             "avg_volume": 1_000_000, "score": 9.0,
             "playbook": {"playbook": "GAP_AND_GO"},
-            "atr_pct": 3.2, "gap_range_pos": 1.15, "eps_surprise_pct": 12.5,
+            "atr_pct": 3.2, "gap_range_pos": 1.15, "recent_eps_surprise_pct": 12.5,
         }]
         rec = prepare_outcome_snapshot(rows, date(2026, 6, 10))[0]
         assert rec["direction"] == "long"
         assert rec["atr_pct"] == 3.2
         assert rec["playbook_name"] == "GAP_AND_GO"
         assert rec["gap_range_pos"] == 1.15
-        assert rec["eps_surprise_pct"] == 12.5
+        assert rec["recent_eps_surprise_pct"] == 12.5
         for key in ("pnl_30m_pct_signed", "profitable_30m_directional",
                     "label_tb", "profitable_tb"):
             assert rec[key] is None
 
     def test_new_features_are_pass_through(self) -> None:
         assert "gap_range_pos" in PASS_THROUGH_FEATURE_KEYS
-        assert "eps_surprise_pct" in PASS_THROUGH_FEATURE_KEYS
+        assert "recent_eps_surprise_pct" in PASS_THROUGH_FEATURE_KEYS
         assert PASS_THROUGH_FEATURE_KEYS.issubset(set(FEATURE_KEYS))
 
 

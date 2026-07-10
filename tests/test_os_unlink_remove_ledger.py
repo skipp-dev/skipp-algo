@@ -96,7 +96,7 @@ OS_DELETE_LEDGER: set[tuple[str, int, str]] = {
     ("open_prep/alerts.py", 83, "unlink"),
     # 2026-07-03 (WP-3 holdout rescoring): helper additions shifted
     # unlink cleanup from 158 -> 480.
-    ("open_prep/candidate_weights.py", 487, "unlink"),
+    ("open_prep/candidate_weights.py", 488, "unlink"),  # 2026-07-10: eps_surprise_pct→recent_eps_surprise_pct reconstruction swap +1 (487->488)
     ("open_prep/diff.py", 71, "unlink"),
     # 2026-06-13 (audit-e2/aw7-reader-observability, PR #2759): _load_previous_latest
     #   DEBUG log insertion shifted unlink from 257 → 258.
@@ -130,7 +130,7 @@ OS_DELETE_LEDGER: set[tuple[str, int, str]] = {
     # 2026-07-02 (WP6 formula-era gate): cutoff constant block +8 → 595.
     # 2026-07-04 (market-microstructure observe-only): snapshot fields +
     # FEATURE_KEYS/PASS_THROUGH entries +16 → 632.
-    ("open_prep/outcomes.py", 723, "unlink"),  # 2026-07-10: recent_eps_surprise observe-feature shifted (709->723)
+    ("open_prep/outcomes.py", 716, "unlink"),  # 2026-07-10: recent_eps_surprise observe-feature (709->723); dead eps_surprise_pct observe-col removed (723->716)
     ("open_prep/realtime_signals.py", 127, "remove"),
     # 2026-06-25: AsyncNewsstackPoller telemetry additions shifted
     # 2783 -> 2862 and 2828 -> 2907.
