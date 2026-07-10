@@ -4,6 +4,7 @@ import {
   chromium,
   type Browser,
   type BrowserContext,
+  type LaunchOptions,
   type Locator,
   type Page,
 } from "playwright";
@@ -143,6 +144,133 @@ export function resolveTradingViewHeadlessDefault(env: NodeJS.ProcessEnv = proce
     return ["1", "true", "yes", "on"].includes(raw.toLowerCase());
   }
   return ["1", "true", "yes", "on"].includes((env.CI || "").toLowerCase());
+}
+
+/** Viewport shared by every TradingView session (persistent-profile and storage-state). */
+export const TRADINGVIEW_SESSION_VIEWPORT = { width: 1600, height: 1200 } as const;
+
+export function resolveTradingViewLaunchOptions(env: NodeJS.ProcessEnv = process.env): LaunchOptions {
+  const launchOptions: LaunchOptions = {
+    headless: resolveTradingViewHeadlessDefault(env),
+  };
+  const executablePath = (env.TV_CHROMIUM_EXECUTABLE_PATH || "").trim();
+  const channel = (env.TV_BROWSER_CHANNEL || "").trim();
+
+  if (executablePath && channel) {
+    throw new Error(
+      "TV_CHROMIUM_EXECUTABLE_PATH and TV_BROWSER_CHANNEL are mutually exclusive — unset one of them "
+      + "(see docs/tradingview-storage-state-capture-runbook.md, section \"Browser selection\").",
+    );
+  }
+
+  if (executablePath) {
+    launchOptions.executablePath = executablePath;
+  } else if (channel) {
+    // Playwright types `channel` as plain string and validates the value at launch
+    // time; launchWithTradingViewFallback ties launch errors back to TV_BROWSER_CHANNEL
+    // so a bogus value is attributable to the env var that supplied it.
+    launchOptions.channel = channel;
+  }
+
+  return launchOptions;
+}
+
+/** Names the env var (or default) that selected the browser, for attributable errors. */
+export function describeTradingViewLaunchTarget(launchOptions: LaunchOptions): string {
+  if (launchOptions.executablePath) {
+    return `TV_CHROMIUM_EXECUTABLE_PATH="${launchOptions.executablePath}"`;
+  }
+  if (launchOptions.channel) {
+    return `TV_BROWSER_CHANNEL="${launchOptions.channel}"`;
+  }
+  return "Playwright bundled chromium";
+}
+
+const MISSING_BROWSER_ERROR_MARKERS = [
+  "Executable doesn't exist", // Playwright registry: browser not downloaded
+  "npx playwright install", // Playwright's own remedy hint
+] as const;
+
+export function isMissingBrowserExecutableError(error: unknown): boolean {
+  const message = error instanceof Error ? error.message : String(error);
+  return MISSING_BROWSER_ERROR_MARKERS.some((marker) => message.includes(marker));
+}
+
+export type TradingViewLaunchFallbackOptions = {
+  /**
+   * Whether a missing bundled chromium may fall back to the system Chrome channel.
+   * MUST be false for launches that own a persistent browser profile: opening the
+   * long-lived TradingView auth profile with a different browser build cross-
+   * contaminates its version (Chrome mints/migrates what bundled Chromium later
+   * reopens), silently invalidating the stored login.
+   */
+  fallbackToChromeChannel: boolean;
+  log?: (message: string) => void;
+};
+
+/**
+ * Launch a browser (or persistent context) with fail-loud semantics:
+ * - env-selected browsers (TV_CHROMIUM_EXECUTABLE_PATH / TV_BROWSER_CHANNEL) never
+ *   fall back; their errors are wrapped to name the env var that chose the target;
+ * - only a missing bundled chromium triggers the chrome-channel fallback (any other
+ *   error — timeout, profile lock, sandbox — propagates untouched so the root cause
+ *   is never masked), and the fallback is logged;
+ * - every wrapped error chains the original via `cause`.
+ */
+export async function launchWithTradingViewFallback<T>(
+  launch: (options: LaunchOptions) => Promise<T>,
+  launchOptions: LaunchOptions,
+  { fallbackToChromeChannel, log = (message) => console.warn(message) }: TradingViewLaunchFallbackOptions,
+): Promise<T> {
+  try {
+    return await launch(launchOptions);
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    if (launchOptions.executablePath || launchOptions.channel) {
+      throw new Error(
+        `Browser launch failed for ${describeTradingViewLaunchTarget(launchOptions)}: ${message}`,
+        { cause: error },
+      );
+    }
+    if (!isMissingBrowserExecutableError(error)) {
+      throw error;
+    }
+    if (!fallbackToChromeChannel) {
+      throw new Error(
+        "Playwright bundled chromium is not installed and this launch owns a persistent browser profile, "
+        + "so it will not silently fall back to system Chrome (a different browser build would corrupt the profile). "
+        + "Run `npx playwright install chromium`, or set TV_BROWSER_CHANNEL=chrome to use system Chrome for ALL "
+        + `TradingView sessions. Original error: ${message.split("\n")[0]}`,
+        { cause: error },
+      );
+    }
+    log(
+      `[tv-launch] Playwright bundled chromium unavailable (${message.split("\n")[0]}); `
+      + "falling back to channel \"chrome\". Run `npx playwright install chromium` to use the pinned browser.",
+    );
+    try {
+      return await launch({ ...launchOptions, channel: "chrome" });
+    } catch (fallbackError) {
+      const fallbackMessage = fallbackError instanceof Error ? fallbackError.message : String(fallbackError);
+      throw new Error(
+        "Bundled chromium is missing AND the chrome-channel fallback failed. Run `npx playwright install chromium`. "
+        + `Original: ${message.split("\n")[0]} | Fallback: ${fallbackMessage.split("\n")[0]}`,
+        { cause: error },
+      );
+    }
+  }
+}
+
+/** Standard TradingView chromium launch honouring TV_CHROMIUM_EXECUTABLE_PATH / TV_BROWSER_CHANNEL. */
+export async function launchTradingViewChromium(
+  overrides: LaunchOptions = {},
+  env: NodeJS.ProcessEnv = process.env,
+): Promise<Browser> {
+  return launchWithTradingViewFallback(
+    (options) => chromium.launch(options),
+    { ...resolveTradingViewLaunchOptions(env), ...overrides },
+    { fallbackToChromeChannel: true },
+  );
 }
 
 export function utcNow(): string {
@@ -1474,9 +1602,7 @@ export function resolvePublishedVersionEvidence(options: {
 
 export async function newTradingViewSession(): Promise<TradingViewSession> {
   const authResolution = resolveTradingViewAuthResolution(process.env);
-  const launchOptions = {
-    headless: resolveTradingViewHeadlessDefault(process.env),
-  };
+  const launchOptions = resolveTradingViewLaunchOptions(process.env);
 
   let browser: Browser;
   let context: BrowserContext;
@@ -1487,10 +1613,14 @@ export async function newTradingViewSession(): Promise<TradingViewSession> {
     }
 
     fs.mkdirSync(authResolution.authSourcePath, { recursive: true });
-    context = await chromium.launchPersistentContext(authResolution.authSourcePath, {
-      ...launchOptions,
-      viewport: { width: 1600, height: 1200 },
-    });
+    const authProfileDir = authResolution.authSourcePath;
+    // fallbackToChromeChannel: false — never open the persistent auth profile with a
+    // different browser build than the one that owns it (see TradingViewLaunchFallbackOptions).
+    context = await launchWithTradingViewFallback(
+      (options) => chromium.launchPersistentContext(authProfileDir, { ...options, viewport: TRADINGVIEW_SESSION_VIEWPORT }),
+      launchOptions,
+      { fallbackToChromeChannel: false },
+    );
     const launchedBrowser = context.browser();
     if (!launchedBrowser) {
       throw new Error(`Could not resolve browser for persistent TradingView profile: ${authResolution.authSourcePath}`);
@@ -1504,10 +1634,14 @@ export async function newTradingViewSession(): Promise<TradingViewSession> {
     const storageStatePath = authResolution.authSourcePath;
     validateTradingViewStorageState(storageStatePath);
 
-    browser = await chromium.launch(launchOptions);
+    browser = await launchWithTradingViewFallback(
+      (options) => chromium.launch(options),
+      launchOptions,
+      { fallbackToChromeChannel: true },
+    );
     context = await browser.newContext({
       storageState: storageStatePath,
-      viewport: { width: 1600, height: 1200 },
+      viewport: TRADINGVIEW_SESSION_VIEWPORT,
     });
   } else {
     throw new Error(

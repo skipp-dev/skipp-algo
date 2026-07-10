@@ -7,7 +7,14 @@ import { chromium } from "playwright";
 import { authenticator } from "otplib";
 
 import { inspectTradingViewStorageState } from "../automation/tradingview/lib/tv_validation_model.js";
-import { collectTradingViewPageAuthState } from "../automation/tradingview/lib/tv_shared.js";
+import {
+  collectTradingViewPageAuthState,
+  launchWithTradingViewFallback,
+  resolveTradingViewLaunchOptions,
+} from "../automation/tradingview/lib/tv_shared.js";
+
+/** Viewport for the interactive storage-state capture session (differs from TRADINGVIEW_SESSION_VIEWPORT). */
+const STORAGE_STATE_CAPTURE_VIEWPORT = { width: 1440, height: 1100 } as const;
 
 type CliArgs = {
   out: string;
@@ -308,12 +315,25 @@ async function main(): Promise<number> {
   let page: import("playwright").Page;
 
   if (cli.persistentProfileDir) {
-    fs.mkdirSync(cli.persistentProfileDir, { recursive: true });
-    context = await chromium.launchPersistentContext(cli.persistentProfileDir, {
-      headless: false,
-      slowMo: 100,
-      viewport: { width: 1440, height: 1100 },
-    });
+    // Resolve (and validate) env-driven launch options BEFORE the mkdir side effect.
+    // The interactive login profile always launches headed (pre-existing contract) —
+    // say so instead of silently discarding an explicit headless request.
+    const launchOptions = { ...resolveTradingViewLaunchOptions(process.env), headless: false, slowMo: 100 };
+    if (cli.headless) {
+      console.warn(
+        "[tv-storage-state] --headless/TV_HEADLESS is ignored in persistent-profile mode: the interactive login profile always launches headed.",
+      );
+    }
+    const profileDir = cli.persistentProfileDir;
+    fs.mkdirSync(profileDir, { recursive: true });
+    // fallbackToChromeChannel: false — this script MINTS the shared auth profile; letting a
+    // fallback create it under system Chrome would split profile ownership from the bundled
+    // chromium that newTradingViewSession later opens it with.
+    context = await launchWithTradingViewFallback(
+      (options) => chromium.launchPersistentContext(profileDir, { ...options, viewport: STORAGE_STATE_CAPTURE_VIEWPORT }),
+      launchOptions,
+      { fallbackToChromeChannel: false },
+    );
     const launchedBrowser = context.browser();
     if (!launchedBrowser) {
       throw new Error(`Could not resolve browser for persistent TradingView profile: ${cli.persistentProfileDir}`);
@@ -321,13 +341,14 @@ async function main(): Promise<number> {
     browser = launchedBrowser;
     page = context.pages()[0] ?? (await context.newPage());
   } else {
-    browser = await chromium.launch({
-      headless: cli.headless,
-      slowMo: cli.headless ? 0 : 100,
-    });
+    browser = await launchWithTradingViewFallback(
+      (options) => chromium.launch(options),
+      { ...resolveTradingViewLaunchOptions(process.env), headless: cli.headless, slowMo: cli.headless ? 0 : 100 },
+      { fallbackToChromeChannel: true },
+    );
 
     context = await browser.newContext({
-      viewport: { width: 1440, height: 1100 },
+      viewport: STORAGE_STATE_CAPTURE_VIEWPORT,
       ...(existingStorageStatePath ? { storageState: existingStorageStatePath } : {}),
     });
 

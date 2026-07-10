@@ -44,9 +44,12 @@ artifacts/open_prep/outcomes/*.json
 # writes off the CI-committed canonical dir above (no untracked pull collisions).
 artifacts/open_prep/outcomes_local/
 
-# TradingView Playwright automation artifacts
-automation/tradingview/auth/storage-state.json
-automation/tradingview/auth/chromium-profile/
+# TradingView Playwright automation artifacts.
+# Ignore the auth dir WHOLESALE: it holds live session cookies and browser
+# profiles (storage-state*.json, chromium-profile/, chrome-clone-profile/, …).
+# Exact-name rules proved leaky — new byproducts (e.g. a cloned Chrome profile
+# with Cookies/Login Data) were one `git add -A` away from being committed.
+automation/tradingview/auth/
 automation/tradingview/reports/screenshots/
 automation/tradingview/reports/*.json
 playwright/.auth/

@@ -60,6 +60,26 @@ login in that case.
 **Never** put `TV_USERNAME`/`TV_PASSWORD` on the command line in shared
 shells (history leak); export them in the session or just log in manually.
 
+### Browser selection
+
+By default every TradingView session (this script and `newTradingViewSession`)
+launches Playwright's **pinned bundled Chromium** (`npx playwright install
+chromium`). Two env vars override that — they are **mutually exclusive** (set
+at most one):
+
+| Env var | Effect |
+|---|---|
+| `TV_CHROMIUM_EXECUTABLE_PATH` | Launch this exact Chromium binary. No fallback: launch errors name the var. |
+| `TV_BROWSER_CHANNEL` | Launch a branded channel (`chrome`, `msedge`, …; Playwright validates the value). No fallback: launch errors name the var. |
+
+With neither set and the bundled Chromium **missing**, non-persistent launches
+fall back to the system `chrome` channel **once, loudly** (a `[tv-launch]`
+warning is printed). Persistent-profile launches never fall back — a different
+browser build opening the long-lived auth profile would corrupt its version —
+they fail with a remedy hint instead: install the pinned Chromium, or set
+`TV_BROWSER_CHANNEL=chrome` so *all* sessions consistently use system Chrome.
+Any other launch failure (timeout, profile lock, sandbox) propagates untouched.
+
 The scheduled `tradingview-storage-refresh.yml` uses
 `--input-storage-state` with the current `TV_STORAGE_STATE` secret as a
 bootstrap. In the healthy path the existing session is verified against a
