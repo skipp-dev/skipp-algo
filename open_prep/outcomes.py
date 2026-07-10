@@ -511,7 +511,17 @@ def prepare_outcome_snapshot(
             # Earnings-surprise magnitude (observe-only; eval C2 — the
             # binary earnings_bmo flag ignores SUE size/sign; PEAD
             # literature says the magnitude drives the drift).
+            # NB (2026-07-10): eps_surprise_pct is ALWAYS 0 in practice — it is
+            # today's earnings, unreported at pre-open scoring time (FI ledger
+            # confirms 0 across all samples). The usable PEAD signal is the
+            # surprise of the LAST REPORTED earnings + its recency, below.
             "eps_surprise_pct": row.get("eps_surprise_pct"),
+            # Recent-earnings surprise for PEAD (observe-only; eval C2b — the
+            # surprise of the most-recent REPORTED earnings, which HAS actuals,
+            # paired with days_since_last_earnings for the drift window). No
+            # scorer weight until FI evidence supports one.
+            "recent_eps_surprise_pct": row.get("recent_eps_surprise_pct"),
+            "days_since_last_earnings": row.get("days_since_last_earnings"),
             # Signed news score: mention intensity × avg sentiment
             # (observe-only; audit 2026-07-07 — the weighted `news`
             # component is direction-blind by contract until c10b ends;
@@ -582,6 +592,8 @@ FEATURE_KEYS: list[str] = [
     "ema50_slope_pct",
     "gap_range_pos",
     "eps_surprise_pct",
+    "recent_eps_surprise_pct",
+    "days_since_last_earnings",
     "vix9d_vix_ratio",
     "market_efficiency_ratio",
     "intraday_efficiency_ratio",
@@ -601,6 +613,8 @@ PASS_THROUGH_FEATURE_KEYS: frozenset[str] = frozenset({
     "ema50_slope_pct",
     "gap_range_pos",
     "eps_surprise_pct",
+    "recent_eps_surprise_pct",
+    "days_since_last_earnings",
     "vix9d_vix_ratio",
     "market_efficiency_ratio",
     "intraday_efficiency_ratio",
