@@ -1040,6 +1040,14 @@ def place_order_intents(
     connection_cfg: IBKRConnectionConfig,
     execution_cfg: IBKRExecutionConfig,
 ) -> dict[str, Any]:
+    """Connect, place ``intents``, and disconnect.
+
+    Honours ``connection_cfg.readonly`` (default ``False`` so it can transmit
+    orders; pass ``True`` for a no-transmit read-only session) — like the other
+    connect sites (``check_ibkr_connection`` / ``_attempt_ibkr_reconnect``).
+    Live submission is additionally gated by the port +
+    ``assert_paper_account_if_paper_port``.
+    """
     IB, _, _, _, _ = _import_ibkr_types()
     ib = IB()
     try:
@@ -1048,7 +1056,7 @@ def place_order_intents(
             connection_cfg.port,
             clientId=connection_cfg.client_id,
             timeout=connection_cfg.timeout_seconds,
-            readonly=False,
+            readonly=connection_cfg.readonly,
         )
         assert_paper_account_if_paper_port(ib, connection_cfg)
         return place_order_intents_with_ib(ib, intents, connection_cfg=connection_cfg, execution_cfg=execution_cfg)
