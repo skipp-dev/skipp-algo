@@ -38,6 +38,11 @@ def _write_storage_state(path: Path) -> None:
 def test_sensitive_storage_state_path_detection() -> None:
     assert is_sensitive_storage_state_path(Path("automation/tradingview/auth/storage-state.json"))
     assert is_sensitive_storage_state_path(Path("playwright/.auth/storage_state.json"))
+    # 2026-07-10: whole-dir semantics — profile byproducts are exactly as sensitive
+    # as the storage-state JSON (they hold Cookies/Login Data).
+    assert is_sensitive_storage_state_path(Path("automation/tradingview/auth/storage-state-refreshed.json"))
+    assert is_sensitive_storage_state_path(Path("automation/tradingview/auth/chrome-clone-profile/Cookies"))
+    assert is_sensitive_storage_state_path(Path("automation/tradingview/auth/chromium-profile/Default/Login Data"))
     assert not is_sensitive_storage_state_path(Path("automation/tradingview/reports/preflight.json"))
     assert not is_sensitive_storage_state_path(Path("docs/examples/storage-state.json"))
 
@@ -64,9 +69,13 @@ def test_current_repo_has_no_tracked_storage_state_secret() -> None:
 
 def test_gitignore_blocks_local_tradingview_auth_artifacts() -> None:
     gitignore = (_REPO_ROOT / ".gitignore").read_text(encoding="utf-8")
-    assert "automation/tradingview/auth/storage-state.json" in gitignore
-    assert "automation/tradingview/auth/chromium-profile/" in gitignore
-    assert "playwright/.auth/" in gitignore
+    # 2026-07-10: the two exact-name rules (storage-state.json, chromium-profile/)
+    # were replaced by a WHOLESALE ignore of the auth dir — strictly stronger
+    # (covers chrome-clone-profile/, storage-state-refreshed.json, any byproduct).
+    # Assert the RULE line, not a substring (comments also mention the path).
+    rules = [line.strip() for line in gitignore.splitlines() if not line.strip().startswith("#")]
+    assert "automation/tradingview/auth/" in rules
+    assert "playwright/.auth/" in rules
 
 
 def test_cli_main_passes_without_violations(monkeypatch: pytest.MonkeyPatch, tmp_path: Path, capsys) -> None:
