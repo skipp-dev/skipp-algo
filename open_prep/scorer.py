@@ -53,7 +53,7 @@ DEFAULT_WEIGHTS: dict[str, float] = {
     "macro": 0.7,
     "momentum_z": 0.5,  # z-score of the LATEST single-day return (≤50d window), may lag one session — not multi-day momentum
     "hvb": 0.3,
-    "earnings_bmo": 1.5,
+    "earnings_bmo": 1.5,  # PROD-DORMANT 2026-07-10: never fires (no source has bmo/amc timing); weight kept to avoid re-calibration mid-arming — reweight post-calibration or buy the $99 Benzinga Earnings pack. See scorer earnings_bmo flag.
     # news weight raised from 0.8 → 2.5 so a tier-1 confirmed news catalyst
     # carries roughly the same component weight as earnings_bmo (1.5 × DR).
     # See NEWS_SOURCE_TIER_MULTIPLIERS for tier discounting and
@@ -436,7 +436,11 @@ def filter_candidate(
         instrument_class=instrument_class,
     )
 
-    # --- Earnings BMO flag ---
+    # --- Earnings BMO flag (PROD-DORMANT: no source supplies bmo/amc timing) ---
+    # earnings_timing is always None in prod (FMP /stable dropped the field; no
+    # Benzinga earnings wired into open_prep) so this is always False and the 1.5
+    # weight never fires. Logic kept + covered by test_ranking_golden fixtures;
+    # re-arms with a timing source ($99 Benzinga Earnings pack). 2026-07-10.
     earnings_bmo = earnings_today and str(earnings_timing).lower() in {"bmo", "before market open"}
 
     # Build features dict for scorer
