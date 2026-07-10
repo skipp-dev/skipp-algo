@@ -2462,17 +2462,17 @@ def _fetch_earnings_distance_features(
     def _single(sym: str) -> tuple[str, dict[str, Any] | None]:
         try:
             rows = client.get_earnings_report(sym, limit=12)
-            dates: list[date] = []
+            dated: list[tuple[date, dict[str, Any]]] = []
             for row in rows:
                 d = _parse_calendar_date(row.get("date"))
                 if d is not None:
-                    dates.append(d)
-            if not dates:
+                    dated.append((d, row))
+            if not dated:
                 return sym, None
-            past = sorted([d for d in dates if d <= today])
-            future = sorted([d for d in dates if d > today])
+            past = sorted([(d, r) for d, r in dated if d <= today])
+            future = sorted([d for d, _r in dated if d > today])
 
-            days_since_last = (today - past[-1]).days if past else None
+            days_since_last = (today - past[-1][0]).days if past else None
             days_to_next = (future[0] - today).days if future else None
             earnings_risk = False
             if days_since_last is not None and days_since_last <= 1:
@@ -2480,10 +2480,23 @@ def _fetch_earnings_distance_features(
             if days_to_next is not None and days_to_next <= 1:
                 earnings_risk = True
 
+            # PEAD observe-only (eval C2b): eps surprise of the most-recent
+            # REPORTED earnings. Today's eps_surprise_pct is always 0 pre-open
+            # (unreported); the last report HAS epsActual, so this + days_since is
+            # the usable post-earnings-drift signal. No scorer weight (evidence-first).
+            recent_eps_surprise_pct: float | None = None
+            if past:
+                last_row = past[-1][1]
+                ea = _to_float(last_row.get("epsActual"), default=float("nan"))
+                ee = _to_float(last_row.get("epsEstimated"), default=float("nan"))
+                if not math.isnan(ea) and not math.isnan(ee) and abs(ee) > 0.0:
+                    recent_eps_surprise_pct = (ea - ee) / abs(ee) * 100.0
+
             return sym, {
                 "days_since_last_earnings": days_since_last,
                 "days_to_next_earnings": days_to_next,
                 "earnings_risk_window": earnings_risk,
+                "recent_eps_surprise_pct": recent_eps_surprise_pct,
             }
         except Exception as exc:
             logger.debug("earnings enrichment failed for %s: %s", sym, exc)
@@ -5111,6 +5124,7 @@ def generate_open_prep_result(
             q["days_to_next_earnings"] = pm.get("days_to_next_earnings")
             q["earnings_risk_window"] = pm.get("earnings_risk_window", False)
             q["eps_surprise_pct"] = pm.get("eps_surprise_pct")
+            q["recent_eps_surprise_pct"] = pm.get("recent_eps_surprise_pct")
             q["revenue_surprise_pct"] = pm.get("revenue_surprise_pct")
 
     # --- Upgrades/Downgrades (last 3 days) ---
