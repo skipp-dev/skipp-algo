@@ -104,6 +104,9 @@ _FROZEN_JSON_LOAD_SITES: frozenset[tuple[str, int]] = frozenset(
         # json.load site shifted 55 -> 56.
         # 2026-07-02: SSRF path/query hardening shifted 56 -> 57.
         ("open_prep/alerts.py", 59),
+        # 2026-07-09 calibration consumer: guarded read of calibration_latest.json
+        # (try/except OSError,ValueError; mtime-cached; volume-local file, not remote).
+        ("open_prep/calibration_lookup.py", 75),
         # 2026-07-09 calibration readiness log: guarded read-back of the just-written
         # calibration_latest.json to log arm-ready bucket counts (try/except; volume-local).
         ("open_prep/calibration_scheduler.py", 68),
