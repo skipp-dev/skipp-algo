@@ -23,13 +23,19 @@ Phase-B safety rails baked into the adapter
   ``7497`` (paper) and is exposed for tests; the actual connection is
   established by the downstream executor, the adapter just records the
   intended port so the audit log is complete.
-* ``stop_loss == entry_price`` is rejected with ``ValueError`` because a
-  zero-risk order silently bypasses every per-trade-loss limit
-  downstream.
+* ``stop_loss == entry_price`` (or within 1bp) is rejected with
+  ``ValueError`` because a zero-risk order silently bypasses every
+  per-trade-loss limit downstream.
+* Every price level (entry / stop_loss / take_profit) must be finite and
+  strictly positive, and must satisfy the long-only ordering
+  ``take_profit > entry > stop_loss`` — both rejected with ``ValueError``,
+  since the downstream bracket is always ``action="BUY"`` and a malformed /
+  short / swapped-level record would build a nonsensical live order.
 """
 
 from __future__ import annotations
 
+import math
 from collections.abc import Sequence
 from dataclasses import dataclass
 from datetime import date
@@ -127,6 +133,21 @@ def _build_one_intent(
     raw_quantity = int(_required_float(record, "quantity"))
     trade_date = _coerce_trade_date(record.get("trade_date"))
 
+    # Phase-B defense-in-depth: every price level must be finite and strictly
+    # positive. _required_float only checks float-ability, so a NaN/inf/<=0
+    # level (an upstream SMC-layer defect) would otherwise flow into a live BUY
+    # bracket as a NaN/0/negative limit — rejected by IB, or a nonsensical fill.
+    for _label, _px in (
+        ("entry", entry_price),
+        ("stop_loss", stop_loss),
+        ("take_profit", take_profit),
+    ):
+        if not math.isfinite(_px) or _px <= 0.0:
+            raise ValueError(
+                f"{_label} must be a finite positive price for {symbol!r}; got {_px!r}. "
+                "Non-finite / non-positive price indicates an upstream SMC-layer defect."
+            )
+
     # C-sprint deep-review pass-3 (Phase-B defense-in-depth): reject
     # non-positive quantities at the boundary. The previous code path
     # ``max(1, int(round(raw_quantity * size_scale)))`` silently mapped
@@ -154,6 +175,18 @@ def _build_one_intent(
     if abs(stop_loss - entry_price) < 1e-4 * max(abs(entry_price), 1.0):
         raise ValueError(
             f"stop_loss less than 1bp from entry for {symbol!r}; reject as zero-risk"
+        )
+
+    # Long-only precondition: the downstream bracket is always action="BUY"
+    # (execute_ibkr_watchlist), so a valid setup needs take-profit ABOVE entry
+    # and stop BELOW it. A record that violates this (an accidental short, or
+    # swapped TP/SL from an upstream defect) would build a BUY whose SELL
+    # take-profit sits at/below entry — an instant-loss fill or an IB-rejected
+    # leg. Reject at the boundary rather than transmit a nonsensical bracket.
+    if not (take_profit > entry_price > stop_loss):
+        raise ValueError(
+            f"long setup requires take_profit > entry > stop_loss for {symbol!r}; "
+            f"got take_profit={take_profit!r}, entry={entry_price!r}, stop_loss={stop_loss!r}"
         )
 
     scaled_quantity = max(1, round(raw_quantity * size_scale))

@@ -440,7 +440,8 @@ def run_live_incubation(
             "phase": phase,
             "halted": True,
             "kill_reason": halt_record["kill_reason"],
-            "intents_submitted": 0,
+            "intents_passed_to_submitter": 0,
+            "intents_earnings_blocked": 0,
             "audit_records_written": 1,
         }
 
@@ -536,7 +537,10 @@ def run_live_incubation(
         "phase": phase,
         "halted": False,
         "kill_reason": None,
-        "intents_submitted": len(intents),
+        # Count of intents HANDED to submit_fn (post earnings-gate), NOT confirmed
+        # transmitted — a batch that IB error-110'd is action="submit_failed" in the
+        # per-row audit log, but still counts here. See audit rows for real outcomes.
+        "intents_passed_to_submitter": len(intents),
         "intents_earnings_blocked": earnings_blocked,
         "audit_records_written": len(audit_records),
     }
