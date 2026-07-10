@@ -1383,16 +1383,15 @@ def _compute_outlook_for_date(
 
     Factors
     -------
-    - FMP earnings calendar for *target_date* (count; FMP /stable/earnings-
-      calendar carries no bmo/amc field, so the BMO-specific bonus no longer
-      fires — earnings density is the signal)
+    - FMP earnings calendar for *target_date* (density; FMP /stable carries no
+      bmo/amc timing, so there is no BMO-specific factor — removed 2026-07-10)
     - FMP economic calendar high-impact events for *target_date*
     - Current sector performance balance (majority red = caution)
 
     Returns
     -------
     dict with keys: target_date, outlook_label, outlook_color,
-    outlook_score, reasons, earnings_count, earnings_bmo_count,
+    outlook_score, reasons, earnings_count,
     high_impact_events, high_impact_events_details, sector_mood,
     notable_earnings
     """
@@ -1403,7 +1402,6 @@ def _compute_outlook_for_date(
 
     # ── 1. FMP earnings (Benzinga free key retired) ──
     earnings_day: list[dict[str, Any]] = []
-    earnings_bmo: list[dict[str, Any]] = []
     if fmp_api_key:
         try:
             earnings_all = fetch_fmp_earnings(fmp_api_key, td_iso, td_iso)
@@ -1411,21 +1409,14 @@ def _compute_outlook_for_date(
                 e for e in earnings_all
                 if str(e.get("date") or "").startswith(td_iso)
             ]
-            # FMP /stable/earnings-calendar carries no bmo/amc timing field, so
-            # this stays empty in practice — kept so a future timing source (or a
-            # bz-direct key) re-arms the BMO bonus without a code change.
-            earnings_bmo = [
-                e for e in earnings_day
-                if str(e.get("earnings_timing") or e.get("time") or "").lower()
-                in {"bmo", "before market open", "before_open"}
-            ]
+            # No bmo/amc timing: the BMO bonus + metric were removed 2026-07-10.
+            # No provider gives earnings timing (Databento/Massive have no earnings
+            # calendar; FMP /stable dropped the field; only the unsubscribed $99
+            # Benzinga Earnings pack has it). Earnings *density* is the signal.
         except (KeyError, TypeError, ValueError, OSError) as exc:
             logger.warning("Outlook %s: earnings fetch failed: %s", td_iso, type(exc).__name__, exc_info=True)
 
-    if len(earnings_bmo) >= 10:
-        outlook_score += 0.5
-        reasons.append(f"heavy_earnings_bmo_{len(earnings_bmo)}")
-    elif len(earnings_day) >= 20:
+    if len(earnings_day) >= 20:
         outlook_score += 0.25
         reasons.append(f"earnings_dense_{len(earnings_day)}")
     elif len(earnings_day) == 0:
@@ -1504,14 +1495,18 @@ def _compute_outlook_for_date(
         label = "🟡 NEUTRAL"
         color = "orange"
 
-    # Build notable earnings list
-    notable_earnings: list[dict[str, str]] = []
+    # Build notable earnings list. FMP earnings carry no company name and no
+    # bmo/amc timing (those columns were always blank), but DO carry eps_surprise
+    # once a name has reported — surface that instead (2026-07-10).
+    notable_earnings: list[dict[str, Any]] = []
     for e in earnings_day[:20]:
         tk = str(e.get("ticker") or "")
-        nm = str(e.get("name") or "")
-        timing = str(e.get("earnings_timing") or e.get("time") or "—")
         if tk:
-            notable_earnings.append({"ticker": tk, "name": nm, "timing": timing})
+            notable_earnings.append({
+                "ticker": tk,
+                "eps_surprise": e.get("eps_surprise"),
+                "eps_surprise_percent": e.get("eps_surprise_percent"),
+            })
 
     return {
         "target_date": td_iso,
@@ -1520,7 +1515,6 @@ def _compute_outlook_for_date(
         "outlook_score": round(outlook_score, 2),
         "reasons": reasons,
         "earnings_count": len(earnings_day),
-        "earnings_bmo_count": len(earnings_bmo),
         "high_impact_events": len(hi_events),
         "high_impact_events_details": hi_events,
         "notable_earnings": notable_earnings,
@@ -1545,7 +1539,6 @@ def compute_today_outlook(
             "outlook_score": 0.0,
             "reasons": ["not_a_trading_day"],
             "earnings_count": 0,
-            "earnings_bmo_count": 0,
             "high_impact_events": 0,
             "high_impact_events_details": [],
             "notable_earnings": [],
@@ -1574,7 +1567,6 @@ def compute_tomorrow_outlook(
     # Backward-compatible aliases expected by UI layer
     result["next_trading_day"] = result["target_date"]
     result["earnings_tomorrow_count"] = result["earnings_count"]
-    result["earnings_bmo_tomorrow_count"] = result["earnings_bmo_count"]
     result["high_impact_events_tomorrow"] = result["high_impact_events"]
     result["high_impact_events_tomorrow_details"] = result["high_impact_events_details"]
     return result
@@ -1610,7 +1602,9 @@ def compute_power_gaps(
     Parameters
     ----------
     api_key : str
-        Benzinga API key.
+        Movers key — Benzinga direct token or the Massive key (per BENZINGA_PROVIDER).
+    fmp_api_key : str
+        FMP key for the earnings calendar (eps_surprise cross-reference).
     peg_min_gap : float
         Minimum absolute gap % for Power Earning Gap (default 4%).
     monster_min_gap : float

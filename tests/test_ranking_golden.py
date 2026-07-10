@@ -301,6 +301,11 @@ def test_amc_earnings_has_no_bmo_bonus() -> None:
     earnings_bmo_component must be 0 — the +1.5 weight bonus only applies
     to BMO timing. Compare against NVDA (timing='bmo') where the component
     is non-zero. This pins the AMC-vs-BMO branch in score_candidate.
+
+    LOGIC-ONLY: these fixtures inject earnings_timing='amc'/'bmo' that the LIVE
+    source never provides — FMP /stable/earnings-calendar carries no timing
+    field, so in prod earnings_bmo is always False (PROD-DORMANT). The live
+    truth is pinned by test_fmp_earnings_has_no_timing_so_bmo_is_prod_dormant.
     """
     actual = _run_pipeline()
     by_symbol = {r["symbol"]: r for r in actual["ranked"]}
@@ -320,6 +325,33 @@ def test_amc_earnings_has_no_bmo_bonus() -> None:
         f"NVDA (earnings_timing='bmo') must have earnings_bmo_component>0, "
         f"got {nvda_bmo}"
     )
+
+
+def test_fmp_earnings_has_no_timing_so_bmo_is_prod_dormant() -> None:
+    """Truth-pin for the earnings_bmo (weight 1.5) PROD-DORMANCY.
+
+    The golden test above proves the scorer LOGIC (given timing, apply the +1.5
+    bonus). This pins the LIVE reality that keeps that logic dormant: FMP
+    /stable/earnings-calendar carries no time/releaseTime field, so
+    ``_fetch_earnings_today`` yields ``earnings_timing=None`` → the scorer's
+    earnings_bmo flag is always False in production. No provider we have supplies
+    bmo/amc timing (Databento/Massive have no earnings calendar; only the
+    unsubscribed $99 Benzinga Earnings pack does). Re-arms when one is wired.
+    """
+    from datetime import date
+    from unittest.mock import MagicMock
+
+    from open_prep.run_open_prep import _fetch_earnings_today
+
+    client = MagicMock()
+    # Realistic FMP /stable/earnings-calendar row — NO time/releaseTime key.
+    client.get_earnings_calendar.return_value = [
+        {"symbol": "AAPL", "date": "2026-07-10", "epsActual": 1.5,
+         "epsEstimated": 1.2, "revenueActual": 1e9, "revenueEstimated": 9e8},
+    ]
+    out = _fetch_earnings_today(client, date(2026, 7, 10))
+    assert out["AAPL"]["earnings_timing"] is None      # no bmo/amc from FMP
+    assert out["AAPL"]["eps_surprise_pct"] is not None  # eps_surprise IS available
 
 
 def test_stale_premarket_is_soft_filter() -> None:
