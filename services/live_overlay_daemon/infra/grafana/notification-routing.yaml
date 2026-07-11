@@ -1,0 +1,47 @@
+# Grafana notification routing (contact points + notification policy) as code.
+#
+# Source of truth for HOW alerts reach humans — the companion to
+# ``alert-rules.yaml`` (which defines WHICH conditions alert). Applied to
+# Grafana Cloud by ``scripts/grafana_notification_routing_upsert.py`` via the
+# provisioning API (POST/PUT /api/v1/provisioning/contact-points + PUT
+# /api/v1/provisioning/policies), the same auth path the alert-rules upsert
+# uses. Deployed on push by
+# ``.github/workflows/live-overlay-notification-routing-publish.yml``.
+#
+# Secret handling: the Slack webhook is NEVER committed. ``${SLACK_WEBHOOK_URL}``
+# is substituted from the environment at apply time (CI injects the
+# SLACK_WEBHOOK_URL secret; local runs read it from the env). The placeholder is
+# the only representation that lives in git.
+#
+# Before this file, routing was configured live-only via the Grafana UI, so a
+# Grafana rebuild would have silently dropped every route and delivered alerts
+# nowhere (which is exactly the state this file was born from: 0 contact points,
+# root receiver "empty", 2026-07-11).
+apiVersion: 1
+
+# Slack contact point. type=slack + settings.url = an incoming-webhook URL.
+contactPoints:
+  - name: slack-smc-alerts
+    type: slack
+    settings:
+      url: ${SLACK_WEBHOOK_URL}
+    disableResolveMessage: false
+
+# Notification policy tree (single tree per org; the PUT replaces it wholesale,
+# so this file must describe the WHOLE intended tree).
+#
+# root.receiver = slack-smc-alerts is a deliberate catch-all: every firing alert
+# reaches Slack even if a future rule carries a severity outside the explicit
+# route below (e.g. an unlabelled or `info` alert), so nothing is silently
+# dropped. The explicit severity route documents the intended credential/ops
+# coverage and is the seam to split severities to other channels later.
+policy:
+  receiver: slack-smc-alerts
+  group_by:
+    - grafana_folder
+    - alertname
+  routes:
+    - receiver: slack-smc-alerts
+      object_matchers:
+        - [severity, "=~", "critical|warning|high"]
+      continue: false

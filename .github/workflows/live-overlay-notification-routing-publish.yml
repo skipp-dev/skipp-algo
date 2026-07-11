@@ -1,0 +1,112 @@
+# live-window: any-trigger  # (2026-07-11): push-mutating Grafana routing upsert
+name: live-overlay-notification-routing-publish
+
+# Deploy the Grafana notification routing (Slack contact point + notification
+# policy) on every push that touches notification-routing.yaml, mirroring
+# live-overlay-alert-rules-publish.yml for the rules. Before this, routing was
+# configured live-only in the Grafana UI, so a Grafana rebuild would silently
+# drop every route and alerts would deliver nowhere. This makes the "how alerts
+# reach humans" half of alerting as reproducible as the rules.
+#
+# The Slack webhook is NOT in the repo: notification-routing.yaml carries a
+# ${SLACK_WEBHOOK_URL} placeholder, and the SLACK_WEBHOOK_URL secret is injected
+# here at apply time.
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - services/live_overlay_daemon/infra/grafana/notification-routing.yaml
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: "Validate only (no upsert request to Grafana)"
+        type: boolean
+        default: true
+
+permissions:
+  contents: read
+
+concurrency:
+  # Serialize upserts to the shared Grafana routing target.
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: false
+
+env:
+  PYTHONUNBUFFERED: "1"
+  PYTHONPATH: ${{ github.workspace }}
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: "true"
+
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  publish-notification-routing:
+    runs-on: ${{ vars.SMC_GH_HOSTED_RUNNER || 'ubuntu-latest' }}
+    timeout-minutes: 15
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+        with:
+          persist-credentials: false
+
+      - name: Set up pinned Python
+        uses: ./.github/actions/setup-python-pinned
+        with:
+          cache: pip
+          cache-dependency-path: requirements.txt
+
+      - name: Install dependencies
+        # grafana_notification_routing_upsert.py parses YAML with PyYAML (its
+        # only third-party dep; HTTP is stdlib urllib). setup-python alone does
+        # not install it — mirror the alert-rules publish workflow.
+        run: python -m pip install --upgrade pip pyyaml
+
+      - name: Upsert notification routing (or dry-run)
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          INPUT_DRY_RUN: ${{ github.event.inputs.dry_run }}
+          # Slack webhook (secret) → substituted into the ${SLACK_WEBHOOK_URL}
+          # placeholder. Token reuses the existing GRAFANA_API_TOKEN secret
+          # under the GRAFANA_API_KEY name the upsert reads.
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+          GRAFANA_API_KEY: ${{ secrets.GRAFANA_API_TOKEN }}
+        run: |
+          set -euo pipefail
+
+          # push -> always upsert (mutating workflow);
+          # manual runs can be dry-run or upsert.
+          dry_run="false"
+          if [[ "${EVENT_NAME}" == "workflow_dispatch" ]]; then
+            case "${INPUT_DRY_RUN:-true}" in
+              true|false) dry_run="${INPUT_DRY_RUN:-true}" ;;
+              *)
+                echo "::error::dry_run input must be 'true' or 'false', got: ${INPUT_DRY_RUN}"
+                exit 1
+                ;;
+            esac
+          fi
+
+          # Preflight: validate structure (no webhook, no network) before any
+          # mutation. --dry-run needs no secret, so it always runs.
+          echo "Preflight: validating notification-routing.yaml (no network upsert)."
+          python scripts/grafana_notification_routing_upsert.py --dry-run
+
+          if [[ "${dry_run}" == "true" ]]; then
+            echo "Manual dry-run complete (validated, no upsert)."
+            exit 0
+          fi
+
+          test -n "${SLACK_WEBHOOK_URL:-}" || {
+            echo "::error::SLACK_WEBHOOK_URL secret is required to upsert the Slack contact point."
+            exit 1
+          }
+          test -n "${GRAFANA_API_KEY:-}" || {
+            echo "::error::GRAFANA_API_TOKEN secret is required for the routing upsert."
+            exit 1
+          }
+
+          echo "Upserting notification routing to Grafana."
+          python scripts/grafana_notification_routing_upsert.py
