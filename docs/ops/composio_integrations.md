@@ -61,9 +61,11 @@ Repo → Settings → Secrets and variables → Actions.
 | `COMPOSIO_USER_ID`, `SLACK_ALERT_USER_ID`/`SLACK_ALERT_CHANNEL` | as above |
 | `GITHUB_ISSUE_REPO` | default `skipp-dev/skipp-algo` |
 
-Also add `composio>=0.17,<0.18` to the daemon build (e.g. append
-`requirements-composio.txt`) — the SDK is imported lazily, so the daemon boots
-without it, but delivery needs it installed.
+The Composio SDK is already baked into the daemon image — `composio>=0.17,<0.18`
+is in `services/live_overlay_daemon/requirements.txt` and the Dockerfile copies
+`scripts/composio_ops.py` into the image — so no extra build step is needed;
+just set the env vars above and redeploy. (The SDK is still imported lazily, so
+the daemon boots even if a future resolution drops it; #3 then stays unmounted.)
 
 Then point a Grafana contact point (webhook type) at
 `https://<daemon-host>/<GRAFANA_WEBHOOK_TOKEN>/grafana-webhook`. To also open a

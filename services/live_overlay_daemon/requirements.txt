@@ -4,3 +4,10 @@ databento==0.79.0
 psutil==6.1.1
 holidays==0.76
 tzdata==2025.2
+# Composio SDK for the Grafana webhook fan-out (#3, grafana_composio_fanout.py).
+# Range (not ==) to stay in sync with the repo-root requirements-composio.txt and
+# because the SDK patches often; 0.17.x resolves cleanly against the pins above
+# (verified). Imported lazily in composio_ops.py, so the daemon still boots if a
+# future resolution ever drops it. NOTE: pulls a heavy transitive tree
+# (openai/pandas/pyarrow/numpy) — expect a larger image.
+composio>=0.17,<0.18
