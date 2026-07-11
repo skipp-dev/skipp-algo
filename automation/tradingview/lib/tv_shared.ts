@@ -252,8 +252,9 @@ export async function launchWithTradingViewFallback<T>(
       throw new Error(
         "Playwright bundled chromium is not installed and this launch owns a persistent browser profile, "
         + "so it will not silently fall back to system Chrome (a different browser build would corrupt the profile). "
-        + "Run `npx playwright install chromium`, or set TV_BROWSER_CHANNEL=chrome to use system Chrome for ALL "
-        + `TradingView sessions. Original error: ${message.split("\n")[0]}`,
+        + "Run `npx playwright install chromium` to open the EXISTING profile. To use system Chrome instead, delete "
+        + "the profile dir and re-create it from scratch with TV_BROWSER_CHANNEL=chrome — reopening a chromium-minted "
+        + `profile under Chrome corrupts it, so it is never a drop-in. Original error: ${message.split("\n")[0]}`,
         { cause: error },
       );
     }
