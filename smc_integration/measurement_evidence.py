@@ -455,13 +455,19 @@ def _evaluate_zone_event(
         if absolute_idx is not None and absolute_idx > anchor_idx:
             mitigated_idx = absolute_idx - anchor_idx - 1
 
+    # Truth-audit E9 (2026-07-11): mitigation = PENETRATION of the zone, not
+    # band-membership of the bar extreme. The old ``low <= row_high <= high``
+    # missed a bar that wicked entirely THROUGH the zone (fully filled it),
+    # keeping this KPI blind to the same full-fill events that the scoring
+    # labels (fixed in #3387) already count. This mirror was not covered by
+    # #3387; align it here (bullish: row_low <= high; bearish: row_high >= low).
     if direction in {"BEAR", "BEARISH", "DOWN"}:
         if mitigated_idx is None:
-            mitigated_idx = _find_first_index(future, lambda row: low <= float(row["high"]) <= high)
+            mitigated_idx = _find_first_index(future, lambda row: float(row["high"]) >= low)
         invalid_idx = _find_first_index(future, lambda row: float(row["close"]) > high)
     else:
         if mitigated_idx is None:
-            mitigated_idx = _find_first_index(future, lambda row: low <= float(row["low"]) <= high)
+            mitigated_idx = _find_first_index(future, lambda row: float(row["low"]) <= high)
         invalid_idx = _find_first_index(future, lambda row: float(row["close"]) < low)
 
     hit = mitigated_idx is not None and (invalid_idx is None or mitigated_idx < invalid_idx)
