@@ -9,7 +9,7 @@
   "dependencies": {
     "express": "^4.22.2",
     "express-rate-limit": "^6.11.2",
-    "morgan": "^1.10.0",
+    "morgan": "^1.11.0",
     "node-fetch": "^3.3.2"
   }
 }
