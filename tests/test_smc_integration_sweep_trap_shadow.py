@@ -109,3 +109,58 @@ class TestShadowObserve:
         assert on.outcome == off.outcome
         assert on.predicted_prob == off.predicted_prob
         assert on.raw_score == off.raw_score
+
+
+class TestWS1LiquiditySupportWiring:
+    def test_liquidity_support_runs_classifier_when_flag_on(self) -> None:
+        from smc_integration.measurement_evidence import _liquidity_support_for_event
+
+        bars = _bull_sweep_bars()
+        candidate = {**_event(), "id": "cand-1"}  # SELL_SIDE sweep at bar 10
+        anchor_ts = float(bars.iloc[15]["timestamp"])
+        with patch.dict(os.environ, {"ENABLE_SWEEP_TRAP": "1", "ENABLE_REACTION_ZONE": "1"}):
+            payload = _liquidity_support_for_event(
+                current_event=candidate,
+                family="SWEEP",
+                sweeps=[candidate],
+                bars=bars,
+                anchor_idx=15,
+                anchor_ts=anchor_ts,
+            )
+        assert payload["SWEEP_DIRECTION"] == "BULL"
+        # WS1: the derived geometry let the corrected classifier produce a real trap.
+        assert payload["SWEEP_TRAP_QUALITY_SCORE"] > 0.0
+        assert payload["SWEEP_TRAP_TYPE"] != "failed"
+        assert "REACTION_ZONE_LOW" in payload  # reaction-zone path also runs
+
+    def test_liquidity_support_no_trap_fields_when_flag_off(self) -> None:
+        from smc_integration.measurement_evidence import _liquidity_support_for_event
+
+        bars = _bull_sweep_bars()
+        candidate = {**_event(), "id": "cand-1"}
+        with patch.dict(os.environ, {"ENABLE_SWEEP_TRAP": "0"}):
+            payload = _liquidity_support_for_event(
+                current_event=candidate, family="SWEEP", sweeps=[candidate],
+                bars=bars, anchor_idx=15, anchor_ts=float(bars.iloc[15]["timestamp"]),
+            )
+        assert "SWEEP_TRAP_QUALITY_SCORE" not in payload
+
+
+class TestDeriveGeometryBearishAndFallback:
+    def test_bearish_geometry_uses_high_and_min_low_origin(self) -> None:
+        bars = _bull_sweep_bars()
+        swept, extreme, origin = _derive_sweep_trap_geometry(
+            {"price": 100.0, "side": "BUY_SIDE"}, bars, 10, is_bullish_sweep=False
+        )
+        assert swept == 100.0
+        assert extreme == float(bars.iloc[10]["high"])                  # sweep bar high
+        assert origin == float(bars.iloc[0:11]["low"].min())            # min low in leg
+        assert extreme > swept > origin  # bearish mirror: origin below, extreme above
+
+    def test_nan_leg_origin_falls_back_to_swept_level(self) -> None:
+        bars = _bull_sweep_bars().copy()
+        bars["high"] = float("nan")  # degenerate: no finite leg extreme
+        swept, _extreme, origin = _derive_sweep_trap_geometry(
+            {"price": 100.0, "side": "SELL_SIDE"}, bars, 10, is_bullish_sweep=True
+        )
+        assert origin == swept == 100.0
