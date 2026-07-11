@@ -150,6 +150,13 @@ def _hash_version(backend: str, dataset: FamilyDataset, seed: int) -> str:
     h.update(dataset.features_sha.encode())
     h.update(str(seed).encode())
     h.update(str(dataset.X.shape).encode())
+    # Fold in the training *content*, not just its shape: a fixed-size rolling
+    # window retrains on new data of identical shape every cron cycle, and a
+    # shape-only hash would emit the same model_version for each — blinding drift
+    # watchdogs and provenance to the swap. Hash the raw bytes of X and y so two
+    # fits differ iff their data (or config) differ.
+    h.update(np.ascontiguousarray(dataset.X, dtype=np.float64).tobytes())
+    h.update(np.ascontiguousarray(dataset.y, dtype=np.float64).tobytes())
     return f"{backend}-{dataset.family.lower()}-{h.hexdigest()[:12]}"
 
 
