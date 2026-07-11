@@ -41,6 +41,11 @@ logger = logging.getLogger(__name__)
 _MAX_MONTHS = 3
 
 
+def _empty_slot() -> dict[str, float]:
+    """A fresh per-provider counter slot (calls / bytes / records / 429 hits)."""
+    return {"calls": 0.0, "bytes": 0.0, "records": 0.0, "rate_limit_hits": 0.0}
+
+
 @dataclass
 class ProviderUsage:
     """Thread-safe in-memory accumulator of per-provider API usage for one run."""
@@ -62,10 +67,24 @@ class ProviderUsage:
         except (TypeError, ValueError):
             return
         with self._lock:
-            slot = self._totals.setdefault(name, {"calls": 0.0, "bytes": 0.0, "records": 0.0})
+            slot = self._totals.setdefault(name, _empty_slot())
             slot["calls"] += 1
             slot["bytes"] += rb
             slot["records"] += rec
+
+    def record_rate_limit_hit(self, provider: str) -> None:
+        """Record one HTTP-429 (rate-limit) hit for ``provider``.
+
+        Distinct from :meth:`record`, which only counts SUCCESSFUL calls: a 429
+        never reaches the success path, so its bytes/calls are never recorded.
+        This is the only "we are being throttled" signal available — the vendors
+        (FMP, Massive/Benzinga) send no ``X-RateLimit-*`` headers (verified
+        2026-07-11). Never raises.
+        """
+        name = str(provider or "unknown").strip().lower() or "unknown"
+        with self._lock:
+            slot = self._totals.setdefault(name, _empty_slot())
+            slot["rate_limit_hits"] = slot.get("rate_limit_hits", 0.0) + 1
 
     def snapshot(self) -> dict[str, dict[str, float]]:
         with self._lock:
@@ -94,10 +113,11 @@ class ProviderUsage:
             months: dict[str, Any] = dict(existing.get("months") or {})
             month_slot: dict[str, Any] = dict(months.get(month) or {})
             for provider, d in deltas.items():
-                cur = dict(month_slot.get(provider) or {"calls": 0, "bytes": 0, "records": 0})
-                cur["calls"] = cur.get("calls", 0) + int(d["calls"])
-                cur["bytes"] = cur.get("bytes", 0) + int(d["bytes"])
-                cur["records"] = cur.get("records", 0) + int(d["records"])
+                cur = dict(month_slot.get(provider) or {"calls": 0, "bytes": 0, "records": 0, "rate_limit_hits": 0})
+                cur["calls"] = cur.get("calls", 0) + int(d.get("calls", 0))
+                cur["bytes"] = cur.get("bytes", 0) + int(d.get("bytes", 0))
+                cur["records"] = cur.get("records", 0) + int(d.get("records", 0))
+                cur["rate_limit_hits"] = cur.get("rate_limit_hits", 0) + int(d.get("rate_limit_hits", 0))
                 month_slot[provider] = cur
             months[month] = month_slot
             # Cap to the newest _MAX_MONTHS months (lexical sort works on YYYY-MM).
@@ -134,6 +154,11 @@ _RECORDER = ProviderUsage()
 def record(provider: str, *, response_bytes: int = 0, records: int = 0) -> None:
     """Record usage on the process-wide recorder (see :meth:`ProviderUsage.record`)."""
     _RECORDER.record(provider, response_bytes=response_bytes, records=records)
+
+
+def record_rate_limit_hit(provider: str) -> None:
+    """Record a 429 on the process-wide recorder (see :meth:`ProviderUsage.record_rate_limit_hit`)."""
+    _RECORDER.record_rate_limit_hit(provider)
 
 
 def snapshot() -> dict[str, dict[str, float]]:

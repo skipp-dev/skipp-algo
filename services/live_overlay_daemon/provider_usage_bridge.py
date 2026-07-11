@@ -71,6 +71,7 @@ def _coerce(parsed: dict[str, Any]) -> dict[str, Any]:
                     "calls": float(vals.get("calls", 0) or 0),
                     "bytes": float(vals.get("bytes", 0) or 0),
                     "records": float(vals.get("records", 0) or 0),
+                    "rate_limit_hits": float(vals.get("rate_limit_hits", 0) or 0),
                 }
             except (TypeError, ValueError):
                 continue
