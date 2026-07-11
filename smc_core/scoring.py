@@ -932,12 +932,12 @@ def _zone_touch_before_invalidation(
         low = subsequent_lows[idx] if idx < len(subsequent_lows) else None
 
         if normalized_direction == "BEARISH":
-            if touch_idx is None and high is not None and zone_low <= high <= zone_high:
+            if touch_idx is None and high is not None and high >= zone_low:
                 touch_idx = idx
             if invalid_idx is None and close is not None and close > zone_high:
                 invalid_idx = idx
         else:
-            if touch_idx is None and low is not None and zone_low <= low <= zone_high:
+            if touch_idx is None and low is not None and low <= zone_high:
                 touch_idx = idx
             if invalid_idx is None and close is not None and close < zone_low:
                 invalid_idx = idx
@@ -953,7 +953,7 @@ def label_orderblock_mitigation(
     subsequent_lows: list[float],
     subsequent_closes: list[float],
 ) -> bool:
-    """Label whether an order block was mitigated before invalidation."""
+    """Label whether an OB was touched (bar range overlaps zone) pre-invalidation."""
     return _zone_touch_before_invalidation(
         zone_low,
         zone_high,
@@ -972,7 +972,12 @@ def label_fvg_mitigation(
     subsequent_lows: list[float],
     subsequent_closes: list[float],
 ) -> bool:
-    """Label whether an FVG was tagged/filled before invalidation.
+    """Label whether an FVG was touched before invalidation.
+
+    A touch = the bar's range overlaps the zone (bullish ``low <= zone_high``,
+    bearish ``high >= zone_low``) — matching :func:`compute_fvg_partial_fill`, so
+    a full-overshoot wick that pierces the whole zone counts (it previously did
+    not, contradicting a 100% partial-fill on the same bar).
 
     Uses a *two-consecutive-close* invalidation rule: the zone is only
     considered invalidated when two consecutive bar closes breach the
@@ -1000,7 +1005,7 @@ def label_fvg_mitigation(
         low = subsequent_lows[idx] if idx < len(subsequent_lows) else None
 
         if normalized_direction == "BEARISH":
-            if touch_idx is None and high is not None and zone_low <= high <= zone_high:
+            if touch_idx is None and high is not None and high >= zone_low:
                 touch_idx = idx
             if close is not None and close > zone_high:
                 consecutive_invalid += 1
@@ -1009,7 +1014,7 @@ def label_fvg_mitigation(
             else:
                 consecutive_invalid = 0
         else:
-            if touch_idx is None and low is not None and zone_low <= low <= zone_high:
+            if touch_idx is None and low is not None and low <= zone_high:
                 touch_idx = idx
             if close is not None and close < zone_low:
                 consecutive_invalid += 1
@@ -1100,7 +1105,7 @@ def label_fvg_partial_50(
             else:
                 consecutive_invalid = 0
 
-    return fill_idx is not None and (invalid_idx is None or fill_idx <= invalid_idx)
+    return fill_idx is not None and (invalid_idx is None or fill_idx < invalid_idx)
 
 
 def _summarize_scored_events(events: list[ScoredEvent]) -> tuple[int, float, float, float]:
