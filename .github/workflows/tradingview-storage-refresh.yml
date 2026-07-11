@@ -204,6 +204,7 @@ jobs:
               --skip-databento \
               --skip-fmp \
               --skip-benzinga \
+              --skip-finnhub \
               --skip-newsapi \
               --output artifacts/ci/cred-health.json
           python - <<'EOF'
