@@ -610,22 +610,20 @@ def test_gate_thresholds_default_is_unarmed() -> None:
     assert GateThresholds().magnitude_strict_families == frozenset()
 
 
-def test_fdr_q_tightening_with_concurrent_families() -> None:
-    # Under single family, fdr_pvalue of 0.03 easily passes default fdr_q of 0.05
+def test_fdr_gate_compares_bh_qvalue_against_fdr_q_directly() -> None:
+    # fdr_pvalue is already a Benjamini-Hochberg q-value (adjusted across the
+    # run's families upstream), so the gate compares it against fdr_q directly.
+    # A q-value of 0.03 clears the default 0.05 bar; the removed per-run
+    # Bonferroni /k layer would have wrongly re-corrected the same multiplicity.
     snap = _green_snapshot()
     snap.fdr_pvalue = 0.03
+    d_pass = PromotionGate(GateThresholds()).evaluate(snap)
+    assert d_pass["promoted"] is True
 
-    # 1 concurrent family -> passes
-    gate_single = PromotionGate(GateThresholds(n_concurrent_families=1))
-    d_single = gate_single.evaluate(snap)
-    assert d_single["promoted"] is True
-
-    # 2 concurrent families -> Bonferroni-adjusted threshold becomes 0.05 / 2 = 0.025.
-    # Therefore 0.03 fails!
-    gate_multi = PromotionGate(GateThresholds(n_concurrent_families=2))
-    d_multi = gate_multi.evaluate(snap)
-    assert d_multi["promoted"] is False
-
-    blockers = [b["check"] for b in d_multi["blockers"] if b["severity"] == "blocker"]
+    # A q-value above fdr_q still blocks, so the check remains live.
+    snap.fdr_pvalue = 0.06
+    d_fail = PromotionGate(GateThresholds()).evaluate(snap)
+    assert d_fail["promoted"] is False
+    blockers = [b["check"] for b in d_fail["blockers"] if b["severity"] == "blocker"]
     assert "fdr_significance" in blockers
 

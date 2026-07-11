@@ -72,6 +72,8 @@ def _bar_volume(bar: Mapping[str, Any]) -> float | None:
         vol = float(raw)
     except (TypeError, ValueError):
         return None
+    if vol != vol:  # NaN guard (NaN < 0.0 is False, so it would leak through)
+        return None
     if vol < 0.0:
         return None
     return vol

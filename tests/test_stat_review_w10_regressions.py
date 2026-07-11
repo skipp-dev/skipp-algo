@@ -1,7 +1,11 @@
 """W10 stat-review regression tests.
 
-W10-1: build_report() auto-wires n_concurrent_families from snapshot count
-       so the W9-6 Bonferroni FWER correction activates for multi-family runs.
+W10-1 (superseded): the earlier build_report() Bonferroni auto-wiring was
+       removed — ``fdr_pvalue`` is already a Benjamini-Hochberg q-value adjusted
+       across the run's families, so dividing ``fdr_q`` by the family count again
+       double-corrected the same multiplicity. The gate now compares the BH
+       q-value directly against ``fdr_q``; the tests below pin that BH-alone
+       behaviour so the double-correction cannot silently return.
 W10-2: run_ab_comparison main() --spec-path loads SPRT p0/p1/alpha/beta from
        the experiment JSON spec instead of the divergent module-level defaults.
 """
@@ -10,7 +14,6 @@ from __future__ import annotations
 import json
 from pathlib import Path
 from typing import Any
-from unittest.mock import patch
 
 import pytest
 
@@ -18,14 +21,14 @@ import pytest
 # Helpers
 # ---------------------------------------------------------------------------
 
-def _green_snapshot(family: str = "BOS") -> Any:
+def _green_snapshot(family: str = "BOS", *, fdr_pvalue: float = 0.01) -> Any:
     """Minimal green FamilyMetrics for promotion-gate tests."""
     from governance.promotion_gate import FamilyMetrics
     return FamilyMetrics(
         family=family,  # type: ignore[arg-type]
         brier=0.18,
         ece=0.03,
-        fdr_pvalue=0.01,
+        fdr_pvalue=fdr_pvalue,
         psr=0.97,
         mintrl_years=1.4,
         psi=0.12,
@@ -35,85 +38,37 @@ def _green_snapshot(family: str = "BOS") -> Any:
 
 
 # ---------------------------------------------------------------------------
-# W10-1 — n_concurrent_families Bonferroni auto-wiring
+# W10-1 (superseded) — FDR uses the BH q-value alone, no per-run Bonferroni
 # ---------------------------------------------------------------------------
 
-class TestW10_1_NConcurrentFamilies:
-    """W10-1: build_report() must pass n_concurrent_families=len(snapshots)
-    to GateThresholds so the Bonferroni FWER correction is active for
-    multi-family promotion runs."""
+class TestFdrBhAloneNoDoubleCorrection:
+    """The gate must compare the (already BH-adjusted) fdr_pvalue against
+    ``fdr_q`` directly — never re-divide it by the number of families."""
 
-    def _run_build_report(self, snapshots: list[Any], **kwargs: Any) -> dict[str, Any]:
-        from scripts.run_promotion_gate import build_report  # type: ignore[import]
-        return build_report(snapshots, **kwargs)
+    def test_family_count_does_not_change_fdr_threshold(self) -> None:
+        """A family with fdr_pvalue=0.03 clears the 0.05 bar regardless of how
+        many families ran alongside it — the removed /k Bonferroni layer would
+        have blocked it at fdr_q/k."""
+        from scripts.run_promotion_gate import build_report
 
-    def test_single_family_effective_alpha_unchanged(self) -> None:
-        """With 1 snapshot, n_concurrent_families=1, Bonferroni does nothing."""
-        from governance.promotion_gate import GateThresholds
-        t = GateThresholds(n_concurrent_families=1)
-        # effective threshold = fdr_q / n_concurrent_families
-        assert t.fdr_q / t.n_concurrent_families == pytest.approx(t.fdr_q)
+        snaps = [_green_snapshot(f, fdr_pvalue=0.03) for f in ("BOS", "OB", "FVG", "SWEEP")]
+        report = build_report(snaps, strict_provenance=False)
+        for decision in report["decisions"]:
+            fdr_blockers = [
+                b for b in decision["blockers"]
+                if b["check"] == "fdr_significance" and b["severity"] == "blocker"
+            ]
+            assert not fdr_blockers, (
+                f"{decision['family']}: fdr_pvalue=0.03 must clear fdr_q=0.05 "
+                "irrespective of family count (no per-run Bonferroni re-division)"
+            )
 
-    def test_two_families_halves_effective_alpha(self) -> None:
-        """With 2 concurrent families the effective alpha should be halved
-        relative to a single-family run (Bonferroni FWER = fdr_q / k)."""
-        from governance.promotion_gate import GateThresholds
-        t1 = GateThresholds(n_concurrent_families=1)
-        t2 = GateThresholds(n_concurrent_families=2)
-        effective_1 = t1.fdr_q / t1.n_concurrent_families
-        effective_2 = t2.fdr_q / t2.n_concurrent_families
-        assert effective_2 == pytest.approx(effective_1 / 2, rel=1e-9), (
-            "W10-1: Bonferroni correction is not halving the threshold for "
-            "k=2 families — the FWER correction is broken"
-        )
-
-    def test_build_report_uses_snapshot_count_for_n_concurrent_families(
-        self,
-    ) -> None:
-        """build_report() must internally pass n_concurrent_families=len(snapshots)
-        so callers that don't supply it explicitly get the correct correction."""
+    def test_gatethresholds_has_no_concurrency_knob(self) -> None:
+        """The removed Bonferroni layer must not creep back as a constructor kwarg."""
         from governance.promotion_gate import GateThresholds
 
-        captured: dict[str, Any] = {}
-        _orig_GateThresholds = GateThresholds
-
-        class _CapturingGateThresholds(_orig_GateThresholds):  # type: ignore[misc]
-            def __init__(self, **kw: Any) -> None:
-                captured.update(kw)
-                super().__init__(**kw)
-
-        snaps = [_green_snapshot("BOS"), _green_snapshot("CHOCH")]
-        with patch("scripts.run_promotion_gate.GateThresholds", _CapturingGateThresholds):
-            from scripts.run_promotion_gate import build_report  # type: ignore[import]
-            build_report(snaps)
-
-        assert captured.get("n_concurrent_families") == 2, (
-            f"W10-1: build_report() passed n_concurrent_families="
-            f"{captured.get('n_concurrent_families')!r}, expected 2 (len of snapshot list). "
-            "The Bonferroni correction is not being wired up automatically."
-        )
-
-    def test_explicit_override_respected(self) -> None:
-        """When the caller explicitly passes n_concurrent_families it must take
-        precedence over the automatic len(snapshots) calculation."""
-        from governance.promotion_gate import GateThresholds
-
-        captured: dict[str, Any] = {}
-        _orig = GateThresholds
-
-        class _Cap(_orig):  # type: ignore[misc]
-            def __init__(self, **kw: Any) -> None:
-                captured.update(kw)
-                super().__init__(**kw)
-
-        snaps = [_green_snapshot("BOS"), _green_snapshot("CHOCH")]
-        with patch("scripts.run_promotion_gate.GateThresholds", _Cap):
-            from scripts.run_promotion_gate import build_report  # type: ignore[import]
-            build_report(snaps, n_concurrent_families=5)
-
-        assert captured.get("n_concurrent_families") == 5, (
-            "W10-1: explicit n_concurrent_families=5 not respected by build_report()"
-        )
+        with pytest.raises(TypeError):
+            GateThresholds(n_concurrent_families=2)  # type: ignore[call-arg]
 
 
 # ---------------------------------------------------------------------------
