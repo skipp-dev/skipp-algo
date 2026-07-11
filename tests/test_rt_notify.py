@@ -39,13 +39,24 @@ def test_disabled_by_default_is_a_noop(monkeypatch: pytest.MonkeyPatch) -> None:
     assert calls == []
 
 
-def test_generic_webhook_notifies_all_levels_by_default_and_flags_a2(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
+def test_default_mutes_a2_early_warning(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setenv("RT_SIGNAL_WEBHOOK_URL", "https://hook.example/x")
     calls = _capture(monkeypatch)
     notified = rt_notify.notify_fresh_signals([_sig("AAPL", "A0"), _sig("NVDA", "A2")])
-    # Default level set is A0,A1,A2 — A2 early-warnings are included…
+    # Default level set is now A0,A1 — the noisy A2 early-warning tier is dropped.
+    assert notified == ["AAPL LONG A0"]
+    text = calls[0][1]["json"]["text"]
+    assert "AAPL" in text and "NVDA" not in text
+
+
+def test_a2_is_included_and_flagged_when_enabled(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("RT_SIGNAL_WEBHOOK_URL", "https://hook.example/x")
+    monkeypatch.setenv("RT_SIGNAL_NOTIFY_LEVELS", "A0,A1,A2")
+    calls = _capture(monkeypatch)
+    notified = rt_notify.notify_fresh_signals([_sig("AAPL", "A0"), _sig("NVDA", "A2")])
+    # With A2 opted back in, early-warnings are included…
     assert notified == ["AAPL LONG A0", "NVDA LONG A2"]
     assert len(calls) == 1
     url, kw = calls[0]
