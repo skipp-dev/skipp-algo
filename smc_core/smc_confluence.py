@@ -89,6 +89,8 @@ def compute_confluence(
     ob_light: dict[str, Any] | None,
     fvg_light: dict[str, Any] | None,
     sweep_light: dict[str, Any] | None,
+    *,
+    prefer_trap_score: bool = False,
 ) -> ConfluenceScore:
     """Compute the orthogonal OB ∩ FVG ∩ Sweep confluence score.
 
@@ -118,8 +120,14 @@ def compute_confluence(
     fvg_raw: float = float((fvg_light or {}).get("FVG_GAP_SCORE", 0))
 
     sweep_dict: dict[str, Any] = sweep_light or {}
+    # Observe-only guard (WS4b): the shadow sweep-trap classifier must NOT feed a
+    # live/gate confluence score until promoted. Prefer SWEEP_TRAP_QUALITY_SCORE
+    # ONLY when the caller passes prefer_trap_score=True (post-promotion);
+    # otherwise use the coarse SWEEP_QUALITY_SCORE and ignore the shadow score.
     sweep_raw: float = float(
         sweep_dict.get("SWEEP_TRAP_QUALITY_SCORE", sweep_dict.get("SWEEP_QUALITY_SCORE", 0))
+        if prefer_trap_score
+        else sweep_dict.get("SWEEP_QUALITY_SCORE", 0)
     )
 
     # Normalise OB and FVG from 0-15 scale to 0-1.
