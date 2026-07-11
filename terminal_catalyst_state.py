@@ -50,7 +50,14 @@ def _safe_int(value: Any, default: int = 0) -> int:
 
 
 def _story_timestamp(row: dict[str, Any]) -> float:
-    for field_name in ("story_last_seen_ts", "updated_ts", "published_ts"):
+    # Truth-audit T-F3 (2026-07-11): prefer the PUBLISH time so "catalyst
+    # age" is article freshness, not time-since-last-poll. The old
+    # ``story_last_seen_ts``-first order was refreshed on every repeat
+    # sighting, so an hours-old story that kept being re-seen read as
+    # ~0 min old and slipped past the notify freshness gate
+    # (TERMINAL_NOTIFY_MAX_AGE_MIN). Now matches the precedence in
+    # ``effective_catalyst_age_minutes`` (the fallback path).
+    for field_name in ("published_ts", "updated_ts", "story_last_seen_ts"):
         value = _safe_float(row.get(field_name), 0.0)
         if value > 0:
             return value
