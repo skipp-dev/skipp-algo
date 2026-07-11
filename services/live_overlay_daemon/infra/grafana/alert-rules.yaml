@@ -1123,12 +1123,23 @@ groups:
   - uid: lo-news-snapshot-stale
     title: News snapshot stale
     condition: C
+    # Gated on live_overlay_market_us_open == 1 (as a multiplicative factor):
+    # the producer (smc-live-news-refresh.yml) runs `cron: 2 * * * 1-5` —
+    # hourly Mon-Fri only. Over a weekend or NYSE holiday it deliberately does
+    # not run, so the snapshot legitimately ages past the 3h budget and this
+    # rule false-fired for the entire weekend (observed 2026-07-11 Sat: firing
+    # 17h with the last Fri 23:25 UTC refresh healthy). market_us_open is
+    # holiday-aware and mirrors the same stand-down already applied to
+    # lo-news-ingest-stale. The product yields a present 0 (not an empty
+    # vector) when the market is closed, so no NoData handling is needed. On a
+    # weekday the hourly cron keeps age < 3h; a genuine weekday producer break
+    # still fires within 3h of the next market open.
     data:
     - refId: A
       datasourceUid: grafanacloud-prom
       model:
         expr: live_overlay_provider_news_snapshot_loaded{job="live_overlay"} * (live_overlay_provider_news_snapshot_age_seconds{job="live_overlay"}
-          > bool 10800)
+          > bool 10800) * live_overlay_market_us_open{job="live_overlay"}
         instant: true
     - refId: C
       datasourceUid: __expr__
@@ -1148,9 +1159,10 @@ groups:
     labels:
       severity: warning
     annotations:
-      summary: News provider snapshot is older than 3 hours
-      runbook: Check NEWS_SNAPSHOT_PATH producer job and file update cadence; inspect
-        fetched_at_unix in snapshot.
+      summary: News provider snapshot is older than 3 hours during the US regular session
+      runbook: Check NEWS_SNAPSHOT_PATH producer job (smc-live-news-refresh.yml, hourly
+        Mon-Fri) and file update cadence; inspect fetched_at_unix in snapshot. Weekend/holiday
+        staleness is gated out via live_overlay_market_us_open and does not page.
   - uid: lo-news-ingest-stale
     title: News ingest stale (no new stories accepted)
     condition: C
