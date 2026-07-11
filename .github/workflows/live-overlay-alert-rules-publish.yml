@@ -1,0 +1,99 @@
+# live-window: any-trigger  # (2026-07-11): push-mutating Grafana alert-rules upsert
+name: live-overlay-alert-rules-publish
+
+# Deploy the Grafana unified-alerting rules on every push that touches
+# alert-rules.yaml, mirroring live-overlay-dashboard-publish.yml for dashboards.
+# Until now alert-rules.yaml was deployed only by a MANUAL run of
+# scripts/grafana_alert_rules_upsert.py, so committed rule changes (e.g. the
+# credential-health alert group) never reached Grafana until someone remembered
+# to run the upsert. This closes that gap. Alert->contact-point routing stays
+# Grafana-UI-side via the `severity` label (not versioned here).
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - services/live_overlay_daemon/infra/grafana/alert-rules.yaml
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: "Validate only (no upsert request to Grafana)"
+        type: boolean
+        default: true
+
+permissions:
+  contents: read
+
+concurrency:
+  # Serialize upserts to the shared Grafana alert-rules target.
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: false
+
+env:
+  PYTHONUNBUFFERED: "1"
+  PYTHONPATH: ${{ github.workspace }}
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: "true"
+
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  publish-alert-rules:
+    runs-on: ${{ vars.SMC_GH_HOSTED_RUNNER || 'ubuntu-latest' }}
+    timeout-minutes: 15
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+        with:
+          persist-credentials: false
+
+      - name: Set up pinned Python
+        uses: ./.github/actions/setup-python-pinned
+        with:
+          cache: pip
+          cache-dependency-path: requirements.txt
+
+      - name: Upsert alert rules (or dry-run)
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          INPUT_DRY_RUN: ${{ github.event.inputs.dry_run }}
+          # grafana_alert_rules_upsert.py reads the token from GRAFANA_API_KEY;
+          # map the existing GRAFANA_API_TOKEN secret into that name.
+          GRAFANA_API_KEY: ${{ secrets.GRAFANA_API_TOKEN }}
+        run: |
+          set -euo pipefail
+
+          # push -> always upsert (mutating workflow);
+          # manual runs can be dry-run or upsert.
+          dry_run="false"
+          if [[ "${EVENT_NAME}" == "workflow_dispatch" ]]; then
+            case "${INPUT_DRY_RUN:-true}" in
+              true|false) dry_run="${INPUT_DRY_RUN:-true}" ;;
+              *)
+                echo "::error::dry_run input must be 'true' or 'false', got: ${INPUT_DRY_RUN}"
+                exit 1
+                ;;
+            esac
+          fi
+
+          # Preflight: validate structure + the gt-0-inert linter before any
+          # network mutation. --dry-run needs no token, so it always runs.
+          echo "Preflight: validating alert-rules.yaml (no network upsert)."
+          python scripts/grafana_alert_rules_upsert.py --dry-run
+
+          if [[ "${dry_run}" == "true" ]]; then
+            echo "Manual dry-run complete (validated, no upsert)."
+            exit 0
+          fi
+
+          test -n "${GRAFANA_API_KEY:-}" || {
+            echo "::error::GRAFANA_API_TOKEN secret is required for the alert-rules upsert."
+            exit 1
+          }
+
+          # Upsert without pruning — never auto-delete rule groups absent from
+          # this file (the flag that would do so is intentionally not passed).
+          echo "Upserting alert rules to Grafana."
+          python scripts/grafana_alert_rules_upsert.py
