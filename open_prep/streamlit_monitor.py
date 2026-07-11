@@ -2226,12 +2226,19 @@ def main() -> None:
 
             # ── Quantified News ──
             with bz_op_quant:
-                qn_data = _cached_bz_quantified_op(bz_key, from_d=_bz_from, to_d=_bz_to)
+                # Quantified is a direct-Benzinga analytics pack (Massive 404s it),
+                # so it needs BENZINGA_DIRECT_API_KEY, not the Massive transport key.
+                bz_direct_key = os.environ.get("BENZINGA_DIRECT_API_KEY", "")
+                if not bz_direct_key:
+                    st.info("Set BENZINGA_DIRECT_API_KEY to load quantified news (not resold via Massive).")
+                    qn_data = []
+                else:
+                    qn_data = _cached_bz_quantified_op(bz_direct_key, from_d=_bz_from, to_d=_bz_to)
                 if qn_data:
                     df_q = pd.DataFrame(qn_data)
                     st.caption(f"{len(df_q)} quantified news item(s)")
                     st.dataframe(df_q, width="stretch", height=min(400, 40 + 35 * len(df_q)))
-                else:
+                elif bz_direct_key:
                     st.info("No quantified news available.")
 
             # ── Options Activity ──

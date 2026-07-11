@@ -61,7 +61,14 @@ class Config:
     fmp_api_key: str = field(default_factory=lambda: os.getenv("FMP_API_KEY", ""), repr=False)
 
     # ── Benzinga credentials (repr=False to prevent accidental logging)
+    # ``benzinga_api_key`` is the Massive-transport key (BENZINGA_PROVIDER=massive
+    # routes news/ratings/earnings via api.massive.com). The direct-Benzinga key
+    # is SEPARATE: Massive does not resell the newsquantified analytics pack (404),
+    # so quantified must go direct to api.benzinga.com with this key.
     benzinga_api_key: str = field(default_factory=lambda: os.getenv("BENZINGA_API_KEY", ""), repr=False)
+    benzinga_direct_api_key: str = field(
+        default_factory=lambda: os.getenv("BENZINGA_DIRECT_API_KEY", ""), repr=False
+    )
 
     # ── Additional news credentials ────────────────────────────
     newsapi_ai_key: str = field(default_factory=lambda: os.getenv("NEWSAPI_KEY", ""), repr=False)
