@@ -1,9 +1,9 @@
 """Risk-Manager hard-constraint layer.
 
-RL agents are advisory: this layer always has the final word on actions.
-Enforces:
+RL agents are advisory: callers must route actions through this layer for it
+to have the final word — not yet wired into any pipeline (2026-07-11). Enforces:
   * Per-trade size cap (fraction of account equity).
-  * Maximum draw-down threshold (forces flat / TWAP fallback when violated).
+  * Max draw-down threshold (forces flat; a TWAP fallback is the caller's job).
   * Slice-size in [0, 1] regardless of upstream output.
   * Order-type whitelist.
 """
@@ -33,8 +33,8 @@ class GuardResult:
 class HardConstraintLayer:
     """Last-line-of-defence for RL execution / sizing actions."""
 
-    max_size_fraction: float = 0.01
-    max_drawdown_pct: float = 0.10
+    max_size_fraction: float = 0.01  # fraction of equity (0.01 = 1%)
+    max_drawdown_pct: float = 0.10  # despite _pct: a FRACTION (0.10 = 10%)
     safe_order_type: OrderType = "limit_at_mid"
     # Sprint C12: optional audit sink. When provided, every clamp /
     # rejection in ``guard_action`` / ``guard_size_fraction`` is

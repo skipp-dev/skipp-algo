@@ -4,8 +4,8 @@ The X2 PromotionGate consumes ``wf_scheme`` and ``wf_embargo_bars`` in
 each family's provenance block, but nothing pins what those values *are*
 per :class:`~governance.types.EventFamily`. This module is that pin.
 
-López de Prado's leakage rule: ``embargo_bars >= 2 * max_event_horizon``
-(the number of bars until a setup's label is fully resolved). A sweep
+Leakage pin à la López de Prado's purge/embargo (the 2x factor is this
+repo's conservative choice): ``embargo_bars >= 2 * max_event_horizon``. A sweep
 reversal resolves faster than a break-of-structure swing, so the embargo
 differs per family — encoding it here keeps the walk-forward split
 honest and auditable rather than buried in a notebook.
@@ -19,9 +19,9 @@ from typing import get_args
 from governance.types import EventFamily
 from ml.walkforward import WalkForwardConfig
 
-# Per-family outcome horizon (bars until the label is fully resolved) on
-# the primary 15m timeframe. Embargo is derived as 2 * horizon per
-# López de Prado, so these are the single source of truth.
+# Per-family outcome horizon (bars until the label is fully resolved) —
+# bar COUNTS: the wall-clock meaning follows the run's timeframe (8 bars
+# = 2h at 15m, 8 days at 1D). Embargo = 2 * horizon (repo's own pin).
 #
 # These are conservative starting values tied to each setup's typical
 # hold; tighten only with measured label-resolution distributions.

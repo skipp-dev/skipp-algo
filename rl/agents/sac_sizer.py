@@ -13,7 +13,7 @@ otherwise.
    pipelines route sizing through ``rl.safety.HardConstraintLayer``
    over a deterministic fixed-fraction sizer. Promotion of SAC
    outputs to live requires a separate sign-off; see
-   ``docs/c12_trigger_runbook.md``.
+   ``scripts/check_c12_trigger.py`` + ``docs/c8_live_incubation_runbook.md``.
 """
 from __future__ import annotations
 
@@ -33,8 +33,8 @@ logger = logging.getLogger(__name__)
 
 
 class SACSizer:
-    #: Marks this sizer as research-only; production gates assert that
-    #: no EXPERIMENTAL agent backs a Phase-B promotion (Deep-Review
+    #: Marks this sizer as research-only, INTENDED for future promotion
+    #: gates — nothing asserts on this flag yet (2026-07-11; Deep-Review
     #: 2026-04-27). Do not flip without sign-off.
     EXPERIMENTAL: bool = True
     available: bool = _HAS_SB3

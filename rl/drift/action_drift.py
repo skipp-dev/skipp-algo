@@ -1,8 +1,8 @@
 """PSI-based drift detection on RL ExecutionAction distributions.
 
-Monitors the live distribution of ``slice_size`` choices vs the reference
-distribution captured during training. Mirrors ``ml.drift.MLDriftDetector``
-but on action quantiles rather than feature/probability bins.
+Monitors the live distribution of ``slice_size`` choices vs a caller-supplied
+reference distribution (nothing captures/persists one yet). Mirrors
+``ml.drift.MLDriftDetector`` but on action quantiles, not feature bins.
 """
 from __future__ import annotations
 
@@ -16,8 +16,8 @@ import numpy as np
 def _psi(reference: np.ndarray, live: np.ndarray, n_bins: int) -> float:
     """Population Stability Index on equal-frequency reference quantiles.
 
-    Vendored locally so the rl/ pipeline has no soft dependency on the
-    optional ml/ package; identical formula to ``ml.metrics.population_stability_index``.
+    Vendored locally (no soft dependency on optional ml/); same PSI sum as
+    ``ml.metrics`` but zero-bin eps differs (add vs floor 1e-6) -> outputs differ.
     """
     reference = np.asarray(reference, dtype=float)
     live = np.asarray(live, dtype=float)

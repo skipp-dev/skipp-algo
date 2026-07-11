@@ -24,7 +24,7 @@ separately. The bar is fixed in ADR-0023 §2 and is NOT re-tuned here:
    replaced — ADR-0023 §4). The score-alone direction-Brier is reported here for
    transparency, not re-tested as a blocker.
 4. Minimum sample: ``MIN_OOS_SAMPLES`` (40) shared OOS points, else the family
-   is INCONCLUSIVE — which is not a pass.
+   is OMITTED from the report by ``walk_forward_ab`` — which is not a pass.
 
 A family passes only on (1) AND (2) AND (4). A miss is a negative result; per
 ADR-0023 §3 the bar is not re-tuned on a losing run.

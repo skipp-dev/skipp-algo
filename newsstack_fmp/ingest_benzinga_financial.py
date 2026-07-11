@@ -7,7 +7,7 @@ Ticker-level data:
     - Auto-Complete:          ``/api/v2/search``
     - Security:               ``/api/v2/security``
     - Chart:                  ``/api/v2/bars``
-    - Quote:                  ``/api/v1/quoteDelayed``
+    - Quote: not here — see :mod:`.ingest_benzinga_calendar` (Massive-switched)
     - Instruments:            ``/api/v2.1/instruments``
 
 Fundamentals:
@@ -27,7 +27,7 @@ Fundamentals:
 
 Other:
     - Logos:                  ``/api/v2/logos``
-    - Movers:                 ``/api/v1/market/movers``
+    - Movers: not here — see :mod:`.ingest_benzinga_calendar` (Massive-switched)
     - Ticker Detail:          ``/api/v2/tickerDetail``
     - SEC Insider Transactions: ``/api/v2.1/ownership``
 
@@ -36,8 +36,8 @@ Other:
     self-hosted Databento OPRA.PILLAR detector in
     :mod:`newsstack_fmp.opra_uoa`.
 
-All adapters are **optional** — they are only called when
-``BENZINGA_API_KEY`` is set.
+All adapters are **optional** — only called when ``BENZINGA_API_KEY`` is set,
+and DIRECT-only (api.benzinga.com; the Massive key 401s -> disabled, silent []).
 """
 
 from __future__ import annotations

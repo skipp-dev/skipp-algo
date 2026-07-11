@@ -14,9 +14,9 @@ window of ``period`` bars ending at the anchor:
 where ``r^B`` are benchmark (SPY) one-bar returns and ``r^C`` are constituent
 returns. The numerator measures how strongly the benchmark's PREVIOUS-bar return
 predicts the constituent's CURRENT-bar return; the denominator measures the
-reverse. Ratio ``> 1`` means the benchmark leads (information flows index ->
-constituent); ratio ``< 1`` means the constituent leads; ``~1`` is symmetric
-co-movement with no clear lead.
+reverse. Ratio ``> 1`` means the benchmark leads, ``< 1`` the constituent —
+valid ONLY when both lag-1 correlations are positive; the signed ratio can go
+negative (see ``family_cross_lead_lag_hy_v3`` for the sign-robust |peak| form).
 
 The lag is FIXED at one bar (15 minutes) — no per-event lag search, to keep the
 degrees of freedom minimal (design doc §6.3 / §7 "do not optimize lag").
@@ -161,9 +161,9 @@ def cross_lead_lag_at(
 
         corr(r^B_{t-1}, r^C_t) / corr(r^C_{t-1}, r^B_t)
 
-    a scale-free lead-lag statistic: ``> 1`` when the benchmark leads the
-    constituent, ``< 1`` when the constituent leads, ``~1`` for symmetric
-    co-movement. The lag is fixed at one bar.
+    a scale-free lead-lag statistic: ``> 1`` benchmark leads, ``< 1`` constituent
+    leads — valid only when both lag-1 correlations are positive (the signed
+    ratio can go negative). The lag is fixed at one bar.
 
     Strictly point-in-time: the window covers indices
     ``[anchor_idx - period + 1, anchor_idx]`` and never touches a bar after the

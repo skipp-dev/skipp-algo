@@ -243,9 +243,9 @@ def _usage_provider(label: str | None) -> str:
 
     This shared HTTP layer serves Benzinga, Unusual Whales, and Massive (the
     ex-Polygon snapshot route used when ``BENZINGA_PROVIDER=massive``); the
-    label (e.g. ``benzinga_news``, ``uw_news``, ``Massive movers gainers``)
-    names the endpoint, so its prefix identifies the billed provider. Defaults
-    to ``benzinga`` (the module's primary provider) when no label is given.
+    label prefix identifies the billed provider. NB the ``uw`` branch is
+    defensive: UW calls bypass the recording wrapper today, so that bucket
+    never populates (see ``provider_usage.py``). Default: ``benzinga``.
     """
     lab = str(label or "").strip().lower()
     if lab.startswith(("uw", "unusual")):
@@ -265,7 +265,7 @@ def _request_with_retry(
 ) -> httpx.Response:
     """GET *url* with exponential backoff on retryable status codes.
 
-    Retries up to ``_MAX_ATTEMPTS`` times on 429/5xx responses and on
+    Makes up to ``_MAX_ATTEMPTS`` total attempts on 429/5xx responses and
     transient network errors (``ConnectError``, ``ReadTimeout``) via the
     canonical :func:`smc_core.resilient.resilient` decorator (full
     jitter; honors ``Retry-After`` hints from 429/5xx responses).

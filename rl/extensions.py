@@ -17,8 +17,8 @@ breaking the existing rl/simulator/execution_env contract:
    IS / max-DD.
 
 3. RLWalkForwardConfig + walk_forward_episodes(config) —
-   Wraps ml.walkforward with episode-aware semantics (each "sample" is
-   one full RL episode). Embargoes between train/val episode blocks.
+   Mirrors ml.walkforward's fold scheme, reimplemented locally (stdlib-only;
+   no anchored/min_train/outcome_horizon). Embargo between episode blocks.
 
 4. ConstraintHitLog — Append-only NDJSON-shard log of HardConstraintLayer
    clamps. Replaces the silent rejection in rl/safety so the operator
@@ -69,7 +69,7 @@ def cvar_reward(
     alpha: float = 0.05,
     risk_aversion: float = 1.0,
 ) -> float:
-    """Mean return - risk_aversion * |CVaR_alpha(returns)|.
+    """Mean return - risk_aversion * max(0, -CVaR_alpha(returns)).
 
     Adverse tails (CVaR < 0) raise the penalty; favourable tails leave
     it unchanged. The absolute value is used so a positive-only series

@@ -6,11 +6,12 @@
 
 - `rl/types.py` — Typed Contracts (`ExecutionState`, `ExecutionAction`, `SlippageEstimate`, `TradeRecord`, `TradeBlotter`).
 - `rl/slippage/` — `AlmgrenChrissCalibrator` (Bayesian linear regression, half-normal Prior, BPS-Output mit 95 %-Konfidenzintervall).
-- `rl/simulator/` — `ExecutionEnv` mit echter gymnasium-/SB3-Kompatibilität, sobald `gymnasium` installiert ist (inkl. `action_space` / `observation_space`); ohne Heavy-Dependency bleibt derselbe numpy-only Vertrag erhalten. Reward = `−ImplementationShortfallₘᵦᵖₛ − λ·variance`.
+- `rl/simulator/` — `ExecutionEnv` mit echter gymnasium-/SB3-Kompatibilität, sobald `gymnasium` installiert ist (inkl. `action_space` / `observation_space`); ohne Heavy-Dependency bleibt derselbe numpy-only Vertrag erhalten. Reward = `−ImplementationShortfallₘᵦᵖₛ − λ·risk` (risk = variance default, oder CVaR₅/CVaR₁ via `EnvConfig.risk_metric`; `lambda_var` skaliert beide).
 - `rl/baselines/` — `TWAPSlicer`, `VWAPSlicer` (volumenprofil-gewichtet, Profil wird auf Env-Horizont interpoliert).
 - `rl/agents/` — `EpsilonGreedyTwapAgent` (always-on numpy), `PPOSlicer` und `SACSizer` (try-import sb3, `available`-Flag, `RuntimeError` ohne Backend).
 - `rl/safety/` — `HardConstraintLayer` (Veto-Schicht: Größen-Cap, Drawdown-Cap, Slice/Order-Type-Whitelist).
 - `rl/drift/` — `RLDriftDetector` (PSI auf Slice-Size-Verteilungen, warn/alarm).
+- `rl/extensions.py` — C12.1-Erweiterungen: CVaR-Reward, adversariales Bar-Replay, Episoden-Walk-Forward, `ConstraintHitLog`.
 - `rl/schemas/v1_execution_state.json` — eingefrorene Schema-Datei für State- und Action-Space.
 
 ## Optionale Heavy-Backends
@@ -74,7 +75,7 @@ Heute füttern Tests den `TradeBlotter` mit synthetischen Trades. Live wird ders
 
 ## Trigger-Gate
 
-`scripts/check_c12_trigger.py` prüft separat, ob Live-Roll-out auf reale Order-Flow-Daten zulässig ist (≥ 4 Wochen Inkubation einer SMC-Familie aus C8). Solange das Gate `BLOCKED` zurückgibt, läuft die Pipeline auf synthetischen Daten und gegen den Simulator — vollständig deterministisch unter Seed.
+`scripts/check_c12_trigger.py` prüft separat, ob Live-Roll-out auf reale Order-Flow-Daten zulässig ist (pro SMC-Familie: ≥ 90 Tage live in C8 Phase-B `live_small`, ≥ 30 Trades, 0 Kill-Switch-Fires, Drift-Verdict pass/acceptable — das Skript ist die Wahrheit). Solange das Gate `BLOCKED` zurückgibt, läuft die Pipeline auf synthetischen Daten und gegen den Simulator — vollständig deterministisch unter Seed.
 
 ## Quellen
 
