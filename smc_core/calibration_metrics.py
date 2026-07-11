@@ -115,11 +115,11 @@ def _gaussian_kernel(distance: float, bandwidth: float) -> float:
 
 
 def _silverman_bandwidth(n: int) -> float:
-    """Silverman-style rule for [0,1]-supported predictions.
+    """Silverman's rule for [0,1]-supported predictions.
 
-    ``h = 1.06 * 0.25 * n^(-1/5)`` with a fixed 0.25 scale (no sample sigma
-    is computed), floored at 1e-3 so the bandwidth cannot collapse to 0
-    when the predictor is degenerate (all preds at the same value).
+    ``h = 1.06 * sigma * n^(-1/5)`` clipped at sigma=0.25 (max for U[0,1]).
+    The clip prevents the bandwidth from collapsing to 0 when the predictor
+    is degenerate (all preds at the same value).
     """
 
     return max(1.06 * 0.25 * n ** (-1.0 / 5.0), 1e-3)
@@ -136,8 +136,8 @@ def smooth_ece(
 
     Computes a kernel-smoothed reliability curve r̂(p) over a fixed grid on
     [0,1] and reports the empirical-density-weighted L1 distance between
-    r̂(p) and p.  The kernel is a plain (untruncated) Gaussian; ``bandwidth``
-    defaults to the fixed-scale Silverman-style rule above.
+    r̂(p) and p.  The kernel is a truncated Gaussian; ``bandwidth`` defaults
+    to Silverman's rule.
 
     The metric is *consistent* (in the sense of Błasiok–Nakkiran §3): it
     does not depend on a bin grid, and it is robust to the pathological

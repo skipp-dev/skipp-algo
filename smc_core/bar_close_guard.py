@@ -20,10 +20,8 @@ Contract
 --------
 :func:`guard_closed_bars` accepts a DataFrame whose ``timestamp``
 column is epoch seconds (the project-wide convention enforced by
-``coerce_timestamps_to_epoch_seconds``) and returns a frame with any
-trailing rows whose close-time exceeds ``now`` removed (the input
-object itself when nothing is dropped — callers must not mutate the
-result in place). Rows in the
+``coerce_timestamps_to_epoch_seconds``) and returns a copy with any
+trailing rows whose close-time exceeds ``now`` removed. Rows in the
 middle of the frame are never dropped; only the contiguous in-progress
 suffix.
 
