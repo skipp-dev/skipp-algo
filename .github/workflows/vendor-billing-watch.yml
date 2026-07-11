@@ -1,0 +1,71 @@
+# live-window: off-hours-only  # F-V6-F2.1: schedule-only mailbox scan, no repo writes (Slack alert only)
+name: vendor-billing-watch
+
+# Vendor-billing watcher. Post-mortem 2026-06-12: an unpaid Databento invoice
+# went unnoticed for 12 days because the API probes stayed green while billing
+# was broken. This scans the operator mailbox (Yahoo IMAP) for vendor emails
+# that signal a payment PROBLEM (failed/declined/past-due/suspension) and pings
+# Slack via composio_ops. Inert until YAHOO_APP_PASSWORD is set; a broken
+# watcher (bad app password / unreachable IMAP) exits non-zero so it shows red
+# rather than silently going blind.
+
+on:
+  schedule:
+    # 08:00 UTC daily — after credential-health-check (06:00) and ops-digest (07:00).
+    - cron: "0 8 * * *"
+  workflow_dispatch:
+    inputs:
+      days:
+        description: "Look-back window in days"
+        type: string
+        default: "2"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: vendor-billing-watch
+  cancel-in-progress: false
+
+defaults:
+  run:
+    shell: bash
+
+env:
+  PYTHONUNBUFFERED: "1"
+  PYTHONPATH: ${{ github.workspace }}
+
+jobs:
+  watch:
+    runs-on: ${{ vars.SMC_GH_HOSTED_RUNNER || 'ubuntu-latest' }}
+    timeout-minutes: 5
+    steps:
+      - name: Checkout
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+        with:
+          fetch-depth: 1
+
+      - name: Set up pinned Python
+        uses: ./.github/actions/setup-python-pinned
+
+      - name: Scan mailbox for vendor billing problems
+        env:
+          YAHOO_EMAIL: ${{ vars.YAHOO_EMAIL }}
+          YAHOO_APP_PASSWORD: ${{ secrets.YAHOO_APP_PASSWORD }}
+          VENDOR_BILLING_DOMAINS: ${{ vars.VENDOR_BILLING_DOMAINS }}
+          COMPOSIO_API_KEY: ${{ secrets.COMPOSIO_API_KEY }}
+          COMPOSIO_USER_ID: ${{ vars.COMPOSIO_USER_ID }}
+          SLACK_ALERT_USER_ID: ${{ vars.SLACK_ALERT_USER_ID }}
+          SLACK_ALERT_CHANNEL: ${{ vars.SLACK_ALERT_CHANNEL }}
+          # Pass event/input via env (not ${{ }} in run) — zizmor template-injection-safe.
+          GH_EVENT_NAME: ${{ github.event_name }}
+          INPUT_DAYS: ${{ inputs.days }}
+        run: |
+          days="2"
+          if [ "${GH_EVENT_NAME}" = "workflow_dispatch" ] && [ -n "${INPUT_DAYS}" ]; then
+            days="${INPUT_DAYS}"
+          fi
+          # composio_ops uses the Composio REST API over stdlib urllib — nothing
+          # to install. Exit 1 (IMAP unreachable / bad app password) fails the
+          # job loudly; a missing YAHOO_APP_PASSWORD skips fail-soft.
+          python scripts/vendor_billing_watch.py --days "$days"
