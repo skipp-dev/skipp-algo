@@ -137,9 +137,11 @@ _FROZEN_SITES: frozenset[tuple[str, int, tuple[str, ...]]] = frozenset(
         # above the lazy provider getters in smc_api.py.
         # 2026-06-19 (timeframe expansion): added 10m/30m map entries,
         # shifting provider-global sites 186/194/202 -> 192/200/208.
-        ("smc_tv_bridge/smc_api.py", 192, ("_candle_provider",)),
-        ("smc_tv_bridge/smc_api.py", 200, ("_regime_provider",)),
-        ("smc_tv_bridge/smc_api.py", 208, ("_tech_provider",)),
+        # 2026-07-11 (truth-audit T1): _candle_ts docstring + robust
+        # fromisoformat parsing added +14 lines, 192/200/208 -> 206/214/222.
+        ("smc_tv_bridge/smc_api.py", 206, ("_candle_provider",)),
+        ("smc_tv_bridge/smc_api.py", 214, ("_regime_provider",)),
+        ("smc_tv_bridge/smc_api.py", 222, ("_tech_provider",)),
         (
             "streamlit_terminal.py",
             599,
