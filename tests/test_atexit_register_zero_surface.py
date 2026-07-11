@@ -123,6 +123,9 @@ ATEXIT_REGISTER_ALLOWED: dict[tuple[str, str], int] = {
     ("scripts/databento_production_export.py", "main"): 1,
     ("services/live_overlay_daemon/feed.py", "_do_start"): 1,
     ("newsstack_fmp/pipeline.py", "<module>"): 1,
+    # 2026-07-11 (#3258): fail-soft one-shot provider-usage telemetry flush,
+    # armed lazily on first recorded call; handler swallows all exceptions.
+    ("newsstack_fmp/provider_usage.py", "<module>"): 1,
 }
 
 

@@ -43,7 +43,6 @@ _PACKAGE_PREFIXES = ("open_prep", "newsstack_fmp")
 # carry an inline ``# audit-L-1 R9: <reason>`` comment when added.
 _GRANDFATHER_UNCOVERED: frozenset[str] = frozenset(
     {
-        "config_validation",        # audit-L-1 R9: validator helpers exercised transitively via run_open_prep happy-path tests
         "ingest_opra_options_flow", # audit-L-1 R9: requires Databento OPRA.PILLAR entitlement; mock-stub test deferred to follow-up
         "log_redaction",            # audit-L-1 R9: redaction patterns covered by tests/test_secret_leakage_probes.py via the central helper
         "streamlit_monitor",        # audit-L-1 R9: ~3000-line streamlit UI; integration coverage owned by manual smoke checklist + dashboard CI
