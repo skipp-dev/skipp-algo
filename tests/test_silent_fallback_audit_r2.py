@@ -387,7 +387,7 @@ def test_w8_provider_timestamp_disclosed() -> None:
     }
     entry = _build_state_entry(
         item, story_key="k1", now=1_765_000_100.0, ttl_s=600.0,
-        cooldown_s=60.0, action="alert",
+        action="alert",
     )
     assert entry["published_ts_source"] == "provider"
     assert entry["published_ts"] == pytest.approx(1_765_000_000.0)
@@ -400,7 +400,7 @@ def test_w8_missing_timestamp_discloses_ingest_substitute() -> None:
     now = 1_765_000_100.0
     entry = _build_state_entry(
         item, story_key="k2", now=now, ttl_s=600.0,
-        cooldown_s=60.0, action="alert",
+        action="alert",
     )
     assert entry["published_ts_source"] == "ingest_now"
     assert entry["published_ts"] == pytest.approx(now)

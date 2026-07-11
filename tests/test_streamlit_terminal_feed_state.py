@@ -10,7 +10,6 @@ from terminal_feed_state import build_derived_feed_state, hydrate_feed_story_sta
 class _Cfg:
     feed_max_age_s: float = 14400.0
     live_story_ttl_s: float = 7200.0
-    live_story_cooldown_s: float = 900.0
 
 
 def _row(**overrides):
@@ -73,7 +72,6 @@ def test_hydrate_feed_story_state_handles_corrupt_story_state(monkeypatch) -> No
                 "providers_seen": "benzinga_rest",
                 "best_source": "Benzinga",
                 "best_provider": "benzinga_rest",
-                "cooldown_until": "bad-float",
                 "expires_at": object(),
             }
         },
@@ -86,7 +84,7 @@ def test_hydrate_feed_story_state_handles_corrupt_story_state(monkeypatch) -> No
     assert hydrated[0]["story_first_seen_ts"] == 0.0
     assert hydrated[0]["story_last_seen_ts"] == 1000.0
     assert hydrated[0]["story_providers_seen"] == []
-    assert hydrated[0]["story_cooldown_until"] == 0.0
+    assert "story_cooldown_until" not in hydrated[0]
     assert hydrated[0]["story_expires_at"] == 0.0
 
 
