@@ -6,7 +6,8 @@ Covers:
 - Freshness decay multiplier applied when ``freshness_v2`` enrichment present
 - Invalidated event is tier-capped at ``"ok"``
 - SWEEP_TRAP_QUALITY_SCORE used when present; fallback to SWEEP_QUALITY_SCORE
-- Confluence bucket contributes when ``confluence_v2`` present
+- Confluence bucket contributes when the family light dicts are present
+  (build_signal_quality_v2 recomputes compute_confluence from them)
 - Score is clamped to 0–100
 - v1 routing via ``signal_quality_model() == "v1"`` returns v1 output shape
 """
