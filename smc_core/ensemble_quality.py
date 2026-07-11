@@ -221,7 +221,7 @@ def build_ensemble_quality(
         generated_at=float(generated_at) if generated_at is not None else time.time(),
         score=round(score, 6),
         tier=_tier_from_score(score),
-        available_components=sorted(contributions),
+        available_components=sorted(contributions),  # contributed (weight > 0) — an available input with weight <= 0 is excluded
         weights={key: round(float(value), 6) for key, value in sorted(resolved_weights.items())},
         contributions=contributions,
     )

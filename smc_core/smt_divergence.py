@@ -52,7 +52,14 @@ def classify_smt_divergence(
 
 
 def detect_smt_divergence(enrichment: dict[str, Any] | None = None) -> dict[str, Any]:
-    """Detector-style SMT divergence signal used by v2 integration tests."""
+    """Detector-style SMT divergence signal.
+
+    Wired into the production v2 scorer (``scripts/smc_signal_quality.py``,
+    gated on ``ENABLE_SMT_DIVERGENCE``) as well as the v2 integration tests —
+    but NO production producer builds the required ``correlated_context``
+    enrichment (only tests construct it), so in production this always
+    returns the neutral verdict.
+    """
     neutral = {
         "SMT_DIVERGENCE_DETECTED": False,
         "SMT_DIVERGENCE_SIDE": "none",

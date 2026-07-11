@@ -1,7 +1,10 @@
 """Low-level bar normalization helpers.
 
-Extracted from scripts/smc_price_action_engine.py so that smc_core and
-smc_integration can use them without importing from the scripts layer.
+DUPLICATED (not moved) from scripts/smc_price_action_engine.py so that
+smc_core and smc_integration can use them without importing from the
+scripts layer — the engine still carries byte-identical copies of
+``coerce_timestamps_to_epoch_seconds`` / ``normalize_bars``; keep the
+two in sync until the engine imports from here.
 """
 from __future__ import annotations
 

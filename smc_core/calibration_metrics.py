@@ -12,10 +12,11 @@ Provides three calibration error families:
 
 * ``dce(...)`` — *testable* calibration error per Rossellini et al. 2025
   (arXiv:2502.19851).  Distance-to-calibration via isotonic projection on
-  the empirical reliability curve; the report value is an upper bound that
-  collapses to 0 iff the predictor is calibratable.
+  the empirical reliability curve; the report value is an upper bound on
+  the distance (0 ⇒ calibratable on-sample; a positive value does NOT prove
+  the predictor is uncalibratable — see the ``dce`` docstring).
 
-All functions are pure-stdlib (math + statistics + bisect) so the module
+All functions are pure-stdlib (math + statistics) so the module
 ships without scipy/sklearn dependencies and can be invoked from any CI
 lane that already has the smc_core wheel.
 
@@ -115,11 +116,11 @@ def _gaussian_kernel(distance: float, bandwidth: float) -> float:
 
 
 def _silverman_bandwidth(n: int) -> float:
-    """Silverman's rule for [0,1]-supported predictions.
+    """Silverman's rule with a FIXED sigma for [0,1]-supported predictions.
 
-    ``h = 1.06 * sigma * n^(-1/5)`` clipped at sigma=0.25 (max for U[0,1]).
-    The clip prevents the bandwidth from collapsing to 0 when the predictor
-    is degenerate (all preds at the same value).
+    ``h = 1.06 * 0.25 * n^(-1/5)`` — sigma is pinned at 0.25 (the max std-dev
+    for U[0,1]), never estimated from the data, so the bandwidth depends only
+    on ``n``.  A degenerate predictor therefore cannot collapse it to 0.
     """
 
     return max(1.06 * 0.25 * n ** (-1.0 / 5.0), 1e-3)
@@ -136,8 +137,8 @@ def smooth_ece(
 
     Computes a kernel-smoothed reliability curve r̂(p) over a fixed grid on
     [0,1] and reports the empirical-density-weighted L1 distance between
-    r̂(p) and p.  The kernel is a truncated Gaussian; ``bandwidth`` defaults
-    to Silverman's rule.
+    r̂(p) and p.  The kernel is a plain (untruncated) Gaussian evaluated on
+    a grid restricted to [0,1]; ``bandwidth`` defaults to Silverman's rule.
 
     The metric is *consistent* (in the sense of Błasiok–Nakkiran §3): it
     does not depend on a bin grid, and it is robust to the pathological
@@ -175,7 +176,7 @@ def smooth_ece(
 
 
 def _pool_adjacent_violators(values: Sequence[float], weights: Sequence[float]) -> list[float]:
-    """In-place PAV for monotone non-decreasing isotonic regression.
+    """Stack-based PAV for monotone non-decreasing isotonic regression.
 
     Returns a list of length ``len(values)`` where index i holds the fitted
     isotonic value for the i-th input (assumed sorted by the regressor).
@@ -205,10 +206,11 @@ def dce(predictions: Iterable[float], outcomes: Iterable[int]) -> float:
     """Distance-to-calibration error (dCE) per Rossellini et al. 2025.
 
     Defined as the L1 distance between the empirical predictions and their
-    isotonic projection onto the monotone-calibratable manifold.  Equals 0
-    iff the predictor is *calibratable* (i.e. there exists a monotone
-    transform that makes it perfectly calibrated on this sample); strictly
-    positive otherwise.
+    isotonic projection onto the monotone-calibratable manifold.  0 implies
+    the predictor is *calibratable* on this sample (a monotone transform
+    makes it perfectly calibrated); the converse does NOT hold — this upper
+    bound can be positive for a calibratable predictor (e.g. preds .2/.8,
+    outcomes 0/1 → 0.2).
 
     Implementation note: this is the upper-bound estimator from §4 of the
     paper.  Pool-Adjacent-Violators on (prediction, outcome) pairs sorted

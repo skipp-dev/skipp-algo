@@ -13,7 +13,7 @@ foundation for:
   without re-executing the harness.
 
 Schema is forward-only: new fields may be added under ``features`` /
-``outcome``; existing fields are never removed without a schema bump.
+``outcome_extras``; existing fields are never removed without a schema bump.
 
 The ledger never *replaces* ``scoring_*.json``; it sits alongside it
 in the same pair output directory as ``events_<SYMBOL>_<TIMEFRAME>.jsonl``.
@@ -40,10 +40,10 @@ logger = logging.getLogger(__name__)
 class EventLedgerRecord:
     """One persisted scored-event row.
 
-    Required fields mirror :class:`smc_core.scoring.ScoredEvent`. The
-    ``features`` and ``outcome`` dicts are intentionally open-ended so
-    upstream enrichers (D4 work) can attach ``gap_size_atr``,
-    ``hurst_50``, ``htf_aligned`` etc. without a schema bump.
+    Required fields mirror :class:`smc_core.scoring.ScoredEvent`; ``outcome``
+    is a plain bool label (never a dict). The ``features`` / ``outcome_extras``
+    dicts are the open-ended ones — upstream enrichers (D4 work) attach
+    ``gap_size_atr``, ``hurst_50``, ``htf_aligned`` there, no schema bump.
     """
 
     schema_version: str

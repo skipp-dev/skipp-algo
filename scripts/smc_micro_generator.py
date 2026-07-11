@@ -1,8 +1,9 @@
-"""SMC microstructure profile generator — pure computation, no file I/O.
+"""SMC microstructure profile generator — write-free computation.
 
 Takes a base snapshot CSV and produces scored features, membership state,
-and list assignments.  Every function in this module is side-effect free
-(reads from DataFrames, not from disk).
+and list assignments.  The module never WRITES to disk; ``generate()`` does
+READ two CSVs when given paths (``load_state(state_path)`` /
+``load_overrides(overrides_path)``) — it is write-free, not I/O-free.
 """
 from __future__ import annotations
 
@@ -27,7 +28,7 @@ from scripts.generate_smc_micro_profiles import (
 
 @dataclass(frozen=True)
 class GenerationResult:
-    """Pure computation result — no file I/O has occurred."""
+    """Computation result — nothing has been written to disk."""
 
     features_df: pd.DataFrame
     previous_state: pd.DataFrame
