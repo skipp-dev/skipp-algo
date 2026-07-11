@@ -370,3 +370,66 @@ def test_no_trade_context_no_extra_line(monkeypatch: pytest.MonkeyPatch) -> None
     calls = _capture(monkeypatch)
     rt_notify.notify_fresh_signals([_sig("AAPL", "A1")])
     assert len(calls[0][1]["json"]["text"].splitlines()) == 2  # header + one signal line
+
+
+def test_early_webhook_routes_a2_to_separate_channel(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("RT_SIGNAL_WEBHOOK_MODE", "slack")
+    monkeypatch.setenv("RT_SIGNAL_WEBHOOK_URL", "https://hook.example/main")
+    monkeypatch.setenv("RT_SIGNAL_EARLY_WEBHOOK_URL", "https://hook.example/early")
+    # Main feed muted to A0 — A2 must STILL reach the early channel.
+    monkeypatch.setenv("RT_SIGNAL_NOTIFY_LEVELS", "A0")
+    calls = _capture(monkeypatch)
+    notified = rt_notify.notify_fresh_signals([_sig("AAPL", "A0"), _sig("NVDA", "A2")])
+    assert set(notified) == {"AAPL LONG A0", "NVDA LONG A2"}
+
+    by_url = {url: kw["json"]["text"] for url, kw in calls}
+    assert set(by_url) == {"https://hook.example/main", "https://hook.example/early"}
+    main, early = by_url["https://hook.example/main"], by_url["https://hook.example/early"]
+    # A0 only in main, A2 only in early — no double-post across channels.
+    assert "AAPL" in main and "NVDA" not in main
+    assert "NVDA" in early and "AAPL" not in early
+    # Early batch reads as early-warning (header emoji + per-line ⚠️early tail).
+    assert early.startswith("⚠️") and "early-warning" in early and "⚠️early" in early
+    assert main.startswith("📈")
+
+
+def test_early_webhook_off_keeps_a2_in_main(monkeypatch: pytest.MonkeyPatch) -> None:
+    # Without RT_SIGNAL_EARLY_WEBHOOK_URL, A2 follows RT_SIGNAL_NOTIFY_LEVELS as before.
+    monkeypatch.setenv("RT_SIGNAL_WEBHOOK_URL", "https://hook.example/main")
+    monkeypatch.setenv("RT_SIGNAL_NOTIFY_LEVELS", "A0,A1,A2")
+    calls = _capture(monkeypatch)
+    notified = rt_notify.notify_fresh_signals([_sig("NVDA", "A2")])
+    assert notified == ["NVDA LONG A2"]
+    assert len(calls) == 1 and calls[0][0] == "https://hook.example/main"
+
+
+def test_early_levels_configurable(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("RT_SIGNAL_WEBHOOK_URL", "https://hook.example/main")
+    monkeypatch.setenv("RT_SIGNAL_EARLY_WEBHOOK_URL", "https://hook.example/early")
+    monkeypatch.setenv("RT_SIGNAL_EARLY_LEVELS", "A1,A2")  # route BOTH tiers early
+    monkeypatch.setenv("RT_SIGNAL_NOTIFY_LEVELS", "A0,A1,A2")
+    calls = _capture(monkeypatch)
+    rt_notify.notify_fresh_signals(
+        [_sig("AAPL", "A0"), _sig("MSFT", "A1"), _sig("NVDA", "A2")]
+    )
+    by_url = {url: kw["json"]["text"] for url, kw in calls}
+    assert "AAPL" in by_url["https://hook.example/main"]
+    early = by_url["https://hook.example/early"]
+    assert "MSFT" in early and "NVDA" in early
+    assert "MSFT" not in by_url["https://hook.example/main"]
+
+
+def test_early_webhook_ignored_for_token_mode(monkeypatch: pytest.MonkeyPatch) -> None:
+    # Telegram (token+chat_id, not a URL) has no 2nd-URL concept: the early route
+    # is inert, so A2 falls back to the main level gate (dropped when muted to A0).
+    monkeypatch.setenv("RT_SIGNAL_WEBHOOK_MODE", "telegram")
+    monkeypatch.setenv("RT_SIGNAL_TELEGRAM_BOT_TOKEN", "t")
+    monkeypatch.setenv("RT_SIGNAL_TELEGRAM_CHAT_ID", "c")
+    monkeypatch.setenv("RT_SIGNAL_EARLY_WEBHOOK_URL", "https://hook.example/early")
+    monkeypatch.setenv("RT_SIGNAL_NOTIFY_LEVELS", "A0")
+    calls = _capture(monkeypatch)
+    notified = rt_notify.notify_fresh_signals([_sig("AAPL", "A0"), _sig("NVDA", "A2")])
+    assert notified == ["AAPL LONG A0"]  # A2 not delivered to any early URL
+    assert all("hook.example/early" not in url for url, _ in calls)
