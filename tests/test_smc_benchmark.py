@@ -22,16 +22,36 @@ class TestEventFamilyKPI:
         assert kpi.hit_rate == 0.0
 
     def test_basic_kpis(self) -> None:
+        # Truth-audit E12: time_to_mitigation_mean is the mean over the
+        # events that mitigated (hits). Real misses carry ttm=0.0; here the
+        # miss's ttm is ignored regardless, so the mean is just the hit's 5.
         events = [
             {"hit": True, "time_to_mitigation": 5, "invalidated": False, "mae": 0.02, "mfe": 0.05},
-            {"hit": False, "time_to_mitigation": 10, "invalidated": True, "mae": 0.03, "mfe": 0.01},
+            {"hit": False, "time_to_mitigation": 0, "invalidated": True, "mae": 0.03, "mfe": 0.01},
         ]
         kpi = compute_event_family_kpi(events, "OB")
         assert kpi.n_events == 2
         assert kpi.hit_rate == 0.5
         assert kpi.invalidation_rate == 0.5
-        assert kpi.time_to_mitigation_mean == 7.5
+        assert kpi.time_to_mitigation_mean == 5.0
         assert kpi.family == "OB"
+
+    def test_time_to_mitigation_mean_is_over_hits_only(self) -> None:
+        # E12: two hits (ttm 4 and 8) + one miss => mean 6.0, not scaled by
+        # the miss (which would give 12/3 = 4.0 under the old ÷n).
+        events = [
+            {"hit": True, "time_to_mitigation": 4},
+            {"hit": True, "time_to_mitigation": 8},
+            {"hit": False, "time_to_mitigation": 0},
+        ]
+        kpi = compute_event_family_kpi(events, "OB")
+        assert kpi.hit_rate == round(2 / 3, 4)
+        assert kpi.time_to_mitigation_mean == 6.0
+
+    def test_time_to_mitigation_mean_zero_when_no_hits(self) -> None:
+        events = [{"hit": False, "time_to_mitigation": 0}]
+        kpi = compute_event_family_kpi(events, "OB")
+        assert kpi.time_to_mitigation_mean == 0.0
 
     def test_all_hits(self) -> None:
         events = [{"hit": True, "time_to_mitigation": 3, "invalidated": False, "mae": 0.01, "mfe": 0.04}]
