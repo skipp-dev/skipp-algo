@@ -110,7 +110,7 @@ _FROZEN_SITES: frozenset[tuple[str, int]] = frozenset(
         ("newsstack_fmp/ingest_fmp_political.py", 122),
         ("newsstack_fmp/ingest_fmp_political.py", 135),
         ("newsstack_fmp/shared_fetch.py", 337),
-        ("newsstack_fmp/pipeline.py", 1258),  # 2026-07-08 vwap-stub removal shifted (-1: 1259->1258)
+        ("newsstack_fmp/pipeline.py", 1264),  # 2026-07-11 meta-sources de-nest shifted (+6: 1258->1264)
         ("newsstack_fmp/store_sqlite.py", 81),
         ("newsstack_fmp/store_sqlite.py", 86),
         # 2026-07-01: alert candidate/throttle hardening + payload/url guards
