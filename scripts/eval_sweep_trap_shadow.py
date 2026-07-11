@@ -1,0 +1,243 @@
+#!/usr/bin/env python3
+"""Sweep-trap shadow evaluator (WS4a-ops → WS4b evidence).
+
+Reads the measurement event ledgers (``events_*.jsonl``), pulls the SWEEP-family
+events that carry the observe-only ``sweep_trap_quality_score`` feature (logged
+when ``ENABLE_SWEEP_TRAP=1``), and measures whether that score has skill at
+predicting the sweep-reversal ``outcome``:
+
+* ``brier_signal``   — Brier of ``sweep_trap_quality_score`` vs ``outcome``
+* ``brier_baseline`` — Brier of the pooled base-rate vs ``outcome``
+* ``brier_delta``    — ``baseline - signal`` (>0 ⇒ the score adds skill)
+* ``lift``           — top-tercile minus bottom-tercile reversal hit-rate
+
+It appends one row per run to a committed shadow ledger
+(``artifacts/governance/sweep_trap_shadow.jsonl``) that accumulates across daily
+runs, and writes a compact monitoring snapshot
+(``artifacts/monitoring/sweep_trap_shadow.json``) for the live-overlay daemon to
+re-expose as Prometheus gauges (Grafana). This is the DAILY shadow layer; the
+promotion decision (weeks of data, k-of-n) is deliberately downstream.
+
+Fail-soft, mirroring ``run_magnitude_shadow_ledger``: an empty/absent corpus is
+``no_data`` (exit 3, green in CI), a re-served identical feed is a stale row
+(exit 5, appends nothing), and the ledger read fails CLOSED on corruption.
+
+Exit codes: 0 promotable-or-measured · 2 measured but not promotable · 3 thin /
+no data · 5 stale feed · 1 usage/config error.
+"""
+from __future__ import annotations
+
+import argparse
+import glob
+import hashlib
+import json
+import sys
+import time
+from pathlib import Path
+from typing import Any
+
+from governance.family_calibration import MIN_OOS_SAMPLES
+from scripts.smc_atomic_write import atomic_write_json, atomic_write_text
+
+DEFAULT_LEDGER = "artifacts/governance/sweep_trap_shadow.jsonl"
+DEFAULT_SNAPSHOT = "artifacts/monitoring/sweep_trap_shadow.json"
+QUALITY_KEY = "sweep_trap_quality_score"
+
+VERDICT_CODE = {"INCONCLUSIVE": 0, "SHADOW": 1, "PROMOTABLE": 2}
+
+
+# ── sample extraction ────────────────────────────────────────────────────────
+def collect_samples(events: list[dict[str, Any]]) -> list[tuple[float, int]]:
+    """Return ``(quality, outcome)`` pairs for SWEEP events carrying the score."""
+    out: list[tuple[float, int]] = []
+    for ev in events:
+        if str(ev.get("family", "")).upper() != "SWEEP":
+            continue
+        feats = ev.get("features") or {}
+        if QUALITY_KEY not in feats:
+            continue
+        try:
+            q = float(feats[QUALITY_KEY])
+        except (TypeError, ValueError):
+            continue
+        if not (0.0 <= q <= 1.0):
+            continue
+        out.append((q, 1 if ev.get("outcome") else 0))
+    return out
+
+
+def _read_events_from_dir(benchmark_dir: Path) -> list[dict[str, Any]]:
+    from smc_core.event_ledger import read_event_ledger
+
+    events: list[dict[str, Any]] = []
+    for path in sorted(glob.glob(str(benchmark_dir / "*" / "*" / "events_*.jsonl"))):
+        events.extend(read_event_ledger(Path(path)))
+    return events
+
+
+def _read_events_from_json(path: Path) -> list[dict[str, Any]]:
+    payload = json.loads(path.read_text(encoding="utf-8"))
+    if not isinstance(payload, list):
+        raise ValueError(f"{path}: expected a JSON list of events")
+    return payload
+
+
+# ── statistics ───────────────────────────────────────────────────────────────
+def _mean(xs: list[float]) -> float:
+    return sum(xs) / len(xs) if xs else 0.0
+
+
+def evaluate(samples: list[tuple[float, int]]) -> dict[str, Any]:
+    """Compute the shadow evidence metrics + verdict for the sample set."""
+    n = len(samples)
+    if n == 0:
+        return {
+            "n_samples": 0, "base_rate": None, "brier_signal": None,
+            "brier_baseline": None, "brier_delta": None,
+            "hit_rate_top_tercile": None, "hit_rate_bottom_tercile": None,
+            "lift": None, "verdict": "INCONCLUSIVE",
+        }
+
+    outcomes = [o for _, o in samples]
+    base_rate = _mean([float(o) for o in outcomes])
+    brier_signal = _mean([(q - o) ** 2 for q, o in samples])
+    brier_baseline = _mean([(base_rate - o) ** 2 for o in outcomes])
+    brier_delta = brier_baseline - brier_signal
+
+    hit_top = hit_bot = lift = None
+    if n >= 6:  # need a meaningful tercile split
+        ordered = sorted(samples, key=lambda s: s[0])
+        k = n // 3
+        bottom = ordered[:k]
+        top = ordered[-k:]
+        hit_bot = _mean([float(o) for _, o in bottom])
+        hit_top = _mean([float(o) for _, o in top])
+        lift = hit_top - hit_bot
+
+    if n < MIN_OOS_SAMPLES:
+        verdict = "INCONCLUSIVE"
+    elif brier_delta > 0.0 and (lift is None or lift > 0.0):
+        verdict = "PROMOTABLE"
+    else:
+        verdict = "SHADOW"
+
+    return {
+        "n_samples": n,
+        "base_rate": round(base_rate, 6),
+        "brier_signal": round(brier_signal, 6),
+        "brier_baseline": round(brier_baseline, 6),
+        "brier_delta": round(brier_delta, 6),
+        "hit_rate_top_tercile": None if hit_top is None else round(hit_top, 6),
+        "hit_rate_bottom_tercile": None if hit_bot is None else round(hit_bot, 6),
+        "lift": None if lift is None else round(lift, 6),
+        "verdict": verdict,
+    }
+
+
+def events_content_hash(samples: list[tuple[float, int]]) -> str:
+    canonical = json.dumps(sorted(samples), separators=(",", ":"))
+    return hashlib.sha256(canonical.encode("utf-8")).hexdigest()[:16]
+
+
+# ── ledger persistence (fail-closed read, idempotent merge, atomic write) ─────
+def load_ledger(path: Path) -> list[dict[str, Any]]:
+    if not path.exists():
+        return []
+    rows: list[dict[str, Any]] = []
+    for lineno, line in enumerate(path.read_text(encoding="utf-8").splitlines(), 1):
+        line = line.strip()
+        if not line:
+            continue
+        try:
+            row = json.loads(line)
+        except json.JSONDecodeError as exc:
+            raise ValueError(f"{path}:{lineno}: corrupt shadow ledger line: {exc}") from exc
+        if not isinstance(row, dict):
+            raise ValueError(f"{path}:{lineno}: shadow ledger line is not an object")
+        rows.append(row)
+    return rows
+
+
+def merge_row(rows: list[dict[str, Any]], new: dict[str, Any]) -> list[dict[str, Any]]:
+    key = (new["date"], new["events_hash"])
+    kept = [r for r in rows if (r.get("date"), r.get("events_hash")) != key]
+    kept.append(new)
+    kept.sort(key=lambda r: str(r.get("date", "")))
+    return kept
+
+
+def _is_stale_feed(rows: list[dict[str, Any]], date: str, events_hash: str) -> bool:
+    """True if this exact hash was already graded under a strictly earlier date."""
+    return any(
+        r.get("events_hash") == events_hash and str(r.get("date", "")) < date for r in rows
+    )
+
+
+def build_snapshot(row: dict[str, Any]) -> dict[str, Any]:
+    return {
+        "generated_at": time.time(),
+        "date": row["date"],
+        "n_samples": row["n_samples"],
+        "min_samples": MIN_OOS_SAMPLES,
+        "brier_delta": row["brier_delta"],
+        "lift": row["lift"],
+        "verdict": row["verdict"],
+        "verdict_code": VERDICT_CODE.get(row["verdict"], 0),
+    }
+
+
+def main(argv: list[str] | None = None) -> int:
+    ap = argparse.ArgumentParser(description=__doc__)
+    src = ap.add_mutually_exclusive_group()
+    src.add_argument("--benchmark-dir", type=Path, help="Dir containing SYMBOL/TF/events_*.jsonl.")
+    src.add_argument("--events-json", type=Path, help="A JSON list of event-ledger records (dispatch/testing).")
+    ap.add_argument("--date", default=time.strftime("%Y-%m-%d", time.gmtime()))
+    ap.add_argument("--ledger", type=Path, default=Path(DEFAULT_LEDGER))
+    ap.add_argument("--snapshot", type=Path, default=Path(DEFAULT_SNAPSHOT))
+    args = ap.parse_args(argv)
+
+    try:
+        if args.events_json:
+            events = _read_events_from_json(args.events_json)
+        elif args.benchmark_dir:
+            events = _read_events_from_dir(args.benchmark_dir)
+        else:
+            events = []
+        ledger_rows = load_ledger(args.ledger)
+    except (ValueError, OSError, json.JSONDecodeError) as exc:
+        print(f"ERROR: {exc}", file=sys.stderr)
+        return 1
+
+    samples = collect_samples(events)
+    if not samples:
+        print(f"::notice::sweep-trap shadow: no SWEEP events with {QUALITY_KEY} (no_data)")
+        return 3
+
+    events_hash = events_content_hash(samples)
+    if _is_stale_feed(ledger_rows, args.date, events_hash):
+        print(f"::notice::sweep-trap shadow: stale feed (hash {events_hash} already graded) — no append")
+        return 5
+
+    metrics = evaluate(samples)
+    row = {"date": args.date, "events_hash": events_hash, "min_samples": MIN_OOS_SAMPLES, **metrics}
+
+    args.ledger.parent.mkdir(parents=True, exist_ok=True)
+    merged = merge_row(ledger_rows, row)
+    atomic_write_text("\n".join(json.dumps(r, sort_keys=True) for r in merged) + "\n", args.ledger)
+
+    args.snapshot.parent.mkdir(parents=True, exist_ok=True)
+    atomic_write_json(build_snapshot(row), args.snapshot)
+
+    print(
+        f"sweep-trap shadow [{args.date}] n={row['n_samples']} "
+        f"brier_delta={row['brier_delta']} lift={row['lift']} verdict={row['verdict']}"
+    )
+    if row["verdict"] == "PROMOTABLE":
+        return 0
+    if row["verdict"] == "SHADOW":
+        return 2
+    return 3  # INCONCLUSIVE (measured but below MIN_OOS)
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())
