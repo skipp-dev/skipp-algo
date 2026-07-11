@@ -49,7 +49,7 @@ def _is_under(path: Path, prefix: Path) -> bool:
 
 
 def is_sensitive_storage_state_path(path: Path) -> bool:
-    """Return True for ANY path under a TradingView/Playwright auth directory.
+    """Return True for any RELATIVE, case-exact path under a TV/Playwright auth dir.
 
     2026-07-10: widened from exact-basename matching (storage-state.json /
     storage_state.json) to whole-directory matching, mirroring the wholesale
