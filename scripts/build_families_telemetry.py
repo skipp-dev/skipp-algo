@@ -9,8 +9,8 @@ Strict contract (Deep-Review 2026-04-27 MAJOR finding mirror):
 
     families[i] = {
         "name":              EventFamily,   # one of BOS|OB|FVG|SWEEP
-        "live_days":         int >= 0,
-        "n_trades":          int >= 0,
+        "live_days":         int >= 0,       # live-phase (live_small/live_full) days only
+        "n_trades":          int >= 0,       # live-phase closed trades only
         "kill_switch_fires": int >= 0,
         "drift_verdict":     str,           # one of pass|acceptable|concerning|fail|...
     }
@@ -110,6 +110,20 @@ _CLOSED_TRADE_ACTIONS: frozenset[str] = frozenset({
     "stop_hit",
     "flattened",
 })
+
+# Truth-audit F3 (2026-07-11): the C12 trigger's ``live_days`` / ``n_trades``
+# must reflect a genuine Phase-B *live* track record, not Phase-A paper
+# activity — that is the entire point of the gate (``check_c12_trigger``
+# docstring: "externally sellable ... is Phase-B (live_small) not Phase-A
+# (paper)"). Only records stamped with a live phase count toward those two
+# metrics. Unknown / missing phase fails closed (does NOT count as live).
+_LIVE_PHASES: frozenset[str] = frozenset({"live_small", "live_full"})
+
+
+def _is_live_phase(rec: dict[str, Any]) -> bool:
+    """Return ``True`` if ``rec`` was produced in a live (non-paper) phase."""
+    phase = rec.get("phase")
+    return isinstance(phase, str) and phase in _LIVE_PHASES
 
 
 def _is_closed_trade(rec: dict[str, Any]) -> bool:
@@ -291,9 +305,14 @@ def aggregate(
                 continue
 
             acc = accs[family]
-            if date_hint is not None:
+            # F3: live_days / n_trades are Phase-B live evidence — only
+            # count live-phase records. Kill-switch fires are counted
+            # regardless of phase (a paper-phase halt is still a real
+            # risk event that must not be silently dropped).
+            live_rec = _is_live_phase(rec)
+            if date_hint is not None and live_rec:
                 acc.trade_days.add(date_hint)
-            if _is_closed_trade(rec):
+            if _is_closed_trade(rec) and live_rec:
                 acc.n_trades += 1
             elif rec.get("kill_switch_triggered") is True:
                 acc.kill_switch_fires += 1

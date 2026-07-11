@@ -137,19 +137,21 @@ def _check_slippage_ks_pvalue_gt_0_05(ctx: _EvalContext) -> CriterionResult:
     name = "slippage_ks_pvalue_gt_0.05"
     if ctx.variant_row is None:
         return CriterionResult(name, None, "variant absent from drift artifact")
-    # Stat-review S5 (#2674): when the KS reference is the synthetic
-    # Normal(_DEFAULT_EXPECTED_SLIPPAGE_MEAN, _DEFAULT_EXPECTED_SLIPPAGE_STD)
-    # placeholder (no ADR / no calibration provenance), a p-value
-    # comparison against it is not a machine-evaluable promotion
-    # criterion — refuse rather than compare against folklore.
+    # Stat-review S5 (#2674) + truth-audit F2 (2026-07-11): only a
+    # reference built from genuine real fills (``backtest_samples``) is a
+    # machine-evaluable promotion criterion. The synthetic Normal
+    # placeholder (``synthetic_normal``) and replay/mixed references
+    # (``replay_samples`` / ``mixed_samples`` — synthetic draws in whole
+    # or part) are NOT — refuse rather than compare against folklore or
+    # laundered synthetics.
     ref_type = ctx.variant_row.get("slippage_ks_reference_type")
-    if ref_type == "synthetic_normal":
+    if ref_type != "backtest_samples":
         return CriterionResult(
             name,
             None,
-            "slippage_ks_reference_type='synthetic_normal' (uncalibrated "
-            "placeholder reference — p-value not machine-evaluable; "
-            "supply backtest_samples)",
+            f"slippage_ks_reference_type={ref_type!r} (not real-fill-derived "
+            "— p-value not machine-evaluable; supply backtest_samples from "
+            "real fills)",
         )
     p = ctx.variant_row.get("slippage_ks_p")
     if not isinstance(p, (int, float)):
