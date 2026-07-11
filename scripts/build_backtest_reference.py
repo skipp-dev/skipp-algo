@@ -238,7 +238,18 @@ def build_drift_input_from_audit(
     :func:`scripts.compute_live_drift.compute_live_drift`::
 
         {"variant": str, "return": float, "slippage": float, "hit": bool}
+
+    ``slippage`` is signed basis points (positive = unfavourable),
+    direction-adjusted via the SAME convention as the backtest reference
+    (:func:`scripts.build_backtest_slippage_samples._slippage_bps_signed`),
+    so the K-S drift test compares like-for-like units. (Truth-audit F1,
+    2026-07-11: the live side was previously an unsigned fraction while the
+    reference was signed bps — a ×10⁴ + sign mismatch that made the Phase-B
+    slippage criterion measure a unit conversion, not slippage drift.)
     """
+    # Local import keeps the module import-light for callers that never
+    # touch the slippage path and avoids a load-time cycle.
+    from scripts.build_backtest_slippage_samples import _slippage_bps_signed
 
     out: list[dict[str, Any]] = []
     for record in audit_records:
@@ -258,8 +269,10 @@ def build_drift_input_from_audit(
         entry_price = _coerce_float(record.get("entry_price"))
         fill_price = _coerce_float(record.get("fill_price"))
         slippage: float | None = None
-        if entry_price is not None and fill_price is not None and entry_price != 0.0:
-            slippage = (fill_price - entry_price) / entry_price
+        if entry_price is not None and fill_price is not None and entry_price > 0.0:
+            slippage = _slippage_bps_signed(
+                entry_price, fill_price, record.get("action")
+            )
         pnl_f = _coerce_float(pnl)
         hit = pnl_f is not None and pnl_f > 0.0
         row: dict[str, Any] = {
