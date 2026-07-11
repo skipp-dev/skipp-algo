@@ -5,8 +5,8 @@ human-readable "pre-open N minutes / post-open M minutes" specifications
 into concrete UTC fetch boundaries for a given trade date and display
 timezone.
 
-Backward compatibility:  all names exported from this module are still
-importable from ``databento_volatility_screener`` via re-export shims.
+Backward compatibility:  names remain importable from ``databento_volatility_screener``,
+but as retained COPIES there (not re-exports); check both before assuming parity.
 """
 
 from __future__ import annotations

@@ -3,8 +3,8 @@
 Provides fake BOS / OB / FVG / sweep / regime / tech / news data so
 the Node bridge can be tested end-to-end without the real SMC runtime.
 
-Start:
-    uvicorn smc_mock_api:app --host 0.0.0.0 --port 8000
+Start (from the repo root):
+    uvicorn smc_tv_bridge.smc_mock_api:app --host 0.0.0.0 --port 8000
 """
 from __future__ import annotations
 

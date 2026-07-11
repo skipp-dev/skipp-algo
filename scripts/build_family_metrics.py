@@ -315,7 +315,7 @@ def _calibration_slice(
 def _ols_slope(values: list[float]) -> float:
     """OLS slope of ``values`` regressed on their 0-based index.
 
-    Pure-Python (the module deliberately avoids a numpy dependency). The
+    Pure-Python (this helper avoids a numpy dependency). The
     caller guarantees ``len(values) >= 2`` so the index variance ``den`` is
     strictly positive.
     """

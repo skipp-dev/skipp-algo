@@ -278,7 +278,7 @@ if __name__ == "__main__":
         type=str,
         default="1hour",
         choices=["1min", "5min", "15min", "30min", "1hour", "4hour", "daily"],
-        help="Candle timeframe",
+        help="Candle timeframe (single-symbol mode only; --multi hardcodes 1hour)",
     )
     parser.add_argument(
         "--multi",
@@ -289,7 +289,7 @@ if __name__ == "__main__":
         "--output",
         type=str,
         default="./backtest_results",
-        help="Output directory for results",
+        help="Output directory for results (single-symbol mode only; --multi writes ./backtest_results/<symbol>)",
     )
     parser.add_argument(
         "--api-key",

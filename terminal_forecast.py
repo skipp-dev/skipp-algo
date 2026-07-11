@@ -2,8 +2,8 @@
 
 Provides price-target consensus, analyst ratings, EPS estimates,
 and recent grades via FMP (``/stable/`` API, primary) with
-``yfinance`` as fallback.  Results are cached per symbol with a
-configurable TTL.
+``yfinance`` as fallback.  Results are cached per symbol with fixed
+module-constant TTLs (300 s data / 1800 s no-data).
 """
 
 from __future__ import annotations

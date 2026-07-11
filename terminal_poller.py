@@ -1060,8 +1060,8 @@ def fetch_sector_performance(api_key: str) -> list[dict[str, Any]]:
 
     Uses ``/stable/sector-performance-snapshot``.  The endpoint only
     returns data for actual trading days, so on weekends and holidays
-    this function walks back up to 5 calendar days to find the most
-    recent session with data.
+    this function walks back up to 6 trading-day steps (which can span
+    well over a calendar week) to find the most recent session with data.
 
     The endpoint returns one row per (sector, exchange) pair; this
     function aggregates across exchanges to return the mean change
