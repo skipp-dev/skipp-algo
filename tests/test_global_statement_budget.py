@@ -297,6 +297,11 @@ _FROZEN_SITES: frozenset[tuple[str, int, tuple[str, ...]]] = frozenset(
         # 2026-07-09 (fix/c8-deploy-robust): submit_failed + submitter fields in
         # _empty/_coerce shifted this global anchor +8: 188->196.
         ("services/live_overlay_daemon/evidence_freshness_bridge.py", 196, ("_cached", "_cached_at_monotonic")),
+        # 2026-07-11 (feat/sweep-trap-shadow-grafana): WS4a sweep-trap shadow
+        # snapshot bridge — same TTL-cache singleton pattern (snapshot() +
+        # _reset_cache_for_tests()).
+        ("services/live_overlay_daemon/sweep_trap_shadow_bridge.py", 140, ("_cached", "_cached_at_monotonic")),
+        ("services/live_overlay_daemon/sweep_trap_shadow_bridge.py", 153, ("_cached", "_cached_at_monotonic")),
         ("services/live_overlay_daemon/provider_usage_bridge.py", 129, ("_cached", "_cached_at_monotonic")),
         # 2026-06-24 (feat/railway-metrics): Railway GraphQL bridge for container
         # metrics exposes a lazily-refreshed TTL cache (mirroring uptimerobot).

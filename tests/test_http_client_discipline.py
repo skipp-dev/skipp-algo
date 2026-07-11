@@ -179,6 +179,9 @@ _FROZEN_URLOPEN_SITES: frozenset[tuple[str, int]] = frozenset(
         # _empty/_coerce shifted this +8: 137->145.
         ("services/live_overlay_daemon/evidence_freshness_bridge.py", 145),
         ("services/live_overlay_daemon/provider_usage_bridge.py", 96),
+        # 2026-07-11 (feat/sweep-trap-shadow-grafana): WS4a sweep-trap shadow
+        # snapshot fetcher, https-only with explicit timeout=.
+        ("services/live_overlay_daemon/sweep_trap_shadow_bridge.py", 96),
         # 2026-06-23: signals-producer consumer hook — _fetch_json_url pulls
         # the open-prep snapshot from OPEN_PREP_SNAPSHOT_URL with explicit
         # timeout discipline (Railway worker without local artifact).

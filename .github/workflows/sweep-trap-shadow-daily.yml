@@ -186,3 +186,65 @@ jobs:
             eval.log
           if-no-files-found: ignore
           retention-days: 30
+
+      - name: Publish snapshot to rolling bot branch
+        # Mirrors evidence-freshness-snapshot.yml: force-publish the monitoring
+        # snapshot to bot/live-sweep-trap-shadow so the live-overlay daemon fetches
+        # it via SWEEP_TRAP_SHADOW_SNAPSHOT_URL (Railway has no persistent volume,
+        # and a per-day PR to main just to bump a timestamp would be pure churn).
+        #
+        # Gate: a freshly-written snapshot has generated_at > 0; a no_data/stale
+        # run leaves the committed seed (generated_at 0) untouched and publishes
+        # nothing — the snapshot age then climbs and lo-sweep-trap-shadow-stale
+        # eventually fires. Runs LAST so the upload step sees the working tree
+        # before this step force-resets it onto origin/main.
+        if: always()
+        env:
+          GH_TOKEN: ${{ secrets.GH_PAT }}
+        run: |
+          set -euo pipefail
+          snapshot="artifacts/monitoring/sweep_trap_shadow.json"
+          if [ -z "${GH_TOKEN:-}" ]; then
+            echo "::warning::GH_PAT not configured; skipping publish to bot/live-sweep-trap-shadow"
+            exit 0
+          fi
+          if [ ! -s "${snapshot}" ]; then
+            echo "No snapshot file; nothing to publish."
+            exit 0
+          fi
+          fresh="$(python -c 'import json,sys; print(1 if float(json.load(open(sys.argv[1])).get("generated_at", 0)) > 0 else 0)' "${snapshot}")"
+          if [ "${fresh}" != "1" ]; then
+            echo "::notice title=sweep-trap-shadow::snapshot is the no-data seed (generated_at=0); nothing fresh to publish"
+            exit 0
+          fi
+
+          # Build the publish commit off a clean origin/main so the ledger PR
+          # branch state (from the commit-back step) can never leak into it.
+          tmp="$(mktemp)"
+          cp "${snapshot}" "${tmp}"
+          _remote_url="https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git"
+          git fetch "${_remote_url}" main 2>/dev/null || true
+          git checkout -f -B _sweep_trap_shadow_publish FETCH_HEAD
+
+          stable_dir="artifacts/monitoring/latest"
+          mkdir -p "${stable_dir}"
+          cp "${tmp}" "${stable_dir}/sweep_trap_shadow.json"
+          git config user.name  "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -f "${stable_dir}/sweep_trap_shadow.json"
+          if git diff --cached --quiet; then
+            echo "No sweep-trap-shadow snapshot changes to publish."
+            exit 0
+          fi
+          git commit -m "[skip ci] chore: refresh sweep-trap-shadow snapshot"
+
+          _remote_ref="refs/heads/bot/live-sweep-trap-shadow"
+          _tracking_ref="refs/remotes/origin/bot/live-sweep-trap-shadow"
+          git fetch "${_remote_url}" "+${_remote_ref}:${_tracking_ref}" 2>/dev/null || true
+          _zero_sha="0000000000000000000000000000000000000000"
+          _lease_expected="$(git rev-parse --verify "${_tracking_ref}" 2>/dev/null || echo "${_zero_sha}")"
+          if git push "--force-with-lease=${_remote_ref}:${_lease_expected}" "${_remote_url}" "HEAD:${_remote_ref}"; then
+            echo "::notice title=sweep-trap-shadow::snapshot published to bot/live-sweep-trap-shadow"
+          else
+            echo "::warning::sweep-trap-shadow snapshot push failed; the uploaded artifact is still available"
+          fi

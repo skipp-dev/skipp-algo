@@ -16,7 +16,11 @@ _DASHBOARD = (
     / "dashboard-signals-experiments.json"
 )
 
-SECTION_ORDER = ["Live Trading Signals", "Daily Experiment (Phase E2)"]
+SECTION_ORDER = [
+    "Live Trading Signals",
+    "Daily Experiment (Phase E2)",
+    "Sweep-Trap Shadow (WS4a)",
+]
 
 
 def _load() -> dict:
@@ -85,3 +89,36 @@ def test_every_signal_panel_is_in_a_section() -> None:
         if p.get("id") == 999:
             continue
         assert p["gridPos"]["y"] >= first_row_y, p.get("title")
+
+
+def test_sweep_trap_shadow_panels_query_the_ws4a_gauges() -> None:
+    """The WS4a section surfaces the verdict, Brier-delta, lift, sample accrual
+    and snapshot age from the sweep_trap_shadow gauges."""
+    d = _load()
+    exprs = " ".join(
+        t.get("expr", "")
+        for p in _visual_panels(d)
+        for t in p.get("targets", [])
+    )
+    for metric in (
+        "live_overlay_sweep_trap_shadow_verdict_code",
+        "live_overlay_sweep_trap_shadow_brier_delta",
+        "live_overlay_sweep_trap_shadow_lift",
+        "live_overlay_sweep_trap_shadow_sample_count",
+        "live_overlay_sweep_trap_shadow_snapshot_age_seconds",
+    ):
+        assert metric in exprs, f"no panel queries {metric}"
+
+
+def test_sweep_trap_shadow_verdict_panel_maps_all_three_codes() -> None:
+    """The verdict tile must decode 0/1/2 to human labels, not raw codes."""
+    d = _load()
+    verdict = next(
+        (p for p in _visual_panels(d) if p.get("title") == "Sweep-Trap Shadow Verdict"),
+        None,
+    )
+    assert verdict is not None
+    mappings = verdict["fieldConfig"]["defaults"]["mappings"][0]["options"]
+    assert mappings["0"]["text"] == "INCONCLUSIVE"
+    assert mappings["1"]["text"] == "SHADOW"
+    assert mappings["2"]["text"] == "PROMOTABLE"

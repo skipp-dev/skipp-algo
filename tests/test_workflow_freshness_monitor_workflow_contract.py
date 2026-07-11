@@ -151,6 +151,10 @@ _MONITORED_WORKFLOWS = (
     "g23-ab-watchdog.yml",
     "smc-live-news-refresh.yml",
     "smc-measurement-benchmark-rolling.yml",
+    # WS4a sweep-trap shadow eval — same silent-skip risk as the magnitude
+    # shadow: if it stops running, the promotion evidence silently stops
+    # accruing. :any:weekday mirrors the magnitude-shadow sibling.
+    "sweep-trap-shadow-daily.yml",
 )
 
 
