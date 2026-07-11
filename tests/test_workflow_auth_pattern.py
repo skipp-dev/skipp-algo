@@ -177,6 +177,12 @@ _FORCE_LEASE_ALLOWLIST: frozenset[str] = frozenset({
     # serves; force-with-lease with prior fetch (same pattern as
     # plan-2-8-evaluation). See ADR-0024.
     "evidence-freshness-snapshot.yml",
+    # sweep-trap-shadow-daily.yml (WS4a, #3414): rolling
+    # bot/live-sweep-trap-shadow refresh of the sweep-trap shadow monitoring
+    # snapshot the live-overlay daemon fetches; force-with-lease with prior
+    # fetch (same rolling-snapshot pattern as evidence-freshness-snapshot).
+    # See ADR-0024.
+    "sweep-trap-shadow-daily.yml",
 })
 
 _FORCE_RE = re.compile(r"git\s+push\b[^\n]*--force")
