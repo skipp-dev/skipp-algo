@@ -118,6 +118,7 @@ REPO_ROOT = Path(__file__).resolve().parents[1]
 if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
 
+from databento_universe import fetch_us_equity_universe_with_metadata
 from databento_volatility_screener import (
     DEFAULT_CLOSE_IMBALANCE_AFTERHOURS_END_ET,
     DEFAULT_CLOSE_IMBALANCE_AUCTION_TIME_ET,
@@ -143,7 +144,6 @@ from databento_volatility_screener import (
     estimate_databento_costs,
     export_run_artifacts,
     fetch_symbol_day_detail,
-    fetch_us_equity_universe_with_metadata,
     filter_supported_universe_for_databento,
     list_accessible_datasets,
     list_recent_trading_days,
@@ -3654,6 +3654,27 @@ def _run_fmp_intraday_bridge(
     return pd.DataFrame(rows) if rows else pd.DataFrame()
 
 
+def _resolve_universe_asof(
+    trading_days: list, *, today: date
+) -> tuple[date | None, bool]:
+    """Point-in-time universe resolution inputs (truth-audit #5).
+
+    Returns ``(as_of_trade_date, active_only)`` for
+    ``fetch_us_equity_universe_with_metadata``:
+
+    * ``as_of`` = the latest processed trading day (the universe is applied to
+      the whole processed range, so the newest day is the honest as-of).
+    * ``active_only`` is ``False`` for a HISTORICAL run (``as_of < today``) so
+      the guarded fetcher replays that day's persisted snapshot when present
+      (survivorship-safe) and otherwise flags ``survivorship_bias_risk=True``
+      instead of silently biasing; ``True`` for a live/today run (which
+      persists today's snapshot for future replay). Empty input → today/live.
+    """
+    as_of = max((pd.Timestamp(d).date() for d in trading_days), default=None)
+    active_only = as_of is None or as_of >= today
+    return as_of, active_only
+
+
 def run_production_export_pipeline(
     *,
     databento_api_key: str,
@@ -3732,9 +3753,16 @@ def run_production_export_pipeline(
         )
 
     _progress("Step 3/10: Fetching equity universe...")
+    # Truth-audit #5 (2026-07-11): resolve the universe point-in-time as of the
+    # latest processed trading day (see _resolve_universe_asof).
+    _universe_as_of, _universe_active_only = _resolve_universe_asof(
+        trading_days, today=datetime.now(UTC).date()
+    )
     raw_universe, universe_metadata = fetch_us_equity_universe_with_metadata(
         fmp_api_key,
         min_market_cap=min_market_cap or None,
+        active_only=_universe_active_only,
+        trade_date=_universe_as_of,
     )
     if fmp_api_key:
         raw_universe = _enrich_universe_with_fundamentals(
@@ -4310,6 +4338,13 @@ def run_production_export_pipeline(
         "universe_min_market_cap_requested": universe_metadata.get("min_market_cap_requested"),
         "universe_min_market_cap_effective": universe_metadata.get("min_market_cap_effective"),
         "universe_min_market_cap_applied": universe_metadata.get("min_market_cap_applied"),
+        # Truth-audit #5: point-in-time provenance. survivorship_bias_risk=True
+        # means a historical run could not replay a per-day snapshot and fell
+        # back to the current live universe (delisted/renamed names missing).
+        "universe_active_only": universe_metadata.get("active_only"),
+        "universe_as_of_trade_date": universe_metadata.get("trade_date"),
+        "universe_survivorship_bias_risk": universe_metadata.get("survivorship_bias_risk"),
+        "universe_snapshot_captured_at": universe_metadata.get("snapshot_captured_at"),
         "lookback_days": lookback_days,
         "top_fraction": top_fraction,
         "ranking_metric": ranking_metric,
