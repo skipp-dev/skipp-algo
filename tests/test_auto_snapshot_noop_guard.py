@@ -1,11 +1,12 @@
 """Audit guard: auto-snapshot cron workflows must not open no-op PRs.
 
-The ``fvg-context-pine-refresh`` and ``fvg-quality-quartile-gate`` workflows
-regenerate a tracked artifact on every scheduled run. The emitter rewrites
-volatile provenance (``generated_at`` / ``source_commit_sha`` /
-``source_workflow_run``) each run, so a naive ``git diff --staged --quiet``
-check is *never* empty even when the substantive content (FVG health status /
-release-gate decision) is unchanged.
+The ``fvg-quality-quartile-gate`` workflow regenerates a tracked artifact on
+every scheduled run. The emitter rewrites volatile provenance
+(``generated_at`` / ``commit_sha`` / ``workflow_run``) each run, so a naive
+``git diff --staged --quiet`` check is *never* empty even when the substantive
+content (release-gate decision) is unchanged. (The sibling
+``fvg-context-pine-refresh`` workflow was removed as a structurally dead
+pipeline — truth-audit 2026-07-11.)
 
 Without a content-aware guard the cron opens a fresh PR every run that only
 bumps a timestamp — pure churn that burns a full CI cycle and a merge-queue
@@ -30,11 +31,6 @@ _WORKFLOW_DIR = pathlib.Path(__file__).resolve().parents[1] / ".github" / "workf
 # Each guarded workflow plus the volatile provenance tokens its guard must
 # exempt from the substantive-diff computation.
 _GUARDED_WORKFLOWS = {
-    "fvg-context-pine-refresh.yml": (
-        "generated_at",
-        "source_commit_sha",
-        "source_workflow_run",
-    ),
     "fvg-quality-quartile-gate.yml": (
         "generated_at",
         "commit_sha",
