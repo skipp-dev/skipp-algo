@@ -42,6 +42,23 @@ class HardConstraintLayer:
     # constructor signature (no audit) keeps working.
     hit_log: ConstraintHitLog | None = field(default=None, repr=False)
 
+    def __post_init__(self) -> None:
+        # Validate the caps themselves so a misconfigured guard fails CLOSED,
+        # not open. A NaN cap makes every ``x >= cap`` / ``x > cap`` comparison
+        # False, silently disabling the veto; a cap > 1 (e.g. a percent mistaken
+        # for a fraction — ``5`` read as "5%") lets through up to that multiple
+        # of equity / drawdown; a negative size cap makes the guard emit a
+        # negative fraction. The guard rejects non-finite *inputs* but never
+        # checked its own config. (ml.drift.MLDriftDetector validates likewise.)
+        if not math.isfinite(self.max_size_fraction) or not (0.0 <= self.max_size_fraction <= 1.0):
+            raise ValueError(
+                f"max_size_fraction must be a finite fraction in [0, 1], got {self.max_size_fraction!r}"
+            )
+        if not math.isfinite(self.max_drawdown_pct) or not (0.0 <= self.max_drawdown_pct <= 1.0):
+            raise ValueError(
+                f"max_drawdown_pct must be a finite fraction in [0, 1], got {self.max_drawdown_pct!r}"
+            )
+
     def guard_action(self, action: ExecutionAction, *, drawdown_pct: float = 0.0) -> GuardResult:
         if not math.isfinite(drawdown_pct):
             self._log(
