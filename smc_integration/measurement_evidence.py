@@ -49,7 +49,6 @@ from smc_core.scoring import (
     score_events,
 )
 from smc_core.session_context import build_session_liquidity_context
-from smc_core.smc_confluence import compute_confluence  # Phase D
 from smc_core.sweep_trap import classify_sweep_trap  # Phase B
 from smc_core.vol_regime import compute_vol_regime
 from smc_integration.artifact_resolution import resolve_structure_artifact_inputs
@@ -1002,27 +1001,6 @@ def _freshness_state_light_for_event(
 # Phase D helper — confluence shadow enrichment
 # ---------------------------------------------------------------------------
 
-def _confluence_light_for_event(
-    *,
-    ob_light: dict[str, Any] | None,
-    fvg_light: dict[str, Any] | None,
-    sweep_light: dict[str, Any] | None,
-) -> dict[str, Any]:
-    """Build Phase D confluence enrichment for a single SMC event.
-
-    Returns a dict with ``raw_confluence_score`` and ``confluence_tier``
-    for insertion under ``"confluence_v2"`` in the enrichment dict.
-    """
-    result = compute_confluence(ob_light, fvg_light, sweep_light)
-    return {
-        "ob_contribution": result.ob_contribution,
-        "fvg_contribution": result.fvg_contribution,
-        "sweep_contribution": result.sweep_contribution,
-        "raw_confluence_score": result.raw_confluence_score,
-        "confluence_tier": result.confluence_tier,
-    }
-
-
 def _event_signal_quality_score(
     *,
     event: dict[str, Any],
@@ -1101,14 +1079,6 @@ def _event_signal_quality_score(
             event=event,
             anchor_idx=anchor_idx,
             bars=bars,
-        )
-
-    # Phase D: confluence shadow enrichment (no-op when disabled).
-    if is_confluence_score_enabled():
-        enrichment["confluence_v2"] = _confluence_light_for_event(
-            ob_light=enrichment.get("ob_context_light"),
-            fvg_light=enrichment.get("fvg_lifecycle_light"),
-            sweep_light=enrichment.get("liquidity_sweeps"),
         )
 
     # Route to v2 scoring function when SIGNAL_QUALITY_MODEL flag is set.
