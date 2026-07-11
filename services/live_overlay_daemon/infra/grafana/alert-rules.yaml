@@ -2590,6 +2590,38 @@ groups:
         hourly live-news cron will stop ingesting.
       runbook: Rotate BENZINGA_API_KEY (the paid Massive reseller key) and confirm BENZINGA_PROVIDER
         transport; see scripts/credential_health_check.py probe_benzinga.
+  - uid: lo-credential-finnhub-invalid
+    title: Finnhub API key invalid
+    condition: C
+    noDataState: OK
+    data:
+    - refId: A
+      datasourceUid: grafanacloud-prom
+      model:
+        expr: live_overlay_credential_health_finnhub_api_key_valid{job="live_overlay"} == bool 0
+        instant: true
+    - refId: C
+      datasourceUid: __expr__
+      model:
+        type: threshold
+        conditions:
+        - evaluator:
+            type: gt
+            params:
+            - 0
+          operator:
+            type: and
+          query:
+            params:
+            - A
+    for: 10m
+    labels:
+      severity: warning
+    annotations:
+      summary: The Finnhub API key is failing its daily auth probe -- terminal_finnhub and open_prep macro
+        Finnhub lookups will fail. Optional provider; only alerts when FINNHUB_API_KEY is configured.
+      runbook: Rotate FINNHUB_API_KEY and update the secret; see scripts/credential_health_check.py
+        probe_finnhub. If Finnhub is unused, remove the secret and the probe self-skips.
   - uid: lo-credential-github-pat-invalid
     title: GitHub PAT invalid or expiring
     condition: C

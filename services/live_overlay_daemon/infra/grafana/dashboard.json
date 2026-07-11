@@ -6163,6 +6163,79 @@
       }
     },
     {
+      "id": 3900007,
+      "title": "Finnhub API Key",
+      "type": "stat",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "grafanacloud-prom"
+      },
+      "description": "Is the Finnhub API key valid? Optional provider (terminal_finnhub / open_prep macro). Shows NO DATA until FINNHUB_API_KEY is configured \u2014 the probe self-skips when the key is unset.",
+      "gridPos": {
+        "h": 5,
+        "w": 6,
+        "x": 0,
+        "y": 233
+      },
+      "targets": [
+        {
+          "expr": "live_overlay_credential_health_finnhub_api_key_valid{job=~\"$job\"}",
+          "legendFormat": "Finnhub API Key",
+          "instant": true,
+          "datasource": {
+            "type": "prometheus",
+            "uid": "grafanacloud-prom"
+          }
+        }
+      ],
+      "options": {
+        "colorMode": "background",
+        "graphMode": "none",
+        "textMode": "value",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        }
+      },
+      "fieldConfig": {
+        "defaults": {
+          "noValue": "NO DATA",
+          "mappings": [
+            {
+              "type": "value",
+              "options": {
+                "0": {
+                  "text": "INVALID",
+                  "color": "red"
+                },
+                "1": {
+                  "text": "VALID",
+                  "color": "green"
+                }
+              }
+            }
+          ],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "red",
+                "value": null
+              },
+              {
+                "color": "green",
+                "value": 1
+              }
+            ]
+          }
+        },
+        "overrides": []
+      }
+    },
+    {
       "title": "News Provider State Codes",
       "type": "text",
       "description": "Legend for News Provider panels directly below.",
