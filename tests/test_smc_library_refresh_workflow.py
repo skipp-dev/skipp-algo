@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import re
 from pathlib import Path
 
 from smc_integration.release_policy import (
@@ -504,4 +505,70 @@ def test_preflight_step_wires_benzinga_key_and_provider() -> None:
     )
     assert "BENZINGA_PROVIDER:" in block, (
         "preflight step must pass BENZINGA_PROVIDER — a Massive key on the direct transport 401s"
+    )
+
+
+_PRODUCER_PATH = ROOT / ".github/workflows/smc-databento-production-export-sharded.yml"
+
+
+def _earliest_producer_cron_hour() -> int:
+    """Earliest weekday producer tick hour (UTC) parsed from the cron block.
+
+    Cron format is ``"MIN HOUR DOM MON DOW"`` so the hour is the 2nd field.
+    Parsed from raw text to sidestep the YAML 1.1 ``on:`` -> ``True`` gotcha.
+    """
+    hours = {
+        int(hour)
+        for _minute, hour in re.findall(
+            r"-\s*cron:\s*[\"']?(\d+)\s+(\d+)", _read(_PRODUCER_PATH)
+        )
+    }
+    assert hours, "producer workflow has no parseable cron ticks"
+    return min(hours)
+
+
+def test_stale_fallback_guard_disarmed_before_producer_first_tick() -> None:
+    """Cross-midnight false-red guard (F-V8-C4.3, 2026-07-11).
+
+    GitHub scheduler lag can push the last nightly consumer tick
+    (cron ``0 23 * * 1-5``) past 00:00 UTC. ``REFRESH_DATE`` is stamped from
+    the *execution*-time wall clock, so it then rolls to the next calendar day
+    and the same-date producer match demands a bundle that does not exist yet
+    (on a Fri->Sat crossing it can never exist — the producer runs Mon-Fri).
+    The prior evening's bundle is ~1-2 h old and NOT stale, so the reject-stale
+    guard must stay disarmed until a same-date producer bundle is actually due.
+    """
+    workflow_text = _read(WORKFLOW_PATH)
+
+    # 'Set refresh date' computes the arm flag from the current UTC hour.
+    date_block = _step_block(workflow_text, "Set refresh date")
+    assert "id: set_refresh_date" in date_block
+    assert 'echo "stale_guard_active=${GUARD}" >> "$GITHUB_OUTPUT"' in date_block
+    # 10#-prefixed arithmetic so zero-padded 08/09 don't trip bash octal parsing.
+    assert "10#$REFRESH_UTC_HOUR" in date_block
+
+    # The reject-stale guard fires only when armed.
+    stale_guard_block = _step_block(
+        workflow_text, "Reject stale Databento fallback on automated refresh"
+    )
+    assert (
+        "steps.set_refresh_date.outputs.stale_guard_active == 'true'"
+        in stale_guard_block
+    )
+    # The original hard-fail contract is preserved for genuine daytime staleness.
+    assert "github.event_name != 'workflow_dispatch'" in stale_guard_block
+    assert "Refusing to generate from a stale producer bundle" in stale_guard_block
+
+    # The disarmed (overnight) path is auditable, not silent.
+    note_block = _step_block(workflow_text, "Note tolerated overnight Databento fallback")
+    assert "stale_guard_active != 'true'" in note_block
+    assert "::notice::" in note_block
+
+    # The arm hour must equal the producer's earliest daily tick so the window
+    # stays tied to the real schedule if the producer cron ever moves.
+    arm_hour = int(
+        re.search(r"PRODUCER_FIRST_TICK_UTC_HOUR=(\d+)", date_block).group(1)
+    )
+    assert arm_hour == _earliest_producer_cron_hour(), (
+        "stale-fallback guard arm hour drifted from the producer's earliest cron tick"
     )
