@@ -1,6 +1,11 @@
 """HTF bias context — canonical location (moved from scripts/).
 
-Provides FVG bias counter, IPDA range, and calendar boundary helpers.
+Provides the "FVG bias counter" (a MISNOMER kept for API compatibility: it
+counts 2-bar close-through-prior-extreme breakouts — ``close > prev high`` /
+``close < prev low`` — NOT 3-candle fair value gaps; the property tests call
+these "breakouts"), IPDA range, and calendar boundary helpers.  Note
+``compute_calendar_boundaries`` buckets day/week/month on the UTC clock,
+unlike ``session_context``'s local-tz (ET) bucketing.
 """
 from __future__ import annotations
 

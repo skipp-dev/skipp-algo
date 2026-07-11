@@ -223,7 +223,7 @@ def brier_score(predictions: list[tuple[float, bool]]) -> float:
 def log_score(predictions: list[tuple[float, bool]]) -> float:
     """Compute Log Score (negative log-likelihood per prediction).
 
-    Lower is better (less negative).
+    Returned value is the positive mean NLL — always >= 0; lower is better.
     Clips probabilities to [1e-15, 1-1e-15] to avoid -inf.
     """
     if not predictions:
@@ -816,7 +816,7 @@ def label_sweep_reversal(
     sweep_price:
         Price at the sweep event.
     sweep_side:
-        ``"BUY_SIDE"`` or ``"SELL_SIDE"``.
+        ``"SELL_SIDE"`` → up-reversal test; any other value → down-reversal branch.
     subsequent_closes:
         Close prices of the *N* bars after the sweep.
     threshold_pct:

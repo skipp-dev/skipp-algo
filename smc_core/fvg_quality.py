@@ -14,13 +14,14 @@ The scoring function takes a dictionary of per-event features and
 returns a ``FvgQualityScore`` with:
 
 - ``score`` ∈ [0.0, 1.0] — calibrated via fixed, explicit weights.
-- ``tier`` ∈ {``"HIGH"``, ``"MEDIUM"``, ``"LOW"``, ``"INSUFFICIENT"``}.
+- ``tier`` ∈ {``"HIGH"``, ``"MEDIUM"``, ``"LOW"``} — nothing in the repo
+  produces ``"INSUFFICIENT"``.
 - ``multiplier`` ∈ [0.5, 1.5] — the conservative deployment mode
   from the plan. A score-only callsite ignores the multiplier; a
   future gate-on-quality callsite uses it as a family-weight
   multiplier instead of a hard cut.
 
-Feature weights (sum = 1.0, pinned for reproducibility):
+LEGACY feature weights (LENIENT_WEIGHTS, sum = 1.0, higher-is-better):
 
 =================================  =======
 feature                             weight
@@ -31,6 +32,13 @@ feature                             weight
 ``is_full_body`` (bool)               0.10
 ``hurst`` (persistence, centred)      0.20
 =================================  =======
+
+NOTE: the PRODUCTION DEFAULT is ``STRICT_V1_NO_HURST_WEIGHTS`` (see the
+weight-versioning block below): weights 0.45/0.0735/0.45/0.0515/0.0
+(sum 1.025, not re-normalised) with ALL DIRECTIONS = -1, so under the
+default regime LOWER feature values score HIGHER — the table above only
+describes the legacy lenient regime.  ``score_fvg``'s docstring is the
+authoritative description of the strict semantics.
 
 The Hurst exponent in particular comes from Friday et al. 2026 —
 persistent regimes (H > 0.5) are cited as a precondition for the
@@ -71,8 +79,8 @@ _MULTIPLIER_MAX = 1.5
 #   "outcome" label (full hit). Higher feature values lift the score.
 # * STRICT_V1_NO_HURST_WEIGHTS — promoted from the L2-logreg
 #   recalibration on the strict ``partial_50`` label (≥50% partial
-#   fill). Re-normalised after dropping ``hurst_50`` (audit §1.5: null
-#   signal). Pairs with ``STRICT_V1_NO_HURST_DIRECTIONS`` (all -1
+#   fill). ``hurst_50`` dropped (audit §1.5: null signal); weights NOT
+#   re-normalised (sum 1.025). Pairs with STRICT_V1_NO_HURST_DIRECTIONS (all -1
 #   except hurst=0) and ``STRICT_V1_NO_HURST_MEANS`` (component-space
 #   neutral = 0.5).
 #
@@ -192,9 +200,9 @@ def rolling_hurst(closes: list[float]) -> float | None:
 
 
 def _component_gap(gap_size_atr: float) -> float:
-    # Centre the logistic at 1 ATR so ~1 ATR maps to 0.5, 2 ATR to
-    # ~0.73, 0.3 ATR to ~0.32. Matches the Friday-style "meaningful
-    # gap" intuition.
+    # Centre the logistic at 1 ATR (slope 2.0) so ~1 ATR maps to 0.5,
+    # 2 ATR to ~0.88, 0.3 ATR to ~0.20. Matches the Friday-style
+    # "meaningful gap" intuition.
     return _logistic(2.0 * (gap_size_atr - 1.0))
 
 
@@ -348,5 +356,5 @@ def score_fvg(
 
 
 def score_events(events: list[dict[str, Any]]) -> list[FvgQualityScore]:
-    """Vectorised convenience wrapper — preserves input order."""
+    """Batch convenience wrapper (plain loop) — preserves input order."""
     return [score_fvg(event) for event in events]
