@@ -367,6 +367,10 @@ def build_ticker_resolution_state(
             "resolution_resolved": resolution_resolved,
             "resolution_actionable": resolution_actionable,
             "resolution_reason": resolution_reason,
+            # Truth-audit T-F1 (2026-07-11): persist the catalyst direction
+            # so the next build's seed carries the prior direction and the
+            # direction-flip anchor reset actually fires (see reaction_state).
+            "catalyst_direction": direction,
         }
 
     return ticker_state

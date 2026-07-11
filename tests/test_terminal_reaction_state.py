@@ -75,6 +75,49 @@ def test_build_ticker_reaction_state_confirms_rt_price_and_volume() -> None:
     assert state["AAPL"]["reaction_alignment"] == "ALIGNED"
     assert state["AAPL"]["reaction_actionable"] is True
     assert state["AAPL"]["reaction_score"] > 0.82
+    # T-F1: the state output now carries the catalyst direction so the next
+    # build can detect a flip.
+    assert state["AAPL"]["catalyst_direction"] == "BULLISH"
+
+
+def test_direction_flip_resets_anchor_but_same_direction_keeps_it() -> None:
+    """Truth-audit T-F1: a catalyst-direction flip must reset the anchor.
+
+    Previously the state output carried no ``catalyst_direction``, so
+    ``previous_direction`` always fell back to the *current* direction and
+    the flip comparison was a tautology — a bull→bear flip kept a stale
+    anchor and mis-measured the reaction impulse.
+    """
+    prev = {
+        "AAPL": {
+            "reaction_state": "WATCH",
+            "reaction_anchor_story_key": "story-a",
+            "reaction_anchor_price": 100.0,
+            "reaction_anchor_ts": 990.0,
+            "reaction_peak_impulse_pct": 5.0,
+            "catalyst_direction": "BULLISH",
+        },
+    }
+
+    # Same direction → anchor retained at 100.0.
+    kept = build_ticker_reaction_state(
+        [_row(catalyst_direction="BULLISH")],
+        rt_quotes={"AAPL": {"price": 101.0, "chg_pct": 1.0, "vol_ratio": 1.0}},
+        previous_state=prev,
+        now=1000.0,
+    )["AAPL"]
+    assert kept["reaction_anchor_price"] == 100.0
+    assert kept["catalyst_direction"] == "BULLISH"
+
+    # Flipped direction, same story → anchor reset to the current price.
+    flipped = build_ticker_reaction_state(
+        [_row(catalyst_direction="BEARISH")],
+        rt_quotes={"AAPL": {"price": 101.0, "chg_pct": -1.0, "vol_ratio": 1.0}},
+        previous_state=prev,
+        now=1000.0,
+    )["AAPL"]
+    assert flipped["reaction_anchor_price"] == 101.0  # reset, NOT the stale 100.0
+    assert flipped["catalyst_direction"] == "BEARISH"
 
 
 def test_build_ticker_reaction_state_uses_databento_as_watch_fallback() -> None:
