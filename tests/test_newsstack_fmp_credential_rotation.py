@@ -35,6 +35,12 @@ class _CfgStub:
     def __init__(self, *, fmp="k1", bz="b1", bz_url="wss://x", bz_channels=None):
         self.fmp_api_key = fmp
         self.benzinga_api_key = bz
+        # Empty (falsy) direct key → the direct/WS key selection
+        # (cfg.benzinga_direct_api_key or cfg.benzinga_api_key) falls back to
+        # benzinga_api_key, preserving these rotation tests. The real Config
+        # grew this field for the BENZINGA_PROVIDER=direct migration; the stub
+        # dereferences it under provider=direct (pipeline._get_bz_rest_adapter).
+        self.benzinga_direct_api_key = ""
         self.benzinga_ws_url = bz_url
         self.benzinga_channels = bz_channels
 
@@ -61,7 +67,10 @@ def test_bz_rest_adapter_rebuilds_on_api_key_rotation():
     cfg2 = _CfgStub(bz="bz-new")
 
     with patch("newsstack_fmp.ingest_benzinga.BenzingaRestAdapter", create=True) as ctor:
-        ctor.side_effect = lambda key: type("B", (), {"key": key, "close": lambda self: None})()
+        # _get_bz_rest_adapter builds BenzingaRestAdapter(api_key, provider=...)
+        # since the Massive/direct transport switch — the mock must accept the
+        # provider kwarg.
+        ctor.side_effect = lambda key, provider=None: type("B", (), {"key": key, "close": lambda self: None})()
 
         a1 = pipeline._get_bz_rest_adapter(cfg1)
         a1_again = pipeline._get_bz_rest_adapter(cfg1)
