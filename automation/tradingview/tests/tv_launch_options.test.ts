@@ -194,6 +194,9 @@ test("launchWithTradingViewFallback: fallback disabled (persistent profile) -> r
       assert.match(error.message, /persistent browser profile/);
       assert.match(error.message, /npx playwright install chromium/);
       assert.match(error.message, /TV_BROWSER_CHANNEL=chrome/);
+      // Safe framing: chrome is only offered as delete-and-re-create, never a
+      // drop-in for the existing chromium-minted profile (which it would corrupt).
+      assert.match(error.message, /delete[\s\S]*re-create|never a drop-in/);
       assert.equal(error.cause, MISSING_BROWSER_ERROR);
       return true;
     },

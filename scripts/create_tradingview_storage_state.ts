@@ -317,7 +317,9 @@ async function main(): Promise<number> {
   // ignored there), so an interactive login without credentials works fine.
   if (cli.headless && !cli.persistentProfileDir && !existingStorageStatePath && (!cli.username || !cli.password)) {
     throw new Error(
-      "Headless TradingView storage-state capture requires TV_STORAGE_STATE_INPUT or TV_USERNAME/TV_PASSWORD fallback credentials.",
+      "Headless TradingView storage-state capture requires TV_STORAGE_STATE_INPUT or TV_USERNAME/TV_PASSWORD fallback credentials. "
+      + "If you meant to log in interactively, note that headless defaults to true under CI (or TV_HEADLESS): "
+      + "set TV_HEADLESS=0 to launch a headed browser for manual login.",
     );
   }
 
