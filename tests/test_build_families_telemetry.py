@@ -92,7 +92,11 @@ def _write_audit(path: Path, records: list[dict]) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     with path.open("w", encoding="utf-8") as fh:
         for r in records:
-            fh.write(json.dumps(r) + "\n")
+            # Truth-audit F3: live_days / n_trades only count live-phase
+            # records. These fixtures exercise live-trade counting, so
+            # default to a live phase unless the record sets one explicitly.
+            rec = {"phase": "live_small", **r}
+            fh.write(json.dumps(rec) + "\n")
 
 
 def _write_drift(path: Path, payload: dict) -> None:
@@ -131,6 +135,56 @@ def test_aggregate_counts_trades_and_live_days(tmp_path: Path) -> None:
     assert accs["BOS"].trade_days == {"2026-04-25", "2026-04-26"}
     assert accs["OB"].n_trades == 1
     assert accs["OB"].trade_days == {"2026-04-25"}
+
+
+def test_aggregate_excludes_paper_phase_from_live_metrics(tmp_path: Path) -> None:
+    """Truth-audit F3: Phase-A paper activity must NOT count as live evidence.
+
+    The C12 trigger requires a Phase-B (live_small) track record; paper
+    trades (and phase-less legacy records) must not inflate live_days /
+    n_trades, or the gate would flip GREEN on a paper-only history.
+    """
+    a1 = tmp_path / "incubation_2026-05-01.jsonl"
+    _write_audit(a1, [
+        # Paper closed trades — must be ignored for live metrics.
+        {"variant": "v_bos_1", "action": "closed", "phase": "paper"},
+        {"variant": "v_bos_1", "action": "tp_hit", "phase": "paper"},
+        # A record with no phase at all — fails closed (not live).
+        {"variant": "v_bos_1", "action": "closed", "phase": None},
+        # One genuine live_small closed trade.
+        {"variant": "v_bos_1", "action": "stop_hit", "phase": "live_small"},
+        # A paper kill-switch fire is still a real risk event → counted.
+        {"variant": "v_bos_1", "action": "halted",
+         "kill_switch_triggered": True, "phase": "paper"},
+    ])
+    summary = BuildSummary()
+    accs = aggregate(
+        audit_paths=[a1],
+        drift_paths=[],
+        variant_to_family={"v_bos_1": "BOS"},
+        summary=summary,
+    )
+    assert accs["BOS"].n_trades == 1  # only the live_small trade
+    assert accs["BOS"].trade_days == {"2026-05-01"}  # live-phase day only
+    assert accs["BOS"].kill_switch_fires == 1  # paper halt still counts
+
+
+def test_aggregate_paper_only_history_yields_zero_live_metrics(tmp_path: Path) -> None:
+    """A pure Phase-A paper history must leave live_days / n_trades at 0."""
+    a1 = tmp_path / "incubation_2026-05-02.jsonl"
+    _write_audit(a1, [
+        {"variant": "v_bos_1", "action": "closed", "phase": "paper"},
+        {"variant": "v_bos_1", "action": "tp_hit", "phase": "paper"},
+    ])
+    summary = BuildSummary()
+    accs = aggregate(
+        audit_paths=[a1],
+        drift_paths=[],
+        variant_to_family={"v_bos_1": "BOS"},
+        summary=summary,
+    )
+    assert accs["BOS"].n_trades == 0
+    assert accs["BOS"].trade_days == set()
 
 
 def test_aggregate_counts_outcome_pnl_as_closed_trade(tmp_path: Path) -> None:
