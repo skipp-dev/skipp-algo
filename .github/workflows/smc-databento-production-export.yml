@@ -252,6 +252,19 @@ jobs:
             echo "::notice::databento file-cache: cold start (no prior cache restored)"
           fi
 
+      - name: Restore point-in-time universe snapshot store
+        # Truth-audit #5 (2026-07-11): make the survivorship-bias universe
+        # snapshots durable across ephemeral CI runs. Fetch prior per-day
+        # snapshots from the rolling bot/live-universe-snapshot branch so a
+        # historical run can replay each day's point-in-time membership
+        # instead of silently re-using today's universe. Best-effort. See ADR-0024.
+        env:
+          GH_PAT: ${{ secrets.GH_PAT != '' && secrets.GH_PAT || github.token }}
+        run: |
+          set -uo pipefail
+          "$SMC_PYTHON_BIN" scripts/publish_universe_snapshots.py restore \
+            || echo "::warning::universe-snapshot restore failed; historical runs may carry survivorship_bias_risk"
+
       - name: Run Databento production export
         env:
           DATABENTO_API_KEY: ${{ secrets.DATABENTO_API_KEY }}
@@ -307,6 +320,20 @@ jobs:
             --lookback-days "${LOOKBACK_DAYS}" \
             --export-dir "${EXPORT_DIR}" \
             ${FORCE_REFRESH_FLAG} 2>&1 | tee artifacts/ci/databento_production_export_stdout.log
+
+      - name: Publish point-in-time universe snapshot store
+        # Truth-audit #5: persist today's universe snapshot (written by the
+        # export with active_only=True) to the rolling bot/live-universe-snapshot
+        # branch so future historical replays are survivorship-safe. Accumulating
+        # (seeds from the branch tip, keeps prior snapshots). Best-effort;
+        # runs even if the export partially failed. See ADR-0024.
+        if: always()
+        env:
+          GH_PAT: ${{ secrets.GH_PAT != '' && secrets.GH_PAT || github.token }}
+        run: |
+          set -uo pipefail
+          "$SMC_PYTHON_BIN" scripts/publish_universe_snapshots.py publish \
+            || echo "::warning::universe-snapshot publish failed; today's snapshot not persisted"
 
       - name: Upload export stdout log (always)
         if: always()
