@@ -51,6 +51,7 @@ _CREDENTIAL_SIGNAL_METRICS = (
     "live_overlay_credential_health_databento_api_key_valid",
     "live_overlay_credential_health_databento_delivery_valid",
     "live_overlay_credential_health_benzinga_key_valid",
+    "live_overlay_credential_health_finnhub_api_key_valid",
     "live_overlay_credential_health_github_pat_validity_valid",
     "live_overlay_credential_health_tv_storage_state_age_valid",
     "live_overlay_credential_health_snapshot_age_seconds",
