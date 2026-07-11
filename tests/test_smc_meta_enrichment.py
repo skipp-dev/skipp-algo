@@ -408,3 +408,69 @@ class TestIngestNewFields:
         raw["enriched_news"] = [{"garbage": True}, "not_a_dict"]
         meta = build_meta_from_raw(raw)
         assert meta.enriched_news == []
+
+
+def _cat_news(strength: float, bias: str, category: str, *, stale: bool = False) -> TimedEnrichedNews:
+    return TimedEnrichedNews(
+        value=EnrichedNews(
+            strength=strength, bias=bias, category=category, freshness_minutes=5.0, source="t"
+        ),
+        asof_ts=1_700_000_040.0,
+        stale=stale,
+    )
+
+
+class TestEnrichedNewsCategoryReason:
+    """The NEWS_* category reason follows EnrichedNews.category, not direction."""
+
+    def _reasons(self, *news: TimedEnrichedNews) -> list[str]:
+        return derive_base_signals(normalize_meta(_base_meta(enriched_news=list(news))))["base_reasons"]
+
+    def test_reason_follows_category_regardless_of_direction(self) -> None:
+        # COMPANY news -> NEWS_COMPANY for BOTH directions. Old bug flipped the
+        # category by sign (bearish -> NEWS_MACRO, bullish -> NEWS_COMPANY).
+        bearish = self._reasons(_cat_news(0.9, "BEARISH", "COMPANY"))
+        assert "NEWS_COMPANY" in bearish
+        assert "NEWS_MACRO" not in bearish
+        assert "NEWS_COMPANY" in self._reasons(_cat_news(0.9, "BULLISH", "COMPANY"))
+
+    def test_bullish_macro_is_macro_not_company(self) -> None:
+        r = self._reasons(_cat_news(0.9, "BULLISH", "MACRO"))
+        assert "NEWS_MACRO" in r
+        assert "NEWS_COMPANY" not in r
+
+    def test_sector_and_geopolitical_have_their_own_codes(self) -> None:
+        assert "NEWS_SECTOR" in self._reasons(_cat_news(0.9, "BEARISH", "SECTOR"))
+        assert "NEWS_GEOPOLITICAL" in self._reasons(_cat_news(0.9, "BULLISH", "GEOPOLITICAL"))
+
+    def test_other_category_emits_no_news_category_reason(self) -> None:
+        r = self._reasons(_cat_news(0.9, "BEARISH", "OTHER"))
+        assert not ({"NEWS_MACRO", "NEWS_COMPANY", "NEWS_SECTOR", "NEWS_GEOPOLITICAL"} & set(r))
+
+    def test_dominant_category_by_summed_absolute_strength(self) -> None:
+        # COMPANY (0.8 + 0.8 = 1.6) outweighs MACRO (0.5); net heat 0.367 > gate.
+        r = self._reasons(
+            _cat_news(0.8, "BULLISH", "COMPANY"),
+            _cat_news(0.8, "BULLISH", "COMPANY"),
+            _cat_news(0.5, "BEARISH", "MACRO"),
+        )
+        assert "NEWS_COMPANY" in r
+        assert "NEWS_MACRO" not in r
+
+    def test_below_heat_gate_emits_no_category_reason(self) -> None:
+        # |avg heat| = 0.1 < 0.15 gate -> no category reason even though COMPANY present.
+        r = self._reasons(
+            _cat_news(0.6, "BULLISH", "COMPANY"),
+            _cat_news(0.6, "BULLISH", "COMPANY"),
+            _cat_news(0.9, "BEARISH", "MACRO"),
+        )
+        assert not ({"NEWS_MACRO", "NEWS_COMPANY", "NEWS_SECTOR", "NEWS_GEOPOLITICAL"} & set(r))
+
+    def test_stale_news_excluded_from_dominant_category(self) -> None:
+        # Fresh COMPANY drives the code; the (louder) stale MACRO is ignored.
+        r = self._reasons(
+            _cat_news(0.9, "BEARISH", "COMPANY"),
+            _cat_news(1.0, "BEARISH", "MACRO", stale=True),
+        )
+        assert "NEWS_COMPANY" in r
+        assert "NEWS_MACRO" not in r

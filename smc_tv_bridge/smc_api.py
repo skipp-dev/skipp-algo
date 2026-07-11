@@ -80,16 +80,30 @@ _TF_CANDLE_LIMIT: dict[str, int] = {
 # ══════════════════════════════════════════════════════════
 
 def _candle_ts(c: dict[str, Any]) -> int:
-    """Extract Unix timestamp from a candle dict."""
+    """Extract Unix timestamp from a candle dict.
+
+    Truth-audit T1 (2026-07-11): real FMP *intraday* candle dates are
+    space-separated (``"YYYY-MM-DD HH:MM:SS"``), not ``T``-separated. The
+    old ``if "T" in d`` gate sent every such candle to the ``time.time()``
+    fallback, stamping all bars with serve-time — the resampler then
+    collapsed them onto one bucket and the structure detectors emitted
+    (almost) nothing. ``datetime.fromisoformat`` parses BOTH the space and
+    the ``T`` separator, so we try it unconditionally and only fall back to
+    a bare date. Naive datetimes are treated as UTC (matches the daily path).
+    """
     ts = c.get("timestamp") or c.get("t")
     if ts and isinstance(ts, (int, float)):
         return int(ts)
     d = c.get("date", "")
     if d:
         try:
-            if "T" in d:
-                return int(datetime.fromisoformat(d).timestamp())
-            return int(datetime.strptime(d, "%Y-%m-%d").replace(tzinfo=UTC).timestamp())
+            try:
+                dt = datetime.fromisoformat(d)
+            except ValueError:
+                dt = datetime.strptime(d, "%Y-%m-%d")
+            if dt.tzinfo is None:
+                dt = dt.replace(tzinfo=UTC)
+            return int(dt.timestamp())
         except Exception:
             pass
     return int(time.time())
@@ -687,9 +701,9 @@ def smc_live_endpoint(
     Serves the on-demand news fields (``news_strength``, ``news_bias``) plus the
     canonical overlay ``tone`` (B2), computed through the same layering function
     that bakes ``mp.tone`` so the live tone shares the baseline's weighting and
-    thresholds (identical semantics, fresher inputs). The remaining baked-only
-    overlay fields (``flow_rel_vol``, ``squeeze_on`` and the rest of the B2 set)
-    are omitted so the Pine side keeps its baked ``mp.*`` defaults for them.
+    thresholds (identical semantics, fresher inputs), the rest of the B2 set
+    (``vix_level``, flow/ATS, ``global_heat``) and the event fields. Only
+    ``flow_rel_vol`` and ``squeeze_on`` stay baked-only (``mp.*`` defaults).
     ``exclude_none`` keeps the payload flat and contract-conformant; the overlay
     may only add or tighten, never loosen.
 
@@ -699,9 +713,9 @@ def smc_live_endpoint(
     the envelope only and Pine falls back to its baked ``mp.*`` news value --
     emitting a fabricated ``0.0`` would instead override (loosen) a real baked
     signal, violating the overlay safety invariant. ``asof_ts`` is the serve
-    time: the snapshot is built on demand, so the payload is fresh by
-    construction and ``stale`` is ``False``; transport/cache-age staleness is
-    enforced Pine-side by comparing ``asof_ts`` against ``i_overlayMaxAge``.
+    time: the envelope is built on demand (vix/flow/event fields may be up to
+    300 s old via their TTL caches) and ``stale`` is ``False``; transport/
+    cache-age staleness is enforced Pine-side via ``i_overlayMaxAge``.
     """
     # Lazy submodule import (mirrors the provider getters above) so the
     # smc_tv_bridge.* import stays after the repo-root sys.path setup.
@@ -787,8 +801,16 @@ def smc_live_endpoint(
 
 @app.get("/health")
 def health() -> dict[str, Any]:
+    # Truth-audit T5 (2026-07-11): ``fmp_available`` used to be ``not
+    # USE_MOCK`` — a mock-mode flag, not an availability check, so the
+    # endpoint reported FMP "available" even with no/invalid key while
+    # every data path silently returned empty. Report the two facts
+    # separately: ``mock`` (are we serving stubs) and ``fmp_key_present``
+    # (is an FMP key configured at all — the minimum for the real path).
+    fmp_key_present = bool(os.environ.get("FMP_API_KEY"))
     return {
         "ok": True,
         "mock": USE_MOCK,
-        "fmp_available": not USE_MOCK,
+        "fmp_key_present": fmp_key_present,
+        "fmp_available": (not USE_MOCK) and fmp_key_present,
     }

@@ -220,3 +220,20 @@ def test_catalyst_state_fallbacks_for_provider_shape_and_actionability() -> None
     assert state["AAPL"]["catalyst_actionable"] is True
     assert effective_catalyst_sentiment({"catalyst_direction": "MIXED", "sentiment_label": "bad"}) == "neutral"
     assert effective_catalyst_age_minutes({"published_ts": 940.0}, now=1000.0) == pytest.approx(1.0)
+
+
+def test_story_age_uses_publish_time_not_last_seen() -> None:
+    """Truth-audit T-F3: catalyst age is article freshness, not last-poll age.
+
+    A story published 120 min ago but re-seen 1 min ago must report ~120
+    min (so it fails the notify freshness gate), not ~1 min.
+    """
+    from terminal_catalyst_state import _story_age_minutes
+
+    now = 1_000_000.0
+    row = {
+        "published_ts": now - 120 * 60.0,   # published 2h ago
+        "updated_ts": now - 120 * 60.0,
+        "story_last_seen_ts": now - 60.0,   # re-polled 1 min ago
+    }
+    assert _story_age_minutes(row, now=now) == pytest.approx(120.0)

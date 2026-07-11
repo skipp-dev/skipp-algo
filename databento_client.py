@@ -8,8 +8,8 @@ request-end clamping, and the get_range retry loop.
 (``databento_provider``, pipeline scripts) import these building blocks
 and compose them into domain workflows.
 
-Backward compatibility:  all names exported from this module are still
-importable from ``databento_volatility_screener`` via re-export shims.
+Backward compatibility:  names remain importable from ``databento_volatility_screener``,
+but as retained COPIES there (not re-exports) — the two variants have drifted.
 """
 
 from __future__ import annotations
@@ -236,7 +236,7 @@ def list_accessible_datasets(databento_api_key: str | None = None) -> list[str]:
 
 
 def _install_databento_requests_tls_override(cafile: str) -> None:
-    """Patch Databento's requests transport to ignore broken CA-bundle env vars."""
+    """Patch Databento's requests transport to always verify against certifi (trust_env=False: ALL CA/proxy env vars are ignored, valid or not)."""
     import threading
     from io import BytesIO
 

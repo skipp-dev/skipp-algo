@@ -55,6 +55,38 @@ def test_resolve_provider_state_degraded_for_health_issues() -> None:
     ) == "degraded"
 
 
+def test_provider_state_from_failure_actions_takes_worst_severity() -> None:
+    """Truth-audit I10: a hard_degrade after a suppress must win (worst-case).
+
+    The old loop returned on the first ``suppress`` and never saw the
+    later ``hard_degrade``, downgrading unavailable to degraded.
+    """
+    actions = [
+        {"failure_action": "suppress"},
+        {"failure_action": "hard_degrade"},
+    ]
+    assert resolve_provider_state_from_failure_actions(
+        structure_state="full", failure_actions=actions
+    ) == "unavailable"
+    # Order-independent.
+    assert resolve_provider_state_from_failure_actions(
+        structure_state="full", failure_actions=list(reversed(actions))
+    ) == "unavailable"
+
+
+def test_provider_state_from_failure_actions_suppress_only_is_degraded() -> None:
+    assert resolve_provider_state_from_failure_actions(
+        structure_state="full",
+        failure_actions=[{"failure_action": "suppress"}, {"failure_action": "advisory"}],
+    ) == "degraded"
+
+
+def test_provider_state_from_failure_actions_clean_is_ok() -> None:
+    assert resolve_provider_state_from_failure_actions(
+        structure_state="full", failure_actions=[]
+    ) == "ok"
+
+
 def _high_tier_kwargs() -> dict:
     return {
         "provider_state": "ok",

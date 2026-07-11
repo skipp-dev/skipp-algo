@@ -135,6 +135,29 @@ class TestDerivation:
         assert assessment.cause.domain == "structure"
         assert assessment.cause.failure_type == "stale"
 
+    def test_contributing_alerts_aligned_when_an_alert_is_unclassifiable(self) -> None:
+        # Truth-audit I18: a pre-enriched alert with a bogus failure_action
+        # is skipped in the state loop. The old code then zip()'d states
+        # against `enriched` positionally, so the skip shifted the pairing
+        # and attributed the WRONG alert. All three carry failure_action so
+        # _ensure_classified passes them through unchanged.
+        report = {
+            "overall_status": "fail",
+            "domain_alerts": [
+                {"domain": "x", "code": "BOGUS_FIRST",
+                 "failure_action": "not_a_real_action"},
+                {"domain": "structure", "code": "REAL_HARD",
+                 "failure_action": "hard_degrade"},
+                {"domain": "volume", "code": "REAL_ADVISORY",
+                 "failure_action": "advisory"},
+            ],
+        }
+        assessment = derive_trust_state(report)
+        assert assessment.state is TrustState.UNAVAILABLE
+        contributing_codes = {a.get("code") for a in assessment.contributing_alerts}
+        # Must be the actual hard_degrade alert, not the skipped BOGUS_FIRST.
+        assert contributing_codes == {"REAL_HARD"}
+
     def test_overall_status_fail_without_alerts_is_unavailable(self) -> None:
         # Defensive path: report claims fail but lists no alerts.
         report = {"overall_status": "fail", "domain_alerts": []}

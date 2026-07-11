@@ -376,6 +376,13 @@ def build_ticker_reaction_state(
             "reaction_confirmed": reaction_confirmed,
             "reaction_actionable": reaction_actionable,
             "reaction_reason": reaction_reason,
+            # Truth-audit T-F1 (2026-07-11): persist the catalyst direction
+            # into the state output so the NEXT build's seed (this dict)
+            # carries the prior direction. Without it, previous_direction
+            # always fell back to the current direction (the output dict
+            # had no catalyst_direction), so the direction-flip anchor reset
+            # was inert and a bull→bear flip kept a stale anchor/peak.
+            "catalyst_direction": direction,
         }
 
     return ticker_state

@@ -49,7 +49,6 @@ from smc_core.scoring import (
     score_events,
 )
 from smc_core.session_context import build_session_liquidity_context
-from smc_core.smc_confluence import compute_confluence  # Phase D
 from smc_core.sweep_trap import classify_sweep_trap  # Phase B
 from smc_core.vol_regime import compute_vol_regime
 from smc_integration.artifact_resolution import resolve_structure_artifact_inputs
@@ -456,13 +455,19 @@ def _evaluate_zone_event(
         if absolute_idx is not None and absolute_idx > anchor_idx:
             mitigated_idx = absolute_idx - anchor_idx - 1
 
+    # Truth-audit E9 (2026-07-11): mitigation = PENETRATION of the zone, not
+    # band-membership of the bar extreme. The old ``low <= row_high <= high``
+    # missed a bar that wicked entirely THROUGH the zone (fully filled it),
+    # keeping this KPI blind to the same full-fill events that the scoring
+    # labels (fixed in #3387) already count. This mirror was not covered by
+    # #3387; align it here (bullish: row_low <= high; bearish: row_high >= low).
     if direction in {"BEAR", "BEARISH", "DOWN"}:
         if mitigated_idx is None:
-            mitigated_idx = _find_first_index(future, lambda row: low <= float(row["high"]) <= high)
+            mitigated_idx = _find_first_index(future, lambda row: float(row["high"]) >= low)
         invalid_idx = _find_first_index(future, lambda row: float(row["close"]) > high)
     else:
         if mitigated_idx is None:
-            mitigated_idx = _find_first_index(future, lambda row: low <= float(row["low"]) <= high)
+            mitigated_idx = _find_first_index(future, lambda row: float(row["low"]) <= high)
         invalid_idx = _find_first_index(future, lambda row: float(row["close"]) < low)
 
     hit = mitigated_idx is not None and (invalid_idx is None or mitigated_idx < invalid_idx)
@@ -827,6 +832,60 @@ def _fvg_lifecycle_light_for_event(
     }
 
 
+#: Lookback (bars) used to locate the pre-sweep leg origin for the sweep-trap
+#: fib_retrace_depth. See ``_derive_sweep_trap_geometry``.
+_SWEEP_ORIGIN_LOOKBACK_BARS = 20
+
+
+def _derive_sweep_trap_geometry(
+    candidate: dict[str, Any],
+    bars: pd.DataFrame,
+    candidate_idx: int | None,
+    *,
+    is_bullish_sweep: bool,
+) -> tuple[float, float, float]:
+    """Derive ``(swept_level, sweep_extreme, origin_level)`` for a sweep event.
+
+    The lean sweep producers only carry ``price``/``side``; ``classify_sweep_trap``
+    needs the swept level, the sweep candle's extreme, and the pre-sweep leg
+    origin. We compute them here — the single choke point where the sweep event
+    and the bar frame are both available — rather than at each of the several
+    sweep producers (profile engine, legacy high/low, liquidity engine). A
+    producer-provided value wins if present, for forward-compat.
+
+    - ``swept_level``  = the level taken (the event ``price``).
+    - ``sweep_extreme``= the sweep bar's low (bullish/``SELL_SIDE``) or high (bearish).
+    - ``origin_level`` = the opposite extreme of the leg into the sweep — the max
+      high (bullish) / min low (bearish) over the lookback up to the sweep bar,
+      i.e. where the move that swept the level originated. Falls back to
+      ``swept_level`` (⇒ fib depth 0) when the leg is degenerate.
+    """
+    swept_level = float(candidate.get("price", 0.0) or 0.0)
+    swept_level = float(candidate.get("swept_level", swept_level) or swept_level)
+
+    if candidate_idx is None or candidate_idx < 0 or candidate_idx >= len(bars):
+        return (
+            swept_level,
+            float(candidate.get("sweep_extreme", 0.0) or 0.0),
+            float(candidate.get("origin_level", swept_level) or swept_level),
+        )
+
+    sweep_bar = bars.iloc[candidate_idx]
+    derived_extreme = float(sweep_bar["low"] if is_bullish_sweep else sweep_bar["high"])
+    sweep_extreme = float(candidate.get("sweep_extreme", derived_extreme) or derived_extreme)
+
+    leg = bars.iloc[max(0, candidate_idx - _SWEEP_ORIGIN_LOOKBACK_BARS) : candidate_idx + 1]
+    if is_bullish_sweep:
+        derived_origin = float(pd.to_numeric(leg["high"], errors="coerce").max())
+    else:
+        derived_origin = float(pd.to_numeric(leg["low"], errors="coerce").min())
+    if not math.isfinite(derived_origin):
+        derived_origin = swept_level
+    origin_level = float(candidate.get("origin_level", derived_origin) or derived_origin)
+
+    return swept_level, sweep_extreme, origin_level
+
+
 def _liquidity_support_for_event(
     *,
     current_event: dict[str, Any],
@@ -870,9 +929,9 @@ def _liquidity_support_for_event(
         # Phase B — Sweep Trap Classifier (shadow enrichment, default OFF).
         if is_sweep_trap_enabled():
             try:
-                swept_level = float(candidate.get("swept_level", 0.0) or 0.0)
-                sweep_extreme = float(candidate.get("sweep_extreme", 0.0) or 0.0)
-                origin_level = float(candidate.get("origin_level", swept_level) or swept_level)
+                swept_level, sweep_extreme, origin_level = _derive_sweep_trap_geometry(
+                    candidate, bars, candidate_idx, is_bullish_sweep=bull_sweep
+                )
                 look_ahead_end = min(anchor_idx, candidate_idx + 14) if candidate_idx is not None else anchor_idx
                 post_bars_df = bars.iloc[candidate_idx + 1 : look_ahead_end] if candidate_idx is not None else bars.iloc[0:0]
                 post_sweep_bars = [
@@ -1002,27 +1061,6 @@ def _freshness_state_light_for_event(
 # Phase D helper — confluence shadow enrichment
 # ---------------------------------------------------------------------------
 
-def _confluence_light_for_event(
-    *,
-    ob_light: dict[str, Any] | None,
-    fvg_light: dict[str, Any] | None,
-    sweep_light: dict[str, Any] | None,
-) -> dict[str, Any]:
-    """Build Phase D confluence enrichment for a single SMC event.
-
-    Returns a dict with ``raw_confluence_score`` and ``confluence_tier``
-    for insertion under ``"confluence_v2"`` in the enrichment dict.
-    """
-    result = compute_confluence(ob_light, fvg_light, sweep_light)
-    return {
-        "ob_contribution": result.ob_contribution,
-        "fvg_contribution": result.fvg_contribution,
-        "sweep_contribution": result.sweep_contribution,
-        "raw_confluence_score": result.raw_confluence_score,
-        "confluence_tier": result.confluence_tier,
-    }
-
-
 def _event_signal_quality_score(
     *,
     event: dict[str, Any],
@@ -1103,14 +1141,6 @@ def _event_signal_quality_score(
             bars=bars,
         )
 
-    # Phase D: confluence shadow enrichment (no-op when disabled).
-    if is_confluence_score_enabled():
-        enrichment["confluence_v2"] = _confluence_light_for_event(
-            ob_light=enrichment.get("ob_context_light"),
-            fvg_light=enrichment.get("fvg_lifecycle_light"),
-            sweep_light=enrichment.get("liquidity_sweeps"),
-        )
-
     # Route to v2 scoring function when SIGNAL_QUALITY_MODEL flag is set.
     _model = signal_quality_model()
     if _model in (_SQ_MODEL_V2, _SQ_MODEL_V21):
@@ -1189,7 +1219,7 @@ def _score_bos_event(
 
 
 def _atr_at(bars: pd.DataFrame, anchor_idx: int, period: int = 14) -> float | None:
-    """ATR at ``anchor_idx`` from the prior ``period`` bars (Wilder-style mean).
+    """ATR at ``anchor_idx`` from the prior ``period`` bars (simple mean of TR, no Wilder smoothing).
 
     Returns ``None`` when fewer than ``period`` prior bars exist or the
     series is degenerate. Pure-pandas, no extra dependency.
@@ -1414,6 +1444,37 @@ def _evaluate_sweep_event(
 
     outcome = hit_idx is not None
     invalidated = invalid_idx is not None and (hit_idx is None or invalid_idx <= hit_idx)
+
+    # WS4a shadow-observe: when ENABLE_SWEEP_TRAP is on, classify the trap for
+    # THIS sweep and log its quality into the event ledger ``features``
+    # observe-only. These fields do NOT feed the score (confluence reads the
+    # coarse SWEEP_QUALITY_SCORE, not SWEEP_TRAP_QUALITY_SCORE) — they exist so
+    # WS4b can measure the Brier/hit-rate delta before granting budget weight.
+    features: dict[str, Any] = {}
+    if is_sweep_trap_enabled():
+        is_bullish = side == "SELL_SIDE"
+        swept_level, sweep_extreme, origin_level = _derive_sweep_trap_geometry(
+            event, bars, anchor_idx, is_bullish_sweep=is_bullish
+        )
+        if swept_level > 0:
+            post_sweep_bars = [
+                {"open": float(r["open"]), "high": float(r["high"]),
+                 "low": float(r["low"]), "close": float(r["close"])}
+                for _, r in future.iterrows()
+            ]
+            trap = classify_sweep_trap(
+                swept_level=swept_level,
+                sweep_extreme=sweep_extreme,
+                origin_level=origin_level,
+                is_bullish_sweep=is_bullish,
+                post_sweep_bars=post_sweep_bars,
+            )
+            features["sweep_trap_type"] = trap.trap_type
+            features["sweep_trap_reclaim_bars"] = trap.sweep_reclaim_bars
+            features["sweep_trap_reclaim_strength"] = round(trap.reclaim_strength, 4)
+            features["sweep_trap_fib_retrace"] = round(trap.fib_retrace_depth, 4)
+            features["sweep_trap_quality_score"] = round(trap.trap_quality_score, 4)
+
     scored_event = ScoredEvent(
         event_id=str(event.get("id", "")),
         family="SWEEP",
@@ -1423,6 +1484,7 @@ def _evaluate_sweep_event(
         context=dict(event_context),
         raw_score=raw_score,
         raw_score_name=raw_score_name,
+        features=features,
     )
     return {
         "hit": outcome,

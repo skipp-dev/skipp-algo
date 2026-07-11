@@ -1,0 +1,250 @@
+# live-window: mutating-on-cron
+name: sweep-trap-shadow-daily
+
+# WS4a shadow-evaluation — daily append to the sweep-trap shadow ledger.
+#
+# Runs scripts/eval_sweep_trap_shadow.py against the most recent rolling-
+# benchmark corpus (events_*.jsonl carrying the observe-only
+# sweep_trap_quality_score, logged when ENABLE_SWEEP_TRAP=1 in
+# smc-measurement-benchmark-rolling.yml) and appends one row to
+#   artifacts/governance/sweep_trap_shadow.jsonl
+# measuring whether that score has skill at predicting the sweep-reversal
+# outcome (Brier delta + top/bottom-tercile lift). The ledger is committed
+# back to main so it accumulates across daily runs; a monitoring snapshot is
+# uploaded as a workflow artifact (consumed by the Grafana bridge).
+#
+# Measure-only by design — this does NOT grant the sweep-trap detector any
+# score-budget weight. Promotion (weeks of data, k-of-n) is a downstream
+# decision; this job only accumulates the evidence.
+#
+# Fail-soft: a missing/empty corpus resolves to no_data and completes green,
+# and a re-served identical feed appends nothing (stale) — the wall-clock to
+# the promotion decision keeps ticking either way.
+#
+# Schedule: 15:00 UTC Mon-Fri, after smc-measurement-benchmark-rolling and the
+# other off-hours shadow jobs have normally produced the day's corpus.
+
+on:
+  schedule:
+    - cron: "0 15 * * 1-5"
+  workflow_dispatch:
+    inputs:
+      corpus-dir:
+        description: "Optional path under the checkout with SYMBOL/TF/events_*.jsonl (skips artifact discovery)."
+        required: false
+        default: ""
+
+permissions:
+  contents: write
+  actions: read
+  # bot/* branch + auto-merge PR for the ledger commit-back (the main-governance
+  # ruleset rejects direct pushes to main).
+  pull-requests: write
+
+concurrency:
+  group: sweep-trap-shadow-daily
+  cancel-in-progress: false
+
+env:
+  PYTHONUNBUFFERED: "1"
+  PYTHONPATH: ${{ github.workspace }}
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  sweep-trap-shadow:
+    runs-on: ${{ vars.SMC_GH_HOSTED_RUNNER || 'ubuntu-latest' }}
+    timeout-minutes: 20
+    steps:
+      - name: Checkout
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+
+      - name: Setup Python
+        uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v6
+        with:
+          python-version: "3.13"
+          cache: "pip"
+          cache-dependency-path: "requirements.txt"
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -r requirements.txt pytest pyyaml
+
+      - name: Resolve corpus directory
+        id: corpus
+        env:
+          GH_TOKEN: ${{ github.token }}
+          INPUT_DIR: ${{ inputs.corpus-dir }}
+        run: |
+          set -euo pipefail
+          # Priority 1: explicit dispatch input.
+          if [ -n "${INPUT_DIR}" ] && [ -d "${INPUT_DIR}" ]; then
+            echo "corpus_dir=${INPUT_DIR}" >> "$GITHUB_OUTPUT"
+            echo "source=input" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          # Priority 2: most recent rolling-benchmark workflow artifact.
+          download_dir="artifacts/ci/measurement_benchmark_rolling/_workflow_download"
+          mkdir -p "${download_dir}"
+          latest_run=$(gh run list \
+            --workflow=smc-measurement-benchmark-rolling.yml \
+            --status=success --limit=1 \
+            --json databaseId --jq '.[0].databaseId' || true)
+          if [ -n "${latest_run}" ] && gh run download "${latest_run}" --dir "${download_dir}" 2>/dev/null; then
+            found=$(find "${download_dir}" -type f -name "events_*.jsonl" -print -quit || true)
+            if [ -n "${found}" ]; then
+              # eval globs SYMBOL/TF/events_*.jsonl → point at the dir two levels up.
+              echo "corpus_dir=$(dirname "$(dirname "${found}")")" >> "$GITHUB_OUTPUT"
+              echo "source=rolling_artifact" >> "$GITHUB_OUTPUT"
+              exit 0
+            fi
+          fi
+          echo "corpus_dir=" >> "$GITHUB_OUTPUT"
+          echo "source=no_data" >> "$GITHUB_OUTPUT"
+          echo "::notice title=sweep-trap-shadow::no rolling-bench corpus found — status=no_data"
+
+      - name: Run sweep-trap shadow eval
+        id: eval
+        env:
+          CORPUS_DIR: ${{ steps.corpus.outputs.corpus_dir }}
+        run: |
+          set -uo pipefail
+          if [ -z "${CORPUS_DIR}" ]; then
+            echo "status=no_data" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          python scripts/eval_sweep_trap_shadow.py --benchmark-dir "${CORPUS_DIR}" 2>&1 | tee eval.log
+          rc="${PIPESTATUS[0]}"
+          case "$rc" in
+            0) status=promotable ;;
+            2) status=shadow ;;
+            3) status=no_data ;;
+            5) status=stale_feed ;;
+            *) status=error ;;
+          esac
+          echo "status=${status}" >> "$GITHUB_OUTPUT"
+          if [ "${status}" = "error" ]; then exit "$rc"; fi
+          exit 0
+
+      - name: Annotate shadow result
+        if: always()
+        run: |
+          {
+            echo "## sweep-trap-shadow-daily"
+            echo ""
+            echo "- corpus source: \`${{ steps.corpus.outputs.source }}\`"
+            echo "- eval status: \`${{ steps.eval.outputs.status || 'unknown' }}\`"
+            echo ""
+            echo "Detector stays in shadow — no score-budget weight (WS4a)."
+          } >> "$GITHUB_STEP_SUMMARY"
+          echo "::notice title=sweep-trap-shadow::status=${{ steps.eval.outputs.status || 'unknown' }}"
+
+      - name: Commit shadow ledger back via PR
+        # PR-flow, not a direct push: the main-governance ruleset rejects bare
+        # pushes to main. Mirror the ADR-0023 shadow commit-back. GH_PAT (not
+        # GITHUB_TOKEN) so the PR triggers the required fast-gates check. Only
+        # runs when a real row was appended (promotable/shadow); no_data/stale/
+        # error append nothing. Fail LOUD on any landing failure.
+        if: >
+          steps.eval.outputs.status == 'promotable'
+          || steps.eval.outputs.status == 'shadow'
+        env:
+          GH_TOKEN: ${{ secrets.GH_PAT != '' && secrets.GH_PAT || github.token }}
+        run: |
+          set -euo pipefail
+          git diff --quiet artifacts/governance/sweep_trap_shadow.jsonl && {
+            echo "::notice title=sweep-trap-shadow::ledger unchanged — skipping commit-back"
+            exit 0
+          }
+          git config user.name  "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          BRANCH="bot/sweep-trap-shadow-ledger-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
+          git checkout -b "$BRANCH"
+          git add artifacts/governance/sweep_trap_shadow.jsonl
+          git commit -m "chore(sweep-trap): accumulate shadow ledger $(date -u +%Y-%m-%d)"
+          git remote set-url origin "https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}"
+          git push -u origin "$BRANCH"
+          gh pr create \
+            --base main --head "$BRANCH" --label automated \
+            --title "chore(sweep-trap): accumulate shadow ledger $(date -u +%Y-%m-%d)" \
+            --body "Automated sweep-trap shadow-ledger commit-back from run ${GITHUB_RUN_ID}. Direct pushes to main are rejected by the ruleset; this bot PR auto-merges once fast-gates completes." 2>pr_err.log \
+            || { rc=$?; if grep -qi 'already exists' pr_err.log; then echo "PR already exists for ${BRANCH}"; else cat pr_err.log; exit $rc; fi; }
+          gh pr merge "$BRANCH" --auto --squash --delete-branch 2>merge_err.log \
+            || { rc=$?; if grep -qiE 'already (merged|closed)|cannot be merged' merge_err.log; then echo "auto-merge already armed or completed for ${BRANCH}"; else cat merge_err.log; exit $rc; fi; }
+          echo "::notice title=sweep-trap-shadow::ledger PR opened + auto-merge armed (${BRANCH})"
+
+      - name: Upload shadow ledger + snapshot + log
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: sweep-trap-shadow-${{ github.run_id }}
+          path: |
+            artifacts/governance/sweep_trap_shadow.jsonl
+            artifacts/monitoring/sweep_trap_shadow.json
+            eval.log
+          if-no-files-found: ignore
+          retention-days: 30
+
+      - name: Publish snapshot to rolling bot branch
+        # Mirrors evidence-freshness-snapshot.yml: force-publish the monitoring
+        # snapshot to bot/live-sweep-trap-shadow so the live-overlay daemon fetches
+        # it via SWEEP_TRAP_SHADOW_SNAPSHOT_URL (Railway has no persistent volume,
+        # and a per-day PR to main just to bump a timestamp would be pure churn).
+        #
+        # Gate: a freshly-written snapshot has generated_at > 0; a no_data/stale
+        # run leaves the committed seed (generated_at 0) untouched and publishes
+        # nothing — the snapshot age then climbs and lo-sweep-trap-shadow-stale
+        # eventually fires. Runs LAST so the upload step sees the working tree
+        # before this step force-resets it onto origin/main.
+        if: always()
+        env:
+          GH_TOKEN: ${{ secrets.GH_PAT }}
+        run: |
+          set -euo pipefail
+          snapshot="artifacts/monitoring/sweep_trap_shadow.json"
+          if [ -z "${GH_TOKEN:-}" ]; then
+            echo "::warning::GH_PAT not configured; skipping publish to bot/live-sweep-trap-shadow"
+            exit 0
+          fi
+          if [ ! -s "${snapshot}" ]; then
+            echo "No snapshot file; nothing to publish."
+            exit 0
+          fi
+          fresh="$(python -c 'import json,sys; print(1 if float(json.load(open(sys.argv[1])).get("generated_at", 0)) > 0 else 0)' "${snapshot}")"
+          if [ "${fresh}" != "1" ]; then
+            echo "::notice title=sweep-trap-shadow::snapshot is the no-data seed (generated_at=0); nothing fresh to publish"
+            exit 0
+          fi
+
+          # Build the publish commit off a clean origin/main so the ledger PR
+          # branch state (from the commit-back step) can never leak into it.
+          tmp="$(mktemp)"
+          cp "${snapshot}" "${tmp}"
+          _remote_url="https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git"
+          git fetch "${_remote_url}" main 2>/dev/null || true
+          git checkout -f -B _sweep_trap_shadow_publish FETCH_HEAD
+
+          stable_dir="artifacts/monitoring/latest"
+          mkdir -p "${stable_dir}"
+          cp "${tmp}" "${stable_dir}/sweep_trap_shadow.json"
+          git config user.name  "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -f "${stable_dir}/sweep_trap_shadow.json"
+          if git diff --cached --quiet; then
+            echo "No sweep-trap-shadow snapshot changes to publish."
+            exit 0
+          fi
+          git commit -m "[skip ci] chore: refresh sweep-trap-shadow snapshot"
+
+          _remote_ref="refs/heads/bot/live-sweep-trap-shadow"
+          _tracking_ref="refs/remotes/origin/bot/live-sweep-trap-shadow"
+          git fetch "${_remote_url}" "+${_remote_ref}:${_tracking_ref}" 2>/dev/null || true
+          _zero_sha="0000000000000000000000000000000000000000"
+          _lease_expected="$(git rev-parse --verify "${_tracking_ref}" 2>/dev/null || echo "${_zero_sha}")"
+          if git push "--force-with-lease=${_remote_ref}:${_lease_expected}" "${_remote_url}" "HEAD:${_remote_ref}"; then
+            echo "::notice title=sweep-trap-shadow::snapshot published to bot/live-sweep-trap-shadow"
+          else
+            echo "::warning::sweep-trap-shadow snapshot push failed; the uploaded artifact is still available"
+          fi

@@ -2371,3 +2371,39 @@ groups:
         quota -- ingest will start failing when the quota is exhausted.
       runbook: Immediately reduce FMP polling (newsstack_fmp/config.py FMP_*_LIMIT / poll interval) or
         upgrade the FMP plan; raise FMP_MONTHLY_BANDWIDTH_LIMIT_BYTES to match a new plan.
+  - uid: lo-sweep-trap-shadow-stale
+    title: Sweep-trap shadow snapshot stale
+    condition: C
+    data:
+    - refId: A
+      datasourceUid: grafanacloud-prom
+      model:
+        # Precomputed 0/1 staleness gauge (age > OVERLAY_SWEEP_TRAP_SHADOW_MAX_AGE_SECS,
+        # default 96h, tolerates one skipped weekday run). Alerting on the precomputed
+        # gauge instead of a bare age comparison keeps the gt-0 threshold live (the
+        # gt-0-inert class). See services/live_overlay_daemon/sweep_trap_shadow_bridge.py.
+        expr: max(live_overlay_sweep_trap_shadow_snapshot_stale{job="live_overlay"})
+        instant: true
+    - refId: C
+      datasourceUid: __expr__
+      model:
+        type: threshold
+        conditions:
+        - evaluator:
+            type: gt
+            params:
+            - 0
+          operator:
+            type: and
+          query:
+            params:
+            - A
+    for: 30m
+    labels:
+      severity: warning
+    annotations:
+      summary: The WS4a sweep-trap shadow eval has not published a fresh snapshot within its max-age budget
+      runbook: The daily sweep-trap-shadow-daily workflow has not refreshed
+        artifacts/monitoring/sweep_trap_shadow.json within OVERLAY_SWEEP_TRAP_SHADOW_MAX_AGE_SECS.
+        Check the sweep-trap-shadow-daily workflow and the bot/sweep-trap-shadow-ledger branch.
+        Observe-only — no score impact; a stale snapshot only means the promotion evidence stopped accruing.

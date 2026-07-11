@@ -137,9 +137,11 @@ _FROZEN_SITES: frozenset[tuple[str, int, tuple[str, ...]]] = frozenset(
         # above the lazy provider getters in smc_api.py.
         # 2026-06-19 (timeframe expansion): added 10m/30m map entries,
         # shifting provider-global sites 186/194/202 -> 192/200/208.
-        ("smc_tv_bridge/smc_api.py", 192, ("_candle_provider",)),
-        ("smc_tv_bridge/smc_api.py", 200, ("_regime_provider",)),
-        ("smc_tv_bridge/smc_api.py", 208, ("_tech_provider",)),
+        # 2026-07-11 (truth-audit T1): _candle_ts docstring + robust
+        # fromisoformat parsing added +14 lines, 192/200/208 -> 206/214/222.
+        ("smc_tv_bridge/smc_api.py", 206, ("_candle_provider",)),
+        ("smc_tv_bridge/smc_api.py", 214, ("_regime_provider",)),
+        ("smc_tv_bridge/smc_api.py", 222, ("_tech_provider",)),
         (
             "streamlit_terminal.py",
             599,
@@ -295,6 +297,11 @@ _FROZEN_SITES: frozenset[tuple[str, int, tuple[str, ...]]] = frozenset(
         # 2026-07-09 (fix/c8-deploy-robust): submit_failed + submitter fields in
         # _empty/_coerce shifted this global anchor +8: 188->196.
         ("services/live_overlay_daemon/evidence_freshness_bridge.py", 196, ("_cached", "_cached_at_monotonic")),
+        # 2026-07-11 (feat/sweep-trap-shadow-grafana): WS4a sweep-trap shadow
+        # snapshot bridge — same TTL-cache singleton pattern (snapshot() +
+        # _reset_cache_for_tests()).
+        ("services/live_overlay_daemon/sweep_trap_shadow_bridge.py", 140, ("_cached", "_cached_at_monotonic")),
+        ("services/live_overlay_daemon/sweep_trap_shadow_bridge.py", 153, ("_cached", "_cached_at_monotonic")),
         ("services/live_overlay_daemon/provider_usage_bridge.py", 129, ("_cached", "_cached_at_monotonic")),
         # 2026-06-24 (feat/railway-metrics): Railway GraphQL bridge for container
         # metrics exposes a lazily-refreshed TTL cache (mirroring uptimerobot).

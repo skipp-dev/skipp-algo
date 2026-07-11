@@ -1,8 +1,18 @@
 # Pine Script Libraries Audit & Update Strategy
 
-**Date:** 2026-07-03  
-**Status:** ⚠️ CRITICAL — Libraries 3-4 weeks out of sync  
-**Action Required:** Implement automated sync + scheduled refresh cycle
+**Date:** 2026-07-03 (original) · **Updated:** 2026-07-11  
+**Status:** ✅ RESOLVED by decision — repo is SSOT; the TV→repo sync was removed.
+
+> **⚠️ SUPERSEDED (2026-07-11).** This report assumed TradingView is *upstream* and the
+> repo must "sync down" — that premise is wrong for this codebase. The repo is the
+> **single source of truth**; publishing is **repo→TV only** (`scripts/tv_publish_*_library.ts`
+> plus `smc-library-refresh.yml` / `smc-overlay-library-publish.yml`). "Days behind
+> TradingView" is therefore **not a meaningful metric** — TV is downstream. The TV→repo
+> sync workflow, its Playwright fetcher (`scripts/tv_fetch_smc_libraries.ts`), and the
+> 7-day `pine-library-freshness` CI job (`check_pine_library_age.py`) were **removed**.
+> The staleness table below is kept for history only — ignore its STALE/CRITICAL
+> verdicts. See CLAUDE.md → "Pine Library Maintenance". The *separate* 120-day
+> `pine-library-freshness.yml` (hand-authored `pine/skipp_*.pine`) is unaffected.
 
 ---
 
