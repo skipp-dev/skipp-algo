@@ -91,16 +91,19 @@ def _get_fmp_adapter(cfg: Config) -> FmpAdapter:
 
 def _get_bz_rest_adapter(cfg: Config) -> Any:
     global _bz_rest_adapter, _bz_rest_adapter_key
+    from .ingest_benzinga import BenzingaRestAdapter, benzinga_provider
+    provider = benzinga_provider()
+    # direct transport needs the direct token (the Massive key 401s on api.benzinga.com)
+    api_key = (cfg.benzinga_direct_api_key or cfg.benzinga_api_key) if provider == "direct" else cfg.benzinga_api_key
     with _init_lock:
-        if _bz_rest_adapter is None or _credential_changed(_bz_rest_adapter_key, cfg.benzinga_api_key):
-            from .ingest_benzinga import BenzingaRestAdapter
+        if _bz_rest_adapter is None or _credential_changed(_bz_rest_adapter_key, api_key):
             if _bz_rest_adapter is not None and hasattr(_bz_rest_adapter, "close"):
                 try:
                     _bz_rest_adapter.close()
                 except Exception:
                     logger.debug("bz rest adapter close on rotation failed", exc_info=True)
-            _bz_rest_adapter = BenzingaRestAdapter(cfg.benzinga_api_key)
-            _bz_rest_adapter_key = cfg.benzinga_api_key
+            _bz_rest_adapter = BenzingaRestAdapter(api_key, provider=provider)
+            _bz_rest_adapter_key = api_key
     return _bz_rest_adapter
 
 
@@ -700,6 +703,7 @@ def poll_once(
                     page_size=cfg.benzinga_rest_page_size,
                     channels=cfg.benzinga_channels or None,
                     topics=cfg.benzinga_topics or None,
+                    display_output="full",  # direct returns article body; Massive drops it
                 ),
                 cache_owner=bz_rest,
             )

@@ -83,20 +83,20 @@ _FROZEN_SITES: frozenset[tuple[str, int, tuple[str, ...]]] = frozenset(
         ("newsstack_fmp/pipeline.py", 70, ("_store",)),
         ("newsstack_fmp/pipeline.py", 79, ("_fmp_adapter", "_fmp_adapter_key")),
         ("newsstack_fmp/pipeline.py", 93, ("_bz_rest_adapter", "_bz_rest_adapter_key")),
-        ("newsstack_fmp/pipeline.py", 108, ("_bz_ws_adapter", "_bz_ws_adapter_key")),
-        ("newsstack_fmp/pipeline.py", 134, ("_bz_rss_adapter",)),
-        ("newsstack_fmp/pipeline.py", 143, ("_enricher",)),
-        ("newsstack_fmp/pipeline.py", 1124, ("_last_meta",)),  # 2026-07-11 meta-sources de-nest shifted (+6: 1118->1124)
+        ("newsstack_fmp/pipeline.py", 111, ("_bz_ws_adapter", "_bz_ws_adapter_key")),  # 2026-07-11 bz-direct key-select (+3: 108->111)
+        ("newsstack_fmp/pipeline.py", 137, ("_bz_rss_adapter",)),  # 2026-07-11 bz-direct key-select (+3: 134->137)
+        ("newsstack_fmp/pipeline.py", 146, ("_enricher",)),  # 2026-07-11 bz-direct key-select (+3: 143->146)
+        ("newsstack_fmp/pipeline.py", 1128, ("_last_meta",)),  # 2026-07-11 bz-direct display_output (+4: 1124->1128)
         (
             # 2026-07-11 meta-sources de-nest shifted (+6: 1207->1213)
             "newsstack_fmp/pipeline.py",
-            1213,
+            1217,  # 2026-07-11 bz-direct display_output (+4: 1213->1217)
             ("_bz_rest_adapter", "_bz_rss_adapter", "_bz_ws_adapter", "_enricher", "_fmp_adapter", "_last_meta", "_store"),
         ),
         (
             # 2026-07-11 meta-sources de-nest shifted (+6: 1208->1214)
             "newsstack_fmp/pipeline.py",
-            1214,
+            1218,  # 2026-07-11 bz-direct display_output (+4: 1214->1218)
             ("_bz_rest_adapter_key", "_bz_ws_adapter_key", "_fmp_adapter_key"),
         ),
         ("open_prep/regime.py", 129, ("_prev_regime",)),
