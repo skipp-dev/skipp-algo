@@ -6,8 +6,10 @@ name: live-overlay-alert-rules-publish
 # Until now alert-rules.yaml was deployed only by a MANUAL run of
 # scripts/grafana_alert_rules_upsert.py, so committed rule changes (e.g. the
 # credential-health alert group) never reached Grafana until someone remembered
-# to run the upsert. This closes that gap. Alert->contact-point routing stays
-# Grafana-UI-side via the `severity` label (not versioned here).
+# to run the upsert. This closes that gap. Alert->contact-point routing (the
+# Slack contact point + notification policy that matches on the `severity`
+# label) is versioned separately in notification-routing.yaml and deployed by
+# live-overlay-notification-routing-publish.yml.
 
 on:
   push:

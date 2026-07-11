@@ -99,6 +99,11 @@ _FROZEN_SITES: dict[str, int] = {
     "scripts/generate_performance_report.py": 1,
     "scripts/generate_showcase_summary.py": 1,
     "scripts/generate_smc_micro_base_from_databento.py": 1,
+    # 2026-07-11: repo-root bootstrap so the Grafana notification-routing upsert
+    # can `from scripts.grafana_alert_rules_upsert import _api_key, _request`
+    # (reuse one auth path) under both `python -m scripts.X` and
+    # `python scripts/X.py` (the deploy workflow uses the latter).
+    "scripts/grafana_notification_routing_upsert.py": 1,
     "scripts/investigate_universe_delta.py": 1,
     # measure_databento_ops_run.py has a second textual occurrence inside a
     # triple-quoted subprocess runner string — AST sees only the real call.
