@@ -268,6 +268,14 @@ def _pine_str_array(name: str, values: list[str]) -> str:
 def _pine_float_array(name: str, values: list[float | None]) -> str:
     if not values:
         return f"var array<float> {name} = array.new<float>()"
+    # Pine v6 infers `array.from(na, na, …)` (every element na, no float literal
+    # to anchor the type) as array<int>, which cannot be assigned to the declared
+    # array<float> — compile error CE10173. That is exactly the C13
+    # entry/stop/target columns on a day with no traded setups. Emit a
+    # float-typed, na-filled array of the same length so the panel still compiles
+    # (else the published indicator never loads and add-to-chart/publish fails).
+    if all(v is None or not math.isfinite(v) for v in values):
+        return f"var array<float> {name} = array.new<float>({len(values)}, na)"
     body = ", ".join(_pine_float(v) for v in values)
     return f"var array<float> {name} = array.from({body})"
 
