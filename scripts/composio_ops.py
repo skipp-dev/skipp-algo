@@ -47,7 +47,9 @@ _TIMEOUT = 20.0
 SLACK_OPEN_DM = "SLACK_OPEN_DM"
 SLACK_SEND_MESSAGE = "SLACK_SEND_MESSAGE"
 GITHUB_CREATE_ISSUE = "GITHUB_CREATE_AN_ISSUE"
-OUTLOOK_SEND_EMAIL = "OUTLOOK_SEND_EMAIL"
+# The REST tool is double-prefixed (OUTLOOK_OUTLOOK_…) and takes ``to_email``,
+# unlike the single-prefixed MCP slug that takes ``to`` — verified live 2026-07-11.
+OUTLOOK_SEND_EMAIL = "OUTLOOK_OUTLOOK_SEND_EMAIL"
 
 
 @dataclass(frozen=True)
@@ -258,6 +260,6 @@ def send_outlook_email(to: str, subject: str, html_body: str) -> DeliveryResult:
         return DeliveryResult(ok=False, skipped=True, detail="no Outlook recipient configured")
     return execute_tool(
         OUTLOOK_SEND_EMAIL,
-        {"to": to, "subject": subject, "body": html_body, "is_html": True},
+        {"to_email": to, "subject": subject, "body": html_body, "is_html": True},
         toolkit="outlook",
     )

@@ -165,9 +165,9 @@ def test_send_outlook_email_shapes_html(monkeypatch):
     monkeypatch.setattr(composio_ops.urllib.request, "build_opener", lambda: opener)
     composio_ops.send_outlook_email("a@b.c", "Subj", "<p>hi</p>")
     req = opener.requests[0]
-    assert _slug_of(req) == "OUTLOOK_SEND_EMAIL"
+    assert _slug_of(req) == "OUTLOOK_OUTLOOK_SEND_EMAIL"
     assert _body_of(req)["arguments"] == {
-        "to": "a@b.c",
+        "to_email": "a@b.c",
         "subject": "Subj",
         "body": "<p>hi</p>",
         "is_html": True,
