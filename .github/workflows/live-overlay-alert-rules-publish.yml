@@ -55,6 +55,13 @@ jobs:
           cache: pip
           cache-dependency-path: requirements.txt
 
+      - name: Install dependencies
+        # grafana_alert_rules_upsert.py parses alert-rules.yaml with PyYAML (its
+        # only third-party dep; HTTP is stdlib urllib). Set-up-python alone does
+        # NOT install it, so without this step the upsert died on
+        # `No module named 'yaml'` for every alert change (2026-07-11).
+        run: python -m pip install --upgrade pip pyyaml
+
       - name: Upsert alert rules (or dry-run)
         env:
           EVENT_NAME: ${{ github.event_name }}

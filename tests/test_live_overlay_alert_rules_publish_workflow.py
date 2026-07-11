@@ -76,3 +76,17 @@ def test_runner_and_python_pinned(workflow_text: str) -> None:
     assert "${{ vars.SMC_GH_HOSTED_RUNNER || 'ubuntu-latest' }}" in workflow_text
     assert "./.github/actions/setup-python-pinned" in workflow_text
     assert "actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd" in workflow_text
+
+
+def test_pyyaml_installed_before_upsert(workflow_text: str) -> None:
+    """The upsert script parses alert-rules.yaml with PyYAML — set-up-python does
+    NOT install it, so the workflow must `pip install pyyaml` before the upsert or
+    it dies on `No module named 'yaml'` (regression guard for the 2026-07-11
+    silent auto-publish failure)."""
+    install_at = workflow_text.find("pip install")
+    assert install_at != -1 and "pyyaml" in workflow_text, (
+        "workflow must install PyYAML (the upsert's only third-party dep)"
+    )
+    # Anchor on the actual invocation, not the header comment that also names the script.
+    upsert_at = workflow_text.index("python scripts/grafana_alert_rules_upsert.py")
+    assert install_at < upsert_at, "PyYAML must be installed before the upsert step runs"
