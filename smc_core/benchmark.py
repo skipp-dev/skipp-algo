@@ -183,8 +183,9 @@ def build_benchmark(
 # before a hit-rate is considered statistically meaningful. Buckets
 # below the floor are reported with ``insufficient = True`` and a
 # ``hit_rate`` of ``None`` so downstream consumers cannot accidentally
-# act on noise. Five matches the project-wide minimum already used in
-# benchmark KPIs.
+# act on noise. Local floor for THIS report only — other floors in the
+# repo differ (trust_tier 3, fvg_pine_emit 12, quartile gate 20,
+# release_policy 30) and compute_event_family_kpi has none.
 _FVG_BUCKET_MIN_EVENTS = 5
 
 
@@ -222,9 +223,9 @@ def stratified_fvg_report(
     is not the same signal as a 0% hit rate from 25 events, and
     flattening them would silently lie to the operator.
 
-    The output also includes an ``actionable_buckets`` list of
-    ``(bucket_key, hit_rate, n_events)`` tuples for buckets that meet
-    the floor and exceed ``hit_rate >= 0.70`` — these are the contexts
+    The output also includes an ``actionable_buckets`` list of dicts
+    (keys ``session``/``htf_bias``/``vol_regime``/``n_events``/``hit_rate``)
+    for buckets that meet the floor and ``hit_rate >= 0.70`` — the contexts
     that the plan requires before FVG can be promoted from a tie-breaker
     to a contextual gate (Phase F2 wiring).
     """

@@ -92,7 +92,10 @@ def build_killzones(df: pd.DataFrame, tz: str = DEFAULT_TZ) -> list[dict]:
 
 
 def build_session_pivots(df: pd.DataFrame, tz: str = DEFAULT_TZ) -> list[dict]:
-    # Session pivots share the same high/low/mid outputs as killzones.
+    # MISNOMER kept for payload compatibility: this is a verbatim alias of
+    # build_killzones (no pivot formula) — "session_pivots" in the payload
+    # duplicates the "killzones" list byte-for-byte.  The structure-contract
+    # session_pivots come from scripts/explicit_structure_aux instead.
     return build_killzones(df, tz=tz)
 
 

@@ -236,7 +236,9 @@ def derive_base_signals(nm: NormalizedMeta) -> BaseLayerSignals:
     elif mr == "ROTATION":
         base_reasons.append("REGIME_ROTATION")
 
-    # Enriched news category reason
+    # MISNOMER: these reason codes are assigned by the SIGN of the pooled
+    # enriched-news heat (bearish→NEWS_MACRO, bullish→NEWS_COMPANY), NOT by
+    # EnrichedNews.category, which layering never reads.
     en_heat = nm["enriched_news_heat"]
     if abs(en_heat) > 0.15:
         base_reasons.append("NEWS_MACRO" if en_heat < -0.15 else "NEWS_COMPANY")
