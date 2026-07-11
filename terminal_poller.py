@@ -355,9 +355,6 @@ class TerminalConfig:
     live_story_ttl_s: float = field(
         default_factory=lambda: _env_float("TERMINAL_LIVE_STORY_TTL_S", 7200.0),
     )
-    live_story_cooldown_s: float = field(
-        default_factory=lambda: _env_float("TERMINAL_LIVE_STORY_COOLDOWN_S", 900.0),
-    )
     feed_max_age_s: float = field(
         default_factory=lambda: _env_float("TERMINAL_FEED_MAX_AGE_S", 14400.0),  # 4 hours
     )
@@ -421,7 +418,6 @@ class ClassifiedItem:
     story_providers_seen: list[str] = field(default_factory=list)
     story_best_source: str = ""
     story_best_provider: str = ""
-    story_cooldown_until: float | None = None
     story_expires_at: float | None = None
     catalyst_score: float | None = None
     catalyst_direction: str = ""
@@ -530,7 +526,6 @@ class ClassifiedItem:
             "story_providers_seen": self.story_providers_seen,
             "story_best_source": self.story_best_source,
             "story_best_provider": self.story_best_provider,
-            "story_cooldown_until": self.story_cooldown_until,
             "story_expires_at": self.story_expires_at,
             "catalyst_score": self.catalyst_score,
             "catalyst_direction": self.catalyst_direction,

@@ -582,7 +582,8 @@ frozen_major = "v7"
 "terminal_bitcoin.py" = 4
 "terminal_catalyst_state.py" = 3
 "terminal_export.py" = 3
-"terminal_feed_state.py" = 9
+# 2026-07-11 (truth-audit): removed the inert story_cooldown_until hydration chain (9->8).
+"terminal_feed_state.py" = 8
 "terminal_forecast.py" = 1
 "terminal_live_story_state.py" = 2
 "terminal_poller.py" = 2  # 2026-07-10: 4->2 (-2, removed earnings_bmo timing chain + notable_earnings name/timing chains — FMP-earnings BMO-honesty fix)

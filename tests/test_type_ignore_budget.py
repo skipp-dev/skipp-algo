@@ -105,7 +105,7 @@ _FROZEN_FILE_COUNTS: dict[str, int] = {
     "smc_core/resilient.py": 2,
     "streamlit_terminal.py": 7,
     "terminal_ai_insights.py": 1,  # PR #2128: tuple-return (bool, T) miss-cache helper signature confuses generic narrowing.
-    "terminal_bitcoin.py": 18,
+    "terminal_bitcoin.py": 16,  # 2026-07-11 (truth-audit): -2 from removing the inert 429 branch (its 2 type-ignores)
     "terminal_export.py": 1,
     "terminal_finnhub.py": 4,
     "terminal_fmp_insights.py": 1,  # PR #2128: tuple-return (bool, T) miss-cache helper signature confuses generic narrowing.
