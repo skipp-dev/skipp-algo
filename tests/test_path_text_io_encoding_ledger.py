@@ -65,10 +65,8 @@ _FROZEN_SITES: dict[str, frozenset[int]] = {
     "pine_input_surface.py": frozenset({129, 156, 187, 260, 270, 344}),
     "scripts/investigate_universe_delta.py": frozenset({28}),
     "streamlit_terminal.py": frozenset({1621}),
-    # 2026-07-04 rebaseline: pre-existing sites in the Pine sync tooling
-    # surfaced by a branch-wide ledger run (TOML/Pine round-trips; content
-    # is ASCII-safe, encoding default acceptable until a dedicated sweep).
-    "scripts/check_pine_library_age.py": frozenset({34}),
+    # 2026-07-11: scripts/check_pine_library_age.py removed with the dead
+    # TV→repo Pine-sync gate (repo is SSOT; see pine/PINE_LIBRARIES_AUDIT.md).
 }
 _FROZEN_TOTAL = sum(len(v) for v in _FROZEN_SITES.values())
 

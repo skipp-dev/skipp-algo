@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 """Validate locally-synced Pine Script libraries (validation-only).
 
-Fetching is delegated to scripts/tv_fetch_smc_libraries.ts (Playwright +
-TV_STORAGE_STATE); this script validates already-fetched local copies only
+There is no automated TV→repo fetch (repo is SSOT; the TV→repo sync was
+removed 2026-07-11). This validates already-present local copies only
 (Pine syntax + import existence) and writes nothing in any invoked path.
 
 Usage:
@@ -137,12 +137,12 @@ def update_library_versions_toml(
 def fetch_library_source(user: str, lib: str, version: str) -> str | None:
     """Fetch library source from TradingView.
 
-    NOTE: Automated fetching is now handled by scripts/tv_fetch_smc_libraries.ts
-    which uses Playwright + TV_STORAGE_STATE (same auth as publishing).
+    NOTE: there is no automated TV→repo fetch (repo is SSOT; the TV→repo
+    sync was removed 2026-07-11). Always returns None by design.
 
-    This Python script now only validates already-fetched libraries.
+    This Python script only validates already-present local libraries.
     """
-    logger.debug(f"Skipping fetch for {lib} (handled by tv_fetch_smc_libraries.ts)")
+    logger.debug(f"No TV→repo fetch for {lib} (repo is SSOT; validate local only)")
     return None
 
 
@@ -164,15 +164,15 @@ def sync_library(
     # Fetch source from TradingView
     source = fetch_library_source(config["user"], config["lib"], config["version"])
     if source is None:
-        # Fetching is delegated to scripts/tv_fetch_smc_libraries.ts; this
-        # script only validates the already-fetched local copy.
+        # There is no TV→repo fetch (repo is SSOT); this script only
+        # validates the already-present local copy.
         if not local_path.exists():
             logger.error(f"{lib_name}: local copy missing at {local_path}")
             return False
         if not validate_pine_syntax(local_path.read_text(encoding="utf-8"), lib_name):
             logger.error(f"{lib_name}: local copy failed syntax validation")
             return False
-        logger.info(f"{lib_name}: local copy validated (fetch handled by tv_fetch_smc_libraries.ts)")
+        logger.info(f"{lib_name}: local copy validated (no TV→repo fetch; repo is SSOT)")
         return False
 
     # Validate syntax
