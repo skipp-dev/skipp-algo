@@ -342,7 +342,7 @@ def build_vd_snapshot(
     bz_options: list[dict[str, Any]] | None = None,
     open_prep_data: dict[str, Any] | None = None,
 ) -> list[dict[str, Any]]:
-    """Build one row per ticker from the full feed (per-ticker selection = best news_score; output ranking = rank_score = 0.7*|chg_pct| + 0.3*(news_score*100). NOTE (truth-audit 2026-07-11): because news_score (0-1) is scaled *100 it DOMINATES |chg_pct| (a percentage, ~0-10) in the normal range — |chg_pct| only wins above ~17% moves. The weighting intent is unconfirmed; this was previously mis-documented as "dominated by |chg_pct|".
+    """Build one row per ticker from the full feed (per-ticker selection = best news_score; output ranking = rank_score = 0.7*|chg_pct| + 0.3*(news_score*10), so |chg_pct| is the dominant term for real movers with news_score as a comparable-scale secondary — truth-audit 2026-07-11 rescaled the news term from *100 to *10 so the 70/30 blend is meaningful; the old *100 made news_score dominate).
 
     When *rt_quotes* is provided (from ``load_rt_quotes()``), the live
     quote fields (tick, streak, price, chg_pct, vol_ratio) are
@@ -517,11 +517,11 @@ def build_vd_snapshot(
             "tech_signal":      _fh_patterns.get(tk, {}).get("tech_signal", ""),
         })
 
-    # Composite rank: 0.7*|chg_pct| + 0.3*(news_score*100) — the *100 makes news_score dominate |chg_pct| in the normal range (truth-audit 2026-07-11; see docstring).
+    # Composite rank: 0.7*|chg_pct| + 0.3*(news_score*10) — news_score (0-1) rescaled *10 (truth-audit 2026-07-11, was *100) to a magnitude comparable to |chg_pct| (~0-10) so the 0.7/0.3 blend makes |chg_pct| dominant for real movers, as intended (see docstring). Tune the *10 if the price/news balance changes.
     for r in rows:
         _chg = abs(float(r.get("chg_pct") or 0))
         _ns = float(r.get("score") or 0)
-        r["rank_score"] = round(_chg * 0.7 + _ns * 100.0 * 0.3, 2)
+        r["rank_score"] = round(_chg * 0.7 + _ns * 10.0 * 0.3, 2)
 
     # Sort by rank_score desc, then freshest first, then symbol asc
     rows.sort(key=lambda r: (-r.get("rank_score", 0), r.get("age_min", 9999), r.get("symbol", "")))
