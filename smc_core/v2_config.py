@@ -74,11 +74,18 @@ class ReactionZoneConfig:
 
 
 class ConfluenceScoreConfig:
-    """Tunables for the confluence-score detector."""
+    """RESERVED / UNWIRED — nothing reads this config.
+
+    The real confluence detector (``smc_core/smc_confluence.py``) hard-codes
+    its thresholds and uses a geometric mean, not a points-per-signal model;
+    the v2 bucket weight is hard-coded in ``scripts/smc_signal_quality.py``.
+    Setting ``SMC_CONFLUENCE_POINTS_PER_SIGNAL`` has NO effect (open
+    wire-or-remove decision).
+    """
 
     @property
     def points_per_signal(self) -> int:
-        """Score contribution of each aligned signal."""
+        """Score contribution of each aligned signal (unwired — see class doc)."""
         return _env_int("SMC_CONFLUENCE_POINTS_PER_SIGNAL", 20, min_val=1, max_val=100)
 
 

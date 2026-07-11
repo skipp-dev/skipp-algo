@@ -14,18 +14,18 @@ average.
 Anti-double-count guardrail (enforced in ``build_signal_quality_v2``)
 -----------------------------------------------------------------------
 Before this sub-score earns any budget weight, the caller must demonstrate
-incremental Brier improvement over the additive v1 score.  The scaffold below
-returns ``raw_confluence_score=0.0`` and ``confluence_tier="NONE"`` if the
-interaction is not observed, making it safe to enable in shadow mode without
-affecting the score until the evidence threshold is reached.
+incremental Brier improvement over the additive v1 score.  Confluence requires
+CO-PRESENCE: ``raw_confluence_score`` is ``0.0`` / tier ``"NONE"`` whenever
+fewer than two families are active (a single family is not confluence), so the
+sub-score can never re-count a lone family already scored in its own bucket.
 
 Integration
 -----------
 :func:`~smc_integration.measurement_evidence._event_signal_quality_score`
-calls :func:`compute_confluence` when ``ENABLE_CONFLUENCE_SCORE=1``, adds the
-result under ``"confluence_v2"`` in the enrichment dict, and
-``build_signal_quality_v2`` reads ``"confluence_v2"`` to fill the Confluence
-bucket (weight 12 in v2 budget).
+computes confluence only through ``build_signal_quality_v2``, which RECOMPUTES
+:func:`compute_confluence` from the light dicts (weight 12 in v2 budget) and
+normalises the 0–5 ``SWEEP_QUALITY_SCORE`` to 0–1 first.  Callers must pass
+sweep quality on the 0–1 scale documented below.
 """
 
 from __future__ import annotations
@@ -58,14 +58,15 @@ class ConfluenceScore:
         ``SWEEP_TRAP_QUALITY_SCORE`` when Phase B is active; falls back to the
         raw ``SWEEP_QUALITY_SCORE``.
     raw_confluence_score:
-        0.0–1.0 orthogonal interaction term.  Computed as a weighted geometric
-        mean of the active-family contributions; returns ``0.0`` when fewer
-        than two families are active.
+        0.0–1.0 interaction term.  Unweighted geometric mean of the active
+        contributions when >= 2 families are active (tri-family bonus ×1.20,
+        capped at 1.0); ``0.0`` when fewer than two families are active
+        (confluence requires co-presence).
     confluence_tier:
-        ``"HIGH"`` — all three families active with high individual scores.
-        ``"MEDIUM"`` — two or three families active with moderate scores.
-        ``"LOW"`` — one family active.
-        ``"NONE"`` — no family above threshold.
+        Fewer than two active families → ``"NONE"`` (score 0.0).  With >= 2
+        active families the tier is THRESHOLD-based on the raw score
+        (>= 0.70 ``"HIGH"``, >= 0.40 ``"MEDIUM"``, else ``"LOW"``) — two
+        strong families can reach ``"HIGH"`` without the third.
     """
 
     ob_contribution: float
@@ -103,7 +104,9 @@ def compute_confluence(
     sweep_light:
         Liquidity sweeps dict; expected key ``"SWEEP_TRAP_QUALITY_SCORE"``
         (0–1, Phase B) or fallback ``"SWEEP_QUALITY_SCORE"`` (0–1).
-        ``None`` if absent.
+        ``None`` if absent.  CONTRACT: sweep quality MUST be pre-normalised
+        to 0–1 by the caller — ``build_signal_quality_v2`` divides the raw
+        0–5 ``SWEEP_QUALITY_SCORE`` by 5.0 before calling.
 
     Returns
     -------
@@ -139,9 +142,11 @@ def compute_confluence(
         raw_score: float = 0.0
         tier: ConfluenceTier = "NONE"
     elif n_active == 1:
-        # Single family — low baseline only.
-        raw_score = active[0] * 0.30
-        tier = "LOW"
+        # A single active family is NOT confluence — co-presence of >= 2
+        # families is required, else this would re-count evidence already
+        # scored in that family's own bucket (anti-double-count contract).
+        raw_score = 0.0
+        tier = "NONE"
     else:
         # Geometric mean of active contributions — orthogonal interaction.
         product: float = 1.0

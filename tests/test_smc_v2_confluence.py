@@ -63,9 +63,12 @@ class TestTierAssignment:
         result = compute_confluence(ob_below, fvg_below, sweep_below)
         assert result.confluence_tier in ("NONE", "LOW")
 
-    def test_single_active_family_gives_low_tier(self) -> None:
+    def test_single_active_family_is_not_confluence(self) -> None:
+        # Co-presence required: a lone family is NONE / 0.0, not a "LOW"
+        # confluence that would re-count its own bucket's evidence.
         result = compute_confluence(_ob(15.0), None, None)
-        assert result.confluence_tier == "LOW"
+        assert result.confluence_tier == "NONE"
+        assert result.raw_confluence_score == pytest.approx(0.0)
 
     def test_two_active_families_gives_at_least_medium(self) -> None:
         result = compute_confluence(_ob(15.0), _fvg(15.0), None)

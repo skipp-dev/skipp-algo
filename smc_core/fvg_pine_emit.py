@@ -2,21 +2,23 @@
 
 Consumes the JSON output of
 :func:`smc_core.benchmark.stratified_fvg_report` and produces a
-deterministic Pine v5 snippet of ``export const string`` declarations
-that the ``SMC_Core_Engine.pine`` dashboard can reference for the
-``show_fvg_tri_axis`` toggle.
+deterministic Pine snippet of ``export const string`` declarations
+(the wrapper ``scripts/emit_fvg_context_pine.py`` emits ``//@version=6``).
+No in-repo Pine consumer imports the constants yet; ``SMC_Dashboard.pine``
+consumes FVG context health via a manual paste-input instead, and no
+``show_fvg_tri_axis`` toggle exists anywhere in the repo.
 
 Token scheme (one constant per session × vol_regime cell, htf_bias
 collapsed to KEY_ALL because the existing dashboard only has room for
 two-axis cells):
 
     string FVG_HEALTH_<SESSION>_<VOLREGIME> = "<HR_PCT>% (n=<N>)"
-    string FVG_HEALTH_<SESSION>_<VOLREGIME>_STATUS = "<OK|WARN|INSUF>"
+    string FVG_HEALTH_<SESSION>_<VOLREGIME>_STATUS = "<OK|WEAK|WARN|INSUF>"
 
 Determinism contract: identical input report → byte-identical output.
 The function never raises on partial input; missing buckets fall back
-to ``"insufficient (n=<N>)"`` strings that the dashboard can choose to
-hide via the existing ``show_fvg_tri_axis`` toggle.
+to ``"insufficient (n=<N>)"`` strings that a future dashboard wiring
+can choose to hide.
 
 This module ONLY emits text — it never touches the
 ``SMC_Core_Engine.pine`` source file. Wiring the constants into the
