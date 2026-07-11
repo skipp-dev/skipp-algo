@@ -7,9 +7,11 @@ code can silently overwrite the real repo's canonical artifact tree
 manifests then leak ``pytest-of-<user>`` provenance into downstream
 measurement-benchmark runs and trip the rolling-bench fail-loud guard.
 
-This helper is the canonical implementation. ``smc_integration/structure_batch.py``
-ships an inline equivalent introduced in PR #33; once that lands it will be
-migrated to import from here.
+This helper is the canonical implementation, imported by
+``smc_integration/batch.py`` (owner of ``reports/smc_snapshot_bundles``).
+NOTE: ``smc_integration/structure_batch.py`` has NO guard at all — it writes
+``reports/smc_structure_artifacts/manifest_<tf>.json`` unguarded (open
+wire-or-remove decision).
 """
 
 from __future__ import annotations

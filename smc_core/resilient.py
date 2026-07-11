@@ -5,11 +5,11 @@ backlog item **E-3** (`@resilient` decorator refactor).
 
 Status
 ------
-Pilot / foundation. Ships the decorator + a contract test suite so that
-future per-adapter migrations have a single, agreed API to wrap their
-HTTP / IO call sites against. **No production call site is migrated by
-the PR introducing this module** — that is intentional. Per-adapter
-moves happen in dedicated follow-up PRs after the contract is reviewed.
+In production. Introduced as a pilot (no call site migrated by the
+introducing PR); production consumers now exist —
+``scripts/smc_fmp_client.py`` and ``terminal_fmp_insights.py`` wrap
+their HTTP call sites with ``@resilient``. Further per-adapter moves
+still happen in dedicated follow-up PRs.
 
 Design
 ------

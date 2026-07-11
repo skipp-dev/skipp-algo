@@ -5,7 +5,8 @@ Priority rule:
   2. **Session context** *modulates* the confidence without flipping direction.
   3. If HTF is unavailable, session bias is used as a lower-confidence fallback.
 
-The merge result is a ``BiasVerdict`` consumed by layering and service orchestration.
+The merge result is a ``BiasVerdict`` consumed by service orchestration and
+measurement evidence (not by ``smc_core/layering.py``, which never imports it).
 """
 
 from __future__ import annotations

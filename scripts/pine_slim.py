@@ -13,7 +13,10 @@ Steps:
  3. Report line savings.
 
 Safety:
- - Functions that depend on global inputs are skipped.
+ - Safety comes from explicit whitelists, not detection: only functions in
+   PURE_DELEGATES are rewritten as plain delegates; global-input-dependent
+   functions are rewritten ONLY via the hand-audited DELEGATES_WITH_GLOBALS
+   templates (which pass the globals as arguments).
  - The script only touches the function *body* (everything between
    `f_name(…) =>` and the next blank line or next definition).
  - Dry-run mode shows what would change without writing.

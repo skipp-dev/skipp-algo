@@ -107,8 +107,10 @@ def _normalise_event(record: dict[str, Any]) -> dict[str, Any] | None:
     version — we accept either source so the script keeps working as
     enrichers migrate.
 
-    Returns ``None`` only when the record cannot supply a usable
-    ``hit`` flag (anything else falls back to ``"UNKNOWN"`` — matching
+    Returns ``None`` for non-dict records, non-FVG families, and records
+    that cannot supply a usable hit flag (the canonical ledger schema has
+    no ``hit`` field — ``outcome``, a bool, is the real source; missing
+    context values fall back to ``"UNKNOWN"`` — matching
     :func:`stratified_fvg_report`'s own defensive policy).
     """
     if not isinstance(record, dict):
