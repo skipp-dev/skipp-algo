@@ -177,11 +177,14 @@ export function resolveTradingViewLaunchOptions(env: NodeJS.ProcessEnv = process
 
 /** Names the env var (or default) that selected the browser, for attributable errors. */
 export function describeTradingViewLaunchTarget(launchOptions: LaunchOptions): string {
+  // Name the selector value AND both possible sources: the helper only sees the
+  // final options, so it cannot tell an env var from a caller override — naming a
+  // single env var would mislead when the value actually came from an override.
   if (launchOptions.executablePath) {
-    return `TV_CHROMIUM_EXECUTABLE_PATH="${launchOptions.executablePath}"`;
+    return `executablePath "${launchOptions.executablePath}" (TV_CHROMIUM_EXECUTABLE_PATH or a caller override)`;
   }
   if (launchOptions.channel) {
-    return `TV_BROWSER_CHANNEL="${launchOptions.channel}"`;
+    return `channel "${launchOptions.channel}" (TV_BROWSER_CHANNEL or a caller override)`;
   }
   return "Playwright bundled chromium";
 }
@@ -192,6 +195,10 @@ const MISSING_BROWSER_ERROR_MARKERS = [
   // missing-OS-deps remedy "npx playwright install-deps" — a different failure
   // (browser IS installed) with a different fix, which must propagate untouched.
   "Executable doesn't exist",
+  // Second independent marker so a reword of the phrase above still classifies. This
+  // download remedy is emitted only for a missing browser; the missing-OS-deps error
+  // says "install them", never "download new browsers", so it stays unmatched.
+  "download new browsers",
 ] as const;
 
 export function isMissingBrowserExecutableError(error: unknown): boolean {
@@ -278,6 +285,25 @@ export async function launchWithTradingViewFallback<T>(
   }
 }
 
+/**
+ * Merge caller overrides onto the env-resolved defaults with correct browser-
+ * selector precedence: an override naming EITHER selector (executablePath / channel)
+ * replaces BOTH env-derived selectors, so an explicit call-site choice wins instead
+ * of recombining with an env selector into the mutually-exclusive both-set state
+ * (which would otherwise hard-error at launch even though the caller was explicit).
+ */
+export function mergeTradingViewLaunchOverrides(base: LaunchOptions, overrides: LaunchOptions): LaunchOptions {
+  if (overrides.executablePath == null && overrides.channel == null) {
+    return { ...base, ...overrides };
+  }
+  const merged: LaunchOptions = { ...base, ...overrides };
+  // Exactly one selector survives — whichever the override named (leaving both set
+  // when the override itself names both, so the at-most-one guard still fires).
+  merged.executablePath = overrides.executablePath;
+  merged.channel = overrides.channel;
+  return merged;
+}
+
 /** Standard TradingView chromium launch honouring TV_CHROMIUM_EXECUTABLE_PATH / TV_BROWSER_CHANNEL. */
 export async function launchTradingViewChromium(
   overrides: LaunchOptions = {},
@@ -285,7 +311,7 @@ export async function launchTradingViewChromium(
 ): Promise<Browser> {
   return launchWithTradingViewFallback(
     (options) => chromium.launch(options),
-    { ...resolveTradingViewLaunchOptions(env), ...overrides },
+    mergeTradingViewLaunchOverrides(resolveTradingViewLaunchOptions(env), overrides),
     { fallbackToChromeChannel: true },
   );
 }
