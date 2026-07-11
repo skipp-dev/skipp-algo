@@ -410,6 +410,15 @@ file = "scripts/publish_signals_snapshot.py"
 attr = "run"
 count = 1
 
+# scripts/publish_universe_snapshots.py (truth-audit #5): publishes/restores the
+# durable point-in-time universe snapshot store to bot/live-universe-snapshot.
+# Single `_git` wrapper (git resolved via shutil.which, fixed argv, no shell),
+# x-access-token remote only — same shape as publish_signals_snapshot.
+[[subprocess_shell_injection_pin.sites]]
+file = "scripts/publish_universe_snapshots.py"
+attr = "run"
+count = 1
+
 # scripts/phase5_perf_trend.py wraps `gh run list` once per workflow
 # (review-v3 phase 5). Token-list args, dev-only.
 [[subprocess_shell_injection_pin.sites]]
@@ -504,6 +513,9 @@ frozen_major = "v7"
 # (eval-findings B5): +1 budgeted site in open_prep/outcomes.py → 332.
 # ---------------------------------------------------------------------------
 [field_preference_chain_ledger.file_counts]
+# 2026-07-11 (truth-audit #5): benign GH_PAT->GITHUB_TOKEN token-source fallback
+# in the universe-snapshot publisher's main() (same pattern as other bot-publish helpers).
+"scripts/publish_universe_snapshots.py" = 1
 "databento_volatility_screener.py" = 3
 "newsstack_fmp/ingest_benzinga.py" = 4
 "newsstack_fmp/ingest_benzinga_calendar.py" = 1

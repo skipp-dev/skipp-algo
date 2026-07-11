@@ -197,6 +197,9 @@ _FROZEN_SITES: dict[str, int] = {
     # calls go through one ``_git`` wrapper (git resolved via shutil.which,
     # fixed argv, no shell), which carries a single ``# noqa: S603``.
     "scripts/publish_signals_snapshot.py": 1,
+    # 2026-07-11 (truth-audit #5): universe-snapshot publisher's single ``_git``
+    # wrapper (git resolved via shutil.which, fixed argv, no shell) carries one ``# noqa: S603``.
+    "scripts/publish_universe_snapshots.py": 1,
     # 2026-05-12 PR #2157: Databento entitlement probe wraps each
     # provider request in a generic ``except Exception`` so it can
     # surface the original error message in the probe report. BLE001

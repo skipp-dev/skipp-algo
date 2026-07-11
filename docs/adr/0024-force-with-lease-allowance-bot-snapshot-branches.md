@@ -116,6 +116,17 @@ Constraints that must hold for the allowance to remain valid:
   it is not covered by `_FORCE_LEASE_ALLOWLIST`, but it honours the same four
   constraints, validates branch names defensively, and pushes only to the
   `bot/*` namespace.
+* The same pattern is reused by `scripts/publish_universe_snapshots.py`
+  (truth-audit #5, added 2026-07-11), which makes the point-in-time universe
+  snapshot store durable across ephemeral CI runs by publishing
+  `artifacts/universe/*.json` to `bot/live-universe-snapshot`. Unlike the
+  single-file cursors this store **accumulates** (one file per trade date), so
+  each publish seeds the work tree from the branch tip and copies the local
+  snapshots on top before the `--force-with-lease` push, keeping prior days.
+  It is invoked from `smc-databento-production-export.yml` (restore before the
+  export, publish after) but the push itself lives in the script — like
+  `publish_signals_snapshot.py` it is therefore outside `_FORCE_LEASE_ALLOWLIST`
+  yet honours the same four constraints and `bot/*`-only namespace.
 * A future `--force-with-lease` added outside `bot/*` or without a prior
   `git fetch` will be caught at PR time by the new allowlist test.
 * The policy statement "never `--force*`" is now accurate as *"never outside
