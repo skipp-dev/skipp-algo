@@ -1,0 +1,90 @@
+# live-window: off-hours-only  # F-V6-F2.1: schedule-only report generation, no repo writes (emails an Outlook digest)
+name: ops-digest-daily
+
+# Daily ops digest -> Outlook email (use case #4). Reads the sweep-trap shadow,
+# open_prep feature-importance, and public calibration artifacts from the
+# checkout and emails a compact summary via Composio (OUTLOOK_SEND_EMAIL). It is
+# inert (skips) unless COMPOSIO_API_KEY + OPS_DIGEST_EMAIL_TO are configured, and
+# fail-soft so a delivery hiccup never turns the workflow red.
+
+on:
+  schedule:
+    # 07:00 UTC — after credential-health-check (06:00) and before open-prep (~08:00).
+    - cron: "0 7 * * *"
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: "Render + log the digest but do not send the email"
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ops-digest-daily
+  cancel-in-progress: false
+
+defaults:
+  run:
+    shell: bash
+
+env:
+  PYTHONUNBUFFERED: "1"
+  PYTHONPATH: ${{ github.workspace }}
+
+jobs:
+  digest:
+    runs-on: ${{ vars.SMC_GH_HOSTED_RUNNER || 'ubuntu-latest' }}
+    timeout-minutes: 5
+    steps:
+      - name: Checkout
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+        with:
+          fetch-depth: 1
+
+      - name: Set up pinned Python
+        uses: ./.github/actions/setup-python-pinned
+
+      - name: Build and send ops digest
+        # CONTINUE-ON-ERROR-INTENTIONAL: best-effort convenience digest; a delivery hiccup must never fail the cron.
+        continue-on-error: true
+        env:
+          COMPOSIO_API_KEY: ${{ secrets.COMPOSIO_API_KEY }}
+          COMPOSIO_USER_ID: ${{ vars.COMPOSIO_USER_ID }}
+          COMPOSIO_OUTLOOK_ACCOUNT_ID: ${{ vars.COMPOSIO_OUTLOOK_ACCOUNT_ID }}
+          OPS_DIGEST_EMAIL_TO: ${{ vars.OPS_DIGEST_EMAIL_TO }}
+        run: |
+          set +e
+          DRY=""
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ] && [ "${{ inputs.dry_run }}" = "true" ]; then
+            DRY="--dry-run"
+          fi
+          if [ -z "${COMPOSIO_API_KEY:-}" ] && [ -z "$DRY" ]; then
+            echo "::notice title=ops-digest::COMPOSIO_API_KEY not set — rendering digest only (no send)."
+            DRY="--dry-run"
+          fi
+          if [ -z "$DRY" ]; then
+            python -m pip install --quiet -r requirements-composio.txt || {
+              echo "::warning title=ops-digest::composio install failed — rendering only."
+              DRY="--dry-run"
+            }
+          fi
+          python scripts/ops_digest.py $DRY --output artifacts/ci/ops_digest.html
+          {
+            echo "## Ops digest"
+            echo ""
+            echo '```'
+            python scripts/ops_digest.py --dry-run 2>/dev/null | sed -n '1,60p'
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+          exit 0
+
+      - name: Upload rendered digest
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: ops-digest-html
+          path: artifacts/ci/ops_digest.html
+          if-no-files-found: ignore
+          retention-days: 14

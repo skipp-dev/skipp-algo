@@ -6236,12 +6236,60 @@
       }
     },
     {
+      "id": 3900009,
+      "title": "Provider Rate-Limit Hits (429s, this month)",
+      "type": "timeseries",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "grafanacloud-prom"
+      },
+      "description": "HTTP 429 (rate-limit) hits per provider this month, counted in newsstack_fmp/_bz_http.py. The vendors send no X-RateLimit-* headers, so this is the only throttling signal -- a rising line means ingest is brushing the provider's rate limit (retries usually absorb it). Empty until a 429 occurs.",
+      "gridPos": {
+        "h": 5,
+        "w": 18,
+        "x": 6,
+        "y": 233
+      },
+      "targets": [
+        {
+          "expr": "live_overlay_provider_usage_rate_limit_hits{job=~\"$job\"}",
+          "legendFormat": "{{provider}}",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "grafanacloud-prom"
+          }
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "custom": {
+            "lineWidth": 1,
+            "fillOpacity": 8,
+            "showPoints": "never"
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "showLegend": true,
+          "displayMode": "list",
+          "placement": "bottom"
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      }
+    },
+    {
       "title": "News Provider State Codes",
       "type": "text",
       "description": "Legend for News Provider panels directly below.",
       "gridPos": {
         "x": 0,
-        "y": 233,
+        "y": 238,
         "w": 24,
         "h": 2
       },
@@ -6260,7 +6308,7 @@
       "type": "timeseries",
       "gridPos": {
         "x": 0,
-        "y": 235,
+        "y": 240,
         "w": 24,
         "h": 10
       },
@@ -6356,7 +6404,7 @@
       "type": "state-timeline",
       "gridPos": {
         "x": 0,
-        "y": 245,
+        "y": 250,
         "w": 12,
         "h": 8
       },
@@ -6451,7 +6499,7 @@
       "type": "timeseries",
       "gridPos": {
         "x": 12,
-        "y": 245,
+        "y": 250,
         "w": 6,
         "h": 8
       },
@@ -6500,7 +6548,7 @@
       "type": "timeseries",
       "gridPos": {
         "x": 18,
-        "y": 245,
+        "y": 250,
         "w": 6,
         "h": 8
       },
@@ -6581,7 +6629,7 @@
       "type": "timeseries",
       "gridPos": {
         "x": 0,
-        "y": 253,
+        "y": 258,
         "w": 12,
         "h": 8
       },
@@ -6632,7 +6680,7 @@
       "type": "table",
       "gridPos": {
         "x": 12,
-        "y": 253,
+        "y": 258,
         "w": 12,
         "h": 8
       },
@@ -6793,7 +6841,7 @@
         "h": 1,
         "w": 24,
         "x": 0,
-        "y": 261
+        "y": 266
       },
       "id": 1007,
       "panels": []
@@ -6804,7 +6852,7 @@
       "description": "Whether the Railway metrics bridge is enabled and its last poll succeeded.",
       "gridPos": {
         "x": 0,
-        "y": 262,
+        "y": 267,
         "w": 4,
         "h": 3
       },
@@ -6954,7 +7002,7 @@
       "description": "Seconds since the last successful Railway metrics poll.",
       "gridPos": {
         "x": 4,
-        "y": 262,
+        "y": 267,
         "w": 4,
         "h": 3
       },
@@ -7018,7 +7066,7 @@
       "description": "Latest Railway metrics bridge error class. OK when healthy.",
       "gridPos": {
         "x": 8,
-        "y": 262,
+        "y": 267,
         "w": 4,
         "h": 3
       },
@@ -7093,7 +7141,7 @@
       },
       "gridPos": {
         "x": 12,
-        "y": 262,
+        "y": 267,
         "w": 8,
         "h": 7
       },
@@ -7139,7 +7187,7 @@
       },
       "gridPos": {
         "x": 0,
-        "y": 269,
+        "y": 274,
         "w": 8,
         "h": 7
       },
@@ -7202,7 +7250,7 @@
       },
       "gridPos": {
         "x": 8,
-        "y": 269,
+        "y": 274,
         "w": 8,
         "h": 7
       },
@@ -7249,7 +7297,7 @@
       },
       "gridPos": {
         "x": 16,
-        "y": 269,
+        "y": 274,
         "w": 8,
         "h": 7
       },
@@ -7297,7 +7345,7 @@
       },
       "gridPos": {
         "x": 0,
-        "y": 276,
+        "y": 281,
         "w": 8,
         "h": 7
       },
@@ -7344,7 +7392,7 @@
       },
       "gridPos": {
         "x": 8,
-        "y": 276,
+        "y": 281,
         "w": 8,
         "h": 7
       },
@@ -7389,7 +7437,7 @@
       },
       "gridPos": {
         "x": 0,
-        "y": 283,
+        "y": 288,
         "w": 12,
         "h": 8
       },
@@ -7427,7 +7475,7 @@
       },
       "gridPos": {
         "x": 12,
-        "y": 283,
+        "y": 288,
         "w": 12,
         "h": 8
       },

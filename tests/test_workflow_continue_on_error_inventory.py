@@ -101,6 +101,17 @@ _ALLOWED: dict[str, dict[str, set[str]]] = {
             "id:corpus",
         },
     },
+    # Composio ops integrations (docs/ops/composio_integrations.md): both steps
+    # are best-effort notifiers whose delivery must never flip the job. For #1
+    # the authoritative alert stays the gh issue + step summary (the Slack DM
+    # only ADDS a direct-push channel); for #4 the digest email is pure
+    # convenience. Both are fail-soft by design — see composio_ops.py.
+    "credential-health-check.yml": {
+        "probe": {"name:Notify operator via Slack on warn or error (Composio, opt-in)"},
+    },
+    "ops-digest-daily.yml": {
+        "digest": {"name:Build and send ops digest"},
+    },
 }
 
 
