@@ -687,9 +687,9 @@ def smc_live_endpoint(
     Serves the on-demand news fields (``news_strength``, ``news_bias``) plus the
     canonical overlay ``tone`` (B2), computed through the same layering function
     that bakes ``mp.tone`` so the live tone shares the baseline's weighting and
-    thresholds (identical semantics, fresher inputs). The remaining baked-only
-    overlay fields (``flow_rel_vol``, ``squeeze_on`` and the rest of the B2 set)
-    are omitted so the Pine side keeps its baked ``mp.*`` defaults for them.
+    thresholds (identical semantics, fresher inputs), the rest of the B2 set
+    (``vix_level``, flow/ATS, ``global_heat``) and the event fields. Only
+    ``flow_rel_vol`` and ``squeeze_on`` stay baked-only (``mp.*`` defaults).
     ``exclude_none`` keeps the payload flat and contract-conformant; the overlay
     may only add or tighten, never loosen.
 
@@ -699,9 +699,9 @@ def smc_live_endpoint(
     the envelope only and Pine falls back to its baked ``mp.*`` news value --
     emitting a fabricated ``0.0`` would instead override (loosen) a real baked
     signal, violating the overlay safety invariant. ``asof_ts`` is the serve
-    time: the snapshot is built on demand, so the payload is fresh by
-    construction and ``stale`` is ``False``; transport/cache-age staleness is
-    enforced Pine-side by comparing ``asof_ts`` against ``i_overlayMaxAge``.
+    time: the envelope is built on demand (vix/flow/event fields may be up to
+    300 s old via their TTL caches) and ``stale`` is ``False``; transport/
+    cache-age staleness is enforced Pine-side via ``i_overlayMaxAge``.
     """
     # Lazy submodule import (mirrors the provider getters above) so the
     # smc_tv_bridge.* import stays after the repo-root sys.path setup.

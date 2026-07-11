@@ -47,9 +47,10 @@ PYTHON_BASE=http://localhost:8000 PYTHON_ENCODED=1 npm start
 
 | Path | Method | Description |
 |------|--------|-------------|
-| `/health` | GET | Server health |
+| `/health` | GET | Server health (`fmp_available` is the mock-mode flag, not an FMP probe) |
 | `/smc_snapshot` | GET | Full SMC snapshot (nested JSON) — `?symbol=AAPL&timeframe=15m` |
 | `/smc_tv` | GET | Pipe-encoded for Pine — `?symbol=AAPL&tf=15m` |
+| `/smc_live` | GET | Flat `smc-live-overlay/1` payload — `?symbol=AAPL&tf=15m` |
 
 ### Node Bridge (:8080)
 
@@ -74,17 +75,17 @@ PYTHON_BASE=http://localhost:8000 PYTHON_ENCODED=1 npm start
 
 ## SMC Zone Detection
 
-The Python API includes a lightweight SMC zone detector that computes from FMP intraday candles:
-
-- **BOS**: Swing-high/low breaks (close beyond recent pivot)
-- **Order Blocks**: Last candle before an impulsive move (1.5x body ratio, 60%+ body/range)
-- **FVG**: 3-candle fair value gaps (unfilled imbalances)
-- **Liquidity Sweeps**: Wick beyond recent S/R with close back inside
+The Python API delegates structure detection to the canonical repo producer
+(`scripts/explicit_structure_from_bars.build_full_structure_from_bars`) on FMP
+intraday candles — the same BOS / Order Block / FVG / Liquidity Sweep detectors
+used everywhere else in the repo (two-candle displacement OBs, 3-candle FVGs,
+sweep wick-beyond-with-close-back rules). There is no bridge-local heuristic.
 
 ## TradingView Pine Script
 
-Use `SMC_TV_Bridge.pine` in the repo root. Set `Backend URL` to your Node endpoint.
-Note: `request.get()` requires TradingView Premium or higher.
+`SMC_TV_Bridge.pine` in the repo root is a display scaffold: its fetch call is
+currently a stubbed placeholder (returns `na`), so the dashboard renders "–"
+until the fetch is implemented — nothing hits the Node bridge from TV today.
 
 ## Environment Variables
 

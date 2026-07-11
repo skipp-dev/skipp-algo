@@ -84,7 +84,7 @@ FAMILIES_SCHEMA_VERSION = "1.0.0"
 EVENT_FAMILIES: tuple[str, ...] = ("BOS", "OB", "FVG", "SWEEP")
 
 # Worst-case ordering for drift-verdict rollup. Lower index = better.
-# Mirrors _VERDICT_BANDS in scripts/compute_live_drift.py:53.
+# Tracks _VERDICT_BANDS in scripts/compute_live_drift.py; unlisted newer verdicts rank unknown=5.
 _VERDICT_RANK: dict[str, int] = {
     "pass": 0,
     "acceptable": 1,

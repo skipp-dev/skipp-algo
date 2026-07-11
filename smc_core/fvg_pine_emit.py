@@ -11,7 +11,7 @@ collapsed to KEY_ALL because the existing dashboard only has room for
 two-axis cells):
 
     string FVG_HEALTH_<SESSION>_<VOLREGIME> = "<HR_PCT>% (n=<N>)"
-    string FVG_HEALTH_<SESSION>_<VOLREGIME>_STATUS = "<OK|WARN|INSUF>"
+    string FVG_HEALTH_<SESSION>_<VOLREGIME>_STATUS = "<OK|WEAK|WARN|INSUF>"
 
 Determinism contract: identical input report → byte-identical output.
 The function never raises on partial input; missing buckets fall back

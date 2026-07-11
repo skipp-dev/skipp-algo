@@ -18,8 +18,8 @@ Design notes
 * All arithmetic is pure; no I/O, no side-effects, no global state.
 * The ``freshness_penalty`` field (multiplier range 0.0–1.0) signals:
     - ``1.0`` → full strength (fresh)
-    - ``0.5–0.99`` → partial decay (aging / stale)
-    - ``0.0`` → fully decayed (invalidated, or explicitly mitigated at 0)
+    - ``0.40–0.99`` → partial decay (aging 0.85 / stale 0.60 / mitigated 0.40)
+    - ``0.0`` → fully decayed (invalidated)
 * Hard gate: ``invalidated`` events are capped at ``FreshnessBucket.INVALIDATED``
   regardless of age.  In ``build_signal_quality_v2`` this caps the signal tier at
   ``"C"`` to prevent stale invalidated events from scoring into the top tiers.
@@ -115,11 +115,11 @@ def classify_freshness(
         True if the event has been structurally negated (e.g. BOS countered,
         OB fully consumed, FVG completely filled).
     mitigated_ts:
-        POSIX timestamp of first mitigation touch; required when
-        ``mitigated=True``.
+        POSIX timestamp of first mitigation touch; optional (not
+        validated — ``mitigated=True`` without it yields ``mitigated_at=None``).
     invalidated_ts:
-        POSIX timestamp of structural invalidation; required when
-        ``invalidated=True``.
+        POSIX timestamp of structural invalidation; optional (not
+        validated — ``invalidated=True`` without it yields ``invalidated_at=None``).
     bar_seconds:
         Duration of one bar in seconds (default 60 → 1-minute bars).  Used to
         compute ``event_age_seconds``.

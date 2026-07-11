@@ -1189,7 +1189,7 @@ def _score_bos_event(
 
 
 def _atr_at(bars: pd.DataFrame, anchor_idx: int, period: int = 14) -> float | None:
-    """ATR at ``anchor_idx`` from the prior ``period`` bars (Wilder-style mean).
+    """ATR at ``anchor_idx`` from the prior ``period`` bars (simple mean of TR, no Wilder smoothing).
 
     Returns ``None`` when fewer than ``period`` prior bars exist or the
     series is degenerate. Pure-pandas, no extra dependency.
