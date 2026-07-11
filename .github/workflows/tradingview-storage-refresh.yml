@@ -184,12 +184,26 @@ jobs:
           set -euo pipefail
           mkdir -p artifacts/ci
           # credential_health_check.py reads TV_STORAGE_STATE as raw JSON content.
+          # This refresh mints ONLY the TV storage-state, so its exit code must
+          # reflect ONLY the tv_storage_state_age probe. `overall_severity` is
+          # computed from the probes that actually RUN, so EVERY non-TV probe must
+          # be skipped here — otherwise a keyless non-TV probe returns `error`,
+          # `overall` becomes error, the script exits 2 (set -e), and a perfectly
+          # good TV capture is discarded. That is exactly what broke 2026-07-09→11:
+          # Benzinga became load-bearing 2026-07-08 but was not skipped here, so
+          # every refresh failed on it while the capture itself succeeded (age
+          # 0.0h) and the cookie aged to 99.5h. KEEP THIS SKIP-LIST COMPLETE: any
+          # probe added to credential_health_check.py must be skipped here too, or
+          # it will silently break the TV refresh again. (The fail-loud contract
+          # forbids soft error overrides, so the exit code — not a swallowed
+          # failure — is the gate; that is why every non-TV probe is skipped.)
           TV_STORAGE_STATE="$(cat automation/tradingview/auth/storage-state.json)" \
             python scripts/credential_health_check.py \
               --tv-max-age-hours 72 \
               --skip-gh-pat \
               --skip-databento \
               --skip-fmp \
+              --skip-benzinga \
               --skip-newsapi \
               --output artifacts/ci/cred-health.json
           python - <<'EOF'
