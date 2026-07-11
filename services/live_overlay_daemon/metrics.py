@@ -2028,6 +2028,10 @@ def _render_provider_usage_metrics() -> list[str]:
     lines.append("# TYPE live_overlay_provider_usage_bytes gauge")
     lines.append("# TYPE live_overlay_provider_usage_calls gauge")
     lines.append("# TYPE live_overlay_provider_usage_records gauge")
+    # 429 rate-limit hits (current month). The vendors expose no X-RateLimit-*
+    # headers, so this counter — incremented in newsstack_fmp/_bz_http.py — is the
+    # only "we are being throttled" signal. Alert on increase() over a window.
+    lines.append("# TYPE live_overlay_provider_usage_rate_limit_hits gauge")
     for name in sorted(providers):
         vals = providers[name] or {}
         label = _escape_label_value(name)
@@ -2042,6 +2046,10 @@ def _render_provider_usage_metrics() -> list[str]:
         lines.append(
             f'live_overlay_provider_usage_records{{provider="{label}"}} '
             f"{_prom_numeric_value(vals.get('records', 0))}"
+        )
+        lines.append(
+            f'live_overlay_provider_usage_rate_limit_hits{{provider="{label}"}} '
+            f"{_prom_numeric_value(vals.get('rate_limit_hits', 0))}"
         )
 
     # The FMP plan's monthly bandwidth quota (bytes) so the dashboard can show a

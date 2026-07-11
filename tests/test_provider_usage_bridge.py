@@ -29,7 +29,10 @@ def test_coerce_reduces_to_current_month_per_provider() -> None:
             "current_month": "2026-07",
             "months": {
                 "2026-06": {"fmp": {"calls": 1, "bytes": 10, "records": 1}},
-                "2026-07": {"fmp": {"calls": 553, "bytes": 142_990_000_000, "records": 9}},
+                "2026-07": {
+                    "fmp": {"calls": 553, "bytes": 142_990_000_000, "records": 9},
+                    "massive": {"calls": 40, "bytes": 5000, "records": 0, "rate_limit_hits": 4},
+                },
             },
         }
     )
@@ -37,6 +40,8 @@ def test_coerce_reduces_to_current_month_per_provider() -> None:
     assert out["current_month"] == "2026-07"
     assert out["providers"]["fmp"]["bytes"] == 142_990_000_000
     assert out["providers"]["fmp"]["calls"] == 553
+    assert out["providers"]["massive"]["rate_limit_hits"] == 4
+    assert out["providers"]["fmp"]["rate_limit_hits"] == 0  # absent field -> 0
     assert "2026-06" not in out["providers"]  # only the current month is exposed
 
 
@@ -110,7 +115,10 @@ def test_metrics_emit_provider_usage_gauges(monkeypatch: pytest.MonkeyPatch) -> 
         lambda: {
             "loaded": 1.0, "error": "", "current_month": "2026-07",
             "updated_at": "2026-07-07T10:00:00Z", "snapshot_age_seconds": 12.0,
-            "providers": {"fmp": {"calls": 553, "bytes": 142_990_000_000, "records": 9}},
+            "providers": {
+                "fmp": {"calls": 553, "bytes": 142_990_000_000, "records": 9},
+                "massive": {"calls": 40, "bytes": 5000, "records": 0, "rate_limit_hits": 4},
+            },
         },
     )
     monkeypatch.setattr(metrics.config, "fmp_monthly_bandwidth_limit_bytes", lambda: 150_000_000_000)
@@ -118,5 +126,7 @@ def test_metrics_emit_provider_usage_gauges(monkeypatch: pytest.MonkeyPatch) -> 
     assert "live_overlay_provider_usage_loaded 1.0" in text
     assert 'live_overlay_provider_usage_bytes{provider="fmp"} 142990000000' in text
     assert 'live_overlay_provider_usage_calls{provider="fmp"} 553' in text
+    assert 'live_overlay_provider_usage_rate_limit_hits{provider="massive"} 4' in text
+    assert 'live_overlay_provider_usage_rate_limit_hits{provider="fmp"} 0' in text
     assert 'live_overlay_provider_bandwidth_limit_bytes{provider="fmp"} 150000000000' in text
     # 142.99 GB / 150 GB ~= 95% -> the dashboard/alert ratio is computable.
