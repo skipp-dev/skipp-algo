@@ -27,6 +27,10 @@ Config (env):
   RT_SIGNAL_WEBHOOK_TOKEN    optional Bearer token for the generic mode
   RT_SIGNAL_NOTIFY_LEVELS    comma list, default "A0,A1,A2" (A2 = early-warning,
                              marked "⚠️early"; set "A0,A1" to mute the noisy tier)
+  RT_SIGNAL_EARLY_WEBHOOK_URL  optional 2nd webhook (slack/discord/ntfy/generic) —
+                             levels in RT_SIGNAL_EARLY_LEVELS route HERE, not the
+                             main channel, independent of RT_SIGNAL_NOTIFY_LEVELS
+  RT_SIGNAL_EARLY_LEVELS     comma list routed to the early webhook (default "A2")
   RT_SIGNAL_NOTIFY_COOLDOWN_SECS  re-notify a still-active signal only after this
                                   many seconds (default 1800 = 30 min)
   RT_SIGNAL_WEBHOOK_SYNC     "1" to POST inline instead of on a thread (tests)
@@ -123,6 +127,34 @@ def _levels() -> set[str]:
             f"levels:{raw}",
             "RT_SIGNAL_NOTIFY_LEVELS has unrecognised level(s) %s (valid: A0,A1,A2); "
             "they are ignored — check for a typo like 'AO' vs 'A0'",
+            sorted(unknown),
+        )
+    return tokens & _VALID_LEVELS
+
+
+# Modes whose destination is a plain webhook URL (vs a token+chat_id API), so a
+# secondary early-warning channel can reuse the same payload shape at a 2nd URL.
+_EARLY_CAPABLE_MODES = frozenset({"slack", "discord", "ntfy", "generic"})
+
+
+def _early_url() -> str:
+    """Secondary webhook for early-warning levels — a dedicated channel so A2s do
+    not clutter the main breakout feed. Empty (feature off) unless set."""
+    return _env("RT_SIGNAL_EARLY_WEBHOOK_URL")
+
+
+def _early_levels() -> set[str]:
+    """Levels routed to the early webhook (default A2), independent of
+    RT_SIGNAL_NOTIFY_LEVELS so an A2 still reaches its own channel even when the
+    main feed is muted to A0. Only consulted when RT_SIGNAL_EARLY_WEBHOOK_URL is set."""
+    raw = _env("RT_SIGNAL_EARLY_LEVELS", "A2")
+    tokens = {p.strip().upper() for p in raw.split(",") if p.strip()}
+    unknown = tokens - _VALID_LEVELS
+    if unknown:
+        _warn_once(
+            f"early_levels:{raw}",
+            "RT_SIGNAL_EARLY_LEVELS has unrecognised level(s) %s (valid: A0,A1,A2); "
+            "they are ignored",
             sorted(unknown),
         )
     return tokens & _VALID_LEVELS
@@ -265,18 +297,20 @@ def _fmt_trade_context(s: Any) -> str:
     )
 
 
-def _build_request(mode: str, msg: str) -> tuple[str, dict[str, Any]]:
+def _build_request(mode: str, msg: str, url: str = "") -> tuple[str, dict[str, Any]]:
     """Return ``(url, httpx_kwargs)`` for the configured destination.
 
     A single point of truth so every mode funnels through the one HTTP egress
-    site in :func:`_http_post`.
+    site in :func:`_http_post`. ``url`` overrides the destination for the
+    URL-based modes (slack/discord/ntfy/generic) — used to send early-warning
+    levels to RT_SIGNAL_EARLY_WEBHOOK_URL; token-based modes ignore it.
     """
     if mode == "slack":
-        return _env("RT_SIGNAL_WEBHOOK_URL"), {"json": {"text": msg}}
+        return (url or _env("RT_SIGNAL_WEBHOOK_URL")), {"json": {"text": msg}}
     if mode == "discord":
-        return _env("RT_SIGNAL_WEBHOOK_URL"), {"json": {"content": msg}}
+        return (url or _env("RT_SIGNAL_WEBHOOK_URL")), {"json": {"content": msg}}
     if mode == "ntfy":
-        return _env("RT_SIGNAL_WEBHOOK_URL"), {
+        return (url or _env("RT_SIGNAL_WEBHOOK_URL")), {
             "content": msg.encode("utf-8"),
             "headers": {"Title": "Fresh breakout signal"},
         }
@@ -317,7 +351,7 @@ def _build_request(mode: str, msg: str) -> tuple[str, dict[str, Any]]:
     token = _env("RT_SIGNAL_WEBHOOK_TOKEN")
     if token:
         kwargs["headers"] = {"Authorization": f"Bearer {token}"}
-    return _env("RT_SIGNAL_WEBHOOK_URL"), kwargs
+    return (url or _env("RT_SIGNAL_WEBHOOK_URL")), kwargs
 
 
 def _http_post(url: str, *, timeout: float = 5.0, **kwargs: Any) -> bool:
@@ -357,8 +391,12 @@ def _post_and_mark(url: str, *, marks: list[tuple[tuple[str, str], int]],
     return ok
 
 
-def _dispatch(msg: str, marks: list[tuple[tuple[str, str], int]], ts: float) -> bool:
+def _dispatch(msg: str, marks: list[tuple[tuple[str, str], int]], ts: float,
+              url_override: str = "") -> bool:
     """Deliver ``msg`` and, on success, record ``marks`` in the dedup state.
+
+    ``url_override`` (early-warning route) sends this batch to a secondary
+    webhook instead of the main one; empty means the configured main destination.
 
     Sync mode (RT_SIGNAL_WEBHOOK_SYNC=1): POST inline; returns True iff delivered.
     Async mode (default): hand the POST to a daemon thread and return True to
@@ -366,7 +404,7 @@ def _dispatch(msg: str, marks: list[tuple[tuple[str, str], int]], ts: float) -> 
     so a slow endpoint adds zero polling latency while a failure still retries.
     """
     mode = _env("RT_SIGNAL_WEBHOOK_MODE", "generic")
-    url, kwargs = _build_request(mode, msg)
+    url, kwargs = _build_request(mode, msg, url_override)
     if not url:
         return False
     if _env("RT_SIGNAL_WEBHOOK_SYNC") == "1":
@@ -393,43 +431,64 @@ def notify_fresh_signals(signals: list[Any], *, now: float | None = None) -> lis
     is advisory — the production caller ignores it). Empty when disabled,
     nothing is fresh, or delivery failed. Never raises.
     """
-    if not is_enabled():
+    mode = _env("RT_SIGNAL_WEBHOOK_MODE", "generic")
+    early_url = _early_url()
+    early_active = bool(early_url) and mode in _EARLY_CAPABLE_MODES
+    # The early webhook is a valid destination on its own, so A2 still delivers
+    # even when the main channel has no webhook configured.
+    if not is_enabled() and not early_active:
         return []
     ts = time.time() if now is None else now
     levels = _levels()
+    early_levels = _early_levels() if early_active else frozenset()
     cooldown = _cooldown()
 
-    # Select candidates WITHOUT touching _NOTIFIED — the state is advanced only
-    # after _dispatch confirms delivery, so a failed POST re-fires next poll.
-    fresh: list[Any] = []
-    marks: list[tuple[tuple[str, str], int]] = []
+    # Partition candidates by destination WITHOUT touching _NOTIFIED — the state
+    # advances only after _dispatch confirms delivery, so a failed POST re-fires
+    # next poll. Early levels win over the main feed, so an A2 goes to its own
+    # channel and is never double-posted to both.
+    main_fresh: list[Any] = []
+    main_marks: list[tuple[tuple[str, str], int]] = []
+    early_fresh: list[Any] = []
+    early_marks: list[tuple[tuple[str, str], int]] = []
     with _LOCK:
         for s in signals or ():
             lvl = str(getattr(s, "level", "") or "")
-            if lvl not in levels:
+            if early_active and lvl in early_levels:
+                bucket_fresh, bucket_marks = early_fresh, early_marks
+            elif lvl in levels:
+                bucket_fresh, bucket_marks = main_fresh, main_marks
+            else:
                 continue
             key = (str(getattr(s, "symbol", "")), str(getattr(s, "direction", "")))
             strength = _STRENGTH.get(lvl, 0)
             prev = _NOTIFIED.get(key)
             if prev is None or strength > prev[0] or (ts - prev[1]) >= cooldown:
-                fresh.append(s)
-                marks.append((key, strength))
+                bucket_fresh.append(s)
+                bucket_marks.append((key, strength))
         # Evict stale dedup entries so the map cannot grow unbounded. Runs even
         # when `signals` is empty, so a stale entry can't outlive its TTL merely
         # because no new signal happened to arrive on later polls.
         for k in [k for k, (_st, t) in _NOTIFIED.items() if ts - t > _STATE_TTL_SECS]:
             _NOTIFIED.pop(k, None)
 
-    if not fresh:
-        return []
-
-    header = f"📈 {len(fresh)} fresh breakout signal{'s' if len(fresh) != 1 else ''}"
-    msg = header + "\n" + "\n".join(_fmt_signal(s) + _fmt_trade_context(s) for s in fresh)
-    try:
-        delivered = _dispatch(msg, marks, ts)
-    except Exception:  # dispatch is best-effort — never break the poll loop
-        logger.debug("rt_notify dispatch failed", exc_info=True)
-        return []
-    if not delivered:
-        return []
-    return [f"{getattr(s, 'symbol', '?')} {getattr(s, 'direction', '')} {getattr(s, 'level', '')}" for s in fresh]
+    delivered_keys: list[str] = []
+    for bucket, bucket_marks, dst, noun, emoji in (
+        (main_fresh, main_marks, "", "breakout", "📈"),
+        (early_fresh, early_marks, early_url, "early-warning", "⚠️"),
+    ):
+        if not bucket:
+            continue
+        header = f"{emoji} {len(bucket)} fresh {noun} signal{'s' if len(bucket) != 1 else ''}"
+        msg = header + "\n" + "\n".join(
+            _fmt_signal(s) + _fmt_trade_context(s) for s in bucket)
+        try:
+            ok = _dispatch(msg, bucket_marks, ts, dst)
+        except Exception:  # dispatch is best-effort — never break the poll loop
+            logger.debug("rt_notify dispatch failed", exc_info=True)
+            continue
+        if ok:
+            delivered_keys.extend(
+                f"{getattr(s, 'symbol', '?')} {getattr(s, 'direction', '')} "
+                f"{getattr(s, 'level', '')}" for s in bucket)
+    return delivered_keys
