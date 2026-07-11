@@ -548,7 +548,7 @@ def fetch_btc_technicals(interval: str = "1h") -> BTCTechnicals:
     cached_raw = _get_cached(cache_key, _TECHNICALS_TTL)
     if cached_raw is not None:
         return cached_raw  # type: ignore
-    # Also check with longer 429 TTL
+    # INERT (truth-audit 2026-07-11): rate-limit errors read "Rate limited …" not "429", so this never fires; _TECHNICALS_429_TTL is unused (the _tv_cooldown_until gate handles rate-limiting). Dead-branch class already removed from terminal_technicals.
     cached_429 = _get_cached(cache_key, _TECHNICALS_429_TTL)
     if cached_429 is not None and getattr(cached_429, 'error', '') and '429' in str(cached_429.error):  # type: ignore[arg-type]
         return cached_429  # type: ignore
