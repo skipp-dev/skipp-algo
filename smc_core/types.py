@@ -39,6 +39,8 @@ type ReasonCode = Literal[
     "REGIME_ROTATION",
     "NEWS_MACRO",
     "NEWS_COMPANY",
+    "NEWS_SECTOR",
+    "NEWS_GEOPOLITICAL",
 ]
 
 

@@ -10,6 +10,7 @@ from .types import (
     Fvg,
     LiquiditySweep,
     MarketRegime,
+    NewsCategory,
     Orderblock,
     ReasonCode,
     SmcLayered,
@@ -38,6 +39,7 @@ class NormalizedMeta(TypedDict):
     event_in_window: bool
     market_regime: MarketRegime | None
     enriched_news_heat: float
+    enriched_news_category: NewsCategory | None
     provenance: list[str]
 
 
@@ -132,6 +134,34 @@ def _compute_enriched_news_heat(meta: SmcMeta) -> float:
     return _clamp(total / count, -1.0, 1.0) if count > 0 else 0.0
 
 
+def _dominant_news_category(meta: SmcMeta) -> NewsCategory | None:
+    """Category of the loudest non-stale enriched-news bucket.
+
+    Weighted by summed absolute strength per category so the reason code
+    reflects *what kind* of news is driving (MACRO / SECTOR / COMPANY /
+    GEOPOLITICAL / OTHER), independent of direction. Ties break by category
+    name for determinism. ``None`` when no non-stale enriched news exists.
+    """
+    weight: dict[NewsCategory, float] = {}
+    for item in meta.enriched_news:
+        if item.stale:
+            continue
+        weight[item.value.category] = weight.get(item.value.category, 0.0) + abs(item.value.strength)
+    if not weight:
+        return None
+    return max(sorted(weight), key=lambda category: weight[category])
+
+
+# Dominant-news-category → overlay reason code. "OTHER" is intentionally omitted
+# (no meaningful category tag) so an uncategorised news bucket adds no reason.
+_NEWS_CATEGORY_REASON: dict[NewsCategory, ReasonCode] = {
+    "MACRO": "NEWS_MACRO",
+    "SECTOR": "NEWS_SECTOR",
+    "COMPANY": "NEWS_COMPANY",
+    "GEOPOLITICAL": "NEWS_GEOPOLITICAL",
+}
+
+
 def normalize_meta(meta: SmcMeta) -> NormalizedMeta:
     raw_regime = str(meta.volume.value.regime)
     regime: VolumeRegime
@@ -182,6 +212,7 @@ def normalize_meta(meta: SmcMeta) -> NormalizedMeta:
         event_in_window=_is_event_in_window(meta),
         market_regime=meta.market_regime.regime if meta.market_regime is not None else None,
         enriched_news_heat=_compute_enriched_news_heat(meta),
+        enriched_news_category=_dominant_news_category(meta),
         provenance=list(meta.provenance),
     )
 
@@ -236,12 +267,16 @@ def derive_base_signals(nm: NormalizedMeta) -> BaseLayerSignals:
     elif mr == "ROTATION":
         base_reasons.append("REGIME_ROTATION")
 
-    # MISNOMER: these reason codes are assigned by the SIGN of the pooled
-    # enriched-news heat (bearish→NEWS_MACRO, bullish→NEWS_COMPANY), NOT by
-    # EnrichedNews.category, which layering never reads.
+    # Enriched-news CATEGORY reason — gated on significant net news heat, then
+    # tagged by the dominant EnrichedNews.category (direction is separately
+    # carried by NEWS_BULLISH/NEWS_BEARISH). Previously this was mis-assigned by
+    # the SIGN of the heat, so the category label was really a direction label.
     en_heat = nm["enriched_news_heat"]
-    if abs(en_heat) > 0.15:
-        base_reasons.append("NEWS_MACRO" if en_heat < -0.15 else "NEWS_COMPANY")
+    en_category = nm["enriched_news_category"]
+    if abs(en_heat) > 0.15 and en_category is not None:
+        category_reason = _NEWS_CATEGORY_REASON.get(en_category)
+        if category_reason is not None:
+            base_reasons.append(category_reason)
 
     return BaseLayerSignals(
         global_heat=global_heat,
