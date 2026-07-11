@@ -358,6 +358,12 @@ jobs:
       - name: Run daily rolling benchmark
         env:
           DATABENTO_API_KEY: ${{ secrets.DATABENTO_API_KEY }}
+          # WS4a shadow-observe: log sweep_trap_* quality into the event ledgers
+          # (observe-only; does NOT affect the score — confluence reads the coarse
+          # SWEEP_QUALITY_SCORE). Consumed by sweep-trap-shadow-daily.yml. ARMING:
+          # set the repo variable ENABLE_SWEEP_TRAP=1 (centralized per F-003-YAML;
+          # empty => flag off => shadow collects nothing).
+          ENABLE_SWEEP_TRAP: ${{ vars.ENABLE_SWEEP_TRAP }}
         run: |
           set -euo pipefail
           # SYMBOLS/TIMEFRAMES resolved + validated by the per-TF structure
