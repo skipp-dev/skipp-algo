@@ -92,6 +92,78 @@ def attach_trust_state_to_enrichment(
     return enrichment
 
 
+def attach_trust_state_from_provider_diagnostics(
+    enrichment: dict[str, Any] | None,
+) -> dict[str, Any] | None:
+    """Derive + attach ``trust_state`` from the enrichment's OWN provider
+    diagnostics (ENG-WS2-02 wire, truth-audit 2026-07-11).
+
+    The Pine enrichment pipeline has no external ``provider_report``, so the
+    canonical trust block was never populated and the export always fell back
+    to the HEALTHY / stale_providers→STALE synthesis. This lifts the per-domain
+    diagnostics the micro-base generator already produces
+    (``providers.domain_diagnostics`` for regime/news/calendar/technical) plus
+    the legacy ``providers.stale_providers`` list into a ``provider_report`` and
+    stores the derived :class:`TrustStateAssessment`.
+
+    Because ``stale_providers`` is folded in as an advisory-stale alert, the
+    derived state is never *less* severe than the fallback would produce — it
+    only adds DEGRADED (advisory domain failures) and precise per-domain causes.
+
+    No-op when: ``trust_state`` is already set upstream (that wins), the
+    enrichment carries no ``domain_diagnostics`` (legacy → fallback path), or
+    inputs are malformed.
+
+    NOTE: WATCH_ONLY / UNAVAILABLE require a ``structure``-domain diagnostic,
+    which this pipeline does not yet emit (it diagnoses regime/news/calendar/
+    technical only). Once a structure-provider-health source is added to
+    ``domain_diagnostics`` those states derive automatically here — the
+    derivation is already correct for ``domain="structure"``.
+    """
+    if not isinstance(enrichment, dict):
+        return enrichment
+    if enrichment.get("trust_state"):
+        return enrichment
+    providers = enrichment.get("providers")
+    if not isinstance(providers, Mapping):
+        return enrichment
+    diags = providers.get("domain_diagnostics")
+    if not isinstance(diags, Mapping):
+        # Legacy enrichment without per-domain diagnostics — leave the
+        # trust_state unset so trust_block_for_export uses _fallback_trust_block.
+        return enrichment
+
+    domain_alerts: list[dict[str, Any]] = []
+    for domain_name, payload in diags.items():
+        if not isinstance(payload, Mapping):
+            continue
+        status = str(payload.get("provider_status") or "").strip()
+        if status.lower() in {"", "ok"}:
+            continue
+        domain_alerts.append(
+            {
+                "domain": str(domain_name),
+                "code": f"LIBRARY_{str(domain_name).upper()}_{status.upper()}",
+                "message": str(payload.get("status_detail") or ""),
+            }
+        )
+    stale = str(providers.get("stale_providers") or "").strip()
+    if stale:
+        domain_alerts.append(
+            {
+                "domain": "providers",
+                "code": "STALE_PROVIDERS",
+                "message": f"Stale providers reported by upstream: {stale}",
+            }
+        )
+
+    assessment = derive_trust_state(
+        {"overall_status": "ok", "domain_alerts": domain_alerts}
+    )
+    enrichment["trust_state"] = assessment.as_dict()
+    return enrichment
+
+
 def _fallback_trust_block(
     enrichment: Mapping[str, Any] | None,
 ) -> dict[str, Any]:
@@ -265,6 +337,7 @@ __all__ = [
     "PINE_ACTION_DEGRADATION_FIELDS",
     "PINE_TRUST_FIELDS",
     "action_degradation_for_export",
+    "attach_trust_state_from_provider_diagnostics",
     "attach_trust_state_to_enrichment",
     "render_action_degradation_block_lines",
     "render_trust_block_lines",
