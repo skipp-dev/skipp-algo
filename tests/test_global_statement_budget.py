@@ -86,17 +86,17 @@ _FROZEN_SITES: frozenset[tuple[str, int, tuple[str, ...]]] = frozenset(
         ("newsstack_fmp/pipeline.py", 108, ("_bz_ws_adapter", "_bz_ws_adapter_key")),
         ("newsstack_fmp/pipeline.py", 134, ("_bz_rss_adapter",)),
         ("newsstack_fmp/pipeline.py", 143, ("_enricher",)),
-        ("newsstack_fmp/pipeline.py", 1118, ("_last_meta",)),  # 2026-07-08 vwap-stub removal shifted (-1: 1119->1118)
+        ("newsstack_fmp/pipeline.py", 1124, ("_last_meta",)),  # 2026-07-11 meta-sources de-nest shifted (+6: 1118->1124)
         (
-            # 2026-07-08 vwap-stub removal shifted (-1: 1208->1207)
+            # 2026-07-11 meta-sources de-nest shifted (+6: 1207->1213)
             "newsstack_fmp/pipeline.py",
-            1207,
+            1213,
             ("_bz_rest_adapter", "_bz_rss_adapter", "_bz_ws_adapter", "_enricher", "_fmp_adapter", "_last_meta", "_store"),
         ),
         (
-            # 2026-07-08 vwap-stub removal shifted (-1: 1209->1208)
+            # 2026-07-11 meta-sources de-nest shifted (+6: 1208->1214)
             "newsstack_fmp/pipeline.py",
-            1208,
+            1214,
             ("_bz_rest_adapter_key", "_bz_ws_adapter_key", "_fmp_adapter_key"),
         ),
         ("open_prep/regime.py", 129, ("_prev_regime",)),

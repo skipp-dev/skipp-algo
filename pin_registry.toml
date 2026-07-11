@@ -199,9 +199,10 @@ codes = ["S603"]
 # E402 outliers in newsstack_fmp/pipeline.py remain (not covered by per-file-ignores).
 # 2026-06-25: shifted 1231 -> 1234 by RSS watermark comment addition.
 # 2026-07-08: shifted 1234 -> 1233 by vwap-stub removal.
+# 2026-07-11: shifted 1233 -> 1239 by meta-sources de-nest (+6).
 [[noqa_budget.sites]]
 file = "newsstack_fmp/pipeline.py"
-line = 1233
+line = 1239
 codes = ["E402"]
 
 # ruff fix (2026-06-11): added # noqa: RUF007 / RUF012 / F401 suppressions
