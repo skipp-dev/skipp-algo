@@ -51,7 +51,7 @@ class EventFamilyKPI:
 
     family: EventFamily
     hit_rate: float = 0.0
-    time_to_mitigation_mean: float = 0.0
+    time_to_mitigation_mean: float = 0.0  # mean over MITIGATED events (E12); 0.0 if no hits
     invalidation_rate: float = 0.0
     mae: float = 0.0   # Maximum Adverse Excursion (mean)
     mfe: float = 0.0   # Maximum Favorable Excursion (mean)
@@ -107,12 +107,15 @@ def compute_event_family_kpi(
     for e in events:
         if e.get("hit"):
             hits += 1
+            # E12: time-to-mitigation is only meaningful for events that
+            # mitigated; accumulate it in the hit branch so the mean is
+            # over hits, not diluted by miss rows (which carry 0.0).
+            ttm_total += float(e.get("time_to_mitigation", 0))
         else:
             partial_fill_miss_total += float(e.get("partial_fill_pct", 0))
             miss_count += 1
         if e.get("invalidated"):
             invalids += 1
-        ttm_total += float(e.get("time_to_mitigation", 0))
         mae_total += float(e.get("mae", 0))
         mfe_total += float(e.get("mfe", 0))
         # D1 strict label: ``measurement_evidence._evaluate_zone_event``
@@ -135,7 +138,11 @@ def compute_event_family_kpi(
     return EventFamilyKPI(
         family=family,
         hit_rate=round(hits / n, 4),
-        time_to_mitigation_mean=round(ttm_total / n, 2),
+        # Truth-audit E12 (2026-07-11): mean time-to-mitigation over the
+        # events that actually mitigated. ``time_to_mitigation`` is 0.0 for
+        # misses, so dividing by ``n`` (as before) scaled the mean by the
+        # hit rate and systematically understated it. Divide by ``hits``.
+        time_to_mitigation_mean=round(ttm_total / hits, 2) if hits > 0 else 0.0,
         invalidation_rate=round(invalids / n, 4),
         mae=round(mae_total / n, 4),
         mfe=round(mfe_total / n, 4),
@@ -183,8 +190,9 @@ def build_benchmark(
 # before a hit-rate is considered statistically meaningful. Buckets
 # below the floor are reported with ``insufficient = True`` and a
 # ``hit_rate`` of ``None`` so downstream consumers cannot accidentally
-# act on noise. Five matches the project-wide minimum already used in
-# benchmark KPIs.
+# act on noise. Local floor for THIS report only — other floors in the
+# repo differ (trust_tier 3, fvg_pine_emit 12, quartile gate 20,
+# release_policy 30) and compute_event_family_kpi has none.
 _FVG_BUCKET_MIN_EVENTS = 5
 
 
@@ -222,9 +230,9 @@ def stratified_fvg_report(
     is not the same signal as a 0% hit rate from 25 events, and
     flattening them would silently lie to the operator.
 
-    The output also includes an ``actionable_buckets`` list of
-    ``(bucket_key, hit_rate, n_events)`` tuples for buckets that meet
-    the floor and exceed ``hit_rate >= 0.70`` — these are the contexts
+    The output also includes an ``actionable_buckets`` list of dicts
+    (keys ``session``/``htf_bias``/``vol_regime``/``n_events``/``hit_rate``)
+    for buckets that meet the floor and ``hit_rate >= 0.70`` — the contexts
     that the plan requires before FVG can be promoted from a tie-breaker
     to a contextual gate (Phase F2 wiring).
     """

@@ -193,6 +193,10 @@ def _forecast_context(
         raise _ForecastUnavailableError("baseline_unavailable")
 
     forecast_volatility = math.sqrt(variance) / 100.0
+    # NOTE: numerator is a return STD-DEV, denominator the median of a rolling
+    # MEAN-|return| (≈ 0.798·sigma under normality) — so forecast_ratio sits
+    # ~1.25 at unchanged vol, tilting the GARCH path toward HIGH_VOL/EXTREME
+    # relative to the ATR-ratio path that shares _classify's thresholds.
     forecast_ratio = forecast_volatility / baseline_volatility
     confidence = min(1.0, len(returns) / float(max(forecast_min_bars, 1)))
     return forecast_volatility, baseline_volatility, forecast_ratio, confidence

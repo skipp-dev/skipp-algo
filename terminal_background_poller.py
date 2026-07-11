@@ -29,7 +29,7 @@ _UNSET = object()
 
 
 class BackgroundPoller:
-    """Runs ``poll_and_classify_multi`` in a background thread.
+    """Runs ``poll_and_classify_live_bus`` in a background thread.
 
     Thread-safe: all shared state is accessed via a ``queue.Queue``
     (items) and atomic attribute reads (status, error, etc.).

@@ -44,16 +44,20 @@ _KNOWN_HOTSPOTS: Final[frozenset[tuple[str, int]]] = frozenset(
         # already-resampled HTF buckets; the daily/weekly/monthly
         # frames are produced via pandas resample which drops the
         # partial bucket when the source frame is bar-close clean.
-        ("smc_core/session_context.py", 128),
-        ("smc_core/session_context.py", 134),
-        ("smc_core/session_context.py", 140),
-        # smc_core/vol_regime.py — ATR / variance current values; the
-        # caller passes a frame post-`guard_closed_bars` in production.
+        ("smc_core/session_context.py", 131),
+        ("smc_core/session_context.py", 137),
+        ("smc_core/session_context.py", 143),
+        # smc_core/vol_regime.py — ATR / variance current values. The live-ish
+        # caller (smc_integration/service.py:_build_context_payloads) now passes
+        # the frame through `guard_closed_bars(interval=timeframe, now=time.time())`
+        # before compute_vol_regime, dropping any forming bar the databento export
+        # captured mid-session. The measurement_evidence caller replays closed
+        # historical frames, so its last row is already a closed bar. (2026-07-11.)
         ("smc_core/vol_regime.py", 135),
         ("smc_core/vol_regime.py", 151),
         # smc_core/htf_context.py — IPDA range needs last + previous
         # HTF candle; partial HTF bar is acceptable (range only widens).
-        ("smc_core/htf_context.py", 109),
+        ("smc_core/htf_context.py", 114),
         # scripts/smc_structure_state.py — last close used for CHoCH/BOS;
         # script-level entry validates frame.
         ("scripts/smc_structure_state.py", 141),

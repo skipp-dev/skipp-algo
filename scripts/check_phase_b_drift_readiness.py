@@ -86,9 +86,13 @@ def _iter_variants(payload: object) -> Iterable[dict]:
 def assess_artifact(path: Path) -> tuple[bool, list[str]]:
     """Return ``(ready, reasons)`` for a single drift artifact.
 
-    ``ready`` is False if any variant in the artifact has
-    ``slippage_ks_reference_type`` set to ``synthetic_normal`` or
-    ``unavailable``.
+    ``ready`` is False unless EVERY variant's
+    ``slippage_ks_reference_type`` is ``backtest_samples`` — the only
+    reference type derived purely from real fills. ``synthetic_normal``,
+    ``unavailable``, and the replay/mixed types (``replay_samples`` /
+    ``mixed_samples``, which contain synthetic draws) are all not-ready
+    (truth-audit F2, 2026-07-11: replay/mixed must not launder a synthetic
+    reference into a Phase-B sign-off).
     """
     payload = json.loads(path.read_text(encoding="utf-8"))
     reasons: list[str] = []
@@ -98,13 +102,12 @@ def assess_artifact(path: Path) -> tuple[bool, list[str]]:
         if ref is None:
             continue
         saw_any = True
-        if ref == SYNTHETIC_NORMAL:
+        # ``backtest_samples`` => ready for Phase-B. Anything else
+        # (synthetic_normal / unavailable / replay_samples / mixed_samples)
+        # is not real-fill-derived and blocks readiness.
+        if ref != BACKTEST_SAMPLES:
             name = variant.get("variant", "<unnamed>")
-            reasons.append(f"{path.name}::{name}: slippage_ks_reference_type={SYNTHETIC_NORMAL!r}")
-        elif ref == UNAVAILABLE:
-            name = variant.get("variant", "<unnamed>")
-            reasons.append(f"{path.name}::{name}: slippage_ks_reference_type={UNAVAILABLE!r}")
-        # ``backtest_samples`` => ready for Phase-B (no reason added).
+            reasons.append(f"{path.name}::{name}: slippage_ks_reference_type={ref!r}")
     if not saw_any:
         # Be conservative: an artifact missing the field entirely is
         # treated as not-ready, otherwise old/legacy artifacts would

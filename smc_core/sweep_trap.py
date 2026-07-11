@@ -19,13 +19,16 @@ This module provides:
 Integration point
 -----------------
 :func:`~smc_integration.measurement_evidence._liquidity_support_for_event`
-calls :func:`classify_sweep_trap` when the best sweep found for an event has
-``ENABLE_SWEEP_TRAP`` enabled.  The result fields are merged into the liquidity
-enrichment payload and propagated to ``label_sweep_reversal`` in
-``smc_core/scoring.py`` for calibration.
+calls :func:`classify_sweep_trap` when ``ENABLE_SWEEP_TRAP`` is enabled AND the
+candidate sweep carries ``swept_level > 0`` — which NO sweep producer currently
+emits (sweep events carry ``id/time/price/side`` only), so the classify path
+has zero effective executions in production.  The result fields are merged into
+the liquidity enrichment payload; they are NOT passed to ``label_sweep_reversal``
+(that label takes ``(price, side, closes)`` only).
 
 :func:`detect_sweep_trap` is consumed by ``scripts/smc_signal_quality.py``
-when ``SIGNAL_QUALITY_MODEL=v2`` or ``ENABLE_SWEEP_TRAP=1``.
+when ``is_sweep_trap_enabled()`` (i.e. ``ENABLE_SWEEP_TRAP=1``); the
+``SIGNAL_QUALITY_MODEL=v2`` route alone never calls it.
 
 Phase B is *parallel-safe* with Phase A (event_freshness) — neither depends on
 the other at the enrichment level.
@@ -62,24 +65,26 @@ class SweepTrapResult:
     sweep_reclaim_bars:
         Number of bars from the sweep extreme to the first bar that closes
         back inside the swept level.  ``-1`` if no reclaim occurred within
-        the look-ahead window (``trap_type="failed"``).
+        the available data; a reclaim later than 12 bars reports its actual
+        (1-indexed) bar count with ``trap_type="failed"``.
     trap_type:
         ``"immediate"`` — reclaim within 3 bars of the sweep.
         ``"delayed"`` — reclaim within 4–12 bars.
-        ``"failed"`` — no reclaim within 12 bars or within the available data.
+        ``"failed"`` — reclaim after 12 bars, or none within the available data.
     reclaim_strength:
-        0.0–1.0.  Fraction of the sweep body recovered on the reclaim bar(s).
-        Computed as ``(close_reclaim - sweep_extreme) / (swept_level -
-        sweep_extreme)``, clipped to [0, 1].  ``0.0`` for failed traps.
+        0.0–1.0.  How far the best reclaim close moved back THROUGH the swept
+        level, as a fraction of the sweep body: ``|swept_level -
+        close_reclaim| / |sweep_extreme - swept_level|``, clipped to [0, 1].
+        ``0.0`` for failed traps.
     fib_retrace_depth:
-        0.0–1.0.  How deeply price retraced from the swept level back toward
-        the pre-sweep origin before reversing.  ``0.0`` = no retrace (price
-        went straight to the extreme), ``1.0`` = full retrace back to origin.
-        Used to distinguish high-probability traps (deep retrace → clean
-        rejection) from shallow tests.
+        0.0–1.0.  Penetration depth of the SWEEP CANDLE itself: ``|sweep_extreme
+        - swept_level| / |swept_level - origin_level|``, clipped to [0, 1].
+        Post-sweep bars are never consulted — this is NOT a measured retrace
+        after the sweep.  ``0.0`` = the extreme barely pierced the level,
+        ``1.0`` = the sweep penetrated a full pre-sweep leg beyond it.
     trap_quality_score:
-        0.0–1.0 composite quality score.  Inputs: ``trap_type`` weight ×
-        ``reclaim_strength`` × ``fib_retrace_depth`` blend.  Becomes
+        0.0–1.0 composite quality score: weighted SUM ``0.40 × type_weight
+        + 0.35 × reclaim_strength + 0.25 × fib_retrace_depth``.  Becomes
         ``SWEEP_TRAP_QUALITY_SCORE`` in the liquidity enrichment payload.
     """
 
@@ -108,17 +113,21 @@ def classify_sweep_trap(
     Parameters
     ----------
     swept_level:
-        The prior swing high (bullish sweep) or swing low (bearish sweep)
+        The prior swing low (bullish sweep) or swing high (bearish sweep)
         that was violated by the sweep.
     sweep_extreme:
-        The most extreme price reached by the sweep candle (high for
-        bullish sweeps, low for bearish sweeps).
+        The most extreme price reached by the sweep candle (low for
+        bullish sweeps, high for bearish sweeps).
     origin_level:
         Price level at the origin of the move leading to the sweep — used
         to measure ``fib_retrace_depth``.
     is_bullish_sweep:
-        ``True`` if the sweep broke *above* a prior high (trapping longs
-        who bought the breakout); ``False`` for a bearish sweep.
+        ``True`` for a **bullish setup**: a swing low was swept (sell-side
+        liquidity grabbed below ``swept_level``, i.e. ``side == "SELL_SIDE"``)
+        and price is expected to reclaim *upward*, trapping sellers.
+        ``False`` for a bearish setup (a swing high was swept, ``BUY_SIDE``,
+        reclaim *downward*, trapping buyers). This matches the repo-wide
+        convention (BULL ↔ SELL_SIDE taken).
     post_sweep_bars:
         Sequence of OHLC dicts with keys ``"open"``, ``"high"``, ``"low"``,
         ``"close"`` for bars *after* the sweep candle.  The look-ahead window
@@ -149,14 +158,14 @@ def classify_sweep_trap(
     for idx, bar in enumerate(post_sweep_bars):
         close: float = float(bar["close"])
         if is_bullish_sweep:
-            # Bearish reclaim: close back *below* swept_level
-            if close < swept_level:
+            # Bullish setup: swing low swept; reclaim = close back *above* it.
+            if close > swept_level:
                 reclaim_bar_idx = idx
                 best_reclaim_close = close
                 break
         else:
-            # Bullish reclaim: close back *above* swept_level
-            if close > swept_level:
+            # Bearish setup: swing high swept; reclaim = close back *below* it.
+            if close < swept_level:
                 reclaim_bar_idx = idx
                 best_reclaim_close = close
                 break
@@ -177,7 +186,7 @@ def classify_sweep_trap(
         type_weight: float = 1.0
     elif bars_to_reclaim <= DELAYED_RECLAIM_BARS:
         trap_type = "delayed"
-        # Linear decay from 0.8 at bar 4 → 0.5 at bar 12.
+        # Linear decay: ~0.767 at bar 4 → 0.5 at bar 12 (0.8 is the bar-3 asymptote).
         type_weight = 0.8 - 0.3 * (bars_to_reclaim - IMMEDIATE_RECLAIM_BARS) / (
             DELAYED_RECLAIM_BARS - IMMEDIATE_RECLAIM_BARS
         )
@@ -190,11 +199,11 @@ def classify_sweep_trap(
             trap_quality_score=0.0,
         )
 
-    # Reclaim strength: fraction of sweep body recovered.
+    # Reclaim strength: fraction of sweep body recovered (back through swept_level).
     if is_bullish_sweep:
-        recovered: float = swept_level - best_reclaim_close
+        recovered: float = best_reclaim_close - swept_level
     else:
-        recovered = best_reclaim_close - swept_level
+        recovered = swept_level - best_reclaim_close
     reclaim_strength: float = max(0.0, min(1.0, recovered / sweep_body))
 
     # Fib retrace depth: how deeply did price retrace from swept_level toward origin?
@@ -202,10 +211,12 @@ def classify_sweep_trap(
         fib_retrace_depth: float = 0.0
     else:
         if is_bullish_sweep:
-            # How far did the extreme go above origin_level (before reversing)?
-            depth: float = (sweep_extreme - swept_level) / fib_range
+            # Bullish: how far the swept LOW was pierced *below* swept_level,
+            # relative to the pre-sweep leg.
+            depth: float = (swept_level - sweep_extreme) / fib_range
         else:
-            depth = (swept_level - sweep_extreme) / fib_range
+            # Bearish: how far the swept HIGH was pierced *above* swept_level.
+            depth = (sweep_extreme - swept_level) / fib_range
         fib_retrace_depth = max(0.0, min(1.0, depth))
 
     # Composite quality score.

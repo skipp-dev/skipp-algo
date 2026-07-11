@@ -226,9 +226,11 @@ file = "terminal_bitcoin.py"
 line = 67
 codes = ["F401"]
 
+# 2026-07-11 (truth-audit T1): _candle_ts docstring + robust parsing added
+# +14 lines above the adapter import, shifting the noqa site 184 -> 198.
 [[noqa_budget.sites]]
 file = "smc_tv_bridge/smc_api.py"
-line = 184
+line = 198
 codes = ["E402", "I001"]
 
 
@@ -244,16 +246,16 @@ codes = ["E402", "I001"]
 [workflow_orphan_inventory]
 # github-mirror-sync.yml (2026-07-01): intentional orphan workflow for
 # repository mirroring; no dedicated test contract yet.
-# sync-tradingview-pine-libraries.yml (2026-07-04): scheduled bi-weekly Pine
-# library sync (WP-3 pine bundle); maintenance workflow, orphan by design
-# with no PR-triggered test contract.
+# sync-tradingview-pine-libraries.yml left the orphan list 2026-07-11: the
+# dead TV→repo Pine-sync workflow was removed (repo is SSOT; see
+# pine/PINE_LIBRARIES_AUDIT.md).
 # openprep-pine-panel-publish.yml left the orphan list 2026-07-09: the
 # setups-join step (data/phase-a-audit fetch + --setups-json) is now pinned
 # by tests/test_generate_openprep_pine_panel.py.
 # openprep-pine-panel-daily-trigger.yml (2026-07-04, post-first-publish):
 # workflow_run bridge that dispatches the publisher after successful daily
 # producer schedule runs on main; intentionally contract-light/orphan.
-allowed = ["github-mirror-sync.yml", "sync-tradingview-pine-libraries.yml", "openprep-pine-panel-daily-trigger.yml"]
+allowed = ["github-mirror-sync.yml", "openprep-pine-panel-daily-trigger.yml"]
 
 # ---------------------------------------------------------------------------
 # test_workflow_set_plus_e_inventory.py — workflows allowed to use

@@ -2,9 +2,9 @@
 
 This module contains cache, symbol-normalization, timezone, frame-processing,
 and warning helpers that were previously embedded in the monolithic
-``databento_volatility_screener`` module.  They carry **zero** Databento-API
-dependency so they can be imported by any consumer without pulling in the
-``databento`` package.
+``databento_volatility_screener`` module.  Importing this module never pulls
+in the ``databento`` package, but ``_normalize_symbols`` may trigger a live
+reference-cache refresh at call time when ``DATABENTO_API_KEY`` is set.
 
 Existing consumers may still import these names from
 ``databento_volatility_screener`` (compatibility is preserved there).  New or

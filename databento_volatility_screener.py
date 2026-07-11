@@ -4323,7 +4323,7 @@ def build_entry_checklist_table(
             "details": f"premarket_dollar_volume={pmdv_value if pmdv_value is not None else 'n/a'} (>= {pmdv_threshold:,.0f})",
         },
         {
-            "check": "4. Early dip <= -0.5%",
+            "check": f"4. Early dip <= {LONG_DIP_ENTRY_EARLY_DIP_MIN_PCT:.1f}%",
             "erfuellt": early_dip_ok,
             "status": _check_level(early_dip_ok, early_dip_borderline),
             "details": (
@@ -5372,7 +5372,7 @@ def run_streamlit_app() -> None:
     if st.session_state["dvs_last_action_message"]:
         st.info(st.session_state["dvs_last_action_message"])
     st.caption(
-        "Operational model: run Full History outside the pre-open window to rebuild the 30-day full-universe baseline and historical selected_top20pct symbol-days. "
+        "Operational model: run Full History outside the pre-open window to rebuild the configured Trading-days full-universe baseline and historical selected_top20pct symbol-days. "
         "Run Fast Pre-Open Refresh near the open to reuse that baseline with a reduced current premarket scope. Full History refresh does not require an immediate watchlist rebuild."
     )
 

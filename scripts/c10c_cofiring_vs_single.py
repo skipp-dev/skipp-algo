@@ -8,9 +8,9 @@ For each family F:
                   also fired AND outcome[F] is True
   - n_co        = # bars where F fired AND at least one other family fired
 
-Two-sided z-test for proportion difference (pooled variance, Newcombe-style
-diff). Bonferroni-corrected over 4 families (alpha_fwer = 0.05 → alpha_each
-= 0.0125).
+Two-sided pooled two-proportion z-test on the raw percentage-point
+difference. Bonferroni-corrected over 4 families (alpha_fwer = 0.05 →
+alpha_each = 0.0125).
 
 Output: ``docs/research/co_firing/cofiring_vs_single_hitrate.json``
 """

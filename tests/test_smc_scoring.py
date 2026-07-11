@@ -120,7 +120,7 @@ class TestZoneMitigationLabels:
     def test_fvg_single_close_beyond_does_not_invalidate(self) -> None:
         """R2: A single close beyond the zone is NOT invalidation for FVGs."""
         # Bearish FVG [100, 101]: bar-0 close > zone_high (101.2) then bar-1 back inside.
-        # Touch happens bar-1 (high 100.5 inside zone).
+        # Touch happens bar-0 (high 101.5 overshoots the zone → still a touch).
         # Under old 1-bar rule this would be False; under 2-bar rule it's True.
         assert label_fvg_mitigation(
             100.0, 101.0, "BEAR",
@@ -160,6 +160,46 @@ class TestZoneMitigationLabels:
             [98.5, 99.0],
             [98.7, 99.5],            # single close below zone invalidates OB
         ) is False
+
+    def test_fvg_full_overshoot_wick_is_mitigated(self) -> None:
+        # Regression: a wick that pierces THROUGH the whole zone is a touch.
+        # Bullish FVG [10, 11]: bar low 9.5 overshoots below zone_low, closes
+        # back above (no invalidation). Previously mislabelled "not mitigated"
+        # while compute_fvg_partial_fill reports 1.0 on the same bar.
+        assert label_fvg_mitigation(10.0, 11.0, "BULL", [11.2], [9.5], [10.6]) is True
+        assert compute_fvg_partial_fill(10.0, 11.0, "BULL", [11.2], [9.5]) == 1.0
+
+    def test_fvg_bearish_full_overshoot_wick_is_mitigated(self) -> None:
+        # Bearish FVG [10, 11]: bar high 11.5 overshoots above zone_high,
+        # closes back below (no invalidation).
+        assert label_fvg_mitigation(10.0, 11.0, "BEAR", [11.5], [9.8], [10.4]) is True
+        assert compute_fvg_partial_fill(10.0, 11.0, "BEAR", [11.5], [9.8]) == 1.0
+
+    def test_orderblock_full_overshoot_wick_is_mitigated(self) -> None:
+        # Bullish OB [10, 11]: wick through to 9.5, close 10.6 (no invalidation).
+        assert label_orderblock_mitigation(10.0, 11.0, "BULL", [11.2], [9.5], [10.6]) is True
+
+    def test_mitigation_agrees_with_full_partial_fill(self) -> None:
+        # A 100%-filled zone with no invalidation must be labelled mitigated —
+        # the two labels can no longer contradict on overshoot bars.
+        for direction, highs, lows, closes in (
+            ("BULL", [11.2], [9.5], [10.6]),
+            ("BEAR", [11.5], [9.8], [10.4]),
+        ):
+            assert compute_fvg_partial_fill(10.0, 11.0, direction, highs, lows) == 1.0
+            assert label_fvg_mitigation(10.0, 11.0, direction, highs, lows, closes) is True
+
+    def test_partial_50_shares_mitigation_invalidation_tiebreak(self) -> None:
+        # M7: partial_50 now uses the SAME strict touch<invalidation tie-break
+        # as label_fvg_mitigation (was inclusive `<=`), so a >=50% fill on the
+        # exact bar the 2-close invalidation is recorded no longer counts.
+        # Bullish FVG [10, 11]: bar-0 fills 100% (low 9.5) and is the first of
+        # two consecutive closes below zone_low -> invalid_idx = 0.
+        highs = [11.0, 10.8]
+        lows = [9.5, 9.4]
+        closes = [9.7, 9.6]
+        assert label_fvg_mitigation(10.0, 11.0, "BULL", highs, lows, closes) is False
+        assert label_fvg_partial_50(10.0, 11.0, "BULL", highs, lows, closes) is False
 
 
 class TestFVGPartialFill:

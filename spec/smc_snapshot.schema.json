@@ -480,7 +480,9 @@
                     "REGIME_RISK_OFF",
                     "REGIME_ROTATION",
                     "NEWS_MACRO",
-                    "NEWS_COMPANY"
+                    "NEWS_COMPANY",
+                    "NEWS_SECTOR",
+                    "NEWS_GEOPOLITICAL"
                   ]
                 }
               }

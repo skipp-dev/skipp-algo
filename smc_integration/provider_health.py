@@ -118,7 +118,7 @@ _FAILURE_SEMANTICS_MATRIX: tuple[FailureSemantics, ...] = (
     # --- news ---
     FailureSemantics("news",      "missing",     FailureAction.FALLBACK,     None, False, "News domain absent — fallback to Benzinga or skip."),
     FailureSemantics("news",      "stale",       FailureAction.ADVISORY,     24,   False, "News data stale — sentiment scores may not reflect current events."),
-    FailureSemantics("news",      "fallback",    FailureAction.FALLBACK,     None, False, "News domain from Benzinga fallback — reduced depth vs. live NewsAPI."),
+    FailureSemantics("news",      "fallback",    FailureAction.FALLBACK,     None, False, "News domain from Benzinga fallback — reduced depth vs. the primary news lane."),
 )
 
 _FAILURE_SEMANTICS_INDEX: dict[tuple[str, str], FailureSemantics] = {

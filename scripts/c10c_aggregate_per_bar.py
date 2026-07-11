@@ -14,7 +14,8 @@ Output schema (one line = one bar):
       "families": ["FVG", "SWEEP"],
       "predictions": {"FVG": 0.53, "SWEEP": 0.78},
       "outcomes":    {"FVG": true,  "SWEEP": false},
-      "context":     {"session": "NONE", "htf_bias": "BEARISH", "vol_regime": "NORMAL"}
+      "context":     {"session": "NONE", "htf_bias": "BEARISH", "vol_regime": "NORMAL"},
+      "context_consistent": true
     }
 
 If two events of the same family hit the same bar (rare, defensive guard),

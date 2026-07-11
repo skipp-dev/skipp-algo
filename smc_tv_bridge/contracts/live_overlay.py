@@ -53,13 +53,14 @@ class LiveOverlayPayload(BaseModel):
     asof_ts: int = Field(ge=0)
     stale: bool
 
-    # --- B1 overlay fields (served fresh in Phase 1) ---
+    # --- News overlay fields (served fresh); flow_rel_vol/squeeze_on are
+    # baked-only here (daemon-served elsewhere, never by this endpoint) ---
     news_strength: float | None = Field(default=None, ge=0.0, le=1.0)
     news_bias: NewsBiasLiteral | None = None
     flow_rel_vol: float | None = Field(default=None, ge=0.0)
     squeeze_on: Literal[0, 1] | None = None
 
-    # --- B2 overlay fields (declared for forward-compat; baked in Phase 1) ---
+    # --- B2 overlay fields (served live by /smc_live: vix, flow/ATS, tone, heat) ---
     vix_level: float | None = Field(default=None, ge=0.0)
     flow_delta_proxy_pct: float | None = None
     ats_state: str | None = None
@@ -67,7 +68,7 @@ class LiveOverlayPayload(BaseModel):
     tone: str | None = None
     global_heat: float | None = Field(default=None, ge=-1.0, le=1.0)
 
-    # --- Event-risk overlay fields (declared here; served via the earnings/event calendar) ---
+    # --- Event-risk overlay fields (served from the corporate-actions reference snapshot; no calendar feed in this path) ---
     event_window_state: str | None = None
     event_risk_level: str | None = None
     next_event_name: str | None = None
