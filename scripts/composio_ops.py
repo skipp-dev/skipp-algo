@@ -1,4 +1,4 @@
-"""Thin, fail-soft Composio client for skipp-algo ops automations.
+"""Thin, fail-soft Composio REST client for skipp-algo ops automations.
 
 Consumers:
 
@@ -6,31 +6,41 @@ Consumers:
 * ``scripts/ops_digest.py``                          — #4 daily Outlook digest
 * ``services/live_overlay_daemon/grafana_composio_fanout.py`` — #3 Grafana fan-out
 
+Transport — the **Composio REST API over pure stdlib ``urllib``**, no SDK
+dependency. This keeps the module importable everywhere (the live-overlay
+daemon runs from the hash-locked terminal image; the CI runners install no
+extra packages) and avoids pulling Composio's heavy transitive tree
+(openai/pandas/pyarrow) into any image. Verified live 2026-07-11:
+``POST {base}/api/v3/tools/execute/{slug}`` with an ``x-api-key`` header and a
+``{"user_id", "arguments", "connected_account_id"?}`` body returns
+``{"data": ..., "successful": bool, "error": null|{...}}``.
+
 Design contract — **ops notification is best-effort and MUST never raise into
-the caller**. A missing ``COMPOSIO_API_KEY``, an uninstalled ``composio`` SDK,
-or a provider hiccup degrades to a *logged no-op*; it must not crash a
+the caller**. A missing ``COMPOSIO_API_KEY`` or a provider/network hiccup
+degrades to a *logged no-op / failed DeliveryResult*; it must never crash a
 credential health check, a nightly digest cron, or the live-overlay daemon.
 
-Every public helper therefore returns a :class:`DeliveryResult` instead of
-raising. ``skipped=True`` means "not attempted" (unconfigured), ``ok=False``
-with ``skipped=False`` means "attempted and failed" — the caller can log the
-difference but should treat neither as fatal.
-
-Auth model: the Composio Python SDK talks to the Composio backend with an API
-key (``COMPOSIO_API_KEY``); the individual toolkit accounts (Slack, GitHub,
-Outlook) are authorized once in the Composio dashboard and referenced per call
-by ``user_id`` (``COMPOSIO_USER_ID``, default ``"default"``) and optionally by a
-per-toolkit ``connected_account_id`` (``COMPOSIO_<TOOLKIT>_ACCOUNT_ID``).
+Config (env):
+    COMPOSIO_API_KEY               required to attempt a live call (the ak_… key)
+    COMPOSIO_USER_ID               entity the connected accounts belong to (default "default")
+    COMPOSIO_BASE_URL              override the API host (default backend.composio.dev)
+    COMPOSIO_<TOOLKIT>_ACCOUNT_ID  optional connected-account pin per toolkit
 """
 
 from __future__ import annotations
 
+import json
 import logging
 import os
+import urllib.error
+import urllib.request
 from dataclasses import dataclass
 from typing import Any
 
 logger = logging.getLogger(__name__)
+
+_DEFAULT_BASE_URL = "https://backend.composio.dev"
+_TIMEOUT = 20.0
 
 # Tool slugs kept as module constants so a Composio-side rename is a one-line
 # change here rather than a scattered string edit across three call sites.
@@ -65,6 +75,10 @@ def is_configured() -> bool:
     return bool(os.getenv("COMPOSIO_API_KEY", "").strip())
 
 
+def _base_url() -> str:
+    return os.getenv("COMPOSIO_BASE_URL", _DEFAULT_BASE_URL).strip().rstrip("/") or _DEFAULT_BASE_URL
+
+
 def _account_for_toolkit(toolkit: str | None) -> str | None:
     """Optional per-toolkit connected-account override from the environment."""
     if not toolkit:
@@ -73,12 +87,14 @@ def _account_for_toolkit(toolkit: str | None) -> str | None:
     return value or None
 
 
-def _interpret(slug: str, response: Any) -> DeliveryResult:
-    """Normalize a raw SDK response into a :class:`DeliveryResult`."""
-    payload: Any = response
-    if hasattr(response, "model_dump"):
-        payload = response.model_dump()
+def _error_message(error: Any) -> str:
+    if isinstance(error, dict):
+        return str(error.get("message") or error)
+    return str(error) if error else "unknown error"
 
+
+def _interpret(slug: str, payload: Any) -> DeliveryResult:
+    """Normalize a parsed Composio REST response into a :class:`DeliveryResult`."""
     if isinstance(payload, dict):
         successful = payload.get("successful", payload.get("success", True))
         error = payload.get("error")
@@ -87,13 +103,21 @@ def _interpret(slug: str, response: Any) -> DeliveryResult:
             return DeliveryResult(
                 ok=False,
                 skipped=False,
-                detail=f"{slug} reported failure: {error or 'unknown error'}",
+                detail=f"{slug} reported failure: {_error_message(error)}",
                 data=data,
             )
         return DeliveryResult(ok=True, skipped=False, detail=f"{slug} delivered", data=data)
-
-    # Non-dict truthy response — treat as success but keep the shape opaque.
     return DeliveryResult(ok=True, skipped=False, detail=f"{slug} delivered (opaque response)")
+
+
+def _http_error_detail(exc: urllib.error.HTTPError) -> str:
+    """Extract Composio's structured error message from an HTTPError body."""
+    try:
+        parsed = json.loads(exc.read().decode("utf-8", errors="replace"))
+    except (OSError, ValueError):
+        return str(exc.reason)
+    error = parsed.get("error") if isinstance(parsed, dict) else None
+    return _error_message(error) if error else str(exc.reason)
 
 
 def execute_tool(
@@ -102,43 +126,52 @@ def execute_tool(
     *,
     toolkit: str | None = None,
     connected_account_id: str | None = None,
+    opener: Any = None,
 ) -> DeliveryResult:
-    """Execute one Composio tool, fail-soft.
+    """Execute one Composio tool over REST, fail-soft.
 
-    Returns ``skipped=True`` when unconfigured (no API key / SDK) and never
-    raises; a provider/network error is captured and returned as a failed —
-    but non-fatal — :class:`DeliveryResult`.
+    Returns ``skipped=True`` when unconfigured (no API key) and never raises; a
+    provider/network/HTTP error is captured and returned as a failed — but
+    non-fatal — :class:`DeliveryResult`. ``opener`` is injectable for tests.
     """
     api_key = os.getenv("COMPOSIO_API_KEY", "").strip()
     if not api_key:
         logger.info("composio_ops: COMPOSIO_API_KEY unset — skipping %s (no-op)", slug)
         return DeliveryResult(ok=False, skipped=True, detail="COMPOSIO_API_KEY unset")
 
-    try:
-        from composio import Composio
-    except ImportError as exc:
-        logger.warning(
-            "composio_ops: composio SDK not importable (%s) — skipping %s (no-op)", exc, slug
-        )
-        return DeliveryResult(ok=False, skipped=True, detail=f"composio SDK not installed: {exc}")
-
     user_id = os.getenv("COMPOSIO_USER_ID", "default").strip() or "default"
     account = connected_account_id or _account_for_toolkit(toolkit)
-    kwargs: dict[str, Any] = {"user_id": user_id, "arguments": arguments}
+    body: dict[str, Any] = {"user_id": user_id, "arguments": arguments}
     if account:
-        kwargs["connected_account_id"] = account
+        body["connected_account_id"] = account
+
+    request = urllib.request.Request(
+        f"{_base_url()}/api/v3/tools/execute/{slug}",
+        data=json.dumps(body).encode("utf-8"),
+        method="POST",
+        headers={
+            "x-api-key": api_key,
+            "Content-Type": "application/json",
+            "User-Agent": "skipp-algo-composio-ops/1",
+        },
+    )
+    _opener = opener or urllib.request.build_opener()
+    try:
+        with _opener.open(request, timeout=_TIMEOUT) as resp:  # nosec B310 - literal Composio API host
+            raw = resp.read().decode("utf-8", errors="replace")
+    except urllib.error.HTTPError as exc:
+        detail = _http_error_detail(exc)
+        logger.warning("composio_ops: %s HTTP %s — %s", slug, exc.code, detail)
+        return DeliveryResult(ok=False, skipped=False, detail=f"{slug} HTTP {exc.code}: {detail}")
+    except (urllib.error.URLError, TimeoutError) as exc:
+        logger.warning("composio_ops: %s transport error — %s", slug, exc)
+        return DeliveryResult(ok=False, skipped=False, detail=f"{slug} transport error: {exc}")
 
     try:
-        response = Composio(api_key=api_key).tools.execute(slug, **kwargs)
-    except Exception as exc:
-        # Fail-soft notifier: the SDK surfaces many provider/network/auth error
-        # types; none may propagate into a health check, digest cron, or daemon.
-        logger.warning("composio_ops: %s raised %s: %s", slug, type(exc).__name__, exc)
-        return DeliveryResult(
-            ok=False, skipped=False, detail=f"{slug} raised {type(exc).__name__}: {exc}"
-        )
-
-    return _interpret(slug, response)
+        payload = json.loads(raw)
+    except json.JSONDecodeError:
+        return DeliveryResult(ok=False, skipped=False, detail=f"{slug} returned a non-JSON response")
+    return _interpret(slug, payload)
 
 
 # -- High-level helpers -----------------------------------------------------
@@ -164,7 +197,9 @@ def _extract_dm_channel_id(data: dict[str, Any] | None) -> str | None:
         cid = channel.get("id")
         if isinstance(cid, str) and cid:
             return cid
-    cid = data.get("channel_id") or data.get("id")
+    cid = data.get("channel_id")
+    if not cid:
+        cid = data.get("id")
     return cid if isinstance(cid, str) and cid else None
 
 

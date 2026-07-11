@@ -64,12 +64,8 @@ jobs:
             echo "::notice title=ops-digest::COMPOSIO_API_KEY not set — rendering digest only (no send)."
             DRY="--dry-run"
           fi
-          if [ -z "$DRY" ]; then
-            python -m pip install --quiet -r requirements-composio.txt || {
-              echo "::warning title=ops-digest::composio install failed — rendering only."
-              DRY="--dry-run"
-            }
-          fi
+          # composio_ops talks to the Composio REST API over stdlib urllib —
+          # no package to install.
           python scripts/ops_digest.py $DRY --output artifacts/ci/ops_digest.html
           {
             echo "## Ops digest"
