@@ -12,11 +12,13 @@ FMP stable endpoints used (as of 2025):
   - /stable/technical-indicators/williams?symbol=X&periodLength=14&timeframe=1day
   - /stable/quote-short (current price for MA comparison)
 
-Note: MACD and Stochastic are NOT available in the FMP stable API
-and are computed locally from price/EMA data when possible.
+Note: MACD and Stochastic are NOT available in the FMP stable API and are
+NOT computed here — they are set to None and skipped (``_classify_macd`` /
+``_classify_stoch`` are dead on this path). Truth-audit 2026-07-11: the
+"computed locally when possible" claim never held.
 
-Signal classification follows standard thresholds:
-  - RSI > 70 → SELL, RSI < 30 → BUY, else NEUTRAL
+Signal classification (truth-audit 2026-07-11 — the real RSI bands, not "else NEUTRAL"):
+  - RSI > 70 or 60-70 → SELL; RSI < 30 or 30-40 → BUY; 40-60 → NEUTRAL
   - Price > MA → BUY, Price < MA → SELL
   - ADX > 25 with +DI > -DI → BUY, etc.
 """
@@ -48,6 +50,12 @@ _INTERVAL_TO_TIMEFRAME: dict[str, str] = {
     "1D": "1day",
     "1W": "1day",    # FMP doesn't have weekly; use daily as approximation
     "1M": "1day",
+    # Truth-audit 2026-07-11: unmapped intervals (e.g. "2h", "10m" requested by
+    # terminal_technicals.fetch_multi_interval) fall through to the "1day"
+    # default below, so those cards show DAILY bars mislabeled with the
+    # requested interval during a TradingView cooldown. Left mapped-to-daily
+    # deliberately (FMP stable has no 2h/10m); the card's interval label is
+    # the caveat.
 }
 
 def _make_fmp_client(api_key: str) -> FMPClientLike:
