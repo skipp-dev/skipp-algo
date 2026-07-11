@@ -178,7 +178,7 @@ _FROZEN_URLOPEN_SITES: frozenset[tuple[str, int]] = frozenset(
         # 2026-07-09 (fix/c8-deploy-robust): submit_failed + submitter fields in
         # _empty/_coerce shifted this +8: 137->145.
         ("services/live_overlay_daemon/evidence_freshness_bridge.py", 145),
-        ("services/live_overlay_daemon/provider_usage_bridge.py", 96),
+        ("services/live_overlay_daemon/provider_usage_bridge.py", 97),  # 2026-07-11 (rate_limit_hits coerce +1 line): 96->97
         # 2026-07-11 (feat/sweep-trap-shadow-grafana): WS4a sweep-trap shadow
         # snapshot fetcher, https-only with explicit timeout=.
         ("services/live_overlay_daemon/sweep_trap_shadow_bridge.py", 96),

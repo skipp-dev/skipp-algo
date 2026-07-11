@@ -2371,6 +2371,43 @@ groups:
         quota -- ingest will start failing when the quota is exhausted.
       runbook: Immediately reduce FMP polling (newsstack_fmp/config.py FMP_*_LIMIT / poll interval) or
         upgrade the FMP plan; raise FMP_MONTHLY_BANDWIDTH_LIMIT_BYTES to match a new plan.
+  - uid: lo-provider-rate-limited
+    title: Data provider is being rate-limited (429s)
+    condition: C
+    noDataState: OK
+    data:
+    - refId: A
+      datasourceUid: grafanacloud-prom
+      model:
+        # 429 hits per provider over the last 6h. The vendors send no X-RateLimit-*
+        # headers, so this counter (newsstack_fmp/_bz_http.py record_rate_limit_hit)
+        # is the only "we are being throttled" signal. increase() handles the
+        # monthly reset of the underlying gauge; a bare increase feeding the gt-0
+        # threshold is linter-safe (0 = not throttled correctly does not fire).
+        expr: increase(live_overlay_provider_usage_rate_limit_hits{job="live_overlay"}[6h])
+        instant: true
+    - refId: C
+      datasourceUid: __expr__
+      model:
+        type: threshold
+        conditions:
+        - evaluator:
+            type: gt
+            params:
+            - 0
+          operator:
+            type: and
+          query:
+            params:
+            - A
+    for: 5m
+    labels:
+      severity: warning
+    annotations:
+      summary: A data provider (Massive/Benzinga/Unusual Whales) returned HTTP 429 in the last 6h --
+        ingest is brushing its rate limit; retries are currently absorbing the throttling.
+      runbook: Reduce polling frequency / concurrency for the throttled provider (newsstack_fmp poll
+        intervals) or raise the plan tier. Counter source is newsstack_fmp/_bz_http.py.
   - uid: lo-sweep-trap-shadow-stale
     title: Sweep-trap shadow snapshot stale
     condition: C

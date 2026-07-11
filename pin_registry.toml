@@ -103,7 +103,7 @@
 "services/live_overlay_daemon/evidence_freshness_bridge.py" = [145]
 # 2026-07-07 (feat/provider-usage): provider data-volume snapshot fetcher,
 # https-only with explicit timeout= (mirrors the evidence-freshness bridge).
-"services/live_overlay_daemon/provider_usage_bridge.py" = [96]
+"services/live_overlay_daemon/provider_usage_bridge.py" = [97]  # 2026-07-11 (rate_limit_hits coerce +1 line): 96->97
 # 2026-07-11 (feat/sweep-trap-shadow-grafana): WS4a sweep-trap shadow snapshot
 # fetcher, https-only with explicit timeout= (mirrors the evidence-freshness bridge).
 "services/live_overlay_daemon/sweep_trap_shadow_bridge.py" = [96]

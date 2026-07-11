@@ -257,6 +257,22 @@ def _usage_provider(label: str | None) -> str:
     return lab or "benzinga"
 
 
+def _provider_from_url(url: str) -> str:
+    """Bucket a request URL host onto the same provider names as _usage_provider.
+
+    The shared retry primitive (_request_with_status_retry) only has the URL, not
+    the endpoint label, so 429 telemetry derives the provider from the host —
+    yielding the same buckets (massive / unusual_whales / benzinga) as the
+    label-based call/byte telemetry so both share provider names.
+    """
+    lowered = url.lower()
+    if "massive.com" in lowered:
+        return "massive"
+    if "unusualwhales.com" in lowered:
+        return "unusual_whales"
+    return "benzinga"
+
+
 def _request_with_retry(
     client: httpx.Client,
     url: str,
@@ -382,6 +398,18 @@ def _request_with_status_retry(
     without duplicating the backoff/Retry-After/jitter logic.
     """
     r = client.get(url, params=params)
+    if r.status_code == 429:
+        # Rate-limit telemetry (fail-soft): the vendors send no X-RateLimit-*
+        # headers (verified 2026-07-11), so counting 429s per provider is the only
+        # "we are being throttled" signal. Recorded here — the single 429 choke
+        # point shared by Benzinga/Massive/UW — on every 429 (including ones a
+        # retry later rescues), which is the throttling-pressure metric we want.
+        try:
+            from newsstack_fmp import provider_usage
+
+            provider_usage.record_rate_limit_hit(_provider_from_url(url))
+        except Exception as usage_exc:  # never let telemetry break an ingest
+            logger.debug("provider rate-limit record skipped: %s", usage_exc)
     if r.status_code in _RETRYABLE:
         raise _BzRetryableStatusError(r)
     return r

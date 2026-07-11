@@ -13,8 +13,8 @@ def test_record_accumulates_bytes_records_calls() -> None:
     u.record("FMP", response_bytes=500, records=2)  # case-insensitive
     u.record("benzinga", response_bytes=200, records=1)
     snap = u.snapshot()
-    assert snap["fmp"] == {"calls": 2, "bytes": 1500, "records": 7}
-    assert snap["benzinga"] == {"calls": 1, "bytes": 200, "records": 1}
+    assert snap["fmp"] == {"calls": 2, "bytes": 1500, "records": 7, "rate_limit_hits": 0}
+    assert snap["benzinga"] == {"calls": 1, "bytes": 200, "records": 1, "rate_limit_hits": 0}
 
 
 def test_record_is_fail_soft_on_bad_input() -> None:
@@ -22,7 +22,7 @@ def test_record_is_fail_soft_on_bad_input() -> None:
     u.record("fmp", response_bytes=-10, records=-3)  # coerced to 0
     u.record("", response_bytes=100)                 # empty provider -> "unknown"
     snap = u.snapshot()
-    assert snap["fmp"] == {"calls": 1, "bytes": 0, "records": 0}
+    assert snap["fmp"] == {"calls": 1, "bytes": 0, "records": 0, "rate_limit_hits": 0}
     assert snap["unknown"]["bytes"] == 100
 
 
@@ -33,7 +33,7 @@ def test_flush_creates_monthly_snapshot(tmp_path: Path) -> None:
     assert u.flush(path, month="2026-07", now_iso="2026-07-07T10:00:00Z") is True
     data = json.loads(path.read_text())
     assert data["current_month"] == "2026-07"
-    assert data["months"]["2026-07"]["fmp"] == {"calls": 1, "bytes": 1000, "records": 5}
+    assert data["months"]["2026-07"]["fmp"] == {"calls": 1, "bytes": 1000, "records": 5, "rate_limit_hits": 0}
     # Recorder is reset after a successful flush (deltas already persisted).
     assert u.snapshot() == {}
 
@@ -48,7 +48,7 @@ def test_flush_accumulates_across_runs(tmp_path: Path) -> None:
     u2.record("fmp", response_bytes=250, records=1)
     u2.flush(path, month="2026-07", now_iso="2026-07-07T11:00:00Z")
     data = json.loads(path.read_text())
-    assert data["months"]["2026-07"]["fmp"] == {"calls": 2, "bytes": 1250, "records": 6}
+    assert data["months"]["2026-07"]["fmp"] == {"calls": 2, "bytes": 1250, "records": 6, "rate_limit_hits": 0}
 
 
 def test_flush_starts_fresh_counter_each_month(tmp_path: Path) -> None:
@@ -90,3 +90,30 @@ def test_flush_fail_soft_on_unwritable_path(tmp_path: Path) -> None:
     blocker = tmp_path / "blocker"
     blocker.write_text("")
     assert u.flush(blocker / "sub" / "usage.json", month="2026-07", now_iso="x") is False
+
+
+def test_record_rate_limit_hit_accumulates_and_flushes(tmp_path: Path) -> None:
+    u = ProviderUsage()
+    u.record_rate_limit_hit("massive")
+    u.record_rate_limit_hit("MASSIVE")  # case-insensitive -> same bucket
+    u.record("massive", response_bytes=100, records=1)  # a success call too
+    snap = u.snapshot()
+    assert snap["massive"]["rate_limit_hits"] == 2
+    assert snap["massive"]["calls"] == 1  # 429s never count as a successful call
+    path = tmp_path / "usage.json"
+    assert u.flush(path, month="2026-07", now_iso="2026-07-11T00:00:00Z") is True
+    data = json.loads(path.read_text(encoding="utf-8"))
+    assert data["months"]["2026-07"]["massive"]["rate_limit_hits"] == 2
+
+
+def test_rate_limit_hits_accumulate_across_runs(tmp_path: Path) -> None:
+    path = tmp_path / "usage.json"
+    u1 = ProviderUsage()
+    u1.record_rate_limit_hit("benzinga")
+    u1.flush(path, month="2026-07", now_iso="2026-07-11T10:00:00Z")
+    u2 = ProviderUsage()
+    u2.record_rate_limit_hit("benzinga")
+    u2.record_rate_limit_hit("benzinga")
+    u2.flush(path, month="2026-07", now_iso="2026-07-11T11:00:00Z")
+    data = json.loads(path.read_text(encoding="utf-8"))
+    assert data["months"]["2026-07"]["benzinga"]["rate_limit_hits"] == 3
