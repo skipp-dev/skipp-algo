@@ -6,7 +6,7 @@ import logging
 import os
 import sys
 import time as time_module
-from datetime import UTC, datetime
+from datetime import UTC, date, datetime
 from pathlib import Path
 from typing import Any, cast
 
@@ -650,6 +650,79 @@ def _normalize_provider_attempts(raw_attempts: Any) -> list[dict[str, Any]]:
                 row[key] = item[key]
         attempts.append(row)
     return attempts
+
+
+# Truth-audit 2026-07-11 (ENG-WS2 follow-up): the structure domain is what the
+# trust-ladder's WATCH_ONLY / UNAVAILABLE states key on, but the micro-base
+# pipeline never diagnosed it (only regime/news/calendar/technical). Structure
+# health here = the base snapshot's freshness + presence: a missing base is
+# structure="missing" (→ UNAVAILABLE), a stale ``asof_date`` is
+# structure="stale" (→ WATCH_ONLY). The threshold is calendar-day based and set
+# conservatively so a normal weekend/holiday gap (latest workbook = last trading
+# day) never false-positives; tune via ``SMC_STRUCTURE_SNAPSHOT_STALE_AFTER_DAYS``.
+_STRUCTURE_SNAPSHOT_STALE_AFTER_DAYS_DEFAULT = 4
+
+
+def _structure_snapshot_stale_after_days() -> int:
+    raw = os.environ.get("SMC_STRUCTURE_SNAPSHOT_STALE_AFTER_DAYS")
+    if raw is None or not str(raw).strip():
+        return _STRUCTURE_SNAPSHOT_STALE_AFTER_DAYS_DEFAULT
+    try:
+        value = int(str(raw).strip())
+    except ValueError:
+        return _STRUCTURE_SNAPSHOT_STALE_AFTER_DAYS_DEFAULT
+    return value if value > 0 else _STRUCTURE_SNAPSHOT_STALE_AFTER_DAYS_DEFAULT
+
+
+def build_structure_domain_diagnostic(
+    asof_date: str | None,
+    symbol_count: int,
+    *,
+    now_date: date | None = None,
+) -> dict[str, Any]:
+    """Diagnose the STRUCTURE domain from the base snapshot's presence + freshness.
+
+    Returns a domain-diagnostic dict (same shape as
+    :func:`_build_domain_diagnostic`) so the trust-state export derives the
+    canonical product state:
+
+    * no symbols in the base snapshot → ``provider_status="missing"`` → UNAVAILABLE
+    * ``asof_date`` older than the configured staleness window →
+      ``provider_status="stale"`` → WATCH_ONLY
+    * otherwise → ``provider_status="ok"``
+    """
+    today = now_date or datetime.now(UTC).date()
+    if symbol_count <= 0:
+        status, detail = "missing", "Base snapshot is empty — no structure available."
+    else:
+        parsed_asof: date | None = None
+        if asof_date:
+            try:
+                parsed_asof = date.fromisoformat(str(asof_date)[:10])
+            except ValueError:
+                parsed_asof = None
+        if parsed_asof is None:
+            status, detail = "missing", "Base snapshot has no parsable asof_date."
+        else:
+            age_days = (today - parsed_asof).days
+            threshold = _structure_snapshot_stale_after_days()
+            if age_days > threshold:
+                status = "stale"
+                detail = (
+                    f"Structure snapshot asof {parsed_asof.isoformat()} is "
+                    f"{age_days}d old (> {threshold}d window) — base not refreshed."
+                )
+            else:
+                status, detail = "ok", ""
+    return {
+        "domain": "structure",
+        "ok": status == "ok",
+        "selected_provider": "databento_workbook",
+        "provider_status": status,
+        "status_detail": detail,
+        "stale_providers": ["databento_workbook"] if status in {"stale", "missing"} else [],
+        "attempts": [],
+    }
 
 
 def _build_domain_diagnostic(
@@ -1612,6 +1685,20 @@ def finalize_pipeline(
         newsapi_feed_state_path=artifacts_root / "newsapi_ai_feed_state.json",
         live_news_snapshot_path=prepared_live_news_snapshot_path,
     )
+    # Truth-audit 2026-07-11 (ENG-WS2 follow-up): diagnose the STRUCTURE domain
+    # from the base snapshot so the trust-ladder's WATCH_ONLY / UNAVAILABLE
+    # states can fire (build_enrichment only diagnoses regime/news/calendar/
+    # technical). Injected into providers.domain_diagnostics so
+    # attach_trust_state_from_provider_diagnostics derives the real state.
+    if isinstance(enrichment, dict):
+        _providers = enrichment.setdefault("providers", {})
+        if isinstance(_providers, dict):
+            _diags = _providers.setdefault("domain_diagnostics", {})
+            if isinstance(_diags, dict) and "structure" not in _diags:
+                _diags["structure"] = build_structure_domain_diagnostic(
+                    base_result.get("asof_date"),
+                    len(symbols),
+                )
     enrichment_keys = list(enrichment.keys()) if enrichment else []
     if debug_mode:
         if enrichment is None:
