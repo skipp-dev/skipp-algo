@@ -25,13 +25,15 @@ def resolve_provider_state_from_failure_actions(
     """
     if structure_state in {"none", "unknown"}:
         return "unavailable"
-    for record in failure_actions:
-        action = str(record.get("failure_action", "")).strip()
-        if action == "hard_degrade":
-            return "unavailable"
-        if action == "suppress":
-            return "degraded"
-    if any(str(r.get("failure_action", "")).strip() == "advisory" for r in failure_actions):
+    # Truth-audit I10 (2026-07-11): take the WORST severity across ALL
+    # records. The old loop returned "degraded" on the first ``suppress``
+    # before scanning later records, so ``[{suppress}, {hard_degrade}]``
+    # collapsed to "degraded" instead of "unavailable" — a hard-degrade
+    # failure that followed a suppress one was silently downgraded.
+    actions = {str(r.get("failure_action", "")).strip() for r in failure_actions}
+    if "hard_degrade" in actions:
+        return "unavailable"
+    if actions & {"suppress", "advisory"}:
         return "degraded"
     return "ok"
 

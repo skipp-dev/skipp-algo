@@ -15,10 +15,18 @@ EVIDENCE_TYPE_ORDER = {
 
 TARGET_CATEGORIES = ["orderblocks", "fvg", "liquidity_sweeps"]
 
+# Truth-audit I7 (2026-07-11): pathlib.Path.glob does NOT expand brace
+# alternations — "*.{py,js,md}" matched ZERO files, so the smc_tv_bridge
+# and reports/ surfaces were never scanned (integrable_now could never be
+# True). Enumerate each extension as its own glob.
 _SEARCH_GLOBS = [
-    "smc_tv_bridge/**/*.{py,js,md}",
+    "smc_tv_bridge/**/*.py",
+    "smc_tv_bridge/**/*.js",
+    "smc_tv_bridge/**/*.md",
     "scripts/**/*.py",
-    "reports/**/*.{json,md,csv}",
+    "reports/**/*.json",
+    "reports/**/*.md",
+    "reports/**/*.csv",
     "spec/**/*.json",
     "docs/**/*.md",
     "**/*.pine",
