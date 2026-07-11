@@ -45,8 +45,8 @@ def test_endpoint_usage_stats_counts_successful_calls(
 
     stats = client.get_endpoint_usage_stats()
     assert stats == {
-        "/stable/quote": {"calls": 2, "errors": 0, "empty_responses": 0},
-        "/stable/profile": {"calls": 1, "errors": 0, "empty_responses": 0},
+        "/stable/quote": {"calls": 2, "errors": 0, "empty_responses": 0, "response_bytes": 0},
+        "/stable/profile": {"calls": 1, "errors": 0, "empty_responses": 0, "response_bytes": 0},
     }
 
 
@@ -71,6 +71,7 @@ def test_endpoint_usage_stats_records_http_error(
         "calls": 1,
         "errors": 1,
         "empty_responses": 0,
+        "response_bytes": 0,
     }
 
 
@@ -127,7 +128,7 @@ def test_endpoint_usage_stats_records_circuit_open_as_error(
     stats = client.get_endpoint_usage_stats()
     # When the breaker short-circuits, no network call is issued but we still
     # record the attempt as a call with an error so the audit reflects intent.
-    assert stats["/stable/quote"] == {"calls": 1, "errors": 1, "empty_responses": 0}
+    assert stats["/stable/quote"] == {"calls": 1, "errors": 1, "empty_responses": 0, "response_bytes": 0}
 
 
 def test_get_endpoint_usage_stats_returns_deep_copy(
@@ -158,4 +159,4 @@ def test_record_endpoint_event_increments_multiple_counters() -> None:
     client._record_endpoint_event("/stable/foo", calls=1, errors=1)
 
     stats = client.get_endpoint_usage_stats()
-    assert stats["/stable/foo"] == {"calls": 2, "errors": 1, "empty_responses": 1}
+    assert stats["/stable/foo"] == {"calls": 2, "errors": 1, "empty_responses": 1, "response_bytes": 0}
