@@ -326,6 +326,30 @@ def expand_to_variant_samples(
     return out
 
 
+def expand_to_variant_sources(
+    families_payload: Mapping[str, Any],
+    variants: Iterable[str],
+) -> dict[str, str]:
+    """Broadcast each family's ``source`` label to every matching variant.
+
+    Companion to :func:`expand_to_variant_samples`. Lets
+    :mod:`scripts.compute_live_drift` label the K-S reference type by
+    provenance — only ``"real_fills"`` families may become the
+    machine-evaluable ``backtest_samples`` reference; ``"replay"`` /
+    ``"mixed"`` families carry synthetic draws (truth-audit F2).
+    """
+    families = families_payload.get("families") or {}
+    out: dict[str, str] = {}
+    for variant in variants:
+        family = _family_from_variant(variant)
+        if family is None:
+            continue
+        slot = families.get(family) or {}
+        if slot.get("slippage_bps"):
+            out[variant] = str(slot.get("source") or "real_fills")
+    return out
+
+
 # ---------------------------------------------------------------------------
 # Atomic write (mirrors compute_live_drift._atomic_write_json)
 # ---------------------------------------------------------------------------
