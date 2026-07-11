@@ -113,17 +113,21 @@ def classify_sweep_trap(
     Parameters
     ----------
     swept_level:
-        The prior swing high (bullish sweep) or swing low (bearish sweep)
+        The prior swing low (bullish sweep) or swing high (bearish sweep)
         that was violated by the sweep.
     sweep_extreme:
-        The most extreme price reached by the sweep candle (high for
-        bullish sweeps, low for bearish sweeps).
+        The most extreme price reached by the sweep candle (low for
+        bullish sweeps, high for bearish sweeps).
     origin_level:
         Price level at the origin of the move leading to the sweep — used
         to measure ``fib_retrace_depth``.
     is_bullish_sweep:
-        ``True`` if the sweep broke *above* a prior high (trapping longs
-        who bought the breakout); ``False`` for a bearish sweep.
+        ``True`` for a **bullish setup**: a swing low was swept (sell-side
+        liquidity grabbed below ``swept_level``, i.e. ``side == "SELL_SIDE"``)
+        and price is expected to reclaim *upward*, trapping sellers.
+        ``False`` for a bearish setup (a swing high was swept, ``BUY_SIDE``,
+        reclaim *downward*, trapping buyers). This matches the repo-wide
+        convention (BULL ↔ SELL_SIDE taken).
     post_sweep_bars:
         Sequence of OHLC dicts with keys ``"open"``, ``"high"``, ``"low"``,
         ``"close"`` for bars *after* the sweep candle.  The look-ahead window
@@ -154,14 +158,14 @@ def classify_sweep_trap(
     for idx, bar in enumerate(post_sweep_bars):
         close: float = float(bar["close"])
         if is_bullish_sweep:
-            # Bearish reclaim: close back *below* swept_level
-            if close < swept_level:
+            # Bullish setup: swing low swept; reclaim = close back *above* it.
+            if close > swept_level:
                 reclaim_bar_idx = idx
                 best_reclaim_close = close
                 break
         else:
-            # Bullish reclaim: close back *above* swept_level
-            if close > swept_level:
+            # Bearish setup: swing high swept; reclaim = close back *below* it.
+            if close < swept_level:
                 reclaim_bar_idx = idx
                 best_reclaim_close = close
                 break
@@ -195,11 +199,11 @@ def classify_sweep_trap(
             trap_quality_score=0.0,
         )
 
-    # Reclaim strength: fraction of sweep body recovered.
+    # Reclaim strength: fraction of sweep body recovered (back through swept_level).
     if is_bullish_sweep:
-        recovered: float = swept_level - best_reclaim_close
+        recovered: float = best_reclaim_close - swept_level
     else:
-        recovered = best_reclaim_close - swept_level
+        recovered = swept_level - best_reclaim_close
     reclaim_strength: float = max(0.0, min(1.0, recovered / sweep_body))
 
     # Fib retrace depth: how deeply did price retrace from swept_level toward origin?
@@ -207,10 +211,12 @@ def classify_sweep_trap(
         fib_retrace_depth: float = 0.0
     else:
         if is_bullish_sweep:
-            # How far did the extreme go above swept_level, relative to the pre-sweep leg?
-            depth: float = (sweep_extreme - swept_level) / fib_range
+            # Bullish: how far the swept LOW was pierced *below* swept_level,
+            # relative to the pre-sweep leg.
+            depth: float = (swept_level - sweep_extreme) / fib_range
         else:
-            depth = (swept_level - sweep_extreme) / fib_range
+            # Bearish: how far the swept HIGH was pierced *above* swept_level.
+            depth = (sweep_extreme - swept_level) / fib_range
         fib_retrace_depth = max(0.0, min(1.0, depth))
 
     # Composite quality score.
