@@ -22,9 +22,9 @@
   },
   {
     "alpha": 0.008,
-    "family": "CHOCH",
+    "family": "SWEEP",
     "method": "ml_calibration_test",
-    "rationale": "C10 per-family Brier-improvement calibration check. Per-family alpha lowered from 0.01 to 0.008 (Deep-Review 2026-04-27).",
+    "rationale": "Reserved (illustrative, hand-curated — not an auto-derived live call site; see module docstring) budget slot for a C10 per-family Brier-improvement calibration check. Replaces a stale 'CHOCH' entry, which is not a valid EventFamily (BOS/OB/FVG/SWEEP). Per-family alpha lowered from 0.01 to 0.008 (Deep-Review 2026-04-27).",
     "sprint": "C10"
   },
   {
