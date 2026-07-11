@@ -40,11 +40,11 @@ class ExecutionAction:
 
 @dataclass(frozen=True)
 class SlippageEstimate:
-    """Output of the Almgren-Chriss-style calibrator."""
+    """Output of the Almgren-Chriss-style calibrator (misnomer notes below)."""
 
     expected_bps: float
-    permanent_impact_bps: float
-    temporary_impact_bps: float
+    permanent_impact_bps: float  # really side-asymmetry term (~0 if symmetric)
+    temporary_impact_bps: float  # sqrt-duration term
     confidence_low_bps: float
     confidence_high_bps: float
 

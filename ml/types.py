@@ -41,8 +41,8 @@ class TrainingReport:
     """Walk-forward summary returned by every trainer."""
 
     family: EventFamily
-    n_train: int
-    n_val: int
+    n_train: int  # total samples in the final full-series production fit (includes val)
+    n_val: int  # summed fold val sizes (overlaps n_train); per-fold sizes in fold_metrics
     brier: float
     log_loss: float
     auc: float

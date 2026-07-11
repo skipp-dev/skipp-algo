@@ -50,7 +50,7 @@ class FittedModel:
     backend: str
     model_version: str
     feature_names: tuple[str, ...]
-    payload: Any  # backend-specific (np.ndarray for logistic, Booster for xgb)
+    payload: Any  # backend-specific (dict {"w","mean","std"} for logistic, XGBClassifier for xgb)
     extra: dict[str, Any]
 
     def predict_proba(self, X: np.ndarray) -> np.ndarray:

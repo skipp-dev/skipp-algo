@@ -19,8 +19,8 @@ nothing:
      beside the gate's promoted flag — never letting a promoted-but-
      unproven family read as a supported edge.
 
-When the archive is empty (the current real state: no gate run has ever been
-recorded) the loaders return ``None`` / ``{}`` and the panel renders an
+When the archive is empty (e.g. a fresh checkout — real archives exist since
+2026-06-01) the loaders return ``None`` / ``{}`` and the panel renders an
 explicit "no decisions archived yet" notice rather than fabricating a green
 board.
 """

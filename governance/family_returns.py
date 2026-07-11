@@ -17,7 +17,7 @@ pending review). Variant **A** (``touch_then_horizon_close``):
    the zone (long zones: a forward low enters ``[zone_low, zone_high]``;
    short zones: a forward high enters it — mirrors the label semantics).
 2. Exit at the close ``family_outcome_horizon(family)`` bars after that
-   touch (clamped to the last available bar), signed by direction.
+   touch, signed by direction; no full horizon -> event dropped (S3 #2674).
 3. Subtract a fixed round-turn cost (``DEFAULT_COST_BPS``).
 
 This is the most conservative, fewest-degrees-of-freedom rule: no
@@ -205,8 +205,8 @@ class FamilyEvent(TypedDict, total=False):
     # the lag-1 asymmetric cross-correlation ratio
     # corr(r^benchmark_{t-1}, r^constituent_t) / corr(r^constituent_{t-1},
     # r^benchmark_t) over the trailing window against an index-aligned benchmark
-    # (SPY): > 1 when the benchmark leads the constituent, < 1 when the
-    # constituent leads, ~1 for symmetric co-movement. RECORDED ONLY -- it is NOT
+    # (SPY): > 1 benchmark leads, < 1 constituent leads -- valid only when BOTH
+    # lag-1 corrs are positive (signed ratio, can be < 0). RECORDED ONLY -- NOT
     # a calibration input and does NOT feed the gate; it rides alongside outcomes
     # so the pre-registered purged walk-forward A/B (ADR-0021) can evaluate
     # whether it lifts resolution before any wiring. Absent when no benchmark is

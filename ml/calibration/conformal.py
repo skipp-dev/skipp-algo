@@ -11,9 +11,9 @@ This module ships:
   on a held-out set, returns a prediction set per row plus a coverage
   estimator. Distribution-free, exchangeability-only.
 
-- ``AdaptiveConformalClassifier`` (Romano-Patterson, "Adaptive
-  Prediction Sets" 2020) — class-conditional conformity score that
-  produces tighter sets while preserving marginal coverage.
+- ``AdaptiveConformalClassifier`` — label-conditional (Mondrian)
+  conformal prediction: per-class quantiles give class-conditional
+  coverage, typically via somewhat larger sets when a class is rare.
 
 Numpy-only.
 
@@ -134,12 +134,12 @@ class SplitConformalClassifier:
 
 @dataclass
 class AdaptiveConformalClassifier:
-    """Adaptive conformal (Romano-Patterson 2020) — class-conditional quantile.
+    """Label-conditional (Mondrian) conformal — per-class quantile.
 
     Computes a separate conformity threshold per class on the calibration
-    set. Tightens prediction sets relative to split-conformal when one
-    class is much rarer than the other (typical in setup-promotion
-    pipelines), at the cost of one extra hyperparameter (per-class α).
+    set. Gives a class-conditional coverage guarantee (per-class ≥ 1-α);
+    sets tend to be *wider* than split-conformal when one class is much
+    rarer than the other (typical in setup-promotion pipelines).
     """
 
     alpha: float = 0.1

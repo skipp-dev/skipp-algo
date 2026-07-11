@@ -43,7 +43,7 @@ class EnvConfig:
     horizon_steps: int = 20
     seconds_per_step: float = 30.0
     starting_mid: float = 100.0
-    lambda_var: float = 0.01
+    lambda_var: float = 0.01  # scales the risk penalty in BOTH variance and cvar modes
     base_volatility_bps: float = 5.0
     base_volume_per_step: float = 5_000.0
     default_order_type: OrderType = "limit_at_mid"
@@ -144,8 +144,8 @@ class ExecutionEnv(_EnvBase):
         # Implementation shortfall contribution = (fill - anchor) * qty
         is_contrib = notional_bps * slice_qty
         self._is_accum += is_contrib
-        # Per-step variance share (matched 1:1 with the reward variance penalty
-        # below so internal accounting and the optimised objective coincide).
+        # Per-step variance share (matches the reward penalty in ``variance``
+        # mode only; under cvar modes it accumulates but the reward ignores it).
         share = slice_qty / max(self.cfg.parent_qty, 1.0)
         var_step = (price_drift_bps ** 2) * share
         self._var_accum += var_step
@@ -190,7 +190,7 @@ class ExecutionEnv(_EnvBase):
 
     @property
     def realized_variance(self) -> float:
-        """Sum of per-step variance contributions consumed by the reward."""
+        """Sum of per-step variance contributions (feeds the reward only in ``variance`` mode)."""
         return float(self._var_accum)
 
     def render(self):

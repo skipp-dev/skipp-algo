@@ -5,8 +5,8 @@ REST:
     Synchronous (httpx.Client) — called from ``poll_once()``.
 
     Additional news endpoints:
-    - ``/api/v2/news/top`` — curated top news stories
-    - ``/api/v2/news/channels`` — list available channel IDs/names
+    - ``/api/v2/news-top-stories`` — curated top news stories
+    - ``/api/v2/channels`` — list available channel IDs/names
     - ``/api/v2/newsquantified`` — quantified news with price context
 
 WebSocket:
@@ -15,9 +15,9 @@ WebSocket:
     objects into a thread-safe ``queue.Queue`` that ``poll_once()``
     drains on each Streamlit refresh.
 
-Both adapters are **optional** — they are only instantiated when
-``BENZINGA_API_KEY`` is set and the corresponding feature flag is
-enabled in ``Config``.
+Both adapters are **optional** — instantiated only when ``BENZINGA_API_KEY``
+is set + the feature flag is on. NB top/channels/quantified are DIRECT-only
+(api.benzinga.com; the Massive key 401s there -> disabled, silent []).
 """
 
 from __future__ import annotations
