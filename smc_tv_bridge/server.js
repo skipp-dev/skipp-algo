@@ -130,6 +130,17 @@ app.get('/smc_tv', async (req, res) => {
       }
     }
 
+    // Truth-audit T10 (2026-07-11): the Python API returns errors in-band
+    // with HTTP 200 (e.g. {"error": "unsupported timeframe"}). Without this
+    // guard `r.ok` is true and the error object falls through to the encoder
+    // below, which fabricates a healthy-looking neutral snapshot (regime
+    // NORMAL, tech 0.5, news 0.0) — a silent failure the TV consumer can't
+    // detect. Surface the upstream error instead.
+    if (snap && snap.error) {
+      console.error('python backend in-band error', snap.error);
+      return res.status(502).json({ error: `python backend: ${snap.error}` });
+    }
+
     const out = {
       bos: encodeLevels(snap.bos || snap.BOS || []),
       ob: encodeZones(snap.orderblocks || []),
