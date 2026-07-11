@@ -25,8 +25,8 @@ Config (env):
   RT_SIGNAL_WEBHOOK_MODE     one of the modes above (default: generic)
   RT_SIGNAL_WEBHOOK_URL      destination URL (generic/slack/discord/ntfy)
   RT_SIGNAL_WEBHOOK_TOKEN    optional Bearer token for the generic mode
-  RT_SIGNAL_NOTIFY_LEVELS    comma list, default "A0,A1,A2" (A2 = early-warning,
-                             marked "⚠️early"; set "A0,A1" to mute the noisy tier)
+  RT_SIGNAL_NOTIFY_LEVELS    comma list, default "A0,A1" (A2 = early-warning,
+                             marked "⚠️early"; add "A2" to include the noisy tier)
   RT_SIGNAL_EARLY_WEBHOOK_URL  optional 2nd webhook (slack/discord/ntfy/generic) —
                              levels in RT_SIGNAL_EARLY_LEVELS route HERE, not the
                              main channel, independent of RT_SIGNAL_NOTIFY_LEVELS
@@ -116,10 +116,10 @@ def _warn_once(key: str, msg: str, *args: Any) -> None:
 
 
 def _levels() -> set[str]:
-    # Default includes A2 (early-warning) — it is marked "⚠️early" in the
-    # message so it reads as unconfirmed, not a confirmed breakout. Set
-    # RT_SIGNAL_NOTIFY_LEVELS="A0,A1" to mute the noisy tier.
-    raw = _env("RT_SIGNAL_NOTIFY_LEVELS", "A0,A1,A2")
+    # Default is A0,A1 — the noisy A2 early-warning tier is opt-in. When enabled
+    # A2 is marked "⚠️early" in the message so it reads as unconfirmed, not a
+    # confirmed breakout. Set RT_SIGNAL_NOTIFY_LEVELS="A0,A1,A2" to include it.
+    raw = _env("RT_SIGNAL_NOTIFY_LEVELS", "A0,A1")
     tokens = {p.strip().upper() for p in raw.split(",") if p.strip()}
     unknown = tokens - _VALID_LEVELS
     if unknown:

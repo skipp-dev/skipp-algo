@@ -13,6 +13,11 @@ COPY services/live_overlay_daemon/requirements.txt /tmp/requirements.txt
 RUN pip install --no-cache-dir -r /tmp/requirements.txt
 
 COPY services/live_overlay_daemon/ /app/services/live_overlay_daemon/
+# grafana_composio_fanout.py (#3) imports the shared, self-contained
+# scripts/composio_ops.py. The image only copies the daemon package, so ship
+# that one module too — placed at /app (WORKDIR, on sys.path) so the module's
+# `import composio_ops` resolves. Without it #3 stays silently unmounted.
+COPY scripts/composio_ops.py /app/composio_ops.py
 COPY artifacts/smc_microstructure_exports/smc_live_news_snapshot.json /app/artifacts/smc_microstructure_exports/smc_live_news_snapshot.json
 
 # Run as non-root user for security (D1)

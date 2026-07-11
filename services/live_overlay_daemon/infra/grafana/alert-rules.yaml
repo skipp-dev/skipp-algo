@@ -1368,48 +1368,12 @@ groups:
       runbook: The A0/A1 signals feed (producer or snapshot URL/path) has not
         refreshed within OVERLAY_SIGNALS_MAX_AGE_SECS. Check the
         smc-signals-producer service and the snapshot publishing branch.
-  - uid: lo-signal-fresh-a1
-    title: Fresh A1 breakout signal
-    condition: C
-    data:
-    - refId: A
-      datasourceUid: grafanacloud-prom
-      model:
-        # A1 = confirmed breakout. freshness decays 1->0 with signal age, so
-        # > 0.9 means "just fired". count() of the matching series is absent
-        # when no A1 is fresh -> noDataState OK (does not fire). Added 2026-07-08.
-        expr: count(live_overlay_trading_signal_freshness{job="live_overlay", level="A1"} > 0.9)
-        instant: true
-    - refId: C
-      datasourceUid: __expr__
-      model:
-        type: threshold
-        conditions:
-        - evaluator:
-            type: gt
-            params:
-            - 0
-          operator:
-            type: and
-          query:
-            params:
-            - A
-    # Fresh signals are transient (the > 0.9 window is short), so fire on the
-    # first evaluation — a positive `for:` could expire after freshness decays
-    # and the alert would never trigger.
-    for: 0m
-    noDataState: OK
-    labels:
-      severity: high
-    annotations:
-      summary: A fresh A1 (confirmed breakout) signal is active right now
-      runbook: See the "Top Trading Signals — Latest Detail" table on the
-        Signals & Experiments dashboard (level A1, high freshness) for the
-        symbol/direction. A1 is the confirmed tier — actionable.
-  # NOTE (operator decision 2026-07-08): no fresh-A2 alert. A2 is the loosest,
-  # noisiest early-warning tier — it stays a dashboard signal (the "A2
-  # Early-Warning" tile + the level="A2" table rows) and a push notification,
-  # NOT a Grafana alert. Only confirmed A1+ breakouts page.
+  # NOTE (operator decision 2026-07-11, reverses 2026-07-08): neither fresh-A1
+  # nor fresh-A2 is a Grafana alert anymore. A fresh signal is not an incident,
+  # and the old fresh-A1 alert (uid lo-signal-fresh-a1) duplicated the rt_notify
+  # push into Slack, doubling signal noise on the shared alert channel. Both A1
+  # and A2 stay dashboard signals (the "A2 Early-Warning" tile + the level="A1"/
+  # "A2" table rows) plus the rt_notify push. Only real health/SLO conditions page.
   - uid: lo-experiment-snapshot-stale
     title: Experiment rollup snapshot stale
     condition: C

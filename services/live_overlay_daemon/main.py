@@ -457,5 +457,18 @@ def _ct_eq(a: str, b: str) -> bool:
     return hmac.compare_digest(a_digest, b_digest)
 
 
+# Grafana alert webhook -> Composio fan-out (use case #3). Mounted here at the
+# end of the module (after every route + the pinned _ct_eq site) so it never
+# shifts an existing line anchor. Inert (HTTP 503) until GRAFANA_WEBHOOK_TOKEN
+# is set, and fail-soft on delivery — the daemon must boot and serve overlays
+# even when Composio is not wired or the optional module cannot be imported.
+try:
+    from . import grafana_composio_fanout
+
+    app.include_router(grafana_composio_fanout.router)
+except ImportError as _fanout_exc:  # pragma: no cover - defensive; keeps overlays serving
+    logger.warning("grafana_composio_fanout not mounted: %s", _fanout_exc)
+
+
 if __name__ == "__main__":
     run_server()
