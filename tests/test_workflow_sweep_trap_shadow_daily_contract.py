@@ -52,6 +52,23 @@ def test_entrypoint_is_the_shadow_eval() -> None:
     assert "ENABLE_CONFLUENCE_SCORE" not in text
 
 
+def test_eval_rc_capture_is_fail_soft_under_dash_e() -> None:
+    """The eval exit code is the SIGNAL (0/2/3/5), not a failure. GitHub runs
+    the step under `bash -e`, so the eval call must be wrapped in `set +e` and
+    its rc read via PIPESTATUS — otherwise a no_data/shadow/stale run aborts the
+    step before the status mapping and the fail-soft design inverts (regression
+    guard for the 2026-07-11 smoke-test finding)."""
+    steps = _load()["jobs"]["sweep-trap-shadow"]["steps"]
+    eval_step = next(s for s in steps if s.get("id") == "eval")
+    body = eval_step["run"]
+    call_at = body.index("python scripts/eval_sweep_trap_shadow.py")
+    disable_at = body.rfind("set +e", 0, call_at)
+    assert disable_at != -1, "eval call must be preceded by `set +e` so rc 2/3/5 don't abort the step"
+    assert 'rc="${PIPESTATUS[0]}"' in body, "must capture the eval rc via PIPESTATUS, not the pipeline status"
+    # -e restored before the git-touching work that follows.
+    assert body.index("set -e", call_at) != -1, "restore `set -e` after capturing rc"
+
+
 def test_commit_back_is_pr_flow_not_direct_push() -> None:
     text = _WF_PATH.read_text(encoding="utf-8")
     assert "gh pr create" in text and "gh pr merge" in text, (

@@ -115,8 +115,16 @@ jobs:
             echo "status=no_data" >> "$GITHUB_OUTPUT"
             exit 0
           fi
+          # The eval's exit CODE is the signal (0=promotable / 2=shadow /
+          # 3=no_data / 5=stale_feed), not a failure. GitHub runs this step under
+          # `bash -e` (defaults.run.shell: bash), so without `set +e` the rc-3/5/2
+          # pipeline would abort the step HERE — before PIPESTATUS is read —
+          # inverting the fail-soft design (green only on rc 0). Neutralise `-e`
+          # around the call, exactly like workflow-freshness-monitor.
+          set +e
           python scripts/eval_sweep_trap_shadow.py --benchmark-dir "${CORPUS_DIR}" 2>&1 | tee eval.log
           rc="${PIPESTATUS[0]}"
+          set -e
           case "$rc" in
             0) status=promotable ;;
             2) status=shadow ;;

@@ -316,6 +316,11 @@ allowed = ["github-mirror-sync.yml", "openprep-pine-panel-daily-trigger.yml"]
 # that a failed accumulation never marks the rolling-bench run failed; the
 # daily scored_family_events.json artifact is still uploaded as fallback.
 "smc-measurement-benchmark-rolling.yml" = 6
+# sweep-trap-shadow-daily.yml: single guarded step around the shadow eval —
+# the eval's exit CODE is the signal (0/2/3/5), so `set +e` + PIPESTATUS keeps a
+# no_data/shadow/stale run from aborting the step under bash -e; the status is
+# surfaced via ::notice::/step summary and a real error (rc 1) still re-exits.
+"sweep-trap-shadow-daily.yml" = 1
 # workflow-freshness-monitor.yml: single best-effort step that
 # tolerates GitHub API hiccups while polling per-workflow run
 # freshness; outcome is surfaced via the dedicated alert step.
