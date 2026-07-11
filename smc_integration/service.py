@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import logging
 import math
+import time
 from pathlib import Path
 from typing import Any, cast
 
@@ -18,6 +19,7 @@ from smc_adapters import (
     snapshot_to_pine_payload,
 )
 from smc_core import apply_layering, derive_base_signals, normalize_meta, snapshot_to_dict
+from smc_core.bar_close_guard import guard_closed_bars
 from smc_core.benchmark import BenchmarkResult, build_benchmark
 from smc_core.bias_merge import merge_bias
 from smc_core.ensemble_quality import build_ensemble_quality, serialize_ensemble_quality
@@ -635,7 +637,15 @@ def _build_context_payloads(symbol: str, timeframe: str, snapshot: SmcSnapshot) 
     bias_verdict = merge_bias(htf_context or None, session_context or None)
     bias_payload = _serialize_bias_verdict(bias_verdict)
 
-    vol_regime_result = compute_vol_regime(bars)
+    # Drop any trailing in-progress bar before vol-regime ATR/variance: the
+    # databento export can capture a forming bar mid-session. Closed/historical
+    # frames are a no-op (nothing has a close-time in the future). This is what
+    # justifies the iloc[-1] exemption for vol_regime.py in the H-7 guard ledger.
+    # ``.lower()`` maps the canonical timeframes (5m/10m/15m/30m/1H/4H/1D) to the
+    # guard's lowercase interval tokens (1h/4h/1d); every canonical value resolves.
+    vol_regime_result = compute_vol_regime(
+        guard_closed_bars(bars, interval=timeframe.lower(), now=time.time())
+    )
     vol_regime_payload = _serialize_vol_regime(
         vol_regime_result,
         bars_available=bool(context_diagnostics["bars_available"]),
