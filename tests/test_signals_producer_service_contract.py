@@ -48,6 +48,7 @@ def test_signal_engine_entrypoint_uses_port_env_for_telemetry_default(monkeypatc
             self.ultra_mode = ultra_mode
             self.telemetry = rs.ScoreTelemetry()
             self._async_newsstack = None
+            self._near_a0_repoller = None
 
         def poll_once(self) -> None:
             raise KeyboardInterrupt

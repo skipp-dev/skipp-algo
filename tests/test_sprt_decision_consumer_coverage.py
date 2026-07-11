@@ -74,6 +74,16 @@ _SINGLE_BRANCH_ALLOWLIST: dict[str, str] = {
         "synthetic Plan 2.8 report uses 'inconclusive' as a homonym, not an "
         "SPRT decision consumer"
     ),
+    # grafana_notification_routing_upsert.py: builds Grafana alert
+    # notification-routing trees. Its only vocab hit is the Grafana route
+    # `continue:` field — "continue": bool(route.get("continue", False)) —
+    # which controls whether an alert falls through to the next matching
+    # route. A homonym of the SPRT "continue" sentinel; this script never
+    # imports smc_sprt_stop_rule or reads SPRT decision payloads.
+    "scripts/grafana_notification_routing_upsert.py": (
+        "Grafana route `continue:` field is a homonym, not the SPRT "
+        "'continue' decision sentinel"
+    ),
 }
 
 
