@@ -2407,6 +2407,50 @@ groups:
         artifacts/monitoring/sweep_trap_shadow.json within OVERLAY_SWEEP_TRAP_SHADOW_MAX_AGE_SECS.
         Check the sweep-trap-shadow-daily workflow and the bot/sweep-trap-shadow-ledger branch.
         Observe-only — no score impact; a stale snapshot only means the promotion evidence stopped accruing.
+  - uid: lo-sweep-trap-shadow-promotable
+    title: Sweep-trap shadow verdict is PROMOTABLE (WS4b candidate)
+    condition: C
+    data:
+    - refId: A
+      datasourceUid: grafanacloud-prom
+      model:
+        # verdict_code 2 == PROMOTABLE (Brier beats baseline AND top/bottom-tercile
+        # lift positive on >= MIN_OOS=40 samples). `max without (verdict)` collapses
+        # the verdict label so the series stays continuous across verdict changes;
+        # `for: 72h` then requires the value to hold PROMOTABLE for 3 consecutive
+        # days (a single dip resets the pending timer). Deliberately NOT
+        # min_over_time(...[3d]), which would false-fire on partial data before a
+        # full 3-day window of samples exists.
+        expr: max without (verdict) (live_overlay_sweep_trap_shadow_verdict_code{job="live_overlay"})
+        instant: true
+    - refId: C
+      datasourceUid: __expr__
+      model:
+        type: threshold
+        conditions:
+        - evaluator:
+            type: gt
+            params:
+            - 1
+          operator:
+            type: and
+          query:
+            params:
+            - A
+    for: 72h
+    # Positive/notification alert — a missing series (daemon down) is covered by
+    # lo-scrape-missing, and must NOT fire this WS4b prompt.
+    noDataState: OK
+    labels:
+      severity: info
+    annotations:
+      summary: The WS4a sweep-trap shadow verdict has held PROMOTABLE for 3 days — WS4b promotion candidate
+      runbook: The observe-only sweep_trap_quality_score has beaten baseline Brier with
+        positive top/bottom-tercile lift on >= 40 samples for 3 consecutive days. This is the
+        WS4b trigger — review live_overlay_sweep_trap_shadow_{brier_delta,lift,sample_count} on
+        the "Sweep-Trap Shadow (WS4a)" dashboard row, then decide whether to grant the detector
+        score-budget weight (confluence currently reads the coarse SWEEP_QUALITY_SCORE, not
+        SWEEP_TRAP_QUALITY_SCORE). Not an incident — an action prompt.
 - orgId: 1
   name: credential-health
   folder: SMC Live Overlay
