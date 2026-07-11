@@ -80,16 +80,30 @@ _TF_CANDLE_LIMIT: dict[str, int] = {
 # ══════════════════════════════════════════════════════════
 
 def _candle_ts(c: dict[str, Any]) -> int:
-    """Extract Unix timestamp from a candle dict."""
+    """Extract Unix timestamp from a candle dict.
+
+    Truth-audit T1 (2026-07-11): real FMP *intraday* candle dates are
+    space-separated (``"YYYY-MM-DD HH:MM:SS"``), not ``T``-separated. The
+    old ``if "T" in d`` gate sent every such candle to the ``time.time()``
+    fallback, stamping all bars with serve-time — the resampler then
+    collapsed them onto one bucket and the structure detectors emitted
+    (almost) nothing. ``datetime.fromisoformat`` parses BOTH the space and
+    the ``T`` separator, so we try it unconditionally and only fall back to
+    a bare date. Naive datetimes are treated as UTC (matches the daily path).
+    """
     ts = c.get("timestamp") or c.get("t")
     if ts and isinstance(ts, (int, float)):
         return int(ts)
     d = c.get("date", "")
     if d:
         try:
-            if "T" in d:
-                return int(datetime.fromisoformat(d).timestamp())
-            return int(datetime.strptime(d, "%Y-%m-%d").replace(tzinfo=UTC).timestamp())
+            try:
+                dt = datetime.fromisoformat(d)
+            except ValueError:
+                dt = datetime.strptime(d, "%Y-%m-%d")
+            if dt.tzinfo is None:
+                dt = dt.replace(tzinfo=UTC)
+            return int(dt.timestamp())
         except Exception:
             pass
     return int(time.time())
@@ -787,8 +801,16 @@ def smc_live_endpoint(
 
 @app.get("/health")
 def health() -> dict[str, Any]:
+    # Truth-audit T5 (2026-07-11): ``fmp_available`` used to be ``not
+    # USE_MOCK`` — a mock-mode flag, not an availability check, so the
+    # endpoint reported FMP "available" even with no/invalid key while
+    # every data path silently returned empty. Report the two facts
+    # separately: ``mock`` (are we serving stubs) and ``fmp_key_present``
+    # (is an FMP key configured at all — the minimum for the real path).
+    fmp_key_present = bool(os.environ.get("FMP_API_KEY"))
     return {
         "ok": True,
         "mock": USE_MOCK,
-        "fmp_available": not USE_MOCK,
+        "fmp_key_present": fmp_key_present,
+        "fmp_available": (not USE_MOCK) and fmp_key_present,
     }
