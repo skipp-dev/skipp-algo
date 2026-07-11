@@ -74,8 +74,19 @@ def test_gitignore_blocks_local_tradingview_auth_artifacts() -> None:
     # (covers chrome-clone-profile/, storage-state-refreshed.json, any byproduct).
     # Assert the RULE line, not a substring (comments also mention the path).
     rules = [line.strip() for line in gitignore.splitlines() if not line.strip().startswith("#")]
-    assert "automation/tradingview/auth/" in rules
-    assert "playwright/.auth/" in rules
+    # Anchor-tolerant: `/foo/` and `foo/` ignore the same repo-root dir in git, so
+    # normalising the rule form must not red this test (avoids a false-RED on reformat).
+    ignored_dirs = {rule.lstrip("/") for rule in rules if not rule.startswith("!")}
+    assert "automation/tradingview/auth/" in ignored_dirs
+    assert "playwright/.auth/" in ignored_dirs
+    # A stray `!negation` re-including a path under the wholesale ignores would make
+    # the assertions above stay green while a real secret becomes committable — the
+    # exact false-green this test's name promises to prevent. Fail on any such rule.
+    reincludes = [
+        rule for rule in rules
+        if rule.startswith("!") and ("tradingview/auth" in rule or "playwright/.auth" in rule)
+    ]
+    assert not reincludes, f".gitignore re-includes auth paths (secrets become committable): {reincludes}"
 
 
 def test_cli_main_passes_without_violations(monkeypatch: pytest.MonkeyPatch, tmp_path: Path, capsys) -> None:

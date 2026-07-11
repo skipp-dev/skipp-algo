@@ -7,6 +7,7 @@ import {
   describeTradingViewLaunchTarget,
   isMissingBrowserExecutableError,
   launchWithTradingViewFallback,
+  mergeTradingViewLaunchOverrides,
   resolveTradingViewLaunchOptions,
 } from "../lib/tv_shared.js";
 
@@ -34,11 +35,30 @@ const HOST_DEPS_ERROR = new Error(
     + "    sudo npx playwright install-deps\n",
 );
 
+// Missing-browser error whose FIRST-line phrase is reworded ("Executable doesn't
+// exist" absent) but keeps the "download new browsers" remedy — pins that the
+// second marker classifies independently, so a single upstream reword can't
+// silently disable the chrome fallback.
+const MISSING_BROWSER_ERROR_REWORDED = new Error(
+  "browserType.launch: Chromium browser is not installed.\n"
+    + "Please run the following command to download new browsers:\n"
+    + "npx playwright install",
+);
+
 test("resolveTradingViewLaunchOptions: no env vars -> bundled chromium, no channel/executablePath", () => {
   const options = resolveTradingViewLaunchOptions({});
   assert.equal(options.executablePath, undefined);
   assert.equal(options.channel, undefined);
-  assert.equal(typeof options.headless, "boolean");
+  // Concrete value, not just `typeof boolean`: pins that headless is actually wired
+  // from resolveTradingViewHeadlessDefault (a hardcoded true/false would slip a
+  // `typeof === "boolean"` check).
+  assert.equal(options.headless, false);
+});
+
+test("resolveTradingViewLaunchOptions: headless is wired from resolveTradingViewHeadlessDefault", () => {
+  assert.equal(resolveTradingViewLaunchOptions({ TV_HEADLESS: "1" }).headless, true);
+  assert.equal(resolveTradingViewLaunchOptions({ TV_HEADLESS: "0" }).headless, false);
+  assert.equal(resolveTradingViewLaunchOptions({ CI: "true" }).headless, true);
 });
 
 test("resolveTradingViewLaunchOptions: TV_CHROMIUM_EXECUTABLE_PATH is trimmed and applied", () => {
@@ -71,15 +91,37 @@ test("resolveTradingViewLaunchOptions: both env vars set -> throws with remedy h
   );
 });
 
-test("describeTradingViewLaunchTarget names the env var that selected the browser", () => {
-  assert.equal(describeTradingViewLaunchTarget({ executablePath: "/x" }), 'TV_CHROMIUM_EXECUTABLE_PATH="/x"');
-  assert.equal(describeTradingViewLaunchTarget({ channel: "msedge" }), 'TV_BROWSER_CHANNEL="msedge"');
+test("describeTradingViewLaunchTarget names the selector value and both possible sources", () => {
+  const exe = describeTradingViewLaunchTarget({ executablePath: "/x" });
+  assert.match(exe, /executablePath "\/x"/);
+  assert.match(exe, /TV_CHROMIUM_EXECUTABLE_PATH/);
+  assert.match(exe, /caller override/); // honest: value may have come from an override, not the env var
+  const channel = describeTradingViewLaunchTarget({ channel: "msedge" });
+  assert.match(channel, /channel "msedge"/);
+  assert.match(channel, /TV_BROWSER_CHANNEL/);
   assert.equal(describeTradingViewLaunchTarget({}), "Playwright bundled chromium");
+});
+
+test("mergeTradingViewLaunchOverrides: an override selector replaces the env selector (no both-set)", () => {
+  // env channel + override executablePath -> executablePath wins, env channel dropped
+  const a = mergeTradingViewLaunchOverrides({ headless: true, channel: "chrome" }, { executablePath: "/opt/chrome" });
+  assert.equal(a.executablePath, "/opt/chrome");
+  assert.equal(a.channel, undefined);
+  // env executablePath + override channel -> channel wins, env executablePath dropped
+  const b = mergeTradingViewLaunchOverrides({ headless: true, executablePath: "/env/exe" }, { channel: "msedge" });
+  assert.equal(b.channel, "msedge");
+  assert.equal(b.executablePath, undefined);
+  // non-selector override leaves the env selector intact and applies the override
+  const c = mergeTradingViewLaunchOverrides({ headless: false, channel: "chrome" }, { headless: true });
+  assert.equal(c.channel, "chrome");
+  assert.equal(c.headless, true);
 });
 
 test("isMissingBrowserExecutableError: playwright install errors yes, other errors no", () => {
   assert.equal(isMissingBrowserExecutableError(MISSING_BROWSER_ERROR), true);
   assert.equal(isMissingBrowserExecutableError(MISSING_BROWSER_ERROR_NO_REMEDY), true);
+  // Second marker classifies even when the "Executable doesn't exist" phrase is gone.
+  assert.equal(isMissingBrowserExecutableError(MISSING_BROWSER_ERROR_REWORDED), true);
   assert.equal(isMissingBrowserExecutableError(new Error("Timeout 30000ms exceeded.")), false);
   assert.equal(isMissingBrowserExecutableError(new Error("ProcessSingleton: profile is in use")), false);
 });
@@ -181,9 +223,11 @@ test("launchWithTradingViewFallback: non-install failures propagate untouched (n
 });
 
 test("launchWithTradingViewFallback: fallback disabled (persistent profile) -> remedy error, cause chained", async () => {
+  let calls = 0;
   await assert.rejects(
     launchWithTradingViewFallback(
       async () => {
+        calls += 1;
         throw MISSING_BROWSER_ERROR;
       },
       { headless: false },
@@ -201,6 +245,9 @@ test("launchWithTradingViewFallback: fallback disabled (persistent profile) -> r
       return true;
     },
   );
+  // The whole point of the persistent path: it must NEVER retry a different browser
+  // build against the auth profile — assert no second (chrome) launch happened.
+  assert.equal(calls, 1);
 });
 
 test("launchWithTradingViewFallback: env-selected browser never falls back; error names the env var", async () => {
@@ -217,12 +264,39 @@ test("launchWithTradingViewFallback: env-selected browser never falls back; erro
     ),
     (error: unknown) => {
       assert.ok(error instanceof Error);
-      assert.match(error.message, /TV_BROWSER_CHANNEL="Chrome"/);
+      assert.match(error.message, /channel "Chrome"/);
+      assert.match(error.message, /TV_BROWSER_CHANNEL/);
       assert.equal(error.cause, original);
       return true;
     },
   );
   assert.equal(calls, 1);
+});
+
+test("launchWithTradingViewFallback: env-selected executablePath that is MISSING fails loud (no chrome fallback)", async () => {
+  // The dangerous case: an env-selected browser whose error IS a missing-executable
+  // (classified true by isMissingBrowserExecutableError). The env-attribution branch
+  // must fire BEFORE the missing-browser check, so it fails loud instead of silently
+  // launching system Chrome and ignoring the user's explicit executablePath.
+  const original = new Error("browserType.launch: Executable doesn't exist at /bad/path");
+  let calls = 0;
+  await assert.rejects(
+    launchWithTradingViewFallback(
+      async () => {
+        calls += 1;
+        throw original;
+      },
+      { headless: true, executablePath: "/bad/path" },
+      { fallbackToChromeChannel: true, log: () => undefined },
+    ),
+    (error: unknown) => {
+      assert.ok(error instanceof Error);
+      assert.match(error.message, /TV_CHROMIUM_EXECUTABLE_PATH/);
+      assert.equal(error.cause, original);
+      return true;
+    },
+  );
+  assert.equal(calls, 1); // no chrome retry despite the missing-executable classification
 });
 
 test("launchWithTradingViewFallback: both attempts fail -> error carries both messages, cause = original", async () => {
@@ -245,6 +319,9 @@ test("launchWithTradingViewFallback: both attempts fail -> error carries both me
       assert.match(error.message, /Executable doesn't exist/);
       assert.match(error.message, /Chromium distribution 'chrome' is not found/);
       assert.match(error.message, /npx playwright install chromium/);
+      // Truncation is the point: the thrown message keeps only first lines, so the
+      // fallback's second line must NOT leak into it (it survives via the log channel).
+      assert.doesNotMatch(error.message, /second-line detail: sandbox denied/);
       assert.equal(error.cause, MISSING_BROWSER_ERROR);
       return true;
     },
