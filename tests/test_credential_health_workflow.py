@@ -142,15 +142,17 @@ def test_workflow_preflights_snapshot_push_permission(workflow_text: str) -> Non
     # the same force-with-lease shape as the real rolling-branch publish; a
     # plain dry-run push can falsely reject valid non-fast-forward snapshot
     # updates.
+    # Explicit --force-with-lease=<ref>:<expected> — the no-expected form is
+    # rejected client-side ("stale info") in a fresh CI checkout.
     dry_run = (
-        "git push --dry-run --force-with-lease=refs/heads/bot/live-tv-credential-snapshot "
+        "git push --dry-run --force-with-lease=refs/heads/bot/live-tv-credential-snapshot:${_lease_expected} "
         '"${_remote_url}" "HEAD:refs/heads/bot/live-tv-credential-snapshot"'
     )
     lease_fetch = (
         'git fetch "${_remote_url}" '
         '"+refs/heads/bot/live-tv-credential-snapshot:refs/remotes/origin/bot/live-tv-credential-snapshot"'
     )
-    skip_warning = "GITHUB_TOKEN cannot push to bot/live-tv-credential-snapshot; skipping publish"
+    skip_warning = "dry-run push to bot/live-tv-credential-snapshot failed; skipping publish"
     assert "GH_TOKEN: ${{ github.token }}" in workflow_text
     assert dry_run in workflow_text
     assert lease_fetch in workflow_text
@@ -174,7 +176,7 @@ def test_workflow_checks_snapshot_branch_ruleset_assumption(workflow_text: str) 
         '            "repos/${GITHUB_REPOSITORY}/rules/branches/bot%2Flive-tv-credential-snapshot"'
     )
     dry_run = (
-        "git push --dry-run --force-with-lease=refs/heads/bot/live-tv-credential-snapshot "
+        "git push --dry-run --force-with-lease=refs/heads/bot/live-tv-credential-snapshot:${_lease_expected} "
         '"${_remote_url}" "HEAD:refs/heads/bot/live-tv-credential-snapshot"'
     )
     assert "Ruleset assumption guard" in workflow_text
