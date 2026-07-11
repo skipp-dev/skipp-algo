@@ -153,14 +153,14 @@ def probe_tv_storage_state(
         return ProbeResult(
             name,
             "error",
-            f"TV storage_state cookie is EXPIRED ({age_hours:.1f}h ≥ {max_age_hours}h TTL) — next publish will fail at preflight",
+            f"TV storage_state is STALE ({age_hours:.1f}h ≥ {max_age_hours}h refresh TTL, NOT the real cookie expiry) — the login may still be valid, but the publish preflight enforces the same TTL and rejects it; re-capture the storage-state",
             details,
         )
     if age_hours >= max_age_hours * WARN_FRACTION:
         return ProbeResult(
             name,
             "warn",
-            f"TV storage_state cookie is approaching expiry ({age_hours:.1f}h ≥ {max_age_hours * WARN_FRACTION:.1f}h, TTL={max_age_hours}h) — schedule manual refresh",
+            f"TV storage_state is approaching the {max_age_hours}h refresh TTL ({age_hours:.1f}h ≥ {max_age_hours * WARN_FRACTION:.1f}h; TTL is self-imposed, login likely still valid) — schedule a re-capture",
             details,
         )
     return ProbeResult(

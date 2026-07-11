@@ -78,7 +78,9 @@ def test_tv_storage_state_warn_at_80_percent_of_ttl() -> None:
 def test_tv_storage_state_error_when_expired() -> None:
     r = probe_tv_storage_state(_make_cookie(age_hours=90.0), max_age_hours=72.0)
     assert r.severity == "error"
-    assert "EXPIRED" in r.message
+    # Message says STALE (past the self-imposed refresh TTL), not "expired" — the
+    # real cookie may still be valid; only the refresh window elapsed.
+    assert "STALE" in r.message
 
 
 def test_tv_storage_state_error_when_invalid_json() -> None:
