@@ -183,6 +183,14 @@ def _build_state_entry(
         "news_score": max(float(previous.get("news_score", 0.0) or 0.0), current_score),
         "event_label": str(_get_field(item, "event_label", "") or previous.get("event_label", "") or "").strip(),
         "is_actionable": current_actionable or bool(previous.get("is_actionable", False)),
+        # Truth-audit T-F2 (2026-07-11): INERT. ``cooldown_until`` /
+        # ``story_cooldown_until`` are written and round-tripped but NOTHING
+        # ever compares ``now`` against them, so ``cooldown_s`` /
+        # ``TERMINAL_LIVE_STORY_COOLDOWN_S`` have zero effect. Repeat-alert
+        # suppression is actually the ``previous is None`` first-sighting
+        # check in ``apply_live_story_state`` (a time cooldown would in fact
+        # contradict the module rule "repeated sightings must not create
+        # repeated alerts"). Left in place pending a field-removal cleanup.
         "cooldown_until": max(
             float(previous.get("cooldown_until", 0.0) or 0.0),
             float(now) + float(cooldown_s),
