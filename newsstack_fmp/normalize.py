@@ -208,7 +208,7 @@ def normalize_benzinga_rest(it: dict[str, Any]) -> NewsItem:
     Handles BOTH transports (see ingest_benzinga.benzinga_provider): the
     direct /api/v2/news shape (id/created/updated/teaser/stocks) and the
     Massive /benzinga/v2/news shape (benzinga_id/published/last_updated/
-    tickers, teaser+body by default -> snippet populates, scoring content-based).
+    tickers; headline-only, NO teaser/body -> snippet empty, scoring headline-only).
     """
     item_id = str(it.get("id") or it.get("uuid") or it.get("benzinga_id") or "").strip()
     # Massive titles arrive HTML-escaped ("S&amp;P 500") — unescape so keyword
