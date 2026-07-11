@@ -65,6 +65,26 @@ def test_extended_integrability_is_conservative_for_non_provider_sources() -> No
         assert isinstance(integrability["reason"], str)
 
 
+def test_search_globs_have_no_brace_alternations() -> None:
+    """Truth-audit I7: pathlib.glob does not expand braces, so a pattern
+    like ``*.{py,js,md}`` silently matches nothing. Guard against
+    reintroducing brace alternations into the scan patterns."""
+    from smc_integration.extended_structure_discovery import _SEARCH_GLOBS
+
+    for pattern in _SEARCH_GLOBS:
+        assert "{" not in pattern and "}" not in pattern, pattern
+
+
+def test_previously_dead_surfaces_are_now_scanned() -> None:
+    """I7: the brace-glob'd ``smc_tv_bridge/`` and ``reports/`` surfaces
+    matched zero files before the fix. Confirm they are scanned now."""
+    from smc_integration.extended_structure_discovery import _iter_candidate_paths
+
+    scanned = {p.relative_to(ROOT).as_posix() for p in _iter_candidate_paths()}
+    assert any(p.startswith("smc_tv_bridge/") and p.endswith(".py") for p in scanned)
+    assert any(p.startswith("reports/") for p in scanned)
+
+
 # ── pure helper coverage ─────────────────────────────────────────
 
 import re

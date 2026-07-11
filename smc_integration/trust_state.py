@@ -44,6 +44,22 @@ and returns a structured :class:`TrustStateAssessment`.
 This slice does not touch the dashboard or any export; it only pins the
 shared vocabulary so subsequent WS2 tickets (ENG-WS2-02 export, ENG-WS2-03
 badges, ENG-WS2-04 action degradation) can consume one stable surface.
+
+.. warning::
+   Reachability (truth-audit I1, 2026-07-11): with the wiring as it stands
+   today, ``STALE`` and ``WATCH_ONLY`` are **not reachable from production
+   data**. ``derive_trust_state`` classifies only ``domain_alerts``, and the
+   sole producer (``run_provider_health_check`` →
+   ``_collect_meta_domain_alerts``) emits alerts only for the
+   ``volume``/``technical``/``news`` domains and never with a ``stale``
+   failure type on the ``structure`` domain (structure/stale conditions land
+   in ``warnings``/``degradations``, not ``domain_alerts``). Separately,
+   ``attach_trust_state_to_enrichment`` — the only writer of
+   ``enrichment['trust_state']`` — has no production caller, so the Pine
+   export always renders the HEALTHY fallback. Making these states fire
+   requires the unbuilt ENG-WS2-02/03/04 wiring (feed structure/stale into
+   ``domain_alerts`` + call ``attach_*`` from the profile pipeline); until
+   then treat WATCH_ONLY/STALE as defined-but-dormant, not as live guards.
 """
 from __future__ import annotations
 
@@ -330,27 +346,34 @@ def derive_trust_state(provider_report: Mapping[str, Any]) -> TrustStateAssessme
         )
 
     # Compute the worst per-alert TrustState across all enriched alerts.
-    candidate_states: list[TrustState] = []
+    # Truth-audit I18 (2026-07-11): keep each alert paired with its state in
+    # ONE pass. The old code appended to a states list while skipping
+    # unclassifiable alerts, then zip()'d it against ``enriched``
+    # positionally — a skipped alert shifted every later pairing and
+    # mis-attributed ``contributing_alerts``.
+    alert_states: list[tuple[dict[str, Any], TrustState]] = []
     for alert in enriched:
         action_str = str(alert.get("failure_action") or "").strip()
         try:
             action = FailureAction(action_str)
         except ValueError:
             continue
-        candidate_states.append(
-            _state_from_action(action, has_stale=(_failure_type_of(alert) == "stale"))
+        alert_states.append(
+            (alert, _state_from_action(
+                action, has_stale=(_failure_type_of(alert) == "stale")
+            ))
         )
 
     # Alerts were present but none classifiable → conservative DEGRADED.
     worst_state = (
         TrustState.DEGRADED
-        if not candidate_states
-        else max(candidate_states, key=_state_rank)
+        if not alert_states
+        else max((st for _, st in alert_states), key=_state_rank)
     )
 
     cause = _select_primary_cause(enriched, worst_state)
     contributing = tuple(
-        alert for alert, st in zip(enriched, candidate_states, strict=False) if st is worst_state
+        alert for alert, st in alert_states if st is worst_state
     )
 
     return TrustStateAssessment(
