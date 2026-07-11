@@ -4,8 +4,8 @@ Defines a ``MarketDataProvider`` protocol that decouples consumers from the
 concrete Databento SDK.  Two implementations ship with this module:
 
 * **DabentoProvider** – delegates to the real Databento Historical client.
-* **DegradedProvider** – returns empty / ``None`` results; for offline or
-  test scenarios where the API is unavailable.
+* **DegradedProvider** – returns empty / ``None`` results (``get_range``
+  raises ``RuntimeError``); for offline or test scenarios.
 
 Usage::
 

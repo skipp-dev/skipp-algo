@@ -177,7 +177,7 @@ class ThresholdSetting:
     ks_p_red: float
     ks_p_yellow: float
     psi_n_buckets: int = 10
-    consensus_min: int = 2  # detectors firing red+ for episode-level fire
+    consensus_min: int = 2  # detectors firing yellow+ for episode-level fire (mirrors drift_alert)
 
     def key(self) -> str:
         return (

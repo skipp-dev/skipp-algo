@@ -33,10 +33,10 @@ References
   JASA 89(428): 1303-1313.
 - Ledoit, O. & Wolf, M. (2008) — *Robust performance hypothesis testing
   with the Sharpe ratio*. http://www.ledoit.net/jef_2008pdf.pdf
-- Repo-Inventur: ``scripts/run_ab_comparison.py:362-368`` already pins
+- Repo-Inventur: ``scripts/run_ab_comparison.py`` pins its own
   ``BOOTSTRAP_B`` / ``BOOTSTRAP_SEED`` / ``MIN_EVENTS_PER_ARM_FOR_BOOTSTRAP``.
-  Those constants are intentionally re-exported here so callers don't
-  need to import from ``run_ab_comparison`` for plain primitives.
+  The defaults below are INDEPENDENT literals (no import); they have
+  diverged: ``DEFAULT_B=5000`` here vs ``BOOTSTRAP_B=2000`` there.
 """
 
 from __future__ import annotations
@@ -45,9 +45,9 @@ from typing import Literal
 
 import numpy as np
 
-# Re-export of the calibration-FDR constants from
-# ``scripts/run_ab_comparison.py``. Imported lazily to avoid pulling
-# the (large) A/B comparison module into hot resampling paths.
+# Module-local defaults, kept as plain literals (nothing is imported
+# from ``run_ab_comparison`` — B differs: 5000 here vs 2000 there) to
+# avoid pulling the (large) A/B comparison module into hot paths.
 DEFAULT_B: int = 5000
 DEFAULT_SEED: int = 42
 DEFAULT_MEAN_BLOCK_LENGTH: int = 5
@@ -137,11 +137,11 @@ def stationary_block_bootstrap(
 
     Notes
     -----
-    The implementation is fully NumPy-vectorized: a single
-    ``rng.integers`` call yields all block starts and a single
-    ``rng.geometric`` call yields all block lengths. The expansion
-    into per-position indices is done with ``np.cumsum`` /
-    ``np.repeat`` so no Python-level loop runs at length ``B`` or ``n``.
+    The implementation loops in Python over the ``B`` replicates; per
+    replicate it draws geometric block lengths and uniform block starts
+    (``rng.geometric`` / ``rng.integers``) inside a while-loop until the
+    row is filled, with circular wrap-around. Statistics follow
+    Politis-Romano exactly; only the outer loop iterates ``B`` times.
     """
 
     arr = _validate_returns(returns)

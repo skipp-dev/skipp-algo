@@ -4323,7 +4323,7 @@ def build_entry_checklist_table(
             "details": f"premarket_dollar_volume={pmdv_value if pmdv_value is not None else 'n/a'} (>= {pmdv_threshold:,.0f})",
         },
         {
-            "check": "4. Early dip <= -0.5%",
+            "check": f"4. Early dip <= {LONG_DIP_ENTRY_EARLY_DIP_MIN_PCT:.1f}%",
             "erfuellt": early_dip_ok,
             "status": _check_level(early_dip_ok, early_dip_borderline),
             "details": (

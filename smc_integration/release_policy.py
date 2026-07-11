@@ -1204,7 +1204,7 @@ def diagnose_gate_failure(report: dict[str, Any]) -> list[dict[str, str]]:
             seen.add(key)
             reasons.append({"reason": reason, "detail": detail})
 
-    # Scan top-level failures/warnings/degradations.
+    # Scan top-level failures/degradations (top-level warnings are not scanned).
     for row in _iter_code_rows(report.get("failures")):
         code = str(row.get("code", ""))
         _classify_code(code, row, _add)

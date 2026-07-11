@@ -11,8 +11,8 @@ Also includes the **Databento symbol-support probe** which checks whether
 each symbol actually resolves in a given Databento dataset, and caches the
 results to avoid repeated API calls.
 
-Backward compatibility:  all names exported from this module are still
-importable from ``databento_volatility_screener`` via re-export shims.
+Backward compatibility:  names remain importable from ``databento_volatility_screener``,
+but as retained COPIES there (not re-exports) — the variants have drifted (snapshot params).
 """
 
 from __future__ import annotations
@@ -148,7 +148,7 @@ def _probe_symbol_support(
     ]
     available_days = [day for day in available_days if day < current_utc_day]
     if not available_days:
-        return {symbol: True for symbol in symbols}
+        return {symbol: True for symbol in symbols}  # fail-OPEN: no condition data → nothing is probed
     probe_day = available_days[-1]
     probe_start = datetime.combine(probe_day, time(9, 30), tzinfo=US_EASTERN_TZ).astimezone(UTC).isoformat()
     probe_end = _exclusive_ohlcv_1s_end(
