@@ -119,42 +119,45 @@ class IsotonicCalibrator(ProbabilityCalibrator):
         y = np.asarray(y_true, dtype=float)
         if x.size == 0:
             raise ValueError("empty data for isotonic fit")
-        # Sort by x, then PAV.
+        # Aggregate ties in x into one weighted point (weighted mean, summed
+        # weight), then run PAV on the unique-x sequence. Aggregating first is
+        # what makes the pooled means correct — pooling raw duplicate rows and
+        # only afterwards averaging (the previous bug) double-counts weight.
         order = np.argsort(x, kind="mergesort")
         xs = x[order]
-        ys = y[order].astype(float).copy()
-        weights = np.ones_like(ys)
-        # Pool adjacent violators.
-        i = 0
-        while i < len(ys) - 1:
-            if ys[i] > ys[i + 1]:
-                # merge into a block
-                j = i
-                while j >= 0 and ys[j] > ys[j + 1]:
-                    new_w = weights[j] + weights[j + 1]
-                    new_y = (weights[j] * ys[j] + weights[j + 1] * ys[j + 1]) / new_w
-                    ys[j] = new_y
-                    ys[j + 1] = new_y
-                    weights[j] = new_w
-                    weights[j + 1] = new_w
-                    j -= 1
-                i = max(0, j)
-            else:
-                i += 1
-        # Compress to unique x values.
-        uniq_x, inv = np.unique(xs, return_inverse=True)
-        agg_y = np.zeros_like(uniq_x, dtype=float)
-        cnt = np.zeros_like(uniq_x, dtype=float)
-        for k, idx in enumerate(inv):
-            agg_y[idx] += ys[k]
-            cnt[idx] += 1.0
-        agg_y /= np.maximum(cnt, 1.0)
-        # Re-enforce monotonic non-decreasing.
-        for k in range(1, agg_y.size):
-            if agg_y[k] < agg_y[k - 1]:
-                agg_y[k] = agg_y[k - 1]
+        ys = y[order].astype(float)
+        uniq_x, inv, counts = np.unique(xs, return_inverse=True, return_counts=True)
+        sum_y = np.zeros(uniq_x.size, dtype=float)
+        np.add.at(sum_y, inv, ys)
+        agg_y = sum_y / counts  # mean label per unique score
+        # Pool-Adjacent-Violators with proper block bookkeeping: each block
+        # carries its pooled value, total weight, and member count. A block is
+        # merged left only while it violates monotonicity; the pooled value is
+        # the weight-preserving mean, so the fitted total equals the label total.
+        block_val: list[float] = []
+        block_w: list[float] = []
+        block_n: list[int] = []
+        for val, wgt in zip(agg_y, counts.astype(float)):
+            cur_v = float(val)
+            cur_w = float(wgt)
+            cur_n = 1
+            while block_val and block_val[-1] > cur_v:
+                pv = block_val.pop()
+                pw = block_w.pop()
+                pn = block_n.pop()
+                cur_v = (pv * pw + cur_v * cur_w) / (pw + cur_w)
+                cur_w += pw
+                cur_n += pn
+            block_val.append(cur_v)
+            block_w.append(cur_w)
+            block_n.append(cur_n)
+        y_fit = np.empty(uniq_x.size, dtype=float)
+        pos = 0
+        for v, n in zip(block_val, block_n):
+            y_fit[pos : pos + n] = v
+            pos += n
         self.x_breaks = uniq_x
-        self.y_breaks = np.clip(agg_y, 0.0, 1.0)
+        self.y_breaks = np.clip(y_fit, 0.0, 1.0)
         return self
 
     def transform(self, raw_scores: Sequence[float]) -> np.ndarray:
