@@ -48,7 +48,8 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--output", type=Path, default=Path("artifacts/smc_microstructure_exports") / "smc_live_news_snapshot.json", help="Output JSON snapshot path")
     parser.add_argument("--state", type=Path, default=Path("artifacts/smc_microstructure_exports") / "smc_live_news_state.json", help="Persistent state path for provider cursors and seen canonical stories")
     parser.add_argument("--fmp-api-key", default=os.getenv("FMP_API_KEY", ""), help="FMP API key")
-    parser.add_argument("--benzinga-api-key", default=os.getenv("BENZINGA_API_KEY", ""), help="Benzinga API key")
+    parser.add_argument("--benzinga-api-key", default=os.getenv("BENZINGA_API_KEY", ""), help="Benzinga API key (Massive transport)")
+    parser.add_argument("--benzinga-direct-api-key", default=os.getenv("BENZINGA_DIRECT_API_KEY", ""), help="Direct Benzinga key for newsquantified (not resold via Massive)")
     parser.add_argument("--newsapi-ai-key", default=os.getenv("NEWSAPI_KEY", ""), help="NewsAPI.ai API key")
     return parser
 
@@ -90,6 +91,7 @@ def main() -> None:
         state_path=args.state,
         fmp_api_key=str(args.fmp_api_key).strip(),
         benzinga_api_key=str(args.benzinga_api_key).strip(),
+        benzinga_direct_api_key=str(args.benzinga_direct_api_key).strip(),
         newsapi_ai_key=str(args.newsapi_ai_key).strip(),
         include_benzinga=include_benzinga,
         include_fmp=include_fmp,

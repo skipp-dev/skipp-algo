@@ -68,8 +68,9 @@ _FROZEN_SITES: dict[str, dict[str, frozenset[int]]] = {
     "databento_volatility_screener.py": {"sha1": frozenset({400, 482, 698, 716})},
     "newsstack_fmp/normalize.py": {
         # 2026-07-09: +1/+9 shift — html-unescape import + Massive-shape chains.
-        "md5": frozenset({146, 277}),
-        "sha1": frozenset({358, 444, 482, 526}),
+        # 2026-07-11: +8 below quantified normalizer real-schema mapping.
+        "md5": frozenset({146, 285}),
+        "sha1": frozenset({366, 452, 490, 534}),
     },
     "newsstack_fmp/scoring.py": {"sha1": frozenset({125})},  # +2 (2026-07-10): cluster_hash docstring truth-fix
     "newsstack_fmp/shared_fetch.py": {
