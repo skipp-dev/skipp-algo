@@ -30,6 +30,14 @@ library("smc_micro_profiles_generated")
 //   Structure State Light (v5.5b) — 4 fields
 //   Signal Quality (v5.5b)        — 5 fields
 //
+//   ── Later surfaces (see the section banners below for fields) ──
+//   Trust State (ENG-WS2-02) · Action Degradation (ENG-WS2-04)
+//   Hero Market Mode (ENG-WS3-03) · Hero Setup Quality (ENG-WS3-04)
+//   Short Interest · Treasury/Yield Curve · Sector Rotation
+//   Institutional Accumulation · Analyst Consensus · Insider Transactions
+//   Hero State · Zone Priority (+Calibration, +Contextual Phase F,
+//   +Pine Consumer Maturity Phase H)
+//
 // All fields are export const — safe to read as mp.FIELD_NAME.
 // ───────────────────────────────────────────────────────────────
 
@@ -275,7 +283,7 @@ export const float ZONE_CAL_FVG = 0.6100
 export const float ZONE_CAL_BOS = 0.8100
 export const float ZONE_CAL_SWEEP = 0.7300
 
-// ── Contextual Calibration (Phase F) ──
+// ── Contextual Calibration (Phase F) — MIRRORS GLOBAL (no contextual producer wired; values equal ZONE_CAL_<FAM>) ──
 export const float ZONE_CAL_OB_ASIA = 0.8200
 export const float ZONE_CAL_FVG_ASIA = 0.6100
 export const float ZONE_CAL_BOS_ASIA = 0.8100
