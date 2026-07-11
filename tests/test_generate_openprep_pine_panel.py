@@ -349,3 +349,39 @@ def test_export_open_prep_lists_stamps_static_universe() -> None:
     src = (Path(__file__).resolve().parents[1] / "scripts"
            / "export_open_prep_lists.py").read_text(encoding="utf-8")
     assert "universe_source=UNIVERSE_SOURCE_STATIC" in src
+
+
+def test_all_na_float_column_emits_typed_array_not_array_from_na() -> None:
+    """Pine v6 infers ``array.from(na, na, …)`` (no float literal to anchor the
+    type) as ``array<int>``, which cannot be assigned to a declared
+    ``array<float>`` — compile error CE10173. All-na float columns must emit
+    ``array.new<float>(N, na)`` instead.
+
+    Regression: #3313 added the C13 entry/stop/target columns, which are all-na
+    on a day with no traded setups. The resulting ``array.from(na, …)`` stopped
+    the Open-Prep panel from compiling, so add-to-chart/publish failed on every
+    run from 2026-07-09 onward (openprep-pine-panel-publish).
+    """
+    # Unit: the float-array helper.
+    assert (
+        gen._pine_float_array("P_X", [None, None, None])
+        == "var array<float> P_X = array.new<float>(3, na)"
+    )
+    assert (
+        gen._pine_float_array("P_X", [float("nan"), None])
+        == "var array<float> P_X = array.new<float>(2, na)"
+    )
+    # A single finite value anchors the float type, so array.from is retained
+    # (mixed columns still render na literals for the missing entries).
+    mixed = gen._pine_float_array("P_X", [1.5, None])
+    assert mixed == "var array<float> P_X = array.from(1.5000, na)"
+
+    # Full panel with NO setups: every level column is all-na and must be typed.
+    panel = gen.extract_panel(_SAMPLE_ROWS, levels={})
+    pine = gen.build_pine(panel, generated_at="t", source="x", commit_sha=None)
+    for name in ("P_ENTRY", "P_STOP", "P_TGT"):
+        assert f"var array<float> {name} = array.new<float>(" in pine, (
+            f"{name} must be a typed float array on a no-setups day"
+        )
+    # The compile-breaking all-na form must not appear for any float column.
+    assert "array.from(na, na" not in pine

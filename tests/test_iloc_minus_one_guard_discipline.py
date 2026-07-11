@@ -47,8 +47,12 @@ _KNOWN_HOTSPOTS: Final[frozenset[tuple[str, int]]] = frozenset(
         ("smc_core/session_context.py", 128),
         ("smc_core/session_context.py", 134),
         ("smc_core/session_context.py", 140),
-        # smc_core/vol_regime.py — ATR / variance current values; the
-        # caller passes a frame post-`guard_closed_bars` in production.
+        # smc_core/vol_regime.py — ATR / variance current values. Production
+        # callers (smc_integration/service.py:_load_symbol_bars_for_context and
+        # measurement_evidence resampled frames) consume closed-bar BATCH export
+        # bundles / offline frames, not a live partial-bar stream — so the last
+        # row is a closed bar. (`guard_closed_bars` is NOT wired on this path;
+        # truth-audit 2026-07-11.)
         ("smc_core/vol_regime.py", 135),
         ("smc_core/vol_regime.py", 151),
         # smc_core/htf_context.py — IPDA range needs last + previous

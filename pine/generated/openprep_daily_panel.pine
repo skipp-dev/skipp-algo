@@ -29,9 +29,9 @@ var array<string> P_PLAY = array.from("NO_TRADE", "NO_TRADE", "NO_TRADE", "NO_TR
 var array<string> P_DIR = array.from("long", "long", "long", "long", "short", "long", "short", "short", "short", "short")
 var array<float> P_GAP = array.from(16.6987, 16.8390, 16.6205, 15.0985, 11.3453, 16.8187, 10.4098, 8.4494, 10.7143, 8.6957)
 var array<float> P_RVOL = array.from(0.9074, 1.1448, 0.8033, 0.5365, 0.3133, 0.0631, 0.2435, 0.3680, 0.2883, 0.1121)
-var array<float> P_ENTRY = array.from(na, na, na, na, na, na, na, na, na, na)
-var array<float> P_STOP = array.from(na, na, na, na, na, na, na, na, na, na)
-var array<float> P_TGT = array.from(na, na, na, na, na, na, na, na, na, na)
+var array<float> P_ENTRY = array.new<float>(10, na)
+var array<float> P_STOP = array.new<float>(10, na)
+var array<float> P_TGT = array.new<float>(10, na)
 
 // ── Freshness guard: grey out when the snapshot is > 3 calendar days old ──
 panel_ts = PANEL_YEAR > 0 ? timestamp(PANEL_YEAR, PANEL_MONTH, PANEL_DAY, 0, 0) : 0
