@@ -108,8 +108,8 @@ DYNAMIC_GETATTR_LEDGER: set[tuple[str, int]] = {
     ("streamlit_terminal_alerts.py", 41),
     ("terminal_attention_state.py", 45),
     ("terminal_catalyst_state.py", 31),
-    ("terminal_live_story_state.py", 42),
-    ("terminal_poller.py", 1222),  # 2026-07-09: 1160->1222 (fetch_fmp_earnings added above _bz_calendar_call; outlook/classifier FMP re-sourcing)
+    ("terminal_live_story_state.py", 41),  # 2026-07-11 (truth-audit): -1 (removed DEFAULT_LIVE_STORY_COOLDOWN_S)
+    ("terminal_poller.py", 1217),  # 2026-07-09: 1160->1222; 2026-07-11 truth-audit -5 (removed live_story cooldown config/field/to_dict)
     ("terminal_posture_state.py", 53),
     ("terminal_reaction_state.py", 49),
     ("terminal_resolution_state.py", 43),

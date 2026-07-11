@@ -143,7 +143,6 @@ def _set_cached(key: str, val: Any) -> None:
 _QUOTE_TTL = 300      # 5 min (was 60s) — sentiment only, not time-critical
 _OHLCV_TTL = 300      # 5 min for historical data
 _TECHNICALS_TTL = 900  # 15 min for TradingView (avoid 429 rate limits)
-_TECHNICALS_429_TTL = 1800  # 30 min cache for 429 errors (don't retry quickly)
 _FG_TTL = 300          # 5 min for Fear & Greed
 _MOVERS_TTL = 300      # 5 min (was 120s) — not time-critical
 _LISTINGS_TTL = 3600   # 1h for exchange listings
@@ -548,10 +547,6 @@ def fetch_btc_technicals(interval: str = "1h") -> BTCTechnicals:
     cached_raw = _get_cached(cache_key, _TECHNICALS_TTL)
     if cached_raw is not None:
         return cached_raw  # type: ignore
-    # INERT (truth-audit 2026-07-11): rate-limit errors read "Rate limited …" not "429", so this never fires; _TECHNICALS_429_TTL is unused (the _tv_cooldown_until gate handles rate-limiting). Dead-branch class already removed from terminal_technicals.
-    cached_429 = _get_cached(cache_key, _TECHNICALS_429_TTL)
-    if cached_429 is not None and getattr(cached_429, 'error', '') and '429' in str(cached_429.error):  # type: ignore[arg-type]
-        return cached_429  # type: ignore
 
     if not _TV:
         return BTCTechnicals(interval=interval, error="tradingview_ta not installed")

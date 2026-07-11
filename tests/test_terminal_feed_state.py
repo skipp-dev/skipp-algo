@@ -18,7 +18,6 @@ from terminal_live_story_state import live_story_key
 class _Cfg:
     feed_max_age_s: float = 14400.0
     live_story_ttl_s: float = 7200.0
-    live_story_cooldown_s: float = 900.0
     max_items: int = 50
 
 
