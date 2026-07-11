@@ -1,0 +1,12 @@
+# Optional dependency for the Composio ops integrations (scripts/composio_ops.py):
+#   * credential_health_notify.py   (#1 Slack DM)
+#   * ops_digest.py                 (#4 Outlook digest)
+#   * live_overlay_daemon/grafana_composio_fanout.py (#3 Grafana fan-out)
+#
+# Deliberately NOT in requirements.txt / the daemon image: composio_ops imports
+# the SDK lazily and degrades to a logged no-op when it is absent, so nothing
+# breaks if this is not installed. CI workflows that need it `pip install -r`
+# this file; for the daemon, add it to the Railway build only when wiring #3.
+#
+# `from composio import Composio; Composio(api_key=...).tools.execute(...)`.
+composio>=0.17,<0.18

@@ -274,6 +274,11 @@ allowed = ["github-mirror-sync.yml", "openprep-pine-panel-daily-trigger.yml"]
 # downstream summary step surfaces individual failures via
 # ::error::, so silent-skip risk is bounded.
 "credential-health-check.yml" = 1
+# ops-digest-daily.yml: single best-effort step that renders + emails the daily
+# ops digest via Composio; set +e lets it fall back to --dry-run render on a
+# pip/render hiccup and still write the step summary. Delivery is pure
+# convenience (docs/ops/composio_integrations.md), so silent-skip risk is bounded.
+"ops-digest-daily.yml" = 1
 # drift-watchdog.yml: removed 2026-06-12 (#2726) — the WFO baseline was
 # never produced; entry retired together with the workflow.
 # edge-pipeline-real-run.yml: single deliberate fail-soft step — the real
@@ -517,6 +522,12 @@ frozen_major = "v7"
 # 2026-07-11 (truth-audit #5): benign GH_PAT->GITHUB_TOKEN token-source fallback
 # in the universe-snapshot publisher's main() (same pattern as other bot-publish helpers).
 "scripts/publish_universe_snapshots.py" = 1
+# 2026-07-11 (Composio ops integrations): benign synonym chains — the Slack
+# SLACK_OPEN_DM channel id (channel_id/id) and the Grafana webhook display
+# fields (title/message, summary/description). Which key wins is display-only;
+# no data-provenance semantics, so a *_source disclosure field would be noise.
+"scripts/composio_ops.py" = 1
+"services/live_overlay_daemon/grafana_composio_fanout.py" = 2
 "databento_volatility_screener.py" = 3
 "newsstack_fmp/ingest_benzinga.py" = 4
 "newsstack_fmp/ingest_benzinga_calendar.py" = 1
