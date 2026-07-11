@@ -428,6 +428,15 @@ def _credential_health_snapshot() -> dict[str, object]:
         "loaded": 0.0,
         "overall_severity": "unknown",
         "overall_valid": 0.0,
+        # Freshness of the daily probe report (report ``generated_at`` vs now).
+        # A silently-frozen snapshot (e.g. the publish push failing) otherwise
+        # keeps serving stale-green gauges — the exact 12-day blind spot the
+        # credential-health workflow exists to prevent. age_known == 0 (no
+        # timestamp / no snapshot) reads as not-stale so a fresh daemon with an
+        # absent snapshot does not self-alarm; the ``_loaded``/``absent()`` alert
+        # covers the missing-entirely case instead.
+        "snapshot_age_known": 0.0,
+        "snapshot_age_seconds": 0.0,
         "probes": [],
     }
 
@@ -438,6 +447,19 @@ def _credential_health_snapshot() -> dict[str, object]:
     overall = str(raw.get("overall_severity", "") or "unknown").lower()
     snapshot["overall_severity"] = overall
     snapshot["overall_valid"] = 0.0 if overall == "error" else 1.0
+
+    generated_at = raw.get("generated_at")
+    if isinstance(generated_at, str) and generated_at:
+        try:
+            parsed = datetime.datetime.fromisoformat(generated_at.replace("Z", "+00:00"))
+        except ValueError:
+            parsed = None
+        if parsed is not None:
+            if parsed.tzinfo is None:
+                parsed = parsed.replace(tzinfo=datetime.UTC)
+            age = (datetime.datetime.now(datetime.UTC) - parsed).total_seconds()
+            snapshot["snapshot_age_known"] = 1.0
+            snapshot["snapshot_age_seconds"] = max(0.0, age)
 
     probes = raw.get("probes")
     probe_rows: list[dict[str, object]] = []
@@ -1680,6 +1702,14 @@ def render_metrics(startup_ts: float, startup_epoch: float = 0.0) -> str:
     lines.append("# TYPE live_overlay_credential_health_overall_severity_info gauge")
     overall_severity = _escape_label_value(str(credential["overall_severity"]))
     lines.append(f'live_overlay_credential_health_overall_severity_info{{severity="{overall_severity}"}} 1')
+    lines.append("# TYPE live_overlay_credential_health_snapshot_age_known gauge")
+    lines.append(
+        f"live_overlay_credential_health_snapshot_age_known {_prom_numeric_value(credential['snapshot_age_known'])}"
+    )
+    lines.append("# TYPE live_overlay_credential_health_snapshot_age_seconds gauge")
+    cred_age_value = credential["snapshot_age_seconds"]
+    cred_age_float = float(cred_age_value) if isinstance(cred_age_value, (int, float)) else 0.0
+    lines.append(f"live_overlay_credential_health_snapshot_age_seconds {cred_age_float:.1f}")
 
     probe_rows = credential.get("probes") or []
     if probe_rows:
