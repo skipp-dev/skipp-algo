@@ -351,7 +351,11 @@ def test_fmp_earnings_has_no_timing_so_bmo_is_prod_dormant() -> None:
     ]
     out = _fetch_earnings_today(client, date(2026, 7, 10))
     assert out["AAPL"]["earnings_timing"] is None      # no bmo/amc from FMP
-    assert out["AAPL"]["eps_surprise_pct"] is not None  # eps_surprise IS available
+    # The today's-earnings eps_surprise_pct producer was dropped as dead
+    # plumbing (#3370, 2026-07-10); _fetch_earnings_today still captures the raw
+    # EPS actual/estimate and the revenue surprise for surprise-based event-risk.
+    assert out["AAPL"]["eps_actual"] == 1.5
+    assert out["AAPL"]["revenue_surprise_pct"] is not None
 
 
 def test_stale_premarket_is_soft_filter() -> None:
