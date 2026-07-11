@@ -88,7 +88,10 @@ def _dynamic_builtin_sites(builtin: str) -> set[tuple[str, int]]:
 # assignment when ``item`` is a dict, so the dynamic write only happens
 # on dataclass-style targets the caller already knows.
 DYNAMIC_SETATTR_ALLOWED: set[tuple[str, int]] = {
-    ("terminal_live_story_state.py", 49),
+    ("terminal_live_story_state.py", 48),  # 2026-07-11: shifted 49->48 by #3416 cooldown-branch removal
+    # 2026-07-11 (#3302): bounded write of trade_context() output keys onto the
+    # signal object; keys come from a controlled ctx.items() dict, fail-soft.
+    ("open_prep/trade_context.py", 83),
 }
 
 
