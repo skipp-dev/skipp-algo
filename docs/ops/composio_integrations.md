@@ -10,86 +10,91 @@ Cross-app automation for skipp-algo ops, via [Composio](https://composio.dev)
 | 3 | Grafana alert → fan-out | live-overlay daemon (FastAPI) | Slack + opt-in GitHub issue |
 | 4 | Daily ops digest | `ops-digest-daily.yml` | Outlook email |
 
-## Architecture: two execution contexts
+## Architecture
 
 * **#2 is already done** — the three reminder events were created directly in
   the operator's Outlook calendar via the Composio MCP tools in a live session.
   Nothing recurring runs for it.
-* **#1, #3, #4 run unattended** (GitHub Actions cron; the Railway daemon), where
-  the interactive Composio MCP endpoint is unavailable. They use the **Composio
-  Python SDK** (`composio>=0.17`) driven by an API key, via a single fail-soft
-  wrapper: [`scripts/composio_ops.py`](../../scripts/composio_ops.py).
+* **#1, #3, #4 run unattended** (GitHub Actions cron; the Railway daemon). They
+  call the **Composio REST API over stdlib `urllib`** — no SDK, no dependency —
+  through one fail-soft wrapper: [`scripts/composio_ops.py`](../../scripts/composio_ops.py).
+  `POST {base}/api/v3/tools/execute/{slug}` with an `x-api-key` header.
 
-The wrapper **never raises and never hard-fails a job**: with no
-`COMPOSIO_API_KEY`, or the SDK not installed, every helper returns
-`DeliveryResult(skipped=True)` and the caller logs a no-op. So all of this is
-**inert until you provision it** — merging the PR changes nothing operationally.
+Choosing REST over the SDK is deliberate: the daemon runs from the hash-locked
+terminal image and the CI runners install nothing extra, so a pure-stdlib
+transport keeps every context identical and avoids Composio's heavy transitive
+tree (openai/pandas/pyarrow). The wrapper **never raises and never hard-fails a
+job**: with no `COMPOSIO_API_KEY` every helper returns
+`DeliveryResult(skipped=True)` and the caller logs a no-op. Everything is
+**inert until provisioned**.
 
 ## What you must provision (one-time)
 
-Nothing works until these are set. All are optional to the code (fail-soft), but
-required to actually deliver.
+### 1. Composio **project** API key + connected accounts
 
-### 1. Composio API key + connected accounts
-
-1. Create an API key at <https://app.composio.dev>.
-2. Authorize the toolkits you want: **slack**, **github**, **outlook** (Outlook
-   is already connected for #2; reuse or reconnect for the server-side key).
-3. Note each **connected-account id** if you want to pin them explicitly
-   (otherwise the default account for `COMPOSIO_USER_ID` is used).
+1. app.composio.dev → **Settings → API Keys** (project settings, *not* the org
+   page). The key you need is the **project API key** with prefix **`ak_`** —
+   NOT the Organization Access Token (`oak_`), which Composio's API rejects with
+   HTTP 401. The full value is only shown once at creation; copy it then.
+2. In the **same project**, connect the toolkits you need: **slack** (min for
+   #3), **github** (only for opt-in issues), **outlook** (only for #4). Use
+   Composio-managed OAuth. Note the connection's **`user_id`** (entity) — the
+   REST call must pass the same one via `COMPOSIO_USER_ID`.
+3. A key with **zero connections in its project** authenticates fine but every
+   send fails with "no connected account" — verify the connections show up under
+   the key's project.
 
 ### 2. GitHub Actions secrets/vars (for #1 and #4)
 
-Repo → Settings → Secrets and variables → Actions.
+Repo → Settings → Secrets and variables → Actions. **`COMPOSIO_API_KEY` must be
+a SECRET, never a variable** (a variable is world-readable).
 
 | Name | Kind | Used by | Notes |
 |------|------|---------|-------|
-| `COMPOSIO_API_KEY` | secret | #1, #4 | the master switch; unset ⇒ everything skips |
-| `COMPOSIO_USER_ID` | var | #1, #4 | Composio user/entity (default `default`) |
+| `COMPOSIO_API_KEY` | **secret** | #1, #4 | the `ak_…` project key; master switch |
+| `COMPOSIO_USER_ID` | var | #1, #4 | the entity the connections belong to |
 | `SLACK_ALERT_USER_ID` | var | #1 | Slack member id `U…` for the DM (preferred) |
 | `SLACK_ALERT_CHANNEL` | var | #1 | fallback channel if no user id |
-| `COMPOSIO_SLACK_ACCOUNT_ID` | var | #1 | optional connected-account pin |
+| `COMPOSIO_SLACK_ACCOUNT_ID` | var | #1 | optional connected-account pin (`ca_…`) |
 | `OPS_DIGEST_EMAIL_TO` | var | #4 | recipient of the daily digest |
 | `COMPOSIO_OUTLOOK_ACCOUNT_ID` | var | #4 | optional connected-account pin |
 
 ### 3. Railway env on `live_overlay_daemon` (for #3)
 
+The daemon reads env from Railway (not GitHub). No build change is needed — the
+REST transport is stdlib.
+
 | Name | Notes |
 |------|-------|
 | `GRAFANA_WEBHOOK_TOKEN` | shared secret embedded in the webhook URL; unset ⇒ endpoint returns 503 |
-| `COMPOSIO_API_KEY` | enables actual delivery |
-| `COMPOSIO_USER_ID`, `SLACK_ALERT_USER_ID`/`SLACK_ALERT_CHANNEL` | as above |
+| `COMPOSIO_API_KEY` | the `ak_…` project key |
+| `COMPOSIO_USER_ID` | entity the Slack connection is under (else the send finds no account) |
+| `SLACK_ALERT_USER_ID` / `SLACK_ALERT_CHANNEL` | DM target / channel fallback |
+| `COMPOSIO_SLACK_ACCOUNT_ID` | optional `ca_…` pin |
 | `GITHUB_ISSUE_REPO` | default `skipp-dev/skipp-algo` |
-
-The Composio SDK is already baked into the daemon image — `composio>=0.17,<0.18`
-is in `services/live_overlay_daemon/requirements.txt` and the Dockerfile copies
-`scripts/composio_ops.py` into the image — so no extra build step is needed;
-just set the env vars above and redeploy. (The SDK is still imported lazily, so
-the daemon boots even if a future resolution drops it; #3 then stays unmounted.)
 
 Then point a Grafana contact point (webhook type) at
 `https://<daemon-host>/<GRAFANA_WEBHOOK_TOKEN>/grafana-webhook`. To also open a
 GitHub issue for a specific alert, add the label `composio_issue: "true"` to
 that alert rule — routine alerts stay Slack-only.
 
-## Verification boundary
+## Verification
 
-The calendar events (#2) were created and verified live. The #1/#3/#4 code is
-**unit-tested with the SDK mocked** but has **not** been run against a live
-`COMPOSIO_API_KEY` — no live delivery has been exercised. After provisioning,
-verify each:
+The Slack REST path was verified live 2026-07-11 (real DM delivered via
+`SLACK_OPEN_DM` + `SLACK_SEND_MESSAGE`). To re-verify each surface after
+provisioning:
 
-* **#1** — `workflow_dispatch` `credential-health-check` (or wait for a real
-  warn/error) and confirm the Slack DM arrives.
-* **#3** — send a Grafana test notification to the webhook URL; confirm Slack.
-* **#4** — `workflow_dispatch` `ops-digest-daily` and confirm the Outlook email;
-  use the `dry_run` input first to preview the render without sending.
+* **#1** — `workflow_dispatch` `credential-health-check` (fires only on
+  warn/error) and confirm the Slack DM.
+* **#3** — `POST https://<daemon-host>/<token>/grafana-webhook` with a firing
+  payload (or Grafana's contact-point Test) and confirm the Slack message.
+* **#4** — `workflow_dispatch` `ops-digest-daily` (`dry_run=true` first to
+  preview) and confirm the Outlook email.
 
 ## Files
 
-* `scripts/composio_ops.py` — shared fail-soft SDK wrapper
+* `scripts/composio_ops.py` — shared fail-soft REST wrapper (stdlib urllib)
 * `scripts/credential_health_notify.py` — #1
 * `scripts/ops_digest.py` — #4
 * `services/live_overlay_daemon/grafana_composio_fanout.py` — #3 router
-* `requirements-composio.txt` — optional SDK pin
 * workflows: `credential-health-check.yml` (step), `ops-digest-daily.yml`

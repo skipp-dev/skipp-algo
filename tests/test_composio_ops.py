@@ -1,33 +1,53 @@
-"""Unit tests for ``scripts/composio_ops.py`` — the fail-soft Composio client.
+"""Unit tests for ``scripts/composio_ops.py`` — the fail-soft Composio REST client.
 
-No network: the ``composio`` SDK is replaced by an in-process fake so we can
-assert the wrapper's contract (skip-when-unconfigured, never-raise, response
-interpretation, DM channel resolution) without a real API key.
+No network: an in-process fake ``urllib`` opener is injected (or ``build_opener``
+is monkeypatched) so the wrapper's contract — skip-when-unconfigured,
+never-raise, request shaping, response interpretation, DM channel resolution —
+is asserted without a real API key.
 """
 
 from __future__ import annotations
 
-import sys
-import types
+import io
+import json
+import urllib.error
 from typing import Any
 
 from scripts import composio_ops
 
 
-def _install_fake_composio(monkeypatch, execute_impl) -> None:
-    module = types.ModuleType("composio")
+class _FakeResp:
+    def __init__(self, text: str) -> None:
+        self._text = text
 
-    class _Tools:
-        def execute(self, slug: str, **kwargs: Any) -> Any:
-            return execute_impl(slug, kwargs)
+    def read(self) -> bytes:
+        return self._text.encode("utf-8")
 
-    class Composio:  # mirrors the real class name
-        def __init__(self, api_key: str | None = None) -> None:
-            self.api_key = api_key
-            self.tools = _Tools()
+    def __enter__(self) -> _FakeResp:
+        return self
 
-    module.Composio = Composio  # type: ignore[attr-defined]
-    monkeypatch.setitem(sys.modules, "composio", module)
+    def __exit__(self, *_exc: object) -> bool:
+        return False
+
+
+class _FakeOpener:
+    """Records requests and returns canned bodies; ``handler`` may raise."""
+
+    def __init__(self, handler) -> None:
+        self.handler = handler
+        self.requests: list[Any] = []
+
+    def open(self, request: Any, timeout: float | None = None) -> _FakeResp:
+        self.requests.append(request)
+        return _FakeResp(self.handler(request))
+
+
+def _slug_of(request: Any) -> str:
+    return request.full_url.rsplit("/", 1)[-1]
+
+
+def _body_of(request: Any) -> dict[str, Any]:
+    return json.loads(request.data.decode("utf-8"))
 
 
 def test_skips_without_api_key(monkeypatch):
@@ -36,100 +56,137 @@ def test_skips_without_api_key(monkeypatch):
     assert result.skipped and not result.ok and not result.delivered
 
 
-def test_skips_when_sdk_missing(monkeypatch):
-    monkeypatch.setenv("COMPOSIO_API_KEY", "k")
-    monkeypatch.setitem(sys.modules, "composio", None)  # forces ImportError
-    result = composio_ops.execute_tool("SLACK_SEND_MESSAGE", {})
-    assert result.skipped and "not installed" in result.detail
-
-
-def test_success_passes_arguments_and_user_id(monkeypatch):
-    monkeypatch.setenv("COMPOSIO_API_KEY", "k")
-    seen: dict[str, Any] = {}
-
-    def impl(slug, kwargs):
-        seen["slug"] = slug
-        seen["kwargs"] = kwargs
-        return {"successful": True, "data": {"ok": 1}}
-
-    _install_fake_composio(monkeypatch, impl)
-    result = composio_ops.execute_tool("SLACK_OPEN_DM", {"users": "U1"}, toolkit="slack")
+def test_success_shapes_request(monkeypatch):
+    monkeypatch.setenv("COMPOSIO_API_KEY", "ak_test")
+    monkeypatch.setenv("COMPOSIO_USER_ID", "user-uuid")
+    opener = _FakeOpener(lambda req: json.dumps({"successful": True, "data": {"ok": True}}))
+    result = composio_ops.execute_tool(
+        "SLACK_OPEN_DM", {"users": "U1"}, toolkit="slack", opener=opener
+    )
     assert result.delivered
-    assert seen["slug"] == "SLACK_OPEN_DM"
-    assert seen["kwargs"]["arguments"] == {"users": "U1"}
-    assert seen["kwargs"]["user_id"] == "default"
-    assert "connected_account_id" not in seen["kwargs"]
+    req = opener.requests[0]
+    assert _slug_of(req) == "SLACK_OPEN_DM"
+    assert req.get_method() == "POST"
+    assert req.headers.get("X-api-key") == "ak_test"
+    body = _body_of(req)
+    assert body["arguments"] == {"users": "U1"}
+    assert body["user_id"] == "user-uuid"
+    assert "connected_account_id" not in body
 
 
 def test_connected_account_from_env(monkeypatch):
-    monkeypatch.setenv("COMPOSIO_API_KEY", "k")
-    monkeypatch.setenv("COMPOSIO_SLACK_ACCOUNT_ID", "acc_1")
-    seen: dict[str, Any] = {}
-    _install_fake_composio(monkeypatch, lambda s, k: seen.update(k) or {"successful": True})
-    composio_ops.execute_tool("SLACK_SEND_MESSAGE", {}, toolkit="slack")
-    assert seen["connected_account_id"] == "acc_1"
+    monkeypatch.setenv("COMPOSIO_API_KEY", "ak_test")
+    monkeypatch.setenv("COMPOSIO_SLACK_ACCOUNT_ID", "ca_1")
+    opener = _FakeOpener(lambda req: json.dumps({"successful": True}))
+    composio_ops.execute_tool("SLACK_SEND_MESSAGE", {}, toolkit="slack", opener=opener)
+    assert _body_of(opener.requests[0])["connected_account_id"] == "ca_1"
 
 
 def test_reports_provider_failure(monkeypatch):
-    monkeypatch.setenv("COMPOSIO_API_KEY", "k")
-    _install_fake_composio(
-        monkeypatch, lambda s, k: {"successful": False, "error": "channel_not_found"}
+    monkeypatch.setenv("COMPOSIO_API_KEY", "ak_test")
+    opener = _FakeOpener(
+        lambda req: json.dumps({"successful": False, "error": {"message": "channel_not_found"}})
     )
-    result = composio_ops.execute_tool("SLACK_SEND_MESSAGE", {})
+    result = composio_ops.execute_tool("SLACK_SEND_MESSAGE", {}, opener=opener)
     assert not result.ok and not result.skipped and "channel_not_found" in result.detail
 
 
-def test_swallows_sdk_exception(monkeypatch):
-    monkeypatch.setenv("COMPOSIO_API_KEY", "k")
+def test_http_error_is_soft(monkeypatch):
+    monkeypatch.setenv("COMPOSIO_API_KEY", "ak_test")
+    body = io.BytesIO(json.dumps({"error": {"message": "Invalid API key"}}).encode())
 
-    def boom(slug, kwargs):
-        raise RuntimeError("network down")
+    def boom(_req):
+        raise urllib.error.HTTPError("u", 401, "Unauthorized", {}, body)
 
-    _install_fake_composio(monkeypatch, boom)
-    result = composio_ops.execute_tool("X", {})
-    assert not result.ok and not result.skipped and "network down" in result.detail
+    result = composio_ops.execute_tool("X", {}, opener=_FakeOpener(boom))
+    assert not result.ok and not result.skipped
+    assert "401" in result.detail and "Invalid API key" in result.detail
+
+
+def test_transport_error_is_soft(monkeypatch):
+    monkeypatch.setenv("COMPOSIO_API_KEY", "ak_test")
+
+    def boom(_req):
+        raise urllib.error.URLError("connection refused")
+
+    result = composio_ops.execute_tool("X", {}, opener=_FakeOpener(boom))
+    assert not result.ok and not result.skipped and "transport error" in result.detail
+
+
+def test_non_json_is_soft(monkeypatch):
+    monkeypatch.setenv("COMPOSIO_API_KEY", "ak_test")
+    result = composio_ops.execute_tool("X", {}, opener=_FakeOpener(lambda req: "<html>502</html>"))
+    assert not result.ok and not result.skipped and "non-JSON" in result.detail
 
 
 def test_notify_slack_prefers_dm(monkeypatch):
-    monkeypatch.setenv("COMPOSIO_API_KEY", "k")
+    monkeypatch.setenv("COMPOSIO_API_KEY", "ak_test")
     monkeypatch.setenv("SLACK_ALERT_USER_ID", "U9")
     monkeypatch.delenv("SLACK_ALERT_CHANNEL", raising=False)
     seq: list[str] = []
 
-    def impl(slug, kwargs):
+    def handler(req):
+        slug = _slug_of(req)
         seq.append(slug)
         if slug == "SLACK_OPEN_DM":
-            return {"successful": True, "data": {"channel": {"id": "D9"}}}
-        return {"successful": True, "data": {}}
+            return json.dumps({"successful": True, "data": {"channel": {"id": "D9"}}})
+        return json.dumps({"successful": True, "data": {}})
 
-    _install_fake_composio(monkeypatch, impl)
+    opener = _FakeOpener(handler)
+    monkeypatch.setattr(composio_ops.urllib.request, "build_opener", lambda: opener)
     result = composio_ops.notify_slack("hi")
     assert result.delivered
     assert seq == ["SLACK_OPEN_DM", "SLACK_SEND_MESSAGE"]
+    assert _body_of(opener.requests[1])["arguments"]["channel"] == "D9"
 
 
 def test_notify_slack_channel_fallback(monkeypatch):
-    monkeypatch.setenv("COMPOSIO_API_KEY", "k")
+    monkeypatch.setenv("COMPOSIO_API_KEY", "ak_test")
     monkeypatch.delenv("SLACK_ALERT_USER_ID", raising=False)
     monkeypatch.setenv("SLACK_ALERT_CHANNEL", "ops-alerts")
-    seen: dict[str, Any] = {}
-    _install_fake_composio(monkeypatch, lambda s, k: seen.update({"slug": s, **k}) or {"successful": True})
+    opener = _FakeOpener(lambda req: json.dumps({"successful": True}))
+    monkeypatch.setattr(composio_ops.urllib.request, "build_opener", lambda: opener)
     result = composio_ops.notify_slack("hi")
     assert result.delivered
-    assert seen["slug"] == "SLACK_SEND_MESSAGE"
-    assert seen["arguments"]["channel"] == "ops-alerts"
+    assert _slug_of(opener.requests[0]) == "SLACK_SEND_MESSAGE"
+    assert _body_of(opener.requests[0])["arguments"]["channel"] == "ops-alerts"
 
 
 def test_notify_slack_skips_unconfigured(monkeypatch):
-    monkeypatch.setenv("COMPOSIO_API_KEY", "k")
+    monkeypatch.setenv("COMPOSIO_API_KEY", "ak_test")
     monkeypatch.delenv("SLACK_ALERT_USER_ID", raising=False)
     monkeypatch.delenv("SLACK_ALERT_CHANNEL", raising=False)
-    result = composio_ops.notify_slack("hi")
-    assert result.skipped
+    assert composio_ops.notify_slack("hi").skipped
+
+
+def test_send_outlook_email_shapes_html(monkeypatch):
+    monkeypatch.setenv("COMPOSIO_API_KEY", "ak_test")
+    opener = _FakeOpener(lambda req: json.dumps({"successful": True}))
+    monkeypatch.setattr(composio_ops.urllib.request, "build_opener", lambda: opener)
+    composio_ops.send_outlook_email("a@b.c", "Subj", "<p>hi</p>")
+    req = opener.requests[0]
+    assert _slug_of(req) == "OUTLOOK_SEND_EMAIL"
+    assert _body_of(req)["arguments"] == {
+        "to": "a@b.c",
+        "subject": "Subj",
+        "body": "<p>hi</p>",
+        "is_html": True,
+    }
+
+
+def test_base_url_override(monkeypatch):
+    monkeypatch.setenv("COMPOSIO_API_KEY", "ak_test")
+    monkeypatch.setenv("COMPOSIO_BASE_URL", "https://eu.composio.dev/")
+    opener = _FakeOpener(lambda req: json.dumps({"successful": True}))
+    composio_ops.execute_tool("SLACK_SEND_MESSAGE", {}, opener=opener)
+    assert (
+        opener.requests[0].full_url
+        == "https://eu.composio.dev/api/v3/tools/execute/SLACK_SEND_MESSAGE"
+    )
 
 
 def test_is_configured(monkeypatch):
     monkeypatch.delenv("COMPOSIO_API_KEY", raising=False)
     assert composio_ops.is_configured() is False
-    monkeypatch.setenv("COMPOSIO_API_KEY", "k")
+    monkeypatch.setenv("COMPOSIO_API_KEY", "ak_test")
     assert composio_ops.is_configured() is True
