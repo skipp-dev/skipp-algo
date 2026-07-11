@@ -305,6 +305,50 @@ def evidence_freshness_snapshot_url_token() -> str:
     return _optional_str("EVIDENCE_FRESHNESS_SNAPSHOT_URL_TOKEN", "")
 
 
+def sweep_trap_shadow_snapshot_path() -> Path:
+    """Local path to the sweep-trap shadow snapshot JSON.
+
+    Produced by ``scripts/eval_sweep_trap_shadow.py`` (WS4a) so the daily
+    Brier-delta + sample accrual toward the sweep-trap promotion decision is
+    served as Prometheus gauges. Off-host daemons should set
+    :func:`sweep_trap_shadow_snapshot_url` to the published branch instead.
+    """
+    raw = _optional_str(
+        "SWEEP_TRAP_SHADOW_SNAPSHOT_PATH",
+        str(_REPO_ROOT / "artifacts" / "monitoring" / "sweep_trap_shadow.json"),
+    )
+    return Path(raw)
+
+
+def sweep_trap_shadow_snapshot_url() -> str:
+    """Optional https URL the daemon fetches the sweep-trap shadow snapshot from.
+
+    When set it takes precedence over :func:`sweep_trap_shadow_snapshot_path`;
+    on any fetch failure the daemon falls back to the local path.
+    """
+    return _optional_str("SWEEP_TRAP_SHADOW_SNAPSHOT_URL", "")
+
+
+def sweep_trap_shadow_snapshot_url_token() -> str:
+    """Optional bearer token for :func:`sweep_trap_shadow_snapshot_url`."""
+    return _optional_str("SWEEP_TRAP_SHADOW_SNAPSHOT_URL_TOKEN", "")
+
+
+def sweep_trap_shadow_cache_ttl_secs() -> int:
+    """How long the daemon caches the sweep-trap shadow snapshot before reload."""
+    return _clamped_int("OVERLAY_SWEEP_TRAP_SHADOW_CACHE_TTL_SECS", 900, 60, 7200)
+
+
+def sweep_trap_shadow_max_age_secs() -> int:
+    """Age (s) beyond which the sweep-trap shadow snapshot is treated as stale.
+
+    Default 96h — same weekday-cadence sizing as the experiment/evidence
+    snapshots: the daily eval runs Mon-Fri, so Friday's snapshot is legitimately
+    ~89.5h old when Monday's arrives, and 96h tolerates one skipped weekday run.
+    """
+    return _clamped_int("OVERLAY_SWEEP_TRAP_SHADOW_MAX_AGE_SECS", 345600, 3600, 1209600)
+
+
 def provider_usage_snapshot_path() -> Path:
     """Local path to the provider API-usage snapshot JSON.
 

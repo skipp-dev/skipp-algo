@@ -94,6 +94,7 @@ jobs:
             meta-watchdog.yml=30:any \
             smc-measurement-benchmark-rolling.yml=72:any:weekday \
             adr0023-magnitude-shadow-daily.yml=72:any:weekday \
+            sweep-trap-shadow-daily.yml=72:any:weekday \
             adr0023-magnitude-stage1-weekly.yml=192 \
             g23-ab-watchdog.yml=72:any:weekday \
             smc-live-news-refresh.yml=72:weekday
