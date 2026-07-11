@@ -63,8 +63,8 @@ class Config:
     # ── Benzinga credentials (repr=False to prevent accidental logging)
     # ``benzinga_api_key`` is the Massive-transport key (BENZINGA_PROVIDER=massive
     # routes news/ratings/earnings via api.massive.com). The direct-Benzinga key
-    # is SEPARATE: Massive does not resell the newsquantified analytics pack (404),
-    # so quantified must go direct to api.benzinga.com with this key.
+    # is SEPARATE: used for newsquantified (Massive 404s it) AND for the main news
+    # path when BENZINGA_PROVIDER=direct (pipeline selects it there; Massive key 401s).
     benzinga_api_key: str = field(default_factory=lambda: os.getenv("BENZINGA_API_KEY", ""), repr=False)
     benzinga_direct_api_key: str = field(
         default_factory=lambda: os.getenv("BENZINGA_DIRECT_API_KEY", ""), repr=False
