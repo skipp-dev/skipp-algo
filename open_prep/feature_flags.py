@@ -47,10 +47,10 @@ def is_opra_uoa_enabled() -> bool:
     """Return True iff ``ENABLE_OPRA_UOA`` is set to ``"1"`` (default ON).
 
     The flag gates the Databento OPRA.PILLAR options-flow ingestion path.
-    When False, callers must fall back to the legacy Unusual Whales /
-    dormant-feature path. Default is ``"1"`` so the new path is on by
-    default; operators flip to ``"0"`` only to force the legacy fallback
-    during incident investigation.
+    When False, the options-flow feed is disabled entirely — the sole
+    consumer returns an empty list; NO fallback path exists (the UW /
+    Benzinga options_activity paths were removed 2026-05-12). Default is
+    ``"1"`` so the only working path stays on.
     """
 
     return _bool_env("ENABLE_OPRA_UOA", "1")

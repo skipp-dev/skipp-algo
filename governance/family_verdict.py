@@ -21,10 +21,10 @@ a pre-registered edge.
 Per ADR-0015 the verdict is a **two-tier** taxonomy that refuses to let a
 secondary calibration diagnostic veto the primary edge proof:
 
-  * ``edge_supported`` (tier 1) — the pre-registered edge is supported: the
-    primary metric was measured, the sample is adequate, no edge-failure
-    blocker fired, and the integrity/provenance guards were measured and
-    clear. Brier/ECE calibration blockers do *not* gate this tier. When the
+  * ``edge_supported`` (tier 1) — the mechanically tested edge core holds:
+    primary metric measured, sample adequate, no edge-failure blocker, guards
+    clear. Register prose (AC slippage / SPY benchmark / >=1y window) is NOT
+    tested (flat 5 bps cost). Brier/ECE do *not* gate this tier. When the
     edge metrics are strong but an integrity guard is merely *unmeasured*
     (strict-provenance ``info``), the verdict is ``inconclusive`` — the edge
     cannot be certified without the guards — never ``no_edge``.

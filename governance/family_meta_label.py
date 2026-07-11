@@ -30,7 +30,9 @@ no-regression guards, and the SAME pre-registered thresholds as ADR-0019:
   added features, not a differing event sample).
 - COMPLETE-CASE: an event enters a family's joint sample only if it carries the
   ``score`` AND ALL requested ``feature_keys`` (honest-missing is never
-  zero-filled). The dropped count is reported so a thin joint sample is visible.
+  zero-filled). ``extract_family_meta_samples`` logs the dropped count per family
+  (including families that end with zero survivors) so a thin joint sample is
+  visible instead of silently shrinking the population.
 
 CAVEAT (documented honestly): this joint model is still LINEAR/additive. It
 captures the orthogonal-error-combination core of meta-labeling but NOT
@@ -41,6 +43,7 @@ Nothing here calibrates, scores, or gates production.
 """
 from __future__ import annotations
 
+import logging
 import math
 from collections.abc import Mapping
 from typing import Any, Literal, TypedDict
@@ -64,6 +67,8 @@ from governance.family_returns import (
     realized_return,
 )
 from ml.metrics import brier_score, expected_calibration_error, roc_auc
+
+logger = logging.getLogger(__name__)
 
 # Mirror the ADR-0019 single-feature calibrator hyper-parameters EXACTLY
 # (governance.family_calibration._fit_logistic) so the baseline arm here is
@@ -300,8 +305,13 @@ def walk_forward_meta_ab(
 
         if label == "magnitude":
             tau = _quantile([abs(r[i]) for i in train_idx], mag_q)
-            train_y = [1.0 if abs(r[i]) >= tau else 0.0 for i in train_idx]
-            val_y = [1.0 if abs(r[i]) >= tau else 0.0 for i in val_idx]
+            # Strict ``>`` matches the ADR-0019 harness (family_calibration.
+            # walk_forward_ab) exactly. tau is an interpolated quantile that
+            # frequently lands on a sample value, so ``>=`` here would label
+            # boundary events oppositely and break the cross-harness
+            # comparability this module's docstring promises.
+            train_y = [1.0 if abs(r[i]) > tau else 0.0 for i in train_idx]
+            val_y = [1.0 if abs(r[i]) > tau else 0.0 for i in val_idx]
         else:
             train_y = [y[i] for i in train_idx]
             val_y = [y[i] for i in val_idx]
@@ -427,10 +437,13 @@ def extract_family_meta_samples(
     if not feature_keys:
         raise ValueError("extract_family_meta_samples: feature_keys is empty")
     out: dict[str, MetaSamples] = {}
+    seen: dict[str, int] = {}
+    incomplete: dict[str, int] = {}
     for event in events:
-        if "score" not in event:
-            continue
-        if any(key not in event for key in feature_keys):
+        fam = str(event.get("family", "?"))
+        seen[fam] = seen.get(fam, 0) + 1
+        if "score" not in event or any(key not in event for key in feature_keys):
+            incomplete[fam] = incomplete.get(fam, 0) + 1
             continue
         forward_ts = event.get("forward_timestamps")
         if not forward_ts:
@@ -460,6 +473,19 @@ def extract_family_meta_samples(
         bucket["returns"].append(ret)
         bucket["anchor_ts"].append(float(event["anchor_ts"]))
         bucket["guard_end_ts"].append(guard_end)
+    # Report complete-case shrinkage per family (including families that end with
+    # zero survivors and so never created a bucket) so a thin joint sample is
+    # visible rather than a silently-selected subset of the ADR-0019 population.
+    for fam in sorted(seen):
+        n_dropped = incomplete.get(fam, 0)
+        if n_dropped:
+            logger.warning(
+                "family %s: %d/%d events dropped from the joint meta-label sample "
+                "for missing score/feature_keys (complete-case)",
+                fam,
+                n_dropped,
+                seen[fam],
+            )
     return out
 
 

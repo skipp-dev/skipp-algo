@@ -163,20 +163,28 @@ def normalize_fmp(provider: str, it: dict[str, Any]) -> NewsItem:
 # ── Benzinga REST ───────────────────────────────────────────────
 
 def normalize_benzinga_quantified(it: dict[str, Any]) -> NewsItem:
-    """Normalise one Benzinga quantified news item (WP-NW6).
+    """Normalise one Benzinga NewsQuantified analytics item.
 
-    Quantified items carry price-impact context (open_gap, range, volume)
-    which is preserved in the ``raw`` dict for downstream scoring.
+    The real newsquantified schema (verified 2026-07-11 against the direct
+    Benzinga API) uses ``Headlines``/``Symb``/``PUBt`` — NOT the ``title``/
+    ``created`` fields of the plain news feed. The price-impact analytics
+    (``OpenGap%``, ``Range%``, ``DayOpen``, ``ATR14``, ``Result%``,
+    ``Vol_Ratio``, ``ShortInterest%``, ``PERatio`` …) are RECORDED-ONLY: they
+    ride along untouched in the ``raw`` dict and are not (yet) fed into scoring.
+    Standard-shape fields are kept as fallbacks for schema tolerance.
     """
-    item_id = str(it.get("id") or it.get("uuid") or "").strip()
-    headline = str(it.get("title") or it.get("headline") or "").strip()
+    item_id = str(it.get("_id") or it.get("ResourceID") or it.get("id") or it.get("uuid") or "").strip()
+    headline = str(it.get("Headlines") or it.get("title") or it.get("headline") or "").strip()
     snippet = str(it.get("teaser") or it.get("summary") or it.get("body") or "").strip()
     url = it.get("url") or it.get("link") or None
-    source = str(it.get("source") or it.get("author") or "benzinga_quantified").strip()
-    tickers = _extract_tickers(it)
+    source = str(it.get("Provider") or it.get("source") or it.get("author") or "benzinga_quantified").strip()
+    symb = str(it.get("Symb") or "").strip()
+    tickers = [symb] if symb else _extract_tickers(it)
 
-    published = str(it.get("created") or it.get("published") or "").strip()
-    updated = str(it.get("updated") or published).strip()
+    # PUBt/RECt are full ET timestamps ("YYYY-MM-DD HH:MM:SS.mmm"); Date is a
+    # day-only fallback. Standard created/published kept last for tolerance.
+    published = str(it.get("PUBt") or it.get("Date") or it.get("created") or it.get("published") or "").strip()
+    updated = str(it.get("RECt") or it.get("updated") or published).strip()
     pts = _to_epoch(published, naive_tz=_ET)
     uts = _to_epoch(updated, naive_tz=_ET)
 

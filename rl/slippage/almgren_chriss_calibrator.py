@@ -32,9 +32,9 @@ class AlmgrenChrissCalibrator:
     Coefficients (in order) correspond to the feature vector emitted by
     ``TradeBlotter.to_features_targets``:
 
-    - ``beta_perm`` : permanent impact (signed % of volume).
+    - ``beta_perm`` : side-ASYMMETRY term, ~0 if side-symmetric (the side-adjusted target sends impact to beta_abs).
     - ``beta_temp`` : temporary impact (sqrt of duration).
-    - ``beta_abs``  : convexity term (abs signed % of volume).
+    - ``beta_abs``  : abs %-of-volume — where symmetric impact actually lands.
     """
 
     prior_precision: float = 1.0
@@ -88,8 +88,8 @@ class AlmgrenChrissCalibrator:
         mean = float(x @ self.mean_)
         var = float(x @ self.cov_ @ x) + self.noise_variance
         std = math.sqrt(max(var, 0.0))
-        # Permanent impact: signed pct of volume term (index 0).
-        # Temporary impact: sqrt-duration term (index 1).
+        # "Permanent": side-asymmetry term (index 0; ~0 if side-symmetric).
+        # Temporary: sqrt-duration term (index 1).
         perm = float(self.mean_[0] * x[0]) if x.shape[0] >= 1 else 0.0
         temp = float(self.mean_[1] * x[1]) if x.shape[0] >= 2 else 0.0
         return SlippageEstimate(

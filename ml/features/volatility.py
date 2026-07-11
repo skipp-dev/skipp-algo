@@ -7,9 +7,9 @@ import numpy as np
 
 
 def realized_volatility(close: Sequence[float], window: int = 20) -> np.ndarray:
-    """Rolling realized volatility from log returns. Output aligned to input.
+    """Rolling demeaned *population* std of log returns. Output aligned to input.
 
-    Vectorized O(n) implementation using cumulative sums of log returns.
+    Not sqrt(Σr²) realized vol; the index-0 return is synthesized as 0.0 and enters warm-up windows.
     """
     c = np.asarray(close, dtype=float)
     if c.size < 2:
@@ -41,7 +41,7 @@ def garman_klass_volatility(
     open_: Sequence[float],
     close: Sequence[float],
 ) -> np.ndarray:
-    """Per-bar Garman-Klass variance (Andersen-Bollerslev 1998).
+    """Per-bar Garman-Klass variance (Garman & Klass 1980).
 
     GK = 0.5 * (ln(H/L))^2 - (2*ln(2) - 1) * (ln(C/O))^2
     """

@@ -28,9 +28,9 @@ def vpin(
     sell_volume: Sequence[float],
     bucket_size: int = 50,
 ) -> np.ndarray:
-    """Volume-Synchronised Probability of Informed Trading approximation
-    (Easley-López de Prado-O'Hara 2012). Bucketed mean of |buy - sell| / total.
-    Output length: ``ceil(n / bucket_size)``.
+    """Bar-count-bucketed order-flow imbalance |buy - sell| / total (VPIN-inspired,
+    Easley-López de Prado-O'Hara 2012 — but NOT volume-synchronised: buckets are
+    fixed bar counts, no rolling mean). Output length: ``ceil(n / bucket_size)``.
     """
     bv = np.asarray(buy_volume, dtype=float)
     sv = np.asarray(sell_volume, dtype=float)

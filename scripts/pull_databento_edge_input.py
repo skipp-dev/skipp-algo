@@ -430,8 +430,8 @@ def aggregate_signed_uoa_notional(
     (trade hit the ask) is the aggressive **buyer** -> ``+`` (bullish); ``B``
     (hit the bid) is the aggressive **seller** -> ``-`` (bearish); ``N``
     (cross / unknown) contributes ``0`` to the signed sum but is still counted in
-    ``uoa_trade_count`` and ``uoa_abs_notional``. This matches
-    ``newsstack_fmp.opra_uoa._side_to_aggressor`` exactly.
+    ``uoa_trade_count`` and ``uoa_abs_notional``. NB: OPPOSITE letters to raw-side
+    ``newsstack_fmp.opra_uoa._side_to_aggressor`` (A=sell, #3355); + = buying on both.
 
     Per bucket: ``uoa_signed_notional`` = signed premium sum;
     ``uoa_abs_notional`` = total premium sum over **all** prints (the imbalance
