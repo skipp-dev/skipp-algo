@@ -52,7 +52,8 @@ def feed_staleness_diagnostic(
 ) -> dict[str, Any]:
     """Classify feed staleness into a severity + label for the sidebar.
 
-    Returns ``{"severity": "ok"|"warn"|"stale", "label": str}``.
+    Returns ``{"severity": "ok"|"warn", "label": str}``. Truth-audit
+    2026-07-11: only "ok"/"warn" are ever emitted (no distinct "stale").
     """
     if staleness_minutes is None:
         return {"severity": "ok", "label": ""}

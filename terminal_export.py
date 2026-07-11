@@ -342,7 +342,7 @@ def build_vd_snapshot(
     bz_options: list[dict[str, Any]] | None = None,
     open_prep_data: dict[str, Any] | None = None,
 ) -> list[dict[str, Any]]:
-    """Build one row per ticker from the full feed (per-ticker selection = best news_score; output ranking = composite rank_score of 70% |price change| + 30% news_score, so order is dominated by |chg_pct| — corrected 2026-07-08).
+    """Build one row per ticker from the full feed (per-ticker selection = best news_score; output ranking = rank_score = 0.7*|chg_pct| + 0.3*(news_score*100). NOTE (truth-audit 2026-07-11): because news_score (0-1) is scaled *100 it DOMINATES |chg_pct| (a percentage, ~0-10) in the normal range — |chg_pct| only wins above ~17% moves. The weighting intent is unconfirmed; this was previously mis-documented as "dominated by |chg_pct|".
 
     When *rt_quotes* is provided (from ``load_rt_quotes()``), the live
     quote fields (tick, streak, price, chg_pct, vol_ratio) are
@@ -517,7 +517,7 @@ def build_vd_snapshot(
             "tech_signal":      _fh_patterns.get(tk, {}).get("tech_signal", ""),
         })
 
-    # Composite rank: 70% absolute price change + 30% news score
+    # Composite rank: 0.7*|chg_pct| + 0.3*(news_score*100) — the *100 makes news_score dominate |chg_pct| in the normal range (truth-audit 2026-07-11; see docstring).
     for r in rows:
         _chg = abs(float(r.get("chg_pct") or 0))
         _ns = float(r.get("score") or 0)
