@@ -8,7 +8,6 @@ def resolve_live_story_state_kwargs(cfg: Any | None = None) -> dict[str, float]:
     cfg_obj = cfg
     return {
         "ttl_s": float(getattr(cfg_obj, "live_story_ttl_s", 7200.0) or 7200.0),
-        "cooldown_s": float(getattr(cfg_obj, "live_story_cooldown_s", 900.0) or 900.0),
     }
 
 
