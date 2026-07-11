@@ -22,6 +22,7 @@ def test_derive_base_signals_shape_and_bounds() -> None:
             "event_in_window": False,
             "market_regime": None,
             "enriched_news_heat": 0.0,
+            "enriched_news_category": None,
             "provenance": ["TEST"],
         }
     )
