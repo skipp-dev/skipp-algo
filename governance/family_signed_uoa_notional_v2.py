@@ -6,7 +6,7 @@ saturated (``docs/governance/feature_onramp_saturation_verdict.md``). Where ever
 ADR-0019 candidate measured a different *function of the same bars*, this feature
 reads a **different instrument class entirely**: the aggressor-signed options
 tape (OPRA ``trades``), which is forward-looking in a way the underlying's own
-OHLCV is not — a wall of bid-lifting call premium is a directional bet placed
+OHLCV is not — a wall of ask-lifting call premium is a directional bet placed
 *before* the move shows up in the stock's bars.
 
 Over a window it is the **signed options-flow imbalance**
@@ -24,14 +24,14 @@ where, per bar, the producer embeds
 Note the OPRA aggressor convention is the **inverse** of the equity tape used by
 the ADR-0016 ``signed_volume`` features: on options ``A`` (trade hit the ask) is
 the aggressive **buyer** -> bullish (+), and ``B`` (hit the bid) is the
-aggressive **seller** -> bearish (-); ``N`` (cross / unknown) is unsigned. This
-matches ``newsstack_fmp.opra_uoa._side_to_aggressor`` exactly, so the recorded
-shadow feature and the live UOA alerts speak the same sign language.
+aggressive **seller** -> bearish (-); ``N`` (cross / unknown) is unsigned. NB the
+letters are the OPPOSITE of ``newsstack_fmp.opra_uoa._side_to_aggressor`` (raw
+Databento side: A=sell aggressor, #3355); economically both agree: + = buying.
 
 Unlike order-flow *imbalance* (``ofi_imbalance_at``), which takes the absolute
 value because magnitude one-sidedness is its question, this feature **keeps the
 sign**: the whole thesis of options flow is *direction* — are the big premium
-prints leaning bullish or bearish — so ``+1`` is fully bid-lifting call/put
+prints leaning bullish or bearish — so ``+1`` is fully ask-lifting call/put
 premium one way and ``-1`` the other.
 
 Options do not print on every bar (especially out-of-the-money strikes), so the

@@ -100,3 +100,17 @@ def test_relative_volume_is_deterministic() -> None:
 
 def test_source_tag_is_versioned_v2() -> None:
     assert RELATIVE_VOLUME_SOURCE == "orderflow_relative_volume_v2"
+
+
+def test_bar_volume_rejects_nan_negative_and_invalid() -> None:
+    from governance.family_score_features_v2 import _bar_volume
+
+    # NaN must be rejected as honest-None: NaN < 0.0 is False, so without an
+    # explicit guard a NaN volume would leak through as a "valid" number and
+    # propagate into a recorded NaN relative_volume.
+    assert _bar_volume({"volume": float("nan")}) is None
+    assert _bar_volume({"volume": -1.0}) is None
+    assert _bar_volume({"volume": "oops"}) is None
+    assert _bar_volume({}) is None
+    assert _bar_volume({"volume": 0.0}) == 0.0
+    assert _bar_volume({"volume": 130.0}) == 130.0

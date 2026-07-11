@@ -1609,6 +1609,343 @@
         "uid": "grafanacloud-prom"
       },
       "id": 1756997640
+    },
+    {
+      "type": "row",
+      "title": "Sweep-Trap Shadow (WS4a)",
+      "collapsed": false,
+      "description": "Observe-only evidence accrual for the v2 sweep-trap detector. The daily sweep-trap-shadow-daily workflow scores the observe-only sweep_trap_quality_score against the sweep-reversal outcome and appends to artifacts/governance/sweep_trap_shadow.jsonl. The detector carries NO score-budget weight yet; these tiles track the Brier-delta, tercile lift, and sample accrual toward the promotion decision (WS4b).",
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 85
+      },
+      "id": 3000,
+      "panels": []
+    },
+    {
+      "title": "Sweep-Trap Shadow Verdict",
+      "type": "stat",
+      "description": "Latest promotion verdict from the shadow eval. INCONCLUSIVE = fewer than MIN_OOS (40) scored samples; SHADOW = enough samples but the score does not yet beat baseline; PROMOTABLE = Brier improves AND top/bottom-tercile lift is positive (candidate for a WS4b score-budget grant).",
+      "gridPos": {
+        "h": 5,
+        "w": 5,
+        "x": 0,
+        "y": 86
+      },
+      "targets": [
+        {
+          "expr": "live_overlay_sweep_trap_shadow_verdict_code{job=~\"$job\"}",
+          "instant": true,
+          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "grafanacloud-prom"
+          }
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "mappings": [
+            {
+              "type": "value",
+              "options": {
+                "0": {
+                  "text": "INCONCLUSIVE",
+                  "color": "dark-orange",
+                  "index": 0
+                },
+                "1": {
+                  "text": "SHADOW",
+                  "color": "dark-yellow",
+                  "index": 1
+                },
+                "2": {
+                  "text": "PROMOTABLE",
+                  "color": "dark-green",
+                  "index": 2
+                }
+              }
+            }
+          ],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "text",
+                "value": null
+              }
+            ]
+          },
+          "noValue": "N/A"
+        },
+        "overrides": []
+      },
+      "options": {
+        "colorMode": "background",
+        "graphMode": "none",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        }
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "grafanacloud-prom"
+      },
+      "id": 3001
+    },
+    {
+      "title": "Shadow Brier Delta",
+      "type": "stat",
+      "description": "baseline_brier - signal_brier on the shadow corpus. Positive = the sweep_trap_quality_score adds predictive skill over the no-score baseline; <= 0 = no skill (stays in shadow).",
+      "gridPos": {
+        "h": 5,
+        "w": 5,
+        "x": 5,
+        "y": 86
+      },
+      "targets": [
+        {
+          "expr": "live_overlay_sweep_trap_shadow_brier_delta{job=~\"$job\"}",
+          "instant": true,
+          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "grafanacloud-prom"
+          }
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "dark-red",
+                "value": null
+              },
+              {
+                "color": "gray",
+                "value": 0
+              },
+              {
+                "color": "dark-green",
+                "value": 0.005
+              }
+            ]
+          },
+          "decimals": 4,
+          "noValue": "N/A"
+        },
+        "overrides": []
+      },
+      "options": {
+        "colorMode": "background",
+        "graphMode": "none",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        }
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "grafanacloud-prom"
+      },
+      "id": 3002
+    },
+    {
+      "title": "Shadow Tercile Lift",
+      "type": "stat",
+      "description": "Top-tercile minus bottom-tercile reversal hit-rate by sweep_trap_quality_score (computed only when each tercile has >= 6 samples). Positive = the score discriminates good setups from bad; 0 when underpowered.",
+      "gridPos": {
+        "h": 5,
+        "w": 5,
+        "x": 10,
+        "y": 86
+      },
+      "targets": [
+        {
+          "expr": "live_overlay_sweep_trap_shadow_lift{job=~\"$job\"}",
+          "instant": true,
+          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "grafanacloud-prom"
+          }
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "dark-red",
+                "value": null
+              },
+              {
+                "color": "gray",
+                "value": 0
+              },
+              {
+                "color": "dark-green",
+                "value": 0.05
+              }
+            ]
+          },
+          "decimals": 3,
+          "noValue": "N/A"
+        },
+        "overrides": []
+      },
+      "options": {
+        "colorMode": "background",
+        "graphMode": "none",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        }
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "grafanacloud-prom"
+      },
+      "id": 3003
+    },
+    {
+      "title": "Shadow Samples (toward promotion)",
+      "type": "stat",
+      "description": "Scored SWEEP samples accumulated in the shadow ledger. Promotion needs at least MIN_OOS = 40 (green); below that the verdict stays INCONCLUSIVE.",
+      "gridPos": {
+        "h": 5,
+        "w": 5,
+        "x": 15,
+        "y": 86
+      },
+      "targets": [
+        {
+          "expr": "live_overlay_sweep_trap_shadow_sample_count{job=~\"$job\"}",
+          "instant": true,
+          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "grafanacloud-prom"
+          }
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "dark-red",
+                "value": null
+              },
+              {
+                "color": "dark-yellow",
+                "value": 20
+              },
+              {
+                "color": "dark-green",
+                "value": 40
+              }
+            ]
+          },
+          "decimals": 0,
+          "noValue": "0"
+        },
+        "overrides": []
+      },
+      "options": {
+        "colorMode": "background",
+        "graphMode": "none",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        }
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "grafanacloud-prom"
+      },
+      "id": 3004
+    },
+    {
+      "title": "Shadow Snapshot Age",
+      "type": "stat",
+      "description": "Age of the latest shadow-eval snapshot. The workflow runs Mon-Fri; green < 72h, yellow < 96h, red beyond 96h (the OVERLAY_SWEEP_TRAP_SHADOW_MAX_AGE_SECS budget where lo-sweep-trap-shadow-stale fires). N/A when the age is unknown.",
+      "gridPos": {
+        "h": 5,
+        "w": 4,
+        "x": 20,
+        "y": 86
+      },
+      "targets": [
+        {
+          "expr": "live_overlay_sweep_trap_shadow_snapshot_age_seconds{job=~\"$job\"} and on(job) (live_overlay_sweep_trap_shadow_snapshot_age_known{job=~\"$job\"} == 1)",
+          "instant": true,
+          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "grafanacloud-prom"
+          }
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "dark-green",
+                "value": null
+              },
+              {
+                "color": "dark-yellow",
+                "value": 259200
+              },
+              {
+                "color": "dark-red",
+                "value": 345600
+              }
+            ]
+          },
+          "unit": "s",
+          "noValue": "N/A"
+        },
+        "overrides": []
+      },
+      "options": {
+        "colorMode": "background",
+        "graphMode": "none",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        }
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "grafanacloud-prom"
+      },
+      "id": 3005
     }
   ],
   "refresh": "1m",

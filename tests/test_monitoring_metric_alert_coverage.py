@@ -41,6 +41,22 @@ _EVIDENCE_SIGNAL_METRICS = (
     "live_overlay_evidence_wsh_age_seconds",
 )
 
+# Credential / API-key health signals that MUST alert. These gauges were charted
+# but had ZERO alert coverage while the probe's only alarm (a GitHub issue) was
+# inert (repo Issues disabled) — an expired key surfaced nowhere. The per-probe
+# ``_valid`` names are built by f-string in metrics.py, so _METRIC_RE cannot
+# auto-discover them (it stops at ``{``); they are pinned explicitly like Part A/B.
+_CREDENTIAL_SIGNAL_METRICS = (
+    "live_overlay_credential_health_fmp_api_key_valid",
+    "live_overlay_credential_health_databento_api_key_valid",
+    "live_overlay_credential_health_databento_delivery_valid",
+    "live_overlay_credential_health_benzinga_key_valid",
+    "live_overlay_credential_health_finnhub_api_key_valid",
+    "live_overlay_credential_health_github_pat_validity_valid",
+    "live_overlay_credential_health_tv_storage_state_age_valid",
+    "live_overlay_credential_health_snapshot_age_seconds",
+)
+
 _METRIC_RE = re.compile(r"live_overlay_(?:evidence|github_workflow)_[a-z0-9_]+")
 
 
@@ -93,6 +109,17 @@ def test_evidence_signals_have_alert_coverage() -> None:
     alerts = _alert_expr_text()
     missing = [m for m in _EVIDENCE_SIGNAL_METRICS if m not in alerts]
     assert not missing, f"evidence freshness signals lack alert coverage: {missing}"
+
+
+def test_credential_signals_have_alert_coverage() -> None:
+    """Every API-key health gauge + the snapshot-staleness gauge must alert.
+
+    Prevents the credential-alerting gap from silently reopening: a new probe or
+    a dropped alert rule that leaves a key gauge unwatched fails CI here.
+    """
+    alerts = _alert_expr_text()
+    missing = [m for m in _CREDENTIAL_SIGNAL_METRICS if m not in alerts]
+    assert not missing, f"credential/API-key health signals lack alert coverage: {missing}"
 
 
 def test_no_emitted_monitoring_metric_is_unconsumed() -> None:

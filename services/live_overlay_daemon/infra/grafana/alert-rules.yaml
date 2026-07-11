@@ -2371,3 +2371,383 @@ groups:
         quota -- ingest will start failing when the quota is exhausted.
       runbook: Immediately reduce FMP polling (newsstack_fmp/config.py FMP_*_LIMIT / poll interval) or
         upgrade the FMP plan; raise FMP_MONTHLY_BANDWIDTH_LIMIT_BYTES to match a new plan.
+  - uid: lo-sweep-trap-shadow-stale
+    title: Sweep-trap shadow snapshot stale
+    condition: C
+    data:
+    - refId: A
+      datasourceUid: grafanacloud-prom
+      model:
+        # Precomputed 0/1 staleness gauge (age > OVERLAY_SWEEP_TRAP_SHADOW_MAX_AGE_SECS,
+        # default 96h, tolerates one skipped weekday run). Alerting on the precomputed
+        # gauge instead of a bare age comparison keeps the gt-0 threshold live (the
+        # gt-0-inert class). See services/live_overlay_daemon/sweep_trap_shadow_bridge.py.
+        expr: max(live_overlay_sweep_trap_shadow_snapshot_stale{job="live_overlay"})
+        instant: true
+    - refId: C
+      datasourceUid: __expr__
+      model:
+        type: threshold
+        conditions:
+        - evaluator:
+            type: gt
+            params:
+            - 0
+          operator:
+            type: and
+          query:
+            params:
+            - A
+    for: 30m
+    labels:
+      severity: warning
+    annotations:
+      summary: The WS4a sweep-trap shadow eval has not published a fresh snapshot within its max-age budget
+      runbook: The daily sweep-trap-shadow-daily workflow has not refreshed
+        artifacts/monitoring/sweep_trap_shadow.json within OVERLAY_SWEEP_TRAP_SHADOW_MAX_AGE_SECS.
+        Check the sweep-trap-shadow-daily workflow and the bot/sweep-trap-shadow-ledger branch.
+        Observe-only — no score impact; a stale snapshot only means the promotion evidence stopped accruing.
+  - uid: lo-sweep-trap-shadow-promotable
+    title: Sweep-trap shadow verdict is PROMOTABLE (WS4b candidate)
+    condition: C
+    data:
+    - refId: A
+      datasourceUid: grafanacloud-prom
+      model:
+        # verdict_code 2 == PROMOTABLE (Brier beats baseline AND top/bottom-tercile
+        # lift positive on >= MIN_OOS=40 samples). `max without (verdict)` collapses
+        # the verdict label so the series stays continuous across verdict changes;
+        # `for: 72h` then requires the value to hold PROMOTABLE for 3 consecutive
+        # days (a single dip resets the pending timer). Deliberately NOT
+        # min_over_time(...[3d]), which would false-fire on partial data before a
+        # full 3-day window of samples exists.
+        expr: max without (verdict) (live_overlay_sweep_trap_shadow_verdict_code{job="live_overlay"})
+        instant: true
+    - refId: C
+      datasourceUid: __expr__
+      model:
+        type: threshold
+        conditions:
+        - evaluator:
+            type: gt
+            params:
+            - 1
+          operator:
+            type: and
+          query:
+            params:
+            - A
+    for: 72h
+    # Positive/notification alert — a missing series (daemon down) is covered by
+    # lo-scrape-missing, and must NOT fire this WS4b prompt.
+    noDataState: OK
+    labels:
+      severity: info
+    annotations:
+      summary: The WS4a sweep-trap shadow verdict has held PROMOTABLE for 3 days — WS4b promotion candidate
+      runbook: The observe-only sweep_trap_quality_score has beaten baseline Brier with
+        positive top/bottom-tercile lift on >= 40 samples for 3 consecutive days. This is the
+        WS4b trigger — review live_overlay_sweep_trap_shadow_{brier_delta,lift,sample_count} on
+        the "Sweep-Trap Shadow (WS4a)" dashboard row, then decide whether to grant the detector
+        score-budget weight (confluence currently reads the coarse SWEEP_QUALITY_SCORE, not
+        SWEEP_TRAP_QUALITY_SCORE). Not an incident — an action prompt.
+- orgId: 1
+  name: credential-health
+  folder: SMC Live Overlay
+  interval: 1m
+  # API-key / credential health, sourced from the daily credential-health-check
+  # probe (scripts/credential_health_check.py -> live_overlay_credential_health_*).
+  # Until now these gauges were charted but NOT alerted, and the probe's only
+  # alarm (a GitHub issue) is inert because repo Issues are disabled -- so an
+  # expired key surfaced nowhere. `== bool 0` (not `== 0`) is mandatory: a bare
+  # match returns 0 and the gt-0 threshold reads 0>0=false (inert).
+  rules:
+  - uid: lo-credential-fmp-invalid
+    title: FMP API key invalid
+    condition: C
+    noDataState: OK
+    data:
+    - refId: A
+      datasourceUid: grafanacloud-prom
+      model:
+        expr: live_overlay_credential_health_fmp_api_key_valid{job="live_overlay"} == bool 0
+        instant: true
+    - refId: C
+      datasourceUid: __expr__
+      model:
+        type: threshold
+        conditions:
+        - evaluator:
+            type: gt
+            params:
+            - 0
+          operator:
+            type: and
+          query:
+            params:
+            - A
+    for: 10m
+    labels:
+      severity: critical
+    annotations:
+      summary: The FMP API key is failing its daily auth probe (401/403/402) -- the core FMP data pipeline
+        will start failing.
+      runbook: Rotate FMP_API_KEY (or resolve billing on a 402) and update the secret; see
+        scripts/credential_health_check.py probe_fmp.
+  - uid: lo-credential-databento-invalid
+    title: Databento API key invalid
+    condition: C
+    noDataState: OK
+    data:
+    - refId: A
+      datasourceUid: grafanacloud-prom
+      model:
+        expr: live_overlay_credential_health_databento_api_key_valid{job="live_overlay"} == bool 0
+        instant: true
+    - refId: C
+      datasourceUid: __expr__
+      model:
+        type: threshold
+        conditions:
+        - evaluator:
+            type: gt
+            params:
+            - 0
+          operator:
+            type: and
+          query:
+            params:
+            - A
+    for: 10m
+    labels:
+      severity: critical
+    annotations:
+      summary: The Databento API key is failing its daily auth probe -- OPRA options flow ingestion will
+        stop.
+      runbook: Rotate DATABENTO_API_KEY and update the secret; see scripts/credential_health_check.py
+        probe_databento.
+  - uid: lo-credential-databento-delivery-invalid
+    title: Databento delivery stalled (billing/entitlement)
+    condition: C
+    noDataState: OK
+    data:
+    - refId: A
+      datasourceUid: grafanacloud-prom
+      model:
+        expr: live_overlay_credential_health_databento_delivery_valid{job="live_overlay"} == bool 0
+        instant: true
+    - refId: C
+      datasourceUid: __expr__
+      model:
+        type: threshold
+        conditions:
+        - evaluator:
+            type: gt
+            params:
+            - 0
+          operator:
+            type: and
+          query:
+            params:
+            - A
+    for: 10m
+    labels:
+      severity: critical
+    annotations:
+      summary: Databento auth is OK but delivery has stalled (402 unpaid invoice or entitlement lapse) --
+        data silently stops while auth stays 200 (2026-06-12 post-mortem).
+      runbook: Check the Databento invoice/entitlement; see scripts/credential_health_check.py
+        probe_databento_delivery and the databento_delivery staleness_days gauge.
+  - uid: lo-credential-benzinga-invalid
+    title: Benzinga/Massive API key invalid
+    condition: C
+    noDataState: OK
+    data:
+    - refId: A
+      datasourceUid: grafanacloud-prom
+      model:
+        expr: live_overlay_credential_health_benzinga_key_valid{job="live_overlay"} == bool 0
+        instant: true
+    - refId: C
+      datasourceUid: __expr__
+      model:
+        type: threshold
+        conditions:
+        - evaluator:
+            type: gt
+            params:
+            - 0
+          operator:
+            type: and
+          query:
+            params:
+            - A
+    for: 10m
+    labels:
+      severity: high
+    annotations:
+      summary: The Benzinga/Massive API key is failing its daily auth probe -- the Core News lane and
+        hourly live-news cron will stop ingesting.
+      runbook: Rotate BENZINGA_API_KEY (the paid Massive reseller key) and confirm BENZINGA_PROVIDER
+        transport; see scripts/credential_health_check.py probe_benzinga.
+  - uid: lo-credential-finnhub-invalid
+    title: Finnhub API key invalid
+    condition: C
+    noDataState: OK
+    data:
+    - refId: A
+      datasourceUid: grafanacloud-prom
+      model:
+        expr: live_overlay_credential_health_finnhub_api_key_valid{job="live_overlay"} == bool 0
+        instant: true
+    - refId: C
+      datasourceUid: __expr__
+      model:
+        type: threshold
+        conditions:
+        - evaluator:
+            type: gt
+            params:
+            - 0
+          operator:
+            type: and
+          query:
+            params:
+            - A
+    for: 10m
+    labels:
+      severity: warning
+    annotations:
+      summary: The Finnhub API key is failing its daily auth probe -- terminal_finnhub and open_prep macro
+        Finnhub lookups will fail. Optional provider; only alerts when FINNHUB_API_KEY is configured.
+      runbook: Rotate FINNHUB_API_KEY and update the secret; see scripts/credential_health_check.py
+        probe_finnhub. If Finnhub is unused, remove the secret and the probe self-skips.
+  - uid: lo-credential-github-pat-invalid
+    title: GitHub PAT invalid or expiring
+    condition: C
+    noDataState: OK
+    data:
+    - refId: A
+      datasourceUid: grafanacloud-prom
+      model:
+        expr: live_overlay_credential_health_github_pat_validity_valid{job="live_overlay"} == bool 0
+        instant: true
+    - refId: C
+      datasourceUid: __expr__
+      model:
+        type: threshold
+        conditions:
+        - evaluator:
+            type: gt
+            params:
+            - 0
+          operator:
+            type: and
+          query:
+            params:
+            - A
+    for: 10m
+    labels:
+      severity: high
+    annotations:
+      summary: The GH_PAT is failing its daily probe -- every workflow that opens auto-PRs, publishes
+        snapshots, or refreshes the TV cookie will start failing.
+      runbook: Rotate GH_PAT and update the secret; see scripts/credential_health_check.py
+        probe_github_pat and the github_pat_validity_days_left gauge.
+  - uid: lo-credential-tv-cookie-invalid
+    title: TradingView storage-state cookie expired
+    condition: C
+    noDataState: OK
+    data:
+    - refId: A
+      datasourceUid: grafanacloud-prom
+      model:
+        expr: live_overlay_credential_health_tv_storage_state_age_valid{job="live_overlay"} == bool 0
+        instant: true
+    - refId: C
+      datasourceUid: __expr__
+      model:
+        type: threshold
+        conditions:
+        - evaluator:
+            type: gt
+            params:
+            - 0
+          operator:
+            type: and
+          query:
+            params:
+            - A
+    for: 10m
+    labels:
+      severity: high
+    annotations:
+      summary: The TradingView storage-state cookie is past its 72h TTL -- the next Pine publish will fail
+        at preflight (complements lo-tradingview-credential-age-high).
+      runbook: Refresh the cookie via npm run tv:storage-state (or the storage-refresh workflow) and
+        update TV_STORAGE_STATE.
+  - uid: lo-credential-monitor-stale
+    title: Credential-health snapshot is stale
+    condition: C
+    noDataState: OK
+    data:
+    - refId: A
+      datasourceUid: grafanacloud-prom
+      model:
+        expr: live_overlay_credential_health_snapshot_age_seconds{job="live_overlay"} > 129600
+        instant: true
+    - refId: C
+      datasourceUid: __expr__
+      model:
+        type: threshold
+        conditions:
+        - evaluator:
+            type: gt
+            params:
+            - 0
+          operator:
+            type: and
+          query:
+            params:
+            - A
+    for: 1h
+    labels:
+      severity: critical
+    annotations:
+      summary: The daily credential-health snapshot is older than 36h -- the probe cron or its snapshot
+        publish has silently stopped and every credential gauge is now stale-green (the exact 12-day
+        blind spot this monitor exists to prevent).
+      runbook: Check the credential-health-check workflow runs and the bot/live-tv-credential-snapshot
+        publish step (GH_PAT push). Do NOT trust the other credential alerts until this clears.
+  - uid: lo-credential-snapshot-missing
+    title: Credential-health snapshot not loaded
+    condition: C
+    noDataState: OK
+    data:
+    - refId: A
+      datasourceUid: grafanacloud-prom
+      model:
+        expr: live_overlay_credential_health_loaded{job="live_overlay"} == bool 0
+        instant: true
+    - refId: C
+      datasourceUid: __expr__
+      model:
+        type: threshold
+        conditions:
+        - evaluator:
+            type: gt
+            params:
+            - 0
+          operator:
+            type: and
+          query:
+            params:
+            - A
+    for: 15m
+    labels:
+      severity: high
+    annotations:
+      summary: The daemon is up but could not load any credential-health snapshot -- credential
+        observability is blind (distinct from lo-scrape-missing which covers the daemon being down).
+      runbook: Check TRADINGVIEW_CREDENTIAL_SNAPSHOT_URL and the bot/live-tv-credential-snapshot branch;
+        confirm the daily probe published a report.

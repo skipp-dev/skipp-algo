@@ -2,7 +2,7 @@
   "schema_version": "v1",
   "purpose": "Pin the proposed RL execution-state contract for the future RL-execution layer (C12). Schema is a forward-looking proposal; no live consumer exists today.",
   "trigger_status": "BLOCKED",
-  "trigger_reason": "C12 requires at least one SMC family to have been live in C8 incubation for >= 4 weeks. As of pin date, no family meets this condition. See scripts/check_c12_trigger.py for the live check.",
+  "trigger_reason": "C12 requires at least one SMC family with live_days >= 90 in C8 Phase-B (live_small, not paper), n_trades >= 30, zero kill-switch fires, and a pass/acceptable drift verdict. As of pin date, no family meets this. scripts/check_c12_trigger.py is the authoritative live check.",
   "proposed_state_fields": [
     {"name": "remaining_qty", "type": "float", "unit": "shares_or_contracts", "note": "Outstanding order quantity to be filled."},
     {"name": "remaining_time", "type": "float", "unit": "seconds", "note": "Remaining time-budget for the order."},

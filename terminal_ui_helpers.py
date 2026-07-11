@@ -105,7 +105,9 @@ def filter_feed(
 
     Returns the filtered list sorted according to *sort_by*:
     - ``"newest"`` — published_ts descending (freshest first, default)
-    - ``"score"``  — news_score descending, published_ts as tiebreaker
+    - ``"score"``  — attention_priority desc, then posture_score desc, then
+      published_ts (oldest-first tiebreak). Truth-audit 2026-07-11: this does
+      NOT sort by news_score despite the "Score" label.
     """
     filtered = list(feed)
 
@@ -245,10 +247,11 @@ _TRACKING_QUERY_PARAMS: set[str] = {
 def canonical_article_key(d: dict[str, Any]) -> str:
     """Return a stable identity key for an article-like feed item.
 
-    Preference order:
-    1) normalized URL (without tracking params)
-    2) normalized (ticker + headline + hour bucket)
-    3) item_id + ticker
+    Preference order (truth-audit 2026-07-11: story_key is checked FIRST):
+    1) story_key (``story:<key>``) when present — overrides URL
+    2) normalized URL (without tracking params)
+    3) normalized (ticker + headline + hour bucket)
+    4) item_id + ticker
     """
     ticker = str(d.get("ticker") or "").strip().upper()
     story_key = str(d.get("story_key") or "").strip()
@@ -353,11 +356,14 @@ def enrich_recency(value: str) -> str:
 def _is_actionable_broad(d: dict[str, Any]) -> bool:
     """Broadened actionable check — matches the Actionable tab filter.
 
-    True when:
-    - Explicit catalyst state says actionable, OR
-    - Explicitly flagged ``is_actionable`` (recency < 60 min), OR
-    - High effective score (≥ 0.65) regardless of age, OR
-    - AGING bucket (< 24 h) with moderate effective score (≥ 0.45).
+    True when (truth-audit 2026-07-11 — the check delegates to the effective_*
+    helpers and a posture-score cutoff; it does NOT read an ``is_actionable``
+    field):
+    - effective attention active, OR effective posture actionable, OR
+    - effective resolution / reaction / catalyst actionable (unless
+      SUPPRESS/BACKGROUND attention or FAILED/REVERSAL resolution or
+      CONFLICTED/FADE reaction vetoes it), OR
+    - a high effective posture score below.
     """
     explicit_attention_state = str(d.get("attention_state") or "").strip().upper()
     if explicit_attention_state == "SUPPRESS":

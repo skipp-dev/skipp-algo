@@ -1048,15 +1048,21 @@ def poll_once(
         # Audit-fix (2026-05-09): expose new FMP sources for telemetry.
         if cfg.enable_fmp_general:
             meta_sources.append("fmp_general_latest")
-        # Copilot follow-up (2026-05-09): use singular provider labels to match
-        # normalize_fmp_political_trade / Config.active_sources / ingest_counts_by_source.
-        if cfg.enable_fmp_senate_trades and cfg.fmp_api_key:
+    # The political/filings extras poll independently of ENABLE_FMP — their fetch
+    # blocks gate on ``enable_fmp_<x> and fmp_api_key`` only — so their telemetry
+    # labels must gate the same way (mirroring Config.active_sources). Nesting
+    # them under ``enable_fmp`` dropped them from meta["sources"] whenever
+    # ENABLE_FMP=0 while a sub-flag was on, even though their items were exported.
+    # Copilot follow-up (2026-05-09): singular provider labels match
+    # normalize_fmp_political_trade / Config.active_sources / ingest_counts_by_source.
+    if cfg.fmp_api_key:
+        if cfg.enable_fmp_senate_trades:
             meta_sources.append("fmp_senate_trade")
-        if cfg.enable_fmp_house_trades and cfg.fmp_api_key:
+        if cfg.enable_fmp_house_trades:
             meta_sources.append("fmp_house_trade")
-        if cfg.enable_fmp_8k and cfg.fmp_api_key:
+        if cfg.enable_fmp_8k:
             meta_sources.append("fmp_8k_latest")
-        if cfg.enable_fmp_13f and cfg.fmp_api_key:
+        if cfg.enable_fmp_13f:
             meta_sources.append("fmp_13f_latest")
     if cfg.enable_benzinga_rest:
         meta_sources.append("benzinga_rest")

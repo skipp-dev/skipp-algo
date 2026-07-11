@@ -203,6 +203,11 @@ failure fails CI instead of silently leaving the old container running.
 | `EVIDENCE_FRESHNESS_SNAPSHOT_PATH` | no | `artifacts/monitoring/evidence_freshness.json` | Local evidence-freshness snapshot path (ADR-0023 chain freshness gauges) |
 | `EVIDENCE_FRESHNESS_SNAPSHOT_URL` | no | — | Optional HTTPS URL for the evidence-freshness snapshot; set to the raw `bot/live-evidence-freshness` `artifacts/monitoring/latest/evidence_freshness.json` so the off-host daemon serves fresh ledger/audit/fills gauges |
 | `EVIDENCE_FRESHNESS_SNAPSHOT_URL_TOKEN` | no | — | Optional bearer token for `EVIDENCE_FRESHNESS_SNAPSHOT_URL` |
+| `SWEEP_TRAP_SHADOW_SNAPSHOT_PATH` | no | `artifacts/monitoring/sweep_trap_shadow.json` | Local WS4a sweep-trap shadow snapshot path (Brier-delta + verdict gauges) |
+| `SWEEP_TRAP_SHADOW_SNAPSHOT_URL` | no | — | Optional HTTPS URL for the sweep-trap shadow snapshot; set to the raw `bot/live-sweep-trap-shadow` `artifacts/monitoring/latest/sweep_trap_shadow.json` so the off-host daemon serves fresh Brier-delta/lift/sample/verdict gauges |
+| `SWEEP_TRAP_SHADOW_SNAPSHOT_URL_TOKEN` | no | — | Optional bearer token for `SWEEP_TRAP_SHADOW_SNAPSHOT_URL` |
+| `OVERLAY_SWEEP_TRAP_SHADOW_CACHE_TTL_SECS` | no | — | Sweep-trap shadow snapshot cache TTL (default 900) |
+| `OVERLAY_SWEEP_TRAP_SHADOW_MAX_AGE_SECS` | no | — | Sweep-trap shadow snapshot staleness threshold (default 96h; powers `lo-sweep-trap-shadow-stale`) |
 | `EXPERIMENT_HISTORY_PATH` | no | — | Local daily experiment history JSONL path |
 | `EXPERIMENT_HISTORY_URL` | no | — | Optional HTTPS URL for experiment history JSONL |
 | `EXPERIMENT_HISTORY_URL_TOKEN` | no | — | Optional bearer token for `EXPERIMENT_HISTORY_URL` |
@@ -285,6 +290,7 @@ matching `*_SNAPSHOT_URL` / `*_HISTORY_URL` to consume those instead.
 | Experiment rollup + history | `smc-measurement-benchmark-rolling.yml` | `bot/live-experiment-snapshot` | `artifacts/ci/measurement_benchmark_rolling/latest/plan_2_8_tf_family_rollup.json` and `.../latest/plan_2_8_history.jsonl` | `artifacts/live_overlay/plan_2_8_tf_family_rollup.json` / `plan_2_8_history.jsonl` |
 | TradingView credential age | `credential-health-check.yml` | `bot/live-tv-credential-snapshot` | `artifacts/credential_health/latest/credential_health.json` | `artifacts/live_overlay/credential_health.json` |
 | Realtime signals | _host helper (no CI producer)_ | `bot/live-signals-snapshot` | `artifacts/open_prep/latest/latest_realtime_signals.json` | `artifacts/open_prep/latest/latest_realtime_signals.json` |
+| Sweep-trap shadow (WS4a) | `sweep-trap-shadow-daily.yml` | `bot/live-sweep-trap-shadow` | `artifacts/monitoring/latest/sweep_trap_shadow.json` | `artifacts/monitoring/sweep_trap_shadow.json` |
 
 `smc-measurement-benchmark-rolling.yml` writes temporary per-timeframe
 `structure_export_*.json` files only for inline notices and deletes them in the
@@ -719,6 +725,94 @@ cd ~/Documents/skipp-algo && git checkout main && git pull --ff-only
 Without step 3's env vars the daemon serves the checked-in seed snapshot; its
 `generated_at` ages and the "Evidence snapshot stale" alert fires after 24h —
 at which point that alert is a true signal that step 3 is missing.
+
+### Sweep-trap shadow monitoring — go-live runbook
+
+Bringing the WS4a sweep-trap shadow evaluation (Brier-delta + tercile lift +
+sample accrual toward the promotion decision) live in Grafana. As with
+evidence-freshness, the code + config ship in the repo but the Grafana deploy is
+**manual**, and the data feed only fills once the detector is armed on the
+corpus producer.
+
+The detector is **observe-only** — arming `ENABLE_SWEEP_TRAP` logs the
+`sweep_trap_*` features and lets the shadow eval score them, but grants the
+detector **no score-budget weight**. Promotion to a live signal is the separate
+WS4b decision this monitoring exists to inform.
+
+**Prerequisite:** #3411 (evidence engine) and this PR (Grafana surface) are
+merged to `main`; run from a fresh top-level checkout:
+
+```bash
+cd ~/Documents/skipp-algo && git checkout main && git pull --ff-only
+```
+
+1. **Arm the detector on the corpus producer.** Set the repo variable so the
+   rolling benchmark logs the observe-only `sweep_trap_quality_score` the eval
+   later reads from the corpus (`smc-measurement-benchmark-rolling.yml` passes it
+   in as `ENABLE_SWEEP_TRAP: ${{ vars.ENABLE_SWEEP_TRAP }}`; the daily eval itself
+   needs no flag — it just reads the pre-logged scores):
+
+   ```bash
+   gh variable set ENABLE_SWEEP_TRAP --body 1
+   ```
+
+   Until this is set the daily eval resolves to `no_data` (green) and no
+   evidence accrues — the sample-count tile stays at 0.
+
+2. **Push the alert rule** (validate first, then apply — needs `skipp.grafana.api`):
+
+   ```bash
+   python scripts/grafana_alert_rules_upsert.py --dry-run   # validate, no network
+   python scripts/grafana_alert_rules_upsert.py             # apply
+   ```
+
+   Adds `lo-sweep-trap-shadow-stale` to the `evidence-and-workflow-freshness`
+   group. Do **not** pass `--prune` unless you intend to delete live groups.
+
+3. **Push the dashboard:**
+
+   ```bash
+   python scripts/update_overlay_dashboard.py services/live_overlay_daemon/infra/grafana/dashboard-signals-experiments.json
+   python scripts/grafana_dashboard_upsert.py
+   ```
+
+   Adds the "Sweep-Trap Shadow (WS4a)" row (verdict, Brier-delta, lift, samples
+   toward promotion, snapshot age) to the Signals & Experiments board.
+
+4. **Wire the data feed** (otherwise the tiles serve the no-data seed):
+
+   * Run the eval once so it publishes the snapshot to
+     `bot/live-sweep-trap-shadow` (needs a day's rolling-bench corpus with the
+     score already logged — i.e. after step 1 has been live for at least one
+     `smc-measurement-benchmark-rolling` run):
+
+     ```bash
+     gh workflow run sweep-trap-shadow-daily.yml
+     ```
+
+   * Set two env vars on the **`live_overlay_daemon`** Railway service, then
+     redeploy (mirror the already-working `EVIDENCE_FRESHNESS_SNAPSHOT_URL`):
+
+     ```
+     SWEEP_TRAP_SHADOW_SNAPSHOT_URL=https://api.github.com/repos/<OWNER>/skipp-algo/contents/artifacts/monitoring/latest/sweep_trap_shadow.json?ref=bot/live-sweep-trap-shadow
+     SWEEP_TRAP_SHADOW_SNAPSHOT_URL_TOKEN=<fine-grained PAT, Contents:Read, skipp-algo only>
+     ```
+
+5. **Verify:**
+
+   ```bash
+   curl -s https://<daemon-host>/metrics | grep live_overlay_sweep_trap_shadow
+   ```
+
+   Expect `live_overlay_sweep_trap_shadow_sample_count` climbing toward 40 and a
+   `live_overlay_sweep_trap_shadow_verdict_code{verdict="…"}` series. Before
+   step 1 the count stays 0 and the verdict is `INCONCLUSIVE`.
+
+The seed snapshot carries `generated_at=0`, so the snapshot-age gauge reports
+"unknown" and `lo-sweep-trap-shadow-stale` stays quiet until the first real
+publish — after which a stalled feed (step 4 missing, or the cron stopped) ages
+past 96h and the alert becomes a true signal. `workflow-freshness-monitor`
+independently files an issue if the daily cron stops running at all.
 
 ### Pull-back workflow (when someone edited in the UI)
 

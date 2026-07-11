@@ -86,17 +86,17 @@ _FROZEN_SITES: frozenset[tuple[str, int, tuple[str, ...]]] = frozenset(
         ("newsstack_fmp/pipeline.py", 108, ("_bz_ws_adapter", "_bz_ws_adapter_key")),
         ("newsstack_fmp/pipeline.py", 134, ("_bz_rss_adapter",)),
         ("newsstack_fmp/pipeline.py", 143, ("_enricher",)),
-        ("newsstack_fmp/pipeline.py", 1118, ("_last_meta",)),  # 2026-07-08 vwap-stub removal shifted (-1: 1119->1118)
+        ("newsstack_fmp/pipeline.py", 1124, ("_last_meta",)),  # 2026-07-11 meta-sources de-nest shifted (+6: 1118->1124)
         (
-            # 2026-07-08 vwap-stub removal shifted (-1: 1208->1207)
+            # 2026-07-11 meta-sources de-nest shifted (+6: 1207->1213)
             "newsstack_fmp/pipeline.py",
-            1207,
+            1213,
             ("_bz_rest_adapter", "_bz_rss_adapter", "_bz_ws_adapter", "_enricher", "_fmp_adapter", "_last_meta", "_store"),
         ),
         (
-            # 2026-07-08 vwap-stub removal shifted (-1: 1209->1208)
+            # 2026-07-11 meta-sources de-nest shifted (+6: 1208->1214)
             "newsstack_fmp/pipeline.py",
-            1208,
+            1214,
             ("_bz_rest_adapter_key", "_bz_ws_adapter_key", "_fmp_adapter_key"),
         ),
         ("open_prep/regime.py", 129, ("_prev_regime",)),
@@ -297,6 +297,11 @@ _FROZEN_SITES: frozenset[tuple[str, int, tuple[str, ...]]] = frozenset(
         # 2026-07-09 (fix/c8-deploy-robust): submit_failed + submitter fields in
         # _empty/_coerce shifted this global anchor +8: 188->196.
         ("services/live_overlay_daemon/evidence_freshness_bridge.py", 196, ("_cached", "_cached_at_monotonic")),
+        # 2026-07-11 (feat/sweep-trap-shadow-grafana): WS4a sweep-trap shadow
+        # snapshot bridge — same TTL-cache singleton pattern (snapshot() +
+        # _reset_cache_for_tests()).
+        ("services/live_overlay_daemon/sweep_trap_shadow_bridge.py", 140, ("_cached", "_cached_at_monotonic")),
+        ("services/live_overlay_daemon/sweep_trap_shadow_bridge.py", 153, ("_cached", "_cached_at_monotonic")),
         ("services/live_overlay_daemon/provider_usage_bridge.py", 129, ("_cached", "_cached_at_monotonic")),
         # 2026-06-24 (feat/railway-metrics): Railway GraphQL bridge for container
         # metrics exposes a lazily-refreshed TTL cache (mirroring uptimerobot).

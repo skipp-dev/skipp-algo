@@ -1,8 +1,8 @@
 """Databento OPRA.PILLAR ingestion wrapper for Unusual Options Activity.
 
-Public surface mirrors ``ingest_unusual_whales.fetch_uw_options_flow`` so
-``streamlit_monitor._cached_bz_options_op`` can swap providers behind a
-feature flag (``ENABLE_OPRA_UOA``) with zero downstream renderer changes.
+Public surface keeps the signature of ``fetch_uw_options_flow`` (UW flow-alerts
+path, REMOVED 2026-05-12) for call-site stability: OPRA is the SOLE provider;
+``ENABLE_OPRA_UOA=0`` disables the feed (empty list, no fallback).
 
 The detector lives in ``newsstack_fmp.opra_uoa`` and is I/O-free; this module
 is the I/O shell that:
@@ -21,8 +21,8 @@ Databento path.
 
 NOTE: This wrapper deliberately accepts an ``api_key`` positional argument
 even though the first parameter is unused by the OPRA path. The signature
-must stay identical to ``fetch_uw_options_flow`` so the monitor's call
-site can stay a single line behind a feature flag. Pass the Databento key
+matches the removed (2026-05-12) ``fetch_uw_options_flow`` so the monitor's
+call site never had to change on the swap. Pass the Databento key
 via the ``DATABENTO_API_KEY`` env var (consumed by ``DabentoProvider``).
 """
 
@@ -186,7 +186,7 @@ def fetch_opra_options_flow(
     Parameters
     ----------
     api_key
-        Ignored (kept for call-site parity with ``fetch_uw_options_flow``).
+        Ignored (call-site parity with the removed ``fetch_uw_options_flow``).
         The Databento key is read from ``DATABENTO_API_KEY`` or the
         ``databento_api_key`` kwarg below.
     tickers

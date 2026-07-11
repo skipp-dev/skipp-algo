@@ -110,7 +110,7 @@ _FROZEN_SITES: frozenset[tuple[str, int]] = frozenset(
         ("newsstack_fmp/ingest_fmp_political.py", 122),
         ("newsstack_fmp/ingest_fmp_political.py", 135),
         ("newsstack_fmp/shared_fetch.py", 337),
-        ("newsstack_fmp/pipeline.py", 1258),  # 2026-07-08 vwap-stub removal shifted (-1: 1259->1258)
+        ("newsstack_fmp/pipeline.py", 1264),  # 2026-07-11 meta-sources de-nest shifted (+6: 1258->1264)
         ("newsstack_fmp/store_sqlite.py", 81),
         ("newsstack_fmp/store_sqlite.py", 86),
         # 2026-07-01: alert candidate/throttle hardening + payload/url guards
@@ -138,8 +138,9 @@ _FROZEN_SITES: frozenset[tuple[str, int]] = frozenset(
         ("open_prep/run_open_prep.py", 2068),  # 2026-07-10: dead today's-earnings eps_surprise_pct removed (2073->2068)
         ("open_prep/run_open_prep.py", 2070),  # (2075->2070)
         ("newsstack_fmp/_bz_http.py", 44),
-        ("terminal_bitcoin.py", 846),
-        ("terminal_bitcoin.py", 848),
+        # 2026-07-11 (truth-audit): removed inert _TECHNICALS_429_TTL + dead 429 branch (-5).
+        ("terminal_bitcoin.py", 841),
+        ("terminal_bitcoin.py", 843),
         # 2026-06-10 (#2670 W3): source-field additions shifted +6 (286 -> 292).
         # 2026-06-19 (timeframe expansion): INTERVAL_MAP/default list additions
         # shifted the throttle sleep site 293 -> 294.

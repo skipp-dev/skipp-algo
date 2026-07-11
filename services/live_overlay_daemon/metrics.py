@@ -28,6 +28,7 @@ from . import (
     provider_usage_bridge,
     railway_metrics,
     request_hotspots,
+    sweep_trap_shadow_bridge,
     uptimerobot_bridge,
 )
 from .market_hours import (
@@ -427,6 +428,15 @@ def _credential_health_snapshot() -> dict[str, object]:
         "loaded": 0.0,
         "overall_severity": "unknown",
         "overall_valid": 0.0,
+        # Freshness of the daily probe report (report ``generated_at`` vs now).
+        # A silently-frozen snapshot (e.g. the publish push failing) otherwise
+        # keeps serving stale-green gauges — the exact 12-day blind spot the
+        # credential-health workflow exists to prevent. age_known == 0 (no
+        # timestamp / no snapshot) reads as not-stale so a fresh daemon with an
+        # absent snapshot does not self-alarm; the ``_loaded``/``absent()`` alert
+        # covers the missing-entirely case instead.
+        "snapshot_age_known": 0.0,
+        "snapshot_age_seconds": 0.0,
         "probes": [],
     }
 
@@ -437,6 +447,19 @@ def _credential_health_snapshot() -> dict[str, object]:
     overall = str(raw.get("overall_severity", "") or "unknown").lower()
     snapshot["overall_severity"] = overall
     snapshot["overall_valid"] = 0.0 if overall == "error" else 1.0
+
+    generated_at = raw.get("generated_at")
+    if isinstance(generated_at, str) and generated_at:
+        try:
+            parsed = datetime.datetime.fromisoformat(generated_at.replace("Z", "+00:00"))
+        except ValueError:
+            parsed = None
+        if parsed is not None:
+            if parsed.tzinfo is None:
+                parsed = parsed.replace(tzinfo=datetime.UTC)
+            age = (datetime.datetime.now(datetime.UTC) - parsed).total_seconds()
+            snapshot["snapshot_age_known"] = 1.0
+            snapshot["snapshot_age_seconds"] = max(0.0, age)
 
     probes = raw.get("probes")
     probe_rows: list[dict[str, object]] = []
@@ -1679,6 +1702,14 @@ def render_metrics(startup_ts: float, startup_epoch: float = 0.0) -> str:
     lines.append("# TYPE live_overlay_credential_health_overall_severity_info gauge")
     overall_severity = _escape_label_value(str(credential["overall_severity"]))
     lines.append(f'live_overlay_credential_health_overall_severity_info{{severity="{overall_severity}"}} 1')
+    lines.append("# TYPE live_overlay_credential_health_snapshot_age_known gauge")
+    lines.append(
+        f"live_overlay_credential_health_snapshot_age_known {_prom_numeric_value(credential['snapshot_age_known'])}"
+    )
+    lines.append("# TYPE live_overlay_credential_health_snapshot_age_seconds gauge")
+    cred_age_value = credential["snapshot_age_seconds"]
+    cred_age_float = float(cred_age_value) if isinstance(cred_age_value, (int, float)) else 0.0
+    lines.append(f"live_overlay_credential_health_snapshot_age_seconds {cred_age_float:.1f}")
 
     probe_rows = credential.get("probes") or []
     if probe_rows:
@@ -1956,6 +1987,12 @@ def render_metrics(startup_ts: float, startup_epoch: float = 0.0) -> str:
     # freeze it replaces.
     lines.extend(_render_evidence_freshness_metrics())
 
+    # Sweep-trap shadow eval (WS4a): Brier-delta + sample accrual toward the
+    # promotion decision, from sweep_trap_shadow_bridge. The detector stays in
+    # shadow (no score weight); these gauges make the evidence + producer
+    # liveness visible instead of buried in a committed JSONL ledger.
+    lines.extend(_render_sweep_trap_shadow_metrics())
+
     # Provider API data-VOLUME (bytes) consumed this month, per REST provider,
     # from the ingest-side usage snapshot. Makes the FMP bandwidth quota (the
     # "90% used" blind spot) visible + alertable; the limit gauge lets the
@@ -2138,4 +2175,53 @@ def _render_evidence_freshness_metrics() -> list[str]:
 
     wsh = snap.get("wsh") or {}
     _emit_age("live_overlay_evidence_wsh_age", str(wsh.get("newest_date", "")))
+    return lines
+
+
+def _render_sweep_trap_shadow_metrics() -> list[str]:
+    """Prometheus gauges for the WS4a sweep-trap shadow eval (Brier-delta + accrual)."""
+    snap = sweep_trap_shadow_bridge.snapshot()
+    lines: list[str] = []
+
+    loaded = _prom_numeric_value(snap.get("loaded", 0.0))
+    lines.append("# TYPE live_overlay_sweep_trap_shadow_loaded gauge")
+    lines.append(f"live_overlay_sweep_trap_shadow_loaded {loaded}")
+
+    # Producer heartbeat: age of the snapshot itself, known only once loaded.
+    # `_stale` is a precomputed 0/1 gauge so the alert threshold isn't the
+    # gt-0-inert trap (a bare comparison whose true-value is 0).
+    generated_at = _prom_numeric_value(snap.get("generated_at_unix", 0.0))
+    age_known = 1.0 if generated_at > 0 else 0.0
+    age = max(0.0, time.time() - generated_at) if generated_at > 0 else 0.0
+    stale = 1.0 if (age_known and age > config.sweep_trap_shadow_max_age_secs()) else 0.0
+    lines.append("# TYPE live_overlay_sweep_trap_shadow_snapshot_age_known gauge")
+    lines.append(f"live_overlay_sweep_trap_shadow_snapshot_age_known {age_known}")
+    lines.append("# TYPE live_overlay_sweep_trap_shadow_snapshot_age_seconds gauge")
+    lines.append(f"live_overlay_sweep_trap_shadow_snapshot_age_seconds {age:.1f}")
+    lines.append("# TYPE live_overlay_sweep_trap_shadow_snapshot_stale gauge")
+    lines.append(f"live_overlay_sweep_trap_shadow_snapshot_stale {stale}")
+
+    # Evidence: Brier delta (>0 = the score adds skill), tercile lift, sample
+    # accrual vs MIN_OOS, and the promotion verdict as a numeric code.
+    lines.append("# TYPE live_overlay_sweep_trap_shadow_brier_delta gauge")
+    lines.append(
+        f"live_overlay_sweep_trap_shadow_brier_delta {_prom_numeric_value(snap.get('brier_delta', 0.0))}"
+    )
+    lines.append("# TYPE live_overlay_sweep_trap_shadow_lift gauge")
+    lines.append(f"live_overlay_sweep_trap_shadow_lift {_prom_numeric_value(snap.get('lift', 0.0))}")
+    lines.append("# TYPE live_overlay_sweep_trap_shadow_sample_count gauge")
+    lines.append(
+        f"live_overlay_sweep_trap_shadow_sample_count {_prom_numeric_value(snap.get('n_samples', 0.0))}"
+    )
+    lines.append("# TYPE live_overlay_sweep_trap_shadow_min_samples gauge")
+    lines.append(
+        f"live_overlay_sweep_trap_shadow_min_samples {_prom_numeric_value(snap.get('min_samples', 0.0))}"
+    )
+    verdict = _escape_label_value(str(snap.get("verdict", "") or "unknown"))
+    lines.append("# TYPE live_overlay_sweep_trap_shadow_verdict_code gauge")
+    lines.append(
+        f'live_overlay_sweep_trap_shadow_verdict_code{{verdict="{verdict}"}} '
+        f"{_prom_numeric_value(snap.get('verdict_code', 0.0))}"
+    )
+
     return lines

@@ -101,7 +101,6 @@ def _hydrate_feed_story_state(
         feed,
         now=now,
         ttl_s=float(getattr(cfg, "live_story_ttl_s", 7200.0) or 7200.0),
-        cooldown_s=float(getattr(cfg, "live_story_cooldown_s", 900.0) or 900.0),
     )
     hydrated: list[dict[str, Any]] = []
     for row in feed:
@@ -136,10 +135,6 @@ def _hydrate_feed_story_state(
         )
         hydrated_row["story_best_provider"] = str(
             hydrated_row.get("story_best_provider") or state.get("best_provider") or ""
-        )
-        hydrated_row["story_cooldown_until"] = _safe_story_float(
-            hydrated_row.get("story_cooldown_until") or state.get("cooldown_until") or 0.0,
-            default=0.0,
         )
         hydrated_row["story_expires_at"] = _safe_story_float(
             hydrated_row.get("story_expires_at") or state.get("expires_at") or 0.0,

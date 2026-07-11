@@ -12,8 +12,8 @@ exposes ``available = False`` and instantiating raises a clear
    exercised by the C12 trigger gate or any production promotion
    path; it ships for offline research only. The C12 / Phase-B
    pipelines route through :class:`EpsilonGreedyTwapAgent` and the
-   deterministic TWAP baseline. Promotion of PPO outputs to live
-   requires a separate sign-off; see ``docs/c12_trigger_runbook.md``.
+   deterministic TWAP baseline. Promotion of PPO outputs to live requires a
+   sign-off; see ``scripts/check_c12_trigger.py`` + ``docs/c8_live_incubation_runbook.md``.
 """
 from __future__ import annotations
 
@@ -37,8 +37,8 @@ logger = logging.getLogger(__name__)
 class PPOSlicer:
     """Production wrapper around ``sb3.PPO`` (EXPERIMENTAL — see module docstring)."""
 
-    #: Marks this agent as research-only; production gates assert that
-    #: no EXPERIMENTAL agent backs a Phase-B promotion (Deep-Review
+    #: Marks this agent as research-only, INTENDED for future promotion
+    #: gates — nothing asserts on this flag yet (2026-07-11; Deep-Review
     #: 2026-04-27). Do not flip without sign-off.
     EXPERIMENTAL: bool = True
     available: bool = _HAS_DEPS

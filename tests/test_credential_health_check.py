@@ -28,6 +28,7 @@ from scripts.credential_health_check import (
     probe_benzinga,
     probe_databento,
     probe_databento_delivery,
+    probe_finnhub,
     probe_fmp,
     probe_github_pat,
     probe_newsapi,
@@ -78,7 +79,9 @@ def test_tv_storage_state_warn_at_80_percent_of_ttl() -> None:
 def test_tv_storage_state_error_when_expired() -> None:
     r = probe_tv_storage_state(_make_cookie(age_hours=90.0), max_age_hours=72.0)
     assert r.severity == "error"
-    assert "EXPIRED" in r.message
+    # Message says STALE (past the self-imposed refresh TTL), not "expired" — the
+    # real cookie may still be valid; only the refresh window elapsed.
+    assert "STALE" in r.message
 
 
 def test_tv_storage_state_error_when_invalid_json() -> None:
@@ -492,6 +495,42 @@ def test_benzinga_puts_key_in_query_string() -> None:
     params = parse_qs(parsed.query)
     assert params.get("token") == ["my-secret-key"], req.full_url
     assert params.get("pageSize") == ["1"], req.full_url
+
+
+def test_finnhub_puts_key_in_query_string() -> None:
+    """Finnhub passes auth via the token query param on the cheapest
+    authenticated endpoint (/quote?symbol=AAPL)."""
+    opener = _fake_opener(status=200, body={})
+    probe_finnhub("my-finnhub-key", opener=opener)
+    all_calls = opener.open.call_args_list
+    assert len(all_calls) == 1, f"probe_finnhub must make exactly one HTTP call; got {len(all_calls)}"
+    req = all_calls[0][0][0]
+    parsed = urlparse(req.full_url)
+    assert parsed.hostname == "finnhub.io", req.full_url
+    assert parsed.path == "/api/v1/quote", req.full_url
+    params = parse_qs(parsed.query)
+    assert params.get("token") == ["my-finnhub-key"], req.full_url
+
+
+def test_finnhub_valid_key_ok() -> None:
+    r = probe_finnhub("good-key", opener=_fake_opener(status=200, body={"c": 100.0}))
+    assert r.severity == "ok"
+    assert r.name == "finnhub_api_key"
+
+
+def test_finnhub_invalid_key_error() -> None:
+    import urllib.error
+    from http.client import HTTPMessage
+
+    exc = urllib.error.HTTPError(
+        url="https://finnhub.io/api/v1/quote",
+        code=401,
+        msg="Unauthorized",
+        hdrs=HTTPMessage(),
+        fp=io.BytesIO(b""),
+    )
+    r = probe_finnhub("bad-key", opener=_fake_opener(raise_exc=exc))
+    assert r.severity == "error"
 
 
 # -- Databento delivery probe -------------------------------------------------

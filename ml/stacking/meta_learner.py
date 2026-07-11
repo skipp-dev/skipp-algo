@@ -1,7 +1,7 @@
 """Stacked meta-learner over per-family probabilities (Sprint C10.1).
 
 The C10 ML layer produces one probability per setup family
-(BOS/CHOCH/OB/FVG-quality). When two families fire on the same bar
+(BOS/OB/FVG/SWEEP). When two families fire on the same bar
 their information is currently combined by ``mean(probs)`` — fine when
 the families are independent, lossy when their joint occurrence is
 itself predictive (e.g. BOS + OB co-occurrence is a stronger setup

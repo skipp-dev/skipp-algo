@@ -7,9 +7,9 @@ dividends/splits/ipos which are dual-transport — see :meth:`fetch_dividends`):
     - Dividends:  ``/api/v2.1/calendar/dividends`` OR Massive ``/v3/reference/dividends``
     - Splits:     ``/api/v2.1/calendar/splits``    OR Massive ``/v3/reference/splits``
     - IPO:        ``/api/v2.1/calendar/ipos``      OR Massive ``/vX/reference/ipos``
-    - Earnings:   ``/api/v2.1/calendar/earnings``  (direct-only; outlook scorer /
-                  movers classifier / open-prep calendar fallback)
-    - Economics:  ``/api/v2.1/calendar/economics`` (direct-only; outlook scorer)
+    - Earnings:   ``/api/v2.1/calendar/earnings``  (direct-only; no live consumer
+                  since #3351 — only the dormant open-prep fallback, fallbacks=())
+    - Economics:  ``/api/v2.1/calendar/economics`` (direct-only; no live consumer)
     - Ratings/Guidance/Retail/Conference Calls: direct-only, no Massive route.
       Retained as library methods, but the terminal calendar tabs/wrappers that
       used them were retired 2026-07-09 (the Benzinga free key is being replaced
@@ -52,7 +52,7 @@ CALENDAR_BASE = "https://api.benzinga.com/api/v2.1/calendar"
 class BenzingaCalendarAdapter:
     """Synchronous adapter for Benzinga Calendar API endpoints.
 
-    All endpoints support delta sync via ``parameters[updated]=<epoch>``.
+    Direct routes: delta sync via ``parameters[updated]``. Massive routes drop it.
     """
 
     def __init__(self, api_key: str) -> None:

@@ -5954,6 +5954,288 @@
       "id": 174576558
     },
     {
+      "id": 3900004,
+      "title": "Benzinga/Massive API Key",
+      "type": "stat",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "grafanacloud-prom"
+      },
+      "description": "Is the Benzinga/Massive news API key valid? Load-bearing since 2026-07-08 (open_prep Core News lane + hourly live-news cron).",
+      "gridPos": {
+        "h": 5,
+        "w": 6,
+        "x": 6,
+        "y": 228
+      },
+      "targets": [
+        {
+          "expr": "live_overlay_credential_health_benzinga_key_valid{job=~\"$job\"}",
+          "legendFormat": "Benzinga/Massive API Key",
+          "instant": true,
+          "datasource": {
+            "type": "prometheus",
+            "uid": "grafanacloud-prom"
+          }
+        }
+      ],
+      "options": {
+        "colorMode": "background",
+        "graphMode": "none",
+        "textMode": "value",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        }
+      },
+      "fieldConfig": {
+        "defaults": {
+          "noValue": "NO DATA",
+          "mappings": [
+            {
+              "type": "value",
+              "options": {
+                "0": {
+                  "text": "INVALID",
+                  "color": "red"
+                },
+                "1": {
+                  "text": "VALID",
+                  "color": "green"
+                }
+              }
+            }
+          ],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "red",
+                "value": null
+              },
+              {
+                "color": "green",
+                "value": 1
+              }
+            ]
+          }
+        },
+        "overrides": []
+      }
+    },
+    {
+      "id": 3900005,
+      "title": "GitHub PAT",
+      "type": "stat",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "grafanacloud-prom"
+      },
+      "description": "Is GH_PAT valid? Used by every workflow that opens auto-PRs, publishes rolling bot snapshots, or refreshes the TV cookie.",
+      "gridPos": {
+        "h": 5,
+        "w": 6,
+        "x": 12,
+        "y": 228
+      },
+      "targets": [
+        {
+          "expr": "live_overlay_credential_health_github_pat_validity_valid{job=~\"$job\"}",
+          "legendFormat": "GitHub PAT",
+          "instant": true,
+          "datasource": {
+            "type": "prometheus",
+            "uid": "grafanacloud-prom"
+          }
+        }
+      ],
+      "options": {
+        "colorMode": "background",
+        "graphMode": "none",
+        "textMode": "value",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        }
+      },
+      "fieldConfig": {
+        "defaults": {
+          "noValue": "NO DATA",
+          "mappings": [
+            {
+              "type": "value",
+              "options": {
+                "0": {
+                  "text": "INVALID",
+                  "color": "red"
+                },
+                "1": {
+                  "text": "VALID",
+                  "color": "green"
+                }
+              }
+            }
+          ],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "red",
+                "value": null
+              },
+              {
+                "color": "green",
+                "value": 1
+              }
+            ]
+          }
+        },
+        "overrides": []
+      }
+    },
+    {
+      "id": 3900006,
+      "title": "GitHub PAT Days Left",
+      "type": "stat",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "grafanacloud-prom"
+      },
+      "description": "Days until GH_PAT expiry (from the token's expiration header). Blank/NO EXPIRY for a no-expiry or fine-grained PAT without a returned expiry.",
+      "gridPos": {
+        "h": 5,
+        "w": 6,
+        "x": 18,
+        "y": 228
+      },
+      "targets": [
+        {
+          "expr": "live_overlay_credential_health_github_pat_validity_days_left{job=~\"$job\"}",
+          "legendFormat": "GH_PAT days left",
+          "instant": true,
+          "datasource": {
+            "type": "prometheus",
+            "uid": "grafanacloud-prom"
+          }
+        }
+      ],
+      "options": {
+        "colorMode": "background",
+        "graphMode": "none",
+        "textMode": "value",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        }
+      },
+      "fieldConfig": {
+        "defaults": {
+          "noValue": "NO EXPIRY",
+          "unit": "d",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "red",
+                "value": null
+              },
+              {
+                "color": "yellow",
+                "value": 7
+              },
+              {
+                "color": "green",
+                "value": 30
+              }
+            ]
+          }
+        },
+        "overrides": []
+      }
+    },
+    {
+      "id": 3900007,
+      "title": "Finnhub API Key",
+      "type": "stat",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "grafanacloud-prom"
+      },
+      "description": "Is the Finnhub API key valid? Optional provider (terminal_finnhub / open_prep macro). Shows NO DATA until FINNHUB_API_KEY is configured \u2014 the probe self-skips when the key is unset.",
+      "gridPos": {
+        "h": 5,
+        "w": 6,
+        "x": 0,
+        "y": 233
+      },
+      "targets": [
+        {
+          "expr": "live_overlay_credential_health_finnhub_api_key_valid{job=~\"$job\"}",
+          "legendFormat": "Finnhub API Key",
+          "instant": true,
+          "datasource": {
+            "type": "prometheus",
+            "uid": "grafanacloud-prom"
+          }
+        }
+      ],
+      "options": {
+        "colorMode": "background",
+        "graphMode": "none",
+        "textMode": "value",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        }
+      },
+      "fieldConfig": {
+        "defaults": {
+          "noValue": "NO DATA",
+          "mappings": [
+            {
+              "type": "value",
+              "options": {
+                "0": {
+                  "text": "INVALID",
+                  "color": "red"
+                },
+                "1": {
+                  "text": "VALID",
+                  "color": "green"
+                }
+              }
+            }
+          ],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "red",
+                "value": null
+              },
+              {
+                "color": "green",
+                "value": 1
+              }
+            ]
+          }
+        },
+        "overrides": []
+      }
+    },
+    {
       "title": "News Provider State Codes",
       "type": "text",
       "description": "Legend for News Provider panels directly below.",

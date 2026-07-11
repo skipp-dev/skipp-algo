@@ -9,15 +9,15 @@ consumers keep working.
 
 Design contract
 ---------------
-- **Input**: a pandas DataFrame of OPRA `trades` records (one row per print)
-  plus a parallel DataFrame of `definition` records (one row per instrument
+- **Input**: an iterable of mapping rows of OPRA `trades` records (one per
+  print) plus a parallel iterable of `definition` rows (one per instrument
   per session) used to map ``instrument_id`` -> (underlying ticker, strike,
   expiration, call/put). The caller is responsible for pulling these from
   Databento via the existing ``databento_provider`` abstraction so this
   module stays I/O-free and unit-testable without a network.
 - **Output**: a list of dicts shaped to match the Benzinga
-  ``options_activity`` field set already produced by
-  ``newsstack_fmp.ingest_unusual_whales.UnusualWhalesAdapter._to_benzinga_shape``,
+  ``options_activity`` field set formerly produced by the UW adapter's
+  ``_to_benzinga_shape`` (that path is removed; kept only as ``_DEPRECATED``),
   so downstream renderers in ``open_prep/streamlit_monitor.py`` need zero
   changes.
 

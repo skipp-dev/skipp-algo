@@ -792,6 +792,7 @@ def poll_live_news_bus(
     state: dict[str, Any] | None = None,
     fmp_api_key: str = "",
     benzinga_api_key: str = "",
+    benzinga_direct_api_key: str = "",
     newsapi_ai_key: str = "",
     include_benzinga: bool = True,
     include_fmp: bool = True,
@@ -856,7 +857,8 @@ def poll_live_news_bus(
                 "benzinga_quantified",
                 fetch_live_news_benzinga_quantified,
                 {
-                    "api_key": benzinga_api_key,
+                    # Direct-Benzinga key: Massive does not resell newsquantified.
+                    "api_key": benzinga_direct_api_key,
                     "symbols": normalized_symbols,
                     "cursor": provider_cursors["benzinga_quantified"],
                     "page_size": page_size,
@@ -1194,6 +1196,7 @@ def export_live_news_snapshot(
     state_path: Path,
     fmp_api_key: str = "",
     benzinga_api_key: str = "",
+    benzinga_direct_api_key: str = "",
     newsapi_ai_key: str = "",
     include_benzinga: bool = True,
     include_fmp: bool = True,
@@ -1218,6 +1221,7 @@ def export_live_news_snapshot(
         state=state,
         fmp_api_key=fmp_api_key,
         benzinga_api_key=benzinga_api_key,
+        benzinga_direct_api_key=benzinga_direct_api_key,
         newsapi_ai_key=newsapi_ai_key,
         include_benzinga=include_benzinga,
         include_fmp=include_fmp,

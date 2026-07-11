@@ -222,6 +222,11 @@ def test_render_metrics_prometheus_format_and_trailing_newline(monkeypatch: pyte
     assert "live_overlay_evidence_ledger_info{plane=" in body
     # §2/§5 per-family sample-progress gauge (the real distance to §5).
     assert "# TYPE live_overlay_evidence_samples_target gauge" in body
+    # WS4a sweep-trap shadow gauges are always emitted (fail-soft to loaded=0),
+    # so lo-sweep-trap-shadow-stale always has a series to evaluate.
+    assert "# TYPE live_overlay_sweep_trap_shadow_loaded gauge" in body
+    assert "# TYPE live_overlay_sweep_trap_shadow_snapshot_stale gauge" in body
+    assert "# TYPE live_overlay_sweep_trap_shadow_verdict_code gauge" in body
 
 
 def test_render_metrics_emits_submit_failed_and_stale_checkout_values(
@@ -254,6 +259,71 @@ def test_render_metrics_emits_submit_failed_and_stale_checkout_values(
     assert "live_overlay_evidence_fills_submit_failed_total 4.0" in body
     assert "live_overlay_evidence_c13_submit_code_behind_commits 7.0" in body
     assert "live_overlay_evidence_c13_submit_code_behind_commits_known 1.0" in body
+
+
+def _sweep_trap_snap(**overrides: object) -> dict:
+    snap = {
+        "loaded": 1.0,
+        "generated_at_unix": 0.0,
+        "date": "2026-07-11",
+        "n_samples": 55.0,
+        "min_samples": 40.0,
+        "brier_delta": 0.031,
+        "lift": 0.12,
+        "verdict": "PROMOTABLE",
+        "verdict_code": 2.0,
+        "error": "",
+    }
+    snap.update(overrides)
+    return snap
+
+
+def test_render_metrics_emits_sweep_trap_shadow_values(monkeypatch: pytest.MonkeyPatch) -> None:
+    """The WS4a shadow snapshot (Brier-delta, lift, sample accrual, verdict) flows
+    into its gauges; a fresh snapshot is not stale."""
+    import time
+
+    import services.live_overlay_daemon.metrics as metrics_mod
+
+    snap = _sweep_trap_snap(generated_at_unix=time.time() - 60.0)
+    monkeypatch.setattr(metrics_mod.sweep_trap_shadow_bridge, "snapshot", lambda: snap)
+
+    body = "\n".join(metrics_mod._render_sweep_trap_shadow_metrics())
+    assert "live_overlay_sweep_trap_shadow_loaded 1.0" in body
+    assert "live_overlay_sweep_trap_shadow_brier_delta 0.031" in body
+    assert "live_overlay_sweep_trap_shadow_lift 0.12" in body
+    assert "live_overlay_sweep_trap_shadow_sample_count 55.0" in body
+    assert "live_overlay_sweep_trap_shadow_min_samples 40.0" in body
+    assert 'live_overlay_sweep_trap_shadow_verdict_code{verdict="PROMOTABLE"} 2.0' in body
+    assert "live_overlay_sweep_trap_shadow_snapshot_age_known 1.0" in body
+    assert "live_overlay_sweep_trap_shadow_snapshot_stale 0.0" in body
+
+
+def test_sweep_trap_shadow_stale_gauge_fires_past_max_age(monkeypatch: pytest.MonkeyPatch) -> None:
+    """The precomputed stale gauge flips to 1 once the snapshot is older than the
+    96h max-age budget — the alertable 0/1 that dodges the gt-0-inert trap."""
+    import time
+
+    import services.live_overlay_daemon.metrics as metrics_mod
+
+    snap = _sweep_trap_snap(generated_at_unix=time.time() - 200 * 3600, verdict="SHADOW", verdict_code=1.0)
+    monkeypatch.setattr(metrics_mod.sweep_trap_shadow_bridge, "snapshot", lambda: snap)
+
+    body = "\n".join(metrics_mod._render_sweep_trap_shadow_metrics())
+    assert "live_overlay_sweep_trap_shadow_snapshot_stale 1.0" in body
+
+
+def test_sweep_trap_shadow_no_data_seed_is_not_stale(monkeypatch: pytest.MonkeyPatch) -> None:
+    """generated_at 0 (the committed no-data seed) → age unknown → stale stays 0,
+    so the alert does not false-fire before the first real run publishes."""
+    import services.live_overlay_daemon.metrics as metrics_mod
+
+    snap = _sweep_trap_snap(generated_at_unix=0.0, verdict="INCONCLUSIVE", verdict_code=0.0, n_samples=0.0)
+    monkeypatch.setattr(metrics_mod.sweep_trap_shadow_bridge, "snapshot", lambda: snap)
+
+    body = "\n".join(metrics_mod._render_sweep_trap_shadow_metrics())
+    assert "live_overlay_sweep_trap_shadow_snapshot_age_known 0.0" in body
+    assert "live_overlay_sweep_trap_shadow_snapshot_stale 0.0" in body
 
 
 def test_render_metrics_health_status_ok(monkeypatch: pytest.MonkeyPatch) -> None:

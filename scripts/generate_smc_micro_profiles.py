@@ -789,10 +789,16 @@ def write_pine_library(
     # read state + action_impact + degradation reason directly instead
     # of recomputing it from STALE_PROVIDERS / PROVIDER_COUNT.
     from scripts.smc_trust_state_export import (
+        attach_trust_state_from_provider_diagnostics,
         render_action_degradation_block_lines,
         render_trust_block_lines,
     )
 
+    # Truth-audit 2026-07-11 (ENG-WS2-02 wire): derive the real trust state
+    # from the enrichment's own per-domain provider diagnostics before
+    # rendering, so the Pine block reflects actual regime/news/calendar/
+    # technical health instead of always falling back to HEALTHY/STALE.
+    attach_trust_state_from_provider_diagnostics(enr)
     content.extend(render_trust_block_lines(enr))
     content.append("")
 

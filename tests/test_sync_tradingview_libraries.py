@@ -7,8 +7,8 @@ Covers the two review findings:
   recursively while skipping hidden directories and ``node_modules``.
 * ``sync_library`` treated the (intentionally) fetch-less
   ``fetch_library_source`` as a hard error on every run. It now validates
-  the already-fetched local copy instead (fetching is delegated to
-  ``scripts/tv_fetch_smc_libraries.ts``).
+  the already-present local copy instead (there is no TV→repo fetch; the
+  repo is the source of truth).
 """
 
 from __future__ import annotations

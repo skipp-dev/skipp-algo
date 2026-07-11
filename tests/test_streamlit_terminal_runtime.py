@@ -6,18 +6,16 @@ from streamlit_terminal_runtime import resolve_live_story_state_kwargs, safe_flo
 
 
 def test_resolve_live_story_state_kwargs_uses_cfg_values() -> None:
-    cfg = SimpleNamespace(live_story_ttl_s=1800.0, live_story_cooldown_s=120.0)
+    cfg = SimpleNamespace(live_story_ttl_s=1800.0)
 
     assert resolve_live_story_state_kwargs(cfg) == {
         "ttl_s": 1800.0,
-        "cooldown_s": 120.0,
     }
 
 
 def test_resolve_live_story_state_kwargs_uses_defaults_without_cfg() -> None:
     assert resolve_live_story_state_kwargs(None) == {
         "ttl_s": 7200.0,
-        "cooldown_s": 900.0,
     }
 
 

@@ -1,6 +1,6 @@
 """Price & Volume Spike Scanner.
 
-Uses FMP API endpoints to detect real-time price and volume spikes:
+Screens a curated yfinance universe first, with FMP API endpoints as fallback:
 - ``/stable/biggest-gainers``  — top price gainers
 - ``/stable/biggest-losers``   — top price losers
 - ``/stable/most-actives``     — highest volume symbols
@@ -86,8 +86,8 @@ except ImportError:
 
 # Curated lists of liquid US tickers for gainers/losers/actives screening.
 # yfinance doesn't have a "top movers" endpoint, so we screen from a broad
-# universe and sort by % change.  This list covers the S&P 500 + popular
-# high-beta / meme / ETF names.
+# universe and sort by % change.  This list is ~100 hand-picked liquid US
+# names (large caps + high-beta / meme / ETF), NOT the full S&P 500.
 _YF_UNIVERSE_CACHE: tuple[float, list[str]] = (0.0, [])
 _YF_UNIVERSE_TTL = 86400  # refresh once/day
 

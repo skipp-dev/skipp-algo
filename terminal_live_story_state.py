@@ -20,7 +20,6 @@ from dataclasses import dataclass
 from typing import Any
 
 DEFAULT_LIVE_STORY_TTL_S = 7200.0
-DEFAULT_LIVE_STORY_COOLDOWN_S = 900.0
 LIVE_STORY_BUCKET_SECONDS = 900
 _HEADLINE_NORMALIZE_RE = re.compile(r"[^a-z0-9]+")
 _MATERIALITY_WEIGHT = {"LOW": 1, "MEDIUM": 2, "HIGH": 3}
@@ -125,7 +124,6 @@ def _build_state_entry(
     story_key: str,
     now: float,
     ttl_s: float,
-    cooldown_s: float,
     previous: dict[str, Any] | None = None,
     action: str,
 ) -> dict[str, Any]:
@@ -183,10 +181,6 @@ def _build_state_entry(
         "news_score": max(float(previous.get("news_score", 0.0) or 0.0), current_score),
         "event_label": str(_get_field(item, "event_label", "") or previous.get("event_label", "") or "").strip(),
         "is_actionable": current_actionable or bool(previous.get("is_actionable", False)),
-        "cooldown_until": max(
-            float(previous.get("cooldown_until", 0.0) or 0.0),
-            float(now) + float(cooldown_s),
-        ),
         "expires_at": max(
             float(previous.get("expires_at", 0.0) or 0.0),
             max(float(now), published_ts) + float(ttl_s),
@@ -203,7 +197,6 @@ def _annotate_item(item: Any, state: dict[str, Any], *, action: str) -> Any:
     _set_field(item, "story_providers_seen", list(state["providers_seen"]))
     _set_field(item, "story_best_source", state["best_source"])
     _set_field(item, "story_best_provider", state["best_provider"])
-    _set_field(item, "story_cooldown_until", state["cooldown_until"])
     _set_field(item, "story_expires_at", state["expires_at"])
     return item
 
@@ -213,7 +206,6 @@ def build_live_story_state_from_feed(
     *,
     now: float | None = None,
     ttl_s: float = DEFAULT_LIVE_STORY_TTL_S,
-    cooldown_s: float = DEFAULT_LIVE_STORY_COOLDOWN_S,
 ) -> dict[str, dict[str, Any]]:
     """Seed live-story state from an existing feed snapshot."""
     if now is None:
@@ -238,16 +230,12 @@ def build_live_story_state_from_feed(
             story_key=story_key,
             now=float(row.get("story_last_seen_ts") or row.get("updated_ts") or row.get("published_ts") or now),
             ttl_s=ttl_s,
-            cooldown_s=cooldown_s,
             previous=previous,
             action=action,
         )
         explicit_first = float(row.get("story_first_seen_ts", 0.0) or 0.0)
         if explicit_first > 0:
             state["first_seen_ts"] = explicit_first
-        explicit_cooldown = float(row.get("story_cooldown_until", 0.0) or 0.0)
-        if explicit_cooldown > 0:
-            state["cooldown_until"] = explicit_cooldown
         explicit_expires = float(row.get("story_expires_at", 0.0) or 0.0)
         if explicit_expires > 0:
             state["expires_at"] = explicit_expires
@@ -276,7 +264,6 @@ def apply_live_story_state(
     *,
     now: float | None = None,
     ttl_s: float = DEFAULT_LIVE_STORY_TTL_S,
-    cooldown_s: float = DEFAULT_LIVE_STORY_COOLDOWN_S,
 ) -> LiveStoryBatchResult:
     """Apply stateful story lifecycle rules to one incoming batch.
 
@@ -310,8 +297,7 @@ def apply_live_story_state(
                 story_key=story_key,
                 now=now,
                 ttl_s=ttl_s,
-                cooldown_s=cooldown_s,
-                previous=None,
+                    previous=None,
                 action=action,
             )
             current_state[story_key] = state
@@ -340,7 +326,6 @@ def apply_live_story_state(
             story_key=story_key,
             now=now,
             ttl_s=ttl_s,
-            cooldown_s=cooldown_s,
             previous=previous,
             action=action,
         )

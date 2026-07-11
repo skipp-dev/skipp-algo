@@ -61,7 +61,14 @@ class Config:
     fmp_api_key: str = field(default_factory=lambda: os.getenv("FMP_API_KEY", ""), repr=False)
 
     # ── Benzinga credentials (repr=False to prevent accidental logging)
+    # ``benzinga_api_key`` is the Massive-transport key (BENZINGA_PROVIDER=massive
+    # routes news/ratings/earnings via api.massive.com). The direct-Benzinga key
+    # is SEPARATE: Massive does not resell the newsquantified analytics pack (404),
+    # so quantified must go direct to api.benzinga.com with this key.
     benzinga_api_key: str = field(default_factory=lambda: os.getenv("BENZINGA_API_KEY", ""), repr=False)
+    benzinga_direct_api_key: str = field(
+        default_factory=lambda: os.getenv("BENZINGA_DIRECT_API_KEY", ""), repr=False
+    )
 
     # ── Additional news credentials ────────────────────────────
     newsapi_ai_key: str = field(default_factory=lambda: os.getenv("NEWSAPI_KEY", ""), repr=False)
@@ -84,8 +91,8 @@ class Config:
     # and replacement code path is the new canonical route. The downstream
     # ``_cached_bz_options_op`` selector still requires ``DATABENTO_API_KEY``
     # to be present, so missing-entitlement environments degrade to an empty
-    # list instead of hitting the dead UW endpoint. Override to 0 only when
-    # explicitly forcing the legacy Benzinga shim during local debug.
+    # list instead of hitting the dead UW endpoint. Override to 0 DISABLES the
+    # options-flow feed entirely (empty feed; no fallback path exists).
     # SSOT: routes through ``open_prep.feature_flags.is_opra_uoa_enabled``
     # (audit-L-1 R4) to keep the four call sites uniform.
     enable_opra_uoa: bool = field(default_factory=is_opra_uoa_enabled)

@@ -104,6 +104,9 @@
 # 2026-07-07 (feat/provider-usage): provider data-volume snapshot fetcher,
 # https-only with explicit timeout= (mirrors the evidence-freshness bridge).
 "services/live_overlay_daemon/provider_usage_bridge.py" = [96]
+# 2026-07-11 (feat/sweep-trap-shadow-grafana): WS4a sweep-trap shadow snapshot
+# fetcher, https-only with explicit timeout= (mirrors the evidence-freshness bridge).
+"services/live_overlay_daemon/sweep_trap_shadow_bridge.py" = [96]
 # 2026-06-23: live-overlay runtime snapshot fetchers in compute.py remain
 # https-only with explicit timeout=. 2026-06-23 (audit follow-up F2/F3):
 # NEWS/SIGNALS/TRADINGVIEW JSON loaders delegate into one shared
@@ -199,9 +202,10 @@ codes = ["S603"]
 # E402 outliers in newsstack_fmp/pipeline.py remain (not covered by per-file-ignores).
 # 2026-06-25: shifted 1231 -> 1234 by RSS watermark comment addition.
 # 2026-07-08: shifted 1234 -> 1233 by vwap-stub removal.
+# 2026-07-11: shifted 1233 -> 1239 by meta-sources de-nest (+6).
 [[noqa_budget.sites]]
 file = "newsstack_fmp/pipeline.py"
-line = 1233
+line = 1239
 codes = ["E402"]
 
 # ruff fix (2026-06-11): added # noqa: RUF007 / RUF012 / F401 suppressions
@@ -246,16 +250,16 @@ codes = ["E402", "I001"]
 [workflow_orphan_inventory]
 # github-mirror-sync.yml (2026-07-01): intentional orphan workflow for
 # repository mirroring; no dedicated test contract yet.
-# sync-tradingview-pine-libraries.yml (2026-07-04): scheduled bi-weekly Pine
-# library sync (WP-3 pine bundle); maintenance workflow, orphan by design
-# with no PR-triggered test contract.
+# sync-tradingview-pine-libraries.yml left the orphan list 2026-07-11: the
+# dead TV→repo Pine-sync workflow was removed (repo is SSOT; see
+# pine/PINE_LIBRARIES_AUDIT.md).
 # openprep-pine-panel-publish.yml left the orphan list 2026-07-09: the
 # setups-join step (data/phase-a-audit fetch + --setups-json) is now pinned
 # by tests/test_generate_openprep_pine_panel.py.
 # openprep-pine-panel-daily-trigger.yml (2026-07-04, post-first-publish):
 # workflow_run bridge that dispatches the publisher after successful daily
 # producer schedule runs on main; intentionally contract-light/orphan.
-allowed = ["github-mirror-sync.yml", "sync-tradingview-pine-libraries.yml", "openprep-pine-panel-daily-trigger.yml"]
+allowed = ["github-mirror-sync.yml", "openprep-pine-panel-daily-trigger.yml"]
 
 # ---------------------------------------------------------------------------
 # test_workflow_set_plus_e_inventory.py — workflows allowed to use
@@ -312,6 +316,11 @@ allowed = ["github-mirror-sync.yml", "sync-tradingview-pine-libraries.yml", "ope
 # that a failed accumulation never marks the rolling-bench run failed; the
 # daily scored_family_events.json artifact is still uploaded as fallback.
 "smc-measurement-benchmark-rolling.yml" = 6
+# sweep-trap-shadow-daily.yml: single guarded step around the shadow eval —
+# the eval's exit CODE is the signal (0/2/3/5), so `set +e` + PIPESTATUS keeps a
+# no_data/shadow/stale run from aborting the step under bash -e; the status is
+# surfaced via ::notice::/step summary and a real error (rc 1) still re-exits.
+"sweep-trap-shadow-daily.yml" = 1
 # workflow-freshness-monitor.yml: single best-effort step that
 # tolerates GitHub API hiccups while polling per-workflow run
 # freshness; outcome is surfaced via the dedicated alert step.
@@ -398,6 +407,15 @@ count = 1
 # wrapper, token-list args, no shell=True, x-access-token remote only.
 [[subprocess_shell_injection_pin.sites]]
 file = "scripts/publish_signals_snapshot.py"
+attr = "run"
+count = 1
+
+# scripts/publish_universe_snapshots.py (truth-audit #5): publishes/restores the
+# durable point-in-time universe snapshot store to bot/live-universe-snapshot.
+# Single `_git` wrapper (git resolved via shutil.which, fixed argv, no shell),
+# x-access-token remote only — same shape as publish_signals_snapshot.
+[[subprocess_shell_injection_pin.sites]]
+file = "scripts/publish_universe_snapshots.py"
 attr = "run"
 count = 1
 
@@ -495,12 +513,15 @@ frozen_major = "v7"
 # (eval-findings B5): +1 budgeted site in open_prep/outcomes.py → 332.
 # ---------------------------------------------------------------------------
 [field_preference_chain_ledger.file_counts]
+# 2026-07-11 (truth-audit #5): benign GH_PAT->GITHUB_TOKEN token-source fallback
+# in the universe-snapshot publisher's main() (same pattern as other bot-publish helpers).
+"scripts/publish_universe_snapshots.py" = 1
 "databento_volatility_screener.py" = 3
 "newsstack_fmp/ingest_benzinga.py" = 4
 "newsstack_fmp/ingest_benzinga_calendar.py" = 1
 "newsstack_fmp/ingest_benzinga_financial.py" = 1
 "newsstack_fmp/ingest_unusual_whales.py" = 13
-"newsstack_fmp/normalize.py" = 48  # 47→48 (2026-07-09): Massive-shape chain (benzinga_id/last_updated) in normalize_benzinga_rest
+"newsstack_fmp/normalize.py" = 49  # 47→48 (2026-07-09): Massive-shape chain in normalize_benzinga_rest; 48→49 (2026-07-11): `Symb or ""` coercion in normalize_benzinga_quantified (real quantified schema)
 "newsstack_fmp/opra_uoa.py" = 6
 "newsstack_fmp/scoring.py" = 1
 "open_prep/alerts.py" = 2
@@ -579,7 +600,8 @@ frozen_major = "v7"
 "terminal_bitcoin.py" = 4
 "terminal_catalyst_state.py" = 3
 "terminal_export.py" = 3
-"terminal_feed_state.py" = 9
+# 2026-07-11 (truth-audit): removed the inert story_cooldown_until hydration chain (9->8).
+"terminal_feed_state.py" = 8
 "terminal_forecast.py" = 1
 "terminal_live_story_state.py" = 2
 "terminal_poller.py" = 2  # 2026-07-10: 4->2 (-2, removed earnings_bmo timing chain + notable_earnings name/timing chains — FMP-earnings BMO-honesty fix)

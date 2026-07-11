@@ -153,14 +153,14 @@ def probe_tv_storage_state(
         return ProbeResult(
             name,
             "error",
-            f"TV storage_state cookie is EXPIRED ({age_hours:.1f}h ≥ {max_age_hours}h TTL) — next publish will fail at preflight",
+            f"TV storage_state is STALE ({age_hours:.1f}h ≥ {max_age_hours}h refresh TTL, NOT the real cookie expiry) — the login may still be valid, but the publish preflight enforces the same TTL and rejects it; re-capture the storage-state",
             details,
         )
     if age_hours >= max_age_hours * WARN_FRACTION:
         return ProbeResult(
             name,
             "warn",
-            f"TV storage_state cookie is approaching expiry ({age_hours:.1f}h ≥ {max_age_hours * WARN_FRACTION:.1f}h, TTL={max_age_hours}h) — schedule manual refresh",
+            f"TV storage_state is approaching the {max_age_hours}h refresh TTL ({age_hours:.1f}h ≥ {max_age_hours * WARN_FRACTION:.1f}h; TTL is self-imposed, login likely still valid) — schedule a re-capture",
             details,
         )
     return ProbeResult(
@@ -592,6 +592,28 @@ def probe_benzinga(key: str, opener: Any = None) -> ProbeResult:
     )
 
 
+def probe_finnhub(key: str, opener: Any = None) -> ProbeResult:
+    """Probe a Finnhub API key.
+
+    Uses ``/quote?symbol=AAPL`` — the cheapest authenticated call and the
+    endpoint family ``terminal_finnhub`` / ``open_prep.macro`` depend on.
+    Finnhub returns HTTP 401 for an invalid/revoked token. Finnhub is an
+    optional provider: ``main`` only invokes this probe when the key is
+    configured, so an unset ``FINNHUB_API_KEY`` never fails the daily cron.
+    """
+    safe_key = (key or "").strip()
+    query = urllib.parse.urlencode({"symbol": "AAPL", "token": safe_key})
+    url = f"https://finnhub.io/api/v1/quote?{query}"
+    return _probe_http_vendor(
+        name="finnhub_api_key",
+        label="Finnhub",
+        key=key,
+        url=url,
+        headers={"Accept": "application/json"},
+        opener=opener,
+    )
+
+
 def probe_newsapi(key: str, opener: Any = None) -> ProbeResult:
     """Probe a NewsAPI (Event Registry / newsapi.ai) key.
 
@@ -698,6 +720,16 @@ def main(argv: list[str] | None = None) -> int:
         help="Skip the Benzinga News API key probe",
     )
     parser.add_argument(
+        "--finnhub-key-env",
+        default="FINNHUB_API_KEY",
+        help="Env var name holding the Finnhub key (default: FINNHUB_API_KEY)",
+    )
+    parser.add_argument(
+        "--skip-finnhub",
+        action="store_true",
+        help="Skip the Finnhub API-key probe",
+    )
+    parser.add_argument(
         "--output",
         help="Write JSON report to this path (in addition to stdout)",
     )
@@ -735,6 +767,15 @@ def main(argv: list[str] | None = None) -> int:
 
     if not args.skip_benzinga:
         results.append(probe_benzinga(os.environ.get(args.benzinga_key_env, "")))
+
+    if not args.skip_finnhub:
+        finnhub_key = os.environ.get(args.finnhub_key_env, "").strip()
+        # Optional provider: only probe when the key is configured. An unset
+        # FINNHUB_API_KEY leaves it unprobed (no gauge, no cron failure) and the
+        # probe self-activates once the secret is set — unlike the core probes
+        # above whose keys must always be present.
+        if finnhub_key:
+            results.append(probe_finnhub(finnhub_key))
 
     if not results:
         # All probes disabled. That is a configuration error.
