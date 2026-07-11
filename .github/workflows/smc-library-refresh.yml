@@ -273,9 +273,39 @@ jobs:
     steps:
       # ── Metadata ────────────────────────────────────────────────
       - name: Set refresh date
+        id: set_refresh_date
         run: |
           echo "REFRESH_DATE=$(date -u +%Y-%m-%d)" >> "$GITHUB_ENV"
           echo "REFRESH_TS=$(date -u +%Y-%m-%dT%H:%M:%SZ)" >> "$GITHUB_ENV"
+          # F-V8-C4.3 (2026-07-11): cross-midnight false-red guard.
+          # REFRESH_DATE is the wall-clock UTC date at *execution* time, not
+          # the tick's scheduled time. When GitHub's scheduler lag pushes the
+          # last nightly consumer tick (cron `0 23 * * 1-5`) past 00:00 UTC,
+          # this step stamps *tomorrow's* date, and the same-date producer
+          # match below then demands a bundle the producer never made — the
+          # producer cron is Mon–Fri, earliest tick 08:00 UTC (see
+          # smc-databento-production-export-sharded.yml), so on a Fri->Sat
+          # crossing a same-date bundle can never exist. The most recent
+          # producer bundle (the prior evening's) is only ~1-2 h old and is
+          # NOT stale, yet the reject-stale guard below used to hard-fail on
+          # it (observed run 29131054927: date step ran 00:02 UTC Sat, demanded
+          # a 2026-07-11 Saturday bundle).
+          #
+          # Arm the reject-stale guard only once a same-date producer bundle is
+          # actually *due*, i.e. the producer's earliest daily tick (08:00 UTC)
+          # has come around. Before that, a missing same-date bundle is normal,
+          # so the guard stays disarmed and the run proceeds from the freshest
+          # bundle (mirroring the workflow_dispatch lane). A genuine daytime
+          # outage (>=08:00 UTC with only a stale fallback) still hard-fails.
+          PRODUCER_FIRST_TICK_UTC_HOUR=8   # keep == earliest producer cron hour
+          REFRESH_UTC_HOUR=$(date -u +%H)
+          if [ "$((10#$REFRESH_UTC_HOUR))" -ge "$PRODUCER_FIRST_TICK_UTC_HOUR" ]; then
+            GUARD=true
+          else
+            GUARD=false
+          fi
+          echo "stale_guard_active=${GUARD}" >> "$GITHUB_OUTPUT"
+          echo "::notice::REFRESH_DATE=$(date -u +%Y-%m-%d), UTC hour=${REFRESH_UTC_HOUR}, stale-fallback guard active=${GUARD} (producer earliest tick ${PRODUCER_FIRST_TICK_UTC_HOUR}:00 UTC)."
 
       - name: Emit runner selection
         run: |
@@ -449,14 +479,35 @@ jobs:
 
       - name: Reject stale Databento fallback on automated refresh
         id: reject_stale_export_fallback
+        # F-V8-C4.3 (2026-07-11): only arm when a same-date producer bundle is
+        # actually due (>=08:00 UTC). The `stale_guard_active` gate suppresses
+        # the cross-midnight false red where a late `0 23 * * 1-5` tick slipped
+        # past 00:00 UTC and REFRESH_DATE rolled to a day the producer has not
+        # (and, on a Fri->Sat crossing, cannot) build yet. See the "Set refresh
+        # date" step comment for the full rationale.
         if: |
           github.event_name != 'workflow_dispatch'
           && steps.restore_export_bundle_today.outputs.found_artifact != 'true'
           && steps.restore_export_bundle_fallback.outputs.found_artifact == 'true'
+          && steps.set_refresh_date.outputs.stale_guard_active == 'true'
         run: |
           set -euo pipefail
           echo "::error file=.github/workflows/smc-library-refresh.yml::Automated library refresh resolved only a fallback Databento export for REFRESH_DATE=${REFRESH_DATE}. Refusing to generate from a stale producer bundle; wait for smc-databento-production-export-sharded to publish today's compat artifact, or rerun manually if an older bundle is intentional."
           exit 1
+
+      - name: Note tolerated overnight Databento fallback
+        # Companion to the reject-stale guard: when the guard is disarmed
+        # (overnight, before the producer's earliest daily tick) and only a
+        # fallback bundle resolved, generation proceeds from the most recent
+        # producer bundle instead of hard-failing. Emit a truthful notice so
+        # the tolerated path is auditable rather than silent.
+        if: |
+          github.event_name != 'workflow_dispatch'
+          && steps.restore_export_bundle_today.outputs.found_artifact != 'true'
+          && steps.restore_export_bundle_fallback.outputs.found_artifact == 'true'
+          && steps.set_refresh_date.outputs.stale_guard_active != 'true'
+        run: |
+          echo "::notice::No same-date producer bundle for REFRESH_DATE=${REFRESH_DATE} yet (overnight tick before the producer's first daily 08:00 UTC run). Proceeding from the most recent producer bundle instead of hard-failing; a genuine daytime staleness (>=08:00 UTC) is still rejected. Root cause: a late nightly consumer tick crossed midnight UTC under GitHub scheduler lag."
 
       # F-V8-D1 (2026-05-14): dawidd6/action-download-artifact@b6e2e70617bc3265edd6dab6c906732b2f1ae151 # v21 with
       # name_is_regexp: true unconditionally nests each downloaded artifact
