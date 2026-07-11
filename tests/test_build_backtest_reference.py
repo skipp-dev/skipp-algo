@@ -100,9 +100,13 @@ def test_build_drift_input_from_audit_filters_unfilled() -> None:
     assert a["variant"] == "smc_breaker_btc"
     assert a["return"] == pytest.approx(1.2)
     assert a["hit"] is True
-    assert a["slippage"] == pytest.approx(0.005)
+    # Truth-audit F1: slippage is now SIGNED BASIS POINTS (same units and
+    # sign convention as the backtest-slippage reference), not a fraction.
+    # (100.5-100)/100 * 1e4 = +50 bps (unfavourable long fill).
+    assert a["slippage"] == pytest.approx(50.0)
     assert c["hit"] is False
-    assert c["slippage"] == pytest.approx(-0.002)
+    # (99.8-100)/100 * 1e4 = -20 bps (favourable long fill).
+    assert c["slippage"] == pytest.approx(-20.0)
 
 
 def test_audit_to_drift_to_compute_live_drift_e2e(tmp_path: Path) -> None:

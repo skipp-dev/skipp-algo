@@ -102,8 +102,8 @@ _VERDICT_BANDS: tuple[tuple[float, str], ...] = (
 # "synthetic_normal"`` and MUST NOT machine-pass a promotion criterion —
 # the phase evaluator treats synthetic references as not-evaluable.
 # Replace with broker-fill calibration before trusting the KS p-value.
-_DEFAULT_EXPECTED_SLIPPAGE_MEAN = 0.005  # 0.5% per the sprint plan (placeholder)
-_DEFAULT_EXPECTED_SLIPPAGE_STD = 0.003  # uncited placeholder
+_DEFAULT_EXPECTED_SLIPPAGE_MEAN = 50.0  # 50 bps (=0.5%) placeholder; bps to match live/reference units (truth-audit F1)
+_DEFAULT_EXPECTED_SLIPPAGE_STD = 30.0  # 30 bps (=0.3%) uncited placeholder
 _TRADING_DAYS_PER_YEAR = 252
 
 # Drift-artifact schema version (Deep-Review C8 MAJOR finding 2026-04-27).
@@ -380,8 +380,9 @@ def compute_live_drift(
 
     Each live row must carry at least ``variant`` and ``return`` (the
     realised per-trade return as a fraction, e.g. R-multiple / position
-    size).  Optional keys: ``slippage`` (per-trade slippage as a
-    fraction), ``hit`` (bool, 1 = trade was a winner).
+    size).  Optional keys: ``slippage`` (per-trade slippage in signed
+    basis points, same units/sign as the backtest reference — see
+    ``build_drift_input_from_audit``), ``hit`` (bool, 1 = winner).
 
     ``backtest_reference`` is a ``{variant: {sharpe, hit_rate_ci_low,
     hit_rate_ci_high}}`` dict, typically the C2 walk-forward + C3
@@ -428,9 +429,11 @@ def compute_live_drift(
         # that never touch the slippage path.
         from scripts.build_backtest_slippage_samples import (
             expand_to_variant_samples,
+            expand_to_variant_sources,
         )
 
         per_variant = expand_to_variant_samples(slip_payload, grouped.keys())
+        per_variant_source = expand_to_variant_sources(slip_payload, grouped.keys())
         if per_variant:
             merged: dict[str, dict[str, Any]] = {
                 k: dict(v) for k, v in (backtest_reference or {}).items()
@@ -438,6 +441,15 @@ def compute_live_drift(
             for variant, samples in per_variant.items():
                 slot = merged.setdefault(variant, {})
                 slot["slippage_samples"] = samples
+                # Truth-audit F2 (2026-07-11): carry the sample provenance
+                # so the K-S reference type is labelled honestly. Only
+                # genuinely real-fill-derived samples may map to
+                # ``backtest_samples`` (the sole machine-evaluable type);
+                # ``replay``/``mixed`` samples are synthetic in whole or
+                # part and MUST NOT launder into a promotion machine-pass.
+                slot["slippage_samples_source"] = per_variant_source.get(
+                    variant, "real_fills"
+                )
             backtest_reference = merged
     when = (now or datetime.now(UTC)).isoformat()
     verdicts: list[dict[str, Any]] = []
@@ -603,7 +615,16 @@ def compute_live_drift(
                     ) if s is not None
                 ]
                 if ref_sample:
-                    slippage_ref_type = "backtest_samples"
+                    # F2: only pure real-fill samples are a real backtest
+                    # reference; replay/mixed carry synthetic draws and are
+                    # labelled distinctly so the phase evaluator refuses to
+                    # machine-pass on them.
+                    ref_source = ref.get("slippage_samples_source", "real_fills")
+                    slippage_ref_type = (
+                        "backtest_samples"
+                        if ref_source == "real_fills"
+                        else f"{ref_source}_samples"
+                    )
             if not ref_sample:
                 ref_n = max(len(slippage), 100)
                 rng = np.random.default_rng(seed=12345)
