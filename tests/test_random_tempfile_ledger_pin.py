@@ -114,7 +114,7 @@ _TEMPFILE_LEDGER: frozenset[tuple[str, int, str]] = frozenset({
     # 2026-07-03 (WP-3 sample_dates helper): +1 -> 604.
     # 2026-07-04 (market-microstructure observe-only): snapshot fields +
     # FEATURE_KEYS/PASS_THROUGH entries +16 -> 620.
-    ("open_prep/outcomes.py", 704, "mkstemp"),  # 2026-07-10: recent_eps_surprise observe-feature (697->711); dead eps_surprise_pct observe-col removed (711->704)
+    ("open_prep/outcomes.py", 713, "mkstemp"),  # 2026-07-10: recent_eps_surprise observe-feature (697->711); dead eps_surprise_pct observe-col removed (711->704); 2026-07-11 social_sentiment FI pass-through +9 (704->713)
     # 2026-07-03 (WP-4 holiday gate): +2 (import) then +8 below the gate.
     ("open_prep/realtime_signals.py", 119, "mkstemp"),
     # 2026-06-25: AsyncNewsstackPoller telemetry additions shifted
