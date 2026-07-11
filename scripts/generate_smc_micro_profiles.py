@@ -1094,18 +1094,27 @@ def write_pine_library(
         w = float(zpc.get(fam, _ZP_FALLBACK.get(fam, 0.50)))
         content.append(f"export const float ZONE_CAL_{fam} = {w:.4f}")
 
-    # ── Phase F: Session-adjusted calibration weights ────────────
+    # ── Phase F: Session/vol-adjusted calibration weights ────────────
+    # HONESTY NOTE (truth-audit 2026-07-11): no producer currently sets the
+    # ``zone_priority_contextual_calibration`` enrichment key — build_enrichment
+    # loads only the GLOBAL ``zone_priority_calibration.json``. So ``ctx_weights``
+    # is empty and every ZONE_CAL_<FAM>_<SESSION>/<VOL> constant below falls back
+    # to the GLOBAL ZONE_CAL_<FAM> weight: these constants currently MIRROR the
+    # global calibration byte-for-byte — they are NOT yet session/vol specific.
+    # The emitted banner says so, so Pine consumers aren't misled. To make them
+    # actually differ, wire a contextual-calibration producer into build_enrichment
+    # (and promote the JSON out of its frozen ``status: shadow`` state).
     zpc_ctx = enr.get("zone_priority_contextual_calibration") or {}
     ctx_weights = zpc_ctx.get("contextual_weights", {})
+    _ctx_live = any(ctx_weights.get(_k) for _k in ("session", "vol_regime"))
     content.append("")
-    content.append("// ── Contextual Calibration (Phase F) ──")
-    # Q3 F1 wiring: the session taxonomy upstream is now ASIA / LONDON /
-    # NY_AM (see scripts/smc_zone_priority_calibration.py). The legacy
-    # RTH/ETH keys never matched any bucket, so previously every
-    # ZONE_CAL_<FAM>_RTH/ETH constant emitted the global fallback. We
-    # now emit one constant per actual session bucket so the
-    # NY_AM-specific FVG calibration (~0.50 vs ASIA ~0.69, see
-    # docs/FVG_LABEL_AUDIT_Q3.md §2) reaches Pine consumers.
+    if _ctx_live:
+        content.append("// ── Contextual Calibration (Phase F) ──")
+    else:
+        content.append(
+            "// ── Contextual Calibration (Phase F) — MIRRORS GLOBAL "
+            "(no contextual producer wired; values equal ZONE_CAL_<FAM>) ──"
+        )
     session_buckets = ctx_weights.get("session", {})
     session_keys = sorted(session_buckets.keys()) if session_buckets else ("ASIA", "LONDON", "NY_AM")
     for session in session_keys:
