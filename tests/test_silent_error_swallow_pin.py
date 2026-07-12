@@ -77,8 +77,10 @@ _FROZEN_SITES: dict[str, int] = {
     # failure must never block a guard decision. See HardConstraintLayer._log.
     "rl/safety/__init__.py": 1,
     # 2026-06-25 feat/benzinga-rss: one measurement_evidence swallow was
-    # replaced with logger.debug(exc_info=...); one intentional swallow remains.
-    "smc_integration/measurement_evidence.py": 1,
+    # replaced with logger.debug(exc_info=...); one intentional swallow remained.
+    # 2026-07-12 fix/sweep-reaction-truth-fixes: that last Phase B/C swallow now
+    # logs via logger.debug(exc_info=True) too (Finding #8), so the file has zero
+    # silent swallows and its entry is removed (per test_no_removed_except_pass_files).
 }
 
 _FROZEN_TOTAL = sum(_FROZEN_SITES.values())

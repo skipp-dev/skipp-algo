@@ -2454,7 +2454,8 @@ groups:
       summary: The WS4a sweep-trap shadow eval has not published a fresh snapshot within its max-age budget
       runbook: The daily sweep-trap-shadow-daily workflow has not refreshed
         artifacts/monitoring/sweep_trap_shadow.json within OVERLAY_SWEEP_TRAP_SHADOW_MAX_AGE_SECS.
-        Check the sweep-trap-shadow-daily workflow and the bot/sweep-trap-shadow-ledger branch.
+        Check the sweep-trap-shadow-daily workflow runs and their auto-PRs (each run pushes a
+        dynamic bot/sweep-trap-shadow-ledger-<run_id>-<attempt> branch; no static branch exists).
         Observe-only — no score impact; a stale snapshot only means the promotion evidence stopped accruing.
   - uid: lo-sweep-trap-shadow-promotable
     title: Sweep-trap shadow verdict is PROMOTABLE (WS4b candidate)

@@ -87,7 +87,9 @@ _FROZEN_SITE_COUNTS: dict[str, int] = {
     "rl/safety/__init__.py": 1,
     # 2026-06-25 feat/benzinga-rss: one broad-silent handler in
     # measurement_evidence was upgraded to debug logging.
-    "smc_integration/measurement_evidence.py": 1,
+    # 2026-07-12 fix/sweep-reaction-truth-fixes: the remaining Phase B/C broad-silent
+    # handler now logs via logger.debug(exc_info=True) (Finding #8) — file has zero
+    # broad-silent sites, entry removed (cleanup is the good outcome).
     # 2026-07-08 NearA0Repoller: per-symbol `except Exception: continue` in the
     # fast-lane detect loop — one bad symbol must never sink the whole batch.
     "open_prep/realtime_signals.py": 1,

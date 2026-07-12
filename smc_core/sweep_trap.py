@@ -14,7 +14,12 @@ This module provides:
   I/O, no global state.
 * :func:`detect_sweep_trap` — SMC v2 signal-quality enrichment wrapper that
   reads the lean ``liquidity_sweeps`` block and returns a neutral/detected
-  verdict with a 0-100 confidence score.
+  verdict with a 0-100 confidence score. NOTE: despite the ``SWEEP_TRAP_DETECTED``
+  name, this wrapper only flags a *candidate* — a present sweep with a poor coarse
+  ``SWEEP_QUALITY_SCORE``. It sees NO post-sweep bars and checks NO reclaim; the
+  actual reclaim classification is :func:`classify_sweep_trap`. (A ``SWEEP_TRAP
+  _CANDIDATE`` rename is pending; the flag currently downgrades signal freshness
+  in ``scripts/smc_signal_quality.py``.)
 
 Integration point
 -----------------
@@ -51,10 +56,6 @@ IMMEDIATE_RECLAIM_BARS: int = 3
 #: Maximum bars for a *delayed* reclaim; anything beyond = *failed*.
 DELAYED_RECLAIM_BARS: int = 12
 
-#: Minimum close-back-above/below fraction of the sweep body to count as a
-#: reclaim.  Below this threshold the close is a wick test, not a reclaim.
-MIN_RECLAIM_CLOSE_FRACTION: float = 0.50
-
 
 @dataclass(frozen=True, slots=True)
 class SweepTrapResult:
@@ -72,10 +73,11 @@ class SweepTrapResult:
         ``"delayed"`` — reclaim within 4–12 bars.
         ``"failed"`` — reclaim after 12 bars, or none within the available data.
     reclaim_strength:
-        0.0–1.0.  How far the best reclaim close moved back THROUGH the swept
-        level, as a fraction of the sweep body: ``|swept_level -
-        close_reclaim| / |sweep_extreme - swept_level|``, clipped to [0, 1].
-        ``0.0`` for failed traps.
+        0.0–1.0.  How far the FIRST reclaim close (the classifier stops at the
+        first bar that closes back through the level, not the deepest one) moved
+        back THROUGH the swept level, as a fraction of the sweep body:
+        ``|swept_level - close_reclaim| / |sweep_extreme - swept_level|``, clipped
+        to [0, 1].  ``0.0`` for failed traps.
     fib_retrace_depth:
         0.0–1.0.  Penetration depth of the SWEEP CANDLE itself: ``|sweep_extreme
         - swept_level| / |swept_level - origin_level|``, clipped to [0, 1].
@@ -153,24 +155,28 @@ def classify_sweep_trap(
     fib_range: float = abs(swept_level - origin_level)
 
     reclaim_bar_idx: int = -1
-    best_reclaim_close: float | None = None
+    first_reclaim_close: float | None = None
 
     for idx, bar in enumerate(post_sweep_bars):
+        # NOTE: this reclaim uses a STRICT level-cross (``>`` / ``<``). That is a
+        # different threshold from reaction_zone's inclusive level-touch (``>=`` /
+        # ``<=``) and from label_sweep_reversal's OUTCOME (which also needs ~0.5%
+        # follow-through). The three are intentionally distinct — do not unify blindly.
         close: float = float(bar["close"])
         if is_bullish_sweep:
             # Bullish setup: swing low swept; reclaim = close back *above* it.
             if close > swept_level:
                 reclaim_bar_idx = idx
-                best_reclaim_close = close
+                first_reclaim_close = close
                 break
         else:
             # Bearish setup: swing high swept; reclaim = close back *below* it.
             if close < swept_level:
                 reclaim_bar_idx = idx
-                best_reclaim_close = close
+                first_reclaim_close = close
                 break
 
-    if reclaim_bar_idx == -1 or best_reclaim_close is None:
+    if reclaim_bar_idx == -1 or first_reclaim_close is None:
         return SweepTrapResult(
             sweep_reclaim_bars=-1,
             trap_type="failed",
@@ -201,9 +207,9 @@ def classify_sweep_trap(
 
     # Reclaim strength: fraction of sweep body recovered (back through swept_level).
     if is_bullish_sweep:
-        recovered: float = best_reclaim_close - swept_level
+        recovered: float = first_reclaim_close - swept_level
     else:
-        recovered = swept_level - best_reclaim_close
+        recovered = swept_level - first_reclaim_close
     reclaim_strength: float = max(0.0, min(1.0, recovered / sweep_body))
 
     # Fib retrace depth: how deeply did price retrace from swept_level toward origin?
@@ -243,7 +249,12 @@ def classify_sweep_trap(
 
 
 def detect_sweep_trap(enrichment: dict[str, Any] | None = None) -> dict[str, Any]:
-    """Detect a sweep-trap condition from enrichment data.
+    """Flag a sweep-trap *candidate* from enrichment data (not a confirmed reclaim).
+
+    ``SWEEP_TRAP_DETECTED`` fires when a sweep is present with a poor coarse
+    ``SWEEP_QUALITY_SCORE``. It inspects NO post-sweep bars and verifies NO
+    reclaim — the true reclaim classification lives in :func:`classify_sweep_trap`.
+    Treat the flag as "candidate" pending a ``SWEEP_TRAP_CANDIDATE`` rename.
 
     Parameters
     ----------
