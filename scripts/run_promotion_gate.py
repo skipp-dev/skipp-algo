@@ -228,6 +228,36 @@ def _report_exit_code(report: dict[str, Any]) -> int:
     return 2
 
 
+def _demote_survivorship_biased_run(decisions: list[dict[str, Any]]) -> None:
+    """Flip every decision to not-promoted with an explicit provenance blocker.
+
+    The universe fell back to the live vendor (survivorship_bias_risk), so no
+    family's promotion is trustworthy. The exit code alone (rc 2) protects
+    wrapping CI, but the report artifact is also read by humans — the
+    decision-first panel and ``family_verdict`` render ``promoted`` directly, so
+    an unmutated report shows PROMOTED for a run the gate refused to promote.
+    Mutate the decisions in place so every consumer agrees; all metrics stay in
+    the report, we only append the blocking reason. Uses the ``provenance.``
+    check-name prefix (already inventory-whitelisted) for consistency with the
+    gate's W1.a provenance blockers. No-op on a vacuous (empty) run — the
+    exit-code guard in ``main`` still demotes that case.
+    """
+    for decision in decisions:
+        decision["promoted"] = False
+        blockers = decision.setdefault("blockers", [])
+        blockers.append({
+            "check": "provenance.universe_survivorship_bias_risk",
+            "severity": "blocker",
+            "observed": None,
+            "threshold": 0.0,
+            "message": (
+                "universe fell back to the live vendor (survivorship-biased); "
+                "refusing to PROMOTE — persist/forward-fill the as-of snapshot "
+                "and re-run (#3453)"
+            ),
+        })
+
+
 def _archive_stamp(generated_at: str) -> str:
     """Filename-safe UTC stamp derived from the report's generated_at field."""
     # Strip timezone offset / fractional seconds and any trailing 'Z', then
@@ -437,6 +467,8 @@ def main(argv: list[str] | None = None) -> int:
         magnitude_strict_families=policy.armed_families,
     )
     report["universe_survivorship_bias_risk"] = survivorship_bias_risk
+    if survivorship_bias_risk:
+        _demote_survivorship_biased_run(report["decisions"])
     atomic_write_json(report, args.output, indent=2, sort_keys=False)
     archive_path = _archive_report(report, args.archive_dir)
     if archive_path is not None:
@@ -444,11 +476,14 @@ def main(argv: list[str] | None = None) -> int:
     print(json.dumps(report, indent=2))
     exit_code = _report_exit_code(report)
     # Default enforcement: never PROMOTE a survivorship-biased run (snapshot
-    # absent -> live-vendor fallback). Demote-not-promote (rc 2) — the full report
-    # is still emitted/archived for observation, and the databento forward-fill
-    # (#3453) persists the as-of snapshot so a re-run for the same trade_date
-    # clears the flag and promotes normally. --strict-universe still hard-fails.
-    if survivorship_bias_risk and exit_code == 0:
+    # absent -> live-vendor fallback). The decisions were demoted above so the
+    # artifact and panels agree; force rc 2 here too, which also covers a vacuous
+    # (empty-decisions) run that _report_exit_code would call rc 0. The full
+    # report is still emitted/archived for observation, and the databento
+    # forward-fill (#3453) persists the as-of snapshot so a re-run for the same
+    # trade_date clears the flag and promotes normally. --strict-universe still
+    # hard-fails.
+    if survivorship_bias_risk:
         print(
             "BLOCKED: universe fell back to the live vendor "
             "(survivorship_bias_risk=True); refusing to PROMOTE a survivorship-"
