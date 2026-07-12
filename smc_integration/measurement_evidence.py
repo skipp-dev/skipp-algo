@@ -69,6 +69,9 @@ _SWEEP_LOOKAHEAD_BARS = 8
 # window (bars N+1..lookahead) so a confirmation is never part of its own label.
 _REACTION_CONFIRM_WINDOW_BARS = 3
 _REACTION_SCHEMA_VERSION = 1
+# Sweep-trap shadow study schema. v1 = first leakage-free emission (trap features
+# confirmed on bars 1..N, paired with the disjoint ``sweep_trap_outcome_late``).
+_SWEEP_TRAP_SCHEMA_VERSION = 1
 _BOS_FOLLOW_THROUGH_THRESHOLD_PCT = 0.003
 _SWEEP_REVERSAL_THRESHOLD_PCT = 0.005
 _SQ_LOOKBACK_BARS = 64
@@ -1473,18 +1476,29 @@ def _evaluate_sweep_event(
                 for _, r in future.iterrows()
             ]
             if is_sweep_trap_enabled():
+                # Leakage-free split (mirrors the reaction-zone study): classify the
+                # trap on the CONFIRMATION window (bars 1..N) only, and pair it with a
+                # DISJOINT late outcome (bars N+1..lookahead). Before this the trap
+                # reclaim timing/strength were derived from the same 8-bar window that
+                # produced the reversal label -> target leakage; prior Brier/lift are
+                # not valid promotion evidence.
                 trap = classify_sweep_trap(
                     swept_level=swept_level,
                     sweep_extreme=sweep_extreme,
                     origin_level=origin_level,
                     is_bullish_sweep=is_bullish,
-                    post_sweep_bars=post_sweep_bars,
+                    post_sweep_bars=post_sweep_bars[:_REACTION_CONFIRM_WINDOW_BARS],
                 )
+                trap_late_closes = [b["close"] for b in post_sweep_bars[_REACTION_CONFIRM_WINDOW_BARS:]]
+                features["sweep_trap_schema_version"] = _SWEEP_TRAP_SCHEMA_VERSION
                 features["sweep_trap_type"] = trap.trap_type
                 features["sweep_trap_reclaim_bars"] = trap.sweep_reclaim_bars
                 features["sweep_trap_reclaim_strength"] = round(trap.reclaim_strength, 4)
                 features["sweep_trap_fib_retrace"] = round(trap.fib_retrace_depth, 4)
                 features["sweep_trap_quality_score"] = round(trap.trap_quality_score, 4)
+                features["sweep_trap_outcome_late"] = label_sweep_reversal(
+                    price, side, trap_late_closes, threshold_pct=_SWEEP_REVERSAL_THRESHOLD_PCT
+                )
             if is_reaction_zone_enabled():
                 # Reaction confirmation on the FIRST window (bars 1..N); follow-through
                 # outcome on the DISJOINT later window (bars N+1..lookahead). Keeping the

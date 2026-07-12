@@ -4,10 +4,12 @@
 Reads the measurement event ledgers (``events_*.jsonl``), pulls the SWEEP-family
 events that carry the observe-only ``sweep_trap_quality_score`` feature (logged
 when ``ENABLE_SWEEP_TRAP=1``), and measures whether that score has skill at
-predicting the sweep-reversal ``outcome``:
+predicting the DISJOINT late-window label ``sweep_trap_outcome_late`` (the
+follow-through on bars N+1..lookahead; the quality is confirmed on bars 1..N, so
+the two windows never overlap — no target leakage):
 
-* ``brier_signal``   — Brier of ``sweep_trap_quality_score`` vs ``outcome``
-* ``brier_baseline`` — Brier of the pooled base-rate vs ``outcome``
+* ``brier_signal``   — Brier of ``sweep_trap_quality_score`` vs the late outcome
+* ``brier_baseline`` — Brier of the pooled base-rate vs the late outcome
 * ``brier_delta``    — ``baseline - signal`` (>0 ⇒ the score adds skill)
 * ``lift``           — top-tercile minus bottom-tercile reversal hit-rate
 
@@ -42,19 +44,28 @@ from scripts.smc_atomic_write import atomic_write_json, atomic_write_text
 DEFAULT_LEDGER = "artifacts/governance/sweep_trap_shadow.jsonl"
 DEFAULT_SNAPSHOT = "artifacts/monitoring/sweep_trap_shadow.json"
 QUALITY_KEY = "sweep_trap_quality_score"
+OUTCOME_KEY = "sweep_trap_outcome_late"  # disjoint late-window label (leakage-free)
 
 VERDICT_CODE = {"INCONCLUSIVE": 0, "SHADOW": 1, "PROMOTABLE": 2}
 
 
 # ── sample extraction ────────────────────────────────────────────────────────
 def collect_samples(events: list[dict[str, Any]]) -> list[tuple[float, int]]:
-    """Return ``(quality, outcome)`` pairs for SWEEP events carrying the score."""
+    """Return ``(quality, outcome)`` pairs for SWEEP events carrying the score.
+
+    Leakage-free contract: the label is ``sweep_trap_outcome_late`` (the
+    follow-through on the DISJOINT later window), NOT the full-window
+    ``ScoredEvent.outcome`` — the trap quality is confirmed on bars 1..N and
+    the outcome on bars N+1..lookahead. Records emitted before the leakage fix
+    lack ``sweep_trap_outcome_late`` and are excluded so their leaky Brier/lift
+    can never count as promotion evidence.
+    """
     out: list[tuple[float, int]] = []
     for ev in events:
         if str(ev.get("family", "")).upper() != "SWEEP":
             continue
         feats = ev.get("features") or {}
-        if QUALITY_KEY not in feats:
+        if QUALITY_KEY not in feats or OUTCOME_KEY not in feats:
             continue
         try:
             q = float(feats[QUALITY_KEY])
@@ -62,7 +73,7 @@ def collect_samples(events: list[dict[str, Any]]) -> list[tuple[float, int]]:
             continue
         if not (0.0 <= q <= 1.0):
             continue
-        out.append((q, 1 if ev.get("outcome") else 0))
+        out.append((q, 1 if feats.get(OUTCOME_KEY) else 0))
     return out
 
 

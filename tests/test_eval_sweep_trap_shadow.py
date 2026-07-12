@@ -17,7 +17,13 @@ from scripts.eval_sweep_trap_shadow import (
 
 
 def _sweep(q: float, outcome: int) -> dict:
-    return {"family": "SWEEP", "outcome": bool(outcome), "features": {"sweep_trap_quality_score": q}}
+    # Leakage-free: the label lives in features as the disjoint late outcome; the
+    # top-level ``outcome`` (full-window) is intentionally NOT what the eval reads.
+    return {
+        "family": "SWEEP",
+        "outcome": bool(outcome),
+        "features": {"sweep_trap_quality_score": q, "sweep_trap_outcome_late": bool(outcome)},
+    }
 
 
 def _skillful(n_each: int) -> list[dict]:
@@ -29,11 +35,25 @@ class TestCollectSamples:
     def test_filters_family_and_missing_score(self) -> None:
         events = [
             _sweep(0.8, 1),
-            {"family": "FVG", "outcome": True, "features": {"sweep_trap_quality_score": 0.9}},  # wrong family
+            {"family": "FVG", "outcome": True,
+             "features": {"sweep_trap_quality_score": 0.9, "sweep_trap_outcome_late": True}},  # wrong family
             {"family": "SWEEP", "outcome": True, "features": {}},  # no score
-            {"family": "SWEEP", "outcome": False, "features": {"sweep_trap_quality_score": 1.5}},  # out of range
+            {"family": "SWEEP", "outcome": False,
+             "features": {"sweep_trap_quality_score": 1.5, "sweep_trap_outcome_late": False}},  # out of range
+            # Pre-leakage-fix record: has the score but no disjoint late outcome -> excluded.
+            {"family": "SWEEP", "outcome": True, "features": {"sweep_trap_quality_score": 0.7}},
         ]
         assert collect_samples(events) == [(0.8, 1)]
+
+    def test_late_outcome_is_the_label_not_full_window_outcome(self) -> None:
+        # Top-level full-window outcome disagrees with the disjoint late outcome;
+        # the evaluator must use the late outcome (leakage-free contract).
+        ev = {
+            "family": "SWEEP",
+            "outcome": True,  # full-window reversal hit (would be leaky)
+            "features": {"sweep_trap_quality_score": 0.6, "sweep_trap_outcome_late": False},
+        }
+        assert collect_samples([ev]) == [(0.6, 0)]
 
 
 class TestEvaluate:
