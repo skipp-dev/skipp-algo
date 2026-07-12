@@ -12,11 +12,11 @@ TradingView-credential snapshots are likewise *_URL-fetchable at runtime.
 Field definitions (matching spec/smc_live_overlay.schema.json):
   news_strength        — [0.0, 1.0] composite news sentiment magnitude for symbol
   news_bias            — "BULLISH" | "BEARISH" | "NEUTRAL" | null
-  flow_rel_vol         — volume(current bar) / avg_volume(rolling window)
+  flow_rel_vol         — volume(current bar) / mean volume(prior bars in window)
   flow_delta_proxy_pct — (close - open) / open × 100 for most recent bar
-  squeeze_on           — int 0/1 on the JSON wire (1 = BB width < ATR threshold; null when unknown)
+  squeeze_on           — int 0/1 on the JSON wire (1 = BB width < KC width; null when unknown)
   ats_state            — "accumulation" | "distribution" | "neutral" | null
-  ats_zscore           — z-score of last-bar volume vs rolling mean
+  ats_zscore           — z-score of last-bar volume vs mean of prior bars
   vix_level            — latest VIX level (from VIX symbol bars)
   tone                 — "BULLISH" | "BEARISH" | "NEUTRAL" (market-wide)
   global_heat          — [-1.0, 1.0] directional news heat (positive = bullish)
@@ -1219,7 +1219,7 @@ def compute_squeeze_on(bars: list[dict[str, Any]], period: int = 20) -> bool | N
 
 def compute_ats_fields(bars: list[dict[str, Any]]) -> dict[str, Any]:
     """
-    ATS (Automatic Trading System) state:
+    ATS (accumulation/distribution read, NOT average-trade-size) state:
       ats_state  — "accumulation" | "distribution" | "neutral"
       ats_zscore — z-score of most recent bar's volume vs rolling avg
 
@@ -1313,7 +1313,7 @@ def _get_signal_fields(symbol: str) -> dict[str, Any]:
     """Realtime signal + ATR trade context for ``symbol`` from the signals snapshot.
 
     Picks the strongest (then freshest) active A0/A1/A2 signal for the symbol
-    and passes its trade_* fields through unchanged — they are computed ONCE in
+    and passes its trade_* fields through (nulled when non-positive) — computed ONCE in
     the producer (open_prep/trade_context.py), so the Pine overlay shows the
     same numbers as the Slack push. All-null when the symbol has no active
     signal, the snapshot is unavailable, or the producer predates the fields.
