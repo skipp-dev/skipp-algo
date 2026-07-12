@@ -93,6 +93,7 @@ A2_PRICE_CHANGE_PCT_MIN = 0.15   # 0.15% for A2 early warning
 MAX_SIGNAL_AGE_SECONDS = 480     # 8 min total signal life (was 15 — still too long)
 A0_MAX_AGE_SECONDS = 180         # A0 → A1 after 3 min (was 5 — stale A0s)
 A1_MAX_AGE_SECONDS = 300         # A1 → A2 after 5 min (was 10)
+DATA_STALL_SECONDS = 300         # market-hours gap w/o a non-empty FMP fetch → data_stale=1 (catches an outage the loop-liveness gauges miss)
 
 # Price velocity — detect stale moves where cumulative change is misleading
 VELOCITY_LOOKBACK = 5            # polls to look back for price velocity
@@ -625,7 +626,7 @@ class NearA0Repoller:
     * **Reuses ``_detect_signal``** — a fast A0 is the same verdict as the full
       poll's detector (the news-catalyst A1→A0 upgrade stays full-poll-only). Reads
       ``_watchlist``/``_volume_regime``/active signals — but NOT read-only: detecting
-      an A0 records a (shared, currently lock-free) DynamicCooldown transition.
+      an A0 records a (shared, lock-guarded) DynamicCooldown transition.
     * **Own FMP client** — the main poll thread's client (with its circuit
       breaker / usage counters) is never shared across threads.
     * **rt_notify dedup** — fresh A0s are pushed through the same per-(symbol,
@@ -1057,6 +1058,17 @@ def _collect_process_metrics(engine: Any | None = None) -> str:
         lines.append(f"{_prefix}_last_poll_age_seconds {poll_age:.1f}")
         lines.append(f"# TYPE {_prefix}_last_poll_duration_seconds gauge")
         lines.append(f"{_prefix}_last_poll_duration_seconds {engine.last_poll_duration_seconds:.3f}")
+        # Data-freshness, distinct from loop-liveness above: last_data_age grows
+        # during a market-hours FMP outage that leaves last_poll_age at ~0.
+        # data_stale is self-gated on market hours, so an empty off-hours fetch
+        # (normal) is not flagged — only a real market-hours data stall trips it.
+        _last_data_epoch = getattr(engine, "_last_data_epoch", 0.0)
+        _last_data_age = max(0.0, now - _last_data_epoch) if _last_data_epoch > 0 else 999999.0
+        _data_stale = 1 if (_is_within_market_hours() and _last_data_age > DATA_STALL_SECONDS) else 0
+        lines.append(f"# TYPE {_prefix}_last_data_age_seconds gauge")
+        lines.append(f"{_prefix}_last_data_age_seconds {_last_data_age:.1f}")
+        lines.append(f"# TYPE {_prefix}_data_stale gauge")
+        lines.append(f"{_prefix}_data_stale {_data_stale}")
 
         # H3 (2026-07-08): FMP usage counters. The 24/7 producer is the
         # single largest FMP consumer and previously ran past every
@@ -1329,18 +1341,24 @@ class DynamicCooldown:
         self._transitions: dict[str, deque[tuple[float, str]]] = {}
         # Last A0 timestamp per symbol
         self._last_a0: dict[str, float] = {}
+        # Guards _transitions / _last_a0: the near-A0 re-poller thread and the
+        # main poll both mutate + read these (record_transition / check_cooldown
+        # / prune_stale run cross-thread). Non-reentrant — never call compute()
+        # while holding it (compute → _oscillation_factor re-acquires).
+        self._lock = threading.Lock()
 
     def _oscillation_factor(self, symbol: str) -> float:
         """Return a multiplier ≥ 1.0 if the symbol is oscillating."""
-        hist = self._transitions.get(symbol)
-        if not hist or len(hist) < 3:
-            return 1.0
-        # Count direction flips
-        flips = sum(
-            1
-            for i in range(1, len(hist))
-            if hist[i][1] != hist[i - 1][1]
-        )
+        with self._lock:
+            hist = self._transitions.get(symbol)
+            if not hist or len(hist) < 3:
+                return 1.0
+            # Count direction flips
+            flips = sum(
+                1
+                for i in range(1, len(hist))
+                if hist[i][1] != hist[i - 1][1]
+            )
         if flips >= self._osc_threshold:
             # Strong oscillation: extend cooldown by up to 3×
             return min(3.0, 1.0 + (flips - self._osc_threshold + 1) * 0.5)
@@ -1376,17 +1394,29 @@ class DynamicCooldown:
     def record_transition(self, symbol: str, direction: str) -> None:
         """Record an A0 transition (direction flip tracking)."""
         now = time.monotonic()
-        if symbol not in self._transitions:
-            self._transitions[symbol] = deque(maxlen=self._osc_window)
-        self._transitions[symbol].append((now, direction))
-        self._last_a0[symbol] = now
+        with self._lock:
+            if symbol not in self._transitions:
+                self._transitions[symbol] = deque(maxlen=self._osc_window)
+            self._transitions[symbol].append((now, direction))
+            self._last_a0[symbol] = now
 
-        # Prune stale symbols to prevent unbounded dict growth
-        stale_cutoff = now - self.max_seconds * 5
-        stale_syms = [s for s, ts in self._last_a0.items() if ts < stale_cutoff]
-        for s in stale_syms:
-            self._last_a0.pop(s, None)
-            self._transitions.pop(s, None)
+            # Prune stale symbols to prevent unbounded dict growth
+            stale_cutoff = now - self.max_seconds * 5
+            stale_syms = [s for s, ts in self._last_a0.items() if ts < stale_cutoff]
+            for s in stale_syms:
+                self._last_a0.pop(s, None)
+                self._transitions.pop(s, None)
+
+    def prune_stale(self, keep: set[str]) -> None:
+        """Drop symbols not in *keep* (thread-safe watchlist reconciliation).
+
+        Callers must NOT reach into ``_transitions`` / ``_last_a0`` directly —
+        the near-A0 re-poller thread mutates them concurrently.
+        """
+        with self._lock:
+            for sym in (set(self._transitions) | set(self._last_a0)) - keep:
+                self._transitions.pop(sym, None)
+                self._last_a0.pop(sym, None)
 
     def check_cooldown(
         self,
@@ -1402,10 +1432,11 @@ class DynamicCooldown:
             ``is_active`` is True when the symbol is still in cooldown.
             ``remaining_seconds`` is > 0 when active, else 0.
         """
-        last = self._last_a0.get(symbol, 0.0)
+        with self._lock:
+            last = self._last_a0.get(symbol, 0.0)
         if last == 0.0:
             return False, 0.0
-        cd = self.compute(symbol, volume_regime, has_news_catalyst)
+        cd = self.compute(symbol, volume_regime, has_news_catalyst)  # takes _lock internally — do NOT call while holding it
         elapsed = time.monotonic() - last
         if elapsed < cd:
             return True, cd - elapsed
@@ -2007,6 +2038,7 @@ class RealtimeEngine:
         self.open_prep_snapshot_age_seconds: float = 0.0
         self.last_poll_attempt_epoch: float = 0.0
         self.last_poll_success_epoch: float = 0.0
+        self._last_data_epoch: float = 0.0  # stamped ONLY on a non-empty fetch (real data) — drives the data_stale gauge (vs last_poll_success_epoch = loop-liveness)
         self.last_poll_duration_seconds: float = 0.0
 
         self._load_watchlist()
@@ -2289,14 +2321,15 @@ class RealtimeEngine:
             self._quote_hashes,
             self._delta_tracker._prev, self._delta_tracker._streaks,
             self._hysteresis._state,
-            self._dynamic_cooldown._transitions,
-            self._dynamic_cooldown._last_a0,
             self._vd_last_change_epoch,
             self._avg_vol_cache,
         ):
             stale = set(d) - wl_syms
             for k in stale:
                 del d[k]
+        # DynamicCooldown's dicts are mutated by the near-A0 re-poller thread, so
+        # prune them under its lock rather than reaching in directly.
+        self._dynamic_cooldown.prune_stale(wl_syms)
         # Clear technical indicator cache for removed symbols
         self._technical_scorer.clear()
 
@@ -2767,10 +2800,11 @@ class RealtimeEngine:
         if not quotes:
             logger.debug("No quotes received in poll cycle")
             self._save_signals()
-            self._mark_poll_success(poll_start)  # loop-liveness, NOT data-freshness: an empty market-hours fetch still marks success (poll_age/readyz/snapshot_stale stay green) — feed health lives in signals_producer_fmp_request_errors_total
+            self._mark_poll_success(poll_start)  # loop-liveness, NOT data-freshness: an empty market-hours fetch still marks success (poll_age/readyz/snapshot_stale stay green) — data-feed health is now in signals_producer_data_stale / last_data_age_seconds (+ fmp_request_errors_total)
             return new_signals
 
         self._poll_seq += 1
+        self._last_data_epoch = time.time()  # real data arrived — data-freshness clock (see the data_stale gauge)
 
         # ── #9  Volume-regime detection ──────────────────────────
         # Feed cached avg volumes to regime detector (FMP batch omits avgVolume)

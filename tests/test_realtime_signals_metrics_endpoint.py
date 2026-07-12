@@ -379,3 +379,36 @@ class TestFmpUsageCounters:
         stats = client.get_endpoint_usage_stats()
         assert stats["/stable/quote"]["response_bytes"] == 150
         assert stats["/stable/quote"]["calls"] == 1
+
+
+def test_collect_metrics_data_stale_is_market_gated(monkeypatch) -> None:
+    """last_data_age / data_stale expose data-freshness (vs loop-liveness):
+    data_stale=1 only when the market is open AND no non-empty fetch for
+    > DATA_STALL_SECONDS, so a market-hours FMP outage is visible even though
+    last_poll_age stays ~0."""
+    import time as _t
+    import types
+
+    def _engine(last_data_epoch: float) -> types.SimpleNamespace:
+        return types.SimpleNamespace(
+            last_poll_success_epoch=_t.time(),
+            last_poll_duration_seconds=0.1,
+            open_prep_snapshot_loaded=1,
+            open_prep_snapshot_age_seconds=10.0,
+            _watchlist=[],
+            _client=None,
+            _last_data_epoch=last_data_epoch,
+        )
+
+    now = _t.time()
+    monkeypatch.setattr(rs, "_is_within_market_hours", lambda: True)
+    body = rs._collect_process_metrics(_engine(now))
+    assert "signals_producer_data_stale 0" in body
+    assert "signals_producer_last_data_age_seconds" in body
+
+    body = rs._collect_process_metrics(_engine(now - rs.DATA_STALL_SECONDS - 60))
+    assert "signals_producer_data_stale 1" in body
+
+    monkeypatch.setattr(rs, "_is_within_market_hours", lambda: False)
+    body = rs._collect_process_metrics(_engine(now - rs.DATA_STALL_SECONDS - 60))
+    assert "signals_producer_data_stale 0" in body

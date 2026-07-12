@@ -701,3 +701,46 @@ def test_score_telemetry_median_even_count_averages_two_middles() -> None:
     for v in (1.0, 2.0, 3.0):
         tel2._score_diffs.append(v)
     assert tel2.snapshot()["score_diff"]["median"] == 2.0
+
+
+def test_dynamic_cooldown_thread_safe_under_concurrent_access() -> None:
+    """The near-A0 re-poller thread and the main poll both hammer
+    record_transition / check_cooldown / prune_stale on the shared
+    DynamicCooldown. Without the internal lock, a key added on one thread while
+    another does ``set(self._transitions)`` raises "dictionary changed size
+    during iteration"; a deadlock would hang the join. Both must be absent.
+    """
+    import threading
+
+    cd = DynamicCooldown(base_seconds=10.0, min_seconds=1.0, max_seconds=20.0)
+    errors: list[Exception] = []
+    n_iter = 5000
+
+    def writer(prefix: str) -> None:
+        try:
+            for i in range(n_iter):
+                sym = f"{prefix}{i % 50}"
+                cd.record_transition(sym, "LONG" if i % 2 else "SHORT")
+                cd.check_cooldown(sym, volume_regime="HIGH")
+        except RuntimeError as exc:  # dict-changed-size or similar concurrency crash
+            errors.append(exc)
+
+    def pruner() -> None:
+        try:
+            for _ in range(n_iter):
+                cd.prune_stale({f"A{k}" for k in range(25)})
+        except RuntimeError as exc:
+            errors.append(exc)
+
+    threads = [
+        threading.Thread(target=writer, args=("A",)),
+        threading.Thread(target=writer, args=("B",)),
+        threading.Thread(target=pruner),
+    ]
+    for t in threads:
+        t.start()
+    for t in threads:
+        t.join(timeout=15.0)
+
+    assert not errors, f"concurrent DynamicCooldown access crashed: {errors!r}"
+    assert all(not t.is_alive() for t in threads), "a thread hung — possible deadlock"
