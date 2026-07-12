@@ -41,7 +41,7 @@ def test_load_symbol_bars_for_context_normalizes_daily_trade_dates_to_epoch_seco
     assert bars["symbol"].tolist() == ["AAPL", "AAPL"]
 
 
-def test_load_symbol_bars_for_context_normalizes_intraday_timestamps_to_epoch_seconds(monkeypatch) -> None:
+def test_load_symbol_bars_for_context_resamples_intraday_seconds_to_timeframe(monkeypatch) -> None:
     bundle = {
         "frames": {
             "full_universe_second_detail_open": pd.DataFrame(
@@ -73,8 +73,15 @@ def test_load_symbol_bars_for_context_normalizes_intraday_timestamps_to_epoch_se
 
     bars = service._load_symbol_bars_for_context("AAPL", "15m")
 
-    assert bars["timestamp"].tolist() == [1775827805, 1775827806]
-    assert bars["symbol"].tolist() == ["AAPL", "AAPL"]
+    # The two per-second rows fall in the same 15m bucket → one aggregated bar
+    # (open=first, high=max, low=min, close=last, volume=sum), so vol-regime and
+    # the bar-close guard see a true 15m bar rather than raw 1s rows.
+    assert bars["timestamp"].tolist() == [1775827800]  # floored to the 15m boundary
+    assert bars["symbol"].tolist() == ["AAPL"]
+    row = bars.iloc[0]
+    assert row["open"] == 100.0 and row["close"] == 100.2
+    assert row["high"] == 100.3 and row["low"] == 99.9
+    assert row["volume"] == 1050.0
 
 
 # ── pure helper coverage ─────────────────────────────────────────
