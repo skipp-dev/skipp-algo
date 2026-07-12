@@ -82,7 +82,7 @@ DEFAULT_TOP_N = 0  # 0 = monitor ALL symbols from pipeline (900+)
 _BATCH_QUOTE_CHUNK_SIZE = 500
 
 # Signal level thresholds
-A0_VOLUME_RATIO_MIN = 3.0        # 3x avg volume for A0
+A0_VOLUME_RATIO_MIN = 3.0        # 3x time-of-day-normalized volume pace (not the raw avg multiple)
 A1_VOLUME_RATIO_MIN = 1.0        # 1x for A1 (was 1.5 — too late for mid-caps)
 A2_VOLUME_RATIO_MIN = 0.6        # 0.6x for A2 early warning
 A0_PRICE_CHANGE_PCT_MIN = 1.5    # 1.5% move for A0
@@ -622,10 +622,10 @@ class NearA0Repoller:
     Default-off (``RT_NEAR_A0_REPOLL_SECS=0``). Design for safety on a live
     producer:
 
-    * **Read-only** w.r.t. the engine's mutable state — it reuses the engine's
-      own ``_detect_signal`` (so a fast A0 is the *same* verdict the full poll
-      would reach, never a divergent replica) and only reads ``_watchlist`` /
-      ``_volume_regime`` / active signals.
+    * **Reuses ``_detect_signal``** — a fast A0 is the same verdict as the full
+      poll's detector (the news-catalyst A1→A0 upgrade stays full-poll-only). Reads
+      ``_watchlist``/``_volume_regime``/active signals — but NOT read-only: detecting
+      an A0 records a (shared, currently lock-free) DynamicCooldown transition.
     * **Own FMP client** — the main poll thread's client (with its circuit
       breaker / usage counters) is never shared across threads.
     * **rt_notify dedup** — fresh A0s are pushed through the same per-(symbol,
@@ -911,7 +911,7 @@ class ScoreTelemetry:
         volume_ratio: float = 0.0,
         change_pct: float = 0.0,
     ) -> None:
-        """Record metrics from a single poll cycle."""
+        """Record metrics from a *productive* poll cycle (early-return paths — client-disabled / no-quotes / holiday-suspect — skip this, so poll_count undercounts total cycles). Internal /telemetry.json only: score_diff carries the mean signal SCORE (not a delta); change_pct the mean ABSOLUTE change."""
         self._poll_count += 1
         self._score_diffs.append(score_diff)
         self._volume_ratios.append(volume_ratio)
@@ -2595,7 +2595,7 @@ class RealtimeEngine:
             else:
                 # Require momentum confirmation for A0
                 if prev_price is not None and direction == "LONG" and price <= prev_price:
-                    level = "A1"  # momentum not confirming — keep at A1
+                    level = "A1"  # momentum not confirming — downgrade A0→A1 (this block runs only when level=="A0")
                 elif prev_price is not None and direction == "SHORT" and price >= prev_price:
                     level = "A1"
                 else:
@@ -2767,7 +2767,7 @@ class RealtimeEngine:
         if not quotes:
             logger.debug("No quotes received in poll cycle")
             self._save_signals()
-            self._mark_poll_success(poll_start)
+            self._mark_poll_success(poll_start)  # loop-liveness, NOT data-freshness: an empty market-hours fetch still marks success (poll_age/readyz/snapshot_stale stay green) — feed health lives in signals_producer_fmp_request_errors_total
             return new_signals
 
         self._poll_seq += 1
