@@ -51,3 +51,29 @@ def test_asof_empty_defaults_to_live() -> None:
     as_of, active_only = dpe._resolve_universe_asof([], today=date(2026, 7, 11))
     assert as_of is None
     assert active_only is True
+
+
+def test_forward_fill_persists_today_on_historical_run(monkeypatch) -> None:
+    # On a historical run the main fetch never saves (active_only=False), so the
+    # forward-fill must re-resolve TODAY's universe with active_only=True to trip
+    # the save gate — otherwise the snapshot store never populates (#5 follow-up).
+    calls: list[dict] = []
+    monkeypatch.setattr(
+        dpe, "fetch_us_equity_universe_with_metadata",
+        lambda *a, **k: calls.append(k) or (pd.DataFrame({"symbol": []}), {}),
+    )
+    dpe._forward_fill_today_universe_snapshot("", 0.0, run_active_only=False)
+    assert len(calls) == 1
+    assert calls[0]["active_only"] is True
+    assert "trade_date" not in calls[0]  # keyed by today (default)
+
+
+def test_forward_fill_skips_on_live_run(monkeypatch) -> None:
+    # A live run already persisted today's snapshot via the main fetch → no-op.
+    calls: list[dict] = []
+    monkeypatch.setattr(
+        dpe, "fetch_us_equity_universe_with_metadata",
+        lambda *a, **k: calls.append(k),
+    )
+    dpe._forward_fill_today_universe_snapshot("", 0.0, run_active_only=True)
+    assert calls == []

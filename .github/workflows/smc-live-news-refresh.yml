@@ -153,6 +153,10 @@ jobs:
           # Benzinga (RSS + quantified) is enabled when BENZINGA_API_KEY is set.
           FMP_API_KEY: ${{ secrets.FMP_API_KEY }}
           BENZINGA_API_KEY: ${{ secrets.BENZINGA_API_KEY }}
+          # Direct-Benzinga key — feeds NewsQuantified (Massive 404s it) AND the
+          # main news path under provider=direct; without it quantified stays
+          # dark (missing_api_key) and direct-transport news 401s (#3405/#3430).
+          BENZINGA_DIRECT_API_KEY: ${{ secrets.BENZINGA_DIRECT_API_KEY }}
           # Transport-Flip (Massive-Reseller-Key) — repo variable, default direct.
           BENZINGA_PROVIDER: ${{ vars.BENZINGA_PROVIDER || 'direct' }}
           INPUT_SYMBOLS: ${{ github.event.inputs.symbols }}
