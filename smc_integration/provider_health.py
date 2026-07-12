@@ -161,7 +161,7 @@ def classify_domain_alerts_to_failure_actions(
         # Map alert codes to failure_type
         if "STALE" in code:
             failure_type = "stale"
-        elif "MISSING" in code or "DROPPED" in code or "SILENT_DOMAIN_DROP" in code:
+        elif "MISSING" in code or "DROP" in code:  # DROPPED / DOMAIN_DROP_DURING_BUILD / SILENT_DOMAIN_DROP
             failure_type = "missing"
         elif "FALLBACK" in code:
             failure_type = "fallback"
