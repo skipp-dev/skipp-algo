@@ -3,16 +3,30 @@
   "months": {
     "2026-07": {
       "benzinga": {
-        "bytes": 8,
-        "calls": 91,
+        "bytes": 14,
+        "calls": 105,
+        "rate_limit_hits": 0,
         "records": 0
       },
       "fmp": {
-        "bytes": 6,
-        "calls": 5,
+        "bytes": 12,
+        "calls": 9,
+        "rate_limit_hits": 3,
+        "records": 0
+      },
+      "unknown": {
+        "bytes": 0,
+        "calls": 0,
+        "rate_limit_hits": 3,
+        "records": 0
+      },
+      "unusual_whales": {
+        "bytes": 0,
+        "calls": 0,
+        "rate_limit_hits": 1,
         "records": 0
       }
     }
   },
-  "updated_at": "2026-07-09T09:23:14.147870+00:00"
+  "updated_at": "2026-07-12T08:55:30.729836+00:00"
 }

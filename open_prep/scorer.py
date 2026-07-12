@@ -165,7 +165,7 @@ def freshness_decay_score(
     elapsed_seconds: float | None,
     atr_pct: float | None = None,
 ) -> float:
-    """Exponential freshness decay.  Returns 0..1 (1 = perfectly fresh).
+    """Exponential freshness decay. Returns 0..1 (1 = perfectly fresh). DEAD: no callers — the live filter path uses adaptive_freshness_decay, which returns 0.5 (not 0.0) for unknown age; do not use this as a drop-in without reconciling that.
 
     Uses :func:`signal_decay.adaptive_half_life` to scale the half-life by
     instrument volatility (ATR%), falling back to the constant 600 s when
@@ -587,7 +587,7 @@ def score_candidate(
 
     # --- Components (with diminishing returns #2) ---
     # For positive-only components, normalize to [0,1], apply sqrt(), then scale.
-    # Gap and momentum can be negative, so DR is only on absolute magnitude.
+    # Gap and momentum can be negative, so they get a linear ±cap only (no DR).
     gap_raw = max(min(gap_pct_for_scoring, GAP_CAP_ABS), -GAP_CAP_ABS)
     gap_component = w["gap"] * gap_raw  # gap can be negative, no DR
     gap_sector_rel_component = w["gap_sector_relative"] * max(
@@ -707,8 +707,8 @@ def score_candidate(
     )
 
     # --- Counter-Trend Penalty ---
-    # When momentum strongly opposes the gap direction, apply a multiplicative
-    # penalty.  Inspired by IB_MON's trend-alignment safeguard.
+    # When momentum is strongly negative (momentum_z < COUNTER_TREND_MOMENTUM_Z),
+    # apply a multiplicative penalty. NOTE: gap-blind — the gap sign is never read.
     counter_trend_penalty = 0.0
     if momentum_z < COUNTER_TREND_MOMENTUM_Z:
         counter_trend_penalty = min(
@@ -840,8 +840,8 @@ def score_candidate(
             "liquidity_penalty": round(liquidity_penalty, 4),
             "risk_off_penalty": round(risk_off_penalty, 4),
             "risk_penalty": round(risk_penalty_val, 4),
-            "counter_trend_penalty": round(counter_trend_penalty, 4),
-            "low_tier_news_rumor_penalty": round(rumor_penalty_applied, 4),
+            "counter_trend_penalty": round(counter_trend_penalty, 4),  # multiplicative fraction of score removed (0..0.40), NOT an additive point contribution like the other *_penalty keys
+            "low_tier_news_rumor_penalty": round(rumor_penalty_applied, 4),  # also a multiplicative fraction (1 - haircut), not additive points
         },
         # Technical analysis enrichment
         "instrument_class": f.get("instrument_class", "mid_cap"),

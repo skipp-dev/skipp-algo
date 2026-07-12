@@ -405,16 +405,17 @@ def build_news_scores(
             row["sentiment_emoji"] = _sentiment_emoji(row["sentiment_label"])
             row["sentiment_score"] = round(avg_sent, 2)
 
-            # --- Per-symbol playbook aggregation (from best article) ---
-            best = arts[0]  # newest-first after sort
-            row["event_class"] = best.get("event_class", "UNKNOWN")
-            row["event_label"] = best.get("event_label", "generic")
-            row["materiality"] = best.get("materiality", "LOW")
-            row["recency_bucket"] = best.get("recency_bucket", "UNKNOWN")
-            row["age_minutes"] = best.get("age_minutes")
-            row["is_actionable"] = best.get("is_actionable", False)
-            row["source_tier"] = best.get("source_tier", "TIER_3")
-            row["source_rank"] = best.get("source_rank", 3)
+            # --- Per-symbol playbook aggregation (from the NEWEST article, not
+            # the highest-tier one — note this feeds the SCORED source_tier) ---
+            newest = arts[0]  # newest-first after sort
+            row["event_class"] = newest.get("event_class", "UNKNOWN")
+            row["event_label"] = newest.get("event_label", "generic")
+            row["materiality"] = newest.get("materiality", "LOW")
+            row["recency_bucket"] = newest.get("recency_bucket", "UNKNOWN")
+            row["age_minutes"] = newest.get("age_minutes")
+            row["is_actionable"] = newest.get("is_actionable", False)
+            row["source_tier"] = newest.get("source_tier", "TIER_3")
+            row["source_rank"] = newest.get("source_rank", 3)
 
             # Collect all event labels across articles for full picture
             all_labels: list[str] = []
