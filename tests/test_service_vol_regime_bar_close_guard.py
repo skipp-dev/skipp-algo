@@ -86,3 +86,33 @@ def test_all_closed_bars_pass_through_untouched(monkeypatch: pytest.MonkeyPatch)
     captured = _drive_context_payloads(monkeypatch, _frame(closed))
 
     assert captured["n"] == 3, "no bar may be dropped when every bar is closed"
+
+
+def test_resample_intraday_buckets_per_second_rows_to_timeframe() -> None:
+    # 900 one-second rows (15 min) → three 5m bars (300s each). base is bucket-aligned.
+    base = 1_700_000_100  # divisible by 300
+    closes = [float(i) for i in range(900)]
+    df = pd.DataFrame(
+        {
+            "timestamp": [base + i for i in range(900)],
+            "open": closes,
+            "high": [c + 1 for c in closes],
+            "low": [c - 1 for c in closes],
+            "close": closes,
+            "volume": [1.0] * 900,
+        }
+    )
+    out = svc._resample_intraday_to_timeframe(df, "5m")
+    assert list(out["timestamp"]) == [base, base + 300, base + 600]
+    first = out.iloc[0]
+    assert first["open"] == 0.0  # first of the bucket
+    assert first["close"] == 299.0  # last of the bucket
+    assert first["high"] == 300.0  # max high
+    assert first["low"] == -1.0  # min low
+    assert first["volume"] == 300.0  # summed
+
+
+def test_resample_unknown_timeframe_fails_open_unchanged() -> None:
+    df = _frame([1.0, 2.0, 3.0])
+    out = svc._resample_intraday_to_timeframe(df, "bogus")
+    assert len(out) == 3  # unknown token → rows returned unchanged, not dropped

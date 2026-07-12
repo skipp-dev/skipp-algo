@@ -19,7 +19,7 @@ from smc_adapters import (
     snapshot_to_pine_payload,
 )
 from smc_core import apply_layering, derive_base_signals, normalize_meta, snapshot_to_dict
-from smc_core.bar_close_guard import guard_closed_bars
+from smc_core.bar_close_guard import guard_closed_bars, interval_seconds
 from smc_core.benchmark import BenchmarkResult, build_benchmark
 from smc_core.bias_merge import merge_bias
 from smc_core.ensemble_quality import build_ensemble_quality, serialize_ensemble_quality
@@ -244,6 +244,41 @@ def _build_measurement_summary(symbol: str, timeframe: str) -> dict[str, Any]:
     }
 
 
+def _resample_intraday_to_timeframe(bars: pd.DataFrame, timeframe: str) -> pd.DataFrame:
+    """Bucket per-second OHLCV rows into ``timeframe`` bars.
+
+    The intraday context frame is ``ohlcv-1s`` (one row per SECOND). Feeding it
+    straight to ``compute_vol_regime`` yields a 14-second ATR and a GARCH on
+    1-second returns (thresholds tuned for ``timeframe`` bars), and makes
+    ``guard_closed_bars`` — which assumes one row == one ``interval`` bar —
+    over-strip up to a whole ``interval`` window of trailing rows. Resampling
+    (open=first, high=max, low=min, close=last, volume=sum, floored to the
+    ``timeframe`` boundary) fixes both. Unknown timeframe → rows unchanged
+    (fail-open to the raw frame rather than dropping the context).
+    """
+    if bars.empty:
+        return bars
+    try:
+        secs = interval_seconds(str(timeframe).lower())
+    except ValueError:
+        return bars
+    if secs <= 0:
+        return bars
+    ordered = bars.sort_values("timestamp")
+    bucket = ((ordered["timestamp"] // secs) * secs).rename("timestamp")
+    return (
+        ordered.groupby(bucket, sort=True)
+        .agg(
+            open=("open", "first"),
+            high=("high", "max"),
+            low=("low", "min"),
+            close=("close", "last"),
+            volume=("volume", "sum"),
+        )
+        .reset_index()
+    )
+
+
 def _load_symbol_bars_for_context(symbol: str, timeframe: str) -> pd.DataFrame:
     try:
         bundle = load_export_bundle(_DEFAULT_EXPORT_DIR, manifest_prefix="databento_volatility_production_")
@@ -286,7 +321,14 @@ def _load_symbol_bars_for_context(symbol: str, timeframe: str) -> pd.DataFrame:
         for col in ("open", "high", "low", "close"):
             bars[col] = pd.to_numeric(bars.get(col), errors="coerce")
         bars["volume"] = pd.to_numeric(bars.get("volume", 0.0), errors="coerce").fillna(0.0)
-        return bars[["timestamp", "open", "high", "low", "close", "volume", "symbol"]].dropna().reset_index(drop=True)
+        bars = bars[["timestamp", "open", "high", "low", "close", "volume"]].dropna()
+        # The source is per-SECOND (ohlcv-1s); resample to the requested timeframe
+        # so vol-regime ATR/GARCH and the bar-close guard see true timeframe bars.
+        bars = _resample_intraday_to_timeframe(bars, tf)
+        if bars.empty:
+            return pd.DataFrame(columns=["timestamp", "open", "high", "low", "close", "volume", "symbol"])
+        bars["symbol"] = symbol_name
+        return bars[["timestamp", "open", "high", "low", "close", "volume", "symbol"]].reset_index(drop=True)
 
     return pd.DataFrame(columns=["timestamp", "open", "high", "low", "close", "volume", "symbol"])
 
@@ -638,11 +680,14 @@ def _build_context_payloads(symbol: str, timeframe: str, snapshot: SmcSnapshot) 
     bias_payload = _serialize_bias_verdict(bias_verdict)
 
     # Drop any trailing in-progress bar before vol-regime ATR/variance: the
-    # databento export can capture a forming bar mid-session. Closed/historical
-    # frames are a no-op (nothing has a close-time in the future). This is what
-    # justifies the iloc[-1] exemption for vol_regime.py in the H-7 guard ledger.
-    # ``.lower()`` maps the canonical timeframes (5m/10m/15m/30m/1H/4H/1D) to the
-    # guard's lowercase interval tokens (1h/4h/1d); every canonical value resolves.
+    # databento export can capture a forming bar mid-session. The context frame is
+    # now resampled to ``timeframe`` in _load_symbol_bars_for_context, so one row
+    # == one ``interval`` bar and the guard drops exactly the forming bar (not a
+    # whole interval-window of per-second rows). Closed/historical frames are a
+    # no-op. This is what justifies the iloc[-1] exemption for vol_regime.py in the
+    # H-7 guard ledger. ``.lower()`` maps the canonical timeframes
+    # (5m/10m/15m/30m/1H/4H/1D) to the guard's lowercase interval tokens; every
+    # canonical value resolves.
     vol_regime_result = compute_vol_regime(
         guard_closed_bars(bars, interval=timeframe.lower(), now=time.time())
     )
