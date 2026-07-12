@@ -218,11 +218,6 @@ _FROZEN_BASIC_CONFIG_SITES: frozenset[tuple[str, int]] = frozenset({
     ("services/live_overlay_daemon/main.py", 40),
     # WP-H (PR #2612): 35 -> 37, VIX import + helper block added above.
     ("smc_tv_bridge/smc_api.py", 37),
-    # 2026-07-04 rebaseline (WP-3 backtest CLI, missed in the prior sweep):
-    # run_ensemble_backtest.py is a standalone entry-point runner
-    # (python run_ensemble_backtest.py ...) that configures the root logger
-    # at import; the Phase-0a `from typing import Optional` shifted it 22 -> 24.
-    ("run_ensemble_backtest.py", 23),
 })
 
 

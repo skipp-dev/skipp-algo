@@ -205,11 +205,6 @@ _FROZEN_ENV_SUBSCRIPT_SITES: frozenset[tuple[str, int]] = frozenset(
         ("open_prep/streamlit_monitor.py", 79),  # +1 from import time as _time (PR #2764)
         ("streamlit_terminal.py", 327),
         # 2026-07-04 (WP-3 backtest CLI): `os.environ["FMP_API_KEY"] = args.api_key`
-        # exports the --api-key CLI arg for the data loader. A deliberate WRITE
-        # (not a read), so .get() does not apply; hard-fail is acceptable.
-        # (Line moved 302 -> 306 -> 305 by the atomic-write-exempt markers and
-        # lint cleanup above.)
-        ("run_ensemble_backtest.py", 305),
     }
 )
 
