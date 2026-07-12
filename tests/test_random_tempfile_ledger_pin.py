@@ -134,8 +134,8 @@ _TEMPFILE_LEDGER: frozenset[tuple[str, int, str]] = frozenset({
     ("streamlit_terminal.py", 2255, "mkstemp"),
     ("terminal_export.py", 177, "mkstemp"),
     ("terminal_export.py", 229, "mkstemp"),
-    ("terminal_export.py", 606, "mkstemp"),
-    ("terminal_export.py", 750, "mkstemp"),
+    ("terminal_export.py", 603, "mkstemp"),  # 2026-07-12 (drop dead social read): 606->603
+    ("terminal_export.py", 747, "mkstemp"),  # 2026-07-12 (drop dead social read): 750->747
 })
 
 
