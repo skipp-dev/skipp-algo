@@ -93,24 +93,29 @@ def _get_bz_rest_adapter(cfg: Config) -> Any:
     global _bz_rest_adapter, _bz_rest_adapter_key
     from .ingest_benzinga import BenzingaRestAdapter, benzinga_provider
     provider = benzinga_provider()
-    # direct transport needs the direct token (the Massive key 401s on api.benzinga.com)
-    api_key = (cfg.benzinga_direct_api_key or cfg.benzinga_api_key) if provider == "direct" else cfg.benzinga_api_key
+    # Key selection is centralized in BenzingaRestAdapter.__init__ (direct-key
+    # preference under provider=direct); cache on (provider, keys) so a transport
+    # flip rebuilds the adapter even when the effective key is unchanged.
+    cache_key = (provider, cfg.benzinga_api_key, cfg.benzinga_direct_api_key)
     with _init_lock:
-        if _bz_rest_adapter is None or _credential_changed(_bz_rest_adapter_key, api_key):
+        if _bz_rest_adapter is None or _credential_changed(_bz_rest_adapter_key, cache_key):
             if _bz_rest_adapter is not None and hasattr(_bz_rest_adapter, "close"):
                 try:
                     _bz_rest_adapter.close()
                 except Exception:
                     logger.debug("bz rest adapter close on rotation failed", exc_info=True)
-            _bz_rest_adapter = BenzingaRestAdapter(api_key, provider=provider)
-            _bz_rest_adapter_key = api_key
+            _bz_rest_adapter = BenzingaRestAdapter(cfg.benzinga_api_key, provider=provider)
+            _bz_rest_adapter_key = cache_key
     return _bz_rest_adapter
 
 
 def _get_bz_ws_adapter(cfg: Config) -> Any:
     global _bz_ws_adapter, _bz_ws_adapter_key
+    # The WS stream host is always api.benzinga.com (direct), so the Massive key
+    # 401s there under any provider — always prefer the direct key for WS.
+    ws_key = cfg.benzinga_direct_api_key or cfg.benzinga_api_key
     current_key = (
-        cfg.benzinga_api_key,
+        ws_key,
         cfg.benzinga_ws_url,
         tuple(cfg.benzinga_channels) if cfg.benzinga_channels else None,
     )
@@ -123,7 +128,7 @@ def _get_bz_ws_adapter(cfg: Config) -> Any:
                 except Exception:
                     logger.debug("bz ws adapter stop on rotation failed", exc_info=True)
             _bz_ws_adapter = BenzingaWsAdapter(
-                cfg.benzinga_api_key,
+                ws_key,
                 cfg.benzinga_ws_url,
                 channels=cfg.benzinga_channels or None,
             )
@@ -703,7 +708,7 @@ def poll_once(
                     page_size=cfg.benzinga_rest_page_size,
                     channels=cfg.benzinga_channels or None,
                     topics=cfg.benzinga_topics or None,
-                    display_output="full",  # direct returns article body; Massive drops it
+                    display_output="abstract",  # direct returns teaser (snippet source); avoids the ~6KB body we discard
                 ),
                 cache_owner=bz_rest,
             )
