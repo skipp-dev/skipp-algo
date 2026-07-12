@@ -90,6 +90,42 @@ def test_summarize_fills_rejects_overflowing_notional():
     assert out == {"smc-A-entry": {"shares": 2.0, "avg_price": 100.0}}
 
 
+def test_summarize_fills_skips_non_numeric_execution_fields():
+    # A non-numeric shares/price makes ``float(...)`` raise, hitting the
+    # ``except (TypeError, ValueError): continue`` branch. The finite guards
+    # above only ever see already-float NaN/inf, so this branch was untested.
+    assert summarize_fills([_fill("smc-A-entry", "not-a-number", 1.0)]) == {}
+    assert summarize_fills([_fill("smc-A-entry", 1.0, "not-a-number")]) == {}
+    # A good fill alongside the corrupt one still summarizes.
+    out = summarize_fills(
+        [_fill("smc-A-entry", "nope", 1.0), _fill("smc-A-entry", 2, 100.0)]
+    )
+    assert out == {"smc-A-entry": {"shares": 2.0, "avg_price": 100.0}}
+
+
+def test_summarize_fills_skips_fills_without_execution_attribute():
+    # ``getattr(fill, "execution", None)`` defaults to None for objects that
+    # have no ``execution`` attribute at all (a bare dict or object), distinct
+    # from the covered ``execution=None`` case. Both must drop, not crash.
+    assert summarize_fills([{}, object(), _fill("smc-A-entry", 2, 100.0)]) == {
+        "smc-A-entry": {"shares": 2.0, "avg_price": 100.0}
+    }
+
+
+def test_summarize_fills_skips_whitespace_only_order_ref():
+    # ``str(orderRef or "").strip()`` collapses a whitespace-only ref to "",
+    # which the ``if not order_ref`` guard drops (the existing test covers "").
+    assert summarize_fills([_fill("   ", 1, 100.0)]) == {}
+
+
+def test_summarize_fills_is_deterministic_and_aggregates_identical_fills():
+    fills = [_fill("smc-A-entry", 2, 100.0), _fill("smc-A-entry", 2, 100.0)]
+    # Two identical fills aggregate (VWA over both), and repeated calls on the
+    # same input are byte-identical (no ordering / floating accumulation drift).
+    assert summarize_fills(fills) == {"smc-A-entry": {"shares": 4.0, "avg_price": 100.0}}
+    assert summarize_fills(fills) == summarize_fills(fills)
+
+
 # ---------------------------------------------------------------------------
 # legs_by_intent
 # ---------------------------------------------------------------------------
@@ -114,6 +150,14 @@ def test_legs_by_intent_ignores_foreign_refs():
         }
     )
     assert legs == {}
+
+
+def test_legs_by_intent_skips_unknown_and_empty_suffix():
+    # ``rpartition("-")`` yields a suffix that must be entry/tp/sl/trail; an
+    # unknown suffix or a trailing-dash empty suffix ("smc-A-") is dropped, so
+    # the intent contributes no legs (never a partial/garbage grouping).
+    assert legs_by_intent({"smc-A-unknown": {"shares": 1.0, "avg_price": 5.0}}) == {}
+    assert legs_by_intent({"smc-A-": {"shares": 1.0, "avg_price": 5.0}}) == {}
 
 
 # ---------------------------------------------------------------------------
