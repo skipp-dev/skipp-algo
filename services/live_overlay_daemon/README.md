@@ -156,7 +156,7 @@ Returns **404** on wrong token (does not leak route existence).
 | `squeeze_on` | int \| null | `0` \| `1` | 1 if Bollinger width < ATR threshold |
 | `ats_state` | str \| null | `"accumulation"` \| `"distribution"` \| `"neutral"` | |
 | `ats_zscore` | float \| null | | Z-score of last-bar volume vs rolling mean |
-| `vix_level` | float \| null | | Latest VIX level (from VIX symbol bars) |
+| `vix_level` | float \| null | | Latest VIX level (polled from FMP ^VIX quote) |
 | `tone` | str \| null | `"BULLISH"` \| `"BEARISH"` \| `"NEUTRAL"` | Market-wide, uppercase |
 | `global_heat` | float \| null | [-1.0, 1.0] | Directional news heat (positive = bullish) |
 | `event_window_state` | str \| null | `"pre-event"` \| `"in-event"` \| `"post-event"` \| `"normal"` | |

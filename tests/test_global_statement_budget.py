@@ -280,10 +280,13 @@ _FROZEN_SITES: frozenset[tuple[str, int, tuple[str, ...]]] = frozenset(
         # shifted these anchors to 398/549/651.
         # 2026-07-03 correctness lane: _feed_connected_at tracks connected-but-
         # never-first-bar stalls; reset_lifecycle_for_restart shifted start/stop.
-        ("services/live_overlay_daemon/feed.py", 209, ("_feed_connected_at",)),
-        ("services/live_overlay_daemon/feed.py", 402, ("_last_bar_at",)),
-        ("services/live_overlay_daemon/feed.py", 566, ("_feed_thread", "_flow_refresh_thread", "_refresh_thread")),
-        ("services/live_overlay_daemon/feed.py", 665, ("_feed_thread", "_flow_refresh_thread", "_refresh_thread")),
+        # 2026-07-12 (VIX wire via FMP): dead bar-based _maybe_cache_vix replaced
+        # by the larger _poll_vix_from_fmp helper (+20 lines) shifted these anchors
+        # 209->229, 402->421, 566->586, 665->685 (no new global; loader in _runtime).
+        ("services/live_overlay_daemon/feed.py", 229, ("_feed_connected_at",)),
+        ("services/live_overlay_daemon/feed.py", 421, ("_last_bar_at",)),
+        ("services/live_overlay_daemon/feed.py", 586, ("_feed_thread", "_flow_refresh_thread", "_refresh_thread")),
+        ("services/live_overlay_daemon/feed.py", 685, ("_feed_thread", "_flow_refresh_thread", "_refresh_thread")),
         # 2026-06-21: optional external bridge snapshot caches are guarded by
         # module locks and cached via module-level singleton snapshots.
         # 2026-06-23: workflow bridge hardening (status/conclusion semantics,
