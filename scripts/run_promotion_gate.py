@@ -397,6 +397,16 @@ def main(argv: list[str] | None = None) -> int:
         print(f"ERROR: failed to load metrics bundle {args.metrics}: {exc}", file=sys.stderr)
         return 1
 
+    # Production survivorship enforcement WITHOUT --universe-trade-date: the bundle
+    # carries universe_survivorship_bias_risk in each entry's provenance (stamped
+    # by build_promotion_gate_bundle from the databento export manifest). OR it
+    # into the flag so the demote-to-rc-2 block below fires in the daily CI, which
+    # does not pass --universe-trade-date. Fail-soft: absent key => False.
+    survivorship_bias_risk = survivorship_bias_risk or any(
+        bool((getattr(s, "provenance", None) or {}).get("universe_survivorship_bias_risk"))
+        for s in snapshots
+    )
+
     if args.no_magnitude_feed:
         policy = MagnitudeStagePolicy()
     else:

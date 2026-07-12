@@ -542,6 +542,24 @@ jobs:
             exit 1
           fi
 
+      - name: Stage databento export manifest into the bundle dir
+        # The manifest (carrying universe_survivorship_bias_risk) is restored to
+        # artifacts/smc_microstructure_exports/ — outside out_dir. Copy the newest
+        # one in so it rides THIS artifact and reaches the promotion gate
+        # (build_promotion_gate_bundle --universe-manifest). Fail-soft.
+        if: always()
+        run: |
+          set +e
+          out_dir="${{ steps.meta.outputs.out_dir }}"
+          mkdir -p "${out_dir}"
+          NEWEST=$(ls -1t artifacts/smc_microstructure_exports/databento_volatility_production_*_manifest.json 2>/dev/null | head -1)
+          if [ -n "${NEWEST}" ]; then
+            cp "${NEWEST}" "${out_dir}/" && echo "staged manifest: ${NEWEST}"
+          else
+            echo "no databento export manifest to stage (survivorship provenance absent)"
+          fi
+          true
+
       - name: Upload rolling benchmark artifacts
         if: always()
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7

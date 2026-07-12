@@ -172,3 +172,13 @@ def test_bundle_step_consumes_accumulated_events_pool() -> None:
         "bundle step no longer passes the accumulated pool; Tier-1 "
         "direction fields would silently revert to permanent None"
     )
+
+
+def test_bundle_step_passes_universe_manifest() -> None:
+    # Survivorship enforcement in production rides the bundle: the build step must
+    # glob the databento export manifest (staged into the rolling-bench artifact by
+    # smc-measurement-benchmark-rolling) and pass --universe-manifest. Fail-soft
+    # (${VAR:+...}) so a thin day without a manifest still builds the bundle.
+    text = _WF_PATH.read_text(encoding="utf-8")
+    assert "databento_volatility_production_*_manifest.json" in text
+    assert "--universe-manifest" in text
