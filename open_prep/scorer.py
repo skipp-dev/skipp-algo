@@ -543,7 +543,6 @@ def filter_candidate(
             default=0.0,
         ),
         "pe": _to_float(quote.get("pe"), default=0.0) or None,
-        "social_sentiment": _to_float(quote.get("social_sentiment"), default=0.0),
     }
 
     return FilterResult(
@@ -856,7 +855,6 @@ def score_candidate(
         "change": round(f.get("change") or 0.0, 4),
         "changesPercentage": round(f.get("changesPercentage") or 0.0, 4),
         "pe": _to_float(f.get("pe"), default=0.0) or None,
-        "social_sentiment": round(f.get("social_sentiment") or 0.0, 4),
     }
 
 

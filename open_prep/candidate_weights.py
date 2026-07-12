@@ -291,7 +291,6 @@ def _build_filter_result_from_fi_sample(sample: dict[str, Any]) -> scorer_mod.Fi
         "change": 0.0,
         "changesPercentage": 0.0,
         "pe": None,
-        "social_sentiment": 0.0,
         # Pass-through features recorded for FI visibility
         "zone_priority_score": float(sample.get("zone_priority_score") or 0.0),
         "trend_alignment": float(sample.get("trend_alignment") or 0.0),

@@ -517,7 +517,6 @@ def rank_candidates(
                     4,
                 ),
                 "pe": _to_float(quote.get("pe"), default=0.0) or None,
-                "social_sentiment": round(_to_float(quote.get("social_sentiment"), default=0.0), 4),
             }
         )
 

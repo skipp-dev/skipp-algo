@@ -1,7 +1,7 @@
 """Tests for the display-enrichment changes across scorer, screen, and streamlit_monitor.
 
 Covers:
-  - Type safety of pass-through fields (name, change, changesPercentage, pe, social_sentiment)
+  - Type safety of pass-through fields (name, change, changesPercentage, pe)
   - Edge cases: None values, string numerics, missing keys, NaN
   - Volume/PE formatting in the v2 tiered display
   - Staleness multiplier correctness
@@ -371,12 +371,6 @@ class TestScorerRoundSafety:
         f = {"changesPercentage": None}
         val = f.get("changesPercentage") or 0.0
         assert round(val, 4) == 0.0
-
-    def test_round_social_sentiment_none_safe(self):
-        f = {"social_sentiment": None}
-        val = f.get("social_sentiment") or 0.0
-        assert round(val, 4) == 0.0
-
 
 # =========================================================================
 # 9. v2 display _chg_pct format string with None
