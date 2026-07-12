@@ -13,7 +13,19 @@ import json
 import urllib.error
 from typing import Any
 
+import pytest
+
 from scripts import composio_ops
+
+
+@pytest.fixture(autouse=True)
+def _configured_env(monkeypatch):
+    monkeypatch.setenv("COMPOSIO_ENVIRONMENT", "prod")
+    monkeypatch.setenv("COMPOSIO_PROD_API_KEY", "ak_test")
+    monkeypatch.setenv("COMPOSIO_PROD_USER_ID", "user-uuid")
+    for toolkit in ("SLACK", "GITHUB", "OUTLOOK", "NOTION"):
+        monkeypatch.setenv(f"COMPOSIO_{toolkit}_READ_ACCOUNT_ID", f"ca_{toolkit.lower()}_r")
+        monkeypatch.setenv(f"COMPOSIO_{toolkit}_WRITE_ACCOUNT_ID", f"ca_{toolkit.lower()}_w")
 
 
 class _FakeResp:
@@ -51,18 +63,14 @@ def _body_of(request: Any) -> dict[str, Any]:
 
 
 def test_skips_without_api_key(monkeypatch):
-    monkeypatch.delenv("COMPOSIO_API_KEY", raising=False)
+    monkeypatch.delenv("COMPOSIO_PROD_API_KEY", raising=False)
     result = composio_ops.execute_tool("SLACK_SEND_MESSAGE", {"channel": "x"})
     assert result.skipped and not result.ok and not result.delivered
 
 
 def test_success_shapes_request(monkeypatch):
-    monkeypatch.setenv("COMPOSIO_API_KEY", "ak_test")
-    monkeypatch.setenv("COMPOSIO_USER_ID", "user-uuid")
     opener = _FakeOpener(lambda req: json.dumps({"successful": True, "data": {"ok": True}}))
-    result = composio_ops.execute_tool(
-        "SLACK_OPEN_DM", {"users": "U1"}, toolkit="slack", opener=opener
-    )
+    result = composio_ops.execute_tool("SLACK_OPEN_DM", {"users": "U1"}, toolkit="slack", opener=opener)
     assert result.delivered
     req = opener.requests[0]
     assert _slug_of(req) == "SLACK_OPEN_DM"
@@ -71,56 +79,49 @@ def test_success_shapes_request(monkeypatch):
     body = _body_of(req)
     assert body["arguments"] == {"users": "U1"}
     assert body["user_id"] == "user-uuid"
-    assert "connected_account_id" not in body
+    assert body["connected_account_id"] == "ca_slack_w"
+    assert body["version"] == "20260702_00"
 
 
 def test_connected_account_from_env(monkeypatch):
-    monkeypatch.setenv("COMPOSIO_API_KEY", "ak_test")
-    monkeypatch.setenv("COMPOSIO_SLACK_ACCOUNT_ID", "ca_1")
+    monkeypatch.setenv("COMPOSIO_SLACK_WRITE_ACCOUNT_ID", "ca_1")
     opener = _FakeOpener(lambda req: json.dumps({"successful": True}))
-    composio_ops.execute_tool("SLACK_SEND_MESSAGE", {}, toolkit="slack", opener=opener)
+    composio_ops.execute_tool("SLACK_SEND_MESSAGE", {"channel": "C1"}, toolkit="slack", opener=opener)
     assert _body_of(opener.requests[0])["connected_account_id"] == "ca_1"
 
 
 def test_reports_provider_failure(monkeypatch):
-    monkeypatch.setenv("COMPOSIO_API_KEY", "ak_test")
-    opener = _FakeOpener(
-        lambda req: json.dumps({"successful": False, "error": {"message": "channel_not_found"}})
-    )
-    result = composio_ops.execute_tool("SLACK_SEND_MESSAGE", {}, opener=opener)
+    opener = _FakeOpener(lambda req: json.dumps({"successful": False, "error": {"message": "channel_not_found"}}))
+    result = composio_ops.execute_tool("SLACK_SEND_MESSAGE", {"channel": "C1"}, opener=opener)
     assert not result.ok and not result.skipped and "channel_not_found" in result.detail
 
 
 def test_http_error_is_soft(monkeypatch):
-    monkeypatch.setenv("COMPOSIO_API_KEY", "ak_test")
     body = io.BytesIO(json.dumps({"error": {"message": "Invalid API key"}}).encode())
 
     def boom(_req):
         raise urllib.error.HTTPError("u", 401, "Unauthorized", {}, body)
 
-    result = composio_ops.execute_tool("X", {}, opener=_FakeOpener(boom))
+    result = composio_ops.execute_tool("SLACK_TEST_AUTH", {}, opener=_FakeOpener(boom))
     assert not result.ok and not result.skipped
     assert "401" in result.detail and "Invalid API key" in result.detail
 
 
 def test_transport_error_is_soft(monkeypatch):
-    monkeypatch.setenv("COMPOSIO_API_KEY", "ak_test")
 
     def boom(_req):
         raise urllib.error.URLError("connection refused")
 
-    result = composio_ops.execute_tool("X", {}, opener=_FakeOpener(boom))
+    result = composio_ops.execute_tool("SLACK_TEST_AUTH", {}, opener=_FakeOpener(boom))
     assert not result.ok and not result.skipped and "transport error" in result.detail
 
 
 def test_non_json_is_soft(monkeypatch):
-    monkeypatch.setenv("COMPOSIO_API_KEY", "ak_test")
-    result = composio_ops.execute_tool("X", {}, opener=_FakeOpener(lambda req: "<html>502</html>"))
+    result = composio_ops.execute_tool("SLACK_TEST_AUTH", {}, opener=_FakeOpener(lambda req: "<html>502</html>"))
     assert not result.ok and not result.skipped and "non-JSON" in result.detail
 
 
 def test_notify_slack_prefers_dm(monkeypatch):
-    monkeypatch.setenv("COMPOSIO_API_KEY", "ak_test")
     monkeypatch.setenv("SLACK_ALERT_USER_ID", "U9")
     monkeypatch.delenv("SLACK_ALERT_CHANNEL", raising=False)
     seq: list[str] = []
@@ -141,7 +142,6 @@ def test_notify_slack_prefers_dm(monkeypatch):
 
 
 def test_notify_slack_channel_fallback(monkeypatch):
-    monkeypatch.setenv("COMPOSIO_API_KEY", "ak_test")
     monkeypatch.delenv("SLACK_ALERT_USER_ID", raising=False)
     monkeypatch.setenv("SLACK_ALERT_CHANNEL", "ops-alerts")
     opener = _FakeOpener(lambda req: json.dumps({"successful": True}))
@@ -153,21 +153,19 @@ def test_notify_slack_channel_fallback(monkeypatch):
 
 
 def test_notify_slack_skips_unconfigured(monkeypatch):
-    monkeypatch.setenv("COMPOSIO_API_KEY", "ak_test")
     monkeypatch.delenv("SLACK_ALERT_USER_ID", raising=False)
     monkeypatch.delenv("SLACK_ALERT_CHANNEL", raising=False)
     assert composio_ops.notify_slack("hi").skipped
 
 
 def test_send_outlook_email_shapes_html(monkeypatch):
-    monkeypatch.setenv("COMPOSIO_API_KEY", "ak_test")
     opener = _FakeOpener(lambda req: json.dumps({"successful": True}))
     monkeypatch.setattr(composio_ops.urllib.request, "build_opener", lambda: opener)
     composio_ops.send_outlook_email("a@b.c", "Subj", "<p>hi</p>")
     req = opener.requests[0]
-    assert _slug_of(req) == "OUTLOOK_OUTLOOK_SEND_EMAIL"
+    assert _slug_of(req) == "OUTLOOK_SEND_EMAIL"
     assert _body_of(req)["arguments"] == {
-        "to_email": "a@b.c",
+        "to": "a@b.c",
         "subject": "Subj",
         "body": "<p>hi</p>",
         "is_html": True,
@@ -175,18 +173,32 @@ def test_send_outlook_email_shapes_html(monkeypatch):
 
 
 def test_base_url_override(monkeypatch):
-    monkeypatch.setenv("COMPOSIO_API_KEY", "ak_test")
     monkeypatch.setenv("COMPOSIO_BASE_URL", "https://eu.composio.dev/")
     opener = _FakeOpener(lambda req: json.dumps({"successful": True}))
-    composio_ops.execute_tool("SLACK_SEND_MESSAGE", {}, opener=opener)
-    assert (
-        opener.requests[0].full_url
-        == "https://eu.composio.dev/api/v3/tools/execute/SLACK_SEND_MESSAGE"
-    )
+    composio_ops.execute_tool("SLACK_SEND_MESSAGE", {"channel": "C1"}, opener=opener)
+    assert opener.requests[0].full_url == "https://eu.composio.dev/api/v3/tools/execute/SLACK_SEND_MESSAGE"
 
 
 def test_is_configured(monkeypatch):
-    monkeypatch.delenv("COMPOSIO_API_KEY", raising=False)
+    monkeypatch.delenv("COMPOSIO_PROD_API_KEY", raising=False)
     assert composio_ops.is_configured() is False
-    monkeypatch.setenv("COMPOSIO_API_KEY", "ak_test")
+    monkeypatch.setenv("COMPOSIO_PROD_API_KEY", "ak_test")
     assert composio_ops.is_configured() is True
+
+
+def test_rejects_unregistered_tool():
+    result = composio_ops.execute_tool("SLACK_DELETE_CHANNEL", {})
+    assert result.skipped and "not allow-listed" in result.detail
+
+
+def test_requires_explicit_access_account(monkeypatch):
+    monkeypatch.delenv("COMPOSIO_SLACK_WRITE_ACCOUNT_ID")
+    result = composio_ops.execute_tool("SLACK_SEND_MESSAGE", {"channel": "C1"})
+    assert result.skipped and "WRITE_ACCOUNT_ID" in result.detail
+
+
+def test_dev_and_prod_keys_are_isolated(monkeypatch):
+    monkeypatch.setenv("COMPOSIO_ENVIRONMENT", "dev")
+    monkeypatch.delenv("COMPOSIO_DEV_API_KEY", raising=False)
+    result = composio_ops.execute_tool("SLACK_TEST_AUTH", {})
+    assert result.skipped and "COMPOSIO_DEV_API_KEY" in result.detail

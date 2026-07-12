@@ -1,0 +1,41 @@
+name: composio-publish
+
+on:
+  schedule:
+    - cron: "15 7 * * 1"
+  workflow_dispatch: {}
+
+permissions:
+  contents: read
+
+env:
+  PYTHONUNBUFFERED: "1"
+
+concurrency:
+  group: composio-publish
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    runs-on: ${{ vars.SMC_GH_HOSTED_RUNNER || 'ubuntu-latest' }}
+    timeout-minutes: 8
+    env:
+      PYTHONPATH: ${{ github.workspace }}
+      COMPOSIO_ENVIRONMENT: prod
+      COMPOSIO_PROD_API_KEY: ${{ secrets.COMPOSIO_PROD_API_KEY }}
+      COMPOSIO_PROD_USER_ID: ${{ vars.COMPOSIO_PROD_USER_ID }}
+      COMPOSIO_OUTLOOK_WRITE_ACCOUNT_ID: ${{ vars.COMPOSIO_OUTLOOK_WRITE_ACCOUNT_ID }}
+      COMPOSIO_NOTION_WRITE_ACCOUNT_ID: ${{ vars.COMPOSIO_NOTION_WRITE_ACCOUNT_ID }}
+      NOTION_RESEARCH_PARENT_ID: ${{ vars.NOTION_RESEARCH_PARENT_ID }}
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+      - uses: ./.github/actions/setup-python-pinned
+      - name: Synchronize reviewed calendar reminders
+        run: python scripts/composio_calendar_sync.py
+      - name: Publish weekly Notion digest
+        run: |
+          if [ -z "${NOTION_RESEARCH_PARENT_ID:-}" ]; then
+            echo "::notice::NOTION_RESEARCH_PARENT_ID is not provisioned; skipping Notion publish"
+            exit 0
+          fi
+          python scripts/notion_research_digest.py
