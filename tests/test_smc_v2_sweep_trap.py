@@ -189,3 +189,45 @@ def test_sweep_trap_result_is_frozen() -> None:
     result = classify_sweep_trap(**_BULL, post_sweep_bars=post)
     with pytest.raises((AttributeError, TypeError)):
         result.trap_type = "delayed"  # type: ignore[misc]
+
+
+# ---------------------------------------------------------------------------
+# Docstring-truth semantics (pins the corrected docs: reclaim_strength and
+# fib_retrace_depth measure SWEEP PENETRATION, not the sweep candle's body,
+# and fib_retrace_depth never consults post-sweep bars).
+# ---------------------------------------------------------------------------
+
+
+class TestPenetrationSemantics:
+    def test_reclaim_strength_is_fraction_of_penetration_not_candle_body(self) -> None:
+        # _BULL penetration = |100 - 98| = 2.0. A reclaim close of 101.0 recovers
+        # 1.0 -> strength 0.5. The sweep candle's open/close body is never passed
+        # in, so this is provably penetration-normalised, not body-normalised.
+        post = _bars(3, base_close=99.0, reclaim_on=1, reclaim_close=101.0)
+        result = classify_sweep_trap(**_BULL, post_sweep_bars=post)
+        assert result.reclaim_strength == pytest.approx(0.5)
+
+    def test_fib_retrace_depth_ignores_post_sweep_bars(self) -> None:
+        # Identical sweep geometry, different post-sweep reclaim depth: the
+        # reclaim close changes reclaim_strength but fib_retrace_depth is fixed
+        # by the sweep candle alone (|100-98| / |100-103| = 0.667).
+        shallow = classify_sweep_trap(
+            **_BULL, post_sweep_bars=_bars(3, base_close=99.0, reclaim_on=1, reclaim_close=100.5)
+        )
+        deep = classify_sweep_trap(
+            **_BULL, post_sweep_bars=_bars(3, base_close=99.0, reclaim_on=1, reclaim_close=101.5)
+        )
+        assert shallow.fib_retrace_depth == pytest.approx(2.0 / 3.0)
+        assert deep.fib_retrace_depth == pytest.approx(2.0 / 3.0)
+        assert shallow.fib_retrace_depth == deep.fib_retrace_depth
+        # ...while the post-sweep-dependent field DOES differ:
+        assert deep.reclaim_strength > shallow.reclaim_strength
+
+    def test_trap_quality_score_is_exact_heuristic_weighted_sum(self) -> None:
+        # Pin the F4 heuristic: score == 0.40*type + 0.35*reclaim + 0.25*fib,
+        # with no hidden outcome term. Immediate reclaim -> type_weight 1.0;
+        # reclaim 101.0 -> strength 0.5; fib 2/3.
+        post = _bars(3, base_close=99.0, reclaim_on=1, reclaim_close=101.0)
+        result = classify_sweep_trap(**_BULL, post_sweep_bars=post)
+        expected = 0.40 * 1.0 + 0.35 * result.reclaim_strength + 0.25 * result.fib_retrace_depth
+        assert result.trap_quality_score == pytest.approx(expected)

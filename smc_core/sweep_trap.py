@@ -2,9 +2,14 @@
 
 A *sweep trap* (also: stop-hunt reversal, liquidity trap) occurs when price
 sweeps a prior swing high/low to trigger resting orders, then reclaims the
-swept level, trapping the breakout traders.  The quality of the reclaim — how
-fast, how strongly, how deeply price reverses — is a leading indicator of
-whether the sweep will produce a meaningful follow-through reversal.
+swept level, trapping the breakout traders.  The reclaim quality — how fast,
+how strongly, how deeply price reverses — is *hypothesised* to lead a
+meaningful follow-through reversal.  This is an **unverified heuristic**, NOT
+an empirically established leading indicator: ``trap_quality_score`` is a
+hand-weighted shadow score (see its formula below) that has not yet been
+calibrated against realised outcomes.  A leakage-free evaluator exists, but
+until its ledger data is scored the predictive claim stays unproven — treat
+the score as a ranking hypothesis, not a validated signal.
 
 This module provides:
 
@@ -75,7 +80,10 @@ class SweepTrapResult:
     reclaim_strength:
         0.0–1.0.  How far the FIRST reclaim close (the classifier stops at the
         first bar that closes back through the level, not the deepest one) moved
-        back THROUGH the swept level, as a fraction of the sweep body:
+        back THROUGH the swept level, as a fraction of the **sweep penetration**
+        — the wick distance the sweep pierced past the level, ``|sweep_extreme -
+        swept_level|``, NOT the sweep candle's open→close body (the sweep
+        candle's open/close are never passed to this function):
         ``|swept_level - close_reclaim| / |sweep_extreme - swept_level|``, clipped
         to [0, 1].  ``0.0`` for failed traps.
     fib_retrace_depth:
@@ -87,7 +95,10 @@ class SweepTrapResult:
     trap_quality_score:
         0.0–1.0 composite quality score: weighted SUM ``0.40 × type_weight
         + 0.35 × reclaim_strength + 0.25 × fib_retrace_depth``.  Becomes
-        ``SWEEP_TRAP_QUALITY_SCORE`` in the liquidity enrichment payload.
+        ``SWEEP_TRAP_QUALITY_SCORE`` in the liquidity enrichment payload.  The
+        weights are a **hand-picked heuristic**, not empirically fitted — deeper
+        penetration raising the score by up to 25% is an assumption pending
+        outcome calibration, not a measured effect.
     """
 
     sweep_reclaim_bars: int
@@ -141,9 +152,11 @@ def classify_sweep_trap(
     SweepTrapResult
         Fully populated trap classification.
     """
-    sweep_body: float = abs(swept_level - sweep_extreme)
-    if sweep_body < 1e-10:
-        # Degenerate sweep — zero-body candle; classify as failed.
+    # Sweep penetration: how far the wick pierced PAST the swept level (NOT the
+    # sweep candle's open→close body — open/close are not available here).
+    sweep_penetration: float = abs(swept_level - sweep_extreme)
+    if sweep_penetration < 1e-10:
+        # Degenerate sweep — zero penetration past the level; classify as failed.
         return SweepTrapResult(
             sweep_reclaim_bars=-1,
             trap_type="failed",
@@ -205,14 +218,18 @@ def classify_sweep_trap(
             trap_quality_score=0.0,
         )
 
-    # Reclaim strength: fraction of sweep body recovered (back through swept_level).
+    # Reclaim strength: fraction of the sweep penetration recovered (how far the
+    # reclaim close moved back through swept_level, relative to the wick distance).
     if is_bullish_sweep:
         recovered: float = first_reclaim_close - swept_level
     else:
         recovered = swept_level - first_reclaim_close
-    reclaim_strength: float = max(0.0, min(1.0, recovered / sweep_body))
+    reclaim_strength: float = max(0.0, min(1.0, recovered / sweep_penetration))
 
-    # Fib retrace depth: how deeply did price retrace from swept_level toward origin?
+    # "fib_retrace_depth" (misnomer — a rename to sweep_penetration_depth is
+    # pending; see the field docstring): this measures ONLY the sweep candle's
+    # own penetration past swept_level relative to the pre-sweep leg. No
+    # post-sweep bar is consulted, so it is NOT a measured price retrace.
     if fib_range < 1e-10:
         fib_retrace_depth: float = 0.0
     else:
@@ -225,8 +242,10 @@ def classify_sweep_trap(
             depth = (sweep_extreme - swept_level) / fib_range
         fib_retrace_depth = max(0.0, min(1.0, depth))
 
-    # Composite quality score.
-    # High-quality trap: fast reclaim + full body recovery + deep retrace.
+    # Composite quality score (heuristic, unverified — see class docstring).
+    # Higher score = fast reclaim + more penetration recovered + deeper sweep
+    # penetration. Whether that ranks better follow-through is an untested
+    # assumption pending outcome calibration.
     trap_quality_score: float = (
         type_weight * 0.40
         + reclaim_strength * 0.35
@@ -314,8 +333,11 @@ def detect_sweep_trap(enrichment: dict[str, Any] | None = None) -> dict[str, Any
 
     confidence = max(0, min(100, quality_factor + direction_boost - reversal_penalty))
 
-    # If quality is poor but structure already reversed, the trap is no
-    # longer active.
+    # A structure reversal only SUBTRACTS ``reversal_penalty`` from confidence;
+    # it does not by itself deactivate the candidate. With the defaults a
+    # lopsided quality-2 sweep is 60 + 20 - 40 = 40, so ``DETECTED`` stays True.
+    # Only a confidence that reaches exactly 0 (penalty >= factor + boost)
+    # collapses to the neutral block below.
     if confidence == 0:
         return neutral
 
