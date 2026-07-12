@@ -152,8 +152,13 @@ def snapshot() -> dict[str, Any]:
             "counts": {"total": 0, "up": 0, "down": 0, "paused": 0, "unknown": 0},
             "avg_response_time_ms": None,
             "monitors": [],
-            "error": "missing_api_key",
-            "error_code": "missing_api_key",
+            # A disabled bridge (no credential → enabled=0) is NOT an error — the
+            # missing-key state is already conveyed by configured=0. Emit error=None
+            # so bridge_error_info stays 0, consistent with railway's _disabled_snapshot
+            # (was error="missing_api_key" → a permanent error_info=1 that read as a
+            # fault on an intentionally-off optional bridge).
+            "error": None,
+            "error_code": None,
             "error_message": "UPTIMEROBOT_API_KEY is not set",
         }
 
