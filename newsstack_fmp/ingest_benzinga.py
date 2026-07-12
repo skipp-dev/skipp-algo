@@ -199,10 +199,17 @@ class BenzingaRestAdapter:
     """
 
     def __init__(self, api_key: str, provider: str | None = None) -> None:
+        self.provider = provider if provider in _VALID_BENZINGA_PROVIDERS else benzinga_provider()
+        # Under the direct transport the Massive key 401s on api.benzinga.com, so
+        # prefer the dedicated direct key HERE — centralizing it makes every
+        # construction site (terminal, open_prep, export, scripts, credential-
+        # health, pipeline) work under BENZINGA_PROVIDER=direct regardless of
+        # which key it passed. (#3430 only converted the pipeline site.)
+        if self.provider == "direct":
+            api_key = os.getenv("BENZINGA_DIRECT_API_KEY") or api_key
         if not api_key:
             raise RuntimeError("BENZINGA_API_KEY missing")
         self.api_key = api_key
-        self.provider = provider if provider in _VALID_BENZINGA_PROVIDERS else benzinga_provider()
         self.base_url = (
             BENZINGA_MASSIVE_REST_BASE if self.provider == "massive" else BENZINGA_REST_BASE
         )
