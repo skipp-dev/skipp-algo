@@ -26,6 +26,19 @@ def _reset_evict_summary() -> None:
         last_eviction_at_snapshot = cache._last_eviction_at
         evict_summary_pending_snapshot = cache._evict_summary.pending
         evict_summary_at_snapshot = cache._evict_summary.at
+        # Reset the mutable cache state to a clean slate BEFORE the test (the
+        # snapshot above is restored after). This fixture is file-scoped, so
+        # tests in OTHER files push bars / trigger evictions without it and can
+        # leave _bars and _evict_summary dirty. In CI's fixed cross-file order
+        # (unlike local isolation) that residue made
+        # test_first_eviction_charge_is_not_lost_but_held_until_window_expires
+        # see _evict_summary.pending == 2 under coverage; init_bar_cache is a
+        # reconfigure (it preserves _bars), so it does not clear it.
+        cache._bars.clear()
+        cache._bar_last_update.clear()
+        cache._last_eviction_at = 0.0
+        cache._evict_summary.pending = 0
+        cache._evict_summary.at = 0.0
     yield
     with cache._bar_lock:
         cache._bars.clear()
