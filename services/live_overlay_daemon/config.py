@@ -420,7 +420,7 @@ def experiment_history_url_token() -> str:
 
 
 def experiment_cache_ttl_secs() -> int:
-    """How long the daemon caches the experiment rollup/history before reload."""
+    """How long the daemon caches the experiment rollup/history before reload (also reused as the snapshot-cache TTL for the provider-usage and evidence-freshness bridges)."""
     return _clamped_int("OVERLAY_EXPERIMENT_CACHE_TTL_SECS", 900, 60, 7200)
 
 
