@@ -292,7 +292,7 @@ def assemble_context(
             "headline": (item.get("headline") or "")[:200],
             "ticker": item.get("ticker", ""),
             "score": round(item.get("news_score", 0), 3),
-            "sentiment": item.get("sentiment", ""),
+            "sentiment": item.get("sentiment_label", ""),  # feed emits sentiment_label, not "sentiment"
             "segment": item.get("segment", ""),
             "source": item.get("source", ""),
             "age_min": item.get("age_minutes", 0),

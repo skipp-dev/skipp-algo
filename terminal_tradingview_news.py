@@ -484,7 +484,7 @@ def _parse_items(data: dict[str, Any]) -> list[TVHeadline]:
                 tickers=unique_tickers,
                 story_url=story_url,
                 is_exclusive=bool(raw.get("isExclusive", False)),
-                is_flash=bool(raw.get("is_flash", False)),
+                is_flash=bool(raw.get("isFlash", raw.get("is_flash", False))),  # TV payload is camelCase (cf. isExclusive)
                 permission=raw.get("permission", ""),
             ))
         except Exception:
