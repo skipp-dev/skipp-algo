@@ -1776,6 +1776,41 @@ groups:
       summary: smc-signals-producer has not completed a poll cycle in > 5 min
       runbook: Check producer logs for FMP client failures, network errors, or telemetry
         server crashes.
+  - uid: sp-data-stale
+    title: Signals Producer data stale (market-hours FMP outage)
+    condition: C
+    # signals_producer_data_stale is a 0/1 gauge the producer self-computes:
+    # market-open AND no non-empty FMP fetch for > DATA_STALL_SECONDS. It catches
+    # a market-hours data outage that last_poll_age / readyz miss — those mark
+    # loop-liveness and stay green even when every fetch returns empty. The
+    # producer being down is covered by sp-scrape-down, so NoData here is OK.
+    noDataState: OK
+    data:
+    - refId: A
+      datasourceUid: grafanacloud-prom
+      model:
+        expr: max(signals_producer_data_stale{job="signals_producer"})
+        instant: true
+    - refId: C
+      datasourceUid: __expr__
+      model:
+        type: threshold
+        conditions:
+        - evaluator:
+            type: gt
+            params:
+            - 0
+          operator:
+            type: and
+          query:
+            params:
+            - A
+    for: 10m
+    labels:
+      severity: warning
+    annotations:
+      summary: smc-signals-producer got no market data for > 5 min during the US session — likely an FMP outage (poll loop alive, every fetch empty)
+      runbook: Check signals_producer_fmp_request_errors_total and the FMP status page. last_poll_age stays ~0 because the loop runs; signals are frozen until non-empty quotes return.
 - orgId: 1
   name: evidence-and-workflow-freshness
   folder: SMC Live Overlay

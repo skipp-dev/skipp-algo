@@ -116,12 +116,12 @@ _TEMPFILE_LEDGER: frozenset[tuple[str, int, str]] = frozenset({
     # FEATURE_KEYS/PASS_THROUGH entries +16 -> 620.
     ("open_prep/outcomes.py", 704, "mkstemp"),  # 2026-07-10: recent_eps_surprise observe-feature (697->711); dead eps_surprise_pct observe-col removed (711->704)
     # 2026-07-03 (WP-4 holiday gate): +2 (import) then +8 below the gate.
-    ("open_prep/realtime_signals.py", 119, "mkstemp"),
+    ("open_prep/realtime_signals.py", 120, "mkstemp"),  # 2026-07-12 data-stall constant added above: 119->120
     # 2026-06-25: AsyncNewsstackPoller telemetry additions shifted
     # 2768 -> 2849 and 2815 -> 2896.
     # 2026-06-28 (semantic monitoring): shifted +80/+82 lines by readiness metrics.
-    ("open_prep/realtime_signals.py", 3218, "mkstemp"),  # 2026-07-09 hysteresis/median (rebased on merged #3301)
-    ("open_prep/realtime_signals.py", 3266, "mkstemp"),  # 2026-07-09 hysteresis/median
+    ("open_prep/realtime_signals.py", 3252, "mkstemp"),  # 2026-07-12 signals thread-safety+data-stall: 3218->3252
+    ("open_prep/realtime_signals.py", 3300, "mkstemp"),  # 2026-07-12 signals thread-safety+data-stall: 3266->3300
     ("open_prep/watchlist.py", 63, "mkstemp"),
     ("smc_core/benchmark.py", 30, "mkstemp"),
     ("smc_core/ensemble_quality.py", 49, "mkstemp"),
