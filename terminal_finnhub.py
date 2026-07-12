@@ -253,6 +253,11 @@ def _get(path: str, params: dict[str, Any] | None = None, *, api_key: str | None
             return json.loads(resp.read().decode("utf-8"))
     except urllib.error.HTTPError as exc:
         if exc.code == 429:
+            try:  # 429 telemetry — count every Finnhub throttle
+                from newsstack_fmp import provider_usage
+                provider_usage.record_rate_limit_hit("finnhub")
+            except Exception:  # telemetry must never break the fetch
+                logging.getLogger(__name__).debug("finnhub rate-limit record skipped", exc_info=True)
             with _state_lock:
                 if scope is None:
                     _consecutive_429_count += 1

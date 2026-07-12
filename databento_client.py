@@ -209,6 +209,13 @@ def _databento_get_range_with_retry(
             return client.timeseries.get_range(**kwargs)
         except Exception as exc:
             last_exc = exc
+            _msg = _redact_sensitive_error_text(str(exc)).lower()
+            if "429" in _msg or "too many requests" in _msg:
+                try:  # 429 telemetry — count every hit, even on the final attempt
+                    from newsstack_fmp import provider_usage
+                    provider_usage.record_rate_limit_hit("databento")
+                except Exception:  # telemetry must never break the fetch
+                    logger.debug("databento rate-limit record skipped", exc_info=True)
             if attempt >= attempts or not _is_retryable_databento_get_range_error(exc):
                 raise
             wait_seconds = float(2 ** (attempt - 1))

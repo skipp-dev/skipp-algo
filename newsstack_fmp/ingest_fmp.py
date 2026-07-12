@@ -125,6 +125,12 @@ class FmpAdapter:
         for attempt in range(1, self._MAX_RETRIES + 1):
             try:
                 r = self.client.get(url, params=params)
+                if r.status_code == 429:
+                    try:  # 429 telemetry — count every hit, even if a retry rescues it
+                        from newsstack_fmp import provider_usage
+                        provider_usage.record_rate_limit_hit("fmp")
+                    except Exception:  # telemetry must never break an ingest
+                        logger.debug("fmp rate-limit record skipped", exc_info=True)
                 if r.status_code in self._RETRYABLE_CODES and attempt < self._MAX_RETRIES:
                     backoff = 2 ** attempt  # 2s, 4s
                     hint = _parse_retry_after_seconds(r.headers.get("Retry-After"))

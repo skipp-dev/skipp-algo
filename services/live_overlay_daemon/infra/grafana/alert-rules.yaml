@@ -2380,10 +2380,11 @@ groups:
     labels:
       severity: warning
     annotations:
-      summary: A data provider (Massive/Benzinga/Unusual Whales) returned HTTP 429 in the last 6h --
-        ingest is brushing its rate limit; retries are currently absorbing the throttling.
+      summary: A data provider (Massive/Benzinga/Unusual Whales/FMP/Databento/Finnhub) returned HTTP
+        429 in the last 6h -- ingest is brushing its rate limit; retries are currently absorbing it.
       runbook: Reduce polling frequency / concurrency for the throttled provider (newsstack_fmp poll
-        intervals) or raise the plan tier. Counter source is newsstack_fmp/_bz_http.py.
+        intervals) or raise the plan tier. Counter sources are newsstack_fmp/_bz_http.py (bz/massive/
+        UW), ingest_fmp.py + open_prep/macro.py (fmp), databento_client.py, terminal_finnhub.py.
   - uid: lo-sweep-trap-shadow-stale
     title: Sweep-trap shadow snapshot stale
     condition: C

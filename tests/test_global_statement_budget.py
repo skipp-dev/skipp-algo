@@ -166,7 +166,7 @@ _FROZEN_SITES: frozenset[tuple[str, int, tuple[str, ...]]] = frozenset(
         ),
         (
             "terminal_finnhub.py",
-            619,
+            624,  # 2026-07-12: +5 by the 429 rate-limit telemetry insert above
             (
                 "_consecutive_429_count",
                 "_rate_limit_backoff_until",
