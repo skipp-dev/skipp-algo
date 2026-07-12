@@ -63,7 +63,7 @@ def test_detects_payment_failure():
         {"databento.com": [_raw("billing@databento.com", "Payment failed", "We could not process your card.")]}
     )
     hits = vbw.find_billing_alerts(
-        conn, domains=("databento.com",), keywords=vbw._PROBLEM_KEYWORDS, since=_SINCE
+        conn, domains=("databento.com",), since=_SINCE
     )
     assert len(hits) == 1
     assert hits[0].vendor == "databento.com"
@@ -76,7 +76,7 @@ def test_ignores_routine_receipt():
         {"databento.com": [_raw("billing@databento.com", "Your receipt", "Thanks for your payment. Receipt attached.")]}
     )
     hits = vbw.find_billing_alerts(
-        conn, domains=("databento.com",), keywords=vbw._PROBLEM_KEYWORDS, since=_SINCE
+        conn, domains=("databento.com",), since=_SINCE
     )
     assert hits == []
 
@@ -86,7 +86,7 @@ def test_matches_body_only_keyword():
         {"financialmodelingprep.com": [_raw("no-reply@financialmodelingprep.com", "Notice", "Your subscription is past due.")]}
     )
     hits = vbw.find_billing_alerts(
-        conn, domains=("financialmodelingprep.com",), keywords=vbw._PROBLEM_KEYWORDS, since=_SINCE
+        conn, domains=("financialmodelingprep.com",), since=_SINCE
     )
     assert len(hits) == 1 and "past due" in hits[0].matched
 
@@ -101,10 +101,41 @@ def test_multiple_domains_and_empty():
     hits = vbw.find_billing_alerts(
         conn,
         domains=("databento.com", "benzinga.com"),
-        keywords=vbw._PROBLEM_KEYWORDS,
         since=_SINCE,
     )
     assert [h.vendor for h in hits] == ["databento.com"]
+
+
+def test_usage_warning_is_suppressed():
+    # Real FMP mail that tripped the first live run: "suspend" in a data-usage
+    # context is a quota warning, not a payment failure.
+    conn = _FakeIMAP(
+        {
+            "financialmodelingprep.com": [
+                _raw(
+                    "welcome@mail.financialmodelingprep.com",
+                    "FMP - Data Usage Warning Notification",
+                    "You are approaching your data usage limit; your account may be suspended if you exceed it.",
+                )
+            ]
+        }
+    )
+    hits = vbw.find_billing_alerts(conn, domains=("financialmodelingprep.com",), since=_SINCE)
+    assert hits == []
+
+
+def test_non_payment_suspension_still_alerts():
+    # A hard payment term alongside "suspend" is a real billing failure.
+    conn = _FakeIMAP(
+        {
+            "databento.com": [
+                _raw("billing@databento.com", "Account suspended", "Your invoice is past due; account suspended.")
+            ]
+        }
+    )
+    hits = vbw.find_billing_alerts(conn, domains=("databento.com",), since=_SINCE)
+    assert len(hits) == 1
+    assert "past due" in hits[0].matched and "suspend" in hits[0].matched
 
 
 def test_build_alert_renders():
