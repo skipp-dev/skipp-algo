@@ -523,13 +523,6 @@ def prepare_outcome_snapshot(
             # this column collects the FI evidence for a directional
             # variant BEFORE any weight moves).
             "news_directional_score": row.get("news_directional_score"),
-            # Finnhub social-buzz sentiment (observe-only; FINNHUB_API_KEY enabled
-            # 2026-07-11). Before that it was structurally absent and never
-            # reached the FI ledger, so it accrued zero graduation evidence.
-            # Persist it flat like the other pass-throughs; None when the Finnhub
-            # key is unset (== not measured, not a real 0). Collects the FI
-            # evidence BEFORE any weight move.
-            "social_sentiment": row.get("social_sentiment"),
             # VIX 9-day / 30-day term-structure ratio (observe-only;
             # eval D5). > 1 ⇒ inverted short-term structure ⇒ imminent
             # event risk priced in. Market-wide (same for all rows).
@@ -601,7 +594,6 @@ FEATURE_KEYS: list[str] = [
     "cs_dispersion",
     "avg_pair_correlation",
     "news_directional_score",
-    "social_sentiment",
 ]
 
 # Observe-only features: recorded in outcome records + FI samples but
@@ -621,7 +613,6 @@ PASS_THROUGH_FEATURE_KEYS: frozenset[str] = frozenset({
     "intraday_efficiency_ratio",
     "cs_dispersion",
     "avg_pair_correlation",
-    "social_sentiment",
 })
 
 # G1: Explicit mapping from feature importance keys → scorer weight keys.
