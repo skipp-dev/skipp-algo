@@ -64,6 +64,11 @@ _BOS_LOOKAHEAD_BARS = 8
 _ZONE_LOOKAHEAD_BARS = 12
 _FVG_LOOKAHEAD_BARS = 20
 _SWEEP_LOOKAHEAD_BARS = 8
+# Reaction-zone shadow study: reaction confirmation is measured on bars 1..N of the
+# sweep lookahead; the follow-through outcome is measured on the DISJOINT later
+# window (bars N+1..lookahead) so a confirmation is never part of its own label.
+_REACTION_CONFIRM_WINDOW_BARS = 3
+_REACTION_SCHEMA_VERSION = 1
 _BOS_FOLLOW_THROUGH_THRESHOLD_PCT = 0.003
 _SWEEP_REVERSAL_THRESHOLD_PCT = 0.005
 _SQ_LOOKBACK_BARS = 64
@@ -1456,7 +1461,7 @@ def _evaluate_sweep_event(
     # WS4b promotion flips the caller. (Before that guard the trap score DID leak
     # into confluence whenever ENABLE_CONFLUENCE_SCORE was also on.)
     features: dict[str, Any] = {}
-    if is_sweep_trap_enabled():
+    if (is_sweep_trap_enabled() or is_reaction_zone_enabled()) and price > 0:
         is_bullish = side == "SELL_SIDE"
         swept_level, sweep_extreme, origin_level = _derive_sweep_trap_geometry(
             event, bars, anchor_idx, is_bullish_sweep=is_bullish
@@ -1467,18 +1472,50 @@ def _evaluate_sweep_event(
                  "low": float(r["low"]), "close": float(r["close"])}
                 for _, r in future.iterrows()
             ]
-            trap = classify_sweep_trap(
-                swept_level=swept_level,
-                sweep_extreme=sweep_extreme,
-                origin_level=origin_level,
-                is_bullish_sweep=is_bullish,
-                post_sweep_bars=post_sweep_bars,
-            )
-            features["sweep_trap_type"] = trap.trap_type
-            features["sweep_trap_reclaim_bars"] = trap.sweep_reclaim_bars
-            features["sweep_trap_reclaim_strength"] = round(trap.reclaim_strength, 4)
-            features["sweep_trap_fib_retrace"] = round(trap.fib_retrace_depth, 4)
-            features["sweep_trap_quality_score"] = round(trap.trap_quality_score, 4)
+            if is_sweep_trap_enabled():
+                trap = classify_sweep_trap(
+                    swept_level=swept_level,
+                    sweep_extreme=sweep_extreme,
+                    origin_level=origin_level,
+                    is_bullish_sweep=is_bullish,
+                    post_sweep_bars=post_sweep_bars,
+                )
+                features["sweep_trap_type"] = trap.trap_type
+                features["sweep_trap_reclaim_bars"] = trap.sweep_reclaim_bars
+                features["sweep_trap_reclaim_strength"] = round(trap.reclaim_strength, 4)
+                features["sweep_trap_fib_retrace"] = round(trap.fib_retrace_depth, 4)
+                features["sweep_trap_quality_score"] = round(trap.trap_quality_score, 4)
+            if is_reaction_zone_enabled():
+                # Reaction confirmation on the FIRST window (bars 1..N); follow-through
+                # outcome on the DISJOINT later window (bars N+1..lookahead). Keeping the
+                # windows non-overlapping avoids target leakage (a reclaim close is itself
+                # an early close-through the level, i.e. part of label_sweep_reversal).
+                rz = compute_reaction_zone(
+                    swept_level=swept_level,
+                    sweep_extreme=sweep_extreme,
+                    is_bullish_sweep=is_bullish,
+                    post_sweep_bars=post_sweep_bars[:_REACTION_CONFIRM_WINDOW_BARS],
+                )
+                late_closes = [b["close"] for b in post_sweep_bars[_REACTION_CONFIRM_WINDOW_BARS:]]
+                late_outcome = label_sweep_reversal(
+                    price, side, late_closes, threshold_pct=_SWEEP_REVERSAL_THRESHOLD_PCT
+                )
+                band_width_pct = (
+                    (rz.rejection_band_high - rz.rejection_band_low) / swept_level * 100.0
+                    if swept_level > 0 else 0.0
+                )
+                features["reaction_schema_version"] = _REACTION_SCHEMA_VERSION
+                features["reaction_direction"] = "bull" if is_bullish else "bear"
+                features["reaction_level_reclaimed"] = rz.level_reclaimed
+                features["reaction_in_rejection_band"] = rz.close_in_rejection_band
+                features["reaction_close_distance_pct"] = round(rz.close_distance_pct, 6)
+                features["reaction_body_ratio"] = round(rz.body_ratio, 6)
+                features["reaction_directional_body"] = rz.directional_body
+                features["reaction_wick_ratio"] = round(rz.rejection_wick_ratio, 6)
+                features["reaction_bars_to_reclaim"] = rz.bars_to_reclaim
+                features["reaction_bars_to_rejection_band"] = rz.bars_to_rejection_band
+                features["reaction_band_width_pct"] = round(band_width_pct, 6)
+                features["reaction_outcome_late"] = late_outcome
 
     scored_event = ScoredEvent(
         event_id=str(event.get("id", "")),
