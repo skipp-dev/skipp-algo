@@ -426,6 +426,11 @@ jobs:
             tests/test_workflow_freshness_monitor_workflow.py \
             tests/test_workflow_continue_on_error_inventory.py \
             tests/test_workflow_permissions_present.py \
+            tests/test_workflow_auth_pattern.py \
+            tests/test_dynamic_setattr_hasattr_zero_surface.py \
+            tests/test_atexit_register_zero_surface.py \
+            tests/test_atomic_write_call_sites.py \
+            tests/test_module_test_coverage_pin.py \
             tests/test_smc_library_refresh_workflow.py \
             tests/test_schema_version_manifest_alignment.py \
             tests/test_edge_hypotheses_frozen.py \

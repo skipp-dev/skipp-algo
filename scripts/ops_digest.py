@@ -224,8 +224,10 @@ def main(argv: list[str] | None = None) -> int:
     elif result.delivered:
         print(f"ops_digest: digest emailed to {args.to}.")
     else:
+        # Best-effort ops notification (composio_ops contract): a Composio hiccup
+        # must NOT red the ops-digest cron. Surface the error, exit green — same
+        # always-0 discipline as the credential-health notify path.
         print(f"ops_digest: email FAILED — {result.detail}", file=sys.stderr)
-        return 1
     return 0
 
 
