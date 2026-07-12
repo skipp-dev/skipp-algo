@@ -77,9 +77,9 @@ from databento_volatility_screener import (
     collect_full_universe_open_window_second_detail,
     estimate_databento_costs,
     export_run_artifacts,
+    fetch_live_us_equity_universe_with_metadata,
     fetch_symbol_day_detail,
     fetch_us_equity_universe,
-    fetch_us_equity_universe_with_metadata,
     list_recent_trading_days,
     load_daily_bars,
     normalize_symbol_for_databento,
@@ -2036,7 +2036,7 @@ def test_fetch_us_equity_universe_uses_screener_for_market_cap_filtered_calls(mo
     assert result.equals(screener)
 
 
-def test_fetch_us_equity_universe_with_metadata_marks_market_cap_filter_as_applied(monkeypatch) -> None:
+def test_fetch_live_us_equity_universe_with_metadata_marks_market_cap_filter_as_applied(monkeypatch) -> None:
     screener = pd.DataFrame(
         {
             "symbol": ["AAPL"],
@@ -2050,7 +2050,7 @@ def test_fetch_us_equity_universe_with_metadata_marks_market_cap_filter_as_appli
 
     monkeypatch.setattr("databento_volatility_screener._fetch_us_equity_universe_via_screener", lambda *args, **kwargs: screener)
 
-    result, metadata = fetch_us_equity_universe_with_metadata("fake-key", min_market_cap=1000.0)
+    result, metadata = fetch_live_us_equity_universe_with_metadata("fake-key", min_market_cap=1000.0)
 
     assert result.equals(screener)
     assert metadata["source"] == "fmp_company_screener"
@@ -2058,7 +2058,7 @@ def test_fetch_us_equity_universe_with_metadata_marks_market_cap_filter_as_appli
     assert metadata["min_market_cap_effective"] == 1000.0
 
 
-def test_fetch_us_equity_universe_with_metadata_marks_market_cap_filter_as_not_applied_without_fmp(monkeypatch) -> None:
+def test_fetch_live_us_equity_universe_with_metadata_marks_market_cap_filter_as_not_applied_without_fmp(monkeypatch) -> None:
     official = pd.DataFrame(
         {
             "symbol": ["BATL"],
@@ -2072,7 +2072,7 @@ def test_fetch_us_equity_universe_with_metadata_marks_market_cap_filter_as_not_a
 
     monkeypatch.setattr("databento_volatility_screener._fetch_us_equity_universe_via_nasdaq_trader", lambda **_: official)
 
-    result, metadata = fetch_us_equity_universe_with_metadata("", min_market_cap=1000.0)
+    result, metadata = fetch_live_us_equity_universe_with_metadata("", min_market_cap=1000.0)
 
     assert result.equals(official)
     assert metadata["source"] == "nasdaq_trader_symbol_directory"

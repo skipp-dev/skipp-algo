@@ -65,7 +65,7 @@ _FROZEN_SITES: dict[str, dict[str, frozenset[int]]] = {
     # 475) and shifted the two cache-probe sites by ~100 lines (cache-pollution
     # filter + drift detector block). Still non-security fingerprinting.
     # 2026-06-10 (#2670 W9): timestamp_substitutions disclosure shifted +5.
-    "databento_volatility_screener.py": {"sha1": frozenset({400, 482, 698, 716})},
+    "databento_volatility_screener.py": {"sha1": frozenset({407, 489, 705, 723})},  # 2026-07-12 (re-export import): +7
     "newsstack_fmp/normalize.py": {
         # 2026-07-09: +1/+9 shift — html-unescape import + Massive-shape chains.
         # 2026-07-11: +8 below quantified normalizer real-schema mapping.

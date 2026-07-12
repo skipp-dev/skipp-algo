@@ -11,8 +11,8 @@ Also includes the **Databento symbol-support probe** which checks whether
 each symbol actually resolves in a given Databento dataset, and caches the
 results to avoid repeated API calls.
 
-Backward compatibility:  names remain importable from ``databento_volatility_screener``,
-but as retained COPIES there (not re-exports) — the variants have drifted (snapshot params).
+Backward compatibility:  ``fetch_us_equity_universe_with_metadata`` is now RE-EXPORTED
+from here; the screener's drifted live-only copy is renamed ``fetch_live_*`` (truth-audit).
 """
 
 from __future__ import annotations
