@@ -1613,7 +1613,7 @@ def _collapse_duplicate_symbol_seconds(frame: pd.DataFrame, *, context: str) -> 
             publisher_sharded_keys,
         )
 
-    ordered = frame.sort_values(["symbol", "ts"]).reset_index(drop=True)
+    ordered = frame.sort_values(["symbol", "ts", "publisher_id"] if "publisher_id" in frame.columns else ["symbol", "ts"], kind="mergesort").reset_index(drop=True)
     aggregations: dict[str, str] = {}
     if "open" in ordered.columns:
         aggregations["open"] = "first"
@@ -2258,7 +2258,7 @@ def rank_top_fraction_per_day(
         raise ValueError(f"Ranking metric not found: {ranking_metric}")
     ranked_groups: list[pd.DataFrame] = []
     for _trade_date, group in frame.groupby("trade_date", sort=False):
-        eligible = group.dropna(subset=[ranking_metric]).sort_values(ranking_metric, ascending=False).copy()
+        eligible = group.dropna(subset=[ranking_metric]).sort_values([ranking_metric, "symbol"], ascending=[False, True], kind="mergesort").copy()
         if eligible.empty:
             continue
         take_n = max(1, math.ceil(len(eligible) * top_fraction))
