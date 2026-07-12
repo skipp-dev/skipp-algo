@@ -11,6 +11,10 @@ permissions:
 env:
   PYTHONUNBUFFERED: "1"
 
+defaults:
+  run:
+    shell: bash
+
 concurrency:
   group: composio-canary
   cancel-in-progress: false
