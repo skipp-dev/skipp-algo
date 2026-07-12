@@ -469,6 +469,13 @@ try:
 except ImportError as _fanout_exc:  # pragma: no cover - defensive; keeps overlays serving
     logger.warning("grafana_composio_fanout not mounted: %s", _fanout_exc)
 
+try:
+    from . import composio_chatops
+
+    app.include_router(composio_chatops.router)
+except ImportError as _chatops_exc:  # pragma: no cover - defensive; keeps overlays serving
+    logger.warning("composio_chatops not mounted: %s", _chatops_exc)
+
 
 if __name__ == "__main__":
     run_server()

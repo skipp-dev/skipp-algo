@@ -53,8 +53,10 @@ jobs:
           YAHOO_EMAIL: ${{ vars.YAHOO_EMAIL }}
           YAHOO_APP_PASSWORD: ${{ secrets.YAHOO_APP_PASSWORD }}
           VENDOR_BILLING_DOMAINS: ${{ vars.VENDOR_BILLING_DOMAINS }}
-          COMPOSIO_API_KEY: ${{ secrets.COMPOSIO_API_KEY }}
-          COMPOSIO_USER_ID: ${{ vars.COMPOSIO_USER_ID }}
+          COMPOSIO_ENVIRONMENT: prod
+          COMPOSIO_PROD_API_KEY: ${{ secrets.COMPOSIO_PROD_API_KEY }}
+          COMPOSIO_PROD_USER_ID: ${{ vars.COMPOSIO_PROD_USER_ID }}
+          COMPOSIO_SLACK_WRITE_ACCOUNT_ID: ${{ vars.COMPOSIO_SLACK_WRITE_ACCOUNT_ID }}
           SLACK_ALERT_USER_ID: ${{ vars.SLACK_ALERT_USER_ID }}
           SLACK_ALERT_CHANNEL: ${{ vars.SLACK_ALERT_CHANNEL }}
           # Pass event/input via env (not ${{ }} in run) — zizmor template-injection-safe.

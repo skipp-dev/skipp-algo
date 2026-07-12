@@ -1,0 +1,55 @@
+name: composio-canary
+
+on:
+  schedule:
+    - cron: "30 5 * * *"
+  workflow_dispatch: {}
+
+permissions:
+  contents: read
+
+env:
+  PYTHONUNBUFFERED: "1"
+
+defaults:
+  run:
+    shell: bash
+
+concurrency:
+  group: composio-canary
+  cancel-in-progress: false
+
+jobs:
+  probe:
+    runs-on: ${{ vars.SMC_GH_HOSTED_RUNNER || 'ubuntu-latest' }}
+    timeout-minutes: 8
+    env:
+      PYTHONPATH: ${{ github.workspace }}
+      COMPOSIO_ENVIRONMENT: prod
+      COMPOSIO_PROD_API_KEY: ${{ secrets.COMPOSIO_PROD_API_KEY }}
+      COMPOSIO_PROD_USER_ID: ${{ vars.COMPOSIO_PROD_USER_ID }}
+      COMPOSIO_SLACK_READ_ACCOUNT_ID: ${{ vars.COMPOSIO_SLACK_READ_ACCOUNT_ID }}
+      COMPOSIO_GITHUB_READ_ACCOUNT_ID: ${{ vars.COMPOSIO_GITHUB_READ_ACCOUNT_ID }}
+      COMPOSIO_OUTLOOK_READ_ACCOUNT_ID: ${{ vars.COMPOSIO_OUTLOOK_READ_ACCOUNT_ID }}
+      COMPOSIO_NOTION_READ_ACCOUNT_ID: ${{ vars.COMPOSIO_NOTION_READ_ACCOUNT_ID }}
+      COMPOSIO_SLACK_READ_AUTH_CONFIG_ID: ${{ vars.COMPOSIO_SLACK_READ_AUTH_CONFIG_ID }}
+      COMPOSIO_GITHUB_READ_AUTH_CONFIG_ID: ${{ vars.COMPOSIO_GITHUB_READ_AUTH_CONFIG_ID }}
+      COMPOSIO_OUTLOOK_READ_AUTH_CONFIG_ID: ${{ vars.COMPOSIO_OUTLOOK_READ_AUTH_CONFIG_ID }}
+      COMPOSIO_NOTION_READ_AUTH_CONFIG_ID: ${{ vars.COMPOSIO_NOTION_READ_AUTH_CONFIG_ID }}
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+      - uses: ./.github/actions/setup-python-pinned
+      - name: Check pinned schemas
+        run: python scripts/composio_contract_check.py --output artifacts/ci/composio_contract.json
+      - name: Audit environment and account separation
+        run: python scripts/composio_config_audit.py
+      - name: Probe every read-only connection
+        run: python scripts/composio_canary.py --output artifacts/ci/composio_canary.json
+      - name: Upload reports
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: composio-canary-${{ github.run_id }}
+          path: artifacts/ci/composio_*.json
+          if-no-files-found: warn
+          retention-days: 30
