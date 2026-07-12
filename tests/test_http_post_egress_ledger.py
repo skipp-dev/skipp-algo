@@ -149,14 +149,14 @@ HTTP_POST_LEDGER: set[tuple[str, int]] = {
     ("terminal_export.py", 918),  # 2026-07-12 (drop dead social read): 921 -> 918
     # OpenAI chat completions — FMP insights enrichment.
     # Line shifted 402 → 409 (main merge for PR-J3 cache-key scoping).
-    ("terminal_fmp_insights.py", 453),  # 2026-07-08 ratios wiring shifted (409->453)
+    ("terminal_fmp_insights.py", 442),  # 2026-07-12 (drop dead segment block): 453->442
     # Webhook fan-out from the live Streamlit terminal alert path
     # (httpx, follow_redirects=False, timeout=5s, dedup + budget cap).
     # Line shifted 2257 → 2274 (system review 2026-04-30).
     ("streamlit_terminal.py", 2306),
     # OpenAI chat completions — terminal AI insights enrichment.
     # Line shifted 276 → 283 (main merge for PR-J3 cache-key scoping).
-    ("terminal_ai_insights.py", 283),
+    ("terminal_ai_insights.py", 271),  # 2026-07-12 (drop dead segment block): 283->271
     # Databento BentoHttpAPI._post TLS-override patch (F1 dedup, 2026-06-14):
     # both calls are internal Databento SDK POST paths using trust_env=False
     # + certifi CA bundle. Auth via HTTPBasicAuth(api_key, "").

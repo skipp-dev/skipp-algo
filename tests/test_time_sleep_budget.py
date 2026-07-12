@@ -146,7 +146,7 @@ _FROZEN_SITES: frozenset[tuple[str, int]] = frozenset(
         # shifted the throttle sleep site 293 -> 294.
         # 2026-07-09 (fix/tv-throttle-cooldown-fmp): -1 (removed _CACHE_ERROR_TTL_S)
         # +4 (clock-step clamp comment) shifted the throttle sleep 294 -> 297.
-        ("terminal_technicals.py", 297),
+        ("terminal_technicals.py", 296),  # 2026-07-12 (drop dead "10m"): 297->296
         ("terminal_tradingview_news.py", 409),
         # 2026-06-24 feat/benzinga-rss: retry backoff sleeps in REST client
         # (198→199, 209→210 after RSS improvements).
