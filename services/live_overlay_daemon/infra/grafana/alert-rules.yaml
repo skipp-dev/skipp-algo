@@ -1809,7 +1809,7 @@ groups:
     labels:
       severity: warning
     annotations:
-      summary: smc-signals-producer got no market data for > 5 min during the US session — likely an FMP outage (poll loop alive, every fetch empty)
+      summary: smc-signals-producer got no market data for 5+ min during US extended-hours (04:00-20:00 ET) — likely an FMP outage (poll loop alive, every fetch empty). Pages ~15 min after onset (5-min stall + 10-min for:).
       runbook: Check signals_producer_fmp_request_errors_total and the FMP status page. last_poll_age stays ~0 because the loop runs; signals are frozen until non-empty quotes return.
 - orgId: 1
   name: evidence-and-workflow-freshness

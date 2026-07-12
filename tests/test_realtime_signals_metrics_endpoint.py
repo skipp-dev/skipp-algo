@@ -381,15 +381,17 @@ class TestFmpUsageCounters:
         assert stats["/stable/quote"]["calls"] == 1
 
 
-def test_collect_metrics_data_stale_is_market_gated(monkeypatch) -> None:
+def test_collect_metrics_data_stale_is_market_gated() -> None:
     """last_data_age / data_stale expose data-freshness (vs loop-liveness):
     data_stale=1 only when the market is open AND no non-empty fetch for
     > DATA_STALL_SECONDS, so a market-hours FMP outage is visible even though
-    last_poll_age stays ~0."""
+    last_poll_age stays ~0. The renderer reads the engine's cached
+    _in_market_hours flag (set in poll_once) — it must NOT call the raising
+    _is_within_market_hours() probe, so this test never monkeypatches it."""
     import time as _t
     import types
 
-    def _engine(last_data_epoch: float) -> types.SimpleNamespace:
+    def _engine(last_data_epoch: float, *, in_market: bool) -> types.SimpleNamespace:
         return types.SimpleNamespace(
             last_poll_success_epoch=_t.time(),
             last_poll_duration_seconds=0.1,
@@ -398,17 +400,24 @@ def test_collect_metrics_data_stale_is_market_gated(monkeypatch) -> None:
             _watchlist=[],
             _client=None,
             _last_data_epoch=last_data_epoch,
+            _in_market_hours=in_market,
         )
 
     now = _t.time()
-    monkeypatch.setattr(rs, "_is_within_market_hours", lambda: True)
-    body = rs._collect_process_metrics(_engine(now))
+    # market OPEN + fresh data → not stale
+    body = rs._collect_process_metrics(_engine(now, in_market=True))
     assert "signals_producer_data_stale 0" in body
     assert "signals_producer_last_data_age_seconds" in body
 
-    body = rs._collect_process_metrics(_engine(now - rs.DATA_STALL_SECONDS - 60))
+    # market OPEN + data older than the stall budget → stale
+    body = rs._collect_process_metrics(_engine(now - rs.DATA_STALL_SECONDS - 60, in_market=True))
     assert "signals_producer_data_stale 1" in body
 
-    monkeypatch.setattr(rs, "_is_within_market_hours", lambda: False)
-    body = rs._collect_process_metrics(_engine(now - rs.DATA_STALL_SECONDS - 60))
+    # market CLOSED + same stale data → NOT flagged (empty off-hours is normal)
+    body = rs._collect_process_metrics(_engine(now - rs.DATA_STALL_SECONDS - 60, in_market=False))
     assert "signals_producer_data_stale 0" in body
+
+    # missing flag (old engine / pre-first-poll) defaults to not-in-market → 0
+    eng = _engine(now - rs.DATA_STALL_SECONDS - 60, in_market=True)
+    del eng._in_market_hours
+    assert "signals_producer_data_stale 0" in rs._collect_process_metrics(eng)
