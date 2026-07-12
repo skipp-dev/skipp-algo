@@ -406,9 +406,9 @@ def _request_with_status_retry(
     if r.status_code == 429:
         # Rate-limit telemetry (fail-soft): the vendors send no X-RateLimit-*
         # headers (verified 2026-07-11), so counting 429s per provider is the only
-        # "we are being throttled" signal. Recorded here — the single 429 choke
-        # point shared by Benzinga/Massive/UW — on every 429 (including ones a
-        # retry later rescues), which is the throttling-pressure metric we want.
+        # "we are being throttled" signal. Recorded here for the standalone
+        # Benzinga/UW helpers (the fetch_news firehose records inline in its own
+        # retry loop) on every 429 (incl. ones a retry rescues) — throttle pressure.
         try:
             from newsstack_fmp import provider_usage
 

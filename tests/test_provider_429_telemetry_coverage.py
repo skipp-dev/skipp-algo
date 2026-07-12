@@ -67,3 +67,26 @@ def test_finnhub_429_records_hit(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(terminal_finnhub, "urlopen", _raise)
     terminal_finnhub._get("/quote", {"symbol": "AAPL"}, api_key="k")
     assert "finnhub" in hits
+
+
+def test_benzinga_fetch_news_429_records_hit(monkeypatch: pytest.MonkeyPatch) -> None:
+    # The Benzinga/Massive news firehose (BenzingaRestAdapter.fetch_news) runs its
+    # OWN retry loop and never flowed through _bz_http's shared 429 recorder, so the
+    # highest-volume Benzinga lane emitted no throttle telemetry. Wire it here.
+    from newsstack_fmp import ingest_benzinga, provider_usage
+
+    hits: list[str] = []
+    monkeypatch.setattr(provider_usage, "record_rate_limit_hit", lambda p: hits.append(p))
+    monkeypatch.setattr(ingest_benzinga.time, "sleep", lambda *_a: None)
+
+    adapter = ingest_benzinga.BenzingaRestAdapter("k", provider="massive")
+    state = {"first": True}
+
+    def _get(u: str, params: dict | None = None) -> httpx.Response:
+        code = 429 if state["first"] else 200
+        state["first"] = False
+        return httpx.Response(code, request=httpx.Request("GET", adapter.base_url), json=[])
+
+    monkeypatch.setattr(adapter, "client", types.SimpleNamespace(get=_get))
+    assert adapter.fetch_news() == []
+    assert hits == ["massive"]  # exactly one 429 recorded before the retry rescued it

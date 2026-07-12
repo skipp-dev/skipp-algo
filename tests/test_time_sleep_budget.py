@@ -89,8 +89,8 @@ def _all_time_sleep_sites() -> list[tuple[str, int]]:
 _FROZEN_SITES: frozenset[tuple[str, int]] = frozenset(
     {
         # 2026-06-24 feat/benzinga-rss: REST client retry backoff.
-        ("newsstack_fmp/ingest_benzinga.py", 284),  # 200→277 (2026-07-09): Massive provider mode above
-        ("newsstack_fmp/ingest_benzinga.py", 295),  # 211→288 (2026-07-09): Massive provider mode above
+        ("newsstack_fmp/ingest_benzinga.py", 298),  # 284→298 (2026-07-12): fetch_news 429 wire + import block
+        ("newsstack_fmp/ingest_benzinga.py", 309),  # 295→309 (2026-07-12): fetch_news 429 wire + import block
         ("newsstack_fmp/ingest_fmp.py", 143),  # +1 (2026-07-10): docstring 3→4 endpoints
         ("newsstack_fmp/ingest_fmp.py", 169),  # +1 (2026-07-10): docstring 3→4 endpoints
         # PR #2154: ingest_fmp_filings.py shifted +8 (121→129, 134→142)
@@ -154,9 +154,9 @@ _FROZEN_SITES: frozenset[tuple[str, int]] = frozenset(
         # parallel fetch worker (line 901 after thread-safety follow-up).
         # 2026-07-03: shifted 919 -> 937 by the new _rss_http_get() helper
         # (feedparser.parse has no timeout kwarg; fetch bytes via httpx first).
-        ("newsstack_fmp/ingest_benzinga.py", 284),  # 200→277 (2026-07-09): Massive provider mode above
-        ("newsstack_fmp/ingest_benzinga.py", 295),  # 211→288 (2026-07-09): Massive provider mode above
-        ("newsstack_fmp/ingest_benzinga.py", 1021),  # 937→1014 (2026-07-09): Massive provider mode above
+        ("newsstack_fmp/ingest_benzinga.py", 298),  # 284→298 (2026-07-12): fetch_news 429 wire + import block
+        ("newsstack_fmp/ingest_benzinga.py", 309),  # 295→309 (2026-07-12): fetch_news 429 wire + import block
+        ("newsstack_fmp/ingest_benzinga.py", 1035),  # 1021→1035 (2026-07-12): fetch_news 429 wire + import block
     }
 )
 
