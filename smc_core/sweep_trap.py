@@ -20,9 +20,9 @@ Integration point
 -----------------
 :func:`~smc_integration.measurement_evidence._liquidity_support_for_event`
 calls :func:`classify_sweep_trap` when ``ENABLE_SWEEP_TRAP`` is enabled AND the
-candidate sweep carries ``swept_level > 0`` — which NO sweep producer currently
-emits (sweep events carry ``id/time/price/side`` only), so the classify path
-has zero effective executions in production.  The result fields are merged into
+candidate sweep carries ``swept_level > 0``.  Producers emit ``id/time/price/side``
+only, but the integration choke point synthesises ``swept_level`` (=price) + sweep
+geometry, so the classify path DOES run (observe-only).  The result fields merge into
 the liquidity enrichment payload; they are NOT passed to ``label_sweep_reversal``
 (that label takes ``(price, side, closes)`` only).
 

@@ -51,8 +51,8 @@ def _block_indices(n: int, block_size: int, rng: np.random.Generator) -> np.ndar
     """Return a permutation of ``range(n)`` that shuffles contiguous blocks.
 
     The block grid is fixed (``[0:bs], [bs:2*bs], ...``); only the order
-    of the blocks is randomised. This is the classical "moving-block
-    permutation" used in time-series resampling.
+    of the blocks is randomised. This is a NON-OVERLAPPING (disjoint) block
+    permutation — not Kunsch overlapping moving-block resampling.
     """
     if block_size <= 1:
         return rng.permutation(n)

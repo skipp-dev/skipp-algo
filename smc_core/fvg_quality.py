@@ -267,10 +267,10 @@ def score_fvg(
     - ``is_full_body`` (truthy if the anchor candle is a full-body one),
     - ``hurst`` (float in [0,1] or ``None``).
 
-    Missing keys are treated as worst-case (0 / False / None) rather
-    than silently skipped — the score is only useful if every feature
-    is accounted for. Downstream callers can inspect the ``components``
-    dict to see which feature drove the final number.
+    Missing keys default to (0 / False / None); under the STRICT default
+    regime those defaults score HIGH (see Mode-semantics below), NOT
+    worst-case. The score is only useful if every feature is accounted
+    for; inspect ``components`` to see which feature drove the number.
 
     Mode semantics
     --------------

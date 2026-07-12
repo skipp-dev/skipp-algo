@@ -39,14 +39,14 @@ from typing import Literal
 
 FreshnessBucket = Literal["fresh", "aging", "stale", "invalidated", "mitigated"]
 
-#: Thresholds (in bars) for freshness classification.  These are intentionally
-#: conservative — an event that has lasted more than STALE_BARS bars has had
-#: ample opportunity to be mitigated or invalidated; surviving that long may
-#: reflect persistence OR neglect.  Calibrate against the measurement pipeline
-#: before tightening.
+#: Thresholds (in bars) for freshness classification.  classify_freshness uses
+#: only FRESH_BARS and AGING_BARS: age<=5 fresh, <=20 aging, else stale (so the
+#: effective "stale" onset is 21).  STALE_BARS is currently UNUSED/reserved — not
+#: a live boundary (an age-invalidation tier at 50 would need wiring).
+#: Calibrate against the measurement pipeline before tightening.
 FRESH_BARS: int = 5
 AGING_BARS: int = 20
-STALE_BARS: int = 50
+STALE_BARS: int = 50  # UNUSED (reserved; see note above)
 
 #: Decay schedule: multiplier applied to OB/FVG/Liquidity buckets per bucket tier.
 _DECAY: dict[FreshnessBucket, float] = {
