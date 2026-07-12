@@ -130,7 +130,19 @@ docs/audit-*.md
 
 # Claude Code + Cursor local state (agent worktrees, settings.local.json,
 # .mdc rules) — machine-local tooling, never project files.
-.claude/
+# EXCEPTION (2026-07-12): a curated set of shared Claude Code skills + the
+# truth-auditor agent ARE checked in, so every clone / agent gets them. Anything
+# else under .claude/ (settings.local.json, worktrees, other local skills like
+# run-terminal) stays machine-local.
+.claude/*
+!.claude/skills/
+.claude/skills/*
+!.claude/skills/truth-audit/
+!.claude/skills/verify-review-findings/
+!.claude/skills/skipp-pr-flow/
+!.claude/agents/
+.claude/agents/*
+!.claude/agents/truth-auditor.md
 .cursor/
 
 # mutmut setup.cfg (contains absolute machine paths, not portable)
