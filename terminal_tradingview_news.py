@@ -582,7 +582,7 @@ def fetch_tv_feed_dicts(
 
     This is the main entry point for integrating TV headlines
     into the terminal feed.  Each headline is converted to a dict
-    matching the ``ClassifiedItem.to_dict()`` schema.
+    a subset of the ``ClassifiedItem.to_dict()`` schema (annotate stages fill the rest).
     """
     headlines = fetch_tv_multi(
         tickers,

@@ -772,7 +772,7 @@ def smc_live_endpoint(
         vix_fields["vix_level"] = round(vix_level, 2)
 
     # Per-symbol flow-delta + ATS (B2): cached live microstructure qualified
-    # against the 20-day ATS baseline. Omitted field-by-field on a miss so Pine
+    # against the 20-day ATS baseline. Omitted together (all-or-nothing) on a miss so Pine
     # keeps its baked ``mp.*`` flow/ATS fallback (silent fallback; never loosens).
     flow_fields: dict[str, Any] = {}
     flow_ats = _get_flow_ats_fields(symbol)
