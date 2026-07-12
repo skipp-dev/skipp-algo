@@ -39,6 +39,7 @@ from smc_integration.action_degradation import (
     ActionDegradation,
     derive_action_degradation,
 )
+from smc_integration.provider_health import resolve_failure_action
 from smc_integration.trust_state import (
     ACTION_IMPACT_NONE,
     TrustState,
@@ -46,6 +47,29 @@ from smc_integration.trust_state import (
     TrustStateCause,
     derive_trust_state,
 )
+
+# Direct status -> failure_type for the synthesized LIBRARY_* domain alerts.
+# Rename-proof: an unknown/renamed status fails CLOSED to "missing"
+# (HARD_DEGRADE -> UNAVAILABLE) instead of round-tripping through the
+# code-substring heuristic in provider_health, which silently maps an unknown
+# code to ADVISORY -> DEGRADED — an under-severity on the product-gating
+# STRUCTURE domain (e.g. a future "no_data"/"unavailable" status).
+_LIBRARY_STATUS_TO_FAILURE_TYPE: dict[str, str] = {
+    "missing": "missing",  # -> HARD_DEGRADE -> UNAVAILABLE
+    "stale": "stale",  # -> SUPPRESS -> WATCH_ONLY
+}
+_LIBRARY_STATUS_FAILCLOSED = "missing"  # unknown status -> most severe, never advisory
+
+
+def _domain_alert_with_action(alert: dict[str, Any], domain: str, failure_type: str) -> dict[str, Any]:
+    """Attach an explicit failure_action to a synthesized alert so derive_trust_state
+    uses it directly and never consults the fragile code-substring classifier
+    (which is all-or-nothing: one un-actioned alert routes the WHOLE set through it)."""
+    sem = resolve_failure_action(domain, failure_type)
+    alert["failure_action"] = sem.action.value
+    alert["failure_affects_entry"] = sem.affects_entry
+    alert["failure_max_tolerable_hours"] = sem.max_tolerable_hours
+    return alert
 
 # Stable Pine field-name surface (caller never spells these manually).
 PINE_TRUST_FIELDS: tuple[str, ...] = (
@@ -140,21 +164,33 @@ def attach_trust_state_from_provider_diagnostics(
         status = str(payload.get("provider_status") or "").strip()
         if status.lower() in {"", "ok"}:
             continue
+        failure_type = _LIBRARY_STATUS_TO_FAILURE_TYPE.get(status.lower(), _LIBRARY_STATUS_FAILCLOSED)
         domain_alerts.append(
-            {
-                "domain": str(domain_name),
-                "code": f"LIBRARY_{str(domain_name).upper()}_{status.upper()}",
-                "message": str(payload.get("status_detail") or ""),
-            }
+            _domain_alert_with_action(
+                {
+                    "domain": str(domain_name),
+                    "code": f"LIBRARY_{str(domain_name).upper()}_{status.upper()}",
+                    "message": str(payload.get("status_detail") or ""),
+                },
+                str(domain_name),
+                failure_type,
+            )
         )
     stale = str(providers.get("stale_providers") or "").strip()
     if stale:
+        # STALE_PROVIDERS keeps its stale->advisory semantics, but must also carry an
+        # explicit failure_action: derive_trust_state trusts the pre-classified set
+        # only if EVERY alert has one (else it re-classifies all of them).
         domain_alerts.append(
-            {
-                "domain": "providers",
-                "code": "STALE_PROVIDERS",
-                "message": f"Stale providers reported by upstream: {stale}",
-            }
+            _domain_alert_with_action(
+                {
+                    "domain": "providers",
+                    "code": "STALE_PROVIDERS",
+                    "message": f"Stale providers reported by upstream: {stale}",
+                },
+                "providers",
+                "stale",
+            )
         )
 
     assessment = derive_trust_state(
