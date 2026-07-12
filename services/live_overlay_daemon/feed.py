@@ -3,7 +3,7 @@ Live feed consumer — runs in a daemon background thread.
 
 Architecture:
   - One db.Live() connection subscribes to EQUS.MINI ohlcv-1m ALL_SYMBOLS.
-  - Records are pushed to cache.push_bar() as they arrive.
+  - Records are enqueued and drained by a separate ingest thread into cache.push_bar().
   - A separate refresh thread runs compute.run_full_compute_cycle() on schedule.
   - A fast-refresh thread runs compute.run_flow_patch_cycle() more frequently.
 
@@ -550,7 +550,7 @@ def _run_supervisor_loop(stop: threading.Event) -> None:
 
 
 def start() -> None:
-    """Start the three background threads (feed + refresh + flow refresh)."""
+    """Start the five background threads (feed + ingest + refresh + flow refresh + supervisor)."""
     with _lifecycle_lock:
         _do_start()
 
@@ -647,7 +647,7 @@ def _do_start() -> None:
     if started and (feed_alive or ingest_alive or refresh_alive or flow_alive):
         _inc_metric("partial_restarts")
 
-    # Safety-net shutdown hook: the three threads are daemon=True, so an exit
+    # Safety-net shutdown hook: the background threads are daemon=True, so an exit
     # path that bypasses the FastAPI lifespan (e.g. an unhandled exception or a
     # bare process exit) would hard-kill them before client.stop() / loop.close()
     # run, leaking Databento sockets/FDs. atexit fires on normal interpreter

@@ -82,7 +82,7 @@ No authentication required. **Readiness/diagnostics** endpoint with worker and d
 > `status` is market-aware and can be `"ok"`, `"starting"`, or
 > `"idle_market_closed"` (outside US regular session while otherwise healthy).
 > `feed_healthy` becomes `false` after `stop()` or if bars are stale beyond `max_stale_secs`.
-> `workers_healthy` is `false` if any of the three background threads (feed, refresh, flow) is dead.
+> `workers_healthy` is `false` if any of the four background threads (feed, ingest, refresh, flow) is dead.
 > `overlay_fresh` is `false` when overlay_symbols == 0 or overlay_age > max_stale_secs.
 > `HEAD` requests return only headers (body stripped by Starlette automatically).
 
