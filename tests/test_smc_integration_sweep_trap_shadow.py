@@ -94,6 +94,32 @@ class TestShadowObserve:
         assert f["sweep_trap_reclaim_strength"] > 0.0
         assert f["sweep_trap_fib_retrace"] > 0.0
         assert f["sweep_trap_quality_score"] > 0.0
+        # Leakage-free emission: the disjoint late outcome + schema version are logged.
+        assert "sweep_trap_outcome_late" in f
+        assert isinstance(f["sweep_trap_outcome_late"], bool)
+        assert f["sweep_trap_schema_version"] == 1
+
+    def test_trap_confirmation_window_disjoint_from_late_outcome(self) -> None:
+        """A reclaim only in the LATE window (bars 4..8) must NOT confirm the trap
+        (confirmation is bars 1..3) yet the disjoint late outcome still fires —
+        proving the two windows never overlap (no target leakage)."""
+        rows = []
+        ts0 = 1_700_000_000
+        for i in range(20):
+            if i <= 9:
+                c = 105.0 if i == 5 else 102.0
+                hi, lo = c + 0.5, c - 0.5
+            elif i == 10:  # the sweep bar
+                c, hi, lo = 99.0, 100.2, 98.0
+            elif i <= 13:  # confirmation window (bars 1..3 post-sweep): stays BELOW 100
+                c, hi, lo = 99.2, 99.8, 98.8
+            else:          # late window (bars 4..8 post-sweep): reclaims above 100
+                c, hi, lo = 101.0, 101.5, 100.2
+            rows.append({"timestamp": ts0 + i * 900, "open": c, "high": hi, "low": lo, "close": c})
+        _, scored = _evaluate(pd.DataFrame(rows), flag="1")
+        f = scored.features
+        assert f["sweep_trap_type"] == "failed"           # no reclaim within bars 1..3
+        assert f["sweep_trap_outcome_late"] is True        # but the late window did reverse
 
     def test_features_empty_when_flag_off(self) -> None:
         result = _evaluate(_bull_sweep_bars(), flag="0")
