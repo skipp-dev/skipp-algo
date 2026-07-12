@@ -82,7 +82,7 @@ _TEMPFILE_LEDGER: frozenset[tuple[str, int, str]] = frozenset({
     ("open_prep/alerts.py", 72, "mkstemp"),
     # 2026-07-03 (WP-3 holdout rescoring): helper additions shifted mkstemp
     # site from 150 -> 472.
-    ("open_prep/candidate_weights.py", 480, "mkstemp"),  # 2026-07-10: eps_surprise_pct→recent_eps_surprise_pct reconstruction swap +1 (479->480)
+    ("open_prep/candidate_weights.py", 479, "mkstemp"),  # 2026-07-10: eps_surprise_pct→recent_eps_surprise_pct reconstruction swap +1 (479->480)
     ("open_prep/diff.py", 60, "mkstemp"),
     # 2026-06-13 (audit-e2/aw7-reader-observability, PR #2759): _load_previous_latest
     #   DEBUG log insertion shifted mkstemp from 249 → 250.

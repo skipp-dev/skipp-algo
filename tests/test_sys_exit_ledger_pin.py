@@ -42,7 +42,7 @@ _DIR_EXCLUDE = frozenset({
 _SYS_EXIT_LEDGER: frozenset[tuple[str, int]] = frozenset({
     # 2026-07-03 (WP-3 holdout rescoring): helper additions shifted CLI
     # guard exit from 244 -> 566.
-    ("open_prep/candidate_weights.py", 574),  # 2026-07-10: eps_surprise_pct→recent_eps_surprise_pct reconstruction swap +1 (573->574)
+    ("open_prep/candidate_weights.py", 573),  # 2026-07-10: eps_surprise_pct→recent_eps_surprise_pct reconstruction swap +1 (573->574)
     # 2026-06-13 (audit-e2/aw7-reader-observability, PR #2759): _load_previous_latest
     #   DEBUG log insertion shifted CLI exit from 358 → 359.
     ("open_prep/feature_importance_report.py", 360),
@@ -53,7 +53,7 @@ _SYS_EXIT_LEDGER: frozenset[tuple[str, int]] = frozenset({
     # 2026-06-25: feature-flag helper addition shifted 6045 -> 6049.
     # 2026-07-04 (market-microstructure observe-only): import + snapshot
     # block + row-loop fields shifted 6065 -> 6091.
-    ("open_prep/run_open_prep.py", 6214),  # 2026-07-10: recent_eps_surprise (6207->6221); dead eps_surprise_pct removed (6221->6214)
+    ("open_prep/run_open_prep.py", 6114),  # 2026-07-10: recent_eps_surprise (6207->6221); dead eps_surprise_pct removed (6221->6214)
     # 2026-07-04: ensemble backtest CLI runner (standalone research tool):
     # FMP_API_KEY guard + data-fetch failure exits. warmup_bars/
     # eval_last_bars param additions shifted 68/87/91 -> 74/93/97.

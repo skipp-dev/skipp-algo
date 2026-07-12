@@ -322,7 +322,8 @@ allowed = ["github-mirror-sync.yml", "openprep-pine-panel-daily-trigger.yml"]
 # ADR-0023 Option B (Issue #2706): accumulate_events step uses `set +e` so
 # that a failed accumulation never marks the rolling-bench run failed; the
 # daily scored_family_events.json artifact is still uploaded as fallback.
-"smc-measurement-benchmark-rolling.yml" = 6
+# 2026-07-12: +1 fail-soft "Stage databento export manifest" step (survivorship provenance staging)
+"smc-measurement-benchmark-rolling.yml" = 7
 # sweep-trap-shadow-daily.yml: single guarded step around the shadow eval —
 # the eval's exit CODE is the signal (0/2/3/5), so `set +e` + PIPESTATUS keeps a
 # no_data/shadow/stale run from aborting the step under bash -e; the status is

@@ -174,16 +174,23 @@ def main(argv: list[str] | None = None) -> int:
     )
     args = parser.parse_args(argv)
 
-    password = os.getenv("YAHOO_APP_PASSWORD", "").strip()
+    # Yahoo shows the 16-char app password in 4 space-separated groups for
+    # readability; the real value has no spaces. Strip ALL whitespace so a
+    # copy-with-spaces still authenticates (imaplib quotes the arg, so inner
+    # spaces would otherwise reach Yahoo as a wrong password).
+    password = "".join(os.getenv("YAHOO_APP_PASSWORD", "").split())
     if not password:
         print("vendor_billing_watch: YAHOO_APP_PASSWORD unset — skipping (no-op).")
         return 0
 
-    host = os.getenv("YAHOO_IMAP_HOST", _DEFAULT_HOST).strip() or _DEFAULT_HOST
-    user = os.getenv("YAHOO_EMAIL", "preuss.steffen@yahoo.com").strip()
+    # ``or <default>`` (not getenv's default arg) — GitHub Actions passes an
+    # unset ``${{ vars.X }}`` as an *empty string*, so the key is present but
+    # blank and getenv's default never applies.
+    host = os.getenv("YAHOO_IMAP_HOST", "").strip() or _DEFAULT_HOST
+    user = os.getenv("YAHOO_EMAIL", "").strip() or "preuss.steffen@yahoo.com"
     domains = tuple(
         d.strip()
-        for d in os.getenv("VENDOR_BILLING_DOMAINS", ",".join(_DEFAULT_DOMAINS)).split(",")
+        for d in (os.getenv("VENDOR_BILLING_DOMAINS", "").strip() or ",".join(_DEFAULT_DOMAINS)).split(",")
         if d.strip()
     )
     since = datetime.now(UTC) - timedelta(days=max(1, args.days))

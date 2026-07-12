@@ -1438,7 +1438,6 @@ def test_finnhub_client_no_key_returns_documented_empty_defaults() -> None:
     client = FinnhubClient(api_key="")
     assert client.get_insider_sentiment("AAPL", "2026-01-01", "2026-04-23") == {}
     assert client.get_peers("AAPL") == []
-    assert client.get_social_sentiment("AAPL") == {}
     assert client.get_pattern_recognition("AAPL") == {}
     assert client.get_support_resistance("AAPL") == {}
     assert client.get_aggregate_indicators("AAPL") == {}
@@ -1450,7 +1449,6 @@ def test_finnhub_client_empty_symbol_returns_empty_defaults() -> None:
     client = FinnhubClient(api_key="K")
     assert client.get_insider_sentiment("  ", "2026-01-01", "2026-04-23") == {}
     assert client.get_peers("") == []
-    assert client.get_social_sentiment("") == {}
     assert client.get_pattern_recognition(" ") == {}
     assert client.get_support_resistance("") == {}
     assert client.get_aggregate_indicators("") == {}
@@ -1495,7 +1493,6 @@ def test_finnhub_client_delegates_to_terminal_finnhub_shim(
     insider = client.get_insider_sentiment("aapl", "2026-01-01", "2026-04-23")
     assert insider == {"data": [{"mspr": 12.5}], "symbol": "AAPL"}
     assert client.get_peers("aapl") == ["MSFT", "NVDA"]
-    assert client.get_social_sentiment("aapl") == {"signal": "buy"}
     pattern = client.get_pattern_recognition("aapl")
     assert pattern == {"points": [{"patternname": "Doji"}]}
     assert client.get_support_resistance("aapl") == {"signal": "buy"}
@@ -1507,7 +1504,6 @@ def test_finnhub_client_delegates_to_terminal_finnhub_shim(
     assert seen_paths == [
         "/stock/insider-sentiment",
         "/stock/peers",
-        "/stock/social-sentiment",
         "/scan/pattern",
         "/scan/support-resistance",
         "/scan/technical-indicator",
@@ -1574,7 +1570,6 @@ def test_finnhub_client_swallows_shim_exception(
     client = FinnhubClient(api_key="K")
     assert client.get_insider_sentiment("AAPL", "2026-01-01", "2026-04-23") == {}
     assert client.get_peers("AAPL") == []
-    assert client.get_social_sentiment("AAPL") == {}
     assert client.get_pattern_recognition("AAPL") == {}
     assert client.get_fda_calendar() == []
 

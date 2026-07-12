@@ -7,7 +7,7 @@ a GitHub issue — one webhook, context-aware routing.
 
 Mounting: ``main.py`` includes this router unconditionally. The endpoint is a
 no-op (HTTP 503) until ``GRAFANA_WEBHOOK_TOKEN`` is set, and every delivery is
-fail-soft via ``composio_ops`` (no ``COMPOSIO_API_KEY`` -> logged skip), so the
+fail-soft via ``composio_ops`` (no prod project key -> logged skip), so the
 daemon boots and serves overlays exactly as before when Composio is not wired.
 
 Routing rules:
@@ -55,9 +55,7 @@ def build_slack_message(payload: dict[str, Any]) -> str:
 
     for alert in _alerts(payload):
         labels = alert.get("labels") if isinstance(alert.get("labels"), dict) else {}
-        annotations = (
-            alert.get("annotations") if isinstance(alert.get("annotations"), dict) else {}
-        )
+        annotations = alert.get("annotations") if isinstance(alert.get("annotations"), dict) else {}
         name = labels.get("alertname", "?")
         severity = labels.get("severity", "")
         summary = annotations.get("summary") or annotations.get("description") or ""
@@ -99,6 +97,27 @@ def _issue_body(alert: dict[str, Any], payload: dict[str, Any]) -> str:
     return "\n".join(parts)
 
 
+def _issue_rows(data: dict[str, Any] | None) -> list[dict[str, Any]]:
+    """Normalize the common Composio/GitHub list-response wrappers."""
+    if not isinstance(data, dict):
+        return []
+    for key in ("items", "issues", "data"):
+        value = data.get(key)
+        if isinstance(value, list):
+            return [item for item in value if isinstance(item, dict)]
+    return []
+
+
+def _find_incident(owner: str, repo: str, title: str) -> int | None:
+    result = composio_ops.list_github_issues(owner, repo, state="open")
+    if not result.delivered:
+        return None
+    for issue in _issue_rows(result.data):
+        if issue.get("title") == title and isinstance(issue.get("number"), int):
+            return int(issue["number"])
+    return None
+
+
 def fan_out(payload: dict[str, Any]) -> dict[str, Any]:
     """Deliver a parsed Grafana payload to Slack (+ opt-in GitHub issues).
 
@@ -113,17 +132,34 @@ def fan_out(payload: dict[str, Any]) -> dict[str, Any]:
     repo = os.getenv("GITHUB_ISSUE_REPO", _DEFAULT_ISSUE_REPO).strip() or _DEFAULT_ISSUE_REPO
     owner, _, name = repo.partition("/")
     issues: list[dict[str, Any]] = []
-    for alert in _issue_alerts(payload):
+    for alert in _alerts(payload):
         labels = alert.get("labels") if isinstance(alert.get("labels"), dict) else {}
+        if str(labels.get("composio_issue", "")).lower() != "true":
+            continue
         alertname = str(labels.get("alertname", "grafana-alert"))
+        title = f"[grafana] {alertname} firing"
         if owner and name:
-            res = composio_ops.create_github_issue(
-                owner,
-                name,
-                title=f"[grafana] {alertname} firing",
-                body=_issue_body(alert, payload),
-                labels=["grafana-alert", "automated"],
-            )
+            existing = _find_incident(owner, name, title)
+            if str(payload.get("status")) == "resolved":
+                if existing is None:
+                    continue
+                comment = composio_ops.comment_github_issue(
+                    owner, name, existing, "Resolved by Grafana.\n\n" + _issue_body(alert, payload)
+                )
+                closed = composio_ops.close_github_issue(owner, name, existing)
+                res = closed if not closed.delivered else comment
+            elif existing is not None:
+                res = composio_ops.comment_github_issue(
+                    owner, name, existing, "Still firing.\n\n" + _issue_body(alert, payload)
+                )
+            else:
+                res = composio_ops.create_github_issue(
+                    owner,
+                    name,
+                    title=title,
+                    body=_issue_body(alert, payload),
+                    labels=["grafana-alert", "automated"],
+                )
             issues.append(
                 {"alert": alertname, "delivered": res.delivered, "skipped": res.skipped, "detail": res.detail}
             )

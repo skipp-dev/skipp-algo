@@ -4,7 +4,7 @@ name: ops-digest-daily
 # Daily ops digest -> Outlook email (use case #4). Reads the sweep-trap shadow,
 # open_prep feature-importance, and public calibration artifacts from the
 # checkout and emails a compact summary via Composio (OUTLOOK_SEND_EMAIL). It is
-# inert (skips) unless COMPOSIO_API_KEY + OPS_DIGEST_EMAIL_TO are configured, and
+# inert unless the production Composio key/account + recipient are configured, and
 # fail-soft so a delivery hiccup never turns the workflow red.
 
 on:
@@ -50,9 +50,10 @@ jobs:
         # CONTINUE-ON-ERROR-INTENTIONAL: best-effort convenience digest; a delivery hiccup must never fail the cron.
         continue-on-error: true
         env:
-          COMPOSIO_API_KEY: ${{ secrets.COMPOSIO_API_KEY }}
-          COMPOSIO_USER_ID: ${{ vars.COMPOSIO_USER_ID }}
-          COMPOSIO_OUTLOOK_ACCOUNT_ID: ${{ vars.COMPOSIO_OUTLOOK_ACCOUNT_ID }}
+          COMPOSIO_ENVIRONMENT: prod
+          COMPOSIO_PROD_API_KEY: ${{ secrets.COMPOSIO_PROD_API_KEY }}
+          COMPOSIO_PROD_USER_ID: ${{ vars.COMPOSIO_PROD_USER_ID }}
+          COMPOSIO_OUTLOOK_WRITE_ACCOUNT_ID: ${{ vars.COMPOSIO_OUTLOOK_WRITE_ACCOUNT_ID }}
           OPS_DIGEST_EMAIL_TO: ${{ vars.OPS_DIGEST_EMAIL_TO }}
         run: |
           set +e
@@ -60,8 +61,8 @@ jobs:
           if [ "${{ github.event_name }}" = "workflow_dispatch" ] && [ "${{ inputs.dry_run }}" = "true" ]; then
             DRY="--dry-run"
           fi
-          if [ -z "${COMPOSIO_API_KEY:-}" ] && [ -z "$DRY" ]; then
-            echo "::notice title=ops-digest::COMPOSIO_API_KEY not set — rendering digest only (no send)."
+          if [ -z "${COMPOSIO_PROD_API_KEY:-}" ] && [ -z "$DRY" ]; then
+            echo "::notice title=ops-digest::COMPOSIO_PROD_API_KEY not set — rendering digest only (no send)."
             DRY="--dry-run"
           fi
           # composio_ops talks to the Composio REST API over stdlib urllib —

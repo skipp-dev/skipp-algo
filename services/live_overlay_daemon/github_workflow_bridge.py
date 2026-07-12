@@ -268,8 +268,13 @@ def snapshot() -> dict[str, Any]:
             "latest_run_age_seconds": None,
             "latest_run_duration_seconds": None,
             "workflows": [],
-            "error": "missing_token",
-            "error_code": "missing_token",
+            # Disabled bridge (no token → enabled=0) is NOT an error — the
+            # missing-token state is already conveyed by configured=0. Emit
+            # error=None so bridge_error_info stays 0, consistent with railway's
+            # _disabled_snapshot (was error="missing_token" → a permanent
+            # error_info=1 that read as a fault on an intentionally-off bridge).
+            "error": None,
+            "error_code": None,
             "error_message": "GITHUB_WORKFLOW_MONITOR_TOKEN is not set",
         }
 

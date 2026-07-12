@@ -16,15 +16,15 @@ extra packages) and avoids pulling Composio's heavy transitive tree
 ``{"data": ..., "successful": bool, "error": null|{...}}``.
 
 Design contract — **ops notification is best-effort and MUST never raise into
-the caller**. A missing ``COMPOSIO_API_KEY`` or a provider/network hiccup
+the caller**. A missing environment-specific project key or provider/network hiccup
 degrades to a *logged no-op / failed DeliveryResult*; it must never crash a
 credential health check, a nightly digest cron, or the live-overlay daemon.
 
 Config (env):
-    COMPOSIO_API_KEY               required to attempt a live call (the ak_… key)
-    COMPOSIO_USER_ID               entity the connected accounts belong to (default "default")
-    COMPOSIO_BASE_URL              override the API host (default backend.composio.dev)
-    COMPOSIO_<TOOLKIT>_ACCOUNT_ID  optional connected-account pin per toolkit
+    COMPOSIO_ENVIRONMENT                       ``prod`` or ``dev``
+    COMPOSIO_<ENV>_API_KEY                     project-specific ak_… key
+    COMPOSIO_<ENV>_USER_ID                     project entity ID
+    COMPOSIO_<TOOLKIT>_<ACCESS>_ACCOUNT_ID     mandatory read/write account pin
 """
 
 from __future__ import annotations
@@ -35,21 +35,25 @@ import os
 import urllib.error
 import urllib.request
 from dataclasses import dataclass
+from functools import lru_cache
+from pathlib import Path
 from typing import Any
 
 logger = logging.getLogger(__name__)
 
 _DEFAULT_BASE_URL = "https://backend.composio.dev"
 _TIMEOUT = 20.0
+_REGISTRY_PATH = Path(__file__).resolve().parents[1] / "configs" / "composio_tools.json"
 
 # Tool slugs kept as module constants so a Composio-side rename is a one-line
 # change here rather than a scattered string edit across three call sites.
 SLACK_OPEN_DM = "SLACK_OPEN_DM"
 SLACK_SEND_MESSAGE = "SLACK_SEND_MESSAGE"
 GITHUB_CREATE_ISSUE = "GITHUB_CREATE_AN_ISSUE"
-# The REST tool is double-prefixed (OUTLOOK_OUTLOOK_…) and takes ``to_email``,
-# unlike the single-prefixed MCP slug that takes ``to`` — verified live 2026-07-11.
-OUTLOOK_SEND_EMAIL = "OUTLOOK_OUTLOOK_SEND_EMAIL"
+OUTLOOK_SEND_EMAIL = "OUTLOOK_SEND_EMAIL"
+OUTLOOK_CREATE_EVENT = "OUTLOOK_CALENDAR_CREATE_EVENT"
+NOTION_CREATE_PAGE = "NOTION_CREATE_NOTION_PAGE"
+NOTION_APPEND_TEXT = "NOTION_APPEND_TEXT_BLOCKS"
 
 
 @dataclass(frozen=True)
@@ -74,18 +78,35 @@ class DeliveryResult:
 
 def is_configured() -> bool:
     """Whether a live Composio delivery could be attempted at all."""
-    return bool(os.getenv("COMPOSIO_API_KEY", "").strip())
+    return bool(_api_key())
+
+
+@lru_cache(maxsize=1)
+def tool_registry() -> dict[str, dict[str, Any]]:
+    """Return the reviewed allow-list of pinned Composio tools."""
+    with _REGISTRY_PATH.open(encoding="utf-8") as handle:
+        payload = json.load(handle)
+    return payload["tools"]
+
+
+def _environment() -> str:
+    value = os.getenv("COMPOSIO_ENVIRONMENT", "prod").strip().lower()
+    return value if value in {"prod", "dev"} else "prod"
+
+
+def _api_key() -> str:
+    """Select a project key explicitly by environment; never cross environments."""
+    name = f"COMPOSIO_{_environment().upper()}_API_KEY"
+    return os.getenv(name, "").strip()
 
 
 def _base_url() -> str:
     return os.getenv("COMPOSIO_BASE_URL", _DEFAULT_BASE_URL).strip().rstrip("/") or _DEFAULT_BASE_URL
 
 
-def _account_for_toolkit(toolkit: str | None) -> str | None:
-    """Optional per-toolkit connected-account override from the environment."""
-    if not toolkit:
-        return None
-    value = os.getenv(f"COMPOSIO_{toolkit.upper()}_ACCOUNT_ID", "").strip()
+def _account_for_toolkit(toolkit: str, access: str) -> str | None:
+    """Resolve a read/write-specific account; implicit account selection is forbidden."""
+    value = os.getenv(f"COMPOSIO_{toolkit.upper()}_{access.upper()}_ACCOUNT_ID", "").strip()
     return value or None
 
 
@@ -127,6 +148,7 @@ def execute_tool(
     arguments: dict[str, Any],
     *,
     toolkit: str | None = None,
+    access: str | None = None,
     connected_account_id: str | None = None,
     opener: Any = None,
 ) -> DeliveryResult:
@@ -136,16 +158,40 @@ def execute_tool(
     provider/network/HTTP error is captured and returned as a failed — but
     non-fatal — :class:`DeliveryResult`. ``opener`` is injectable for tests.
     """
-    api_key = os.getenv("COMPOSIO_API_KEY", "").strip()
-    if not api_key:
-        logger.info("composio_ops: COMPOSIO_API_KEY unset — skipping %s (no-op)", slug)
-        return DeliveryResult(ok=False, skipped=True, detail="COMPOSIO_API_KEY unset")
+    spec = tool_registry().get(slug)
+    if spec is None:
+        return DeliveryResult(ok=False, skipped=True, detail=f"tool {slug} is not allow-listed")
+    expected_toolkit = str(spec["toolkit"])
+    expected_access = str(spec["access"])
+    if toolkit and toolkit != expected_toolkit:
+        return DeliveryResult(ok=False, skipped=True, detail=f"toolkit mismatch for {slug}")
+    if access and access != expected_access:
+        return DeliveryResult(ok=False, skipped=True, detail=f"access mismatch for {slug}")
 
-    user_id = os.getenv("COMPOSIO_USER_ID", "default").strip() or "default"
-    account = connected_account_id or _account_for_toolkit(toolkit)
-    body: dict[str, Any] = {"user_id": user_id, "arguments": arguments}
-    if account:
-        body["connected_account_id"] = account
+    api_key = _api_key()
+    if not api_key:
+        name = f"COMPOSIO_{_environment().upper()}_API_KEY"
+        logger.info("composio_ops: %s unset — skipping %s (no-op)", name, slug)
+        return DeliveryResult(ok=False, skipped=True, detail=f"{name} unset")
+
+    user_name = f"COMPOSIO_{_environment().upper()}_USER_ID"
+    user_id = os.getenv(user_name, "").strip()
+    if not user_id:
+        return DeliveryResult(ok=False, skipped=True, detail=f"{user_name} unset")
+    account = connected_account_id or _account_for_toolkit(expected_toolkit, expected_access)
+    if not account:
+        env_name = f"COMPOSIO_{expected_toolkit.upper()}_{expected_access.upper()}_ACCOUNT_ID"
+        return DeliveryResult(ok=False, skipped=True, detail=f"{env_name} unset")
+
+    missing = [name for name in spec.get("required", []) if name not in arguments]
+    if missing:
+        return DeliveryResult(ok=False, skipped=True, detail=f"{slug} missing arguments: {', '.join(missing)}")
+    body: dict[str, Any] = {
+        "user_id": user_id,
+        "arguments": arguments,
+        "connected_account_id": account,
+        "version": spec["version"],
+    }
 
     request = urllib.request.Request(
         f"{_base_url()}/api/v3/tools/execute/{slug}",
@@ -179,13 +225,16 @@ def execute_tool(
 # -- High-level helpers -----------------------------------------------------
 
 
-def send_slack_channel_message(channel: str, markdown_text: str) -> DeliveryResult:
+def send_slack_channel_message(channel: str, markdown_text: str, *, thread_ts: str | None = None) -> DeliveryResult:
     """Post a Markdown message to a Slack channel (or DM channel id)."""
     if not channel:
         return DeliveryResult(ok=False, skipped=True, detail="no Slack channel configured")
+    arguments = {"channel": channel, "markdown_text": markdown_text}
+    if thread_ts:
+        arguments["thread_ts"] = thread_ts
     return execute_tool(
         SLACK_SEND_MESSAGE,
-        {"channel": channel, "markdown_text": markdown_text},
+        arguments,
         toolkit="slack",
     )
 
@@ -214,9 +263,7 @@ def send_slack_dm(slack_user_id: str, markdown_text: str) -> DeliveryResult:
         return opened
     channel_id = _extract_dm_channel_id(opened.data)
     if not channel_id:
-        return DeliveryResult(
-            ok=False, skipped=False, detail="SLACK_OPEN_DM returned no usable channel id"
-        )
+        return DeliveryResult(ok=False, skipped=False, detail="SLACK_OPEN_DM returned no usable channel id")
     return send_slack_channel_message(channel_id, markdown_text)
 
 
@@ -254,12 +301,83 @@ def create_github_issue(
     return execute_tool(GITHUB_CREATE_ISSUE, arguments, toolkit="github")
 
 
+def list_github_issues(owner: str, repo: str, *, state: str = "open") -> DeliveryResult:
+    """List repository issues through the read-only GitHub connection."""
+    return execute_tool(
+        "GITHUB_LIST_REPOSITORY_ISSUES",
+        {"owner": owner, "repo": repo, "state": state, "per_page": 100},
+        toolkit="github",
+    )
+
+
+def comment_github_issue(owner: str, repo: str, issue_number: int, body: str) -> DeliveryResult:
+    """Append an incident lifecycle event to an existing issue."""
+    return execute_tool(
+        "GITHUB_CREATE_AN_ISSUE_COMMENT",
+        {"owner": owner, "repo": repo, "issue_number": issue_number, "body": body},
+        toolkit="github",
+    )
+
+
+def close_github_issue(owner: str, repo: str, issue_number: int) -> DeliveryResult:
+    """Close an incident issue after a resolved event."""
+    return execute_tool(
+        "GITHUB_CLOSE_ISSUE",
+        {"owner": owner, "repo": repo, "issue_number": issue_number},
+        toolkit="github",
+    )
+
+
 def send_outlook_email(to: str, subject: str, html_body: str) -> DeliveryResult:
     """Send an HTML email via the connected Outlook account."""
     if not to:
         return DeliveryResult(ok=False, skipped=True, detail="no Outlook recipient configured")
     return execute_tool(
         OUTLOOK_SEND_EMAIL,
-        {"to_email": to, "subject": subject, "body": html_body, "is_html": True},
+        {"to": to, "subject": subject, "body": html_body, "is_html": True},
         toolkit="outlook",
+    )
+
+
+def create_outlook_event(
+    subject: str,
+    start_datetime: str,
+    end_datetime: str,
+    *,
+    time_zone: str = "Europe/Berlin",
+    body: str = "",
+    transaction_id: str | None = None,
+) -> DeliveryResult:
+    """Create an idempotent operator calendar event."""
+    arguments: dict[str, Any] = {
+        "subject": subject,
+        "start_datetime": start_datetime,
+        "end_datetime": end_datetime,
+        "time_zone": time_zone,
+        "body": body,
+        "is_html": False,
+    }
+    if transaction_id:
+        arguments["transaction_id"] = transaction_id
+    return execute_tool(OUTLOOK_CREATE_EVENT, arguments, toolkit="outlook")
+
+
+def create_notion_page(parent_id: str, title: str, *, markdown: str = "") -> DeliveryResult:
+    """Create a research digest page below the configured parent."""
+    arguments = {"parent_id": parent_id, "title": title}
+    if markdown:
+        arguments["markdown"] = markdown
+    return execute_tool(
+        NOTION_CREATE_PAGE,
+        arguments,
+        toolkit="notion",
+    )
+
+
+def append_notion_text(block_id: str, children: list[dict[str, Any]]) -> DeliveryResult:
+    """Append reviewed text blocks to a Notion page."""
+    return execute_tool(
+        NOTION_APPEND_TEXT,
+        {"block_id": block_id, "children": children},
+        toolkit="notion",
     )

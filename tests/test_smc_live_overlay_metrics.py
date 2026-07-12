@@ -984,6 +984,28 @@ def test_render_metrics_bridge_error_info_absent_when_healthy(
     assert "live_overlay_github_workflow_scrape_error_info" not in body
 
 
+def test_disabled_bridges_are_not_reported_as_errors(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A missing credential disables the uptimerobot / github_workflow bridge
+    (enabled=0) but is NOT an error: error_code stays None so bridge_error_info
+    is 0 — consistent with railway_metrics._disabled_snapshot. Previously the
+    disabled path emitted error="missing_api_key"/"missing_token", a permanent
+    error_info=1 that read as a fault on an intentionally-off optional bridge
+    (the missing-credential state is already conveyed by configured=0)."""
+    import services.live_overlay_daemon.github_workflow_bridge as gw
+    import services.live_overlay_daemon.uptimerobot_bridge as ub
+
+    monkeypatch.setattr(ub.config, "uptimerobot_api_key", lambda: "")
+    monkeypatch.setattr(gw.config, "github_workflow_token", lambda: "")
+
+    for snap in (ub.snapshot(), gw.snapshot()):
+        assert snap["enabled"] == 0
+        assert snap["configured"] == 0
+        assert snap["error"] is None
+        assert snap["error_code"] is None
+
+
 def test_render_metrics_bridge_error_info_clears_after_recovery(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:

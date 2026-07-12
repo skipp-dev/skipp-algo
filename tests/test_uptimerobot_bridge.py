@@ -59,7 +59,13 @@ def test_snapshot_returns_disabled_without_api_key() -> None:
         result = uptimerobot_bridge.snapshot()
     assert result["enabled"] == 0
     assert result["ok"] == 0
-    assert result["error"] == "missing_api_key"
+    # A missing key disables the bridge (enabled=0) but is NOT an error: configured=0
+    # already conveys the missing-credential state, and error stays None so
+    # bridge_error_info is 0 — consistent with railway_metrics._disabled_snapshot
+    # (was error="missing_api_key", a permanent error_info=1 on an off bridge).
+    assert result["configured"] == 0
+    assert result["error"] is None
+    assert result["error_code"] is None
 
 
 def _fake_response(body: bytes) -> object:

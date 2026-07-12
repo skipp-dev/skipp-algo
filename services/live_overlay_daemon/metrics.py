@@ -416,7 +416,7 @@ def _credential_health_snapshot() -> dict[str, object]:
     * ``live_overlay_credential_health_<probe>_info`` — labelled gauge carrying
       the raw severity and message as metadata.
     * Numeric detail gauges when the probe exposes a known scalar:
-      ``age_hours`` for ``tv_storage_state_age``,
+      ``age_hours`` (and ``validated_at_seconds``) for ``tv_storage_state_age``,
       ``days_left`` for ``github_pat_validity``,
       ``staleness_days`` for ``databento_delivery``.
 
@@ -2029,8 +2029,8 @@ def _render_provider_usage_metrics() -> list[str]:
     lines.append("# TYPE live_overlay_provider_usage_calls gauge")
     lines.append("# TYPE live_overlay_provider_usage_records gauge")
     # 429 rate-limit hits (current month). The vendors expose no X-RateLimit-*
-    # headers, so this counter — incremented in newsstack_fmp/_bz_http.py — is the
-    # only "we are being throttled" signal. Alert on increase() over a window.
+    # headers, so this month-accumulating gauge — bumped in newsstack_fmp/_bz_http.py —
+    # is the only "throttled" signal. Alert on increase() (safe across the month reset).
     lines.append("# TYPE live_overlay_provider_usage_rate_limit_hits gauge")
     for name in sorted(providers):
         vals = providers[name] or {}

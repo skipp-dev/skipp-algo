@@ -6,6 +6,11 @@ on:
     branches: [main]
   push:
     branches: [main]
+  # merge_group: `fast-gates` is the only required check, so it MUST run on the
+  # merge-queue ref — otherwise an enabled merge queue would wait forever for a
+  # check that never dispatches. The heavy-gate logic below already runs the full
+  # suite on any non-`pull_request` event, so the merged batch is fully validated.
+  merge_group:
 
 permissions:
   contents: read

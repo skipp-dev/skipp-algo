@@ -371,9 +371,10 @@ def main(argv: list[str] | None = None) -> int:
             file=sys.stderr,
         )
         return 1
+    survivorship_bias_risk = False
     if args.universe_trade_date is not None:
         try:
-            load_universe_for_backtest(
+            _universe_frame, _universe_meta = load_universe_for_backtest(
                 args.universe_trade_date,
                 strict=args.strict_universe,
                 snapshot_root=args.snapshot_root,
@@ -381,6 +382,10 @@ def main(argv: list[str] | None = None) -> int:
         except MissingUniverseSnapshotError as exc:
             print(f"ERROR: {exc}", file=sys.stderr)
             return 1
+        # Non-strict + missing snapshot falls back to the live vendor and flags
+        # survivorship_bias_risk=True; capture it so we can refuse to PROMOTE
+        # (but still observe) below, instead of silently promoting a biased run.
+        survivorship_bias_risk = bool(_universe_meta.get("survivorship_bias_risk"))
 
     if not args.metrics.exists():
         print(f"ERROR: metrics file does not exist: {args.metrics}", file=sys.stderr)
@@ -391,6 +396,16 @@ def main(argv: list[str] | None = None) -> int:
     except (json.JSONDecodeError, ValueError, TypeError) as exc:
         print(f"ERROR: failed to load metrics bundle {args.metrics}: {exc}", file=sys.stderr)
         return 1
+
+    # Production survivorship enforcement WITHOUT --universe-trade-date: the bundle
+    # carries universe_survivorship_bias_risk in each entry's provenance (stamped
+    # by build_promotion_gate_bundle from the databento export manifest). OR it
+    # into the flag so the demote-to-rc-2 block below fires in the daily CI, which
+    # does not pass --universe-trade-date. Fail-soft: absent key => False.
+    survivorship_bias_risk = survivorship_bias_risk or any(
+        bool((getattr(s, "provenance", None) or {}).get("universe_survivorship_bias_risk"))
+        for s in snapshots
+    )
 
     if args.no_magnitude_feed:
         policy = MagnitudeStagePolicy()
@@ -421,12 +436,28 @@ def main(argv: list[str] | None = None) -> int:
         strict_provenance=not args.no_strict,
         magnitude_strict_families=policy.armed_families,
     )
+    report["universe_survivorship_bias_risk"] = survivorship_bias_risk
     atomic_write_json(report, args.output, indent=2, sort_keys=False)
     archive_path = _archive_report(report, args.archive_dir)
     if archive_path is not None:
         print(f"archived: {archive_path}", file=sys.stderr)
     print(json.dumps(report, indent=2))
-    return _report_exit_code(report)
+    exit_code = _report_exit_code(report)
+    # Default enforcement: never PROMOTE a survivorship-biased run (snapshot
+    # absent -> live-vendor fallback). Demote-not-promote (rc 2) — the full report
+    # is still emitted/archived for observation, and the databento forward-fill
+    # (#3453) persists the as-of snapshot so a re-run for the same trade_date
+    # clears the flag and promotes normally. --strict-universe still hard-fails.
+    if survivorship_bias_risk and exit_code == 0:
+        print(
+            "BLOCKED: universe fell back to the live vendor "
+            "(survivorship_bias_risk=True); refusing to PROMOTE a survivorship-"
+            "biased run. Persist/forward-fill the as-of snapshot and re-run, or "
+            "pass --strict-universe to hard-fail (#3453).",
+            file=sys.stderr,
+        )
+        exit_code = 2
+    return exit_code
 
 
 if __name__ == "__main__":  # pragma: no cover

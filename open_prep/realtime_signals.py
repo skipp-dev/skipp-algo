@@ -5,7 +5,7 @@ at a configurable interval (default 20 s), and detects breakout signals.
 
 Signal Levels
 -------------
-  A0 — Immediate action: strong breakout confirmed with volume.
+  A0 — Immediate action: strong breakout; volume-confirmed OR via key-level/technicals.
   A1 — Watch closely: early breakout forming.  A2 — Early warning, pre-A1.
 
 VisiData Integration
@@ -688,7 +688,7 @@ class NearA0Repoller:
         return self._client
 
     def _warm_set(self) -> list[str]:
-        """Current A1/A2 symbols — the ones one step below A0."""
+        """Current A1/A2 symbols — the tiers below A0 that can still escalate to it."""
         active = self._engine.get_active_signals()  # errors bubble to _loop's guard
         seen: set[str] = set()
         out: list[str] = []
@@ -2451,7 +2451,7 @@ class RealtimeEngine:
                 direction = "SHORT"
 
         # ── #4  Falling knife protection ────────────────────────────
-        # Block or downgrade LONG signals when intraday momentum is negative
+        # Downgrade (A0→A1) or warn-and-pass LONG signals on negative intraday momentum
         # (price falling from previous poll → still accelerating down).
         falling_knife_warned = False
         if direction == "LONG" and prev_price is not None and price < prev_price:

@@ -1,0 +1,14 @@
+{
+  "schema_version": 1,
+  "projects": {"prod": "skipp-algo-prod", "dev": "skipp-algo-dev"},
+  "auth_configs": {
+    "slack_read": {"scopes": ["channels:history", "channels:read", "groups:history", "groups:read", "im:history", "im:read", "mpim:history", "mpim:read", "users:read"]},
+    "slack_write": {"scopes": ["chat:write", "im:write"]},
+    "github_read": {"scopes": ["repo", "read:user"]},
+    "github_write": {"scopes": ["repo", "read:user"]},
+    "outlook_read": {"scopes": ["User.Read", "offline_access"]},
+    "outlook_write": {"scopes": ["User.Read", "Mail.Send", "Calendars.ReadWrite", "offline_access"]},
+    "notion_read": {"scopes": [], "page_access": "research parent, read-only connection"},
+    "notion_write": {"scopes": [], "page_access": "research parent only"}
+  }
+}
