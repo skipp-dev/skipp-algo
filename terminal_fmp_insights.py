@@ -293,7 +293,6 @@ def assemble_context(
             "ticker": item.get("ticker", ""),
             "score": round(item.get("news_score", 0), 3),
             "sentiment": item.get("sentiment_label", ""),  # feed emits sentiment_label, not "sentiment"
-            "segment": item.get("segment", ""),
             "source": item.get("source", ""),
             "age_min": item.get("age_minutes", 0),
         }
@@ -321,20 +320,10 @@ def assemble_context(
         )[:30]
     }
 
-    segment_counts: dict[str, int] = {}
-    for item in feed:
-        seg = item.get("segment", "")
-        if seg:
-            segment_counts[seg] = segment_counts.get(seg, 0) + 1
-    top_segments = dict(
-        sorted(segment_counts.items(), key=lambda kv: kv[1], reverse=True)[:15]
-    )
-
     ctx: dict[str, Any] = {
         "total_articles": len(feed),
         "top_articles": articles,
         "ticker_summary": ticker_summary,
-        "top_segments": top_segments,
     }
     if fmp_data:
         ctx["fmp_financials"] = fmp_data

@@ -125,7 +125,6 @@ def assemble_context(
             "ticker": item.get("ticker", ""),
             "score": round(item.get("news_score", 0), 3),
             "sentiment": item.get("sentiment_label", ""),  # feed emits sentiment_label, not "sentiment"
-            "segment": item.get("segment", ""),
             "source": item.get("source", ""),
             "age_min": item.get("age_minutes", 0),
         }
@@ -154,21 +153,10 @@ def assemble_context(
         )[:30]
     }
 
-    # --- Segment summary ---
-    segment_counts: dict[str, int] = {}
-    for item in feed:
-        seg = item.get("segment", "")
-        if seg:
-            segment_counts[seg] = segment_counts.get(seg, 0) + 1
-    top_segments = dict(
-        sorted(segment_counts.items(), key=lambda kv: kv[1], reverse=True)[:15]
-    )
-
     ctx: dict[str, Any] = {
         "total_articles": len(feed),
         "top_articles": articles,
         "ticker_summary": ticker_summary,
-        "top_segments": top_segments,
     }
     if technicals:
         ctx["technicals"] = technicals
@@ -185,7 +173,7 @@ def assemble_context(
 _SYSTEM_PROMPT = """\
 You are a senior financial analyst assistant integrated into a real-time
 news intelligence dashboard.  You have access to a live feed of classified news articles
-with sentiment scores, ticker mentions, sector segments, and (when available)
+with sentiment scores, ticker mentions, and (when available)
 technical indicators and macro data.
 
 Your role:
@@ -335,7 +323,7 @@ PRESET_QUESTIONS: list[tuple[str, str]] = [
     ("📊 Market Pulse", "Give a concise market pulse summary based on the current news feed. Highlight the dominant sentiment, most-mentioned tickers, and any notable theme shifts."),
     ("🔥 Top Movers", "Which tickers have the strongest positive or negative sentiment signals right now? List the top 5 bullish and top 5 bearish, with their scores and key headlines."),
     ("⚠️ Risk Signals", "Identify any risk signals, red flags, or negative catalysts in the current feed. Focus on high-impact items like earnings misses, regulatory actions, downgrades, or sector-wide concerns."),
-    ("🏗️ Sector Themes", "What are the dominant sector themes in the current news cycle? Group by segment/industry and highlight cross-sector signals."),
+    ("🏗️ Sector Themes", "What are the dominant sector themes in the current news cycle? Infer sector/industry from tickers and headlines, and highlight cross-sector signals."),
     ("💡 Trade Ideas", "Based on the current sentiment data and any available technicals, suggest high-conviction trade ideas with rationale. Include both long and short opportunities. Provide at least 5 ideas (up to 10) when there are enough tickers with strong scores (|score| >= 0.3). For each idea cite the supporting article headlines with their source links."),
     ("🔮 Outlook", "What is the likely near-term direction based on the current news flow? Consider sentiment momentum, volume of coverage, and any macro signals."),
 ]
