@@ -1208,7 +1208,7 @@ def supervise_open_execution(
 
 
 def build_parser() -> argparse.ArgumentParser:
-    parser = argparse.ArgumentParser(description="Convert Databento watchlists into IBKR order previews or live TWS orders.")
+    parser = argparse.ArgumentParser(description="Convert Databento watchlists into IBKR order previews or live TWS orders. --place-orders places the bracket then exits; --cancel-unfilled-after / --time-stop-after are recorded to the preview but enforced only by run_ibkr_open_execution.py's supervised loop.")
     parser.add_argument("--watchlist-csv", default=str(DEFAULT_WATCHLIST_CSV), help="Existing watchlist CSV. If omitted and --bundle is provided, a fresh watchlist is generated in-memory.")
     parser.add_argument("--bundle", default=None, help="Databento bundle manifest or directory. Used when generating a watchlist on the fly.")
     parser.add_argument("--export-dir", default=None, help="Directory with exact named Databento exports if --bundle is not used.")
