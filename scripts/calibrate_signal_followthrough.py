@@ -234,7 +234,7 @@ def main(argv: list[str] | None = None) -> int:
         print(f"{key:22} {row['n']:>5} {row['hit_target_rate'] * 100:>6.1f}% "
               f"{row['mean_net_pct']:>10.3f} {row['median_mfe_pct']:>9.3f} {row['median_mae_pct']:>9.3f}")
     if args.out:
-        args.out.write_text(json.dumps(result, indent=2), encoding="utf-8")
+        args.out.write_text(json.dumps(result, indent=2), encoding="utf-8")  # ATOMIC-WRITE-EXEMPT: calibration research CLI writing to an operator-supplied --out path; not a production dataset with concurrent readers
         print(f"wrote {args.out}")
     return 0
 

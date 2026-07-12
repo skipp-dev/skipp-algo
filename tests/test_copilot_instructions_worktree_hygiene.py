@@ -45,6 +45,10 @@ def test_stale_audit_and_fix_worktree_hygiene_is_documented() -> None:
 
 
 def test_duplicated_worktree_hygiene_blocks_do_not_drift() -> None:
+    # #3371 ("de-duplicate copilot-instructions.md") intentionally collapsed the
+    # Worktree-Hygiene rule to a single canonical block (e5a11ce3a had added it
+    # twice). Pin exactly one block so an accidental re-duplication (which could
+    # drift out of sync) is caught; the block's content is pinned by
+    # test_stale_audit_and_fix_worktree_hygiene_is_documented.
     blocks = _worktree_hygiene_blocks()
-    assert len(blocks) == 2
-    assert blocks[0] == blocks[1]
+    assert len(blocks) == 1
