@@ -104,7 +104,9 @@ def test_main_sends_email(tmp_path, monkeypatch):
     assert rec.calls and rec.calls[0][0] == "ops@example.com"
 
 
-def test_main_returns_1_on_send_failure(tmp_path, monkeypatch):
+def test_main_returns_0_on_send_failure(tmp_path, monkeypatch, capsys):
+    # Best-effort ops notification: a Composio send failure must NOT red the cron.
     rec = _MailRecorder(DeliveryResult(False, False, "boom"))
     monkeypatch.setattr(ops_digest.composio_ops, "send_outlook_email", rec)
-    assert ops_digest.main(["--root", str(tmp_path), "--to", "ops@example.com"]) == 1
+    assert ops_digest.main(["--root", str(tmp_path), "--to", "ops@example.com"]) == 0
+    assert "email FAILED" in capsys.readouterr().err  # surfaced, not swallowed
