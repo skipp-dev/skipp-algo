@@ -172,7 +172,7 @@ def cross_lead_lag_at(
     (``governance.family_event_adapter.family_events_from_structure``) enforces
     timestamp alignment before calling and degrades to ``None`` on any mismatch.
 
-    Returns ``None`` (feature honestly absent) when: ``period`` is below 3 (the
+    Returns ``None`` (feature honestly absent) when: ``period`` is below 4 (the
     lag-1 cross-correlation needs at least two paired return points), the anchor
     is out of range on either series, the two series differ in length, any bar in
     the window lacks a valid ``close`` (or a benchmark ``timestamp`` mismatches
