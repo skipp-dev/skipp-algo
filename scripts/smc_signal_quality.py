@@ -50,12 +50,14 @@ import logging
 from typing import Any
 
 from open_prep.feature_flags import (
-    any_v2_feature_enabled,
+    any_v2_score_feature_enabled,
     is_confluence_score_enabled,
     is_freshness_v2_enabled,
     is_reaction_zone_enabled,
     is_smt_divergence_enabled,
+    is_smt_divergence_promoted,
     is_sweep_trap_enabled,
+    is_sweep_trap_promoted,
     signal_quality_model,
 )
 
@@ -436,13 +438,16 @@ def build_signal_quality(
     scoring in :func:`build_signal_quality_v1`; ``"v2"`` and ``"v2.1"`
     delegate to :func:`build_signal_quality_v2`.
 
-    Additionally, if any v2 feature flag is enabled (see
-    :func:`open_prep.feature_flags.any_v2_feature_enabled`), the router
-    always delegates to v2 so that individual features can be toggled
-    without changing the model setting.
+    Additionally, if a v2 *score-model* flag is enabled (see
+    :func:`open_prep.feature_flags.any_v2_score_feature_enabled` — Phase A
+    freshness or Phase D confluence), the router delegates to v2 so those
+    score features take effect without flipping ``SIGNAL_QUALITY_MODEL``.
+    The observe-only detector flags (sweep-trap, reaction-zone, SMT) do NOT
+    route the model: arming a shadow detector must not silently move the
+    numeric score (audit 2026-07-12).
     """
     model = signal_quality_model()
-    if model == "v1" and not any_v2_feature_enabled():
+    if model == "v1" and not any_v2_score_feature_enabled():
         return build_signal_quality_v1(enrichment=enrichment, overrides=overrides)
     return build_signal_quality_v2(enrichment=enrichment, overrides=overrides)
 
@@ -626,8 +631,13 @@ def build_signal_quality_v2(
         from smc_core.smt_divergence import detect_smt_divergence
 
         smt_block = detect_smt_divergence(enr)
-        result.update(smt_block)
-        if smt_block.get("SMT_DIVERGENCE_DETECTED") and smt_block.get("SMT_DIVERGENCE_CONFIDENCE", 0) >= 60:
+        result.update(smt_block)  # observe-only emission (raw fields)
+        # Score weight is gated by WS4b-style promotion; observe-only by default.
+        if (
+            is_smt_divergence_promoted()
+            and smt_block.get("SMT_DIVERGENCE_DETECTED")
+            and smt_block.get("SMT_DIVERGENCE_CONFIDENCE", 0) >= 60
+        ):
             score += _MAX_SMT_V2
 
     # ── Clamp and derive tier ───────────────────────────────────
@@ -666,11 +676,15 @@ def build_signal_quality_v2(
         result.update(detect_reaction_zone(enr))
 
     # Post-detector freshness adjustment.
+    # Observe-only by default: SWEEP_TRAP_DETECTED is only a low-quality-sweep
+    # *candidate* (smc_core.sweep_trap.detect_sweep_trap sees no post-sweep bars
+    # and checks no reclaim), so until each detector is promoted it must not
+    # touch the live SIGNAL_FRESHNESS that feeds HERO_TRUST / the Pine trust tier.
     freshness = result.get("SIGNAL_FRESHNESS", "stale")
     downgrade_triggered = False
-    if result.get("SWEEP_TRAP_DETECTED") and result.get("SWEEP_TRAP_CONFIDENCE", 0) >= 60:
+    if is_sweep_trap_promoted() and result.get("SWEEP_TRAP_DETECTED") and result.get("SWEEP_TRAP_CONFIDENCE", 0) >= 60:
         downgrade_triggered = True
-    if result.get("SMT_DIVERGENCE_DETECTED") and result.get("SMT_DIVERGENCE_CONFIDENCE", 0) >= 60:
+    if is_smt_divergence_promoted() and result.get("SMT_DIVERGENCE_DETECTED") and result.get("SMT_DIVERGENCE_CONFIDENCE", 0) >= 60:
         downgrade_triggered = True
     if downgrade_triggered and freshness not in ("stale", "expired"):
         downgrades = {"very_fresh": "fresh", "fresh": "aging", "aging": "stale"}
