@@ -86,6 +86,11 @@ _FROZEN_PRINT_COUNTS: dict[str, int] = {
     # is archived research scaffolding; its 15 prints are all inside a
     # __main__ demo block documenting the ATR-ratio trading zones.
     "services/live_overlay_daemon/volatility_filter.py": 15,
+    # 2026-07-12 (chore/deps: claude-agent-sdk + composio): agent.py is a
+    # standalone Claude Agent SDK + Composio example scaffold; its single
+    # print() streams the agent's response messages to stdout (documented
+    # demo output channel, invoked as ``python agent.py``).
+    "agent.py": 1,
 }
 _FROZEN_PRINT_TOTAL = sum(_FROZEN_PRINT_COUNTS.values())
 

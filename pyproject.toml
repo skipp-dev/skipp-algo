@@ -3,6 +3,10 @@ name = "skipp-algo"
 version = "6.3.9"
 description = "Multi-source financial news aggregation, scoring & trading signal pipeline"
 requires-python = ">=3.12"
+dependencies = [
+    "claude-agent-sdk>=0.2.116",
+    "composio>=0.17.1",
+]
 
 [project.optional-dependencies]
 vol-regime = ["arch>=7.2.0"]
