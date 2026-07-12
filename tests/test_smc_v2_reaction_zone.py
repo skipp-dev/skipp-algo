@@ -93,6 +93,39 @@ class TestLevelReclaim:
         assert z.close_in_rejection_band is True
 
 
+class TestLevelDisjointness:
+    """A close exactly ON the swept level is a reclaim, never 'in the band'.
+
+    Regression for the band/reclaim overlap: with an inclusive band edge a close
+    at ``swept_level`` set BOTH ``level_reclaimed`` and ``close_in_rejection_band``.
+    The band is now half-open at the level so the two raw signals stay disjoint.
+    """
+
+    def test_bullish_close_exactly_on_level_is_reclaim_only(self) -> None:
+        z = compute_reaction_zone(swept_level=100.0, sweep_extreme=98.0,
+                                  is_bullish_sweep=True,
+                                  post_sweep_bars=[_bar(100.0, open_=99.0)])
+        assert z.level_reclaimed is True
+        assert z.close_in_rejection_band is False  # exactly on the level ≠ in band
+        assert z.bars_to_rejection_band == -1
+
+    def test_bearish_close_exactly_on_level_is_reclaim_only(self) -> None:
+        z = compute_reaction_zone(swept_level=100.0, sweep_extreme=102.0,
+                                  is_bullish_sweep=False,
+                                  post_sweep_bars=[_bar(100.0, open_=101.0)])
+        assert z.level_reclaimed is True
+        assert z.close_in_rejection_band is False
+        assert z.bars_to_rejection_band == -1
+
+    def test_bullish_close_just_below_level_still_in_band(self) -> None:
+        # Guard the other edge: a close just inside the band is unaffected.
+        z = compute_reaction_zone(swept_level=100.0, sweep_extreme=98.0,
+                                  is_bullish_sweep=True,
+                                  post_sweep_bars=[_bar(99.9, open_=99.0)])
+        assert z.level_reclaimed is False
+        assert z.close_in_rejection_band is True
+
+
 class TestCandleQuality:
     def test_directional_body_false_for_counter_direction_candle(self) -> None:
         # A bearish candle that nonetheless closes above the level still reclaims

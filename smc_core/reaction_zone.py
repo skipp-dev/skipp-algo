@@ -11,7 +11,16 @@ After a sweep (Phase B), two INDEPENDENT signals are measured — never conflate
   at the level).
 * ``close_in_rejection_band`` — OBSERVATION ONLY: a close that recovered into a
   narrow band on the swept (penetration) side WITHOUT reclaiming the level. An
-  *early rejection* candidate, never treated as a reclaim.
+  *early rejection* candidate, never treated as a reclaim. The band is HALF-OPEN
+  at the level (bull: ``[level - w, level)``; bear: ``(level, level + w]``) so a
+  close exactly ON ``swept_level`` is a reclaim, never "in the band" — the two
+  raw signals are therefore strictly disjoint.
+
+Three DISTINCT reclaim-related thresholds live in this subsystem — do not conflate:
+  * this module's level-touch (``close >= / <= swept_level`` — inclusive of the level);
+  * :mod:`smc_core.sweep_trap`'s strict level-cross (``close > / < swept_level``);
+  * :func:`smc_core.scoring.label_sweep_reversal`'s OUTCOME, which additionally
+    requires ~0.5% follow-through past the level (``threshold_pct`` default).
 
 Both are recorded raw; neither gates live scoring (Phase C is observe-only and
 gated behind ``ENABLE_REACTION_ZONE``). The follow-up study will compare the two
@@ -71,9 +80,11 @@ def compute_reaction_zone(
     the far side of ``swept_level`` from the reversal. ``level_reclaimed`` fires on
     the first post-sweep bar that closes back through ``swept_level`` in the
     reversal direction (unbounded — a strong reclaim counts). ``close_in_rejection
-    _band`` fires on the first close inside ``[swept_level - w, swept_level]``
-    (bull) / ``[swept_level, swept_level + w]`` (bear), ``w = 0.382 * sweep body``
-    — a recovery that stopped short of the level (observation only, not a reclaim).
+    _band`` fires on the first close inside the HALF-OPEN band ``[swept_level - w,
+    swept_level)`` (bull) / ``(swept_level, swept_level + w]`` (bear), ``w = 0.382
+    * sweep body`` — a recovery that stopped short of the level (observation only,
+    not a reclaim). A close exactly on ``swept_level`` is excluded from the band
+    (it is a reclaim), keeping the two signals disjoint.
     """
     sweep_body: float = abs(swept_level - sweep_extreme)
     band_width: float = sweep_body * ZONE_WIDTH_FRACTION if sweep_body > 1e-10 else 0.0
@@ -100,7 +111,13 @@ def compute_reaction_zone(
         low: float = float(bar["low"])
         open_: float = float(bar["open"])
 
-        if not in_band and band_low <= close <= band_high:
+        # Half-open at the level: a close exactly on ``swept_level`` is a reclaim
+        # (handled below), never "recovered short of it", so the band and the
+        # reclaim signal stay strictly disjoint (bull: [low, level); bear: (level, high]).
+        in_zone: bool = (
+            band_low <= close < swept_level if is_bullish_sweep else swept_level < close <= band_high
+        )
+        if not in_band and in_zone:
             in_band = True
             bars_to_band = idx + 1
 
@@ -142,11 +159,16 @@ def compute_reaction_zone(
 
 
 def detect_reaction_zone(enrichment: dict[str, Any] | None = None) -> dict[str, Any]:
-    """Detect a reaction-zone context from enrichment data.
+    """Detect a reaction *context* from enrichment data (NOT the reclaim measurer).
 
-    This detector-style API is retained for v2 integration tests while
-    ``compute_reaction_zone`` remains the canonical Phase C computation used
-    by measurement evidence.
+    ``REACTION_ZONE_DETECTED`` here means only that a fresh structure/sweep sits
+    near an OB or FVG in a bias-aligned direction — it inspects NO swept level,
+    extreme, post-sweep close, reclaim, or rejection band. It is a semantically
+    different feature from :func:`compute_reaction_zone` (the canonical Phase C
+    reclaim/band measurer used by measurement evidence) despite sharing the
+    ``ENABLE_REACTION_ZONE`` flag; a true reclaim/band classifier will get its
+    own flag (rename ``REACTION_CONTEXT_DETECTED`` pending). This detector-style
+    API is retained for v2 integration tests.
     """
     neutral = {
         "REACTION_ZONE_DETECTED": False,

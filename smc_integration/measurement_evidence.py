@@ -980,8 +980,8 @@ def _liquidity_support_for_event(
                         # for the follow-through study; NO discount is applied to any
                         # score. (The prior 0.5 discount keyed on an inverted "close
                         # back inside zone" confirmation and is removed here.)
-            except Exception:
-                pass  # Phase B/C is additive; failure must not break v1 scoring.
+            except Exception:  # Phase B/C is additive; failure must not break v1 scoring.
+                logger.debug("Phase B/C sweep-trap/reaction enrichment skipped (fail-soft)", exc_info=True)
         priority = (0 if candidate_id == current_id and family == "SWEEP" else 1, age_bars)
         if best is None or priority < best[0]:
             best = (priority, payload)
