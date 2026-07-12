@@ -154,6 +154,23 @@ class TestCandleQuality:
         assert z.bars_to_reclaim == 2
         assert z.bars_to_rejection_band == 1  # first bar recovered into the band
 
+    def test_zero_range_reclaim_bar_has_no_body(self) -> None:
+        # A flat (zero-range) reclaim bar has |close-open| = 0, so body_ratio must
+        # be 0.0 — NOT 1.0 (which would falsely signal maximum body quality).
+        flat = {"open": 100.5, "high": 100.5, "low": 100.5, "close": 100.5}
+        z = compute_reaction_zone(swept_level=100.0, sweep_extreme=98.0,
+                                  is_bullish_sweep=True, post_sweep_bars=[flat])
+        assert z.level_reclaimed is True  # close 100.5 >= level 100
+        assert z.body_ratio == pytest.approx(0.0)
+        assert z.rejection_wick_ratio == pytest.approx(0.0)
+
+    def test_bearish_zero_range_reclaim_bar_has_no_body(self) -> None:
+        flat = {"open": 99.5, "high": 99.5, "low": 99.5, "close": 99.5}
+        z = compute_reaction_zone(swept_level=100.0, sweep_extreme=102.0,
+                                  is_bullish_sweep=False, post_sweep_bars=[flat])
+        assert z.level_reclaimed is True  # close 99.5 <= level 100
+        assert z.body_ratio == pytest.approx(0.0)
+
 
 class TestDefaultsAndImmutability:
     def test_empty_bars_returns_defaults(self) -> None:
