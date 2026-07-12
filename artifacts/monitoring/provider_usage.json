@@ -10,7 +10,7 @@
       },
       "fmp": {
         "bytes": 12,
-        "calls": 9,
+        "calls": 10,
         "rate_limit_hits": 3,
         "records": 0
       },
@@ -23,10 +23,10 @@
       "unusual_whales": {
         "bytes": 0,
         "calls": 0,
-        "rate_limit_hits": 1,
+        "rate_limit_hits": 2,
         "records": 0
       }
     }
   },
-  "updated_at": "2026-07-12T08:55:30.729836+00:00"
+  "updated_at": "2026-07-12T11:15:13.980625+00:00"
 }

@@ -412,7 +412,6 @@ def build_vd_snapshot(
     _yield_spread = _treasury.get("yield_2y10y_spread")
     # Finnhub enrichment
     _fh_insider: dict[str, dict[str, Any]] = _op.get("finnhub_insider_sentiment") or {}
-    _fh_social: dict[str, dict[str, Any]] = _op.get("finnhub_social_sentiment") or {}
     _fh_patterns: dict[str, dict[str, Any]] = _op.get("finnhub_patterns") or {}
 
     best: dict[str, dict[str, Any]] = {}   # ticker → best-scored item
@@ -511,8 +510,6 @@ def build_vd_snapshot(
             # Finnhub enrichment
             "insider_mspr":     _fh_insider.get(tk, {}).get("mspr_avg"),
             "insider_sent":     _fh_insider.get(tk, {}).get("insider_sentiment_emoji", ""),
-            "social_score":     _fh_social.get(tk, {}).get("social_score"),
-            "social_emoji":     _fh_social.get(tk, {}).get("social_sentiment_emoji", ""),
             "pattern":          _fh_patterns.get(tk, {}).get("pattern_label", ""),
             "tech_signal":      _fh_patterns.get(tk, {}).get("tech_signal", ""),
         })

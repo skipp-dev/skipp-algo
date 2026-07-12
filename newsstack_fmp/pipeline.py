@@ -691,7 +691,7 @@ def poll_once(
 
     # ── 2) Benzinga REST delta ──────────────────────────────────
     bz_rest_items: list[NewsItem] = []
-    if cfg.enable_benzinga_rest and cfg.benzinga_api_key:
+    if cfg.enable_benzinga_rest and (cfg.benzinga_api_key or cfg.benzinga_direct_api_key):
         bz_rest = _get_bz_rest_adapter(cfg)
         try:
             benzinga_batch = _fetch_cached_provider_items(
@@ -930,7 +930,7 @@ def poll_once(
                 cycle_warnings.append(f"newsapi_ai: {_msg}")
 
     # ── 4) Benzinga WS drain ────────────────────────────────────
-    if cfg.enable_benzinga_ws and cfg.benzinga_api_key:
+    if cfg.enable_benzinga_ws and (cfg.benzinga_api_key or cfg.benzinga_direct_api_key):
         bz_ws = _get_bz_ws_adapter(cfg)
         try:
             ws_items = bz_ws.drain()

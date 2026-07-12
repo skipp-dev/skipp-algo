@@ -82,7 +82,6 @@ class ConfluenceScore:
 
 _TIER_HIGH: float = 0.70
 _TIER_MEDIUM: float = 0.40
-_TIER_LOW: float = 0.10
 
 
 def compute_confluence(

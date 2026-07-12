@@ -182,8 +182,8 @@ OS_DELETE_LEDGER: set[tuple[str, int, str]] = {
     ("streamlit_terminal.py", 2264, "unlink"),
     ("terminal_export.py", 186, "unlink"),
     ("terminal_export.py", 236, "unlink"),
-    ("terminal_export.py", 618, "unlink"),
-    ("terminal_export.py", 759, "unlink"),
+    ("terminal_export.py", 615, "unlink"),  # 2026-07-12 (drop dead social read): 618->615
+    ("terminal_export.py", 756, "unlink"),  # 2026-07-12 (drop dead social read): 759->756
 }
 
 
