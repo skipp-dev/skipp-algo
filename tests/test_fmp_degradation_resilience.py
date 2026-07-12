@@ -6,7 +6,7 @@ and these tests pin that behaviour so a future refactor cannot silently turn
 FMP back into a hard dependency:
 
 1. **Data layer — graceful degradation with explicit markers.**
-   ``databento_volatility_screener.fetch_us_equity_universe_with_metadata``
+   ``databento_volatility_screener.fetch_live_us_equity_universe_with_metadata``
    never raises when the FMP API key is missing. It falls back to the Nasdaq
    Trader symbol directory and always returns a metadata dict whose
    ``source`` / ``fallback_source`` / ``selection_reason`` /
@@ -83,7 +83,7 @@ def test_market_cap_without_fmp_key_degrades_to_nasdaq_with_markers(
     monkeypatch.setattr(screener, "_fetch_us_equity_universe_via_screener", _fail)
 
     with caplog.at_level(logging.WARNING):
-        frame, meta = screener.fetch_us_equity_universe_with_metadata(
+        frame, meta = screener.fetch_live_us_equity_universe_with_metadata(
             fmp_api_key="",
             min_market_cap=2_000_000_000,
         )
@@ -129,7 +129,7 @@ def test_market_cap_with_fmp_key_uses_screener(
         screener, "_fetch_us_equity_universe_via_nasdaq_trader", _nasdaq_must_not_run
     )
 
-    frame, meta = screener.fetch_us_equity_universe_with_metadata(
+    frame, meta = screener.fetch_live_us_equity_universe_with_metadata(
         fmp_api_key="abc123",
         min_market_cap=5_000_000_000,
     )
@@ -162,7 +162,7 @@ def test_nasdaq_empty_with_fmp_key_falls_back_to_screener(
         ),
     )
 
-    frame, meta = screener.fetch_us_equity_universe_with_metadata(fmp_api_key="abc123")
+    frame, meta = screener.fetch_live_us_equity_universe_with_metadata(fmp_api_key="abc123")
 
     assert list(frame["symbol"]) == ["FALL"]
     assert meta["source"] == "fmp_company_screener"
@@ -187,7 +187,7 @@ def test_nasdaq_empty_without_fmp_key_returns_empty_loudly(
     monkeypatch.setattr(screener, "_fetch_us_equity_universe_via_screener", _fail)
 
     with caplog.at_level(logging.WARNING):
-        frame, meta = screener.fetch_us_equity_universe_with_metadata(fmp_api_key="")
+        frame, meta = screener.fetch_live_us_equity_universe_with_metadata(fmp_api_key="")
 
     assert frame.empty
     assert meta["source"] == "empty"
@@ -208,7 +208,7 @@ def test_no_market_cap_no_key_uses_official_directory(
         lambda *, exchanges="NASDAQ,NYSE,AMEX": nasdaq,
     )
 
-    frame, meta = screener.fetch_us_equity_universe_with_metadata()
+    frame, meta = screener.fetch_live_us_equity_universe_with_metadata()
 
     assert list(frame["symbol"]) == ["AAA", "BBB", "CCC"]
     assert meta["source"] == "nasdaq_trader_symbol_directory"

@@ -152,8 +152,8 @@ _FROZEN_SITES: frozenset[tuple[str, int, tuple[str, ...]]] = frozenset(
         # sets DATABENTO_CACHE_PROBE_LOG and the producer explicitly enables it.
         # F-002 (PR #2295): extracted enable/reset helpers; the original
         # 5601-site relocated to enable_cache_probe_log()/reset_cache_probe_log().
-        ("databento_volatility_screener.py", 87, ("_CACHE_PROBE_LOG",)),
-        ("databento_volatility_screener.py", 94, ("_CACHE_PROBE_LOG",)),
+        ("databento_volatility_screener.py", 94, ("_CACHE_PROBE_LOG",)),  # 2026-07-12 (re-export import): 87->94
+        ("databento_volatility_screener.py", 101, ("_CACHE_PROBE_LOG",)),  # 2026-07-12 (re-export import): 94->101
         ("terminal_bitcoin.py", 96, ("_client",)),
         (
             "terminal_finnhub.py",

@@ -103,11 +103,11 @@ WARNINGS_SIMPLEFILTER_LEDGER: set[tuple[str, int, str]] = {
     # additional helpers landed across the screener, shifting all five sites
     # downward by +115/+124/+134/+143/+152 — action remains ``"always"``.
     # 2026-06-10 (#2670 W9): timestamp_substitutions disclosure shifted +5.
-    ("databento_volatility_screener.py", 874, "always"),
-    ("databento_volatility_screener.py", 1973, "always"),
-    ("databento_volatility_screener.py", 2614, "always"),
-    ("databento_volatility_screener.py", 3113, "always"),
-    ("databento_volatility_screener.py", 3277, "always"),
+    ("databento_volatility_screener.py", 881, "always"),  # 2026-07-12 (re-export import): +7
+    ("databento_volatility_screener.py", 1980, "always"),
+    ("databento_volatility_screener.py", 2621, "always"),
+    ("databento_volatility_screener.py", 3120, "always"),
+    ("databento_volatility_screener.py", 3284, "always"),
     ("databento_universe.py", 162, "always"),
 }
 

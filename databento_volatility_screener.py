@@ -36,6 +36,13 @@ import numpy as np
 import pandas as pd
 
 from databento_client import _install_databento_requests_tls_override
+
+# Backward-compat re-export (truth-audit): the survivorship-aware universe fetch
+# lives in databento_universe. Importers using this name from the screener now get
+# the point-in-time-safe version, NOT the screener's live-only fetch_live_* variant.
+from databento_universe import (
+    fetch_us_equity_universe_with_metadata as fetch_us_equity_universe_with_metadata,
+)
 from open_prep_boundary import FMPClientLike, make_fmp_client
 from scripts.databento_production_workbook import (
     create_excel_workbook_bytes,
@@ -1266,7 +1273,7 @@ def fetch_us_equity_universe(
     min_market_cap: float | None = None,
     exchanges: str = "NASDAQ,NYSE,AMEX",
 ) -> pd.DataFrame:
-    frame, _metadata = fetch_us_equity_universe_with_metadata(
+    frame, _metadata = fetch_live_us_equity_universe_with_metadata(
         fmp_api_key,
         min_market_cap=min_market_cap,
         exchanges=exchanges,
@@ -1274,7 +1281,7 @@ def fetch_us_equity_universe(
     return frame
 
 
-def fetch_us_equity_universe_with_metadata(
+def fetch_live_us_equity_universe_with_metadata(
     fmp_api_key: str = "",
     *,
     min_market_cap: float | None = None,
