@@ -11,7 +11,7 @@ T1 for the rationale:
     Sharpe         -> studentized + stationary block (Ledoit-Wolf 2008)
     MaxDD          -> percentile + stationary block (path-dependent)
     Win-rate       -> BCa + IID (Bernoulli, no auto-correlation)
-    Profit-factor  -> BCa + IID
+    Profit-factor  -> percentile + IID  (BCa is opt-in via method="bca")
 
 All helpers return a flat dict that maps 1:1 to the JSON schema fields
 in ``docs/calibration/calibration_report_public.json`` (T6).
