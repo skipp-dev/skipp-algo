@@ -1,12 +1,40 @@
 # SMC v2 Detector Chain — Wiring Scope
 
-**Status:** SCOPE / not started — decision doc, no code committed here
-**Date:** 2026-07-11
+**Status:** MOSTLY EXECUTED (2026-07-12) — WS2 + WS1 landed, WS4a shadow live,
+Reaction Zone reworked; only WS3 (SMT) remains deferred. This was originally a
+SCOPE / not-started decision doc; the workstreams below have since been built.
+See the **Resolution status** section immediately below the TL;DR for the
+per-workstream matrix. The body preserved beneath it is the original scoping
+analysis (retained for provenance) — read it through the resolution lens.
+**Date:** 2026-07-11 (resolution matrix appended 2026-07-12)
 **Owner:** @preuss_steffen
 **Provenance:** truth-audit of `smc_core` (2026-07-10/11). Findings F1 (detector
 starvation + direction inversion) and F5 (SMT starvation); the audit only made
 the docstrings honest (#3381) and left the wiring as an explicit deferred
 project. This doc scopes that project.
+
+---
+
+## Resolution status (2026-07-12)
+
+The scope below has since been executed for the sweep-trap / reaction-zone
+lane. The direction-inversion "landmine" (see §1 and WS2) is **resolved** — do
+not read it as an open decision.
+
+| Workstream | Scope | Status | Landed by |
+|---|---|---|---|
+| **WS2 — direction mapping** | Unify `is_bullish_sweep` ⇔ SELL_SIDE (bullish setup = low swept, reclaim upward); BUY_SIDE ⇔ bearish | ✅ **RESOLVED** | #3406 (`smc_core/sweep_trap.py` docstring + logic; call-site `measurement_evidence.py`; end-to-end direction test) |
+| **WS1 — sweep / reaction-zone plumbing** | Derive `swept_level`/`sweep_extreme`/`origin_level` so `classify_sweep_trap` runs on real sweeps | ✅ **WIRED (shadow, default-OFF)** | #3407 (`_derive_sweep_trap_geometry` in `measurement_evidence.py`; `classify_sweep_trap` now runs when `is_sweep_trap_enabled()`) |
+| **WS4a — shadow observability + daily eval** | Grafana surface + committed daily Brier-delta ledger | ✅ **LIVE (observe-only)** | #3411 (daily shadow evaluation), #3414 (Grafana bridge/gauges/panel/stale alert) |
+| **Reaction Zone semantics** | Correct reclaim semantics (level-cross + separate rejection band; drop the inverted discount) | ✅ **REWORKED (observe-only)** | #3501, follow-through study emit+eval #3503 |
+| **WS3 — SMT correlated feed** | Provide `correlated_context` so `detect_smt_divergence` contributes | ⏸️ **DEFERRED** | still input-starved in production (only tests build `correlated_context`) |
+
+**Net current state.** `classify_sweep_trap()` and `compute_reaction_zone()`
+run on real sweeps behind `ENABLE_SWEEP_TRAP` / `ENABLE_REACTION_ZONE`
+(default-OFF, observe-only — recorded for the follow-through study, **no score
+weight applied**). Only **SMT** remains productively input-starved (WS3). Any
+score-budget weight for the sweep/reaction lane still awaits the shadow-Brier
+evidence gate described in WS4b.
 
 ---
 
@@ -49,6 +77,13 @@ the sum at 100.
 
 ### The direction-inversion landmine (must fix first)
 
+> **RESOLVED by #3406 (2026-07-12).** The mapping below was unified to
+> `is_bullish_sweep = True` ⇔ SELL_SIDE (bullish setup, reclaim upward) and
+> `False` ⇔ BUY_SIDE (bearish, reclaim downward), across the classifier logic,
+> its docstring, and the `measurement_evidence.py` call site, with an
+> end-to-end direction test. The description below is retained for provenance;
+> it is **no longer an open landmine**.
+
 Producer convention (`scripts/smc_liquidity_engine.py:107/132`,
 `scripts/smc_liquidity_sweeps.py:75–82`):
 
@@ -66,7 +101,7 @@ and `fib_retrace_depth` clamps to 0 → the signal comes out **inverted**.
 
 ## 2. Workstreams
 
-### WS2 — Fix the direction mapping *(do this first, always)*
+### WS2 — Fix the direction mapping *(do this first, always)* — ✅ DONE (#3406)
 
 - **Decide one canonical meaning.** Recommended: `is_bullish_sweep = True` ⇔
   bullish **setup** = SELL_SIDE sweep (a low was swept and reclaimed upward).

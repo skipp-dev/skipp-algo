@@ -26,8 +26,12 @@ this gate so far:
 
 - `relative_volume` (`orderflow_relative_volume_v2`) — recorded, in main.
 - `momentum_ribbon` — **retired** (PR #2545) after two-window `no_lift`.
-- `williams_vix_fix` (`downside_volatility_williams_vix_fix_v1`) — recorded,
-  awaiting its real-data A/B verdict (PR #2546).
+- `williams_vix_fix` (`downside_volatility_williams_vix_fix_v1`) — **retired**
+  after `no_lift` across all four families (PR #2551); stays in-tree
+  recorded-only as a control. (Historical addendum 2026-07-12 — the original
+  "awaiting its real-data A/B verdict (PR #2546)" line is superseded; see
+  [resolution feature-gap analysis](../governance/resolution_feature_gap_analysis.md)
+  and [ADR-0026](0026-magnitude-retarget-executed-and-ohlcv-queue-closed.md).)
 
 ### The data-path constraint (the decision this ADR exists to settle)
 

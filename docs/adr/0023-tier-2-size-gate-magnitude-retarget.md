@@ -1,5 +1,15 @@
 # ADR-0023: Pre-register the tier-2 sizing gate move-size re-target (doc-only)
 
+> **Update (2026-07-12) — this pre-registration has been EXECUTED.** The §2
+> acceptance bar passed on real data; `magnitude_resolution_floor` is
+> implemented and wired into the promotion gate, Stage 1 feeds it daily, and
+> Stage 2 is armed for BOS/SWEEP. The lifecycle status is tracked in
+> [ADR-0026](0026-magnitude-retarget-executed-and-ohlcv-queue-closed.md) and
+> operated per the
+> [live-rollout handover](../governance/adr0023_live_rollout_handover.md). The
+> original `Proposed` pre-registration text below is retained verbatim for
+> provenance (append-only rule).
+
 | Field    | Value                                                                            |
 |----------|----------------------------------------------------------------------------------|
 | Status   | Proposed — **no gate, score, threshold, or test code is changed by this ADR**; it pre-registers, before any data is re-examined, the acceptance bar that a *separate, later, real-data-proven* PR must clear before the tier-2 sizing gate may be re-targeted from direction to move-size |
