@@ -187,12 +187,12 @@ class FamilyMetrics:
     check as failing, so promotion is blocked until the metric is
     actually measured. ``info`` distinguishes "missing" from a real
     threshold breach (which uses ``blocker``) but it does not relax the
-    promotion contract — a partially measured family is never promoted.
+    promotion contract — a family missing a core check is never promoted.
 
-    Sprint W1.a additions (``regime_degraded``, ``psi_slope``,
-    ``conformal_coverage``/``conformal_target``, ``provenance``) are
-    only enforced when ``GateThresholds.strict_provenance`` is True,
-    so existing legacy snapshots stay valid.
+    Strict-only checks (``brier_ci_upper``, ``regime_degraded``, ``psi_slope``,
+    ``conformal_coverage``/``conformal_target``, ``provenance``) block on ``None``
+    only when ``GateThresholds.strict_provenance`` is True (once measured, a breach
+    always blocks) — so existing legacy snapshots stay valid.
     """
 
     family: EventFamily
