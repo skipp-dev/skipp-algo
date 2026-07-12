@@ -25,12 +25,12 @@ Output shape (``REPORT_SCHEMA_VERSION = 2``)::
 
 Exit codes
 ----------
-0 : all families promoted (and the report was written).
+0 : all families promoted, no survivorship-bias demote (and report written).
 1 : configuration error (bad input file, unknown family, etc.) OR
     --strict-universe pre-flight failed (no snapshot for the requested
     trade date, #2352).
-2 : at least one family blocked. Useful as a CI signal so the wrapping
-    workflow can branch on the rolling-benchmark result.
+2 : at least one family blocked, or a survivorship-biased run was demoted
+    (#3458). A CI signal so the wrapping rolling-benchmark workflow can branch.
 """
 from __future__ import annotations
 

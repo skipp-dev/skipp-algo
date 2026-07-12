@@ -2141,14 +2141,14 @@ class FinnhubClient:
     ``points`` / ``levels`` / ``technicalAnalysis``) keep working.
 
     Provider-audit decision (2026-05-12, Option A):
-        Finnhub ``/stock/recommendation``, ``/news-sentiment`` and
-        ``/stock/insider-sentiment`` carry signals that are **not** 1:1
-        replicated in FMP, so the previous empty-stub shape was actively
-        dropping data on the floor. These methods are now wired to live
-        HTTP. Failures still return the documented empty shape (``[]`` /
-        ``{}``) so callers do not need defensive try/except for the
-        network path. (``/stock/social-sentiment`` was removed 2026-07-12:
-        premium-only/403 on our key, no open_prep consumer.)
+        Finnhub ``/stock/insider-sentiment`` carries a signal that is
+        **not** 1:1 replicated in FMP, so the previous empty-stub shape
+        was actively dropping data on the floor. ``get_insider_sentiment``
+        is now wired to live HTTP. Failures still return the documented
+        empty shape (``{}``) so callers do not need defensive try/except
+        for the network path. (``/stock/recommendation`` and
+        ``/news-sentiment`` were never added on this facade;
+        ``/stock/social-sentiment`` removed 2026-07-12 — 403 on our key.)
 
     The thin facade pattern (rather than importing ``terminal_finnhub``
     free functions directly) is kept because callers already pass a
@@ -2205,7 +2205,7 @@ class FinnhubClient:
 
         Finnhub returns ``{"data": [{"symbol", "year", "month", "mspr",
         "positiveChange", "negativeChange", ...}, ...], "symbol": ...}``.
-        Callers in ``run_open_prep._fetch_insider_sentiment`` destructure
+        Callers in ``run_open_prep._fetch_finnhub_insider_sentiment`` destructure
         ``raw["data"]`` directly, so we return the unwrapped dict.
         """
         sym = (symbol or "").strip().upper()

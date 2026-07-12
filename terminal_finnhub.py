@@ -1,7 +1,7 @@
 """Lightweight Finnhub REST client for the Streamlit terminal.
 
-Provides Reddit + Twitter social-sentiment data without importing
-the heavier ``open_prep.macro`` module.  Uses the same ``FINNHUB_API_KEY``
+Provides social-, news-, recommendation- and insider-sentiment data without
+importing the heavier ``open_prep.macro`` module.  Uses the same ``FINNHUB_API_KEY``
 env var.
 
 All results are cached in-memory with a configurable TTL so the free
