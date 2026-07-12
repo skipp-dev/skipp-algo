@@ -263,14 +263,19 @@ def _provider_from_url(url: str) -> str:
     The shared retry primitive (_request_with_status_retry) only has the URL, not
     the endpoint label, so 429 telemetry derives the provider from the host —
     yielding the same buckets (massive / unusual_whales / benzinga) as the
-    label-based call/byte telemetry so both share provider names.
+    label-based call/byte telemetry so both share provider names. An unrecognised
+    host maps to ``unknown`` rather than the benzinga catch-all, so a future
+    caller wired through this primitive can't silently inflate the benzinga
+    rate-limit counter and mis-attribute a throttle.
     """
     lowered = url.lower()
     if "massive.com" in lowered:
         return "massive"
     if "unusualwhales.com" in lowered:
         return "unusual_whales"
-    return "benzinga"
+    if "benzinga.com" in lowered:
+        return "benzinga"
+    return "unknown"
 
 
 def _request_with_retry(
