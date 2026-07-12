@@ -135,8 +135,8 @@ _FROZEN_SITES: frozenset[tuple[str, int]] = frozenset(
         # +8 lines (1943→1951, 1945→1953).
         # 2026-07-04 (market-microstructure observe-only): module import
         # shifted these rate-limit sleeps +1 (2038->2039, 2040->2041).
-        ("open_prep/run_open_prep.py", 2068),  # 2026-07-10: dead today's-earnings eps_surprise_pct removed (2073->2068)
-        ("open_prep/run_open_prep.py", 2070),  # (2075->2070)
+        ("open_prep/run_open_prep.py", 1987),  # 2026-07-10: dead today's-earnings eps_surprise_pct removed (2073->2068)
+        ("open_prep/run_open_prep.py", 1989),  # (2075->2070)
         ("newsstack_fmp/_bz_http.py", 44),
         # 2026-07-11 (truth-audit): removed inert _TECHNICALS_429_TTL + dead 429 branch (-5).
         ("terminal_bitcoin.py", 841),
