@@ -1,7 +1,7 @@
 """Central HTF / Session bias merge — Single Source of Truth.
 
 Priority rule:
-  1. **HTF bias** (from ``smc_htf_context``) sets the *directional anchor*.
+  1. **HTF bias** sets the *directional anchor* — in prod it's chart-tf momentum (htf_frames unwired).
   2. **Session context** *modulates* the confidence without flipping direction.
   3. If HTF is unavailable, session bias is used as a lower-confidence fallback.
 
