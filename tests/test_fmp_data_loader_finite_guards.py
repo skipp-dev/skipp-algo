@@ -71,3 +71,55 @@ def test_sofr_iorb_spread_drops_non_finite_values(monkeypatch) -> None:
 
     # Only dates where BOTH series have finite values survive.
     assert spread_map == {"2026-07-01": (4.30, 4.32)}
+
+
+class _FakeResp:
+    def __init__(self, payload: object) -> None:
+        self._payload = payload
+
+    def raise_for_status(self) -> None:
+        return None
+
+    def json(self) -> object:
+        return self._payload
+
+
+def test_get_quote_returns_finite_price(monkeypatch) -> None:
+    loader = _loader()
+    monkeypatch.setattr(
+        loader.session, "get",
+        lambda *a, **k: _FakeResp([{"symbol": "^VIX", "price": 15.03}]),
+    )
+    assert loader.get_quote("^VIX") == 15.03
+
+
+def test_get_quote_none_on_missing_price(monkeypatch) -> None:
+    loader = _loader()
+    monkeypatch.setattr(
+        loader.session, "get", lambda *a, **k: _FakeResp([{"symbol": "^VIX"}])
+    )
+    assert loader.get_quote("^VIX") is None
+
+
+def test_get_quote_none_on_non_finite_price(monkeypatch) -> None:
+    loader = _loader()
+    monkeypatch.setattr(
+        loader.session, "get", lambda *a, **k: _FakeResp([{"price": float("inf")}])
+    )
+    assert loader.get_quote("^VIX") is None
+
+
+def test_get_quote_none_on_empty_payload(monkeypatch) -> None:
+    loader = _loader()
+    monkeypatch.setattr(loader.session, "get", lambda *a, **k: _FakeResp([]))
+    assert loader.get_quote("^VIX") is None
+
+
+def test_get_quote_fail_soft_on_http_error(monkeypatch) -> None:
+    loader = _loader()
+
+    def _boom(*a, **k):
+        raise RuntimeError("network down")
+
+    monkeypatch.setattr(loader.session, "get", _boom)
+    assert loader.get_quote("^VIX") is None

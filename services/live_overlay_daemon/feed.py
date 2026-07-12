@@ -40,8 +40,8 @@ _MAX_RECONNECT_ATTEMPTS = 5
 _RECONNECT_BACKOFF_SECS = 120
 _INGEST_STOP_SENTINEL = object()
 
-# VIX symbol on EQUS.MINI
-_VIX_SYMBOL = "VIX"
+# VIX index level — polled from FMP's ^VIX quote (the CBOE index does not trade
+_VIX_FMP_SYMBOL = "^VIX"  # on EQUS.MINI; only ETFs like VIXY resolve there, so bars can't supply it
 
 _feed_thread: threading.Thread | None = None
 _refresh_thread: threading.Thread | None = None
@@ -138,10 +138,30 @@ def _symbol_from_record(record: Any, symmap: dict[int, str]) -> str | None:
         return None
 
 
-def _maybe_cache_vix(sym: str, bar: dict[str, Any]) -> None:
-    """Cache VIX level when a bar for the VIX symbol has a concrete close."""
-    if sym == _VIX_SYMBOL and bar.get("close") is not None:
-        cache.set_vix(bar["close"])
+def _poll_vix_from_fmp() -> None:
+    """Refresh the cached VIX level from FMP's ^VIX quote.
+
+    The CBOE volatility index is not on the EQUS.MINI bar feed (only ETFs like
+    VIXY resolve there), so it is polled from FMP on the overlay refresh cadence
+    instead. Fail-soft: a missing FMP key, HTTP error, or non-finite price leaves
+    the last cached value untouched. The loader is built once and cached in
+    ``_runtime`` (``None`` sentinel = construction failed, do not retry) to avoid
+    adding a module-level ``global``.
+    """
+    if "vix_loader" not in _runtime:
+        try:
+            from .fmp_data_loader import FMPDataLoader
+
+            _runtime["vix_loader"] = FMPDataLoader()
+        except Exception as exc:
+            _runtime["vix_loader"] = None
+            logger.warning("VIX poll disabled — FMP loader unavailable: %s", exc)
+    loader = _runtime.get("vix_loader")
+    if loader is None:
+        return
+    level = loader.get_quote(_VIX_FMP_SYMBOL)
+    if level is not None:
+        cache.set_vix(level)
 
 
 def _inc_metric(name: str, amount: int = 1) -> None:
@@ -394,7 +414,6 @@ def _run_ingest_loop(stop: threading.Event) -> None:
         sym, bar, queued_at = item
 
         cache.push_bar(sym, bar)
-        _maybe_cache_vix(sym, bar)
 
         now = time.monotonic()
         _record_queue_lag_ms(max(0.0, (now - queued_at) * 1000.0))
@@ -422,6 +441,7 @@ def _run_refresh_loop(stop: threading.Event) -> None:
     while not stop.is_set():
         t0 = time.monotonic()
         try:
+            _poll_vix_from_fmp()  # refresh cache.get_vix() before compute reads it
             n = compute.run_full_compute_cycle()
             elapsed = time.monotonic() - t0
             logger.info("Full overlay computed: %d symbols in %.1fs", n, elapsed)

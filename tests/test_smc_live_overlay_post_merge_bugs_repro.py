@@ -99,34 +99,6 @@ class TestNewsSnapshotCachingBug:
         assert result == payload
 
 
-class TestVIXZeroCloseBug:
-    """BUG-2: A VIX bar with close=0 was previously dropped by the falsy check.
-    The fix uses 'is not None'. This test documents the invariant.
-    """
-
-    def test_vix_zero_close_is_cached(self, monkeypatch: pytest.MonkeyPatch) -> None:
-        """A VIX bar with close=0 must call cache.set_vix(0)."""
-        import services.live_overlay_daemon.cache as cache_mod
-        import services.live_overlay_daemon.feed as feed_mod
-
-        calls: list[float] = []
-        monkeypatch.setattr(cache_mod, "set_vix", calls.append)
-        monkeypatch.setattr(cache_mod, "push_bar", lambda sym, bar: None)
-
-        bar = {
-            "open": 10.0,
-            "high": 11.0,
-            "low": 9.0,
-            "close": 0.0,
-            "volume": 100,
-            "ts_event": 0,
-        }
-
-        feed_mod._maybe_cache_vix("VIX", bar)
-
-        assert calls == [0.0], f"VIX zero close should be cached, got calls={calls}"
-
-
 class TestRecordToBarRobustness:
     """Property/replay tests for _record_to_bar and _symbol_from_record."""
 

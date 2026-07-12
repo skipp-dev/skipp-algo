@@ -403,6 +403,28 @@ class FMPDataLoader:
         logger.info("[FMP] Loaded %s candles from %s", len(candles), filepath)
         return candles
 
+    def get_quote(self, symbol: str) -> float | None:
+        """Fetch the latest price for ``symbol`` from the stable ``/quote`` endpoint.
+
+        Suited to slow-moving single values (e.g. the ``^VIX`` index level) that
+        do not warrant a full historical-chart pull. Returns the finite ``price``
+        field, or ``None`` on any error / missing / non-finite value so callers
+        can keep their last known value rather than propagate a bad reading.
+        """
+        url = self._build_url("/stable/quote", {"symbol": symbol})
+        try:
+            resp = self.session.get(url, timeout=15)
+            resp.raise_for_status()
+            data = resp.json()
+            row = data[0] if isinstance(data, list) and data else data
+            if not isinstance(row, dict) or row.get("price") is None:
+                return None
+            price = float(row["price"])
+            return price if math.isfinite(price) else None
+        except Exception as e:
+            logger.warning("[FMP] quote fetch failed for %s: %s", symbol, e)
+            return None
+
 
 def main():
     """Example usage."""

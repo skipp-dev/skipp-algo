@@ -17,7 +17,7 @@ Field definitions (matching spec/smc_live_overlay.schema.json):
   squeeze_on           — int 0/1 on the JSON wire (1 = BB width < KC width; null when unknown)
   ats_state            — "accumulation" | "distribution" | "neutral" | null
   ats_zscore           — z-score of last-bar volume vs mean of prior bars
-  vix_level            — latest VIX level (from VIX symbol bars)
+  vix_level            — latest VIX level (polled from FMP ^VIX quote)
   tone                 — "BULLISH" | "BEARISH" | "NEUTRAL" (market-wide)
   global_heat          — [-1.0, 1.0] directional news heat (positive = bullish)
   event_window_state   — "pre-event" | "in-event" | "post-event" | "normal"

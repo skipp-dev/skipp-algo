@@ -133,28 +133,53 @@ class TestRecordToBarMissingFieldsBug:
         )
 
 
-class TestVIXNonePropagationBug:
-    """BUG: When _record_to_bar returns close=None, cache.set_vix must not be called."""
+class TestVIXFmpPoll:
+    """`_poll_vix_from_fmp` sources VIX from FMP's ^VIX quote (the index is not on
+    the EQUS.MINI bar feed) and stays fail-soft on a bad/missing/absent reading."""
 
-    def test_vix_with_none_close_is_not_cached(self, monkeypatch: pytest.MonkeyPatch) -> None:
+    class _FakeLoader:
+        def __init__(self, quote: float | None) -> None:
+            self._quote = quote
+
+        def get_quote(self, symbol: str) -> float | None:
+            return self._quote
+
+    def test_finite_quote_is_cached(self, monkeypatch: pytest.MonkeyPatch) -> None:
         import services.live_overlay_daemon.cache as cache_mod
         import services.live_overlay_daemon.feed as feed_mod
 
         calls: list[Any] = []
         monkeypatch.setattr(cache_mod, "set_vix", calls.append)
+        monkeypatch.setitem(feed_mod._runtime, "vix_loader", self._FakeLoader(17.5))
 
-        bar = {
-            "open": 10.0,
-            "high": 11.0,
-            "low": 9.0,
-            "close": None,
-            "volume": 100,
-            "ts_event": 0,
-        }
+        feed_mod._poll_vix_from_fmp()
 
-        feed_mod._maybe_cache_vix("VIX", bar)
+        assert calls == [17.5]
 
-        assert calls == [], f"VIX with close=None should not be cached, got {calls}"
+    def test_none_quote_leaves_cache_untouched(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        import services.live_overlay_daemon.cache as cache_mod
+        import services.live_overlay_daemon.feed as feed_mod
+
+        calls: list[Any] = []
+        monkeypatch.setattr(cache_mod, "set_vix", calls.append)
+        monkeypatch.setitem(feed_mod._runtime, "vix_loader", self._FakeLoader(None))
+
+        feed_mod._poll_vix_from_fmp()
+
+        assert calls == [], f"a None quote must not touch the cache, got {calls}"
+
+    def test_disabled_loader_is_fail_soft(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        import services.live_overlay_daemon.cache as cache_mod
+        import services.live_overlay_daemon.feed as feed_mod
+
+        calls: list[Any] = []
+        monkeypatch.setattr(cache_mod, "set_vix", calls.append)
+        # None sentinel = FMP loader construction failed; poll must be a no-op.
+        monkeypatch.setitem(feed_mod._runtime, "vix_loader", None)
+
+        feed_mod._poll_vix_from_fmp()  # must not raise
+
+        assert calls == []
 
 
 class TestFeedReadinessRaceCondition:
