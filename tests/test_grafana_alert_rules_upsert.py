@@ -673,5 +673,48 @@ def test_absent_rules_pin_nodata_state_ok() -> None:
     for uid in (
         "lo-scrape-missing", "lo-core-signal-missing",
         "lo-news-snapshot-series-missing", "alloy-targets-down",
+        "lo-provider-usage-snapshot-series-missing",
     ):
         assert all_rules[uid].get("noDataState") == "OK", f"{uid} must pin noDataState: OK"
+
+
+# --------------------------------------------------------------------------- #
+# Provider-usage feed-health + FMP quota consumption (monitoring truth fixes)
+# --------------------------------------------------------------------------- #
+def _rules_by_uid() -> dict[str, Any]:
+    return {r["uid"]: r for g in mod.load_alert_groups(ALERT_RULES) for r in g["rules"]}
+
+
+def _rule_expr(rule: dict[str, Any]) -> str:
+    return "\n".join(
+        (node.get("model") or {}).get("expr", "")
+        for node in rule.get("data", [])
+        if isinstance((node.get("model") or {}).get("expr"), str)
+    )
+
+
+def test_provider_usage_feed_health_alerts_present() -> None:
+    """The ingest usage snapshot drives the FMP-quota + provider-429 alerts, so
+    its own missing/not-loaded/stale must page (previously it had no consumer)."""
+    rules = _rules_by_uid()
+    expected = {
+        "lo-provider-usage-snapshot-series-missing": "absent(live_overlay_provider_usage_loaded",
+        "lo-provider-usage-snapshot-unloaded": "live_overlay_provider_usage_loaded",
+        "lo-provider-usage-snapshot-stale": "live_overlay_provider_usage_snapshot_age_seconds",
+    }
+    for uid, needle in expected.items():
+        assert uid in rules, f"missing provider-usage feed-health alert: {uid}"
+        assert needle in _rule_expr(rules[uid]), f"{uid} expr does not reference {needle}"
+
+
+def test_fmp_bandwidth_alerts_include_producer_consumption() -> None:
+    """The 24/7 signals-producer is the single largest FMP consumer; its bytes
+    must be folded into both the 80% and 95% quota alerts, else the quota is
+    under-counted (ingest-only) and can be exhausted before either fires."""
+    rules = _rules_by_uid()
+    for uid in ("lo-fmp-bandwidth-approaching", "lo-fmp-bandwidth-critical"):
+        assert uid in rules, f"missing FMP quota alert: {uid}"
+        expr = _rule_expr(rules[uid])
+        assert "signals_producer_fmp_response_bytes_total" in expr, uid
+        # The producer term must degrade to 0 when absent (never null the base).
+        assert "or vector(0)" in expr, uid

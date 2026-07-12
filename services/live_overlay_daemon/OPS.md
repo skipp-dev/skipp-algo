@@ -921,12 +921,23 @@ Value mappings:
 #### Deploy/restart annotations
 
 ```promql
-resets(live_overlay_uptime_seconds{job=~"$job"}[1m]) > 0
-or
-sum by (__name__) (
-  increase({__name__=~"live_overlay_daemon_restart_cause_.*_total",job=~"$job"}[1m])
-) > 0
+changes(live_overlay_process_start_time_seconds{job=~"$job"}[1m]) > 0
 ```
+
+Restart-cause breakdown (per-cause counts over a window):
+
+```promql
+sum by (cause) (
+  changes(live_overlay_daemon_start_time_seconds{job=~"$job"}[24h])
+)
+```
+
+> Do **not** use `increase(live_overlay_daemon_restart_cause_*_total[…])`: those
+> per-cause counters are reset to `1` on every process start and stay constant,
+> so Prometheus sees `1,1,…` across restarts and `increase()` is always `0` (the
+> same inert class already fixed for `live_overlay_daemon_restarts_total`).
+> `live_overlay_daemon_start_time_seconds{cause}` carries the start epoch as its
+> value, so `changes()` counts real restarts per cause.
 
 ---
 

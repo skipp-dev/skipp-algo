@@ -1309,8 +1309,11 @@ groups:
     annotations:
       summary: More than 3 daemon restarts within 15 min (crash-loop; routine deploys spread over a day no
         longer trip this).
-      runbook: Check Railway deployment logs and restart_cause counters for crash
-        loop.
+      runbook: Check Railway deployment/restart logs for the crash loop, and the
+        "Restart Causes (24h)" dashboard panel (changes() of
+        live_overlay_daemon_start_time_seconds by cause) for the cause breakdown.
+        Do NOT rely on the live_overlay_daemon_restart_cause_*_total counters -- they
+        reset to 1 each process, so they carry no cross-restart history.
   - uid: lo-feed-supervisor-heals-recurring
     title: Feed supervisor healing repeatedly (1h)
     condition: C
@@ -2315,12 +2318,18 @@ groups:
     # consumption this month reaches >=80% of the configured limit. The usage
     # snapshot accumulates by calendar month -- a close proxy for FMP's rolling
     # meter. `for: 1h` rides out a single scrape.
+    # The scalar() term adds the 24/7 signals-producer's FMP consumption (a
+    # SEPARATE Railway service / job whose bytes never reach the ingest snapshot,
+    # yet it is the single largest FMP consumer). `or vector(0)` makes an absent
+    # producer contribute 0, never null the numerator; adding it can only make
+    # the quota fire EARLIER, never mask a real breach.
     noDataState: OK
     data:
     - refId: A
       datasourceUid: grafanacloud-prom
       model:
-        expr: live_overlay_provider_usage_bytes{job="live_overlay",provider="fmp"}
+        expr: (live_overlay_provider_usage_bytes{job="live_overlay",provider="fmp"}
+          + scalar(sum(increase(signals_producer_fmp_response_bytes_total{job="signals_producer"}[30d])) or vector(0)))
           / on(provider) live_overlay_provider_bandwidth_limit_bytes{job="live_overlay",provider="fmp"}
           > 0.80
         instant: true
@@ -2350,13 +2359,16 @@ groups:
     title: FMP bandwidth near monthly quota
     condition: C
     # Escalation of lo-fmp-bandwidth-approaching: >=95% of the FMP monthly volume
-    # quota -- exhaustion (and blanket ingest failures) is imminent.
+    # quota -- exhaustion (and blanket ingest failures) is imminent. Includes the
+    # signals-producer's FMP consumption (see lo-fmp-bandwidth-approaching) so the
+    # critical threshold reflects TOTAL consumption, not ingest-only.
     noDataState: OK
     data:
     - refId: A
       datasourceUid: grafanacloud-prom
       model:
-        expr: live_overlay_provider_usage_bytes{job="live_overlay",provider="fmp"}
+        expr: (live_overlay_provider_usage_bytes{job="live_overlay",provider="fmp"}
+          + scalar(sum(increase(signals_producer_fmp_response_bytes_total{job="signals_producer"}[30d])) or vector(0)))
           / on(provider) live_overlay_provider_bandwidth_limit_bytes{job="live_overlay",provider="fmp"}
           > 0.95
         instant: true
@@ -2420,6 +2432,116 @@ groups:
       runbook: Reduce polling frequency / concurrency for the throttled provider (newsstack_fmp poll
         intervals) or raise the plan tier. Counter sources are newsstack_fmp/_bz_http.py (bz/massive/
         UW), ingest_fmp.py + open_prep/macro.py (fmp), databento_client.py, terminal_finnhub.py.
+  - uid: lo-provider-usage-snapshot-series-missing
+    title: Provider-usage snapshot series missing
+    condition: C
+    # absent()==1 is the alarm; a healthy empty vector must not page as NoData.
+    # If these gauges vanish from scrape output the FMP bandwidth + provider-429
+    # alerts above silently lose their input -- they are all computed off this
+    # same ingest-side usage snapshot.
+    noDataState: OK
+    data:
+    - refId: A
+      datasourceUid: grafanacloud-prom
+      model:
+        expr: absent(live_overlay_provider_usage_loaded{job="live_overlay"})
+          or absent(live_overlay_provider_usage_snapshot_age_seconds{job="live_overlay"})
+        instant: true
+    - refId: C
+      datasourceUid: __expr__
+      model:
+        type: threshold
+        conditions:
+        - evaluator:
+            type: gt
+            params:
+            - 0
+          operator:
+            type: and
+          query:
+            params:
+            - A
+    for: 10m
+    labels:
+      severity: warning
+    annotations:
+      summary: Provider-usage snapshot metrics are missing from scrape output
+      runbook: Check /metrics exposure for the live_overlay_provider_usage_* gauges and
+        scrape-target label wiring; the FMP bandwidth and provider-429 alerts all read
+        this snapshot, so a missing series blinds them too.
+  - uid: lo-provider-usage-snapshot-unloaded
+    title: Provider-usage snapshot not loaded
+    condition: C
+    # loaded==0 => the daemon could not read the monthly usage snapshot (missing
+    # PROVIDER_USAGE_SNAPSHOT_URL/path, or an unreadable/malformed file). The FMP
+    # quota gauges then read 0 and the 80/95% alerts go quiet -- a silent blind
+    # spot. `== bool 0` yields a present 0/1 series (never NoData); `for: 2h`
+    # rides out the cold-start window before the daily open-prep snapshot lands.
+    data:
+    - refId: A
+      datasourceUid: grafanacloud-prom
+      model:
+        expr: live_overlay_provider_usage_loaded{job="live_overlay"} == bool 0
+        instant: true
+    - refId: C
+      datasourceUid: __expr__
+      model:
+        type: threshold
+        conditions:
+        - evaluator:
+            type: gt
+            params:
+            - 0
+          operator:
+            type: and
+          query:
+            params:
+            - A
+    for: 2h
+    labels:
+      severity: warning
+    annotations:
+      summary: Provider-usage monthly snapshot is not loaded (FMP quota telemetry blind)
+      runbook: Verify PROVIDER_USAGE_SNAPSHOT_URL / PROVIDER_USAGE_SNAPSHOT_PATH and that
+        the daily open-prep workflow commits artifacts/monitoring/provider_usage.json;
+        the daemon serves loaded=0 with an error label until the snapshot is readable.
+  - uid: lo-provider-usage-snapshot-stale
+    title: Provider-usage snapshot stale
+    condition: C
+    # loaded * (age > bool 4d) yields a present 0 when fresh or unloaded and 1
+    # when a LOADED snapshot has aged past 4 days. 4d (not 24h) tolerates the
+    # daily open-prep cadence plus a weekend/holiday gap without false-firing.
+    # When the age is unknown the daemon emits age_seconds=0, so the product is 0
+    # (no fire) -- no NoData handling needed.
+    data:
+    - refId: A
+      datasourceUid: grafanacloud-prom
+      model:
+        expr: live_overlay_provider_usage_loaded{job="live_overlay"} * (live_overlay_provider_usage_snapshot_age_seconds{job="live_overlay"}
+          > bool 345600)
+        instant: true
+    - refId: C
+      datasourceUid: __expr__
+      model:
+        type: threshold
+        conditions:
+        - evaluator:
+            type: gt
+            params:
+            - 0
+          operator:
+            type: and
+          query:
+            params:
+            - A
+    for: 1h
+    labels:
+      severity: warning
+    annotations:
+      summary: Provider-usage monthly snapshot is older than 4 days (FMP quota figures may be stale)
+      runbook: The daily open-prep workflow has not refreshed
+        artifacts/monitoring/provider_usage.json within 4 days. Check the open-prep run
+        and the snapshot publish path; the FMP bandwidth % is computed from this file.
   - uid: lo-sweep-trap-shadow-stale
     title: Sweep-trap shadow snapshot stale
     condition: C
