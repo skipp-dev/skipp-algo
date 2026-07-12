@@ -51,6 +51,17 @@ def test_structure_missing_yields_unavailable_when_present() -> None:
     assert enr["trust_state"]["state"] == "unavailable"
 
 
+def test_structure_unknown_status_fails_closed_to_unavailable() -> None:
+    # Rename-proofing: a status the direct map doesn't know (e.g. the sibling
+    # producer's "no_data", or a future "unavailable") must fail CLOSED to
+    # UNAVAILABLE on the product-gating structure domain — NOT silently DEGRADE
+    # via the old code-substring heuristic's unknown->advisory default.
+    for status in ("no_data", "unavailable", "offline"):
+        enr = _enr({"structure": {"provider_status": status}})
+        attach_trust_state_from_provider_diagnostics(enr)
+        assert enr["trust_state"]["state"] == "unavailable", status
+
+
 def test_stale_providers_only_still_stale_no_regression() -> None:
     # domain_diagnostics present but all-ok, yet stale_providers non-empty:
     # must still be STALE (folded in as an advisory-stale alert), matching the

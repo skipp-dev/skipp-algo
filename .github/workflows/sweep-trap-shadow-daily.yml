@@ -116,7 +116,8 @@ jobs:
             exit 0
           fi
           # The eval's exit CODE is the signal (0=promotable / 2=shadow /
-          # 3=no_data / 5=stale_feed), not a failure. GitHub runs this step under
+          # 3=thin_or_no_data [measured n<MIN_OOS_SAMPLES=40 INCONCLUSIVE, or zero
+          # samples] / 5=stale_feed), not a failure. GitHub runs this step under
           # `bash -e` (defaults.run.shell: bash), so without `set +e` the rc-3/5/2
           # pipeline would abort the step HERE — before PIPESTATUS is read —
           # inverting the fail-soft design (green only on rc 0). Neutralise `-e`
@@ -128,7 +129,7 @@ jobs:
           case "$rc" in
             0) status=promotable ;;
             2) status=shadow ;;
-            3) status=no_data ;;
+            3) status=thin_or_no_data ;;
             5) status=stale_feed ;;
             *) status=error ;;
           esac

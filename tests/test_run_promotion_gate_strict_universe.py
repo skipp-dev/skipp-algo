@@ -103,8 +103,13 @@ def test_non_strict_universe_missing_snapshot_falls_back(
             str(snap_root),
         ]
     )
-    # Empty bundle => no families to block, all-promoted vacuous truth => rc 0.
-    assert rc == 0
+    # Non-strict + missing snapshot => live-vendor fallback with
+    # survivorship_bias_risk=True. The empty bundle promotes nothing (vacuous),
+    # but the default enforcement demotes-not-promotes: rc 2 (observe, don't
+    # PROMOTE a survivorship-biased run) instead of the old rc 0. #3453.
+    assert rc == 2
+    out = json.loads((tmp_path / "out.json").read_text())
+    assert out["universe_survivorship_bias_risk"] is True
 
 
 def test_strict_universe_with_snapshot_passes_preflight(tmp_path: Path) -> None:

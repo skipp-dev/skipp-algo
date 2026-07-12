@@ -802,6 +802,12 @@ class FMPClient:
                     self._circuit_breaker.on_success()
                 return data
             except urllib.error.HTTPError as exc:
+                if exc.code == 429:
+                    try:  # 429 telemetry — count every hit (producer FMP path)
+                        from newsstack_fmp import provider_usage
+                        provider_usage.record_rate_limit_hit("fmp")
+                    except Exception:  # telemetry must never break a fetch
+                        logger.debug("fmp rate-limit record skipped", exc_info=True)
                 # 408 (Request Timeout) is a provider-side stall — treat it the
                 # same as 429/5xx: retry with backoff before tripping the breaker.
                 transient = exc.code in {408, 429, 500, 502, 503, 504}
