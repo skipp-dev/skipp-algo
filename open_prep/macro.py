@@ -2141,13 +2141,14 @@ class FinnhubClient:
     ``points`` / ``levels`` / ``technicalAnalysis``) keep working.
 
     Provider-audit decision (2026-05-12, Option A):
-        Finnhub ``/stock/recommendation``, ``/news-sentiment``,
-        ``/stock/social-sentiment`` and ``/stock/insider-sentiment``
-        carry signals that are **not** 1:1 replicated in FMP, so the
-        previous empty-stub shape was actively dropping data on the
-        floor. These methods are now wired to live HTTP. Failures still
-        return the documented empty shape (``[]`` / ``{}``) so callers
-        do not need defensive try/except for the network path.
+        Finnhub ``/stock/recommendation``, ``/news-sentiment`` and
+        ``/stock/insider-sentiment`` carry signals that are **not** 1:1
+        replicated in FMP, so the previous empty-stub shape was actively
+        dropping data on the floor. These methods are now wired to live
+        HTTP. Failures still return the documented empty shape (``[]`` /
+        ``{}``) so callers do not need defensive try/except for the
+        network path. (``/stock/social-sentiment`` was removed 2026-07-12:
+        premium-only/403 on our key, no open_prep consumer.)
 
     The thin facade pattern (rather than importing ``terminal_finnhub``
     free functions directly) is kept because callers already pass a
@@ -2223,20 +2224,6 @@ class FinnhubClient:
             return []
         raw = self._http_get("/stock/peers", {"symbol": sym})
         return [str(p) for p in raw if isinstance(p, str)] if isinstance(raw, list) else []
-
-    def get_social_sentiment(self, symbol: str) -> dict[str, Any]:
-        """Return raw ``/stock/social-sentiment`` payload.
-
-        Note: this endpoint requires a Finnhub paid tier; the
-        ``terminal_finnhub._get`` shim records a permanent DISABLED flag
-        on the first 403 so subsequent calls short-circuit without
-        burning quota.
-        """
-        sym = (symbol or "").strip().upper()
-        if not sym or not self.api_key:
-            return {}
-        raw = self._http_get("/stock/social-sentiment", {"symbol": sym})
-        return raw if isinstance(raw, dict) else {}
 
     def get_pattern_recognition(self, symbol: str) -> dict[str, Any]:
         """Return raw ``/scan/pattern`` payload (``points`` list inside)."""
