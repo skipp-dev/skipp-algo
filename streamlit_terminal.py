@@ -2168,7 +2168,7 @@ _RECENCY_COLORS = RECENCY_COLORS
 
 @st.cache_data(ttl=180, show_spinner=False)
 def _cached_sector_perf(api_key: str) -> list[dict[str, Any]]:
-    """Cache sector performance for 3 minutes."""
+    """DEAD (no callers): would cache sector performance for 3 minutes."""
     try:
         return fetch_sector_performance(api_key)
     except Exception:
@@ -2178,7 +2178,7 @@ def _cached_sector_perf(api_key: str) -> list[dict[str, Any]]:
 
 @st.cache_data(ttl=300, show_spinner=False)
 def _cached_ticker_sectors(api_key: str, tickers_csv: str) -> dict[str, str]:
-    """Cache ticker→GICS sector mapping for 5 minutes."""
+    """DEAD (no callers): would cache ticker→GICS sector mapping for 5 minutes."""
     try:
         tickers = [t.strip() for t in tickers_csv.split(",") if t.strip()]
         return fetch_ticker_sectors(api_key, tickers)
@@ -3990,43 +3990,6 @@ else:
         st.header("🏗️ Segments")
         seg_rows = aggregate_segments(feed)
 
-        # ── Sector Performance Plotly Chart (5-min TTL) ─────────────────
-        _SECTOR_PERF_TTL = 300  # 5 minutes
-        _seg_sector_perf: list[dict[str, Any]] = []
-        _seg_sp_ts = st.session_state.get("_cached_sector_perf_ts", 0)
-        if time.time() - _seg_sp_ts < _SECTOR_PERF_TTL:
-            _seg_sector_perf = st.session_state.get("_cached_sector_perf") or []
-        # (FMP sector performance removed — no Databento equivalent)
-
-        if _seg_sector_perf:
-            try:
-                import plotly.express as px
-                _sp_df = pd.DataFrame(_seg_sector_perf)
-                _sp_df = _sp_df.rename(columns={"change_pct": "Change %"})
-                _sp_df["Color"] = _sp_df["Change %"].apply(lambda x: "green" if x >= 0 else "red")
-                _fig_sp = px.bar(
-                    _sp_df, x="sector", y="Change %",
-                    color="Color", color_discrete_map={"green": "#22c55e", "red": "#ef4444"},
-                    title="📊 GICS Sector Performance (today)",
-                )
-                _fig_sp.update_layout(
-                    showlegend=False, height=260, margin=dict(l=0, r=0, t=30, b=0),
-                    xaxis_title=None, yaxis_title=None,
-                    plot_bgcolor="rgba(0,0,0,0)",
-                )
-                st.plotly_chart(_fig_sp, width='stretch', key="seg_sector_perf_chart")
-            except Exception:
-                # Fallback to metrics columns if plotly unavailable
-                _sp_cols = st.columns(min(len(_seg_sector_perf), 6))
-                for _sp_i, _sp in enumerate(_seg_sector_perf[:12]):
-                    _sp_name = _sp.get("sector", "")
-                    _sp_chg = _sp.get("change_pct", 0)
-                    _sp_cols[_sp_i % len(_sp_cols)].metric(
-                        _sp_name[:20],
-                        f"{_sp_chg:+.2f}%",
-                        delta=None,
-                    )
-
         if not seg_rows:
             st.info("No segment data yet. Channels are populated by news articles.")
         else:
@@ -4259,7 +4222,7 @@ else:
         st.header("🔮 Outlook")
 
         bz_key = cfg.benzinga_api_key
-        fmp_key = ""  # FMP key unset here → outlook earnings/macro/sector factors are NOT computed (neutral placeholder)
+        fmp_key = cfg.fmp_api_key  # terminal's FMP key (env FMP_API_KEY); factors skip gracefully if unset
 
         if not bz_key:
             st.warning("Configure Benzinga API key to compute the outlook.")
