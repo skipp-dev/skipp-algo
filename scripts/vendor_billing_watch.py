@@ -45,9 +45,8 @@ except ImportError:  # imported as scripts.vendor_billing_watch (pytest pythonpa
 _DEFAULT_HOST = "imap.mail.yahoo.com"
 _DEFAULT_DOMAINS = ("databento.com", "financialmodelingprep.com", "benzinga.com")
 
-# Keywords that signal a billing *problem*, not a routine receipt/invoice. Kept
-# failure-focused so a normal monthly receipt does not page the operator.
-_PROBLEM_KEYWORDS = (
+# HARD terms — unambiguous payment failures; always alert.
+_HARD_KEYWORDS = (
     "payment failed",
     "payment declined",
     "card declined",
@@ -57,15 +56,35 @@ _PROBLEM_KEYWORDS = (
     "overdue",
     "unpaid",
     "outstanding balance",
-    "suspend",  # covers suspend / suspended / suspension
+    "billing problem",
+    "billing issue",
+    "failed to renew",
+)
+
+# SOFT terms — a billing failure *can* say these, but so can a benign notice
+# (e.g. FMP "Data Usage Warning" says the account may be *suspended* if you
+# exceed usage — a quota warning, not a payment failure, and already covered by
+# the Grafana fmp-bandwidth alerts). Only alert on a soft match when the mail is
+# NOT in a usage/quota context.
+_SOFT_KEYWORDS = (
+    "suspend",  # suspend / suspended / suspension
     "deactivat",  # deactivate / deactivated
     "action required",
     "update your payment",
     "update payment",
     "expired card",
-    "billing problem",
-    "billing issue",
-    "failed to renew",
+)
+
+# Usage/quota phrases that demote a soft match to noise (the concern is quota,
+# not payment — a different, separately-monitored signal).
+_USAGE_CONTEXT = (
+    "data usage",
+    "usage warning",
+    "usage limit",
+    "usage notification",
+    "rate limit",
+    "quota",
+    "bandwidth",
 )
 
 
@@ -110,17 +129,36 @@ def _imap_date(dt: datetime) -> str:
     return dt.strftime("%d-%b-%Y")
 
 
+def _match_keywords(
+    haystack: str,
+    *,
+    hard: tuple[str, ...],
+    soft: tuple[str, ...],
+    usage_exclusions: tuple[str, ...],
+) -> list[str]:
+    """Return matched billing-problem keywords, demoting soft matches in a
+    usage/quota context to nothing (hard matches always count)."""
+    hard_hits = [k for k in hard if k in haystack]
+    soft_hits = [k for k in soft if k in haystack]
+    if soft_hits and any(u in haystack for u in usage_exclusions):
+        soft_hits = []  # quota/usage notice, not a payment failure
+    return hard_hits + soft_hits
+
+
 def find_billing_alerts(
     conn: Any,
     *,
     domains: tuple[str, ...],
-    keywords: tuple[str, ...],
+    hard: tuple[str, ...] = _HARD_KEYWORDS,
+    soft: tuple[str, ...] = _SOFT_KEYWORDS,
+    usage_exclusions: tuple[str, ...] = _USAGE_CONTEXT,
     since: datetime,
 ) -> list[BillingHit]:
     """Scan the selected mailbox for problem-signalling vendor billing mail.
 
     ``conn`` is any object exposing IMAP ``search`` / ``fetch`` (injected in
     tests). Each hit records which keywords matched so the alert is explainable.
+    Soft/ambiguous keywords are suppressed inside a usage/quota context.
     """
     since_str = _imap_date(since)
     hits: list[BillingHit] = []
@@ -138,7 +176,9 @@ def find_billing_alerts(
             msg = email.message_from_bytes(bytes(raw))
             subject = _decode(msg.get("Subject"))
             haystack = f"{subject} {_extract_text(msg)}".lower()
-            matched = [k for k in keywords if k in haystack]
+            matched = _match_keywords(
+                haystack, hard=hard, soft=soft, usage_exclusions=usage_exclusions
+            )
             if matched:
                 hits.append(
                     BillingHit(
@@ -205,7 +245,7 @@ def main(argv: list[str] | None = None) -> int:
         return 1
 
     try:
-        hits = find_billing_alerts(conn, domains=domains, keywords=_PROBLEM_KEYWORDS, since=since)
+        hits = find_billing_alerts(conn, domains=domains, since=since)
     finally:
         try:
             conn.logout()
