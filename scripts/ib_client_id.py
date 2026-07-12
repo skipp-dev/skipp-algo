@@ -12,9 +12,9 @@ Key invariants:
   (``~/client_id_registry.json``) protected by an exclusive ``flock``.
 * Stale entries (PID dead OR last-seen older than ``process_timeout``)
   are reaped on every allocation.
-* Default range is ``[40, 99]`` — high enough to dodge the
-  monitoring-service ranges (6-15, 25-35, 100-130) but still inside
-  the standard IB clientId range.
+* Default range is ``[40, 99]`` minus the reserved id ``71`` — high
+  enough to dodge the monitoring-service ranges (6-15, 25-35, 100-130)
+  and disjoint from the execution/incubation default clientId (71).
 * Allocation **never blocks** the caller for more than a handful of
   syscalls; if the lock cannot be acquired we fall back to a random
   pick within the preferred range.
@@ -54,8 +54,8 @@ DEFAULT_REGISTRY_PATH = Path.home() / "client_id_registry.json"
 DEFAULT_PROCESS_TIMEOUT_SECONDS = 300
 
 # Safe range for ad-hoc C13 jobs; intentionally disjoint from the
-# in-house IB monitoring service (uses 6-15, 25-35, 100-130) and from
-# the live-execution default (71).
+# in-house IB monitoring service (uses 6-15, 25-35, 100-130). The
+# execution/incubation default clientId 71 is excluded via _RESERVED_CLIENT_IDS.
 DEFAULT_PREFERRED_RANGE = (40, 99)
 
 
@@ -117,9 +117,33 @@ def _reap_stale(
     }
 
 
+# The execution/incubation default clientId is pinned to 71 (the
+# IBKRConnectionConfig default used by run_smc_live_incubation's paper submitter
+# and the execute_ibkr_watchlist runners) and is NEVER registered in this
+# cooperative file, so the allocator must never hand it out — otherwise a
+# lock-less random fallback (or an ascending scan that has exhausted 40..70)
+# could return 71 and collide with a concurrently-pinned 71 session (IBKR error
+# 326), the very failure this registry exists to prevent.
+_RESERVED_CLIENT_IDS = frozenset({71})
+
+
+def _pick_random_id(preferred_range: tuple[int, int]) -> int:
+    """Random id within ``preferred_range`` that is never a reserved id.
+
+    Used on the lock-less fallback path (no fcntl, or the lock is unavailable).
+    Shifts a reserved draw to the nearest in-range neighbour so the guarantee
+    holds without an unbounded re-roll loop.
+    """
+    lo, hi = preferred_range
+    candidate = random.randint(lo, hi)
+    if candidate not in _RESERVED_CLIENT_IDS:
+        return candidate
+    return candidate + 1 if candidate < hi else candidate - 1
+
+
 def _candidate_ids(preferred_range: tuple[int, int]) -> Iterable[int]:
     start, end = preferred_range
-    return range(start, end + 1)
+    return (cid for cid in range(start, end + 1) if cid not in _RESERVED_CLIENT_IDS)
 
 
 def allocate_ib_client_id(
@@ -135,7 +159,7 @@ def allocate_ib_client_id(
     inside the range if the registry file cannot be locked / written.
     """
     if fcntl is None:
-        return random.randint(*preferred_range)
+        return _pick_random_id(preferred_range)
 
     path = registry_path or _registry_path()
     lock_path = path.with_suffix(path.suffix + ".lock")
@@ -143,14 +167,14 @@ def allocate_ib_client_id(
 
     lock_fd = _open_lock_file(lock_path)
     if lock_fd is None:
-        return random.randint(*preferred_range)
+        return _pick_random_id(preferred_range)
 
     with lock_fd:
         try:
             try:
                 fcntl.flock(lock_fd.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
             except OSError:
-                return random.randint(*preferred_range)
+                return _pick_random_id(preferred_range)
 
             registry = _reap_stale(
                 _load(path), timeout_seconds=process_timeout_seconds

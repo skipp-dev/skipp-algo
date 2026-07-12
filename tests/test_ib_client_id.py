@@ -90,3 +90,28 @@ def test_release_returns_false_when_fcntl_unavailable(
     monkeypatch.setattr(ib_client_id, "fcntl", None)
 
     assert ib_client_id.release_ib_client_id(40, registry_path=tmp_path / "reg.json") is False
+
+
+def test_candidate_scan_excludes_reserved_execution_id() -> None:
+    """71 is the pinned execution/incubation default clientId; the ascending
+    scan must skip it so an exhausted 40..70 range never falls through to 71."""
+    assert 71 in ib_client_id._RESERVED_CLIENT_IDS
+    ids = list(ib_client_id._candidate_ids(ib_client_id.DEFAULT_PREFERRED_RANGE))
+    assert 71 not in ids
+    # Neighbours stay allocatable — only the reserved id is removed.
+    assert 70 in ids and 72 in ids
+
+
+def test_fallback_allocation_never_returns_reserved_71(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """The lock-less fallback must not hand out 71 even when the raw draw lands
+    on it — otherwise it collides with the pinned-71 incubation/execution
+    session (IBKR error 326), the failure this registry exists to prevent."""
+    monkeypatch.setattr(ib_client_id, "fcntl", None)
+    monkeypatch.setattr(ib_client_id.random, "randint", lambda lo, hi: 71)
+
+    cid = ib_client_id.allocate_ib_client_id("svc_reserved", registry_path=tmp_path / "reg.json")
+    assert cid != 71
+    lo, hi = ib_client_id.DEFAULT_PREFERRED_RANGE
+    assert lo <= cid <= hi
