@@ -14,12 +14,15 @@ import os
 from open_prep.feature_flags import (
     _bool_env,
     any_v2_feature_enabled,
+    any_v2_score_feature_enabled,
     is_confluence_score_enabled,
     is_freshness_v2_enabled,
     is_opra_uoa_enabled,
     is_reaction_zone_enabled,
     is_smt_divergence_enabled,
+    is_smt_divergence_promoted,
     is_sweep_trap_enabled,
+    is_sweep_trap_promoted,
     signal_quality_model,
 )
 
@@ -141,3 +144,36 @@ def test_any_v2_feature_enabled_true_when_one_on() -> None:
     with _isolated("ENABLE_CONFLUENCE_SCORE"):
         os.environ["ENABLE_CONFLUENCE_SCORE"] = "1"
         assert any_v2_feature_enabled() is True
+
+
+def test_score_feature_trigger_default_false() -> None:
+    assert any_v2_score_feature_enabled() is False
+
+
+def test_score_feature_trigger_true_for_score_flags() -> None:
+    for flag in ("ENABLE_CONFLUENCE_SCORE", "ENABLE_FRESHNESS_V2"):
+        with _isolated(flag):
+            os.environ[flag] = "1"
+            assert any_v2_score_feature_enabled() is True, flag
+
+
+def test_score_feature_trigger_ignores_observe_only_detectors() -> None:
+    """Arming an observe-only detector must NOT flip the score-model router."""
+    for flag in ("ENABLE_SWEEP_TRAP", "ENABLE_REACTION_ZONE", "ENABLE_SMT_DIVERGENCE"):
+        with _isolated(flag):
+            os.environ[flag] = "1"
+            assert any_v2_score_feature_enabled() is False, flag
+
+
+def test_promotion_flags_default_false() -> None:
+    assert is_sweep_trap_promoted() is False
+    assert is_smt_divergence_promoted() is False
+
+
+def test_promotion_flags_enable_with_1() -> None:
+    with _isolated("PROMOTE_SWEEP_TRAP"):
+        os.environ["PROMOTE_SWEEP_TRAP"] = "1"
+        assert is_sweep_trap_promoted() is True
+    with _isolated("PROMOTE_SMT_DIVERGENCE"):
+        os.environ["PROMOTE_SMT_DIVERGENCE"] = "1"
+        assert is_smt_divergence_promoted() is True

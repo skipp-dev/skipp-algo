@@ -20,6 +20,8 @@ def _reset_env() -> Iterator[None]:
         "ENABLE_SWEEP_TRAP",
         "ENABLE_REACTION_ZONE",
         "ENABLE_SMT_DIVERGENCE",
+        "PROMOTE_SWEEP_TRAP",
+        "PROMOTE_SMT_DIVERGENCE",
     }
     saved = {k: os.environ.pop(k, None) for k in keys}
     yield
@@ -91,9 +93,10 @@ def test_all_v2_features_enabled_produces_expected_keys() -> None:
     assert "SIGNAL_BIAS_ALIGNMENT" in result
     assert "SIGNAL_FRESHNESS" in result
 
-    # Phase A: Freshness v2 starts at very_fresh, but is downgraded one
-    # step because a high-confidence sweep trap and SMT divergence were detected.
-    assert result["SIGNAL_FRESHNESS"] == "fresh"
+    # Phase A: Freshness v2 stays very_fresh. The high-confidence sweep trap /
+    # SMT divergence are observe-only (no PROMOTE_* flag set), so they do NOT
+    # downgrade the live freshness label.
+    assert result["SIGNAL_FRESHNESS"] == "very_fresh"
 
     # Phase D: Confluence score
     assert result["CONFLUENCE_SCORE"] == 12
@@ -147,11 +150,26 @@ def test_v2_overrides_win_across_all_features() -> None:
     for key, value in overrides.items():
         assert result[key] == value
 
-def test_freshness_downgraded_by_high_confidence_trap_and_divergence() -> None:
-    """A very_fresh base label is downgraded when trap/divergence fire with high confidence."""
+def test_freshness_not_downgraded_by_trap_when_observe_only() -> None:
+    """Default (no PROMOTE_* flag): a high-confidence trap/divergence must NOT
+    downgrade the live freshness label — the detectors are observe-only."""
     _enable_all_v2_flags()
     enrichment = _make_full_enrichment()
-    # Ensure base inputs would yield very_fresh.
+    enrichment["structure_state_light"]["STRUCTURE_FRESH"] = True
+    enrichment["session_context_light"]["IN_KILLZONE"] = True
+    result = build_signal_quality(enrichment=enrichment)
+    # Sanity: the detectors DID fire (high confidence) — they just carry no weight.
+    assert result["SWEEP_TRAP_DETECTED"] is True
+    assert result["SMT_DIVERGENCE_DETECTED"] is True
+    assert result["SIGNAL_FRESHNESS"] == "very_fresh"
+
+
+def test_freshness_downgraded_only_when_detector_promoted() -> None:
+    """A very_fresh base label is downgraded once the detector is promoted."""
+    _enable_all_v2_flags()
+    os.environ["PROMOTE_SWEEP_TRAP"] = "1"
+    os.environ["PROMOTE_SMT_DIVERGENCE"] = "1"
+    enrichment = _make_full_enrichment()
     enrichment["structure_state_light"]["STRUCTURE_FRESH"] = True
     enrichment["session_context_light"]["IN_KILLZONE"] = True
     result = build_signal_quality(enrichment=enrichment)
