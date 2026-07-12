@@ -1,5 +1,21 @@
 # Claude Code Guidelines for skipp-algo
 
+## Core Working Rules (apply to every agent/session)
+
+**No unverified assumptions.** Every assumption, caveat, or "maybe / probably / could / should"
+claim about anything *checkable* must be verified **before** you state it, and resolved into
+exactly one of three outcomes:
+
+1. **TRUE** — with concrete evidence (command output, grep/rg hit, live probe, test, log, endpoint response).
+2. **FALSE** — with concrete evidence disproving it.
+3. **→ follow-up PR** — when the check surfaces a problem that must be fixed.
+
+Checkable means checkable with the tools/access at hand (repo, `railway` CLI, `.env` keys,
+endpoints, live probes, tests). Only *genuinely uncheckable* things may remain as residual
+risk — and then say so explicitly ("not verifiable because …"), never as a casual "maybe".
+This applies especially to post-merge ops dependencies (env vars, deploy pickup, secrets) and
+to regression/behavior claims.
+
 ## Pine Library Maintenance
 
 **Ownership:** @preuss_steffen  
