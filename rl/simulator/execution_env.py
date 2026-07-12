@@ -8,8 +8,8 @@ When ``gymnasium`` is installed the class also exposes real
 actions directly, making it consumable by SB3 without a shim. Without the
 optional dependency it keeps the same numpy-only interface.
 
-Reward = -ImplementationShortfall (in bps) - lambda_var * realized_variance,
-matching the Almgren-Chriss mean-variance objective.
+Reward = -ImplementationShortfall (in bps) - lambda_var * risk_term, where
+risk_term is realized_variance (Almgren-Chriss) or a terminal CVaR tail-loss.
 """
 from __future__ import annotations
 
@@ -123,7 +123,7 @@ class ExecutionEnv(_EnvBase):
         vol_bps = self.cfg.base_volatility_bps * float(np.exp(self._rng.normal(0.0, 0.2)))
         price_drift_bps = self._rng.normal(0.0, vol_bps)
         self._mid *= (1.0 + price_drift_bps / 1e4)
-        # Slippage estimate (in bps, signed adverse for the trader).
+        # Slippage estimate (bps); clamped to >=0 below — impact is never favorable.
         if self.slippage is not None and slice_qty > 0:
             spct = (self.cfg.side * slice_qty) / max(vol_step, 1.0)
             x = np.array([spct, self.cfg.seconds_per_step**0.5, abs(spct)])
@@ -171,6 +171,7 @@ class ExecutionEnv(_EnvBase):
                 "slice_qty": slice_qty,
                 "fill_price": fill_price,
                 "slippage_bps": slip_bps,
+                # per-STEP IS contribution; the cumulative episode total is info["is_bps"]
                 "implementation_shortfall_bps": is_contrib / max(self.cfg.parent_qty, 1.0),
             }
         )
