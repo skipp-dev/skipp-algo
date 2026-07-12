@@ -4,9 +4,9 @@ Features:
 - Multi-source news ingestion
 - Enhanced NLP: 16-category event classifier, relevance scoring, entity analysis
 - Full-text search + date filters on Live Feed
-- Economic Calendar
+- Economic Calendar (outlook tab; FMP-gated — inert while the FMP key is unset)
 - Databento US-equity pricing (Standard subscription)
-- Sector Heatmap (Plotly treemap)
+- Sector Heatmap (Plotly treemap; currently inert — no Databento sector feed)
 - Compound Alert Builder with webhook dispatch
 - Live RT quote integration
 
@@ -3130,7 +3130,7 @@ else:
                 "| Colour | Threshold | Meaning |\n"
                 "|--------|-----------|---------|\n"
                 "| 🟢 **green bold** | + score ≥ 0.80 | **High-impact bullish** — actionable. "
-                "Triggers an A1→A0 upgrade and fires the alert webhook. |\n"
+                "Display-only score colouring — not the A0/A1 tier or webhook trigger. |\n"
                 "| 🔴 **red bold** | − score ≥ 0.80 | **High-impact bearish** — actionable. "
                 "Scored strongly across source tier, relevance, materiality & sentiment. |\n"
                 "| 🟡 yellow | + score ≥ 0.50 | **Moderate-impact bullish** — notable but below "
@@ -3679,7 +3679,7 @@ else:
                     "- **Posture** — Final terminal posture derived above resolution (long/short/watch/neutral/avoid)\n"
                     "- **Resolution** — Outcome-state overlay after the initial reaction window (follow-through/open/stalled/failed/reversal)\n"
                     "- **Reaction** — Execution-state overlay from live quote confirmation (confirmed/watch/fade/conflicted)\n"
-                    "- **Tech** — Technical indicator score (0–1, weighted: RSI 40%, MA 25%, MACD 15%, ADX 10%)\n"
+                    "- **Tech** — Technical indicator score (0–1, weighted: RSI 40%, MA 25%, MACD 15%, ADX 10%, Summary 10%)\n"
                     "- **RSI** — RSI-14 (🟢 <30 oversold, 🔴 >70 overbought, 🟡 neutral)\n"
                     "- **MACD** — MACD signal direction (BUY/SELL/NEUTRAL)\n"
                     "- **Analyst** — Analyst consensus (upside %, rating)\n"
@@ -4259,14 +4259,14 @@ else:
         st.header("🔮 Outlook")
 
         bz_key = cfg.benzinga_api_key
-        fmp_key = ""  # FMP removed — outlook uses Benzinga + yfinance fallback
+        fmp_key = ""  # FMP key unset here → outlook earnings/macro/sector factors are NOT computed (neutral placeholder)
 
         if not bz_key:
             st.warning("Configure Benzinga API key to compute the outlook.")
         else:
             _today_iso = datetime.now(UTC).strftime("%Y-%m-%d")
 
-            # Fetch both outlooks (cached — 5 min TTL)
+            # Fetch both outlooks (cached — today 3 min TTL, tomorrow 5 min)
             today_outlook = _cached_today_outlook(bz_key, fmp_key, _cache_buster=_today_iso)
             outlook = _cached_tomorrow_outlook(bz_key, fmp_key, _cache_buster=_today_iso)
 
