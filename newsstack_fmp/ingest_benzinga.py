@@ -64,8 +64,8 @@ _VALID_BENZINGA_PROVIDERS = ("direct", "massive")
 def benzinga_provider() -> str:
     """Resolve the Benzinga transport from ``BENZINGA_PROVIDER``.
 
-    ``direct``  — api.benzinga.com, ``token=`` auth (legacy/free key).
-    ``massive`` — api.massive.com/benzinga, ``apiKey=`` auth (paid key).
+    ``direct``  — api.benzinga.com, ``token=`` auth (full body + importance_rank).
+    ``massive`` — api.massive.com/benzinga, ``apiKey=`` auth (headline-only).
 
     Defaults to ``direct`` so every existing deployment keeps working until
     the env is flipped together with the matching key; garbage values fall

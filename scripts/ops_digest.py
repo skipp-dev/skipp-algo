@@ -83,7 +83,7 @@ def collect_sweep_trap(root: Path) -> Section:
     ]
     try:
         if n is not None and float(n) >= float(minimum) and str(verdict).upper() == "PROMOTABLE":
-            section.note = "≥40 samples & PROMOTABLE — WS4b green light, check verdict_code."
+            section.note = f"≥{float(minimum):.0f} samples & PROMOTABLE — WS4b green light, check verdict_code."
         elif n is not None and float(n) < float(minimum):
             section.note = f"{float(minimum) - float(n):.0f} more samples needed to reach the gate."
     except (TypeError, ValueError):
@@ -112,7 +112,7 @@ def collect_feature_importance(root: Path) -> Section:
         )
     try:
         if labeled is not None and float(labeled) < float(gate):
-            section.note = f"{float(gate) - float(labeled):.0f} more labeled samples to the 200 gate."
+            section.note = f"{float(gate) - float(labeled):.0f} more labeled samples to the {float(gate):.0f} gate."
     except (TypeError, ValueError):
         pass
     return section

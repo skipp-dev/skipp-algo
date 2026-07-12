@@ -2356,8 +2356,8 @@ groups:
       datasourceUid: grafanacloud-prom
       model:
         # 429 hits per provider over the last 6h. The vendors send no X-RateLimit-*
-        # headers, so this counter (newsstack_fmp/_bz_http.py record_rate_limit_hit)
-        # is the only "we are being throttled" signal. increase() handles the
+        # headers, so this counter (bumped across the ingest/provider clients; see
+        # runbook) is the only "we are being throttled" signal. increase() handles the
         # monthly reset of the underlying gauge; a bare increase feeding the gt-0
         # threshold is linter-safe (0 = not throttled correctly does not fire).
         expr: increase(live_overlay_provider_usage_rate_limit_hits{job="live_overlay"}[6h])
