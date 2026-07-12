@@ -1454,7 +1454,7 @@ def run_full_compute_cycle(tf: str = "5m") -> int:
 
 def run_flow_patch_cycle(tf: str = "5m") -> int:
     """
-    Fast refresh: recompute only flow fields for all symbols.
+    Fast refresh: recompute flow fields (and refresh vix_level) for all symbols.
     Does NOT reset the full overlay cache timestamp.
     Called every OVERLAY_FLOW_REFRESH_SECS.
     """
