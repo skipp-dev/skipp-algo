@@ -1064,7 +1064,7 @@ def _collect_process_metrics(engine: Any | None = None) -> str:
         # (normal) is not flagged — only a real market-hours data stall trips it.
         _last_data_epoch = getattr(engine, "_last_data_epoch", 0.0)
         _last_data_age = max(0.0, now - _last_data_epoch) if _last_data_epoch > 0 else 999999.0
-        _data_stale = 1 if (_is_within_market_hours() and _last_data_age > DATA_STALL_SECONDS) else 0
+        _data_stale = 1 if (getattr(engine, "_in_market_hours", False) and _last_data_age > DATA_STALL_SECONDS) else 0  # cached flag, NOT the raising _is_within_market_hours() probe (must not break /metrics)
         lines.append(f"# TYPE {_prefix}_last_data_age_seconds gauge")
         lines.append(f"{_prefix}_last_data_age_seconds {_last_data_age:.1f}")
         lines.append(f"# TYPE {_prefix}_data_stale gauge")
@@ -2039,6 +2039,7 @@ class RealtimeEngine:
         self.last_poll_attempt_epoch: float = 0.0
         self.last_poll_success_epoch: float = 0.0
         self._last_data_epoch: float = 0.0  # stamped ONLY on a non-empty fetch (real data) — drives the data_stale gauge (vs last_poll_success_epoch = loop-liveness)
+        self._in_market_hours: bool = False  # cached in poll_once so the /metrics renderer never calls the (raising) market-hours probe
         self.last_poll_duration_seconds: float = 0.0
 
         self._load_watchlist()
@@ -2744,6 +2745,7 @@ class RealtimeEngine:
         # yesterday's prices would cause false breakout/falling-knife
         # signals on the first poll cycle of the new session.
         in_market = _is_within_market_hours()
+        self._in_market_hours = in_market  # cache for the /metrics data_stale gauge (renderer must not call the raising probe)
         if not in_market:
             self._was_outside_market = True
         elif self._was_outside_market:
