@@ -24,6 +24,8 @@ class _FakeIMAP:
     def __init__(self, by_domain: dict[str, list[bytes]]) -> None:
         self.by_domain: dict[str, list[bytes]] = {}
         self.raw: dict[bytes, bytes] = {}
+        self.login_args: tuple[str, str] | None = None
+        self.searched_domains: list[str] = []
         n = 0
         for domain, raws in by_domain.items():
             nums = []
@@ -36,6 +38,7 @@ class _FakeIMAP:
 
     def search(self, _charset, *criteria):
         domain = criteria[criteria.index("FROM") + 1]
+        self.searched_domains.append(domain)
         return "OK", [b" ".join(self.by_domain.get(domain, []))]
 
     def fetch(self, num, _spec):
@@ -44,7 +47,8 @@ class _FakeIMAP:
             return "NO", [None]
         return "OK", [(num + b" (RFC822 {n}", raw)]
 
-    def login(self, _u, _p):
+    def login(self, user, password):
+        self.login_args = (user, password)
         return "OK", [b"ok"]
 
     def select(self, _mbox, readonly=False):
@@ -160,6 +164,20 @@ def test_main_no_hit_no_alert(monkeypatch):
     monkeypatch.setattr(vbw.composio_ops, "notify_slack", lambda m: called.append(m) or DeliveryResult(True, False, "ok"))
     assert vbw.main([]) == 0
     assert called == []
+
+
+def test_main_strips_password_and_env_fallbacks(monkeypatch):
+    # App password copied WITH Yahoo's display spaces; email + domains present
+    # but empty (how GitHub Actions passes an unset ${{ vars.X }}).
+    monkeypatch.setenv("YAHOO_APP_PASSWORD", "abcd efgh ijkl mnop")
+    monkeypatch.setenv("YAHOO_EMAIL", "")
+    monkeypatch.setenv("VENDOR_BILLING_DOMAINS", "")
+    conn = _FakeIMAP({})
+    monkeypatch.setattr(vbw.imaplib, "IMAP4_SSL", lambda _host: conn)
+    monkeypatch.setattr(vbw.composio_ops, "notify_slack", lambda m: DeliveryResult(True, False, "ok"))
+    assert vbw.main([]) == 0
+    assert conn.login_args == ("preuss.steffen@yahoo.com", "abcdefghijklmnop")
+    assert set(conn.searched_domains) == set(vbw._DEFAULT_DOMAINS)
 
 
 def test_workflow_wires_the_script():
