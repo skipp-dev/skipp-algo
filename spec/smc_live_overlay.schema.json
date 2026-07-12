@@ -44,7 +44,7 @@
       "type": "boolean"
     },
     "news_strength": {
-      "description": "B1. On-demand news intensity in [0,1] (live snapshot, ~5min fresh). Null when no fresh reading is available.",
+      "description": "B1. Magnitude of the mean signed news score in [0,1] — |mean|, so opposing stories cancel (NOT a coverage/intensity count) (live snapshot, ~10min TTL). Null when no fresh reading is available.",
       "type": [
         "number",
         "null"

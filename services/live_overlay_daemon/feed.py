@@ -14,8 +14,8 @@ Reconnect strategy:
 
 Thread safety:
   - All cache writes go through cache.py's locks (see concurrency-shared-mutables.md).
-  - The reconnect loop and refresh loop are independent threads; they share
-    no state directly except through cache.py's guarded structures.
+  - The reconnect, ingest, refresh and supervisor loops are independent threads;
+    they share feed-local mutables via feed.py's own locks + cache.py's guards.
 """
 from __future__ import annotations
 
@@ -321,8 +321,8 @@ def _run_feed_loop(stop: threading.Event) -> None:
                 _inc_metric("bento_errors")
                 _feed_ready.clear()
                 logger.warning(
-                    "db.Live() BentoError (attempt %d/%d): %s",
-                    consecutive_failures, _MAX_RECONNECT_ATTEMPTS, exc,
+                    "db.Live() BentoError (failure %d/%d before circuit-break): %s",
+                    consecutive_failures, max_failures, exc,
                     exc_info=True,
                 )
             except Exception as exc:
@@ -417,7 +417,7 @@ def _run_ingest_loop(stop: threading.Event) -> None:
 def _run_refresh_loop(stop: threading.Event) -> None:
     """Full overlay recompute on the standard refresh cadence."""
     secs = config.refresh_secs()
-    # Stagger first run: wait one cycle so bars have time to accumulate
+    # Stagger first run: wait up to 60s so bars have time to accumulate
     stop.wait(min(secs, 60))  # wait at most 60s on startup
     while not stop.is_set():
         t0 = time.monotonic()
