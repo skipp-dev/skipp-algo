@@ -3675,6 +3675,35 @@ def _resolve_universe_asof(
     return as_of, active_only
 
 
+def _forward_fill_today_universe_snapshot(
+    fmp_api_key: str, min_market_cap: float, *, run_active_only: bool
+) -> None:
+    """Persist TODAY's live universe as today's point-in-time snapshot.
+
+    The main export fetch resolves the as-of (completed) trading day and runs
+    ``active_only=False`` by construction (:func:`_resolve_universe_asof`), so it
+    never trips the save gate in ``databento_universe`` — meaning the snapshot
+    store would NEVER populate and every run would fall back to today's
+    (survivorship-biased) universe forever (truth-audit #5 was disclosure-only).
+
+    This forward-fill saves today's live membership so that from the *next* daily
+    run on, the as-of (yesterday) snapshot exists and the historical replay is
+    survivorship-safe. A no-op on a live run (``run_active_only=True``): the main
+    fetch already persisted today's snapshot, and ``overwrite=False`` keeps it.
+    Best-effort — a vendor hiccup must not fail the export.
+    """
+    if run_active_only:
+        return
+    try:
+        fetch_us_equity_universe_with_metadata(
+            fmp_api_key,
+            min_market_cap=min_market_cap or None,
+            active_only=True,  # forces the save gate + resolves today's membership
+        )
+    except Exception:  # pragma: no cover - persistence is best-effort
+        logger.warning("PIT universe forward-fill snapshot failed", exc_info=True)
+
+
 def run_production_export_pipeline(
     *,
     databento_api_key: str,
@@ -3763,6 +3792,11 @@ def run_production_export_pipeline(
         min_market_cap=min_market_cap or None,
         active_only=_universe_active_only,
         trade_date=_universe_as_of,
+    )
+    # Populate the PIT snapshot store going forward (the fetch above never saves
+    # on a historical as-of run) so future replays stop being survivorship-biased.
+    _forward_fill_today_universe_snapshot(
+        fmp_api_key, min_market_cap, run_active_only=_universe_active_only
     )
     if fmp_api_key:
         raw_universe = _enrich_universe_with_fundamentals(
