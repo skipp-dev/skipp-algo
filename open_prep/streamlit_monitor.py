@@ -942,7 +942,6 @@ def _reorder_ranked_columns(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
         "volume",
         "avg_volume",
         "pe",
-        "social_sentiment",
         "gap_bucket",
         "gap_grade",
         "gap_pct",

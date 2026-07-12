@@ -1962,87 +1962,6 @@ def _fetch_finnhub_peers(
 
 
 # ---------------------------------------------------------------------------
-# Finnhub: Social Sentiment (Reddit/Twitter) — PREMIUM
-# ---------------------------------------------------------------------------
-
-
-def _fetch_finnhub_social_sentiment(
-    *,
-    finnhub_client: Any,
-    symbols: list[str],
-) -> dict[str, dict[str, Any]]:
-    """Fetch social media sentiment from Finnhub (PREMIUM).
-
-    Returns dict[sym -> {reddit_mentions, twitter_mentions, social_score, emoji}].
-    """
-    result: dict[str, dict[str, Any]] = {}
-    if finnhub_client is None or not getattr(finnhub_client, "available", lambda: False)():
-        return result
-
-    batch = [s.upper() for s in symbols[:_MAX_FINNHUB_LOOKUPS] if s.strip()]
-
-    def _single(sym: str) -> tuple[str, dict[str, Any] | None]:
-        try:
-            raw = finnhub_client.get_social_sentiment(sym)
-            reddit = raw.get("reddit", [])
-            twitter = raw.get("twitter", [])
-            if not reddit and not twitter:
-                return sym, None
-
-            r_mentions = sum(r.get("mention", 0) for r in reddit) if reddit else 0
-            r_pos = sum(r.get("positiveScore", 0) for r in reddit) if reddit else 0
-            r_neg = sum(r.get("negativeScore", 0) for r in reddit) if reddit else 0
-            t_mentions = sum(t.get("mention", 0) for t in twitter) if twitter else 0
-            t_pos = sum(t.get("positiveScore", 0) for t in twitter) if twitter else 0
-            t_neg = sum(t.get("negativeScore", 0) for t in twitter) if twitter else 0
-
-            total_pos = r_pos + t_pos
-            total_neg = r_neg + t_neg
-            total_mentions = r_mentions + t_mentions
-            score = 0.0
-            if total_pos + total_neg > 0:
-                score = round((total_pos - total_neg) / (total_pos + total_neg), 4)
-
-            if score > 0.3:
-                emoji = "📡🟢"
-            elif score < -0.3:
-                emoji = "📡🔴"
-            else:
-                emoji = "📡⚪"
-
-            return sym, {
-                "reddit_mentions": r_mentions,
-                "twitter_mentions": t_mentions,
-                "total_mentions": total_mentions,
-                "social_score": score,
-                "social_sentiment_emoji": emoji,
-            }
-        except Exception as exc:
-            logger.debug("Finnhub social sentiment failed for %s: %s", sym, exc)
-            return sym, None
-
-    workers = max(1, min(5, len(batch)))
-    executor = ThreadPoolExecutor(max_workers=workers)
-    timed_out = False
-    try:
-        futs = {executor.submit(_single, s): s for s in batch}
-        try:
-            for fut in as_completed(futs, timeout=30.0):
-                try:
-                    sym_key, data = fut.result()
-                    if data is not None:
-                        result[sym_key] = data
-                except Exception as exc:
-                    logger.debug("Finnhub social sentiment future failed for %s: %s", futs[fut], exc)
-        except FuturesTimeoutError:
-            timed_out = True
-            logger.warning("Finnhub social sentiment timed out; continuing with partial.")
-    finally:
-        _shutdown_executor_with_timeout_policy(executor, timed_out=timed_out)
-    return result
-
-
-# ---------------------------------------------------------------------------
 # Finnhub: Pattern Recognition + Support/Resistance — PREMIUM
 # ---------------------------------------------------------------------------
 
@@ -4797,7 +4716,6 @@ def _build_result_payload(
     finnhub_insider_sentiment: dict[str, dict[str, Any]] | None = None,
     finnhub_peers: dict[str, list[str]] | None = None,
     finnhub_fda_calendar: list[dict[str, Any]] | None = None,
-    finnhub_social_sentiment: dict[str, dict[str, Any]] | None = None,
     finnhub_patterns: dict[str, dict[str, Any]] | None = None,
     enriched_quotes: list[dict[str, Any]] | None = None,
     # v2 pipeline outputs
@@ -4904,7 +4822,6 @@ def _build_result_payload(
         "finnhub_insider_sentiment": finnhub_insider_sentiment or {},
         "finnhub_peers": finnhub_peers or {},
         "finnhub_fda_calendar": finnhub_fda_calendar or [],
-        "finnhub_social_sentiment": finnhub_social_sentiment or {},
         "finnhub_patterns": finnhub_patterns or {},
         "enriched_quotes": enriched_quotes or [],
         # --- v2 pipeline outputs ---
@@ -5359,21 +5276,9 @@ def generate_open_prep_result(
         q["fh_insider_sentiment_emoji"] = fh_is.get("insider_sentiment_emoji", "")
         q["fh_peers"] = finnhub_peers.get(sym, [])
 
-    # --- Finnhub: Social Sentiment + Patterns (Phase 2 PREMIUM) ---
-    _progress(13, TOTAL_STAGES, "Finnhub Social Sentiment + Patterns …")
-    finnhub_social_sentiment: dict[str, dict[str, Any]] = {}
+    # --- Finnhub: Patterns (Phase 2 PREMIUM) ---
+    _progress(13, TOTAL_STAGES, "Finnhub Patterns …")
     finnhub_patterns: dict[str, dict[str, Any]] = {}
-    try:
-        with _profiler.stage("Finnhub Social Sentiment"):
-            finnhub_social_sentiment = _fetch_finnhub_social_sentiment(
-                finnhub_client=finnhub_client,
-                symbols=symbol_list,
-            )
-        if finnhub_social_sentiment:
-            logger.info("Finnhub social sentiment: %d symbols", len(finnhub_social_sentiment))
-    except Exception as exc:
-        logger.warning("Finnhub social sentiment failed: %s", type(exc).__name__, exc_info=True)
-
     try:
         with _profiler.stage("Finnhub Patterns"):
             finnhub_patterns = _fetch_finnhub_patterns(
@@ -5385,13 +5290,9 @@ def generate_open_prep_result(
     except Exception as exc:
         logger.warning("Finnhub patterns failed: %s", type(exc).__name__, exc_info=True)
 
-    # Merge Finnhub social + patterns into quotes
+    # Merge Finnhub patterns into quotes
     for q in quotes:
         sym = str(q.get("symbol") or "").strip().upper()
-        fh_ss = finnhub_social_sentiment.get(sym, {})
-        q["fh_social_score"] = fh_ss.get("social_score")
-        q["fh_social_mentions"] = fh_ss.get("total_mentions")
-        q["fh_social_sentiment_emoji"] = fh_ss.get("social_sentiment_emoji", "")
         fh_p = finnhub_patterns.get(sym, {})
         q["fh_pattern_label"] = fh_p.get("pattern_label", "")
         q["fh_tech_signal"] = fh_p.get("tech_signal", "")
@@ -6041,7 +5942,6 @@ def generate_open_prep_result(
         finnhub_insider_sentiment=finnhub_insider_sentiment,
         finnhub_peers=finnhub_peers,
         finnhub_fda_calendar=finnhub_fda_calendar,
-        finnhub_social_sentiment=finnhub_social_sentiment,
         finnhub_patterns=finnhub_patterns,
         enriched_quotes=quotes,
         # v2 pipeline outputs
