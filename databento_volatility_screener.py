@@ -1944,7 +1944,7 @@ def summarize_symbol_day(
         "window_high": high_val,
         "window_low": low_val,
         "window_volume": state.window_volume,
-        "seconds_in_window": state.second_count,
+        "seconds_in_window": state.second_count,  # active 1s-bar count, not elapsed wall-clock seconds
         "window_return_pct": window_return_pct,
         "window_range_pct": window_range_pct,
         "realized_vol_pct": math.sqrt(state.realized_var) * 100.0 if state.realized_var > 0 else None,
@@ -5845,7 +5845,7 @@ def run_streamlit_app() -> None:
                 "`All` means at least one focus window has usable detail. "
                 "Single-window views check only that exact 04:00 / 08:00 / 09:30 slice for the dip/reclaim metrics. "
                 "`Focus Window Coverage` lists the windows that actually have usable second-detail rows for that symbol-day. "
-                "`Rank Change` compares against the last available watchlist day for the same symbol, and positive deltas mean the symbol moved up the list. "
+                "(A day-over-day `Rank Change` column is not currently rendered — only `Intraday Rank Change`, described next, is shown.) "
                 "`Intraday Rank Change` compares against the previous saved watchlist snapshot on the same trade date; `Intraday Ref Time` shows that earlier snapshot in Europe/Berlin, and `FIRST` means no earlier snapshot has been captured yet. "
                 "`PM Trade Count Age` measures the lag between the latest premarket trade used in the count and the source-data timestamp. "
                 "`n/a` means the selected slice has no usable regular-open second-detail rows."
