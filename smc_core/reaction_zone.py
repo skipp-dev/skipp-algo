@@ -1,11 +1,21 @@
-"""Phase C — Reaction Zone for Liquidity Sweeps.
+"""Phase C — Reaction to a Liquidity Sweep.
 
-After a sweep trap is identified (Phase B), the *reaction zone* is the price
-range within which price must close back to confirm a genuine reclaim, as
-opposed to a wick-only test. Confirmation of the reaction zone is a strong
-filter: sweeps that close back *inside* the zone with a meaningful body and
-minimal wick have historically much higher reversal follow-through rates than
-bare wick tests.
+After a sweep (Phase B), two INDEPENDENT signals are measured — never conflated:
+
+* ``level_reclaimed`` — the authoritative reversal confirmation: price CLOSES
+  back through the swept level in the reversal direction (bull: ``close >=
+  swept_level``; bear: ``close <= swept_level``). This is the same "reclaim"
+  meaning used by :mod:`smc_core.sweep_trap` and the
+  :func:`smc_core.scoring.label_sweep_reversal` outcome label — and it is
+  UNBOUNDED on the favourable side, so a strong reclaim counts (it is not capped
+  at the level).
+* ``close_in_rejection_band`` — OBSERVATION ONLY: a close that recovered into a
+  narrow band on the swept (penetration) side WITHOUT reclaiming the level. An
+  *early rejection* candidate, never treated as a reclaim.
+
+Both are recorded raw; neither gates live scoring (Phase C is observe-only and
+gated behind ``ENABLE_REACTION_ZONE``). The follow-up study will compare the two
+signals' follow-through predictive power on a leakage-free window.
 """
 
 from __future__ import annotations
@@ -20,18 +30,31 @@ from smc_core.v2_features import reaction_zone_enabled
 
 @dataclass(frozen=True, slots=True)
 class ReactionZone:
-    """Reaction zone descriptor for a liquidity sweep reclaim."""
+    """Reaction descriptor for a liquidity sweep — two independent signals.
 
-    reaction_zone_low: float
-    reaction_zone_high: float
-    close_back_inside_zone: bool
-    wick_rejection_ratio: float
-    confirmation_body_ratio: float
-    bars_to_confirm: int
+    ``level_reclaimed`` is the authoritative reversal confirmation; the
+    ``rejection_band``/``close_in_rejection_band`` fields are an observation-only
+    early-rejection signal (a recovery that stopped short of the level). The
+    remaining fields are raw quantities (measured at the reclaim bar) that the
+    follow-up follow-through study consumes; nothing here gates live scoring.
+    """
+
+    # Rejection band (penetration side; OBSERVATION only, NOT a reclaim).
+    rejection_band_low: float
+    rejection_band_high: float
+    close_in_rejection_band: bool
+    bars_to_rejection_band: int
+
+    # Level reclaim (the authoritative reversal confirmation).
+    level_reclaimed: bool
+    bars_to_reclaim: int
+    close_distance_pct: float  # signed: >0 = closed past the level in the reversal direction
+    body_ratio: float  # |close-open| / range at the reclaim bar
+    directional_body: bool  # reclaim bar body in the reversal direction
+    rejection_wick_ratio: float  # swept-side wick at the reclaim bar (bull: lower, bear: upper)
 
 
 ZONE_WIDTH_FRACTION: float = 0.382
-MIN_CONFIRMATION_BODY_RATIO: float = 0.30
 
 
 def compute_reaction_zone(
@@ -41,30 +64,35 @@ def compute_reaction_zone(
     is_bullish_sweep: bool,
     post_sweep_bars: Sequence[dict[str, Any]],
 ) -> ReactionZone:
-    """Compute the reaction zone and check for price confirmation."""
+    """Measure a sweep's reaction: level-reclaim (authoritative) + rejection band.
+
+    ``sweep_extreme`` is the sweep bar's extreme on the swept side (bar low for a
+    bullish/sell-side sweep, bar high for a bearish/buy-side sweep), so it lies on
+    the far side of ``swept_level`` from the reversal. ``level_reclaimed`` fires on
+    the first post-sweep bar that closes back through ``swept_level`` in the
+    reversal direction (unbounded — a strong reclaim counts). ``close_in_rejection
+    _band`` fires on the first close inside ``[swept_level - w, swept_level]``
+    (bull) / ``[swept_level, swept_level + w]`` (bear), ``w = 0.382 * sweep body``
+    — a recovery that stopped short of the level (observation only, not a reclaim).
+    """
     sweep_body: float = abs(swept_level - sweep_extreme)
-    zone_width: float = sweep_body * ZONE_WIDTH_FRACTION if sweep_body > 1e-10 else 0.0
+    band_width: float = sweep_body * ZONE_WIDTH_FRACTION if sweep_body > 1e-10 else 0.0
 
     if is_bullish_sweep:
-        zone_low: float = swept_level - zone_width
-        zone_high: float = swept_level
+        band_low: float = swept_level - band_width
+        band_high: float = swept_level
     else:
-        zone_low = swept_level
-        zone_high = swept_level + zone_width
+        band_low = swept_level
+        band_high = swept_level + band_width
 
-    if not post_sweep_bars:
-        return ReactionZone(
-            reaction_zone_low=zone_low,
-            reaction_zone_high=zone_high,
-            close_back_inside_zone=False,
-            wick_rejection_ratio=0.0,
-            confirmation_body_ratio=0.0,
-            bars_to_confirm=-1,
-        )
-
-    confirm_bar_idx: int = -1
-    confirm_wick_ratio: float = 0.0
-    confirm_body_ratio: float = 0.0
+    reclaimed: bool = False
+    bars_to_reclaim: int = -1
+    close_distance_pct: float = 0.0
+    body_ratio: float = 0.0
+    directional_body: bool = False
+    rejection_wick_ratio: float = 0.0
+    in_band: bool = False
+    bars_to_band: int = -1
 
     for idx, bar in enumerate(post_sweep_bars):
         close: float = float(bar["close"])
@@ -72,33 +100,44 @@ def compute_reaction_zone(
         low: float = float(bar["low"])
         open_: float = float(bar["open"])
 
-        if zone_low <= close <= zone_high:
+        if not in_band and band_low <= close <= band_high:
+            in_band = True
+            bars_to_band = idx + 1
+
+        reclaim_hit: bool = close >= swept_level if is_bullish_sweep else close <= swept_level
+        if not reclaimed and reclaim_hit:
+            reclaimed = True
+            bars_to_reclaim = idx + 1
+            raw_dist: float = (close - swept_level) if is_bullish_sweep else (swept_level - close)
+            close_distance_pct = (raw_dist / swept_level * 100.0) if swept_level > 1e-10 else 0.0
             candle_range: float = high - low
             if candle_range < 1e-10:
-                confirm_body_ratio = 1.0
-                confirm_wick_ratio = 0.0
+                body_ratio = 1.0
+                rejection_wick_ratio = 0.0
             else:
-                body: float = abs(close - open_)
-                confirm_body_ratio = body / candle_range
+                body_ratio = abs(close - open_) / candle_range
+                # Rejection wick = the tail on the SWEPT side (bull: lower, bear: upper).
                 if is_bullish_sweep:
-                    wick_beyond: float = max(0.0, high - zone_high)
+                    wick: float = min(open_, close) - low
                 else:
-                    wick_beyond = max(0.0, zone_low - low)
-                confirm_wick_ratio = wick_beyond / candle_range
+                    wick = high - max(open_, close)
+                rejection_wick_ratio = max(0.0, wick) / candle_range
+            directional_body = (close > open_) if is_bullish_sweep else (close < open_)
 
-            if confirm_body_ratio >= MIN_CONFIRMATION_BODY_RATIO:
-                confirm_bar_idx = idx + 1
-                break
-
-    close_back: bool = confirm_bar_idx >= 1
+        if in_band and reclaimed:
+            break
 
     return ReactionZone(
-        reaction_zone_low=zone_low,
-        reaction_zone_high=zone_high,
-        close_back_inside_zone=close_back,
-        wick_rejection_ratio=confirm_wick_ratio,
-        confirmation_body_ratio=confirm_body_ratio,
-        bars_to_confirm=confirm_bar_idx,
+        rejection_band_low=band_low,
+        rejection_band_high=band_high,
+        close_in_rejection_band=in_band,
+        bars_to_rejection_band=bars_to_band,
+        level_reclaimed=reclaimed,
+        bars_to_reclaim=bars_to_reclaim,
+        close_distance_pct=close_distance_pct,
+        body_ratio=body_ratio,
+        directional_body=directional_body,
+        rejection_wick_ratio=rejection_wick_ratio,
     )
 
 

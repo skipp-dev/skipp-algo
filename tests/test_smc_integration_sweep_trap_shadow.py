@@ -131,7 +131,8 @@ class TestWS1LiquiditySupportWiring:
         # WS1: the derived geometry let the corrected classifier produce a real trap.
         assert payload["SWEEP_TRAP_QUALITY_SCORE"] > 0.0
         assert payload["SWEEP_TRAP_TYPE"] != "failed"
-        assert "REACTION_ZONE_LOW" in payload  # reaction-zone path also runs
+        assert "REACTION_BAND_LOW" in payload  # reaction-zone path also runs
+        assert "REACTION_LEVEL_RECLAIMED" in payload  # authoritative reclaim signal recorded
 
     def test_liquidity_support_no_trap_fields_when_flag_off(self) -> None:
         from smc_integration.measurement_evidence import _liquidity_support_for_event

@@ -961,17 +961,20 @@ def _liquidity_support_for_event(
                             is_bullish_sweep=bull_sweep,
                             post_sweep_bars=post_sweep_bars,
                         )
-                        payload["REACTION_ZONE_LOW"] = zone.reaction_zone_low
-                        payload["REACTION_ZONE_HIGH"] = zone.reaction_zone_high
-                        payload["REACTION_ZONE_CONFIRMED"] = zone.close_back_inside_zone
-                        payload["REACTION_WICK_RATIO"] = zone.wick_rejection_ratio
-                        payload["REACTION_BODY_RATIO"] = zone.confirmation_body_ratio
-                        payload["REACTION_BARS_TO_CONFIRM"] = zone.bars_to_confirm
-                        # Discount trap quality when reaction zone is unconfirmed.
-                        if not zone.close_back_inside_zone and "SWEEP_TRAP_QUALITY_SCORE" in payload:
-                            payload["SWEEP_TRAP_QUALITY_SCORE"] = (
-                                payload["SWEEP_TRAP_QUALITY_SCORE"] * 0.50
-                            )
+                        payload["REACTION_BAND_LOW"] = zone.rejection_band_low
+                        payload["REACTION_BAND_HIGH"] = zone.rejection_band_high
+                        payload["REACTION_IN_REJECTION_BAND"] = zone.close_in_rejection_band
+                        payload["REACTION_BARS_TO_REJECTION_BAND"] = zone.bars_to_rejection_band
+                        payload["REACTION_LEVEL_RECLAIMED"] = zone.level_reclaimed
+                        payload["REACTION_BARS_TO_RECLAIM"] = zone.bars_to_reclaim
+                        payload["REACTION_CLOSE_DISTANCE_PCT"] = zone.close_distance_pct
+                        payload["REACTION_BODY_RATIO"] = zone.body_ratio
+                        payload["REACTION_DIRECTIONAL_BODY"] = zone.directional_body
+                        payload["REACTION_WICK_RATIO"] = zone.rejection_wick_ratio
+                        # Phase C is OBSERVE-ONLY: the raw fields above are recorded
+                        # for the follow-through study; NO discount is applied to any
+                        # score. (The prior 0.5 discount keyed on an inverted "close
+                        # back inside zone" confirmation and is removed here.)
             except Exception:
                 pass  # Phase B/C is additive; failure must not break v1 scoring.
         priority = (0 if candidate_id == current_id and family == "SWEEP" else 1, age_bars)

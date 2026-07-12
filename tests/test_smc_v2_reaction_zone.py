@@ -1,167 +1,140 @@
-"""Tests for smc_core.reaction_zone (Phase C — Reaction Zone).
+"""Tests for smc_core.reaction_zone (Phase C — reaction to a liquidity sweep).
 
-Covers:
-- Zone boundaries are symmetric around swept_level
-- ``close_back_inside_zone=True`` when bar closes within the zone
-- ``close_back_inside_zone=False`` when no bar closes inside
-- ``bars_to_confirm == -1`` when no confirmation found
-- ``bars_to_confirm`` equals index of first confirming bar (1-indexed)
-- ``confirmation_body_ratio >= MIN_CONFIRMATION_BODY_RATIO`` gating
-- ``wick_rejection_ratio`` is bounded 0.0–1.0
-- Empty ``post_sweep_bars`` returns sensible defaults
-- Bearish sweep zone is correctly constructed above swept_level
-- ``ReactionZone`` is immutable (frozen dataclass)
+The two concepts are tested INDEPENDENTLY (they must never be conflated):
+
+* ``level_reclaimed`` — authoritative reversal confirmation: a close back through
+  the swept level in the reversal direction (bull: ``close >= swept_level``;
+  bear: ``close <= swept_level``), UNBOUNDED on the favourable side (a strong
+  reclaim counts — the classic "full reclaim" is a confirmation, not excluded).
+* ``close_in_rejection_band`` — observation-only: a close that recovered into the
+  narrow band on the swept side WITHOUT reclaiming the level.
+
+Geometry uses the production contract: for a bullish/sell-side sweep the
+``sweep_extreme`` is the sweep bar's LOW (below ``swept_level``); for a bearish
+sweep it is the HIGH (above ``swept_level``).
 """
 
 from __future__ import annotations
 
 import pytest
 
-from smc_core.reaction_zone import (
-    ZONE_WIDTH_FRACTION,
-    compute_reaction_zone,
-)
-
-# ---------------------------------------------------------------------------
-# Zone boundary computation
-# ---------------------------------------------------------------------------
+from smc_core.reaction_zone import ZONE_WIDTH_FRACTION, compute_reaction_zone
 
 
-class TestZoneBoundaries:
-    def test_bullish_sweep_zone_below_swept_level(self) -> None:
-        zone = compute_reaction_zone(
-            swept_level=100.0,
-            sweep_extreme=105.0,
-            is_bullish_sweep=True,
-            post_sweep_bars=[],
-        )
-        expected_width = abs(100.0 - 105.0) * ZONE_WIDTH_FRACTION
-        assert zone.reaction_zone_high == pytest.approx(100.0)
-        assert zone.reaction_zone_low == pytest.approx(100.0 - expected_width)
-
-    def test_bearish_sweep_zone_above_swept_level(self) -> None:
-        zone = compute_reaction_zone(
-            swept_level=100.0,
-            sweep_extreme=95.0,
-            is_bullish_sweep=False,
-            post_sweep_bars=[],
-        )
-        expected_width = abs(100.0 - 95.0) * ZONE_WIDTH_FRACTION
-        assert zone.reaction_zone_low == pytest.approx(100.0)
-        assert zone.reaction_zone_high == pytest.approx(100.0 + expected_width)
+def _bar(close: float, *, open_: float | None = None, high: float | None = None,
+         low: float | None = None) -> dict:
+    """OHLC bar; open defaults just below close (bullish body), wicks hug the body."""
+    o = open_ if open_ is not None else close - 0.5
+    h = high if high is not None else max(o, close) + 0.1
+    lo = low if low is not None else min(o, close) - 0.1
+    return {"open": o, "high": h, "low": lo, "close": close}
 
 
-# ---------------------------------------------------------------------------
-# Confirmation detection
-# ---------------------------------------------------------------------------
+class TestBandGeometry:
+    def test_bullish_band_is_below_the_swept_level(self) -> None:
+        # bullish sweep: swept a low at 100 down to 98 (extreme = sweep-bar LOW).
+        z = compute_reaction_zone(swept_level=100.0, sweep_extreme=98.0,
+                                  is_bullish_sweep=True, post_sweep_bars=[])
+        w = abs(100.0 - 98.0) * ZONE_WIDTH_FRACTION
+        assert z.rejection_band_high == pytest.approx(100.0)
+        assert z.rejection_band_low == pytest.approx(100.0 - w)
+
+    def test_bearish_band_is_above_the_swept_level(self) -> None:
+        # bearish sweep: swept a high at 100 up to 102 (extreme = sweep-bar HIGH).
+        z = compute_reaction_zone(swept_level=100.0, sweep_extreme=102.0,
+                                  is_bullish_sweep=False, post_sweep_bars=[])
+        w = abs(100.0 - 102.0) * ZONE_WIDTH_FRACTION
+        assert z.rejection_band_low == pytest.approx(100.0)
+        assert z.rejection_band_high == pytest.approx(100.0 + w)
 
 
-def _bar(close: float, body_fraction: float = 0.8) -> dict:
-    """Build an OHLC bar with the specified close and body/range ratio."""
-    candle_range = 1.0
-    body = candle_range * body_fraction
-    open_ = close - body / 2
-    high = close + (candle_range - body) / 2
-    low = close - body / 2 - (candle_range - body) / 2
-    return {"open": open_, "high": high, "low": low, "close": close}
+class TestLevelReclaim:
+    def test_full_reclaim_above_level_is_confirmed(self) -> None:
+        # THE regression: a close ABOVE the swept low is the strongest bullish
+        # reclaim and MUST confirm (the old geometry wrongly excluded it).
+        z = compute_reaction_zone(swept_level=100.0, sweep_extreme=98.0,
+                                  is_bullish_sweep=True,
+                                  post_sweep_bars=[_bar(101.0, open_=99.0)])
+        assert z.level_reclaimed is True
+        assert z.bars_to_reclaim == 1
+        assert z.close_distance_pct == pytest.approx(1.0)  # (101-100)/100 * 100
+        assert z.directional_body is True  # close 101 > open 99
+
+    def test_partial_recovery_below_level_is_not_a_reclaim(self) -> None:
+        # Closes back up but STILL below the swept low → rejection band, NOT reclaim.
+        z = compute_reaction_zone(swept_level=100.0, sweep_extreme=98.0,
+                                  is_bullish_sweep=True,
+                                  post_sweep_bars=[_bar(99.5, open_=98.5)])
+        assert z.level_reclaimed is False
+        assert z.close_in_rejection_band is True
+        assert z.bars_to_rejection_band == 1
+
+    def test_fade_confirms_neither(self) -> None:
+        z = compute_reaction_zone(swept_level=100.0, sweep_extreme=98.0,
+                                  is_bullish_sweep=True,
+                                  post_sweep_bars=[_bar(98.4, open_=98.6)])
+        assert z.level_reclaimed is False
+        assert z.close_in_rejection_band is False
+
+    def test_bearish_full_reclaim_below_level_is_confirmed(self) -> None:
+        # Symmetric: bearish reclaim = close BELOW the swept high.
+        z = compute_reaction_zone(swept_level=100.0, sweep_extreme=102.0,
+                                  is_bullish_sweep=False,
+                                  post_sweep_bars=[_bar(99.0, open_=101.0)])
+        assert z.level_reclaimed is True
+        assert z.close_distance_pct == pytest.approx(1.0)  # (100-99)/100 * 100
+        assert z.directional_body is True  # close 99 < open 101
+
+    def test_bearish_partial_recovery_above_level_is_not_a_reclaim(self) -> None:
+        z = compute_reaction_zone(swept_level=100.0, sweep_extreme=102.0,
+                                  is_bullish_sweep=False,
+                                  post_sweep_bars=[_bar(100.5, open_=101.5)])
+        assert z.level_reclaimed is False
+        assert z.close_in_rejection_band is True
 
 
-class TestConfirmation:
-    def test_confirmed_first_bar_inside_zone(self) -> None:
-        # swept_level=100, sweep_extreme=105 → zone [100 - 5*0.382, 100]
-        swept = 100.0
-        extreme = 105.0
-        zone_width = abs(swept - extreme) * ZONE_WIDTH_FRACTION
-        inside_close = swept - zone_width * 0.5  # inside the zone
-        zone = compute_reaction_zone(
-            swept_level=swept,
-            sweep_extreme=extreme,
-            is_bullish_sweep=True,
-            post_sweep_bars=[_bar(inside_close, body_fraction=0.7)],
-        )
-        assert zone.close_back_inside_zone is True
-        assert zone.bars_to_confirm == 1
+class TestCandleQuality:
+    def test_directional_body_false_for_counter_direction_candle(self) -> None:
+        # A bearish candle that nonetheless closes above the level still reclaims
+        # (level-cross is unbounded), but directional_body flags it as counter.
+        z = compute_reaction_zone(swept_level=100.0, sweep_extreme=98.0,
+                                  is_bullish_sweep=True,
+                                  post_sweep_bars=[_bar(100.5, open_=101.0)])
+        assert z.level_reclaimed is True
+        assert z.directional_body is False  # close 100.5 < open 101.0 (bearish body)
 
-    def test_not_confirmed_when_close_above_zone(self) -> None:
-        swept = 100.0
-        extreme = 105.0
-        zone = compute_reaction_zone(
-            swept_level=swept,
-            sweep_extreme=extreme,
-            is_bullish_sweep=True,
-            post_sweep_bars=[_bar(101.0)],  # Still above swept_level → outside zone
-        )
-        assert zone.close_back_inside_zone is False
-        assert zone.bars_to_confirm == -1
+    def test_rejection_wick_is_the_swept_side_wick_and_bounded(self) -> None:
+        # Bullish reclaim bar with a long LOWER wick (the swept-side rejection).
+        bar = {"open": 100.2, "high": 100.6, "low": 98.5, "close": 100.5}
+        z = compute_reaction_zone(swept_level=100.0, sweep_extreme=98.0,
+                                  is_bullish_sweep=True, post_sweep_bars=[bar])
+        assert z.level_reclaimed is True
+        rng = 100.6 - 98.5
+        expected_lower_wick = (min(100.2, 100.5) - 98.5) / rng
+        assert z.rejection_wick_ratio == pytest.approx(expected_lower_wick)
+        assert 0.0 <= z.rejection_wick_ratio <= 1.0
 
-    def test_confirmation_requires_min_body_ratio(self) -> None:
-        swept = 100.0
-        extreme = 105.0
-        zone_width = abs(swept - extreme) * ZONE_WIDTH_FRACTION
-        inside_close = swept - zone_width * 0.5
-        # Tiny body — below MIN_CONFIRMATION_BODY_RATIO
-        tiny_body_bar = {
-            "open": inside_close,
-            "high": inside_close + 2.0,  # huge wick → tiny body ratio
-            "low": inside_close - 2.0,
-            "close": inside_close,
-        }
-        zone = compute_reaction_zone(
-            swept_level=swept,
-            sweep_extreme=extreme,
-            is_bullish_sweep=True,
-            post_sweep_bars=[tiny_body_bar],
-        )
-        assert zone.close_back_inside_zone is False
-
-    def test_confirmed_on_second_bar(self) -> None:
-        swept = 100.0
-        extreme = 105.0
-        zone_width = abs(swept - extreme) * ZONE_WIDTH_FRACTION
-        inside_close = swept - zone_width * 0.5
-        outside_bar = _bar(101.0)  # first bar outside zone
-        inside_bar = _bar(inside_close, body_fraction=0.7)  # second bar inside
-        zone = compute_reaction_zone(
-            swept_level=swept,
-            sweep_extreme=extreme,
-            is_bullish_sweep=True,
-            post_sweep_bars=[outside_bar, inside_bar],
-        )
-        assert zone.bars_to_confirm == 2
-
-    def test_empty_bars_returns_no_confirmation(self) -> None:
-        zone = compute_reaction_zone(
-            swept_level=100.0,
-            sweep_extreme=105.0,
-            is_bullish_sweep=True,
-            post_sweep_bars=[],
-        )
-        assert zone.close_back_inside_zone is False
-        assert zone.bars_to_confirm == -1
-        assert zone.confirmation_body_ratio == pytest.approx(0.0)
-
-    def test_wick_rejection_ratio_bounded_0_1(self) -> None:
-        swept = 100.0
-        extreme = 105.0
-        zone_width = abs(swept - extreme) * ZONE_WIDTH_FRACTION
-        inside_close = swept - zone_width * 0.5
-        zone = compute_reaction_zone(
-            swept_level=swept,
-            sweep_extreme=extreme,
-            is_bullish_sweep=True,
-            post_sweep_bars=[_bar(inside_close)],
-        )
-        assert 0.0 <= zone.wick_rejection_ratio <= 1.0
+    def test_reclaim_uses_first_bar_that_crosses(self) -> None:
+        z = compute_reaction_zone(swept_level=100.0, sweep_extreme=98.0,
+                                  is_bullish_sweep=True,
+                                  post_sweep_bars=[_bar(99.5, open_=98.5), _bar(101.0, open_=99.0)])
+        assert z.bars_to_reclaim == 2
+        assert z.bars_to_rejection_band == 1  # first bar recovered into the band
 
 
-# ---------------------------------------------------------------------------
-# Immutability
-# ---------------------------------------------------------------------------
+class TestDefaultsAndImmutability:
+    def test_empty_bars_returns_defaults(self) -> None:
+        z = compute_reaction_zone(swept_level=100.0, sweep_extreme=98.0,
+                                  is_bullish_sweep=True, post_sweep_bars=[])
+        assert z.level_reclaimed is False
+        assert z.close_in_rejection_band is False
+        assert z.bars_to_reclaim == -1
+        assert z.bars_to_rejection_band == -1
+        assert z.body_ratio == pytest.approx(0.0)
+        assert z.close_distance_pct == pytest.approx(0.0)
 
-
-def test_reaction_zone_is_frozen() -> None:
-    zone = compute_reaction_zone(
-        swept_level=100.0, sweep_extreme=105.0, is_bullish_sweep=True, post_sweep_bars=[]
-    )
-    with pytest.raises((AttributeError, TypeError)):
-        zone.close_back_inside_zone = True  # type: ignore[misc]
+    def test_reaction_zone_is_frozen(self) -> None:
+        z = compute_reaction_zone(swept_level=100.0, sweep_extreme=98.0,
+                                  is_bullish_sweep=True, post_sweep_bars=[])
+        with pytest.raises((AttributeError, TypeError)):
+            z.level_reclaimed = True  # type: ignore[misc]
