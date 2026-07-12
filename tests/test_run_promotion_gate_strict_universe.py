@@ -137,3 +137,44 @@ def test_strict_universe_with_snapshot_passes_preflight(tmp_path: Path) -> None:
     assert rc == 0
     report = json.loads(out_path.read_text(encoding="utf-8"))
     assert report["decisions"] == []
+
+
+def test_demote_survivorship_flips_promoted_and_adds_blocker() -> None:
+    # M2: a survivorship-biased run must not read as PROMOTED anywhere — the
+    # exit code AND the per-decision flags in the artifact are demoted, so the
+    # decision-first panel / family_verdict (which render ``promoted`` directly)
+    # agree with the gate's refusal instead of showing PROMOTED.
+    from scripts.run_promotion_gate import (
+        _demote_survivorship_biased_run,
+        _report_exit_code,
+    )
+
+    decisions: list[dict] = [
+        {"family": "BOS", "promoted": True, "blockers": []},
+        {"family": "OB", "promoted": True, "blockers": [{"check": "psr_minimum"}]},
+    ]
+    _demote_survivorship_biased_run(decisions)
+
+    assert all(d["promoted"] is False for d in decisions)
+    for d in decisions:
+        checks = [b["check"] for b in d["blockers"]]
+        assert "provenance.universe_survivorship_bias_risk" in checks
+    # a pre-existing blocker is preserved, not clobbered
+    assert any(b["check"] == "psr_minimum" for b in decisions[1]["blockers"])
+    # the demoted decisions now drive rc 2 on their own (belt to the main() guard)
+    assert _report_exit_code({"decisions": decisions}) == 2
+
+
+def test_survivorship_demoted_decision_renders_blocked_in_panel() -> None:
+    # Prove the consumer side of M2: once demoted, the decision-first panel
+    # renders BLOCKED (not PROMOTED) with the survivorship reason as top blocker.
+    from dashboard.decision_first_panel import build_card, render_card
+    from scripts.run_promotion_gate import _demote_survivorship_biased_run
+
+    decisions: list[dict] = [{"family": "BOS", "promoted": True, "blockers": [], "metrics": {}}]
+    _demote_survivorship_biased_run(decisions)
+    text = render_card(build_card(decisions[0]))
+
+    assert "BLOCKED" in text
+    assert "PROMOTED" not in text
+    assert "survivorship" in text.lower()
