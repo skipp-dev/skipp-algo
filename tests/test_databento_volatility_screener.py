@@ -6379,3 +6379,44 @@ def test_collect_full_universe_preserves_trade_count(monkeypatch, tmp_path: Path
     assert result["trade_count"].tolist() == [5, 10, 15], (
         f"Expected trade_count=[5,10,15], got {result['trade_count'].tolist()}"
     )
+
+
+def test_rank_top_fraction_per_day_tie_break_is_deterministic() -> None:
+    # Truth-audit F1: the top-fraction cutoff must be reproducible. When symbols
+    # tie on the ranking metric at the take_n boundary, which one is admitted
+    # into the exported/backtested/promotion-gated universe must not depend on
+    # input row order (which shifts when a Databento batch is split/retried).
+    base = pd.DataFrame(
+        {
+            "trade_date": ["2026-03-05"] * 4,
+            "symbol": ["DDD", "AAA", "CCC", "BBB"],
+            "window_range_pct": [5.0, 3.0, 3.0, 1.0],  # AAA & CCC tie at the cutoff
+        }
+    )
+    # take_n = ceil(4 * 0.5) = 2 → DDD (5.0) + the lower-symbol of the tied 3.0 pair (AAA).
+    out1 = set(rank_top_fraction_per_day(base, ranking_metric="window_range_pct", top_fraction=0.5)["symbol"])
+    shuffled = base.iloc[[2, 0, 3, 1]].reset_index(drop=True)
+    out2 = set(rank_top_fraction_per_day(shuffled, ranking_metric="window_range_pct", top_fraction=0.5)["symbol"])
+    assert out1 == out2 == {"DDD", "AAA"}
+
+
+def test_collapse_duplicate_symbol_seconds_composite_is_deterministic() -> None:
+    # Truth-audit (C LOW-1): composite open/close for same-second multi-publisher
+    # shards must not depend on input row order — publisher_id breaks the tie.
+    rows = pd.DataFrame(
+        {
+            "symbol": ["AAA", "AAA"],
+            "ts": [pd.Timestamp("2026-03-05T14:30:00Z")] * 2,
+            "publisher_id": [41, 39],
+            "open": [10.2, 10.0],
+            "high": [10.6, 10.5],
+            "low": [10.1, 9.9],
+            "close": [10.4, 10.1],
+            "volume": [200, 100],
+        }
+    )
+    a = _collapse_duplicate_symbol_seconds(rows, context="unit-test")
+    b = _collapse_duplicate_symbol_seconds(rows.iloc[::-1].reset_index(drop=True), context="unit-test")
+    # publisher 39 (lower) is first → open=10.0; publisher 41 is last → close=10.4, either way.
+    assert float(a.iloc[0]["open"]) == float(b.iloc[0]["open"]) == 10.0
+    assert float(a.iloc[0]["close"]) == float(b.iloc[0]["close"]) == 10.4
