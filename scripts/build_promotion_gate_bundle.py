@@ -224,6 +224,23 @@ def _tier1_metrics_from_events(
     return measured
 
 
+def _read_universe_survivorship_flag(manifest_path: Path | None) -> bool | None:
+    """Read ``universe_survivorship_bias_risk`` from a databento export manifest.
+
+    Fail-soft (mirrors :func:`_read_rollup`): absent path / unreadable / malformed
+    / missing key -> ``None``, so the provenance stamp is simply omitted and the
+    gate sees no bundle-carried flag (no behaviour change).
+    """
+    if manifest_path is None:
+        return None
+    try:
+        data = json.loads(Path(manifest_path).read_text(encoding="utf-8"))
+    except Exception:
+        return None
+    val = data.get("universe_survivorship_bias_risk") if isinstance(data, dict) else None
+    return bool(val) if val is not None else None
+
+
 def build_bundle(
     *,
     scoring_root: Path,
@@ -231,6 +248,7 @@ def build_bundle(
     families: tuple[str, ...] = ALL_FAMILIES,
     magnitude_ledger: str | None = DEFAULT_LEDGER,
     events_path: str | None = None,
+    universe_survivorship_bias_risk: bool | None = None,
 ) -> list[dict[str, Any]]:
     rollup = _read_rollup(scoring_root)
     n_events_per_family = _aggregate_family_events(rollup)
@@ -249,6 +267,12 @@ def build_bundle(
         provenance_common["run_date"] = date
     if rollup is not None:
         provenance_common["rollup_files_scanned"] = int(rollup.get("files_scanned") or 0)
+    if universe_survivorship_bias_risk is not None:
+        # From the databento export manifest: True => the run's universe fell back
+        # to the live vendor (survivorship-biased). Stamped on every entry (via the
+        # provenance_common copy) so run_promotion_gate refuses to PROMOTE it in
+        # production — no --universe-trade-date / snapshot store needed.
+        provenance_common["universe_survivorship_bias_risk"] = bool(universe_survivorship_bias_risk)
 
     bundle: list[dict[str, Any]] = []
     for fam in families:
@@ -373,6 +397,17 @@ def main(argv: list[str] | None = None) -> int:
             "unreadable => fields stay None (honest 'not measured')."
         ),
     )
+    parser.add_argument(
+        "--universe-manifest",
+        type=Path,
+        default=None,
+        help=(
+            "databento export manifest (databento_volatility_production_*_"
+            "manifest.json). Its universe_survivorship_bias_risk flag is stamped "
+            "into every entry's provenance so the gate can refuse to promote a "
+            "survivorship-biased run in production. Omitted/unreadable => absent."
+        ),
+    )
     args = parser.parse_args(argv)
 
     requested = tuple(f.strip() for f in args.families.split(",") if f.strip())
@@ -397,6 +432,7 @@ def main(argv: list[str] | None = None) -> int:
         families=requested,
         magnitude_ledger=args.magnitude_ledger or None,
         events_path=args.events,
+        universe_survivorship_bias_risk=_read_universe_survivorship_flag(args.universe_manifest),
     )
     atomic_write_json(bundle, args.output, indent=2, sort_keys=False)
     n_magnitude = sum(1 for entry in bundle if "magnitude_resolution_pass" in entry)
