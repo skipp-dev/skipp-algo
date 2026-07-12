@@ -138,6 +138,7 @@ _ALLOWED_RAW_WRITE_FILES: dict[str, str] = {
     "open_prep/outcome_backfill.py": "outcome backfill audit + state JSON",
     "open_prep/outcomes.py": "outcomes ledger snapshots",
     "open_prep/realtime_signals.py": "realtime-signals state + audit JSONL",
+    "open_prep/signal_events.py": "signal-event JSONL append (mode='a'), best-effort log — atomic replace N/A for appends",
     "open_prep/watchlist.py": "watchlist snapshot",
     # --- rl/ surface ---
     "rl/extensions.py": "rl extension state (research-only, not pipeline-consumed)",

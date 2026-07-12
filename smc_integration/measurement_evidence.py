@@ -1447,9 +1447,11 @@ def _evaluate_sweep_event(
 
     # WS4a shadow-observe: when ENABLE_SWEEP_TRAP is on, classify the trap for
     # THIS sweep and log its quality into the event ledger ``features``
-    # observe-only. These fields do NOT feed the score (confluence reads the
-    # coarse SWEEP_QUALITY_SCORE, not SWEEP_TRAP_QUALITY_SCORE) — they exist so
-    # WS4b can measure the Brier/hit-rate delta before granting budget weight.
+    # observe-only. These fields do NOT feed the score: compute_confluence
+    # defaults to prefer_trap_score=False and thus ignores
+    # SWEEP_TRAP_QUALITY_SCORE, using only the coarse SWEEP_QUALITY_SCORE, until
+    # WS4b promotion flips the caller. (Before that guard the trap score DID leak
+    # into confluence whenever ENABLE_CONFLUENCE_SCORE was also on.)
     features: dict[str, Any] = {}
     if is_sweep_trap_enabled():
         is_bullish = side == "SELL_SIDE"

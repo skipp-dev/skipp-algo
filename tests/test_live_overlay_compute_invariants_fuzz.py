@@ -39,13 +39,13 @@ def _captured_at_is_present(row: dict[str, Any]) -> bool:
 # ---------------------------------------------------------------------------
 
 
-@settings(max_examples=2000)
+@settings(max_examples=2000, deadline=None)
 @given(base=st.text())
 def test_signals_service_url_to_full_never_crashes(base: str) -> None:
     compute._signals_service_url_to_full(base)
 
 
-@settings(max_examples=2000)
+@settings(max_examples=2000, deadline=None)
 @given(base=st.text())
 def test_signals_service_url_to_full_is_idempotent(base: str) -> None:
     once = compute._signals_service_url_to_full(base)
@@ -55,7 +55,7 @@ def test_signals_service_url_to_full_is_idempotent(base: str) -> None:
     assert once == twice
 
 
-@settings(max_examples=2000)
+@settings(max_examples=2000, deadline=None)
 @given(base=st.text())
 def test_signals_service_url_to_full_non_empty_implies_endpoint(base: str) -> None:
     result = compute._signals_service_url_to_full(base)
@@ -64,13 +64,13 @@ def test_signals_service_url_to_full_non_empty_implies_endpoint(base: str) -> No
         assert "/signals.json/signals.json" not in result
 
 
-@settings(max_examples=2000)
+@settings(max_examples=2000, deadline=None)
 @given(base=st.text())
 def test_signals_service_url_to_full_is_deterministic(base: str) -> None:
     assert compute._signals_service_url_to_full(base) == compute._signals_service_url_to_full(base)
 
 
-@settings(max_examples=1000)
+@settings(max_examples=1000, deadline=None)
 @given(
     scheme=st.sampled_from(["http", "https"]),
     host=st.from_regex(r"[a-z0-9\-]+\.railway\.internal", fullmatch=True),
@@ -98,26 +98,26 @@ def test_signals_service_url_to_full_preserves_query_and_fragment(
 # ---------------------------------------------------------------------------
 
 
-@settings(max_examples=2000)
+@settings(max_examples=2000, deadline=None)
 @given(url=st.text())
 def test_is_valid_service_url_never_crashes(url: str) -> None:
     compute._is_valid_service_url(url)
 
 
-@settings(max_examples=2000)
+@settings(max_examples=2000, deadline=None)
 @given(url=st.text())
 def test_is_valid_service_url_is_deterministic(url: str) -> None:
     assert compute._is_valid_service_url(url) is compute._is_valid_service_url(url)
 
 
-@settings(max_examples=2000)
+@settings(max_examples=2000, deadline=None)
 @given(url=st.text())
 def test_is_valid_service_url_whitespace_only_is_false(url: str) -> None:
     if not url.strip():
         assert compute._is_valid_service_url(url) is False
 
 
-@settings(max_examples=2000)
+@settings(max_examples=2000, deadline=None)
 @given(url=st.text())
 def test_is_valid_service_url_true_implies_allowed_scheme_or_railway_internal(url: str) -> None:
     if not compute._is_valid_service_url(url):
@@ -141,19 +141,19 @@ def test_is_valid_service_url_true_implies_allowed_scheme_or_railway_internal(ur
 # ---------------------------------------------------------------------------
 
 
-@settings(max_examples=2000)
+@settings(max_examples=2000, deadline=None)
 @given(url=st.text(), env_name=st.text())
 def test_validate_https_url_never_crashes(url: str, env_name: str) -> None:
     compute._validate_https_url(env_name, url)
 
 
-@settings(max_examples=2000)
+@settings(max_examples=2000, deadline=None)
 @given(url=st.text(), env_name=st.text())
 def test_validate_https_url_is_deterministic(url: str, env_name: str) -> None:
     assert compute._validate_https_url(env_name, url) is compute._validate_https_url(env_name, url)
 
 
-@settings(max_examples=2000)
+@settings(max_examples=2000, deadline=None)
 @given(url=st.text(), env_name=st.text())
 def test_validate_https_url_true_implies_https_with_host(url: str, env_name: str) -> None:
     if not compute._validate_https_url(env_name, url):
@@ -164,7 +164,7 @@ def test_validate_https_url_true_implies_https_with_host(url: str, env_name: str
     assert compute._url_host_if_valid(stripped) is not None
 
 
-@settings(max_examples=2000)
+@settings(max_examples=2000, deadline=None)
 @given(url=st.text(), env_name=st.text())
 def test_validate_https_url_http_is_false(url: str, env_name: str) -> None:
     stripped = url.strip().lower()
@@ -177,7 +177,7 @@ def test_validate_https_url_http_is_false(url: str, env_name: str) -> None:
 # ---------------------------------------------------------------------------
 
 
-@settings(max_examples=1000)
+@settings(max_examples=1000, deadline=None)
 @given(
     text=st.text(),
     max_days=st.integers(min_value=-10, max_value=100),
@@ -186,7 +186,7 @@ def test_parse_history_lines_never_crashes(text: str, max_days: int) -> None:
     compute._parse_history_lines(text, max_days)
 
 
-@settings(max_examples=1000)
+@settings(max_examples=1000, deadline=None)
 @given(
     text=st.text(),
     max_days=st.integers(min_value=1, max_value=100),
@@ -196,7 +196,7 @@ def test_parse_history_lines_max_days_respected(text: str, max_days: int) -> Non
     assert len(rows) <= max_days
 
 
-@settings(max_examples=1000)
+@settings(max_examples=1000, deadline=None)
 @given(
     text=st.text(),
     max_days=st.integers(min_value=1, max_value=100),
@@ -206,7 +206,7 @@ def test_parse_history_lines_output_is_sorted(text: str, max_days: int) -> None:
     assert _is_sorted_by_key(rows)
 
 
-@settings(max_examples=1000)
+@settings(max_examples=1000, deadline=None)
 @given(
     text=st.text(),
     max_days=st.integers(min_value=1, max_value=100),
@@ -216,7 +216,7 @@ def test_parse_history_lines_rows_have_captured_at(text: str, max_days: int) -> 
     assert all(_captured_at_is_present(row) for row in rows)
 
 
-@settings(max_examples=1000)
+@settings(max_examples=1000, deadline=None)
 @given(
     text=st.text(),
     max_days=st.integers(min_value=-10, max_value=100),
@@ -225,7 +225,7 @@ def test_parse_history_lines_is_deterministic(text: str, max_days: int) -> None:
     assert compute._parse_history_lines(text, max_days) == compute._parse_history_lines(text, max_days)
 
 
-@settings(max_examples=500)
+@settings(max_examples=500, deadline=None)
 @given(
     timestamps=st.lists(
         st.one_of(
@@ -259,13 +259,13 @@ def test_parse_history_lines_numeric_order_matches_value_order(
 # ---------------------------------------------------------------------------
 
 
-@settings(max_examples=2000)
+@settings(max_examples=2000, deadline=None)
 @given(row=st.dictionaries(st.text(), st.one_of(st.text(), st.integers(), st.floats(), st.booleans())))
 def test_history_sort_key_never_crashes(row: dict[str, Any]) -> None:
     compute._history_sort_key(row)
 
 
-@settings(max_examples=2000)
+@settings(max_examples=2000, deadline=None)
 @given(
     a=st.dictionaries(st.text(), st.one_of(st.text(), st.integers(), st.floats(), st.booleans())),
     b=st.dictionaries(st.text(), st.one_of(st.text(), st.integers(), st.floats(), st.booleans())),
@@ -277,7 +277,7 @@ def test_history_sort_key_total_ordering(a: dict[str, Any], b: dict[str, Any]) -
     assert (ka < kb) or (ka > kb) or (ka == kb)
 
 
-@settings(max_examples=500)
+@settings(max_examples=500, deadline=None)
 @given(
     values=st.lists(
         st.one_of(

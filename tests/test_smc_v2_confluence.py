@@ -126,15 +126,18 @@ class TestScoreBounds:
         three_family = compute_confluence(_ob(15.0), _fvg(15.0), _sweep(1.0))
         assert three_family.raw_confluence_score >= two_family.raw_confluence_score
 
-    def test_sweep_trap_quality_score_preferred_over_sweep_quality(self) -> None:
-        """SWEEP_TRAP_QUALITY_SCORE takes priority when present."""
+    def test_sweep_trap_quality_score_preferred_only_when_promoted(self) -> None:
+        """Observe-only guard (WS4b): SWEEP_TRAP_QUALITY_SCORE is preferred ONLY
+        under prefer_trap_score=True (post-promotion). By default the shadow
+        score is IGNORED and only the coarse SWEEP_QUALITY_SCORE feeds confluence
+        — so arming the shadow can't perturb a live/gate score before WS4b."""
         with_trap = {"SWEEP_TRAP_QUALITY_SCORE": 1.0, "SWEEP_QUALITY_SCORE": 0.1}
-        without_trap = {"SWEEP_QUALITY_SCORE": 1.0}
-        r_trap = compute_confluence(_ob(15.0), _fvg(15.0), with_trap)
-        r_plain = compute_confluence(_ob(15.0), _fvg(15.0), without_trap)
-        # Trap quality 1.0 should dominate → similar high scores in both cases
-        assert r_trap.sweep_contribution == pytest.approx(1.0)
-        assert r_plain.sweep_contribution == pytest.approx(1.0)
+        # Promoted: trap quality 1.0 preferred.
+        r_promoted = compute_confluence(_ob(15.0), _fvg(15.0), with_trap, prefer_trap_score=True)
+        assert r_promoted.sweep_contribution == pytest.approx(1.0)
+        # Default (observe-only): trap ignored → coarse 0.1.
+        r_default = compute_confluence(_ob(15.0), _fvg(15.0), with_trap)
+        assert r_default.sweep_contribution == pytest.approx(0.1)
 
 
 # ---------------------------------------------------------------------------
