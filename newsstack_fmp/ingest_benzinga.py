@@ -39,7 +39,12 @@ from typing import Any
 
 import httpx
 
-from newsstack_fmp._bz_http import _request_with_retry, _sanitize_url, log_fetch_warning
+from newsstack_fmp._bz_http import (
+    _provider_from_url,
+    _request_with_retry,
+    _sanitize_url,
+    log_fetch_warning,
+)
 
 from .common_types import NewsItem
 from .normalize import normalize_benzinga_rest, normalize_benzinga_ws
@@ -275,6 +280,15 @@ class BenzingaRestAdapter:
             for attempt in range(_MAX_ATTEMPTS):
                 try:
                     r = self.client.get(self.base_url, params=request_params)
+                    if r.status_code == 429:
+                        # Throttle telemetry: this firehose has its own retry loop
+                        # and never flowed through _bz_http's shared 429 recorder, so
+                        # the highest-volume Benzinga/Massive lane logged zero 429s.
+                        # record_rate_limit_hit never raises. Count every 429 (incl.
+                        # ones a retry later rescues), matching the shared primitive.
+                        from newsstack_fmp import provider_usage
+
+                        provider_usage.record_rate_limit_hit(_provider_from_url(str(r.url)))
                     if r.status_code in _RETRYABLE and attempt < _MAX_ATTEMPTS - 1:
                         logger.warning(
                             "Benzinga HTTP %s (attempt %d/%d) – retrying in %ds",
