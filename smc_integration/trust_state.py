@@ -46,20 +46,20 @@ shared vocabulary so subsequent WS2 tickets (ENG-WS2-02 export, ENG-WS2-03
 badges, ENG-WS2-04 action degradation) can consume one stable surface.
 
 .. warning::
-   Reachability (truth-audit I1, 2026-07-11): with the wiring as it stands
-   today, ``STALE`` and ``WATCH_ONLY`` are **not reachable from production
-   data**. ``derive_trust_state`` classifies only ``domain_alerts``, and the
-   sole producer (``run_provider_health_check`` →
-   ``_collect_meta_domain_alerts``) emits alerts only for the
-   ``volume``/``technical``/``news`` domains and never with a ``stale``
-   failure type on the ``structure`` domain (structure/stale conditions land
-   in ``warnings``/``degradations``, not ``domain_alerts``). Separately,
-   ``attach_trust_state_to_enrichment`` — the only writer of
-   ``enrichment['trust_state']`` — has no production caller, so the Pine
-   export always renders the HEALTHY fallback. Making these states fire
-   requires the unbuilt ENG-WS2-02/03/04 wiring (feed structure/stale into
-   ``domain_alerts`` + call ``attach_*`` from the profile pipeline); until
-   then treat WATCH_ONLY/STALE as defined-but-dormant, not as live guards.
+   Reachability (truth-audit I1, 2026-07-11; updated 2026-07-12 post
+   ENG-WS2-02 wire): ``HEALTHY``, ``DEGRADED`` and ``STALE`` are now all
+   reachable from production. ``attach_trust_state_from_provider_diagnostics``
+   (scripts/smc_trust_state_export.py) is called from the Pine profile
+   pipeline (generate_smc_micro_profiles.py) and lifts the micro-base
+   generator's ``providers.domain_diagnostics`` + ``stale_providers`` into
+   ``domain_alerts``; a stale advisory maps to ``STALE`` (rule 3 below).
+   Only ``WATCH_ONLY`` and ``UNAVAILABLE`` remain defined-but-dormant: they
+   require a ``SUPPRESS`` / ``HARD_DEGRADE`` action, which only the
+   ``structure`` domain yields (provider_health), and this pipeline emits no
+   ``structure`` diagnostic yet (regime/news/calendar/technical only). The
+   derivation is already correct for ``domain="structure"`` — once a
+   structure-provider-health source feeds ``domain_diagnostics`` those two
+   states fire automatically. Until then treat them as dormant, not live.
 """
 from __future__ import annotations
 
