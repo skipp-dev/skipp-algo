@@ -104,7 +104,7 @@ DYNAMIC_GETATTR_LEDGER: set[tuple[str, int]] = {
     # _record_to_bar dynamic getattr site 101 -> 102.
     ("services/live_overlay_daemon/feed.py", 102),
     ("smc_core/event_ledger.py", 94),  # 2026-07-13 schema-v1.1: label relocation + record docstring/field shifted (84->94)
-    ("smc_core/scoring.py", 325),  # 2026-07-13 (normalize_sweep_side helper added): 308->325
+    ("smc_core/scoring.py", 339),  # 2026-07-13 (normalize_sweep_side + calibration-honesty docstrings): 308->339
     ("streamlit_terminal_alerts.py", 41),
     ("terminal_attention_state.py", 45),
     ("terminal_catalyst_state.py", 31),

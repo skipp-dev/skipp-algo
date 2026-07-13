@@ -175,7 +175,7 @@ OS_DELETE_LEDGER: set[tuple[str, int, str]] = {
     ("smc_core/benchmark.py", 39, "unlink"),
     ("smc_core/ensemble_quality.py", 58, "unlink"),
     ("smc_core/event_ledger.py", 180, "unlink"),  # 2026-07-13 schema-v1.1: label relocation shifted (163->180)
-    ("smc_core/scoring.py", 1247, "unlink"),  # 2026-07-13 (normalize_sweep_side + label_sweep_reversal fail-closed): 1225->1247
+    ("smc_core/scoring.py", 1267, "unlink"),  # 2026-07-13 (normalize_sweep_side + calibration-honesty docstrings): 1225->1267
     ("smc_integration/batch.py", 35, "unlink"),
     ("smc_integration/provider_health.py", 69, "unlink"),
     ("smc_integration/structure_batch.py", 39, "unlink"),

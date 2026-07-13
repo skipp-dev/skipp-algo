@@ -98,7 +98,15 @@ class CalibrationBin:
 
 @dataclass(slots=True)
 class CalibrationSummary:
-    """Aggregate calibration summary for a scored event set."""
+    """Aggregate calibration summary for a scored event set.
+
+    IN-SAMPLE (apparent) metrics: the mapping is fit on these events and the
+    ``calibrated_*`` fields are that fit re-applied to the SAME events, so they
+    are optimistically biased and are NOT a walk-forward / out-of-sample
+    estimate. Treat them as a diagnostic; raw→calibrated improvement is expected
+    by construction (in-sample calibration can only reduce in-sample loss) and is
+    not proof of generalization. The leak-free OOS calibration lives in
+    ``governance/family_calibration.py`` (purged/embargoed walk-forward)."""
 
     method: CalibrationMethod = "identity"
     applied: bool = False
@@ -132,7 +140,13 @@ class CalibrationDimensionSummary:
 
 @dataclass(slots=True)
 class ContextualCalibrationSummary:
-    """Aggregate summary for calibration adjusted by a context dimension."""
+    """Aggregate summary for calibration adjusted by a context dimension.
+
+    IN-SAMPLE (apparent): each group's mapping is fit and evaluated on that same
+    group's events, so the ``adjusted_*`` / ``delta_*`` fields are optimistically
+    biased — and MORE so than :class:`CalibrationSummary`, because smaller groups
+    overfit harder, which inflates the apparent per-dimension improvement that
+    ``best_dimension`` selection reads. Diagnostic only, not an OOS estimate."""
 
     dimension: str
     input_kind: str = "predicted_prob"
@@ -572,7 +586,13 @@ def build_calibration_summary(
     *,
     bin_count: int = _DEFAULT_BIN_COUNT,
 ) -> CalibrationSummary:
-    """Build an aggregate calibration summary for scored events."""
+    """Build an aggregate calibration summary for scored events.
+
+    The returned ``calibrated_*`` metrics are IN-SAMPLE (fit == eval on the same
+    events) and thus optimistically biased — a diagnostic, not a generalization
+    estimate. Consumers that gate on them (e.g. release/A-B promotion) inherit
+    that optimism; the OOS calibration is ``governance/family_calibration.py``.
+    """
     summary, _ = _build_calibration_summary_with_probabilities(events, bin_count=bin_count)
     return summary
 
