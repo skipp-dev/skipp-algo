@@ -16,45 +16,20 @@ without a sandboxed import.
 
 from __future__ import annotations
 
-import ast
 from pathlib import Path
 
 import pytest
 
-REPO_ROOT = Path(__file__).resolve().parent.parent
-
-# Files covered by ADR-0005's "measurement runtime" definition.
-RUNTIME_FILES = (
-    REPO_ROOT / "scripts" / "run_ab_comparison.py",
-    REPO_ROOT / "scripts" / "smc_sprt_stop_rule.py",
+# Single source of truth (pure stdlib — importable without pytest so the pre-push
+# CLI / hook can reuse it). See scripts/adr_0005_runtime_manifest.py.
+from scripts.adr_0005_runtime_manifest import (
+    BANNED_ROOTS,
+    REPO_ROOT,
+    RUNTIME_FILES,
 )
-
-# Modules explicitly forbidden by ADR-0005. The ban applies to top-level
-# names; sub-imports (``numpy.linalg``) are caught via the root match.
-BANNED_ROOTS = frozenset({
-    "numpy",
-    "scipy",
-    "pandas",
-    "statsmodels",
-    "sklearn",
-    "torch",
-    "tensorflow",
-})
-
-
-def _collect_imported_roots(source: str) -> set[str]:
-    """Return the set of top-level module names imported in *source*."""
-    tree = ast.parse(source)
-    roots: set[str] = set()
-    for node in ast.walk(tree):
-        if isinstance(node, ast.Import):
-            for alias in node.names:
-                roots.add(alias.name.split(".", 1)[0])
-        # ImportFrom.module is None for "from . import x" — skip
-        # those; relative imports cannot reach a banned root.
-        elif isinstance(node, ast.ImportFrom) and node.module:
-            roots.add(node.module.split(".", 1)[0])
-    return roots
+from scripts.adr_0005_runtime_manifest import (
+    imported_roots as _collect_imported_roots,
+)
 
 
 @pytest.mark.parametrize(
