@@ -25,8 +25,9 @@ Note the OPRA aggressor convention is the **inverse** of the equity tape used by
 the ADR-0016 ``signed_volume`` features: on options ``A`` (trade hit the ask) is
 the aggressive **buyer** -> bullish (+), and ``B`` (hit the bid) is the
 aggressive **seller** -> bearish (-); ``N`` (cross / unknown) is unsigned. NB the
-letters are the OPPOSITE of ``newsstack_fmp.opra_uoa._side_to_aggressor`` (raw
-Databento side: A=sell aggressor, #3355); economically both agree: + = buying.
+letters are REDEFINED here by the quote rule: this producer OVERWRITES ``side``
+(raw Databento side -- A=sell aggressor, #3355 -- is never used for signing), so
+economically + = buying either way. See ``_quote_rule_opra_aggressor``.
 
 Unlike order-flow *imbalance* (``ofi_imbalance_at``), which takes the absolute
 value because magnitude one-sidedness is its question, this feature **keeps the
