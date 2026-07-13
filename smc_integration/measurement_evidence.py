@@ -1743,7 +1743,12 @@ def _evaluate_sweep_event(
     }, scored_event
 
 
-def build_measurement_evidence(symbol: str, timeframe: str) -> MeasurementEvidence:
+def build_measurement_evidence(
+    symbol: str,
+    timeframe: str,
+    *,
+    anchor_window_days: float | None = None,
+) -> MeasurementEvidence:
     warnings: list[str] = []
     resolved_inputs = resolve_structure_artifact_inputs()
     details: dict[str, Any] = {
@@ -1856,6 +1861,47 @@ def build_measurement_evidence(symbol: str, timeframe: str) -> MeasurementEviden
         "FVG": len(effective_structure["fvg"]),
         "SWEEP": len(effective_structure["liquidity_sweeps"]),
     }
+
+    # Incremental scoring window (frame-fix follow-up 2026-07-13): re-scoring
+    # the ENTIRE multi-week event population on every rolling run made the CI
+    # sweep exceed its 120-minute budget once genuine full-session frames
+    # landed (#3616 -> ~2.3k events/pair; run 29276673623 timed out). With a
+    # window, each run evaluates/scores only events anchored within the
+    # trailing N days of the frame — older events were already scored by
+    # previous rolling runs and reach the corpus via the accumulated pool.
+    # ``None`` keeps the previous unbounded behaviour. Always disclosed.
+    details["scoring_anchor_window_days"] = anchor_window_days
+    skipped_out_of_window = {family: 0 for family in _FAMILIES}
+    if anchor_window_days is not None and not resampled_bars.empty:
+        try:
+            frame_end_ts = float(resampled_bars["timestamp"].iloc[-1])
+        except (TypeError, ValueError):
+            frame_end_ts = None
+        if frame_end_ts is not None:
+            cutoff_ts = frame_end_ts - float(anchor_window_days) * 86400.0
+            for contract_key, family in (
+                ("bos", "BOS"),
+                ("orderblocks", "OB"),
+                ("fvg", "FVG"),
+                ("liquidity_sweeps", "SWEEP"),
+            ):
+                kept: list[dict[str, Any]] = []
+                for event in effective_structure[contract_key]:
+                    raw_anchor = event.get("anchor_ts")
+                    if raw_anchor is None:
+                        raw_anchor = event.get("time")
+                    try:
+                        event_anchor_ts = float(raw_anchor) if raw_anchor is not None else 0.0
+                    except (TypeError, ValueError):
+                        event_anchor_ts = 0.0
+                    if event_anchor_ts and event_anchor_ts < cutoff_ts:
+                        skipped_out_of_window[family] += 1
+                    else:
+                        # Unparseable anchors stay in: the per-family
+                        # evaluators reject them with their own guards.
+                        kept.append(event)
+                effective_structure[contract_key] = kept
+    details["skipped_out_of_window_counts"] = skipped_out_of_window
 
     try:
         session_context = build_session_liquidity_context(resampled_bars, tz="America/New_York")

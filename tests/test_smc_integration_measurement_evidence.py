@@ -1594,3 +1594,63 @@ class TestKpiMirrorEdgeCensoringGuards:
         )
         assert result is not None
         assert result["hit"] is False  # zone never touched in the FULL window
+
+
+def test_anchor_window_filters_old_events_and_discloses(monkeypatch) -> None:
+    """Incremental scoring window (2026-07-13): events anchored before the
+    trailing window are skipped (they were scored by earlier rolling runs)
+    and the skip is disclosed; None keeps the unbounded behaviour."""
+    day = 86400.0
+    frame_end = 1_783_000_000.0
+    bars = pd.DataFrame(
+        {
+            "symbol": "AAPL",
+            "timestamp": [
+                pd.Timestamp(frame_end - offset_days * day, unit="s", tz="UTC")
+                for offset_days in range(29, -1, -1)
+            ],
+            "open": 100.0,
+            "high": 101.0,
+            "low": 99.0,
+            "close": 100.5,
+            "volume": 1000.0,
+        }
+    )
+    # Geometry: the #3605 edge-censoring guard also skips KPI events whose
+    # FULL horizon (FVG: 20 bars) is truncated, so the in-window event must
+    # sit >= 20 bars before the frame edge on this 30-bar daily frame.
+    old_event = {"id": "fvg-old", "anchor_ts": frame_end - 28 * day, "low": 99.0, "high": 100.0, "dir": "BULLISH"}
+    recent_event = {"id": "fvg-new", "anchor_ts": frame_end - 22 * day, "low": 99.0, "high": 100.0, "dir": "BULLISH"}
+    contract = {
+        "structure_profile_used": "hybrid_default",
+        "warnings": [],
+        "canonical_structure": {
+            "bos": [],
+            "orderblocks": [],
+            "fvg": [old_event, recent_event],
+            "liquidity_sweeps": [],
+        },
+    }
+    monkeypatch.setattr(
+        measurement_evidence.structure_artifact_json,
+        "load_normalized_structure_contract_input",
+        lambda symbol, timeframe: contract,
+    )
+    monkeypatch.setattr(
+        measurement_evidence, "_load_source_bars", lambda symbol, timeframe, resolved_inputs=None: (bars, "test")
+    )
+    monkeypatch.setattr(
+        measurement_evidence,
+        "build_explicit_structure_from_bars",
+        lambda *args, **kwargs: (_ for _ in ()).throw(RuntimeError("recompute disabled in test")),
+    )
+
+    windowed = measurement_evidence.build_measurement_evidence("AAPL", "1D", anchor_window_days=25.0)
+    assert windowed.details["scoring_anchor_window_days"] == 25.0
+    assert windowed.details["skipped_out_of_window_counts"]["FVG"] == 1
+    assert windowed.details["evaluated_event_counts"]["FVG"] == 1
+
+    unbounded = measurement_evidence.build_measurement_evidence("AAPL", "1D")
+    assert unbounded.details["scoring_anchor_window_days"] is None
+    assert unbounded.details["skipped_out_of_window_counts"]["FVG"] == 0
+    assert unbounded.details["evaluated_event_counts"]["FVG"] == 2

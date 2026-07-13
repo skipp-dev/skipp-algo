@@ -67,7 +67,7 @@ def test_measurement_benchmark_harness_writes_manifest_and_plots(monkeypatch, tm
         },
         warnings=["example-warning"],
     )
-    monkeypatch.setattr(benchmark_script, "build_measurement_evidence", lambda symbol, timeframe: evidence)
+    monkeypatch.setattr(benchmark_script, "build_measurement_evidence", lambda symbol, timeframe, **kwargs: evidence)
     monkeypatch.setattr(
         benchmark_script,
         "build_parser",
@@ -132,7 +132,7 @@ def test_require_evidence_fails_loud_when_no_pair_has_evidence(monkeypatch, tmp_
         warnings=["no bar source available for measurement evidence"],
     )
     monkeypatch.setattr(
-        benchmark_script, "build_measurement_evidence", lambda symbol, timeframe: empty_evidence
+        benchmark_script, "build_measurement_evidence", lambda symbol, timeframe, **kwargs: empty_evidence
     )
     monkeypatch.setattr(
         benchmark_script,
@@ -177,7 +177,7 @@ def test_require_evidence_passes_when_at_least_one_pair_has_evidence(monkeypatch
         warnings=[],
     )
     monkeypatch.setattr(
-        benchmark_script, "build_measurement_evidence", lambda symbol, timeframe: evidence
+        benchmark_script, "build_measurement_evidence", lambda symbol, timeframe, **kwargs: evidence
     )
     monkeypatch.setattr(
         benchmark_script,
@@ -219,7 +219,7 @@ def test_degenerate_intraday_frame_is_disclosed_and_warns(monkeypatch, tmp_path:
     monkeypatch.setattr(
         benchmark_script,
         "build_measurement_evidence",
-        lambda symbol, timeframe: _minimal_evidence_with_frame(1.0),
+        lambda symbol, timeframe, **kwargs: _minimal_evidence_with_frame(1.0),
     )
     monkeypatch.setattr(
         benchmark_script,
@@ -257,7 +257,7 @@ def test_strict_frame_distinctness_fails_on_degenerate_frame(monkeypatch, tmp_pa
     monkeypatch.setattr(
         benchmark_script,
         "build_measurement_evidence",
-        lambda symbol, timeframe: _minimal_evidence_with_frame(1.0),
+        lambda symbol, timeframe, **kwargs: _minimal_evidence_with_frame(1.0),
     )
     monkeypatch.setattr(
         benchmark_script,
@@ -280,7 +280,7 @@ def test_healthy_intraday_frame_and_1d_do_not_trip_the_frame_gate(monkeypatch, t
     # 1D is EXPECTED to be ~1 bar/day; intraday with real density passes too.
     frames = {"5m": 78.0, "1D": 1.0}
 
-    def fake_evidence(symbol: str, timeframe: str) -> MeasurementEvidence:
+    def fake_evidence(symbol: str, timeframe: str, **kwargs) -> MeasurementEvidence:
         return _minimal_evidence_with_frame(frames[timeframe])
 
     monkeypatch.setattr(benchmark_script, "build_measurement_evidence", fake_evidence)
