@@ -153,67 +153,78 @@ def detect_bos_from_pivots(
         row = bars.iloc[i]
         prev = bars.iloc[i - 1]
 
+        # Classify BOTH crossings against the structure direction from BEFORE this
+        # bar. Evaluating bullish first and letting it mutate structure_dir made an
+        # outside bar (breaks pivot-high AND pivot-low in one bar, only possible in
+        # high/low "wick" mode) always read the just-set "UP" on the down branch —
+        # so the down break was always CHOCH and the final state always "DOWN", a
+        # fixed bearish bias that is not price-mirror-invariant.
+        prev_dir = structure_dir
+        ts = float(row["timestamp"])
+
+        up_event: dict[str, Any] | None = None
         if last_pivot_high is not None:
             cur_val = float(row["high"]) if use_high_low_for_bullish else float(row["close"])
             prev_val = float(prev["high"]) if use_high_low_for_bullish else float(prev["close"])
             level = float(last_pivot_high["price"])
+            if prev_val <= level and cur_val > level:  # crossed up
+                kind = cast(Literal["BOS", "CHOCH"], "CHOCH" if prev_dir == "DOWN" else "BOS")
+                up_event = {
+                    "id": bos_id(
+                        symbol=str(symbol),
+                        timeframe=tf,
+                        anchor_ts=ts,
+                        kind=kind,
+                        direction="UP",
+                        price=level,
+                        ticksize=ticksize,
+                        asset_class=asset_class,
+                        session_tz=session_tz,
+                    ),
+                    "time": ts,
+                    "price": level,
+                    "kind": kind,
+                    "dir": "UP",
+                    "source": "pivot_break",
+                }
 
-            crossed_up = prev_val <= level and cur_val > level
-            if crossed_up:
-                kind = cast(Literal["BOS", "CHOCH"], "CHOCH" if structure_dir == "DOWN" else "BOS")
-                structure_dir = "UP"
-                ts = float(row["timestamp"])
-                out.append(
-                    {
-                        "id": bos_id(
-                            symbol=str(symbol),
-                            timeframe=tf,
-                            anchor_ts=ts,
-                            kind=kind,
-                            direction="UP",
-                            price=level,
-                            ticksize=ticksize,
-                            asset_class=asset_class,
-                            session_tz=session_tz,
-                        ),
-                        "time": ts,
-                        "price": level,
-                        "kind": kind,
-                        "dir": "UP",
-                        "source": "pivot_break",
-                    }
-                )
-
+        down_event: dict[str, Any] | None = None
         if last_pivot_low is not None:
             cur_val = float(row["low"]) if use_high_low_for_bearish else float(row["close"])
             prev_val = float(prev["low"]) if use_high_low_for_bearish else float(prev["close"])
             level = float(last_pivot_low["price"])
+            if prev_val >= level and cur_val < level:  # crossed down
+                kind = cast(Literal["BOS", "CHOCH"], "CHOCH" if prev_dir == "UP" else "BOS")
+                down_event = {
+                    "id": bos_id(
+                        symbol=str(symbol),
+                        timeframe=tf,
+                        anchor_ts=ts,
+                        kind=kind,
+                        direction="DOWN",
+                        price=level,
+                        ticksize=ticksize,
+                        asset_class=asset_class,
+                        session_tz=session_tz,
+                    ),
+                    "time": ts,
+                    "price": level,
+                    "kind": kind,
+                    "dir": "DOWN",
+                    "source": "pivot_break",
+                }
 
-            crossed_down = prev_val >= level and cur_val < level
-            if crossed_down:
-                kind = cast(Literal["BOS", "CHOCH"], "CHOCH" if structure_dir == "UP" else "BOS")
-                structure_dir = "DOWN"
-                ts = float(row["timestamp"])
-                out.append(
-                    {
-                        "id": bos_id(
-                            symbol=str(symbol),
-                            timeframe=tf,
-                            anchor_ts=ts,
-                            kind=kind,
-                            direction="DOWN",
-                            price=level,
-                            ticksize=ticksize,
-                            asset_class=asset_class,
-                            session_tz=session_tz,
-                        ),
-                        "time": ts,
-                        "price": level,
-                        "kind": kind,
-                        "dir": "DOWN",
-                        "source": "pivot_break",
-                    }
-                )
+        # Direction-neutral outside-bar policy: a simultaneous break is ambiguous,
+        # so leave structure_dir unchanged; a single break advances it as before.
+        if up_event is not None and down_event is None:
+            structure_dir = "UP"
+        elif down_event is not None and up_event is None:
+            structure_dir = "DOWN"
+
+        if up_event is not None:
+            out.append(up_event)
+        if down_event is not None:
+            out.append(down_event)
 
     dedup: list[dict[str, Any]] = []
     seen: set[str] = set()

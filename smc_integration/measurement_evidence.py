@@ -47,6 +47,7 @@ from smc_core.scoring import (
     label_fvg_partial_50,
     label_orderblock_mitigation,
     label_sweep_reversal,
+    normalize_sweep_side,
     score_events,
 )
 from smc_core.session_context import build_session_liquidity_context
@@ -416,9 +417,12 @@ def _append_stratified_event(
 def _evaluate_bos_event(event: dict[str, Any], bars: pd.DataFrame) -> dict[str, Any] | None:
     price = float(event.get("price", 0.0) or 0.0)
     anchor_ts = float(event.get("time", event.get("anchor_ts", 0.0)) or 0.0)
-    direction = str(event.get("dir", "UP")).upper()
-    if price <= 0 or anchor_ts <= 0:
+    # Fail-closed: an unknown/missing BOS direction is rejected, not silently
+    # benchmarked as bullish (the old default "UP" + `!= "DOWN"` => bullish branch).
+    norm_dir = _normalize_direction(str(event.get("dir", "")))
+    if price <= 0 or anchor_ts <= 0 or norm_dir not in {"BULLISH", "BEARISH"}:
         return None
+    direction = "DOWN" if norm_dir == "BEARISH" else "UP"
 
     anchor_idx = _find_bar_index(bars, anchor_ts)
     if anchor_idx is None or anchor_idx >= len(bars) - 1:
@@ -456,9 +460,12 @@ def _evaluate_zone_event(
     low = float(event.get("low", 0.0) or 0.0)
     high = float(event.get("high", 0.0) or 0.0)
     anchor_ts = float(event.get("anchor_ts", event.get("time", 0.0)) or 0.0)
-    direction = str(event.get("dir", "BULL")).upper()
-    if low <= 0 or high <= 0 or anchor_ts <= 0 or high <= low:
+    # Fail-closed: an unknown/missing OB/FVG direction is rejected, not silently
+    # benchmarked as bullish (the old default "BULL" + non-bear => bullish branch).
+    norm_dir = _normalize_direction(str(event.get("dir", "")))
+    if low <= 0 or high <= 0 or anchor_ts <= 0 or high <= low or norm_dir not in {"BULLISH", "BEARISH"}:
         return None
+    direction = "BEAR" if norm_dir == "BEARISH" else "BULL"
 
     anchor_idx = _find_bar_index(bars, anchor_ts)
     if anchor_idx is None or anchor_idx >= len(bars) - 1:
@@ -523,7 +530,10 @@ def _evaluate_zone_event(
 
 
 def _expected_reversal_direction(side: str) -> str:
-    return "BULLISH" if str(side).upper() == "SELL_SIDE" else "BEARISH"
+    # Shared fail-closed SSOT (SELL_SIDE→BULLISH, BUY_SIDE→BEARISH, else NEUTRAL);
+    # an unknown/missing side no longer resolves to a silent bearish default here
+    # while defaulting bullish in _expected_event_direction below.
+    return normalize_sweep_side(side)
 
 
 def _normalize_direction(raw: str) -> str:
@@ -546,7 +556,8 @@ def _direction_vote_label(direction: str) -> str:
 
 def _expected_event_direction(event: dict[str, Any], family: EventFamily) -> str:
     if family == "SWEEP":
-        return _expected_reversal_direction(str(event.get("side", "SELL_SIDE")))
+        # Fail-closed: a missing side is NEUTRAL, not a silent bullish SELL_SIDE.
+        return _expected_reversal_direction(str(event.get("side", "")))
     return _normalize_direction(str(event.get("dir", "NEUTRAL")))
 
 
@@ -678,15 +689,27 @@ def _structure_state_light_for_event(
     expected_direction: str,
 ) -> dict[str, Any]:
     structure_state = build_structure_state(snapshot=history_bars)
-    if family == "BOS" and expected_direction in {"BULLISH", "BEARISH"}:
+    # The BOS family carries both BOS and CHOCH events; preserve the distinction —
+    # downstream sweep-trap / reaction-zone / confluence logic branches on BOS_*
+    # vs CHOCH_*. Only a known kind flips the light; an unknown kind is NOT silently
+    # written as BOS (fail-closed → falls through to the default structure state).
+    event_kind = str(event.get("kind", "BOS")).strip().upper()
+    if (
+        family == "BOS"
+        and expected_direction in {"BULLISH", "BEARISH"}
+        and event_kind in {"BOS", "CHOCH"}
+    ):
+        is_bullish = expected_direction == "BULLISH"
+        is_choch = event_kind == "CHOCH"
         structure_state["STRUCTURE_STATE"] = expected_direction
-        structure_state["STRUCTURE_BULL_ACTIVE"] = expected_direction == "BULLISH"
-        structure_state["STRUCTURE_BEAR_ACTIVE"] = expected_direction == "BEARISH"
-        structure_state["BOS_BULL"] = expected_direction == "BULLISH"
-        structure_state["BOS_BEAR"] = expected_direction == "BEARISH"
-        structure_state["CHOCH_BULL"] = False
-        structure_state["CHOCH_BEAR"] = False
-        structure_state["STRUCTURE_LAST_EVENT"] = "BOS_BULL" if expected_direction == "BULLISH" else "BOS_BEAR"
+        structure_state["STRUCTURE_BULL_ACTIVE"] = is_bullish
+        structure_state["STRUCTURE_BEAR_ACTIVE"] = not is_bullish
+        structure_state["BOS_BULL"] = (not is_choch) and is_bullish
+        structure_state["BOS_BEAR"] = (not is_choch) and (not is_bullish)
+        structure_state["CHOCH_BULL"] = is_choch and is_bullish
+        structure_state["CHOCH_BEAR"] = is_choch and (not is_bullish)
+        prefix = "CHOCH" if is_choch else "BOS"
+        structure_state["STRUCTURE_LAST_EVENT"] = f"{prefix}_BULL" if is_bullish else f"{prefix}_BEAR"
         structure_state["STRUCTURE_EVENT_AGE_BARS"] = 0
         structure_state["STRUCTURE_FRESH"] = True
     elif structure_state.get("STRUCTURE_LAST_EVENT") == "NONE" and expected_direction in {"BULLISH", "BEARISH"}:
