@@ -399,7 +399,7 @@ def rank_candidates(
             max_trades = 1
             if rel_vol <= 0.0:
                 no_trade_reason.append("missing_rvol")
-        if gap_pct <= SEVERE_GAP_DOWN_THRESHOLD:
+        if gap_pct <= SEVERE_GAP_DOWN_THRESHOLD:  # gap_pct falls back to intraday change (changesPercentage) when gap_available is False
             no_trade_reason.append("severe_gap_down")
         if split_today:
             no_trade_reason.append("split_today")

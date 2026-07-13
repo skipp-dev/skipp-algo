@@ -309,6 +309,24 @@ class TestRankingDrift:
         assert fr.compute_ranking_drift([], [])["status"] == "unknown"
         assert fr.compute_ranking_drift(["a"], [])["status"] == "unknown"
 
+    def test_compute_ranking_drift_caps_out_of_top_n_at_top_n_plus_one(self) -> None:
+        # A feature that slides deep in the FULL ranking (still present, never
+        # ValueError) must be scored at top_n+1, not its true deep position —
+        # the bounded-churn contract. Regression for the previously-dead cap.
+        top_n = 5
+        previous = [f"f{i}" for i in range(20)]  # f0 at position 1
+        # f0 drops to position 12; the earlier features each shift up one.
+        current = [f"f{i}" for i in range(1, 12)] + ["f0"] + [f"f{i}" for i in range(12, 20)]
+        drift = fr.compute_ranking_drift(
+            current=current, previous=previous,
+            position_threshold=1, top_n=top_n,
+        )
+        f0 = next(d for d in drift["drifted_features"] if d["feature"] == "f0")
+        assert f0["previous"] == 1
+        assert f0["current"] == top_n + 1  # capped, NOT 12
+        assert abs(f0["delta"]) <= top_n
+        assert drift["max_position_delta"] <= top_n
+
     def test_generate_report_attaches_drift_when_both_ok(self, monkeypatch) -> None:
         monkeypatch.setattr(
             fr, "compute_feature_importance",
