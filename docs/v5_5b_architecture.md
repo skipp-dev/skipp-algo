@@ -90,7 +90,7 @@ when inputs are unavailable.
 
 All thresholds and confidence values are configurable via ``smc_core.v2_config``
 environment variables (e.g. ``SMC_SWEEP_TRAP_QUALITY_THRESHOLD``,
-``SMC_REACTION_ZONE_DISTANCE_PCT``).  A high-confidence sweep-trap or SMT
+``SMC_REACTION_CONTEXT_DISTANCE_PCT``).  A high-confidence sweep-trap or SMT
 divergence downgrades ``SIGNAL_FRESHNESS`` by one step, because both signals
 indicate that the current price context is less reliable than the base
 freshness score suggests.

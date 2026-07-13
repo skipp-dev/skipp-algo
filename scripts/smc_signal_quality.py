@@ -683,6 +683,10 @@ def build_signal_quality_v2(
     if is_reaction_context_enabled():
         from smc_core.reaction_zone import detect_reaction_zone
 
+        # OBSERVE-ONLY: this runs AFTER SIGNAL_QUALITY_SCORE/TIER are finalized
+        # above and only appends REACTION_CONTEXT_* fields. Unlike sweep-trap and
+        # SMT, reaction-context contributes NOTHING to the score or the
+        # freshness downgrade below — it is a recorded context flag, not a weight.
         result.update(detect_reaction_zone(enr))
 
     # Post-detector freshness adjustment.

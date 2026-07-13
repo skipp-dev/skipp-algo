@@ -55,22 +55,31 @@ class SweepTrapConfig:
 
 
 class ReactionZoneConfig:
-    """Tunables for the reaction-zone detector."""
+    """Tunables for the reaction-*context* detector (``detect_reaction_zone``).
+
+    These knobs ONLY affect the enrichment context detector (fresh structure/
+    sweep near an OB/FVG). They do **not** configure the canonical measurement
+    geometry in ``compute_reaction_zone`` — that path hard-codes
+    ``ZONE_WIDTH_FRACTION`` / ``MIN_CONFIRMATION_BODY_RATIO`` and never reads
+    this config. The env vars were renamed ``SMC_REACTION_ZONE_*`` →
+    ``SMC_REACTION_CONTEXT_*`` (2026-07-13, clean cutover — verified unset in
+    every Railway service) to match the ``ENABLE_REACTION_CONTEXT`` flag split.
+    """
 
     @property
     def distance_threshold_pct(self) -> float:
-        """OB/FVG must be within this percentage distance to define a zone."""
-        return _env_float("SMC_REACTION_ZONE_DISTANCE_PCT", 3.0, min_val=0.1, max_val=50.0)
+        """OB/FVG must be within this percentage distance to flag a context."""
+        return _env_float("SMC_REACTION_CONTEXT_DISTANCE_PCT", 3.0, min_val=0.1, max_val=50.0)
 
     @property
     def bias_aligned_confidence(self) -> int:
-        """Confidence when zone direction aligns with session bias."""
-        return _env_int("SMC_REACTION_ZONE_BIAS_ALIGNED_CONFIDENCE", 60, min_val=0, max_val=100)
+        """Confidence when context direction aligns with session bias."""
+        return _env_int("SMC_REACTION_CONTEXT_BIAS_ALIGNED_CONFIDENCE", 60, min_val=0, max_val=100)
 
     @property
     def bias_misaligned_confidence(self) -> int:
-        """Confidence when zone direction conflicts with session bias."""
-        return _env_int("SMC_REACTION_ZONE_BIAS_MISALIGNED_CONFIDENCE", 40, min_val=0, max_val=100)
+        """Confidence when context direction conflicts with session bias."""
+        return _env_int("SMC_REACTION_CONTEXT_BIAS_MISALIGNED_CONFIDENCE", 40, min_val=0, max_val=100)
 
 
 class ConfluenceScoreConfig:
