@@ -494,7 +494,7 @@ def _parse_args(argv: list[str] | None) -> argparse.Namespace:
     parser.add_argument(
         "--commit-sha",
         default=os.environ.get("GITHUB_SHA"),
-        help="Source commit SHA (default: $GITHUB_SHA).",
+        help="Source commit SHA (default: $GITHUB_SHA, then git rev-parse HEAD).",
     )
     return parser.parse_args(argv)
 
@@ -502,6 +502,12 @@ def _parse_args(argv: list[str] | None) -> argparse.Namespace:
 def main(argv: list[str] | None = None) -> int:
     init_cli_logging()
     args = _parse_args(argv)
+    if not args.commit_sha:
+        # Local runs have no $GITHUB_SHA; without this fallback the sidecar
+        # provenance shipped source_commit=null (provenance audit 2026-07-13).
+        from smc_integration.release_policy import resolve_git_commit
+
+        args.commit_sha = resolve_git_commit()
 
     src_path = args.outcomes_json or discover_latest_outcomes(args.outcomes_dir)
 
