@@ -1950,6 +1950,43 @@ export async function collectOpenScriptIdentityTexts(page: Page, scriptName: str
   return uniqueNormalizedTexts(texts);
 }
 
+/** Parse a pine-facade saved-script ``version`` value ("164.0", 164, "3") into
+ * a positive integer, or ``null`` when it is not one. Exported for tests. */
+export function parseFacadeSavedVersion(value: unknown): number | null {
+  const parsed = Number.parseInt(String(value ?? "").trim(), 10);
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : null;
+}
+
+/**
+ * Authoritative published-version lookup via TradingView's pine-facade API
+ * (the same backend the Pine editor uses). Incident 2026-07-13: the UI-text
+ * evidence chain settled on the generator manifest's HARDCODED version (1),
+ * so every consumer repin rewrote imports to the 2026-03 first publish while
+ * TV was at v164 — CE10272 on every modern mp.* symbol. The saved-scripts
+ * listing reports the real, per-publish-incrementing version. Returns null
+ * (never throws) when the request fails or the script is absent, so callers
+ * can fall back to the UI evidence.
+ */
+export async function fetchSavedScriptVersionViaFacade(page: Page, scriptName: string): Promise<number | null> {
+  try {
+    const response = await page.request.get("https://pine-facade.tradingview.com/pine-facade/list/?filter=saved");
+    if (!response.ok()) {
+      tracePageEvent(page, "facade-version-http", `${scriptName}:${response.status()}`);
+      return null;
+    }
+    const scripts = (await response.json()) as Array<{ scriptName?: string; version?: unknown }>;
+    const hit = Array.isArray(scripts)
+      ? scripts.find((script) => (script.scriptName || "") === scriptName)
+      : undefined;
+    const version = parseFacadeSavedVersion(hit?.version);
+    tracePageEvent(page, "facade-version-resolved", `${scriptName}:${version ?? "absent"}`);
+    return version;
+  } catch (error: unknown) {
+    tracePageEvent(page, "facade-version-error", `${scriptName}:${String(error).slice(0, 120)}`);
+    return null;
+  }
+}
+
 export async function collectPublishedVersionContextTexts(page: Page, scriptName: string): Promise<string[]> {
   const texts: string[] = [];
 

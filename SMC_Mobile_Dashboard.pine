@@ -6,9 +6,9 @@
 // Product role: companion operator-only surface for mobile / small screens.
 // Product scope: this dashboard reflects the long-dip specialist mainline of SMC Core.
 
-indicator("SMC Mobile v7", "SMC Mobile v7", overlay = true)
+indicator("SMC Mobile v7", "LD Mobile7", overlay = true)
 
-import preuss_steffen/smc_micro_profiles_generated/1 as mp
+import preuss_steffen/smc_micro_profiles_generated/164 as mp
 
 var string g_mobile_surface = "Mobile Surface"
 color_theme = input.string("Standard", "Color Theme", options = ["Standard", "Colorblind Safe"], group = g_mobile_surface, tooltip = "Match this to the Core Engine color theme. Colorblind Safe replaces red/green with orange/blue.")

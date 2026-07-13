@@ -80,3 +80,38 @@ def test_dashboard_decode_helpers_stay_above_blocker_text() -> None:
     blocker = source.index("dashboard_compact_main_blocker_text(int")
     assert source.index("decode_volume_data_text(int row_code) =>") < blocker
     assert source.index("decode_event_risk_text(int row_code) =>") < blocker
+
+_IMPORT_RE = re.compile(r"^import preuss_steffen/smc_micro_profiles_generated/(\d+)\b", re.MULTILINE)
+_TITLE_RE = re.compile(r"^(?:indicator|strategy)\(\s*\"[^\"]*\"\s*,\s*\"([^\"]*)\"", re.MULTILINE)
+
+
+def test_consumer_library_imports_pin_one_real_version() -> None:
+    """Incident 2026-07-13 (CE10272): every consumer pinned `/1` — TradingView
+    increments the library version per publish (v164 at incident time), but the
+    repin step read the generator manifest's HARDCODED `library_version: 1` and
+    rewrote all imports back to the 2026-03 first publish. All consumers must
+    pin the SAME version and never the stale-sentinel 1."""
+    versions: dict[str, int] = {}
+    for path in sorted(REPO_ROOT.glob(CONSUMER_PINE_GLOB)):
+        match = _IMPORT_RE.search(path.read_text(encoding="utf-8"))
+        if match:
+            versions[path.name] = int(match.group(1))
+    assert len(versions) >= 10, f"expected >=10 importing consumers, saw {len(versions)}"
+    assert all(v != 1 for v in versions.values()), (
+        f"consumers pinned to the stale v1 March library: "
+        f"{[n for n, v in versions.items() if v == 1]}"
+    )
+    assert len(set(versions.values())) == 1, f"consumers pin diverging library versions: {versions}"
+
+
+def test_root_pine_shorttitles_within_tradingview_limit() -> None:
+    """TradingView rejects shorttitles longer than 10 characters
+    (SHORT_TITLE_TOO_LONG) — latent until the script is next recompiled, which
+    is exactly how 3 consumers accumulated over-long shorttitles unnoticed."""
+    problems: list[str] = []
+    for path in sorted(REPO_ROOT.glob(CONSUMER_PINE_GLOB)):
+        for shorttitle in _TITLE_RE.findall(path.read_text(encoding="utf-8")):
+            if len(shorttitle) > 10:
+                problems.append(f"{path.name}: shorttitle {shorttitle!r} has {len(shorttitle)} chars (max 10)")
+    assert problems == [], "\n".join(problems)
+
