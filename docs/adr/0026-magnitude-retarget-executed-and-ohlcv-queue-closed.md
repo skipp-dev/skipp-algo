@@ -12,10 +12,10 @@
 ADR-0019, ADR-0022, and ADR-0023 were each authored as `Proposed`/doc-only
 pre-registrations. Their downstream decisions have since been *proven and
 executed* by separate, reviewed PRs, but the append-only ADR bodies and the
-index still present them as open proposals. Per the ADR discipline (`ADRs are
-append-only — to revise a decision, add a new ADR that supersedes the old one
-and update the table below`), the correct fix is this new ADR plus an index
-status update — **not** an in-place rewrite of the earlier ADR bodies.
+index still present them as open proposals. Per the ADR discipline
+(`ADRs are append-only — to revise a decision, add a new ADR that supersedes the old one and update the table below`),
+the correct fix is this new ADR plus an index status update — **not** an
+in-place rewrite of the earlier ADR bodies.
 
 The concrete executed facts, each verified in-repo:
 
