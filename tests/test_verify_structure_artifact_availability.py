@@ -75,6 +75,27 @@ def test_verifier_fails_on_missing_counts_block(tmp_path: Path) -> None:
     assert any("missing counts block" in failure for failure in report["failures"])
 
 
+def test_verifier_fails_on_missing_generator_provenance(tmp_path: Path) -> None:
+    artifact_dir = _materialize(tmp_path)
+    manifest_path = artifact_dir / "manifest_1D.json"
+    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    del manifest["provenance"]
+    manifest_path.write_text(json.dumps(manifest), encoding="utf-8")
+    report = verify_structure_artifact_availability(tmp_path, ["1D"])
+    assert report["ok"] is False
+    assert any("missing generator provenance" in failure for failure in report["failures"])
+    assert report["details"]["1D"]["provenance"] is None
+
+
+def test_verifier_reports_generator_provenance_in_details(tmp_path: Path) -> None:
+    _materialize(tmp_path)
+    report = verify_structure_artifact_availability(tmp_path, ["1D"])
+    assert report["ok"] is True
+    provenance = report["details"]["1D"]["provenance"]
+    assert provenance["generator_path"] == "smc_integration/structure_batch.py"
+    assert provenance["input_fingerprint"]["kind"] == "workbook_sha256"
+
+
 def test_verifier_enforces_expected_symbol_set(tmp_path: Path) -> None:
     _materialize(tmp_path)
     report = verify_structure_artifact_availability(
