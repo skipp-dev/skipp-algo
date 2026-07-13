@@ -6,7 +6,7 @@
 library("smc_profile_engine", overlay = true)
 
 import preuss_steffen/smc_utils/3 as u
-import preuss_steffen/smc_draw/1 as d
+import preuss_steffen/smc_draw/3 as d
 
 // ── Types ──
 
