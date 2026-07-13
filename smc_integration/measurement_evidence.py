@@ -332,21 +332,34 @@ def _to_epoch_seconds(frame: pd.DataFrame) -> pd.DataFrame:
 
 
 def _find_bar_index(bars: pd.DataFrame, event_ts: float) -> int | None:
-    """First bar index whose timestamp is AT-OR-AFTER ``event_ts`` (``>=``).
+    """Index of the bar CONTAINING ``event_ts`` (exact match, else the bar it fell in).
 
-    Contract: event timestamps are expected to be BAR-ALIGNED (they come from the
-    structure artifact, which stamps events on bar timestamps), so ``>=`` resolves
-    to the exact event bar and the caller's ``anchor_idx + 1`` forward slice starts
-    on the bar strictly after the event. For an OFF-GRID ``event_ts`` (imported /
-    rounded / resampled, falling between two bars) this returns the FOLLOWING bar,
-    so the forward window would begin one bar later than intended. Align event
-    timestamps to bars if that matters; a fail-closed exact-match variant is a
-    deliberate follow-up (it would reject legitimate near-grid events).
+    Event timestamps are normally BAR-ALIGNED (the structure artifact stamps events
+    on bar timestamps), so this resolves to the exact event bar and the caller's
+    ``anchor_idx + 1`` forward slice starts on the bar strictly after the event. For
+    an OFF-GRID ``event_ts`` (imported / rounded / resampled, falling strictly
+    between two bars) the event occurred DURING the preceding bar, so we anchor on
+    that CONTAINING bar rather than the following one — otherwise the first
+    fully-post-event bar is silently consumed as the anchor and dropped from the
+    forward window. Fail-closed rejection was deliberately NOT chosen: bars are
+    resampled (``build_measurement_evidence``), so near-grid events are legitimate
+    and must not be discarded. Returns ``None`` only when ``event_ts`` is after
+    every bar (or bars is empty).
     """
-    matches = bars.index[bars["timestamp"].astype(float) >= float(event_ts)].tolist()
+    ts = bars["timestamp"].astype(float)
+    matches = bars.index[ts >= float(event_ts)].tolist()
     if not matches:
         return None
-    return int(matches[0])
+    first = matches[0]
+    if float(ts.loc[first]) == float(event_ts):
+        return int(first)
+    # Off-grid: ``event_ts`` fell between the preceding bar and ``first`` -> anchor
+    # on the containing (preceding) bar when one exists.
+    pos = int(bars.index.get_loc(first))
+    if pos > 0:
+        logger.debug("event_ts %s is off the bar grid; anchoring on the containing bar", event_ts)
+        return int(bars.index[pos - 1])
+    return int(first)  # event precedes all bars -> keep first (outer guard drops it)
 
 
 def _find_first_index(future_bars: pd.DataFrame, predicate) -> int | None:
