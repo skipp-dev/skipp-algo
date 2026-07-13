@@ -139,7 +139,7 @@ _FROZEN_JSON_LOAD_SITES: frozenset[tuple[str, int]] = frozenset(
         # the top-level TF dictionaries, shifting 419 -> 425.
         # 2026-07-11 (truth-audit T1): _candle_ts docstring + robust parsing
         # added +14 lines above, shifting the ATS-baseline load 425 -> 439.
-        ("smc_tv_bridge/smc_api.py", 439),
+        ("smc_tv_bridge/smc_api.py", 451),  # 2026-07-13 (_SWEEP_SIDE_MAP doc-fix, +12 lines above): 439->451
         # 2026-07-04 (WP-3 backtest tooling): FMPDataLoader.load_from_json parses
         # a local candle-cache file written by its own save_to_json (operator-
         # supplied path in the standalone backtest runner), not untrusted input.

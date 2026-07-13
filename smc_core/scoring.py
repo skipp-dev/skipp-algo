@@ -195,6 +195,23 @@ def _normalize_market_direction(raw: str) -> str:
     return "NEUTRAL"
 
 
+def normalize_sweep_side(side: str) -> str:
+    """Canonical, fail-closed sweep-side → expected reversal bias.
+
+    ``SELL_SIDE`` (sell-side liquidity swept) → ``"BULLISH"`` (up-reversal expected);
+    ``BUY_SIDE`` → ``"BEARISH"`` (down-reversal expected); anything else →
+    ``"NEUTRAL"``. Shared SSOT so the benchmark, the scoring labels and the
+    governance adapter agree on a malformed/missing side instead of each picking a
+    different silent default (SELL-default bullish here, bearish there).
+    """
+    normalized = str(side).strip().upper()
+    if normalized == "SELL_SIDE":
+        return "BULLISH"
+    if normalized == "BUY_SIDE":
+        return "BEARISH"
+    return "NEUTRAL"
+
+
 def _clip_probability(value: float, *, eps: float = 1e-6) -> float:
     return max(eps, min(1.0 - eps, float(value)))
 
@@ -836,7 +853,8 @@ def label_sweep_reversal(
     sweep_price:
         Price at the sweep event.
     sweep_side:
-        ``"SELL_SIDE"`` → up-reversal test; any other value → down-reversal branch.
+        ``"SELL_SIDE"`` → up-reversal test; ``"BUY_SIDE"`` → down-reversal test;
+        any other value → ``False`` (fail-closed, see ``normalize_sweep_side``).
     subsequent_closes:
         Close prices of the *N* bars after the sweep.
     threshold_pct:
@@ -850,12 +868,16 @@ def label_sweep_reversal(
         # raise ZeroDivisionError on a corrupted upstream event.
         return False
 
-    if sweep_side == "SELL_SIDE":
+    bias = normalize_sweep_side(sweep_side)
+    if bias == "BULLISH":
         # Sell-side sweep → reversal = price moves UP
         return any((c - sweep_price) / sweep_price >= threshold_pct for c in subsequent_closes)
-    else:
+    if bias == "BEARISH":
         # Buy-side sweep → reversal = price moves DOWN
         return any((sweep_price - c) / sweep_price >= threshold_pct for c in subsequent_closes)
+    # Fail-closed: an unknown/missing side is not a labeled reversal (was silently
+    # treated as buy-side/down before, contradicting the benchmark + governance).
+    return False
 
 
 def label_bos_follow_through(

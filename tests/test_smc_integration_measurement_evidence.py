@@ -1312,3 +1312,32 @@ class TestFvgQualityIsFullBody:
             bias_direction="BULLISH",
         )
         assert features["is_full_body"] is True
+
+
+class TestFindBarIndexContainingBar:
+    """`_find_bar_index` resolves an event to its CONTAINING bar (off-grid regression)."""
+
+    @staticmethod
+    def _bars() -> pd.DataFrame:
+        return pd.DataFrame({"timestamp": [100.0, 200.0, 300.0],
+                             "open": [1, 1, 1], "high": [1, 1, 1],
+                             "low": [1, 1, 1], "close": [1, 1, 1]})
+
+    def test_exact_match_returns_that_bar(self) -> None:
+        bars = self._bars()
+        assert measurement_evidence._find_bar_index(bars, 200.0) == 1
+        assert measurement_evidence._find_bar_index(bars, 100.0) == 0
+
+    def test_off_grid_anchors_on_containing_not_following_bar(self) -> None:
+        bars = self._bars()
+        # 250 fell DURING the bar at 200 -> anchor bar 1 (not the following bar 2),
+        # so the forward slice (anchor+1) begins at bar 2, the first fully-post-event bar.
+        assert measurement_evidence._find_bar_index(bars, 250.0) == 1
+        assert measurement_evidence._find_bar_index(bars, 150.0) == 0
+
+    def test_before_all_bars_keeps_first(self) -> None:
+        # No containing bar exists; keep bar 0 (the outer anchor_idx guard drops it).
+        assert measurement_evidence._find_bar_index(self._bars(), 50.0) == 0
+
+    def test_after_all_bars_is_none(self) -> None:
+        assert measurement_evidence._find_bar_index(self._bars(), 400.0) is None

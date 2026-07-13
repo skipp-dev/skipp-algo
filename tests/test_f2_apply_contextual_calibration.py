@@ -66,6 +66,23 @@ def _make_event(
     }
 
 
+def test_rescore_pair_fails_closed_on_corrupt_ledger(tmp_path: Path) -> None:
+    """A corrupt ledger line must fail the calibration CLOSED (raise), not be
+    silently skipped — a partial corpus can never be graded into a calibration.
+    """
+    from smc_core.event_ledger import EventLedgerSchemaError
+
+    pair_dir = tmp_path / "c" / "2026-04-23" / "AAPL"
+    pair_dir.mkdir(parents=True)
+    ledger = pair_dir / "events_AAPL_5m.jsonl"
+    good = _make_event(event_id="good", family="FVG", predicted_prob=0.6, outcome=True)
+    ledger.write_text(json.dumps(good) + "\n" + "{truncated\n", encoding="utf-8")
+    with pytest.raises(EventLedgerSchemaError):
+        rescore_pair(
+            ledger, global_weights={"FVG": 0.5}, contextual_cal=None, force_global=True,
+        )
+
+
 def test_zero_probability_is_not_collapsed_to_half(tmp_path: Path) -> None:
     """A stored predicted_prob of 0.0 must be re-scored as 0.0, not 0.5.
 

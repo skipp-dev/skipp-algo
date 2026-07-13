@@ -10,7 +10,7 @@
 - **Bug-Klassen-Checkliste:** 40/40 mit Beleg adressiert (10 neue Findings, 30 mit grep-Beleg als clean markiert)
 - **Vier hochfrequente Klassen:**
   - Boundary-Vokabular-Drift (#13–#20): clean — addressed durch PRs #123/#124/#125/#126 (HERO vocab discipline cluster), 12 hero/trust pin tests vorhanden ([tests/test_smc_hero_market_mode.py](../../tests/test_smc_hero_market_mode.py), [tests/test_smc_trust_state.py](../../tests/test_smc_trust_state.py))
-  - Silent-Except (#21–#24): partial — F-2 (siehe M-1 / L-2) workflow `continue-on-error: true` Sites enumeriert (5 hits in [.github/workflows/smc-library-refresh.yml](../../.github/workflows/smc-library-refresh.yml#L165) — davon 1 explizit downstream gegated via `steps.gates.outcome` — + 1 in [.github/workflows/smc-live-newsapi-refresh.yml](../../.github/workflows/smc-live-newsapi-refresh.yml#L106))
+  - Silent-Except (#21–#24): partial — F-2 (siehe M-1 / L-2) workflow `continue-on-error: true` Sites enumeriert (5 hits in [.github/workflows/smc-library-refresh.yml](../../.github/workflows/smc-library-refresh.yml#L165) — davon 1 explizit downstream gegated via `steps.gates.outcome` — + 1 in [.github/workflows/smc-live-news-refresh.yml](../../.github/workflows/smc-live-news-refresh.yml#L106))
   - Atomic-Write (#5–#6): clean — addressed durch PR #90 + PR #124 (call-site pin); 35 atomic-write usages vs 6 raw `to_parquet/to_csv` (alle in expliziter atomic-write Wrapping)
   - SCHEMA_VERSION-Drift (#31, #39): clean — `_SESSION_SCHEMA_VERSION = "2026-04-24.0"` invalidation guard wired in [streamlit_terminal.py#L544](../../streamlit_terminal.py#L544)
 - **Ein neues HIGH-Finding** (H-1) erfüllt Erfolgskriterium der Vier-Klassen-Coverage.

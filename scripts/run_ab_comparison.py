@@ -1041,7 +1041,9 @@ def _load_ledgers_for_dir(
     # Sorted glob keeps order deterministic across filesystems.
     for ledger_path in sorted(benchmark_dir.rglob("events_*.jsonl")):
         rows: list[tuple[str, float, bool]] = []
-        for record in read_event_ledger(ledger_path):
+        # strict=True: a corrupt/off-schema ledger line raises EventLedgerSchemaError
+        # (fail-closed) so a partial corpus is never silently graded into an A/B verdict.
+        for record in read_event_ledger(ledger_path, strict=True):
             family = str(record.get("family", ""))
             if not family:
                 continue

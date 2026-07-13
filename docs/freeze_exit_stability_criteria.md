@@ -132,7 +132,7 @@ ausgeführt wird. Er **bestätigt nur** — er öffnet keine neuen Arbeitspakete
 | 5 | CI auf HEAD grün | `gh run list --workflow CI --limit 1 --json conclusion` | success |
 | 6 | Test-Suite lokal grün | `python -m pytest tests/ -k smc --tb=short -q` | 0 failures |
 | 7 | Kein kritischer Bug | `gh issue list --label critical --state open` | 0 issues |
-| 8 | Branch-Protection-Status | `gh api repos/skippALGO/skipp-algo/rules/branches/main` | Regeln dokumentiert |
+| 8 | Branch-Protection-Status | `gh api repos/skipp-dev/skipp-algo/rules/branches/main` | Regeln dokumentiert |
 
 ### 6.2 Copilot-Prompt für den finalen Check
 

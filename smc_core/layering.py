@@ -434,7 +434,10 @@ def _style_for_orderblock(item: Orderblock, normalized: NormalizedMeta, signals:
                 reasons.append("TECH_BEARISH")
             if normalized["signed_news"] < 0:
                 reasons.append("NEWS_BEARISH")
-    else:
+    # Explicit BEAR branch: an invalid/unknown dir (Literal is not enforced at
+    # runtime on a dataclass) must NOT fall into the short-styling branch — it
+    # stays NEUTRAL/DISCOURAGED, the mirror of an unknown bull.
+    elif item.dir == "BEAR":
         if heat < -0.15:
             bias = "SHORT"
             trade_state = "ALLOWED"

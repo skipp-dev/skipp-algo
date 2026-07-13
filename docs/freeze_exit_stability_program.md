@@ -14,7 +14,7 @@
 |----------|---------|---------|------|
 | smc-library-refresh | schedule | 4×/Tag Mo–Fr (12:30, 14:30, 16:30, 18:30 UTC) | aktiv |
 | smc-deeper-integration-gates | push + schedule | Nightly 03:15 UTC + jeder Push auf main | aktiv |
-| smc-live-newsapi-refresh | schedule | regelmäßig | aktiv |
+| smc-live-news-refresh | schedule | regelmäßig | aktiv |
 | smc-measurement-benchmark | schedule | Samstag 08:00 UTC | **konfiguriert, nie gelaufen** |
 
 ### 1.2 Erforderliche Aktionen
@@ -30,7 +30,7 @@
 
 **Wöchentlich (jeden Montag):**
 
-1. `gh run list --repo skippALGO/skipp-algo --workflow smc-library-refresh --limit 28` prüfen
+1. `gh run list --repo skipp-dev/skipp-algo --workflow smc-library-refresh --limit 28` prüfen
 2. Tages-Aggregation erstellen (Erfolg/Fehler/Quote)
 3. Neue Fehler klassifizieren:
    - **Infrastruktur** (API-Timeout, Runner-Problem) → dokumentieren, kein Gate-Problem

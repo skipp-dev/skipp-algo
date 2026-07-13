@@ -21,12 +21,15 @@ from scripts.smc_sprt_stop_rule import SPRTConfig, terminal_decision
 # ---------------------------------------------------------------------------
 
 
-def test_ab_reader_skips_type_invalid_outcome(tmp_path: Path) -> None:
-    """A string ``outcome`` like "false" must NOT be coerced to True.
-
-    bool("false") is True — the old ``bool(record.get("outcome"))`` would invert
-    the hit-rate. The reader now skips a non-bool outcome instead of mis-counting it.
+def test_ab_reader_fails_closed_on_type_invalid_outcome(tmp_path: Path) -> None:
+    """A string ``outcome`` like "false" is a schema violation the A/B reader must
+    fail CLOSED on. bool("false") is True and would invert the hit-rate; with
+    strict=True the corrupt corpus raises EventLedgerSchemaError (refuse to grade)
+    rather than silently dropping the row — a partial/corrupt corpus must never be
+    graded into an A/B verdict.
     """
+    from smc_core.event_ledger import EventLedgerSchemaError
+
     pair = tmp_path / "AAPL" / "5m"
     pair.mkdir(parents=True)
     rec = {
@@ -38,10 +41,8 @@ def test_ab_reader_skips_type_invalid_outcome(tmp_path: Path) -> None:
     (pair / "events_AAPL_5m.jsonl").write_text(
         json.dumps(good) + "\n" + json.dumps(bad) + "\n", encoding="utf-8"
     )
-    ledgers = _load_ledgers_for_dir(tmp_path)
-    rows = [row for ledger in ledgers for row in ledger]
-    # Only the genuine-bool row is counted; the "false" string row is dropped.
-    assert rows == [("FVG", pytest.approx(0.6), True)]
+    with pytest.raises(EventLedgerSchemaError):
+        _load_ledgers_for_dir(tmp_path)
 
 
 def test_terminal_decision_accepts_h1_on_strong_aggregate() -> None:

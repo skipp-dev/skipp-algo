@@ -129,7 +129,7 @@ The repository now includes a first live-sidecar implementation of this lane:
 - `scripts/smc_live_news_bus.py` provides the provider-neutral polling bus
 - `scripts/export_smc_live_news_snapshot.py` emits a JSON sidecar artifact plus persistent cursor/story state
 - `npm run smc:live-news-snapshot` is the default operator-facing entrypoint
-- `.github/workflows/smc-live-newsapi-refresh.yml` adds a lightweight 5-minute GitHub Actions lane for the NewsAPI.ai snapshot without running the full library generator / Playwright publish stack
+- `.github/workflows/smc-live-news-refresh.yml` adds a lightweight 5-minute GitHub Actions lane for the NewsAPI.ai snapshot without running the full library generator / Playwright publish stack
 
 Manual `workflow_dispatch` runs on that workflow now support three operator knobs:
 

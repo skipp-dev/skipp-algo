@@ -473,3 +473,16 @@ def test_strict_weights_and_directions_pinned() -> None:
 
 def test_default_acceptance_mode_relative_post_promotion() -> None:
     assert DEFAULT_ACCEPTANCE_MODE == "relative"
+
+
+def test_iter_fvg_events_fails_closed_on_corrupt_ledger(tmp_path: Path) -> None:
+    """A corrupt/off-schema ledger line must fail the recalibration CLOSED
+    (raise), not be silently skipped so a partial corpus is graded."""
+    from scripts.fvg_quality_recalibration import iter_fvg_events
+    from smc_core.event_ledger import EventLedgerSchemaError
+
+    path = tmp_path / "events_TEST_15m.jsonl"
+    # Off-schema: a JSON object missing every required field.
+    path.write_text('{"not":"a-valid-record"}\n', encoding="utf-8")
+    with pytest.raises(EventLedgerSchemaError):
+        list(iter_fvg_events([path]))

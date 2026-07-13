@@ -1017,7 +1017,7 @@ def compute_feature_importance(
     Loads JSONL samples from the last ``lookback_days`` days and computes:
       - Pearson correlation between each feature component and the binary
         ``profitable_30m`` outcome.
-      - Mean-separation importance: ``|mean_win − mean_loss| / std_win``
+      - Mean-separation importance: ``|mean_win − mean_loss| / pooled_std``
         per feature, normalized to [0, 1].
 
     Returns a dict with per-feature stats + calibration recommendations.
