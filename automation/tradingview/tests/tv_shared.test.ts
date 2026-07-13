@@ -2062,7 +2062,7 @@ test("indicatorSettingsDialogLocators source stays in lockstep with the snapshot
 // Incident 2026-07-13: the UI-evidence chain verified expected==published==1
 // (both derived from the generator manifest's hardcoded constant), so every
 // consumer repin rewrote imports to the 2026-03 v1 library while TV was at
-// v164. The facade listing is authoritative; these pins keep it that way.
+// v152. The facade PUBLISHED listing is authoritative; these pins keep it that way.
 test("parseFacadeSavedVersion parses facade version strings", () => {
   assert.equal(parseFacadeSavedVersion("164.0"), 164);
   assert.equal(parseFacadeSavedVersion(164), 164);
@@ -2110,5 +2110,20 @@ test("resolvePublishReportState accepts facade_list without expected-version equ
     repoCoreValidationOk: true,
   });
   assert.equal(nullState.publishOk, false);
+});
+
+test("facade version helper queries the PUBLISHED listing, not editor save revisions", () => {
+  const source = fs.readFileSync(
+    path.join(path.dirname(fileURLToPath(import.meta.url)), "..", "lib", "tv_shared.ts"),
+    "utf-8",
+  );
+  // Operator compile proof 2026-07-13: filter=saved counts editor SAVE
+  // revisions (164), while import user/lib/N resolves the PUBLISHED version
+  // (152). The helper must query filter=published.
+  const helperStart = source.indexOf("export async function fetchPublishedLibraryVersionViaFacade");
+  assert.ok(helperStart > 0, "fetchPublishedLibraryVersionViaFacade must exist");
+  const helperSlice = source.slice(helperStart, helperStart + 800);
+  assert.ok(helperSlice.includes("filter=published"), "helper must query filter=published");
+  assert.equal(helperSlice.includes("filter=saved"), false, "helper must not query filter=saved");
 });
 

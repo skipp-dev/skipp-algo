@@ -1337,7 +1337,7 @@ jobs:
           # per-publish-incrementing version. Repinning from it rewrote every
           # consumer to /1 (the 2026-03-23 first publish) on every refresh, so
           # consumers compiled against a 15KB March library while TV was at
-          # v164 — CE10272 "Undeclared identifier" on every modern mp.* symbol.
+          # v152 — CE10272 "Undeclared identifier" on every modern mp.* symbol.
           # Read the REAL published version from the publisher's release
           # manifest instead (written fresh by the publish step this run,
           # facade-verified since the same incident).
