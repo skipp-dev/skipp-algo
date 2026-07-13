@@ -84,7 +84,7 @@ Bewertung:
 
 Belegt durch:
 
-- `.github/workflows/smc-live-newsapi-refresh.yml`
+- `.github/workflows/smc-live-news-refresh.yml`
   exportiert `NEWSAPI_KEY` explizit und erzwingt Nicht-Leere.
 - `.github/workflows/smc-library-refresh.yml`
   setzt denselben Secret-Namen fuer die Library-Generierung.

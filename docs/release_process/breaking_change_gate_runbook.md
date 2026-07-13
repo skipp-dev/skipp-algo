@@ -28,7 +28,7 @@ Commit and push changes -> SKIPPED
 
 ## How the gate decides
 
-`scripts/smc_version_governance.py:124-129` escalates a `MINOR` semver delta
+`scripts/smc_version_governance.py` escalates a `MINOR` semver delta
 to `MAJOR` when **either** of the following is true *without* an explicit
 `SCHEMA_VERSION` MAJOR bump:
 
@@ -36,7 +36,7 @@ to `MAJOR` when **either** of the following is true *without* an explicit
   fields than the committed one
 - `field_version_changed` — the per-field version stamp drifted
 
-`scripts/smc_core/schema_version.py:auto_commit_allowed()` then returns
+`smc_core/schema_version.py:auto_commit_allowed()` then returns
 `False` for `MAJOR`, which is what blocks the publish/commit steps.
 
 ## Decision tree
@@ -44,7 +44,7 @@ to `MAJOR` when **either** of the following is true *without* an explicit
 ```
 Did the field count change between committed and regenerated library?
 ├─ YES → Bump SCHEMA_VERSION MAJOR (X+1.0.0) — see "Resolution: MAJOR" below.
-│       The governance gate (smc_version_governance.py:123) escalates ANY
+│       The governance gate (smc_version_governance.py) escalates ANY
 │       field-count delta — including purely additive ones — to MAJOR
 │       unless SCHEMA_VERSION carries a MAJOR bump. A MINOR bump is NOT
 │       sufficient and will be rejected with
@@ -208,9 +208,9 @@ follow-up to issue [#59](https://github.com/skippALGO/skipp-algo/issues/59).
 
 ## References
 
-- `scripts/smc_version_governance.py:124-129` — escalation logic
+- `scripts/smc_version_governance.py` — escalation logic
 - `smc_core/schema_version.py` — semver policy + `SCHEMA_VERSION` constant
-- `smc_core/schema_version.py:69` — `auto_commit_allowed()`
+- `smc_core/schema_version.py` — `auto_commit_allowed()`
 - `tests/test_smc_version_governance.py` — gate behavior pin tests
 - `tests/test_smc_schema_version_enforcement.py` — enforcement of inline pins
 - `scripts/bump_pine_library_import.sh` — consumer-import bump helper

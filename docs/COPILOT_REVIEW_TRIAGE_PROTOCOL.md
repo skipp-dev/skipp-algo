@@ -28,7 +28,7 @@ mechanical and is described below.
 # `gh api --paginate` concatenates JSON arrays into a stream of separate
 # top-level arrays (NOT a single valid JSON document), so use --slurp to
 # join them into one outer array before json.loads.
-gh api repos/skippALGO/skipp-algo/pulls/<N>/comments --paginate --slurp \
+gh api repos/skipp-dev/skipp-algo/pulls/<N>/comments --paginate --slurp \
   | python3 -c "
 import sys, json
 pages = json.loads(sys.stdin.read(), strict=False)

@@ -119,7 +119,7 @@ EOF
 #    workflows (smc-library-refresh, smc-overlay-library-publish,
 #    smc-release-gates) auto-detect raw JSON or gzip+base64, but the
 #    credential-health-check probe parses the secret as raw JSON only.
-gh secret set TV_STORAGE_STATE --repo skippALGO/skipp-algo \
+gh secret set TV_STORAGE_STATE --repo skipp-dev/skipp-algo \
   < automation/tradingview/auth/storage-state.json
 
 # 5. Verify end-to-end via the daily probe.
