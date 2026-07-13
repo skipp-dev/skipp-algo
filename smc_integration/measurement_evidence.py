@@ -331,6 +331,17 @@ def _to_epoch_seconds(frame: pd.DataFrame) -> pd.DataFrame:
 
 
 def _find_bar_index(bars: pd.DataFrame, event_ts: float) -> int | None:
+    """First bar index whose timestamp is AT-OR-AFTER ``event_ts`` (``>=``).
+
+    Contract: event timestamps are expected to be BAR-ALIGNED (they come from the
+    structure artifact, which stamps events on bar timestamps), so ``>=`` resolves
+    to the exact event bar and the caller's ``anchor_idx + 1`` forward slice starts
+    on the bar strictly after the event. For an OFF-GRID ``event_ts`` (imported /
+    rounded / resampled, falling between two bars) this returns the FOLLOWING bar,
+    so the forward window would begin one bar later than intended. Align event
+    timestamps to bars if that matters; a fail-closed exact-match variant is a
+    deliberate follow-up (it would reject legitimate near-grid events).
+    """
     matches = bars.index[bars["timestamp"].astype(float) >= float(event_ts)].tolist()
     if not matches:
         return None
@@ -943,7 +954,14 @@ def _liquidity_support_for_event(
                 swept_level, sweep_extreme, origin_level = _derive_sweep_trap_geometry(
                     candidate, bars, candidate_idx, is_bullish_sweep=bull_sweep
                 )
-                look_ahead_end = min(anchor_idx, candidate_idx + 14) if candidate_idx is not None else anchor_idx
+                # The anchor bar is a COMPLETED bar in this offline path — its close is
+                # the current reference price (_anchor_reference_price) and it is included
+                # in the lookback (_history_window), so include it in the post-sweep window
+                # too: end = anchor_idx + 1. Otherwise a reclaim ON the anchor bar is missed
+                # until the next anchor. The candidate_idx + 14 cap still bounds the window
+                # to <= 13 post-sweep bars (enough to separate reclaims on bars 1..12 from
+                # "later than 12"), so including the anchor never widens it past that.
+                look_ahead_end = min(anchor_idx + 1, candidate_idx + 14) if candidate_idx is not None else anchor_idx + 1
                 post_bars_df = bars.iloc[candidate_idx + 1 : look_ahead_end] if candidate_idx is not None else bars.iloc[0:0]
                 post_sweep_bars = [
                     {"open": float(r["open"]), "high": float(r["high"]),

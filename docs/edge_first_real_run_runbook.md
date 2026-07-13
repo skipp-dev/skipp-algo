@@ -175,9 +175,11 @@ number above and must be reviewed before any number is acted on:
   the zone midpoint on first retest touch, exit at the close
   `family_outcome_horizon` bars later; level families enter immediately at the
   break/sweep level. Fixed 5 bps round-turn cost. No target/stop optimisation.
-- **Late-touch horizon clamp** — a touch late in the forward window has its exit
-  clamped to the last available bar, shortening the intended hold. Review
-  whether to lengthen the window or drop such trades.
+- **Late-touch without a full horizon is dropped** — if a retest touch lands so
+  late in the forward window that a full `family_outcome_horizon` no longer fits
+  after it, `realized_return` returns `None` and the event is excluded (it is NOT
+  clamped to the last available bar — a truncated hold is never pooled as a
+  full-horizon return). Review whether to lengthen the window to retain more trades.
 - **Adapter lookahead vs. outcome horizon** — forward windows
   (BOS 8 / OB 12 / FVG 20 / SWEEP 8) intentionally differ from the exit horizons
   (BOS 8 / OB 6 / FVG 4 / SWEEP 3).

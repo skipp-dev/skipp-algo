@@ -136,9 +136,13 @@ def _hy_cross_lead_lag(
 
 
 def _bar_index_at_or_after(timestamps: Sequence[float], anchor_ts: float) -> int | None:
-    """First bar index whose timestamp is at-or-after ``anchor_ts``.
+    """First bar index whose timestamp is at-or-after ``anchor_ts`` (``>=``).
 
-    Mirror of ``measurement_evidence._find_bar_index``.
+    Mirror of ``measurement_evidence._find_bar_index`` and shares its contract:
+    anchor timestamps are expected to be BAR-ALIGNED so ``>=`` is an exact match
+    and the forward window (``anchor_idx + 1`` onward) starts on the next bar. An
+    off-grid ``anchor_ts`` between two bars resolves to the FOLLOWING bar, shifting
+    the forward window one bar later — align anchors to bars if that matters.
     """
     target = float(anchor_ts)
     for idx, ts in enumerate(timestamps):
