@@ -66,6 +66,29 @@ def _make_event(
     }
 
 
+def test_zero_probability_is_not_collapsed_to_half(tmp_path: Path) -> None:
+    """A stored predicted_prob of 0.0 must be re-scored as 0.0, not 0.5.
+
+    The old ``float(record.get("predicted_prob", 0.5) or 0.5)`` treated the
+    valid probability 0.0 (falsy) as missing and turned a real 0% signal into a
+    coin flip. With a neutral weight (0.5) blend_prob is the identity on the base
+    prob (then clamped to the probability floor), so a stored 0.0 must re-score to
+    the low floor — decisively NOT 0.5, which is exactly what the bug produced.
+    """
+    pair_dir = tmp_path / "z" / "2026-04-23" / "AAPL"
+    _write_ledger(
+        pair_dir, symbol="AAPL", timeframe="5m",
+        events=[_make_event(event_id="zero", family="FVG", predicted_prob=0.0, outcome=False)],
+    )
+    ledger_path = pair_dir / "events_AAPL_5m.jsonl"
+    control, _ = rescore_pair(
+        ledger_path, global_weights={"FVG": 0.5}, contextual_cal=None, force_global=True,
+    )
+    rescored = control.events[0].predicted_prob
+    assert rescored < 0.1  # reflects the stored 0.0 (floored), not the 0.5 coin flip
+    assert rescored != pytest.approx(0.5)
+
+
 def _build_control_dir(tmp_path: Path, n_events: int = 50) -> Path:
     """Two pairs × n_events events with deterministic outcomes."""
     rng = random.Random(42)

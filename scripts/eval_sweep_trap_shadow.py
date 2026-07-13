@@ -81,8 +81,11 @@ def _read_events_from_dir(benchmark_dir: Path) -> list[dict[str, Any]]:
     from smc_core.event_ledger import read_event_ledger
 
     events: list[dict[str, Any]] = []
+    # strict=True: an off-schema / malformed line raises EventLedgerSchemaError
+    # (a ValueError), caught by main()'s fail-closed handler — the shadow verdict
+    # is never graded from a partial or corrupt event corpus.
     for path in sorted(glob.glob(str(benchmark_dir / "*" / "*" / "events_*.jsonl"))):
-        events.extend(read_event_ledger(Path(path)))
+        events.extend(read_event_ledger(Path(path), strict=True))
     return events
 
 
