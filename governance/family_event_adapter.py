@@ -66,14 +66,15 @@ from governance.family_vrvp_v2 import (
     vrvp_vpoc_distance_at,
 )
 from governance.types import EventFamily
+from smc_core.label_horizons import LABEL_HORIZON_BARS
 
-# Lookahead windows, mirrored from
-# ``smc_integration.measurement_evidence`` so the forward bars handed to the
-# return calculator match exactly what the live scorer observes.
-_BOS_LOOKAHEAD_BARS = 8
-_ZONE_LOOKAHEAD_BARS = 12
-_FVG_LOOKAHEAD_BARS = 20
-_SWEEP_LOOKAHEAD_BARS = 8
+# Lookahead windows sourced from the shared SSOT (``smc_core.label_horizons``),
+# so the forward bars handed to the return calculator match exactly what the
+# measurement labels resolve over — no third copy to drift.
+_BOS_LOOKAHEAD_BARS = LABEL_HORIZON_BARS["BOS"]
+_ZONE_LOOKAHEAD_BARS = LABEL_HORIZON_BARS["OB"]
+_FVG_LOOKAHEAD_BARS = LABEL_HORIZON_BARS["FVG"]
+_SWEEP_LOOKAHEAD_BARS = LABEL_HORIZON_BARS["SWEEP"]
 
 # Raw-structure container keys (Pine ingest / explicit recompute share these).
 _BOS_KEY = "bos"

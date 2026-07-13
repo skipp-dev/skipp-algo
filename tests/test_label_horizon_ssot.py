@@ -10,6 +10,18 @@ from __future__ import annotations
 
 import pytest
 
+from governance.family_event_adapter import (
+    _BOS_LOOKAHEAD_BARS as _ADAPTER_BOS,
+)
+from governance.family_event_adapter import (
+    _FVG_LOOKAHEAD_BARS as _ADAPTER_FVG,
+)
+from governance.family_event_adapter import (
+    _SWEEP_LOOKAHEAD_BARS as _ADAPTER_SWEEP,
+)
+from governance.family_event_adapter import (
+    _ZONE_LOOKAHEAD_BARS as _ADAPTER_ZONE,
+)
 from governance.family_walkforward import family_outcome_horizon, get_family_config
 from smc_core.label_horizons import LABEL_HORIZON_BARS, label_horizon_bars
 from smc_integration.measurement_evidence import (
@@ -27,6 +39,12 @@ _MEASUREMENT_LABEL_WINDOW = {
     "FVG": _FVG_LOOKAHEAD_BARS,
     "SWEEP": _SWEEP_LOOKAHEAD_BARS,
 }
+_ADAPTER_FORWARD_WINDOW = {
+    "BOS": _ADAPTER_BOS,
+    "OB": _ADAPTER_ZONE,
+    "FVG": _ADAPTER_FVG,
+    "SWEEP": _ADAPTER_SWEEP,
+}
 
 
 def test_ssot_values_are_the_pinned_windows() -> None:
@@ -36,6 +54,13 @@ def test_ssot_values_are_the_pinned_windows() -> None:
 @pytest.mark.parametrize("family", sorted(_EXPECTED))
 def test_measurement_labels_match_ssot(family: str) -> None:
     assert _MEASUREMENT_LABEL_WINDOW[family] == LABEL_HORIZON_BARS[family]
+
+
+@pytest.mark.parametrize("family", sorted(_EXPECTED))
+def test_adapter_forward_window_matches_ssot(family: str) -> None:
+    # The third copy: family_event_adapter's forward window must equal the SSOT
+    # so realized_return sees the same window the measurement labels resolve over.
+    assert _ADAPTER_FORWARD_WINDOW[family] == LABEL_HORIZON_BARS[family]
 
 
 @pytest.mark.parametrize("family", sorted(_EXPECTED))
