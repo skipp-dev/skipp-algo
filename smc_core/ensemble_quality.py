@@ -24,6 +24,10 @@ class EnsembleQualityResult:
     generated_at: float = field(default_factory=time.time)
     score: float = 0.0
     tier: QualityTier = "low"
+    # NB: despite the name, this lists the CONTRIBUTING components (weight > 0 and a
+    # non-None value), not merely the ones supplied — an input present but
+    # weight-suppressed is absent here. (Public artifact field; a ``contributing_
+    # components`` alias would be the honest rename — see export_ensemble_quality_artifact.)
     available_components: list[str] = field(default_factory=list)
     weights: dict[str, float] = field(default_factory=dict)
     contributions: dict[str, dict[str, Any]] = field(default_factory=dict)

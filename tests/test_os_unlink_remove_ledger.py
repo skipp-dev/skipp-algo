@@ -173,7 +173,7 @@ OS_DELETE_LEDGER: set[tuple[str, int, str]] = {
     ("open_prep/scorer.py", 156, "unlink"),
     ("open_prep/watchlist.py", 74, "unlink"),
     ("smc_core/benchmark.py", 39, "unlink"),
-    ("smc_core/ensemble_quality.py", 58, "unlink"),
+    ("smc_core/ensemble_quality.py", 62, "unlink"),  # 2026-07-13 doc truth-fix comments shifted (58->62)
     ("smc_core/event_ledger.py", 180, "unlink"),  # 2026-07-13 schema-v1.1: label relocation shifted (163->180)
     ("smc_core/scoring.py", 1267, "unlink"),  # 2026-07-13 (normalize_sweep_side + calibration-honesty docstrings): 1225->1267
     ("smc_integration/batch.py", 35, "unlink"),

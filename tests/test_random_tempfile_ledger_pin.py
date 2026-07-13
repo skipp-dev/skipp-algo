@@ -124,9 +124,9 @@ _TEMPFILE_LEDGER: frozenset[tuple[str, int, str]] = frozenset({
     ("open_prep/realtime_signals.py", 3302, "mkstemp"),  # 2026-07-12 review-fix _in_market_hours cache: 3300->3302
     ("open_prep/watchlist.py", 63, "mkstemp"),
     ("smc_core/benchmark.py", 30, "mkstemp"),
-    ("smc_core/ensemble_quality.py", 49, "mkstemp"),
+    ("smc_core/ensemble_quality.py", 53, "mkstemp"),  # 2026-07-13 doc truth-fix comments shifted (49->53)
     ("smc_core/event_ledger.py", 160, "mkstemp"),  # 2026-07-13 schema-v1.1: label relocation shifted (143->160)
-    ("smc_core/inference/null_cache.py", 96, "mkstemp"),
+    ("smc_core/inference/null_cache.py", 105, "mkstemp"),  # 2026-07-13 seed-key/unwired docstring shifted (96->105)
     ("smc_core/scoring.py", 1258, "mkstemp"),  # 2026-07-13 (normalize_sweep_side + calibration-honesty docstrings): 1216->1258
     ("smc_integration/batch.py", 26, "mkstemp"),
     ("smc_integration/provider_health.py", 60, "mkstemp"),

@@ -8,8 +8,17 @@ keyed by an opaque ``CacheKey`` to a Parquet-equivalent JSON shard
 
 The cache is intentionally additive — invalidation happens by changing
 the ``dataset_fingerprint`` field, which the X3 run-manifest provides.
-Stale entries do no harm because the cache key includes everything that
-could change the null distribution.
+The key covers the fields that define the null *distribution* (family,
+regime, dataset_fingerprint, n_perms, block_size, statistic_name). The RNG
+``seed`` is deliberately EXCLUDED: two seeds draw different realized arrays
+of the same distribution, treated as exchangeable, so a cache hit returns a
+valid draw rather than the identical one. (``alternative`` is carried for
+p-value tallying but does not change the null distribution.)
+
+NOTE: this cache is a PREPARED component — it is not yet wired into
+:func:`smc_core.inference.permutation.block_permutation_test`, which always
+recomputes. Wire it at that callsite (or drop the module) before relying on
+the CI speedup described above.
 
 Roadmap: docs/IMPROVEMENTS_C2_C12_ROADMAP_2026-04-26.md#c41
 """
