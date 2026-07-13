@@ -31,8 +31,9 @@ ROOT = Path(__file__).resolve().parent.parent
 # Each entry is (relative_path, line_number, attribute_name).
 HMAC_ALLOWED: set[tuple[str, int, str]] = {
     # TradersPost webhook payload signing (HMAC-SHA256). Line shifted
-    # 765 → 769 (deep-audit fallback-buffer lock refresh).
-    ("terminal_export.py", 769, "new"),
+    # 765 → 769 (deep-audit fallback-buffer lock refresh) → 766
+    # (2026-07-13 ledger reconcile: _sign_payload unchanged, upstream edits shifted it).
+    ("terminal_export.py", 766, "new"),
     ("terminal_auth.py", 30, "compare_digest"),
     # 2026-06-16 (feat/live-overlay-daemon, PR #2794): token auth in FastAPI
     # endpoint uses hmac.compare_digest for constant-time comparison.
@@ -51,9 +52,18 @@ HMAC_ALLOWED: set[tuple[str, int, str]] = {
     # bearer-token compare sites 968/999 → 1160/1192 and the daemon HMAC compare
     # 451 → 457. (This ledger is NOT in the fast-gates set, so it had drifted red
     # on main unnoticed.)
-    ("open_prep/realtime_signals.py", 1160, "compare_digest"),
-    ("open_prep/realtime_signals.py", 1192, "compare_digest"),
+    # 2026-07-13 (ledger reconcile): the two realtime /signals bearer-token compare
+    # sites shifted again 1160/1192 → 1172/1204 (unchanged constant-time checks,
+    # each guarded by `if _auth_token:`); main.py compare unchanged at 457.
+    ("open_prep/realtime_signals.py", 1172, "compare_digest"),
+    ("open_prep/realtime_signals.py", 1204, "compare_digest"),
     ("services/live_overlay_daemon/main.py", 457, "compare_digest"),
+    # 2026-07-13 (security review): Composio ChatOps webhook token check. Constant-
+    # time compare of the URL-path token vs COMPOSIO_CHATOPS_WEBHOOK_TOKEN; the
+    # endpoint raises 503 when the secret is unset (no empty-secret bypass) and 401
+    # on mismatch. Added when the Composio-ops webhook landed without updating this
+    # (ungated) ledger.
+    ("services/live_overlay_daemon/composio_chatops.py", 133, "compare_digest"),
 }
 
 _DIR_EXCLUDE = {
