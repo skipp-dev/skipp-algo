@@ -22,7 +22,17 @@ early confirmation *predicts* later follow-through, split by bull/bear.
 For each (variant, direction) it reports the confusion split — base rate,
 P(outcome | confirmed), P(outcome | not confirmed) and their difference (``lift``)
 — plus a per-direction ``best_variant`` and a promotion verdict gated on sample
-size and a positive lift. This is OBSERVE-ONLY: nothing here changes any score.
+size (total AND ``MIN_CELL_SAMPLES`` in BOTH confusion cells) and a positive lift.
+This is OBSERVE-ONLY: nothing here changes any score.
+
+Statistical caveat (why ``PROMOTABLE`` is a *candidate*, not a validated pick):
+``best_variant`` is the max observed lift over six parallel comparisons (3 variants
+x 2 directions) with NO multiple-testing correction and no separate
+selection/validation split, and ``lift`` carries no confidence interval. A
+``PROMOTABLE`` here means "worth a powered follow-up" — the FDR/family-wise
+correction and an out-of-sample confirmation fold are deliberately downstream.
+Records whose disjoint late window has not resolved to a real boolean
+``reaction_outcome_late`` are dropped as not-yet-gradeable (never counted as a miss).
 
 Exit codes: 0 = wrote/updated the snapshot; 5 = no reaction samples yet (appends
 nothing); 1 = usage/read error. The ledger read fails CLOSED on corruption.
@@ -40,6 +50,10 @@ from scripts.smc_atomic_write import atomic_write_json
 
 DEFAULT_SNAPSHOT = "artifacts/monitoring/reaction_zone_shadow.json"
 MIN_SAMPLES = 40
+# Floor on BOTH confusion cells (confirmed / not-confirmed) before a PROMOTABLE
+# verdict. Without it a lopsided split (e.g. 1 confirmed vs 39 not) lets a single
+# event set p_outcome_if_confirmed to 0/1 and manufacture a large, meaningless lift.
+MIN_CELL_SAMPLES = 10
 LIFT_PROMOTE_THRESHOLD = 0.05
 VARIANTS = ("old_band", "level_cross", "mirrored_band")
 DIRECTIONS = ("bull", "bear")
@@ -75,8 +89,10 @@ def collect_samples(events: list[dict[str, Any]]) -> list[tuple[str, dict[str, b
         variants = derive_variants(feats)
         if variants is None:
             continue
-        outcome = 1 if feats.get("reaction_outcome_late") else 0
-        out.append((direction, variants, outcome))
+        late = feats.get("reaction_outcome_late")
+        if not isinstance(late, bool):
+            continue  # unresolved/malformed late window is not gradeable -> never a silent miss
+        out.append((direction, variants, 1 if late else 0))
     return out
 
 
@@ -107,10 +123,17 @@ def evaluate_variant(pairs: list[tuple[bool, int]]) -> dict[str, Any]:
     }
 
 
-def _verdict(n: int, lift: float | None) -> str:
+def _verdict(n: int, n_confirmed: int, n_not_confirmed: int, lift: float | None) -> str:
     if n < MIN_SAMPLES:
         return "INCONCLUSIVE"
-    if lift is not None and lift > LIFT_PROMOTE_THRESHOLD:
+    # A positive lift promotes only when BOTH confusion cells clear the floor;
+    # otherwise a single-sample cell can fabricate the effect (MIN_CELL_SAMPLES).
+    if (
+        lift is not None
+        and lift > LIFT_PROMOTE_THRESHOLD
+        and n_confirmed >= MIN_CELL_SAMPLES
+        and n_not_confirmed >= MIN_CELL_SAMPLES
+    ):
         return "PROMOTABLE"
     return "SHADOW"
 
@@ -124,7 +147,10 @@ def evaluate(events: list[dict[str, Any]]) -> dict[str, Any]:
         for variant in VARIANTS:
             pairs = [(v[variant], o) for v, o in dir_samples]
             metrics = evaluate_variant(pairs)
-            metrics["verdict"] = _verdict(metrics["n"], metrics["lift"])
+            metrics["verdict"] = _verdict(
+                metrics["n"], metrics["n_confirmed"],
+                metrics["n"] - metrics["n_confirmed"], metrics["lift"],
+            )
             variants_out[variant] = metrics
         # Best variant = highest lift among those with a defined lift.
         ranked = [(k, m["lift"]) for k, m in variants_out.items() if m["lift"] is not None]

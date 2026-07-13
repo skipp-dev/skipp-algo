@@ -5,7 +5,9 @@ from typing import Any
 
 from scripts.eval_reaction_zone_shadow import (
     LIFT_PROMOTE_THRESHOLD,
+    MIN_CELL_SAMPLES,
     MIN_SAMPLES,
+    _verdict,
     collect_samples,
     derive_variants,
     evaluate,
@@ -90,3 +92,71 @@ def test_evaluate_ranks_level_cross_over_old_band() -> None:
 def test_thresholds_are_sane() -> None:
     assert MIN_SAMPLES >= 20
     assert 0.0 < LIFT_PROMOTE_THRESHOLD < 1.0
+    assert MIN_CELL_SAMPLES >= 1
+
+
+# ── gradeable-outcome guard: an unresolved late window is NOT a silent miss ────
+def _reaction_feats(**overrides: Any) -> dict[str, Any]:
+    feats: dict[str, Any] = {
+        "reaction_schema_version": 1,
+        "reaction_direction": "bull",
+        "reaction_level_reclaimed": True,
+        "reaction_in_rejection_band": False,
+        "reaction_close_distance_pct": 0.2,
+        "reaction_band_width_pct": 0.7,
+        "reaction_outcome_late": True,
+    }
+    feats.update(overrides)
+    return {"family": "SWEEP", "features": feats}
+
+
+def test_missing_late_outcome_is_dropped_not_counted_as_miss() -> None:
+    ev = _reaction_feats()
+    del ev["features"]["reaction_outcome_late"]  # unresolved late window
+    assert collect_samples([ev]) == []  # excluded, never outcome=0
+
+
+def test_non_bool_late_outcome_is_dropped() -> None:
+    # A truthy non-bool (e.g. a "pending" sentinel) must not be read as outcome=1.
+    assert collect_samples([_reaction_feats(reaction_outcome_late="pending")]) == []
+    assert collect_samples([_reaction_feats(reaction_outcome_late=None)]) == []
+    assert collect_samples([_reaction_feats(reaction_outcome_late=1)]) == []  # int, not bool
+
+
+def test_real_bool_late_outcome_is_kept() -> None:
+    out = collect_samples([
+        _reaction_feats(reaction_outcome_late=True),
+        _reaction_feats(reaction_outcome_late=False),
+    ])
+    assert [o for _, _, o in out] == [1, 0]
+
+
+# ── cell-size floor: a lopsided split cannot manufacture a PROMOTABLE verdict ──
+def test_verdict_lopsided_cell_cannot_promote() -> None:
+    n = MIN_SAMPLES
+    # Huge lift but only one confirmed sample → not promotable.
+    assert _verdict(n, 1, n - 1, 0.9) == "SHADOW"
+    # Symmetric: only one not-confirmed sample.
+    assert _verdict(n, n - 1, 1, 0.9) == "SHADOW"
+
+
+def test_verdict_balanced_cells_with_lift_promote() -> None:
+    n = MIN_SAMPLES
+    assert _verdict(n, MIN_CELL_SAMPLES, n - MIN_CELL_SAMPLES, 0.2) == "PROMOTABLE"
+
+
+def test_verdict_below_min_samples_is_inconclusive() -> None:
+    assert _verdict(MIN_SAMPLES - 1, 15, 15, 0.9) == "INCONCLUSIVE"
+
+
+def test_single_confirmed_hit_does_not_manufacture_promotion_end_to_end() -> None:
+    # 1 confirmed reclaim that hit + (MIN_SAMPLES-1) not-confirmed that missed:
+    # raw lift is 1.0, but the confirmed cell has a single sample → stays SHADOW.
+    events = [_event(direction="bull", reclaimed=True, in_band=False,
+                     dist=0.3, width=0.7, outcome_late=True)]
+    events += [_event(direction="bull", reclaimed=False, in_band=True,
+                      dist=0.0, width=0.7, outcome_late=False) for _ in range(MIN_SAMPLES - 1)]
+    lc = evaluate(events)["by_direction"]["bull"]["variants"]["level_cross"]
+    assert lc["n"] >= MIN_SAMPLES and lc["n_confirmed"] == 1
+    assert lc["lift"] == 1.0  # the effect looks huge...
+    assert lc["verdict"] == "SHADOW"  # ...but the single-sample cell blocks promotion
