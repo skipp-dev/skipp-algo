@@ -35,6 +35,7 @@ from smc_core.types import SmcSnapshot
 from smc_core.vol_regime import compute_vol_regime
 from smc_integration.measurement_evidence import build_measurement_evidence
 from smc_integration.sources import structure_artifact_json
+from smc_integration.timeframes import is_daily_timeframe
 
 from .repo_sources import (
     discover_composite_source_plan,
@@ -296,7 +297,11 @@ def _load_symbol_bars_for_context(symbol: str, timeframe: str) -> pd.DataFrame:
     symbol_name = str(symbol).strip().upper()
     tf = str(timeframe).strip()
 
-    if tf == "1D":
+    # Use the shared daily predicate, not an inline ``tf == "1D"``: the latter
+    # silently fails for ``"1d"`` / ``"D"`` / ``"daily"`` and would fall through to
+    # the intraday branch below, building the DAILY vol-regime/bias/ensemble context
+    # from per-second intraday bars (the exact hole ``timeframes`` exists to close).
+    if is_daily_timeframe(tf):
         daily = frames.get("daily_bars")
         if isinstance(daily, pd.DataFrame) and not daily.empty:
             bars = daily.copy()

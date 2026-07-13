@@ -899,7 +899,7 @@ def assess_measurement_shadow_degradations(
                 "current_value": round(current_calibrated_brier, 6),
                 "threshold_value": round(effective_calibrated_brier_threshold, 6),
                 "detail": (
-                    f"calibrated_brier_score {current_calibrated_brier:.6f} exceeds warn threshold "
+                    f"calibrated_brier_score {current_calibrated_brier:.6f} exceeds hard-block ceiling "
                     f"{effective_calibrated_brier_threshold:.6f}"
                 ),
             }
@@ -931,7 +931,7 @@ def assess_measurement_shadow_degradations(
                 "recalibration_required": True,
                 "recommended_action": "recalibrate",
                 "detail": (
-                    f"calibrated_ece {current_calibrated_ece:.6f} exceeds warn threshold "
+                    f"calibrated_ece {current_calibrated_ece:.6f} exceeds hard-block ceiling "
                     f"{effective_calibrated_ece_threshold:.6f} at n_events="
                     f"{current_events} (>= eligibility floor "
                     f"{resolved.min_events_for_calibrated_thresholds}) — "
