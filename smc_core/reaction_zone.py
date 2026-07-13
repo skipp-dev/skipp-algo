@@ -22,9 +22,16 @@ Three DISTINCT reclaim-related thresholds live in this subsystem — do not conf
   * :func:`smc_core.scoring.label_sweep_reversal`'s OUTCOME, which additionally
     requires ~0.5% follow-through past the level (``threshold_pct`` default).
 
-Both are recorded raw; neither gates live scoring (Phase C is observe-only and
-gated behind ``ENABLE_REACTION_ZONE``). The follow-up study will compare the two
-signals' follow-through predictive power on a leakage-free window.
+Both are recorded raw; neither gates live scoring (Phase C is observe-only). The
+gate contract differs by CONSUMER, so ``ENABLE_REACTION_ZONE`` alone is not the
+whole story:
+  * the ledger-emission path (``measurement_evidence._evaluate_sweep_event``) runs
+    on ``ENABLE_REACTION_ZONE`` alone;
+  * the liquidity-enrichment path (``measurement_evidence._liquidity_support_for_event``)
+    computes it only when ``ENABLE_SWEEP_TRAP`` is ALSO on — it is nested inside the
+    Phase B block, so with reaction-zone on but sweep-trap off it never runs there.
+The follow-up study will compare the two signals' follow-through predictive power on
+a leakage-free window.
 """
 
 from __future__ import annotations
@@ -57,7 +64,7 @@ class ReactionZone:
     # Level reclaim (the authoritative reversal confirmation).
     level_reclaimed: bool
     bars_to_reclaim: int
-    close_distance_pct: float  # signed: >0 = closed past the level in the reversal direction
+    close_distance_pct: float  # non-negative reclaim distance: 0.0 pre-reclaim, >0 past the level (rename->reclaim_distance_pct pending)
     body_ratio: float  # |close-open| / range at the reclaim bar
     directional_body: bool  # reclaim bar body in the reversal direction
     rejection_wick_ratio: float  # swept-side wick at the reclaim bar (bull: lower, bear: upper)
@@ -82,12 +89,14 @@ def compute_reaction_zone(
     reversal direction (unbounded — a strong reclaim counts). ``close_in_rejection
     _band`` fires on the first close inside the HALF-OPEN band ``[swept_level - w,
     swept_level)`` (bull) / ``(swept_level, swept_level + w]`` (bear), ``w = 0.382
-    * sweep body`` — a recovery that stopped short of the level (observation only,
-    not a reclaim). A close exactly on ``swept_level`` is excluded from the band
-    (it is a reclaim), keeping the two signals disjoint.
+    * sweep penetration`` where the penetration is ``|swept_level - sweep_extreme|``
+    (the level→extreme excursion, NOT the sweep candle's open-close body, which is
+    not available here) — a recovery that stopped short of the level (observation
+    only, not a reclaim). A close exactly on ``swept_level`` is excluded from the
+    band (it is a reclaim), keeping the two signals disjoint.
     """
-    sweep_body: float = abs(swept_level - sweep_extreme)
-    band_width: float = sweep_body * ZONE_WIDTH_FRACTION if sweep_body > 1e-10 else 0.0
+    sweep_penetration: float = abs(swept_level - sweep_extreme)
+    band_width: float = sweep_penetration * ZONE_WIDTH_FRACTION if sweep_penetration > 1e-10 else 0.0
 
     if is_bullish_sweep:
         band_low: float = swept_level - band_width
@@ -129,7 +138,9 @@ def compute_reaction_zone(
             close_distance_pct = (raw_dist / swept_level * 100.0) if swept_level > 1e-10 else 0.0
             candle_range: float = high - low
             if candle_range < 1e-10:
-                body_ratio = 1.0
+                # Zero-range (flat) candle: |close-open| is 0, so there is no body
+                # and no wick. 1.0 would falsely signal maximum body quality.
+                body_ratio = 0.0
                 rejection_wick_ratio = 0.0
             else:
                 body_ratio = abs(close - open_) / candle_range
