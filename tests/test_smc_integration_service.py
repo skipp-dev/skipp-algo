@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import pandas as pd
+import pytest
 
 from smc_integration import service
 
@@ -39,6 +40,28 @@ def test_load_symbol_bars_for_context_normalizes_daily_trade_dates_to_epoch_seco
 
     assert bars["timestamp"].tolist() == [1775779200, 1775865600]
     assert bars["symbol"].tolist() == ["AAPL", "AAPL"]
+
+
+@pytest.mark.parametrize("daily_alias", ["1d", "D", "daily", " 1D ", "1DAY"])
+def test_load_symbol_bars_for_context_routes_daily_aliases_to_daily_bars(monkeypatch, daily_alias) -> None:
+    # Regression: an inline ``tf == "1D"`` skipped non-canonical daily casing
+    # ("1d"/"D"/"daily") and fell through to the intraday branch, building the
+    # DAILY context from per-second bars. With ONLY daily_bars present, the old
+    # code returned EMPTY for these aliases; is_daily_timeframe routes them right.
+    bundle = {
+        "frames": {
+            "daily_bars": pd.DataFrame(
+                [{"symbol": "AAPL", "trade_date": "2026-04-10", "open": 100.0,
+                  "high": 101.0, "low": 99.5, "close": 100.5, "volume": 1000}]
+            )
+        }
+    }
+    monkeypatch.setattr(service, "load_export_bundle", lambda *args, **kwargs: bundle)
+
+    bars = service._load_symbol_bars_for_context("AAPL", daily_alias)
+
+    assert bars["timestamp"].tolist() == [1775779200]  # daily branch taken, not empty
+    assert bars["symbol"].tolist() == ["AAPL"]
 
 
 def test_load_symbol_bars_for_context_resamples_intraday_seconds_to_timeframe(monkeypatch) -> None:
