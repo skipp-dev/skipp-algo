@@ -136,6 +136,27 @@ class TestShadowObserve:
         assert on.predicted_prob == off.predicted_prob
         assert on.raw_score == off.raw_score
 
+    def test_missing_side_is_fail_closed_to_none(self) -> None:
+        """A sweep event without a canonical side must be skipped, not evaluated
+        as a bullish SELL_SIDE sweep (fail-closed)."""
+        bars = _bull_sweep_bars()
+        event = {k: v for k, v in _event().items() if k != "side"}  # no side
+        result = _evaluate_sweep_event(
+            event, bars,
+            bias_direction="BULLISH", bias_confidence=0.6,
+            event_context={"session": "NY_AM"},
+        )
+        assert result is None
+
+    def test_unknown_side_is_fail_closed_to_none(self) -> None:
+        bars = _bull_sweep_bars()
+        result = _evaluate_sweep_event(
+            {**_event(), "side": "GARBAGE"}, bars,
+            bias_direction="BULLISH", bias_confidence=0.6,
+            event_context={"session": "NY_AM"},
+        )
+        assert result is None
+
 
 class TestWS1LiquiditySupportWiring:
     def test_liquidity_support_runs_classifier_when_flag_on(self) -> None:

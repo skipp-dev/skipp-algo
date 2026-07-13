@@ -965,7 +965,9 @@ def _liquidity_support_for_event(
         if candidate_idx is None or candidate_idx > anchor_idx:
             continue
         age_bars = max(anchor_idx - candidate_idx, 0)
-        side = str(candidate.get("side", "SELL_SIDE")).strip().upper()
+        # No SELL_SIDE default: a missing side is ambiguous and must fall through
+        # to the `else: continue` skip below, not be treated as a bullish sweep.
+        side = str(candidate.get("side", "")).strip().upper()
         if side == "SELL_SIDE":
             bull_sweep = True
             bear_sweep = False
@@ -1534,8 +1536,12 @@ def _evaluate_sweep_event(
 ) -> tuple[dict[str, Any], ScoredEvent] | None:
     price = float(event.get("price", 0.0) or 0.0)
     anchor_ts = float(event.get("time", event.get("anchor_ts", 0.0)) or 0.0)
-    side = str(event.get("side", "SELL_SIDE")).upper()
-    if price <= 0 or anchor_ts <= 0:
+    # No SELL_SIDE default: this side drives the outcome label, the invalidation
+    # branch, the MAE/MFE direction and is_bullish geometry. A missing/unknown
+    # side (normalize_sweep_side -> "NEUTRAL") is fail-closed to a skip rather
+    # than silently evaluated as a bullish SELL_SIDE sweep.
+    side = str(event.get("side", "")).upper()
+    if price <= 0 or anchor_ts <= 0 or normalize_sweep_side(side) == "NEUTRAL":
         return None
 
     anchor_idx = _find_bar_index(bars, anchor_ts)

@@ -249,6 +249,12 @@ def detect_reaction_zone(enrichment: dict[str, Any] | None = None) -> dict[str, 
     elif last_event in ("BOS_BEAR", "CHOCH_BEAR"):
         direction = "bear"
 
+    # No resolved side (no OB/FVG/sweep/structure direction) -> not a detection.
+    # A "detected" zone with a neutral direction is not actionable evidence and
+    # must not be emitted with the (misaligned) default confidence.
+    if direction == "neutral":
+        return neutral
+
     bias_aligned = (
         (direction == "bull" and session_bias == "BULLISH")
         or (direction == "bear" and session_bias == "BEARISH")
