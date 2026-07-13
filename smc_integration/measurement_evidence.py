@@ -1821,6 +1821,42 @@ def build_measurement_evidence(symbol: str, timeframe: str) -> MeasurementEviden
     details["measurement_evidence_present"] = True
     skipped_counts = {family: 0 for family in _FAMILIES}
 
+    # Point-in-time context: each event is scored/stratified with ONLY the bias
+    # and vol-regime observable AT ITS ANCHOR BAR (``resampled_bars[:anchor_idx
+    # +1]``), never the single end-of-sample verdict computed above. Applying the
+    # end-of-sample bias/vol to earlier events leaks future information into
+    # predicted_prob, the context strata and raw_score (audit 2026-07-13). The
+    # end-of-sample values stay in ``details`` as a run-level summary only.
+    # Cached per anchor index so events sharing a bar recompute once.
+    _pit_cache: dict[int, tuple[Any, Any]] = {}
+    _neutral_bias = merge_bias(None, None)
+    # Run-level (end-of-sample) verdict, kept for the aggregate ensemble summary
+    # below; the per-event loops rebind bias_verdict/vol_regime to point-in-time.
+    run_bias_verdict, run_vol_regime = bias_verdict, vol_regime
+
+    def _point_in_time_context(anchor_idx: int | None) -> tuple[Any, Any]:
+        if anchor_idx is None or anchor_idx < 0:
+            # Cannot localize the event -> neutral, never the end-of-sample verdict.
+            return _neutral_bias, compute_vol_regime(resampled_bars.iloc[:0])
+        cached = _pit_cache.get(anchor_idx)
+        if cached is not None:
+            return cached
+        slice_bars = resampled_bars.iloc[: anchor_idx + 1]
+        try:
+            pit_session = build_session_liquidity_context(slice_bars, tz="America/New_York")
+        except Exception:
+            pit_session = {}
+        try:
+            pit_htf = build_htf_bias_context(slice_bars, timeframe=timeframe, htf_frames=None)
+        except Exception:
+            pit_htf = {}
+        result = (
+            merge_bias(pit_htf or None, pit_session or None),
+            compute_vol_regime(slice_bars),
+        )
+        _pit_cache[anchor_idx] = result
+        return result
+
     for event in effective_structure["bos"]:
         evaluated = _evaluate_bos_event(event, resampled_bars)
         if evaluated is None:
@@ -1829,6 +1865,8 @@ def build_measurement_evidence(symbol: str, timeframe: str) -> MeasurementEviden
         events_by_family["BOS"].append(evaluated)
         anchor_ts = float(event.get("time", event.get("anchor_ts", 0.0)) or 0.0)
         anchor_idx = _find_bar_index(resampled_bars, anchor_ts)
+        # Point-in-time: rebind to the bias/vol observable at this event's anchor.
+        bias_verdict, vol_regime = _point_in_time_context(anchor_idx)
         event_context = _scored_event_context(
             anchor_ts,
             timeframe,
@@ -1877,6 +1915,8 @@ def build_measurement_evidence(symbol: str, timeframe: str) -> MeasurementEviden
         events_by_family["OB"].append(evaluated)
         anchor_ts = float(event.get("anchor_ts", event.get("time", 0.0)) or 0.0)
         anchor_idx = _find_bar_index(resampled_bars, anchor_ts)
+        # Point-in-time: rebind to the bias/vol observable at this event's anchor.
+        bias_verdict, vol_regime = _point_in_time_context(anchor_idx)
         event_context = _scored_event_context(
             anchor_ts,
             timeframe,
@@ -1931,6 +1971,8 @@ def build_measurement_evidence(symbol: str, timeframe: str) -> MeasurementEviden
         events_by_family["FVG"].append(evaluated)
         anchor_ts = float(event.get("anchor_ts", event.get("time", 0.0)) or 0.0)
         anchor_idx = _find_bar_index(resampled_bars, anchor_ts)
+        # Point-in-time: rebind to the bias/vol observable at this event's anchor.
+        bias_verdict, vol_regime = _point_in_time_context(anchor_idx)
         event_context = _scored_event_context(
             anchor_ts,
             timeframe,
@@ -1975,6 +2017,8 @@ def build_measurement_evidence(symbol: str, timeframe: str) -> MeasurementEviden
     for event in effective_structure["liquidity_sweeps"]:
         anchor_ts = float(event.get("time", event.get("anchor_ts", 0.0)) or 0.0)
         anchor_idx = _find_bar_index(resampled_bars, anchor_ts)
+        # Point-in-time: rebind to the bias/vol observable at this event's anchor.
+        bias_verdict, vol_regime = _point_in_time_context(anchor_idx)
         event_context = _scored_event_context(
             anchor_ts,
             timeframe,
@@ -2041,10 +2085,10 @@ def build_measurement_evidence(symbol: str, timeframe: str) -> MeasurementEviden
             ensemble_generated_at = None
     ensemble_quality = build_ensemble_quality(
         generated_at=ensemble_generated_at,
-        bias_direction=bias_verdict.direction,
-        bias_confidence=bias_verdict.confidence,
-        vol_regime_label=vol_regime.label,
-        vol_regime_confidence=vol_regime.confidence,
+        bias_direction=run_bias_verdict.direction,
+        bias_confidence=run_bias_verdict.confidence,
+        vol_regime_label=run_vol_regime.label,
+        vol_regime_confidence=run_vol_regime.confidence,
         scoring_result=scoring_result,
     )
     details["ensemble_quality"] = serialize_ensemble_quality(ensemble_quality)

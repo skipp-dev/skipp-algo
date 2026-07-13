@@ -1368,3 +1368,75 @@ class TestEventSessionKeyDailyAlias:
         for tf in ("1D", "1d", "D", "daily", " 1D ", "1DAY"):
             assert measurement_evidence._event_session_key(self._TS, tf) == "session:NONE"
         assert measurement_evidence._event_session_label(self._TS, "daily") == "NONE"
+
+
+def _apply_build_mocks(monkeypatch, contract, explicit_payload, bars, vol_fn) -> None:
+    """Wire the build_measurement_evidence data seams to in-memory fixtures.
+
+    ``vol_fn(df) -> VolRegimeResult`` is data-dependent so a point-in-time slice
+    (bars up to an event's anchor) yields a different regime than the full frame.
+    """
+    m = monkeypatch
+    m.setattr(measurement_evidence.structure_artifact_json, "load_normalized_structure_contract_input", lambda s, t: contract)
+    m.setattr(measurement_evidence.structure_artifact_json, "resolve_artifact_mode", lambda s, t: "deterministic")
+    m.setattr(measurement_evidence, "resolve_structure_artifact_inputs", lambda: {"resolution_mode": "synthetic", "export_bundle_root": None, "workbook_path": None})
+    m.setattr(measurement_evidence, "load_raw_meta_input_composite", lambda s, t, source="auto": {})
+    m.setattr(measurement_evidence, "_load_source_bars", lambda s, t, resolved_inputs=None: (bars, "synthetic_bundle"))
+    m.setattr(measurement_evidence, "build_explicit_structure_from_bars", lambda raw_bars, symbol, timeframe, structure_profile="hybrid_default": explicit_payload)
+    m.setattr(measurement_evidence, "build_htf_bias_context", lambda df, timeframe, htf_frames=None: {"fvg_bias_counter": [{"counter": 2}]})
+    m.setattr(measurement_evidence, "build_session_liquidity_context", lambda df, tz="America/New_York": {"killzones": []})
+    m.setattr(measurement_evidence, "compute_vol_regime", vol_fn)
+
+
+def _len_based_vol(df) -> VolRegimeResult:
+    # A slice of >= 4 bars reads HIGH_VOL; a shorter (earlier-anchor) slice NORMAL.
+    label = "HIGH_VOL" if len(df) >= 4 else "NORMAL"
+    return VolRegimeResult(
+        label=label, raw_atr_ratio=1.0, confidence=0.5, bars_used=len(df),
+        model_source="test", fallback_reason=None, forecast_volatility=0.02,
+        baseline_volatility=0.02, forecast_ratio=1.0,
+    )
+
+
+def test_vol_regime_is_point_in_time_not_end_of_sample(monkeypatch) -> None:
+    """Each event's vol regime comes from bars up to its own anchor, not the
+    end-of-sample frame (no future leakage)."""
+    contract, explicit_payload = _contract_payload()
+    _apply_build_mocks(monkeypatch, contract, explicit_payload, _daily_bars(), _len_based_vol)
+
+    evidence = measurement_evidence.build_measurement_evidence("AAPL", "1D")
+    by_family = {e.family: e for e in evidence.scored_events}
+
+    # BOS anchors at bar 1 -> PIT slice of 2 bars -> NORMAL (a full-frame read
+    # would be HIGH_VOL). SWEEP anchors at bar 4 -> slice of 5 bars -> HIGH_VOL.
+    assert by_family["BOS"].context["vol_regime"] == "NORMAL"
+    assert by_family["SWEEP"].context["vol_regime"] == "HIGH_VOL"
+    # Distinct per-event values prove it is not one global end-of-sample verdict.
+    assert by_family["BOS"].context["vol_regime"] != by_family["SWEEP"].context["vol_regime"]
+    # The run-level summary still reflects the full frame (7 bars -> HIGH_VOL).
+    assert evidence.details["vol_regime"] == "HIGH_VOL"
+
+
+def test_future_bars_do_not_change_earlier_event_scores(monkeypatch) -> None:
+    """Perturbing bars AFTER an event's anchor must not change that event's
+    point-in-time vol regime / context."""
+    contract, explicit_payload = _contract_payload()
+
+    base_bars = _daily_bars()
+    future_rows = [
+        {"symbol": "AAPL", "timestamp": f"2024-01-{d}T00:00:00Z", "open": 200.0, "high": 205.0, "low": 195.0, "close": 200.0 + i, "volume": 9000.0}
+        for i, d in enumerate(("08", "09", "10", "11"))
+    ]
+    perturbed_bars = pd.concat([base_bars, pd.DataFrame(future_rows)], ignore_index=True)
+
+    _apply_build_mocks(monkeypatch, contract, explicit_payload, base_bars, _len_based_vol)
+    base = measurement_evidence.build_measurement_evidence("AAPL", "1D")
+    base_ctx = {e.family: e.context for e in base.scored_events}
+
+    _apply_build_mocks(monkeypatch, contract, explicit_payload, perturbed_bars, _len_based_vol)
+    perturbed = measurement_evidence.build_measurement_evidence("AAPL", "1D")
+    perturbed_ctx = {e.family: e.context for e in perturbed.scored_events}
+
+    # Every event anchors before the appended bars -> identical PIT context.
+    for family in ("BOS", "OB", "FVG", "SWEEP"):
+        assert base_ctx[family]["vol_regime"] == perturbed_ctx[family]["vol_regime"]
