@@ -1908,6 +1908,34 @@ def test_render_metrics_includes_daemon_restarts_total_counter(
     assert "live_overlay_daemon_restart_cause_deploy_total 3.0" in body
 
 
+def test_render_metrics_emits_restart_cause_as_labeled_start_time_gauge(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Restart-cause attribution is a start-time-VALUED gauge LABELED by cause.
+
+    ``changes(live_overlay_daemon_start_time_seconds[window])`` grouped by cause
+    counts real restarts per cause; the old per-cause ``*_total`` counters were
+    reset to 1 each process, so ``increase()`` over them was always 0.
+    """
+    import services.live_overlay_daemon.metrics as metrics_mod
+
+    _patch_common(
+        monkeypatch,
+        feed_ready=True,
+        market_open=True,
+        bar_count=10,
+        overlay_symbols=5,
+        overlay_age=60.0,
+    )
+    monkeypatch.setattr(metrics_mod.config, "restart_cause", lambda: "deploy")
+
+    body = metrics_mod.render_metrics(startup_ts=100.0, startup_epoch=1700000000.0)
+    assert "# TYPE live_overlay_daemon_start_time_seconds gauge" in body
+    assert (
+        'live_overlay_daemon_start_time_seconds{cause="deploy"} 1700000000.000' in body
+    )
+
+
 def test_main_lifespan_increments_restarts_total_counter() -> None:
     """main.py _lifespan increments the dedicated restart counter."""
     import services.live_overlay_daemon.main as main_mod

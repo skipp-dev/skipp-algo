@@ -468,7 +468,13 @@ def test_dashboard_success_rate_panel_description_matches_http_requests() -> Non
 
 
 def test_dashboard_restart_causes_panel_is_unique_and_groups_by_cause() -> None:
-    """There must be exactly one restart-cause panel and it must group by extracted cause label."""
+    """There must be exactly one restart-cause panel and it must count restarts
+    per cause via changes() of the start-time-valued gauge.
+
+    The old expr used increase() over the live_overlay_daemon_restart_cause_*_total
+    counters, which are reset to 1 each process and therefore never registered an
+    increase (always ~0). The fix counts start-time changes labeled by cause.
+    """
     dashboard = json.loads(_DASHBOARD_JSON.read_text(encoding="utf-8"))
     panels = _dashboard_panels(dashboard)
     restart_panels = [p for p in panels if "Restart Cause" in p.get("title", "")]
@@ -477,7 +483,10 @@ def test_dashboard_restart_causes_panel_is_unique_and_groups_by_cause() -> None:
     panel = restart_panels[0]
     expr = panel["targets"][0]["expr"]
     assert "sum by (cause)" in expr, expr
-    assert "label_replace" in expr, expr
+    assert "changes(live_overlay_daemon_start_time_seconds" in expr, expr
+    # The inert per-cause counter must no longer drive this panel.
+    assert "restart_cause" not in expr, expr
+    assert "increase(" not in expr, expr
     assert panel["targets"][0].get("legendFormat") == "{{cause}}"
 
 

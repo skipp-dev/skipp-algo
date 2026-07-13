@@ -22,8 +22,12 @@ import yaml
 
 _REPO_ROOT = Path(__file__).resolve().parents[1]
 _METRICS_PY = _REPO_ROOT / "services" / "live_overlay_daemon" / "metrics.py"
-_ALERT_RULES = _REPO_ROOT / "services" / "live_overlay_daemon" / "infra" / "grafana" / "alert-rules.yaml"
-_DASHBOARD = _REPO_ROOT / "services" / "live_overlay_daemon" / "infra" / "grafana" / "dashboard.json"
+_GRAFANA = _REPO_ROOT / "services" / "live_overlay_daemon" / "infra" / "grafana"
+_ALERT_RULES = _GRAFANA / "alert-rules.yaml"
+_DASHBOARD = _GRAFANA / "dashboard.json"
+# Both dashboards are consumers: a metric charted only on the experiments board
+# still counts as watched, so scan both (the guard previously missed it).
+_DASHBOARDS = (_DASHBOARD, _GRAFANA / "dashboard-signals-experiments.json")
 
 # Per-workflow status signals that had zero alert coverage (the exact gap).
 _WORKFLOW_SIGNAL_METRICS = (
@@ -57,6 +61,17 @@ _CREDENTIAL_SIGNAL_METRICS = (
     "live_overlay_credential_health_snapshot_age_seconds",
 )
 
+# Provider-usage FEED-HEALTH signals that MUST alert. The daemon exported
+# ``live_overlay_provider_usage_loaded`` and ``...snapshot_age_seconds`` but
+# nothing consumed them, so a missing/frozen ingest snapshot silently starved
+# the FMP-quota + provider-429 alerts (all computed off that same snapshot)
+# while they stayed on ``noDataState: OK``. Pin the feed-health gauges here so a
+# dropped stale/missing rule fails CI instead of reopening the blind spot.
+_PROVIDER_USAGE_SIGNAL_METRICS = (
+    "live_overlay_provider_usage_loaded",
+    "live_overlay_provider_usage_snapshot_age_seconds",
+)
+
 _METRIC_RE = re.compile(r"live_overlay_(?:evidence|github_workflow)_[a-z0-9_]+")
 
 
@@ -73,13 +88,16 @@ def _alert_expr_text() -> str:
 
 
 def _dashboard_expr_text() -> str:
-    doc = json.loads(_DASHBOARD.read_text(encoding="utf-8"))
     exprs: list[str] = []
-    for panel in doc.get("panels", []):
-        for target in panel.get("targets", []) or []:
-            expr = target.get("expr")
-            if isinstance(expr, str):
-                exprs.append(expr)
+    for dashboard in _DASHBOARDS:
+        if not dashboard.exists():
+            continue
+        doc = json.loads(dashboard.read_text(encoding="utf-8"))
+        for panel in doc.get("panels", []):
+            for target in panel.get("targets", []) or []:
+                expr = target.get("expr")
+                if isinstance(expr, str):
+                    exprs.append(expr)
     return "\n".join(exprs)
 
 
@@ -120,6 +138,15 @@ def test_credential_signals_have_alert_coverage() -> None:
     alerts = _alert_expr_text()
     missing = [m for m in _CREDENTIAL_SIGNAL_METRICS if m not in alerts]
     assert not missing, f"credential/API-key health signals lack alert coverage: {missing}"
+
+
+def test_provider_usage_feed_health_signals_have_alert_coverage() -> None:
+    """Provider-usage feed-health gauges must alert, so a missing/frozen ingest
+    snapshot cannot silently starve the FMP-quota + provider-429 alerts.
+    """
+    alerts = _alert_expr_text()
+    missing = [m for m in _PROVIDER_USAGE_SIGNAL_METRICS if m not in alerts]
+    assert not missing, f"provider-usage feed-health signals lack alert coverage: {missing}"
 
 
 def test_no_emitted_monitoring_metric_is_unconsumed() -> None:

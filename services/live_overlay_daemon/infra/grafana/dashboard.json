@@ -3784,7 +3784,7 @@
             "type": "prometheus",
             "uid": "grafanacloud-prom"
           },
-          "expr": "sum by (cause) (\n  label_replace(\n    increase({__name__=~\"live_overlay_daemon_restart_cause_.*_total\",job=~\"$job\"}[24h]),\n    \"cause\", \"$1\", \"__name__\", \"live_overlay_daemon_restart_cause_(.*)_total\"\n  )\n)",
+          "expr": "sum by (cause) (\n  changes(live_overlay_daemon_start_time_seconds{job=~\"$job\"}[24h])\n)",
           "refId": "A",
           "legendFormat": "{{cause}}"
         }
@@ -3812,7 +3812,7 @@
           }
         }
       },
-      "description": "Restart cause distribution over the last 24 hours, extracted from per-cause counters.",
+      "description": "Restart cause distribution over the last 24 hours, counted as start-time changes of live_overlay_daemon_start_time_seconds per cause (the per-cause _total counters are reset to 1 each process, so increase() over them was always 0).",
       "datasource": {
         "type": "prometheus",
         "uid": "grafanacloud-prom"
@@ -5448,7 +5448,7 @@
         "type": "prometheus",
         "uid": "grafanacloud-prom"
       },
-      "description": "FMP data-VOLUME consumed THIS MONTH as a percentage of the plan's monthly bandwidth quota (150 GB default). FMP meters bandwidth, not calls \u2014 a '90% used' email was our only prior signal. Counts from deployment (no back-history). Alerts: warning >=80%, critical >=95%.",
+      "description": "FMP data-VOLUME consumed THIS MONTH as a percentage of the plan's monthly bandwidth quota (150 GB default). Sums the ingest snapshot volume PLUS the 24/7 signals-producer's FMP consumption (increase(signals_producer_fmp_response_bytes_total[30d])) \u2014 the producer is the single largest FMP consumer and was previously excluded. FMP meters bandwidth, not calls \u2014 a '90% used' email was our only prior signal. Counts from deployment (no back-history). Alerts: warning >=80%, critical >=95%.",
       "gridPos": {
         "h": 5,
         "w": 6,
@@ -5457,7 +5457,7 @@
       },
       "targets": [
         {
-          "expr": "live_overlay_provider_usage_bytes{job=~\"$job\",provider=\"fmp\"} / on(provider) live_overlay_provider_bandwidth_limit_bytes{job=~\"$job\",provider=\"fmp\"} * 100",
+          "expr": "(live_overlay_provider_usage_bytes{job=~\"$job\",provider=\"fmp\"} + scalar(sum(increase(signals_producer_fmp_response_bytes_total{job=~\"signals_producer\"}[30d])) or vector(0))) / on(provider) live_overlay_provider_bandwidth_limit_bytes{job=~\"$job\",provider=\"fmp\"} * 100",
           "legendFormat": "fmp",
           "instant": true,
           "datasource": {
@@ -5512,7 +5512,7 @@
         "type": "prometheus",
         "uid": "grafanacloud-prom"
       },
-      "description": "FMP data volume consumed this month (bytes, auto-scaled). Quota is 150 GB / rolling 30 days.",
+      "description": "FMP data volume consumed this month (bytes, auto-scaled): ingest snapshot volume PLUS the 24/7 signals-producer's FMP consumption (increase(signals_producer_fmp_response_bytes_total[30d])). Quota is 150 GB / rolling 30 days.",
       "gridPos": {
         "h": 5,
         "w": 6,
@@ -5521,7 +5521,7 @@
       },
       "targets": [
         {
-          "expr": "live_overlay_provider_usage_bytes{job=~\"$job\",provider=\"fmp\"}",
+          "expr": "live_overlay_provider_usage_bytes{job=~\"$job\",provider=\"fmp\"} + scalar(sum(increase(signals_producer_fmp_response_bytes_total{job=~\"signals_producer\"}[30d])) or vector(0))",
           "legendFormat": "fmp",
           "instant": true,
           "datasource": {
