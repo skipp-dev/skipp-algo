@@ -107,8 +107,14 @@ jobs:
             fi
             found=$(find "${download_dir}" -type f -name "events_*.jsonl" -print -quit || true)
             if [ -n "${found}" ]; then
-              # eval globs SYMBOL/TF/events_*.jsonl → point at the dir two levels up.
-              echo "corpus_dir=$(dirname "$(dirname "${found}")")" >> "$GITHUB_OUTPUT"
+              # The eval globs benchmark_dir/SYMBOL/TF/events_*.jsonl, so
+              # benchmark_dir is THREE dirnames up from the events file
+              # (events → TF → SYMBOL → benchmark_dir). ``gh run download``
+              # without --name nests each artifact under its own name dir, so
+              # the earlier two-dirname form pointed at the SYMBOL dir → the eval
+              # matched nothing → no_data with a real corpus present. Anchored on
+              # the SYMBOL/TF depth it is wrapper-independent.
+              echo "corpus_dir=$(dirname "$(dirname "$(dirname "${found}")")")" >> "$GITHUB_OUTPUT"
               echo "source=rolling_artifact" >> "$GITHUB_OUTPUT"
               echo "::notice title=sweep-trap-shadow::corpus from rolling run ${run_id}"
               exit 0
@@ -197,7 +203,7 @@ jobs:
         # GITHUB_TOKEN) so the PR triggers the required fast-gates check. Runs
         # for every MEASURED row: promotable/shadow AND thin_or_no_data — rc 3
         # conflates "measured but n<MIN_OOS (INCONCLUSIVE, ledger row written)"
-        # with "zero samples (nothing written)"; the diff-quiet guard below
+        # with "zero samples (nothing written)"; the porcelain guard below
         # no-ops the zero-sample case, so gating the step on the status would
         # silently discard every measured-but-thin day (the k-of-n evidence
         # trail #3518 requires). stale/error append nothing. Fail LOUD on any
@@ -210,15 +216,28 @@ jobs:
           GH_TOKEN: ${{ secrets.GH_PAT != '' && secrets.GH_PAT || github.token }}
         run: |
           set -euo pipefail
-          git diff --quiet artifacts/governance/sweep_trap_shadow.jsonl && {
+          LEDGER="artifacts/governance/sweep_trap_shadow.jsonl"
+          # The ledger has never been committed to main (it accumulates via these
+          # bot PRs), so it is UNTRACKED on a fresh checkout. ``git diff --quiet``
+          # is wrong twice here: it FATALS on an absent path (genuine no_data →
+          # the zero-sample rc-3 sub-case) and returns 0 for an untracked file
+          # that IS present (a freshly written first-ever ledger) → the step would
+          # skip and the row would never land. ``git status --porcelain`` handles
+          # both: empty when absent or unchanged-tracked, non-empty ("??"/" M")
+          # when a row is present to commit.
+          if [ ! -f "${LEDGER}" ]; then
+            echo "::notice title=sweep-trap-shadow::no ledger written (zero-sample no_data) — nothing to commit"
+            exit 0
+          fi
+          if [ -z "$(git status --porcelain -- "${LEDGER}")" ]; then
             echo "::notice title=sweep-trap-shadow::ledger unchanged — skipping commit-back"
             exit 0
-          }
+          fi
           git config user.name  "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           BRANCH="bot/sweep-trap-shadow-ledger-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
           git checkout -b "$BRANCH"
-          git add artifacts/governance/sweep_trap_shadow.jsonl
+          git add "${LEDGER}"
           git commit -m "chore(sweep-trap): accumulate shadow ledger $(date -u +%Y-%m-%d)"
           git remote set-url origin "https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}"
           git push -u origin "$BRANCH"
