@@ -1,0 +1,191 @@
+name: pine-library-publish-handlibs
+# live-window: mutating-on-cron  # Scheduled ordered publish+repin of the hand-authored SMC++ libraries (2026-07-13)
+
+# Runs the ordered publish+repin helper (scripts/tv_publish_hand_authored_libraries.ts,
+# `npm run tv:publish-handlibs`, added in #3610) on a schedule so the hand-authored
+# SMC++ library chain stays reconciled with TradingView without manual sequencing.
+#
+# The helper is DEPENDENCY-ORDERED (core_types → utils → dependents) and
+# IDEMPOTENT: TradingView no-ops an unchanged publish (no version bump), so a
+# run only bumps a library whose repo source actually changed; every run also
+# repins consumers to the real facade-verified published versions, reconciling
+# any drift the pine-library-version-monitor flagged.
+#
+# SAFETY MODEL (why this is safe to run unattended):
+#   * Publishing requires a real authenticated TV session — the job FAILS fast
+#     if TV_STORAGE_STATE is absent (it cannot silently no-op like the monitor).
+#   * It never pushes to main. Repin edits the helper makes are captured in a
+#     fresh branch and opened as a PR for human review; until that PR merges the
+#     monitor's drift alert simply stays lit (self-covering).
+#   * Each publish is facade-verified (#3609) so a successful publish reports the
+#     real version instead of a false failure.
+#
+# The pine-library-version-monitor tells you WHEN drift appears; this closes it.
+
+on:
+  # workflow_dispatch first — an operator can run it on demand at any time.
+  workflow_dispatch:
+  schedule:
+    # 04:00 UTC Sundays — weekend, outside the US trading window. Weekly is
+    # deliberate: hand-authored library source changes are rare, and each run
+    # drives a real (if idempotent) TradingView publish flow for 8 libraries.
+    - cron: "0 4 * * 0"
+
+permissions:
+  # contents: write to push the repin branch; pull-requests: write to open the PR.
+  contents: write
+  pull-requests: write
+
+concurrency:
+  group: pine-library-publish-handlibs
+  cancel-in-progress: false
+
+defaults:
+  run:
+    shell: bash
+
+env:
+  PYTHONUNBUFFERED: "1"
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: "true"
+
+jobs:
+  publish:
+    runs-on: ${{ vars.SMC_GH_HOSTED_RUNNER || 'ubuntu-latest' }}
+    timeout-minutes: 30
+    steps:
+      - name: Checkout
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+        with:
+          fetch-depth: 1
+          persist-credentials: false
+
+      - name: Set up Node
+        uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6
+        with:
+          node-version: "20"
+          cache: "npm"
+          cache-dependency-path: package-lock.json
+
+      - name: Install Node dependencies
+        run: npm ci
+
+      - name: Resolve Playwright version
+        id: pw_version
+        run: |
+          version="$(npx --no-install playwright --version 2>/dev/null | grep -oE '[0-9]+\.[0-9]+\.[0-9]+' | head -n1)"
+          if [ -z "$version" ]; then
+            version="$(node -p "require('./node_modules/playwright/package.json').version")"
+          fi
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+
+      - name: Restore Playwright browsers cache
+        id: pw_cache
+        uses: actions/cache@0400d5f644dc74513175e3cd8d07132dd4860809 # v4.2.4
+        with:
+          path: ~/.cache/ms-playwright
+          key: ${{ runner.os }}-playwright-browsers-${{ steps.pw_version.outputs.version }}
+
+      - name: Install Playwright browsers (cache miss)
+        if: steps.pw_cache.outputs.cache-hit != 'true'
+        run: npx playwright install chromium
+
+      - name: Install Playwright system deps
+        run: npx playwright install-deps chromium
+
+      - name: Write TradingView storage state
+        env:
+          TV_STORAGE_STATE_SECRET: ${{ secrets.TV_STORAGE_STATE }}
+        run: |
+          set -euo pipefail
+          # Publishing REQUIRES a real session — fail fast (unlike the monitor,
+          # which self-covers). A silent no-auth run would leave libraries stale.
+          if [ -z "${TV_STORAGE_STATE_SECRET:-}" ]; then
+            echo "::error::TV_STORAGE_STATE not configured — cannot publish. Aborting."
+            exit 1
+          fi
+          mkdir -p automation/tradingview/auth
+          python3 - <<'PY'
+          import base64, gzip, json, os
+          from pathlib import Path
+
+          raw = os.environ['TV_STORAGE_STATE_SECRET'].strip()
+          payload = raw if raw.startswith('{') else gzip.decompress(base64.b64decode(raw)).decode('utf-8')
+          json.loads(payload)  # validate
+          out = Path('automation/tradingview/auth/storage-state.json')
+          out.write_text(payload if payload.endswith('\n') else payload + '\n', encoding='utf-8')
+          PY
+
+      - name: Ordered publish + repin
+        id: publish
+        env:
+          TV_STORAGE_STATE: automation/tradingview/auth/storage-state.json
+        run: |
+          set -uo pipefail
+          npm run tv:publish-handlibs | tee /tmp/handlib_publish.log
+          rc=${PIPESTATUS[0]}
+          echo "rc=${rc}" >> "$GITHUB_OUTPUT"
+          # A non-zero rc means a publish/verify failed mid-chain; still capture
+          # any repins already made so the PR shows partial progress, but mark
+          # the run failed at the end.
+          if git status --porcelain -- '*.pine' | grep -q .; then
+            echo "changed=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "changed=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Upload publish log
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: handlib-publish-log-${{ github.run_id }}
+          path: /tmp/handlib_publish.log
+          if-no-files-found: warn
+          retention-days: 14
+
+      - name: Open repin PR
+        if: steps.publish.outputs.changed == 'true'
+        env:
+          GH_TOKEN: ${{ secrets.GH_PAT }}
+        run: |
+          set -euo pipefail
+          if [ -z "${GH_TOKEN:-}" ]; then
+            echo "::warning::GH_PAT not configured; cannot open the repin PR. The publishes happened but the repins are not captured — run tv:publish-handlibs locally and commit."
+            exit 0
+          fi
+          branch="bot/handlib-repin-${GITHUB_RUN_ID}"
+          _remote_url="https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git"
+
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git checkout -b "${branch}"
+          git add -- '*.pine' 'SMC++'/*.pine
+          git commit -m "chore(pine): repin consumers after scheduled hand-lib publish (run ${GITHUB_RUN_ID})"
+          # Push to a fresh per-run branch (never main); a unique branch never
+          # needs a force-push. Wrap so a push failure warns instead of
+          # hard-failing after the publishes already happened.
+          if git push "${_remote_url}" "HEAD:refs/heads/${branch}"; then
+            # Do NOT swallow a real PR-creation failure (auth/ruleset/rate-limit)
+            # — that would finish green without ever opening the PR. The per-run
+            # branch is unique, so "already exists" cannot occur; fail loudly.
+            if ! gh pr create \
+              --base main \
+              --head "${branch}" \
+              --title "chore(pine): repin consumers after scheduled hand-lib publish" \
+              --body "Automated by \`pine-library-publish-handlibs.yml\` (run ${GITHUB_RUN_ID}). The ordered publish+repin helper published the changed hand-authored SMC++ libraries (facade-verified) and repinned their consumers to the real published versions. Review the pin diff, then merge to clear the monitor drift alert. See the run's \`handlib-publish-log\` artifact for the publish output."; then
+              echo "::error file=.github/workflows/pine-library-publish-handlibs.yml::gh pr create failed for ${branch} — see step log for stderr. The publishes happened; open the PR manually from ${branch}."
+              exit 1
+            fi
+          else
+            echo "::error::push failed for ${branch}; the publishes happened but repins were not captured — push ${branch} manually."
+            exit 1
+          fi
+
+      - name: Fail the run if a publish failed
+        if: always()
+        run: |
+          rc="${{ steps.publish.outputs.rc }}"
+          if [ "${rc:-1}" != "0" ]; then
+            echo "::error::tv:publish-handlibs exited ${rc} — a publish/verify failed. See the handlib-publish-log artifact."
+            exit 1
+          fi
+          echo "All hand-authored libraries published/verified in order."
