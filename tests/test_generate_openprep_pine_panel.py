@@ -196,6 +196,21 @@ def test_main_generates_from_explicit_file(tmp_path) -> None:
     assert 'PANEL_WEATHER = "GREEN"' in out.read_text(encoding="utf-8")
 
 
+def test_main_resolves_source_commit_without_github_sha(tmp_path, monkeypatch) -> None:
+    monkeypatch.delenv("GITHUB_SHA", raising=False)
+    monkeypatch.setattr(
+        "smc_integration.release_policy.resolve_git_commit", lambda: "deadbeefcafe"
+    )
+    src = tmp_path / "outcomes_2026-07-04.json"
+    src.write_text(json.dumps(_SAMPLE_ROWS), encoding="utf-8")
+    out = tmp_path / "panel.pine"
+    rc = gen.main(["--outcomes-json", str(src), "--output", str(out)])
+    assert rc == 0
+    sidecar = json.loads(out.with_suffix(".json").read_text(encoding="utf-8"))
+    assert sidecar["provenance"]["source_commit"] == "deadbeefcafe"
+    assert "// source_commit_sha: deadbeefcafe" in out.read_text(encoding="utf-8")
+
+
 def test_main_stub_when_no_input(tmp_path) -> None:
     out = tmp_path / "panel.pine"
     rc = gen.main(["--outcomes-dir", str(tmp_path / "missing"), "--output", str(out)])
