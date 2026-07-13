@@ -1,4 +1,19 @@
 {
   "schema_version": 1,
-  "events": []
+  "events": [
+    {
+      "subject": "skipp-algo: Close-Window-Cleanup Legacy-Confidence-Aliase",
+      "start": "2026-08-10T09:00:00+02:00",
+      "end": "2026-08-10T09:30:00+02:00",
+      "time_zone": "Europe/Berlin",
+      "body": "Confidence-Vokabular-Programm, letzter Schritt (Bake-Zeit ~4 Wochen seit 2026-07-13). Droppen: bias_verdict.confidence + market_context.bias_confidence + details.bias_confidence (Dual-Write #3572), Pine-Export ZONE_CAL_CONFIDENCE (Alias seit #3575, Dashboard liest seit Flip-PR mp.ZONE_CAL_RELIABILITY_SCORE), Env-Alias SMC_SMT_DIVERGENCE_CONFIDENCE (#3541). Muster: #3535 close-window. Vorher grep auf externe Consumer; Memory: confidence_vocab_calibration_program.md"
+    },
+    {
+      "subject": "skipp-algo: OOS-Advisory→HARD_BLOCKING Review (release_policy)",
+      "start": "2026-08-24T09:00:00+02:00",
+      "end": "2026-08-24T09:30:00+02:00",
+      "time_zone": "Europe/Berlin",
+      "body": "Owner-Entscheidung (#3571): MEASUREMENT_OOS_CALIBRATED_{BRIER,ECE}_ABOVE_THRESHOLD von ADVISORY auf HARD_BLOCKING promoten, WENN Gate-Reports zeigen, dass oos_calibrated_* regelmaessig measured ist (>=40 pooled OOS pro Paar; artifacts/ci Gate-Evidence pruefen, min 2 Baselines). Promotion braucht evidence_reference im GATE_GOVERNANCE_REGISTRY (F-01). Memory: confidence_vocab_calibration_program.md"
+    }
+  ]
 }

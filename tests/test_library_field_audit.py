@@ -440,14 +440,13 @@ RESERVED_PINE_EXPORTS.add("TRUST_ACTION_IMPACT")
 # PR after the next TradingView library re-publish (plan §3.7 step 7).
 RESERVED_PINE_EXPORTS.add("HR_SENTINEL_DEGRADED")
 
-# Confidence-vocabulary program (2026-07-13): honest alias of
-# ZONE_CAL_CONFIDENCE (a sample-size x smECE reliability HEURISTIC, not a
-# statistical confidence level). SMC_Dashboard.pine flips its
-# zone_cal_diagnostics_tooltip_text read from mp.ZONE_CAL_CONFIDENCE to
-# mp.ZONE_CAL_RELIABILITY_SCORE in a follow-up PR after the next
-# TradingView library re-publish (HR_SENTINEL_DEGRADED pattern above);
-# the legacy name is dropped in the close-window cleanup afterwards.
-RESERVED_PINE_EXPORTS.add("ZONE_CAL_RELIABILITY_SCORE")
+# Confidence-vocabulary program (2026-07-13, flip PR): the dashboard now
+# consumes mp.ZONE_CAL_RELIABILITY_SCORE (honest name — a sample-size x smECE
+# reliability HEURISTIC, not a statistical confidence level), so the LEGACY
+# alias ZONE_CAL_CONFIDENCE no longer has a Pine consumer. It stays exported
+# for any external importer and is dropped in the close-window cleanup
+# (calendar reminder 2026-08-10; #3535 pattern).
+RESERVED_PINE_EXPORTS.add("ZONE_CAL_CONFIDENCE")
 
 # Phase H Pine consumer maturity is now complete: ZONE_CAL_TRUST and the
 # per-family ZONE_HR_{OB,BOS,SWEEP} were wired into the audit row 12
