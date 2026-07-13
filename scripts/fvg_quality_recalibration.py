@@ -165,7 +165,9 @@ class RecalibrationReport:
 def iter_fvg_events(ledger_paths: Iterable[Path]) -> Iterable[dict[str, Any]]:
     """Yield FVG-only records from one or more JSONL ledgers."""
     for path in ledger_paths:
-        for record in read_event_ledger(path):
+        # strict=True: a corrupt/off-schema ledger line raises EventLedgerSchemaError
+        # (fail-closed) so a partial corpus is never silently graded into a recalibration.
+        for record in read_event_ledger(path, strict=True):
             if record.get("family") == "FVG":
                 yield record
 
