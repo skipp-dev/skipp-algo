@@ -84,7 +84,9 @@ Aggregate calibration is computed inside [smc_core/scoring.py](../smc_core/scori
 - Method: `platt_scaling`
 - Input: scored-event probabilities
 - Sample floor: currently 20 events with both classes present
-- Fitting: regularized logistic mapping on `logit(predicted_prob)`
+- Fitting: regularized logistic mapping on `logit(predicted_prob)` — fit and
+  applied to the same events (in-sample); the resulting `calibrated_*` are
+  apparent, not out-of-sample (see "Operational Reading Guide" below)
 
 The preferred path produces:
 
@@ -295,8 +297,12 @@ When inspecting a new run, read the values in this order:
 4. `stratified_calibration.dimension_group_counts`
 5. group-level summaries for the dimensions that matter in the current market
 
-If calibrated metrics are meaningfully better than raw metrics, the current
-probability mapping benefits from post-hoc calibration.
+These `calibrated_*` numbers are **in-sample** (the mapping is fit on the same
+run it is scored against), so a raw→calibrated improvement is expected *by
+construction* — in-sample calibration can only lower in-sample loss — and is
+**not** evidence of out-of-sample benefit. Read them as a diagnostic; the
+leak-free out-of-sample calibration quality lives in the walk-forward,
+purged/embargoed layer (`governance/family_calibration.py`), not here.
 
 If one stratum is consistently worse than the aggregate, that stratum is the
 right place for the next calibration or regime-adjustment experiment.
