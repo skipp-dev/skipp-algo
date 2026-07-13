@@ -184,8 +184,9 @@ single merged bias + confidence level.
   bias, and vol-regime confidence, while measurement evidence adds the scored
   event calibration component and the benchmark harness persists the versioned
   JSON artifact for each pair.
-- **Manual CI path**: `.github/workflows/smc-measurement-benchmark.yml` runs
-  the harness on demand and uploads the full artifact tree for offline review.
+- **CI path**: `.github/workflows/smc-measurement-benchmark.yml` runs the
+  harness weekly (Sat 08:00 UTC, `0 8 * * 6`) and on demand, uploading the
+  full artifact tree for offline review.
 - **Tests**: `test_smc_benchmark.py` and `test_smc_scoring.py` validate KPI
   structure and range. These tests are included in the release-gate test matrix.
 - **Architecture doc**: See [v5_5b_architecture.md §10](v5_5b_architecture.md)
