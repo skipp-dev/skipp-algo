@@ -211,8 +211,8 @@ def _zone_event_to_family(
     highs, lows, closes, fwd_ts = _forward_window(
         bars, anchor_idx=anchor_idx, lookahead_bars=lookahead_bars
     )
-    if not closes:
-        return None
+    if len(closes) < int(lookahead_bars):
+        return None  # right-censoring guard: truncated window at the data edge -> skip, not a final False label
 
     mapped = FamilyEvent(
         family=family,
@@ -301,8 +301,8 @@ def _level_event_to_family(
     highs, lows, closes, fwd_ts = _forward_window(
         bars, anchor_idx=anchor_idx, lookahead_bars=lookahead_bars
     )
-    if not closes:
-        return None
+    if len(closes) < int(lookahead_bars):
+        return None  # right-censoring guard: truncated window at the data edge -> skip, not a final False label
 
     mapped = FamilyEvent(
         family=family,

@@ -31,6 +31,7 @@ from scripts.smc_signal_quality import (
 )
 from scripts.smc_structure_state import build_structure_state
 from scripts.smc_structure_state_light import build_structure_state_light
+from skipp_config import get_trading_thresholds
 from smc_core.benchmark import EventFamily
 from smc_core.bias_merge import merge_bias
 from smc_core.cached_workbook_reader import read_daily_bars
@@ -72,12 +73,12 @@ _SWEEP_LOOKAHEAD_BARS = LABEL_HORIZON_BARS["SWEEP"]
 # sweep lookahead; the follow-through outcome is measured on the DISJOINT later
 # window (bars N+1..lookahead) so a confirmation is never part of its own label.
 _REACTION_CONFIRM_WINDOW_BARS = 3
-_REACTION_SCHEMA_VERSION = 1
+_REACTION_SCHEMA_VERSION = 2  # v2: label only emitted with the FULL outcome window observed (edge-censoring fix); v1 rows may carry right-censored labels
 # Sweep-trap shadow study schema. v1 = first leakage-free emission (trap features
 # confirmed on bars 1..N, paired with the disjoint ``sweep_trap_outcome_late``).
-_SWEEP_TRAP_SCHEMA_VERSION = 1
-_BOS_FOLLOW_THROUGH_THRESHOLD_PCT = 0.003
-_SWEEP_REVERSAL_THRESHOLD_PCT = 0.005
+_SWEEP_TRAP_SCHEMA_VERSION = 2  # v2: full-outcome-window guarantee (see _REACTION_SCHEMA_VERSION); evaluators must reject v1 rows
+_BOS_FOLLOW_THROUGH_THRESHOLD_PCT = get_trading_thresholds().smc_scoring.bos_follow_through_threshold_pct  # SSOT skipp_config (was a 0.003 hardcode shadowing the config knob)
+_SWEEP_REVERSAL_THRESHOLD_PCT = get_trading_thresholds().smc_scoring.sweep_reversal_threshold_pct  # SSOT skipp_config; NOTE: overriding it changes labeling semantics -> era-cut shadow/calibration ledgers first
 _SQ_LOOKBACK_BARS = 64
 _SQ_RAW_SCORE_NAME = "SIGNAL_QUALITY_SCORE"
 
@@ -1345,8 +1346,8 @@ def _score_bos_event(
         return None
 
     highs, lows, _ = _future_price_lists(bars, anchor_idx=anchor_idx, lookahead_bars=_BOS_LOOKAHEAD_BARS)
-    if not highs and not lows:
-        return None
+    if len(highs) < _BOS_LOOKAHEAD_BARS or len(lows) < _BOS_LOOKAHEAD_BARS:
+        return None  # right-censoring guard: truncated window at the data edge -> skip, not a final False label
 
     return ScoredEvent(
         event_id=str(event.get("id", "")).strip(),
@@ -1510,8 +1511,8 @@ def _score_zone_event(
 
     lookahead = _FVG_LOOKAHEAD_BARS if family == "FVG" else _ZONE_LOOKAHEAD_BARS
     highs, lows, closes = _future_price_lists(bars, anchor_idx=anchor_idx, lookahead_bars=lookahead)
-    if not highs and not lows and not closes:
-        return None
+    if min(len(highs), len(lows), len(closes)) < lookahead:
+        return None  # right-censoring guard: truncated window at the data edge -> skip, not a final False label
 
     label_fn = label_orderblock_mitigation if family == "OB" else label_fvg_mitigation
     features: dict[str, Any] = {}
@@ -1571,8 +1572,8 @@ def _evaluate_sweep_event(
         return None
 
     future = bars.iloc[anchor_idx + 1 : anchor_idx + 1 + _SWEEP_LOOKAHEAD_BARS].reset_index(drop=True)
-    if future.empty:
-        return None
+    if len(future) < _SWEEP_LOOKAHEAD_BARS:
+        return None  # right-censoring guard: a truncated window at the data edge must be UNRESOLVED (skip), not labeled False
 
     closes = [float(value) for value in pd.to_numeric(future["close"], errors="coerce").dropna().tolist()]
     hit_idx: int | None = None

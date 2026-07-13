@@ -80,7 +80,7 @@ def test_sweep_sell_side_maps_to_long_reversal() -> None:
 
 def test_ob_zone_maps_to_retest_touch() -> None:
     # Dip into the zone at bar 7, then rally.
-    closes = [110.0, 109.0, 108.0, 107.0, 106.0, 105.0, 102.0, 100.0, 103.0, 106.0, 109.0, 112.0, 115.0, 118.0]
+    closes = [110.0, 109.0, 108.0, 107.0, 106.0, 105.0, 102.0, 100.0, 103.0, 106.0, 109.0, 112.0, 115.0, 118.0, 121.0, 124.0, 127.0, 130.0]  # 2026-07-13 (edge-censoring fix): OB needs its full 12-bar forward window
     bars = _bars(closes)
     structure = {"orderblocks": [{"id": "ob1", "time": _T0 + 5 * _STEP, "low": 99.0, "high": 101.0, "dir": "BULL"}]}
 
@@ -491,3 +491,12 @@ class TestContainingBarIndex:
 
     def test_after_all_bars_is_none(self) -> None:
         assert _containing_bar_index(self._TS, 400.0) is None
+
+
+def test_truncated_forward_window_is_dropped_not_labeled() -> None:
+    """Right-censoring guard: an event whose forward window is shorter than its
+    label horizon is dropped (unresolved), not labeled from the truncated window."""
+    closes = [110.0, 109.0, 108.0, 107.0, 106.0, 105.0, 102.0, 100.0, 103.0, 106.0]
+    bars = _bars(closes)
+    structure = {"orderblocks": [{"id": "ob1", "time": _T0 + 5 * _STEP, "low": 99.0, "high": 101.0, "dir": "BULL"}]}
+    assert family_events_from_structure(structure, bars) == []  # 4 forward bars < OB horizon 12

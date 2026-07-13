@@ -97,7 +97,7 @@ class TestShadowObserve:
         # Leakage-free emission: the disjoint late outcome + schema version are logged.
         assert "sweep_trap_outcome_late" in f
         assert isinstance(f["sweep_trap_outcome_late"], bool)
-        assert f["sweep_trap_schema_version"] == 1
+        assert f["sweep_trap_schema_version"] == 2  # 2026-07-13 (edge-censoring fix): v2 = full-outcome-window guarantee
 
     def test_trap_confirmation_window_disjoint_from_late_outcome(self) -> None:
         """A reclaim only in the LATE window (bars 4..8) must NOT confirm the trap
@@ -312,3 +312,28 @@ class TestDeriveGeometryBearishAndFallback:
             {"price": 100.0, "side": "SELL_SIDE"}, bars, 10, is_bullish_sweep=True
         )
         assert origin == swept == 100.0
+
+
+class TestEdgeCensoringGuard:
+    """Right-censoring fix: a sweep whose outcome window is truncated at the data
+    edge must be SKIPPED (unresolved), never labeled ``outcome=False`` — a missing
+    observation is not a miss (it biased Brier/lift toward pessimism and, in the
+    shadow path, could label ``sweep_trap_outcome_late`` from ZERO outcome bars)."""
+
+    def _bars(self, n_total: int) -> pd.DataFrame:
+        return _bull_sweep_bars().iloc[:n_total].reset_index(drop=True)
+
+    def test_truncated_future_window_is_skipped(self) -> None:
+        # Sweep anchors at bar 10; 15 total bars -> only 4 future bars (< horizon 8).
+        assert _evaluate(self._bars(15), flag="1") is None
+
+    def test_single_future_bar_is_skipped(self) -> None:
+        assert _evaluate(self._bars(12), flag="1") is None
+
+    def test_exact_full_window_is_labeled(self) -> None:
+        # anchor 10 + exactly 8 future bars = 19 total -> labeled (boundary).
+        result = _evaluate(self._bars(19), flag="1")
+        assert result is not None
+        _, scored = result
+        assert scored.features["sweep_trap_schema_version"] == 2
+        assert isinstance(scored.features["sweep_trap_outcome_late"], bool)

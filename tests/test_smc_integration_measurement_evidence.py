@@ -19,6 +19,13 @@ def _daily_bars() -> pd.DataFrame:
             {"symbol": "AAPL", "timestamp": "2024-01-06T00:00:00Z", "open": 99.6, "high": 100.6, "low": 99.4, "close": 100.4, "volume": 1500.0},
             {"symbol": "AAPL", "timestamp": "2024-01-07T00:00:00Z", "open": 100.4, "high": 101.5, "low": 100.1, "close": 101.2, "volume": 1600.0},
         ]
+        # 2026-07-13 (edge-censoring fix): neutral trailing bars so every event keeps its
+        # FULL label horizon (FVG anchors at bar 2 and needs 20 forward bars); first-hit /
+        # invalidation indices all land in the original 7 bars, so no pinned outcome moves.
+        + [
+            {"symbol": "AAPL", "timestamp": f"2024-01-{8 + i:02d}T00:00:00Z", "open": 101.2, "high": 101.6, "low": 100.9, "close": 101.2, "volume": 1700.0 + i}
+            for i in range(18)
+        ]
     )
 
 
@@ -1425,7 +1432,7 @@ def test_future_bars_do_not_change_earlier_event_scores(monkeypatch) -> None:
     base_bars = _daily_bars()
     future_rows = [
         {"symbol": "AAPL", "timestamp": f"2024-01-{d}T00:00:00Z", "open": 200.0, "high": 205.0, "low": 195.0, "close": 200.0 + i, "volume": 9000.0}
-        for i, d in enumerate(("08", "09", "10", "11"))
+        for i, d in enumerate(("26", "27", "28", "29"))  # 2026-07-13: after the extended 25-bar frame
     ]
     perturbed_bars = pd.concat([base_bars, pd.DataFrame(future_rows)], ignore_index=True)
 
@@ -1480,3 +1487,65 @@ class TestKpiHorizonCap:
         )
         assert result is not None
         assert result["hit"] is True
+
+
+class TestEdgeCensoringGuards:
+    """Right-censoring fix: BOS/zone events whose forward window is truncated at
+    the data edge are SKIPPED (None), not labeled False; a full window is labeled."""
+
+    def _flat_bars(self, n: int) -> pd.DataFrame:
+        rows = [
+            {"symbol": "A", "timestamp": f"2024-02-{i + 1:02d}", "open": 100.0,
+             "high": 100.5, "low": 99.5, "close": 100.0, "volume": 1}
+            for i in range(n)
+        ]
+        return measurement_evidence._to_epoch_seconds(pd.DataFrame(rows))
+
+    def _anchor_ts(self, bars: pd.DataFrame) -> float:
+        return float(bars["timestamp"].iloc[0])
+
+    def test_bos_truncated_window_is_skipped(self) -> None:
+        bars = self._flat_bars(6)  # 5 future bars < BOS horizon 8
+        result = measurement_evidence._score_bos_event(
+            {"price": 100.0, "time": self._anchor_ts(bars), "dir": "UP"}, bars,
+            bias_direction="BULLISH", bias_confidence=0.8, event_context={},
+        )
+        assert result is None
+
+    def test_bos_full_window_is_labeled(self) -> None:
+        bars = self._flat_bars(9)  # exactly 8 future bars
+        result = measurement_evidence._score_bos_event(
+            {"price": 101.0, "time": self._anchor_ts(bars), "dir": "UP"}, bars,  # 101*1.003 > all highs (100.5) -> miss
+            bias_direction="BULLISH", bias_confidence=0.8, event_context={},
+        )
+        assert result is not None
+        assert result.outcome is False  # flat bars: observed full window, genuine miss
+
+    def test_zone_truncated_window_is_skipped(self) -> None:
+        bars = self._flat_bars(10)  # 9 future bars < OB horizon 12
+        result = measurement_evidence._score_zone_event(
+            {"low": 99.0, "high": 99.4, "anchor_ts": self._anchor_ts(bars)}, bars,
+            family="OB", bias_direction="BULLISH", bias_confidence=0.8, event_context={},
+        )
+        assert result is None
+
+    def test_zone_full_window_is_labeled(self) -> None:
+        bars = self._flat_bars(13)  # exactly 12 future bars
+        result = measurement_evidence._score_zone_event(
+            {"low": 99.0, "high": 99.4, "anchor_ts": self._anchor_ts(bars)}, bars,
+            family="OB", bias_direction="BULLISH", bias_confidence=0.8, event_context={},
+        )
+        assert result is not None
+        assert result.outcome is False  # zone never touched in the FULL window
+
+
+class TestLabelThresholdSsot:
+    """F6: the measurement labeling thresholds come from the skipp_config SSOT —
+    re-hardcoding them here would silently decouple labels from the config knob."""
+
+    def test_thresholds_bind_to_trading_thresholds_config(self) -> None:
+        from skipp_config import get_trading_thresholds
+
+        cfg = get_trading_thresholds().smc_scoring
+        assert cfg.sweep_reversal_threshold_pct == measurement_evidence._SWEEP_REVERSAL_THRESHOLD_PCT
+        assert cfg.bos_follow_through_threshold_pct == measurement_evidence._BOS_FOLLOW_THROUGH_THRESHOLD_PCT

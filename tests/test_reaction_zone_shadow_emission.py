@@ -47,7 +47,7 @@ def test_reaction_fields_emitted_with_disjoint_windows() -> None:
     _outcome_dict, scored = result
     feats = scored.features
 
-    assert feats["reaction_schema_version"] == 1
+    assert feats["reaction_schema_version"] == 2  # 2026-07-13 (edge-censoring fix): v2 = full-outcome-window guarantee
     assert feats["reaction_direction"] == "bull"
     # Confirmation window (bars 1-3) reclaimed above the swept level.
     assert feats["reaction_level_reclaimed"] is True
