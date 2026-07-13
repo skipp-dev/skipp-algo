@@ -107,7 +107,7 @@
 "services/live_overlay_daemon/provider_usage_bridge.py" = [97]  # 2026-07-11 (rate_limit_hits coerce +1 line): 96->97
 # 2026-07-11 (feat/sweep-trap-shadow-grafana): WS4a sweep-trap shadow snapshot
 # fetcher, https-only with explicit timeout= (mirrors the evidence-freshness bridge).
-"services/live_overlay_daemon/sweep_trap_shadow_bridge.py" = [96]
+"services/live_overlay_daemon/sweep_trap_shadow_bridge.py" = [98]  # 2026-07-13 (F7 docstring fix): 96->98, +2 doc lines
 # 2026-06-23: live-overlay runtime snapshot fetchers in compute.py remain
 # https-only with explicit timeout=. 2026-06-23 (audit follow-up F2/F3):
 # NEWS/SIGNALS/TRADINGVIEW JSON loaders delegate into one shared
@@ -333,7 +333,7 @@ allowed = ["github-mirror-sync.yml", "openprep-pine-panel-daily-trigger.yml"]
 # the eval's exit CODE is the signal (0/2/3/5), so `set +e` + PIPESTATUS keeps a
 # no_data/shadow/stale run from aborting the step under bash -e; the status is
 # surfaced via ::notice::/step summary and a real error (rc 1) still re-exits.
-"sweep-trap-shadow-daily.yml" = 1
+"sweep-trap-shadow-daily.yml" = 2  # 2026-07-13 (F9 reaction eval piggyback): 1->2, second fail-soft rc-capture around eval_reaction_zone_shadow (rc 5 = no samples, green)
 # workflow-freshness-monitor.yml: single best-effort step that
 # tolerates GitHub API hiccups while polling per-workflow run
 # freshness; outcome is surfaced via the dedicated alert step.

@@ -161,3 +161,23 @@ def test_no_emitted_monitoring_metric_is_unconsumed() -> None:
         "these monitoring metrics are emitted but referenced by no alert rule "
         f"and no dashboard panel — they are invisible: {orphans}"
     )
+
+
+def test_sweep_trap_shadow_no_data_state_has_alert_coverage() -> None:
+    """The gt-0-inert hole: a missing/unreadable snapshot (and the committed
+    no-data seed) yields age_known=0 AND stale=0, so the gt-0 stale rule stays
+    green with zero data. The dedicated age-unknown rule must exist, target the
+    age_known gauge and use the `== bool 0` form (a bare `== 0` returns 0 and a
+    gt-0 threshold reads 0>0=false — inert)."""
+    rules = yaml.safe_load(_ALERT_RULES.read_text(encoding="utf-8"))
+    exprs: dict[str, str] = {}
+    for group in rules.get("groups", []):
+        for rule in group.get("rules", []):
+            for query in rule.get("data", []):
+                expr = str((query.get("model") or {}).get("expr", ""))
+                if expr:
+                    exprs[str(rule.get("uid", ""))] = exprs.get(str(rule.get("uid", "")), "") + expr
+    assert "lo-sweep-trap-shadow-age-unknown" in exprs
+    expr = exprs["lo-sweep-trap-shadow-age-unknown"]
+    assert "live_overlay_sweep_trap_shadow_snapshot_age_known" in expr
+    assert "== bool 0" in expr

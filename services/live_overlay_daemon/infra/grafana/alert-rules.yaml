@@ -2579,6 +2579,50 @@ groups:
         Check the sweep-trap-shadow-daily workflow runs and their auto-PRs (each run pushes a
         dynamic bot/sweep-trap-shadow-ledger-<run_id>-<attempt> branch; no static branch exists).
         Observe-only — no score impact; a stale snapshot only means the promotion evidence stopped accruing.
+  - uid: lo-sweep-trap-shadow-age-unknown
+    title: Sweep-trap shadow snapshot age unknown (no real data loaded)
+    condition: C
+    data:
+    - refId: A
+      datasourceUid: grafanacloud-prom
+      model:
+        # Complement of the stale rule: a MISSING/UNREADABLE snapshot (and the
+        # committed no-data seed, generated_at=0) yields age_known=0 AND stale=0,
+        # so the gt-0 stale rule stays green with zero data — the gt-0-inert
+        # class. `== bool 0` (not `== 0`) is mandatory: a bare match returns 0
+        # and the gt-0 threshold reads 0>0=false (inert).
+        expr: max(live_overlay_sweep_trap_shadow_snapshot_age_known{job="live_overlay"}) == bool 0
+        instant: true
+    - refId: C
+      datasourceUid: __expr__
+      model:
+        type: threshold
+        conditions:
+        - evaluator:
+            type: gt
+            params:
+            - 0
+          operator:
+            type: and
+          query:
+            params:
+            - A
+    # Rides out daemon restarts/deploy churn and transient fetch failures; a
+    # genuinely absent feed holds age_known=0 far longer than 2h. A missing
+    # SERIES (daemon down) is lo-scrape-missing's job, not this rule's.
+    for: 2h
+    noDataState: OK
+    labels:
+      severity: warning
+    annotations:
+      summary: The sweep-trap shadow bridge has never loaded a real snapshot (missing/unreadable file or the no-data seed)
+      runbook: live_overlay_sweep_trap_shadow_snapshot_age_known is 0 — the daemon is
+        serving the committed no-data seed (generated_at=0) or cannot fetch/read the
+        snapshot at SWEEP_TRAP_SHADOW_SNAPSHOT_URL. Check that the daily
+        sweep-trap-shadow-daily workflow publishes bot/live-sweep-trap-shadow (needs
+        GH_PAT; the publish step only warns when it is missing) and that the daemon URL
+        points at it. The stale alert cannot cover this state — stale is only computed
+        once an age is KNOWN.
   - uid: lo-sweep-trap-shadow-promotable
     title: Sweep-trap shadow verdict is PROMOTABLE (WS4b candidate)
     condition: C

@@ -137,6 +137,33 @@ jobs:
           if [ "${status}" = "error" ]; then exit "$rc"; fi
           exit 0
 
+      - name: Run reaction-zone shadow eval
+        id: reaction_eval
+        # Piggybacks on the same rolling-bench corpus (the reaction study reads the
+        # identical event ledgers). rc 0 = snapshot written, rc 5 = no reaction
+        # samples yet (producer flag ENABLE_REACTION_ZONE_STUDY may still be dark) —
+        # both green; only real errors fail the step.
+        env:
+          CORPUS_DIR: ${{ steps.corpus.outputs.corpus_dir }}
+        run: |
+          set -uo pipefail
+          if [ -z "${CORPUS_DIR}" ]; then
+            echo "status=no_data" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          set +e
+          python scripts/eval_reaction_zone_shadow.py --benchmark-dir "${CORPUS_DIR}" 2>&1 | tee reaction_eval.log
+          rc="${PIPESTATUS[0]}"
+          set -e
+          case "$rc" in
+            0) status=written ;;
+            5) status=no_samples ;;
+            *) status=error ;;
+          esac
+          echo "status=${status}" >> "$GITHUB_OUTPUT"
+          if [ "${status}" = "error" ]; then exit "$rc"; fi
+          exit 0
+
       - name: Annotate shadow result
         if: always()
         run: |
@@ -145,6 +172,7 @@ jobs:
             echo ""
             echo "- corpus source: \`${{ steps.corpus.outputs.source }}\`"
             echo "- eval status: \`${{ steps.eval.outputs.status || 'unknown' }}\`"
+            echo "- reaction eval status: \`${{ steps.reaction_eval.outputs.status || 'unknown' }}\`"
             echo ""
             echo "Detector stays in shadow — no score-budget weight (WS4a)."
           } >> "$GITHUB_STEP_SUMMARY"
@@ -153,12 +181,18 @@ jobs:
       - name: Commit shadow ledger back via PR
         # PR-flow, not a direct push: the main-governance ruleset rejects bare
         # pushes to main. Mirror the ADR-0023 shadow commit-back. GH_PAT (not
-        # GITHUB_TOKEN) so the PR triggers the required fast-gates check. Only
-        # runs when a real row was appended (promotable/shadow); no_data/stale/
-        # error append nothing. Fail LOUD on any landing failure.
+        # GITHUB_TOKEN) so the PR triggers the required fast-gates check. Runs
+        # for every MEASURED row: promotable/shadow AND thin_or_no_data — rc 3
+        # conflates "measured but n<MIN_OOS (INCONCLUSIVE, ledger row written)"
+        # with "zero samples (nothing written)"; the diff-quiet guard below
+        # no-ops the zero-sample case, so gating the step on the status would
+        # silently discard every measured-but-thin day (the k-of-n evidence
+        # trail #3518 requires). stale/error append nothing. Fail LOUD on any
+        # landing failure.
         if: >
           steps.eval.outputs.status == 'promotable'
           || steps.eval.outputs.status == 'shadow'
+          || steps.eval.outputs.status == 'thin_or_no_data'
         env:
           GH_TOKEN: ${{ secrets.GH_PAT != '' && secrets.GH_PAT || github.token }}
         run: |
@@ -192,7 +226,9 @@ jobs:
           path: |
             artifacts/governance/sweep_trap_shadow.jsonl
             artifacts/monitoring/sweep_trap_shadow.json
+            artifacts/monitoring/reaction_zone_shadow.json
             eval.log
+            reaction_eval.log
           if-no-files-found: ignore
           retention-days: 30
 
@@ -204,9 +240,12 @@ jobs:
         #
         # Gate: a freshly-written snapshot has generated_at > 0; a no_data/stale
         # run leaves the committed seed (generated_at 0) untouched and publishes
-        # nothing — the snapshot age then climbs and lo-sweep-trap-shadow-stale
-        # eventually fires. Runs LAST so the upload step sees the working tree
-        # before this step force-resets it onto origin/main.
+        # nothing — the bridge then keeps serving age_known=0 and the
+        # lo-sweep-trap-shadow-age-unknown alert fires (NOT the stale alert:
+        # stale is only computed once an age is known). Also ships the
+        # reaction-zone snapshot when the piggybacked eval wrote one. Runs LAST
+        # so the upload step sees the working tree before this step
+        # force-resets it onto origin/main.
         if: always()
         env:
           GH_TOKEN: ${{ secrets.GH_PAT }}
@@ -231,6 +270,12 @@ jobs:
           # branch state (from the commit-back step) can never leak into it.
           tmp="$(mktemp)"
           cp "${snapshot}" "${tmp}"
+          reaction_snapshot="artifacts/monitoring/reaction_zone_shadow.json"
+          reaction_tmp=""
+          if [ -s "${reaction_snapshot}" ]; then
+            reaction_tmp="$(mktemp)"
+            cp "${reaction_snapshot}" "${reaction_tmp}"
+          fi
           _remote_url="https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git"
           git fetch "${_remote_url}" main 2>/dev/null || true
           git checkout -f -B _sweep_trap_shadow_publish FETCH_HEAD
@@ -241,6 +286,10 @@ jobs:
           git config user.name  "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add -f "${stable_dir}/sweep_trap_shadow.json"
+          if [ -n "${reaction_tmp}" ]; then
+            cp "${reaction_tmp}" "${stable_dir}/reaction_zone_shadow.json"
+            git add -f "${stable_dir}/reaction_zone_shadow.json"
+          fi
           if git diff --cached --quiet; then
             echo "No sweep-trap-shadow snapshot changes to publish."
             exit 0

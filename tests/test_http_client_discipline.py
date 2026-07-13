@@ -181,7 +181,7 @@ _FROZEN_URLOPEN_SITES: frozenset[tuple[str, int]] = frozenset(
         ("services/live_overlay_daemon/provider_usage_bridge.py", 97),  # 2026-07-11 (rate_limit_hits coerce +1 line): 96->97
         # 2026-07-11 (feat/sweep-trap-shadow-grafana): WS4a sweep-trap shadow
         # snapshot fetcher, https-only with explicit timeout=.
-        ("services/live_overlay_daemon/sweep_trap_shadow_bridge.py", 96),
+        ("services/live_overlay_daemon/sweep_trap_shadow_bridge.py", 98),  # 2026-07-13 (F7 docstring fix): 96->98
         # 2026-06-23: signals-producer consumer hook — _fetch_json_url pulls
         # the open-prep snapshot from OPEN_PREP_SNAPSHOT_URL with explicit
         # timeout discipline (Railway worker without local artifact).
