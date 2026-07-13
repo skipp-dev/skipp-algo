@@ -160,6 +160,40 @@ class TestWS1LiquiditySupportWiring:
         assert "REACTION_BAND_LOW" in payload  # reaction-zone path also runs
         assert "REACTION_LEVEL_RECLAIMED" in payload  # authoritative reclaim signal recorded
 
+    def test_reclaim_on_the_anchor_bar_is_detected(self) -> None:
+        # Off-by-one regression: the anchor bar is a COMPLETED bar (its close is the
+        # current reference price), so a reclaim landing ON it must be seen now — not
+        # one anchor step later. Pre-fix the window ended AT anchor_idx (exclusive),
+        # so this sweep classified as "failed" with REACTION_LEVEL_RECLAIMED False.
+        from smc_integration.measurement_evidence import _liquidity_support_for_event
+
+        ts0 = 1_700_000_000
+        rows = []
+        for i in range(14):
+            if i == 5:            # pre-sweep leg high (origin)
+                c, hi, lo = 105.0, 105.5, 104.5
+            elif i <= 9:          # pre-sweep leg above the 100 level
+                c, hi, lo = 102.0, 102.5, 101.5
+            elif i == 10:         # sweep bar: pierces 98, closes 99 (below swept 100)
+                c, hi, lo = 99.0, 100.2, 98.0
+            elif i < 13:          # bars 11,12: recover but STAY below 100 (no reclaim, not in band)
+                c, hi, lo = 99.0, 99.4, 98.6
+            else:                 # bar 13 = the anchor: closes back above 100 (reclaim ON the anchor)
+                c, hi, lo = 101.0, 101.5, 100.2
+            rows.append({"timestamp": ts0 + i * 900, "open": c, "high": hi, "low": lo, "close": c})
+        bars = pd.DataFrame(rows)
+        candidate = {"id": "cand-anchor", "price": 100.0, "side": "SELL_SIDE",
+                     "time": float(ts0 + 10 * 900)}
+        with patch.dict(os.environ, {"ENABLE_SWEEP_TRAP": "1", "ENABLE_REACTION_ZONE": "1"}):
+            payload = _liquidity_support_for_event(
+                current_event=candidate, family="SWEEP", sweeps=[candidate],
+                bars=bars, anchor_idx=13, anchor_ts=float(bars.iloc[13]["timestamp"]),
+            )
+        assert payload["REACTION_LEVEL_RECLAIMED"] is True
+        assert payload["REACTION_BARS_TO_RECLAIM"] == 3   # bars 11,12,13 -> reclaim on the 3rd
+        assert payload["SWEEP_TRAP_TYPE"] != "failed"
+        assert payload["SWEEP_RECLAIM_BARS"] == 3
+
     def test_liquidity_support_no_trap_fields_when_flag_off(self) -> None:
         from smc_integration.measurement_evidence import _liquidity_support_for_event
 

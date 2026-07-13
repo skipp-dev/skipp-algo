@@ -441,11 +441,21 @@ def _event_bar_interval(forward_timestamps: list[float]) -> float:
 
 
 def _guard_end_ts(fts: list[float], embargo_bars: int) -> float | None:
-    """Label-window end plus the family embargo in wall-clock time.
+    """Forward-BUFFER end (``fts[-1]``) plus the family embargo in wall-clock time.
+
+    NOTE: ``fts[-1]`` is the end of the adapter's forward *buffer* (the full
+    lookahead: SWEEP 8 / OB 12 / FVG 20 bars), which is LONGER than the bars the
+    outcome actually consumes (``realized_return`` exits at ``touch_idx + horizon``;
+    SWEEP horizon 3 / OB 6 / FVG 4). The guard therefore ends a few bars AFTER the
+    true label end — this is CONSERVATIVE (strictly leak-safe, it over-purges) but
+    over-conservative for statistical efficiency (it can discard training events
+    whose real label ended earlier, shrinking folds / affecting MIN_OOS). Tightening
+    it to the actual consumed ``exit_idx`` is a deliberate follow-up (it changes
+    walk-forward fold composition and needs calibration re-validation).
 
     Stat-review S3 (#2674): when the embargo is non-zero but the forward
     window is degenerate (< 2 positive timestamp diffs), the embargo
-    would silently collapse to zero (guard_end == label end), weakening
+    would silently collapse to zero (guard_end == buffer end), weakening
     the walk-forward purge for exactly these events. Return ``None`` so
     callers exclude the event from purged samples — never invented.
     """
@@ -464,12 +474,13 @@ def extract_family_calibration_samples(
     a raw ``score`` AND forward timestamps, emit a parallel-list bundle
     ``{family: {"scores", "returns", "anchor_ts", "guard_end_ts"}}``.
 
-    ``guard_end_ts`` is the event's label-window end (the last forward
-    timestamp) PLUS the family embargo expressed in time (``embargo_bars`` *
-    the event's own median bar spacing). The downstream purge keeps a training
-    event only when its ``guard_end_ts`` resolves strictly before a test fold
-    begins, which prevents overlapping-label leakage across the train/test
-    boundary (senior-quant review GAP 1; Lopez de Prado 2018, ch. 7). Events
+    ``guard_end_ts`` is the forward-BUFFER end (the last forward timestamp —
+    a conservative superset of the label end, see :func:`_guard_end_ts`) PLUS
+    the family embargo expressed in time (``embargo_bars`` * the event's own
+    median bar spacing). The downstream purge keeps a training event only when
+    its ``guard_end_ts`` resolves strictly before a test fold begins, which
+    prevents overlapping-label leakage across the train/test boundary
+    (senior-quant review GAP 1; Lopez de Prado 2018, ch. 7). Events
     without a score or forward timestamps are excluded -- they cannot be
     calibrated leak-safely and are never invented into the sample.
     """
@@ -629,8 +640,9 @@ def extract_family_ab_samples(
     The pairing is deliberate: the A/B must score both arms on the *same* events
     over the *same* purged walk-forward folds, otherwise a Brier/resolution
     delta would confound the feature's effect with a differing event sample.
-    ``guard_end_ts`` reuses the calibration purge guard (label-window end plus
-    the family embargo in time) so the A/B is leak-safe by construction. Events
+    ``guard_end_ts`` reuses the calibration purge guard (forward-buffer end plus
+    the family embargo in time — a conservative superset of the label end) so the
+    A/B is leak-safe by construction. Events
     missing either arm are excluded -- never invented into the sample.
     """
     out: dict[str, ABSamples] = {}
