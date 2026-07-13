@@ -646,7 +646,7 @@ def build_signal_quality_v2(
         if (
             is_smt_divergence_promoted()
             and smt_block.get("SMT_DIVERGENCE_DETECTED")
-            and smt_block.get("SMT_DIVERGENCE_CONFIDENCE", 0) >= 60
+            and smt_block.get("SMT_DIVERGENCE_HEURISTIC_SCORE", 0) >= 60
         ):
             score += _MAX_SMT_V2
 
@@ -692,9 +692,9 @@ def build_signal_quality_v2(
     # touch the live SIGNAL_FRESHNESS that feeds HERO_TRUST / the Pine trust tier.
     freshness = result.get("SIGNAL_FRESHNESS", "stale")
     downgrade_triggered = False
-    if is_sweep_trap_promoted() and result.get("SWEEP_TRAP_DETECTED") and result.get("SWEEP_TRAP_CONFIDENCE", 0) >= 60:
+    if is_sweep_trap_promoted() and result.get("SWEEP_TRAP_DETECTED") and result.get("SWEEP_TRAP_HEURISTIC_SCORE", 0) >= 60:
         downgrade_triggered = True
-    if is_smt_divergence_promoted() and result.get("SMT_DIVERGENCE_DETECTED") and result.get("SMT_DIVERGENCE_CONFIDENCE", 0) >= 60:
+    if is_smt_divergence_promoted() and result.get("SMT_DIVERGENCE_DETECTED") and result.get("SMT_DIVERGENCE_HEURISTIC_SCORE", 0) >= 60:
         downgrade_triggered = True
     if downgrade_triggered and freshness not in ("stale", "expired"):
         downgrades = {"very_fresh": "fresh", "fresh": "aging", "aging": "stale"}

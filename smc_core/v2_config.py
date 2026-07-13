@@ -94,7 +94,11 @@ class SmtDivergenceConfig:
 
     @property
     def confidence(self) -> int:
-        """Confidence when a divergence is detected."""
+        """Heuristic conviction constant emitted when a divergence is detected
+        (0–100, NOT a probability). Env: prefer ``SMC_SMT_DIVERGENCE_HEURISTIC_SCORE``;
+        the legacy ``SMC_SMT_DIVERGENCE_CONFIDENCE`` is still honoured as an alias."""
+        if "SMC_SMT_DIVERGENCE_HEURISTIC_SCORE" in os.environ:
+            return _env_int("SMC_SMT_DIVERGENCE_HEURISTIC_SCORE", 70, min_val=0, max_val=100)
         return _env_int("SMC_SMT_DIVERGENCE_CONFIDENCE", 70, min_val=0, max_val=100)
 
 
