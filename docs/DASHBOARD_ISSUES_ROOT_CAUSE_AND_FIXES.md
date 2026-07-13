@@ -372,7 +372,7 @@ These metrics are exposed via the daemon's `/metrics` endpoint and scraped by Gr
 **Long-term (automation):**
 
 1. **Schedule periodic snapshot generation:**
-   - Add cron job or GitHub Actions workflow to run Plan 2.8 evaluation daily
+   - Add cron job or GitHub Actions workflow to run Plan 2.8 evaluation daily — **DONE**: `plan-2-8-evaluation.yml` (cron `0 4 * * *`); see `DASHBOARD_AUTOMATION_COMPLETE.md`
    - Append results to history JSONL
    - Upload snapshots to stable URL accessible by live_overlay_daemon
 
