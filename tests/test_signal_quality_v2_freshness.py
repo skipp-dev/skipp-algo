@@ -15,10 +15,10 @@ def _reset_env() -> Iterator[None]:
     """Reset env vars that influence routing / freshness v2."""
     keys = {
         "SIGNAL_QUALITY_MODEL",
-        "ENABLE_FRESHNESS_V2",
+        "ENABLE_FRESHNESS_V2_SCORE",
         "ENABLE_CONFLUENCE_SCORE",
         "ENABLE_SWEEP_TRAP",
-        "ENABLE_REACTION_ZONE",
+        "ENABLE_REACTION_CONTEXT",
         "ENABLE_SMT_DIVERGENCE",
     }
     saved = {k: os.environ.pop(k, None) for k in keys}
@@ -38,7 +38,7 @@ def test_v2_routes_to_v1_when_flag_off() -> None:
 
 def test_v2_uses_extended_freshness_when_flag_on() -> None:
     os.environ["SIGNAL_QUALITY_MODEL"] = "v2"
-    os.environ["ENABLE_FRESHNESS_V2"] = "1"
+    os.environ["ENABLE_FRESHNESS_V2_SCORE"] = "1"
     enrichment = {
         "structure_state_light": {"STRUCTURE_FRESH": True, "STRUCTURE_EVENT_AGE_BARS": 2},
         "fvg_lifecycle_light": {"FVG_FRESH": True},
@@ -53,7 +53,7 @@ def test_v2_uses_extended_freshness_when_flag_on() -> None:
 
 def test_v2_freshness_expired_when_exhaustion() -> None:
     os.environ["SIGNAL_QUALITY_MODEL"] = "v2"
-    os.environ["ENABLE_FRESHNESS_V2"] = "1"
+    os.environ["ENABLE_FRESHNESS_V2_SCORE"] = "1"
     enrichment = {
         "structure_state_light": {"STRUCTURE_FRESH": False, "STRUCTURE_EVENT_AGE_BARS": 60},
         "fvg_lifecycle_light": {"FVG_FRESH": False},
@@ -65,7 +65,7 @@ def test_v2_freshness_expired_when_exhaustion() -> None:
 
 
 def test_v2_feature_flag_triggers_v2_routing_with_default_model() -> None:
-    os.environ["ENABLE_FRESHNESS_V2"] = "1"
+    os.environ["ENABLE_FRESHNESS_V2_SCORE"] = "1"
     enrichment = {
         "structure_state_light": {"STRUCTURE_FRESH": True, "STRUCTURE_EVENT_AGE_BARS": 2},
         "fvg_lifecycle_light": {"FVG_FRESH": True},
@@ -81,7 +81,7 @@ def test_v2_feature_flag_triggers_v2_routing_with_default_model() -> None:
 
 def test_overrides_still_win_with_v2_freshness() -> None:
     os.environ["SIGNAL_QUALITY_MODEL"] = "v2"
-    os.environ["ENABLE_FRESHNESS_V2"] = "1"
+    os.environ["ENABLE_FRESHNESS_V2_SCORE"] = "1"
     result = build_signal_quality(
         enrichment={},
         overrides={"SIGNAL_FRESHNESS": "manual"},

@@ -55,51 +55,63 @@ class SweepTrapConfig:
 
 
 class ReactionZoneConfig:
-    """Tunables for the reaction-zone detector."""
+    """Tunables for the reaction-*context* detector (``detect_reaction_zone``).
 
-    @property
-    def distance_threshold_pct(self) -> float:
-        """OB/FVG must be within this percentage distance to define a zone."""
-        return _env_float("SMC_REACTION_ZONE_DISTANCE_PCT", 3.0, min_val=0.1, max_val=50.0)
-
-    @property
-    def bias_aligned_confidence(self) -> int:
-        """Confidence when zone direction aligns with session bias."""
-        return _env_int("SMC_REACTION_ZONE_BIAS_ALIGNED_CONFIDENCE", 60, min_val=0, max_val=100)
-
-    @property
-    def bias_misaligned_confidence(self) -> int:
-        """Confidence when zone direction conflicts with session bias."""
-        return _env_int("SMC_REACTION_ZONE_BIAS_MISALIGNED_CONFIDENCE", 40, min_val=0, max_val=100)
-
-
-class ConfluenceScoreConfig:
-    """RESERVED / UNWIRED — nothing reads this config.
-
-    The real confluence detector (``smc_core/smc_confluence.py``) hard-codes
-    its thresholds and uses a geometric mean, not a points-per-signal model;
-    the v2 bucket weight is hard-coded in ``scripts/smc_signal_quality.py``.
-    Setting ``SMC_CONFLUENCE_POINTS_PER_SIGNAL`` has NO effect (open
-    wire-or-remove decision).
+    These knobs ONLY affect the enrichment context detector (fresh structure/
+    sweep near an OB/FVG). They do **not** configure the canonical measurement
+    geometry in ``compute_reaction_zone`` — that path hard-codes
+    ``ZONE_WIDTH_FRACTION`` / ``MIN_CONFIRMATION_BODY_RATIO`` and never reads
+    this config. The env vars were renamed ``SMC_REACTION_ZONE_*`` →
+    ``SMC_REACTION_CONTEXT_*`` (2026-07-13, clean cutover — verified unset in
+    every Railway service) to match the ``ENABLE_REACTION_CONTEXT`` flag split.
     """
 
     @property
-    def points_per_signal(self) -> int:
-        """Score contribution of each aligned signal (unwired — see class doc)."""
-        return _env_int("SMC_CONFLUENCE_POINTS_PER_SIGNAL", 20, min_val=1, max_val=100)
+    def distance_threshold_pct(self) -> float:
+        """OB/FVG must be within this percentage distance to flag a context."""
+        return _env_float("SMC_REACTION_CONTEXT_DISTANCE_PCT", 3.0, min_val=0.1, max_val=50.0)
+
+    @property
+    def bias_aligned_confidence(self) -> int:
+        """Confidence when context direction aligns with session bias."""
+        return _env_int("SMC_REACTION_CONTEXT_BIAS_ALIGNED_CONFIDENCE", 60, min_val=0, max_val=100)
+
+    @property
+    def bias_misaligned_confidence(self) -> int:
+        """Confidence when context direction conflicts with session bias."""
+        return _env_int("SMC_REACTION_CONTEXT_BIAS_MISALIGNED_CONFIDENCE", 40, min_val=0, max_val=100)
+
+
+# NOTE: the ``SMC_CONFLUENCE_POINTS_PER_SIGNAL`` knob (class ``ConfluenceScore
+# Config``) was removed 2026-07-13 — it was RESERVED/UNWIRED and read nowhere.
+# The real confluence detector (``smc_core/smc_confluence.py``) hard-codes its
+# thresholds and uses a geometric mean, not a points-per-signal model, and the
+# v2 bucket weight is hard-coded in ``scripts/smc_signal_quality.py``.
 
 
 class SmtDivergenceConfig:
-    """Tunables for the SMT-divergence detector."""
+    """Tunables for the SMT-divergence detector.
+
+    PRODUCTIVELY INERT — ``detect_smt_divergence`` returns neutral for every
+    production event because no production producer builds the required
+    ``correlated_context`` block (only tests supply it; see
+    ``smc_core/smt_divergence.py``). Until a PIT-safe correlated-context feed
+    exists, ``SMC_SMT_DIVERGENCE_HEURISTIC_SCORE`` (and its legacy alias
+    ``SMC_SMT_DIVERGENCE_CONFIDENCE``) has no observable effect in prod.
+    """
 
     @property
     def confidence(self) -> int:
-        """Confidence when a divergence is detected."""
+        """Heuristic conviction constant stamped on a detected divergence
+        (0–100, NOT a probability). Env: prefer ``SMC_SMT_DIVERGENCE_HEURISTIC
+        _SCORE``; the legacy ``SMC_SMT_DIVERGENCE_CONFIDENCE`` is still honoured
+        as an alias. Inert in prod — see class doc."""
+        if "SMC_SMT_DIVERGENCE_HEURISTIC_SCORE" in os.environ:
+            return _env_int("SMC_SMT_DIVERGENCE_HEURISTIC_SCORE", 70, min_val=0, max_val=100)
         return _env_int("SMC_SMT_DIVERGENCE_CONFIDENCE", 70, min_val=0, max_val=100)
 
 
 # Module-level singletons for convenient import.
 sweep_trap_config = SweepTrapConfig()
 reaction_zone_config = ReactionZoneConfig()
-confluence_score_config = ConfluenceScoreConfig()
 smt_divergence_config = SmtDivergenceConfig()

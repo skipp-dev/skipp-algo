@@ -146,12 +146,25 @@ def test_tier_from_score_monotone_non_decreasing(seed: int) -> None:
 # ---------------------------------------------------------------------------
 
 
-@pytest.mark.parametrize("dir_in", (None, "", "neutral", "NEUTRAL", "  Neutral  "))
-def test_bias_component_neutral_returns_half(dir_in: str | None) -> None:
-    """Empty / None / any-case NEUTRAL → fixed 0.5 (no directional reward)."""
+@pytest.mark.parametrize("dir_in", ("", "neutral", "NEUTRAL", "  Neutral  "))
+def test_bias_component_neutral_returns_half(dir_in: str) -> None:
+    """Any-case NEUTRAL (with a confidence) → fixed 0.5 (no directional reward)."""
     value, detail = _bias_component(dir_in, 0.9)
     assert value == 0.5
     assert detail["direction"] == "NEUTRAL"
+
+
+@pytest.mark.parametrize(
+    "direction,confidence",
+    ((None, 0.9), ("BULLISH", None), (None, None), ("NEUTRAL", None)),
+)
+def test_bias_component_missing_direction_or_confidence_returns_none(
+    direction: str | None, confidence: float | None
+) -> None:
+    """Missing direction OR confidence → no component (None), not a phantom value."""
+    value, detail = _bias_component(direction, confidence)
+    assert value is None
+    assert detail["direction"] is None
 
 
 @pytest.mark.parametrize(
@@ -162,7 +175,6 @@ def test_bias_component_neutral_returns_half(dir_in: str | None) -> None:
         (0.5, 0.7),    # 0.4 + 0.6*0.5
         (-1.0, 0.4),   # clamped to 0
         (2.0, 1.0),    # clamped to 1
-        (None, 0.4),   # None → 0.0 → 0.4
     ),
 )
 def test_bias_component_directional_linear_in_confidence(
@@ -374,18 +386,26 @@ def test_history_component_non_dict_rows_ignored() -> None:
 # ---------------------------------------------------------------------------
 
 
-def test_build_ensemble_quality_empty_inputs_yields_neutral_bias_only() -> None:
-    """No inputs → only the bias component contributes (NEUTRAL → 0.5).
+def test_build_ensemble_quality_empty_inputs_yields_zero_low() -> None:
+    """No inputs → NO components contribute → score 0 / tier low.
 
-    ``_bias_component`` always returns a value (never ``None``) and the
-    NEUTRAL branch fixes it at 0.5, so the aggregate is exactly 0.5 with
-    ``active_weight == _DEFAULT_WEIGHTS['bias']``.
+    Missing evidence must not create score: with no bias direction/confidence,
+    ``_bias_component`` returns ``None`` (like every other component), so an empty
+    call has no active weight and collapses to 0 rather than a phantom 0.5/"good".
     """
     result = build_ensemble_quality()
+    assert result.score == 0.0
+    assert result.tier == "low"
+    assert result.available_components == []
+    assert result.contributions == {}
+
+
+def test_build_ensemble_quality_observed_neutral_bias_contributes_half() -> None:
+    """An actually-observed NEUTRAL bias (direction + confidence) still gives 0.5."""
+    result = build_ensemble_quality(bias_direction="NEUTRAL", bias_confidence=0.5)
+    assert result.available_components == ["bias"]
     assert result.score == 0.5
     assert result.tier == "good"
-    assert result.available_components == ["bias"]
-    assert set(result.contributions) == {"bias"}
 
 
 def test_build_ensemble_quality_all_components_dropped_yields_zero_low() -> None:

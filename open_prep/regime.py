@@ -140,8 +140,8 @@ def classify_regime(
 ) -> RegimeSnapshot:
     """Classify the current market regime.
 
-    Includes hysteresis: when VIX is within ``_VIX_HYSTERESIS`` of a
-    threshold boundary, the previous regime is retained to prevent flicker.
+    Includes hysteresis (DORMANT in prod: reset_regime_state()+single call keep
+    ``_prev_regime`` None): retains the prior regime near a VIX boundary.
 
     Parameters
     ----------

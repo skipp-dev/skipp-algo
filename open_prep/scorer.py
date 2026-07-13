@@ -573,7 +573,7 @@ def score_candidate(
     w = weights or DEFAULT_WEIGHTS
     f = fr.features
 
-    # --- #15  Regime-adaptive weight adjustment ---
+    # --- #15  Regime-adaptive weight adjustment (SYMBOL layer; compounds with the MARKET tilt baked into weight_label="_regime_adjusted") ---
     symbol_regime = f.get("symbol_regime", "NEUTRAL")
     w = resolve_regime_weights(w, symbol_regime)
 

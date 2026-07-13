@@ -30,7 +30,7 @@ not read it as an open decision.
 | **WS3 — SMT correlated feed** | Provide `correlated_context` so `detect_smt_divergence` contributes | ⏸️ **DEFERRED** | still input-starved in production (only tests build `correlated_context`) |
 
 **Net current state.** `classify_sweep_trap()` and `compute_reaction_zone()`
-run on real sweeps behind `ENABLE_SWEEP_TRAP` / `ENABLE_REACTION_ZONE`
+run on real sweeps behind `ENABLE_SWEEP_TRAP` / `ENABLE_REACTION_ZONE_STUDY`
 (default-OFF, observe-only — recorded for the follow-through study, **no score
 weight applied**). Only **SMT** remains productively input-starved (WS3). Any
 score-budget weight for the sweep/reaction lane still awaits the shadow-Brier

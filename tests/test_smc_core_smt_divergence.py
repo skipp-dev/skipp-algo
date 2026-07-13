@@ -30,7 +30,7 @@ def test_disabled_returns_neutral() -> None:
     assert result == {
         "SMT_DIVERGENCE_DETECTED": False,
         "SMT_DIVERGENCE_SIDE": "none",
-        "SMT_DIVERGENCE_CONFIDENCE": 0,
+        "SMT_DIVERGENCE_HEURISTIC_SCORE": 0,
     }
 
 
@@ -50,7 +50,7 @@ def test_enabled_bull_primary_with_bearish_correlated() -> None:
     )
     assert result["SMT_DIVERGENCE_DETECTED"] is True
     assert result["SMT_DIVERGENCE_SIDE"] == "bear"
-    assert result["SMT_DIVERGENCE_CONFIDENCE"] == 70
+    assert result["SMT_DIVERGENCE_HEURISTIC_SCORE"] == 70
 
 
 def test_enabled_bear_primary_with_bullish_correlated() -> None:
@@ -63,7 +63,7 @@ def test_enabled_bear_primary_with_bullish_correlated() -> None:
     )
     assert result["SMT_DIVERGENCE_DETECTED"] is True
     assert result["SMT_DIVERGENCE_SIDE"] == "bull"
-    assert result["SMT_DIVERGENCE_CONFIDENCE"] == 70
+    assert result["SMT_DIVERGENCE_HEURISTIC_SCORE"] == 70
 
 def test_enabled_bull_primary_with_bullish_correlated_no_divergence() -> None:
     os.environ["ENABLE_SMT_DIVERGENCE"] = "1"
@@ -75,7 +75,7 @@ def test_enabled_bull_primary_with_bullish_correlated_no_divergence() -> None:
     )
     assert result["SMT_DIVERGENCE_DETECTED"] is False
     assert result["SMT_DIVERGENCE_SIDE"] == "none"
-    assert result["SMT_DIVERGENCE_CONFIDENCE"] == 0
+    assert result["SMT_DIVERGENCE_HEURISTIC_SCORE"] == 0
 
 
 def test_enabled_bear_primary_with_bearish_correlated_no_divergence() -> None:
@@ -88,5 +88,5 @@ def test_enabled_bear_primary_with_bearish_correlated_no_divergence() -> None:
     )
     assert result["SMT_DIVERGENCE_DETECTED"] is False
     assert result["SMT_DIVERGENCE_SIDE"] == "none"
-    assert result["SMT_DIVERGENCE_CONFIDENCE"] == 0
+    assert result["SMT_DIVERGENCE_HEURISTIC_SCORE"] == 0
 

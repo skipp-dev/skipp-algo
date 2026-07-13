@@ -192,11 +192,12 @@ file = "open_prep/realtime_signals.py"
 line = 368
 codes = ["S603"]
 
-# smc_integration/release_policy.py:1121 — Bandit S603 false positive:
+# smc_integration/release_policy.py:1137 — Bandit S603 false positive:
 # git rev-parse HEAD via shutil.which("git").
+# 2026-07-13: shifted 1121 -> 1137 by MeasurementShadowThresholds in-sample-disclosure docstring (+16).
 [[noqa_budget.sites]]
 file = "smc_integration/release_policy.py"
-line = 1121
+line = 1137
 codes = ["S603"]
 
 # E402 outliers in newsstack_fmp/pipeline.py remain (not covered by per-file-ignores).

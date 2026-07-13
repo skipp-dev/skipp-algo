@@ -400,7 +400,9 @@ def build_signal_quality_v1(
     # Scores expansion potential from squeeze/ATR data (not price headroom)
     cr = enr.get("compression_regime") or {}
     squeeze_on = bool(cr.get("SQUEEZE_ON", False))
-    atr_regime = str(cr.get("ATR_REGIME", "NORMAL"))
+    # Missing regime -> UNKNOWN (0 compression points), not a free NORMAL bonus.
+    # Only an explicitly measured "NORMAL" earns the base compression credit.
+    atr_regime = str(cr.get("ATR_REGIME", "UNKNOWN"))
 
     if squeeze_on:
         score += int(MAX_COMPRESSION * 0.8)  # squeeze = good expansion potential
@@ -447,6 +449,12 @@ def build_signal_quality(
     the implementation: ``"v1"`` (default) calls the frozen production
     scoring in :func:`build_signal_quality_v1`; ``"v2"`` and ``"v2.1"`
     delegate to :func:`build_signal_quality_v2`.
+
+    NOTE — ``"v2.1"`` is currently an **alias for ``"v2"``**, not a distinct
+    model: there is no v2.1-specific branch, weights, or provenance yet. The
+    Phase-E cutover it is reserved for is unimplemented; both values produce
+    byte-identical output. Do not treat a ``v2.1`` reading as evidence of
+    different bucket weights.
 
     Additionally, if a v2 *score-model* flag is enabled (see
     :func:`open_prep.feature_flags.any_v2_score_feature_enabled` — Phase A
@@ -536,7 +544,9 @@ def build_signal_quality_v2(
 
     cr = enr.get("compression_regime") or {}
     squeeze_on = bool(cr.get("SQUEEZE_ON", False))
-    atr_regime = str(cr.get("ATR_REGIME", "NORMAL"))
+    # Missing regime -> UNKNOWN (0 compression points), not a free NORMAL bonus.
+    # Only an explicitly measured "NORMAL" earns the base compression credit.
+    atr_regime = str(cr.get("ATR_REGIME", "UNKNOWN"))
 
     # ── Event risk penalty (0 to -15) — lean: event_risk_light ──
     score = _event_risk_penalty(enr, score, warnings, PENALTY_EVENT)
@@ -646,7 +656,7 @@ def build_signal_quality_v2(
         if (
             is_smt_divergence_promoted()
             and smt_block.get("SMT_DIVERGENCE_DETECTED")
-            and smt_block.get("SMT_DIVERGENCE_CONFIDENCE", 0) >= 60
+            and smt_block.get("SMT_DIVERGENCE_HEURISTIC_SCORE", 0) >= 60
         ):
             score += _MAX_SMT_V2
 
@@ -683,6 +693,10 @@ def build_signal_quality_v2(
     if is_reaction_context_enabled():
         from smc_core.reaction_zone import detect_reaction_zone
 
+        # OBSERVE-ONLY: this runs AFTER SIGNAL_QUALITY_SCORE/TIER are finalized
+        # above and only appends REACTION_CONTEXT_* fields. Unlike sweep-trap and
+        # SMT, reaction-context contributes NOTHING to the score or the
+        # freshness downgrade below — it is a recorded context flag, not a weight.
         result.update(detect_reaction_zone(enr))
 
     # Post-detector freshness adjustment.
@@ -692,9 +706,9 @@ def build_signal_quality_v2(
     # touch the live SIGNAL_FRESHNESS that feeds HERO_TRUST / the Pine trust tier.
     freshness = result.get("SIGNAL_FRESHNESS", "stale")
     downgrade_triggered = False
-    if is_sweep_trap_promoted() and result.get("SWEEP_TRAP_DETECTED") and result.get("SWEEP_TRAP_CONFIDENCE", 0) >= 60:
+    if is_sweep_trap_promoted() and result.get("SWEEP_TRAP_DETECTED") and result.get("SWEEP_TRAP_HEURISTIC_SCORE", 0) >= 60:
         downgrade_triggered = True
-    if is_smt_divergence_promoted() and result.get("SMT_DIVERGENCE_DETECTED") and result.get("SMT_DIVERGENCE_CONFIDENCE", 0) >= 60:
+    if is_smt_divergence_promoted() and result.get("SMT_DIVERGENCE_DETECTED") and result.get("SMT_DIVERGENCE_HEURISTIC_SCORE", 0) >= 60:
         downgrade_triggered = True
     if downgrade_triggered and freshness not in ("stale", "expired"):
         downgrades = {"very_fresh": "fresh", "fresh": "aging", "aging": "stale"}

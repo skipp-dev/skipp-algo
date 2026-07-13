@@ -63,6 +63,20 @@ class TestPrimarySelection:
         result = build_ob_context_light(order_blocks=ob, current_price=102.0)
         assert result["PRIMARY_OB_SIDE"] == "NONE"
 
+    def test_freshness_without_level_is_not_an_ob(self):
+        """Fresh OB but no NEAREST_*_LEVEL -> no phantom OB at distance 0."""
+        ob = {"BULL_OB_FRESHNESS": 1}  # fresh, but no level
+        result = build_ob_context_light(order_blocks=ob, current_price=100.0)
+        assert result["PRIMARY_OB_SIDE"] == "NONE"
+        assert result["PRIMARY_OB_DISTANCE"] == 0.0  # DEFAULTS, not a real 0-distance
+        assert result["OB_FRESH"] is False
+
+    def test_non_positive_price_yields_no_ob(self):
+        """current_price <= 0 must not translate a level into distance 0."""
+        ob = {"BULL_OB_FRESHNESS": 3, "NEAREST_BULL_OB_LEVEL": 100.0}
+        result = build_ob_context_light(order_blocks=ob, current_price=0.0)
+        assert result["PRIMARY_OB_SIDE"] == "NONE"
+
     def test_fresher_ob_wins(self):
         ob = {
             "BULL_OB_FRESHNESS": 20,

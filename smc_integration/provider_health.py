@@ -95,6 +95,12 @@ class FailureSemantics:
     domain: str
     failure_type: str
     action: FailureAction
+    # DESCRIPTIVE metadata only — surfaced for operator display, NOT an enforced
+    # gate. ``classify_domain_alerts_to_failure_actions`` maps any ``*STALE*`` code
+    # to this row's action regardless of age; ``max_tolerable_hours`` is never
+    # compared to an alert's ``age_hours`` here. The real staleness decision lives
+    # upstream (the ``domain_diag[f"{domain}_stale"]`` boolean), and artifact
+    # staleness uses the separate global ``stale_after_seconds`` (7-day) budget.
     max_tolerable_hours: float | None
     affects_entry: bool
     description: str

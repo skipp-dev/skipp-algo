@@ -61,4 +61,24 @@ def test_custom_lopsided_boost_changes_confidence() -> None:
         }
     )
     # quality 1 -> 80, lopsided boost 5 -> 85
-    assert result["SWEEP_TRAP_CONFIDENCE"] == 85
+    assert result["SWEEP_TRAP_HEURISTIC_SCORE"] == 85
+
+
+def test_smt_divergence_confidence_default(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.delenv("SMC_SMT_DIVERGENCE_HEURISTIC_SCORE", raising=False)
+    monkeypatch.delenv("SMC_SMT_DIVERGENCE_CONFIDENCE", raising=False)
+    assert v2_config.smt_divergence_config.confidence == 70
+
+
+def test_smt_divergence_new_env_name_wins(monkeypatch: pytest.MonkeyPatch) -> None:
+    # Preferred new name overrides even when the legacy alias is also set.
+    monkeypatch.setenv("SMC_SMT_DIVERGENCE_HEURISTIC_SCORE", "55")
+    monkeypatch.setenv("SMC_SMT_DIVERGENCE_CONFIDENCE", "40")
+    assert v2_config.smt_divergence_config.confidence == 55
+
+
+def test_smt_divergence_legacy_env_alias_still_honoured(monkeypatch: pytest.MonkeyPatch) -> None:
+    # Back-compat: existing ops config on the old env var keeps working.
+    monkeypatch.delenv("SMC_SMT_DIVERGENCE_HEURISTIC_SCORE", raising=False)
+    monkeypatch.setenv("SMC_SMT_DIVERGENCE_CONFIDENCE", "42")
+    assert v2_config.smt_divergence_config.confidence == 42

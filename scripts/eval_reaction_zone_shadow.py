@@ -3,7 +3,7 @@ predictor than the old (inverted) rejection band?
 
 Reads the measurement event ledgers (``events_*.jsonl``), pulls the SWEEP-family
 events that carry the ``reaction_schema_version`` shadow features (emitted by
-``smc_integration.measurement_evidence`` when ``ENABLE_REACTION_ZONE=1``), and
+``smc_integration.measurement_evidence`` when ``ENABLE_REACTION_ZONE_STUDY=1``), and
 compares three boolean confirmation variants as predictors of the DISJOINT
 follow-through outcome ``reaction_outcome_late``:
 

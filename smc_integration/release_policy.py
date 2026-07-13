@@ -124,7 +124,7 @@ GATE_GOVERNANCE_REGISTRY: tuple[GateGovernance, ...] = (
     GateGovernance(
         code="MEASUREMENT_CALIBRATED_BRIER_ABOVE_THRESHOLD",
         promotion_state=GovernanceStatus.HARD_BLOCKING,
-        promotion_reason="Absolute calibrated Brier ceiling — core signal quality gate.",
+        promotion_reason="Absolute calibrated Brier ceiling (in-sample) — lenient one-sided guard: a breach is a genuine problem, a pass is NOT an OOS quality certification.",
         reviewer="owner",
         minimum_required_baselines=2,
         evidence_reference="docs/governance/promotions/initial_promotion_2026-04-17.md",
@@ -140,7 +140,7 @@ GATE_GOVERNANCE_REGISTRY: tuple[GateGovernance, ...] = (
     GateGovernance(
         code="MEASUREMENT_CALIBRATED_ECE_ABOVE_THRESHOLD",
         promotion_state=GovernanceStatus.HARD_BLOCKING,
-        promotion_reason="Absolute calibrated ECE ceiling — calibration quality gate.",
+        promotion_reason="Absolute calibrated ECE ceiling (in-sample) — lenient one-sided guard: a breach is a genuine problem, a pass is NOT an OOS calibration certification.",
         reviewer="owner",
         minimum_required_baselines=2,
         evidence_reference="docs/governance/promotions/initial_promotion_2026-04-17.md",
@@ -385,6 +385,22 @@ class MeasurementShadowThresholds:
     Remaining thresholds are advisory/warn-only.  Thresholds are deliberately
     conservative so the shadow lane remains additive until operators have
     sufficient history to tighten them.
+
+    IN-SAMPLE provenance (important for how to read these gates). The
+    ``calibrated_*`` inputs come from ``smc_core.scoring`` calibration, which is
+    fit and evaluated on the SAME events (apparent / optimistically biased — see
+    that module's CalibrationSummary docstring). Consequences for the gate:
+      * The regression-vs-median hard-blocks compare in-sample-vs-in-sample-median,
+        so the optimism bias cancels in the delta — a valid DEGRADATION signal.
+      * The absolute ceilings are a LENIENT one-sided guard: because in-sample
+        understates miscalibration, a breach implies a genuinely bad model
+        (block is justified), but a pass does NOT certify out-of-sample quality.
+        ``_effective_shadow_thresholds`` further tightens each ceiling toward the
+        historical median once history exists, so with history it behaves like a
+        regression bar; the loose absolute only bites on no-history first runs.
+    A true OOS calibration gate (leak-free walk-forward lives in
+    ``governance/family_calibration``) requires wiring a persisted OOS per-event
+    calibrated probability into this path — a documented follow-up, not yet done.
     """
 
     max_brier_score: float = 0.60
@@ -899,7 +915,7 @@ def assess_measurement_shadow_degradations(
                 "current_value": round(current_calibrated_brier, 6),
                 "threshold_value": round(effective_calibrated_brier_threshold, 6),
                 "detail": (
-                    f"calibrated_brier_score {current_calibrated_brier:.6f} exceeds warn threshold "
+                    f"calibrated_brier_score {current_calibrated_brier:.6f} exceeds hard-block ceiling "
                     f"{effective_calibrated_brier_threshold:.6f}"
                 ),
             }
@@ -931,7 +947,7 @@ def assess_measurement_shadow_degradations(
                 "recalibration_required": True,
                 "recommended_action": "recalibrate",
                 "detail": (
-                    f"calibrated_ece {current_calibrated_ece:.6f} exceeds warn threshold "
+                    f"calibrated_ece {current_calibrated_ece:.6f} exceeds hard-block ceiling "
                     f"{effective_calibrated_ece_threshold:.6f} at n_events="
                     f"{current_events} (>= eligibility floor "
                     f"{resolved.min_events_for_calibrated_thresholds}) — "

@@ -103,7 +103,8 @@ _FROZEN_SITES: frozenset[tuple[str, int, tuple[str, ...]]] = frozenset(
         ("databento_volatility_screener.py", 5406, ("_fast_progress_step",)),
         ("databento_volatility_screener.py", 5407, ("_fast_progress_total",)),
         ("databento_volatility_screener.py", 5408, ("_fast_eta_smooth_seconds",)),
-        ("smc_core/ensemble_quality.py", 197, ("active_weight", "weighted_total")),  # 2026-07-13 doc comments shifted (188->197)
+        # 2026-07-13 (_bias_component fail-closed guard + #3551 docstrings): 188->199
+        ("smc_core/ensemble_quality.py", 199, ("active_weight", "weighted_total")),
         # 2026-06-25: worker-thread target for interruptible AsyncNewsstackPoller
         # poll loop uses nonlocal to ferry result/error back to the caller.
         # 2026-06-28 (semantic monitoring): shifted +20 lines by readiness metrics.

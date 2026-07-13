@@ -63,7 +63,7 @@ def detect_smt_divergence(enrichment: dict[str, Any] | None = None) -> dict[str,
     neutral = {
         "SMT_DIVERGENCE_DETECTED": False,
         "SMT_DIVERGENCE_SIDE": "none",
-        "SMT_DIVERGENCE_CONFIDENCE": 0,
+        "SMT_DIVERGENCE_HEURISTIC_SCORE": 0,
     }
 
     if not smt_divergence_enabled():
@@ -84,19 +84,18 @@ def detect_smt_divergence(enrichment: dict[str, Any] | None = None) -> dict[str,
     corr_bull = corr_bias == "BULLISH" or corr_event in ("BOS_BULL", "CHOCH_BULL")
     corr_bear = corr_bias == "BEARISH" or corr_event in ("BOS_BEAR", "CHOCH_BEAR")
 
-    # SMT_DIVERGENCE_CONFIDENCE is a fixed configured conviction constant (default
-    # 70), identical for every detection — NOT a probability or percent.
-    # Rename-later: SMT_DIVERGENCE_HEURISTIC_SCORE.
+    # SMT_DIVERGENCE_HEURISTIC_SCORE is a fixed configured conviction constant
+    # (default 70), identical for every detection — NOT a probability or percent.
     if primary_bull and corr_bear:
         return {
             "SMT_DIVERGENCE_DETECTED": True,
             "SMT_DIVERGENCE_SIDE": "bear",
-            "SMT_DIVERGENCE_CONFIDENCE": smt_divergence_config.confidence,
+            "SMT_DIVERGENCE_HEURISTIC_SCORE": smt_divergence_config.confidence,
         }
     if primary_bear and corr_bull:
         return {
             "SMT_DIVERGENCE_DETECTED": True,
             "SMT_DIVERGENCE_SIDE": "bull",
-            "SMT_DIVERGENCE_CONFIDENCE": smt_divergence_config.confidence,
+            "SMT_DIVERGENCE_HEURISTIC_SCORE": smt_divergence_config.confidence,
         }
     return neutral
