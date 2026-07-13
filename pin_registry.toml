@@ -234,9 +234,10 @@ codes = ["F401"]
 
 # 2026-07-11 (truth-audit T1): _candle_ts docstring + robust parsing added
 # +14 lines above the adapter import, shifting the noqa site 184 -> 198.
+# 2026-07-13: _SWEEP_SIDE_MAP pool-side doc-fix added +12 lines above, 198 -> 210.
 [[noqa_budget.sites]]
 file = "smc_tv_bridge/smc_api.py"
-line = 198
+line = 210
 codes = ["E402", "I001"]
 
 
