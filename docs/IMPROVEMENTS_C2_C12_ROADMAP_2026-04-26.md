@@ -126,6 +126,16 @@ Reihenfolge ist nach Impact × Aufwand priorisiert. **Top-3 (X2, C3.1, C4.1)** s
 
 ### C4.1 — Block-Permutation + Null-Cache
 
+> **STATUS 2026-07-13 — REMOVED (stranded, superseded).** The numpy components
+> built for this sprint (`smc_core/inference/permutation.py::block_permutation_test`,
+> `smc_core/inference/null_cache.py`, `scripts/strategy_permutation.py`) were
+> removed: they had **zero production callers** and the "Gate-Kopplung" below was
+> never realized. The live permutation that actually feeds the promotion pipeline
+> is the **pure-stdlib** `run_ab_comparison._permutation_p_delta_metric` (ADR-0005
+> forbids numpy in that runtime), so the numpy cache/two-sample stack could not be
+> wired without either reversing ADR-0005 or re-engineering the gate's statistics.
+> Do NOT rebuild from this section without first resolving that ADR-0005 conflict.
+
 **Motivation:** Aktueller Permutation-Test bricht serielle Korrelation und unter­schätzt p-Werte für hochfrequente Strategien. Zusätzlich werden Null-Distributionen pro Lauf neu berechnet — bei 4 Familien × 5 Regimes × 1000 Permutationen kostet das pro CI-Lauf erhebliche Zeit.
 
 **Scope-Vertrag:**
