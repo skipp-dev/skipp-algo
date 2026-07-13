@@ -137,6 +137,7 @@ from databento_volatility_screener import (
     build_run_manifest_frame,
     build_summary_table,
     choose_default_dataset,
+    collect_benchmark_universe_ohlcv_1m,
     collect_full_universe_close_outcome_minute_detail,
     collect_full_universe_close_trade_detail,
     collect_full_universe_open_window_second_detail,
@@ -323,11 +324,13 @@ DAILY_SYMBOL_FEATURE_COLUMNS = [
 ]
 
 SMC_BASE_ONLY_RUNTIME_BUNDLE_FRAME_NAMES = (
+    "benchmark_universe_ohlcv_1m",  # frame-integrity audit 2026-07-13: tiny, always ship
     "daily_bars",
     "daily_symbol_features_full_universe",
 )
 
 SMC_BASE_ONLY_EXACT_NAMED_FRAME_NAMES = (
+    "benchmark_universe_ohlcv_1m",  # frame-integrity audit 2026-07-13: tiny, always ship
     "daily_symbol_features_full_universe",
     "premarket_features_full_universe",
     "premarket_window_features_full_universe",
@@ -4248,6 +4251,37 @@ def run_production_export_pipeline(
         full_universe_second_detail_raw,
         daily_symbol_features_full_universe,
     )
+
+    # Frame-integrity audit 2026-07-13: genuine full-session 1-minute bars for
+    # the small release+benchmark reference universe (~24 symbols, ~0.5 MB per
+    # trading day; $0 marginal on the current Databento plan). Without this
+    # frame the rolling measurement benchmark resamples the ~4-minute open
+    # window into degenerate ~1-bar/day intraday frames (all per-TF slices
+    # clones; FVG structurally unscorable). FAIL-SOFT by design: an empty
+    # frame falls back to the open-window resample and the benchmark's
+    # frame_integrity telemetry reports the degeneracy loudly — this fetch
+    # must never kill the producer lane.
+    _progress("Step 9b/10: Collecting benchmark-universe full-session 1m bars...")
+    benchmark_ohlcv_started_at = time_module.perf_counter()
+    try:
+        from smc_integration.release_policy import (
+            BENCHMARK_ROLLING_SYMBOLS,
+            RELEASE_REFERENCE_SYMBOLS,
+        )
+
+        benchmark_universe_ohlcv_1m = collect_benchmark_universe_ohlcv_1m(
+            databento_api_key,
+            dataset=dataset,
+            trading_days=trading_days,
+            symbols=sorted(set(RELEASE_REFERENCE_SYMBOLS) | set(BENCHMARK_ROLLING_SYMBOLS)),
+        )
+    except Exception as exc:
+        logger.warning("benchmark-universe ohlcv-1m collection failed (fail-soft): %s", exc)
+        benchmark_universe_ohlcv_1m = pd.DataFrame()
+    _progress(
+        f"Step 9b/10 complete: benchmark-universe 1m bars collected in "
+        f"{time_module.perf_counter() - benchmark_ohlcv_started_at:.1f}s (rows={len(benchmark_universe_ohlcv_1m)})"
+    )
     full_universe_second_detail_close = _prepare_full_universe_second_detail_export(
         full_universe_close_detail_raw,
         daily_symbol_features_full_universe,
@@ -4344,6 +4378,7 @@ def run_production_export_pipeline(
         "daily_symbol_feature_rows": len(daily_symbol_features_full_universe),
         "eligible_symbol_day_rows": int(daily_symbol_features_full_universe["is_eligible"].sum()),
         "selected_top20pct_symbol_day_rows": int(daily_symbol_features_full_universe["selected_top20pct"].sum()),
+        "benchmark_universe_ohlcv_1m_rows": len(benchmark_universe_ohlcv_1m),
         "full_universe_second_detail_open_rows": len(full_universe_second_detail_open),
         "full_universe_second_detail_close_rows": len(full_universe_second_detail_close),
         "full_universe_close_trade_detail_rows": len(full_universe_close_trade_detail),
@@ -4495,6 +4530,7 @@ def run_production_export_pipeline(
         "supported_universe_rows": len(supported_universe),
         "minute_detail_all_rows": len(minute_detail_all),
         "second_detail_all_rows": len(second_detail_all),
+        "benchmark_universe_ohlcv_1m_rows": len(benchmark_universe_ohlcv_1m),
         "full_universe_second_detail_open_rows": len(full_universe_second_detail_open),
         "full_universe_second_detail_close_rows": len(full_universe_second_detail_close),
         "full_universe_close_trade_detail_rows": len(full_universe_close_trade_detail),
@@ -4562,6 +4598,7 @@ def run_production_export_pipeline(
         },
         additional_parquet_targets={
             "daily_symbol_features_full_universe": daily_symbol_features_full_universe,
+            "benchmark_universe_ohlcv_1m": benchmark_universe_ohlcv_1m,
             "full_universe_second_detail_open": full_universe_second_detail_open,
             "full_universe_second_detail_close": full_universe_second_detail_close,
             "full_universe_close_trade_detail": full_universe_close_trade_detail,
@@ -4604,6 +4641,7 @@ def run_production_export_pipeline(
     # 10/10b = parquet (was 10/10c), 10/10c = workbook (was 10/10b).
     exact_named_frames = {
         "daily_symbol_features_full_universe": daily_symbol_features_full_universe,
+        "benchmark_universe_ohlcv_1m": benchmark_universe_ohlcv_1m,
         "full_universe_second_detail_open": full_universe_second_detail_open,
         "full_universe_second_detail_close": full_universe_second_detail_close,
         "full_universe_close_trade_detail": full_universe_close_trade_detail,

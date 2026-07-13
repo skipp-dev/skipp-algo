@@ -69,6 +69,11 @@ _BOS_LOOKAHEAD_BARS = LABEL_HORIZON_BARS["BOS"]
 _ZONE_LOOKAHEAD_BARS = LABEL_HORIZON_BARS["OB"]
 _FVG_LOOKAHEAD_BARS = LABEL_HORIZON_BARS["FVG"]
 _SWEEP_LOOKAHEAD_BARS = LABEL_HORIZON_BARS["SWEEP"]
+# Point-in-time context inputs (bias/vol-regime GARCH) are computed on at most
+# this many trailing bars. Enough for ATR(14)/GARCH(1,1) stability and the
+# session/HTF context; unbounded slices made full-session frames unaffordable
+# (frame-fix follow-up 2026-07-13).
+_PIT_CONTEXT_MAX_BARS = 512
 # Reaction-zone shadow study: reaction confirmation is measured on bars 1..N of the
 # sweep lookahead; the follow-through outcome is measured on the DISJOINT later
 # window (bars N+1..lookahead) so a confirmation is never part of its own label.
@@ -243,22 +248,42 @@ def _load_source_bars(symbol: str, timeframe: str, resolved_inputs: dict[str, An
 
     bundle_load_failed = False
     if export_bundle_root is not None:
-        required_frames = ("daily_bars",) if daily else ("full_universe_second_detail_open",)
-        try:
-            bundle = load_export_bundle(
-                export_bundle_root,
-                required_frames=required_frames,
-                manifest_prefix="databento_volatility_production_",
+        # Frame-integrity audit 2026-07-13: intraday resolution prefers a
+        # bundle carrying the genuine full-session 1m frame and falls back to
+        # one with the open-window frame — required_frames also selects WHICH
+        # manifest wins when several coexist (an older intraday-capable bundle
+        # must beat a newer daily-only one).
+        if daily:
+            required_frame_attempts: tuple[tuple[str, ...], ...] = (("daily_bars",),)
+        else:
+            required_frame_attempts = (
+                ("benchmark_universe_ohlcv_1m",),
+                ("full_universe_second_detail_open",),
             )
-        except Exception as exc:
+        bundle = None
+        last_exc: Exception | None = None
+        for required_frames in required_frame_attempts:
+            try:
+                bundle = load_export_bundle(
+                    export_bundle_root,
+                    required_frames=required_frames,
+                    manifest_prefix="databento_volatility_production_",
+                )
+                break
+            except FileNotFoundError as exc:
+                last_exc = exc
+                continue
+            except Exception as exc:
+                last_exc = exc
+                break
+        if bundle is None:
             logger.warning(
                 "canonical export bundle unavailable for symbol=%s timeframe=%s export_bundle_root=%s: %s",
                 symbol_name,
                 canonical_tf,
                 export_bundle_root,
-                exc,
+                last_exc,
             )
-            bundle = None
             bundle_load_failed = True
 
         if isinstance(bundle, dict):
@@ -271,8 +296,13 @@ def _load_source_bars(symbol: str, timeframe: str, resolved_inputs: dict[str, An
                     if not bars.empty:
                         return bars.reset_index(drop=True), "canonical_export_bundle"
             else:
-                intraday = frames.get("full_universe_second_detail_open")
-                if isinstance(intraday, pd.DataFrame) and not intraday.empty:
+                # Frame-integrity audit 2026-07-13: prefer the genuine
+                # full-session 1m frame (reference universe only); symbols it
+                # does not cover fall through to the open-window resample.
+                for frame_name in ("benchmark_universe_ohlcv_1m", "full_universe_second_detail_open"):
+                    intraday = frames.get(frame_name)
+                    if not isinstance(intraday, pd.DataFrame) or intraday.empty:
+                        continue
                     filtered = intraday.copy()
                     filtered["symbol"] = filtered.get("symbol", "").astype(str).str.strip().str.upper()
                     filtered = filtered.loc[filtered["symbol"].eq(symbol_name)].copy()
@@ -347,20 +377,28 @@ def _find_bar_index(bars: pd.DataFrame, event_ts: float) -> int | None:
     and must not be discarded. Returns ``None`` only when ``event_ts`` is after
     every bar (or bars is empty).
     """
-    ts = bars["timestamp"].astype(float)
-    matches = bars.index[ts >= float(event_ts)].tolist()
-    if not matches:
+    # Hot path (frame-fix follow-up 2026-07-13): with genuine full-session
+    # frames this runs ~1.9 MILLION times per pair (context features probe
+    # every neighbouring event); the previous Series.astype + boolean-mask
+    # pipeline cost ~400s of a 528s pair build. The vectorized numpy scan
+    # below is semantics-identical (first index-order bar with ts >= event_ts;
+    # exact match wins, else the containing/preceding bar).
+    values = bars["timestamp"].to_numpy(dtype="float64", copy=False)
+    if values.size == 0:
         return None
-    first = matches[0]
-    if float(ts.loc[first]) == float(event_ts):
-        return int(first)
-    # Off-grid: ``event_ts`` fell between the preceding bar and ``first`` -> anchor
+    target = float(event_ts)
+    mask = values >= target
+    if not mask.any():
+        return None
+    pos = int(mask.argmax())
+    if values[pos] == target:
+        return int(bars.index[pos])
+    # Off-grid: ``event_ts`` fell between the preceding bar and ``pos`` -> anchor
     # on the containing (preceding) bar when one exists.
-    pos = int(bars.index.get_loc(first))
     if pos > 0:
         logger.debug("event_ts %s is off the bar grid; anchoring on the containing bar", event_ts)
         return int(bars.index[pos - 1])
-    return int(first)  # event precedes all bars -> keep first (outer guard drops it)
+    return int(bars.index[pos])  # event precedes all bars -> keep first (outer guard drops it)
 
 
 def _find_first_index(future_bars: pd.DataFrame, predicate) -> int | None:
@@ -1864,14 +1902,35 @@ def build_measurement_evidence(symbol: str, timeframe: str) -> MeasurementEviden
             scoring_censored_counts[family] += 1
 
     # Point-in-time context: each event is scored/stratified with ONLY the bias
-    # and vol-regime observable AT ITS ANCHOR BAR (``resampled_bars[:anchor_idx
-    # +1]``), never the single end-of-sample verdict computed above. Applying the
-    # end-of-sample bias/vol to earlier events leaks future information into
-    # predicted_prob, the context strata and raw_score (audit 2026-07-13). The
-    # end-of-sample values stay in ``details`` as a run-level summary only.
-    # Cached per anchor index so events sharing a bar recompute once.
-    _pit_cache: dict[int, tuple[Any, Any]] = {}
+    # and vol-regime observable AT ITS ANCHOR BAR — never the single
+    # end-of-sample verdict computed above. Applying the end-of-sample
+    # bias/vol to earlier events leaks future information into
+    # predicted_prob, the context strata and raw_score (audit 2026-07-13).
+    # The end-of-sample values stay in ``details`` as a run-level summary only.
+    #
+    # Granularity + cost (frame-fix follow-up 2026-07-13): with genuine
+    # full-session intraday frames a pair carries thousands of event anchors;
+    # a GARCH fit per unique anchor made ONE pair take ~11 minutes. The PIT
+    # context is therefore computed once per TRADING-DAY bucket (the slice
+    # ends at the FIRST bar of the anchor's day, which is <= every anchor in
+    # that day — still strictly no lookahead) and the vol/bias inputs are
+    # capped to the trailing _PIT_CONTEXT_MAX_BARS bars. Day granularity is
+    # exactly the effective granularity the pre-fix 1-bar/day frames had.
+    _pit_cache: dict[Any, tuple[Any, Any]] = {}
     _neutral_bias = merge_bias(None, None)
+    _pit_bar_dates = (
+        pd.to_datetime(resampled_bars["timestamp"], unit="s", utc=True, errors="coerce").dt.date
+        if not resampled_bars.empty and pd.api.types.is_numeric_dtype(resampled_bars["timestamp"])
+        else (
+            pd.to_datetime(resampled_bars["timestamp"], utc=True, errors="coerce").dt.date
+            if not resampled_bars.empty
+            else pd.Series(dtype="object")
+        )
+    )
+    _pit_day_first_idx: dict[Any, int] = {}
+    for _bar_idx, _bar_date in enumerate(_pit_bar_dates):
+        if _bar_date is not None and _bar_date not in _pit_day_first_idx:
+            _pit_day_first_idx[_bar_date] = _bar_idx
     # Run-level (end-of-sample) verdict, kept for the aggregate ensemble summary
     # below; the per-event loops rebind bias_verdict/vol_regime to point-in-time.
     run_bias_verdict, run_vol_regime = bias_verdict, vol_regime
@@ -1880,10 +1939,14 @@ def build_measurement_evidence(symbol: str, timeframe: str) -> MeasurementEviden
         if anchor_idx is None or anchor_idx < 0:
             # Cannot localize the event -> neutral, never the end-of-sample verdict.
             return _neutral_bias, compute_vol_regime(resampled_bars.iloc[:0])
-        cached = _pit_cache.get(anchor_idx)
+        anchor_date = _pit_bar_dates.iloc[anchor_idx] if anchor_idx < len(_pit_bar_dates) else None
+        bucket_end_idx = _pit_day_first_idx.get(anchor_date, anchor_idx)
+        cache_key = anchor_date if anchor_date is not None else anchor_idx
+        cached = _pit_cache.get(cache_key)
         if cached is not None:
             return cached
-        slice_bars = resampled_bars.iloc[: anchor_idx + 1]
+        slice_start = max(0, bucket_end_idx + 1 - _PIT_CONTEXT_MAX_BARS)
+        slice_bars = resampled_bars.iloc[slice_start : bucket_end_idx + 1]
         try:
             pit_session = build_session_liquidity_context(slice_bars, tz="America/New_York")
         except Exception:
@@ -1896,7 +1959,7 @@ def build_measurement_evidence(symbol: str, timeframe: str) -> MeasurementEviden
             merge_bias(pit_htf or None, pit_session or None),
             compute_vol_regime(slice_bars),
         )
-        _pit_cache[anchor_idx] = result
+        _pit_cache[cache_key] = result
         return result
 
     for event in effective_structure["bos"]:
@@ -2123,7 +2186,16 @@ def build_measurement_evidence(symbol: str, timeframe: str) -> MeasurementEviden
     # source window) is visible in every scoring artifact instead of silently
     # starving long-horizon families (FVG horizon 20 > a 19-bar frame can
     # NEVER produce a scorable FVG event).
-    _frame_ts = pd.to_datetime(resampled_bars["timestamp"], utc=True, errors="coerce").dropna() if not resampled_bars.empty else pd.Series(dtype="datetime64[ns, UTC]")
+    # ``resampled_bars.timestamp`` is epoch SECONDS here (_to_epoch_seconds ran
+    # above); parsing without unit="s" reads nanoseconds -> every bar lands on
+    # 1970-01-01 and trading_days degenerates to 1 (telemetry-units fix
+    # 2026-07-13, caught by the first real full-session frame run).
+    if resampled_bars.empty:
+        _frame_ts = pd.Series(dtype="datetime64[ns, UTC]")
+    elif pd.api.types.is_numeric_dtype(resampled_bars["timestamp"]):
+        _frame_ts = pd.to_datetime(resampled_bars["timestamp"], unit="s", utc=True, errors="coerce").dropna()
+    else:
+        _frame_ts = pd.to_datetime(resampled_bars["timestamp"], utc=True, errors="coerce").dropna()
     _frame_days = int(_frame_ts.dt.date.nunique()) if len(_frame_ts) else 0
     details["frame"] = {
         "n_bars": len(resampled_bars),

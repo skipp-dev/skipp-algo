@@ -94,23 +94,67 @@ def _input_fingerprint(
     return None
 
 
+# Frame-integrity audit 2026-07-13: intraday timeframes prefer the genuine
+# full-session 1-minute frame (producer exports it for the ~24-symbol
+# release+benchmark reference universe). The ~4-minute open-window frame
+# stays as the fallback for symbols outside that universe / older bundles —
+# it degenerates to ~1 bar per trading day, which the measurement
+# benchmark's frame_integrity telemetry reports loudly.
+_INTRADAY_BAR_FRAMES = ("benchmark_universe_ohlcv_1m", "full_universe_second_detail_open")
+
+
+def _normalize_symbol_bars(frame: pd.DataFrame, symbol_name: str) -> pd.DataFrame | None:
+    """Filter *frame* to one symbol and normalize the bar columns; None if absent."""
+    bars = frame.copy()
+    bars["symbol"] = bars.get("symbol", "").astype(str).str.strip().str.upper()
+    bars = bars.loc[bars["symbol"].eq(symbol_name)].copy()
+    if bars.empty:
+        return None
+    bars["timestamp"] = pd.to_datetime(bars.get("timestamp"), errors="coerce", utc=True)
+    for column in ("open", "high", "low", "close"):
+        bars[column] = pd.to_numeric(bars.get(column), errors="coerce")
+    if "volume" in bars.columns:
+        bars["volume"] = pd.to_numeric(bars.get("volume"), errors="coerce").fillna(0.0)
+        return bars[["symbol", "timestamp", "open", "high", "low", "close", "volume"]].dropna().reset_index(drop=True)
+    return bars[["symbol", "timestamp", "open", "high", "low", "close"]].dropna().reset_index(drop=True)
+
+
 def _load_symbol_bars_from_canonical_exports(symbol: str, timeframe: str, export_dir: Path | None) -> pd.DataFrame | None:
     if export_dir is None:
         return None
-    required_frames = ("daily_bars",) if is_daily_timeframe(timeframe) else ("full_universe_second_detail_open",)
-    try:
-        bundle = load_export_bundle(
-            export_dir,
-            required_frames=required_frames,
-            manifest_prefix="databento_volatility_production_",
+    # Intraday resolution prefers a bundle carrying the genuine full-session
+    # 1m frame and falls back to one with the open-window frame —
+    # required_frames also selects WHICH manifest wins when several coexist.
+    if is_daily_timeframe(timeframe):
+        required_frame_attempts: tuple[tuple[str, ...], ...] = (("daily_bars",),)
+    else:
+        required_frame_attempts = (
+            ("benchmark_universe_ohlcv_1m",),
+            ("full_universe_second_detail_open",),
         )
-    except Exception as exc:
+    bundle = None
+    last_exc: Exception | None = None
+    for required_frames in required_frame_attempts:
+        try:
+            bundle = load_export_bundle(
+                export_dir,
+                required_frames=required_frames,
+                manifest_prefix="databento_volatility_production_",
+            )
+            break
+        except FileNotFoundError as exc:
+            last_exc = exc
+            continue
+        except Exception as exc:
+            last_exc = exc
+            break
+    if bundle is None:
         logger.warning(
             "canonical export bundle unavailable for symbol=%s timeframe=%s export_dir=%s: %s",
             symbol,
             timeframe,
             export_dir,
-            exc,
+            last_exc,
         )
         return None
 
@@ -132,20 +176,15 @@ def _load_symbol_bars_from_canonical_exports(symbol: str, timeframe: str, export
             return bars[["symbol", "timestamp", "open", "high", "low", "close"]].dropna().reset_index(drop=True)
         return None
 
-    intraday = frames.get("full_universe_second_detail_open")
-    if isinstance(intraday, pd.DataFrame) and not intraday.empty:
-        bars = intraday.copy()
-        bars["symbol"] = bars.get("symbol", "").astype(str).str.strip().str.upper()
-        bars = bars.loc[bars["symbol"].eq(symbol_name)].copy()
-        if bars.empty:
-            return None
-        bars["timestamp"] = pd.to_datetime(bars.get("timestamp"), errors="coerce", utc=True)
-        for column in ("open", "high", "low", "close"):
-            bars[column] = pd.to_numeric(bars.get(column), errors="coerce")
-        if "volume" in bars.columns:
-            bars["volume"] = pd.to_numeric(bars.get("volume"), errors="coerce").fillna(0.0)
-            return bars[["symbol", "timestamp", "open", "high", "low", "close", "volume"]].dropna().reset_index(drop=True)
-        return bars[["symbol", "timestamp", "open", "high", "low", "close"]].dropna().reset_index(drop=True)
+    for frame_name in _INTRADAY_BAR_FRAMES:
+        intraday = frames.get(frame_name)
+        if not isinstance(intraday, pd.DataFrame) or intraday.empty:
+            continue
+        bars = _normalize_symbol_bars(intraday, symbol_name)
+        if bars is not None:
+            return bars
+        # Symbol not covered by this frame (the 1m frame carries only the
+        # reference universe) -> fall through to the next source.
     return None
 
 

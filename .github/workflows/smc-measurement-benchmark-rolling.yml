@@ -136,7 +136,11 @@ jobs:
     if: ${{ github.event_name != 'workflow_run' || github.event.workflow_run.conclusion == 'success' }}
     needs: select-runner
     runs-on: ${{ fromJson(needs.select-runner.outputs.runs_on_json) }}
-    timeout-minutes: 60
+    # 60 -> 120 (frame-fix 2026-07-13): genuine full-session intraday frames
+    # carry ~2.3k events/pair instead of ~2 — even after the PIT day-bucket +
+    # vectorized bar-index optimizations (~675s -> ~54s for the heaviest pair)
+    # the 140-pair sweep needs headroom beyond 60 minutes.
+    timeout-minutes: 120
     permissions:
       # WF-AUTH-1: this is the only job that pushes updates to
       # bot/live-experiment-snapshot and reads producer artifacts.
