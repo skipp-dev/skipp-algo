@@ -5,8 +5,10 @@ Consumer half of the sweep-trap shadow monitoring: the daily
 (``artifacts/monitoring/sweep_trap_shadow.json``); this bridge fetches it
 (runtime URL, local-file fallback, TTL-cached) and normalizes it into the fields
 ``metrics.render_metrics`` turns into Prometheus gauges. It never raises — a
-missing/unreadable snapshot yields ``loaded=0`` and the snapshot-age gauge stops
-advancing, which the ``Sweep-trap shadow stale`` alert catches.
+missing/unreadable snapshot yields ``loaded=0`` with ``age_known=0``/``stale=0``
+(the age gauge drops to 0, it does not keep climbing), which the dedicated
+``lo-sweep-trap-shadow-age-unknown`` alert catches; the stale alert only covers
+snapshots whose age is KNOWN (generated_at > 0).
 
 The sweep-trap detector stays in shadow (no score-budget weight); these gauges
 exist so the Brier-delta + sample accrual toward the promotion decision are

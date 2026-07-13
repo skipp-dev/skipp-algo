@@ -373,6 +373,11 @@ jobs:
           # set the repo variable ENABLE_SWEEP_TRAP=1 (centralized per F-003-YAML;
           # empty => flag off => shadow collects nothing).
           ENABLE_SWEEP_TRAP: ${{ vars.ENABLE_SWEEP_TRAP }}
+          # Reaction-zone shadow study (observe-only, same wiring pattern):
+          # ARMING = set the repo variable ENABLE_REACTION_ZONE_STUDY=1. Until
+          # then the producer stays dark and the piggybacked evaluator in
+          # sweep-trap-shadow-daily reports no_samples (rc 5, green).
+          ENABLE_REACTION_ZONE_STUDY: ${{ vars.ENABLE_REACTION_ZONE_STUDY }}
         run: |
           set -euo pipefail
           # SYMBOLS/TIMEFRAMES resolved + validated by the per-TF structure

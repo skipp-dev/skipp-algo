@@ -82,3 +82,35 @@ def test_commit_back_is_pr_flow_not_direct_push() -> None:
 def test_concurrency_serialized() -> None:
     conc = _load()["concurrency"]
     assert conc.get("group") and conc.get("cancel-in-progress") is False
+
+
+def test_commit_back_includes_measured_but_thin_runs() -> None:
+    """rc 3 conflates 'measured, n<MIN_OOS (ledger row written)' with 'zero
+    samples (nothing written)'. The commit-back gate must include
+    thin_or_no_data or every measured-but-thin day is silently discarded (the
+    diff-quiet guard no-ops the zero-sample case)."""
+    text = _WF_PATH.read_text(encoding="utf-8")
+    commit_step = text.split("Commit shadow ledger back via PR", 1)[1]
+    gate = commit_step.split("env:", 1)[0]
+    assert "steps.eval.outputs.status == 'thin_or_no_data'" in gate
+    assert "git diff --quiet artifacts/governance/sweep_trap_shadow.jsonl" in commit_step
+
+
+def test_reaction_zone_eval_is_piggybacked_on_the_same_corpus() -> None:
+    """F9 wire: the reaction-zone shadow evaluator runs against the identical
+    rolling-bench corpus and its snapshot ships with the publish step."""
+    text = _WF_PATH.read_text(encoding="utf-8")
+    assert "scripts/eval_reaction_zone_shadow.py --benchmark-dir" in text
+    assert "artifacts/monitoring/reaction_zone_shadow.json" in text
+    publish_step = text.split("Publish snapshot to rolling bot branch", 1)[1]
+    assert 'reaction_zone_shadow.json"' in publish_step
+
+
+def test_rolling_benchmark_arms_both_study_flags() -> None:
+    """The producer flags live in the rolling benchmark env block; a flag that
+    exists in code but is never threaded through any workflow env is dark by
+    construction (that was the reaction study's state)."""
+    rolling = _WF_PATH.parent / "smc-measurement-benchmark-rolling.yml"
+    text = rolling.read_text(encoding="utf-8")
+    assert "ENABLE_SWEEP_TRAP: ${{ vars.ENABLE_SWEEP_TRAP }}" in text
+    assert "ENABLE_REACTION_ZONE_STUDY: ${{ vars.ENABLE_REACTION_ZONE_STUDY }}" in text
