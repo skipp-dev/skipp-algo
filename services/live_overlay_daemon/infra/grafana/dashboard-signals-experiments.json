@@ -1627,7 +1627,7 @@
     {
       "title": "Sweep-Trap Shadow Verdict",
       "type": "stat",
-      "description": "Latest promotion verdict from the shadow eval. INCONCLUSIVE = fewer than MIN_OOS (40) scored samples; SHADOW = enough samples but the score does not yet beat baseline; PROMOTABLE = Brier improves AND top/bottom-tercile lift is positive (candidate for a WS4b score-budget grant).",
+      "description": "Latest promotion verdict from the shadow eval. INCONCLUSIVE = fewer than 40 scored samples (a pooled-shadow count floor, NOT walk-forward OOS); SHADOW = enough samples but at least one promotion criterion is unmet (Brier not better than baseline, and/or tercile lift not positive); PROMOTABLE = Brier improves AND top/bottom-tercile lift is positive — a candidate for a WS4b score-budget grant, not a validated live promotion.",
       "gridPos": {
         "h": 5,
         "w": 5,

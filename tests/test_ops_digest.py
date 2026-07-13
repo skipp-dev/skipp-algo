@@ -37,14 +37,43 @@ def test_sweep_trap_below_gate_note(tmp_path):
     assert "more samples" in section.note
 
 
-def test_sweep_trap_promotable_note(tmp_path):
+def test_sweep_trap_promotable_note_is_candidate_not_green_light(tmp_path):
+    # A fresh PROMOTABLE snapshot: a candidate needing review, NOT a green light.
+    now = 1_700_000_000.0
+    _write(
+        tmp_path,
+        "artifacts/monitoring/sweep_trap_shadow.json",
+        {"n_samples": 50, "min_samples": 40, "verdict": "PROMOTABLE", "verdict_code": 2,
+         "generated_at": now - 3600},  # 1h old → fresh
+    )
+    section = ops_digest.collect_sweep_trap(tmp_path, now_ts=now)
+    assert "WS4b candidate" in section.note and "review required" in section.note
+    assert "green light" not in section.note
+    assert any(label == "Snapshot age" for label, _ in section.rows)
+
+
+def test_sweep_trap_promotable_stale_snapshot_is_flagged(tmp_path):
+    now = 1_700_000_000.0
+    _write(
+        tmp_path,
+        "artifacts/monitoring/sweep_trap_shadow.json",
+        {"n_samples": 50, "min_samples": 40, "verdict": "PROMOTABLE", "verdict_code": 2,
+         "generated_at": now - 5 * 86400},  # 5 days old → stale (cron stalled)
+    )
+    section = ops_digest.collect_sweep_trap(tmp_path, now_ts=now)
+    assert "stalled" in section.note
+    assert any(label == "Snapshot age" and value.startswith("5.0") for label, value in section.rows)
+
+
+def test_sweep_trap_promotable_undated_snapshot_notes_unknown_age(tmp_path):
     _write(
         tmp_path,
         "artifacts/monitoring/sweep_trap_shadow.json",
         {"n_samples": 50, "min_samples": 40, "verdict": "PROMOTABLE", "verdict_code": 2},
     )
     section = ops_digest.collect_sweep_trap(tmp_path)
-    assert "WS4b" in section.note
+    assert "age unknown" in section.note
+    assert any(label == "Snapshot age" and value == "n/a" for label, value in section.rows)
 
 
 def test_missing_artifact_is_soft(tmp_path):

@@ -10,7 +10,9 @@ the two windows never overlap — no target leakage):
 
 * ``brier_signal``   — Brier of ``sweep_trap_quality_score`` vs the late outcome
 * ``brier_baseline`` — Brier of the pooled base-rate vs the late outcome
-* ``brier_delta``    — ``baseline - signal`` (>0 ⇒ the score adds skill)
+* ``brier_delta``    — ``baseline - signal`` (>0 ⇒ the RAW score's Brier beats the
+  pooled base-rate on this shadow corpus — a candidate signal, NOT a calibrated
+  skill proof: the score is uncalibrated and no confidence interval is computed)
 * ``lift``           — top-tercile minus bottom-tercile reversal hit-rate
 
 It appends one row per run to a committed shadow ledger
@@ -19,6 +21,14 @@ runs, and writes a compact monitoring snapshot
 (``artifacts/monitoring/sweep_trap_shadow.json``) for the live-overlay daemon to
 re-expose as Prometheus gauges (Grafana). This is the DAILY shadow layer; the
 promotion decision (weeks of data, k-of-n) is deliberately downstream.
+
+Sample-count semantics. ``MIN_SHADOW_SAMPLES`` is a floor on the number of pooled
+shadow records, NOT a walk-forward out-of-sample guarantee: this path has no
+time-split, no holdout and no OOS fold-IDs, so ``PROMOTABLE`` means "interesting
+shadow candidate", not a validated promotion. Numerically it equals the calibration
+layer's ``MIN_OOS_SAMPLES`` (40) but the two are kept distinct so a future real-OOS
+gate (block-bootstrap CI on the Brier + time-separated folds) can raise this floor
+without silently borrowing OOS semantics it does not yet have.
 
 Fail-soft, mirroring ``run_magnitude_shadow_ledger``: an empty/absent corpus is
 ``no_data`` (exit 3, green in CI), a re-served identical feed is a stale row
@@ -38,8 +48,14 @@ import time
 from pathlib import Path
 from typing import Any
 
-from governance.family_calibration import MIN_OOS_SAMPLES
 from scripts.smc_atomic_write import atomic_write_json, atomic_write_text
+
+# Floor on the pooled shadow-record count before a verdict may leave INCONCLUSIVE.
+# This is a SAMPLE-COUNT floor for a collected (non-time-split) shadow corpus, NOT
+# a walk-forward OOS guarantee — see the module docstring. It equals the calibration
+# layer's MIN_OOS_SAMPLES (40) numerically but is kept as its own constant so this
+# path never imports OOS semantics it does not deliver.
+MIN_SHADOW_SAMPLES = 40
 
 DEFAULT_LEDGER = "artifacts/governance/sweep_trap_shadow.jsonl"
 DEFAULT_SNAPSHOT = "artifacts/monitoring/sweep_trap_shadow.json"
@@ -125,7 +141,7 @@ def evaluate(samples: list[tuple[float, int]]) -> dict[str, Any]:
         hit_top = _mean([float(o) for _, o in top])
         lift = hit_top - hit_bot
 
-    if n < MIN_OOS_SAMPLES:
+    if n < MIN_SHADOW_SAMPLES:
         verdict = "INCONCLUSIVE"
     elif brier_delta > 0.0 and (lift is None or lift > 0.0):
         verdict = "PROMOTABLE"
@@ -189,7 +205,7 @@ def build_snapshot(row: dict[str, Any]) -> dict[str, Any]:
         "generated_at": time.time(),
         "date": row["date"],
         "n_samples": row["n_samples"],
-        "min_samples": MIN_OOS_SAMPLES,
+        "min_samples": MIN_SHADOW_SAMPLES,
         "brier_delta": row["brier_delta"],
         "lift": row["lift"],
         "verdict": row["verdict"],
@@ -230,7 +246,7 @@ def main(argv: list[str] | None = None) -> int:
         return 5
 
     metrics = evaluate(samples)
-    row = {"date": args.date, "events_hash": events_hash, "min_samples": MIN_OOS_SAMPLES, **metrics}
+    row = {"date": args.date, "events_hash": events_hash, "min_samples": MIN_SHADOW_SAMPLES, **metrics}
 
     args.ledger.parent.mkdir(parents=True, exist_ok=True)
     merged = merge_row(ledger_rows, row)

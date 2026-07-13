@@ -7,6 +7,7 @@ import pytest
 
 from governance.family_calibration import MIN_OOS_SAMPLES
 from scripts.eval_sweep_trap_shadow import (
+    MIN_SHADOW_SAMPLES,
     collect_samples,
     evaluate,
     events_content_hash,
@@ -72,9 +73,18 @@ class TestEvaluate:
         assert m["verdict"] == "SHADOW"
 
     def test_thin_is_inconclusive(self) -> None:
-        m = evaluate([(0.9, 1), (0.2, 0)] * 5)  # 10 < MIN_OOS
+        m = evaluate([(0.9, 1), (0.2, 0)] * 5)  # 10 < MIN_SHADOW_SAMPLES
         assert m["n_samples"] == 10
         assert m["verdict"] == "INCONCLUSIVE"
+
+    def test_shadow_sample_floor_is_local_not_borrowed_oos(self) -> None:
+        # The gate is a pooled-shadow SAMPLE-COUNT floor (its own constant), not a
+        # walk-forward OOS guarantee. It equals MIN_OOS_SAMPLES numerically but is
+        # decoupled so a future real-OOS gate can raise it independently.
+        assert MIN_SHADOW_SAMPLES == 40 == MIN_OOS_SAMPLES
+        just_below = evaluate([(0.9, 1), (0.2, 0)] * (MIN_SHADOW_SAMPLES // 2 - 1))
+        assert just_below["n_samples"] == MIN_SHADOW_SAMPLES - 2
+        assert just_below["verdict"] == "INCONCLUSIVE"
 
     def test_empty(self) -> None:
         m = evaluate([])
@@ -114,6 +124,7 @@ class TestMainEndToEnd:
         assert len(rows) == 1 and rows[0]["verdict"] == "PROMOTABLE"
         s = json.loads(snap.read_text())
         assert s["verdict_code"] == 2 and s["n_samples"] == 50 and s["brier_delta"] > 0
+        assert s["min_samples"] == MIN_SHADOW_SAMPLES  # snapshot carries the local floor
 
     def test_no_data_exit_3(self, tmp_path) -> None:
         rc, ledger, _ = self._run(tmp_path, [{"family": "FVG", "outcome": True, "features": {}}])

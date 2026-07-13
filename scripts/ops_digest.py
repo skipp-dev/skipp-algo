@@ -65,8 +65,12 @@ def _fmt(value: Any) -> str:
 
 _VERDICT_LABELS = {0: "INCONCLUSIVE", 1: "SHADOW", 2: "PROMOTABLE"}
 
+# The sweep-trap shadow eval runs daily, so a snapshot older than this means the
+# producing cron has stalled — a single stale PROMOTABLE row is not a green light.
+_SWEEP_SNAPSHOT_STALE_DAYS = 2.0
 
-def collect_sweep_trap(root: Path) -> Section:
+
+def collect_sweep_trap(root: Path, *, now_ts: float | None = None) -> Section:
     section = Section("🪝 Sweep-Trap Shadow (WS4a)")
     data = _load_json(root / "artifacts/monitoring/sweep_trap_shadow.json")
     if data is None:
@@ -75,15 +79,33 @@ def collect_sweep_trap(root: Path) -> Section:
     n = data.get("n_samples")
     minimum = data.get("min_samples", 40)
     verdict = data.get("verdict") or _VERDICT_LABELS.get(data.get("verdict_code"))
+    generated_at = data.get("generated_at")
+    age_days: float | None = None
+    if isinstance(generated_at, (int, float)) and not isinstance(generated_at, bool):
+        ref = now_ts if now_ts is not None else datetime.now(UTC).timestamp()
+        age_days = max(0.0, (ref - float(generated_at)) / 86400.0)
     section.rows = [
         ("Samples", f"{_fmt(n)} / {_fmt(minimum)} gate"),
         ("Verdict", _fmt(verdict)),
         ("Brier delta", _fmt(data.get("brier_delta"))),
         ("Tercile lift", _fmt(data.get("lift"))),
+        ("Snapshot age", "n/a" if age_days is None else f"{age_days:.1f} d"),
     ]
+    stale = age_days is not None and age_days > _SWEEP_SNAPSHOT_STALE_DAYS
     try:
         if n is not None and float(n) >= float(minimum) and str(verdict).upper() == "PROMOTABLE":
-            section.note = f"≥{float(minimum):.0f} samples & PROMOTABLE — WS4b green light, check verdict_code."
+            # NOT a green light on its own: the snapshot is a single point with no
+            # OOS provenance or k-of-n run history here, so flag it as a candidate
+            # that still needs review, and downgrade further when it is stale/undated.
+            freshness = (
+                "snapshot age unknown" if age_days is None
+                else f"snapshot {age_days:.1f}d old (>{_SWEEP_SNAPSHOT_STALE_DAYS:.0f}d — cron may be stalled)"
+                if stale else f"snapshot {age_days:.1f}d old"
+            )
+            section.note = (
+                f"≥{float(minimum):.0f} samples & PROMOTABLE ({freshness}) — WS4b candidate, "
+                "review required: confirm OOS provenance + k-of-n run history before any score-budget grant."
+            )
         elif n is not None and float(n) < float(minimum):
             section.note = f"{float(minimum) - float(n):.0f} more samples needed to reach the gate."
     except (TypeError, ValueError):
