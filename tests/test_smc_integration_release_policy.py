@@ -410,6 +410,58 @@ class TestMeasurementShadowGovernance:
             "MEASUREMENT_CALIBRATED_ECE_ABOVE_THRESHOLD",
         }
 
+    def test_oos_advisory_ceilings_fire_only_when_measured(self) -> None:
+        thresholds = MeasurementShadowThresholds(
+            max_oos_calibrated_brier_score=0.20,
+            max_oos_calibrated_ece=0.10,
+        )
+        base = {
+            "brier_score": 0.18,
+            "log_score": 0.31,
+            "calibrated_brier_score": 0.10,
+            "calibrated_ece": 0.05,
+            "n_events": 60,
+            "stratification_coverage": {"populated_bucket_count": 2},
+        }
+        # Unmeasured (None) -> the OOS checks stay honestly silent.
+        degradations, _ = assess_measurement_shadow_degradations(
+            {**base, "oos_calibrated_brier_score": None, "oos_calibrated_ece": None},
+            [],
+            thresholds=thresholds,
+        )
+        assert not any(row["code"].startswith("MEASUREMENT_OOS_") for row in degradations)
+        # Measured above the ceilings -> both advisory rows fire.
+        degradations, _ = assess_measurement_shadow_degradations(
+            {**base, "oos_calibrated_brier_score": 0.27, "oos_calibrated_ece": 0.16},
+            [],
+            thresholds=thresholds,
+        )
+        codes = {row["code"] for row in degradations}
+        assert "MEASUREMENT_OOS_CALIBRATED_BRIER_ABOVE_THRESHOLD" in codes
+        assert "MEASUREMENT_OOS_CALIBRATED_ECE_ABOVE_THRESHOLD" in codes
+        # Measured below the ceilings -> silent again.
+        degradations, _ = assess_measurement_shadow_degradations(
+            {**base, "oos_calibrated_brier_score": 0.15, "oos_calibrated_ece": 0.05},
+            [],
+            thresholds=thresholds,
+        )
+        assert not any(row["code"].startswith("MEASUREMENT_OOS_") for row in degradations)
+
+    def test_oos_codes_are_advisory_not_hard_blocking(self) -> None:
+        from smc_integration.release_policy import (
+            HARD_BLOCKING_DEGRADATION_CODES,
+            GovernanceStatus,
+            get_gate_governance,
+        )
+        for code in (
+            "MEASUREMENT_OOS_CALIBRATED_BRIER_ABOVE_THRESHOLD",
+            "MEASUREMENT_OOS_CALIBRATED_ECE_ABOVE_THRESHOLD",
+        ):
+            assert code not in HARD_BLOCKING_DEGRADATION_CODES
+            governance = get_gate_governance(code)
+            assert governance is not None
+            assert governance.promotion_state is GovernanceStatus.ADVISORY
+
     def test_shadow_degradations_detect_historical_regressions(self) -> None:
         thresholds = MeasurementShadowThresholds(
             max_brier_score=0.60,
@@ -1123,6 +1175,8 @@ class TestGovernanceEnforcementGaps:
             "MEASUREMENT_STRATIFICATION_COVERAGE_LOW",
             "MEASUREMENT_EVENT_COVERAGE_REGRESSION",
             "MEASUREMENT_STRATIFICATION_COVERAGE_REGRESSION",
+            "MEASUREMENT_OOS_CALIBRATED_BRIER_ABOVE_THRESHOLD",
+            "MEASUREMENT_OOS_CALIBRATED_ECE_ABOVE_THRESHOLD",
         }
         missing = expected_codes - registered_codes
         assert missing == set(), f"Codes missing governance: {missing}"
