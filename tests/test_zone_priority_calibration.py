@@ -841,7 +841,15 @@ def _write_minimal_corpus(tmp_path: Path) -> None:
         "SWEEP": {"n_events": 30, "hit_rate": 0.45},
     }))
     (tmp_path / "benchmark_run_manifest.json").write_text(
-        json.dumps({"corpus": "synthetic", "n_pairs": 1}, indent=2),
+        json.dumps(
+            {
+                "corpus": "synthetic",
+                "n_pairs": 1,
+                "start_date": "2026-04-01T00:00:00+00:00",
+                "max_event_timestamp_utc": "2026-04-20T00:00:00+00:00",
+            },
+            indent=2,
+        ),
         encoding="utf-8",
     )
 
@@ -862,8 +870,10 @@ def test_build_frozen_provenance_emits_required_keys(tmp_path: Path) -> None:
     required = {
         "frozen", "status", "frozen_at", "generated_at",
         "benchmark_dir", "benchmark_corpus_ephemeral",
-        "benchmark_manifest_sha256", "n_events", "max_event_timestamp_utc",
-        "source_commit", "generator_script_path", "generator_script_sha256",
+        "benchmark_manifest_sha256", "n_events",
+        "min_event_timestamp_utc", "max_event_timestamp_utc",
+        "source_commit", "source_commit_reachable",
+        "generator_script_path", "generator_script_sha256",
         "smoothing", "min_events_per_bucket", "regeneration_instructions",
     }
     assert required.issubset(block.keys()), required - block.keys()
@@ -875,6 +885,13 @@ def test_build_frozen_provenance_emits_required_keys(tmp_path: Path) -> None:
     assert block["n_events"] == 10025
     assert isinstance(block["benchmark_manifest_sha256"], str)
     assert len(block["benchmark_manifest_sha256"]) == 64
+    # F3: full repo-relative generator path (not a bare basename), event-time
+    # bounds derived from the run manifest, and a commit-availability flag.
+    assert block["generator_script_path"].endswith("scripts/smc_zone_priority_calibration.py")
+    assert "/" in block["generator_script_path"]
+    assert block["max_event_timestamp_utc"] == "2026-04-20T00:00:00+00:00"
+    assert block["min_event_timestamp_utc"] == "2026-04-01T00:00:00+00:00"
+    assert isinstance(block["source_commit_reachable"], bool)
 
 
 def test_build_frozen_provenance_rejects_invalid_status(tmp_path: Path) -> None:

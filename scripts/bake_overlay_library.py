@@ -232,7 +232,7 @@ def build_overlay_manifest(
         "recommended_import_path": f"{owner}/{OVERLAY_LIBRARY_NAME}/{version}",
         "pine_library": _as_posix(out_pine),
         "core_import_snippet": f"import {owner}/{OVERLAY_LIBRARY_NAME}/{version} as ov",
-        "cadence_class": "fast_overlay",
+        "cadence_class": "slow_mirror",  # honest: this bake mirrors the slow micro-profile artifact, it is NOT intraday-fresh
         "derived_from_source_artifact": True,
         "source_library": main_manifest.get(
             "library_name", "smc_micro_profiles_generated"
