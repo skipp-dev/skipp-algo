@@ -1341,3 +1341,30 @@ class TestFindBarIndexContainingBar:
 
     def test_after_all_bars_is_none(self) -> None:
         assert measurement_evidence._find_bar_index(self._bars(), 400.0) is None
+
+
+class TestEventSessionKeyDailyAlias:
+    """`_event_session_key` short-circuits to NONE for daily bars — incl. aliases.
+
+    An inline ``== "1D"`` matched only exact "1D"; a daily alias ("1d"/"D"/"daily")
+    fell through and computed a spurious intraday session for a daily bar.
+    """
+
+    _TS = 1_700_000_000.0
+
+    def _mock_session(self, monkeypatch) -> None:
+        # Any non-short-circuited call would surface this session, not NONE.
+        monkeypatch.setattr(
+            measurement_evidence, "build_session_context_block",
+            lambda **kwargs: {"SESSION_CONTEXT": "NY_AM"},
+        )
+
+    def test_intraday_uses_the_session(self, monkeypatch) -> None:
+        self._mock_session(monkeypatch)
+        assert measurement_evidence._event_session_key(self._TS, "15m") == "session:NY_AM"
+
+    def test_daily_aliases_short_circuit_to_none(self, monkeypatch) -> None:
+        self._mock_session(monkeypatch)
+        for tf in ("1D", "1d", "D", "daily", " 1D ", "1DAY"):
+            assert measurement_evidence._event_session_key(self._TS, tf) == "session:NONE"
+        assert measurement_evidence._event_session_label(self._TS, "daily") == "NONE"
