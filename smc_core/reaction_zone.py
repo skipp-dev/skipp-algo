@@ -22,14 +22,17 @@ Three DISTINCT reclaim-related thresholds live in this subsystem — do not conf
   * :func:`smc_core.scoring.label_sweep_reversal`'s OUTCOME, which additionally
     requires ~0.5% follow-through past the level (``threshold_pct`` default).
 
-Both are recorded raw; neither gates live scoring (Phase C is observe-only). The
-gate contract differs by CONSUMER, so ``ENABLE_REACTION_ZONE`` alone is not the
-whole story:
+Both are recorded raw; neither gates live scoring (Phase C is observe-only).
+Since 2026-07-13 the study and the context detector have SEPARATE flags
+(``ENABLE_REACTION_ZONE_STUDY`` gates :func:`compute_reaction_zone`;
+``ENABLE_REACTION_CONTEXT`` gates :func:`detect_reaction_zone`); the old
+``ENABLE_REACTION_ZONE`` still arms both. The study gate additionally differs by
+CONSUMER:
   * the ledger-emission path (``measurement_evidence._evaluate_sweep_event``) runs
-    on ``ENABLE_REACTION_ZONE`` alone;
+    on the study flag alone;
   * the liquidity-enrichment path (``measurement_evidence._liquidity_support_for_event``)
     computes it only when ``ENABLE_SWEEP_TRAP`` is ALSO on — it is nested inside the
-    Phase B block, so with reaction-zone on but sweep-trap off it never runs there.
+    Phase B block, so with the study on but sweep-trap off it never runs there.
 The follow-up study will compare the two signals' follow-through predictive power on
 a leakage-free window.
 """
@@ -41,7 +44,7 @@ from dataclasses import dataclass
 from typing import Any
 
 from smc_core.v2_config import reaction_zone_config
-from smc_core.v2_features import reaction_zone_enabled
+from smc_core.v2_features import reaction_context_enabled
 
 
 @dataclass(frozen=True, slots=True)
@@ -172,22 +175,32 @@ def compute_reaction_zone(
 def detect_reaction_zone(enrichment: dict[str, Any] | None = None) -> dict[str, Any]:
     """Detect a reaction *context* from enrichment data (NOT the reclaim measurer).
 
-    ``REACTION_ZONE_DETECTED`` here means only that a fresh structure/sweep sits
+    ``REACTION_CONTEXT_DETECTED`` means only that a fresh structure/sweep sits
     near an OB or FVG in a bias-aligned direction — it inspects NO swept level,
     extreme, post-sweep close, reclaim, or rejection band. It is a semantically
     different feature from :func:`compute_reaction_zone` (the canonical Phase C
-    reclaim/band measurer used by measurement evidence) despite sharing the
-    ``ENABLE_REACTION_ZONE`` flag; a true reclaim/band classifier will get its
-    own flag (rename ``REACTION_CONTEXT_DETECTED`` pending). This detector-style
-    API is retained for v2 integration tests.
+    reclaim/band measurer used by measurement evidence). Since 2026-07-13 the two
+    have separate flags: this detector is gated by ``ENABLE_REACTION_CONTEXT``
+    (:func:`smc_core.v2_features.reaction_context_enabled`), the study by
+    ``ENABLE_REACTION_ZONE_STUDY``; the old ``ENABLE_REACTION_ZONE`` still arms
+    both.
+
+    Output keys are ``REACTION_CONTEXT_DETECTED`` / ``_CONFIDENCE`` /
+    ``_DIRECTION``. The legacy ``REACTION_ZONE_*`` keys are **dual-emitted** with
+    identical values for a deprecation window; do not add new consumers of the
+    old keys. This detector-style API is retained for v2 integration tests.
     """
+    # Dual-emit: canonical REACTION_CONTEXT_* + deprecated REACTION_ZONE_* alias.
     neutral = {
+        "REACTION_CONTEXT_DETECTED": False,
+        "REACTION_CONTEXT_CONFIDENCE": 0,
+        "REACTION_CONTEXT_DIRECTION": "neutral",
         "REACTION_ZONE_DETECTED": False,
         "REACTION_ZONE_CONFIDENCE": 0,
         "REACTION_ZONE_DIRECTION": "neutral",
     }
 
-    if not reaction_zone_enabled():
+    if not reaction_context_enabled():
         return neutral
 
     enr = enrichment or {}
@@ -251,7 +264,11 @@ def detect_reaction_zone(enrichment: dict[str, Any] | None = None) -> dict[str, 
         else reaction_zone_config.bias_misaligned_confidence
     )
 
+    # Dual-emit: canonical REACTION_CONTEXT_* + deprecated REACTION_ZONE_* alias.
     return {
+        "REACTION_CONTEXT_DETECTED": True,
+        "REACTION_CONTEXT_CONFIDENCE": confidence,
+        "REACTION_CONTEXT_DIRECTION": direction,
         "REACTION_ZONE_DETECTED": True,
         "REACTION_ZONE_CONFIDENCE": confidence,
         "REACTION_ZONE_DIRECTION": direction,
