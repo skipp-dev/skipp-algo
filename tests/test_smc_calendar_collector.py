@@ -126,6 +126,7 @@ class TestReturnShape:
             "earnings_today_tickers", "earnings_tomorrow_tickers",
             "earnings_bmo_tickers", "earnings_amc_tickers",
             "high_impact_macro_today", "macro_event_name", "macro_event_time",
+            "earnings_tomorrow_available", "calendar_source", "calendar_fallback_reason",
         }
 
 
@@ -256,3 +257,35 @@ class TestUSEasternAnchoring:
         )
         assert result["high_impact_macro_today"] is True
         assert "FOMC" in result["macro_event_name"]
+
+
+class TestNextTradingDayProvenance:
+    """The "tomorrow" reference must disclose its source; a naive today+1
+    fallback (weekend/holiday risk) must mark earnings_tomorrow unavailable."""
+
+    def test_explicit_next_trading_date(self) -> None:
+        result = collect_earnings_and_macro(
+            ["AAPL"], reference_date=TODAY, next_trading_date=TOMORROW
+        )
+        assert result["calendar_source"] == "explicit"
+        assert result["earnings_tomorrow_available"] is True
+        assert result["calendar_fallback_reason"] == ""
+
+    def test_market_calendar_source(self) -> None:
+        # No override → resolves via newsstack_fmp._market_cal.next_trading_day.
+        result = collect_earnings_and_macro(["AAPL"], reference_date=TODAY)
+        assert result["calendar_source"] == "market_calendar"
+        assert result["earnings_tomorrow_available"] is True
+        assert result["calendar_fallback_reason"] == ""
+
+    def test_naive_fallback_disclosed_and_marked_unavailable(self, monkeypatch) -> None:
+        import newsstack_fmp._market_cal as mc
+
+        def _boom(_d):
+            raise RuntimeError("calendar unavailable")
+
+        monkeypatch.setattr(mc, "next_trading_day", _boom)
+        result = collect_earnings_and_macro(["AAPL"], reference_date=TODAY)
+        assert result["calendar_source"] == "naive_increment"
+        assert result["earnings_tomorrow_available"] is False
+        assert result["calendar_fallback_reason"] == "RuntimeError"

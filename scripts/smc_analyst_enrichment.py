@@ -27,11 +27,13 @@ def compute_analyst_enrichment(
     underperform: list[str] = []
     high_upside: list[str] = []
     failed: list[tuple[str, str]] = []  # E-2: per-symbol failure tracking
+    attempted = 0  # symbols with a real provider round-trip (non-empty ticker)
 
     for symbol in symbols[:50]:
         sym = str(symbol).strip().upper()
         if not sym:
             continue
+        attempted += 1
         try:
             profile = fmp_client.get_company_profile(sym)
             price = float(profile.get("price") or 0) if profile else 0.0
@@ -78,4 +80,12 @@ def compute_analyst_enrichment(
         "analyst_strong_buy_tickers": sorted(strong_buy),
         "analyst_underperform_tickers": sorted(underperform),
         "analyst_high_upside_tickers": sorted(high_upside),
+        # Provider-health contract: an empty result from a total provider outage
+        # (every symbol raised) must be distinguishable from a valid day with no
+        # analyst signal. data_available is True only when at least one symbol
+        # completed a provider round-trip without raising.
+        "analyst_data_available": (attempted - len(failed)) > 0,
+        "analyst_symbols_attempted": attempted,
+        "analyst_symbols_failed": len(failed),
+        "analyst_failure_rate": (len(failed) / attempted) if attempted else 0.0,
     }

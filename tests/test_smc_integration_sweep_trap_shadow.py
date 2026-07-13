@@ -171,6 +171,49 @@ class TestWS1LiquiditySupportWiring:
                 bars=bars, anchor_idx=15, anchor_ts=float(bars.iloc[15]["timestamp"]),
             )
         assert "SWEEP_TRAP_QUALITY_SCORE" not in payload
+        # Flag off → no status field at all (distinguishable from ok/error).
+        assert "SWEEP_TRAP_STATUS" not in payload
+
+    def test_liquidity_support_emits_ok_status_on_success(self) -> None:
+        from smc_integration.measurement_evidence import _liquidity_support_for_event
+
+        bars = _bull_sweep_bars()
+        candidate = {**_event(), "id": "cand-1"}
+        with patch.dict(os.environ, {"ENABLE_SWEEP_TRAP": "1", "ENABLE_REACTION_ZONE": "1"}):
+            payload = _liquidity_support_for_event(
+                current_event=candidate, family="SWEEP", sweeps=[candidate],
+                bars=bars, anchor_idx=15, anchor_ts=float(bars.iloc[15]["timestamp"]),
+            )
+        assert payload["SWEEP_TRAP_STATUS"] == "ok"
+        assert payload["REACTION_STATUS"] == "ok"
+
+    def test_liquidity_support_emits_error_status_on_failure(self, caplog) -> None:
+        # A failed Phase B/C enrichment must be DISTINGUISHABLE from "flag off" /
+        # "no geometry": it emits SWEEP_TRAP_STATUS=="error" + an error code and a
+        # WARNING (was a DEBUG-only silent skip that shrank the shadow sample).
+        import logging
+
+        from smc_integration import measurement_evidence as me
+        from smc_integration.measurement_evidence import _liquidity_support_for_event
+
+        bars = _bull_sweep_bars()
+        candidate = {**_event(), "id": "cand-1"}
+
+        def _boom(**_kw):
+            raise ValueError("classifier blew up")
+
+        with patch.object(me, "classify_sweep_trap", _boom), \
+                patch.dict(os.environ, {"ENABLE_SWEEP_TRAP": "1", "ENABLE_REACTION_ZONE": "1"}), \
+                caplog.at_level(logging.WARNING):
+            payload = _liquidity_support_for_event(
+                current_event=candidate, family="SWEEP", sweeps=[candidate],
+                bars=bars, anchor_idx=15, anchor_ts=float(bars.iloc[15]["timestamp"]),
+            )
+        assert payload["SWEEP_TRAP_STATUS"] == "error"
+        assert payload["SWEEP_TRAP_ERROR"] == "ValueError"
+        assert payload["REACTION_STATUS"] == "error"
+        assert "SWEEP_TRAP_QUALITY_SCORE" not in payload
+        assert any(r.levelno == logging.WARNING for r in caplog.records)
 
 
 class TestDeriveGeometryBearishAndFallback:

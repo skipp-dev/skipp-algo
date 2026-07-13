@@ -48,4 +48,35 @@ class TestComputeAnalystEnrichment:
             "analyst_strong_buy_tickers",
             "analyst_underperform_tickers",
             "analyst_high_upside_tickers",
+            "analyst_data_available",
+            "analyst_symbols_attempted",
+            "analyst_symbols_failed",
+            "analyst_failure_rate",
         }
+
+    def test_provider_outage_distinguishable_from_no_signal(self) -> None:
+        # Every symbol raises → total provider outage: data_available False,
+        # failure_rate 1.0. This must be distinguishable from a valid day with
+        # no analyst signal (below), where all three lists are ALSO empty.
+        fmp = MagicMock()
+        fmp.get_company_profile.side_effect = RuntimeError("provider down")
+        result = compute_analyst_enrichment(["AAPL", "MSFT"], fmp)
+        assert result["analyst_strong_buy_tickers"] == []
+        assert result["analyst_data_available"] is False
+        assert result["analyst_symbols_attempted"] == 2
+        assert result["analyst_symbols_failed"] == 2
+        assert result["analyst_failure_rate"] == 1.0
+
+    def test_valid_response_no_signal_is_available(self) -> None:
+        # Provider responds with balanced ratings (no strong buy / underperform /
+        # high upside) → empty lists but data IS available and no failures.
+        estimates = {"AAPL": [{"analystStrongBuy": 3, "analystBuy": 3,
+                               "analystHold": 10, "analystSell": 2,
+                               "analystStrongSell": 1, "estimatedEpsAvg": 100}]}
+        profiles = {"AAPL": {"price": 150}}
+        fmp = self._mock_fmp(estimates, profiles)
+        result = compute_analyst_enrichment(["AAPL"], fmp)
+        assert result["analyst_strong_buy_tickers"] == []
+        assert result["analyst_data_available"] is True
+        assert result["analyst_symbols_failed"] == 0
+        assert result["analyst_failure_rate"] == 0.0

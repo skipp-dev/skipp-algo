@@ -963,6 +963,7 @@ def _liquidity_support_for_event(
                     payload["SWEEP_RECLAIM_STRENGTH"] = trap.reclaim_strength
                     payload["SWEEP_FIB_RETRACE"] = trap.fib_retrace_depth
                     payload["SWEEP_TRAP_QUALITY_SCORE"] = trap.trap_quality_score
+                    payload["SWEEP_TRAP_STATUS"] = "ok"
 
                     # Phase C — Reaction Zone (depends on Phase B active).
                     if is_reaction_zone_enabled() and swept_level > 0:
@@ -982,12 +983,26 @@ def _liquidity_support_for_event(
                         payload["REACTION_BODY_RATIO"] = zone.body_ratio
                         payload["REACTION_DIRECTIONAL_BODY"] = zone.directional_body
                         payload["REACTION_WICK_RATIO"] = zone.rejection_wick_ratio
+                        payload["REACTION_STATUS"] = "ok"
                         # Phase C is OBSERVE-ONLY: the raw fields above are recorded
                         # for the follow-through study; NO discount is applied to any
                         # score. (The prior 0.5 discount keyed on an inverted "close
                         # back inside zone" confirmation and is removed here.)
-            except Exception:  # Phase B/C is additive; failure must not break v1 scoring.
-                logger.debug("Phase B/C sweep-trap/reaction enrichment skipped (fail-soft)", exc_info=True)
+            except Exception as exc:  # Phase B/C is additive; failure must not break v1 scoring.
+                # Emit an explicit per-event error status + code so a failed
+                # enrichment is distinguishable from "flag off" / "no geometry" /
+                # "not applicable" (all of which leave the fields simply absent).
+                # Downstream shadow-eval can now count SWEEP_TRAP_STATUS=="error"
+                # instead of silently shrinking the sample. WARNING (was DEBUG).
+                payload["SWEEP_TRAP_STATUS"] = "error"
+                payload["SWEEP_TRAP_ERROR"] = type(exc).__name__
+                if is_reaction_zone_enabled():
+                    payload["REACTION_STATUS"] = "error"
+                logger.warning(
+                    "Phase B/C sweep-trap/reaction enrichment failed (fail-soft): %s",
+                    type(exc).__name__,
+                    exc_info=True,
+                )
         priority = (0 if candidate_id == current_id and family == "SWEEP" else 1, age_bars)
         if best is None or priority < best[0]:
             best = (priority, payload)
@@ -1018,8 +1033,11 @@ def _freshness_state_light_for_event(
     ``mitigated_at`` keys suitable for insertion under ``"freshness_v2"``
     in the enrichment dict.
 
-    Falls back to a ``"fresh"`` state with full penalty (1.0) on any error,
-    so v2 scoring degrades gracefully when data is incomplete.
+    On any internal error emits an explicit ``"unknown"`` freshness state with a
+    WARNING (never a silent best-case ``"fresh"``/1.0): a failed classification is
+    not evidence of freshness, so the penalty is set to the conservative
+    "cannot-confirm-freshness" floor (the ``stale`` decay, 0.60) — the dynamic
+    score portion is discounted rather than granted full strength.
     """
     try:
         event_bar = int(event.get("bar_index", anchor_idx))
@@ -1080,13 +1098,25 @@ def _freshness_state_light_for_event(
             "mitigated_at": state.mitigated_at,
         }
     except Exception:
+        # A failed freshness classification is NOT evidence of freshness. Emit an
+        # explicit "unknown" state with a WARNING (was: a silent "fresh"/1.0, which
+        # granted full-strength credit and could inflate the live v2 score). The
+        # penalty is the conservative "stale" decay floor (0.60, see
+        # event_freshness._DECAY) so build_signal_quality_v2 discounts the dynamic
+        # OB/FVG/liquidity portion rather than granting it in full.
+        logger.warning(
+            "freshness_v2: classification failed for event; emitting 'unknown' "
+            "state with conservative penalty (no full-strength credit)",
+            exc_info=True,
+        )
         return {
-            "freshness_bucket": "fresh",
-            "freshness_penalty": 1.0,
-            "event_age_bars": 0,
-            "event_age_seconds": 0.0,
+            "freshness_bucket": "unknown",
+            "freshness_penalty": 0.60,
+            "event_age_bars": None,
+            "event_age_seconds": None,
             "invalidated_at": None,
             "mitigated_at": None,
+            "freshness_error": True,
         }
 
 

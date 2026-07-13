@@ -427,14 +427,50 @@ def build_structure_artifact_manifest(
     }
 
 
-def _row_from_existing_artifact(path: Path, symbol: str, timeframe: str) -> StructureArtifactRow | None:
+def _row_from_existing_artifact(
+    path: Path,
+    symbol: str,
+    timeframe: str,
+    *,
+    errors: list[dict[str, Any]] | None = None,
+) -> StructureArtifactRow | None:
+    # A pre-existing artifact that is unreadable or schema-invalid must be
+    # surfaced in the manifest error block, not silently dropped to None (which
+    # made "missing" and "corrupt" indistinguishable). When ``errors`` is passed
+    # the failure is appended there; the None return is preserved for callers.
     try:
         payload = json.loads(path.read_text(encoding="utf-8"))
-    except Exception:
-        logger.debug("Failed to load existing structure artifact at %s", path, exc_info=True)
+    except Exception as exc:
+        logger.warning(
+            "Failed to load existing structure artifact at %s: %s",
+            path,
+            type(exc).__name__,
+            exc_info=True,
+        )
+        if errors is not None:
+            errors.append({
+                "code": "STRUCTURE_ARTIFACT_UNREADABLE",
+                "symbol": symbol,
+                "timeframe": timeframe,
+                "path": _relative_repo_path(path),
+                "error": type(exc).__name__,
+            })
         return None
 
     if not isinstance(payload, dict):
+        logger.warning(
+            "Existing structure artifact at %s is not a JSON object (got %s)",
+            path,
+            type(payload).__name__,
+        )
+        if errors is not None:
+            errors.append({
+                "code": "STRUCTURE_ARTIFACT_SCHEMA_INVALID",
+                "symbol": symbol,
+                "timeframe": timeframe,
+                "path": _relative_repo_path(path),
+                "error": f"expected object, got {type(payload).__name__}",
+            })
         return None
 
     coverage = payload.get("coverage", {}) if isinstance(payload.get("coverage"), dict) else {}
@@ -464,13 +500,19 @@ def _row_from_existing_artifact(path: Path, symbol: str, timeframe: str) -> Stru
     )
 
 
-def _existing_artifact_rows(output_dir: Path, symbols: list[str], timeframe: str) -> list[StructureArtifactRow]:
+def _existing_artifact_rows(
+    output_dir: Path,
+    symbols: list[str],
+    timeframe: str,
+    *,
+    errors: list[dict[str, Any]] | None = None,
+) -> list[StructureArtifactRow]:
     rows: list[StructureArtifactRow] = []
     for symbol in symbols:
         candidate = output_dir / _artifact_file_name(symbol, timeframe)
         if not candidate.exists():
             continue
-        row = _row_from_existing_artifact(candidate, symbol, timeframe)
+        row = _row_from_existing_artifact(candidate, symbol, timeframe, errors=errors)
         if row is not None:
             rows.append(row)
     return rows
@@ -532,7 +574,10 @@ def write_structure_artifacts_from_workbook(
     workbook_fallback_rejects: list[str] = []
 
     if resolved_workbook is None and resolved_bundle_root is None:
-        existing = _existing_artifact_rows(output_dir, requested_symbols, resolved_timeframe)
+        existing_errors: list[dict[str, Any]] = []
+        existing = _existing_artifact_rows(
+            output_dir, requested_symbols, resolved_timeframe, errors=existing_errors
+        )
         if existing:
             warnings.append(
                 {
@@ -546,7 +591,7 @@ def write_structure_artifacts_from_workbook(
                 workbook=None,
                 export_bundle_root=None,
                 artifacts=existing,
-                errors=[],
+                errors=existing_errors,
                 warnings=warnings,
                 resolution_mode="preexisting_artifacts",
                 symbols_requested=requested_symbols,
@@ -557,6 +602,9 @@ def write_structure_artifacts_from_workbook(
             return manifest
 
         errors.extend(resolver_errors)
+        # Surface corrupt/unreadable pre-existing artifacts even when no usable
+        # row survived (else a fully-corrupt artifact set looks like plain "missing").
+        errors.extend(existing_errors)
         errors.append(
             {
                 "code": "MISSING_STRUCTURE_INPUTS",

@@ -46,6 +46,9 @@ class CalendarBlock(TypedDict, total=False):
     high_impact_macro_today: bool
     macro_event_name: str
     macro_event_time: str
+    earnings_tomorrow_available: bool
+    calendar_source: str
+    calendar_fallback_reason: str
 
 
 class LayeringBlock(TypedDict, total=False):
@@ -451,13 +454,21 @@ class SectorRotationBlock(TypedDict, total=False):
 class InstitutionalBlock(TypedDict, total=False):
     institutional_accumulation_tickers: list[str]
     institutional_distribution_tickers: list[str]
-    institutional_data_available: bool
+    institutional_data_available: bool  # provider responded (availability), not signal
+    institutional_signal_present: bool
+    institutional_symbols_attempted: int
+    institutional_symbols_failed: int
+    institutional_failure_rate: float
 
 
 class AnalystBlock(TypedDict, total=False):
     analyst_strong_buy_tickers: list[str]
     analyst_underperform_tickers: list[str]
     analyst_high_upside_tickers: list[str]
+    analyst_data_available: bool
+    analyst_symbols_attempted: int
+    analyst_symbols_failed: int
+    analyst_failure_rate: float
 
 
 class InsiderBlock(TypedDict, total=False):
