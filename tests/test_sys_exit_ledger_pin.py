@@ -53,7 +53,7 @@ _SYS_EXIT_LEDGER: frozenset[tuple[str, int]] = frozenset({
     # 2026-06-25: feature-flag helper addition shifted 6045 -> 6049.
     # 2026-07-04 (market-microstructure observe-only): import + snapshot
     # block + row-loop fields shifted 6065 -> 6091.
-    ("open_prep/run_open_prep.py", 6156),  # 2026-07-13 (PDH/PDL wire + zone-priority normalization above): 6114->6156
+    ("open_prep/run_open_prep.py", 6163),  # 2026-07-13 (truth disclosures above): 6156->6163
     # 2026-06-02 (#2497): +68 lines after the `provenance` subcommand block
     # was inserted above the lint dispatch (was 400, 402).
     ("pine_input_surface.py", 468),

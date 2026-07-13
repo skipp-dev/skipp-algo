@@ -201,10 +201,10 @@ _FROZEN_BASIC_CONFIG_SITES: frozenset[tuple[str, int]] = frozenset({
     # 2913 -> 2992; feature-flag helper additions shifted run_open_prep
     # 6059 -> 6063.
     # 2026-06-28 (semantic monitoring): shifted +80 lines by readiness metrics.
-    ("open_prep/realtime_signals.py", 3426),  # 2026-07-13 (status+attach+polarity above): 3400->3426
+    ("open_prep/realtime_signals.py", 3430),  # 2026-07-13 (half-day disclosure above): 3426->3430
     # 2026-07-04 (market-microstructure observe-only): import + snapshot
     # block + row-loop fields shifted 6079 -> 6105.
-    ("open_prep/run_open_prep.py", 6170),  # 2026-07-13 (PDH/PDL wire + zone-priority normalization above): 6128->6170
+    ("open_prep/run_open_prep.py", 6177),  # 2026-07-13 (truth disclosures above): 6170->6177
     # 2026-06-16 (feat/live-overlay-daemon): entry-point main.py configures
     # root logger at startup (Railway container, no other logger setup).
     # 2026-06-19 (fix/live-overlay-post-merge-bugs): import additions for
@@ -270,7 +270,7 @@ _FROZEN_SYSPATH_SITES: frozenset[tuple[str, int, str]] = frozenset({
     # 2026-06-25: AsyncNewsstackPoller telemetry additions shifted
     # 1302 -> 1381.
     # 2026-06-28 (semantic monitoring): shifted +53 lines by readiness metrics.
-    ("open_prep/realtime_signals.py", 1723, "insert"),  # 2026-07-13 (status+attach above): 1703->1723
+    ("open_prep/realtime_signals.py", 1727, "insert"),  # 2026-07-13 (half-day disclosure above): 1723->1727
     ("open_prep/streamlit_monitor.py", 34, "insert"),
     # WP-H (PR #2612): 32 -> 34, VIX import + helper block added above.
     ("smc_tv_bridge/smc_api.py", 34, "insert"),
