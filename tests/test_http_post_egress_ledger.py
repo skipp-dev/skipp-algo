@@ -140,7 +140,7 @@ HTTP_POST_LEDGER: set[tuple[str, int]] = {
     # for user-configured realtime signal alerts (generic/slack/discord/ntfy/
     # telegram/twilio_whatsapp/meta_whatsapp). Opt-in via RT_SIGNAL_WEBHOOK_*;
     # fail-soft; destination + auth are user-supplied. See open_prep/rt_notify.py.
-    ("open_prep/rt_notify.py", 366),  # 2026-07-11 (early-warning 2nd webhook): _early_url/_early_levels helpers + _build_request url override stacked above the one POST site: 332->366
+    ("open_prep/rt_notify.py", 370),  # 2026-07-13 (unknown-mode warn + mode normalize above): 366->370
     # Notification webhook fan-out (Discord/Slack-style).
     ("terminal_notifications.py", 279),
     # FMP/news export webhook (raw body, no redirects, HMAC-SHA256 signed,
@@ -179,7 +179,7 @@ URLLIB_REQUEST_POST_LEDGER: set[tuple[str, int]] = {
     # POST Request line shifted 476 -> 512.
     # 2026-07-02: target-host canonicalization + invalid-target guard shifted
     # POST Request line 514 -> 533.
-    ("open_prep/alerts.py", 582),
+    ("open_prep/alerts.py", 604),  # 2026-07-13 (traderspost fail-closed + doc truth-fixes): 582->604
     # 2026-06-21: UptimeRobot bridge polls monitor API with low-level
     # urllib.request.Request(..., method="POST") + timeout discipline.
     ("services/live_overlay_daemon/uptimerobot_bridge.py", 84),

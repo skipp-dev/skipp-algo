@@ -36,7 +36,8 @@ DEFAULT_CONFIG: dict[str, Any] = {
     "enabled": False,
     "min_confidence_tier": "HIGH_CONVICTION",
     "targets": [],
-    # Throttle: at most 1 alert per symbol per N seconds
+    # Throttle: at most 1 successful delivery per symbol+target per N seconds
+    # (failed targets may be retried within the window — see _check_and_mark)
     "throttle_seconds": 600,
     # Example target:
     # {
@@ -167,9 +168,21 @@ TIER_LABELS = {
 }
 
 
-def _format_traderspost_payload(candidate: dict[str, Any]) -> dict[str, Any]:
-    """Format a payload for TradersPost webhook."""
-    gap = _coerce_finite_float(candidate.get("gap_pct", 0), default=0.0)
+def _format_traderspost_payload(candidate: dict[str, Any]) -> dict[str, Any] | None:
+    """Format a payload for TradersPost webhook.
+
+    Returns ``None`` (skip the target) when ``gap_pct`` is missing or
+    non-finite: ``action`` is an ORDER direction, and the old 0.0 default made
+    absent evidence read as "buy"/"bullish" — the fail-open class from the
+    #3549 audit, on an endpoint that can forward to a broker. Fail closed.
+    """
+    raw_gap = candidate.get("gap_pct")
+    try:
+        gap = float(raw_gap)
+    except (TypeError, ValueError):
+        return None
+    if not math.isfinite(gap):
+        return None
     return {
         "ticker": candidate.get("symbol", ""),
         "action": "sell" if gap < 0 else "buy",
@@ -401,7 +414,8 @@ def dispatch_alerts(
 ) -> list[dict[str, Any]]:
     """Send alerts for qualifying candidates.
 
-    Returns a list of result dicts (one per sent alert) for logging.
+    Returns a list of result dicts (one per ATTEMPTED send, including
+    failures — inspect ``status``) for logging.
     """
     if config is None:
         config = load_alert_config()
@@ -475,6 +489,14 @@ def dispatch_alerts(
             try:
                 if target_type == "traderspost":
                     payload = _format_traderspost_payload(candidate)
+                    if payload is None:
+                        logger.warning(
+                            "Skipping TradersPost alert for %s: gap_pct missing/non-finite (no order side inferable)",
+                            symbol,
+                        )
+                        _clear_sent(symbol, target_scope=target_scope)
+                        failed_targets += 1
+                        continue
                 elif target_type == "slack":
                     payload = _format_slack_payload(candidate, regime=regime, weather=weather)
                 elif target_type == "discord":
@@ -522,7 +544,7 @@ def dispatch_alerts(
             _clear_sent(symbol)
 
     if results:
-        logger.info("Dispatched %d alert(s)", len(results))
+        logger.info("Attempted %d alert send(s)", len(results))
     return results
 
 
@@ -536,7 +558,7 @@ def _send_webhook(
     """Send a webhook POST request.  Uses urllib to avoid hard dependency.
 
     Retries up to *_max_retries* times on retryable failures
-    (429, 5xx, and transient network errors).
+    (429, 500/502/503/504, and URLError network failures).
     """
     import urllib.error
     import urllib.request
@@ -611,9 +633,9 @@ def _send_webhook(
             logger.warning("Webhook error for %s: %s", masked_url, exc)
             return {"status": 0, "error": type(exc).__name__}
 
-    # All retries exhausted (should only reach here after 429 retries)
-    logger.warning("Webhook retries exhausted for %s", masked_url)
-    return {"status": 429, "error": type(last_exc).__name__ if last_exc else "retries exhausted"}
+    # Unreachable: on the final attempt every branch above returns (success,
+    # non-retryable status, exhausted-retry status, or exception result).
+    raise AssertionError("unreachable: _send_webhook retry loop always returns")
 
 
 def _coerce_finite_float(value: Any, *, default: float = 0.0) -> float:
