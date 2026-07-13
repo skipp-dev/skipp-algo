@@ -224,3 +224,26 @@ def test_missing_schema_version_is_excluded_era_cut() -> None:
     ev = _reaction_feats()
     del ev["features"]["reaction_schema_version"]
     assert collect_samples([ev]) == []
+
+
+def test_corrupt_bars_to_fields_fail_closed_on_old_band_only_not_whole_sample() -> None:
+    """A missing OR corrupt bars_to_* value orders ONLY the old_band cohort, so it
+    must fail-closed on old_band (drop from that cohort) while preserving the
+    still-valid level_cross / mirrored_band variants — the two failure modes are
+    symmetric. Reachable only via --events-json (the producer emits real ints)."""
+    base = {"reaction_level_reclaimed": True, "reaction_in_rejection_band": True,
+            "reaction_close_distance_pct": 0.3, "reaction_band_width_pct": 0.76}
+    # corrupt (non-castable) bars → sample NOT dropped; old_band fail-closed False,
+    # the other two variants still derived.
+    corrupt = derive_variants({**base, "reaction_bars_to_rejection_band": None,
+                               "reaction_bars_to_reclaim": "x"})
+    assert corrupt == {"old_band": False, "level_cross": True, "mirrored_band": True}
+    # missing bars → identical outcome (symmetry with the corrupt case).
+    missing = derive_variants(base)
+    assert missing == corrupt
+    # a genuinely essential corrupt field (dist) still drops the whole sample.
+    assert derive_variants({**base, "reaction_close_distance_pct": None}) is None
+    # a non-reclaimed band stays in the cohort regardless of corrupt bars.
+    no_reclaim = derive_variants({**base, "reaction_level_reclaimed": False,
+                                  "reaction_bars_to_rejection_band": "bad"})
+    assert no_reclaim["old_band"] is True and no_reclaim["level_cross"] is False
