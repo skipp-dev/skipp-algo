@@ -49,6 +49,7 @@ from pathlib import Path
 from typing import Any
 
 from scripts.smc_atomic_write import atomic_write_json, atomic_write_text
+from smc_core.event_ledger import ledger_label
 
 # Floor on the pooled shadow-record count before a verdict may leave INCONCLUSIVE.
 # This is a SAMPLE-COUNT floor for a collected (non-time-split) shadow corpus, NOT
@@ -81,7 +82,10 @@ def collect_samples(events: list[dict[str, Any]]) -> list[tuple[float, int]]:
         if str(ev.get("family", "")).upper() != "SWEEP":
             continue
         feats = ev.get("features") or {}
-        if QUALITY_KEY not in feats or OUTCOME_KEY not in feats:
+        # QUALITY_KEY is a feature; OUTCOME_KEY is a label (schema 1.1 -> outcome_extras,
+        # 1.0 -> features). ledger_label reads either generation.
+        outcome_late = ledger_label(ev, OUTCOME_KEY, default=None)
+        if QUALITY_KEY not in feats or outcome_late is None:
             continue
         try:
             q = float(feats[QUALITY_KEY])
@@ -89,7 +93,7 @@ def collect_samples(events: list[dict[str, Any]]) -> list[tuple[float, int]]:
             continue
         if not (0.0 <= q <= 1.0):
             continue
-        out.append((q, 1 if feats.get(OUTCOME_KEY) else 0))
+        out.append((q, 1 if outcome_late else 0))
     return out
 
 

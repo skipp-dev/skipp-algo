@@ -56,6 +56,15 @@ class TestCollectSamples:
         }
         assert collect_samples([ev]) == [(0.6, 0)]
 
+    def test_reads_label_from_outcome_extras_schema_1_1(self) -> None:
+        # Schema 1.1 record: the label lives in outcome_extras, the score in features.
+        ev = {
+            "family": "SWEEP",
+            "features": {"sweep_trap_quality_score": 0.6},
+            "outcome_extras": {"sweep_trap_outcome_late": True},
+        }
+        assert collect_samples([ev]) == [(0.6, 1)]
+
 
 class TestEvaluate:
     def test_skillful_score_is_promotable(self) -> None:

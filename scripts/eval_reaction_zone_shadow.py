@@ -47,6 +47,7 @@ from pathlib import Path
 from typing import Any
 
 from scripts.smc_atomic_write import atomic_write_json
+from smc_core.event_ledger import ledger_label
 
 DEFAULT_SNAPSHOT = "artifacts/monitoring/reaction_zone_shadow.json"
 MIN_SAMPLES = 40
@@ -89,9 +90,12 @@ def collect_samples(events: list[dict[str, Any]]) -> list[tuple[str, dict[str, b
         variants = derive_variants(feats)
         if variants is None:
             continue
-        late = feats.get("reaction_outcome_late")
+        # reaction_outcome_late is a LABEL (schema 1.1 -> outcome_extras, 1.0 -> features);
+        # ledger_label reads either. An unresolved/malformed late window is not a genuine
+        # bool -> drop it so it can never be a silent miss.
+        late = ledger_label(ev, "reaction_outcome_late")
         if not isinstance(late, bool):
-            continue  # unresolved/malformed late window is not gradeable -> never a silent miss
+            continue
         out.append((direction, variants, 1 if late else 0))
     return out
 

@@ -126,6 +126,11 @@ def compute_event_family_kpi(
         # not emitted (legacy fixtures, non-FVG families).
         label = e.get("label_partial_50")
         if label is None:
+            # schema 1.1 stores the label under outcome_extras; 1.0 under features.
+            extras = e.get("outcome_extras")
+            if isinstance(extras, dict):
+                label = extras.get("label_partial_50")
+        if label is None:
             feats = e.get("features")
             if isinstance(feats, dict):
                 label = feats.get("label_partial_50")

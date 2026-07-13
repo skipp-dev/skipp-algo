@@ -125,7 +125,7 @@ _TEMPFILE_LEDGER: frozenset[tuple[str, int, str]] = frozenset({
     ("open_prep/watchlist.py", 63, "mkstemp"),
     ("smc_core/benchmark.py", 30, "mkstemp"),
     ("smc_core/ensemble_quality.py", 49, "mkstemp"),
-    ("smc_core/event_ledger.py", 143, "mkstemp"),  # 2026-07-13 schema-enforcement: import math + write-time validation shifted (133->143)
+    ("smc_core/event_ledger.py", 160, "mkstemp"),  # 2026-07-13 schema-v1.1: label relocation shifted (143->160)
     ("smc_core/inference/null_cache.py", 96, "mkstemp"),
     ("smc_core/scoring.py", 1216, "mkstemp"),  # 2026-07-11: FVG-mitigation touch-fix docstring shifted (1211->1216)
     ("smc_integration/batch.py", 26, "mkstemp"),

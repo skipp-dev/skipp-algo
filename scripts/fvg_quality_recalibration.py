@@ -59,7 +59,7 @@ if str(REPO_ROOT) not in sys.path:
 # invoked as `python scripts/X.py` (no PYTHONPATH=.) — sys.path.insert
 # above must happen before any first-party `from scripts.` import.
 from scripts.smc_atomic_write import atomic_write_text
-from smc_core.event_ledger import read_event_ledger
+from smc_core.event_ledger import ledger_label, read_event_ledger
 
 REPORT_VERSION = "2.0"
 WEIGHT_CAP_LO = 0.05
@@ -392,8 +392,8 @@ def _resolve_outcome(record: dict[str, Any], label_source: str) -> int | None:
             return None
         return 1 if record.get("outcome") else 0
     if label_source == "partial_50":
-        features = record.get("features") or {}
-        value = features.get("label_partial_50")
+        # schema 1.1 -> outcome_extras, 1.0 -> features; ledger_label reads either.
+        value = ledger_label(record, "label_partial_50")
         if value is None:
             return None
         if isinstance(value, bool):

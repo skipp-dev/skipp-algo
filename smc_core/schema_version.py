@@ -34,7 +34,11 @@ SCHEMA_VERSION = "3.0.0"
 #     from semver because it busts in-memory derived caches, not a
 #     persisted on-disk schema.
 # ---------------------------------------------------------------------------
-EVENT_LEDGER_SCHEMA_VERSION = "1.0"
+# 1.1 (2026-07-13): outcome labels (label_partial_50, *_outcome_late) relocated
+# from ``features`` to ``outcome_extras``; added the ``feature_schema_versions``
+# mapping. Backwards-compatible — readers accept 1.0 and 1.1 (see
+# EVENT_LEDGER_COMPATIBLE_VERSIONS) and resolve labels from either location.
+EVENT_LEDGER_SCHEMA_VERSION = "1.1"
 SESSION_SCHEMA_VERSION = "2026-04-24.0"
 
 
