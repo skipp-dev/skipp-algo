@@ -98,8 +98,11 @@ def test_movers_massive_routes_to_snapshots(mock_req, monkeypatch: pytest.Monkey
 
 
 @patch("newsstack_fmp.ingest_benzinga_calendar._request_with_retry")
-def test_movers_direct_default_unchanged(mock_req, monkeypatch: pytest.MonkeyPatch):
-    monkeypatch.delenv("BENZINGA_PROVIDER", raising=False)
+def test_movers_direct_route_under_override(mock_req, monkeypatch: pytest.MonkeyPatch):
+    # Market data defaults to Massive now (decoupled from the news
+    # BENZINGA_PROVIDER flag, #3341/#3342); the direct movers host is only hit
+    # under the explicit BENZINGA_MARKET_DATA_PROVIDER=direct override.
+    monkeypatch.setenv("BENZINGA_MARKET_DATA_PROVIDER", "direct")
     resp = MagicMock()
     resp.json.return_value = {"result": {"gainers": [], "losers": []}}
     mock_req.return_value = resp

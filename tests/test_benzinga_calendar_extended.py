@@ -35,8 +35,13 @@ from terminal_poller import (
 
 
 @pytest.fixture
-def adapter() -> Generator[BenzingaCalendarAdapter, None, None]:
-    """BenzingaCalendarAdapter with a dummy key."""
+def adapter(monkeypatch: pytest.MonkeyPatch) -> Generator[BenzingaCalendarAdapter, None, None]:
+    """BenzingaCalendarAdapter with a dummy key, pinned to the direct route.
+
+    dividends/splits/ipos default to the Massive reroute now (decoupled from
+    the news provider flag); these tests exercise the direct calendar path.
+    """
+    monkeypatch.setenv("BENZINGA_MARKET_DATA_PROVIDER", "direct")
     a = BenzingaCalendarAdapter("test_key_12345")
     yield a
     a.close()
@@ -299,8 +304,11 @@ class TestMassiveCalendarRouting:
         assert rows[0]["deal_status"] == "pending"
 
     @patch("newsstack_fmp.ingest_benzinga_calendar._request_with_retry")
-    def test_dividends_direct_unchanged(self, mock_req, monkeypatch: pytest.MonkeyPatch):
-        monkeypatch.delenv("BENZINGA_PROVIDER", raising=False)  # default = direct
+    def test_dividends_direct_route_under_override(self, mock_req, monkeypatch: pytest.MonkeyPatch):
+        # Market data defaults to Massive; the direct calendar host is only hit
+        # under the explicit BENZINGA_MARKET_DATA_PROVIDER=direct override —
+        # NOT via the news BENZINGA_PROVIDER flag (decoupled, #3341/#3342).
+        monkeypatch.setenv("BENZINGA_MARKET_DATA_PROVIDER", "direct")
         resp = MagicMock()
         resp.status_code = 200
         resp.json.return_value = {"dividends": [{"ticker": "AAPL"}]}
@@ -310,7 +318,7 @@ class TestMassiveCalendarRouting:
         adapter.fetch_dividends()
         adapter.close()
 
-        # direct mode hits the Benzinga calendar host
+        # direct override hits the Benzinga calendar host
         assert "api.benzinga.com/api/v2.1/calendar/dividends" in mock_req.call_args.args[1]
 
     @patch("newsstack_fmp.ingest_benzinga_calendar._request_with_retry")
