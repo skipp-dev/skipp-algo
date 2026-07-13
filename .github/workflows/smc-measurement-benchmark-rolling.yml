@@ -393,9 +393,14 @@ jobs:
           # artifacts that resolve cleanly but are 1-bar/day resamples — all
           # intraday slices clones, long-horizon families unscorable). That
           # condition is disclosed as frame_integrity in
-          # benchmark_run_manifest.json + a run warning; arm
-          # --strict-frame-distinctness only after a genuine intraday bar
-          # source lands (today it would fail every run).
+          # benchmark_run_manifest.json + a run warning.
+          #
+          # --strict-frame-distinctness (armed after #3616/#3619, proof run
+          # 29285965312: all intraday TFs on genuine frames, FVG 10.8k scored
+          # events): hard-fail when an intraday TF degenerates to <= 1
+          # bar/trading day — that now means the producer's
+          # benchmark_universe_ohlcv_1m frame went missing, and the honest
+          # reaction is a red run, not silently-cloned per-TF slices.
           #
           # --scoring-anchor-window-days 5 (2026-07-13): each rolling run
           # scores only events anchored in the trailing 5 trading-day window
@@ -409,6 +414,7 @@ jobs:
             --output-dir "${{ steps.meta.outputs.out_dir }}" \
             --require-evidence \
             --strict-structure-tf \
+            --strict-frame-distinctness \
             --scoring-anchor-window-days 5
 
       - name: Zone priority + testable calibration (rolling)

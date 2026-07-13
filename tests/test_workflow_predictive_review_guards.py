@@ -113,17 +113,22 @@ def test_restore_bundle_filters_deprecated_monolith_artifacts(monkeypatch) -> No
     ]
 
 
-def test_rolling_benchmark_arms_strict_structure_tf_but_not_frame_distinctness() -> None:
+def test_rolling_benchmark_arms_both_frame_gates() -> None:
     """Frame-integrity audit 2026-07-13: the rolling workflow hard-fails on a
-    regression to the legacy 1D-onto-intraday aliasing fallback, but the
-    frame-distinctness gate stays UNARMED until a genuine intraday bar source
-    lands (arming it today would fail every run on the degenerate
-    1-bar/day frames)."""
+    regression to the legacy 1D-onto-intraday aliasing fallback AND — since
+    #3616/#3619 shipped genuine full-session frames within the CI budget
+    (proof run 29285965312) — on degenerate intraday frames (<= 1
+    bar/trading day). A degenerate frame now means the producer's
+    benchmark_universe_ohlcv_1m frame went missing; the honest reaction is a
+    red run, not silently-cloned per-TF slices."""
     body = _read_workflow("smc-measurement-benchmark-rolling.yml")
     assert "--strict-structure-tf" in body
     non_comment_lines = [
         line for line in body.splitlines() if not line.strip().startswith("#")
     ]
-    assert not any("--strict-frame-distinctness" in line for line in non_comment_lines)
-    # The doc comment must be honest about the guard's blind spot.
+    assert any("--strict-frame-distinctness" in line for line in non_comment_lines), (
+        "--strict-frame-distinctness must be ARMED in the rolling workflow "
+        "(frame gate, armed after #3616/#3619)"
+    )
+    # The doc comment must be honest about the structure-tf guard's blind spot.
     assert "does NOT detect degenerate bar frames" in body
