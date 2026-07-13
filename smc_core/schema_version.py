@@ -38,7 +38,13 @@ SCHEMA_VERSION = "3.0.0"
 # from ``features`` to ``outcome_extras``; added the ``feature_schema_versions``
 # mapping. Backwards-compatible — readers accept 1.0 and 1.1 (see
 # EVENT_LEDGER_COMPATIBLE_VERSIONS) and resolve labels from either location.
-EVENT_LEDGER_SCHEMA_VERSION = "1.1"
+# 1.2 (2026-07-13): renamed the persisted heuristic prior ``predicted_prob`` ->
+# ``heuristic_direction_score`` (it is a bias-derived heuristic, not a calibrated
+# probability) and added the optional ``calibrated_prob`` field (a leak-free
+# out-of-sample calibrated probability, back-filled per event; absent/null until
+# then). Backwards-compatible — readers accept 1.0/1.1/1.2 and ``ledger_heuristic_score``
+# resolves the score from either key.
+EVENT_LEDGER_SCHEMA_VERSION = "1.2"
 SESSION_SCHEMA_VERSION = "2026-04-24.0"
 
 

@@ -9,6 +9,8 @@ from itertools import combinations
 from pathlib import Path
 from statistics import mean
 
+from smc_core.event_ledger import ledger_heuristic_score
+
 CORPUS_ROOT = Path("/tmp/c10b_local_run/measurement_benchmark")
 OUT = Path("/tmp/provider_audit/skipp-algo/docs/research/c10b/family_partition_analysis_1d_corpus.json")
 
@@ -206,7 +208,7 @@ def smooth_ece(events, n_bins=10):
 
 calibration = {}
 for ck, val, label in context_buckets:
-    sub = [(r["predicted_prob"], 1 if r["outcome"] else 0) for r in records if r["context"].get(ck) == val]
+    sub = [(ledger_heuristic_score(r), 1 if r["outcome"] else 0) for r in records if r["context"].get(ck) == val]
     if len(sub) < 30:
         calibration[label] = {"n_events": len(sub), "smooth_ece": None, "positive_rate": None, "status": "insufficient_events"}
     else:

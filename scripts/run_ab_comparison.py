@@ -1035,7 +1035,7 @@ def _load_ledgers_for_dir(
     sibling produce an empty list (so per-pair indexing is preserved
     relative to ``load_benchmark``).
     """
-    from smc_core.event_ledger import read_event_ledger
+    from smc_core.event_ledger import ledger_heuristic_score, read_event_ledger
 
     ledgers: list[list[tuple[str, float, bool]]] = []
     # Sorted glob keeps order deterministic across filesystems.
@@ -1047,7 +1047,7 @@ def _load_ledgers_for_dir(
             family = str(record.get("family", ""))
             if not family:
                 continue
-            prob_raw = record.get("predicted_prob")
+            prob_raw = ledger_heuristic_score(record)  # 1.2 key, legacy predicted_prob fallback
             if prob_raw is None:
                 continue
             try:

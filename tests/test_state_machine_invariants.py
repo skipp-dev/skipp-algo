@@ -475,14 +475,14 @@ class TestEventLedgerRoundTrip:
             "timeframe",
             "family",
             "timestamp",
-            "predicted_prob",
+            "heuristic_direction_score",  # 1.2: renamed from predicted_prob
             "outcome",
         ):
             assert field_name in rec, f"missing field: {field_name}"
         assert rec["symbol"] == "TSLA"
         assert rec["timeframe"] == "15m"
         assert rec["event_id"] == "e1"
-        assert rec["predicted_prob"] == pytest.approx(0.42)
+        assert rec["heuristic_direction_score"] == pytest.approx(0.42)
         assert rec["outcome"] is False
 
     def test_missing_predicted_prob_raises(self, tmp_path: Path) -> None:
