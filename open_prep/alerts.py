@@ -598,7 +598,6 @@ def _send_webhook(
         _NoRedirect(),
     )
 
-    last_exc: Exception | None = None
     retryable_http = {429, 500, 502, 503, 504}
     for attempt in range(_max_retries + 1):
         req = urllib.request.Request(url, data=data, headers=hdrs, method="POST")
@@ -615,7 +614,6 @@ def _send_webhook(
                             exc.code,
                             masked_url, wait, attempt + 1, _max_retries)
                 time.sleep(wait)
-                last_exc = exc
                 continue
             logger.warning("Webhook HTTP error %d for %s", exc.code, masked_url)
             return {"status": exc.code, "error": type(exc).__name__}
@@ -625,7 +623,6 @@ def _send_webhook(
                 logger.info("Webhook network error for %s — retrying in %.0fs (attempt %d/%d)",
                             masked_url, wait, attempt + 1, _max_retries)
                 time.sleep(wait)
-                last_exc = exc
                 continue
             logger.warning("Webhook network error for %s: %s", masked_url, exc)
             return {"status": 0, "error": type(exc).__name__}

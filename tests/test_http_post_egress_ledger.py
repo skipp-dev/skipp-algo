@@ -179,7 +179,7 @@ URLLIB_REQUEST_POST_LEDGER: set[tuple[str, int]] = {
     # POST Request line shifted 476 -> 512.
     # 2026-07-02: target-host canonicalization + invalid-target guard shifted
     # POST Request line 514 -> 533.
-    ("open_prep/alerts.py", 604),  # 2026-07-13 (traderspost fail-closed + doc truth-fixes): 582->604
+    ("open_prep/alerts.py", 603),  # 2026-07-13 (drop dead last_exc tracking): 604->603
     # 2026-06-21: UptimeRobot bridge polls monitor API with low-level
     # urllib.request.Request(..., method="POST") + timeout discipline.
     ("services/live_overlay_daemon/uptimerobot_bridge.py", 84),
