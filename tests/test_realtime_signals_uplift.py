@@ -148,10 +148,12 @@ def test_get_rt_engine_status_falls_back_when_no_file(
 def test_get_rt_engine_status_returns_status_when_file_present(
     status_paths: dict[str, Path],
 ) -> None:
-    _update_rt_engine_status(running=True, pid=99)
+    import os as _os
+    live_pid = _os.getpid()  # must be a LIVE pid: status now re-validates liveness
+    _update_rt_engine_status(running=True, pid=live_pid)
     out = get_rt_engine_status()
     assert out["running"] is True
-    assert out["pid"] == 99
+    assert out["pid"] == live_pid
 
 
 def test_update_telemetry_status_records_active_port(status_paths: dict[str, Path]) -> None:
