@@ -719,6 +719,44 @@ resolve_dashboard_trust_tier(string signal_quality_tier, string signal_freshness
         trust_tier := "guarded"
     trust_tier
 
+// Moved ABOVE dashboard_compact_main_blocker_text (2026-07-13, CE10271):
+// Pine requires user functions to be DEFINED before they are referenced —
+// these two decoders were defined ~250 lines below their first use inside
+// dashboard_compact_main_blocker_text, so the script failed to compile
+// ("Could not find function or function reference"). Guarded by
+// tests/test_pine_function_definition_order.py.
+decode_volume_data_text(int row_code) =>
+    int reason_code = row_reason(row_code)
+    string label_text = "OK"
+    if reason_code == 1
+        label_text := "OK"
+    else if reason_code == 2
+        label_text := "Weak feed quality"
+    else if reason_code == 3
+        label_text := "Chart OK | LTF no-vol"
+    else if reason_code == 4
+        label_text := "Price-only LTF"
+    else if reason_code == 5 or reason_code == 0
+        label_text := "No current bar volume"
+    label_text
+
+decode_event_risk_text(int row_code) =>
+    int reason_code = row_reason(row_code)
+    string label_text = "Blocked"
+    if reason_code == 1
+        label_text := row_status(row_code) >= 4 ? "OK" : "Low"
+    else if reason_code == 2
+        label_text := "Incoming Event"
+    else if reason_code == 3
+        label_text := "Cooldown"
+    else if reason_code == 4
+        label_text := "Market Event Blocked"
+    else if reason_code == 5
+        label_text := "Symbol Earnings Blocked"
+    else if reason_code == 6
+        label_text := "High Macro Risk"
+    label_text
+
 dashboard_compact_main_blocker_text(int event_risk_row_code, int ready_blocker_code, int strict_blocker_code, int volume_data_row_code) =>
     string blocker_text = "no active blocker"
     string ready_blocker_text = decode_ready_gate_text(ready_blocker_code)
@@ -974,37 +1012,7 @@ decode_micro_fresh_text(int row_code, int freshness_code, int source_state_code)
     else
         freshness_text(freshness_code) + " | " + source_state_text(source_state_code)
 
-decode_volume_data_text(int row_code) =>
-    int reason_code = row_reason(row_code)
-    string label_text = "OK"
-    if reason_code == 1
-        label_text := "OK"
-    else if reason_code == 2
-        label_text := "Weak feed quality"
-    else if reason_code == 3
-        label_text := "Chart OK | LTF no-vol"
-    else if reason_code == 4
-        label_text := "Price-only LTF"
-    else if reason_code == 5 or reason_code == 0
-        label_text := "No current bar volume"
-    label_text
 
-decode_event_risk_text(int row_code) =>
-    int reason_code = row_reason(row_code)
-    string label_text = "Blocked"
-    if reason_code == 1
-        label_text := row_status(row_code) >= 4 ? "OK" : "Low"
-    else if reason_code == 2
-        label_text := "Incoming Event"
-    else if reason_code == 3
-        label_text := "Cooldown"
-    else if reason_code == 4
-        label_text := "Market Event Blocked"
-    else if reason_code == 5
-        label_text := "Symbol Earnings Blocked"
-    else if reason_code == 6
-        label_text := "High Macro Risk"
-    label_text
 
 decode_quality_env_text(int row_code) =>
     int reason_code = row_reason(row_code)
