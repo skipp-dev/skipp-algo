@@ -2040,6 +2040,148 @@ groups:
         stopped committing.
       runbook: Run/inspect .github/workflows/evidence-freshness-snapshot.yml; without it the ledger/audit/fills
         freshness signals go stale.
+  - uid: lo-pine-library-snapshot-unloadable
+    title: Pine-library version snapshot unloadable
+    condition: C
+    # loaded==0 means the bridge could not read the snapshot at all (missing
+    # URL/token, base64 envelope, network). `< bool 1` maps that to 1 so the
+    # gt-0 threshold trips; a bare `loaded == 0` returns 0 and reads 0>0=false
+    # -- inert. Its own rule: an unloadable snapshot reports age_seconds=0, so
+    # the stale (age>172800) rule below can never catch it.
+    noDataState: OK
+    data:
+    - refId: A
+      datasourceUid: grafanacloud-prom
+      model:
+        expr: live_overlay_pine_library_snapshot_loaded{job="live_overlay"} < bool 1
+        instant: true
+    - refId: C
+      datasourceUid: __expr__
+      model:
+        type: threshold
+        conditions:
+        - evaluator:
+            type: gt
+            params:
+            - 0
+          operator:
+            type: and
+          query:
+            params:
+            - A
+    for: 30m
+    labels:
+      severity: critical
+    annotations:
+      summary: The pine-library version bridge cannot load the snapshot (loaded=0) -- repo↔TradingView
+        pin drift is blind.
+      runbook: Check PINE_LIBRARY_VERSIONS_SNAPSHOT_URL(_TOKEN) on the daemon and that the producer branch
+        bot/live-pine-library-versions exists; see services/live_overlay_daemon/pine_library_version_bridge.py.
+  - uid: lo-pine-library-snapshot-stale
+    title: Pine-library version snapshot stale
+    condition: C
+    noDataState: OK
+    data:
+    - refId: A
+      datasourceUid: grafanacloud-prom
+      model:
+        # 48h tolerance: the producer runs daily (incl. weekends), so a single
+        # missed run is grace, two is a stopped producer.
+        expr: live_overlay_pine_library_snapshot_age_seconds{job="live_overlay"} > 172800
+        instant: true
+    - refId: C
+      datasourceUid: __expr__
+      model:
+        type: threshold
+        conditions:
+        - evaluator:
+            type: gt
+            params:
+            - 0
+          operator:
+            type: and
+          query:
+            params:
+            - A
+    for: 30m
+    labels:
+      severity: critical
+    annotations:
+      summary: The pine-library version snapshot loads but is older than 48h -- the producer workflow has
+        stopped committing.
+      runbook: Run/inspect .github/workflows/pine-library-version-monitor.yml; without it repo↔TradingView
+        pin drift goes unmonitored (the #3599/#3603 blind spot).
+  - uid: lo-pine-consumer-version-drift
+    title: Pine consumer pin drifts from published TradingView version
+    condition: C
+    # `> bool 0` maps any_drift(1/0) to 1 when at least one consumer's
+    # `import preuss_steffen/<lib>/<N>` pin != the real published TV version.
+    # This is the exact #3599/#3603 failure mode (micro_profiles /1 vs /152).
+    # Warning, not critical: it is a should-fix-with-a-repin-PR, not an outage.
+    noDataState: OK
+    data:
+    - refId: A
+      datasourceUid: grafanacloud-prom
+      model:
+        expr: live_overlay_pine_library_any_drift{job="live_overlay"} > bool 0
+        instant: true
+    - refId: C
+      datasourceUid: __expr__
+      model:
+        type: threshold
+        conditions:
+        - evaluator:
+            type: gt
+            params:
+            - 0
+          operator:
+            type: and
+          query:
+            params:
+            - A
+    for: 2h
+    labels:
+      severity: warning
+    annotations:
+      summary: At least one repo Pine import pin no longer matches the real published TradingView library
+        version -- a consumer will hit CE10272 on modern symbols.
+      runbook: Inspect artifacts/monitoring/pine_library_versions.json (per-consumer drift) and repin the
+        offending consumers to the published version (see #3599/#3603).
+  - uid: lo-pine-library-facade-probe-failing
+    title: Pine-library TradingView facade probe failing
+    condition: C
+    # facade_ok==0 means the last run could not read the published version from
+    # TradingView (auth/facade outage) -- drift is UNKNOWN, not "no drift". A
+    # bare `== 0` is inert (0>0=false); `< bool 1` maps it to 1 so it trips.
+    noDataState: OK
+    data:
+    - refId: A
+      datasourceUid: grafanacloud-prom
+      model:
+        expr: live_overlay_pine_library_facade_ok{job="live_overlay"} < bool 1
+        instant: true
+    - refId: C
+      datasourceUid: __expr__
+      model:
+        type: threshold
+        conditions:
+        - evaluator:
+            type: gt
+            params:
+            - 0
+          operator:
+            type: and
+          query:
+            params:
+            - A
+    for: 2h
+    labels:
+      severity: warning
+    annotations:
+      summary: The pine-library monitor could not probe TradingView's published version this run -- drift
+        detection is blind until the session/facade recovers.
+      runbook: Check TV_STORAGE_STATE freshness for pine-library-version-monitor.yml; the pine-facade
+        filter=published listing must be reachable.
   - uid: lo-evidence-ledger-stale
     title: ADR-0023 magnitude ledger stale
     condition: C

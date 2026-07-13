@@ -378,6 +378,36 @@ def provider_usage_snapshot_url_token() -> str:
     return _optional_str("PROVIDER_USAGE_SNAPSHOT_URL_TOKEN", "")
 
 
+def pine_library_versions_snapshot_path() -> Path:
+    """Local path to the Repo↔TradingView Pine-library version snapshot JSON.
+
+    Produced by ``scripts/build_pine_library_version_snapshot.ts`` in CI and
+    surfaced as Prometheus gauges so a stale ``import preuss_steffen/<lib>/<N>``
+    pin (the #3599/#3603 blind spot: micro_profiles drifted ``/1`` vs a live
+    ``/152`` for ~4 months with no alert) becomes a red panel instead of a
+    silent CE10272. Off-host daemons set :func:`pine_library_versions_snapshot_url`.
+    """
+    raw = _optional_str(
+        "PINE_LIBRARY_VERSIONS_SNAPSHOT_PATH",
+        str(_REPO_ROOT / "artifacts" / "monitoring" / "pine_library_versions.json"),
+    )
+    return Path(raw)
+
+
+def pine_library_versions_snapshot_url() -> str:
+    """Optional https URL the daemon fetches the Pine-library version snapshot from.
+
+    When set it takes precedence over :func:`pine_library_versions_snapshot_path`;
+    on any fetch failure the daemon falls back to the local path.
+    """
+    return _optional_str("PINE_LIBRARY_VERSIONS_SNAPSHOT_URL", "")
+
+
+def pine_library_versions_snapshot_url_token() -> str:
+    """Optional bearer token for :func:`pine_library_versions_snapshot_url`."""
+    return _optional_str("PINE_LIBRARY_VERSIONS_SNAPSHOT_URL_TOKEN", "")
+
+
 def fmp_monthly_bandwidth_limit_bytes() -> int:
     """FMP plan's rolling-30-day bandwidth quota, in bytes (default 150 GB).
 

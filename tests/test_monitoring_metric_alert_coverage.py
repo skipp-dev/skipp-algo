@@ -72,6 +72,18 @@ _PROVIDER_USAGE_SIGNAL_METRICS = (
     "live_overlay_provider_usage_snapshot_age_seconds",
 )
 
+# Pine-library version-drift signals that MUST alert (#3599/#3603). The daemon
+# exports the snapshot loaded/age gauges, the top-level drift rollup, and the
+# facade-probe health; if any loses its alert rule a stale import pin (the
+# ~4-month micro_profiles /1-vs-/152 blind spot) goes unwatched again. `_METRIC_RE`
+# only auto-discovers evidence/workflow families, so pin these explicitly.
+_PINE_LIBRARY_SIGNAL_METRICS = (
+    "live_overlay_pine_library_snapshot_loaded",
+    "live_overlay_pine_library_snapshot_age_seconds",
+    "live_overlay_pine_library_any_drift",
+    "live_overlay_pine_library_facade_ok",
+)
+
 _METRIC_RE = re.compile(r"live_overlay_(?:evidence|github_workflow)_[a-z0-9_]+")
 
 
@@ -147,6 +159,15 @@ def test_provider_usage_feed_health_signals_have_alert_coverage() -> None:
     alerts = _alert_expr_text()
     missing = [m for m in _PROVIDER_USAGE_SIGNAL_METRICS if m not in alerts]
     assert not missing, f"provider-usage feed-health signals lack alert coverage: {missing}"
+
+
+def test_pine_library_signals_have_alert_coverage() -> None:
+    """Every Pine-library version-drift health gauge must alert, so a stale
+    import pin or a frozen/blind facade probe cannot silently reopen the
+    #3599/#3603 blind spot."""
+    alerts = _alert_expr_text()
+    missing = [m for m in _PINE_LIBRARY_SIGNAL_METRICS if m not in alerts]
+    assert not missing, f"pine-library version-drift signals lack alert coverage: {missing}"
 
 
 def test_no_emitted_monitoring_metric_is_unconsumed() -> None:

@@ -179,6 +179,10 @@ _FROZEN_URLOPEN_SITES: frozenset[tuple[str, int]] = frozenset(
         # _empty/_coerce shifted this +8: 137->145.
         ("services/live_overlay_daemon/evidence_freshness_bridge.py", 145),
         ("services/live_overlay_daemon/provider_usage_bridge.py", 97),  # 2026-07-11 (rate_limit_hits coerce +1 line): 96->97
+        # 2026-07-13 (feat/pine-library-version-monitor, #3599/#3603 follow-up):
+        # repo↔TradingView Pine-library version snapshot fetcher, https-only +
+        # explicit timeout= (mirrors evidence_freshness_bridge).
+        ("services/live_overlay_daemon/pine_library_version_bridge.py", 119),
         # 2026-07-11 (feat/sweep-trap-shadow-grafana): WS4a sweep-trap shadow
         # snapshot fetcher, https-only with explicit timeout=.
         ("services/live_overlay_daemon/sweep_trap_shadow_bridge.py", 98),  # 2026-07-13 (F7 docstring fix): 96->98

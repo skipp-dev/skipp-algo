@@ -25,6 +25,7 @@ from . import (
     feed,
     github_workflow_bridge,
     observability,
+    pine_library_version_bridge,
     provider_usage_bridge,
     railway_metrics,
     request_hotspots,
@@ -1997,6 +1998,13 @@ def render_metrics(startup_ts: float, startup_epoch: float = 0.0) -> str:
     # freeze it replaces.
     lines.extend(_render_evidence_freshness_metrics())
 
+    # Repo↔TradingView Pine-library version drift (#3599/#3603). The
+    # `import preuss_steffen/<lib>/<N>` pins silently diverged from the real
+    # published TV version for ~4 months — CE10272 on every modern mp.* symbol.
+    # These gauges make each library's TV version, each consumer's pin, and any
+    # drift visible + alertable; snapshot age keeps the producer honest.
+    lines.extend(_render_pine_library_version_metrics())
+
     # Sweep-trap shadow eval (WS4a): Brier-delta + sample accrual toward the
     # promotion decision, from sweep_trap_shadow_bridge. The detector stays in
     # shadow (no score weight); these gauges make the evidence + producer
@@ -2070,6 +2078,68 @@ def _render_provider_usage_metrics() -> list[str]:
         'live_overlay_provider_bandwidth_limit_bytes{provider="fmp"} '
         f"{float(config.fmp_monthly_bandwidth_limit_bytes())}"
     )
+    return lines
+
+
+def _render_pine_library_version_metrics() -> list[str]:
+    """Prometheus gauges for Repo↔TradingView Pine-library version drift."""
+    snap = pine_library_version_bridge.snapshot()
+    lines: list[str] = []
+
+    loaded = _prom_numeric_value(snap.get("loaded", 0.0))
+    lines.append("# TYPE live_overlay_pine_library_snapshot_loaded gauge")
+    lines.append(f"live_overlay_pine_library_snapshot_loaded {loaded}")
+
+    # Age of the snapshot itself (producer heartbeat). Known only once loaded.
+    generated_at = _prom_numeric_value(snap.get("generated_at_unix", 0.0))
+    snap_age_known = 1.0 if generated_at > 0 else 0.0
+    snap_age = max(0.0, time.time() - generated_at) if generated_at > 0 else 0.0
+    lines.append("# TYPE live_overlay_pine_library_snapshot_age_known gauge")
+    lines.append(f"live_overlay_pine_library_snapshot_age_known {snap_age_known}")
+    lines.append("# TYPE live_overlay_pine_library_snapshot_age_seconds gauge")
+    lines.append(f"live_overlay_pine_library_snapshot_age_seconds {snap_age:.1f}")
+
+    # Top-level drift rollup — the single series the drift alert watches, plus a
+    # count for the dashboard. facade_ok distinguishes "no drift" from "couldn't
+    # probe TV this run" (facade_error set) so a probe outage is not read green.
+    lines.append("# TYPE live_overlay_pine_library_any_drift gauge")
+    lines.append(f"live_overlay_pine_library_any_drift {_prom_numeric_value(snap.get('any_drift', 0.0))}")
+    lines.append("# TYPE live_overlay_pine_libraries_drifted gauge")
+    lines.append(f"live_overlay_pine_libraries_drifted {_prom_numeric_value(snap.get('libraries_drifted', 0.0))}")
+    lines.append("# TYPE live_overlay_pine_libraries_probed gauge")
+    lines.append(f"live_overlay_pine_libraries_probed {_prom_numeric_value(snap.get('libraries_probed', 0.0))}")
+    facade_ok = 0.0 if str(snap.get("facade_error", "") or "") else 1.0
+    lines.append("# TYPE live_overlay_pine_library_facade_ok gauge")
+    lines.append(f"live_overlay_pine_library_facade_ok {facade_ok}")
+
+    # Per-library TV version + per-consumer pin/drift. Emitted once regardless
+    # of library count so the panel never blanks before the first snapshot.
+    lines.append("# TYPE live_overlay_pine_library_tv_version gauge")
+    lines.append("# TYPE live_overlay_pine_library_tv_version_known gauge")
+    lines.append("# TYPE live_overlay_pine_consumer_pin_version gauge")
+    lines.append("# TYPE live_overlay_pine_consumer_drift gauge")
+    libraries = snap.get("libraries") or []
+    for lib in libraries:
+        name = _escape_label_value(str(lib.get("name", "") or "unknown"))
+        tv_known = _prom_numeric_value(lib.get("tv_version_known", 0.0))
+        lines.append(f'live_overlay_pine_library_tv_version_known{{library="{name}"}} {tv_known}')
+        # Only emit the version number when it is actually known — an unreachable
+        # facade must not report version 0 as if it were the real TV version.
+        if tv_known >= 1.0:
+            lines.append(
+                f'live_overlay_pine_library_tv_version{{library="{name}"}} '
+                f"{_prom_numeric_value(lib.get('tv_version', 0.0))}"
+            )
+        for consumer in lib.get("consumers") or []:
+            cfile = _escape_label_value(str(consumer.get("file", "") or "unknown"))
+            lines.append(
+                f'live_overlay_pine_consumer_pin_version{{library="{name}",consumer="{cfile}"}} '
+                f"{_prom_numeric_value(consumer.get('pinned_version', 0.0))}"
+            )
+            lines.append(
+                f'live_overlay_pine_consumer_drift{{library="{name}",consumer="{cfile}"}} '
+                f"{_prom_numeric_value(consumer.get('drift', 0.0))}"
+            )
     return lines
 
 
