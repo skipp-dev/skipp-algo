@@ -91,7 +91,7 @@ DEFAULT_UNIVERSE = [
     "SMCI",
 ]
 
-PREFERRED_US_OPEN_UTC_TIMES: tuple[str, ...] = ("13:30:00", "14:30:00", "15:00:00")
+PREFERRED_US_OPEN_UTC_TIMES: tuple[str, ...] = ("13:30:00", "14:30:00", "15:00:00")  # KNOWN DST-BLIND: 13:30=9:30ET only in EDT, 14:30 only in EST, 15:00 is never the open; 12:30 (8:30ET releases in summer) missing — display-order tiebreak only
 US_EASTERN_TZ = ZoneInfo("America/New_York")
 BERLIN_TZ = ZoneInfo("Europe/Berlin")
 HVB_MULTIPLIER = 1.5
@@ -159,7 +159,7 @@ EXT_WEIGHT_CHANGE = 0.40
 EXT_WEIGHT_VOL = 0.30
 EXT_WEIGHT_FRESHNESS = 0.30
 EXT_WEIGHT_SPREAD = 0.25
-EXT_SCORE_CLAMP = 5.0           # final score ± clamp
+EXT_SCORE_CLAMP = 5.0           # mathematically inert: attainable range is [-2.0, +3.0] (weights cap it below ±5)
 
 # ── Pre-market liquidity filter thresholds ───────────────────
 EXT_SCORE_MIN = 0.75
@@ -1154,8 +1154,10 @@ def _fetch_upgrades_downgrades(
 ) -> dict[str, dict[str, Any]]:
     """Fetch recent analyst upgrades/downgrades and classify per symbol.
 
-    Returns a dict keyed by symbol with the most recent action per symbol.
-    Only symbols in the provided universe are returned.
+    KNOWN-INERT (2026-07-13, live-probed): the symbol-less bulk call below 400s
+    deterministically (/stable/grades requires `symbol`), the client swallows it,
+    and this returns {} EVERY run — watchlist rows show "no analyst action" as
+    fact. Fix = per-symbol loop (capped) — needs an API-budget decision.
     """
     date_from = today - timedelta(days=max(int(lookback_days), 1))
     try:
@@ -2686,7 +2688,7 @@ def _fetch_premarket_context(
             premarket[sym]["is_premarket_mover"] = bool(
                 is_active
                 or (has_ext_activity and not stale)
-                or ext_vol_ratio >= 0.10
+                or ext_vol_ratio >= 0.10  # NOTE: volume clause deliberately ignores `stale` — prior-evening after-hours volume can set this flag pre-open (intent call pending)
             )
             premarket[sym]["premarket_change_pct"] = change_pct
             premarket[sym]["premarket_price"] = after_px if after_px > 0.0 else None
@@ -3125,6 +3127,11 @@ def _incremental_atr_from_eod_bulk(
     as_of: date,
     atr_period: int,
 ) -> tuple[dict[str, float], dict[str, float], dict[str, float]]:
+    # KNOWN CAVEAT: cache(prev_day) written by a PRE-OPEN run holds state
+    # through prev_day-1 (one session older than its key) — folding as_of's TR
+    # onto it skips a session and spans two overnight gaps. Only reachable on
+    # post-close runs (the date guard below no-ops pre-open); fix = persist a
+    # data_through marker in the cache payload.
     # A pre-EOD run or a non-trading as_of (holiday/weekend) has no completed
     # session to fold into ATR incrementally (WP-C2a); defer to the per-symbol
     # fetch path instead of persisting a stale/absent bar as prev_close.

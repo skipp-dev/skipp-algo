@@ -135,8 +135,8 @@ OS_DELETE_LEDGER: set[tuple[str, int, str]] = {
     # 2026-06-25: AsyncNewsstackPoller telemetry additions shifted
     # 2783 -> 2862 and 2828 -> 2907.
     # 2026-06-28 (semantic monitoring): shifted +80/+80 lines by readiness metrics.
-    ("open_prep/realtime_signals.py", 3295, "unlink"),  # 2026-07-13 (status re-validate + polarity gate + fast-lane attach): 3269->3295
-    ("open_prep/realtime_signals.py", 3341, "unlink"),  # 2026-07-13 (status re-validate + polarity gate + fast-lane attach): 3315->3341
+    ("open_prep/realtime_signals.py", 3299, "unlink"),  # 2026-07-13 (volume-curve half-day disclosure above): 3295->3299
+    ("open_prep/realtime_signals.py", 3345, "unlink"),  # 2026-07-13 (volume-curve half-day disclosure above): 3341->3345
     # 2026-06-11 (eval-findings D7): technical_analysis import block +8
     # lines at L55 shifted all run_open_prep sites; enrichment-loop
     # real-ADX/BBW block added +15 more after L5491.
@@ -147,21 +147,21 @@ OS_DELETE_LEDGER: set[tuple[str, int, str]] = {
     # extended; multiple insertion points produced non-uniform shifts.
     # 2026-06-25: feature-flag helper additions shifted 2308 -> 2312.
     # 2026-07-04 (market-microstructure observe-only): import +1 → 2313.
-    ("open_prep/run_open_prep.py", 2261, "unlink"),  # 2026-07-10: dead today's-earnings eps_surprise_pct removed (2347->2342)
+    ("open_prep/run_open_prep.py", 2263, "unlink"),  # 2026-07-13 (DST-blind + inert-clamp disclosures above): 2261->2263
     # 2026-06-10 (#2670 W2/W4): regime_source + premarket source-disclosure
     # edits shifted the later unlink sites (+20/+20/+20/+25).
     # 2026-06-25: feature-flag helper additions shifted
     # 3131 -> 3135 and 3483 -> 3487.
     # 2026-07-04 (market-microstructure observe-only): import +1 →
     # 3136/3504.
-    ("open_prep/run_open_prep.py", 3111, "unlink"),  # 2026-07-10: recent_eps_surprise (3185->3198); dead eps_surprise_pct removed (3198->3192)
-    ("open_prep/run_open_prep.py", 3506, "unlink"),  # 2026-07-13 (PDH/PDL wire + ATR-timeout errors above): 3479->3506
+    ("open_prep/run_open_prep.py", 3113, "unlink"),  # 2026-07-13 (truth disclosures above): 3111->3113
+    ("open_prep/run_open_prep.py", 3513, "unlink"),  # 2026-07-13 (truth disclosures above): 3506->3513
     # 2026-06-11 (Copilot sweep #2688): VIX9D fail-closed guard +5;
     # 2026-06-12 (merge #2713 into #2696): net +1 → 5512/5790.
     # 2026-06-25: feature-flag helper additions shifted 5621 -> 5625.
     # 2026-07-04 (market-microstructure observe-only): import + snapshot
     # block shifted 5641 -> 5658.
-    ("open_prep/run_open_prep.py", 5701, "unlink"),  # 2026-07-13 (PDH/PDL wire + zone-priority normalization above): 5659->5701
+    ("open_prep/run_open_prep.py", 5708, "unlink"),  # 2026-07-13 (truth disclosures above): 5701->5708
     # 2026-06-11 (trend-state features): 5731→5742, enrichment-loop
     # stamping + lookback comment added above; eval-findings 5742→5765.
     # 2026-06-12 (backlog-resilience): fail-loud outcome storage +9 → 5799.
@@ -169,7 +169,7 @@ OS_DELETE_LEDGER: set[tuple[str, int, str]] = {
     # 2026-06-25: feature-flag helper additions shifted 5916 -> 5920.
     # 2026-07-04 (market-microstructure observe-only): import + snapshot
     # block + row-loop fields shifted 5936 -> 5962.
-    ("open_prep/run_open_prep.py", 6027, "unlink"),  # 2026-07-13 (PDH/PDL wire + zone-priority normalization above): 5985->6027
+    ("open_prep/run_open_prep.py", 6034, "unlink"),  # 2026-07-13 (truth disclosures above): 6027->6034
     ("open_prep/scorer.py", 156, "unlink"),
     ("open_prep/watchlist.py", 74, "unlink"),
     ("smc_core/benchmark.py", 39, "unlink"),

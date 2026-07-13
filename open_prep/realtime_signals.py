@@ -807,6 +807,10 @@ def _expected_cumulative_volume_fraction() -> float:
       - First 30 min (9:30-10:00): 0 → 25% of daily volume (linear)
       - 10:00-11:00 (elapsed 30-90 min): 25% → 40% (linear)
       - 11:00-16:00 (elapsed 90-390 min): 40% → 100% single linear ramp
+      KNOWN LIMITATION: the 30/90/300-min breakpoints assume a 390-min session;
+      on NYSE half-days (early 13:00 close) the fraction reaches only ~0.64 at
+      the close then jumps to 1.0 — pace/thin detection is mis-calibrated on
+      ~3 sessions/yr (same class as the daemon's disclosed half-day limitation).
 
     Returns a value in [0.02, 1.0].  Used to normalize raw volume_ratio
     so that early-morning breakouts are detectable BEFORE cumulative

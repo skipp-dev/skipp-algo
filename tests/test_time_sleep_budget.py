@@ -128,15 +128,15 @@ _FROZEN_SITES: frozenset[tuple[str, int]] = frozenset(
         # shifted +20/+20/+72/+80/+80 lines by readiness metrics.
         ("open_prep/realtime_signals.py", 321),   # 2026-07-13 (status liveness re-validate above): 306->321
         ("open_prep/realtime_signals.py", 396),    # 2026-07-13 (status liveness re-validate above): 381->396
-        ("open_prep/realtime_signals.py", 2304),  # 2026-07-13 (status+attach above): 2284->2304
-        ("open_prep/realtime_signals.py", 3548),  # 2026-07-13 (status+attach+polarity above): 3522->3548
-        ("open_prep/realtime_signals.py", 3564),  # 2026-07-13 (status+attach+polarity above): 3538->3564
+        ("open_prep/realtime_signals.py", 2308),  # 2026-07-13 (half-day disclosure above): 2304->2308
+        ("open_prep/realtime_signals.py", 3552),  # 2026-07-13 (half-day disclosure above): 3548->3552
+        ("open_prep/realtime_signals.py", 3568),  # 2026-07-13 (half-day disclosure above): 3564->3568
         # 2026-06-11 (eval-findings D7): technical_analysis import block
         # +8 lines (1943→1951, 1945→1953).
         # 2026-07-04 (market-microstructure observe-only): module import
         # shifted these rate-limit sleeps +1 (2038->2039, 2040->2041).
-        ("open_prep/run_open_prep.py", 1987),  # 2026-07-10: dead today's-earnings eps_surprise_pct removed (2073->2068)
-        ("open_prep/run_open_prep.py", 1989),  # (2075->2070)
+        ("open_prep/run_open_prep.py", 1991),  # 2026-07-13 (upgrades/downgrades KNOWN-INERT disclosure above): 1987->1991
+        ("open_prep/run_open_prep.py", 1989),  # 2026-07-13: second sleep after disclosure shift (1985->1989)
         ("newsstack_fmp/_bz_http.py", 44),
         # 2026-07-11 (truth-audit): removed inert _TECHNICALS_429_TTL + dead 429 branch (-5).
         ("terminal_bitcoin.py", 841),
