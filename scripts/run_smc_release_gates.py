@@ -36,6 +36,7 @@ if str(REPO_ROOT) not in sys.path:
 # Bug-Hunt 2026-05-01 F-01: deferred so the script also works when
 # invoked as `python scripts/X.py` (no PYTHONPATH=.) — sys.path.insert
 # above must happen before any first-party `from scripts.` import.
+from governance.measurement_oos import build_oos_calibration_summary
 from scripts.smc_atomic_write import atomic_write_text
 from scripts.smc_pine_evidence_gate import build_evidence_lane_gate
 from scripts.verify_smc_micro_publish_contract import verify_publish_contract
@@ -910,6 +911,23 @@ def _run_measurement_gate(
     except Exception as exc:
         warnings.append(f"scoring artifact generation failed: {exc}")
 
+    # -- OOS calibration summary (Stage #5 PR4) -----------------------------
+    # Honest walk-forward counterpart of the in-sample calibrated_* metrics,
+    # computed from the SAME evidence run (real forward timestamps -> purged +
+    # embargoed folds; governance/measurement_oos). Fail-soft: an unmeasured or
+    # failed summary leaves the oos_* keys None and the advisory checks silent.
+    details["oos_calibrated_brier_score"] = None
+    details["oos_calibrated_ece"] = None
+    try:
+        oos_summary = build_oos_calibration_summary(
+            evidence.family_events if evidence is not None else []
+        )
+        details["oos_calibration"] = oos_summary
+        details["oos_calibrated_brier_score"] = oos_summary["oos_calibrated_brier_score"]
+        details["oos_calibrated_ece"] = oos_summary["oos_calibrated_ece"]
+    except Exception as exc:
+        warnings.append(f"oos calibration summary failed: {exc}")
+
     # -- Phase-1 soft-warn checks (WP-A8) ----------------------------------
     _soft_thresholds = get_measurement_shadow_thresholds()
     if scoring_result is not None:
@@ -965,6 +983,10 @@ def _run_measurement_gate(
         "log_score": details.get("log_score"),
         "calibrated_brier_score": details.get("calibrated_brier_score"),
         "calibrated_ece": details.get("calibrated_ece"),
+        # OOS counterparts (governance/measurement_oos); None when unmeasured,
+        # which leaves the advisory OOS ceiling checks silent.
+        "oos_calibrated_brier_score": details.get("oos_calibrated_brier_score"),
+        "oos_calibrated_ece": details.get("oos_calibrated_ece"),
         "n_events": details.get("scoring_event_count", 0),
         "stratification_coverage": details.get("stratification_coverage", {}),
     }

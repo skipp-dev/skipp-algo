@@ -181,6 +181,29 @@ GATE_GOVERNANCE_REGISTRY: tuple[GateGovernance, ...] = (
         minimum_required_baselines=2,
     ),
     GateGovernance(
+        code="MEASUREMENT_OOS_CALIBRATED_BRIER_ABOVE_THRESHOLD",
+        promotion_state=GovernanceStatus.ADVISORY,
+        promotion_reason=(
+            "Walk-forward OOS Brier ceiling (governance/measurement_oos) — the honest "
+            "counterpart of the in-sample hard block; advisory until baselines show the "
+            "metric is regularly measured (per-pair corpora often stay below the 40-sample "
+            "OOS floor), then owner may promote to hard-blocking."
+        ),
+        reviewer="owner",
+        minimum_required_baselines=2,
+    ),
+    GateGovernance(
+        code="MEASUREMENT_OOS_CALIBRATED_ECE_ABOVE_THRESHOLD",
+        promotion_state=GovernanceStatus.ADVISORY,
+        promotion_reason=(
+            "Walk-forward OOS ECE ceiling (governance/measurement_oos) — the honest "
+            "counterpart of the in-sample hard block; advisory until baselines show the "
+            "metric is regularly measured, then owner may promote to hard-blocking."
+        ),
+        reviewer="owner",
+        minimum_required_baselines=2,
+    ),
+    GateGovernance(
         code="MEASUREMENT_EVENT_COVERAGE_LOW",
         promotion_state=GovernanceStatus.EXCLUDED,
         promotion_reason="Bootstrap deadlock: can't publish without history, no history without publish.",
@@ -398,15 +421,27 @@ class MeasurementShadowThresholds:
         ``_effective_shadow_thresholds`` further tightens each ceiling toward the
         historical median once history exists, so with history it behaves like a
         regression bar; the loose absolute only bites on no-history first runs.
-    A true OOS calibration gate (leak-free walk-forward lives in
-    ``governance/family_calibration``) requires wiring a persisted OOS per-event
-    calibrated probability into this path — a documented follow-up, not yet done.
+    The OOS counterpart now exists: ``governance/measurement_oos`` pools the
+    leak-free walk-forward OOS pairs of the same evidence run into
+    ``oos_calibrated_brier_score`` / ``oos_calibrated_ece``, checked below as
+    ADVISORY ceilings (``max_oos_calibrated_*``). Deliberately NOT hard-blocking
+    yet: a per-pair corpus often stays below the calibrator's 40-sample OOS floor
+    (honestly "not measured", the check simply does not fire), so promotion to
+    HARD_BLOCKING is an owner decision once baselines show the metric is
+    regularly measured (F-01 registry discipline).
     """
 
     max_brier_score: float = 0.60
     max_log_score: float = 1.20
     max_calibrated_brier_score: float = 0.60
     max_calibrated_ece: float = 0.30
+    # OOS (walk-forward, purged+embargoed) counterparts — ADVISORY. Same ceiling
+    # values as the in-sample gates, but on the honest out-of-sample metrics from
+    # governance/measurement_oos. No separate n-floor here: the producer only
+    # emits a value once >= MIN_OOS_SAMPLES (40) pooled OOS points exist, which
+    # already exceeds min_events_for_calibrated_thresholds (30).
+    max_oos_calibrated_brier_score: float = 0.60
+    max_oos_calibrated_ece: float = 0.30
     min_scoring_events: int = 1
     # Calibrated Brier/ECE hard-blocks only apply when n_events reaches the
     # eligibility floor (30). Below it there are two distinct regimes:
@@ -861,6 +896,11 @@ def assess_measurement_shadow_degradations(
     current_log = _finite_metric(current_entry.get("log_score"))
     current_calibrated_brier = _finite_metric(current_entry.get("calibrated_brier_score"))
     current_calibrated_ece = _finite_metric(current_entry.get("calibrated_ece"))
+    # OOS counterparts (governance/measurement_oos): absent/None whenever the
+    # corpus never cleared the calibrator's 40-sample OOS floor — honestly "not
+    # measured", so the advisory checks below simply do not fire.
+    current_oos_brier = _finite_metric(current_entry.get("oos_calibrated_brier_score"))
+    current_oos_ece = _finite_metric(current_entry.get("oos_calibrated_ece"))
     current_events = _int_metric(current_entry.get("n_events"))
     current_buckets = _populated_bucket_count(current_entry)
     calibrated_thresholds_eligible = (
@@ -953,6 +993,39 @@ def assess_measurement_shadow_degradations(
                     f"{resolved.min_events_for_calibrated_thresholds}) — "
                     "RECALIBRATION_REQUIRED: real calibration problem, not "
                     "small-sample noise; recalibrate, do not raise the floor"
+                ),
+            }
+        )
+
+    # ADVISORY OOS ceilings — the honest counterparts of the in-sample hard
+    # blocks above. Fired only when the OOS metric was actually measured; no
+    # eligibility floor needed (producer enforces >= 40 pooled OOS samples).
+    if current_oos_brier is not None and current_oos_brier > resolved.max_oos_calibrated_brier_score:
+        degradations.append(
+            {
+                "code": "MEASUREMENT_OOS_CALIBRATED_BRIER_ABOVE_THRESHOLD",
+                "basis": "absolute_threshold",
+                "metric": "oos_calibrated_brier_score",
+                "current_value": round(current_oos_brier, 6),
+                "threshold_value": round(resolved.max_oos_calibrated_brier_score, 6),
+                "detail": (
+                    f"oos_calibrated_brier_score {current_oos_brier:.6f} exceeds warn threshold "
+                    f"{resolved.max_oos_calibrated_brier_score:.6f} (walk-forward OOS, advisory)"
+                ),
+            }
+        )
+
+    if current_oos_ece is not None and current_oos_ece > resolved.max_oos_calibrated_ece:
+        degradations.append(
+            {
+                "code": "MEASUREMENT_OOS_CALIBRATED_ECE_ABOVE_THRESHOLD",
+                "basis": "absolute_threshold",
+                "metric": "oos_calibrated_ece",
+                "current_value": round(current_oos_ece, 6),
+                "threshold_value": round(resolved.max_oos_calibrated_ece, 6),
+                "detail": (
+                    f"oos_calibrated_ece {current_oos_ece:.6f} exceeds warn threshold "
+                    f"{resolved.max_oos_calibrated_ece:.6f} (walk-forward OOS, advisory)"
                 ),
             }
         )
