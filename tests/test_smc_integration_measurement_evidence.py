@@ -1368,3 +1368,45 @@ class TestEventSessionKeyDailyAlias:
         for tf in ("1D", "1d", "D", "daily", " 1D ", "1DAY"):
             assert measurement_evidence._event_session_key(self._TS, tf) == "session:NONE"
         assert measurement_evidence._event_session_label(self._TS, "daily") == "NONE"
+
+
+class TestKpiHorizonCap:
+    """#3: KPI evaluation windows are capped to the family label horizon, so a
+    touch beyond the horizon is a miss (matching the ScoredEvent label)."""
+
+    def _bars(self, rows):
+        base = []
+        for i, (hi, lo, cl) in enumerate(rows):
+            base.append({
+                "symbol": "A", "timestamp": f"2024-01-{i + 1:02d}",
+                "open": cl, "high": hi, "low": lo, "close": cl, "volume": 1,
+            })
+        return measurement_evidence._to_epoch_seconds(pd.DataFrame(base))
+
+    def test_bos_touch_beyond_horizon_is_miss(self) -> None:
+        # anchor at bar 0, UP BOS at price 100. Lows stay above 100 within the
+        # 8-bar horizon; a touch (low <= 100) only happens at bar 12 (beyond it).
+        rows = [(101.0, 100.5, 101.0)]  # bar 0 anchor
+        rows += [(102.0 + i, 101.0, 102.0 + i) for i in range(11)]  # bars 1..11: lows 101 (no touch)
+        rows += [(101.0, 99.0, 100.0)]  # bar 12: low 99 -> touch, but beyond horizon 8
+        rows += [(101.0, 101.0, 101.0) for _ in range(3)]
+        bars = self._bars(rows)
+        anchor_ts = float(bars["timestamp"].iloc[0])
+        result = measurement_evidence._evaluate_bos_event(
+            {"price": 100.0, "time": anchor_ts, "dir": "UP"}, bars
+        )
+        assert result is not None
+        assert result["hit"] is False  # touch was beyond the 8-bar BOS horizon
+
+    def test_bos_touch_within_horizon_is_hit(self) -> None:
+        rows = [(101.0, 100.5, 101.0)]  # bar 0 anchor
+        rows += [(102.0, 101.0, 102.0), (102.0, 101.0, 102.0)]  # bars 1,2 no touch
+        rows += [(101.0, 99.0, 101.0)]  # bar 3: low 99 -> touch within horizon, close 101 (no invalidation)
+        rows += [(101.0, 101.0, 101.0) for _ in range(6)]
+        bars = self._bars(rows)
+        anchor_ts = float(bars["timestamp"].iloc[0])
+        result = measurement_evidence._evaluate_bos_event(
+            {"price": 100.0, "time": anchor_ts, "dir": "UP"}, bars
+        )
+        assert result is not None
+        assert result["hit"] is True
