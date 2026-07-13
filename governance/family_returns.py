@@ -331,6 +331,26 @@ def realized_return(event: FamilyEvent, *, cost_bps: float = DEFAULT_COST_BPS) -
     families). Returns ``None`` when the setup did not trigger (no touch),
     or is degenerate (non-positive entry / no exit bar) — those are not
     trades and must not be counted as zero.
+
+    Thin wrapper over :func:`_realized_return_and_exit` (which also returns the
+    forward index of the exit bar, used to bound the label window).
+    """
+    result = _realized_return_and_exit(event, cost_bps=cost_bps)
+    return None if result is None else result[0]
+
+
+def _realized_return_and_exit(
+    event: FamilyEvent, *, cost_bps: float = DEFAULT_COST_BPS
+) -> tuple[float, int] | None:
+    """Realized return AND the forward index of the exit bar it consumed.
+
+    The exit index is the last forward bar whose price enters the outcome:
+    ``horizon - 1`` for immediate entry, ``touch_idx + horizon`` for a retest
+    touch. It is an index into the event's parallel ``forward_*`` arrays (closes
+    and timestamps share the window), so ``forward_timestamps[exit_idx]`` is the
+    label-window end — the walk-forward purge uses it instead of the full
+    forward-buffer end (:func:`_guard_end_ts`). ``None`` when the setup did not
+    trigger or is degenerate.
     """
     sign = _direction_sign(str(event.get("direction", "")))
     if sign == 0:
@@ -354,11 +374,12 @@ def realized_return(event: FamilyEvent, *, cost_bps: float = DEFAULT_COST_BPS) -
         # clamping to the last available close pooled horizon-truncated
         # returns as full-horizon measurements, biasing the most recent
         # (test-fold-dominating) events.
-        if horizon - 1 >= len(closes):
+        exit_idx = horizon - 1
+        if exit_idx >= len(closes):
             return None
-        exit_price = closes[horizon - 1]
+        exit_price = closes[exit_idx]
         gross = sign * (exit_price - entry_price) / entry_price
-        return gross - cost_bps / 1e4
+        return gross - cost_bps / 1e4, exit_idx
 
     # Default: zone retest-touch (variant A).
     zone_low = float(event["zone_low"])
@@ -396,7 +417,7 @@ def realized_return(event: FamilyEvent, *, cost_bps: float = DEFAULT_COST_BPS) -
     exit_price = closes[exit_idx]
 
     gross = sign * (exit_price - entry_price) / entry_price
-    return gross - cost_bps / 1e4
+    return gross - cost_bps / 1e4, exit_idx
 
 
 def extract_family_returns(
@@ -440,29 +461,30 @@ def _event_bar_interval(forward_timestamps: list[float]) -> float:
     return 0.5 * (diffs[mid - 1] + diffs[mid])
 
 
-def _guard_end_ts(fts: list[float], embargo_bars: int) -> float | None:
-    """Forward-BUFFER end (``fts[-1]``) plus the family embargo in wall-clock time.
+def _guard_end_ts(
+    fts: list[float], embargo_bars: int, *, label_end_idx: int = -1
+) -> float | None:
+    """Label-window end (``fts[label_end_idx]``) plus the family embargo in time.
 
-    NOTE: ``fts[-1]`` is the end of the adapter's forward *buffer* (the full
-    lookahead: SWEEP 8 / OB 12 / FVG 20 bars), which is LONGER than the bars the
-    outcome actually consumes (``realized_return`` exits at ``touch_idx + horizon``;
-    SWEEP horizon 3 / OB 6 / FVG 4). The guard therefore ends a few bars AFTER the
-    true label end — this is CONSERVATIVE (strictly leak-safe, it over-purges) but
-    over-conservative for statistical efficiency (it can discard training events
-    whose real label ended earlier, shrinking folds / affecting MIN_OOS). Tightening
-    it to the actual consumed ``exit_idx`` is a deliberate follow-up (it changes
-    walk-forward fold composition and needs calibration re-validation).
+    ``label_end_idx`` is the forward index of the bar the outcome actually
+    consumed (from :func:`_realized_return_and_exit`: ``horizon - 1`` immediate,
+    ``touch_idx + horizon`` retest). Guarding to that bar — rather than the full
+    forward-buffer end (``fts[-1]``: SWEEP 8 / OB 12 / FVG 20, longer than the
+    consumed horizon SWEEP 3 / OB 6 / FVG 4) — keeps the purge exactly as
+    leak-safe (the label uses no bar past ``label_end_idx``) while no longer
+    over-purging training events whose real label ended earlier. The default
+    ``-1`` (buffer end) is retained for callers that lack an exit index.
 
     Stat-review S3 (#2674): when the embargo is non-zero but the forward
     window is degenerate (< 2 positive timestamp diffs), the embargo
-    would silently collapse to zero (guard_end == buffer end), weakening
+    would silently collapse to zero (guard_end == label end), weakening
     the walk-forward purge for exactly these events. Return ``None`` so
     callers exclude the event from purged samples — never invented.
     """
     interval = _event_bar_interval(fts)
     if embargo_bars > 0 and interval <= 0.0:
         return None
-    return fts[-1] + embargo_bars * interval
+    return fts[label_end_idx] + embargo_bars * interval
 
 
 def extract_family_calibration_samples(
@@ -474,15 +496,14 @@ def extract_family_calibration_samples(
     a raw ``score`` AND forward timestamps, emit a parallel-list bundle
     ``{family: {"scores", "returns", "anchor_ts", "guard_end_ts"}}``.
 
-    ``guard_end_ts`` is the forward-BUFFER end (the last forward timestamp —
-    a conservative superset of the label end, see :func:`_guard_end_ts`) PLUS
-    the family embargo expressed in time (``embargo_bars`` * the event's own
-    median bar spacing). The downstream purge keeps a training event only when
-    its ``guard_end_ts`` resolves strictly before a test fold begins, which
-    prevents overlapping-label leakage across the train/test boundary
-    (senior-quant review GAP 1; Lopez de Prado 2018, ch. 7). Events
-    without a score or forward timestamps are excluded -- they cannot be
-    calibrated leak-safely and are never invented into the sample.
+    ``guard_end_ts`` is the event's label-window end (the exit bar the outcome
+    actually consumed, see :func:`_guard_end_ts`) PLUS the family embargo
+    expressed in time (``embargo_bars`` * the event's own median bar spacing).
+    The downstream purge keeps a training event only when its ``guard_end_ts``
+    resolves strictly before a test fold begins, which prevents overlapping-label
+    leakage across the train/test boundary (senior-quant review GAP 1; Lopez de
+    Prado 2018, ch. 7). Events without a score or forward timestamps are excluded
+    -- they cannot be calibrated leak-safely and are never invented into the sample.
     """
     out: dict[str, dict[str, list[float]]] = {}
     for event in events:
@@ -491,13 +512,14 @@ def extract_family_calibration_samples(
         forward_ts = event.get("forward_timestamps")
         if not forward_ts:
             continue
-        ret = realized_return(event, cost_bps=cost_bps)
-        if ret is None:
+        result = _realized_return_and_exit(event, cost_bps=cost_bps)
+        if result is None:
             continue
+        ret, exit_idx = result
         family = event["family"]
         fts = [float(t) for t in forward_ts]
         embargo_bars = get_family_config(family).embargo_bars
-        guard_end = _guard_end_ts(fts, embargo_bars)
+        guard_end = _guard_end_ts(fts, embargo_bars, label_end_idx=exit_idx)
         if guard_end is None:
             continue
         bucket = out.setdefault(
@@ -640,10 +662,9 @@ def extract_family_ab_samples(
     The pairing is deliberate: the A/B must score both arms on the *same* events
     over the *same* purged walk-forward folds, otherwise a Brier/resolution
     delta would confound the feature's effect with a differing event sample.
-    ``guard_end_ts`` reuses the calibration purge guard (forward-buffer end plus
-    the family embargo in time — a conservative superset of the label end) so the
-    A/B is leak-safe by construction. Events
-    missing either arm are excluded -- never invented into the sample.
+    ``guard_end_ts`` reuses the calibration purge guard (the consumed label-window
+    end plus the family embargo in time) so the A/B is leak-safe by construction.
+    Events missing either arm are excluded -- never invented into the sample.
     """
     out: dict[str, ABSamples] = {}
     for event in events:
@@ -652,13 +673,14 @@ def extract_family_ab_samples(
         forward_ts = event.get("forward_timestamps")
         if not forward_ts:
             continue
-        ret = realized_return(event, cost_bps=cost_bps)
-        if ret is None:
+        result = _realized_return_and_exit(event, cost_bps=cost_bps)
+        if result is None:
             continue
+        ret, exit_idx = result
         family = event["family"]
         fts = [float(t) for t in forward_ts]
         embargo_bars = get_family_config(family).embargo_bars
-        guard_end = _guard_end_ts(fts, embargo_bars)
+        guard_end = _guard_end_ts(fts, embargo_bars, label_end_idx=exit_idx)
         if guard_end is None:
             continue
         event_view: Mapping[str, Any] = event
