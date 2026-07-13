@@ -73,7 +73,7 @@ async def _lifespan(app: FastAPI):
     global _startup_ts, _startup_epoch
     logger.info("Starting SMC Live Overlay Daemon …")
     observability.metric_counter("live_overlay.daemon.start_attempt")
-    observability.metric_counter("live_overlay.daemon.restarts_total")
+    observability.metric_counter("live_overlay.daemon.restarts_total")  # == process starts incl. the initial boot (and failed-env boots); overcounts true restarts — read via rate()/increase(), not the absolute value
     observability.metric_counter(
         f"live_overlay.daemon.restart_cause.{config.restart_cause()}.total"
     )

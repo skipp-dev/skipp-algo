@@ -20,13 +20,13 @@ Field definitions (matching spec/smc_live_overlay.schema.json):
   vix_level            — latest VIX level (polled from FMP ^VIX quote)
   tone                 — "BULLISH" | "BEARISH" | "NEUTRAL" (market-wide)
   global_heat          — [-1.0, 1.0] directional news heat (positive = bullish)
-  event_window_state   — "pre-event" | "in-event" | "post-event" | "normal"
-  event_risk_level     — "high" | "medium" | "low"
-  next_event_name      — str or null
-  next_event_time      — ISO-8601 str or null
-  market_event_blocked — bool
-  symbol_event_blocked — bool
-  event_provider_status — "ok" | "stale" | "unavailable"
+  event_window_state   — RESERVED, always "normal" until the event calendar is wired
+  event_risk_level     — RESERVED, always "low" (enum values below are aspirational)
+  next_event_name      — RESERVED, always null   |  enum: str or null
+  next_event_time      — RESERVED, always null   |  enum: ISO-8601 str or null
+  market_event_blocked — RESERVED, always False
+  symbol_event_blocked — RESERVED, always False
+  event_provider_status — RESERVED, always "unavailable" (the honest tell; see _event_fields_for)
   signal_level         — "A0" | "A1" | "A2" | null (active realtime signal)
   signal_direction     — e.g. "LONG" | "SHORT" | "B_UP" | "B_DOWN" | null
   trade_entry/stop/target/r — ATR display bracket from the signals producer
