@@ -223,7 +223,10 @@ def test_build_overlay_manifest_keys():
         source_manifest=Path("pine/generated/smc_micro_profiles_generated.json"),
     )
     assert manifest["library_name"] == OVERLAY_LIBRARY_NAME
-    assert manifest["cadence_class"] == "fast_overlay"
+    # Slow-mirror bake path must NOT claim the fast cadence — the data mirrors
+    # the slow micro-profile artifact (see manifest freshness_note).
+    assert manifest["cadence_class"] == "slow_mirror"
+    assert manifest["cadence_class"] != "fast_overlay"
     assert manifest["derived_from_source_artifact"] is True
     assert manifest["overlay_field_count"] == 29
     assert manifest["overlay_fields"] == sorted(OVERLAY_FIELDS)

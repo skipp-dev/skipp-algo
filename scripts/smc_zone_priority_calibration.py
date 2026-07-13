@@ -1046,6 +1046,32 @@ def _git_rev(repo_root: Path) -> str | None:
     return sha or None
 
 
+def _git_commit_available(repo_root: Path, sha: str | None) -> bool:
+    """Whether ``sha`` resolves to a commit object in the local repo."""
+    if not sha:
+        return False
+    try:
+        git_exe = shutil.which("git") or "git"
+        subprocess.run(
+            [git_exe, "cat-file", "-e", f"{sha}^{{commit}}"],
+            cwd=repo_root,
+            capture_output=True,
+            check=True,
+            timeout=5,
+        )
+    except (subprocess.SubprocessError, FileNotFoundError, OSError):
+        return False
+    return True
+
+
+def _repo_relative_path(path: Path, repo_root: Path) -> str:
+    """Best-effort repo-relative POSIX path; falls back to the basename."""
+    try:
+        return path.resolve().relative_to(repo_root.resolve()).as_posix()
+    except (ValueError, OSError):
+        return path.name
+
+
 def build_frozen_provenance(
     *,
     benchmark_dir: Path,
@@ -1077,8 +1103,20 @@ def build_frozen_provenance(
 
     manifest_path = benchmark_dir / "benchmark_run_manifest.json"
     manifest_sha = corpus_manifest_hash
-    if manifest_sha is None and manifest_path.is_file():
-        manifest_sha = _sha256_of_file(manifest_path)
+    manifest_data: dict[str, Any] = {}
+    if manifest_path.is_file():
+        if manifest_sha is None:
+            manifest_sha = _sha256_of_file(manifest_path)
+        try:
+            manifest_data = json.loads(manifest_path.read_text(encoding="utf-8"))
+        except (OSError, ValueError):
+            manifest_data = {}
+
+    # Derive the event-time bounds from the (already-hashed) run manifest when
+    # the caller did not pass them, rather than emitting a bare ``null``.
+    if max_event_timestamp_utc is None:
+        max_event_timestamp_utc = manifest_data.get("max_event_timestamp_utc") or manifest_data.get("end_date")
+    min_event_timestamp_utc = manifest_data.get("min_event_timestamp_utc") or manifest_data.get("start_date")
 
     script_sha: str | None = None
     if generator_script_path is None:
@@ -1099,9 +1137,11 @@ def build_frozen_provenance(
         "benchmark_corpus_ephemeral": True,
         "benchmark_manifest_sha256": manifest_sha,
         "n_events": n_events,
+        "min_event_timestamp_utc": min_event_timestamp_utc,
         "max_event_timestamp_utc": max_event_timestamp_utc,
         "source_commit": source_commit,
-        "generator_script_path": str(generator_script_path.name),
+        "source_commit_reachable": _git_commit_available(repo_root, source_commit),
+        "generator_script_path": _repo_relative_path(generator_script_path, repo_root),
         "generator_script_sha256": script_sha,
         "smoothing": smoothing,
         "min_events_per_bucket": min_events_per_bucket,

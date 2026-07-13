@@ -146,7 +146,6 @@ _ALLOWED_RAW_WRITE_FILES: dict[str, str] = {
     "smc_core/benchmark.py": "fdopen + os.replace atomic pattern (benchmark JSON)",
     "smc_core/ensemble_quality.py": "fdopen + os.replace atomic pattern (ensemble-quality JSON)",
     "smc_core/event_ledger.py": "fdopen + os.replace atomic pattern (event ledger JSON)",
-    "smc_core/inference/null_cache.py": "mkstemp + fsync + os.replace atomic pattern (null-distribution cache JSON)",
     "smc_core/scoring.py": "fdopen + os.replace atomic pattern (scoring snapshot JSON)",
     "smc_integration/batch.py": "fdopen + os.replace atomic pattern (batch artifact JSON)",
     "smc_integration/provider_health.py": "fdopen + os.replace atomic pattern (provider-health JSON)",

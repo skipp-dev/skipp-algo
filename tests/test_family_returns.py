@@ -182,6 +182,23 @@ def test_extract_groups_by_family_and_drops_nontriggers() -> None:
     assert grouped["BOS"]["timestamps"] == [1.0]
 
 
+def test_extract_calibration_samples_threads_event_ids() -> None:
+    ev = _long_event("BOS", anchor_ts=1.0, timestamps=True)
+    ev["score"] = 0.7
+    ev["event_id"] = "evt-123"
+    samples = extract_family_calibration_samples([ev], cost_bps=0.0)
+    bos = samples["BOS"]
+    assert bos["event_ids"] == ["evt-123"]
+    assert len(bos["event_ids"]) == len(bos["scores"]) == 1  # parallel to the numeric lists
+
+
+def test_extract_calibration_samples_event_id_defaults_empty_when_absent() -> None:
+    ev = _long_event("BOS", anchor_ts=1.0, timestamps=True)
+    ev["score"] = 0.7  # no event_id on the event
+    samples = extract_family_calibration_samples([ev], cost_bps=0.0)
+    assert samples["BOS"]["event_ids"] == [""]
+
+
 def test_to_build_spec_feeds_real_psr() -> None:
     from scripts.build_family_metrics import build_bundle
 
