@@ -155,13 +155,13 @@ OS_DELETE_LEDGER: set[tuple[str, int, str]] = {
     # 2026-07-04 (market-microstructure observe-only): import +1 →
     # 3136/3504.
     ("open_prep/run_open_prep.py", 3111, "unlink"),  # 2026-07-10: recent_eps_surprise (3185->3198); dead eps_surprise_pct removed (3198->3192)
-    ("open_prep/run_open_prep.py", 3479, "unlink"),  # 2026-07-10: recent_eps_surprise (3553->3566); dead eps_surprise_pct removed (3566->3560)
+    ("open_prep/run_open_prep.py", 3506, "unlink"),  # 2026-07-13 (PDH/PDL wire + ATR-timeout errors above): 3479->3506
     # 2026-06-11 (Copilot sweep #2688): VIX9D fail-closed guard +5;
     # 2026-06-12 (merge #2713 into #2696): net +1 → 5512/5790.
     # 2026-06-25: feature-flag helper additions shifted 5621 -> 5625.
     # 2026-07-04 (market-microstructure observe-only): import + snapshot
     # block shifted 5641 -> 5658.
-    ("open_prep/run_open_prep.py", 5659, "unlink"),  # 2026-07-10: recent_eps_surprise (5751->5765); dead eps_surprise_pct removed (5765->5758)
+    ("open_prep/run_open_prep.py", 5701, "unlink"),  # 2026-07-13 (PDH/PDL wire + zone-priority normalization above): 5659->5701
     # 2026-06-11 (trend-state features): 5731→5742, enrichment-loop
     # stamping + lookback comment added above; eval-findings 5742→5765.
     # 2026-06-12 (backlog-resilience): fail-loud outcome storage +9 → 5799.
@@ -169,7 +169,7 @@ OS_DELETE_LEDGER: set[tuple[str, int, str]] = {
     # 2026-06-25: feature-flag helper additions shifted 5916 -> 5920.
     # 2026-07-04 (market-microstructure observe-only): import + snapshot
     # block + row-loop fields shifted 5936 -> 5962.
-    ("open_prep/run_open_prep.py", 5985, "unlink"),  # 2026-07-10: recent_eps_surprise (6078->6092); dead eps_surprise_pct removed (6092->6085)
+    ("open_prep/run_open_prep.py", 6027, "unlink"),  # 2026-07-13 (PDH/PDL wire + zone-priority normalization above): 5985->6027
     ("open_prep/scorer.py", 156, "unlink"),
     ("open_prep/watchlist.py", 74, "unlink"),
     ("smc_core/benchmark.py", 39, "unlink"),

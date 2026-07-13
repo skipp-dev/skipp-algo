@@ -54,7 +54,7 @@ class TestChronologicalSortingEverywhere:
             {"date": "2024-1-2", "close": 102.0, "high": 103.0, "low": 101.0, "vwap": 102.0, "volume": 1000},
             {"date": "2024-01-03", "close": 103.0, "high": 104.0, "low": 102.0, "vwap": 103.0, "volume": 1000},
         ]
-        _sym, _atr, _mom, vwap, _avgvol, _err = _fetch_symbol_atr(
+        _sym, _atr, _mom, vwap, _avgvol, _pdh, _pdl, _err = _fetch_symbol_atr(
             mock_client, "AAPL", date(2024, 1, 1), date(2024, 1, 10), 14
         )
         assert vwap == pytest.approx(110.0), f"expected latest chronological VWAP 110.0, got {vwap}"
@@ -109,7 +109,7 @@ class TestMomentumAndFetchSanitizing:
         candles[5]["close"] = float("inf")
         mock_client.get_historical_price_eod_full.return_value = candles
 
-        _sym, _atr, mom, _vwap, _avgvol, _err = _fetch_symbol_atr(
+        _sym, _atr, mom, _vwap, _avgvol, _pdh, _pdl, _err = _fetch_symbol_atr(
             mock_client,
             "AAPL",
             date(2024, 1, 1),
@@ -307,3 +307,29 @@ class TestComputeGapNonFinitePrevClose:
         assert math.isfinite(res["gap_pct"]), (
             f"gap_pct must be finite, got {res['gap_pct']!r}"
         )
+
+
+class TestPdhPdlWire:
+    def test_fetch_symbol_atr_derives_prev_session_high_low(self) -> None:
+        # PDH/PDL must come from the last COMPLETED session (strictly before
+        # as_of) — a post-close run's newest candle is today and must not leak.
+        from datetime import date as _date
+        from unittest.mock import MagicMock
+
+        from open_prep.run_open_prep import _fetch_symbol_atr
+
+        candles = []
+        for i, d in enumerate(["2026-07-08", "2026-07-09", "2026-07-10"]):
+            candles.append({
+                "date": d, "open": 100.0 + i, "high": 105.0 + i,
+                "low": 95.0 + i, "close": 101.0 + i, "volume": 1_000_000,
+            })
+        client = MagicMock()
+        client.get_historical_price_eod_full.return_value = candles
+
+        _sym, _atr, _mom, _vwap, _avgvol, pdh, pdl, _err = _fetch_symbol_atr(
+            client, "AAPL", _date(2026, 6, 1), _date(2026, 7, 10), 14,
+        )
+        # as_of=2026-07-10 → previous completed session is 2026-07-09 (i=1).
+        assert pdh == 106.0
+        assert pdl == 96.0

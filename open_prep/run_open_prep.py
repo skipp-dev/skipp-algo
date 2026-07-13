@@ -3194,10 +3194,13 @@ def _fetch_symbol_atr(
     date_from: date,
     as_of: date,
     atr_period: int,
-) -> tuple[str, float, float, float | None, float, str | None]:
+) -> tuple[str, float, float, float | None, float, float | None, float | None, str | None]:
     """Fetch historical candles and compute ATR for one symbol.
 
-    Returns: (symbol, atr_value, momentum_z, vwap_or_none, avg_volume_fallback, error_message)
+    Returns: (symbol, atr_value, momentum_z, vwap_or_none, avg_volume_fallback,
+    pdh_or_none, pdl_or_none, error_message) — PDH/PDL are the previous
+    COMPLETED session's high/low (last candle dated strictly before as_of),
+    wiring the previously never-populated pdh/pdl quote context.
     """
     try:
         candles_raw = client.get_historical_price_eod_full(symbol, date_from, as_of)
@@ -3215,6 +3218,8 @@ def _fetch_symbol_atr(
             momentum_z = 0.0
         latest_vwap: float | None = None
         avg_volume_fallback: float = 0.0
+        pdh: float | None = None
+        pdl: float | None = None
         parsed_rows = []
         for c in candles:
             d_str = str(c.get("date") or "")
@@ -3236,11 +3241,18 @@ def _fetch_symbol_atr(
             ]
             if vol_values:
                 avg_volume_fallback = round(sum(vol_values) / len(vol_values), 4)
+            # Previous COMPLETED session (a post-close run's [-1] is today).
+            prev_rows = [c for d, c in parsed_rows if d < as_of]
+            if prev_rows:
+                pdh_raw = _to_float(prev_rows[-1].get("high"), default=0.0)
+                pdl_raw = _to_float(prev_rows[-1].get("low"), default=0.0)
+                pdh = pdh_raw if pdh_raw > 0.0 and math.isfinite(pdh_raw) else None
+                pdl = pdl_raw if pdl_raw > 0.0 and math.isfinite(pdl_raw) else None
         if atr_value <= 0.0:
-            return symbol, 0.0, momentum_z, latest_vwap, avg_volume_fallback, "atr_zero_or_insufficient_bars"
-        return symbol, atr_value, momentum_z, latest_vwap, avg_volume_fallback, None
+            return symbol, 0.0, momentum_z, latest_vwap, avg_volume_fallback, pdh, pdl, "atr_zero_or_insufficient_bars"
+        return symbol, atr_value, momentum_z, latest_vwap, avg_volume_fallback, pdh, pdl, None
     except (RuntimeError, KeyError, ZeroDivisionError, TypeError) as exc:
-        return symbol, 0.0, 0.0, None, 0.0, _APIKEY_RE.sub(r"\1=***", str(exc))
+        return symbol, 0.0, 0.0, None, 0.0, None, None, _APIKEY_RE.sub(r"\1=***", str(exc))
 
 
 def _atr14_by_symbol(
@@ -3250,11 +3262,13 @@ def _atr14_by_symbol(
     lookback_days: int = 250,  # Increased for RMA convergence
     atr_period: int = 14,
     parallel_workers: int = 5,
-) -> tuple[dict[str, float], dict[str, float], dict[str, float | None], dict[str, float], dict[str, str]]:
+) -> tuple[dict[str, float], dict[str, float], dict[str, float | None], dict[str, float], dict[str, float | None], dict[str, float | None], dict[str, str]]:
     atr_map: dict[str, float] = {}
     momentum_z_map: dict[str, float] = {}
     vwap_map: dict[str, float | None] = {}
     avg_volume_fallback_map: dict[str, float] = {}
+    pdh_map: dict[str, float | None] = {}
+    pdl_map: dict[str, float | None] = {}
     errors: dict[str, str] = {}
     date_from = as_of - timedelta(days=max(lookback_days, 20))
 
@@ -3274,7 +3288,9 @@ def _atr14_by_symbol(
             for symbol in symbols:
                 vwap_map.setdefault(symbol, None)
                 avg_volume_fallback_map.setdefault(symbol, 0.0)
-            return atr_map, momentum_z_map, vwap_map, avg_volume_fallback_map, errors
+                pdh_map.setdefault(symbol, None)  # like vwap: not cached — a full cache hit degrades to None
+                pdl_map.setdefault(symbol, None)
+            return atr_map, momentum_z_map, vwap_map, avg_volume_fallback_map, pdh_map, pdl_map, errors
 
     incremental_atr, incremental_momentum, incremental_close = _incremental_atr_from_eod_bulk(
         client=client,
@@ -3307,11 +3323,13 @@ def _atr14_by_symbol(
                 for future in as_completed(future_map, timeout=atr_timeout):
                     symbol = future_map[future]
                     try:
-                        sym, atr_value, momentum_z, vwap_value, avg_vol_fb, err = future.result()
+                        sym, atr_value, momentum_z, vwap_value, avg_vol_fb, pdh_v, pdl_v, err = future.result()
                         atr_map[sym] = atr_value
                         momentum_z_map[sym] = momentum_z
                         vwap_map[sym] = vwap_value
                         avg_volume_fallback_map[sym] = max(_to_float(avg_vol_fb, default=0.0), 0.0)
+                        pdh_map[sym] = pdh_v
+                        pdl_map[sym] = pdl_v
                         if err:
                             errors[sym] = err
                     except Exception as exc:  # pragma: no cover - defensive catch
@@ -3322,6 +3340,13 @@ def _atr14_by_symbol(
                         errors[symbol] = _APIKEY_RE.sub(r"\1=***", str(exc))
             except FuturesTimeoutError:
                 timed_out = True
+                # Contract truth (runtime-status): unfinished symbols get 0.0
+                # ATR below — record them in `errors` so atr_missing_symbols /
+                # degraded_mode reflect the timeout instead of reporting the
+                # zeros as available.
+                for _sym in missing_symbols:
+                    if _sym not in atr_map:
+                        errors.setdefault(_sym, "atr_fetch_timeout")
                 logger.warning("ATR fetch timed out after %.1fs; continuing with partial (%d/%d).",
                                atr_timeout, len(atr_map), len(symbols))
         finally:
@@ -3333,6 +3358,8 @@ def _atr14_by_symbol(
         momentum_z_map.setdefault(symbol, 0.0)
         vwap_map.setdefault(symbol, None)
         avg_volume_fallback_map.setdefault(symbol, 0.0)
+        pdh_map.setdefault(symbol, None)
+        pdl_map.setdefault(symbol, None)
 
     # Save same-day cache to accelerate subsequent pre-open runs.
     prev_close_snapshot: dict[str, float] = dict(cached_prev_close)
@@ -3356,7 +3383,7 @@ def _atr14_by_symbol(
         prev_close_map=prev_close_snapshot,
     )
 
-    return atr_map, momentum_z_map, vwap_map, avg_volume_fallback_map, errors
+    return atr_map, momentum_z_map, vwap_map, avg_volume_fallback_map, pdh_map, pdl_map, errors
 
 
 # ---------------------------------------------------------------------------
@@ -4597,7 +4624,7 @@ def _fetch_quotes_with_atr(
         ]
     )
 
-    atr_by_symbol, momentum_z_by_symbol, vwap_by_symbol, avg_volume_fallback_by_symbol, atr_fetch_errors = _atr14_by_symbol(
+    atr_by_symbol, momentum_z_by_symbol, vwap_by_symbol, avg_volume_fallback_by_symbol, pdh_by_symbol, pdl_by_symbol, atr_fetch_errors = _atr14_by_symbol(
         client=client,
         symbols=atr_symbols,
         as_of=as_of,
@@ -4624,6 +4651,14 @@ def _fetch_quotes_with_atr(
             q["atr"] = atr_by_symbol.get(sym, 0.0)
             q["momentum_z_score"] = momentum_z_by_symbol.get(sym, 0.0)
             q["vwap"] = vwap_by_symbol.get(sym)
+            # Wire the previous-session high/low derived from the same EOD
+            # candles the ATR fetch already downloaded — before this, NO
+            # producer wrote these keys, so pdh/pdl were always None and the
+            # screen's gap_down_falling_knife guard could never fire.
+            if pdh_by_symbol.get(sym) is not None:
+                q["previousDayHigh"] = pdh_by_symbol[sym]
+            if pdl_by_symbol.get(sym) is not None:
+                q["previousDayLow"] = pdl_by_symbol[sym]
             _enrich_quote_with_hvb(q)
             _add_pdh_pdl_context(q)
 
@@ -4663,13 +4698,19 @@ def _enrich_zone_priority(
         try:
             zp = build_zone_priority(
                 regime=regime,
-                ensemble_score=float(row.get("score", 0.0)),
-                news_heat=float(news_scores.get(symbol, 0.0)),
-                event_risk_level=str(row.get("event_risk_level", "NONE")),
+                # entry_probability is the scorer's bounded [0,1] output; the
+                # raw v2 `score` is an unbounded composite that saturated the
+                # 0-30 performance dimension for essentially every candidate.
+                ensemble_score=float(row.get("entry_probability", 0.0)),
+                # news_scores are 0..2 mention-intensity — rescale to 0..1 heat.
+                news_heat=min(1.0, float(news_scores.get(symbol, 0.0)) / 2.0),
+                event_risk_level="NONE",  # no producer sets this on ranked rows (was a phantom key)
                 session_context="",
-                vol_regime=str(row.get("vol_regime", "NORMAL")),
-                zone_proj_score=int(row.get("consolidation_score", 0)),
-                htf_aligned=bool(row.get("htf_aligned", False)),
+                vol_regime="NORMAL",  # ranked rows carry symbol_regime, not a vol regime (phantom key)
+                # consolidation_score is a 0..1 float — int() truncated it to a
+                # permanent 0; map onto the documented 0-5 projection scale.
+                zone_proj_score=round(float(row.get("consolidation_score", 0.0) or 0.0) * 5),
+                htf_aligned=False,  # not wired on ranked rows (was a phantom key)
                 calibrated_family_weights=calibrated_fw,
             )
             row["zone_priority_rank"] = zp.get("ZONE_PRIORITY_RANK")
@@ -5599,13 +5640,14 @@ def generate_open_prep_result(
             sector_changes=sector_changes_map,
             symbol_sectors=symbol_sectors,
             weight_label="_regime_adjusted",
+            vix_level=vix_level,  # activates the scorer's adaptive gating (was never threaded in prod)
         )
 
     # Optional snapshot dump (opt-in via env var) — captures the inputs
     # actually passed to ``rank_candidates_v2`` in this code path plus
     # the resulting ranked/filtered outputs and extra diagnostic context
-    # (including vix_level, which is available here but not currently
-    # threaded into the call above). Intended as a real-day smoke-anchor
+    # (vix_level is now threaded into the call above — the snapshot keeps
+    # its own copy for diagnostics). Intended as a real-day smoke-anchor
     # for a planned follow-up golden test (see PR #2138).
     if os.getenv("OPEN_PREP_DUMP_SNAPSHOT", "").strip().lower() in {"1", "true", "yes"}:
         _snap_dir = Path("artifacts/open_prep/snapshots")
