@@ -77,8 +77,8 @@ test("the REAL hand-lib graph is acyclic and puts every dep before its dependent
   }
   // Known invariant from the sources: utils depends on core_types.
   assert.ok(pos.get("smc_core_types")! < pos.get("smc_utils")!);
-  // The known publisher gap is represented in the set.
-  assert.ok(HAND_LIBS.some((l) => l.name === "smc_bus_private" && l.publisher === null));
+  // Every hand-lib now has a publisher — the earlier smc_bus_private gap is closed.
+  assert.ok(HAND_LIBS.every((l) => l.publisher !== null), "every hand-lib must have a publisher");
 });
 
 test("every hand-lib with a publisher points at an existing tv_publish_* script", () => {
@@ -94,4 +94,15 @@ test("every hand-lib with a publisher points at an existing tv_publish_* script"
       `${lib.name}: source ${lib.source} must exist`,
     );
   }
+});
+
+test("the new smc_bus_private publisher wires facade-authoritative verification (#3609 pattern)", () => {
+  const src = fs.readFileSync(path.join(_repoRoot, "scripts", "tv_publish_bus_library.ts"), "utf-8");
+  assert.ok(src.includes("fetchPublishedLibraryVersionViaFacade(session.page, details.scriptName)"));
+  assert.ok(src.includes('versionVerificationMode = "facade_list"'));
+  assert.equal(src.includes("fetchSavedScriptVersionViaFacade"), false);
+  assert.ok(/type VersionVerificationMode =[^;]*"facade_list"/.test(src));
+  // Publishes the bus library specifically (not a copy-paste leftover).
+  assert.ok(src.includes('getFlag("--script-name", "smc_bus_private")'));
+  assert.equal(src.includes("smc_draw"), false, "no leftover draw-template identity");
 });

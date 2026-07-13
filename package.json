@@ -17,6 +17,8 @@
     "tv:publish-core-types-library:profile": "TV_PERSISTENT_PROFILE_DIR=automation/tradingview/auth/chromium-profile tsx scripts/tv_publish_core_types_library.ts",
     "tv:publish-draw-library": "tsx scripts/tv_publish_draw_library.ts",
     "tv:publish-draw-library:profile": "TV_PERSISTENT_PROFILE_DIR=automation/tradingview/auth/chromium-profile tsx scripts/tv_publish_draw_library.ts",
+    "tv:publish-bus-library": "tsx scripts/tv_publish_bus_library.ts",
+    "tv:publish-bus-library:profile": "TV_PERSISTENT_PROFILE_DIR=automation/tradingview/auth/chromium-profile tsx scripts/tv_publish_bus_library.ts",
     "tv:publish-utils-library": "tsx scripts/tv_publish_utils_library.ts",
     "tv:publish-utils-library:profile": "TV_PERSISTENT_PROFILE_DIR=automation/tradingview/auth/chromium-profile tsx scripts/tv_publish_utils_library.ts",
     "tv:publish-handlibs": "tsx scripts/tv_publish_hand_authored_libraries.ts",

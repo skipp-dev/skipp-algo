@@ -54,10 +54,7 @@ export const HAND_LIBS: HandLib[] = [
   { name: "smc_observability_private", source: "SMC++/smc_observability_private.pine", publisher: "scripts/tv_publish_observability_library.ts" },
   { name: "smc_context_resolvers", source: "SMC++/smc_context_resolvers.pine", publisher: "scripts/tv_publish_context_resolvers_library.ts" },
   { name: "smc_profile_engine", source: "SMC++/smc_profile_engine.pine", publisher: "scripts/tv_publish_profile_engine_library.ts" },
-  // smc_bus_private has NO publisher script (repo→TV gap). It is included so the
-  // topo sort + consumer repin still account for it, but it cannot be published
-  // by this helper — surfaced as a warning at the next line that would need it.
-  { name: "smc_bus_private", source: "SMC++/smc_bus_private.pine", publisher: null },
+  { name: "smc_bus_private", source: "SMC++/smc_bus_private.pine", publisher: "scripts/tv_publish_bus_library.ts" },
 ];
 
 const OWNER = "preuss_steffen";
