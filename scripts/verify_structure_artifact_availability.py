@@ -13,6 +13,9 @@ Completeness / evidence extensions:
 - read-side provenance guard: an artifact whose ``generated_at`` predates its
   own observed-data timestamps (``asof_ts``/``anchor_ts``) is impossible and
   fails closed — the consumption mirror of ``validate_artifact_provenance``;
+- generator provenance: the manifest must carry a ``provenance`` block with a
+  ``generator_path`` (source_commit / input_fingerprint are recorded in the
+  report details; they may be null where genuinely unresolvable);
 - ``--output`` persists the JSON report (e.g. under ``artifacts/ci/``) so a
   blocked release shows exactly which timeframe or artifact was missing.
 """
@@ -112,6 +115,10 @@ def verify_structure_artifact_availability(
             failures.append(f"{timeframe}: manifest reports producer errors")
             continue
         _check_manifest_counts(timeframe, manifest, failures)
+        provenance = manifest.get("provenance")
+        if not isinstance(provenance, dict) or not str(provenance.get("generator_path", "")).strip():
+            failures.append(f"{timeframe}: manifest missing generator provenance")
+            provenance = None
         manifest_generated_at: float | None = None
         raw_generated_at = manifest.get("generated_at")
         if (
@@ -175,6 +182,7 @@ def verify_structure_artifact_availability(
             "age_seconds": age_seconds,
             "missing_symbols": missing_symbols,
             "unexpected_symbols": sorted(set(loaded_symbols) - set(expected)) if expected else [],
+            "provenance": provenance,
         }
         if loaded:
             verified[timeframe] = loaded

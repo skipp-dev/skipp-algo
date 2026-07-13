@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import hashlib
 import json
 from pathlib import Path
 
@@ -35,6 +36,36 @@ def test_structure_manifest_contains_required_keys(tmp_path: Path) -> None:
     assert "coverage_summary" in manifest
     assert "profile_summary" in manifest
     assert "event_logic_versions" in manifest
+    assert "provenance" in manifest
+
+
+def test_structure_manifest_carries_generator_provenance(tmp_path: Path) -> None:
+    workbook = make_minimal_workbook(tmp_path)
+    symbols = _sample_symbols(workbook, limit=1)
+    output_dir = tmp_path / "reports" / "_tmp_structure_manifest_provenance"
+    output_dir.mkdir(parents=True, exist_ok=True)
+
+    manifest = write_structure_artifacts_from_workbook(
+        workbook=workbook,
+        timeframe="1D",
+        symbols=symbols,
+        output_dir=output_dir,
+        generated_at=1709254000.0,
+    )
+
+    provenance = manifest["provenance"]
+    assert provenance["generator_path"] == "smc_integration/structure_batch.py"
+    # In CI/GITHUB_SHA or any git checkout this resolves; None only without git.
+    assert provenance["source_commit"] is None or (
+        isinstance(provenance["source_commit"], str) and provenance["source_commit"]
+    )
+    fingerprint = provenance["input_fingerprint"]
+    assert fingerprint["kind"] == "workbook_sha256"
+    assert fingerprint["path"] == workbook.as_posix()
+    assert fingerprint["sha256"] == hashlib.sha256(workbook.read_bytes()).hexdigest()
+    # The persisted manifest carries the same block.
+    persisted = json.loads((output_dir / "manifest_1D.json").read_text(encoding="utf-8"))
+    assert persisted["provenance"] == provenance
 
 
 def test_structure_manifest_counts_and_flags_are_correct(tmp_path: Path) -> None:

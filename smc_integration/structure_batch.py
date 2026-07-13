@@ -1,12 +1,14 @@
 from __future__ import annotations
 
 import contextlib
+import hashlib
 import json
 import logging
 import os
 import tempfile
 import time
 from dataclasses import dataclass
+from functools import lru_cache
 from pathlib import Path
 from typing import Any
 
@@ -14,16 +16,18 @@ import pandas as pd
 
 from scripts.explicit_structure_from_bars import build_explicit_structure_from_bars
 from scripts.explicit_structure_profiles import EVENT_LOGIC_VERSION, validate_structure_profile
-from scripts.load_databento_export_bundle import load_export_bundle
+from scripts.load_databento_export_bundle import load_export_bundle, resolve_manifest_path
 from smc_core.cached_workbook_reader import read_daily_bars
 from smc_core.schema_version import SCHEMA_VERSION
 from smc_integration.artifact_resolution import resolve_structure_artifact_inputs
+from smc_integration.release_policy import resolve_git_commit
 from smc_integration.timeframes import WorkbookFallbackTimeframeError, is_daily_timeframe
 
 logger = logging.getLogger(__name__)
 DEFAULT_WORKBOOK = Path("artifacts/smc_microstructure_exports/databento_volatility_production_workbook.xlsx")
 DEFAULT_OUTPUT_DIR = Path("reports") / "smc_structure_artifacts"
 DEFAULT_EXPORT_DIR = Path("artifacts") / "smc_microstructure_exports"
+GENERATOR_PATH = "smc_integration/structure_batch.py"
 
 
 def _write_text_atomic(path: Path, content: str) -> None:
@@ -38,6 +42,43 @@ def _write_text_atomic(path: Path, content: str) -> None:
         with contextlib.suppress(OSError):
             os.unlink(tmp_name)
         raise
+
+@lru_cache(maxsize=1)
+def _cached_source_commit() -> str | None:
+    """Git HEAD (or GITHUB_SHA) resolved once per process for manifest provenance."""
+    return resolve_git_commit()
+
+
+def _sha256_of_path(path: Path) -> str | None:
+    try:
+        return hashlib.sha256(path.read_bytes()).hexdigest()
+    except OSError:
+        return None
+
+
+def _input_fingerprint(workbook: Path | None, export_bundle_root: Path | None) -> dict[str, Any] | None:
+    """Fingerprint the generator's data input for manifest provenance.
+
+    Workbook mode hashes the workbook itself. Bundle mode hashes the bundle's
+    producer manifest (identifies the exact producer run) instead of the
+    multi-GB parquet members. ``None`` means the manifest was built without a
+    data input (e.g. preexisting-artifacts or missing-inputs mode).
+    """
+    if workbook is not None:
+        return {
+            "kind": "workbook_sha256",
+            "path": str(workbook.as_posix()),
+            "sha256": _sha256_of_path(workbook),
+        }
+    if export_bundle_root is not None:
+        manifest_path = resolve_manifest_path(export_bundle_root)
+        return {
+            "kind": "export_bundle_manifest_sha256",
+            "path": str(manifest_path.as_posix()) if manifest_path is not None else str(export_bundle_root.as_posix()),
+            "sha256": _sha256_of_path(manifest_path) if manifest_path is not None else None,
+        }
+    return None
+
 
 def _load_symbol_bars_from_canonical_exports(symbol: str, timeframe: str, export_dir: Path | None) -> pd.DataFrame | None:
     if export_dir is None:
@@ -403,6 +444,11 @@ def build_structure_artifact_manifest(
         "resolved_inputs": {
             "workbook_path": str(workbook.as_posix()) if workbook is not None else None,
             "export_bundle_root": str(export_bundle_root.as_posix()) if export_bundle_root is not None else None,
+        },
+        "provenance": {
+            "generator_path": GENERATOR_PATH,
+            "source_commit": _cached_source_commit(),
+            "input_fingerprint": _input_fingerprint(workbook, export_bundle_root),
         },
         "counts": {
             "symbols_requested": len(_normalize_symbols(symbols_requested)),

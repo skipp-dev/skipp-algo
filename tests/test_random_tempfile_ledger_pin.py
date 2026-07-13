@@ -129,7 +129,7 @@ _TEMPFILE_LEDGER: frozenset[tuple[str, int, str]] = frozenset({
     ("smc_core/scoring.py", 1258, "mkstemp"),  # 2026-07-13 (normalize_sweep_side + calibration-honesty docstrings): 1216->1258
     ("smc_integration/batch.py", 26, "mkstemp"),
     ("smc_integration/provider_health.py", 60, "mkstemp"),
-    ("smc_integration/structure_batch.py", 30, "mkstemp"),
+    ("smc_integration/structure_batch.py", 34, "mkstemp"),  # 2026-07-13 (manifest generator provenance imports): 30->34
     ("streamlit_terminal.py", 2255, "mkstemp"),
     ("terminal_export.py", 177, "mkstemp"),
     ("terminal_export.py", 229, "mkstemp"),
