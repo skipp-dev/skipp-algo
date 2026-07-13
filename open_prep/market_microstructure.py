@@ -22,10 +22,19 @@ Metrics (all ex-ante — previous closes only):
   over a 20-day window (via the portfolio-variance identity — O(N*T),
   no N^2 pair loop). High = systemic/macro market.
 
-``market_weather`` is a DISPLAY-ONLY traffic light (GREEN/YELLOW/RED)
-derived from percentile ranks of today's values against the trailing 60
-trading days, recomputed in-run from the same fetched data (stateless).
-Thresholds are fixed-but-arbitrary and not validated.
+``market_weather`` is a traffic light (GREEN/YELLOW/RED) derived from
+percentile ranks of today's values against the trailing 60 trading days,
+recomputed in-run from the same fetched data (stateless). Thresholds are
+fixed-but-arbitrary and not validated.
+
+It is **score-neutral** (no scorer weight, like the metrics above) but NOT
+display-only — it is **alerting-active**: a GREEN↔RED transition fires an
+external weather-change webhook (``run_open_prep`` → ``alerts.alert_weather
+_change`` → ``_send_webhook``, gated on the alert config being ``enabled``
+with UNKNOWN transitions suppressed), and the current light is threaded into
+every candidate alert's body as context (``dispatch_alerts(..., weather=...)``
+→ ``_weather_line``). Making this a true observe-only signal (no external
+action) would require gating the alert behind a separate promotion flag.
 """
 
 from __future__ import annotations
