@@ -53,7 +53,7 @@ from open_prep.feature_flags import (
     any_v2_score_feature_enabled,
     is_confluence_score_enabled,
     is_freshness_v2_enabled,
-    is_reaction_zone_enabled,
+    is_reaction_context_enabled,
     is_smt_divergence_enabled,
     is_smt_divergence_promoted,
     is_sweep_trap_enabled,
@@ -678,7 +678,7 @@ def build_signal_quality_v2(
         from smc_core.sweep_trap import detect_sweep_trap
 
         result.update(detect_sweep_trap(enr))
-    if is_reaction_zone_enabled():
+    if is_reaction_context_enabled():
         from smc_core.reaction_zone import detect_reaction_zone
 
         result.update(detect_reaction_zone(enr))

@@ -22,7 +22,9 @@ import pytest
 from open_prep.feature_flags import (
     any_v2_score_feature_enabled,
     is_freshness_v2_enabled,
+    is_reaction_context_enabled,
     is_reaction_zone_enabled,
+    is_reaction_zone_study_enabled,
 )
 from open_prep.feature_flags import (
     signal_quality_model as canonical_model,
@@ -90,14 +92,18 @@ def test_freshness_v2_docstring_discloses_model_cutover() -> None:
     assert "20→18" in doc or "15→12" in doc
 
 
-# --- F2: ENABLE_REACTION_ZONE arms two features ---------------------------- #
+# --- F2: ENABLE_REACTION_ZONE split into study + context ------------------- #
 
-def test_reaction_zone_docstring_discloses_dual_feature() -> None:
-    doc = is_reaction_zone_enabled.__doc__ or ""
-    assert "detect_reaction_zone" in doc
-    assert "context" in doc.lower()
-    # References the pending split so it reads as known dual-purpose, not a bug.
-    assert "ENABLE_REACTION_CONTEXT" in doc
+def test_reaction_zone_flag_is_split_into_study_and_context() -> None:
+    # The dual-feature is now resolved: two distinct canonical flags, and the
+    # old reader is a deprecated shim.
+    study_doc = is_reaction_zone_study_enabled.__doc__ or ""
+    ctx_doc = is_reaction_context_enabled.__doc__ or ""
+    assert "ENABLE_REACTION_ZONE_STUDY" in study_doc
+    assert "compute_reaction_zone" in study_doc
+    assert "ENABLE_REACTION_CONTEXT" in ctx_doc
+    assert "detect_reaction_zone" in ctx_doc
+    assert "Deprecated" in (is_reaction_zone_enabled.__doc__ or "")
 
 
 # --- F4: measurement mirror normalises SIGNAL_QUALITY_MODEL like canonical -- #

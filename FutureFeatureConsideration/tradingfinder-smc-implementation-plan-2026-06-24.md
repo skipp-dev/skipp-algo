@@ -68,8 +68,10 @@ v1 stays computable in parallel for A/B comparison until cutover is approved.
 
 **Deliverables:**
 - Feature flags in `open_prep/feature_flags.py`:
-  `ENABLE_SWEEP_TRAP`, `ENABLE_REACTION_ZONE`, `ENABLE_CONFLUENCE_SCORE`,
-  `ENABLE_FRESHNESS_V2`, `ENABLE_SMT_DIVERGENCE`, `SIGNAL_QUALITY_MODEL`.
+  `ENABLE_SWEEP_TRAP`, `ENABLE_REACTION_ZONE_STUDY` + `ENABLE_REACTION_CONTEXT`
+  (old `ENABLE_REACTION_ZONE` = alias for both), `ENABLE_CONFLUENCE_SCORE`,
+  `ENABLE_FRESHNESS_V2_SCORE` (old `ENABLE_FRESHNESS_V2` = alias),
+  `ENABLE_SMT_DIVERGENCE`, `SIGNAL_QUALITY_MODEL`.
 - Model version constant + `build_signal_quality_v2` stub in
   `scripts/smc_signal_quality.py`.
 - Shadow enrichment hook: `_event_signal_quality_score` computes new blocks but

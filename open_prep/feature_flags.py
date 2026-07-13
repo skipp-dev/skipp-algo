@@ -190,26 +190,40 @@ def is_fmp_13f_enabled() -> bool:
 # ---------------------------------------------------------------------------
 
 
+#: Deprecated env-var aliases, kept honored for a migration window so existing
+#: Railway/CI config keeps working after the 2026-07-13 flag renames. Each maps
+#: OLD name → canonical NEW name; readers below fall back to the old name.
+DEPRECATED_FLAG_ALIASES: dict[str, str] = {
+    "ENABLE_FRESHNESS_V2": "ENABLE_FRESHNESS_V2_SCORE",
+    # ``ENABLE_REACTION_ZONE`` split into two concerns; the old flag still
+    # enables BOTH (its historical behaviour).
+    "ENABLE_REACTION_ZONE": "ENABLE_REACTION_ZONE_STUDY + ENABLE_REACTION_CONTEXT",
+}
+
+
 def is_freshness_v2_enabled() -> bool:
-    """Return True iff ``ENABLE_FRESHNESS_V2`` is ``"1"`` (default OFF).
+    """Return True iff the Freshness-v2 score model is enabled (default OFF).
+
+    Canonical flag: ``ENABLE_FRESHNESS_V2_SCORE``. The old name
+    ``ENABLE_FRESHNESS_V2`` is still honored as a deprecated alias.
 
     Phase A: enables uniform freshness/invalidation enrichment across all
     SMC event families (BOS, OB, FVG, SWEEP).  When disabled, the legacy
     per-family freshness fields are used unchanged.
 
-    SIDE EFFECT — this is a v2 *score-model* flag, NOT a scoped freshness
-    toggle. It is a member of :func:`any_v2_score_feature_enabled`, so enabling
-    it routes ``build_signal_quality`` from the v1 to the v2 budget **even while
+    SIDE EFFECT (the reason for the ``_SCORE`` rename) — this is a v2
+    *score-model* flag, NOT a scoped freshness toggle. It is a member of
+    :func:`any_v2_score_feature_enabled`, so enabling it routes
+    ``build_signal_quality`` from the v1 to the v2 budget **even while
     ``SIGNAL_QUALITY_MODEL`` stays ``"v1"``**. That re-weights every bucket
     (structure 20→18, session 20→18, liquidity 15→12, OB 15→12, FVG 15→12,
     compression 15→12) and adds confluence 12 + SMT 4, so ``raw_score_0_100``
-    and the derived tier / Pine gates / Hero-trust can
-    move even when the freshness inputs are neutral. This coupling is
-    deliberate (the v2 freshness label only exists inside the v2 budget); do not
-    treat the flag as freshness-only. An ``ENABLE_FRESHNESS_V2`` → v2-model-
-    cutover rename is pending (public env-var contract).
+    and the derived tier / Pine gates / Hero-trust can move even when the
+    freshness inputs are neutral. This coupling is deliberate (the v2 freshness
+    label only exists inside the v2 budget); do not treat the flag as
+    freshness-only.
     """
-    return _bool_env("ENABLE_FRESHNESS_V2", "0")
+    return _bool_env("ENABLE_FRESHNESS_V2_SCORE", "0") or _bool_env("ENABLE_FRESHNESS_V2", "0")
 
 
 def is_sweep_trap_enabled() -> bool:
@@ -230,34 +244,51 @@ def is_sweep_trap_enabled() -> bool:
     return _bool_env("ENABLE_SWEEP_TRAP", "0")
 
 
-def is_reaction_zone_enabled() -> bool:
-    """Return True iff ``ENABLE_REACTION_ZONE`` is ``"1"`` (default OFF).
+def is_reaction_zone_study_enabled() -> bool:
+    """Return True iff the Reaction-Zone *study* is enabled (default OFF).
 
-    Phase C: enables Reaction Zone computation for liquidity sweeps.
-    Since #3501 this emits level-reclaim + rejection-band raw fields
-    (``level_reclaimed``, ``bars_to_reclaim``, ``close_in_rejection_band``,
+    Canonical flag: ``ENABLE_REACTION_ZONE_STUDY``. The old
+    ``ENABLE_REACTION_ZONE`` still enables it (deprecated alias).
+
+    Phase C: gates the geometric reclaim/band measurer
+    (:func:`smc_core.reaction_zone.compute_reaction_zone`) whose raw shadow
+    fields (``level_reclaimed``, ``bars_to_reclaim``, ``close_in_rejection_band``,
     ``rejection_band_low/high``, ``bars_to_rejection_band``,
     ``close_distance_pct``, ``body_ratio``, ``rejection_wick_ratio``,
-    ``directional_body``); the pre-#3501 ``reaction_zone_low/high`` /
-    ``close_back_inside_zone`` / ``bars_to_confirm`` names are gone.
-    Like sweep-trap, these ``reaction_*`` shadow fields are emitted by the
-    measurement pipeline model-INDEPENDENTLY (no ``SIGNAL_QUALITY_MODEL=v2``
-    needed); ``build_signal_quality``'s ``REACTION_ZONE_DETECTED`` live-dict
-    field only appears on the v2 path and has no consumer.  Observe-only (see
-    :func:`any_v2_score_feature_enabled`): does not route the model or gate the
-    live score.  Depends on Phase B (sweep trap).
-
-    DUAL FEATURE — the same flag also gates
-    :func:`smc_core.reaction_zone.detect_reaction_zone`, a semantically
-    DIFFERENT "reaction context" detector that merely flags a fresh
-    structure/sweep sitting near an OB/FVG and emits ``REACTION_ZONE_DETECTED``
-    — it inspects no swept level, extreme, post-sweep close, reclaim, or
-    rejection band (see that function's docstring). One flag currently arms two
-    unrelated concepts; a split (``ENABLE_REACTION_ZONE_STUDY`` vs
-    ``ENABLE_REACTION_CONTEXT``) plus a ``REACTION_CONTEXT_*`` field rename are
-    pending (public contract).
+    ``directional_body``) are emitted by the measurement pipeline
+    model-INDEPENDENTLY (no ``SIGNAL_QUALITY_MODEL=v2`` needed). Observe-only:
+    does not route the model or gate the live score. Depends on Phase B
+    (sweep trap) on the enrichment path.
     """
-    return _bool_env("ENABLE_REACTION_ZONE", "0")
+    return _bool_env("ENABLE_REACTION_ZONE_STUDY", "0") or _bool_env("ENABLE_REACTION_ZONE", "0")
+
+
+def is_reaction_context_enabled() -> bool:
+    """Return True iff the Reaction-*context* detector is enabled (default OFF).
+
+    Canonical flag: ``ENABLE_REACTION_CONTEXT``. The old
+    ``ENABLE_REACTION_ZONE`` still enables it (deprecated alias).
+
+    Gates :func:`smc_core.reaction_zone.detect_reaction_zone`, a semantically
+    DIFFERENT feature from the study above: it merely flags a fresh
+    structure/sweep sitting near an OB/FVG in a bias-aligned direction and emits
+    ``REACTION_CONTEXT_DETECTED`` / ``_CONFIDENCE`` / ``_DIRECTION`` (legacy
+    ``REACTION_ZONE_*`` keys are still dual-emitted). It inspects no swept level,
+    extreme, post-sweep close, reclaim, or rejection band. The live-dict fields
+    only appear on the v2 score path and have no consumer.
+    """
+    return _bool_env("ENABLE_REACTION_CONTEXT", "0") or _bool_env("ENABLE_REACTION_ZONE", "0")
+
+
+def is_reaction_zone_enabled() -> bool:
+    """Deprecated: prefer :func:`is_reaction_zone_study_enabled` or
+    :func:`is_reaction_context_enabled`.
+
+    Retained for back-compat. Returns True iff EITHER split feature is on
+    (matches the old ``ENABLE_REACTION_ZONE`` "arm both" behaviour, and also
+    fires when either new flag is set individually).
+    """
+    return is_reaction_zone_study_enabled() or is_reaction_context_enabled()
 
 
 def is_confluence_score_enabled() -> bool:
