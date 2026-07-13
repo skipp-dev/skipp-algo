@@ -360,11 +360,17 @@ def _build_pair_summary(
     }
 
 
-def run_pair(symbol: str, timeframe: str, *, output_root: Path) -> dict[str, Any]:
+def run_pair(
+    symbol: str,
+    timeframe: str,
+    *,
+    output_root: Path,
+    anchor_window_days: float | None = None,
+) -> dict[str, Any]:
     pair_dir = _pair_output_dir(output_root, symbol=symbol, timeframe=timeframe)
     pair_dir.mkdir(parents=True, exist_ok=True)
 
-    evidence = build_measurement_evidence(symbol, timeframe)
+    evidence = build_measurement_evidence(symbol, timeframe, anchor_window_days=anchor_window_days)
     benchmark_result = build_benchmark(
         symbol,
         timeframe,
@@ -382,6 +388,8 @@ def run_pair(symbol: str, timeframe: str, *, output_root: Path) -> dict[str, Any
         "frame": _details.get("frame"),
         "scoring_censored_counts": _details.get("scoring_censored_counts"),
         "family_full_horizon_capacity": _details.get("family_full_horizon_capacity"),
+        "scoring_anchor_window_days": _details.get("scoring_anchor_window_days"),
+        "skipped_out_of_window_counts": _details.get("skipped_out_of_window_counts"),
     }
     scoring_artifact_path = export_scoring_artifact(
         scoring_result,
@@ -547,6 +555,19 @@ def build_parser() -> argparse.ArgumentParser:
     # HARD gate on that condition; leave it off until the frame fix lands
     # (arming it today would fail every rolling run).
     parser.add_argument(
+        "--scoring-anchor-window-days",
+        type=float,
+        default=None,
+        help=(
+            "Evaluate/score only events anchored within the trailing N days "
+            "of each pair's bar frame. The rolling lane runs multiple times "
+            "per day; re-scoring the whole multi-week population every run "
+            "made the sweep exceed its CI budget once genuine full-session "
+            "frames landed (#3616). Older events reach the corpus via the "
+            "accumulated pool. Default: unbounded (previous behaviour)."
+        ),
+    )
+    parser.add_argument(
         "--strict-frame-distinctness",
         action="store_true",
         help=(
@@ -615,7 +636,14 @@ def main() -> int:
     pair_runs: list[dict[str, Any]] = []
     for symbol in symbols:
         for timeframe in timeframes:
-            pair_runs.append(run_pair(symbol, timeframe, output_root=output_root))
+            pair_runs.append(
+                run_pair(
+                    symbol,
+                    timeframe,
+                    output_root=output_root,
+                    anchor_window_days=getattr(args, "scoring_anchor_window_days", None),
+                )
+            )
 
     # #2667: pairs whose structure contract was served via the legacy
     # cross-TF fallback (1D entries aliased onto an intraday request).

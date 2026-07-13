@@ -396,12 +396,20 @@ jobs:
           # benchmark_run_manifest.json + a run warning; arm
           # --strict-frame-distinctness only after a genuine intraday bar
           # source lands (today it would fail every run).
+          #
+          # --scoring-anchor-window-days 5 (2026-07-13): each rolling run
+          # scores only events anchored in the trailing 5 trading-day window
+          # of the frame — full-window re-scoring blew the 120-min budget on
+          # real frames (run 29276673623 timed out); older events reach the
+          # corpus via the accumulated pool. Disclosed per pair in
+          # frame_integrity.skipped_out_of_window_counts.
           "$SMC_PYTHON_BIN" scripts/run_smc_measurement_benchmark.py \
             --symbols "${SMC_BENCH_SYMBOLS}" \
             --timeframes "${SMC_BENCH_TIMEFRAMES}" \
             --output-dir "${{ steps.meta.outputs.out_dir }}" \
             --require-evidence \
-            --strict-structure-tf
+            --strict-structure-tf \
+            --scoring-anchor-window-days 5
 
       - name: Zone priority + testable calibration (rolling)
         if: always()
