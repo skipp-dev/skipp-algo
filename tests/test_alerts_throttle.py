@@ -229,14 +229,15 @@ def test_concurrent_dispatch_for_same_symbol_does_not_double_fan_out(monkeypatch
     assert alerts._is_throttled("AAA", 600) is True
 
 
-def test_traderspost_payload_fails_closed_on_missing_gap() -> None:
+def test_traderspost_payload_fails_closed_without_directional_gap() -> None:
     from open_prep.alerts import _format_traderspost_payload
 
-    # Missing / non-numeric / NaN gap: NO order side is inferable — the old
+    # Missing / non-numeric / non-finite / zero gap: NO order side is inferable — the old
     # 0.0 default read absent evidence as "buy"/"bullish" (fail-open class).
     assert _format_traderspost_payload({"symbol": "AAPL"}) is None
     assert _format_traderspost_payload({"symbol": "AAPL", "gap_pct": "n/a"}) is None
     assert _format_traderspost_payload({"symbol": "AAPL", "gap_pct": float("nan")}) is None
+    assert _format_traderspost_payload({"symbol": "AAPL", "gap_pct": 0.0}) is None
     # Real gaps still map to the correct side.
     up = _format_traderspost_payload({"symbol": "AAPL", "gap_pct": 3.0, "price": 100.0})
     assert up is not None and up["action"] == "buy" and up["sentiment"] == "bullish"

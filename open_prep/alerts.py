@@ -171,7 +171,7 @@ TIER_LABELS = {
 def _format_traderspost_payload(candidate: dict[str, Any]) -> dict[str, Any] | None:
     """Format a payload for TradersPost webhook.
 
-    Returns ``None`` (skip the target) when ``gap_pct`` is missing or
+    Returns ``None`` (skip the target) when ``gap_pct`` is missing, zero, or
     non-finite: ``action`` is an ORDER direction, and the old 0.0 default made
     absent evidence read as "buy"/"bullish" — the fail-open class from the
     #3549 audit, on an endpoint that can forward to a broker. Fail closed.
@@ -181,7 +181,7 @@ def _format_traderspost_payload(candidate: dict[str, Any]) -> dict[str, Any] | N
         gap = float(raw_gap)
     except (TypeError, ValueError):
         return None
-    if not math.isfinite(gap):
+    if not math.isfinite(gap) or gap == 0.0:
         return None
     return {
         "ticker": candidate.get("symbol", ""),
