@@ -1385,6 +1385,24 @@ jobs:
               exit 1
             fi
           done
+          # The core-import SNIPPET is a copy-paste example users paste into a
+          # chart, so its `import .../N as mp` must track the PUBLISHED version
+          # like any consumer. It lives under the excluded pine/ tree (the
+          # generated LIBRARY file there has its own version and must NOT be
+          # touched), so the enumeration above skips it — repin it explicitly.
+          # It regenerates to /1 (generation runs BEFORE publish, so the real
+          # version is unknown then) and was never bumped afterward: the
+          # pine-library-version-monitor (2026-07-13) caught the resulting
+          # /1-vs-published skew.
+          SNIPPET="pine/generated/smc_micro_profiles_core_import_snippet.pine"
+          if [ -f "${SNIPPET}" ] && grep -qE "${PIN_PATTERN}" "${SNIPPET}"; then
+            sed -i "s|${PIN_PATTERN}|${REPLACEMENT}|g" "${SNIPPET}"
+            if ! grep -qF "${REPLACEMENT}" "${SNIPPET}"; then
+              echo "::error::Failed to pin snippet ${SNIPPET} to library version ${NEW_VERSION}."
+              exit 1
+            fi
+            echo "Pinned core-import snippet ${SNIPPET} to library ${NEW_VERSION}."
+          fi
 
       - name: Commit and push changes
         id: commit_push
