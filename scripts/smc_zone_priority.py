@@ -30,6 +30,8 @@ from __future__ import annotations
 import math
 from typing import Any
 
+from scripts.smc_score_contract import FieldBound, apply_bounded_override
+
 # ── Defaults ────────────────────────────────────────────────────
 
 DEFAULTS: dict[str, Any] = {
@@ -38,6 +40,12 @@ DEFAULTS: dict[str, Any] = {
     "ZONE_PRIORITY_TOP_FAMILY": "OB",   # OB / FVG / BOS / SWEEP
     "ZONE_PRIORITY_CATALYST": "NONE",   # NEWS / EVENT / REGIME / NONE
     "ZONE_PRIORITY_REASON": "",         # human-readable explanation
+}
+
+# Numeric public field whose 0–100 contract a manual override must respect;
+# the string rank / family / catalyst / reason fields pass through unchanged.
+_OVERRIDE_BOUNDS: dict[str, FieldBound] = {
+    "ZONE_PRIORITY_SCORE": (0.0, 100.0, True),
 }
 
 # ── Regime scoring weights ──────────────────────────────────────
@@ -442,6 +450,6 @@ def build_zone_priority(
     if overrides:
         for key, val in overrides.items():
             if key in DEFAULTS:
-                result[key] = val
+                apply_bounded_override(result, key, val, _OVERRIDE_BOUNDS)
 
     return result

@@ -19,6 +19,8 @@ from typing import Any
 
 import pandas as pd
 
+from scripts.smc_score_contract import FieldBound, apply_bounded_override
+
 logger = logging.getLogger(__name__)
 
 # ── Defaults ────────────────────────────────────────────────────
@@ -33,6 +35,12 @@ DEFAULTS: dict[str, Any] = {
     "SWEEP_RECLAIM_ACTIVE": False,
     "LIQUIDITY_TAKEN_DIRECTION": "NONE",  # NONE | BUY_SIDE | SELL_SIDE
     "SWEEP_QUALITY_SCORE": 0,             # 0–5
+}
+
+# Numeric public field whose 0–5 contract a manual override must respect; the
+# boolean flags / string direction / raw zone-price fields pass through unchanged.
+_OVERRIDE_BOUNDS: dict[str, FieldBound] = {
+    "SWEEP_QUALITY_SCORE": (0.0, 5.0, True),
 }
 
 # ── Thresholds ──────────────────────────────────────────────────
@@ -90,7 +98,7 @@ def build_liquidity_sweeps(
     if overrides:
         for key, val in overrides.items():
             if key in DEFAULTS:
-                result[key] = val
+                apply_bounded_override(result, key, val, _OVERRIDE_BOUNDS)
 
     return result
 
