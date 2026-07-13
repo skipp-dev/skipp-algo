@@ -20,7 +20,7 @@ def _event(*, direction: str, reclaimed: bool, in_band: bool, dist: float,
     return {
         "family": "SWEEP",
         "features": {
-            "reaction_schema_version": 1,
+            "reaction_schema_version": 2,
             "reaction_direction": direction,
             "reaction_level_reclaimed": reclaimed,
             "reaction_in_rejection_band": in_band,
@@ -47,7 +47,7 @@ def test_derive_variants_mirrored_needs_reclaim_and_within_band() -> None:
 def test_collect_samples_filters_non_reaction_and_non_sweep() -> None:
     events = [
         _event(direction="bull", reclaimed=True, in_band=False, dist=0.2, width=0.7, outcome_late=True),
-        {"family": "BOS", "features": {"reaction_schema_version": 1, "reaction_direction": "bull",
+        {"family": "BOS", "features": {"reaction_schema_version": 2, "reaction_direction": "bull",
                                        "reaction_level_reclaimed": True, "reaction_in_rejection_band": False,
                                        "reaction_close_distance_pct": 0.2, "reaction_band_width_pct": 0.7,
                                        "reaction_outcome_late": True}},  # wrong family
@@ -62,7 +62,7 @@ def test_collect_samples_reads_outcome_from_extras_schema_1_1() -> None:
     ev = {
         "family": "SWEEP",
         "features": {
-            "reaction_schema_version": 1, "reaction_direction": "bull",
+            "reaction_schema_version": 2, "reaction_direction": "bull",
             "reaction_level_reclaimed": True, "reaction_in_rejection_band": False,
             "reaction_close_distance_pct": 0.2, "reaction_band_width_pct": 0.7,
         },
@@ -115,7 +115,7 @@ def test_thresholds_are_sane() -> None:
 # ── gradeable-outcome guard: an unresolved late window is NOT a silent miss ────
 def _reaction_feats(**overrides: Any) -> dict[str, Any]:
     feats: dict[str, Any] = {
-        "reaction_schema_version": 1,
+        "reaction_schema_version": 2,
         "reaction_direction": "bull",
         "reaction_level_reclaimed": True,
         "reaction_in_rejection_band": False,
@@ -177,3 +177,43 @@ def test_single_confirmed_hit_does_not_manufacture_promotion_end_to_end() -> Non
     assert lc["n"] >= MIN_SAMPLES and lc["n_confirmed"] == 1
     assert lc["lift"] == 1.0  # the effect looks huge...
     assert lc["verdict"] == "SHADOW"  # ...but the single-sample cell blocks promotion
+
+
+def test_schema_v1_rows_are_excluded_era_cut() -> None:
+    # v1 labels may be right-censored at the data edge (pre-edge-censoring fix).
+    ev = _reaction_feats(reaction_schema_version=1)
+    assert collect_samples([ev]) == []
+
+
+def test_band_close_after_reclaim_is_not_the_early_rejection_cohort() -> None:
+    """Producer scans on after a reclaim, so both raw flags can be True with the
+    band close AFTER the reclaim — that sample is a reclaim, not an early
+    rejection, and must not contaminate the ``old_band`` cohort."""
+    ev = _reaction_feats(
+        reaction_level_reclaimed=True, reaction_in_rejection_band=True,
+        reaction_bars_to_reclaim=1, reaction_bars_to_rejection_band=2,
+    )
+    [(direction, variants, _outcome)] = collect_samples([ev])
+    assert direction == "bull"
+    assert variants["old_band"] is False   # band fired after the reclaim
+    assert variants["level_cross"] is True
+
+
+def test_band_close_before_reclaim_stays_in_the_early_rejection_cohort() -> None:
+    ev = _reaction_feats(
+        reaction_level_reclaimed=True, reaction_in_rejection_band=True,
+        reaction_bars_to_reclaim=3, reaction_bars_to_rejection_band=1,
+    )
+    [(_direction, variants, _outcome)] = collect_samples([ev])
+    assert variants["old_band"] is True    # at band time no reclaim had happened yet
+    assert variants["level_cross"] is True
+
+
+def test_band_without_reclaim_stays_in_the_cohort() -> None:
+    ev = _reaction_feats(
+        reaction_level_reclaimed=False, reaction_in_rejection_band=True,
+        reaction_bars_to_rejection_band=2,
+    )
+    [(_direction, variants, _outcome)] = collect_samples([ev])
+    assert variants["old_band"] is True
+    assert variants["level_cross"] is False

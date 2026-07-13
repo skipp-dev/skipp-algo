@@ -110,3 +110,33 @@ def test_enabled_distance_too_far_returns_neutral() -> None:
     assert result["REACTION_CONTEXT_DETECTED"] is False
     assert result["REACTION_CONTEXT_CONFIDENCE"] == 0
 
+
+
+def test_direction_comes_only_from_the_qualifying_support() -> None:
+    """A stale/far OB must not overwrite the direction of the FVG that actually
+    qualified the detection (direction is derived per-support, post-qualification)."""
+    os.environ["ENABLE_REACTION_CONTEXT"] = "1"
+    result = detect_reaction_zone(
+        enrichment={
+            "structure_state_light": {"STRUCTURE_FRESH": True, "STRUCTURE_LAST_EVENT": "BOS_BULL"},
+            # OB: BEAR side but stale AND far -> does not qualify, must not steer.
+            "ob_context_light": {"OB_FRESH": False, "PRIMARY_OB_DISTANCE": 99.0, "PRIMARY_OB_SIDE": "BEAR"},
+            # FVG: fresh and near -> the actual qualifier.
+            "fvg_lifecycle_light": {"FVG_FRESH": True, "PRIMARY_FVG_DISTANCE": 0.5, "PRIMARY_FVG_SIDE": "BULL"},
+        }
+    )
+    assert result["REACTION_CONTEXT_DETECTED"] is True
+    assert result["REACTION_CONTEXT_DIRECTION"] == "bull"
+
+
+def test_qualifying_ob_still_takes_precedence_over_fvg() -> None:
+    os.environ["ENABLE_REACTION_CONTEXT"] = "1"
+    result = detect_reaction_zone(
+        enrichment={
+            "structure_state_light": {"STRUCTURE_FRESH": True, "STRUCTURE_LAST_EVENT": "BOS_BEAR"},
+            "ob_context_light": {"OB_FRESH": True, "PRIMARY_OB_DISTANCE": 0.5, "PRIMARY_OB_SIDE": "BEAR"},
+            "fvg_lifecycle_light": {"FVG_FRESH": True, "PRIMARY_FVG_DISTANCE": 0.5, "PRIMARY_FVG_SIDE": "BULL"},
+        }
+    )
+    assert result["REACTION_CONTEXT_DETECTED"] is True
+    assert result["REACTION_CONTEXT_DIRECTION"] == "bear"

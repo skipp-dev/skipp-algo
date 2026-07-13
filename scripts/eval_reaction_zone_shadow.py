@@ -69,10 +69,18 @@ def derive_variants(feats: dict[str, Any]) -> dict[str, bool] | None:
         in_band = bool(feats["reaction_in_rejection_band"])
         dist = float(feats["reaction_close_distance_pct"])
         width = float(feats["reaction_band_width_pct"])
+        bars_to_band = int(feats.get("reaction_bars_to_rejection_band", -1))
+        bars_to_reclaim = int(feats.get("reaction_bars_to_reclaim", -1))
     except (KeyError, TypeError, ValueError):
         return None
     mirrored = reclaimed and (0.0 <= dist <= width)
-    return {"old_band": in_band, "level_cross": reclaimed, "mirrored_band": mirrored}
+    # ``old_band`` is the EARLY-rejection cohort: at the time the band close fired
+    # no reclaim had happened yet. The producer keeps scanning after a reclaim, so
+    # both raw flags can be True with the band close AFTER the reclaim — that
+    # sample is a reclaim, not an early rejection, and must not contaminate the
+    # cohort. Ordering via bars_to_* (1-indexed; guarded by the flags).
+    early_band = in_band and (not reclaimed or (bars_to_band >= 1 and bars_to_band < bars_to_reclaim))
+    return {"old_band": early_band, "level_cross": reclaimed, "mirrored_band": mirrored}
 
 
 def collect_samples(events: list[dict[str, Any]]) -> list[tuple[str, dict[str, bool], int]]:
@@ -82,7 +90,12 @@ def collect_samples(events: list[dict[str, Any]]) -> list[tuple[str, dict[str, b
         if str(ev.get("family", "")).upper() != "SWEEP":
             continue
         feats = ev.get("features") or {}
-        if "reaction_schema_version" not in feats:
+        # Era-cut: schema v2 (edge-censoring fix) guarantees the late label was
+        # observed on the FULL disjoint outcome window; v1 rows may be right-censored.
+        try:
+            if int(feats.get("reaction_schema_version", 0)) < 2:
+                continue
+        except (TypeError, ValueError):
             continue
         direction = str(feats.get("reaction_direction", "")).lower()
         if direction not in DIRECTIONS:
