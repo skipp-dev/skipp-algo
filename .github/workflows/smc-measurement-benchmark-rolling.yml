@@ -312,8 +312,9 @@ jobs:
       # writes reports/smc_structure_artifacts/manifest_<tf>.json +
       # <SYMBOL>_<tf>.structure.json, which the provider resolves FIRST.
       # Per-symbol failures land in the manifest errors[] (exporter still
-      # exits 0); a hard exporter crash only warns — the benchmark below
-      # must keep running on the legacy fallback rather than kill the lane.
+      # exits 0); a hard exporter crash only warns HERE — since ADR-0027
+      # the availability gate below then fails closed, so the benchmark
+      # no longer silently runs on the legacy fallback.
       # This step also resolves + validates SYMBOLS/TIMEFRAMES once and
       # publishes them via GITHUB_ENV so the benchmark step cannot drift.
       - name: Export per-TF structure artifacts (un-void Plan 2.8 Phase-E2)
@@ -358,7 +359,10 @@ jobs:
       - name: Prove primary structure artifacts are available
         run: |
           "$SMC_PYTHON_BIN" -m scripts.verify_structure_artifact_availability \
-            --timeframes "${SMC_BENCH_TIMEFRAMES}"
+            --timeframes "${SMC_BENCH_TIMEFRAMES}" \
+            --expect-symbols "${SMC_BENCH_SYMBOLS}" \
+            --max-age-seconds 86400 \
+            --output "${{ steps.meta.outputs.out_dir }}/structure_artifact_availability.json"
 
       - name: Run daily rolling benchmark
         env:
