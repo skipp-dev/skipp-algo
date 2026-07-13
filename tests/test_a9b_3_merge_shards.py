@@ -164,6 +164,81 @@ def test_bool_drift_raises(mod):
         mod.merge_manifests(shards)
 
 
+def test_pit_universe_keys_drift_is_legal_per_shard(mod):
+    # Reproduces the 2026-07-13 production failure: the first post-#3453
+    # sharded run had shards 1-5 historical (active_only=False) and the
+    # today-shard live (True) — by-design PIT heterogeneity, not a bug.
+    shards = [
+        {
+            "universe_active_only": False,
+            "universe_as_of_trade_date": "2026-07-08",
+            "universe_snapshot_captured_at": None,
+        },
+        {
+            "universe_active_only": True,
+            "universe_as_of_trade_date": "2026-07-13",
+            "universe_snapshot_captured_at": "2026-07-13T11:02:00+00:00",
+        },
+    ]
+    merged = mod.merge_manifests(shards)
+    assert merged["universe_active_only_per_shard"] == {"1": False, "2": True}
+    assert merged["universe_as_of_trade_date_per_shard"] == {
+        "1": "2026-07-08",
+        "2": "2026-07-13",
+    }
+    assert merged["universe_snapshot_captured_at_per_shard"] == {
+        "1": None,
+        "2": "2026-07-13T11:02:00+00:00",
+    }
+    assert "universe_active_only" not in merged
+
+
+def test_survivorship_risk_reduces_with_or_and_keeps_detail(mod):
+    merged = mod.merge_manifests(
+        [
+            {"universe_survivorship_bias_risk": True},
+            {"universe_survivorship_bias_risk": False},
+        ]
+    )
+    # Plain scalar stays: build_promotion_gate_bundle reads it fail-soft.
+    assert merged["universe_survivorship_bias_risk"] is True
+    assert merged["universe_survivorship_bias_risk_per_shard"] == {"1": True, "2": False}
+
+    all_clear = mod.merge_manifests(
+        [
+            {"universe_survivorship_bias_risk": False},
+            {"universe_survivorship_bias_risk": False},
+        ]
+    )
+    assert all_clear["universe_survivorship_bias_risk"] is False
+
+    unknown_and_false = mod.merge_manifests(
+        [
+            {"universe_survivorship_bias_risk": None},
+            {"universe_survivorship_bias_risk": False},
+        ]
+    )
+    assert unknown_and_false["universe_survivorship_bias_risk"] is False
+
+    all_unknown = mod.merge_manifests(
+        [
+            {"universe_survivorship_bias_risk": None},
+            {"universe_survivorship_bias_risk": None},
+        ]
+    )
+    assert all_unknown["universe_survivorship_bias_risk"] is None
+
+
+def test_survivorship_risk_rejects_non_bool(mod):
+    with pytest.raises(mod.ManifestMergeError, match="must be bool/None"):
+        mod.merge_manifests(
+            [
+                {"universe_survivorship_bias_risk": "yes"},
+                {"universe_survivorship_bias_risk": False},
+            ]
+        )
+
+
 def test_nested_dict_recursive_merge(mod):
     shards = [
         {"counts": {"a": 10, "b": 5, "trade_dates_covered": ["2026-01-02"]}},
