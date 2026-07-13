@@ -92,6 +92,7 @@ class FamilyEvent(TypedDict, total=False):
     """
 
     family: EventFamily
+    event_id: str  # optional stable id (from the raw SMC event) — join key to the measurement ledger
     direction: str
     entry_mode: EntryMode
     zone_low: float
@@ -489,12 +490,14 @@ def _guard_end_ts(
 
 def extract_family_calibration_samples(
     events: list[FamilyEvent], *, cost_bps: float = DEFAULT_COST_BPS
-) -> dict[str, dict[str, list[float]]]:
+) -> dict[str, dict[str, list[Any]]]:
     """Per family, collect the inputs the walk-forward calibrator needs.
 
     For every event that BOTH triggered (a realized return exists) AND carries
     a raw ``score`` AND forward timestamps, emit a parallel-list bundle
-    ``{family: {"scores", "returns", "anchor_ts", "guard_end_ts"}}``.
+    ``{family: {"scores", "returns", "anchor_ts", "guard_end_ts", "event_ids"}}``.
+    ``event_ids`` (``list[str]``, "" when the event carried no id) is parallel to
+    the numeric lists so an OOS calibrated prob can be joined back to its event.
 
     ``guard_end_ts`` is the event's label-window end (the exit bar the outcome
     actually consumed, see :func:`_guard_end_ts`) PLUS the family embargo
@@ -524,12 +527,15 @@ def extract_family_calibration_samples(
             continue
         bucket = out.setdefault(
             family,
-            {"scores": [], "returns": [], "anchor_ts": [], "guard_end_ts": []},
+            {"scores": [], "returns": [], "anchor_ts": [], "guard_end_ts": [], "event_ids": []},
         )
         bucket["scores"].append(float(event["score"]))
         bucket["returns"].append(ret)
         bucket["anchor_ts"].append(float(event["anchor_ts"]))
         bucket["guard_end_ts"].append(guard_end)
+        # Parallel to the numeric lists: the source event id (or "" when absent),
+        # so a downstream consumer can align each OOS calibrated prob to its event.
+        bucket["event_ids"].append(str(event.get("event_id", "")))
     return out
 
 
@@ -799,6 +805,7 @@ def to_build_spec(
                 samples["returns"],
                 samples["anchor_ts"],
                 samples["guard_end_ts"],
+                event_ids=samples.get("event_ids"),
             )
             if block is not None:
                 # ADR-0018 / EV-26: split-conformal coverage on the SAME pooled
