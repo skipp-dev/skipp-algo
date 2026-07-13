@@ -78,7 +78,6 @@ def test_execution_quality_poor_skips_trade() -> None:
 
 def test_no_trade_zone_breaking_news_no_reclaim() -> None:
     is_ntz, reason = pb._no_trade_zone(
-        regime="NEUTRAL",
         gap_pct=5.0,
         recency_bucket=pb.RECENCY_ULTRA_FRESH,
         event_class=pb.EVENT_UNSCHEDULED,
@@ -93,7 +92,6 @@ def test_no_trade_zone_breaking_news_no_reclaim() -> None:
 
 def test_no_trade_zone_illiquid_stale_premarket() -> None:
     is_ntz, reason = pb._no_trade_zone(
-        regime="NEUTRAL",
         gap_pct=1.0,
         recency_bucket=pb.RECENCY_WARM,
         event_class=pb.EVENT_SCHEDULED,
@@ -108,7 +106,6 @@ def test_no_trade_zone_illiquid_stale_premarket() -> None:
 
 def test_no_trade_zone_extreme_gap_halt_risk() -> None:
     is_ntz, reason = pb._no_trade_zone(
-        regime="NEUTRAL",
         gap_pct=20.0,
         recency_bucket=pb.RECENCY_WARM,
         event_class=pb.EVENT_SCHEDULED,
@@ -123,7 +120,6 @@ def test_no_trade_zone_extreme_gap_halt_risk() -> None:
 
 def test_no_trade_zone_clean_candidate_is_tradeable() -> None:
     is_ntz, reason = pb._no_trade_zone(
-        regime="RISK_ON",
         gap_pct=3.0,
         recency_bucket=pb.RECENCY_WARM,
         event_class=pb.EVENT_SCHEDULED,
@@ -184,3 +180,44 @@ def test_assign_playbook_poor_liquidity_forces_no_trade() -> None:
     assert result.execution_quality == "POOR"
     assert result.size_adjustment == 0.0
     assert result.max_loss_pct == 0.0
+
+
+def test_gap_down_candidate_never_gets_long_only_gap_and_go() -> None:
+    # Regression: go_score can clear 0.30 without any gap contribution
+    # (rvol 0.25 + RISK_ON 0.15 + catalyst 0.15), so before the gap>0 gate a
+    # -5% gapper could receive the long-only ORH-breakout playbook.
+    candidate = _strong_gap_go_candidate()
+    candidate["gap_pct"] = -5.0
+    result = pb.assign_playbook(
+        candidate,
+        regime="RISK_ON",
+        sector_breadth=0.7,
+        news_metrics_entry={},
+        now_utc=datetime.now(UTC),
+    )
+    assert result.playbook != pb.PLAYBOOK_GAP_AND_GO
+
+
+def test_zero_gap_candidate_never_gets_gap_fade() -> None:
+    # The fade trigger branches on the gap SIGN; a zero-gap candidate fits
+    # neither the short-the-gap-up nor the reclaim-from-gap-down text.
+    candidate = _strong_gap_go_candidate()
+    candidate["gap_pct"] = 0.0
+    candidate["ext_hours_score"] = 0.1  # weak tape favors fade scoring
+    candidate["volume"] = 1_000_000.0   # rvol = 1.0 (low)
+    result = pb.assign_playbook(
+        candidate,
+        regime="RISK_OFF",
+        sector_breadth=0.2,
+        news_metrics_entry={},
+        now_utc=datetime.now(UTC),
+    )
+    assert result.playbook not in (pb.PLAYBOOK_GAP_FADE, pb.PLAYBOOK_GAP_AND_GO)
+
+
+def test_tier2_short_tokens_require_word_boundary() -> None:
+    # "ft" must not substring-match inside other source names.
+    swift = pb.classify_source_quality("Swift Media Newswire", "some headline")
+    assert swift["source_tier"] != pb.SOURCE_TIER_2
+    ft = pb.classify_source_quality("FT", "some headline")
+    assert ft["source_tier"] == pb.SOURCE_TIER_2

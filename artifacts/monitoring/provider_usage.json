@@ -11,7 +11,7 @@
       "fmp": {
         "bytes": 12,
         "calls": 10,
-        "rate_limit_hits": 5,
+        "rate_limit_hits": 7,
         "records": 0
       },
       "unknown": {
@@ -28,5 +28,5 @@
       }
     }
   },
-  "updated_at": "2026-07-13T07:47:04.198172+00:00"
+  "updated_at": "2026-07-13T10:48:52.076283+00:00"
 }

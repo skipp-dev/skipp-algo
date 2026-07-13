@@ -182,7 +182,7 @@ def classify_recency(
         {
             "recency_bucket": "ULTRA_FRESH" | "FRESH" | "WARM" | "AGING" | "STALE" | "UNKNOWN",
             "age_minutes": float | None,
-            "is_actionable": bool,  # True if <60m (still tradeable)
+            "is_actionable": bool,  # True if <=60m (still tradeable)
         }
     """
     now = now_utc or datetime.now(UTC)
@@ -230,12 +230,14 @@ _TIER_1_SOURCES: frozenset[str] = frozenset({
 # Word-boundary tokens checked separately to avoid false positives
 # (e.g. "sec" matching "sector").
 _TIER_1_WORD_TOKENS: frozenset[str] = frozenset({"sec"})
+# Short TIER-2 tokens ("ft" would match "Swift", "ibd" any substring) — word-boundary only.
+_TIER_2_WORD_TOKENS: frozenset[str] = frozenset({"ft", "ibd"})
 
 _TIER_2_SOURCES: frozenset[str] = frozenset({
     "reuters", "bloomberg", "wsj", "wall street journal", "cnbc",
-    "financial times", "ft", "barron's", "barrons", "marketwatch",
+    "financial times", "barron's", "barrons", "marketwatch",
     "seeking alpha", "benzinga", "yahoo finance", "the motley fool",
-    "investors.com", "ibd", "zacks", "tipranks",
+    "investors.com", "zacks", "tipranks",
 })
 
 _TIER_4_SOURCES: frozenset[str] = frozenset({
@@ -269,6 +271,8 @@ def classify_source_quality(source: str, title: str = "") -> dict[str, Any]:
 
     if any(s in source_lower for s in _TIER_2_SOURCES):
         return {"source_tier": SOURCE_TIER_2, "source_rank": 2, "source_name": source}
+    if any(re.search(rf"\b{re.escape(tok)}\b", source_lower) for tok in _TIER_2_WORD_TOKENS):
+        return {"source_tier": SOURCE_TIER_2, "source_rank": 2, "source_name": source}
 
     if any(s in source_lower for s in _TIER_4_SOURCES):
         return {"source_tier": SOURCE_TIER_4, "source_rank": 4, "source_name": source}
@@ -292,8 +296,8 @@ _MIN_RVOL_FOR_GO = _THRESHOLDS.min_rvol_for_go
 _MIN_EXT_SCORE_FOR_GO = _THRESHOLDS.min_ext_score_for_go
 _FADE_GAP_OVERDONE = _THRESHOLDS.fade_gap_overdone
 _FADE_MAX_EXT_SCORE = _THRESHOLDS.fade_max_ext_score
-# NOTE: currently UNUSED — _compute_drift_score hardcodes the materiality gate
-# ("HIGH"/"MEDIUM"), so tuning drift_min_materiality in config has no effect today.
+# Minimum materiality for the MEDIUM tier to score in _compute_drift_score
+# (set to "HIGH" to require HIGH-materiality catalysts only).
 _DRIFT_MIN_MATERIALITY = _THRESHOLDS.drift_min_materiality
 _MAX_SPREAD_BPS_FOR_TRADE = _THRESHOLDS.max_spread_bps_for_trade
 _CAUTION_SPREAD_BPS = _THRESHOLDS.caution_spread_bps
@@ -337,7 +341,7 @@ class PlaybookResult:
     dollar_volume_ok: bool
     halt_risk: bool               # True if abs(gap_pct) > 10% (up OR down; no halt-feed input)
     execution_quality: str         # GOOD / CAUTION / POOR
-    size_adjustment: float         # 1.0 = full, 0.5 = half, 0.0 = no trade
+    size_adjustment: float         # 1.0 = full, 0.5 = half, 0.25 = CAUTION, 0.0 = no trade
 
     # --- Step 5: Risk ---
     max_loss_pct: float            # of account, e.g. 0.5
@@ -369,7 +373,6 @@ def _compute_gap_go_score(
     event_class: str,
     materiality: str,
     is_actionable: bool,
-    macro_bias: float,
 ) -> float:
     """Score 0..1 how well this candidate fits the Gap&Go playbook.
 
@@ -411,7 +414,6 @@ def _compute_fade_score(
     event_class: str,
     materiality: str,
     sector_breadth: float,
-    macro_bias: float,
 ) -> float:
     """Score 0..1 how well this candidate fits the Gap Fade playbook.
 
@@ -419,7 +421,7 @@ def _compute_fade_score(
     """
     s = 0.0
 
-    # Overdone gap (0..0.3)
+    # Overdone gap (exactly 0.3 whenever it fires: abs>=5 -> 5/15>0.3 cap)
     if abs(gap_pct) >= _FADE_GAP_OVERDONE:
         s += min(abs(gap_pct) / 15.0, 0.3)
 
@@ -448,7 +450,6 @@ def _compute_fade_score(
 
 def _compute_drift_score(
     gap_pct: float,
-    event_class: str,
     event_label: str,
     materiality: str,
     recency_bucket: str,
@@ -463,7 +464,7 @@ def _compute_drift_score(
     # Material catalyst (0..0.3)
     if materiality == "HIGH":
         s += 0.30
-    elif materiality == "MEDIUM":
+    elif materiality == "MEDIUM" and _DRIFT_MIN_MATERIALITY != "HIGH":
         s += 0.15
 
     # Aging news (initial noise settling) (0..0.25)
@@ -534,7 +535,6 @@ def _execution_quality(
 
 def _no_trade_zone(
     *,
-    regime: str,
     gap_pct: float,
     recency_bucket: str,
     event_class: str,
@@ -566,8 +566,8 @@ def _no_trade_zone(
     if is_halt_risk and abs(gap_pct) > 15.0:
         reasons.append("extreme_gap_halt_risk")
 
-    # FOMC minutes window (macro release)
-    # This would be time-based; flagged via warn_flags externally
+    # FOMC/macro-release no-trade window: NOT implemented anywhere (no time-based
+    # warn-flag emitter exists in open_prep) — a future wire-up, not covered today.
 
     if reasons:
         return True, "; ".join(reasons)
@@ -727,7 +727,6 @@ def assign_playbook(
     rvol = (volume / avg_volume) if avg_volume > 0 else 0.0
     ext_hours_score = _to_float(candidate.get("ext_hours_score"), default=0.0)
     momentum_z = _to_float(candidate.get("momentum_z_score"), default=0.0)
-    macro_bias = _to_float(candidate.get("macro_bias"), default=0.0)
     spread_bps_raw = candidate.get("premarket_spread_bps")
     spread_bps: float | None = None
     if spread_bps_raw is not None:
@@ -758,15 +757,15 @@ def assign_playbook(
     go_score = _compute_gap_go_score(
         gap_pct, rvol, ext_hours_score, regime,
         event_info["event_class"], event_info["materiality"],
-        recency_info["is_actionable"], macro_bias,
+        recency_info["is_actionable"],
     )
     fade_score = _compute_fade_score(
         gap_pct, rvol, ext_hours_score, regime,
         event_info["event_class"], event_info["materiality"],
-        sector_breadth, macro_bias,
+        sector_breadth,
     )
     drift_score = _compute_drift_score(
-        gap_pct, event_info["event_class"], event_info["event_label"],
+        gap_pct, event_info["event_label"],
         event_info["materiality"], recency_info["recency_bucket"], momentum_z,
     )
 
@@ -778,7 +777,6 @@ def assign_playbook(
 
     # — Step 5: No-trade zone check —
     is_ntz, ntz_reason = _no_trade_zone(
-        regime=regime,
         gap_pct=gap_pct,
         recency_bucket=recency_info["recency_bucket"],
         event_class=event_info["event_class"],
@@ -792,10 +790,15 @@ def assign_playbook(
     if is_ntz or exec_quality == "POOR":
         playbook = PLAYBOOK_NO_TRADE
         pb_reason = ntz_reason or "Execution quality too poor"
-    elif go_score >= fade_score and go_score >= drift_score and go_score >= 0.30:
+    elif gap_pct > 0 and go_score >= fade_score and go_score >= drift_score and go_score >= 0.30:
+        # gap>0 gate: the Gap&Go trigger/invalidation are long-only (break above
+        # ORH, hold above VWAP) — without it, rvol+regime+catalyst alone could
+        # attach long breakout instructions to a gap-DOWN candidate.
         playbook = PLAYBOOK_GAP_AND_GO
         pb_reason = f"Gap&Go: gap={gap_pct:.1f}%, RVOL={rvol:.1f}x, tape={ext_hours_score:.2f}"
-    elif fade_score >= go_score and fade_score >= drift_score and fade_score >= 0.30:
+    elif gap_pct != 0 and fade_score >= go_score and fade_score >= drift_score and fade_score >= 0.30:
+        # gap!=0 gate: the fade trigger branches on the gap SIGN (short a gap-up,
+        # long-reclaim a gap-down); a zero-gap candidate fits neither text.
         playbook = PLAYBOOK_GAP_FADE
         pb_reason = f"Gap Fade: gap={gap_pct:.1f}%, weak tape={ext_hours_score:.2f}, breadth={sector_breadth:.0%}"
     elif drift_score >= 0.25:
