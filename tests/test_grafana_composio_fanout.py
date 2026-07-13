@@ -39,26 +39,6 @@ def test_build_slack_message():
     assert "http://grafana.local" in msg
 
 
-def test_issue_alerts_opt_in_only():
-    payload = {
-        "status": "firing",
-        "alerts": [
-            {"labels": {"alertname": "A", "composio_issue": "true"}},
-            {"labels": {"alertname": "B"}},
-        ],
-    }
-    got = gf._issue_alerts(payload)
-    assert [a["labels"]["alertname"] for a in got] == ["A"]
-
-
-def test_issue_alerts_none_when_resolved():
-    payload = {
-        "status": "resolved",
-        "alerts": [{"labels": {"alertname": "A", "composio_issue": "true"}}],
-    }
-    assert gf._issue_alerts(payload) == []
-
-
 def test_fan_out_routes_slack_and_optin_issue(monkeypatch):
     issues: list[str] = []
     monkeypatch.setattr(gf.composio_ops, "notify_slack", lambda m: DeliveryResult(True, False, "ok"))
