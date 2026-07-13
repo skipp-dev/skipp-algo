@@ -4,7 +4,7 @@
 |---------|-------|
 | Status  | Accepted |
 | Date    | 2026-06-10 |
-| Refs    | Audit-R3 (Principal Review 2026-06-10); `.github/workflows/smc-live-newsapi-refresh.yml:225`; `.github/workflows/smc-measurement-benchmark-rolling.yml` (bot/live-experiment-snapshot, added 2026-06-23); `.github/workflows/credential-health-check.yml` (bot/live-tv-credential-snapshot, added 2026-06-23); `scripts/publish_signals_snapshot.py` (bot/live-signals-snapshot host helper, added 2026-06-23); `tests/test_workflow_auth_pattern.py`; ADR-0010 (cron-workflow invariants) |
+| Refs    | Audit-R3 (Principal Review 2026-06-10); `.github/workflows/smc-live-news-refresh.yml:252`; `.github/workflows/smc-measurement-benchmark-rolling.yml` (bot/live-experiment-snapshot, added 2026-06-23); `.github/workflows/credential-health-check.yml` (bot/live-tv-credential-snapshot, added 2026-06-23); `scripts/publish_signals_snapshot.py` (bot/live-signals-snapshot host helper, added 2026-06-23); `tests/test_workflow_auth_pattern.py`; ADR-0010 (cron-workflow invariants) |
 
 ---
 
@@ -17,7 +17,7 @@ as requiring explicit documentation, because the Principal Review prompt
 lists `git push -f`, `git push --force`, and `--force-with-lease` in the same
 "never" category without carve-outs.
 
-The `smc-live-newsapi-refresh.yml` workflow updates a rolling "live news
+The `smc-live-news-refresh.yml` workflow updates a rolling "live news
 snapshot" branch (`bot/live-news-snapshot`) with a lightweight JSON
 microstructure file every cron tick.  The branch's sole purpose is to act
 as a mutable cache cursor — there is intentionally no commit history worth
@@ -61,7 +61,7 @@ Constraints that must hold for the allowance to remain valid:
    equivalent) before the `--force-with-lease` call so the lease compares
    against the real remote tip rather than falling back to the "empty-lease"
    unconditional force.  This is already done at
-   `smc-live-newsapi-refresh.yml:219-221`.
+   `smc-live-news-refresh.yml:243`.
 
 3. **The push is wrapped in `if git push ... ; then ... else ... fi`** — the
    existing `test_workflow_auth_pattern.py::test_workflow_git_push_is_safe`
@@ -76,7 +76,7 @@ Constraints that must hold for the allowance to remain valid:
 
 ## Consequences
 
-* The `smc-live-newsapi-refresh.yml` snapshot mechanism continues to work
+* The `smc-live-news-refresh.yml` snapshot mechanism continues to work
   without accumulating unbounded history on `bot/live-news-snapshot`.
 * `run-open-prep-daily.yml` reuses the same carve-out to publish
   `latest_open_prep_run.json` to `bot/live-open-prep-snapshot` (2026-06-23,

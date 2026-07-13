@@ -11,7 +11,7 @@
 
 The repository operates with a single human committer (`skipp-dev`).
 Branch protection on `main` currently requires:
-- `fast-gates` status check (`strict=true`, must be up-to-date with main)
+- `fast-gates` status check (`strict=false` since 2026-07-12; was `strict=true` at ADR date — the up-to-date requirement was dropped to retire the BEHIND-PR livelock)
 - *no* required reviews (today)
 
 PRs are routinely opened by `skipp-dev` and armed with `--auto` to

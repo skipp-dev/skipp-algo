@@ -2,7 +2,13 @@
 
 **Scope:** Windows self-hosted GitHub Actions runners
 (`actions.runner.skippALGO-skipp-algo.{ASUS,ASUS-2,ASUS-3,ASUS-4}`) hosting the
-`validate` job from `.github/workflows/ci.yml`.
+self-hosted **batch/cron** workflows (library-refresh, measurement-benchmark, etc.).
+
+> **Correction (truth-audit 2026-07-13):** the `validate` job in
+> `.github/workflows/ci.yml` is **no longer** self-hosted — per the 2026-05-20
+> runner policy it runs GitHub-hosted
+> (`runs-on: ${{ vars.SMC_GH_HOSTED_RUNNER || 'ubuntu-latest' }}`, `ci.yml:55`).
+> The hardening guidance below still applies to the self-hosted batch/cron jobs.
 
 **Pairs with:**
 - [scripts/setup-self-hosted-runner.ps1](../scripts/setup-self-hosted-runner.ps1)

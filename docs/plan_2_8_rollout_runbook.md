@@ -16,7 +16,10 @@ and [`DECISIONS.md`](./DECISIONS.md).
 ## Daily automation
 
 - [`.github/workflows/smc-measurement-benchmark-rolling.yml`](../.github/workflows/smc-measurement-benchmark-rolling.yml)
-  cron `30 7 * * *`. Runs all four TFs, emits
+  runs after `smc-databento-production-export-sharded` completes
+  (primary trigger, `workflow_run`), with a Mon–Fri safety-net cron
+  `30 16 * * 1-5` (16:30 UTC) — no fresh rollup on weekends/holidays.
+  Runs all seven TFs (5m/10m/15m/30m/1H/4H/1D), emits
   `plan_2_8_tf_family_rollup.json` per out_dir, streams Phase-E2
   verdict markdown (`fvg_ttf_5m_vs_baseline`,
   `bos_stability_4h_vs_baseline`) into the step summary.

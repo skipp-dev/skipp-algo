@@ -75,6 +75,15 @@ test asserts every test file resolves to exactly one bucket so marker
 drift cannot silently exclude tests. Once stable, `validate` is
 promoted to required (closes Operator-Punkt 1).
 
+> **Status (truth-audit 2026-07-13): scaffolded, NOT yet wired.** No
+> workflow runs `pytest -m slow`. `fast-gates` runs an enumerated file
+> subset (`smc-fast-pr-gates.yml`); `ci.yml` `validate` runs the full
+> suite sharded 4-way (`--splits 4 --group …`), not the `-m slow`
+> complement; and `validate` is still non-required (`fast-gates` is the
+> only required check). The `slow` marker is registered
+> (`pyproject.toml`) and the bucket meta-test exists, but the Option-B
+> partition is not applied in CI.
+
 ## Consequences
 
 - B is the clean answer if marker discipline can be enforced (a small

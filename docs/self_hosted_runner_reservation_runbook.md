@@ -2,6 +2,21 @@
 
 Stand: 2026-05-15
 
+> **Correction (truth-audit 2026-07-13):** two premises below have drifted:
+> - **CI `validate` is GitHub-hosted, not self-hosted** — the 2026-05-20 runner
+>   policy pins `ci.yml` to
+>   `runs-on: ${{ vars.SMC_GH_HOSTED_RUNNER || 'ubuntu-latest' }}` (`ci.yml:55`)
+>   and it reads no self-hosted label. The `SMC_CI_SELF_HOSTED_LABEL` chain is
+>   live only in `smc-fast-pr-gates.yml` and `smc-release-gates.yml`.
+> - **The cron producer moved.** `smc-databento-production-export` is now
+>   deprecated / `workflow_dispatch`-only (F-V8 cutover 2026-05-18); the real
+>   cron producer is `smc-databento-production-export-sharded.yml`, which runs
+>   GitHub-hosted only — no self-hosted lane on it to reserve or audit.
+>
+> Sections about reserving/auditing CI-`validate` or the monolithic producer on
+> self-hosted are superseded. The reservation policy still applies to the
+> genuinely self-hosted batch/cron workflows.
+
 ## Goal
 
 Route the memory-heavy and GPU-specific GitHub Actions workflows onto the

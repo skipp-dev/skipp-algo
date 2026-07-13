@@ -213,7 +213,7 @@ indistinguishable from noise.
 ### 2026-04-23 - Soft-fail the live-news refresh push step
 
 **Context.** Since 2026-04-20 the
-[`smc-live-newsapi-refresh.yml`](../.github/workflows/smc-live-newsapi-refresh.yml)
+[`smc-live-news-refresh.yml`](../.github/workflows/smc-live-news-refresh.yml)
 cron has produced 52 consecutive run failures. Root cause is *not* the
 refresh logic — the snapshot is built and uploaded as an artifact every
 run — but the trailing `git push` step, which `main`'s branch protection
@@ -230,7 +230,7 @@ is a *hard* fix (loaders now stamp `asof_ts` at load time when
 semantics — it is **not** the soft-bypass this ADR records.
 
 **Decision.** Mark the *commit/push* step in
-`smc-live-newsapi-refresh.yml` as `continue-on-error: true` and
+`smc-live-news-refresh.yml` as `continue-on-error: true` and
 downgrade push/rebase failure annotations from `::error::` to
 `::warning::` (commits `3b9f9458` / [#25](https://github.com/skippALGO/skipp-algo/pull/25)).
 The artifact upload (`actions/upload-artifact@v4` of
@@ -274,7 +274,7 @@ The `provider_health` gate itself stays hard. Only the cosmetic
 
 **Evidence.**
 
-- [`.github/workflows/smc-live-newsapi-refresh.yml`](../.github/workflows/smc-live-newsapi-refresh.yml)
+- [`.github/workflows/smc-live-news-refresh.yml`](../.github/workflows/smc-live-news-refresh.yml)
   — `Commit snapshot updates` step carries
   `continue-on-error: true` and the inline rationale comment.
 - Commit `3b9f9458` ([#25](https://github.com/skippALGO/skipp-algo/pull/25))
