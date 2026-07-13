@@ -19,7 +19,7 @@ from governance.family_returns import (
     realized_return,
     to_build_spec,
 )
-from governance.family_walkforward import family_outcome_horizon
+from governance.family_walkforward import family_outcome_horizon, get_family_config
 
 
 def _long_event(
@@ -138,6 +138,37 @@ def test_lookahead_forward_timestamp_is_refused() -> None:
     ev["forward_timestamps"][2] = 100.0  # equal to anchor -> leak
     with pytest.raises(ValueError, match="lookahead leak"):
         realized_return(ev)
+
+
+def test_guard_end_keys_on_label_end_idx_not_buffer_end() -> None:
+    fts = [10.0, 11.0, 12.0, 13.0, 14.0]  # interval 1.0; buffer end at idx 4
+    # label actually consumed up to idx 2 -> guard keys on fts[2], not fts[-1]
+    assert _guard_end_ts(fts, 2, label_end_idx=2) == pytest.approx(12.0 + 2 * 1.0)
+    # default (-1) preserves the old buffer-end behavior for callers without an exit
+    assert _guard_end_ts(fts, 2) == pytest.approx(14.0 + 2 * 1.0)
+    # a tighter label end can only move the guard EARLIER (less over-purging)
+    assert _guard_end_ts(fts, 2, label_end_idx=2) < _guard_end_ts(fts, 2)
+
+
+def test_calibration_guard_end_tightened_to_consumed_exit() -> None:
+    # OB retest: horizon 6, touch at forward idx 0 -> exit at idx 6; the adapter
+    # buffer runs to idx 8 (n = horizon + 3). The purge guard must key on the EXIT
+    # bar (fts[6]), not the buffer end (fts[8]) — tighter but still fully leak-safe.
+    ev = _long_event(family="OB", rising=True, timestamps=True)
+    ev["score"] = 0.7
+    fts = [float(t) for t in ev["forward_timestamps"]]
+    horizon = family_outcome_horizon("OB")
+    exit_idx = 0 + horizon  # touch idx 0 + horizon
+    embargo = get_family_config("OB").embargo_bars
+    interval = _event_bar_interval(fts)
+
+    samples = extract_family_calibration_samples([ev], cost_bps=0.0)
+    guard = samples["OB"]["guard_end_ts"][0]
+    assert guard == pytest.approx(fts[exit_idx] + embargo * interval)
+    # tighter than the old buffer-end guard ...
+    assert guard < fts[-1] + embargo * interval
+    # ... yet never ends BEFORE the consumed label (leak-safety preserved)
+    assert guard >= fts[exit_idx]
 
 
 def test_extract_groups_by_family_and_drops_nontriggers() -> None:
