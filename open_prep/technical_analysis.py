@@ -12,7 +12,7 @@ Provides:
   #10 GateTracker                           — structured gate-rejection logger
   #12 detect_symbol_regime                  — per-symbol TRENDING / RANGING
   #13 compute_entry_probability             — sigmoid-based entry probability [0,1]
-  #14 EWMA                                 — Energy-Weighted Moving Average score
+  #14 EWMA (Energy-Weighted, NOT exponential) — volume x true-range energy score
   #15 resolve_regime_weights                — regime-adaptive weight adjustments
 
 All functions operate on simple dicts / scalars — no pandas required.

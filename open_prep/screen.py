@@ -279,11 +279,11 @@ def rank_candidates(
 ) -> list[dict[str, Any]]:
     """Rank long candidates from quote snapshots.
 
-    .. deprecated::
-        Use ``scorer.rank_candidates_v2`` instead.  This v1 ranker is kept
-        for backward compatibility with external scripts that import it
-        directly.  It lacks sector-relative scoring, freshness decay,
-        diminishing-returns compression and adaptive gating that v2 provides.
+    .. note::
+        ``scorer.rank_candidates_v2`` is the PRIMARY ranker, but this v1 ranker
+        is still LIVE — it drives the operator GAP-GO / GAP-WATCH watchlist
+        panels (run_open_prep -> streamlit_monitor).  It lacks the sector-relative
+        scoring, freshness decay, DR compression and adaptive gating v2 adds.
 
     Expected (if available) in quote payload:
     - symbol
