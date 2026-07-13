@@ -234,8 +234,11 @@ class TestGeneratedArtifactDrift:
         # 5 reserved action exports again while keeping the single
         # existing HERO_ACTION export:
         # 202 → 197.
-        assert len(exports) == 197, (
-            f"Expected 197 export const fields for the current v8 shared-export contract, got {len(exports)}"
+        # Confidence-vocabulary program (2026-07-13): +1 additive
+        # ZONE_CAL_RELIABILITY_SCORE (honest alias of ZONE_CAL_CONFIDENCE, which
+        # stays until SMC_Dashboard flips post-republish). 197 → 198.
+        assert len(exports) == 198, (
+            f"Expected 198 export const fields for the current v8 shared-export contract, got {len(exports)}"
         )
 
     def test_event_risk_exports_stay_in_canonical_order(self, regenerated: Path):
