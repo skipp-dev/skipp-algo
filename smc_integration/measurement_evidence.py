@@ -1821,7 +1821,11 @@ def build_measurement_evidence(symbol: str, timeframe: str) -> MeasurementEviden
     bias_verdict = merge_bias(htf_context or None, session_context or None)
     vol_regime = compute_vol_regime(resampled_bars)
     details["bias_direction"] = bias_verdict.direction
+    # Dual-write (confidence-vocabulary program): bias_conviction_score is the
+    # honest name (fixed-table conviction weight, not a probability);
+    # bias_confidence stays as the legacy alias until the close-window cleanup.
     details["bias_confidence"] = bias_verdict.confidence
+    details["bias_conviction_score"] = bias_verdict.confidence
     # Disclose which inputs actually fed the merged bias (htf+session vs.
     # single-source vs. none) — mirrors vol_regime_model_source (audit #2670 W6).
     details["bias_source"] = bias_verdict.source

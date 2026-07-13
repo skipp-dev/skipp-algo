@@ -199,6 +199,12 @@ def test_bundle_contains_snapshot_projections_and_additive_contexts(monkeypatch)
         "htf_context_available": True,
     }
     assert bundle["market_context"]["bias_direction"] == bundle["bias_verdict"]["direction"]
+    # Dual-write (confidence-vocabulary program): the honest conviction-score
+    # aliases carry the SAME value as the legacy *confidence keys, in both the
+    # bias_verdict sub-payload and the flattened market_context.
+    assert bundle["bias_verdict"]["conviction_score"] == bundle["bias_verdict"]["confidence"]
+    assert bundle["market_context"]["bias_conviction_score"] == bundle["market_context"]["bias_confidence"]
+    assert bundle["market_context"]["bias_conviction_score"] == bundle["bias_verdict"]["confidence"]
     assert bundle["market_context"]["bars_available"] is True
     assert bundle["market_context"]["bar_count"] == 3
     assert bundle["market_context"]["vol_regime_label"] == "HIGH_VOL"
