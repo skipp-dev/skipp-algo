@@ -38,6 +38,7 @@ import time
 import urllib.error
 import urllib.request
 import zipfile
+from datetime import date, timedelta
 from pathlib import Path
 from urllib.parse import urlparse
 
@@ -134,10 +135,27 @@ def _is_canonical_producer_run(token: str, repo: str, run_id: int, cache: dict[i
     return ok
 
 
-def _list_candidates(token: str, repo: str, today_prefix: str) -> list[dict]:
+# Fallback search depth (2026-07-13): the previous 3-page window (300 newest
+# repo artifacts) did not reach back to the last good producer bundle after
+# one weekend plus a red producer morning — this repo pushes hundreds of
+# artifacts per day, so the 3-day-old good bundle fell outside the window and
+# the benchmark aborted despite a usable fallback existing. Page deeper, but
+# never restore a bundle older than the age horizon: a silently-stale bundle
+# feeding the benchmark would be worse than the honest missing-bundle abort.
+_MAX_PAGES = 30
+_MAX_CANDIDATE_AGE_DAYS = 7
+
+
+def _horizon_iso(run_date: str) -> str:
+    """Oldest acceptable artifact ``created_at`` (ISO-Z) for the fallback."""
+    day = date.fromisoformat(run_date) - timedelta(days=_MAX_CANDIDATE_AGE_DAYS)
+    return f"{day.isoformat()}T00:00:00Z"
+
+
+def _list_candidates(token: str, repo: str, today_prefix: str, horizon_iso: str) -> list[dict]:
     artifacts: list[dict] = []
     run_workflow_cache: dict[int, bool] = {}
-    for page in range(1, 4):
+    for page in range(1, _MAX_PAGES + 1):
         payload = _api_get_json(token, f"repos/{repo}/actions/artifacts?per_page=100&page={page}")
         batch = payload.get("artifacts") or []
         if not batch:
@@ -148,6 +166,10 @@ def _list_candidates(token: str, repo: str, today_prefix: str) -> list[dict]:
                 continue
             if bool(item.get("expired")):
                 continue
+            # ISO-Z strings compare lexicographically; empty/absent
+            # created_at sorts as too old -> skipped (fail-closed).
+            if str(item.get("created_at") or "") < horizon_iso:
+                continue
             workflow_run = item.get("workflow_run") or {}
             if str(workflow_run.get("head_branch") or "") != "main":
                 continue
@@ -155,6 +177,10 @@ def _list_candidates(token: str, repo: str, today_prefix: str) -> list[dict]:
             if not _is_canonical_producer_run(token, repo, run_id, run_workflow_cache):
                 continue
             artifacts.append(item)
+        # The listing is newest-first; once an entire page predates the
+        # horizon, deeper pages cannot contain an acceptable candidate.
+        if all(str(item.get("created_at") or "") < horizon_iso for item in batch):
+            break
         if len(batch) < 100:
             break
 
@@ -173,9 +199,12 @@ def main() -> int:
     today_prefix = f"{_PREFIX}{run_date}-"
     _ROOT.mkdir(parents=True, exist_ok=True)
 
-    candidates = _list_candidates(token, repo, today_prefix)
+    candidates = _list_candidates(token, repo, today_prefix, _horizon_iso(run_date))
     if not candidates:
-        print("::warning::No Databento producer artifact candidates found (today or fallback).")
+        print(
+            "::warning::No Databento producer artifact candidates found "
+            f"(today or fallback within {_MAX_CANDIDATE_AGE_DAYS} days)."
+        )
         _emit(output_path, "found_artifact", "false")
         return 0
 
