@@ -355,6 +355,11 @@ jobs:
           # later steps' working tree or uploaded artifacts.
           rm -f structure_export_*.json
 
+      - name: Prove primary structure artifacts are available
+        run: |
+          "$SMC_PYTHON_BIN" -m scripts.verify_structure_artifact_availability \
+            --timeframes "${SMC_BENCH_TIMEFRAMES}"
+
       - name: Run daily rolling benchmark
         env:
           DATABENTO_API_KEY: ${{ secrets.DATABENTO_API_KEY }}

@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import math
 from collections.abc import Sequence
 from datetime import UTC, datetime
 from pathlib import Path
@@ -208,13 +209,22 @@ def validate_artifact_provenance(payload: dict[str, Any]) -> None:
     """
     generated_at = payload.get("generated_at")
     entries = payload.get("entries") or []
-    max_asof = max(
-        (float(e["asof_ts"]) for e in entries if isinstance(e, dict) and e.get("asof_ts") is not None),
-        default=None,
-    )
-    if generated_at is None or max_asof is None:
+    if generated_at is None:
         return
-    if float(generated_at) < max_asof:
+    generated_at_value = float(generated_at)
+    if not math.isfinite(generated_at_value):
+        raise ValueError("structure artifact generated_at must be finite")
+    asof_values = [
+        float(entry["asof_ts"])
+        for entry in entries
+        if isinstance(entry, dict) and entry.get("asof_ts") is not None
+    ]
+    if any(not math.isfinite(value) for value in asof_values):
+        raise ValueError("structure artifact entry asof_ts must be finite")
+    if not asof_values:
+        return
+    max_asof = max(asof_values)
+    if generated_at_value < max_asof:
         raise ValueError(
             f"structure artifact generated_at ({generated_at}) is before its newest "
             f"entry asof_ts ({max_asof}) — impossible provenance; refusing to write."

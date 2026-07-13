@@ -3,6 +3,8 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
+from smc_integration import repo_sources
+from smc_integration.sources import structure_artifact_json
 from smc_integration.structure_audit import (
     build_structure_gap_report,
     discover_structure_category_coverage,
@@ -107,6 +109,35 @@ def test_gap_report_is_honest_for_current_repo_state() -> None:
         "broken_fractal_signals",
         "rejection_blocks",
     }
+
+
+def test_gap_report_fails_closed_when_repo_status_probe_is_unavailable(monkeypatch) -> None:
+    monkeypatch.delattr(repo_sources, "discover_structure_source_status")
+
+    report = build_structure_gap_report()
+
+    assert report["has_real_structure_provider"] is False
+    assert report["structure_status"]["selected_structure_mode"] == "none"
+    assert "unavailable" in report["structure_status"]["notes"][0]
+
+
+def test_structure_audit_surfaces_materialized_categories_and_health(monkeypatch) -> None:
+    monkeypatch.setattr(
+        structure_artifact_json,
+        "discover_normalized_contract_summary",
+        lambda **_kwargs: {
+            "mapped_structure_categories": {"bos": True},
+            "mapped_auxiliary_categories": {},
+            "health": {"issue_count": 1, "issues": [{"code": "TEST"}]},
+        },
+    )
+
+    coverage = discover_structure_category_coverage()
+    report = build_structure_gap_report()
+
+    assert coverage["bos"]["available"] is True
+    assert coverage["bos"]["producer"] == "structure_artifact_json"
+    assert any("health issue" in gap.lower() for gap in report["gaps"])
 
 
 def test_structure_gap_report_is_json_serializable_and_has_expected_keys() -> None:

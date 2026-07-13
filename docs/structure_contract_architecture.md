@@ -53,6 +53,18 @@ This boundary keeps snapshot consumers stable while preserving transparency.
 Legacy payload forms (including entries[]) are accepted only at ingress.
 After ingress normalization, internal consumers operate on a single normalized representation.
 
+### Artifact Availability Contract (Design B)
+
+Structure artifacts are runtime/pipeline outputs, not repository seed data. A clean checkout
+therefore has no real structure provider and must report structure as unavailable. Production,
+benchmark, and release workflows must materialize and validate per-timeframe manifests and their
+referenced artifacts before invoking a structure consumer.
+
+The optional `reports/smc_structure_artifact.json` path remains an ingress-only compatibility
+fallback for explicitly supplied legacy deployments. It is not committed, is never evidence that
+the repository itself provides current structure, and must not silently substitute for missing
+per-timeframe production artifacts.
+
 ## Central Internal Normal Form
 
 The normalized internal contract contains:

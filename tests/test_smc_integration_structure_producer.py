@@ -97,6 +97,14 @@ def test_validate_artifact_provenance_noop_without_bounds() -> None:
     validate_artifact_provenance({"generated_at": None, "entries": [{"asof_ts": 1.0}]})
 
 
+@pytest.mark.parametrize("value", [float("nan"), float("inf"), float("-inf")])
+def test_validate_artifact_provenance_rejects_non_finite_timestamps(value: float) -> None:
+    with pytest.raises(ValueError, match="must be finite"):
+        validate_artifact_provenance({"generated_at": value, "entries": [{"asof_ts": 1.0}]})
+    with pytest.raises(ValueError, match="must be finite"):
+        validate_artifact_provenance({"generated_at": 2.0, "entries": [{"asof_ts": value}]})
+
+
 def test_export_structure_artifact_rejects_impossible_provenance(tmp_path: Path) -> None:
     # End-to-end: a 2026 workbook with a 2024 generated_at is refused at write.
     workbook = make_minimal_workbook(tmp_path)
