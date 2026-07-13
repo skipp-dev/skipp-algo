@@ -1160,3 +1160,73 @@ def test_to_json_omits_cv_block_when_absent(tmp_path: Path) -> None:
     cal = calibrate_from_benchmark(tmp_path, cv_n_splits=5)
     payload = to_json(cal)
     assert "walk_forward_cv" not in payload
+
+
+# ── Frame-integrity audit 2026-07-13: prior-only families must be loud ──────
+
+
+def _write_scoring_file(pair_dir, symbol, tf, family_metrics, frame_integrity=None):
+    import json as _json
+
+    pair_dir.mkdir(parents=True, exist_ok=True)
+    payload = {"family_metrics": family_metrics}
+    if frame_integrity is not None:
+        payload["frame_integrity"] = frame_integrity
+    (pair_dir / f"scoring_{symbol}_{tf}.json").write_text(_json.dumps(payload), encoding="utf-8")
+
+
+def test_families_without_scored_events_are_disclosed(tmp_path: Path) -> None:
+    from scripts.smc_zone_priority_calibration import calibrate_from_benchmark, to_json
+
+    _write_scoring_file(
+        tmp_path / "AAPL" / "5m",
+        "AAPL",
+        "5m",
+        {"BOS": {"family": "BOS", "n_events": 3, "hit_rate": 1.0, "brier_score": 0.1, "log_score": 0.2}},
+        frame_integrity={
+            "frame": {"n_bars": 19, "trading_days": 19, "bars_per_day_median": 1.0},
+            "scoring_censored_counts": {"BOS": 0, "OB": 3, "FVG": 14, "SWEEP": 1},
+        },
+    )
+    _write_scoring_file(
+        tmp_path / "MSFT" / "5m",
+        "MSFT",
+        "5m",
+        {"BOS": {"family": "BOS", "n_events": 2, "hit_rate": 0.5, "brier_score": 0.2, "log_score": 0.3}},
+        frame_integrity={
+            "frame": {"n_bars": 19, "trading_days": 19, "bars_per_day_median": 1.0},
+            "scoring_censored_counts": {"BOS": 1, "OB": 2, "FVG": 16, "SWEEP": 0},
+        },
+    )
+
+    cal = calibrate_from_benchmark(tmp_path)
+    assert cal.families_without_scored_events == ["FVG", "OB", "SWEEP"]
+    assert cal.family_weight_source == {
+        "BOS": "scored",
+        "FVG": "prior_only",
+        "OB": "prior_only",
+        "SWEEP": "prior_only",
+    }
+    # Censored counts aggregate across scoring files.
+    assert cal.scoring_censored_counts == {"BOS": 1, "OB": 5, "FVG": 30, "SWEEP": 1}
+
+    payload = to_json(cal)
+    assert payload["families_without_scored_events"] == ["FVG", "OB", "SWEEP"]
+    assert payload["family_weight_source"]["FVG"] == "prior_only"
+    assert payload["scoring_censored_counts"]["FVG"] == 30
+
+
+def test_all_families_scored_yields_empty_disclosure(tmp_path: Path) -> None:
+    from scripts.smc_zone_priority_calibration import calibrate_from_benchmark
+
+    metrics = {
+        family: {"family": family, "n_events": 5, "hit_rate": 0.6, "brier_score": 0.2, "log_score": 0.3}
+        for family in ("BOS", "OB", "FVG", "SWEEP")
+    }
+    _write_scoring_file(tmp_path / "AAPL" / "1D", "AAPL", "1D", metrics)
+
+    cal = calibrate_from_benchmark(tmp_path)
+    assert cal.families_without_scored_events == []
+    assert set(cal.family_weight_source.values()) == {"scored"}
+    # No frame_integrity blocks in the corpus -> zero-valued aggregation.
+    assert cal.scoring_censored_counts == {"BOS": 0, "OB": 0, "FVG": 0, "SWEEP": 0}

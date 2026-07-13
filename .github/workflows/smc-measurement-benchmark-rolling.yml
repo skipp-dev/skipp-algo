@@ -382,11 +382,22 @@ jobs:
           set -euo pipefail
           # SYMBOLS/TIMEFRAMES resolved + validated by the per-TF structure
           # export step above (single source of truth — #2667).
+          #
+          # --strict-structure-tf (frame audit 2026-07-13): hard-fail if any
+          # pair regresses to the legacy 1D-onto-intraday aliasing fallback.
+          # NOTE: this guard does NOT detect degenerate bar frames (per-TF
+          # artifacts that resolve cleanly but are 1-bar/day resamples — all
+          # intraday slices clones, long-horizon families unscorable). That
+          # condition is disclosed as frame_integrity in
+          # benchmark_run_manifest.json + a run warning; arm
+          # --strict-frame-distinctness only after a genuine intraday bar
+          # source lands (today it would fail every run).
           "$SMC_PYTHON_BIN" scripts/run_smc_measurement_benchmark.py \
             --symbols "${SMC_BENCH_SYMBOLS}" \
             --timeframes "${SMC_BENCH_TIMEFRAMES}" \
             --output-dir "${{ steps.meta.outputs.out_dir }}" \
-            --require-evidence
+            --require-evidence \
+            --strict-structure-tf
 
       - name: Zone priority + testable calibration (rolling)
         if: always()

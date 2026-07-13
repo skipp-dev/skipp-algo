@@ -455,3 +455,37 @@ class TestExportArtifact:
         assert "method" in data["calibration"]
         assert data["stratified_calibration"] == {}
         assert data["contextual_calibration"] == {}
+
+
+class TestExportArtifactFrameIntegrity:
+    def test_frame_integrity_block_is_additive(self, tmp_path: Path) -> None:
+        events = [ScoredEvent("s1", "SWEEP", 0.7, True, 1.0)]
+        result = score_events(events)
+        block = {
+            "frame": {"n_bars": 19, "trading_days": 19, "bars_per_day_median": 1.0},
+            "scoring_censored_counts": {"BOS": 0, "OB": 3, "FVG": 14, "SWEEP": 0},
+            "family_full_horizon_capacity": {"BOS": 10, "OB": 6, "FVG": 0, "SWEEP": 10},
+        }
+        path = export_scoring_artifact(
+            result,
+            symbol="AAPL",
+            timeframe="5m",
+            output_dir=tmp_path,
+            schema_version="2.0.0",
+            frame_integrity=block,
+        )
+        data = json.loads(path.read_text(encoding="utf-8"))
+        assert data["frame_integrity"] == block
+
+    def test_frame_integrity_absent_when_not_supplied(self, tmp_path: Path) -> None:
+        events = [ScoredEvent("s1", "SWEEP", 0.7, True, 1.0)]
+        result = score_events(events)
+        path = export_scoring_artifact(
+            result,
+            symbol="AAPL",
+            timeframe="5m",
+            output_dir=tmp_path,
+            schema_version="2.0.0",
+        )
+        data = json.loads(path.read_text(encoding="utf-8"))
+        assert "frame_integrity" not in data

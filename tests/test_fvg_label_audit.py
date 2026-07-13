@@ -245,3 +245,67 @@ class TestEmptyBenchmark:
         audit = run_fvg_audit(tmp_path)
         assert audit.total_fvg_events == 0
         assert audit.findings == []
+
+
+# ── Frame-integrity audit 2026-07-13 ─────────────────────────────
+
+
+class TestScoringVsAuditParity:
+    def test_parity_block_counts_both_populations(self, benchmark_tree: Path) -> None:
+        audit = run_fvg_audit(benchmark_tree)
+        assert audit.scoring_vs_audit["audit_fvg_events"] == 16
+        assert audit.scoring_vs_audit["scored_fvg_events"] == 16
+        assert audit.scoring_vs_audit["scoring_population_by_family"]["BOS"] == 10
+        assert to_json(audit)["scoring_vs_audit"] == audit.scoring_vs_audit
+        # Populations match here -> no parity finding.
+        assert not any("CALIBRATOR PARITY" in f for f in audit.findings)
+
+    def test_parity_finding_when_calibrator_sees_zero_fvg(self, tmp_path: Path) -> None:
+        pair_dir = tmp_path / "AAA" / "5m"
+        pair_dir.mkdir(parents=True)
+        (pair_dir / "benchmark_AAA_5m.json").write_text(
+            _make_benchmark_json([_make_kpi("FVG", n_events=14, hit_rate=0.5)]),
+            encoding="utf-8",
+        )
+        (pair_dir / "scoring_AAA_5m.json").write_text(
+            _make_scoring_json({"BOS": {"n_events": 1, "hit_rate": 1.0, "brier_score": 0.1}}),
+            encoding="utf-8",
+        )
+        audit = run_fvg_audit(tmp_path)
+        assert audit.scoring_vs_audit["audit_fvg_events"] == 14
+        assert audit.scoring_vs_audit["scored_fvg_events"] == 0
+        assert any("CALIBRATOR PARITY" in f for f in audit.findings)
+
+
+class TestPseudoreplication:
+    def test_intraday_clones_are_collapsed(self, tmp_path: Path) -> None:
+        # 6 KPI-identical intraday slices + a distinct 1D slice (the exact
+        # production pattern of 2026-07-13: 1-bar/day degenerate frames).
+        for tf in ("5m", "10m", "15m", "30m", "1H", "4H"):
+            pair_dir = tmp_path / "AAPL" / tf
+            pair_dir.mkdir(parents=True)
+            (pair_dir / f"benchmark_AAPL_{tf}.json").write_text(
+                _make_benchmark_json(
+                    [_make_kpi("FVG", n_events=14, hit_rate=0.5, ttm=2.14, inv_rate=0.6429, mae=0.0336, mfe=0.0587)]
+                ),
+                encoding="utf-8",
+            )
+        daily_dir = tmp_path / "AAPL" / "1D"
+        daily_dir.mkdir(parents=True)
+        (daily_dir / "benchmark_AAPL_1D.json").write_text(
+            _make_benchmark_json([_make_kpi("FVG", n_events=5, hit_rate=0.4)]),
+            encoding="utf-8",
+        )
+
+        audit = run_fvg_audit(tmp_path)
+        pseudo = audit.pseudoreplication
+        assert pseudo["intraday_clone_symbols"] == ["AAPL"]
+        assert pseudo["raw_total_events"] == 14 * 6 + 5
+        assert pseudo["deduplicated_total_events"] == 14 + 5
+        assert any("PSEUDOREPLICATION" in f for f in audit.findings)
+        assert to_json(audit)["pseudoreplication"] == pseudo
+
+    def test_distinct_slices_do_not_flag(self, benchmark_tree: Path) -> None:
+        audit = run_fvg_audit(benchmark_tree)
+        assert audit.pseudoreplication["intraday_clone_symbol_count"] == 0
+        assert not any("PSEUDOREPLICATION" in f for f in audit.findings)

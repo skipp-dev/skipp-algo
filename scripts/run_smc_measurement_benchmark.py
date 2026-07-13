@@ -374,12 +374,22 @@ def run_pair(symbol: str, timeframe: str, *, output_root: Path) -> dict[str, Any
     export_benchmark_artifacts(benchmark_result, pair_dir)
 
     scoring_result = score_events(evidence.scored_events)
+    # Frame-integrity audit 2026-07-13: ship the frame shape + per-family
+    # horizon-censoring next to the scored population so the calibrator can
+    # tell "zero measured" apart from "structurally unscorable on this frame".
+    _details = evidence.details if isinstance(evidence.details, dict) else {}
+    frame_integrity = {
+        "frame": _details.get("frame"),
+        "scoring_censored_counts": _details.get("scoring_censored_counts"),
+        "family_full_horizon_capacity": _details.get("family_full_horizon_capacity"),
+    }
     scoring_artifact_path = export_scoring_artifact(
         scoring_result,
         symbol=symbol,
         timeframe=timeframe,
         output_dir=pair_dir,
         schema_version=SCHEMA_VERSION,
+        frame_integrity=frame_integrity,
     )
 
     # Per-event ledger (Amendment A1.A) — JSONL sibling to scoring_*.json.
@@ -475,6 +485,8 @@ def run_pair(symbol: str, timeframe: str, *, output_root: Path) -> dict[str, Any
         "summary": pair_summary,
         # ADR-0023 §4.1: carry FamilyEvent dicts for magnitude-shadow export.
         "family_events": list(getattr(evidence, "family_events", None) or []),
+        # Frame-integrity audit 2026-07-13: aggregated into the run manifest.
+        "frame_integrity": frame_integrity,
     }
 
 
@@ -525,6 +537,23 @@ def build_parser() -> argparse.ArgumentParser:
             "'legacy_tf_fallback' contract warning). Without this flag the "
             "run only prints a warning and records the affected pairs in "
             "benchmark_run_manifest.json under structure_tf_integrity."
+        ),
+    )
+    # Frame-integrity audit 2026-07-13: the strict-structure-tf gate above
+    # does NOT cover degenerate bar frames — per-TF artifacts can resolve
+    # cleanly while every intraday frame is a 1-bar-per-day resample of a
+    # minutes-wide source window (all intraday slices become clones and
+    # long-horizon families are structurally unscorable). This flag arms a
+    # HARD gate on that condition; leave it off until the frame fix lands
+    # (arming it today would fail every rolling run).
+    parser.add_argument(
+        "--strict-frame-distinctness",
+        action="store_true",
+        help=(
+            "Exit non-zero when any intraday timeframe's resampled bar frame "
+            "is degenerate (median bars/trading-day <= 1). Without this flag "
+            "the run prints a warning and records the affected timeframes in "
+            "benchmark_run_manifest.json under frame_integrity."
         ),
     )
     # Issue #28 scaffolding (E3 dual-arm F2 promotion gate).
@@ -599,6 +628,45 @@ def main() -> int:
         )
     )
 
+    # Frame-integrity audit 2026-07-13: aggregate per-TF frame shape across
+    # symbols. An intraday TF whose median frame is <= 1 bar per trading day
+    # is DEGENERATE — all its slices are daily clones and every family whose
+    # label horizon exceeds the frame length is structurally unscorable
+    # (FVG=20 bars on 19-bar frames). NOT covered by --strict-structure-tf,
+    # which only detects the legacy 1D-aliasing fallback.
+    frame_by_tf: dict[str, list[dict[str, Any]]] = {}
+    capacity_by_tf: dict[str, list[dict[str, Any]]] = {}
+    for pair_run in pair_runs:
+        integrity = pair_run.get("frame_integrity") or {}
+        frame = integrity.get("frame")
+        if isinstance(frame, dict):
+            frame_by_tf.setdefault(pair_run["timeframe"], []).append(frame)
+        capacity = integrity.get("family_full_horizon_capacity")
+        if isinstance(capacity, dict):
+            capacity_by_tf.setdefault(pair_run["timeframe"], []).append(capacity)
+    degenerate_intraday_timeframes = sorted(
+        tf
+        for tf, frames in frame_by_tf.items()
+        if tf != "1D"
+        and frames
+        and (sorted(float(f.get("bars_per_day_median") or 0.0) for f in frames)[len(frames) // 2] <= 1.0)
+    )
+    # A family whose full label horizon fits ZERO anchor positions on every
+    # pair of a timeframe cannot contribute a single calibrator event there —
+    # regardless of clone-degeneracy (e.g. FVG horizon 20 on <=20-bar frames).
+    zero_capacity_families_by_tf = {
+        tf: sorted(
+            family
+            for family in ("BOS", "OB", "FVG", "SWEEP")
+            if all(int(capacity.get(family, 0) or 0) == 0 for capacity in capacities)
+        )
+        for tf, capacities in sorted(capacity_by_tf.items())
+        if capacities
+    }
+    zero_capacity_families_by_tf = {
+        tf: families for tf, families in zero_capacity_families_by_tf.items() if families
+    }
+
     run_summary_rows = []
     for pair_run in pair_runs:
         summary = pair_run["summary"]
@@ -654,6 +722,18 @@ def main() -> int:
             "strict_structure_tf": bool(getattr(args, "strict_structure_tf", False)),
             "legacy_tf_fallback_pair_count": len(legacy_tf_fallback_pairs),
             "legacy_tf_fallback_pairs": legacy_tf_fallback_pairs,
+        },
+        # Frame-integrity audit 2026-07-13 — orthogonal to the block above:
+        # per-TF bar-frame shape + degenerate intraday TFs (median <= 1
+        # bar/trading-day => daily clones + horizon-starved families).
+        "frame_integrity": {
+            "strict_frame_distinctness": bool(getattr(args, "strict_frame_distinctness", False)),
+            "per_timeframe_bars_per_day_median": {
+                tf: sorted(float(f.get("bars_per_day_median") or 0.0) for f in frames)[len(frames) // 2]
+                for tf, frames in sorted(frame_by_tf.items())
+            },
+            "degenerate_intraday_timeframes": degenerate_intraday_timeframes,
+            "zero_capacity_families_by_timeframe": zero_capacity_families_by_tf,
         },
         "pair_runs": [
             {
@@ -742,6 +822,34 @@ def main() -> int:
             print(f"ERROR: --strict-structure-tf: {message}", file=sys.stderr)
             return 1
         print(f"WARNING: {message}", file=sys.stderr)
+
+    if degenerate_intraday_timeframes:
+        frame_message = (
+            f"intraday timeframe frame(s) {', '.join(degenerate_intraday_timeframes)} are "
+            "DEGENERATE (median <= 1 bar per trading day): all their per-TF slices are "
+            "daily clones and families whose label horizon exceeds the frame length are "
+            "structurally unscorable (e.g. FVG horizon 20 bars on a ~19-bar frame -> the "
+            "zone-priority calibrator sees ZERO FVG events). --strict-structure-tf does "
+            "NOT detect this; it requires a genuine intraday bar source (see "
+            "frame_integrity in benchmark_run_manifest.json; frame audit 2026-07-13)."
+        )
+        if getattr(args, "strict_frame_distinctness", False):
+            print(f"ERROR: --strict-frame-distinctness: {frame_message}", file=sys.stderr)
+            return 1
+        print(f"WARNING: {frame_message}", file=sys.stderr)
+
+    if zero_capacity_families_by_tf:
+        detail = "; ".join(
+            f"{tf}: {', '.join(families)}" for tf, families in zero_capacity_families_by_tf.items()
+        )
+        print(
+            f"WARNING: full-horizon capacity is ZERO for {detail} — these families "
+            "cannot contribute a single calibrator event on this corpus (frame too "
+            "short for their label horizon); the zone-priority calibrator will fall "
+            "back to their priors. See frame_integrity in benchmark_run_manifest.json "
+            "(frame audit 2026-07-13).",
+            file=sys.stderr,
+        )
 
     return 0
 
