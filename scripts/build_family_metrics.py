@@ -547,9 +547,14 @@ def build_family_metrics_from_returns(
 
     config = get_family_config(family)
     horizon = family_outcome_horizon(family)
-    # Confirm the embargo config is applicable to this sample and purge
-    # label-horizon overlap; raises if the sample is too small.
-    walk_forward_from_config(n, config, outcome_horizon=horizon)
+    # Feasibility check only (the returned folds are intentionally discarded):
+    # confirm the walk-forward embargo config can produce folds for this sample
+    # size, else raise. We deliberately do NOT pass ``outcome_horizon`` here:
+    # ``returns`` is one sample per EVENT (irregularly spaced in bar time), so the
+    # family bar-horizon is not a valid sample-index purge offset (finding #5).
+    # The real label-window leakage guard is the per-family embargo (2 * label
+    # window) enforced by family_meta_label / family_returns.
+    walk_forward_from_config(n, config)
 
     psr_res = probabilistic_sharpe(returns, sr_star=sr_star)
     sr_hat = psr_res["sharpe_hat"]

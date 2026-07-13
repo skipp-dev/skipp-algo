@@ -73,10 +73,16 @@ def walk_forward_splits(
     embargo:
         Number of bars dropped between train and val (anti-autocorrelation).
     outcome_horizon:
-        Per-sample horizon (in bars) until the label is fully resolved. When
-        provided, any training sample with ``i + horizon[i] >= val_start`` is
-        purged. Either an int (constant horizon) or a 1-D array length
-        ``n_samples``. ``None`` keeps the legacy behaviour.
+        Per-sample horizon until the label is fully resolved, expressed in
+        **sample-index units**: any training sample with ``i + horizon[i] >=
+        val_start`` is purged, where ``i`` and ``val_start`` are SAMPLE
+        positions. This equals the label's bar horizon ONLY when there is
+        exactly one sample per bar. For irregularly-timed event samples a raw
+        bar count is the WRONG unit (it neither counts bars nor guarantees a
+        time gap) — such callers must convert to a per-sample sample-index
+        offset, or purge by real label-end timestamps upstream. Either an int
+        (constant) or a 1-D array length ``n_samples``. ``None`` keeps the
+        legacy behaviour.
     """
     if n_folds < 1:
         raise ValueError(f"n_folds must be >= 1, got {n_folds}")
