@@ -22,7 +22,7 @@ class BiasVerdict:
     """Immutable merge result of HTF + session bias."""
 
     direction: BiasDirection
-    confidence: float  # 0.0 – 1.0
+    confidence: float  # 0.0–1.0 deterministic conviction/reliability WEIGHT from a fixed table (NOT a probability; rename-later: bias_conviction_score)
     htf_direction: BiasDirection
     session_direction: BiasDirection
     conflict: bool  # True when HTF and session disagree
@@ -55,6 +55,8 @@ def _direction_from_killzones(killzones: list[dict[str, Any]]) -> BiasDirection:
     return "NEUTRAL"
 
 
+# Fixed conviction/reliability weights (NOT probabilities): HTF anchor is trusted
+# above a session-only fallback; conflict scales ×0.6, concordance ×1.15 (below).
 _CONFIDENCE_BASE = {
     "HTF": 0.8,
     "SESSION": 0.5,

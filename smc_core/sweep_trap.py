@@ -285,7 +285,9 @@ def detect_sweep_trap(enrichment: dict[str, Any] | None = None) -> dict[str, Any
     -------
     dict[str, Any]
         ``{"SWEEP_TRAP_DETECTED": bool, "SWEEP_TRAP_CONFIDENCE": int}``
-        Confidence ranges from 0–100.  When the feature flag is OFF the
+        ``SWEEP_TRAP_CONFIDENCE`` is a deterministic 0–100 HEURISTIC conviction
+        score (inverse-quality + boost − penalty), NOT a probability or a percent
+        — rename-later: ``SWEEP_TRAP_HEURISTIC_SCORE``. When the feature flag is OFF the
         detector always returns the neutral block
         ``{"SWEEP_TRAP_DETECTED": False, "SWEEP_TRAP_CONFIDENCE": 0}``.
     """

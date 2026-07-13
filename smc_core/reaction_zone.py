@@ -245,6 +245,8 @@ def detect_reaction_zone(enrichment: dict[str, Any] | None = None) -> dict[str, 
         (direction == "bull" and session_bias == "BULLISH")
         or (direction == "bear" and session_bias == "BEARISH")
     )
+    # Static alignment TIER, not a probability: a configured constant (default 60
+    # aligned / 40 misaligned) — rename-later: REACTION_ZONE_HEURISTIC_SCORE.
     confidence = (
         reaction_zone_config.bias_aligned_confidence
         if bias_aligned

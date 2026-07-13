@@ -54,6 +54,9 @@ def _collect_evidence(path: Path) -> list[str]:
 
 
 def _confidence_for(path: Path, evidence: list[str]) -> str:
+    """Evidence-coverage RANK (low/medium/high) from the count/kind of textual
+    markers found — NOT implementation correctness nor a probability the source
+    works. Rename-later: ``evidence_coverage`` / ``discovery_rank``."""
     evidence_set = set(evidence)
     if _EXPLICIT_STRUCTURE_KEYS.issubset(evidence_set):
         return "high"

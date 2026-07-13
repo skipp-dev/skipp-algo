@@ -1186,6 +1186,12 @@ def _event_signal_quality_score(
 
 
 def _directional_probability(expected_direction: str, *, bias_direction: str, bias_confidence: float) -> float:
+    """Heuristic direction PRIOR (0.5 ± bias-derived adjustment), NOT an empirical
+    probability. ``bias_confidence`` is the fixed-table conviction weight from
+    ``merge_bias`` (HTF=0.8 / SESSION=0.5 …), so the returned value is the RAW,
+    uncalibrated input the calibration layer maps — Brier/log-loss/ECE on it grade
+    a heuristic prior, not a fitted model. It only earns the name ``predicted_prob``
+    once a train-only, OOS-evaluated calibrator produces it (rename-later)."""
     normalized_bias = str(bias_direction).upper()
     normalized_expected = _normalize_direction(expected_direction)
     confidence = max(float(bias_confidence), 0.0)

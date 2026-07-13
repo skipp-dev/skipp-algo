@@ -32,7 +32,7 @@ class VolRegimeResult:
 
     label: VolRegimeLabel
     raw_atr_ratio: float  # current ATR / rolling median ATR
-    confidence: float     # 0.0–1.0
+    confidence: float     # 0.0–1.0 DATA-COVERAGE (history sufficiency), NOT regime probability or model certainty — rename-later: data_coverage
     bars_used: int
     model_source: VolRegimeModelSource = "atr_fallback"
     fallback_reason: str | None = None
@@ -139,6 +139,8 @@ def _extract_atr_context(
         return None
 
     ratio = current_atr / median_atr
+    # Data-coverage only: fraction of the lookback window actually observed. It
+    # reaches 1.0 on enough bars regardless of regime distance / forecast error.
     confidence = min(1.0, len(atr) / float(max(lookback, 1)))
     return current_atr, median_atr, ratio, confidence
 
@@ -198,7 +200,7 @@ def _forecast_context(
     # ~1.25 at unchanged vol, tilting the GARCH path toward HIGH_VOL/EXTREME
     # relative to the ATR-ratio path that shares _classify's thresholds.
     forecast_ratio = forecast_volatility / baseline_volatility
-    confidence = min(1.0, len(returns) / float(max(forecast_min_bars, 1)))
+    confidence = min(1.0, len(returns) / float(max(forecast_min_bars, 1)))  # data-coverage, not forecast certainty
     return forecast_volatility, baseline_volatility, forecast_ratio, confidence
 
 
