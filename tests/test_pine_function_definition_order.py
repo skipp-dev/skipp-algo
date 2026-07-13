@@ -115,3 +115,27 @@ def test_root_pine_shorttitles_within_tradingview_limit() -> None:
                 problems.append(f"{path.name}: shorttitle {shorttitle!r} has {len(shorttitle)} chars (max 10)")
     assert problems == [], "\n".join(problems)
 
+
+_HAND_LIB_IMPORT_RE = re.compile(
+    r"^import preuss_steffen/(smc_utils|smc_core_types)/(\d+)\b", re.MULTILINE
+)
+
+
+def test_hand_authored_library_imports_pin_one_version_each() -> None:
+    """Incident 2026-07-13, next layer (CE10271 'u.universe_status_code'):
+    the hand-authored SMC++ libraries have NO auto-publish — repo sources
+    (SSOT) grew exports (universe_status_*, smc_lib_zlema, core_types ZLEMA)
+    that were never republished to TradingView, while consumers pinned the
+    old published versions. Fixed by chain-publishing core_types v5 then
+    smc_utils v3 and repinning. This guards the repin half: every consumer
+    (root scripts AND SMC++ library sources) must pin ONE consistent version
+    per hand-authored library, so a partial repin can't reintroduce the split."""
+    versions: dict[str, dict[str, int]] = {}
+    for pattern in (CONSUMER_PINE_GLOB, "SMC++/*.pine"):
+        for path in sorted(REPO_ROOT.glob(pattern)):
+            for lib, ver in _HAND_LIB_IMPORT_RE.findall(path.read_text(encoding="utf-8")):
+                versions.setdefault(lib, {})[str(path.relative_to(REPO_ROOT))] = int(ver)
+    assert set(versions) == {"smc_utils", "smc_core_types"}, f"import sanity: {set(versions)}"
+    for lib, pins in sorted(versions.items()):
+        assert len(pins) >= 2, f"{lib}: expected >=2 importing files, saw {pins}"
+        assert len(set(pins.values())) == 1, f"{lib}: consumers pin diverging versions: {pins}"

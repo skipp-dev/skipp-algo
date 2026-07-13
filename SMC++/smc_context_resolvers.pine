@@ -6,7 +6,7 @@
 // No state, no drawing — all functions are parameter-in, value-out.
 library("smc_context_resolvers", overlay = false)
 
-import preuss_steffen/smc_utils/1 as u
+import preuss_steffen/smc_utils/3 as u
 import preuss_steffen/smc_bus_private/1 as bp
 
 // ── Ticker Heat Parser ──

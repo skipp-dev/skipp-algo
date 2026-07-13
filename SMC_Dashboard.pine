@@ -10,7 +10,7 @@
 indicator("SMC Long-Dip Dashboard v7", "LD Dash7", overlay = true, max_labels_count = 50)
 
 import preuss_steffen/smc_micro_profiles_generated/152 as mp
-import preuss_steffen/smc_utils/1 as u
+import preuss_steffen/smc_utils/3 as u
 
 var string g_surface = "1. Product Surface"
 var string g_bus_lifecycle = "2. Operator Only - Lifecycle BUS"

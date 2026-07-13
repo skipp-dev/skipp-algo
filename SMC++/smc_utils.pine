@@ -3,7 +3,7 @@
 //@version=6
 library("smc_utils", overlay = true)
 
-import preuss_steffen/smc_core_types/1 as ct
+import preuss_steffen/smc_core_types/5 as ct
 
 // --------------------------------------------------
 // Generic helpers
