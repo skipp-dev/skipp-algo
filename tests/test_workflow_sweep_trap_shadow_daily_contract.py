@@ -114,3 +114,19 @@ def test_rolling_benchmark_arms_both_study_flags() -> None:
     text = rolling.read_text(encoding="utf-8")
     assert "ENABLE_SWEEP_TRAP: ${{ vars.ENABLE_SWEEP_TRAP }}" in text
     assert "ENABLE_REACTION_ZONE_STUDY: ${{ vars.ENABLE_REACTION_ZONE_STUDY }}" in text
+
+
+def test_corpus_resolver_iterates_multiple_runs_not_just_the_latest() -> None:
+    """The rolling-benchmark's heavy job is guard-skipped on most workflow_run
+    triggers (only select-runner runs → 0 artifacts), so --limit 1 usually
+    downloads an empty artifact set → no_data every such day, starving the
+    shadow ledger. The resolver must scan several recent successful runs and
+    pick the first that actually contains events_*.jsonl."""
+    text = _WF_PATH.read_text(encoding="utf-8")
+    corpus_step = text.split("Resolve corpus directory", 1)[1].split("Run sweep-trap shadow eval", 1)[0]
+    # Must NOT take a single run blindly.
+    assert "--limit=1 " not in corpus_step and "--limit 1 " not in corpus_step
+    # Must iterate a batch of recent successes and test each for the corpus.
+    assert "--limit=15" in corpus_step
+    assert "for run_id in" in corpus_step
+    assert 'name "events_*.jsonl"' in corpus_step
