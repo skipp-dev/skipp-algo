@@ -23,12 +23,17 @@ from pathlib import Path
 import pytest
 
 from open_prep.outcomes import (
+    _DIRECTIONAL_LABEL_ERA_CUTOFF,
     _SCORE_FORMULA_ERA_CUTOFF,
     FEATURE_KEYS,
     FEATURE_TO_WEIGHT_KEY,
     compute_feature_importance,
     prepare_outcome_snapshot,
 )
+
+# Bound at import time — the module-level autouse fixture below monkeypatches
+# the module attribute, so a later read would see the neutralized value.
+_DIRECTIONAL_CUTOFF_REAL = _DIRECTIONAL_LABEL_ERA_CUTOFF
 
 # Derive every formula-era fixture date from the production cutoff constant so
 # the next cutoff bump can't silently re-break these fixtures the way this suite
@@ -39,6 +44,16 @@ _POST_CUTOFF_1 = (_CUTOFF + timedelta(days=1)).isoformat()
 _POST_CUTOFF_2 = (_CUTOFF + timedelta(days=2)).isoformat()
 _PRE_CUTOFF = (_CUTOFF - timedelta(days=1)).isoformat()  # dropped by formula-era gate
 _LEGACY_DATE = (_CUTOFF - timedelta(days=31)).isoformat()  # pre-fix all-zero rows
+
+
+@pytest.fixture(autouse=True)
+def _directional_era_gate_inert(monkeypatch: pytest.MonkeyPatch) -> None:
+    # These fixtures pin the D-2 all-zero / formula-era / dedup gates with
+    # dates derived from the FORMULA cutoff, which predate the (newer)
+    # directional-label cutover — neutralize that gate here so each test keeps
+    # pinning exactly one gate. The directional gate has its own dedicated
+    # tests (TestDirectionalEraGate below).
+    monkeypatch.setattr("open_prep.outcomes._DIRECTIONAL_LABEL_ERA_CUTOFF", date(2020, 1, 1))
 
 
 def _ranked_row(symbol: str = "NVDA", **overrides) -> dict:
@@ -383,4 +398,46 @@ class TestFormulaEraGate:
         report = compute_feature_importance(lookback_days=30)
         assert "error" not in report
         assert report["formula_era_samples_dropped"] == 0
+        assert report["labeled_samples"] == 12
+
+
+class TestDirectionalEraGate:
+    """Directional-label era gate (2026-07-13): pre-cutover fi_samples carry
+    the legacy long-only label and must not mix with directional-era rows."""
+
+    @pytest.fixture(autouse=True)
+    def _real_directional_cutoff(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        # Re-arm the real cutoff (the module-level fixture neutralizes it).
+        monkeypatch.setattr(
+            "open_prep.outcomes._DIRECTIONAL_LABEL_ERA_CUTOFF", _DIRECTIONAL_CUTOFF_REAL,
+        )
+
+    def test_pre_cutover_rows_dropped_post_cutover_kept(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        monkeypatch.setattr("open_prep.outcomes.FEATURE_IMPORTANCE_DIR", tmp_path)
+        monkeypatch.setenv("OPEN_PREP_FI_BACKEND", "cpu")
+        pre_date = (_DIRECTIONAL_CUTOFF_REAL - timedelta(days=1)).isoformat()
+        at_date = _DIRECTIONAL_CUTOFF_REAL.isoformat()  # strict `<`: kept
+        pre = [
+            _fi_sample(f"OLD{i}", pre_date, win=bool(i % 2), fill=0.1 * (i + 1))
+            for i in range(4)
+        ]
+        post = [
+            _fi_sample(f"NEW{i}", at_date, win=bool(i % 2), fill=0.1 * (i + 1))
+            for i in range(12)
+        ]
+        (tmp_path / f"fi_samples_{pre_date}.jsonl").write_text(
+            "\n".join(pre) + "\n", encoding="utf-8",
+        )
+        (tmp_path / f"fi_samples_{at_date}.jsonl").write_text(
+            "\n".join(post) + "\n", encoding="utf-8",
+        )
+
+        report = compute_feature_importance(lookback_days=30)
+        assert "error" not in report
+        assert report["directional_era_samples_dropped"] == 4, (
+            "rows dated before the directional-label cutover carry the "
+            "long-only label and must be excluded from the FI matrix"
+        )
         assert report["labeled_samples"] == 12

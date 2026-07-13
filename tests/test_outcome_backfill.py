@@ -799,3 +799,76 @@ class TestPassThroughEraGate:
         )
         # A weighted component that WAS measured keeps its real value.
         assert sample["gap_component"] == 0.5
+
+
+class TestWindowCompletenessGuards:
+    def test_truncated_entry_stays_unresolved(self) -> None:
+        # First bar prints at 09:52 (opening halt): a 8-minute return must NOT
+        # be labelled as the 30-minute outcome — the row stays unresolved.
+        d = date(2026, 4, 17)
+        rows = []
+        for minute in (52, 55, 58):
+            ts = datetime.combine(d, dt_time(9, minute), tzinfo=_ET).astimezone(_ZoneInfo("UTC"))
+            rows.append({"symbol": "HALT", "ts_event": ts, "open": 100.0,
+                         "high": 101.0, "low": 99.0, "close": 100.5, "volume": 1000})
+        assert compute_pnl_from_bars(pd.DataFrame(rows), "HALT", d) is None
+
+    def test_edge_bar_cannot_become_reversed_exit(self) -> None:
+        # Bars only at the 09:29 fetch edge and at/after 10:00: before the
+        # guards the 10:00 bar became the ENTRY and the 09:29 bar the EXIT
+        # (a reversed, pre-market-anchored PnL). Must stay unresolved.
+        d = date(2026, 4, 17)
+        rows = []
+        for hh, mm in ((9, 29), (10, 0), (10, 1)):
+            ts = datetime.combine(d, dt_time(hh, mm), tzinfo=_ET).astimezone(_ZoneInfo("UTC"))
+            rows.append({"symbol": "EDGE", "ts_event": ts, "open": 100.0,
+                         "high": 101.0, "low": 99.0, "close": 95.0, "volume": 1000})
+        assert compute_pnl_from_bars(pd.DataFrame(rows), "EDGE", d) is None
+
+    def test_short_window_stays_unresolved(self) -> None:
+        # Bars 09:30-09:45 only: exit bar never reaches _MIN_WINDOW_MIN.
+        d = date(2026, 4, 17)
+        rows = []
+        for minute in range(30, 46):
+            ts = datetime.combine(d, dt_time(9, minute), tzinfo=_ET).astimezone(_ZoneInfo("UTC"))
+            rows.append({"symbol": "THIN", "ts_event": ts, "open": 100.0,
+                         "high": 101.0, "low": 99.0, "close": 100.5, "volume": 1000})
+        assert compute_pnl_from_bars(pd.DataFrame(rows), "THIN", d) is None
+
+
+class TestDirectionalLabelForFI:
+    def test_fi_backfill_prefers_directional_label(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        # A successful GAP_FADE short: raw 30m return negative (long-only label
+        # False) but directional label True — the FI sample must carry the
+        # directional outcome (B1 parity with compute_hit_rates).
+        from open_prep.outcomes import FEATURE_TO_WEIGHT_KEY
+
+        records = [
+            {
+                "symbol": "FADE",
+                "date": "2026-07-14",
+                "score": 3.0,
+                "confidence_tier": "STANDARD",
+                "profitable_30m": False,
+                "profitable_30m_directional": True,
+                "pnl_30m_pct": -1.8,
+                "pnl_30m_pct_signed": 1.8,
+                **{key: 0.5 for key in FEATURE_TO_WEIGHT_KEY},
+            },
+        ]
+        monkeypatch.setattr(
+            "open_prep.outcomes._load_outcomes_range",
+            lambda lookback_days: records,
+        )
+        fi_dir = tmp_path / "fi"
+        fi_dir.mkdir()
+        monkeypatch.setattr("open_prep.outcomes.FEATURE_IMPORTANCE_DIR", fi_dir)
+
+        assert backfill_feature_importance(lookback_days=1) == 1
+        files = list(fi_dir.glob("fi_samples_*.jsonl"))
+        assert len(files) == 1
+        sample = json.loads(files[0].read_text(encoding="utf-8").strip().splitlines()[0])
+        assert sample["profitable_30m"] is True  # directional, not the long-only False
+        assert sample["pnl_30m_pct"] == pytest.approx(1.8)

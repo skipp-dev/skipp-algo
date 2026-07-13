@@ -90,7 +90,7 @@ _TEMPFILE_LEDGER: frozenset[tuple[str, int, str]] = frozenset({
     # 2026-06-11 (backfill defer-unpublished): 88→107, 531→581.
     # 2026-06-17 (F1 lint fix): remove unused import sys → 116→115.
     # 2026-07-05 (bug-hunt round 7): import math → 115→116.
-    ("open_prep/outcome_backfill.py", 131, "mkstemp"),  # +15 2026-07-09: _outcomes_dir() call-time redirect
+    ("open_prep/outcome_backfill.py", 137, "mkstemp"),  # 2026-07-13 (window-completeness guards): 131->137
     # 2026-06-11 (eval-findings B1/B2): direction+TB code shifted 581→660.
     # 2026-06-11 (c10b FI component persistence): era-gate block 660→682.
     # 2026-06-11 (Copilot sweep #2677): deferred-summary accounting 682→694.
@@ -100,7 +100,7 @@ _TEMPFILE_LEDGER: frozenset[tuple[str, int, str]] = frozenset({
     # 2026-06-17 (F1 lint fix): remove unused import sys → 709→708.
     # 2026-07-05 (bug-hunt round 7): import math + non-finite entry/exit
     # price guard in compute_pnl_from_bars → 716→721.
-    ("open_prep/outcome_backfill.py", 743, "mkstemp"),  # +15 2026-07-09: _outcomes_dir() call-time redirect
+    ("open_prep/outcome_backfill.py", 773, "mkstemp"),  # 2026-07-13 (window guards + directional FI label): 743->773
     ("open_prep/outcomes.py", 209, "mkstemp"),  # 2026-07-09 robustness: _null_non_finite_floats helper + sanitize call above
     # 2026-06-11 (trend-state features): 419→437, snapshot keys +
     # FEATURE_KEYS/PASS_THROUGH block added above.
@@ -114,7 +114,7 @@ _TEMPFILE_LEDGER: frozenset[tuple[str, int, str]] = frozenset({
     # 2026-07-03 (WP-3 sample_dates helper): +1 -> 604.
     # 2026-07-04 (market-microstructure observe-only): snapshot fields +
     # FEATURE_KEYS/PASS_THROUGH entries +16 -> 620.
-    ("open_prep/outcomes.py", 704, "mkstemp"),  # 2026-07-10: recent_eps_surprise observe-feature (697->711); dead eps_surprise_pct observe-col removed (711->704)
+    ("open_prep/outcomes.py", 714, "mkstemp"),  # 2026-07-13 (directional-era cutoff + loader skip; _pearson_r removed): 704->714
     # 2026-07-03 (WP-4 holiday gate): +2 (import) then +8 below the gate.
     ("open_prep/realtime_signals.py", 120, "mkstemp"),  # 2026-07-12 data-stall constant added above: 119->120
     # 2026-06-25: AsyncNewsstackPoller telemetry additions shifted

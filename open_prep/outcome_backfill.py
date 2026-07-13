@@ -10,9 +10,9 @@ calibration feedback loop has labeled data.
 
 Usage::
 
-    python -m open_prep.outcome_backfill                # backfill today
+    python -m open_prep.outcome_backfill                # last 5 outcome files (CLI default)
     python -m open_prep.outcome_backfill --date 2026-04-18
-    python -m open_prep.outcome_backfill --lookback 5   # last 5 outcome files
+    python -m open_prep.outcome_backfill --lookback 1   # today only (library default)
 """
 from __future__ import annotations
 
@@ -22,7 +22,7 @@ import logging
 import math
 import os
 import tempfile
-from datetime import date, datetime
+from datetime import date, datetime, timedelta
 from datetime import time as dt_time
 from pathlib import Path
 from typing import Any
@@ -56,6 +56,12 @@ def _outcomes_dir() -> Path:
 # RTH entry/exit window: 09:30–10:00 ET.
 _OPEN_TIME = dt_time(9, 30)
 _EXIT_TIME = dt_time(10, 0)
+# Window-completeness guards: the entry bar must print within the first
+# _MAX_ENTRY_DELAY_MIN minutes and the exit bar must reach _MIN_WINDOW_MIN
+# minutes, else the row stays unresolved instead of carrying a truncated
+# window mislabelled as the 30-minute outcome.
+_MAX_ENTRY_DELAY_MIN = 5
+_MIN_WINDOW_MIN = 25
 
 # Databento dataset for US equities.
 _DEFAULT_DATASET = "DBEQ.BASIC"
@@ -166,7 +172,8 @@ def compute_pnl_from_bars(
     both barriers are touched inside the same 1-min bar (conservative).
 
     Returns the label dict or ``None`` if insufficient bar data is
-    available.
+    available — including a truncated window (entry bar later than
+    ``_MAX_ENTRY_DELAY_MIN`` or exit bar before ``_MIN_WINDOW_MIN``).
     """
     import pandas as pd
 
@@ -202,17 +209,28 @@ def compute_pnl_from_bars(
     sym_df = sym_df.copy()
     sym_df["_et"] = pd.to_datetime(sym_df[ts_col], utc=True).dt.tz_convert(_ET)
 
-    # Open bar: first 1-min bar at or after 09:30 ET.
+    # Open bar: first 1-min bar at or after 09:30 ET. Window-completeness
+    # guard: the entry bar must print within the first _MAX_ENTRY_DELAY_MIN
+    # minutes — otherwise a halted/thin open would get a silently truncated
+    # (e.g. 7-minute) return labelled as the 30-minute outcome.
     open_mask = sym_df["_et"] >= open_dt
     if not open_mask.any():
         return None
     open_bar = sym_df.loc[open_mask].iloc[0]
+    if open_bar["_et"] > open_dt + timedelta(minutes=_MAX_ENTRY_DELAY_MIN):
+        return None
 
-    # Exit bar: last 1-min bar before 10:00 ET.
-    exit_mask = sym_df["_et"] < exit_dt
+    # Exit bar: last 1-min bar before 10:00 ET and strictly AFTER the entry
+    # bar — the fetch window starts at 09:29, so an unbounded mask could pick
+    # the 09:29 edge bar as "exit" for a symbol whose first trade printed late
+    # (a reversed, pre-market-anchored PnL). Also require the exit bar to
+    # reach _MIN_WINDOW_MIN minutes so the label covers most of the window.
+    exit_mask = (sym_df["_et"] < exit_dt) & (sym_df["_et"] > open_bar["_et"])
     if not exit_mask.any():
         return None
     exit_bar = sym_df.loc[exit_mask].iloc[-1]
+    if exit_bar["_et"] < open_dt + timedelta(minutes=_MIN_WINDOW_MIN):
+        return None
 
     entry_price = float(open_bar["open"])
     exit_price = float(exit_bar["close"])
@@ -232,7 +250,7 @@ def compute_pnl_from_bars(
     pnl_signed = round(pnl_pct * sign, 4)
 
     # Triple-barrier walk (B2) over the bars inside the entry→exit window.
-    if atr_pct is not None and atr_pct > 0:
+    if atr_pct is not None and math.isfinite(atr_pct) and atr_pct > 0:
         target_pct, stop_pct = atr_pct, 0.5 * atr_pct
         tb_barrier_source = "atr"
     else:
@@ -464,7 +482,7 @@ def backfill_outcomes(
         "resolved": total_resolved,
         "skipped": total_skipped,
         "failed": total_failed,
-        "unresolved_no_bars": total_failed,  # survivorship: labels never assigned (WP-D1)
+        "unresolved_no_bars": total_failed,  # alias of "failed" (ALL unresolved: no-bars, missing-symbol, truncated-window); WP-D1 survivorship, summary-only (not in the run log)
         "deferred": total_deferred,
         "dates_processed": len(dates),
     }
@@ -526,13 +544,25 @@ def backfill_feature_importance(
             if rec.get(key) is None:
                 continue
             breakdown[key] = float(rec[key] or 0.0)
+        # Direction-signed label (B1 parity, 2026-07-13): the FI → FDR →
+        # weight-tuning chain trains on the TRADE-INTENT outcome, matching
+        # compute_hit_rates — the legacy long-only label sign-inverts short
+        # setups (GAP_FADE). Fall back for records predating the directional
+        # fields; the reader-side directional-era gate excludes pre-cutover
+        # FI samples so two label semantics never mix in one training set.
+        label = rec.get("profitable_30m_directional")
+        if label is None:
+            label = rec["profitable_30m"]
+        pnl_for_fi = rec.get("pnl_30m_pct_signed")
+        if pnl_for_fi is None:
+            pnl_for_fi = rec.get("pnl_30m_pct", 0.0)
         collector.record(
             symbol=rec.get("symbol", ""),
             score_breakdown=breakdown,
             total_score=float(rec.get("score", 0.0) or 0.0),
             confidence_tier=rec.get("confidence_tier", "STANDARD"),
-            profitable_30m=rec["profitable_30m"],
-            pnl_30m_pct=float(rec.get("pnl_30m_pct", 0.0) or 0.0),
+            profitable_30m=label,
+            pnl_30m_pct=float(pnl_for_fi or 0.0),
             run_date=rec.get("date"),
         )
 
