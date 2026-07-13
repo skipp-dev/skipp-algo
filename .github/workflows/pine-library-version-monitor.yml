@@ -1,0 +1,210 @@
+name: pine-library-version-monitor
+# live-window: mutating-on-cron  # Daily Repo↔TradingView Pine-library version snapshot (2026-07-13)
+
+# Produces the Pine-library version snapshot the live-overlay daemon serves as
+# Prometheus gauges (services/live_overlay_daemon/pine_library_version_bridge.py).
+# This is the monitoring layer that was missing during the 2026-07 incident
+# chain (#3599/#3603): the `import preuss_steffen/<lib>/<N>` pins silently
+# drifted from the real published TradingView version (micro_profiles /1 vs a
+# live /152 for ~4 months) and NOTHING alerted — CE10272 on every modern mp.*
+# symbol. It probes each library's published version via the pine-facade
+# `filter=published` listing and compares it to every repo pin, so a stale pin
+# becomes a red Grafana panel + alert instead of a silent compile break.
+#
+# Publishes to the rolling bot/live-pine-library-versions branch (mirrors
+# evidence-freshness-snapshot.yml) so the daemon can fetch via
+# PINE_LIBRARY_VERSIONS_SNAPSHOT_URL without a persistent volume.
+#
+# Self-covering: if the TradingView probe fails (auth/facade outage) the builder
+# still writes a snapshot with facade_ok=0 and the run still publishes it, so the
+# snapshot-age gauge keeps advancing and the stale/facade alerts fire instead of
+# the job dying silently. If THIS workflow stops entirely, the daemon's
+# snapshot-age gauge grows and the "Pine-library snapshot stale" alert fires.
+
+on:
+  schedule:
+    # 05:30 UTC daily — after the micro_profiles refresh cron (09:00 Mon–Fri is
+    # the publisher; drift can appear any day) and outside the US trading window.
+    - cron: "30 5 * * *"
+  workflow_dispatch:
+
+permissions:
+  # The publish step writes the rolling bot/live-pine-library-versions branch.
+  # It authenticates via GH_PAT (a secret); the mutating-on-cron marker requires
+  # a declared write.
+  contents: write
+
+concurrency:
+  group: pine-library-version-monitor
+  cancel-in-progress: false
+
+defaults:
+  run:
+    shell: bash
+
+env:
+  PYTHONUNBUFFERED: "1"
+  PYTHONPATH: ${{ github.workspace }}
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: "true"
+
+jobs:
+  snapshot:
+    runs-on: ${{ vars.SMC_GH_HOSTED_RUNNER || 'ubuntu-latest' }}
+    timeout-minutes: 15
+    steps:
+      - name: Checkout
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+        with:
+          fetch-depth: 1
+          persist-credentials: false
+
+      - name: Set up Node
+        uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6
+        with:
+          node-version: "20"
+          cache: "npm"
+          cache-dependency-path: package-lock.json
+
+      - name: Install Node dependencies
+        run: npm ci
+
+      - name: Resolve Playwright version
+        id: pw_version
+        run: |
+          version="$(npx --no-install playwright --version 2>/dev/null | grep -oE '[0-9]+\.[0-9]+\.[0-9]+' | head -n1)"
+          if [ -z "$version" ]; then
+            version="$(node -p "require('./node_modules/playwright/package.json').version")"
+          fi
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+
+      - name: Restore Playwright browsers cache
+        id: pw_cache
+        uses: actions/cache@0400d5f644dc74513175e3cd8d07132dd4860809 # v4.2.4
+        with:
+          path: ~/.cache/ms-playwright
+          key: ${{ runner.os }}-playwright-browsers-${{ steps.pw_version.outputs.version }}
+
+      - name: Install Playwright browsers (cache miss)
+        if: steps.pw_cache.outputs.cache-hit != 'true'
+        run: npx playwright install chromium
+
+      - name: Install Playwright system deps
+        run: npx playwright install-deps chromium
+
+      - name: Write TradingView storage state
+        id: storage_state
+        env:
+          TV_STORAGE_STATE_SECRET: ${{ secrets.TV_STORAGE_STATE }}
+        run: |
+          set -euo pipefail
+          if [ -z "${TV_STORAGE_STATE_SECRET:-}" ]; then
+            echo "::warning::TV_STORAGE_STATE not configured — the facade probe will fail and the snapshot will publish with facade_ok=0 (self-covering)."
+            echo "written=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          mkdir -p automation/tradingview/auth
+          python3 - <<'PY'
+          import base64, gzip, json, os
+          from pathlib import Path
+
+          raw = os.environ['TV_STORAGE_STATE_SECRET'].strip()
+          if raw.startswith('{'):
+              payload = raw
+          else:
+              payload = gzip.decompress(base64.b64decode(raw)).decode('utf-8')
+          json.loads(payload)  # validate
+          out = Path('automation/tradingview/auth/storage-state.json')
+          out.write_text(payload if payload.endswith('\n') else payload + '\n', encoding='utf-8')
+          PY
+          echo "written=true" >> "$GITHUB_OUTPUT"
+
+      - name: Build Pine-library version snapshot
+        id: build
+        env:
+          # Points the builder's TradingView session at the storage state written
+          # above. When absent, the builder degrades to facade_ok=0 (see below).
+          TV_STORAGE_STATE: ${{ steps.storage_state.outputs.written == 'true' && 'automation/tradingview/auth/storage-state.json' || '' }}
+        run: |
+          set -uo pipefail
+          mkdir -p artifacts/monitoring
+          # A facade/auth outage returns rc=1 but STILL writes the snapshot
+          # (facade_ok=0). Never let that fail the job — the whole point is that
+          # the monitoring signal survives a probe outage. Only a missing file
+          # (a real builder crash) is fatal.
+          npx tsx scripts/build_pine_library_version_snapshot.ts \
+            --out artifacts/monitoring/pine_library_versions.json || rc=$?
+          if [ ! -s artifacts/monitoring/pine_library_versions.json ]; then
+            echo "::error::snapshot builder produced no file"
+            exit 1
+          fi
+          if [ "${rc:-0}" != "0" ]; then
+            echo "::warning::facade probe reported an error (rc=${rc}); publishing snapshot with facade_ok=0."
+          fi
+          echo "status=success" >> "$GITHUB_OUTPUT"
+
+      - name: Upload snapshot artifact
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: pine-library-versions-${{ github.run_id }}
+          path: artifacts/monitoring/pine_library_versions.json
+          if-no-files-found: warn
+          retention-days: 14
+
+      - name: Publish snapshot to rolling bot branch
+        # Mirrors evidence-freshness-snapshot.yml: publish to
+        # bot/live-pine-library-versions so the daemon fetches via
+        # PINE_LIBRARY_VERSIONS_SNAPSHOT_URL.
+        if: steps.build.outputs.status == 'success'
+        env:
+          GH_TOKEN: ${{ secrets.GH_PAT }}
+        run: |
+          set -euo pipefail
+          if [ -z "${GH_TOKEN:-}" ]; then
+            echo "::warning::GH_PAT not configured; skipping publish to bot/live-pine-library-versions"
+            exit 0
+          fi
+
+          snapshot="artifacts/monitoring/pine_library_versions.json"
+          if [ ! -s "${snapshot}" ]; then
+            echo "No snapshot produced; nothing to publish."
+            exit 0
+          fi
+
+          stable_dir="artifacts/monitoring/latest"
+          mkdir -p "${stable_dir}"
+          cp "${snapshot}" "${stable_dir}/pine_library_versions.json"
+
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+          _remote_url="https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git"
+          _remote_ref="refs/heads/bot/live-pine-library-versions"
+          _tracking_ref="refs/remotes/origin/bot/live-pine-library-versions"
+
+          git add -f "${stable_dir}"
+          if git diff --cached --quiet; then
+            echo "No Pine-library version snapshot changes to commit."
+            exit 0
+          fi
+          git commit -m "[skip ci] chore: refresh pine-library version snapshot"
+
+          git fetch "${_remote_url}" "+${_remote_ref}:${_tracking_ref}" 2>/dev/null || true
+          _zero_sha="0000000000000000000000000000000000000000"
+          if _expected_sha="$(git rev-parse --verify "${_tracking_ref}" 2>/dev/null)"; then
+            _lease_expected="${_expected_sha}"
+          else
+            _lease_expected="${_zero_sha}"
+          fi
+
+          if git push "--force-with-lease=${_remote_ref}:${_lease_expected}" "${_remote_url}" "HEAD:${_remote_ref}"; then
+            echo "✅ Pushed pine-library version snapshot to bot/live-pine-library-versions"
+            {
+              echo "### ✅ Pine-library version snapshot published"
+              echo ""
+              echo "Branch: \`bot/live-pine-library-versions\`"
+              echo "Path: \`artifacts/monitoring/latest/pine_library_versions.json\`"
+            } >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo "::warning::pine-library version snapshot push failed; the uploaded artifact is still available"
+          fi

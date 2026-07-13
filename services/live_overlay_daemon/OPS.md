@@ -208,6 +208,9 @@ failure fails CI instead of silently leaving the old container running.
 | `SWEEP_TRAP_SHADOW_SNAPSHOT_URL_TOKEN` | no | — | Optional bearer token for `SWEEP_TRAP_SHADOW_SNAPSHOT_URL` |
 | `OVERLAY_SWEEP_TRAP_SHADOW_CACHE_TTL_SECS` | no | — | Sweep-trap shadow snapshot cache TTL (default 900) |
 | `OVERLAY_SWEEP_TRAP_SHADOW_MAX_AGE_SECS` | no | — | Sweep-trap shadow snapshot staleness threshold (default 96h; powers `lo-sweep-trap-shadow-stale`) |
+| `PINE_LIBRARY_VERSIONS_SNAPSHOT_PATH` | no | `artifacts/monitoring/pine_library_versions.json` | Local Repo↔TradingView Pine-library version snapshot path (per-consumer import-pin drift gauges) |
+| `PINE_LIBRARY_VERSIONS_SNAPSHOT_URL` | no | — | Optional HTTPS URL for the Pine-library version snapshot; set to the raw `bot/live-pine-library-versions` `artifacts/monitoring/latest/pine_library_versions.json` so the off-host daemon serves fresh version/pin/drift gauges (`lo-pine-consumer-version-drift`, `lo-pine-library-snapshot-stale`) |
+| `PINE_LIBRARY_VERSIONS_SNAPSHOT_URL_TOKEN` | no | — | Optional bearer token for `PINE_LIBRARY_VERSIONS_SNAPSHOT_URL` |
 | `EXPERIMENT_HISTORY_PATH` | no | — | Local daily experiment history JSONL path |
 | `EXPERIMENT_HISTORY_URL` | no | — | Optional HTTPS URL for experiment history JSONL |
 | `EXPERIMENT_HISTORY_URL_TOKEN` | no | — | Optional bearer token for `EXPERIMENT_HISTORY_URL` |
@@ -291,6 +294,7 @@ matching `*_SNAPSHOT_URL` / `*_HISTORY_URL` to consume those instead.
 | TradingView credential age | `credential-health-check.yml` | `bot/live-tv-credential-snapshot` | `artifacts/credential_health/latest/credential_health.json` | `artifacts/live_overlay/credential_health.json` |
 | Realtime signals | _host helper (no CI producer)_ | `bot/live-signals-snapshot` | `artifacts/open_prep/latest/latest_realtime_signals.json` | `artifacts/open_prep/latest/latest_realtime_signals.json` |
 | Sweep-trap shadow (WS4a) | `sweep-trap-shadow-daily.yml` | `bot/live-sweep-trap-shadow` | `artifacts/monitoring/latest/sweep_trap_shadow.json` | `artifacts/monitoring/sweep_trap_shadow.json` |
+| Pine-library versions | `pine-library-version-monitor.yml` | `bot/live-pine-library-versions` | `artifacts/monitoring/latest/pine_library_versions.json` | `artifacts/monitoring/pine_library_versions.json` |
 
 `smc-measurement-benchmark-rolling.yml` writes temporary per-timeframe
 `structure_export_*.json` files only for inline notices and deletes them in the

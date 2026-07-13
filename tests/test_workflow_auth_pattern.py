@@ -183,6 +183,12 @@ _FORCE_LEASE_ALLOWLIST: frozenset[str] = frozenset({
     # fetch (same rolling-snapshot pattern as evidence-freshness-snapshot).
     # See ADR-0024.
     "sweep-trap-shadow-daily.yml",
+    # pine-library-version-monitor.yml (#3599/#3603 follow-up): rolling
+    # bot/live-pine-library-versions refresh of the Repo↔TradingView Pine
+    # library version-drift snapshot the live-overlay daemon fetches;
+    # force-with-lease with prior fetch (same rolling-snapshot pattern as
+    # evidence-freshness-snapshot). See ADR-0024.
+    "pine-library-version-monitor.yml",
 })
 
 _FORCE_RE = re.compile(r"git\s+push\b[^\n]*--force")

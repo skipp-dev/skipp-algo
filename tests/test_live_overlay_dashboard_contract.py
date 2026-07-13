@@ -939,6 +939,11 @@ SECTION_ORDER = [
     "External Integrations (CI / Uptime)",
     "Providers (Feeds, News & Credentials)",
     "Infrastructure (Railway / Collector)",
+    # #3599/#3603 follow-up: repo↔TradingView Pine-library version drift. Last
+    # (bottom) because it is a low-frequency correctness signal, not a live-ops
+    # feed — but it MUST be visible so a stale import pin (the ~4-month
+    # micro_profiles /1-vs-/152 blind spot) surfaces instead of a silent CE10272.
+    "Pine Library ↔ TradingView Versions",
 ]
 
 
