@@ -1359,3 +1359,24 @@ def _classify_code(code: str, row: dict[str, Any], add_fn: Any) -> None:
         add_fn(REASON_MISSING_ARTIFACT, code)
     elif "PROVIDER" in upper or "BUNDLE" in upper or "REFRESH" in upper:
         add_fn(REASON_PROVIDER_FAILURE, code)
+
+
+# ---------------------------------------------------------------------------
+# Rolling-benchmark reference universe (frame-integrity audit 2026-07-13).
+#
+# SSOT for the 20-symbol default that smc-measurement-benchmark-rolling.yml
+# hardcodes as its dispatch fallback (a workflow-contract test pins YAML ==
+# this tuple). The producer exports genuine full-session 1-minute bars for
+# the UNION of this set and RELEASE_REFERENCE_SYMBOLS so per-TF benchmark
+# frames stop degenerating to 1 bar/day.
+#
+# Placed at END OF FILE deliberately: pin_registry carries a lineno-pinned
+# S603 noqa for resolve_git_commit above — do not insert lines before it.
+# ---------------------------------------------------------------------------
+BENCHMARK_ROLLING_SYMBOLS: tuple[str, ...] = (
+    "AAPL", "MSFT", "AMZN", "GOOGL", "META", "NVDA", "TSLA",
+    "JPM", "BAC", "GS", "MS", "V",
+    "UNH", "JNJ", "HD",
+    "XOM", "CVX", "COP", "OXY",
+    "CAT",
+)

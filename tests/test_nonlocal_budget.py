@@ -99,10 +99,10 @@ _FROZEN_SITES: frozenset[tuple[str, int, tuple[str, ...]]] = frozenset(
         # semantic change to the progress closure itself.
         # 2026-06-10 (#2670 W9): timestamp_substitutions disclosure shifted
         # the four sites +27 (5368-5371 -> 5395-5398).
-        ("databento_volatility_screener.py", 5405, ("_fast_progress_pct",)),  # 2026-07-12 (re-export import): +7
-        ("databento_volatility_screener.py", 5406, ("_fast_progress_step",)),
-        ("databento_volatility_screener.py", 5407, ("_fast_progress_total",)),
-        ("databento_volatility_screener.py", 5408, ("_fast_eta_smooth_seconds",)),
+        ("databento_volatility_screener.py", 5478, ("_fast_progress_pct",)),  # 2026-07-12 (re-export import): +7; 2026-07-13 (collect_benchmark_universe_ohlcv_1m): 5405->5478
+        ("databento_volatility_screener.py", 5479, ("_fast_progress_step",)),  # 2026-07-13 (collect_benchmark_universe_ohlcv_1m): 5406->5479
+        ("databento_volatility_screener.py", 5480, ("_fast_progress_total",)),  # 2026-07-13 (collect_benchmark_universe_ohlcv_1m): 5407->5480
+        ("databento_volatility_screener.py", 5481, ("_fast_eta_smooth_seconds",)),  # 2026-07-13 (collect_benchmark_universe_ohlcv_1m): 5408->5481
         # 2026-07-13 (_bias_component fail-closed guard + #3551 docstrings): 188->199
         ("smc_core/ensemble_quality.py", 199, ("active_weight", "weighted_total")),
         # 2026-06-25: worker-thread target for interruptible AsyncNewsstackPoller

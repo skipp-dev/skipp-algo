@@ -321,20 +321,26 @@ def _load_symbol_bars_for_context(symbol: str, timeframe: str) -> pd.DataFrame:
             bars["volume"] = pd.to_numeric(bars.get("volume", 0.0), errors="coerce").fillna(0.0)
             return bars[["timestamp", "open", "high", "low", "close", "volume", "symbol"]].dropna().reset_index(drop=True)
 
-    intraday = frames.get("full_universe_second_detail_open")
-    if isinstance(intraday, pd.DataFrame) and not intraday.empty:
+    # Frame-integrity audit 2026-07-13: prefer the genuine full-session 1m
+    # frame (reference universe only); symbols it does not cover fall through
+    # to the ~4-minute open-window second detail.
+    for frame_name in ("benchmark_universe_ohlcv_1m", "full_universe_second_detail_open"):
+        intraday = frames.get(frame_name)
+        if not isinstance(intraday, pd.DataFrame) or intraday.empty:
+            continue
         bars = intraday.copy()
         bars["symbol"] = bars.get("symbol", "").astype(str).str.strip().str.upper()
         bars = bars.loc[bars["symbol"].eq(symbol_name)].copy()
         if bars.empty:
-            return pd.DataFrame(columns=["timestamp", "open", "high", "low", "close", "volume", "symbol"])
+            continue  # symbol not covered by this frame -> try the next source
         bars["timestamp"] = _to_epoch_seconds(bars.get("timestamp"))
         for col in ("open", "high", "low", "close"):
             bars[col] = pd.to_numeric(bars.get(col), errors="coerce")
         bars["volume"] = pd.to_numeric(bars.get("volume", 0.0), errors="coerce").fillna(0.0)
         bars = bars[["timestamp", "open", "high", "low", "close", "volume"]].dropna()
-        # The source is per-SECOND (ohlcv-1s); resample to the requested timeframe
-        # so vol-regime ATR/GARCH and the bar-close guard see true timeframe bars.
+        # The source is finer-grained (1m bars / 1s open-window detail); resample
+        # to the requested timeframe so vol-regime ATR/GARCH and the bar-close
+        # guard see true timeframe bars.
         bars = _resample_intraday_to_timeframe(bars, tf)
         if bars.empty:
             return pd.DataFrame(columns=["timestamp", "open", "high", "low", "close", "volume", "symbol"])

@@ -21,7 +21,7 @@ import tempfile
 import threading
 import time as time_module
 import warnings
-from collections.abc import Callable, Iterable
+from collections.abc import Callable, Iterable, Sequence
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from dataclasses import dataclass
 from datetime import UTC, date, datetime, time, timedelta, tzinfo
@@ -2719,6 +2719,79 @@ def collect_full_universe_open_window_second_detail(
             "trade_date", "symbol", "timestamp", "session", "open", "high", "low", "close", "volume",
             "trade_count", "second_delta_pct", "from_previous_close_pct",
         ]
+    )
+
+
+_BENCHMARK_OHLCV_1M_COLUMNS = ("symbol", "timestamp", "open", "high", "low", "close", "volume")
+
+
+def collect_benchmark_universe_ohlcv_1m(
+    databento_api_key: str,
+    *,
+    dataset: str,
+    trading_days: list[date],
+    symbols: Sequence[str],
+) -> pd.DataFrame:
+    """Full-session 1-minute bars for the small release/benchmark universe.
+
+    Frame-integrity audit 2026-07-13: the rolling measurement benchmark's
+    intraday timeframes resampled the ~4-minute open window
+    (``full_universe_second_detail_open``) into degenerate ~1-bar/day frames —
+    all per-TF slices became clones and families whose label horizon exceeds
+    the frame length (FVG: 20 bars) were structurally unscorable. This frame
+    provides genuine full-session bars for the ~24-symbol union of
+    ``RELEASE_REFERENCE_SYMBOLS`` and ``BENCHMARK_ROLLING_SYMBOLS``
+    (~0.5 MB/day; $0 marginal on the current Databento plan, quoted via
+    ``metadata.get_cost`` 2026-07-13). Callers treat failures as fail-soft:
+    an empty frame falls back to the open-window resample, which the
+    benchmark's ``frame_integrity`` telemetry reports loudly.
+    """
+    normalized_symbols = sorted(
+        {normalize_symbol_for_databento(str(value)) for value in symbols if str(value).strip()}
+    )
+    if not trading_days or not normalized_symbols:
+        return pd.DataFrame(columns=_BENCHMARK_OHLCV_1M_COLUMNS)
+
+    client = _make_databento_client(databento_api_key)
+    start_day = min(trading_days)
+    end_exclusive = pd.Timestamp(max(trading_days) + timedelta(days=1), tz=UTC)
+    available_end = _get_schema_available_end(client, dataset, "ohlcv-1m")
+    if available_end is not None and available_end < end_exclusive:
+        end_exclusive = available_end
+    start_ts = pd.Timestamp(start_day, tz=UTC)
+    if end_exclusive <= start_ts:
+        return pd.DataFrame(columns=_BENCHMARK_OHLCV_1M_COLUMNS)
+
+    store = _databento_get_range_with_retry(
+        client,
+        context="benchmark_universe_ohlcv_1m",
+        dataset=dataset,
+        schema="ohlcv-1m",
+        symbols=normalized_symbols,
+        start=start_ts.isoformat(),
+        end=end_exclusive.isoformat(),
+    )
+    frame = _store_to_frame(store, context="benchmark_universe_ohlcv_1m")
+    if frame.empty:
+        return pd.DataFrame(columns=_BENCHMARK_OHLCV_1M_COLUMNS)
+    bars = frame.reset_index()
+    # _store_to_frame/_coerce_timestamp_frame normalizes the event time to
+    # ``ts``; raw to_df frames carry ``ts_event`` (index or column).
+    timestamp_column = next(
+        (name for name in ("ts", "ts_event", "timestamp") if name in bars.columns), None
+    )
+    if timestamp_column is None:
+        return pd.DataFrame(columns=_BENCHMARK_OHLCV_1M_COLUMNS)
+    bars["timestamp"] = pd.to_datetime(bars[timestamp_column], errors="coerce", utc=True)
+    bars["symbol"] = bars.get("symbol", "").astype(str).str.strip().str.upper()
+    for column in ("open", "high", "low", "close"):
+        bars[column] = pd.to_numeric(bars.get(column), errors="coerce")
+    bars["volume"] = pd.to_numeric(bars.get("volume"), errors="coerce").fillna(0.0)
+    bars = bars.loc[bars["symbol"] != ""].dropna(subset=["timestamp", "open", "high", "low", "close"])
+    return (
+        bars[list(_BENCHMARK_OHLCV_1M_COLUMNS)]
+        .sort_values(["symbol", "timestamp"])
+        .reset_index(drop=True)
     )
 
 
