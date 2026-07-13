@@ -1846,6 +1846,22 @@ def build_measurement_evidence(symbol: str, timeframe: str) -> MeasurementEviden
     details["vol_regime_forecast_ratio"] = vol_regime.forecast_ratio
     details["measurement_evidence_present"] = True
     skipped_counts = {family: 0 for family in _FAMILIES}
+    # Frame-integrity audit 2026-07-13: events whose anchor resolves but whose
+    # FULL label horizon does not fit before the frame edge. These are exactly
+    # the events the right-censoring guard in _score_zone_event /
+    # _evaluate_sweep_event (correctly) refuses to label — counting them makes
+    # a family that silently vanishes from the calibrator population loud.
+    scoring_censored_counts = {family: 0 for family in _FAMILIES}
+    _family_lookahead = {
+        "BOS": _BOS_LOOKAHEAD_BARS,
+        "OB": _ZONE_LOOKAHEAD_BARS,
+        "FVG": _FVG_LOOKAHEAD_BARS,
+        "SWEEP": _SWEEP_LOOKAHEAD_BARS,
+    }
+
+    def _count_if_full_horizon_censored(family: str, anchor_idx: int | None) -> None:
+        if anchor_idx is not None and anchor_idx + _family_lookahead[family] > len(resampled_bars) - 1:
+            scoring_censored_counts[family] += 1
 
     # Point-in-time context: each event is scored/stratified with ONLY the bias
     # and vol-regime observable AT ITS ANCHOR BAR (``resampled_bars[:anchor_idx
@@ -1891,6 +1907,7 @@ def build_measurement_evidence(symbol: str, timeframe: str) -> MeasurementEviden
         events_by_family["BOS"].append(evaluated)
         anchor_ts = float(event.get("time", event.get("anchor_ts", 0.0)) or 0.0)
         anchor_idx = _find_bar_index(resampled_bars, anchor_ts)
+        _count_if_full_horizon_censored("BOS", anchor_idx)
         # Point-in-time: rebind to the bias/vol observable at this event's anchor.
         bias_verdict, vol_regime = _point_in_time_context(anchor_idx)
         event_context = _scored_event_context(
@@ -1946,6 +1963,7 @@ def build_measurement_evidence(symbol: str, timeframe: str) -> MeasurementEviden
         events_by_family["OB"].append(evaluated)
         anchor_ts = float(event.get("anchor_ts", event.get("time", 0.0)) or 0.0)
         anchor_idx = _find_bar_index(resampled_bars, anchor_ts)
+        _count_if_full_horizon_censored("OB", anchor_idx)
         # Point-in-time: rebind to the bias/vol observable at this event's anchor.
         bias_verdict, vol_regime = _point_in_time_context(anchor_idx)
         event_context = _scored_event_context(
@@ -2003,6 +2021,7 @@ def build_measurement_evidence(symbol: str, timeframe: str) -> MeasurementEviden
         events_by_family["FVG"].append(evaluated)
         anchor_ts = float(event.get("anchor_ts", event.get("time", 0.0)) or 0.0)
         anchor_idx = _find_bar_index(resampled_bars, anchor_ts)
+        _count_if_full_horizon_censored("FVG", anchor_idx)
         # Point-in-time: rebind to the bias/vol observable at this event's anchor.
         bias_verdict, vol_regime = _point_in_time_context(anchor_idx)
         event_context = _scored_event_context(
@@ -2049,6 +2068,7 @@ def build_measurement_evidence(symbol: str, timeframe: str) -> MeasurementEviden
     for event in effective_structure["liquidity_sweeps"]:
         anchor_ts = float(event.get("time", event.get("anchor_ts", 0.0)) or 0.0)
         anchor_idx = _find_bar_index(resampled_bars, anchor_ts)
+        _count_if_full_horizon_censored("SWEEP", anchor_idx)
         # Point-in-time: rebind to the bias/vol observable at this event's anchor.
         bias_verdict, vol_regime = _point_in_time_context(anchor_idx)
         event_context = _scored_event_context(
@@ -2097,6 +2117,23 @@ def build_measurement_evidence(symbol: str, timeframe: str) -> MeasurementEviden
 
     details["evaluated_event_counts"] = {family: len(events_by_family[family]) for family in _FAMILIES}
     details["skipped_event_counts"] = skipped_counts
+    details["scoring_censored_counts"] = scoring_censored_counts
+    # Frame-integrity audit 2026-07-13: disclose the bar frame's shape so a
+    # degenerate frame (e.g. 1 bar/trading-day resampled from a minutes-wide
+    # source window) is visible in every scoring artifact instead of silently
+    # starving long-horizon families (FVG horizon 20 > a 19-bar frame can
+    # NEVER produce a scorable FVG event).
+    _frame_ts = pd.to_datetime(resampled_bars["timestamp"], utc=True, errors="coerce").dropna() if not resampled_bars.empty else pd.Series(dtype="datetime64[ns, UTC]")
+    _frame_days = int(_frame_ts.dt.date.nunique()) if len(_frame_ts) else 0
+    details["frame"] = {
+        "n_bars": len(resampled_bars),
+        "trading_days": _frame_days,
+        "bars_per_day_median": float(_frame_ts.dt.date.value_counts().median()) if _frame_days else 0.0,
+    }
+    details["family_full_horizon_capacity"] = {
+        family: max(0, len(resampled_bars) - 1 - _family_lookahead[family])
+        for family in _FAMILIES
+    }
     details["scoring_event_count"] = len(scored_events)
     details["scoring_event_counts_by_family"] = {
         family: sum(1 for event in scored_events if event.family == family)

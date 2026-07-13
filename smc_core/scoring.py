@@ -1209,8 +1209,15 @@ def export_scoring_artifact(
     timeframe: str,
     output_dir: Path,
     schema_version: str,
+    frame_integrity: dict[str, Any] | None = None,
 ) -> Path:
     """Write a versionable scoring artifact to *output_dir*.
+
+    ``frame_integrity`` (optional, additive) discloses the bar frame the
+    scoring population was drawn from (n_bars, bars/day, per-family full-
+    horizon capacity and censored counts) so downstream calibrators can tell
+    "family measured zero" apart from "family structurally unscorable on this
+    frame" (frame-integrity audit 2026-07-13).
 
     Returns the path to the written JSON file.
     """
@@ -1238,6 +1245,8 @@ def export_scoring_artifact(
             for family, metrics in result.family_metrics.items()
         },
     }
+    if frame_integrity is not None:
+        payload["frame_integrity"] = frame_integrity
     safe_symbol = _safe_artifact_token(symbol, field_name="symbol")
     safe_timeframe = _safe_artifact_token(timeframe, field_name="timeframe")
     filename = f"scoring_{safe_symbol}_{safe_timeframe}.json"

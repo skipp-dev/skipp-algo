@@ -111,3 +111,19 @@ def test_restore_bundle_filters_deprecated_monolith_artifacts(monkeypatch) -> No
         f"{today}222",
         "smc-databento-production-export-2026-05-19-333",
     ]
+
+
+def test_rolling_benchmark_arms_strict_structure_tf_but_not_frame_distinctness() -> None:
+    """Frame-integrity audit 2026-07-13: the rolling workflow hard-fails on a
+    regression to the legacy 1D-onto-intraday aliasing fallback, but the
+    frame-distinctness gate stays UNARMED until a genuine intraday bar source
+    lands (arming it today would fail every run on the degenerate
+    1-bar/day frames)."""
+    body = _read_workflow("smc-measurement-benchmark-rolling.yml")
+    assert "--strict-structure-tf" in body
+    non_comment_lines = [
+        line for line in body.splitlines() if not line.strip().startswith("#")
+    ]
+    assert not any("--strict-frame-distinctness" in line for line in non_comment_lines)
+    # The doc comment must be honest about the guard's blind spot.
+    assert "does NOT detect degenerate bar frames" in body

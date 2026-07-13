@@ -195,3 +195,108 @@ def test_require_evidence_passes_when_at_least_one_pair_has_evidence(monkeypatch
     rc = benchmark_script.main()
 
     assert rc == 0
+
+
+def _minimal_evidence_with_frame(bars_per_day_median: float) -> MeasurementEvidence:
+    return MeasurementEvidence(
+        events_by_family={"BOS": [], "OB": [], "FVG": [], "SWEEP": []},
+        stratified_events={},
+        scored_events=[],
+        details={
+            "measurement_evidence_present": True,
+            "evaluated_event_counts": {"BOS": 0, "OB": 0, "FVG": 0, "SWEEP": 0},
+            "bars_source_mode": "synthetic_bundle",
+            "frame": {"n_bars": 19, "trading_days": 19, "bars_per_day_median": bars_per_day_median},
+            "scoring_censored_counts": {"BOS": 0, "OB": 0, "FVG": 14, "SWEEP": 0},
+            "family_full_horizon_capacity": {"BOS": 10, "OB": 6, "FVG": 0, "SWEEP": 10},
+        },
+        warnings=[],
+    )
+
+
+def test_degenerate_intraday_frame_is_disclosed_and_warns(monkeypatch, tmp_path: Path, capsys) -> None:
+    """Frame-integrity audit 2026-07-13: 1-bar/day intraday frames must be loud."""
+    monkeypatch.setattr(
+        benchmark_script,
+        "build_measurement_evidence",
+        lambda symbol, timeframe: _minimal_evidence_with_frame(1.0),
+    )
+    monkeypatch.setattr(
+        benchmark_script,
+        "build_parser",
+        lambda: _Parser(
+            Namespace(
+                symbols="AAPL",
+                timeframes="5m",
+                output_dir=str(tmp_path / "bench"),
+            )
+        ),
+    )
+    rc = benchmark_script.main()
+    assert rc == 0  # advisory only without --strict-frame-distinctness
+    err = capsys.readouterr().err
+    assert "DEGENERATE" in err
+    assert "--strict-structure-tf does NOT detect this" in err
+
+    run_manifest = json.loads((tmp_path / "bench" / "benchmark_run_manifest.json").read_text(encoding="utf-8"))
+    frame_integrity = run_manifest["frame_integrity"]
+    assert frame_integrity["degenerate_intraday_timeframes"] == ["5m"]
+    assert frame_integrity["per_timeframe_bars_per_day_median"]["5m"] == 1.0
+    assert frame_integrity["strict_frame_distinctness"] is False
+    # FVG capacity is 0 on every pair of the TF -> disclosed + warned.
+    assert frame_integrity["zero_capacity_families_by_timeframe"] == {"5m": ["FVG"]}
+    assert "full-horizon capacity is ZERO" in err
+
+    scoring = json.loads((tmp_path / "bench" / "AAPL" / "5m" / "scoring_AAPL_5m.json").read_text(encoding="utf-8"))
+    assert scoring["frame_integrity"]["frame"]["n_bars"] == 19
+    assert scoring["frame_integrity"]["scoring_censored_counts"]["FVG"] == 14
+    assert scoring["frame_integrity"]["family_full_horizon_capacity"]["FVG"] == 0
+
+
+def test_strict_frame_distinctness_fails_on_degenerate_frame(monkeypatch, tmp_path: Path, capsys) -> None:
+    monkeypatch.setattr(
+        benchmark_script,
+        "build_measurement_evidence",
+        lambda symbol, timeframe: _minimal_evidence_with_frame(1.0),
+    )
+    monkeypatch.setattr(
+        benchmark_script,
+        "build_parser",
+        lambda: _Parser(
+            Namespace(
+                symbols="AAPL",
+                timeframes="5m",
+                output_dir=str(tmp_path / "bench"),
+                strict_frame_distinctness=True,
+            )
+        ),
+    )
+    rc = benchmark_script.main()
+    assert rc == 1
+    assert "--strict-frame-distinctness" in capsys.readouterr().err
+
+
+def test_healthy_intraday_frame_and_1d_do_not_trip_the_frame_gate(monkeypatch, tmp_path: Path, capsys) -> None:
+    # 1D is EXPECTED to be ~1 bar/day; intraday with real density passes too.
+    frames = {"5m": 78.0, "1D": 1.0}
+
+    def fake_evidence(symbol: str, timeframe: str) -> MeasurementEvidence:
+        return _minimal_evidence_with_frame(frames[timeframe])
+
+    monkeypatch.setattr(benchmark_script, "build_measurement_evidence", fake_evidence)
+    monkeypatch.setattr(
+        benchmark_script,
+        "build_parser",
+        lambda: _Parser(
+            Namespace(
+                symbols="AAPL",
+                timeframes="5m,1D",
+                output_dir=str(tmp_path / "bench"),
+                strict_frame_distinctness=True,
+            )
+        ),
+    )
+    rc = benchmark_script.main()
+    assert rc == 0
+    run_manifest = json.loads((tmp_path / "bench" / "benchmark_run_manifest.json").read_text(encoding="utf-8"))
+    assert run_manifest["frame_integrity"]["degenerate_intraday_timeframes"] == []

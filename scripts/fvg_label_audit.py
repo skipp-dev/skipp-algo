@@ -80,6 +80,13 @@ class FVGAuditResult:
     events: list[dict[str, Any]] = field(default_factory=list)
     findings: list[str] = field(default_factory=list)
     recommendations: list[str] = field(default_factory=list)
+    # Frame-integrity audit 2026-07-13 (additive): the audit channel counts a
+    # DIFFERENT population than the calibrator (benchmark_*.json tolerates
+    # truncated horizons; scoring_*.json requires the full label horizon).
+    scoring_vs_audit: dict[str, Any] = field(default_factory=dict)
+    # Intraday per-TF slices resampled from a degenerate (1 bar/day) frame are
+    # clones — raw totals then pseudoreplicate every event ~6x.
+    pseudoreplication: dict[str, Any] = field(default_factory=dict)
 
 
 def _load_scored_events(benchmark_dir: Path) -> list[dict[str, Any]]:
@@ -393,10 +400,57 @@ def _derive_recommendations(
     return recs
 
 
+_INTRADAY_TFS = ("5m", "10m", "15m", "30m", "1H", "4H")
+
+
+def _pseudoreplication_analysis(per_pair: dict[str, dict[str, Any]]) -> dict[str, Any]:
+    """Detect intraday per-TF clone slices and report deduplicated totals.
+
+    Frame-integrity audit 2026-07-13: when every intraday TF resamples the
+    same degenerate 1-bar/day frame, a symbol's 5m..4H slices carry identical
+    KPIs and the raw event total counts each underlying event ~6x. Clones are
+    collapsed to ONE observation per symbol; 1D always counts separately.
+    """
+    raw_total = sum(int(stats.get("n_events", 0) or 0) for stats in per_pair.values())
+    by_symbol: dict[str, dict[str, dict[str, Any]]] = {}
+    for key, stats in per_pair.items():
+        if "/" not in key:
+            continue
+        symbol, timeframe = key.rsplit("/", 1)
+        by_symbol.setdefault(symbol, {})[timeframe] = stats
+    clone_symbols: list[str] = []
+    deduplicated_total = 0
+    for symbol, slices in sorted(by_symbol.items()):
+        intraday = [slices[tf] for tf in _INTRADAY_TFS if tf in slices]
+        signatures = {
+            (
+                stats.get("n_events"),
+                stats.get("hit_rate"),
+                stats.get("mae"),
+                stats.get("mfe"),
+                stats.get("invalidation_rate"),
+            )
+            for stats in intraday
+        }
+        if len(intraday) >= 2 and len(signatures) == 1:
+            clone_symbols.append(symbol)
+            deduplicated_total += int(intraday[0].get("n_events", 0) or 0)
+        else:
+            deduplicated_total += sum(int(stats.get("n_events", 0) or 0) for stats in intraday)
+        if "1D" in slices:
+            deduplicated_total += int(slices["1D"].get("n_events", 0) or 0)
+    return {
+        "raw_total_events": raw_total,
+        "intraday_clone_symbol_count": len(clone_symbols),
+        "intraday_clone_symbols": clone_symbols,
+        "deduplicated_total_events": deduplicated_total,
+    }
+
+
 def run_fvg_audit(benchmark_dir: Path) -> FVGAuditResult:
     """Run the full FVG label audit."""
     kpis = _load_benchmark_kpis(benchmark_dir)
-    _scored = _load_scored_events(benchmark_dir)
+    scored = _load_scored_events(benchmark_dir)
 
     comparison = _fvg_vs_family_comparison(kpis)
     per_pair = _fvg_per_pair_breakdown(kpis)
@@ -405,6 +459,42 @@ def run_fvg_audit(benchmark_dir: Path) -> FVGAuditResult:
     recommendations = _derive_recommendations(comparison, per_pair, context, findings)
 
     fvg = comparison.get("FVG", {})
+
+    # Frame-integrity audit 2026-07-13: parity between the audit population
+    # (benchmark KPIs, truncation-tolerant) and the calibrator population
+    # (scoring artifacts, full-horizon only). A large audit count next to a
+    # ZERO scored count means the calibrator cannot see the family at all.
+    scoring_population: dict[str, int] = {}
+    for row in scored:
+        family_name = str(row.get("family"))
+        n_events = row.get("n_events")
+        if isinstance(n_events, (int, float)) and not isinstance(n_events, bool):
+            scoring_population[family_name] = scoring_population.get(family_name, 0) + int(n_events)
+    scoring_vs_audit = {
+        "audit_fvg_events": int(fvg.get("total_events", 0) or 0),
+        "scored_fvg_events": scoring_population.get("FVG", 0),
+        "scoring_population_by_family": dict(sorted(scoring_population.items())),
+        "note": (
+            "audit aggregates benchmark_*.json (labels tolerate truncated "
+            "horizons); the zone-priority calibrator reads scoring_*.json "
+            "(full label horizon required) — these are different populations"
+        ),
+    }
+    pseudoreplication = _pseudoreplication_analysis(per_pair)
+    if pseudoreplication["intraday_clone_symbol_count"]:
+        findings.append(
+            f"PSEUDOREPLICATION: {pseudoreplication['intraday_clone_symbol_count']} symbol(s) have "
+            f"KPI-identical intraday slices (5m..4H clones); raw total "
+            f"{pseudoreplication['raw_total_events']} collapses to "
+            f"{pseudoreplication['deduplicated_total_events']} unique observations. Headline stats "
+            "are NOT independent evidence across timeframes (frame-integrity audit 2026-07-13)."
+        )
+    if scoring_vs_audit["audit_fvg_events"] and not scoring_vs_audit["scored_fvg_events"]:
+        findings.append(
+            "CALIBRATOR PARITY: the zone-priority calibrator saw ZERO FVG events while the audit "
+            f"counted {scoring_vs_audit['audit_fvg_events']} — FVG's full label horizon does not fit "
+            "the benchmark frames, so its calibrated weight is the prior (see scoring_vs_audit)."
+        )
 
     result = FVGAuditResult(
         total_fvg_events=fvg.get("total_events", 0),
@@ -416,6 +506,8 @@ def run_fvg_audit(benchmark_dir: Path) -> FVGAuditResult:
         family_comparison=comparison,
         findings=findings,
         recommendations=recommendations,
+        scoring_vs_audit=scoring_vs_audit,
+        pseudoreplication=pseudoreplication,
     )
 
     return result
@@ -520,6 +612,8 @@ def to_json(audit: FVGAuditResult) -> dict[str, Any]:
         "family_comparison": audit.family_comparison,
         "findings": audit.findings,
         "recommendations": audit.recommendations,
+        "scoring_vs_audit": audit.scoring_vs_audit,
+        "pseudoreplication": audit.pseudoreplication,
     }
 
 

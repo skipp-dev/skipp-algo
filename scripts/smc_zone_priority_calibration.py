@@ -89,6 +89,16 @@ class CalibrationResult:
     # Optional walk-forward CV evidence (audit S-1). ``None`` if the corpus
     # was too small for the requested ``n_splits`` or CV was skipped.
     walk_forward_cv: dict[str, Any] | None = None
+    # Frame-integrity audit 2026-07-13: canonical families with ZERO scored
+    # events in the corpus. Their calibrated weight silently equals the prior
+    # — that silence starved FVG for weeks (label horizon 20 bars exceeded
+    # the 19-bar rolling frames, so no FVG event could ever score).
+    families_without_scored_events: list[str] | None = None
+    # Per-family provenance of the emitted weight: "scored" | "prior_only".
+    family_weight_source: dict[str, str] | None = None
+    # Sum of events dropped by the full-horizon right-censoring guard, per
+    # family, aggregated from the scoring artifacts' frame_integrity blocks.
+    scoring_censored_counts: dict[str, int] | None = None
 
 
 # ── Phase F: Contextual calibration ─────────────────────────────
@@ -312,6 +322,32 @@ def calibrate_rank_thresholds(
     return dict(_DEFAULT_RANK_THRESHOLDS)
 
 
+def _aggregate_scoring_censored_counts(benchmark_dir: Path) -> dict[str, int]:
+    """Sum per-family full-horizon censoring across scoring artifacts.
+
+    Reads the additive ``frame_integrity.scoring_censored_counts`` block the
+    measurement harness emits (frame-integrity audit 2026-07-13). Artifacts
+    from older harness versions lack the block and contribute nothing.
+    """
+    totals: dict[str, int] = {family: 0 for family in _FAMILIES}
+    for scoring_file in sorted(benchmark_dir.rglob("scoring_*.json")):
+        try:
+            data = json.loads(scoring_file.read_text(encoding="utf-8"))
+        except (OSError, ValueError):
+            continue
+        frame_integrity = data.get("frame_integrity")
+        if not isinstance(frame_integrity, dict):
+            continue
+        censored = frame_integrity.get("scoring_censored_counts")
+        if not isinstance(censored, dict):
+            continue
+        for family in _FAMILIES:
+            value = censored.get(family)
+            if isinstance(value, (int, float)) and not isinstance(value, bool):
+                totals[family] += int(value)
+    return totals
+
+
 def calibrate_from_benchmark(
     benchmark_dir: Path,
     *,
@@ -356,6 +392,15 @@ def calibrate_from_benchmark(
         # the field is documented as optional.
         walk_forward_cv = None
 
+    # Frame-integrity audit 2026-07-13: make a family that contributes ZERO
+    # scored events loud instead of silently falling back to its prior.
+    families_without_scored_events = sorted(set(_FAMILIES) - set(stats))
+    family_weight_source = {
+        family: "scored" if family in stats else "prior_only"
+        for family in sorted(_FAMILIES)
+    }
+    scoring_censored_counts = _aggregate_scoring_censored_counts(benchmark_dir)
+
     return CalibrationResult(
         family_weights=family_weights,
         rank_thresholds=rank_thresholds,
@@ -364,6 +409,9 @@ def calibrate_from_benchmark(
         total_pairs=total_pairs,
         source_dir=str(benchmark_dir),
         walk_forward_cv=walk_forward_cv,
+        families_without_scored_events=families_without_scored_events,
+        family_weight_source=family_weight_source,
+        scoring_censored_counts=scoring_censored_counts,
     )
 
 
@@ -448,6 +496,15 @@ def to_json(
     }
     if cal.walk_forward_cv is not None:
         payload["walk_forward_cv"] = cal.walk_forward_cv
+    # Frame-integrity audit 2026-07-13 (additive): disclose prior-only
+    # families + horizon-censoring so a consumer can tell a measured weight
+    # from a silent prior fallback.
+    if cal.families_without_scored_events is not None:
+        payload["families_without_scored_events"] = cal.families_without_scored_events
+    if cal.family_weight_source is not None:
+        payload["family_weight_source"] = cal.family_weight_source
+    if cal.scoring_censored_counts is not None:
+        payload["scoring_censored_counts"] = cal.scoring_censored_counts
     if frozen_provenance is not None:
         payload["frozen_provenance"] = frozen_provenance
     return payload
@@ -1235,6 +1292,23 @@ def main(argv: list[str] | None = None) -> None:
     args = parser.parse_args(argv)
 
     cal = calibrate_from_benchmark(args.benchmark_dir, smoothing=args.smoothing)
+
+    # Frame-integrity audit 2026-07-13: a family with zero scored events gets
+    # its PRIOR as "calibrated" weight — loud, never silent. (FVG hit this for
+    # weeks: label horizon 20 bars > the 19-bar rolling frames.)
+    if cal.families_without_scored_events:
+        censored = cal.scoring_censored_counts or {}
+        detail = ", ".join(
+            f"{family} (full-horizon-censored events in corpus: {censored.get(family, 0)})"
+            for family in cal.families_without_scored_events
+        )
+        print(
+            "::warning::zone-priority calibration: ZERO scored events for "
+            f"{detail} — emitted weight is the PRIOR, not a measurement. "
+            "See family_weight_source / scoring_censored_counts in the output "
+            "JSON and frame_integrity in benchmark_run_manifest.json.",
+            file=sys.stderr,
+        )
 
     # ── F2 frozen-artifact provenance (PR #43) ───────────────────
     frozen_provenance: dict[str, Any] | None = None
