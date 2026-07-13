@@ -12,6 +12,7 @@ from smc_core.event_ledger import (
     EVENT_LEDGER_SCHEMA_VERSION,
     EventLedgerRecord,
     EventLedgerSchemaError,
+    ledger_heuristic_score,
     ledger_label,
     ledger_path_for_pair,
     read_event_ledger,
@@ -36,7 +37,7 @@ class _FakeScoredEvent:
 
 
 def test_schema_version_pinned() -> None:
-    assert EVENT_LEDGER_SCHEMA_VERSION == "1.1"
+    assert EVENT_LEDGER_SCHEMA_VERSION == "1.2"
 
 
 def test_record_default_features_empty() -> None:
@@ -47,12 +48,13 @@ def test_record_default_features_empty() -> None:
         timeframe="15m",
         family="FVG",
         timestamp=1.0,
-        predicted_prob=0.5,
+        heuristic_direction_score=0.5,
         outcome=True,
     )
     assert record.features == {}
     assert record.outcome_extras == {}
     assert record.context == {}
+    assert record.calibrated_prob is None  # 1.2: optional, null until back-filled
 
 
 def test_round_trip_jsonl(tmp_path: Path) -> None:
@@ -90,7 +92,11 @@ def test_round_trip_jsonl(tmp_path: Path) -> None:
     assert rows[0]["context"] == {"session": "NY_AM", "vol_regime": "NORMAL"}
     assert rows[0]["raw_score"] == pytest.approx(82.5)
     assert rows[0]["raw_score_name"] == "SIGNAL_QUALITY_SCORE"
-    assert rows[0]["schema_version"] == "1.1"
+    assert rows[0]["schema_version"] == "1.2"
+    # 1.2: the persisted heuristic prior is under the new key; the old name is gone.
+    assert rows[0]["heuristic_direction_score"] == pytest.approx(0.75)
+    assert "predicted_prob" not in rows[0]
+    assert rows[0]["calibrated_prob"] is None  # optional OOS field, null until back-filled
     assert rows[1]["raw_score"] is None
     assert rows[1]["features"] == {}
 
@@ -162,7 +168,7 @@ def test_jsonl_each_row_independently_parseable(tmp_path: Path) -> None:
     write_event_ledger(events, output_path=path, symbol="X", timeframe="15m")
     for line in path.read_text(encoding="utf-8").splitlines():
         record = json.loads(line)
-        assert record["schema_version"] == "1.1"
+        assert record["schema_version"] == "1.2"
         assert "event_id" in record
 
 
@@ -203,7 +209,7 @@ def _one_event(**overrides: object) -> dict:
 @pytest.mark.parametrize("bad_prob", [-0.1, 1.5, 2.0, float("nan"), float("inf"), float("-inf")])
 def test_write_rejects_out_of_range_or_nonfinite_prob(tmp_path: Path, bad_prob: float) -> None:
     path = tmp_path / "events.jsonl"
-    with pytest.raises(ValueError, match="predicted_prob"):
+    with pytest.raises(ValueError, match="heuristic_direction_score"):
         write_event_ledger(
             [_one_event(predicted_prob=bad_prob)],
             output_path=path, symbol="X", timeframe="15m",
@@ -256,7 +262,7 @@ def test_write_preserves_zero_probability(tmp_path: Path) -> None:
     path = tmp_path / "events.jsonl"
     write_event_ledger([_one_event(predicted_prob=0.0)], output_path=path, symbol="X", timeframe="15m")
     row = next(read_event_ledger(path))
-    assert row["predicted_prob"] == 0.0
+    assert row["heuristic_direction_score"] == 0.0
 
 
 # ── validate_event_ledger_record ─────────────────────────────────────────────
@@ -266,7 +272,7 @@ def _valid_record() -> dict:
     return {
         "schema_version": EVENT_LEDGER_SCHEMA_VERSION,
         "event_id": "e1", "symbol": "AAPL", "timeframe": "15m",
-        "family": "FVG", "timestamp": 1.0, "predicted_prob": 0.5, "outcome": True,
+        "family": "FVG", "timestamp": 1.0, "heuristic_direction_score": 0.5, "outcome": True,
     }
 
 
@@ -298,9 +304,25 @@ def test_validate_rejects_foreign_schema_version() -> None:
 @pytest.mark.parametrize("bad_prob", [-1, 2, float("nan"), float("inf"), True, "0.5"])
 def test_validate_rejects_bad_prob(bad_prob: object) -> None:
     rec = _valid_record()
-    rec["predicted_prob"] = bad_prob
-    with pytest.raises(EventLedgerSchemaError, match="predicted_prob"):
+    rec["heuristic_direction_score"] = bad_prob
+    with pytest.raises(EventLedgerSchemaError, match="heuristic_direction_score"):
         validate_event_ledger_record(rec)
+
+
+@pytest.mark.parametrize("bad_cal", [-1, 2, float("nan"), float("inf"), True, "0.5"])
+def test_validate_rejects_bad_calibrated_prob(bad_cal: object) -> None:
+    rec = _valid_record()
+    rec["calibrated_prob"] = bad_cal
+    with pytest.raises(EventLedgerSchemaError, match="calibrated_prob"):
+        validate_event_ledger_record(rec)
+
+
+def test_validate_accepts_null_or_valid_calibrated_prob() -> None:
+    rec = _valid_record()
+    rec["calibrated_prob"] = None  # not yet back-filled
+    assert validate_event_ledger_record(rec) is rec
+    rec["calibrated_prob"] = 0.73
+    assert validate_event_ledger_record(rec) is rec
 
 
 @pytest.mark.parametrize("bad_outcome", ["false", 1, 0, None])
@@ -401,11 +423,29 @@ def test_ledger_label_reads_both_generations() -> None:
 
 
 def test_validate_accepts_legacy_1_0_record() -> None:
-    # A 1.0 record (labels under features, no feature_schema_versions) is still valid.
+    # A 1.0 record (labels under features, no feature_schema_versions, and the
+    # OLD ``predicted_prob`` key instead of heuristic_direction_score) is still valid.
     rec = _valid_record()
     rec["schema_version"] = "1.0"
+    del rec["heuristic_direction_score"]
+    rec["predicted_prob"] = 0.5  # legacy key — validator accepts either
     rec["features"] = {"label_partial_50": True}
     assert validate_event_ledger_record(rec) is rec
+
+
+def test_validate_rejects_record_missing_both_prob_keys() -> None:
+    rec = _valid_record()
+    del rec["heuristic_direction_score"]
+    with pytest.raises(EventLedgerSchemaError, match="heuristic-prior"):
+        validate_event_ledger_record(rec)
+
+
+def test_ledger_heuristic_score_reads_both_generations() -> None:
+    assert ledger_heuristic_score({"heuristic_direction_score": 0.7}) == 0.7  # 1.2
+    assert ledger_heuristic_score({"predicted_prob": 0.4}) == 0.4            # legacy 1.0/1.1
+    # new key wins if somehow both present
+    assert ledger_heuristic_score({"heuristic_direction_score": 0.7, "predicted_prob": 0.4}) == 0.7
+    assert ledger_heuristic_score({}, default=-1) == -1
 
 
 def test_validate_rejects_unknown_future_version() -> None:

@@ -95,7 +95,7 @@ from scripts.smc_zone_priority_calibration import (
     resolve_contextual_weight,
 )
 from scripts.strict_json import dumps_strict_json
-from smc_core.event_ledger import read_event_ledger
+from smc_core.event_ledger import ledger_heuristic_score, read_event_ledger
 from smc_core.scoring import (
     ScoredEvent,
     score_events,
@@ -231,7 +231,7 @@ def rescore_pair(
         family = str(record.get("family", ""))
         # 0.0 is a VALID probability — only a MISSING (None) value falls back to
         # 0.5. The old ``... or 0.5`` turned a real 0% signal into a coin flip.
-        prob_val = record.get("predicted_prob")
+        prob_val = ledger_heuristic_score(record)  # 1.2 key, legacy predicted_prob fallback
         base_prob = float(prob_val) if prob_val is not None else 0.5
         ctx = record.get("context") or {}
         session_ctx = ctx.get("session") if isinstance(ctx, dict) else None

@@ -30,6 +30,8 @@ import tempfile
 from collections import defaultdict
 from pathlib import Path
 
+from smc_core.event_ledger import ledger_heuristic_score
+
 CORPUS_ROOT = Path("/tmp/c10b_local_run/measurement_benchmark")
 OUT = Path("docs/research/co_firing/per_bar_predictions.jsonl")
 OUT.parent.mkdir(parents=True, exist_ok=True)
@@ -87,7 +89,7 @@ for (symbol, ts), fams in per_bar.items():
             "timestamp": ts,
             "n_families": len(family_names),
             "families": family_names,
-            "predictions": {f: fams[f]["predicted_prob"] for f in family_names},
+            "predictions": {f: ledger_heuristic_score(fams[f]) for f in family_names},
             "outcomes": {f: bool(fams[f]["outcome"]) for f in family_names},
             "context": context,
             "context_consistent": len(contexts) <= 1,

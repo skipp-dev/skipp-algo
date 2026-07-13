@@ -18,7 +18,7 @@ INPUT features; OUTCOME/target labels live under ``outcome_extras`` (schema 1.1
 relocated ``label_partial_50`` / ``*_outcome_late`` there — use
 :func:`ledger_label` to read a label from either location for back-compat).
 The pinned schema is enforced by :func:`validate_event_ledger_record`: the
-writer validates ``predicted_prob`` / ``outcome`` / ``raw_score`` at write time
+writer validates ``heuristic_direction_score`` / ``outcome`` / ``raw_score`` at write time
 (and serializes with ``allow_nan=False``), and :func:`read_event_ledger` /
 :func:`read_event_ledger_dir` offer a fail-closed ``strict=True`` mode for
 promotion/governance consumers.
@@ -66,7 +66,9 @@ class EventLedgerRecord:
     timeframe: str
     family: str
     timestamp: float
-    predicted_prob: float
+    # Schema 1.2: the bias-derived heuristic prior (was ``predicted_prob`` in
+    # 1.0/1.1 — that name over-claimed; it is NOT a calibrated probability).
+    heuristic_direction_score: float
     outcome: bool
     context: dict[str, str] = field(default_factory=dict)
     raw_score: float | None = None
@@ -74,6 +76,10 @@ class EventLedgerRecord:
     features: dict[str, Any] = field(default_factory=dict)
     outcome_extras: dict[str, Any] = field(default_factory=dict)
     feature_schema_versions: dict[str, int] = field(default_factory=dict)
+    # Schema 1.2: leak-free OUT-OF-SAMPLE calibrated probability, back-filled per
+    # event from the walk-forward family calibrator. ``None`` until back-filled
+    # (and for events the calibrator never covered — coverage is partial).
+    calibrated_prob: float | None = None
 
 
 def _scored_event_to_record(
@@ -101,12 +107,18 @@ def _scored_event_to_record(
     # every such row look like a 0% prediction in downstream scoring.
     # Found via SMC bug-hunt v2 phase 5 — schema/contract evolution.
     event_id = get("event_id", "")
-    prob_raw = get("predicted_prob")
+    # 1.2: prefer the new name, fall back to the legacy ``predicted_prob`` so an
+    # unmigrated ScoredEvent (whose attribute is still ``predicted_prob``) writes
+    # cleanly under the new key.
+    prob_raw = get("heuristic_direction_score")
+    if prob_raw is None:
+        prob_raw = get("predicted_prob")
     if prob_raw is None:
         raise ValueError(
-            f"event missing predicted_prob (event_id={event_id!r}); "
-            "explicit float in [0.0, 1.0] required"
+            f"event missing heuristic_direction_score/predicted_prob "
+            f"(event_id={event_id!r}); explicit float in [0.0, 1.0] required"
         )
+    cal_raw = get("calibrated_prob")
     # Schema v1.1: labels are OUTCOMES, not features — relocate any that a caller
     # still emits under ``features`` into ``outcome_extras`` (explicit extras win),
     # and lift ``<ns>_schema_version`` keys into the feature_schema_versions map.
@@ -123,7 +135,7 @@ def _scored_event_to_record(
         # predicted_prob / outcome / raw_score are validated at WRITE time so a
         # non-finite prob, an out-of-[0,1] prob, or a non-bool "outcome" (e.g. the
         # string "false", which bool() would flip to True) can never reach the file.
-        predicted_prob=_coerce_prob(prob_raw, event_id=event_id),
+        heuristic_direction_score=_coerce_prob(prob_raw, event_id=event_id),
         outcome=_coerce_outcome(get("outcome", False), event_id=event_id),
         context={str(k): str(v) for k, v in context.items()},
         # PR-quantum-strict-audit: cache the ``get`` result via walrus so
@@ -141,6 +153,12 @@ def _scored_event_to_record(
         features=features,
         outcome_extras=outcome_extras,
         feature_schema_versions=feature_versions,
+        # Optional 1.2 OOS calibrated prob; validated only when a source supplies
+        # it (the back-fill pass), else persisted as null.
+        calibrated_prob=(
+            _coerce_prob(cal_raw, event_id=event_id, label="calibrated_prob")
+            if cal_raw is not None else None
+        ),
     )
 
 
@@ -276,7 +294,9 @@ class EventLedgerSchemaError(ValueError):
     """
 
 
-#: Fields every record must carry to be a valid schema row.
+#: Fields every record must carry to be a valid schema row. The heuristic prior
+#: is validated separately (``heuristic_direction_score`` in 1.2, or the legacy
+#: ``predicted_prob`` in 1.0/1.1) so both record generations pass — see below.
 _REQUIRED_RECORD_FIELDS: tuple[str, ...] = (
     "schema_version",
     "event_id",
@@ -284,13 +304,18 @@ _REQUIRED_RECORD_FIELDS: tuple[str, ...] = (
     "timeframe",
     "family",
     "timestamp",
-    "predicted_prob",
     "outcome",
 )
 
+#: The heuristic-prior key by schema generation: 1.2 writes the first, 1.0/1.1
+#: wrote the second. A valid record carries exactly one of them.
+_HEURISTIC_SCORE_KEYS: tuple[str, ...] = ("heuristic_direction_score", "predicted_prob")
+
 #: Schema versions a reader accepts. 1.0 records (labels under ``features``, no
-#: ``feature_schema_versions``) are still valid — :func:`ledger_label` bridges them.
-EVENT_LEDGER_COMPATIBLE_VERSIONS: frozenset[str] = frozenset({"1.0", "1.1"})
+#: ``feature_schema_versions``) are still valid — :func:`ledger_label` bridges them;
+#: 1.0/1.1 carry ``predicted_prob``, 1.2 carries ``heuristic_direction_score`` +
+#: optional ``calibrated_prob`` — :func:`ledger_heuristic_score` bridges the rename.
+EVENT_LEDGER_COMPATIBLE_VERSIONS: frozenset[str] = frozenset({"1.0", "1.1", "1.2"})
 
 #: Outcome/target labels that belong under ``outcome_extras`` (schema 1.1), never
 #: under ``features`` — they are what a model PREDICTS, not an input.
@@ -315,8 +340,10 @@ def validate_event_ledger_record(
 
     Checks object shape, required fields, ``schema_version`` membership in
     :data:`EVENT_LEDGER_COMPATIBLE_VERSIONS`, and the domains that silently
-    corrupt downstream scoring/calibration: ``predicted_prob`` finite in
-    ``[0, 1]``, ``outcome`` a genuine bool, ``timestamp`` finite, ``family`` a
+    corrupt downstream scoring/calibration: the heuristic prior finite in
+    ``[0, 1]`` (``heuristic_direction_score`` or legacy ``predicted_prob``),
+    optional ``calibrated_prob`` null-or-finite-``[0,1]``,
+    ``outcome`` a genuine bool, ``timestamp`` finite, ``family`` a
     non-empty string, and ``feature_schema_versions`` (if present) a dict.
     Raises :class:`EventLedgerSchemaError` on any violation.
     """
@@ -341,10 +368,25 @@ def validate_event_ledger_record(
             f"{source}: feature_schema_versions must be an object, got "
             f"{type(fsv).__name__}"
         )
-    prob = record["predicted_prob"]
+    score_key = next((k for k in _HEURISTIC_SCORE_KEYS if k in record), None)
+    if score_key is None:
+        raise EventLedgerSchemaError(
+            f"{source}: missing the heuristic-prior field "
+            f"(one of {list(_HEURISTIC_SCORE_KEYS)})"
+        )
+    prob = record[score_key]
     if not _is_real_number(prob) or not math.isfinite(prob) or not (0.0 <= prob <= 1.0):
         raise EventLedgerSchemaError(
-            f"{source}: predicted_prob {prob!r} is not a finite float in [0.0, 1.0]"
+            f"{source}: {score_key} {prob!r} is not a finite float in [0.0, 1.0]"
+        )
+    # 1.2 calibrated_prob is optional; when present (and not null) it must be a
+    # finite probability, same domain as the heuristic prior.
+    calibrated = record.get("calibrated_prob")
+    if calibrated is not None and (
+        not _is_real_number(calibrated) or not math.isfinite(calibrated) or not (0.0 <= calibrated <= 1.0)
+    ):
+        raise EventLedgerSchemaError(
+            f"{source}: calibrated_prob {calibrated!r} is not null or a finite float in [0.0, 1.0]"
         )
     outcome = record["outcome"]
     if not isinstance(outcome, bool):
@@ -365,12 +407,12 @@ def validate_event_ledger_record(
     return record
 
 
-def _coerce_prob(value: Any, *, event_id: Any) -> float:
+def _coerce_prob(value: Any, *, event_id: Any, label: str = "heuristic_direction_score") -> float:
     """Return a finite float in ``[0, 1]`` or raise (write-time enforcement)."""
     prob = float(value)
     if not math.isfinite(prob) or not (0.0 <= prob <= 1.0):
         raise ValueError(
-            f"event predicted_prob {value!r} (event_id={event_id!r}) must be a "
+            f"event {label} {value!r} (event_id={event_id!r}) must be a "
             "finite float in [0.0, 1.0]"
         )
     return prob
@@ -464,4 +506,19 @@ def ledger_label(record: dict[str, Any], key: str, default: Any = None) -> Any:
     feats = record.get("features")
     if isinstance(feats, dict) and key in feats:
         return feats[key]
+    return default
+
+
+def ledger_heuristic_score(record: dict[str, Any], default: Any = None) -> Any:
+    """Read the heuristic direction prior, tolerant of schema 1.0/1.1 and 1.2.
+
+    1.2 stores it under ``heuristic_direction_score``; 1.0/1.1 stored the same
+    value under the (over-claiming) name ``predicted_prob``. Prefer the new key,
+    fall back to the legacy one, so a single call reads both record generations.
+    Consumers MUST use this instead of indexing ``record["predicted_prob"]`` so a
+    1.2 record (which has no ``predicted_prob`` key) does not ``KeyError``.
+    """
+    for key in _HEURISTIC_SCORE_KEYS:
+        if key in record:
+            return record[key]
     return default
