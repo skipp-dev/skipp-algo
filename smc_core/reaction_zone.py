@@ -231,17 +231,18 @@ def detect_reaction_zone(enrichment: dict[str, Any] | None = None) -> dict[str, 
         return neutral
 
     threshold = reaction_zone_config.distance_threshold_pct
-    has_near_support = (
-        (ob_fresh and ob_distance < threshold)
-        or (fvg_fresh and fvg_distance < threshold)
-    )
-    if not has_near_support:
+    ob_qualifies = ob_fresh and ob_distance < threshold
+    fvg_qualifies = fvg_fresh and fvg_distance < threshold
+    if not (ob_qualifies or fvg_qualifies):
         return neutral
 
+    # Direction comes ONLY from a support that individually qualifies (fresh AND
+    # near). Before this gate a stale/far OB could overwrite the direction of the
+    # FVG that actually qualified the detection.
     direction = "neutral"
-    if ob_side in ("BULL", "BEAR"):
+    if ob_qualifies and ob_side in ("BULL", "BEAR"):
         direction = ob_side.lower()
-    elif fvg_side in ("BULL", "BEAR"):
+    elif fvg_qualifies and fvg_side in ("BULL", "BEAR"):
         direction = fvg_side.lower()
     elif sweep_direction in ("BULL", "BEAR"):
         direction = sweep_direction.lower()

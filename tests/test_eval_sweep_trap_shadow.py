@@ -23,7 +23,7 @@ def _sweep(q: float, outcome: int) -> dict:
     return {
         "family": "SWEEP",
         "outcome": bool(outcome),
-        "features": {"sweep_trap_quality_score": q, "sweep_trap_outcome_late": bool(outcome)},
+        "features": {"sweep_trap_schema_version": 2, "sweep_trap_quality_score": q, "sweep_trap_outcome_late": bool(outcome)},  # 2026-07-13: v2 = full-outcome-window era
     }
 
 
@@ -40,9 +40,9 @@ class TestCollectSamples:
              "features": {"sweep_trap_quality_score": 0.9, "sweep_trap_outcome_late": True}},  # wrong family
             {"family": "SWEEP", "outcome": True, "features": {}},  # no score
             {"family": "SWEEP", "outcome": False,
-             "features": {"sweep_trap_quality_score": 1.5, "sweep_trap_outcome_late": False}},  # out of range
+             "features": {"sweep_trap_schema_version": 2, "sweep_trap_quality_score": 1.5, "sweep_trap_outcome_late": False}},  # out of range
             # Pre-leakage-fix record: has the score but no disjoint late outcome -> excluded.
-            {"family": "SWEEP", "outcome": True, "features": {"sweep_trap_quality_score": 0.7}},
+            {"family": "SWEEP", "outcome": True, "features": {"sweep_trap_schema_version": 2, "sweep_trap_quality_score": 0.7}},
         ]
         assert collect_samples(events) == [(0.8, 1)]
 
@@ -52,7 +52,7 @@ class TestCollectSamples:
         ev = {
             "family": "SWEEP",
             "outcome": True,  # full-window reversal hit (would be leaky)
-            "features": {"sweep_trap_quality_score": 0.6, "sweep_trap_outcome_late": False},
+            "features": {"sweep_trap_schema_version": 2, "sweep_trap_quality_score": 0.6, "sweep_trap_outcome_late": False},
         }
         assert collect_samples([ev]) == [(0.6, 0)]
 
@@ -60,7 +60,7 @@ class TestCollectSamples:
         # Schema 1.1 record: the label lives in outcome_extras, the score in features.
         ev = {
             "family": "SWEEP",
-            "features": {"sweep_trap_quality_score": 0.6},
+            "features": {"sweep_trap_schema_version": 2, "sweep_trap_quality_score": 0.6},
             "outcome_extras": {"sweep_trap_outcome_late": True},
         }
         assert collect_samples([ev]) == [(0.6, 1)]
@@ -171,3 +171,34 @@ class TestMainEndToEnd:
     def test_events_hash_stable(self) -> None:
         a = [(0.9, 1), (0.2, 0)]
         assert events_content_hash(a) == events_content_hash(list(reversed(a)))
+
+
+class TestLabelIntegrityGates:
+    """Only schema>=2 rows with GENUINE boolean labels grade the verdict."""
+
+    def _row(self, **feat_overrides) -> dict:
+        feats = {"sweep_trap_schema_version": 2, "sweep_trap_quality_score": 0.8,
+                 "sweep_trap_outcome_late": True}
+        feats.update(feat_overrides)
+        return {"family": "SWEEP", "outcome": True, "features": feats}
+
+    def test_schema_v1_rows_are_excluded(self) -> None:
+        # Era-cut: v1 labels may be right-censored at the data edge.
+        assert collect_samples([self._row(sweep_trap_schema_version=1)]) == []
+
+    def test_missing_schema_version_is_excluded(self) -> None:
+        row = self._row()
+        del row["features"]["sweep_trap_schema_version"]
+        assert collect_samples([row]) == []
+
+    def test_string_false_label_is_dropped_not_a_hit(self) -> None:
+        # bool("false") is True -> plain truthiness would grade this as a HIT.
+        assert collect_samples([self._row(sweep_trap_outcome_late="false")]) == []
+
+    def test_non_bool_labels_are_dropped(self) -> None:
+        for bad in ("true", 1, 1.0, [], [True], {}):
+            assert collect_samples([self._row(sweep_trap_outcome_late=bad)]) == [], repr(bad)
+
+    def test_genuine_bools_grade(self) -> None:
+        assert collect_samples([self._row(sweep_trap_outcome_late=True)]) == [(0.8, 1)]
+        assert collect_samples([self._row(sweep_trap_outcome_late=False)]) == [(0.8, 0)]

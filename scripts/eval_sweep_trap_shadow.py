@@ -82,10 +82,19 @@ def collect_samples(events: list[dict[str, Any]]) -> list[tuple[float, int]]:
         if str(ev.get("family", "")).upper() != "SWEEP":
             continue
         feats = ev.get("features") or {}
+        # Era-cut: schema v2 (edge-censoring fix) guarantees the late label was
+        # observed on the FULL disjoint outcome window; v1 rows may be
+        # right-censored at the data edge and must never grade the verdict.
+        try:
+            if int(feats.get("sweep_trap_schema_version", 0)) < 2:
+                continue
+        except (TypeError, ValueError):
+            continue
         # QUALITY_KEY is a feature; OUTCOME_KEY is a label (schema 1.1 -> outcome_extras,
-        # 1.0 -> features). ledger_label reads either generation.
+        # 1.0 -> features). ledger_label reads either generation. Only a genuine JSON
+        # boolean grades: plain truthiness would count the string "false" as a hit.
         outcome_late = ledger_label(ev, OUTCOME_KEY, default=None)
-        if QUALITY_KEY not in feats or outcome_late is None:
+        if QUALITY_KEY not in feats or not isinstance(outcome_late, bool):
             continue
         try:
             q = float(feats[QUALITY_KEY])
