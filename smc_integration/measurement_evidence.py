@@ -984,8 +984,15 @@ def _liquidity_support_for_event(
             "SWEEP_QUALITY_SCORE": quality,
         }
 
-        # Phase B — Sweep Trap Classifier (shadow enrichment, default OFF).
-        if is_sweep_trap_enabled():
+        # Phase B/C — Sweep Trap Classifier + Reaction Zone (shadow enrichment,
+        # default OFF). Both consume the SAME derived sweep geometry, but each is
+        # now INDEPENDENTLY gated: the reaction-zone study runs on its own flag and
+        # no longer requires sweep-trap to be enabled (2026-07-13 — it was
+        # previously nested inside the Phase B block, so the study flag alone was a
+        # silent no-op on this path). Mirrors the _evaluate_sweep_event OR-gate.
+        run_sweep_trap = is_sweep_trap_enabled()
+        run_reaction = is_reaction_zone_enabled()
+        if run_sweep_trap or run_reaction:
             try:
                 swept_level, sweep_extreme, origin_level = _derive_sweep_trap_geometry(
                     candidate, bars, candidate_idx, is_bullish_sweep=bull_sweep
@@ -1005,22 +1012,24 @@ def _liquidity_support_for_event(
                     for _, r in post_bars_df.iterrows()
                 ]
                 if swept_level > 0:
-                    trap = classify_sweep_trap(
-                        swept_level=swept_level,
-                        sweep_extreme=sweep_extreme,
-                        origin_level=origin_level,
-                        is_bullish_sweep=bull_sweep,
-                        post_sweep_bars=post_sweep_bars,
-                    )
-                    payload["SWEEP_TRAP_TYPE"] = trap.trap_type
-                    payload["SWEEP_RECLAIM_BARS"] = trap.sweep_reclaim_bars
-                    payload["SWEEP_RECLAIM_STRENGTH"] = trap.reclaim_strength
-                    payload["SWEEP_FIB_RETRACE"] = trap.fib_retrace_depth
-                    payload["SWEEP_TRAP_QUALITY_SCORE"] = trap.trap_quality_score
-                    payload["SWEEP_TRAP_STATUS"] = "ok"
+                    if run_sweep_trap:
+                        trap = classify_sweep_trap(
+                            swept_level=swept_level,
+                            sweep_extreme=sweep_extreme,
+                            origin_level=origin_level,
+                            is_bullish_sweep=bull_sweep,
+                            post_sweep_bars=post_sweep_bars,
+                        )
+                        payload["SWEEP_TRAP_TYPE"] = trap.trap_type
+                        payload["SWEEP_RECLAIM_BARS"] = trap.sweep_reclaim_bars
+                        payload["SWEEP_RECLAIM_STRENGTH"] = trap.reclaim_strength
+                        payload["SWEEP_FIB_RETRACE"] = trap.fib_retrace_depth
+                        payload["SWEEP_TRAP_QUALITY_SCORE"] = trap.trap_quality_score
+                        payload["SWEEP_TRAP_STATUS"] = "ok"
 
-                    # Phase C — Reaction Zone (depends on Phase B active).
-                    if is_reaction_zone_enabled() and swept_level > 0:
+                    # Phase C — Reaction Zone. Independently gated: it reuses the
+                    # geometry above but does NOT require sweep-trap to be on.
+                    if run_reaction:
                         zone = compute_reaction_zone(
                             swept_level=swept_level,
                             sweep_extreme=sweep_extreme,
@@ -1048,9 +1057,11 @@ def _liquidity_support_for_event(
                 # "not applicable" (all of which leave the fields simply absent).
                 # Downstream shadow-eval can now count SWEEP_TRAP_STATUS=="error"
                 # instead of silently shrinking the sample. WARNING (was DEBUG).
-                payload["SWEEP_TRAP_STATUS"] = "error"
-                payload["SWEEP_TRAP_ERROR"] = type(exc).__name__
-                if is_reaction_zone_enabled():
+                # Each status is stamped only for the flag that was actually armed.
+                if run_sweep_trap:
+                    payload["SWEEP_TRAP_STATUS"] = "error"
+                    payload["SWEEP_TRAP_ERROR"] = type(exc).__name__
+                if run_reaction:
                     payload["REACTION_STATUS"] = "error"
                 logger.warning(
                     "Phase B/C sweep-trap/reaction enrichment failed (fail-soft): %s",

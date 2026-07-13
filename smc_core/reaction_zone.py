@@ -25,13 +25,14 @@ Three DISTINCT reclaim-related thresholds live in this subsystem — do not conf
 Both are recorded raw; neither gates live scoring (Phase C is observe-only).
 Since 2026-07-13 the study and the context detector have SEPARATE flags
 (``ENABLE_REACTION_ZONE_STUDY`` gates :func:`compute_reaction_zone`;
-``ENABLE_REACTION_CONTEXT`` gates :func:`detect_reaction_zone`). The study gate
-additionally differs by CONSUMER:
-  * the ledger-emission path (``measurement_evidence._evaluate_sweep_event``) runs
-    on the study flag alone;
-  * the liquidity-enrichment path (``measurement_evidence._liquidity_support_for_event``)
-    computes it only when ``ENABLE_SWEEP_TRAP`` is ALSO on — it is nested inside the
-    Phase B block, so with the study on but sweep-trap off it never runs there.
+``ENABLE_REACTION_CONTEXT`` gates :func:`detect_reaction_zone`). Both measurement
+paths — the ledger-emission path (``measurement_evidence._evaluate_sweep_event``)
+and the liquidity-enrichment path
+(``measurement_evidence._liquidity_support_for_event``) — now run the reaction
+study on the study flag ALONE (2026-07-13): the enrichment path used to nest it
+inside the Phase B / ``ENABLE_SWEEP_TRAP`` block, so the study flag alone was a
+silent no-op there; that hidden dependency has been removed (both flags share the
+derived sweep geometry but are independently armed).
 The follow-up study will compare the two signals' follow-through predictive power on
 a leakage-free window.
 """

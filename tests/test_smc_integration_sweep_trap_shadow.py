@@ -208,6 +208,29 @@ class TestWS1LiquiditySupportWiring:
         # Flag off → no status field at all (distinguishable from ok/error).
         assert "SWEEP_TRAP_STATUS" not in payload
 
+    def test_reaction_study_runs_without_sweep_trap(self) -> None:
+        # F9 fix: the reaction-zone study is independently gated — with ONLY
+        # ENABLE_REACTION_ZONE_STUDY on (sweep-trap OFF), the enrichment path must
+        # still emit the REACTION_* geometry (it used to be nested inside the
+        # sweep-trap block, so the study flag alone was a silent no-op here).
+        from smc_integration.measurement_evidence import _liquidity_support_for_event
+
+        bars = _bull_sweep_bars()
+        candidate = {**_event(), "id": "cand-1"}
+        with patch.dict(os.environ, {"ENABLE_SWEEP_TRAP": "0", "ENABLE_REACTION_ZONE_STUDY": "1"}):
+            payload = _liquidity_support_for_event(
+                current_event=candidate, family="SWEEP", sweeps=[candidate],
+                bars=bars, anchor_idx=15, anchor_ts=float(bars.iloc[15]["timestamp"]),
+            )
+        # Reaction geometry present on the study flag alone …
+        assert "REACTION_BAND_LOW" in payload
+        assert "REACTION_LEVEL_RECLAIMED" in payload
+        assert payload["REACTION_STATUS"] == "ok"
+        # … while the sweep-trap fields stay absent (its flag was off).
+        assert "SWEEP_TRAP_TYPE" not in payload
+        assert "SWEEP_TRAP_QUALITY_SCORE" not in payload
+        assert "SWEEP_TRAP_STATUS" not in payload
+
     def test_liquidity_support_emits_ok_status_on_success(self) -> None:
         from smc_integration.measurement_evidence import _liquidity_support_for_event
 
