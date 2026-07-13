@@ -96,6 +96,19 @@ def test_outcome_horizon_purges_overlapping_labels(cfg: dict[str, object]) -> No
         )
 
 
+def test_outcome_horizon_is_sample_index_offset_not_bars() -> None:
+    """Contract pin (#5): the purge is in SAMPLE-INDEX units — sample ``i`` is
+    dropped iff ``i + horizon >= val_start``, both sample positions. It is NOT a
+    bar count / time gap; callers with irregular per-event rows must convert."""
+    folds = walk_forward_splits(n_samples=12, n_folds=2, embargo=0, outcome_horizon=3)
+    assert folds  # sanity
+    for fold in folds:
+        val_start = int(fold.val_idx.min())
+        # Every kept training sample resolves (in sample-index space) strictly
+        # before the validation window starts.
+        assert all(int(i) + 3 < val_start for i in fold.train_idx)
+
+
 def test_val_windows_are_forward_only_and_non_overlapping() -> None:
     folds = walk_forward_splits(
         n_samples=200, n_folds=5, embargo=2, scheme="expanding"

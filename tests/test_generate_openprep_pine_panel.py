@@ -166,6 +166,26 @@ def test_write_outputs_roundtrip(tmp_path) -> None:
     assert [c["symbol"] for c in loaded["candidates"]] == ["MCD", "AAPL"]
 
 
+def test_write_outputs_embeds_provenance(tmp_path) -> None:
+    panel = gen.extract_panel(_SAMPLE_ROWS)
+    out = tmp_path / "panel.pine"
+    pine = gen.build_pine(panel, generated_at="t", source="x", commit_sha=None)
+    prov = {
+        "generated_at": "2026-07-13T00:00:00+00:00",
+        "generator_path": "scripts/generate_openprep_pine_panel.py",
+        "source_outcomes": "outcomes_2026-07-04.json",
+        "source_setups": "setups",
+        "source_commit": "abc123",
+    }
+    sidecar = gen.write_outputs(pine, panel, out, provenance=prov)
+    loaded = json.loads(sidecar.read_text(encoding="utf-8"))
+    assert loaded["provenance"]["generator_path"] == "scripts/generate_openprep_pine_panel.py"
+    assert loaded["provenance"]["source_outcomes"] == "outcomes_2026-07-04.json"
+    assert loaded["provenance"]["source_commit"] == "abc123"
+    # panel payload still present alongside provenance
+    assert [c["symbol"] for c in loaded["candidates"]] == ["MCD", "AAPL"]
+
+
 def test_main_generates_from_explicit_file(tmp_path) -> None:
     src = tmp_path / "outcomes_2026-07-04.json"
     src.write_text(json.dumps(_SAMPLE_ROWS), encoding="utf-8")

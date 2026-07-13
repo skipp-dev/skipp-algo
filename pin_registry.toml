@@ -490,7 +490,7 @@ count = 1
 [[subprocess_shell_injection_pin.sites]]
 file = "scripts/smc_zone_priority_calibration.py"
 attr = "run"
-count = 1
+count = 2
 
 [[subprocess_shell_injection_pin.sites]]
 file = "scripts/start_open_prep_suite.py"
@@ -543,6 +543,12 @@ frozen_major = "v7"
 "databento_volatility_screener.py" = 3
 "newsstack_fmp/ingest_benzinga.py" = 4
 "newsstack_fmp/ingest_benzinga_calendar.py" = 1
+# 2026-07-13 (provenance audit F3): benign synonym chains reading the event-time
+# bounds from the run manifest — `max_event_timestamp_utc` // `end_date` and
+# `min_event_timestamp_utc` // `start_date` (the exact `jq //` preference the
+# regeneration recipe documents). Which key wins is a naming synonym, not a
+# provenance-semantic choice.
+"scripts/smc_zone_priority_calibration.py" = 2
 "newsstack_fmp/ingest_benzinga_financial.py" = 1
 "newsstack_fmp/ingest_unusual_whales.py" = 13
 "newsstack_fmp/normalize.py" = 49  # 47→48 (2026-07-09): Massive-shape chain in normalize_benzinga_rest; 48→49 (2026-07-11): `Symb or ""` coercion in normalize_benzinga_quantified (real quantified schema)
