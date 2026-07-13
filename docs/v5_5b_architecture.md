@@ -1,9 +1,20 @@
-# v5.5b Architecture — Canonical Reference
+# v5.5b Architecture — Canonical Reference (as of the v5.5b field version)
 
-**Status**: Active  
+**Status**: Active — version-pinned reference for the v5.5b field version  
 **Date**: 2026-04-01  
-**Schema Version**: 2.0.0  
+**Schema Version**: 2.0.0 (v5.5b-era; see note below)  
 **Library Field Version**: v5.5b  
+
+> **Version-of-record note (2026-07-12).** This document is the canonical
+> *architecture* overview for the SMC Unified Lean engine; its **design and
+> contracts remain in force**. The two version numbers above are pinned to the
+> **v5.5b field version** and have since been superseded by later MAJOR bumps —
+> the generated manifest
+> (`pine/generated/smc_micro_profiles_generated.json`) is the version-of-record
+> and currently reports `schema_version: 3.0.0` and
+> `library_field_version: v8.0a` (per ADR-0007 field invariants). Treat the
+> schema/field-version lines here as the v5.5b baseline, not the live manifest
+> version.
 
 This document is the single canonical architecture overview for the SMC
 Unified Lean engine at version v5.5b. It consolidates decisions that were
@@ -62,8 +73,10 @@ Both blocks are read-only, scoring-only, and safe-default to zero on absence.
 ## 4. SMC v2 Detector Extensions
 
 When ``SIGNAL_QUALITY_MODEL=v2`` or any individual v2 feature flag is enabled,
-``build_signal_quality`` runs an extended pipeline that folds four optional
-detectors into the result block.  Each detector is independently gated, reads
+``build_signal_quality`` runs an extended pipeline that folds five optional
+detectors into the result block (Freshness v2, Sweep Trap, Reaction Zone,
+Confluence Score, SMT Divergence — see table below).  Each detector is
+independently gated, reads
 only lean-family or admitted support-block data, and safe-defaults to neutral
 when inputs are unavailable.
 
@@ -273,7 +286,7 @@ structure direction.  Returns the merged bias plus a confidence level.
 
 | Phase | Scope | Status |
 | --- | --- | --- |
-| Phase 1 (current) | Brier/Log Score on sweep-reversal label, static thresholds | ✅ Shipped |
+| Phase 1 (foundation) | Brier/Log Score on sweep-reversal label, static thresholds | ✅ Shipped |
 | Phase 2 | Aggregate probability calibration on scored-event probabilities (Platt preferred, beta-bin fallback) | ✅ Shipped |
 | Phase 3 | Stratified calibration summaries by session, HTF bias, vol regime | ✅ Shipped |
 | Phase 4 | Direct event-level `SIGNAL_QUALITY_SCORE` wiring + calibrated shadow governance | ✅ Shipped |

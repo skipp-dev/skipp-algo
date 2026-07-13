@@ -1,5 +1,13 @@
 # ADR-0019: Multi-feature family score v2 (meta-label) — order-flow-led resolution
 
+> **Update (2026-07-12) — the OHLCV shadow-feature onramp is CLOSED.** The
+> OHLCV-pure candidate queue was formally closed (see
+> [onramp saturation verdict](../governance/feature_onramp_saturation_verdict.md),
+> Queue closure 2026-06-04); recorded-only features stay as controls and
+> data-acquisition moved to the options-flow path (ADR-0020). Lifecycle tracked
+> in [ADR-0026](0026-magnitude-retarget-executed-and-ohlcv-queue-closed.md). The
+> original `Proposed (draft)` text below is retained verbatim for provenance.
+
 | Field    | Value                                                                            |
 |----------|----------------------------------------------------------------------------------|
 | Status   | Proposed (draft) — **no gate or score code is changed by this ADR**; implementation is staged as a separate, reviewed PR gated on a passing A/B run |

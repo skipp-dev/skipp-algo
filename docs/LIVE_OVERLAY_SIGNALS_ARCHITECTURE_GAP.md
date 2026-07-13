@@ -1,6 +1,6 @@
 # Live Overlay + Signals Producer — Architecture GAP Analysis
 
-> Status: 2026-06-26 — Option A implemented in PR #2962 (pending merge)  
+> Status: 2026-06-26 — Option A implemented in PR #2962 (**merged**; gap closed)  
 > Scope: Railway deployment of `smc-live-overlay` and `smc-signals-producer`,
 > plus the local manual `smc-signals-producer` that is used only on demand.
 
@@ -61,7 +61,7 @@ part of the operational data path between `smc-signals-producer` and
 
 ## 2. Current state vs. intended state
 
-> All gaps below were closed by **PR #2962** (`feat(overlay): consume live signals directly from smc-signals-producer`), currently pending merge.
+> All gaps below were closed by **PR #2962** (`feat(overlay): consume live signals directly from smc-signals-producer`), **merged** — `compute._load_signals_snapshot()` now runs the producer-first path with `SIGNALS_SNAPSHOT_URL` / `SIGNALS_SNAPSHOT_PATH` fallback. This gap analysis is **closed / historical**.
 
 | Area | Intended | Current (after PR #2962) | Status |
 |------|----------|--------------------------|--------|
@@ -198,7 +198,7 @@ part of the operational data path between `smc-signals-producer` and
 
 | Milestone | PR | Status |
 |-----------|-----|--------|
-| Option A: Direct producer-to-overlay signal consumption | [#2962](https://github.com/skippALGO/skipp-algo/pull/2962) | ⏳ Pending merge |
+| Option A: Direct producer-to-overlay signal consumption | [#2962](https://github.com/skippALGO/skipp-algo/pull/2962) | ✅ Merged |
 | Architecture documentation corrected | [#2961](https://github.com/skippALGO/skipp-algo/pull/2961) | ✅ Merged |
 | Default snapshot paths fixed | [#2958](https://github.com/skippALGO/skipp-algo/pull/2958) | ✅ Merged |
 
