@@ -192,10 +192,17 @@ def is_freshness_v2_enabled() -> bool:
 def is_sweep_trap_enabled() -> bool:
     """Return True iff ``ENABLE_SWEEP_TRAP`` is ``"1"`` (default OFF).
 
-    Phase B: enables Sweep Trap Classifier enrichment.  Adds
-    ``sweep_reclaim_bars``, ``trap_type``, ``reclaim_strength``,
-    ``fib_retrace_depth``, and ``trap_quality_score`` fields to liquidity
-    sweep context.  Requires an active SWEEP event to have any effect.
+    Phase B: enables Sweep Trap Classifier enrichment.  The observe-only
+    shadow features (``sweep_trap_type``, ``sweep_trap_reclaim_bars``,
+    ``sweep_trap_reclaim_strength``, ``sweep_trap_fib_retrace``,
+    ``sweep_trap_quality_score``, ``sweep_trap_outcome_late``) are emitted by
+    the measurement/benchmark pipeline (``smc_integration.measurement_evidence``)
+    into the event-ledger ``features`` — model-INDEPENDENT (this is the WS4a
+    study path; it does NOT require ``SIGNAL_QUALITY_MODEL=v2``).  Separately,
+    ``build_signal_quality`` surfaces ``SWEEP_TRAP_DETECTED``/``_CONFIDENCE``
+    only on the v2 path, but those live-dict fields have no consumer and grant
+    no weight until promoted (see :func:`is_sweep_trap_promoted`).  Requires an
+    active SWEEP event to have any effect.
     """
     return _bool_env("ENABLE_SWEEP_TRAP", "0")
 
@@ -210,8 +217,12 @@ def is_reaction_zone_enabled() -> bool:
     ``close_distance_pct``, ``body_ratio``, ``rejection_wick_ratio``,
     ``directional_body``); the pre-#3501 ``reaction_zone_low/high`` /
     ``close_back_inside_zone`` / ``bars_to_confirm`` names are gone.
-    Observe-only (see :func:`any_v2_score_feature_enabled`): does not route
-    the model or gate the live score.  Depends on Phase B (sweep trap).
+    Like sweep-trap, these ``reaction_*`` shadow fields are emitted by the
+    measurement pipeline model-INDEPENDENTLY (no ``SIGNAL_QUALITY_MODEL=v2``
+    needed); ``build_signal_quality``'s ``REACTION_ZONE_DETECTED`` live-dict
+    field only appears on the v2 path and has no consumer.  Observe-only (see
+    :func:`any_v2_score_feature_enabled`): does not route the model or gate the
+    live score.  Depends on Phase B (sweep trap).
     """
     return _bool_env("ENABLE_REACTION_ZONE", "0")
 
@@ -231,6 +242,14 @@ def is_smt_divergence_enabled() -> bool:
 
     Phase E: enables SMT/correlation divergence layer.  Requires a
     correlated-pair data feed to be configured in the live engine.
+
+    NOTE — unlike sweep-trap/reaction-zone, SMT has NO measurement/shadow-study
+    emission: ``detect_smt_divergence`` is only called inside
+    ``build_signal_quality_v2``.  So with the default ``SIGNAL_QUALITY_MODEL=v1``
+    (and no v2 score flag) the ``SMT_*`` fields are emitted nowhere; they surface
+    only on the v2 score path and are promotion-gated
+    (see :func:`is_smt_divergence_promoted`).  It is a v2 score layer, not an
+    observe-only-with-study detector.
     """
     return _bool_env("ENABLE_SMT_DIVERGENCE", "0")
 
