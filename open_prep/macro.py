@@ -17,7 +17,7 @@ from dataclasses import dataclass, field
 from datetime import UTC, date, datetime
 from email.utils import parsedate_to_datetime
 from pathlib import Path
-from typing import Any, cast
+from typing import Any, ClassVar, cast
 from urllib.parse import urlencode
 from urllib.request import Request, urlopen
 from zoneinfo import ZoneInfo
@@ -984,9 +984,27 @@ class FMPClient:
             return []
         return list(data) if isinstance(data, list) else []
 
+    # /stable/company-screener expects camelCase query params and silently
+    # IGNORES unknown ones (live-probed 2026-07-13: snake_case
+    # market_cap_more_than / is_etf / is_fund had no effect — ETFs and funds
+    # leaked into the harvested universe; camelCase filters are honored).
+    _SCREENER_PARAM_ALIASES: ClassVar[dict[str, str]] = {
+        "market_cap_more_than": "marketCapMoreThan",
+        "market_cap_lower_than": "marketCapLowerThan",
+        "is_etf": "isEtf",
+        "is_fund": "isFund",
+        "is_actively_trading": "isActivelyTrading",
+    }
+
     def get_company_screener(self, **kwargs: Any) -> list[dict[str, Any]]:
+        params: dict[str, Any] = {}
+        for key, value in kwargs.items():
+            api_name = self._SCREENER_PARAM_ALIASES.get(key, key)
+            if isinstance(value, bool):
+                value = "true" if value else "false"  # FMP expects lowercase booleans
+            params[api_name] = value
         try:
-            data = self._get("/stable/company-screener", kwargs)
+            data = self._get("/stable/company-screener", params)
         except RuntimeError as exc:
             _log_feature_unavailable_once(
                 "stable/company-screener",
@@ -994,7 +1012,16 @@ class FMPClient:
                 exc=exc,
             )
             return []
-        return list(data) if isinstance(data, list) else []
+        rows = list(data) if isinstance(data, list) else []
+        # Belt-and-suspenders: honor the documented is_etf/is_fund=False intent
+        # even if the API-side filter regresses (the response rows carry the
+        # flags) — the prior silent leak forced a hand-maintained _ETF_TICKERS
+        # blocklist in market_microstructure.py.
+        if kwargs.get("is_etf") is False:
+            rows = [r for r in rows if not r.get("isEtf")]
+        if kwargs.get("is_fund") is False:
+            rows = [r for r in rows if not r.get("isFund")]
+        return rows
 
     def screener(self, *args: Any, **kwargs: Any) -> list[dict[str, Any]]:
         _ = args

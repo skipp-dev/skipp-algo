@@ -1917,3 +1917,55 @@ def test_execute_get_url_error_first_attempt_then_success(
     assert out == ["recovered"]
     assert len(calls) == 2
     assert client._circuit_breaker.state == "CLOSED"
+
+
+class TestCompanyScreenerParamCasing:
+    """/stable/company-screener expects camelCase params and silently ignores
+    unknown ones — snake_case is_etf/is_fund/market_cap_more_than had NO effect
+    (live-probed 2026-07-13), leaking ETFs/funds into the scored universe."""
+
+    def _client_with_capture(self, monkeypatch, rows):
+        from open_prep.macro import FMPClient
+
+        client = FMPClient(api_key="test-key")
+        captured: dict = {}
+
+        def _fake_get(path, params):
+            captured["path"] = path
+            captured["params"] = dict(params)
+            return rows
+
+        monkeypatch.setattr(client, "_get", _fake_get)
+        return client, captured
+
+    def test_snake_case_kwargs_sent_as_camel_case(self, monkeypatch) -> None:
+        client, captured = self._client_with_capture(monkeypatch, [])
+        client.get_company_screener(
+            country="US",
+            market_cap_more_than=2_000_000_000,
+            is_etf=False,
+            is_fund=False,
+            limit=100,
+        )
+        params = captured["params"]
+        assert params["marketCapMoreThan"] == 2_000_000_000
+        assert params["isEtf"] == "false"  # lowercase boolean, as FMP expects
+        assert params["isFund"] == "false"
+        assert params["country"] == "US"  # already-correct names pass through
+        assert "market_cap_more_than" not in params
+        assert "is_etf" not in params
+
+    def test_etf_and_fund_rows_dropped_client_side(self, monkeypatch) -> None:
+        rows = [
+            {"symbol": "AAPL", "isEtf": False, "isFund": False},
+            {"symbol": "SPY", "isEtf": True, "isFund": False},
+            {"symbol": "VTSAX", "isEtf": False, "isFund": True},
+        ]
+        client, _ = self._client_with_capture(monkeypatch, rows)
+        out = client.get_company_screener(is_etf=False, is_fund=False)
+        assert [r["symbol"] for r in out] == ["AAPL"]
+
+    def test_no_filter_kwargs_keeps_all_rows(self, monkeypatch) -> None:
+        rows = [{"symbol": "SPY", "isEtf": True}]
+        client, _ = self._client_with_capture(monkeypatch, rows)
+        assert client.get_company_screener(country="US") == rows
