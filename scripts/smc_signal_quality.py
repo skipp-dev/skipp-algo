@@ -450,6 +450,12 @@ def build_signal_quality(
     scoring in :func:`build_signal_quality_v1`; ``"v2"`` and ``"v2.1"`
     delegate to :func:`build_signal_quality_v2`.
 
+    NOTE — ``"v2.1"`` is currently an **alias for ``"v2"``**, not a distinct
+    model: there is no v2.1-specific branch, weights, or provenance yet. The
+    Phase-E cutover it is reserved for is unimplemented; both values produce
+    byte-identical output. Do not treat a ``v2.1`` reading as evidence of
+    different bucket weights.
+
     Additionally, if a v2 *score-model* flag is enabled (see
     :func:`open_prep.feature_flags.any_v2_score_feature_enabled` — Phase A
     freshness or Phase D confluence), the router delegates to v2 so those
