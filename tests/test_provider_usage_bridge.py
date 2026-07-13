@@ -130,3 +130,32 @@ def test_metrics_emit_provider_usage_gauges(monkeypatch: pytest.MonkeyPatch) -> 
     assert 'live_overlay_provider_usage_rate_limit_hits{provider="fmp"} 0' in text
     assert 'live_overlay_provider_bandwidth_limit_bytes{provider="fmp"} 150000000000' in text
     # 142.99 GB / 150 GB ~= 95% -> the dashboard/alert ratio is computable.
+
+
+def test_snapshot_age_recomputed_each_call_while_cached(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    # snapshot_age_seconds must reflect true wall-clock age on every call, not
+    # the value frozen at load time, even while the payload is TTL-cached.
+    p = tmp_path / "provider_usage.json"
+    _write(
+        p,
+        {
+            "updated_at": "2026-07-07T10:00:00Z",
+            "current_month": "2026-07",
+            "months": {"2026-07": {"fmp": {"bytes": 42}}},
+        },
+    )
+    monkeypatch.setattr(bridge.config, "provider_usage_snapshot_url", lambda: "")
+    monkeypatch.setattr(bridge.config, "provider_usage_snapshot_path", lambda: p)
+    monkeypatch.setattr(bridge.config, "experiment_cache_ttl_secs", lambda: 9999.0)
+
+    fake = {"t": 2_000_000_000.0}  # year 2033 wall clock, well after updated_at
+    monkeypatch.setattr(bridge.time, "time", lambda: fake["t"])
+
+    age1 = bridge.snapshot()["snapshot_age_seconds"]  # loads + caches
+    fake["t"] += 120.0  # wall clock advances; monotonic (TTL) unchanged -> cache warm
+    age2 = bridge.snapshot()["snapshot_age_seconds"]
+
+    assert age1 is not None and age2 is not None
+    assert age2 == pytest.approx(age1 + 120.0)  # recomputed, not frozen at load

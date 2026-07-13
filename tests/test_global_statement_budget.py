@@ -307,7 +307,7 @@ _FROZEN_SITES: frozenset[tuple[str, int, tuple[str, ...]]] = frozenset(
         # _reset_cache_for_tests()).
         ("services/live_overlay_daemon/sweep_trap_shadow_bridge.py", 140, ("_cached", "_cached_at_monotonic")),
         ("services/live_overlay_daemon/sweep_trap_shadow_bridge.py", 153, ("_cached", "_cached_at_monotonic")),
-        ("services/live_overlay_daemon/provider_usage_bridge.py", 130, ("_cached", "_cached_at_monotonic")),  # 2026-07-11 (rate_limit_hits coerce +1 line): 129->130
+        ("services/live_overlay_daemon/provider_usage_bridge.py", 136, ("_cached", "_cached_at_monotonic")),  # 2026-07-13 (snapshot age-recompute docstring +6): 130->136
         # 2026-06-24 (feat/railway-metrics): Railway GraphQL bridge for container
         # metrics exposes a lazily-refreshed TTL cache (mirroring uptimerobot).
         # 2026-06-25 (fix/live-overlay-bridge-contract-followup): added

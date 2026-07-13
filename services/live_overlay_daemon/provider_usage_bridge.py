@@ -126,14 +126,23 @@ def _load_raw() -> dict[str, Any]:
 
 
 def snapshot() -> dict[str, Any]:
-    """Return the cached provider-usage snapshot; never raises."""
+    """Return the cached provider-usage snapshot; never raises.
+
+    ``snapshot_age_seconds`` is recomputed from ``updated_at`` on every call, so
+    the producer-heartbeat age reflects true wall-clock age even while the
+    payload is TTL-cached (matching the sweep-trap / evidence-freshness bridges,
+    which recompute age live on each scrape instead of freezing it at load).
+    """
     global _cached, _cached_at_monotonic
     ttl = config.experiment_cache_ttl_secs()
     with _cache_lock:
         now_mono = time.monotonic()
         if _cached is not None and (now_mono - _cached_at_monotonic) < ttl:
-            return dict(_cached)
-        fresh = _load_raw()
-        _cached = fresh
-        _cached_at_monotonic = time.monotonic()
-        return dict(fresh)
+            snap = dict(_cached)
+        else:
+            fresh = _load_raw()
+            _cached = fresh
+            _cached_at_monotonic = time.monotonic()
+            snap = dict(fresh)
+    snap["snapshot_age_seconds"] = _age_seconds(str(snap.get("updated_at") or ""))
+    return snap

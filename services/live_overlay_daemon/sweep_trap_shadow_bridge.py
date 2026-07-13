@@ -142,11 +142,11 @@ def snapshot() -> dict[str, Any]:
     with _cache_lock:
         now_mono = time.monotonic()
         if _cached is not None and (now_mono - _cached_at_monotonic) < ttl:
-            return _cached
+            return dict(_cached)  # defensive copy — matches the other six bridges' contract
         loaded = _load_raw()
         _cached = loaded
         _cached_at_monotonic = now_mono
-        return loaded
+        return dict(loaded)
 
 
 def _reset_cache_for_tests() -> None:

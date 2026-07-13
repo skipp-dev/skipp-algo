@@ -68,18 +68,6 @@ def build_slack_message(payload: dict[str, Any]) -> str:
     return "\n".join(lines)
 
 
-def _issue_alerts(payload: dict[str, Any]) -> list[dict[str, Any]]:
-    """Firing alerts explicitly opted in to issue creation via label."""
-    if str(payload.get("status")) != "firing":
-        return []
-    out = []
-    for alert in _alerts(payload):
-        labels = alert.get("labels") if isinstance(alert.get("labels"), dict) else {}
-        if str(labels.get("composio_issue", "")).lower() == "true":
-            out.append(alert)
-    return out
-
-
 def _issue_body(alert: dict[str, Any], payload: dict[str, Any]) -> str:
     labels = alert.get("labels") if isinstance(alert.get("labels"), dict) else {}
     annotations = alert.get("annotations") if isinstance(alert.get("annotations"), dict) else {}
