@@ -602,3 +602,22 @@ def test_stale_fallback_guard_disarmed_before_producer_first_tick() -> None:
     assert arm_hour == _earliest_producer_cron_hour(), (
         "stale-fallback guard arm hour drifted from the producer's earliest cron tick"
     )
+
+def test_refresh_workflow_repins_consumers_from_real_published_version() -> None:
+    """Incident 2026-07-13 (CE10272): NEW_VERSION came from the generator
+    manifest's hardcoded ``library_version: 1``, so the repin rewrote every
+    consumer to the 2026-03 v1 library on each refresh while TradingView was at
+    v164. The bump step must read the publisher's facade-verified
+    ``library.publishedVersion`` from the release manifest, refuse non-integer
+    values, and SKIP (not rewrite) on the stale sentinel 1."""
+    workflow_text = _read(WORKFLOW_PATH)
+
+    bump_idx = workflow_text.index('- name: Bump library version in all pine consumers')
+    bump_end = workflow_text.index('- name: ', bump_idx + 10)
+    bump_block = workflow_text[bump_idx:bump_end]
+
+    assert "jq -r '.library.publishedVersion' artifacts/tradingview/library_release_manifest.json" in bump_block
+    assert "jq -r '.library_version' pine/generated/smc_micro_profiles_generated.json" not in bump_block
+    assert 'is not an integer' in bump_block
+    assert 'stale-evidence sentinel' in bump_block
+

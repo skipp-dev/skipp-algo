@@ -49,6 +49,7 @@ import {
   visibleLegendTextTargetCapReached,
   visibleLegendTextTargetKey,
   isIndicatorSettingsDialogSnapshot,
+  parseFacadeSavedVersion,
 } from "../lib/tv_shared.js";
 import { tvSelectors } from "../selectors.js";
 
@@ -2055,5 +2056,59 @@ test("indicatorSettingsDialogLocators source stays in lockstep with the snapshot
   assert.equal(source.includes('.filter({ hasText: /\\binputs\\b/i })'), false);
   const lockstep = /\.filter\(\{ hasText: \/\\b\(inputs\|visibility\)\\b\/i \}\)\.filter\(\{ hasText: \/\\b\(style\|properties\)\\b\/i \}\)/;
   assert.equal(lockstep.test(source), true, "indicatorSettingsDialogLocators must pair {inputs|visibility} with {style|properties}");
+});
+
+// ── pine-facade version parsing + facade-authoritative publish verification ──
+// Incident 2026-07-13: the UI-evidence chain verified expected==published==1
+// (both derived from the generator manifest's hardcoded constant), so every
+// consumer repin rewrote imports to the 2026-03 v1 library while TV was at
+// v164. The facade listing is authoritative; these pins keep it that way.
+test("parseFacadeSavedVersion parses facade version strings", () => {
+  assert.equal(parseFacadeSavedVersion("164.0"), 164);
+  assert.equal(parseFacadeSavedVersion(164), 164);
+  assert.equal(parseFacadeSavedVersion("3"), 3);
+  assert.equal(parseFacadeSavedVersion("0"), null);
+  assert.equal(parseFacadeSavedVersion("abc"), null);
+  assert.equal(parseFacadeSavedVersion(null), null);
+  assert.equal(parseFacadeSavedVersion(undefined), null);
+});
+
+test("resolvePublishReportState accepts facade_list without expected-version equality", async () => {
+  const { resolvePublishReportState } = await import("../../../scripts/tv_publish_micro_library.js");
+  const facadeState = resolvePublishReportState({
+    openGateAttempted: true,
+    publishAttempted: true,
+    identityVerificationMode: "script_context",
+    versionVerificationMode: "facade_list",
+    publishedVersion: 164,
+    expectedVersion: 1, // the stale generator constant — must NOT gate facade evidence
+    repoCoreValidationOk: true,
+  });
+  assert.equal(facadeState.publishOk, true);
+  assert.equal(facadeState.publishStatus, "published");
+
+  // Non-facade modes keep the strict equality requirement.
+  const uiState = resolvePublishReportState({
+    openGateAttempted: true,
+    publishAttempted: true,
+    identityVerificationMode: "script_context",
+    versionVerificationMode: "version_context",
+    publishedVersion: 164,
+    expectedVersion: 1,
+    repoCoreValidationOk: true,
+  });
+  assert.equal(uiState.publishOk, false);
+
+  // facade_list without a resolved version is NOT ok.
+  const nullState = resolvePublishReportState({
+    openGateAttempted: true,
+    publishAttempted: true,
+    identityVerificationMode: "script_context",
+    versionVerificationMode: "facade_list",
+    publishedVersion: null,
+    expectedVersion: 1,
+    repoCoreValidationOk: true,
+  });
+  assert.equal(nullState.publishOk, false);
 });
 

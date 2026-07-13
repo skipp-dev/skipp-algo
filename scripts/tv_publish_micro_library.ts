@@ -23,6 +23,7 @@ import {
   publishPrivateScript,
   resolveOpenScriptIdentityEvidence,
   resolvePublishedVersionEvidence,
+  fetchSavedScriptVersionViaFacade,
   saveScript,
   setEditorContent,
   takeScreenshot,
@@ -38,7 +39,7 @@ import {
 } from "../automation/tradingview/lib/tv_validation_model.js";
 
 export type IdentityVerificationMode = "script_context" | "not_verified";
-export type VersionVerificationMode = "version_context" | "idempotent_no_change" | "publish_confirmation" | "body_fallback" | "not_verified";
+export type VersionVerificationMode = "version_context" | "idempotent_no_change" | "publish_confirmation" | "facade_list" | "body_fallback" | "not_verified";
 
 const EXPECTED_DEPRECATED_POLICY_MODE = "compatibility_only";
 const EXPECTED_DEPRECATED_FIELD_VERSION = "v8.0a";
@@ -632,14 +633,20 @@ export function resolvePublishReportState(options: {
   publishOk: boolean;
   publishStatus: LibraryReleaseManifest["library"]["publishStatus"];
 } {
-  const publishOk = options.identityVerificationMode === "script_context"
-    && (
+  // facade_list is the authoritative pine-facade lookup (incident 2026-07-13):
+  // TradingView's real version increments per publish, while expectedVersion
+  // comes from the generator manifest's hardcoded constant — requiring
+  // equality there would re-create the stale self-referential check.
+  const versionEvidenceOk = options.versionVerificationMode === "facade_list"
+    ? options.publishedVersion !== null
+    : (
       options.versionVerificationMode === "version_context"
       || options.versionVerificationMode === "idempotent_no_change"
       || options.versionVerificationMode === "publish_confirmation"
     )
-    && options.publishedVersion !== null
-    && options.publishedVersion === options.expectedVersion;
+      && options.publishedVersion !== null
+      && options.publishedVersion === options.expectedVersion;
+  const publishOk = options.identityVerificationMode === "script_context" && versionEvidenceOk;
 
   const publishStatus = publishOk
     ? "published"
@@ -687,7 +694,8 @@ export function resolvePublishPipelinePhase(options: {
   const identityOk = options.identityVerificationMode === "script_context";
   const versionOk = options.versionVerificationMode === "version_context"
     || options.versionVerificationMode === "idempotent_no_change"
-    || options.versionVerificationMode === "publish_confirmation";
+    || options.versionVerificationMode === "publish_confirmation"
+    || options.versionVerificationMode === "facade_list";
 
   if (!identityOk) {
     return { completedPhase: "publish", failedAtStep: "identity_verification", resumeFrom: "publish" };
@@ -1038,6 +1046,21 @@ export async function runPublishMicroLibraryCli(): Promise<number> {
           || versionVerificationMode === "publish_confirmation"
         )
           && publishedVersion === details.libraryVersion;
+      }
+
+      // Incident 2026-07-13: every evidence branch above can settle on
+      // details.libraryVersion — the GENERATOR manifest's HARDCODED constant
+      // (1), which never tracked TradingView's real per-publish version. That
+      // self-referential expected==published==1 "verification" repinned all
+      // consumers to the 2026-03 v1 library for months (CE10272 on every
+      // modern mp.* symbol). The pine-facade saved-scripts listing is
+      // authoritative — let it override the UI-parsed evidence; UI evidence
+      // stays as the fallback when the facade is unreachable.
+      const facadeVersion = await fetchSavedScriptVersionViaFacade(session.page, details.libraryName).catch(() => null);
+      if (facadeVersion !== null) {
+        publishedVersion = facadeVersion;
+        versionVerificationMode = "facade_list";
+        exactVersionVerified = true;
       }
 
       if (!exactScriptVerified || !exactVersionVerified) {
