@@ -179,3 +179,95 @@ def test_commit_back_guard_survives_untracked_and_absent_ledger() -> None:
     assert "git diff --quiet artifacts/governance/sweep_trap_shadow.jsonl" not in commit_step
     assert 'if [ ! -f "${LEDGER}" ]' in commit_step
     assert "git status --porcelain" in commit_step
+
+
+# ── behavior-shaped execution tests (not string-grep): pull the REAL command
+#    lines out of the workflow YAML and execute them against fixtures, so a
+#    depth off-by-one or a guard regression fails here, not just a text drift ──
+import os
+import subprocess
+import tempfile
+
+
+def _extract_line(fragment: str) -> str:
+    """Return the single workflow line containing ``fragment`` (leading indent
+    stripped), failing loudly if it is absent or ambiguous."""
+    hits = [ln.strip() for ln in _WF_PATH.read_text(encoding="utf-8").splitlines() if fragment in ln]
+    assert len(hits) == 1, f"expected exactly one line with {fragment!r}, got {len(hits)}"
+    return hits[0]
+
+
+def test_resolver_find_and_dirname_anchor_the_corpus_root_matching_the_eval_glob() -> None:
+    """Execute the workflow's actual ``find`` + ``dirname`` chain against a CI-shaped
+    download tree (bundle nested under its artifact name) plus a DECOY sibling
+    artifact carrying its own events file at a shallower depth. The resolved
+    corpus_dir must be the bundle root AND satisfy the eval's real glob
+    ``benchmark_dir/*/*/events_*.jsonl`` — the exact invariant #3601 fixed."""
+    find_line = _extract_line('found=$(find "${download_dir}"')
+    dir_line = _extract_line('corpus_dir=$(dirname')
+    # Adapt the two GITHUB_OUTPUT-writing lines into a plain echo of corpus_dir.
+    # dir_line = echo "corpus_dir=<EXPR>" >> "$GITHUB_OUTPUT" — take the balanced <EXPR>.
+    dir_expr = dir_line.split("corpus_dir=", 1)[1].split('" >>', 1)[0]
+
+    with tempfile.TemporaryDirectory() as td:
+        root = Path(td) / "dl"
+        bundle = root / "smc-measurement-benchmark-rolling-2026-07-13" / "JPM" / "10m"
+        bundle.mkdir(parents=True)
+        (bundle / "events_JPM_10m.jsonl").write_text("{}\n")
+        # DECOY: a different artifact with an events file at a shallower depth.
+        decoy = root / "scored-family-events-2026-07-13"
+        decoy.mkdir(parents=True)
+        (decoy / "events_decoy.jsonl").write_text("{}\n")
+
+        script = f'set -euo pipefail\ndownload_dir="{root}"\n{find_line}\ncorpus_dir={dir_expr}\necho "$corpus_dir"\n'
+        out = subprocess.run(["bash", "-c", script], capture_output=True, text=True, check=True)
+        corpus_dir = Path(out.stdout.strip())
+
+        assert corpus_dir == root / "smc-measurement-benchmark-rolling-2026-07-13"
+        # The eval globs corpus_dir/*/*/events_*.jsonl — must hit the bundle event.
+        assert list(corpus_dir.glob("*/*/events_*.jsonl")), "corpus_dir does not satisfy the eval glob"
+
+
+def _run_commit_back_guard(ledger: Path, workdir: Path) -> str:
+    """Run the workflow's commit-back guard decision (existence + porcelain) in a
+    real git repo and return 'SKIP' or 'COMMIT'."""
+    fexists = _extract_line('if [ ! -f "${LEDGER}" ]; then')
+    fporcelain = _extract_line('if [ -z "$(git status --porcelain -- "${LEDGER}")" ]; then')
+    rel = ledger.relative_to(workdir)
+    script = (
+        "set -uo pipefail\n"
+        f'cd "{workdir}"\n'
+        f'LEDGER="{rel}"\n'
+        f'{fexists}\n  echo SKIP; exit 0\nfi\n'
+        f'{fporcelain}\n  echo SKIP; exit 0\nfi\n'
+        "echo COMMIT\n"
+    )
+    return subprocess.run(["bash", "-c", script], capture_output=True, text=True, check=True).stdout.strip()
+
+
+def test_commit_back_guard_executes_correctly_across_all_four_ledger_states() -> None:
+    """The commit-back guard's four real cases, executed (not asserted by text):
+    absent→SKIP, untracked-new→COMMIT, tracked-unchanged→SKIP, modified→COMMIT.
+    The commit message claims 'proven across all four cases' — this proves it."""
+    with tempfile.TemporaryDirectory() as td:
+        repo = Path(td)
+        env = {**os.environ, "GIT_AUTHOR_NAME": "t", "GIT_AUTHOR_EMAIL": "t@t",
+               "GIT_COMMITTER_NAME": "t", "GIT_COMMITTER_EMAIL": "t@t"}
+
+        def run(*a: str) -> None:
+            subprocess.run(["git", "-C", str(repo), *a], check=True, capture_output=True, env=env)
+        run("init", "-q")
+        (repo / "seed.txt").write_text("seed\n")
+        run("add", "seed.txt")
+        run("commit", "-qm", "init")
+        ledger = repo / "artifacts" / "governance" / "sweep_trap_shadow.jsonl"
+        ledger.parent.mkdir(parents=True)
+
+        assert _run_commit_back_guard(ledger, repo) == "SKIP"  # absent (genuine no_data)
+        ledger.write_text('{"n":19}\n')
+        assert _run_commit_back_guard(ledger, repo) == "COMMIT"  # untracked, first-ever row
+        run("add", str(ledger.relative_to(repo)))
+        run("commit", "-qm", "row1")
+        assert _run_commit_back_guard(ledger, repo) == "SKIP"  # tracked, unchanged
+        ledger.write_text('{"n":19}\n{"n":20}\n')
+        assert _run_commit_back_guard(ledger, repo) == "COMMIT"  # tracked, modified

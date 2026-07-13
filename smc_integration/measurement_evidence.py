@@ -77,6 +77,11 @@ _REACTION_SCHEMA_VERSION = 2  # v2: label only emitted with the FULL outcome win
 # Sweep-trap shadow study schema. v1 = first leakage-free emission (trap features
 # confirmed on bars 1..N, paired with the disjoint ``sweep_trap_outcome_late``).
 _SWEEP_TRAP_SCHEMA_VERSION = 2  # v2: full-outcome-window guarantee (see _REACTION_SCHEMA_VERSION); evaluators must reject v1 rows
+# Bound at import from the skipp_config SSOT, mirroring smc_core.scoring (which
+# binds the same two knobs the same way): a SKIPP_TRADING_THRESHOLDS_CONFIG
+# override takes effect at process start, not per-call — intended, since both
+# label paths must agree on one threshold for a whole run, and any change is an
+# era-cut of the shadow/calibration ledgers anyway (see the NOTE below).
 _BOS_FOLLOW_THROUGH_THRESHOLD_PCT = get_trading_thresholds().smc_scoring.bos_follow_through_threshold_pct  # SSOT skipp_config (was a 0.003 hardcode shadowing the config knob)
 _SWEEP_REVERSAL_THRESHOLD_PCT = get_trading_thresholds().smc_scoring.sweep_reversal_threshold_pct  # SSOT skipp_config; NOTE: overriding it changes labeling semantics -> era-cut shadow/calibration ledgers first
 _SQ_LOOKBACK_BARS = 64

@@ -71,10 +71,17 @@ def derive_variants(feats: dict[str, Any]) -> dict[str, bool] | None:
         in_band = bool(feats["reaction_in_rejection_band"])
         dist = float(feats["reaction_close_distance_pct"])
         width = float(feats["reaction_band_width_pct"])
-        bars_to_band = int(feats.get("reaction_bars_to_rejection_band", -1))
-        bars_to_reclaim = int(feats.get("reaction_bars_to_reclaim", -1))
     except (KeyError, TypeError, ValueError):
         return None
+    # bars_to_* order ONLY the old_band cohort, so a missing OR corrupt value
+    # must fail-closed on old_band alone (default -1 → the flags-guard drops the
+    # sample from that cohort), never discard the still-valid level_cross /
+    # mirrored_band variants — keeping the two failure modes symmetric.
+    try:
+        bars_to_band = int(feats.get("reaction_bars_to_rejection_band", -1))
+        bars_to_reclaim = int(feats.get("reaction_bars_to_reclaim", -1))
+    except (TypeError, ValueError):
+        bars_to_band = bars_to_reclaim = -1
     mirrored = reclaimed and (0.0 <= dist <= width)
     # ``old_band`` is the EARLY-rejection cohort: at the time the band close fired
     # no reclaim had happened yet. The producer keeps scanning after a reclaim, so
