@@ -72,3 +72,22 @@ def test_invalidation_at_exactly_anchor_ts_counts() -> None:
     # _candidate_mitigated_at_anchor.
     s = _state(_event(invalidated=True, invalidated_ts=_ANCHOR_TS))
     assert s["freshness_bucket"] == "invalidated"
+
+
+def test_classification_error_emits_unknown_not_best_case(caplog) -> None:
+    # A failed freshness classification must NOT silently become the best-case
+    # "fresh"/1.0 state (which grants full-strength credit and can inflate the
+    # live v2 score). A non-numeric bar_index forces int() to raise inside the
+    # helper; assert the conservative "unknown" fallback + WARNING instead.
+    import logging
+
+    with caplog.at_level(logging.WARNING):
+        s = _state(_event(bar_index="not-an-int"))
+    assert s["freshness_bucket"] == "unknown"
+    assert s["freshness_penalty"] == 0.60          # stale decay floor
+    assert s["freshness_penalty"] < 1.0            # never full-strength on error
+    assert s["freshness_error"] is True
+    assert any(
+        r.levelno == logging.WARNING and "freshness_v2" in r.getMessage()
+        for r in caplog.records
+    )

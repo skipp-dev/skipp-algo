@@ -567,6 +567,25 @@ class TestRowFromExistingArtifact:
         path.write_text("[1, 2, 3]", encoding="utf-8")
         assert _row_from_existing_artifact(path, "X", "15m") is None
 
+    def test_unreadable_artifact_surfaced_in_errors(self, tmp_path: Path) -> None:
+        # A corrupt existing artifact must be recorded in the manifest error block
+        # (not silently dropped to None so "missing" and "corrupt" look identical).
+        path = tmp_path / "bad.json"
+        path.write_text("not json", encoding="utf-8")
+        errors: list[dict] = []
+        assert _row_from_existing_artifact(path, "AAPL", "15m", errors=errors) is None
+        assert len(errors) == 1
+        assert errors[0]["code"] == "STRUCTURE_ARTIFACT_UNREADABLE"
+        assert errors[0]["symbol"] == "AAPL"
+
+    def test_non_dict_artifact_surfaced_in_errors(self, tmp_path: Path) -> None:
+        path = tmp_path / "list.json"
+        path.write_text("[1, 2, 3]", encoding="utf-8")
+        errors: list[dict] = []
+        assert _row_from_existing_artifact(path, "AAPL", "15m", errors=errors) is None
+        assert len(errors) == 1
+        assert errors[0]["code"] == "STRUCTURE_ARTIFACT_SCHEMA_INVALID"
+
 
 class TestBuildStructureArtifactManifest:
     def test_manifest_shape(self) -> None:
@@ -749,6 +768,26 @@ class TestExistingArtifactRows:
         rows = _existing_artifact_rows(tmp_path, ["AAPL", "MSFT"], "15m")
         assert len(rows) == 1
         assert rows[0].symbol == "AAPL"
+
+    def test_corrupt_artifact_surfaced_in_errors_and_excluded_from_rows(self, tmp_path: Path) -> None:
+        from smc_integration.structure_batch import _existing_artifact_rows
+
+        # AAPL is valid; MSFT is corrupt. The corrupt one must appear in errors
+        # and be excluded from rows — not silently vanish.
+        good = {
+            "coverage_mode": "partial",
+            "coverage": {"has_bos": True, "has_orderblocks": False, "has_fvg": False, "has_liquidity_sweeps": False},
+            "structure": {"bos": [1]},
+            "diagnostics": {"counts": {"bos": 1}, "warnings": []},
+        }
+        (tmp_path / "AAPL_15m.structure.json").write_text(json.dumps(good), encoding="utf-8")
+        (tmp_path / "MSFT_15m.structure.json").write_text("not json", encoding="utf-8")
+        errors: list[dict] = []
+        rows = _existing_artifact_rows(tmp_path, ["AAPL", "MSFT"], "15m", errors=errors)
+        assert [r.symbol for r in rows] == ["AAPL"]
+        assert len(errors) == 1
+        assert errors[0]["code"] == "STRUCTURE_ARTIFACT_UNREADABLE"
+        assert errors[0]["symbol"] == "MSFT"
 
 
 class TestLoadSymbolBarsFromWorkbook:

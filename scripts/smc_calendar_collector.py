@@ -4,10 +4,13 @@ Pure stdlib implementation — no open_prep or external dependencies.
 """
 from __future__ import annotations
 
+import logging
 import re
 from datetime import UTC, date, datetime
 from typing import Any
 from zoneinfo import ZoneInfo
+
+logger = logging.getLogger(__name__)
 
 # Macro events considered high-impact
 _HIGH_IMPACT_PATTERNS = re.compile(
@@ -91,15 +94,33 @@ def collect_earnings_and_macro(
 
     if next_trading_date is not None:
         tomorrow = next_trading_date
+        calendar_source = "explicit"
+        fallback_reason = ""
+        tomorrow_available = True
     else:
         try:
             from newsstack_fmp._market_cal import next_trading_day as _next_td
 
             tomorrow = _next_td(today)
-        except Exception:
+            calendar_source = "market_calendar"
+            fallback_reason = ""
+            tomorrow_available = True
+        except Exception as exc:
             from datetime import timedelta as _td
 
+            # Naive today+1 can land on a weekend (any Friday call) or a holiday.
+            # Disclose the fallback and mark earnings_tomorrow UNAVAILABLE rather
+            # than emit a silently-wrong "tomorrow" set.
             tomorrow = today + _td(days=1)
+            calendar_source = "naive_increment"
+            fallback_reason = type(exc).__name__
+            tomorrow_available = False
+            logger.warning(
+                "earnings calendar: market-calendar lookup failed (%s); falling "
+                "back to naive today+1 (may be a weekend/holiday) — "
+                "earnings_tomorrow marked unavailable",
+                type(exc).__name__,
+            )
     universe = {s.upper() for s in symbols}
 
     earnings_today: list[str] = []
@@ -158,4 +179,10 @@ def collect_earnings_and_macro(
         "high_impact_macro_today": high_impact,
         "macro_event_name": macro_name,
         "macro_event_time": macro_time,
+        # Provenance for the "tomorrow" reference: consumers must treat
+        # earnings_tomorrow_tickers as unreliable when earnings_tomorrow_available
+        # is False (market-calendar lookup failed → naive today+1 fallback).
+        "earnings_tomorrow_available": tomorrow_available,
+        "calendar_source": calendar_source,
+        "calendar_fallback_reason": fallback_reason,
     }

@@ -40,6 +40,31 @@ class TestComputeInstitutionalEnrichment:
         result = compute_institutional_enrichment(["AAPL"], fmp)
         assert result["institutional_data_available"] is False
 
+    def test_valid_neutral_is_available_without_signal(self) -> None:
+        # Holders returned but the change is within +-5% → provider responded
+        # (available) with NO accumulation/distribution signal. Previously this
+        # neutral-but-valid case was indistinguishable from an outage (both False).
+        holders = [
+            {"shares": 1010, "previousShares": 1000},   # +1% (< 5% threshold)
+            {"shares": 2010, "previousShares": 2000},
+        ]
+        fmp = self._mock_fmp({"AAPL": holders})
+        result = compute_institutional_enrichment(["AAPL"], fmp)
+        assert result["institutional_accumulation_tickers"] == []
+        assert result["institutional_distribution_tickers"] == []
+        assert result["institutional_data_available"] is True    # provider responded
+        assert result["institutional_signal_present"] is False   # but no signal
+        assert result["institutional_failure_rate"] == 0.0
+
+    def test_provider_outage_unavailable(self) -> None:
+        fmp = MagicMock()
+        fmp.get_institutional_holders.side_effect = RuntimeError("13F provider down")
+        result = compute_institutional_enrichment(["AAPL", "MSFT"], fmp)
+        assert result["institutional_data_available"] is False
+        assert result["institutional_signal_present"] is False
+        assert result["institutional_symbols_failed"] == 2
+        assert result["institutional_failure_rate"] == 1.0
+
     def test_return_shape(self) -> None:
         fmp = self._mock_fmp({})
         result = compute_institutional_enrichment([], fmp)
@@ -47,4 +72,8 @@ class TestComputeInstitutionalEnrichment:
             "institutional_accumulation_tickers",
             "institutional_distribution_tickers",
             "institutional_data_available",
+            "institutional_signal_present",
+            "institutional_symbols_attempted",
+            "institutional_symbols_failed",
+            "institutional_failure_rate",
         }
