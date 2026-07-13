@@ -82,30 +82,30 @@ class ReactionZoneConfig:
         return _env_int("SMC_REACTION_CONTEXT_BIAS_MISALIGNED_CONFIDENCE", 40, min_val=0, max_val=100)
 
 
-class ConfluenceScoreConfig:
-    """RESERVED / UNWIRED — nothing reads this config.
-
-    The real confluence detector (``smc_core/smc_confluence.py``) hard-codes
-    its thresholds and uses a geometric mean, not a points-per-signal model;
-    the v2 bucket weight is hard-coded in ``scripts/smc_signal_quality.py``.
-    Setting ``SMC_CONFLUENCE_POINTS_PER_SIGNAL`` has NO effect (open
-    wire-or-remove decision).
-    """
-
-    @property
-    def points_per_signal(self) -> int:
-        """Score contribution of each aligned signal (unwired — see class doc)."""
-        return _env_int("SMC_CONFLUENCE_POINTS_PER_SIGNAL", 20, min_val=1, max_val=100)
+# NOTE: the ``SMC_CONFLUENCE_POINTS_PER_SIGNAL`` knob (class ``ConfluenceScore
+# Config``) was removed 2026-07-13 — it was RESERVED/UNWIRED and read nowhere.
+# The real confluence detector (``smc_core/smc_confluence.py``) hard-codes its
+# thresholds and uses a geometric mean, not a points-per-signal model, and the
+# v2 bucket weight is hard-coded in ``scripts/smc_signal_quality.py``.
 
 
 class SmtDivergenceConfig:
-    """Tunables for the SMT-divergence detector."""
+    """Tunables for the SMT-divergence detector.
+
+    PRODUCTIVELY INERT — ``detect_smt_divergence`` returns neutral for every
+    production event because no production producer builds the required
+    ``correlated_context`` block (only tests supply it; see
+    ``smc_core/smt_divergence.py``). Until a PIT-safe correlated-context feed
+    exists, ``SMC_SMT_DIVERGENCE_HEURISTIC_SCORE`` (and its legacy alias
+    ``SMC_SMT_DIVERGENCE_CONFIDENCE``) has no observable effect in prod.
+    """
 
     @property
     def confidence(self) -> int:
-        """Heuristic conviction constant emitted when a divergence is detected
-        (0–100, NOT a probability). Env: prefer ``SMC_SMT_DIVERGENCE_HEURISTIC_SCORE``;
-        the legacy ``SMC_SMT_DIVERGENCE_CONFIDENCE`` is still honoured as an alias."""
+        """Heuristic conviction constant stamped on a detected divergence
+        (0–100, NOT a probability). Env: prefer ``SMC_SMT_DIVERGENCE_HEURISTIC
+        _SCORE``; the legacy ``SMC_SMT_DIVERGENCE_CONFIDENCE`` is still honoured
+        as an alias. Inert in prod — see class doc."""
         if "SMC_SMT_DIVERGENCE_HEURISTIC_SCORE" in os.environ:
             return _env_int("SMC_SMT_DIVERGENCE_HEURISTIC_SCORE", 70, min_val=0, max_val=100)
         return _env_int("SMC_SMT_DIVERGENCE_CONFIDENCE", 70, min_val=0, max_val=100)
@@ -114,5 +114,4 @@ class SmtDivergenceConfig:
 # Module-level singletons for convenient import.
 sweep_trap_config = SweepTrapConfig()
 reaction_zone_config = ReactionZoneConfig()
-confluence_score_config = ConfluenceScoreConfig()
 smt_divergence_config = SmtDivergenceConfig()

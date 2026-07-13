@@ -301,6 +301,13 @@ def is_smt_divergence_enabled() -> bool:
     only on the v2 score path and are promotion-gated
     (see :func:`is_smt_divergence_promoted`).  It is a v2 score layer, not an
     observe-only-with-study detector.
+
+    PRODUCTIVELY INERT — even on the v2 path the detector returns neutral for
+    every production event, because no production producer builds the required
+    ``correlated_context`` block (only tests supply it; see
+    ``smc_core/smt_divergence.py``). Until a PIT-safe correlated-pair feed
+    exists, enabling this flag (and ``SMC_SMT_DIVERGENCE_CONFIDENCE``) has no
+    observable effect in production.
     """
     return _bool_env("ENABLE_SMT_DIVERGENCE", "0")
 
