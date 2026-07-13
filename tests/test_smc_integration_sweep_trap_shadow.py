@@ -144,7 +144,7 @@ class TestWS1LiquiditySupportWiring:
         bars = _bull_sweep_bars()
         candidate = {**_event(), "id": "cand-1"}  # SELL_SIDE sweep at bar 10
         anchor_ts = float(bars.iloc[15]["timestamp"])
-        with patch.dict(os.environ, {"ENABLE_SWEEP_TRAP": "1", "ENABLE_REACTION_ZONE": "1"}):
+        with patch.dict(os.environ, {"ENABLE_SWEEP_TRAP": "1", "ENABLE_REACTION_ZONE_STUDY": "1"}):
             payload = _liquidity_support_for_event(
                 current_event=candidate,
                 family="SWEEP",
@@ -184,7 +184,7 @@ class TestWS1LiquiditySupportWiring:
         bars = pd.DataFrame(rows)
         candidate = {"id": "cand-anchor", "price": 100.0, "side": "SELL_SIDE",
                      "time": float(ts0 + 10 * 900)}
-        with patch.dict(os.environ, {"ENABLE_SWEEP_TRAP": "1", "ENABLE_REACTION_ZONE": "1"}):
+        with patch.dict(os.environ, {"ENABLE_SWEEP_TRAP": "1", "ENABLE_REACTION_ZONE_STUDY": "1"}):
             payload = _liquidity_support_for_event(
                 current_event=candidate, family="SWEEP", sweeps=[candidate],
                 bars=bars, anchor_idx=13, anchor_ts=float(bars.iloc[13]["timestamp"]),
@@ -213,7 +213,7 @@ class TestWS1LiquiditySupportWiring:
 
         bars = _bull_sweep_bars()
         candidate = {**_event(), "id": "cand-1"}
-        with patch.dict(os.environ, {"ENABLE_SWEEP_TRAP": "1", "ENABLE_REACTION_ZONE": "1"}):
+        with patch.dict(os.environ, {"ENABLE_SWEEP_TRAP": "1", "ENABLE_REACTION_ZONE_STUDY": "1"}):
             payload = _liquidity_support_for_event(
                 current_event=candidate, family="SWEEP", sweeps=[candidate],
                 bars=bars, anchor_idx=15, anchor_ts=float(bars.iloc[15]["timestamp"]),
@@ -237,7 +237,7 @@ class TestWS1LiquiditySupportWiring:
             raise ValueError("classifier blew up")
 
         with patch.object(me, "classify_sweep_trap", _boom), \
-                patch.dict(os.environ, {"ENABLE_SWEEP_TRAP": "1", "ENABLE_REACTION_ZONE": "1"}), \
+                patch.dict(os.environ, {"ENABLE_SWEEP_TRAP": "1", "ENABLE_REACTION_ZONE_STUDY": "1"}), \
                 caplog.at_level(logging.WARNING):
             payload = _liquidity_support_for_event(
                 current_event=candidate, family="SWEEP", sweeps=[candidate],
