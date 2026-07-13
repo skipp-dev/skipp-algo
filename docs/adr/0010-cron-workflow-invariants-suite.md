@@ -20,7 +20,7 @@ structural invariants:
   that open dedup issues)
 
 These are pinned today via a **per-workflow contract test**:
-`tests/test_<name>_workflow_contract.py`. Six such files exist already
+`tests/test_<name>_workflow_contract.py`. Seven such files exist already
 (`credential_health`, `ci`, `run_open_prep_daily`,
 `promotion_gate_daily`, `phase_b_promotion_readiness`,
 `f2_promotion_gate_daily`, `workflow_freshness_monitor`), and each is

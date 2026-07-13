@@ -123,13 +123,13 @@ These can be published in parallel (independent of each other). Each depends onl
 
 ### 5.7 Post-Publish: `smc_micro_profiles_generated`
 
-This library is **fully CI-automated** via `smc-library-refresh.yml` (4×/trading day).
+This library is **fully CI-automated** via `smc-library-refresh.yml` (9×/trading day, weekdays).
 
 | Step | Action | Automated? |
 |------|--------|------------|
 | 1 | Generator runs, detects field changes | **yes** (CI) |
 | 2 | Publish via `tv_publish_micro_library.ts` | **yes** (CI) |
-| 3 | Post-release validation via `verify_tradingview_post_release.py` | **yes** (CI) |
+| 3 | Post-release validation via `run_smc_post_release_validation.py` | **yes** (CI) |
 | 4 | Release manifest written to `artifacts/tradingview/library_release_manifest.json` | **yes** (CI) |
 
 ## 6. Evidence Requirements

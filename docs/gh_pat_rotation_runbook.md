@@ -44,7 +44,7 @@ The probe thresholds live in `scripts/credential_health_check.py`
 
 ## Blast radius
 
-`GH_PAT` is consumed by 25 workflows under `.github/workflows/`. Two use it
+`GH_PAT` is consumed by 28 workflows under `.github/workflows/`. Two use it
 as the **primary** push/PR identity, so they fail hardest on a bad token:
 
 - `credential-health-check.yml` — daily probe; also publishes the snapshot.

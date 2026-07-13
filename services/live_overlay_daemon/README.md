@@ -271,7 +271,7 @@ those instead.
 
 - **News**, the **experiment rollup + history**, and the **TradingView
   credential-age report** are published to rolling `bot/*` cache branches by CI
-  (`smc-live-newsapi-refresh.yml` → `bot/live-news-snapshot`;
+  (`smc-live-news-refresh.yml` → `bot/live-news-snapshot`;
   `smc-measurement-benchmark-rolling.yml` → `bot/live-experiment-snapshot`;
   `credential-health-check.yml` → `bot/live-tv-credential-snapshot`). Point the
   matching `*_SNAPSHOT_URL` / `*_HISTORY_URL` at
