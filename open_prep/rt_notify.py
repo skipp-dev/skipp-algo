@@ -166,12 +166,12 @@ def _cooldown() -> float:
         secs = float(raw)
     except ValueError:
         return 1800.0
-    if secs <= 0:
-        # A non-positive cooldown re-fires the same still-active signal on every
-        # poll (webhook spam) — treat as misconfig and fall back to the default.
+    if secs <= 0 or not float("-inf") < secs < float("inf"):
+        # Invalid cooldowns break bounded deduplication or re-fire on every poll
+        # (webhook spam) — treat as misconfig and fall back to the default.
         _warn_once(
             f"cooldown:{raw}",
-            "RT_SIGNAL_NOTIFY_COOLDOWN_SECS=%r is non-positive; using default 1800s",
+            "RT_SIGNAL_NOTIFY_COOLDOWN_SECS=%r is non-positive/non-finite; using default 1800s",
             raw,
         )
         return 1800.0

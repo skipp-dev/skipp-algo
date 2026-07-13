@@ -454,6 +454,14 @@ def test_long_cooldown_not_capped_by_ttl_eviction(monkeypatch: pytest.MonkeyPatc
     assert len(calls) == 2
 
 
+@pytest.mark.parametrize("raw", ["inf", "-inf", "nan"])
+def test_non_finite_cooldown_falls_back_to_bounded_default(
+    monkeypatch: pytest.MonkeyPatch, raw: str,
+) -> None:
+    monkeypatch.setenv("RT_SIGNAL_NOTIFY_COOLDOWN_SECS", raw)
+    assert rt_notify._cooldown() == 1800.0
+
+
 def test_mode_is_case_insensitive_and_unknown_mode_warns(
     monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture,
 ) -> None:
