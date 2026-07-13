@@ -96,14 +96,29 @@ def build_fvg_lifecycle_light(
         bear_mid = (bear_top + bear_bottom) / 2.0 if (bear_top + bear_bottom) > 0 else 0.0
         bear_dist = abs(current_price - bear_mid) / current_price * 100.0 if current_price > 0 and bear_mid > 0 else 0.0
 
-    # Pick primary: nearest active FVG
-    if bull_active and (not bear_active or bull_dist <= bear_dist):
+    # Pick primary: nearest active FVG. Symmetric — the strictly-nearer active
+    # FVG wins; two equidistant active FVGs are ambiguous (-> NONE), not
+    # defaulted to bull. (The neither-active case already returned above.)
+    if bull_active and not bear_active:
         side = "BULL"
+    elif bear_active and not bull_active:
+        side = "BEAR"
+    elif bull_dist < bear_dist:  # both active
+        side = "BULL"
+    elif bear_dist < bull_dist:  # both active
+        side = "BEAR"
+    else:  # both active, equidistant -> ambiguous
+        if overrides:
+            for k, v in overrides.items():
+                if k in result:
+                    result[k] = v
+        return result
+
+    if side == "BULL":
         mit_pct = float(il.get("BULL_FVG_MITIGATION_PCT", 0.0))
         full_mit = bool(il.get("BULL_FVG_FULL_MITIGATION", False))
         distance = round(bull_dist, 4)
     else:
-        side = "BEAR"
         mit_pct = float(il.get("BEAR_FVG_MITIGATION_PCT", 0.0))
         full_mit = bool(il.get("BEAR_FVG_FULL_MITIGATION", False))
         distance = round(bear_dist, 4)

@@ -31,16 +31,37 @@ class TestPrimarySelection:
         assert result["PRIMARY_OB_SIDE"] == "BEAR"
         assert result["OB_FRESH"] is True
 
-    def test_bull_preferred_when_both_fresh(self):
-        """Bull preferred when equally fresh (higher score from freshness)."""
+    def test_nearer_ob_wins_on_equal_freshness(self):
+        """Equal freshness (score tie) -> the strictly-nearer OB wins (here bull,
+        at distance 2 vs 3). This is the distance tiebreak, not a bull default."""
         ob = {
             "BULL_OB_FRESHNESS": 3,
             "BEAR_OB_FRESHNESS": 3,
-            "NEAREST_BULL_OB_LEVEL": 100.0,
-            "NEAREST_BEAR_OB_LEVEL": 105.0,
+            "NEAREST_BULL_OB_LEVEL": 100.0,  # |102-100| = 2
+            "NEAREST_BEAR_OB_LEVEL": 105.0,  # |102-105| = 3
         }
         result = build_ob_context_light(order_blocks=ob, current_price=102.0)
         assert result["PRIMARY_OB_SIDE"] == "BULL"
+
+    def test_true_tie_equal_score_and_distance_is_none(self):
+        """Equal freshness AND equidistant -> ambiguous NONE, no bullish default."""
+        ob = {
+            "BULL_OB_FRESHNESS": 3,
+            "BEAR_OB_FRESHNESS": 3,
+            "NEAREST_BULL_OB_LEVEL": 100.0,  # |102-100| = 2
+            "NEAREST_BEAR_OB_LEVEL": 104.0,  # |102-104| = 2
+        }
+        result = build_ob_context_light(order_blocks=ob, current_price=102.0)
+        assert result["PRIMARY_OB_SIDE"] == "NONE"
+
+    def test_distance_fallback_equidistant_is_none(self):
+        """No freshness data, both levels equidistant -> NONE (was bull-biased)."""
+        ob = {
+            "NEAREST_BULL_OB_LEVEL": 100.0,  # |102-100| = 2
+            "NEAREST_BEAR_OB_LEVEL": 104.0,  # |102-104| = 2
+        }
+        result = build_ob_context_light(order_blocks=ob, current_price=102.0)
+        assert result["PRIMARY_OB_SIDE"] == "NONE"
 
     def test_fresher_ob_wins(self):
         ob = {

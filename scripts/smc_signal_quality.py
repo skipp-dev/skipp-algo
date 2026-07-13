@@ -202,10 +202,12 @@ def _bias_alignment(
     elif session_bias in ("BEARISH",):
         bear_votes += 1
 
-    # Sweep direction
-    if sweep_direction in ("BULL", "BUY_SIDE"):
+    # Sweep direction. Canonical reversal semantics: a SELL_SIDE sweep (low
+    # taken/reclaimed) is BULLISH, a BUY_SIDE sweep (high taken) is BEARISH.
+    # The alias mapping used to be inverted (BUY_SIDE->bull / SELL_SIDE->bear).
+    if sweep_direction in ("BULL", "SELL_SIDE"):
         bull_votes += 1
-    elif sweep_direction in ("BEAR", "SELL_SIDE"):
+    elif sweep_direction in ("BEAR", "BUY_SIDE"):
         bear_votes += 1
 
     # OB side

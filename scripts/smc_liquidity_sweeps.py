@@ -86,8 +86,18 @@ def build_liquidity_sweeps(
             result["SWEEP_DIRECTION"] = "BEAR"
             result["LIQUIDITY_TAKEN_DIRECTION"] = "BUY_SIDE"
         elif bull_sweep and bear_sweep:
-            result["SWEEP_DIRECTION"] = "BULL" if row.get("sweep_bias_bull", True) else "BEAR"
-            result["LIQUIDITY_TAKEN_DIRECTION"] = "SELL_SIDE" if result["SWEEP_DIRECTION"] == "BULL" else "BUY_SIDE"
+            # Both sides swept: net direction needs an explicit bias. A MISSING
+            # ``sweep_bias_bull`` is ambiguous, not bullish — leave the direction
+            # NONE (schema default) rather than silently defaulting to BULL.
+            bias_bull = row.get("sweep_bias_bull")
+            if bias_bull is True:
+                result["SWEEP_DIRECTION"] = "BULL"
+                result["LIQUIDITY_TAKEN_DIRECTION"] = "SELL_SIDE"
+            elif bias_bull is False:
+                result["SWEEP_DIRECTION"] = "BEAR"
+                result["LIQUIDITY_TAKEN_DIRECTION"] = "BUY_SIDE"
+            # else: missing/None -> SWEEP_DIRECTION / LIQUIDITY_TAKEN_DIRECTION
+            # stay "NONE" (the DEFAULTS), i.e. ambiguous.
 
         result["SWEEP_ZONE_TOP"] = float(row.get("sweep_zone_top", 0.0))
         result["SWEEP_ZONE_BOTTOM"] = float(row.get("sweep_zone_bottom", 0.0))
