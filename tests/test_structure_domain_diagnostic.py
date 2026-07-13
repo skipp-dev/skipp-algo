@@ -105,3 +105,47 @@ def test_structure_missing_renders_unavailable_in_pine() -> None:
     joined = "\n".join(render_trust_block_lines(enr))
     assert 'TRUST_STATE = "unavailable"' in joined
     assert 'TRUST_CAUSE_DOMAIN = "structure"' in joined
+
+
+# ── Wiring regression (incident 2026-07-13): the diagnostic above was fully
+# unit-tested yet ALWAYS received asof_date=None in production, because the
+# caller read base_result["asof_date"] — a key neither pipeline return path
+# contained (the date lives in mapping_payload). Every published library baked
+# TRUST_STATE="unavailable" / "Base snapshot has no parsable asof_date."
+# regardless of data health. These tests pin the resolver that closes the gap.
+
+
+def test_resolver_reads_top_level_asof() -> None:
+    from scripts.generate_smc_micro_base_from_databento import resolve_base_result_asof_date
+
+    assert resolve_base_result_asof_date({"asof_date": "2026-07-10"}) == "2026-07-10"
+
+
+def test_resolver_falls_back_to_mapping_payload() -> None:
+    from scripts.generate_smc_micro_base_from_databento import resolve_base_result_asof_date
+
+    base_result = {  # the shape both pipeline paths returned before the fix
+        "base_snapshot": [],
+        "mapping_payload": {"asof_date": "2026-07-10"},
+        "workbook_written": True,
+    }
+    assert resolve_base_result_asof_date(base_result) == "2026-07-10"
+
+
+def test_resolver_none_on_absent_or_malformed() -> None:
+    from scripts.generate_smc_micro_base_from_databento import resolve_base_result_asof_date
+
+    assert resolve_base_result_asof_date({}) is None
+    assert resolve_base_result_asof_date(None) is None
+    assert resolve_base_result_asof_date({"mapping_payload": "not-a-dict"}) is None
+
+
+def test_resolved_asof_yields_ok_structure_diagnostic_end_to_end() -> None:
+    # The full wiring: pipeline-shaped result -> resolver -> diagnostic -> ok.
+    from scripts.generate_smc_micro_base_from_databento import resolve_base_result_asof_date
+
+    base_result = {"mapping_payload": {"asof_date": "2026-07-10"}}
+    d = build_structure_domain_diagnostic(
+        resolve_base_result_asof_date(base_result), symbol_count=5, now_date=_TODAY
+    )
+    assert d["provider_status"] == "ok"

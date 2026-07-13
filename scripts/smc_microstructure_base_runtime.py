@@ -2159,6 +2159,7 @@ def generate_base_from_bundle(
     )
     return {
         "bundle_manifest_path": Path(bundle_payload["manifest_path"]),
+        "asof_date": mapping_payload["asof_date"],
         "base_snapshot": base_snapshot,
         "mapping_payload": mapping_payload,
         "symbol_day_features": symbol_day_features,
@@ -2436,6 +2437,11 @@ def run_databento_base_scan_pipeline(
                     )
                     return {
                         "bundle_manifest_path": Path(bundle_payload["manifest_path"]),
+                        # Top-level asof_date so trust diagnostics can gate on
+                        # snapshot freshness without knowing the payload layout
+                        # (2026-07-13: structure trust read a key that never
+                        # existed -> permanently "missing" on every refresh).
+                        "asof_date": mapping_payload["asof_date"],
                         "base_snapshot": base_snapshot,
                         "mapping_payload": mapping_payload,
                         "symbol_day_features": merged_symbol_day_features,

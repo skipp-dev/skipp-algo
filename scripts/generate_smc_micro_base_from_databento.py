@@ -674,6 +674,29 @@ def _structure_snapshot_stale_after_days() -> int:
     return value if value > 0 else _STRUCTURE_SNAPSHOT_STALE_AFTER_DAYS_DEFAULT
 
 
+def resolve_base_result_asof_date(base_result: Any) -> str | None:
+    """Resolve the base snapshot's asof_date from a pipeline result dict.
+
+    Incident 2026-07-13: the structure-domain trust diagnostic read
+    ``base_result["asof_date"]`` — a key NEITHER pipeline return path ever
+    contained (the date lived in ``mapping_payload["asof_date"]``), so the
+    STRUCTURE domain was unconditionally ``missing`` ("Base snapshot has no
+    parsable asof_date.") and every published library baked
+    ``TRUST_STATE="unavailable"`` regardless of data health. The runtime now
+    also exposes a top-level ``asof_date``; this resolver accepts both layouts
+    so neither side can silently regress the other.
+    """
+    if not isinstance(base_result, dict):
+        return None
+    asof = base_result.get("asof_date")
+    if asof:
+        return str(asof)
+    mapping_payload = base_result.get("mapping_payload")
+    if isinstance(mapping_payload, dict) and mapping_payload.get("asof_date"):
+        return str(mapping_payload["asof_date"])
+    return None
+
+
 def build_structure_domain_diagnostic(
     asof_date: str | None,
     symbol_count: int,
@@ -1696,7 +1719,7 @@ def finalize_pipeline(
             _diags = _providers.setdefault("domain_diagnostics", {})
             if isinstance(_diags, dict) and "structure" not in _diags:
                 _diags["structure"] = build_structure_domain_diagnostic(
-                    base_result.get("asof_date"),
+                    resolve_base_result_asof_date(base_result),
                     len(symbols),
                 )
     enrichment_keys = list(enrichment.keys()) if enrichment else []
