@@ -106,7 +106,23 @@ PER_SHARD_GLOBS: tuple[str, ...] = (
     # Nested twin of ``batl_debug`` living under ``output_checks.batl`` —
     # per-shard sample's BATL eligibility snapshot (bool/string/None drift).
     "batl",
+    # PIT universe resolution (truth-audit #5 → #3410/#3453): each date-sliced
+    # shard resolves its own as-of universe, so these drift BY DESIGN — the
+    # shard whose window includes "today" runs live (active_only=True), all
+    # historical shards replay snapshots (False). 2026-07-13: the first
+    # post-#3453 sharded run tripped the boolean-drift guard on exactly this.
+    "universe_active_only",
+    "universe_as_of_trade_date",
+    "universe_snapshot_captured_at",
 )
+
+# Boolean fields reduced with OR across shards: the merged bundle honestly
+# carries the risk if ANY date-slice ran with it. The plain scalar stays in
+# the merged manifest because build_promotion_gate_bundle reads it FAIL-SOFT
+# (missing key -> stamp silently omitted); per-shard detail is emitted
+# alongside for auditability. None means "flag not computed" and is ignored
+# unless every shard reports None.
+BOOL_ANY_FIELDS: frozenset[str] = frozenset({"universe_survivorship_bias_risk"})
 
 # List-typed fields whose merged set must equal the disjoint-union of inputs
 # (i.e. no element appears in more than one shard). Drift here = producer bug.
@@ -233,6 +249,23 @@ def _merge_field_set(
             continue
 
         if _is_per_shard_key(key):
+            out[f"{key}_per_shard"] = {
+                str(sid): val for sid, val in zip(present_ids, present_vals)
+            }
+            continue
+
+        if key in BOOL_ANY_FIELDS:
+            invalid = {
+                sid: val
+                for sid, val in zip(present_ids, present_vals)
+                if val is not None and not isinstance(val, bool)
+            }
+            if invalid:
+                raise ManifestMergeError(
+                    f"BOOL_ANY field {_qualify(parent, key)!r} must be bool/None per shard, got: {invalid}"
+                )
+            known = [val for val in present_vals if val is not None]
+            out[key] = any(known) if known else None
             out[f"{key}_per_shard"] = {
                 str(sid): val for sid, val in zip(present_ids, present_vals)
             }
