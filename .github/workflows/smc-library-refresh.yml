@@ -971,7 +971,10 @@ jobs:
         if: steps.diff.outputs.changed == 'true'
         run: |
           "$SMC_PYTHON_BIN" -m scripts.verify_structure_artifact_availability \
-            --timeframes "5m,10m,15m,30m,1H,4H,1D"
+            --timeframes "5m,10m,15m,30m,1H,4H,1D" \
+            --expect-release-reference-symbols \
+            --max-age-seconds 86400 \
+            --output artifacts/ci/structure_artifact_availability.json
           "$SMC_PYTHON_BIN" scripts/run_smc_release_gates.py \
             --output artifacts/ci/smc_pre_release_gates_report.json
 
