@@ -82,14 +82,15 @@ def _block_aligned_split(
     The C-sprint deep-review identified that the previous ``permuted[:n_t]``
     split could cut the last treatment block mid-way whenever
     ``n_t % block_size != 0``, breaking the autocorrelation-preserving
-    contract of moving-block permutation under H₀. We now round the
+    contract of the (non-overlapping) block permutation under H₀. We now round the
     treatment side to a whole-block boundary so every block ends up
     entirely in one arm.
 
     Boundary policy (post Copilot pass-3 fix):
     * For ``n_t`` already inside ``[block_size, n - block_size]`` the
       snapped size differs from the original ``n_t`` by at most
-      ``block_size // 2`` samples — negligible relative to typical ``n``.
+      ``block_size - 1`` samples (the earlier ``block_size // 2`` wording was
+      wrong — see the pass-4 correction below) — negligible relative to ``n``.
     * The caller (:func:`block_permutation_test`) validates upfront
       that both arms span at least one full block when
       ``block_size > 1``, so the clamp branch is unreachable in
@@ -127,7 +128,7 @@ def block_permutation_test(
         ``(treatment_arr, control_arr) -> float``. Larger magnitude
         means more extreme. ``alternative`` controls the tail.
     block_size:
-        ``1`` -> classical iid permutation; ``>1`` -> moving-block.
+        ``1`` -> classical iid permutation; ``>1`` -> (non-overlapping) block.
     B:
         Number of permutations.
     seed:

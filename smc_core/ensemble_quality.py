@@ -24,6 +24,10 @@ class EnsembleQualityResult:
     generated_at: float = field(default_factory=time.time)
     score: float = 0.0
     tier: QualityTier = "low"
+    # NB: despite the name, this lists the CONTRIBUTING components (weight > 0 and a
+    # non-None value), not merely the ones supplied — an input present but
+    # weight-suppressed is absent here. (Public artifact field; a ``contributing_
+    # components`` alias would be the honest rename — see export_ensemble_quality_artifact.)
     available_components: list[str] = field(default_factory=list)
     weights: dict[str, float] = field(default_factory=dict)
     contributions: dict[str, dict[str, Any]] = field(default_factory=dict)
@@ -88,6 +92,11 @@ def _tier_from_score(score: float) -> QualityTier:
 
 
 def _bias_component(direction: str | None, confidence: float | None) -> tuple[float | None, dict[str, Any]]:
+    # NB: absent bias data (direction=None) normalizes to "NEUTRAL" and returns a
+    # real 0.5 contribution — never None. So "no bias data" surfaces as a present
+    # NEUTRAL signal (score 0.5 -> tier "good" with no other inputs), NOT as a
+    # missing/low component; the low-tier path is only reached by explicit weight
+    # suppression, never by absent data.
     normalized_direction = str(direction or "").strip().upper() or "NEUTRAL"
     bias_confidence = _clamp(_finite_metric(confidence) or 0.0)
     if normalized_direction == "NEUTRAL":
