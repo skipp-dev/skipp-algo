@@ -904,7 +904,7 @@ def _provider_health_snapshot() -> dict[str, object]:
         "news_snapshot_age_known": snapshot_age_known,
         "news_last_ingest_age_seconds": ingest_age_seconds,
         "news_last_ingest_age_known": ingest_age_known,
-        "news_providers_total": float(total),
+        "news_providers_total": float(total),  # *_total below are GAUGE snapshots (non-monotonic per-state counts) — do NOT increase()/rate()
         "news_providers_ok_total": float(ok),
         "news_providers_degraded_total": float(degraded),
         "news_providers_unknown_total": float(unknown),
@@ -1472,7 +1472,7 @@ def render_metrics(startup_ts: float, startup_epoch: float = 0.0) -> str:
 
     counts = dict(uptime_snapshot.get("counts") or {})
     for key in ("total", "up", "down", "paused", "unknown"):
-        suffix = "_total" if key != "total" else ""
+        suffix = "_total" if key != "total" else ""  # legacy alias on a GAUGE (point-in-time count, rises+falls) — do NOT increase()/rate()
         prom_name = f"live_overlay_uptimerobot_monitors_{key}{suffix}"
         lines.append(f"# TYPE {prom_name} gauge")
         lines.append(f"{prom_name} {_prom_numeric_value(counts.get(key, 0))}")

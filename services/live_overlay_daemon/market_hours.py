@@ -66,7 +66,7 @@ def _is_holiday(calendar_code: str, local_date: datetime.date) -> bool:
 
 
 def is_us_regular_session_open(now_utc: datetime.datetime | None = None) -> bool:
-    """Return True during regular US equities session (Mon-Fri, 09:30-16:00 ET)."""
+    """Return True during regular US equities session (Mon-Fri 09:30-16:00 ET). Known limitation: NYSE early-close half-days (~3/yr) are treated as full sessions — the gauge stays 1 until 16:00, so US-gated staleness alerts can fire on those afternoons."""
     now_utc = now_utc or datetime.datetime.now(datetime.UTC)
     return _is_open_between(
         now_utc=now_utc,
