@@ -56,26 +56,40 @@ def _sha256_of_path(path: Path) -> str | None:
         return None
 
 
-def _input_fingerprint(workbook: Path | None, export_bundle_root: Path | None) -> dict[str, Any] | None:
+def _input_fingerprint(
+    workbook: Path | None,
+    export_bundle_root: Path | None,
+    source_modes: set[str],
+) -> dict[str, Any] | None:
     """Fingerprint the generator's data input for manifest provenance.
 
-    Workbook mode hashes the workbook itself. Bundle mode hashes the bundle's
-    producer manifest (identifies the exact producer run) instead of the
-    multi-GB parquet members. ``None`` means the manifest was built without a
-    data input (e.g. preexisting-artifacts or missing-inputs mode).
+    Fingerprints only sources actually consumed by the generated artifacts.
+    Bundle mode hashes the producer manifest (identifies the exact producer
+    run) instead of the multi-GB parquet members. A mixed 1D batch can consume
+    bundle data for some symbols and workbook fallback for others, in which
+    case both fingerprints are retained. ``None`` means no generated artifact
+    identifies a data input (e.g. preexisting-artifacts/missing-inputs mode).
     """
-    if workbook is not None:
-        return {
-            "kind": "workbook_sha256",
-            "path": str(workbook.as_posix()),
-            "sha256": _sha256_of_path(workbook),
-        }
-    if export_bundle_root is not None:
+    fingerprints: list[dict[str, Any]] = []
+    if "canonical_export_bundle" in source_modes and export_bundle_root is not None:
         manifest_path = resolve_manifest_path(export_bundle_root)
-        return {
+        fingerprints.append({
             "kind": "export_bundle_manifest_sha256",
             "path": str(manifest_path.as_posix()) if manifest_path is not None else str(export_bundle_root.as_posix()),
             "sha256": _sha256_of_path(manifest_path) if manifest_path is not None else None,
+        })
+    if "workbook_fallback" in source_modes and workbook is not None:
+        fingerprints.append({
+            "kind": "workbook_sha256",
+            "path": str(workbook.as_posix()),
+            "sha256": _sha256_of_path(workbook),
+        })
+    if len(fingerprints) == 1:
+        return fingerprints[0]
+    if fingerprints:
+        return {
+            "kind": "mixed",
+            "sources": fingerprints,
         }
     return None
 
@@ -179,6 +193,7 @@ class StructureArtifactRow:
     fvg_count: int
     liquidity_sweeps_count: int
     warnings_count: int
+    source_mode: str = "unknown"
 
 
 def _normalize_symbol(value: Any) -> str:
@@ -426,9 +441,11 @@ def build_structure_artifact_manifest(
             "fvg_count": row.fvg_count,
             "liquidity_sweeps_count": row.liquidity_sweeps_count,
             "warnings_count": row.warnings_count,
+            "source_mode": row.source_mode,
         }
         for row in sorted(artifacts, key=lambda item: (item.symbol, item.timeframe))
     ]
+    source_modes = {row.source_mode for row in artifacts if row.source_mode != "unknown"}
 
     return {
         "schema_version": SCHEMA_VERSION,
@@ -448,7 +465,8 @@ def build_structure_artifact_manifest(
         "provenance": {
             "generator_path": GENERATOR_PATH,
             "source_commit": _cached_source_commit(),
-            "input_fingerprint": _input_fingerprint(workbook, export_bundle_root),
+            "source_modes": sorted(source_modes),
+            "input_fingerprint": _input_fingerprint(workbook, export_bundle_root, source_modes),
         },
         "counts": {
             "symbols_requested": len(_normalize_symbols(symbols_requested)),
@@ -543,6 +561,7 @@ def _row_from_existing_artifact(
         fvg_count=int(counts.get("fvg", len(structure.get("fvg", [])))),
         liquidity_sweeps_count=int(counts.get("liquidity_sweeps", len(structure.get("liquidity_sweeps", [])))),
         warnings_count=len(warnings),
+        source_mode=str(source.get("canonical_upstream", "preexisting_artifact")),
     )
 
 
@@ -708,6 +727,7 @@ def write_structure_artifacts_from_workbook(
                     fvg_count=int(payload.get("diagnostics", {}).get("counts", {}).get("fvg", len(structure.get("fvg", [])))),
                     liquidity_sweeps_count=int(payload.get("diagnostics", {}).get("counts", {}).get("liquidity_sweeps", len(structure.get("liquidity_sweeps", [])))),
                     warnings_count=len(payload.get("diagnostics", {}).get("warnings", [])) if isinstance(payload.get("diagnostics", {}).get("warnings", []), list) else 0,
+                    source_mode=str(payload.get("source", {}).get("canonical_upstream", "unknown")),
                 )
             )
         except Exception as exc:

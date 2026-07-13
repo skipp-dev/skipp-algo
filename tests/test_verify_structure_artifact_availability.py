@@ -53,6 +53,18 @@ def test_verifier_fails_on_incomplete_production_counts(tmp_path: Path) -> None:
     assert any("incomplete production" in failure for failure in report["failures"])
 
 
+def test_verifier_reconciles_declared_count_with_manifest_rows(tmp_path: Path) -> None:
+    artifact_dir = _materialize(tmp_path)
+    manifest_path = artifact_dir / "manifest_1D.json"
+    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    manifest["counts"]["symbols_requested"] = 2
+    manifest["counts"]["artifacts_written"] = 2
+    manifest_path.write_text(json.dumps(manifest), encoding="utf-8")
+    report = verify_structure_artifact_availability(tmp_path, ["1D"])
+    assert report["ok"] is False
+    assert any("row-count mismatch" in failure for failure in report["failures"])
+
+
 def test_verifier_fails_on_counted_producer_errors(tmp_path: Path) -> None:
     artifact_dir = _materialize(tmp_path)
     manifest_path = artifact_dir / "manifest_1D.json"
@@ -122,6 +134,23 @@ def test_verifier_enforces_manifest_freshness(tmp_path: Path) -> None:
     )
     assert fresh["ok"] is True
     assert fresh["details"]["1D"]["age_seconds"] == 60.0
+
+
+def test_fresh_manifest_cannot_conceal_stale_reused_artifact(tmp_path: Path) -> None:
+    artifact_dir = _materialize(tmp_path)
+    manifest_path = artifact_dir / "manifest_1D.json"
+    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    now = GENERATED_AT + 7200.0
+    manifest["generated_at"] = now  # freshly wrapped around the old artifact
+    manifest_path.write_text(json.dumps(manifest), encoding="utf-8")
+
+    report = verify_structure_artifact_availability(
+        tmp_path, ["1D"], max_age_seconds=3600.0, now=now
+    )
+    assert report["ok"] is False
+    assert any("artifact AAPL_1D.structure.json is stale" in failure for failure in report["failures"])
+    assert report["details"]["1D"]["age_seconds"] == 0.0
+    assert report["details"]["1D"]["artifact_ages_seconds"]["AAPL"] == 7200.0
 
 
 def test_verifier_rejects_impossible_read_side_provenance(tmp_path: Path) -> None:
