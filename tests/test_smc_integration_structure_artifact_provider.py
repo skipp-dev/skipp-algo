@@ -23,7 +23,7 @@ def test_structure_artifact_provider_loads_explicit_structure(monkeypatch, tmp_p
     export_structure_artifact(
         workbook=workbook,
         output=artifact_path,
-        generated_at=1709253600.0,
+        generated_at=1780000000.0,  # after the 2026-03 workbook (provenance guard)
     )
 
     monkeypatch.setattr(structure_artifact_json, "STRUCTURE_ARTIFACT_JSON", artifact_path)
@@ -71,6 +71,59 @@ def test_structure_artifact_provider_resolves_manifest_artifact(monkeypatch, tmp
     assert set(raw_structure.keys()) == {"bos", "orderblocks", "fvg", "liquidity_sweeps"}
     assert isinstance(structure.bos, list)
 
+
+def test_design_b_absent_primary_and_legacy_resolution_contract(monkeypatch, tmp_path: Path) -> None:
+    """Pin Design B's three supported availability states end to end."""
+    empty_dir = tmp_path / "empty"
+    empty_dir.mkdir()
+    legacy_path = tmp_path / "missing-legacy.json"
+    monkeypatch.setattr(structure_artifact_json, "REPO_ROOT", tmp_path)
+    monkeypatch.setattr(structure_artifact_json, "STRUCTURE_ARTIFACTS_DIR", empty_dir)
+    monkeypatch.setattr(structure_artifact_json, "STRUCTURE_ARTIFACT_JSON", legacy_path)
+
+    assert structure_artifact_json.resolve_artifact_mode("AAPL", "1D") == "none"
+    assert structure_artifact_json.load_normalized_structure_contract_input("AAPL", "1D") is None
+
+    workbook = make_minimal_workbook(tmp_path)
+    primary_dir = tmp_path / "reports" / "smc_structure_artifacts"
+    manifest = write_structure_artifacts_from_workbook(
+        workbook=workbook,
+        timeframe="1D",
+        symbols=["AAPL"],
+        output_dir=primary_dir,
+        generated_at=1780000000.0,
+    )
+    assert manifest["counts"]["artifacts_written"] == 1
+    monkeypatch.setattr(structure_artifact_json, "STRUCTURE_ARTIFACTS_DIR", primary_dir)
+
+    assert structure_artifact_json.resolve_artifact_mode("AAPL", "1D") == "manifest"
+    assert structure_artifact_json.load_normalized_structure_contract_input("AAPL", "1D") is not None
+
+    legacy_only_dir = tmp_path / "legacy-only"
+    legacy_only_dir.mkdir()
+    legacy_path = tmp_path / "smc_structure_artifact.json"
+    export_structure_artifact(workbook=workbook, output=legacy_path, generated_at=1780000000.0)
+    monkeypatch.setattr(structure_artifact_json, "STRUCTURE_ARTIFACTS_DIR", legacy_only_dir)
+    monkeypatch.setattr(structure_artifact_json, "STRUCTURE_ARTIFACT_JSON", legacy_path)
+
+    assert structure_artifact_json.resolve_artifact_mode("AAPL", "1D") == "legacy_single"
+    assert structure_artifact_json.load_normalized_structure_contract_input("AAPL", "1D") is not None
+
+
+def test_missing_legacy_payload_and_non_object_manifest_rows_fail_closed(monkeypatch, tmp_path: Path) -> None:
+    artifact_dir = tmp_path / "reports" / "smc_structure_artifacts"
+    artifact_dir.mkdir(parents=True)
+    monkeypatch.setattr(structure_artifact_json, "REPO_ROOT", tmp_path)
+    monkeypatch.setattr(structure_artifact_json, "STRUCTURE_ARTIFACTS_DIR", artifact_dir)
+    monkeypatch.setattr(structure_artifact_json, "STRUCTURE_ARTIFACT_JSON", tmp_path / "missing.json")
+
+    with pytest.raises(FileNotFoundError):
+        structure_artifact_json._load_payload()
+
+    (artifact_dir / "manifest_1D.json").write_text(
+        json.dumps({"artifacts": ["invalid-row"]}), encoding="utf-8"
+    )
+    assert structure_artifact_json.resolve_artifact_mode("AAPL", "1D") == "none"
 
 def test_structure_artifact_provider_category_coverage_is_honest(monkeypatch, tmp_path: Path) -> None:
     artifact_dir = tmp_path / "reports" / "smc_structure_artifacts"

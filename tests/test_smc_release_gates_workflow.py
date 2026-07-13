@@ -55,6 +55,13 @@ def test_release_gates_workflow_checks_release_reference_manifest_drift() -> Non
     assert 'Release reference manifest drift detected after refresh. Commit refreshed manifests before publishing.' in workflow_text
 
 
+def test_release_gates_prove_primary_structure_artifacts_before_use() -> None:
+    workflow_text = _read(WORKFLOW_PATH)
+    proof = workflow_text.index("scripts.verify_structure_artifact_availability")
+    consume = workflow_text.index("scripts/run_smc_release_gates.py")
+    assert proof < consume
+
+
 # ---------------------------------------------------------------------------
 # F-09 — Release gate classification step
 # ---------------------------------------------------------------------------

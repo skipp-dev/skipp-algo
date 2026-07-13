@@ -1,12 +1,15 @@
 from __future__ import annotations
 
 import json
+from dataclasses import replace
 
+from smc_integration import provider_matrix
 from smc_integration.provider_matrix import (
     build_provider_summary,
     discover_provider_matrix,
     provider_matrix_to_dict,
 )
+from smc_integration.sources import structure_artifact_json
 
 
 def test_discover_provider_matrix_returns_real_registered_sources_in_order() -> None:
@@ -41,29 +44,35 @@ def test_current_mapping_honesty_for_technical_news_and_structure() -> None:
 
     structure_artifact = by_name["structure_artifact_json"]
     assert "manifest_{timeframe}.json" in structure_artifact.path_hint
-    assert structure_artifact.current.currently_maps_structure is True
-    assert structure_artifact.current.snapshot_structure_mode in {"full", "partial"}
-    assert any(field.startswith("bos.") for field in structure_artifact.current.mapped_structure_fields)
-    assert structure_artifact.current.mapped_structure_categories["bos"] is True
-    assert isinstance(structure_artifact.current.mapped_structure_categories["choch"], bool)
+    # The stale committed structure artifact (impossible 2024-over-2026 provenance)
+    # was dropped and export now fails closed on such provenance. With no committed
+    # artifact this provider maps NO structure from repo state — the matrix must say
+    # so honestly rather than report coverage derived from a stale file.
+    assert structure_artifact.current.currently_maps_structure is False
+    assert structure_artifact.current.snapshot_structure_mode == "none"
+    assert list(structure_artifact.current.mapped_structure_fields) == []
+    assert structure_artifact.current.mapped_structure_categories == {
+        "bos": False,
+        "choch": False,
+        "orderblocks": False,
+        "fvg": False,
+        "liquidity_sweeps": False,
+    }
     assert isinstance(structure_artifact.current.structure_profile_supported, bool)
     assert isinstance(structure_artifact.current.diagnostics_available, bool)
     assert isinstance(structure_artifact.current.auxiliary_available, bool)
-    assert set(structure_artifact.current.mapped_auxiliary_categories.keys()) == {
+    # Auxiliary coverage is sourced from the (now empty) repo-state contract, so its
+    # keys are a subset of the canonical AUXILIARY_KEYS (ADR-0021 added
+    # ``rejection_blocks``); none are available without an artifact.
+    assert set(structure_artifact.current.mapped_auxiliary_categories.keys()) <= {
         "liquidity_lines",
         "session_ranges",
         "session_pivots",
         "ipda_range",
         "htf_fvg_bias",
         "broken_fractal_signals",
-        # ADR-0021 (commit 2bedc96a) added ``rejection_blocks`` to the structure
-        # contract's AUXILIARY_KEYS as a recorded-only category; align the honesty
-        # set so the producer contract stays the single source of truth.
         "rejection_blocks",
     }
-    assert isinstance(structure_artifact.current.mapped_structure_categories["orderblocks"], bool)
-    assert isinstance(structure_artifact.current.mapped_structure_categories["fvg"], bool)
-    assert isinstance(structure_artifact.current.mapped_structure_categories["liquidity_sweeps"], bool)
 
     assert by_name["tradingview_watchlist_json"].current.currently_maps_technical is True
     assert by_name["tradingview_watchlist_json"].current.currently_maps_news is False
@@ -96,6 +105,84 @@ def test_current_mapping_honesty_for_technical_news_and_structure() -> None:
     assert largecap.current.currently_maps_news is True
 
 
+def test_runtime_structure_artifacts_surface_all_mapped_categories(monkeypatch) -> None:
+    """Design B is unavailable in a checkout but fully visible after materialization."""
+    categories = {
+        "bos": True,
+        "choch": True,
+        "orderblocks": True,
+        "fvg": True,
+        "liquidity_sweeps": True,
+    }
+    monkeypatch.setattr(
+        structure_artifact_json,
+        "discover_normalized_contract_summary",
+        lambda **_kwargs: {
+            "mapped_structure_categories": categories,
+            "mapped_auxiliary_categories": {"session_ranges": True},
+            "structure_profile_supported": True,
+            "diagnostics_available": True,
+            "auxiliary_available": True,
+        },
+    )
+
+    current = provider_matrix._current_mapping_for_provider("structure_artifact_json")
+
+    assert current.currently_maps_structure is True
+    assert current.snapshot_structure_mode == "full"
+    assert current.mapped_structure_categories == categories
+    assert {"bos.id", "orderblocks.id", "fvg.id", "liquidity_sweeps.id"} <= set(
+        current.mapped_structure_fields
+    )
+
+
+def test_unclassified_provider_mapping_stays_meta_only_and_structure_safe() -> None:
+    current = provider_matrix._current_mapping_for_provider("unclassified_provider")
+
+    assert current.currently_maps_structure is False
+    assert current.currently_maps_meta is True
+    assert current.snapshot_structure_mode == "none"
+    assert current.mapped_structure_fields == []
+    assert not any(current.mapped_structure_categories.values())
+
+
+def test_provider_matrix_helper_fallbacks_and_ranker_edges(monkeypatch) -> None:
+    assert provider_matrix._source_format("artifact.txt") == "other"
+    assert provider_matrix._potential_for_provider("unclassified").can_supply_precomputed_structure is False
+    assert provider_matrix._pick_best_candidate([], domain="unsupported") is None
+
+    monkeypatch.setattr(
+        structure_artifact_json,
+        "discover_category_coverage",
+        lambda **_kwargs: {
+            "bos": False,
+            "choch": False,
+            "orderblocks": False,
+            "fvg": False,
+            "liquidity_sweeps": False,
+        },
+    )
+    monkeypatch.setattr(
+        structure_artifact_json,
+        "discover_contract_health",
+        lambda **_kwargs: {"issues": ["invalid", {"code": "NO_MESSAGE"}]},
+    )
+    gaps = provider_matrix._known_gaps_for_provider("structure_artifact_json")
+    assert "Health issue [NO_MESSAGE]" in gaps
+    assert provider_matrix._known_gaps_for_provider("unclassified")
+
+    entry = discover_provider_matrix()[0]
+    ranked_entry = replace(
+        entry,
+        current=replace(
+            entry.current,
+            currently_maps_structure=True,
+            snapshot_structure_mode="partial",
+        ),
+    )
+    assert provider_matrix._pick_best_structure_provider([ranked_entry]) == ranked_entry.name
+
+
 def test_provider_summary_counts_are_correct() -> None:
     summary = build_provider_summary()
     counts = summary["counts"]
@@ -109,7 +196,10 @@ def test_provider_summary_counts_are_correct() -> None:
 def test_provider_summary_is_conservative() -> None:
     summary = build_provider_summary()
 
-    assert summary["best_current_structure_provider"] == "structure_artifact_json"
+    # The stale committed structure artifact was dropped; with no committed
+    # artifact there is no current structure provider (conservative = None, not a
+    # provider backed by a stale file).
+    assert summary["best_current_structure_provider"] is None
     # Silent-fallback audit (2026-06-10): live_news_snapshot_json is the
     # primary runtime news source (_DOMAIN_SOURCE_ORDER["news"][0]) and the
     # matrix now declares it + ranks candidates by runtime fallback order.

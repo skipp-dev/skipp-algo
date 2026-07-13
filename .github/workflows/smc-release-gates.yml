@@ -140,6 +140,11 @@ jobs:
             exit 1
           fi
 
+      - name: Prove primary structure artifacts are available
+        run: |
+          "$SMC_PYTHON_BIN" -m scripts.verify_structure_artifact_availability \
+            --timeframes "5m,10m,15m,30m,1H,4H,1D"
+
       - name: Run strict release gates
         run: |
           "$SMC_PYTHON_BIN" scripts/run_smc_release_gates.py \

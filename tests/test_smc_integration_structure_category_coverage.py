@@ -26,13 +26,10 @@ def test_categories_are_explicitly_marked_not_omitted() -> None:
             assert coverage[category]["producer"] is None
 
 
-def test_bos_is_available_and_choch_is_explicit() -> None:
+def test_repo_without_runtime_artifacts_marks_bos_and_choch_unavailable() -> None:
     coverage = discover_structure_category_coverage()
 
-    assert coverage["bos"]["available"] is True
-    assert coverage["bos"]["producer"] == "structure_artifact_json"
-    assert isinstance(coverage["choch"]["available"], bool)
-    if coverage["choch"]["available"]:
-        assert coverage["choch"]["producer"] == "structure_artifact_json"
-    else:
-        assert coverage["choch"]["producer"] is None
+    assert coverage["bos"]["available"] is False
+    assert coverage["bos"]["producer"] is None
+    assert coverage["choch"]["available"] is False
+    assert coverage["choch"]["producer"] is None

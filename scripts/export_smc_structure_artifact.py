@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import math
 from collections.abc import Sequence
 from datetime import UTC, datetime
 from pathlib import Path
@@ -197,6 +198,39 @@ def build_structure_artifact_payload(
     }
 
 
+def validate_artifact_provenance(payload: dict[str, Any]) -> None:
+    """Refuse an artifact whose ``generated_at`` predates its newest entry.
+
+    A ``generated_at`` earlier than the maximum entry ``asof_ts`` is impossible:
+    it claims the artifact was produced before the data it contains. This is the
+    stale/wrong-timestamp class that shipped ``reports/smc_structure_artifact.json``
+    with a 2024-03 ``generated_at`` over 2026-03 data. Fail closed at write time
+    so such an artifact can never be emitted again.
+    """
+    generated_at = payload.get("generated_at")
+    entries = payload.get("entries") or []
+    if generated_at is None:
+        return
+    generated_at_value = float(generated_at)
+    if not math.isfinite(generated_at_value):
+        raise ValueError("structure artifact generated_at must be finite")
+    asof_values = [
+        float(entry["asof_ts"])
+        for entry in entries
+        if isinstance(entry, dict) and entry.get("asof_ts") is not None
+    ]
+    if any(not math.isfinite(value) for value in asof_values):
+        raise ValueError("structure artifact entry asof_ts must be finite")
+    if not asof_values:
+        return
+    max_asof = max(asof_values)
+    if generated_at_value < max_asof:
+        raise ValueError(
+            f"structure artifact generated_at ({generated_at}) is before its newest "
+            f"entry asof_ts ({max_asof}) — impossible provenance; refusing to write."
+        )
+
+
 def export_structure_artifact(
     *,
     workbook: Path = DEFAULT_WORKBOOK,
@@ -209,6 +243,7 @@ def export_structure_artifact(
         generated_at=generated_at,
         structure_profile=structure_profile,
     )
+    validate_artifact_provenance(payload)
     output.parent.mkdir(parents=True, exist_ok=True)
     atomic_write_text(json.dumps(payload, indent=2, sort_keys=True) + "\n", output)
     return output
