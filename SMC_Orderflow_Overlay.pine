@@ -20,7 +20,7 @@
 
 indicator("SMC Orderflow Overlay", "Flow.Ov", overlay = false, max_labels_count = 50)
 
-import preuss_steffen/smc_micro_profiles_generated/164 as mp
+import preuss_steffen/smc_micro_profiles_generated/152 as mp
 
 // ── Inputs ──────────────────────────────────────────────────────
 

@@ -23,7 +23,7 @@ import {
   publishPrivateScript,
   resolveOpenScriptIdentityEvidence,
   resolvePublishedVersionEvidence,
-  fetchSavedScriptVersionViaFacade,
+  fetchPublishedLibraryVersionViaFacade,
   saveScript,
   setEditorContent,
   takeScreenshot,
@@ -1053,10 +1053,12 @@ export async function runPublishMicroLibraryCli(): Promise<number> {
       // (1), which never tracked TradingView's real per-publish version. That
       // self-referential expected==published==1 "verification" repinned all
       // consumers to the 2026-03 v1 library for months (CE10272 on every
-      // modern mp.* symbol). The pine-facade saved-scripts listing is
-      // authoritative — let it override the UI-parsed evidence; UI evidence
-      // stays as the fallback when the facade is unreachable.
-      const facadeVersion = await fetchSavedScriptVersionViaFacade(session.page, details.libraryName).catch(() => null);
+      // modern mp.* symbol). The pine-facade PUBLISHED listing is
+      // authoritative (the saved listing only counts editor save revisions,
+      // e.g. 164 while the importable published version was 152) — let it
+      // override the UI-parsed evidence; UI evidence stays as the fallback
+      // when the facade is unreachable.
+      const facadeVersion = await fetchPublishedLibraryVersionViaFacade(session.page, details.libraryName).catch(() => null);
       if (facadeVersion !== null) {
         publishedVersion = facadeVersion;
         versionVerificationMode = "facade_list";

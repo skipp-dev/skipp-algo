@@ -1950,7 +1950,7 @@ export async function collectOpenScriptIdentityTexts(page: Page, scriptName: str
   return uniqueNormalizedTexts(texts);
 }
 
-/** Parse a pine-facade saved-script ``version`` value ("164.0", 164, "3") into
+/** Parse a pine-facade listing ``version`` value ("152.0", 152, "3") into
  * a positive integer, or ``null`` when it is not one. Exported for tests. */
 export function parseFacadeSavedVersion(value: unknown): number | null {
   const parsed = Number.parseInt(String(value ?? "").trim(), 10);
@@ -1961,15 +1961,18 @@ export function parseFacadeSavedVersion(value: unknown): number | null {
  * Authoritative published-version lookup via TradingView's pine-facade API
  * (the same backend the Pine editor uses). Incident 2026-07-13: the UI-text
  * evidence chain settled on the generator manifest's HARDCODED version (1),
- * so every consumer repin rewrote imports to the 2026-03 first publish while
- * TV was at v164 — CE10272 on every modern mp.* symbol. The saved-scripts
- * listing reports the real, per-publish-incrementing version. Returns null
- * (never throws) when the request fails or the script is absent, so callers
- * can fall back to the UI evidence.
+ * so every consumer repin rewrote imports to the 2026-03 first publish —
+ * CE10272 on every modern mp.* symbol. CORRECTION (same day, operator compile
+ * proof "does not have a version '164'"): the ``filter=saved`` listing counts
+ * EDITOR SAVE REVISIONS (USER;… ids), not the published library version the
+ * ``import user/lib/N`` path resolves — only the ``filter=published`` listing
+ * (PUB;… ids) carries the importable version (152 vs 164 at incident time).
+ * Returns null (never throws) when the request fails or the script is absent,
+ * so callers can fall back to the UI evidence.
  */
-export async function fetchSavedScriptVersionViaFacade(page: Page, scriptName: string): Promise<number | null> {
+export async function fetchPublishedLibraryVersionViaFacade(page: Page, scriptName: string): Promise<number | null> {
   try {
-    const response = await page.request.get("https://pine-facade.tradingview.com/pine-facade/list/?filter=saved");
+    const response = await page.request.get("https://pine-facade.tradingview.com/pine-facade/list/?filter=published");
     if (!response.ok()) {
       tracePageEvent(page, "facade-version-http", `${scriptName}:${response.status()}`);
       return null;
