@@ -109,14 +109,23 @@ class TestTieBreakNearest:
         result = build_fvg_lifecycle_light(imbalance=il, current_price=104)
         assert result["PRIMARY_FVG_SIDE"] == "BEAR"
 
-    def test_equal_distance_prefers_bull(self):
-        # When equidistant, bull <= bear distance → bull selected
+    def test_nearer_fvg_selected(self):
+        # bull mid = 102.5 (dist 0), bear mid = 107.5 (dist ~4.9) -> bull nearer.
         il = _imbalance(
             bull_active=True, bull_top=105, bull_bottom=100,
             bear_active=True, bear_top=110, bear_bottom=105,
         )
         result = build_fvg_lifecycle_light(imbalance=il, current_price=102.5)
         assert result["PRIMARY_FVG_SIDE"] == "BULL"
+
+    def test_true_equal_distance_is_none(self):
+        # bull mid = 100 (dist 2), bear mid = 104 (dist 2) -> equidistant -> NONE.
+        il = _imbalance(
+            bull_active=True, bull_top=101, bull_bottom=99,
+            bear_active=True, bear_top=105, bear_bottom=103,
+        )
+        result = build_fvg_lifecycle_light(imbalance=il, current_price=102.0)
+        assert result["PRIMARY_FVG_SIDE"] == "NONE"
 
 
 class TestNoFVG:

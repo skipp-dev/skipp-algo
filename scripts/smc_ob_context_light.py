@@ -138,23 +138,32 @@ def build_ob_context_light(
         bear_score = max(0, 50 - min(bear_freshness, 50))
 
     if bull_score == 0 and bear_score == 0:
-        # Fall back to distance-based if no freshness data
-        if bull_level > 0 and (bear_level == 0 or bull_dist <= bear_dist):
+        # Fall back to distance-based if no freshness data. Symmetric: only the
+        # STRICTLY nearer level wins; equidistant with both present stays 0/0
+        # (ambiguous -> NONE) rather than silently defaulting to bull.
+        if bull_level > 0 and (bear_level == 0 or bull_dist < bear_dist):
             bull_score = 1
-        elif bear_level > 0:
+        elif bear_level > 0 and (bull_level == 0 or bear_dist < bull_dist):
             bear_score = 1
 
-    if bull_score >= bear_score and bull_score > 0:
-        side = "BULL"
-        age = bull_freshness
-        mitigated = bull_mitigated
-        distance = round(bull_dist, 4)
-    elif bear_score > 0:
-        side = "BEAR"
-        age = bear_freshness
-        mitigated = bear_mitigated
-        distance = round(bear_dist, 4)
-    else:
+    # Symmetric selection: higher score wins; on an exact score tie the
+    # strictly-nearer OB wins; a true tie (equal score AND equal distance) is
+    # ambiguous -> NONE. Ties must not carry an undocumented bullish bias.
+    side = "NONE"
+    age = 0
+    mitigated = False
+    distance = 0.0
+    if bull_score > bear_score:
+        side, age, mitigated, distance = "BULL", bull_freshness, bull_mitigated, round(bull_dist, 4)
+    elif bear_score > bull_score:
+        side, age, mitigated, distance = "BEAR", bear_freshness, bear_mitigated, round(bear_dist, 4)
+    elif bull_score > 0:  # equal, positive scores -> break by strict distance
+        if bull_dist < bear_dist:
+            side, age, mitigated, distance = "BULL", bull_freshness, bull_mitigated, round(bull_dist, 4)
+        elif bear_dist < bull_dist:
+            side, age, mitigated, distance = "BEAR", bear_freshness, bear_mitigated, round(bear_dist, 4)
+
+    if side == "NONE":
         if overrides:
             for k, v in overrides.items():
                 if k in result:

@@ -109,6 +109,37 @@ class TestBearishSweep:
         assert result["LIQUIDITY_TAKEN_DIRECTION"] == "BUY_SIDE"
 
 
+class TestBothSidesSweep:
+    def test_missing_bias_is_none(self):
+        """Both sides swept, no ``sweep_bias_bull`` -> ambiguous NONE, not bull."""
+        snap = pd.DataFrame([{
+            "symbol": "AAPL",
+            "recent_bull_sweep": True,
+            "recent_bear_sweep": True,
+        }])
+        result = build_liquidity_sweeps(snapshot=snap)
+        assert result["SWEEP_DIRECTION"] == "NONE"
+        assert result["LIQUIDITY_TAKEN_DIRECTION"] == "NONE"
+
+    def test_bias_true_is_bull(self):
+        result = build_liquidity_sweeps(
+            snapshot=_make_snapshot(
+                recent_bull_sweep=True, recent_bear_sweep=True, sweep_bias_bull=True
+            )
+        )
+        assert result["SWEEP_DIRECTION"] == "BULL"
+        assert result["LIQUIDITY_TAKEN_DIRECTION"] == "SELL_SIDE"
+
+    def test_bias_false_is_bear(self):
+        result = build_liquidity_sweeps(
+            snapshot=_make_snapshot(
+                recent_bull_sweep=True, recent_bear_sweep=True, sweep_bias_bull=False
+            )
+        )
+        assert result["SWEEP_DIRECTION"] == "BEAR"
+        assert result["LIQUIDITY_TAKEN_DIRECTION"] == "BUY_SIDE"
+
+
 class TestSweepTypeClassification:
     def test_explicit_stop_hunt(self):
         result = build_liquidity_sweeps(

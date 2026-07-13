@@ -147,6 +147,13 @@ class TestBiasAlignment:
         result = _bias_alignment("BULLISH", "BULLISH", "BEAR", "NONE", "NONE")
         assert result == "bull"
 
+    def test_sweep_side_aliases_are_canonical(self):
+        # Canonical reversal semantics: a SELL_SIDE sweep (low taken) votes
+        # BULLISH; a BUY_SIDE sweep (high taken) votes BEARISH. Regression guard
+        # against the old inverted alias mapping.
+        assert _bias_alignment("NEUTRAL", "NEUTRAL", "SELL_SIDE", "NONE", "NONE") == "bull"
+        assert _bias_alignment("NEUTRAL", "NEUTRAL", "BUY_SIDE", "NONE", "NONE") == "bear"
+
 
 # ── Snapshot regression tests ──────────────────────────────────────
 
