@@ -142,7 +142,7 @@ def compute_ranking_drift(
 
     def _pos(seq: list[str], key: str) -> int:
         try:
-            return seq.index(key) + 1
+            return min(seq.index(key) + 1, top_n + 1)  # cap out-of-top_n at top_n+1 (bounded-churn contract)
         except ValueError:
             return top_n + 1
 
