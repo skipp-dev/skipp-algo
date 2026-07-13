@@ -225,7 +225,9 @@ def rescore_pair(
     n_control_rewritten = 0
     n_treatment_rewritten = 0
 
-    for record in read_event_ledger(ledger_path):
+    # strict=True: a corrupt/off-schema ledger line raises EventLedgerSchemaError
+    # (fail-closed) so a partial corpus is never silently graded into a calibration.
+    for record in read_event_ledger(ledger_path, strict=True):
         family = str(record.get("family", ""))
         # 0.0 is a VALID probability — only a MISSING (None) value falls back to
         # 0.5. The old ``... or 0.5`` turned a real 0% signal into a coin flip.
