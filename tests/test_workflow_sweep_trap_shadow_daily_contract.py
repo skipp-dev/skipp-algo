@@ -74,8 +74,8 @@ def test_commit_back_is_pr_flow_not_direct_push() -> None:
     assert "gh pr create" in text and "gh pr merge" in text, (
         "the main-governance ruleset rejects direct pushes; use the bot-branch PR flow"
     )
-    assert "git diff --quiet artifacts/governance/sweep_trap_shadow.jsonl" in text, (
-        "no-op guard: skip commit-back when the ledger is unchanged"
+    assert "git status --porcelain" in text, (
+        "no-op guard: skip commit-back when the ledger is absent or unchanged"
     )
 
 
@@ -93,7 +93,7 @@ def test_commit_back_includes_measured_but_thin_runs() -> None:
     commit_step = text.split("Commit shadow ledger back via PR", 1)[1]
     gate = commit_step.split("env:", 1)[0]
     assert "steps.eval.outputs.status == 'thin_or_no_data'" in gate
-    assert "git diff --quiet artifacts/governance/sweep_trap_shadow.jsonl" in commit_step
+    assert "git status --porcelain" in commit_step
 
 
 def test_reaction_zone_eval_is_piggybacked_on_the_same_corpus() -> None:
@@ -130,3 +130,25 @@ def test_corpus_resolver_iterates_multiple_runs_not_just_the_latest() -> None:
     assert "--limit=15" in corpus_step
     assert "for run_id in" in corpus_step
     assert 'name "events_*.jsonl"' in corpus_step
+
+
+def test_corpus_dir_is_three_dirnames_up_from_events_file() -> None:
+    """The eval globs benchmark_dir/SYMBOL/TF/events_*.jsonl, so benchmark_dir is
+    THREE dirnames up from the events file. A two-dirname form points at the
+    SYMBOL dir (gh run download without --name nests under the artifact name),
+    so the eval matches nothing → no_data with a real corpus present."""
+    text = _WF_PATH.read_text(encoding="utf-8")
+    corpus_step = text.split("Resolve corpus directory", 1)[1].split("Run sweep-trap shadow eval", 1)[0]
+    assert 'dirname "$(dirname "$(dirname "${found}")")"' in corpus_step
+
+
+def test_commit_back_guard_survives_untracked_and_absent_ledger() -> None:
+    """The ledger is UNTRACKED on a fresh checkout (it accumulates only via bot
+    PRs). ``git diff --quiet`` fatals on an absent path and returns 0 for an
+    untracked-but-present file, so the commit-back must use an existence check +
+    ``git status --porcelain`` instead."""
+    text = _WF_PATH.read_text(encoding="utf-8")
+    commit_step = text.split("Commit shadow ledger back via PR", 1)[1]
+    assert "git diff --quiet artifacts/governance/sweep_trap_shadow.jsonl" not in commit_step
+    assert 'if [ ! -f "${LEDGER}" ]' in commit_step
+    assert "git status --porcelain" in commit_step
