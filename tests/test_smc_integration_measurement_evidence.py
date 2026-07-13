@@ -1549,3 +1549,48 @@ class TestLabelThresholdSsot:
         cfg = get_trading_thresholds().smc_scoring
         assert cfg.sweep_reversal_threshold_pct == measurement_evidence._SWEEP_REVERSAL_THRESHOLD_PCT
         assert cfg.bos_follow_through_threshold_pct == measurement_evidence._BOS_FOLLOW_THROUGH_THRESHOLD_PCT
+
+
+class TestKpiMirrorEdgeCensoringGuards:
+    """The KPI mirrors (_evaluate_bos_event/_evaluate_zone_event -> events_by_family
+    hit/MAE/MFE) must skip truncated windows exactly like the score-path guards —
+    before this they graded 1..N-1 available bars as a final miss, biasing the
+    benchmark hit rates at the data edge (and creating a SWEEP-vs-rest asymmetry
+    after #3591 guarded only the sweep evaluator's shared path)."""
+
+    def _flat_bars(self, n: int) -> pd.DataFrame:
+        rows = [
+            {"symbol": "A", "timestamp": f"2024-03-{i + 1:02d}", "open": 100.0,
+             "high": 100.5, "low": 99.5, "close": 100.0, "volume": 1}
+            for i in range(n)
+        ]
+        return measurement_evidence._to_epoch_seconds(pd.DataFrame(rows))
+
+    def test_bos_kpi_truncated_window_is_skipped(self) -> None:
+        bars = self._flat_bars(6)  # 5 future bars < BOS horizon 8
+        ts = float(bars["timestamp"].iloc[0])
+        assert measurement_evidence._evaluate_bos_event({"price": 101.0, "time": ts, "dir": "UP"}, bars) is None
+
+    def test_bos_kpi_full_window_is_graded(self) -> None:
+        bars = self._flat_bars(9)  # exactly 8 future bars
+        ts = float(bars["timestamp"].iloc[0])
+        result = measurement_evidence._evaluate_bos_event({"price": 101.0, "time": ts, "dir": "UP"}, bars)
+        assert result is not None
+        assert result["hit"] is False  # full window observed, genuine miss
+
+    def test_zone_kpi_truncated_window_is_skipped(self) -> None:
+        bars = self._flat_bars(10)  # 9 future bars < OB horizon 12
+        ts = float(bars["timestamp"].iloc[0])
+        result = measurement_evidence._evaluate_zone_event(
+            {"low": 98.0, "high": 98.4, "anchor_ts": ts, "dir": "BULL"}, bars, diagnostics_by_id={},
+        )
+        assert result is None
+
+    def test_zone_kpi_full_window_is_graded(self) -> None:
+        bars = self._flat_bars(13)  # exactly 12 future bars
+        result = measurement_evidence._evaluate_zone_event(
+            {"low": 98.0, "high": 98.4, "anchor_ts": float(bars["timestamp"].iloc[0]), "dir": "BULL"},
+            bars, diagnostics_by_id={},
+        )
+        assert result is not None
+        assert result["hit"] is False  # zone never touched in the FULL window

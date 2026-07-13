@@ -448,8 +448,8 @@ def _evaluate_bos_event(event: dict[str, Any], bars: pd.DataFrame) -> dict[str, 
     # KPI horizon = the ScoredEvent BOS label window (was unbounded-to-end, so a
     # touch 100 bars later counted as a KPI hit but a label miss). Cap to align.
     future = bars.iloc[anchor_idx + 1 : anchor_idx + 1 + _BOS_LOOKAHEAD_BARS].reset_index(drop=True)
-    if future.empty:
-        return None
+    if len(future) < _BOS_LOOKAHEAD_BARS:
+        return None  # right-censoring guard (mirror of _score_bos_event): truncated window -> skip, not a final miss
 
     if direction == "DOWN":
         touch_idx = _find_first_index(future, lambda row: float(row["high"]) >= price)
@@ -493,8 +493,8 @@ def _evaluate_zone_event(
 
     # KPI horizon = the ScoredEvent zone label window (OB vs FVG), was unbounded.
     future = bars.iloc[anchor_idx + 1 : anchor_idx + 1 + lookahead_bars].reset_index(drop=True)
-    if future.empty:
-        return None
+    if len(future) < lookahead_bars:
+        return None  # right-censoring guard (mirror of _score_zone_event): truncated window -> skip, not a final miss
 
     event_id = str(event.get("id", "")).strip()
     diag = diagnostics_by_id.get(event_id, {})
