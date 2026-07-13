@@ -10,7 +10,7 @@ tier). These tests pin the corrected contract:
   _ZONE`` / ``ENABLE_SMT_DIVERGENCE``) do NOT route the model and do NOT change
   the raw score or freshness while unpromoted;
 * the genuine score-model flags (``ENABLE_CONFLUENCE_SCORE`` /
-  ``ENABLE_FRESHNESS_V2``) still take effect (negative control);
+  ``ENABLE_FRESHNESS_V2_SCORE``) still take effect (negative control);
 * a ``PROMOTE_*`` flag re-arms the weight (positive control), so the gate is
   real in both directions.
 """
@@ -24,10 +24,10 @@ import pytest
 
 from scripts.smc_signal_quality import build_signal_quality
 
-_OBSERVE_ONLY_FLAGS = ("ENABLE_SWEEP_TRAP", "ENABLE_REACTION_ZONE", "ENABLE_SMT_DIVERGENCE")
+_OBSERVE_ONLY_FLAGS = ("ENABLE_SWEEP_TRAP", "ENABLE_REACTION_CONTEXT", "ENABLE_SMT_DIVERGENCE")
 _ALL_KEYS = (
     "SIGNAL_QUALITY_MODEL",
-    "ENABLE_FRESHNESS_V2",
+    "ENABLE_FRESHNESS_V2_SCORE",
     "ENABLE_CONFLUENCE_SCORE",
     *_OBSERVE_ONLY_FLAGS,
     "PROMOTE_SWEEP_TRAP",
@@ -108,7 +108,7 @@ def test_observe_only_flag_stays_on_v1_path(flag: str) -> None:
     os.environ[flag] = "1"
     result = build_signal_quality(enrichment=_enrichment())
     assert "SWEEP_TRAP_DETECTED" not in result
-    assert "REACTION_ZONE_DETECTED" not in result
+    assert "REACTION_CONTEXT_DETECTED" not in result
     assert "SMT_DIVERGENCE_DETECTED" not in result
     assert "CONFLUENCE_SCORE" not in result
 
@@ -152,7 +152,7 @@ def test_freshness_v2_flag_routes_to_v2() -> None:
     v1 = _score()
     # freshness_v2 routes to v2; the v2 budget differs from v1, so the field set
     # gains the v2 confluence/other derivations even if the number coincides.
-    os.environ["ENABLE_FRESHNESS_V2"] = "1"
+    os.environ["ENABLE_FRESHNESS_V2_SCORE"] = "1"
     result = build_signal_quality(enrichment=_enrichment())
     # v1 never emits SIGNAL_FRESHNESS via _freshness_label_v2; the routed path
     # yields a valid label and a score in range.

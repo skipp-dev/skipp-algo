@@ -11,7 +11,7 @@ from smc_core.reaction_zone import detect_reaction_zone
 
 @pytest.fixture(autouse=True)
 def _clear_env() -> Iterator[None]:
-    key = "ENABLE_REACTION_ZONE"
+    key = "ENABLE_REACTION_CONTEXT"
     saved = os.environ.pop(key, None)
     yield
     if saved is not None:
@@ -27,19 +27,19 @@ def test_disabled_returns_neutral() -> None:
             "ob_context_light": {"OB_FRESH": True, "PRIMARY_OB_DISTANCE": 1.5, "PRIMARY_OB_SIDE": "BULL"},
         }
     )
-    assert result["REACTION_ZONE_DETECTED"] is False
-    assert result["REACTION_ZONE_CONFIDENCE"] == 0
-    assert result["REACTION_ZONE_DIRECTION"] == "neutral"
+    assert result["REACTION_CONTEXT_DETECTED"] is False
+    assert result["REACTION_CONTEXT_CONFIDENCE"] == 0
+    assert result["REACTION_CONTEXT_DIRECTION"] == "neutral"
 
 
 def test_enabled_no_anchor_returns_neutral() -> None:
-    os.environ["ENABLE_REACTION_ZONE"] = "1"
+    os.environ["ENABLE_REACTION_CONTEXT"] = "1"
     result = detect_reaction_zone(enrichment={})
-    assert result["REACTION_ZONE_DETECTED"] is False
+    assert result["REACTION_CONTEXT_DETECTED"] is False
 
 
 def test_enabled_bullish_zone_with_bias_alignment() -> None:
-    os.environ["ENABLE_REACTION_ZONE"] = "1"
+    os.environ["ENABLE_REACTION_CONTEXT"] = "1"
     result = detect_reaction_zone(
         enrichment={
             "structure_state_light": {"STRUCTURE_FRESH": True, "STRUCTURE_LAST_EVENT": "BOS_BULL"},
@@ -47,13 +47,13 @@ def test_enabled_bullish_zone_with_bias_alignment() -> None:
             "session_context_light": {"SESSION_DIRECTION_BIAS": "BULLISH"},
         }
     )
-    assert result["REACTION_ZONE_DETECTED"] is True
-    assert result["REACTION_ZONE_DIRECTION"] == "bull"
-    assert result["REACTION_ZONE_CONFIDENCE"] == 60
+    assert result["REACTION_CONTEXT_DETECTED"] is True
+    assert result["REACTION_CONTEXT_DIRECTION"] == "bull"
+    assert result["REACTION_CONTEXT_CONFIDENCE"] == 60
 
 
 def test_enabled_bearish_zone_without_bias_alignment() -> None:
-    os.environ["ENABLE_REACTION_ZONE"] = "1"
+    os.environ["ENABLE_REACTION_CONTEXT"] = "1"
     result = detect_reaction_zone(
         enrichment={
             "liquidity_sweeps": {"RECENT_BEAR_SWEEP": True, "SWEEP_DIRECTION": "BEAR"},
@@ -61,12 +61,12 @@ def test_enabled_bearish_zone_without_bias_alignment() -> None:
             "session_context_light": {"SESSION_DIRECTION_BIAS": "BULLISH"},
         }
     )
-    assert result["REACTION_ZONE_DETECTED"] is True
-    assert result["REACTION_ZONE_DIRECTION"] == "bear"
-    assert result["REACTION_ZONE_CONFIDENCE"] == 40
+    assert result["REACTION_CONTEXT_DETECTED"] is True
+    assert result["REACTION_CONTEXT_DIRECTION"] == "bear"
+    assert result["REACTION_CONTEXT_CONFIDENCE"] == 40
 
 def test_enabled_fvg_over_ob_direction_priority() -> None:
-    os.environ["ENABLE_REACTION_ZONE"] = "1"
+    os.environ["ENABLE_REACTION_CONTEXT"] = "1"
     result = detect_reaction_zone(
         enrichment={
             "structure_state_light": {"STRUCTURE_FRESH": True, "STRUCTURE_LAST_EVENT": "BOS_BULL"},
@@ -75,18 +75,18 @@ def test_enabled_fvg_over_ob_direction_priority() -> None:
         }
     )
     # OB is checked first in direction resolution.
-    assert result["REACTION_ZONE_DETECTED"] is True
-    assert result["REACTION_ZONE_DIRECTION"] == "bear"
+    assert result["REACTION_CONTEXT_DETECTED"] is True
+    assert result["REACTION_CONTEXT_DIRECTION"] == "bear"
 
 
 def test_enabled_distance_too_far_returns_neutral() -> None:
-    os.environ["ENABLE_REACTION_ZONE"] = "1"
+    os.environ["ENABLE_REACTION_CONTEXT"] = "1"
     result = detect_reaction_zone(
         enrichment={
             "structure_state_light": {"STRUCTURE_FRESH": True, "STRUCTURE_LAST_EVENT": "BOS_BULL"},
             "ob_context_light": {"OB_FRESH": True, "PRIMARY_OB_DISTANCE": 5.0, "PRIMARY_OB_SIDE": "BULL"},
         }
     )
-    assert result["REACTION_ZONE_DETECTED"] is False
-    assert result["REACTION_ZONE_CONFIDENCE"] == 0
+    assert result["REACTION_CONTEXT_DETECTED"] is False
+    assert result["REACTION_CONTEXT_CONFIDENCE"] == 0
 

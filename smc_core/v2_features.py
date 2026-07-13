@@ -27,24 +27,23 @@ def sweep_trap_enabled() -> bool:
 def reaction_zone_study_enabled() -> bool:
     """Return True when the Reaction-Zone *study* is enabled.
 
-    Canonical ``ENABLE_REACTION_ZONE_STUDY``; old ``ENABLE_REACTION_ZONE`` is a
-    deprecated alias. Mirrors ``open_prep.feature_flags``.
+    Flag ``ENABLE_REACTION_ZONE_STUDY``. Mirrors ``open_prep.feature_flags``.
     """
-    return _flag_enabled("ENABLE_REACTION_ZONE_STUDY") or _flag_enabled("ENABLE_REACTION_ZONE")
+    return _flag_enabled("ENABLE_REACTION_ZONE_STUDY")
 
 
 def reaction_context_enabled() -> bool:
     """Return True when the Reaction-*context* detector is enabled.
 
-    Canonical ``ENABLE_REACTION_CONTEXT``; old ``ENABLE_REACTION_ZONE`` is a
-    deprecated alias. Gates :func:`smc_core.reaction_zone.detect_reaction_zone`.
+    Flag ``ENABLE_REACTION_CONTEXT``. Gates
+    :func:`smc_core.reaction_zone.detect_reaction_zone`.
     """
-    return _flag_enabled("ENABLE_REACTION_CONTEXT") or _flag_enabled("ENABLE_REACTION_ZONE")
+    return _flag_enabled("ENABLE_REACTION_CONTEXT")
 
 
 def reaction_zone_enabled() -> bool:
-    """Deprecated: prefer :func:`reaction_zone_study_enabled` /
-    :func:`reaction_context_enabled`. True iff either split feature is on."""
+    """Convenience: True iff either reaction feature (study or context) is on.
+    Prefer :func:`reaction_zone_study_enabled` / :func:`reaction_context_enabled`."""
     return reaction_zone_study_enabled() or reaction_context_enabled()
 
 
@@ -56,10 +55,9 @@ def confluence_score_enabled() -> bool:
 def freshness_v2_enabled() -> bool:
     """Return True when the Freshness-v2 score model is enabled.
 
-    Canonical ``ENABLE_FRESHNESS_V2_SCORE``; old ``ENABLE_FRESHNESS_V2`` is a
-    deprecated alias.
+    Flag ``ENABLE_FRESHNESS_V2_SCORE``.
     """
-    return _flag_enabled("ENABLE_FRESHNESS_V2_SCORE") or _flag_enabled("ENABLE_FRESHNESS_V2")
+    return _flag_enabled("ENABLE_FRESHNESS_V2_SCORE")
 
 
 def smt_divergence_enabled() -> bool:

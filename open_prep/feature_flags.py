@@ -190,22 +190,12 @@ def is_fmp_13f_enabled() -> bool:
 # ---------------------------------------------------------------------------
 
 
-#: Deprecated env-var aliases, kept honored for a migration window so existing
-#: Railway/CI config keeps working after the 2026-07-13 flag renames. Each maps
-#: OLD name → canonical NEW name; readers below fall back to the old name.
-DEPRECATED_FLAG_ALIASES: dict[str, str] = {
-    "ENABLE_FRESHNESS_V2": "ENABLE_FRESHNESS_V2_SCORE",
-    # ``ENABLE_REACTION_ZONE`` split into two concerns; the old flag still
-    # enables BOTH (its historical behaviour).
-    "ENABLE_REACTION_ZONE": "ENABLE_REACTION_ZONE_STUDY + ENABLE_REACTION_CONTEXT",
-}
-
-
 def is_freshness_v2_enabled() -> bool:
     """Return True iff the Freshness-v2 score model is enabled (default OFF).
 
-    Canonical flag: ``ENABLE_FRESHNESS_V2_SCORE``. The old name
-    ``ENABLE_FRESHNESS_V2`` is still honored as a deprecated alias.
+    Flag: ``ENABLE_FRESHNESS_V2_SCORE``. (The pre-2026-07-13 ``ENABLE_FRESHNESS
+    _V2`` alias was dropped once its deprecation window closed — it was never set
+    in any deployment.)
 
     Phase A: enables uniform freshness/invalidation enrichment across all
     SMC event families (BOS, OB, FVG, SWEEP).  When disabled, the legacy
@@ -223,7 +213,7 @@ def is_freshness_v2_enabled() -> bool:
     label only exists inside the v2 budget); do not treat the flag as
     freshness-only.
     """
-    return _bool_env("ENABLE_FRESHNESS_V2_SCORE", "0") or _bool_env("ENABLE_FRESHNESS_V2", "0")
+    return _bool_env("ENABLE_FRESHNESS_V2_SCORE", "0")
 
 
 def is_sweep_trap_enabled() -> bool:
@@ -247,8 +237,8 @@ def is_sweep_trap_enabled() -> bool:
 def is_reaction_zone_study_enabled() -> bool:
     """Return True iff the Reaction-Zone *study* is enabled (default OFF).
 
-    Canonical flag: ``ENABLE_REACTION_ZONE_STUDY``. The old
-    ``ENABLE_REACTION_ZONE`` still enables it (deprecated alias).
+    Flag: ``ENABLE_REACTION_ZONE_STUDY``. (The pre-split ``ENABLE_REACTION_ZONE``
+    alias was dropped once its deprecation window closed.)
 
     Phase C: gates the geometric reclaim/band measurer
     (:func:`smc_core.reaction_zone.compute_reaction_zone`) whose raw shadow
@@ -260,33 +250,30 @@ def is_reaction_zone_study_enabled() -> bool:
     does not route the model or gate the live score. Depends on Phase B
     (sweep trap) on the enrichment path.
     """
-    return _bool_env("ENABLE_REACTION_ZONE_STUDY", "0") or _bool_env("ENABLE_REACTION_ZONE", "0")
+    return _bool_env("ENABLE_REACTION_ZONE_STUDY", "0")
 
 
 def is_reaction_context_enabled() -> bool:
     """Return True iff the Reaction-*context* detector is enabled (default OFF).
 
-    Canonical flag: ``ENABLE_REACTION_CONTEXT``. The old
-    ``ENABLE_REACTION_ZONE`` still enables it (deprecated alias).
+    Flag: ``ENABLE_REACTION_CONTEXT``. (The pre-split ``ENABLE_REACTION_ZONE``
+    alias was dropped once its deprecation window closed.)
 
     Gates :func:`smc_core.reaction_zone.detect_reaction_zone`, a semantically
     DIFFERENT feature from the study above: it merely flags a fresh
     structure/sweep sitting near an OB/FVG in a bias-aligned direction and emits
-    ``REACTION_CONTEXT_DETECTED`` / ``_CONFIDENCE`` / ``_DIRECTION`` (legacy
-    ``REACTION_ZONE_*`` keys are still dual-emitted). It inspects no swept level,
-    extreme, post-sweep close, reclaim, or rejection band. The live-dict fields
-    only appear on the v2 score path and have no consumer.
+    ``REACTION_CONTEXT_DETECTED`` / ``_CONFIDENCE`` / ``_DIRECTION``. It inspects
+    no swept level, extreme, post-sweep close, reclaim, or rejection band. The
+    live-dict fields only appear on the v2 score path and have no consumer.
     """
-    return _bool_env("ENABLE_REACTION_CONTEXT", "0") or _bool_env("ENABLE_REACTION_ZONE", "0")
+    return _bool_env("ENABLE_REACTION_CONTEXT", "0")
 
 
 def is_reaction_zone_enabled() -> bool:
-    """Deprecated: prefer :func:`is_reaction_zone_study_enabled` or
-    :func:`is_reaction_context_enabled`.
+    """Convenience: True iff EITHER reaction feature (study or context) is on.
 
-    Retained for back-compat. Returns True iff EITHER split feature is on
-    (matches the old ``ENABLE_REACTION_ZONE`` "arm both" behaviour, and also
-    fires when either new flag is set individually).
+    Prefer the specific :func:`is_reaction_zone_study_enabled` /
+    :func:`is_reaction_context_enabled` in new code.
     """
     return is_reaction_zone_study_enabled() or is_reaction_context_enabled()
 

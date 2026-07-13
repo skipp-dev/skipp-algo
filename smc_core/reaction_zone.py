@@ -25,9 +25,8 @@ Three DISTINCT reclaim-related thresholds live in this subsystem — do not conf
 Both are recorded raw; neither gates live scoring (Phase C is observe-only).
 Since 2026-07-13 the study and the context detector have SEPARATE flags
 (``ENABLE_REACTION_ZONE_STUDY`` gates :func:`compute_reaction_zone`;
-``ENABLE_REACTION_CONTEXT`` gates :func:`detect_reaction_zone`); the old
-``ENABLE_REACTION_ZONE`` still arms both. The study gate additionally differs by
-CONSUMER:
+``ENABLE_REACTION_CONTEXT`` gates :func:`detect_reaction_zone`). The study gate
+additionally differs by CONSUMER:
   * the ledger-emission path (``measurement_evidence._evaluate_sweep_event``) runs
     on the study flag alone;
   * the liquidity-enrichment path (``measurement_evidence._liquidity_support_for_event``)
@@ -186,18 +185,14 @@ def detect_reaction_zone(enrichment: dict[str, Any] | None = None) -> dict[str, 
     both.
 
     Output keys are ``REACTION_CONTEXT_DETECTED`` / ``_CONFIDENCE`` /
-    ``_DIRECTION``. The legacy ``REACTION_ZONE_*`` keys are **dual-emitted** with
-    identical values for a deprecation window; do not add new consumers of the
-    old keys. This detector-style API is retained for v2 integration tests.
+    ``_DIRECTION``. (The legacy ``REACTION_ZONE_*`` alias keys were dropped once
+    their deprecation window closed — they had no consumer.) This detector-style
+    API is retained for v2 integration tests.
     """
-    # Dual-emit: canonical REACTION_CONTEXT_* + deprecated REACTION_ZONE_* alias.
     neutral = {
         "REACTION_CONTEXT_DETECTED": False,
         "REACTION_CONTEXT_CONFIDENCE": 0,
         "REACTION_CONTEXT_DIRECTION": "neutral",
-        "REACTION_ZONE_DETECTED": False,
-        "REACTION_ZONE_CONFIDENCE": 0,
-        "REACTION_ZONE_DIRECTION": "neutral",
     }
 
     if not reaction_context_enabled():
@@ -266,14 +261,10 @@ def detect_reaction_zone(enrichment: dict[str, Any] | None = None) -> dict[str, 
         else reaction_zone_config.bias_misaligned_confidence
     )
 
-    # Dual-emit: canonical REACTION_CONTEXT_* + deprecated REACTION_ZONE_* alias.
     return {
         "REACTION_CONTEXT_DETECTED": True,
         "REACTION_CONTEXT_CONFIDENCE": confidence,
         "REACTION_CONTEXT_DIRECTION": direction,
-        "REACTION_ZONE_DETECTED": True,
-        "REACTION_ZONE_CONFIDENCE": confidence,
-        "REACTION_ZONE_DIRECTION": direction,
     }
 
 

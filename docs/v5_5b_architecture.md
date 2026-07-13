@@ -82,9 +82,9 @@ when inputs are unavailable.
 
 | Detector | Output Fields | Gating Flag | Key Inputs |
 | --- | --- | --- | --- |
-| Freshness v2 | ``SIGNAL_FRESHNESS`` | ``ENABLE_FRESHNESS_V2_SCORE`` (old ``ENABLE_FRESHNESS_V2`` = alias) | Structure, FVG, OB, killzone, sweep, ATR regime |
+| Freshness v2 | ``SIGNAL_FRESHNESS`` | ``ENABLE_FRESHNESS_V2_SCORE`` | Structure, FVG, OB, killzone, sweep, ATR regime |
 | Sweep Trap | ``SWEEP_TRAP_DETECTED``, ``SWEEP_TRAP_CONFIDENCE`` | ``ENABLE_SWEEP_TRAP`` | ``liquidity_sweeps`` quality and direction |
-| Reaction Context | ``REACTION_CONTEXT_DETECTED``, ``REACTION_CONTEXT_CONFIDENCE``, ``REACTION_CONTEXT_DIRECTION`` (legacy ``REACTION_ZONE_*`` dual-emitted) | ``ENABLE_REACTION_CONTEXT`` (study path: ``ENABLE_REACTION_ZONE_STUDY``; old ``ENABLE_REACTION_ZONE`` = alias for both) | OB/FVG distance and side, structure, sweep |
+| Reaction Context | ``REACTION_CONTEXT_DETECTED``, ``REACTION_CONTEXT_CONFIDENCE``, ``REACTION_CONTEXT_DIRECTION`` | ``ENABLE_REACTION_CONTEXT`` (separate study path: ``ENABLE_REACTION_ZONE_STUDY``) | OB/FVG distance and side, structure, sweep |
 | Confluence Score | ``CONFLUENCE_SCORE``, ``CONFLUENCE_DIRECTION``, ``CONFLUENCE_TIER``, ``CONFLUENCE_OB_CONTRIBUTION``, ``CONFLUENCE_FVG_CONTRIBUTION``, ``CONFLUENCE_SWEEP_CONTRIBUTION`` | ``ENABLE_CONFLUENCE_SCORE`` | Orthogonal ``OB_SUPPORT_SCORE`` (0-15), ``FVG_GAP_SCORE`` (0-15), normalized ``SWEEP_QUALITY_SCORE`` (0.0-1.0) |
 | SMT Divergence | ``SMT_DIVERGENCE_DETECTED``, ``SMT_DIVERGENCE_SIDE``, ``SMT_DIVERGENCE_CONFIDENCE`` | ``ENABLE_SMT_DIVERGENCE`` | Primary structure vs. correlated context |
 

@@ -2,10 +2,10 @@
 
 A flag-semantics audit found docstrings that undersold live side effects:
 
-- ``ENABLE_FRESHNESS_V2`` is not a scoped freshness toggle — being a member of
+- ``ENABLE_FRESHNESS_V2_SCORE`` is not a scoped freshness toggle — being a member of
   ``any_v2_score_feature_enabled`` it routes ``build_signal_quality`` from the
   v1 to the v2 budget, so the numeric score moves even with neutral freshness.
-- ``ENABLE_REACTION_ZONE`` also gates ``detect_reaction_zone`` (a semantically
+- ``ENABLE_REACTION_CONTEXT`` also gates ``detect_reaction_zone`` (a semantically
   different "reaction context" detector), not only the reclaim/band study.
 - ``smc_integration.measurement_evidence.signal_quality_model`` must normalise
   ``SIGNAL_QUALITY_MODEL`` identically to the canonical
@@ -55,16 +55,16 @@ def _clean_env(monkeypatch: pytest.MonkeyPatch) -> None:
     """Start from a known-off flag state for every test."""
     monkeypatch.delenv("SIGNAL_QUALITY_MODEL", raising=False)
     for flag in (
-        "ENABLE_FRESHNESS_V2",
+        "ENABLE_FRESHNESS_V2_SCORE",
         "ENABLE_CONFLUENCE_SCORE",
         "ENABLE_SWEEP_TRAP",
-        "ENABLE_REACTION_ZONE",
+        "ENABLE_REACTION_CONTEXT",
         "ENABLE_SMT_DIVERGENCE",
     ):
         monkeypatch.delenv(flag, raising=False)
 
 
-# --- F1: ENABLE_FRESHNESS_V2 is a v2 score-model cutover -------------------- #
+# --- F1: ENABLE_FRESHNESS_V2_SCORE is a v2 score-model cutover -------------------- #
 
 def test_freshness_v2_flag_routes_model_and_moves_score(
     monkeypatch: pytest.MonkeyPatch,
@@ -77,7 +77,7 @@ def test_freshness_v2_flag_routes_model_and_moves_score(
     assert build_signal_quality(enrichment=_ENR)[_RAW] == v1
 
     # Turning ONLY freshness on (SIGNAL_QUALITY_MODEL still 'v1') flips the model.
-    monkeypatch.setenv("ENABLE_FRESHNESS_V2", "1")
+    monkeypatch.setenv("ENABLE_FRESHNESS_V2_SCORE", "1")
     assert any_v2_score_feature_enabled() is True
     routed = build_signal_quality(enrichment=_ENR)
     assert routed[_RAW] == v2, "freshness flag must route build_signal_quality to the v2 budget"
@@ -92,18 +92,21 @@ def test_freshness_v2_docstring_discloses_model_cutover() -> None:
     assert "20→18" in doc or "15→12" in doc
 
 
-# --- F2: ENABLE_REACTION_ZONE split into study + context ------------------- #
+# --- F2: reaction zone split into study + context -------------------------- #
 
 def test_reaction_zone_flag_is_split_into_study_and_context() -> None:
-    # The dual-feature is now resolved: two distinct canonical flags, and the
-    # old reader is a deprecated shim.
+    # The dual-feature is resolved: two distinct canonical flags, and the
+    # old convenience reader delegates to them.
     study_doc = is_reaction_zone_study_enabled.__doc__ or ""
     ctx_doc = is_reaction_context_enabled.__doc__ or ""
     assert "ENABLE_REACTION_ZONE_STUDY" in study_doc
     assert "compute_reaction_zone" in study_doc
     assert "ENABLE_REACTION_CONTEXT" in ctx_doc
     assert "detect_reaction_zone" in ctx_doc
-    assert "Deprecated" in (is_reaction_zone_enabled.__doc__ or "")
+    # The old single reader is now a thin convenience over the two split readers.
+    shim_doc = is_reaction_zone_enabled.__doc__ or ""
+    assert "is_reaction_zone_study_enabled" in shim_doc
+    assert "is_reaction_context_enabled" in shim_doc
 
 
 # --- F4: measurement mirror normalises SIGNAL_QUALITY_MODEL like canonical -- #

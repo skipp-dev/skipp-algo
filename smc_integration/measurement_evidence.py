@@ -87,7 +87,7 @@ def _bool_env(name: str, default: str = "1") -> bool:
 
 
 def is_freshness_v2_enabled() -> bool:
-    return _bool_env("ENABLE_FRESHNESS_V2_SCORE", "0") or _bool_env("ENABLE_FRESHNESS_V2", "0")
+    return _bool_env("ENABLE_FRESHNESS_V2_SCORE", "0")
 
 
 def is_sweep_trap_enabled() -> bool:
@@ -95,7 +95,7 @@ def is_sweep_trap_enabled() -> bool:
 
 
 def is_reaction_zone_enabled() -> bool:  # study gate (compute_reaction_zone)
-    return _bool_env("ENABLE_REACTION_ZONE_STUDY", "0") or _bool_env("ENABLE_REACTION_ZONE", "0")
+    return _bool_env("ENABLE_REACTION_ZONE_STUDY", "0")
 
 
 def is_confluence_score_enabled() -> bool:
