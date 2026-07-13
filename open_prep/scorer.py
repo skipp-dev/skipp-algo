@@ -715,7 +715,7 @@ def score_candidate(
             COUNTER_TREND_MAX_PENALTY,
             abs(momentum_z - COUNTER_TREND_MOMENTUM_Z) * COUNTER_TREND_PENALTY_SLOPE,
         )
-        score = score * (1.0 - counter_trend_penalty)
+        score = min(score, score * (1.0 - counter_trend_penalty))  # sign-safe: a penalty never raises a negative score
 
     # --- Low-Tier News Rumor Penalty ---
     # When the news catalyst comes from an unverified / social source
@@ -729,7 +729,7 @@ def score_candidate(
         and news_score >= LOW_TIER_NEWS_PENALTY_THRESHOLD
     ):
         rumor_penalty_applied = 1.0 - LOW_TIER_NEWS_RUMOR_PENALTY
-        score = score * LOW_TIER_NEWS_RUMOR_PENALTY
+        score = min(score, score * LOW_TIER_NEWS_RUMOR_PENALTY)  # sign-safe: a haircut never raises a negative score
 
     # --- Entry Probability (#13) ---
     entry_probability = compute_entry_probability(

@@ -492,3 +492,33 @@ def test_analyst_implied_upside_is_display_only() -> None:
     assert ranked_without[0]["analyst_implied_upside_pct"] is None
     # Display-only: the presence of a price target must not move the score.
     assert ranked_with[0]["score"] == ranked_without[0]["score"]
+
+
+def test_counter_trend_penalty_never_raises_a_negative_score(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Regression: the multiplicative counter-trend penalty is sign-safe.
+
+    Previously ``score = score * (1 - penalty)`` RAISED a negative composite
+    toward zero, rewarding the strongest-down-momentum names. The penalty must
+    never increase the score. We score the same row twice — once with the
+    counter-trend trigger live, once disabled (baseline) — and assert the
+    penalized score is not above the baseline for a negative composite.
+    """
+    quote = _make_passing_quote("AAPL")
+    fr = sc.filter_candidate(quote, bias=-0.6)
+    # Force a strongly-negative composite with a strong-down momentum that
+    # trips the counter-trend penalty.
+    fr.features["gap_pct_for_scoring"] = -6.0
+    fr.features["momentum_z"] = sc.COUNTER_TREND_MOMENTUM_Z - 3.0
+
+    penalized = sc.score_candidate(fr, bias=-0.6, weights=dict(sc.DEFAULT_WEIGHTS))["score"]
+
+    # Baseline: identical row with the counter-trend trigger disabled.
+    monkeypatch.setattr(sc, "COUNTER_TREND_MOMENTUM_Z", -1.0e9)
+    base = sc.score_candidate(fr, bias=-0.6, weights=dict(sc.DEFAULT_WEIGHTS))["score"]
+
+    assert base < 0.0, f"test setup must yield a negative base score (got {base})"
+    assert penalized <= base + 1e-9, (
+        f"counter-trend penalty raised a negative score: base={base}, penalized={penalized}"
+    )
