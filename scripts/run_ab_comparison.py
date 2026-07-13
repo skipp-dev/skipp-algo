@@ -1052,8 +1052,12 @@ def _load_ledgers_for_dir(
                 prob = float(prob_raw)
             except (TypeError, ValueError):
                 continue
-            outcome = bool(record.get("outcome", False))
-            rows.append((family, prob, outcome))
+            # outcome must be a genuine bool; bool("false") would be True and
+            # invert the hit-rate, so skip type-invalid outcomes rather than coerce.
+            outcome_raw = record.get("outcome", False)
+            if not isinstance(outcome_raw, bool):
+                continue
+            rows.append((family, prob, outcome_raw))
         ledgers.append(rows)
     return ledgers
 

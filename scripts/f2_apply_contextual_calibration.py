@@ -227,7 +227,10 @@ def rescore_pair(
 
     for record in read_event_ledger(ledger_path):
         family = str(record.get("family", ""))
-        base_prob = float(record.get("predicted_prob", 0.5) or 0.5)
+        # 0.0 is a VALID probability — only a MISSING (None) value falls back to
+        # 0.5. The old ``... or 0.5`` turned a real 0% signal into a coin flip.
+        prob_val = record.get("predicted_prob")
+        base_prob = float(prob_val) if prob_val is not None else 0.5
         ctx = record.get("context") or {}
         session_ctx = ctx.get("session") if isinstance(ctx, dict) else None
         vol_regime = ctx.get("vol_regime") if isinstance(ctx, dict) else None

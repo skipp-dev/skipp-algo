@@ -103,7 +103,7 @@ DYNAMIC_GETATTR_LEDGER: set[tuple[str, int]] = {
     # 2026-07-03 correctness lane: _feed_connected_at global shifted
     # _record_to_bar dynamic getattr site 101 -> 102.
     ("services/live_overlay_daemon/feed.py", 102),
-    ("smc_core/event_ledger.py", 79),
+    ("smc_core/event_ledger.py", 84),  # 2026-07-13 schema-enforcement: import math + write-time validation shifted (79->84)
     ("smc_core/scoring.py", 308),
     ("streamlit_terminal_alerts.py", 41),
     ("terminal_attention_state.py", 45),

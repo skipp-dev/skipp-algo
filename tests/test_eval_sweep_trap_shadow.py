@@ -126,6 +126,20 @@ class TestMainEndToEnd:
         assert s["verdict_code"] == 2 and s["n_samples"] == 50 and s["brier_delta"] > 0
         assert s["min_samples"] == MIN_SHADOW_SAMPLES  # snapshot carries the local floor
 
+    def test_benchmark_dir_fails_closed_on_corrupt_line(self, tmp_path) -> None:
+        # A truncated/off-schema event line in the production benchmark-dir corpus
+        # must fail closed (exit 1), never silently grade a partial corpus into a
+        # verdict. strict=True in _read_events_from_dir activates main()'s handler.
+        pair = tmp_path / "AAPL" / "5m"
+        pair.mkdir(parents=True)
+        (pair / "events_AAPL_5m.jsonl").write_text("{ this is not valid json\n", encoding="utf-8")
+        snap = tmp_path / "snap.json"
+        ledger = tmp_path / "shadow.jsonl"
+        rc = main(["--benchmark-dir", str(tmp_path), "--ledger", str(ledger),
+                   "--snapshot", str(snap), "--date", "2026-07-11"])
+        assert rc == 1
+        assert not snap.exists()  # no verdict snapshot written
+
     def test_no_data_exit_3(self, tmp_path) -> None:
         rc, ledger, _ = self._run(tmp_path, [{"family": "FVG", "outcome": True, "features": {}}])
         assert rc == 3

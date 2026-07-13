@@ -2,10 +2,14 @@
 
 from __future__ import annotations
 
+import json
+from pathlib import Path
+
 import pytest
 
 from scripts.run_ab_comparison import (
     SPRT_P0,
+    _load_ledgers_for_dir,
     _sprt_decision,
     compare,
     render_comparison,
@@ -15,6 +19,29 @@ from scripts.smc_sprt_stop_rule import SPRTConfig, terminal_decision
 # ---------------------------------------------------------------------------
 # terminal_decision (closed-form aggregate SPRT)
 # ---------------------------------------------------------------------------
+
+
+def test_ab_reader_skips_type_invalid_outcome(tmp_path: Path) -> None:
+    """A string ``outcome`` like "false" must NOT be coerced to True.
+
+    bool("false") is True — the old ``bool(record.get("outcome"))`` would invert
+    the hit-rate. The reader now skips a non-bool outcome instead of mis-counting it.
+    """
+    pair = tmp_path / "AAPL" / "5m"
+    pair.mkdir(parents=True)
+    rec = {
+        "schema_version": "1.0", "event_id": "e", "symbol": "AAPL", "timeframe": "5m",
+        "family": "FVG", "timestamp": 1.0, "predicted_prob": 0.6,
+    }
+    good = {**rec, "event_id": "good", "outcome": True}
+    bad = {**rec, "event_id": "bad", "outcome": "false"}  # type-invalid
+    (pair / "events_AAPL_5m.jsonl").write_text(
+        json.dumps(good) + "\n" + json.dumps(bad) + "\n", encoding="utf-8"
+    )
+    ledgers = _load_ledgers_for_dir(tmp_path)
+    rows = [row for ledger in ledgers for row in ledger]
+    # Only the genuine-bool row is counted; the "false" string row is dropped.
+    assert rows == [("FVG", pytest.approx(0.6), True)]
 
 
 def test_terminal_decision_accepts_h1_on_strong_aggregate() -> None:
