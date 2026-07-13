@@ -18,13 +18,14 @@ from typing import get_args
 
 from governance.types import EventFamily
 from ml.walkforward import WalkForwardConfig
+from smc_core.label_horizons import LABEL_HORIZON_BARS
 
-# Per-family outcome horizon (bars until the label is fully resolved) —
-# bar COUNTS: the wall-clock meaning follows the run's timeframe (8 bars
-# = 2h at 15m, 8 days at 1D). Embargo = 2 * horizon (repo's own pin).
-#
-# These are conservative starting values tied to each setup's typical
-# hold; tighten only with measured label-resolution distributions.
+# Per-family TRADE-EXIT HOLD (bars held after entry before the exit close) —
+# bar COUNTS: the wall-clock meaning follows the run's timeframe (8 bars = 2h at
+# 15m, 8 days at 1D). This is the horizon ``realized_return`` uses to pick the
+# exit close; it is NOT the label-RESOLUTION window (that is the SSOT
+# ``smc_core.label_horizons.LABEL_HORIZON_BARS`` = 8/12/20/8) and must not be
+# confused with it — see the embargo note in ``_build_config``.
 _FAMILY_MAX_EVENT_HORIZON_BARS: dict[str, int] = {
     "BOS": 8,    # break-of-structure swing — slowest to resolve
     "OB": 6,     # order-block reaction
@@ -33,23 +34,35 @@ _FAMILY_MAX_EVENT_HORIZON_BARS: dict[str, int] = {
 }
 
 
-def _build_config(horizon_bars: int) -> WalkForwardConfig:
-    # embargo_bars = 2 * max_event_horizon (López de Prado leakage guard).
+def _build_config(label_window_bars: int) -> WalkForwardConfig:
+    # embargo_bars = 2 * LABEL-RESOLUTION window (López de Prado leakage guard).
+    # Audit 2026-07-13: the embargo was keyed to the trade HOLD (``2 * horizon``),
+    # which is SHORTER than the label window for OB/FVG/SWEEP (6/4/3 hold vs the
+    # real 12/20/8 resolution), so a training event's label could overlap the
+    # validation fold. Keying it to the shared LABEL_HORIZON_BARS SSOT — the same
+    # window the measurement labels resolve over — closes that leak and can no
+    # longer drift below it.
     return WalkForwardConfig(
         scheme="expanding",
         n_folds=5,
-        embargo_bars=2 * horizon_bars,
+        embargo_bars=2 * label_window_bars,
     )
 
 
 FAMILY_WALKFORWARD: dict[str, WalkForwardConfig] = {
-    family: _build_config(horizon)
-    for family, horizon in _FAMILY_MAX_EVENT_HORIZON_BARS.items()
+    family: _build_config(LABEL_HORIZON_BARS[family])
+    for family in _FAMILY_MAX_EVENT_HORIZON_BARS
 }
 
 
 def family_outcome_horizon(family: str) -> int:
-    """Return the label-resolution horizon (bars) for *family*."""
+    """Return the TRADE-EXIT HOLD (bars) for *family* — the horizon
+    ``realized_return`` holds a position before taking the exit close.
+
+    NOTE: this is not the label-RESOLUTION window used for the walk-forward
+    embargo; that is ``smc_core.label_horizons.LABEL_HORIZON_BARS`` and drives
+    :func:`get_family_config`'s ``embargo_bars``.
+    """
     try:
         return _FAMILY_MAX_EVENT_HORIZON_BARS[family]
     except KeyError:
