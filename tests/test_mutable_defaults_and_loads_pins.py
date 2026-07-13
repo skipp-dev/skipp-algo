@@ -115,12 +115,12 @@ _FROZEN_JSON_LOAD_SITES: frozenset[tuple[str, int]] = frozenset(
         # above shifted 61→80, 81→100; pytest write-guard import +4 → 84/104.
         # 2026-06-17 (F1 lint fix): remove unused import sys → 84→83, 104→103.
         # 2026-07-05 (bug-hunt round 7): import math → 83→84, 103→104.
-        ("open_prep/outcome_backfill.py", 99),  # +15 2026-07-09: _outcomes_dir() call-time redirect
-        ("open_prep/outcome_backfill.py", 119),  # +15 2026-07-09
+        ("open_prep/outcome_backfill.py", 105),  # 2026-07-13 (window-completeness guards): 99->105
+        ("open_prep/outcome_backfill.py", 125),  # 2026-07-13 (window-completeness guards): 119->125
         # 2026-06-11 (pytest write-guard): import + guard call in
         # store_daily_outcomes shifted 185→199.
         # 2026-07-03 (WP-3 sample_dates helper insertion): +1 -> 200.
-        ("open_prep/outcomes.py", 270),  # 2026-07-09 robustness: outcomes hardening above
+        ("open_prep/outcomes.py", 272),  # 2026-07-13 (rotation doc): 270->272
         # 2026-06-25: AsyncNewsstackPoller telemetry additions shifted
         # 1707 -> 1788 and 2852 -> 2933.
         # 2026-06-28 (semantic monitoring): shifted +64/+80 lines by readiness metrics.

@@ -5,6 +5,8 @@ import json
 import logging
 from pathlib import Path
 
+import pytest
+
 import open_prep.feature_importance_report as fr
 
 # ── Status classification ────────────────────────────────────────────
@@ -162,6 +164,16 @@ class TestWorkflowIntegration:
 
 
 class TestBackendSelection:
+    @pytest.fixture(autouse=True)
+    def _directional_era_gate_inert(self, monkeypatch) -> None:
+        # These fixtures use historical sample dates that predate the
+        # directional-label cutover; neutralize that era gate so the tests
+        # keep pinning backend selection / JSONL robustness / date filtering.
+        # The gate itself is pinned in test_fi_component_persistence.py.
+        from datetime import date as _date
+
+        monkeypatch.setattr("open_prep.outcomes._DIRECTIONAL_LABEL_ERA_CUTOFF", _date(2020, 1, 1))
+
     def test_cpu_backend_is_selected_explicitly(self, monkeypatch) -> None:
         import open_prep.outcomes as outcomes
 

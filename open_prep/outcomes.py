@@ -220,7 +220,9 @@ def store_daily_outcomes(
     logger.info("Stored %d outcome records for %s → %s", len(outcomes), run_date, path)
 
     # Rotate old outcome files beyond the retention window to prevent
-    # unbounded disk growth.  Default: keep 90 days.
+    # unbounded disk growth.  Default: keep the 90 lexicographically-newest
+    # FILES (≈ days for the daily single-writer; a non-dated stray like
+    # ``outcomes_backup.json`` sorts after all dates and survives rotation).
     try:
         # OverflowError: int(float("INF")) / int(float("1e309")) overflow and were
         # NOT caught by the old (ValueError, TypeError) clause — that crashed the
@@ -309,14 +311,14 @@ def compute_hit_rates(
         gap_pct = _safe_float(rec.get("gap_pct"))
         rvol = _safe_float(rec.get("rvol"))
         # Direction-signed label when present, falling back to the legacy
-        # long-only label for old records (eval-findings C3a).
+        # long-only label for old records (eval-findings C3a). Label and PnL
+        # fall back AS A PAIR (like compute_gap_playbook_report) so a
+        # directional hit-rate is never averaged with long-only PnL when a
+        # field-level null desyncs the two.
         profitable = rec.get("profitable_30m_directional")
-        if profitable is None:
-            profitable = rec.get("profitable_30m")
-        # dict.get(k, default) only falls back on MISSING keys — an explicit
-        # null in pnl_30m_pct_signed must also fall through to the legacy field.
         pnl_raw = rec.get("pnl_30m_pct_signed")
-        if pnl_raw is None:
+        if profitable is None or pnl_raw is None:
+            profitable = rec.get("profitable_30m")
             pnl_raw = rec.get("pnl_30m_pct")
         pnl = _safe_float(pnl_raw, default=0.0)
 
@@ -645,6 +647,13 @@ _MAX_RING_BUFFER = 100_000
 # non-stationary feature scales, so drop pre-rewrite rows — same pattern as the
 # 2026-06-11 all-zero legacy gate below.
 _SCORE_FORMULA_ERA_CUTOFF = date(2026, 7, 2)
+# Directional-label era (2026-07-13): from this date the backfill feeds the
+# DIRECTION-SIGNED outcome (profitable_30m_directional, B1 parity with
+# compute_hit_rates) into the FI samples. Earlier fi_samples rows carry the
+# long-only label (sign-inverted for short setups like GAP_FADE), so pooling
+# them would mix two label semantics in one training set — drop pre-cutover
+# rows, same pattern as the formula-era gate above.
+_DIRECTIONAL_LABEL_ERA_CUTOFF = date(2026, 7, 14)
 FI_BACKEND_AUTO = "auto"
 FI_BACKEND_CPU = "cpu"
 FI_BACKEND_GPU = "gpu"
@@ -666,8 +675,9 @@ class FeatureImportanceCollector:
         self._buffer: deque[dict[str, Any]] = deque(maxlen=max_samples)
         # C-sprint deep-review C1: track how many times the ring buffer
         # has been flushed-and-cleared so observability/tests can detect
-        # silent reset loops (e.g., a hot-restart that wipes the buffer
-        # before any samples were persisted) without scraping log lines.
+        # in-process flush churn without scraping log lines. NOTE: in-process
+        # only — a hot-restart constructs a fresh collector with count 0, so
+        # cross-restart buffer wipes are NOT observable here.
         self._reset_count: int = 0
 
     def record(
@@ -735,21 +745,6 @@ class FeatureImportanceCollector:
         """
 
         return self._reset_count
-
-
-def _pearson_r(xs: list[float], ys: list[float]) -> float:
-    """Pearson correlation coefficient for two equal-length lists."""
-    n = len(xs)
-    if n < 3:
-        return 0.0
-    mx = sum(xs) / n
-    my = sum(ys) / n
-    cov = sum((x - mx) * (y - my) for x, y in zip(xs, ys, strict=False))
-    sx = math.sqrt(sum((x - mx) ** 2 for x in xs))
-    sy = math.sqrt(sum((y - my) ** 2 for y in ys))
-    if sx == 0 or sy == 0:
-        return 0.0
-    return cov / (sx * sy)
 
 
 def _normalize_fi_backend_name(value: str | None) -> str:
@@ -1035,7 +1030,15 @@ def compute_feature_importance(
     loaded_dates: set[date] = set()
     for path in files:
         file_date = _extract_date_from_stem(path.stem, prefix="fi_samples_")
-        if file_date is not None and file_date not in loaded_dates and len(loaded_dates) >= lookback_days:
+        if file_date is None:
+            # A non-dated ``fi_samples_*.jsonl`` (e.g. a stray backup) bypasses
+            # the lookback count AND — sorting after all dated stems in the
+            # reverse sort — would be read FIRST, so its stale rows win the
+            # (symbol, date) dedup over genuinely fresh files. Skip it (same
+            # fix as _load_outcomes_range).
+            logger.warning("Skipping non-dated FI samples file: %s", path.name)
+            continue
+        if file_date not in loaded_dates and len(loaded_dates) >= lookback_days:
             break
         try:
             with open(path, encoding="utf-8") as fh:
@@ -1152,6 +1155,36 @@ def compute_feature_importance(
         )
     labeled = post_rewrite
 
+    # Directional-label era gate (2026-07-13): fi_samples rows written before
+    # _DIRECTIONAL_LABEL_ERA_CUTOFF carry the legacy LONG-ONLY outcome label
+    # (sign-inverted for short setups such as GAP_FADE); from the cutover the
+    # backfill feeds the direction-signed label. Pooling both would mix two
+    # label semantics in one training set, so drop pre-cutover rows — same
+    # pattern (and same conservative keep-on-unparseable-date rule) as the
+    # formula-era gate above.
+    directional_era_samples_dropped = 0
+    directional_era: list[dict[str, Any]] = []
+    for s in labeled:
+        raw_d = s.get("date")
+        sample_date = None
+        if raw_d:
+            try:
+                sample_date = date.fromisoformat(str(raw_d)[:10])
+            except ValueError:
+                sample_date = None
+        if sample_date is not None and sample_date < _DIRECTIONAL_LABEL_ERA_CUTOFF:
+            directional_era_samples_dropped += 1
+            continue
+        directional_era.append(s)
+    if directional_era_samples_dropped:
+        logger.warning(
+            "FI report: dropped %d/%d labeled samples from before the "
+            "2026-07-14 directional-label cutover (legacy long-only labels)",
+            directional_era_samples_dropped,
+            len(labeled),
+        )
+    labeled = directional_era
+
     if len(labeled) < 10:
         return {
             "error": "insufficient labeled samples",
@@ -1160,6 +1193,7 @@ def compute_feature_importance(
             "duplicate_samples_dropped": duplicate_samples_dropped,
             "era_gated_samples_dropped": era_gated_samples_dropped,
             "formula_era_samples_dropped": formula_era_samples_dropped,
+            "directional_era_samples_dropped": directional_era_samples_dropped,
             "sample_dates_filter": sorted(selected_dates) if selected_dates is not None else None,
             "backend": backend,
         }
@@ -1172,6 +1206,7 @@ def compute_feature_importance(
         "duplicate_samples_dropped": duplicate_samples_dropped,
         "era_gated_samples_dropped": era_gated_samples_dropped,
         "formula_era_samples_dropped": formula_era_samples_dropped,
+        "directional_era_samples_dropped": directional_era_samples_dropped,
         "sample_dates_filter": sorted(selected_dates) if selected_dates is not None else None,
         "features": {},
         "recommendations": [],
