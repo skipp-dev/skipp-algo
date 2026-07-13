@@ -36,3 +36,11 @@ Adopt Design B:
 - `tests/test_smc_integration_structure_artifact_provider.py` pins absent, per-TF, and legacy modes.
 - `tests/test_smc_integration_structure_category_coverage.py` pins honest clean-checkout coverage.
 - Production/benchmark and release workflows invoke the structure-artifact availability check.
+
+## Legacy fallback lifecycle
+
+The single-file ingress is deprecated. Every actual payload consumption logs a
+deprecation warning (first use per process) and increments a process-local
+counter surfaced via `legacy_single_file_usage()` and the contract-health
+summary (`tests/test_structure_artifact_legacy_deprecation.py` pins this).
+Removal follows once operational telemetry shows zero usage.

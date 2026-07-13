@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import logging
 from pathlib import Path
 from typing import Any
 
@@ -13,9 +14,39 @@ from smc_integration.structure_contract import (
 
 from .base import SourceCapabilities, SourceDescriptor
 
+logger = logging.getLogger(__name__)
+
 REPO_ROOT = Path(__file__).resolve().parents[2]
 STRUCTURE_ARTIFACT_JSON = REPO_ROOT / "reports" / "smc_structure_artifact.json"
 STRUCTURE_ARTIFACTS_DIR = REPO_ROOT / "reports" / "smc_structure_artifacts"
+
+# ADR-0027: the single-file artifact is a deprecated compatibility ingress —
+# per-timeframe manifests are the primary contract. Every actual payload
+# consumption is counted here (process-local) and the first one logs a
+# deprecation WARNING, so real-world usage is provable from logs before the
+# fallback is removed.
+_LEGACY_USAGE: dict[str, Any] = {"count": 0, "first_context": None}
+
+
+def _record_legacy_single_file_use(context: str) -> None:
+    _LEGACY_USAGE["count"] += 1
+    if _LEGACY_USAGE["first_context"] is None:
+        _LEGACY_USAGE["first_context"] = context
+        logger.warning(
+            "DEPRECATED: legacy single-file structure artifact consumed "
+            "(context=%s, path=%s). Per ADR-0027 the per-timeframe manifests are "
+            "the primary contract; this fallback is removed once telemetry shows "
+            "zero usage.",
+            context,
+            STRUCTURE_ARTIFACT_JSON,
+        )
+    else:
+        logger.debug("legacy single-file structure artifact consumed (context=%s)", context)
+
+
+def legacy_single_file_usage() -> dict[str, Any]:
+    """Process-local consumption telemetry for the deprecated single-file ingress."""
+    return {"count": _LEGACY_USAGE["count"], "first_context": _LEGACY_USAGE["first_context"]}
 
 
 def _health_issue(code: str, message: str, *, path: Path | None = None) -> dict[str, Any]:
@@ -57,7 +88,9 @@ def describe_source() -> SourceDescriptor:
         notes=[
             "Manifest-aware explicit structure artifacts generated from canonical Databento bars with workbook fallback.",
             "Current mapping emits deterministic BOS/CHOCH/orderblocks/FVG/liquidity-sweeps when detectable from available bars.",
-            "Falls back to legacy single-artifact source when batch artifact-set is unavailable.",
+            "Falls back to the legacy single-artifact source when the batch artifact-set is unavailable "
+            "(DEPRECATED compatibility ingress per ADR-0027; consumption is logged and counted, "
+            "removal follows once telemetry shows zero usage).",
         ],
     )
 
@@ -398,6 +431,7 @@ def _iter_normalized_contracts(*, repo_state_only: bool = False) -> tuple[list[d
     if STRUCTURE_ARTIFACT_JSON.exists():
         try:
             legacy = _load_payload()
+            _record_legacy_single_file_use("_iter_normalized_contracts")
             normalized_contracts, diagnostics = normalize_structure_contracts_with_diagnostics(legacy)
             if diagnostics.get("entries_dropped", 0) > 0:
                 health_issues.append(
@@ -493,6 +527,7 @@ def discover_normalized_contract_summary(*, repo_state_only: bool = False) -> di
             "issue_count": len(health_issues),
             "issues": health_issues,
             "contracts_loaded": len(contracts),
+            "legacy_single_file_usage": legacy_single_file_usage(),
         },
     }
 
@@ -534,6 +569,7 @@ def load_normalized_structure_contract_input(symbol: str, timeframe: str) -> dic
 
     if STRUCTURE_ARTIFACT_JSON.exists():
         payload = _load_payload()
+        _record_legacy_single_file_use("load_normalized_structure_contract_input")
         contract = normalize_structure_contract(payload, symbol=symbol, timeframe=timeframe)
         contract_payload = contract_to_dict(contract)
         _validate_contract_identity(contract_payload, symbol=symbol, timeframe=timeframe, path=STRUCTURE_ARTIFACT_JSON)
