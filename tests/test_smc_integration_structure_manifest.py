@@ -6,7 +6,7 @@ from pathlib import Path
 
 import pandas as pd
 
-from smc_integration.structure_batch import write_structure_artifacts_from_workbook
+from smc_integration.structure_batch import _input_fingerprint, write_structure_artifacts_from_workbook
 from tests.helpers.smc_test_artifacts import make_minimal_workbook
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -60,12 +60,42 @@ def test_structure_manifest_carries_generator_provenance(tmp_path: Path) -> None
         isinstance(provenance["source_commit"], str) and provenance["source_commit"]
     )
     fingerprint = provenance["input_fingerprint"]
+    assert provenance["source_modes"] == ["workbook_fallback"]
     assert fingerprint["kind"] == "workbook_sha256"
     assert fingerprint["path"] == workbook.as_posix()
     assert fingerprint["sha256"] == hashlib.sha256(workbook.read_bytes()).hexdigest()
     # The persisted manifest carries the same block.
     persisted = json.loads((output_dir / "manifest_1D.json").read_text(encoding="utf-8"))
     assert persisted["provenance"] == provenance
+
+
+def test_input_fingerprint_tracks_actual_and_mixed_sources(tmp_path: Path, monkeypatch) -> None:
+    workbook = tmp_path / "input.xlsx"
+    workbook.write_bytes(b"workbook")
+    bundle_root = tmp_path / "bundle"
+    bundle_root.mkdir()
+    bundle_manifest = bundle_root / "producer_manifest.json"
+    bundle_manifest.write_bytes(b"bundle")
+    monkeypatch.setattr(
+        "smc_integration.structure_batch.resolve_manifest_path",
+        lambda _root: bundle_manifest,
+    )
+
+    bundle_only = _input_fingerprint(
+        workbook, bundle_root, {"canonical_export_bundle"}
+    )
+    assert bundle_only is not None
+    assert bundle_only["kind"] == "export_bundle_manifest_sha256"
+    assert bundle_only["sha256"] == hashlib.sha256(b"bundle").hexdigest()
+
+    mixed = _input_fingerprint(
+        workbook, bundle_root, {"canonical_export_bundle", "workbook_fallback"}
+    )
+    assert mixed is not None and mixed["kind"] == "mixed"
+    assert {source["kind"] for source in mixed["sources"]} == {
+        "export_bundle_manifest_sha256",
+        "workbook_sha256",
+    }
 
 
 def test_structure_manifest_counts_and_flags_are_correct(tmp_path: Path) -> None:

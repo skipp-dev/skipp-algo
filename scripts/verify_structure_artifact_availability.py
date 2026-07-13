@@ -5,11 +5,11 @@ every referenced artifact readable/normalizable with matching identity.
 
 Completeness / evidence extensions:
 - manifest ``counts`` must prove complete production (artifacts_written ==
-  symbols_requested, zero counted errors, no duplicate symbols);
+  symbols_requested == actual manifest rows, zero counted errors, no duplicate symbols);
 - ``--expect-symbols`` / ``--expect-release-reference-symbols`` require the
   manifest to cover an expected symbol set;
-- ``--max-age-seconds`` bounds manifest freshness (guards persistent runners
-  serving yesterday's materialization);
+- ``--max-age-seconds`` bounds both manifest and artifact freshness (guards
+  persistent runners from freshly re-wrapping yesterday's materialization);
 - read-side provenance guard: an artifact whose ``generated_at`` predates its
   own observed-data timestamps (``asof_ts``/``anchor_ts``) is impossible and
   fails closed — the consumption mirror of ``validate_artifact_provenance``;
@@ -63,7 +63,12 @@ def _max_observed_data_ts(node: Any) -> float | None:
     return newest
 
 
-def _check_manifest_counts(timeframe: str, manifest: dict[str, Any], failures: list[str]) -> None:
+def _check_manifest_counts(
+    timeframe: str,
+    manifest: dict[str, Any],
+    rows: list[Any],
+    failures: list[str],
+) -> None:
     counts = manifest.get("counts")
     if not isinstance(counts, dict):
         failures.append(f"{timeframe}: manifest missing counts block (cannot prove completeness)")
@@ -83,6 +88,10 @@ def _check_manifest_counts(timeframe: str, manifest: dict[str, Any], failures: l
     if written != requested:
         failures.append(
             f"{timeframe}: incomplete production (artifacts_written={written} != symbols_requested={requested})"
+        )
+    if written != len(rows):
+        failures.append(
+            f"{timeframe}: manifest row-count mismatch (artifacts_written={written} != artifact rows={len(rows)})"
         )
 
 
@@ -114,7 +123,7 @@ def verify_structure_artifact_availability(
         if manifest.get("errors"):
             failures.append(f"{timeframe}: manifest reports producer errors")
             continue
-        _check_manifest_counts(timeframe, manifest, failures)
+        _check_manifest_counts(timeframe, manifest, rows, failures)
         provenance = manifest.get("provenance")
         if not isinstance(provenance, dict) or not str(provenance.get("generator_path", "")).strip():
             failures.append(f"{timeframe}: manifest missing generator provenance")
@@ -137,6 +146,7 @@ def verify_structure_artifact_availability(
                 )
         loaded = 0
         loaded_symbols: list[str] = []
+        artifact_ages_seconds: dict[str, float | None] = {}
         for row in rows:
             if not isinstance(row, dict) or not str(row.get("artifact_path", "")).strip():
                 failures.append(f"{timeframe}: malformed manifest artifact row")
@@ -154,17 +164,39 @@ def verify_structure_artifact_availability(
                 failures.append(f"{timeframe}: artifact identity does not match manifest row")
                 continue
             artifact_generated_at = payload.get("generated_at")
-            newest_data_ts = _max_observed_data_ts(payload.get("structure"))
-            if (
-                isinstance(artifact_generated_at, (int, float))
+            artifact_generated_at_ts = (
+                float(artifact_generated_at)
+                if isinstance(artifact_generated_at, (int, float))
                 and not isinstance(artifact_generated_at, bool)
                 and math.isfinite(float(artifact_generated_at))
+                else None
+            )
+            artifact_age_seconds = (
+                None if artifact_generated_at_ts is None else now_ts - artifact_generated_at_ts
+            )
+            artifact_ages_seconds[contract.symbol] = artifact_age_seconds
+            if max_age_seconds is not None:
+                if artifact_age_seconds is None:
+                    failures.append(
+                        f"{timeframe}: artifact {artifact_path.name} generated_at missing/non-finite "
+                        "(freshness unprovable)"
+                    )
+                    continue
+                if artifact_age_seconds > float(max_age_seconds):
+                    failures.append(
+                        f"{timeframe}: artifact {artifact_path.name} is stale "
+                        f"(age {artifact_age_seconds:.0f}s > max {float(max_age_seconds):.0f}s)"
+                    )
+                    continue
+            newest_data_ts = _max_observed_data_ts(payload.get("structure"))
+            if (
+                artifact_generated_at_ts is not None
                 and newest_data_ts is not None
-                and float(artifact_generated_at) < newest_data_ts
+                and artifact_generated_at_ts < newest_data_ts
             ):
                 failures.append(
                     f"{timeframe}: artifact {artifact_path.name} has impossible provenance "
-                    f"(generated_at {float(artifact_generated_at):.0f} < newest data ts {newest_data_ts:.0f})"
+                    f"(generated_at {artifact_generated_at_ts:.0f} < newest data ts {newest_data_ts:.0f})"
                 )
                 continue
             if contract.symbol in loaded_symbols:
@@ -180,6 +212,7 @@ def verify_structure_artifact_availability(
             "symbols": sorted(loaded_symbols),
             "generated_at": manifest_generated_at,
             "age_seconds": age_seconds,
+            "artifact_ages_seconds": artifact_ages_seconds,
             "missing_symbols": missing_symbols,
             "unexpected_symbols": sorted(set(loaded_symbols) - set(expected)) if expected else [],
             "provenance": provenance,
