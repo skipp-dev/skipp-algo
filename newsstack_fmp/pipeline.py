@@ -548,8 +548,8 @@ def poll_once(
     Called from Streamlit on each refresh.  State is persisted in SQLite
     so cursors / dedup / novelty survive across refreshes.
 
-    Polls all enabled sources (FMP, Benzinga REST, Benzinga WS queue)
-    and feeds them through ``process_news_items()``.
+    Polls all enabled lanes (FMP news + senate/house/8K/13F, Benzinga
+    REST/RSS/WS, UW, TradingView, NewsAPI.ai), feeding ``process_news_items()``.
 
     Parameters
     ----------

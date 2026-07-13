@@ -69,7 +69,7 @@ _VALID_BENZINGA_PROVIDERS = ("direct", "massive")
 def benzinga_provider() -> str:
     """Resolve the Benzinga transport from ``BENZINGA_PROVIDER``.
 
-    ``direct``  — api.benzinga.com, ``token=`` auth (full body + importance_rank).
+    ``direct``  — api.benzinga.com, ``token=`` auth (body-capable; prod pulls abstract/teaser).
     ``massive`` — api.massive.com/benzinga, ``apiKey=`` auth (headline-only).
 
     Defaults to ``direct`` so every existing deployment keeps working until

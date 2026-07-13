@@ -139,7 +139,11 @@ def _side_to_aggressor(side: str | None) -> tuple[str, str]:
     Databento ``side`` semantics (trades schema): Ask ('A') = a SELL
     order / sell aggressor → bearish; Bid ('B') = a BUY order / buy
     aggressor → bullish; None ('N') = no side specified (cross / unknown).
-    (Prior code had these reversed — see the false "aggressive buyer" note.)
+    NB: OPRA-consolidated ``trades.side`` is empirically ~uniformly 'N' in prod,
+    so the live feed emits NEUTRAL for ~every print; real directional flow lives
+    in the ADR-0020 signed-UOA shadow feature (``family_signed_uoa_notional_v2``,
+    tcbbo + quote-rule). Sign here is correct when a real 'A'/'B' appears (no
+    #3355 inversion), just rarely populated on the consolidated tape.
 
     The Benzinga-compatible field set uses ``aggressor_ind`` as a free-text
     label ('A'/'B'/'N') and ``sentiment`` as 'BULLISH'/'BEARISH'/'NEUTRAL'.
