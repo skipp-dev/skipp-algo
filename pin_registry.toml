@@ -61,7 +61,8 @@
 # 2026-06-09: _download_zip switched from urllib.request.urlopen to a
 # custom opener (opener.open) to strip Authorization on cross-host
 # redirect — only the _api_get_json call (L68) still uses urlopen.
-"scripts/restore_databento_export_bundle.py" = [68]
+# 2026-07-13 (fallback search depth): datetime import added above: 68->69.
+"scripts/restore_databento_export_bundle.py" = [69]
 # Workflow-freshness monitor (#2433, 2026-05): polls GitHub Actions
 # REST API once per cron tick for silent-skip detection. https-only,
 # explicit timeout=15s, B310 nosec'd at the call site (constant URL).

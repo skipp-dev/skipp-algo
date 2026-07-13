@@ -104,7 +104,9 @@ def test_restore_bundle_filters_deprecated_monolith_artifacts(monkeypatch) -> No
 
     monkeypatch.setattr(restore_bundle, "_api_get_json", fake_api_get_json)
 
-    candidates = restore_bundle._list_candidates("token", "skippALGO/skipp-algo", today)
+    candidates = restore_bundle._list_candidates(
+        "token", "skippALGO/skipp-algo", today, restore_bundle._horizon_iso("2026-05-20")
+    )
     assert [item["name"] for item in candidates] == [
         f"{today}222",
         "smc-databento-production-export-2026-05-19-333",
