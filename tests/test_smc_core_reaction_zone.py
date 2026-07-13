@@ -38,6 +38,26 @@ def test_enabled_no_anchor_returns_neutral() -> None:
     assert result["REACTION_CONTEXT_DETECTED"] is False
 
 
+def test_near_support_without_resolvable_direction_not_detected() -> None:
+    """Near support + fresh structure but no resolvable side -> NOT detected.
+
+    A reaction zone whose direction stays "neutral" (no OB/FVG/sweep/structure
+    side) is not actionable and must not be emitted as detected.
+    """
+    os.environ["ENABLE_REACTION_CONTEXT"] = "1"
+    result = detect_reaction_zone(
+        enrichment={
+            # fresh structure passes the entry gate, but no directional event
+            "structure_state_light": {"STRUCTURE_FRESH": True, "STRUCTURE_LAST_EVENT": "NONE"},
+            # near support, but side unresolved
+            "ob_context_light": {"OB_FRESH": True, "PRIMARY_OB_DISTANCE": 1.5, "PRIMARY_OB_SIDE": "NONE"},
+        }
+    )
+    assert result["REACTION_CONTEXT_DETECTED"] is False
+    assert result["REACTION_CONTEXT_DIRECTION"] == "neutral"
+    assert result["REACTION_CONTEXT_CONFIDENCE"] == 0
+
+
 def test_enabled_bullish_zone_with_bias_alignment() -> None:
     os.environ["ENABLE_REACTION_CONTEXT"] = "1"
     result = detect_reaction_zone(

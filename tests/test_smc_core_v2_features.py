@@ -75,7 +75,12 @@ def test_active_signal_quality_model_v2() -> None:
     assert active_signal_quality_model() == "v2"
 
 
-def test_active_signal_quality_model_v2_1() -> None:
+def test_v2_1_is_accepted_as_config_token() -> None:
+    # This pins ONLY that the accessor accepts/echoes the "v2.1" config token.
+    # "v2.1" is currently a byte-identical ALIAS of "v2" (no distinct model,
+    # branch, or weights) — the runtime router maps both to build_signal_quality_v2.
+    # The actual v2==v2.1 output equivalence is pinned behaviourally in
+    # tests/test_signal_quality_v2_integration.py::test_v2_1_is_currently_an_alias_of_v2.
     os.environ["SIGNAL_QUALITY_MODEL"] = "v2.1"
     assert active_signal_quality_model() == "v2.1"
 

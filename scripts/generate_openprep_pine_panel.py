@@ -421,19 +421,33 @@ def build_pine(panel: dict[str, Any], *, generated_at: str, source: str,
     return "\n".join(lines) + "\n"
 
 
-def write_outputs(snippet: str, panel: dict[str, Any], output_path: Path) -> Path:
-    """Atomically write the Pine panel + a JSON sidecar for auditability."""
+def write_outputs(
+    snippet: str,
+    panel: dict[str, Any],
+    output_path: Path,
+    *,
+    provenance: dict[str, Any] | None = None,
+) -> Path:
+    """Atomically write the Pine panel + a JSON sidecar for auditability.
+
+    When ``provenance`` is supplied it is embedded under a top-level
+    ``provenance`` key so the sidecar carries generation time, generator path,
+    source file and commit — not just the panel payload.
+    """
     output_path.parent.mkdir(parents=True, exist_ok=True)
     tmp_path = output_path.with_suffix(output_path.suffix + ".tmp")
     # ATOMIC-WRITE-EXEMPT: tmp+replace pattern (atomic by construction).
     tmp_path.write_text(snippet, encoding="utf-8")
     tmp_path.replace(output_path)
 
+    sidecar_payload = dict(panel)
+    if provenance is not None:
+        sidecar_payload["provenance"] = provenance
     sidecar_path = output_path.with_suffix(".json")
     tmp_sidecar = sidecar_path.with_suffix(sidecar_path.suffix + ".tmp")
     # ATOMIC-WRITE-EXEMPT: tmp+replace pattern (atomic by construction).
     tmp_sidecar.write_text(
-        json.dumps(panel, indent=2, sort_keys=True) + "\n", encoding="utf-8"
+        json.dumps(sidecar_payload, indent=2, sort_keys=True) + "\n", encoding="utf-8"
     )
     tmp_sidecar.replace(sidecar_path)
     return sidecar_path
@@ -537,16 +551,25 @@ def main(argv: list[str] | None = None) -> int:
     else:
         setups_label = setups_path.name if setups_path.is_absolute() else str(setups_path)
 
+    generated_at = datetime.now(UTC).isoformat()
     snippet = build_pine(
         panel,
-        generated_at=datetime.now(UTC).isoformat(),
+        generated_at=generated_at,
         source=str(src_path) if src_path else "none",
         commit_sha=args.commit_sha,
         source_setups=setups_label,
     )
 
+    provenance = {
+        "generated_at": generated_at,
+        "generator_path": "scripts/generate_openprep_pine_panel.py",
+        "source_outcomes": src_path.name if src_path else "none",
+        "source_setups": setups_label,
+        "source_commit": args.commit_sha,
+    }
+
     try:
-        sidecar = write_outputs(snippet, panel, args.output)
+        sidecar = write_outputs(snippet, panel, args.output, provenance=provenance)
     except OSError as exc:
         print(f"ERROR: cannot write Pine panel to {args.output}: {exc}", file=sys.stderr)
         return 1
