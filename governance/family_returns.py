@@ -808,6 +808,19 @@ def to_build_spec(
                 event_ids=samples.get("event_ids"),
             )
             if block is not None:
+                # Per-event OOS calibrated prob, captured HERE from the raw pooled
+                # block while ``event_ids`` is still aligned to ``probabilities``
+                # (``partition_live_tail`` below rebuilds the block without ids).
+                # Keyed by the source event id so a back-fill can join it onto the
+                # measurement ledger's ``calibrated_prob``. Empty ids are skipped.
+                wf_block = block["walkforward"]
+                wf_ids = wf_block.get("event_ids")
+                if wf_ids:
+                    entry["calibrated_prob_by_event"] = {
+                        str(eid): float(p)
+                        for eid, p in zip(wf_ids, wf_block["probabilities"])
+                        if eid
+                    }
                 # ADR-0018 / EV-26: split-conformal coverage on the SAME pooled
                 # OOS pairs (independent view of the live surrogate). Computed
                 # from the full pool BEFORE the live-tail reassignment below.
