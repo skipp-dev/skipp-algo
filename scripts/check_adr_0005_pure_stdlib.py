@@ -12,50 +12,36 @@ Exit codes:
 * 1 — at least one banned import detected (printed with file + module).
 * 2 — a measurement-runtime file is missing.
 
-Both the file list (``RUNTIME_FILES``) and the banned roots
-(``BANNED_ROOTS``) are kept in sync with the test fixture by
-re-importing them from the test module — single source of truth.
+Both the file list (``RUNTIME_FILES``) and the banned roots (``BANNED_ROOTS``)
+are the shared, pure-stdlib SSOT in ``scripts/adr_0005_runtime_manifest.py``,
+loaded here by path — so this CLI (and the pre-commit hook) runs in a stdlib-only
+interpreter and never imports pytest.
 """
 
 from __future__ import annotations
 
 import argparse
-import ast
 import importlib.util
 import sys
 from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
-TEST_FILE = REPO_ROOT / "tests" / "test_adr_0005_pure_stdlib_runtime.py"
+MANIFEST_FILE = REPO_ROOT / "scripts" / "adr_0005_runtime_manifest.py"
 
 
-def _load_test_module() -> object:
-    """Load the test module without invoking pytest."""
-    spec = importlib.util.spec_from_file_location(
-        "_adr_0005_test", TEST_FILE
-    )
+def _load_manifest() -> object:
+    """Load the pure-stdlib ADR-0005 SSOT manifest by path (no pytest, no package)."""
+    spec = importlib.util.spec_from_file_location("_adr_0005_manifest", MANIFEST_FILE)
     if spec is None or spec.loader is None:  # pragma: no cover — defensive
-        raise RuntimeError(f"Cannot load {TEST_FILE}")
+        raise RuntimeError(f"Cannot load {MANIFEST_FILE}")
     module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(module)
     return module
 
 
-def _collect_imported_roots(source: str) -> set[str]:
-    tree = ast.parse(source)
-    roots: set[str] = set()
-    for node in ast.walk(tree):
-        if isinstance(node, ast.Import):
-            for alias in node.names:
-                roots.add(alias.name.split(".", 1)[0])
-        elif isinstance(node, ast.ImportFrom) and node.module:
-            roots.add(node.module.split(".", 1)[0])
-    return roots
-
-
-def _check_file(path: Path, banned: frozenset[str]) -> set[str]:
+def _check_file(path: Path, banned: frozenset[str], imported_roots) -> set[str]:
     source = path.read_text(encoding="utf-8")
-    return _collect_imported_roots(source) & banned
+    return imported_roots(source) & banned
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -65,14 +51,15 @@ def main(argv: list[str] | None = None) -> int:
         nargs="*",
         help=(
             "Optional file paths to check. When omitted, scans the "
-            "RUNTIME_FILES list defined by tests/test_adr_0005_pure_stdlib_runtime.py."
+            "RUNTIME_FILES list defined by scripts/adr_0005_runtime_manifest.py."
         ),
     )
     args = parser.parse_args(argv)
 
-    test_module = _load_test_module()
-    runtime_files: tuple[Path, ...] = test_module.RUNTIME_FILES  # type: ignore[attr-defined]
-    banned: frozenset[str] = test_module.BANNED_ROOTS  # type: ignore[attr-defined]
+    manifest = _load_manifest()
+    runtime_files: tuple[Path, ...] = manifest.RUNTIME_FILES  # type: ignore[attr-defined]
+    banned: frozenset[str] = manifest.BANNED_ROOTS  # type: ignore[attr-defined]
+    imported_roots = manifest.imported_roots  # type: ignore[attr-defined]
 
     if args.files:
         # Pre-commit passes changed file paths; intersect with runtime set.
@@ -95,7 +82,7 @@ def main(argv: list[str] | None = None) -> int:
                 file=sys.stderr,
             )
             return 2
-        bad = _check_file(path, banned)
+        bad = _check_file(path, banned, imported_roots)
         if bad:
             violations.append((path, bad))
 
@@ -107,7 +94,7 @@ def main(argv: list[str] | None = None) -> int:
         print(
             "\nIf the constraint is intentionally lifted, supersede ADR-0005 "
             "and update RUNTIME_FILES or BANNED_ROOTS in "
-            "tests/test_adr_0005_pure_stdlib_runtime.py.",
+            "scripts/adr_0005_runtime_manifest.py.",
             file=sys.stderr,
         )
         return 1
