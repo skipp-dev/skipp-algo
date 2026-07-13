@@ -166,8 +166,38 @@ def test_refresh_workflow_runs_post_release_validation_before_commit() -> None:
     assert 'smc_post_release_validation_report.json' in workflow_text
     assert 'TradingView post-release validation' in workflow_text
     assert 'TradingView post-release validation failed' in workflow_text
-    assert "steps.tv_post_release.outcome == 'success'" in workflow_text
     assert "steps.release_gates.outcome == 'success'" in workflow_text
+
+
+def test_refresh_workflow_commit_gates_on_policy_not_raw_validation_outcome() -> None:
+    """Incident 2026-07-13: the commit step gated on the RAW post-release
+    validation outcome AND the normalizer exit — both fail on the explicitly
+    TOLERATED external_tv_drift class (surface_drift Playwright flakes), which
+    dead-lettered the release_gates carve-out and silently skipped the commit
+    for ~6 weeks (committed ASOF 2026-05-27 vs published 2026-07-13) while the
+    run stayed green. The commit must gate on the PUBLISH outcome plus the
+    policy-aware strict release gates ONLY; a genuine blocking verdict fails
+    release_gates (no continue-on-error) and turns the job red — never a
+    silent skip."""
+    workflow_text = _read(WORKFLOW_PATH)
+
+    commit_idx = workflow_text.index('- name: Commit and push changes')
+    commit_end = workflow_text.index('- name: ', commit_idx + 10)
+    commit_block = workflow_text[commit_idx:commit_end]
+
+    # Policy-aware gates the commit MUST keep.
+    assert "steps.publish.outcome == 'success'" in commit_block
+    assert "steps.release_gates.outcome == 'success'" in commit_block
+    assert "steps.publish_gate.outputs.publish_allowed == 'true'" in commit_block
+    # Raw/normalizer outcomes must NOT gate the commit (they fail on the
+    # tolerated external_tv_drift class that release_gates deliberately allows).
+    assert "steps.tv_post_release_raw.outcome == 'success'" not in commit_block
+    assert "steps.tv_post_release.outcome == 'success'" not in commit_block
+    # The release_gates step itself must stay hard-failing (no continue-on-error),
+    # so a genuine blocking verdict reds the job instead of silently skipping.
+    gates_idx = workflow_text.index('- name: Run strict release gates')
+    gates_end = workflow_text.index('- name: ', gates_idx + 10)
+    assert 'continue-on-error' not in workflow_text[gates_idx:gates_end]
 
 
 def test_refresh_workflow_prefers_priority_cron_runner_with_portable_python() -> None:

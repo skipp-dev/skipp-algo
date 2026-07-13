@@ -74,7 +74,7 @@ export type PageLifecycleDiagnostics = {
   recentEvents: PageLifecycleEvent[];
 };
 
-type VisibleDialogSnapshot = {
+export type VisibleDialogSnapshot = {
   title: string;
   text: string;
   labelTexts: string[];
@@ -3850,9 +3850,21 @@ async function collectVisibleDialogSnapshot(page: Page): Promise<VisibleDialogSn
 }
 
 function indicatorSettingsDialogLocators(page: Page): Locator[] {
+  // Incident 2026-07-13 (post-release validation, "SMC Decision Board"): a
+  // script WITHOUT input() parameters renders a Style+Visibility-only settings
+  // dialog — the old filters demanded the literal word "inputs", so the
+  // successfully opened dialog was never recognised, tryOpenScriptSettingsBy-
+  // DoubleClick declared failure and closeModal() CLOSED the dialog it had
+  // just opened, and the strategy ladder click-stormed into the (re)opened
+  // modal until the 60s step timeout — deterministically per run.
+  // New rule (kept in lockstep with isIndicatorSettingsDialogSnapshot): one
+  // word from {inputs, visibility} AND one from {style, properties} — a
+  // genuine two-tab settings structure. Style-only dialogs match
+  // (visibility+style); the publish dialog (visibility only) and one-word
+  // impostors do not.
   return [
-    page.locator('#overlap-manager-root [role="dialog"]').filter({ hasText: /\binputs\b/i }).filter({ hasText: /\b(style|properties|visibility)\b/i }),
-    page.locator('#overlap-manager-root [data-name*="dialog" i], #overlap-manager-root [class*="dialog" i], #overlap-manager-root [class*="modal" i], #overlap-manager-root [class*="popover" i], #overlap-manager-root [data-name*="popover" i]').filter({ hasText: /\binputs\b/i }).filter({ hasText: /\b(style|properties|visibility)\b/i }),
+    page.locator('#overlap-manager-root [role="dialog"]').filter({ hasText: /\b(inputs|visibility)\b/i }).filter({ hasText: /\b(style|properties)\b/i }),
+    page.locator('#overlap-manager-root [data-name*="dialog" i], #overlap-manager-root [class*="dialog" i], #overlap-manager-root [class*="modal" i], #overlap-manager-root [class*="popover" i], #overlap-manager-root [data-name*="popover" i]').filter({ hasText: /\b(inputs|visibility)\b/i }).filter({ hasText: /\b(style|properties)\b/i }),
   ];
 }
 
@@ -3879,7 +3891,7 @@ async function findIndicatorSettingsDialog(page: Page, timeoutMs = 750): Promise
   return null;
 }
 
-function isIndicatorSettingsDialogSnapshot(dialog: VisibleDialogSnapshot | null | undefined): boolean {
+export function isIndicatorSettingsDialogSnapshot(dialog: VisibleDialogSnapshot | null | undefined): boolean {
   if (!dialog) {
     return false;
   }
@@ -3903,7 +3915,14 @@ function isIndicatorSettingsDialogSnapshot(dialog: VisibleDialogSnapshot | null 
     return false;
   }
 
-  return hasInputsTab && (hasVisibilityTab || hasIndicatorTab);
+  // Incident 2026-07-13: scripts without input() parameters render a
+  // Style+Visibility-only settings dialog. The old ``hasInputsTab && (...)``
+  // rule refused to recognise it, so the open-settings ladder closed its own
+  // successfully opened dialog and click-stormed until the step timeout.
+  // Accept a genuine two-tab structure instead: one tab word from
+  // {inputs, visibility} AND one from {style, properties} — kept in lockstep
+  // with indicatorSettingsDialogLocators above.
+  return (hasInputsTab || hasVisibilityTab) && hasIndicatorTab;
 }
 
 async function hasIndicatorSettingsDialog(page: Page): Promise<boolean> {
