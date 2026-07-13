@@ -19,6 +19,17 @@ This module is the **single source of truth** for ``ENABLE_*`` env-var
 feature flags. All call sites must import the helper rather than reading
 ``os.environ`` directly.
 
+Scope caveat: the SSOT covers only importers of ``open_prep``. Two lower
+layers keep **dependency-neutral mirrors** by design — ``smc_core.v2_features``
+(so ``smc_core`` never imports ``open_prep``) and
+``smc_integration.measurement_evidence`` (its own ``_bool_env`` /
+``signal_quality_model``). Their bool + ``SIGNAL_QUALITY_MODEL`` semantics are
+kept identical to the helpers here (``.strip().lower()`` + ``{v1,v2,v2.1}``
+validation) but are NOT enforced to stay in lock-step — a change here must be
+mirrored there. ``tests/test_feature_flag_centralization.py`` only guards
+against *raw* ``ENABLE_*`` literal reads outside this module, not against these
+sanctioned mirrors.
+
 Convention:
     * Each flag is a single function ``is_<flag>_enabled() -> bool``.
     * The helper reads the env var on every call (cheap, no caching) so
@@ -185,6 +196,18 @@ def is_freshness_v2_enabled() -> bool:
     Phase A: enables uniform freshness/invalidation enrichment across all
     SMC event families (BOS, OB, FVG, SWEEP).  When disabled, the legacy
     per-family freshness fields are used unchanged.
+
+    SIDE EFFECT — this is a v2 *score-model* flag, NOT a scoped freshness
+    toggle. It is a member of :func:`any_v2_score_feature_enabled`, so enabling
+    it routes ``build_signal_quality`` from the v1 to the v2 budget **even while
+    ``SIGNAL_QUALITY_MODEL`` stays ``"v1"``**. That re-weights every bucket
+    (structure 20→18, session 20→18, liquidity 15→12, OB 15→12, FVG 15→12,
+    compression 15→12) and adds confluence 12 + SMT 4, so ``raw_score_0_100``
+    and the derived tier / Pine gates / Hero-trust can
+    move even when the freshness inputs are neutral. This coupling is
+    deliberate (the v2 freshness label only exists inside the v2 budget); do not
+    treat the flag as freshness-only. An ``ENABLE_FRESHNESS_V2`` → v2-model-
+    cutover rename is pending (public env-var contract).
     """
     return _bool_env("ENABLE_FRESHNESS_V2", "0")
 
@@ -223,6 +246,16 @@ def is_reaction_zone_enabled() -> bool:
     field only appears on the v2 path and has no consumer.  Observe-only (see
     :func:`any_v2_score_feature_enabled`): does not route the model or gate the
     live score.  Depends on Phase B (sweep trap).
+
+    DUAL FEATURE — the same flag also gates
+    :func:`smc_core.reaction_zone.detect_reaction_zone`, a semantically
+    DIFFERENT "reaction context" detector that merely flags a fresh
+    structure/sweep sitting near an OB/FVG and emits ``REACTION_ZONE_DETECTED``
+    — it inspects no swept level, extreme, post-sweep close, reclaim, or
+    rejection band (see that function's docstring). One flag currently arms two
+    unrelated concepts; a split (``ENABLE_REACTION_ZONE_STUDY`` vs
+    ``ENABLE_REACTION_CONTEXT``) plus a ``REACTION_CONTEXT_*`` field rename are
+    pending (public contract).
     """
     return _bool_env("ENABLE_REACTION_ZONE", "0")
 

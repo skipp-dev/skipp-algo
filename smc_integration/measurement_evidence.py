@@ -99,7 +99,7 @@ def is_confluence_score_enabled() -> bool:
 
 
 def signal_quality_model() -> str:
-    return os.environ.get("SIGNAL_QUALITY_MODEL", "v1").strip()
+    return m if (m := os.environ.get("SIGNAL_QUALITY_MODEL", "v1").strip().lower()) in ("v1", "v2", "v2.1") else "v1"
 
 
 def build_evidence_id(
