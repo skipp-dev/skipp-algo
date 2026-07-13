@@ -444,7 +444,9 @@ def _evaluate_bos_event(event: dict[str, Any], bars: pd.DataFrame) -> dict[str, 
     if anchor_idx is None or anchor_idx >= len(bars) - 1:
         return None
 
-    future = bars.iloc[anchor_idx + 1 :].reset_index(drop=True)
+    # KPI horizon = the ScoredEvent BOS label window (was unbounded-to-end, so a
+    # touch 100 bars later counted as a KPI hit but a label miss). Cap to align.
+    future = bars.iloc[anchor_idx + 1 : anchor_idx + 1 + _BOS_LOOKAHEAD_BARS].reset_index(drop=True)
     if future.empty:
         return None
 
@@ -471,6 +473,7 @@ def _evaluate_zone_event(
     bars: pd.DataFrame,
     *,
     diagnostics_by_id: dict[str, dict[str, Any]],
+    lookahead_bars: int = _ZONE_LOOKAHEAD_BARS,
     emit_partial_50: bool = False,
 ) -> dict[str, Any] | None:
     low = float(event.get("low", 0.0) or 0.0)
@@ -487,7 +490,8 @@ def _evaluate_zone_event(
     if anchor_idx is None or anchor_idx >= len(bars) - 1:
         return None
 
-    future = bars.iloc[anchor_idx + 1 :].reset_index(drop=True)
+    # KPI horizon = the ScoredEvent zone label window (OB vs FVG), was unbounded.
+    future = bars.iloc[anchor_idx + 1 : anchor_idx + 1 + lookahead_bars].reset_index(drop=True)
     if future.empty:
         return None
 
@@ -499,6 +503,10 @@ def _evaluate_zone_event(
         absolute_idx = _find_bar_index(bars, float(mitigated_ts))
         if absolute_idx is not None and absolute_idx > anchor_idx:
             mitigated_idx = absolute_idx - anchor_idx - 1
+    # A diagnostic mitigation beyond the evaluation window is not a hit within
+    # the label horizon (mirrors the capped touch/invalidation below).
+    if mitigated_idx is not None and mitigated_idx >= len(future):
+        mitigated_idx = None
 
     # Truth-audit E9 (2026-07-11): mitigation = PENETRATION of the zone, not
     # band-membership of the bar extreme. The old ``low <= row_high <= high``
@@ -1876,7 +1884,12 @@ def build_measurement_evidence(symbol: str, timeframe: str) -> MeasurementEviden
         _append_stratified_event(stratified_events, f"vol_regime:{vol_regime.label}", "BOS", evaluated)
 
     for event in effective_structure["orderblocks"]:
-        evaluated = _evaluate_zone_event(event, resampled_bars, diagnostics_by_id=orderblock_diagnostics)
+        evaluated = _evaluate_zone_event(
+            event,
+            resampled_bars,
+            diagnostics_by_id=orderblock_diagnostics,
+            lookahead_bars=_ZONE_LOOKAHEAD_BARS,
+        )
         if evaluated is None:
             skipped_counts["OB"] += 1
             continue
@@ -1929,6 +1942,7 @@ def build_measurement_evidence(symbol: str, timeframe: str) -> MeasurementEviden
             event,
             resampled_bars,
             diagnostics_by_id=fvg_diagnostics,
+            lookahead_bars=_FVG_LOOKAHEAD_BARS,
             emit_partial_50=True,
         )
         if evaluated is None:
