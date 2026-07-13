@@ -102,10 +102,14 @@ jobs:
           for run_id in ${candidate_runs}; do
             rm -rf "${download_dir}"
             mkdir -p "${download_dir}"
-            if ! gh run download "${run_id}" --dir "${download_dir}" 2>/dev/null; then
-              continue  # run had no downloadable artifacts (guard-skipped body)
+            if ! gh run download "${run_id}" --pattern 'smc-measurement-benchmark-rolling-*' --dir "${download_dir}" 2>/dev/null; then
+              continue  # run had no matching artifact (guard-skipped body / no bundle)
             fi
-            found=$(find "${download_dir}" -type f -name "events_*.jsonl" -print -quit || true)
+            # Path-pinned: only the rolling bundle at its SYMBOL/TF depth may
+            # supply the corpus — a future sibling artifact carrying its own
+            # events_*.jsonl at a different depth must never win the -quit race
+            # and mis-anchor the three-dirname corpus root.
+            found=$(find "${download_dir}" -type f -path "*/smc-measurement-benchmark-rolling-*/*/*/events_*.jsonl" -print -quit || true)
             if [ -n "${found}" ]; then
               # The eval globs benchmark_dir/SYMBOL/TF/events_*.jsonl, so
               # benchmark_dir is THREE dirnames up from the events file
@@ -171,7 +175,7 @@ jobs:
             exit 0
           fi
           set +e
-          python scripts/eval_reaction_zone_shadow.py --benchmark-dir "${CORPUS_DIR}" 2>&1 | tee reaction_eval.log
+          python scripts/eval_reaction_zone_shadow.py --benchmark-dir "${CORPUS_DIR}" --now-iso "$(date -u +%Y-%m-%dT%H:%M:%SZ)" 2>&1 | tee reaction_eval.log
           rc="${PIPESTATUS[0]}"
           set -e
           case "$rc" in
@@ -216,9 +220,13 @@ jobs:
           GH_TOKEN: ${{ secrets.GH_PAT != '' && secrets.GH_PAT || github.token }}
         run: |
           set -euo pipefail
+          if [ "${{ secrets.GH_PAT != '' }}" != "true" ]; then
+            echo "::warning title=sweep-trap-shadow::GH_PAT missing — the ledger PR will be created with github.token, which does NOT trigger the required fast-gates check; auto-merge will arm but silently never complete"
+          fi
           LEDGER="artifacts/governance/sweep_trap_shadow.jsonl"
-          # The ledger has never been committed to main (it accumulates via these
-          # bot PRs), so it is UNTRACKED on a fresh checkout. ``git diff --quiet``
+          # The ledger accumulates ONLY via these bot PRs (first row landed via
+          # #3602); on a fresh checkout it is tracked, but before the first row
+          # it was absent/untracked. ``git diff --quiet``
           # is wrong twice here: it FATALS on an absent path (genuine no_data →
           # the zero-sample rc-3 sub-case) and returns 0 for an untracked file
           # that IS present (a freshly written first-ever ledger) → the step would
@@ -270,54 +278,66 @@ jobs:
         # it via SWEEP_TRAP_SHADOW_SNAPSHOT_URL (Railway has no persistent volume,
         # and a per-day PR to main just to bump a timestamp would be pure churn).
         #
-        # Gate: a freshly-written snapshot has generated_at > 0; a no_data/stale
-        # run leaves the committed seed (generated_at 0) untouched and publishes
-        # nothing — the bridge then keeps serving age_known=0 and the
-        # lo-sweep-trap-shadow-age-unknown alert fires (NOT the stale alert:
-        # stale is only computed once an age is known). Also ships the
-        # reaction-zone snapshot when the piggybacked eval wrote one. Runs LAST
-        # so the upload step sees the working tree before this step
-        # force-resets it onto origin/main.
+        # PER-FILE gates (the studies arm independently): sweep publishes only
+        # when its snapshot is freshly written (generated_at > 0 — a no_data/
+        # stale run leaves the committed seed untouched, the bridge keeps
+        # serving age_known=0 and lo-sweep-trap-shadow-age-unknown fires);
+        # the reaction snapshot publishes on presence (untracked, exists only
+        # when this run's eval wrote it) and is NOT swallowed by a seed/stale
+        # sweep day. Runs LAST so the upload step sees the working tree before
+        # this step force-resets it onto origin/main.
         if: always()
         env:
           GH_TOKEN: ${{ secrets.GH_PAT }}
         run: |
           set -euo pipefail
-          snapshot="artifacts/monitoring/sweep_trap_shadow.json"
           if [ -z "${GH_TOKEN:-}" ]; then
             echo "::warning::GH_PAT not configured; skipping publish to bot/live-sweep-trap-shadow"
             exit 0
           fi
-          if [ ! -s "${snapshot}" ]; then
-            echo "No snapshot file; nothing to publish."
-            exit 0
+          # PER-FILE gates: the two studies arm independently
+          # (ENABLE_SWEEP_TRAP vs ENABLE_REACTION_ZONE_STUDY), so the sweep
+          # snapshot being the committed no-data seed must NOT swallow a fresh
+          # reaction snapshot (in the reaction-only configuration that would be
+          # EVERY day). Sweep gate = generated_at > 0 (a seed with 0 stays
+          # unpublished); reaction gate = file presence (it is untracked and
+          # only exists when this run's eval wrote it).
+          snapshot="artifacts/monitoring/sweep_trap_shadow.json"
+          sweep_tmp=""
+          if [ -s "${snapshot}" ]; then
+            fresh="$(python -c 'import json,sys; print(1 if float(json.load(open(sys.argv[1])).get("generated_at", 0)) > 0 else 0)' "${snapshot}")"
+            if [ "${fresh}" = "1" ]; then
+              sweep_tmp="$(mktemp)"
+              cp "${snapshot}" "${sweep_tmp}"
+            else
+              echo "::notice title=sweep-trap-shadow::sweep snapshot is the no-data seed (generated_at=0); not publishing it"
+            fi
           fi
-          fresh="$(python -c 'import json,sys; print(1 if float(json.load(open(sys.argv[1])).get("generated_at", 0)) > 0 else 0)' "${snapshot}")"
-          if [ "${fresh}" != "1" ]; then
-            echo "::notice title=sweep-trap-shadow::snapshot is the no-data seed (generated_at=0); nothing fresh to publish"
-            exit 0
-          fi
-
-          # Build the publish commit off a clean origin/main so the ledger PR
-          # branch state (from the commit-back step) can never leak into it.
-          tmp="$(mktemp)"
-          cp "${snapshot}" "${tmp}"
           reaction_snapshot="artifacts/monitoring/reaction_zone_shadow.json"
           reaction_tmp=""
           if [ -s "${reaction_snapshot}" ]; then
             reaction_tmp="$(mktemp)"
             cp "${reaction_snapshot}" "${reaction_tmp}"
           fi
+          if [ -z "${sweep_tmp}" ] && [ -z "${reaction_tmp}" ]; then
+            echo "::notice title=sweep-trap-shadow::no fresh snapshot from this run; nothing to publish"
+            exit 0
+          fi
+
+          # Build the publish commit off a clean origin/main so the ledger PR
+          # branch state (from the commit-back step) can never leak into it.
           _remote_url="https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git"
           git fetch "${_remote_url}" main 2>/dev/null || true
           git checkout -f -B _sweep_trap_shadow_publish FETCH_HEAD
 
           stable_dir="artifacts/monitoring/latest"
           mkdir -p "${stable_dir}"
-          cp "${tmp}" "${stable_dir}/sweep_trap_shadow.json"
           git config user.name  "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add -f "${stable_dir}/sweep_trap_shadow.json"
+          if [ -n "${sweep_tmp}" ]; then
+            cp "${sweep_tmp}" "${stable_dir}/sweep_trap_shadow.json"
+            git add -f "${stable_dir}/sweep_trap_shadow.json"
+          fi
           if [ -n "${reaction_tmp}" ]; then
             cp "${reaction_tmp}" "${stable_dir}/reaction_zone_shadow.json"
             git add -f "${stable_dir}/reaction_zone_shadow.json"

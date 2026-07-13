@@ -98,12 +98,39 @@ def test_commit_back_includes_measured_but_thin_runs() -> None:
 
 def test_reaction_zone_eval_is_piggybacked_on_the_same_corpus() -> None:
     """F9 wire: the reaction-zone shadow evaluator runs against the identical
-    rolling-bench corpus and its snapshot ships with the publish step."""
+    rolling-bench corpus, stamps its snapshot freshness, and the snapshot ships
+    with the publish step."""
     text = _WF_PATH.read_text(encoding="utf-8")
     assert "scripts/eval_reaction_zone_shadow.py --benchmark-dir" in text
+    assert "--now-iso" in text  # unstamped snapshots rebuild the age-unknown class
     assert "artifacts/monitoring/reaction_zone_shadow.json" in text
     publish_step = text.split("Publish snapshot to rolling bot branch", 1)[1]
     assert 'reaction_zone_shadow.json"' in publish_step
+
+
+def test_publish_gates_are_per_file_not_sweep_global() -> None:
+    """A seed/stale sweep snapshot must not swallow a fresh reaction snapshot —
+    in the reaction-only arming configuration that would be every day. Behavior
+    shape: the reaction copy is prepared BEFORE any freshness exit, and the
+    only early no-publish exit requires BOTH tmp slots to be empty."""
+    text = _WF_PATH.read_text(encoding="utf-8")
+    publish_step = text.split("Publish snapshot to rolling bot branch", 1)[1]
+    # No sweep-only freshness gate that exits the whole step:
+    seed_notice = publish_step.index("no-data seed")
+    reaction_copy = publish_step.index('cp "${reaction_snapshot}"')
+    combined_exit = publish_step.index('[ -z "${sweep_tmp}" ] && [ -z "${reaction_tmp}" ]')
+    assert seed_notice < reaction_copy < combined_exit  # seed branch does not exit before the reaction copy
+    seed_branch = publish_step[seed_notice : reaction_copy]
+    assert "exit 0" not in seed_branch
+
+
+def test_corpus_download_is_pattern_scoped_and_find_is_depth_pinned() -> None:
+    """A future sibling artifact carrying its own events_*.jsonl at a different
+    depth must never win the find -quit race and mis-anchor the corpus root."""
+    text = _WF_PATH.read_text(encoding="utf-8")
+    corpus_step = text.split("Resolve corpus directory", 1)[1].split("Run sweep-trap shadow eval", 1)[0]
+    assert "--pattern 'smc-measurement-benchmark-rolling-*'" in corpus_step
+    assert '-path "*/smc-measurement-benchmark-rolling-*/*/*/events_*.jsonl"' in corpus_step
 
 
 def test_rolling_benchmark_arms_both_study_flags() -> None:
@@ -129,7 +156,7 @@ def test_corpus_resolver_iterates_multiple_runs_not_just_the_latest() -> None:
     # Must iterate a batch of recent successes and test each for the corpus.
     assert "--limit=15" in corpus_step
     assert "for run_id in" in corpus_step
-    assert 'name "events_*.jsonl"' in corpus_step
+    assert 'events_*.jsonl"' in corpus_step  # 2026-07-13: find is now -path (depth-pinned), not -name
 
 
 def test_corpus_dir_is_three_dirnames_up_from_events_file() -> None:
