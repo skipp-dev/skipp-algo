@@ -20,31 +20,23 @@ Usage:
 from __future__ import annotations
 
 import argparse
-import glob
-import json
 import statistics
 from collections.abc import Iterable
 from pathlib import Path
 
+from smc_core.event_ledger import ledger_label, read_event_ledger_dir
+
 
 def _load_fvg_events(root: Path) -> list[dict]:
-    files = sorted(glob.glob(str(root / "*" / "*" / "events_*.jsonl")))
-    out: list[dict] = []
-    for fp in files:
-        with open(fp, encoding="utf-8") as fh:
-            for line in fh:
-                line = line.strip()
-                if not line:
-                    continue
-                e = json.loads(line)
-                if e.get("family") == "FVG":
-                    out.append(e)
-    return out
+    # Central lenient reader: a malformed line is skipped (was: a bare json.loads
+    # that hard-crashed the whole audit on the first truncated row).
+    events, _warnings = read_event_ledger_dir(root, family="FVG")
+    return events
 
 
 def _hit(event: dict, label: str) -> bool:
     if label == "strict":
-        return bool((event.get("features") or {}).get("label_partial_50"))
+        return bool(ledger_label(event, "label_partial_50"))
     return bool(event.get("outcome"))
 
 

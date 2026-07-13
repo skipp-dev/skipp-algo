@@ -56,6 +56,23 @@ def test_collect_samples_filters_non_reaction_and_non_sweep() -> None:
     assert len(collect_samples(events)) == 1
 
 
+def test_collect_samples_reads_outcome_from_extras_schema_1_1() -> None:
+    # Schema 1.1: reaction_outcome_late (the label) lives in outcome_extras; the
+    # reaction geometry stays in features. The evaluator must read the label there.
+    ev = {
+        "family": "SWEEP",
+        "features": {
+            "reaction_schema_version": 1, "reaction_direction": "bull",
+            "reaction_level_reclaimed": True, "reaction_in_rejection_band": False,
+            "reaction_close_distance_pct": 0.2, "reaction_band_width_pct": 0.7,
+        },
+        "outcome_extras": {"reaction_outcome_late": True},
+    }
+    samples = collect_samples([ev])
+    assert len(samples) == 1
+    assert samples[0][2] == 1  # outcome read from outcome_extras
+
+
 def test_evaluate_variant_lift() -> None:
     # confirmed → 3/4 outcome; not confirmed → 1/4 outcome → lift = 0.75 - 0.25
     pairs = [(True, 1), (True, 1), (True, 1), (True, 0), (False, 1), (False, 0), (False, 0), (False, 0)]

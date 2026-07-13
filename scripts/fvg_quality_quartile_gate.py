@@ -69,7 +69,6 @@ if _BOOTSTRAP_ROOT not in sys.path:
     sys.path.insert(0, _BOOTSTRAP_ROOT)
 
 import argparse
-import glob
 import json
 import os
 import sys
@@ -85,6 +84,7 @@ _REPO_ROOT = Path(__file__).resolve().parent.parent
 if str(_REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(_REPO_ROOT))
 
+from smc_core.event_ledger import ledger_label, read_event_ledger_dir
 from smc_core.fvg_quality import score_fvg
 
 DEFAULT_TOP_THRESHOLD = 0.75   # plan §D4 line 326
@@ -131,38 +131,15 @@ class GateDecision:
 def load_fvg_events(root: Path) -> tuple[list[dict[str, Any]], list[str]]:
     """Read FVG events from a benchmark snapshot tree.
 
-    Returns ``(events, warnings)``. Bad JSON lines are skipped; the
-    file path + line number is reported in ``warnings``.
+    Returns ``(events, warnings)``. Bad JSON lines are skipped and reported in
+    ``warnings`` (via the central :func:`read_event_ledger_dir`).
     """
-    events: list[dict[str, Any]] = []
-    warnings: list[str] = []
-    if not root.exists():
-        return events, [f"root not found: {root}"]
-    files = sorted(glob.glob(str(root / "*" / "*" / "events_*.jsonl")))
-    if not files:
-        return events, [f"no events_*.jsonl files under {root}"]
-    for fp in files:
-        try:
-            with open(fp, encoding="utf-8") as fh:
-                for lineno, line in enumerate(fh, start=1):
-                    line = line.strip()
-                    if not line:
-                        continue
-                    try:
-                        e = json.loads(line)
-                    except json.JSONDecodeError as exc:
-                        warnings.append(f"{fp}:{lineno}: {exc}")
-                        continue
-                    if e.get("family") == "FVG":
-                        events.append(e)
-        except OSError as exc:
-            warnings.append(f"{fp}: {exc}")
-    return events, warnings
+    return read_event_ledger_dir(root, family="FVG")
 
 
 def _hit_strict(event: dict[str, Any]) -> bool:
     """Plan §D4 success criterion uses the strict ≥50% partial-fill label."""
-    return bool((event.get("features") or {}).get("label_partial_50"))
+    return bool(ledger_label(event, "label_partial_50"))
 
 
 def _event_quality_features(event: dict[str, Any]) -> dict[str, Any]:

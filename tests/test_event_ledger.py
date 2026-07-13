@@ -12,8 +12,10 @@ from smc_core.event_ledger import (
     EVENT_LEDGER_SCHEMA_VERSION,
     EventLedgerRecord,
     EventLedgerSchemaError,
+    ledger_label,
     ledger_path_for_pair,
     read_event_ledger,
+    read_event_ledger_dir,
     validate_event_ledger_record,
     write_event_ledger,
 )
@@ -34,7 +36,7 @@ class _FakeScoredEvent:
 
 
 def test_schema_version_pinned() -> None:
-    assert EVENT_LEDGER_SCHEMA_VERSION == "1.0"
+    assert EVENT_LEDGER_SCHEMA_VERSION == "1.1"
 
 
 def test_record_default_features_empty() -> None:
@@ -88,7 +90,7 @@ def test_round_trip_jsonl(tmp_path: Path) -> None:
     assert rows[0]["context"] == {"session": "NY_AM", "vol_regime": "NORMAL"}
     assert rows[0]["raw_score"] == pytest.approx(82.5)
     assert rows[0]["raw_score_name"] == "SIGNAL_QUALITY_SCORE"
-    assert rows[0]["schema_version"] == "1.0"
+    assert rows[0]["schema_version"] == "1.1"
     assert rows[1]["raw_score"] is None
     assert rows[1]["features"] == {}
 
@@ -160,7 +162,7 @@ def test_jsonl_each_row_independently_parseable(tmp_path: Path) -> None:
     write_event_ledger(events, output_path=path, symbol="X", timeframe="15m")
     for line in path.read_text(encoding="utf-8").splitlines():
         record = json.loads(line)
-        assert record["schema_version"] == "1.0"
+        assert record["schema_version"] == "1.1"
         assert "event_id" in record
 
 
@@ -345,3 +347,121 @@ def test_read_strict_accepts_writer_output(tmp_path: Path) -> None:
     )
     rows = list(read_event_ledger(path, strict=True))
     assert len(rows) == 2
+
+
+# ── schema 1.1: label relocation + feature_schema_versions + compat ──────────
+
+
+def test_writer_relocates_labels_to_outcome_extras(tmp_path: Path) -> None:
+    path = tmp_path / "events.jsonl"
+    write_event_ledger(
+        [_one_event(features={
+            "gap_size_atr": 0.4,
+            "label_partial_50": True,
+            "reaction_outcome_late": False,
+        })],
+        output_path=path, symbol="X", timeframe="15m",
+    )
+    row = next(read_event_ledger(path))
+    # labels moved out of features into outcome_extras; real feature stays
+    assert "label_partial_50" not in row["features"]
+    assert "reaction_outcome_late" not in row["features"]
+    assert row["features"]["gap_size_atr"] == pytest.approx(0.4)
+    assert row["outcome_extras"]["label_partial_50"] is True
+    assert row["outcome_extras"]["reaction_outcome_late"] is False
+
+
+def test_writer_populates_feature_schema_versions(tmp_path: Path) -> None:
+    path = tmp_path / "events.jsonl"
+    write_event_ledger(
+        [_one_event(features={"reaction_schema_version": 1, "reaction_direction": "bull"})],
+        output_path=path, symbol="X", timeframe="15m",
+    )
+    row = next(read_event_ledger(path))
+    assert row["feature_schema_versions"] == {"reaction": 1}
+    # version counter stays in features too (1.0 consumers still read it)
+    assert row["features"]["reaction_schema_version"] == 1
+
+
+def test_explicit_outcome_extras_wins_over_features_label(tmp_path: Path) -> None:
+    path = tmp_path / "events.jsonl"
+    ev = _one_event(features={"label_partial_50": False})
+    ev["outcome_extras"] = {"label_partial_50": True}
+    write_event_ledger([ev], output_path=path, symbol="X", timeframe="15m")
+    row = next(read_event_ledger(path))
+    assert row["outcome_extras"]["label_partial_50"] is True
+
+
+def test_ledger_label_reads_both_generations() -> None:
+    v11 = {"outcome_extras": {"label_partial_50": True}, "features": {}}
+    v10 = {"features": {"label_partial_50": True}}  # legacy: label under features
+    assert ledger_label(v11, "label_partial_50") is True
+    assert ledger_label(v10, "label_partial_50") is True
+    assert ledger_label({"features": {}}, "label_partial_50", default=None) is None
+
+
+def test_validate_accepts_legacy_1_0_record() -> None:
+    # A 1.0 record (labels under features, no feature_schema_versions) is still valid.
+    rec = _valid_record()
+    rec["schema_version"] = "1.0"
+    rec["features"] = {"label_partial_50": True}
+    assert validate_event_ledger_record(rec) is rec
+
+
+def test_validate_rejects_unknown_future_version() -> None:
+    rec = _valid_record()
+    rec["schema_version"] = "2.0"
+    with pytest.raises(EventLedgerSchemaError, match="schema_version"):
+        validate_event_ledger_record(rec)
+
+
+def test_validate_rejects_non_dict_feature_schema_versions() -> None:
+    rec = _valid_record()
+    rec["feature_schema_versions"] = ["reaction", 1]
+    with pytest.raises(EventLedgerSchemaError, match="feature_schema_versions"):
+        validate_event_ledger_record(rec)
+
+
+# ── read_event_ledger_dir (central dir-walking collector) ────────────────────
+
+
+def _write_pair(root: Path, symbol: str, tf: str, records: list[dict]) -> None:
+    pair = root / symbol / tf
+    pair.mkdir(parents=True)
+    with (pair / f"events_{symbol}_{tf}.jsonl").open("w", encoding="utf-8") as fh:
+        for r in records:
+            fh.write(json.dumps(r) + "\n")
+
+
+def test_read_dir_filters_family_and_reports_missing_root(tmp_path: Path) -> None:
+    events, warnings = read_event_ledger_dir(tmp_path / "nope")
+    assert events == []
+    assert any("root not found" in w for w in warnings)
+
+
+def test_read_dir_no_files_warns(tmp_path: Path) -> None:
+    events, warnings = read_event_ledger_dir(tmp_path)
+    assert events == []
+    assert any("no events_" in w for w in warnings)
+
+
+def test_read_dir_lenient_collects_warnings_and_filters(tmp_path: Path) -> None:
+    fvg = {**_valid_record(), "family": "FVG"}
+    ob = {**_valid_record(), "family": "OB"}
+    pair = tmp_path / "AAPL" / "5m"
+    pair.mkdir(parents=True)
+    (pair / "events_AAPL_5m.jsonl").write_text(
+        json.dumps(fvg) + "\n{ not json\n" + json.dumps(ob) + "\n", encoding="utf-8"
+    )
+    events, warnings = read_event_ledger_dir(tmp_path, family="FVG")
+    assert [e["family"] for e in events] == ["FVG"]  # OB filtered out, bad line skipped
+    assert any("malformed JSON" in w for w in warnings)
+
+
+def test_read_dir_strict_raises_on_corrupt_line(tmp_path: Path) -> None:
+    _write_pair(tmp_path, "AAPL", "5m", [_valid_record()])
+    (tmp_path / "AAPL" / "5m" / "events_AAPL_5m.jsonl").write_text(
+        "{ truncated\n", encoding="utf-8"
+    )
+    with pytest.raises(EventLedgerSchemaError):
+        read_event_ledger_dir(tmp_path, strict=True)

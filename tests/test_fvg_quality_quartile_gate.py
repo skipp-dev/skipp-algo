@@ -41,6 +41,12 @@ def test_hit_strict_handles_missing_features():
     assert gate._hit_strict({"features": None}) is False
 
 
+def test_hit_strict_reads_label_from_outcome_extras_schema_1_1():
+    # Schema 1.1: the label lives in outcome_extras, not features.
+    assert gate._hit_strict({"features": {}, "outcome_extras": {"label_partial_50": True}}) is True
+    assert gate._hit_strict({"features": {}, "outcome_extras": {"label_partial_50": False}}) is False
+
+
 # ── feature extraction ────────────────────────────────────────────────────
 
 
