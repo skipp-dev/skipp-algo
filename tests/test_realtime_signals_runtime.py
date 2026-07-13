@@ -349,3 +349,76 @@ def test_async_poller_start_spawns_one_thread_under_concurrency(
         assert len(created) == 1
     finally:
         poller.stop(timeout=2.0)
+
+
+def _mk_a1(direction: str = "LONG") -> rs.RealtimeSignal:
+    return rs.RealtimeSignal(
+        symbol="AAA", level="A1", direction=direction, pattern="BREAKOUT",
+        price=100.0, prev_close=99.0, change_pct=1.0, volume_ratio=2.0,
+        score=5.0, confidence_tier="HIGH_CONVICTION", atr_pct=0.5,
+        freshness=1.0, fired_at="2026-01-01T00:00:00+00:00", fired_epoch=1.0,
+    )
+
+
+def _news_upgrade_poll(monkeypatch, *, polarity: float, direction: str = "LONG"):
+    monkeypatch.setattr(rs.RealtimeEngine, "_load_watchlist", lambda self: None)
+    monkeypatch.setattr(rs.RealtimeEngine, "_restore_signals_from_disk", lambda self: None)
+    monkeypatch.setattr(rs, "_is_within_market_hours", lambda: True)
+
+    engine = rs.RealtimeEngine(fmp_client=None)
+    engine._watchlist = [{"symbol": "AAA"}]
+
+    class _NewsStub:
+        def latest(self):
+            return {"AAA": {
+                "news_score": 0.9, "polarity": polarity,
+                "category": "ma_deal", "headline": "h", "warn_flags": [],
+            }}
+
+    engine._async_newsstack = _NewsStub()
+    monkeypatch.setattr(
+        engine, "_fetch_realtime_quotes",
+        lambda: {"AAA": {"symbol": "AAA", "price": 100.0, "volume": 1_000_000}},
+    )
+    monkeypatch.setattr(
+        engine, "_detect_signal",
+        lambda *a, **k: _mk_a1(direction),
+    )
+    monkeypatch.setattr(engine, "_save_signals", lambda *a, **k: None)
+    signals = engine.poll_once()
+    assert signals, "poll_once must yield the detected signal"
+    return signals[0]
+
+
+def test_news_catalyst_upgrade_requires_aligned_polarity(monkeypatch) -> None:
+    # A strongly BEARISH headline (polarity<0) must NOT escalate a LONG A1 to
+    # A0 — news_score is a direction-less magnitude; the sign is in polarity.
+    sig = _news_upgrade_poll(monkeypatch, polarity=-0.9, direction="LONG")
+    assert sig.level == "A1"
+    assert sig.details.get("a0_upgrade_reason") != "news_catalyst"
+
+
+def test_news_catalyst_upgrade_fires_on_aligned_polarity(monkeypatch) -> None:
+    sig = _news_upgrade_poll(monkeypatch, polarity=0.9, direction="LONG")
+    assert sig.level == "A0"
+    assert sig.details.get("a0_upgrade_reason") == "news_catalyst"
+
+
+def test_news_catalyst_upgrade_neutral_polarity_does_not_escalate(monkeypatch) -> None:
+    sig = _news_upgrade_poll(monkeypatch, polarity=0.0, direction="LONG")
+    assert sig.level == "A1"
+
+
+def test_rt_engine_status_revalidates_stale_running_flag(monkeypatch, tmp_path: Path) -> None:
+    # A crashed engine leaves running:true + a dead PID in the status file —
+    # get_rt_engine_status must re-validate liveness instead of echoing it.
+    status = tmp_path / "rt_engine_status.json"
+    status.write_text(
+        json.dumps({"running": True, "pid": 99_999_999, "error": "", "log_path": "x"}),
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(rs, "_RT_ENGINE_STATUS_FILE", status)
+    monkeypatch.setattr(rs, "_detect_rt_engine_pid", lambda: None)
+    out = rs.get_rt_engine_status()
+    assert out["running"] is False
+    assert out["pid"] is None

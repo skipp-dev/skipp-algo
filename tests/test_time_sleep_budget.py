@@ -126,11 +126,11 @@ _FROZEN_SITES: frozenset[tuple[str, int]] = frozenset(
         ("open_prep/error_taxonomy.py", 117),
         # 2026-06-28 (semantic monitoring): all realtime_signals sleep sites
         # shifted +20/+20/+72/+80/+80 lines by readiness metrics.
-        ("open_prep/realtime_signals.py", 306),   # 2026-07-12 data-stall constant above: 305->306
-        ("open_prep/realtime_signals.py", 381),    # 2026-07-12 305->..: 380->381
-        ("open_prep/realtime_signals.py", 2284),  # 2026-07-12 review-fix _in_market_hours cache: 2283->2284
-        ("open_prep/realtime_signals.py", 3522),  # 2026-07-12 review-fix _in_market_hours cache: 3520->3522
-        ("open_prep/realtime_signals.py", 3538),  # 2026-07-12 review-fix _in_market_hours cache: 3536->3538
+        ("open_prep/realtime_signals.py", 321),   # 2026-07-13 (status liveness re-validate above): 306->321
+        ("open_prep/realtime_signals.py", 396),    # 2026-07-13 (status liveness re-validate above): 381->396
+        ("open_prep/realtime_signals.py", 2304),  # 2026-07-13 (status+attach above): 2284->2304
+        ("open_prep/realtime_signals.py", 3548),  # 2026-07-13 (status+attach+polarity above): 3522->3548
+        ("open_prep/realtime_signals.py", 3564),  # 2026-07-13 (status+attach+polarity above): 3538->3564
         # 2026-06-11 (eval-findings D7): technical_analysis import block
         # +8 lines (1943→1951, 1945→1953).
         # 2026-07-04 (market-microstructure observe-only): module import

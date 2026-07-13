@@ -257,6 +257,21 @@ def get_rt_engine_status() -> dict[str, Any]:
             "error": "",
             "log_path": str(_RT_ENGINE_LOG_FILE),
         }
+    elif payload.get("running"):
+        # The status file is written on START paths only — a crashed engine
+        # leaves running:true + a dead PID forever. Re-validate liveness.
+        pid = payload.get("pid")
+        alive = False
+        if isinstance(pid, int) and pid > 0:
+            try:
+                os.kill(pid, 0)
+                alive = True
+            except OSError:
+                alive = False
+        if not alive:
+            detected = _detect_rt_engine_pid()
+            payload["running"] = detected is not None
+            payload["pid"] = detected
     return payload
 
 
@@ -736,6 +751,11 @@ class NearA0Repoller:
                     sig.news_score = _safe_float(nd.get("news_score", 0))
                     sig.news_category = str(nd.get("category", ""))
                     sig.news_headline = str(nd.get("headline", ""))[:200]
+                # Attach entry/stop/target so the EARLIEST push carries the
+                # bracket too — fulfilling the "consumed by BOTH" contract the
+                # trade-context comment states for the main poll path.
+                from open_prep import trade_context as _trade_context
+                _trade_context.attach(sig)
                 fresh.append(sig)
         return fresh
 
@@ -847,8 +867,8 @@ def _is_within_market_hours() -> bool:
     """Return ``True`` when the current US-Eastern time is within extended
     trading hours (Mon–Fri, 04:00–20:00 ET).
 
-    Uses ``zoneinfo`` (stdlib ≥ 3.9) with a fallback to ``dateutil.tz``
-    and then a UTC-offset estimation so the gate never crashes.
+    Uses ``zoneinfo`` (stdlib ≥ 3.9) with a fallback to ``dateutil.tz``;
+    if BOTH are unavailable it RAISES (fail-closed — no fixed-UTC guess).
     """
     try:
         from zoneinfo import ZoneInfo
@@ -1298,8 +1318,8 @@ class DynamicCooldown:
     Ported from IB_MON's oscillation-aware cooldown logic.  Instead of a
     fixed 10-minute gap between A0 signals, the cooldown adjusts based on:
 
-    1. **Volume regime** — thin-volume sessions use longer cooldowns to
-       avoid false breakout spam; high-volume sessions shrink it.
+    1. **Volume regime** — call sites map "HIGH" = per-symbol pace >3x (0.4x,
+       the typical A0 case); "THIN" only under HOLIDAY_SUSPECT (suspended).
     2. **Oscillation detection** — if a symbol flips direction rapidly
        (A0 LONG → A0 SHORT within *window*), cooldown is extended to
        suppress whipsaw alerts.
@@ -1368,9 +1388,9 @@ class DynamicCooldown:
     def _regime_factor(volume_regime: str) -> float:
         """Adjust cooldown based on the current volume regime.
 
-        - ``"THIN"``   → 2.0× longer (suppress noise)
-        - ``"NORMAL"`` → 1.0 (no change)
-        - ``"HIGH"``   → 0.4× shorter (fast markets)
+        - ``"THIN"``   → 2.0x (mapped only from HOLIDAY_SUSPECT → unreachable)
+        - ``"NORMAL"`` → 1.0 (includes LOW_VOLUME sessions)
+        - ``"HIGH"``   → 0.4x (per-symbol pace >3x, the typical A0 case)
         """
         return {"THIN": 2.0, "NORMAL": 1.0, "HIGH": 0.4}.get(volume_regime, 1.0)
 
@@ -2606,10 +2626,10 @@ class RealtimeEngine:
             )
 
         # ── #7  Final dynamic cooldown gate (after ALL upgrades) ────
-        # This is the single authoritative cooldown check. Every path
-        # that can produce A0 (base thresholds, PDH/PDL breakout,
-        # technicals, RSI boost) runs first; only then do we decide
-        # whether cooldown allows the A0 through.
+        # Authoritative cooldown check for the DETECTION paths (base
+        # thresholds, PDH/PDL breakout, technicals, RSI boost). The
+        # news-catalyst A1/A2->A0 upgrade in poll_once runs its own
+        # check_cooldown before promoting — same gate, second call site.
         _vol_regime = self._volume_regime.regime if hasattr(self._volume_regime, "regime") else "NORMAL"
         _cd_regime = "THIN" if _vol_regime == "HOLIDAY_SUSPECT" else (
             "HIGH" if volume_ratio > A0_VOLUME_RATIO_MIN else "NORMAL"
@@ -2881,9 +2901,15 @@ class RealtimeEngine:
                     signal.news_category = str(ns_data.get("category", ""))
                     signal.news_headline = str(ns_data.get("headline", ""))[:200]
                     signal.news_warn_flags = list(ns_data.get("warn_flags") or [])
-                    # Upgrade A1/A2 → A0 if news catalyst is strong AND
-                    # the dynamic cooldown is not active for this symbol.
-                    if signal.level in ("A1", "A2") and signal.news_score >= 0.80:
+                    # Upgrade A1/A2 → A0 only when the catalyst is strong,
+                    # DIRECTIONALLY ALIGNED, and the dynamic cooldown is idle.
+                    # news_score is a non-directional magnitude (impact/clarity/
+                    # novelty) — the sign lives in `polarity`. Without the
+                    # alignment gate a strongly BEARISH headline could escalate
+                    # a LONG to highest conviction with reason "news_catalyst".
+                    _pol = _safe_float(ns_data.get("polarity", 0))
+                    _pol_aligned = (_pol < 0) if signal.direction == "SHORT" else (_pol > 0)
+                    if signal.level in ("A1", "A2") and signal.news_score >= 0.80 and _pol_aligned:
                         _vol_regime_ns = self._volume_regime.regime if hasattr(self._volume_regime, "regime") else "NORMAL"
                         _cd_regime_ns = "THIN" if _vol_regime_ns == "HOLIDAY_SUSPECT" else "NORMAL"
                         cd_active, _ = self._dynamic_cooldown.check_cooldown(
