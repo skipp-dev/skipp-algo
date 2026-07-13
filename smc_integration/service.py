@@ -77,7 +77,13 @@ def _safe_float(value: Any) -> float | None:
 def _serialize_bias_verdict(bias_verdict: Any) -> dict[str, Any]:
     return {
         "direction": bias_verdict.direction,
+        # Dual-write (confidence-vocabulary program): ``conviction_score`` is the
+        # honest name — a fixed-table conviction/reliability WEIGHT (merge_bias),
+        # not a probability. ``confidence`` stays as the legacy alias for any
+        # external payload consumer; drop it in a later close-window PR (#3535
+        # pattern). Values are always identical.
         "confidence": bias_verdict.confidence,
+        "conviction_score": bias_verdict.confidence,
         "htf_direction": bias_verdict.htf_direction,
         "session_direction": bias_verdict.session_direction,
         "conflict": bias_verdict.conflict,
@@ -737,7 +743,11 @@ def _build_market_context(*, context_payload: dict[str, Any], measurement_summar
     vol_regime_payload = context_payload["vol_regime"]
     return {
         "bias_direction": bias_payload["direction"],
+        # Dual-write: bias_conviction_score is the honest name (fixed-table
+        # conviction weight, not a probability); bias_confidence = legacy alias
+        # for external consumers until the close-window cleanup.
         "bias_confidence": bias_payload["confidence"],
+        "bias_conviction_score": bias_payload["confidence"],
         "bars_available": context_diagnostics["bars_available"],
         "bar_count": context_diagnostics["bar_count"],
         "vol_regime_label": vol_regime_payload["label"],
