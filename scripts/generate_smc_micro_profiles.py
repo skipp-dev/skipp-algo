@@ -1,10 +1,14 @@
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 import logging
 import math
+import shutil
+import subprocess
 from dataclasses import dataclass
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any, cast
 
@@ -12,6 +16,38 @@ import pandas as pd
 
 from scripts.smc_atomic_write import atomic_write_csv, atomic_write_text
 from scripts.smc_enrichment_types import EnrichmentDict
+
+_REPO_ROOT = Path(__file__).resolve().parent.parent
+_GENERATOR_PATH = "scripts/generate_smc_micro_profiles.py"
+
+
+def _sha256_of_file(path: Path) -> str | None:
+    """Hex SHA-256 of a file's contents, or ``None`` if unreadable."""
+    try:
+        h = hashlib.sha256()
+        with path.open("rb") as f:
+            for chunk in iter(lambda: f.read(65536), b""):
+                h.update(chunk)
+        return h.hexdigest()
+    except OSError:
+        return None
+
+
+def _git_rev(repo_root: Path) -> str | None:
+    """Current git HEAD commit SHA, or ``None`` if unavailable."""
+    try:
+        git_exe = shutil.which("git") or "git"
+        out = subprocess.run(
+            [git_exe, "rev-parse", "HEAD"],
+            cwd=repo_root,
+            capture_output=True,
+            text=True,
+            check=True,
+            timeout=5,
+        )
+    except (subprocess.SubprocessError, FileNotFoundError, OSError):
+        return None
+    return out.stdout.strip() or None
 
 
 def _pine_float(value: Any, default: float = 0.0) -> float:
@@ -1471,6 +1507,13 @@ def write_manifest(
         "auto_commit_allowed": change_type in ("unchanged", "patch", "minor", "initial"),
         "asof_time": ((normalized_enrichment or {}).get("meta") or {}).get("asof_time", ""),
         "refresh_count": int(((normalized_enrichment or {}).get("meta") or {}).get("refresh_count", 0)),
+        # Generator provenance: input_sha256 + generator_path are deterministic
+        # (asserted in fixture tests); generated_at + source_commit are wall-clock
+        # / HEAD-dependent (excluded from the structural fixture comparisons).
+        "generated_at": datetime.now(UTC).isoformat(),
+        "source_commit": _git_rev(_REPO_ROOT),
+        "generator_path": _GENERATOR_PATH,
+        "input_sha256": _sha256_of_file(input_path),
     }
     atomic_write_text(json.dumps(payload, indent=2) + "\n", path)
 

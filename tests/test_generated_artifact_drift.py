@@ -42,6 +42,10 @@ _PATH_KEYS = {
     # so schema_version_previous / version_change_type / auto_commit_allowed
     # will differ from the checked-in manifest.
     "schema_version_previous", "version_change_type", "auto_commit_allowed",
+    # Non-deterministic provenance: wall-clock generation time + HEAD commit
+    # differ between the checked-in fixture and a fresh regen. The deterministic
+    # provenance (generator_path, input_sha256) IS compared.
+    "generated_at", "source_commit",
 }
 
 _EXPORT_RE = re.compile(r"^export const \w+ ([A-Z][A-Z0-9_]+)\b", re.MULTILINE)

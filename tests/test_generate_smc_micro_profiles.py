@@ -753,11 +753,35 @@ def test_seed_reference_manifest_matches_generator_output(tmp_path: Path) -> Non
     seed_reference.pop("schema_version_previous", None)
     fresh.pop("version_change_type", None)
     seed_reference.pop("version_change_type", None)
+    # Non-deterministic provenance (wall-clock time + HEAD commit); the
+    # deterministic generator_path / input_sha256 remain compared.
+    for _prov in ("generated_at", "source_commit"):
+        fresh.pop(_prov, None)
+        seed_reference.pop(_prov, None)
 
     assert fresh == seed_reference, (
         "Seed-reference manifest has drifted from generator output. "
         "Re-run the generator to update tests/fixtures/generated_seed/."
     )
+
+
+def test_manifest_emits_provenance_block(tmp_path: Path) -> None:
+    outputs = run_generation(
+        schema_path=Path(SCHEMA_PATH),
+        input_path=Path("tests/fixtures/seed_base_snapshot.csv"),
+        output_root=tmp_path,
+    )
+    manifest = json.loads(outputs["manifest_path"].read_text(encoding="utf-8"))
+    # Deterministic provenance — asserted.
+    assert manifest["generator_path"] == "scripts/generate_smc_micro_profiles.py"
+    import hashlib
+    expected_sha = hashlib.sha256(
+        Path("tests/fixtures/seed_base_snapshot.csv").read_bytes()
+    ).hexdigest()
+    assert manifest["input_sha256"] == expected_sha
+    # Non-deterministic provenance — present, values not pinned.
+    assert manifest.get("generated_at")
+    assert "source_commit" in manifest  # None when git is unavailable
 
 
 def test_manifest_declares_v8_0a(tmp_path: Path) -> None:
