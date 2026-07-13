@@ -139,6 +139,13 @@ def candles_to_dataframe(candles: list[dict[str, Any]], symbol: str) -> pd.DataF
 # Canonical structure → bridge response adapter
 # ══════════════════════════════════════════════════════════
 
+# Bridge wire-format for a liquidity-sweep's POOL SIDE (which pool was taken),
+# NOT a trade instruction. ``"SELL"`` = a SELL_SIDE sweep (sell-side liquidity /
+# a low was taken) whose canonical reversal expectation is BULLISH; ``"BUY"`` =
+# a BUY_SIDE sweep (a high was taken) → BEARISH. The short values are an
+# established bridge output contract consumed by live TradingView/Pine clients,
+# so they are kept as-is; a clearer rename (e.g. LIQUIDITY_SELL_SIDE) is a
+# coordinated consumer-contract change, tracked as rename-later, not done here.
 _SWEEP_SIDE_MAP = {"BUY_SIDE": "BUY", "SELL_SIDE": "SELL"}
 
 
@@ -159,7 +166,12 @@ def _adapt_zones(canonical_zones: list[dict[str, Any]]) -> list[dict[str, Any]]:
 
 
 def _adapt_sweeps(canonical_sweeps: list[dict[str, Any]]) -> list[dict[str, Any]]:
-    """Strip canonical extras, map SELL_SIDE→SELL / BUY_SIDE→BUY."""
+    """Strip canonical extras, map the POOL side SELL_SIDE→SELL / BUY_SIDE→BUY.
+
+    ``side`` is the swept liquidity pool, not a buy/sell trade signal (see
+    ``_SWEEP_SIDE_MAP``): ``"SELL"`` is a bullish-reversal sweep. Unknown sides
+    pass through unchanged.
+    """
     return [
         {
             "time": int(s.get("time", s.get("anchor_ts", 0))),
