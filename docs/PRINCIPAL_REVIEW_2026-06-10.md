@@ -107,7 +107,7 @@ programmatisch nicht prüfbar ist. Plist liegt bereit; Aktivierung nach TWS-Chec
 - `c13-daily-cron.yml`
 - `adr0023-magnitude-shadow-daily.yml`
 - `f2-promotion-gate-daily.yml`
-- `smc-live-newsapi-refresh.yml`
+- `smc-live-news-refresh.yml`
 - `smc-measurement-benchmark-rolling.yml`
 
 ### Sonstiges
@@ -452,7 +452,7 @@ PR #2637 hatte den Fix: Authorization header beim Artifact-Download-Redirect str
 
 **Severity: 🟢 Low**
 
-- `smc-live-newsapi-refresh.yml`: mehrere Runs am 2026-06-09/10 success
+- `smc-live-news-refresh.yml`: mehrere Runs am 2026-06-09/10 success
 - Letzter geprüfter Run `27253830910`: success
 - Env-var Drift-Grep sauber: keine Treffer für `NEWSAPI_AI_KEY`, `NEWSAPI_SECRET`, `NEWS_API_KEY`
 

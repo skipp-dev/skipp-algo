@@ -242,7 +242,7 @@ Repo-Stand:
   - `smc-deeper-integration-gates.yml`
   - `smc-fast-pr-gates.yml`
   - `smc-library-refresh.yml`
-  - `smc-live-newsapi-refresh.yml`
+  - `smc-live-news-refresh.yml`
   - `smc-measurement-benchmark.yml`
   - `smc-release-gates.yml`
 

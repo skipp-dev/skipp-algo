@@ -56,7 +56,7 @@ Keep `ubuntu-latest` hard-coded only for the small/fast workflows where queue-ti
 
 ### Workflows to leave on `ubuntu-latest`
 
-`ci.yml`, `smc-fast-pr-gates.yml`, `manifest-pytest-poison-scan.yml`, `f2-weekly-digest.yml`, `plan-2-8-{weekly,monthly,status}-digest.yml`, `drift-watchdog.yml`, `g23-ab-watchdog.yml`, `smc-release-gates.yml`, `public-calibration-dashboard.yml`, `smc-live-newsapi-refresh.yml`, `fvg-context-pine-refresh.yml`, `fvg-quality-quartile-gate.yml` — fast or PR-blocking; queue-time risk on the larger pool outweighs the runtime gain.
+`ci.yml`, `smc-fast-pr-gates.yml`, `manifest-pytest-poison-scan.yml`, `f2-weekly-digest.yml`, `plan-2-8-{weekly,monthly,status}-digest.yml`, `drift-watchdog.yml`, `g23-ab-watchdog.yml`, `smc-release-gates.yml`, `public-calibration-dashboard.yml`, `smc-live-news-refresh.yml`, `fvg-context-pine-refresh.yml`, `fvg-quality-quartile-gate.yml` — fast or PR-blocking; queue-time risk on the larger pool outweighs the runtime gain.
 
 ---
 

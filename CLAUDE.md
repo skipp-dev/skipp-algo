@@ -19,7 +19,7 @@ to regression/behavior claims.
 ## Pine Library Maintenance
 
 **Ownership:** @preuss_steffen  
-**Direction of truth:** the repo is the **single source of truth** for ALL Pine libraries. Publishing is **repo → TradingView only** — `scripts/tv_publish_*_library.ts` push the five core `SMC++/` libraries, and the two `pine/generated/` libraries are regenerated in-repo and published by `smc-library-refresh.yml` / `smc-overlay-library-publish.yml`.
+**Direction of truth:** the repo is the **single source of truth** for ALL Pine libraries. Publishing is **repo → TradingView only** — `scripts/tv_publish_*_library.ts` push the hand-authored `SMC++/` libraries, and the two `pine/generated/` libraries are regenerated in-repo and published by `smc-library-refresh.yml` / `smc-overlay-library-publish.yml`.
 
 ### No TV→repo sync (removed 2026-07-11)
 

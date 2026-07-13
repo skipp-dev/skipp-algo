@@ -9,7 +9,7 @@
 | **smc-deeper-integration-gates** | ✅ passing | n/a | Added `permissions`, `concurrency`, `cache: pip` | ✅ no regression |
 | **smc-measurement-benchmark** | ✅ passing (Saturday schedule) | n/a | Added `permissions` | ✅ no regression |
 | **smc-release-gates** | manual/release only | n/a | No changes | unchanged |
-| **smc-live-newsapi-refresh** | ✅ passing | n/a | No changes | unchanged |
+| **smc-live-news-refresh** | ✅ passing | n/a | No changes | unchanged |
 | **smc-library-refresh** | self-hosted schedule | n/a | No changes | unchanged |
 
 ## Test suite

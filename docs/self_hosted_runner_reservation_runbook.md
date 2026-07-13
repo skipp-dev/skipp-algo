@@ -308,7 +308,7 @@ shared opportunistic mode is still working as designed.
 List the most recent producer runs with their conclusion / timestamp:
 
 ```bash
-gh run list -R skippALGO/skipp-algo \
+gh run list -R skipp-dev/skipp-algo \
   --workflow smc-databento-production-export.yml \
   --limit 50 \
   --json databaseId,conclusion,createdAt,displayTitle,headBranch \
@@ -320,7 +320,7 @@ resolver chose hosted vs. self-hosted:
 
 ```bash
 RUN_ID=<paste-databaseId>
-gh run view "$RUN_ID" -R skippALGO/skipp-algo --log \
+gh run view "$RUN_ID" -R skipp-dev/skipp-algo --log \
   | grep -E 'runner_environment|resolution_reason|matched_runner_name'
 ```
 

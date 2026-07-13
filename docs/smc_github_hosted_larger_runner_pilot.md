@@ -20,7 +20,7 @@ The workflow uses the repository variable `SMC_GH_HOSTED_RUNNER` with a fallback
 to `ubuntu-latest`. The variable is currently not set, so all runs execute on
 the standard `ubuntu-latest` runner. This applies to all SMC workflows:
 `smc-library-refresh`, `smc-release-gates`, `smc-deeper-integration-gates`,
-`smc-fast-pr-gates`, `smc-measurement-benchmark`, `smc-live-newsapi-refresh`.
+`smc-fast-pr-gates`, `smc-measurement-benchmark`, `smc-live-news-refresh`.
 
 > **Note:** Earlier versions of this document referenced `ubuntu-24.04-4core`.
 > That label was planned but never activated in the organization runner settings.
