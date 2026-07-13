@@ -1034,6 +1034,13 @@ def _liquidity_support_for_event(
                             is_bullish_sweep=bull_sweep,
                             post_sweep_bars=post_sweep_bars,
                         )
+                        # NAME COLLISION, DIFFERENT WINDOWS: these UPPERCASE enrichment
+                        # fields classify on the up-to-13-bar anchor window above and CAN
+                        # yield trap_type="delayed"; the lowercase ledger features
+                        # (sweep_trap_* in _evaluate_sweep_event) classify on the 3-bar
+                        # confirm window (#3509) where "delayed" is UNREACHABLE. Do not
+                        # compare or join them by name alone (a *_ANCHOR_WINDOW alias
+                        # rename is pending; no silent rename — Pine/enrichment consumers).
                         payload["SWEEP_TRAP_TYPE"] = trap.trap_type
                         payload["SWEEP_RECLAIM_BARS"] = trap.sweep_reclaim_bars
                         payload["SWEEP_RECLAIM_STRENGTH"] = trap.reclaim_strength

@@ -7,8 +7,10 @@ events that carry the ``reaction_schema_version`` shadow features (emitted by
 compares three boolean confirmation variants as predictors of the DISJOINT
 follow-through outcome ``reaction_outcome_late``:
 
-* ``old_band``     — ``reaction_in_rejection_band`` (the pre-fix, inverted signal:
-  a close that recovered into the swept-side band but did NOT reclaim the level).
+* ``old_band``     — the EARLY-rejection cohort: a band close BEFORE any reclaim
+  (ordering via ``bars_to_*``; the raw flag alone would also match a band close
+  AFTER a reclaim, and the sweep bar itself already closed through the level, so
+  a band close is a fall back below/above it, not a partial recovery).
 * ``level_cross``  — ``reaction_level_reclaimed`` (the corrected authoritative
   reclaim: a close back through the level in the reversal direction, unbounded).
 * ``mirrored_band``— reclaimed AND within a narrow band just past the level

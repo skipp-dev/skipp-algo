@@ -9,12 +9,16 @@ After a sweep (Phase B), two INDEPENDENT signals are measured — never conflate
   :func:`smc_core.scoring.label_sweep_reversal` outcome label — and it is
   UNBOUNDED on the favourable side, so a strong reclaim counts (it is not capped
   at the level).
-* ``close_in_rejection_band`` — OBSERVATION ONLY: a close that recovered into a
-  narrow band on the swept (penetration) side WITHOUT reclaiming the level. An
-  *early rejection* candidate, never treated as a reclaim. The band is HALF-OPEN
-  at the level (bull: ``[level - w, level)``; bear: ``(level, level + w]``) so a
-  close exactly ON ``swept_level`` is a reclaim, never "in the band" — the two
-  raw signals are therefore strictly disjoint.
+* ``close_in_rejection_band`` — OBSERVATION ONLY: a close inside a narrow band
+  on the swept (penetration) side, short of the level. Two truths to keep
+  straight: (a) the producers require a close-reclaim ON the sweep bar itself,
+  so a post-sweep band close is a FALL BACK below/above the level, not a partial
+  recovery toward it; (b) the half-open band (bull: ``[level - w, level)``;
+  bear: ``(level, level + w]``) makes the two raw signals disjoint PER CLOSE
+  only — the scan continues after a reclaim, so over the window BOTH flags can
+  be True (a later band close after an earlier reclaim). Consumers needing the
+  early-rejection cohort must order via ``bars_to_rejection_band`` /
+  ``bars_to_reclaim`` (the shadow evaluator does).
 
 Three DISTINCT reclaim-related thresholds live in this subsystem — do not conflate:
   * this module's level-touch (``close >= / <= swept_level`` — inclusive of the level);
@@ -94,9 +98,13 @@ def compute_reaction_zone(
     swept_level)`` (bull) / ``(swept_level, swept_level + w]`` (bear), ``w = 0.382
     * sweep penetration`` where the penetration is ``|swept_level - sweep_extreme|``
     (the level→extreme excursion, NOT the sweep candle's open-close body, which is
-    not available here) — a recovery that stopped short of the level (observation
-    only, not a reclaim). A close exactly on ``swept_level`` is excluded from the
-    band (it is a reclaim), keeping the two signals disjoint.
+    not available here) — a close short of the level (observation only, not a
+    reclaim). A close exactly on ``swept_level`` is excluded from the band (it is
+    a reclaim), keeping the two signals disjoint PER CLOSE; over the window both
+    can fire (the scan continues after a reclaim — order via ``bars_to_*``).
+    Producer invariant: the sweep bar itself already closed through the level
+    (see :mod:`smc_core.sweep_trap`), so ``level_reclaimed`` measures
+    re-confirmation/persistence, not the first reclaim.
     """
     sweep_penetration: float = abs(swept_level - sweep_extreme)
     band_width: float = sweep_penetration * ZONE_WIDTH_FRACTION if sweep_penetration > 1e-10 else 0.0
@@ -182,8 +190,9 @@ def detect_reaction_zone(enrichment: dict[str, Any] | None = None) -> dict[str, 
     reclaim/band measurer used by measurement evidence). Since 2026-07-13 the two
     have separate flags: this detector is gated by ``ENABLE_REACTION_CONTEXT``
     (:func:`smc_core.v2_features.reaction_context_enabled`), the study by
-    ``ENABLE_REACTION_ZONE_STUDY``; the old ``ENABLE_REACTION_ZONE`` still arms
-    both.
+    ``ENABLE_REACTION_ZONE_STUDY``. (The pre-split ``ENABLE_REACTION_ZONE``
+    alias is DEAD — dropped when its deprecation window closed; no code path
+    reads it. See ``open_prep.feature_flags``.)
 
     Output keys are ``REACTION_CONTEXT_DETECTED`` / ``_CONFIDENCE`` /
     ``_DIRECTION``. (The legacy ``REACTION_ZONE_*`` alias keys were dropped once

@@ -337,3 +337,45 @@ class TestEdgeCensoringGuard:
         _, scored = result
         assert scored.features["sweep_trap_schema_version"] == 2
         assert isinstance(scored.features["sweep_trap_outcome_late"], bool)
+
+
+class TestWindowSemanticsInvariants:
+    """The UPPERCASE enrichment fields and the lowercase ledger features share
+    names but classify on DIFFERENT windows (13-bar anchor vs 3-bar confirm)."""
+
+    def test_ledger_emission_can_never_be_delayed(self) -> None:
+        """The 3-bar confirm window (#3509) makes trap_type='delayed' (bars 4-12)
+        structurally unreachable in the event ledger — the shadow validates only
+        the immediate/failed dichotomy. A reclaim on post-sweep bar 5 must read
+        'failed' here, NOT 'delayed'."""
+        rows = []
+        ts0 = 1_700_000_000
+        for i in range(20):
+            if i <= 9:
+                c = 105.0 if i == 5 else 102.0
+                hi, lo = c + 0.5, c - 0.5
+            elif i == 10:  # sweep bar
+                c, hi, lo = 99.0, 100.2, 98.0
+            elif i <= 14:  # bars 1..4 post-sweep: below the level
+                c, hi, lo = 99.2, 99.8, 98.8
+            else:          # bar 5+: reclaim (would be 'delayed' on a 12-bar window)
+                c, hi, lo = 101.0, 101.5, 100.2
+            rows.append({"timestamp": ts0 + i * 900, "open": c, "high": hi, "low": lo, "close": c})
+        _, scored = _evaluate(pd.DataFrame(rows), flag="1")
+        assert scored.features["sweep_trap_type"] == "failed"
+
+    def test_classifier_itself_can_yield_delayed_on_the_wide_window(self) -> None:
+        """Contrast pin: with the liquidity-enrichment window (up to 13 bars) the
+        same geometry DOES classify as 'delayed' — the dichotomy above is a
+        property of the ledger's 3-bar confirm slice, not of the classifier."""
+        from smc_core.sweep_trap import classify_sweep_trap
+
+        post = [{"open": 99.2, "high": 99.8, "low": 98.8, "close": 99.2}] * 4 + [
+            {"open": 99.2, "high": 101.5, "low": 99.0, "close": 101.0}
+        ] * 8
+        trap = classify_sweep_trap(
+            swept_level=100.0, sweep_extreme=98.0, origin_level=105.0,
+            is_bullish_sweep=True, post_sweep_bars=post,
+        )
+        assert trap.trap_type == "delayed"
+        assert trap.sweep_reclaim_bars == 5

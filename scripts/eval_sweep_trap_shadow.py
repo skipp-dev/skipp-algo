@@ -62,6 +62,11 @@ DEFAULT_LEDGER = "artifacts/governance/sweep_trap_shadow.jsonl"
 DEFAULT_SNAPSHOT = "artifacts/monitoring/sweep_trap_shadow.json"
 QUALITY_KEY = "sweep_trap_quality_score"
 OUTCOME_KEY = "sweep_trap_outcome_late"  # disjoint late-window label (leakage-free)
+# SCOPE: the ledger classifies the trap on the 3-bar confirm window (#3509), where
+# trap_type="delayed" (bars 4-12) is unreachable — this shadow validates ONLY the
+# immediate-vs-failed dichotomy; a WS4b promotion would carry the delayed
+# type_weight untested (the up-to-13-bar liquidity-enrichment fields are a
+# different window under near-identical names; never join them by name).
 
 VERDICT_CODE = {"INCONCLUSIVE": 0, "SHADOW": 1, "PROMOTABLE": 2}
 
