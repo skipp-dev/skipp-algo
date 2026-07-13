@@ -23,7 +23,7 @@ def test_structure_artifact_provider_loads_explicit_structure(monkeypatch, tmp_p
     export_structure_artifact(
         workbook=workbook,
         output=artifact_path,
-        generated_at=1709253600.0,
+        generated_at=1780000000.0,  # after the 2026-03 workbook (provenance guard)
     )
 
     monkeypatch.setattr(structure_artifact_json, "STRUCTURE_ARTIFACT_JSON", artifact_path)
