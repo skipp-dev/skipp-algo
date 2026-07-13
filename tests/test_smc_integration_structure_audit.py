@@ -78,34 +78,33 @@ def test_discover_structure_category_coverage_is_complete_and_deterministic() ->
 def test_gap_report_is_honest_for_current_repo_state() -> None:
     report = build_structure_gap_report()
 
-    assert report["has_real_structure_provider"] is True
+    # The stale committed structure artifact (impossible 2024-over-2026 provenance)
+    # was dropped and export now fails closed on such provenance
+    # (scripts/export_smc_structure_artifact.validate_artifact_provenance). With no
+    # committed artifact the repo ships NO live structure provider — the gap report
+    # must state that honestly rather than claim coverage from a stale file.
+    assert report["has_real_structure_provider"] is False
+    assert report["available_categories"] == []
     assert isinstance(report["gaps"], list)
 
     coverage = report["category_coverage"]
-    assert "bos" in report["available_categories"]
-    assert "choch" in report["available_categories"]
+    for category in ("bos", "choch", "orderblocks", "fvg", "liquidity_sweeps"):
+        assert bool(coverage[category]["available"]) is False
+        assert category in report["missing_categories"]
 
-    for category in ("orderblocks", "fvg", "liquidity_sweeps"):
-        is_available = bool(coverage[category]["available"])
-        if is_available:
-            assert category in report["available_categories"]
-            assert category not in report["missing_categories"]
-        else:
-            assert category in report["missing_categories"]
-
-    assert isinstance(report["structure_profile_supported"], bool)
+    assert report["structure_profile_supported"] is False
     assert isinstance(report["structure_profiles_seen"], list)
     assert isinstance(report["event_logic_versions_seen"], list)
-    assert set(report["auxiliary_category_coverage"].keys()) == {
+    # Auxiliary coverage is sourced from the (now empty) repo-state contract, so its
+    # keys are a subset of the canonical AUXILIARY_KEYS (ADR-0021 added
+    # ``rejection_blocks``).
+    assert set(report["auxiliary_category_coverage"].keys()) <= {
         "liquidity_lines",
         "session_ranges",
         "session_pivots",
         "ipda_range",
         "htf_fvg_bias",
         "broken_fractal_signals",
-        # ADR-0021 (commit 2bedc96a) added ``rejection_blocks`` to the structure
-        # contract's AUXILIARY_KEYS as a recorded-only category; keep the audit
-        # honesty set aligned with the producer contract.
         "rejection_blocks",
     }
 

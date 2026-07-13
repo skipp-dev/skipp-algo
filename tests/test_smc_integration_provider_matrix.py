@@ -41,29 +41,35 @@ def test_current_mapping_honesty_for_technical_news_and_structure() -> None:
 
     structure_artifact = by_name["structure_artifact_json"]
     assert "manifest_{timeframe}.json" in structure_artifact.path_hint
-    assert structure_artifact.current.currently_maps_structure is True
-    assert structure_artifact.current.snapshot_structure_mode in {"full", "partial"}
-    assert any(field.startswith("bos.") for field in structure_artifact.current.mapped_structure_fields)
-    assert structure_artifact.current.mapped_structure_categories["bos"] is True
-    assert isinstance(structure_artifact.current.mapped_structure_categories["choch"], bool)
+    # The stale committed structure artifact (impossible 2024-over-2026 provenance)
+    # was dropped and export now fails closed on such provenance. With no committed
+    # artifact this provider maps NO structure from repo state — the matrix must say
+    # so honestly rather than report coverage derived from a stale file.
+    assert structure_artifact.current.currently_maps_structure is False
+    assert structure_artifact.current.snapshot_structure_mode == "none"
+    assert list(structure_artifact.current.mapped_structure_fields) == []
+    assert structure_artifact.current.mapped_structure_categories == {
+        "bos": False,
+        "choch": False,
+        "orderblocks": False,
+        "fvg": False,
+        "liquidity_sweeps": False,
+    }
     assert isinstance(structure_artifact.current.structure_profile_supported, bool)
     assert isinstance(structure_artifact.current.diagnostics_available, bool)
     assert isinstance(structure_artifact.current.auxiliary_available, bool)
-    assert set(structure_artifact.current.mapped_auxiliary_categories.keys()) == {
+    # Auxiliary coverage is sourced from the (now empty) repo-state contract, so its
+    # keys are a subset of the canonical AUXILIARY_KEYS (ADR-0021 added
+    # ``rejection_blocks``); none are available without an artifact.
+    assert set(structure_artifact.current.mapped_auxiliary_categories.keys()) <= {
         "liquidity_lines",
         "session_ranges",
         "session_pivots",
         "ipda_range",
         "htf_fvg_bias",
         "broken_fractal_signals",
-        # ADR-0021 (commit 2bedc96a) added ``rejection_blocks`` to the structure
-        # contract's AUXILIARY_KEYS as a recorded-only category; align the honesty
-        # set so the producer contract stays the single source of truth.
         "rejection_blocks",
     }
-    assert isinstance(structure_artifact.current.mapped_structure_categories["orderblocks"], bool)
-    assert isinstance(structure_artifact.current.mapped_structure_categories["fvg"], bool)
-    assert isinstance(structure_artifact.current.mapped_structure_categories["liquidity_sweeps"], bool)
 
     assert by_name["tradingview_watchlist_json"].current.currently_maps_technical is True
     assert by_name["tradingview_watchlist_json"].current.currently_maps_news is False
@@ -109,7 +115,10 @@ def test_provider_summary_counts_are_correct() -> None:
 def test_provider_summary_is_conservative() -> None:
     summary = build_provider_summary()
 
-    assert summary["best_current_structure_provider"] == "structure_artifact_json"
+    # The stale committed structure artifact was dropped; with no committed
+    # artifact there is no current structure provider (conservative = None, not a
+    # provider backed by a stale file).
+    assert summary["best_current_structure_provider"] is None
     # Silent-fallback audit (2026-06-10): live_news_snapshot_json is the
     # primary runtime news source (_DOMAIN_SOURCE_ORDER["news"][0]) and the
     # matrix now declares it + ranks candidates by runtime fallback order.
