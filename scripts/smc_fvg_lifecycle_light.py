@@ -87,14 +87,23 @@ def build_fvg_lifecycle_light(
     if bull_active:
         bull_top = float(il.get("BULL_FVG_TOP", 0.0))
         bull_bottom = float(il.get("BULL_FVG_BOTTOM", 0.0))
-        bull_mid = (bull_top + bull_bottom) / 2.0 if (bull_top + bull_bottom) > 0 else 0.0
-        bull_dist = abs(current_price - bull_mid) / current_price * 100.0 if current_price > 0 and bull_mid > 0 else 0.0
+        bull_mid = (bull_top + bull_bottom) / 2.0 if (bull_top > 0 and bull_bottom > 0) else 0.0
+        if current_price > 0 and bull_mid > 0:
+            bull_dist = abs(current_price - bull_mid) / current_price * 100.0
+        else:
+            # An active flag without valid positive geometry is not a usable
+            # FVG: leave the distance at +inf and drop it (was distance 0 ->
+            # phantom "fresh" FVG at the front of the selection).
+            bull_active = False
 
     if bear_active:
         bear_top = float(il.get("BEAR_FVG_TOP", 0.0))
         bear_bottom = float(il.get("BEAR_FVG_BOTTOM", 0.0))
-        bear_mid = (bear_top + bear_bottom) / 2.0 if (bear_top + bear_bottom) > 0 else 0.0
-        bear_dist = abs(current_price - bear_mid) / current_price * 100.0 if current_price > 0 and bear_mid > 0 else 0.0
+        bear_mid = (bear_top + bear_bottom) / 2.0 if (bear_top > 0 and bear_bottom > 0) else 0.0
+        if current_price > 0 and bear_mid > 0:
+            bear_dist = abs(current_price - bear_mid) / current_price * 100.0
+        else:
+            bear_active = False
 
     # Pick primary: nearest active FVG. Symmetric — the strictly-nearer active
     # FVG wins; two equidistant active FVGs are ambiguous (-> NONE), not

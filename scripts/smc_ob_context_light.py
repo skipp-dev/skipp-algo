@@ -114,36 +114,36 @@ def build_ob_context_light(
                     result[k] = v
         return result
 
-    # Calculate distances
-    bull_dist = 0.0
-    bear_dist = 0.0
-    if current_price > 0:
-        if bull_level > 0:
-            bull_dist = abs(current_price - bull_level) / current_price * 100.0
-        if bear_level > 0:
-            bear_dist = abs(current_price - bear_level) / current_price * 100.0
+    # An OB is only real with a valid POSITIVE level at a positive price.
+    # Without it there is no distance to compute, and freshness alone must NOT
+    # surface a phantom OB at distance 0 (fail-open geometry). Invalid -> inf.
+    bull_valid = current_price > 0 and bull_level > 0
+    bear_valid = current_price > 0 and bear_level > 0
+    bull_dist = abs(current_price - bull_level) / current_price * 100.0 if bull_valid else float("inf")
+    bear_dist = abs(current_price - bear_level) / current_price * 100.0 if bear_valid else float("inf")
 
-    # Pick primary: prefer fresh + unmitigated + close
+    # Pick primary: prefer fresh + unmitigated + close. Only a valid-level OB
+    # can score; freshness without a real level contributes nothing.
     bull_score = 0
     bear_score = 0
 
-    if bull_freshness > 0 and not bull_mitigated:
+    if bull_valid and bull_freshness > 0 and not bull_mitigated:
         bull_score = 100 - min(bull_freshness, 100)
-    elif bull_freshness > 0:
+    elif bull_valid and bull_freshness > 0:
         bull_score = max(0, 50 - min(bull_freshness, 50))
 
-    if bear_freshness > 0 and not bear_mitigated:
+    if bear_valid and bear_freshness > 0 and not bear_mitigated:
         bear_score = 100 - min(bear_freshness, 100)
-    elif bear_freshness > 0:
+    elif bear_valid and bear_freshness > 0:
         bear_score = max(0, 50 - min(bear_freshness, 50))
 
     if bull_score == 0 and bear_score == 0:
         # Fall back to distance-based if no freshness data. Symmetric: only the
-        # STRICTLY nearer level wins; equidistant with both present stays 0/0
-        # (ambiguous -> NONE) rather than silently defaulting to bull.
-        if bull_level > 0 and (bear_level == 0 or bull_dist < bear_dist):
+        # STRICTLY nearer valid level wins; equidistant (or neither valid) stays
+        # 0/0 (ambiguous -> NONE) rather than silently defaulting to bull.
+        if bull_valid and (not bear_valid or bull_dist < bear_dist):
             bull_score = 1
-        elif bear_level > 0 and (bull_level == 0 or bear_dist < bull_dist):
+        elif bear_valid and (not bull_valid or bear_dist < bull_dist):
             bear_score = 1
 
     # Symmetric selection: higher score wins; on an exact score tie the

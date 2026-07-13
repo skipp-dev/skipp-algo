@@ -52,6 +52,29 @@ class TestFreshActiveFVG:
         assert result["FVG_MATURITY_LEVEL"] == 0
 
 
+class TestActiveWithoutGeometry:
+    def test_active_flag_without_top_bottom_is_rejected(self):
+        """BULL_FVG_ACTIVE=True but no top/bottom -> no phantom fresh FVG at dist 0."""
+        il = _imbalance(bull_active=True)  # missing BULL_FVG_TOP/BOTTOM -> mid 0
+        result = build_fvg_lifecycle_light(imbalance=il, current_price=100.0)
+        assert result["PRIMARY_FVG_SIDE"] == "NONE"
+        assert result["FVG_FRESH"] is False
+
+    def test_valid_bear_wins_when_bull_geometry_missing(self):
+        """A malformed bull FVG must not outrank a valid bear FVG."""
+        il = _imbalance(
+            bull_active=True,  # no geometry -> dropped
+            bear_active=True, bear_top=110, bear_bottom=105,
+        )
+        result = build_fvg_lifecycle_light(imbalance=il, current_price=107.0)
+        assert result["PRIMARY_FVG_SIDE"] == "BEAR"
+
+    def test_non_positive_price_rejects_fvg(self):
+        il = _imbalance(bull_active=True, bull_top=105, bull_bottom=100)
+        result = build_fvg_lifecycle_light(imbalance=il, current_price=0.0)
+        assert result["PRIMARY_FVG_SIDE"] == "NONE"
+
+
 class TestPartiallyFilled:
     def test_moderate_fill_aging(self):
         il = _imbalance(bull_active=True, bull_top=105, bull_bottom=100, bull_mit_pct=0.35)
