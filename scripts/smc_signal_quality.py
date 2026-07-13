@@ -60,6 +60,7 @@ from open_prep.feature_flags import (
     is_sweep_trap_promoted,
     signal_quality_model,
 )
+from scripts.smc_score_contract import FieldBound, apply_bounded_override
 
 logger = logging.getLogger(__name__)
 
@@ -71,6 +72,12 @@ DEFAULTS: dict[str, Any] = {
     "SIGNAL_WARNINGS": "",
     "SIGNAL_BIAS_ALIGNMENT": "neutral",
     "SIGNAL_FRESHNESS": "stale",
+}
+
+# Numeric public fields whose documented contract a manual override must respect;
+# string fields (tier / warnings / bias / freshness) pass through unchanged.
+_OVERRIDE_BOUNDS: dict[str, FieldBound] = {
+    "SIGNAL_QUALITY_SCORE": (0.0, 100.0, True),  # 0–100 integer
 }
 
 # Public model IDs used by downstream modules.
@@ -417,11 +424,12 @@ def build_signal_quality_v1(
     result["SIGNAL_BIAS_ALIGNMENT"] = bias
     result["SIGNAL_FRESHNESS"] = freshness
 
-    # Apply overrides last
+    # Apply overrides last (contract-clamped: an out-of-range/non-finite numeric
+    # override is rejected so a manual SIGNAL_QUALITY_SCORE=500 cannot escape 0–100).
     if overrides:
         for key, value in overrides.items():
             if key in result:
-                result[key] = value
+                apply_bounded_override(result, key, value, _OVERRIDE_BOUNDS)
 
     return result
 
@@ -690,10 +698,11 @@ def build_signal_quality_v2(
         downgrades = {"very_fresh": "fresh", "fresh": "aging", "aging": "stale"}
         result["SIGNAL_FRESHNESS"] = downgrades.get(freshness, "stale")
 
-    # Re-apply overrides last so manual values win.
+    # Re-apply overrides last so manual values win — but contract-clamped, so an
+    # out-of-range/non-finite numeric override cannot escape the field's scale.
     if overrides:
         for key, value in overrides.items():
             if key in result:
-                result[key] = value
+                apply_bounded_override(result, key, value, _OVERRIDE_BOUNDS)
 
     return result

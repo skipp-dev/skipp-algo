@@ -121,8 +121,15 @@ def compute_confluence(
     sweep_dict: dict[str, Any] = sweep_light or {}
     # Observe-only guard (WS4b): the shadow sweep-trap classifier must NOT feed a
     # live/gate confluence score until promoted. Prefer SWEEP_TRAP_QUALITY_SCORE
-    # ONLY when the caller passes prefer_trap_score=True (post-promotion);
-    # otherwise use the coarse SWEEP_QUALITY_SCORE and ignore the shadow score.
+    # ONLY when the caller passes prefer_trap_score=True; otherwise use the coarse
+    # SWEEP_QUALITY_SCORE and ignore the shadow score.
+    # NOTE (2026-07-13): prefer_trap_score is NOT yet wired to any production path.
+    # The sole live caller (build_signal_quality_v2, scripts/smc_signal_quality.py)
+    # always calls with the default False, and PROMOTE_SWEEP_TRAP only drives the
+    # SIGNAL_FRESHNESS downgrade there — it does NOT flip this flag. So today the
+    # trap score never enters confluence even when promoted; prefer_trap_score is a
+    # test/manual affordance until a promotion path explicitly threads the shadow
+    # SWEEP_TRAP_QUALITY_SCORE in and passes prefer_trap_score=is_sweep_trap_promoted().
     sweep_raw: float = float(
         sweep_dict.get("SWEEP_TRAP_QUALITY_SCORE", sweep_dict.get("SWEEP_QUALITY_SCORE", 0))
         if prefer_trap_score

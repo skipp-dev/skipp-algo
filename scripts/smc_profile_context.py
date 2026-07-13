@@ -20,6 +20,12 @@ from typing import Any
 
 import pandas as pd
 
+from scripts.smc_score_contract import (
+    FieldBound,
+    apply_bounded_override,
+    clamp_finite_01,
+)
+
 logger = logging.getLogger(__name__)
 
 # ── Defaults ────────────────────────────────────────────────────
@@ -43,6 +49,19 @@ DEFAULTS: dict[str, Any] = {
     "PROFILE_STOP_HUNT_RATE": 0.0,
     "PROFILE_TICKER_GRADE": "C",          # A | B | C | D
     "PROFILE_CONTEXT_SCORE": 0,           # 0–5
+}
+
+# Numeric public fields whose documented contract a manual override must respect
+# (the schema pins every rate to [0,1]; PROFILE_CONTEXT_SCORE is 0–5). String
+# fields (grade / regime / bias / node) pass through apply_bounded_override.
+_OVERRIDE_BOUNDS: dict[str, FieldBound] = {
+    "PROFILE_MIDDAY_EFFICIENCY": (0.0, 1.0, False),
+    "PROFILE_CONSISTENCY": (0.0, 1.0, False),
+    "PROFILE_WICKINESS": (0.0, 1.0, False),
+    "PROFILE_CLEAN_SCORE": (0.0, 1.0, False),
+    "PROFILE_RECLAIM_RATE": (0.0, 1.0, False),
+    "PROFILE_STOP_HUNT_RATE": (0.0, 1.0, False),
+    "PROFILE_CONTEXT_SCORE": (0.0, 5.0, True),
 }
 
 # ── Thresholds ──────────────────────────────────────────────────
@@ -105,23 +124,25 @@ def build_profile_context(
         else:
             result["PROFILE_SPREAD_REGIME"] = "NORMAL"
 
-        # Session characteristics
-        rth_share = float(row.get("rth_active_minutes_share_20d", 0.0))
+        # Session characteristics. Every rate below is a schema-pinned [0,1] field;
+        # clamp_finite_01 enforces that contract at the read so a NaN (thin-history
+        # symbol) or an out-of-range cell cannot flow into ticker grade / context.
+        rth_share = clamp_finite_01(float(row.get("rth_active_minutes_share_20d", 0.0)))
         result["PROFILE_RTH_DOMINANCE_PCT"] = round(rth_share * 100, 2)
 
-        pm_share = float(row.get("pm_dollar_share_20d", 0.0))
+        pm_share = clamp_finite_01(float(row.get("pm_dollar_share_20d", 0.0)))
         result["PROFILE_PM_QUALITY"] = _quality_label(pm_share, PM_STRONG_SHARE, PM_WEAK_SHARE)
 
-        ah_share = float(row.get("ah_dollar_share_20d", 0.0))
+        ah_share = clamp_finite_01(float(row.get("ah_dollar_share_20d", 0.0)))
         result["PROFILE_AH_QUALITY"] = _quality_label(ah_share, AH_STRONG_SHARE, AH_WEAK_SHARE)
 
-        result["PROFILE_MIDDAY_EFFICIENCY"] = round(float(row.get("midday_efficiency_20d", 0.0)), 4)
+        result["PROFILE_MIDDAY_EFFICIENCY"] = round(clamp_finite_01(float(row.get("midday_efficiency_20d", 0.0))), 4)
         result["PROFILE_DECAY_HALFLIFE"] = round(float(row.get("setup_decay_half_life_bars_20d", 0.0)), 2)
-        result["PROFILE_CONSISTENCY"] = round(float(row.get("consistency_score_20d", 0.0)), 4)
-        result["PROFILE_WICKINESS"] = round(float(row.get("wickiness_20d", 0.0)), 4)
-        result["PROFILE_CLEAN_SCORE"] = round(float(row.get("clean_intraday_score_20d", 0.0)), 4)
-        result["PROFILE_RECLAIM_RATE"] = round(float(row.get("reclaim_respect_rate_20d", 0.0)), 4)
-        result["PROFILE_STOP_HUNT_RATE"] = round(float(row.get("stop_hunt_rate_20d", 0.0)), 4)
+        result["PROFILE_CONSISTENCY"] = round(clamp_finite_01(float(row.get("consistency_score_20d", 0.0))), 4)
+        result["PROFILE_WICKINESS"] = round(clamp_finite_01(float(row.get("wickiness_20d", 0.0))), 4)
+        result["PROFILE_CLEAN_SCORE"] = round(clamp_finite_01(float(row.get("clean_intraday_score_20d", 0.0))), 4)
+        result["PROFILE_RECLAIM_RATE"] = round(clamp_finite_01(float(row.get("reclaim_respect_rate_20d", 0.0))), 4)
+        result["PROFILE_STOP_HUNT_RATE"] = round(clamp_finite_01(float(row.get("stop_hunt_rate_20d", 0.0))), 4)
 
         result["PROFILE_SESSION_BIAS"] = _session_bias(row)
         result["PROFILE_TICKER_GRADE"] = _ticker_grade(result)
@@ -130,7 +151,7 @@ def build_profile_context(
     if overrides:
         for key, val in overrides.items():
             if key in DEFAULTS:
-                result[key] = val
+                apply_bounded_override(result, key, val, _OVERRIDE_BOUNDS)
 
     return result
 
