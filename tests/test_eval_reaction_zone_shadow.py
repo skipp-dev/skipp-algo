@@ -217,3 +217,10 @@ def test_band_without_reclaim_stays_in_the_cohort() -> None:
     [(_direction, variants, _outcome)] = collect_samples([ev])
     assert variants["old_band"] is True
     assert variants["level_cross"] is False
+
+
+def test_missing_schema_version_is_excluded_era_cut() -> None:
+    # Mirror of the sweep evaluator's pin: no version field -> default 0 < 2 -> skip.
+    ev = _reaction_feats()
+    del ev["features"]["reaction_schema_version"]
+    assert collect_samples([ev]) == []

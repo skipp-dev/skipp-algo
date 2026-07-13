@@ -134,7 +134,7 @@ def _bench_bars() -> pd.DataFrame:
         [
             {"timestamp": float(1_700_000_000 + i * 900), "open": 100.0,
              "high": 101.0, "low": 99.0, "close": 100.0, "volume": 1000.0}
-            for i in range(6)
+            for i in range(14)  # 2026-07-13 (KPI edge-censoring guard): anchor@0 needs the full OB horizon (12 forward bars)
         ]
     )
 

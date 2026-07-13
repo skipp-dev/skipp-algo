@@ -85,7 +85,7 @@ def test_enabled_bearish_zone_without_bias_alignment() -> None:
     assert result["REACTION_CONTEXT_DIRECTION"] == "bear"
     assert result["REACTION_CONTEXT_CONFIDENCE"] == 40
 
-def test_enabled_fvg_over_ob_direction_priority() -> None:
+def test_enabled_ob_takes_direction_priority_over_fvg() -> None:  # 2026-07-13: renamed — the old name claimed the OPPOSITE of what it asserts (OB precedence)
     os.environ["ENABLE_REACTION_CONTEXT"] = "1"
     result = detect_reaction_zone(
         enrichment={
@@ -140,3 +140,19 @@ def test_qualifying_ob_still_takes_precedence_over_fvg() -> None:
     )
     assert result["REACTION_CONTEXT_DETECTED"] is True
     assert result["REACTION_CONTEXT_DIRECTION"] == "bear"
+
+
+def test_qualifying_support_with_side_none_falls_back_to_sweep_direction() -> None:
+    """Post qualification-gated direction (#3592): a qualifying OB whose side is
+    NONE must not end the resolution — the sweep/structure fallback chain still
+    supplies the direction."""
+    os.environ["ENABLE_REACTION_CONTEXT"] = "1"
+    result = detect_reaction_zone(
+        enrichment={
+            "structure_state_light": {"STRUCTURE_FRESH": True, "STRUCTURE_LAST_EVENT": "NONE"},
+            "ob_context_light": {"OB_FRESH": True, "PRIMARY_OB_DISTANCE": 0.5, "PRIMARY_OB_SIDE": "NONE"},
+            "liquidity_sweeps": {"RECENT_BULL_SWEEP": True, "SWEEP_DIRECTION": "BULL"},
+        }
+    )
+    assert result["REACTION_CONTEXT_DETECTED"] is True
+    assert result["REACTION_CONTEXT_DIRECTION"] == "bull"
