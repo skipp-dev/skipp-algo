@@ -38,7 +38,7 @@ def _sweep_event() -> dict:
 
 def test_reaction_fields_emitted_with_disjoint_windows() -> None:
     bars = _reclaim_then_fade_bars()
-    with patch.dict(os.environ, {"ENABLE_REACTION_ZONE": "1"}):
+    with patch.dict(os.environ, {"ENABLE_REACTION_ZONE_STUDY": "1"}):
         result = _evaluate_sweep_event(
             _sweep_event(), bars,
             bias_direction="BULLISH", bias_confidence=0.5, event_context={},
