@@ -6,6 +6,7 @@ import math
 
 from governance.family_event_adapter import (
     _BOS_LOOKAHEAD_BARS,
+    _containing_bar_index,
     family_events_from_structure,
 )
 from governance.family_returns import realized_return, to_build_spec
@@ -452,3 +453,24 @@ def test_news_polarity_negative_sentiment() -> None:
 
     assert len(events) == 1
     assert events[0]["news_polarity"] == -0.65
+
+
+class TestContainingBarIndex:
+    """`_containing_bar_index` mirrors `_find_bar_index`: anchor on the containing bar."""
+
+    _TS = (100.0, 200.0, 300.0)
+
+    def test_exact_match_returns_that_bar(self) -> None:
+        assert _containing_bar_index(self._TS, 200.0) == 1
+        assert _containing_bar_index(self._TS, 100.0) == 0
+
+    def test_off_grid_anchors_on_containing_not_following_bar(self) -> None:
+        # 250 fell during the bar at 200 -> anchor 1 (not the following bar 2).
+        assert _containing_bar_index(self._TS, 250.0) == 1
+        assert _containing_bar_index(self._TS, 150.0) == 0
+
+    def test_before_all_bars_keeps_first(self) -> None:
+        assert _containing_bar_index(self._TS, 50.0) == 0
+
+    def test_after_all_bars_is_none(self) -> None:
+        assert _containing_bar_index(self._TS, 400.0) is None

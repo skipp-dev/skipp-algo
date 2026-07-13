@@ -8,7 +8,7 @@ and the realized-return machinery in :mod:`governance.family_returns`.
 
 It fabricates nothing. Detection happens upstream; this adapter only:
 
-  1. locates each event's anchor bar (first bar at-or-after the event time),
+  1. locates each event's anchor bar (the bar containing the event time),
   2. extracts the forward bars strictly *after* the anchor, and
   3. emits a :class:`~governance.family_returns.FamilyEvent` with the exact
      same geometry the live scorer uses
@@ -135,18 +135,23 @@ def _hy_cross_lead_lag(
     )
 
 
-def _bar_index_at_or_after(timestamps: Sequence[float], anchor_ts: float) -> int | None:
-    """First bar index whose timestamp is at-or-after ``anchor_ts`` (``>=``).
+def _containing_bar_index(timestamps: Sequence[float], anchor_ts: float) -> int | None:
+    """Index of the bar CONTAINING ``anchor_ts`` (exact match, else the bar it fell in).
 
     Mirror of ``measurement_evidence._find_bar_index`` and shares its contract:
-    anchor timestamps are expected to be BAR-ALIGNED so ``>=`` is an exact match
-    and the forward window (``anchor_idx + 1`` onward) starts on the next bar. An
-    off-grid ``anchor_ts`` between two bars resolves to the FOLLOWING bar, shifting
-    the forward window one bar later — align anchors to bars if that matters.
+    anchor timestamps are normally BAR-ALIGNED (exact match, forward window starts
+    on the next bar). An off-grid ``anchor_ts`` strictly between two bars occurred
+    DURING the preceding bar, so we anchor on that CONTAINING bar — not the
+    following one — otherwise the first fully-post-event bar is consumed as the
+    anchor and dropped from the forward window. ``None`` only when ``anchor_ts`` is
+    after every bar.
     """
     target = float(anchor_ts)
     for idx, ts in enumerate(timestamps):
         if float(ts) >= target:
+            # Off-grid (ts strictly greater): the event fell in the preceding bar.
+            if idx > 0 and float(ts) != target:
+                return idx - 1
             return idx
     return None
 
@@ -199,7 +204,7 @@ def _zone_event_to_family(
     if low <= 0.0 or high <= 0.0 or high < low or anchor_ts <= 0.0:
         return None
 
-    anchor_idx = _bar_index_at_or_after(timestamps, anchor_ts)
+    anchor_idx = _containing_bar_index(timestamps, anchor_ts)
     if anchor_idx is None or anchor_idx >= len(bars) - 1:
         return None
 
@@ -286,7 +291,7 @@ def _level_event_to_family(
     if price <= 0.0 or anchor_ts <= 0.0 or not direction:
         return None
 
-    anchor_idx = _bar_index_at_or_after(timestamps, anchor_ts)
+    anchor_idx = _containing_bar_index(timestamps, anchor_ts)
     if anchor_idx is None or anchor_idx >= len(bars) - 1:
         return None
 
