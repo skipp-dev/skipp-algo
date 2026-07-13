@@ -1052,6 +1052,7 @@ jobs:
           TV_STORAGE_STATE_MAX_AGE_HOURS: "72"
           TV_STEP_TIMEOUT_MS: "90000"
           TV_PREFLIGHT_MAX_ATTEMPTS: "3"
+          TV_SCREENSHOT_DIR: artifacts/tradingview/screenshots
         run: |
           # Retry wrapper: TV/Playwright steps occasionally flake (e.g. addCurrentScriptToChart
           # timing out while the chart iframe is still hydrating). Retry the whole preflight
@@ -1152,6 +1153,12 @@ jobs:
           TV_HEADLESS: "1"
           TV_STORAGE_STATE: automation/tradingview/auth/storage-state.json
           TV_STORAGE_STATE_MAX_AGE_HOURS: "72"
+          # Incident 2026-07-13: failure screenshots default to
+          # automation/tradingview/reports/screenshots, which the artifact
+          # upload (artifacts/tradingview/ glob) never captured — the drift
+          # diagnosis had to be reproduced locally. Point them at the
+          # uploaded tree so every failure ships its screenshot evidence.
+          TV_SCREENSHOT_DIR: artifacts/tradingview/screenshots
         run: |
           npx tsx scripts/tv_preflight.ts \
             --config automation/tradingview/preflight-smc-mainline.json \
@@ -1364,7 +1371,21 @@ jobs:
 
       - name: Commit and push changes
         id: commit_push
-        if: steps.diff.outputs.changed == 'true' && steps.publish_gate.outputs.publish_allowed == 'true' && steps.tv_post_release_raw.outcome == 'success' && steps.tv_post_release.outcome == 'success' && steps.release_gates.outcome == 'success' && github.ref == 'refs/heads/main'
+        # Incident 2026-07-13: the commit ALSO gated on the RAW validation step
+        # outcome (tv_post_release_raw) and the normalizer exit (tv_post_release,
+        # rc!=0 for ANY non-ok status) — both fail on the explicitly-TOLERATED
+        # external_tv_drift class (surface_drift/PREFLIGHT_FAILED Playwright
+        # flakes), dead-lettering the release_gates carve-out for the commit
+        # decision. Result: the library kept republishing to TradingView while
+        # the committed pine/generated artifacts silently froze (ASOF 2026-05-27
+        # vs published 2026-07-13 — ~6 weeks committed != published, run green,
+        # only a ::warning). The commit now gates on the PUBLISH outcome plus the
+        # policy-aware strict release gates (run_smc_release_gates.py, which
+        # classifies external_tv_drift as non-blocking). A genuine blocking
+        # verdict still fails release_gates (no continue-on-error) -> job RED ->
+        # never a silent skip. Raw validation failures keep their ::warning +
+        # alert-notifier visibility.
+        if: steps.diff.outputs.changed == 'true' && steps.publish_gate.outputs.publish_allowed == 'true' && steps.publish.outcome == 'success' && steps.release_gates.outcome == 'success' && github.ref == 'refs/heads/main'
         env:
           # GH_PAT is required so the bot/* push + `gh pr create` below
           # actually trigger downstream workflows (notably fast-gates).

@@ -48,6 +48,7 @@ import {
   visibleLegendTextBudgetExceeded,
   visibleLegendTextTargetCapReached,
   visibleLegendTextTargetKey,
+  isIndicatorSettingsDialogSnapshot,
 } from "../lib/tv_shared.js";
 import { tvSelectors } from "../selectors.js";
 
@@ -1970,3 +1971,89 @@ test("probeRuntimeSmoke fails closed on a crashed compile probe instead of repor
     await browser.close();
   }
 });
+
+// ── isIndicatorSettingsDialogSnapshot — inputs-less settings dialogs ─────────
+// Incident 2026-07-13: the published "SMC Decision Board" script has no
+// input() parameters, so its settings dialog carries only Style + Visibility
+// tabs. The old predicate demanded the literal word "inputs" and refused the
+// dialog the automation had just opened; closeModal() then closed it and the
+// open-settings ladder click-stormed until the 60s timeout — deterministically
+// failing post-release validation (and silently skipping the refresh commit).
+test("isIndicatorSettingsDialogSnapshot accepts a Style+Visibility-only dialog (no Inputs tab)", () => {
+  assert.equal(
+    isIndicatorSettingsDialogSnapshot({
+      title: "SMC Decision Board",
+      text: "SMC Decision Board Style Visibility Plot OUTPUT VALUES Precision Default Labels on price scale Values in status line Defaults Cancel Ok",
+      labelTexts: ["Style", "Visibility"],
+    }),
+    true,
+  );
+});
+
+test("isIndicatorSettingsDialogSnapshot keeps accepting a classic Inputs dialog", () => {
+  assert.equal(
+    isIndicatorSettingsDialogSnapshot({
+      title: "SMC Long-Dip Dashboard v7",
+      text: "SMC Long-Dip Dashboard v7 Inputs Style Visibility Enable Trade-Mgmt rows TP1 (R-multiple)",
+      labelTexts: ["Inputs", "Style", "Visibility"],
+    }),
+    true,
+  );
+});
+
+test("isIndicatorSettingsDialogSnapshot keeps accepting a strategy Properties dialog", () => {
+  assert.equal(
+    isIndicatorSettingsDialogSnapshot({
+      title: "SMC Long-Dip Strategy v7",
+      text: "SMC Long-Dip Strategy v7 Properties Visibility Initial capital Order size",
+      labelTexts: ["Properties", "Visibility"],
+    }),
+    true,
+  );
+});
+
+test("isIndicatorSettingsDialogSnapshot still rejects the generic chart-settings dialog", () => {
+  assert.equal(
+    isIndicatorSettingsDialogSnapshot({
+      title: "Settings",
+      text: "Settings Symbol Status line Scales and lines Canvas Style Visibility",
+      labelTexts: [],
+    }),
+    false,
+  );
+});
+
+test("isIndicatorSettingsDialogSnapshot rejects one-word impostors (publish dialog, style-only)", () => {
+  // Publish dialog: mentions visibility but has no style/properties tab.
+  assert.equal(
+    isIndicatorSettingsDialogSnapshot({
+      title: "Publish script",
+      text: "Publish script Visibility Public Private Continue",
+      labelTexts: [],
+    }),
+    false,
+  );
+  // A random dialog mentioning only "style" has no second tab word.
+  assert.equal(
+    isIndicatorSettingsDialogSnapshot({
+      title: "Appearance",
+      text: "Appearance style options for drawings",
+      labelTexts: [],
+    }),
+    false,
+  );
+  assert.equal(isIndicatorSettingsDialogSnapshot(null), false);
+});
+
+test("indicatorSettingsDialogLocators source stays in lockstep with the snapshot rule", () => {
+  const source = fs.readFileSync(
+    path.join(path.dirname(fileURLToPath(import.meta.url)), "..", "lib", "tv_shared.ts"),
+    "utf-8",
+  );
+  // The locator chain must NOT re-introduce the inputs-mandatory filter that
+  // caused the 2026-07-13 open-then-close-own-dialog loop.
+  assert.equal(source.includes('.filter({ hasText: /\\binputs\\b/i })'), false);
+  const lockstep = /\.filter\(\{ hasText: \/\\b\(inputs\|visibility\)\\b\/i \}\)\.filter\(\{ hasText: \/\\b\(style\|properties\)\\b\/i \}\)/;
+  assert.equal(lockstep.test(source), true, "indicatorSettingsDialogLocators must pair {inputs|visibility} with {style|properties}");
+});
+
