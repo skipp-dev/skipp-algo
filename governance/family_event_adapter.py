@@ -226,6 +226,9 @@ def _zone_event_to_family(
         forward_closes=closes,
         forward_timestamps=fwd_ts,
     )
+    event_id = str(event.get("id", "")).strip()
+    if event_id:
+        mapped["event_id"] = event_id  # join key back to the measurement ledger's event_id
     score = raw_score(
         family, bars=bars, anchor_idx=anchor_idx, zone_low=low, zone_high=high
     )
@@ -312,6 +315,9 @@ def _level_event_to_family(
         forward_closes=closes,
         forward_timestamps=fwd_ts,
     )
+    event_id = str(event.get("id", "")).strip()
+    if event_id:
+        mapped["event_id"] = event_id  # join key back to the measurement ledger's event_id
     score = raw_score(family, bars=bars, anchor_idx=anchor_idx)
     if score is not None:
         mapped["score"] = score

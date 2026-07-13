@@ -47,6 +47,23 @@ def test_bos_maps_to_immediate_long_positive_return() -> None:
     assert ret is not None and ret > 0.0
 
 
+def test_family_event_carries_source_event_id() -> None:
+    # The raw SMC event id must survive into the FamilyEvent as a join key back
+    # to the measurement ledger's event_id (so an OOS calibrated prob can be
+    # attributed to the right event).
+    bars = _bars([100.0 + i for i in range(20)])
+    structure = {"bos": [{"id": "b1", "time": _T0 + 5 * _STEP, "price": 105.0, "dir": "UP"}]}
+    events = family_events_from_structure(structure, bars)
+    assert events[0]["event_id"] == "b1"
+
+
+def test_family_event_omits_event_id_when_source_has_none() -> None:
+    bars = _bars([100.0 + i for i in range(20)])
+    structure = {"bos": [{"time": _T0 + 5 * _STEP, "price": 105.0, "dir": "UP"}]}  # no id
+    events = family_events_from_structure(structure, bars)
+    assert "event_id" not in events[0]  # absent, never an empty-string placeholder
+
+
 def test_sweep_sell_side_maps_to_long_reversal() -> None:
     closes = [100.0 + i for i in range(20)]
     bars = _bars(closes)

@@ -197,7 +197,8 @@ def walk_forward_calibration(
     *,
     n_folds: int = 5,
     min_oos: int = MIN_OOS_SAMPLES,
-) -> dict[str, dict[str, list[float]]] | None:
+    event_ids: list[str] | None = None,
+) -> dict[str, dict[str, list[Any]]] | None:
     """Walk-forward Platt calibration -> a ``{"walkforward": {...}}`` block.
 
     Sorts the per-family samples by ``anchor_ts``, builds ``n_folds`` expanding
@@ -209,6 +210,14 @@ def walk_forward_calibration(
     ``{"walkforward": {"probabilities": [...], "outcomes": [...]}}`` where
     ``outcome = 1.0`` iff the realized return is positive.
 
+    When ``event_ids`` is passed (parallel to ``scores`` etc.), the block also
+    carries ``"event_ids"``: the source event id for each pooled OOS prediction,
+    in the SAME order as ``probabilities``/``outcomes``, so each OOS calibrated
+    prob can be joined back to its event. Only events that actually landed in a
+    test fold appear (training regions, thin/unfittable folds, and sub-``min_oos``
+    families contribute nothing) — so this is inherently PARTIAL coverage.
+    ``_binary_calibration_pairs`` ignores the extra key, so it is purely additive.
+
     Returns ``None`` (no block -> family stays "not yet measured") when the
     pooled out-of-sample count is below ``min_oos`` (GAP 3/4), when no fold
     could be fit, or when inputs are too short.
@@ -216,6 +225,8 @@ def walk_forward_calibration(
     n = len(scores)
     if not (n == len(returns) == len(anchor_ts) == len(guard_end_ts)):
         raise ValueError("walk_forward_calibration: input lists length mismatch")
+    if event_ids is not None and len(event_ids) != n:
+        raise ValueError("walk_forward_calibration: event_ids length mismatch")
     if n < min_oos or n < n_folds + 1:
         return None
 
@@ -224,10 +235,12 @@ def walk_forward_calibration(
     a = [anchor_ts[i] for i in order]
     g = [guard_end_ts[i] for i in order]
     y = [1.0 if returns[i] > 0.0 else 0.0 for i in order]
+    ids = [event_ids[i] for i in order] if event_ids is not None else None
 
     val_size = max(1, n // (n_folds + 1))
     oos_probs: list[float] = []
     oos_outcomes: list[float] = []
+    oos_ids: list[str] = []
     for k in range(n_folds):
         val_start = n - (n_folds - k) * val_size
         val_end = val_start + val_size
@@ -245,10 +258,15 @@ def walk_forward_calibration(
         val_x = [s[i] for i in range(val_start, val_end)]
         oos_probs.extend(_predict(model, val_x))
         oos_outcomes.extend(y[i] for i in range(val_start, val_end))
+        if ids is not None:
+            oos_ids.extend(ids[i] for i in range(val_start, val_end))
 
     if len(oos_probs) < min_oos:
         return None
-    return {"walkforward": {"probabilities": oos_probs, "outcomes": oos_outcomes}}
+    block: dict[str, list[Any]] = {"probabilities": oos_probs, "outcomes": oos_outcomes}
+    if ids is not None:
+        block["event_ids"] = oos_ids
+    return {"walkforward": block}
 
 
 def walk_forward_ab(

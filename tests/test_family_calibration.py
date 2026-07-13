@@ -4,6 +4,8 @@ from __future__ import annotations
 
 import random
 
+import pytest
+
 from governance.family_calibration import (
     CONFORMAL_MIN_SIDE,
     LIVE_TAIL_MIN_SAMPLES,
@@ -79,6 +81,35 @@ def test_walk_forward_emits_valid_block_for_separable_data() -> None:
     # Out-of-sample Brier must beat the 0.25 coin-flip baseline on separable data.
     brier = sum((p - o) ** 2 for p, o in zip(probs, outcomes)) / len(probs)
     assert brier < 0.25
+
+
+def test_walk_forward_emits_event_ids_aligned_to_outcomes() -> None:
+    # Encode each event's outcome INTO its id ("win"/"loss"), then assert every
+    # pooled OOS event_id matches its own outcome — i.e. the id is carried through
+    # the sort + fold slicing aligned to the same source row as the probability.
+    s, r, a, g = _separable_samples(160)
+    ids = [f"e{i}-{'win' if r[i] > 0 else 'loss'}" for i in range(len(s))]
+    block = walk_forward_calibration(s, r, a, g, event_ids=ids)
+    assert block is not None
+    wf = block["walkforward"]
+    probs, outcomes, out_ids = wf["probabilities"], wf["outcomes"], wf["event_ids"]
+    assert len(out_ids) == len(probs) == len(outcomes)
+    assert set(out_ids) <= set(ids)          # only real source ids, never invented
+    assert len(set(out_ids)) == len(out_ids)  # each event appears at most once
+    for oid, outcome in zip(out_ids, outcomes, strict=True):
+        assert oid.endswith("win") is (outcome == 1.0)  # id aligned to its own row
+
+
+def test_walk_forward_omits_event_ids_key_when_not_requested() -> None:
+    s, r, a, g = _separable_samples(160)
+    wf = walk_forward_calibration(s, r, a, g)["walkforward"]
+    assert "event_ids" not in wf  # back-compat: additive only when ids are passed
+
+
+def test_walk_forward_event_ids_length_mismatch_raises() -> None:
+    s, r, a, g = _separable_samples(160)
+    with pytest.raises(ValueError, match="event_ids length mismatch"):
+        walk_forward_calibration(s, r, a, g, event_ids=["only-one"])
 
 
 def test_overlapping_label_purge_removes_leaking_train_events() -> None:
