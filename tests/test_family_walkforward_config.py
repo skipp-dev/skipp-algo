@@ -12,6 +12,7 @@ from governance.family_walkforward import (
     validate_family_coverage,
 )
 from governance.types import EventFamily
+from smc_core.label_horizons import LABEL_HORIZON_BARS
 
 _FAMILIES = sorted(get_args(EventFamily))
 
@@ -22,11 +23,13 @@ def test_every_family_has_a_config() -> None:
 
 
 @pytest.mark.parametrize("family", _FAMILIES)
-def test_embargo_is_twice_horizon(family: str) -> None:
+def test_embargo_is_twice_the_label_window(family: str) -> None:
     cfg = get_family_config(family)
-    horizon = family_outcome_horizon(family)
-    # López de Prado leakage guard: embargo_bars >= 2 * max_event_horizon.
-    assert cfg.embargo_bars == 2 * horizon
+    # López de Prado leakage guard: embargo_bars = 2 * LABEL-resolution window
+    # (audit 2026-07-13). It is keyed to the label window, NOT the trade-exit
+    # hold ``family_outcome_horizon`` — those are distinct concepts.
+    assert cfg.embargo_bars == 2 * LABEL_HORIZON_BARS[family]
+    assert cfg.embargo_bars >= LABEL_HORIZON_BARS[family]
     assert cfg.embargo_bars >= 1
 
 

@@ -37,6 +37,7 @@ from smc_core.cached_workbook_reader import read_daily_bars
 from smc_core.ensemble_quality import build_ensemble_quality, serialize_ensemble_quality
 from smc_core.event_freshness import classify_freshness  # Phase A
 from smc_core.htf_context import build_htf_bias_context
+from smc_core.label_horizons import LABEL_HORIZON_BARS
 from smc_core.reaction_zone import compute_reaction_zone  # Phase C
 from smc_core.scoring import (
     ScoredEvent,
@@ -60,10 +61,12 @@ logger = logging.getLogger(__name__)
 
 
 _FAMILIES: tuple[EventFamily, ...] = ("BOS", "OB", "FVG", "SWEEP")
-_BOS_LOOKAHEAD_BARS = 8
-_ZONE_LOOKAHEAD_BARS = 12
-_FVG_LOOKAHEAD_BARS = 20
-_SWEEP_LOOKAHEAD_BARS = 8
+# Label-resolution horizons come from the shared SSOT so governance walk-forward
+# purge/embargo (governance.family_walkforward) cannot drift below these windows.
+_BOS_LOOKAHEAD_BARS = LABEL_HORIZON_BARS["BOS"]
+_ZONE_LOOKAHEAD_BARS = LABEL_HORIZON_BARS["OB"]
+_FVG_LOOKAHEAD_BARS = LABEL_HORIZON_BARS["FVG"]
+_SWEEP_LOOKAHEAD_BARS = LABEL_HORIZON_BARS["SWEEP"]
 # Reaction-zone shadow study: reaction confirmation is measured on bars 1..N of the
 # sweep lookahead; the follow-through outcome is measured on the DISJOINT later
 # window (bars N+1..lookahead) so a confirmation is never part of its own label.
@@ -1005,6 +1008,7 @@ def _freshness_state_light_for_event(
     *,
     event: dict[str, Any],
     anchor_idx: int,
+    anchor_ts: float,
     bars: pd.DataFrame,
 ) -> dict[str, Any]:
     """Build Phase A freshness enrichment for a single SMC event.
@@ -1021,10 +1025,28 @@ def _freshness_state_light_for_event(
         event_bar = int(event.get("bar_index", anchor_idx))
         age_bars: int = max(0, anchor_idx - event_bar)
 
-        mitigated: bool = bool(event.get("mitigated", False))
-        invalidated: bool = bool(event.get("invalidated", False))
         mitigated_ts: float | None = event.get("mitigated_ts") or event.get("mitigated_at")
         invalidated_ts: float | None = event.get("invalidated_ts") or event.get("invalidated_at")
+        # Point-in-time gate (audit 2026-07-13, mirrors _candidate_mitigated_at_anchor):
+        # the mitigated/invalidated flags are computed on the FULL historical frame,
+        # so honour a state only when its timestamp was already reached at the anchor.
+        # A later mitigation/invalidation must not colour an event's freshness (and
+        # thus its own raw_score) at its own anchor. No usable ts -> not-yet-known.
+        mitigated: bool = (
+            bool(event.get("mitigated", False))
+            and mitigated_ts is not None
+            and float(mitigated_ts) <= float(anchor_ts)
+        )
+        invalidated: bool = (
+            bool(event.get("invalidated", False))
+            and invalidated_ts is not None
+            and float(invalidated_ts) <= float(anchor_ts)
+        )
+        # Drop future/unknown timestamps so classify_freshness never records them.
+        if not mitigated:
+            mitigated_ts = None
+        if not invalidated:
+            invalidated_ts = None
 
         # Approximate bar duration from the bars DataFrame when available.
         bar_seconds: float = 60.0
@@ -1149,6 +1171,7 @@ def _event_signal_quality_score(
         enrichment["freshness_v2"] = _freshness_state_light_for_event(
             event=event,
             anchor_idx=anchor_idx,
+            anchor_ts=anchor_ts,
             bars=bars,
         )
 
