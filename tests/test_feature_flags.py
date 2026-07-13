@@ -91,9 +91,9 @@ def test_config_consumes_ssot() -> None:
 def test_smc_v2_flags_default_off() -> None:
     for name in (
         "ENABLE_SWEEP_TRAP",
-        "ENABLE_REACTION_ZONE",
+        "ENABLE_REACTION_CONTEXT",
         "ENABLE_CONFLUENCE_SCORE",
-        "ENABLE_FRESHNESS_V2",
+        "ENABLE_FRESHNESS_V2_SCORE",
         "ENABLE_SMT_DIVERGENCE",
     ):
         with _isolated(name):
@@ -103,9 +103,9 @@ def test_smc_v2_flags_default_off() -> None:
 def test_smc_v2_flags_explicit_on() -> None:
     for name, fn in (
         ("ENABLE_SWEEP_TRAP", is_sweep_trap_enabled),
-        ("ENABLE_REACTION_ZONE", is_reaction_zone_enabled),
+        ("ENABLE_REACTION_CONTEXT", is_reaction_zone_enabled),
         ("ENABLE_CONFLUENCE_SCORE", is_confluence_score_enabled),
-        ("ENABLE_FRESHNESS_V2", is_freshness_v2_enabled),
+        ("ENABLE_FRESHNESS_V2_SCORE", is_freshness_v2_enabled),
         ("ENABLE_SMT_DIVERGENCE", is_smt_divergence_enabled),
     ):
         with _isolated(name):
@@ -151,7 +151,7 @@ def test_score_feature_trigger_default_false() -> None:
 
 
 def test_score_feature_trigger_true_for_score_flags() -> None:
-    for flag in ("ENABLE_CONFLUENCE_SCORE", "ENABLE_FRESHNESS_V2"):
+    for flag in ("ENABLE_CONFLUENCE_SCORE", "ENABLE_FRESHNESS_V2_SCORE"):
         with _isolated(flag):
             os.environ[flag] = "1"
             assert any_v2_score_feature_enabled() is True, flag
@@ -159,7 +159,7 @@ def test_score_feature_trigger_true_for_score_flags() -> None:
 
 def test_score_feature_trigger_ignores_observe_only_detectors() -> None:
     """Arming an observe-only detector must NOT flip the score-model router."""
-    for flag in ("ENABLE_SWEEP_TRAP", "ENABLE_REACTION_ZONE", "ENABLE_SMT_DIVERGENCE"):
+    for flag in ("ENABLE_SWEEP_TRAP", "ENABLE_REACTION_CONTEXT", "ENABLE_SMT_DIVERGENCE"):
         with _isolated(flag):
             os.environ[flag] = "1"
             assert any_v2_score_feature_enabled() is False, flag

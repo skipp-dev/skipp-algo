@@ -22,9 +22,9 @@ def _clear_feature_flags() -> Iterator[None]:
     """Remove all SMC v2 feature flags before each test."""
     keys = [
         "ENABLE_SWEEP_TRAP",
-        "ENABLE_REACTION_ZONE",
+        "ENABLE_REACTION_CONTEXT",
         "ENABLE_CONFLUENCE_SCORE",
-        "ENABLE_FRESHNESS_V2",
+        "ENABLE_FRESHNESS_V2_SCORE",
         "ENABLE_SMT_DIVERGENCE",
         "SIGNAL_QUALITY_MODEL",
     ]
@@ -41,9 +41,9 @@ def _clear_feature_flags() -> Iterator[None]:
     "env_var,func",
     [
         ("ENABLE_SWEEP_TRAP", sweep_trap_enabled),
-        ("ENABLE_REACTION_ZONE", reaction_zone_enabled),
+        ("ENABLE_REACTION_CONTEXT", reaction_zone_enabled),
         ("ENABLE_CONFLUENCE_SCORE", confluence_score_enabled),
-        ("ENABLE_FRESHNESS_V2", freshness_v2_enabled),
+        ("ENABLE_FRESHNESS_V2_SCORE", freshness_v2_enabled),
         ("ENABLE_SMT_DIVERGENCE", smt_divergence_enabled),
     ],
 )
@@ -55,9 +55,9 @@ def test_feature_default_off(env_var: str, func: Callable[[], bool]) -> None:
     "env_var,func",
     [
         ("ENABLE_SWEEP_TRAP", sweep_trap_enabled),
-        ("ENABLE_REACTION_ZONE", reaction_zone_enabled),
+        ("ENABLE_REACTION_CONTEXT", reaction_zone_enabled),
         ("ENABLE_CONFLUENCE_SCORE", confluence_score_enabled),
-        ("ENABLE_FRESHNESS_V2", freshness_v2_enabled),
+        ("ENABLE_FRESHNESS_V2_SCORE", freshness_v2_enabled),
         ("ENABLE_SMT_DIVERGENCE", smt_divergence_enabled),
     ],
 )
