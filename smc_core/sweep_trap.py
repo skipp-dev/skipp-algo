@@ -2,9 +2,14 @@
 
 A *sweep trap* (also: stop-hunt reversal, liquidity trap) occurs when price
 sweeps a prior swing high/low to trigger resting orders, then reclaims the
-swept level, trapping the breakout traders.  The reclaim quality — how fast,
-how strongly, how deeply price reverses — is *hypothesised* to lead a
-meaningful follow-through reversal.  This is an **unverified heuristic**, NOT
+swept level, trapping the breakout traders.  NOTE the producer invariant: every
+canonical sweep producer (``detect_liquidity_sweeps_from_lines`` /
+``smc_liquidity_engine.detect_liquidity_sweeps``) already requires a close back
+through the level ON the sweep bar itself, and this classifier only ever sees
+the bars AFTER it — so what it measures is the *re-confirmation/persistence* of
+a reclaim the sweep bar already made by close, not the first reclaim.  That
+persistence quality — how fast, how strongly, how deeply price re-confirms — is
+*hypothesised* to lead a meaningful follow-through reversal.  This is an **unverified heuristic**, NOT
 an empirically established leading indicator: ``trap_quality_score`` is a
 hand-weighted shadow score (see its formula below) that has not yet been
 calibrated against realised outcomes.  A leakage-free evaluator exists, but
@@ -69,17 +74,26 @@ class SweepTrapResult:
     Parameters
     ----------
     sweep_reclaim_bars:
-        Number of bars from the sweep extreme to the first bar that closes
-        back inside the swept level.  ``-1`` if no reclaim occurred within
-        the available data; a reclaim later than 12 bars reports its actual
-        (1-indexed) bar count with ``trap_type="failed"``.
+        Number of POST-SWEEP bars to the first bar that closes back inside the
+        swept level.  Since the producers already require a close-reclaim ON the
+        sweep bar (see module docstring), this is really the first
+        *re-confirmation* close, not the first reclaim (a
+        ``reclaim_reconfirm_bars`` rename is pending — ledger schema field, no
+        silent rename).  ``-1`` if none occurred within the available data; a
+        re-confirmation later than 12 bars reports its actual (1-indexed) bar
+        count with ``trap_type="failed"``.
     trap_type:
-        ``"immediate"`` — reclaim within 3 bars of the sweep.
-        ``"delayed"`` — reclaim within 4–12 bars.
-        ``"failed"`` — reclaim after 12 bars, or none within the available data.
+        ``"immediate"`` — re-confirmation within 3 post-sweep bars.
+        ``"delayed"`` — re-confirmation within 4–12 bars.  UNREACHABLE in the
+        event-ledger shadow emission: measurement_evidence classifies on the
+        3-bar confirm window (#3509 leakage split), so the shadow evidence
+        validates only the immediate/failed dichotomy — a WS4b promotion would
+        carry the delayed ``type_weight`` untested.  (The liquidity-enrichment
+        path passes up to 13 bars and CAN yield ``delayed``.)
+        ``"failed"`` — re-confirmation after 12 bars, or none within the available data.
     reclaim_strength:
-        0.0–1.0.  How far the FIRST reclaim close (the classifier stops at the
-        first bar that closes back through the level, not the deepest one) moved
+        0.0–1.0.  How far the FIRST re-confirmation close (the classifier stops
+        at the first post-sweep bar that closes back through the level) moved
         back THROUGH the swept level, as a fraction of the **sweep penetration**
         — the wick distance the sweep pierced past the level, ``|sweep_extreme -
         swept_level|``, NOT the sweep candle's open→close body (the sweep
