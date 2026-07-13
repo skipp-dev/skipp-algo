@@ -104,7 +104,7 @@ def test_all_v2_features_enabled_produces_expected_keys() -> None:
 
     # Phase B: Sweep trap
     assert result["SWEEP_TRAP_DETECTED"] is True
-    assert result["SWEEP_TRAP_CONFIDENCE"] == 100
+    assert result["SWEEP_TRAP_HEURISTIC_SCORE"] == 100
 
     # Phase C: Reaction zone
     assert result["REACTION_ZONE_DETECTED"] is True
@@ -114,7 +114,7 @@ def test_all_v2_features_enabled_produces_expected_keys() -> None:
     # Phase E: SMT divergence
     assert result["SMT_DIVERGENCE_DETECTED"] is True
     assert result["SMT_DIVERGENCE_SIDE"] == "bear"
-    assert result["SMT_DIVERGENCE_CONFIDENCE"] == 70
+    assert result["SMT_DIVERGENCE_HEURISTIC_SCORE"] == 70
 
 
 def test_v2_features_respect_individual_flags() -> None:
@@ -138,13 +138,13 @@ def test_v2_overrides_win_across_all_features() -> None:
         "CONFLUENCE_SCORE": 42,
         "CONFLUENCE_DIRECTION": "neutral",
         "SWEEP_TRAP_DETECTED": False,
-        "SWEEP_TRAP_CONFIDENCE": 0,
+        "SWEEP_TRAP_HEURISTIC_SCORE": 0,
         "REACTION_ZONE_DETECTED": False,
         "REACTION_ZONE_DIRECTION": "neutral",
         "REACTION_ZONE_CONFIDENCE": 0,
         "SMT_DIVERGENCE_DETECTED": False,
         "SMT_DIVERGENCE_SIDE": "none",
-        "SMT_DIVERGENCE_CONFIDENCE": 0,
+        "SMT_DIVERGENCE_HEURISTIC_SCORE": 0,
     }
     result = build_signal_quality(enrichment=_make_full_enrichment(), overrides=overrides)
     for key, value in overrides.items():

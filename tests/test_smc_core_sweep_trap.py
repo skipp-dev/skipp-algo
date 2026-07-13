@@ -23,14 +23,14 @@ def _clear_env() -> Iterator[None]:
 
 def test_disabled_returns_neutral() -> None:
     result = detect_sweep_trap(enrichment={"liquidity_sweeps": {"RECENT_BULL_SWEEP": True, "SWEEP_QUALITY_SCORE": 1}})
-    assert result == {"SWEEP_TRAP_DETECTED": False, "SWEEP_TRAP_CONFIDENCE": 0}
+    assert result == {"SWEEP_TRAP_DETECTED": False, "SWEEP_TRAP_HEURISTIC_SCORE": 0}
 
 
 def test_enabled_no_sweep_returns_neutral() -> None:
     os.environ["ENABLE_SWEEP_TRAP"] = "1"
     result = detect_sweep_trap(enrichment={})
     assert result["SWEEP_TRAP_DETECTED"] is False
-    assert result["SWEEP_TRAP_CONFIDENCE"] == 0
+    assert result["SWEEP_TRAP_HEURISTIC_SCORE"] == 0
 
 
 def test_enabled_low_quality_bull_sweep_lopsided_boost() -> None:
@@ -47,7 +47,7 @@ def test_enabled_low_quality_bull_sweep_lopsided_boost() -> None:
     )
     assert result["SWEEP_TRAP_DETECTED"] is True
     # quality 1 -> 80, lopsided boost +20, no reversal -> 100 (clamped)
-    assert result["SWEEP_TRAP_CONFIDENCE"] == 100
+    assert result["SWEEP_TRAP_HEURISTIC_SCORE"] == 100
 
 
 def test_enabled_high_quality_returns_neutral() -> None:
@@ -63,7 +63,7 @@ def test_enabled_high_quality_returns_neutral() -> None:
         }
     )
     assert result["SWEEP_TRAP_DETECTED"] is False
-    assert result["SWEEP_TRAP_CONFIDENCE"] == 0
+    assert result["SWEEP_TRAP_HEURISTIC_SCORE"] == 0
 
 
 def test_enabled_both_sweeps_no_direction_boost() -> None:
@@ -80,7 +80,7 @@ def test_enabled_both_sweeps_no_direction_boost() -> None:
     )
     assert result["SWEEP_TRAP_DETECTED"] is True
     # quality 2 -> 60, both sides present -> no boost
-    assert result["SWEEP_TRAP_CONFIDENCE"] == 60
+    assert result["SWEEP_TRAP_HEURISTIC_SCORE"] == 60
 
 
 def test_reversal_against_sweep_reduces_confidence_but_stays_detected() -> None:
@@ -102,7 +102,7 @@ def test_reversal_against_sweep_reduces_confidence_but_stays_detected() -> None:
     )
     # quality 0 -> factor 100, lopsided +20, reversal penalty -40 -> 80
     assert result["SWEEP_TRAP_DETECTED"] is True
-    assert result["SWEEP_TRAP_CONFIDENCE"] == 80
+    assert result["SWEEP_TRAP_HEURISTIC_SCORE"] == 80
 
 
 def test_float_quality_score_is_rounded_not_truncated() -> None:
@@ -121,7 +121,7 @@ def test_float_quality_score_is_rounded_not_truncated() -> None:
     )
     assert result["SWEEP_TRAP_DETECTED"] is True
     # quality 2 -> 60, lopsided +20 -> 80
-    assert result["SWEEP_TRAP_CONFIDENCE"] == 80
+    assert result["SWEEP_TRAP_HEURISTIC_SCORE"] == 80
 
 
 def test_reversal_reduces_confidence_but_quality2_stays_detected() -> None:
@@ -141,7 +141,7 @@ def test_reversal_reduces_confidence_but_quality2_stays_detected() -> None:
     )
     # quality 2 -> 60, lopsided +20, reversal -40 -> 40 (still detected)
     assert result["SWEEP_TRAP_DETECTED"] is True
-    assert result["SWEEP_TRAP_CONFIDENCE"] == 40
+    assert result["SWEEP_TRAP_HEURISTIC_SCORE"] == 40
 
 
 def test_reversal_only_neutralises_when_penalty_drives_confidence_to_zero(
@@ -166,7 +166,7 @@ def test_reversal_only_neutralises_when_penalty_drives_confidence_to_zero(
             "structure_state_light": {"STRUCTURE_LAST_EVENT": "CHOCH_BEAR"},
         }
     )
-    assert result == {"SWEEP_TRAP_DETECTED": False, "SWEEP_TRAP_CONFIDENCE": 0}
+    assert result == {"SWEEP_TRAP_DETECTED": False, "SWEEP_TRAP_HEURISTIC_SCORE": 0}
 
 
 def test_default_penalty_cannot_neutralise_a_valid_candidate() -> None:
@@ -187,4 +187,4 @@ def test_default_penalty_cannot_neutralise_a_valid_candidate() -> None:
             }
         )
         assert result["SWEEP_TRAP_DETECTED"] is True, quality
-        assert result["SWEEP_TRAP_CONFIDENCE"] > 0, quality
+        assert result["SWEEP_TRAP_HEURISTIC_SCORE"] > 0, quality
