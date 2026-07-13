@@ -167,14 +167,17 @@ def test_format_payloads_tolerate_non_numeric_gap_and_score() -> None:
     assert "score 0.00" in discord["content"]
 
 
-def test_traderspost_payload_avoids_false_sell_for_non_finite_gap() -> None:
+def test_traderspost_payload_fails_closed_for_non_finite_gap() -> None:
+    # A non-finite gap must not produce ANY order side — the earlier contract
+    # ("avoid false sell" by defaulting to buy) still fail-opened toward a
+    # trade instruction on absent evidence; the target is skipped instead.
     nan_payload = alerts._format_traderspost_payload({"symbol": "AAA", "gap_pct": float("nan")})
     none_payload = alerts._format_traderspost_payload({"symbol": "AAA", "gap_pct": None})
     short_payload = alerts._format_traderspost_payload({"symbol": "AAA", "gap_pct": "-1.5"})
 
-    assert nan_payload["action"] == "buy"
-    assert none_payload["action"] == "buy"
-    assert short_payload["action"] == "sell"
+    assert nan_payload is None
+    assert none_payload is None
+    assert short_payload is not None and short_payload["action"] == "sell"
 
 
 def test_generic_payload_sanitizes_non_finite_values() -> None:

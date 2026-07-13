@@ -392,7 +392,8 @@ def test_early_webhook_routes_a2_to_separate_channel(
     assert "NVDA" in early and "AAPL" not in early
     # Early batch reads as early-warning (header emoji + per-line ⚠️early tail).
     assert early.startswith("⚠️") and "early-warning" in early and "⚠️early" in early
-    assert main.startswith("📈")
+    # Neutral header (the batch can be all-SHORT); direction lives per-line.
+    assert main.startswith("🚨")
 
 
 def test_early_webhook_off_keeps_a2_in_main(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -433,3 +434,35 @@ def test_early_webhook_ignored_for_token_mode(monkeypatch: pytest.MonkeyPatch) -
     notified = rt_notify.notify_fresh_signals([_sig("AAPL", "A0"), _sig("NVDA", "A2")])
     assert notified == ["AAPL LONG A0"]  # A2 not delivered to any early URL
     assert all("hook.example/early" not in url for url, _ in calls)
+
+
+def test_long_cooldown_not_capped_by_ttl_eviction(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Regression: the dedup TTL sweep evicted entries after 2h regardless of
+    the configured cooldown, so RT_SIGNAL_NOTIFY_COOLDOWN_SECS > 7200 silently
+    re-pushed after ~2h. Eviction horizon is now max(TTL, cooldown)."""
+    monkeypatch.setenv("RT_SIGNAL_WEBHOOK_URL", "https://hook.example/x")
+    monkeypatch.setenv("RT_SIGNAL_NOTIFY_COOLDOWN_SECS", "14400")  # 4h
+    calls = _capture(monkeypatch)
+
+    assert rt_notify.notify_fresh_signals([_sig("AAPL", "A0")], now=0.0) == ["AAPL LONG A0"]
+    # Past the bare 2h TTL but inside the 4h cooldown: entry must survive …
+    assert rt_notify.notify_fresh_signals([_sig("AAPL", "A0")], now=7300.0) == []
+    assert ("AAPL", "LONG") in rt_notify._NOTIFIED
+    assert len(calls) == 1  # … and the signal must NOT be re-pushed early.
+    # After the full cooldown the re-notify is legitimate.
+    assert rt_notify.notify_fresh_signals([_sig("AAPL", "A0")], now=14401.0) == ["AAPL LONG A0"]
+    assert len(calls) == 2
+
+
+def test_mode_is_case_insensitive_and_unknown_mode_warns(
+    monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture,
+) -> None:
+    monkeypatch.setenv("RT_SIGNAL_WEBHOOK_URL", "https://hook.example/x")
+    # Case/typo'd casing must not silently disable the notifier.
+    monkeypatch.setenv("RT_SIGNAL_WEBHOOK_MODE", "Slack")
+    assert rt_notify.is_enabled() is True
+    # A genuinely unknown mode disables — but now says so once.
+    monkeypatch.setenv("RT_SIGNAL_WEBHOOK_MODE", "bogus")
+    with caplog.at_level("WARNING"):
+        assert rt_notify.is_enabled() is False
+    assert any("not a known mode" in r.message for r in caplog.records)

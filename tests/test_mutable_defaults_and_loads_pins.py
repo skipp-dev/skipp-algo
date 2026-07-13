@@ -103,7 +103,7 @@ _FROZEN_JSON_LOAD_SITES: frozenset[tuple[str, int]] = frozenset(
         # 2026-07-01: alerts payload/url hardening inserted helper functions;
         # json.load site shifted 55 -> 56.
         # 2026-07-02: SSRF path/query hardening shifted 56 -> 57.
-        ("open_prep/alerts.py", 59),
+        ("open_prep/alerts.py", 60),  # 2026-07-13 (throttle-comment truth-fix +1): 59->60
         # 2026-07-09 calibration consumer: guarded read of calibration_latest.json
         # (try/except OSError,ValueError; mtime-cached; volume-local file, not remote).
         ("open_prep/calibration_lookup.py", 75),

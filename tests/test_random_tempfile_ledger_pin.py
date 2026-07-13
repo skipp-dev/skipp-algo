@@ -79,7 +79,7 @@ _TEMPFILE_LEDGER: frozenset[tuple[str, int, str]] = frozenset({
     # 2026-07-01: alerts payload/url hardening inserted helper functions;
     # mkstemp site shifted 68 -> 69.
     # 2026-07-02: SSRF path/query hardening shifted mkstemp 69 -> 70.
-    ("open_prep/alerts.py", 72, "mkstemp"),
+    ("open_prep/alerts.py", 73, "mkstemp"),  # 2026-07-13 (throttle-comment truth-fix +1): 72->73
     # 2026-07-03 (WP-3 holdout rescoring): helper additions shifted mkstemp
     # site from 150 -> 472.
     ("open_prep/candidate_weights.py", 479, "mkstemp"),  # 2026-07-10: eps_surprise_pct→recent_eps_surprise_pct reconstruction swap +1 (479->480)

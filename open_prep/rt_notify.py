@@ -180,7 +180,7 @@ def _cooldown() -> float:
 
 def is_enabled() -> bool:
     """True iff a destination is configured. Cheap — checked every poll."""
-    mode = _env("RT_SIGNAL_WEBHOOK_MODE", "generic")
+    mode = _env("RT_SIGNAL_WEBHOOK_MODE", "generic").lower()
     if mode in {"generic", "slack", "discord", "ntfy"}:
         return bool(_env("RT_SIGNAL_WEBHOOK_URL"))
     if mode == "telegram":
@@ -191,6 +191,10 @@ def is_enabled() -> bool:
     if mode == "meta_whatsapp":
         return bool(_env("RT_SIGNAL_META_TOKEN") and _env("RT_SIGNAL_META_PHONE_ID")
                     and _env("RT_SIGNAL_META_TO"))
+    # An unknown/typo'd mode silently disabled the whole notifier with zero
+    # log signal — warn once so the misconfig is visible (house style: the
+    # levels/cooldown misconfigs already _warn_once).
+    _warn_once("unknown_mode", "RT_SIGNAL_WEBHOOK_MODE=%r is not a known mode — notifier disabled", mode)
     return False
 
 
@@ -403,7 +407,7 @@ def _dispatch(msg: str, marks: list[tuple[tuple[str, str], int]], ts: float,
     mean *dispatched* — the thread performs the POST and marks state on success,
     so a slow endpoint adds zero polling latency while a failure still retries.
     """
-    mode = _env("RT_SIGNAL_WEBHOOK_MODE", "generic")
+    mode = _env("RT_SIGNAL_WEBHOOK_MODE", "generic").lower()
     url, kwargs = _build_request(mode, msg, url_override)
     if not url:
         return False
@@ -423,17 +427,27 @@ def notify_fresh_signals(signals: list[Any], *, now: float | None = None) -> lis
     only when it upgrades to a stronger level (A2->A1->A0) or after the cooldown.
     The dedup state advances only once delivery is confirmed, so a webhook
     outage retries on the next poll rather than suppressing the signal for a
-    whole cooldown.
+    whole cooldown. Trade-off: in async mode a poll arriving while the previous
+    POST is still in flight (<= the 5s timeout) sees no dedup mark yet and can
+    dispatch the same signal again — a bounded duplicate-push window accepted
+    in exchange for the outage-retry behavior.
 
     Returns the ``"SYMBOL DIRECTION LEVEL"`` keys that were delivered — in sync
     mode (``RT_SIGNAL_WEBHOOK_SYNC=1``) that means a confirmed POST; in the
-    default async mode it means *dispatched* to the delivery thread (the return
-    is advisory — the production caller ignores it). Empty when disabled,
-    nothing is fresh, or delivery failed. Never raises.
+    default async mode it means *dispatched* to the delivery thread. The return
+    is advisory: the main poll ignores it, but the fast-lane re-poller counts
+    it into ``a0_pushed`` (so that counter reads dispatched, not delivered).
+    Empty when disabled, nothing is fresh, or delivery failed. Never raises.
     """
-    mode = _env("RT_SIGNAL_WEBHOOK_MODE", "generic")
+    mode = _env("RT_SIGNAL_WEBHOOK_MODE", "generic").lower()
     early_url = _early_url()
     early_active = bool(early_url) and mode in _EARLY_CAPABLE_MODES
+    if early_url and not early_active:
+        _warn_once(
+            "early_url_inert",
+            "RT_SIGNAL_EARLY_WEBHOOK_URL is set but mode %r is not early-capable — early (A2) notifications are dropped",
+            mode,
+        )
     # The early webhook is a valid destination on its own, so A2 still delivers
     # even when the main channel has no webhook configured.
     if not is_enabled() and not early_active:
@@ -468,13 +482,16 @@ def notify_fresh_signals(signals: list[Any], *, now: float | None = None) -> lis
                 bucket_marks.append((key, strength))
         # Evict stale dedup entries so the map cannot grow unbounded. Runs even
         # when `signals` is empty, so a stale entry can't outlive its TTL merely
-        # because no new signal happened to arrive on later polls.
-        for k in [k for k, (_st, t) in _NOTIFIED.items() if ts - t > _STATE_TTL_SECS]:
+        # because no new signal happened to arrive on later polls. The horizon
+        # is max(TTL, cooldown): evicting at the bare TTL silently capped any
+        # cooldown > 2h (entry evicted -> prev is None -> premature re-push).
+        eviction_horizon = max(_STATE_TTL_SECS, cooldown)
+        for k in [k for k, (_st, t) in _NOTIFIED.items() if ts - t > eviction_horizon]:
             _NOTIFIED.pop(k, None)
 
     delivered_keys: list[str] = []
     for bucket, bucket_marks, dst, noun, emoji in (
-        (main_fresh, main_marks, "", "breakout", "📈"),
+        (main_fresh, main_marks, "", "breakout", "🚨"),  # neutral header: the batch can be all-SHORT; per-line glyphs carry direction (#3344)
         (early_fresh, early_marks, early_url, "early-warning", "⚠️"),
     ):
         if not bucket:

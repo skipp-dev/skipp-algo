@@ -93,7 +93,7 @@ OS_DELETE_LEDGER: set[tuple[str, int, str]] = {
     # 2026-07-01: alerts payload/url hardening inserted helper functions;
     # cleanup unlink site shifted 79 -> 80.
     # 2026-07-02: SSRF path/query hardening shifted unlink 80 -> 81.
-    ("open_prep/alerts.py", 83, "unlink"),
+    ("open_prep/alerts.py", 84, "unlink"),  # 2026-07-13 (throttle-comment truth-fix +1): 83->84
     # 2026-07-03 (WP-3 holdout rescoring): helper additions shifted
     # unlink cleanup from 158 -> 480.
     ("open_prep/candidate_weights.py", 487, "unlink"),  # 2026-07-10: eps_surprise_pct→recent_eps_surprise_pct reconstruction swap +1 (487->488)
