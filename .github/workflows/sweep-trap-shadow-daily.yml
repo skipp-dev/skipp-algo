@@ -85,25 +85,38 @@ jobs:
             echo "source=input" >> "$GITHUB_OUTPUT"
             exit 0
           fi
-          # Priority 2: most recent rolling-benchmark workflow artifact.
+          # Priority 2: the most recent rolling-benchmark run that actually
+          # produced a corpus. NOT --limit 1: the rolling workflow's heavy
+          # ``rolling-benchmark`` job is guard-skipped on most workflow_run
+          # triggers (only ``select-runner`` runs), so the newest *successful*
+          # run usually uploaded NOTHING. Taking run #1 blindly then downloads an
+          # empty artifact set → no_data every such day, and the shadow ledger
+          # never accumulates (the real reason it stayed empty for weeks, on top
+          # of the rc-3 commit-back gap). So iterate recent successes and pick
+          # the first whose artifact really contains SYMBOL/TF/events_*.jsonl.
           download_dir="artifacts/ci/measurement_benchmark_rolling/_workflow_download"
-          mkdir -p "${download_dir}"
-          latest_run=$(gh run list \
+          candidate_runs=$(gh run list \
             --workflow=smc-measurement-benchmark-rolling.yml \
-            --status=success --limit=1 \
-            --json databaseId --jq '.[0].databaseId' || true)
-          if [ -n "${latest_run}" ] && gh run download "${latest_run}" --dir "${download_dir}" 2>/dev/null; then
+            --status=success --limit=15 \
+            --json databaseId --jq '.[].databaseId' || true)
+          for run_id in ${candidate_runs}; do
+            rm -rf "${download_dir}"
+            mkdir -p "${download_dir}"
+            if ! gh run download "${run_id}" --dir "${download_dir}" 2>/dev/null; then
+              continue  # run had no downloadable artifacts (guard-skipped body)
+            fi
             found=$(find "${download_dir}" -type f -name "events_*.jsonl" -print -quit || true)
             if [ -n "${found}" ]; then
               # eval globs SYMBOL/TF/events_*.jsonl → point at the dir two levels up.
               echo "corpus_dir=$(dirname "$(dirname "${found}")")" >> "$GITHUB_OUTPUT"
               echo "source=rolling_artifact" >> "$GITHUB_OUTPUT"
+              echo "::notice title=sweep-trap-shadow::corpus from rolling run ${run_id}"
               exit 0
             fi
-          fi
+          done
           echo "corpus_dir=" >> "$GITHUB_OUTPUT"
           echo "source=no_data" >> "$GITHUB_OUTPUT"
-          echo "::notice title=sweep-trap-shadow::no rolling-bench corpus found — status=no_data"
+          echo "::notice title=sweep-trap-shadow::no rolling-bench corpus in the last 15 successful runs — status=no_data"
 
       - name: Run sweep-trap shadow eval
         id: eval
