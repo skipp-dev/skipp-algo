@@ -237,7 +237,7 @@ def _failure_type_of(alert: Mapping[str, Any]) -> str:
     code = str(alert.get("code") or "").upper()
     if "STALE" in code:
         return "stale"
-    if "MISSING" in code or "DROPPED" in code or "SILENT_DOMAIN_DROP" in code:
+    if "MISSING" in code or "DROP" in code:  # DROPPED / DOMAIN_DROP_DURING_BUILD / SILENT_DOMAIN_DROP
         return "missing"
     if "FALLBACK" in code:
         return "fallback"

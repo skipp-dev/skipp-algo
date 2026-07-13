@@ -475,6 +475,78 @@ class TestMeasurementShadowGovernance:
             "MEASUREMENT_STRATIFICATION_COVERAGE_REGRESSION",
         }
 
+    def test_calibrated_regression_suppressed_below_eligibility_floor(self) -> None:
+        # Same fixture as test_shadow_degradations_detect_historical_regressions
+        # (n_events=3, ~2 baselines) but with the *production* eligibility floor
+        # (30). Below the floor NO calibrated hard-block may fire — neither the
+        # absolute ceilings NOR the regression-vs-baseline blocks — because a
+        # low-n calibrated Brier/ECE is sparsity-noise in either comparison.
+        # The non-calibrated regressions still fire (they are not floored).
+        thresholds = MeasurementShadowThresholds(
+            max_brier_score=0.60,
+            max_log_score=1.20,
+            max_calibrated_brier_score=0.60,
+            max_calibrated_ece=0.30,
+            min_scoring_events=1,
+            min_events_for_calibrated_thresholds=30,
+            min_populated_stratification_buckets=1,
+            min_history_runs=2,
+            max_brier_regression_abs=0.05,
+            max_log_regression_abs=0.10,
+            max_calibrated_brier_regression_abs=0.05,
+            max_calibrated_ece_regression_abs=0.10,
+            min_event_coverage_ratio=0.60,
+            min_stratification_coverage_ratio=0.60,
+        )
+        current = {
+            "brier_score": 0.31,
+            "log_score": 0.74,
+            "calibrated_brier_score": 0.25,
+            "calibrated_ece": 0.24,
+            "n_events": 3,
+            "stratification_coverage": {"populated_bucket_count": 1},
+        }
+        history = [
+            {
+                "brier_score": 0.11,
+                "log_score": 0.33,
+                "calibrated_brier_score": 0.09,
+                "calibrated_ece": 0.07,
+                "n_events": 10,
+                "stratification_coverage": {"populated_bucket_count": 3},
+            },
+            {
+                "brier_score": 0.13,
+                "log_score": 0.35,
+                "calibrated_brier_score": 0.11,
+                "calibrated_ece": 0.09,
+                "n_events": 8,
+                "stratification_coverage": {"populated_bucket_count": 3},
+            },
+        ]
+
+        degradations, baseline = assess_measurement_shadow_degradations(
+            current,
+            history,
+            thresholds=thresholds,
+        )
+
+        assert baseline["available"] is True
+        assert baseline["calibrated_thresholds_eligible"] is False
+        codes = {row["code"] for row in degradations}
+        # Every calibrated hard-block — absolute AND regression — is suppressed.
+        assert "MEASUREMENT_CALIBRATED_BRIER_ABOVE_THRESHOLD" not in codes
+        assert "MEASUREMENT_CALIBRATED_ECE_ABOVE_THRESHOLD" not in codes
+        assert "MEASUREMENT_CALIBRATED_BRIER_REGRESSION" not in codes
+        assert "MEASUREMENT_CALIBRATED_ECE_REGRESSION" not in codes
+        # Non-calibrated regressions are not floored and still fire.
+        assert codes == {
+            "MEASUREMENT_BRIER_REGRESSION",
+            "MEASUREMENT_LOG_SCORE_REGRESSION",
+            "MEASUREMENT_EVENT_COVERAGE_REGRESSION",
+            "MEASUREMENT_STRATIFICATION_COVERAGE_REGRESSION",
+        }
+
     def test_shadow_degradations_detect_low_coverage_floors(self) -> None:
         thresholds = MeasurementShadowThresholds(
             min_scoring_events=5,

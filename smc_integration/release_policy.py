@@ -415,8 +415,8 @@ class MeasurementShadowThresholds:
     # raw_ece 0.36 (Platt barely effective, history_runs=0) and hard-failed
     # three consecutive smc-library-refresh runs (27297623388, 27299755086,
     # 27309262730) on the same 16:00 export bundle. The 30-event margin keeps
-    # the absolute calibrated thresholds advisory until the scaler has
-    # meaningfully more data than its own fitting minimum. Set to 1 to
+    # all calibrated hard-blocks (absolute AND regression) advisory until the
+    # scaler has more data than its own fitting minimum. Set to 1 to
     # restore the legacy (pre-floor) behavior.
     min_events_for_calibrated_thresholds: int = 30
     min_populated_stratification_buckets: int = 1
@@ -1006,7 +1006,7 @@ def assess_measurement_shadow_degradations(
             )
 
     baseline_calibrated_brier = _finite_metric(baseline.get("calibrated_brier_score"))
-    if current_calibrated_brier is not None and baseline_calibrated_brier is not None:
+    if calibrated_thresholds_eligible and current_calibrated_brier is not None and baseline_calibrated_brier is not None:
         delta = current_calibrated_brier - baseline_calibrated_brier
         if delta > resolved.max_calibrated_brier_regression_abs:
             degradations.append(
@@ -1023,7 +1023,7 @@ def assess_measurement_shadow_degradations(
             )
 
     baseline_calibrated_ece = _finite_metric(baseline.get("calibrated_ece"))
-    if current_calibrated_ece is not None and baseline_calibrated_ece is not None:
+    if calibrated_thresholds_eligible and current_calibrated_ece is not None and baseline_calibrated_ece is not None:
         delta = current_calibrated_ece - baseline_calibrated_ece
         if delta > resolved.max_calibrated_ece_regression_abs:
             degradations.append(

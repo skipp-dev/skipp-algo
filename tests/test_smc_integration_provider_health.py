@@ -2541,3 +2541,32 @@ class TestRunProviderHealthStructureSourceHealthIssues:
         assert any(
             d.get("code") == "STRUCTURE_SOURCE_HEALTH_ISSUES" for d in report["degradations_detected"]
         )
+
+
+class TestDomainDropClassification:
+    """All three co-emitted drop codes for one optional-domain drop must
+    classify identically (missing → FALLBACK), never split across
+    HEALTHY/DEGRADED. Regression guard for DOMAIN_DROP_DURING_BUILD, which
+    matched neither DROPPED nor SILENT_DOMAIN_DROP and previously fell through
+    to unknown → ADVISORY → DEGRADED, degrading provider trust on the common
+    'news absent' case despite FALLBACK/no-degrade semantics.
+    """
+
+    def test_all_drop_codes_map_to_fallback(self) -> None:
+        alerts = [
+            {"domain": "news", "code": "DOMAIN_DROPPED_NEWS"},
+            {"domain": "news", "code": "DOMAIN_DROP_DURING_BUILD"},
+            {"domain": "news", "code": "SILENT_DOMAIN_DROP_NEWS"},
+        ]
+        enriched = provider_health.classify_domain_alerts_to_failure_actions(alerts)
+        actions = {rec["failure_action"] for rec in enriched}
+        assert actions == {provider_health.FailureAction.FALLBACK.value}
+        assert all(rec["failure_affects_entry"] is False for rec in enriched)
+
+    def test_domain_drop_during_build_failure_type_missing(self) -> None:
+        from smc_integration import trust_state
+
+        assert (
+            trust_state._failure_type_of({"code": "DOMAIN_DROP_DURING_BUILD"})
+            == "missing"
+        )
