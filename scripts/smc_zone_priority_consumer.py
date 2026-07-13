@@ -19,6 +19,7 @@ a renderable value.
 
 from __future__ import annotations
 
+import math
 from typing import Any
 
 # Public surface --------------------------------------------------
@@ -115,12 +116,19 @@ def compute_calibration_confidence(
     total_events: int | float | None,
     smooth_ece: float | None,
 ) -> float:
-    """Return a 0–1 confidence score from sample size and smECE drift.
+    """Return a 0–1 RELIABILITY score from sample size and smECE drift.
+
+    NOT a probability and NOT a statistical confidence level: this is a
+    hand-designed reliability/readiness heuristic (sample size × ECE-drift
+    penalty), not the probability that the calibration is correct. Rename-later
+    target: ``ZONE_CAL_RELIABILITY_SCORE``; the ``ZONE_CAL_*`` tiers are
+    reliability/readiness, not percent probabilities.
 
     ``total_events`` saturates at :data:`_EVENTS_SATURATION` (1000)
     events. ``smooth_ece`` is penalised linearly with slope
-    :data:`_ECE_PENALTY_SLOPE` so smECE ≥ 0.20 zeroes the score.
-    Either input being ``None`` / non-finite returns ``0.0``.
+    :data:`_ECE_PENALTY_SLOPE` so smECE ≥ 0.20 zeroes the score. ``None``,
+    non-finite (``inf``/``nan``), negative event counts, or a negative smECE
+    all return ``0.0`` — a non-finite input must never read as full reliability.
     """
     try:
         n = float(total_events) if total_events is not None else 0.0
@@ -131,7 +139,11 @@ def compute_calibration_confidence(
     except (TypeError, ValueError):
         return 0.0
 
-    if n <= 0.0:
+    # Reject non-finite / out-of-domain inputs BEFORE the min/max clamps, which
+    # would otherwise let inf/nan slip through as 1.0 (e.g. min(1.0, inf)=1.0).
+    if not math.isfinite(n) or not math.isfinite(ece):
+        return 0.0
+    if n <= 0.0 or ece < 0.0:
         return 0.0
 
     events_score = min(1.0, n / float(_EVENTS_SATURATION))

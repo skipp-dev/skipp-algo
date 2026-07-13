@@ -84,6 +84,9 @@ def detect_smt_divergence(enrichment: dict[str, Any] | None = None) -> dict[str,
     corr_bull = corr_bias == "BULLISH" or corr_event in ("BOS_BULL", "CHOCH_BULL")
     corr_bear = corr_bias == "BEARISH" or corr_event in ("BOS_BEAR", "CHOCH_BEAR")
 
+    # SMT_DIVERGENCE_CONFIDENCE is a fixed configured conviction constant (default
+    # 70), identical for every detection — NOT a probability or percent.
+    # Rename-later: SMT_DIVERGENCE_HEURISTIC_SCORE.
     if primary_bull and corr_bear:
         return {
             "SMT_DIVERGENCE_DETECTED": True,

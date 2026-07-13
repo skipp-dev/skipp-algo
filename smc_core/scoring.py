@@ -63,7 +63,7 @@ class ScoredEvent:
 
     event_id: str
     family: EventFamily
-    predicted_prob: float  # model's predicted probability of outcome
+    predicted_prob: float  # RAW calibrator input in [0,1]; in the SMC path a bias-derived heuristic prior (0.5 ± adjustment), NOT an empirically calibrated probability
     outcome: bool          # True = event realized (e.g., sweep led to reversal)
     timestamp: float
     context: dict[str, str] = field(default_factory=dict)

@@ -80,6 +80,23 @@ def test_confidence_handles_invalid_inputs_gracefully() -> None:
     assert compute_calibration_confidence(-50, 0.05) == 0.0
 
 
+def test_confidence_rejects_non_finite_inputs() -> None:
+    # The documented non-finite contract: inf/nan must never slip through the
+    # min/max clamps as full reliability (min(1.0, inf) would otherwise be 1.0).
+    inf = float("inf")
+    nan = float("nan")
+    assert compute_calibration_confidence(inf, 0.0) == 0.0
+    assert compute_calibration_confidence(nan, 0.0) == 0.0
+    assert compute_calibration_confidence(1000, inf) == 0.0
+    assert compute_calibration_confidence(1000, nan) == 0.0
+    assert compute_calibration_confidence(inf, nan) == 0.0
+
+
+def test_confidence_rejects_negative_ece() -> None:
+    # A negative smECE would otherwise inflate the penalty term above 1.0.
+    assert compute_calibration_confidence(1000, -0.10) == 0.0
+
+
 # ── H2: Per-family hit rates ───────────────────────────────────
 
 

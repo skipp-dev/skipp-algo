@@ -31,7 +31,7 @@ DEFAULTS: dict[str, Any] = {
     "ZONE_PROJ_SPREAD_QUALITY": "NORMAL",  # TIGHT | NORMAL | WIDE
     "ZONE_PROJ_HTF_ALIGNED": False,
     "ZONE_PROJ_BIAS": "NEUTRAL",       # BULLISH | BEARISH | NEUTRAL
-    "ZONE_PROJ_CONFIDENCE": 0,         # 0–5
+    "ZONE_PROJ_CONFIDENCE": 0,         # 0–5 ordinal evidence RANK adopted from upstream (not computed here, not a probability); ≥3 adds one score point — rename-later: ZONE_PROJ_EVIDENCE_LEVEL
     "ZONE_PROJ_DECAY_BARS": 0,         # bars since zone formation
     "ZONE_PROJ_SCORE": 0,              # 0–5
 }
