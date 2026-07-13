@@ -393,7 +393,10 @@ def _history_window(bars: pd.DataFrame, *, anchor_idx: int, lookback_bars: int =
 
 
 def _event_session_key(anchor_ts: float, timeframe: str) -> str:
-    if str(timeframe).strip().upper() == "1D":
+    # Daily bars have no intraday session; use the shared predicate so daily
+    # ALIASES ("1d"/"D"/"daily") also short-circuit — an inline ``== "1D"`` would
+    # miss them and compute a spurious intraday session block for a daily bar.
+    if is_daily_timeframe(timeframe):
         return "session:NONE"
     session = build_session_context_block(timestamp=datetime.fromtimestamp(float(anchor_ts), tz=UTC))
     return f"session:{session.get('SESSION_CONTEXT', 'NONE')}"
