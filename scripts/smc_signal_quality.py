@@ -400,7 +400,9 @@ def build_signal_quality_v1(
     # Scores expansion potential from squeeze/ATR data (not price headroom)
     cr = enr.get("compression_regime") or {}
     squeeze_on = bool(cr.get("SQUEEZE_ON", False))
-    atr_regime = str(cr.get("ATR_REGIME", "NORMAL"))
+    # Missing regime -> UNKNOWN (0 compression points), not a free NORMAL bonus.
+    # Only an explicitly measured "NORMAL" earns the base compression credit.
+    atr_regime = str(cr.get("ATR_REGIME", "UNKNOWN"))
 
     if squeeze_on:
         score += int(MAX_COMPRESSION * 0.8)  # squeeze = good expansion potential
@@ -536,7 +538,9 @@ def build_signal_quality_v2(
 
     cr = enr.get("compression_regime") or {}
     squeeze_on = bool(cr.get("SQUEEZE_ON", False))
-    atr_regime = str(cr.get("ATR_REGIME", "NORMAL"))
+    # Missing regime -> UNKNOWN (0 compression points), not a free NORMAL bonus.
+    # Only an explicitly measured "NORMAL" earns the base compression credit.
+    atr_regime = str(cr.get("ATR_REGIME", "UNKNOWN"))
 
     # ── Event risk penalty (0 to -15) — lean: event_risk_light ──
     score = _event_risk_penalty(enr, score, warnings, PENALTY_EVENT)

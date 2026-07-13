@@ -162,10 +162,15 @@ class TestSnapshotScenarios:
     """Known-good input→output pairs. Update snapshots intentionally."""
 
     def test_empty_enrichment(self):
-        """No enrichment → low tier with baseline compression."""
+        """No enrichment → low tier, score 0 (no evidence, no free points).
+
+        Previously a missing compression_regime defaulted ATR_REGIME->"NORMAL"
+        and awarded the compression base bonus (score 4); a missing block is now
+        UNKNOWN -> 0 (finding #5).
+        """
         result = build_signal_quality(enrichment={})
         assert result["SIGNAL_QUALITY_TIER"] == "low"
-        assert result["SIGNAL_QUALITY_SCORE"] == 4  # NORMAL atr compression only
+        assert result["SIGNAL_QUALITY_SCORE"] == 0
         assert result["SIGNAL_FRESHNESS"] == "stale"
         assert "structure_stale" in result["SIGNAL_WARNINGS"]
 
@@ -487,3 +492,24 @@ class TestLeanFirstPriority:
         result = build_signal_quality(enrichment=enr)
         assert "event_blocked" not in result["SIGNAL_WARNINGS"]
         assert "event_risk_high" not in result["SIGNAL_WARNINGS"]
+
+
+class TestCompressionRegimeFailClosed:
+    """Finding #5: a missing compression_regime must not grant free points."""
+
+    def test_missing_regime_scores_zero(self):
+        # Empty enrichment used to default ATR_REGIME -> "NORMAL" and award the
+        # compression base bonus; now a missing block is UNKNOWN -> 0 points.
+        assert build_signal_quality(enrichment={})["SIGNAL_QUALITY_SCORE"] == 0
+
+    def test_explicit_normal_still_scores(self):
+        result = build_signal_quality(
+            enrichment={"compression_regime": {"ATR_REGIME": "NORMAL"}}
+        )
+        assert result["SIGNAL_QUALITY_SCORE"] > 0
+
+    def test_explicit_unknown_scores_zero(self):
+        result = build_signal_quality(
+            enrichment={"compression_regime": {"ATR_REGIME": "UNKNOWN"}}
+        )
+        assert result["SIGNAL_QUALITY_SCORE"] == 0

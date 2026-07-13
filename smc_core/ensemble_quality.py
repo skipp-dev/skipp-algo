@@ -88,7 +88,14 @@ def _tier_from_score(score: float) -> QualityTier:
 
 
 def _bias_component(direction: str | None, confidence: float | None) -> tuple[float | None, dict[str, Any]]:
-    normalized_direction = str(direction or "").strip().upper() or "NEUTRAL"
+    # No observed bias -> no component (mirrors _vol_regime_component). Only an
+    # actually-observed NEUTRAL bias (a real direction AND a confidence) may
+    # contribute the 0.5 mid-point; a missing direction/confidence must not be
+    # coerced to NEUTRAL and counted as evidence (that inflated an empty ensemble
+    # to score=0.5 / tier "good").
+    if direction is None or confidence is None:
+        return None, {"direction": None, "confidence": None}
+    normalized_direction = str(direction).strip().upper() or "NEUTRAL"
     bias_confidence = _clamp(_finite_metric(confidence) or 0.0)
     if normalized_direction == "NEUTRAL":
         return 0.5, {"direction": normalized_direction, "confidence": bias_confidence}
