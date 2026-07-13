@@ -479,6 +479,14 @@ file = "scripts/smc_micro_publish_guard.py"
 attr = "run"
 count = 1
 
+# 2026-07-13 (provenance audit F4): `_git_rev` (git rev-parse HEAD) records the
+# source_commit in the generated micro-profiles manifest provenance block.
+# Fixed token-list argv via shutil.which, no shell, no untrusted input.
+[[subprocess_shell_injection_pin.sites]]
+file = "scripts/generate_smc_micro_profiles.py"
+attr = "run"
+count = 1
+
 [[subprocess_shell_injection_pin.sites]]
 file = "scripts/smc_zone_priority_calibration.py"
 attr = "run"
