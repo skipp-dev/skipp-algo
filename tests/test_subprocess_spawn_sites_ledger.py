@@ -19,7 +19,7 @@ Today the audited repository surface (production modules + explicitly
 included helper scripts) spawns external commands from exactly five
 locations:
 
-* ``smc_integration/release_policy.py:1121`` — read git HEAD SHA
+* ``smc_integration/release_policy.py:1137`` — read git HEAD SHA
   (``git rev-parse HEAD``) for release manifest provenance.
 * ``open_prep/realtime_signals.py:190`` — locate the realtime
   signals daemon by scanning the process list (``pgrep``).
@@ -143,7 +143,8 @@ SUBPROCESS_RUN_LEDGER: set[tuple[str, int]] = {
     # calibrated-ECE degradation added lines above this site (1107 -> 1119).
     # 2026-06-19 (timeframe expansion): import of CANONICAL_TIMEFRAMES shifted
     # the subprocess.run call 1119 -> 1121.
-    ("smc_integration/release_policy.py", 1121),
+    # 2026-07-13: in-sample-disclosure docstring on MeasurementShadowThresholds shifted 1121 -> 1137.
+    ("smc_integration/release_policy.py", 1137),
     # `pgrep` to discover the realtime-signals daemon PID.
     # Rebaselined 2026-05-15 after PR #2233 mainline merge restored the
     # branch-local realtime_signals layout.
