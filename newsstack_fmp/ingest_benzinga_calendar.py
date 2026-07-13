@@ -15,7 +15,8 @@ dividends/splits/ipos which are dual-transport — see :meth:`fetch_dividends`):
       used them were retired 2026-07-09 (the Benzinga free key is being replaced
       by Massive, which has no route for these) — no live app consumer left.
 
-Market Data (``BENZINGA_PROVIDER=massive`` reroutes both to Massive snapshots):
+Market Data (always routed to Massive snapshots by default — decoupled from the
+news ``BENZINGA_PROVIDER`` flag; see :func:`_market_data_uses_massive`):
     - Market Movers:      ``/api/v1/market/movers``
     - Delayed Quotes:     ``/api/v1/quoteDelayed``
 
@@ -26,6 +27,7 @@ All adapters are **optional** — they are only called when
 from __future__ import annotations
 
 import logging
+import os
 from typing import Any
 
 import httpx
@@ -35,11 +37,28 @@ from newsstack_fmp._bz_http import (
     _request_with_retry,
     log_fetch_warning,
 )
-from newsstack_fmp.ingest_benzinga import benzinga_provider
 
 from .normalize import normalize_benzinga_calendar_item
 
 logger = logging.getLogger(__name__)
+
+
+def _market_data_uses_massive() -> bool:
+    """Whether the dual-transport calendar/market-data endpoints
+    (dividends/splits/ipos, movers, quotes) route through Massive.
+
+    Decoupled from the news-transport ``BENZINGA_PROVIDER`` flag (#3341/#3342):
+    the direct Benzinga free-key variants of these five endpoints were retired
+    2026-07-09, so Massive is the only working transport in production. Keying
+    them off the *news* provider silently 401ed them (the Massive key against
+    the direct ``api.benzinga.com`` route) whenever the news lane ran
+    ``direct``. Defaults to Massive; set ``BENZINGA_MARKET_DATA_PROVIDER=direct``
+    to force the (retired) direct route for local testing.
+    """
+    return (
+        os.getenv("BENZINGA_MARKET_DATA_PROVIDER", "massive").strip().lower()
+        != "direct"
+    )
 
 # =====================================================================
 # 1) Calendar Adapter (ratings, earnings, economics, conference calls)
@@ -278,7 +297,7 @@ class BenzingaCalendarAdapter:
         consumes (ticker, date, ex_date, payable_date, record_date, dividend,
         frequency); the direct Benzinga path returns the fuller native schema.
         """
-        if benzinga_provider() == "massive":
+        if _market_data_uses_massive():
             return _massive_dividends(self.api_key, date_from, date_to, page_size)
         return self._fetch_calendar(
             "dividends",
@@ -306,7 +325,7 @@ class BenzingaCalendarAdapter:
         ``/v3/reference/splits`` mapped to ticker/date/date_ex/ratio; the direct
         Benzinga path returns the fuller native schema.
         """
-        if benzinga_provider() == "massive":
+        if _market_data_uses_massive():
             return _massive_splits(self.api_key, date_from, date_to, page_size)
         return self._fetch_calendar(
             "splits",
@@ -335,7 +354,7 @@ class BenzingaCalendarAdapter:
         price_min/price_max/deal_status/offering_value; the direct Benzinga path
         returns the fuller native schema.
         """
-        if benzinga_provider() == "massive":
+        if _market_data_uses_massive():
             return _massive_ipos(self.api_key, date_from, date_to, page_size)
         return self._fetch_calendar(
             "ipos",
@@ -625,7 +644,7 @@ def fetch_benzinga_movers(api_key: str) -> dict[str, list[dict[str, Any]]]:
     snapshot endpoints instead (same row shape; snapshot-absent fields are
     None/'' — averageVolume, marketCap, companyName, gicsSectorName).
     """
-    if benzinga_provider() == "massive":
+    if _market_data_uses_massive():
         return _fetch_massive_movers(api_key)
     with httpx.Client(timeout=10.0, headers={"Accept": "application/json"}) as client:
         try:
@@ -693,7 +712,7 @@ def fetch_benzinga_quotes(
     if not cleaned:
         return []
 
-    if benzinga_provider() == "massive":
+    if _market_data_uses_massive():
         results_m: list[dict[str, Any]] = []
         with httpx.Client(timeout=10.0, headers={"Accept": "application/json"}) as client:
             for start in range(0, len(cleaned), 50):  # keep bz-direct chunking symmetry

@@ -678,6 +678,13 @@ class TestRetryLogic:
 class TestBenzingaMovers:
     """Tests for fetch_benzinga_movers."""
 
+    @pytest.fixture(autouse=True)
+    def _force_direct_market_data(self, monkeypatch):
+        # These tests exercise the DIRECT movers HTTP path (they mock
+        # _request_with_retry). Market data now defaults to Massive
+        # (decoupled from the news flag), so pin the direct route explicitly.
+        monkeypatch.setenv("BENZINGA_MARKET_DATA_PROVIDER", "direct")
+
     @patch("newsstack_fmp.ingest_benzinga_calendar._request_with_retry")
     def test_movers_success(self, mock_req, sample_movers_response):
         mock_resp = MagicMock()
@@ -733,6 +740,13 @@ class TestBenzingaMovers:
 
 class TestBenzingaQuotes:
     """Tests for fetch_benzinga_quotes."""
+
+    @pytest.fixture(autouse=True)
+    def _force_direct_market_data(self, monkeypatch):
+        # These tests exercise the DIRECT quotes HTTP path (they mock
+        # _request_with_retry). Market data now defaults to Massive
+        # (decoupled from the news flag), so pin the direct route explicitly.
+        monkeypatch.setenv("BENZINGA_MARKET_DATA_PROVIDER", "direct")
 
     @patch("newsstack_fmp.ingest_benzinga_calendar._request_with_retry")
     def test_quotes_success(self, mock_req, sample_quotes_response):
@@ -1235,7 +1249,8 @@ class TestEndToEnd:
         assert econ[0]["country"] == "US"
 
     @patch("newsstack_fmp.ingest_benzinga_calendar._request_with_retry")
-    def test_movers_roundtrip(self, mock_req, sample_movers_response):
+    def test_movers_roundtrip(self, mock_req, sample_movers_response, monkeypatch):
+        monkeypatch.setenv("BENZINGA_MARKET_DATA_PROVIDER", "direct")
         mock_resp = MagicMock()
         mock_resp.json.return_value = sample_movers_response
         mock_req.return_value = mock_resp
@@ -1245,7 +1260,8 @@ class TestEndToEnd:
         assert result["losers"][0]["changePercent"] == -16.94
 
     @patch("newsstack_fmp.ingest_benzinga_calendar._request_with_retry")
-    def test_quotes_roundtrip(self, mock_req, sample_quotes_response):
+    def test_quotes_roundtrip(self, mock_req, sample_quotes_response, monkeypatch):
+        monkeypatch.setenv("BENZINGA_MARKET_DATA_PROVIDER", "direct")
         mock_resp = MagicMock()
         mock_resp.json.return_value = sample_quotes_response
         mock_req.return_value = mock_resp

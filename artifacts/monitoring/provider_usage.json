@@ -3,8 +3,8 @@
   "months": {
     "2026-07": {
       "benzinga": {
-        "bytes": 14,
-        "calls": 105,
+        "bytes": 18,
+        "calls": 313,
         "rate_limit_hits": 0,
         "records": 0
       },
@@ -17,7 +17,7 @@
       "unknown": {
         "bytes": 0,
         "calls": 0,
-        "rate_limit_hits": 3,
+        "rate_limit_hits": 8,
         "records": 0
       },
       "unusual_whales": {
@@ -28,5 +28,5 @@
       }
     }
   },
-  "updated_at": "2026-07-12T11:15:13.980625+00:00"
+  "updated_at": "2026-07-13T00:08:00.932104+00:00"
 }
