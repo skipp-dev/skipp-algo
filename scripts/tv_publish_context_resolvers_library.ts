@@ -12,6 +12,7 @@ import {
   collectOpenScriptIdentityTexts,
   collectPublishedVersionContextTexts,
   ensurePineEditor,
+  fetchPublishedLibraryVersionViaFacade,
   gotoChart,
   newTradingViewSession,
   openExistingScript,
@@ -28,7 +29,7 @@ import {
 } from "../automation/tradingview/lib/tv_shared.js";
 
 type IdentityVerificationMode = "script_context" | "not_verified";
-type VersionVerificationMode = "version_context" | "idempotent_no_change" | "body_fallback" | "not_verified";
+type VersionVerificationMode = "version_context" | "idempotent_no_change" | "body_fallback" | "not_verified" | "facade_list";
 type OpenMode = "existing" | "fresh_draft";
 
 type CliArgs = {
@@ -326,6 +327,19 @@ export async function runPublishContextResolversLibraryCli(): Promise<number> {
         exactScriptVerified = publishedScriptVerified || identityVerificationMode === "script_context";
         exactVersionVerified = (versionVerificationMode === "version_context" || versionVerificationMode === "idempotent_no_change")
           && publishedVersion === details.version;
+      }
+
+      // Facade authority (#3603/#3606 follow-up): the UI-text version
+      // evidence settles on the hardcoded expected version, so a hand-lib
+      // already past /1 on TV exits rc=1 not_verified despite a successful
+      // publish. The pine-facade filter=published listing is authoritative
+      // (filter=saved counts editor save revisions, not the importable
+      // version) -- let it override; UI evidence stays the fallback.
+      const facadeVersion = await fetchPublishedLibraryVersionViaFacade(session.page, details.scriptName).catch(() => null);
+      if (facadeVersion !== null) {
+        publishedVersion = facadeVersion;
+        versionVerificationMode = "facade_list";
+        exactVersionVerified = true;
       }
 
       if (!exactScriptVerified || !exactVersionVerified) {
