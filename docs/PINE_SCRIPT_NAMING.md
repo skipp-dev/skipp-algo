@@ -11,72 +11,74 @@ legend label, and a duplicate copy that all disagreed), which made the dashboard
 impossible to wire and wasted hours. Enforced by
 [`tests/test_pine_script_naming_convention.py`](../tests/test_pine_script_naming_convention.py).
 
-## Three tiers — do not mix them up
+## The rule: one name, shown everywhere
 
-A script has names on three different tiers. The mistake that caused the chaos
-was treating them as interchangeable. They are **not** — each has its own rule.
+Every user-facing script has **exactly one name**, identical on every surface
+the user sees:
 
-### Tier 1 — user-visible identity: ONE name, always identical
-
-The name the user actually sees on TradingView must be **one and the same** in
-all three places it appears:
-
-- **Code title** — the first argument of `indicator(...)` / `strategy(...)`.
+- **Code title** — the first (and only) string argument of `indicator(...)` /
+  `strategy(...)`.
 - **TV saved script name** — the name in "Open my script" and the editor title.
-- **Chart / dashboard display** — what shows in the legend and consuming panels.
+- **Chart / dashboard display (legend)** — what shows on the chart and in
+  consuming panels.
 
-Format: **`SMC Long-Dip <Component> v7`**. The main products share the
-`SMC Long-Dip` prefix so the indicator and its strategy read as one family.
+The three are kept identical by **not fighting them apart**:
 
-### Tier 2 — shorttitle: a systematic, documented abbreviation
+- **No shorttitle.** The `indicator()/strategy()` shorttitle (2nd positional
+  string) is TradingView's ≤10-char legend label — a *different, shorter* name.
+  We **omit it entirely**. With no shorttitle, TradingView shows the full title
+  in the legend, so title == saved name == display. One name, never a cryptic
+  abbreviation.
+- **No version string in the name.** No `v7`, no `v1`. The visible,
+  auto-incrementing version is **TradingView's own save revision** appended by
+  TradingView next to the name (it bumps on every save). The name stays clean;
+  the number comes from TradingView.
 
-The `indicator()/strategy()` **shorttitle** (2nd arg) is what TradingView shows
-in the compact legend. TradingView **hard-limits it to 10 characters**
-(`SHORT_TITLE_TOO_LONG` above that), so it **cannot** be identical to the Tier-1
-name (`SMC Long-Dip Suite v7` is 21 chars). It is therefore an *abbreviation* —
-but a **fixed, systematic** one, never a third free-form name:
+Main products share the **`SMC Long-Dip`** prefix so the indicator and its
+strategy read as one family.
 
-> **Shorttitle rule:** `LD <Component>7` — drop `SMC`, abbreviate `Long-Dip → LD`,
-> keep the component word and the major version. (Suite → `LD Suite7`,
-> Dashboard → `LD Dash7`, Mobile → `LD Mobile7`.) A `strategy()` may omit the
-> shorttitle.
+## Canonical names — main products
 
-### Tier 3 — repo file name: an internal identifier (NOT user-facing)
+| Repo file (internal, see below) | Name (code title == saved name == display) |
+|---------------------------------|--------------------------------------------|
+| `SMC_Core_Engine.pine` | **SMC Long-Dip Suite** |
+| `SMC_Long_Strategy.pine` | **SMC Long-Dip Strategy** |
+| `SMC_Dashboard.pine` | **SMC Long-Dip Dashboard** |
+| `SMC_Mobile_Dashboard.pine` | **SMC Long-Dip Mobile** |
+
+## Repo file name is internal (NOT user-facing)
 
 The repo `.pine` file name (e.g. `SMC_Core_Engine.pine`) is a **git-internal
 identifier**, like a library's snake_case name. The user never sees it on
 TradingView, and it is referenced by ~130 files (tests, manifest, publishers,
 workflows), so it is deliberately **not** renamed to match the title — that
-churn would buy zero user-visible benefit and real regression risk. It does not
-need to equal the Tier-1 name; instead the file → identity mapping is documented
-here so it is never ambiguous.
-
-## Canonical mapping — main products
-
-| Repo file (Tier 3, internal) | User-visible identity (Tier 1) | Shorttitle (Tier 2) |
-|------------------------------|--------------------------------|---------------------|
-| `SMC_Core_Engine.pine` | **SMC Long-Dip Suite v7** | LD Suite7 |
-| `SMC_Long_Strategy.pine` | **SMC Long-Dip Strategy v7** | — (strategy) |
-| `SMC_Dashboard.pine` | **SMC Long-Dip Dashboard v7** | LD Dash7 |
-| `SMC_Mobile_Dashboard.pine` | **SMC Long-Dip Mobile v7** | LD Mobile7 |
-
-## Version number
-
-- **`v7`** is the product-line major version and stays in the Tier-1 name.
-- The **visible, auto-incrementing** version the user sees is TradingView's own
-  save revision, shown as `· N.0` next to the name (e.g. `SMC Long-Dip Suite v7
-  · 41.0`). It bumps on every save — no manual version-string maintenance.
-- Bump the `v7` major only on a deliberate product-line break, in this file
-  first (owner change), then across the family together.
+churn would buy zero user-visible benefit and real regression risk. The file →
+name mapping in the table above is the documented cross-reference.
 
 ## Component / overlay scripts
 
-Secondary modules (context, overlay, and helper indicators — e.g.
-`SMC_Event_Overlay.pine`, `SMC_Liquidity_Context.pine`) are **not** part of the
-long-dip product name. They keep concise, descriptive `SMC <Component>` Tier-1
-titles, and their TV saved name must equal that title. They are catalogued in
-the surface registry
-[`scripts/smc_bus_manifest.py`](../scripts/smc_bus_manifest.py).
+Secondary modules (context, overlay, and helper indicators) follow the same
+rule: **one descriptive `SMC <Something>` name**, no shorttitle, no version
+string, and the name must tell the user what the script does. Current set:
+
+| Repo file | Name |
+|-----------|------|
+| `SMC_Breakout_Overlay.pine` | SMC Breakout Overlay |
+| `SMC_Event_Overlay.pine` | SMC Event Overlay |
+| `SMC_Exit_Signal.pine` | SMC Exit Signal |
+| `SMC_HTF_Confluence.pine` | SMC HTF Confluence |
+| `SMC_Hold_Manager.pine` | SMC Hold Manager |
+| `SMC_Imbalance_Context.pine` | SMC Imbalance Context |
+| `SMC_Liquidity_Context.pine` | SMC Liquidity Context |
+| `SMC_Liquidity_Structure.pine` | SMC Liquidity Structure |
+| `SMC_Orderflow_Overlay.pine` | SMC Orderflow Overlay |
+| `SMC_Profile_Context.pine` | SMC Profile Context |
+| `SMC_Session_Context.pine` | SMC Session Context |
+| `SMC_Setup_Check.pine` | SMC Setup Check |
+| `SMC_Structure_Context.pine` | SMC Structure Context |
+| `SMC_VRVP_Overlay.pine` | SMC Volume Profile Overlay |
+| `SkippALGO_Confluence.pine` | SMC Confluence Hub |
+| `SMC_TV_Bridge.pine` | SMC Regime & News |
 
 ## Libraries
 
@@ -95,8 +97,8 @@ rename around it.
 
 ## Operator checklist (when saving a script to TradingView)
 
-1. The saved script name (Tier 1) must equal the `indicator()/strategy()` code
-   title. The shorttitle (Tier 2) follows the `LD <Component>7` rule.
+1. The saved script name must equal the `indicator()/strategy()` code title —
+   no shorttitle, no version string in the name.
 2. If TradingView restored a stale unsaved editor draft, clear it (Cmd+A →
    Delete) and paste the current repo source before saving, so the saved
    version matches the repo SSOT.

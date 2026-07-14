@@ -7,7 +7,7 @@
 // Product scope: this dashboard reflects the long-dip specialist mainline of SMC Core.
 //   Short-parity would require a dedicated companion track; it is not an implicit promise of this surface.
 
-indicator("SMC Long-Dip Dashboard v7", "LD Dash7", overlay = true, max_labels_count = 50)
+indicator("SMC Long-Dip Dashboard", overlay = true, max_labels_count = 50)
 
 import preuss_steffen/smc_micro_profiles_generated/152 as mp
 import preuss_steffen/smc_utils/3 as u

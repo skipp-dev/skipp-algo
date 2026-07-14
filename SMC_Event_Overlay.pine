@@ -20,7 +20,7 @@
 // Keep on a separate pane or overlay — it is independent of trade signals.
 // ─────────────────────────────────────────────────────────────────
 
-indicator("SMC Event Overlay", "Ev.Ov", overlay = true, max_labels_count = 50, max_lines_count = 50, max_boxes_count = 50)
+indicator("SMC Event Overlay", overlay = true, max_labels_count = 50, max_lines_count = 50, max_boxes_count = 50)
 
 import preuss_steffen/smc_micro_profiles_generated/152 as mp
 

@@ -1,6 +1,6 @@
 //@version=6
 // Product role: internal bridge helper outside the user-facing Lite/Pro rollout.
-indicator("SMC + Regime + News (skipp)", overlay = true, max_lines_count = 500, max_boxes_count = 500, max_labels_count = 500)
+indicator("SMC Regime & News", overlay = true, max_lines_count = 500, max_boxes_count = 500, max_labels_count = 500)
 
 // ── Inputs ─────────────────────────────────────────────
 i_sym     = input.symbol(syminfo.tickerid, "Backend Symbol")

@@ -965,7 +965,7 @@ def test_ddvi_and_market_safe_fallbacks_use_explicit_block_logic() -> None:
 def test_signal_and_long_state_contract_are_declared_for_safe_refactors() -> None:
     source = _read_smc_source()
 
-    assert 'indicator("SMC Long-Dip Suite v7", "SMC Long-Dip Suite v7", overlay = true, max_bars_back = 500, max_lines_count = 300, max_boxes_count = 300, max_labels_count = 300)' in source
+    assert 'indicator("SMC Long-Dip Suite", overlay = true, max_bars_back = 500, max_lines_count = 300, max_boxes_count = 300, max_labels_count = 300)' in source
     assert '// - Market structure, OB/FVG engines, dashboards, alerts, and the long-dip lifecycle are coordinated locally.' in source
     assert '// - The long lifecycle flows as: zone detection -> reclaim/arm -> confirm -> ready/entry -> invalidated/reset.' in source
     assert '// Signal / state contract' in source

@@ -17,7 +17,7 @@
 // Reads mp.* fields from the generated micro-profiles library.
 // ─────────────────────────────────────────────────────────────────
 
-indicator("SMC Liquidity Context", "Liq.Ctx", overlay = true, max_labels_count = 50, max_lines_count = 50)
+indicator("SMC Liquidity Context", overlay = true, max_labels_count = 50, max_lines_count = 50)
 
 import preuss_steffen/smc_micro_profiles_generated/152 as mp
 

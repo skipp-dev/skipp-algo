@@ -6,7 +6,7 @@
 // Product role: companion operator-only surface for mobile / small screens.
 // Product scope: this dashboard reflects the long-dip specialist mainline of SMC Core.
 
-indicator("SMC Long-Dip Mobile v7", "LD Mobile7", overlay = true)
+indicator("SMC Long-Dip Mobile", overlay = true)
 
 import preuss_steffen/smc_micro_profiles_generated/152 as mp
 
