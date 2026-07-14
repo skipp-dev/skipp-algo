@@ -8,9 +8,9 @@ Released
 
 Dieses Dokument zerlegt das Decision-First-PRD in konkrete Screens fuer:
 
-- `SMC_Core_Engine.pine`
-- `SMC_Dashboard.pine`
-- `SMC_Long_Strategy.pine`
+- `SMC_Long_Dip_Suite.pine`
+- `SMC_Long_Dip_Dashboard.pine`
+- `SMC_Long_Dip_Strategy.pine`
 
 Es ist eine UI-Spezifikation, kein Architektur- oder Feature-Fork.
 
@@ -44,15 +44,15 @@ Es ist eine UI-Spezifikation, kein Architektur- oder Feature-Fork.
 
 | Screen | Artefakt | Rolle |
 | --- | --- | --- |
-| CE-1 | `SMC_Core_Engine.pine` | Lite chart default |
-| CE-2 | `SMC_Core_Engine.pine` | Lite actionable chart |
-| CE-3 | `SMC_Core_Engine.pine` | Lite settings |
-| DB-1 | `SMC_Dashboard.pine` | Compact detail dashboard |
-| DB-2 | `SMC_Dashboard.pine` | Pro diagnostics dashboard |
-| DB-3 | `SMC_Dashboard.pine` | Operator binding screen |
-| LS-1 | `SMC_Long_Strategy.pine` | Strategy setup surface |
-| LS-2 | `SMC_Long_Strategy.pine` | Strategy actionable chart |
-| LS-3 | `SMC_Long_Strategy.pine` | Strategy binding screen |
+| CE-1 | `SMC_Long_Dip_Suite.pine` | Lite chart default |
+| CE-2 | `SMC_Long_Dip_Suite.pine` | Lite actionable chart |
+| CE-3 | `SMC_Long_Dip_Suite.pine` | Lite settings |
+| DB-1 | `SMC_Long_Dip_Dashboard.pine` | Compact detail dashboard |
+| DB-2 | `SMC_Long_Dip_Dashboard.pine` | Pro diagnostics dashboard |
+| DB-3 | `SMC_Long_Dip_Dashboard.pine` | Operator binding screen |
+| LS-1 | `SMC_Long_Dip_Strategy.pine` | Strategy setup surface |
+| LS-2 | `SMC_Long_Dip_Strategy.pine` | Strategy actionable chart |
+| LS-3 | `SMC_Long_Dip_Strategy.pine` | Strategy binding screen |
 
 ## CE-1 - SMC Core Lite Chart Default
 
@@ -245,7 +245,7 @@ Advanced Settings [collapsed by default]
 
 ## DB-3 - SMC Decision Board Operator Binding Screen
 
-- Goal: Falls `SMC_Dashboard.pine` weiter als Companion-Skript genutzt wird,
+- Goal: Falls `SMC_Long_Dip_Dashboard.pine` weiter als Companion-Skript genutzt wird,
   muss die Bindung als Operator-Lage spezifiziert sein.
 - Audience: nur Operatoren oder interne Nutzer.
 - Mode: Operator only.

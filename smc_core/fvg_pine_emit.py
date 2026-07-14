@@ -4,7 +4,7 @@ Consumes the JSON output of
 :func:`smc_core.benchmark.stratified_fvg_report` and produces a
 deterministic Pine snippet of ``export const string`` declarations
 (the wrapper ``scripts/emit_fvg_context_pine.py`` emits ``//@version=6``).
-No in-repo Pine consumer imports the constants yet; ``SMC_Dashboard.pine``
+No in-repo Pine consumer imports the constants yet; ``SMC_Long_Dip_Dashboard.pine``
 consumes FVG context health via a manual paste-input instead, and no
 ``show_fvg_tri_axis`` toggle exists anywhere in the repo.
 
@@ -21,7 +21,7 @@ to ``"insufficient (n=<N>)"`` strings that a future dashboard wiring
 can choose to hide.
 
 This module ONLY emits text — it never touches the
-``SMC_Core_Engine.pine`` source file. Wiring the constants into the
+``SMC_Long_Dip_Suite.pine`` source file. Wiring the constants into the
 dashboard's label rows is a separate (manual) Pine change so it can go
 through TradingView's compile-only preflight.
 """

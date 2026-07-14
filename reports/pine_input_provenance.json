@@ -164,7 +164,7 @@
       ]
     },
     {
-      "file": "SMC_Core_Engine.pine",
+      "file": "SMC_Long_Dip_Suite.pine",
       "input_count": 252,
       "hidden_count": 240,
       "inputs": [
@@ -2439,7 +2439,7 @@
       ]
     },
     {
-      "file": "SMC_Dashboard.pine",
+      "file": "SMC_Long_Dip_Dashboard.pine",
       "input_count": 81,
       "hidden_count": 67,
       "inputs": [
@@ -3791,7 +3791,7 @@
       ]
     },
     {
-      "file": "SMC_Long_Strategy.pine",
+      "file": "SMC_Long_Dip_Strategy.pine",
       "input_count": 16,
       "hidden_count": 0,
       "inputs": [
@@ -3942,7 +3942,7 @@
       ]
     },
     {
-      "file": "SMC_Mobile_Dashboard.pine",
+      "file": "SMC_Long_Dip_Mobile.pine",
       "input_count": 13,
       "hidden_count": 8,
       "inputs": [
@@ -4443,7 +4443,7 @@
       ]
     },
     {
-      "file": "SMC_TV_Bridge.pine",
+      "file": "SMC_Regime_and_News.pine",
       "input_count": 6,
       "hidden_count": 0,
       "inputs": [
@@ -4504,7 +4504,7 @@
       ]
     },
     {
-      "file": "SMC_VRVP_Overlay.pine",
+      "file": "SMC_Volume_Profile_Overlay.pine",
       "input_count": 24,
       "hidden_count": 0,
       "inputs": [
@@ -4727,7 +4727,7 @@
       ]
     },
     {
-      "file": "SkippALGO_Confluence.pine",
+      "file": "SMC_Confluence_Hub.pine",
       "input_count": 17,
       "hidden_count": 6,
       "inputs": [

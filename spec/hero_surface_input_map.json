@@ -1,8 +1,8 @@
 {
-  "_comment": "Hero Surface input grouping map (PR 3 of the 2026-04-20 Hero Surface deep-review). Documents the canonical surface-vs-operator partition for SMC_Dashboard.pine and SMC_Mobile_Dashboard.pine. Consumed by pine_input_surface.py regroup as a re-entrant safety net: re-running it must be a no-op against the current files. Surface inputs stay visible in the first product group; every BUS / operator-only binding stays in its own hidden group with display = display.none.",
+  "_comment": "Hero Surface input grouping map (PR 3 of the 2026-04-20 Hero Surface deep-review). Documents the canonical surface-vs-operator partition for SMC_Long_Dip_Dashboard.pine and SMC_Long_Dip_Mobile.pine. Consumed by pine_input_surface.py regroup as a re-entrant safety net: re-running it must be a no-op against the current files. Surface inputs stay visible in the first product group; every BUS / operator-only binding stays in its own hidden group with display = display.none.",
   "version": "1.0.0",
   "files": {
-    "SMC_Dashboard.pine": {
+    "SMC_Long_Dip_Dashboard.pine": {
       "groups_order": [
         "g_surface",
         "g_bus_lifecycle",
@@ -34,7 +34,7 @@
       ],
       "operator_only_must_be_display_none": true
     },
-    "SMC_Mobile_Dashboard.pine": {
+    "SMC_Long_Dip_Mobile.pine": {
       "groups_order": [
         "g_mobile_surface",
         "g_bus"

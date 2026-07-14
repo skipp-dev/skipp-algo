@@ -384,7 +384,7 @@ PYTHON_ONLY_EXPORTS: set[str] = {
     # canonical rolled-up action-impact label but is RESERVED (see the
     # RESERVED_PINE_EXPORTS.add('TRUST_ACTION_IMPACT') call below) until
     # the dashboard re-wire ticket lands. A comment in
-    # SMC_Dashboard.pine:759 documents only the *intent* to wire it up;
+    # SMC_Long_Dip_Dashboard.pine:759 documents only the *intent* to wire it up;
     # that comment was previously misclassified as a real consumer by
     # the unfiltered regex scan, hence the v3 phase 11 fix.) ──
     "TRUST_CAUSE_DOMAIN",
@@ -424,7 +424,7 @@ RESERVED_PINE_EXPORTS.update(PINE_HERO_QUALITY_FIELDS)
 
 # ENG-WS2-02 trust contract — exported as the canonical rolled-up
 # action-impact label, but no production *.pine file consumes it yet
-# (a comment in SMC_Dashboard.pine:759 documents the *intent* to
+# (a comment in SMC_Long_Dip_Dashboard.pine:759 documents the *intent* to
 # consume it — that comment was previously misclassified as a real
 # consumer by the unfiltered regex scan; see v3 phase 11 fix).
 # Re-classified as RESERVED with a backlog reference until the

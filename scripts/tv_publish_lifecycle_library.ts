@@ -96,7 +96,7 @@ function parseArgs(): CliArgs {
 
   return {
     library: path.resolve(getFlag("--library", "SMC++/smc_lifecycle_private.pine")),
-    core: path.resolve(getFlag("--core", "SMC_Core_Engine.pine")),
+    core: path.resolve(getFlag("--core", "SMC_Long_Dip_Suite.pine")),
     scriptName: getFlag("--script-name", "smc_lifecycle_private"),
     importPath: getFlag("--import-path", "preuss_steffen/smc_lifecycle_private/1"),
     alias: getFlag("--alias", "ll"),

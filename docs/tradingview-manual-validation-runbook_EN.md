@@ -8,17 +8,17 @@ This runbook describes the external manual TradingView runtime validation for th
 
 The validation covers:
 
-1. Producer: [../SMC_Core_Engine.pine](../SMC_Core_Engine.pine)
-2. Dashboard consumer: [../SMC_Dashboard.pine](../SMC_Dashboard.pine)
-3. Strategy consumer: [../SMC_Long_Strategy.pine](../SMC_Long_Strategy.pine)
+1. Producer: [../SMC_Long_Dip_Suite.pine](../SMC_Long_Dip_Suite.pine)
+2. Dashboard consumer: [../SMC_Long_Dip_Dashboard.pine](../SMC_Long_Dip_Dashboard.pine)
+3. Strategy consumer: [../SMC_Long_Dip_Strategy.pine](../SMC_Long_Dip_Strategy.pine)
 
 The goal is a clear pass/fail decision for the current TradingView contract state without making ad-hoc changes to production logic.
 
 ## Required Files
 
-1. [../SMC_Core_Engine.pine](../SMC_Core_Engine.pine)
-2. [../SMC_Dashboard.pine](../SMC_Dashboard.pine)
-3. [../SMC_Long_Strategy.pine](../SMC_Long_Strategy.pine)
+1. [../SMC_Long_Dip_Suite.pine](../SMC_Long_Dip_Suite.pine)
+2. [../SMC_Long_Dip_Dashboard.pine](../SMC_Long_Dip_Dashboard.pine)
+3. [../SMC_Long_Dip_Strategy.pine](../SMC_Long_Dip_Strategy.pine)
 4. [tradingview-validation-checklist.md](tradingview-validation-checklist.md)
 5. [tradingview-manual-validation-report-template_EN.md](tradingview-manual-validation-report-template_EN.md)
 
@@ -136,7 +136,7 @@ the dashboard reconstructs the former module and engine transport rows locally.
 
 ### Producer Steps
 
-1. Open [../SMC_Core_Engine.pine](../SMC_Core_Engine.pine) in TradingView.
+1. Open [../SMC_Long_Dip_Suite.pine](../SMC_Long_Dip_Suite.pine) in TradingView.
 2. Compile the script on the target chart.
 3. Confirm that the script remains loaded without compile-time or runtime errors.
 4. In the `source` picker of a downstream consumer, confirm that the hidden bus series are selectable.
@@ -168,7 +168,7 @@ Fail:
 
 ### Dashboard Steps
 
-1. Add [../SMC_Dashboard.pine](../SMC_Dashboard.pine) to the same chart.
+1. Add [../SMC_Long_Dip_Dashboard.pine](../SMC_Long_Dip_Dashboard.pine) to the same chart.
 2. Bind all 64 `input.source()` fields exactly to the core series.
 3. Confirm that `View = Decision Brief` is active and that `Show Brief Panel` plus `Show Trade Plan` produce the expected companion cut.
 4. If you want to validate `Debug Flags` or `Long Debug`, set the three local debug mirror toggles in the dashboard to match the core's effective debug configuration.
@@ -264,7 +264,7 @@ Fail:
 
 ### Strategy Steps
 
-1. Add [../SMC_Long_Strategy.pine](../SMC_Long_Strategy.pine) to the same chart.
+1. Add [../SMC_Long_Dip_Strategy.pine](../SMC_Long_Dip_Strategy.pine) to the same chart.
 2. Bind the 8 `input.source()` fields exactly to the core series.
 3. Validate `Execution Stage`, `Execution Trigger`, `Execution Invalidation`, and `Execution Take Profit` against the documented contract.
 

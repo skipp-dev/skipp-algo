@@ -8,7 +8,7 @@ and nothing else on the line. A malformed variant such as ``// @version=5``
 is parsed as an ordinary comment, so TradingView silently falls back to the
 oldest language version and the script's v5/v6 syntax breaks at runtime.
 
-This regression bit ``SMC_TV_Bridge.pine`` (it carried ``// @version=5``)
+This regression bit ``SMC_Regime_and_News.pine`` (it carried ``// @version=5``)
 and was missed by two prior reviews that only ever asserted a *substring*
 match. This test anchors the directive so the malformed form can never
 re-enter the active suite.
@@ -72,7 +72,7 @@ def test_active_suite_is_discovered() -> None:
     files = _active_suite_files()
     assert files, "No top-level .pine files discovered — wrong repo root?"
     # The user-facing suite must always include the core engine.
-    assert any(p.name == "SMC_Core_Engine.pine" for p in files)
+    assert any(p.name == "SMC_Long_Dip_Suite.pine" for p in files)
     # Guard the scope itself: the active libraries must be in range. If they
     # are ever moved and the glob silently matches nothing, this fails loudly
     # rather than letting the silent-downgrade gap quietly reopen.

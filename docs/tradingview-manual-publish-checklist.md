@@ -45,7 +45,7 @@ smc_utils               (importiert: smc_core_types)
   └──▶ smc_context_resolvers      (importiert: smc_utils, smc_bus_private)
          │
          ▼
-  SMC_Core_Engine.pine  (importiert alle 9 Libraries)
+  SMC_Long_Dip_Suite.pine  (importiert alle 9 Libraries)
 ```
 
 ## Pflicht-Publish-Reihenfolge
@@ -177,7 +177,7 @@ Nach Abschluss aller 5 Publish-Schritte:
 ### 1. Core-Engine-Compile-Test
 
 1. Pine Editor → neues Script
-2. Inhalt von `SMC_Core_Engine.pine` exakt einfuegen
+2. Inhalt von `SMC_Long_Dip_Suite.pine` exakt einfuegen
 3. Script speichern
 4. Warten bis Compile-Status gruen ist
 5. **Erwartet:** Keine Compile-Fehler — alle 9 Import-Pfade aufgeloest
@@ -185,13 +185,13 @@ Nach Abschluss aller 5 Publish-Schritte:
 ### 2. Dashboard-Binding-Test
 
 1. Core Engine auf einen Chart anwenden
-2. `SMC_Dashboard.pine` oeffnen und auf denselben Chart anwenden
+2. `SMC_Long_Dip_Dashboard.pine` oeffnen und auf denselben Chart anwenden
 3. Dashboard-Inputs auf die Core-Engine-Plots binden (59 Bindungen)
 4. Pruefen: Dashboard zeigt korrekte Werte, keine `NaN`-Felder
 
 ### 3. Strategy-Binding-Test
 
-1. `SMC_Long_Strategy.pine` oeffnen und auf denselben Chart anwenden
+1. `SMC_Long_Dip_Strategy.pine` oeffnen und auf denselben Chart anwenden
 2. Strategy-Inputs auf die Core-Engine-Plots binden (8 Bindungen)
 3. Pruefen: Strategy zeigt Execution-Trigger korrekt
 
@@ -278,6 +278,6 @@ Falls ein Publish fehlschlaegt oder fehlerhafte Daten publiziert werden:
 - `smc_micro_profiles_generated` — wird automatisiert ueber
   `scripts/tv_publish_micro_library.ts` verwaltet
 - Companion-Overlay-Scripts — diese sind Indicators, keine Libraries
-- `SMC_Core_Engine.pine` — ist ein Indicator, keine Library
-- `SMC_Dashboard.pine` — ist ein Indicator, keine Library
-- `SMC_Long_Strategy.pine` — ist eine Strategy, keine Library
+- `SMC_Long_Dip_Suite.pine` — ist ein Indicator, keine Library
+- `SMC_Long_Dip_Dashboard.pine` — ist ein Indicator, keine Library
+- `SMC_Long_Dip_Strategy.pine` — ist eine Strategy, keine Library

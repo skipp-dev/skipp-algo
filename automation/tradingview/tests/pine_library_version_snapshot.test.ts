@@ -18,7 +18,7 @@ test("parseImportPins extracts library + pinned version from import lines", () =
     "// import preuss_steffen/smc_utils/9 as u  (commented — still an import token)",
     "indicator(\"x\")",
   ].join("\n");
-  const pins = parseImportPins(src, "SMC_Core_Engine.pine");
+  const pins = parseImportPins(src, "SMC_Long_Dip_Suite.pine");
   assert.deepEqual(
     pins.map((p) => [p.library, p.pinnedVersion]),
     [
@@ -27,7 +27,7 @@ test("parseImportPins extracts library + pinned version from import lines", () =
       ["smc_utils", 9],
     ],
   );
-  assert.equal(pins[0].file, "SMC_Core_Engine.pine");
+  assert.equal(pins[0].file, "SMC_Long_Dip_Suite.pine");
 });
 
 test("parseImportPins ignores non-preuss imports and lines without a pin", () => {
@@ -41,9 +41,9 @@ test("parseImportPins ignores non-preuss imports and lines without a pin", () =>
 
 test("buildSnapshot flags drift only when the TV version is KNOWN and differs", () => {
   const pins = new Map<string, ConsumerPin[]>([
-    ["smc_micro_profiles_generated", [{ file: "SMC_Dashboard.pine", library: "smc_micro_profiles_generated", pinnedVersion: 1 }]],
-    ["smc_utils", [{ file: "SMC_Core_Engine.pine", library: "smc_utils", pinnedVersion: 5 }]],
-    ["smc_bus_private", [{ file: "SMC_Core_Engine.pine", library: "smc_bus_private", pinnedVersion: 1 }]],
+    ["smc_micro_profiles_generated", [{ file: "SMC_Long_Dip_Dashboard.pine", library: "smc_micro_profiles_generated", pinnedVersion: 1 }]],
+    ["smc_utils", [{ file: "SMC_Long_Dip_Suite.pine", library: "smc_utils", pinnedVersion: 5 }]],
+    ["smc_bus_private", [{ file: "SMC_Long_Dip_Suite.pine", library: "smc_bus_private", pinnedVersion: 1 }]],
   ]);
   const tvVersions = new Map<string, number | null>([
     ["smc_micro_profiles_generated", 152], // drift: 1 != 152
@@ -70,22 +70,22 @@ test("buildSnapshot flags drift only when the TV version is KNOWN and differs", 
 test("buildSnapshot sorts libraries by name and consumers by file", () => {
   const pins = new Map<string, ConsumerPin[]>([
     ["smc_utils", [
-      { file: "SMC_Long_Strategy.pine", library: "smc_utils", pinnedVersion: 1 },
-      { file: "SMC_Core_Engine.pine", library: "smc_utils", pinnedVersion: 1 },
+      { file: "SMC_Long_Dip_Strategy.pine", library: "smc_utils", pinnedVersion: 1 },
+      { file: "SMC_Long_Dip_Suite.pine", library: "smc_utils", pinnedVersion: 1 },
     ]],
-    ["smc_core_types", [{ file: "SMC_Core_Engine.pine", library: "smc_core_types", pinnedVersion: 1 }]],
+    ["smc_core_types", [{ file: "SMC_Long_Dip_Suite.pine", library: "smc_core_types", pinnedVersion: 1 }]],
   ]);
   const snap = buildSnapshot(pins, new Map([["smc_utils", 1], ["smc_core_types", 1]]), 0);
   assert.deepEqual(snap.libraries.map((l) => l.name), ["smc_core_types", "smc_utils"]);
   assert.deepEqual(
     snap.libraries[1].consumers.map((c) => c.file),
-    ["SMC_Core_Engine.pine", "SMC_Long_Strategy.pine"],
+    ["SMC_Long_Dip_Suite.pine", "SMC_Long_Dip_Strategy.pine"],
   );
 });
 
 test("buildSnapshot with an empty facade result marks nothing probed, nothing drifted", () => {
   const pins = new Map<string, ConsumerPin[]>([
-    ["smc_utils", [{ file: "SMC_Core_Engine.pine", library: "smc_utils", pinnedVersion: 1 }]],
+    ["smc_utils", [{ file: "SMC_Long_Dip_Suite.pine", library: "smc_utils", pinnedVersion: 1 }]],
   ]);
   const snap = buildSnapshot(pins, new Map([["smc_utils", null]]), 0, "facade unreachable");
   assert.equal(snap.anyDrift, false);

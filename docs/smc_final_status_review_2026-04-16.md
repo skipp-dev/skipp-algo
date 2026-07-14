@@ -36,8 +36,8 @@ for institutional-grade long-dip detection, built on Smart Money Concepts
 
 | Surface | File | Lines | Role |
 |---------|------|-------|------|
-| Core Engine | `SMC_Core_Engine.pine` | 5474 | Primary operator indicator — zone detection, lifecycle, alerts |
-| Dashboard | `SMC_Dashboard.pine` | 1421 | Pro companion — decision brief, audit view, trust/provider surface |
+| Core Engine | `SMC_Long_Dip_Suite.pine` | 5474 | Primary operator indicator — zone detection, lifecycle, alerts |
+| Dashboard | `SMC_Long_Dip_Dashboard.pine` | 1421 | Pro companion — decision brief, audit view, trust/provider surface |
 
 **Library stack (9 split libraries, all private/invite-only):**
 
@@ -68,13 +68,13 @@ for institutional-grade long-dip detection, built on Smart Money Concepts
 
 | Claim | Evidence | Status |
 |-------|----------|--------|
-| Split-library migration complete | `SMC_Core_Engine.pine` imports all 9 libraries; `SMC++/` directory has 8 files; no monolithic fallbacks remain | **proven** |
+| Split-library migration complete | `SMC_Long_Dip_Suite.pine` imports all 9 libraries; `SMC++/` directory has 8 files; no monolithic fallbacks remain | **proven** |
 | All 9 libraries published on TradingView | Profile page + individual script page screenshots in `automation/tradingview/reports/screenshots/` | **proven** |
-| Import paths are statically consistent | `grep "^import " SMC_Core_Engine.pine` → all 9 resolve to `preuss_steffen/<lib>/1` | **proven** |
+| Import paths are statically consistent | `grep "^import " SMC_Long_Dip_Suite.pine` → all 9 resolve to `preuss_steffen/<lib>/1` | **proven** |
 | Long-dip regression suite green | `docs/regression_triage_packs.md`: 69/69 passed, 0 failed | **proven** |
 | Legacy governance anchor updated | `test_long_dip_regression_anchors_to_active_core_engine` passes (commit `ed347402`) | **proven** |
 | 3 hard measurement gates active | `HARD_BLOCKING_DEGRADATION_CODES` contains `BRIER_ABOVE_THRESHOLD`, `BRIER_REGRESSION`, `ECE_ABOVE_THRESHOLD` | **proven** |
-| Trust tier + degradation surfaced in Dashboard | `SMC_Dashboard.pine` rows 18–21: Trust Tier, Provider State, Degradation | **proven** |
+| Trust tier + degradation surfaced in Dashboard | `SMC_Long_Dip_Dashboard.pine` rows 18–21: Trust Tier, Provider State, Degradation | **proven** |
 | Drift-safe artifact policy codified | `VOLATILE_ARTIFACT_POLICY` in `release_policy.py` classifies all known volatile paths | **proven** |
 | Contextual calibration recommendation + promotion policy | Dataclass contracts with codified eligibility floors and stability rules | **proven** |
 | BUS schema version check active | Dashboard row 97–104: version mismatch warning label | **proven** |
@@ -132,7 +132,7 @@ smc_utils               (imports: smc_core_types)
     └──▶ smc_context_resolvers      (imports: smc_utils, smc_bus_private)
 ```
 
-All consumer surfaces (`SMC_Core_Engine.pine`, `SMC_Dashboard.pine`) import
+All consumer surfaces (`SMC_Long_Dip_Suite.pine`, `SMC_Long_Dip_Dashboard.pine`) import
 from published `/1` versions.  No circular dependencies.  No monolithic
 fallback paths remain.
 

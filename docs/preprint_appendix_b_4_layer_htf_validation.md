@@ -58,7 +58,7 @@ defaults (overridable via CLI flags):
    `plan-2-8-q4-gate-verdict` (90-day retention).
 3. Verdict is appended to `docs/DECISIONS.md` as ADR using
    `python scripts/plan_2_8_q4_gate_evaluator.py --format adr`.
-4. On GO, `enable_trend_tf_0` default in `SMC_Core_Engine.pine` flips
+4. On GO, `enable_trend_tf_0` default in `SMC_Long_Dip_Suite.pine` flips
    from `false` to `true` and per-family calibrated weights for the 2H
    layer are published in the next calibration refresh.
 5. On NO-GO, the addendum cross-references the original

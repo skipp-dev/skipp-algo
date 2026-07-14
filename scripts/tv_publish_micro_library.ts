@@ -186,7 +186,7 @@ function parseArgs(): CliArgs {
 
   return {
     manifest: path.resolve(getFlag("--manifest", "pine/generated/smc_micro_profiles_generated.json")),
-    core: path.resolve(getFlag("--core", "SMC_Core_Engine.pine")),
+    core: path.resolve(getFlag("--core", "SMC_Long_Dip_Suite.pine")),
     releaseManifest: path.resolve(getFlag("--release-manifest", "artifacts/tradingview/library_release_manifest.json")),
     out: path.resolve(
       getFlag(
@@ -383,17 +383,17 @@ function buildDefaultConsumers(): LibraryReleaseManifest["consumers"] {
   return [
     {
       scriptName: "SMC Core",
-      file: "SMC_Core_Engine.pine",
+      file: "SMC_Long_Dip_Suite.pine",
       role: "producer",
     },
     {
       scriptName: "SMC Decision Board",
-      file: "SMC_Dashboard.pine",
+      file: "SMC_Long_Dip_Dashboard.pine",
       role: "dashboard_companion",
     },
     {
       scriptName: "SMC Long-Dip Strategy v7",
-      file: "SMC_Long_Strategy.pine",
+      file: "SMC_Long_Dip_Strategy.pine",
       role: "execution_wrapper",
     },
   ];
@@ -525,7 +525,7 @@ function buildCoreOnlyPreflightConfig(tempDir: string): string {
   writeJson(configPath, {
     targets: [
       {
-        file: "SMC_Core_Engine.pine",
+        file: "SMC_Long_Dip_Suite.pine",
         scriptName: "SMC Core",
         checkInputs: false,
         addToChart: false,

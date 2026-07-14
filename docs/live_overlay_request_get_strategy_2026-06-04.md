@@ -6,8 +6,8 @@
 **Scope**: Decoupling intraday-volatile enrichment fields from the 2×/day
 library publish into a runtime `request.get()` "fast overlay" channel.
 **Relates to**: [v5_5b_architecture.md](v5_5b_architecture.md),
-[SMC_TV_Bridge.pine](../SMC_TV_Bridge.pine),
-[SMC_Core_Engine.pine](../SMC_Core_Engine.pine)
+[SMC_Regime_and_News.pine](../SMC_Regime_and_News.pine),
+[SMC_Long_Dip_Suite.pine](../SMC_Long_Dip_Suite.pine)
 
 **Product decision (2026-06-04, locked)**: The fast overlay is delivered
 **exclusively** through Pine `request.get()` (TradingView Premium+). Any
@@ -77,7 +77,7 @@ flowchart LR
 ## 3. Field Classification — What to Decouple
 
 Decoupling is justified **only** by intraday change rate. Static/EOD fields
-stay baked. Source of field list: [SMC_Core_Engine.pine](../SMC_Core_Engine.pine)
+stay baked. Source of field list: [SMC_Long_Dip_Suite.pine](../SMC_Long_Dip_Suite.pine)
 manifest block (`mp.*` assignments).
 
 > NOTE: This classification is by **field semantics**, not a measured update
@@ -139,7 +139,7 @@ GET /smc_live?symbol=AAPL&tf=15m
 ```
 
 - `asof_ts` + `stale` let Pine decide freshness independent of TV recalc timing.
-- Flat-ish nested JSON; the existing [SMC_TV_Bridge.pine](../SMC_TV_Bridge.pine)
+- Flat-ish nested JSON; the existing [SMC_Regime_and_News.pine](../SMC_Regime_and_News.pine)
   `f_getField` parser already handles flat `"key":value` pairs and would be
   extended for the nested groups (or the payload flattened to `flow_rel_vol`
   style keys to reuse the parser verbatim — decide in §8).
@@ -221,7 +221,7 @@ proven in production.
 1. **Measured update frequency** of each 🔴 field at the producer source —
    confirm they really change intraday (this doc classifies by semantics).
 2. **Payload shape**: nested JSON vs. flattened keys (`flow_rel_vol`) to reuse
-   [SMC_TV_Bridge.pine](../SMC_TV_Bridge.pine) `f_getField` without a new parser.
+   [SMC_Regime_and_News.pine](../SMC_Regime_and_News.pine) `f_getField` without a new parser.
 3. **Hosting**: where the FastAPI endpoint runs (same box as producer? separate
    cloud service?) and how it gets the 5-min snapshot (shared volume vs. pull).
 4. **Auth/abuse**: is the endpoint open or token-gated? Pine `request.get()`

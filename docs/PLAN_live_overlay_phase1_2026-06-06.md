@@ -18,7 +18,7 @@
   `mp.*`-Konstanten sind und bleiben der **sichere Fallback**.
 - **Fast Overlay (neu, Phase 1):** Ein zusätzlicher Endpoint `GET /smc_live` liefert ein
   **flaches JSON** mit denselben Feldern, aber frischer (~5 min). Das Pine-Skript
-  `SMC_TV_Bridge.pine` zieht es per `request.get()` (Premium-only) und **überschreibt
+  `SMC_Regime_and_News.pine` zieht es per `request.get()` (Premium-only) und **überschreibt
   feldweise** den gebackenen Wert — nur wenn frisch und vorhanden.
 
 **Kerninvariante:** Overlay darf nur *ergänzen/verschärfen*, nie *lockern*. Bei Stale/Down
@@ -38,7 +38,7 @@ Damit die Arbeit gefahrlos neben dem Daily-Run läuft, gilt für **alle** WP:
 | `scripts/generate_smc_micro_base_from_databento.py` (Publish-/Bake-Logik) | Slow-Baseline-Producer; Read-only referenzieren erlaubt, **nicht** mutieren. |
 | `pine/generated/smc_micro_profiles_generated.{pine,json}` | Generierte Artefakte; werden vom Cron committet (Merge-Konflikt-Gefahr). |
 
-**Erlaubt (additiv):** `smc_tv_bridge/**` (Endpoint), `SMC_TV_Bridge.pine` (nur der Bridge,
+**Erlaubt (additiv):** `smc_tv_bridge/**` (Endpoint), `SMC_Regime_and_News.pine` (nur der Bridge,
 nicht die Core-Libraries), neue `tests/**`, neue `docs/**`, neue `spec/**`-Schemas.
 
 Jeder WP-Branch folgt `concern(scope): subject`, ist Single-Concern, und durchläuft vor jedem
@@ -85,14 +85,14 @@ Push die 7 Pin-/Drift-Guards (85 Tests). **Nie `git add -A`** (untracked `synthe
   Contract-konform; Off-Universe → leeres, valides Contract; Stale-Flag-Logik).
 - **Parallel-safe:** ja (nur neue Route + Tests, kein Publish-Pfad). **Abhängigkeit:** WP-A (→ WP-0).
 
-### WP-C — Pine-Overlay-Merge in `SMC_TV_Bridge.pine`
+### WP-C — Pine-Overlay-Merge in `SMC_Regime_and_News.pine`
 - **Ziel:** Den auskommentierten `request.get()`-Pfad hinter `i_enabled` (default false)
   aktivieren; `OVERLAY_MAX_AGE_SEC` + Frische-Check (`timenow/1000 - asof_ts < MAX_AGE`);
   pro Feld Resolver `resolved = (overlay_fresh and has_field) ? overlay : mp.<baked>`.
   `f_getField`-Keys exakt auf das flache WP-A-Schema ausrichten.
 - **Wichtig:** Nur die **Bridge** anfassen, nicht die Core-Libraries. **Event-Risk-Felder noch
   NICHT** verdrahten (Phase 2, Escalation-only).
-- **CI-Gate:** `npm run tv:test` / `tsc:check` bleiben grün (aktuell 116/116); Änderungen an `SMC_TV_Bridge.pine` sind zusätzlich durch pytest-Pins abgedeckt (z. B. `tests/test_pine_tv_bridge_fail_closed.py`). **Parallel-safe:** ja.
+- **CI-Gate:** `npm run tv:test` / `tsc:check` bleiben grün (aktuell 116/116); Änderungen an `SMC_Regime_and_News.pine` sind zusätzlich durch pytest-Pins abgedeckt (z. B. `tests/test_pine_tv_bridge_fail_closed.py`). **Parallel-safe:** ja.
 - **Abhängigkeit:** WP-A (Keys). Idealerweise nach WP-B (gegen echten Endpoint testbar).
 
 ### WP-D — Fallback- & Safety-Nachweis
@@ -160,7 +160,7 @@ graph LR
 
 - `GET /smc_live?symbol=&tf=` liefert Contract-valides, flaches JSON; `stale` korrekt; Off-Universe
   sauber; Mock-Pfad CI-grün ohne Keys.
-- `SMC_TV_Bridge.pine` überschreibt feldweise nur bei frischem Overlay, sonst `mp.*`; `tv:test` grün.
+- `SMC_Regime_and_News.pine` überschreibt feldweise nur bei frischem Overlay, sonst `mp.*`; `tv:test` grün.
 - Nachgewiesener Fallback bei Down/Stale (WP-D).
 - Kein Edit an Daily-Workflows/Generator/generierten Artefakten; alle Pin-Guards grün.
 - Event-Risk bleibt Phase 2 (Escalation-only) — hier bewusst nicht verdrahtet.

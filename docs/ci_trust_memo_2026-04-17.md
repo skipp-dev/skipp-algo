@@ -4,7 +4,7 @@
 
 | Workflow | Status before | Root cause | Fix applied | Status after |
 |----------|--------------|------------|-------------|-------------|
-| **CI** (`ci.yml`) | ❌ failing (~27 s) | `test -f SkippALGO.pine` — files renamed to `SMC_Core_Engine.pine` / `SMC_Long_Strategy.pine` | Updated Pine file references; aligned Python 3.13 → 3.12 | ✅ expected green |
+| **CI** (`ci.yml`) | ❌ failing (~27 s) | `test -f SkippALGO.pine` — files renamed to `SMC_Long_Dip_Suite.pine` / `SMC_Long_Dip_Strategy.pine` | Updated Pine file references; aligned Python 3.13 → 3.12 | ✅ expected green |
 | **smc-fast-pr-gates** | ❌ failing (~14 min) | `terminal_tabs` (1,200+ stmts, 0% coverage) included in `--cov` sources → total 19% < `fail_under=60` | Removed `terminal_tabs` from coverage sources; rebased `fail_under` to 20 | ✅ expected green |
 | **smc-deeper-integration-gates** | ✅ passing | n/a | Added `permissions`, `concurrency`, `cache: pip` | ✅ no regression |
 | **smc-measurement-benchmark** | ✅ passing (Saturday schedule) | n/a | Added `permissions` | ✅ no regression |
@@ -27,7 +27,7 @@ review and the current HEAD — all tests pass on current `main`.
 ## Changes applied
 
 ### ci.yml
-- Pine validation: `SkippALGO.pine` → `SMC_Core_Engine.pine`, `SkippALGO_Strategy.pine` → `SMC_Long_Strategy.pine`
+- Pine validation: `SkippALGO.pine` → `SMC_Long_Dip_Suite.pine`, `SkippALGO_Strategy.pine` → `SMC_Long_Dip_Strategy.pine`
 - Python version: `3.13` → `3.12` (matches all other workflows)
 
 ### smc-fast-pr-gates.yml

@@ -1139,7 +1139,7 @@ jobs:
         run: |
           npx tsx scripts/tv_publish_micro_library.ts \
             --manifest pine/generated/smc_micro_profiles_generated.json \
-            --core SMC_Core_Engine.pine \
+            --core SMC_Long_Dip_Suite.pine \
             --release-manifest artifacts/tradingview/library_release_manifest.json
 
       - name: Run TradingView post-release validation
@@ -1364,7 +1364,7 @@ jobs:
           # Enumerate every top-level .pine that pins the library. Fixture
           # and generated paths are excluded — they have their own
           # snapshot flow. Closes the 2026-04-22 gap where only
-          # SMC_Core_Engine.pine was repinned, leaving 13 other
+          # SMC_Long_Dip_Suite.pine was repinned, leaving 13 other
           # consumers stranded on the previous library version.
           mapfile -t PINE_CONSUMERS < <(grep -lrE "${PIN_PATTERN}" . \
             --include='*.pine' \
@@ -1450,12 +1450,12 @@ jobs:
             artifacts/smc_microstructure_exports/smc_live_news_snapshot.json \
             artifacts/smc_microstructure_exports/smc_live_news_state.json || true
           git add pine/generated/ \
-            SMC_Core_Engine.pine \
-            SMC_Dashboard.pine \
-            SMC_Mobile_Dashboard.pine \
-            SMC_Long_Strategy.pine \
+            SMC_Long_Dip_Suite.pine \
+            SMC_Long_Dip_Dashboard.pine \
+            SMC_Long_Dip_Mobile.pine \
+            SMC_Long_Dip_Strategy.pine \
             SMC_Hold_Manager.pine \
-            SkippALGO_Confluence.pine \
+            SMC_Confluence_Hub.pine \
             SMC_Structure_Context.pine \
             SMC_Session_Context.pine \
             SMC_Profile_Context.pine \

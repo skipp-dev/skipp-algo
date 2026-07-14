@@ -160,8 +160,8 @@ npm run tv:publish-micro-library
 ```
 
 The canonical SMC TradingView gate is `npm run tv:preflight:smc-mainline`.
-It validates the active mainline path `SMC_Core_Engine.pine` +
-`SMC_Dashboard.pine` + `SMC_Long_Strategy.pine` against the product-cut
+It validates the active mainline path `SMC_Long_Dip_Suite.pine` +
+`SMC_Long_Dip_Dashboard.pine` + `SMC_Long_Dip_Strategy.pine` against the product-cut
 manifest.
 The latest fully green SMC mainline evidence is `automation/tradingview/reports/preflight-2026-04-08T12-37-12-028Z.json`.
 
@@ -824,7 +824,7 @@ Pine Script v6 signal engine with non-repainting core logic and intrabar alerts/
 ### Repaint / Backtest Note
 
 - HTF `request.security()` reads in the SMC core use `lookahead = barmerge.lookahead_off` so higher-timeframe context stays bound to completed HTF bars.
-- The non-aggressive lifecycle path in the core advances on confirmed bars, and [SMC_Long_Strategy.pine](SMC_Long_Strategy.pine) stages orders with `process_orders_on_close = true`.
+- The non-aggressive lifecycle path in the core advances on confirmed bars, and [SMC_Long_Dip_Strategy.pine](SMC_Long_Dip_Strategy.pine) stages orders with `process_orders_on_close = true`.
 - In practice that means the default backtest path is bar-close driven; only the explicit aggressive live mode can consume realtime preview behavior.
 
 ### Key Features

@@ -108,7 +108,7 @@ class TestTrustAndFreshnessLabels:
 
 class TestRegimeAndSession:
     def test_regime_is_uppercase_passthrough(self) -> None:
-        """SMC_Mobile_Dashboard.pine:79 compares mp.HERO_MARKET_MODE to
+        """SMC_Long_Dip_Mobile.pine:79 compares mp.HERO_MARKET_MODE to
         UPPERCASE literals. Producer A emits UPPER; Producer B
         (HERO_MARKET_REGIME) must stay case-consistent to prevent
         drift when consumers migrate (F-1, PR-BC-03).

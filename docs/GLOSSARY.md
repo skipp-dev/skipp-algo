@@ -77,7 +77,7 @@ implementation lives in `smc_core` / `smc_integration`
 | Term | Meaning |
 |------|---------|
 | `BOS` | **Break of Structure** — continuation of the prevailing trend. |
-| `CHoCH` | **Change of Character** — early trend-reversal signal (see `SMC_Core_Engine.pine`). |
+| `CHoCH` | **Change of Character** — early trend-reversal signal (see `SMC_Long_Dip_Suite.pine`). |
 | `OB` | **Order Block** — institutional supply/demand zone. |
 | `FVG` | **Fair Value Gap** — price imbalance / inefficiency. |
 | `SWEEP` | **Liquidity Sweep** — stop-hunt past a prior high/low. |

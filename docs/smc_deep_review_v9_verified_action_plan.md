@@ -44,10 +44,10 @@ Die richtige Reihenfolge ist daher:
 Seit Erstellung dieses Dokuments ist der lokale Umsetzungsstand fuer die drei
 priorisierten Punkte weitergezogen:
 
-- `SMC_Core_Engine.pine` liest `mp.VOLATILITY_REGIME`,
+- `SMC_Long_Dip_Suite.pine` liest `mp.VOLATILITY_REGIME`,
   `mp.VOLATILITY_MODEL_SOURCE`, `mp.ENSEMBLE_QUALITY_SCORE` und
   `mp.ENSEMBLE_QUALITY_TIER` jetzt direkt.
-- `SMC_Dashboard.pine` zeigt die zusaetzlichen Library-Signale ueber den
+- `SMC_Long_Dip_Dashboard.pine` zeigt die zusaetzlichen Library-Signale ueber den
   bestehenden `BUS LeanPackB`-Transport als `Primary | Signal + Ensemble` und
   `Vol Regime | Lib` an.
 - `.github/workflows/smc-library-refresh.yml` raeumt bekannte Runtime-
@@ -110,7 +110,7 @@ Bewertung:
 
 Belegt durch:
 
-- `SMC_Core_Engine.pine`
+- `SMC_Long_Dip_Suite.pine`
   - `mp.MARKET_PE_FORWARD`
   - `mp.MARKET_PE_REGIME`
   - `mp.MACRO_BIAS_PE_ADJUSTMENT`
@@ -133,7 +133,7 @@ Belegt durch:
     `VOLATILITY_PROXY_SOURCE`
   - `ENSEMBLE_QUALITY_SCORE`, `ENSEMBLE_QUALITY_TIER`,
     `ENSEMBLE_AVAILABLE_COMPONENTS`
-- `SMC_Core_Engine.pine` hat keine direkten `mp.VOLATILITY_*`- oder
+- `SMC_Long_Dip_Suite.pine` hat keine direkten `mp.VOLATILITY_*`- oder
   `mp.ENSEMBLE_*`-Referenzen.
 - Die bestehende Pine-Volatility-Logik ist lokal berechnet (`compute_vol_regime`
   plus `use_volatility_regime`) und nicht aus der Library gelesen.

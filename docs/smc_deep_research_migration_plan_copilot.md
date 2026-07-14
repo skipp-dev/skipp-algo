@@ -66,7 +66,7 @@ Migrationsnebel mehr, sondern ein klar begrenztes C3-Paket:
    Lifecycle-Ableitungen und zentrale Alert-Gates ergaenzt.
 
 3. **Der aktive Core bekommt Input-Surface-Governance**
-   `SMC_Core_Engine.pine` wird auf dieselbe sichtbare Operator-Surface
+   `SMC_Long_Dip_Suite.pine` wird auf dieselbe sichtbare Operator-Surface
    gebracht wie die anderen grossen Pine-Skripte: gruppiert, bewusst kuratiert,
    klar zwischen Core- und Expert-Controls getrennt.
 
@@ -83,7 +83,7 @@ Migrationsnebel mehr, sondern ein klar begrenztes C3-Paket:
    haengenden Freshness-Gates.
 
 6. **Produktgrenze wird explizit festgeschrieben**
-   `SMC_Core_Engine.pine` bleibt Long-Dip-first. Short-Paritaet ist kein stilles
+   `SMC_Long_Dip_Suite.pine` bleibt Long-Dip-first. Short-Paritaet ist kein stilles
    Versprechen dieses C3-Pakets, sondern ein separater Folge-Track.
 
 ---
@@ -113,7 +113,7 @@ erfuellt sind:
 1. `SMC++.pine` hat genau einen dokumentierten Status: eingefrorener Kompatibilitaetspfad.
 2. Release-Gates und Tests spiegeln diese Freeze-Policy explizit wider.
 3. Split-Core-Tests sichern BUS-Surface, StateCodes, Ready-/Strict-Reason-Codes und Alert-Gates semantisch ab.
-4. `SMC_Core_Engine.pine` erfuellt dieselbe Input-Surface-Governance wie die anderen grossen Pine-Skripte.
+4. `SMC_Long_Dip_Suite.pine` erfuellt dieselbe Input-Surface-Governance wie die anderen grossen Pine-Skripte.
 5. Dashboard- und Strategy-Consumer sind gruppiert und in stabiler Bindereihenfolge dokumentiert.
 6. Mindestens ein weiterer C3-Schnitt extrahiert echte Lifecycle-/State-Owner-Logik statt nur Display-/Debug-Code. Der erste davon ist `compute_long_freshness_state(...)`.
 7. Long-Dip-first ist als Produktgrenze dokumentiert; Short-Paritaet bleibt ein expliziter Folge-Track.
@@ -148,7 +148,7 @@ gezieltes C4-Hardening des aktiven Cores und seines TradingView-Vertrags:
    kanonische Produktgrenze.
 
 5. **Die aktive Operator-Surface bleibt Long-Dip-first und preset-zentriert**
-   `SMC_Core_Engine.pine` haelt `long_user_preset` und `compact_mode` bewusst
+   `SMC_Long_Dip_Suite.pine` haelt `long_user_preset` und `compact_mode` bewusst
    als sichtbare Surface-Anker. Neue sichtbare Controls sollen nur dann
    hinzukommen, wenn sie nicht in diese beiden Operator-Ebenen passen.
 

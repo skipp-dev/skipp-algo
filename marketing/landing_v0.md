@@ -94,7 +94,7 @@ artefacts in the repo.
 
 - [ ] Annotated PNG of Audit View (screenshot from TradingView, arrows in
       Figma / Keynote). Capture checklist:
-      1. Load `SMC_Core_Engine.pine` + `SMC_Dashboard.pine` on AAPL 15m.
+      1. Load `SMC_Long_Dip_Suite.pine` + `SMC_Long_Dip_Dashboard.pine` on AAPL 15m.
       2. Pick `Quickstart Preset = Mega-Cap US Tech` (loads RVOL floor 1.30).
       3. Wait until Hero one-liner row shows `Top FAM HR%` ≥ 70%.
       4. Capture full dashboard. Annotate (a) Hero one-liner, (b) Zone

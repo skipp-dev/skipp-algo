@@ -79,11 +79,11 @@ def test_refresh_commit_step_restores_runtime_artifacts_before_commit() -> None:
     # the assertion form.
     assert 'git add pine/generated/ \\' in workflow_text
     for path in (
-        'SMC_Core_Engine.pine',
-        'SMC_Dashboard.pine',
-        'SMC_Mobile_Dashboard.pine',
-        'SMC_Long_Strategy.pine',
-        'SkippALGO_Confluence.pine',
+        'SMC_Long_Dip_Suite.pine',
+        'SMC_Long_Dip_Dashboard.pine',
+        'SMC_Long_Dip_Mobile.pine',
+        'SMC_Long_Dip_Strategy.pine',
+        'SMC_Confluence_Hub.pine',
         'SMC_Structure_Context.pine',
         'SMC_Session_Context.pine',
         'SMC_Profile_Context.pine',
@@ -467,7 +467,7 @@ def test_stage_only_paths_match_workflow_git_add_step() -> None:
 def test_classify_artifact_drift_returns_correct_class() -> None:
     assert classify_artifact_drift("artifacts/databento_volatility_cache/foo.json") == DRIFT_CLASS_RESTORE_ON_COMMIT
     assert classify_artifact_drift("pine/generated/smc_micro.pine") == DRIFT_CLASS_STAGE_ONLY
-    assert classify_artifact_drift("SMC_Core_Engine.pine") == DRIFT_CLASS_STAGE_ONLY
+    assert classify_artifact_drift("SMC_Long_Dip_Suite.pine") == DRIFT_CLASS_STAGE_ONLY
     assert classify_artifact_drift("artifacts/tradingview/library_release_manifest.json") == DRIFT_CLASS_STAGE_ONLY
     assert classify_artifact_drift("automation/tradingview/auth/storage-state.json") == DRIFT_CLASS_GITIGNORED
     assert classify_artifact_drift("src/main.py") is None

@@ -5,7 +5,7 @@ import re
 from tests.smc_manifest_test_utils import ROOT
 
 RESOLVERS_PATH = ROOT / 'SMC++' / 'smc_context_resolvers.pine'
-CORE_ENGINE_PATH = ROOT / 'SMC_Core_Engine.pine'
+CORE_ENGINE_PATH = ROOT / 'SMC_Long_Dip_Suite.pine'
 
 
 def _read_resolvers_source() -> str:

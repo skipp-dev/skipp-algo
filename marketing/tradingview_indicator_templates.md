@@ -6,7 +6,7 @@
 > with the Pine `quickstart_preset` enum and its BUS contract.
 > **Owner:** Steffen.
 > **Source of truth for values:** `preset_effective_*(...)` helpers in
-> [`SMC_Core_Engine.pine`](../SMC_Core_Engine.pine) (pinned by
+> [`SMC_Long_Dip_Suite.pine`](../SMC_Long_Dip_Suite.pine) (pinned by
 > `tests/test_tradingview_decision_first_ui.py::test_core_engine_quickstart_preset_publishes_effective_defaults_contract`).
 
 ## Why an Indicator Template at all
@@ -78,7 +78,7 @@ the preset automatically.
 
 ## Export checklist (per template)
 
-1. Load `SMC_Core_Engine.pine` on a clean chart in TV.
+1. Load `SMC_Long_Dip_Suite.pine` on a clean chart in TV.
 2. Select the matching `Quickstart Preset`.
 3. Apply the input values from the table above. Leave everything else
    at the indicator default.

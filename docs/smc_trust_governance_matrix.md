@@ -58,7 +58,7 @@ Trust is resolved from three inputs:
    but received `'High'`/`'Guarded'`/`'Degraded'`/`'Insufficient'`. Confidence always showed
    `'Caution'` regardless of trust. Fixed to use actual tier names.
 
-2. **Strategy had zero trust gating** — `SMC_Long_Strategy.pine` gates on quality score, regime,
+2. **Strategy had zero trust gating** — `SMC_Long_Dip_Strategy.pine` gates on quality score, regime,
    and risk levels but never on trust. Now automatically enforced via entry state suppression
    in Core Engine (no Strategy changes needed).
 

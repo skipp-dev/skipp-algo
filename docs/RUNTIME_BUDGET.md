@@ -1,4 +1,4 @@
-# Runtime Budget - SMC_Core_Engine.pine v5.5d
+# Runtime Budget - SMC_Long_Dip_Suite.pine v5.5d
 
 **Status**: Active inventory  
 **Last updated**: 2026-04-04 - final pack retirement to explicit support-code channels
@@ -59,7 +59,7 @@ deriving `Debug Flags` and `Long Debug` locally from dashboard mirror toggles,
 
 ### Phase C C1: Declaration-Only Visual Input Cleanup (11 inputs)
 
-This cleanup batch has been executed in `SMC_Core_Engine.pine`. These inputs
+This cleanup batch has been executed in `SMC_Long_Dip_Suite.pine`. These inputs
 were removed because they were declared but never consumed by any gate, plot,
 dashboard, or alert path in the split core.
 

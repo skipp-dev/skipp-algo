@@ -19,7 +19,7 @@ Invalid evidence for product review:
 
 ## Core Producer Plots To Bind
 
-The producer exports the full hidden bus from [SMC_Core_Engine.pine](../SMC_Core_Engine.pine).
+The producer exports the full hidden bus from [SMC_Long_Dip_Suite.pine](../SMC_Long_Dip_Suite.pine).
 
 Current manual validation counts:
 
@@ -29,7 +29,7 @@ Current manual validation counts:
 
 ### Dashboard Needs These Bindings
 
-The dashboard expects all `64` bindings declared in [SMC_Dashboard.pine](../SMC_Dashboard.pine) and governed by [../scripts/smc_bus_manifest.py](../scripts/smc_bus_manifest.py).
+The dashboard expects all `64` bindings declared in [SMC_Long_Dip_Dashboard.pine](../SMC_Long_Dip_Dashboard.pine) and governed by [../scripts/smc_bus_manifest.py](../scripts/smc_bus_manifest.py).
 
 Lifecycle:
 
@@ -126,7 +126,7 @@ debug setup:
 
 ### Strategy Needs These Bindings
 
-The strategy expects only the 8 bindings declared in [SMC_Long_Strategy.pine](../SMC_Long_Strategy.pine#L7-L14):
+The strategy expects only the 8 bindings declared in [SMC_Long_Dip_Strategy.pine](../SMC_Long_Dip_Strategy.pine#L7-L14):
 
 - `BUS Armed`
 - `BUS Confirmed`
@@ -190,7 +190,7 @@ Expected dashboard cues:
 
 If this fails:
 
-- `StateCode` to `setup_text()` mapping in [SMC_Dashboard.pine](../SMC_Dashboard.pine#L182-L197) is wrong
+- `StateCode` to `setup_text()` mapping in [SMC_Long_Dip_Dashboard.pine](../SMC_Long_Dip_Dashboard.pine#L182-L197) is wrong
 - `MetaPack.freshness_code` mapping is wrong
 
 ### 3. Confirmed
@@ -250,7 +250,7 @@ Expected dashboard cues:
 If this fails:
 
 - `StateCode` binding is wrong
-- lifecycle decoder mapping in [SMC_Dashboard.pine](../SMC_Dashboard.pine#L162-L197) is wrong
+- lifecycle decoder mapping in [SMC_Long_Dip_Dashboard.pine](../SMC_Long_Dip_Dashboard.pine#L162-L197) is wrong
 
 ## Signs That Decoder Or Source Mapping Is Wrong
 
@@ -266,9 +266,9 @@ If this fails:
 
 ## Manual Cross-Check Order
 
-1. Add `SMC_Core_Engine.pine` to the chart and capture a rendered first-run Core screenshot.
-2. Add `SMC_Dashboard.pine`, set `View = Decision Brief`, and bind all 64 sources to the core plots. Capture the rendered brief surface.
+1. Add `SMC_Long_Dip_Suite.pine` to the chart and capture a rendered first-run Core screenshot.
+2. Add `SMC_Long_Dip_Dashboard.pine`, set `View = Decision Brief`, and bind all 64 sources to the core plots. Capture the rendered brief surface.
 3. Switch the Dashboard to `Audit View` and capture the rendered expert surface.
-4. Add `SMC_Long_Strategy.pine`, bind its 8 sources to the core plots, and capture a rendered execution screenshot when a plan is active.
+4. Add `SMC_Long_Dip_Strategy.pine`, bind its 8 sources to the core plots, and capture a rendered execution screenshot when a plan is active.
 5. Validate the five scenarios above on the same symbol and timeframe.
 6. If dashboard and strategy disagree, treat the core plots as the source of truth first and inspect source bindings before changing any logic.

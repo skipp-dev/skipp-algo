@@ -2496,9 +2496,9 @@ calibration.
 - This closes the GAP-4 follow-up explicitly deferred in
   `governance/family_calibration.py`.
 
-### Fixed (2026-06-01) — `SMC_TV_Bridge.pine` malformed `//@version` directive + Pine version/provenance guards
+### Fixed (2026-06-01) — `SMC_Regime_and_News.pine` malformed `//@version` directive + Pine version/provenance guards
 
-`SMC_TV_Bridge.pine` declared `// @version=5` (stray space after `//`).
+`SMC_Regime_and_News.pine` declared `// @version=5` (stray space after `//`).
 Pine only honours the exact form `//@version=N`; the malformed variant is
 parsed as a plain comment, silently downgrading the script to the oldest
 language version. Two prior reviews missed this because the existing check
@@ -2582,7 +2582,7 @@ The three sentinels are first-class vocab members (`HERO_MARKET_MODE_VOCAB`
 Producer-A → Producer-B action map gains
 `HERO_QUALITY_A_TO_B["unavailable"] = "avoid"`.
 
-Pine dashboards (`SMC_Dashboard.pine`, `SMC_Mobile_Dashboard.pine`) render
+Pine dashboards (`SMC_Long_Dip_Dashboard.pine`, `SMC_Long_Dip_Mobile.pine`) render
 `⚪ awaiting data` (grey-80 background) for the sentinel; the bias chip is
 suppressed for both `FLAT` and `UNKNOWN`.
 
@@ -4146,7 +4146,7 @@ merged audit wave (#186, #188–#193).
   return the named constants instead of bare string literals. Pure
   behavioural no-op — every literal value is preserved exactly,
   including the empty-string sentinel that gates
-  `SMC_Dashboard.pine:1769` (`mp.HERO_RISK != ""`).
+  `SMC_Long_Dip_Dashboard.pine:1769` (`mp.HERO_RISK != ""`).
 - Source-of-truth: extracted from PR #123
   (`chore/smc-system-review-2026-04-24`), which carries the production
   half of ADR-0006 but is otherwise blocked by extensive add/add
@@ -4289,7 +4289,7 @@ merged audit wave (#186, #188–#193).
   3. **No-Stale-Entries**: Ledger-Einträge müssen weiterhin existieren.
   4. **Per-File-Budget** (parametrisiert, 36 Sites): Jede einzelne Datei
      darf ihren eingefrorenen Stand nicht überschreiten.
-- Top-Site: `SMC_Core_Engine.pine: 415` (Bloat-Indikator — markiert für
+- Top-Site: `SMC_Long_Dip_Suite.pine: 415` (Bloat-Indikator — markiert für
   künftiges Refactor in Library/Context-Module).
 - Verhindert "stealth state growth" und zwingt deliberate Ledger-Updates
   bei neuen `var`/`varip`-Deklarationen.
@@ -4366,14 +4366,14 @@ merged audit wave (#186, #188–#193).
 - Neuer Pin [`tests/test_pine_alertcondition_and_declaration_pin.py`](tests/test_pine_alertcondition_and_declaration_pin.py)
   fixiert zwei Pine-Surface-Eigenschaften:
   1. **`alertcondition()` Ledger**: Total = 20 in 3 Dateien
-     (`SMC_Core_Engine.pine` 16, `SMC_Event_Overlay.pine` 2,
-     `SkippALGO_Confluence.pine` 2). Schutz gegen unbeabsichtigtes
+     (`SMC_Long_Dip_Suite.pine` 16, `SMC_Event_Overlay.pine` 2,
+     `SMC_Confluence_Hub.pine` 2). Schutz gegen unbeabsichtigtes
      Hinzufügen neuer User-sichtbarer Alert-Slots ohne Compile-Preflight-
      Registrierung.
   2. **Single-Declaration-Discipline**: Jede `*.pine`-Datei hat genau
      eine `indicator(...)`/`strategy(...)`/`library(...)` Top-Level-
      Deklaration und der Kind ist gepinnt (16 Dateien, davon 1
-     `strategy` = `SMC_Long_Strategy.pine`, Rest `indicator`). Eine
+     `strategy` = `SMC_Long_Dip_Strategy.pine`, Rest `indicator`). Eine
      zweite Deklaration würde die erste in TradingView still
      überschatten; ein Wechsel `indicator <-> strategy` ist breaking.
 - Helper `_strip_strings_and_comments` ist quote/`//`-comment-aware.
@@ -4405,10 +4405,10 @@ merged audit wave (#186, #188–#193).
   - **Layer 1 — Zero-Tripwire**: `tf`-Argument darf keine der drei
     Same-TF-Konstanten sein. Inventar 0.
   - **Layer 2 — Total-Budget**: genau 3 Aufrufe in `*.pine` (alle in
-    `SMC_Core_Engine.pine`: HTF-Trend `get_confirmed_structure_trend` Zeile
+    `SMC_Long_Dip_Suite.pine`: HTF-Trend `get_confirmed_structure_trend` Zeile
     2367 + 2× HTF-FVG-Detect Zeilen 4693/4694). Neue HTF-Aufrufe sind
     erlaubt, müssen aber Ledger + CHANGELOG mit aktualisieren.
-  - **Layer 3 — Per-File-Ledger**: `SMC_Core_Engine.pine: 3` eingefroren.
+  - **Layer 3 — Per-File-Ledger**: `SMC_Long_Dip_Suite.pine: 3` eingefroren.
   - **Layer 4 — Datei-Existenz**: Ledger-Datei muss existieren.
   - **Layer 5 — Inventar-Sanity**: ≥15 Pine-Dateien sichtbar.
 - Defense-only — kein Pine-Code geändert.
@@ -5020,7 +5020,7 @@ Vier kleine Pins, alle Tripwire/Budget-Stil:
 
 - Neuer Pin [`tests/test_pine_request_security_per_file_budget.py`](tests/test_pine_request_security_per_file_budget.py):
   ergänzt PR #132's qualitative Discipline um quantitatives Budget:
-  - `SMC_Core_Engine.pine` ≤ 6 Calls (current=5)
+  - `SMC_Long_Dip_Suite.pine` ≤ 6 Calls (current=5)
   - `SMC++/smc_utils.pine` ≤ 5 Calls (current=4)
   Neue Calls forcieren explizite Budget-Bumps. Stale-Entry-Test
   fängt verschwundene/leere Budget-Einträge. (2 tests)
@@ -5089,7 +5089,7 @@ Pine-Schicht, plus zwei kleinere Disziplin-Pins):
   (Dashboard / Mobile-Dashboard / Core-Engine).
 - Echte Drift gefunden und behoben: `"WATCH"` (HERO_ACTION) und
   `"NEUTRAL"` (HERO_MARKET_MODE) wurden in
-  [`SMC_Mobile_Dashboard.pine`](SMC_Mobile_Dashboard.pine) nur als
+  [`SMC_Long_Dip_Mobile.pine`](SMC_Long_Dip_Mobile.pine) nur als
   default-else-branch gerendert (`"⚪ WATCH"`) — Vocab-Anchor-Kommentare
   hinzugefügt. Ergänzt I-2 aus PR #130 (Python-Side Fingerprint Gate)
   um die Pine-Render-Schicht.
@@ -5563,7 +5563,7 @@ defaults to the **strict** weight regime promoted from the D4 audit:
 (back-compat). New constants `STRICT_WEIGHTS`, `STRICT_DIRECTIONS`
 mirror the production-side pinning.
 
-`SMC_Core_Engine.pine::fvg_quality_score` is **NOT** mirror-promoted.
+`SMC_Long_Dip_Suite.pine::fvg_quality_score` is **NOT** mirror-promoted.
 Pine and Python use disjoint feature sets (Pine reads
 `fill_current_ratio`, `not filled`, `total_volume>0`; Python reads
 `htf_aligned`, `distance_to_price_atr`, `hurst_50`). True mirroring
@@ -9381,7 +9381,7 @@ Refs: `docs/FVG_QUALITY_D4_AUDIT.md` §6 (D3-Promotion-Befund + Pine-vs-Python-D
 
 ### Changed (2026-04-21) — Plan 2.8 S0 Pine MTF-stack tooltips
 
-- `SMC_Core_Engine.pine`: the three `Trend TF N` inputs (group
+- `SMC_Long_Dip_Suite.pine`: the three `Trend TF N` inputs (group
   `7. Advanced - Higher Timeframe Trend`) now carry explicit
   tooltips that document the intentional ICT-standard 3-layer
   hierarchy (4H / 1D / 1W), the factor-~4 spacing, the adaptive
@@ -9839,7 +9839,7 @@ vs. legacy "15m/1H". Cost: CI config only, benchmark runtime ~2x.
   and emits a deterministic Pine v5 const block of
   `FVG_HEALTH_<SESSION>_<VOL>` + `_STATUS` (OK / WARN / WEAK / INSUF
   on HR thresholds 0.70 / 0.55). Insufficient buckets render as
-  `"insufficient (n=N)"`. Wiring into `SMC_Core_Engine.pine` is the
+  `"insufficient (n=N)"`. Wiring into `SMC_Long_Dip_Suite.pine` is the
   remaining manual step (compile-only preflight).
 - **A1.D — G1 Baseline Seed Workflow (plan §A1.D):** New
   `.github/workflows/smc-baseline-seed-rolling.yml` runs the daily
@@ -9904,7 +9904,7 @@ vs. legacy "15m/1H". Cost: CI config only, benchmark runtime ~2x.
 
 - **Hygiene & Feature Round:**
   - **Provider Health Tab** in `streamlit_terminal.py` — neues "🩺 Provider Health" Tab zeigt Gesamtstatus (Coverage/Warnings/Failures), Provider-Domain-Matrix mit Failure-Semantik, Domain-Alerts und Failure-Semantics-Referenz. Basiert auf `provider_health.py` API.
-  - **Zone Priority → Pine Consumer** — `SMC_Dashboard.pine` zeigt Zone Priority in Decision Brief (Rank + Score + Catalyst, farbkodiert A/B/C/D) und Audit View (vollständige Details mit Top-Family und Reason). `SkippALGO_Confluence.pine` zeigt Zone Prio als neue Zeile 7 (Rank + Score/100 + Catalyst).
+  - **Zone Priority → Pine Consumer** — `SMC_Long_Dip_Dashboard.pine` zeigt Zone Priority in Decision Brief (Rank + Score + Catalyst, farbkodiert A/B/C/D) und Audit View (vollständige Details mit Top-Family und Reason). `SMC_Confluence_Hub.pine` zeigt Zone Prio als neue Zeile 7 (Rank + Score/100 + Catalyst).
   - **Provider Health Tab Tests** (`tests/test_provider_health_tab.py`) — 5 Integrationstests für die Provider Health Imports.
 
 ### Changed (2026-04-20)
@@ -9916,16 +9916,16 @@ vs. legacy "15m/1H". Cost: CI config only, benchmark runtime ~2x.
 ### Added (2026-04-19)
 
 - **Phase A+B+C — UX optimization (Strategie Q2 2026):**
-  - **A1: 6 neue Alert-Conditions** in `SMC_Core_Engine.pine` — Bullish/Bearish BOS, Bullish/Bearish CHoCH, Zone Armed, Zone Invalidated. Nutzer können jetzt über TradingView-Alerts direkt auf Struktur- und Lifecycle-Events reagieren (insgesamt 16 Alert-Conditions).
-  - **A2: Focus-Ansicht** im `SMC_Dashboard.pine` — neuer "Focus" View-Modus mit 3-Zeilen Traffic-Light (Ampel + Level + Market). Keine Konfiguration, keine Ablenkung — sofortige Orientierung.
-  - **A3: Performance-Tabelle** in `SMC_Long_Strategy.pine` — 8-Zeilen-Table zeigt Trades, Win Rate, Profit Factor, Net Profit, Max Drawdown, Avg Trade und aktuellen Modus. Farbkodiert nach Ergebnis-Qualität.
-  - **B4: SkippALGO Confluence Hub** (`SkippALGO_Confluence.pine`) — aggregiert SMC Zone-Lifecycle (BUS) + Trend (EMA) + Momentum (RSI/MACD) + Mean-Reversion (BB) zu einem 0–100 Confluence-Score mit Traffic-Light (🟢 TRADE / 🟡 WATCH / 🔴 STAY AWAY). 2 Alert-Conditions.
+  - **A1: 6 neue Alert-Conditions** in `SMC_Long_Dip_Suite.pine` — Bullish/Bearish BOS, Bullish/Bearish CHoCH, Zone Armed, Zone Invalidated. Nutzer können jetzt über TradingView-Alerts direkt auf Struktur- und Lifecycle-Events reagieren (insgesamt 16 Alert-Conditions).
+  - **A2: Focus-Ansicht** im `SMC_Long_Dip_Dashboard.pine` — neuer "Focus" View-Modus mit 3-Zeilen Traffic-Light (Ampel + Level + Market). Keine Konfiguration, keine Ablenkung — sofortige Orientierung.
+  - **A3: Performance-Tabelle** in `SMC_Long_Dip_Strategy.pine` — 8-Zeilen-Table zeigt Trades, Win Rate, Profit Factor, Net Profit, Max Drawdown, Avg Trade und aktuellen Modus. Farbkodiert nach Ergebnis-Qualität.
+  - **B4: SkippALGO Confluence Hub** (`SMC_Confluence_Hub.pine`) — aggregiert SMC Zone-Lifecycle (BUS) + Trend (EMA) + Momentum (RSI/MACD) + Mean-Reversion (BB) zu einem 0–100 Confluence-Score mit Traffic-Light (🟢 TRADE / 🟡 WATCH / 🔴 STAY AWAY). 2 Alert-Conditions.
   - **B5: SMC Setup Check** (`SMC_Setup_Check.pine`) — validiert BUS-Verbindungen zum Core Engine mit ✅/❌ Checklist. Zeigt Anleitung für nächste Schritte direkt im Chart. Kein leeres Dashboard mehr.
-  - **C8: SMC Mobile Dashboard** (`SMC_Mobile_Dashboard.pine`) — Mobile-first 4-Zeilen Dashboard: Traffic-Light + Levels + Market + Quality. Keine Overlays, nur Table. Optimiert für kleine Screens.
+  - **C8: SMC Mobile Dashboard** (`SMC_Long_Dip_Mobile.pine`) — Mobile-first 4-Zeilen Dashboard: Traffic-Light + Levels + Market + Quality. Keine Overlays, nur Table. Optimiert für kleine Screens.
   - **C9: AI Zone-Priorisierung** (`scripts/smc_zone_priority.py`) — Composite-Score (0–100) aus 3 Dimensionen: historische Performance (Ensemble, 0–30), aktueller Kontext (Regime/Vol/Session/Projektion/HTF, 0–35+15), News-Catalyst (0–10) minus Event-Risk-Penalty (0–50). Output: Rank (A/B/C/D), Top-Family, Catalyst, Reason. 5 neue `ZONE_PRIORITY_*` Exports in der Generated Library. 26 Unit-Tests.
   - **B7: Signal Replay** Tab in `streamlit_terminal.py` — historische Signal-Timeline mit Aggregate-Metriken (Signals, Resolved, Hit Rate, Avg/Total P&L), Hit-Rate-Matrix nach Gap×RVOL Bucket, tägliche Signal-Timeline mit Expander pro Tag. 11 Unit-Tests.
   - **B6: Gehostetes Terminal** — `Dockerfile`, `docker-compose.yml`, `.dockerignore` für Self-Hosted-Deployment. Token-basierter Auth-Guard `terminal_auth.py` (`STREAMLIT_AUTH_TOKEN` env var), timing-safe Vergleich, Zero-Friction lokal. 10 Unit-Tests.
-  - **C10: Explain-Modus** im `SMC_Dashboard.pine` — neuer "Explain" View-Modus mit ✅/❌ Checklist (9 Kriterien: Struktur, Zone, Qualität, Freshness, Session, Market, Event, HTF, Pressure). Zeigt Next Step und erklärt WARUM der aktuelle Zone-State gilt.
+  - **C10: Explain-Modus** im `SMC_Long_Dip_Dashboard.pine` — neuer "Explain" View-Modus mit ✅/❌ Checklist (9 Kriterien: Struktur, Zone, Qualität, Freshness, Session, Market, Event, HTF, Pressure). Zeigt Next Step und erklärt WARUM der aktuelle Zone-State gilt.
   - **Outcome Backfill Pipeline** (`open_prep/outcome_backfill.py`) — Post-Open-Job zum Auffüllen der bisher leeren `profitable_30m`/`pnl_30m_pct` Felder in Outcome-Dateien. Holt 1-min OHLCV-Bars von Databento für das [09:30–10:00 ET]-Fenster, berechnet 30-min P&L, aktualisiert Dateien atomar. CLI: `python -m open_prep.outcome_backfill [--date YYYY-MM-DD] [--lookback N] [--dry-run] [--feature-importance]`. Feature-Importance-Backfill schließt den Kalibrations-Feedback-Loop. 25 Unit-Tests.
   - **Strategiedokument** `docs/SYSTEM_REVIEW_AND_STRATEGY_2026_Q2.md` — vollständiges Systemreview mit Vergleichsmatrix, Designprinzipien und 10-Punkte-Umsetzungsplan (A1–C10).
 
@@ -9952,19 +9952,19 @@ vs. legacy "15m/1H". Cost: CI config only, benchmark runtime ~2x.
 ### Changed (2026-04-08)
 
 - **SMC mainline settings hierarchy refresh:**
-  - Reordered `SMC_Dashboard.pine` so the visible `Product Surface` controls open before the hidden BUS bindings, and relabeled the remaining binding and debug sections as explicit operator-only groups.
-  - Reordered `SMC_Long_Strategy.pine` so `Execution Setup` and `Trade Plan` appear before the two `Expert Mapping` sections.
-  - Reprioritized `SMC_Core_Engine.pine` settings into `Core Setup`, `Output`, `Trade Plan`, `Session Gate`, and `Runtime Budget`, with the remaining technical groups marked as `Advanced`.
+  - Reordered `SMC_Long_Dip_Dashboard.pine` so the visible `Product Surface` controls open before the hidden BUS bindings, and relabeled the remaining binding and debug sections as explicit operator-only groups.
+  - Reordered `SMC_Long_Dip_Strategy.pine` so `Execution Setup` and `Trade Plan` appear before the two `Expert Mapping` sections.
+  - Reprioritized `SMC_Long_Dip_Suite.pine` settings into `Core Setup`, `Output`, `Trade Plan`, `Session Gate`, and `Runtime Budget`, with the remaining technical groups marked as `Advanced`.
   - Refreshed the operator guide, strategy guide, validation runbooks, and checklist so the active docs match the shipped TradingView settings surface.
 
 - **SMC core first-run hero and overlay cut:**
-  - Tightened the `SMC_Core_Engine.pine` Focus View hero copy so `Why now` and `Main risk` stay short and confidence remains tier-based instead of pseudo-precise.
+  - Tightened the `SMC_Long_Dip_Suite.pine` Focus View hero copy so `Why now` and `Main risk` stay short and confidence remains tier-based instead of pseudo-precise.
   - Made `Core Trigger` and `Core Invalidation` explicitly depend on the actionable `Ready` / entry states rather than a broader visual-state threshold.
   - Suppressed standalone volume and strict-LTF warning labels plus default strong/weak swing overlays in Focus View so the hero stays the only primary first-run message.
   - Updated the focused TradingView UI and contract tests plus the manual validation docs to lock the compact-surface behavior in place.
 
 - **SMC execution wrapper language cleanup:**
-  - Reworded the visible `SMC_Long_Strategy.pine` setup and expert-mapping tooltips so the surface talks about linked core outputs and execution plans instead of raw BUS-contract internals.
+  - Reworded the visible `SMC_Long_Dip_Strategy.pine` setup and expert-mapping tooltips so the surface talks about linked core outputs and execution plans instead of raw BUS-contract internals.
   - Refreshed the execution guide and operator guide summary so the wrapper stays clearly operator-only without leaking unnecessary transport jargon into the visible setup path.
 
 - **SMC execution surface copy cut:**
@@ -9978,7 +9978,7 @@ vs. legacy "15m/1H". Cost: CI config only, benchmark runtime ~2x.
 ### Changed (2026-04-07)
 
 - **SMC mainline surface implementation wave:**
-  - Renamed the visible Core/Dashboard/Strategy controls to the new Lite, Companion, and Execution-surface language in `SMC_Core_Engine.pine`, `SMC_Dashboard.pine`, and `SMC_Long_Strategy.pine`.
+  - Renamed the visible Core/Dashboard/Strategy controls to the new Lite, Companion, and Execution-surface language in `SMC_Long_Dip_Suite.pine`, `SMC_Long_Dip_Dashboard.pine`, and `SMC_Long_Dip_Strategy.pine`.
   - Added actionable trigger and invalidation lines directly to the Core so `READY LONG` and `ENTER LONG` remain legible without switching to a second script.
   - Reordered the dashboard summary first fold around action, blocker reason, and risk plan, and replaced terse blocker copy with clearer trader-facing text.
   - Aligned the strategy guide, migration guide, and manual validation runbooks with the new `Lite Surface`, `Companion Summary`, and `Execution Stage` terminology.
@@ -9993,15 +9993,15 @@ vs. legacy "15m/1H". Cost: CI config only, benchmark runtime ~2x.
 ### Changed (2026-04-06)
 
 - **TradingView decision-first first-release closure:**
-  - Finished the SMC decision-first surface work for `SMC_Core_Engine.pine` and `SMC_Dashboard.pine`, and aligned the released docs to the Core/Dashboard/Long Strategy scope.
+  - Finished the SMC decision-first surface work for `SMC_Long_Dip_Suite.pine` and `SMC_Long_Dip_Dashboard.pine`, and aligned the released docs to the Core/Dashboard/Long Strategy scope.
   - Kept the shipped SkippALGO HUD work documented as a separate TradingView surface change, not as part of the SMC architecture scope.
-  - Added a decision-first TradingView preflight config for `SMC_Core_Engine.pine`, `SMC_Dashboard.pine`, `SMC_Long_Strategy.pine`, and companion TradingView automation, plus npm wiring for repeatable release validation.
+  - Added a decision-first TradingView preflight config for `SMC_Long_Dip_Suite.pine`, `SMC_Long_Dip_Dashboard.pine`, `SMC_Long_Dip_Strategy.pine`, and companion TradingView automation, plus npm wiring for repeatable release validation.
   - Marked the first-release ticketset and R1.1 migration guide as released and updated the README to reflect the corrected SMC scope.
 
 ### Changed (2026-04-06)
 
 - **TradingView decision-first R1.1 hardening:**
-  - Regrouped the `SMC_Dashboard.pine` Pro diagnostics surface into clearer operator-facing sections without changing the underlying BUS binding order or diagnostic row contracts.
+  - Regrouped the `SMC_Long_Dip_Dashboard.pine` Pro diagnostics surface into clearer operator-facing sections without changing the underlying BUS binding order or diagnostic row contracts.
   - Added explicit migration/operator guidance for the decision-first rollout, including safe-default expectations for `compact_mode`, `surface_mode`, and `surfaceMode` plus the operator-only BUS binding workflow for the dashboard companion script.
   - Kept the decision-first visual modes as presentation changes only; no additional engine gating is introduced by the new Lite/Pro defaults.
 

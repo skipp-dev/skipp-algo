@@ -144,10 +144,10 @@ jobs:
       - name: Validate Pine scripts
         if: steps.gate.outputs.run_heavy == 'true'
         run: |
-          test -f SMC_Core_Engine.pine
-          grep -q "^//@version=6" SMC_Core_Engine.pine
-          test -f SMC_Long_Strategy.pine
-          grep -q "^//@version=6" SMC_Long_Strategy.pine
+          test -f SMC_Long_Dip_Suite.pine
+          grep -q "^//@version=6" SMC_Long_Dip_Suite.pine
+          test -f SMC_Long_Dip_Strategy.pine
+          grep -q "^//@version=6" SMC_Long_Dip_Strategy.pine
       - name: Set up pinned Python (GitHub-hosted)
         if: steps.gate.outputs.run_heavy == 'true'
         uses: ./.github/actions/setup-python-pinned

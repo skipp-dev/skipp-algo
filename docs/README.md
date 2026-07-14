@@ -80,9 +80,9 @@ Machine-readable TradingView release tracking artifact:
 
 Authoritative code references for the current contract:
 
-- [../SMC_Core_Engine.pine](../SMC_Core_Engine.pine)
-- [../SMC_Dashboard.pine](../SMC_Dashboard.pine)
-- [../SMC_Long_Strategy.pine](../SMC_Long_Strategy.pine)
+- [../SMC_Long_Dip_Suite.pine](../SMC_Long_Dip_Suite.pine)
+- [../SMC_Long_Dip_Dashboard.pine](../SMC_Long_Dip_Dashboard.pine)
+- [../SMC_Long_Dip_Strategy.pine](../SMC_Long_Dip_Strategy.pine)
 
 Authoritative TradingView release-layer code references:
 

@@ -223,8 +223,8 @@ Das Dashboard darf sie nicht fachlich neu erfinden.
 
 ## Repo-Anker fuer die Umsetzung
 
-- `SMC_Dashboard.pine`
-- `SMC_Mobile_Dashboard.pine`
+- `SMC_Long_Dip_Dashboard.pine`
+- `SMC_Long_Dip_Mobile.pine`
 - `scripts/generate_smc_micro_profiles.py`
 - `scripts/generate_smc_micro_base_from_databento.py`
 - `pine_input_surface.py`
@@ -246,7 +246,7 @@ Das Dashboard darf sie nicht fachlich neu erfinden.
 ### HERO-02 - Market Mode Header in Desktop-Surface umsetzen
 
 - Scope: kompakter Kopfblock fuer Regime, Bias, Session, Trust und Freshness.
-- Dateien: `SMC_Dashboard.pine`.
+- Dateien: `SMC_Long_Dip_Dashboard.pine`.
 - Done when:
   - Marktmodus ist der erste sichtbare Block,
   - Trust/Freshness sind dort integriert,
@@ -255,7 +255,7 @@ Das Dashboard darf sie nicht fachlich neu erfinden.
 ### HERO-03 - Setup Quality Card mit Why now und Main risk umsetzen
 
 - Scope: begruendeter Qualitaetsblock statt Zahlencollage.
-- Dateien: `SMC_Dashboard.pine`, `scripts/generate_smc_micro_profiles.py`.
+- Dateien: `SMC_Long_Dip_Dashboard.pine`, `scripts/generate_smc_micro_profiles.py`.
 - Done when:
   - Why now und Main risk sind sichtbar,
   - Setup-Qualitaet ist erklaert statt nur gerankt,
@@ -264,7 +264,7 @@ Das Dashboard darf sie nicht fachlich neu erfinden.
 ### HERO-04 - Action Card mit klarer Produktsprache umsetzen
 
 - Scope: explizite Handlungsausgabe mit Degradierungslogik.
-- Dateien: `SMC_Dashboard.pine`,
+- Dateien: `SMC_Long_Dip_Dashboard.pine`,
   `scripts/generate_smc_micro_base_from_databento.py`.
 - Done when:
   - genau eine primaere Handlung sichtbar ist,
@@ -274,7 +274,7 @@ Das Dashboard darf sie nicht fachlich neu erfinden.
 ### HERO-05 - Compact Default und Pro Diagnostics sauber trennen
 
 - Scope: Default-Ansicht kompakt, Pro-Tiefe bewusst opt-in.
-- Dateien: `SMC_Dashboard.pine`.
+- Dateien: `SMC_Long_Dip_Dashboard.pine`.
 - Done when:
   - Default zeigt nur Hero plus wenige Kernzeilen,
   - Pro Diagnostics bleibt funktional,
@@ -283,7 +283,7 @@ Das Dashboard darf sie nicht fachlich neu erfinden.
 ### HERO-06 - Mobile-Hero auf dieselbe Semantik spiegeln
 
 - Scope: mobile Variante der Hero Surface mit identischer Bedeutungslogik.
-- Dateien: `SMC_Mobile_Dashboard.pine`.
+- Dateien: `SMC_Long_Dip_Mobile.pine`.
 - Done when:
   - mobile und desktop teilen denselben Hero-State,
   - Unterschiede bestehen nur in Dichte und Layout,
@@ -292,7 +292,7 @@ Das Dashboard darf sie nicht fachlich neu erfinden.
 ### HERO-07 - Trust/Freshness-Degradierung in die Action-Lage einhaengen
 
 - Scope: stale/degraded/warmup beeinflussen die Hero-Handlung explizit.
-- Dateien: `SMC_Dashboard.pine`, `smc_integration/provider_health.py`.
+- Dateien: `SMC_Long_Dip_Dashboard.pine`, `smc_integration/provider_health.py`.
 - Done when:
   - Handlung reagiert sichtbar auf eingeschraenkte Datenlage,
   - degradierte Zustandswechsel sind nachvollziehbar,
@@ -302,8 +302,8 @@ Das Dashboard darf sie nicht fachlich neu erfinden.
 
 - Scope: sichtbare Inputs auf Produktbedarf reduzieren, Operator-Pfade
   separat halten.
-- Dateien: `pine_input_surface.py`, `SMC_Dashboard.pine`,
-  `SMC_Mobile_Dashboard.pine`.
+- Dateien: `pine_input_surface.py`, `SMC_Long_Dip_Dashboard.pine`,
+  `SMC_Long_Dip_Mobile.pine`.
 - Done when:
   - Hero-Surface ist ohne Operator-Komplexitaet konfigurierbar,
   - sichtbare Inputs dienen echten Nutzerentscheidungen,
@@ -312,7 +312,7 @@ Das Dashboard darf sie nicht fachlich neu erfinden.
 ### HERO-09 - Produktsprache vereinheitlichen
 
 - Scope: Entscheidungssprache fuer Action, Quality, Risk, Trust und Blocker.
-- Dateien: `SMC_Dashboard.pine`, relevante Doku.
+- Dateien: `SMC_Long_Dip_Dashboard.pine`, relevante Doku.
 - Done when:
   - Default-Surface spricht in Nutzer- statt Systemsprache,
   - dieselben Begriffe tauchen in Doku und Surface auf,
@@ -350,7 +350,7 @@ Die Hero Surface ist fachlich erreicht, wenn:
 
 ## Abschlusszustand
 
-Der Hero-Surface-Plan ist abgeschlossen, wenn `SMC_Dashboard.pine` und
-`SMC_Mobile_Dashboard.pine` nicht mehr primar als Diagnose-Cockpit wirken,
+Der Hero-Surface-Plan ist abgeschlossen, wenn `SMC_Long_Dip_Dashboard.pine` und
+`SMC_Long_Dip_Mobile.pine` nicht mehr primar als Diagnose-Cockpit wirken,
 sondern als sichtbare Decision-First-Produktflaeche fuer bessere Entscheidungen
 unter Unsicherheit.

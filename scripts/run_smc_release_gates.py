@@ -1155,7 +1155,7 @@ def build_parser() -> argparse.ArgumentParser:
     )
     parser.add_argument(
         "--core-engine",
-        default="SMC_Core_Engine.pine",
+        default="SMC_Long_Dip_Suite.pine",
         help="Path to core engine pine file used by publish contract gate.",
     )
     parser.add_argument(

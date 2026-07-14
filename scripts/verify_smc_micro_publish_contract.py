@@ -238,7 +238,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--core",
         type=Path,
-        default=Path("SMC_Core_Engine.pine"),
+        default=Path("SMC_Long_Dip_Suite.pine"),
         help="Path to the SMC core Pine file.",
     )
     return parser

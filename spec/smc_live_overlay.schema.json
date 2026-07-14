@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://skipp-algo.local/spec/smc_live_overlay.schema.json",
   "title": "SMC live-overlay payload (smc-live-overlay/1)",
-  "description": "Flat, Pine-friendly live-overlay payload served at GET /smc_live. It augments the 2x/day baked mp.* baseline that SMC_TV_Bridge.pine already carries. Every data field is optional and nullable: an absent or null field means the overlay has nothing fresher to say and Pine falls back to the baked mp.* value. The overlay may only add or tighten signals, never loosen them; a stale or unreachable endpoint degrades silently to the baked baseline.",
+  "description": "Flat, Pine-friendly live-overlay payload served at GET /smc_live. It augments the 2x/day baked mp.* baseline that SMC_Regime_and_News.pine already carries. Every data field is optional and nullable: an absent or null field means the overlay has nothing fresher to say and Pine falls back to the baked mp.* value. The overlay may only add or tighten signals, never loosen them; a stale or unreachable endpoint degrades silently to the baked baseline.",
   "type": "object",
   "required": [
     "schema",

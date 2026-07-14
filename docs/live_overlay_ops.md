@@ -16,7 +16,7 @@
 **Ein** zentral gehosteter HTTPS-JSON-Endpoint `GET /smc_live?symbol=&tf=`
 liefert pro `(symbol, tf)` ein flaches „live overlay"-JSON (Contract
 `smc-live-overlay/1`, siehe [spec/smc_live_overlay.schema.json](../spec/smc_live_overlay.schema.json)).
-`SMC_TV_Bridge.pine` zieht es per `request.get()` (TradingView Premium+),
+`SMC_Regime_and_News.pine` zieht es per `request.get()` (TradingView Premium+),
 prüft `asof_ts`/`stale` gegen `OVERLAY_MAX_AGE_SEC` und überschreibt **feldweise**
 den gebackenen `mp.*`-Wert — nur wenn frisch und vorhanden.
 
@@ -151,7 +151,7 @@ GET /smc_live?symbol=&tf=  ──HTTPS/JSON──►  CDN (Short-TTL-Cache)
   (`effective_blocked = baked_blocked OR overlay_blocked`).
   **Stand 2026-06-08 (#2618):** Die 7 Event-Felder werden jetzt **serviert**
   (WP-B2, Quelle: gecachter Databento-Reference-Snapshot — **kein**
-  Live-Earnings-/Kalender-/News-Feed) und in `SMC_TV_Bridge.pine` **diagnostisch
+  Live-Earnings-/Kalender-/News-Feed) und in `SMC_Regime_and_News.pine` **diagnostisch
   angezeigt** (WP-B3, `tighten-only`: Block-Flags nur bei `"true"` + frischem
   Overlay; stale/absent ⇒ `–`). Das **consumer-seitige Trade-Gating**
   (`effective_blocked` tatsächlich in Entry-Entscheidungen umsetzen) ist **noch

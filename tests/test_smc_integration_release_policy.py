@@ -1419,7 +1419,7 @@ class TestClassifyArtifactDrift:
 
     def test_exact_match(self) -> None:
         from smc_integration.release_policy import classify_artifact_drift
-        result = classify_artifact_drift("SMC_Core_Engine.pine")
+        result = classify_artifact_drift("SMC_Long_Dip_Suite.pine")
         assert result == "stage_only"
 
 

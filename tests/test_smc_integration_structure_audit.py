@@ -193,7 +193,7 @@ class TestKindForPath:
         assert _kind_for_path(Path("data.csv")) == "csv"
 
     def test_pine(self) -> None:
-        assert _kind_for_path(Path("SMC_Core_Engine.pine")) == "pine"
+        assert _kind_for_path(Path("SMC_Long_Dip_Suite.pine")) == "pine"
 
     def test_script_py(self) -> None:
         assert _kind_for_path(Path("run.py")) == "script"
@@ -334,7 +334,7 @@ class TestNotesFor:
         import smc_integration.structure_audit as mod
         repo = tmp_path / "repo"
         repo.mkdir()
-        f = repo / "SMC_Core_Engine.pine"
+        f = repo / "SMC_Long_Dip_Suite.pine"
         f.touch()
         with patch.object(mod, "_REPO_ROOT", repo):
             notes = _notes_for(f, ["bos"])

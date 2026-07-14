@@ -8,7 +8,7 @@
 
 ## Summary
 
-The SMC Core Engine (`SMC_Core_Engine.pine`) was split from **6 312 LOC → 5 474 LOC** (−838 lines extracted) across four work packages. All extracted code was moved into dedicated Pine Script v6 libraries under `SMC++/`. The Core Engine retains all runtime logic; extracted modules contain pure helper types, methods, and resolver functions.
+The SMC Core Engine (`SMC_Long_Dip_Suite.pine`) was split from **6 312 LOC → 5 474 LOC** (−838 lines extracted) across four work packages. All extracted code was moved into dedicated Pine Script v6 libraries under `SMC++/`. The Core Engine retains all runtime logic; extracted modules contain pure helper types, methods, and resolver functions.
 
 No production-logic changes were made during the split. All modifications were mechanical extraction + import wiring.
 

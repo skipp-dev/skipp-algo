@@ -9,9 +9,9 @@ Draft
 Dieses Dokument uebersetzt das Decision-First-PRD in einen konkreten
 Lieferplan fuer die drei SMC-TradingView-Surfaces:
 
-- `SMC_Core_Engine.pine`
-- `SMC_Dashboard.pine`
-- `SMC_Long_Strategy.pine`
+- `SMC_Long_Dip_Suite.pine`
+- `SMC_Long_Dip_Dashboard.pine`
+- `SMC_Long_Dip_Strategy.pine`
 
 Es ist kein Architektur-Fork. Alle Tickets muessen die aktive Produktgrenze
 respektieren:
@@ -42,10 +42,10 @@ respektieren:
 
 | ID | Epic | Hauptresultat | Hauptartefakte | Prioritaet |
 | --- | --- | --- | --- | --- |
-| E1 | Shared Product Language | Einheitliche Begriffswelt fuer Core, Dashboard und Strategy Wrapper | `SMC_Core_Engine.pine`, `SMC_Dashboard.pine`, `SMC_Long_Strategy.pine`, Docs | P1 |
-| E2 | SMC Core Lite Surface | Decision-first Hero-Surface fuer aktive Nutzung | `SMC_Core_Engine.pine` | P1 |
-| E3 | SMC Decision Board Split | Compact Detail, Pro Diagnostics und operator-only Companion sauber trennen | `SMC_Dashboard.pine` | P1 |
-| E4 | SMC Execution Surface | Strategy-Setup, Binding und Chart-Ausgabe produktisieren | `SMC_Long_Strategy.pine` | P1 |
+| E1 | Shared Product Language | Einheitliche Begriffswelt fuer Core, Dashboard und Strategy Wrapper | `SMC_Long_Dip_Suite.pine`, `SMC_Long_Dip_Dashboard.pine`, `SMC_Long_Dip_Strategy.pine`, Docs | P1 |
+| E2 | SMC Core Lite Surface | Decision-first Hero-Surface fuer aktive Nutzung | `SMC_Long_Dip_Suite.pine` | P1 |
+| E3 | SMC Decision Board Split | Compact Detail, Pro Diagnostics und operator-only Companion sauber trennen | `SMC_Long_Dip_Dashboard.pine` | P1 |
+| E4 | SMC Execution Surface | Strategy-Setup, Binding und Chart-Ausgabe produktisieren | `SMC_Long_Dip_Strategy.pine` | P1 |
 | E5 | Docs And Validation | Guide, Validation und Release-Gates auf dieselben drei Surfaces ausrichten | Docs, Tests, Validation | P2 |
 
 ## E1 - Shared Product Language
@@ -53,8 +53,8 @@ respektieren:
 ### T1.1 Core / Dashboard / Strategy Naming Parity
 
 - Scope: sichtbare Begriffe fuer Action, Risk, Quality und Setup angleichen.
-- Hauptartefakte: `SMC_Core_Engine.pine`, `SMC_Dashboard.pine`,
-  `SMC_Long_Strategy.pine`, Docs.
+- Hauptartefakte: `SMC_Long_Dip_Suite.pine`, `SMC_Long_Dip_Dashboard.pine`,
+  `SMC_Long_Dip_Strategy.pine`, Docs.
 - Acceptance Criteria:
   - Core und Dashboard sprechen dieselbe Lite-Sprache.
   - Die Long Strategy liest sich wie Wrapper auf dieselbe Produktlogik,
@@ -65,8 +65,8 @@ respektieren:
 
 - Scope: Trigger, Invalidation, Quality und Plan-Level in allen drei Surfaces
   konsistent beschreiben.
-- Hauptartefakte: `SMC_Core_Engine.pine`, `SMC_Dashboard.pine`,
-  `SMC_Long_Strategy.pine`.
+- Hauptartefakte: `SMC_Long_Dip_Suite.pine`, `SMC_Long_Dip_Dashboard.pine`,
+  `SMC_Long_Dip_Strategy.pine`.
 - Acceptance Criteria:
   - Risk-Plan-Begriffe widersprechen sich nicht.
   - Strategy-Level zeigen dieselbe Plan-Lesart wie der Core.
@@ -75,7 +75,7 @@ respektieren:
 
 - Scope: Binding-Flaechen im Dashboard und in der Strategy explizit als
   operator-only markieren.
-- Hauptartefakte: `SMC_Dashboard.pine`, `SMC_Long_Strategy.pine`, Guides.
+- Hauptartefakte: `SMC_Long_Dip_Dashboard.pine`, `SMC_Long_Dip_Strategy.pine`, Guides.
 - Acceptance Criteria:
   - Endnutzer halten Binding-Screens nicht fuer normale Public-UI.
   - Die Bindungsreihenfolge ist dokumentiert und deterministisch.
@@ -85,7 +85,7 @@ respektieren:
 ### T2.1 Compact Hero Card
 
 - Scope: Hero-Surface mit `Action`, `Bias`, `Quality`, `Why now`, `Main risk`.
-- Hauptartefakt: `SMC_Core_Engine.pine`.
+- Hauptartefakt: `SMC_Long_Dip_Suite.pine`.
 - Acceptance Criteria:
   - Der Core ist in <= 5 Sekunden lesbar.
   - Action, Why now und Main risk sind die erste Lesestufe.
@@ -94,7 +94,7 @@ respektieren:
 
 - Scope: Trigger, Invalidation und Risk Plan nur zeigen, wenn sie wirklich
   relevant sind.
-- Hauptartefakt: `SMC_Core_Engine.pine`.
+- Hauptartefakt: `SMC_Long_Dip_Suite.pine`.
 - Acceptance Criteria:
   - `WAIT` und `PREPARE` erzeugen kein volles Risk-Overlay.
   - `READY`, `ENTER` und aktive Positionen zeigen Plan-Level klar.
@@ -102,7 +102,7 @@ respektieren:
 ### T2.3 Default Visual Budget Reduction
 
 - Scope: Debug- und Diagnoseclutter auf der Default-Surface reduzieren.
-- Hauptartefakt: `SMC_Core_Engine.pine`.
+- Hauptartefakt: `SMC_Long_Dip_Suite.pine`.
 - Acceptance Criteria:
   - Lite wirkt wie Produkt, nicht wie Labor.
   - Pro-Tiefe bleibt verfuegbar, aber nachrangig.
@@ -112,7 +112,7 @@ respektieren:
 ### T3.1 Compact Detail Default
 
 - Scope: Default-Dashboard auf kompakte Entscheidungserklaerung reduzieren.
-- Hauptartefakt: `SMC_Dashboard.pine`.
+- Hauptartefakt: `SMC_Long_Dip_Dashboard.pine`.
 - Acceptance Criteria:
   - Default-Detail hat maximal 6 bis 8 Kernzeilen.
   - BUS-Terminologie ist in Compact Detail nicht sichtbar.
@@ -120,7 +120,7 @@ respektieren:
 ### T3.2 Pro Diagnostics Retention
 
 - Scope: die bestehende Tiefe erhalten, aber klar als Pro kennzeichnen.
-- Hauptartefakt: `SMC_Dashboard.pine`.
+- Hauptartefakt: `SMC_Long_Dip_Dashboard.pine`.
 - Acceptance Criteria:
   - Pro Diagnostics bleibt funktional.
   - Compact und Pro sind als zwei verschiedene Lesestufen erkennbar.
@@ -128,7 +128,7 @@ respektieren:
 ### T3.3 Operator Binding Workflow
 
 - Scope: den Companion-Workflow fuer Dashboard-Bindings klar dokumentieren.
-- Hauptartefakte: `SMC_Dashboard.pine`, Guides.
+- Hauptartefakte: `SMC_Long_Dip_Dashboard.pine`, Guides.
 - Acceptance Criteria:
   - Binding order ist explizit beschrieben.
   - Endnutzer muessen das Dashboard nicht manuell verdrahten, um den Core zu
@@ -140,7 +140,7 @@ respektieren:
 
 - Scope: sichtbare Wrapper-Steuerung auf `Entry Mode`, `Min Quality Score`,
   `Take Profit R` und `Use Take Profit` fokussieren.
-- Hauptartefakt: `SMC_Long_Strategy.pine`.
+- Hauptartefakt: `SMC_Long_Dip_Strategy.pine`.
 - Acceptance Criteria:
   - Die Setup-Flaeche liest sich wie Strategy-Konfiguration, nicht wie roher
     Binding-Dump.
@@ -149,7 +149,7 @@ respektieren:
 ### T4.2 Strategy Binding Surface Clarity
 
 - Scope: BUS-Bindings klar von den eigentlichen Setup-Controls trennen.
-- Hauptartefakt: `SMC_Long_Strategy.pine`.
+- Hauptartefakt: `SMC_Long_Dip_Strategy.pine`.
 - Acceptance Criteria:
   - Die top-to-bottom Binding-Reihenfolge ist im Code und in der Doku
     konsistent.
@@ -159,7 +159,7 @@ respektieren:
 
 - Scope: Trigger, Invalidation und Take-Profit-Linien als planbare
   Strategy-Ausgabe positionieren.
-- Hauptartefakt: `SMC_Long_Strategy.pine`.
+- Hauptartefakt: `SMC_Long_Dip_Strategy.pine`.
 - Acceptance Criteria:
   - Die Wrapper-Ausgabe widerspricht dem Core nicht.
   - Entry-Staging und Exit-Plan bleiben deterministisch lesbar.

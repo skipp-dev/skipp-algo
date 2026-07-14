@@ -265,7 +265,7 @@ bevor sie freigegeben wird:
    Vergleich der Q4 vs Q1 HR. Erst wenn die Quartile monoton steigend
    sind und das Acceptance-Gate `PASS` zeigt, kann die Promotion in
    `smc_core/fvg_quality.py` (und ihrer Pine-Spiegelung in
-   `SMC_Core_Engine.pine::fvg_quality_score`) per Single-PR landen.
+   `SMC_Long_Dip_Suite.pine::fvg_quality_score`) per Single-PR landen.
 
 Der Strict-Snapshot bleibt damit das D3-Promotion-Bauteil; die
 Production-Gewichte werden erst nach Patch (1) und (2) angefasst.
@@ -349,7 +349,7 @@ Shadow-JSON: `artifacts/reports/fvg_quality_calibration_shadow_strict50_signed_r
 erfüllt. Die nächste Promotion-PR kann den Strict-Shadow
 (`weights_shadow` + `weight_directions`) als neue
 Production-Pinnung in `smc_core/fvg_quality.py` übernehmen — gemeinsam
-mit der Pine-Spiegelung in `SMC_Core_Engine.pine::fvg_quality_score`
+mit der Pine-Spiegelung in `SMC_Long_Dip_Suite.pine::fvg_quality_score`
 (Single-PR-Discipline, vgl.
 `/memories/repo/preset-bus-channel-wiring-debt.md`). Diese Promotion
 ist nicht Teil dieses Patches; sie braucht eine explizite Freigabe,
@@ -381,7 +381,7 @@ nahe Preis, kein HTF-Hype). Pin-Tests:
 `tests/test_fvg_quality.py::test_tier_semantics_inverted_under_strict`
 + `test_strict_v1_no_hurst_constants_pinned`.
 
-**Pine-Helper `SMC_Core_Engine.pine::fvg_quality_score` NICHT
+**Pine-Helper `SMC_Long_Dip_Suite.pine::fvg_quality_score` NICHT
 promoted.** Dokumentierte Begründung in Memory
 `/memories/repo/fvg-quality-pine-python-feature-disjunction.md`:
 Pine und Python verwenden disjunkte Feature-Sets (Pine:

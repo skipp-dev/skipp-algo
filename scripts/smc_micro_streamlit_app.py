@@ -332,7 +332,7 @@ def run_streamlit_micro_base_app() -> None:
         if not has_calendar_provider and enrich_calendar:
             st.caption("⚠️ Für Earnings/Macro Calendar wird FMP oder Benzinga benötigt.")
         st.caption(
-            "SMC_Core_Engine.pine is already wired to import the generated TradingView library path."
+            "SMC_Long_Dip_Suite.pine is already wired to import the generated TradingView library path."
         )
 
     export_dir = Path(export_dir_raw).expanduser()

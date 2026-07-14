@@ -88,7 +88,7 @@ Beispiel: `SMC_RELEASE_SYMBOLS=TSLA,NVDA python scripts/run_smc_release_gates.py
 
 ## 3.2) Freeze-Policy fuer `SMC++.pine`
 
-- `SMC_Core_Engine.pine` ist der release-verbindliche Producer fuer TradingView-Validation,
+- `SMC_Long_Dip_Suite.pine` ist der release-verbindliche Producer fuer TradingView-Validation,
   Dashboard-Consumer und Strategy-Consumer.
 - `SMC++.pine` bleibt eingefrorener Kompatibilitaetspfad.
 - Zulaessig fuer `SMC++.pine` sind nur Compile-/Runtime-Fixes,
@@ -164,7 +164,7 @@ Die Evidence-Auswertung liefert analog ein `not_ready_reasons`-Array, wenn `gree
 2. Publish-Contract-Invarianten erfolgreich (im Release-Gate enthalten; basiert auf `scripts/verify_smc_micro_publish_contract.py`).
 3. Referenz-Smoke-Checks erfolgreich (im Release-Gate enthalten).
 4. Danach TradingView-Publish-Prozess gemaess Runbook starten.
-5. Der manuelle TradingView-Validierungspfad bleibt `SMC_Core_Engine.pine` -> `SMC_Dashboard.pine` -> `SMC_Long_Strategy.pine`; `SMC++.pine` ist kein aktiver Publish- oder Consumer-Pfad mehr.
+5. Der manuelle TradingView-Validierungspfad bleibt `SMC_Long_Dip_Suite.pine` -> `SMC_Long_Dip_Dashboard.pine` -> `SMC_Long_Dip_Strategy.pine`; `SMC++.pine` ist kein aktiver Publish- oder Consumer-Pfad mehr.
 
 Bei Warnungen/Degradations:
 

@@ -340,7 +340,7 @@ def test_evaluate_micro_library_publish_guard_requires_full_contract(tmp_path: P
     manifest_path = generated_dir / "smc_micro_profiles_generated.json"
     snippet_path = generated_dir / "smc_micro_profiles_core_import_snippet.pine"
     library_path = generated_dir / "smc_micro_profiles_generated.pine"
-    core_path = tmp_path / "SMC_Core_Engine.pine"
+    core_path = tmp_path / "SMC_Long_Dip_Suite.pine"
 
     manifest_path.write_text(
         json.dumps(

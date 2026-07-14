@@ -31,7 +31,7 @@ class Audience(StrEnum):
 
 @dataclass(frozen=True)
 class SurfaceEntry:
-    name: str            # filename (e.g. SMC_Dashboard.pine)
+    name: str            # filename (e.g. SMC_Long_Dip_Dashboard.pine)
     classification: SurfaceClass
     audience: Audience
     description: str
@@ -50,7 +50,7 @@ class SurfaceEntry:
 # The single source of truth. Order is presentation order in docs.
 SURFACE_MATRIX: tuple[SurfaceEntry, ...] = (
     SurfaceEntry(
-        name="SMC_Dashboard.pine",
+        name="SMC_Long_Dip_Dashboard.pine",
         classification=SurfaceClass.PRODUCTION,
         audience=Audience.DESKTOP,
         description="Hauptdashboard mit Hero-Surface (Market Mode, "
@@ -58,7 +58,7 @@ SURFACE_MATRIX: tuple[SurfaceEntry, ...] = (
         is_default=True,
     ),
     SurfaceEntry(
-        name="SMC_Mobile_Dashboard.pine",
+        name="SMC_Long_Dip_Mobile.pine",
         classification=SurfaceClass.PRODUCTION,
         audience=Audience.MOBILE,
         description="Mobile Hero-Surface — Mobil-Default.",
@@ -71,7 +71,7 @@ SURFACE_MATRIX: tuple[SurfaceEntry, ...] = (
         description="Operator-Diagnose: Setup-Check fuer Engine-Zustand.",
     ),
     SurfaceEntry(
-        name="SMC_TV_Bridge.pine",
+        name="SMC_Regime_and_News.pine",
         classification=SurfaceClass.OPERATOR_ONLY,
         audience=Audience.OPERATOR,
         description="Operator-Bridge fuer TradingView-Integration.",

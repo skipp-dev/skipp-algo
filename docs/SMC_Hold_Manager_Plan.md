@@ -109,7 +109,7 @@ den Stop zu früh zu verkürzen.
   separate BUS-Outputs. Nur `BUS Invalidation` ist publiziert.
 - → Targets müssen **intern berechnet** werden als R-Multiple von
   `(Trigger − Invalidation)`. Genau dieses Pattern nutzt
-  `SMC_Long_Strategy.pine` (Zeile 75–76, `take_profit_r` default 2.0).
+  `SMC_Long_Dip_Strategy.pine` (Zeile 75–76, `take_profit_r` default 2.0).
 
 ### Library `mp.*` — Lifecycle-Flags (KORREKTUR 2026-04-29)
 
@@ -146,7 +146,7 @@ Der **vollständige 4-Tupel-Return** von `resolve_long_invalidation_state()`
 
 **Sichtbarkeit:**
 
-- Diese Flags sind **lokale Pine-Variablen** in `SMC_Core_Engine.pine`
+- Diese Flags sind **lokale Pine-Variablen** in `SMC_Long_Dip_Suite.pine`
   (Zeile 1505 / 1729) — **nicht** als separate BUS-Outputs publiziert.
 - Sie sind aber **implizit in `BUS StateCode`** enthalten: die Funktion
   `resolve_long_state_code()` (Zeile 1729–1730) setzt ein `invalid_state`
@@ -162,7 +162,7 @@ Der **vollständige 4-Tupel-Return** von `resolve_long_invalidation_state()`
   (sauberer Trigger, weniger StateCode-Mapping im Konsumenten), wäre das
   ein separates Mini-PR im SMC Core: `plot(long_invalidated_now ? 1 : 0, "BUS LongInvalidatedNow")` etc. Drei zusätzliche `plot()`-Lines, kein Lifecycle-Refactor.
 
-### Bekannt verfügbar in `mp.*` (validiert in `SMC_Long_Strategy.pine`)
+### Bekannt verfügbar in `mp.*` (validiert in `SMC_Long_Dip_Strategy.pine`)
 - `mp.TRADE_STATE` (z. B. "BLOCKED")
 - `mp.HIGH_IMPACT_MACRO_TODAY` (bool)
 - `mp.MARKET_REGIME` (z. B. "RISK_OFF")
@@ -205,7 +205,7 @@ Der **vollständige 4-Tupel-Return** von `resolve_long_invalidation_state()`
 
 - **v1** (reine Visualisierung): darf **ab sofort** gebaut werden — kein
   Eingriff in Live-Path, keine Drift-Gefahr für die laufende Sprint-C13
-  Phase-A Paper-Inkubation unter `SMC_Long_Strategy.pine`.
+  Phase-A Paper-Inkubation unter `SMC_Long_Dip_Strategy.pine`.
 - **v2/v3** (aktives Management): **erst nach Phase-A-Sign-off** (~26.05.2026),
   sonst wechselst du mitten im Track-Record das Exit-Regime und Backtest-
   vs.-Paper-Drift wird unauswertbar.

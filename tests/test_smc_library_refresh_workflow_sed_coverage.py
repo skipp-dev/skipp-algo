@@ -2,7 +2,7 @@
 imports smc_micro_profiles_generated.
 
 Guards against the 2026-04-22 regression where only
-``SMC_Core_Engine.pine`` got re-pinned by
+``SMC_Long_Dip_Suite.pine`` got re-pinned by
 ``.github/workflows/smc-library-refresh.yml``, leaving 13 other
 top-level Pine consumers stranded on the previous library version
 and silently importing stale exports.
@@ -19,12 +19,12 @@ PIN_PATTERN = re.compile(
 )
 
 EXPECTED_CONSUMERS: set[str] = {
-    "SMC_Core_Engine.pine",
-    "SMC_Dashboard.pine",
-    "SMC_Mobile_Dashboard.pine",
-    "SMC_Long_Strategy.pine",
+    "SMC_Long_Dip_Suite.pine",
+    "SMC_Long_Dip_Dashboard.pine",
+    "SMC_Long_Dip_Mobile.pine",
+    "SMC_Long_Dip_Strategy.pine",
     "SMC_Hold_Manager.pine",
-    "SkippALGO_Confluence.pine",
+    "SMC_Confluence_Hub.pine",
     "SMC_Structure_Context.pine",
     "SMC_Session_Context.pine",
     "SMC_Profile_Context.pine",

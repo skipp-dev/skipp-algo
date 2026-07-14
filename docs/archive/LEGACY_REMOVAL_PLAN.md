@@ -1,4 +1,4 @@
-# Legacy Removal Plan — SMC_Core_Engine.pine
+# Legacy Removal Plan — SMC_Long_Dip_Suite.pine
 
 Status: **Phase A executed (AP6 v5.5), shadow logic removed (AP5 v5.5a), Phase B executed (AP6 v5.5b)**  
 Last updated: AP6 v5.5b — Phase B complete: ModulePackE/F/G + 33 BUS compat fields + 12 resolvers removed  
@@ -47,7 +47,7 @@ Dashboard never consumed ModulePackE/F/G; only PackA-D are still in use.
 
 | Step | Status |
 |------|--------|
-| Update SMC_Dashboard.pine → read LeanPack A/B | ✅ DONE (AP5 v5.5b) |
+| Update SMC_Long_Dip_Dashboard.pine → read LeanPack A/B | ✅ DONE (AP5 v5.5b) |
 | Verify Dashboard does NOT read ModulePackE/F/G | ✅ Confirmed — only PackA-D consumed |
 | Remove BUS ModulePackE/F/G plot calls (lines 6398-6400) | ✅ DONE (AP6 v5.5b) |
 | Remove 33 BUS compat field declarations (lines ~3454-3551) | ✅ DONE (AP6 v5.5b) |
@@ -79,7 +79,7 @@ Dashboard never consumed ModulePackE/F/G; only PackA-D are still in use.
 | ~~`event_risk_hard_block`~~ | ~~`event_risk_light_hard_block`~~ | **Removed** — AP5 v5.5a (No Shadow Logic) |
 | ~~`event_risk_soft_block`~~ | ~~`event_risk_state == "caution"`~~ | **Removed** — AP5 v5.5a (No Shadow Logic) |
 
-**Status**: ✅ done — the remaining broad event-risk aliases have been removed from `SMC_Core_Engine.pine`; the generated library still exports broader event metadata for non-core consumers like the overlay and alerting.
+**Status**: ✅ done — the remaining broad event-risk aliases have been removed from `SMC_Long_Dip_Suite.pine`; the generated library still exports broader event metadata for non-core consumers like the overlay and alerting.
 
 ---
 

@@ -21,7 +21,7 @@ What this smoke test protects:
     - HARD_BLOCKING_DEGRADATION_CODES consistency with registry
     - Gate names emitted by the release-gate runner
     - MeasurementShadowThresholds field set and default values
-    - Dashboard audit-view row count (from SMC_Dashboard.pine)
+    - Dashboard audit-view row count (from SMC_Long_Dip_Dashboard.pine)
     - Release reference symbols and timeframes
 
 What this smoke test does NOT protect:
@@ -139,8 +139,8 @@ def collect_smoke_snapshot() -> dict[str, Any]:
 
 
 def _count_dashboard_audit_rows() -> int | None:
-    """Count dashboard row calls in the audit view section of SMC_Dashboard.pine."""
-    dashboard_path = REPO_ROOT / "SMC_Dashboard.pine"
+    """Count dashboard row calls in the audit view section of SMC_Long_Dip_Dashboard.pine."""
+    dashboard_path = REPO_ROOT / "SMC_Long_Dip_Dashboard.pine"
     if not dashboard_path.exists():
         return None
     content = dashboard_path.read_text(encoding="utf-8", errors="replace")

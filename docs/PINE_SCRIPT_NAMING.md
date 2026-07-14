@@ -39,21 +39,24 @@ strategy read as one family.
 
 ## Canonical names — main products
 
-| Repo file (internal, see below) | Name (code title == saved name == display) |
-|---------------------------------|--------------------------------------------|
-| `SMC_Core_Engine.pine` | **SMC Long-Dip Suite** |
-| `SMC_Long_Strategy.pine` | **SMC Long-Dip Strategy** |
-| `SMC_Dashboard.pine` | **SMC Long-Dip Dashboard** |
-| `SMC_Mobile_Dashboard.pine` | **SMC Long-Dip Mobile** |
+| Repo file (matches the name) | Name (code title == saved name == display) |
+|------------------------------|--------------------------------------------|
+| `SMC_Long_Dip_Suite.pine` | **SMC Long-Dip Suite** |
+| `SMC_Long_Dip_Strategy.pine` | **SMC Long-Dip Strategy** |
+| `SMC_Long_Dip_Dashboard.pine` | **SMC Long-Dip Dashboard** |
+| `SMC_Long_Dip_Mobile.pine` | **SMC Long-Dip Mobile** |
 
-## Repo file name is internal (NOT user-facing)
+## Repo file name must match the name
 
-The repo `.pine` file name (e.g. `SMC_Core_Engine.pine`) is a **git-internal
-identifier**, like a library's snake_case name. The user never sees it on
-TradingView, and it is referenced by ~130 files (tests, manifest, publishers,
-workflows), so it is deliberately **not** renamed to match the title — that
-churn would buy zero user-visible benefit and real regression risk. The file →
-name mapping in the table above is the documented cross-reference.
+The repo `.pine` file name is the name in filename form, so there is no fourth
+identifier to drift out of sync. Transliteration rule: **`&` becomes `and`, then
+every space and hyphen becomes an underscore** (all-underscore style — no
+hyphens in file names). So `SMC Long-Dip Suite` → `SMC_Long_Dip_Suite.pine`,
+`SMC Regime & News` → `SMC_Regime_and_News.pine`. (Owner decision 2026-07-14,
+overriding the earlier "file name stays internal" call — the concrete mismatch
+between `SMC_Core_Engine.pine` and `SMC Long-Dip Suite` was itself a source of
+confusion.) Renaming a script therefore renames its file and updates every
+reference in the same change.
 
 ## Component / overlay scripts
 
@@ -76,9 +79,9 @@ string, and the name must tell the user what the script does. Current set:
 | `SMC_Session_Context.pine` | SMC Session Context |
 | `SMC_Setup_Check.pine` | SMC Setup Check |
 | `SMC_Structure_Context.pine` | SMC Structure Context |
-| `SMC_VRVP_Overlay.pine` | SMC Volume Profile Overlay |
-| `SkippALGO_Confluence.pine` | SMC Confluence Hub |
-| `SMC_TV_Bridge.pine` | SMC Regime & News |
+| `SMC_Volume_Profile_Overlay.pine` | SMC Volume Profile Overlay |
+| `SMC_Confluence_Hub.pine` | SMC Confluence Hub |
+| `SMC_Regime_and_News.pine` | SMC Regime & News |
 
 ## Libraries
 

@@ -40,7 +40,7 @@ Die Ticket-IDs folgen dem Schema `ENG-WSx-yy`.
 - Scope: BOS, CHoCH, OB-Reclaim, FVG-Fill, Sweep-Reclaim, HTF-aligned,
   stale-context, degraded-trust, watch-only, no-trade.
 - Primaere Dateien: `scripts/run_smc_release_gates.py`,
-  `scripts/run_smc_post_release_validation.py`, `SMC_Dashboard.pine`.
+  `scripts/run_smc_post_release_validation.py`, `SMC_Long_Dip_Dashboard.pine`.
 - Abhaengigkeiten: keine.
 - Definition of Done:
   - kanonische Liste produktrelevanter Szenarien existiert,
@@ -120,7 +120,7 @@ Die Ticket-IDs folgen dem Schema `ENG-WSx-yy`.
 
 - Ziel: Frische und Vertrauen direkt in der sichtbaren Decision-Lage zeigen.
 - Scope: kompakte UI-Elemente fuer Status, Datenalter und Degradierungsgrund.
-- Primaere Dateien: `SMC_Dashboard.pine`, `SMC_Mobile_Dashboard.pine`.
+- Primaere Dateien: `SMC_Long_Dip_Dashboard.pine`, `SMC_Long_Dip_Mobile.pine`.
 - Abhaengigkeiten: `ENG-WS2-02`.
 - Definition of Done:
   - Default-Surface zeigt den Trust-State ohne Audit-Modus,
@@ -131,7 +131,7 @@ Die Ticket-IDs folgen dem Schema `ENG-WSx-yy`.
 
 - Ziel: eingeschraenkte Datenlage soll die Produkthandlung beeinflussen.
 - Scope: Action-State ueber Trust/Freshness degradieren.
-- Primaere Dateien: `SMC_Dashboard.pine`,
+- Primaere Dateien: `SMC_Long_Dip_Dashboard.pine`,
   `scripts/generate_smc_micro_base_from_databento.py`,
   `smc_integration/provider_health.py`.
 - Abhaengigkeiten: `ENG-WS2-03`.
@@ -148,7 +148,7 @@ Die Ticket-IDs folgen dem Schema `ENG-WSx-yy`.
 - Ziel: Standardoberflaeche auf Marktmodus, Setup-Qualitaet und Handlung
   reduzieren.
 - Scope: lesbare Informationshierarchie fuer Default, Compact, Pro.
-- Primaere Dateien: `SMC_Dashboard.pine`,
+- Primaere Dateien: `SMC_Long_Dip_Dashboard.pine`,
   `docs/smc_deep_review_2026-04-20_hero_surface_plan.md`.
 - Abhaengigkeiten: `ENG-WS2-01`.
 - Definition of Done:
@@ -160,7 +160,7 @@ Die Ticket-IDs folgen dem Schema `ENG-WSx-yy`.
 
 - Ziel: Diagnose-First-Eindruck der Default-Ansicht abbauen.
 - Scope: sichtbare Kernzeilen reduzieren, operator-only Begriffe ausblenden.
-- Primaere Dateien: `SMC_Dashboard.pine`, `pine_input_surface.py`.
+- Primaere Dateien: `SMC_Long_Dip_Dashboard.pine`, `pine_input_surface.py`.
 - Abhaengigkeiten: `ENG-WS3-01`.
 - Definition of Done:
   - Default-Ansicht hat einen klar begrenzten Visual Budget,
@@ -172,7 +172,7 @@ Die Ticket-IDs folgen dem Schema `ENG-WSx-yy`.
 - Ziel: Regime, Bias, Session, Trust und Freshness als zusammenhaengender Kopf
   lesbar machen.
 - Scope: Hero-Block fuer Marktmodus.
-- Primaere Dateien: `SMC_Dashboard.pine`,
+- Primaere Dateien: `SMC_Long_Dip_Dashboard.pine`,
   `scripts/generate_smc_micro_profiles.py`.
 - Abhaengigkeiten: `ENG-WS2-03`, `ENG-WS3-01`.
 - Definition of Done:
@@ -185,7 +185,7 @@ Die Ticket-IDs folgen dem Schema `ENG-WSx-yy`.
 - Ziel: Prioritaet, Konfluenz und Familien-Health als begruendete Qualitaetslage
   zeigen.
 - Scope: Quality-Block mit Why now und Main risk.
-- Primaere Dateien: `SMC_Dashboard.pine`,
+- Primaere Dateien: `SMC_Long_Dip_Dashboard.pine`,
   `scripts/generate_smc_micro_profiles.py`, `smc_core/scoring.py`.
 - Abhaengigkeiten: `ENG-WS3-03`.
 - Definition of Done:
@@ -198,7 +198,7 @@ Die Ticket-IDs folgen dem Schema `ENG-WSx-yy`.
 - Ziel: das Produkt soll explizit sagen handeln, warten, beobachten oder
   vermeiden.
 - Scope: Action-State plus klare Aktionssprache.
-- Primaere Dateien: `SMC_Dashboard.pine`,
+- Primaere Dateien: `SMC_Long_Dip_Dashboard.pine`,
   `scripts/generate_smc_micro_base_from_databento.py`.
 - Abhaengigkeiten: `ENG-WS2-04`, `ENG-WS3-04`.
 - Definition of Done:
@@ -303,7 +303,7 @@ Die Ticket-IDs folgen dem Schema `ENG-WSx-yy`.
 - Ziel: nach Release das sichtbare Produkt verifizieren, nicht nur den Build.
 - Scope: Hero-State, Action-State und Trust-State pruefen.
 - Primaere Dateien: `scripts/run_smc_post_release_validation.py`,
-  `SMC_Dashboard.pine`.
+  `SMC_Long_Dip_Dashboard.pine`.
 - Abhaengigkeiten: `ENG-WS3-05`, `ENG-WS5-03`.
 - Definition of Done:
   - Validation berichtet ueber sichtbare Produktzustandspaare,
@@ -317,7 +317,7 @@ Die Ticket-IDs folgen dem Schema `ENG-WSx-yy`.
 - Ziel: klar sagen, welche Surfaces produktiv, operator-only, experimentell
   oder historisch sind.
 - Scope: Surface-Matrix und Zustandsklassifikation.
-- Primaere Dateien: `SMC_Dashboard.pine`, `SMC_Mobile_Dashboard.pine`,
+- Primaere Dateien: `SMC_Long_Dip_Dashboard.pine`, `SMC_Long_Dip_Mobile.pine`,
   relevante Produktdokumente.
 - Abhaengigkeiten: `ENG-WS3-01`.
 - Definition of Done:
@@ -329,8 +329,8 @@ Die Ticket-IDs folgen dem Schema `ENG-WSx-yy`.
 
 - Ziel: sichtbare Inputs auf echte Produktentscheidungen reduzieren.
 - Scope: Gruppen, Display-Sichtbarkeit, Operator-only-Trennung.
-- Primaere Dateien: `pine_input_surface.py`, `SMC_Dashboard.pine`,
-  `SMC_Mobile_Dashboard.pine`.
+- Primaere Dateien: `pine_input_surface.py`, `SMC_Long_Dip_Dashboard.pine`,
+  `SMC_Long_Dip_Mobile.pine`.
 - Abhaengigkeiten: `ENG-WS6-01`.
 - Definition of Done:
   - Standardnutzer sehen nur produktrelevante Inputs,
@@ -341,7 +341,7 @@ Die Ticket-IDs folgen dem Schema `ENG-WSx-yy`.
 
 - Ziel: dasselbe Produktversprechen in UI, Doku und Validation sprechen.
 - Scope: Action, Quality, Trust, Risk und Main blocker sprachlich angleichen.
-- Primaere Dateien: `SMC_Dashboard.pine`,
+- Primaere Dateien: `SMC_Long_Dip_Dashboard.pine`,
   `scripts/run_smc_release_gates.py`,
   `scripts/run_smc_post_release_validation.py`, relevante Doku.
 - Abhaengigkeiten: `ENG-WS3-05`.

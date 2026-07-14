@@ -50,7 +50,7 @@ def test_verify_publish_contract_accepts_publish_ready_manifest(tmp_path: Path) 
     manifest_path = pine_dir / "smc_micro_profiles_generated.json"
     snippet_path = pine_dir / "smc_micro_profiles_core_import_snippet.pine"
     library_path = pine_dir / "smc_micro_profiles_generated.pine"
-    core_path = tmp_path / "SMC_Core_Engine.pine"
+    core_path = tmp_path / "SMC_Long_Dip_Suite.pine"
 
     manifest_path.write_text(
         json.dumps(_manifest_payload("owner_a/smc_micro_profiles_generated/2")),
@@ -85,7 +85,7 @@ def test_verify_publish_contract_rejects_non_productive_manifest(tmp_path: Path)
     manifest_path = pine_dir / "smc_micro_profiles_generated.json"
     snippet_path = pine_dir / "smc_micro_profiles_core_import_snippet.pine"
     library_path = pine_dir / "smc_micro_profiles_generated.pine"
-    core_path = tmp_path / "SMC_Core_Engine.pine"
+    core_path = tmp_path / "SMC_Long_Dip_Suite.pine"
 
     manifest_path.write_text(
         json.dumps(
@@ -127,7 +127,7 @@ def test_verify_publish_contract_rejects_manifest_core_mismatch(tmp_path: Path) 
     manifest_path = pine_dir / "smc_micro_profiles_generated.json"
     snippet_path = pine_dir / "smc_micro_profiles_core_import_snippet.pine"
     library_path = pine_dir / "smc_micro_profiles_generated.pine"
-    core_path = tmp_path / "SMC_Core_Engine.pine"
+    core_path = tmp_path / "SMC_Long_Dip_Suite.pine"
 
     manifest_path.write_text(
         json.dumps(
@@ -156,7 +156,7 @@ def test_verify_publish_contract_rejects_missing_exact_code_block(tmp_path: Path
     manifest_path = pine_dir / "smc_micro_profiles_generated.json"
     snippet_path = pine_dir / "smc_micro_profiles_core_import_snippet.pine"
     library_path = pine_dir / "smc_micro_profiles_generated.pine"
-    core_path = tmp_path / "SMC_Core_Engine.pine"
+    core_path = tmp_path / "SMC_Long_Dip_Suite.pine"
 
     manifest_path.write_text(
         json.dumps(
@@ -185,7 +185,7 @@ def test_verify_publish_contract_rejects_non_contiguous_anchored_block(tmp_path:
     manifest_path = pine_dir / "smc_micro_profiles_generated.json"
     snippet_path = pine_dir / "smc_micro_profiles_core_import_snippet.pine"
     library_path = pine_dir / "smc_micro_profiles_generated.pine"
-    core_path = tmp_path / "SMC_Core_Engine.pine"
+    core_path = tmp_path / "SMC_Long_Dip_Suite.pine"
 
     manifest_path.write_text(
         json.dumps(
@@ -220,7 +220,7 @@ def test_verify_publish_contract_rejects_duplicate_real_alias_block(tmp_path: Pa
     manifest_path = pine_dir / "smc_micro_profiles_generated.json"
     snippet_path = pine_dir / "smc_micro_profiles_core_import_snippet.pine"
     library_path = pine_dir / "smc_micro_profiles_generated.pine"
-    core_path = tmp_path / "SMC_Core_Engine.pine"
+    core_path = tmp_path / "SMC_Long_Dip_Suite.pine"
 
     manifest_path.write_text(
         json.dumps(
@@ -257,7 +257,7 @@ def test_verify_publish_contract_accepts_alias_block_with_inline_comments(tmp_pa
     manifest_path = pine_dir / "smc_micro_profiles_generated.json"
     snippet_path = pine_dir / "smc_micro_profiles_core_import_snippet.pine"
     library_path = pine_dir / "smc_micro_profiles_generated.pine"
-    core_path = tmp_path / "SMC_Core_Engine.pine"
+    core_path = tmp_path / "SMC_Long_Dip_Suite.pine"
 
     manifest_path.write_text(
         json.dumps(

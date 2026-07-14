@@ -62,10 +62,10 @@ export-seitig festgelegt und die Surface konsumiert sie nur.
 
 | Datei | Aktuelle Anker | Bedeutung fuer den Hero-PR |
 | --- | --- | --- |
-| `SMC_Dashboard.pine` | `surface_mode`, `compact_dashboard`, versteckte BUS-Inputs am Dateikopf | Default-Surface, Operator-Trennung und Hero-Einstieg leben hier zusammen. |
-| `SMC_Dashboard.pine` | `table.new(..., 2, 74, ...)` plus Renderzweige fuer `Focus`, `Explain`, `Decision Brief`, `Audit View` | existierender Renderbaum muss auf hero-first Hierarchie umgebaut werden. |
-| `SMC_Dashboard.pine` | aktuelle `Decision Brief`-Zeilen `Market`, `Structure`, `Session / Market`, `Event Risk`, `Zone Priority`, `Trust / Data`, `Short-term Pressure`, `Risk Plan` | hier sitzt der erste realistische Desktop-Cut. |
-| `SMC_Mobile_Dashboard.pine` | 2x4-Mobiltabelle mit `Action`, `Levels`, `Market`, `Quality` | Mobile ist schon kompakt, aber noch zu knapp fuer Why now und Trust. |
+| `SMC_Long_Dip_Dashboard.pine` | `surface_mode`, `compact_dashboard`, versteckte BUS-Inputs am Dateikopf | Default-Surface, Operator-Trennung und Hero-Einstieg leben hier zusammen. |
+| `SMC_Long_Dip_Dashboard.pine` | `table.new(..., 2, 74, ...)` plus Renderzweige fuer `Focus`, `Explain`, `Decision Brief`, `Audit View` | existierender Renderbaum muss auf hero-first Hierarchie umgebaut werden. |
+| `SMC_Long_Dip_Dashboard.pine` | aktuelle `Decision Brief`-Zeilen `Market`, `Structure`, `Session / Market`, `Event Risk`, `Zone Priority`, `Trust / Data`, `Short-term Pressure`, `Risk Plan` | hier sitzt der erste realistische Desktop-Cut. |
+| `SMC_Long_Dip_Mobile.pine` | 2x4-Mobiltabelle mit `Action`, `Levels`, `Market`, `Quality` | Mobile ist schon kompakt, aber noch zu knapp fuer Why now und Trust. |
 | `pine_input_surface.py` | `parse_inputs`, `cmd_regroup`, Gruppen- und `display.none`-Injektion | Hero-Inputs koennen nur sauber reduziert werden, wenn Gruppen und Sichtbarkeit bewusst gesetzt werden. |
 | `scripts/generate_smc_micro_profiles.py` | Exportblock fuer `MARKET_REGIME`, `TRADE_STATE`, `HIGH_IMPACT_MACRO_TODAY`, `VOLATILITY_REGIME`, `ENSEMBLE_QUALITY_TIER`, `ZONE_PRIORITY_*` | bestehende Hero-nahe Felder werden bereits exportiert; neue Hero-Contract-Felder gehoeren in denselben Bereich. |
 | `scripts/generate_smc_micro_base_from_databento.py` | Aufbau von `calendar`, `layering`, `volatility_regime`, `ensemble_quality`, `zone_priority` | hier entstehen die meisten Hero-relevanten Vorstufen. |
@@ -162,7 +162,7 @@ schon `MARKET_REGIME`, `TRADE_STATE`, `VOLATILITY_REGIME` und
 Keine Feldexplosion. Nur die Hero-Pflichtsignale exportieren, die in der
 Surface wirklich sichtbar werden sollen.
 
-## File 3 - `SMC_Dashboard.pine`
+## File 3 - `SMC_Long_Dip_Dashboard.pine`
 
 ### Ziel dieses Edits
 
@@ -200,7 +200,7 @@ Keine grosse UDF-Renderklammer bauen. Die existierende top-level Renderstruktur
 bleibt erhalten; nur die sichtbare Hierarchie und der Zeilenhaushalt werden
 umgebaut.
 
-## File 4 - `SMC_Mobile_Dashboard.pine`
+## File 4 - `SMC_Long_Dip_Mobile.pine`
 
 ### Ziel dieses Edits
 
@@ -299,8 +299,8 @@ Nach dem ersten Hero-Cut sichtbare Hero-Zustandsvalidierung berichtbar machen.
 
 1. `scripts/generate_smc_micro_base_from_databento.py`
 2. `scripts/generate_smc_micro_profiles.py`
-3. `SMC_Dashboard.pine`
-4. `SMC_Mobile_Dashboard.pine`
+3. `SMC_Long_Dip_Dashboard.pine`
+4. `SMC_Long_Dip_Mobile.pine`
 5. `pine_input_surface.py`
 6. `scripts/run_smc_release_gates.py`
 7. `scripts/run_smc_post_release_validation.py`
@@ -315,12 +315,12 @@ Nach dem ersten Hero-Cut sichtbare Hero-Zustandsvalidierung berichtbar machen.
 
 ### PR 2 - Desktop Hero Surface
 
-- `SMC_Dashboard.pine`
+- `SMC_Long_Dip_Dashboard.pine`
 - optional kleine Input-Surface-Anpassungen, wenn fuer Default-Hero zwingend
 
 ### PR 3 - Mobile Mirror Plus Input Cleanup
 
-- `SMC_Mobile_Dashboard.pine`
+- `SMC_Long_Dip_Mobile.pine`
 - `pine_input_surface.py`
 
 ### PR 4 - Validation Hook-In

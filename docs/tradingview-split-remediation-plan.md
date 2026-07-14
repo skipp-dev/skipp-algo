@@ -31,9 +31,9 @@ Only the third point closes the split migration.
   - `scripts/tv_publish_observability_library.ts` is tracked in git.
   - `automation/tradingview/preflight-core-dashboard.json` is tracked in git.
   - The active consumer still imports the split libraries on `/1`:
-    - `SMC_Core_Engine.pine` imports `preuss_steffen/smc_lifecycle_private/1 as ll`
-    - `SMC_Core_Engine.pine` imports `preuss_steffen/smc_bus_private/1 as bp`
-    - `SMC_Core_Engine.pine` imports `preuss_steffen/smc_observability_private/1 as obv`
+    - `SMC_Long_Dip_Suite.pine` imports `preuss_steffen/smc_lifecycle_private/1 as ll`
+    - `SMC_Long_Dip_Suite.pine` imports `preuss_steffen/smc_bus_private/1 as bp`
+    - `SMC_Long_Dip_Suite.pine` imports `preuss_steffen/smc_observability_private/1 as obv`
     - `SMC++/smc_context_resolvers.pine` imports `preuss_steffen/smc_bus_private/1 as bp`
 - Status: `open`.
   Exact current-code TradingView proof is missing.
@@ -103,8 +103,8 @@ The following artifacts still exist and remain useful as historical remediation 
 
 ## Remediation Outcome
 
-- The bus lane was not fixed by a single syntax tweak; the decisive change was reducing the `smc_bus_private` export surface and moving non-essential late-stage wrappers back into `SMC_Core_Engine.pine`.
-- The final working split keeps lifecycle and observability logic in dedicated private libraries while leaving the active consumer contract intact for `SMC_Dashboard.pine` and `SMC_Long_Strategy.pine`.
+- The bus lane was not fixed by a single syntax tweak; the decisive change was reducing the `smc_bus_private` export surface and moving non-essential late-stage wrappers back into `SMC_Long_Dip_Suite.pine`.
+- The final working split keeps lifecycle and observability logic in dedicated private libraries while leaving the active consumer contract intact for `SMC_Long_Dip_Dashboard.pine` and `SMC_Long_Dip_Strategy.pine`.
 - TradingView automation now surfaces hidden compile overlays and can recover from stale dashboard bindings by refreshing the chart instance before re-checking the input contract.
 
 ## Close-Out Item Status

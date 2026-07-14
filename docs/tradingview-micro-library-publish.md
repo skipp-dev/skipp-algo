@@ -8,7 +8,7 @@ The generated library contract has three authoritative artifacts:
 
 - Manifest: pine/generated/smc_micro_profiles_generated.json
 - Import snippet: pine/generated/smc_micro_profiles_core_import_snippet.pine
-- Core consumer: SMC_Core_Engine.pine
+- Core consumer: SMC_Long_Dip_Suite.pine
 
 The TradingView release tracking artifact is:
 
@@ -23,7 +23,7 @@ six v5.5b lean blocks before export so the Pine artifact and manifest stay in sy
 ## v5.5b Library Field Contract
 
 The generated Pine library exports the full compatibility surface used by
-SMC_Core_Engine.pine: legacy v5-v5.3 fields remain available, and the
+SMC_Long_Dip_Suite.pine: legacy v5-v5.3 fields remain available, and the
 preferred v5.5b lean surface is exported alongside them.
 
 Preferred lean families:
@@ -129,7 +129,7 @@ This verifies:
 
 - the manifest recommended import path
 - the first import line in the generated snippet
-- the actual import used by SMC_Core_Engine.pine
+- the actual import used by SMC_Long_Dip_Suite.pine
 - the generated alias block copied into the core file in the same order and exactly once as real contiguous code
 
 ## TradingView Publish
@@ -212,5 +212,5 @@ After a successful publish:
 1. The executable library contract is defined by `pine/generated/smc_micro_profiles_generated.json`, `pine/generated/smc_micro_profiles_generated.pine`, and `tests/test_pine_consumer_contract.py`, not by a fixed export-count constant in this runbook.
 2. The manifest `library_field_version` must be `"v5.5b"` for the current lean contract.
 3. The preferred lean families remain `event_risk_light`, `session_context_light`, `ob_context_light`, `fvg_lifecycle_light`, `structure_state_light`, and `signal_quality`.
-4. Compatibility exports remain available alongside the lean surface so `SMC_Core_Engine.pine` can keep consuming the active library/core contract while Dashboard and Strategy stay BUS-driven.
+4. Compatibility exports remain available alongside the lean surface so `SMC_Long_Dip_Suite.pine` can keep consuming the active library/core contract while Dashboard and Strategy stay BUS-driven.
 5. If any enrichment provider fails, the generator still emits the full current contract surface with safe neutral defaults plus provider provenance/degradation metadata.

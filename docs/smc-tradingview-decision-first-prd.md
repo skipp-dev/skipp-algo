@@ -7,7 +7,7 @@ Draft
 ## Ziel
 
 Dieses PRD beschreibt den Produkt- und UX-Umbau der TradingView-Surface fuer
-`SMC_Core_Engine.pine`, `SMC_Dashboard.pine` und `SMC_Long_Strategy.pine`.
+`SMC_Long_Dip_Suite.pine`, `SMC_Long_Dip_Dashboard.pine` und `SMC_Long_Dip_Strategy.pine`.
 
 Das Ziel ist nicht eine neue Signal-Engine, sondern eine klarere Produktform:
 
@@ -406,9 +406,9 @@ die Hero-Surface verwenden.
 
 | Artefakt | Rolle im PRD |
 | --- | --- |
-| `SMC_Core_Engine.pine` | Referenz fuer Lite-Operator-Surface und State-Ableitung |
-| `SMC_Dashboard.pine` | Compact Detail und Pro Diagnostics |
-| `SMC_Long_Strategy.pine` | ausfuehrbarer Long-Wrapper auf Basis des Core-BUS |
+| `SMC_Long_Dip_Suite.pine` | Referenz fuer Lite-Operator-Surface und State-Ableitung |
+| `SMC_Long_Dip_Dashboard.pine` | Compact Detail und Pro Diagnostics |
+| `SMC_Long_Dip_Strategy.pine` | ausfuehrbarer Long-Wrapper auf Basis des Core-BUS |
 | `docs/SMC_Dashboard_Long_Dip_Guide_DE.md` | Nutzererklaerung und Terminologie |
 | `docs/TRADINGVIEW_STRATEGY_GUIDE.md` | Strategie-Setup, Binding und Backtest-Kontext |
 
@@ -450,8 +450,8 @@ die Hero-Surface verwenden.
 
 ## Offene Fragen
 
-1. Welche Surface wird als Flaggschiff priorisiert: `SMC_Core_Engine.pine` oder
-   `SMC_Long_Strategy.pine`?
+1. Welche Surface wird als Flaggschiff priorisiert: `SMC_Long_Dip_Suite.pine` oder
+   `SMC_Long_Dip_Strategy.pine`?
 2. Soll `SHORT` in der Lite-Surface von Anfang an voll gleichwertig sein oder
    bleibt Long-Dip-first die erste Produktgrenze?
 3. Soll Pro Diagnostics als separates Companion-Skript publiziert werden oder

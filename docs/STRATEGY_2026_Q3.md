@@ -218,7 +218,7 @@ und Distanz zum aktuellen Preis sollten die Erwartung beeinflussen.
 > `{-1, -1, -1, -1, 0}`). `scripts/fvg_quality_recalibration.py`
 > Defaults: `label_source=partial_50`, `signed_weights=True`,
 > `acceptance_mode=relative`. Pine-Spiegel
-> `SMC_Core_Engine.pine::fvg_quality_score` ist NICHT mit-promoted
+> `SMC_Long_Dip_Suite.pine::fvg_quality_score` ist NICHT mit-promoted
 > (Pine-vs-Python-Feature-Disjunktion — siehe
 > `docs/FVG_QUALITY_D4_AUDIT.md` §6 + Memory
 > `fvg-quality-pine-python-feature-disjunction.md`).
@@ -474,7 +474,7 @@ und Distanz zum aktuellen Preis sollten die Erwartung beeinflussen.
 #### H4: FVG Health Warning ✅ DONE (2026-04-22)
 
 - [x] Wenn FVG Hit Rate < 65%: explizite Dashboard-Warnung
-      (`SMC_Dashboard.pine::fvg_calibration_warning_text`).
+      (`SMC_Long_Dip_Dashboard.pine::fvg_calibration_warning_text`).
 - [x] "⚠ FVG zones underperforming (XX% HR) — prefer OB/BOS setups" —
       Setup-Check Row 12 + Audit-View Row 33 nutzen
       `fvg_combined_warning_text` (Calibration-Warning hat Vorrang vor

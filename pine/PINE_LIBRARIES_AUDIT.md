@@ -34,7 +34,7 @@
 
 ### Critical Path (Production)
 
-**SMC_Core_Engine.pine** (master strategy)
+**SMC_Long_Dip_Suite.pine** (master strategy)
 ```pine
 import preuss_steffen/smc_lifecycle_private/1 as ll  // ⚠️ STALE
 import preuss_steffen/smc_bus_private/1 as bp         // ⚠️ STALE
@@ -48,7 +48,7 @@ import preuss_steffen/smc_profile_engine/1 as pe      // ⚠️ STALE
 ### Secondary Path (Dashboards/Overlays)
 
 - `SMC_Hold_Manager.pine` → references smc_lifecycle (comments only, no import)
-- `SMC_Dashboard.pine` → may depend on smc_profile_engine
+- `SMC_Long_Dip_Dashboard.pine` → may depend on smc_profile_engine
 - `SMC_Liquidity_Structure.pine` → depends on smc_context_resolvers
 
 ### Generated (Auto-Maintained)
@@ -223,7 +223,7 @@ def validate_pine_imports(pine_file):
                 raise ValueError(f"{expected_file} does not export library '{lib_name}'")
 
 def main():
-    pine_files = glob.glob("*.pine") + glob.glob("SMC_Core_Engine.pine")
+    pine_files = glob.glob("*.pine") + glob.glob("SMC_Long_Dip_Suite.pine")
     for pf in pine_files:
         validate_pine_imports(pf)
     print("✅ All Pine imports valid")

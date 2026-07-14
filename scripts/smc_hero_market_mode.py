@@ -124,7 +124,7 @@ def _session_label(enrichment: Mapping[str, Any]) -> str:
 def _regime_label(enrichment: Mapping[str, Any]) -> str:
     """Return the upper-case regime label for the Hero Market Mode block.
 
-    Pine consumers — e.g. ``SMC_Mobile_Dashboard.pine:79`` which
+    Pine consumers — e.g. ``SMC_Long_Dip_Mobile.pine:79`` which
     compares ``mp.HERO_MARKET_MODE`` against literals ``"BULLISH"``,
     ``"BEARISH"``, ``"RISK_OFF"`` — treat regime labels as UPPERCASE
     string identifiers. Producer A (``scripts/smc_hero_state.py``)

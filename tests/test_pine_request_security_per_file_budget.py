@@ -20,10 +20,10 @@ adds *quantitative* discipline (per-file budget).
 
 Discovery (2026-04-24): only two active files use ``request.security``:
 
-* ``SMC_Core_Engine.pine`` — 4 calls (HTF trend, LTF FVG)
+* ``SMC_Long_Dip_Suite.pine`` — 4 calls (HTF trend, LTF FVG)
 * ``SMC++/smc_utils.pine`` — 4 calls (cross-symbol regime context)
 
-A tooltip string in ``SMC_Core_Engine.pine`` mentions
+A tooltip string in ``SMC_Long_Dip_Suite.pine`` mentions
 ``request.security_lower_tf()`` as documentation; the strip helper
 below blanks Pine string/comment regions so such textual mentions do
 not inflate the budget.
@@ -43,7 +43,7 @@ REPO_ROOT = Path(__file__).resolve().parent.parent
 # Per-file budget = current_count + 1 (small headroom for low-friction
 # additions; new calls beyond budget force explicit bump + review).
 _BUDGETS: dict[str, int] = {
-    "SMC_Core_Engine.pine": 5,
+    "SMC_Long_Dip_Suite.pine": 5,
     "SMC++/smc_utils.pine": 5,
 }
 

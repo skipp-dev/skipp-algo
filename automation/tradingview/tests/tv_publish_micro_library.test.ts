@@ -349,7 +349,7 @@ test("official TS publish contract rejects duplicate real alias block", () => {
   const manifestPath = path.join(pineDir, "smc_micro_profiles_generated.json");
   const snippetPath = path.join(pineDir, "smc_micro_profiles_core_import_snippet.pine");
   const libraryPath = path.join(pineDir, "smc_micro_profiles_generated.pine");
-  const corePath = path.join(tempDir, "SMC_Core_Engine.pine");
+  const corePath = path.join(tempDir, "SMC_Long_Dip_Suite.pine");
 
   fs.writeFileSync(manifestPath, JSON.stringify(buildGeneratedLibraryManifest()), "utf-8");
   fs.writeFileSync(snippetPath, [
@@ -384,7 +384,7 @@ test("official TS publish contract rejects non-productive generated source", () 
   const manifestPath = path.join(pineDir, "smc_micro_profiles_generated.json");
   const snippetPath = path.join(pineDir, "smc_micro_profiles_core_import_snippet.pine");
   const libraryPath = path.join(pineDir, "smc_micro_profiles_generated.pine");
-  const corePath = path.join(tempDir, "SMC_Core_Engine.pine");
+  const corePath = path.join(tempDir, "SMC_Long_Dip_Suite.pine");
 
   fs.writeFileSync(manifestPath, JSON.stringify(buildGeneratedLibraryManifest({
     input_path: "tests/fixtures/seed_base_snapshot.csv",
