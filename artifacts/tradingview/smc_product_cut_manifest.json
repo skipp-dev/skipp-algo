@@ -5,7 +5,7 @@
   "surfaceRoles": [
     {
       "file": "SMC_Long_Dip_Suite.pine",
-      "script_name": "SMC Core",
+      "script_name": "SMC Long-Dip Suite",
       "surface_role": "lite_primary",
       "contract_tier": "lite_and_pro",
       "consumer_role": "producer",
@@ -548,7 +548,7 @@
     "smcCoreDashboard": [
       {
         "file": "SMC_Long_Dip_Suite.pine",
-        "scriptName": "SMC Core",
+        "scriptName": "SMC Long-Dip Suite",
         "checkInputs": false,
         "addToChart": false
       },
@@ -1019,7 +1019,7 @@
     "smcMainline": [
       {
         "file": "SMC_Long_Dip_Suite.pine",
-        "scriptName": "SMC Core",
+        "scriptName": "SMC Long-Dip Suite",
         "checkInputs": false,
         "addToChart": false
       },
@@ -1561,7 +1561,7 @@
     "smcDecisionFirst": [
       {
         "file": "SMC_Long_Dip_Suite.pine",
-        "scriptName": "SMC Core",
+        "scriptName": "SMC Long-Dip Suite",
         "checkInputs": false,
         "addToChart": false
       },
@@ -2108,7 +2108,7 @@
       {
         "key": "core_first_run",
         "file": "SMC_Long_Dip_Suite.pine",
-        "script_name": "SMC Core",
+        "script_name": "SMC Long-Dip Suite",
         "report_label": "Core first-run",
         "runbook_label_en": "rendered Core first-run screen",
         "runbook_label_de": "gerenderter Core-First-Run-Screen",

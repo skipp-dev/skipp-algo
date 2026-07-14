@@ -180,7 +180,7 @@ function fallbackDefaultTargets(): ReleaseTarget[] {
   return [
     {
       file: "SMC_Long_Dip_Suite.pine",
-      scriptName: "SMC Core",
+      scriptName: "SMC Long-Dip Suite",
       checkInputs: false,
       addToChart: false,
     },

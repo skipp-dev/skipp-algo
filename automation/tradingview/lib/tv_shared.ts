@@ -1137,6 +1137,8 @@ function legacyOpenScriptNames(scriptName: string): string[] {
   // the old fallback chain so deployments mid-rename keep working.
   // See PREFLIGHT_*_TARGETS rationale in scripts/smc_bus_manifest.py.
   switch (normalizeUiText(scriptName).toLowerCase()) {
+    case "smc long-dip suite":
+      return ["SMC Core", "SMC Core Engine"];
     case "smc core":
       return ["SMC Core Engine"];
     case "smc core engine":
