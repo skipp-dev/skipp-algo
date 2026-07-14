@@ -17,7 +17,7 @@
 // Keep on a separate pane or overlay — independent of trade signals.
 // ─────────────────────────────────────────────────────────────────
 
-indicator("SMC Imbalance Context", "Imbal.Ctx", overlay = true, max_boxes_count = 50, max_labels_count = 50)
+indicator("SMC Imbalance Context", overlay = true, max_boxes_count = 50, max_labels_count = 50)
 
 import preuss_steffen/smc_micro_profiles_generated/152 as mp
 

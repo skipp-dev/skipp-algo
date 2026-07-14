@@ -1,11 +1,11 @@
 """Enforce the Pine script naming convention (SSOT: docs/PINE_SCRIPT_NAMING.md).
 
-The naming drifted into chaos once — the engine existed under three disagreeing
+The naming drifted into chaos once — the engine existed under several disagreeing
 names (saved name, code title, legend label) plus a duplicate copy — which made
-the dashboard impossible to wire. This test pins the one surface the repo can
-assert: the ``indicator()/strategy()`` code title of each main product. The
-saved name and legend label are kept equal to it by the operator checklist in
-the doc.
+the dashboard impossible to wire. The rule: one name shown everywhere — the
+``indicator()/strategy()`` title == TV saved name == legend display — achieved by
+omitting the shorttitle (so TradingView shows the full title) and keeping the
+version out of the name (the visible version is TradingView's own save revision).
 
 Owner of the rule: @preuss_steffen (see the doc's header). This test only
 enforces the rule; it does not define it.
@@ -18,32 +18,26 @@ from pathlib import Path
 REPO_ROOT = Path(__file__).resolve().parents[1]
 NAMING_DOC = REPO_ROOT / "docs" / "PINE_SCRIPT_NAMING.md"
 
-#: The main long-dip product family: repo file -> canonical code title.
-#: These MUST share the "SMC Long-Dip" prefix so the indicator and its strategy
-#: read as one family.
+#: The main long-dip product family: repo file -> canonical name (== code title
+#: == TV saved name == legend display). No version string, no shorttitle. These
+#: MUST share the "SMC Long-Dip" prefix so the indicator and its strategy read
+#: as one family.
 CANONICAL_MAIN_PRODUCTS: dict[str, str] = {
-    "SMC_Core_Engine.pine": "SMC Long-Dip Suite v7",
-    "SMC_Long_Strategy.pine": "SMC Long-Dip Strategy v7",
-    "SMC_Dashboard.pine": "SMC Long-Dip Dashboard v7",
-    "SMC_Mobile_Dashboard.pine": "SMC Long-Dip Mobile v7",
+    "SMC_Core_Engine.pine": "SMC Long-Dip Suite",
+    "SMC_Long_Strategy.pine": "SMC Long-Dip Strategy",
+    "SMC_Dashboard.pine": "SMC Long-Dip Dashboard",
+    "SMC_Mobile_Dashboard.pine": "SMC Long-Dip Mobile",
 }
 
 FAMILY_PREFIX = "SMC Long-Dip "
 
-#: Tier 2 (docs/PINE_SCRIPT_NAMING.md): the shorttitle is a fixed, systematic
-#: abbreviation "LD <Component>7" — never a third free-form name. TradingView
-#: hard-limits it to 10 chars, so it cannot equal the Tier-1 title.
-CANONICAL_SHORTTITLES: dict[str, str] = {
-    "SMC_Core_Engine.pine": "LD Suite7",
-    "SMC_Dashboard.pine": "LD Dash7",
-    "SMC_Mobile_Dashboard.pine": "LD Mobile7",
-    # SMC_Long_Strategy.pine: strategy() omits the shorttitle.
-}
-
 _TITLE_RE = re.compile(r'^\s*(?:indicator|strategy)\(\s*"([^"]*)"', re.MULTILINE)
+#: A second positional string literal right after the title == a shorttitle.
 _SHORTTITLE_RE = re.compile(
-    r'^\s*(?:indicator|strategy)\(\s*"[^"]*"\s*,\s*"([^"]*)"', re.MULTILINE
+    r'^\s*(?:indicator|strategy)\(\s*"[^"]*"\s*,\s*"[^"]*"', re.MULTILINE
 )
+#: Version strings the name must not carry (the visible version is TV's save rev).
+_VERSION_IN_NAME_RE = re.compile(r"\bv\d+\b", re.IGNORECASE)
 
 
 def _code_title(pine_file: str) -> str:
@@ -53,10 +47,12 @@ def _code_title(pine_file: str) -> str:
     return match.group(1)
 
 
-def _shorttitle(pine_file: str) -> str | None:
-    source = (REPO_ROOT / pine_file).read_text(encoding="utf-8")
-    match = _SHORTTITLE_RE.search(source)
-    return match.group(1) if match else None
+def _all_root_products() -> list[Path]:
+    return [
+        p
+        for p in sorted(REPO_ROOT.glob("*.pine"))
+        if not p.name.startswith("test_")
+    ]
 
 
 def test_main_products_have_canonical_titles() -> None:
@@ -78,15 +74,34 @@ def test_main_product_family_shares_prefix() -> None:
         )
 
 
+def test_no_root_product_has_a_shorttitle() -> None:
+    """One name everywhere: no shorttitle, so TradingView shows the full title in
+    the legend (title == saved name == display)."""
+    problems: list[str] = []
+    for path in _all_root_products():
+        if _SHORTTITLE_RE.search(path.read_text(encoding="utf-8")):
+            problems.append(f"{path.name}: must not declare a shorttitle")
+    assert problems == [], "\n".join(problems)
+
+
+def test_no_version_string_in_root_product_names() -> None:
+    """No 'v7'/'v1' in the name — the visible version is TradingView's own
+    auto-incrementing save revision, not a manual string."""
+    problems: list[str] = []
+    for path in _all_root_products():
+        match = _TITLE_RE.search(path.read_text(encoding="utf-8"))
+        if match and _VERSION_IN_NAME_RE.search(match.group(1)):
+            problems.append(f"{path.name}: title {match.group(1)!r} carries a version string")
+    assert problems == [], "\n".join(problems)
+
+
 def test_no_duplicate_titles_across_root_scripts() -> None:
-    """Exactly one script per product title — no duplicate copies under a
-    different file/name (the 'SMC Core' / 'SMC Core Engine' duplicate was the
-    original root of the wiring chaos)."""
+    """Exactly one script per name — no duplicate copies under a different
+    file/name (the 'SMC Core' / 'SMC Core Engine' duplicate was the original
+    root of the wiring chaos)."""
     seen: dict[str, str] = {}
     dupes: list[str] = []
-    for path in sorted(REPO_ROOT.glob("*.pine")):
-        if path.name.startswith("test_"):
-            continue
+    for path in _all_root_products():
         match = _TITLE_RE.search(path.read_text(encoding="utf-8"))
         if not match:
             continue
@@ -98,19 +113,6 @@ def test_no_duplicate_titles_across_root_scripts() -> None:
     assert dupes == [], "\n".join(dupes)
 
 
-def test_main_products_have_canonical_shorttitles() -> None:
-    """Tier 2: each main product's shorttitle is the systematic 'LD <Component>7'
-    abbreviation and within TradingView's 10-char limit."""
-    problems: list[str] = []
-    for pine_file, expected in sorted(CANONICAL_SHORTTITLES.items()):
-        actual = _shorttitle(pine_file)
-        if actual != expected:
-            problems.append(f"{pine_file}: shorttitle {actual!r} != canonical {expected!r}")
-        elif len(expected) > 10:
-            problems.append(f"{pine_file}: shorttitle {expected!r} exceeds 10 chars")
-    assert problems == [], "\n".join(problems)
-
-
 def test_naming_doc_is_the_owner_locked_ssot() -> None:
     """The convention lives in one owner-locked document, and it lists every
     canonical name so the doc and this test cannot drift apart."""
@@ -119,7 +121,3 @@ def test_naming_doc_is_the_owner_locked_ssot() -> None:
     assert "OWNER: @preuss_steffen" in doc, "doc must carry the owner lock"
     missing = [c for c in CANONICAL_MAIN_PRODUCTS.values() if c not in doc]
     assert missing == [], f"naming doc is missing canonical names: {missing}"
-    # The doc must spell out the three-tier distinction that keeps the file
-    # name, the user-visible identity, and the shorttitle from being conflated.
-    for tier in ("Tier 1", "Tier 2", "Tier 3"):
-        assert tier in doc, f"naming doc must document {tier}"

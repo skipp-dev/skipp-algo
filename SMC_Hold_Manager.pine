@@ -17,7 +17,7 @@
 //  Schwächen-Matrix (A–G) und Phase-Gates: siehe Plan-Doku Section
 //  "Bekannte Schwächen & Mitigation".
 // ============================================================================
-indicator("SMC Hold-Manager v1 — Visualization", overlay = true,
+indicator("SMC Hold Manager", overlay = true,
      max_labels_count = 200, max_lines_count = 200, max_boxes_count = 50)
 
 import preuss_steffen/smc_micro_profiles_generated/152 as mp

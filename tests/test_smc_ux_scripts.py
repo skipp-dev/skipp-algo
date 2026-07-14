@@ -24,7 +24,7 @@ def _read(path: pathlib.Path) -> str:
 
 def test_setup_check_is_indicator() -> None:
     source = _read(SETUP_CHECK_PATH)
-    assert 'indicator("SMC Setup Check v1"' in source
+    assert 'indicator("SMC Setup Check"' in source
     assert "strategy(" not in source
 
 
@@ -60,7 +60,7 @@ def test_setup_check_is_a_pure_consumer() -> None:
 
 def test_confluence_is_indicator() -> None:
     source = _read(CONFLUENCE_PATH)
-    assert 'indicator("SkippALGO Confluence Hub v1"' in source
+    assert 'indicator("SMC Confluence Hub"' in source
     assert "strategy(" not in source
 
 
@@ -111,7 +111,7 @@ def test_confluence_score_range() -> None:
 
 def test_mobile_is_indicator() -> None:
     source = _read(MOBILE_PATH)
-    assert 'indicator("SMC Long-Dip Mobile v7"' in source  # 2026-07-14: renamed into the SMC Long-Dip family (see docs/PINE_SCRIPT_NAMING.md)
+    assert 'indicator("SMC Long-Dip Mobile"' in source  # 2026-07-14: renamed into the SMC Long-Dip family (see docs/PINE_SCRIPT_NAMING.md)
     assert "strategy(" not in source
 
 

@@ -20,7 +20,7 @@
 
 import preuss_steffen/smc_micro_profiles_generated/152 as mp
 
-indicator("SkippALGO Confluence Hub v1", "Confluence", overlay = true)
+indicator("SMC Confluence Hub", overlay = true)
 
 // ═══════════════════════════════════════════════════════════════
 //  1. INPUTS

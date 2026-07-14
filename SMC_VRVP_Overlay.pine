@@ -19,7 +19,7 @@
 //
 // This is a pure visual companion — no signal exports, no library coupling.
 
-indicator("SMC VRVP Overlay", "SMC.VRVP", overlay = true,
+indicator("SMC Volume Profile Overlay", overlay = true,
      max_boxes_count = 500, max_lines_count = 50, max_labels_count = 100)
 
 // ── Inputs ──────────────────────────────────────────────────────
