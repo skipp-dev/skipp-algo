@@ -25,6 +25,8 @@
     "tv:publish-handlibs:profile": "TV_PERSISTENT_PROFILE_DIR=automation/tradingview/auth/chromium-profile tsx scripts/tv_publish_hand_authored_libraries.ts",
     "tv:publish-profile-engine-library": "tsx scripts/tv_publish_profile_engine_library.ts",
     "tv:publish-profile-engine-library:profile": "TV_PERSISTENT_PROFILE_DIR=automation/tradingview/auth/chromium-profile tsx scripts/tv_publish_profile_engine_library.ts",
+    "tv:publish-engine-library": "tsx scripts/tv_publish_engine_library.ts",
+    "tv:publish-engine-library:profile": "TV_PERSISTENT_PROFILE_DIR=automation/tradingview/auth/chromium-profile tsx scripts/tv_publish_engine_library.ts",
     "tv:publish-context-resolvers-library": "tsx scripts/tv_publish_context_resolvers_library.ts",
     "tv:publish-context-resolvers-library:profile": "TV_PERSISTENT_PROFILE_DIR=automation/tradingview/auth/chromium-profile tsx scripts/tv_publish_context_resolvers_library.ts",
     "tv:publish-micro-library": "tsx scripts/tv_publish_micro_library.ts",

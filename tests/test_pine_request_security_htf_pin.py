@@ -11,11 +11,17 @@ Layers (defense-only):
 
 1. **Zero-tripwire** — no ``request.security(<sym>, X, ...)`` where ``X`` is
    ``timeframe.period``, the empty string ``""``, or ``syminfo.period``.
-2. **Frozen total budget** — exactly 3 call sites across all standalone
-   ``*.pine`` files (all in ``SMC_Core_Engine.pine``). New HTF call sites are
+2. **Frozen total budget** — exactly 1 call site across all standalone
+   ``*.pine`` files (in ``SMC_Core_Engine.pine``). New HTF call sites are
    not banned but every addition must update the ledger and be justified in
    CHANGELOG.
-3. **Frozen site ledger** — the existing 3 sites are pinned at file-level.
+3. **Frozen site ledger** — the existing site is pinned at file-level.
+
+   History: was 3 until 2026-07-14, when the inert HTF-FVG subsystem (2
+   ``request.security`` HTF-gap lookups, never rendered or consumed) was
+   removed and the OB/FVG/structure engine was extracted into the
+   ``smc_engine_private`` library to relieve the CE10117 token budget. The
+   surviving site is the HTF structure-trend sample.
 """
 
 from __future__ import annotations
@@ -39,9 +45,9 @@ _RS_CALL = re.compile(r"\brequest\.security\s*\(")
 # for a defense-only scan: split on the first top-level comma after the
 # opening paren.
 
-_FROZEN_TOTAL = 3
+_FROZEN_TOTAL = 1
 _FROZEN_FILE_COUNTS: dict[str, int] = {
-    "SMC_Core_Engine.pine": 3,
+    "SMC_Core_Engine.pine": 1,
 }
 
 # Forbidden timeframe arguments (same-TF aliases).

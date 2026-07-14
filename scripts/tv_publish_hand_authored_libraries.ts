@@ -55,6 +55,7 @@ export const HAND_LIBS: HandLib[] = [
   { name: "smc_context_resolvers", source: "SMC++/smc_context_resolvers.pine", publisher: "scripts/tv_publish_context_resolvers_library.ts" },
   { name: "smc_profile_engine", source: "SMC++/smc_profile_engine.pine", publisher: "scripts/tv_publish_profile_engine_library.ts" },
   { name: "smc_bus_private", source: "SMC++/smc_bus_private.pine", publisher: "scripts/tv_publish_bus_library.ts" },
+  { name: "smc_engine_private", source: "SMC++/smc_engine_private.pine", publisher: "scripts/tv_publish_engine_library.ts" },
 ];
 
 const OWNER = "preuss_steffen";
