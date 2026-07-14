@@ -7,63 +7,77 @@
 //
 // SMC Breakout Overlay — LonesomeTheBlue-style breakout/breakdown boxes.
 //
-// DUAL-MODE structure source:
+// THREE-TIER structure source (pick via "Structure source", default Auto):
 //
-//   • ENGINE-BOUND (preferred): bind the four "BUS …" inputs to SMC Core's
-//     hidden per-bar plots (SchemaVersion / ZoneActive / Trigger / Invalidation).
-//     When the schema reads 7001 the engine is present, and its OWN
-//     trigger/invalidation levels drive the boxes — so the overlay agrees with
-//     the engine instead of forming a second, independent opinion. A close
-//     crossing the engine's Trigger is the engine's breakout; crossing its
-//     Invalidation is the breakdown. Boxes anchor to when the setup zone
-//     became active.
+//   1. LIBRARY (standalone, default): imports smc_engine_private and calls the
+//      SAME order-block / structure detector the engine uses — real BOS/CHoCH
+//      and swing levels — WITHOUT needing SMC Core on the chart. This is the
+//      standalone default: proper SMC structure, not a naive approximation.
 //
-//   • LOCAL-PIVOT FALLBACK: when engine binding is off, unbound, or the engine
-//     is not on the chart (schema mismatch), structure and the active
-//     support/resistance are computed locally from swing pivots, and breaks are
-//     classified as BOS (continuation) vs CHoCH (reversal).
+//   2. ENGINE BUS (live): bind the four "BUS …" inputs to SMC Core's hidden
+//      per-bar plots (SchemaVersion / ZoneActive / Trigger / Invalidation). When
+//      the schema reads 7001 the live, fully-gated engine setup drives the boxes
+//      (a close crossing its Trigger = breakout, its Invalidation = breakdown).
+//      Auto uses this whenever the engine is bound+on-chart, else falls to (1).
 //
-// It does NOT import the smc_micro_profiles library — that library is a
-// per-symbol SNAPSHOT (baked constants, self-attesting LIBRARY_STRUCTURE_MISSING),
-// not the per-bar structure series a breakout renderer needs, so the old
-// `mp.BOS_BULL` / `mp.ACTIVE_RESISTANCE` fields never existed and never compiled.
-// Per-bar structure comes from the engine BUS (bindable) or local pivots.
+//   3. LOCAL PIVOTS (fallback): naive ta.pivot swing levels + crossover, no
+//      dependency at all. For charts where you deliberately want zero library.
 //
-// BOS   = a break that CONTINUES the prevailing trend   (pivot mode only).
-// CHoCH = a break that REVERSES it (change of character) (pivot mode only).
+// It does NOT import smc_micro_profiles — that is a per-symbol SNAPSHOT (baked
+// constants, self-attesting LIBRARY_STRUCTURE_MISSING); the real per-bar
+// structure lives in smc_engine_private (tier 1) or on the engine BUS (tier 2).
+//
+// BOS   = a break that CONTINUES the prevailing trend.
+// CHoCH = a break that REVERSES it (change of character).
+// (BOS/CHoCH come from the library in tier 1, are computed locally in tier 3,
+//  and are shown as LONG TRIGGER / INVALIDATION in the engine-gated tier 2.)
 //
 // Box height = threshold% of the most-recent N-bar range (LonesomeTheBlue idea).
 
 indicator("SMC Breakout Overlay", overlay = true,
      max_lines_count = 100, max_labels_count = 200, max_boxes_count = 500, max_bars_back = 500)
 
+import preuss_steffen/smc_engine_private/1 as eng
+
 // ── Inputs ──────────────────────────────────────────────────────
 // Note: input.*() and group-name literals are evaluated once and are const by
 // construction — no `var` needed (matches the SMC dashboard's input style and
 // keeps the per-file var-declaration budget for genuine cross-bar state only).
 
-g_mode = "Engine binding"
-bool bindEngine = input.bool(true, "Bind to SMC engine BUS (else local pivots)", group = g_mode,
-     tooltip = "ON + the four BUS sources bound to SMC Core's hidden plots → the engine's own " +
-     "Trigger/Invalidation levels drive the boxes. OFF, unbound, or engine not on chart " +
-     "(schema ≠ 7001) → fall back to local swing pivots.")
-src_schema       = input.source(close, "BUS SchemaVersion", group = g_mode, display = display.none,
-     tooltip = "Bind to SMC Core's 'BUS SchemaVersion' plot. Must read 7001 for engine mode to activate.")
-src_zone_active  = input.source(close, "BUS ZoneActive",  group = g_mode, display = display.none)
-src_trigger      = input.source(close, "BUS Trigger",      group = g_mode, display = display.none)
-src_invalidation = input.source(close, "BUS Invalidation", group = g_mode, display = display.none)
+g_src = "Structure source"
+string structSource = input.string("Auto", "Structure source",
+     options = ["Auto", "Engine BUS (live)", "Library (standalone)", "Local pivots"], group = g_src,
+     tooltip = "Auto: engine BUS when SMC Core is bound + on chart, else the SMC library. " +
+     "Engine BUS (live): the live engine's own gated setup (needs SMC Core on the chart). " +
+     "Library (standalone): real smc_engine_private structure detection, no engine needed. " +
+     "Local pivots: naive swing-pivot fallback, zero dependency.")
+int structLen = input.int(50, "Library swing length", minval = 5, maxval = 200, group = g_src,
+     tooltip = "Swing lookback for the smc_engine_private structure detector (library tier).")
+
+g_bus = "Engine BUS binding (tier 2)"
+src_schema       = input.source(close, "BUS SchemaVersion", group = g_bus, display = display.none,
+     tooltip = "Bind to SMC Core's 'BUS SchemaVersion' plot. Must read 7001 for the engine tier to activate.")
+src_zone_active  = input.source(close, "BUS ZoneActive",  group = g_bus, display = display.none)
+src_trigger      = input.source(close, "BUS Trigger",      group = g_bus, display = display.none)
+src_invalidation = input.source(close, "BUS Invalidation", group = g_bus, display = display.none)
 
 int  expected_bus_version = 7001   // matches SMC Core's published 'BUS SchemaVersion'
-bool engine_bound = bindEngine and math.round(src_schema) == expected_bus_version
+bool engine_bound = math.round(src_schema) == expected_bus_version
 
-g_trig = "Triggers (local-pivot mode)"
+// Effective tier this bar — exactly one is true. Auto/Engine-BUS fall back to
+// the library when the engine is not bound on the chart.
+bool mode_bus = (structSource == "Auto" or structSource == "Engine BUS (live)") and engine_bound
+bool mode_piv = structSource == "Local pivots"
+bool mode_lib = not mode_bus and not mode_piv
+
+g_trig = "BOS / CHoCH filter (library + pivot tiers)"
 bool use_bos   = input.bool(true,  "Trigger on BOS",   group = g_trig)
 bool use_choch = input.bool(true,  "Trigger on CHoCH", group = g_trig)
-int  pivLen    = input.int(5,      "Swing strength (pivot bars)", minval = 2, maxval = 50, group = g_trig,
-     tooltip = "Left/right bars for the swing pivots that define structure and the active S/R levels.")
-int  minHold   = input.int(5,      "Min level age (bars)", minval = 1, maxval = 200, group = g_trig,
-     tooltip = "Skip boxes where the broken swing was established fewer than N bars ago — filters noise. " +
-     "Not applied in engine mode (the engine already gates its own setup).")
+int  pivLen    = input.int(5,      "Pivot swing strength (pivot tier)", minval = 2, maxval = 50, group = g_trig,
+     tooltip = "Left/right bars for the local swing pivots in the pivot tier.")
+int  minHold   = input.int(5,      "Min level age (pivot tier)", minval = 1, maxval = 200, group = g_trig,
+     tooltip = "Skip pivot-tier boxes where the broken swing is younger than N bars. " +
+     "Not applied in library/engine tiers (structure there is already confirmed/gated).")
 
 g_box  = "Box geometry"
 int   rangeLen = input.int(300, "Range lookback (bars)",  minval = 30, maxval = 500, group = g_box,
@@ -89,12 +103,11 @@ float atrMult     = input.float(1.5, "ATR × mult → SL", minval = 0.5, maxval 
 bool  sl_on_close = input.bool(true, "SL on close (else high/low)", group = g_sim)
 bool  show_table  = input.bool(true, "Show stats table", group = g_sim)
 
-// ── Structure source A: local swing pivots (ALWAYS computed) ──
-// ta.* must be evaluated every bar for a correct series, so pivots are computed
-// unconditionally even when the engine is bound; the mode-select below picks
-// which source actually drives the boxes. The active resistance is the last
-// confirmed swing high, support the last swing low; a pivot confirmed now was
-// established `pivLen` bars ago (that bar becomes the box's left edge).
+// ── Tier 3 source: local swing pivots (ALWAYS computed) ──
+// ta.* must be evaluated every bar for a correct series, so all three sources
+// are computed unconditionally; the tier-select below picks which one drives
+// the boxes. A pivot confirmed now was established `pivLen` bars ago (that bar
+// becomes the box's left edge).
 
 float ph = ta.pivothigh(pivLen, pivLen)
 float pl = ta.pivotlow(pivLen, pivLen)
@@ -111,10 +124,18 @@ if not na(pl)
     piv_support := pl
     piv_sup_anchor := bar_index - pivLen
 
-// ── Structure source B: SMC engine BUS (optional) ──
-// `zone_start_bar` = the bar the current setup zone became active; it anchors
-// the box's left edge in engine mode (analog of the swing-high bar in pivots).
+// ── Tier 1 source: smc_engine_private structure detector (ALWAYS computed) ──
+// Same detector the engine uses. Returns real BOS/CHoCH alerts on the break
+// bar plus the confirmed swing high/low levels and their bar indices. `top_x`/
+// `btm_x` are absolute bar_index values (the library draws line.new(x, y, …)),
+// so they anchor the box left edge directly.
+[_lib_trend, lib_bull_bos, lib_bull_choch, lib_top_x, lib_top_y, _lib_tux, _lib_tu, _lib_hh,
+     lib_bear_bos, lib_bear_choch, lib_btm_x, lib_btm_y, _lib_tdx, _lib_td, _lib_ll, _lib_hx] =
+     eng.detect_structure(structLen)
 
+// ── Tier 2 source: SMC engine BUS (optional) ──
+// `zone_start_bar` = the bar the current setup zone became active; it anchors
+// the box's left edge in engine mode.
 bool zone_on = src_zone_active > 0.5
 var int zone_start_bar = na
 if zone_on and na(zone_start_bar)
@@ -122,30 +143,35 @@ if zone_on and na(zone_start_bar)
 if not zone_on
     zone_start_bar := na
 
-// ── Mode-select: which source drives the boxes this bar ──
-// Engine mode: the engine's own Trigger/Invalidation levels, but only while a
-// setup zone is active (no zone → no level → no box). Pivot mode: local swings.
-float resistance     = engine_bound ? (zone_on ? src_trigger : na)      : piv_resistance
-float support        = engine_bound ? (zone_on ? src_invalidation : na) : piv_support
-int   res_anchor_bar = engine_bound ? zone_start_bar : piv_res_anchor
-int   sup_anchor_bar = engine_bound ? zone_start_bar : piv_sup_anchor
+// ── Tier-select: which source drives the boxes this bar ──
+float resistance     = mode_bus ? (zone_on ? src_trigger : na)      : mode_lib ? lib_top_y : piv_resistance
+float support        = mode_bus ? (zone_on ? src_invalidation : na) : mode_lib ? lib_btm_y : piv_support
+int   res_anchor_bar = mode_bus ? zone_start_bar : mode_lib ? lib_top_x : piv_res_anchor
+int   sup_anchor_bar = mode_bus ? zone_start_bar : mode_lib ? lib_btm_x : piv_sup_anchor
 
-// ── Break detection + pivot-mode classification ──
-// trend: +1 after a bullish break, -1 after a bearish break, 0 until the first.
-// bos_/choch_ are meaningful only in pivot mode (engine mode uses plain labels).
-
-bool broke_up = not na(resistance) and ta.crossover(close, resistance)
-bool broke_dn = not na(support)    and ta.crossunder(close, support)
+// ── Break detection + BOS/CHoCH classification ──
+// Pivot/BUS tiers: a break is a close crossing the level. Library tier: the
+// detector emits explicit BOS/CHoCH alerts on the break bar — use them directly.
+// `trend` is the pivot-tier classifier (+1 after a bull break, -1 after bear).
+bool cross_up = not na(resistance) and ta.crossover(close, resistance)
+bool cross_dn = not na(support)    and ta.crossunder(close, support)
 
 var int trend = 0
-bool bos_bull   = broke_up and trend >= 0
-bool choch_bull = broke_up and trend <  0
-bool bos_bear   = broke_dn and trend <= 0
-bool choch_bear = broke_dn and trend >  0
-if broke_up
+bool piv_bos_bull   = cross_up and trend >= 0
+bool piv_choch_bull = cross_up and trend <  0
+bool piv_bos_bear   = cross_dn and trend <= 0
+bool piv_choch_bear = cross_dn and trend >  0
+if cross_up
     trend := 1
-if broke_dn
+if cross_dn
     trend := -1
+
+bool broke_up   = mode_lib ? (lib_bull_bos or lib_bull_choch) : cross_up
+bool broke_dn   = mode_lib ? (lib_bear_bos or lib_bear_choch) : cross_dn
+bool bos_bull   = mode_lib ? lib_bull_bos   : piv_bos_bull
+bool choch_bull = mode_lib ? lib_bull_choch : piv_choch_bull
+bool bos_bear   = mode_lib ? lib_bear_bos   : piv_bos_bear
+bool choch_bear = mode_lib ? lib_bear_choch : piv_choch_bear
 
 // ── Threshold band height (LonesomeTheBlue formula) ────────────
 // `rangeLen` is a simple int (input), so ta.highest/ta.lowest accept it; on
@@ -186,15 +212,16 @@ vol_sentiment(int from_bar) =>
 // consumer (alerts, plotshape, sim) stays aligned.
 bool _trig_confirmed = barstate.isconfirmed
 
-// Structure filter: engine mode accepts every level break (the engine already
-// validated the setup); pivot mode applies the BOS/CHoCH toggles.
-bool struct_bull_ok = engine_bound ? true : ((use_bos and bos_bull) or (use_choch and choch_bull))
-bool struct_bear_ok = engine_bound ? true : ((use_bos and bos_bear) or (use_choch and choch_bear))
+// Structure filter: the engine tier accepts every level break (the engine
+// already validated the setup); library + pivot tiers apply the BOS/CHoCH
+// toggles.
+bool struct_bull_ok = mode_bus ? true : ((use_bos and bos_bull) or (use_choch and choch_bull))
+bool struct_bear_ok = mode_bus ? true : ((use_bos and bos_bear) or (use_choch and choch_bear))
 
-// Level-age filter applies only to locally-detected pivots; engine levels are
-// already setup-gated, so age is not re-checked there.
-bool age_bull_ok = engine_bound ? true : (not na(res_anchor_bar) and (bar_index - res_anchor_bar) >= minHold)
-bool age_bear_ok = engine_bound ? true : (not na(sup_anchor_bar) and (bar_index - sup_anchor_bar) >= minHold)
+// Level-age filter applies only to locally-detected pivots; library/engine
+// levels are already confirmed/gated, so age is not re-checked there.
+bool age_bull_ok = mode_piv ? (not na(res_anchor_bar) and (bar_index - res_anchor_bar) >= minHold) : true
+bool age_bear_ok = mode_piv ? (not na(sup_anchor_bar) and (bar_index - sup_anchor_bar) >= minHold) : true
 
 bool trig_bull = _trig_confirmed and broke_up and struct_bull_ok and age_bull_ok
 bool trig_bear = _trig_confirmed and broke_dn and struct_bear_ok and age_bear_ok
@@ -209,7 +236,7 @@ draw_box(int x1, float y_top, float y_bot, int x2, color col) =>
          border_color = col, border_width = lineW, border_style = lstyle,
          bgcolor = color.new(col, 90))
 
-// Label text helper: "<base> 🟢" — base tag already resolved for the mode.
+// Label text helper: "<base> 🟢" — base tag already resolved for the tier.
 breakout_label(string base_tag, int from_bar) =>
     string emo = show_volemoji ? " " + vol_sentiment(from_bar) : ""
     base_tag + emo
@@ -219,7 +246,7 @@ if trig_bull
     float y_top = resistance
     float y_bot = resistance - chwidth
     draw_box(x1, y_top, y_bot, bar_index, colUp)
-    string base = engine_bound ? "LONG TRIGGER" : (choch_bull ? "CHoCH" : "BOS")
+    string base = mode_bus ? "LONG TRIGGER" : (choch_bull ? "CHoCH" : "BOS")
     label.new(int(math.avg(x1, bar_index)), y_top, breakout_label(base, x1),
          color = color.new(colUp, 70), textcolor = color.white,
          style = label.style_label_down, size = size.tiny)
@@ -229,7 +256,7 @@ if trig_bear
     float y_bot = support
     float y_top = support + chwidth
     draw_box(x1, y_top, y_bot, bar_index, colDn)
-    string base = engine_bound ? "INVALIDATION" : (choch_bear ? "CHoCH" : "BOS")
+    string base = mode_bus ? "INVALIDATION" : (choch_bear ? "CHoCH" : "BOS")
     label.new(int(math.avg(x1, bar_index)), y_bot, breakout_label(base, x1),
          color = color.new(colDn, 70), textcolor = color.white,
          style = label.style_label_up, size = size.tiny)
@@ -293,6 +320,8 @@ if sim_on and sim_active
 int   sim_total = sim_wins + sim_losses
 float sim_wr    = sim_total > 0 ? sim_wins / float(sim_total) * 100.0 : 0.0
 
+string src_label = mode_bus ? "Engine BUS" : mode_lib ? "Library" : "Pivots"
+
 var table tb = table.new(position.top_right, 2, 5, bgcolor = color.new(color.gray, 80),
      border_width = 1, border_color = color.new(color.gray, 60))
 
@@ -301,8 +330,8 @@ if show_table and sim_on and barstate.islast
          text_color = color.new(color.white, 0), bgcolor = color.new(color.gray, 60))
     table.cell(tb, 1, 0, "", bgcolor = color.new(color.gray, 60))
     table.cell(tb, 0, 1, "Source", text_color = color.new(color.silver, 0))
-    table.cell(tb, 1, 1, engine_bound ? "Engine" : "Pivots",
-         text_color = engine_bound ? color.new(#08c09b, 0) : color.new(color.silver, 0))
+    table.cell(tb, 1, 1, src_label,
+         text_color = mode_bus ? color.new(#08c09b, 0) : mode_lib ? color.new(color.aqua, 0) : color.new(color.silver, 0))
     table.cell(tb, 0, 2, "Wins",   text_color = color.new(color.silver, 0))
     table.cell(tb, 1, 2, str.tostring(sim_wins),   text_color = color.new(#08c09b, 0))
     table.cell(tb, 0, 3, "Losses", text_color = color.new(color.silver, 0))

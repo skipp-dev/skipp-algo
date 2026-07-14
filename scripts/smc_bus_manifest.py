@@ -305,12 +305,13 @@ SURFACE_DEFINITIONS: tuple[SurfaceDefinition, ...] = (
         contract_tier = 'pro',
         consumer_role = 'overlay_companion',
         notes = (
-            'LonesomeTheBlue-style breakout/breakdown box renderer. Dual-mode '
-            'structure source: optionally binds the SMC Core BUS '
-            '(SchemaVersion/ZoneActive/Trigger/Invalidation) so the engine own '
-            'levels drive the boxes, else falls back to local swing pivots. No '
-            'library import (the micro-profiles snapshot cannot supply per-bar '
-            'structure). Pure visual, no new detection.',
+            'LonesomeTheBlue-style breakout/breakdown box renderer. Three-tier '
+            'structure source: (1) imports smc_engine_private and runs the same '
+            'order-block/structure detector as the engine, standalone; (2) '
+            'optionally binds the SMC Core BUS (SchemaVersion/ZoneActive/Trigger/'
+            'Invalidation) for the live gated setup; (3) local swing-pivot '
+            'fallback. Does NOT import the micro-profiles snapshot (no per-bar '
+            'structure there). Pure visual, no new detection.',
         ),
     ),
     SurfaceDefinition(
