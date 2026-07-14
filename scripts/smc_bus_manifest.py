@@ -309,9 +309,11 @@ SURFACE_DEFINITIONS: tuple[SurfaceDefinition, ...] = (
             'structure source: (1) imports smc_engine_private and runs the same '
             'order-block/structure detector as the engine, standalone; (2) '
             'optionally binds the SMC Core BUS (SchemaVersion/ZoneActive/Trigger/'
-            'Invalidation) for the live gated setup; (3) local swing-pivot '
-            'fallback. Does NOT import the micro-profiles snapshot (no per-bar '
-            'structure there). Pure visual, no new detection.',
+            'Invalidation, plus optional ZoneOb*/ZoneFvg*/StopLevel/Target1-2/'
+            'QualityScore enrichments for real zone boxes, the real risk plan, '
+            'and a quality filter) for the live gated setup; (3) local swing-'
+            'pivot fallback. Does NOT import the micro-profiles snapshot (no '
+            'per-bar structure there). Pure visual, no new detection.',
         ),
     ),
     SurfaceDefinition(
