@@ -20,7 +20,7 @@ def test_checked_in_product_cut_artifact_matches_python_manifest() -> None:
 def test_dashboard_is_explicitly_classified_in_main_product_cut() -> None:
     from scripts.smc_bus_manifest import SURFACE_DEFINITIONS_BY_FILE
 
-    dashboard = SURFACE_DEFINITIONS_BY_FILE['SMC_Dashboard.pine']
+    dashboard = SURFACE_DEFINITIONS_BY_FILE['SMC_Long_Dip_Dashboard.pine']
 
     assert dashboard.surface_role == 'pro_primary'
     assert dashboard.consumer_role == 'dashboard_companion'
@@ -37,20 +37,20 @@ def test_preflight_configs_use_canonical_product_cut_scopes() -> None:
     assert _load_json('automation/tradingview/preflight-smc-mainline-open-only.json') == {
         'targets': [
             {
-                'file': 'SMC_Core_Engine.pine',
+                'file': 'SMC_Long_Dip_Suite.pine',
                 'scriptName': 'SMC Core',
                 'checkInputs': False,
                 'addToChart': False,
             },
             {
-                'file': 'SMC_Dashboard.pine',
+                'file': 'SMC_Long_Dip_Dashboard.pine',
                 'scriptName': 'SMC Decision Board',
                 'savedScriptName': 'SMC Long-Dip Dashboard v7',
                 'checkInputs': False,
                 'addToChart': False,
             },
             {
-                'file': 'SMC_Long_Strategy.pine',
+                'file': 'SMC_Long_Dip_Strategy.pine',
                 'scriptName': 'SMC Long-Dip Strategy v7',
                 'savedScriptName': 'SMC Long-Dip Strategy v7',
                 'checkInputs': False,
@@ -103,13 +103,13 @@ def test_library_release_manifest_tracks_product_cut_roles() -> None:
     assert payload['library']['productivityGate']['defaultEventRiskDetected'] is False
     assert payload['library']['productivityGate']['placeholderSymbols'] == []
     assert payload['productCut']['mainlineFiles'] == [
-        'SMC_Core_Engine.pine',
-        'SMC_Dashboard.pine',
-        'SMC_Long_Strategy.pine',
+        'SMC_Long_Dip_Suite.pine',
+        'SMC_Long_Dip_Dashboard.pine',
+        'SMC_Long_Dip_Strategy.pine',
     ]
     assert payload['productCut']['manifestVersion'] == 2
-    assert payload['productCut']['litePrimaryFiles'] == ['SMC_Core_Engine.pine']
-    assert payload['productCut']['proPrimaryFiles'] == ['SMC_Dashboard.pine', 'SMC_Long_Strategy.pine']
+    assert payload['productCut']['litePrimaryFiles'] == ['SMC_Long_Dip_Suite.pine']
+    assert payload['productCut']['proPrimaryFiles'] == ['SMC_Long_Dip_Dashboard.pine', 'SMC_Long_Dip_Strategy.pine']
     assert payload['productCut']['contracts']['lite'] == [
         'BUS ZoneActive',
         'BUS Armed',
@@ -138,7 +138,7 @@ def test_library_release_manifest_tracks_product_cut_roles() -> None:
         item['file']: item['role']
         for item in payload['consumers']
     } == {
-        'SMC_Core_Engine.pine': 'producer',
-        'SMC_Dashboard.pine': 'dashboard_companion',
-        'SMC_Long_Strategy.pine': 'execution_wrapper',
+        'SMC_Long_Dip_Suite.pine': 'producer',
+        'SMC_Long_Dip_Dashboard.pine': 'dashboard_companion',
+        'SMC_Long_Dip_Strategy.pine': 'execution_wrapper',
     }

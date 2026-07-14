@@ -5,9 +5,9 @@ import re
 
 from tests.smc_manifest_test_utils import ROOT, load_manifest
 
-CORE_PATH = ROOT / 'SMC_Core_Engine.pine'
-DASHBOARD_PATH = ROOT / 'SMC_Dashboard.pine'
-STRATEGY_PATH = ROOT / 'SMC_Long_Strategy.pine'
+CORE_PATH = ROOT / 'SMC_Long_Dip_Suite.pine'
+DASHBOARD_PATH = ROOT / 'SMC_Long_Dip_Dashboard.pine'
+STRATEGY_PATH = ROOT / 'SMC_Long_Dip_Strategy.pine'
 BUS_PRIVATE_PATH = ROOT / 'SMC++' / 'smc_bus_private.pine'
 RESOLVERS_PATH = ROOT / 'SMC++' / 'smc_context_resolvers.pine'
 

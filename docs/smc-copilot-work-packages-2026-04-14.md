@@ -35,8 +35,8 @@ auf der Live-Surface.
 **Betroffene Schichten**
 
 - [smc_integration/service.py](../smc_integration/service.py)
-- [SMC_Core_Engine.pine](../SMC_Core_Engine.pine)
-- [SMC_Dashboard.pine](../SMC_Dashboard.pine)
+- [SMC_Long_Dip_Suite.pine](../SMC_Long_Dip_Suite.pine)
+- [SMC_Long_Dip_Dashboard.pine](../SMC_Long_Dip_Dashboard.pine)
 - relevante Payload-/Contract-Tests
 
 **Abnahmekriterien**

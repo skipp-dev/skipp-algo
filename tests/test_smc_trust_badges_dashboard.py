@@ -1,8 +1,8 @@
 """ENG-WS2-03 — Trust/Freshness badges in dashboards.
 
 These tests pin the contract that both the desktop dashboard
-(``SMC_Dashboard.pine``) and the mobile dashboard
-(``SMC_Mobile_Dashboard.pine``) consume the canonical product-trust state
+(``SMC_Long_Dip_Dashboard.pine``) and the mobile dashboard
+(``SMC_Long_Dip_Mobile.pine``) consume the canonical product-trust state
 emitted by the generated library (``mp.TRUST_STATE`` /
 ``mp.TRUST_DEGRADATION_REASON`` / ``mp.TRUST_ACTION_IMPACT``) and surface a
 visible degradation cue without requiring Audit View.
@@ -18,8 +18,8 @@ from pathlib import Path
 import pytest
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
-DESKTOP = REPO_ROOT / "SMC_Dashboard.pine"
-MOBILE = REPO_ROOT / "SMC_Mobile_Dashboard.pine"
+DESKTOP = REPO_ROOT / "SMC_Long_Dip_Dashboard.pine"
+MOBILE = REPO_ROOT / "SMC_Long_Dip_Mobile.pine"
 
 
 def _read(path: Path) -> str:
@@ -29,7 +29,7 @@ def _read(path: Path) -> str:
 
 
 # ---------------------------------------------------------------------------
-# SMC_Dashboard.pine
+# SMC_Long_Dip_Dashboard.pine
 # ---------------------------------------------------------------------------
 
 
@@ -66,7 +66,7 @@ def test_desktop_dashboard_hero_surface_includes_product_trust_badge() -> None:
 
 
 # ---------------------------------------------------------------------------
-# SMC_Mobile_Dashboard.pine
+# SMC_Long_Dip_Mobile.pine
 # ---------------------------------------------------------------------------
 
 

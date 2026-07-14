@@ -33,7 +33,7 @@ PHASES: list[dict[str, Any]] = [
         "anchors": [
             ("required", "docs/smc_improvement_plan_addendum_2_8_mtf_scope_2026-04-21.md"),
             ("required", "tests/test_plan_2_8_s0_pine_trend_tf_tooltips.py"),
-            ("required", "SMC_Core_Engine.pine"),
+            ("required", "SMC_Long_Dip_Suite.pine"),
         ],
     },
     {

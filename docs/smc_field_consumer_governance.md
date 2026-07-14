@@ -63,7 +63,7 @@ These are listed in `DEPRECATED_COMPATIBILITY_GROUPS` in
 5. **Phantom consumers are bugs.**
    References that only exist in test fixtures (not production Pine) do not
    count as consumers. The WP-2C audit found 6 such phantom references in
-   `SMC_Core_Engine.pine` (`UNIVERSE_TICKERS`, `NEWS_CATEGORY_MAP`, etc.).
+   `SMC_Long_Dip_Suite.pine` (`UNIVERSE_TICKERS`, `NEWS_CATEGORY_MAP`, etc.).
    These must be fixed or removed.
 
 ---

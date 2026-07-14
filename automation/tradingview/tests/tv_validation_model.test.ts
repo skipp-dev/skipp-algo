@@ -50,11 +50,11 @@ function makeProductCutSummary(): LibraryReleaseManifest["productCut"] {
     manifestVersion: 2,
     manifestPath: "artifacts/tradingview/smc_product_cut_manifest.json",
     source: "scripts/smc_bus_manifest.py",
-    mainlineFiles: ["SMC_Core_Engine.pine", "SMC_Dashboard.pine", "SMC_Long_Strategy.pine"],
-    litePrimaryFiles: ["SMC_Core_Engine.pine"],
-    proPrimaryFiles: ["SMC_Dashboard.pine", "SMC_Long_Strategy.pine"],
+    mainlineFiles: ["SMC_Long_Dip_Suite.pine", "SMC_Long_Dip_Dashboard.pine", "SMC_Long_Dip_Strategy.pine"],
+    litePrimaryFiles: ["SMC_Long_Dip_Suite.pine"],
+    proPrimaryFiles: ["SMC_Long_Dip_Dashboard.pine", "SMC_Long_Dip_Strategy.pine"],
     companionOperatorOnlyFiles: ["SMC_Event_Overlay.pine"],
-    internalFiles: ["SMC_TV_Bridge.pine"],
+    internalFiles: ["SMC_Regime_and_News.pine"],
     legacyFiles: ["SMC++.pine"],
     contracts: {
       engine: ["BUS ZoneActive"],
@@ -66,9 +66,9 @@ function makeProductCutSummary(): LibraryReleaseManifest["productCut"] {
       strategyBindings: ["BUS Armed"],
     },
     preflightScopes: {
-      smcCoreDashboard: [{ file: "SMC_Core_Engine.pine", scriptName: "SMC Core", checkInputs: false, addToChart: false }],
+      smcCoreDashboard: [{ file: "SMC_Long_Dip_Suite.pine", scriptName: "SMC Core", checkInputs: false, addToChart: false }],
       smcMainline: [{
-        file: "SMC_Dashboard.pine",
+        file: "SMC_Long_Dip_Dashboard.pine",
         scriptName: "SMC Long-Dip Dashboard v7",
         savedScriptName: "SMC Long-Dip Dashboard v7",
         checkInputs: true,
@@ -85,7 +85,7 @@ function makeProductCutSummary(): LibraryReleaseManifest["productCut"] {
         ],
       }],
       smcDecisionFirst: [{
-        file: "SMC_Long_Strategy.pine",
+        file: "SMC_Long_Dip_Strategy.pine",
         scriptName: "SMC Long-Dip Strategy v7",
         savedScriptName: "SMC Long-Dip Strategy v7",
         checkInputs: true,
@@ -377,7 +377,7 @@ test("target overall preflight fails when an error is present", () => {
 
 test("preflight schema helpers require staged report fields", () => {
   const target = {
-    file: "SMC_Dashboard.pine",
+    file: "SMC_Long_Dip_Dashboard.pine",
     scriptName: "SMC Long-Dip Dashboard v7",
     execution_mode: "mutating",
     auth_mode: "storage_state",
@@ -464,7 +464,7 @@ test("library release manifest helper enforces required fields", () => {
     consumers: [
       {
         scriptName: "SMC Core",
-        file: "SMC_Core_Engine.pine",
+        file: "SMC_Long_Dip_Suite.pine",
         role: "producer",
       },
     ],
@@ -513,7 +513,7 @@ test("library release manifest helper accepts automated publish mode", () => {
     consumers: [
       {
         scriptName: "SMC Core",
-        file: "SMC_Core_Engine.pine",
+        file: "SMC_Long_Dip_Suite.pine",
         role: "producer",
       },
     ],

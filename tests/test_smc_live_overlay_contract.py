@@ -2,7 +2,7 @@
 
 These tests are pure JSON-Schema + pydantic checks with no live FMP/Databento
 dependency, so they run in CI without provider keys. They lock the wire shape
-that ``GET /smc_live`` (WP-B) and ``SMC_TV_Bridge.pine`` (WP-C) depend on.
+that ``GET /smc_live`` (WP-B) and ``SMC_Regime_and_News.pine`` (WP-C) depend on.
 """
 
 from __future__ import annotations

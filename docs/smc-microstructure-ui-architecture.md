@@ -53,7 +53,7 @@ flowchart TD
 
     K --> O
     L --> O
-    P[Core Consumer\nSMC_Core_Engine.pine] --> O
+    P[Core Consumer\nSMC_Long_Dip_Suite.pine] --> O
     M --> O
 
     O --> Q[TradingView Automation Layer\nautomation/tradingview/lib/tv_shared.ts]

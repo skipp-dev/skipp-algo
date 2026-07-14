@@ -24,7 +24,7 @@ durch.
 
 Beweis: CI-Artefakt `tv_preflight_ci.attempt_1.json` aus Run 26916970392.
 
-- Ziel `SMC Long-Dip Dashboard v7` ([SMC_Dashboard.pine](../SMC_Dashboard.pine))
+- Ziel `SMC Long-Dip Dashboard v7` ([SMC_Long_Dip_Dashboard.pine](../SMC_Long_Dip_Dashboard.pine))
   ist das **erste** Mainline-Ziel mit `addToChart:true` (SMC Core davor hat
   `addToChart:false` und passiert).
 - Diagnostics: `auth_ok/chart_ok/editor_ok = true`, aber
@@ -79,7 +79,7 @@ Screenshots (`automation/tradingview/reports/screenshots/`) werden heute
 - **Consumer-1 = die publizierte SMC-Pine-Library auf TradingView**, kein
   interaktives Dashboard.
 - News kommen als **eingebackene Konstanten** in der Library an:
-  [SMC_Core_Engine.pine](../SMC_Core_Engine.pine) → `mp.NEWS_BEARISH_TICKERS`,
+  [SMC_Long_Dip_Suite.pine](../SMC_Long_Dip_Suite.pine) → `mp.NEWS_BEARISH_TICKERS`,
   `mp.NEWS_BULLISH_TICKERS`, `mp.NEWS_CATEGORY_MAP`, `mp.BREAKING_NEWS_TICKERS`,
   `mp.HIGH_IMPACT_NEWS_COUNT` etc.
 - Aktualisierung = **Library neu publizieren** via Playwright-Flow
@@ -140,7 +140,7 @@ eingebackenen Default zur Laufzeit; stale/absent/unreachable → Fallback auf
 
 **Architektur:** EIN kombinierter Endpoint `GET /smc_live?symbol=&tf=` liefert
 ein „live overlay"-JSON pro Symbol (nicht 30 Endpoints). Gerüst existiert als
-[SMC_TV_Bridge.pine](../SMC_TV_Bridge.pine) (`request.get()`-Zeile heute
+[SMC_Regime_and_News.pine](../SMC_Regime_and_News.pine) (`request.get()`-Zeile heute
 auskommentiert; `f_getField`-Parser für flache `"key":value`-Paare vorhanden).
 
 ---
@@ -152,7 +152,7 @@ auskommentiert; `f_getField`-Parser für flache `"key":value`-Paare vorhanden).
    wiederzuverwenden.
 2. **FastAPI-Endpoint-Skeleton**, das den vorhandenen 5-Min-Snapshot ausliefert
    (zentral gehostet, ein Service; Nutzer installieren nichts).
-3. **Pine-Overlay-Merge-Logik** in [SMC_TV_Bridge.pine](../SMC_TV_Bridge.pine):
+3. **Pine-Overlay-Merge-Logik** in [SMC_Regime_and_News.pine](../SMC_Regime_and_News.pine):
    `resolved = (overlay_fresh && has_field) ? overlay : baked_mp` mit
    `OVERLAY_MAX_AGE_SEC`.
 4. **Empfehlung:** echten Code auf eigenem Branch (nicht direkt `main`), da

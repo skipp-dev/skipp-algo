@@ -60,4 +60,4 @@ def test_default_mapping_uses_grounded_core_engine_name() -> None:
     """SMC_Core_Engine's saved name is the operator-chosen 'SMC Core Engine',
     not its indicator title — pin that so a refactor cannot silently regress it."""
     body = "\n".join(s.get("run", "") for s in _steps())
-    assert '{"source":"SMC_Core_Engine.pine","scriptName":"SMC Core Engine"}' in body
+    assert '{"source":"SMC_Long_Dip_Suite.pine","scriptName":"SMC Core Engine"}' in body

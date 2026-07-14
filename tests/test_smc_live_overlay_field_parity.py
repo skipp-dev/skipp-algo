@@ -3,7 +3,7 @@
 The overlay spans two languages with no shared compiler: the Python contract
 (``smc_tv_bridge.contracts.live_overlay``) defines the wire field names the
 ``GET /smc_live`` endpoint emits, and the Pine bridge
-(``SMC_TV_Bridge.pine``) reads them back via ``f_getField(body, "<key>")``.
+(``SMC_Regime_and_News.pine``) reads them back via ``f_getField(body, "<key>")``.
 A rename or typo on either side silently breaks the overlay in production
 (Pine reads ``na`` -> permanent ``mp.*`` fallback, no error surfaced).
 
@@ -24,10 +24,10 @@ from pathlib import Path
 
 from smc_tv_bridge.contracts.live_overlay import LiveOverlayPayload
 
-_PINE_PATH = Path(__file__).resolve().parents[1] / "SMC_TV_Bridge.pine"
+_PINE_PATH = Path(__file__).resolve().parents[1] / "SMC_Regime_and_News.pine"
 
 # Phase-1 overlay keys the Pine bridge reads from GET /smc_live (lines 72-76
-# of SMC_TV_Bridge.pine). Kept explicit so adding an overlay field is a
+# of SMC_Regime_and_News.pine). Kept explicit so adding an overlay field is a
 # deliberate, reviewed change on BOTH sides.
 _OVERLAY_KEYS_READ_BY_PINE = frozenset(
     {"asof_ts", "stale", "news_strength", "flow_rel_vol", "squeeze_on"}

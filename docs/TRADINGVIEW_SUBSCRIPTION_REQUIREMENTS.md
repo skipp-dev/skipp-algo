@@ -102,19 +102,19 @@ Alert-Text enthält: `ltf_bull_share=n/a | ltf_volume_delta=n/a`
 ## Detailanalyse: Pine API Calls
 
 ### `request.security()` — HTF-Daten, FVG-Erkennung
-- **Dateien:** `SMC_Core_Engine.pine` (Zeilen 2367, 4696, 4697)
+- **Dateien:** `SMC_Long_Dip_Suite.pine` (Zeilen 2367, 4696, 4697)
 - **Abo-Anforderung:** Alle Pläne inklusive Basic (kostenlos)
 - **Nutzung:** Higher-Timeframe Trend-Erkennung, FVG-Scanning über Zeitrahmen hinweg
 
 ### `request.security_lower_tf()` — Intrabar LTF-Sampling
-- **Datei:** `SMC_Core_Engine.pine` Zeile 3469
+- **Datei:** `SMC_Long_Dip_Suite.pine` Zeile 3469
 - **Abo-Anforderung:** Jedes **bezahlte** Abo (Essential/"Pro" und höher)
 - **Toggle:** Geschützt durch `enable_ltf_sampling` Input (Standard: `true`).  
   Auf `false` setzen → Skript läuft auch auf Basic/Free-Tier.
 - **Impact bei Deaktivierung:** Intrabar-Partizipations-/Druckbalken werden nicht angezeigt. Der `ltf_bull_share`- und `ltf_volume_delta`-Wert im Alert erscheint als `n/a`. Alle anderen SMC-Logiken (Order Blocks, FVGs, Struktur, Alerts) sind unberührt.
 
 ### `request.get()` / `request.post()` — HTTP-Calls aus Pine
-- **Datei:** `SMC_TV_Bridge.pine` Zeile 33
+- **Datei:** `SMC_Regime_and_News.pine` Zeile 33
 - **Abo-Anforderung:** **Premium oder höher** (TV-seitig erzwungen)
 - **Aktueller Status:** ⚠️ **AUSKOMMENTIERT** — durch `na`-Platzhalter ersetzt.  
   Der live_overlay_daemon nutzt diesen Code-Pfad **nicht** — Daten fließen über Databento.  
@@ -137,10 +137,10 @@ TradingView begrenzt, wie viele Indikatoren gleichzeitig auf einem Chart-Tab lau
 Das Repo enthält **20 Produktions-Pine-Skripte** (+ 1 Test-Datei):
 
 ```
-SMC_Core_Engine.pine        ← primäre Signalquelle
-SMC_Dashboard.pine
-SMC_TV_Bridge.pine          ← Live-Daten-Bridge (request.get aktuell inaktiv)
-SMC_Long_Strategy.pine
+SMC_Long_Dip_Suite.pine        ← primäre Signalquelle
+SMC_Long_Dip_Dashboard.pine
+SMC_Regime_and_News.pine          ← Live-Daten-Bridge (request.get aktuell inaktiv)
+SMC_Long_Dip_Strategy.pine
 SMC_Breakout_Overlay.pine
 SMC_Event_Overlay.pine
 SMC_Exit_Signal.pine
@@ -149,14 +149,14 @@ SMC_Hold_Manager.pine
 SMC_Imbalance_Context.pine
 SMC_Liquidity_Context.pine
 SMC_Liquidity_Structure.pine
-SMC_Mobile_Dashboard.pine
+SMC_Long_Dip_Mobile.pine
 SMC_Orderflow_Overlay.pine
 SMC_Profile_Context.pine
 SMC_Session_Context.pine
 SMC_Setup_Check.pine
 SMC_Structure_Context.pine
-SMC_VRVP_Overlay.pine
-SkippALGO_Confluence.pine
+SMC_Volume_Profile_Overlay.pine
+SMC_Confluence_Hub.pine
 ```
 
 ---
@@ -165,9 +165,9 @@ SkippALGO_Confluence.pine
 
 Der Automatisierungs-Layer (Playwright + Databento) benötigt nur:
 
-- **Lite-Modus:** `SMC_Core_Engine.pine` allein (1 Skript)
-- **Internal/Bridge-Modus:** `SMC_TV_Bridge.pine` allein (1 Skript, `request.get` inaktiv)
-- **Mainline-Modus:** `SMC_Core_Engine.pine` + `SMC_Dashboard.pine` + `SMC_Long_Strategy.pine` (3 Skripte)
+- **Lite-Modus:** `SMC_Long_Dip_Suite.pine` allein (1 Skript)
+- **Internal/Bridge-Modus:** `SMC_Regime_and_News.pine` allein (1 Skript, `request.get` inaktiv)
+- **Mainline-Modus:** `SMC_Long_Dip_Suite.pine` + `SMC_Long_Dip_Dashboard.pine` + `SMC_Long_Dip_Strategy.pine` (3 Skripte)
 
 Alle drei Modi laufen auf **jedem Plan inklusive Basic (Free)**, sofern LTF-Sampling auf Basic deaktiviert ist.
 
@@ -179,7 +179,7 @@ Alle drei Modi laufen auf **jedem Plan inklusive Basic (Free)**, sofern LTF-Samp
 
 **Was der Code tatsächlich zeigt:**
 
-`request.get()` in `SMC_TV_Bridge.pine` (Zeile 28) ist **auskommentiert** und wird durch einen `na`-Platzhalter ersetzt:
+`request.get()` in `SMC_Regime_and_News.pine` (Zeile 28) ist **auskommentiert** und wird durch einen `na`-Platzhalter ersetzt:
 
 ```pine
 // [status, headers, body] = request.get(url)

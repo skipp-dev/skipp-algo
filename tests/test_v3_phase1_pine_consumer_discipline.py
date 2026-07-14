@@ -23,7 +23,7 @@ The four newly-added files (commit 68e1aac0) are:
 - SMC_Breakout_Overlay.pine  — imports ``preuss_steffen/smc_micro_profiles_generated/1`` → MUST be in workflow & consumers set.
 - SMC_Hold_Manager.pine      — imports ``skippALGO/smc_micro_profiles_generated/1`` (different namespace, not auto-pinned).
 - SMC_Exit_Signal.pine       — pure BUS consumer, no library import.
-- SMC_VRVP_Overlay.pine      — visual-only, no library import.
+- SMC_Volume_Profile_Overlay.pine      — visual-only, no library import.
 
 found via SMC review v3 phase 1
 """

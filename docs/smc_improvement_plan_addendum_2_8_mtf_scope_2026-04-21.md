@@ -43,7 +43,7 @@ Die Frage *„mehr TFs?"* kann sich auf jede dieser drei Dimensionen beziehen. D
 
 ### 2.2 HTF-Trend-Stack
 
-**Code-Referenz:** `SMC_Core_Engine.pine` Zeilen 2326–2329 / 2574–2577:
+**Code-Referenz:** `SMC_Long_Dip_Suite.pine` Zeilen 2326–2329 / 2574–2577:
 
 ```pine
 const string DEFAULT_LTF_TIMEFRAME = '1'          // Zeile 2326 — 1-Minute LTF
@@ -73,7 +73,7 @@ Das ist bereits ein **adaptiver** 4.-Ebenen-Mechanismus: Die IPDA-Range passt si
 
 ### 2.4 LTF-Microstructure
 
-1m fix für Profile-Generation (`SMC_Core_Engine.pine` Zeilen 54–58, 281–285) und LTF-Volume-Delta im Dynamic-Alert-Message (`ltf_bull_share`, `ltf_volume_delta`, `ltf_price_only_context` — Zeilen 2368–2396). Sub-Minute (5s / 15s) wäre technisch möglich, aber TradingView-Plan-abhängig und bricht die Reproduzierbarkeit für Free-Tier-Nutzer.
+1m fix für Profile-Generation (`SMC_Long_Dip_Suite.pine` Zeilen 54–58, 281–285) und LTF-Volume-Delta im Dynamic-Alert-Message (`ltf_bull_share`, `ltf_volume_delta`, `ltf_price_only_context` — Zeilen 2368–2396). Sub-Minute (5s / 15s) wäre technisch möglich, aber TradingView-Plan-abhängig und bricht die Reproduzierbarkeit für Free-Tier-Nutzer.
 
 ### 2.5 Effektive MTF-Tiefe heute
 
@@ -202,7 +202,7 @@ Flux' 7-TF-Architektur sendet bei Vollausnutzung 7× Security-Calls × (OB + FVG
 - [x] README-Section *„Academic Grounding“* (Priority-1-Item 1.3) um 1 Satz erweitern: *„The HTF trend stack follows the ICT-standard 3-layer hierarchy (4H / 1D / 1W) with an adaptive IPDA range, consistent with [Hammer & Patel 2025](https://34.172.72.90/index.php/jse/article/view/77) session-filter findings.“*
       Geliefert in `README.md` Z. 111–113.
 - [x] Pine-Dashboard-Legende Zeile 22: Tooltip ergänzen um *„Trend Stack: 4H · 1D · 1W (ICT-standard 3-layer, factor-~4 spacing)“* — damit Nutzer sehen, dass die Struktur *intentional* und nicht unterdimensioniert ist.
-      Geliefert in `SMC_Dashboard.pine` Z. 1742–1746 (Variable `_htf_trend_tt`,
+      Geliefert in `SMC_Long_Dip_Dashboard.pine` Z. 1742–1746 (Variable `_htf_trend_tt`,
       via `dashboard_row_tt(...)` an die HTF-Trend-Zeile gebunden).
 
 ### Phase 1 — Q3 (W3–W8) ✅ DONE (2026-04-22)
@@ -267,13 +267,13 @@ Strikt gated auf Phase-2-GO: Code-Pfade existieren, Standardwert hält die
 3-Schichten-Realität bei. Nach W13 GO ist der Promotion-Schritt nur noch
 ein Default-Flip + Calibration-Refresh.
 
-- [x] `SMC_Core_Engine.pine`: Neuer Input `DEFAULT_TREND_TF_0 = '120'` (= 2H) als optionale 4. Ebene, hinter `input.bool` feature-flag (Standard `false`).
-      Geliefert in `SMC_Core_Engine.pine` als Konstante `DEFAULT_TREND_TF_0`
+- [x] `SMC_Long_Dip_Suite.pine`: Neuer Input `DEFAULT_TREND_TF_0 = '120'` (= 2H) als optionale 4. Ebene, hinter `input.bool` feature-flag (Standard `false`).
+      Geliefert in `SMC_Long_Dip_Suite.pine` als Konstante `DEFAULT_TREND_TF_0`
       + Inputs `enable_trend_tf_0` (Feature-Flag, Default `false`) und
       `mtf_trend_tf0` (Optional-2H-Layer) in g_mtf-Group, Tooltip
       verweist auf Q4-Gate.
 - [x] Dashboard-Zeile 22 erweitert auf 4 Trend-Ebenen-Icons.
-      Geliefert in `SMC_Dashboard.pine` Z. 1742–1746: Tooltip
+      Geliefert in `SMC_Long_Dip_Dashboard.pine` Z. 1742–1746: Tooltip
       `_htf_trend_tt` aktualisiert auf den scaffolded 4-Layer-Pfad
       (3-Layer-Render bleibt aktiv bis Gate grün, Render-Branch dann
       reine Default-Flip-Operation).
@@ -330,7 +330,7 @@ für Sub-Minute, Multi-Asset-FX-Coverage für Session-Equivalente) live sind.
 
 **Intern:**
 - [smc_improvement_plan_q3_q4_2026-04-20.md](./smc_improvement_plan_q3_q4_2026-04-20.md) — Parent-Plan, Phase E2 (Chart-TF-Expansion), Phase F (Contextual Calibration), §3.3 (Multi-Asset-Probe).
-- `SMC_Core_Engine.pine` Zeilen 2326–2329, 2574–2577, 2363–2366 — HTF-Stack-Defaults & non-repainting request.security.
+- `SMC_Long_Dip_Suite.pine` Zeilen 2326–2329, 2574–2577, 2363–2366 — HTF-Stack-Defaults & non-repainting request.security.
 - `smc_core/htf_context.py` — IPDA-adaptiver 4.-Ebenen-Mechanismus.
 - `smc_core/scoring.py` Zeile 1083 — Per-Symbol-Per-Timeframe-Persistenz.
 - [marketing/competitive-analysis Skill](./skills/marketing/competitive-analysis/SKILL.md) — Category-Strategy-Framework.
@@ -341,7 +341,7 @@ für Sub-Minute, Multi-Asset-FX-Coverage für Session-Equivalente) live sind.
 
 1. **Heute (21.04):** Dieses Addendum im Repo committen unter `docs/smc_improvement_plan_addendum_2_8_mtf_scope_2026-04-21.md`.
 2. **W0:** Querverweis in Parent-Plan-Abschnitt 2 ergänzen.
-3. **W0:** Tooltip in `SMC_Dashboard.pine` Zeile 22 erweitern (1 Zeile Code).
+3. **W0:** Tooltip in `SMC_Long_Dip_Dashboard.pine` Zeile 22 erweitern (1 Zeile Code).
 4. **W3:** Phase E2 Start, 5m + 4H Benchmark-Runs aktivieren.
 5. **W13 (Q3-Gate):** A/B-Design-Doc für 2H-Ebene erstellen *falls* Gate-Bedingungen zu Beginn von Q4 entscheidbar sind.
 

@@ -19,9 +19,9 @@ SMC-/TradingView-Produktfamilie ist.
 Der Review stuetzt sich auf den aktuellen Repo-Stand und insbesondere auf diese
 verifizierten Anker:
 
-- [SMC_Core_Engine.pine](../SMC_Core_Engine.pine)
-- [SMC_Dashboard.pine](../SMC_Dashboard.pine)
-- [SMC_Long_Strategy.pine](../SMC_Long_Strategy.pine)
+- [SMC_Long_Dip_Suite.pine](../SMC_Long_Dip_Suite.pine)
+- [SMC_Long_Dip_Dashboard.pine](../SMC_Long_Dip_Dashboard.pine)
+- [SMC_Long_Dip_Strategy.pine](../SMC_Long_Dip_Strategy.pine)
 - [scripts/smc_bus_manifest.py](../scripts/smc_bus_manifest.py)
 - [smc_integration/service.py](../smc_integration/service.py)
 - [scripts/run_smc_release_gates.py](../scripts/run_smc_release_gates.py)
@@ -124,7 +124,7 @@ dominanten Hero-Erfahrung.
 
 ### 2. Produktversprechen und Mainline-Spezialisierung koennen auseinanderlaufen
 
-Der produktive Kern in [SMC_Core_Engine.pine](../SMC_Core_Engine.pine) ist
+Der produktive Kern in [SMC_Long_Dip_Suite.pine](../SMC_Long_Dip_Suite.pine) ist
 faktisch staerker auf den Long-Dip-Spezialfall verdichtet, als eine generische
 SMC-Story es intuitiv vermuten laesst.
 

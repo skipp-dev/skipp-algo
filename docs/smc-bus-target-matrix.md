@@ -4,9 +4,9 @@ This matrix translates the audit in [smc-bus-v2-audit.md](smc-bus-v2-audit.md) i
 
 Consumer references:
 
-- Dashboard bindings: [SMC_Dashboard.pine](../SMC_Dashboard.pine)
-- Strategy bindings: [SMC_Long_Strategy.pine](../SMC_Long_Strategy.pine#L7-L14)
-- Producer exports: [SMC_Core_Engine.pine](../SMC_Core_Engine.pine)
+- Dashboard bindings: [SMC_Long_Dip_Dashboard.pine](../SMC_Long_Dip_Dashboard.pine)
+- Strategy bindings: [SMC_Long_Dip_Strategy.pine](../SMC_Long_Dip_Strategy.pine#L7-L14)
+- Producer exports: [SMC_Long_Dip_Suite.pine](../SMC_Long_Dip_Suite.pine)
 
 | Channel | Current Status | Fachliche Rolle | Abhängige Consumer | Risiko bei Änderung | Geplanter Zielstatus |
 | --- | --- | --- | --- | --- | --- |

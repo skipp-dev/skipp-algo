@@ -10,7 +10,7 @@ def _read(name: str) -> str:
 
 
 def test_core_has_decision_first_hero_contract() -> None:
-    source = _read("SMC_Core_Engine.pine")
+    source = _read("SMC_Long_Dip_Suite.pine")
 
     assert 'indicator("SMC Long-Dip Suite", overlay = true' in source
     assert "var g_mode = '1. Core Setup'" in source
@@ -48,7 +48,7 @@ def test_core_has_decision_first_hero_contract() -> None:
 
 
 def test_dashboard_has_companion_summary_and_pro_diagnostics() -> None:
-    source = _read("SMC_Dashboard.pine")
+    source = _read("SMC_Long_Dip_Dashboard.pine")
 
     assert 'var string g_surface = "1. Product Surface"' in source
     assert 'var string g_bus_lifecycle = "2. Operator Only - Lifecycle BUS"' in source
@@ -93,7 +93,7 @@ def test_dashboard_hero_surface_pins_one_liner_row_and_shifted_row_order() -> No
     to 9. Pin every row so a future row insert/shift fails fast and
     forces the author to update the IA contract together.
     """
-    source = _read("SMC_Dashboard.pine")
+    source = _read("SMC_Long_Dip_Dashboard.pine")
 
     assert 'dashboard_row(smc_dashboard, 0, "SMC Long-Dip Dashboard", "Hero | Decision-first surface"' in source
     assert 'dashboard_row_tt(smc_dashboard, 1, "Hero", _hero_one_display, _hero_one_bg, txt, _hero_one_tt)' in source
@@ -122,7 +122,7 @@ def test_dashboard_explain_popup_tooltips_cover_zone_priority_and_per_family() -
     tooltip explaining family / calibrated weight / tier / source. The
     helper itself must trim long strings to stay under Pine's tooltip
     char limit."""
-    source = _read("SMC_Dashboard.pine")
+    source = _read("SMC_Long_Dip_Dashboard.pine")
 
     # Helper exists and trims defensively.
     assert "dashboard_row_tt(table tbl, int row, string label_text, string value_text, color bg, color txt, string tt) =>" in source
@@ -156,7 +156,7 @@ def test_dashboard_explain_popup_tooltips_cover_zone_priority_and_per_family() -
 def test_dashboard_visual_consolidation_publishes_tier_and_icon_tokens() -> None:
     """Plan 1.6 — single source of truth for tier colours and icon glyphs.
     Hero one-liner must paint its background from these tokens."""
-    source = _read("SMC_Dashboard.pine")
+    source = _read("SMC_Long_Dip_Dashboard.pine")
 
     assert "var color CLR_TIER_T1" in source
     assert "var color CLR_TIER_T2" in source
@@ -180,7 +180,7 @@ def test_core_engine_quickstart_preset_publishes_effective_defaults_contract() -
     preset → effective-values mapping. W1 will wire these BUS values
     into the actual gate logic; the contract shape is locked here.
     """
-    source = _read("SMC_Core_Engine.pine")
+    source = _read("SMC_Long_Dip_Suite.pine")
 
     # Input declaration with all four classes + status-line emission.
     assert "var string quickstart_preset = input.string('Custom', 'Quickstart Preset'" in source
@@ -224,7 +224,7 @@ def test_core_engine_quickstart_preset_rvol_floor_is_wired_into_effective_gate()
     the user's own threshold. Lock the exact wiring so an accidental
     `min` flip or removal fails the suite.
     """
-    source = _read("SMC_Core_Engine.pine")
+    source = _read("SMC_Long_Dip_Suite.pine")
     assert "effective_relvol_good := math.max(effective_relvol_good, preset_effective_rvol_min(quickstart_preset))" in source
     # Helper must be declared before its first consumer; the consumer
     # lives in the gate section much further down. A simple ordering
@@ -249,7 +249,7 @@ def test_core_engine_quickstart_preset_htf_bias_floor_is_wired_into_context_qual
     bias-min (0..1) into the integer count compute_context_quality()
     actually uses (1..3).
     """
-    source = _read("SMC_Core_Engine.pine")
+    source = _read("SMC_Long_Dip_Suite.pine")
     assert "var int min_htf_alignment_count = input.int(2, 'HTF Bias Min Count'" in source
     assert "int _htf_floor = math.max(min_htf_alignment_count, preset_effective_htf_align_count(quickstart_preset))" in source
     assert "bool _htf_ok = _htf_count >= _htf_floor" in source
@@ -276,7 +276,7 @@ def test_dashboard_audit_view_has_why_this_tier_drilldown() -> None:
     feature matrix at rows 76/77 so the existing audit-row pin tests keep
     working.
     """
-    source = _read("SMC_Dashboard.pine")
+    source = _read("SMC_Long_Dip_Dashboard.pine")
 
     # Table size + final clear range must accommodate the new rows.
     # Grew 78 → 80 rows when Universe Status rows were appended above the
@@ -297,7 +297,7 @@ def test_dashboard_audit_view_has_why_this_tier_drilldown() -> None:
 
 
 def test_long_strategy_has_wrapper_controls_and_core_plan_outputs() -> None:
-    source = _read("SMC_Long_Strategy.pine")
+    source = _read("SMC_Long_Dip_Strategy.pine")
 
     assert 'strategy("SMC Long-Dip Strategy", overlay = true' in source
     assert 'var string g_setup = "1. Execution Setup"' in source
@@ -332,7 +332,7 @@ def test_r11_migration_and_operator_guide_is_linked_and_explicit() -> None:
     assert "compact_mode" in guide
     assert "surface_mode" in guide
     assert "entry_mode" in guide
-    assert "SMC_Long_Strategy.pine" in guide
+    assert "SMC_Long_Dip_Strategy.pine" in guide
     assert "operator-only" in guide
     assert "BUS binding order" in guide
     assert "visual-only" in guide
@@ -343,8 +343,8 @@ def test_r11_migration_and_operator_guide_is_linked_and_explicit() -> None:
 
 
 def test_core_and_dashboard_trust_tier_values_are_consistent() -> None:
-    core = _read("SMC_Core_Engine.pine")
-    dashboard = _read("SMC_Dashboard.pine")
+    core = _read("SMC_Long_Dip_Suite.pine")
+    dashboard = _read("SMC_Long_Dip_Dashboard.pine")
 
     for tier in ["High", "Guarded", "Degraded", "Insufficient"]:
         assert f"'{tier}'" in core, f"Core must contain trust tier '{tier}'"
@@ -366,7 +366,7 @@ def test_core_and_dashboard_trust_tier_values_are_consistent() -> None:
 
 
 def test_core_trust_resolution_defaults_to_insufficient() -> None:
-    core = _read("SMC_Core_Engine.pine")
+    core = _read("SMC_Long_Dip_Suite.pine")
 
     func_start = core.index("resolve_trust_tier(")
     func_body = core[func_start:func_start + 600]
@@ -377,7 +377,7 @@ def test_core_trust_resolution_defaults_to_insufficient() -> None:
 
 
 def test_dashboard_trust_resolution_defaults_to_insufficient() -> None:
-    dashboard = _read("SMC_Dashboard.pine")
+    dashboard = _read("SMC_Long_Dip_Dashboard.pine")
 
     func_start = dashboard.index("resolve_dashboard_trust_tier(")
     func_body = dashboard[func_start:func_start + 600]
@@ -410,7 +410,7 @@ def test_hero_card_explains_regime_override() -> None:
 
 def test_hero_card_call_passes_regime_data() -> None:
     """The barstate.islast call site must pass MARKET_REGIME to compose_core_hero_text."""
-    source = _read("SMC_Core_Engine.pine")
+    source = _read("SMC_Long_Dip_Suite.pine")
 
     # Find the call inside barstate.islast
     call_idx = source.index("compose_core_hero_text(core_product_state")
@@ -426,7 +426,7 @@ def test_hero_card_call_passes_regime_data() -> None:
 
 def test_trust_tier_suffix_function_exists_with_all_tiers() -> None:
     """compose_trust_tier_suffix must produce a suffix for each trust tier (WP-A7)."""
-    source = _read("SMC_Core_Engine.pine")
+    source = _read("SMC_Long_Dip_Suite.pine")
 
     func_start = source.index("compose_trust_tier_suffix(")
     func_body = source[func_start:func_start + 800]
@@ -459,7 +459,7 @@ def test_hero_card_trust_line_includes_suffix() -> None:
 
 def test_hero_card_call_passes_trust_suffix() -> None:
     """The barstate.islast call site must compute and pass the trust suffix."""
-    source = _read("SMC_Core_Engine.pine")
+    source = _read("SMC_Long_Dip_Suite.pine")
 
     assert "compose_trust_tier_suffix(" in source
     assert "core_trust_suffix" in source
@@ -472,7 +472,7 @@ def test_hero_card_call_passes_trust_suffix() -> None:
 
 def test_trust_tier_suffix_respects_length_limit() -> None:
     """All trust tier suffix strings must be ≤40 chars (WP-A7 spec)."""
-    source = _read("SMC_Core_Engine.pine")
+    source = _read("SMC_Long_Dip_Suite.pine")
 
     func_start = source.index("compose_trust_tier_suffix(")
     func_body = source[func_start:func_start + 800]
@@ -503,7 +503,7 @@ def test_hero_card_shows_asof_time() -> None:
 
 def test_hero_card_call_passes_asof_display() -> None:
     """The barstate.islast call site must pass lib_asof_display to the hero card."""
-    source = _read("SMC_Core_Engine.pine")
+    source = _read("SMC_Long_Dip_Suite.pine")
 
     call_idx = source.index("compose_core_hero_text(core_product_state")
     call_line = source[call_idx:source.index("\n", call_idx)]
@@ -512,7 +512,7 @@ def test_hero_card_call_passes_asof_display() -> None:
 
 def test_library_freshness_parses_asof_time() -> None:
     """Library freshness block must parse mp.ASOF_TIME for sub-day staleness (WP-A10)."""
-    source = _read("SMC_Core_Engine.pine")
+    source = _read("SMC_Long_Dip_Suite.pine")
 
     assert "mp.ASOF_TIME" in source
     assert "lib_asof_display" in source
@@ -534,7 +534,7 @@ def test_hero_card_shows_vix_tone_market() -> None:
 
 def test_hero_card_reads_market_context_fields() -> None:
     """Engine must read VIX_LEVEL, MACRO_EVENT_NAME, TONE, GLOBAL_HEAT from library (WP-LF1)."""
-    source = _read("SMC_Core_Engine.pine")
+    source = _read("SMC_Long_Dip_Suite.pine")
 
     assert "mp.VIX_LEVEL" in source
     assert "mp.MACRO_EVENT_NAME" in source
@@ -551,13 +551,13 @@ def test_provider_state_uses_count_and_stale() -> None:
     resolvers = _read("SMC++/smc_context_resolvers.pine")
 
     assert "resolve_core_provider_state(string provider_status, int provider_count, string stale_providers)" in resolvers
-    assert "mp.PROVIDER_COUNT" in _read("SMC_Core_Engine.pine")
-    assert "mp.STALE_PROVIDERS" in _read("SMC_Core_Engine.pine")
+    assert "mp.PROVIDER_COUNT" in _read("SMC_Long_Dip_Suite.pine")
+    assert "mp.STALE_PROVIDERS" in _read("SMC_Long_Dip_Suite.pine")
 
 
 def test_earnings_tomorrow_in_main_risk() -> None:
     """compose_main_risk_text must accept has_earnings_tomorrow flag (WP-LF2)."""
-    source = _read("SMC_Core_Engine.pine")
+    source = _read("SMC_Long_Dip_Suite.pine")
     resolvers = _read("SMC++/smc_context_resolvers.pine")
 
     assert "mp.EARNINGS_TOMORROW_TICKERS" in source
@@ -569,7 +569,7 @@ def test_earnings_tomorrow_in_main_risk() -> None:
 
 def test_breadth_and_macro_context_labels() -> None:
     """Chart must show Breadth and Macro bias context labels (WP-LF3)."""
-    source = _read("SMC_Core_Engine.pine")
+    source = _read("SMC_Long_Dip_Suite.pine")
 
     assert "mp.SECTOR_BREADTH" in source
     assert "mp.MACRO_BIAS_RAW" in source
@@ -583,7 +583,7 @@ def test_breadth_and_macro_context_labels() -> None:
 
 def test_ticker_heat_parses_and_adjusts_zones() -> None:
     """Ticker heat must be parsed from heat map and adjust OB/FVG opacity (WP-LF4)."""
-    source = _read("SMC_Core_Engine.pine")
+    source = _read("SMC_Long_Dip_Suite.pine")
 
     assert "mp.TICKER_HEAT_MAP" in source
     assert "f_parse_ticker_heat(" in source
@@ -596,7 +596,7 @@ def test_dashboard_subscribes_to_preset_bus_contract() -> None:
     contract via input.source bindings, otherwise the onboarding tooltip
     has no way to detect CUSTOM preset state.
     """
-    source = _read("SMC_Dashboard.pine")
+    source = _read("SMC_Long_Dip_Dashboard.pine")
 
     assert 'var string g_bus_preset = "8. Operator Only - Preset Contract"' in source
     assert 'src_preset_class_code = input.source(close, "BUS PresetClassCode"' in source
@@ -611,7 +611,7 @@ def test_dashboard_hero_row_carries_h5_onboarding_tooltip() -> None:
     Hero row shows a 4-Click onboarding nudge, otherwise it shows a
     calibrated-defaults hint citing the BUS Preset contract.
     """
-    source = _read("SMC_Dashboard.pine")
+    source = _read("SMC_Long_Dip_Dashboard.pine")
 
     assert "int _hero_preset_code = int(math.round(src_preset_class_code))" in source
     assert "_hero_preset_code == 0 ?" in source
@@ -627,7 +627,7 @@ def test_dashboard_calibration_sha_input_and_hero_sha_token() -> None:
     must accept the SHA argument and emit a 'sha:<7chars>' segment when
     the SHA token is present in Hero Token Order.
     """
-    source = _read("SMC_Dashboard.pine")
+    source = _read("SMC_Long_Dip_Dashboard.pine")
 
     assert 'calibration_sha = input.string("", "Calibration SHA"' in source
     # Composer signature now carries an optional sha argument; SHA token
@@ -649,7 +649,7 @@ def test_dashboard_calibration_breach_banner_overrides_hero_blocker() -> None:
     The override is unconditional (not gated on existing blocker text)
     so a 30-day SLO violation cannot be hidden by an empty risk field.
     """
-    source = _read("SMC_Dashboard.pine")
+    source = _read("SMC_Long_Dip_Dashboard.pine")
 
     assert 'calibration_breach_banner = input.bool(false, "Calibration Breach Banner"' in source
     assert "if calibration_breach_banner" in source
@@ -663,9 +663,9 @@ def test_dashboard_calibration_breach_banner_overrides_hero_blocker() -> None:
 
 
 def test_universe_status_is_exact_and_user_visible_across_surfaces() -> None:
-    core = _read("SMC_Core_Engine.pine")
-    dashboard = _read("SMC_Dashboard.pine")
-    strategy = _read("SMC_Long_Strategy.pine")
+    core = _read("SMC_Long_Dip_Suite.pine")
+    dashboard = _read("SMC_Long_Dip_Dashboard.pine")
+    strategy = _read("SMC_Long_Dip_Strategy.pine")
     utils = _read("SMC++/smc_utils.pine")
     resolvers = _read("SMC++/smc_context_resolvers.pine")
 

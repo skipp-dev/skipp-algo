@@ -28,7 +28,7 @@ def _load(name: str) -> list:
 
 # ── grouping: 100 % of inputs must belong to a group ──────────────────
 
-@pytest.mark.parametrize("script", ["SMC_Core_Engine.pine"])
+@pytest.mark.parametrize("script", ["SMC_Long_Dip_Suite.pine"])
 def test_all_inputs_grouped(script):
     inputs = _load(script)
     ungrouped = [i for i in inputs if not i.group]
@@ -41,7 +41,7 @@ def test_all_inputs_grouped(script):
 # ── visible surface: script-specific ranges ───────────────────────────
 
 @pytest.mark.parametrize("script,lo,hi", [
-    ("SMC_Core_Engine.pine", 8, 14),
+    ("SMC_Long_Dip_Suite.pine", 8, 14),
 ])
 def test_visible_surface_range(script, lo, hi):
     inputs = _load(script)
@@ -52,7 +52,7 @@ def test_visible_surface_range(script, lo, hi):
 
 
 def test_active_core_operator_surface_keeps_preset_and_compact_mode():
-    inputs = _load("SMC_Core_Engine.pine")
+    inputs = _load("SMC_Long_Dip_Suite.pine")
     visible_varnames = {inp.varname for inp in inputs if not inp.has_display_none}
 
     assert "long_user_preset" in visible_varnames
@@ -66,7 +66,7 @@ def test_active_core_operator_surface_keeps_preset_and_compact_mode():
 
 # ── balanced parens in input declarations ──────────────────────────────
 
-@pytest.mark.parametrize("script", ["SMC_Core_Engine.pine"])
+@pytest.mark.parametrize("script", ["SMC_Long_Dip_Suite.pine"])
 def test_input_parens_balanced(script):
     inputs = _load(script)
     bad = []
@@ -84,7 +84,7 @@ def test_input_parens_balanced(script):
 
 # ── version tag present ───────────────────────────────────────────────
 
-@pytest.mark.parametrize("script", ["SMC_Core_Engine.pine"])
+@pytest.mark.parametrize("script", ["SMC_Long_Dip_Suite.pine"])
 def test_version_tag(script):
     fp = ROOT / script
     if not fp.exists():

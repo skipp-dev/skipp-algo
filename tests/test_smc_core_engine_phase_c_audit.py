@@ -4,7 +4,7 @@ import re
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
-ENGINE_PATH = ROOT / "SMC_Core_Engine.pine"
+ENGINE_PATH = ROOT / "SMC_Long_Dip_Suite.pine"
 REMOVED_PHASE_C_C1_INPUTS = [
     "show_mtf_trend",
     "show_risk_levels",

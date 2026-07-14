@@ -32,7 +32,7 @@ class FileLifecycle(StrEnum):
 # Pine files.
 EXPLICIT_OVERRIDES: dict[str, FileLifecycle] = {
     # Hero/Engine production-adjacent helpers.
-    "SMC_Core_Engine.pine": FileLifecycle.PRODUCTION,
+    "SMC_Long_Dip_Suite.pine": FileLifecycle.PRODUCTION,
     "SMC_Structure_Context.pine": FileLifecycle.PRODUCTION,
     "SMC_Liquidity_Context.pine": FileLifecycle.PRODUCTION,
     "SMC_Liquidity_Structure.pine": FileLifecycle.PRODUCTION,
@@ -40,7 +40,7 @@ EXPLICIT_OVERRIDES: dict[str, FileLifecycle] = {
     "SMC_Profile_Context.pine": FileLifecycle.PRODUCTION,
     "SMC_Session_Context.pine": FileLifecycle.PRODUCTION,
     "SMC_HTF_Confluence.pine": FileLifecycle.PRODUCTION,
-    "SMC_Long_Strategy.pine": FileLifecycle.PRODUCTION,
+    "SMC_Long_Dip_Strategy.pine": FileLifecycle.PRODUCTION,
     # Operator-facing helpers not in SURFACE_MATRIX.
     # (SMC_Setup_Check / SMC_TV_Bridge / SMC_Event_Overlay are already
     # in SURFACE_MATRIX.)
@@ -57,7 +57,7 @@ EXPLICIT_OVERRIDES: dict[str, FileLifecycle] = {
     "CHOCH-Base_Indikator.pine": FileLifecycle.LEGACY,
     "CHOCH-Base_Strategy.pine": FileLifecycle.LEGACY,
     "CHoCH.pine": FileLifecycle.LEGACY,
-    "SkippALGO_Confluence.pine": FileLifecycle.LEGACY,
+    "SMC_Confluence_Hub.pine": FileLifecycle.LEGACY,
 }
 
 

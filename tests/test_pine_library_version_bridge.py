@@ -69,14 +69,14 @@ def _raw_snapshot() -> dict:
                 "name": "smc_micro_profiles_generated",
                 "tvVersion": 152,
                 "tvVersionKnown": True,
-                "consumers": [{"file": "SMC_Dashboard.pine", "pinnedVersion": 1, "drift": True}],
+                "consumers": [{"file": "SMC_Long_Dip_Dashboard.pine", "pinnedVersion": 1, "drift": True}],
                 "anyConsumerDrift": True,
             },
             {
                 "name": "smc_bus_private",
                 "tvVersion": 0,
                 "tvVersionKnown": False,
-                "consumers": [{"file": "SMC_Core_Engine.pine", "pinnedVersion": 1, "drift": False}],
+                "consumers": [{"file": "SMC_Long_Dip_Suite.pine", "pinnedVersion": 1, "drift": False}],
                 "anyConsumerDrift": False,
             },
         ],
@@ -168,7 +168,7 @@ def test_metrics_render_gates_unknown_tv_version(monkeypatch):
     assert 'live_overlay_pine_library_tv_version{library="smc_bus_private"}' not in body
     assert (
         'live_overlay_pine_consumer_drift{library="smc_micro_profiles_generated",'
-        'consumer="SMC_Dashboard.pine"} 1.0' in body
+        'consumer="SMC_Long_Dip_Dashboard.pine"} 1.0' in body
     )
     assert "live_overlay_pine_library_any_drift 1.0" in body
 

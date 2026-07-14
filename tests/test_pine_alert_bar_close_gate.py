@@ -8,8 +8,8 @@ the live bar and can fire repeatedly inside the same bar — TradingView
 debounces some, but the *intent* of an alert is "this just happened".
 Live ticks are also subject to repaint: a condition that flickers true
 mid-bar may evaporate by close. The audit (H-1) flagged
-``SkippALGO_Confluence.pine`` and ``SMC_Event_Overlay.pine`` for
-publishing alerts without an explicit gate while ``SMC_Core_Engine.pine``
+``SMC_Confluence_Hub.pine`` and ``SMC_Event_Overlay.pine`` for
+publishing alerts without an explicit gate while ``SMC_Long_Dip_Suite.pine``
 already gates each alert inline via ``barstate.isconfirmed``.
 
 Discipline

@@ -1224,7 +1224,7 @@ def write_pine_library(
     # level or a probability. Emitted additively (HR_SENTINEL_DEGRADED
     # precedent — no field-version bump for additive consts, consumers opt in
     # by importing the new symbol); ZONE_CAL_CONFIDENCE stays as the legacy
-    # alias until SMC_Dashboard.pine flips to the new symbol AFTER the
+    # alias until SMC_Long_Dip_Dashboard.pine flips to the new symbol AFTER the
     # republished library version is live on TradingView.
     content.append(
         f"export const float ZONE_CAL_RELIABILITY_SCORE = "

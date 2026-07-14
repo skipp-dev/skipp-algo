@@ -343,7 +343,7 @@ VOLATILE_ARTIFACT_POLICY: tuple[dict[str, str], ...] = (
         "reason": "generated Pine library — intentional output of the refresh pipeline",
     },
     {
-        "path": "SMC_Core_Engine.pine",
+        "path": "SMC_Long_Dip_Suite.pine",
         "drift_class": DRIFT_CLASS_STAGE_ONLY,
         "reason": "published Pine script — intentional output of the refresh pipeline",
     },

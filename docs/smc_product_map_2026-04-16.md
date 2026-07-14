@@ -10,11 +10,11 @@ Feature Freeze: 2026-04-15 — 2026-05-15
 The **SMC Long-Dip Suite v7** is a TradingView indicator system for
 structured long-dip entries on US equities. It consists of:
 
-- **One engine** (SMC_Core_Engine.pine) — the primary operator surface
+- **One engine** (SMC_Long_Dip_Suite.pine) — the primary operator surface
 - **Eight private libraries** (SMC++/) — shared types, drawing, lifecycle, BUS, profiles
 - **One generated data library** (pine/generated/smc_micro_profiles_generated.pine)
 - **Eleven companion indicators** — context overlays consuming the engine's BUS/library output
-- **One companion strategy** (SMC_Long_Strategy.pine) — execution surface on the BUS contract
+- **One companion strategy** (SMC_Long_Dip_Strategy.pine) — execution surface on the BUS contract
 
 Everything else in this repository is either tooling, legacy, or historical reference.
 
@@ -28,7 +28,7 @@ The core product. Changes here require compile + semantic contract tests.
 
 | File | Type | Role |
 |------|------|------|
-| SMC_Core_Engine.pine | indicator | Primary engine — structure, lifecycle, hero card, alerts, BUS output |
+| SMC_Long_Dip_Suite.pine | indicator | Primary engine — structure, lifecycle, hero card, alerts, BUS output |
 | SMC++/smc_core_types.pine | library | Shared enums and UDTs |
 | SMC++/smc_utils.pine | library | Generic helpers (range, LTF, clamping) |
 | SMC++/smc_draw.pine | library | Draw wrapper types (SmcLine, SmcLabel, SmcBox) |
@@ -47,8 +47,8 @@ Do not constitute feature gaps when they lag behind engine development.
 
 | File | Type | Role |
 |------|------|------|
-| SMC_Dashboard.pine | indicator | Operator dashboard — Decision Brief, Audit View (74 rows incl. Calibration Confidence, Per-Family Performance, FVG Health) |
-| SMC_Long_Strategy.pine | strategy | Execution surface — 8-channel BUS contract |
+| SMC_Long_Dip_Dashboard.pine | indicator | Operator dashboard — Decision Brief, Audit View (74 rows incl. Calibration Confidence, Per-Family Performance, FVG Health) |
+| SMC_Long_Dip_Strategy.pine | strategy | Execution surface — 8-channel BUS contract |
 | SMC_Event_Overlay.pine | indicator | Event-risk verticals + restriction zones |
 | SMC_HTF_Confluence.pine | indicator | ATR regime + reversal context scores |
 | SMC_Imbalance_Context.pine | indicator | FVG zones, BPR, liquidity voids |
@@ -59,7 +59,7 @@ Do not constitute feature gaps when they lag behind engine development.
 | SMC_Session_Context.pine | indicator | Session labels, killzone highlight |
 | SMC_Structure_Context.pine | indicator | Structure state, CHoCH/BOS markers |
 | SMC_Breakout_Overlay.pine | indicator | BOS/CHoCH breakout boxes + vol-emoji + ATR-RR W/L sim |
-| SMC_VRVP_Overlay.pine | indicator | Visible-range volume profile + multi-POC (no library imports) |
+| SMC_Volume_Profile_Overlay.pine | indicator | Visible-range volume profile + multi-POC (no library imports) |
 | SMC_Exit_Signal.pine | indicator | Position-lifecycle SM + alertcondition() für Stop/TP1/TP2/Defensive — beginner-facing exit engine |
 | Volume_Weighted_Trend_SkippAlgo.pine | indicator | Standalone branded tool (no SMC imports) |
 
@@ -69,7 +69,7 @@ Internal tooling. Not user-facing, not published.
 
 | File | Type | Role |
 |------|------|------|
-| SMC_TV_Bridge.pine | indicator | v5, dormant backend API bridge. Core fetch code commented out |
+| SMC_Regime_and_News.pine | indicator | v5, dormant backend API bridge. Core fetch code commented out |
 
 ### Legacy — QuickALGO (6 files)
 
@@ -164,7 +164,7 @@ Files that may be moved to an `archive/` directory in a future cleanup pass
 |---------|--------|---------|
 | BTC 3m EV Scalper BALANCED (Harmonized).pine | Pine v5, single-asset, no imports | None — pure historical |
 | USI-Flip.pine | Near-duplicate of USI.pine | Verify no unique TradingView publication |
-| SMC_TV_Bridge.pine | v5, core fetch commented out | Verify no active backend dependency |
+| SMC_Regime_and_News.pine | v5, core fetch commented out | Verify no active backend dependency |
 | test_div.pine | Trivial, no test runner coverage | None |
 
 Files that **must stay** despite Legacy status:

@@ -105,9 +105,9 @@ Belegt durch:
 - `pine/generated/smc_micro_profiles_generated.pine`
   - Kommentar: `Event Risk (v5, compatibility-only deprecated)`
   - Felder wie `EVENT_WINDOW_STATE`, `EVENT_RISK_LEVEL` werden weiter exportiert
-- `SMC_Core_Engine.pine`
+- `SMC_Long_Dip_Suite.pine`
   - konsumiert mehrere `mp.EVENT_*`-Felder
-- `SMC_Dashboard.pine`
+- `SMC_Long_Dip_Dashboard.pine`
   - Event-Risk-Zeilen weiter vorhanden
 - gleichzeitig existiert `event_risk_light` in Tests und Integrationspfaden
 
@@ -271,7 +271,7 @@ Ziel:
 Arbeitspakete:
 
 - Das erzeugte Library-Artefakt nach TradingView publizieren
-- Pine-Import in `SMC_Core_Engine.pine` gegen den aktuellen Importpfad pruefen
+- Pine-Import in `SMC_Long_Dip_Suite.pine` gegen den aktuellen Importpfad pruefen
 - den Hauptpfad mit dem bestehenden TradingView-Preflight erneut verifizieren
 - die entstandenen Artefakte in `automation/tradingview/reports/` und den
   relevanten Docs referenzieren

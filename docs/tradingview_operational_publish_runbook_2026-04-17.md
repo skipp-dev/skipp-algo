@@ -48,10 +48,10 @@ Layer 1:                  └──►  smc_utils ◄─────────
 Layer 2:        smc_observability   │   smc_profile_engine   smc_context_resolvers
                 (utils)             │   (utils, draw)        (utils, bus_private)
                                     │
-Layer 3:        SMC_Core_Engine.pine (imports ALL 9 libraries)
+Layer 3:        SMC_Long_Dip_Suite.pine (imports ALL 9 libraries)
                     │
-Layer 4:        SMC_Dashboard.pine (59 bindings to Core Engine)
-                SMC_Long_Strategy.pine (8 bindings to Core Engine)
+Layer 4:        SMC_Long_Dip_Dashboard.pine (59 bindings to Core Engine)
+                SMC_Long_Dip_Strategy.pine (8 bindings to Core Engine)
 ```
 
 **Rule:** A library MUST be published before any library that imports it.
@@ -178,7 +178,7 @@ Each publish event MUST produce:
 
 | Symptom | Likely Cause | Resolution |
 |---------|-------------|------------|
-| `binding_green: false` | Input label renamed or removed | Check `SMC_Core_Engine.pine` plot labels match `docs/tradingview-validation-checklist.md` |
+| `binding_green: false` | Input label renamed or removed | Check `SMC_Long_Dip_Suite.pine` plot labels match `docs/tradingview-validation-checklist.md` |
 | Binding count mismatch | New inputs added without dashboard/strategy update | Update binding contract in checklist |
 | `NaN` in dashboard | Core Engine not computing (wrong symbol/timeframe) | Verify chart settings match expectations |
 

@@ -55,7 +55,7 @@ flowchart TD
 
    K --> O
    L --> O
-   P[Core Consumer\nSMC_Core_Engine.pine] --> O
+   P[Core Consumer\nSMC_Long_Dip_Suite.pine] --> O
    M --> O
 
    O --> Q[TradingView Automation Layer\nautomation/tradingview/lib/tv_shared.ts]
@@ -277,7 +277,7 @@ That guard ensures:
 2. the manifest is readable
 3. the manifest owner matches the current UI owner
 4. the manifest version matches the current UI version
-5. the generated manifest, import snippet, and `SMC_Core_Engine.pine` import contract validate as exact code lines in the expected order
+5. the generated manifest, import snippet, and `SMC_Long_Dip_Suite.pine` import contract validate as exact code lines in the expected order
 
 If these do not match, publish is blocked.
 
@@ -699,7 +699,7 @@ Boundary:
 
 - generated library manifest
 - generated import snippet
-- core import path in `SMC_Core_Engine.pine`
+- core import path in `SMC_Long_Dip_Suite.pine`
 
 Consumers:
 
@@ -717,7 +717,7 @@ For the micro-library release contract, three files are authoritative:
 
 1. [../pine/generated/smc_micro_profiles_generated.json](../pine/generated/smc_micro_profiles_generated.json)
 2. [../pine/generated/smc_micro_profiles_core_import_snippet.pine](../pine/generated/smc_micro_profiles_core_import_snippet.pine)
-3. [../SMC_Core_Engine.pine](../SMC_Core_Engine.pine)
+3. [../SMC_Long_Dip_Suite.pine](../SMC_Long_Dip_Suite.pine)
 
 The governing invariant is:
 

@@ -83,7 +83,7 @@ sweep wick-beyond-with-close-back rules). There is no bridge-local heuristic.
 
 ## TradingView Pine Script
 
-`SMC_TV_Bridge.pine` in the repo root is a display scaffold: its fetch call is
+`SMC_Regime_and_News.pine` in the repo root is a display scaffold: its fetch call is
 currently a stubbed placeholder (returns `na`), so the dashboard renders "–"
 until the fetch is implemented — nothing hits the Node bridge from TV today.
 

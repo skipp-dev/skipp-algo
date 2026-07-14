@@ -7,7 +7,7 @@ PLAN_PATH = ROOT / "docs/smc_deep_research_migration_plan_copilot.md"
 PHASE_C_PATH = ROOT / "docs/PHASE_C_ANALYSIS.md"
 RELEASE_DOC_PATH = ROOT / "docs/smc_branch_protection_and_release_gates.md"
 WORKFLOW_PATH = ROOT / ".github/workflows/smc-release-gates.yml"
-CORE_PATH = ROOT / "SMC_Core_Engine.pine"
+CORE_PATH = ROOT / "SMC_Long_Dip_Suite.pine"
 LONG_DIP_REGRESSION_PATH = ROOT / "tests/test_smc_long_dip_regressions.py"
 
 
@@ -26,7 +26,7 @@ def test_smc_plus_freeze_policy_is_explicit_in_docs() -> None:
 def test_release_policy_targets_split_core_and_keeps_legacy_anchor() -> None:
     release_doc_text = _read(RELEASE_DOC_PATH)
 
-    assert "`SMC_Core_Engine.pine` ist der release-verbindliche Producer" in release_doc_text
+    assert "`SMC_Long_Dip_Suite.pine` ist der release-verbindliche Producer" in release_doc_text
     assert "`SMC++.pine` bleibt eingefrorener Kompatibilitaetspfad." in release_doc_text
 
 
@@ -41,8 +41,8 @@ def test_long_dip_regression_anchors_to_active_core_engine() -> None:
     regression_text = _read(LONG_DIP_REGRESSION_PATH)
 
     # After the split-library migration, long-dip regressions target the active
-    # producer (SMC_Core_Engine.pine), not the frozen legacy monolith.
-    assert "SMC_PATH = ROOT / 'SMC_Core_Engine.pine'" in regression_text
+    # producer (SMC_Long_Dip_Suite.pine), not the frozen legacy monolith.
+    assert "SMC_PATH = ROOT / 'SMC_Long_Dip_Suite.pine'" in regression_text
 
 
 def test_long_dip_first_scope_is_documented_in_active_core_and_plan() -> None:

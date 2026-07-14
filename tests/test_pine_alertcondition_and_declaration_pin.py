@@ -77,11 +77,11 @@ _ALERTCOND_RE = re.compile(r"\balertcondition\s*\(")
 
 _FROZEN_ALERTCOND_COUNTS: dict[str, int] = {
     "SMC_Breakout_Overlay.pine": 3,
-    "SMC_Core_Engine.pine": 16,
+    "SMC_Long_Dip_Suite.pine": 16,
     "SMC_Event_Overlay.pine": 2,
     "SMC_Exit_Signal.pine": 6,
     "SMC_Hold_Manager.pine": 6,
-    "SkippALGO_Confluence.pine": 2,
+    "SMC_Confluence_Hub.pine": 2,
 }
 _FROZEN_ALERTCOND_TOTAL = sum(_FROZEN_ALERTCOND_COUNTS.values())
 
@@ -158,8 +158,8 @@ _DECL_RE = re.compile(r"^(indicator|strategy|library)\s*\(", re.MULTILINE)
 # Frozen distribution: file -> declaration kind. Exactly one per file.
 _FROZEN_DECL_KIND: dict[str, str] = {
     "SMC_Breakout_Overlay.pine": "indicator",
-    "SMC_Core_Engine.pine": "indicator",
-    "SMC_Dashboard.pine": "indicator",
+    "SMC_Long_Dip_Suite.pine": "indicator",
+    "SMC_Long_Dip_Dashboard.pine": "indicator",
     "SMC_Event_Overlay.pine": "indicator",
     "SMC_Exit_Signal.pine": "indicator",
     "SMC_HTF_Confluence.pine": "indicator",
@@ -167,16 +167,16 @@ _FROZEN_DECL_KIND: dict[str, str] = {
     "SMC_Imbalance_Context.pine": "indicator",
     "SMC_Liquidity_Context.pine": "indicator",
     "SMC_Liquidity_Structure.pine": "indicator",
-    "SMC_Long_Strategy.pine": "strategy",
-    "SMC_Mobile_Dashboard.pine": "indicator",
+    "SMC_Long_Dip_Strategy.pine": "strategy",
+    "SMC_Long_Dip_Mobile.pine": "indicator",
     "SMC_Orderflow_Overlay.pine": "indicator",
     "SMC_Profile_Context.pine": "indicator",
     "SMC_Session_Context.pine": "indicator",
     "SMC_Setup_Check.pine": "indicator",
     "SMC_Structure_Context.pine": "indicator",
-    "SMC_TV_Bridge.pine": "indicator",
-    "SMC_VRVP_Overlay.pine": "indicator",
-    "SkippALGO_Confluence.pine": "indicator",
+    "SMC_Regime_and_News.pine": "indicator",
+    "SMC_Volume_Profile_Overlay.pine": "indicator",
+    "SMC_Confluence_Hub.pine": "indicator",
     "test_div.pine": "indicator",
 }
 

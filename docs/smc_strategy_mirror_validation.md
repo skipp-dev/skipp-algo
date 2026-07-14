@@ -22,7 +22,7 @@ by the maintainer on the platform.
 - `tests/fixtures/smc_strategy/<strategy>_expected_signals.csv` — the
   fixture you are about to commit.
 - The corresponding Pine strategy file:
-  - `long_strategy` → [SMC_Long_Strategy.pine](../SMC_Long_Strategy.pine)
+  - `long_strategy` → [SMC_Long_Dip_Strategy.pine](../SMC_Long_Dip_Strategy.pine)
   - (future) `short_strategy` → `SMC_Short_Strategy.pine`
 
 ## Procedure
@@ -32,7 +32,7 @@ by the maintainer on the platform.
    Scroll to the first `bar_index` and set the chart's visible range to
    the last `bar_index`. The fixture's bar count must match the chart's
    bar count over that range — abort if not.
-2. **Add the strategy.** Add `SMC_Long_Strategy.pine` to the chart with
+2. **Add the strategy.** Add `SMC_Long_Dip_Strategy.pine` to the chart with
    the exact same input parameters used by the Python mirror's default
    constructor. Document any deviation in the PR body — that is a
    parity bug, not a test artefact.
@@ -53,7 +53,7 @@ by the maintainer on the platform.
 
    > Pine-side validation: symbol `<sym>`, timeframe `<tf>`, bar range
    > `<first ts> .. <last ts>`, strategy version
-   > `SMC_Long_Strategy.pine@<commit sha>`, 0 divergences.
+   > `SMC_Long_Dip_Strategy.pine@<commit sha>`, 0 divergences.
 
 ## When to skip
 

@@ -1,6 +1,6 @@
 # No Shadow Logic Policy — v5.5b
 
-**Scope**: SMC_Core_Engine.pine + generator builders  
+**Scope**: SMC_Long_Dip_Suite.pine + generator builders  
 **Last updated**: AP6 v5.5b
 
 ---

@@ -3,8 +3,8 @@ from __future__ import annotations
 import pathlib
 
 ROOT = pathlib.Path(__file__).resolve().parents[1]
-CORE_PATH = ROOT / "SMC_Core_Engine.pine"
-DASHBOARD_PATH = ROOT / "SMC_Dashboard.pine"
+CORE_PATH = ROOT / "SMC_Long_Dip_Suite.pine"
+DASHBOARD_PATH = ROOT / "SMC_Long_Dip_Dashboard.pine"
 LIFECYCLE_PRIVATE_PATH = ROOT / "SMC++" / "smc_lifecycle_private.pine"
 BUS_PRIVATE_PATH = ROOT / "SMC++" / "smc_bus_private.pine"
 OBSERVABILITY_PRIVATE_PATH = ROOT / "SMC++" / "smc_observability_private.pine"

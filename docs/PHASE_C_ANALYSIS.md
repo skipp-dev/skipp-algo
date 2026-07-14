@@ -46,7 +46,7 @@ or subtractive at the display/debug layer.
 ### C1 — Declaration-Only Visual Inputs Removed
 
 The first split-core cleanup batch has now been executed. The following
-declaration-only visual/debug inputs were removed from `SMC_Core_Engine.pine`
+declaration-only visual/debug inputs were removed from `SMC_Long_Dip_Suite.pine`
 because they had no gate, lifecycle, dashboard, or alert consumer:
 
 | # | Removed Input | Former Line | Former Default |
@@ -161,8 +161,8 @@ That decision is now fixed:
 
 1. `SMC++.pine` is the frozen compatibility path.
 2. `tests/test_smc_long_dip_regressions.py` remains the explicit compatibility anchor for that path.
-3. Split-core assertions stay scoped to `SMC_Core_Engine.pine`.
-4. Active TradingView producer, dashboard, strategy, and release validation target `SMC_Core_Engine.pine`.
+3. Split-core assertions stay scoped to `SMC_Long_Dip_Suite.pine`.
+4. Active TradingView producer, dashboard, strategy, and release validation target `SMC_Long_Dip_Suite.pine`.
 5. No new feature work should resume on `SMC++.pine`; only compatibility-preserving fixes remain allowed.
 6. The first executed C3.5 state-owner split is `compute_long_freshness_state(...)`, which localizes armed/confirmed freshness aging without reopening display-only cleanup.
 
@@ -235,7 +235,7 @@ surface. It should stay inside the Pro-only contract.
 ### Runtime Core Only — Stay Local
 
 These areas remain bar-state owners or direct decision-path inputs and should
-stay local to `SMC_Core_Engine.pine` during Phase C:
+stay local to `SMC_Long_Dip_Suite.pine` during Phase C:
 
 | Area | Current Anchors | Why It Stays Local |
 | --- | --- | --- |
@@ -332,5 +332,5 @@ This AP6 re-evaluation leaves Phase C in a materially better state than the old 
 1. Keep the C1 removal batch compile-clean and absence-guarded after nearby edits.
 2. Extend semantic split-core, consumer-setup, and input-surface guards around the active core.
 3. Do not schedule a new dashboard-only cleanup slice unless it materially reduces duplication without touching behavior.
-4. Continue only with state-owner / lifecycle extraction inside `SMC_Core_Engine.pine` when a real runtime change requires it.
+4. Continue only with state-owner / lifecycle extraction inside `SMC_Long_Dip_Suite.pine` when a real runtime change requires it.
 5. Treat the C9 Pro-only pack lane as complete; any later bus-v3 work is a separate architecture track, not a continuation of this Phase C note.

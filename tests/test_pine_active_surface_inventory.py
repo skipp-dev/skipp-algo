@@ -7,7 +7,7 @@ After the legacy move (``tests/test_pine_legacy_isolation.py``) the active
 Pine surface consists of:
 
 * ~15 ``SMC_*.pine`` orchestrators at the repo root (entry-point scripts).
-* ``SkippALGO_Confluence.pine`` at the root (umbrella confluence script).
+* ``SMC_Confluence_Hub.pine`` at the root (umbrella confluence script).
 * ``test_div.pine`` at the root (compile-only smoke test).
 * 6 published library candidates under ``pine/`` (skipp_*.pine).
 * 8 private SMC libraries under ``SMC++/``.
@@ -32,29 +32,29 @@ from pathlib import Path
 REPO_ROOT = Path(__file__).resolve().parent.parent
 
 _ROOT_ORCHESTRATORS: frozenset[str] = frozenset({
-    "SMC_Core_Engine.pine",
-    "SMC_Dashboard.pine",
+    "SMC_Long_Dip_Suite.pine",
+    "SMC_Long_Dip_Dashboard.pine",
     "SMC_Event_Overlay.pine",
     "SMC_HTF_Confluence.pine",
     "SMC_Imbalance_Context.pine",
     "SMC_Liquidity_Context.pine",
     "SMC_Liquidity_Structure.pine",
-    "SMC_Long_Strategy.pine",
-    "SMC_Mobile_Dashboard.pine",
+    "SMC_Long_Dip_Strategy.pine",
+    "SMC_Long_Dip_Mobile.pine",
     "SMC_Orderflow_Overlay.pine",
     "SMC_Profile_Context.pine",
     "SMC_Session_Context.pine",
     "SMC_Setup_Check.pine",
     "SMC_Structure_Context.pine",
-    "SMC_TV_Bridge.pine",
-    "SkippALGO_Confluence.pine",
+    "SMC_Regime_and_News.pine",
+    "SMC_Confluence_Hub.pine",
     "test_div.pine",
     # 2026-04-30 (commit 68e1aac0): companion overlays + exit/hold-mgr surfaces.
     # Inventory updated as part of v3 phase 1 pine-consumer-discipline fix.
     "SMC_Breakout_Overlay.pine",
     "SMC_Exit_Signal.pine",
     "SMC_Hold_Manager.pine",
-    "SMC_VRVP_Overlay.pine",
+    "SMC_Volume_Profile_Overlay.pine",
 })
 
 _PINE_LIBRARIES: frozenset[str] = frozenset({

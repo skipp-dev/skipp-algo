@@ -4,7 +4,7 @@
   "artifactPath": "artifacts/tradingview/smc_product_cut_manifest.json",
   "surfaceRoles": [
     {
-      "file": "SMC_Core_Engine.pine",
+      "file": "SMC_Long_Dip_Suite.pine",
       "script_name": "SMC Core",
       "surface_role": "lite_primary",
       "contract_tier": "lite_and_pro",
@@ -16,7 +16,7 @@
       ]
     },
     {
-      "file": "SMC_Dashboard.pine",
+      "file": "SMC_Long_Dip_Dashboard.pine",
       "script_name": "SMC Decision Board",
       "surface_role": "pro_primary",
       "contract_tier": "pro",
@@ -28,7 +28,7 @@
       ]
     },
     {
-      "file": "SMC_Long_Strategy.pine",
+      "file": "SMC_Long_Dip_Strategy.pine",
       "script_name": "SMC Execution",
       "surface_role": "pro_primary",
       "contract_tier": "execution",
@@ -151,7 +151,7 @@
       ]
     },
     {
-      "file": "SMC_Mobile_Dashboard.pine",
+      "file": "SMC_Long_Dip_Mobile.pine",
       "script_name": "SMC Mobile",
       "surface_role": "companion_operator_only",
       "contract_tier": "lite_and_pro",
@@ -163,7 +163,7 @@
       ]
     },
     {
-      "file": "SkippALGO_Confluence.pine",
+      "file": "SMC_Confluence_Hub.pine",
       "script_name": "SkippALGO Confluence",
       "surface_role": "pro_primary",
       "contract_tier": "pro",
@@ -175,7 +175,7 @@
       ]
     },
     {
-      "file": "SMC_TV_Bridge.pine",
+      "file": "SMC_Regime_and_News.pine",
       "script_name": "SMC TV Bridge",
       "surface_role": "internal",
       "contract_tier": "internal",
@@ -252,7 +252,7 @@
       ]
     },
     {
-      "file": "SMC_VRVP_Overlay.pine",
+      "file": "SMC_Volume_Profile_Overlay.pine",
       "script_name": "SMC VRVP Overlay",
       "surface_role": "companion_operator_only",
       "contract_tier": "pro",
@@ -271,23 +271,23 @@
     "legacy": 3
   },
   "mainlineSurfaceFiles": [
-    "SMC_Core_Engine.pine",
-    "SMC_Dashboard.pine",
-    "SMC_Long_Strategy.pine",
-    "SkippALGO_Confluence.pine"
+    "SMC_Long_Dip_Suite.pine",
+    "SMC_Long_Dip_Dashboard.pine",
+    "SMC_Long_Dip_Strategy.pine",
+    "SMC_Confluence_Hub.pine"
   ],
   "activeValidationFiles": [
-    "SMC_Core_Engine.pine",
-    "SMC_Dashboard.pine",
-    "SMC_Long_Strategy.pine"
+    "SMC_Long_Dip_Suite.pine",
+    "SMC_Long_Dip_Dashboard.pine",
+    "SMC_Long_Dip_Strategy.pine"
   ],
   "litePrimaryFiles": [
-    "SMC_Core_Engine.pine"
+    "SMC_Long_Dip_Suite.pine"
   ],
   "proPrimaryFiles": [
-    "SMC_Dashboard.pine",
-    "SMC_Long_Strategy.pine",
-    "SkippALGO_Confluence.pine"
+    "SMC_Long_Dip_Dashboard.pine",
+    "SMC_Long_Dip_Strategy.pine",
+    "SMC_Confluence_Hub.pine"
   ],
   "companionOperatorOnlyFiles": [
     "SMC_Event_Overlay.pine",
@@ -300,14 +300,14 @@
     "SMC_Profile_Context.pine",
     "SMC_Liquidity_Structure.pine",
     "SMC_Setup_Check.pine",
-    "SMC_Mobile_Dashboard.pine",
+    "SMC_Long_Dip_Mobile.pine",
     "SMC_Breakout_Overlay.pine",
     "SMC_Exit_Signal.pine",
     "SMC_Hold_Manager.pine",
-    "SMC_VRVP_Overlay.pine"
+    "SMC_Volume_Profile_Overlay.pine"
   ],
   "internalFiles": [
-    "SMC_TV_Bridge.pine"
+    "SMC_Regime_and_News.pine"
   ],
   "legacyFiles": [
     "SMC++.pine",
@@ -547,13 +547,13 @@
   "preflightScopes": {
     "smcCoreDashboard": [
       {
-        "file": "SMC_Core_Engine.pine",
+        "file": "SMC_Long_Dip_Suite.pine",
         "scriptName": "SMC Core",
         "checkInputs": false,
         "addToChart": false
       },
       {
-        "file": "SMC_Dashboard.pine",
+        "file": "SMC_Long_Dip_Dashboard.pine",
         "scriptName": "SMC Decision Board",
         "checkInputs": true,
         "addToChart": true,
@@ -1018,13 +1018,13 @@
     ],
     "smcMainline": [
       {
-        "file": "SMC_Core_Engine.pine",
+        "file": "SMC_Long_Dip_Suite.pine",
         "scriptName": "SMC Core",
         "checkInputs": false,
         "addToChart": false
       },
       {
-        "file": "SMC_Dashboard.pine",
+        "file": "SMC_Long_Dip_Dashboard.pine",
         "scriptName": "SMC Decision Board",
         "checkInputs": true,
         "addToChart": true,
@@ -1487,7 +1487,7 @@
         ]
       },
       {
-        "file": "SMC_Long_Strategy.pine",
+        "file": "SMC_Long_Dip_Strategy.pine",
         "scriptName": "SMC Long-Dip Strategy v7",
         "checkInputs": true,
         "addToChart": true,
@@ -1560,13 +1560,13 @@
     ],
     "smcDecisionFirst": [
       {
-        "file": "SMC_Core_Engine.pine",
+        "file": "SMC_Long_Dip_Suite.pine",
         "scriptName": "SMC Core",
         "checkInputs": false,
         "addToChart": false
       },
       {
-        "file": "SMC_Dashboard.pine",
+        "file": "SMC_Long_Dip_Dashboard.pine",
         "scriptName": "SMC Decision Board",
         "checkInputs": true,
         "addToChart": true,
@@ -2029,7 +2029,7 @@
         ]
       },
       {
-        "file": "SMC_Long_Strategy.pine",
+        "file": "SMC_Long_Dip_Strategy.pine",
         "scriptName": "SMC Long-Dip Strategy v7",
         "checkInputs": true,
         "addToChart": true,
@@ -2107,7 +2107,7 @@
     "requiredCaptures": [
       {
         "key": "core_first_run",
-        "file": "SMC_Core_Engine.pine",
+        "file": "SMC_Long_Dip_Suite.pine",
         "script_name": "SMC Core",
         "report_label": "Core first-run",
         "runbook_label_en": "rendered Core first-run screen",
@@ -2118,7 +2118,7 @@
       },
       {
         "key": "dashboard_decision_brief",
-        "file": "SMC_Dashboard.pine",
+        "file": "SMC_Long_Dip_Dashboard.pine",
         "script_name": "SMC Decision Board",
         "report_label": "Dashboard Decision Brief",
         "runbook_label_en": "rendered Dashboard screen in `Decision Brief`",
@@ -2129,7 +2129,7 @@
       },
       {
         "key": "dashboard_audit_view",
-        "file": "SMC_Dashboard.pine",
+        "file": "SMC_Long_Dip_Dashboard.pine",
         "script_name": "SMC Decision Board",
         "report_label": "Dashboard Audit View",
         "runbook_label_en": "rendered Dashboard screen in `Audit View`",
@@ -2140,7 +2140,7 @@
       },
       {
         "key": "strategy_execution_plan",
-        "file": "SMC_Long_Strategy.pine",
+        "file": "SMC_Long_Dip_Strategy.pine",
         "script_name": "SMC Execution",
         "report_label": "Strategy execution",
         "runbook_label_en": "rendered Strategy screen with `Execution Trigger`, `Execution Invalidation`, and `Execution Take Profit` when a plan is active",

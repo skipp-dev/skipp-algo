@@ -47,7 +47,7 @@ Integration & Delivery
 - `smc_integration/service.py`: Orchestrierung zum Erzeugen eines Snapshot‑Bundles pro Symbol/Timeframe. fileciteturn13file0L1-L80  
 - Provider/Health: `smc_integration/provider_health.py` implementiert Smoke‑Checks/Staleness‑Validierung und „strict policy“‑Mechanik. fileciteturn60file0L1-L80  
 - TV Bridge: `smc_tv_bridge/smc_api.py` stellt FastAPI‑Endpoints bereit (u. a. `/smc_snapshot`, `/smc_tv`). fileciteturn21file0L1-L90  
-- Pine Consumer: `SMC_TV_Bridge.pine` konsumiert die Bridge‑Ausgabe und visualisiert BOS/OB/FVG/Sweeps mit UI‑Regeln, die (laut Architektur‑Prinzip) keine „shadow logic“ erzeugen sollen. fileciteturn21file0L1-L120
+- Pine Consumer: `SMC_Regime_and_News.pine` konsumiert die Bridge‑Ausgabe und visualisiert BOS/OB/FVG/Sweeps mit UI‑Regeln, die (laut Architektur‑Prinzip) keine „shadow logic“ erzeugen sollen. fileciteturn21file0L1-L120
 
 CI/Release‑Kontrollen
 - Fast PR Gates: `.github/workflows/smc-fast-pr-gates.yml` (Python 3.12 in CI). fileciteturn69file0L10-L22  

@@ -2,7 +2,7 @@
 
 Three layers:
 1. **Field-consumer matrix** — programmatically parse ``mp.FIELD`` references from
-   SMC_Core_Engine.pine and assert each one exists in the canonical V5_FIELD_INVENTORY.
+   SMC_Long_Dip_Suite.pine and assert each one exists in the canonical V5_FIELD_INVENTORY.
 2. **BUS channel contract** — ensure Dashboard and Strategy BUS channels are a subset
    of those published by the Engine, and that neither imports the library directly.
 3. **Fixture-based output validation** — full/degraded/stale enrichment generates
@@ -278,7 +278,7 @@ ENGINE_CONSUMED_FIELDS: set[str] = {
     "INSIDER_BUYING_TICKERS", "INSIDER_SELLING_HEAVY_TICKERS",
 }
 
-# BUS channels published by SMC_Core_Engine.pine
+# BUS channels published by SMC_Long_Dip_Suite.pine
 ENGINE_BUS_CHANNELS: set[str] = set(MANIFEST_ENGINE_BUS_CHANNELS)
 
 # BUS channels consumed by Dashboard and Strategy
@@ -445,12 +445,12 @@ def _run_pipeline(
 # ═══════════════════════════════════════════════════════════════
 
 class TestFieldConsumerMatrix:
-    """Parse mp.FIELD references from SMC_Core_Engine.pine and validate
+    """Parse mp.FIELD references from SMC_Long_Dip_Suite.pine and validate
     them against the canonical V5 field inventory."""
 
     def test_engine_mp_fields_match_declared_set(self):
         """Fields parsed from the Pine source match ENGINE_CONSUMED_FIELDS."""
-        text = _read_pine("SMC_Core_Engine.pine")
+        text = _read_pine("SMC_Long_Dip_Suite.pine")
         found = _extract_mp_fields(text)
         assert found == ENGINE_CONSUMED_FIELDS, (
             f"Mismatch.\n"
@@ -460,7 +460,7 @@ class TestFieldConsumerMatrix:
 
     def test_all_consumed_fields_in_inventory(self):
         """Every field the Engine reads must exist in V5_FIELD_INVENTORY."""
-        text = _read_pine("SMC_Core_Engine.pine")
+        text = _read_pine("SMC_Long_Dip_Suite.pine")
         consumed = _extract_mp_fields(text)
         missing = consumed - V5_FIELD_INVENTORY
         assert not missing, (
@@ -472,7 +472,7 @@ class TestFieldConsumerMatrix:
         generated Pine library output."""
         pine_text = _run_pipeline(base_csv, tmp_path, enrichment=_full_enrichment())
         export_names = set(re.findall(r"export const \w+ (\w+)", pine_text))
-        engine_text = _read_pine("SMC_Core_Engine.pine")
+        engine_text = _read_pine("SMC_Long_Dip_Suite.pine")
         consumed = _extract_mp_fields(engine_text)
         missing = consumed - export_names
         assert not missing, (
@@ -503,7 +503,7 @@ class TestBusChannelContract:
     by Dashboard and Strategy."""
 
     def test_engine_publishes_declared_channels(self):
-        text = _read_pine("SMC_Core_Engine.pine")
+        text = _read_pine("SMC_Long_Dip_Suite.pine")
         published = _extract_bus_plots(text)
         assert published == ENGINE_BUS_CHANNELS, (
             f"BUS channel mismatch.\n"
@@ -512,9 +512,9 @@ class TestBusChannelContract:
         )
 
     def test_dashboard_channels_subset_of_engine(self):
-        engine_text = _read_pine("SMC_Core_Engine.pine")
+        engine_text = _read_pine("SMC_Long_Dip_Suite.pine")
         published = _extract_bus_plots(engine_text)
-        dash_text = _read_pine("SMC_Dashboard.pine")
+        dash_text = _read_pine("SMC_Long_Dip_Dashboard.pine")
         consumed = _extract_bus_inputs(dash_text)
         assert consumed == DASHBOARD_BUS_CHANNELS, (
             f"Dashboard BUS input mismatch.\n"
@@ -527,9 +527,9 @@ class TestBusChannelContract:
         )
 
     def test_strategy_channels_subset_of_engine(self):
-        engine_text = _read_pine("SMC_Core_Engine.pine")
+        engine_text = _read_pine("SMC_Long_Dip_Suite.pine")
         published = _extract_bus_plots(engine_text)
-        strat_text = _read_pine("SMC_Long_Strategy.pine")
+        strat_text = _read_pine("SMC_Long_Dip_Strategy.pine")
         consumed = _extract_bus_inputs(strat_text)
         assert consumed == STRATEGY_BUS_CHANNELS, (
             f"Strategy BUS input mismatch.\n"
@@ -632,11 +632,11 @@ class TestCIConsumerFieldGuard:
     def test_engine_pine_has_no_unknown_mp_references(self):
         """Fail if Engine references an mp.FIELD not in ENGINE_CONSUMED_FIELDS.
         Forces the developer to explicitly update the contract."""
-        text = _read_pine("SMC_Core_Engine.pine")
+        text = _read_pine("SMC_Long_Dip_Suite.pine")
         found = _extract_mp_fields(text)
         unknown = found - ENGINE_CONSUMED_FIELDS
         assert not unknown, (
-            f"SMC_Core_Engine.pine references new mp. fields not in "
+            f"SMC_Long_Dip_Suite.pine references new mp. fields not in "
             f"ENGINE_CONSUMED_FIELDS — update the contract: {unknown}"
         )
 
@@ -651,7 +651,7 @@ class TestCIConsumerFieldGuard:
 
     def test_inventory_covers_all_consumer_fields(self):
         """Redundant cross-check: parse + compare in one assertion."""
-        text = _read_pine("SMC_Core_Engine.pine")
+        text = _read_pine("SMC_Long_Dip_Suite.pine")
         consumed = _extract_mp_fields(text)
         missing = consumed - V5_FIELD_INVENTORY
         assert not missing, (
@@ -707,7 +707,7 @@ class TestV55LeanContract:
         assert not missing, f"v5.5 lean fields missing from inventory: {missing}"
 
     def test_all_lean_fields_consumed_by_engine(self):
-        """Every v5.5 lean field must be consumed by SMC_Core_Engine.pine."""
+        """Every v5.5 lean field must be consumed by SMC_Long_Dip_Suite.pine."""
         all_lean = set()
         for fields in V55_LEAN_FAMILIES.values():
             all_lean |= fields
@@ -744,7 +744,7 @@ class TestV55DriftGuard:
 
     def test_event_risk_gate_uses_lean_fields(self):
         """event_risk_gate_ok must derive from lean Event Risk Light fields."""
-        text = _read_pine("SMC_Core_Engine.pine")
+        text = _read_pine("SMC_Long_Dip_Suite.pine")
         # Must use lib_erl_* (lean) not lib_market_event_blocked/lib_symbol_event_blocked (old)
         gate_lines = [
             line.strip()
@@ -762,7 +762,7 @@ class TestV55DriftGuard:
 
     def test_legacy_gates_removed(self):
         """Old v5.1-v5.3 context gate sections were removed in AP6 v5.5 cleanup."""
-        text = _read_pine("SMC_Core_Engine.pine")
+        text = _read_pine("SMC_Long_Dip_Suite.pine")
         for version in ("v5.1", "v5.2", "v5.3"):
             pattern = rf"──\s*{version}\s+Context Gates"
             assert not re.search(pattern, text), (
@@ -771,14 +771,14 @@ class TestV55DriftGuard:
 
     def test_lean_context_section_marked_primary(self):
         """v5.5 lean context section must be marked [PRIMARY]."""
-        text = _read_pine("SMC_Core_Engine.pine")
+        text = _read_pine("SMC_Long_Dip_Suite.pine")
         assert re.search(r"v5\.5\s+Lean\s+Context\s+\[PRIMARY\]", text), (
             "v5.5 lean context section not marked [PRIMARY]"
         )
 
     def test_deprecated_sections_removed_in_phase_b(self):
         """Fields marked [DEPRECATED v5.5] should be gone after Phase B removal."""
-        text = _read_pine("SMC_Core_Engine.pine")
+        text = _read_pine("SMC_Long_Dip_Suite.pine")
         deprecated_markers = re.findall(
             r"\[DEPRECATED v5\.5[^\]]*\]", text
         )
@@ -788,12 +788,12 @@ class TestV55DriftGuard:
 
     def test_bus_event_risk_row_removed(self):
         """EventRiskRow should stay retired from the producer BUS."""
-        text = _read_pine("SMC_Core_Engine.pine")
+        text = _read_pine("SMC_Long_Dip_Suite.pine")
         assert 'BUS EventRiskRow' not in text
 
     def test_legacy_event_risk_aliases_removed_from_core(self):
         """Broad event-risk aliases should stay removed from the core runtime path."""
-        text = _read_pine("SMC_Core_Engine.pine")
+        text = _read_pine("SMC_Long_Dip_Suite.pine")
         assert '// ── Event Risk (v5) ──' not in text
         for fragment in (
             'string lib_event_window_state = mp.EVENT_WINDOW_STATE',
@@ -810,7 +810,7 @@ class TestV55DriftGuard:
 
     def test_lean_pack_a_carries_event_risk_light_fields(self):
         """LeanPackA must continue to transport the lean event-risk light inputs."""
-        text = _read_pine("SMC_Core_Engine.pine")
+        text = _read_pine("SMC_Long_Dip_Suite.pine")
         bus_lines = [
             line.strip()
             for line in text.splitlines()
@@ -830,14 +830,14 @@ class TestV55DriftGuard:
 
     def test_gate_classification_comment_exists(self):
         """Gate classification documentation must exist in the engine."""
-        text = _read_pine("SMC_Core_Engine.pine")
+        text = _read_pine("SMC_Long_Dip_Suite.pine")
         assert "Gate Classification (v5.5b)" in text, (
             "Gate classification comment block not found in engine"
         )
 
     def test_prefixed_lean_aliases_stay_removed(self):
         """Legacy *_LIGHT_* aliases must not return for shared lean families."""
-        text = _read_pine("SMC_Core_Engine.pine")
+        text = _read_pine("SMC_Long_Dip_Suite.pine")
         for field in {
             "EVENT_RISK_LIGHT_WINDOW_STATE",
             "EVENT_RISK_LIGHT_LEVEL",
@@ -912,7 +912,7 @@ class TestV80aContractSync:
 
     def test_no_shadow_event_risk_blocks(self):
         """Dead shadow logic (event_risk_hard_block/soft_block) must stay removed."""
-        text = _read_pine("SMC_Core_Engine.pine")
+        text = _read_pine("SMC_Long_Dip_Suite.pine")
         assert "event_risk_hard_block" not in text or "REMOVED" in text, (
             "event_risk_hard_block was removed in v5.5b — must not reappear"
         )
@@ -926,7 +926,7 @@ class TestV80aContractSync:
 
     def test_compact_mode_hero_surface(self):
         """Compact mode must suppress all expected _eff flags and secondary overlays."""
-        text = _read_pine("SMC_Core_Engine.pine")
+        text = _read_pine("SMC_Long_Dip_Suite.pine")
         # Must suppress these in compact_mode if-block
         expected_suppressions = [
             "show_ob_debug_eff := false",
@@ -956,7 +956,7 @@ class TestV80aContractSync:
 
     def test_compact_mode_preserves_filter_logic(self):
         """Compact mode must not suppress EMA/VWAP filter logic — only visual plots."""
-        text = _read_pine("SMC_Core_Engine.pine")
+        text = _read_pine("SMC_Long_Dip_Suite.pine")
         # EMA support filter must still use raw show_ema_support (not _eff)
         # The BUS row resolver uses show_ema_support as parameter name
         assert "resolve_bus_ema_support_row(show_ema_support," in text, (

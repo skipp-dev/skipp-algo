@@ -14,9 +14,9 @@ Dieses Runbook dient der externen manuellen TradingView-Laufzeitvalidierung des 
 
 Geprüft werden:
 
-1. Producer: [../SMC_Core_Engine.pine](../SMC_Core_Engine.pine)
-2. Dashboard-Consumer: [../SMC_Dashboard.pine](../SMC_Dashboard.pine)
-3. Strategy-Consumer: [../SMC_Long_Strategy.pine](../SMC_Long_Strategy.pine)
+1. Producer: [../SMC_Long_Dip_Suite.pine](../SMC_Long_Dip_Suite.pine)
+2. Dashboard-Consumer: [../SMC_Long_Dip_Dashboard.pine](../SMC_Long_Dip_Dashboard.pine)
+3. Strategy-Consumer: [../SMC_Long_Dip_Strategy.pine](../SMC_Long_Dip_Strategy.pine)
 
 Ziel ist ein klarer Pass/Fail-Entscheid für den aktuellen Vertragsstand in TradingView, ohne Änderungen an Produktionslogik.
 
@@ -26,9 +26,9 @@ Repo-Regressionen abgesichert.
 
 ## Benötigte Dateien
 
-1. [../SMC_Core_Engine.pine](../SMC_Core_Engine.pine)
-2. [../SMC_Dashboard.pine](../SMC_Dashboard.pine)
-3. [../SMC_Long_Strategy.pine](../SMC_Long_Strategy.pine)
+1. [../SMC_Long_Dip_Suite.pine](../SMC_Long_Dip_Suite.pine)
+2. [../SMC_Long_Dip_Dashboard.pine](../SMC_Long_Dip_Dashboard.pine)
+3. [../SMC_Long_Dip_Strategy.pine](../SMC_Long_Dip_Strategy.pine)
 4. [tradingview-validation-checklist.md](tradingview-validation-checklist.md)
 5. [tradingview-manual-validation-report-template.md](tradingview-manual-validation-report-template.md)
 
@@ -153,7 +153,7 @@ rekonstruiert.
 
 ### Producer Schrittfolge
 
-1. [../SMC_Core_Engine.pine](../SMC_Core_Engine.pine) in TradingView öffnen.
+1. [../SMC_Long_Dip_Suite.pine](../SMC_Long_Dip_Suite.pine) in TradingView öffnen.
 2. Das Skript auf dem Zielchart kompilieren.
 3. Im Chart prüfen, ob das Skript ohne Compile- oder Runtime-Fehler geladen bleibt.
 4. Im `source`-Picker eines nachgelagerten Consumers prüfen, ob die Hidden-Bus-Serien auswählbar sind.
@@ -185,7 +185,7 @@ Fail:
 
 ### Dashboard Schrittfolge
 
-1. [../SMC_Dashboard.pine](../SMC_Dashboard.pine) auf denselben Chart legen.
+1. [../SMC_Long_Dip_Dashboard.pine](../SMC_Long_Dip_Dashboard.pine) auf denselben Chart legen.
 2. Alle 64 `input.source()`-Felder exakt mit den Core-Serien belegen.
 3. Sicherstellen, dass `View = Decision Brief` aktiv ist und die
    Toggles `Show Brief Panel` sowie `Show Trade Plan` den erwarteten
@@ -285,7 +285,7 @@ Fail:
 
 ### Strategy Schrittfolge
 
-1. [../SMC_Long_Strategy.pine](../SMC_Long_Strategy.pine) auf denselben Chart legen.
+1. [../SMC_Long_Dip_Strategy.pine](../SMC_Long_Dip_Strategy.pine) auf denselben Chart legen.
 2. Die 8 `input.source()`-Felder exakt mit den Core-Serien belegen.
 3. `Execution Stage`, `Execution Trigger`, `Execution Invalidation` und `Execution Take Profit` gegen den dokumentierten Vertrag prüfen.
 

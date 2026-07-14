@@ -171,7 +171,7 @@ Rationale:
 - No TradingView-URL redirect — operators must update saved-script
   URLs manually after the move lands.
 - No move of `test_div.pine` (test fixture) or
-  `SkippALGO_Confluence.pine` (active per
+  `SMC_Confluence_Hub.pine` (active per
   [`PINE_LEGACY.md`](../../PINE_LEGACY.md)).
 
 ### Effort estimate

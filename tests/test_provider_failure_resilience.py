@@ -139,14 +139,14 @@ class TestCalendarFailureStalePropagation(unittest.TestCase):
 
 
 class TestStrategyBacktestModeInput(unittest.TestCase):
-    """Verify the backtest_mode input exists in SMC_Long_Strategy.pine."""
+    """Verify the backtest_mode input exists in SMC_Long_Dip_Strategy.pine."""
 
     def test_backtest_mode_input_present(self):
         from pathlib import Path
 
-        strategy_path = Path(__file__).resolve().parent.parent / "SMC_Long_Strategy.pine"
+        strategy_path = Path(__file__).resolve().parent.parent / "SMC_Long_Dip_Strategy.pine"
         if not strategy_path.exists():
-            self.skipTest("SMC_Long_Strategy.pine not found")
+            self.skipTest("SMC_Long_Dip_Strategy.pine not found")
 
         content = strategy_path.read_text(encoding="utf-8")
         self.assertIn('input.bool(false, "Backtest Mode (Ignore Library)"', content)
@@ -155,9 +155,9 @@ class TestStrategyBacktestModeInput(unittest.TestCase):
     def test_backtest_mode_bypasses_regime_gate(self):
         from pathlib import Path
 
-        strategy_path = Path(__file__).resolve().parent.parent / "SMC_Long_Strategy.pine"
+        strategy_path = Path(__file__).resolve().parent.parent / "SMC_Long_Dip_Strategy.pine"
         if not strategy_path.exists():
-            self.skipTest("SMC_Long_Strategy.pine not found")
+            self.skipTest("SMC_Long_Dip_Strategy.pine not found")
 
         content = strategy_path.read_text(encoding="utf-8")
         # The regime gate should check backtest_mode
@@ -175,9 +175,9 @@ class TestLookAheadBiasDisclaimer(unittest.TestCase):
     def test_strategy_tooltip_warns_about_bias(self):
         from pathlib import Path
 
-        strategy_path = Path(__file__).resolve().parent.parent / "SMC_Long_Strategy.pine"
+        strategy_path = Path(__file__).resolve().parent.parent / "SMC_Long_Dip_Strategy.pine"
         if not strategy_path.exists():
-            self.skipTest("SMC_Long_Strategy.pine not found")
+            self.skipTest("SMC_Long_Dip_Strategy.pine not found")
 
         content = strategy_path.read_text(encoding="utf-8")
         self.assertIn("BACKTEST NOTE", content)

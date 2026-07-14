@@ -1,7 +1,7 @@
 """Typed wire contract for the ``smc-live-overlay/1`` live-overlay payload.
 
 The live overlay is the *fast* half of the "slow baseline + fast overlay"
-design: ``SMC_TV_Bridge.pine`` always carries the 2x/day baked ``mp.*``
+design: ``SMC_Regime_and_News.pine`` always carries the 2x/day baked ``mp.*``
 baseline and, when reachable and fresh, pulls this flat JSON from
 ``GET /smc_live`` to override individual fields. Every data field is optional
 and nullable so the overlay can speak to whatever it currently knows and stay

@@ -23,10 +23,10 @@ NAMING_DOC = REPO_ROOT / "docs" / "PINE_SCRIPT_NAMING.md"
 #: MUST share the "SMC Long-Dip" prefix so the indicator and its strategy read
 #: as one family.
 CANONICAL_MAIN_PRODUCTS: dict[str, str] = {
-    "SMC_Core_Engine.pine": "SMC Long-Dip Suite",
-    "SMC_Long_Strategy.pine": "SMC Long-Dip Strategy",
-    "SMC_Dashboard.pine": "SMC Long-Dip Dashboard",
-    "SMC_Mobile_Dashboard.pine": "SMC Long-Dip Mobile",
+    "SMC_Long_Dip_Suite.pine": "SMC Long-Dip Suite",
+    "SMC_Long_Dip_Strategy.pine": "SMC Long-Dip Strategy",
+    "SMC_Long_Dip_Dashboard.pine": "SMC Long-Dip Dashboard",
+    "SMC_Long_Dip_Mobile.pine": "SMC Long-Dip Mobile",
 }
 
 FAMILY_PREFIX = "SMC Long-Dip "
@@ -53,6 +53,24 @@ def _all_root_products() -> list[Path]:
         for p in sorted(REPO_ROOT.glob("*.pine"))
         if not p.name.startswith("test_")
     ]
+
+
+def _title_to_filename(title: str) -> str:
+    """Tier-3 transliteration rule (docs/PINE_SCRIPT_NAMING.md): '&' -> 'and',
+    then every space and hyphen -> underscore (all-underscore style, no hyphens)."""
+    return title.replace("&", "and").replace(" ", "_").replace("-", "_") + ".pine"
+
+
+def test_root_product_filenames_match_their_titles() -> None:
+    """Tier 3: the repo file name is the name in filename form, so there is no
+    fourth identifier to drift (the SMC_Core_Engine.pine vs 'SMC Long-Dip Suite'
+    mismatch was itself a source of confusion)."""
+    problems: list[str] = []
+    for path in _all_root_products():
+        expected = _title_to_filename(_code_title(path.name))
+        if path.name != expected:
+            problems.append(f"{path.name}: filename must be {expected!r} to match its title")
+    assert problems == [], "\n".join(problems)
 
 
 def test_main_products_have_canonical_titles() -> None:

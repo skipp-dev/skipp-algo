@@ -77,7 +77,7 @@ market-weiten `^VIX`-Quote-Pfad (TTL 300s), nicht aus dem Per-Symbol-Snapshot.
 (`smc-live-overlay/1`) eingefroren.
 
 Die folgenden **B2-Felder** werden inzwischen serverseitig ausgeliefert **und**
-feldweise von `SMC_TV_Bridge.pine` konsumiert:
+feldweise von `SMC_Regime_and_News.pine` konsumiert:
 
 | B2-Feld | Typ | Serviert | Pine-Konsum |
 |---|---|---|---|
@@ -138,7 +138,7 @@ Pine-konsumiert sieben Felder:
   Event-Felder weg → Pine behält die gebackene `mp.*`-Event-Posture.
 - **Tighten-only:** Die beiden Block-Flags werden nur bei `True` emittiert; das
   Overlay kann einen Block **behaupten**, aber niemals einen baked-Block aufheben.
-  In `SMC_TV_Bridge.pine` (WP-B3) erscheinen sie nur bei frischem Overlay und exakt
+  In `SMC_Regime_and_News.pine` (WP-B3) erscheinen sie nur bei frischem Overlay und exakt
   `"true"`; stale/absent ⇒ Anzeige `–`.
 - **Diagnose-only — kein Trade-Gating in dieser Kette:** WP-B3 zeigt die Felder als
   Freshness-Diagnose-Zeilen im Bridge-Dashboard. Das **consumer-seitige Trade-Gating**

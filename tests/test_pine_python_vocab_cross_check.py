@@ -51,7 +51,7 @@ def _quoted_present(token: str, text: str) -> bool:
     """Return True iff ``"token"`` appears anywhere in the Pine text as a
     quoted literal. This intentionally includes occurrences inside Pine
     line comments (e.g. the ``// vocab-anchor: "…"`` markers added to
-    SMC_Mobile_Dashboard.pine): an anchor comment is the deliberate,
+    SMC_Long_Dip_Mobile.pine): an anchor comment is the deliberate,
     reviewable way to acknowledge a token whose runtime rendering lives
     elsewhere, and is sufficient to satisfy this textual pin.
     """
@@ -79,32 +79,32 @@ _TARGETS: tuple[tuple[str, tuple[str, ...], tuple[str, ...]], ...] = (
     (
         "HERO_TRUST_VOCAB",
         _HERO_TRUST_TOKENS,
-        ("SMC_Dashboard.pine", "SMC_Mobile_Dashboard.pine"),
+        ("SMC_Long_Dip_Dashboard.pine", "SMC_Long_Dip_Mobile.pine"),
     ),
     (
         "HERO_ACTION_VOCAB",
         _HERO_ACTION_TOKENS,
-        ("SMC_Dashboard.pine", "SMC_Mobile_Dashboard.pine"),
+        ("SMC_Long_Dip_Dashboard.pine", "SMC_Long_Dip_Mobile.pine"),
     ),
     (
         "HERO_SETUP_QUALITY_VOCAB",
         _HERO_SETUP_QUALITY_TOKENS,
-        ("SMC_Dashboard.pine",),
+        ("SMC_Long_Dip_Dashboard.pine",),
     ),
     (
         "HERO_MARKET_MODE_VOCAB",
         _HERO_MARKET_MODE_TOKENS,
-        ("SMC_Dashboard.pine", "SMC_Mobile_Dashboard.pine", "SMC_Core_Engine.pine"),
+        ("SMC_Long_Dip_Dashboard.pine", "SMC_Long_Dip_Mobile.pine", "SMC_Long_Dip_Suite.pine"),
     ),
     (
         "HERO_BIAS_VOCAB",
         _HERO_BIAS_TOKENS,
-        ("SMC_Dashboard.pine", "SMC_Mobile_Dashboard.pine"),
+        ("SMC_Long_Dip_Dashboard.pine", "SMC_Long_Dip_Mobile.pine"),
     ),
     (
         "TRUST_STATE_VALUES",
         _TRUST_STATE_TOKENS,
-        ("SMC_Dashboard.pine", "SMC_Mobile_Dashboard.pine"),
+        ("SMC_Long_Dip_Dashboard.pine", "SMC_Long_Dip_Mobile.pine"),
     ),
 )
 

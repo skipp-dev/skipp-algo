@@ -16,8 +16,8 @@ Dieses Dokument haertet die erste Decision-First-Auslieferung fuer R1.1.
 Es deckt drei operative Themen ab:
 
 1. sichere Preset- und Default-Migration fuer bestehende Nutzer,
-2. den operator-only Workflow fuer `SMC_Dashboard.pine` als Companion-Surface.
-3. den Wrapper- und Binding-Workflow fuer `SMC_Long_Strategy.pine`.
+2. den operator-only Workflow fuer `SMC_Long_Dip_Dashboard.pine` als Companion-Surface.
+3. den Wrapper- und Binding-Workflow fuer `SMC_Long_Dip_Strategy.pine`.
 
 ## R1.1 Scope
 
@@ -31,13 +31,13 @@ Die Decision-First-Umstellung darf keine stillen Engine-Forks einfuehren.
 
 Deshalb gelten fuer die erste Migration diese Regeln:
 
-1. `compact_mode` bleibt die bestehende Kernvariable in `SMC_Core_Engine.pine`.
+1. `compact_mode` bleibt die bestehende Kernvariable in `SMC_Long_Dip_Suite.pine`.
    Die sichtbare Bezeichnung lautet jetzt `Focus View`, aber der
    Schalter bleibt visual-only und ist fuer den First-Run jetzt standardmaessig aktiv.
-2. `surface_mode` in `SMC_Dashboard.pine` bleibt ein Visualisierungsmodus.
+2. `surface_mode` in `SMC_Long_Dip_Dashboard.pine` bleibt ein Visualisierungsmodus.
    `Decision Brief` ist die Default-Surface, `Audit View` ist opt-in.
 3. `entry_mode`, `min_quality_score`, `take_profit_r` und `use_take_profit` in
-   `SMC_Long_Strategy.pine` bleiben Wrapper-Controls. Sichtbar heissen sie
+   `SMC_Long_Dip_Strategy.pine` bleiben Wrapper-Controls. Sichtbar heissen sie
    `Execution Stage`, `Minimum Quality Score`, `Take Profit (R)` und
    `Use Take Profit`. Sie aendern den Strategy-Wrapper, aber nicht den
    Core-BUS-Contract.
@@ -51,19 +51,19 @@ Deshalb gelten fuer die erste Migration diese Regeln:
 
 | Surface | Default | Hard Rule |
 | --- | --- | --- |
-| `SMC_Core_Engine.pine` | `compact_mode = true` mit `Focus View` als First-Run-Default | Visual-only, keine neue Engine-Semantik |
-| `SMC_Dashboard.pine` | `surface_mode = "Decision Brief"` | BUS binding order bleibt unveraendert |
-| `SMC_Long_Strategy.pine` | `entry_mode = "Strict"`, `use_take_profit = true` | Wrapper-Control, kein neuer Producer |
+| `SMC_Long_Dip_Suite.pine` | `compact_mode = true` mit `Focus View` als First-Run-Default | Visual-only, keine neue Engine-Semantik |
+| `SMC_Long_Dip_Dashboard.pine` | `surface_mode = "Decision Brief"` | BUS binding order bleibt unveraendert |
+| `SMC_Long_Dip_Strategy.pine` | `entry_mode = "Strict"`, `use_take_profit = true` | Wrapper-Control, kein neuer Producer |
 
 ## Settings Surface Order
 
-- `SMC_Core_Engine.pine` startet mit `Core Setup`, `Output`, `Trade Plan`, `Session Gate` und `Runtime Budget`; alle tieferen Technikbereiche sind explizit als `Advanced` markiert.
-- `SMC_Dashboard.pine` startet mit `Product Surface`; die sechs BUS-Bindings und die lokalen Debug-Mirror-Inputs sind explizit `Operator Only`.
-- `SMC_Long_Strategy.pine` startet mit `Execution Setup` und `Trade Plan`; die beiden Binding-Bloecke bleiben klar als `Expert Mapping` markiert und beschreiben die verknuepften Core-Outputs statt Wrapper-Interna.
+- `SMC_Long_Dip_Suite.pine` startet mit `Core Setup`, `Output`, `Trade Plan`, `Session Gate` und `Runtime Budget`; alle tieferen Technikbereiche sind explizit als `Advanced` markiert.
+- `SMC_Long_Dip_Dashboard.pine` startet mit `Product Surface`; die sechs BUS-Bindings und die lokalen Debug-Mirror-Inputs sind explizit `Operator Only`.
+- `SMC_Long_Dip_Strategy.pine` startet mit `Execution Setup` und `Trade Plan`; die beiden Binding-Bloecke bleiben klar als `Expert Mapping` markiert und beschreiben die verknuepften Core-Outputs statt Wrapper-Interna.
 
 ## Operator-Only Companion Workflow
 
-`SMC_Dashboard.pine` und `SMC_Long_Strategy.pine` bleiben operator-only
+`SMC_Long_Dip_Dashboard.pine` und `SMC_Long_Dip_Strategy.pine` bleiben operator-only
 Consumer-Skripte.
 
 Das bedeutet:
@@ -76,17 +76,17 @@ Das bedeutet:
    nutzbare Entscheidungserklaerung.
 4. `Audit View` ist fuer Operatoren und Audit gedacht, nicht als
    Default-Startpunkt fuer neue Nutzer.
-5. `SMC_Long_Strategy.pine` ist die Execution-Surface fuer Orders und
+5. `SMC_Long_Dip_Strategy.pine` ist die Execution-Surface fuer Orders und
    Backtests, nicht
    die Quelle neuer Signallogik.
 
 ## Binding Workflow
 
-1. `SMC_Core_Engine.pine` auf den Chart legen und die BUS-Exports aktiv lassen.
-2. `SMC_Dashboard.pine` als Companion hinzufuegen.
+1. `SMC_Long_Dip_Suite.pine` auf den Chart legen und die BUS-Exports aktiv lassen.
+2. `SMC_Long_Dip_Dashboard.pine` als Companion hinzufuegen.
 3. Die `input.source(...)`-Kanaele exakt in der manifest-konformen BUS binding
    order von oben nach unten verbinden.
-4. `SMC_Long_Strategy.pine` hinzufuegen.
+4. `SMC_Long_Dip_Strategy.pine` hinzufuegen.
 5. Die acht Strategy-`input.source(...)`-Kanaele exakt top-to-bottom an dieselben
    Core-BUS-Serien binden.
 6. Danach zuerst `Decision Brief` fuer die schnelle Companion-Leseflaeche nutzen.
@@ -116,7 +116,7 @@ Diese Tests sichern insbesondere:
 
 - `Decision Brief` ist fuer schnelle Entscheidungserklaerung gedacht.
 - `Audit View` ist eine operator-only Diagnoseflaeche.
-- `SMC_Long_Strategy.pine` ist die Execution-Surface fuer Backtest und
+- `SMC_Long_Dip_Strategy.pine` ist die Execution-Surface fuer Backtest und
    Ausfuehrungsplanung auf dem Core-BUS.
 - Wenn Binding-Drift vermutet wird, immer zuerst die Contract-Tests laufen
   lassen statt Bindings manuell umzubenennen.

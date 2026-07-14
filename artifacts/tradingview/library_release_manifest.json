@@ -25,17 +25,17 @@
   "consumers": [
     {
       "scriptName": "SMC Core",
-      "file": "SMC_Core_Engine.pine",
+      "file": "SMC_Long_Dip_Suite.pine",
       "role": "producer"
     },
     {
       "scriptName": "SMC Decision Board",
-      "file": "SMC_Dashboard.pine",
+      "file": "SMC_Long_Dip_Dashboard.pine",
       "role": "dashboard_companion"
     },
     {
       "scriptName": "SMC Long-Dip Strategy v7",
-      "file": "SMC_Long_Strategy.pine",
+      "file": "SMC_Long_Dip_Strategy.pine",
       "role": "execution_wrapper"
     }
   ],
@@ -44,16 +44,16 @@
     "manifestPath": "artifacts/tradingview/smc_product_cut_manifest.json",
     "source": "scripts/smc_bus_manifest.py",
     "mainlineFiles": [
-      "SMC_Core_Engine.pine",
-      "SMC_Dashboard.pine",
-      "SMC_Long_Strategy.pine"
+      "SMC_Long_Dip_Suite.pine",
+      "SMC_Long_Dip_Dashboard.pine",
+      "SMC_Long_Dip_Strategy.pine"
     ],
     "litePrimaryFiles": [
-      "SMC_Core_Engine.pine"
+      "SMC_Long_Dip_Suite.pine"
     ],
     "proPrimaryFiles": [
-      "SMC_Dashboard.pine",
-      "SMC_Long_Strategy.pine"
+      "SMC_Long_Dip_Dashboard.pine",
+      "SMC_Long_Dip_Strategy.pine"
     ],
     "companionOperatorOnlyFiles": [
       "SMC_Event_Overlay.pine",
@@ -67,7 +67,7 @@
       "SMC_Liquidity_Structure.pine"
     ],
     "internalFiles": [
-      "SMC_TV_Bridge.pine"
+      "SMC_Regime_and_News.pine"
     ],
     "legacyFiles": [
       "SMC++.pine",
@@ -289,13 +289,13 @@
     "preflightScopes": {
       "smcCoreDashboard": [
         {
-          "file": "SMC_Core_Engine.pine",
+          "file": "SMC_Long_Dip_Suite.pine",
           "scriptName": "SMC Core",
           "checkInputs": false,
           "addToChart": false
         },
         {
-          "file": "SMC_Dashboard.pine",
+          "file": "SMC_Long_Dip_Dashboard.pine",
           "scriptName": "SMC Decision Board",
           "checkInputs": true,
           "addToChart": true,
@@ -660,13 +660,13 @@
       ],
       "smcMainline": [
         {
-          "file": "SMC_Core_Engine.pine",
+          "file": "SMC_Long_Dip_Suite.pine",
           "scriptName": "SMC Core",
           "checkInputs": false,
           "addToChart": false
         },
         {
-          "file": "SMC_Dashboard.pine",
+          "file": "SMC_Long_Dip_Dashboard.pine",
           "scriptName": "SMC Decision Board",
           "checkInputs": true,
           "addToChart": true,
@@ -1029,7 +1029,7 @@
           ]
         },
         {
-          "file": "SMC_Long_Strategy.pine",
+          "file": "SMC_Long_Dip_Strategy.pine",
           "scriptName": "SMC Long-Dip Strategy v7",
           "checkInputs": true,
           "addToChart": true,
@@ -1094,13 +1094,13 @@
       ],
       "smcDecisionFirst": [
         {
-          "file": "SMC_Core_Engine.pine",
+          "file": "SMC_Long_Dip_Suite.pine",
           "scriptName": "SMC Core",
           "checkInputs": false,
           "addToChart": false
         },
         {
-          "file": "SMC_Dashboard.pine",
+          "file": "SMC_Long_Dip_Dashboard.pine",
           "scriptName": "SMC Decision Board",
           "checkInputs": true,
           "addToChart": true,
@@ -1463,7 +1463,7 @@
           ]
         },
         {
-          "file": "SMC_Long_Strategy.pine",
+          "file": "SMC_Long_Dip_Strategy.pine",
           "scriptName": "SMC Long-Dip Strategy v7",
           "checkInputs": true,
           "addToChart": true,

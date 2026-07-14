@@ -14,7 +14,7 @@ relevanten Haupt- und Nebenflaechen geschlossen.
 - Die Hauptpfad-Skripte tragen jetzt in-code Rollenanker: Lite-Primary im
   Core, Pro-Primary im Dashboard und Pro-Primary-Execution-Wrapper in der
   Long Strategy.
-- `SMC_Long_Strategy.pine` trennt jetzt sichtbare Wrapper-Steuerung von den
+- `SMC_Long_Dip_Strategy.pine` trennt jetzt sichtbare Wrapper-Steuerung von den
   operator-only BUS-Bindings und zeigt den Plan als `Execution Trigger`,
   `Execution Invalidation` und `Execution Take Profit`.
 - Die Companion-, Context-, Bridge- und Legacy-Flaechen sind repo-weit
@@ -29,7 +29,7 @@ relevanten Haupt- und Nebenflaechen geschlossen.
   hat den Dashboard-Settings-Pfad wieder korrekt und vollstaendig gruen
   bestaetigt.
 - Der kanonische Live-Check `npm run tv:preflight:smc-mainline` ist jetzt fuer
-  `SMC_Core_Engine.pine`, `SMC_Dashboard.pine` und `SMC_Long_Strategy.pine`
+  `SMC_Long_Dip_Suite.pine`, `SMC_Long_Dip_Dashboard.pine` und `SMC_Long_Dip_Strategy.pine`
   vollstaendig gruen, inklusive Auth, UI, Compile, Binding und Runtime.
 - Die Payload-/Schema-Layer transportieren `product_cut` jetzt bis in
   Snapshot-Bundle, Dashboard-Payload und Pine-Payload.
@@ -47,10 +47,10 @@ SMC-Hauptpfad.
 Die SMC-Mainline (Core + Dashboard + Strategy) ist ein **Long-Dip-Spezialist**.
 Short-Parity ist weder implizit noch still versprochen.
 
-- `SMC_Core_Engine.pine` traegt seit v5.5 den expliziten Produktanker:
+- `SMC_Long_Dip_Suite.pine` traegt seit v5.5 den expliziten Produktanker:
   _this script is the active long-dip specialist surface. Short-parity
   remains a separate follow-up track._
-- `SMC_Dashboard.pine` und `SMC_Long_Strategy.pine` enthalten seit WP10
+- `SMC_Long_Dip_Dashboard.pine` und `SMC_Long_Dip_Strategy.pine` enthalten seit WP10
   analoge Klarstellungen in ihren Kopfkommentaren.
 - Eine kuenftige Short-Parity-Spur wuerde als eigenstaendiger Track mit
   dediziertem Producer, separater Companion-Bindung und expliziter
@@ -62,7 +62,7 @@ Short-Parity ist weder implizit noch still versprochen.
 - Der Lite-Contract bleibt als eingefrorene kanonische Teilmenge im
   Product-Cut-Manifest verankert und ist der Referenzpunkt fuer Release-,
   Preflight- und Wrapper-Doku.
-- `SMC_Core_Engine.pine` bleibt die einzige Lite-Primary-Surface. Eine neue
+- `SMC_Long_Dip_Suite.pine` bleibt die einzige Lite-Primary-Surface. Eine neue
   Lite-Consumer-Surface wird bewusst nicht vorgezogen, solange sie nicht ohne
   Logikfork, neuen Producer oder neue Binding-Strecke auskommt.
 - Die Pro-only-Transportbereinigung bleibt ein separater spaeterer
@@ -83,7 +83,7 @@ zwischen dem aktiven Drei-Surface-Hauptpfad und dem breiteren SMC-Konstrukt.
 ### Status damals
 
 - Der aktive release-verbindliche Hauptpfad ist weiterhin:
-  `SMC_Core_Engine.pine`, `SMC_Dashboard.pine`, `SMC_Long_Strategy.pine`.
+  `SMC_Long_Dip_Suite.pine`, `SMC_Long_Dip_Dashboard.pine`, `SMC_Long_Dip_Strategy.pine`.
 - Das breitere SMC-Konstrukt ist groesser als dieser Dreier-Scope. Dazu gehoeren
   zusaetzlich die privaten SMC-Libraries unter `SMC++/`, die generierte
   Micro-Library unter `pine/generated/`, die Context- und Overlay-Skripte
@@ -99,8 +99,8 @@ zwischen dem aktiven Drei-Surface-Hauptpfad und dem breiteren SMC-Konstrukt.
 
 1. Commit `590f2294` vom `2026-04-06 12:49 +0200`
    (`Implement decision-first TradingView first release UX`):
-   - `SMC_Core_Engine.pine` wurde geaendert.
-   - `SMC_Dashboard.pine` wurde geaendert.
+   - `SMC_Long_Dip_Suite.pine` wurde geaendert.
+   - `SMC_Long_Dip_Dashboard.pine` wurde geaendert.
    - zusaetzlich wurden PRD, Screen Spec, Ticketset,
      Implementierungsvorbereitung und der erste UI-Test angelegt bzw.
      erweitert.
@@ -115,7 +115,7 @@ zwischen dem aktiven Drei-Surface-Hauptpfad und dem breiteren SMC-Konstrukt.
 
 2. Commit `b75b2156` vom `2026-04-06 15:38 +0200`
    (`Harden R1.1 docs and align stale regression tests`):
-   - `SMC_Dashboard.pine` wurde erneut gehaertet.
+   - `SMC_Long_Dip_Dashboard.pine` wurde erneut gehaertet.
    - zusaetzlich wurden `README.md`, `CHANGELOG.md`, der
      R1.1-Migrationsguide und der UI-Regressionstest weiter angepasst.
    - Inhaltlich ging es hier vor allem um Companion-/Operator-Workflow,
@@ -126,13 +126,13 @@ zwischen dem aktiven Drei-Surface-Hauptpfad und dem breiteren SMC-Konstrukt.
    (`Complete first-release decision-first surfaces`):
    - in dem hier relevanten SMC-Scope wurden nur noch Docs, README,
      CHANGELOG und der UI-Test weitergezogen.
-   - `SMC_Core_Engine.pine`, `SMC_Dashboard.pine` und
-     `SMC_Long_Strategy.pine` wurden in diesem Commit nicht mehr geaendert.
+   - `SMC_Long_Dip_Suite.pine`, `SMC_Long_Dip_Dashboard.pine` und
+     `SMC_Long_Dip_Strategy.pine` wurden in diesem Commit nicht mehr geaendert.
 
 4. Lokaler Arbeitsstand jetzt:
    - Es gibt aktuell keine uncommitted Aenderung an
-     `SMC_Core_Engine.pine`, `SMC_Dashboard.pine` oder
-     `SMC_Long_Strategy.pine`.
+     `SMC_Long_Dip_Suite.pine`, `SMC_Long_Dip_Dashboard.pine` oder
+     `SMC_Long_Dip_Strategy.pine`.
    - Die aktuellen lokalen Aenderungen sitzen in README, CHANGELOG,
      Decision-First-Dokumenten und `tests/test_tradingview_decision_first_ui.py`
      und korrigieren dort den Scope von einer falschen SMC/SkippALGO-Mischung
@@ -140,7 +140,7 @@ zwischen dem aktiven Drei-Surface-Hauptpfad und dem breiteren SMC-Konstrukt.
 
 ### Was heute nicht gemacht wurde
 
-- `SMC_Long_Strategy.pine` wurde in den letzten 12 Stunden nicht geaendert.
+- `SMC_Long_Dip_Strategy.pine` wurde in den letzten 12 Stunden nicht geaendert.
 - Der Lite/Pro Product Cut wurde nicht vollstaendig auf das gesamte breitere
   SMC-Konstrukt ausgerollt.
 - Es wurde heute keine vollstaendige Repo-weite Anpassung aller Context-,
@@ -149,12 +149,12 @@ zwischen dem aktiven Drei-Surface-Hauptpfad und dem breiteren SMC-Konstrukt.
 
 ### Ehrlicher Umsetzungsstand gegen dieses Dokument
 
-- `SMC_Core_Engine.pine`:
+- `SMC_Long_Dip_Suite.pine`:
   der sichtbare Lite-Hero-Cut wurde heute tatsaechlich umgesetzt.
-- `SMC_Dashboard.pine`:
+- `SMC_Long_Dip_Dashboard.pine`:
   der Compact-Detail-vs-Pro-Diagnostics-Schnitt wurde heute tatsaechlich
   umgesetzt und spaeter gehaertet.
-- `SMC_Long_Strategy.pine`:
+- `SMC_Long_Dip_Strategy.pine`:
   die Datei ist als duenner Wrapper vorhanden, aber der heute verfolgte
   Product-Cut wurde dort nicht weiter umgesetzt.
 - Gesamtziel `vollstaendig fuer das SMC-Konstrukt umgesetzt`:
@@ -167,7 +167,7 @@ zwischen dem aktiven Drei-Surface-Hauptpfad und dem breiteren SMC-Konstrukt.
   Context-, Overlay-, Library-, Spec- und Publish-Flaechen wurden nicht
   vollstaendig auf dieselbe Produktgrenze umgezogen.
 
-2. `SMC_Long_Strategy.pine` wurde fuer den heutigen Product-Cut nicht zu Ende
+2. `SMC_Long_Dip_Strategy.pine` wurde fuer den heutigen Product-Cut nicht zu Ende
   gezogen.
   Die Strategy existiert weiter als duenner Wrapper, aber der heute geplante
   sichtbare Product-Cut wurde dort nicht aktiv weiter umgesetzt.
@@ -187,7 +187,7 @@ zwischen dem aktiven Drei-Surface-Hauptpfad und dem breiteren SMC-Konstrukt.
   bereinigt.
   `automation/tradingview/preflight-core-dashboard.json` deckt nur Core und
   Dashboard ab. `automation/tradingview/preflight-decision-first.json` zeigt
-  weiterhin `SkippALGO.pine` statt `SMC_Long_Strategy.pine`. Eine repo-weite
+  weiterhin `SkippALGO.pine` statt `SMC_Long_Dip_Strategy.pine`. Eine repo-weite
   Validation des breiteren SMC-Konstrukts existiert damit weiterhin nicht.
 
 5. Der Lite-Contract wurde nicht im Manifest als kanonische Produktgrenze
@@ -234,7 +234,7 @@ zwischen dem aktiven Drei-Surface-Hauptpfad und dem breiteren SMC-Konstrukt.
 
 #### 1. Sichtbarer Hauptpfad
 
-- `SMC_Long_Strategy.pine`
+- `SMC_Long_Dip_Strategy.pine`
   Hier sitzt der groesste offene Hauptpfad-Gap. Die Datei ist funktional ein
   stabiler 8-Kanal-Wrapper, aber der Product-Cut ist dort noch nicht fertig.
   Es fehlt eine saubere Trennung zwischen sichtbarer Wrapper-Steuerung und
@@ -242,13 +242,13 @@ zwischen dem aktiven Drei-Surface-Hauptpfad und dem breiteren SMC-Konstrukt.
   klare Einordnung der Datei als Pro-/Execution-Surface im breiteren
   SMC-Konstrukt.
 
-- `SMC_Core_Engine.pine`
+- `SMC_Long_Dip_Suite.pine`
   Kein primaerer lokaler UI-Blocker mehr fuer den heutigen sichtbaren Cut.
   Offene Arbeit ist hier nicht der Hero selbst, sondern die repo-weite
   Propagierung seines 14-Kanal-Lite-Contracts in Automation, Specs,
   Artefakte und Companion-Flaechen.
 
-- `SMC_Dashboard.pine`
+- `SMC_Long_Dip_Dashboard.pine`
   Kein primaerer lokaler UI-Blocker mehr fuer den Compact-vs-Pro-Split.
   Offen ist hier vor allem die Anbindung an den breiteren Repo-Zustand:
   Companion-Rolle, Release-Scope, Specs, Overlay-Handoff und restliche
@@ -296,7 +296,7 @@ zwischen dem aktiven Drei-Surface-Hauptpfad und dem breiteren SMC-Konstrukt.
 
 #### 3. Legacy-, Bridge- und Rand-Surfaces
 
-- `SMC_TV_Bridge.pine`
+- `SMC_Regime_and_News.pine`
   Nicht in den Product-Cut einsortiert. Unklar, ob out-of-scope Bridge,
   operator-only Hilfsflaeche oder zu entfernende Randflaeche.
 
@@ -329,7 +329,7 @@ zwischen dem aktiven Drei-Surface-Hauptpfad und dem breiteren SMC-Konstrukt.
 
 - `automation/tradingview/preflight-decision-first.json`
   Ist fuer den SMC-Scope weiterhin falsch, weil dort `SkippALGO.pine` statt
-  `SMC_Long_Strategy.pine` verdrahtet ist.
+  `SMC_Long_Dip_Strategy.pine` verdrahtet ist.
 
 - `scripts/tv_preflight.ts`
   Nutzt die bestehenden Config-Dateien, aber die Produktgrenze des
@@ -369,7 +369,7 @@ zwischen dem aktiven Drei-Surface-Hauptpfad und dem breiteren SMC-Konstrukt.
 
 - `docs/TRADINGVIEW_STRATEGY_GUIDE.md`
   Ist aktuell ein SkippALGO-Strategieguide und nicht der benoetigte Guide fuer
-  `SMC_Long_Strategy.pine` als BUS-Wrapper.
+  `SMC_Long_Dip_Strategy.pine` als BUS-Wrapper.
 
 - `docs/smc-validation-status.md`
   Dokumentiert weiter die Validierungs-/Automation-Lage, aber nicht den
@@ -447,10 +447,10 @@ Definition of Done:
 
 #### Phase 2. Sichtbaren Hauptpfad fertigziehen
 
-1. `SMC_Long_Strategy.pine` produktisieren:
+1. `SMC_Long_Dip_Strategy.pine` produktisieren:
    Setup-Steuerung klar gruppieren, Binding-Flaeche explizit als operator-only
    markieren, Wrapper-Rolle im Code selbst sichtbar machen.
-2. `SMC_Core_Engine.pine` und `SMC_Dashboard.pine` nur dort nachziehen, wo die
+2. `SMC_Long_Dip_Suite.pine` und `SMC_Long_Dip_Dashboard.pine` nur dort nachziehen, wo die
    neue kanonische Rollenquelle oder Produktterminologie noch nicht sichtbar
    genug gespiegelt ist.
 3. Den Hauptpfad so angleichen, dass Core, Dashboard und Strategy dieselbe
@@ -458,7 +458,7 @@ Definition of Done:
 
 Definition of Done:
 
-- `SMC_Long_Strategy.pine` ist kein halb-offener Wrapper mehr, sondern eine
+- `SMC_Long_Dip_Strategy.pine` ist kein halb-offener Wrapper mehr, sondern eine
   klar produktisierte Execution-Surface.
 - Die drei Hauptpfad-Dateien lesen sich als zusammengehoeriges Produkt.
 
@@ -482,7 +482,7 @@ Definition of Done:
    Hauptpfad anheben oder durch eine vollstaendige SMC-Hauptpfad-Config
    ersetzen.
 2. `automation/tradingview/preflight-decision-first.json` von SkippALGO auf
-   `SMC_Long_Strategy.pine` umstellen oder in eine neue SMC-only Config
+   `SMC_Long_Dip_Strategy.pine` umstellen oder in eine neue SMC-only Config
    ueberfuehren.
 3. `scripts/tv_preflight.ts` und `package.json` so anpassen, dass die aktive
    Preflight-Lane die kanonische Rollen-/Surface-Quelle nutzt.
@@ -511,7 +511,7 @@ Definition of Done:
 #### Phase 6. Doku-Layer konsequent nachziehen
 
 1. `docs/TRADINGVIEW_STRATEGY_GUIDE.md` auf eine echte
-   `SMC_Long_Strategy.pine`-Wrapper-Doku umschreiben oder ersetzen.
+   `SMC_Long_Dip_Strategy.pine`-Wrapper-Doku umschreiben oder ersetzen.
 2. `docs/smc-validation-status.md` auf den heutigen Product-Cut und die neue
    Rollenarchitektur anheben.
 3. Runbooks, Audits und Roadmaps fuer Microstructure, BUS und Validation gegen
@@ -558,7 +558,7 @@ Definition of Done:
 ### Reihenfolge Mit Hoechstem Hebel
 
 1. `scripts/smc_bus_manifest.py` erweitern.
-2. `SMC_Long_Strategy.pine` fertigziehen.
+2. `SMC_Long_Dip_Strategy.pine` fertigziehen.
 3. Preflight-Configs und Release-Artefakte auf den neuen Single Source of Truth
    umstellen.
 4. Specs nachziehen.
@@ -589,10 +589,10 @@ Die Kernidee ist einfach:
 
 ## Aktuelle Repo-Wahrheit
 
-- `SMC_Core_Engine.pine` ist der einzige aktive Producer und bereits die
+- `SMC_Long_Dip_Suite.pine` ist der einzige aktive Producer und bereits die
   eigentliche Single-Script-Operator-Surface.
-- `SMC_Dashboard.pine` ist ein reiner BUS-Consumer fuer Diagnose und Erklaerung.
-- `SMC_Long_Strategy.pine` ist ein duenner BUS-Consumer fuer ausfuehrbare
+- `SMC_Long_Dip_Dashboard.pine` ist ein reiner BUS-Consumer fuer Diagnose und Erklaerung.
+- `SMC_Long_Dip_Strategy.pine` ist ein duenner BUS-Consumer fuer ausfuehrbare
   Long-Entries.
 - `long_user_preset` und `compact_mode` bleiben die sichtbaren Operator-Anker.
 
@@ -604,7 +604,7 @@ eine Produkt- und Surface-Grenze, keine neue Signal-Engine.
 ### 1. Executable Core
 
 Das ist der kleinste stabile Contract, der echte Orders und Backtests tragen
-kann. Er wird heute bereits von `SMC_Long_Strategy.pine` verbraucht.
+kann. Er wird heute bereits von `SMC_Long_Dip_Strategy.pine` verbraucht.
 
 - `BUS Armed`
 - `BUS Confirmed`
@@ -678,7 +678,7 @@ Lite ist nicht "weniger Engine". Lite ist "weniger Setup-Friction".
 
 Lite soll deshalb diese Regeln einhalten:
 
-- Standardnutzer arbeiten primaer mit `SMC_Core_Engine.pine`.
+- Standardnutzer arbeiten primaer mit `SMC_Long_Dip_Suite.pine`.
 - `long_user_preset` bleibt die primaere Bedienebene.
 - `compact_mode` ist die normale Freigabe-Surface fuer geteilte oder solo
   genutzte Charts.
@@ -701,9 +701,9 @@ debuggen oder strategisch ausfuehren wollen.
 
 Pro umfasst:
 
-- `SMC_Core_Engine.pine`
-- `SMC_Dashboard.pine`
-- `SMC_Long_Strategy.pine`
+- `SMC_Long_Dip_Suite.pine`
+- `SMC_Long_Dip_Dashboard.pine`
+- `SMC_Long_Dip_Strategy.pine`
 - den vollen 64-Kanal-BUS-Contract
 
 Das aktive Dashboard nutzt derzeit den kompletten 64-Kanal-Producer-Vertrag.
@@ -803,7 +803,7 @@ sollen nicht leichtfertig neu zugeschnitten werden:
 
 - Der Executable Core bleibt unveraendert.
 - Der Lite-Contract bleibt eingefroren.
-- `SMC_Long_Strategy.pine` behaelt seinen aktuellen 8-Kanal-Contract.
+- `SMC_Long_Dip_Strategy.pine` behaelt seinen aktuellen 8-Kanal-Contract.
 - C9 darf Pro-Diagnostik entkoppeln, aber keine neue Logikfamilie erzeugen.
 
 ## Naechste Umsetzung nach diesem Cut
@@ -816,7 +816,7 @@ Release-Blocker fuer den aktuellen Product-Cut.
   separaten Product-Cut-Entscheid statt stiller Scope-Ausweitung.
 2. Eine dedizierte Lite-Consumer-Surface nur dann bauen, wenn sie ohne neue
   Logikforks auskommt.
-  Status 2026-04-07: bewusst nicht aktiv; `SMC_Core_Engine.pine` bleibt die
+  Status 2026-04-07: bewusst nicht aktiv; `SMC_Long_Dip_Suite.pine` bleibt die
   normale Lite-Surface.
 3. Pro-only Packs spaeter separat entkoppeln oder neu schneiden, ohne den
   Lite-Contract zu verwackeln.
@@ -832,10 +832,10 @@ klarer differenziert wird.
 
 ### Kernentscheidung
 
-- Es gibt genau eine taegliche Lite-Primary-Surface: `SMC_Core_Engine.pine`.
-- `SMC_Dashboard.pine` ist keine zweite Lite-Flaeche, sondern die explizite
+- Es gibt genau eine taegliche Lite-Primary-Surface: `SMC_Long_Dip_Suite.pine`.
+- `SMC_Long_Dip_Dashboard.pine` ist keine zweite Lite-Flaeche, sondern die explizite
   Pro-Companion-Surface fuer Diagnose, Audit, Tuning und Review.
-- `SMC_Long_Strategy.pine` ist die explizite Execution-Surface fuer Backtest,
+- `SMC_Long_Dip_Strategy.pine` ist die explizite Execution-Surface fuer Backtest,
   Staging und regelgebundene Ausfuehrung.
 - Die drei Flaechen teilen dieselbe Zustandslogik, aber nicht dieselbe
   Informationstiefe.
@@ -1108,24 +1108,24 @@ Groessenlogik fuer diese Folgeslices:
 
 1. `P0 | M | Core Input- und Hero-Copy haerten`
    Scope: Core-Inputlabels, Tooltips, Hero-Text und Lite-Sprachregeln.
-   Hauptdateien: `SMC_Core_Engine.pine`, `docs/TRADINGVIEW_STRATEGY_GUIDE.md`.
+   Hauptdateien: `SMC_Long_Dip_Suite.pine`, `docs/TRADINGVIEW_STRATEGY_GUIDE.md`.
    Done wenn: Lite als primaere Surface lesbar ist und die Hero-Texte keine
    primaeren Technikkuerzel mehr tragen.
 
 2. `P0 | M | Core Ready/Enter-Level auf Lite sichern`
    Scope: Trigger- und Invalidation-Sichtbarkeit ab handlungsfaehigem Zustand.
-   Hauptdateien: `SMC_Core_Engine.pine`.
+   Hauptdateien: `SMC_Long_Dip_Suite.pine`.
    Done wenn: ein Nutzer ab `READY LONG` den Kernplan ohne zweites Skript lesen
    kann.
 
 3. `P0 | M | Dashboard zur Companion-Surface umpositionieren`
    Scope: Surface-Mode-Copy, Header, Toggle-Copy und erste Companion-Hierarchie.
-   Hauptdateien: `SMC_Dashboard.pine`, `docs/smc-lite-pro-product-cut.md`.
+   Hauptdateien: `SMC_Long_Dip_Dashboard.pine`, `docs/smc-lite-pro-product-cut.md`.
    Done wenn: das Dashboard nicht mehr wie eine zweite Lite-Surface wirkt.
 
 4. `P0 | S | Strategy als Execution-Surface sprachlich schaerfen`
    Scope: Wrapper-Labels und klare Positionierung im Guide.
-   Hauptdateien: `SMC_Long_Strategy.pine`, `docs/TRADINGVIEW_STRATEGY_GUIDE.md`.
+   Hauptdateien: `SMC_Long_Dip_Strategy.pine`, `docs/TRADINGVIEW_STRATEGY_GUIDE.md`.
    Done wenn: die Strategy sprachlich eindeutig als Backtest- und
    Ausfuehrungsflaeche gelesen wird.
 
@@ -1133,20 +1133,20 @@ Groessenlogik fuer diese Folgeslices:
 
 1. `P1 | M | Dashboard First Fold neu ordnen`
    Scope: sichtbare Reihenfolge der kompakten Companion-Zeilen.
-   Hauptdateien: `SMC_Dashboard.pine`.
+   Hauptdateien: `SMC_Long_Dip_Dashboard.pine`.
    Done wenn: die erste Companion-Ebene erst Handlungskontext und dann
    Diagnosebreite zeigt.
 
 2. `P1 | M | Why-now- und Blocker-Sprache vereinheitlichen`
    Scope: Core-Hero, Dashboard-Blocker, Compact-Why-Now und Dynamic Alerts.
-   Hauptdateien: `SMC_Core_Engine.pine`, `SMC_Dashboard.pine`.
+   Hauptdateien: `SMC_Long_Dip_Suite.pine`, `SMC_Long_Dip_Dashboard.pine`.
    Done wenn: Gelegenheit, Wartezustand und Blocker ueberall in derselben
    Nutzerlogik formuliert sind.
 
 3. `P1 | M | Gemeinsamen Sprachcontract fuer Mainline sichern`
    Scope: Zustand, Vertrauen, Risiko- und Surface-Rollen in Code und Docs.
-   Hauptdateien: `SMC_Core_Engine.pine`, `SMC_Dashboard.pine`,
-   `SMC_Long_Strategy.pine`, `docs/TRADINGVIEW_STRATEGY_GUIDE.md`.
+   Hauptdateien: `SMC_Long_Dip_Suite.pine`, `SMC_Long_Dip_Dashboard.pine`,
+   `SMC_Long_Dip_Strategy.pine`, `docs/TRADINGVIEW_STRATEGY_GUIDE.md`.
    Done wenn: dieselben Begriffe in Hero, Dashboard, Alerts und Guide exakt
    dieselbe Produktbedeutung tragen.
 

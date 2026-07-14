@@ -1,4 +1,4 @@
-"""Fail-closed guards for ``SMC_TV_Bridge.pine``.
+"""Fail-closed guards for ``SMC_Regime_and_News.pine``.
 
 The bridge ingests *untrusted* JSON from an external backend and renders it
 on-chart. Two safety properties must hold and never silently regress:
@@ -24,7 +24,7 @@ from pathlib import Path
 import pytest
 
 _REPO_ROOT = Path(__file__).resolve().parents[1]
-_BRIDGE = _REPO_ROOT / "SMC_TV_Bridge.pine"
+_BRIDGE = _REPO_ROOT / "SMC_Regime_and_News.pine"
 
 
 @pytest.fixture(scope="module")
@@ -50,7 +50,7 @@ def _strip_comments(src: str) -> str:
 def test_request_get_is_not_live(bridge_src: str) -> None:
     live = _strip_comments(bridge_src)
     assert "request.get" not in live, (
-        "SMC_TV_Bridge.pine activates request.get in live code. The bridge "
+        "SMC_Regime_and_News.pine activates request.get in live code. The bridge "
         "must stay inert (na placeholder) until an operator deliberately "
         "enables a vetted endpoint — fail closed, not open."
     )
@@ -186,10 +186,10 @@ def _extract_pine_function(src: str, name: str) -> str:
 
 def test_f_getfield_port_in_lockstep(bridge_src: str) -> None:
     body = _extract_pine_function(bridge_src, "f_getField")
-    assert body, "could not locate f_getField in SMC_TV_Bridge.pine"
+    assert body, "could not locate f_getField in SMC_Regime_and_News.pine"
     digest = hashlib.sha256(body.encode("utf-8")).hexdigest()
     assert digest == _FGETFIELD_FINGERPRINT, (
-        "f_getField in SMC_TV_Bridge.pine changed (fingerprint "
+        "f_getField in SMC_Regime_and_News.pine changed (fingerprint "
         f"{digest}). Re-verify that the Python reference port "
         "`_ref_get_field` still mirrors the new logic, then update "
         "_FGETFIELD_FINGERPRINT to this value. Do NOT bump the hash "

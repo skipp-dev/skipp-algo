@@ -18,7 +18,7 @@ The current pack still owns four dashboard module rows:
 
 ## Current Row Ownership
 
-Before the cut, `SMC_Core_Engine.pine` published `ModulePackB` through these helpers:
+Before the cut, `SMC_Long_Dip_Suite.pine` published `ModulePackB` through these helpers:
 
 - `resolve_bus_vol_expand_row(...)`
 - `resolve_bus_stretch_row(...)`

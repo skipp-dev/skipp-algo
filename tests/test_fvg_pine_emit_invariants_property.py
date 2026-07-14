@@ -1,7 +1,7 @@
 """Property tests for ``smc_core.fvg_pine_emit`` (Amendment A1.C).
 
 Pins the determinism + threshold contract of the tri-axis FVG health
-Pine codegen used by the ``SMC_Core_Engine.pine`` dashboard:
+Pine codegen used by the ``SMC_Long_Dip_Suite.pine`` dashboard:
 
   * :func:`smc_core.fvg_pine_emit._safe_token`
   * :func:`smc_core.fvg_pine_emit._status_for`

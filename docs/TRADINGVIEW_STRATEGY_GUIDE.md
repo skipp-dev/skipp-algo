@@ -2,7 +2,7 @@
 
 ## Purpose
 
-This guide documents `SMC_Long_Strategy.pine` as the `SMC Execution` surface of
+This guide documents `SMC_Long_Dip_Strategy.pine` as the `SMC Execution` surface of
 the active SMC TradingView mainline.
 
 For the complete step-by-step setup of all three mainline surfaces (Core +
@@ -11,11 +11,11 @@ Dashboard + Strategy), see
 
 The active mainline is:
 
-1. [../SMC_Core_Engine.pine](../SMC_Core_Engine.pine) as the only active
+1. [../SMC_Long_Dip_Suite.pine](../SMC_Long_Dip_Suite.pine) as the only active
   producer and the default `SMC Core` first-run surface.
-2. [../SMC_Dashboard.pine](../SMC_Dashboard.pine) as the `SMC Decision Board`
+2. [../SMC_Long_Dip_Dashboard.pine](../SMC_Long_Dip_Dashboard.pine) as the `SMC Decision Board`
   companion.
-3. [../SMC_Long_Strategy.pine](../SMC_Long_Strategy.pine) as the `SMC Execution`
+3. [../SMC_Long_Dip_Strategy.pine](../SMC_Long_Dip_Strategy.pine) as the `SMC Execution`
   surface on the frozen 8-channel executable contract.
 
 The product-cut background and the current guardrails are documented in
@@ -35,7 +35,7 @@ The product-cut background and the current guardrails are documented in
 
 - It is not a new Lite surface.
 - It is not a second signal engine beside the core.
-- It is not a replacement for `SMC_Core_Engine.pine` on a clean Lite chart.
+- It is not a replacement for `SMC_Long_Dip_Suite.pine` on a clean Lite chart.
 - It does not auto-execute broker orders by itself; unattended execution still
   requires an external alert-to-broker bridge outside the default repo path.
 - It is not a short-parity execution wrapper. The strategy executes long-only
@@ -44,10 +44,10 @@ The product-cut background and the current guardrails are documented in
 
 ## Required Chart Setup
 
-1. Add [../SMC_Core_Engine.pine](../SMC_Core_Engine.pine) to the chart.
-2. Add [../SMC_Dashboard.pine](../SMC_Dashboard.pine) only if Pro diagnostics
+1. Add [../SMC_Long_Dip_Suite.pine](../SMC_Long_Dip_Suite.pine) to the chart.
+2. Add [../SMC_Long_Dip_Dashboard.pine](../SMC_Long_Dip_Dashboard.pine) only if Pro diagnostics
    are needed.
-3. Add [../SMC_Long_Strategy.pine](../SMC_Long_Strategy.pine) to the same chart.
+3. Add [../SMC_Long_Dip_Strategy.pine](../SMC_Long_Dip_Strategy.pine) to the same chart.
 4. Bind the strategy sources top-to-bottom against the matching core BUS plots.
 
 The canonical binding source is
@@ -57,7 +57,7 @@ machine-readable artifact
 
 ## Frozen Executable Contract
 
-`SMC_Long_Strategy.pine` binds exactly these eight channels:
+`SMC_Long_Dip_Strategy.pine` binds exactly these eight channels:
 
 - `BUS Armed`
 - `BUS Confirmed`
@@ -111,7 +111,7 @@ npm run tv:preflight:smc-mainline
 ```
 
 That is the canonical repo-side TradingView check for the active mainline path
-`SMC_Core_Engine.pine` + `SMC_Dashboard.pine` + `SMC_Long_Strategy.pine`.
+`SMC_Long_Dip_Suite.pine` + `SMC_Long_Dip_Dashboard.pine` + `SMC_Long_Dip_Strategy.pine`.
 
 For an external or independent cross-check, use:
 
@@ -121,10 +121,10 @@ For an external or independent cross-check, use:
 
 ## Post-Cut Guardrails
 
-- `SMC_Core_Engine.pine` remains the only Lite-primary surface.
+- `SMC_Long_Dip_Suite.pine` remains the only Lite-primary surface.
 - A dedicated Lite consumer is intentionally deferred until it can exist
   without a logic fork, a second producer, or a new binding workflow.
-- `SMC_Long_Strategy.pine` remains the `SMC Execution` surface on the frozen
+- `SMC_Long_Dip_Strategy.pine` remains the `SMC Execution` surface on the frozen
   8-channel contract.
 - Dashboard-only or Pro-only cleanup work must not silently widen the Lite
   contract or mutate the strategy bindings.

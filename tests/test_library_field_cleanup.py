@@ -8,7 +8,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parent.parent
 _GENERATOR = ROOT / "scripts" / "generate_smc_micro_profiles.py"
 
-# Fields that were removed in WP-LF5 (deprecated, no consumer in SMC_Core_Engine.pine).
+# Fields that were removed in WP-LF5 (deprecated, no consumer in SMC_Long_Dip_Suite.pine).
 DELETED_FIELDS: set[str] = {
     # Event Risk (v5.2) — none remaining (WP-OH9 re-exported NEXT_EVENT_CLASS, HIGH_RISK_EVENT_TICKERS)
     # Zone Intelligence (v5.1) — all 13

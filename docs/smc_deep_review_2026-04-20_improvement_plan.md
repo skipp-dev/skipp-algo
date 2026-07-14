@@ -68,12 +68,12 @@ Offen bleiben aber weiterhin die fuer den Nutzer wichtigsten Luecken:
 
 | Workstream | Zielbild | Hauptergebnis | Primaere Repo-Anker |
 | --- | --- | --- | --- |
-| WS1 Pine Evidence Lane | Pine-Kernlogik wird reproduzierbar belegbar | kanonische Szenarien plus Evidence-Gates | `scripts/run_smc_release_gates.py`, `scripts/run_smc_post_release_validation.py`, `SMC_Dashboard.pine` |
-| WS2 Trust And Freshness UX | Frische und Vertrauenslage werden am Setup sichtbar und handlungsrelevant | einheitlicher Trust-State plus degradierte Handlung | `smc_integration/provider_health.py`, `smc_tv_bridge/provider_status.py`, `scripts/generate_smc_micro_profiles.py`, `SMC_Dashboard.pine` |
-| WS3 Hero Surface | Marktmodus, Setup-Qualitaet und Handlung werden in einem Blick lesbar | decision-first Default-Surface | `SMC_Dashboard.pine`, `SMC_Mobile_Dashboard.pine`, `pine_input_surface.py` |
+| WS1 Pine Evidence Lane | Pine-Kernlogik wird reproduzierbar belegbar | kanonische Szenarien plus Evidence-Gates | `scripts/run_smc_release_gates.py`, `scripts/run_smc_post_release_validation.py`, `SMC_Long_Dip_Dashboard.pine` |
+| WS2 Trust And Freshness UX | Frische und Vertrauenslage werden am Setup sichtbar und handlungsrelevant | einheitlicher Trust-State plus degradierte Handlung | `smc_integration/provider_health.py`, `smc_tv_bridge/provider_status.py`, `scripts/generate_smc_micro_profiles.py`, `SMC_Long_Dip_Dashboard.pine` |
+| WS3 Hero Surface | Marktmodus, Setup-Qualitaet und Handlung werden in einem Blick lesbar | decision-first Default-Surface | `SMC_Long_Dip_Dashboard.pine`, `SMC_Long_Dip_Mobile.pine`, `pine_input_surface.py` |
 | WS4 Scorer Tuning Activation | Phase G wird von Infrastruktur zu echtem Verbesserungsloop | Backfill, FI-Report, Candidate Weights, OV7-Vergleich | `open_prep/outcome_backfill.py`, `open_prep/outcomes.py`, `open_prep/scorer.py`, `scripts/smc_ab_experiment.py`, `scripts/run_ab_comparison.py` |
 | WS5 Release And Refresh Hardening | produktive Pfade werden robuster und weniger stale-anfaellig | manifestbasierte Refresh- und Validation-Haertung | `.github/workflows/smc-library-refresh.yml`, `.github/workflows/smc-release-gates.yml`, `scripts/run_smc_pre_release_artifact_refresh.py`, `smc_integration/provider_health.py` |
-| WS6 Product Consolidation | Systemtiefe wird als klares Produkt statt als Feature-Sammlung praesentiert | reduzierte Surface, klare Produktgrenzen, Legacy-Konsolidierung | `SMC_Dashboard.pine`, `SMC_Mobile_Dashboard.pine`, `pine_input_surface.py`, relevante SMC-Doku |
+| WS6 Product Consolidation | Systemtiefe wird als klares Produkt statt als Feature-Sammlung praesentiert | reduzierte Surface, klare Produktgrenzen, Legacy-Konsolidierung | `SMC_Long_Dip_Dashboard.pine`, `SMC_Long_Dip_Mobile.pine`, `pine_input_surface.py`, relevante SMC-Doku |
 
 ## Workstream 1 - Pine Evidence Lane
 

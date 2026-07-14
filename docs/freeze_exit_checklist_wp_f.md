@@ -10,9 +10,9 @@ Stand: 2026-04-17 (WP-F)
 
 | Datei | Typ | Titel | Status |
 |-------|-----|-------|--------|
-| `SMC_Core_Engine.pine` | indicator | "SMC Long-Dip Suite v7" | ✅ korrekt |
-| `SMC_Long_Strategy.pine` | strategy | "SMC Long-Dip Strategy v7" | ✅ korrekt |
-| `SMC_Dashboard.pine` | indicator | "SMC Long-Dip Dashboard v7" | ✅ korrekt |
+| `SMC_Long_Dip_Suite.pine` | indicator | "SMC Long-Dip Suite v7" | ✅ korrekt |
+| `SMC_Long_Dip_Strategy.pine` | strategy | "SMC Long-Dip Strategy v7" | ✅ korrekt |
+| `SMC_Long_Dip_Dashboard.pine` | indicator | "SMC Long-Dip Dashboard v7" | ✅ korrekt |
 
 ### Kontext-Module
 
@@ -27,7 +27,7 @@ Stand: 2026-04-17 (WP-F)
 | `SMC_Profile_Context.pine` | indicator | "SMC Profile Context" | ✅ korrekt |
 | `SMC_Session_Context.pine` | indicator | "SMC Session Context" | ✅ korrekt |
 | `SMC_Structure_Context.pine` | indicator | "SMC Structure Context" | ✅ korrekt |
-| `SMC_TV_Bridge.pine` | indicator | "SMC + Regime + News (skipp)" | ✅ korrekt |
+| `SMC_Regime_and_News.pine` | indicator | "SMC + Regime + News (skipp)" | ✅ korrekt |
 
 ### Libraries
 

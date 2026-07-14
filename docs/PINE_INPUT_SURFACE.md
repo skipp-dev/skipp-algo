@@ -6,7 +6,7 @@ Reduces the visible input surface of major Pine scripts from **~4,000 raw inputs
 
 | Script | Inputs | Grouped | display.none | **Visible** | Groups |
 |---|---:|---:|---:|---:|---:|
-| SMC_Core_Engine.pine | 249 | 249 (100%) | 206 | **43** | 23 |
+| SMC_Long_Dip_Suite.pine | 249 | 249 (100%) | 206 | **43** | 23 |
 | SMC++.pine | 266 | 266 (100%) | 235 | **31** | 24 |
 | SkippALGO.pine | 359 | 359 (100%) | 320 | **39** | 37 |
 | SkippALGO_Strategy.pine | 357 | 357 (100%) | 322 | **35** | 39 |
@@ -25,7 +25,7 @@ Already had 100% grouping (24 groups) and the best-in-class **User Preset** mech
 
 Core visible: `signal_mode`, `long_user_preset`, `enable_ltf_sampling`, `ltf_timeframe`, `show_mtf_trend`, `mtf_trend_tf1-3`, `show_dashboard`, `enable_dynamic_alerts`, `performance_mode`, `show_risk_levels`, `target1_r`, `target2_r`, `use_vwap_filter`, `use_trade_session_gate`, `use_microstructure_profiles`, `use_index_gate`, `show_reclaim_markers`, `show_long_confirmation_markers`, `use_accel_module`, `use_sd_confluence`, `use_volatility_regime`, `use_stretch_context`, `use_ddvi_context`, `use_context_quality_score`, `show_Structure`, `show_ob`, `show_fvg`, `show_htf_fvg`, `show_eq`.
 
-### SMC_Core_Engine.pine (249 inputs)
+### SMC_Long_Dip_Suite.pine (249 inputs)
 
 The active split-core producer now follows the same surface-governance policy as the other large Pine scripts: **100% grouped**, **43 visible operator controls**, and all lifecycle, module-tuning, debug, color, and visual-calibration parameters moved behind `display.none`.
 
@@ -57,7 +57,7 @@ Same grouping and `display.none` treatment as SkippALGO.pine for parity. Strateg
 
 `tests/test_pine_input_surface.py` enforces:
 - 100% grouping for the active core plus the three existing Pine scripts
-- Visible surface in the configured per-script ranges, including 35–45 for `SMC_Core_Engine.pine`
+- Visible surface in the configured per-script ranges, including 35–45 for `SMC_Long_Dip_Suite.pine`
 - Indicator/Strategy parity (≤5 input delta)
 - Balanced parens in all input declarations
 - Version tag present

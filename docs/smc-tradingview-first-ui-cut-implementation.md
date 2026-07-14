@@ -9,9 +9,9 @@ Implemented
 Dieses Dokument bereitet die erste konkrete UI-Umsetzung fuer die drei
 SMC-TradingView-Surfaces vor:
 
-- `SMC_Core_Engine.pine`
-- `SMC_Dashboard.pine`
-- `SMC_Long_Strategy.pine`
+- `SMC_Long_Dip_Suite.pine`
+- `SMC_Long_Dip_Dashboard.pine`
+- `SMC_Long_Dip_Strategy.pine`
 
 Es ist keine Release-Note und kein abstrakter Wunschzettel. Es beschreibt den
 ersten umsetzbaren UI-Cut mit realen Code-Ankern, Edit-Reihenfolge und
@@ -62,13 +62,13 @@ Validierungsregeln.
 
 | Surface | Aktuelle Anker | Bedeutung fuer den ersten UI-Cut |
 | --- | --- | --- |
-| `SMC_Core_Engine.pine` | `long_user_preset`, `compact_mode`, `show_dashboard`, `enable_dynamic_alerts` | sichtbare Lite- und Alert-Einstiegslogik |
-| `SMC_Core_Engine.pine` | Hero-Card- und Alert-Helper | hier sitzt die neue Lite-Leselogik |
-| `SMC_Dashboard.pine` | BUS-Inputs am Dateikopf | operator-only Companion-Bindings |
-| `SMC_Dashboard.pine` | Compact-vs-Pro-Renderpfade | eigentlicher Dashboard-Split |
-| `SMC_Long_Strategy.pine` | acht `input.source(...)`-Bindings | deterministische Wrapper-Bindung an den Core |
-| `SMC_Long_Strategy.pine` | `entry_mode`, `min_quality_score`, `take_profit_r`, `use_take_profit` | sichtbare Strategy-Setup-Flaeche |
-| `SMC_Long_Strategy.pine` | Trigger-/Invalidation-/Take-Profit-Plots | planbare Wrapper-Ausgabe auf dem Chart |
+| `SMC_Long_Dip_Suite.pine` | `long_user_preset`, `compact_mode`, `show_dashboard`, `enable_dynamic_alerts` | sichtbare Lite- und Alert-Einstiegslogik |
+| `SMC_Long_Dip_Suite.pine` | Hero-Card- und Alert-Helper | hier sitzt die neue Lite-Leselogik |
+| `SMC_Long_Dip_Dashboard.pine` | BUS-Inputs am Dateikopf | operator-only Companion-Bindings |
+| `SMC_Long_Dip_Dashboard.pine` | Compact-vs-Pro-Renderpfade | eigentlicher Dashboard-Split |
+| `SMC_Long_Dip_Strategy.pine` | acht `input.source(...)`-Bindings | deterministische Wrapper-Bindung an den Core |
+| `SMC_Long_Dip_Strategy.pine` | `entry_mode`, `min_quality_score`, `take_profit_r`, `use_take_profit` | sichtbare Strategy-Setup-Flaeche |
+| `SMC_Long_Dip_Strategy.pine` | Trigger-/Invalidation-/Take-Profit-Plots | planbare Wrapper-Ausgabe auf dem Chart |
 
 ## Important Current-State Findings
 
@@ -91,7 +91,7 @@ Validierungsregeln.
 - Die Chart-Ausgabe ist funktional, aber noch nicht stark genug als
   produktisierte Wrapper-Surface beschrieben.
 
-## Surface 1 - `SMC_Core_Engine.pine`
+## Surface 1 - `SMC_Long_Dip_Suite.pine`
 
 ### Core First-Cut Zielbild
 
@@ -110,7 +110,7 @@ Hauptbotschaft zeigt.
 2. `WAIT` zeigt keine vollen Risk-Linien.
 3. `READY` und `ENTER` zeigen Trigger und Invalidation klar.
 
-## Surface 2 - `SMC_Dashboard.pine`
+## Surface 2 - `SMC_Long_Dip_Dashboard.pine`
 
 ### Dashboard First-Cut Zielbild
 
@@ -130,7 +130,7 @@ Diagnostics als bewusst tiefer Modus verfuegbar bleibt.
 2. Pro Diagnostics bleibt funktional erhalten.
 3. Compact Default enthaelt keine sichtbaren BUS- oder Debug-Begriffe.
 
-## Surface 3 - `SMC_Long_Strategy.pine`
+## Surface 3 - `SMC_Long_Dip_Strategy.pine`
 
 ### Long Strategy First-Cut Zielbild
 

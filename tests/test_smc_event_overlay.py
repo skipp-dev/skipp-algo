@@ -17,7 +17,7 @@ from tests.smc_manifest_test_utils import extract_group_titles, extract_input_bi
 
 ROOT = pathlib.Path(__file__).resolve().parents[1]
 OVERLAY_PATH = ROOT / "SMC_Event_Overlay.pine"
-ENGINE_PATH = ROOT / "SMC_Core_Engine.pine"
+ENGINE_PATH = ROOT / "SMC_Long_Dip_Suite.pine"
 
 # ── Helpers ──────────────────────────────────────────────────────
 

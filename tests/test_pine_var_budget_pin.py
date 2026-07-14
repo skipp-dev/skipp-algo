@@ -57,11 +57,11 @@ _DECL_RE = re.compile(r"^\s*(?:var|varip)\s+\w", re.MULTILINE)
 # refreshed 2026-04-30 (PR #1937 cascade + PR-D7 cosmetic alignment).
 _FROZEN_LEDGER: dict[str, int] = {
     "SMC_Breakout_Overlay.pine": 32,
-    "SMC_Core_Engine.pine": 415,
+    "SMC_Long_Dip_Suite.pine": 415,
     # 27 → 34 (2026-04-30, commit 68e1aac0): Trade-Mgmt rows in
     # Mobile_Dashboard mirrored extra var/varip state into SMC_Dashboard.
     # Re-frozen here as part of v3 phase 1 pine-consumer-discipline fix.
-    "SMC_Dashboard.pine": 34,
+    "SMC_Long_Dip_Dashboard.pine": 34,
     "SMC_Event_Overlay.pine": 13,
     "SMC_Exit_Signal.pine": 13,
     "SMC_HTF_Confluence.pine": 8,
@@ -71,18 +71,18 @@ _FROZEN_LEDGER: dict[str, int] = {
     "SMC_Imbalance_Context.pine": 14,
     "SMC_Liquidity_Context.pine": 12,
     "SMC_Liquidity_Structure.pine": 9,
-    "SMC_Long_Strategy.pine": 19,
+    "SMC_Long_Dip_Strategy.pine": 19,
     # 9 → 16 (2026-04-30, commit 68e1aac0): Trade-Mgmt rows feature added
     # 7 var declarations to track per-row state. Ledger re-frozen.
-    "SMC_Mobile_Dashboard.pine": 16,
+    "SMC_Long_Dip_Mobile.pine": 16,
     "SMC_Orderflow_Overlay.pine": 10,
     "SMC_Profile_Context.pine": 11,
     "SMC_Session_Context.pine": 11,
     "SMC_Setup_Check.pine": 2,
     "SMC_Structure_Context.pine": 10,
-    "SMC_TV_Bridge.pine": 3,
-    "SMC_VRVP_Overlay.pine": 55,
-    "SkippALGO_Confluence.pine": 7,
+    "SMC_Regime_and_News.pine": 3,
+    "SMC_Volume_Profile_Overlay.pine": 55,
+    "SMC_Confluence_Hub.pine": 7,
     "pine/legacy/BFI-Reversal.pine": 37,
     "pine/legacy/BTC 3m EV Scalper BALANCED (Harmonized).pine": 6,
     "pine/legacy/Breakout_Finder_Intelligent.pine": 6,

@@ -11,8 +11,8 @@ from scripts.smc_file_lifecycle import (
 
 class TestClassifyFile:
     def test_dashboard_is_production(self) -> None:
-        assert classify_file("SMC_Dashboard.pine") is FileLifecycle.PRODUCTION
-        assert classify_file("SMC_Mobile_Dashboard.pine") is FileLifecycle.PRODUCTION
+        assert classify_file("SMC_Long_Dip_Dashboard.pine") is FileLifecycle.PRODUCTION
+        assert classify_file("SMC_Long_Dip_Mobile.pine") is FileLifecycle.PRODUCTION
 
     def test_choch_family_is_legacy(self) -> None:
         # DoD: 'Legacy- und Experimental-Dateien sind explizit markiert'.
@@ -40,7 +40,7 @@ class TestClassifyFile:
 class TestClassifyFiles:
     def test_batch_classifies_each_entry(self) -> None:
         results = classify_files([
-            "SMC_Dashboard.pine",
+            "SMC_Long_Dip_Dashboard.pine",
             "CHOCH-Indicator.pine",
             "SMC_Orderflow_Overlay.pine",
             "totally-new.pine",
@@ -58,11 +58,11 @@ class TestClassifyFiles:
         assert not legacy.is_experimental
         assert not legacy.is_user_facing_production
 
-        prod = classify_files(["SMC_Dashboard.pine"])[0]
+        prod = classify_files(["SMC_Long_Dip_Dashboard.pine"])[0]
         assert prod.is_user_facing_production
 
     def test_as_dict_round_trip(self) -> None:
-        d = classify_files(["SMC_Dashboard.pine"])[0].as_dict()
+        d = classify_files(["SMC_Long_Dip_Dashboard.pine"])[0].as_dict()
         assert d["lifecycle"] == "production"
         assert d["is_user_facing_production"] is True
 

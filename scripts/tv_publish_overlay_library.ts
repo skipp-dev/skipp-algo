@@ -37,7 +37,7 @@ export { hasExpectedImportPathEvidence };
 // fail-closed identity + version verification). The ONLY contract difference is
 // that the overlay is validated against its own generated MANIFEST rather than a
 // committed core consumer file — the overlay is a new companion library and is
-// consumed by user charts, not by SMC_Core_Engine.pine.
+// consumed by user charts, not by SMC_Long_Dip_Suite.pine.
 //
 // CI-only: node/npm are not part of the local toolchain, so this file is built
 // and exercised exclusively in the TradingView publish workflow.

@@ -12,7 +12,7 @@ Layers (defense-only):
 1. **Zero-tripwire** — no ``request.security(<sym>, X, ...)`` where ``X`` is
    ``timeframe.period``, the empty string ``""``, or ``syminfo.period``.
 2. **Frozen total budget** — exactly 1 call site across all standalone
-   ``*.pine`` files (in ``SMC_Core_Engine.pine``). New HTF call sites are
+   ``*.pine`` files (in ``SMC_Long_Dip_Suite.pine``). New HTF call sites are
    not banned but every addition must update the ledger and be justified in
    CHANGELOG.
 3. **Frozen site ledger** — the existing site is pinned at file-level.
@@ -47,7 +47,7 @@ _RS_CALL = re.compile(r"\brequest\.security\s*\(")
 
 _FROZEN_TOTAL = 1
 _FROZEN_FILE_COUNTS: dict[str, int] = {
-    "SMC_Core_Engine.pine": 1,
+    "SMC_Long_Dip_Suite.pine": 1,
 }
 
 # Forbidden timeframe arguments (same-TF aliases).

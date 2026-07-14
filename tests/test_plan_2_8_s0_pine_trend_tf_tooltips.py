@@ -11,7 +11,7 @@ from __future__ import annotations
 import re
 from pathlib import Path
 
-PINE = Path(__file__).resolve().parents[1] / "SMC_Core_Engine.pine"
+PINE = Path(__file__).resolve().parents[1] / "SMC_Long_Dip_Suite.pine"
 
 
 def _text() -> str:

@@ -4,7 +4,7 @@ import re
 
 from tests.smc_manifest_test_utils import ROOT, load_manifest
 
-CORE_PATH = ROOT / 'SMC_Core_Engine.pine'
+CORE_PATH = ROOT / 'SMC_Long_Dip_Suite.pine'
 LIFECYCLE_PRIVATE_PATH = ROOT / 'SMC++' / 'smc_lifecycle_private.pine'
 OBSERVABILITY_PRIVATE_PATH = ROOT / 'SMC++' / 'smc_observability_private.pine'
 RESOLVERS_PATH = ROOT / 'SMC++' / 'smc_context_resolvers.pine'
@@ -39,7 +39,7 @@ def _nonempty_lines_before(lines: list[str], index: int, count: int = 3) -> list
 
 
 def test_core_engine_file_exists_and_uses_core_header() -> None:
-    assert CORE_PATH.exists(), 'SMC_Core_Engine.pine must exist'
+    assert CORE_PATH.exists(), 'SMC_Long_Dip_Suite.pine must exist'
     source = _read_core_source()
 
     assert 'indicator("SMC Long-Dip Suite", overlay = true' in source

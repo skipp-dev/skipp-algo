@@ -77,7 +77,7 @@ def _notes_for(path: Path, evidence: list[str]) -> list[str]:
         notes.append("Report artifact exists in repo checkout and can be audited reproducibly.")
     elif rel.startswith("scripts/"):
         notes.append("Code path candidate; requires concrete exported artifact for provider integration.")
-    elif rel.endswith("SMC_Core_Engine.pine"):
+    elif rel.endswith("SMC_Long_Dip_Suite.pine"):
         notes.append("Contains structure logic in Pine runtime, but not a repository JSON/CSV provider artifact.")
 
     if "structure_" in evidence and not set(evidence).intersection(_EXPLICIT_STRUCTURE_KEYS):
@@ -90,7 +90,7 @@ def _notes_for(path: Path, evidence: list[str]) -> list[str]:
 
 def _candidate_paths() -> list[Path]:
     explicit: list[Path] = [
-        _REPO_ROOT / "SMC_Core_Engine.pine",
+        _REPO_ROOT / "SMC_Long_Dip_Suite.pine",
         _REPO_ROOT / "scripts" / "export_smc_structure_artifacts_from_workbook.py",
         _REPO_ROOT / "scripts" / "export_smc_structure_artifact.py",
         _REPO_ROOT / "scripts" / "market_structure_features.py",

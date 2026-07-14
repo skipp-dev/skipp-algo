@@ -37,15 +37,15 @@ REPO_ROOT = Path(__file__).resolve().parent.parent
 _LIBRARY_PERMISSIONS: dict[str, tuple[str, ...]] = {
     # Internal bus: only the engine and the SMC++ context resolvers
     # may import. Other Pine consumers must read public ``mp.*`` consts.
-    "smc_bus_private": ("SMC_Core_Engine.pine", "SMC++/"),
+    "smc_bus_private": ("SMC_Long_Dip_Suite.pine", "SMC++/"),
     # Lifecycle private API: engine only.
-    "smc_lifecycle_private": ("SMC_Core_Engine.pine",),
+    "smc_lifecycle_private": ("SMC_Long_Dip_Suite.pine",),
     # Observability private API: engine + SMC++ helpers.
-    "smc_observability_private": ("SMC_Core_Engine.pine", "SMC++/"),
+    "smc_observability_private": ("SMC_Long_Dip_Suite.pine", "SMC++/"),
     # Profile engine: engine only (consumers should use mp.* exports).
-    "smc_profile_engine": ("SMC_Core_Engine.pine",),
+    "smc_profile_engine": ("SMC_Long_Dip_Suite.pine",),
     # Context resolvers: engine only.
-    "smc_context_resolvers": ("SMC_Core_Engine.pine",),
+    "smc_context_resolvers": ("SMC_Long_Dip_Suite.pine",),
 }
 
 _IMPORT_RE = re.compile(

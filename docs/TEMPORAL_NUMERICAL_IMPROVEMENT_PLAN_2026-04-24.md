@@ -130,7 +130,7 @@
   ~~**D-1 v2** (physischer Move) jetzt entscheidungsreif:
   [`docs/adr/0003-pine-legacy-physical-move-resolver.md`](adr/0003-pine-legacy-physical-move-resolver.md)
   empfiehlt Resolver-Shim statt Sweep-Refactor.~~ → **D-1 v2 erledigt:**
-  23 LEGACY-`*.pine` nach `pine/legacy/` verschoben (`SkippALGO_Confluence.pine`
+  23 LEGACY-`*.pine` nach `pine/legacy/` verschoben (`SMC_Confluence_Hub.pine`
   bleibt aktiv im Root, `test_div.pine` bleibt Test-Fixture). Resolver-Shim
   [`scripts/pine_path_resolver.py`](../scripts/pine_path_resolver.py)
   liefert `resolve_pine_file(basename)` mit Such-Reihenfolge Root → `pine/legacy/`

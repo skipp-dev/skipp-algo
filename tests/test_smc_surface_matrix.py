@@ -52,12 +52,12 @@ class TestHelpers:
     def test_default_for_desktop(self) -> None:
         d = default_for(Audience.DESKTOP)
         assert d is not None
-        assert d.name == "SMC_Dashboard.pine"
+        assert d.name == "SMC_Long_Dip_Dashboard.pine"
 
     def test_default_for_mobile(self) -> None:
         d = default_for(Audience.MOBILE)
         assert d is not None
-        assert d.name == "SMC_Mobile_Dashboard.pine"
+        assert d.name == "SMC_Long_Dip_Mobile.pine"
 
     def test_default_for_operator_is_none(self) -> None:
         # Operator-only surfaces are not user defaults.

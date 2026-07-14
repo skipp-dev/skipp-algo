@@ -16,15 +16,15 @@ Nothing else is needed for the standard mainline experience.
 
 - A TradingView account with Pine Script v6 support.
 - Access to the published or local copies of:
-  - [../SMC_Core_Engine.pine](../SMC_Core_Engine.pine) (SMC Core)
-  - [../SMC_Dashboard.pine](../SMC_Dashboard.pine) (SMC Decision Board)
-  - [../SMC_Long_Strategy.pine](../SMC_Long_Strategy.pine) (SMC Execution)
+  - [../SMC_Long_Dip_Suite.pine](../SMC_Long_Dip_Suite.pine) (SMC Core)
+  - [../SMC_Long_Dip_Dashboard.pine](../SMC_Long_Dip_Dashboard.pine) (SMC Decision Board)
+  - [../SMC_Long_Dip_Strategy.pine](../SMC_Long_Dip_Strategy.pine) (SMC Execution)
 - A chart open on the intended symbol and timeframe.
 
 ## Step 1 — Add SMC Core
 
 1. Open the Pine Script editor in TradingView.
-2. Load or paste `SMC_Core_Engine.pine`.
+2. Load or paste `SMC_Long_Dip_Suite.pine`.
 3. Compile and add to chart.
 4. Confirm: the chart shows the **Focus View** hero card with Action, Bias,
    Quality, Why now, and Main risk.

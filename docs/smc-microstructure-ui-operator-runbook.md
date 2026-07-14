@@ -322,7 +322,7 @@ Recovery:
 
 1. inspect the focused core-only preflight report
 2. inspect the generated manifest and snippet
-3. inspect the import line in [../SMC_Core_Engine.pine](../SMC_Core_Engine.pine)
+3. inspect the import line in [../SMC_Long_Dip_Suite.pine](../SMC_Long_Dip_Suite.pine)
 4. fix drift and regenerate before attempting another publish
 
 ## Commands

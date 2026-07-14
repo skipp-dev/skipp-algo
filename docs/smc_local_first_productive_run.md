@@ -287,9 +287,9 @@ npm run tv:smoke-readonly
 
 1. neuer Preflight-Report in `automation/tradingview/reports/`
 2. Mainline-Ziele bleiben gruen fuer:
-   - `SMC_Core_Engine.pine`
-   - `SMC_Dashboard.pine`
-   - `SMC_Long_Strategy.pine`
+   - `SMC_Long_Dip_Suite.pine`
+   - `SMC_Long_Dip_Dashboard.pine`
+   - `SMC_Long_Dip_Strategy.pine`
 
 ## Work Package 5: Evidenz sichern
 
@@ -371,7 +371,7 @@ Bedeutung:
 Pruefen:
 
 1. `recommended_import_path` im Manifest
-2. Import in `SMC_Core_Engine.pine`
+2. Import in `SMC_Long_Dip_Suite.pine`
 3. contiguous alias block im Core
 4. Compile- und Bindingsignale im neuen Preflight-Report
 

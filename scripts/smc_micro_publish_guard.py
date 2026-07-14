@@ -136,7 +136,7 @@ def evaluate_micro_library_publish_guard(
 
         validate_publish_readiness(
             manifest_path=Path(contract["manifest_path"]),
-            core_path=repo_root / "SMC_Core_Engine.pine",
+            core_path=repo_root / "SMC_Long_Dip_Suite.pine",
         )
     except Exception as exc:
         contract["full_contract_ready"] = False

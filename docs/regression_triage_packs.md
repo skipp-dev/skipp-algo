@@ -16,7 +16,7 @@ Reconciled on HEAD: `5fda7d27` (2026-04-16)
 
 ## Batch-3 Moved-To-Library Focus
 
-This batch targets regression assertions that still expected monolithic locations in `SMC_Core_Engine.pine` although code has moved to split libraries.
+This batch targets regression assertions that still expected monolithic locations in `SMC_Long_Dip_Suite.pine` although code has moved to split libraries.
 
 ### Verified moved locations used by tests
 
@@ -49,7 +49,7 @@ No open failures remain. The previously failing governance test was resolved in 
   `test_long_dip_regression_anchors_to_active_core_engine`
 - **Reason:** The governance assertion expected `SMC_PATH = ROOT / 'legacy' / 'SMC++.pine'`
   but the completed split-library migration moved the long-dip regression anchor to
-  `SMC_Core_Engine.pine`. No `legacy/` directory or root-level `SMC++.pine` exist.
+  `SMC_Long_Dip_Suite.pine`. No `legacy/` directory or root-level `SMC++.pine` exist.
   The assertion was updated to match the actual, documented architecture.
 
 ## Delta Summary

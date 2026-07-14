@@ -4,7 +4,7 @@ import pathlib
 import re
 
 ROOT = pathlib.Path(__file__).resolve().parents[1]
-SMC_PATH = ROOT / 'SMC_Core_Engine.pine'
+SMC_PATH = ROOT / 'SMC_Long_Dip_Suite.pine'
 RESOLVERS_PATH = ROOT / 'SMC++' / 'smc_context_resolvers.pine'
 UTILS_PATH = ROOT / 'SMC++' / 'smc_utils.pine'
 PROFILE_ENGINE_PATH = ROOT / 'SMC++' / 'smc_profile_engine.pine'

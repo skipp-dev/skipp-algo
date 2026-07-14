@@ -266,7 +266,7 @@ This layer turns the enrichment pipeline from *point-in-time snapshot* into *sta
 | `scripts/smc_structure_state.py` | Python builder — derives from snapshot + optional CHoCH/BOS history |
 | `smc_enrichment_types.py` | `StructureStateBlock` TypedDict |
 | `generate_smc_micro_profiles.py` | Pine `export const` emission (12 fields) |
-| `SMC_Core_Engine.pine` | Field reads + `struct_state_ok` context gate + BUS resolver |
+| `SMC_Long_Dip_Suite.pine` | Field reads + `struct_state_ok` context gate + BUS resolver |
 | `SMC_Structure_State.pine` | **Optional** overlay — swing visualization, BOS/CHoCH markers |
 
 ### Field Contract
@@ -312,7 +312,7 @@ Replaces the binary `SESSION_FVG_BULL/BEAR_ACTIVE` with a lifecycle-aware model.
 | `scripts/smc_imbalance_lifecycle.py` | Python builder — derives from snapshot FVG history |
 | `smc_enrichment_types.py` | `ImbalanceLifecycleBlock` TypedDict |
 | `generate_smc_micro_profiles.py` | Pine `export const` emission (11 fields) |
-| `SMC_Core_Engine.pine` | Field reads + `imbalance_ok` context gate + BUS resolver |
+| `SMC_Long_Dip_Suite.pine` | Field reads + `imbalance_ok` context gate + BUS resolver |
 | — | No dedicated overlay — data surfaces in existing `SMC_Liquidity_Structure.pine` |
 
 ### Field Contract
@@ -357,7 +357,7 @@ Where Session Context answers *"which session is it?"*, this layer answers *"wha
 | `scripts/smc_session_structure.py` | Python builder — derives from snapshot + timestamp + session boundaries |
 | `smc_enrichment_types.py` | `SessionStructureBlock` TypedDict |
 | `generate_smc_micro_profiles.py` | Pine `export const` emission (14 fields) |
-| `SMC_Core_Engine.pine` | Field reads + `session_struct_ok` context gate + BUS resolver |
+| `SMC_Long_Dip_Suite.pine` | Field reads + `session_struct_ok` context gate + BUS resolver |
 | `SMC_Session_Context.pine` | Existing overlay extended with PDH/PDL sweep markers |
 
 ### Field Contract
@@ -413,7 +413,7 @@ fundamentally alters trade management (fade vs follow).
 | `scripts/smc_range_regime.py` | Python builder — derives from snapshot + ATR/volume profile |
 | `smc_enrichment_types.py` | `RangeRegimeBlock` TypedDict |
 | `generate_smc_micro_profiles.py` | Pine `export const` emission (11 fields) |
-| `SMC_Core_Engine.pine` | Field reads + `range_regime_ok` context gate + BUS resolver |
+| `SMC_Long_Dip_Suite.pine` | Field reads + `range_regime_ok` context gate + BUS resolver |
 | `SMC_Range_Regime.pine` | **Optional** overlay — range box visualization, VPOC/VAH/VAL lines |
 
 ### Field Contract

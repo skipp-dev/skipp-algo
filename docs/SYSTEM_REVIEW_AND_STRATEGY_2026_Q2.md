@@ -96,7 +96,7 @@
 - Implementierung: `display` Attribut der bestehenden Inputs konditioniert auf Profil
 
 #### A3: Strategy-Ergebnis-Tabelle
-- `SMC_Long_Strategy.pine` bekommt eine `table` mit:
+- `SMC_Long_Dip_Strategy.pine` bekommt eine `table` mit:
   - Trades gesamt / Gewinner / Verlierer
   - Win-Rate %
   - Avg R-Multiple
@@ -162,19 +162,19 @@
 
 | # | Maßnahme | Datei | Status | Details |
 |---|---|---|---|---|
-| A1 | Alert-Conditions | `SMC_Core_Engine.pine` | ✅ Umgesetzt | +6 neue Alerts: Bullish/Bearish BOS, Bullish/Bearish CHoCH, Zone Armed, Zone Invalidated. Insgesamt 16 Alert-Conditions. |
-| A2 | Focus-Ansicht im Dashboard | `SMC_Dashboard.pine` | ✅ Umgesetzt | Neuer View-Modus "Focus": 3-Zeilen Traffic-Light (Ampel + Level + Market). Bisherige Modi (Decision Brief, Audit View, Compact) bleiben erhalten. |
-| A3 | Strategy-Ergebnis-Tabelle | `SMC_Long_Strategy.pine` | ✅ Umgesetzt | 8-Zeilen Performance-Table: Trades, Win Rate, Profit Factor, Net Profit, Max Drawdown, Avg Trade, Mode. Farbkodiert (grün/gelb/rot) nach Qualität. |
-| B4 | Unified Signal Hub | `SkippALGO_Confluence.pine` | ✅ Umgesetzt | Confluence-Score (0–100) aus SMC Zone (40p) + Trend (25p) + Momentum (20p) + Mean-Reversion (15p) + Regime-Modifier. Traffic-Light: 🟢 TRADE / 🟡 WATCH / 🔴 STAY AWAY. 2 Alert-Conditions. |
+| A1 | Alert-Conditions | `SMC_Long_Dip_Suite.pine` | ✅ Umgesetzt | +6 neue Alerts: Bullish/Bearish BOS, Bullish/Bearish CHoCH, Zone Armed, Zone Invalidated. Insgesamt 16 Alert-Conditions. |
+| A2 | Focus-Ansicht im Dashboard | `SMC_Long_Dip_Dashboard.pine` | ✅ Umgesetzt | Neuer View-Modus "Focus": 3-Zeilen Traffic-Light (Ampel + Level + Market). Bisherige Modi (Decision Brief, Audit View, Compact) bleiben erhalten. |
+| A3 | Strategy-Ergebnis-Tabelle | `SMC_Long_Dip_Strategy.pine` | ✅ Umgesetzt | 8-Zeilen Performance-Table: Trades, Win Rate, Profit Factor, Net Profit, Max Drawdown, Avg Trade, Mode. Farbkodiert (grün/gelb/rot) nach Qualität. |
+| B4 | Unified Signal Hub | `SMC_Confluence_Hub.pine` | ✅ Umgesetzt | Confluence-Score (0–100) aus SMC Zone (40p) + Trend (25p) + Momentum (20p) + Mean-Reversion (15p) + Regime-Modifier. Traffic-Light: 🟢 TRADE / 🟡 WATCH / 🔴 STAY AWAY. 2 Alert-Conditions. |
 | B5 | BUS-Auto-Connect | `SMC_Setup_Check.pine` | ✅ Umgesetzt | Validiert 6 kritische BUS-Channels, zeigt Verbindungsstatus mit ✅/❌, gibt klare Anleitung für nächste Schritte. |
 | B6 | Gehostetes Terminal | `Dockerfile`, `docker-compose.yml`, `terminal_auth.py` | ✅ Umgesetzt | Dockerfile + docker-compose.yml für Self-Hosted-Deployment. Token-basierter Auth-Guard (`STREAMLIT_AUTH_TOKEN`), timing-safe Compare, Zero-Friction wenn kein Token gesetzt. Healthcheck, .dockerignore, Volume-Mount für Artifacts. 10 Tests. |
 | B7 | Signal-Replay / Journal | `streamlit_terminal.py` | ✅ Umgesetzt | Neuer Tab "📜 Signal Replay": Aggregate-Metriken (Signals, Resolved, Hit Rate, Avg/Total P&L), Hit-Rate-Matrix nach Gap×RVOL Bucket, tägliche Signal-Timeline mit Expander pro Tag. Daten aus `open_prep/outcomes.py`. 11 Tests. |
-| C8 | Mobile Dashboard | `SMC_Mobile_Dashboard.pine` | ✅ Umgesetzt | 4-Zeilen Mobile-Table: Traffic-Light + Levels + Market + Quality. Keine Overlays, keine Lines/Labels — nur Table. 6 BUS-Bindings. |
+| C8 | Mobile Dashboard | `SMC_Long_Dip_Mobile.pine` | ✅ Umgesetzt | 4-Zeilen Mobile-Table: Traffic-Light + Levels + Market + Quality. Keine Overlays, keine Lines/Labels — nur Table. 6 BUS-Bindings. |
 | C9 | AI Zone-Priorisierung | `scripts/smc_zone_priority.py` | ✅ Umgesetzt | Composite-Score (0–100) aus 3 Dimensionen: historische Performance (Ensemble, 0–30), aktueller Kontext (Regime/Volatilität/Session/Projektion/HTF, 0–35+15 Bonus), News-Catalyst (0–10) minus Event-Risk-Penalty (0–50). Ableitung: Rank (A/B/C/D), Top-Family (OB/FVG/BOS/SWEEP), Catalyst (NEWS/EVENT/REGIME/NONE), Reason-String. 5 neue Pine-Exports in Generated Library. 26 Unit-Tests. |
-| C10 | Explain this Zone | `SMC_Dashboard.pine` | ✅ Umgesetzt | Neuer "Explain" View-Modus: 14-Zeilen ✅/❌ Checklist (Struktur, Zone, Qualität, Freshness, Session, Market, Event, HTF, Pressure) + Next Step + FVG Health Prüfung. Erklärt WARUM der aktuelle State gilt. |
-| H1 | Calibration Confidence | `SMC_Dashboard.pine` | ✅ Umgesetzt | Neuer `[ Calibration Confidence ]` Block in Audit View: Top Family Confidence + Composite Confidence über alle 4 Familien. Farbkodierte Tiers (high/good/ok/low). |
-| H2 | Per-Family Performance | `SMC_Dashboard.pine` | ✅ Umgesetzt | Neuer `[ Per-Family Performance ]` Block: OB/FVG/BOS/SWEEP Kalibrierungsgewichte als Prozent + Farbkodierung. |
-| H3 | FVG Health Warning | `SMC_Dashboard.pine` | ✅ Umgesetzt | Neuer `[ FVG Health ]` Block: Composite Health-Score (Freshness + Fill + Maturity + Invalidation + Net Imbalance). Warnungen bei invalidiertem, stark gefülltem oder schwachem FVG. In Explain-Mode als Checklist-Item. |
+| C10 | Explain this Zone | `SMC_Long_Dip_Dashboard.pine` | ✅ Umgesetzt | Neuer "Explain" View-Modus: 14-Zeilen ✅/❌ Checklist (Struktur, Zone, Qualität, Freshness, Session, Market, Event, HTF, Pressure) + Next Step + FVG Health Prüfung. Erklärt WARUM der aktuelle State gilt. |
+| H1 | Calibration Confidence | `SMC_Long_Dip_Dashboard.pine` | ✅ Umgesetzt | Neuer `[ Calibration Confidence ]` Block in Audit View: Top Family Confidence + Composite Confidence über alle 4 Familien. Farbkodierte Tiers (high/good/ok/low). |
+| H2 | Per-Family Performance | `SMC_Long_Dip_Dashboard.pine` | ✅ Umgesetzt | Neuer `[ Per-Family Performance ]` Block: OB/FVG/BOS/SWEEP Kalibrierungsgewichte als Prozent + Farbkodierung. |
+| H3 | FVG Health Warning | `SMC_Long_Dip_Dashboard.pine` | ✅ Umgesetzt | Neuer `[ FVG Health ]` Block: Composite Health-Score (Freshness + Fill + Maturity + Invalidation + Net Imbalance). Warnungen bei invalidiertem, stark gefülltem oder schwachem FVG. In Explain-Mode als Checklist-Item. |
 
 ---
 

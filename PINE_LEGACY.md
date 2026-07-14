@@ -6,14 +6,14 @@
 > [`docs/TEMPORAL_NUMERICAL_IMPROVEMENT_PLAN_2026-04-24.md`](docs/TEMPORAL_NUMERICAL_IMPROVEMENT_PLAN_2026-04-24.md).
 >
 > Audit-Befund (`/Users/steffenpreuss/Downloads/TEMPORAL_NUMERICAL_AUDIT_2026-04-24.md`):
-> *"Legacy-Pine-Assets `QuickALGO.pine` (4732 LOC), `SkippALGO_Confluence.pine`
+> *"Legacy-Pine-Assets `QuickALGO.pine` (4732 LOC), `SMC_Confluence_Hub.pine`
 > (229 LOC) weiterhin im Root — 7 Dead Code, LOW, Aufräum-Arbeiten."*
 
 ## Physical layout (D-1 v2 — ADR-0003 resolver shim)
 
 LEGACY `*.pine` files now live under `pine/legacy/`. Active SMC suite
 files stay at the repo root (no TradingView saved-script breakage for
-active consumers). `SkippALGO_Confluence.pine` and `test_div.pine` stay
+active consumers). `SMC_Confluence_Hub.pine` and `test_div.pine` stay
 at the root — the former is reclassified as active, the latter is a
 test fixture.
 
@@ -40,11 +40,11 @@ These are the canonical TradingView library + consumer files, pinned by
 
 | File                              | Role          |
 |-----------------------------------|---------------|
-| `SMC_Core_Engine.pine`            | core engine   |
-| `SMC_Dashboard.pine`              | consumer      |
-| `SMC_Mobile_Dashboard.pine`       | consumer      |
-| `SMC_Long_Strategy.pine`          | strategy      |
-| `SkippALGO_Confluence.pine`       | consumer (active — see note below) |
+| `SMC_Long_Dip_Suite.pine`            | core engine   |
+| `SMC_Long_Dip_Dashboard.pine`              | consumer      |
+| `SMC_Long_Dip_Mobile.pine`       | consumer      |
+| `SMC_Long_Dip_Strategy.pine`          | strategy      |
+| `SMC_Confluence_Hub.pine`       | consumer (active — see note below) |
 | `SMC_Structure_Context.pine`      | overlay       |
 | `SMC_Session_Context.pine`        | overlay       |
 | `SMC_Profile_Context.pine`        | overlay       |
@@ -55,10 +55,10 @@ These are the canonical TradingView library + consumer files, pinned by
 | `SMC_HTF_Confluence.pine`         | overlay       |
 | `SMC_Event_Overlay.pine`          | overlay       |
 | `SMC_Breakout_Overlay.pine`       | overlay       |
-| `SMC_VRVP_Overlay.pine`           | overlay       |
+| `SMC_Volume_Profile_Overlay.pine`           | overlay       |
 | `SMC_Exit_Signal.pine`            | consumer      |
 | `SMC_Hold_Manager.pine`           | consumer      |
-| `SMC_TV_Bridge.pine`              | bridge        |
+| `SMC_Regime_and_News.pine`              | bridge        |
 | `SMC_Setup_Check.pine`            | diagnostic    |
 | `pine/skipp_calibration.pine`     | library       |
 | `pine/skipp_indicators.pine`      | library       |
@@ -67,7 +67,7 @@ These are the canonical TradingView library + consumer files, pinned by
 | `pine/skipp_scoring.pine`         | library       |
 | `pine/generated/*`                | code-generated |
 
-> **Note on `SkippALGO_Confluence.pine`**: the audit listed it as legacy,
+> **Note on `SMC_Confluence_Hub.pine`**: the audit listed it as legacy,
 > but it appears in the active consumer set in
 > [`docs/freeze_exit_checklist_wp_f.md`](docs/freeze_exit_checklist_wp_f.md)
 > and is referenced by `scripts/audit_library_consumers.py`. Status
