@@ -30,7 +30,20 @@ CANONICAL_MAIN_PRODUCTS: dict[str, str] = {
 
 FAMILY_PREFIX = "SMC Long-Dip "
 
+#: Tier 2 (docs/PINE_SCRIPT_NAMING.md): the shorttitle is a fixed, systematic
+#: abbreviation "LD <Component>7" — never a third free-form name. TradingView
+#: hard-limits it to 10 chars, so it cannot equal the Tier-1 title.
+CANONICAL_SHORTTITLES: dict[str, str] = {
+    "SMC_Core_Engine.pine": "LD Suite7",
+    "SMC_Dashboard.pine": "LD Dash7",
+    "SMC_Mobile_Dashboard.pine": "LD Mobile7",
+    # SMC_Long_Strategy.pine: strategy() omits the shorttitle.
+}
+
 _TITLE_RE = re.compile(r'^\s*(?:indicator|strategy)\(\s*"([^"]*)"', re.MULTILINE)
+_SHORTTITLE_RE = re.compile(
+    r'^\s*(?:indicator|strategy)\(\s*"[^"]*"\s*,\s*"([^"]*)"', re.MULTILINE
+)
 
 
 def _code_title(pine_file: str) -> str:
@@ -38,6 +51,12 @@ def _code_title(pine_file: str) -> str:
     match = _TITLE_RE.search(source)
     assert match, f"{pine_file}: no indicator()/strategy() title found"
     return match.group(1)
+
+
+def _shorttitle(pine_file: str) -> str | None:
+    source = (REPO_ROOT / pine_file).read_text(encoding="utf-8")
+    match = _SHORTTITLE_RE.search(source)
+    return match.group(1) if match else None
 
 
 def test_main_products_have_canonical_titles() -> None:
@@ -79,6 +98,19 @@ def test_no_duplicate_titles_across_root_scripts() -> None:
     assert dupes == [], "\n".join(dupes)
 
 
+def test_main_products_have_canonical_shorttitles() -> None:
+    """Tier 2: each main product's shorttitle is the systematic 'LD <Component>7'
+    abbreviation and within TradingView's 10-char limit."""
+    problems: list[str] = []
+    for pine_file, expected in sorted(CANONICAL_SHORTTITLES.items()):
+        actual = _shorttitle(pine_file)
+        if actual != expected:
+            problems.append(f"{pine_file}: shorttitle {actual!r} != canonical {expected!r}")
+        elif len(expected) > 10:
+            problems.append(f"{pine_file}: shorttitle {expected!r} exceeds 10 chars")
+    assert problems == [], "\n".join(problems)
+
+
 def test_naming_doc_is_the_owner_locked_ssot() -> None:
     """The convention lives in one owner-locked document, and it lists every
     canonical name so the doc and this test cannot drift apart."""
@@ -87,3 +119,7 @@ def test_naming_doc_is_the_owner_locked_ssot() -> None:
     assert "OWNER: @preuss_steffen" in doc, "doc must carry the owner lock"
     missing = [c for c in CANONICAL_MAIN_PRODUCTS.values() if c not in doc]
     assert missing == [], f"naming doc is missing canonical names: {missing}"
+    # The doc must spell out the three-tier distinction that keeps the file
+    # name, the user-visible identity, and the shorttitle from being conflated.
+    for tier in ("Tier 1", "Tier 2", "Tier 3"):
+        assert tier in doc, f"naming doc must document {tier}"
