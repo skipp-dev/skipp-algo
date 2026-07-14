@@ -79,7 +79,7 @@ test("buildSnapshot sorts libraries by name and consumers by file", () => {
   assert.deepEqual(snap.libraries.map((l) => l.name), ["smc_core_types", "smc_utils"]);
   assert.deepEqual(
     snap.libraries[1].consumers.map((c) => c.file),
-    ["SMC_Long_Dip_Suite.pine", "SMC_Long_Dip_Strategy.pine"],
+    ["SMC_Long_Dip_Strategy.pine", "SMC_Long_Dip_Suite.pine"],
   );
 });
 

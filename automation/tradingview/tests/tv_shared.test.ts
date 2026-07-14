@@ -250,6 +250,10 @@ test("open script search names include legacy aliases for renamed scripts", () =
   assert.deepEqual(resolveOpenScriptSearchNames("SMC Core"), ["SMC Core", "SMC Core Engine"]);
   // Canonical (post-2026-04-22 collision fix) names map back to both layers of legacy saved titles.
   assert.deepEqual(
+    resolveOpenScriptSearchNames("SMC Long-Dip Suite"),
+    ["SMC Long-Dip Suite", "SMC Core", "SMC Core Engine"],
+  );
+  assert.deepEqual(
     resolveOpenScriptSearchNames("SMC Long-Dip Dashboard v7"),
     ["SMC Long-Dip Dashboard v7", "SMC Decision Board", "SMC Dashboard"],
   );

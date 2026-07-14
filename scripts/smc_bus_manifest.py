@@ -95,7 +95,7 @@ DEPRECATED_FIELD_POLICY: dict[str, Any] = {
 SURFACE_DEFINITIONS: tuple[SurfaceDefinition, ...] = (
     SurfaceDefinition(
         file = 'SMC_Long_Dip_Suite.pine',
-        script_name = 'SMC Core',
+        script_name = 'SMC Long-Dip Suite',
         surface_role = 'lite_primary',
         contract_tier = 'lite_and_pro',
         consumer_role = 'producer',
@@ -471,12 +471,12 @@ def validate_surface_definitions() -> list[str]:
 # settings-dialog identity check, causing the preflight to read the wrong
 # script's input bindings.
 PREFLIGHT_CORE_DASHBOARD_TARGETS: tuple[PreflightTarget, ...] = (
-    PreflightTarget('SMC_Long_Dip_Suite.pine', 'SMC Core', False, False),
+    PreflightTarget('SMC_Long_Dip_Suite.pine', 'SMC Long-Dip Suite', False, False),
     PreflightTarget('SMC_Long_Dip_Dashboard.pine', 'SMC Decision Board', True, True, 58, 'SMC Long-Dip Dashboard v7', 'dashboardBindings'),
 )
 
 PREFLIGHT_MAINLINE_TARGETS: tuple[PreflightTarget, ...] = (
-    PreflightTarget('SMC_Long_Dip_Suite.pine', 'SMC Core', False, False),
+    PreflightTarget('SMC_Long_Dip_Suite.pine', 'SMC Long-Dip Suite', False, False),
     PreflightTarget('SMC_Long_Dip_Dashboard.pine', 'SMC Decision Board', True, True, 58, 'SMC Long-Dip Dashboard v7', 'dashboardBindings'),
     PreflightTarget('SMC_Long_Dip_Strategy.pine', 'SMC Long-Dip Strategy v7', True, True, 8, 'SMC Long-Dip Strategy v7', 'strategyBindings'),
 )
@@ -487,7 +487,7 @@ VALIDATION_EVIDENCE_CAPTURES: tuple[ValidationEvidenceCapture, ...] = (
     ValidationEvidenceCapture(
         key = 'core_first_run',
         file = 'SMC_Long_Dip_Suite.pine',
-        script_name = 'SMC Core',
+        script_name = 'SMC Long-Dip Suite',
         report_label = 'Core first-run',
         runbook_label_en = 'rendered Core first-run screen',
         runbook_label_de = 'gerenderter Core-First-Run-Screen',

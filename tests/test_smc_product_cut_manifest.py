@@ -38,7 +38,7 @@ def test_preflight_configs_use_canonical_product_cut_scopes() -> None:
         'targets': [
             {
                 'file': 'SMC_Long_Dip_Suite.pine',
-                'scriptName': 'SMC Core',
+                'scriptName': 'SMC Long-Dip Suite',
                 'checkInputs': False,
                 'addToChart': False,
             },

@@ -382,7 +382,7 @@ export function verifyPublishContract(manifestPath: string, corePath: string): C
 function buildDefaultConsumers(): LibraryReleaseManifest["consumers"] {
   return [
     {
-      scriptName: "SMC Core",
+      scriptName: "SMC Long-Dip Suite",
       file: "SMC_Long_Dip_Suite.pine",
       role: "producer",
     },
@@ -526,7 +526,7 @@ function buildCoreOnlyPreflightConfig(tempDir: string): string {
     targets: [
       {
         file: "SMC_Long_Dip_Suite.pine",
-        scriptName: "SMC Core",
+        scriptName: "SMC Long-Dip Suite",
         checkInputs: false,
         addToChart: false,
       },
