@@ -89,7 +89,7 @@ def test_confluence_has_alert_conditions() -> None:
 
 def test_confluence_imports_library() -> None:
     source = _read(CONFLUENCE_PATH)
-    assert "import preuss_steffen/smc_micro_profiles_generated/1 as mp" in source
+    assert "import preuss_steffen/smc_micro_profiles_generated/152 as mp" in source  # 2026-07-14: repo repinned /1 -> /152
 
 
 def test_confluence_is_a_pure_consumer() -> None:
@@ -111,7 +111,7 @@ def test_confluence_score_range() -> None:
 
 def test_mobile_is_indicator() -> None:
     source = _read(MOBILE_PATH)
-    assert 'indicator("SMC Mobile v7"' in source
+    assert 'indicator("SMC Long-Dip Mobile v7"' in source  # 2026-07-14: renamed into the SMC Long-Dip family (see docs/PINE_SCRIPT_NAMING.md)
     assert "strategy(" not in source
 
 
@@ -149,7 +149,7 @@ def test_mobile_is_a_pure_consumer() -> None:
 
 def test_mobile_imports_library() -> None:
     source = _read(MOBILE_PATH)
-    assert "import preuss_steffen/smc_micro_profiles_generated/1 as mp" in source
+    assert "import preuss_steffen/smc_micro_profiles_generated/152 as mp" in source  # 2026-07-14: repo repinned /1 -> /152
 
 
 # ── Dashboard Explain Mode ──────────────────────────────────
