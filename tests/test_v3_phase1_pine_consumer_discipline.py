@@ -20,7 +20,11 @@ without registering them in the governance surfaces:
    the entire refresh.
 
 The four newly-added files (commit 68e1aac0) are:
-- SMC_Breakout_Overlay.pine  — imports ``preuss_steffen/smc_micro_profiles_generated/1`` → MUST be in workflow & consumers set.
+- SMC_Breakout_Overlay.pine  — was a consumer; now SELF-CONTAINED (computes
+  structure/S-R from swing pivots), no library import → NOT in consumers set.
+  The micro-profiles library is a per-symbol snapshot, not the per-bar
+  structure series the renderer needs, so the old ``mp.BOS_BULL`` /
+  ``mp.ACTIVE_RESISTANCE`` fields never existed and never compiled.
 - SMC_Hold_Manager.pine      — imports ``skippALGO/smc_micro_profiles_generated/1`` (different namespace, not auto-pinned).
 - SMC_Exit_Signal.pine       — pure BUS consumer, no library import.
 - SMC_Volume_Profile_Overlay.pine      — visual-only, no library import.
