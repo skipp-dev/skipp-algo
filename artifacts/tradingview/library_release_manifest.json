@@ -24,17 +24,17 @@
   },
   "consumers": [
     {
-      "scriptName": "SMC Core",
+      "scriptName": "SMC Long-Dip Suite",
       "file": "SMC_Long_Dip_Suite.pine",
       "role": "producer"
     },
     {
-      "scriptName": "SMC Decision Board",
+      "scriptName": "SMC Long-Dip Dashboard",
       "file": "SMC_Long_Dip_Dashboard.pine",
       "role": "dashboard_companion"
     },
     {
-      "scriptName": "SMC Long-Dip Strategy v7",
+      "scriptName": "SMC Long-Dip Strategy",
       "file": "SMC_Long_Dip_Strategy.pine",
       "role": "execution_wrapper"
     }
@@ -290,17 +290,17 @@
       "smcCoreDashboard": [
         {
           "file": "SMC_Long_Dip_Suite.pine",
-          "scriptName": "SMC Core",
+          "scriptName": "SMC Long-Dip Suite",
           "checkInputs": false,
           "addToChart": false
         },
         {
           "file": "SMC_Long_Dip_Dashboard.pine",
-          "scriptName": "SMC Decision Board",
+          "scriptName": "SMC Long-Dip Dashboard",
           "checkInputs": true,
           "addToChart": true,
           "minInputs": 58,
-          "savedScriptName": "SMC Long-Dip Dashboard v7",
+          "savedScriptName": "SMC Long-Dip Dashboard",
           "bindingContractKey": "dashboardBindings",
           "bindingContractName": "dashboard companion BUS bindings",
           "bindingConsumerRole": "dashboard_companion",
@@ -661,17 +661,17 @@
       "smcMainline": [
         {
           "file": "SMC_Long_Dip_Suite.pine",
-          "scriptName": "SMC Core",
+          "scriptName": "SMC Long-Dip Suite",
           "checkInputs": false,
           "addToChart": false
         },
         {
           "file": "SMC_Long_Dip_Dashboard.pine",
-          "scriptName": "SMC Decision Board",
+          "scriptName": "SMC Long-Dip Dashboard",
           "checkInputs": true,
           "addToChart": true,
           "minInputs": 58,
-          "savedScriptName": "SMC Long-Dip Dashboard v7",
+          "savedScriptName": "SMC Long-Dip Dashboard",
           "bindingContractKey": "dashboardBindings",
           "bindingContractName": "dashboard companion BUS bindings",
           "bindingConsumerRole": "dashboard_companion",
@@ -1030,11 +1030,11 @@
         },
         {
           "file": "SMC_Long_Dip_Strategy.pine",
-          "scriptName": "SMC Long-Dip Strategy v7",
+          "scriptName": "SMC Long-Dip Strategy",
           "checkInputs": true,
           "addToChart": true,
           "minInputs": 8,
-          "savedScriptName": "SMC Long-Dip Strategy v7",
+          "savedScriptName": "SMC Long-Dip Strategy",
           "bindingContractKey": "strategyBindings",
           "bindingContractName": "execution wrapper BUS bindings",
           "bindingConsumerRole": "execution_wrapper",
@@ -1095,17 +1095,17 @@
       "smcDecisionFirst": [
         {
           "file": "SMC_Long_Dip_Suite.pine",
-          "scriptName": "SMC Core",
+          "scriptName": "SMC Long-Dip Suite",
           "checkInputs": false,
           "addToChart": false
         },
         {
           "file": "SMC_Long_Dip_Dashboard.pine",
-          "scriptName": "SMC Decision Board",
+          "scriptName": "SMC Long-Dip Dashboard",
           "checkInputs": true,
           "addToChart": true,
           "minInputs": 58,
-          "savedScriptName": "SMC Long-Dip Dashboard v7",
+          "savedScriptName": "SMC Long-Dip Dashboard",
           "bindingContractKey": "dashboardBindings",
           "bindingContractName": "dashboard companion BUS bindings",
           "bindingConsumerRole": "dashboard_companion",
@@ -1464,11 +1464,11 @@
         },
         {
           "file": "SMC_Long_Dip_Strategy.pine",
-          "scriptName": "SMC Long-Dip Strategy v7",
+          "scriptName": "SMC Long-Dip Strategy",
           "checkInputs": true,
           "addToChart": true,
           "minInputs": 8,
-          "savedScriptName": "SMC Long-Dip Strategy v7",
+          "savedScriptName": "SMC Long-Dip Strategy",
           "bindingContractKey": "strategyBindings",
           "bindingContractName": "execution wrapper BUS bindings",
           "bindingConsumerRole": "execution_wrapper",

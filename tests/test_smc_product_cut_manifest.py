@@ -44,15 +44,15 @@ def test_preflight_configs_use_canonical_product_cut_scopes() -> None:
             },
             {
                 'file': 'SMC_Long_Dip_Dashboard.pine',
-                'scriptName': 'SMC Decision Board',
-                'savedScriptName': 'SMC Long-Dip Dashboard v7',
+                'scriptName': 'SMC Long-Dip Dashboard',
+                'savedScriptName': 'SMC Long-Dip Dashboard',
                 'checkInputs': False,
                 'addToChart': False,
             },
             {
                 'file': 'SMC_Long_Dip_Strategy.pine',
-                'scriptName': 'SMC Long-Dip Strategy v7',
-                'savedScriptName': 'SMC Long-Dip Strategy v7',
+                'scriptName': 'SMC Long-Dip Strategy',
+                'savedScriptName': 'SMC Long-Dip Strategy',
                 'checkInputs': False,
                 'addToChart': False,
             },
@@ -127,9 +127,9 @@ def test_library_release_manifest_tracks_product_cut_roles() -> None:
         'BUS LeanPackB',
     ]
     assert set(payload['productCut']['preflightScopes'].keys()) == {'smcCoreDashboard', 'smcMainline', 'smcDecisionFirst'}
-    assert payload['productCut']['preflightScopes']['smcCoreDashboard'][1]['savedScriptName'] == 'SMC Long-Dip Dashboard v7'
-    assert payload['productCut']['preflightScopes']['smcMainline'][1]['savedScriptName'] == 'SMC Long-Dip Dashboard v7'
-    assert payload['productCut']['preflightScopes']['smcMainline'][2]['savedScriptName'] == 'SMC Long-Dip Strategy v7'
+    assert payload['productCut']['preflightScopes']['smcCoreDashboard'][1]['savedScriptName'] == 'SMC Long-Dip Dashboard'
+    assert payload['productCut']['preflightScopes']['smcMainline'][1]['savedScriptName'] == 'SMC Long-Dip Dashboard'
+    assert payload['productCut']['preflightScopes']['smcMainline'][2]['savedScriptName'] == 'SMC Long-Dip Strategy'
     assert payload['productCut']['preflightScopes']['smcMainline'][1]['bindingContractKey'] == 'dashboardBindings'
     assert payload['productCut']['preflightScopes']['smcMainline'][2]['bindingContractKey'] == 'strategyBindings'
     assert payload['productCut']['deprecatedFieldPolicy']['mode'] == 'compatibility_only'

@@ -387,12 +387,12 @@ function buildDefaultConsumers(): LibraryReleaseManifest["consumers"] {
       role: "producer",
     },
     {
-      scriptName: "SMC Decision Board",
+      scriptName: "SMC Long-Dip Dashboard",
       file: "SMC_Long_Dip_Dashboard.pine",
       role: "dashboard_companion",
     },
     {
-      scriptName: "SMC Long-Dip Strategy v7",
+      scriptName: "SMC Long-Dip Strategy",
       file: "SMC_Long_Dip_Strategy.pine",
       role: "execution_wrapper",
     },
