@@ -305,8 +305,12 @@ SURFACE_DEFINITIONS: tuple[SurfaceDefinition, ...] = (
         contract_tier = 'pro',
         consumer_role = 'overlay_companion',
         notes = (
-            'LonesomeTheBlue-style breakout/breakdown box renderer over '
-            'mp.BOS_* / mp.CHoCH_* signals. Pure visual, no new detection.',
+            'LonesomeTheBlue-style breakout/breakdown box renderer. Dual-mode '
+            'structure source: optionally binds the SMC Core BUS '
+            '(SchemaVersion/ZoneActive/Trigger/Invalidation) so the engine own '
+            'levels drive the boxes, else falls back to local swing pivots. No '
+            'library import (the micro-profiles snapshot cannot supply per-bar '
+            'structure). Pure visual, no new detection.',
         ),
     ),
     SurfaceDefinition(
