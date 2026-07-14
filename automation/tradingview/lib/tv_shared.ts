@@ -1143,10 +1143,14 @@ function legacyOpenScriptNames(scriptName: string): string[] {
       return ["SMC Core Engine"];
     case "smc core engine":
       return ["SMC Core"];
+    case "smc long-dip dashboard":
+      return ["SMC Long-Dip Dashboard v7", "SMC Decision Board", "SMC Dashboard"];
     case "smc long-dip dashboard v7":
       return ["SMC Decision Board", "SMC Dashboard"];
     case "smc decision board":
       return ["SMC Long-Dip Dashboard v7", "SMC Dashboard"];
+    case "smc long-dip strategy":
+      return ["SMC Long-Dip Strategy v7", "SMC Execution", "SMC Long Strategy"];
     case "smc long-dip strategy v7":
       return ["SMC Execution", "SMC Long Strategy"];
     case "smc execution":

@@ -107,7 +107,7 @@ SURFACE_DEFINITIONS: tuple[SurfaceDefinition, ...] = (
     ),
     SurfaceDefinition(
         file = 'SMC_Long_Dip_Dashboard.pine',
-        script_name = 'SMC Decision Board',
+        script_name = 'SMC Long-Dip Dashboard',
         surface_role = 'pro_primary',
         contract_tier = 'pro',
         consumer_role = 'dashboard_companion',
@@ -119,7 +119,7 @@ SURFACE_DEFINITIONS: tuple[SurfaceDefinition, ...] = (
     ),
     SurfaceDefinition(
         file = 'SMC_Long_Dip_Strategy.pine',
-        script_name = 'SMC Execution',
+        script_name = 'SMC Long-Dip Strategy',
         surface_role = 'pro_primary',
         contract_tier = 'execution',
         consumer_role = 'execution_wrapper',
@@ -232,7 +232,7 @@ SURFACE_DEFINITIONS: tuple[SurfaceDefinition, ...] = (
     ),
     SurfaceDefinition(
         file = 'SMC_Long_Dip_Mobile.pine',
-        script_name = 'SMC Mobile',
+        script_name = 'SMC Long-Dip Mobile',
         surface_role = 'companion_operator_only',
         contract_tier = 'lite_and_pro',
         consumer_role = 'mobile_companion',
@@ -243,7 +243,7 @@ SURFACE_DEFINITIONS: tuple[SurfaceDefinition, ...] = (
     ),
     SurfaceDefinition(
         file = 'SMC_Confluence_Hub.pine',
-        script_name = 'SkippALGO Confluence',
+        script_name = 'SMC Confluence Hub',
         surface_role = 'pro_primary',
         contract_tier = 'pro',
         consumer_role = 'confluence_hub',
@@ -254,7 +254,7 @@ SURFACE_DEFINITIONS: tuple[SurfaceDefinition, ...] = (
     ),
     SurfaceDefinition(
         file = 'SMC_Regime_and_News.pine',
-        script_name = 'SMC TV Bridge',
+        script_name = 'SMC Regime & News',
         surface_role = 'internal',
         contract_tier = 'internal',
         consumer_role = 'bridge',
@@ -340,7 +340,7 @@ SURFACE_DEFINITIONS: tuple[SurfaceDefinition, ...] = (
     ),
     SurfaceDefinition(
         file = 'SMC_Volume_Profile_Overlay.pine',
-        script_name = 'SMC VRVP Overlay',
+        script_name = 'SMC Volume Profile Overlay',
         surface_role = 'companion_operator_only',
         contract_tier = 'pro',
         consumer_role = 'overlay_companion',
@@ -472,13 +472,13 @@ def validate_surface_definitions() -> list[str]:
 # script's input bindings.
 PREFLIGHT_CORE_DASHBOARD_TARGETS: tuple[PreflightTarget, ...] = (
     PreflightTarget('SMC_Long_Dip_Suite.pine', 'SMC Long-Dip Suite', False, False),
-    PreflightTarget('SMC_Long_Dip_Dashboard.pine', 'SMC Decision Board', True, True, 58, 'SMC Long-Dip Dashboard v7', 'dashboardBindings'),
+    PreflightTarget('SMC_Long_Dip_Dashboard.pine', 'SMC Long-Dip Dashboard', True, True, 58, 'SMC Long-Dip Dashboard', 'dashboardBindings'),
 )
 
 PREFLIGHT_MAINLINE_TARGETS: tuple[PreflightTarget, ...] = (
     PreflightTarget('SMC_Long_Dip_Suite.pine', 'SMC Long-Dip Suite', False, False),
-    PreflightTarget('SMC_Long_Dip_Dashboard.pine', 'SMC Decision Board', True, True, 58, 'SMC Long-Dip Dashboard v7', 'dashboardBindings'),
-    PreflightTarget('SMC_Long_Dip_Strategy.pine', 'SMC Long-Dip Strategy v7', True, True, 8, 'SMC Long-Dip Strategy v7', 'strategyBindings'),
+    PreflightTarget('SMC_Long_Dip_Dashboard.pine', 'SMC Long-Dip Dashboard', True, True, 58, 'SMC Long-Dip Dashboard', 'dashboardBindings'),
+    PreflightTarget('SMC_Long_Dip_Strategy.pine', 'SMC Long-Dip Strategy', True, True, 8, 'SMC Long-Dip Strategy', 'strategyBindings'),
 )
 
 PREFLIGHT_DECISION_FIRST_TARGETS: tuple[PreflightTarget, ...] = PREFLIGHT_MAINLINE_TARGETS
@@ -498,7 +498,7 @@ VALIDATION_EVIDENCE_CAPTURES: tuple[ValidationEvidenceCapture, ...] = (
     ValidationEvidenceCapture(
         key = 'dashboard_decision_brief',
         file = 'SMC_Long_Dip_Dashboard.pine',
-        script_name = 'SMC Decision Board',
+        script_name = 'SMC Long-Dip Dashboard',
         report_label = 'Dashboard Decision Brief',
         runbook_label_en = 'rendered Dashboard screen in `Decision Brief`',
         runbook_label_de = 'gerenderter Dashboard-Screen in `Decision Brief`',
@@ -509,7 +509,7 @@ VALIDATION_EVIDENCE_CAPTURES: tuple[ValidationEvidenceCapture, ...] = (
     ValidationEvidenceCapture(
         key = 'dashboard_audit_view',
         file = 'SMC_Long_Dip_Dashboard.pine',
-        script_name = 'SMC Decision Board',
+        script_name = 'SMC Long-Dip Dashboard',
         report_label = 'Dashboard Audit View',
         runbook_label_en = 'rendered Dashboard screen in `Audit View`',
         runbook_label_de = 'gerenderter Dashboard-Screen in `Audit View`',
@@ -520,7 +520,7 @@ VALIDATION_EVIDENCE_CAPTURES: tuple[ValidationEvidenceCapture, ...] = (
     ValidationEvidenceCapture(
         key = 'strategy_execution_plan',
         file = 'SMC_Long_Dip_Strategy.pine',
-        script_name = 'SMC Execution',
+        script_name = 'SMC Long-Dip Strategy',
         report_label = 'Strategy execution',
         runbook_label_en = 'rendered Strategy screen with `Execution Trigger`, `Execution Invalidation`, and `Execution Take Profit` when a plan is active',
         runbook_label_de = 'gerenderter Strategy-Screen mit `Execution Trigger`, `Execution Invalidation` und `Execution Take Profit`, wenn ein Plan aktiv ist',
