@@ -47,6 +47,7 @@ Removed 2026-07-11: `.github/workflows/sync-tradingview-pine-libraries.yml`, `sc
 | smc_observability_private | Core | SMC++/ | `tv_publish_*` (repo→TV) |
 | smc_bus_private | Core | SMC++/ | `tv_publish_*` (repo→TV) |
 | smc_lifecycle_private | Core | SMC++/ | `tv_publish_*` (repo→TV) |
+| smc_engine_private | Core | SMC++/ | `tv_publish_engine_library.ts` (repo→TV) |
 | smc_overlay_generated | Generated | pine/generated/ | `smc-overlay-library-publish.yml` |
 | smc_micro_profiles_generated | Generated | pine/generated/ | `smc-library-refresh.yml` |
 

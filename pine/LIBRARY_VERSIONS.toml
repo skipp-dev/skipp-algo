@@ -3,6 +3,7 @@ smc_bus_private = { version = "1", tradingview_updated = "2026-07-03", local_syn
 smc_context_resolvers = { version = "1", tradingview_updated = "2026-07-03", local_synced = "2026-07-03" }
 smc_core_types = { version = "1", tradingview_updated = "2026-07-03", local_synced = "2026-07-03" }
 smc_draw = { version = "1", tradingview_updated = "2026-07-03", local_synced = "2026-07-03" }
+smc_engine_private = { version = "0", tradingview_updated = "unpublished", local_synced = "2026-07-14" }
 smc_lifecycle_private = { version = "1", tradingview_updated = "2026-07-03", local_synced = "2026-07-03" }
 smc_micro_profiles_generated = { version = "1", tradingview_updated = "2026-07-03", local_synced = "2026-07-03" }
 smc_observability_private = { version = "1", tradingview_updated = "2026-07-03", local_synced = "2026-07-03" }

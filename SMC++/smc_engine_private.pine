@@ -1,0 +1,1780 @@
+// This Pine Script® code is subject to the terms of the Mozilla Public License 2.0 at https://mozilla.org/MPL/2.0/
+// © preuss_steffen
+
+//@version=6
+// @description SMC OB/FVG/structure engine: OrderBlock, FVG, config types + tracking, swing/structure detection and drawing. Extracted from SMC_Core_Engine to relieve the main-script token budget (CE10117).
+library("smc_engine_private", overlay = true)
+
+import preuss_steffen/smc_core_types/5 as ct
+import preuss_steffen/smc_utils/3 as u
+import preuss_steffen/smc_draw/3 as d
+import preuss_steffen/smc_lifecycle_private/3 as ll
+import preuss_steffen/smc_profile_engine/2 as pe
+
+/////////////////////////////////////////////////////////////////////////////////
+
+//-----------------------------------------------------------------------------
+//Core structures and helpers
+//-----------------------------------------------------------------------------
+
+export type OrderBlock
+    int id
+    int dir
+    chart.point left_top
+    chart.point right_bottom
+    float break_price
+    ct.LevelBreakMode break_mode = ct.LevelBreakMode.CLOSE
+    
+    float[] ltf_open
+    float[] ltf_high
+    float[] ltf_low
+    float[] ltf_close
+    float[] ltf_volume
+
+    d.SmcBox plot
+    pe.Profile profile
+
+    float quality_score                          = 0
+    bool trailing                                = false
+    bool extending                               = false
+    bool awaiting_confirmation                   = false
+    bool touched_break_price_before_confirmation = false
+    bool soft_confirmed                          = false
+    bool has_fvg_out                             = false
+    bool has_big_candle                          = false
+    bool hidden                                  = false
+    bool broken                                  = false
+    int  broken_time                             = na
+    int  broken_index                            = na
+
+export type OrderBlockConfig
+    bool show = true
+    int show_last = 5
+    bool show_id = false
+    bool show_profile = true
+    bool show_text = true
+    bool show_fvg_out = true
+    bool show_quality_score = false
+    bool extend_until_broken = true
+
+    d.BoxArgs args
+    string txt = 'OB'
+    d.BoxTextArgs txt_args
+    bool use_profile = false
+    pe.ProfileConfig profile_config = na
+
+export method delete(OrderBlock this) =>
+    if not na(this)
+        if not na(this.plot)
+            this.plot.delete()
+            this.plot := na
+        if not na(this.profile)
+            this.profile.delete()
+            this.profile := na
+        this.hidden := false
+    this
+
+export method delete(OrderBlock[] blocks) =>
+    if not na(blocks)
+        for block in blocks
+            block.delete()
+    blocks
+
+create_ob(int id, int mode, int start_t, int start_i, float top, int end_t, int end_i, float bottom, float break_price = na, simple ct.LevelBreakMode break_mode = ct.LevelBreakMode.CLOSE) =>
+    OrderBlock block = OrderBlock.new(id, mode,
+     chart.point.new(start_t, start_i, top),
+     chart.point.new(end_t, end_i, bottom),
+     not na(break_price) ? break_price : mode == 1 ? top : bottom,
+     break_mode,
+     array.new<float>(0),
+     array.new<float>(0),
+     array.new<float>(0),
+     array.new<float>(0),
+     array.new<float>(0)
+     )
+
+    float block_height = math.max(top - bottom, syminfo.mintick)
+    float normalized_height = math.min(block_height / math.max(syminfo.mintick * 20, syminfo.mintick), 1.0)
+    block.quality_score := math.max(0.0, math.min(1.0, 0.20 + normalized_height * 0.20))
+
+    block
+
+export ob_quality_score(OrderBlock block) =>
+    if na(block)
+        0.0
+    else
+        float block_height = math.max(block.left_top.price - block.right_bottom.price, syminfo.mintick)
+        float size_component = math.min(block_height / math.max(syminfo.mintick * 20, syminfo.mintick), 1.0)
+        float score = 0.15
+        score += size_component * 0.20
+        score += block.has_fvg_out ? 0.20 : 0.0
+        score += block.has_big_candle ? 0.15 : 0.0
+        score += block.soft_confirmed ? 0.15 : 0.0
+        score += not block.broken ? 0.10 : 0.0
+        score += not na(block.profile) and block.profile.total > 0 ? 0.05 : 0.0
+        math.max(0.0, math.min(1.0, score))
+
+export method align_to_profile(OrderBlock block, bool align_edge = false, bool align_break_price = false) =>
+    if not na(block.profile) and block.profile.total > 0
+        if align_edge and not na(block.profile.vah)
+            block.left_top.price     := block.profile.vah
+            block.right_bottom.price := block.profile.val
+        if align_break_price and not na(block.profile.poc)
+            block.break_price        := block.profile.poc
+    block
+
+export method _create_profile(OrderBlock block, float[] opens, float[] tops, float[] bottoms, float[] closes, float[] values, int resolution = 20, float vah_pc = 80, float val_pc = 20, bool init_calculated = true, simple int use_open_close_data_for_blocks_shorter_than_bars = 4) =>
+    if na(block.profile)
+        block.profile := pe.create_profile(opens, tops, bottoms, closes, values, resolution, vah_pc, val_pc, block.left_top.index, init_calculated, use_open_close_data_for_blocks_shorter_than_bars)
+    else
+        block.profile.update(opens, tops, bottoms, closes, values)
+    block
+
+export method create_profile(OrderBlock block, float[] opens, float[] tops, float[] bottoms, float[] closes, float[] values, int resolution = 20, float vah_pc = 80, float val_pc = 20, bool init_calculated = true, simple int use_open_close_data_for_blocks_shorter_than_bars = 4) =>
+    if barstate.isconfirmed and not na(block)
+        block._create_profile(opens, tops, bottoms, closes, values, resolution, vah_pc, val_pc, init_calculated, use_open_close_data_for_blocks_shorter_than_bars)
+    block
+
+export method create_profile(OrderBlock block, int resolution = 20, float vah_pc = 80, float val_pc = 20, bool init_calculated = true, simple int use_open_close_data_for_blocks_shorter_than_bars = 4) =>
+    block.create_profile(block.ltf_open, block.ltf_high, block.ltf_low, block.ltf_close, block.ltf_volume, resolution, vah_pc, val_pc, init_calculated, use_open_close_data_for_blocks_shorter_than_bars)
+
+resolve_confirmed_ob_break_price(bool align_edge_to_value_area, bool align_break_price_to_poc, float original_top, float original_bottom, float confirmed_top, float confirmed_bottom, float current_break_price) =>
+    float resolved_break_price = current_break_price
+    if not align_break_price_to_poc
+        resolved_break_price := align_edge_to_value_area ? math.avg(confirmed_top, confirmed_bottom) : math.avg(original_top, original_bottom)
+    resolved_break_price
+
+export method overlaps_range(OrderBlock this, float range_top = 0, float range_btm = 0) =>
+    na(this) ? false : u.range_overlap(this.left_top.price, this.right_bottom.price, range_top, range_btm)
+
+export method any_overlaps(OrderBlock[] this, float range_top, float range_btm) =>
+    found = false
+    if not na(this) and this.size() > 0
+        for i = this.size() - 1 to 0
+            if this.get(i).overlaps_range(range_top, range_btm)
+                found := true
+                break
+    found
+
+export method contains_id(OrderBlock[] this, int id) =>
+    found = false
+    if not na(this) and not na(id)
+        for block in this
+            if block.id == id
+                found := true
+                break
+    found
+
+export method get_by_id(OrderBlock[] this, int id) =>
+    OrderBlock found = na
+    if not na(this) and not na(id)
+        for block in this
+            if block.id == id
+                found := block
+                break
+    found
+
+current_bar_right_time() =>
+    barstate.isrealtime ? math.min(time_close, timenow) : time_close
+
+effective_live_event_time(int event_time, int fallback_time) =>
+    base_time = nz(event_time, fallback_time)
+    barstate.isrealtime ? math.min(base_time, current_bar_right_time()) : base_time
+
+export method rendered_right_time(OrderBlock this, bool extend_until_broken = true) =>
+    if na(this)
+        na
+    else
+        int base_right_time = math.max(this.left_top.time, this.right_bottom.time)
+        extend_until_broken ? (this.broken ? effective_live_event_time(this.broken_time, base_right_time) : current_bar_right_time()) : base_right_time
+
+export method overlaps_window(OrderBlock this, int left_time, int right_time, bool extend_until_broken = true) =>
+    if na(this)
+        false
+    else
+        effective_right_time = this.rendered_right_time(extend_until_broken)
+        effective_right_time >= left_time and this.left_top.time <= right_time
+
+update_broken(int mode, OrderBlock[] tracking_blocks, OrderBlock[] broken_blocks, OrderBlock[] broken_blocks_new, simple ct.LevelBreakMode broken_by = ct.LevelBreakMode.HIGHLOW, int keep_broken_max = 5, OrderBlock[] discarded_buffer = na) =>
+    bool broken_by_close = broken_by == ct.LevelBreakMode.CLOSE
+    OrderBlock[] moved_blocks = array.new<OrderBlock>(0)
+    
+    broken_blocks_new.clear()
+    
+    tracking_size = tracking_blocks.size()
+    if tracking_size > 0
+        break_src = broken_by_close ? close : mode == 1 ? low : high
+        
+        for i = tracking_size - 1 to 0
+            block = tracking_blocks.get(i)
+
+            if broken_by != ct.LevelBreakMode.CLOSE or barstate.isconfirmed
+                if mode == 1 ? block.break_price > break_src : block.break_price < break_src
+                    block.broken       := true                    
+                    block.broken_time  := time_close
+                    block.broken_index := bar_index + 1
+                    moved_blocks.unshift(block)
+                    tracking_blocks.remove(i)
+
+        for block in moved_blocks
+            broken_blocks.push(block)
+            broken_blocks_new.push(block)
+
+        if keep_broken_max >= 0
+            while broken_blocks.size() > keep_broken_max
+                if not na(discarded_buffer)
+                    discarded_buffer.push(broken_blocks.shift())
+                else
+                    broken_blocks.shift()
+
+    true
+
+export method reset_tracking(OrderBlock this) =>
+    this.ltf_high.clear()
+    this.ltf_low.clear()
+    this.ltf_open.clear()
+    this.ltf_close.clear()
+    this.ltf_volume.clear()
+
+    this.trailing := true
+    this.extending := false
+    this.awaiting_confirmation := false
+    this.touched_break_price_before_confirmation := false
+    this.soft_confirmed := false
+    this.has_fvg_out := false
+    this.broken := false
+    this.broken_time := na
+    this.broken_index := na
+
+    this.left_top := chart.point.now(high)
+    this.right_bottom := chart.point.now(low)
+    this.break_price := hl2
+
+export method capture_profile_bar(OrderBlock this, bool enabled) =>
+    if enabled
+        this.ltf_open.push(open)
+        this.ltf_high.push(high)
+        this.ltf_low.push(low)
+        this.ltf_close.push(close)
+        this.ltf_volume.push(volume)
+    this
+
+handle_pending_tracking_reset(OrderBlock block, bool reset_next_bar) =>
+    if reset_next_bar
+        block.reset_tracking()
+        false
+    else
+        reset_next_bar
+
+prepare_order_block_confirmation(OrderBlock block, float min_block_size, float max_block_size, bool round_size_bounds, bool update_profile_current_bar, bool align_edge_to_value_area, bool align_break_price_to_poc, bool should_prepare) =>
+    if should_prepare
+        block.left_top.price := math.max(open, block.left_top.price)
+        block.right_bottom := chart.point.new(time_close[1], bar_index[1], block.right_bottom.price)
+        block.extending := false
+        block.awaiting_confirmation := true
+    int ob_length = math.max(block.right_bottom.index - block.left_top.index + 1, 1)
+    float ob_size_min = round_size_bounds ? math.round_to_mintick(min_block_size) : min_block_size
+    float ob_size_max = round_size_bounds ? math.round_to_mintick(max_block_size * ob_length) : max_block_size * ob_length
+    if should_prepare and update_profile_current_bar and (align_edge_to_value_area or align_break_price_to_poc)
+        block.create_profile()
+        block.align_to_profile(align_break_price = true)
+    [ob_size_min, ob_size_max]
+
+update_soft_confirmation(OrderBlock block, bool bullish_side, bool use_soft_confirm_big_candle, bool is_impulse_candle, bool is_trend_candle, float soft_confirm_offset, float impulse_candle_size) =>
+    if barstate.isconfirmed and not block.soft_confirmed
+        if not block.touched_break_price_before_confirmation
+            bool touched_break = bullish_side ? block.break_price > low and block.right_bottom.index < bar_index : block.break_price < high and block.right_bottom.index < bar_index
+            if touched_break
+                block.touched_break_price_before_confirmation := true
+        bool soft_offset_reached = bullish_side ? block.touched_break_price_before_confirmation and block.left_top.price + soft_confirm_offset < close : block.touched_break_price_before_confirmation and block.right_bottom.price - soft_confirm_offset > close
+        bool big_candle_override = use_soft_confirm_big_candle and is_impulse_candle and is_trend_candle and (bullish_side ? close - block.left_top.price >= impulse_candle_size / 2 : block.right_bottom.price - close >= impulse_candle_size / 2)
+        if soft_offset_reached or big_candle_override
+            block.soft_confirmed := true
+    block.soft_confirmed
+
+confirmation_price_exited(OrderBlock block, bool bullish_side, float soft_confirm_offset) =>
+    bullish_side ? block.left_top.price + soft_confirm_offset < close : block.right_bottom.price - soft_confirm_offset > close
+
+confirmation_trigger_active(OrderBlock block, bool use_soft_confirm, float swing_confirmed, bool bos_alert, bool choch_alert, int swing_len) =>
+    (block.soft_confirmed and use_soft_confirm) or not na(swing_confirmed) or bos_alert or choch_alert or bar_index - block.right_bottom.index >= swing_len
+
+ob_size_within_bounds(OrderBlock block, bool align_edge_to_value_area, float ob_size_max, float ob_size_min) =>
+    align_edge_to_value_area and not na(block.profile) ? u.in_range(math.round_to_mintick(block.profile.vah - block.profile.val), ob_size_max, ob_size_min) : u.in_range(math.round_to_mintick(block.left_top.price - block.right_bottom.price), ob_size_max, ob_size_min)
+  
+export method remove_insignificant(OrderBlock[] blocks, float min_size, float max_size, OrderBlock[] removed_buffer = na, int protected_id = na) =>
+    if blocks.size() > 0
+        for i = blocks.size() - 1 to 0
+            block = blocks.get(i)
+            size = block.left_top.price - block.right_bottom.price
+            bool is_protected = not na(protected_id) and block.id == protected_id
+            if not is_protected and (size < min_size or max_size < size)
+                log.info("clearing out old OB to free memory (top: {0} | bottom: {1}) with size ({2}) outside range (min: {3} | max: {4})", block.left_top.price, block.right_bottom.price, size, min_size, max_size)
+
+                if not na(removed_buffer)
+                    removed_buffer.push(block)
+
+                block.delete()
+                blocks.remove(i)
+                
+    blocks
+
+export track_obs(
+ int swing_len,
+ float swing_high_confirmed,
+ float swing_low_confirmed,
+ bool bull_bos_alert,
+ bool bull_choch_alert,
+ bool bear_bos_alert,
+ bool bear_choch_alert,
+ float min_block_size,
+ float max_block_size,
+ bool enabled = true,
+ simple bool include_consecutive_bars = true,
+ bool capture_profile = false,
+ bool update_profile_current_bar = true,
+ bool align_edge_to_value_area = false,
+ bool align_break_price_to_poc = false,
+ simple bool use_soft_confirm = true,
+ float soft_confirm_offset = 0,
+ simple bool use_soft_confirm_big_candle = true,
+ simple bool use_retracements_with_FVG_out = true,
+ simple ct.LevelBreakMode broken_by = ct.LevelBreakMode.HIGHLOW,
+ simple int keep_broken_max = 5,
+ simple int gc_cycle = na,
+ int protected_bull_id = na,
+ int protected_bear_id = na
+ ) =>
+    // Order block lifecycle:
+    // 1. trailing: candidate block is tracked while price builds it
+    // 2. extending: block grows as same-direction candles continue
+    // 3. awaiting_confirmation: extension stopped, block waits for confirmation
+    // 4. confirmed: block is copied into the tracked blocks buffer
+    // 5. broken: later mitigation/break moves it into the broken history buffer
+
+    var OrderBlock[] tracking_blocks_bull   = array.new<OrderBlock>(0)
+    var OrderBlock[] tracking_blocks_bear   = array.new<OrderBlock>(0)
+    var OrderBlock[] broken_blocks_bull     = array.new<OrderBlock>(0)
+    var OrderBlock[] broken_blocks_bear     = array.new<OrderBlock>(0)
+    var OrderBlock[] broken_blocks_new_bull = array.new<OrderBlock>(0)
+    var OrderBlock[] broken_blocks_new_bear = array.new<OrderBlock>(0)
+    var OrderBlock[] discarded_blocks_bull  = array.new<OrderBlock>(0)
+    var OrderBlock[] discarded_blocks_bear  = array.new<OrderBlock>(0)
+
+    float atr = u.smc_lib_atr(200)
+    float fvg_min_size = atr * 0.2
+    float impulse_candle_size = atr * 3
+        
+    var int next_id = 0
+    var OrderBlock bull_ob = create_ob(0,  1, time, bar_index, high, time, bar_index, low, hl2, broken_by)
+    var OrderBlock bear_ob = create_ob(0, -1, time, bar_index, high, time, bar_index, low, hl2, broken_by)
+
+    if barstate.isfirst
+        bull_ob.reset_tracking()
+        bear_ob.reset_tracking()
+
+    var float ob_size_min_bull = min_block_size
+    var float ob_size_min_bear = min_block_size
+    var float ob_size_max_bull = max_block_size
+    var float ob_size_max_bear = max_block_size
+
+    bool is_green = open < close
+    bool is_red = close < open
+    bool is_fvg_up = low - high[2] > fvg_min_size
+    bool is_fvg_down = low[2] - high > fvg_min_size
+    float candle_top = math.max(open, close)
+    float candle_btm = math.min(open, close)
+    float candle_body = math.abs(open - close)
+    bool is_impulse_candle = pe.is_impulse_candle_now(candle_body, impulse_candle_size)
+    bool is_indecision = pe.is_indecision_candle_now(high, low, high[1], low[1], candle_top, candle_btm, candle_top[1], candle_btm[1], candle_body[1], candle_body, open, close)
+    OrderBlock bull_ob_confirmed = na
+    OrderBlock bear_ob_confirmed = na
+    var bool reset_bull_next_bar = false
+    var bool reset_bear_next_bar = false
+
+    bool profile_features_active = pe.profile_features_enabled(capture_profile, align_edge_to_value_area, align_break_price_to_poc)
+    bool bull_prepare_confirmation = enabled and barstate.isconfirmed and bull_ob.trailing and bull_ob.extending and bull_ob.left_top.index < bar_index and is_red and not is_indecision and u.in_range(close, bull_ob.left_top.price, bull_ob.right_bottom.price)
+    bool bear_prepare_confirmation = enabled and barstate.isconfirmed and bear_ob.trailing and bear_ob.extending and bear_ob.left_top.index < bar_index and is_green and not is_indecision and u.in_range(close, bear_ob.left_top.price, bear_ob.right_bottom.price)
+    [prepared_ob_size_min_bull, prepared_ob_size_max_bull] = prepare_order_block_confirmation(bull_ob, min_block_size, max_block_size, true, update_profile_current_bar, align_edge_to_value_area, align_break_price_to_poc, bull_prepare_confirmation)
+    [prepared_ob_size_min_bear, prepared_ob_size_max_bear] = prepare_order_block_confirmation(bear_ob, min_block_size, max_block_size, true, update_profile_current_bar, align_edge_to_value_area, align_break_price_to_poc, bear_prepare_confirmation)
+
+    if enabled
+        update_broken( 1, tracking_blocks_bull, broken_blocks_bull, broken_blocks_new_bull, broken_by, keep_broken_max, discarded_blocks_bull)
+        update_broken(-1, tracking_blocks_bear, broken_blocks_bear, broken_blocks_new_bear, broken_by, keep_broken_max, discarded_blocks_bear)
+
+        if gc_cycle > 0 and bar_index % gc_cycle == 0
+            tracking_blocks_bull.remove_insignificant(min_block_size, max_block_size, discarded_blocks_bull, protected_bull_id)
+            tracking_blocks_bear.remove_insignificant(min_block_size, max_block_size, discarded_blocks_bear, protected_bear_id)
+
+        reset_bull_next_bar := handle_pending_tracking_reset(bull_ob, reset_bull_next_bar)
+        reset_bear_next_bar := handle_pending_tracking_reset(bear_ob, reset_bear_next_bar)
+
+        if bull_ob.trailing 
+            bull_ob.capture_profile_bar(profile_features_active and update_profile_current_bar)
+
+            _check_start_t = bull_ob.left_top.time
+            _check_start_i = bull_ob.left_top.index
+            _check_end_t = bull_ob.right_bottom.time
+            _check_end_i = bull_ob.right_bottom.index
+            _check_top = bull_ob.left_top.price
+            _check_btm = bull_ob.right_bottom.price
+            _check_break = math.avg(_check_top, _check_btm)
+            _check_ext = bull_ob.extending
+
+            if bull_ob.right_bottom.price > low
+                if barstate.isconfirmed and _check_start_i < bar_index - 1 and use_retracements_with_FVG_out and is_fvg_down
+                    if not _check_ext[2] and not tracking_blocks_bear.any_overlaps(_check_top[2], _check_btm[2]) and not bear_ob.overlaps_range(_check_top[2], _check_btm[2])
+                        next_id += 1
+                        bear_ob_confirmed := create_ob(next_id, -1, _check_start_t[2], _check_start_i[2], _check_top[2], _check_end_t[2], _check_end_i[2], _check_btm[2], _check_break[2], broken_by)
+                        bear_ob_confirmed.has_fvg_out := true
+
+                        if barstate.isconfirmed and (align_edge_to_value_area or align_break_price_to_poc)
+                            bear_ob_confirmed.ltf_open := bull_ob.ltf_open.copy()
+                            bear_ob_confirmed.ltf_high := bull_ob.ltf_high.copy()
+                            bear_ob_confirmed.ltf_low := bull_ob.ltf_low.copy()
+                            bear_ob_confirmed.ltf_close := bull_ob.ltf_close.copy()
+                            bear_ob_confirmed.ltf_volume := bull_ob.ltf_volume.copy()
+
+                            if align_edge_to_value_area or align_break_price_to_poc
+                                bear_ob_confirmed.create_profile()
+                                bear_ob_confirmed.align_to_profile(align_edge_to_value_area, align_break_price_to_poc)
+
+                            bear_ob_confirmed.break_price := resolve_confirmed_ob_break_price(align_edge_to_value_area, align_break_price_to_poc, _check_top[2], _check_btm[2], bear_ob_confirmed.left_top.price, bear_ob_confirmed.right_bottom.price, bear_ob_confirmed.break_price)
+
+                        bear_ob_confirmed.right_bottom.index := bar_index
+                        bear_ob_confirmed.right_bottom.time := time_close
+                        tracking_blocks_bear.push(bear_ob_confirmed)
+
+                if is_green
+                    bull_ob.reset_tracking()
+                else 
+                    reset_bull_next_bar := true
+
+                if barstate.isconfirmed
+                    bull_ob.profile := na
+
+            else if bull_ob.left_top.index == bar_index - 1 and include_consecutive_bars
+                bull_ob.extending := true
+
+            if bull_ob.extending and is_green and bull_ob.left_top.price < high
+                bull_ob.left_top.price := high
+                bull_ob.right_bottom := chart.point.now(bull_ob.right_bottom.price)
+                bull_ob.touched_break_price_before_confirmation := false
+                bull_ob.soft_confirmed := false
+
+                if is_impulse_candle
+                    bull_ob.has_big_candle := true
+
+        if bear_ob.trailing
+            bear_ob.capture_profile_bar(profile_features_active and update_profile_current_bar)
+
+            _check_start_t = bear_ob.left_top.time
+            _check_start_i = bear_ob.left_top.index
+            _check_end_t = bear_ob.right_bottom.time
+            _check_end_i = bear_ob.right_bottom.index
+            _check_top = bear_ob.left_top.price
+            _check_btm = bear_ob.right_bottom.price
+            _check_break = math.avg(_check_top, _check_btm)
+            _check_ext = bear_ob.extending
+
+            if bear_ob.left_top.price < high
+                if barstate.isconfirmed and use_retracements_with_FVG_out and is_fvg_up
+                    if not _check_ext[2] and not tracking_blocks_bull.any_overlaps(_check_top[2], _check_btm[2]) and not bull_ob.overlaps_range(_check_top[2], _check_btm[2])
+                        next_id += 1
+                        bull_ob_confirmed := create_ob(next_id, 1, _check_start_t[2], _check_start_i[2], _check_top[2], _check_end_t[2], _check_end_i[2], _check_btm[2], _check_break[2], broken_by)
+                        bull_ob_confirmed.has_fvg_out := true
+
+                        if barstate.isconfirmed and (align_edge_to_value_area or align_break_price_to_poc)
+                            bull_ob_confirmed.ltf_open := bear_ob.ltf_open.copy()
+                            bull_ob_confirmed.ltf_high := bear_ob.ltf_high.copy()
+                            bull_ob_confirmed.ltf_low := bear_ob.ltf_low.copy()
+                            bull_ob_confirmed.ltf_close := bear_ob.ltf_close.copy()
+                            bull_ob_confirmed.ltf_volume := bear_ob.ltf_volume.copy()
+
+                            if align_edge_to_value_area or align_break_price_to_poc
+                                bull_ob_confirmed.create_profile()
+                                bull_ob_confirmed.align_to_profile(align_edge_to_value_area, align_break_price_to_poc)
+
+                            bull_ob_confirmed.break_price := resolve_confirmed_ob_break_price(align_edge_to_value_area, align_break_price_to_poc, _check_top[2], _check_btm[2], bull_ob_confirmed.left_top.price, bull_ob_confirmed.right_bottom.price, bull_ob_confirmed.break_price)
+
+                        bull_ob_confirmed.right_bottom.index := bar_index
+                        bull_ob_confirmed.right_bottom.time := time_close
+                        tracking_blocks_bull.push(bull_ob_confirmed)
+
+                if is_red
+                    bear_ob.reset_tracking()
+                else 
+                    reset_bear_next_bar := true
+
+                if barstate.isconfirmed
+                    bear_ob.profile := na
+
+            else if bear_ob.left_top.index == bar_index - 1 and include_consecutive_bars
+                bear_ob.extending := true
+
+            if bear_ob.extending and is_red
+                bear_ob.right_bottom := chart.point.now(math.min(bear_ob.right_bottom.price, low))
+                bear_ob.touched_break_price_before_confirmation := false
+                bear_ob.soft_confirmed := false
+
+                if is_impulse_candle
+                    bear_ob.has_big_candle := true
+
+        if barstate.isconfirmed
+            if bull_prepare_confirmation
+                ob_size_min_bull := prepared_ob_size_min_bull
+                ob_size_max_bull := prepared_ob_size_max_bull
+
+                if not bear_ob.awaiting_confirmation and not bear_ob.extending
+                    bear_ob.reset_tracking()
+
+            if bear_prepare_confirmation
+                ob_size_min_bear := prepared_ob_size_min_bear
+                ob_size_max_bear := prepared_ob_size_max_bear
+
+                if not bull_ob.awaiting_confirmation and not bull_ob.extending
+                    bull_ob.reset_tracking()
+
+        if bull_ob.trailing and bull_ob.awaiting_confirmation
+            update_soft_confirmation(bull_ob, true, use_soft_confirm_big_candle, is_impulse_candle, is_green, soft_confirm_offset, impulse_candle_size)
+
+            bull_price_exited = confirmation_price_exited(bull_ob, true, soft_confirm_offset)
+            bull_confirm_trigger = confirmation_trigger_active(bull_ob, use_soft_confirm, swing_low_confirmed, bull_bos_alert, bull_choch_alert, swing_len)
+            bull_should_confirm = bull_price_exited and barstate.isconfirmed and bull_confirm_trigger
+
+            if bull_should_confirm
+                if ob_size_within_bounds(bull_ob, align_edge_to_value_area, ob_size_max_bull, ob_size_min_bull)
+                    bull_ob.trailing := false
+                    next_id += 1
+                    bull_ob.id := next_id
+                    bull_ob_confirmed := bull_ob.copy()
+                    bull_ob_confirmed.id := bull_ob.id
+                    bull_ob_confirmed.left_top := bull_ob.left_top.copy()
+                    bull_ob_confirmed.right_bottom := bull_ob.right_bottom.copy()
+
+                    if align_edge_to_value_area or align_break_price_to_poc
+                        bull_ob_confirmed.create_profile()
+                        bull_ob_confirmed.align_to_profile(align_edge_to_value_area, align_break_price_to_poc)
+
+                    bull_ob_confirmed.break_price := resolve_confirmed_ob_break_price(align_edge_to_value_area, align_break_price_to_poc, bull_ob.left_top.price, bull_ob.right_bottom.price, bull_ob_confirmed.left_top.price, bull_ob_confirmed.right_bottom.price, bull_ob_confirmed.break_price)
+                    bull_ob.profile := na
+
+                    if is_fvg_up and high[2] < bull_ob_confirmed.left_top.price and bull_ob_confirmed.left_top.price < low
+                        bull_ob_confirmed.has_fvg_out := true
+
+                    tracking_blocks_bull.push(bull_ob_confirmed)
+
+                    if barstate.isconfirmed
+                        bull_ob.reset_tracking()
+                else
+                    bull_ob.reset_tracking()
+
+        if bear_ob.trailing and bear_ob.awaiting_confirmation
+            update_soft_confirmation(bear_ob, false, use_soft_confirm_big_candle, is_impulse_candle, is_red, soft_confirm_offset, impulse_candle_size)
+
+            bear_price_exited = confirmation_price_exited(bear_ob, false, soft_confirm_offset)
+            bear_confirm_trigger = confirmation_trigger_active(bear_ob, use_soft_confirm, swing_high_confirmed, bear_bos_alert, bear_choch_alert, swing_len)
+            bear_should_confirm = bear_price_exited and barstate.isconfirmed and bear_confirm_trigger
+
+            if bear_should_confirm
+                if ob_size_within_bounds(bear_ob, align_edge_to_value_area, ob_size_max_bear, ob_size_min_bear)
+                    bear_ob.trailing := false
+                    next_id += 1
+                    bear_ob.id := next_id
+                    bear_ob_confirmed := bear_ob.copy()
+                    bear_ob_confirmed.id := bear_ob.id
+                    bear_ob_confirmed.left_top := bear_ob.left_top.copy()
+                    bear_ob_confirmed.right_bottom := bear_ob.right_bottom.copy()
+
+                    if align_edge_to_value_area or align_break_price_to_poc
+                        bear_ob_confirmed.create_profile()
+                        bear_ob_confirmed.align_to_profile(align_edge_to_value_area, align_break_price_to_poc)
+
+                    bear_ob_confirmed.break_price := resolve_confirmed_ob_break_price(align_edge_to_value_area, align_break_price_to_poc, bear_ob.left_top.price, bear_ob.right_bottom.price, bear_ob_confirmed.left_top.price, bear_ob_confirmed.right_bottom.price, bear_ob_confirmed.break_price)
+                    bear_ob.profile := na
+
+                    if is_fvg_down and low[2] < bear_ob_confirmed.right_bottom.price and bear_ob_confirmed.right_bottom.price < high
+                        bear_ob_confirmed.has_fvg_out := true
+
+                    tracking_blocks_bear.push(bear_ob_confirmed)
+
+                    if barstate.isconfirmed
+                        bear_ob.reset_tracking()
+                else
+                    bear_ob.reset_tracking()
+
+    if discarded_blocks_bull.size() > 0
+        delete(discarded_blocks_bull)
+        array.clear(discarded_blocks_bull)
+    if discarded_blocks_bear.size() > 0
+        delete(discarded_blocks_bear)
+        array.clear(discarded_blocks_bear)
+
+    [tracking_blocks_bull, tracking_blocks_bear, bull_ob_confirmed, bear_ob_confirmed, broken_blocks_bull, broken_blocks_bear, broken_blocks_new_bull, broken_blocks_new_bear, discarded_blocks_bull, discarded_blocks_bear]
+
+export method draw(OrderBlock this, OrderBlockConfig config, bool extend_only = true, simple bool force_overlay = false, int left_override = na, int right_override = na, int visible_left = na, int visible_right = na) =>
+    visible_match = na(visible_left) or na(visible_right) or this.overlaps_window(visible_left, visible_right, config.extend_until_broken)
+
+    if not visible_match
+        if not na(this.plot) and not this.hidden
+            this.plot.hide()
+            if not na(this.profile)
+                this.profile.hide()
+            this.hidden := true
+        this
+    else
+
+        if barstate.islast and not na(this) and config.show
+            txt_fvg = config.show_fvg_out and this.has_fvg_out ? '+FVG' : ''
+            float ob_quality = config.show_quality_score ? ob_quality_score(this) : 0.0
+            txt_quality = config.show_quality_score and ob_quality > 0 ? str.format(' (Q {0,number,percent})', ob_quality) : ''
+            txt_id = config.show_id ? ' #' + str.tostring(this.id) : ''
+            txt = config.show_text ? config.show_profile and config.profile_config.show_poc and config.profile_config.show_labels ? str.format('{0}{1}{2}', config.txt, txt_fvg, txt_id) : str.format('{0}{1}{2}{3}', config.txt, txt_fvg, txt_quality, txt_id) : ''
+
+            xloc_bartime = config.args.xloc == xloc.bar_time
+            int broken_right_time = effective_live_event_time(this.broken_time, math.max(this.left_top.time, this.right_bottom.time))
+
+            int left = not na(left_override) ? left_override : xloc_bartime ? this.left_top.time : this.left_top.index
+            int right = not na(right_override) ? right_override : config.extend_until_broken ? this.broken ? xloc_bartime ? broken_right_time : this.broken_index - 1 : xloc_bartime ? current_bar_right_time() : bar_index : xloc_bartime ? this.right_bottom.time : this.right_bottom.index
+
+            chart.point plot_left_top = d.create_point(left, this.left_top.price, config.args.xloc)
+            chart.point plot_right_bottom = d.create_point(right, this.right_bottom.price, config.args.xloc)
+
+            if config.show
+                if na(this.plot)
+                    this.plot := d.SmcBox.new(plot_left_top, plot_right_bottom, txt)
+                else
+                    this.plot.left_top := plot_left_top
+                    this.plot.right_bottom := plot_right_bottom
+
+                this.plot.draw(config.args, config.txt_args, extend_only, force_overlay)
+                if this.broken or this.has_fvg_out
+                    this.plot.plot.set_text(txt)
+
+                if config.show_profile and not na(this.profile)
+                    poc_txt = config.show_quality_score and config.profile_config.show_poc and config.profile_config.show_labels ? config.profile_config.poc_label_text + txt_fvg + txt_quality : na
+                    this.profile.draw(config.profile_config, left, right, extend_only, force_overlay, poc_txt)
+                else if not na(this.profile)
+                    this.profile.hide()
+
+                if this.broken and broken_right_time <= current_bar_right_time()
+                    this.plot.apply_style(config.args, config.txt_args)
+                    if not na(this.profile) and config.show_profile
+                        this.profile.apply_style(config.profile_config)
+
+            this.hidden := false
+
+    this
+
+export method hide(OrderBlock this) =>
+    if not na(this) and not this.hidden
+        if not na(this.plot)
+            this.plot.hide()
+        if not na(this.profile)
+            this.profile.hide()
+        this.hidden := true
+    this
+
+export method draw(OrderBlock[] blocks, OrderBlockConfig config, bool extend_only = true, simple bool force_overlay = false, int left_override = na, int right_override = na, int visible_left = na, int visible_right = na) =>
+    if na(blocks) ? false : config.show and blocks.size() > 0
+        count = 0
+        for i = blocks.size() - 1 to 0
+            block = blocks.get(i)
+            visible_match = na(visible_left) or na(visible_right) or block.overlaps_window(visible_left, visible_right, config.extend_until_broken)
+            if visible_match and count < config.show_last
+                block.draw(config, extend_only, force_overlay, left_override, right_override, visible_left, visible_right)
+                count += 1
+            else
+                if not na(block.plot) and not block.hidden
+                    block.hide()
+    blocks
+
+export method draw(map<int, OrderBlock> blocks, OrderBlockConfig config, bool extend_only = true, simple bool force_overlay = false, int left_override = na, int right_override = na, int visible_left = na, int visible_right = na) =>
+    blocks.values().draw(config, extend_only, force_overlay, left_override, right_override, visible_left, visible_right)
+    blocks
+
+// Market structure helpers
+
+detect_swings(simple int length = 10) =>
+    var os = 0
+    float hh = na
+    float swing_low = na
+    int idx = na
+
+    h_swing = high[length]
+    l_swing = low[length]
+    upper = ta.highest(high, length)
+    lower = ta.lowest(low, length)
+
+    os := h_swing > upper ? 0 : l_swing < lower ? 1 : os[1]
+    hh := os == 0 and os[1] != 0 ? h_swing : na
+    swing_low := os == 1 and os[1] != 1 ? l_swing : na
+    idx := not na(hh) or not na(swing_low) ? bar_index - length : na
+
+    [idx, hh, swing_low]
+
+detect_pivot(simple int mode, int trend, int hhll_x, float hhll, float super_hhll = na, bool filter_insignificant_internal_breaks = false) =>
+    mode_high = mode == 1
+    mode_low = mode == -1
+    var sy = 0.
+    var x = 0, var y = 0.
+    var trail_x = 0, var trail_y = mode_high ? high : mode_low ? low : na
+    var lvl_cross = true
+    bool choch_alert = false
+    bool bos_alert = false
+
+    if not na(super_hhll)
+        sy := super_hhll
+
+    if not na(hhll)
+        lvl_cross := true
+        y := hhll
+        x := hhll_x
+        trail_y := hhll
+        trail_x := hhll_x
+
+    trail_y := mode_high ? math.max(high, trail_y) : math.min(low, trail_y)
+    trail_x := (mode_high and trail_y == high) or (mode_low and trail_y == low) ? bar_index : trail_x
+
+    var trend_concordant = true
+    atr = ta.atr(3)
+
+    structure_detected = switch mode
+        1 => ta.crossover(close, y)
+        -1 => ta.crossunder(close, y)
+        => false
+
+    if structure_detected and lvl_cross and y != sy
+        lvl_cross := false
+        trend_concordant := true
+
+        if filter_insignificant_internal_breaks
+            body = math.abs(open - close)
+            distance_to_level = math.abs(open - y)
+            big_candle = body > 2 * distance_to_level or body > atr
+
+            top_wick = high - math.max(close, open)
+            btm_wick = math.min(close, open) - low
+            impulse_wick = switch mode
+                1 => top_wick > btm_wick
+                -1 => top_wick < btm_wick
+                => false
+
+            trend_concordant := big_candle or impulse_wick
+
+        if trend_concordant
+            _trend = (trend != 1 and trend != -1 ? 1 : trend)
+            choch_alert := mode == _trend * -1
+            bos_alert := mode == _trend
+
+    [x, y, trail_x, trail_y, bos_alert, choch_alert]
+
+export detect_structure(simple int swing_len = 50, float super_hh = na, float super_ll = na, bool filter_insignificant_internal_breaks = true) =>
+    var trend = 1
+
+    [hhll_x, hh, swing_low] = detect_swings(swing_len)
+    [top_x, top_y, trail_up_x, trail_up, bull_bos_alert, bull_choch_alert] = detect_pivot(1, trend, hhll_x, hh, super_hh, filter_insignificant_internal_breaks)
+    [btm_x, btm_y, trail_dn_x, trail_dn, bear_bos_alert, bear_choch_alert] = detect_pivot(-1, trend, hhll_x, swing_low, super_ll, filter_insignificant_internal_breaks)
+
+    trend := bull_choch_alert ? 1 : bear_choch_alert ? -1 : trend
+
+    [trend, bull_bos_alert, bull_choch_alert, top_x, top_y, trail_up_x, trail_up, hh, bear_bos_alert, bear_choch_alert, btm_x, btm_y, trail_dn_x, trail_dn, swing_low, hhll_x]
+
+export plot_pivot_points(int mode, int x, float y, bool enabled, d.LabelArgs args, bool keep_history) =>
+    var float prev_high_pivot = na
+    var float prev_low_pivot = na
+    if enabled and not na(x)
+        txt_swing_point = mode == 1 ? (na(prev_high_pivot) or y > prev_high_pivot ? 'HH' : 'LH') : mode == -1 ? (na(prev_low_pivot) or y < prev_low_pivot ? 'LL' : 'HL') : na
+        label_swing_point = label.new(x, y, txt_swing_point, color = args.bg_color, textcolor = args.text_color, style = args.style, size = args.size)
+        if mode == 1
+            prev_high_pivot := y
+        else if mode == -1
+            prev_low_pivot := y
+        if not keep_history
+            label.delete(label_swing_point[1])
+
+export plot_swing_levels(int mode, int trail_x, float trail_y, int trend, bool enabled, d.LabelArgs label_args, d.LineArgs line_args, int override_right_index = na, string text_prefix = '') =>
+    var label label_latest_swing = label.new(na, na, color = #00000000, textcolor = label_args.text_color, style = label_args.style, size = label_args.size)
+    var line line_latest_swing = line.new(na, na, na, na, color = line_args.line_color, style = line_args.style)
+
+    if enabled
+        if trail_x != line_latest_swing.get_x1() or na(line_latest_swing.get_x1())
+            line_latest_swing.set_xy1(trail_x, trail_y)
+        else
+            line_latest_swing.set_y1(trail_y)
+
+        if barstate.islast
+            hl_swing_txt = mode == 1 ? (trend < 0 ? 'Strong High' : 'Weak High') : mode == -1 ? (trend > 0 ? 'Strong Low' : 'Weak Low') : na
+            right = not na(override_right_index) ? override_right_index : bar_index + 20
+            line_latest_swing.set_xy2(right, trail_y)
+            label_latest_swing.set_xy(right, trail_y)
+
+export plot_structure(int x, float y, bool is_bos = false, bool is_choch = false, d.LabelArgs label_args, d.LineArgs line_args, bool keep_history, string text_prefix = '', string bos_text = 'BOS', string choch_text = 'CHoCH') =>
+    if is_bos or is_choch
+        txt = text_prefix + (is_choch ? choch_text : bos_text)
+        structure_line = line.new(x, y, bar_index, y, color = line_args.line_color, style = line_args.style)
+        structure_lbl = label.new(int(math.avg(x, bar_index)), y, txt, color = #00000000, textcolor = label_args.text_color, style = label_args.style, size = label_args.size)
+
+        if not keep_history
+            line.delete(structure_line[1])
+            label.delete(structure_lbl[1])
+
+
+
+
+clear_overlay_line_segments(array<line> segments) =>
+    while array.size(segments) > 0
+        line.delete(array.pop(segments))
+
+export draw_overlay_line_tail(array<line> segments, bool should_show, float value, color segment_color, int segment_width, int max_segments) =>
+    if not should_show
+        clear_overlay_line_segments(segments)
+    else if barstate.isconfirmed and bar_index > 0 and not na(value) and not na(value[1])
+        line overlay_segment = line.new(bar_index - 1, value[1], bar_index, value, xloc = xloc.bar_index, extend = extend.none, color = segment_color, width = segment_width, force_overlay = true)
+        array.push(segments, overlay_segment)
+        if array.size(segments) > max_segments
+            line.delete(array.shift(segments))
+
+export type FVGConfig
+    bool show_box = true
+    bool show_target = true
+    bool show_target_label = true
+    int show_last = 5
+    bool show_text = true
+    bool show_quality_score = false
+    bool show_profile = false
+    d.BoxArgs box_args = na
+    d.BoxTextArgs box_text_args = na
+    d.LineArgs line_args = na
+    d.LabelArgs label_args = na
+    string txt = na
+    int extend_bars = 1
+    bool extend_until_filled = false
+
+export type FVG
+    int id
+    int dir
+    ct.LevelBreakMode fill_mode
+    chart.point left_top
+    chart.point right_bottom
+    float fvg_fill_target_ratio
+    float fill_target_level
+    float fill_current_ratio
+    float fill_current_level
+    float total_volume
+    float quality_score = na
+    bool filled = false
+    int fill_time = na
+    int fill_index = na
+    d.SmcBox plot_box = na
+    d.SmcLine plot_fill_target_level = na
+    d.SmcLabel plot_fill_target_label = na
+    bool hidden = false
+
+export method rendered_right_time(FVG this, bool extend_until_filled = true) =>
+    int rendered_right_time_value = na
+    if not na(this)
+        int base_right_time = math.max(this.left_top.time, this.right_bottom.time)
+        int effective_fill_time = effective_live_event_time(this.fill_time, base_right_time)
+        rendered_right_time_value := extend_until_filled ? (this.filled ? effective_fill_time : current_bar_right_time()) : (this.filled ? math.min(effective_fill_time, base_right_time) : base_right_time)
+    rendered_right_time_value
+
+export method overlaps_window(FVG this, int left_time, int right_time, bool extend_until_filled = true) =>
+    if na(this)
+        false
+    else
+        effective_right_time = this.rendered_right_time(extend_until_filled)
+        effective_right_time >= left_time and this.left_top.time <= right_time
+
+export method contains_id(FVG[] this, int id) =>
+    found = false
+    if not na(this) and not na(id)
+        for fvg in this
+            if fvg.id == id
+                found := true
+                break
+    found
+
+export method get_by_id(FVG[] this, int id) =>
+    FVG found = na
+    if not na(this) and not na(id)
+        for fvg in this
+            if fvg.id == id
+                found := fvg
+                break
+    found
+
+export zone_candidate_preferred(bool candidate_touch_anchor, int candidate_recency, float candidate_quality, float candidate_overlap, int candidate_id, bool best_touch_anchor, int best_recency, float best_quality, float best_overlap, int best_id) =>
+    bool prefer_candidate = candidate_touch_anchor and not best_touch_anchor
+    if not prefer_candidate and candidate_touch_anchor == best_touch_anchor
+        prefer_candidate := na(best_recency) or candidate_recency > best_recency
+    if not prefer_candidate and candidate_touch_anchor == best_touch_anchor and candidate_recency == best_recency
+        prefer_candidate := na(best_quality) or candidate_quality > best_quality
+    if not prefer_candidate and candidate_touch_anchor == best_touch_anchor and candidate_recency == best_recency and candidate_quality == best_quality
+        prefer_candidate := na(best_overlap) or candidate_overlap > best_overlap
+    if not prefer_candidate and candidate_touch_anchor == best_touch_anchor and candidate_recency == best_recency and candidate_quality == best_quality and candidate_overlap == best_overlap
+        prefer_candidate := na(best_id) or candidate_id > best_id
+    prefer_candidate
+
+export prefer_primary_zone(bool primary_touch_anchor, int primary_recency, float primary_quality, float primary_overlap, int primary_id, bool secondary_touch_anchor, int secondary_recency, float secondary_quality, float secondary_overlap, int secondary_id) =>
+    zone_candidate_preferred(primary_touch_anchor, primary_recency, primary_quality, primary_overlap, primary_id, secondary_touch_anchor, secondary_recency, secondary_quality, secondary_overlap, secondary_id)
+
+int LONG_SOURCE_NONE = 0
+int LONG_SOURCE_OB = 1
+int LONG_SOURCE_FVG = 2
+int LONG_SOURCE_SWING_LOW = 3
+int LONG_SOURCE_INTERNAL_LOW = 4
+
+resolve_long_zone_source_label(int long_source_kind) =>
+    string source_text = ''
+    if long_source_kind == LONG_SOURCE_OB
+        source_text := 'OB'
+    else if long_source_kind == LONG_SOURCE_FVG
+        source_text := 'FVG'
+    source_text
+
+resolve_long_anchor_source_label(int long_source_kind) =>
+    string source_text = ''
+    if long_source_kind == LONG_SOURCE_SWING_LOW
+        source_text := 'Swing Low'
+    else if long_source_kind == LONG_SOURCE_INTERNAL_LOW
+        source_text := 'Internal Low'
+    source_text
+
+resolve_long_primary_source_text(int long_source_kind) =>
+    string source_text = resolve_long_zone_source_label(long_source_kind)
+    if source_text == ''
+        source_text := resolve_long_anchor_source_label(long_source_kind)
+    source_text
+
+resolve_long_source_fallback_text(string source_text) =>
+    string next_source_text = source_text
+    if source_text == ''
+        next_source_text := 'None'
+    next_source_text
+
+resolve_long_source_label_text(int long_source_kind) =>
+    string source_text = resolve_long_primary_source_text(long_source_kind)
+    source_text := resolve_long_source_fallback_text(source_text)
+    source_text
+
+export resolve_long_source_text(int long_source_kind) =>
+    resolve_long_source_label_text(long_source_kind)
+
+export long_source_is_zone_kind(int long_source_kind) =>
+    long_source_kind == LONG_SOURCE_OB or long_source_kind == LONG_SOURCE_FVG
+
+export select_locked_source_touch_count(bool source_upgrade_now, bool prefer_ob_upgrade_now, int ob_candidate_id, int active_ob_touch_id, int active_ob_touch_count, int touched_ob_touch_count, int fvg_candidate_id, int active_fvg_touch_id, int active_fvg_touch_count, int touched_fvg_touch_count, int locked_source_touch_count) =>
+    int touch_count = locked_source_touch_count
+    if source_upgrade_now
+        if prefer_ob_upgrade_now
+            if ob_candidate_id == active_ob_touch_id
+                touch_count := active_ob_touch_count
+            else
+                touch_count := math.max(touched_ob_touch_count, 1)
+        else
+            if fvg_candidate_id == active_fvg_touch_id
+                touch_count := active_fvg_touch_count
+            else
+                touch_count := math.max(touched_fvg_touch_count, 1)
+    touch_count
+
+export stage_locked_source_transition(bool source_upgrade_now, bool prefer_ob_upgrade_now, int prev_locked_source_kind, int prev_locked_source_id, int current_backing_zone_kind, int current_backing_zone_id, int ob_candidate_id, int fvg_candidate_id) =>
+    int next_locked_source_kind = prev_locked_source_kind
+    int next_locked_source_id = prev_locked_source_id
+    int next_backing_zone_kind = current_backing_zone_kind
+    int next_backing_zone_id = current_backing_zone_id
+    if source_upgrade_now
+        if prefer_ob_upgrade_now
+            next_locked_source_kind := LONG_SOURCE_OB
+            next_locked_source_id := ob_candidate_id
+            next_backing_zone_kind := LONG_SOURCE_OB
+            next_backing_zone_id := ob_candidate_id
+        else
+            next_locked_source_kind := LONG_SOURCE_FVG
+            next_locked_source_id := fvg_candidate_id
+            next_backing_zone_kind := LONG_SOURCE_FVG
+            next_backing_zone_id := fvg_candidate_id
+    [next_locked_source_kind, next_locked_source_id, next_backing_zone_kind, next_backing_zone_id]
+
+export compute_long_source_upgrade_state(bool allow_armed_source_upgrade, bool long_setup_armed, bool long_setup_confirmed, bool prev_locked_source_invalid_now, int prev_locked_source_kind, int prev_locked_source_id, bool bull_reclaim_ob_strict, bool touched_bull_ob_available, int touched_bull_ob_id, float touched_bull_ob_quality, bool bull_reclaim_fvg_strict, bool touched_bull_fvg_available, int touched_bull_fvg_id, float touched_bull_fvg_quality, float long_locked_source_quality, float min_source_upgrade_quality_gain) =>
+    bool helper_ob_source_upgrade_ok = false
+    if allow_armed_source_upgrade and long_setup_armed and not long_setup_confirmed and not prev_locked_source_invalid_now and bull_reclaim_ob_strict and touched_bull_ob_available
+        if prev_locked_source_kind != LONG_SOURCE_OB or prev_locked_source_id != touched_bull_ob_id
+            helper_ob_source_upgrade_ok := touched_bull_ob_quality >= long_locked_source_quality + min_source_upgrade_quality_gain
+    bool helper_fvg_source_upgrade_ok = false
+    if allow_armed_source_upgrade and long_setup_armed and not long_setup_confirmed and not prev_locked_source_invalid_now and bull_reclaim_fvg_strict and touched_bull_fvg_available
+        if prev_locked_source_kind != LONG_SOURCE_FVG or prev_locked_source_id != touched_bull_fvg_id
+            helper_fvg_source_upgrade_ok := touched_bull_fvg_quality >= long_locked_source_quality + min_source_upgrade_quality_gain
+    bool helper_long_source_upgrade_now = helper_ob_source_upgrade_ok or helper_fvg_source_upgrade_ok
+    bool helper_prefer_ob_upgrade = false
+    if helper_long_source_upgrade_now and helper_ob_source_upgrade_ok
+        helper_prefer_ob_upgrade := not helper_fvg_source_upgrade_ok or touched_bull_ob_quality >= touched_bull_fvg_quality
+    [helper_ob_source_upgrade_ok, helper_fvg_source_upgrade_ok, helper_long_source_upgrade_now, helper_prefer_ob_upgrade]
+
+select_long_arm_backing_zone_touch_count(int arm_backing_zone_kind, int arm_backing_zone_id, int active_ob_touch_id, int active_ob_touch_count, int touched_bull_ob_id, int touched_bull_ob_touch_count, int active_fvg_touch_id, int active_fvg_touch_count, int touched_bull_fvg_id, int touched_bull_fvg_touch_count) =>
+    int touch_count = 0
+    if arm_backing_zone_kind == LONG_SOURCE_OB and arm_backing_zone_id == active_ob_touch_id
+        touch_count := active_ob_touch_count
+    else if arm_backing_zone_kind == LONG_SOURCE_OB and arm_backing_zone_id == touched_bull_ob_id
+        touch_count := touched_bull_ob_touch_count
+    else if arm_backing_zone_kind == LONG_SOURCE_FVG and arm_backing_zone_id == active_fvg_touch_id
+        touch_count := active_fvg_touch_count
+    else if arm_backing_zone_kind == LONG_SOURCE_FVG and arm_backing_zone_id == touched_bull_fvg_id
+        touch_count := touched_bull_fvg_touch_count
+    touch_count
+
+resolve_long_zone_id(int long_zone_kind, int long_zone_id) =>
+    long_source_is_zone_kind(long_zone_kind) ? long_zone_id : na
+
+export resolve_long_zone_top(int long_zone_kind, int long_zone_id, int active_bull_ob_id, float active_bull_ob_top, int touched_bull_ob_id, float touched_bull_ob_top, int active_bull_fvg_id, float active_bull_fvg_top, int touched_bull_fvg_id, float touched_bull_fvg_top, bool preserve_prior_bounds = false, int prior_long_zone_kind = 0, int prior_long_zone_id = na, float prior_long_zone_top = na) =>
+    float zone_top = na
+    if long_zone_kind == LONG_SOURCE_OB and long_zone_id == active_bull_ob_id
+        zone_top := active_bull_ob_top
+    else if long_zone_kind == LONG_SOURCE_OB and long_zone_id == touched_bull_ob_id
+        zone_top := touched_bull_ob_top
+    else if long_zone_kind == LONG_SOURCE_FVG and long_zone_id == active_bull_fvg_id
+        zone_top := active_bull_fvg_top
+    else if long_zone_kind == LONG_SOURCE_FVG and long_zone_id == touched_bull_fvg_id
+        zone_top := touched_bull_fvg_top
+    else if preserve_prior_bounds and long_zone_kind == prior_long_zone_kind and long_zone_id == prior_long_zone_id
+        zone_top := prior_long_zone_top
+    zone_top
+
+export resolve_long_zone_bottom(int long_zone_kind, int long_zone_id, int active_bull_ob_id, float active_bull_ob_bottom, int touched_bull_ob_id, float touched_bull_ob_bottom, int active_bull_fvg_id, float active_bull_fvg_bottom, int touched_bull_fvg_id, float touched_bull_fvg_bottom, bool preserve_prior_bounds = false, int prior_long_zone_kind = 0, int prior_long_zone_id = na, float prior_long_zone_bottom = na) =>
+    float zone_bottom = na
+    if long_zone_kind == LONG_SOURCE_OB and long_zone_id == active_bull_ob_id
+        zone_bottom := active_bull_ob_bottom
+    else if long_zone_kind == LONG_SOURCE_OB and long_zone_id == touched_bull_ob_id
+        zone_bottom := touched_bull_ob_bottom
+    else if long_zone_kind == LONG_SOURCE_FVG and long_zone_id == active_bull_fvg_id
+        zone_bottom := active_bull_fvg_bottom
+    else if long_zone_kind == LONG_SOURCE_FVG and long_zone_id == touched_bull_fvg_id
+        zone_bottom := touched_bull_fvg_bottom
+    else if preserve_prior_bounds and long_zone_kind == prior_long_zone_kind and long_zone_id == prior_long_zone_id
+        zone_bottom := prior_long_zone_bottom
+    zone_bottom
+
+export resolve_long_validation_source(int long_locked_source_kind) =>
+    int validation_source = LONG_SOURCE_NONE
+    if long_locked_source_kind == LONG_SOURCE_OB
+        validation_source := LONG_SOURCE_OB
+    else if long_locked_source_kind == LONG_SOURCE_FVG
+        validation_source := LONG_SOURCE_FVG
+    validation_source
+
+export resolve_long_arm_source_state(bool bull_reclaim_ob_strict, float touched_bull_ob_bottom, int touched_bull_ob_id, bool bull_reclaim_fvg_strict, float touched_bull_fvg_bottom, int touched_bull_fvg_id, bool bull_reclaim_swing_low_strict, float long_reclaim_swing_level, bool bull_reclaim_internal_low_strict, float long_reclaim_internal_level, bool in_bull_ob_zone, bool in_bull_fvg_zone, int last_ob_zone_touch_bar_index, int last_fvg_zone_touch_bar_index, int active_bull_ob_id, int active_bull_fvg_id, bool touched_bull_ob_recent, bool touched_bull_fvg_recent, float default_arm_invalidation_candidate) =>
+    int helper_arm_source_kind = LONG_SOURCE_NONE
+    float helper_arm_invalidation_candidate = default_arm_invalidation_candidate
+    int helper_arm_backing_zone_kind = LONG_SOURCE_NONE
+    int helper_arm_backing_zone_id = na
+    if bull_reclaim_ob_strict
+        helper_arm_source_kind := LONG_SOURCE_OB
+        helper_arm_invalidation_candidate := touched_bull_ob_bottom
+        helper_arm_backing_zone_kind := LONG_SOURCE_OB
+        helper_arm_backing_zone_id := touched_bull_ob_id
+    else if bull_reclaim_fvg_strict
+        helper_arm_source_kind := LONG_SOURCE_FVG
+        helper_arm_invalidation_candidate := touched_bull_fvg_bottom
+        helper_arm_backing_zone_kind := LONG_SOURCE_FVG
+        helper_arm_backing_zone_id := touched_bull_fvg_id
+    else if bull_reclaim_swing_low_strict
+        helper_arm_source_kind := LONG_SOURCE_SWING_LOW
+        helper_arm_invalidation_candidate := long_reclaim_swing_level
+    else if bull_reclaim_internal_low_strict
+        helper_arm_source_kind := LONG_SOURCE_INTERNAL_LOW
+        helper_arm_invalidation_candidate := long_reclaim_internal_level
+    if helper_arm_source_kind == LONG_SOURCE_SWING_LOW or helper_arm_source_kind == LONG_SOURCE_INTERNAL_LOW
+        if in_bull_ob_zone and in_bull_fvg_zone
+            bool ob_more_recent = false
+            if na(last_fvg_zone_touch_bar_index) or (not na(last_ob_zone_touch_bar_index) and last_ob_zone_touch_bar_index >= last_fvg_zone_touch_bar_index)
+                ob_more_recent := true
+            helper_arm_backing_zone_kind := LONG_SOURCE_FVG
+            helper_arm_backing_zone_id := active_bull_fvg_id
+            if ob_more_recent
+                helper_arm_backing_zone_kind := LONG_SOURCE_OB
+                helper_arm_backing_zone_id := active_bull_ob_id
+        else if in_bull_ob_zone
+            helper_arm_backing_zone_kind := LONG_SOURCE_OB
+            helper_arm_backing_zone_id := active_bull_ob_id
+        else if in_bull_fvg_zone
+            helper_arm_backing_zone_kind := LONG_SOURCE_FVG
+            helper_arm_backing_zone_id := active_bull_fvg_id
+        else if touched_bull_ob_recent and not na(touched_bull_ob_id)
+            helper_arm_backing_zone_kind := LONG_SOURCE_OB
+            helper_arm_backing_zone_id := touched_bull_ob_id
+        else if touched_bull_fvg_recent and not na(touched_bull_fvg_id)
+            helper_arm_backing_zone_kind := LONG_SOURCE_FVG
+            helper_arm_backing_zone_id := touched_bull_fvg_id
+    [helper_arm_source_kind, helper_arm_invalidation_candidate, helper_arm_backing_zone_kind, helper_arm_backing_zone_id]
+
+
+
+export resolve_long_arm_transition_payload(int arm_backing_zone_kind, int arm_backing_zone_id, int active_ob_touch_id, int active_ob_touch_count, int touched_bull_ob_id, int touched_bull_ob_touch_count, int active_fvg_touch_id, int active_fvg_touch_count, int touched_bull_fvg_id, int touched_bull_fvg_touch_count, int active_bull_ob_id, float active_bull_ob_top, float active_bull_ob_bottom, int active_bull_fvg_id, float active_bull_fvg_top, float active_bull_fvg_bottom, float touched_bull_ob_top, float touched_bull_ob_bottom, float touched_bull_fvg_top, float touched_bull_fvg_bottom, int current_bar_index) =>
+    int helper_long_arm_backing_zone_touch_count = select_long_arm_backing_zone_touch_count(arm_backing_zone_kind, arm_backing_zone_id, active_ob_touch_id, active_ob_touch_count, touched_bull_ob_id, touched_bull_ob_touch_count, active_fvg_touch_id, active_fvg_touch_count, touched_bull_fvg_id, touched_bull_fvg_touch_count)
+    int helper_long_arm_locked_source_id = resolve_long_zone_id(arm_backing_zone_kind, arm_backing_zone_id)
+    float helper_long_arm_locked_source_top = resolve_long_zone_top(arm_backing_zone_kind, arm_backing_zone_id, active_bull_ob_id, active_bull_ob_top, touched_bull_ob_id, touched_bull_ob_top, active_bull_fvg_id, active_bull_fvg_top, touched_bull_fvg_id, touched_bull_fvg_top)
+    float helper_long_arm_locked_source_bottom = resolve_long_zone_bottom(arm_backing_zone_kind, arm_backing_zone_id, active_bull_ob_id, active_bull_ob_bottom, touched_bull_ob_id, touched_bull_ob_bottom, active_bull_fvg_id, active_bull_fvg_bottom, touched_bull_fvg_id, touched_bull_fvg_bottom)
+    int helper_long_arm_locked_source_last_touch_bar_index = na
+    if not na(helper_long_arm_locked_source_id)
+        helper_long_arm_locked_source_last_touch_bar_index := current_bar_index
+    [helper_long_arm_backing_zone_touch_count, helper_long_arm_locked_source_id, helper_long_arm_locked_source_top, helper_long_arm_locked_source_bottom, helper_long_arm_locked_source_last_touch_bar_index]
+
+
+
+
+compose_long_source_invalidated_text(string source_text) =>
+    source_text + ' source invalidated'
+
+compose_long_backing_zone_lost_text(string source_text) =>
+    source_text + ' backing zone lost'
+
+compose_long_setup_expired_text(string source_text) =>
+    source_text + ' setup expired'
+
+compose_long_confirm_expired_text(string source_text) =>
+    source_text + ' confirm expired'
+
+export resolve_long_invalidation_reason(bool long_source_broken, bool long_source_lost, bool long_setup_expired, bool long_confirm_expired, int long_validation_source, int long_entry_origin_source, string long_setup_source_display) =>
+    string long_validation_source_text = resolve_long_source_text(long_validation_source)
+    string long_entry_origin_source_text = resolve_long_source_text(long_entry_origin_source)
+    string invalidation_reason = long_setup_source_display
+    if long_source_broken
+        invalidation_reason := compose_long_source_invalidated_text(long_validation_source_text)
+    else if long_source_lost
+        invalidation_reason := compose_long_backing_zone_lost_text(long_validation_source_text)
+    else if long_setup_expired
+        invalidation_reason := compose_long_setup_expired_text(long_entry_origin_source_text)
+    else if long_confirm_expired
+        invalidation_reason := compose_long_confirm_expired_text(long_entry_origin_source_text)
+    invalidation_reason
+
+
+
+compose_long_source_transition_text(string long_entry_origin_source_text, string long_validation_source_text) =>
+    long_entry_origin_source_text + ' -> ' + long_validation_source_text
+
+resolve_long_source_display_text(int long_entry_origin_source, int long_validation_source, string long_entry_origin_source_text, string long_validation_source_text) =>
+    string source_display = long_validation_source_text
+    if long_entry_origin_source == LONG_SOURCE_NONE
+        source_display := long_validation_source_text
+    else if long_validation_source == LONG_SOURCE_NONE or long_entry_origin_source == long_validation_source
+        source_display := long_entry_origin_source_text
+    else
+        source_display := compose_long_source_transition_text(long_entry_origin_source_text, long_validation_source_text)
+    source_display
+
+export compose_long_setup_source_display(int long_entry_origin_source, int long_validation_source) =>
+    string long_entry_origin_source_text = resolve_long_source_text(long_entry_origin_source)
+    string long_validation_source_text = resolve_long_source_text(long_validation_source)
+    resolve_long_source_display_text(long_entry_origin_source, long_validation_source, long_entry_origin_source_text, long_validation_source_text)
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+// Long engine architecture
+// 1. Source tracking identifies the active OB/FVG candidate and locks the current setup anchor.
+// 2. Confirmed state validates reclaim structure on close-safe data.
+// 3. Ready inherits the confirmed lifecycle and adds touch hygiene, trade release, environment, and context gates.
+// 4. Best and Strict are execution tiers layered on top of Ready rather than separate lifecycle stages.
+// 5. Debug labels, alerts, and dashboard rows read the same Ready/Strict outputs to keep user messaging consistent.
+// Core user-facing controls:
+// - Signal mode controls realtime vs close-safe alert behavior.
+// - Strict sequence/sweep/confirm toggles decide how demanding the higher execution tiers are.
+// - Context quality, overhead, and microstructure switches decide how much market filtering is required before entry.
+//
+// Gate Classification (v5.5b):
+//   HARD (always required, safety):  lifecycle, environment (event_risk, market_regime, vola_regime)
+//   OPERATIONAL (toggle-gated):      session_structure, micro_session, micro_freshness, overhead, setup (touch count)
+//   SCORING (toggle-gated, opt-in):  quality, accel, sd, vol, stretch, ddvi, lean_signal_quality
+//     → with use_scoring_over_blocking: SCORING gates bypass Ready, count as penalty; still block Best/Strict
+//   INFO ONLY (not in pipeline):     v5.1-v5.3 context gates (session_context_ok, struct_state_ok, etc.) — BUS compat only
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+resolve_long_upgrade_edge_text(bool ob_source_upgrade_ok, bool fvg_source_upgrade_ok) =>
+    string edge_text = 'beat locked source confluence'
+    if ob_source_upgrade_ok and fvg_source_upgrade_ok
+        edge_text := 'won tie on stronger confluence'
+    edge_text
+
+compose_long_upgrade_reason_text(string target_source_text, string edge_text, float quality_gain) =>
+    target_source_text + ' ' + edge_text + ' +' + str.tostring(quality_gain, '#.##') + 'Q'
+
+export resolve_long_upgrade_reason(bool long_source_upgrade_now, bool prefer_ob_upgrade, bool ob_source_upgrade_ok, bool fvg_source_upgrade_ok, float touched_bull_ob_quality, float touched_bull_fvg_quality, float long_locked_source_quality) =>
+    string upgrade_reason = 'none'
+    if long_source_upgrade_now
+        int target_source_kind = LONG_SOURCE_FVG
+        if prefer_ob_upgrade
+            target_source_kind := LONG_SOURCE_OB
+        string target_source_text = resolve_long_source_text(target_source_kind)
+        float target_quality = touched_bull_fvg_quality
+        if prefer_ob_upgrade
+            target_quality := touched_bull_ob_quality
+        float quality_gain = math.max(target_quality - long_locked_source_quality, 0.0)
+        string edge_text = resolve_long_upgrade_edge_text(ob_source_upgrade_ok, fvg_source_upgrade_ok)
+        upgrade_reason := compose_long_upgrade_reason_text(target_source_text, edge_text, quality_gain)
+    upgrade_reason
+
+resolve_long_confirm_freshness_text(bool ready_is_fresh) =>
+    string freshness_text = 'confirm stale'
+    if ready_is_fresh
+        freshness_text := 'confirm fresh'
+    freshness_text
+
+resolve_long_armed_freshness_text(bool confirm_is_fresh) =>
+    string freshness_text = 'armed stale'
+    if confirm_is_fresh
+        freshness_text := 'armed fresh'
+    freshness_text
+
+resolve_long_source_state_text(bool long_source_alive, bool long_source_broken) =>
+    string source_state_text = 'source lost'
+    if long_source_alive
+        source_state_text := 'source alive'
+    else if long_source_broken
+        source_state_text := 'source invalid'
+    source_state_text
+
+resolve_long_zone_quality_text(int effective_long_active_touch_count) =>
+    string zone_quality_text = 'crowded'
+    if effective_long_active_touch_count <= 1
+        zone_quality_text := 'fresh touch'
+    else if effective_long_active_touch_count == 2
+        zone_quality_text := '2nd touch'
+    zone_quality_text
+
+export describe_long_freshness(bool long_setup_armed, bool long_setup_confirmed, bool ready_is_fresh, bool confirm_is_fresh) =>
+    string freshness_text = 'n/a'
+    if long_setup_confirmed
+        freshness_text := resolve_long_confirm_freshness_text(ready_is_fresh)
+    else if long_setup_armed
+        freshness_text := resolve_long_armed_freshness_text(confirm_is_fresh)
+    freshness_text
+
+export describe_long_source_state(bool long_source_tracked, bool long_source_alive, bool long_source_broken) =>
+    string source_state_text = 'n/a'
+    if long_source_tracked
+        source_state_text := resolve_long_source_state_text(long_source_alive, long_source_broken)
+    source_state_text
+
+export select_effective_long_touch_count(bool long_setup_armed, bool long_setup_confirmed, int long_setup_backing_zone_touch_count, bool bull_reclaim_ob_strict, bool in_bull_ob_zone, bool in_bull_fvg_zone, int active_ob_touch_count, bool bull_reclaim_fvg_strict, int active_fvg_touch_count, int active_zone_touch_count) =>
+    int effective_touch_count = active_zone_touch_count
+    if long_setup_armed or long_setup_confirmed
+        effective_touch_count := long_setup_backing_zone_touch_count
+    else if bull_reclaim_ob_strict or (in_bull_ob_zone and not in_bull_fvg_zone)
+        effective_touch_count := active_ob_touch_count
+    else if bull_reclaim_fvg_strict or (in_bull_fvg_zone and not in_bull_ob_zone)
+        effective_touch_count := active_fvg_touch_count
+    effective_touch_count
+
+export describe_long_zone_quality(bool long_zone_active, bool long_setup_armed, bool long_setup_confirmed, int effective_long_active_touch_count) =>
+    string zone_quality_text = 'n/a'
+    if long_zone_active or long_setup_armed or long_setup_confirmed
+        zone_quality_text := resolve_long_zone_quality_text(effective_long_active_touch_count)
+    zone_quality_text
+
+resolve_long_overhead_alert_text(bool use_overhead_zone_filter, float headroom_to_overhead, float planned_risk) =>
+    string overhead_text = 'off'
+    if use_overhead_zone_filter
+        overhead_text := 'clear'
+        if not na(headroom_to_overhead) and not na(planned_risk) and planned_risk != 0
+            overhead_text := str.tostring(headroom_to_overhead / planned_risk, '#.##') + 'R'
+    overhead_text
+
+compose_long_score_detail_suffix(int signal_quality_score, string signal_quality_tier) =>
+    ' | sq=' + str.tostring(signal_quality_score) + '/' + signal_quality_tier
+
+resolve_long_strict_alert_suffix(bool use_strict_sequence, bool use_strict_sweep_for_zone_reclaim, bool use_strict_confirm_guard) =>
+    string strict_suffix = ''
+    if use_strict_sequence or use_strict_sweep_for_zone_reclaim or use_strict_confirm_guard
+        strict_suffix := ' | strict=on'
+    strict_suffix
+
+compose_long_environment_alert_suffix(string long_environment_focus_display, string overhead_text) =>
+    ' | env=' + long_environment_focus_display + ' | overhead=' + overhead_text
+
+compose_long_micro_alert_suffix(string micro_profile_text, string freshness_text, string source_state_text, string zone_quality_text) =>
+    ' | micro=' + micro_profile_text + ' | freshness=' + freshness_text + ' | source=' + source_state_text + ' | zone=' + zone_quality_text
+
+export compose_long_alert_text_suffixes(bool use_overhead_zone_filter, float headroom_to_overhead, float planned_risk, int signal_quality_score, string signal_quality_tier, bool use_strict_sequence, bool use_strict_sweep_for_zone_reclaim, bool use_strict_confirm_guard, bool use_microstructure_profiles, string micro_profile_text, string freshness_text, string source_state_text, string zone_quality_text, string long_environment_focus_display) =>
+    string overhead_text = resolve_long_overhead_alert_text(use_overhead_zone_filter, headroom_to_overhead, planned_risk)
+    string score_suffix = compose_long_score_detail_suffix(signal_quality_score, signal_quality_tier)
+    string strict_suffix = resolve_long_strict_alert_suffix(use_strict_sequence, use_strict_sweep_for_zone_reclaim, use_strict_confirm_guard)
+    string environment_suffix = compose_long_environment_alert_suffix(long_environment_focus_display, overhead_text)
+    string micro_suffix = ''
+    if use_microstructure_profiles
+        micro_suffix := compose_long_micro_alert_suffix(micro_profile_text, freshness_text, source_state_text, zone_quality_text)
+    [overhead_text, score_suffix, strict_suffix, environment_suffix, micro_suffix]
+
+// Long state codes:
+// -1 invalidated, 0 no setup, 1 in zone, 2 armed, 3 building, 4 confirmed, 5 ready, 6 entry best, 7 entry strict.
+// Source-state semantics: tracked = locked source id exists, alive = source still resolves, broken = explicit mitigation/fill break, lost = tracked but no longer resolvable and not broken.
+resolve_long_state_code(bool long_zone_active, bool long_setup_armed, bool long_building_state, bool long_setup_confirmed, bool long_ready_state, bool long_entry_best_state, bool long_entry_strict_state, bool invalidated_prior_setup, bool long_invalidated_now, bool long_invalidated_this_bar, bool long_invalidate_signal = false) =>
+    bool invalid_state = (long_setup_armed or long_setup_confirmed or long_invalidate_signal or invalidated_prior_setup or long_invalidated_now or long_invalidated_this_bar) and (long_invalidated_now or long_invalidated_this_bar)
+    if invalid_state
+        -1
+    else if long_entry_strict_state
+        7
+    else if long_entry_best_state
+        6
+    else if long_ready_state
+        5
+    else if long_setup_confirmed
+        4
+    else if long_building_state
+        3
+    else if long_setup_armed
+        2
+    else if long_zone_active
+        1
+    else
+        0
+
+
+
+
+
+
+
+resolve_long_visual_state_code(bool long_zone_active, bool long_setup_armed, bool long_building_state, bool long_setup_confirmed, bool long_ready_state, bool long_entry_best_state, bool long_entry_strict_state, bool long_invalidate_signal, bool invalidated_prior_setup, bool long_invalidated_now, bool long_invalidated_this_bar) =>
+    resolve_long_state_code(long_zone_active, long_setup_armed, long_building_state, long_setup_confirmed, long_ready_state, long_entry_best_state, long_entry_strict_state, invalidated_prior_setup, long_invalidated_now, long_invalidated_this_bar, long_invalidate_signal)
+
+export resolve_long_visual_state(bool long_zone_active, bool long_setup_armed, bool long_building_state, bool long_setup_confirmed, bool long_ready_state, bool long_entry_best_state, bool long_entry_strict_state, bool long_invalidate_signal, bool invalidated_prior_setup, bool long_invalidated_now, bool long_invalidated_this_bar) =>
+    resolve_long_visual_state_code(long_zone_active, long_setup_armed, long_building_state, long_setup_confirmed, long_ready_state, long_entry_best_state, long_entry_strict_state, long_invalidate_signal, invalidated_prior_setup, long_invalidated_now, long_invalidated_this_bar)
+
+
+
+
+export resolve_event_risk_state(bool market_event_blocked, bool symbol_event_blocked, string event_window_state, string event_risk_level) =>
+    string risk_state = 'clear'
+    if market_event_blocked or symbol_event_blocked
+        risk_state := 'blocked'
+    else if event_window_state == 'COOLDOWN' or (event_window_state == 'PRE_EVENT' and (event_risk_level == 'HIGH' or event_risk_level == 'ELEVATED'))
+        risk_state := 'caution'
+    risk_state
+
+export compose_health_badge_text(string signal_bias_alignment, string signal_quality_tier, int signal_quality_score, string event_risk_state, string signal_freshness, string signal_warnings, string provider_status) =>
+    string dir_icon = '◆'
+    if signal_bias_alignment == 'bull'
+        dir_icon := '▲'
+    else if signal_bias_alignment == 'bear'
+        dir_icon := '▼'
+    string tier_icon = '🔴'
+    if signal_quality_tier == 'high'
+        tier_icon := '🟢'
+    else if signal_quality_tier == 'good'
+        tier_icon := '🟡'
+    else if signal_quality_tier == 'ok'
+        tier_icon := '🟠'
+    string event_icon = '✓'
+    if event_risk_state == 'blocked'
+        event_icon := '⛔'
+    else if event_risk_state == 'caution'
+        event_icon := '⚡'
+    string fresh_icon = '○'
+    if signal_freshness == 'fresh'
+        fresh_icon := '●'
+    else if signal_freshness == 'aging'
+        fresh_icon := '◐'
+    string warning_suffix = ''
+    if signal_warnings != ''
+        warning_suffix := ' ⚠ ' + signal_warnings
+    string data_icon = '⚠'
+    if provider_status == 'ok'
+        data_icon := '✓'
+    dir_icon + ' ' + signal_quality_tier + ' ' + str.tostring(signal_quality_score) + ' ' + tier_icon + ' | ' + event_icon + ' | ' + fresh_icon + warning_suffix + ' | data:' + data_icon
+
+export resolve_health_badge_color(string signal_quality_tier, color bear_primary, color bull_primary, color bull_hero_ready, color reclaim_color) =>
+    color badge_color = color.new(bear_primary, 70)
+    if signal_quality_tier == 'high'
+        badge_color := color.new(bull_primary, 70)
+    else if signal_quality_tier == 'good'
+        badge_color := color.new(bull_hero_ready, 70)
+    else if signal_quality_tier == 'ok'
+        badge_color := color.new(reclaim_color, 70)
+    badge_color
+
+export resolve_core_product_state(int long_visual_state) =>
+    string product_state = 'WAIT'
+    if long_visual_state == -1
+        product_state := 'BLOCKED'
+    else if long_visual_state >= 6
+        product_state := 'ENTER LONG'
+    else if long_visual_state == 5
+        product_state := 'READY LONG'
+    else if long_visual_state >= 2
+        product_state := 'PREPARE LONG'
+    product_state
+
+export resolve_trust_tier(string signal_quality_tier, string signal_freshness, string provider_status) =>
+    string trust_tier = 'Insufficient'
+    if provider_status != 'ok' or signal_freshness == 'stale'
+        trust_tier := signal_quality_tier == 'high' or signal_quality_tier == 'good' or signal_quality_tier == 'ok' ? 'Degraded' : 'Insufficient'
+    else if signal_quality_tier == 'high' and signal_freshness == 'fresh'
+        trust_tier := 'High'
+    else if signal_quality_tier == 'high' or signal_quality_tier == 'good' or signal_quality_tier == 'ok'
+        trust_tier := 'Guarded'
+    trust_tier
+
+export compose_trust_tier_suffix(string trust_tier, int sq_score, string sq_freshness, string provider_status, string ensemble_quality_tier) =>
+    string suffix = ''
+    if trust_tier == 'High'
+        suffix := 'score ' + str.tostring(sq_score) + ', data fresh'
+    else if trust_tier == 'Guarded'
+        suffix := sq_freshness == 'aging' ? 'score ' + str.tostring(sq_score) + ', data aging' : 'score ' + str.tostring(sq_score) + ', quality ' + ensemble_quality_tier
+    else if trust_tier == 'Degraded'
+        if provider_status != 'ok'
+            suffix := 'provider: ' + provider_status
+        else
+            suffix := 'data stale'
+    else
+        suffix := 'no measurement data'
+    suffix
+
+export resolve_bus_ready_blocker_code(bool long_ready_state, bool long_setup_confirmed, bool lifecycle_ready_ok, bool setup_hard_gate_ok, bool trade_hard_gate_ok, bool environment_hard_gate_ok, bool close_safe_mode, bool ready_bar_gap_ok, bool long_confirm_expired, bool ready_is_fresh, bool long_confirm_bearish_guard_ok, bool require_main_break_for_ready, bool bull_bos_sig, bool main_bos_recent, bool session_structure_gate_ok, bool micro_session_gate_ok, bool micro_freshness_gate_ok, bool overhead_zone_ok, bool market_regime_gate_ok, bool vola_regime_gate_safe, bool quality_gate_ok, bool accel_ready_gate_ok, bool sd_ready_gate_ok, bool vol_ready_context_ok, bool stretch_ready_context_ok, bool ddvi_ready_ok_safe) =>
+    ll.resolve_long_ready_reason_code(long_ready_state, long_setup_confirmed, close_safe_mode, ready_bar_gap_ok, long_confirm_expired, ready_is_fresh, long_confirm_bearish_guard_ok, require_main_break_for_ready, bull_bos_sig, main_bos_recent, setup_hard_gate_ok, trade_hard_gate_ok, environment_hard_gate_ok, session_structure_gate_ok, micro_session_gate_ok, micro_freshness_gate_ok, overhead_zone_ok, market_regime_gate_ok, vola_regime_gate_safe, quality_gate_ok, accel_ready_gate_ok, sd_ready_gate_ok, vol_ready_context_ok, stretch_ready_context_ok, ddvi_ready_ok_safe)
+
+export resolve_bus_strict_blocker_code(bool long_entry_strict_state, bool long_ready_state, bool strict_signal_quality_gate_ok, bool strict_entry_ltf_ok, bool htf_alignment_ok, bool accel_strict_entry_gate_ok, bool sd_entry_strict_gate_ok, bool vol_entry_strict_context_ok_safe, bool stretch_entry_strict_context_ok, bool ddvi_entry_strict_ok_safe) =>
+    ll.resolve_long_strict_reason_code(long_entry_strict_state, long_ready_state, strict_signal_quality_gate_ok, strict_entry_ltf_ok, htf_alignment_ok, accel_strict_entry_gate_ok, sd_entry_strict_gate_ok, vol_entry_strict_context_ok_safe, stretch_entry_strict_context_ok, ddvi_entry_strict_ok_safe)
+
+
+
+
+_detect_fvg_object(int mode, bool enabled, float size_threshold = 0, ct.LevelBreakMode fill_mode = ct.LevelBreakMode.CLOSE, float fill_target_ratio = 0.5) =>
+    float top = low[mode == 1 ? 0 : 2]
+    float btm = high[mode == 1 ? 2 : 0]
+    float size = top - btm
+
+    if enabled and barstate.isconfirmed and size > size_threshold
+        FVG new_fvg = FVG.new(na, mode, fill_mode,
+         left_top = chart.point.new(time[2], bar_index[2], top),
+         right_bottom = chart.point.new(time_close, bar_index, btm),
+         fvg_fill_target_ratio = fill_target_ratio,
+         fill_target_level = mode == 1 ? top - fill_target_ratio * size : btm + fill_target_ratio * size,
+         fill_current_ratio = 0,
+         fill_current_level = mode == 1 ? top : btm,
+         total_volume = volume[2] + volume[1] + volume)
+        new_fvg.quality_score := math.max(0.0, math.min(1.0, 0.15 + math.min(size / math.max(size_threshold * 3.0, syminfo.mintick), 1.0) * 0.35 + (new_fvg.total_volume > 0 ? 0.10 : 0.0) + 0.15))
+        [true, new_fvg]
+    else
+        [false, na]
+
+
+export method clear_filled(FVG[] fvgs, FVG[] filled_buffer, FVG[] filled_new_buffer, int keep_history = 5, FVG[] discard_buffer = na, int protected_id = na) =>
+    FVG[] moved_fvgs = array.new<FVG>(0)
+    filled_new_buffer.clear()
+
+    if na(keep_history) or keep_history <= 0
+        filled_buffer.clear()
+
+    if fvgs.size() > 0 and not na(filled_buffer)
+        for i = fvgs.size() - 1 to 0
+            fvg = fvgs.get(i)
+            bool is_protected = not na(protected_id) and fvg.id == protected_id
+            if not is_protected and fvg.filled
+                moved = fvgs.remove(i)
+                moved_fvgs.unshift(moved)
+
+    for moved in moved_fvgs
+        filled_buffer.push(moved)
+        filled_new_buffer.push(moved)
+
+    if keep_history > 0
+        while filled_buffer.size() > keep_history
+            if not na(discard_buffer)
+                discard_buffer.push(filled_buffer.shift())
+            else
+                filled_buffer.shift()
+
+    fvgs
+
+export method update(FVG this) =>
+    bool filled_by_close = this.fill_mode == ct.LevelBreakMode.CLOSE
+    if not this.filled and (not filled_by_close or barstate.isconfirmed)
+        if this.dir == 1
+            fill_src = filled_by_close ? close : low
+            if this.fill_current_level > fill_src
+                this.filled := this.fill_target_level > fill_src
+                this.fill_current_level := math.min(this.fill_current_level, fill_src)
+                this.fill_current_ratio := (this.left_top.price - this.fill_current_level) / math.max(this.left_top.price - this.right_bottom.price, syminfo.mintick)
+                if this.filled
+                    this.fill_time := time_close
+                    this.fill_index := bar_index + 1
+                true
+            else
+                false
+        else
+            fill_src = this.fill_mode == ct.LevelBreakMode.CLOSE ? close : high
+            if this.fill_current_level < fill_src
+                this.filled := this.fill_target_level < fill_src
+                this.fill_current_level := math.max(this.fill_current_level, fill_src)
+                this.fill_current_ratio := (this.fill_current_level - this.right_bottom.price) / math.max(this.left_top.price - this.right_bottom.price, syminfo.mintick)
+                if this.filled
+                    this.fill_time := time_close
+                    this.fill_index := bar_index + 1
+                true
+            else
+                false
+    else
+        false
+
+export method update(FVG[] fvgs) =>
+    if fvgs.size() > 0
+        for i = fvgs.size() - 1 to 0
+            fvg = fvgs.get(i)
+            fvg.update()
+    fvgs
+
+export method hide(FVG this) =>
+    if not na(this) and not this.hidden
+        if not na(this.plot_box)
+            this.plot_box.hide()
+        if not na(this.plot_fill_target_level)
+            this.plot_fill_target_level.hide()
+        if not na(this.plot_fill_target_label)
+            this.plot_fill_target_label.hide()
+        this.hidden := true
+    this
+
+export method delete(FVG this) =>
+    if not na(this)
+        if not na(this.plot_box)
+            this.plot_box.delete()
+        if not na(this.plot_fill_target_level)
+            this.plot_fill_target_level.delete()
+        if not na(this.plot_fill_target_label)
+            this.plot_fill_target_label.delete()
+        this.plot_box := na
+        this.plot_fill_target_level := na
+        this.plot_fill_target_label := na
+        this.hidden := false
+    this
+
+export method delete(FVG[] fvgs) =>
+    if not na(fvgs)
+        for fvg in fvgs
+            fvg.delete()
+    fvgs
+
+export method remove_insignificant(FVG[] fvgs, float size_threshold, FVG[] removed_buffer = na, int protected_id = na) =>
+    if fvgs.size() > 0
+        for i = fvgs.size() - 1 to 0
+            fvg = fvgs.get(i)
+            size = fvg.left_top.price - fvg.right_bottom.price
+            bool is_protected = not na(protected_id) and fvg.id == protected_id
+            if not is_protected and size < size_threshold
+                log.info("clearing out old FVG to free memory (top: {0} | bottom: {1}) with size ({2}) below threshold ({3})", fvg.left_top.price, fvg.right_bottom.price, size, size_threshold)
+                if not na(removed_buffer)
+                    removed_buffer.push(fvg)
+                fvg.delete()
+                fvgs.remove(i)
+    fvgs
+
+export fvg_quality_score(FVG fvg, float size_threshold = 0.0) =>
+    if na(fvg)
+        0.0
+    else
+        float gap_size = math.max(fvg.left_top.price - fvg.right_bottom.price, syminfo.mintick)
+        float normalized_gap = size_threshold > 0 ? math.min(gap_size / math.max(size_threshold * 3.0, syminfo.mintick), 1.0) : 0.5
+        float unfilled_component = 1.0 - math.max(0.0, math.min(1.0, nz(fvg.fill_current_ratio, 0.0)))
+        float score = 0.15
+        score += normalized_gap * 0.35
+        score += unfilled_component * 0.25
+        score += not fvg.filled ? 0.15 : 0.0
+        score += nz(fvg.total_volume, 0.0) > 0 ? 0.10 : 0.0
+        math.max(0.0, math.min(1.0, score))
+
+export fvgs_objects(simple ct.LevelBreakMode fill_mode = ct.LevelBreakMode.CLOSE, float fill_target_ratio = 0.5, float size_threshold = 0, simple bool enabled = true, simple int filled_max_keep = 5, simple int gc_cycle = na, int protected_bull_id = na, int protected_bear_id = na) =>
+    var FVG[] buffer_bull = array.new<FVG>(0)
+    var FVG[] buffer_bear = array.new<FVG>(0)
+    var FVG[] buffer_bull_filled = array.new<FVG>(0)
+    var FVG[] buffer_bear_filled = array.new<FVG>(0)
+    var FVG[] buffer_bull_filled_new = array.new<FVG>(0)
+    var FVG[] buffer_bear_filled_new = array.new<FVG>(0)
+    var FVG[] buffer_bull_discarded = array.new<FVG>(0)
+    var FVG[] buffer_bear_discarded = array.new<FVG>(0)
+    var int next_id = 0
+
+    if barstate.isfirst and not u.in_range(fill_target_ratio, 1, 0)
+        runtime.error(str.format("FVG fill_target_ratio {0} ({0,number,percent}) not in range [0-1]. We chose not to support this for performance reasons (avoiding box overlap)", fill_target_ratio))
+
+    [bullish_fvg_alert, new_bull] = _detect_fvg_object(1, enabled, size_threshold, fill_mode, fill_target_ratio)
+    [bearish_fvg_alert, new_bear] = _detect_fvg_object(-1, enabled, size_threshold, fill_mode, fill_target_ratio)
+
+    buffer_bull.update()
+    buffer_bear.update()
+
+    buffer_bull.clear_filled(buffer_bull_filled, buffer_bull_filled_new, filled_max_keep, buffer_bull_discarded, protected_bull_id)
+    buffer_bear.clear_filled(buffer_bear_filled, buffer_bear_filled_new, filled_max_keep, buffer_bear_discarded, protected_bear_id)
+
+    if gc_cycle > 0 and bar_index % gc_cycle == 0
+        buffer_bull.remove_insignificant(size_threshold, buffer_bull_discarded, protected_bull_id)
+        buffer_bear.remove_insignificant(size_threshold, buffer_bear_discarded, protected_bear_id)
+
+    if bullish_fvg_alert
+        next_id += 1
+        new_bull.id := next_id
+        buffer_bull.push(new_bull)
+    if bearish_fvg_alert
+        next_id += 1
+        new_bear.id := next_id
+        buffer_bear.push(new_bear)
+
+    if buffer_bull_discarded.size() > 0
+        delete(buffer_bull_discarded)
+        array.clear(buffer_bull_discarded)
+    if buffer_bear_discarded.size() > 0
+        delete(buffer_bear_discarded)
+        array.clear(buffer_bear_discarded)
+
+    [bullish_fvg_alert, bearish_fvg_alert, buffer_bull, buffer_bear, new_bull, new_bear, buffer_bull_filled, buffer_bear_filled, buffer_bull_filled_new, buffer_bear_filled_new, buffer_bull_discarded, buffer_bear_discarded]
+
+export method draw(FVG this, FVGConfig config, bool extend_only = true, simple bool force_overlay = false, int left_override = na, int right_override = na, int visible_left = na, int visible_right = na) =>
+    visible_match = na(visible_left) or na(visible_right) or this.overlaps_window(visible_left, visible_right, config.extend_until_filled)
+
+    if not visible_match
+        if not na(this.plot_box) and not this.hidden
+            this.hide()
+        this
+    else
+
+        if barstate.islast and not na(this) and (config.show_box or config.show_target)
+            float fvg_quality = config.show_quality_score ? fvg_quality_score(this, this.left_top.price - this.right_bottom.price) : 0.0
+            txt_quality = config.show_quality_score and fvg_quality > 0 ? str.format('(Q {0,number,percent})', fvg_quality) : ''
+            txt = str.format('{0}{1}', config.show_text ? config.txt + ' ' : '', config.show_target_label ? '' : txt_quality)
+
+            xloc_bartime = config.box_args.xloc == xloc.bar_time
+            int base_right_time = math.max(this.left_top.time, this.right_bottom.time)
+            int fill_right_time = effective_live_event_time(this.fill_time, math.max(this.left_top.time, this.right_bottom.time))
+            int left = not na(left_override) ? left_override : xloc_bartime ? this.left_top.time : this.left_top.index
+            int right = na
+            if not na(right_override)
+                right := right_override
+            else if config.extend_until_filled
+                if this.filled
+                    right := xloc_bartime ? fill_right_time : this.fill_index - 1
+                else
+                    right := xloc_bartime ? current_bar_right_time() : math.max(this.left_top.index + config.extend_bars, bar_index)
+            else if this.filled
+                right := xloc_bartime ? math.min(fill_right_time, base_right_time) : math.min(this.fill_index - 1, math.max(this.left_top.index + config.extend_bars, this.right_bottom.index))
+            else
+                right := xloc_bartime ? base_right_time : math.max(this.left_top.index + config.extend_bars, this.right_bottom.index)
+
+            chart.point plot_left_top = d.create_point(left, this.left_top.price, config.box_args.xloc)
+            chart.point plot_right_bottom = d.create_point(right, this.right_bottom.price, config.box_args.xloc)
+
+            if config.show_box
+                if na(this.plot_box)
+                    this.plot_box := d.SmcBox.new(plot_left_top, plot_right_bottom, config.show_target_label ? '' : txt)
+                else
+                    this.plot_box.left_top := plot_left_top
+                    this.plot_box.right_bottom := plot_right_bottom
+
+                this.plot_box.draw(config.box_args, config.box_text_args, extend_only, force_overlay)
+                if this.filled
+                    this.plot_box.plot.set_text(txt)
+
+            if config.show_target
+                if na(this.plot_fill_target_level)
+                    this.plot_fill_target_level := d.create_line(left, this.fill_target_level, right, this.fill_target_level, config.line_args.xloc)
+                else
+                    this.plot_fill_target_level.start.update(left, this.fill_target_level, config.line_args.xloc)
+                    this.plot_fill_target_level.end.update(right, this.fill_target_level, config.line_args.xloc)
+                this.plot_fill_target_level.draw(config.line_args, extend_only, force_overlay)
+
+            if config.show_target_label
+                txt_target = str.format('{0}{1}', config.show_text ? config.txt + ' ' : '', txt_quality)
+                if na(this.plot_fill_target_label)
+                    this.plot_fill_target_label := d.create_label(right, this.fill_target_level, config.label_args.xloc, txt_target)
+                else
+                    this.plot_fill_target_label.point.update(right, this.fill_target_level, config.label_args.xloc)
+                    this.plot_fill_target_label.txt := txt_target
+                this.plot_fill_target_label.draw(config.label_args, force_overlay)
+
+            if this.filled and fill_right_time <= current_bar_right_time()
+                if not na(this.plot_box)
+                    this.plot_box.apply_style(config.box_args, config.box_text_args)
+                if not na(this.plot_fill_target_level)
+                    this.plot_fill_target_level.apply_style(config.line_args)
+                if not na(this.plot_fill_target_label)
+                    this.plot_fill_target_label.apply_style(config.label_args)
+
+            this.hidden := false
+
+    this
+
+export method draw(FVG[] fvgs, FVGConfig config, bool extend_only = true, simple bool force_overlay = false, int left_override = na, int right_override = na, int visible_left = na, int visible_right = na) =>
+    if na(fvgs) ? false : (config.show_box or config.show_target) and fvgs.size() > 0
+        count = 0
+        for i = fvgs.size() - 1 to 0
+            fvg = fvgs.get(i)
+            visible_match = na(visible_left) or na(visible_right) or fvg.overlaps_window(visible_left, visible_right, config.extend_until_filled)
+            if visible_match and count < config.show_last
+                fvg.draw(config, extend_only, force_overlay, left_override, right_override, visible_left, visible_right)
+                count += 1
+            else
+                if not na(fvg.plot_box) and not fvg.hidden
+                    fvg.hide()
+    fvgs
+
+/////////////////////////////////////////////////////////////////////////////////
