@@ -792,11 +792,12 @@ export plot_pivot_points(int mode, int x, float y, bool enabled, d.LabelArgs arg
         if not keep_history
             label.delete(label_swing_point[1])
 
-// Draws the latest swing level as a horizontal line. (A textless swing label was
-// scaffolded here but never rendered — its text was never set, so mode/trend/
-// label_args/text_prefix were dead; removed 2026-07-14, behavior-neutral. A real
-// swing-label feature would re-add a label whose text = <prefix><Strong/Weak High/Low>.)
-export plot_swing_levels(int trail_x, float trail_y, bool enabled, d.LineArgs line_args, int override_right_index = na) =>
+// Draws the latest swing level: a horizontal line plus a label naming the swing
+// (<prefix><Strong/Weak High/Low>). NOTE: the label text is applied here via
+// set_text — a long-standing scaffold omitted that call, so the label rendered
+// blank; restored 2026-07-14 so mode/trend/label_args/text_prefix drive it.
+export plot_swing_levels(int mode, int trail_x, float trail_y, int trend, bool enabled, d.LabelArgs label_args, d.LineArgs line_args, int override_right_index = na, string text_prefix = '') =>
+    var label label_latest_swing = label.new(na, na, color = #00000000, textcolor = label_args.text_color, style = label_args.style, size = label_args.size)
     var line line_latest_swing = line.new(na, na, na, na, color = line_args.line_color, style = line_args.style)
 
     if enabled
@@ -806,8 +807,11 @@ export plot_swing_levels(int trail_x, float trail_y, bool enabled, d.LineArgs li
             line_latest_swing.set_y1(trail_y)
 
         if barstate.islast
+            hl_swing_txt = mode == 1 ? (trend < 0 ? 'Strong High' : 'Weak High') : mode == -1 ? (trend > 0 ? 'Strong Low' : 'Weak Low') : na
             right = not na(override_right_index) ? override_right_index : bar_index + 20
             line_latest_swing.set_xy2(right, trail_y)
+            label_latest_swing.set_xy(right, trail_y)
+            label_latest_swing.set_text(na(hl_swing_txt) ? '' : text_prefix + hl_swing_txt)
 
 export plot_structure(int x, float y, bool is_bos = false, bool is_choch = false, d.LabelArgs label_args, d.LineArgs line_args, bool keep_history, string text_prefix = '', string bos_text = 'BOS', string choch_text = 'CHoCH') =>
     if is_bos or is_choch

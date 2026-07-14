@@ -1622,16 +1622,16 @@ if show_swing_points_eff
 bool show_chart_swing_levels = (show_latest_swings_levels or show_swing_points) and (not compact_mode)
 
 if show_chart_swing_levels
-    eng.plot_swing_levels(trail_up_x, trail_up, true, d.LineArgs.new(bear_css, line.style_solid, 2), override_right_index = bar_index + 20)
-    eng.plot_swing_levels(trail_dn_x, trail_dn, true, d.LineArgs.new(bull_css, line.style_solid, 2), override_right_index = bar_index + 20)
+    eng.plot_swing_levels(1, trail_up_x, trail_up, structure_display_trend, true, d.LabelArgs.new(bear_css, #00000000, size = size.small, style = label.style_label_left), d.LineArgs.new(bear_css, line.style_solid, 2), override_right_index = bar_index + 20)
+    eng.plot_swing_levels(-1, trail_dn_x, trail_dn, structure_display_trend, true, d.LabelArgs.new(bull_css, #00000000, size = size.small, style = label.style_label_left), d.LineArgs.new(bull_css, line.style_solid, 2), override_right_index = bar_index + 20)
 
 if show_bull_bos or show_bull_choch
     eng.plot_structure(top_x, top, show_bull_bos and bull_bos_sig, show_bull_choch and bull_choch_sig, d.LabelArgs.new(bull_css, #00000000, size = size.small, style = label.style_label_down), d.LineArgs.new(bull_css, line.style_solid, 2), keep_history = keep_visual_history_eff)
 
 // Internal structure: lighter dashed rendering
 if show_internals
-    eng.plot_swing_levels(internal_trail_up_x, internal_trail_up, true, d.LineArgs.new(bear_internal_css, line.style_dashed), override_right_index = bar_index + 10)
-    eng.plot_swing_levels(internal_trail_dn_x, internal_trail_dn, true, d.LineArgs.new(bull_internal_css, line.style_dashed), override_right_index = bar_index + 10)
+    eng.plot_swing_levels(1, internal_trail_up_x, internal_trail_up, internal_display_trend, true, d.LabelArgs.new(bear_internal_css, #00000000, size = size.tiny, style = label.style_label_left), d.LineArgs.new(bear_internal_css, line.style_dashed), override_right_index = bar_index + 10, text_prefix = 'INT ')
+    eng.plot_swing_levels(-1, internal_trail_dn_x, internal_trail_dn, internal_display_trend, true, d.LabelArgs.new(bull_internal_css, #00000000, size = size.tiny, style = label.style_label_left), d.LineArgs.new(bull_internal_css, line.style_dashed), override_right_index = bar_index + 10, text_prefix = 'INT ')
 
 if show_internal_bull_bos or show_internal_bull_choch
     eng.plot_structure(internal_top_x, internal_top, show_internal_bull_bos and internal_bull_bos_sig, show_internal_bull_choch and internal_bull_choch_sig, d.LabelArgs.new(bull_internal_css, #00000000, size = size.tiny, style = label.style_label_down), d.LineArgs.new(bull_internal_css, line.style_dashed), keep_history = keep_visual_history_eff, text_prefix = 'INT ', bos_text = 'Break', choch_text = 'Reversal')
