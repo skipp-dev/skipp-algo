@@ -19,6 +19,10 @@
 //      the schema reads 7001 the live, fully-gated engine setup drives the boxes
 //      (a close crossing its Trigger = breakout, its Invalidation = breakdown).
 //      Auto uses this whenever the engine is bound+on-chart, else falls to (1).
+//      Optional enrichment channels (ZoneOb*/ZoneFvg*/StopLevel/Target1-2/
+//      QualityScore) draw the real active OB/FVG zone as the box, plot the
+//      engine's real Stop/Target and feed them into the win/loss sim, and
+//      filter breakouts below a chosen quality score. Bind only what you want.
 //
 //   3. LOCAL PIVOTS (fallback): naive ta.pivot swing levels + crossover, no
 //      dependency at all. For charts where you deliberately want zero library.
@@ -60,6 +64,15 @@ src_schema       = input.source(close, "BUS SchemaVersion", group = g_bus, displ
 src_zone_active  = input.source(close, "BUS ZoneActive",  group = g_bus, display = display.none)
 src_trigger      = input.source(close, "BUS Trigger",      group = g_bus, display = display.none)
 src_invalidation = input.source(close, "BUS Invalidation", group = g_bus, display = display.none)
+// Enrichment channels (optional — bind for real zones / risk plan / quality):
+src_ob_top       = input.source(close, "BUS ZoneObTop",     group = g_bus, display = display.none)
+src_ob_bottom    = input.source(close, "BUS ZoneObBottom",  group = g_bus, display = display.none)
+src_fvg_top      = input.source(close, "BUS ZoneFvgTop",    group = g_bus, display = display.none)
+src_fvg_bottom   = input.source(close, "BUS ZoneFvgBottom", group = g_bus, display = display.none)
+src_stop         = input.source(close, "BUS StopLevel",     group = g_bus, display = display.none)
+src_target1      = input.source(close, "BUS Target1",       group = g_bus, display = display.none)
+src_target2      = input.source(close, "BUS Target2",       group = g_bus, display = display.none)
+src_quality      = input.source(close, "BUS QualityScore",  group = g_bus, display = display.none)
 
 int  expected_bus_version = 7001   // matches SMC Core's published 'BUS SchemaVersion'
 bool engine_bound = math.round(src_schema) == expected_bus_version
@@ -69,6 +82,30 @@ bool engine_bound = math.round(src_schema) == expected_bus_version
 bool mode_bus = (structSource == "Auto" or structSource == "Engine BUS (live)") and engine_bound
 bool mode_piv = structSource == "Local pivots"
 bool mode_lib = not mode_bus and not mode_piv
+
+g_enrich = "Engine enrichments (tier 2 only)"
+bool use_real_zone = input.bool(true, "Box = real OB/FVG zone", group = g_enrich,
+     tooltip = "Bull breakouts: draw the box on the engine's active Order-Block (or FVG) zone " +
+     "instead of the threshold band. Needs BUS ZoneOb*/ZoneFvg* bound; falls back to the band.")
+bool use_real_plan = input.bool(true, "Draw + simulate real Stop/Target", group = g_enrich,
+     tooltip = "Plot the engine's actual Stop/Target1/Target2 and feed the win/loss tracker with the " +
+     "real Stop/Target (long side) instead of the synthetic ATR-RR. Needs BUS StopLevel/Target1 bound.")
+float qualityMin = input.float(0, "Min quality score (0 = off)", minval = 0, maxval = 100, group = g_enrich,
+     tooltip = "Suppress engine-tier breakouts whose BUS QualityScore is below this. 0 disables the filter. " +
+     "Needs BUS QualityScore bound to be meaningful.")
+
+// Resolved engine zone (bull side; prefer OB, else FVG). na → fall back to band.
+bool _ob_valid  = mode_bus and not na(src_ob_top) and not na(src_ob_bottom) and src_ob_top > src_ob_bottom
+bool _fvg_valid = mode_bus and not na(src_fvg_top) and not na(src_fvg_bottom) and src_fvg_top > src_fvg_bottom
+float ezone_top = _ob_valid ? src_ob_top    : _fvg_valid ? src_fvg_top    : na
+float ezone_bot = _ob_valid ? src_ob_bottom : _fvg_valid ? src_fvg_bottom : na
+
+// Quality gate. Treat QualityScore as "bound" only when it differs from the
+// unbound `close` default and reads as a plausible 0..100 score — so a user who
+// sets qualityMin but forgets to bind (on a symbol priced in 0..100) can NEVER
+// be wrongly blocked; the filter simply stays inert until actually bound.
+bool _quality_bound = mode_bus and src_quality != close and src_quality >= 0 and src_quality <= 100
+bool quality_ok = qualityMin <= 0 or not _quality_bound or src_quality >= qualityMin
 
 g_trig = "BOS / CHoCH filter (library + pivot tiers)"
 bool use_bos   = input.bool(true,  "Trigger on BOS",   group = g_trig)
@@ -223,8 +260,8 @@ bool struct_bear_ok = mode_bus ? true : ((use_bos and bos_bear) or (use_choch an
 bool age_bull_ok = mode_piv ? (not na(res_anchor_bar) and (bar_index - res_anchor_bar) >= minHold) : true
 bool age_bear_ok = mode_piv ? (not na(sup_anchor_bar) and (bar_index - sup_anchor_bar) >= minHold) : true
 
-bool trig_bull = _trig_confirmed and broke_up and struct_bull_ok and age_bull_ok
-bool trig_bear = _trig_confirmed and broke_dn and struct_bear_ok and age_bear_ok
+bool trig_bull = _trig_confirmed and broke_up and struct_bull_ok and age_bull_ok and quality_ok
+bool trig_bear = _trig_confirmed and broke_dn and struct_bear_ok and age_bear_ok and quality_ok
 
 // ── Draw box (single box.new — proper object lifecycle, no max_lines spam) ─
 
@@ -243,10 +280,12 @@ breakout_label(string base_tag, int from_bar) =>
 
 if trig_bull
     int   x1    = na(res_anchor_bar) ? math.max(bar_index - 1, 0) : res_anchor_bar
-    float y_top = resistance
-    float y_bot = resistance - chwidth
+    // Engine tier: draw the real active OB/FVG zone when bound; else the band.
+    bool  _use_zone = mode_bus and use_real_zone and not na(ezone_top) and not na(ezone_bot)
+    float y_top = _use_zone ? ezone_top : resistance
+    float y_bot = _use_zone ? ezone_bot : resistance - chwidth
     draw_box(x1, y_top, y_bot, bar_index, colUp)
-    string base = mode_bus ? "LONG TRIGGER" : (choch_bull ? "CHoCH" : "BOS")
+    string base = mode_bus ? (_use_zone ? "LONG ZONE" : "LONG TRIGGER") : (choch_bull ? "CHoCH" : "BOS")
     label.new(int(math.avg(x1, bar_index)), y_top, breakout_label(base, x1),
          color = color.new(colUp, 70), textcolor = color.white,
          style = label.style_label_down, size = size.tiny)
@@ -267,6 +306,14 @@ plotshape(show_arrows and trig_bull, "SMC Breakout",  shape.triangleup,
      location.belowbar, colUp, size = size.small)
 plotshape(show_arrows and trig_bear, "SMC Breakdown", shape.triangledown,
      location.abovebar, colDn, size = size.small)
+
+// ── Engine risk plan (tier 2): plot the engine's real Stop / Target levels ──
+// Only when bound; plot.style_linebr breaks the line across na gaps so it shows
+// only while the engine publishes a live plan.
+bool _plan_on = mode_bus and use_real_plan
+plot(_plan_on and not na(src_stop)    ? src_stop    : na, "Engine Stop",     color = color.new(color.red,   0), linewidth = 1, style = plot.style_linebr)
+plot(_plan_on and not na(src_target1) ? src_target1 : na, "Engine Target 1", color = color.new(color.green, 0), linewidth = 1, style = plot.style_linebr)
+plot(_plan_on and not na(src_target2) ? src_target2 : na, "Engine Target 2", color = color.new(color.teal,  0), linewidth = 1, style = plot.style_linebr)
 
 // ── Alerts ─────────────────────────────────────────────────────
 // H-1 (system review 2026-04-24): every alertcondition() must be gated
@@ -298,9 +345,13 @@ var int   sim_losses   = 0
 if sim_on and not sim_active and (trig_bull or trig_bear)
     sim_active := true
     sim_long   := trig_bull
+    // Engine tier + real-plan: the long side uses the engine's actual Stop /
+    // Target1 instead of the synthetic ATR-RR band. Short/bear side (rare on
+    // this long-only engine) always uses ATR-RR — no engine plan applies.
+    bool _real_plan = mode_bus and use_real_plan and sim_long and not na(src_stop) and not na(src_target1)
     if sim_long
-        sim_sl := close - sl_dist
-        sim_tp := close + sl_dist * rr
+        sim_sl := _real_plan ? src_stop    : close - sl_dist
+        sim_tp := _real_plan ? src_target1 : close + sl_dist * rr
     else
         sim_sl := close + sl_dist
         sim_tp := close - sl_dist * rr
