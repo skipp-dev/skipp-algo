@@ -1622,16 +1622,16 @@ if show_swing_points_eff
 bool show_chart_swing_levels = (show_latest_swings_levels or show_swing_points) and (not compact_mode)
 
 if show_chart_swing_levels
-    eng.plot_swing_levels(1, trail_up_x, trail_up, structure_display_trend, true, d.LabelArgs.new(bear_css, #00000000, size = size.small, style = label.style_label_left), d.LineArgs.new(bear_css, line.style_solid, 2), override_right_index = bar_index + 20)
-    eng.plot_swing_levels(-1, trail_dn_x, trail_dn, structure_display_trend, true, d.LabelArgs.new(bull_css, #00000000, size = size.small, style = label.style_label_left), d.LineArgs.new(bull_css, line.style_solid, 2), override_right_index = bar_index + 20)
+    eng.plot_swing_levels(trail_up_x, trail_up, true, d.LineArgs.new(bear_css, line.style_solid, 2), override_right_index = bar_index + 20)
+    eng.plot_swing_levels(trail_dn_x, trail_dn, true, d.LineArgs.new(bull_css, line.style_solid, 2), override_right_index = bar_index + 20)
 
 if show_bull_bos or show_bull_choch
     eng.plot_structure(top_x, top, show_bull_bos and bull_bos_sig, show_bull_choch and bull_choch_sig, d.LabelArgs.new(bull_css, #00000000, size = size.small, style = label.style_label_down), d.LineArgs.new(bull_css, line.style_solid, 2), keep_history = keep_visual_history_eff)
 
 // Internal structure: lighter dashed rendering
 if show_internals
-    eng.plot_swing_levels(1, internal_trail_up_x, internal_trail_up, internal_display_trend, true, d.LabelArgs.new(bear_internal_css, #00000000, size = size.tiny, style = label.style_label_left), d.LineArgs.new(bear_internal_css, line.style_dashed), override_right_index = bar_index + 10, text_prefix = 'INT ')
-    eng.plot_swing_levels(-1, internal_trail_dn_x, internal_trail_dn, internal_display_trend, true, d.LabelArgs.new(bull_internal_css, #00000000, size = size.tiny, style = label.style_label_left), d.LineArgs.new(bull_internal_css, line.style_dashed), override_right_index = bar_index + 10, text_prefix = 'INT ')
+    eng.plot_swing_levels(internal_trail_up_x, internal_trail_up, true, d.LineArgs.new(bear_internal_css, line.style_dashed), override_right_index = bar_index + 10)
+    eng.plot_swing_levels(internal_trail_dn_x, internal_trail_dn, true, d.LineArgs.new(bull_internal_css, line.style_dashed), override_right_index = bar_index + 10)
 
 if show_internal_bull_bos or show_internal_bull_choch
     eng.plot_structure(internal_top_x, internal_top, show_internal_bull_bos and internal_bull_bos_sig, show_internal_bull_choch and internal_bull_choch_sig, d.LabelArgs.new(bull_internal_css, #00000000, size = size.tiny, style = label.style_label_down), d.LineArgs.new(bull_internal_css, line.style_dashed), keep_history = keep_visual_history_eff, text_prefix = 'INT ', bos_text = 'Break', choch_text = 'Reversal')
@@ -2510,7 +2510,7 @@ plot(cr.resolve_bus_sd_confluence_row(use_sd_confluence, sd_support_both_recent,
 plot(cr.resolve_bus_sd_osc_row(use_sd_confluence, sd_value, sd_above_zero, sd_rising, sd_below_zero, sd_falling), 'BUS SdOscRow', display = display.none)
 plot(cr.resolve_bus_vol_regime_row(use_volatility_regime, vol_regime_trend_ok), 'BUS VolRegimeRow', display = display.none)
 plot(cr.resolve_bus_vol_squeeze_row(use_volatility_regime, vol_squeeze_on, vol_squeeze_release_recent, vol_squeeze_recent), 'BUS VolSqueezeRow', display = display.none)
-plot(eng.resolve_bus_ready_blocker_code(long_ready_state, long_state.confirmed, lifecycle_ready_ok, setup_hard_gate_ok, trade_hard_gate_ok, environment_hard_gate_ok, close_safe_mode, ready_bar_gap_ok, long_confirm_expired, ready_is_fresh, long_confirm_bearish_guard_ok, require_main_break_for_ready_eff, bull_bos_sig, main_bos_recent, session_structure_gate_ok, micro_session_gate_ok, micro_freshness_gate_ok, overhead_zone_ok, market_regime_gate_ok, vola_regime_gate_safe, quality_gate_ok, accel_ready_gate_ok, sd_ready_gate_ok, vol_ready_context_ok, stretch_ready_context_ok, ddvi_ready_ok_safe), 'BUS ReadyBlockerCode', display = display.none)
+plot(eng.resolve_bus_ready_blocker_code(long_ready_state, long_state.confirmed, setup_hard_gate_ok, trade_hard_gate_ok, environment_hard_gate_ok, close_safe_mode, ready_bar_gap_ok, long_confirm_expired, ready_is_fresh, long_confirm_bearish_guard_ok, require_main_break_for_ready_eff, bull_bos_sig, main_bos_recent, session_structure_gate_ok, micro_session_gate_ok, micro_freshness_gate_ok, overhead_zone_ok, market_regime_gate_ok, vola_regime_gate_safe, quality_gate_ok, accel_ready_gate_ok, sd_ready_gate_ok, vol_ready_context_ok, stretch_ready_context_ok, ddvi_ready_ok_safe), 'BUS ReadyBlockerCode', display = display.none)
 plot(eng.resolve_bus_strict_blocker_code(long_entry_strict_state, long_ready_state, strict_signal_quality_gate_ok, strict_entry_ltf_ok, htf_alignment_ok, accel_strict_entry_gate_ok, sd_entry_strict_gate_ok, vol_entry_strict_context_ok_safe, stretch_entry_strict_context_ok, ddvi_entry_strict_ok_safe), 'BUS StrictBlockerCode', display = display.none)
 plot(cr.resolve_bus_vol_expansion_state(use_volatility_regime, vol_momentum_expanding_long, vol_stack_spread_rising), 'BUS VolExpansionState', display = display.none)
 plot(cr.resolve_bus_ddvi_context_state(use_ddvi_context, ddvi_bias_ok, ddvi_bull_divergence_any, ddvi_lower_extreme_context), 'BUS DdviContextState', display = display.none)

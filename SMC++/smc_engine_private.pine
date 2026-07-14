@@ -792,8 +792,11 @@ export plot_pivot_points(int mode, int x, float y, bool enabled, d.LabelArgs arg
         if not keep_history
             label.delete(label_swing_point[1])
 
-export plot_swing_levels(int mode, int trail_x, float trail_y, int trend, bool enabled, d.LabelArgs label_args, d.LineArgs line_args, int override_right_index = na, string text_prefix = '') =>
-    var label label_latest_swing = label.new(na, na, color = #00000000, textcolor = label_args.text_color, style = label_args.style, size = label_args.size)
+// Draws the latest swing level as a horizontal line. (A textless swing label was
+// scaffolded here but never rendered — its text was never set, so mode/trend/
+// label_args/text_prefix were dead; removed 2026-07-14, behavior-neutral. A real
+// swing-label feature would re-add a label whose text = <prefix><Strong/Weak High/Low>.)
+export plot_swing_levels(int trail_x, float trail_y, bool enabled, d.LineArgs line_args, int override_right_index = na) =>
     var line line_latest_swing = line.new(na, na, na, na, color = line_args.line_color, style = line_args.style)
 
     if enabled
@@ -803,10 +806,8 @@ export plot_swing_levels(int mode, int trail_x, float trail_y, int trend, bool e
             line_latest_swing.set_y1(trail_y)
 
         if barstate.islast
-            hl_swing_txt = mode == 1 ? (trend < 0 ? 'Strong High' : 'Weak High') : mode == -1 ? (trend > 0 ? 'Strong Low' : 'Weak Low') : na
             right = not na(override_right_index) ? override_right_index : bar_index + 20
             line_latest_swing.set_xy2(right, trail_y)
-            label_latest_swing.set_xy(right, trail_y)
 
 export plot_structure(int x, float y, bool is_bos = false, bool is_choch = false, d.LabelArgs label_args, d.LineArgs line_args, bool keep_history, string text_prefix = '', string bos_text = 'BOS', string choch_text = 'CHoCH') =>
     if is_bos or is_choch
@@ -1491,7 +1492,7 @@ export compose_trust_tier_suffix(string trust_tier, int sq_score, string sq_fres
         suffix := 'no measurement data'
     suffix
 
-export resolve_bus_ready_blocker_code(bool long_ready_state, bool long_setup_confirmed, bool lifecycle_ready_ok, bool setup_hard_gate_ok, bool trade_hard_gate_ok, bool environment_hard_gate_ok, bool close_safe_mode, bool ready_bar_gap_ok, bool long_confirm_expired, bool ready_is_fresh, bool long_confirm_bearish_guard_ok, bool require_main_break_for_ready, bool bull_bos_sig, bool main_bos_recent, bool session_structure_gate_ok, bool micro_session_gate_ok, bool micro_freshness_gate_ok, bool overhead_zone_ok, bool market_regime_gate_ok, bool vola_regime_gate_safe, bool quality_gate_ok, bool accel_ready_gate_ok, bool sd_ready_gate_ok, bool vol_ready_context_ok, bool stretch_ready_context_ok, bool ddvi_ready_ok_safe) =>
+export resolve_bus_ready_blocker_code(bool long_ready_state, bool long_setup_confirmed, bool setup_hard_gate_ok, bool trade_hard_gate_ok, bool environment_hard_gate_ok, bool close_safe_mode, bool ready_bar_gap_ok, bool long_confirm_expired, bool ready_is_fresh, bool long_confirm_bearish_guard_ok, bool require_main_break_for_ready, bool bull_bos_sig, bool main_bos_recent, bool session_structure_gate_ok, bool micro_session_gate_ok, bool micro_freshness_gate_ok, bool overhead_zone_ok, bool market_regime_gate_ok, bool vola_regime_gate_safe, bool quality_gate_ok, bool accel_ready_gate_ok, bool sd_ready_gate_ok, bool vol_ready_context_ok, bool stretch_ready_context_ok, bool ddvi_ready_ok_safe) =>
     ll.resolve_long_ready_reason_code(long_ready_state, long_setup_confirmed, close_safe_mode, ready_bar_gap_ok, long_confirm_expired, ready_is_fresh, long_confirm_bearish_guard_ok, require_main_break_for_ready, bull_bos_sig, main_bos_recent, setup_hard_gate_ok, trade_hard_gate_ok, environment_hard_gate_ok, session_structure_gate_ok, micro_session_gate_ok, micro_freshness_gate_ok, overhead_zone_ok, market_regime_gate_ok, vola_regime_gate_safe, quality_gate_ok, accel_ready_gate_ok, sd_ready_gate_ok, vol_ready_context_ok, stretch_ready_context_ok, ddvi_ready_ok_safe)
 
 export resolve_bus_strict_blocker_code(bool long_entry_strict_state, bool long_ready_state, bool strict_signal_quality_gate_ok, bool strict_entry_ltf_ok, bool htf_alignment_ok, bool accel_strict_entry_gate_ok, bool sd_entry_strict_gate_ok, bool vol_entry_strict_context_ok_safe, bool stretch_entry_strict_context_ok, bool ddvi_entry_strict_ok_safe) =>
