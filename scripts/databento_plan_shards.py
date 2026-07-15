@@ -17,7 +17,11 @@ Each element is::
 
 Sharding is done over CALENDAR days (not trading days). The producer
 itself filters to actual trading days via ``list_recent_trading_days``,
-so weekend/holiday gaps inside a shard's window are harmless.
+so weekend/holiday gaps inside a shard's window are harmless -- as long as
+the shard also spans at least one weekday. A shard whose window is
+*entirely* weekend resolves to zero trading days and the producer exits 1
+("No trading days available"), failing the shard job. Pass
+``--drop-weekend-only-shards`` to omit such shards from the matrix.
 
 Invariants enforced:
 - ``num_shards >= 1``
@@ -80,6 +84,34 @@ def _shard_has_weekday(start: date, end: date) -> bool:
     return False
 
 
+def _drop_weekend_only_shards(
+    shards: list[dict[str, object]],
+) -> list[dict[str, object]]:
+    """Return ``shards`` minus weekend-only entries, renumbered 1..M.
+
+    Renumbering is mandatory, not cosmetic: the reduce step calls
+    ``merge_manifests`` with ``--expected-shard-count`` set to ``len(shards)``
+    and rejects any ``shard_id > expected_shard_count``. Dropping shard 2 of 5
+    without renumbering would leave ids [1, 4, 5] against an expected count of
+    3 and raise ``ManifestMergeError``.
+
+    Dropping loses no coverage: a weekend-only window contains no trading days
+    by construction, so the shard could only ever have contributed an empty
+    slice to ``trade_dates_covered``.
+    """
+    kept = [
+        s
+        for s in shards
+        if _shard_has_weekday(
+            date.fromisoformat(str(s["start_date"])),
+            date.fromisoformat(str(s["end_date"])),
+        )
+    ]
+    return [
+        {**s, "shard_id": i + 1, "shard_of": len(kept)} for i, s in enumerate(kept)
+    ]
+
+
 def plan_shards(
     *, lookback_days: int, num_shards: int, end_date: date
 ) -> list[dict[str, object]]:
@@ -135,8 +167,19 @@ def _parse_args(argv: Sequence[str] | None) -> argparse.Namespace:
         "--require-weekday-coverage",
         action="store_true",
         help="Fail (rc=2) if any shard's calendar window maps to weekend-only days; "
-             "otherwise emit a stderr warning. Use in cron-driven matrices where a "
-             "weekend-only shard would silently produce an empty manifest.",
+             "otherwise emit a stderr warning. Diagnostic only -- it reports the "
+             "condition, it does not make the matrix runnable. Takes precedence over "
+             "--drop-weekend-only-shards when both are passed.",
+    )
+    parser.add_argument(
+        "--drop-weekend-only-shards",
+        action="store_true",
+        help="Omit weekend-only shards from the emitted matrix and renumber the "
+             "survivors 1..M (shard_of=M). Use in cron-driven matrices: such a shard "
+             "resolves to zero trading days and the producer exits 1, which fails the "
+             "shard job and (on schedule events) the whole run. Dropping loses no "
+             "coverage. If every shard is weekend-only the output is an empty matrix, "
+             "which the workflow's shard_count!='0' guard skips cleanly.",
     )
     parser.add_argument(
         "--last-baked-date",
@@ -218,14 +261,23 @@ def main(argv: Sequence[str] | None = None) -> int:
     if weekend_only:
         ids = [s["shard_id"] for s in weekend_only]
         msg = (
-            f"weekend-only shards detected (shard_ids={ids}); these will produce "
-            "empty manifests because list_recent_trading_days filters them out. "
-            "Consider --lookback-days >= 7 * num_shards, or accept the empty shards."
+            f"weekend-only shards detected (shard_ids={ids}); list_recent_trading_days "
+            "resolves zero trading days for such a shard, so the producer exits 1 "
+            "('No trading days available') and FAILS the shard job -- it does not emit "
+            "an empty manifest. Pass --drop-weekend-only-shards to omit them, or use "
+            "--lookback-days >= 7 * num_shards so every shard spans a weekday."
         )
         if getattr(args, "require_weekday_coverage", False):
             print(f"error: {msg}", file=sys.stderr)
             return 2
         print(f"warning: {msg}", file=sys.stderr)
+        if getattr(args, "drop_weekend_only_shards", False):
+            shards = _drop_weekend_only_shards(shards)
+            print(
+                f"info: dropped weekend-only shard(s) {ids}; renumbered survivors to "
+                f"{len(shards)} shard(s).",
+                file=sys.stderr,
+            )
     # Emit via print/json.dumps rather than json.dump(stdout, ...) per
     # tests/test_no_direct_to_csv_in_production.py discipline (avoids the
     # need for an `# ATOMIC-WRITE-EXEMPT:` marker for a tiny CLI helper).
