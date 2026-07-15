@@ -58,6 +58,7 @@ These are the canonical TradingView library + consumer files, pinned by
 | `SMC_Volume_Profile_Overlay.pine`           | overlay       |
 | `SMC_Exit_Signal.pine`            | consumer      |
 | `SMC_Hold_Manager.pine`           | consumer      |
+| `SMC_Long_Dip_Alerts.pine`        | consumer      |
 | `SMC_Regime_and_News.pine`              | bridge        |
 | `SMC_Setup_Check.pine`            | diagnostic    |
 | `pine/skipp_calibration.pine`     | library       |
