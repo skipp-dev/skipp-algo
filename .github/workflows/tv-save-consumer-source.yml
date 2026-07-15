@@ -25,7 +25,7 @@ name: tv-save-consumer-source
 #
 # The `mapping` input is a JSON array of {"source": "<repo .pine>", "scriptName":
 # "<exact saved TV name>"}. Default covers the saved names known from the repo /
-# 2026-07-13 incident; override it to add/correct names.
+# current product manifest; override it to correct operator-specific saved names.
 
 on:
   workflow_dispatch:
@@ -123,14 +123,19 @@ jobs:
         run: |
           set -uo pipefail
           # Built-in default mapping: source .pine -> exact saved TV script name.
-          # SMC_Core_Engine's saved name is "SMC Core Engine" (not its title); the
-          # rest default to their indicator/strategy title. Override via the
-          # `mapping` dispatch input for corrections/additions.
+          # SMC_Core_Engine's saved name is "SMC Core Engine" (not its title).
+          # Keep every BUS-binding consumer here so a binding-order migration is
+          # rolled out as one auditable operation. Override via `mapping` only
+          # when the operator's exact saved name differs.
           DEFAULT_MAPPING='[
             {"source":"SMC_Long_Dip_Suite.pine","scriptName":"SMC Core Engine"},
-            {"source":"SMC_Long_Dip_Dashboard.pine","scriptName":"SMC Long-Dip Dashboard v7"},
-            {"source":"SMC_Long_Dip_Strategy.pine","scriptName":"SMC Long-Dip Strategy v7"},
-            {"source":"SMC_Long_Dip_Mobile.pine","scriptName":"SMC Mobile v7"}
+            {"source":"SMC_Breakout_Overlay.pine","scriptName":"SMC Breakout Overlay"},
+            {"source":"SMC_Confluence_Hub.pine","scriptName":"SMC Confluence Hub"},
+            {"source":"SMC_Long_Dip_Alerts.pine","scriptName":"SMC Long-Dip Alerts"},
+            {"source":"SMC_Long_Dip_Dashboard.pine","scriptName":"SMC Long-Dip Dashboard"},
+            {"source":"SMC_Long_Dip_Mobile.pine","scriptName":"SMC Long-Dip Mobile"},
+            {"source":"SMC_Long_Dip_Strategy.pine","scriptName":"SMC Long-Dip Strategy"},
+            {"source":"SMC_Setup_Check.pine","scriptName":"SMC Setup Check"}
           ]'
           MAPPING="${MAPPING_INPUT:-}"
           if [ -z "${MAPPING}" ]; then MAPPING="${DEFAULT_MAPPING}"; fi
@@ -167,10 +172,19 @@ jobs:
           echo "**${hits} saved, ${misses} missed.**" >> "$GITHUB_STEP_SUMMARY"
           echo "hits=${hits}" >> "$GITHUB_OUTPUT"
           echo "misses=${misses}" >> "$GITHUB_OUTPUT"
-          # A miss is not a hard failure (unknown saved name is expected until the
-          # operator confirms it), but zero hits means nothing worked — fail so it
-          # is not mistaken for success.
-          if [ "${hits}" -eq 0 ]; then
-            echo "::error::no consumer scripts were saved (all names missed or errored)."
+          # This is a coordinated binding rollout: a partial save can leave the
+          # account on a mixed contract, so fail closed on every miss.
+          if [ "${misses}" -ne 0 ]; then
+            echo "::error::consumer rollout incomplete: ${misses} script(s) were not saved."
             exit 1
           fi
+
+      - name: Verify existing Dashboard BUS source selections
+        env:
+          TV_STORAGE_STATE: automation/tradingview/auth/storage-state.json
+        run: |
+          npx tsx scripts/tv_verify_consumer_bindings.ts \
+            --source SMC_Long_Dip_Dashboard.pine \
+            --saved-script-name "SMC Long-Dip Dashboard" \
+            --script-name "SMC Decision Board" \
+            --producer-name "SMC Long-Dip Suite"
