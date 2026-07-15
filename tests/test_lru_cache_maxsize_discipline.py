@@ -51,6 +51,16 @@ _BASELINE_LRU_CACHE_SITES: frozenset[tuple[str, str]] = frozenset({
     # maxsize=64 — memoizes holiday-date computation per (calendar_code, year);
     # domain is the multi-year holiday calendar window used by market-hours checks.
     ("services/live_overlay_daemon/market_hours.py", "_holiday_dates_for_year"),
+    # 2026-07-15 (reconcile): both landed bounded but without a baseline entry —
+    # this pin is not on the required path, so they merged green. Reviewed: both
+    # take ZERO arguments, so their key domain is exactly one entry and maxsize=1
+    # is the correct sizing (not a thrash risk — the failure mode this pin guards).
+    # maxsize=1 — the reviewed Composio tool allow-list, parsed once from
+    # composio_tool_registry.json and constant for the process.
+    ("scripts/composio_ops.py", "tool_registry"),
+    # maxsize=1 — git HEAD / GITHUB_SHA for manifest provenance, resolved once
+    # per process by design ("resolved once per process" per its docstring).
+    ("smc_integration/structure_batch.py", "_cached_source_commit"),
 })
 
 
