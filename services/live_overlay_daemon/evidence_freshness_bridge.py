@@ -4,9 +4,11 @@ Consumer half of the monitoring layer added after the 2026-06/07 blind-spot
 (see ``scripts/build_evidence_freshness_snapshot.py`` for the why). The producer
 writes a compact snapshot; this bridge fetches it (runtime URL, local-file
 fallback) and normalizes it into the fields ``metrics.render_metrics`` turns
-into Prometheus gauges. It never raises — a missing / unreadable snapshot
-yields ``loaded=0`` and the snapshot-age gauge stops advancing, which the
-``Evidence snapshot stale`` alert catches.
+into Prometheus gauges. It never raises — a missing / unreadable snapshot yields
+``loaded=0``; the separate ``Evidence snapshot unloadable`` alert catches that
+case. A loaded snapshot without a ``generated_at_unix`` timestamp exports
+``snapshot_age_known=0`` and ``snapshot_age_seconds=0`` so the stale alert must
+gate on ``snapshot_age_known`` to avoid reading zero as fresh.
 """
 from __future__ import annotations
 
