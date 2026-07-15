@@ -148,6 +148,9 @@ _ALLOWLISTED_SYMBOLS: frozenset[str] = frozenset(
         "subprocess.foo",
         "session.post",          # truncated requests.Session.post example
         "Path.write_text",       # truncated pathlib.Path.write_text example
+        # TradingView Pine built-in described by the HTF security pin; it is
+        # intentionally not a Python-importable symbol.
+        "input.timeframe",
         # Truncated pathlib.Path.parts reference (walk-robustness docstring in
         # tests/test_broad_except_silent_budget.py, #3173). Resolution is
         # env-dependent flake: `import path` only succeeds when the third-party

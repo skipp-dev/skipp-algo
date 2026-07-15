@@ -56,8 +56,11 @@ def test_cli_detects_banned_import(tmp_path: Path) -> None:
     cli_mod = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(cli_mod)
 
+    manifest = cli_mod._load_manifest()  # type: ignore[attr-defined]
     bad = cli_mod._check_file(  # type: ignore[attr-defined]
-        runtime_file, frozenset({"numpy", "scipy"})
+        runtime_file,
+        frozenset({"numpy", "scipy"}),
+        manifest.imported_roots,
     )
     assert bad == {"numpy"}
 

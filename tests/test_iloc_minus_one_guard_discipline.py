@@ -54,7 +54,6 @@ _KNOWN_HOTSPOTS: Final[frozenset[tuple[str, int]]] = frozenset(
         # captured mid-session. The measurement_evidence caller replays closed
         # historical frames, so its last row is already a closed bar. (2026-07-11.)
         ("smc_core/vol_regime.py", 135),
-        ("smc_core/vol_regime.py", 151),
         # smc_core/htf_context.py — IPDA range needs last + previous
         # HTF candle; partial HTF bar is acceptable (range only widens).
         ("smc_core/htf_context.py", 114),
@@ -111,7 +110,9 @@ _KNOWN_HOTSPOTS: Final[frozenset[tuple[str, int]]] = frozenset(
         # PR #2198 main churn added 1 line near top (-> 2397) and
         # Bridge 1c (PR #2197) inserted DEFAULT_SLIM_CANONICAL_WORKBOOK_SHEET_NAMES
         # + env-resolver block (~61 lines), shifting 2397 -> 2458.
-        ("scripts/databento_production_export.py", 2457),
+        # PR #3703 completed the Pine contract migration and shifted this
+        # production-export snapshot by three lines.
+        ("scripts/databento_production_export.py", 2460),
         # scripts/generate_bullish_quality_scanner.py — manifest scalar
         # lookups (source_data_fetched_at / latest window_tag); not bar
         # data.

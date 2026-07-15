@@ -171,7 +171,7 @@ def _xfail_violations() -> list[tuple[str, int, str]]:
                     isinstance(n, ast.Call) and n.func is node for n in ast.walk(tree)
                 )
                 if not parent_is_call:
-                    hits.append((rel, node.lineno, "@pytest.mark.xfail (not strict)"))
+                    hits.append((rel, node.lineno, "bare xfail marker (not strict)"))
             elif isinstance(node, ast.Call):
                 if _is_pytest_attr(node.func, "xfail"):
                     hits.append(
