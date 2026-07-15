@@ -69,16 +69,12 @@ _ASYNCIO_BANNED = frozenset({"run", "create_task"})
 # Empty for everything that is part of the engine — the rule below is what
 # keeps it that way. An entry here is a conscious, bounded decision.
 #
-# 2026-07-15 (#3499 scaffold): agent.py is a standalone Claude Agent SDK +
-# Composio example. The SDK is async-only, so its single ``asyncio.run(main())``
-# is the documented entry point (invoked as ``python agent.py``), mirroring the
-# ``"agent.py": 1`` entry that ``test_prod_print_ledger.py`` already carries for
-# the same scaffold. Nothing imports it, so it cannot poison event-loop
-# semantics for the sync+threaded engine this rule protects — which is the
-# entire reason the rule exists.
-_ASYNCIO_ALLOWED_COUNTS: dict[str, int] = {
-    "agent.py": 1,
-}
+# Empty by design. #3685 opened this with one entry for agent.py (the #3499
+# claude-agent-sdk scaffold, async-only SDK); that file was deleted rather than
+# exempted, so the rule is absolute again. The mechanism stays: the next
+# genuinely async-needing file gets a bounded, reviewed entry instead of a
+# blanket hole.
+_ASYNCIO_ALLOWED_COUNTS: dict[str, int] = {}
 
 _SHUTIL_BANNED = frozenset({"copy", "copyfile"})
 
