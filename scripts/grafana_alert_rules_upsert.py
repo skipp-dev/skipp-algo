@@ -250,6 +250,34 @@ def find_promql_gating_antipatterns(expr: str) -> list[str]:
 # turns a silent half-deploy into a loud pre-flight failure.
 MAX_UID_LENGTH = 40
 
+# The portable uid subset this repo commits to: lowercase ASCII words joined by
+# single ASCII hyphens. This is a REPO-LOCAL contract, deliberately narrower than
+# whatever Grafana would accept -- it is not a claim about Grafana's own charset
+# rules, which are not documented in the error surface we have observed.
+#
+# It exists because MAX_UID_LENGTH alone cannot see the likelier typo. A uid that
+# swaps the ASCII hyphen for a typographic en-dash (U+2013) is the SAME length,
+# renders almost identically in a review diff, and passes every check above:
+#   lo-credential-monitor-stale   (27 chars, ASCII)
+#   lo-credential-monitor-stale   (27 chars, en-dash -- a different string)
+# The uniqueness check cannot help either, since the two are distinct strings. So
+# Grafana either 400s on a rule that looks correct, or -- worse -- accepts it as a
+# SEPARATE rule, leaving the hyphenated original orphaned and firing forever while
+# CI and the publish run both stay green. That is the same "the rule exists but
+# nobody notices" class the uid-length guard was added for.
+#
+# The mechanism is not hypothetical here: this repo's alert YAML is authored by
+# agents and pasted between rendered Markdown, Slack and Outlook, all of which
+# autocorrect hyphens. Pinning the subset also keeps len() an unambiguous stand-in
+# for Grafana's "symbols" count, which only coincides for ASCII.
+#
+# fullmatch (not match): `$` would also accept a trailing newline.
+UID_CHARSET_RE = re.compile(r"[a-z0-9]+(?:-[a-z0-9]+)*")
+# Per-character set, used only to name the offending characters in the error.
+# UID_CHARSET_RE cannot do that job: it requires a leading alphanumeric, so a
+# legitimate '-' would fullmatch as False and be reported as an offender.
+UID_CHAR_RE = re.compile(r"[a-z0-9-]")
+
 
 def validate_alert_groups(groups: list[dict[str, Any]]) -> list[str]:
     """Return a list of human-readable structural errors (empty == valid).
@@ -301,6 +329,14 @@ def validate_alert_groups(groups: list[dict[str, Any]]) -> list[str]:
                 errors.append(
                     f"{rwhere}: uid '{uid}' is {len(uid)} chars; Grafana rejects "
                     f"uids longer than {MAX_UID_LENGTH} with HTTP 400"
+                )
+            elif not UID_CHARSET_RE.fullmatch(uid):
+                offenders = sorted({c for c in uid if not UID_CHAR_RE.fullmatch(c)})
+                errors.append(
+                    f"{rwhere}: uid '{uid}' leaves the portable subset "
+                    f"[a-z0-9] joined by '-' (offending: {offenders}). A "
+                    f"look-alike character (en-dash for hyphen, NBSP for space) "
+                    f"passes the length and uniqueness checks and reaches Grafana."
                 )
             elif uid in seen_uids:
                 errors.append(
