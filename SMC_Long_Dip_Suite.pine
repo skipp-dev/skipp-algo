@@ -2475,8 +2475,24 @@ plot(long_ready_state ? 1.0 : 0.0, 'BUS Ready', display = display.none)
 plot(long_entry_best_state ? 1.0 : 0.0, 'BUS EntryBest', display = display.none)
 plot(long_entry_strict_state ? 1.0 : 0.0, 'BUS EntryStrict', display = display.none)
 bool core_plan_visible = (long_ready_state or long_entry_best_state or long_entry_strict_state) and not na(long_state.trigger) and not na(long_state.invalidation_level)
-plot(core_plan_visible ? long_state.trigger : na, 'Core Trigger', color = color.new(color.aqua, 0), linewidth = 2, style = plot.style_linebr)
-plot(core_plan_visible ? long_state.invalidation_level : na, 'Core Invalidation', color = color.new(color.orange, 0), linewidth = 2, style = plot.style_linebr)
+// Core trigger / invalidation are drawn as horizontal level lines, not plots:
+// the 64-channel engine BUS consumes TradingView's entire 64-plot budget (see
+// docs/smc-bus-roadmap.md), so these two visible plots overflowed it to 66/64
+// (RE10140). Lines draw from the max_lines_count budget instead. extend.right
+// projects the current actionable level forward; coords are set to na (hidden)
+// when no plan is active.
+var line core_trigger_line = line.new(na, na, na, na, color = color.new(color.aqua, 0), width = 2, extend = extend.right)
+var line core_invalidation_line = line.new(na, na, na, na, color = color.new(color.orange, 0), width = 2, extend = extend.right)
+if core_plan_visible
+    line.set_xy1(core_trigger_line, bar_index - 1, long_state.trigger)
+    line.set_xy2(core_trigger_line, bar_index, long_state.trigger)
+    line.set_xy1(core_invalidation_line, bar_index - 1, long_state.invalidation_level)
+    line.set_xy2(core_invalidation_line, bar_index, long_state.invalidation_level)
+else
+    line.set_xy1(core_trigger_line, na, na)
+    line.set_xy2(core_trigger_line, na, na)
+    line.set_xy1(core_invalidation_line, na, na)
+    line.set_xy2(core_invalidation_line, na, na)
 plot(bus_trigger_level, 'BUS Trigger', display = display.none)
 plot(bus_invalidation_level, 'BUS Invalidation', display = display.none)
 plot(lib_sq_score, 'BUS QualityScore', display = display.none)

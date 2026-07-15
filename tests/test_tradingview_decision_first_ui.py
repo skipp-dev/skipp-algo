@@ -43,8 +43,13 @@ def test_core_has_decision_first_hero_contract() -> None:
     assert "string core_main_risk = cr.compose_main_risk_text(core_product_state, event_risk_state" in source
     assert "string core_provider_state = cr.resolve_core_provider_state(lib_erl_provider_status, lib_provider_count, lib_stale_providers)" in source
     assert "bool core_plan_visible = (long_ready_state or long_entry_best_state or long_entry_strict_state)" in source
-    assert "plot(core_plan_visible ? long_state.trigger : na, 'Core Trigger'" in source
-    assert "plot(core_plan_visible ? long_state.invalidation_level : na, 'Core Invalidation'" in source
+    # Core trigger / invalidation are surfaced as horizontal level lines (not
+    # plots) so the engine stays within TradingView's 64-plot budget — the
+    # 64-channel BUS already consumes it (see docs/smc-bus-roadmap.md).
+    assert "var line core_trigger_line = line.new(" in source
+    assert "line.set_xy1(core_trigger_line, bar_index - 1, long_state.trigger)" in source
+    assert "var line core_invalidation_line = line.new(" in source
+    assert "line.set_xy1(core_invalidation_line, bar_index - 1, long_state.invalidation_level)" in source
 
 
 def test_dashboard_has_companion_summary_and_pro_diagnostics() -> None:
