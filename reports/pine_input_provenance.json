@@ -1,5 +1,5 @@
 {
-  "schema": "pine-input-provenance/v1",
+  "schema": "pine-input-provenance/v2",
   "total_inputs": 529,
   "total_hidden": 315,
   "files": [
@@ -9,7 +9,6 @@
       "hidden_count": 12,
       "inputs": [
         {
-          "lineno": 52,
           "varname": "structSource",
           "kind": "string",
           "label": "Auto",
@@ -18,7 +17,6 @@
           "visibility": null
         },
         {
-          "lineno": 58,
           "varname": "structLen",
           "kind": "int",
           "label": "Library swing length",
@@ -27,7 +25,6 @@
           "visibility": null
         },
         {
-          "lineno": 68,
           "varname": "src_schema",
           "kind": "source",
           "label": "BUS SchemaVersion",
@@ -36,7 +33,6 @@
           "visibility": null
         },
         {
-          "lineno": 70,
           "varname": "src_zone_active",
           "kind": "source",
           "label": "BUS ZoneActive",
@@ -45,7 +41,6 @@
           "visibility": null
         },
         {
-          "lineno": 71,
           "varname": "src_trigger",
           "kind": "source",
           "label": "BUS Trigger",
@@ -54,7 +49,6 @@
           "visibility": null
         },
         {
-          "lineno": 72,
           "varname": "src_invalidation",
           "kind": "source",
           "label": "BUS Invalidation",
@@ -63,7 +57,6 @@
           "visibility": null
         },
         {
-          "lineno": 73,
           "varname": "src_quality",
           "kind": "source",
           "label": "BUS QualityScore",
@@ -72,7 +65,6 @@
           "visibility": null
         },
         {
-          "lineno": 74,
           "varname": "src_stop",
           "kind": "source",
           "label": "BUS StopLevel",
@@ -81,7 +73,6 @@
           "visibility": null
         },
         {
-          "lineno": 75,
           "varname": "src_target1",
           "kind": "source",
           "label": "BUS Target1",
@@ -90,7 +81,6 @@
           "visibility": null
         },
         {
-          "lineno": 76,
           "varname": "src_target2",
           "kind": "source",
           "label": "BUS Target2",
@@ -99,7 +89,6 @@
           "visibility": null
         },
         {
-          "lineno": 77,
           "varname": "src_ob_top",
           "kind": "source",
           "label": "BUS ZoneObTop",
@@ -108,7 +97,6 @@
           "visibility": null
         },
         {
-          "lineno": 78,
           "varname": "src_ob_bottom",
           "kind": "source",
           "label": "BUS ZoneObBottom",
@@ -117,7 +105,6 @@
           "visibility": null
         },
         {
-          "lineno": 79,
           "varname": "src_fvg_top",
           "kind": "source",
           "label": "BUS ZoneFvgTop",
@@ -126,7 +113,6 @@
           "visibility": null
         },
         {
-          "lineno": 80,
           "varname": "src_fvg_bottom",
           "kind": "source",
           "label": "BUS ZoneFvgBottom",
@@ -135,7 +121,6 @@
           "visibility": null
         },
         {
-          "lineno": 92,
           "varname": "use_real_zone",
           "kind": "bool",
           "label": "Box = real OB/FVG zone",
@@ -144,7 +129,6 @@
           "visibility": null
         },
         {
-          "lineno": 95,
           "varname": "use_real_plan",
           "kind": "bool",
           "label": "Draw + simulate real Stop/Target",
@@ -153,7 +137,6 @@
           "visibility": null
         },
         {
-          "lineno": 98,
           "varname": "qualityMin",
           "kind": "float",
           "label": "Min quality score (0 = off)",
@@ -162,7 +145,6 @@
           "visibility": null
         },
         {
-          "lineno": 116,
           "varname": "use_bos",
           "kind": "bool",
           "label": "Trigger on BOS",
@@ -171,7 +153,6 @@
           "visibility": null
         },
         {
-          "lineno": 117,
           "varname": "use_choch",
           "kind": "bool",
           "label": "Trigger on CHoCH",
@@ -180,7 +161,6 @@
           "visibility": null
         },
         {
-          "lineno": 118,
           "varname": "pivLen",
           "kind": "int",
           "label": "Pivot swing strength (pivot tier)",
@@ -189,7 +169,6 @@
           "visibility": null
         },
         {
-          "lineno": 120,
           "varname": "minHold",
           "kind": "int",
           "label": "Min level age (pivot tier)",
@@ -198,7 +177,6 @@
           "visibility": null
         },
         {
-          "lineno": 125,
           "varname": "rangeLen",
           "kind": "int",
           "label": "Range lookback (bars)",
@@ -207,7 +185,6 @@
           "visibility": null
         },
         {
-          "lineno": 127,
           "varname": "thrPct",
           "kind": "float",
           "label": "Threshold band %",
@@ -216,7 +193,6 @@
           "visibility": null
         },
         {
-          "lineno": 131,
           "varname": "colUp",
           "kind": "color",
           "label": "Breakout (bull) color",
@@ -225,7 +201,6 @@
           "visibility": null
         },
         {
-          "lineno": 132,
           "varname": "colDn",
           "kind": "color",
           "label": "Breakdown (bear) color",
@@ -234,7 +209,6 @@
           "visibility": null
         },
         {
-          "lineno": 133,
           "varname": "lineW",
           "kind": "int",
           "label": "Line width",
@@ -243,7 +217,6 @@
           "visibility": null
         },
         {
-          "lineno": 134,
           "varname": "lstyle",
           "kind": "string",
           "label": "Line style",
@@ -252,7 +225,6 @@
           "visibility": null
         },
         {
-          "lineno": 136,
           "varname": "show_arrows",
           "kind": "bool",
           "label": "Show ▲/▼ markers",
@@ -261,7 +233,6 @@
           "visibility": null
         },
         {
-          "lineno": 137,
           "varname": "show_volemoji",
           "kind": "bool",
           "label": "Show volume sentiment emoji",
@@ -270,7 +241,6 @@
           "visibility": null
         },
         {
-          "lineno": 141,
           "varname": "sim_on",
           "kind": "bool",
           "label": "Enable tracker",
@@ -279,7 +249,6 @@
           "visibility": null
         },
         {
-          "lineno": 142,
           "varname": "rr",
           "kind": "float",
           "label": "RR ratio",
@@ -288,7 +257,6 @@
           "visibility": null
         },
         {
-          "lineno": 143,
           "varname": "atrLen",
           "kind": "int",
           "label": "ATR length",
@@ -297,7 +265,6 @@
           "visibility": null
         },
         {
-          "lineno": 144,
           "varname": "atrMult",
           "kind": "float",
           "label": "ATR × mult → SL",
@@ -306,7 +273,6 @@
           "visibility": null
         },
         {
-          "lineno": 145,
           "varname": "sl_on_close",
           "kind": "bool",
           "label": "SL on close (else high/low)",
@@ -315,7 +281,6 @@
           "visibility": null
         },
         {
-          "lineno": 146,
           "varname": "show_table",
           "kind": "bool",
           "label": "Show stats table",
@@ -331,7 +296,6 @@
       "hidden_count": 6,
       "inputs": [
         {
-          "lineno": 30,
           "varname": "show_table",
           "kind": "bool",
           "label": "Show Confluence Panel",
@@ -340,7 +304,6 @@
           "visibility": null
         },
         {
-          "lineno": 31,
           "varname": "show_bg",
           "kind": "bool",
           "label": "Highlight Confluence BG",
@@ -349,7 +312,6 @@
           "visibility": null
         },
         {
-          "lineno": 34,
           "varname": "barCloseOnly",
           "kind": "bool",
           "label": "Alerts nur am Bar-Close",
@@ -358,7 +320,6 @@
           "visibility": null
         },
         {
-          "lineno": 40,
           "varname": "src_schema",
           "kind": "source",
           "label": "BUS SchemaVersion",
@@ -367,7 +328,6 @@
           "visibility": null
         },
         {
-          "lineno": 41,
           "varname": "src_armed",
           "kind": "source",
           "label": "BUS Armed",
@@ -376,7 +336,6 @@
           "visibility": null
         },
         {
-          "lineno": 42,
           "varname": "src_trigger",
           "kind": "source",
           "label": "BUS Trigger",
@@ -385,7 +344,6 @@
           "visibility": null
         },
         {
-          "lineno": 43,
           "varname": "src_invalid",
           "kind": "source",
           "label": "BUS Invalidation",
@@ -394,7 +352,6 @@
           "visibility": null
         },
         {
-          "lineno": 44,
           "varname": "src_quality",
           "kind": "source",
           "label": "BUS QualityScore",
@@ -403,7 +360,6 @@
           "visibility": null
         },
         {
-          "lineno": 45,
           "varname": "src_state_code",
           "kind": "source",
           "label": "BUS StateCode",
@@ -412,7 +368,6 @@
           "visibility": null
         },
         {
-          "lineno": 48,
           "varname": "ema_fast_len",
           "kind": "int",
           "label": "EMA Fast",
@@ -421,7 +376,6 @@
           "visibility": null
         },
         {
-          "lineno": 49,
           "varname": "ema_slow_len",
           "kind": "int",
           "label": "EMA Slow",
@@ -430,7 +384,6 @@
           "visibility": null
         },
         {
-          "lineno": 52,
           "varname": "rsi_len",
           "kind": "int",
           "label": "RSI Length",
@@ -439,7 +392,6 @@
           "visibility": null
         },
         {
-          "lineno": 53,
           "varname": "macd_fast",
           "kind": "int",
           "label": "MACD Fast",
@@ -448,7 +400,6 @@
           "visibility": null
         },
         {
-          "lineno": 54,
           "varname": "macd_slow",
           "kind": "int",
           "label": "MACD Slow",
@@ -457,7 +408,6 @@
           "visibility": null
         },
         {
-          "lineno": 55,
           "varname": "macd_signal",
           "kind": "int",
           "label": "MACD Signal",
@@ -466,7 +416,6 @@
           "visibility": null
         },
         {
-          "lineno": 58,
           "varname": "bb_len",
           "kind": "int",
           "label": "BB Length",
@@ -475,7 +424,6 @@
           "visibility": null
         },
         {
-          "lineno": 59,
           "varname": "bb_mult",
           "kind": "float",
           "label": "BB StdDev",
@@ -491,7 +439,6 @@
       "hidden_count": 0,
       "inputs": [
         {
-          "lineno": 30,
           "varname": "show_event_line",
           "kind": "bool",
           "label": "Show event vertical line",
@@ -500,7 +447,6 @@
           "visibility": null
         },
         {
-          "lineno": 31,
           "varname": "show_event_zone",
           "kind": "bool",
           "label": "Show pre/post event zone",
@@ -509,7 +455,6 @@
           "visibility": null
         },
         {
-          "lineno": 32,
           "varname": "show_event_label",
           "kind": "bool",
           "label": "Show event label",
@@ -518,7 +463,6 @@
           "visibility": null
         },
         {
-          "lineno": 33,
           "varname": "high_impact_only",
           "kind": "bool",
           "label": "High-impact events only",
@@ -527,7 +471,6 @@
           "visibility": null
         },
         {
-          "lineno": 34,
           "varname": "col_event_line",
           "kind": "color",
           "label": "Event line color",
@@ -536,7 +479,6 @@
           "visibility": null
         },
         {
-          "lineno": 35,
           "varname": "col_zone_pre",
           "kind": "color",
           "label": "Pre-event zone",
@@ -545,7 +487,6 @@
           "visibility": null
         },
         {
-          "lineno": 36,
           "varname": "col_zone_post",
           "kind": "color",
           "label": "Post-event zone",
@@ -554,7 +495,6 @@
           "visibility": null
         },
         {
-          "lineno": 37,
           "varname": "col_label_text",
           "kind": "color",
           "label": "Label text color",
@@ -563,7 +503,6 @@
           "visibility": null
         },
         {
-          "lineno": 38,
           "varname": "src_lean_pack_a",
           "kind": "source",
           "label": "BUS LeanPackA",
@@ -572,7 +511,6 @@
           "visibility": null
         },
         {
-          "lineno": 41,
           "varname": "barCloseOnly",
           "kind": "bool",
           "label": "Alerts nur am Bar-Close",
@@ -588,7 +526,6 @@
       "hidden_count": 0,
       "inputs": [
         {
-          "lineno": 26,
           "varname": "tp1_r",
           "kind": "float",
           "label": "TP1 (R-multiple)",
@@ -597,7 +534,6 @@
           "visibility": null
         },
         {
-          "lineno": 27,
           "varname": "tp2_r",
           "kind": "float",
           "label": "TP2 (R-multiple)",
@@ -606,7 +542,6 @@
           "visibility": null
         },
         {
-          "lineno": 28,
           "varname": "move_be_after_tp1",
           "kind": "bool",
           "label": "Move stop to break-even after TP1",
@@ -615,7 +550,6 @@
           "visibility": null
         },
         {
-          "lineno": 29,
           "varname": "use_defensive_exit",
           "kind": "bool",
           "label": "Defensive exit on setup invalidation",
@@ -624,7 +558,6 @@
           "visibility": null
         },
         {
-          "lineno": 30,
           "varname": "defensive_grace_bars",
           "kind": "int",
           "label": "Defensive grace bars",
@@ -633,7 +566,6 @@
           "visibility": null
         },
         {
-          "lineno": 31,
           "varname": "confirm_bars_only",
           "kind": "bool",
           "label": "Evaluate on confirmed bars only",
@@ -642,7 +574,6 @@
           "visibility": null
         },
         {
-          "lineno": 33,
           "varname": "show_levels",
           "kind": "bool",
           "label": "Show Stop/TP1/TP2 lines while in trade",
@@ -651,7 +582,6 @@
           "visibility": null
         },
         {
-          "lineno": 34,
           "varname": "show_labels",
           "kind": "bool",
           "label": "Show ENTER / EXIT labels",
@@ -660,7 +590,6 @@
           "visibility": null
         },
         {
-          "lineno": 35,
           "varname": "show_table",
           "kind": "bool",
           "label": "Show status table",
@@ -669,7 +598,6 @@
           "visibility": null
         },
         {
-          "lineno": 37,
           "varname": "src_armed",
           "kind": "source",
           "label": "BUS Armed",
@@ -678,7 +606,6 @@
           "visibility": null
         },
         {
-          "lineno": 38,
           "varname": "src_confirmed",
           "kind": "source",
           "label": "BUS Confirmed",
@@ -687,7 +614,6 @@
           "visibility": null
         },
         {
-          "lineno": 39,
           "varname": "src_ready",
           "kind": "source",
           "label": "BUS Ready",
@@ -696,7 +622,6 @@
           "visibility": null
         },
         {
-          "lineno": 40,
           "varname": "src_trigger",
           "kind": "source",
           "label": "BUS Trigger",
@@ -705,7 +630,6 @@
           "visibility": null
         },
         {
-          "lineno": 41,
           "varname": "src_invalidation",
           "kind": "source",
           "label": "BUS Invalidation",
@@ -721,7 +645,6 @@
       "hidden_count": 0,
       "inputs": [
         {
-          "lineno": 27,
           "varname": "show_atr_regime",
           "kind": "bool",
           "label": "Show ATR regime",
@@ -730,7 +653,6 @@
           "visibility": null
         },
         {
-          "lineno": 28,
           "varname": "show_squeeze",
           "kind": "bool",
           "label": "Show squeeze markers",
@@ -739,7 +661,6 @@
           "visibility": null
         },
         {
-          "lineno": 29,
           "varname": "show_reversal",
           "kind": "bool",
           "label": "Show reversal context",
@@ -748,7 +669,6 @@
           "visibility": null
         },
         {
-          "lineno": 30,
           "varname": "col_compression",
           "kind": "color",
           "label": "Compression",
@@ -757,7 +677,6 @@
           "visibility": null
         },
         {
-          "lineno": 31,
           "varname": "col_expansion",
           "kind": "color",
           "label": "Expansion",
@@ -766,7 +685,6 @@
           "visibility": null
         },
         {
-          "lineno": 32,
           "varname": "col_exhaustion",
           "kind": "color",
           "label": "Exhaustion",
@@ -782,7 +700,6 @@
       "hidden_count": 0,
       "inputs": [
         {
-          "lineno": 30,
           "varname": "i_arm_long",
           "kind": "bool",
           "label": "Arm Long (Webhook-Toggle)",
@@ -791,7 +708,6 @@
           "visibility": null
         },
         {
-          "lineno": 31,
           "varname": "i_entry",
           "kind": "price",
           "label": "Entry / Trigger",
@@ -800,7 +716,6 @@
           "visibility": null
         },
         {
-          "lineno": 33,
           "varname": "i_stop",
           "kind": "price",
           "label": "Initial Invalidation",
@@ -809,7 +724,6 @@
           "visibility": null
         },
         {
-          "lineno": 35,
           "varname": "i_t1_R",
           "kind": "float",
           "label": "Target-1 (R)",
@@ -818,7 +732,6 @@
           "visibility": null
         },
         {
-          "lineno": 36,
           "varname": "i_t2_R",
           "kind": "float",
           "label": "Target-2 (R)",
@@ -827,7 +740,6 @@
           "visibility": null
         },
         {
-          "lineno": 39,
           "varname": "i_simple_mode",
           "kind": "bool",
           "label": "Simple Mode (BE-after-T1 only)",
@@ -836,7 +748,6 @@
           "visibility": null
         },
         {
-          "lineno": 41,
           "varname": "i_use_chand",
           "kind": "bool",
           "label": "ATR-Chandelier-Trail aktiv",
@@ -845,7 +756,6 @@
           "visibility": null
         },
         {
-          "lineno": 44,
           "varname": "i_atr_mult",
           "kind": "float",
           "label": "ATR-Mult (TODO: family-aware in v3)",
@@ -854,7 +764,6 @@
           "visibility": null
         },
         {
-          "lineno": 45,
           "varname": "i_breakeven",
           "kind": "bool",
           "label": "Breakeven nach T1",
@@ -863,7 +772,6 @@
           "visibility": null
         },
         {
-          "lineno": 46,
           "varname": "i_t1_partial",
           "kind": "float",
           "label": "Partial-Exit % @ T1",
@@ -872,7 +780,6 @@
           "visibility": null
         },
         {
-          "lineno": 47,
           "varname": "i_use_tstop",
           "kind": "bool",
           "label": "Time-Stop aktiv",
@@ -881,7 +788,6 @@
           "visibility": null
         },
         {
-          "lineno": 52,
           "varname": "i_reset_now",
           "kind": "bool",
           "label": "Force Reset (Trade beenden)",
@@ -890,7 +796,6 @@
           "visibility": null
         },
         {
-          "lineno": 54,
           "varname": "i_close_only",
           "kind": "bool",
           "label": "Trigger nur bei barstate.isconfirmed",
@@ -906,7 +811,6 @@
       "hidden_count": 0,
       "inputs": [
         {
-          "lineno": 27,
           "varname": "show_fvg_zones",
           "kind": "bool",
           "label": "Show FVG zones",
@@ -915,7 +819,6 @@
           "visibility": null
         },
         {
-          "lineno": 28,
           "varname": "show_bpr_zone",
           "kind": "bool",
           "label": "Show BPR zone",
@@ -924,7 +827,6 @@
           "visibility": null
         },
         {
-          "lineno": 29,
           "varname": "show_liq_voids",
           "kind": "bool",
           "label": "Show liquidity voids",
@@ -933,7 +835,6 @@
           "visibility": null
         },
         {
-          "lineno": 30,
           "varname": "show_state_label",
           "kind": "bool",
           "label": "Show imbalance state label",
@@ -942,7 +843,6 @@
           "visibility": null
         },
         {
-          "lineno": 31,
           "varname": "col_bull_fvg",
           "kind": "color",
           "label": "Bull FVG",
@@ -951,7 +851,6 @@
           "visibility": null
         },
         {
-          "lineno": 32,
           "varname": "col_bear_fvg",
           "kind": "color",
           "label": "Bear FVG",
@@ -960,7 +859,6 @@
           "visibility": null
         },
         {
-          "lineno": 33,
           "varname": "col_bpr",
           "kind": "color",
           "label": "BPR zone",
@@ -969,7 +867,6 @@
           "visibility": null
         },
         {
-          "lineno": 34,
           "varname": "col_liq_void",
           "kind": "color",
           "label": "Liquidity void",
@@ -985,7 +882,6 @@
       "hidden_count": 0,
       "inputs": [
         {
-          "lineno": 27,
           "varname": "show_primary_levels",
           "kind": "bool",
           "label": "Show primary S/R levels",
@@ -994,7 +890,6 @@
           "visibility": null
         },
         {
-          "lineno": 28,
           "varname": "show_zone_label",
           "kind": "bool",
           "label": "Show zone context label",
@@ -1003,7 +898,6 @@
           "visibility": null
         },
         {
-          "lineno": 29,
           "varname": "show_sweep_markers",
           "kind": "bool",
           "label": "Show sweep/mitigation info",
@@ -1012,7 +906,6 @@
           "visibility": null
         },
         {
-          "lineno": 30,
           "varname": "col_support",
           "kind": "color",
           "label": "Support color",
@@ -1021,7 +914,6 @@
           "visibility": null
         },
         {
-          "lineno": 31,
           "varname": "col_resistance",
           "kind": "color",
           "label": "Resistance color",
@@ -1037,7 +929,6 @@
       "hidden_count": 0,
       "inputs": [
         {
-          "lineno": 29,
           "varname": "show_sweeps",
           "kind": "bool",
           "label": "Show sweep markers",
@@ -1046,7 +937,6 @@
           "visibility": null
         },
         {
-          "lineno": 30,
           "varname": "show_pool_imb",
           "kind": "bool",
           "label": "Show pool imbalance",
@@ -1055,7 +945,6 @@
           "visibility": null
         },
         {
-          "lineno": 31,
           "varname": "show_magnet",
           "kind": "bool",
           "label": "Show magnet direction",
@@ -1064,7 +953,6 @@
           "visibility": null
         },
         {
-          "lineno": 32,
           "varname": "show_quality",
           "kind": "bool",
           "label": "Show quality score bar",
@@ -1073,7 +961,6 @@
           "visibility": null
         },
         {
-          "lineno": 33,
           "varname": "col_bullish",
           "kind": "color",
           "label": "Bullish color",
@@ -1082,7 +969,6 @@
           "visibility": null
         },
         {
-          "lineno": 34,
           "varname": "col_bearish",
           "kind": "color",
           "label": "Bearish color",
@@ -1091,7 +977,6 @@
           "visibility": null
         },
         {
-          "lineno": 35,
           "varname": "col_neutral",
           "kind": "color",
           "label": "Neutral color",
@@ -1107,7 +992,6 @@
       "hidden_count": 4,
       "inputs": [
         {
-          "lineno": 33,
           "varname": "bar_close_only",
           "kind": "bool",
           "label": "Bar-close only",
@@ -1116,7 +1000,6 @@
           "visibility": null
         },
         {
-          "lineno": 38,
           "varname": "swing_len",
           "kind": "int",
           "label": "Swing length",
@@ -1125,7 +1008,6 @@
           "visibility": null
         },
         {
-          "lineno": 45,
           "varname": "src_schema",
           "kind": "source",
           "label": "BUS SchemaVersion",
@@ -1134,7 +1016,6 @@
           "visibility": null
         },
         {
-          "lineno": 46,
           "varname": "src_zone",
           "kind": "source",
           "label": "BUS ZoneActive",
@@ -1143,7 +1024,6 @@
           "visibility": null
         },
         {
-          "lineno": 47,
           "varname": "src_armed",
           "kind": "source",
           "label": "BUS Armed",
@@ -1152,7 +1032,6 @@
           "visibility": null
         },
         {
-          "lineno": 48,
           "varname": "src_state_code",
           "kind": "source",
           "label": "BUS StateCode",
@@ -1168,7 +1047,6 @@
       "hidden_count": 67,
       "inputs": [
         {
-          "lineno": 42,
           "varname": "tm_enable",
           "kind": "bool",
           "label": "Enable Trade-Mgmt rows",
@@ -1177,7 +1055,6 @@
           "visibility": null
         },
         {
-          "lineno": 43,
           "varname": "tm_tp1_r",
           "kind": "float",
           "label": "TP1 (R-multiple)",
@@ -1186,7 +1063,6 @@
           "visibility": null
         },
         {
-          "lineno": 44,
           "varname": "tm_tp2_r",
           "kind": "float",
           "label": "TP2 (R-multiple)",
@@ -1195,7 +1071,6 @@
           "visibility": null
         },
         {
-          "lineno": 45,
           "varname": "tm_be_after_t1",
           "kind": "bool",
           "label": "Move stop to break-even after TP1",
@@ -1204,7 +1079,6 @@
           "visibility": null
         },
         {
-          "lineno": 47,
           "varname": "surface_mode",
           "kind": "string",
           "label": "Decision Brief",
@@ -1213,7 +1087,6 @@
           "visibility": null
         },
         {
-          "lineno": 48,
           "varname": "show_table",
           "kind": "bool",
           "label": "Show Brief Panel",
@@ -1222,7 +1095,6 @@
           "visibility": null
         },
         {
-          "lineno": 49,
           "varname": "show_risk_lines",
           "kind": "bool",
           "label": "Show Trade Plan",
@@ -1231,7 +1103,6 @@
           "visibility": null
         },
         {
-          "lineno": 50,
           "varname": "show_state_bg",
           "kind": "bool",
           "label": "Highlight Live Setup",
@@ -1240,7 +1111,6 @@
           "visibility": null
         },
         {
-          "lineno": 51,
           "varname": "compact_dashboard",
           "kind": "bool",
           "label": "Compact Dashboard",
@@ -1249,7 +1119,6 @@
           "visibility": null
         },
         {
-          "lineno": 52,
           "varname": "color_theme",
           "kind": "string",
           "label": "Standard",
@@ -1258,7 +1127,6 @@
           "visibility": null
         },
         {
-          "lineno": 53,
           "varname": "hero_token_order",
           "kind": "string",
           "label": "BIAS,TRUST,FAM,ZONE,BLOCKER",
@@ -1267,7 +1135,6 @@
           "visibility": null
         },
         {
-          "lineno": 54,
           "varname": "calibration_sha",
           "kind": "string",
           "label": ", ",
@@ -1276,7 +1143,6 @@
           "visibility": null
         },
         {
-          "lineno": 55,
           "varname": "calibration_breach_banner",
           "kind": "bool",
           "label": "Calibration Breach Banner",
@@ -1285,7 +1151,6 @@
           "visibility": null
         },
         {
-          "lineno": 56,
           "varname": "fvg_context_health_text",
           "kind": "string",
           "label": ", ",
@@ -1294,7 +1159,6 @@
           "visibility": null
         },
         {
-          "lineno": 81,
           "varname": "src_bus_schema_version",
           "kind": "source",
           "label": "BUS SchemaVersion",
@@ -1303,7 +1167,6 @@
           "visibility": null
         },
         {
-          "lineno": 82,
           "varname": "src_zone_active",
           "kind": "source",
           "label": "BUS ZoneActive",
@@ -1312,7 +1175,6 @@
           "visibility": null
         },
         {
-          "lineno": 83,
           "varname": "src_armed",
           "kind": "source",
           "label": "BUS Armed",
@@ -1321,7 +1183,6 @@
           "visibility": null
         },
         {
-          "lineno": 84,
           "varname": "src_confirmed",
           "kind": "source",
           "label": "BUS Confirmed",
@@ -1330,7 +1191,6 @@
           "visibility": null
         },
         {
-          "lineno": 85,
           "varname": "src_ready",
           "kind": "source",
           "label": "BUS Ready",
@@ -1339,7 +1199,6 @@
           "visibility": null
         },
         {
-          "lineno": 86,
           "varname": "src_entry_best",
           "kind": "source",
           "label": "BUS EntryBest",
@@ -1348,7 +1207,6 @@
           "visibility": null
         },
         {
-          "lineno": 87,
           "varname": "src_entry_strict",
           "kind": "source",
           "label": "BUS EntryStrict",
@@ -1357,7 +1215,6 @@
           "visibility": null
         },
         {
-          "lineno": 88,
           "varname": "src_trigger",
           "kind": "source",
           "label": "BUS Trigger",
@@ -1366,7 +1223,6 @@
           "visibility": null
         },
         {
-          "lineno": 89,
           "varname": "src_invalidation",
           "kind": "source",
           "label": "BUS Invalidation",
@@ -1375,7 +1231,6 @@
           "visibility": null
         },
         {
-          "lineno": 90,
           "varname": "src_quality_score",
           "kind": "source",
           "label": "BUS QualityScore",
@@ -1384,7 +1239,6 @@
           "visibility": null
         },
         {
-          "lineno": 91,
           "varname": "src_source_kind",
           "kind": "source",
           "label": "BUS SourceKind",
@@ -1393,7 +1247,6 @@
           "visibility": null
         },
         {
-          "lineno": 92,
           "varname": "src_state_code",
           "kind": "source",
           "label": "BUS StateCode",
@@ -1402,7 +1255,6 @@
           "visibility": null
         },
         {
-          "lineno": 93,
           "varname": "src_trend_pack",
           "kind": "source",
           "label": "BUS TrendPack",
@@ -1411,7 +1263,6 @@
           "visibility": null
         },
         {
-          "lineno": 94,
           "varname": "src_meta_pack",
           "kind": "source",
           "label": "BUS MetaPack",
@@ -1420,7 +1271,6 @@
           "visibility": null
         },
         {
-          "lineno": 95,
           "varname": "src_ltf_delta_state",
           "kind": "source",
           "label": "BUS LtfDeltaState",
@@ -1429,7 +1279,6 @@
           "visibility": null
         },
         {
-          "lineno": 96,
           "varname": "src_safe_trend_state",
           "kind": "source",
           "label": "BUS SafeTrendState",
@@ -1438,7 +1287,6 @@
           "visibility": null
         },
         {
-          "lineno": 97,
           "varname": "src_micro_profile_code",
           "kind": "source",
           "label": "BUS MicroProfileCode",
@@ -1447,7 +1295,6 @@
           "visibility": null
         },
         {
-          "lineno": 98,
           "varname": "src_stop_level",
           "kind": "source",
           "label": "BUS StopLevel",
@@ -1456,7 +1303,6 @@
           "visibility": null
         },
         {
-          "lineno": 99,
           "varname": "src_target_1",
           "kind": "source",
           "label": "BUS Target1",
@@ -1465,7 +1311,6 @@
           "visibility": null
         },
         {
-          "lineno": 100,
           "varname": "src_target_2",
           "kind": "source",
           "label": "BUS Target2",
@@ -1474,7 +1319,6 @@
           "visibility": null
         },
         {
-          "lineno": 101,
           "varname": "src_session_gate_row",
           "kind": "source",
           "label": "BUS SessionGateRow",
@@ -1483,7 +1327,6 @@
           "visibility": null
         },
         {
-          "lineno": 102,
           "varname": "src_market_gate_row",
           "kind": "source",
           "label": "BUS MarketGateRow",
@@ -1492,7 +1335,6 @@
           "visibility": null
         },
         {
-          "lineno": 103,
           "varname": "src_vola_gate_row",
           "kind": "source",
           "label": "BUS VolaGateRow",
@@ -1501,7 +1343,6 @@
           "visibility": null
         },
         {
-          "lineno": 104,
           "varname": "src_micro_session_gate_row",
           "kind": "source",
           "label": "BUS MicroSessionGateRow",
@@ -1510,7 +1351,6 @@
           "visibility": null
         },
         {
-          "lineno": 105,
           "varname": "src_micro_fresh_row",
           "kind": "source",
           "label": "BUS MicroFreshRow",
@@ -1519,7 +1359,6 @@
           "visibility": null
         },
         {
-          "lineno": 106,
           "varname": "src_volume_data_row",
           "kind": "source",
           "label": "BUS VolumeDataRow",
@@ -1528,7 +1367,6 @@
           "visibility": null
         },
         {
-          "lineno": 107,
           "varname": "src_quality_env_row",
           "kind": "source",
           "label": "BUS QualityEnvRow",
@@ -1537,7 +1375,6 @@
           "visibility": null
         },
         {
-          "lineno": 108,
           "varname": "src_quality_strict_row",
           "kind": "source",
           "label": "BUS QualityStrictRow",
@@ -1546,7 +1383,6 @@
           "visibility": null
         },
         {
-          "lineno": 109,
           "varname": "src_close_strength_row",
           "kind": "source",
           "label": "BUS CloseStrengthRow",
@@ -1555,7 +1391,6 @@
           "visibility": null
         },
         {
-          "lineno": 110,
           "varname": "src_ema_support_row",
           "kind": "source",
           "label": "BUS EmaSupportRow",
@@ -1564,7 +1399,6 @@
           "visibility": null
         },
         {
-          "lineno": 111,
           "varname": "src_adx_row",
           "kind": "source",
           "label": "BUS AdxRow",
@@ -1573,7 +1407,6 @@
           "visibility": null
         },
         {
-          "lineno": 112,
           "varname": "src_relvol_row",
           "kind": "source",
           "label": "BUS RelVolRow",
@@ -1582,7 +1415,6 @@
           "visibility": null
         },
         {
-          "lineno": 113,
           "varname": "src_vwap_row",
           "kind": "source",
           "label": "BUS VwapRow",
@@ -1591,7 +1423,6 @@
           "visibility": null
         },
         {
-          "lineno": 114,
           "varname": "src_context_quality_row",
           "kind": "source",
           "label": "BUS ContextQualityRow",
@@ -1600,7 +1431,6 @@
           "visibility": null
         },
         {
-          "lineno": 115,
           "varname": "src_quality_clean_row",
           "kind": "source",
           "label": "BUS QualityCleanRow",
@@ -1609,7 +1439,6 @@
           "visibility": null
         },
         {
-          "lineno": 116,
           "varname": "src_quality_score_row",
           "kind": "source",
           "label": "BUS QualityScoreRow",
@@ -1618,7 +1447,6 @@
           "visibility": null
         },
         {
-          "lineno": 117,
           "varname": "src_sd_confluence_row",
           "kind": "source",
           "label": "BUS SdConfluenceRow",
@@ -1627,7 +1455,6 @@
           "visibility": null
         },
         {
-          "lineno": 118,
           "varname": "src_sd_osc_row",
           "kind": "source",
           "label": "BUS SdOscRow",
@@ -1636,7 +1463,6 @@
           "visibility": null
         },
         {
-          "lineno": 119,
           "varname": "src_vol_regime_row",
           "kind": "source",
           "label": "BUS VolRegimeRow",
@@ -1645,7 +1471,6 @@
           "visibility": null
         },
         {
-          "lineno": 120,
           "varname": "src_vol_squeeze_row",
           "kind": "source",
           "label": "BUS VolSqueezeRow",
@@ -1654,7 +1479,6 @@
           "visibility": null
         },
         {
-          "lineno": 121,
           "varname": "src_ready_blocker_code",
           "kind": "source",
           "label": "BUS ReadyBlockerCode",
@@ -1663,7 +1487,6 @@
           "visibility": null
         },
         {
-          "lineno": 122,
           "varname": "src_strict_blocker_code",
           "kind": "source",
           "label": "BUS StrictBlockerCode",
@@ -1672,7 +1495,6 @@
           "visibility": null
         },
         {
-          "lineno": 123,
           "varname": "src_vol_expansion_state",
           "kind": "source",
           "label": "BUS VolExpansionState",
@@ -1681,7 +1503,6 @@
           "visibility": null
         },
         {
-          "lineno": 124,
           "varname": "src_ddvi_context_state",
           "kind": "source",
           "label": "BUS DdviContextState",
@@ -1690,7 +1511,6 @@
           "visibility": null
         },
         {
-          "lineno": 125,
           "varname": "src_zone_ob_top",
           "kind": "source",
           "label": "BUS ZoneObTop",
@@ -1699,7 +1519,6 @@
           "visibility": null
         },
         {
-          "lineno": 126,
           "varname": "src_zone_ob_bottom",
           "kind": "source",
           "label": "BUS ZoneObBottom",
@@ -1708,7 +1527,6 @@
           "visibility": null
         },
         {
-          "lineno": 127,
           "varname": "src_zone_fvg_top",
           "kind": "source",
           "label": "BUS ZoneFvgTop",
@@ -1717,7 +1535,6 @@
           "visibility": null
         },
         {
-          "lineno": 128,
           "varname": "src_zone_fvg_bottom",
           "kind": "source",
           "label": "BUS ZoneFvgBottom",
@@ -1726,7 +1543,6 @@
           "visibility": null
         },
         {
-          "lineno": 129,
           "varname": "src_session_vwap",
           "kind": "source",
           "label": "BUS SessionVwap",
@@ -1735,7 +1551,6 @@
           "visibility": null
         },
         {
-          "lineno": 130,
           "varname": "src_adx_value",
           "kind": "source",
           "label": "BUS AdxValue",
@@ -1744,7 +1559,6 @@
           "visibility": null
         },
         {
-          "lineno": 131,
           "varname": "src_relvol_value",
           "kind": "source",
           "label": "BUS RelVolValue",
@@ -1753,7 +1567,6 @@
           "visibility": null
         },
         {
-          "lineno": 132,
           "varname": "src_stretch_z",
           "kind": "source",
           "label": "BUS StretchZ",
@@ -1762,7 +1575,6 @@
           "visibility": null
         },
         {
-          "lineno": 133,
           "varname": "src_stretch_support_mask",
           "kind": "source",
           "label": "BUS StretchSupportMask",
@@ -1771,7 +1583,6 @@
           "visibility": null
         },
         {
-          "lineno": 134,
           "varname": "src_ltf_bull_share",
           "kind": "source",
           "label": "BUS LtfBullShare",
@@ -1780,7 +1591,6 @@
           "visibility": null
         },
         {
-          "lineno": 135,
           "varname": "src_ltf_bias_hint",
           "kind": "source",
           "label": "BUS LtfBiasHint",
@@ -1789,7 +1599,6 @@
           "visibility": null
         },
         {
-          "lineno": 136,
           "varname": "src_ltf_volume_delta",
           "kind": "source",
           "label": "BUS LtfVolumeDelta",
@@ -1798,7 +1607,6 @@
           "visibility": null
         },
         {
-          "lineno": 137,
           "varname": "src_objects_count_pack",
           "kind": "source",
           "label": "BUS ObjectsCountPack",
@@ -1807,7 +1615,6 @@
           "visibility": null
         },
         {
-          "lineno": 138,
           "varname": "src_lean_pack_a",
           "kind": "source",
           "label": "BUS LeanPackA",
@@ -1816,7 +1623,6 @@
           "visibility": null
         },
         {
-          "lineno": 139,
           "varname": "src_lean_pack_b",
           "kind": "source",
           "label": "BUS LeanPackB",
@@ -1825,7 +1631,6 @@
           "visibility": null
         },
         {
-          "lineno": 146,
           "varname": "src_preset_class_code",
           "kind": "source",
           "label": "BUS PresetClassCode",
@@ -1834,7 +1639,6 @@
           "visibility": null
         },
         {
-          "lineno": 147,
           "varname": "src_preset_rvol_min",
           "kind": "source",
           "label": "BUS PresetRvolMin",
@@ -1843,7 +1647,6 @@
           "visibility": null
         },
         {
-          "lineno": 148,
           "varname": "src_preset_htf_bias_min",
           "kind": "source",
           "label": "BUS PresetHtfBiasMin",
@@ -1852,7 +1655,6 @@
           "visibility": null
         },
         {
-          "lineno": 149,
           "varname": "src_preset_fvg_qual_gate",
           "kind": "source",
           "label": "BUS PresetFvgQualGate",
@@ -1861,7 +1663,6 @@
           "visibility": null
         },
         {
-          "lineno": 150,
           "varname": "src_preset_vol_regime_def",
           "kind": "source",
           "label": "BUS PresetVolRegimeDef",
@@ -1870,7 +1671,6 @@
           "visibility": null
         },
         {
-          "lineno": 152,
           "varname": "local_ob_debug_enabled",
           "kind": "bool",
           "label": "OB Debug Enabled",
@@ -1879,7 +1679,6 @@
           "visibility": null
         },
         {
-          "lineno": 153,
           "varname": "local_fvg_debug_enabled",
           "kind": "bool",
           "label": "FVG Debug Enabled",
@@ -1888,7 +1687,6 @@
           "visibility": null
         },
         {
-          "lineno": 154,
           "varname": "local_engine_debug_enabled",
           "kind": "bool",
           "label": "Long Engine Debug Enabled",
@@ -1904,7 +1702,6 @@
       "hidden_count": 8,
       "inputs": [
         {
-          "lineno": 14,
           "varname": "color_theme",
           "kind": "string",
           "label": "Standard",
@@ -1913,7 +1710,6 @@
           "visibility": null
         },
         {
-          "lineno": 27,
           "varname": "src_bus_schema_version",
           "kind": "source",
           "label": "BUS SchemaVersion",
@@ -1922,7 +1718,6 @@
           "visibility": null
         },
         {
-          "lineno": 28,
           "varname": "src_armed",
           "kind": "source",
           "label": "BUS Armed",
@@ -1931,7 +1726,6 @@
           "visibility": null
         },
         {
-          "lineno": 29,
           "varname": "src_confirmed",
           "kind": "source",
           "label": "BUS Confirmed",
@@ -1940,7 +1734,6 @@
           "visibility": null
         },
         {
-          "lineno": 30,
           "varname": "src_ready",
           "kind": "source",
           "label": "BUS Ready",
@@ -1949,7 +1742,6 @@
           "visibility": null
         },
         {
-          "lineno": 31,
           "varname": "src_trigger",
           "kind": "source",
           "label": "BUS Trigger",
@@ -1958,7 +1750,6 @@
           "visibility": null
         },
         {
-          "lineno": 32,
           "varname": "src_invalidation",
           "kind": "source",
           "label": "BUS Invalidation",
@@ -1967,7 +1758,6 @@
           "visibility": null
         },
         {
-          "lineno": 33,
           "varname": "src_quality_score",
           "kind": "source",
           "label": "BUS QualityScore",
@@ -1976,7 +1766,6 @@
           "visibility": null
         },
         {
-          "lineno": 34,
           "varname": "src_state_code",
           "kind": "source",
           "label": "BUS StateCode",
@@ -1985,7 +1774,6 @@
           "visibility": null
         },
         {
-          "lineno": 37,
           "varname": "tm_enable",
           "kind": "bool",
           "label": "Enable Trade-Mgmt rows",
@@ -1994,7 +1782,6 @@
           "visibility": null
         },
         {
-          "lineno": 38,
           "varname": "tm_tp1_r",
           "kind": "float",
           "label": "TP1 (R-multiple)",
@@ -2003,7 +1790,6 @@
           "visibility": null
         },
         {
-          "lineno": 39,
           "varname": "tm_tp2_r",
           "kind": "float",
           "label": "TP2 (R-multiple)",
@@ -2012,7 +1798,6 @@
           "visibility": null
         },
         {
-          "lineno": 40,
           "varname": "tm_be_after_t1",
           "kind": "bool",
           "label": "Move stop to break-even after TP1",
@@ -2028,7 +1813,6 @@
       "hidden_count": 0,
       "inputs": [
         {
-          "lineno": 22,
           "varname": "entry_mode",
           "kind": "string",
           "label": "Strict",
@@ -2037,7 +1821,6 @@
           "visibility": null
         },
         {
-          "lineno": 23,
           "varname": "min_quality_score",
           "kind": "float",
           "label": "Minimum Quality Score",
@@ -2046,7 +1829,6 @@
           "visibility": null
         },
         {
-          "lineno": 24,
           "varname": "use_regime_gate",
           "kind": "bool",
           "label": "Respect Regime Gate",
@@ -2055,7 +1837,6 @@
           "visibility": null
         },
         {
-          "lineno": 25,
           "varname": "backtest_mode",
           "kind": "bool",
           "label": "Backtest Mode (Ignore Library)",
@@ -2064,7 +1845,6 @@
           "visibility": null
         },
         {
-          "lineno": 26,
           "varname": "strict_universe_entries",
           "kind": "bool",
           "label": "Strict Universe Mode",
@@ -2073,7 +1853,6 @@
           "visibility": null
         },
         {
-          "lineno": 27,
           "varname": "use_take_profit",
           "kind": "bool",
           "label": "Use Take Profit",
@@ -2082,7 +1861,6 @@
           "visibility": null
         },
         {
-          "lineno": 28,
           "varname": "take_profit_r",
           "kind": "float",
           "label": "Take Profit (R)",
@@ -2091,7 +1869,6 @@
           "visibility": null
         },
         {
-          "lineno": 36,
           "varname": "src_armed",
           "kind": "source",
           "label": "BUS Armed",
@@ -2100,7 +1877,6 @@
           "visibility": null
         },
         {
-          "lineno": 37,
           "varname": "src_confirmed",
           "kind": "source",
           "label": "BUS Confirmed",
@@ -2109,7 +1885,6 @@
           "visibility": null
         },
         {
-          "lineno": 38,
           "varname": "src_ready",
           "kind": "source",
           "label": "BUS Ready",
@@ -2118,7 +1893,6 @@
           "visibility": null
         },
         {
-          "lineno": 39,
           "varname": "src_entry_best",
           "kind": "source",
           "label": "BUS EntryBest",
@@ -2127,7 +1901,6 @@
           "visibility": null
         },
         {
-          "lineno": 40,
           "varname": "src_entry_strict",
           "kind": "source",
           "label": "BUS EntryStrict",
@@ -2136,7 +1909,6 @@
           "visibility": null
         },
         {
-          "lineno": 41,
           "varname": "src_trigger",
           "kind": "source",
           "label": "BUS Trigger",
@@ -2145,7 +1917,6 @@
           "visibility": null
         },
         {
-          "lineno": 42,
           "varname": "src_invalidation",
           "kind": "source",
           "label": "BUS Invalidation",
@@ -2154,7 +1925,6 @@
           "visibility": null
         },
         {
-          "lineno": 43,
           "varname": "src_quality_score",
           "kind": "source",
           "label": "BUS QualityScore",
@@ -2163,7 +1933,6 @@
           "visibility": null
         },
         {
-          "lineno": 131,
           "varname": "show_performance",
           "kind": "bool",
           "label": "Show Performance Table",
@@ -2179,7 +1948,6 @@
       "hidden_count": 218,
       "inputs": [
         {
-          "lineno": 261,
           "varname": "signal_mode",
           "kind": "enum",
           "label": "Signal Mode",
@@ -2188,7 +1956,6 @@
           "visibility": null
         },
         {
-          "lineno": 262,
           "varname": "long_user_preset",
           "kind": "string",
           "label": "Standard",
@@ -2197,7 +1964,6 @@
           "visibility": null
         },
         {
-          "lineno": 263,
           "varname": "compact_mode",
           "kind": "bool",
           "label": "Focus View",
@@ -2206,7 +1972,6 @@
           "visibility": null
         },
         {
-          "lineno": 264,
           "varname": "color_theme",
           "kind": "string",
           "label": "Standard",
@@ -2215,7 +1980,6 @@
           "visibility": null
         },
         {
-          "lineno": 289,
           "varname": "quickstart_preset",
           "kind": "string",
           "label": "Custom",
@@ -2224,7 +1988,6 @@
           "visibility": null
         },
         {
-          "lineno": 336,
           "varname": "show_dashboard",
           "kind": "bool",
           "label": "Show Decision Brief",
@@ -2233,7 +1996,6 @@
           "visibility": null
         },
         {
-          "lineno": 337,
           "varname": "enable_dynamic_alerts",
           "kind": "bool",
           "label": "Enable dynamic alerts",
@@ -2242,7 +2004,6 @@
           "visibility": null
         },
         {
-          "lineno": 340,
           "varname": "target1_r",
           "kind": "float",
           "label": "Target 1 (R)",
@@ -2251,7 +2012,6 @@
           "visibility": null
         },
         {
-          "lineno": 341,
           "varname": "target2_r",
           "kind": "float",
           "label": "Target 2 (R)",
@@ -2260,7 +2020,6 @@
           "visibility": null
         },
         {
-          "lineno": 344,
           "varname": "use_trade_session_gate",
           "kind": "bool",
           "label": "Use Trade Session Gate",
@@ -2269,7 +2028,6 @@
           "visibility": null
         },
         {
-          "lineno": 347,
           "varname": "performance_mode",
           "kind": "string",
           "label": "Balanced",
@@ -2278,7 +2036,6 @@
           "visibility": null
         },
         {
-          "lineno": 350,
           "varname": "enable_ltf_sampling",
           "kind": "bool",
           "label": "Use lower timeframe sampling",
@@ -2287,7 +2044,6 @@
           "visibility": null
         },
         {
-          "lineno": 351,
           "varname": "use_ltf_for_strict_entry",
           "kind": "bool",
           "label": "Use LTF for strict entry",
@@ -2296,7 +2052,6 @@
           "visibility": null
         },
         {
-          "lineno": 352,
           "varname": "allow_strict_entry_without_ltf",
           "kind": "bool",
           "label": "Allow strict entry without LTF when unavailable",
@@ -2305,7 +2060,6 @@
           "visibility": null
         },
         {
-          "lineno": 353,
           "varname": "ltf_auto_select",
           "kind": "bool",
           "label": "Auto-select lower timeframe",
@@ -2314,7 +2068,6 @@
           "visibility": null
         },
         {
-          "lineno": 354,
           "varname": "ltf_timeframe",
           "kind": "timeframe",
           "label": "Lower timeframe",
@@ -2323,7 +2076,6 @@
           "visibility": null
         },
         {
-          "lineno": 355,
           "varname": "ltf_bias_hint",
           "kind": "float",
           "label": "Bull share hint",
@@ -2332,7 +2084,6 @@
           "visibility": null
         },
         {
-          "lineno": 370,
           "varname": "enable_trend_tf_0",
           "kind": "bool",
           "label": "Enable 2H pre-trend layer (Q4-gated)",
@@ -2341,7 +2092,6 @@
           "visibility": null
         },
         {
-          "lineno": 371,
           "varname": "mtf_trend_tf0",
           "kind": "timeframe",
           "label": "Trend TF 0 (optional 2H — scaffold, inactive)",
@@ -2350,7 +2100,6 @@
           "visibility": null
         },
         {
-          "lineno": 372,
           "varname": "mtf_trend_tf1",
           "kind": "timeframe",
           "label": "Trend TF 1",
@@ -2359,7 +2108,6 @@
           "visibility": null
         },
         {
-          "lineno": 373,
           "varname": "mtf_trend_tf2",
           "kind": "timeframe",
           "label": "Trend TF 2",
@@ -2368,7 +2116,6 @@
           "visibility": null
         },
         {
-          "lineno": 374,
           "varname": "mtf_trend_tf3",
           "kind": "timeframe",
           "label": "Trend TF 3",
@@ -2377,7 +2124,6 @@
           "visibility": null
         },
         {
-          "lineno": 377,
           "varname": "show_dashboard_ltf",
           "kind": "bool",
           "label": "Show LTF details",
@@ -2386,7 +2132,6 @@
           "visibility": null
         },
         {
-          "lineno": 380,
           "varname": "enable_live_break_alerts",
           "kind": "bool",
           "label": "Enable intrabar live break alerts",
@@ -2395,7 +2140,6 @@
           "visibility": null
         },
         {
-          "lineno": 383,
           "varname": "render_visible_only",
           "kind": "bool",
           "label": "Render visible range only",
@@ -2404,7 +2148,6 @@
           "visibility": null
         },
         {
-          "lineno": 384,
           "varname": "keep_visual_history",
           "kind": "bool",
           "label": "Keep structure label history",
@@ -2413,7 +2156,6 @@
           "visibility": null
         },
         {
-          "lineno": 385,
           "varname": "object_gc_cycle",
           "kind": "int",
           "label": "Object GC Cycle",
@@ -2422,7 +2164,6 @@
           "visibility": null
         },
         {
-          "lineno": 386,
           "varname": "max_ltf_ratio",
           "kind": "int",
           "label": "Max LTF Ratio",
@@ -2431,7 +2172,6 @@
           "visibility": null
         },
         {
-          "lineno": 387,
           "varname": "max_ltf_samples_per_bar",
           "kind": "int",
           "label": "Max LTF Samples / Bar",
@@ -2440,7 +2180,6 @@
           "visibility": null
         },
         {
-          "lineno": 390,
           "varname": "volume_quality_lookback",
           "kind": "int",
           "label": "Volume Quality Lookback",
@@ -2449,7 +2188,6 @@
           "visibility": null
         },
         {
-          "lineno": 391,
           "varname": "min_nonzero_volume_bars",
           "kind": "int",
           "label": "Min Non-Zero Volume Bars",
@@ -2458,7 +2196,6 @@
           "visibility": null
         },
         {
-          "lineno": 392,
           "varname": "allow_relvol_without_volume_data",
           "kind": "bool",
           "label": "Ignore RelVol when volume unavailable",
@@ -2467,7 +2204,6 @@
           "visibility": null
         },
         {
-          "lineno": 395,
           "varname": "stop_buffer_atr_mult",
           "kind": "float",
           "label": "Stop Buffer ATR x",
@@ -2476,7 +2212,6 @@
           "visibility": null
         },
         {
-          "lineno": 398,
           "varname": "use_vwap_filter",
           "kind": "bool",
           "label": "Use VWAP Filter",
@@ -2485,7 +2220,6 @@
           "visibility": null
         },
         {
-          "lineno": 399,
           "varname": "show_session_vwap",
           "kind": "bool",
           "label": "Show VWAP",
@@ -2494,7 +2228,6 @@
           "visibility": null
         },
         {
-          "lineno": 400,
           "varname": "vwap_session",
           "kind": "session",
           "label": "0930-1600",
@@ -2503,7 +2236,6 @@
           "visibility": null
         },
         {
-          "lineno": 401,
           "varname": "trade_entry_session",
           "kind": "session",
           "label": "0935-1130,1400-1530",
@@ -2512,7 +2244,6 @@
           "visibility": null
         },
         {
-          "lineno": 402,
           "varname": "block_entries_outside_session",
           "kind": "bool",
           "label": "Block outside session",
@@ -2521,7 +2252,6 @@
           "visibility": null
         },
         {
-          "lineno": 403,
           "varname": "use_opening_range_gate",
           "kind": "bool",
           "label": "Use Opening Range Gate",
@@ -2530,7 +2260,6 @@
           "visibility": null
         },
         {
-          "lineno": 404,
           "varname": "opening_range_minutes",
           "kind": "int",
           "label": "OR min",
@@ -2539,7 +2268,6 @@
           "visibility": null
         },
         {
-          "lineno": 405,
           "varname": "opening_range_bias_mode",
           "kind": "string",
           "label": "Above OR Mid",
@@ -2548,7 +2276,6 @@
           "visibility": null
         },
         {
-          "lineno": 408,
           "varname": "use_microstructure_profiles",
           "kind": "bool",
           "label": "Use ticker microstructure profiles",
@@ -2557,7 +2284,6 @@
           "visibility": null
         },
         {
-          "lineno": 535,
           "varname": "micro_midday_block_session",
           "kind": "session",
           "label": "1130-1330",
@@ -2566,7 +2292,6 @@
           "visibility": null
         },
         {
-          "lineno": 536,
           "varname": "micro_premarket_session",
           "kind": "session",
           "label": "0400-0929",
@@ -2575,7 +2300,6 @@
           "visibility": null
         },
         {
-          "lineno": 537,
           "varname": "micro_afterhours_session",
           "kind": "session",
           "label": "1601-2000",
@@ -2584,7 +2308,6 @@
           "visibility": null
         },
         {
-          "lineno": 538,
           "varname": "micro_stop_hunt_ob_sweep_depth",
           "kind": "float",
           "label": "Stop-hunt OB sweep depth",
@@ -2593,7 +2316,6 @@
           "visibility": null
         },
         {
-          "lineno": 539,
           "varname": "micro_stop_hunt_fvg_sweep_depth",
           "kind": "float",
           "label": "Stop-hunt FVG sweep depth",
@@ -2602,7 +2324,6 @@
           "visibility": null
         },
         {
-          "lineno": 540,
           "varname": "micro_stop_hunt_relvol_min",
           "kind": "float",
           "label": "Stop-hunt min RelVol",
@@ -2611,7 +2332,6 @@
           "visibility": null
         },
         {
-          "lineno": 541,
           "varname": "micro_stop_hunt_invalidation_atr",
           "kind": "float",
           "label": "Stop-hunt invalidation ATR x",
@@ -2620,7 +2340,6 @@
           "visibility": null
         },
         {
-          "lineno": 542,
           "varname": "micro_stop_hunt_force_close_confirm",
           "kind": "bool",
           "label": "Stop-hunt: force close confirm",
@@ -2629,7 +2348,6 @@
           "visibility": null
         },
         {
-          "lineno": 543,
           "varname": "micro_stop_hunt_disable_live_invalid",
           "kind": "bool",
           "label": "Stop-hunt: disable live invalidation",
@@ -2638,7 +2356,6 @@
           "visibility": null
         },
         {
-          "lineno": 544,
           "varname": "micro_fast_decay_setup_age_max",
           "kind": "int",
           "label": "Fast-decay max armed age",
@@ -2647,7 +2364,6 @@
           "visibility": null
         },
         {
-          "lineno": 545,
           "varname": "micro_fast_decay_confirm_age_max",
           "kind": "int",
           "label": "Fast-decay max confirmed age",
@@ -2656,7 +2372,6 @@
           "visibility": null
         },
         {
-          "lineno": 548,
           "varname": "use_index_gate",
           "kind": "bool",
           "label": "Use Index Gate",
@@ -2665,7 +2380,6 @@
           "visibility": null
         },
         {
-          "lineno": 549,
           "varname": "index_gate_symbol",
           "kind": "symbol",
           "label": "AMEX:SPY",
@@ -2674,7 +2388,6 @@
           "visibility": null
         },
         {
-          "lineno": 550,
           "varname": "use_sector_gate",
           "kind": "bool",
           "label": "Use Sector Gate",
@@ -2683,7 +2396,6 @@
           "visibility": null
         },
         {
-          "lineno": 551,
           "varname": "sector_gate_symbol",
           "kind": "symbol",
           "label": "NASDAQ:QQQ",
@@ -2692,7 +2404,6 @@
           "visibility": null
         },
         {
-          "lineno": 552,
           "varname": "use_breadth_symbol_gate",
           "kind": "bool",
           "label": "Use Breadth Symbol",
@@ -2701,7 +2412,6 @@
           "visibility": null
         },
         {
-          "lineno": 553,
           "varname": "breadth_gate_symbol",
           "kind": "string",
           "label": ", ",
@@ -2710,7 +2420,6 @@
           "visibility": null
         },
         {
-          "lineno": 554,
           "varname": "breadth_gate_mode",
           "kind": "string",
           "label": "Above Zero",
@@ -2719,7 +2428,6 @@
           "visibility": null
         },
         {
-          "lineno": 555,
           "varname": "block_on_missing_market_symbol",
           "kind": "bool",
           "label": "Block on missing symbol",
@@ -2728,7 +2436,6 @@
           "visibility": null
         },
         {
-          "lineno": 556,
           "varname": "breadth_gate_len",
           "kind": "int",
           "label": "Breadth EMA Len",
@@ -2737,7 +2444,6 @@
           "visibility": null
         },
         {
-          "lineno": 557,
           "varname": "market_gate_fast_len",
           "kind": "int",
           "label": "Fast EMA",
@@ -2746,7 +2452,6 @@
           "visibility": null
         },
         {
-          "lineno": 558,
           "varname": "market_gate_slow_len",
           "kind": "int",
           "label": "Slow EMA",
@@ -2755,7 +2460,6 @@
           "visibility": null
         },
         {
-          "lineno": 562,
           "varname": "show_long_engine_debug",
           "kind": "bool",
           "label": "Show long engine debug",
@@ -2764,7 +2468,6 @@
           "visibility": null
         },
         {
-          "lineno": 563,
           "varname": "long_engine_debug_mode",
           "kind": "string",
           "label": "Compact",
@@ -2773,7 +2476,6 @@
           "visibility": null
         },
         {
-          "lineno": 566,
           "varname": "long_signal_window",
           "kind": "int",
           "label": "Signal Window Bars",
@@ -2782,7 +2484,6 @@
           "visibility": null
         },
         {
-          "lineno": 567,
           "varname": "long_confirm_lookback",
           "kind": "int",
           "label": "Confirm Break Lookback",
@@ -2791,7 +2492,6 @@
           "visibility": null
         },
         {
-          "lineno": 568,
           "varname": "long_setup_expiry_bars",
           "kind": "int",
           "label": "Setup Expiry Bars",
@@ -2800,7 +2500,6 @@
           "visibility": null
         },
         {
-          "lineno": 569,
           "varname": "long_confirm_expiry_bars",
           "kind": "int",
           "label": "Confirmed Expiry Bars",
@@ -2809,7 +2508,6 @@
           "visibility": null
         },
         {
-          "lineno": 570,
           "varname": "long_invalidation_atr_mult",
           "kind": "float",
           "label": "Invalidation Buffer ATR x",
@@ -2818,7 +2516,6 @@
           "visibility": null
         },
         {
-          "lineno": 571,
           "varname": "long_zone_scan_limit",
           "kind": "int",
           "label": "Zone Scan Depth",
@@ -2827,7 +2524,6 @@
           "visibility": null
         },
         {
-          "lineno": 572,
           "varname": "max_bars_arm_to_confirm",
           "kind": "int",
           "label": "Max Bars Armed -> Confirm",
@@ -2836,7 +2532,6 @@
           "visibility": null
         },
         {
-          "lineno": 573,
           "varname": "max_bars_confirm_to_ready",
           "kind": "int",
           "label": "Max Bars Confirm -> Ready",
@@ -2845,7 +2540,6 @@
           "visibility": null
         },
         {
-          "lineno": 574,
           "varname": "max_zone_touches_for_entry",
           "kind": "int",
           "label": "Max Zone Touches For Entry",
@@ -2854,7 +2548,6 @@
           "visibility": null
         },
         {
-          "lineno": 575,
           "varname": "block_third_touch",
           "kind": "bool",
           "label": "Block 3rd+ Touch",
@@ -2863,7 +2556,6 @@
           "visibility": null
         },
         {
-          "lineno": 576,
           "varname": "min_headroom_r",
           "kind": "float",
           "label": "Min Headroom To Overhead Zone (R)",
@@ -2872,7 +2564,6 @@
           "visibility": null
         },
         {
-          "lineno": 577,
           "varname": "use_overhead_zone_filter",
           "kind": "bool",
           "label": "Block Overhead Zone",
@@ -2881,7 +2572,6 @@
           "visibility": null
         },
         {
-          "lineno": 578,
           "varname": "use_strict_sequence",
           "kind": "bool",
           "label": "Strict: Zone -> Reclaim -> Internal Break",
@@ -2890,7 +2580,6 @@
           "visibility": null
         },
         {
-          "lineno": 579,
           "varname": "tighten_armed_stage",
           "kind": "bool",
           "label": "Tighten Armed Stage",
@@ -2899,7 +2588,6 @@
           "visibility": null
         },
         {
-          "lineno": 580,
           "varname": "allow_same_bar_zone_reclaim",
           "kind": "bool",
           "label": "Allow same-bar reclaim",
@@ -2908,7 +2596,6 @@
           "visibility": null
         },
         {
-          "lineno": 581,
           "varname": "use_strict_sweep_for_zone_reclaim",
           "kind": "bool",
           "label": "Strict sweep for OB/FVG reclaim",
@@ -2917,7 +2604,6 @@
           "visibility": null
         },
         {
-          "lineno": 582,
           "varname": "allow_armed_source_upgrade",
           "kind": "bool",
           "label": "Allow Armed Source Upgrade",
@@ -2926,7 +2612,6 @@
           "visibility": null
         },
         {
-          "lineno": 583,
           "varname": "min_source_upgrade_quality_gain",
           "kind": "float",
           "label": "Min Q Gain",
@@ -2935,7 +2620,6 @@
           "visibility": null
         },
         {
-          "lineno": 584,
           "varname": "ob_reclaim_min_penetration",
           "kind": "float",
           "label": "OB depth",
@@ -2944,7 +2628,6 @@
           "visibility": null
         },
         {
-          "lineno": 585,
           "varname": "fvg_reclaim_min_penetration",
           "kind": "float",
           "label": "FVG depth",
@@ -2953,7 +2636,6 @@
           "visibility": null
         },
         {
-          "lineno": 586,
           "varname": "use_strict_confirm_guard",
           "kind": "bool",
           "label": "Strict confirm guard vs bearish breaks",
@@ -2962,7 +2644,6 @@
           "visibility": null
         },
         {
-          "lineno": 589,
           "varname": "use_vola_compression_gate",
           "kind": "bool",
           "label": "Use Compression -> Expansion Gate",
@@ -2971,7 +2652,6 @@
           "visibility": null
         },
         {
-          "lineno": 590,
           "varname": "vola_baseline_len",
           "kind": "int",
           "label": "Baseline",
@@ -2980,7 +2660,6 @@
           "visibility": null
         },
         {
-          "lineno": 591,
           "varname": "compression_ratio_max",
           "kind": "float",
           "label": "Compression max ratio",
@@ -2989,7 +2668,6 @@
           "visibility": null
         },
         {
-          "lineno": 592,
           "varname": "compression_recent_bars",
           "kind": "int",
           "label": "Compression recent bars",
@@ -2998,7 +2676,6 @@
           "visibility": null
         },
         {
-          "lineno": 593,
           "varname": "expansion_range_mult",
           "kind": "float",
           "label": "Expansion range x",
@@ -3007,7 +2684,6 @@
           "visibility": null
         },
         {
-          "lineno": 594,
           "varname": "require_expansion_on_confirm_or_ready",
           "kind": "bool",
           "label": "Require expansion now",
@@ -3016,7 +2692,6 @@
           "visibility": null
         },
         {
-          "lineno": 597,
           "varname": "use_context_quality_score",
           "kind": "bool",
           "label": "Show Context Quality Diagnostics",
@@ -3025,7 +2700,6 @@
           "visibility": null
         },
         {
-          "lineno": 598,
           "varname": "min_context_quality_score",
           "kind": "int",
           "label": "Diag Reference Min Score",
@@ -3034,7 +2708,6 @@
           "visibility": null
         },
         {
-          "lineno": 599,
           "varname": "use_lean_signal_quality_gate",
           "kind": "bool",
           "label": "Use Signal Quality Gate",
@@ -3043,7 +2716,6 @@
           "visibility": null
         },
         {
-          "lineno": 600,
           "varname": "use_lean_context_gates",
           "kind": "bool",
           "label": "Use Lean Context Consensus",
@@ -3052,7 +2724,6 @@
           "visibility": null
         },
         {
-          "lineno": 601,
           "varname": "use_scoring_over_blocking",
           "kind": "bool",
           "label": "Scoring over Blocking (v5.5)",
@@ -3061,7 +2732,6 @@
           "visibility": null
         },
         {
-          "lineno": 602,
           "varname": "score_weight_structure",
           "kind": "int",
           "label": "Structure",
@@ -3070,7 +2740,6 @@
           "visibility": null
         },
         {
-          "lineno": 603,
           "varname": "score_weight_htf",
           "kind": "int",
           "label": "HTF",
@@ -3079,7 +2748,6 @@
           "visibility": null
         },
         {
-          "lineno": 604,
           "varname": "score_weight_ema",
           "kind": "int",
           "label": "EMA",
@@ -3088,7 +2756,6 @@
           "visibility": null
         },
         {
-          "lineno": 605,
           "varname": "score_weight_adx",
           "kind": "int",
           "label": "ADX",
@@ -3097,7 +2764,6 @@
           "visibility": null
         },
         {
-          "lineno": 606,
           "varname": "score_weight_close",
           "kind": "int",
           "label": "Close",
@@ -3106,7 +2772,6 @@
           "visibility": null
         },
         {
-          "lineno": 607,
           "varname": "score_weight_relvol",
           "kind": "int",
           "label": "RelVol",
@@ -3115,7 +2780,6 @@
           "visibility": null
         },
         {
-          "lineno": 608,
           "varname": "min_htf_alignment_count",
           "kind": "int",
           "label": "HTF Bias Min Count",
@@ -3124,7 +2788,6 @@
           "visibility": null
         },
         {
-          "lineno": 611,
           "varname": "require_internal_break_for_confirm",
           "kind": "bool",
           "label": "Require Internal Break For Confirm",
@@ -3133,7 +2796,6 @@
           "visibility": null
         },
         {
-          "lineno": 612,
           "varname": "require_main_break_for_ready",
           "kind": "bool",
           "label": "Require Main BOS For Ready",
@@ -3142,7 +2804,6 @@
           "visibility": null
         },
         {
-          "lineno": 613,
           "varname": "use_live_confirm_break",
           "kind": "bool",
           "label": "Live Confirm Uses High",
@@ -3151,7 +2812,6 @@
           "visibility": null
         },
         {
-          "lineno": 614,
           "varname": "use_live_invalidation_break",
           "kind": "bool",
           "label": "Live Invalidation Uses Low",
@@ -3160,7 +2820,6 @@
           "visibility": null
         },
         {
-          "lineno": 615,
           "varname": "long_internal_structure_mode",
           "kind": "string",
           "label": "Internal CHoCH only",
@@ -3169,7 +2828,6 @@
           "visibility": null
         },
         {
-          "lineno": 618,
           "varname": "show_ema_support",
           "kind": "bool",
           "label": "Show EMA Support",
@@ -3178,7 +2836,6 @@
           "visibility": null
         },
         {
-          "lineno": 619,
           "varname": "ema_fast_len",
           "kind": "int",
           "label": "Fast",
@@ -3187,7 +2844,6 @@
           "visibility": null
         },
         {
-          "lineno": 620,
           "varname": "ema_slow_len",
           "kind": "int",
           "label": "Slow",
@@ -3196,7 +2852,6 @@
           "visibility": null
         },
         {
-          "lineno": 623,
           "varname": "use_adx",
           "kind": "bool",
           "label": "Use ADX",
@@ -3205,7 +2860,6 @@
           "visibility": null
         },
         {
-          "lineno": 624,
           "varname": "adx_len",
           "kind": "int",
           "label": "Length",
@@ -3214,7 +2868,6 @@
           "visibility": null
         },
         {
-          "lineno": 625,
           "varname": "adx_trend_min",
           "kind": "float",
           "label": "Trend",
@@ -3223,7 +2876,6 @@
           "visibility": null
         },
         {
-          "lineno": 626,
           "varname": "adx_strong_min",
           "kind": "float",
           "label": "Strong",
@@ -3232,7 +2884,6 @@
           "visibility": null
         },
         {
-          "lineno": 629,
           "varname": "use_rel_volume",
           "kind": "bool",
           "label": "Use Relative Volume",
@@ -3241,7 +2892,6 @@
           "visibility": null
         },
         {
-          "lineno": 630,
           "varname": "relvol_len",
           "kind": "int",
           "label": "Length",
@@ -3250,7 +2900,6 @@
           "visibility": null
         },
         {
-          "lineno": 631,
           "varname": "relvol_good",
           "kind": "float",
           "label": "Good x",
@@ -3259,7 +2908,6 @@
           "visibility": null
         },
         {
-          "lineno": 634,
           "varname": "use_strong_close_filter",
           "kind": "bool",
           "label": "Use Strong Close Filter",
@@ -3268,7 +2916,6 @@
           "visibility": null
         },
         {
-          "lineno": 635,
           "varname": "min_close_in_range_pct",
           "kind": "float",
           "label": "Min Close In Range",
@@ -3277,7 +2924,6 @@
           "visibility": null
         },
         {
-          "lineno": 638,
           "varname": "use_accel_module",
           "kind": "bool",
           "label": "Use acceleration timing module",
@@ -3286,7 +2932,6 @@
           "visibility": null
         },
         {
-          "lineno": 639,
           "varname": "accel_len_fast",
           "kind": "int",
           "label": "Fast length",
@@ -3295,7 +2940,6 @@
           "visibility": null
         },
         {
-          "lineno": 640,
           "varname": "accel_len_mid1",
           "kind": "int",
           "label": "Mid 1",
@@ -3304,7 +2948,6 @@
           "visibility": null
         },
         {
-          "lineno": 641,
           "varname": "accel_len_mid2",
           "kind": "int",
           "label": "Mid 2",
@@ -3313,7 +2956,6 @@
           "visibility": null
         },
         {
-          "lineno": 642,
           "varname": "accel_len_slow",
           "kind": "int",
           "label": "Slow",
@@ -3322,7 +2964,6 @@
           "visibility": null
         },
         {
-          "lineno": 643,
           "varname": "accel_smooth_len",
           "kind": "int",
           "label": "Smooth",
@@ -3331,7 +2972,6 @@
           "visibility": null
         },
         {
-          "lineno": 644,
           "varname": "accel_cross_threshold",
           "kind": "float",
           "label": "Zero threshold",
@@ -3340,7 +2980,6 @@
           "visibility": null
         },
         {
-          "lineno": 645,
           "varname": "accel_integration_mode",
           "kind": "string",
           "label": "Early only",
@@ -3349,7 +2988,6 @@
           "visibility": null
         },
         {
-          "lineno": 646,
           "varname": "require_accel_above_zero_for_ready",
           "kind": "bool",
           "label": "Ready requires accel > 0",
@@ -3358,7 +2996,6 @@
           "visibility": null
         },
         {
-          "lineno": 647,
           "varname": "accel_recent_cross_bars",
           "kind": "int",
           "label": "Recent cross bars",
@@ -3367,7 +3004,6 @@
           "visibility": null
         },
         {
-          "lineno": 648,
           "varname": "accel_close_safe_only",
           "kind": "bool",
           "label": "Acceleration close-safe only",
@@ -3376,7 +3012,6 @@
           "visibility": null
         },
         {
-          "lineno": 649,
           "varname": "accel_use_for_ready",
           "kind": "bool",
           "label": "Map to Ready",
@@ -3385,7 +3020,6 @@
           "visibility": null
         },
         {
-          "lineno": 650,
           "varname": "accel_use_for_entry_best",
           "kind": "bool",
           "label": "Map to Entry Best",
@@ -3394,7 +3028,6 @@
           "visibility": null
         },
         {
-          "lineno": 651,
           "varname": "accel_use_for_entry_strict",
           "kind": "bool",
           "label": "Map to Entry Strict",
@@ -3403,7 +3036,6 @@
           "visibility": null
         },
         {
-          "lineno": 654,
           "varname": "use_sd_confluence",
           "kind": "bool",
           "label": "Use second-derivative confluence",
@@ -3412,7 +3044,6 @@
           "visibility": null
         },
         {
-          "lineno": 655,
           "varname": "sd_lr_len",
           "kind": "int",
           "label": "LR length",
@@ -3421,7 +3052,6 @@
           "visibility": null
         },
         {
-          "lineno": 656,
           "varname": "sd_smooth_len",
           "kind": "int",
           "label": "Smooth",
@@ -3430,7 +3060,6 @@
           "visibility": null
         },
         {
-          "lineno": 657,
           "varname": "sd_pivot_len",
           "kind": "int",
           "label": "Pivot length",
@@ -3439,7 +3068,6 @@
           "visibility": null
         },
         {
-          "lineno": 658,
           "varname": "sd_recent_window",
           "kind": "int",
           "label": "Recent window bars",
@@ -3448,7 +3076,6 @@
           "visibility": null
         },
         {
-          "lineno": 659,
           "varname": "sd_higher_low_steps_required",
           "kind": "int",
           "label": "Higher-low steps required",
@@ -3457,7 +3084,6 @@
           "visibility": null
         },
         {
-          "lineno": 660,
           "varname": "sd_require_for_armed",
           "kind": "bool",
           "label": "Require SD confluence for Armed",
@@ -3466,7 +3092,6 @@
           "visibility": null
         },
         {
-          "lineno": 661,
           "varname": "sd_require_for_confirmed",
           "kind": "bool",
           "label": "Require SD confluence for Confirmed",
@@ -3475,7 +3100,6 @@
           "visibility": null
         },
         {
-          "lineno": 662,
           "varname": "sd_require_for_ready",
           "kind": "bool",
           "label": "Require SD confluence for Ready",
@@ -3484,7 +3108,6 @@
           "visibility": null
         },
         {
-          "lineno": 663,
           "varname": "sd_require_for_entry_best",
           "kind": "bool",
           "label": "Require SD confluence for Entry Best",
@@ -3493,7 +3116,6 @@
           "visibility": null
         },
         {
-          "lineno": 664,
           "varname": "sd_require_both_for_entry_strict",
           "kind": "bool",
           "label": "Entry Strict requires BOTH signals",
@@ -3502,7 +3124,6 @@
           "visibility": null
         },
         {
-          "lineno": 665,
           "varname": "sd_require_osc_rising_for_ready",
           "kind": "bool",
           "label": "Ready requires oscillator rising",
@@ -3511,7 +3132,6 @@
           "visibility": null
         },
         {
-          "lineno": 668,
           "varname": "use_volatility_regime",
           "kind": "bool",
           "label": "Use volatility regime filter",
@@ -3520,7 +3140,6 @@
           "visibility": null
         },
         {
-          "lineno": 669,
           "varname": "vol_ma_mode",
           "kind": "string",
           "label": "EMA",
@@ -3529,7 +3148,6 @@
           "visibility": null
         },
         {
-          "lineno": 670,
           "varname": "vol_ma_len_1",
           "kind": "int",
           "label": "MA 1",
@@ -3538,7 +3156,6 @@
           "visibility": null
         },
         {
-          "lineno": 671,
           "varname": "vol_ma_len_2",
           "kind": "int",
           "label": "MA 2",
@@ -3547,7 +3164,6 @@
           "visibility": null
         },
         {
-          "lineno": 672,
           "varname": "vol_ma_len_3",
           "kind": "int",
           "label": "MA 3",
@@ -3556,7 +3172,6 @@
           "visibility": null
         },
         {
-          "lineno": 673,
           "varname": "vol_ma_len_4",
           "kind": "int",
           "label": "MA 4",
@@ -3565,7 +3180,6 @@
           "visibility": null
         },
         {
-          "lineno": 674,
           "varname": "vol_require_all_stack_slopes",
           "kind": "bool",
           "label": "Require all stack slopes rising",
@@ -3574,7 +3188,6 @@
           "visibility": null
         },
         {
-          "lineno": 675,
           "varname": "vol_bb_len",
           "kind": "int",
           "label": "BB length",
@@ -3583,7 +3196,6 @@
           "visibility": null
         },
         {
-          "lineno": 676,
           "varname": "vol_bb_mult",
           "kind": "float",
           "label": "BB mult",
@@ -3592,7 +3204,6 @@
           "visibility": null
         },
         {
-          "lineno": 677,
           "varname": "vol_kc_len",
           "kind": "int",
           "label": "KC length",
@@ -3601,7 +3212,6 @@
           "visibility": null
         },
         {
-          "lineno": 678,
           "varname": "vol_kc_mult",
           "kind": "float",
           "label": "KC mult",
@@ -3610,7 +3220,6 @@
           "visibility": null
         },
         {
-          "lineno": 679,
           "varname": "vol_squeeze_recent_bars",
           "kind": "int",
           "label": "Squeeze recent bars",
@@ -3619,7 +3228,6 @@
           "visibility": null
         },
         {
-          "lineno": 680,
           "varname": "vol_release_recent_bars",
           "kind": "int",
           "label": "Release recent bars",
@@ -3628,7 +3236,6 @@
           "visibility": null
         },
         {
-          "lineno": 681,
           "varname": "vol_momentum_len",
           "kind": "int",
           "label": "Momentum length",
@@ -3637,7 +3244,6 @@
           "visibility": null
         },
         {
-          "lineno": 682,
           "varname": "vol_momentum_smooth",
           "kind": "int",
           "label": "Smooth",
@@ -3646,7 +3252,6 @@
           "visibility": null
         },
         {
-          "lineno": 683,
           "varname": "vol_require_squeeze_for_watchlist",
           "kind": "bool",
           "label": "Watchlist prefers squeeze context",
@@ -3655,7 +3260,6 @@
           "visibility": null
         },
         {
-          "lineno": 684,
           "varname": "vol_require_squeeze_for_ready",
           "kind": "bool",
           "label": "Ready requires squeeze context",
@@ -3664,7 +3268,6 @@
           "visibility": null
         },
         {
-          "lineno": 685,
           "varname": "vol_require_release_for_entry_best",
           "kind": "bool",
           "label": "Entry Best requires squeeze release",
@@ -3673,7 +3276,6 @@
           "visibility": null
         },
         {
-          "lineno": 686,
           "varname": "vol_require_release_for_entry_strict",
           "kind": "bool",
           "label": "Entry Strict requires squeeze release",
@@ -3682,7 +3284,6 @@
           "visibility": null
         },
         {
-          "lineno": 689,
           "varname": "use_stretch_context",
           "kind": "bool",
           "label": "Use stretch context",
@@ -3691,7 +3292,6 @@
           "visibility": null
         },
         {
-          "lineno": 690,
           "varname": "stretch_len",
           "kind": "int",
           "label": "Mean / StdDev length",
@@ -3700,7 +3300,6 @@
           "visibility": null
         },
         {
-          "lineno": 691,
           "varname": "lower_extreme_z",
           "kind": "float",
           "label": "Lower extreme z",
@@ -3709,7 +3308,6 @@
           "visibility": null
         },
         {
-          "lineno": 692,
           "varname": "lower_extreme_recent_bars",
           "kind": "int",
           "label": "Lower extreme recent bars",
@@ -3718,7 +3316,6 @@
           "visibility": null
         },
         {
-          "lineno": 693,
           "varname": "anti_chase_max_z_ready",
           "kind": "float",
           "label": "Ready max z",
@@ -3727,7 +3324,6 @@
           "visibility": null
         },
         {
-          "lineno": 694,
           "varname": "anti_chase_max_z_best",
           "kind": "float",
           "label": "Best max z",
@@ -3736,7 +3332,6 @@
           "visibility": null
         },
         {
-          "lineno": 695,
           "varname": "anti_chase_max_z_strict",
           "kind": "float",
           "label": "Strict max z",
@@ -3745,7 +3340,6 @@
           "visibility": null
         },
         {
-          "lineno": 696,
           "varname": "stretch_require_lower_extreme_for_ready",
           "kind": "bool",
           "label": "Ready requires lower extreme context",
@@ -3754,7 +3348,6 @@
           "visibility": null
         },
         {
-          "lineno": 697,
           "varname": "stretch_require_lower_extreme_for_entry_best",
           "kind": "bool",
           "label": "Entry Best requires lower extreme context",
@@ -3763,7 +3356,6 @@
           "visibility": null
         },
         {
-          "lineno": 698,
           "varname": "stretch_require_lower_extreme_for_entry_strict",
           "kind": "bool",
           "label": "Entry Strict requires lower extreme context",
@@ -3772,7 +3364,6 @@
           "visibility": null
         },
         {
-          "lineno": 701,
           "varname": "use_ddvi_context",
           "kind": "bool",
           "label": "Use DDVI context",
@@ -3781,7 +3372,6 @@
           "visibility": null
         },
         {
-          "lineno": 702,
           "varname": "ddvi_di_length",
           "kind": "int",
           "label": "DDVI DI Length",
@@ -3790,7 +3380,6 @@
           "visibility": null
         },
         {
-          "lineno": 703,
           "varname": "ddvi_advx_smooth",
           "kind": "int",
           "label": "ADVX Smooth",
@@ -3799,7 +3388,6 @@
           "visibility": null
         },
         {
-          "lineno": 704,
           "varname": "ddvi_ma_select",
           "kind": "enum",
           "label": "DDVI MA",
@@ -3808,7 +3396,6 @@
           "visibility": null
         },
         {
-          "lineno": 705,
           "varname": "ddvi_ma_len",
           "kind": "int",
           "label": "Length",
@@ -3817,7 +3404,6 @@
           "visibility": null
         },
         {
-          "lineno": 706,
           "varname": "ddvi_bb_ma_select",
           "kind": "enum",
           "label": "DDVI BB MA",
@@ -3826,7 +3412,6 @@
           "visibility": null
         },
         {
-          "lineno": 707,
           "varname": "ddvi_bb_len",
           "kind": "int",
           "label": "BB Length",
@@ -3835,7 +3420,6 @@
           "visibility": null
         },
         {
-          "lineno": 708,
           "varname": "ddvi_bb_mult",
           "kind": "float",
           "label": "BB Stdev",
@@ -3844,7 +3428,6 @@
           "visibility": null
         },
         {
-          "lineno": 709,
           "varname": "ddvi_lower_extreme_lookback",
           "kind": "int",
           "label": "Lower extreme context bars",
@@ -3853,7 +3436,6 @@
           "visibility": null
         },
         {
-          "lineno": 710,
           "varname": "use_ddvi_hidden_bull",
           "kind": "bool",
           "label": "Use hidden bull divergence",
@@ -3862,7 +3444,6 @@
           "visibility": null
         },
         {
-          "lineno": 711,
           "varname": "use_ddvi_strong_bull",
           "kind": "bool",
           "label": "Use strong bull divergence",
@@ -3871,7 +3452,6 @@
           "visibility": null
         },
         {
-          "lineno": 712,
           "varname": "ddvi_pivot_left",
           "kind": "int",
           "label": "Pivot Left",
@@ -3880,7 +3460,6 @@
           "visibility": null
         },
         {
-          "lineno": 713,
           "varname": "ddvi_pivot_right",
           "kind": "int",
           "label": "Right",
@@ -3889,7 +3468,6 @@
           "visibility": null
         },
         {
-          "lineno": 714,
           "varname": "ddvi_div_min_range",
           "kind": "int",
           "label": "Div Min",
@@ -3898,7 +3476,6 @@
           "visibility": null
         },
         {
-          "lineno": 715,
           "varname": "ddvi_div_max_range",
           "kind": "int",
           "label": "Max",
@@ -3907,7 +3484,6 @@
           "visibility": null
         },
         {
-          "lineno": 716,
           "varname": "ddvi_eq_zone_len",
           "kind": "int",
           "label": "Equal zone length",
@@ -3916,7 +3492,6 @@
           "visibility": null
         },
         {
-          "lineno": 717,
           "varname": "ddvi_eq_zone_atr_mult",
           "kind": "float",
           "label": "Price ATR x",
@@ -3925,7 +3500,6 @@
           "visibility": null
         },
         {
-          "lineno": 718,
           "varname": "ddvi_eq_zone_dev_mult",
           "kind": "float",
           "label": "DDVI Dev x",
@@ -3934,7 +3508,6 @@
           "visibility": null
         },
         {
-          "lineno": 719,
           "varname": "ddvi_close_safe_only",
           "kind": "bool",
           "label": "DDVI events close-safe only",
@@ -3943,7 +3516,6 @@
           "visibility": null
         },
         {
-          "lineno": 722,
           "varname": "show_Structure",
           "kind": "bool",
           "label": "Show Market Structure",
@@ -3952,7 +3524,6 @@
           "visibility": null
         },
         {
-          "lineno": 723,
           "varname": "show_bull",
           "kind": "string",
           "label": "All",
@@ -3961,7 +3532,6 @@
           "visibility": null
         },
         {
-          "lineno": 726,
           "varname": "show_swing_points",
           "kind": "bool",
           "label": "Show Swing Points (HH/LH/HL/LL)",
@@ -3970,7 +3540,6 @@
           "visibility": null
         },
         {
-          "lineno": 727,
           "varname": "swing_length",
           "kind": "int",
           "label": "Swing Size",
@@ -3979,7 +3548,6 @@
           "visibility": null
         },
         {
-          "lineno": 728,
           "varname": "show_internals",
           "kind": "bool",
           "label": "Show Internal Structure",
@@ -3988,7 +3556,6 @@
           "visibility": null
         },
         {
-          "lineno": 729,
           "varname": "internal_length",
           "kind": "int",
           "label": "Internal Size",
@@ -3997,7 +3564,6 @@
           "visibility": null
         },
         {
-          "lineno": 730,
           "varname": "show_latest_swings_levels",
           "kind": "bool",
           "label": "Show Strong/Weak High/Low",
@@ -4006,7 +3572,6 @@
           "visibility": null
         },
         {
-          "lineno": 736,
           "varname": "show_ob",
           "kind": "bool",
           "label": "Show Order Blocks",
@@ -4015,7 +3580,6 @@
           "visibility": null
         },
         {
-          "lineno": 737,
           "varname": "bull_ob_css",
           "kind": "color",
           "label": ", group = g_ob, inline = ",
@@ -4024,7 +3588,6 @@
           "visibility": null
         },
         {
-          "lineno": 738,
           "varname": "bull_ob_css_line",
           "kind": "color",
           "label": ", group = g_ob, inline = ",
@@ -4033,7 +3596,6 @@
           "visibility": null
         },
         {
-          "lineno": 739,
           "varname": "ob_showlast",
           "kind": "int",
           "label": "Show last",
@@ -4042,7 +3604,6 @@
           "visibility": null
         },
         {
-          "lineno": 740,
           "varname": "ob_filter_min_mult",
           "kind": "float",
           "label": "Size Filter (ATR x) Min",
@@ -4051,7 +3612,6 @@
           "visibility": null
         },
         {
-          "lineno": 741,
           "varname": "ob_filter_max_mult",
           "kind": "float",
           "label": "Max",
@@ -4060,7 +3620,6 @@
           "visibility": null
         },
         {
-          "lineno": 743,
           "varname": "ob_extend_until_broken",
           "kind": "bool",
           "label": "Extend until broken",
@@ -4069,7 +3628,6 @@
           "visibility": null
         },
         {
-          "lineno": 744,
           "varname": "ob_keep_broken",
           "kind": "bool",
           "label": "Keep broken",
@@ -4078,7 +3636,6 @@
           "visibility": null
         },
         {
-          "lineno": 745,
           "varname": "ob_keep_broken_max",
           "kind": "int",
           "label": ", minval = 0, group = g_ob, inline = ",
@@ -4087,7 +3644,6 @@
           "visibility": null
         },
         {
-          "lineno": 746,
           "varname": "bull_ob_css_broken",
           "kind": "color",
           "label": ", group = g_ob, inline = ",
@@ -4096,7 +3652,6 @@
           "visibility": null
         },
         {
-          "lineno": 748,
           "varname": "use_ob_profile",
           "kind": "bool",
           "label": "Use profiles",
@@ -4105,7 +3660,6 @@
           "visibility": null
         },
         {
-          "lineno": 749,
           "varname": "use_ob_soft_confirm",
           "kind": "bool",
           "label": "Use soft confirm",
@@ -4114,7 +3668,6 @@
           "visibility": null
         },
         {
-          "lineno": 752,
           "varname": "use_retracements_with_FVG_out",
           "kind": "bool",
           "label": "Use retracements with FVG-out as trend-supporting OB",
@@ -4123,7 +3676,6 @@
           "visibility": null
         },
         {
-          "lineno": 753,
           "varname": "use_ob_engine",
           "kind": "bool",
           "label": "Use OB engine",
@@ -4132,7 +3684,6 @@
           "visibility": null
         },
         {
-          "lineno": 1761,
           "varname": "show_fvg",
           "kind": "bool",
           "label": "Show Fair Value Gaps",
@@ -4141,7 +3692,6 @@
           "visibility": null
         },
         {
-          "lineno": 1762,
           "varname": "fvg_showlast",
           "kind": "int",
           "label": "Show last",
@@ -4150,7 +3700,6 @@
           "visibility": null
         },
         {
-          "lineno": 1763,
           "varname": "fvg_extend_until_filled",
           "kind": "bool",
           "label": "Extend until filled",
@@ -4159,7 +3708,6 @@
           "visibility": null
         },
         {
-          "lineno": 1764,
           "varname": "fvg_keep_filled",
           "kind": "bool",
           "label": "Keep filled",
@@ -4168,7 +3716,6 @@
           "visibility": null
         },
         {
-          "lineno": 1765,
           "varname": "fvg_keep_filled_max",
           "kind": "int",
           "label": ", minval = 1, group = g_fvg, inline = ",
@@ -4177,7 +3724,6 @@
           "visibility": null
         },
         {
-          "lineno": 1766,
           "varname": "bull_fvg_css",
           "kind": "color",
           "label": ", group = g_fvg, inline = ",
@@ -4186,7 +3732,6 @@
           "visibility": null
         },
         {
-          "lineno": 1767,
           "varname": "bull_fvg_line_css",
           "kind": "color",
           "label": ", group = g_fvg, inline = ",
@@ -4195,7 +3740,6 @@
           "visibility": null
         },
         {
-          "lineno": 1768,
           "varname": "bull_fvg_css_filled",
           "kind": "color",
           "label": ", group = g_fvg, inline = ",
@@ -4204,7 +3748,6 @@
           "visibility": null
         },
         {
-          "lineno": 1785,
           "varname": "filter_insignificant_fvgs",
           "kind": "bool",
           "label": "Filter: min size",
@@ -4213,7 +3756,6 @@
           "visibility": null
         },
         {
-          "lineno": 1786,
           "varname": "min_fvg_size_atr_len",
           "kind": "int",
           "label": "ATR Length",
@@ -4222,7 +3764,6 @@
           "visibility": null
         },
         {
-          "lineno": 1787,
           "varname": "min_fvg_size_atr_mult",
           "kind": "float",
           "label": ", minval = 0, step = 0.1, group = g_fvg, inline = ",
@@ -4231,7 +3772,6 @@
           "visibility": null
         },
         {
-          "lineno": 1789,
           "varname": "fvg_fill_target_pct",
           "kind": "float",
           "label": "Filled at %",
@@ -4240,7 +3780,6 @@
           "visibility": null
         },
         {
-          "lineno": 1791,
           "varname": "use_fvg_engine",
           "kind": "bool",
           "label": "Use FVG engine",
@@ -4256,7 +3795,6 @@
       "hidden_count": 0,
       "inputs": [
         {
-          "lineno": 28,
           "varname": "show_rel_vol",
           "kind": "bool",
           "label": "Show relative volume bar",
@@ -4265,7 +3803,6 @@
           "visibility": null
         },
         {
-          "lineno": 29,
           "varname": "show_delta_proxy",
           "kind": "bool",
           "label": "Show delta proxy",
@@ -4274,7 +3811,6 @@
           "visibility": null
         },
         {
-          "lineno": 30,
           "varname": "show_ats_state",
           "kind": "bool",
           "label": "Show ATS state",
@@ -4283,7 +3819,6 @@
           "visibility": null
         },
         {
-          "lineno": 31,
           "varname": "show_flow_direction",
           "kind": "bool",
           "label": "Show flow direction markers",
@@ -4292,7 +3827,6 @@
           "visibility": null
         },
         {
-          "lineno": 32,
           "varname": "col_bullish",
           "kind": "color",
           "label": "Bullish color",
@@ -4301,7 +3835,6 @@
           "visibility": null
         },
         {
-          "lineno": 33,
           "varname": "col_bearish",
           "kind": "color",
           "label": "Bearish color",
@@ -4310,7 +3843,6 @@
           "visibility": null
         },
         {
-          "lineno": 34,
           "varname": "col_neutral",
           "kind": "color",
           "label": "Neutral color",
@@ -4326,7 +3858,6 @@
       "hidden_count": 0,
       "inputs": [
         {
-          "lineno": 29,
           "varname": "show_grade",
           "kind": "bool",
           "label": "Show ticker grade",
@@ -4335,7 +3866,6 @@
           "visibility": null
         },
         {
-          "lineno": 30,
           "varname": "show_vwap",
           "kind": "bool",
           "label": "Show VWAP position",
@@ -4344,7 +3874,6 @@
           "visibility": null
         },
         {
-          "lineno": 31,
           "varname": "show_spread",
           "kind": "bool",
           "label": "Show spread regime",
@@ -4353,7 +3882,6 @@
           "visibility": null
         },
         {
-          "lineno": 32,
           "varname": "show_score",
           "kind": "bool",
           "label": "Show context score bar",
@@ -4362,7 +3890,6 @@
           "visibility": null
         },
         {
-          "lineno": 33,
           "varname": "col_grade_a",
           "kind": "color",
           "label": "Grade A",
@@ -4371,7 +3898,6 @@
           "visibility": null
         },
         {
-          "lineno": 34,
           "varname": "col_grade_b",
           "kind": "color",
           "label": "Grade B",
@@ -4380,7 +3906,6 @@
           "visibility": null
         },
         {
-          "lineno": 35,
           "varname": "col_grade_c",
           "kind": "color",
           "label": "Grade C",
@@ -4389,7 +3914,6 @@
           "visibility": null
         },
         {
-          "lineno": 36,
           "varname": "col_grade_d",
           "kind": "color",
           "label": "Grade D",
@@ -4398,7 +3922,6 @@
           "visibility": null
         },
         {
-          "lineno": 37,
           "varname": "col_neutral",
           "kind": "color",
           "label": "Neutral",
@@ -4414,7 +3937,6 @@
       "hidden_count": 0,
       "inputs": [
         {
-          "lineno": 6,
           "varname": "i_sym",
           "kind": "symbol",
           "label": "Backend Symbol",
@@ -4423,7 +3945,6 @@
           "visibility": null
         },
         {
-          "lineno": 7,
           "varname": "i_tf",
           "kind": "string",
           "label": "15m",
@@ -4432,7 +3953,6 @@
           "visibility": null
         },
         {
-          "lineno": 8,
           "varname": "i_apiUrl",
           "kind": "string",
           "label": "https://your-node-host/smc_tv",
@@ -4441,7 +3961,6 @@
           "visibility": null
         },
         {
-          "lineno": 9,
           "varname": "i_enabled",
           "kind": "bool",
           "label": "Enable overlay",
@@ -4450,7 +3969,6 @@
           "visibility": null
         },
         {
-          "lineno": 10,
           "varname": "i_refresh",
           "kind": "int",
           "label": "Refresh (sec)",
@@ -4459,7 +3977,6 @@
           "visibility": null
         },
         {
-          "lineno": 11,
           "varname": "i_overlayMaxAge",
           "kind": "int",
           "label": "Overlay max age (sec)",
@@ -4475,7 +3992,6 @@
       "hidden_count": 0,
       "inputs": [
         {
-          "lineno": 29,
           "varname": "show_session_label",
           "kind": "bool",
           "label": "Show session label",
@@ -4484,7 +4000,6 @@
           "visibility": null
         },
         {
-          "lineno": 30,
           "varname": "show_killzone_bg",
           "kind": "bool",
           "label": "Show killzone background",
@@ -4493,7 +4008,6 @@
           "visibility": null
         },
         {
-          "lineno": 31,
           "varname": "show_mss_markers",
           "kind": "bool",
           "label": "Show MSS markers",
@@ -4502,7 +4016,6 @@
           "visibility": null
         },
         {
-          "lineno": 32,
           "varname": "show_context_score",
           "kind": "bool",
           "label": "Show context score bar",
@@ -4511,7 +4024,6 @@
           "visibility": null
         },
         {
-          "lineno": 33,
           "varname": "col_bullish",
           "kind": "color",
           "label": "Bullish color",
@@ -4520,7 +4032,6 @@
           "visibility": null
         },
         {
-          "lineno": 34,
           "varname": "col_bearish",
           "kind": "color",
           "label": "Bearish color",
@@ -4529,7 +4040,6 @@
           "visibility": null
         },
         {
-          "lineno": 35,
           "varname": "col_neutral",
           "kind": "color",
           "label": "Neutral color",
@@ -4538,7 +4048,6 @@
           "visibility": null
         },
         {
-          "lineno": 36,
           "varname": "col_killzone",
           "kind": "color",
           "label": "Killzone bg",
@@ -4554,7 +4063,6 @@
       "hidden_count": 0,
       "inputs": [
         {
-          "lineno": 22,
           "varname": "src_schema",
           "kind": "source",
           "label": "BUS SchemaVersion",
@@ -4563,7 +4071,6 @@
           "visibility": null
         },
         {
-          "lineno": 23,
           "varname": "src_armed",
           "kind": "source",
           "label": "BUS Armed",
@@ -4572,7 +4079,6 @@
           "visibility": null
         },
         {
-          "lineno": 24,
           "varname": "src_trigger",
           "kind": "source",
           "label": "BUS Trigger",
@@ -4581,7 +4087,6 @@
           "visibility": null
         },
         {
-          "lineno": 25,
           "varname": "src_invalid",
           "kind": "source",
           "label": "BUS Invalidation",
@@ -4590,7 +4095,6 @@
           "visibility": null
         },
         {
-          "lineno": 26,
           "varname": "src_quality",
           "kind": "source",
           "label": "BUS QualityScore",
@@ -4599,7 +4103,6 @@
           "visibility": null
         },
         {
-          "lineno": 27,
           "varname": "src_state",
           "kind": "source",
           "label": "BUS StateCode",
@@ -4615,7 +4118,6 @@
       "hidden_count": 0,
       "inputs": [
         {
-          "lineno": 27,
           "varname": "show_state_label",
           "kind": "bool",
           "label": "Show structure state label",
@@ -4624,7 +4126,6 @@
           "visibility": null
         },
         {
-          "lineno": 28,
           "varname": "show_choch_markers",
           "kind": "bool",
           "label": "Show CHoCH markers",
@@ -4633,7 +4134,6 @@
           "visibility": null
         },
         {
-          "lineno": 29,
           "varname": "show_bos_markers",
           "kind": "bool",
           "label": "Show BOS markers",
@@ -4642,7 +4142,6 @@
           "visibility": null
         },
         {
-          "lineno": 30,
           "varname": "show_sr_levels",
           "kind": "bool",
           "label": "Show support/resistance",
@@ -4651,7 +4150,6 @@
           "visibility": null
         },
         {
-          "lineno": 31,
           "varname": "show_fresh_badge",
           "kind": "bool",
           "label": "Show freshness badge",
@@ -4660,7 +4158,6 @@
           "visibility": null
         },
         {
-          "lineno": 32,
           "varname": "col_bullish",
           "kind": "color",
           "label": "Bullish color",
@@ -4669,7 +4166,6 @@
           "visibility": null
         },
         {
-          "lineno": 33,
           "varname": "col_bearish",
           "kind": "color",
           "label": "Bearish color",
@@ -4678,7 +4174,6 @@
           "visibility": null
         },
         {
-          "lineno": 34,
           "varname": "col_neutral",
           "kind": "color",
           "label": "Neutral color",
@@ -4694,7 +4189,6 @@
       "hidden_count": 0,
       "inputs": [
         {
-          "lineno": 28,
           "varname": "rowSize",
           "kind": "int",
           "label": "Rows",
@@ -4703,7 +4197,6 @@
           "visibility": null
         },
         {
-          "lineno": 30,
           "varname": "volMode",
           "kind": "string",
           "label": "Up/Down",
@@ -4712,7 +4205,6 @@
           "visibility": null
         },
         {
-          "lineno": 32,
           "varname": "vaPct",
           "kind": "int",
           "label": "Value Area %",
@@ -4721,7 +4213,6 @@
           "visibility": null
         },
         {
-          "lineno": 33,
           "varname": "distMode",
           "kind": "string",
           "label": "Typical Price Weighted",
@@ -4730,7 +4221,6 @@
           "visibility": null
         },
         {
-          "lineno": 38,
           "varname": "widthPct",
           "kind": "int",
           "label": "Profile width (% of visible bars)",
@@ -4739,7 +4229,6 @@
           "visibility": null
         },
         {
-          "lineno": 40,
           "varname": "placement",
           "kind": "string",
           "label": "Right",
@@ -4748,7 +4237,6 @@
           "visibility": null
         },
         {
-          "lineno": 42,
           "varname": "upColor",
           "kind": "color",
           "label": "Up volume",
@@ -4757,7 +4245,6 @@
           "visibility": null
         },
         {
-          "lineno": 43,
           "varname": "dnColor",
           "kind": "color",
           "label": "Down volume",
@@ -4766,7 +4253,6 @@
           "visibility": null
         },
         {
-          "lineno": 44,
           "varname": "vaUpColor",
           "kind": "color",
           "label": "VA up",
@@ -4775,7 +4261,6 @@
           "visibility": null
         },
         {
-          "lineno": 45,
           "varname": "vaDnColor",
           "kind": "color",
           "label": "VA down",
@@ -4784,7 +4269,6 @@
           "visibility": null
         },
         {
-          "lineno": 46,
           "varname": "pocColor",
           "kind": "color",
           "label": "POC color",
@@ -4793,7 +4277,6 @@
           "visibility": null
         },
         {
-          "lineno": 47,
           "varname": "vahColor",
           "kind": "color",
           "label": "VAH color",
@@ -4802,7 +4285,6 @@
           "visibility": null
         },
         {
-          "lineno": 48,
           "varname": "valColor",
           "kind": "color",
           "label": "VAL color",
@@ -4811,7 +4293,6 @@
           "visibility": null
         },
         {
-          "lineno": 51,
           "varname": "pocCount",
           "kind": "int",
           "label": "Number of POCs",
@@ -4820,7 +4301,6 @@
           "visibility": null
         },
         {
-          "lineno": 52,
           "varname": "pocMode",
           "kind": "string",
           "label": "Volume Nodes",
@@ -4829,7 +4309,6 @@
           "visibility": null
         },
         {
-          "lineno": 55,
           "varname": "minSepIn",
           "kind": "int",
           "label": "Min node separation (rows)",
@@ -4838,7 +4317,6 @@
           "visibility": null
         },
         {
-          "lineno": 57,
           "varname": "poc2Color",
           "kind": "color",
           "label": "POC 2",
@@ -4847,7 +4325,6 @@
           "visibility": null
         },
         {
-          "lineno": 58,
           "varname": "poc3Color",
           "kind": "color",
           "label": "POC 3",
@@ -4856,7 +4333,6 @@
           "visibility": null
         },
         {
-          "lineno": 59,
           "varname": "poc4Color",
           "kind": "color",
           "label": "POC 4",
@@ -4865,7 +4341,6 @@
           "visibility": null
         },
         {
-          "lineno": 60,
           "varname": "poc5Color",
           "kind": "color",
           "label": "POC 5",
@@ -4874,7 +4349,6 @@
           "visibility": null
         },
         {
-          "lineno": 61,
           "varname": "poc6Color",
           "kind": "color",
           "label": "POC 6",
@@ -4883,7 +4357,6 @@
           "visibility": null
         },
         {
-          "lineno": 62,
           "varname": "poc7Color",
           "kind": "color",
           "label": "POC 7",
@@ -4892,7 +4365,6 @@
           "visibility": null
         },
         {
-          "lineno": 63,
           "varname": "poc8Color",
           "kind": "color",
           "label": "POC 8",
@@ -4901,7 +4373,6 @@
           "visibility": null
         },
         {
-          "lineno": 64,
           "varname": "showPocLab",
           "kind": "bool",
           "label": "Show POC price labels",
