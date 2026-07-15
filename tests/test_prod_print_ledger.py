@@ -76,11 +76,6 @@ _FROZEN_PRINT_COUNTS: dict[str, int] = {
     "governance/family_verdict.py": 1,
     # fmp_data_loader has a print-based main() demo block.
     "services/live_overlay_daemon/fmp_data_loader.py": 8,
-    # 2026-07-12 (chore/deps: claude-agent-sdk + composio): agent.py is a
-    # standalone Claude Agent SDK + Composio example scaffold; its single
-    # print() streams the agent's response messages to stdout (documented
-    # demo output channel, invoked as ``python agent.py``).
-    "agent.py": 1,
 }
 _FROZEN_PRINT_TOTAL = sum(_FROZEN_PRINT_COUNTS.values())
 
