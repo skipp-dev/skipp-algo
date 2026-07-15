@@ -1,5 +1,8 @@
 name: tv-save-consumer-source
-# live-window: mutating-on-dispatch  # Push fresh repo source into saved TV consumer scripts (2026-07-13)
+# live-window: manual-only  # Push fresh repo source into saved TV consumer scripts (2026-07-13).
+# Dispatch-only, no repo write permissions. It mutates the operator's TradingView
+# account rather than this repo — a risk this GitHub-posture vocabulary does not model,
+# so it is spelled out in the DISPATCH-ONLY note below.
 
 # Pushes the CURRENT repo source of the hand-authored CONSUMER scripts (indicators/
 # strategies — SMC_Dashboard, SMC_Core_Engine, …) into their EXISTING TradingView

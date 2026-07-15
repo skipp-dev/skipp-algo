@@ -92,6 +92,8 @@ from databento_volatility_screener import (
 from scripts.bullish_quality_config import PremarketWindowDefinition, build_default_bullish_quality_config
 from scripts.databento_production_export import (
     FIXED_ET_DISPLAY_TIMEZONE,
+    SMC_BASE_ONLY_EXACT_NAMED_FRAME_NAMES,
+    SMC_BASE_ONLY_RUNTIME_BUNDLE_FRAME_NAMES,
     _build_batl_debug_payload,
     _build_daily_symbol_features_full_universe_export,
     _build_exact_window_end_lookup,
@@ -5483,16 +5485,14 @@ def test_run_production_export_pipeline_smc_base_only_slims_runtime_bundle_and_l
 
     assert observed["write_excel"] is False
     assert observed["write_watchlists"] is False
-    assert observed["parquet_name_allowlist"] == {"daily_bars", "daily_symbol_features_full_universe"}
+    # Derived from the production constants, not a literal copy: this pins the WIRING
+    # (base-only mode hands the exporter exactly the base-only frame sets). A duplicated
+    # literal here silently went stale when #3616 added benchmark_universe_ohlcv_1m to
+    # both constants and updated only the statement-budget ledger.
+    assert observed["parquet_name_allowlist"] == set(SMC_BASE_ONLY_RUNTIME_BUNDLE_FRAME_NAMES)
     assert any("Step 10/10a: Writing slim runtime bundle artifacts" in message for message in progress_messages)
     assert any("Step 10/10c: Writing canonical production workbook" in message for message in progress_messages)
-    assert observed["exact_named_names"] == {
-        "daily_symbol_features_full_universe",
-        "premarket_features_full_universe",
-        "premarket_window_features_full_universe",
-        "quality_window_status_latest",
-        "symbol_day_diagnostics",
-    }
+    assert observed["exact_named_names"] == set(SMC_BASE_ONLY_EXACT_NAMED_FRAME_NAMES)
     assert any("Step 10/10b: Writing slim exact-named parquet exports" in message for message in progress_messages)
     assert any("Step 10/10d: Writing exact-named export state" in message for message in progress_messages)
     assert result["exported_paths"]["canonical_production_workbook"] == tmp_path / "databento_volatility_production_workbook.xlsx"
