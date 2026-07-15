@@ -69,8 +69,13 @@ const float OB_FILTER_MAX_MULT    = 2.5   // max block size = atr * 2.5
 
 // Per-bar structure state. Prices are `na` (never 0) when unavailable; anchor
 // bar indices are `na` when there is no pivot. `trend` persists between events.
+//
+// Confirmed-bar only: the frame is rebuilt when barstate.isconfirmed and held
+// between ticks, so every field describes the last CLOSED bar. The engine's
+// BOS/CHoCH alerts fire intrabar and can vanish before the close, which is why
+// the Suite gates the same alerts through resolve_confirmed_signal.
 export type StructureFrame
-    int    trend             // +1 bullish, -1 bearish
+    int    trend             // +1 bullish, -1 bearish, 0 unknown (no confirmed event yet)
     bool   bos               // a BOS fired on this confirmed bar (either side)
     bool   choch             // a CHoCH fired on this confirmed bar (either side)
     int    dir_event         // +1 bullish event, -1 bearish event, 0 none (this bar)
@@ -227,22 +232,58 @@ _build_zone(simple int swing_len, float hh, float swing_low, bool bull_bos, bool
 // `swing_len` is the engine pivot length; `fresh_max_bars` bounds the freshness
 // window (bars since the last BOS/CHoCH that still count as "fresh").
 export build_structure_frame(simple int swing_len = 50, simple int fresh_max_bars = 20) =>
-    [trend, bull_bos, bull_choch, top_x, _top_y, _trail_up_x, trail_up, _hh, bear_bos, bear_choch, btm_x, _btm_y, _trail_dn_x, trail_dn, _swing_low, _hhll_x] = eng.detect_structure(swing_len)
+    // detect_structure carries `var` and `ta.*` state, so it must run on EVERY
+    // tick. Never move this call inside the barstate guard below: a conditional
+    // call desyncs the engine's internal swing/pivot history.
+    [trend, bull_bos, bull_choch, top_x, _top_y, _trail_up_x, trail_up, hh, bear_bos, bear_choch, btm_x, _btm_y, _trail_dn_x, trail_dn, swing_low, _hhll_x] = eng.detect_structure(swing_len)
 
-    bool bos_now   = bull_bos or bear_bos
-    bool choch_now = bull_choch or bear_choch
-    bool event_now = bos_now or choch_now
-    int  dir_event = (bull_bos or bull_choch) ? 1 : (bear_bos or bear_choch) ? -1 : 0
+    // Pivot availability, taken from the engine's own swing output instead of
+    // inferred from sentinels. detect_pivot starts at `var x = 0` and
+    // `var trail_y = high`, so top_x/btm_x read 0 and trail_up/trail_dn read the
+    // running high/low extreme before any swing exists — neither is a pivot, and
+    // the frame contract says those are `na`. `x == 0` cannot be the tell: the
+    // earliest real pivot lands on bar_index 0 (detect_swings anchors a swing at
+    // `bar_index - swing_len`), so a bar-index test would discard a true pivot.
+    var bool have_up_pivot = false
+    var bool have_dn_pivot = false
 
     var int bars_since = na
-    if event_now
-        bars_since := 0
-    else if not na(bars_since)
-        bars_since := bars_since + 1
 
-    bool fresh = not na(bars_since) and bars_since <= fresh_max_bars
+    // The published frame. Built on confirmed bars only; between ticks the
+    // caller keeps the last confirmed frame. detect_structure raises its
+    // BOS/CHoCH alerts intrabar — the Suite wraps the very same alerts in
+    // resolve_confirmed_signal for this reason — so an ungated frame repaints:
+    // a cross that reverts before the close would surface as bos = true,
+    // dir_event = ±1, bars_since_event = 0, and then vanish at the close.
+    var StructureFrame published = StructureFrame.new(0, false, false, 0, na, na, na, na, na, false)
 
-    StructureFrame.new(trend, bos_now, choch_now, dir_event, trail_up, trail_dn, top_x, btm_x, bars_since, fresh)
+    if barstate.isconfirmed
+        if not na(hh)
+            have_up_pivot := true
+        if not na(swing_low)
+            have_dn_pivot := true
+
+        bool bos_now   = bull_bos or bear_bos
+        bool choch_now = bull_choch or bear_choch
+        bool event_now = bos_now or choch_now
+        int  dir_event = (bull_bos or bull_choch) ? 1 : (bear_bos or bear_choch) ? -1 : 0
+
+        if event_now
+            bars_since := 0
+        else if not na(bars_since)
+            bars_since := bars_since + 1
+
+        bool fresh = not na(bars_since) and bars_since <= fresh_max_bars
+
+        // `var trend = 1` in the engine is a bootstrap literal, not a reading:
+        // it only ever moves on a CHoCH, so before the first confirmed event
+        // every symbol reports "bullish". Publish 0 (unknown) until an event has
+        // either confirmed the direction (BOS) or set it (CHoCH).
+        bool structure_available = not na(bars_since)
+
+        published := StructureFrame.new(structure_available ? trend : 0, bos_now, choch_now, dir_event, have_up_pivot ? trail_up : na, have_dn_pivot ? trail_dn : na, have_up_pivot ? top_x : na, have_dn_pivot ? btm_x : na, bars_since, fresh)
+
+    published
 
 // Build the imbalance frame (FVG lifecycle + BPR + liquidity void) from the
 // engine's object-based FVG tracker. Detection is the engine's; the rule layer

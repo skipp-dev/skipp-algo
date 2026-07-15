@@ -480,27 +480,28 @@ def test_structure_trend_flows_from_the_engine_detector() -> None:
     Pinning trend to a constant is the other mutation this module missed.
 
     Deliberately NOT pinned to the bare identifier: the engine bootstraps
-    `var trend = 1`, so a correct warm-up fix will wrap it (e.g.
-    ``structure_available ? trend : 0``). Demanding the raw value would block
-    that fix and cement today's bullish bootstrap as the contract. The rule is
-    only: it must depend on the engine's trend and must not be a literal.
+    `var trend = 1`, so the warm-up fix wraps it
+    (``structure_available ? trend : 0``). Demanding the raw value would block
+    that fix and cement today's bullish bootstrap as the contract.
+
+    Nor to a single construction: the builder holds a `var` seed frame for the
+    ticks before the first confirmed bar, and that seed is a literal 0 by
+    design. The rule is that the frame the builder *publishes* must derive its
+    trend from the engine — i.e. at least one construction references it.
     """
     body = _builder_body("build_structure_frame")
     assert re.search(r"\[trend,[^\]]*\]\s*=\s*eng\.detect_structure\(", body), (
         "build_structure_frame no longer destructures trend from "
         "eng.detect_structure"
     )
-    m = re.search(r"StructureFrame\.new\((?P<args>[^)]*)\)", body)
-    assert m, "StructureFrame.new construction not found"
-    first_arg = m.group("args").split(",", 1)[0].strip()
-    assert not re.fullmatch(r"-?\d+(?:\.\d+)?", first_arg), (
-        f"StructureFrame.trend is built from the literal {first_arg!r}. It must "
-        "carry the engine's trend (optionally neutralised during warm-up), not "
-        "a hardcoded direction."
-    )
-    assert re.search(r"\btrend\b", first_arg), (
-        f"StructureFrame.trend is built from {first_arg!r}, which does not "
-        "reference the engine's `trend` value at all."
+    constructions = re.findall(r"StructureFrame\.new\(([^)]*)\)", body)
+    assert constructions, "no StructureFrame.new construction found"
+    trend_args = [c.split(",", 1)[0].strip() for c in constructions]
+    assert any(re.search(r"\btrend\b", a) for a in trend_args), (
+        "no StructureFrame.new derives its trend from the engine — every "
+        f"construction passes a literal or unrelated value: {trend_args!r}. "
+        "A seed frame may use a literal, but the published frame must carry "
+        "the engine's trend (optionally neutralised during warm-up)."
     )
 
 
@@ -521,3 +522,144 @@ def test_imbalance_frame_is_direction_neutral() -> None:
     assert not unpaired, (
         f"bull-side ImbalanceFrame fields without a bear twin: {unpaired}"
     )
+
+
+# ── StructureFrame confirmed-bar / warm-up contract ─────────────────────────
+#
+# The frame is rebuilt under barstate.isconfirmed and held between ticks, and
+# geometry is withheld until a real pivot exists on that side. Those are the
+# load-bearing properties of the fix, and without pins they live only in
+# comments — the exact "guard exists but does not measure the contract" shape
+# this module was written to end.
+
+
+def _builder_code(name: str) -> str:
+    """A builder's body with Pine comments stripped.
+
+    Required: the builder's own comments explain the rejected sentinel forms
+    (`x == 0`, `bar_index - swing_len`), so a raw-text scan would match the
+    explanation instead of the code.
+    """
+    out: list[str] = []
+    for raw in _builder_body(name).splitlines():
+        if raw.strip().startswith("//"):
+            continue
+        code = raw.split("//", 1)[0]
+        if code.strip():
+            out.append(code)
+    return "\n".join(out)
+
+
+def _confirmed_sections(name: str) -> tuple[str, str]:
+    """(before, inside) of a builder, split around its confirmed-bar gate.
+
+    `inside` is every line indented deeper than the `if barstate.isconfirmed`
+    itself; `before` is everything above it. Comments are stripped from both.
+    """
+    code = _builder_code(name)
+    gate = re.search(r"^(?P<indent>[ ]*)if barstate\.isconfirmed[ ]*$", code, re.MULTILINE)
+    assert gate, (
+        f"{name} has no `if barstate.isconfirmed` gate — the frame must be "
+        "rebuilt on confirmed bars only."
+    )
+    gate_indent = len(gate.group("indent"))
+    before = code[: gate.start()]
+    inside: list[str] = []
+    for line in code[gate.end() :].splitlines():
+        if not line.strip():
+            continue
+        if len(line) - len(line.lstrip(" ")) <= gate_indent:
+            break
+        inside.append(line)
+    return before, "\n".join(inside)
+
+
+def test_structure_engine_call_stays_outside_the_confirmed_gate() -> None:
+    """eng.detect_structure must run on every tick, gate or no gate.
+
+    It carries `var` and `ta.*` state. Calling it only on confirmed bars would
+    desync its internal swing/pivot history — a subtle corruption that no
+    threshold pin would ever surface.
+    """
+    before, inside = _confirmed_sections("build_structure_frame")
+    assert "eng.detect_structure(" in before, (
+        "eng.detect_structure is no longer called before the confirmed-bar gate"
+    )
+    assert "eng.detect_structure(" not in inside, (
+        "eng.detect_structure moved inside `if barstate.isconfirmed`. It carries "
+        "var/ta.* state and must run on every tick, or the engine's internal "
+        "swing/pivot history desyncs."
+    )
+
+
+def test_structure_frame_is_published_only_on_confirmed_bars() -> None:
+    """The frame assignment must sit inside the gate (F3, the repaint fix)."""
+    before, inside = _confirmed_sections("build_structure_frame")
+    assert re.search(r"published\s*:=\s*StructureFrame\.new\(", inside), (
+        "the published StructureFrame is not assigned inside the confirmed-bar "
+        "gate — the frame would repaint on intrabar BOS/CHoCH alerts"
+    )
+    assert not re.search(r"published\s*:=", before), (
+        "the published frame is reassigned before the confirmed-bar gate, which "
+        "reintroduces the intrabar repaint"
+    )
+
+
+def test_structure_event_age_advances_only_on_confirmed_bars() -> None:
+    """bars_since_event counts CLOSED bars, so it may only move under the gate."""
+    before, inside = _confirmed_sections("build_structure_frame")
+    assert "bars_since :=" in inside, "bars_since is not updated inside the gate"
+    assert "bars_since :=" not in before, (
+        "bars_since is mutated outside the confirmed-bar gate — event age would "
+        "advance on intrabar ticks"
+    )
+
+
+def test_structure_pivot_availability_is_tracked_per_side() -> None:
+    """A high-side pivot must not unlock low-side geometry, or vice versa."""
+    _before, inside = _confirmed_sections("build_structure_frame")
+    assert re.search(r"not na\(hh\)", inside), (
+        "up-side pivot availability is not derived from the engine's `hh` output"
+    )
+    assert re.search(r"not na\(swing_low\)", inside), (
+        "down-side pivot availability is not derived from the engine's "
+        "`swing_low` output"
+    )
+    pub = re.search(r"published := StructureFrame\.new\((?P<args>[^)]*)\)", inside)
+    assert pub, "published StructureFrame.new construction not found in the gate"
+    args = pub.group("args")
+    for expected in (
+        "have_up_pivot ? trail_up : na",
+        "have_dn_pivot ? trail_dn : na",
+        "have_up_pivot ? top_x : na",
+        "have_dn_pivot ? btm_x : na",
+    ):
+        assert expected in args, (
+            f"published frame does not gate geometry per side: expected "
+            f"`{expected}` in the construction. The docs promise `na` prices and "
+            "anchors until a pivot exists on THAT side; detect_pivot seeds "
+            "`var x = 0` and `var trail_y = high`, so an ungated field publishes "
+            "0 / the running extreme."
+        )
+
+
+def test_structure_availability_is_not_inferred_from_sentinels() -> None:
+    """Availability must come from hh/swing_low, never from the seed values.
+
+    `x == 0` is not a tell: the earliest real pivot anchors at
+    `bar_index - swing_len`, i.e. bar_index 0, so a sentinel test would discard
+    a true pivot. A bar-count test is likewise wrong — enough bars existing does
+    not mean a swing formed.
+    """
+    code = _builder_code("build_structure_frame")
+    forbidden = {
+        r"top_x\s*[!=]=\s*0": "top_x == 0 as a pivot sentinel",
+        r"btm_x\s*[!=]=\s*0": "btm_x == 0 as a pivot sentinel",
+        r"bar_index\s*[<>]=?\s*swing_len": "a bar-count proxy for pivot availability",
+    }
+    for pattern, what in forbidden.items():
+        assert not re.search(pattern, code), (
+            f"build_structure_frame uses {what}. Availability must be derived "
+            "from the engine's hh / swing_low output: a real first pivot can "
+            "anchor at bar_index 0, and bar count does not imply a swing."
+        )
