@@ -63,11 +63,17 @@ These already behave acceptably as transport for the current UI:
 - `BUS VolExpansionState`
 - `BUS DdviContextState`
 
-The previous compat exports and pack-retirement cuts have already landed. The
-producer now sits at `58 / 64` plots while exporting a full `58`-channel hidden
-bus, so six free producer slots remain available. The executed `ModulePackB`
-replacement path is documented in
+The previous compat exports and pack-retirement cuts have already landed. Since
+that cut the producer has re-grown to `64 / 64` plots exporting a full
+`64`-channel hidden bus: `LeanPackA`, `LeanPackB`, and the five `Preset*`
+Quickstart-contract channels (`PresetClassCode`, `PresetRvolMin`,
+`PresetHtfBiasMin`, `PresetFvgQualGate`, `PresetVolRegimeDef`) were added after
+this document first recorded `58 / 64`. The engine bus is therefore now at the
+TradingView 64-plot cap with **zero** free producer slots. The executed
+`ModulePackB` replacement path is documented in
 [smc-module-pack-b-direct-cut-design.md](smc-module-pack-b-direct-cut-design.md).
+The exact 64-channel surface is frozen by
+[test_smc_bus_v2_freeze.py](../tests/test_smc_bus_v2_freeze.py).
 
 ### Risk Envelope Under Option A
 
@@ -153,10 +159,44 @@ executable and plan-level channels instead of traveling over dedicated transport
 1. No further bus-v2 slice is active
    The packed rebuild lane is complete and the remaining support-code channels
    are now frozen as the bus-v2 endpoint.
-2. Bus-v3 is conditional, not scheduled
-   Open a domain-first bus-v3 only if another serious consumer needs the same
-   producer data without dashboard wording, or if richer numeric/domain parity
-   becomes more important than preserving the current row contract.
+2. Bus-v3 is now scheduled, not conditional (trigger met — see below).
+
+## Bus v3 (Context Bus) — Trigger Met, Scope Reserved
+
+The bus-v3 opening condition from Option B ("a second real consumer needs the
+same producer data without dashboard wording") is now **met**, on two counts:
+
+- **A second real consumer already exists.** `SMC_Breakout_Overlay.pine` binds
+  the engine bus directly (`BUS SchemaVersion`/`ZoneActive`/`Trigger`/
+  `Invalidation` plus the zone/plan/quality detail channels) as of #3631/#3634/
+  #3636 — an independent consumer that is not the dashboard.
+- **Richer domain parity is now wanted.** Four context overlays
+  (`SMC_Structure_Context`, `SMC_Imbalance_Context`, `SMC_Liquidity_Context`,
+  `SMC_Liquidity_Structure`) currently read a dead per-symbol snapshot library
+  and need live, numeric, per-bar domain state (structure, FVG/BPR/void,
+  zones/sweeps/pools) that the row-oriented v2 bus does not carry.
+
+Critically, the engine bus is at the **64/64 TradingView plot cap** with zero
+free slots, so v3 **cannot** widen v2 even in principle. Bus v3 is therefore a
+**separate domain-first producer**, not an extension of the engine bus.
+
+### Reserved scope (contract NOT yet frozen)
+
+These identifiers are reserved now so nothing collides; the channel contract
+itself is defined later, consumer-driven, from validated library frames — not
+frozen up front.
+
+| Item | Reserved name |
+|------|---------------|
+| Producer script | `SMC_Context_Bus.pine` |
+| Live context library | `SMC++/smc_context_engine_private.pine` (imports `smc_engine_private`) |
+| Schema version | `8001` (distinct from engine `7001`) |
+| Channel label prefix | `CTX ` (e.g. `CTX StructureState`) — must never appear on the v2 engine bus |
+| Channel budget | ≤ 60 direct channels, ≥ 4 reserve slots (of the 64 cap) |
+
+The v2 engine + strategy surface is byte-frozen by
+[test_smc_bus_v2_freeze.py](../tests/test_smc_bus_v2_freeze.py) for the entire
+duration of the v3 build, including a guard that no `CTX ` label leaks into v2.
 
 ## Recommendation
 
@@ -166,7 +206,8 @@ The recommended path is:
 2. Treat the `ModulePackA`, `ModulePackB`, `ModulePackC`, `ModulePackD`, and
    `ReadyStrictPack` retirement plus the local `DebugFlagsRow`,
    `LongTriggersRow`, `RiskPlanRow`, and `QualityBoundsPack` localization as
-   the completed transport cleanup that reshaped the active `58 / 64` contract.
+   the completed transport cleanup that reshaped the contract, which has since
+   re-grown to the frozen `64 / 64` endpoint.
 3. Keep semantic tests pinned to the manifest so retired exports do not drift back into the contract.
 4. Do not add new packs, new standalone support rows, or wider bus-v2 transport just to preserve old shapes.
 5. If additional consumers or richer dashboard parity are needed later, start a separate domain-first bus-v3 instead of continuing to grow bus-v2.
