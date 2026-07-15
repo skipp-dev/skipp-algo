@@ -40,7 +40,9 @@ from scripts.smc_imbalance_lifecycle import (
     build_imbalance_lifecycle,
 )
 from scripts.smc_liquidity_pools import (
+    CLUSTER_STRONG_COUNT,
     IMBALANCE_SIG_THRESHOLD,
+    PROXIMITY_NEAR_PCT,
     build_liquidity_pools,
 )
 from scripts.smc_liquidity_sweeps import (
@@ -129,6 +131,29 @@ _SWEEP_FIXTURES: dict[str, dict[str, Any]] = {
         "sweep_depth_pct": 0.2,
         "sweep_volume_ratio": 1.3,
     },
+    # An explicit row ``sweep_type`` is passed through verbatim and the
+    # depth/volume derivation is skipped entirely (_classify_sweep_type). This
+    # fixture is deliberately *discriminating*: depth 0.4 + vol 1.5 would derive
+    # STOP_HUNT (quality 5), so a port that misses the passthrough branch and
+    # re-derives instead returns the wrong type AND the wrong score. Without this
+    # scenario the branch had zero coverage and such a port would pass green.
+    "explicit_type_passthrough": {
+        "recent_bull_sweep": True,
+        "sweep_type": "INDUCEMENT",      # wins over the derivation below
+        "sweep_depth_pct": 0.4,          # >= 3 * 0.1 -> would derive STOP_HUNT
+        "sweep_volume_ratio": 1.5,       # >= 1.2
+        "sweep_reclaim_active": True,
+    },
+    # Boundary at the *documented* 0.3 depth threshold. The real gate is
+    # ``SWEEP_DEPTH_MIN_PCT * 3`` == 0.30000000000000004 (float artifact of
+    # 0.1*3), so a depth of exactly 0.3 does NOT clear it: the type is
+    # LIQUIDITY_GRAB, not STOP_HUNT. A port that hardcodes a clean 0.3 flips this
+    # case and diverges from the reference. Frozen so that trips here loudly.
+    "stop_hunt_depth_boundary": {
+        "recent_bull_sweep": True,
+        "sweep_depth_pct": 0.3,
+        "sweep_volume_ratio": 1.5,
+    },
 }
 
 
@@ -197,9 +222,18 @@ def build_golden() -> dict[str, Any]:
                     "SWEEP_DEPTH_MIN_PCT": SWEEP_DEPTH_MIN_PCT,
                     "SWEEP_RECLAIM_MAX_BARS": SWEEP_RECLAIM_MAX_BARS,
                     "SWEEP_VOLUME_RATIO_MIN": SWEEP_VOLUME_RATIO_MIN,
+                    # Derived, not independent: _classify_sweep_type gates
+                    # STOP_HUNT on ``SWEEP_DEPTH_MIN_PCT * 3``. Frozen explicitly
+                    # so a port cannot hardcode today's 0.3 and silently diverge
+                    # if the base moves.
+                    "SWEEP_DEPTH_STOP_HUNT_PCT": SWEEP_DEPTH_MIN_PCT * 3,
                 },
                 "pools": {
                     "IMBALANCE_SIG_THRESHOLD": IMBALANCE_SIG_THRESHOLD,
+                    # Both drive _quality_score and were previously unfrozen —
+                    # they could move without the parity contract noticing.
+                    "PROXIMITY_NEAR_PCT": PROXIMITY_NEAR_PCT,
+                    "CLUSTER_STRONG_COUNT": CLUSTER_STRONG_COUNT,
                 },
             },
         },

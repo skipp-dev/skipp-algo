@@ -30,11 +30,58 @@ operator gate, not something a Python test may claim to have covered.
 
 from __future__ import annotations
 
+import json
 import re
 from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 LIB_PATH = REPO_ROOT / "SMC++" / "smc_context_engine_private.pine"
+GOLDEN_PATH = REPO_ROOT / "tests" / "fixtures" / "smc_context_golden.json"
+
+# Golden thresholds with NO Pine counterpart, each with the reason it is absent.
+# An entry here is a *decision on record*, not a gap: the parity test below fails
+# on any frozen threshold that is neither implemented in Pine nor listed here, so
+# a newly added threshold cannot slip past unnoticed.
+_NOT_IN_PINE: dict[str, str] = {
+    "FULL_MIT_PCT": (
+        "delegated to the engine: eng.FVG.filled is the full-mitigation SSOT and "
+        "the library never recomputes mit_pct >= 1.0"
+    ),
+    # --- sweeps: not ported yet (phase 3.2b-1) --------------------------------
+    # NOTE when porting: SWEEP_DEPTH_STOP_HUNT_PCT must be written in Pine as
+    # ``SWEEP_DEPTH_MIN_PCT * 3``, NOT as a literal 0.3. The reference computes
+    # 0.1*3 == 0.30000000000000004, so a clean 0.3 flips the classification at a
+    # depth of exactly 0.3 (see test_stop_hunt_depth_gate_is_derived_not_a_clean_
+    # three_tenths in tests/test_smc_context_golden.py).
+    "SWEEP_DEPTH_MIN_PCT": "sweep frame not ported yet (phase 3.2b-1)",
+    "SWEEP_DEPTH_STOP_HUNT_PCT": "sweep frame not ported yet (phase 3.2b-1)",
+    "SWEEP_RECLAIM_MAX_BARS": "sweep frame not ported yet (phase 3.2b-1)",
+    "SWEEP_VOLUME_RATIO_MIN": "sweep frame not ported yet (phase 3.2b-1)",
+    # --- pools: not ported yet (phase 3.2b-1) ---------------------------------
+    "IMBALANCE_SIG_THRESHOLD": "pool frame not ported yet (phase 3.2b-1)",
+    "PROXIMITY_NEAR_PCT": "pool frame not ported yet (phase 3.2b-1)",
+    "CLUSTER_STRONG_COUNT": "pool frame not ported yet (phase 3.2b-1)",
+}
+
+_PINE_CONST_RE = re.compile(
+    r"^const\s+(?:float|int)\s+(?P<name>\w+)\s*=\s*(?P<value>-?[0-9]+(?:\.[0-9]+)?)\s*(?://.*)?$",
+    re.MULTILINE,
+)
+
+
+def _pine_consts() -> dict[str, float]:
+    return {
+        m.group("name"): float(m.group("value"))
+        for m in _PINE_CONST_RE.finditer(LIB_PATH.read_text(encoding="utf-8"))
+    }
+
+
+def _golden_thresholds() -> dict[str, float]:
+    meta = json.loads(GOLDEN_PATH.read_text(encoding="utf-8"))["_meta"]["thresholds"]
+    flat: dict[str, float] = {}
+    for domain in meta.values():
+        flat.update(domain)
+    return flat
 
 # Dependencies must be imported BEFORE the engine that pulls them into its types.
 # This order mirrors SMC_Long_Dip_Suite.pine and is the fix for the CE10293
@@ -226,3 +273,78 @@ def test_public_builders_are_exported() -> None:
         assert re.search(rf"^export {builder}\(", src, re.MULTILINE), (
             f"{builder} is not exported"
         )
+
+
+def test_pine_thresholds_match_the_frozen_golden() -> None:
+    """Every golden threshold implemented in Pine must carry the frozen value.
+
+    This is the mechanical Python->Pine link that did not exist before. The golden
+    tests only ever compared Python against Python: a reference threshold could
+    move, ``gen_smc_context_golden`` would regenerate, every Python test would stay
+    green — and this library would keep the old number, silently.
+    """
+    consts = _pine_consts()
+    frozen = _golden_thresholds()
+
+    mismatched = [
+        f"{name}: pine={consts[name]!r} golden={value!r}"
+        for name, value in frozen.items()
+        if name in consts and consts[name] != value
+    ]
+    assert not mismatched, (
+        "Pine rule-layer constants drifted from the frozen golden:\n  "
+        + "\n  ".join(mismatched)
+        + "\n\nThe Python reference is authoritative. Update the const in "
+        "SMC++/smc_context_engine_private.pine to match, and re-publish the "
+        "library to TradingView — the repo alone does not move the live script."
+    )
+
+
+def test_every_golden_threshold_is_either_ported_or_explicitly_deferred() -> None:
+    """No frozen threshold may be silently absent from Pine.
+
+    A threshold is either implemented as a Pine const of the same name, or listed
+    in ``_NOT_IN_PINE`` with a reason. Adding one to the golden without doing
+    either trips RED here rather than quietly leaving the port incomplete.
+    """
+    consts = _pine_consts()
+    frozen = _golden_thresholds()
+    unaccounted = sorted(set(frozen) - set(consts) - set(_NOT_IN_PINE))
+    assert not unaccounted, (
+        f"Golden thresholds neither implemented in Pine nor deferred: {unaccounted}.\n"
+        "Either add a `const` of the same name to the context library, or add an "
+        "entry to _NOT_IN_PINE stating why it does not belong there."
+    )
+
+
+def test_deferred_thresholds_are_not_secretly_implemented() -> None:
+    """``_NOT_IN_PINE`` must not rot once a threshold actually lands in Pine."""
+    consts = _pine_consts()
+    stale = sorted(set(_NOT_IN_PINE) & set(consts))
+    assert not stale, (
+        f"These thresholds are declared in Pine but still listed as deferred: {stale}. "
+        "Remove them from _NOT_IN_PINE so the parity check governs them."
+    )
+
+
+def test_thresholds_are_named_consts_not_inlined_magic_numbers() -> None:
+    """The rule layer must reference the named consts, not repeat their literals.
+
+    A literal at the use-site is invisible to the parity check above — that is
+    exactly how the pre-existing drift hole worked. ``CLUSTER_STRONG_COUNT`` in the
+    Python pool scorer was the same failure: a named threshold that governed
+    nothing because the rule used a bare ``3``.
+    """
+    offenders: list[str] = []
+    for lineno, raw in enumerate(LIB_PATH.read_text(encoding="utf-8").splitlines(), 1):
+        code = raw.split("//", 1)[0]
+        if not code.strip() or code.lstrip().startswith("const "):
+            continue
+        if re.search(r"mit\s*>=\s*0\.5", code) or re.search(r"mid,\s*2\.0\)", code):
+            offenders.append(f"{lineno}: {code.strip()}")
+        if re.search(r"count_delta\s*[<>]=\s*-?2\b", code):
+            offenders.append(f"{lineno}: {code.strip()}")
+    assert not offenders, (
+        "Rule-layer threshold literals found at use-sites instead of the named "
+        "consts:\n  " + "\n  ".join(offenders)
+    )

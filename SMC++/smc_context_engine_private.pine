@@ -34,21 +34,36 @@ import preuss_steffen/smc_profile_engine/2 as pe
 import preuss_steffen/smc_engine_private/1 as eng
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Rule-layer thresholds — mirror tests/fixtures/smc_context_golden.json._meta.
-// Inlined at the single use-site below with these names in comments so the
-// parity contract stays auditable.
-//   PARTIAL_MIT_PCT        = 0.5   gap filled >= 50%  -> partial mitigation
-//   FULL_MIT_PCT           = 1.0   gap fully closed   -> no longer active
-//   LIQ_VOID_MIN_SIZE_PCT  = 2.0   gap >= 2% of mid   -> liquidity void
-//   ZONE_BIAS_COUNT_DELTA  = 2     |bull-bear count| >= 2 -> directional bias
-//                                  (reused by ZoneFrame.ob_bias over OB counts)
+// Rule-layer thresholds.
 //
-// Zone-frame OB size filter — mirrors SMC_Long_Dip_Suite.pine lines 904-906:
-//   ATR_LEN_MAIN           = 50    u.smc_lib_atr length (NOT 200; that is an
-//                                  engine-internal impulse ATR, unrelated)
-//   OB_FILTER_MIN_MULT     = 0.5   min block size = atr * 0.5
-//   OB_FILTER_MAX_MULT     = 2.5   max block size = atr * 2.5
+// These are REAL constants, not comments, and they carry the exact names used in
+// tests/fixtures/smc_context_golden.json._meta.thresholds. That is deliberate:
+// tests/test_pine_context_library_contract.py parses the declarations below and
+// asserts each value equals the frozen golden. Previously these numbers were
+// inlined at their use-sites with the names only in comments — so the Python
+// reference could move, the golden would regenerate, every Python test would stay
+// green, and this library would be silently wrong. A comment cannot be checked;
+// a named const can.
 // ─────────────────────────────────────────────────────────────────────────────
+
+// --- golden-checked (names must match _meta.thresholds) ---
+const float PARTIAL_MIT_PCT       = 0.5   // gap filled >= 50% -> partial mitigation
+const float LIQ_VOID_MIN_SIZE_PCT = 2.0   // gap >= 2% of mid  -> liquidity void
+
+// FULL_MIT_PCT (1.0) is deliberately absent: the engine's FVG.filled flag is the
+// full-mitigation SSOT and this library never recomputes mit_pct >= 1.0. Recorded
+// as a delegation in the contract test rather than left as a silent gap.
+
+// --- Pine-only (Column B spec, no Python golden) ---
+const int   ZONE_BIAS_COUNT_DELTA = 2     // |bull-bear count| >= 2 -> directional bias
+                                          // (ImbalanceFrame.zone_bias over FVGs,
+                                          //  ZoneFrame.ob_bias over order blocks)
+
+// --- Zone-frame OB size filter — mirrors SMC_Long_Dip_Suite.pine lines 904-906 ---
+const int   ATR_LEN_MAIN          = 50    // u.smc_lib_atr length. NOT 200 — that is
+                                          // an unrelated engine-internal impulse ATR.
+const float OB_FILTER_MIN_MULT    = 0.5   // min block size = atr * 0.5
+const float OB_FILTER_MAX_MULT    = 2.5   // max block size = atr * 2.5
 
 // ── Frame types ──────────────────────────────────────────────────────────────
 
@@ -199,7 +214,7 @@ _build_zone(simple int swing_len, float hh, float swing_low, bool bull_bos, bool
     bool bear_brk = not na(broken_new_bear) and array.size(broken_new_bear) > 0
 
     int count_delta = bull_count - bear_count
-    int ob_bias     = count_delta >= 2 ? 1 : count_delta <= -2 ? -1 : 0   // ZONE_BIAS_COUNT_DELTA
+    int ob_bias     = count_delta >= ZONE_BIAS_COUNT_DELTA ? 1 : count_delta <= -ZONE_BIAS_COUNT_DELTA ? -1 : 0
 
     // Composite precedence: OB_BOTH > OB_BULL > OB_BEAR > NONE.
     int state = has_bull and has_bear ? 3 : has_bull ? 1 : has_bear ? 2 : 0
@@ -244,8 +259,8 @@ export build_imbalance_frame(float fill_target_ratio = 0.5, float size_threshold
     int bull_count = na(active_bull) ? 0 : array.size(active_bull)
     int bear_count = na(active_bear) ? 0 : array.size(active_bear)
 
-    bool bull_partial = has_bull and not na(bull_mit) and bull_mit >= 0.5   // PARTIAL_MIT_PCT
-    bool bear_partial = has_bear and not na(bear_mit) and bear_mit >= 0.5
+    bool bull_partial = has_bull and not na(bull_mit) and bull_mit >= PARTIAL_MIT_PCT
+    bool bear_partial = has_bear and not na(bear_mit) and bear_mit >= PARTIAL_MIT_PCT
 
     // BPR: overlapping active bull + bear FVG.
     bool  bpr_active = false
@@ -263,15 +278,15 @@ export build_imbalance_frame(float fill_target_ratio = 0.5, float size_threshold
 
     // Liquidity void: any active FVG >= 2% of mid-price (bull scanned first).
     float mid = (high + low) / 2.0
-    [void_bull, void_bull_top, void_bull_bot] = _first_void(active_bull, mid, 2.0)  // LIQ_VOID_MIN_SIZE_PCT
-    [void_bear, void_bear_top, void_bear_bot] = _first_void(active_bear, mid, 2.0)
+    [void_bull, void_bull_top, void_bull_bot] = _first_void(active_bull, mid, LIQ_VOID_MIN_SIZE_PCT)
+    [void_bear, void_bear_top, void_bear_bot] = _first_void(active_bear, mid, LIQ_VOID_MIN_SIZE_PCT)
     bool  void_active = void_bull or void_bear
     float void_top    = void_bull ? void_bull_top : void_bear ? void_bear_top : na
     float void_bottom = void_bull ? void_bull_bot : void_bear ? void_bear_bot : na
 
     // Zone bias from active FVG count delta.
     int count_delta = bull_count - bear_count
-    int zone_bias   = count_delta >= 2 ? 1 : count_delta <= -2 ? -1 : 0   // ZONE_BIAS_COUNT_DELTA
+    int zone_bias   = count_delta >= ZONE_BIAS_COUNT_DELTA ? 1 : count_delta <= -ZONE_BIAS_COUNT_DELTA ? -1 : 0
 
     // Composite precedence: BPR > VOID > FVG_BULL > FVG_BEAR > NONE.
     int state = bpr_active ? 3 : void_active ? 4 : has_bull ? 1 : has_bear ? 2 : 0
@@ -289,6 +304,6 @@ export build_imbalance_frame(float fill_target_ratio = 0.5, float size_threshold
 //
 // `swing_len` is the engine pivot length; `atr_len` / `min_mult` / `max_mult` are
 // the ATR size filter (defaults mirror ATR_LEN_MAIN / OB_FILTER_*_MULT in the Suite).
-export build_zone_frame(simple int swing_len = 50, simple int atr_len = 50, float min_mult = 0.5, float max_mult = 2.5) =>
+export build_zone_frame(simple int swing_len = 50, simple int atr_len = ATR_LEN_MAIN, float min_mult = OB_FILTER_MIN_MULT, float max_mult = OB_FILTER_MAX_MULT) =>
     [_trend, bull_bos, bull_choch, _top_x, _top_y, _trail_up_x, _trail_up, hh, bear_bos, bear_choch, _btm_x, _btm_y, _trail_dn_x, _trail_dn, swing_low, _hhll_x] = eng.detect_structure(swing_len)
     _build_zone(swing_len, hh, swing_low, bull_bos, bull_choch, bear_bos, bear_choch, atr_len, min_mult, max_mult)

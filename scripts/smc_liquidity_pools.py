@@ -131,7 +131,7 @@ def _quality_score(r: dict[str, Any]) -> int:
         score += 1
     if r["POOL_PROXIMITY_PCT"] > 0 and r["POOL_PROXIMITY_PCT"] <= PROXIMITY_NEAR_PCT:
         score += 1
-    if r["POOL_CLUSTER_DENSITY"] >= 3:
+    if r["POOL_CLUSTER_DENSITY"] >= CLUSTER_STRONG_COUNT:
         score += 1
     if abs(r["POOL_IMBALANCE"]) >= IMBALANCE_SIG_THRESHOLD:
         score += 1
