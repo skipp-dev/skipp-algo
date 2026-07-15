@@ -491,3 +491,35 @@ def test_age_unknown_severity_never_below_its_stale_rule() -> None:
         "the age-unknown -> stale pairing collapsed — the `-stale` sibling "
         f"convention broke, so the floor was enforced on only {checked} rule(s)"
     )
+
+
+# Mirrors scripts/grafana_alert_rules_upsert.MAX_UID_LENGTH. Asserted here too
+# because this file is on the required fast-gates path while the upsert tests
+# are not — an over-long uid must be unmergeable, not merely un-deployable.
+_MAX_UID_LENGTH = 40
+
+
+def test_no_alert_rule_uid_exceeds_grafana_limit() -> None:
+    """An over-long uid does not just drop its own rule — it strands the rest.
+
+    Grafana 400s a uid over 40 chars, and the upsert applies group-by-group, so
+    the abort leaves every LATER group at its previous content: a partial apply,
+    silently. #3510 landed `lo-provider-usage-snapshot-series-missing` (41
+    chars) on 2026-07-13; for two days every publish run failed on it, so
+    #3665's credential-health group and two of #3671's three age-unknown rules
+    never reached Grafana — while both PRs merged green and the repo looked
+    correct. That is the silent non-alarm this file exists to prevent, one
+    layer down: the rule was authored, reviewed, merged, and never armed.
+    """
+    groups = yaml.safe_load(_ALERT_RULES.read_text(encoding="utf-8"))["groups"]
+    offenders = [
+        (rule["uid"], len(rule["uid"]), group["name"])
+        for group in groups
+        for rule in group["rules"]
+        if len(rule.get("uid", "")) > _MAX_UID_LENGTH
+    ]
+    assert not offenders, (
+        f"alert rule uid(s) exceed Grafana's {_MAX_UID_LENGTH}-char limit — the "
+        "upsert will HTTP 400 and leave every later group unapplied:\n"
+        + "\n".join(f"  {n:>3} chars: {u}  [group: {g}]" for u, n, g in offenders)
+    )

@@ -240,6 +240,17 @@ def find_promql_gating_antipatterns(expr: str) -> list[str]:
     return findings
 
 
+# Grafana rejects an alert rule whose uid exceeds this with HTTP 400
+# ("UID is longer than 40 symbols"). Enforced here rather than only at the API
+# because the upsert applies group-by-group: one over-long uid 400s its group
+# and strands every LATER group unapplied, leaving alerting in a partial-apply
+# mixed state. #3510 landed a 41-char uid on 2026-07-13 and every publish run
+# failed that way until 2026-07-15 -- two days in which no alert-rule change
+# reached Grafana. Validation runs before the first POST, so catching it here
+# turns a silent half-deploy into a loud pre-flight failure.
+MAX_UID_LENGTH = 40
+
+
 def validate_alert_groups(groups: list[dict[str, Any]]) -> list[str]:
     """Return a list of human-readable structural errors (empty == valid).
 
@@ -286,6 +297,11 @@ def validate_alert_groups(groups: list[dict[str, Any]]) -> list[str]:
                 rwhere = f"{where} rule '{title}'"
             if not isinstance(uid, str) or not uid.strip():
                 errors.append(f"{rwhere}: missing/empty 'uid'")
+            elif len(uid) > MAX_UID_LENGTH:
+                errors.append(
+                    f"{rwhere}: uid '{uid}' is {len(uid)} chars; Grafana rejects "
+                    f"uids longer than {MAX_UID_LENGTH} with HTTP 400"
+                )
             elif uid in seen_uids:
                 errors.append(
                     f"{rwhere}: duplicate uid '{uid}' (also in {seen_uids[uid]})"

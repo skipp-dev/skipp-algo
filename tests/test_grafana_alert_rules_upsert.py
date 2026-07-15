@@ -673,7 +673,7 @@ def test_absent_rules_pin_nodata_state_ok() -> None:
     for uid in (
         "lo-scrape-missing", "lo-core-signal-missing",
         "lo-news-snapshot-series-missing", "alloy-targets-down",
-        "lo-provider-usage-snapshot-series-missing",
+        "lo-provider-usage-series-missing",
     ):
         assert all_rules[uid].get("noDataState") == "OK", f"{uid} must pin noDataState: OK"
 
@@ -698,7 +698,7 @@ def test_provider_usage_feed_health_alerts_present() -> None:
     its own missing/not-loaded/stale must page (previously it had no consumer)."""
     rules = _rules_by_uid()
     expected = {
-        "lo-provider-usage-snapshot-series-missing": "absent(live_overlay_provider_usage_loaded",
+        "lo-provider-usage-series-missing": "absent(live_overlay_provider_usage_loaded",
         "lo-provider-usage-snapshot-unloaded": "live_overlay_provider_usage_loaded",
         "lo-provider-usage-snapshot-stale": "live_overlay_provider_usage_snapshot_age_seconds",
     }
