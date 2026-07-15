@@ -664,3 +664,69 @@ def test_structure_availability_is_not_inferred_from_sentinels() -> None:
             "from the engine's hh / swing_low output: a real first pivot can "
             "anchor at bar_index 0, and bar count does not imply a swing."
         )
+
+
+# ── CE10132: Pine rejects a const as a parameter default ────────────────────
+#
+# #3664 replaced the literal defaults of build_zone_frame with the named consts
+# it had just introduced, to satisfy its own "no inlined magic numbers" rule.
+# Pine refuses that — "The default value cannot be a function, variable or
+# calculation" (CE10132) — so the library stopped compiling, and CI never
+# noticed because CI cannot compile Pine. The whole class is detectable from
+# source, which is what these two pins do.
+
+# Zone-filter defaults are literals in the signature (CE10132) but the consts
+# above remain their documented source, so the two must be checked against each
+# other or they drift silently.
+_ZONE_FILTER_DEFAULTS: dict[str, str] = {
+    "atr_len": "ATR_LEN_MAIN",
+    "min_mult": "OB_FILTER_MIN_MULT",
+    "max_mult": "OB_FILTER_MAX_MULT",
+}
+
+
+def test_export_defaults_are_literals_not_consts() -> None:
+    """No exported builder may take a named const as a parameter default.
+
+    Pine evaluates parameter defaults at compile time and accepts only
+    literals (and qualified enum members such as ``ct.LevelBreakMode.CLOSE``).
+    A ``const`` is a variable to Pine, so it raises CE10132 and the library
+    does not compile at all.
+    """
+    consts = set(_pine_consts())
+    offenders: list[str] = []
+    for m in re.finditer(r"^export (?P<name>\w+)\((?P<args>[^)]*)\)", _source(), re.MULTILINE):
+        for ident in re.findall(r"=\s*([A-Za-z_]\w*)", m.group("args")):
+            if ident in consts:
+                offenders.append(f"{m.group('name')}(... = {ident})")
+    assert not offenders, (
+        "Exported builders use a named const as a parameter default:\n  "
+        + "\n  ".join(offenders)
+        + "\n\nPine rejects this with CE10132 ('The default value cannot be a "
+        "function, variable or calculation') and the library will not compile. "
+        "Repeat the literal in the signature and keep the const as the "
+        "documented source — test_zone_filter_defaults_match_their_consts "
+        "holds the two together."
+    )
+
+
+def test_zone_filter_defaults_match_their_consts() -> None:
+    """The literal defaults must equal the consts they duplicate.
+
+    They are literals only because CE10132 forbids naming the const there. That
+    duplication is the price of compiling, so it needs a pin or it drifts.
+    """
+    consts = _pine_consts()
+    args = _builder_signature("build_zone_frame")
+    for param, const_name in _ZONE_FILTER_DEFAULTS.items():
+        assert const_name in consts, f"const {const_name} disappeared"
+        m = re.search(rf"\b{param}\s*=\s*(-?[0-9]+(?:\.[0-9]+)?)", args)
+        assert m, (
+            f"build_zone_frame parameter {param!r} has no literal default — if "
+            f"it now names {const_name}, that is CE10132."
+        )
+        assert float(m.group(1)) == consts[const_name], (
+            f"build_zone_frame defaults {param}={m.group(1)} but "
+            f"{const_name} is {consts[const_name]}. The signature literal and "
+            "the const must state the same number."
+        )
