@@ -55,8 +55,15 @@ HMAC_ALLOWED: set[tuple[str, int, str]] = {
     # 2026-07-13 (ledger reconcile): the two realtime /signals bearer-token compare
     # sites shifted again 1160/1192 → 1172/1204 (unchanged constant-time checks,
     # each guarded by `if _auth_token:`); main.py compare unchanged at 457.
-    ("open_prep/realtime_signals.py", 1172, "compare_digest"),
-    ("open_prep/realtime_signals.py", 1204, "compare_digest"),
+    # 2026-07-15 (ledger reconcile): shifted again 1172/1204 → 1196/1228 by edits
+    # ABOVE both blocks — #3584 (direction-aligned news upgrade + fast-lane bracket)
+    # and #3587 (truth-disclosures), net +24 lines. Verified a pure line drift, NOT a
+    # new surface: both auth blocks are byte-identical to their pinned versions at
+    # ac7a83e5a (the /signals.json|/signals and the /metrics bearer check, each still
+    # guarded by `if _auth_token:`), and the file still holds exactly 2 compare_digest
+    # sites — the same count as when last reviewed. main.py compare unchanged at 457.
+    ("open_prep/realtime_signals.py", 1196, "compare_digest"),
+    ("open_prep/realtime_signals.py", 1228, "compare_digest"),
     ("services/live_overlay_daemon/main.py", 457, "compare_digest"),
     # 2026-07-13 (security review): Composio ChatOps webhook token check. Constant-
     # time compare of the URL-path token vs COMPOSIO_CHATOPS_WEBHOOK_TOKEN; the
