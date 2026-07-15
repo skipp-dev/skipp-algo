@@ -98,6 +98,7 @@ REQUIRED_PINNED_TESTS: tuple[str, ...] = (
 FULL_REQUIRED_PATH_TRIPWIRES: tuple[str, ...] = (
     "tests/test_assert_and_open_encoding_pin.py",
     "tests/test_assert_in_production_budget.py",
+    "tests/test_asyncio_event_loop_zero_surface.py",
     "tests/test_atexit_register_zero_surface.py",
     "tests/test_atomic_write_call_sites.py",
     "tests/test_bare_type_ignore_ledger.py",
@@ -105,6 +106,7 @@ FULL_REQUIRED_PATH_TRIPWIRES: tuple[str, ...] = (
     "tests/test_build_family_metrics.py",
     "tests/test_builtin_open_encoding_ledger.py",
     "tests/test_dangerous_io_zero_surface_pin.py",
+    "tests/test_division_site_baseline.py",
     "tests/test_dynamic_getattr_ledger.py",
     "tests/test_dynamic_import_and_todo_tripwires.py",
     "tests/test_dynamic_setattr_hasattr_zero_surface.py",
@@ -143,6 +145,7 @@ FULL_REQUIRED_PATH_TRIPWIRES: tuple[str, ...] = (
     "tests/test_pine_context_library_contract.py",
     "tests/test_pine_library_import_permissions.py",
     "tests/test_pine_request_security_htf_pin.py",
+    "tests/test_pine_request_security_per_file_budget.py",
     "tests/test_pine_var_budget_pin.py",
     "tests/test_point_in_time_integrity.py",
     "tests/test_prod_print_ledger.py",
@@ -150,6 +153,7 @@ FULL_REQUIRED_PATH_TRIPWIRES: tuple[str, ...] = (
     "tests/test_pytest_skip_budget.py",
     "tests/test_random_tempfile_ledger_pin.py",
     "tests/test_realtime_signals_sister_ledger_guardrail.py",
+    "tests/test_requirements_discipline_pin.py",
     "tests/test_run_edge_pipeline.py",
     "tests/test_schema_version_manifest_alignment.py",
     "tests/test_silent_error_swallow_pin.py",
@@ -325,29 +329,75 @@ def _freezes_line_pins(path: Path) -> bool:
     return False
 
 
-def _line_pinned_ledgers() -> set[str]:
-    """Every line-pinned / registry-backed ledger, discovered from source."""
+def _is_path_like(value: str) -> bool:
+    return value.endswith((".py", ".pine", ".txt", ".toml", ".yml", ".yaml")) or "/" in value
+
+
+def _freezes_per_file_counts(path: Path) -> bool:
+    """True when the module freezes a ``{"some/file.py": <int>}`` map.
+
+    The second ledger shape (2026-07-15). A count ledger does not carry line
+    numbers, so ``_freezes_line_pins`` cannot see it — but it drifts by the same
+    mechanism whenever a suppression, print, division or dependency line is
+    added, and being ungated it merges green just the same.
+
+    Requiring EVERY key to be path-like is what makes this precise: fixtures
+    also map strings to ints (regime names, field counts, sample payloads), and
+    a looser shape reported ~50% false positives. On the current tree this
+    signature finds 16 modules and no fixtures.
+    """
+    try:
+        tree = ast.parse(path.read_text(encoding="utf-8"))
+    except (OSError, SyntaxError):  # pragma: no cover - unparseable/unreadable
+        return False
+    for node in ast.walk(tree):
+        if not isinstance(node, (ast.Assign, ast.AnnAssign)):
+            continue
+        if not isinstance(node.value, ast.Dict) or not node.value.keys:
+            continue
+        pairs = [
+            (key, val)
+            for key, val in zip(node.value.keys, node.value.values)
+            if isinstance(key, ast.Constant)
+            and isinstance(key.value, str)
+            and isinstance(val, ast.Constant)
+            and isinstance(val.value, int)
+            and not isinstance(val.value, bool)
+        ]
+        if pairs and all(_is_path_like(key.value) for key, _ in pairs):
+            return True
+    return False
+
+
+def _pinned_ledgers() -> set[str]:
+    """Every line-pinned, count-pinned or registry-backed ledger, from source."""
     found: set[str] = set()
     for path in sorted((ROOT / "tests").glob("test_*.py")):
-        if _freezes_line_pins(path):
+        if _freezes_line_pins(path) or _freezes_per_file_counts(path):
             found.add(f"tests/{path.name}")
             continue
         # pin_registry-backed ledgers keep their pins in pin_registry.toml
-        # instead of in the test body, so the AST shape above cannot see them.
+        # instead of in the test body, so the AST shapes above cannot see them.
         if "pin_registry" in path.read_text(encoding="utf-8", errors="replace"):
             found.add(f"tests/{path.name}")
     return found
 
 
-def test_every_line_pinned_ledger_is_on_the_required_path() -> None:
-    """A line-pinned ledger that is not gated drifts red on main unnoticed.
+def test_every_pinned_ledger_is_on_the_required_path() -> None:
+    """A pinned ledger that is not gated drifts red on main unnoticed.
 
     Derived, not hand-maintained: the required set comes from the source, so a
     PR cannot retire a ledger by deleting it from the step and the roster
     together (the hole #3670 fell through). The ledger still exists in tests/,
     so it must still be gated — or be listed above with a reason.
+
+    Covers both ledger shapes: line-pinned ``(file, lineno)`` tuples and
+    count-pinned ``{"file": n}`` maps. The two differ in how OFTEN they drift —
+    a line pin shifts on any edit above the site, a count only moves when a
+    suppression is actually added — but not in what an ungated one costs: the
+    addition the pin exists to force a review of merges green either way.
     """
-    ledgers = _line_pinned_ledgers()
+    ledgers = _pinned_ledgers()
     # Sanity: discovery actually found ledgers, so a rename/refactor cannot make
     # this test vacuously pass with an empty set.
     assert len(ledgers) >= 15, (
@@ -359,7 +409,7 @@ def test_every_line_pinned_ledger_is_on_the_required_path() -> None:
     referenced = set(re.findall(r"tests/test_[A-Za-z0-9_]+\.py", step))
     ungated = sorted(ledgers - referenced - _LEDGERS_INTENTIONALLY_UNGATED)
     assert not ungated, (
-        "line-pinned ledger(s) are not on the required path. fast-gates is the "
+        "pinned ledger(s) are not on the required path. fast-gates is the "
         "only merge-gating job, so these pins cannot block a merge: a drifted "
         "pin — or a NEW allow-listed call site they exist to force a review of — "
         "merges green and accumulates red on main unnoticed (the hmac ledger did "
