@@ -1,6 +1,6 @@
 """Zero-surface pin for ``fcntl.flock(...)`` advisory file locks.
 
-Pins every production ``fcntl.flock`` call by ``(path, line)``.
+Pins every production ``fcntl.flock`` call by ``(path, line, lock_op)``.
 
 Why pin file locks:
 
@@ -14,15 +14,23 @@ Why pin file locks:
 * ``flock`` is the only file-locking primitive used in this tree —
   every entry below is a deliberate, reviewed pair.
 
-Today exactly three production/script modules acquire/release advisory locks:
+Today exactly five production/script modules acquire/release advisory locks.
+:data:`FCNTL_FLOCK_ALLOWED` is the authority for the line numbers; the list
+below names the modules and their purpose only, so it cannot drift out of date
+the way a duplicated line reference does:
 
-* ``open_prep/realtime_signals.py:265`` (``LOCK_EX|LOCK_NB``) +
-* ``:291`` (``LOCK_UN``) — daemon PID-file singleton lock.
-* ``open_prep/watchlist.py:41`` (``LOCK_EX``) + ``:44`` (``LOCK_UN``) —
+* ``open_prep/realtime_signals.py`` (``LOCK_EX|LOCK_NB`` + ``LOCK_UN``) —
+  daemon PID-file singleton lock.
+* ``open_prep/watchlist.py`` (``LOCK_EX`` + ``LOCK_UN``) —
   watchlist read/write critical section.
 * ``scripts/ib_client_id.py`` uses guarded POSIX ``flock`` for the IBKR
-    client-id registry and falls back to random allocation when ``fcntl`` is not
-    available (Windows/self-hosted portability path).
+    client-id registry (two ``LOCK_EX|LOCK_NB`` + ``LOCK_UN`` pairs) and falls
+    back to random allocation when ``fcntl`` is not available
+    (Windows/self-hosted portability path).
+* ``scripts/collect_drift_calibration_corpus.py`` (``LOCK_EX`` + ``LOCK_UN``)
+  — corpus deduplication writer.
+* ``databento_reference.py`` (``LOCK_EX`` + ``LOCK_UN``) — reference-cache
+  interprocess lock.
 
 A new ``flock`` caller forces a deliberate allow-list update and a
 matching unlock-pair review.
@@ -255,8 +263,46 @@ def test_fcntl_flock_zero_surface_pin() -> None:
     missing = FCNTL_FLOCK_ALLOWED - sites
     assert not missing, (
         "FCNTL_FLOCK_ALLOWED entries no longer present at the "
-        "recorded (path, line). Update the allow-list to match the "
+        "recorded (path, line, lock_op). Update the allow-list to match the "
         "current call sites and re-verify lock/unlock pairing is "
         "intact.\n"
         f"missing = {sorted(missing)}"
+    )
+
+
+def test_fcntl_flock_acquire_release_legs_balanced() -> None:
+    """Each locking module must release every lock it acquires.
+
+    #3678 made each leg's operation checkable, which proves every leg is
+    *reviewed* — not that the legs still balance. This module's docstring names
+    mis-matched ``LOCK_EX`` / ``LOCK_UN`` pairs as a reason the surface is
+    pinned at all, so count them: an acquire whose release leg was dropped from
+    both the code and the allow-list (the coordinated edit that keeps a
+    per-site pin green) fails here.
+
+    A static count, not a control-flow proof: it cannot show the release
+    actually runs on every path — that is what the ``try``/``finally``
+    convention in each caller is for. It does fail closed on the common shape.
+    """
+
+    acquired: dict[str, int] = {}
+    released: dict[str, int] = {}
+    for rel, _lineno, op in FCNTL_FLOCK_ALLOWED:
+        legs = op.split("|")
+        if "LOCK_UN" in legs:
+            released[rel] = released.get(rel, 0) + 1
+        elif "LOCK_EX" in legs or "LOCK_SH" in legs:
+            acquired[rel] = acquired.get(rel, 0) + 1
+
+    unbalanced = sorted(
+        (rel, acquired.get(rel, 0), released.get(rel, 0))
+        for rel in set(acquired) | set(released)
+        if acquired.get(rel, 0) != released.get(rel, 0)
+    )
+    assert not unbalanced, (
+        "Advisory-lock legs do not balance per module: every LOCK_EX / LOCK_SH "
+        "acquire needs a matching LOCK_UN release, or the file descriptor "
+        "outlives the process and the next run deadlocks. Pair the legs in a "
+        "try/finally and record both in FCNTL_FLOCK_ALLOWED.\n"
+        f"(path, acquires, releases) = {unbalanced}"
     )
