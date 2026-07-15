@@ -9,6 +9,7 @@ RESOLVERS_PATH = ROOT / 'SMC++' / 'smc_context_resolvers.pine'
 UTILS_PATH = ROOT / 'SMC++' / 'smc_utils.pine'
 PROFILE_ENGINE_PATH = ROOT / 'SMC++' / 'smc_profile_engine.pine'
 OBSERVABILITY_PATH = ROOT / 'SMC++' / 'smc_observability_private.pine'
+DRAW_PATH = ROOT / 'SMC++' / 'smc_draw.pine'
 
 
 def _read_smc_source() -> str:
@@ -56,13 +57,38 @@ def _assert_markers_before(indices: dict[str, int], earlier: list[str], later: l
             assert indices[earlier_name] < indices[later_name], f'{earlier_name} must appear before {later_name}'
 
 
-def test_plot_equal_level_uses_named_label_arguments_for_font_family() -> None:
-    source = _read_smc_source()
-    body = _extract_function_body(source, 'plot_equal_level')
+def test_label_new_never_puts_font_family_in_the_tooltip_slot() -> None:
+    """`text_align` must never be followed directly by `text_font_family`.
 
-    named_calls = re.findall(r'label\.new\([^\n]+text_font_family\s*=\s*label_args\.text_font_family', body)
-    assert len(named_calls) == 2, 'Expected both equal-level label.new calls to use named text_font_family'
-    assert 'label_args.text_align, label_args.text_font_family' not in body
+    Pine's positional order is ``..., textalign, tooltip, text_font_family``, so a
+    call that lists text_align and text_font_family back-to-back silently binds the
+    font family to *tooltip* — the label renders with the default font and a garbage
+    tooltip, with no compile error to catch it.
+
+    This guarded `plot_equal_level` in the suite until #3622 extracted the drawing
+    layer; the function is gone, but the risk moved rather than disappeared — every
+    remaining label.new/box.new that passes a font family now lives in smc_draw.pine.
+    Repointed there instead of deleted, and widened from two hard-coded call sites to
+    every call in the file, so a new one is covered the moment it is written.
+    """
+    source = DRAW_PATH.read_text(encoding = 'utf-8')
+
+    calls = re.findall(r'(?:label|box)\.new\([^\n]*\)', source)
+    assert len(calls) >= 4, (
+        f'label/box.new discovery collapsed in {DRAW_PATH.name} — the drawing layer '
+        f'moved again and this guard is asserting on almost nothing. Found: {len(calls)}'
+    )
+
+    font_calls = [c for c in calls if 'text_font_family' in c]
+    assert font_calls, (
+        f'no font-family call sites left in {DRAW_PATH.name}; if the surface moved '
+        'again, repoint this guard rather than dropping it'
+    )
+    for call in font_calls:
+        assert not re.search(r'text_align\s*,\s*[\w.]*text_font_family', call), (
+            f'text_font_family binds to the tooltip slot (tooltip argument missing '
+            f'between text_align and text_font_family): {call}'
+        )
 
 
 def test_refactored_helpers_preserve_dependency_order() -> None:
