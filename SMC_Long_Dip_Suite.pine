@@ -2646,29 +2646,56 @@ string alert_trust_tier = core_trust_tier_early
 bool alert_trust_degraded = alert_trust_tier == 'Degraded' and (na(alert_trust_tier[1]) or alert_trust_tier[1] != 'Degraded')
 bool alert_trust_insufficient = alert_trust_tier == 'Insufficient' and (na(alert_trust_tier[1]) or alert_trust_tier[1] != 'Insufficient')
 
+// Dynamic alerts via alert() rather than alertcondition(): each alertcondition()
+// consumes one of TradingView's 64 plot-counts, and the 64-channel engine BUS
+// already fills that budget (RE10140 at 80/64). alert() consumes none. Set up a
+// single "Any alert() function call" alert in TradingView; each message is
+// prefixed with its event title so the notification is self-identifying. All
+// fire only on confirmed bars, preserving the previous non-repainting semantics.
+bool _alert_new_day = ta.change(time('D')) != 0
+
 // Product state transitions
-alertcondition(alert_product_state == 'ENTER LONG' and alert_product_state[1] != 'ENTER LONG' and barstate.isconfirmed, 'SMC: Enter Long', 'SMC Trigger is live. Entry level reached.')
-alertcondition(alert_product_state == 'READY LONG' and alert_product_state[1] != 'READY LONG' and barstate.isconfirmed, 'SMC: Ready Long', 'SMC Setup is ready. Confirmed reclaim, watching for trigger.')
-alertcondition(alert_product_state == 'PREPARE LONG' and alert_product_state[1] != 'PREPARE LONG' and barstate.isconfirmed, 'SMC: Prepare Long', 'SMC Setup is preparing. Zone is active, waiting for confirmation.')
-alertcondition(alert_product_state == 'BLOCKED' and alert_product_state[1] != 'BLOCKED' and barstate.isconfirmed, 'SMC: Setup Blocked', 'SMC Setup is now blocked. Invalidation hit or regime issue.')
-alertcondition(alert_product_state == 'WAIT' and alert_product_state[1] != 'WAIT' and barstate.isconfirmed, 'SMC: Wait', 'No active setup — back to wait state.')
+if alert_product_state == 'ENTER LONG' and alert_product_state[1] != 'ENTER LONG' and barstate.isconfirmed
+    alert('SMC: Enter Long | Trigger is live. Entry level reached.', alert.freq_once_per_bar_close)
+if alert_product_state == 'READY LONG' and alert_product_state[1] != 'READY LONG' and barstate.isconfirmed
+    alert('SMC: Ready Long | Setup is ready. Confirmed reclaim, watching for trigger.', alert.freq_once_per_bar_close)
+if alert_product_state == 'PREPARE LONG' and alert_product_state[1] != 'PREPARE LONG' and barstate.isconfirmed
+    alert('SMC: Prepare Long | Setup is preparing. Zone is active, waiting for confirmation.', alert.freq_once_per_bar_close)
+if alert_product_state == 'BLOCKED' and alert_product_state[1] != 'BLOCKED' and barstate.isconfirmed
+    alert('SMC: Setup Blocked | Invalidation hit or regime issue.', alert.freq_once_per_bar_close)
+if alert_product_state == 'WAIT' and alert_product_state[1] != 'WAIT' and barstate.isconfirmed
+    alert('SMC: Wait | No active setup, back to wait state.', alert.freq_once_per_bar_close)
 
-// Structure break alerts (v7.1) — fire on confirmed bars when BOS or CHoCH occurs
-alertcondition(bull_bos_sig and barstate.isconfirmed, 'SMC: Bullish BOS', 'Bullish Break of Structure confirmed. Trend continuation signal.')
-alertcondition(bull_choch_sig and barstate.isconfirmed, 'SMC: Bullish CHoCH', 'Bullish Change of Character confirmed. Potential trend reversal to the upside.')
-alertcondition(bear_choch_sig and barstate.isconfirmed, 'SMC: Bearish CHoCH', 'Bearish Change of Character confirmed. Potential trend reversal to the downside.')
-alertcondition(bear_bos_sig and barstate.isconfirmed, 'SMC: Bearish BOS', 'Bearish Break of Structure confirmed. Downtrend continuation signal.')
+// Structure break alerts — fire on confirmed bars when BOS or CHoCH occurs
+if bull_bos_sig and barstate.isconfirmed
+    alert('SMC: Bullish BOS | Break of Structure confirmed. Trend continuation signal.', alert.freq_once_per_bar_close)
+if bull_choch_sig and barstate.isconfirmed
+    alert('SMC: Bullish CHoCH | Change of Character confirmed. Potential trend reversal to the upside.', alert.freq_once_per_bar_close)
+if bear_choch_sig and barstate.isconfirmed
+    alert('SMC: Bearish CHoCH | Change of Character confirmed. Potential trend reversal to the downside.', alert.freq_once_per_bar_close)
+if bear_bos_sig and barstate.isconfirmed
+    alert('SMC: Bearish BOS | Break of Structure confirmed. Downtrend continuation signal.', alert.freq_once_per_bar_close)
 
-// Zone lifecycle alerts (v7.1) — fire on lifecycle state transitions
-alertcondition(long_arm_signal and barstate.isconfirmed, 'SMC: Zone Armed', 'A bullish zone has been armed. Price reclaimed a demand zone — watching for confirmation.')
-alertcondition(long_invalidated_now and barstate.isconfirmed, 'SMC: Zone Invalidated', 'Active zone setup invalidated. Price broke below invalidation level.')
+// Zone lifecycle alerts — fire on lifecycle state transitions
+if long_arm_signal and barstate.isconfirmed
+    alert('SMC: Zone Armed | Bullish zone armed. Price reclaimed a demand zone, watching for confirmation.', alert.freq_once_per_bar_close)
+if long_invalidated_now and barstate.isconfirmed
+    alert('SMC: Zone Invalidated | Active zone setup invalidated. Price broke below invalidation level.', alert.freq_once_per_bar_close)
 
 // Trust & risk alerts
-alertcondition(alert_trust_degraded and barstate.isconfirmed, 'SMC: Trust Degraded', 'Trust tier dropped to degraded')
-alertcondition(alert_trust_insufficient and barstate.isconfirmed, 'SMC: Trust Insufficient', 'Trust tier dropped to insufficient')
-alertcondition(not event_risk_gate_ok and barstate.isconfirmed, 'SMC: Event Risk Active', 'High-impact macro event blocking trades')
-alertcondition(mp.HIGH_IMPACT_MACRO_TODAY and barstate.islastconfirmedhistory, 'SMC: High Impact Macro Today', 'High impact macro event today. Reduce position sizes.')
-alertcondition(lib_has_earnings and barstate.islastconfirmedhistory, 'SMC: Earnings Today', 'This ticker has earnings today. Exercise caution.')
+if alert_trust_degraded and barstate.isconfirmed
+    alert('SMC: Trust Degraded | Trust tier dropped to degraded.', alert.freq_once_per_bar_close)
+if alert_trust_insufficient and barstate.isconfirmed
+    alert('SMC: Trust Insufficient | Trust tier dropped to insufficient.', alert.freq_once_per_bar_close)
+if not event_risk_gate_ok and barstate.isconfirmed
+    alert('SMC: Event Risk Active | High-impact macro event blocking trades.', alert.freq_once_per_bar_close)
+// Daily-context warnings were gated on barstate.islastconfirmedhistory, which
+// alert() (realtime-only) never reaches; fire once at the first confirmed bar of
+// a new day instead.
+if mp.HIGH_IMPACT_MACRO_TODAY and _alert_new_day and barstate.isconfirmed
+    alert('SMC: High Impact Macro Today | Reduce position sizes.', alert.freq_once_per_bar)
+if lib_has_earnings and _alert_new_day and barstate.isconfirmed
+    alert('SMC: Earnings Today | This ticker has earnings today. Exercise caution.', alert.freq_once_per_bar)
 
 /////////////////////////////////////////////////////////////////////////////////
 //#endregion                      IMPLEMENTATION

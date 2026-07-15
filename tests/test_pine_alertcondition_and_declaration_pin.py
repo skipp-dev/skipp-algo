@@ -77,7 +77,9 @@ _ALERTCOND_RE = re.compile(r"\balertcondition\s*\(")
 
 _FROZEN_ALERTCOND_COUNTS: dict[str, int] = {
     "SMC_Breakout_Overlay.pine": 3,
-    "SMC_Long_Dip_Suite.pine": 16,
+    # SMC_Long_Dip_Suite.pine converted its 16 alertcondition() to alert() so the
+    # 64-channel BUS producer stays within TradingView's 64-plot budget
+    # (alertcondition() counts as a plot-count; RE10140). It now declares zero.
     "SMC_Event_Overlay.pine": 2,
     "SMC_Exit_Signal.pine": 6,
     "SMC_Hold_Manager.pine": 6,
