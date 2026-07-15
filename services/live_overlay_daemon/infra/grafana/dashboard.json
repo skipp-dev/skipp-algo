@@ -901,7 +901,7 @@
       "links": [],
       "targets": [
         {
-          "expr": "live_overlay_evidence_ledger_age_seconds{job=~\"$job\"} / 86400",
+          "expr": "(live_overlay_evidence_ledger_age_seconds{job=~\"$job\"} and on(job, instance) (live_overlay_evidence_ledger_age_known{job=~\"$job\"} == 1)) / 86400",
           "legendFormat": "ledger age (d)",
           "datasource": {
             "type": "prometheus",
@@ -1205,7 +1205,7 @@
       "links": [],
       "targets": [
         {
-          "expr": "live_overlay_evidence_ledger_age_seconds{job=~\"$job\"} / 86400",
+          "expr": "(live_overlay_evidence_ledger_age_seconds{job=~\"$job\"} and on(job, instance) (live_overlay_evidence_ledger_age_known{job=~\"$job\"} == 1)) / 86400",
           "legendFormat": "ledger",
           "datasource": {
             "type": "prometheus",
@@ -1213,7 +1213,7 @@
           }
         },
         {
-          "expr": "live_overlay_evidence_audit_branch_age_seconds{job=~\"$job\"} / 86400",
+          "expr": "(live_overlay_evidence_audit_branch_age_seconds{job=~\"$job\"} and on(job, instance) (live_overlay_evidence_audit_branch_age_known{job=~\"$job\"} == 1)) / 86400",
           "legendFormat": "audit branch",
           "datasource": {
             "type": "prometheus",
@@ -1221,7 +1221,7 @@
           }
         },
         {
-          "expr": "live_overlay_evidence_wsh_age_seconds{job=~\"$job\"} / 86400",
+          "expr": "(live_overlay_evidence_wsh_age_seconds{job=~\"$job\"} and on(job, instance) (live_overlay_evidence_wsh_age_known{job=~\"$job\"} == 1)) / 86400",
           "legendFormat": "wsh",
           "datasource": {
             "type": "prometheus",
@@ -1229,7 +1229,7 @@
           }
         },
         {
-          "expr": "live_overlay_evidence_freshness_snapshot_age_seconds{job=~\"$job\"} / 86400",
+          "expr": "(live_overlay_evidence_freshness_snapshot_age_seconds{job=~\"$job\"} and on(job, instance) (live_overlay_evidence_freshness_snapshot_age_known{job=~\"$job\"} == 1)) / 86400",
           "legendFormat": "snapshot",
           "datasource": {
             "type": "prometheus",
@@ -1254,6 +1254,7 @@
       "fieldConfig": {
         "defaults": {
           "unit": "d",
+          "noValue": "N/A (age unknown)",
           "custom": {
             "drawStyle": "line",
             "lineWidth": 2,
@@ -6505,7 +6506,7 @@
       },
       "targets": [
         {
-          "expr": "live_overlay_provider_news_snapshot_age_seconds{job=~\"$job\"}",
+          "expr": "live_overlay_provider_news_snapshot_age_seconds{job=~\"$job\"} and on(job, instance) (live_overlay_provider_news_snapshot_age_known{job=~\"$job\"} == 1)",
           "legendFormat": "snapshot age (s)",
           "datasource": {
             "type": "prometheus",
@@ -6530,6 +6531,7 @@
       "fieldConfig": {
         "defaults": {
           "unit": "s",
+          "noValue": "N/A (age unknown)",
           "custom": {
             "lineWidth": 1,
             "fillOpacity": 8

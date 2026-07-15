@@ -2040,6 +2040,49 @@ groups:
         stopped committing.
       runbook: Run/inspect .github/workflows/evidence-freshness-snapshot.yml; without it the ledger/audit/fills
         freshness signals go stale.
+  - uid: lo-evidence-snapshot-age-unknown
+    title: Evidence snapshot age unknown (loads but carries no generated_at)
+    condition: C
+    # The stale rule above says "loads but is older than 24h" -- it can only
+    # say that once an age is KNOWN. snapshot_age_known is `generated_at_unix
+    # > 0`, and `_coerce` hard-codes loaded=1.0 while tolerating a missing
+    # `generated_at_unix`, so a snapshot that parses without that field yields
+    # age_known=0 AND age_seconds=0: the stale rule reads 0>86400=false and
+    # lo-evidence-snapshot-unloadable reads loaded<1=false. The producer
+    # heartbeat is then unwatched. Gated on `loaded` to page once, not twice.
+    noDataState: OK
+    data:
+    - refId: A
+      datasourceUid: grafanacloud-prom
+      model:
+        expr: live_overlay_evidence_freshness_loaded{job="live_overlay"} * (live_overlay_evidence_freshness_snapshot_age_known{job="live_overlay"}
+          == bool 0)
+        instant: true
+    - refId: C
+      datasourceUid: __expr__
+      model:
+        type: threshold
+        conditions:
+        - evaluator:
+            type: gt
+            params:
+            - 0
+          operator:
+            type: and
+          query:
+            params:
+            - A
+    for: 30m
+    labels:
+      severity: critical
+    annotations:
+      summary: The evidence-freshness snapshot loads but carries no generated_at_unix -- the
+        producer heartbeat is unwatched and the stale rule stays green with zero data.
+      runbook: live_overlay_evidence_freshness_snapshot_age_known is 0 while loaded=1. The
+        snapshot at EVIDENCE_FRESHNESS_SNAPSHOT_URL parsed but has no/zero `generated_at_unix`
+        (schema drift, a truncated write, or a non-raw GitHub Contents-API envelope -- see
+        _fetch_url in evidence_freshness_bridge.py). Inspect the payload; run/inspect
+        .github/workflows/evidence-freshness-snapshot.yml.
   - uid: lo-pine-library-snapshot-unloadable
     title: Pine-library version snapshot unloadable
     condition: C
@@ -2264,6 +2307,51 @@ groups:
         is not committing rows (distinct from a cold start).
       runbook: Check that adr0023-magnitude-shadow-daily commits a row each weekday and that the
         accumulated FamilyEvent pool is available (dispatch the one-time reseed if not).
+  - uid: lo-evidence-ledger-age-unknown
+    title: Magnitude ledger age unknown (rows present but no parseable newest_date)
+    condition: C
+    # Third leg of the ledger triangle: -stale catches a KNOWN-but-old date,
+    # -empty catches rows==0, and this catches the state neither can see --
+    # rows > 0 (so -empty is silent) while `ledger.newest_date` is
+    # missing/empty/unparseable, which makes age_known=0 AND age_seconds=0 so
+    # -stale reads 0>432000=false. That is a live schema-drift shape here (cf.
+    # the 2026-07-15 two-schema mtime resolver that emitted a populated-looking
+    # status="ok" payload the reader could not parse). `rows > bool 0` keeps
+    # this from double-paging with lo-evidence-ledger-empty on a fully empty
+    # snapshot; `loaded` keeps it from double-paging with -unloadable.
+    noDataState: OK
+    data:
+    - refId: A
+      datasourceUid: grafanacloud-prom
+      model:
+        expr: live_overlay_evidence_freshness_loaded{job="live_overlay"} * (live_overlay_evidence_ledger_rows{job="live_overlay"}
+          > bool 0) * (live_overlay_evidence_ledger_age_known{job="live_overlay"} == bool 0)
+        instant: true
+    - refId: C
+      datasourceUid: __expr__
+      model:
+        type: threshold
+        conditions:
+        - evaluator:
+            type: gt
+            params:
+            - 0
+          operator:
+            type: and
+          query:
+            params:
+            - A
+    for: 1h
+    labels:
+      severity: critical
+    annotations:
+      summary: The magnitude ledger reports rows but no parseable newest_date -- the stale rule
+        cannot see this state and stays green.
+      runbook: live_overlay_evidence_ledger_age_known is 0 while rows > 0 and the snapshot
+        loaded=1. The producer is emitting ledger rows whose `newest_date` is
+        missing/empty/unparseable (expected YYYY-MM-DD) -- typically schema drift between the
+        writer and evidence_freshness_bridge. Inspect the payload at
+        EVIDENCE_FRESHNESS_SNAPSHOT_URL and the adr0023-magnitude-shadow-daily writer.
   - uid: lo-evidence-audit-branch-stale
     title: Phase-A audit branch stale
     condition: C
@@ -2296,6 +2384,54 @@ groups:
         publish has stopped.
       runbook: Check the c13 reconcile/audit-push launchd jobs and lib_c13_data_push.sh publish clone;
         the branch should gain commits on trading days.
+  - uid: lo-evidence-audit-branch-age-unknown
+    title: Phase-A audit branch age unknown (snapshot loads but carries no date)
+    condition: C
+    # Complement of the stale rule above. `_coerce` (evidence_freshness_bridge)
+    # hard-codes loaded=1.0 and tolerates missing keys, so a snapshot that
+    # PARSES but carries no `audit_branch.last_commit_date` yields
+    # age_known=0 AND age_seconds=0 -- the stale rule reads 0>345600=false and
+    # lo-evidence-snapshot-unloadable reads loaded<1=false. Both stay green
+    # with zero data (the gt-0-inert class). This is not theoretical: the
+    # GitHub Contents-API envelope decoded to exactly that shape ("EMPTY
+    # snapshot with loaded=1, keeping the stale alert silently green" --
+    # _fetch_url, post-review finding 1); the cause was fixed, the DETECTION
+    # was not. Gated on `loaded` so an unloadable snapshot pages once (via
+    # lo-evidence-snapshot-unloadable) instead of twice. `== bool 0` is
+    # mandatory: a bare `== 0` returns 0 and gt-0 reads 0>0=false -- inert.
+    noDataState: OK
+    data:
+    - refId: A
+      datasourceUid: grafanacloud-prom
+      model:
+        expr: live_overlay_evidence_freshness_loaded{job="live_overlay"} * (live_overlay_evidence_audit_branch_age_known{job="live_overlay"}
+          == bool 0)
+        instant: true
+    - refId: C
+      datasourceUid: __expr__
+      model:
+        type: threshold
+        conditions:
+        - evaluator:
+            type: gt
+            params:
+            - 0
+          operator:
+            type: and
+          query:
+            params:
+            - A
+    for: 1h
+    labels:
+      severity: critical
+    annotations:
+      summary: The evidence snapshot loads but carries no audit-branch commit date -- the
+        stale rule cannot see this state and stays green with zero data.
+      runbook: live_overlay_evidence_audit_branch_age_known is 0 while the snapshot loaded=1.
+        The producer is publishing a snapshot whose `audit_branch.last_commit_date` is
+        missing/empty/unparseable (schema drift or a truncated write). Inspect the payload
+        at EVIDENCE_FRESHNESS_SNAPSHOT_URL and see evidence-freshness-snapshot.yml. Staleness
+        is only computed once an age is KNOWN.
   - uid: lo-evidence-wsh-stale
     title: WSH earnings snapshot stale
     condition: C
@@ -2327,6 +2463,45 @@ groups:
       summary: The WSH earnings snapshot on the audit branch is older than 7 days (secondary earnings
         filter; looser budget).
       runbook: 'Known limitation: the WSH filter needs IBKR conIds on the watchlist rows; see automation/launchd/README.md.'
+  - uid: lo-evidence-wsh-age-unknown
+    title: WSH earnings snapshot age unknown (snapshot loads but carries no date)
+    condition: C
+    # Same gt-0-inert hole as lo-evidence-audit-branch-age-unknown: a snapshot
+    # that parses without `wsh.newest_date` yields age_known=0 AND
+    # age_seconds=0, so the stale rule reads 0>604800=false and the unloadable
+    # rule reads loaded<1=false. Gated on `loaded` to page once, not twice.
+    noDataState: OK
+    data:
+    - refId: A
+      datasourceUid: grafanacloud-prom
+      model:
+        expr: live_overlay_evidence_freshness_loaded{job="live_overlay"} * (live_overlay_evidence_wsh_age_known{job="live_overlay"}
+          == bool 0)
+        instant: true
+    - refId: C
+      datasourceUid: __expr__
+      model:
+        type: threshold
+        conditions:
+        - evaluator:
+            type: gt
+            params:
+            - 0
+          operator:
+            type: and
+          query:
+            params:
+            - A
+    # 2h mirrors the stale rule's looser budget for this secondary filter.
+    for: 2h
+    labels:
+      severity: warning
+    annotations:
+      summary: The evidence snapshot loads but carries no WSH newest_date -- the stale rule
+        cannot see this state and stays green with zero data.
+      runbook: live_overlay_evidence_wsh_age_known is 0 while the snapshot loaded=1. The
+        producer is publishing a snapshot whose `wsh.newest_date` is missing/empty/unparseable.
+        Inspect the payload at EVIDENCE_FRESHNESS_SNAPSHOT_URL and see evidence-freshness-snapshot.yml.
   - uid: lo-evidence-incubation-fills-stalled
     title: C8 incubation fills stalled
     condition: C
