@@ -469,6 +469,15 @@ jobs:
             tests/test_pickle_write_and_abs_pathjoin_zero_surface.py \
             tests/test_tls_jwt_verification_zero_surface.py \
             tests/test_yaml_xml_zero_surface.py \
+            tests/test_httpx_timeout_invariant.py \
+            tests/test_mkdir_makedirs_exist_ok_invariant.py \
+            tests/test_six_zero_tripwires_bundle.py \
+            tests/test_subprocess_run_check_invariant.py \
+            tests/test_subprocess_timeout_discipline.py \
+            tests/test_tempfile_namedtemp_delete_kwarg_invariant.py \
+            tests/test_threading_thread_daemon_invariant.py \
+            tests/test_to_datetime_utc_discipline.py \
+            tests/test_weak_hash_usedforsecurity_pin.py \
             tests/test_atomic_write_call_sites.py \
             tests/test_module_test_coverage_pin.py \
             tests/test_smc_library_refresh_workflow.py \

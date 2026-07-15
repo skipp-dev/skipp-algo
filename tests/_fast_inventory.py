@@ -122,6 +122,38 @@ FAST_TEST_FILES: frozenset[str] = frozenset({
     "test_pickle_write_and_abs_pathjoin_zero_surface.py",
     "test_tls_jwt_verification_zero_surface.py",
     "test_yaml_xml_zero_surface.py",
+    # Semantic security guards. #3672/#3680/#3685 put the *inventory* guards on
+    # the required path — the ones that freeze a call site's line, its per-file
+    # count, or the absence of a construct. These are the other half: they check
+    # the *property* a call site must have. Each protects a surface no gated
+    # guard reads, verified per surface rather than by name:
+    #   httpx timeout        — the gated http_client_discipline pins urlopen's
+    #                          timeout only, and this repo is httpx-exclusive.
+    #   subprocess check=/timeout=, threading daemon=, mkdir exist_ok=,
+    #   tempfile delete=    — the gated ledgers pin these call sites but never
+    #                          read the kwarg (same shape as #3678's os.kill).
+    #   weak-hash usedforsecurity= — the gated weak_hash_pin freezes the budget;
+    #                          swapping a call in place keeps the count.
+    #   to_datetime utc=     — no gated reader.
+    #   six_zero bundle      — secret-shaped files tracked in git, star-imports,
+    #                          Pine study()/version, workflow YAML parse.
+    #
+    # Cost: not measurable above this machine's noise. Three runs, each alone:
+    # base 127.0s and 108.25s on IDENTICAL input (a 19s spread), this branch
+    # 106.8s with 41 more tests. So the added cost is bounded by that spread,
+    # not quantified by it — quoting a point estimate here would be inventing
+    # precision the measurement does not have. It is cheap for a structural
+    # reason: these share the cached AST corpus, so the ~1030-module parse is
+    # already paid for by the guards ahead of them and only the walk is new.
+    "test_httpx_timeout_invariant.py",
+    "test_mkdir_makedirs_exist_ok_invariant.py",
+    "test_six_zero_tripwires_bundle.py",
+    "test_subprocess_run_check_invariant.py",
+    "test_subprocess_timeout_discipline.py",
+    "test_tempfile_namedtemp_delete_kwarg_invariant.py",
+    "test_threading_thread_daemon_invariant.py",
+    "test_to_datetime_utc_discipline.py",
+    "test_weak_hash_usedforsecurity_pin.py",
     "test_module_test_coverage_pin.py",
     "test_workflow_python_unbuffered.py",
     "test_workflow_pythonpath_for_direct_invoke.py",
