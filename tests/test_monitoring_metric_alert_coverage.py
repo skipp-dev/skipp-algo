@@ -18,6 +18,7 @@ import json
 import re
 from pathlib import Path
 
+import pytest
 import yaml
 
 _REPO_ROOT = Path(__file__).resolve().parents[1]
@@ -325,3 +326,64 @@ def test_dashboard_age_panels_gate_on_age_known() -> None:
             f"{title!r} gates on age_known (so an unknown age yields an EMPTY series) but "
             "sets no noValue text — the panel would render blank instead of N/A"
         )
+
+
+def test_news_snapshot_stale_alert_gates_on_age_known() -> None:
+    """The news snapshot stale rule must not read age_seconds=0 as fresh.
+
+    A loaded snapshot without a timestamp exports age_known=0 and
+    age_seconds=0. Without an age_known gate the stale rule's
+    `age_seconds > 10800` reads false (0 > threshold) and the dashboard shows
+    a perfectly fresh 0 while the producer heartbeat is actually unknown.
+    """
+    expr = _rule_exprs()["lo-news-snapshot-stale"]
+    assert "live_overlay_provider_news_snapshot_age_known" in expr, (
+        "lo-news-snapshot-stale must gate on age_known so an unknown timestamp "
+        f"does not masquerade as fresh. Got: {expr}"
+    )
+
+
+_AGE_UNKNOWN_RULES = (
+    # (rule_uid, loaded_metric, age_known_metric)
+    (
+        "lo-news-snapshot-age-unknown",
+        "live_overlay_provider_news_snapshot_loaded",
+        "live_overlay_provider_news_snapshot_age_known",
+    ),
+    (
+        "lo-pine-library-snapshot-age-unknown",
+        "live_overlay_pine_library_snapshot_loaded",
+        "live_overlay_pine_library_snapshot_age_known",
+    ),
+    (
+        "lo-provider-usage-snapshot-age-unknown",
+        "live_overlay_provider_usage_loaded",
+        "live_overlay_provider_usage_snapshot_age_known",
+    ),
+)
+
+
+@pytest.mark.parametrize("uid,loaded_metric,age_known_metric", _AGE_UNKNOWN_RULES)
+def test_age_unknown_alert_coverage(
+    uid: str, loaded_metric: str, age_known_metric: str
+) -> None:
+    """A loaded-but-undated snapshot needs its own alert.
+
+    The unloadable rule owns loaded==0; the stale rule needs a known age. The
+    loaded-but-undated state (age_known=0, age_seconds=0) is invisible to both
+    unless a dedicated rule targets the age_known gauge with the `== bool 0`
+    form (bare `== 0` is inert behind a gt-0 threshold).
+    """
+    exprs = _rule_exprs()
+    assert uid in exprs, f"missing rule for loaded-but-undated snapshot: {uid}"
+    expr = exprs[uid]
+    assert age_known_metric in expr, (
+        f"{uid} must target {age_known_metric}, got: {expr}"
+    )
+    assert loaded_metric in expr, (
+        f"{uid} must gate on {loaded_metric} to avoid double-paging with the "
+        f"unloadable rule, got: {expr}"
+    )
+    assert "== bool 0" in expr, (
+        f"{uid} must use `== bool 0` (bare `== 0` is inert): {expr}"
+    )

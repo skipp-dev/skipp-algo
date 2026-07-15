@@ -1164,6 +1164,49 @@ groups:
       runbook: Check NEWS_SNAPSHOT_PATH producer job (smc-live-news-refresh.yml, hourly
         Mon-Fri) and file update cadence; inspect fetched_at_unix in snapshot. Weekend/holiday
         staleness is gated out via live_overlay_market_us_open and does not page.
+  - uid: lo-news-snapshot-age-unknown
+    title: News snapshot age unknown (loads but carries no timestamp)
+    condition: C
+    # The stale rule above says "loads but is older than 3h" -- it can only
+    # say that once an age is KNOWN. snapshot_age_known is `fetched_at_unix > 0`
+    # or a parseable generated_at, and `_provider_health_snapshot` tolerates a
+    # missing timestamp while keeping loaded=1.0, so a snapshot that parses
+    # without a usable date yields age_known=0 AND age_seconds=0: the stale
+    # rule reads 0>10800=false and lo-news-snapshot-unavailable reads
+    # loaded<1=false. The producer heartbeat is then unwatched. Gated on
+    # `loaded` to page once, not twice.
+    noDataState: OK
+    data:
+    - refId: A
+      datasourceUid: grafanacloud-prom
+      model:
+        expr: live_overlay_provider_news_snapshot_loaded{job="live_overlay"} * (live_overlay_provider_news_snapshot_age_known{job="live_overlay"}
+          == bool 0)
+        instant: true
+    - refId: C
+      datasourceUid: __expr__
+      model:
+        type: threshold
+        conditions:
+        - evaluator:
+            type: gt
+            params:
+            - 0
+          operator:
+            type: and
+          query:
+            params:
+            - A
+    for: 30m
+    labels:
+      severity: critical
+    annotations:
+      summary: The news provider snapshot loads but carries no timestamp -- the producer
+        heartbeat is unwatched and the stale rule stays green with zero data.
+      runbook: live_overlay_provider_news_snapshot_age_known is 0 while loaded=1. The
+        snapshot at NEWS_SNAPSHOT_PATH/URL parsed but has no/zero `fetched_at_unix` or
+        an unparseable `generated_at` (schema drift, a truncated write, or a stale seed).
+        Inspect the payload; check smc-live-news-refresh.yml and the seed file.
   - uid: lo-news-ingest-stale
     title: News ingest stale (no new stories accepted)
     condition: C
@@ -2157,6 +2200,49 @@ groups:
         stopped committing.
       runbook: Run/inspect .github/workflows/pine-library-version-monitor.yml; without it repo↔TradingView
         pin drift goes unmonitored (the #3599/#3603 blind spot).
+  - uid: lo-pine-library-snapshot-age-unknown
+    title: Pine-library version snapshot age unknown (loads but carries no generated_at)
+    condition: C
+    # The stale rule above says "loads but is older than 48h" -- it can only
+    # say that once an age is KNOWN. snapshot_age_known is `generated_at_unix >
+    # 0`, and `_coerce` hard-codes loaded=1.0 while tolerating a missing
+    # `generated_at_unix`, so a snapshot that parses without that field yields
+    # age_known=0 AND age_seconds=0: the stale rule reads 0>172800=false and
+    # lo-pine-library-snapshot-unloadable reads loaded<1=false. The producer
+    # heartbeat is then unwatched. Gated on `loaded` to page once, not twice.
+    noDataState: OK
+    data:
+    - refId: A
+      datasourceUid: grafanacloud-prom
+      model:
+        expr: live_overlay_pine_library_snapshot_loaded{job="live_overlay"} * (live_overlay_pine_library_snapshot_age_known{job="live_overlay"}
+          == bool 0)
+        instant: true
+    - refId: C
+      datasourceUid: __expr__
+      model:
+        type: threshold
+        conditions:
+        - evaluator:
+            type: gt
+            params:
+            - 0
+          operator:
+            type: and
+          query:
+            params:
+            - A
+    for: 30m
+    labels:
+      severity: critical
+    annotations:
+      summary: The pine-library version snapshot loads but carries no generated_at_unix -- the
+        producer heartbeat is unwatched and the stale rule stays green with zero data.
+      runbook: live_overlay_pine_library_snapshot_age_known is 0 while loaded=1. The
+        snapshot at PINE_LIBRARY_VERSIONS_SNAPSHOT_URL parsed but has no/zero `generated_at_unix`
+        (schema drift, a truncated write, or a non-raw GitHub Contents-API envelope -- see
+        _fetch_url in pine_library_version_bridge.py). Inspect the payload; run/inspect
+        .github/workflows/pine-library-version-monitor.yml.
   - uid: lo-pine-consumer-version-drift
     title: Pine consumer pin drifts from published TradingView version
     condition: C
@@ -2866,6 +2952,49 @@ groups:
       runbook: The daily open-prep workflow has not refreshed
         artifacts/monitoring/provider_usage.json within 4 days. Check the open-prep run
         and the snapshot publish path; the FMP bandwidth % is computed from this file.
+  - uid: lo-provider-usage-snapshot-age-unknown
+    title: Provider-usage snapshot age unknown (loads but carries no updated_at)
+    condition: C
+    # The stale rule above says "loads but is older than 4d" -- it can only
+    # say that once an age is KNOWN. snapshot_age_known is derived from a
+    # parseable `updated_at`, and `_coerce` keeps loaded=1.0 while tolerating a
+    # missing `updated_at` (it returns None), so a snapshot that parses without
+    # a usable date yields age_known=0 AND age_seconds=0: the stale rule reads
+    # 0>345600=false and lo-provider-usage-snapshot-unloaded reads loaded<1=false.
+    # The producer heartbeat is then unwatched and the FMP-quota + provider-429
+    # alerts lose their input. Gated on `loaded` to page once, not twice.
+    noDataState: OK
+    data:
+    - refId: A
+      datasourceUid: grafanacloud-prom
+      model:
+        expr: live_overlay_provider_usage_loaded{job="live_overlay"} * (live_overlay_provider_usage_snapshot_age_known{job="live_overlay"}
+          == bool 0)
+        instant: true
+    - refId: C
+      datasourceUid: __expr__
+      model:
+        type: threshold
+        conditions:
+        - evaluator:
+            type: gt
+            params:
+            - 0
+          operator:
+            type: and
+          query:
+            params:
+            - A
+    for: 30m
+    labels:
+      severity: critical
+    annotations:
+      summary: The provider-usage snapshot loads but carries no updated_at -- the producer
+        heartbeat is unwatched and the stale rule stays green with zero data.
+      runbook: live_overlay_provider_usage_snapshot_age_known is 0 while loaded=1. The
+        snapshot at PROVIDER_USAGE_SNAPSHOT_URL/PATH parsed but has no/zero `updated_at`
+        (schema drift, a truncated write, or a stale seed). Inspect the payload; check
+        the daily open-prep workflow that commits artifacts/monitoring/provider_usage.json.
   - uid: lo-sweep-trap-shadow-stale
     title: Sweep-trap shadow snapshot stale
     condition: C
