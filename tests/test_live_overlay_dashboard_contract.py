@@ -361,38 +361,105 @@ def _memory_threshold(rule: dict) -> float:
     raise AssertionError(f"no threshold condition in rule {rule.get('uid')!r}")
 
 
-def test_signals_producer_memory_warning_aligns_with_railway_ratio_policy() -> None:
-    """The static Signals Producer RSS warning must sit at 75% of the ~1 GiB
-    Railway tier (768 MiB), matching the blessed usage-ratio policy
-    (lo-railway-memory-ratio-high at 0.75). The prior 512 MiB (~50%) value sat
-    below the process's legitimate steady-state footprint and fired
-    continuously without an OOM. The critical stays at 900 MiB (≈88%), aligned
-    with the dashboard red threshold and the 0.90 ratio-critical."""
+# Measured 7d RSS envelope per service (Railway MEMORY_USAGE_GB, 600s samples,
+# probed 2026-07-15). The static thresholds below are cut ABOVE these maxima so
+# legitimate steady state can never fire them.
+_OBSERVED_MAX_MIB = {"signals_producer": 1514, "live_overlay": 920, "alloy": 326}
+
+
+def test_signals_producer_memory_alerts_are_regression_detectors_not_oom_alarms() -> None:
+    """2026-07-15: the static RSS thresholds must sit ABOVE the measured envelope.
+
+    The 512 MiB and 768 MiB predecessors were both derived as a fraction of a
+    "~1 GiB Railway tier" that never applied to this service. The real limit is
+    8 GB (Railway MEMORY_LIMIT_GB=8.00 for every service in the project),
+    independently corroborated by the producer sustaining >1024 MiB for ~2 days
+    (2026-07-09..11, peak 1514 MiB) with no OOM — impossible under a 1 GiB
+    cgroup cap, where memory.current can never exceed memory.max. Each fictional
+    -tier threshold therefore landed just above legitimate steady state (~880
+    MiB on 2026-07-15) and fired continuously, exactly like its predecessor.
+
+    So these are footprint-REGRESSION detectors cut above the observed envelope.
+    OOM risk is owned exclusively by the ratio alerts, which anchor to the limit
+    Railway actually reports (0.75 of 8 GB ≈ 6144 MiB — 8x the old "aligned"
+    768 MiB static value, which is what exposed the incoherence).
+    """
     warning = _alert_rule("sp-memory-high")
     assert warning["labels"]["severity"] == "warning"
-    assert _memory_threshold(warning) == 768
-    assert "768" in warning["title"]
+    assert _memory_threshold(warning) == 2048
+    assert "2048" in warning["title"]
 
     critical = _alert_rule("sp-memory-critical")
     assert critical["labels"]["severity"] == "critical"
-    assert _memory_threshold(critical) == 900
+    assert _memory_threshold(critical) == 3072
+    assert "3072" in critical["title"]
+
+    for rule in (warning, critical):
+        assert _memory_threshold(rule) > _OBSERVED_MAX_MIB["signals_producer"], rule["uid"]
 
 
-def test_live_overlay_memory_warning_aligns_with_railway_ratio_policy() -> None:
-    """The static live-overlay RSS warning follows the same 768 MiB policy."""
+def test_live_overlay_memory_alerts_sit_above_measured_envelope() -> None:
+    """The live-overlay RSS alerts follow the same regression-detector policy
+    (measured 7d envelope: p95 259 MiB, max 920 MiB)."""
     warning = _alert_rule("lo-memory-high")
     assert warning["labels"]["severity"] == "warning"
-    assert _memory_threshold(warning) == 768
-    assert "768" in warning["title"]
+    assert _memory_threshold(warning) == 2048
+    assert "2048" in warning["title"]
+
+    critical = _alert_rule("lo-memory-critical")
+    assert critical["labels"]["severity"] == "critical"
+    assert _memory_threshold(critical) == 3072
+    assert "3072" in critical["title"]
+
+    for rule in (warning, critical):
+        assert _memory_threshold(rule) > _OBSERVED_MAX_MIB["live_overlay"], rule["uid"]
+
+
+def test_alloy_memory_alerts_sit_above_measured_envelope() -> None:
+    """Alloy's 256 MiB warning sat BELOW its measured 7d p95 (310 MiB, max 326
+    MiB), so it false-fired against legitimate steady state — the "Alloy should
+    use < 100 MB normally" claim it rested on was never measured. Same
+    fictional-anchor bug class as sp/lo; re-cut above the real envelope."""
+    warning = _alert_rule("alloy-memory-high")
+    assert warning["labels"]["severity"] == "warning"
+    assert _memory_threshold(warning) == 1024
+    assert "1024" in warning["title"]
+
+    critical = _alert_rule("alloy-memory-critical")
+    assert critical["labels"]["severity"] == "critical"
+    assert _memory_threshold(critical) == 1536
+    assert "1536" in critical["title"]
+
+    for rule in (warning, critical):
+        assert _memory_threshold(rule) > _OBSERVED_MAX_MIB["alloy"], rule["uid"]
+
+
+def test_no_static_memory_alert_reintroduces_the_one_gigabyte_tier() -> None:
+    """Regression guard: the "1 GB free tier" premise is false (real limit 8 GB)
+    and produced two successive permanently-firing thresholds (512 -> 768). No
+    static RSS rule may reintroduce it, and "OOM kill imminent" framing belongs
+    only to the ratio alerts that anchor to the limit Railway reports."""
+    for uid in (
+        "sp-memory-high", "sp-memory-critical",
+        "lo-memory-high", "lo-memory-critical",
+        "alloy-memory-high", "alloy-memory-critical",
+    ):
+        text = json.dumps(_alert_rule(uid))
+        assert "1 GB limit" not in text, uid
+        assert "1 GiB" not in text, uid
+        assert "free tier" not in text, uid
+        assert "OOM kill imminent" not in text, uid
 
 
 def test_dashboard_memory_thresholds_align_with_alert_policy() -> None:
     dashboard = json.loads(_DASHBOARD_JSON.read_text(encoding="utf-8"))
     panels = {p.get("title"): p for p in _dashboard_panels(dashboard)}
 
+    # 2026-07-15: 768/900 MiB -> 2048/3072 MiB, tracking the alert re-cut off the
+    # fictional 1 GiB tier onto the measured envelope (real Railway limit: 8 GB).
     memory_steps = panels["Process Resident Memory"]["fieldConfig"]["defaults"]["thresholds"]["steps"]
-    assert memory_steps[1]["value"] == 805306368
-    assert memory_steps[2]["value"] == 943718400
+    assert memory_steps[1]["value"] == 2048 * 1024 * 1024
+    assert memory_steps[2]["value"] == 3072 * 1024 * 1024
 
     ratio_steps = panels["Railway Memory Used Ratio"]["fieldConfig"]["defaults"]["thresholds"]["steps"]
     assert ratio_steps[1]["value"] == 0.75
@@ -684,14 +751,19 @@ def test_dashboard_job_variable_is_datasource_pinned() -> None:
 
 
 def test_dashboard_memory_threshold_matches_alert() -> None:
-    """Process Resident Memory red threshold must align with the 900 MiB alert."""
+    """Process Resident Memory red threshold must track the critical RSS alert.
+
+    Pinned against the rule itself rather than a literal, so the dashboard can
+    never silently drift from the alert the way both did off the 1 GiB tier.
+    """
     dashboard = json.loads(_DASHBOARD_JSON.read_text(encoding="utf-8"))
     panels = _dashboard_panels(dashboard)
     panel = next(p for p in panels if p.get("title") == "Process Resident Memory")
     steps = panel.get("fieldConfig", {}).get("defaults", {}).get("thresholds", {}).get("steps", [])
     red_step = next((s for s in steps if s.get("color") == "red"), None)
     assert red_step is not None
-    assert red_step.get("value") == 943718400
+    critical_mib = _memory_threshold(_alert_rule("lo-memory-critical"))
+    assert red_step.get("value") == critical_mib * 1024 * 1024
 
 
 def test_dashboard_refresh_rate_reduced() -> None:
