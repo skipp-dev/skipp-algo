@@ -56,6 +56,10 @@ export const HAND_LIBS: HandLib[] = [
   { name: "smc_profile_engine", source: "SMC++/smc_profile_engine.pine", publisher: "scripts/tv_publish_profile_engine_library.ts" },
   { name: "smc_bus_private", source: "SMC++/smc_bus_private.pine", publisher: "scripts/tv_publish_bus_library.ts" },
   { name: "smc_engine_private", source: "SMC++/smc_engine_private.pine", publisher: "scripts/tv_publish_engine_library.ts" },
+  // Published manually on 2026-07-15 (TV /2) because it was the only SMC++
+  // library missing from this table. topoSort places it last: it imports
+  // core_types, utils, draw, profile_engine and engine_private.
+  { name: "smc_context_engine_private", source: "SMC++/smc_context_engine_private.pine", publisher: "scripts/tv_publish_context_engine_library.ts" },
 ];
 
 const OWNER = "preuss_steffen";

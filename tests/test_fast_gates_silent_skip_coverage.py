@@ -141,6 +141,7 @@ FULL_REQUIRED_PATH_TRIPWIRES: tuple[str, ...] = (
     "tests/test_path_text_io_encoding_ledger.py",
     "tests/test_pine_alertcondition_and_declaration_pin.py",
     "tests/test_pine_context_library_contract.py",
+    "tests/test_pine_handlib_publisher_inventory.py",
     "tests/test_pine_library_import_permissions.py",
     "tests/test_pine_request_security_htf_pin.py",
     "tests/test_pine_var_budget_pin.py",
