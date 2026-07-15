@@ -2275,3 +2275,20 @@ def test_extracted_helpers_reference_only_previously_declared_globals() -> None:
             )
 
 
+def test_every_alert_site_honours_the_enable_dynamic_alerts_toggle() -> None:
+    # The 'Enable dynamic alerts' input promises "Disable to silence all dynamic
+    # alert output". alert() sites are plain top-level ifs, so the toggle only
+    # holds if every one of them carries the flag in its own condition.
+    source = _read_smc_source()
+    lines = source.split('\n')
+    ungated = []
+    for idx, line in enumerate(lines):
+        if not line.startswith('    alert('):
+            continue
+        owner = next((j for j in range(idx - 1, -1, -1) if lines[j].startswith('if ')), None)
+        assert owner is not None, f'alert() at line {idx + 1} has no owning if-block'
+        if 'enable_dynamic_alerts' not in lines[owner]:
+            ungated.append(f'line {owner + 1}: {lines[owner]}')
+    assert not ungated, 'alert() sites not gated on enable_dynamic_alerts:\n' + '\n'.join(ungated)
+
+
