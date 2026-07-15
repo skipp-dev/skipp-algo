@@ -3439,7 +3439,12 @@ groups:
     for: 1h
     noDataState: OK
     labels:
-      severity: high
+      # Never below the sibling stale rule (lo-credential-monitor-stale is
+      # critical). An undated snapshot is not milder than a stale one: it means
+      # that rule can no longer fire for this chain at all, so the freshness axis
+      # is lost rather than merely aged. Enforced by
+      # test_age_unknown_severity_never_below_its_stale_rule.
+      severity: critical
     annotations:
       summary: The credential-health snapshot loads but has no parseable generated_at -- its freshness
         is unverifiable and lo-credential-monitor-stale can never fire.

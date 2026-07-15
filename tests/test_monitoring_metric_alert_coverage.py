@@ -423,3 +423,71 @@ def test_age_unknown_alert_coverage(
     assert "== bool 0" in expr, (
         f"{uid} must use `== bool 0` (bare `== 0` is inert): {expr}"
     )
+
+
+# warning < high < critical. Only the ORDER matters here, not the numbers.
+_SEVERITY_RANK = {"warning": 1, "high": 2, "critical": 3}
+
+
+def _rules_by_uid() -> dict[str, dict]:
+    doc = yaml.safe_load(_ALERT_RULES.read_text(encoding="utf-8"))
+    return {
+        str(rule.get("uid", "")): rule
+        for group in doc.get("groups", [])
+        for rule in group.get("rules", [])
+    }
+
+
+def test_age_unknown_severity_never_below_its_stale_rule() -> None:
+    """An `-age-unknown` rule must never page quieter than its `-stale` sibling.
+
+    The two rules split one axis: `-stale` owns "the age is known and too old",
+    `-age-unknown` owns "there is no age at all". The second is not the milder
+    half. While age_known=0 the stale rule *cannot fire for that chain at all*
+    (its `age_seconds * age_known` product is 0), so the whole freshness axis is
+    gone rather than merely aged — strictly worse than a known-old snapshot, and
+    it stays that way until a human fixes the producer. Ranking it below its
+    stale sibling would route the worse state to the quieter channel.
+
+    Discovered from the YAML rather than a hand list: a new `-age-unknown` rule
+    is covered the moment it is added, and this cannot silently empty (a rename
+    that broke discovery would trip the vacuity floor below).
+
+    NOTE: deliberately says nothing about `for`. That is a per-rule tuning knob
+    with no safety invariant behind it, and at least one rule documents a
+    deliberate divergence (lo-sweep-trap-shadow-age-unknown holds 2h to ride out
+    restarts while its stale sibling uses 30m). Freezing `for` here would
+    override that reasoning, not protect it.
+    """
+    rules = _rules_by_uid()
+    age_unknown = sorted(u for u in rules if u.endswith("-age-unknown"))
+    assert len(age_unknown) >= 8, (
+        "age-unknown rule discovery collapsed — a rename or restructure broke "
+        f"the `-age-unknown` suffix convention, leaving this guard asserting on "
+        f"almost nothing. Found: {age_unknown}"
+    )
+
+    checked = 0
+    for uid in age_unknown:
+        stale_uid = uid[: -len("-age-unknown")] + "-stale"
+        stale = rules.get(stale_uid)
+        if stale is None:
+            # No stale sibling on this chain -> no floor to enforce.
+            continue
+        checked += 1
+        got = str((rules[uid].get("labels") or {}).get("severity", ""))
+        want = str((stale.get("labels") or {}).get("severity", ""))
+        assert got in _SEVERITY_RANK, f"{uid} has unknown severity {got!r}"
+        assert want in _SEVERITY_RANK, f"{stale_uid} has unknown severity {want!r}"
+        assert _SEVERITY_RANK[got] >= _SEVERITY_RANK[want], (
+            f"{uid} is severity={got} but its stale sibling {stale_uid} is "
+            f"severity={want}. The undated state is worse, not milder: while "
+            f"age_known=0 the stale rule cannot fire at all, so this rule is the "
+            f"only thing watching that chain's freshness. Raise it to at least "
+            f"{want}."
+        )
+
+    assert checked >= 8, (
+        "the age-unknown -> stale pairing collapsed — the `-stale` sibling "
+        f"convention broke, so the floor was enforced on only {checked} rule(s)"
+    )
