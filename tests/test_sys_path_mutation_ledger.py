@@ -231,3 +231,66 @@ def test_total_count_pinned() -> None:
         f"sys.path mutation total drifted: expected {_FROZEN_TOTAL}, "
         f"got {total}. Per-file = {sorted(observed.items())}"
     )
+
+
+# ─── position, not just count ─────────────────────────────────────────
+#
+# The ledger above counts sites and is honest about it ("freezes the inventory
+# by (file, count)"). But the harm it names — "the same ``import foo`` resolves
+# to a different ``foo.py``" — is decided by *where* in ``sys.path`` the entry
+# lands, and ``_is_sys_path_mutation`` treats ``insert`` and ``append`` alike
+# and never reads the index. Flipping a site from ``insert(0, REPO_ROOT)`` to
+# ``append(REPO_ROOT)`` in place is exactly that harm — the repo copy stops
+# winning over an installed one — and it moves no count.
+#
+# No allow-list: every one of the 55 mutations in this tree is ``insert(0, …)``,
+# the bootstrap shape that puts the repo root ahead of site-packages. That
+# uniformity is the invariant worth pinning; a deviation is a load-order change
+# and belongs in review, not in a count that stays put.
+
+
+def _sys_path_mutation_kind(node: ast.Call) -> str:
+    """Classify a mutation as ``insert@<n>`` / ``append`` / ``insert@?``.
+
+    ``insert@?`` covers a computed index (``sys.path.insert(pos, …)``), which
+    cannot be shown to be 0 statically and so must not pass silently.
+    """
+    attr = node.func.attr  # type: ignore[union-attr]  # guarded by _is_sys_path_mutation
+    if attr == "append":
+        return "append"
+    arg = node.args[0] if node.args else None
+    if (
+        isinstance(arg, ast.Constant)
+        and isinstance(arg.value, int)
+        and not isinstance(arg.value, bool)
+    ):
+        return f"insert@{arg.value}"
+    return "insert@?"
+
+
+def test_every_sys_path_mutation_inserts_at_position_zero() -> None:
+    """Every ``sys.path`` mutation must be ``sys.path.insert(0, …)``."""
+    offenders: list[str] = []
+    for path in _iter_first_party_py_files():
+        try:
+            tree = ast.parse(path.read_text(encoding="utf-8"), filename=str(path))
+        except (OSError, SyntaxError, UnicodeDecodeError):  # pragma: no cover
+            continue
+        rel = path.relative_to(ROOT).as_posix()
+        for node in ast.walk(tree):
+            if not isinstance(node, ast.Call) or not _is_sys_path_mutation(node):
+                continue
+            kind = _sys_path_mutation_kind(node)
+            if kind != "insert@0":
+                offenders.append(f"  - {rel}:{node.lineno}  {kind}")
+
+    assert not offenders, (
+        "sys.path mutated somewhere other than position 0. Every bootstrap in "
+        "this tree uses sys.path.insert(0, REPO_ROOT) so the repo copy wins "
+        "over an installed one; `append` puts it last and `insert(n>0)` puts it "
+        "behind whatever is already there, so `import foo` can silently resolve "
+        "to a different foo.py — the exact failure this module exists to "
+        "prevent, and one the per-file counts above cannot see. If a different "
+        "position is genuinely required, that is a load-order change: raise it "
+        "in review rather than widening this test.\n" + "\n".join(offenders)
+    )

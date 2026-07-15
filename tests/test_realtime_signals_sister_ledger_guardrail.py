@@ -34,9 +34,12 @@ def _realtime_signals_noqa_s603_lines() -> set[int]:
 
 
 def _realtime_signals_subprocess_lines() -> set[int]:
+    # The spawn ledgers carry (path, lineno, argv) since 2026-07-15 — the argv
+    # is what makes their per-site "which command" claim checkable. Only the
+    # lineno is the coupling this guardrail cares about.
     return {
         lineno
-        for rel, lineno in (SUBPROCESS_RUN_LEDGER | SUBPROCESS_POPEN_LEDGER)
+        for rel, lineno, _argv in (SUBPROCESS_RUN_LEDGER | SUBPROCESS_POPEN_LEDGER)
         if rel == _REALTIME_SIGNALS
     }
 

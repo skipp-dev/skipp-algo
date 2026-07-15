@@ -13,11 +13,18 @@ known foot-gun:
   the dreaded ``RuntimeError: There is no current event loop in thread 'X'``
   / ``This event loop is already running`` failures in tests.
 
-Today the production tree has exactly one legitimate usage pair —
-the ``BenzingaWsAdapter._run_loop`` daemon-thread entry point in
-``newsstack_fmp/ingest_benzinga.py``. Pinning the (path, line) of
-each call means any new manual loop installation is a deliberate,
-reviewed change instead of a copy-paste.
+The production tree has two legitimate usage pairs — the
+``BenzingaWsAdapter._run_loop`` daemon-thread entry point in
+``newsstack_fmp/ingest_benzinga.py`` and ``_run_feed_loop`` in
+``services/live_overlay_daemon/feed.py``. Pinning the per-file *count* of each
+call means a new manual loop installation is a deliberate, reviewed change
+instead of a copy-paste; ``test_every_new_event_loop_is_the_loop_that_gets_installed``
+pins the *pairing*, which a count cannot see.
+
+(This paragraph said "exactly one legitimate usage pair" and "pinning the
+(path, line) of each call" until 2026-07-15. Both had gone stale: feed.py was
+allow-listed later, and the line numbers were deliberately dropped on
+2026-04-30 — see the note above the allow-lists.)
 
 Sister of the ``threading.Thread`` ``daemon=`` invariant
 (``test_thread_daemon_invariant.py``).
@@ -248,4 +255,83 @@ def test_asyncio_set_event_loop_zero_surface_pin() -> None:
         "Per-file ``asyncio.set_event_loop()`` count drift:\n  - "
         + "\n  - ".join(f"{rel}: allowed={allowed}, actual={actual}" for rel, allowed, actual in drifted)
         + "\nUpdate SET_EVENT_LOOP_ALLOWED with justification."
+    )
+
+
+# ─── the pair, not two independent counts ────────────────────────────
+#
+# The two ledgers above count ``new_event_loop`` and ``set_event_loop``
+# separately. What this module claims is a *pair* — "exactly one legitimate
+# usage pair, the daemon-thread entry point". Two counts of 1 do not say the
+# loop that was created is the loop that got installed. Both stay at 1 through
+#
+#     loop = asyncio.new_event_loop()
+#     asyncio.set_event_loop(None)        # or: some other loop
+#
+# which installs nothing, leaks the new loop, and produces "RuntimeError: There
+# is no current event loop in thread 'X'" — by name, the failure this module's
+# own docstring says it exists to prevent.
+
+
+def _is_asyncio_attr(func: ast.expr, attr: str) -> bool:
+    """True for a literal ``asyncio.<attr>`` attribute reference."""
+    return (
+        isinstance(func, ast.Attribute)
+        and func.attr == attr
+        and isinstance(func.value, ast.Name)
+        and func.value.id == "asyncio"
+    )
+
+
+def _loop_pairing_violations() -> list[str]:
+    """Return one entry per created loop that is not installed by name."""
+    out: list[str] = []
+    for path in _iter_py_files():
+        rel = path.relative_to(ROOT).as_posix()
+        tree = parse_module(path)
+        if tree is None:
+            continue
+        for node in ast.walk(tree):
+            if not isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
+                continue
+            created: dict[str, int] = {}
+            for stmt in ast.walk(node):
+                if (
+                    isinstance(stmt, ast.Assign)
+                    and len(stmt.targets) == 1
+                    and isinstance(stmt.targets[0], ast.Name)
+                    and isinstance(stmt.value, ast.Call)
+                    and _is_asyncio_attr(stmt.value.func, "new_event_loop")
+                ):
+                    created[stmt.targets[0].id] = stmt.value.lineno
+            if not created:
+                continue
+            installed = {
+                call.args[0].id
+                for call in ast.walk(node)
+                if isinstance(call, ast.Call)
+                and _is_asyncio_attr(call.func, "set_event_loop")
+                and len(call.args) == 1
+                and isinstance(call.args[0], ast.Name)
+            }
+            for name, lineno in sorted(created.items(), key=lambda kv: kv[1]):
+                if name not in installed:
+                    out.append(
+                        f"  - {rel}:{lineno}  {node.name}(): "
+                        f"asyncio.new_event_loop() -> {name}, but "
+                        f"asyncio.set_event_loop({name}) is never called there"
+                    )
+    return out
+
+
+def test_every_new_event_loop_is_the_loop_that_gets_installed() -> None:
+    """A created loop must be installed, by name, in the same function."""
+    violations = _loop_pairing_violations()
+    assert not violations, (
+        "asyncio.new_event_loop() without a matching "
+        "asyncio.set_event_loop(<that loop>) in the same function. Creating a "
+        "loop and installing a different one — or None — leaks the new loop and "
+        "leaves the thread with no current loop: 'RuntimeError: There is no "
+        "current event loop in thread X'. The per-file counts above cannot see "
+        "it; they stay at 1 and 1 either way.\n" + "\n".join(violations)
     )
