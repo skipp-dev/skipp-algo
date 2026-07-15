@@ -441,3 +441,38 @@ class TestDirectionalEraGate:
             "long-only label and must be excluded from the FI matrix"
         )
         assert report["labeled_samples"] == 12
+
+
+class TestEraDropCountersSurviveInsufficientLabels:
+    """The drop counters must reach latest.json even when status != "ok".
+
+    ``generate_report`` sets ``report: None`` for a non-ok status, which threw
+    away every diagnostic ``compute_feature_importance`` had computed. After the
+    2026-07-14 directional-label cutover that left the ops digest showing a bare
+    ``labeled_samples: 0`` with no way to tell an expected cold start from a
+    stalled backfill.
+    """
+
+    def test_counters_are_top_level_when_labels_insufficient(self, monkeypatch):
+        from open_prep import feature_importance_report as fir
+
+        monkeypatch.setattr(
+            fir,
+            "compute_feature_importance",
+            lambda **_: {
+                "error": "insufficient labeled samples",
+                "total_samples": 350,
+                "labeled_samples": 0,
+                "duplicate_samples_dropped": 0,
+                "era_gated_samples_dropped": 0,
+                "formula_era_samples_dropped": 0,
+                "directional_era_samples_dropped": 350,
+                "backend": {"used": "cpu"},
+            },
+        )
+        record = fir.generate_report(lookback_days=30, min_samples=200)
+        assert record["status"] == "insufficient_labels"
+        assert record["report"] is None
+        assert record["total_samples"] == 350
+        assert record["directional_era_samples_dropped"] == 350
+        assert record["formula_era_samples_dropped"] == 0

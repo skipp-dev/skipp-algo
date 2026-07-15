@@ -45,7 +45,10 @@ _SYS_EXIT_LEDGER: frozenset[tuple[str, int]] = frozenset({
     ("open_prep/candidate_weights.py", 573),  # 2026-07-10: eps_surprise_pct→recent_eps_surprise_pct reconstruction swap +1 (573->574)
     # 2026-06-13 (audit-e2/aw7-reader-observability, PR #2759): _load_previous_latest
     #   DEBUG log insertion shifted CLI exit from 358 → 359.
-    ("open_prep/feature_importance_report.py", 360),
+    # 2026-07-15 (ops-digest truth): _DIAGNOSTIC_COUNTERS constant + the top-level
+    #   counter copy in generate_report shifted the CLI exit 360 → 380 (pure shift;
+    #   still the `if __name__ == "__main__": sys.exit(main())` entry point).
+    ("open_prep/feature_importance_report.py", 380),
     # 2026-06-12 (backlog-resilience): main() exits non-zero when
     # store_daily_outcomes failed — the daily workflow's primary artifact
     # (outcomes_<date>.json) must not fail silently green.

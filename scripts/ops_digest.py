@@ -69,10 +69,29 @@ _VERDICT_LABELS = {0: "INCONCLUSIVE", 1: "SHADOW", 2: "PROMOTABLE"}
 # producing cron has stalled — a single stale PROMOTABLE row is not a green light.
 _SWEEP_SNAPSHOT_STALE_DAYS = 2.0
 
+# Read order matters. ``sweep-trap-shadow-daily.yml`` publishes the LIVE snapshot
+# to bot/live-sweep-trap-shadow under ``artifacts/monitoring/latest/`` (the same
+# file the daemon bridge fetches via SWEEP_TRAP_SHADOW_SNAPSHOT_URL); only the
+# JSONL ledger is committed back to main. The plain ``artifacts/monitoring/``
+# path is the no-data SEED from #3414 that no job ever refreshes — reading it
+# first reported "0 / 40, INCONCLUSIVE" while the study was accruing thousands
+# of samples. The workflow hydrates the ``latest/`` copy before this runs; the
+# seed remains the offline fallback.
+_SWEEP_SNAPSHOT_PATHS = (
+    "artifacts/monitoring/latest/sweep_trap_shadow.json",
+    "artifacts/monitoring/sweep_trap_shadow.json",
+)
+
 
 def collect_sweep_trap(root: Path, *, now_ts: float | None = None) -> Section:
     section = Section("🪝 Sweep-Trap Shadow (WS4a)")
-    data = _load_json(root / "artifacts/monitoring/sweep_trap_shadow.json")
+    data: dict[str, Any] | None = None
+    source: str | None = None
+    for rel in _SWEEP_SNAPSHOT_PATHS:
+        data = _load_json(root / rel)
+        if data is not None:
+            source = rel
+            break
     if data is None:
         section.note = "snapshot not found — no data accrued yet"
         return section
@@ -80,8 +99,24 @@ def collect_sweep_trap(root: Path, *, now_ts: float | None = None) -> Section:
     minimum = data.get("min_samples", 40)
     verdict = data.get("verdict") or _VERDICT_LABELS.get(data.get("verdict_code"))
     generated_at = data.get("generated_at")
+    dated = (
+        isinstance(generated_at, (int, float))
+        and not isinstance(generated_at, bool)
+        and float(generated_at) > 0
+    )
+    # A literal 0.0 is the no-data SEED's marker, not an epoch: treating it as one
+    # dated the snapshot to 1970 and rendered "20649.3 d". The publish step
+    # (`fresh = generated_at > 0`) and the daemon bridge (age_known) gate on
+    # exactly this. Absent generated_at stays merely age-unknown — a seed makes a
+    # stronger claim (its 0 samples are a placeholder, not a measurement).
+    is_seed = (
+        generated_at is not None
+        and isinstance(generated_at, (int, float))
+        and not isinstance(generated_at, bool)
+        and float(generated_at) == 0
+    )
     age_days: float | None = None
-    if isinstance(generated_at, (int, float)) and not isinstance(generated_at, bool):
+    if dated:
         ref = now_ts if now_ts is not None else datetime.now(UTC).timestamp()
         age_days = max(0.0, (ref - float(generated_at)) / 86400.0)
     section.rows = [
@@ -90,10 +125,20 @@ def collect_sweep_trap(root: Path, *, now_ts: float | None = None) -> Section:
         ("Brier delta", _fmt(data.get("brier_delta"))),
         ("Tercile lift", _fmt(data.get("lift"))),
         ("Snapshot age", "n/a" if age_days is None else f"{age_days:.1f} d"),
+        ("Source", _fmt(source)),
     ]
+    seed_note = (
+        "this is the committed no-data seed (generated_at=0), NOT a measurement — "
+        "the live snapshot is published to bot/live-sweep-trap-shadow, so the counts "
+        "above say nothing about the study. Check that publish step + its GH_PAT."
+    )
     stale = age_days is not None and age_days > _SWEEP_SNAPSHOT_STALE_DAYS
     try:
-        if n is not None and float(n) >= float(minimum) and str(verdict).upper() == "PROMOTABLE":
+        if is_seed:
+            # Must precede the gate branch: "40 more samples needed" would present
+            # the seed's placeholder 0 as a real shortfall.
+            section.note = seed_note
+        elif n is not None and float(n) >= float(minimum) and str(verdict).upper() == "PROMOTABLE":
             # NOT a green light on its own: the snapshot is a single point with no
             # OOS provenance or k-of-n run history here, so flag it as a candidate
             # that still needs review, and downgrade further when it is stale/undated.
@@ -121,11 +166,28 @@ def collect_feature_importance(root: Path) -> Section:
         return section
     labeled = data.get("labeled_samples")
     gate = data.get("min_samples_threshold", 200)
+    # Raw vs labeled is the difference between "the backfill stalled" and "the
+    # era gates dropped everything" — with only the labeled count, a legitimate
+    # cold start is indistinguishable from a dead pipeline. The gates are a
+    # CASCADE (each runs on the survivors of the previous), so the counts are
+    # reported per gate rather than attributed to whichever one happens to be
+    # newest.
+    gate_drops = [
+        (data.get("era_gated_samples_dropped"), "zero-vector"),
+        (data.get("formula_era_samples_dropped"), "score-formula"),
+        (data.get("directional_era_samples_dropped"), "directional-label"),
+    ]
     section.rows = [
         ("Labeled samples", f"{_fmt(labeled)} / {_fmt(gate)} auto-tune gate"),
+        ("Raw samples", _fmt(data.get("total_samples"))),
         ("Lookback days", _fmt(data.get("lookback_days"))),
         ("Generated", _fmt(data.get("generated_at_et"))),
     ]
+    reported = [(n, name) for n, name in gate_drops if n is not None]
+    if reported:
+        section.rows.append(
+            ("Era-gate drops", ", ".join(f"{_fmt(n)} {name}" for n, name in reported))
+        )
     drift = data.get("ranking_drift")
     if isinstance(drift, dict):
         drifted = drift.get("drifted_features")
@@ -135,6 +197,19 @@ def collect_feature_importance(root: Path) -> Section:
     try:
         if labeled is not None and float(labeled) < float(gate):
             section.note = f"{float(gate) - float(labeled):.0f} more labeled samples to the {float(gate):.0f} gate."
+            dropped_total = sum(float(n) for n, _ in reported)
+            if labeled == 0 and dropped_total > 0:
+                last = data.get("directional_era_samples_dropped")
+                tail = (
+                    f"the last {float(last):.0f} to the 2026-07-14 directional-label cutover "
+                    "(legacy long-only labels), which rebuilds from post-cutover trading days"
+                    if last is not None and float(last) > 0
+                    else "see the per-gate counts above"
+                )
+                section.note += (
+                    f" Not a stalled backfill: the era gates consumed all {dropped_total:.0f} "
+                    f"in-window sample(s) — {tail}."
+                )
     except (TypeError, ValueError):
         pass
     return section
