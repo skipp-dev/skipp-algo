@@ -8,6 +8,11 @@ DASHBOARD_PATH = ROOT / "SMC_Long_Dip_Dashboard.pine"
 LIFECYCLE_PRIVATE_PATH = ROOT / "SMC++" / "smc_lifecycle_private.pine"
 BUS_PRIVATE_PATH = ROOT / "SMC++" / "smc_bus_private.pine"
 OBSERVABILITY_PRIVATE_PATH = ROOT / "SMC++" / "smc_observability_private.pine"
+# #3622 extracted the OB/FVG/structure engine into a library. resolve_long_state_code
+# moved out of the suite into it verbatim, so the precedence contract is pinned at its
+# new home rather than dropped. test_smc_core_engine_split.py owns the other half of
+# this split: that the suite no longer carries the old inline copy.
+ENGINE_PRIVATE_PATH = ROOT / "SMC++" / "smc_engine_private.pine"
 
 
 def _read(path: pathlib.Path) -> str:
@@ -28,7 +33,7 @@ def _extract_function_body(source: str, function_name: str) -> str:
 
 
 def test_long_state_code_contract_preserves_lifecycle_precedence() -> None:
-    body = _extract_function_body(_read(CORE_PATH), "resolve_long_state_code")
+    body = _extract_function_body(_read(ENGINE_PRIVATE_PATH), "resolve_long_state_code")
     expected_order = [
         "if invalid_state\n        -1",
         "else if long_entry_strict_state\n        7",

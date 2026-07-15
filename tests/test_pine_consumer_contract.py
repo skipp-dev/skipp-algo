@@ -925,31 +925,70 @@ class TestV80aContractSync:
         assert (ROOT / "docs/NO_SHADOW_LOGIC_POLICY.md").exists()
 
     def test_compact_mode_hero_surface(self):
-        """Compact mode must suppress all expected _eff flags and secondary overlays."""
+        """Compact mode must suppress EVERY show_*_eff surface the suite defines.
+
+        Derived from the source rather than hard-coded: the old list named nine
+        surfaces, five of which (ob/fvg/microstructure/strict-markers debug and the
+        mean-target overlay) left with the #3622 engine extraction. A fixed list
+        cannot tell "the surface is gone" from "the surface stopped being
+        suppressed" — it just goes red and invites deleting the entry. Discovering
+        the surfaces means a NEW one must be suppressed (or explicitly exempted)
+        the moment it is added, which is the property this test actually wants.
+        """
         text = _read_pine("SMC_Long_Dip_Suite.pine")
-        # Must suppress these in compact_mode if-block
-        expected_suppressions = [
-            "show_ob_debug_eff := false",
-            "show_fvg_debug_eff := false",
-            "show_long_engine_debug_eff := false",
-            "show_microstructure_debug_eff := false",
-            "show_strict_debug_markers_eff := false",
-            "show_dashboard_ltf_eff := false",
-            "show_ema_support_eff := false",
-            "show_session_vwap_eff := false",
-            "show_mean_target_overlay_eff := false",
-        ]
-        for s in expected_suppressions:
-            assert s in text, f"compact_mode must contain: {s}"
+
+        surfaces = set(re.findall(r"\bshow_\w+_eff\b", text))
+        assert len(surfaces) >= 5, (
+            "show_*_eff discovery collapsed — the suite was restructured and this "
+            f"guard is asserting on almost nothing. Found: {sorted(surfaces)}"
+        )
+
+        # show_swing_points_eff is suppressed by construction at its definition
+        # (`= show_swing_points and not compact_mode`) rather than reassigned inside
+        # the if-block; pinned separately below.
+        by_construction = {"show_swing_points_eff"}
+        for surface in sorted(surfaces - by_construction):
+            assert f"{surface} := false" in text, (
+                f"compact_mode must suppress {surface} (expected "
+                f"`{surface} := false` in the compact_mode block)"
+            )
         assert "bool show_swing_points_eff = show_swing_points and not compact_mode" in text
-        assert "show_chart_swing_levels := not compact_mode" in text
-        assert "if compact_mode\n        if not na(volume_quality_warning)" in text
-        assert "if compact_mode\n        if not na(strict_ltf_warning)" in text
+        # Gated on `not compact_mode` at its definition. Pinned on the gate rather
+        # than the whole line: the surrounding condition gained an
+        # `or show_latest_swings_levels` term, which is a product choice this test
+        # has no business freezing — the compact-mode gate is the contract.
+        chart_swing = re.search(r"^.*\bshow_chart_swing_levels\s*=.*$", text, re.M)
+        assert chart_swing is not None, "show_chart_swing_levels definition not found"
+        assert "not compact_mode" in chart_swing.group(0), (
+            f"show_chart_swing_levels must stay gated on compact_mode: {chart_swing.group(0)}"
+        )
+        # Both warning labels must still be deleted under compact_mode. Pinned on the
+        # nesting relationship rather than a fixed indent: #3622 wrapped these in an
+        # extra `if barstate.islast`, which shifted them one level deeper without
+        # changing the contract. An exact-indent assertion only re-breaks on the next
+        # refactor and says nothing about behaviour.
+        for warning in ("volume_quality_warning", "strict_ltf_warning"):
+            block = re.search(
+                r"if compact_mode\n(\s+)if not na\(" + re.escape(warning) + r"\)",
+                text,
+            )
+            assert block is not None, (
+                f"compact_mode must still delete {warning} (searched for an "
+                f"`if compact_mode` guarding `if not na({warning})`)"
+            )
         # Visible overlays must keep using _eff guards even after moving off plot() budget.
         assert "draw_overlay_line_tail(session_vwap_overlay_segments, show_session_vwap_eff and intraday_time_chart, session_vwap" in text
         assert "draw_overlay_line_tail(ema_fast_overlay_segments, show_ema_support_eff, ema_fast" in text
         assert "draw_overlay_line_tail(ema_slow_overlay_segments, show_ema_support_eff, ema_slow" in text
-        assert "show_mean_target_overlay_eff and not na" in text
+        # The mean-target overlay left with the #3622 engine extraction, so there is
+        # no show_mean_target_overlay_eff to guard. Asserted as absent rather than
+        # silently dropped: if the surface returns, it must re-enter the discovery
+        # loop above (which requires compact_mode to suppress it) instead of coming
+        # back unguarded.
+        assert "show_mean_target_overlay_eff" not in text, (
+            "the mean-target overlay is back — re-add it to the compact_mode block; "
+            "the discovery loop above now enforces suppression for it"
+        )
         # Contract doc must describe Hero-Surface
         doc = (ROOT / "docs/v5_5_lean_contract.md").read_text()
         assert "Hero-Surface" in doc

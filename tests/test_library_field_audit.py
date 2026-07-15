@@ -456,6 +456,52 @@ RESERVED_PINE_EXPORTS.add("ZONE_CAL_CONFIDENCE")
 # the entire ZONE_CAL_* scaffolding block from ADR 2026-04-22 has landed
 # Pine consumers and no longer needs reservation.
 
+# #3622 (2026-07-14) — enrichment surface that was never really wired.
+#
+# These 32 fields looked consumed until the engine extraction, but their only
+# "consumer" was a dead read in the core suite:
+#
+#     float  lib_ats_value        = mp.ATS_VALUE          // assigned, never read
+#     float  lib_yield_10y        = mp.TREASURY_10Y_YIELD
+#     string lib_sector_strongest = mp.SECTOR_STRONGEST
+#
+# Each lib_* name occurred exactly ONCE in the file — the assignment itself. This
+# audit was therefore passing on a *mention*, not a use: none of these fields ever
+# reached a rendered Pine surface. #3622 deleted the dead block along with the rest
+# of the extracted layer (correctly — no product surface was lost); that is what
+# made the gap visible, not what created it.
+#
+# RESERVED rather than PYTHON_ONLY on purpose: the dead reads are evidence that a
+# Pine surface was *intended* for this data, so declaring "Pine MUST NOT depend on
+# this" would record a decision nobody made. Reserved keeps the debt visible until
+# each field is either wired to a real consumer or demoted deliberately.
+#
+# Backlog: #3622 removed the dead reads; the wiring decision itself is untriaged.
+# Do NOT copy this block as precedent — new entries still need their own ticket.
+RESERVED_PINE_EXPORTS.update({
+    # Analyst / insider / institutional (FMP enrichment)
+    "ANALYST_HIGH_UPSIDE_TICKERS", "ANALYST_STRONG_BUY_TICKERS",
+    "ANALYST_UNDERPERFORM_TICKERS", "INSIDER_BUYING_TICKERS",
+    "INSIDER_SELLING_HEAVY_TICKERS", "INSTITUTIONAL_DATA_AVAILABLE",
+    # Advance/decline + breadth
+    "ATS_BEARISH_SEQUENCE", "ATS_BULLISH_SEQUENCE", "ATS_CHANGE_PCT",
+    "ATS_VALUE", "ATS_ZSCORE", "GLOBAL_STRENGTH",
+    # Short interest
+    "HIGH_SHORT_INTEREST_TICKERS", "MARKET_SHORT_INTEREST_AVG",
+    "SHORT_INTEREST_EXTREME",
+    # News
+    "MOST_MENTIONED_TICKER", "NEWS_BEARISH_TICKERS", "NEWS_BULLISH_TICKERS",
+    "NEWS_CATEGORY_MAP", "NEWS_COUNT_MAP",
+    # Sector rotation
+    "SECTOR_LAGGING", "SECTOR_STRONGEST", "SECTOR_WEAKEST",
+    # Rates / macro
+    "TREASURY_10Y_YIELD", "TREASURY_2Y_YIELD", "YIELD_CURVE_SPREAD",
+    # SMC zone geometry — likeliest of this block to earn a real consumer
+    "OB_AGE_BARS", "PRIMARY_FVG_DISTANCE", "PRIMARY_OB_DISTANCE", "REL_SIZE",
+    # Session / volume context
+    "SESSION_VOLATILITY_STATE", "VOLUME_LOW_TICKERS",
+})
+
 # Backwards-compatible alias (keeps any external callers happy).
 _INFRA_ONLY: set[str] = PYTHON_ONLY_EXPORTS | RESERVED_PINE_EXPORTS
 
