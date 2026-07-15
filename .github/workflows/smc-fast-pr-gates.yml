@@ -459,6 +459,16 @@ jobs:
             tests/test_pine_request_security_per_file_budget.py \
             tests/test_requirements_discipline_pin.py \
             tests/test_atexit_register_zero_surface.py \
+            tests/test_dangerous_builtins_zero_surface.py \
+            tests/test_datetime_tz_safety_zero_surface.py \
+            tests/test_dynamic_exec_and_pickle_zero_surface.py \
+            tests/test_exec_mktemp_shelltrue_zero_surface.py \
+            tests/test_library_discipline_zero_surface.py \
+            tests/test_os_system_input_assert_zero_surface.py \
+            tests/test_pickle_read_and_eval_zero_surface.py \
+            tests/test_pickle_write_and_abs_pathjoin_zero_surface.py \
+            tests/test_tls_jwt_verification_zero_surface.py \
+            tests/test_yaml_xml_zero_surface.py \
             tests/test_atomic_write_call_sites.py \
             tests/test_module_test_coverage_pin.py \
             tests/test_smc_library_refresh_workflow.py \

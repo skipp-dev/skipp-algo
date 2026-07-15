@@ -1,9 +1,12 @@
 """Defense-pin: library-discipline zero-surface invariants.
 
-Three "this codebase doesn't use that library / API" invariants that
-are all currently empty in first-party non-test code. Each one is a
-deliberate architectural choice that has held to date; the pins keep
-the choices visible and prevent silent drift.
+Three "this codebase doesn't use that library / API" invariants over
+first-party non-test code. Each one is a deliberate architectural choice;
+the pins keep the choices visible and prevent silent drift.
+
+``requests`` and ``shutil.copy*`` are empty. ``asyncio`` is empty in the
+engine and carries one bounded, justified exception for a standalone
+scaffold — see :data:`_ASYNCIO_ALLOWED_COUNTS`.
 
 The three banned shapes:
 
@@ -61,6 +64,21 @@ _REQUESTS_VERBS = frozenset(
 )
 
 _ASYNCIO_BANNED = frozenset({"run", "create_task"})
+
+# Files allowed to call the banned asyncio shapes, and exactly how often.
+# Empty for everything that is part of the engine — the rule below is what
+# keeps it that way. An entry here is a conscious, bounded decision.
+#
+# 2026-07-15 (#3499 scaffold): agent.py is a standalone Claude Agent SDK +
+# Composio example. The SDK is async-only, so its single ``asyncio.run(main())``
+# is the documented entry point (invoked as ``python agent.py``), mirroring the
+# ``"agent.py": 1`` entry that ``test_prod_print_ledger.py`` already carries for
+# the same scaffold. Nothing imports it, so it cannot poison event-loop
+# semantics for the sync+threaded engine this rule protects — which is the
+# entire reason the rule exists.
+_ASYNCIO_ALLOWED_COUNTS: dict[str, int] = {
+    "agent.py": 1,
+}
 
 _SHUTIL_BANNED = frozenset({"copy", "copyfile"})
 
@@ -123,23 +141,50 @@ def test_no_requests_http_calls() -> None:
 
 
 def test_no_asyncio_run_or_create_task() -> None:
-    """No ``asyncio.run`` / ``asyncio.create_task`` — codebase is synchronous + threaded."""
-    findings: list[str] = []
+    """No ``asyncio.run`` / ``asyncio.create_task`` outside the allow-list.
+
+    Zero in the engine; :data:`_ASYNCIO_ALLOWED_COUNTS` carries the bounded,
+    justified exceptions. The count is exact in both directions, so the entry
+    cannot quietly grow, and a stale one fails instead of masking the next
+    real call site.
+    """
+
+    found: dict[str, list[str]] = {}
     for path in _iter_first_party_py_files():
         tree = _parse(path)
         if tree is None:
             continue
         rel = path.relative_to(ROOT).as_posix()
         for lineno, attr in _scan_module_attr_calls(tree, "asyncio", _ASYNCIO_BANNED):
-            findings.append(f"  - {rel}:{lineno}  asyncio.{attr}(...)")
-    assert not findings, (
+            found.setdefault(rel, []).append(f"  - {rel}:{lineno}  asyncio.{attr}(...)")
+
+    unlisted = sorted(
+        hit
+        for rel, hits in found.items()
+        if rel not in _ASYNCIO_ALLOWED_COUNTS
+        for hit in hits
+    )
+    assert not unlisted, (
         "asyncio.run / asyncio.create_task call(s) found — codebase is "
         "synchronous + threaded (see the threading.Thread daemon= pin "
         "#211). Adding async ad-hoc poisons event-loop semantics for "
         "every caller:\n"
-        + "\n".join(findings)
+        + "\n".join(unlisted)
         + "\n\nIf async is genuinely needed, land it via a deliberate "
         "architectural change, not a one-off call site."
+    )
+
+    drifted = sorted(
+        (rel, expected, len(found.get(rel, [])))
+        for rel, expected in _ASYNCIO_ALLOWED_COUNTS.items()
+        if len(found.get(rel, [])) != expected
+    )
+    assert not drifted, (
+        "_ASYNCIO_ALLOWED_COUNTS no longer matches the tree. A count that "
+        "grew means async spread inside an allow-listed file; a count that "
+        "shrank (or hit 0) means the entry is stale and would mask the next "
+        "real call site. Reconcile it in the same PR.\n"
+        f"(path, expected, actual) = {drifted}"
     )
 
 
