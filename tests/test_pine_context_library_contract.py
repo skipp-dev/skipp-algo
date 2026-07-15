@@ -50,11 +50,12 @@ _NOT_IN_PINE: dict[str, str] = {
         "the library never recomputes mit_pct >= 1.0"
     ),
     # --- sweeps: not ported yet (phase 3.2b-1) --------------------------------
-    # NOTE when porting: SWEEP_DEPTH_STOP_HUNT_PCT must be written in Pine as
-    # ``SWEEP_DEPTH_MIN_PCT * 3``, NOT as a literal 0.3. The reference computes
-    # 0.1*3 == 0.30000000000000004, so a clean 0.3 flips the classification at a
-    # depth of exactly 0.3 (see test_stop_hunt_depth_gate_is_derived_not_a_clean_
-    # three_tenths in tests/test_smc_context_golden.py).
+    # NOTE when porting: SWEEP_DEPTH_STOP_HUNT_PCT is its own constant (0.3) and
+    # must be ported as one. Do NOT re-derive it as ``SWEEP_DEPTH_MIN_PCT * 3`` —
+    # deriving it is what made 0.30000000000000004 the real gate and pushed a
+    # depth of exactly 0.3 into LIQUIDITY_GRAB. Removed as a deliberate behaviour
+    # change; see test_stop_hunt_depth_gate_is_an_inclusive_clean_three_tenths in
+    # tests/test_smc_context_golden.py.
     "SWEEP_DEPTH_MIN_PCT": "sweep frame not ported yet (phase 3.2b-1)",
     "SWEEP_DEPTH_STOP_HUNT_PCT": "sweep frame not ported yet (phase 3.2b-1)",
     "SWEEP_RECLAIM_MAX_BARS": "sweep frame not ported yet (phase 3.2b-1)",

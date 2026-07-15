@@ -14,7 +14,12 @@ from __future__ import annotations
 import pandas as pd
 import pytest
 
-from scripts.smc_liquidity_sweeps import DEFAULTS, build_liquidity_sweeps
+from scripts.smc_liquidity_sweeps import (
+    DEFAULTS,
+    SWEEP_DEPTH_MIN_PCT,
+    SWEEP_DEPTH_STOP_HUNT_PCT,
+    build_liquidity_sweeps,
+)
 
 
 def _make_snapshot(**kwargs) -> pd.DataFrame:
@@ -212,3 +217,63 @@ class TestOverrides:
     def test_unknown_override_ignored(self):
         result = build_liquidity_sweeps(overrides={"NOT_A_FIELD": 42})
         assert "NOT_A_FIELD" not in result
+
+
+# ---------------------------------------------------------------------------
+# STOP_HUNT depth boundary
+# ---------------------------------------------------------------------------
+# The gate used to be written as ``SWEEP_DEPTH_MIN_PCT * 3``. In IEEE-754
+# ``0.1 * 3`` is 0.30000000000000004, so a sweep at *exactly* the documented 0.3%
+# depth did NOT clear it and classified LIQUIDITY_GRAB — an accident of float
+# arithmetic, not a decision. The gate is now its own named constant and 0.3
+# means 0.3.
+
+
+def _classified(depth: float, vol_ratio: float) -> str:
+    df = _make_snapshot(
+        recent_bull_sweep=True,
+        sweep_depth_pct=depth,
+        sweep_volume_ratio=vol_ratio,
+    )
+    return build_liquidity_sweeps(snapshot=df)["SWEEP_TYPE"]
+
+
+def test_stop_hunt_gate_is_its_own_constant_not_derived_from_the_min_depth() -> None:
+    """The threshold must not be re-derived from SWEEP_DEPTH_MIN_PCT.
+
+    Deriving it is what introduced the float artifact. Pinning the identity here
+    means a future edit cannot quietly reintroduce ``MIN_PCT * 3``.
+    """
+    assert SWEEP_DEPTH_STOP_HUNT_PCT == 0.3
+    assert SWEEP_DEPTH_STOP_HUNT_PCT != SWEEP_DEPTH_MIN_PCT * 3, (
+        "the stop-hunt gate is being derived from SWEEP_DEPTH_MIN_PCT again — "
+        "0.1*3 is 0.30000000000000004, which is exactly the boundary bug this "
+        "constant exists to remove"
+    )
+
+
+@pytest.mark.parametrize(
+    "depth,vol_ratio,expected",
+    [
+        (0.3 - 1e-9, 1.2, "LIQUIDITY_GRAB"),  # just under -> not deep enough
+        (0.3, 1.2, "STOP_HUNT"),              # exactly at the gate -> clears it
+        (0.3 + 1e-9, 1.2, "STOP_HUNT"),       # just over
+        (0.3, 1.2 - 1e-9, "INDUCEMENT"),      # deep enough, volume too thin
+        (0.5, 1.5, "STOP_HUNT"),              # comfortably over both
+    ],
+)
+def test_stop_hunt_depth_boundary_is_inclusive_at_exactly_three_tenths(
+    depth: float, vol_ratio: float, expected: str
+) -> None:
+    assert _classified(depth, vol_ratio) == expected
+
+
+def test_explicit_sweep_type_still_wins_over_the_boundary_rule() -> None:
+    """The passthrough branch is unaffected by the threshold change."""
+    df = _make_snapshot(
+        recent_bull_sweep=True,
+        sweep_type="INDUCEMENT",
+        sweep_depth_pct=0.3,
+        sweep_volume_ratio=1.5,
+    )
+    assert build_liquidity_sweeps(snapshot=df)["SWEEP_TYPE"] == "INDUCEMENT"
