@@ -98,17 +98,10 @@ def _load_narrow_scan_window():
 
 
 def _load_intraday_window_defaults():
-    """Lazily import the ET timezone + pre-open SSOT.
+    """Return the dependency-free ET timezone and pinned pre-open default."""
+    from zoneinfo import ZoneInfo
 
-    Returns ``(US_EASTERN_TZ, DEFAULT_INTRADAY_PRE_OPEN_MINUTES)``. Deferred for
-    the same reason as ``_load_narrow_scan_window``: the default code path stays
-    dependency-free. Both modules are stdlib-only, so this stays cheap.
-    """
-    _ensure_repo_root_on_path()
-    from databento_session import DEFAULT_INTRADAY_PRE_OPEN_MINUTES
-    from databento_utils import US_EASTERN_TZ
-
-    return US_EASTERN_TZ, DEFAULT_INTRADAY_PRE_OPEN_MINUTES
+    return ZoneInfo("America/New_York"), 10
 
 
 def _now_et() -> datetime:
