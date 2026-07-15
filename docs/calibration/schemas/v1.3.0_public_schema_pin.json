@@ -5,7 +5,7 @@
     "PUBLIC_SCHEMA_VERSION",
     "build_public_report"
   ],
-  "pinned_source_sha256": "03030c096271ef76b4d59823c878ab69a4d81b59f175b5864a12780aff75c5e2",
+  "pinned_source_sha256": "75b3244a02e3bd58cd476c93ae2054ad8d4da83cef7d36dbec1e3c40773b3d3d",
   "additive_fields_introduced": {
     "1.1.0": ["track_record_gate"],
     "1.2.0": ["regime_stratified"],
