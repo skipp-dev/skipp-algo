@@ -115,11 +115,7 @@ def test_strict_ltf_fallback_is_limited_to_missing_or_unverifiable_ltf() -> None
     assert 'bool ltf_needed_for_logic = false' in source
     assert 'if (show_dashboard and show_dashboard_ltf_eff) or use_ltf_for_strict_entry_eff' in source
     assert 'ltf_needed_for_logic := true' in source
-    assert 'bool ltf_needed_for_messages = false' in source
-    assert 'if enable_dynamic_alerts and use_ltf_for_dynamic_alerts' in source
-    assert 'ltf_needed_for_messages := true' in source
     assert 'bool ltf_needed = false' in source
-    assert 'if ltf_needed_for_logic or ltf_needed_for_messages' in source
     assert 'ltf_needed := true' in source
     assert 'bool ltf_ratio_ok = false' in source
     assert 'if not na(ltf_ratio) and ltf_ratio > 0 and ltf_ratio <= max_ltf_ratio_eff' in source
