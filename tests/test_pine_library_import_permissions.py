@@ -52,8 +52,22 @@ _LIBRARY_PERMISSIONS: dict[str, tuple[str, ...]] = {
     "smc_lifecycle_private": ("SMC_Long_Dip_Suite.pine", "SMC++/smc_engine_private.pine"),
     # Observability private API: engine + SMC++ helpers.
     "smc_observability_private": ("SMC_Long_Dip_Suite.pine", "SMC++/"),
-    # Profile engine: the SMC++ engine and the Suite only (consumers use mp.* exports).
-    "smc_profile_engine": ("SMC_Long_Dip_Suite.pine", "SMC++/smc_engine_private.pine"),
+    # Profile engine: the SMC++ engine and the Suite own profile behaviour;
+    # product consumers must keep using the public ``mp.*`` exports.
+    #
+    # The context library is a *type-resolution* exception, not a third user: it
+    # consumes ``eng.OrderBlock``, whose ``profile`` field is declared ``pe.Profile``,
+    # and Pine requires every library referenced by a used type's fields to be
+    # imported (CE10293) — the same reason ``smc_draw`` is imported there for
+    # ``eng.FVG``. It builds order blocks with all profile features off, so no
+    # ``pe.Profile`` is ever created, and it calls no ``pe.*`` function. That last
+    # constraint is enforced by tests/test_pine_context_library_contract.py, which
+    # is what keeps this entry a narrow type edge rather than a widened boundary.
+    "smc_profile_engine": (
+        "SMC_Long_Dip_Suite.pine",
+        "SMC++/smc_engine_private.pine",
+        "SMC++/smc_context_engine_private.pine",
+    ),
     # Context resolvers: engine only.
     "smc_context_resolvers": ("SMC_Long_Dip_Suite.pine",),
 }
