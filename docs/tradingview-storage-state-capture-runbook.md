@@ -98,9 +98,10 @@ npm run tv:storage-state
 # 2. Security guard — verifies the capture is NOT tracked by git.
 npm run tv:auth-security
 
-# 3. Sanity-check the capture (session cookies + meta.authValidatedAt present).
-#    The capture script now always writes meta.authValidatedAt in storage-state
-#    mode, so no manual stamping is needed — this step just verifies the output.
+# 3. Inspect the capture (session cookies + meta.authValidatedAt).
+#    INFORMATIONAL ONLY — step 4 is the gate. Do not read `age` and proceed by
+#    eye: this block used to print a leading "OK" for any age, which is how a
+#    382.5 h capture was hand-pushed over a fresh session on 2026-07-14 (#3640).
 python3 - <<'EOF'
 import json, datetime
 p = "automation/tradingview/auth/storage-state.json"
@@ -112,15 +113,25 @@ assert meta.get("authValidatedAt"), "meta.authValidatedAt missing — re-run tv:
 now = datetime.datetime.now(datetime.timezone.utc)
 va = meta["authValidatedAt"]
 age = (now - datetime.datetime.fromisoformat(va.replace("Z", "+00:00"))).total_seconds() / 3600
-print(f"OK — authValidatedAt={va}, age={age:.1f}h, cookies={sorted(names)}")
+print(f"authValidatedAt={va}, age={age:.1f}h, cookies={sorted(names)}")
 EOF
 
-# 4. Rotate the GitHub Actions secret. Use **raw JSON**: the publish
-#    workflows (smc-library-refresh, smc-overlay-library-publish,
-#    smc-release-gates) auto-detect raw JSON or gzip+base64, but the
-#    credential-health-check probe parses the secret as raw JSON only.
-gh secret set TV_STORAGE_STATE --repo skipp-dev/skipp-algo \
-  < automation/tradingview/auth/storage-state.json
+# 4. Rotate the GitHub Actions secret — VALIDATED, this is the gate.
+#    Runs the same `tv_storage_state_age` probe with the same 72 h TTL that
+#    tradingview-storage-refresh.yml applies before IT writes the secret, and
+#    refuses to write on anything but `ok`. A bare `gh secret set` skips that
+#    gate — that is precisely how a 2026-06-29 capture overwrote the fresh
+#    07-13 session and stalled the publish chain (#3640).
+npm run tv:rotate-secret
+
+#    Non-default path or repo:
+#    scripts/tv_rotate_storage_state_secret.sh path/to/state.json
+#    TV_SECRET_REPO=owner/name npm run tv:rotate-secret
+#
+#    The script sends raw JSON. Both formats are accepted — the probe's
+#    _loads_tv_storage_state falls back to gzip+base64 and the publish
+#    workflows auto-detect — but raw keeps the hand path inspectable. The CI
+#    refresh writes gzip+base64 for size.
 
 # 5. Verify end-to-end via the daily probe.
 gh workflow run credential-health-check.yml
