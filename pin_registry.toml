@@ -146,7 +146,9 @@
 # NoData validator shifted the urlopen site; pin refreshed after merge.
 # 2026-07-04: yaml.load -> explicit low-level loader (avoid yaml.load guard)
 # added 7 lines above; urlopen site shifted 485 -> 492.
-"scripts/grafana_alert_rules_upsert.py" = [492]
+# 2026-07-15: MAX_UID_LENGTH constant + its rationale comment + the uid-length
+# branch in validate_alert_groups added 16 lines above; 492 -> 508.
+"scripts/grafana_alert_rules_upsert.py" = [508]
 # 2026-06-24: Railway GraphQL API bridge for container metrics; fixed https
 # endpoint (backboard.railway.com/graphql/v2), explicit timeout= via Request.
 # 2026-07-07: `import math` added for the non-finite guard in _latest_value;
