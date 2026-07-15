@@ -344,7 +344,12 @@ export build_imbalance_frame(float fill_target_ratio = 0.5, float size_threshold
 // must detect once and call the private _build_zone seam directly.
 //
 // `swing_len` is the engine pivot length; `atr_len` / `min_mult` / `max_mult` are
-// the ATR size filter (defaults mirror ATR_LEN_MAIN / OB_FILTER_*_MULT in the Suite).
-export build_zone_frame(simple int swing_len = 50, simple int atr_len = ATR_LEN_MAIN, float min_mult = OB_FILTER_MIN_MULT, float max_mult = OB_FILTER_MAX_MULT) =>
+// the ATR size filter. Their defaults MUST repeat ATR_LEN_MAIN /
+// OB_FILTER_MIN_MULT / OB_FILTER_MAX_MULT as literals: Pine rejects a const as a
+// parameter default — "The default value cannot be a function, variable or
+// calculation" (CE10132) — so naming them here does not compile. The consts stay
+// the documented source of these numbers; test_export_defaults_are_literals and
+// test_zone_filter_defaults_match_their_consts keep the two in lockstep.
+export build_zone_frame(simple int swing_len = 50, simple int atr_len = 50, float min_mult = 0.5, float max_mult = 2.5) =>
     [_trend, bull_bos, bull_choch, _top_x, _top_y, _trail_up_x, _trail_up, hh, bear_bos, bear_choch, _btm_x, _btm_y, _trail_dn_x, _trail_dn, swing_low, _hhll_x] = eng.detect_structure(swing_len)
     _build_zone(swing_len, hh, swing_low, bull_bos, bull_choch, bear_bos, bear_choch, atr_len, min_mult, max_mult)
