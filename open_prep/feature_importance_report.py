@@ -62,6 +62,17 @@ DEFAULT_MIN_SAMPLES = _MIN_TUNING_SAMPLES
 DRIFT_POSITION_THRESHOLD = 3
 DRIFT_TOP_N = 10
 
+# Sample-accounting counters ``compute_feature_importance`` reports in BOTH its
+# ok and its error return. They are copied to the record's top level so they
+# survive a non-ok status (which nulls ``report``) — they are what distinguishes
+# an expected era-gate cold start from a stalled backfill.
+_DIAGNOSTIC_COUNTERS = (
+    "duplicate_samples_dropped",
+    "era_gated_samples_dropped",
+    "formula_era_samples_dropped",
+    "directional_era_samples_dropped",
+)
+
 
 # ── State classification ─────────────────────────────────────────────
 
@@ -220,6 +231,15 @@ def generate_report(
             else 0
         ),
     }
+    # ``report`` is None for every non-ok status, which discarded the very
+    # counters that explain the shortfall. Surfacing them top-level keeps them
+    # readable in exactly the state they matter: after the 2026-07-14
+    # directional-label cutover, labeled_samples=0 alongside total_samples=350 is
+    # an expected cold start, and without these it is indistinguishable from a
+    # stalled backfill.
+    for counter in _DIAGNOSTIC_COUNTERS:
+        if counter in raw:
+            record[counter] = int(raw.get(counter) or 0)
 
     # Ranking drift is only meaningful when both sides have a full report.
     prev_status = (previous_report or {}).get("status")

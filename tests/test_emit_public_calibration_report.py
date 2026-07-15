@@ -160,19 +160,34 @@ def test_find_latest_returns_none_when_dir_missing(tmp_path: Path) -> None:
     assert _find_latest_calibration_artifact(tmp_path / "missing") is None
 
 
-def test_find_latest_prefers_newest(tmp_path: Path) -> None:
-    older = tmp_path / "zone_priority_calibration.json"
-    older.write_text("{}")
+def test_find_latest_prefers_newest_among_same_named_copies(tmp_path: Path) -> None:
+    # mtime is the freshness signal for copies of the SAME artifact in different
+    # subdirs — filenames carry no timestamp.
     import os
-    import time
 
-    time.sleep(0.01)
-    newer = tmp_path / "zone_priority_contextual_calibration.json"
-    newer.write_text("{}")
-    # Bump newer mtime explicitly to avoid filesystem timestamp resolution flakes.
+    older = tmp_path / "a" / "zone_priority_calibration.json"
+    newer = tmp_path / "b" / "zone_priority_calibration.json"
+    for p in (older, newer):
+        p.parent.mkdir(parents=True, exist_ok=True)
+        p.write_text("{}")
+    # Bump explicitly to avoid filesystem timestamp resolution flakes.
     os.utime(newer, (newer.stat().st_atime, newer.stat().st_mtime + 5))
-    found = _find_latest_calibration_artifact(tmp_path)
-    assert found == newer
+    assert _find_latest_calibration_artifact(tmp_path) == newer
+
+
+def test_find_latest_prefers_flat_schema_over_newer_contextual(tmp_path: Path) -> None:
+    # REGRESSION (2026-07-15): mtime must NOT decide across the two schemas. The
+    # generator writes the contextual artifact last, so "newest wins" resolved to
+    # the one schema this module cannot read — emitting an empty status="ok"
+    # report. Schema order wins; freshness only breaks ties within a filename.
+    import os
+
+    flat = tmp_path / "zone_priority_calibration.json"
+    flat.write_text("{}")
+    contextual = tmp_path / "zone_priority_contextual_calibration.json"
+    contextual.write_text("{}")
+    os.utime(contextual, (contextual.stat().st_atime, contextual.stat().st_mtime + 5))
+    assert _find_latest_calibration_artifact(tmp_path) == flat
 
 
 # ── append_public_history ─────────────────────────────────────────
@@ -579,3 +594,96 @@ def test_append_public_history_retention_zero_keeps_nothing(tmp_path: Path) -> N
     }
     history_path = append_public_history(out, report, retention=0)
     assert history_path.read_text(encoding="utf-8").strip() == ""
+
+
+# ── Contextual-schema regression (2026-07-15) ────────────────────
+#
+# The generator writes the flat artifact first and the contextual one LAST, so
+# max-by-mtime always selected the contextual variant — whose schema this
+# emitter never implemented (global_weights / bucket_stats /
+# frozen_provenance.n_events vs family_weights / family_stats /
+# testable_calibration). The result was a status="ok" report with every headline
+# field empty, and 49/49 history entries with n_events=null since 2026-05-04.
+
+
+def _write_pair(root: Path) -> None:
+    """Write both artifacts the way the generator does: contextual last."""
+    root.mkdir(parents=True, exist_ok=True)
+    flat = {
+        "family_weights": {"OB": 0.4782, "FVG": 0.582, "BOS": 0.8488, "SWEEP": 0.6799},
+        "family_stats": {
+            "BOS": {"total_events": 988, "total_hits": 855},
+            "FVG": {"total_events": 3388, "total_hits": 1931},
+            "OB": {"total_events": 603, "total_hits": 200},
+            "SWEEP": {"total_events": 1133, "total_hits": 746},
+        },
+        "testable_calibration": {
+            "n_events": 6112,
+            "ece_binned_n10": 0.132014,
+            "smooth_ece": 0.134909,
+            "dce_upper_bound": 0.122597,
+            "positive_rate": 0.610602,
+        },
+        "total_events": 6112,
+    }
+    contextual = {
+        "global_weights": {"OB": 0.4782, "FVG": 0.582, "BOS": 0.8488, "SWEEP": 0.6799},
+        "bucket_stats": {"htf_bias": {}, "session": {}, "vol_regime": {}},
+        "frozen_provenance": {"n_events": 6112, "status": "shadow"},
+    }
+    (root / "zone_priority_calibration.json").write_text(json.dumps(flat), encoding="utf-8")
+    (root / "zone_priority_contextual_calibration.json").write_text(
+        json.dumps(contextual), encoding="utf-8"
+    )
+
+
+def test_resolver_picks_schema_the_emitter_implements(tmp_path: Path) -> None:
+    _write_pair(tmp_path)
+    found = _find_latest_calibration_artifact(tmp_path)
+    assert found is not None
+    assert found.name == "zone_priority_calibration.json"
+
+
+def test_ok_report_from_generator_pair_has_real_headline_numbers(tmp_path: Path) -> None:
+    _write_pair(tmp_path)
+    found = _find_latest_calibration_artifact(tmp_path)
+    payload = json.loads(found.read_text(encoding="utf-8"))
+    report = build_public_report(
+        payload, source_path=found, source_commit_sha="abc", source_workflow_run="1"
+    )
+    # status="ok" must MEAN the headline fields are populated.
+    assert report["status"] == "ok"
+    assert report["n_events"] == 6112
+    assert report["weighted_hit_rate"] == 0.610602
+    assert len(report["family_weights"]) == 4
+    assert report["metrics"]["ece"] == 0.132014
+
+
+def test_contextual_only_checkout_still_yields_weights_and_events(tmp_path: Path) -> None:
+    # A contextual-only artifact must not silently degrade to an empty report.
+    (tmp_path / "zone_priority_contextual_calibration.json").write_text(
+        json.dumps(
+            {
+                "global_weights": {"OB": 0.4782, "BOS": 0.8488},
+                "frozen_provenance": {"n_events": 6112},
+            }
+        ),
+        encoding="utf-8",
+    )
+    found = _find_latest_calibration_artifact(tmp_path)
+    assert found is not None
+    payload = json.loads(found.read_text(encoding="utf-8"))
+    report = build_public_report(
+        payload, source_path=found, source_commit_sha=None, source_workflow_run=None
+    )
+    assert report["n_events"] == 6112
+    assert report["family_weights"] == {"OB": 0.4782, "BOS": 0.8488}
+
+
+def test_history_never_records_an_empty_ok_entry(tmp_path: Path) -> None:
+    # The sparkline feed is what silently died: 49/49 entries n_events=null.
+    out = tmp_path / "calibration_report_public.json"
+    empty_ok = {"status": "ok", "generated_at": "2026-07-15T00:00:00+00:00",
+                "n_events": None, "weighted_hit_rate": None, "metrics": {}}
+    history = append_public_history(out, empty_ok)
+    assert history.read_text(encoding="utf-8").strip() == ""

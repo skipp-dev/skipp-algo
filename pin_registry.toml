@@ -283,11 +283,17 @@ allowed = ["github-mirror-sync.yml", "openprep-pine-panel-daily-trigger.yml"]
 # downstream summary step surfaces individual failures via
 # ::error::, so silent-skip risk is bounded.
 "credential-health-check.yml" = 1
-# ops-digest-daily.yml: single best-effort step that renders + emails the daily
-# ops digest via Composio; set +e lets it fall back to --dry-run render on a
-# pip/render hiccup and still write the step summary. Delivery is pure
-# convenience (docs/ops/composio_integrations.md), so silent-skip risk is bounded.
-"ops-digest-daily.yml" = 1
+# ops-digest-daily.yml: two best-effort steps.
+#  1. Renders + emails the daily ops digest via Composio; set +e lets it fall back
+#     to a --dry-run render on a pip/render hiccup and still write the step
+#     summary. Delivery is pure convenience (docs/ops/composio_integrations.md).
+#  2. 2026-07-15 (+1): hydrates the published sweep-trap snapshot from
+#     bot/live-sweep-trap-shadow. set +e so a gh/network hiccup degrades to the
+#     committed seed — which ops_digest labels as a seed rather than reporting its
+#     placeholder 0 samples as a measurement — instead of reding the cron. The
+#     fetch is validated as JSON before use and emits ::warning:: on failure, so
+#     silent-skip risk is bounded.
+"ops-digest-daily.yml" = 2
 # drift-watchdog.yml: removed 2026-06-12 (#2726) — the WFO baseline was
 # never produced; entry retired together with the workflow.
 # edge-pipeline-real-run.yml: single deliberate fail-soft step — the real

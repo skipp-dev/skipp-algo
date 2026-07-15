@@ -185,7 +185,10 @@ _FROZEN_BASIC_CONFIG_SITES: frozenset[tuple[str, int]] = frozenset({
     ("open_prep/candidate_weights.py", 540),  # 2026-07-10: eps_surprise_pct→recent_eps_surprise_pct reconstruction swap +1 (540->541)
     # 2026-06-13 (audit-e2/aw7-reader-observability, PR #2759): _load_previous_latest
     #   DEBUG log insertion shifted logging.basicConfig from 305 → 306.
-    ("open_prep/feature_importance_report.py", 307),
+    # 2026-07-15 (ops-digest truth): _DIAGNOSTIC_COUNTERS constant + the top-level
+    #   counter copy in generate_report shifted basicConfig 307 → 327 (pure shift;
+    #   still the CLI entry point's own root-logger setup).
+    ("open_prep/feature_importance_report.py", 327),
     # 2026-06-11 (backfill defer-unpublished): 418→457.
     # 2026-06-11 (eval-findings B1/B2): direction+TB code shifted 457→536.
     # 2026-06-11 (c10b FI component persistence): era-gate block 536→558.

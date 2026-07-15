@@ -81,30 +81,38 @@ HISTORY_RETENTION = 90  # ~3 months at one entry per day
 DEFAULT_OUTPUT = Path("docs/calibration/calibration_report_public.json")
 DEFAULT_HISTORY_FILENAME = "calibration_report_public_history.jsonl"
 DEFAULT_SEARCH_DIR = Path("artifacts/reports")
+# Ordered by SCHEMA PREFERENCE, not freshness. This module extracts the flat
+# schema (family_weights / family_stats / testable_calibration); the contextual
+# artifact is a different VIEW of the same run (global_weights / bucket_stats /
+# frozen_provenance) and carries none of those keys. Resolving across the two by
+# mtime was silent data loss: smc_zone_priority_calibration.py writes the flat
+# file first and the contextual file LAST, so max-by-mtime picked contextual
+# every time and every headline field emitted empty under status="ok" — 49/49
+# history entries carried n_events=null from 2026-05-04 until this was fixed.
 _CAL_FILENAME_CANDIDATES = (
-    "zone_priority_contextual_calibration.json",
     "zone_priority_calibration.json",
+    "zone_priority_contextual_calibration.json",
 )
 
 
 def _find_latest_calibration_artifact(search_dir: Path) -> Path | None:
-    """Return the most recently modified known calibration artifact.
+    """Return the newest calibration artifact of the most-preferred schema.
 
-    Prefers the contextual variant (richer schema). Returns ``None``
-    when neither is present so the caller can emit an
-    ``awaiting_first_run`` report instead of failing.
+    Filenames are tried in :data:`_CAL_FILENAME_CANDIDATES` order (flat schema
+    first — the one this module extracts); among same-named copies the most
+    recently modified wins. Returns ``None`` when neither is present so the
+    caller can emit an ``awaiting_first_run`` report instead of failing.
     """
     if not search_dir.is_dir():
         return None
-    candidates: list[Path] = []
     for name in _CAL_FILENAME_CANDIDATES:
-        candidates.extend(search_dir.rglob(name))
-    if not candidates:
-        return None
-    # MTIME-RESOLVER-EXEMPT: candidates are fixed-name files in different
-    # subdirs (zone_priority_calibration.json, zone_priority_contextual_calibration.json);
-    # filenames carry no timestamp, so mtime is the intended freshness signal.
-    return max(candidates, key=lambda p: p.stat().st_mtime)
+        # MTIME-RESOLVER-EXEMPT: same-named copies in different subdirs carry no
+        # timestamp in the filename, so mtime is the intended freshness signal.
+        # Across DIFFERENT names it is not — that is the schema order above.
+        matches = sorted(search_dir.rglob(name), key=lambda p: p.stat().st_mtime)
+        if matches:
+            return matches[-1]
+    return None
 
 
 def _coerce_float(val: Any) -> float | None:
@@ -169,7 +177,13 @@ def _extract_calibration_metrics(payload: dict[str, Any]) -> dict[str, float]:
 
 
 def _extract_n_events(payload: dict[str, Any]) -> int | None:
-    """Prefer ``testable_calibration.n_events``; fall back to family-stats sum."""
+    """Prefer ``testable_calibration.n_events``; fall back to family-stats sum.
+
+    Final fallback is ``frozen_provenance.n_events``, which is the only corpus
+    size a contextual-schema payload carries. Its ``bucket_stats`` are
+    deliberately NOT summed: every event appears once per context dimension
+    (htf_bias, session, vol_regime), so summing them would triple-count.
+    """
     testable = payload.get("testable_calibration") or {}
     try:
         n = int(testable.get("n_events") or 0)
@@ -186,7 +200,28 @@ def _extract_n_events(payload: dict[str, Any]) -> int | None:
             total += int(fam_stats.get("total_events") or 0)
         except (TypeError, ValueError):
             continue
-    return total or None
+    if total:
+        return total
+    provenance = payload.get("frozen_provenance") or {}
+    try:
+        n = int(provenance.get("n_events") or 0)
+    except (TypeError, ValueError):
+        return None
+    return n or None
+
+
+def _extract_family_weights(payload: dict[str, Any]) -> dict[str, Any]:
+    """Return the per-family weight map under either schema's key.
+
+    Flat artifacts call it ``family_weights``; contextual ones call the same
+    four numbers ``global_weights`` (their ``contextual_weights`` are per-bucket
+    and are not the corpus-level figure the public report publishes).
+    """
+    for key in ("family_weights", "global_weights"):
+        weights = payload.get(key)
+        if isinstance(weights, dict) and weights:
+            return weights
+    return {}
 
 
 # Field-set required by ``scripts/check_c12_trigger.py`` so the public
@@ -297,7 +332,7 @@ def build_public_report(
     metrics = _extract_calibration_metrics(cal_payload)
     n_events = _extract_n_events(cal_payload)
     weighted_hr = _extract_weighted_hit_rate(cal_payload)
-    family_weights_raw = cal_payload.get("family_weights") or {}
+    family_weights_raw = _extract_family_weights(cal_payload)
     family_weights: dict[str, float] = {}
     for fam, w in family_weights_raw.items():
         v = _coerce_float(w)
@@ -337,11 +372,15 @@ def append_public_history(
     """Append a compact history line for the dashboard sparkline.
 
     Skips the append silently when ``status != "ok"`` so the
-    ``awaiting_first_run`` placeholder doesn't dilute the trend feed.
+    ``awaiting_first_run`` placeholder doesn't dilute the trend feed, and
+    likewise when an ``ok`` report carries no headline numbers — a row of
+    ``null``s plots as a gap while still counting against ``retention``, which is
+    how the sparkline silently emptied out (49/49 null entries from 2026-05-04).
     Truncates to ``retention`` entries when needed.
     """
     history_path = output_path.with_name(history_filename)
-    if report.get("status") != "ok":
+    empty_ok = report.get("n_events") is None and report.get("weighted_hit_rate") is None
+    if report.get("status") != "ok" or empty_ok:
         # Make sure the file at least exists for the dashboard fetch.
         history_path.parent.mkdir(parents=True, exist_ok=True)
         if not history_path.exists():

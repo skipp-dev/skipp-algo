@@ -100,7 +100,10 @@ OS_DELETE_LEDGER: set[tuple[str, int, str]] = {
     ("open_prep/diff.py", 71, "unlink"),
     # 2026-06-13 (audit-e2/aw7-reader-observability, PR #2759): _load_previous_latest
     #   DEBUG log insertion shifted unlink from 257 → 258.
-    ("open_prep/feature_importance_report.py", 259, "unlink"),
+    # 2026-07-15 (ops-digest truth): _DIAGNOSTIC_COUNTERS constant + the top-level
+    #   counter copy in generate_report shifted unlink 259 → 279 (pure shift; the
+    #   atomic-write cleanup call site itself is unchanged).
+    ("open_prep/feature_importance_report.py", 279, "unlink"),
     # 2026-06-11 (backfill defer-unpublished): 97→116, 539→589.
     # 2026-06-11 (eval-findings B1/B2): direction+triple-barrier code in
     # compute_pnl_from_bars + backfill loop shifted 589→668.

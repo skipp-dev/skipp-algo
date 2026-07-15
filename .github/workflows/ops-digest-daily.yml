@@ -46,6 +46,33 @@ jobs:
       - name: Set up pinned Python
         uses: ./.github/actions/setup-python-pinned
 
+      - name: Hydrate live sweep-trap shadow snapshot
+        # sweep-trap-shadow-daily.yml publishes the LIVE snapshot to
+        # bot/live-sweep-trap-shadow (only its JSONL ledger is committed back to
+        # main); the copy under artifacts/monitoring/ on main is the permanent
+        # no-data seed from #3414. Without this the digest reads that seed and
+        # reports "0 / 40, INCONCLUSIVE" regardless of how the study is doing.
+        # Fail-soft: on any hiccup ops_digest falls back to the seed and says so.
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set +e
+          dest="artifacts/monitoring/latest/sweep_trap_shadow.json"
+          mkdir -p "$(dirname "${dest}")"
+          tmp="$(mktemp)"
+          gh api "repos/${GITHUB_REPOSITORY}/contents/artifacts/monitoring/latest/sweep_trap_shadow.json?ref=bot/live-sweep-trap-shadow" \
+            -H "Accept: application/vnd.github.raw+json" > "${tmp}" 2>fetch_err.log
+          rc=$?
+          if [ "${rc}" -ne 0 ] || ! python -c 'import json,sys; json.load(open(sys.argv[1]))' "${tmp}" 2>/dev/null; then
+            echo "::warning title=ops-digest::could not fetch the published sweep snapshot (rc=${rc}); digest falls back to the committed seed"
+            sed -n '1,5p' fetch_err.log 2>/dev/null
+            rm -f "${tmp}"
+            exit 0
+          fi
+          mv "${tmp}" "${dest}"
+          echo "::notice title=ops-digest::hydrated live sweep snapshot from bot/live-sweep-trap-shadow"
+          exit 0
+
       - name: Build and send ops digest
         # CONTINUE-ON-ERROR-INTENTIONAL: best-effort convenience digest; a delivery hiccup must never fail the cron.
         continue-on-error: true
