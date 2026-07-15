@@ -1,8 +1,8 @@
 """Contract pin: ``tv-save-consumer-source`` workflow.
 
 Pins the dispatch-only trigger, the fail-fast-without-auth guard, the
-tv_save_consumer_source entrypoint, and the graceful per-entry miss handling
-(a wrong saved name is reported, not a wrong-script paste). Also satisfies
+save and exact binding-verification entrypoints, and fail-closed coordinated
+rollout handling. Also satisfies
 ``test_workflow_orphan_inventory`` by referencing the stem ``tv-save-consumer-source``.
 """
 
@@ -47,12 +47,19 @@ def test_runs_the_save_tool() -> None:
     assert "--script-name" in body
 
 
-def test_miss_is_graceful_but_zero_hits_fails() -> None:
-    """An unknown saved name is a reported miss (run continues); zero hits is a
-    hard failure so nothing is mistaken for success."""
+def test_verifies_actual_dashboard_source_selections_after_save() -> None:
+    body = "\n".join(s.get("run", "") for s in _steps())
+    assert "scripts/tv_verify_consumer_bindings.ts" in body
+    assert '--saved-script-name "SMC Long-Dip Dashboard"' in body
+    assert '--script-name "SMC Decision Board"' in body
+    assert '--producer-name "SMC Long-Dip Suite"' in body
+
+
+def test_miss_is_reported_and_any_miss_fails_the_coordinated_rollout() -> None:
+    """A binding migration must not report success with a mixed account state."""
     save = next(s for s in _steps() if s.get("id") == "save")
     run = save["run"]
-    assert 'if [ "${hits}" -eq 0 ]; then' in run
+    assert 'if [ "${misses}" -ne 0 ]; then' in run
     assert "exit 1" in run
 
 
@@ -61,3 +68,18 @@ def test_default_mapping_uses_grounded_core_engine_name() -> None:
     not its indicator title — pin that so a refactor cannot silently regress it."""
     body = "\n".join(s.get("run", "") for s in _steps())
     assert '{"source":"SMC_Long_Dip_Suite.pine","scriptName":"SMC Core Engine"}' in body
+
+
+def test_default_mapping_covers_every_binding_order_consumer() -> None:
+    body = "\n".join(s.get("run", "") for s in _steps())
+    expected = {
+        "SMC_Breakout_Overlay.pine": "SMC Breakout Overlay",
+        "SMC_Confluence_Hub.pine": "SMC Confluence Hub",
+        "SMC_Long_Dip_Alerts.pine": "SMC Long-Dip Alerts",
+        "SMC_Long_Dip_Dashboard.pine": "SMC Long-Dip Dashboard",
+        "SMC_Long_Dip_Mobile.pine": "SMC Long-Dip Mobile",
+        "SMC_Long_Dip_Strategy.pine": "SMC Long-Dip Strategy",
+        "SMC_Setup_Check.pine": "SMC Setup Check",
+    }
+    for source, script_name in expected.items():
+        assert f'{{"source":"{source}","scriptName":"{script_name}"}}' in body
