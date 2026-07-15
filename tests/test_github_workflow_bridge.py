@@ -340,7 +340,15 @@ def test_failed_snapshot_preserves_last_success_timestamp(monkeypatch: pytest.Mo
     import services.live_overlay_daemon.github_workflow_bridge as bridge
 
     bridge._cached_snapshot = {
+        "enabled": 1,
+        "configured": 1,
+        "ok": 1,
+        "fetched_at_unix": 1_700_000_000.0,
         "last_success_fetched_at_unix": 1_700_000_000.0,
+        "counts": {"seen": 5, "success": 4, "failed": 1, "in_progress": 0, "queued": 0},
+        "latest_run_age_seconds": 60.0,
+        "latest_run_duration_seconds": 120.0,
+        "workflows": [],
     }
     bridge._cached_at_monotonic = 0.0
 
@@ -355,6 +363,48 @@ def test_failed_snapshot_preserves_last_success_timestamp(monkeypatch: pytest.Mo
     )
 
     snap = bridge.snapshot()
-    assert snap["ok"] == 0
+    assert snap["ok"] == 1
     assert snap["last_success_fetched_at_unix"] == 1_700_000_000.0
-    assert snap["fetched_at_unix"] == 1_700_000_300.0
+    assert snap["fetched_at_unix"] == 1_700_000_000.0
+
+
+def test_fetch_error_preserves_last_successful_snapshot(monkeypatch: pytest.MonkeyPatch) -> None:
+    """A transient GitHub API failure must not evict the last successful snapshot.
+
+    Without this guard a single failed poll immediately flips the dashboard to
+    ok=0/counts=0 even though the previous successful snapshot is still useful.
+    """
+    import services.live_overlay_daemon.github_workflow_bridge as bridge
+
+    monkeypatch.setattr(bridge.config, "github_workflow_token", lambda: "token")
+    monkeypatch.setattr(bridge.config, "github_workflow_poll_ttl_secs", lambda: 0)
+    monkeypatch.setattr(bridge.time, "time", lambda: 1_700_000_000.0)
+    monkeypatch.setattr(bridge.time, "monotonic", lambda: 200.0)
+
+    def _good_fetch(_token: str) -> dict:
+        return {
+            "enabled": 1,
+            "configured": 1,
+            "ok": 1,
+            "fetched_at_unix": 1_700_000_000.0,
+            "last_success_fetched_at_unix": 1_700_000_000.0,
+            "counts": {"seen": 5, "success": 4, "failed": 1, "in_progress": 0, "queued": 0},
+            "latest_run_age_seconds": 60.0,
+            "latest_run_duration_seconds": 120.0,
+            "workflows": [{"id": "1", "name": "CI", "event": "schedule", "phase_code": 3, "latest_success": 1}],
+        }
+
+    monkeypatch.setattr(bridge, "_fetch_snapshot", _good_fetch)
+    first = bridge.snapshot()
+    assert first["ok"] == 1
+    assert first["counts"]["seen"] == 5
+
+    def _bad_fetch(_token: str) -> dict:
+        raise RuntimeError("github down")
+
+    monkeypatch.setattr(bridge, "_fetch_snapshot", _bad_fetch)
+    bridge._cached_at_monotonic = 0.0
+    second = bridge.snapshot()
+    assert second["ok"] == 1
+    assert second["counts"]["seen"] == 5
+    assert second["last_success_fetched_at_unix"] == 1_700_000_000.0

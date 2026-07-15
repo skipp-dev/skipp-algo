@@ -1362,6 +1362,9 @@ def render_metrics(startup_ts: float, startup_epoch: float = 0.0) -> str:
     lines.append("# TYPE live_overlay_overlay_age_known gauge")
     lines.append(f"live_overlay_overlay_age_known {overlay_age_known}")
     lines.append("# TYPE live_overlay_overlay_age_seconds gauge")
+    # Unknown age renders 0.0, NOT nan: `lo-overlay-stale` selects arithmetically with
+    # `(age * known) + ((1 - known) * 3601)`, and NaN * 0 = NaN would poison that sum so the
+    # 3601 unknown-sentinel never breaches its 3600 threshold. Keep 0.0 unless that rule changes.
     lines.append(
         f"live_overlay_overlay_age_seconds {overlay_age:.1f}"
         if overlay_age != float("inf")

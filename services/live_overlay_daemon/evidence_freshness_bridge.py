@@ -194,7 +194,12 @@ def _load_raw() -> dict[str, Any]:
 
 
 def snapshot() -> dict[str, Any]:
-    """Return the cached evidence-freshness snapshot; never raises."""
+    """Return the cached evidence-freshness snapshot; never raises.
+
+    A failed load keeps the last good snapshot so that a transient file/URL
+    problem does not immediately flip the dashboard to loaded=0. Only a
+    successful load or the first-ever load updates the cached payload.
+    """
     global _cached, _cached_at_monotonic
     ttl = config.experiment_cache_ttl_secs()
     with _cache_lock:
@@ -202,6 +207,7 @@ def snapshot() -> dict[str, Any]:
         if _cached is not None and (now_mono - _cached_at_monotonic) < ttl:
             return dict(_cached)
         fresh = _load_raw()
-        _cached = fresh
+        if fresh.get("loaded") == 1.0 or _cached is None:
+            _cached = fresh
         _cached_at_monotonic = time.monotonic()
-        return dict(fresh)
+        return dict(_cached)

@@ -305,17 +305,17 @@ _FROZEN_SITES: frozenset[tuple[str, int, tuple[str, ...]]] = frozenset(
         # the github_workflow_bridge snapshot-cache singleton (same TTL pattern).
         # 2026-07-09 (fix/c8-deploy-robust): submit_failed + submitter fields in
         # _empty/_coerce shifted this global anchor +8: 188->196.
-        ("services/live_overlay_daemon/evidence_freshness_bridge.py", 198, ("_cached", "_cached_at_monotonic")),
+        ("services/live_overlay_daemon/evidence_freshness_bridge.py", 203, ("_cached", "_cached_at_monotonic")),  # 2026-07-16 (last-good cache docstring): 198->203
         # 2026-07-11 (feat/sweep-trap-shadow-grafana): WS4a sweep-trap shadow
         # snapshot bridge — same TTL-cache singleton pattern (snapshot() +
         # _reset_cache_for_tests()).
-        ("services/live_overlay_daemon/sweep_trap_shadow_bridge.py", 142, ("_cached", "_cached_at_monotonic")),  # 2026-07-13 (F7 docstring fix): 140->142
-        ("services/live_overlay_daemon/sweep_trap_shadow_bridge.py", 155, ("_cached", "_cached_at_monotonic")),  # 2026-07-13 (F7 docstring fix): 153->155
+        ("services/live_overlay_daemon/sweep_trap_shadow_bridge.py", 146, ("_cached", "_cached_at_monotonic")),  # 2026-07-16 (last-good cache docstring): 142->146
+        ("services/live_overlay_daemon/sweep_trap_shadow_bridge.py", 160, ("_cached", "_cached_at_monotonic")),  # 2026-07-16 (last-good cache docstring): 155->160
         ("services/live_overlay_daemon/provider_usage_bridge.py", 136, ("_cached", "_cached_at_monotonic")),  # 2026-07-13 (snapshot age-recompute docstring +6): 130->136
         # 2026-07-13 (feat/pine-library-version-monitor, #3599/#3603 follow-up):
         # repo↔TradingView Pine-library version snapshot bridge — same TTL-cache
         # singleton pattern (snapshot() + _cached/_cached_at_monotonic).
-        ("services/live_overlay_daemon/pine_library_version_bridge.py", 172, ("_cached", "_cached_at_monotonic")),
+        ("services/live_overlay_daemon/pine_library_version_bridge.py", 176, ("_cached", "_cached_at_monotonic")),  # 2026-07-16 (last-good cache docstring): 172->176
         # 2026-06-24 (feat/railway-metrics): Railway GraphQL bridge for container
         # metrics exposes a lazily-refreshed TTL cache (mirroring uptimerobot).
         # 2026-06-25 (fix/live-overlay-bridge-contract-followup): added

@@ -138,7 +138,11 @@ def _load_raw() -> dict[str, Any]:
 
 
 def snapshot() -> dict[str, Any]:
-    """Return the cached sweep-trap shadow snapshot; never raises."""
+    """Return the cached sweep-trap shadow snapshot; never raises.
+
+    A failed load keeps the last good snapshot so a transient outage does not
+    immediately flip the dashboard to loaded=0.
+    """
     global _cached, _cached_at_monotonic
     ttl = config.sweep_trap_shadow_cache_ttl_secs()
     with _cache_lock:
@@ -146,9 +150,10 @@ def snapshot() -> dict[str, Any]:
         if _cached is not None and (now_mono - _cached_at_monotonic) < ttl:
             return dict(_cached)  # defensive copy — matches the other six bridges' contract
         loaded = _load_raw()
-        _cached = loaded
+        if loaded.get("loaded") == 1.0 or _cached is None:
+            _cached = loaded
         _cached_at_monotonic = now_mono
-        return dict(loaded)
+        return dict(_cached)
 
 
 def _reset_cache_for_tests() -> None:

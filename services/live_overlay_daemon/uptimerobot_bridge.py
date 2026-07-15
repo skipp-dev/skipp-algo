@@ -192,6 +192,7 @@ def snapshot() -> dict[str, Any]:
                 "error_message": str(exc),
             }
 
-        _cached_snapshot = fresh
+        if fresh.get("ok") == 1 or _cached_snapshot is None:
+            _cached_snapshot = fresh
         _cached_at_monotonic = time.monotonic()
-        return dict(fresh)
+        return dict(_cached_snapshot)

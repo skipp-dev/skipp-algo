@@ -278,7 +278,14 @@ def test_failed_snapshot_preserves_last_success_timestamp(monkeypatch: pytest.Mo
     import services.live_overlay_daemon.uptimerobot_bridge as bridge
 
     bridge._cached_snapshot = {
+        "enabled": 1,
+        "configured": 1,
+        "ok": 1,
+        "fetched_at_unix": 1_700_000_000.0,
         "last_success_fetched_at_unix": 1_700_000_000.0,
+        "counts": {"total": 2, "up": 2, "down": 0, "paused": 0, "unknown": 0},
+        "avg_response_time_ms": 50.0,
+        "monitors": [],
     }
     bridge._cached_at_monotonic = 0.0
 
@@ -293,6 +300,23 @@ def test_failed_snapshot_preserves_last_success_timestamp(monkeypatch: pytest.Mo
     )
 
     snap = bridge.snapshot()
-    assert snap["ok"] == 0
+    assert snap["ok"] == 1
     assert snap["last_success_fetched_at_unix"] == 1_700_000_000.0
-    assert snap["fetched_at_unix"] == 1_700_000_300.0
+    assert snap["fetched_at_unix"] == 1_700_000_000.0
+
+
+def test_fetch_error_preserves_last_successful_snapshot() -> None:
+    """A transient UptimeRobot API failure must not evict the last successful snapshot."""
+    uptimerobot_bridge._cached_snapshot = None
+    uptimerobot_bridge._cached_at_monotonic = 0.0
+
+    good_body = b'{"stat": "ok", "monitors": [{"id": 1, "friendly_name": "A", "status": 2, "average_response_time": "50"}]}'
+    with patch.object(uptimerobot_bridge.config, "uptimerobot_api_key", return_value="secret"),          patch.object(uptimerobot_bridge.config, "uptimerobot_timeout_secs", return_value=5),          patch.object(uptimerobot_bridge.config, "uptimerobot_monitor_ids", return_value=[]),          patch.object(uptimerobot_bridge.config, "uptimerobot_poll_ttl_secs", return_value=0),          patch.object(uptimerobot_bridge.urllib.request, "urlopen", return_value=_fake_response(good_body)):
+        first = uptimerobot_bridge.snapshot()
+    assert first["ok"] == 1
+    assert first["counts"]["up"] == 1
+
+    with patch.object(uptimerobot_bridge.config, "uptimerobot_api_key", return_value="secret"),          patch.object(uptimerobot_bridge.config, "uptimerobot_poll_ttl_secs", return_value=0),          patch.object(uptimerobot_bridge.urllib.request, "urlopen", side_effect=TimeoutError("boom")):
+        second = uptimerobot_bridge.snapshot()
+    assert second["ok"] == 1
+    assert second["counts"]["up"] == 1

@@ -106,6 +106,37 @@ def test_fetch_url_rejects_non_https() -> None:
     assert bridge._fetch_url("http://insecure/u.json", "") is None
 
 
+
+
+def test_failed_load_preserves_last_good_snapshot(monkeypatch, tmp_path):
+    """A transient load failure must keep the last good provider-usage snapshot."""
+    p = tmp_path / "provider_usage.json"
+    _write(p, {"current_month": "2026-07", "months": {"2026-07": {"fmp": {"bytes": 42}}}})
+    monkeypatch.setattr(bridge.config, "provider_usage_snapshot_url", lambda: "")
+    monkeypatch.setattr(bridge.config, "provider_usage_snapshot_path", lambda: p)
+    first = bridge.snapshot()
+    assert first["loaded"] == 1.0
+    assert first["providers"]["fmp"]["bytes"] == 42
+
+    bad = tmp_path / "provider_usage_bad.json"
+    bad.write_text("{ not json", encoding="utf-8")
+    monkeypatch.setattr(bridge.config, "provider_usage_snapshot_path", lambda: bad)
+    bridge._cached_at_monotonic = 0.0
+
+    second = bridge.snapshot()
+    assert second["loaded"] == 1.0
+    assert second["providers"]["fmp"]["bytes"] == 42
+
+
+def test_failed_load_without_prior_cache_returns_error_payload(monkeypatch, tmp_path):
+    """With no prior good snapshot, a failure must still be fail-soft."""
+    bad = tmp_path / "provider_usage.json"
+    bad.write_text("{ not json", encoding="utf-8")
+    monkeypatch.setattr(bridge.config, "provider_usage_snapshot_url", lambda: "")
+    monkeypatch.setattr(bridge.config, "provider_usage_snapshot_path", lambda: bad)
+    snap = bridge.snapshot()
+    assert snap["loaded"] == 0.0
+    assert snap["error"] == "unreadable_snapshot"
 def test_metrics_emit_provider_usage_gauges(monkeypatch: pytest.MonkeyPatch) -> None:
     """render path emits per-provider byte/call gauges + the FMP limit."""
     from services.live_overlay_daemon import metrics
