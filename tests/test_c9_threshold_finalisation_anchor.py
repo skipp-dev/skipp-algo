@@ -26,10 +26,42 @@ precondition.
 
 from __future__ import annotations
 
+import re
+from pathlib import Path
+
 import pytest
 
 from scripts import c9_threshold_replay
-from scripts.check_c12_trigger import evaluate_trigger
+from scripts.check_c12_trigger import MIN_LIVE_DAYS, MIN_LIVE_TRADES, evaluate_trigger
+
+
+def test_documented_precondition_matches_the_gate() -> None:
+    """Every prose statement of the window must quote the real gate.
+
+    This file used to describe the precondition as a 28-day window while
+    ``check_c12_trigger`` has required ``MIN_LIVE_DAYS = 90`` (and a trade
+    count the prose never mentioned at all). A deferral anchor that
+    misstates its own release condition invites the reader to conclude it
+    is due when it is not — the numbers here are the only thing telling a
+    human when #298 may be worked. Derive the check from the constant so
+    the next change to the gate has to update the prose with it.
+    """
+    # \b so sprint names ("the C8 live-incubation backfill") are not read as
+    # a quoted window -- C8 has no word boundary before the digit.
+    quoted_days = re.compile(r"\b(\d+)\s+live-incubation")
+    surfaces = (
+        Path(__file__),
+        Path(__file__).resolve().parents[1] / "docs" / "c9_threshold_tuning.md",
+    )
+    seen = 0
+    for path in surfaces:
+        found = quoted_days.findall(path.read_text(encoding="utf-8"))
+        seen += len(found)
+        assert all(int(day) == MIN_LIVE_DAYS for day in found), (
+            f"{path.name} quotes a live-incubation window of {sorted(set(found))} "
+            f"but check_c12_trigger.MIN_LIVE_DAYS is {MIN_LIVE_DAYS}"
+        )
+    assert seen, "expected the precondition to be stated in prose somewhere"
 
 
 def test_calibration_source_is_a_known_value() -> None:
@@ -46,8 +78,8 @@ def test_calibration_source_is_a_known_value() -> None:
 
 def test_anchor_fires_when_live_sample_sufficient_and_still_synthetic() -> None:
     """The anchor: as soon as the C12 trigger flips to GREEN (≥ 1
-    family with ≥ 28 live-incubation days) AND the detector alphas are
-    still synthetic-tuned, this test fails.
+    family with ≥ 90 live-incubation days AND ≥ 30 closed trades) AND
+    the detector alphas are still synthetic-tuned, this test fails.
 
     Failure means: the live sample is now sufficient to recalibrate.
     Re-run ``scripts/c9_threshold_replay.py`` against the locked-in
@@ -62,8 +94,9 @@ def test_anchor_fires_when_live_sample_sufficient_and_still_synthetic() -> None:
     result = evaluate_trigger()
     if result.status == "GREEN" and c9_threshold_replay.CALIBRATION_SOURCE == "synthetic":
         pytest.fail(
-            "C12 trigger is GREEN (≥ 1 family with ≥ 28 live-incubation "
-            "days) but scripts/c9_threshold_replay.py::CALIBRATION_SOURCE "
+            f"C12 trigger is GREEN (≥ 1 family with ≥ {MIN_LIVE_DAYS} "
+            f"live-incubation days and ≥ {MIN_LIVE_TRADES} closed trades) "
+            "but scripts/c9_threshold_replay.py::CALIBRATION_SOURCE "
             "still reads 'synthetic'. The Welch-t / Brown-Forsythe alpha "
             "ladder must now be re-tuned against the live sample: run the "
             "threshold replay on the locked-in live windows, update the "

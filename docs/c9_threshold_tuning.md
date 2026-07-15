@@ -120,6 +120,10 @@ is enforced by `tests/test_c9_threshold_replay.py::test_default_grid_has_at_leas
 4. Add a sensitivity plot (`docs/c9_threshold_tuning_plot.png`).
 
 The CI anchor `tests/test_c9_threshold_finalisation_anchor.py` fails
-the moment the C12 trigger flips GREEN (≥ 1 family with ≥ 28
-live-incubation days) while `CALIBRATION_SOURCE` still reads
-`"synthetic"`.
+the moment the C12 trigger flips GREEN (≥ 1 family with ≥ 90
+live-incubation days **and** ≥ 30 closed trades) while
+`CALIBRATION_SOURCE` still reads `"synthetic"`.
+
+The gate is `scripts/check_c12_trigger.py` (`MIN_LIVE_DAYS = 90`,
+`MIN_LIVE_TRADES = 30`); both are module constants with no env
+override, so those two numbers are the whole precondition.
