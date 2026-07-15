@@ -189,6 +189,10 @@ _FORCE_LEASE_ALLOWLIST: frozenset[str] = frozenset({
     # force-with-lease with prior fetch (same rolling-snapshot pattern as
     # evidence-freshness-snapshot). See ADR-0024.
     "pine-library-version-monitor.yml",
+    # tv-save-consumer-source.yml (2026-07-16): publishes the measured
+    # dropdown-binding JSON to bot/live-tradingview-bindings
+    # cache cursor after fetching its current tip. See ADR-0024.
+    "tv-save-consumer-source.yml",
 })
 
 _FORCE_RE = re.compile(r"git\s+push\b[^\n]*--force")

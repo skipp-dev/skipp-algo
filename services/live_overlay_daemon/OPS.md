@@ -211,6 +211,9 @@ failure fails CI instead of silently leaving the old container running.
 | `PINE_LIBRARY_VERSIONS_SNAPSHOT_PATH` | no | `artifacts/monitoring/pine_library_versions.json` | Local Repo↔TradingView Pine-library version snapshot path (per-consumer import-pin drift gauges) |
 | `PINE_LIBRARY_VERSIONS_SNAPSHOT_URL` | no | — | Optional HTTPS URL for the Pine-library version snapshot; set to the raw `bot/live-pine-library-versions` `artifacts/monitoring/latest/pine_library_versions.json` so the off-host daemon serves fresh version/pin/drift gauges (`lo-pine-consumer-version-drift`, `lo-pine-library-snapshot-stale`) |
 | `PINE_LIBRARY_VERSIONS_SNAPSHOT_URL_TOKEN` | no | — | Optional bearer token for `PINE_LIBRARY_VERSIONS_SNAPSHOT_URL` |
+| `TRADINGVIEW_BINDINGS_SNAPSHOT_PATH` | no | `artifacts/monitoring/tradingview_consumer_bindings.json` | Local snapshot of measured TradingView dropdown assignments |
+| `TRADINGVIEW_BINDINGS_SNAPSHOT_URL` | no | — | Raw/API URL to `bot/live-tradingview-bindings` `artifacts/monitoring/latest/tradingview_consumer_bindings.json`; drives `lo-tv-binding-drift` |
+| `TRADINGVIEW_BINDINGS_SNAPSHOT_URL_TOKEN` | no | — | Optional bearer token for the binding snapshot URL |
 | `EXPERIMENT_HISTORY_PATH` | no | — | Local daily experiment history JSONL path |
 | `EXPERIMENT_HISTORY_URL` | no | — | Optional HTTPS URL for experiment history JSONL |
 | `EXPERIMENT_HISTORY_URL_TOKEN` | no | — | Optional bearer token for `EXPERIMENT_HISTORY_URL` |

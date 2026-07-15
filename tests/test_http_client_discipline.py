@@ -183,6 +183,9 @@ _FROZEN_URLOPEN_SITES: frozenset[tuple[str, int]] = frozenset(
         # repo↔TradingView Pine-library version snapshot fetcher, https-only +
         # explicit timeout= (mirrors evidence_freshness_bridge).
         ("services/live_overlay_daemon/pine_library_version_bridge.py", 121),
+        # 2026-07-16: actual TradingView dropdown-binding snapshot fetcher;
+        # HTTPS-only with an explicit 10-second timeout.
+        ("services/live_overlay_daemon/tradingview_binding_bridge.py", 61),
         # 2026-07-11 (feat/sweep-trap-shadow-grafana): WS4a sweep-trap shadow
         # snapshot fetcher, https-only with explicit timeout=.
         ("services/live_overlay_daemon/sweep_trap_shadow_bridge.py", 98),  # 2026-07-13 (F7 docstring fix): 96->98

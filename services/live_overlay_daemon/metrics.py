@@ -30,6 +30,7 @@ from . import (
     railway_metrics,
     request_hotspots,
     sweep_trap_shadow_bridge,
+    tradingview_binding_bridge,
     uptimerobot_bridge,
 )
 from .market_hours import (
@@ -2004,6 +2005,7 @@ def render_metrics(startup_ts: float, startup_epoch: float = 0.0) -> str:
     # These gauges make each library's TV version, each consumer's pin, and any
     # drift visible + alertable; snapshot age keeps the producer honest.
     lines.extend(_render_pine_library_version_metrics())
+    lines.extend(_render_tradingview_binding_metrics())
 
     # Sweep-trap shadow eval (WS4a): Brier-delta + sample accrual toward the
     # promotion decision, from sweep_trap_shadow_bridge. The detector stays in
@@ -2140,6 +2142,38 @@ def _render_pine_library_version_metrics() -> list[str]:
                 f'live_overlay_pine_consumer_drift{{library="{name}",consumer="{cfile}"}} '
                 f"{_prom_numeric_value(consumer.get('drift', 0.0))}"
             )
+    return lines
+
+
+def _render_tradingview_binding_metrics() -> list[str]:
+    """Prometheus gauges for measured TradingView input.source dropdown drift."""
+    snap = tradingview_binding_bridge.snapshot()
+    generated_at = _prom_numeric_value(snap.get("generated_at_unix", 0.0))
+    age_known = 1.0 if generated_at > 0 else 0.0
+    age = max(0.0, time.time() - generated_at) if generated_at > 0 else 0.0
+    lines = [
+        "# TYPE live_overlay_tv_binding_snapshot_loaded gauge",
+        f"live_overlay_tv_binding_snapshot_loaded {_prom_numeric_value(snap.get('loaded', 0.0))}",
+        "# TYPE live_overlay_tv_binding_snapshot_age_known gauge",
+        f"live_overlay_tv_binding_snapshot_age_known {age_known}",
+        "# TYPE live_overlay_tv_binding_snapshot_age_seconds gauge",
+        f"live_overlay_tv_binding_snapshot_age_seconds {age:.1f}",
+        "# TYPE live_overlay_tv_binding_drift gauge",
+        f"live_overlay_tv_binding_drift {1.0 if _prom_numeric_value(snap.get('mismatches', 0.0)) > 0 or _prom_numeric_value(snap.get('failed_consumers', 0.0)) > 0 else 0.0}",
+        "# TYPE live_overlay_tv_binding_mismatches gauge",
+        f"live_overlay_tv_binding_mismatches {_prom_numeric_value(snap.get('mismatches', 0.0))}",
+        "# TYPE live_overlay_tv_binding_failed_consumers gauge",
+        f"live_overlay_tv_binding_failed_consumers {_prom_numeric_value(snap.get('failed_consumers', 0.0))}",
+        "# TYPE live_overlay_tv_bindings_checked gauge",
+        f"live_overlay_tv_bindings_checked {_prom_numeric_value(snap.get('checked_bindings', 0.0))}",
+        "# TYPE live_overlay_tv_consumer_binding_mismatches gauge",
+    ]
+    for consumer in snap.get("consumers") or []:
+        name = _escape_label_value(str(consumer.get("script_name", "unknown")))
+        lines.append(
+            f'live_overlay_tv_consumer_binding_mismatches{{consumer="{name}"}} '
+            f'{_prom_numeric_value(consumer.get("mismatches", 0.0))}'
+        )
     return lines
 
 

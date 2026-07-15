@@ -4,7 +4,7 @@
 |---------|-------|
 | Status  | Accepted |
 | Date    | 2026-06-10 |
-| Refs    | Audit-R3 (Principal Review 2026-06-10); `.github/workflows/smc-live-news-refresh.yml:252`; `.github/workflows/smc-measurement-benchmark-rolling.yml` (bot/live-experiment-snapshot, added 2026-06-23); `.github/workflows/credential-health-check.yml` (bot/live-tv-credential-snapshot, added 2026-06-23); `scripts/publish_signals_snapshot.py` (bot/live-signals-snapshot host helper, added 2026-06-23); `tests/test_workflow_auth_pattern.py`; ADR-0010 (cron-workflow invariants) |
+| Refs    | Audit-R3 (Principal Review 2026-06-10); `.github/workflows/smc-live-news-refresh.yml:252`; `.github/workflows/smc-measurement-benchmark-rolling.yml` (bot/live-experiment-snapshot, added 2026-06-23); `.github/workflows/credential-health-check.yml` (bot/live-tv-credential-snapshot, added 2026-06-23); `.github/workflows/tv-save-consumer-source.yml` (bot/live-tradingview-bindings, added 2026-07-16); `scripts/publish_signals_snapshot.py` (bot/live-signals-snapshot host helper, added 2026-06-23); `tests/test_workflow_auth_pattern.py`; ADR-0010 (cron-workflow invariants) |
 
 ---
 
@@ -103,6 +103,11 @@ Constraints that must hold for the allowance to remain valid:
   to `bot/live-sweep-trap-shadow` so the live-overlay daemon fetches the
   freshest snapshot for the `lo-sweep-trap-shadow-stale` gauge. Same rolling
   `bot/*` cache-cursor pattern; force-with-lease with prior fetch.
+* `tv-save-consumer-source.yml` (added 2026-07-16) publishes the latest
+  measured TradingView `input.source` dropdown assignments on the dedicated
+  `bot/live-tradingview-bindings` cache branch. The workflow fetches
+  the current tip and uses an explicit lease; the branch remains a pure
+  machine-generated cache cursor consumed by the live-overlay daemon.
 * The same pattern is applied outside CI by
   `scripts/publish_signals_snapshot.py`, a host-run helper that updates
   `bot/live-signals-snapshot` with `latest_realtime_signals.json` (which has

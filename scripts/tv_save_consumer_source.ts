@@ -18,7 +18,16 @@ import {
   saveScript,
   setEditorContent,
   waitForPostSaveCompileSettlement,
+  type TradingViewSession,
 } from "../automation/tradingview/lib/tv_shared.js";
+
+export type SaveConsumerTarget = { source: string; scriptName: string };
+export type SaveConsumerResult = {
+  ok: true;
+  scriptName: string;
+  sourcePath: string;
+  bytes: number;
+};
 
 function getFlag(name: string, fallback = ""): string {
   const args = process.argv.slice(2);
@@ -26,15 +35,30 @@ function getFlag(name: string, fallback = ""): string {
   return index === -1 || !args[index + 1] ? fallback : args[index + 1];
 }
 
-export async function runSaveConsumerSourceCli(): Promise<number> {
-  const sourceFlag = getFlag("--source");
-  const scriptName = getFlag("--script-name");
-  if (!sourceFlag) throw new Error("Missing --source");
-  if (!scriptName) throw new Error("Missing --script-name");
-
-  const sourcePath = path.resolve(sourceFlag);
+export async function saveConsumerSource(
+  session: TradingViewSession,
+  target: SaveConsumerTarget,
+): Promise<SaveConsumerResult> {
+  const sourcePath = path.resolve(target.source);
   if (!fs.existsSync(sourcePath)) throw new Error(`Missing source: ${sourcePath}`);
   const code = fs.readFileSync(sourcePath, "utf-8");
+
+  const opened = await openExistingScript(session.page, target.scriptName, { forceSelection: true }).catch(() => false);
+  if (!opened) throw new Error(`Could not open existing saved script: ${target.scriptName}`);
+  // openExistingScript above proves the editor surface is ready. Re-running
+  // ensurePineEditor here costs ~26s per consumer on the live chart.
+  await setEditorContent(session.page, code, { editorAlreadyOpen: true });
+  await saveScript(session.page, target.scriptName);
+  await waitForPostSaveCompileSettlement(session.page, target.scriptName);
+  await assertNoVisibleCompileError(session.page);
+  return { ok: true, scriptName: target.scriptName, sourcePath, bytes: code.length };
+}
+
+export async function runSaveConsumerSourceCli(): Promise<number> {
+  const source = getFlag("--source");
+  const scriptName = getFlag("--script-name");
+  if (!source) throw new Error("Missing --source");
+  if (!scriptName) throw new Error("Missing --script-name");
 
   const session = await newTradingViewSession();
   try {
@@ -43,13 +67,7 @@ export async function runSaveConsumerSourceCli(): Promise<number> {
     }
     await gotoChart(session.page);
     await ensurePineEditor(session.page);
-    const opened = await openExistingScript(session.page, scriptName, { forceSelection: true }).catch(() => false);
-    if (!opened) throw new Error(`Could not open existing saved script: ${scriptName}`);
-    await setEditorContent(session.page, code);
-    await saveScript(session.page, scriptName);
-    await waitForPostSaveCompileSettlement(session.page, scriptName);
-    await assertNoVisibleCompileError(session.page);
-    console.log(JSON.stringify({ ok: true, scriptName, sourcePath, bytes: code.length }));
+    console.log(JSON.stringify(await saveConsumerSource(session, { source, scriptName })));
     return 0;
   } finally {
     await closeTradingViewSession(session);
