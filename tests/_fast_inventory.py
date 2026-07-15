@@ -45,6 +45,7 @@ FAST_TEST_FILES: frozenset[str] = frozenset({
     "test_http_post_egress_ledger.py",
     "test_lint_debt_no_regression.py",
     "test_loopback_and_baseimage_pin.py",
+    "test_monitoring_metric_alert_coverage.py",
     "test_mutable_defaults_and_loads_pins.py",
     "test_nonlocal_budget.py",
     "test_noqa_budget.py",
