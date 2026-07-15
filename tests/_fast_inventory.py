@@ -146,6 +146,9 @@ FAST_TEST_FILES: frozenset[str] = frozenset({
     # reason: these share the cached AST corpus, so the ~1030-module parse is
     # already paid for by the guards ahead of them and only the walk is new.
     "test_httpx_timeout_invariant.py",
+    "test_gha_action_allowlist.py",
+    "test_pine_alert_bar_close_gate.py",
+    "test_workflow_continue_on_error_semantics.py",
     "test_mkdir_makedirs_exist_ok_invariant.py",
     "test_six_zero_tripwires_bundle.py",
     "test_subprocess_run_check_invariant.py",

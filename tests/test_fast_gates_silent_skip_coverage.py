@@ -122,6 +122,7 @@ FULL_REQUIRED_PATH_TRIPWIRES: tuple[str, ...] = (
     "tests/test_fast_gates_silent_skip_coverage.py",
     "tests/test_fcntl_flock_zero_surface.py",
     "tests/test_field_preference_chain_ledger.py",
+    "tests/test_gha_action_allowlist.py",
     "tests/test_global_statement_budget.py",
     "tests/test_globals_call_zero_surface.py",
     "tests/test_hashlib_weak_hash_ledger.py",
@@ -151,6 +152,7 @@ FULL_REQUIRED_PATH_TRIPWIRES: tuple[str, ...] = (
     "tests/test_path_text_io_encoding_ledger.py",
     "tests/test_pickle_read_and_eval_zero_surface.py",
     "tests/test_pickle_write_and_abs_pathjoin_zero_surface.py",
+    "tests/test_pine_alert_bar_close_gate.py",
     "tests/test_pine_alertcondition_and_declaration_pin.py",
     "tests/test_pine_context_library_contract.py",
     "tests/test_pine_engine_fill_boundary.py",
@@ -196,6 +198,7 @@ FULL_REQUIRED_PATH_TRIPWIRES: tuple[str, ...] = (
     "tests/test_workflow_auth_pattern.py",
     "tests/test_workflow_concurrency_cron_no_cancel.py",
     "tests/test_workflow_continue_on_error_inventory.py",
+    "tests/test_workflow_continue_on_error_semantics.py",
     "tests/test_workflow_freshness_monitor_workflow.py",
     "tests/test_workflow_invoked_scripts_importable.py",
     "tests/test_workflow_issue_labels_exist.py",
@@ -597,4 +600,95 @@ def test_every_guard_corpus_user_is_on_the_required_path() -> None:
         "FAST_TEST_FILES in tests/_fast_inventory.py — the meta-guards will name "
         "them), or add it to _GUARD_CORPUS_INTENTIONALLY_UNGATED naming the gated "
         "guard that already reads its surface."
+    )
+
+
+# ---------------------------------------------------------------------------
+# Sibling corpora (2026-07-15)
+# ---------------------------------------------------------------------------
+# The rule above keys off `tests/_guard_corpus` — the shared PYTHON AST corpus.
+# Two sibling corpora carry repo-wide guards it cannot see, because their
+# surface is not Python source:
+#
+#   tests/_workflow_yaml  — the .github/workflows corpus
+#   tests/_pine_text      — the Pine source corpus
+#
+# Same argument as _guard_corpus, same failure if ungated: nothing drifts, so
+# nothing turns red; a NEW violation just merges green. That is how
+# test_gha_action_allowlist — the SHA-pinning defence against GitHub Action
+# tag-mutation — sat off the required path indefinitely. It is on it now, and it
+# was refactored onto the shared corpus so this rule DERIVES it instead of
+# trusting a hand-maintained entry (its private file-walk returned the identical
+# 62 files; verified before the swap).
+#
+# Membership is decided by a real IMPORT, parsed from the AST — not by the
+# substring test the _guard_corpus rule uses. On this tree the substring form
+# over-reports these corpora badly (8 hits vs 3 real importers for
+# _workflow_yaml, 3 vs 2 for _pine_text): a docstring cross-reference or a
+# comment naming the helper is not a use of it, and gating on a mention would
+# drag single-workflow contract pins and a shard planner's unit tests onto the
+# required path.
+
+_SIBLING_CORPORA: tuple[str, ...] = ("_workflow_yaml", "_pine_text")
+
+# Empty by design: an entry is a reviewed decision with a justification naming
+# the gated guard that already reads the surface, not a rebase artefact.
+_SIBLING_CORPUS_INTENTIONALLY_UNGATED: frozenset[str] = frozenset()
+
+
+def _imports_module(path: Path, module: str) -> bool:
+    """True only when ``module`` is genuinely imported by ``path``."""
+    try:
+        tree = ast.parse(path.read_text(encoding="utf-8", errors="replace"))
+    except (OSError, SyntaxError):  # pragma: no cover - unparseable/unreadable
+        return False
+    for node in ast.walk(tree):
+        if isinstance(node, ast.ImportFrom) and node.module and module in node.module:
+            return True
+        if isinstance(node, ast.Import) and any(
+            module in alias.name for alias in node.names
+        ):
+            return True
+    return False
+
+
+def _sibling_corpus_users() -> set[str]:
+    """Every test that genuinely imports a workflow-YAML or Pine corpus."""
+    return {
+        f"tests/{path.name}"
+        for path in sorted((ROOT / "tests").glob("test_*.py"))
+        if any(_imports_module(path, corpus) for corpus in _SIBLING_CORPORA)
+    }
+
+
+def test_every_sibling_corpus_user_is_on_the_required_path() -> None:
+    """Workflow-YAML and Pine guards must gate too, not just Python-source ones.
+
+    Their surface is YAML and Pine, so neither the frozen-shape rules nor the
+    _guard_corpus import can see them — and an ungated one fails the same quiet
+    way: a new violation merges green and surfaces post-merge in `validate`, if
+    anyone reads it.
+    """
+    users = _sibling_corpus_users()
+    # Sanity: these corpora are small, but a rename must not empty the set and
+    # make this rule pass on nothing.
+    assert len(users) >= 4, (
+        f"sibling-corpus discovery found only {len(users)} importers — a corpus "
+        "module moved or the tests/ layout changed, and this rule is no longer "
+        "measuring anything"
+    )
+
+    step = _drift_guard_step_text()
+    referenced = set(re.findall(r"tests/test_[A-Za-z0-9_]+\.py", step))
+    ungated = sorted(users - referenced - _SIBLING_CORPUS_INTENTIONALLY_UNGATED)
+    assert not ungated, (
+        "workflow-YAML / Pine guard(s) are not on the required path. fast-gates "
+        "is the only merge-gating job, so the rule they enforce — an action "
+        "SHA-pinned against tag mutation, an alertcondition gated to bar close — "
+        "cannot block the merge that breaks it.\n\n"
+        f"Ungated: {ungated}\n\n"
+        "Add each to the 'Run pin / ledger drift guard' step in "
+        "smc-fast-pr-gates.yml (plus FULL_REQUIRED_PATH_TRIPWIRES and "
+        "FAST_TEST_FILES — the meta-guards will name them), or add it to "
+        "_SIBLING_CORPUS_INTENTIONALLY_UNGATED with a justification."
     )

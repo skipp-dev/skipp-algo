@@ -23,6 +23,8 @@ from pathlib import Path
 
 import pytest
 
+from tests._workflow_yaml import iter_workflow_files
+
 ROOT = Path(__file__).resolve().parents[1]
 WORKFLOWS_DIR = ROOT / ".github" / "workflows"
 
@@ -78,12 +80,15 @@ _APPROVED_ACTION_SHAS: dict[str, frozenset[str]] = {
 
 
 def _iter_workflow_files() -> list[Path]:
-    if not WORKFLOWS_DIR.is_dir():
-        return []
-    return sorted(
-        p for p in WORKFLOWS_DIR.iterdir()
-        if p.is_file() and p.suffix in (".yml", ".yaml")
-    )
+    """The workflow corpus, from the shared helper.
+
+    Was a private duplicate of ``_workflow_yaml.iter_workflow_files`` (verified
+    2026-07-15: both return the identical 62 files). Using the shared corpus is
+    what makes this guard DERIVABLE — the required-path rule keys off the
+    import, so a PR can no longer drop this supply-chain pin off the merge gate
+    by editing three hand-maintained lists in step (the #3670 shape).
+    """
+    return iter_workflow_files()
 
 
 def _iter_uses() -> list[tuple[Path, int, str]]:
