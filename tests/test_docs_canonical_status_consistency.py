@@ -20,6 +20,7 @@ assertion fails.
 from __future__ import annotations
 
 import json
+import re
 from pathlib import Path
 
 REPO = Path(__file__).resolve().parents[1]
@@ -64,7 +65,7 @@ def test_v5_5b_detector_count_prose_matches_table() -> None:
     for detector in (
         "| Freshness v2 ",
         "| Sweep Trap ",
-        "| Reaction Zone ",
+        "| Reaction Context ",
         "| Confluence Score ",
         "| SMT Divergence ",
     ):
@@ -125,8 +126,11 @@ def test_adr_0026_exists_and_indexed() -> None:
     assert "0026-magnitude-retarget-executed-and-ohlcv-queue-closed.md" in index, (
         "ADR-0026 must be listed in the index"
     )
-    # Reservation counter advanced past 0026.
-    assert "The next free ADR number is **0027**" in index
+    # Reservation counter advanced past 0026. Keep this invariant resilient to
+    # later ADRs being accepted instead of pinning the next number forever.
+    match = re.search(r"The next free ADR number is \*\*(\d{4})\*\*", index)
+    assert match, "ADR index must publish the next free ADR number"
+    assert int(match.group(1)) > 26
 
 
 def test_adr_index_no_longer_lists_executed_adrs_as_bare_proposed() -> None:
