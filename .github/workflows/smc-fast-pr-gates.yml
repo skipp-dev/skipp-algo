@@ -381,6 +381,14 @@ jobs:
         # neither ran in CI — the PR merged green having never executed them. The
         # v2 64/64 freeze and the Python->Pine threshold parity check had the same
         # hole. All four are source-parsing only (<2s total).
+        #
+        # test_monitoring_metric_alert_coverage.py joined for the same reason: it
+        # asserts that every emitted alerting metric has a consumer, so a PR that
+        # deletes an alert rule is exactly what it exists to catch — and until
+        # #3665 it ran in no PR lane at all (the file is not in the fast list, and
+        # ci.yml is status-only on PRs, so `pytest -m "not slow"` collected 0 of
+        # its tests). It only ran post-merge on main push. YAML/JSON parsing only,
+        # ~1.5s.
         if: steps.gate.outputs.run_heavy == 'true'
         run: |
           python -m pytest -q --maxfail=1 \
@@ -466,7 +474,8 @@ jobs:
             tests/test_smc_bus_v2_freeze.py \
             tests/test_smc_context_golden.py \
             tests/test_pine_context_library_contract.py \
-            tests/test_pine_library_import_permissions.py
+            tests/test_pine_library_import_permissions.py \
+            tests/test_monitoring_metric_alert_coverage.py
 
       - name: Run fast SMC integration tests
         if: steps.gate.outputs.run_heavy == 'true'

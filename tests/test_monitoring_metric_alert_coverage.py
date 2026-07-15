@@ -59,6 +59,10 @@ _CREDENTIAL_SIGNAL_METRICS = (
     "live_overlay_credential_health_github_pat_validity_valid",
     "live_overlay_credential_health_tv_storage_state_age_valid",
     "live_overlay_credential_health_snapshot_age_seconds",
+    # The staleness gauge alone is not enough: it is only meaningful while
+    # age_known == 1, so the age_known gauge needs its own watcher too (see
+    # test_credential_health_age_unknown_has_alert_coverage).
+    "live_overlay_credential_health_snapshot_age_known",
 )
 
 # Provider-usage FEED-HEALTH signals that MUST alert. The daemon exported
@@ -263,6 +267,38 @@ def test_evidence_ledger_age_unknown_does_not_double_page_with_empty() -> None:
     expr = _rule_exprs()["lo-evidence-ledger-age-unknown"]
     assert "live_overlay_evidence_ledger_rows" in expr, expr
     assert "> bool 0" in expr, expr
+
+
+def test_credential_health_age_unknown_has_alert_coverage() -> None:
+    """The same gt-0-inert hole, one chain over — the follow-up #3659 deferred.
+
+    A credential-health snapshot that LOADS but carries no parseable
+    ``generated_at`` reports age_known=0 AND age_seconds=0, so neither existing
+    rule can see it:
+
+    - ``lo-credential-monitor-stale`` reads ``(0 * 0) > 129600`` = false. Note
+      the ``* age_known`` factor (#3666) does NOT close this: it stops an
+      unknown age from reading as fresh-and-stale, but 0 was already below the
+      threshold, so the undated state stays silent either way.
+    - ``lo-credential-snapshot-missing`` reads ``loaded == 0`` = false.
+
+    Both green, zero data — the stale-green blind spot the monitor exists to
+    prevent. The complement rule must exist, gate on ``_loaded`` so it cannot
+    double-page with the missing-snapshot rule, and use the ``== bool 0`` form
+    (a bare ``== 0`` returns 0 and a gt-0 threshold reads 0>0=false — inert).
+    """
+    exprs = _rule_exprs()
+    assert "lo-credential-monitor-age-unknown" in exprs, (
+        "the credential-health age-unknown rule is gone — a loaded-but-undated "
+        "snapshot is invisible again (the stale rule cannot cover it)"
+    )
+    expr = exprs["lo-credential-monitor-age-unknown"]
+    assert "live_overlay_credential_health_snapshot_age_known" in expr, expr
+    assert "live_overlay_credential_health_loaded" in expr, (
+        "must gate on the loaded gauge so a missing snapshot does not double-page "
+        f"with lo-credential-snapshot-missing: {expr}"
+    )
+    assert "== bool 0" in expr, f"bare `== 0` is inert (0>0=false): {expr}"
 
 
 def test_dashboard_age_panels_gate_on_age_known() -> None:

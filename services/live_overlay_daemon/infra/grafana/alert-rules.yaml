@@ -3261,6 +3261,63 @@ groups:
         blind spot this monitor exists to prevent).
       runbook: Check the credential-health-check workflow runs and the bot/live-tv-credential-snapshot
         publish step (GH_PAT push). Do NOT trust the other credential alerts until this clears.
+  - uid: lo-credential-monitor-age-unknown
+    title: Credential-health snapshot age unknown (loaded but undated)
+    condition: C
+    data:
+    - refId: A
+      datasourceUid: grafanacloud-prom
+      model:
+        # Complement of lo-credential-monitor-stale, mirroring
+        # lo-sweep-trap-shadow-age-unknown. A snapshot that LOADS but carries no
+        # parseable `generated_at` yields snapshot_age_known=0 and
+        # snapshot_age_seconds=0 (metrics.py `_credential_health_snapshot`
+        # deliberately reports unknown-age as not-stale so a fresh daemon does
+        # not self-alarm). That leaves a hole between the two existing rules:
+        # the stale rule reads (0*0)>129600=false (inert, the gt-0-inert class)
+        # -- its `* age_known` factor stops an unknown age from reading as
+        # fresh-and-stale, but 0 was already below the threshold, so the undated
+        # state stays silent either way -- and
+        # lo-credential-snapshot-missing reads loaded==0=false. So an undated
+        # report serves stale-green credential gauges with NOTHING watching --
+        # the same 12-day blind spot the monitor exists to prevent. A missing/
+        # malformed `generated_at` is not hypothetical: it was an observed
+        # producer bug (ops-digest, 2026-07-15).
+        #
+        # `loaded * (age_known == bool 0)` fires only for loaded=1 AND
+        # age_known=0, so it cannot double-fire with lo-credential-snapshot-missing.
+        # `== bool 0` (not `== 0`) is mandatory: a bare match returns 0 and the
+        # gt-0 threshold reads 0>0=false (inert).
+        expr: live_overlay_credential_health_loaded{job="live_overlay"} * (live_overlay_credential_health_snapshot_age_known{job="live_overlay"} == bool 0)
+        instant: true
+    - refId: C
+      datasourceUid: __expr__
+      model:
+        type: threshold
+        conditions:
+        - evaluator:
+            type: gt
+            params:
+            - 0
+          operator:
+            type: and
+          query:
+            params:
+            - A
+    # 1h matches the sibling stale rule. A loaded-but-undated report is a
+    # structural producer defect, not deploy churn: once the file is readable,
+    # a missing `generated_at` persists until the producer is fixed.
+    for: 1h
+    noDataState: OK
+    labels:
+      severity: high
+    annotations:
+      summary: The credential-health snapshot loads but has no parseable generated_at -- its freshness
+        is unverifiable and lo-credential-monitor-stale can never fire.
+      runbook: live_overlay_credential_health_snapshot_age_known is 0 while _loaded is 1 -- the report at
+        TRADINGVIEW_CREDENTIAL_SNAPSHOT_URL is missing a `generated_at` or it is malformed (must be
+        ISO-8601). Check the credential-health-check workflow's report writer. Until this clears the
+        age-based stale alert is blind, so do NOT trust the other credential gauges' freshness.
   - uid: lo-credential-snapshot-missing
     title: Credential-health snapshot not loaded
     condition: C

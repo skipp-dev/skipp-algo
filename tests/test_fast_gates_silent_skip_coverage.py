@@ -131,6 +131,7 @@ FULL_REQUIRED_PATH_TRIPWIRES: tuple[str, ...] = (
     "tests/test_loopback_and_baseimage_pin.py",
     "tests/test_lru_cache_maxsize_discipline.py",
     "tests/test_module_test_coverage_pin.py",
+    "tests/test_monitoring_metric_alert_coverage.py",
     "tests/test_mutable_defaults_and_loads_pins.py",
     "tests/test_nonlocal_budget.py",
     "tests/test_noqa_budget.py",
