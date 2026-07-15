@@ -140,3 +140,55 @@ def test_hmac_zero_surface_pin() -> None:
         "Allow-listed hmac.* call site disappeared. If intentional, "
         f"remove from HMAC_ALLOWED. Missing: {sorted(missing)}"
     )
+
+
+def _tautological_compare_digest_sites() -> set[tuple[str, int, str]]:
+    """Return ``hmac.compare_digest(x, x)`` sites — a compare that always passes.
+
+    ``HMAC_ALLOWED`` pins ``(path, lineno, attr)``. ``attr`` buys exactly one of
+    this module's claims — swapping ``compare_digest`` for ``==`` drops the entry
+    and fails. It says nothing about WHAT is compared, so mutating an
+    allow-listed site to compare a value against ITSELF keeps the tuple
+    identical and the pin green while the check becomes a tautology that
+    authenticates every caller.
+
+    That is not hypothetical for ``composio_chatops.webhook``: verified
+    2026-07-15, rewriting its token check to ``compare_digest(token, token)``
+    passed this pin AND the whole composio suite, because the endpoint has no
+    behaviour test (see test_composio_chatops_webhook_rejects_wrong_token, added
+    alongside this).
+
+    Structural only: it catches the degenerate self-compare, not a compare
+    against the wrong-but-different operand. Operand *correctness* is what
+    behaviour tests are for; this closes the shape a ledger CAN see.
+    """
+    offenders: set[tuple[str, int, str]] = set()
+    for path in _iter_py_files():
+        tree = parse_module(path)
+        if tree is None:
+            continue
+        rel = path.relative_to(ROOT).as_posix()
+        for node in ast.walk(tree):
+            if not isinstance(node, ast.Call):
+                continue
+            func = node.func
+            if not isinstance(func, ast.Attribute) or func.attr != "compare_digest":
+                continue
+            value = func.value
+            if not isinstance(value, ast.Name) or value.id != "hmac":
+                continue
+            if len(node.args) == 2 and ast.dump(node.args[0]) == ast.dump(node.args[1]):
+                offenders.add((rel, node.lineno, ast.unparse(node.args[0])))
+    return offenders
+
+
+def test_compare_digest_never_compares_a_value_with_itself() -> None:
+    """``hmac.compare_digest(x, x)`` is always True — an auth bypass, not a check."""
+    offenders = _tautological_compare_digest_sites()
+    assert not offenders, (
+        "hmac.compare_digest(x, x) compares a value with itself and is therefore "
+        "always True — every caller authenticates. The (path, line, attr) ledger "
+        "cannot see this: the tuple is unchanged, so the pin stays green. Compare "
+        "the supplied value against the EXPECTED secret.\n"
+        f"offenders = {sorted(offenders)}"
+    )

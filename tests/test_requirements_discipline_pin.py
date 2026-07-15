@@ -88,17 +88,45 @@ def test_requirements_file_exists(name: str, path: Path) -> None:
     assert path.is_file(), f"missing {name}: {path}"
 
 
+def _version_specifier(line: str) -> str:
+    """Return the requirement's own version specifier, stripped of noise.
+
+    A dep line may legitimately carry an inline comment and a PEP 508
+    environment marker::
+
+        cupy-cuda12x==14.0.0 ; platform_system == "Linux"   # GPU extra
+
+    Both can contain ``==`` while saying nothing about the pin, so they are
+    removed BEFORE the specifier is inspected (2026-07-15): the previous check
+    was ``assert "==" in line``, a bare substring test that either of them
+    satisfied while the package version floated freely.
+    """
+    body = line.split("#", 1)[0]  # inline comment
+    body = body.split(";", 1)[0]  # PEP 508 environment marker
+    return body.strip()
+
+
 @pytest.mark.parametrize(("name", "lineno", "line"), _dep_cases())
 def test_every_dep_has_version_specifier(name: str, lineno: int, line: str) -> None:
-    """Every dep line must be exact-pinned with ``==``.
+    """Every dep line must be exact-pinned with ``==`` on the package itself.
 
     A bare ``requests`` line — or even a floating lower bound like
     ``requests>=X.Y`` — would let a fresh install drift to a newly
     published release. For tracked requirements surfaces we freeze exact
     versions in source control.
+
+    The check reads the requirement's OWN specifier. ``"==" in line`` was not
+    that test: it passed on ``hypothesis>=6.112.2 ; python_version=="3.12"``,
+    where the ``==`` belongs to the environment marker while ``hypothesis``
+    floats to whatever PyPI serves at install time — precisely the drive-by
+    supply-chain drift this pin's header says it exists to prevent. Verified:
+    that line passed all 36 cases before this change.
     """
-    assert "==" in line, (
+    spec = _version_specifier(line)
+    assert "==" in spec, (
         f"{name} line {lineno} is not exact-pinned: {line!r}. "
+        f"The requirement's own specifier is {spec!r} — a '==' in an inline "
+        "comment or a PEP 508 environment marker does not pin the package. "
         "Use 'pkg==X.Y.Z' for deterministic root installs."
     )
 

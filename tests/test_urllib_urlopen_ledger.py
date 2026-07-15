@@ -76,14 +76,39 @@ def _is_urlopen_call(node: ast.AST) -> bool:
 
 
 def _scan_urlopen(tree: ast.AST) -> list[tuple[int, bool]]:
-    """Return [(lineno, has_timeout_kwarg), ...] for urlopen calls."""
+    """Return [(lineno, has_effective_timeout), ...] for urlopen calls.
+
+    "Effective", not merely present (2026-07-15). This reported kwarg PRESENCE
+    (``"timeout" in kw``), which is not the invariant the module header states:
+    ``urlopen(req, timeout=None)`` passes the keyword and still blocks forever —
+    the exact CWE-1088 failure the header describes — and a presence check waves
+    it through. Verified: mutating an allow-listed site to ``timeout=None``
+    passed this pin AND test_http_client_discipline (56 passed) before this
+    change.
+
+    A literal ``None``, or a non-positive literal (which bounds nothing), counts
+    as NO timeout. A non-literal expression is accepted: its value is not
+    statically knowable and the real call sites legitimately pass variables.
+    """
     out: list[tuple[int, bool]] = []
     for node in ast.walk(tree):
         if not _is_urlopen_call(node):
             continue
         assert isinstance(node, ast.Call)
-        kw = {k.arg for k in node.keywords if k.arg}
-        out.append((node.lineno, "timeout" in kw))
+        effective = False
+        for k in node.keywords:
+            if k.arg != "timeout":
+                continue
+            value = k.value
+            if isinstance(value, ast.Constant):
+                effective = (
+                    isinstance(value.value, (int, float))
+                    and not isinstance(value.value, bool)
+                    and value.value > 0
+                )
+            else:
+                effective = True  # variable/attribute — not statically knowable
+        out.append((node.lineno, effective))
     return out
 
 

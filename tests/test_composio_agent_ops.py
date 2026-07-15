@@ -86,3 +86,53 @@ def test_chatops_rejects_unknown_user(monkeypatch):
         assert getattr(exc, "status_code", None) == 403
     else:
         raise AssertionError("unknown user was accepted")
+
+
+def _call_webhook(monkeypatch, *, secret: str, supplied: str):
+    """Drive composio_chatops.webhook directly and return (status, ok)."""
+    import asyncio
+
+    from fastapi import HTTPException
+
+    monkeypatch.setenv("COMPOSIO_CHATOPS_WEBHOOK_TOKEN", secret)
+    monkeypatch.setattr(composio_chatops, "handle", lambda payload: {"ok": True})
+
+    class _Req:
+        async def json(self):
+            return {"text": "skipp help"}
+
+    try:
+        result = asyncio.run(composio_chatops.webhook(_Req(), token=supplied))
+    except HTTPException as exc:
+        return exc.status_code, None
+    return 200, result
+
+
+def test_composio_chatops_webhook_rejects_wrong_token(monkeypatch):
+    """A wrong URL-path token must 401 — the endpoint's only authentication.
+
+    Added 2026-07-15: this route had ZERO behaviour coverage, and the hmac
+    zero-surface ledger pins (path, line, attr) only, so it cannot see WHAT is
+    compared. Rewriting the check to ``hmac.compare_digest(token, token)`` — a
+    tautology that authenticates every caller — passed the ledger and the whole
+    composio suite. A structural guard now rejects that exact self-compare
+    shape, but only a behaviour test pins the operands: that the SUPPLIED token
+    is checked against the CONFIGURED secret.
+    """
+    assert _call_webhook(monkeypatch, secret="s3cr3t", supplied="wrong")[0] == 401
+
+
+def test_composio_chatops_webhook_accepts_the_configured_token(monkeypatch):
+    """The matching token authenticates — proves the 401 above is not vacuous."""
+    status, result = _call_webhook(monkeypatch, secret="s3cr3t", supplied="s3cr3t")
+    assert status == 200
+    assert result == {"ok": True}
+
+
+def test_composio_chatops_webhook_is_503_when_no_secret_is_configured(monkeypatch):
+    """An unset secret must fail closed (503), never authenticate an empty token.
+
+    Pins the ledger comment's "no empty-secret bypass" claim, which was prose
+    only: with `expected` empty, `compare_digest("", "")` would be True.
+    """
+    assert _call_webhook(monkeypatch, secret="", supplied="")[0] == 503

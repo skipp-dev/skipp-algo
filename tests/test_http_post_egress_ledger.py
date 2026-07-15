@@ -254,3 +254,59 @@ def test_http_post_egress_ledger_pin() -> None:
         "the underlying egress destination is unchanged.\n"
         f"missing = {sorted(missing)}"
     )
+
+
+def _post_sites_following_redirects() -> set[tuple[str, int]]:
+    """Return ledgered POST sites that follow redirects.
+
+    ``HTTP_POST_LEDGER`` pins ``(path, lineno)``; each entry's SAFETY POSTURE
+    ("no redirects", "SSRF-guarded", "timeout 5s") lives in a trailing comment
+    the collector never reads. Flipping an allow-listed
+    ``follow_redirects=False`` to ``True`` in place therefore keeps the tuple
+    identical and the pin green — verified 2026-07-15 against
+    ``streamlit_terminal.py``, whose webhook POST has no behaviour test to catch
+    it either (the terminal_export / terminal_notifications sites are covered by
+    their own suites).
+
+    Redirect-following matters most exactly here: the URL is user-supplied, so a
+    302 turns a POST at an attacker-chosen endpoint into a request against an
+    internal address with the body — and, on cross-host redirects, the headers —
+    in tow. That is SSRF amplification, and "no redirects" is the posture the
+    ledger comment claims for this entry.
+
+    Only an explicit literal ``True`` is reported. Absent kwarg is fine: httpx
+    defaults ``follow_redirects`` to False, and requests' ``allow_redirects``
+    default is handled by the sites' own suites.
+    """
+    offenders: set[tuple[str, int]] = set()
+    for path in _iter_py_files():
+        tree = parse_module(path)
+        if tree is None:
+            continue
+        rel = path.relative_to(ROOT).as_posix()
+        for node in ast.walk(tree):
+            if not isinstance(node, ast.Call):
+                continue
+            func = node.func
+            if not isinstance(func, ast.Attribute) or func.attr != "post":
+                continue
+            for kw in node.keywords:
+                if kw.arg not in {"follow_redirects", "allow_redirects"}:
+                    continue
+                if isinstance(kw.value, ast.Constant) and kw.value.value is True:
+                    offenders.add((rel, node.lineno))
+    return offenders
+
+
+def test_ledgered_post_sites_do_not_follow_redirects() -> None:
+    """Every reviewed POST egress keeps the no-redirect posture its entry claims."""
+    offenders = sorted(_post_sites_following_redirects() & HTTP_POST_LEDGER)
+    assert not offenders, (
+        "A ledgered outbound POST follows redirects. The (path, lineno) ledger "
+        "cannot see this — the safety posture is only a comment — but a 302 on a "
+        "user-supplied webhook URL forwards the body (and cross-host, the "
+        "headers) to an address the caller never reviewed: SSRF amplification. "
+        "Keep follow_redirects=False, or move the entry out of this ledger with "
+        "a reviewed justification.\n"
+        f"offenders = {offenders}"
+    )
