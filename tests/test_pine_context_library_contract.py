@@ -34,6 +34,8 @@ import json
 import re
 from pathlib import Path
 
+import pytest
+
 REPO_ROOT = Path(__file__).resolve().parent.parent
 LIB_PATH = REPO_ROOT / "SMC++" / "smc_context_engine_private.pine"
 GOLDEN_PATH = REPO_ROOT / "tests" / "fixtures" / "smc_context_golden.json"
@@ -347,4 +349,175 @@ def test_thresholds_are_named_consts_not_inlined_magic_numbers() -> None:
     assert not offenders, (
         "Rule-layer threshold literals found at use-sites instead of the named "
         "consts:\n  " + "\n  ".join(offenders)
+    )
+
+
+# ── Rule-layer semantics: pins that survive a mutated builder ────────────────
+#
+# The threshold pins above compare *constants*. They do not observe what the
+# builders compute. Verified 2026-07-15 against origin/main@a19e44348: mutating
+# ImbalanceFrame.state to a constant 0 and StructureFrame.trend to a constant 1
+# each left this module fully green (12 passed either way). The pins below are
+# what make those two mutations fail.
+#
+# Scope, unchanged from this module's header: these read the Pine SOURCE. They
+# claim no compile or runtime coverage — that stays a manual operator gate.
+
+
+def _builder_body(name: str) -> str:
+    """Source of one exported builder, up to the next top-level export.
+
+    Scoping matters: ZoneFrame (3.2a) and ImbalanceFrame each declare a `state`
+    field with a *different* ladder, so a whole-file regex reads whichever comes
+    first and silently pins the wrong one.
+    """
+    src = _source()
+    start = re.search(rf"^export {name}\(", src, re.MULTILINE)
+    assert start, f"{name} not found"
+    rest = src[start.end() :]
+    nxt = re.search(r"^export ", rest, re.MULTILINE)
+    return rest[: nxt.start()] if nxt else rest
+
+
+def _builder_signature(name: str) -> str:
+    m = re.search(rf"^export {name}\((?P<args>[^)]*)\)", _source(), re.MULTILINE)
+    assert m, f"{name} signature not found"
+    return m.group("args")
+
+
+def _effective_terminal_fill_ratio() -> float:
+    """The fill_target_ratio the builder actually hands the engine.
+
+    Resolves the *call-site* argument, following one hop through either a
+    builder parameter default or a named Pine const. Reading only the public
+    signature default would miss a perfectly good fix that drops the parameter
+    and pins the ratio at the call site, or moves it into a named const — the
+    test would then keep reporting the old violation forever.
+    """
+    call = re.search(
+        r"eng\.fvgs_objects\((?P<args>[^)]*)\)", _builder_body("build_imbalance_frame")
+    )
+    assert call, "build_imbalance_frame no longer calls eng.fvgs_objects"
+    m = re.search(r"fill_target_ratio\s*=\s*(?P<val>[\w.]+)", call.group("args"))
+    assert m, (
+        "build_imbalance_frame calls eng.fvgs_objects without passing "
+        "fill_target_ratio, so the engine's own 0.5 default applies and the FVG "
+        "is still retired at the gap midpoint."
+    )
+    val = m.group("val")
+    try:
+        return float(val)
+    except ValueError:
+        pass
+    param_default = re.search(
+        rf"\b{re.escape(val)}\s*=\s*(-?[0-9]+(?:\.[0-9]+)?)",
+        _builder_signature("build_imbalance_frame"),
+    )
+    if param_default:
+        return float(param_default.group(1))
+    consts = _pine_consts()
+    assert val in consts, (
+        f"cannot resolve the fill_target_ratio argument {val!r} to a value: it is "
+        "neither a literal, nor a build_imbalance_frame parameter with a default, "
+        "nor a named const in this library."
+    )
+    return consts[val]
+
+
+@pytest.mark.xfail(
+    strict=True,
+    reason=(
+        "KNOWN VIOLATION (F1). _NOT_IN_PINE records FULL_MIT_PCT as 'delegated to "
+        "the engine: eng.FVG.filled is the full-mitigation SSOT'. That delegation "
+        "is only true if the builder asks the engine for a TERMINAL fill target. "
+        "It asks for 0.5, so eng.FVG.filled fires at the gap MIDPOINT and "
+        "clear_filled() drops the FVG from the active buffer at half mitigation. "
+        "Consequences: the golden state FULL_MITIGATION=false + "
+        "PARTIAL_MITIGATION=true is unreachable in Pine, bull_fvg_partial is only "
+        "reachable on an exact-midpoint tick, and count/BPR/zone_bias/state are "
+        "computed from a truncated set. Un-xfail together with the fix; "
+        "strict=True fails the suite the moment the source is corrected."
+    ),
+)
+def test_engine_fill_delegation_holds_its_precondition() -> None:
+    """Delegating FULL_MIT_PCT to the engine requires a terminal fill target."""
+    expected = _golden_thresholds()["FULL_MIT_PCT"]
+    actual = _effective_terminal_fill_ratio()
+    assert actual == expected, (
+        f"build_imbalance_frame effectively passes fill_target_ratio={actual} to "
+        f"the engine, but _NOT_IN_PINE delegates FULL_MIT_PCT ({expected}) to "
+        "eng.FVG.filled. The engine sets `filled` once price crosses "
+        "top - ratio*size, so any ratio below 1.0 makes that delegation false: "
+        "the flag then means 'partially filled', not 'fully mitigated'."
+    )
+
+
+def test_imbalance_state_precedence_is_the_documented_ladder() -> None:
+    """`state` must stay the BPR > VOID > FVG_BULL > FVG_BEAR > NONE ladder.
+
+    Collapsing it to a constant is one of the two mutations this module missed.
+    """
+    m = re.search(
+        r"int state = (?P<expr>.+)$", _builder_body("build_imbalance_frame"), re.MULTILINE
+    )
+    assert m, "the ImbalanceFrame state expression is gone"
+    expr = m.group("expr")
+    codes = [int(c) for c in re.findall(r"\b(\d)\b", expr)]
+    assert codes == [3, 4, 1, 2, 0], (
+        f"state ladder drifted: emits {codes}, expected [3, 4, 1, 2, 0] "
+        "(BPR > VOID > FVG_BULL > FVG_BEAR > NONE)"
+    )
+    for predicate in ("bpr_active", "void_active", "has_bull", "has_bear"):
+        assert predicate in expr, (
+            f"ImbalanceFrame.state no longer depends on {predicate} — it cannot "
+            "be a constant or a subset of the ladder"
+        )
+
+
+def test_structure_trend_flows_from_the_engine_detector() -> None:
+    """`StructureFrame.trend` must derive from the engine's trend, not a literal.
+
+    Pinning trend to a constant is the other mutation this module missed.
+
+    Deliberately NOT pinned to the bare identifier: the engine bootstraps
+    `var trend = 1`, so a correct warm-up fix will wrap it (e.g.
+    ``structure_available ? trend : 0``). Demanding the raw value would block
+    that fix and cement today's bullish bootstrap as the contract. The rule is
+    only: it must depend on the engine's trend and must not be a literal.
+    """
+    body = _builder_body("build_structure_frame")
+    assert re.search(r"\[trend,[^\]]*\]\s*=\s*eng\.detect_structure\(", body), (
+        "build_structure_frame no longer destructures trend from "
+        "eng.detect_structure"
+    )
+    m = re.search(r"StructureFrame\.new\((?P<args>[^)]*)\)", body)
+    assert m, "StructureFrame.new construction not found"
+    first_arg = m.group("args").split(",", 1)[0].strip()
+    assert not re.fullmatch(r"-?\d+(?:\.\d+)?", first_arg), (
+        f"StructureFrame.trend is built from the literal {first_arg!r}. It must "
+        "carry the engine's trend (optionally neutralised during warm-up), not "
+        "a hardcoded direction."
+    )
+    assert re.search(r"\btrend\b", first_arg), (
+        f"StructureFrame.trend is built from {first_arg!r}, which does not "
+        "reference the engine's `trend` value at all."
+    )
+
+
+def test_imbalance_frame_is_direction_neutral() -> None:
+    """Every bull-side ImbalanceFrame field needs a bear twin (as for ZoneFrame)."""
+    block = re.search(
+        r"^export type ImbalanceFrame\n((?:    .*\n)+)", _source(), re.MULTILINE
+    )
+    assert block, "export type ImbalanceFrame not found"
+    fields = {
+        m.group(1)
+        for m in re.finditer(r"^    \w+\s+(\w+)", block.group(1), re.MULTILINE)
+    }
+    unpaired = [
+        f for f in fields
+        if f.startswith("bull_") and f.replace("bull_", "bear_", 1) not in fields
+    ]
+    assert not unpaired, (
+        f"bull-side ImbalanceFrame fields without a bear twin: {unpaired}"
     )
