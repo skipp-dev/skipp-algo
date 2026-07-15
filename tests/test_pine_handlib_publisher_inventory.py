@@ -33,6 +33,7 @@ import pytest
 REPO_ROOT = Path(__file__).resolve().parent.parent
 ORCHESTRATOR = REPO_ROOT / "scripts" / "tv_publish_hand_authored_libraries.ts"
 SMCPP_DIR = REPO_ROOT / "SMC++"
+ENGINE_PUBLISHER = REPO_ROOT / "scripts" / "tv_publish_engine_library.ts"
 
 _ENTRY_RE = re.compile(
     r'\{\s*name:\s*"(?P<name>[^"]+)",\s*source:\s*"(?P<source>[^"]+)",\s*'
@@ -180,3 +181,11 @@ def test_context_engine_publisher_checks_pins_across_every_consumer() -> None:
         "the unconditional core-import requirement is back — that reintroduces "
         "the bootstrap deadlock this library is currently in"
     )
+
+
+def test_engine_publisher_requires_exact_facade_version() -> None:
+    """A facade result for another version must not verify the expected pin."""
+    text = ENGINE_PUBLISHER.read_text(encoding="utf-8")
+    assert "publishedVersion = facadeVersion;" in text
+    assert "exactVersionVerified = facadeVersion === details.version;" in text
+    assert "exactVersionVerified = true;" not in text

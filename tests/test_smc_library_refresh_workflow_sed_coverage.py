@@ -23,6 +23,7 @@ EXPECTED_CONSUMERS: set[str] = {
     "SMC_Long_Dip_Dashboard.pine",
     "SMC_Long_Dip_Mobile.pine",
     "SMC_Long_Dip_Strategy.pine",
+    "SMC_Long_Dip_Alerts.pine",
     "SMC_Hold_Manager.pine",
     "SMC_Confluence_Hub.pine",
     "SMC_Structure_Context.pine",

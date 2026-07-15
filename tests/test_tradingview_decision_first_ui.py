@@ -61,8 +61,8 @@ def test_dashboard_has_companion_summary_and_pro_diagnostics() -> None:
     assert 'surface_mode = input.string("Decision Brief"' in source
     assert source.index('surface_mode = input.string("Decision Brief"') < source.index('src_zone_active = input.source(close, "BUS ZoneActive"')
     assert "dashboard_product_state_text(" in source
-    assert 'dashboard_row(smc_dashboard, 0, "SMC Long-Dip Dashboard", "Decision Brief | Linked setup active"' in source
-    assert 'dashboard_row(smc_dashboard, 0, "SMC Long-Dip Dashboard", "Audit View | Expert review only", header_bg, txt)' in source
+    assert 'dashboard_row(smc_dashboard, 0, "SMC Long-Dip Dashboard v7", "Decision Brief | Linked setup active"' in source
+    assert 'dashboard_row(smc_dashboard, 0, "SMC Long-Dip Dashboard v7", "Audit View | Expert review only", header_bg, txt)' in source
     assert 'dashboard_row(smc_dashboard, 1, "Market"' in source
     assert 'dashboard_row(smc_dashboard, 2, "Structure"' in source
     assert 'dashboard_row(smc_dashboard, 3, "Session / Market"' in source
@@ -100,7 +100,7 @@ def test_dashboard_hero_surface_pins_one_liner_row_and_shifted_row_order() -> No
     """
     source = _read("SMC_Long_Dip_Dashboard.pine")
 
-    assert 'dashboard_row(smc_dashboard, 0, "SMC Long-Dip Dashboard", "Hero | Decision-first surface"' in source
+    assert 'dashboard_row(smc_dashboard, 0, "SMC Long-Dip Dashboard v7", "Hero | Decision-first surface"' in source
     assert 'dashboard_row_tt(smc_dashboard, 1, "Hero", _hero_one_display, _hero_one_bg, txt, _hero_one_tt)' in source
     assert 'dashboard_row(smc_dashboard, 2, "Market", h_market_line,' in source
     assert 'dashboard_row(smc_dashboard, 3, "Action", h_action_line,' in source
@@ -350,7 +350,7 @@ def test_r11_migration_and_operator_guide_is_linked_and_explicit() -> None:
 
 
 def test_core_and_dashboard_trust_tier_values_are_consistent() -> None:
-    core = _read("SMC_Long_Dip_Suite.pine")
+    core = _read("SMC++/smc_engine_private.pine")
     dashboard = _read("SMC_Long_Dip_Dashboard.pine")
 
     for tier in ["High", "Guarded", "Degraded", "Insufficient"]:
@@ -359,7 +359,7 @@ def test_core_and_dashboard_trust_tier_values_are_consistent() -> None:
     for tier in ["high", "guarded", "degraded", "insufficient"]:
         assert f'"{tier}"' in dashboard, f"Dashboard must contain trust tier '{tier}'"
 
-    assert "resolve_trust_tier(" in core
+    assert "export resolve_trust_tier(" in core
     assert "resolve_dashboard_trust_tier(" in dashboard
 
     resolvers = _read("SMC++/smc_context_resolvers.pine")
@@ -373,7 +373,7 @@ def test_core_and_dashboard_trust_tier_values_are_consistent() -> None:
 
 
 def test_core_trust_resolution_defaults_to_insufficient() -> None:
-    core = _read("SMC_Long_Dip_Suite.pine")
+    core = _read("SMC++/smc_engine_private.pine")
 
     func_start = core.index("resolve_trust_tier(")
     func_body = core[func_start:func_start + 600]
@@ -433,7 +433,7 @@ def test_hero_card_call_passes_regime_data() -> None:
 
 def test_trust_tier_suffix_function_exists_with_all_tiers() -> None:
     """compose_trust_tier_suffix must produce a suffix for each trust tier (WP-A7)."""
-    source = _read("SMC_Long_Dip_Suite.pine")
+    source = _read("SMC++/smc_engine_private.pine")
 
     func_start = source.index("compose_trust_tier_suffix(")
     func_body = source[func_start:func_start + 800]
@@ -479,7 +479,7 @@ def test_hero_card_call_passes_trust_suffix() -> None:
 
 def test_trust_tier_suffix_respects_length_limit() -> None:
     """All trust tier suffix strings must be ≤40 chars (WP-A7 spec)."""
-    source = _read("SMC_Long_Dip_Suite.pine")
+    source = _read("SMC++/smc_engine_private.pine")
 
     func_start = source.index("compose_trust_tier_suffix(")
     func_body = source[func_start:func_start + 800]
@@ -523,7 +523,7 @@ def test_library_freshness_parses_asof_time() -> None:
 
     assert "mp.ASOF_TIME" in source
     assert "lib_asof_display" in source
-    assert "lib_hours_old" in source
+    assert "lib_days_old" in source
 
 
 # ── WP-LF1: Hero Card Marktkontext ──────────────────────────────
@@ -548,7 +548,7 @@ def test_hero_card_reads_market_context_fields() -> None:
     assert "mp.MACRO_EVENT_TIME" in source
     assert "mp.TONE" in source
     assert "mp.GLOBAL_HEAT" in source
-    assert "mp.GLOBAL_STRENGTH" in source
+    assert "mp.SECTOR_BREADTH" in source
 
 
 # ── WP-LF2: Earnings + Provider Transparency ────────────────────

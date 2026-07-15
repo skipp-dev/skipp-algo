@@ -191,13 +191,18 @@ Fail:
    Toggles `Show Brief Panel` sowie `Show Trade Plan` den erwarteten
    Companion-Zuschnitt zeigen.
 4. Falls `Debug Flags` oder `Long Debug` validiert werden sollen, die drei lokalen Debug-Mirror-Toggles im Dashboard passend zur effektiven Core-Konfiguration setzen.
-5. Sichtbarkeit und Reaktion der Sektionen prüfen:
+5. Sichtbarkeit und Reaktion der kanonischen Dashboard-BUS-Gruppen prüfen:
 
-- Lifecycle
-- Hard Gates
-- Quality
-- Modules
-- Engine
+- Lifecycle BUS
+- Diagnostic Support
+- Trade Plan
+- Diagnostic Rows
+- Blocker Codes
+- Detail Surface
+- Lean Surface
+- Preset Contract
+
+6. Die Strategy-Bindings in den Gruppen `Entry States` und `Trade Plan` prüfen.
 
 1. Die fünf Szenarien aus [tradingview-validation-checklist.md](tradingview-validation-checklist.md) nacheinander prüfen.
 2. Zusätzlich die geforderte Product-Surface-Evidence sichern:

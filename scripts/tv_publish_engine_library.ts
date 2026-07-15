@@ -339,7 +339,7 @@ export async function runPublishEnginePrivateLibraryCli(): Promise<number> {
       if (facadeVersion !== null) {
         publishedVersion = facadeVersion;
         versionVerificationMode = "facade_list";
-        exactVersionVerified = true;
+        exactVersionVerified = facadeVersion === details.version;
       }
 
       if (!exactScriptVerified || !exactVersionVerified) {
