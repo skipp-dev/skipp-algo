@@ -116,8 +116,8 @@ Frozen threshold: `IMBALANCE_SIG_THRESHOLD = 0.3`.
 
 Rules:
 
-- **Imbalance:** `buy = buy_strength + untested_buy`, `sell = sell_strength +
-  untested_sell`; `POOL_IMBALANCE = round((buy−sell)/(buy+sell), 4)` in `[−1,+1]`,
+- **Imbalance:** `buy = buy_strength + untested_buy`, `sell = sell_strength + untested_sell`;
+  `POOL_IMBALANCE = round((buy−sell)/(buy+sell), 4)` in `[−1,+1]`,
   `0.0` when `buy+sell == 0`.
 - **Magnet direction:** `UP` if `imbalance ≥ 0.3`, `DOWN` if `≤ −0.3`, else `NONE`.
 - **Quality (0–5, additive):** +1 any pool level, +1 strength ≥ 3 either side,
