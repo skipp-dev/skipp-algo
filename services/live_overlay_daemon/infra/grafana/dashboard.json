@@ -3617,6 +3617,14 @@
             "type": "prometheus",
             "uid": "grafanacloud-prom"
           }
+        },
+        {
+          "expr": "live_overlay_worker_supervisor_alive{job=~\"$job\"}",
+          "legendFormat": "supervisor",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "grafanacloud-prom"
+          }
         }
       ],
       "options": {

@@ -183,7 +183,12 @@ def test_worker_liveness_runs_under_lifecycle_lock(monkeypatch: pytest.MonkeyPat
     assert not errors, errors
     assert len(liveness_results) == iterations
     for result in liveness_results:
-        assert set(result.keys()) == {"live_feed", "ingest_processor", "overlay_refresh", "flow_refresh"}
+        # Must stay in step with the workers _do_start() actually starts — this
+        # set pinned four while five were started, which is how the missing
+        # supervisor flag survived.
+        assert set(result.keys()) == {
+            "live_feed", "ingest_processor", "overlay_refresh", "flow_refresh", "supervisor",
+        }
         assert all(isinstance(v, bool) for v in result.values())
 
 
@@ -454,3 +459,57 @@ def test_supervisor_escalates_after_max_heal_attempts(monkeypatch: pytest.Monkey
     feed_mod._fatal_config_error.clear()
     feed_mod._run_supervisor_loop(stop)
     assert escalated == [1]
+
+
+class _FixedLivenessThread:
+    """Thread stand-in with a fixed is_alive() answer."""
+
+    def __init__(self, alive: bool) -> None:
+        self._alive = alive
+
+    def is_alive(self) -> bool:
+        return self._alive
+
+
+def _patch_workers(
+    monkeypatch: pytest.MonkeyPatch, feed_mod, *, supervisor_alive: bool
+) -> None:
+    monkeypatch.setattr(feed_mod, "_feed_thread", _FixedLivenessThread(True))
+    monkeypatch.setattr(feed_mod, "_refresh_thread", _FixedLivenessThread(True))
+    monkeypatch.setattr(feed_mod, "_flow_refresh_thread", _FixedLivenessThread(True))
+    monkeypatch.setitem(feed_mod._runtime, "ingest_thread", _FixedLivenessThread(True))
+    monkeypatch.setitem(
+        feed_mod._runtime, "supervisor_thread", _FixedLivenessThread(supervisor_alive)
+    )
+
+
+def test_worker_liveness_reports_dead_supervisor(monkeypatch: pytest.MonkeyPatch) -> None:
+    """A dead supervisor must not be reported healthy — it heals the other workers.
+
+    _do_start() starts five threads; worker_liveness() reported only four, so a
+    supervisor that died silently left /ready at 200 and
+    live_overlay_workers_healthy at 1 — the gauge an alert watches with lt 1.
+    """
+    import services.live_overlay_daemon.feed as feed_mod
+
+    _patch_workers(monkeypatch, feed_mod, supervisor_alive=False)
+    liveness = feed_mod.worker_liveness()
+
+    assert liveness["supervisor"] is False
+    assert all(alive for name, alive in liveness.items() if name != "supervisor"), (
+        "only the supervisor may be down in this scenario"
+    )
+    assert not all(liveness.values()), (
+        "/ready and live_overlay_workers_healthy must go unhealthy on a dead supervisor"
+    )
+
+
+def test_worker_liveness_reports_live_supervisor(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Guards the other direction so the supervisor flag is not pinned to False."""
+    import services.live_overlay_daemon.feed as feed_mod
+
+    _patch_workers(monkeypatch, feed_mod, supervisor_alive=True)
+    liveness = feed_mod.worker_liveness()
+
+    assert liveness["supervisor"] is True
+    assert all(liveness.values())
