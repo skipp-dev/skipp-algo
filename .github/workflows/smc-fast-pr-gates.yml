@@ -469,6 +469,7 @@ jobs:
             tests/test_pickle_write_and_abs_pathjoin_zero_surface.py \
             tests/test_tls_jwt_verification_zero_surface.py \
             tests/test_yaml_xml_zero_surface.py \
+            tests/test_guard_corpus_tracked_files.py \
             tests/test_httpx_timeout_invariant.py \
             tests/test_gha_action_allowlist.py \
             tests/test_pine_alert_bar_close_gate.py \

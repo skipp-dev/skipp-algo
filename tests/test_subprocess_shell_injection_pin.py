@@ -24,7 +24,7 @@ from pathlib import Path
 
 import pytest
 
-from tests._guard_corpus import iter_tracked_files, parse_module
+from tests._guard_corpus import iter_production_py_files, parse_module
 from tests._pin_registry import subprocess_shell_sites
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -73,7 +73,7 @@ _FROZEN_TOTAL = sum(_FROZEN_SITES.values())
 
 
 def _iter_first_party_py_files() -> list[Path]:
-    out = iter_tracked_files("*.py", _DIR_EXCLUDE, root=ROOT)
+    out = iter_production_py_files(_DIR_EXCLUDE, root=ROOT)
     return [path for path in out if not path.name.startswith("mutation_")]
 
 

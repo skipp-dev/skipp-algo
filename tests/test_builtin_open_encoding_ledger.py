@@ -20,7 +20,7 @@ from pathlib import Path
 
 import pytest
 
-from tests._guard_corpus import iter_tracked_files, parse_module
+from tests._guard_corpus import iter_production_py_files, parse_module
 
 _ROOT = Path(__file__).resolve().parents[1]
 
@@ -50,7 +50,7 @@ _FROZEN_TOTAL = sum(len(v) for v in _FROZEN_SITES.values())
 
 
 def _iter_python_files() -> list[Path]:
-    return iter_tracked_files("*.py", _DIR_EXCLUDE, root=_ROOT)
+    return iter_production_py_files(_DIR_EXCLUDE, root=_ROOT)
 
 
 def _open_call_mode(node: ast.Call) -> str | None:

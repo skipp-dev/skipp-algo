@@ -35,6 +35,7 @@ from __future__ import annotations
 
 import ast
 import functools
+import os
 import shutil
 import subprocess
 from collections.abc import Iterable
@@ -138,15 +139,26 @@ def _git_ls_files(base_str: str, pattern: str) -> tuple[str, ...] | None:
 
     Returns ``None`` when git is unavailable or the command fails, so callers
     can gracefully fall back to filesystem walks.
+
+    The ``GIT_*`` environment is stripped so ``base_str`` is authoritative.
+    Without that, ``-C`` is only half the story: ``pre-commit`` exports
+    ``GIT_DIR`` / ``GIT_INDEX_FILE`` when it runs a hook, and those WIN over
+    ``-C`` — so under the pre-push hook this resolved to the repo the hook runs
+    in and quietly ignored the caller's ``root``. Benign for the production
+    guards, which pass the repo root anyway, but it made the ``root`` parameter
+    a lie for anyone else (a test pointing at a throwaway repo got this repo's
+    inventory back).
     """
     git = shutil.which("git")
     if git is None:
         return None
+    env = {k: v for k, v in os.environ.items() if not k.startswith("GIT_")}
     try:
         proc = subprocess.run(
             [git, "-C", base_str, "ls-files", "-z", "--", pattern],
             check=True,
             capture_output=True,
+            env=env,
         )
     except (OSError, subprocess.SubprocessError):
         return None
@@ -192,3 +204,44 @@ def iter_tracked_files(
         if path.exists():
             out.append(path)
     return sorted(out)
+
+
+def iter_production_py_files(
+    exclude_dirs: Iterable[str],
+    *,
+    root: Path | None = None,
+    minimum: int = MIN_EXPECTED_PROD_FILES,
+) -> list[Path]:
+    """Like :func:`iter_tracked_files` for ``*.py``, but refuses a collapsed corpus.
+
+    Use this — not the raw :func:`iter_tracked_files` — whenever a guard's claim
+    is "I checked the whole production tree". It is the difference between a
+    guard that PASSED and a guard that merely found nothing to look at.
+
+    :data:`MIN_EXPECTED_PROD_FILES` documented this exact hazard ("overly broad
+    ``_DIR_EXCLUDE`` sets or sparse-checkout environments returning too few
+    files") but nothing enforced it, and the collapse is reachable: when git
+    runs fine and simply matches nothing, ``_git_ls_files`` returns an empty
+    tuple rather than ``None``, so :func:`iter_tracked_files` returns ``[]`` and
+    the filesystem fallback is deliberately NOT taken. A guard scanning that
+    empty list asserts over nothing and reports green.
+
+    The floor lives here rather than in :func:`iter_tracked_files` on purpose:
+    that helper takes an arbitrary pattern and root, so a legitimate zero-match
+    query must stay able to return ``[]`` honestly. Only callers that promise
+    the full corpus opt into the floor, and they say so by calling this.
+
+    Raises:
+        AssertionError: if fewer than ``minimum`` files are found.
+    """
+    files = iter_tracked_files("*.py", exclude_dirs, root=root)
+    if len(files) < minimum:
+        base = root or _ROOT
+        raise AssertionError(
+            f"production corpus collapsed: found {len(files)} *.py file(s) under "
+            f"{base}, expected >= {minimum}. The guard calling this would "
+            f"otherwise have scanned almost nothing and reported green. Likely "
+            f"causes: an over-broad exclude_dirs, a sparse checkout, or a root "
+            f"that is not the repo."
+        )
+    return files

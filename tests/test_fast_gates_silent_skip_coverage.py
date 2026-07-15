@@ -125,12 +125,8 @@ FULL_REQUIRED_PATH_TRIPWIRES: tuple[str, ...] = (
     "tests/test_gha_action_allowlist.py",
     "tests/test_global_statement_budget.py",
     "tests/test_globals_call_zero_surface.py",
+    "tests/test_guard_corpus_tracked_files.py",
     "tests/test_hashlib_weak_hash_ledger.py",
-    # 2026-07-15: the hmac zero-surface ledger (auth/integrity primitive) was
-    # never on the required path — not in this roster, not in any workflow (its
-    # git history shows no add/remove in either). Its pins drifted red on main
-    # three times unnoticed (2026-07-09, -07-13, -07-15) because the drift
-    # merged green: fast-gates never ran it. Simply missed when it landed (#3217).
     "tests/test_hmac_auth_zero_surface.py",
     "tests/test_http_client_discipline.py",
     "tests/test_http_post_egress_ledger.py",
@@ -552,10 +548,15 @@ _GUARD_CORPUS_INTENTIONALLY_UNGATED: frozenset[str] = frozenset(
         # rule directly — same surface, already covered.
         "tests/test_no_prod_assert_pin.py",
         "tests/test_open_encoding_discipline.py",
-        # Not production surfaces: the corpus's own tracked-file self-check and a
-        # pytest-xdist parametrize determinism pin. Both guard the test harness.
-        "tests/test_guard_corpus_tracked_files.py",
+        # Not a production surface: a pytest-xdist parametrize determinism pin.
+        # It guards the test harness.
         "tests/test_pytest_xdist_parametrize_determinism.py",
+        # test_guard_corpus_tracked_files was exempted here on the same grounds
+        # ("the corpus's own tracked-file self-check", #3690). That was true of
+        # the file as it stood. It no longer is: the file now also pins
+        # iter_production_py_files' floor — the thing that stops a collapsed
+        # corpus from being certified as scanned. Leaving it exempt would put the
+        # floor's own proof on no lane, so it is gated instead.
     }
 )
 
