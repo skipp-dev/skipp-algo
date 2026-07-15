@@ -4,23 +4,33 @@
 //@version=6
 // @description SMC live context library (bus-v3 track). Derives per-bar domain
 // frames from the engine primitives instead of the dead per-symbol snapshot:
-// StructureFrame (BOS/CHoCH/trend/S-R via eng.detect_structure) and ImbalanceFrame
-// (FVG lifecycle + BPR + liquidity void via eng.fvgs_objects). The rule layer
+// StructureFrame (BOS/CHoCH/trend/S-R via eng.detect_structure), ImbalanceFrame
+// (FVG lifecycle + BPR + liquidity void via eng.fvgs_objects) and ZoneFrame
+// (order-block lifecycle via eng.track_obs). Detection is the engine's SSOT in
+// all three and is NOT golden-gated against Python. The imbalance rule layer
 // (mitigation %, BPR overlap, void %, zone-bias count delta, state precedence)
-// mirrors the golden parity contract in tests/fixtures/smc_context_golden.json /
-// docs/smc-context-semantics.md. Zone/Sweep/Pool frames and the aggregated
-// build_context_frame() follow in a later slice (they carry new live-detection
-// with no engine primitive). Detection itself is the engine's SSOT and is NOT
-// golden-gated against Python.
+// mirrors the golden parity contract in tests/fixtures/smc_context_golden.json;
+// structure and zone are spec-only (Column B) — see docs/smc-context-semantics.md.
+// Sweep/Pool frames and the aggregated build_context_frame() follow in later
+// slices: sweeps and pools do have a Python golden for their *scoring*, but their
+// live candidate detection has no engine primitive and is genuinely new Pine work.
 library("smc_context_engine_private", overlay = true)
 
-// eng.FVG has fields typed ct.LevelBreakMode (core_types) and
-// d.SmcBox / d.SmcLine / d.SmcLabel (smc_draw). Pine requires every library
-// referenced by a used type's fields to be imported, and the referenced
-// libraries must be imported before the engine that pulls them into its types —
-// so the engine is imported last, matching SMC_Long_Dip_Suite.
+// Pine requires every library referenced by a *used* type's fields to be imported
+// (CE10293), and those libraries must come before the engine that pulls them into
+// its types — so the engine is imported last, matching SMC_Long_Dip_Suite.
+//   ct  — eng.FVG and eng.OrderBlock declare ct.LevelBreakMode fields.
+//   d   — both declare d.SmcBox / d.SmcLine / d.SmcLabel fields.
+//   pe  — eng.OrderBlock declares a pe.Profile field. NOTHING here calls pe.*:
+//         build_zone_frame leaves every profile feature off, so the engine never
+//         creates a Profile. Kept a narrow type edge by the allowlist in
+//         tests/test_pine_library_import_permissions.py and enforced by
+//         tests/test_pine_context_library_contract.py.
+//   u   — smc_lib_atr for the OB size filter. A real call; public library.
 import preuss_steffen/smc_core_types/5 as ct
+import preuss_steffen/smc_utils/3 as u
 import preuss_steffen/smc_draw/3 as d
+import preuss_steffen/smc_profile_engine/2 as pe
 import preuss_steffen/smc_engine_private/1 as eng
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -31,6 +41,13 @@ import preuss_steffen/smc_engine_private/1 as eng
 //   FULL_MIT_PCT           = 1.0   gap fully closed   -> no longer active
 //   LIQ_VOID_MIN_SIZE_PCT  = 2.0   gap >= 2% of mid   -> liquidity void
 //   ZONE_BIAS_COUNT_DELTA  = 2     |bull-bear count| >= 2 -> directional bias
+//                                  (reused by ZoneFrame.ob_bias over OB counts)
+//
+// Zone-frame OB size filter — mirrors SMC_Long_Dip_Suite.pine lines 904-906:
+//   ATR_LEN_MAIN           = 50    u.smc_lib_atr length (NOT 200; that is an
+//                                  engine-internal impulse ATR, unrelated)
+//   OB_FILTER_MIN_MULT     = 0.5   min block size = atr * 0.5
+//   OB_FILTER_MAX_MULT     = 2.5   max block size = atr * 2.5
 // ─────────────────────────────────────────────────────────────────────────────
 
 // ── Frame types ──────────────────────────────────────────────────────────────
@@ -72,7 +89,31 @@ export type ImbalanceFrame
     bool   liq_void_active
     float  liq_void_top
     float  liq_void_bottom
-    int    zone_bias         // +1 bull, -1 bear, 0 neutral (count-delta rule)
+    int    zone_bias         // +1 bull, -1 bear, 0 neutral (FVG count-delta rule)
+    int    state             // composite code, see above
+
+// Per-bar order-block state (eng.track_obs lifecycle). Direction-neutral: the v2
+// engine bus carries only the product's best *bull* OB, this frame reports both
+// sides. Prices/ids are `na` when that side has no active OB; counts default 0.
+// `state`: 0 NONE, 1 OB_BULL, 2 OB_BEAR, 3 OB_BOTH (precedence BOTH > BULL >
+// BEAR > NONE). `*_new` / `*_broken` are edges — true only on the event bar.
+// `ob_bias` is the OB count delta and is NOT ImbalanceFrame.zone_bias (FVGs).
+export type ZoneFrame
+    bool   bull_ob_active
+    bool   bear_ob_active
+    int    bull_ob_id        // newest active bull OB (engine id)
+    int    bear_ob_id
+    float  bull_ob_top
+    float  bull_ob_bottom
+    float  bear_ob_top
+    float  bear_ob_bottom
+    int    bull_ob_count     // active bull OBs
+    int    bear_ob_count
+    bool   bull_ob_new       // an OB was confirmed on this confirmed bar
+    bool   bear_ob_new
+    bool   bull_ob_broken    // an OB broke on this confirmed bar
+    bool   bear_ob_broken
+    int    ob_bias           // +1 bull, -1 bear, 0 neutral (OB count-delta rule)
     int    state             // composite code, see above
 
 // ── Private helpers (defined before the exported builders) ───────────────────
@@ -111,6 +152,59 @@ _first_void(array<eng.FVG> arr, float mid, float min_pct) =>
                     bottom := f.right_bottom.price
                     break
     [found, top, bottom]
+
+// Newest active order block in a buffer, by id. Returns [found, id, top, bottom].
+// The engine removes broken blocks from the tracking buffer inside update_broken,
+// so every element here is active by construction — no `broken` guard needed.
+// Geometry is the raw left_top/right_bottom: build_zone_frame keeps every profile
+// feature off, so no value-area/POC edge alignment is ever applied.
+_newest_active_ob(array<eng.OrderBlock> arr) =>
+    int   best_id = na
+    float top     = na
+    float bottom  = na
+    if not na(arr)
+        for b in arr
+            if not na(b)
+                if na(best_id) or b.id > best_id
+                    best_id := b.id
+                    top     := b.left_top.price
+                    bottom  := b.right_bottom.price
+    [not na(best_id), best_id, top, bottom]
+
+// Project the engine's OB lifecycle onto a ZoneFrame. Takes the structure tuple
+// rather than calling eng.detect_structure itself: track_obs must be fed the SAME
+// structure instance a caller already has, and this seam lets the aggregated
+// build_context_frame() (a later slice) detect structure ONCE instead of spinning
+// up a second detector per frame.
+_build_zone(simple int swing_len, float hh, float swing_low, bool bull_bos, bool bull_choch, bool bear_bos, bool bear_choch, simple int atr_len, float min_mult, float max_mult) =>
+    float atr       = u.smc_lib_atr(atr_len)
+    float min_block = atr * min_mult   // OB_FILTER_MIN_MULT
+    float max_block = atr * max_mult   // OB_FILTER_MAX_MULT
+
+    // Profile features stay at their `false` defaults, so the engine never builds
+    // a pe.Profile — that keeps the pe import a pure type-resolution edge.
+    [active_bull, active_bear, new_bull, new_bear, _broken_bull, _broken_bear, broken_new_bull, broken_new_bear, _disc_bull, _disc_bear] = eng.track_obs(swing_len, hh, swing_low, bull_bos, bull_choch, bear_bos, bear_choch, min_block, max_block)
+
+    [has_bull, bull_id, bull_top, bull_bottom] = _newest_active_ob(active_bull)
+    [has_bear, bear_id, bear_top, bear_bottom] = _newest_active_ob(active_bear)
+
+    int bull_count = na(active_bull) ? 0 : array.size(active_bull)
+    int bear_count = na(active_bear) ? 0 : array.size(active_bear)
+
+    // Edges, not latches: new_* is a per-bar local in the engine (na unless an OB
+    // confirmed this bar); broken_new_* is cleared at the top of every update_broken.
+    bool bull_new = not na(new_bull)
+    bool bear_new = not na(new_bear)
+    bool bull_brk = not na(broken_new_bull) and array.size(broken_new_bull) > 0
+    bool bear_brk = not na(broken_new_bear) and array.size(broken_new_bear) > 0
+
+    int count_delta = bull_count - bear_count
+    int ob_bias     = count_delta >= 2 ? 1 : count_delta <= -2 ? -1 : 0   // ZONE_BIAS_COUNT_DELTA
+
+    // Composite precedence: OB_BOTH > OB_BULL > OB_BEAR > NONE.
+    int state = has_bull and has_bear ? 3 : has_bull ? 1 : has_bear ? 2 : 0
+
+    ZoneFrame.new(has_bull, has_bear, has_bull ? bull_id : na, has_bear ? bear_id : na, has_bull ? bull_top : na, has_bull ? bull_bottom : na, has_bear ? bear_top : na, has_bear ? bear_bottom : na, bull_count, bear_count, bull_new, bear_new, bull_brk, bear_brk, ob_bias, state)
 
 // ── Exported builders ────────────────────────────────────────────────────────
 
@@ -183,3 +277,18 @@ export build_imbalance_frame(float fill_target_ratio = 0.5, float size_threshold
     int state = bpr_active ? 3 : void_active ? 4 : has_bull ? 1 : has_bear ? 2 : 0
 
     ImbalanceFrame.new(has_bull, has_bear, has_bull ? bull_top : na, has_bull ? bull_bottom : na, has_bear ? bear_top : na, has_bear ? bear_bottom : na, has_bull ? bull_mit : na, has_bear ? bear_mit : na, bull_partial, bear_partial, bull_count, bear_count, bpr_active, bpr_dir, bpr_top, bpr_bottom, void_active, void_top, void_bottom, zone_bias, state)
+
+// Build the zone frame (order-block lifecycle) from the engine's OB tracker.
+// Standalone convenience facade: it detects structure once and feeds that same
+// instance into track_obs, exactly as SMC_Long_Dip_Suite does (line 1740).
+//
+// NOTE for the aggregated build_context_frame() slice: do NOT call this next to
+// build_structure_frame() — each public builder runs its own eng.detect_structure,
+// so calling both spins up two independent structure state machines. The aggregator
+// must detect once and call the private _build_zone seam directly.
+//
+// `swing_len` is the engine pivot length; `atr_len` / `min_mult` / `max_mult` are
+// the ATR size filter (defaults mirror ATR_LEN_MAIN / OB_FILTER_*_MULT in the Suite).
+export build_zone_frame(simple int swing_len = 50, simple int atr_len = 50, float min_mult = 0.5, float max_mult = 2.5) =>
+    [_trend, bull_bos, bull_choch, _top_x, _top_y, _trail_up_x, _trail_up, hh, bear_bos, bear_choch, _btm_x, _btm_y, _trail_dn_x, _trail_dn, swing_low, _hhll_x] = eng.detect_structure(swing_len)
+    _build_zone(swing_len, hh, swing_low, bull_bos, bull_choch, bear_bos, bear_choch, atr_len, min_mult, max_mult)

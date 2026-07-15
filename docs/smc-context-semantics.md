@@ -80,6 +80,74 @@ differ from the Python snapshot builder. Only the **rule layer above detection**
 
 ---
 
+## Zone frame — Column B (spec only, no Python golden)
+
+Order-block domain state. Distinct from [Zone bias](#zone-bias--column-b-spec-only-no-python-golden),
+which is an **FVG** count rule living on the imbalance frame.
+
+- **Detection (Column B).** Order-block candidate tracking, confirmation, ATR size
+  filtering, breaking and discarding all come from the Pine engine
+  `smc_engine_private.track_obs(...)` — the engine is the SSOT for order blocks
+  exactly as `detect_structure` is for structure. There is **no Python builder for
+  order blocks**, so this frame is *not* golden-gated: it is specified here and
+  validated in Pine plus on-chart scenarios.
+- **Enrichment (thin).** Newest-active selection, per-side counts, the new/broken
+  edge flags, `ob_bias` and `state` are simple derivations over the engine output.
+  They are specified here and structurally tested; they carry no numeric golden.
+
+**Why this frame exists at all (it is not a v2 duplicate).** The v2 engine bus
+already carries `ZoneObTop` / `ZoneObBottom`, but those are the *product's* best
+**bull** order block only (`scan_active_bull_ob()` in `SMC_Long_Dip_Suite.pine`,
+feeding the long plan). This frame is **direction-neutral**: it reports bull *and*
+bear sides as one symmetric domain contract. The bear side is what v2 does not
+have; the bull side is re-derived here so consumers get a single coherent frame
+rather than a long-only product view stitched to a neutral one.
+
+**Fields**
+
+| Field | Meaning |
+|---|---|
+| `bull_ob_active` / `bear_ob_active` | at least one confirmed, unbroken OB on that side |
+| `bull_ob_id` / `bear_ob_id` | engine id of the newest active OB on that side (`na` when none) |
+| `bull_ob_top` / `bull_ob_bottom` | geometry of the newest active bull OB (`na` when none) |
+| `bear_ob_top` / `bear_ob_bottom` | geometry of the newest active bear OB (`na` when none) |
+| `bull_ob_count` / `bear_ob_count` | number of active OBs on that side (`0` when none) |
+| `bull_ob_new` / `bear_ob_new` | an OB was **confirmed on this confirmed bar** |
+| `bull_ob_broken` / `bear_ob_broken` | an OB **broke on this confirmed bar** |
+| `ob_bias` | `+1` bull, `-1` bear, `0` neutral — see below |
+| `state` | composite code — see precedence below |
+
+**`ob_bias` is not `zone_bias`.** Same count-delta *shape*, different domain:
+`ob_bias` compares **order-block** counts, `ImbalanceFrame.zone_bias` compares
+**FVG** counts. They are separate fields and must never be aliased or merged.
+`ob_bias = +1` if `bull_ob_count − bear_ob_count ≥ 2`, `−1` if `≤ −2`, else `0`
+(reusing `ZONE_BIAS_COUNT_DELTA = 2`).
+
+**`state` precedence:** `OB_BOTH(3) > OB_BULL(1) > OB_BEAR(2) > NONE(0)`.
+`OB_BOTH` when both sides hold an active OB.
+
+**Size filter.** OB candidates are bounded by ATR multiples mirroring
+`SMC_Long_Dip_Suite.pine` (lines 904-906): `min = smc_lib_atr(ATR_LEN_MAIN) * 0.5`,
+`max = smc_lib_atr(ATR_LEN_MAIN) * 2.5`, with `ATR_LEN_MAIN = 50`. `smc_lib_atr`
+(not `ta.atr`) is used so the warm-up window matches the Suite — plain `ta.atr`
+is `na` before `length` bars, `smc_lib_atr` falls back to the cumulative TR mean.
+
+**Profile features stay off.** `capture_profile`, `align_edge_to_value_area` and
+`align_break_price_to_poc` are left `false`, so the engine never builds a
+`pe.Profile` and OB geometry is the raw `left_top` / `right_bottom`. The
+`smc_profile_engine` import in the context library therefore exists **only** so
+Pine can resolve the `pe.Profile` field declared inside `eng.OrderBlock`; the
+library calls no `pe.*` function. This is a type-resolution edge, not a use of the
+profile engine, and is enforced by `tests/test_pine_context_library_contract.py`.
+
+**Warm-up / na / persistence:** no OB exists until the engine confirms one. Prices
+and ids are `na` (never `0`) when that side holds no active OB; counts are `0`.
+The engine removes broken blocks from the active buffer (`update_broken`), so an
+OB is never simultaneously active and broken. `bull_ob_new` / `bull_ob_broken` are
+**edges** — true only on the bar the event occurs, never latched.
+
+---
+
 ## Sweep frame — Column A (Python golden)
 
 Source of truth: `scripts/smc_liquidity_sweeps.py::build_liquidity_sweeps`.
@@ -135,6 +203,11 @@ over the live imbalance frame (`BULL_FVG_COUNT − BEAR_FVG_COUNT`). There is no
 dedicated Python scorer for it, so it is specified here and validated in Pine, not
 golden-gated: `bias = BULL` if `bull_count − bear_count ≥ 2`, `BEAR` if
 `≤ −2`, else `NEUTRAL`.
+
+Despite the name this rule is about **FVGs**, and it lives on `ImbalanceFrame` as
+`zone_bias`. The order-block equivalent is `ZoneFrame.ob_bias` (see
+[Zone frame](#zone-frame--column-b-spec-only-no-python-golden)) — same `±2`
+count-delta shape, different domain. Keep them separate.
 
 ---
 
