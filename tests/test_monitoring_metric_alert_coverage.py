@@ -202,3 +202,126 @@ def test_sweep_trap_shadow_no_data_state_has_alert_coverage() -> None:
     expr = exprs["lo-sweep-trap-shadow-age-unknown"]
     assert "live_overlay_sweep_trap_shadow_snapshot_age_known" in expr
     assert "== bool 0" in expr
+
+
+# Every evidence-chain age axis and the age_known gauge that says whether the
+# age means anything. `_coerce` (evidence_freshness_bridge) hard-codes
+# loaded=1.0 and tolerates missing keys, so a snapshot that PARSES but carries
+# no date yields age_known=0 AND age_seconds=0 -- every `age > threshold` rule
+# reads 0>N=false and lo-evidence-snapshot-unloadable reads loaded<1=false.
+# Both stay green with zero data. That shape is not hypothetical: the GitHub
+# Contents-API envelope produced exactly it ("EMPTY snapshot with loaded=1,
+# keeping the stale alert silently green" -- _fetch_url, post-review finding
+# 1). The cause was fixed; these rules close the DETECTION gap.
+_EVIDENCE_AGE_UNKNOWN_RULES = (
+    ("lo-evidence-snapshot-age-unknown", "live_overlay_evidence_freshness_snapshot_age_known"),
+    ("lo-evidence-ledger-age-unknown", "live_overlay_evidence_ledger_age_known"),
+    ("lo-evidence-audit-branch-age-unknown", "live_overlay_evidence_audit_branch_age_known"),
+    ("lo-evidence-wsh-age-unknown", "live_overlay_evidence_wsh_age_known"),
+)
+
+
+def _rule_exprs() -> dict[str, str]:
+    rules = yaml.safe_load(_ALERT_RULES.read_text(encoding="utf-8"))
+    exprs: dict[str, str] = {}
+    for group in rules.get("groups", []):
+        for rule in group.get("rules", []):
+            uid = str(rule.get("uid", ""))
+            for query in rule.get("data", []):
+                expr = str((query.get("model") or {}).get("expr", ""))
+                if expr:
+                    exprs[uid] = exprs.get(uid, "") + expr
+    return exprs
+
+
+def test_evidence_age_unknown_states_have_alert_coverage() -> None:
+    """Each evidence age axis needs an age-unknown rule the stale rule cannot be.
+
+    Stale is only computable once an age is KNOWN, so `age > threshold` can
+    never fire on age_known=0 (it reads 0>N=false). Each axis therefore needs a
+    dedicated rule on its age_known gauge, gated on `loaded` so an unloadable
+    snapshot pages once (lo-evidence-snapshot-unloadable) rather than twice.
+    """
+    exprs = _rule_exprs()
+    for uid, known_metric in _EVIDENCE_AGE_UNKNOWN_RULES:
+        assert uid in exprs, f"{uid} is missing — the age-unknown state is unwatched"
+        expr = exprs[uid]
+        assert known_metric in expr, f"{uid} must target {known_metric}, got: {expr}"
+        # `== bool 0` is mandatory: a bare `== 0` returns the value 0 and the
+        # gt-0 threshold reads 0>0=false — inert (the gt-0-inert class).
+        assert "== bool 0" in expr, f"{uid} must use `== bool 0` (bare `== 0` is inert): {expr}"
+        assert "live_overlay_evidence_freshness_loaded" in expr, (
+            f"{uid} must gate on the loaded gauge so an unloadable snapshot does not "
+            f"double-page with lo-evidence-snapshot-unloadable: {expr}"
+        )
+
+
+def test_evidence_ledger_age_unknown_does_not_double_page_with_empty() -> None:
+    """lo-evidence-ledger-empty already owns rows==0, so the ledger age-unknown
+    rule must gate on rows>0 and cover only the state neither -stale (needs a
+    KNOWN age) nor -empty (needs rows==0) can see."""
+    expr = _rule_exprs()["lo-evidence-ledger-age-unknown"]
+    assert "live_overlay_evidence_ledger_rows" in expr, expr
+    assert "> bool 0" in expr, expr
+
+
+def test_dashboard_age_panels_gate_on_age_known() -> None:
+    """An age panel must not render an UNKNOWN age as a misleading `0`.
+
+    `metrics.py` emits age_seconds=0.0 when the age is unknown and publishes the
+    truth in a companion age_known gauge. A panel that plots age_seconds alone
+    shows `0` — "perfectly fresh" — for "no data at all", and its `noValue`
+    never fires because the series exists. "Magnitude Ledger Age (days)" is a
+    stat with a red-at-3-days threshold, so unknown rendered as a GREEN 0.
+    Gating on age_known empties the series instead, so noValue shows N/A.
+    """
+    panels_by_title = {}
+    for dashboard in _DASHBOARDS:
+        if not dashboard.exists():
+            continue
+        doc = json.loads(dashboard.read_text(encoding="utf-8"))
+        for panel in doc.get("panels", []):
+            panels_by_title[str(panel.get("title", ""))] = panel
+
+    expected = {
+        "Magnitude Ledger Age (days)": {
+            "live_overlay_evidence_ledger_age_seconds": "live_overlay_evidence_ledger_age_known",
+        },
+        "Evidence Chain Age (days)": {
+            "live_overlay_evidence_ledger_age_seconds": "live_overlay_evidence_ledger_age_known",
+            "live_overlay_evidence_audit_branch_age_seconds": (
+                "live_overlay_evidence_audit_branch_age_known"
+            ),
+            "live_overlay_evidence_wsh_age_seconds": "live_overlay_evidence_wsh_age_known",
+            "live_overlay_evidence_freshness_snapshot_age_seconds": (
+                "live_overlay_evidence_freshness_snapshot_age_known"
+            ),
+        },
+        "News Snapshot Age": {
+            "live_overlay_provider_news_snapshot_age_seconds": (
+                "live_overlay_provider_news_snapshot_age_known"
+            ),
+        },
+    }
+
+    for title, axes in expected.items():
+        panel = panels_by_title.get(title)
+        assert panel is not None, f"panel {title!r} vanished — update this guard"
+        exprs = [
+            str(t.get("expr", ""))
+            for t in (panel.get("targets") or [])
+            if isinstance(t.get("expr"), str)
+        ]
+        for age_metric, known_metric in axes.items():
+            using = [e for e in exprs if age_metric in e]
+            assert using, f"{title!r} no longer plots {age_metric} — update this guard"
+            for expr in using:
+                assert known_metric in expr, (
+                    f"{title!r} plots {age_metric} without gating on {known_metric}: an "
+                    f"unknown age renders as a misleading 0. Got: {expr}"
+                )
+        no_value = (panel.get("fieldConfig") or {}).get("defaults", {}).get("noValue")
+        assert no_value, (
+            f"{title!r} gates on age_known (so an unknown age yields an EMPTY series) but "
+            "sets no noValue text — the panel would render blank instead of N/A"
+        )
