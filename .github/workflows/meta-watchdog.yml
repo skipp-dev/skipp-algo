@@ -278,6 +278,7 @@ jobs:
           GH_TOKEN: ${{ secrets.GH_PAT != '' && secrets.GH_PAT || github.token }}
           GH_REPO: ${{ github.repository }}
           OVERALL: ${{ steps.probe.outputs.overall }}
+          DAG_STATUS: ${{ steps.dag.outputs.dag_status }}
         run: |
           set -euo pipefail
 
@@ -287,17 +288,36 @@ jobs:
           # Alarmierung (Step Summary + Job-Fail im naechsten Step) korrekt
           # funktioniert. Degradiere hier weich statt den Job zu crashen.
           if [ "$(gh repo view "$GH_REPO" --json hasIssuesEnabled --jq '.hasIssuesEnabled')" != "true" ]; then
-            echo "::warning title=meta-watchdog::GitHub Issues sind auf ${GH_REPO} deaktiviert -- kann kein Alert-Issue oeffnen/aktualisieren (overall=${OVERALL}, dag_status=${{ steps.dag.outputs.dag_status }}). Step Summary oben und der Job-Fail im naechsten Step sind bis auf Weiteres der Alarm."
+            echo "::warning title=meta-watchdog::GitHub Issues sind auf ${GH_REPO} deaktiviert -- kann kein Alert-Issue oeffnen/aktualisieren (overall=${OVERALL}, dag_status=${DAG_STATUS}). Step Summary oben und der Job-Fail im naechsten Step sind bis auf Weiteres der Alarm."
             exit 0
           fi
 
-          # Neutraler Titel (analog workflow-freshness-monitor): overall=error
-          # kann auch ein API-/Config-Fehler des Probes sein, nicht zwingend
-          # ein gestorbener Monitor — Details stehen im Body.
-          TITLE="meta-watchdog: ${OVERALL} -- daily probe ($(date -u +%Y-%m-%d))"
+          # Titel nennt BEIDE Achsen. Dieser Step feuert auch, wenn die
+          # Monitore fresh sind und NUR der DAG kaputt ist -- ein Titel aus
+          # OVERALL allein liest sich dann als Entwarnung ("meta-watchdog:
+          # fresh"), obwohl die Producer-Pipeline steht (#3645).
+          # Neutral gehalten (analog workflow-freshness-monitor): `error` kann
+          # auch ein API-/Config-Fehler des Probes sein — Details im Body.
+          TITLE="meta-watchdog: monitors=${OVERALL}, dag=${DAG_STATUS} -- daily probe ($(date -u +%Y-%m-%d))"
           BODY_FILE=$(mktemp)
           {
-            echo "The daily meta-watchdog found at least one MONITOR workflow in **${OVERALL}** state."
+            # Nur die Achse behaupten, die wirklich rot ist.
+            case "$OVERALL" in
+              stale|error)
+                echo "The daily meta-watchdog found at least one MONITOR workflow in **${OVERALL}** state."
+                ;;
+              *)
+                echo "Monitor probe: **${OVERALL}** — no monitor is stale."
+                ;;
+            esac
+            case "$DAG_STATUS" in
+              broken|error)
+                echo "Library-Refresh DAG: **${DAG_STATUS}** — the producer pipeline needs attention (see the DAG report below)."
+                ;;
+              *)
+                echo "Library-Refresh DAG: **${DAG_STATUS}**."
+                ;;
+            esac
             echo ""
             echo "Run: https://github.com/${GH_REPO}/actions/runs/${{ github.run_id }}"
             echo ""
@@ -319,7 +339,7 @@ jobs:
             echo ""
             echo "### DAG Report (Library-Refresh pipeline)"
             echo ""
-            echo "DAG status: **${{ steps.dag.outputs.dag_status }}**"
+            echo "DAG status: **${DAG_STATUS}**"
             echo ""
             echo '```json'
             cat artifacts/ci/dag_health.json 2>/dev/null || echo "(no dag report written)"

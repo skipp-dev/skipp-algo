@@ -125,3 +125,40 @@ def test_stale_or_error_files_operator_issue(workflow_text: str) -> None:
         "stale/error must file (or update) an operator issue — a failed run "
         "alone is not an alert channel anyone watches"
     )
+
+
+def test_issue_title_names_both_axes(workflow_text: str) -> None:
+    """The alert title must not read as an all-clear while the DAG is down.
+
+    This step fires on (monitor stale|error) OR (dag broken|error), so a title
+    built from ``overall`` alone says "meta-watchdog: fresh" whenever only the
+    DAG is red -- which is exactly how #3645 was titled while the Library-
+    Refresh pipeline had not published for days.
+    """
+    assert 'TITLE="meta-watchdog: monitors=${OVERALL}, dag=${DAG_STATUS}' in workflow_text
+    assert 'TITLE="meta-watchdog: ${OVERALL} --' not in workflow_text, (
+        "title must name the DAG axis too, not just the monitor probe"
+    )
+
+
+def test_dag_status_is_bound_as_env_for_the_issue_step(workflow_text: str) -> None:
+    assert "DAG_STATUS: ${{ steps.dag.outputs.dag_status }}" in workflow_text, (
+        "the issue step must bind dag_status as env so title and body can "
+        "branch on it"
+    )
+
+
+def test_stale_monitor_claim_is_conditional(workflow_text: str) -> None:
+    """The body must only assert the axis that is actually red (#3645)."""
+    issue_block = workflow_text.split("Open / update issue on stale or error", 1)[1]
+    claim = "found at least one MONITOR workflow"
+    assert claim in issue_block
+    assert 'case "$OVERALL" in' in issue_block
+    assert 'case "$DAG_STATUS" in' in issue_block
+    assert issue_block.index('case "$OVERALL" in') < issue_block.index(claim), (
+        "the stale-monitor sentence must live inside the stale|error arm — "
+        "unconditionally it claims a dead monitor on a DAG-only alert"
+    )
+    assert "no monitor is stale" in issue_block, (
+        "a DAG-only alert must say the monitors are fine, not imply otherwise"
+    )
