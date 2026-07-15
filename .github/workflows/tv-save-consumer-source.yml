@@ -123,12 +123,14 @@ jobs:
         run: |
           set -uo pipefail
           # Built-in default mapping: source .pine -> exact saved TV script name.
-          # SMC_Core_Engine's saved name is "SMC Core Engine" (not its title).
+          # The producer's current saved name is its Pine title. Do not use the
+          # historical "SMC Core Engine" alias: a clean account lookup cannot
+          # resolve it.
           # Keep every BUS-binding consumer here so a binding-order migration is
           # rolled out as one auditable operation. Override via `mapping` only
           # when the operator's exact saved name differs.
           DEFAULT_MAPPING='[
-            {"source":"SMC_Long_Dip_Suite.pine","scriptName":"SMC Core Engine"},
+            {"source":"SMC_Long_Dip_Suite.pine","scriptName":"SMC Long-Dip Suite"},
             {"source":"SMC_Breakout_Overlay.pine","scriptName":"SMC Breakout Overlay"},
             {"source":"SMC_Confluence_Hub.pine","scriptName":"SMC Confluence Hub"},
             {"source":"SMC_Long_Dip_Alerts.pine","scriptName":"SMC Long-Dip Alerts"},
@@ -158,7 +160,15 @@ jobs:
               misses=$((misses+1)); continue
             fi
             echo "▶ saving ${src} → \"${name}\""
-            if npx tsx scripts/tv_save_consumer_source.ts --source "${src}" --script-name "${name}"; then
+            saved=0
+            for attempt in 1 2; do
+              if npx tsx scripts/tv_save_consumer_source.ts --source "${src}" --script-name "${name}"; then
+                saved=1
+                break
+              fi
+              echo "::warning::save attempt ${attempt}/2 failed for \"${name}\""
+            done
+            if [ "${saved}" -eq 1 ]; then
               echo "  ✅ ${name}"
               echo "- ✅ \`${src}\` → \"${name}\"" >> "$GITHUB_STEP_SUMMARY"
               hits=$((hits+1))
@@ -179,12 +189,25 @@ jobs:
             exit 1
           fi
 
-      - name: Verify existing Dashboard BUS source selections
+      - name: Verify existing consumer BUS source selections
         env:
           TV_STORAGE_STATE: automation/tradingview/auth/storage-state.json
         run: |
-          npx tsx scripts/tv_verify_consumer_bindings.ts \
-            --source SMC_Long_Dip_Dashboard.pine \
-            --saved-script-name "SMC Long-Dip Dashboard" \
-            --script-name "SMC Decision Board" \
-            --producer-name "SMC Long-Dip Suite"
+          set -euo pipefail
+          verify() {
+            for attempt in 1 2; do
+              if npx tsx scripts/tv_verify_consumer_bindings.ts \
+                --source "$1" \
+                --saved-script-name "$2" \
+                --script-name "$3" \
+                --producer-name "SMC Long-Dip Suite"; then
+                return 0
+              fi
+              echo "::warning::binding verification attempt ${attempt}/2 failed for \"$3\""
+            done
+            return 1
+          }
+          verify SMC_Long_Dip_Dashboard.pine "SMC Long-Dip Dashboard" "SMC Decision Board"
+          verify SMC_Long_Dip_Strategy.pine "SMC Long-Dip Strategy" "SMC Long-Dip Strategy"
+          verify SMC_Long_Dip_Alerts.pine "SMC Long-Dip Alerts" "SMC Long-Dip Alerts"
+          verify SMC_Setup_Check.pine "SMC Setup Check" "SMC Setup Check"

@@ -47,12 +47,13 @@ def test_runs_the_save_tool() -> None:
     assert "--script-name" in body
 
 
-def test_verifies_actual_dashboard_source_selections_after_save() -> None:
+def test_verifies_actual_consumer_source_selections_after_save() -> None:
     body = "\n".join(s.get("run", "") for s in _steps())
     assert "scripts/tv_verify_consumer_bindings.ts" in body
-    assert '--saved-script-name "SMC Long-Dip Dashboard"' in body
-    assert '--script-name "SMC Decision Board"' in body
-    assert '--producer-name "SMC Long-Dip Suite"' in body
+    assert 'verify SMC_Long_Dip_Dashboard.pine "SMC Long-Dip Dashboard" "SMC Decision Board"' in body
+    assert 'verify SMC_Long_Dip_Strategy.pine "SMC Long-Dip Strategy" "SMC Long-Dip Strategy"' in body
+    assert 'verify SMC_Long_Dip_Alerts.pine "SMC Long-Dip Alerts" "SMC Long-Dip Alerts"' in body
+    assert 'verify SMC_Setup_Check.pine "SMC Setup Check" "SMC Setup Check"' in body
 
 
 def test_miss_is_reported_and_any_miss_fails_the_coordinated_rollout() -> None:
@@ -63,11 +64,37 @@ def test_miss_is_reported_and_any_miss_fails_the_coordinated_rollout() -> None:
     assert "exit 1" in run
 
 
-def test_default_mapping_uses_grounded_core_engine_name() -> None:
-    """SMC_Core_Engine's saved name is the operator-chosen 'SMC Core Engine',
-    not its indicator title — pin that so a refactor cannot silently regress it."""
+def test_default_mapping_uses_resolvable_suite_saved_name() -> None:
     body = "\n".join(s.get("run", "") for s in _steps())
-    assert '{"source":"SMC_Long_Dip_Suite.pine","scriptName":"SMC Core Engine"}' in body
+    assert '{"source":"SMC_Long_Dip_Suite.pine","scriptName":"SMC Long-Dip Suite"}' in body
+    assert '"scriptName":"SMC Core Engine"' not in body
+
+
+def test_transient_tradingview_save_failures_are_retried_once() -> None:
+    save = next(s for s in _steps() if s.get("id") == "save")
+    assert "for attempt in 1 2; do" in save["run"]
+    assert 'if [ "${saved}" -eq 1 ]; then' in save["run"]
+
+
+def test_transient_binding_verification_failures_are_retried_once() -> None:
+    step = next(s for s in _steps() if "Verify existing consumer" in s.get("name", ""))
+    assert "for attempt in 1 2; do" in step["run"]
+    assert "binding verification attempt" in step["run"]
+
+
+def test_binding_parser_accepts_single_and_double_quoted_pine_labels() -> None:
+    verifier = (_REPO_ROOT / "scripts" / "tv_verify_consumer_bindings.ts").read_text(encoding="utf-8")
+    assert '(["\'])' in verifier
+    assert ".map((match) => match[2])" in verifier
+
+
+def test_binding_repair_is_explicit_and_reverified_before_success() -> None:
+    verifier = (_REPO_ROOT / "scripts" / "tv_verify_consumer_bindings.ts").read_text(encoding="utf-8")
+    assert 'hasFlag("--repair")' in verifier
+    assert "repairSelectedSource" in verifier
+    assert 'getByRole("option", { name: expected, exact: true })' in verifier
+    assert 'button[name="submit"]' in verifier
+    assert "binding.actual = await readSelectedSource" in verifier
 
 
 def test_default_mapping_covers_every_binding_order_consumer() -> None:

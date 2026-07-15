@@ -23,9 +23,13 @@ function getFlag(name: string, fallback = ""): string {
   return index === -1 || !args[index + 1] ? fallback : args[index + 1];
 }
 
+function hasFlag(name: string): boolean {
+  return process.argv.slice(2).includes(name);
+}
+
 export function parseInputSourceLabels(source: string): string[] {
-  return [...source.matchAll(/input\.source\([^,]+,\s*"([^"]+)"/g)]
-    .map((match) => match[1])
+  return [...source.matchAll(/input\.source\([^,]+,\s*(["'])(.*?)\1/g)]
+    .map((match) => match[2])
     .filter((label) => label.startsWith("BUS "));
 }
 
@@ -44,11 +48,37 @@ async function readSelectedSource(page: Parameters<typeof openInputsTab>[0], lab
   return null;
 }
 
+async function repairSelectedSource(
+  page: Parameters<typeof openInputsTab>[0],
+  label: string,
+  expected: string,
+): Promise<void> {
+  const labels = page.getByText(label, { exact: true });
+  const count = await labels.count();
+  for (let index = 0; index < count; index += 1) {
+    const combo = labels.nth(index).locator("xpath=parent::*/following-sibling::*[1]//button[@role='combobox']");
+    if (await combo.count() === 0 || !(await combo.first().isVisible().catch(() => false))) continue;
+    await combo.first().click();
+    const exactOption = page.getByRole("option", { name: expected, exact: true });
+    const fallbackOption = page.getByText(expected, { exact: true });
+    if (await exactOption.count() > 0) {
+      await exactOption.first().click();
+    } else if (await fallbackOption.count() > 0) {
+      await fallbackOption.last().click();
+    } else {
+      throw new Error(`Source option not found for ${label}: ${expected}`);
+    }
+    return;
+  }
+  throw new Error(`Source combobox not found for ${label}`);
+}
+
 export async function runVerifyConsumerBindingsCli(): Promise<number> {
   const sourceFlag = getFlag("--source");
   const scriptName = getFlag("--script-name");
   const savedScriptName = getFlag("--saved-script-name", scriptName);
   const producerName = getFlag("--producer-name", "SMC Long-Dip Suite");
+  const repair = hasFlag("--repair");
   if (!sourceFlag) throw new Error("Missing --source");
   if (!scriptName) throw new Error("Missing --script-name");
 
@@ -79,9 +109,32 @@ export async function runVerifyConsumerBindingsCli(): Promise<number> {
       const expected = `${producerName}: ${label}`;
       bindings.push({ label, actual, expected, ok: actual === expected });
     }
-    const mismatches = bindings.filter((binding) => !binding.ok);
+    let mismatches = bindings.filter((binding) => !binding.ok);
+    const repaired: string[] = [];
+    if (repair && mismatches.length > 0) {
+      for (const mismatch of mismatches) {
+        await repairSelectedSource(session.page, mismatch.label, mismatch.expected);
+        repaired.push(mismatch.label);
+      }
+      const submit = session.page.locator('button[name="submit"], button[data-name="submit-button"]').first();
+      if (!(await submit.isVisible().catch(() => false))) {
+        throw new Error("Could not find settings submit button after binding repair");
+      }
+      await submit.click();
+
+      const reopened = await openSettingsForScript(session.page, scriptName, { allowChartRefresh: false });
+      if (!reopened) throw new Error(`Could not reopen chart settings after repair: ${scriptName}`);
+      await openInputsTab(session.page);
+      for (const binding of bindings) {
+        binding.actual = await readSelectedSource(session.page, binding.label);
+        binding.ok = binding.actual === binding.expected;
+      }
+      mismatches = bindings.filter((binding) => !binding.ok);
+    }
     console.log(JSON.stringify({
       ok: mismatches.length === 0,
+      repair,
+      repaired,
       scriptName,
       savedScriptName,
       sourcePath,
