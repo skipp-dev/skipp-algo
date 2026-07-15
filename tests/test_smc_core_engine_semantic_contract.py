@@ -471,10 +471,13 @@ EXPECTED_ALERT_TITLES = {
 
 
 def test_core_engine_has_all_alertcondition_titles() -> None:
+    # The 16 alerts moved from alertcondition() to alert() to stay within
+    # TradingView's 64-plot budget (each alertcondition() counts as a plot-count;
+    # RE10140). Every event title is embedded as the prefix of its alert()
+    # message, so the semantic contract — all 16 events are surfaced — still holds.
     source = _read(CORE_PATH)
-    import re
-    alert_titles = set(re.findall(r"alertcondition\([^,]+,\s*'([^']+)'", source))
-    assert alert_titles == EXPECTED_ALERT_TITLES
+    missing = {title for title in EXPECTED_ALERT_TITLES if title not in source}
+    assert not missing, f"alert titles missing from core: {sorted(missing)}"
 
 
 def test_alertcondition_uses_only_existing_variables() -> None:
@@ -497,7 +500,12 @@ def test_trust_enforcement_suppresses_entry_at_insufficient() -> None:
 
 
 def test_alertcondition_count_is_16() -> None:
+    # Converted to alert() for the 64-plot budget (RE10140): zero alertcondition()
+    # remain, and the 16 lifecycle/structure/risk events are now alert() calls.
+    # Strip line comments first so prose mentions of alert()/alertcondition() in
+    # the source comments do not inflate the counts.
     source = _read(CORE_PATH)
     import re
-    count = len(re.findall(r"alertcondition\(", source))
-    assert count == 16
+    code = "\n".join(line.split("//", 1)[0] for line in source.splitlines())
+    assert len(re.findall(r"\balertcondition\(", code)) == 0
+    assert len(re.findall(r"\balert\(", code)) == 16
