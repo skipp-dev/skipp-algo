@@ -206,11 +206,13 @@ def patch_overlay(
     updates: dict[str, Any],
     *,
     allow_none_keys: set[str] | None = None,
-) -> None:
+) -> bool:
     """Merge updates into an existing overlay entry (used for fast flow refresh).
 
     Only patches symbols that already have a full overlay payload; ignores
-    symbols not yet computed to avoid serving incomplete payloads.
+    symbols not yet computed to avoid serving incomplete payloads. Returns
+    ``True`` when the symbol existed and was patched, ``False`` when it was
+    ignored.
 
     None values in *updates* are skipped by default so failed/uncomputable
     refresh paths don't erase previously valid values. Callers can explicitly
@@ -220,18 +222,20 @@ def patch_overlay(
     """
     with _overlay_lock:
         upper = symbol.upper()
-        if upper in _overlay:
-            allowed_none = allow_none_keys or set()
-            _overlay[upper].update(
-                {
-                    k: v
-                    for k, v in updates.items()
-                    if (
-                        (v is not None or k in allowed_none)
-                        and not ((isinstance(v, float) and not math.isfinite(v)) or (v.__class__.__name__ == "Decimal" and hasattr(v, "is_finite") and (not bool(v.is_finite()))))
-                    )
-                }
-            )
+        if upper not in _overlay:
+            return False
+        allowed_none = allow_none_keys or set()
+        _overlay[upper].update(
+            {
+                k: v
+                for k, v in updates.items()
+                if (
+                    (v is not None or k in allowed_none)
+                    and not ((isinstance(v, float) and not math.isfinite(v)) or (v.__class__.__name__ == "Decimal" and hasattr(v, "is_finite") and (not bool(v.is_finite()))))
+                )
+            }
+        )
+        return True
 
 
 def overlay_age_secs() -> float:

@@ -1469,12 +1469,13 @@ def run_flow_patch_cycle(tf: str = "5m") -> int:
             updates = compute_flow_fields(aggregated)
             if (vix_value := _coerce_finite_float(vix)) is not None:
                 updates["vix_level"] = round(vix_value, 4)
-            cache.patch_overlay(
+            patched = cache.patch_overlay(
                 sym,
                 updates,
                 allow_none_keys={"flow_rel_vol", "flow_delta_proxy_pct"},
             )
-            count += 1
+            if patched:
+                count += 1
         observability.metric_gauge("live_overlay.flow_patch_symbols", count)
         observability.metric_counter("live_overlay.flow_patch_cycle.total")
         observability.audit_event(
