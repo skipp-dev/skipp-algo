@@ -192,3 +192,44 @@ def iter_tracked_files(
         if path.exists():
             out.append(path)
     return sorted(out)
+
+
+def iter_production_py_files(
+    exclude_dirs: Iterable[str],
+    *,
+    root: Path | None = None,
+    minimum: int = MIN_EXPECTED_PROD_FILES,
+) -> list[Path]:
+    """Like :func:`iter_tracked_files` for ``*.py``, but refuses a collapsed corpus.
+
+    Use this — not the raw :func:`iter_tracked_files` — whenever a guard's claim
+    is "I checked the whole production tree". It is the difference between a
+    guard that PASSED and a guard that merely found nothing to look at.
+
+    :data:`MIN_EXPECTED_PROD_FILES` documented this exact hazard ("overly broad
+    ``_DIR_EXCLUDE`` sets or sparse-checkout environments returning too few
+    files") but nothing enforced it, and the collapse is reachable: when git
+    runs fine and simply matches nothing, ``_git_ls_files`` returns an empty
+    tuple rather than ``None``, so :func:`iter_tracked_files` returns ``[]`` and
+    the filesystem fallback is deliberately NOT taken. A guard scanning that
+    empty list asserts over nothing and reports green.
+
+    The floor lives here rather than in :func:`iter_tracked_files` on purpose:
+    that helper takes an arbitrary pattern and root, so a legitimate zero-match
+    query must stay able to return ``[]`` honestly. Only callers that promise
+    the full corpus opt into the floor, and they say so by calling this.
+
+    Raises:
+        AssertionError: if fewer than ``minimum`` files are found.
+    """
+    files = iter_tracked_files("*.py", exclude_dirs, root=root)
+    if len(files) < minimum:
+        base = root or _ROOT
+        raise AssertionError(
+            f"production corpus collapsed: found {len(files)} *.py file(s) under "
+            f"{base}, expected >= {minimum}. The guard calling this would "
+            f"otherwise have scanned almost nothing and reported green. Likely "
+            f"causes: an over-broad exclude_dirs, a sparse checkout, or a root "
+            f"that is not the repo."
+        )
+    return files
