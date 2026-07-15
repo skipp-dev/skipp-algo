@@ -86,3 +86,19 @@ def field_preference_chain_file_counts() -> dict[str, int]:
             "file_counts"
         ].items()
     }
+
+
+def field_preference_chain_file_keys() -> dict[str, list[tuple[str, ...]]]:
+    """Return the frozen per-file key lists of field-preference ``or``-chains.
+
+    One entry per chain, each the ordered keys that chain reads. The counts
+    above say *how many* chains a file has; these say *which fields* they
+    substitute for each other — which is what audit #2670 G1 is actually about,
+    and what the scanner used to compute and then discard.
+    """
+    return {
+        rel: [tuple(str(key) for key in chain) for chain in chains]
+        for rel, chains in _load()["field_preference_chain_ledger"][
+            "file_keys"
+        ].items()
+    }
