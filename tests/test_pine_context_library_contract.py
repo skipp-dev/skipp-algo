@@ -480,27 +480,28 @@ def test_structure_trend_flows_from_the_engine_detector() -> None:
     Pinning trend to a constant is the other mutation this module missed.
 
     Deliberately NOT pinned to the bare identifier: the engine bootstraps
-    `var trend = 1`, so a correct warm-up fix will wrap it (e.g.
-    ``structure_available ? trend : 0``). Demanding the raw value would block
-    that fix and cement today's bullish bootstrap as the contract. The rule is
-    only: it must depend on the engine's trend and must not be a literal.
+    `var trend = 1`, so the warm-up fix wraps it
+    (``structure_available ? trend : 0``). Demanding the raw value would block
+    that fix and cement today's bullish bootstrap as the contract.
+
+    Nor to a single construction: the builder holds a `var` seed frame for the
+    ticks before the first confirmed bar, and that seed is a literal 0 by
+    design. The rule is that the frame the builder *publishes* must derive its
+    trend from the engine — i.e. at least one construction references it.
     """
     body = _builder_body("build_structure_frame")
     assert re.search(r"\[trend,[^\]]*\]\s*=\s*eng\.detect_structure\(", body), (
         "build_structure_frame no longer destructures trend from "
         "eng.detect_structure"
     )
-    m = re.search(r"StructureFrame\.new\((?P<args>[^)]*)\)", body)
-    assert m, "StructureFrame.new construction not found"
-    first_arg = m.group("args").split(",", 1)[0].strip()
-    assert not re.fullmatch(r"-?\d+(?:\.\d+)?", first_arg), (
-        f"StructureFrame.trend is built from the literal {first_arg!r}. It must "
-        "carry the engine's trend (optionally neutralised during warm-up), not "
-        "a hardcoded direction."
-    )
-    assert re.search(r"\btrend\b", first_arg), (
-        f"StructureFrame.trend is built from {first_arg!r}, which does not "
-        "reference the engine's `trend` value at all."
+    constructions = re.findall(r"StructureFrame\.new\(([^)]*)\)", body)
+    assert constructions, "no StructureFrame.new construction found"
+    trend_args = [c.split(",", 1)[0].strip() for c in constructions]
+    assert any(re.search(r"\btrend\b", a) for a in trend_args), (
+        "no StructureFrame.new derives its trend from the engine — every "
+        f"construction passes a literal or unrelated value: {trend_args!r}. "
+        "A seed frame may use a literal, but the published frame must carry "
+        "the engine's trend (optionally neutralised during warm-up)."
     )
 
 
