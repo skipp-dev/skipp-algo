@@ -228,7 +228,14 @@ def _run_main(
     warnings_by_tf: dict[str, list[str]],
     strict: bool,
 ) -> tuple[int, dict[str, Any]]:
-    def _fake_run_pair(symbol: str, timeframe: str, *, output_root: Path) -> dict[str, Any]:
+    def _fake_run_pair(
+        symbol: str,
+        timeframe: str,
+        *,
+        output_root: Path,
+        anchor_window_days: float | None = None,
+    ) -> dict[str, Any]:
+        assert anchor_window_days is None
         return {
             "symbol": symbol,
             "timeframe": timeframe,
