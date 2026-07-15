@@ -1,4 +1,5 @@
 name: composio-canary
+# live-window: off-hours-only  # Daily read-only Composio connection probe; holds no repo writes.
 
 on:
   schedule:
