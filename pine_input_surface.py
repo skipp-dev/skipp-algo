@@ -374,13 +374,37 @@ def cmd_lint_parity(files: list[Path]) -> int:
 
 
 # ── provenance command ────────────────────────────────────────────────
+#: Root ``*.pine`` files that are not shipped scripts and carry no input surface.
+_PROVENANCE_EXCLUDED_NAMES = frozenset({"test_div.pine"})
+
+
+def active_root_pine_scripts(root: Path) -> list[Path]:
+    """The provenance surface: top-level ``*.pine`` scripts under ``root``.
+
+    Deliberately scoped to *this* contract — other Pine checks select
+    differently on purpose (some treat ``test_div.pine`` as a fixture, some
+    exclude fragments), so this is not a universal glob. Reuse it rather than
+    rebuilding the rule: reproducing the exclusion by hand is what silently
+    pulled ``test_div.pine`` into the delta while auditing #3683.
+    """
+    return sorted(
+        p for p in root.glob("*.pine") if p.name not in _PROVENANCE_EXCLUDED_NAMES
+    )
+
+
 def build_provenance(files: list[Path], repo_root: Path | None = None) -> dict:
     """Build a deterministic, machine-readable input-provenance map.
 
-    For every input across ``files`` this records its declaring file, line,
+    For every input across ``files`` this records its declaring file,
     variable name, kind, human label, group, whether it is hidden
     (``display=display.none``) and its policy visibility class. This is the
     audit artifact that gives hidden/operator inputs explicit provenance.
+
+    Line numbers are deliberately absent (schema v2). They shift on any edit
+    above an input, which drowns real drift in churn: the v1 refresh in #3683
+    carried 362 line-only records against 7 semantic ones. Source-editing
+    passes read the live ``InputInfo.lineno`` instead, recomputed on every
+    run — nothing needs a line number out of the committed artifact.
     """
     from scripts.pine_input_surface_policy import classify_group
 
@@ -395,7 +419,6 @@ def build_provenance(files: list[Path], repo_root: Path | None = None) -> dict:
             rel = fp.name
         input_entries = [
             {
-                "lineno": inp.lineno,
                 "varname": inp.varname,
                 "kind": inp.kind,
                 "label": inp.label,
@@ -418,7 +441,7 @@ def build_provenance(files: list[Path], repo_root: Path | None = None) -> dict:
             }
         )
     return {
-        "schema": "pine-input-provenance/v1",
+        "schema": "pine-input-provenance/v2",
         "total_inputs": sum(f["input_count"] for f in file_entries),
         "total_hidden": sum(f["hidden_count"] for f in file_entries),
         "files": file_entries,
