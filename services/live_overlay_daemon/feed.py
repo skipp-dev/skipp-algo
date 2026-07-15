@@ -328,6 +328,9 @@ def _run_feed_loop(stop: threading.Event) -> None:
                         ingest_queue.put_nowait((sym, bar, time.monotonic()))
                         _record_enqueue_backpressure()
                         _bars_pushed_count += 1
+                        if not stop.is_set() and not _feed_ready.is_set():
+                            _feed_ready.set()
+                            logger.info("Feed ready — first bar received for %s", sym)
                     except queue.Full:
                         dropped_total = _record_queue_drop()
                         if _should_log_queue_drop_warning(dropped_total):
@@ -418,12 +421,12 @@ def _run_ingest_loop(stop: threading.Event) -> None:
         now = time.monotonic()
         _record_queue_lag_ms(max(0.0, (now - queued_at) * 1000.0))
 
+        # Freshness only — _feed_ready stays owned by the feed loop (F2.1).
+        # A bar queued before a disconnect must not re-arm readiness here, or
+        # /health reports "ok" while the feed is dead or reconnecting.
         global _last_bar_at
         with _last_bar_lock:
             _last_bar_at = now
-            if not stop.is_set() and not _feed_ready.is_set():
-                _feed_ready.set()
-                logger.info("Feed ready — first bar pushed for %s", sym)
 
         ingest_queue.task_done()
     logger.info("Ingest thread stopped.")

@@ -264,3 +264,42 @@ class TestFeedBackpressureDropCadence:
         dropped_total = feed._record_queue_drop()
         assert dropped_total == 100.0
         assert feed._should_log_queue_drop_warning(dropped_total) is True
+
+
+class TestFeedReadyOwnership:
+    """F2.1: only the feed loop may arm readiness — a queued bar must not."""
+
+    def test_ingest_loop_does_not_rearm_feed_ready_after_disconnect(self) -> None:
+        """A bar queued before a disconnect must not make /health report ready.
+
+        The feed loop clears _feed_ready on BentoError, but bars enqueued before
+        the failure are still in the queue. If the ingest loop armed readiness
+        while draining them it would also stamp _last_bar_at, so the staleness
+        check in is_ready() could not catch it either.
+        """
+        feed = _reload_feed_module()
+
+        feed._feed_ready.clear()
+        ingest_queue: queue.Queue[Any] = queue.Queue(maxsize=8)
+        ingest_queue.put(("AAPL", feed._record_to_bar(OHLCV_1m()), time.monotonic()))
+        feed._runtime["ingest_queue"] = ingest_queue
+
+        stop = threading.Event()
+        ingest_thread = threading.Thread(
+            target=feed._run_ingest_loop, args=(stop,), daemon=True, name="test-ingest"
+        )
+        ingest_thread.start()
+        try:
+            ingest_queue.join()
+        finally:
+            stop.set()
+            ingest_thread.join(timeout=2)
+
+        assert not ingest_thread.is_alive(), "ingest loop thread did not stop within timeout"
+        # Proves the loop really drained the bar — without this the assertions
+        # below would also pass on an ingest loop that did nothing at all.
+        assert feed.last_bar_age_secs() is not None, "queued bar was never ingested"
+        assert not feed._feed_ready.is_set(), (
+            "ingest loop re-armed _feed_ready from a bar queued before the disconnect"
+        )
+        assert not feed.is_ready(), "/health must not report ready while the feed is down"
