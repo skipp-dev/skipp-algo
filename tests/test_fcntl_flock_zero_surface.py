@@ -65,19 +65,60 @@ def _iter_py_files() -> list[Path]:
     return out
 
 
-def _fcntl_flock_sites() -> set[tuple[str, int]]:
-    """Return ``{(relpath, lineno)}`` for every literal ``fcntl.flock(...)`` call.
+def _flock_operation(node: ast.Call) -> str:
+    """Normalise the lock-operation argument of an ``fcntl.flock(fd, OP)`` call.
 
-    Detects only the ``fcntl.flock`` shape: an attribute call whose
-    receiver is exactly ``Name('fcntl')``. Aliased imports
-    (``import fcntl as f``) and direct imports
-    (``from fcntl import flock``) are out of scope here — the companion
-    ``test_fcntl_alias_import_zero_surface_pin`` fails closed if either
-    form appears in production code, so they cannot be used to silently
+    Returns a canonical string such as ``"LOCK_EX|LOCK_NB"`` or ``"LOCK_UN"``,
+    with the flags sorted so ``LOCK_NB | LOCK_EX`` and ``LOCK_EX | LOCK_NB``
+    normalise to the same value (the pin should bind the semantics, not the
+    author's flag order). Anything not built purely out of ``fcntl.LOCK_*``
+    constants is returned verbatim so the ledger comparison rejects it: a
+    dynamic operation cannot be reviewed statically.
+    """
+    if len(node.args) < 2:
+        return f"malformed: {ast.unparse(node)}"
+
+    def flags(expr: ast.expr) -> list[str] | None:
+        # fcntl.LOCK_EX  /  LOCK_EX (from-import form; the alias pin bans it,
+        # but classify rather than crash if it ever appears)
+        if isinstance(expr, ast.Attribute) and expr.attr.startswith("LOCK_"):
+            return [expr.attr]
+        if isinstance(expr, ast.Name) and expr.id.startswith("LOCK_"):
+            return [expr.id]
+        # LOCK_EX | LOCK_NB
+        if isinstance(expr, ast.BinOp) and isinstance(expr.op, ast.BitOr):
+            left, right = flags(expr.left), flags(expr.right)
+            if left is None or right is None:
+                return None
+            return left + right
+        return None
+
+    parsed = flags(node.args[1])
+    if parsed is None:
+        return f"dynamic: {ast.unparse(node.args[1])}"
+    return "|".join(sorted(parsed))
+
+
+def _fcntl_flock_sites() -> set[tuple[str, int, str]]:
+    """Return ``{(relpath, lineno, operation)}`` for every ``fcntl.flock(...)`` call.
+
+    The operation is part of the tuple (2026-07-15) because pinning only
+    ``(path, lineno)`` bound WHERE a lock leg sits but never WHICH operation it
+    performs — so mutating an allow-listed leg in place, ``LOCK_UN`` ->
+    ``LOCK_EX``, turned a release into a second exclusive acquire while the pin
+    stayed green. That is precisely the "mis-matched LOCK_EX / LOCK_UN pairs
+    cause silent deadlocks" failure this module's docstring names as its reason
+    to exist. Verified: that mutation passed before the operation was pinned.
+
+    Detects only the ``fcntl.flock`` shape: an attribute call whose receiver is
+    exactly ``Name('fcntl')``. Aliased imports (``import fcntl as f``) and
+    direct imports (``from fcntl import flock``) are out of scope here — the
+    companion ``test_fcntl_alias_import_zero_surface_pin`` fails closed if
+    either form appears in production code, so they cannot be used to silently
     bypass this pin.
     """
 
-    sites: set[tuple[str, int]] = set()
+    sites: set[tuple[str, int, str]] = set()
     for path in _iter_py_files():
         tree = parse_module(path)
         if tree is None:
@@ -92,7 +133,9 @@ def _fcntl_flock_sites() -> set[tuple[str, int]]:
                 continue
             if not (isinstance(func.value, ast.Name) and func.value.id == "fcntl"):
                 continue
-            sites.add((path.relative_to(ROOT).as_posix(), node.lineno))
+            sites.add(
+                (path.relative_to(ROOT).as_posix(), node.lineno, _flock_operation(node))
+            )
     return sites
 
 
@@ -127,31 +170,38 @@ def _fcntl_alias_or_direct_import_sites() -> set[tuple[str, int, str]]:
 
 
 # Locked surface — every entry is a reviewed advisory-lock leg.
-FCNTL_FLOCK_ALLOWED: set[tuple[str, int]] = {
+#
+# 2026-07-15: the operation is now the third tuple element and is ENFORCED.
+# It used to be a trailing `# LOCK_UN` comment, i.e. documentation the test
+# never read — so an allow-listed release could be mutated into a second
+# exclusive acquire (LOCK_UN -> LOCK_EX) at the same line and the pin stayed
+# green, which is the exact deadlock this module exists to prevent. Flags are
+# sorted, so "LOCK_EX|LOCK_NB" also covers `LOCK_NB | LOCK_EX`.
+FCNTL_FLOCK_ALLOWED: set[tuple[str, int, str]] = {
     # Realtime-signals daemon PID-file singleton lock.
     # 2026-07-15 (reconcile): 294/321 -> 310/337. Pure drift -- the file still holds
     # exactly 2 flock legs and the EX/UN pairing is intact; #3584/#3587 edited above.
-    ("open_prep/realtime_signals.py", 310),  # LOCK_EX | LOCK_NB
-    ("open_prep/realtime_signals.py", 337),  # LOCK_UN
+    ("open_prep/realtime_signals.py", 310, "LOCK_EX|LOCK_NB"),
+    ("open_prep/realtime_signals.py", 337, "LOCK_UN"),
     # Watchlist read/write critical section.
-    ("open_prep/watchlist.py", 41),  # LOCK_EX
-    ("open_prep/watchlist.py", 44),  # LOCK_UN
+    ("open_prep/watchlist.py", 41, "LOCK_EX"),
+    ("open_prep/watchlist.py", 44, "LOCK_UN"),
     # IBKR client-id registry lease lock (guarded; random fallback on no fcntl).
     # 2026-07-15 (reconcile): 151/195/215/227 -> 175/219/239/251. Pure drift -- still
     # exactly 4 legs, still two EX/UN pairs in the same order.
-    ("scripts/ib_client_id.py", 175),  # LOCK_EX | LOCK_NB
-    ("scripts/ib_client_id.py", 219),  # LOCK_UN
-    ("scripts/ib_client_id.py", 239),  # LOCK_EX | LOCK_NB
-    ("scripts/ib_client_id.py", 251),  # LOCK_UN
+    ("scripts/ib_client_id.py", 175, "LOCK_EX|LOCK_NB"),
+    ("scripts/ib_client_id.py", 219, "LOCK_UN"),
+    ("scripts/ib_client_id.py", 239, "LOCK_EX|LOCK_NB"),
+    ("scripts/ib_client_id.py", 251, "LOCK_UN"),
     # Corpus deduplication writer: POSIX-guarded try/except ImportError;
     # LOCK_EX acquired before checking existing keys, LOCK_UN in finally.
     # Line numbers updated 2026-06-17: written=0 initialised before the
     # with-block (bug-fix: function was returning None instead of int).
-    ("scripts/collect_drift_calibration_corpus.py", 171),  # LOCK_EX
-    ("scripts/collect_drift_calibration_corpus.py", 189),  # LOCK_UN
+    ("scripts/collect_drift_calibration_corpus.py", 171, "LOCK_EX"),
+    ("scripts/collect_drift_calibration_corpus.py", 189, "LOCK_UN"),
     # Databento reference-cache interprocess lock (advisory, POSIX-guarded exception/import).
-    ("databento_reference.py", 127),  # LOCK_EX
-    ("databento_reference.py", 131),  # LOCK_UN
+    ("databento_reference.py", 127, "LOCK_EX"),
+    ("databento_reference.py", 131, "LOCK_UN"),
 }
 
 
@@ -187,16 +237,18 @@ def test_fcntl_flock_zero_surface_pin() -> None:
 
     unexpected = sites - FCNTL_FLOCK_ALLOWED
     assert not unexpected, (
-        "New ``fcntl.flock(...)`` call site detected. ``flock`` is "
-        "POSIX-only and breaks Windows portability silently; "
-        "mis-matched ``LOCK_EX`` / ``LOCK_UN`` pairs cause silent "
-        "deadlocks. If a new locking caller is genuinely required, "
-        "wrap the import behind an availability guard (mirror the "
-        "``open_prep/watchlist.py`` ImportError-fallback pattern), "
-        "ensure every acquire is paired with a release in a ``try``/"
-        "``finally``, and append BOTH legs (lock + unlock) to "
-        "FCNTL_FLOCK_ALLOWED with a justification in the commit "
-        "message.\n"
+        "Unreviewed ``fcntl.flock(...)`` leg detected — either a NEW call site, "
+        "or an allow-listed one whose OPERATION changed (the third tuple "
+        "element). A changed operation is the more dangerous case: turning a "
+        "``LOCK_UN`` into a ``LOCK_EX`` in place converts a release into a "
+        "second exclusive acquire, which is exactly the silent deadlock this "
+        "pin exists to prevent, and it leaves the line number untouched. "
+        "``flock`` is also POSIX-only and breaks Windows portability silently. "
+        "If a new locking caller is genuinely required, wrap the import behind "
+        "an availability guard (mirror the ``open_prep/watchlist.py`` "
+        "ImportError-fallback pattern), ensure every acquire is paired with a "
+        "release in a ``try``/``finally``, and append BOTH legs (lock + unlock) "
+        "to FCNTL_FLOCK_ALLOWED with a justification in the commit message.\n"
         f"unexpected = {sorted(unexpected)}"
     )
 
