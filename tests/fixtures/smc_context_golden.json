@@ -1,0 +1,468 @@
+{
+  "_meta": {
+    "generated_by": "scripts/gen_smc_context_golden.py",
+    "purpose": "cross-language scoring/rule parity contract for smc_context_engine_private.pine",
+    "sources": [
+      "scripts/smc_imbalance_lifecycle.py",
+      "scripts/smc_liquidity_sweeps.py",
+      "scripts/smc_liquidity_pools.py"
+    ],
+    "thresholds": {
+      "imbalance": {
+        "FULL_MIT_PCT": 1.0,
+        "LIQ_VOID_MIN_SIZE_PCT": 2.0,
+        "PARTIAL_MIT_PCT": 0.5
+      },
+      "pools": {
+        "IMBALANCE_SIG_THRESHOLD": 0.3
+      },
+      "sweeps": {
+        "SWEEP_DEPTH_MIN_PCT": 0.1,
+        "SWEEP_RECLAIM_MAX_BARS": 5,
+        "SWEEP_VOLUME_RATIO_MIN": 1.2
+      }
+    }
+  },
+  "imbalance_lifecycle": {
+    "bpr_overlap": {
+      "bars": [
+        [
+          100.0,
+          102.0,
+          99.0,
+          101.0
+        ],
+        [
+          101.0,
+          106.0,
+          101.0,
+          105.0
+        ],
+        [
+          105.0,
+          108.0,
+          104.0,
+          107.0
+        ],
+        [
+          106.0,
+          107.0,
+          103.5,
+          104.0
+        ],
+        [
+          105.0,
+          106.0,
+          104.5,
+          105.0
+        ],
+        [
+          103.0,
+          103.0,
+          102.5,
+          102.8
+        ]
+      ],
+      "expected": {
+        "BEAR_FVG_ACTIVE": true,
+        "BEAR_FVG_BOTTOM": 103.0,
+        "BEAR_FVG_COUNT": 1,
+        "BEAR_FVG_FULL_MITIGATION": false,
+        "BEAR_FVG_MITIGATION_PCT": 0.0,
+        "BEAR_FVG_PARTIAL_MITIGATION": false,
+        "BEAR_FVG_TOP": 103.5,
+        "BPR_ACTIVE": true,
+        "BPR_BOTTOM": 103.0,
+        "BPR_DIRECTION": "BEAR",
+        "BPR_TOP": 103.5,
+        "BULL_FVG_ACTIVE": true,
+        "BULL_FVG_BOTTOM": 102.0,
+        "BULL_FVG_COUNT": 1,
+        "BULL_FVG_FULL_MITIGATION": false,
+        "BULL_FVG_MITIGATION_PCT": 0.75,
+        "BULL_FVG_PARTIAL_MITIGATION": true,
+        "BULL_FVG_TOP": 104.0,
+        "IMBALANCE_STATE": "BPR",
+        "LIQ_VOID_BEAR_ACTIVE": false,
+        "LIQ_VOID_BOTTOM": 0.0,
+        "LIQ_VOID_BULL_ACTIVE": false,
+        "LIQ_VOID_TOP": 0.0
+      }
+    },
+    "bull_fvg_active": {
+      "bars": [
+        [
+          100.0,
+          101.0,
+          99.0,
+          100.5
+        ],
+        [
+          101.0,
+          103.0,
+          100.8,
+          102.5
+        ],
+        [
+          103.0,
+          105.0,
+          102.0,
+          104.0
+        ]
+      ],
+      "expected": {
+        "BEAR_FVG_ACTIVE": false,
+        "BEAR_FVG_BOTTOM": 0.0,
+        "BEAR_FVG_COUNT": 0,
+        "BEAR_FVG_FULL_MITIGATION": false,
+        "BEAR_FVG_MITIGATION_PCT": 0.0,
+        "BEAR_FVG_PARTIAL_MITIGATION": false,
+        "BEAR_FVG_TOP": 0.0,
+        "BPR_ACTIVE": false,
+        "BPR_BOTTOM": 0.0,
+        "BPR_DIRECTION": "NONE",
+        "BPR_TOP": 0.0,
+        "BULL_FVG_ACTIVE": true,
+        "BULL_FVG_BOTTOM": 101.0,
+        "BULL_FVG_COUNT": 1,
+        "BULL_FVG_FULL_MITIGATION": false,
+        "BULL_FVG_MITIGATION_PCT": 0.0,
+        "BULL_FVG_PARTIAL_MITIGATION": false,
+        "BULL_FVG_TOP": 102.0,
+        "IMBALANCE_STATE": "FVG_BULL",
+        "LIQ_VOID_BEAR_ACTIVE": false,
+        "LIQ_VOID_BOTTOM": 0.0,
+        "LIQ_VOID_BULL_ACTIVE": false,
+        "LIQ_VOID_TOP": 0.0
+      }
+    },
+    "bull_fvg_full_mitigation": {
+      "bars": [
+        [
+          100.0,
+          101.0,
+          99.0,
+          100.5
+        ],
+        [
+          101.0,
+          103.0,
+          100.8,
+          102.5
+        ],
+        [
+          103.0,
+          105.0,
+          102.0,
+          104.0
+        ],
+        [
+          104.0,
+          104.5,
+          100.5,
+          101.0
+        ]
+      ],
+      "expected": {
+        "BEAR_FVG_ACTIVE": false,
+        "BEAR_FVG_BOTTOM": 0.0,
+        "BEAR_FVG_COUNT": 0,
+        "BEAR_FVG_FULL_MITIGATION": false,
+        "BEAR_FVG_MITIGATION_PCT": 0.0,
+        "BEAR_FVG_PARTIAL_MITIGATION": false,
+        "BEAR_FVG_TOP": 0.0,
+        "BPR_ACTIVE": false,
+        "BPR_BOTTOM": 0.0,
+        "BPR_DIRECTION": "NONE",
+        "BPR_TOP": 0.0,
+        "BULL_FVG_ACTIVE": false,
+        "BULL_FVG_BOTTOM": 0.0,
+        "BULL_FVG_COUNT": 0,
+        "BULL_FVG_FULL_MITIGATION": true,
+        "BULL_FVG_MITIGATION_PCT": 1.0,
+        "BULL_FVG_PARTIAL_MITIGATION": false,
+        "BULL_FVG_TOP": 0.0,
+        "IMBALANCE_STATE": "NONE",
+        "LIQ_VOID_BEAR_ACTIVE": false,
+        "LIQ_VOID_BOTTOM": 0.0,
+        "LIQ_VOID_BULL_ACTIVE": false,
+        "LIQ_VOID_TOP": 0.0
+      }
+    },
+    "bull_liquidity_void": {
+      "bars": [
+        [
+          100.0,
+          100.0,
+          98.0,
+          99.5
+        ],
+        [
+          100.0,
+          108.0,
+          100.0,
+          107.0
+        ],
+        [
+          107.0,
+          110.0,
+          105.0,
+          109.0
+        ]
+      ],
+      "expected": {
+        "BEAR_FVG_ACTIVE": false,
+        "BEAR_FVG_BOTTOM": 0.0,
+        "BEAR_FVG_COUNT": 0,
+        "BEAR_FVG_FULL_MITIGATION": false,
+        "BEAR_FVG_MITIGATION_PCT": 0.0,
+        "BEAR_FVG_PARTIAL_MITIGATION": false,
+        "BEAR_FVG_TOP": 0.0,
+        "BPR_ACTIVE": false,
+        "BPR_BOTTOM": 0.0,
+        "BPR_DIRECTION": "NONE",
+        "BPR_TOP": 0.0,
+        "BULL_FVG_ACTIVE": true,
+        "BULL_FVG_BOTTOM": 100.0,
+        "BULL_FVG_COUNT": 1,
+        "BULL_FVG_FULL_MITIGATION": false,
+        "BULL_FVG_MITIGATION_PCT": 0.0,
+        "BULL_FVG_PARTIAL_MITIGATION": false,
+        "BULL_FVG_TOP": 105.0,
+        "IMBALANCE_STATE": "LIQ_VOID",
+        "LIQ_VOID_BEAR_ACTIVE": false,
+        "LIQ_VOID_BOTTOM": 100.0,
+        "LIQ_VOID_BULL_ACTIVE": true,
+        "LIQ_VOID_TOP": 105.0
+      }
+    },
+    "flat_no_imbalance": {
+      "bars": [
+        [
+          100.0,
+          100.5,
+          99.5,
+          100.0
+        ],
+        [
+          100.0,
+          100.6,
+          99.6,
+          100.1
+        ],
+        [
+          100.1,
+          100.7,
+          99.7,
+          100.2
+        ]
+      ],
+      "expected": {
+        "BEAR_FVG_ACTIVE": false,
+        "BEAR_FVG_BOTTOM": 0.0,
+        "BEAR_FVG_COUNT": 0,
+        "BEAR_FVG_FULL_MITIGATION": false,
+        "BEAR_FVG_MITIGATION_PCT": 0.0,
+        "BEAR_FVG_PARTIAL_MITIGATION": false,
+        "BEAR_FVG_TOP": 0.0,
+        "BPR_ACTIVE": false,
+        "BPR_BOTTOM": 0.0,
+        "BPR_DIRECTION": "NONE",
+        "BPR_TOP": 0.0,
+        "BULL_FVG_ACTIVE": false,
+        "BULL_FVG_BOTTOM": 0.0,
+        "BULL_FVG_COUNT": 0,
+        "BULL_FVG_FULL_MITIGATION": false,
+        "BULL_FVG_MITIGATION_PCT": 0.0,
+        "BULL_FVG_PARTIAL_MITIGATION": false,
+        "BULL_FVG_TOP": 0.0,
+        "IMBALANCE_STATE": "NONE",
+        "LIQ_VOID_BEAR_ACTIVE": false,
+        "LIQ_VOID_BOTTOM": 0.0,
+        "LIQ_VOID_BULL_ACTIVE": false,
+        "LIQ_VOID_TOP": 0.0
+      }
+    }
+  },
+  "liquidity_pools": {
+    "balanced_no_magnet": {
+      "expected": {
+        "BUY_SIDE_POOL_LEVEL": 0.0,
+        "BUY_SIDE_POOL_STRENGTH": 2,
+        "POOL_CLUSTER_DENSITY": 0,
+        "POOL_IMBALANCE": 0.0,
+        "POOL_MAGNET_DIRECTION": "NONE",
+        "POOL_PROXIMITY_PCT": 0.0,
+        "POOL_QUALITY_SCORE": 0,
+        "SELL_SIDE_POOL_LEVEL": 0.0,
+        "SELL_SIDE_POOL_STRENGTH": 2,
+        "UNTESTED_BUY_POOLS": 1,
+        "UNTESTED_SELL_POOLS": 1
+      },
+      "row": {
+        "buy_side_pool_strength": 2,
+        "sell_side_pool_strength": 2,
+        "untested_buy_pools": 1,
+        "untested_sell_pools": 1
+      }
+    },
+    "buy_side_magnet": {
+      "expected": {
+        "BUY_SIDE_POOL_LEVEL": 100.0,
+        "BUY_SIDE_POOL_STRENGTH": 4,
+        "POOL_CLUSTER_DENSITY": 3,
+        "POOL_IMBALANCE": 0.7143,
+        "POOL_MAGNET_DIRECTION": "UP",
+        "POOL_PROXIMITY_PCT": 0.5,
+        "POOL_QUALITY_SCORE": 5,
+        "SELL_SIDE_POOL_LEVEL": 0.0,
+        "SELL_SIDE_POOL_STRENGTH": 1,
+        "UNTESTED_BUY_POOLS": 2,
+        "UNTESTED_SELL_POOLS": 0
+      },
+      "row": {
+        "buy_side_pool_level": 100.0,
+        "buy_side_pool_strength": 4,
+        "pool_cluster_density": 3,
+        "pool_proximity_pct": 0.5,
+        "sell_side_pool_strength": 1,
+        "untested_buy_pools": 2,
+        "untested_sell_pools": 0
+      }
+    },
+    "no_pools": {
+      "expected": {
+        "BUY_SIDE_POOL_LEVEL": 0.0,
+        "BUY_SIDE_POOL_STRENGTH": 0,
+        "POOL_CLUSTER_DENSITY": 0,
+        "POOL_IMBALANCE": 0.0,
+        "POOL_MAGNET_DIRECTION": "NONE",
+        "POOL_PROXIMITY_PCT": 0.0,
+        "POOL_QUALITY_SCORE": 0,
+        "SELL_SIDE_POOL_LEVEL": 0.0,
+        "SELL_SIDE_POOL_STRENGTH": 0,
+        "UNTESTED_BUY_POOLS": 0,
+        "UNTESTED_SELL_POOLS": 0
+      },
+      "row": {}
+    },
+    "sell_side_magnet": {
+      "expected": {
+        "BUY_SIDE_POOL_LEVEL": 0.0,
+        "BUY_SIDE_POOL_STRENGTH": 1,
+        "POOL_CLUSTER_DENSITY": 3,
+        "POOL_IMBALANCE": -0.7143,
+        "POOL_MAGNET_DIRECTION": "DOWN",
+        "POOL_PROXIMITY_PCT": 0.8,
+        "POOL_QUALITY_SCORE": 5,
+        "SELL_SIDE_POOL_LEVEL": 100.0,
+        "SELL_SIDE_POOL_STRENGTH": 4,
+        "UNTESTED_BUY_POOLS": 0,
+        "UNTESTED_SELL_POOLS": 2
+      },
+      "row": {
+        "buy_side_pool_strength": 1,
+        "pool_cluster_density": 3,
+        "pool_proximity_pct": 0.8,
+        "sell_side_pool_level": 100.0,
+        "sell_side_pool_strength": 4,
+        "untested_buy_pools": 0,
+        "untested_sell_pools": 2
+      }
+    }
+  },
+  "liquidity_sweeps": {
+    "both_sides_ambiguous": {
+      "expected": {
+        "LIQUIDITY_TAKEN_DIRECTION": "NONE",
+        "RECENT_BEAR_SWEEP": true,
+        "RECENT_BULL_SWEEP": true,
+        "SWEEP_DIRECTION": "NONE",
+        "SWEEP_QUALITY_SCORE": 4,
+        "SWEEP_RECLAIM_ACTIVE": false,
+        "SWEEP_TYPE": "LIQUIDITY_GRAB",
+        "SWEEP_ZONE_BOTTOM": 0.0,
+        "SWEEP_ZONE_TOP": 0.0
+      },
+      "row": {
+        "recent_bear_sweep": true,
+        "recent_bull_sweep": true,
+        "sweep_depth_pct": 0.2,
+        "sweep_volume_ratio": 1.3
+      }
+    },
+    "inducement_low_quality": {
+      "expected": {
+        "LIQUIDITY_TAKEN_DIRECTION": "SELL_SIDE",
+        "RECENT_BEAR_SWEEP": false,
+        "RECENT_BULL_SWEEP": true,
+        "SWEEP_DIRECTION": "BULL",
+        "SWEEP_QUALITY_SCORE": 1,
+        "SWEEP_RECLAIM_ACTIVE": false,
+        "SWEEP_TYPE": "INDUCEMENT",
+        "SWEEP_ZONE_BOTTOM": 0.0,
+        "SWEEP_ZONE_TOP": 0.0
+      },
+      "row": {
+        "recent_bull_sweep": true,
+        "sweep_depth_pct": 0.05,
+        "sweep_reclaim_active": false,
+        "sweep_volume_ratio": 1.0
+      }
+    },
+    "liquidity_grab": {
+      "expected": {
+        "LIQUIDITY_TAKEN_DIRECTION": "BUY_SIDE",
+        "RECENT_BEAR_SWEEP": true,
+        "RECENT_BULL_SWEEP": false,
+        "SWEEP_DIRECTION": "BEAR",
+        "SWEEP_QUALITY_SCORE": 4,
+        "SWEEP_RECLAIM_ACTIVE": false,
+        "SWEEP_TYPE": "LIQUIDITY_GRAB",
+        "SWEEP_ZONE_BOTTOM": 0.0,
+        "SWEEP_ZONE_TOP": 0.0
+      },
+      "row": {
+        "recent_bear_sweep": true,
+        "sweep_depth_pct": 0.15,
+        "sweep_reclaim_active": false,
+        "sweep_volume_ratio": 1.3
+      }
+    },
+    "no_sweep": {
+      "expected": {
+        "LIQUIDITY_TAKEN_DIRECTION": "NONE",
+        "RECENT_BEAR_SWEEP": false,
+        "RECENT_BULL_SWEEP": false,
+        "SWEEP_DIRECTION": "NONE",
+        "SWEEP_QUALITY_SCORE": 0,
+        "SWEEP_RECLAIM_ACTIVE": false,
+        "SWEEP_TYPE": "NONE",
+        "SWEEP_ZONE_BOTTOM": 0.0,
+        "SWEEP_ZONE_TOP": 0.0
+      },
+      "row": {}
+    },
+    "stop_hunt_max_quality": {
+      "expected": {
+        "LIQUIDITY_TAKEN_DIRECTION": "SELL_SIDE",
+        "RECENT_BEAR_SWEEP": false,
+        "RECENT_BULL_SWEEP": true,
+        "SWEEP_DIRECTION": "BULL",
+        "SWEEP_QUALITY_SCORE": 5,
+        "SWEEP_RECLAIM_ACTIVE": true,
+        "SWEEP_TYPE": "STOP_HUNT",
+        "SWEEP_ZONE_BOTTOM": 100.0,
+        "SWEEP_ZONE_TOP": 101.0
+      },
+      "row": {
+        "recent_bull_sweep": true,
+        "sweep_depth_pct": 0.4,
+        "sweep_reclaim_active": true,
+        "sweep_volume_ratio": 1.5,
+        "sweep_zone_bottom": 100.0,
+        "sweep_zone_top": 101.0
+      }
+    }
+  }
+}
