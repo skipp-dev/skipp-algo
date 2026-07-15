@@ -13,15 +13,25 @@ import preuss_steffen/smc_micro_profiles_generated/152 as mp
 import preuss_steffen/smc_utils/3 as u
 
 var string g_surface = "1. Product Surface"
+// BUS binding groups are ordered so that reading the settings panel from top to
+// bottom walks the Suite's BUS plot() order 0..63 without ever going backwards.
+// TradingView lists a source study's outputs as ONE FLAT list in plot order — it
+// knows nothing about these groups — so any group whose plot range is out of
+// sequence forces the operator to scroll back up in the dropdown. With 64 rows
+// that is the difference between a mechanical top-to-bottom pass and a hunt.
+// The former "Diagnostic Support" group held two disjoint ranges (14-16 and
+// 40-43) and is therefore split: state codes stay here, blocker/regime codes get
+// their own group.
 var string g_bus_lifecycle = "2. Operator Only - Lifecycle BUS"
-var string g_bus_diag_rows = "3. Operator Only - Diagnostic Rows"
-var string g_bus_diag = "4. Operator Only - Diagnostic Support"
-var string g_bus_plan = "5. Operator Only - Trade Plan"
-var string g_bus_detail = "6. Operator Only - Detail Surface"
-var string g_bus_lean = "7. Operator Only - Lean Surface"
-var string g_bus_preset = "8. Operator Only - Preset Contract"
-var string g_local_debug = "9. Operator Only - Local Debug Mirrors"
-var string g_trade_mgmt = "10. Trade Management (optional, mirrors SMC_Hold_Manager)"
+var string g_bus_diag = "3. Operator Only - Diagnostic Support"
+var string g_bus_plan = "4. Operator Only - Trade Plan"
+var string g_bus_diag_rows = "5. Operator Only - Diagnostic Rows"
+var string g_bus_blockers = "6. Operator Only - Blocker Codes"
+var string g_bus_detail = "7. Operator Only - Detail Surface"
+var string g_bus_lean = "8. Operator Only - Lean Surface"
+var string g_bus_preset = "9. Operator Only - Preset Contract"
+var string g_local_debug = "10. Operator Only - Local Debug Mirrors"
+var string g_trade_mgmt = "11. Trade Management (optional, mirrors SMC_Hold_Manager)"
 
 // ── Trade Management mirror inputs ────────────────────────────
 // READ-ONLY mirror of SMC_Hold_Manager.pine state machine. Renders 2 extra
@@ -82,7 +92,13 @@ src_source_kind = input.source(close, "BUS SourceKind", group = g_bus_lifecycle,
 src_state_code = input.source(close, "BUS StateCode", group = g_bus_lifecycle, display = display.none)
 src_trend_pack = input.source(close, "BUS TrendPack", group = g_bus_lifecycle, display = display.none)
 src_meta_pack = input.source(close, "BUS MetaPack", group = g_bus_lifecycle, display = display.none)
-src_session_gate_row = input.source(close, "BUS SessionGateRow", group = g_bus_diag_rows, display = display.none, tooltip = "Continue binding top-to-bottom within each consumer group to keep the setup deterministic.")
+src_ltf_delta_state = input.source(close, "BUS LtfDeltaState", group = g_bus_diag, display = display.none, tooltip = "Keep binding straight down the panel — the rows follow the Suite's output order in the dropdown.")
+src_safe_trend_state = input.source(close, "BUS SafeTrendState", group = g_bus_diag, display = display.none)
+src_micro_profile_code = input.source(close, "BUS MicroProfileCode", group = g_bus_diag, display = display.none)
+src_stop_level = input.source(close, "BUS StopLevel", group = g_bus_plan, display = display.none, tooltip = "Trade-plan bindings. They stay in Suite output order like every other group.")
+src_target_1 = input.source(close, "BUS Target1", group = g_bus_plan, display = display.none)
+src_target_2 = input.source(close, "BUS Target2", group = g_bus_plan, display = display.none)
+src_session_gate_row = input.source(close, "BUS SessionGateRow", group = g_bus_diag_rows, display = display.none, tooltip = "Continue binding top-to-bottom — the rows follow the Suite's output order in the dropdown.")
 src_market_gate_row = input.source(close, "BUS MarketGateRow", group = g_bus_diag_rows, display = display.none)
 src_vola_gate_row = input.source(close, "BUS VolaGateRow", group = g_bus_diag_rows, display = display.none)
 src_micro_session_gate_row = input.source(close, "BUS MicroSessionGateRow", group = g_bus_diag_rows, display = display.none)
@@ -102,16 +118,10 @@ src_sd_confluence_row = input.source(close, "BUS SdConfluenceRow", group = g_bus
 src_sd_osc_row = input.source(close, "BUS SdOscRow", group = g_bus_diag_rows, display = display.none)
 src_vol_regime_row = input.source(close, "BUS VolRegimeRow", group = g_bus_diag_rows, display = display.none)
 src_vol_squeeze_row = input.source(close, "BUS VolSqueezeRow", group = g_bus_diag_rows, display = display.none)
-src_ltf_delta_state = input.source(close, "BUS LtfDeltaState", group = g_bus_diag, display = display.none)
-src_safe_trend_state = input.source(close, "BUS SafeTrendState", group = g_bus_diag, display = display.none)
-src_micro_profile_code = input.source(close, "BUS MicroProfileCode", group = g_bus_diag, display = display.none)
-src_ready_blocker_code = input.source(close, "BUS ReadyBlockerCode", group = g_bus_diag, display = display.none)
-src_strict_blocker_code = input.source(close, "BUS StrictBlockerCode", group = g_bus_diag, display = display.none)
-src_vol_expansion_state = input.source(close, "BUS VolExpansionState", group = g_bus_diag, display = display.none)
-src_ddvi_context_state = input.source(close, "BUS DdviContextState", group = g_bus_diag, display = display.none)
-src_stop_level = input.source(close, "BUS StopLevel", group = g_bus_plan, display = display.none, tooltip = "These trade-plan bindings stay separate so they can be checked last.")
-src_target_1 = input.source(close, "BUS Target1", group = g_bus_plan, display = display.none)
-src_target_2 = input.source(close, "BUS Target2", group = g_bus_plan, display = display.none)
+src_ready_blocker_code = input.source(close, "BUS ReadyBlockerCode", group = g_bus_blockers, display = display.none, tooltip = "Blocker / regime codes. Split out of Diagnostic Support so every group covers one contiguous range of Suite outputs.")
+src_strict_blocker_code = input.source(close, "BUS StrictBlockerCode", group = g_bus_blockers, display = display.none)
+src_vol_expansion_state = input.source(close, "BUS VolExpansionState", group = g_bus_blockers, display = display.none)
+src_ddvi_context_state = input.source(close, "BUS DdviContextState", group = g_bus_blockers, display = display.none)
 src_zone_ob_top = input.source(close, "BUS ZoneObTop", group = g_bus_detail, display = display.none)
 src_zone_ob_bottom = input.source(close, "BUS ZoneObBottom", group = g_bus_detail, display = display.none)
 src_zone_fvg_top = input.source(close, "BUS ZoneFvgTop", group = g_bus_detail, display = display.none)

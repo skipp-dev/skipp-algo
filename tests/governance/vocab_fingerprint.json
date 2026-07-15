@@ -116,11 +116,11 @@
     "Ready",
     "EntryBest",
     "EntryStrict",
-    "QualityScore",
     "Trigger",
-    "Invalidation"
+    "Invalidation",
+    "QualityScore"
   ],
-  "EXECUTABLE_BUS_CHANNELS_FINGERPRINT": "sha256:1b8e8f51db82e99816ce4de4c9346bdda1c1294bedb7eddb6a93e8f40416376e",
+  "EXECUTABLE_BUS_CHANNELS_FINGERPRINT": "sha256:b79abe61c24661f36b22d0f3b332470ba88417f4c8b47cd25f9c8923d8cf997f",
   "LITE_BUS_CHANNELS": [
     "ZoneActive",
     "Armed",
@@ -265,14 +265,15 @@
   "C9_STABLE_PRO_BUS_CHANNELS_FINGERPRINT": "sha256:ce4320688a0a739cc7a04361ad5a89f7afd01f3364903fb1d0b65fa3a994fa2a",
   "DASHBOARD_GROUP_TITLES": [
     "Lifecycle BUS",
-    "Diagnostic Rows",
     "Diagnostic Support",
     "Trade Plan",
+    "Diagnostic Rows",
+    "Blocker Codes",
     "Detail Surface",
     "Lean Surface",
     "Preset Contract"
   ],
-  "DASHBOARD_GROUP_TITLES_FINGERPRINT": "sha256:262d45e66a76e04436f2eee7cbe76618c2ae13cc0098597251b33024077472d3",
+  "DASHBOARD_GROUP_TITLES_FINGERPRINT": "sha256:24b03a8178aef82f88e31a2ed23c92418a5c9b5a1b6e07a9bd989cb0362fa2c5",
   "STRATEGY_GROUP_TITLES": [
     "Entry States",
     "Trade Plan"
@@ -280,14 +281,15 @@
   "STRATEGY_GROUP_TITLES_FINGERPRINT": "sha256:782be325fe3c1d8cd455f7ef8ee04757ba222fd59929466e48ce9a46e9f87e12",
   "DASHBOARD_GROUP_TITLES_BY_KEY": {
     "g_bus_lifecycle": "Lifecycle BUS",
-    "g_bus_diag_rows": "Diagnostic Rows",
     "g_bus_diag": "Diagnostic Support",
     "g_bus_plan": "Trade Plan",
+    "g_bus_diag_rows": "Diagnostic Rows",
+    "g_bus_blockers": "Blocker Codes",
     "g_bus_detail": "Detail Surface",
     "g_bus_lean": "Lean Surface",
     "g_bus_preset": "Preset Contract"
   },
-  "DASHBOARD_GROUP_TITLES_BY_KEY_FINGERPRINT": "sha256:4f53f82a64275f2659d223f7f03b0599f6358304fe45c44e7dafe203ba1e04ea",
+  "DASHBOARD_GROUP_TITLES_BY_KEY_FINGERPRINT": "sha256:8daacb2aeac550a47e23ef716b0e1c322015d711443685acec7ba1192afb75b2",
   "STRATEGY_GROUP_TITLES_BY_KEY": {
     "g_bus_entry": "Entry States",
     "g_bus_plan": "Trade Plan"

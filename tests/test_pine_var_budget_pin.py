@@ -61,7 +61,10 @@ _FROZEN_LEDGER: dict[str, int] = {
     # 27 → 34 (2026-04-30, commit 68e1aac0): Trade-Mgmt rows in
     # Mobile_Dashboard mirrored extra var/varip state into SMC_Dashboard.
     # Re-frozen here as part of v3 phase 1 pine-consumer-discipline fix.
-    "SMC_Long_Dip_Dashboard.pine": 34,
+    # 34 → 35: +1 group label (g_bus_blockers). The former "Diagnostic Support"
+    # group held two disjoint BUS plot ranges (14-16 and 40-43) and was split so
+    # the binding panel walks the dropdown order 0..63 without scrolling back up.
+    "SMC_Long_Dip_Dashboard.pine": 35,
     "SMC_Event_Overlay.pine": 13,
     "SMC_Exit_Signal.pine": 13,
     "SMC_HTF_Confluence.pine": 8,

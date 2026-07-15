@@ -57,7 +57,7 @@ def test_dashboard_has_companion_summary_and_pro_diagnostics() -> None:
 
     assert 'var string g_surface = "1. Product Surface"' in source
     assert 'var string g_bus_lifecycle = "2. Operator Only - Lifecycle BUS"' in source
-    assert 'var string g_local_debug = "9. Operator Only - Local Debug Mirrors"' in source
+    assert 'var string g_local_debug = "10. Operator Only - Local Debug Mirrors"' in source
     assert 'surface_mode = input.string("Decision Brief"' in source
     assert source.index('surface_mode = input.string("Decision Brief"') < source.index('src_zone_active = input.source(close, "BUS ZoneActive"')
     assert "dashboard_product_state_text(" in source
@@ -318,7 +318,9 @@ def test_long_strategy_has_wrapper_controls_and_core_plan_outputs() -> None:
     assert 'use_take_profit = input.bool(true, "Use Take Profit", group = g_trade_plan' in source
     assert 'take_profit_r = input.float(2.0, "Take Profit (R)", minval = 0.0, step = 0.25, group = g_trade_plan' in source
     assert 'Minimum quality score required before the linked core setup can stage an execution plan.' in source
-    assert 'Bind these expert-mapping inputs top-to-bottom to the matching linked core outputs from SMC Core.' in source
+    # Tooltip now names the renamed product (SMC Long-Dip Suite, not the legacy
+    # "SMC Core") and states that the rows follow the Suite's dropdown order.
+    assert 'Bind these expert-mapping inputs top-to-bottom to the matching linked core outputs from SMC Long-Dip Suite.' in source
     assert 'Bind these plan inputs after the state group so the linked execution plan stays deterministic.' in source
     assert 'plot(src_trigger, "Execution Trigger"' in source
     assert 'plot(src_invalidation, "Execution Invalidation"' in source
@@ -603,7 +605,7 @@ def test_dashboard_subscribes_to_preset_bus_contract() -> None:
     """
     source = _read("SMC_Long_Dip_Dashboard.pine")
 
-    assert 'var string g_bus_preset = "8. Operator Only - Preset Contract"' in source
+    assert 'var string g_bus_preset = "9. Operator Only - Preset Contract"' in source
     assert 'src_preset_class_code = input.source(close, "BUS PresetClassCode"' in source
     assert 'src_preset_rvol_min = input.source(close, "BUS PresetRvolMin"' in source
     assert 'src_preset_htf_bias_min = input.source(close, "BUS PresetHtfBiasMin"' in source

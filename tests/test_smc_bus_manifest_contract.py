@@ -290,8 +290,11 @@ def test_product_cut_payload_exports_governance_metadata() -> None:
         'groupTitle': 'Entry States',
         'tier': 'diagnostic',
     }
+    # QualityScore is last: the strategy rows follow the engine's BUS plot order
+    # (2..9) so the operator can bind straight down the settings panel, and
+    # QualityScore is plot 9 — after Trigger (7) and Invalidation (8).
     assert strategy_target['bindingLabelGroups'][-1] == {
-        'label': 'BUS Invalidation',
+        'label': 'BUS QualityScore',
         'group': 'g_bus_plan',
         'groupTitle': 'Trade Plan',
         'tier': 'diagnostic',
