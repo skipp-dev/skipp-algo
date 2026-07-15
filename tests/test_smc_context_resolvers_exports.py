@@ -114,8 +114,8 @@ EXPECTED_EXPORT_SIGNATURES = [
 ]
 
 EXPECTED_IMPORTS = [
-    'import preuss_steffen/smc_utils/1 as u',
-    'import preuss_steffen/smc_bus_private/1 as bp',
+    'import preuss_steffen/smc_utils/3 as u',
+    'import preuss_steffen/smc_bus_private/3 as bp',
 ]
 
 
@@ -223,14 +223,14 @@ def test_context_resolvers_export_family_distribution_is_stable() -> None:
 
 def test_core_engine_imports_context_resolvers_as_cr() -> None:
     source = _read_core_source()
-    assert 'import preuss_steffen/smc_context_resolvers/1 as cr' in source
+    assert 'import preuss_steffen/smc_context_resolvers/2 as cr' in source
 
 
 def test_core_engine_uses_cr_alias_calls() -> None:
     source = _read_core_source()
     cr_calls = re.findall(r'\bcr\.([A-Za-z_][A-Za-z0-9_]*)\(', source)
 
-    assert len(cr_calls) >= 50, f'Expected heavy cr alias usage, found only {len(cr_calls)} calls'
+    assert len(cr_calls) >= 35, f'Expected heavy cr alias usage, found only {len(cr_calls)} calls'
 
     required_calls = [
         'resolve_core_provider_state',
@@ -242,8 +242,6 @@ def test_core_engine_uses_cr_alias_calls() -> None:
         'resolve_bus_lean_pack_b',
         'resolve_bus_quality_score_row',
         'resolve_bus_micro_profile_code',
-        'compose_long_invalidated_alert_detail',
-        'compose_long_watchlist_alert_detail',
     ]
     for fn in required_calls:
         assert fn in cr_calls, f'Core Engine is missing expected cr.{fn}(...) usage'

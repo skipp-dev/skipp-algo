@@ -5,6 +5,7 @@ import re
 from tests.smc_manifest_test_utils import ROOT
 
 PROFILE_ENGINE_PATH = ROOT / 'SMC++' / 'smc_profile_engine.pine'
+ENGINE_PRIVATE_PATH = ROOT / 'SMC++' / 'smc_engine_private.pine'
 CORE_ENGINE_PATH = ROOT / 'SMC_Long_Dip_Suite.pine'
 
 
@@ -14,6 +15,10 @@ def _read_profile_engine_source() -> str:
 
 def _read_core_source() -> str:
     return CORE_ENGINE_PATH.read_text(encoding='utf-8')
+
+
+def _read_engine_private_source() -> str:
+    return ENGINE_PRIVATE_PATH.read_text(encoding='utf-8')
 
 
 # ── Library header ──────────────────────────────────────────────────────────
@@ -27,8 +32,8 @@ def test_profile_engine_file_exists_and_declares_library() -> None:
 
 def test_profile_engine_imports_required_dependencies() -> None:
     source = _read_profile_engine_source()
-    assert "import preuss_steffen/smc_utils/1 as u" in source
-    assert "import preuss_steffen/smc_draw/1 as d" in source
+    assert "import preuss_steffen/smc_utils/3 as u" in source
+    assert "import preuss_steffen/smc_draw/3 as d" in source
 
 
 # ── UDT definitions ────────────────────────────────────────────────────────
@@ -266,24 +271,24 @@ def test_all_export_declarations_are_accounted_for() -> None:
 def test_core_engine_imports_profile_engine_as_pe() -> None:
     source = _read_core_source()
 
-    assert 'import preuss_steffen/smc_profile_engine/1 as pe' in source
+    assert 'import preuss_steffen/smc_profile_engine/2 as pe' in source
 
 
 def test_core_engine_uses_pe_profile_type() -> None:
-    source = _read_core_source()
+    source = _read_engine_private_source()
 
     assert 'pe.Profile profile' in source
     assert 'pe.ProfileConfig profile_config' in source
 
 
 def test_core_engine_uses_pe_create_profile() -> None:
-    source = _read_core_source()
+    source = _read_engine_private_source()
 
     assert 'pe.create_profile(' in source
 
 
 def test_core_engine_uses_pe_helper_functions() -> None:
-    source = _read_core_source()
+    source = _read_engine_private_source()
 
     assert 'pe.is_impulse_candle_now(' in source
     assert 'pe.is_indecision_candle_now(' in source

@@ -34,7 +34,7 @@ def test_dashboard_is_a_bus_only_consumer() -> None:
     assert 'n/a - not on bus' not in source
 
     # Dashboard now imports the library for Market Context row (WP-UP3)
-    assert 'import preuss_steffen/smc_micro_profiles_generated/1 as mp' in source
+    assert 'import preuss_steffen/smc_micro_profiles_generated/152 as mp' in source
     assert 'detect_structure' not in source
     assert 'track_obs' not in source
     assert 'OrderBlock' not in source
@@ -52,7 +52,7 @@ def test_strategy_is_a_bus_only_consumer() -> None:
     assert 'strategy.exit("L Exit", "L", stop = exit_stop, limit = exit_limit)' in source
 
     # Strategy now imports the library for regime gate (WP-UP1)
-    assert 'import preuss_steffen/smc_micro_profiles_generated/1 as mp' in source
+    assert 'import preuss_steffen/smc_micro_profiles_generated/152 as mp' in source
     assert 'detect_structure' not in source
     assert 'track_obs' not in source
     assert 'OrderBlock' not in source
@@ -72,6 +72,10 @@ def test_core_remains_the_only_active_producer() -> None:
     assert "plot(bus_target_2, 'BUS Target2', display = display.none)" in source
     hidden_bus_calls = re.findall(r"plot\([^\n]+display\s*=\s*display\.none\)", source)
     assert len(hidden_bus_calls) == len(EXPECTED_ENGINE_BUS_LABELS)
+    # Static alert selection moved to the dedicated BUS consumer; the engine
+    # retains only two compatibility conditions plus dynamic alert() calls.
     alert_conditions = re.findall(r'alertcondition\(', source)
-    assert len(alert_conditions) == 16
+    assert len(alert_conditions) == 2
+    alerts_source = _read(ROOT / 'SMC_Long_Dip_Alerts.pine')
+    assert len(re.findall(r'alertcondition\(', alerts_source)) == 17
     assert 'dashboard_header(' not in source

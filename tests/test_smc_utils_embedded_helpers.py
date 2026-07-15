@@ -191,7 +191,7 @@ def test_no_unexpected_smc_lib_exports() -> None:
 
 def test_core_engine_imports_smc_utils_as_u() -> None:
     source = _read_core_source()
-    assert 'import preuss_steffen/smc_utils/1 as u' in source
+    assert 'import preuss_steffen/smc_utils/3 as u' in source
 
 
 def test_core_engine_uses_smc_lib_atr_via_u() -> None:

@@ -557,7 +557,7 @@ def test_row_pack_and_unpack_contract_round_trips_consistently() -> None:
     dashboard_source = _read(DASHBOARD_PATH)
     bus_private_source = _read(BUS_PRIVATE_PATH)
 
-    assert 'import preuss_steffen/smc_bus_private/1 as bp' in core_source
+    assert 'import preuss_steffen/smc_bus_private/3 as bp' in core_source
     assert 'float((row_state + 1) * 100 + reason_code)' in bus_private_source
     assert 'value1 * 1000000000.0 + value2 * 1000000.0 + value3 * 1000.0 + value4' in bus_private_source
     assert 'int(math.floor(row_code / 100)) - 1' in dashboard_source
@@ -709,7 +709,7 @@ def test_trend_and_meta_packs_round_trip_consistently() -> None:
     dashboard_source = _read(DASHBOARD_PATH)
     bus_private_source = _read(BUS_PRIVATE_PATH)
 
-    assert 'import preuss_steffen/smc_bus_private/1 as bp' in core_source
+    assert 'import preuss_steffen/smc_bus_private/3 as bp' in core_source
     assert 'dir > 0 ? 2 : dir < 0 ? 0 : 1' in bus_private_source
     assert 'float(normalize_bus_trend(trend_now) * 1000 + normalize_bus_trend(trend_htf_1) * 100 + normalize_bus_trend(trend_htf_2) * 10 + normalize_bus_trend(trend_htf_3))' in bus_private_source
     assert 'float(freshness_code * 1000 + source_state_code * 100 + reclaim_code * 10 + zone_code)' in bus_private_source

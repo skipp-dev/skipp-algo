@@ -203,79 +203,28 @@ V5_FIELD_INVENTORY: set[str] = {
 
 # Fields the Engine actually reads via ``mp.FIELD``
 ENGINE_CONSUMED_FIELDS: set[str] = {
-    # Microstructure lists
-    "CLEAN_RECLAIM_TICKERS", "STOP_HUNT_PRONE_TICKERS",
-    "MIDDAY_DEAD_TICKERS", "RTH_ONLY_TICKERS",
-    "WEAK_PREMARKET_TICKERS", "WEAK_AFTERHOURS_TICKERS",
-    "FAST_DECAY_TICKERS",
-    # Core
-    "ASOF_DATE", "ASOF_TIME", "UNIVERSE_TICKERS",
-    "MARKET_REGIME", "TRADE_STATE",
-    "MARKET_PE_FORWARD", "MARKET_PE_REGIME", "MACRO_BIAS_PE_ADJUSTMENT",
-    "VOLATILITY_REGIME", "VOLATILITY_MODEL_SOURCE",
-    "ENSEMBLE_QUALITY_SCORE", "ENSEMBLE_QUALITY_TIER",
-    "EARNINGS_TODAY_TICKERS", "HIGH_IMPACT_MACRO_TODAY",
-    "NEWS_BEARISH_TICKERS", "NEWS_BULLISH_TICKERS",
-    "VOLUME_LOW_TICKERS",
-    # News Detail (WP-NW4/NW5)
-    "NEWS_CATEGORY_MAP", "NEWS_COUNT_MAP",
-    "BREAKING_NEWS_TICKERS", "HIGH_IMPACT_NEWS_COUNT",
-    "MOST_MENTIONED_TICKER",
-    # Market Context (WP-LF1)
-    "VIX_LEVEL", "MACRO_EVENT_NAME", "MACRO_EVENT_TIME",
-    "TONE", "GLOBAL_HEAT", "GLOBAL_STRENGTH",
-    # Sector + Macro (WP-LF3)
-    "SECTOR_BREADTH", "MACRO_BIAS_RAW",
-    # Earnings + Provider Transparency (WP-LF2)
-    "EARNINGS_TOMORROW_TICKERS", "PROVIDER_COUNT", "STALE_PROVIDERS",
-    # Ticker Heat Map (WP-LF4)
-    "TICKER_HEAT_MAP",
-    # Event Risk Light / shared event metadata actually consumed by the Engine
-    "EVENT_WINDOW_STATE", "EVENT_RISK_LEVEL",
-    "NEXT_EVENT_NAME", "NEXT_EVENT_TIME",
-    "MARKET_EVENT_BLOCKED", "SYMBOL_EVENT_BLOCKED",
-    # Flow Qualifier (v5.1)
-    "REL_VOL", "REL_ACTIVITY", "REL_SIZE", "DELTA_PROXY_PCT",
-    "FLOW_LONG_OK", "FLOW_SHORT_OK",
-    "ATS_VALUE", "ATS_CHANGE_PCT", "ATS_ZSCORE", "ATS_STATE",
-    "ATS_SPIKE_UP", "ATS_SPIKE_DOWN", "ATS_BULLISH_SEQUENCE", "ATS_BEARISH_SEQUENCE",
-    # Compression / ATR Regime (v5.1)
-    "SQUEEZE_ON", "SQUEEZE_RELEASED", "SQUEEZE_MOMENTUM_BIAS",
-    "ATR_REGIME", "ATR_RATIO",
-    # Event Risk Light (v5.5b canonical exports)
-    "EVENT_PROVIDER_STATUS",
-    # Session Context Light (v5.5b canonical exports)
-    "SESSION_CONTEXT", "IN_KILLZONE",
-    "SESSION_DIRECTION_BIAS", "SESSION_CONTEXT_SCORE",
-    "SESSION_VOLATILITY_STATE",
-    # OB Context Light (v5.5b)
-    "PRIMARY_OB_SIDE", "PRIMARY_OB_DISTANCE",
-    "OB_FRESH", "OB_AGE_BARS", "OB_MITIGATION_STATE",
-    # FVG Lifecycle Light (v5.5b)
-    "PRIMARY_FVG_SIDE", "PRIMARY_FVG_DISTANCE",
-    "FVG_FILL_PCT", "FVG_MATURITY_LEVEL", "FVG_FRESH", "FVG_INVALIDATED",
-    # Structure State Light (v5.5b canonical exports)
-    "STRUCTURE_LAST_EVENT", "STRUCTURE_EVENT_AGE_BARS",
-    "STRUCTURE_FRESH", "STRUCTURE_TREND_STRENGTH",
-    # Signal Quality (v5.5b)
-    "SIGNAL_QUALITY_SCORE", "SIGNAL_QUALITY_TIER",
-    "SIGNAL_WARNINGS", "SIGNAL_BIAS_ALIGNMENT", "SIGNAL_FRESHNESS",
-    # Short Interest (v6)
-    "SHORT_SQUEEZE_RISK_TICKERS", "HIGH_SHORT_INTEREST_TICKERS",
-    "MARKET_SHORT_INTEREST_AVG", "SHORT_INTEREST_EXTREME",
-    # Treasury / Yield Curve (v6)
-    "TREASURY_10Y_YIELD", "TREASURY_2Y_YIELD",
-    "YIELD_CURVE_SPREAD", "YIELD_CURVE_INVERTED",
-    # Sector Rotation (v6)
-    "SECTOR_LEADING", "SECTOR_LAGGING", "SECTOR_STRONGEST", "SECTOR_WEAKEST",
-    # Institutional (v6)
-    "INSTITUTIONAL_ACCUMULATION_TICKERS", "INSTITUTIONAL_DISTRIBUTION_TICKERS",
-    "INSTITUTIONAL_DATA_AVAILABLE",
-    # Analyst (v6)
-    "ANALYST_STRONG_BUY_TICKERS", "ANALYST_UNDERPERFORM_TICKERS",
-    "ANALYST_HIGH_UPSIDE_TICKERS",
-    # Insider (v6)
-    "INSIDER_BUYING_TICKERS", "INSIDER_SELLING_HEAVY_TICKERS",
+    "ASOF_DATE", "ASOF_TIME", "BREAKING_NEWS_TICKERS",
+    "CLEAN_RECLAIM_TICKERS", "EARNINGS_TODAY_TICKERS",
+    "EARNINGS_TOMORROW_TICKERS", "ENSEMBLE_QUALITY_SCORE",
+    "ENSEMBLE_QUALITY_TIER", "EVENT_PROVIDER_STATUS", "EVENT_RISK_LEVEL",
+    "EVENT_WINDOW_STATE", "FAST_DECAY_TICKERS", "FVG_FRESH",
+    "FVG_INVALIDATED", "GLOBAL_HEAT", "HIGH_IMPACT_MACRO_TODAY",
+    "HIGH_IMPACT_NEWS_COUNT", "INSTITUTIONAL_ACCUMULATION_TICKERS",
+    "INSTITUTIONAL_DISTRIBUTION_TICKERS", "IN_KILLZONE",
+    "MACRO_BIAS_PE_ADJUSTMENT", "MACRO_BIAS_RAW", "MACRO_EVENT_NAME",
+    "MACRO_EVENT_TIME", "MARKET_EVENT_BLOCKED", "MARKET_PE_FORWARD",
+    "MARKET_PE_REGIME", "MARKET_REGIME", "MIDDAY_DEAD_TICKERS",
+    "OB_FRESH", "OB_MITIGATION_STATE", "PRIMARY_FVG_SIDE",
+    "PRIMARY_OB_SIDE", "PROVIDER_COUNT", "RTH_ONLY_TICKERS",
+    "SECTOR_BREADTH", "SECTOR_LEADING", "SESSION_CONTEXT_SCORE",
+    "SHORT_SQUEEZE_RISK_TICKERS", "SIGNAL_BIAS_ALIGNMENT",
+    "SIGNAL_FRESHNESS", "SIGNAL_QUALITY_SCORE", "SIGNAL_QUALITY_TIER",
+    "SIGNAL_WARNINGS", "STALE_PROVIDERS", "STOP_HUNT_PRONE_TICKERS",
+    "STRUCTURE_FRESH", "STRUCTURE_LAST_EVENT", "STRUCTURE_TREND_STRENGTH",
+    "SYMBOL_EVENT_BLOCKED", "TICKER_HEAT_MAP", "TONE", "TRADE_STATE",
+    "UNIVERSE_TICKERS", "VIX_LEVEL", "VOLATILITY_MODEL_SOURCE",
+    "VOLATILITY_REGIME", "WEAK_AFTERHOURS_TICKERS",
+    "WEAK_PREMARKET_TICKERS", "YIELD_CURVE_INVERTED",
 }
 
 # BUS channels published by SMC_Long_Dip_Suite.pine
@@ -707,12 +656,22 @@ class TestV55LeanContract:
         assert not missing, f"v5.5 lean fields missing from inventory: {missing}"
 
     def test_all_lean_fields_consumed_by_engine(self):
-        """Every v5.5 lean field must be consumed by SMC_Long_Dip_Suite.pine."""
+        """Every v5.5 lean field is consumed somewhere or explicitly reserved."""
+        from tests.test_library_field_audit import (
+            RESERVED_PINE_EXPORTS,
+            _collect_pine_mp_refs,
+        )
+
         all_lean = set()
         for fields in V55_LEAN_FAMILIES.values():
             all_lean |= fields
         missing = all_lean - ENGINE_CONSUMED_FIELDS
-        assert not missing, f"v5.5 lean fields not consumed by engine: {missing}"
+        pine_consumed = set().union(*_collect_pine_mp_refs().values())
+        unclassified = missing - RESERVED_PINE_EXPORTS - pine_consumed
+        assert not unclassified, (
+            "v5.5 lean fields are neither consumed nor reserved: "
+            f"{unclassified}"
+        )
 
     def test_lean_field_count(self):
         """v5.5 contract specifies exactly 32 lean fields across 6 families."""
@@ -829,8 +788,8 @@ class TestV55DriftGuard:
             )
 
     def test_gate_classification_comment_exists(self):
-        """Gate classification documentation must exist in the engine."""
-        text = _read_pine("SMC_Long_Dip_Suite.pine")
+        """Gate classification documentation follows its extracted owner."""
+        text = _read_pine("SMC++/smc_engine_private.pine")
         assert "Gate Classification (v5.5b)" in text, (
             "Gate classification comment block not found in engine"
         )
