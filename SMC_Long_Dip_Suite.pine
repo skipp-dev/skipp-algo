@@ -348,9 +348,8 @@ var string performance_mode = input.string('Balanced', 'Performance Mode', optio
 
 var g_ltf = '6. Advanced - Lower Timeframe'
 var bool enable_ltf_sampling = input.bool(true, 'Use lower timeframe sampling', group = g_ltf, display = display.none, tooltip = 'Uses request.security_lower_tf() to summarize intrabar participation and pressure.')
-var bool use_ltf_for_strict_entry = input.bool(true, 'Use LTF for strict entry', group = g_ltf, display = display.none, tooltip = 'Keeps lower-timeframe sampling active for strict-entry filters even when the dashboard and dynamic alerts are off.')
+var bool use_ltf_for_strict_entry = input.bool(true, 'Use LTF for strict entry', group = g_ltf, display = display.none, tooltip = 'Keeps lower-timeframe sampling active for strict-entry filters even when the dashboard is off.')
 var bool allow_strict_entry_without_ltf = input.bool(false, 'Allow strict entry without LTF when unavailable', group = g_ltf, display = display.none, tooltip = 'Optional fallback. When enabled, strict-entry alerts may still trigger when lower-timeframe sampling is unavailable or unverifiable on the current chart. Strict normally prefers confirmed LTF volume context; this fallback relaxes only that sub-requirement while the remaining strict gates stay active.')
-var bool use_ltf_for_dynamic_alerts = input.bool(false, 'Use LTF in dynamic alerts', group = g_ltf, display = display.none, tooltip = 'When off, dynamic alert messages do not force lower-timeframe sampling just for message decoration.')
 var bool ltf_auto_select = input.bool(true, 'Auto-select lower timeframe', group = g_ltf, display = display.none)
 var string ltf_timeframe = input.timeframe(DEFAULT_LTF_TIMEFRAME, 'Lower timeframe', group = g_ltf, display = display.status_line)
 var float ltf_bias_hint = input.float(0.55, 'Bull share hint', minval = 0.5, maxval = 1.0, step = 0.05, group = g_ltf, display = display.none)
@@ -1023,9 +1022,9 @@ if ltf_auto_select
 int effective_ltf_tf_sec = nz(timeframe.in_seconds(effective_ltf_timeframe), 0)
 ltf_timeframe_valid = chart_tf_sec > 0 and str.length(effective_ltf_timeframe) > 0 and effective_ltf_tf_sec > 0 and effective_ltf_tf_sec < chart_tf_sec
 int ltf_ratio = (effective_ltf_tf_sec > 0) ? (int(math.floor(chart_tf_sec / effective_ltf_tf_sec))) : (na)
-bool ltf_needed_for_logic = (show_dashboard and show_dashboard_ltf_eff) or use_ltf_for_strict_entry_eff
-bool ltf_needed_for_messages = enable_dynamic_alerts and use_ltf_for_dynamic_alerts
-bool ltf_needed = ltf_needed_for_logic or ltf_needed_for_messages
+// Alert messages are static text and carry no LTF context, so only real
+// consumers (dashboard, strict entry) may arm lower-timeframe sampling.
+bool ltf_needed = (show_dashboard and show_dashboard_ltf_eff) or use_ltf_for_strict_entry_eff
 bool ltf_ratio_ok = not na(ltf_ratio) and ltf_ratio > 0 and ltf_ratio <= max_ltf_ratio_eff
 bool ltf_sample_count_ok = not na(ltf_ratio) and ltf_ratio <= max_ltf_samples_per_bar_eff
 ltf_sampling_active = false

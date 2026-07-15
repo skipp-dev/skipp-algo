@@ -48,8 +48,6 @@ The Pine function is `request.security_lower_tf()`, restricted to paid subscript
 | **HTF Trend-Stack** (4H/1D/1W) | ✅ | ✅ | ✅ | ✅ | `request.security()` — alle Pläne |
 | **Setup armed / confirmed / ready** | ✅ | ✅ | ✅ | ✅ | Nur Barschlusskurs-Logik |
 | **Alerts (ready/confirmed/clean/early)** | ✅ | ✅ | ✅ | ✅ | Alle Alert-Typen feuern |
-| **`ltf_bull_share` im Alert-Text** | `n/a` | ✅ | ✅ | ✅ | Zeigt "n/a" wenn LTF aus |
-| **`ltf_volume_delta` im Alert-Text** | `n/a` | ✅ | ✅ | ✅ | Zeigt "n/a" wenn LTF aus |
 | **Intrabar-Druckanalyse** / intrabar pressure | ❌ | ✅ | ✅ | ✅ | Kernfeature von LTF-Sampling |
 | **LTF-gestützter "Strict Entry" Gate** | ❌ | ✅ | ✅ | ✅ | `strict_entry_ltf_ok` Gate |
 | **"Strict Entry" mit Fallback** | ⚠️toggle¹ | ✅ | ✅ | ✅ | Toggle: `allow_strict_entry_without_ltf` |
@@ -79,7 +77,7 @@ Strict Entry = OK wenn:
   ✔ weitere Gates ...
 ```
 
-Alert-Text enthält: `ltf_bull_share=68% | ltf_volume_delta=12%`
+LTF wirkt auf das **Strict-Entry-Gate**, nicht auf den Alert-Text — die Alert-Messages sind statisch und tragen keine LTF-Felder.
 
 ### Ohne LTF-Sampling (Basic/Free, toggle=false)
 
@@ -93,7 +91,7 @@ Strict Entry = OK wenn:
   ✔ weitere Gates ...
 ```
 
-Alert-Text enthält: `ltf_bull_share=n/a | ltf_volume_delta=n/a`
+Der Alert-Text ist unverändert: er war nie LTF-abhängig. Nur das Strict-Entry-Gate wird großzügiger (siehe unten).
 
 **Praktische Auswirkung:** Das Signal feuert, aber ohne Volumen-Bestätigung auf Intrabar-Ebene. Der Filter ist etwas großzügiger — alle anderen Bedingungen (HTF-Ausrichtung, OB-Qualität, Session-Gate etc.) bleiben aktiv.
 

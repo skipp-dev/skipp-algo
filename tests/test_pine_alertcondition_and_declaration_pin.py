@@ -326,3 +326,38 @@ def test_every_suite_alert_site_is_gated_on_the_dynamic_alerts_toggle() -> None:
         f"'{_ALERT_GATE_FLAG}', so disabling the input does not silence them "
         "as its tooltip promises. Carry the flag in an enclosing if-condition."
     )
+
+
+# ---------------------------------------------------------------------------
+# Layer D — the alert surface must not arm lower-timeframe sampling
+# ---------------------------------------------------------------------------
+#
+# The 16 alert() messages are static text: they carry no LTF fields, so nothing
+# in the alert surface may pull `request.security_lower_tf()` into the runtime
+# path. A `use_ltf_for_dynamic_alerts` input used to do exactly that — it armed
+# real sampling to decorate messages that never read the result. Same class as
+# the `dynamic_long_alert_mode` input removed in #3548.
+
+_LTF_GATE_VAR = "ltf_needed"
+_ALERT_TOKENS = ("alert", "_ALERT")
+
+
+def _ltf_needed_expression() -> str:
+    """Right-hand side of the ``ltf_needed`` decision in the Suite."""
+    for line in (ROOT / _SUITE_NAME).read_text(encoding="utf-8").splitlines():
+        code = _strip_strings_and_comments(line)
+        m = re.match(rf"\s*(?:bool\s+)?{_LTF_GATE_VAR}\s*(?::=|=)\s*(.+)$", code)
+        if m:
+            return m.group(1).strip()
+    raise AssertionError(f"{_SUITE_NAME}: no `{_LTF_GATE_VAR}` decision found")
+
+
+def test_ltf_sampling_is_not_armed_by_the_alert_surface() -> None:
+    expr = _ltf_needed_expression()
+    offenders = [t for t in _ALERT_TOKENS if t in expr]
+    assert not offenders, (
+        f"{_SUITE_NAME}: `{_LTF_GATE_VAR}` depends on {offenders} — the alert "
+        "surface would arm request.security_lower_tf() for messages that carry "
+        f"no LTF fields. Derive `{_LTF_GATE_VAR}` from real consumers only "
+        "(dashboard, strict entry)."
+    )
