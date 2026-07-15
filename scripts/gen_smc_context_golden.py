@@ -33,6 +33,7 @@ from typing import Any
 
 import pandas as pd
 
+from scripts.smc_atomic_write import atomic_write_text
 from scripts.smc_imbalance_lifecycle import (
     FULL_MIT_PCT,
     LIQ_VOID_MIN_SIZE_PCT,
@@ -255,7 +256,7 @@ def build_golden() -> dict[str, Any]:
 def main() -> None:
     golden = build_golden()
     GOLDEN_PATH.parent.mkdir(parents=True, exist_ok=True)
-    GOLDEN_PATH.write_text(json.dumps(golden, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+    atomic_write_text(json.dumps(golden, indent=2, sort_keys=True) + "\n", GOLDEN_PATH)
     print(f"wrote {GOLDEN_PATH.relative_to(ROOT)}")
 
 

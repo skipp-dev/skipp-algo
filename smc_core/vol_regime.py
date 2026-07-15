@@ -150,6 +150,7 @@ def _extract_forecast_variance(raw_forecast: Any) -> float:
     if variance_frame is None or getattr(variance_frame, "empty", True):
         raise _ForecastUnavailableError("arch_empty_forecast")
 
+    # BAR-CLOSE-EXEMPT: final row of an ARCH forecast matrix, not an OHLC bar.
     last_row = variance_frame.iloc[-1]
     variance_series = pd.to_numeric(last_row, errors="coerce").dropna()
     if variance_series.empty:
