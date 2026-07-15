@@ -243,3 +243,86 @@ def test_declaration_single_and_correct_kind(name: str, expected_kind: str) -> N
 @pytest.mark.parametrize("name", sorted(_FROZEN_DECL_KIND))
 def test_declaration_files_exist(name: str) -> None:
     assert (ROOT / name).is_file(), f"Ledger Pine file missing: {name}"
+
+
+# ---------------------------------------------------------------------------
+# Layer C — dynamic-alert gate on the Suite's alert() sites
+# ---------------------------------------------------------------------------
+#
+# The Suite's 'Enable dynamic alerts' input promises "Disable to silence all
+# dynamic alert output". Unlike alertcondition() — which TradingView switches
+# off per-slot in the UI — an alert() call fires purely on its enclosing
+# condition, so that promise only holds while every site carries the flag.
+# It did not: #3622 removed the gated emitter and #3642 rebuilt the sites as
+# plain alert() without re-applying the flag, leaving the toggle inert.
+
+_ALERT_GATE_FLAG = "enable_dynamic_alerts"
+_ALERT_CALL_RE = re.compile(r"\balert\s*\(")
+
+# Frozen: the 16 alert() sites that replaced the Suite's 16 alertcondition()
+# slots (see _FROZEN_ALERTCOND_COUNTS above — SMC_Long_Dip_Alerts.pine still
+# carries the same 16 as individually-selectable alertcondition() entries).
+_FROZEN_SUITE_ALERT_SITES = 16
+_SUITE_NAME = "SMC_Long_Dip_Suite.pine"
+
+
+def _indent_of(line: str) -> int:
+    return len(line) - len(line.lstrip(" "))
+
+
+def _enclosing_if_conditions(lines: list[str], idx: int) -> list[str]:
+    """Conditions of every ``if`` block enclosing ``lines[idx]``.
+
+    Walks outward by indentation rather than assuming a fixed depth, so a
+    site nested deeper than the prevailing one-indent shape still resolves
+    to its real owners.
+    """
+    conditions: list[str] = []
+    indent = _indent_of(lines[idx])
+    for j in range(idx - 1, -1, -1):
+        line = lines[j]
+        if not line.strip():
+            continue
+        outer = _indent_of(line)
+        if outer >= indent:
+            continue
+        code = _strip_strings_and_comments(line).strip()
+        if code.startswith(("if ", "else if ")):
+            conditions.append(code)
+        indent = outer
+        if outer == 0:
+            break
+    return conditions
+
+
+def _scan_suite_alert_sites() -> list[tuple[int, list[str]]]:
+    """``(1-indexed line, enclosing if-conditions)`` per alert() call site."""
+    lines = (ROOT / _SUITE_NAME).read_text(encoding="utf-8").splitlines()
+    sites: list[tuple[int, list[str]]] = []
+    for i, line in enumerate(lines):
+        if _ALERT_CALL_RE.search(_strip_strings_and_comments(line)):
+            sites.append((i + 1, _enclosing_if_conditions(lines, i)))
+    return sites
+
+
+def test_suite_alert_site_count_frozen() -> None:
+    sites = _scan_suite_alert_sites()
+    assert len(sites) == _FROZEN_SUITE_ALERT_SITES, (
+        f"{_SUITE_NAME}: alert() site count drifted (expected "
+        f"{_FROZEN_SUITE_ALERT_SITES}, got {len(sites)}). A new alert() widens "
+        f"the user-visible alert surface — add it gated on {_ALERT_GATE_FLAG} "
+        "and bump this pin deliberately."
+    )
+
+
+def test_every_suite_alert_site_is_gated_on_the_dynamic_alerts_toggle() -> None:
+    ungated = [
+        line
+        for line, conditions in _scan_suite_alert_sites()
+        if not any(_ALERT_GATE_FLAG in c for c in conditions)
+    ]
+    assert not ungated, (
+        f"{_SUITE_NAME}: alert() at line(s) {ungated} fire regardless of "
+        f"'{_ALERT_GATE_FLAG}', so disabling the input does not silence them "
+        "as its tooltip promises. Carry the flag in an enclosing if-condition."
+    )
