@@ -9,8 +9,10 @@ each library's published version via the pine-facade ``filter=published`` listin
 and writes a compact snapshot; this bridge fetches it (runtime URL, local-file
 fallback) and normalizes it into the fields ``metrics.render_metrics`` turns into
 Prometheus gauges. It never raises — a missing / unreadable snapshot yields
-``loaded=0`` and the snapshot-age gauge stops advancing, which the
-``Pine-library snapshot stale`` alert catches.
+``loaded=0``; the separate ``Pine-library snapshot unloadable`` alert catches
+that case. A loaded snapshot without a ``generated_at_unix`` timestamp exports
+``snapshot_age_known=0`` and ``snapshot_age_seconds=0`` so the stale alert must
+gate on ``snapshot_age_known`` to avoid reading zero as fresh.
 """
 from __future__ import annotations
 

@@ -101,10 +101,10 @@
 # fetcher, https-only with explicit timeout= (mirrors the workflow bridge).
 # 2026-07-09 (fix/c8-deploy-robust): submit_failed + submitter fields added to
 # _empty/_coerce shifted the urlopen call +8: 137->145.
-"services/live_overlay_daemon/evidence_freshness_bridge.py" = [145]
+"services/live_overlay_daemon/evidence_freshness_bridge.py" = [147]
 # 2026-07-13 (feat/pine-library-version-monitor, #3599/#3603 follow-up): repo↔TV
 # Pine-library version snapshot fetch — mirrors evidence_freshness_bridge egress.
-"services/live_overlay_daemon/pine_library_version_bridge.py" = [119]
+"services/live_overlay_daemon/pine_library_version_bridge.py" = [121]
 # 2026-07-07 (feat/provider-usage): provider data-volume snapshot fetcher,
 # https-only with explicit timeout= (mirrors the evidence-freshness bridge).
 "services/live_overlay_daemon/provider_usage_bridge.py" = [97]  # 2026-07-11 (rate_limit_hits coerce +1 line): 96->97

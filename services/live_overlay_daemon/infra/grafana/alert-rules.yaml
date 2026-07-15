@@ -1138,8 +1138,9 @@ groups:
     - refId: A
       datasourceUid: grafanacloud-prom
       model:
+        # Gated on snapshot_age_known so a missing timestamp (age_seconds=0) does not read as fresh.
         expr: live_overlay_provider_news_snapshot_loaded{job="live_overlay"} * (live_overlay_provider_news_snapshot_age_seconds{job="live_overlay"}
-          > bool 10800) * live_overlay_market_us_open{job="live_overlay"}
+          > bool 10800) * live_overlay_provider_news_snapshot_age_known{job="live_overlay"} * live_overlay_market_us_open{job="live_overlay"}
         instant: true
     - refId: C
       datasourceUid: __expr__
@@ -2016,7 +2017,8 @@ groups:
     - refId: A
       datasourceUid: grafanacloud-prom
       model:
-        expr: live_overlay_evidence_freshness_snapshot_age_seconds{job="live_overlay"} > 86400
+        # Gated on snapshot_age_known so a missing generated_at (age_seconds=0) does not read as fresh.
+        expr: (live_overlay_evidence_freshness_snapshot_age_seconds{job="live_overlay"} * live_overlay_evidence_freshness_snapshot_age_known{job="live_overlay"}) > 86400
         instant: true
     - refId: C
       datasourceUid: __expr__
@@ -2130,7 +2132,8 @@ groups:
       model:
         # 48h tolerance: the producer runs daily (incl. weekends), so a single
         # missed run is grace, two is a stopped producer.
-        expr: live_overlay_pine_library_snapshot_age_seconds{job="live_overlay"} > 172800
+        # Gated on snapshot_age_known so a missing generated_at (age_seconds=0) does not read as fresh.
+        expr: (live_overlay_pine_library_snapshot_age_seconds{job="live_overlay"} * live_overlay_pine_library_snapshot_age_known{job="live_overlay"}) > 172800
         instant: true
     - refId: C
       datasourceUid: __expr__
@@ -2239,7 +2242,8 @@ groups:
       # genuinely stuck cron well inside its 10-day commit-back gap budget
       # (post-review finding: threshold mis-sized vs Mon-Fri cadence).
       model:
-        expr: live_overlay_evidence_ledger_age_seconds{job="live_overlay"} > 432000
+        # Gated on _known so an empty newest_date (age_seconds=0) does not read as fresh.
+        expr: (live_overlay_evidence_ledger_age_seconds{job="live_overlay"} * live_overlay_evidence_ledger_age_known{job="live_overlay"}) > 432000
         instant: true
     - refId: C
       datasourceUid: __expr__
@@ -2360,7 +2364,8 @@ groups:
     - refId: A
       datasourceUid: grafanacloud-prom
       model:
-        expr: live_overlay_evidence_audit_branch_age_seconds{job="live_overlay"} > 345600
+        # Gated on _known so an empty last_commit_date (age_seconds=0) does not read as fresh.
+        expr: (live_overlay_evidence_audit_branch_age_seconds{job="live_overlay"} * live_overlay_evidence_audit_branch_age_known{job="live_overlay"}) > 345600
         instant: true
     - refId: C
       datasourceUid: __expr__
@@ -2440,7 +2445,8 @@ groups:
     - refId: A
       datasourceUid: grafanacloud-prom
       model:
-        expr: live_overlay_evidence_wsh_age_seconds{job="live_overlay"} > 604800
+        # Gated on _known so an empty newest_date (age_seconds=0) does not read as fresh.
+        expr: (live_overlay_evidence_wsh_age_seconds{job="live_overlay"} * live_overlay_evidence_wsh_age_known{job="live_overlay"}) > 604800
         instant: true
     - refId: C
       datasourceUid: __expr__
@@ -2834,8 +2840,9 @@ groups:
     - refId: A
       datasourceUid: grafanacloud-prom
       model:
+        # Gated on snapshot_age_known so a missing updated_at (age_seconds=0) does not read as fresh.
         expr: live_overlay_provider_usage_loaded{job="live_overlay"} * (live_overlay_provider_usage_snapshot_age_seconds{job="live_overlay"}
-          > bool 345600)
+          > bool 345600) * live_overlay_provider_usage_snapshot_age_known{job="live_overlay"}
         instant: true
     - refId: C
       datasourceUid: __expr__
@@ -3228,7 +3235,8 @@ groups:
     - refId: A
       datasourceUid: grafanacloud-prom
       model:
-        expr: live_overlay_credential_health_snapshot_age_seconds{job="live_overlay"} > 129600
+        # Gated on snapshot_age_known so a missing generated_at (age_seconds=0) does not read as fresh.
+        expr: (live_overlay_credential_health_snapshot_age_seconds{job="live_overlay"} * live_overlay_credential_health_snapshot_age_known{job="live_overlay"}) > 129600
         instant: true
     - refId: C
       datasourceUid: __expr__

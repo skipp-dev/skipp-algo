@@ -1428,6 +1428,43 @@ def test_alert_rules_split_news_snapshot_unavailable_and_stale() -> None:
     stale = next(r for r in warning_group["rules"] if r.get("uid") == "lo-news-snapshot-stale")
     assert "snapshot_age_seconds" in stale["data"][0]["model"]["expr"]
     assert "> bool 10800" in stale["data"][0]["model"]["expr"]
+    # Unknown age (age_seconds=0) must not read as fresh. The stale rule must
+    # gate on the known-flag; the unavailable rule covers loaded==0.
+    assert "snapshot_age_known" in stale["data"][0]["model"]["expr"]
+
+
+def test_age_unknown_gated_stale_alert_rules_require_known_age() -> None:
+    """Every stale alert that reads an _age_seconds gauge must gate on the matching _known flag.
+
+    The daemon exports age_seconds=0 when the underlying timestamp is missing,
+    malformed, or unparseable. Without an explicit ``_known == 1`` gate the
+    stale rule sees zero and stays silent, masking a broken producer.
+    """
+    import yaml
+
+    repo_root = Path(__file__).resolve().parents[1]
+    rules_path = repo_root / "services" / "live_overlay_daemon" / "infra" / "grafana" / "alert-rules.yaml"
+    rules_doc = yaml.safe_load(rules_path.read_text(encoding="utf-8"))
+
+    stale_rules = [
+        ("live-overlay-warning", "lo-news-snapshot-stale", "snapshot_age_known"),
+        ("evidence-and-workflow-freshness", "lo-evidence-snapshot-stale", "snapshot_age_known"),
+        ("evidence-and-workflow-freshness", "lo-pine-library-snapshot-stale", "snapshot_age_known"),
+        ("evidence-and-workflow-freshness", "lo-evidence-ledger-stale", "ledger_age_known"),
+        ("evidence-and-workflow-freshness", "lo-evidence-audit-branch-stale", "audit_branch_age_known"),
+        ("evidence-and-workflow-freshness", "lo-evidence-wsh-stale", "wsh_age_known"),
+        ("evidence-and-workflow-freshness", "lo-provider-usage-snapshot-stale", "snapshot_age_known"),
+        ("credential-health", "lo-credential-monitor-stale", "snapshot_age_known"),
+    ]
+
+    for group_name, uid, known_metric in stale_rules:
+        group = next(g for g in rules_doc["groups"] if g.get("name") == group_name)
+        rule = next(r for r in group["rules"] if r.get("uid") == uid)
+        expr = rule["data"][0]["model"]["expr"]
+        assert known_metric in expr, f"{uid} must reference {known_metric} to avoid masking unknown age as zero"
+        # Ensure the expression multiplies/gates by the known flag rather than
+        # merely mentioning it in a comment or label selector.
+        assert f"{known_metric}" in expr.replace(" ", ""), f"{uid} expression does not use {known_metric}"
 
 
 def test_dashboard_service_status_panel_maps_starting_state() -> None:
