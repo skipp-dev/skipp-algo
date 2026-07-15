@@ -470,6 +470,9 @@ jobs:
             tests/test_tls_jwt_verification_zero_surface.py \
             tests/test_yaml_xml_zero_surface.py \
             tests/test_httpx_timeout_invariant.py \
+            tests/test_gha_action_allowlist.py \
+            tests/test_pine_alert_bar_close_gate.py \
+            tests/test_workflow_continue_on_error_semantics.py \
             tests/test_mkdir_makedirs_exist_ok_invariant.py \
             tests/test_six_zero_tripwires_bundle.py \
             tests/test_subprocess_run_check_invariant.py \
