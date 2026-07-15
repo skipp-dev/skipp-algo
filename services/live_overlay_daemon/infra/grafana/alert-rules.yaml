@@ -284,7 +284,7 @@ groups:
         live_overlay_bridge_* contract families for all configured bridges (uptimerobot,
         github_workflow, railway_metrics).
   - uid: sp-memory-critical
-    title: Signals Producer RSS > 900 MB
+    title: Signals Producer RSS > 3072 MB
     condition: C
     data:
     - refId: A
@@ -301,7 +301,7 @@ groups:
         - evaluator:
             type: gt
             params:
-            - 900
+            - 3072
           operator:
             type: and
           query:
@@ -311,9 +311,14 @@ groups:
     labels:
       severity: critical
     annotations:
-      summary: smc-signals-producer memory exceeds 900 MB — OOM kill imminent
-      runbook: 'Railway free tier: 1 GB limit. Immediately inspect /metrics for FD
-        leak. May need manual restart.'
+      summary: smc-signals-producer RSS exceeds 3072 MB — severe footprint regression
+      runbook: 'NOT an OOM alarm: the Railway limit is 8 GB (MEMORY_LIMIT_GB=8.00,
+        verified 2026-07-15), so 3072 MB is 37% of it. OOM risk is owned solely by
+        lo-railway-memory-ratio-critical (0.90 of the *reported* limit). This fires
+        only if RSS more than doubles past its worst observed envelope (7d p95 1199
+        MB, max 1514 MB) — i.e. a real leak or a runaway workload change. Inspect
+        poll_once / the newsstack poller and the watchlist size, and compare against
+        the ratio alert before restarting anything.'
   - uid: sp-scrape-down
     title: Signals Producer scrape target down
     condition: C
@@ -345,7 +350,7 @@ groups:
       runbook: Check Railway deploy logs. Verify SIGNALS_SERVICE_URL env var in Alloy
         service. Check UptimeRobot /healthz.
   - uid: lo-memory-critical
-    title: Live Overlay RSS > 900 MB
+    title: Live Overlay RSS > 3072 MB
     condition: C
     data:
     - refId: A
@@ -362,7 +367,7 @@ groups:
         - evaluator:
             type: gt
             params:
-            - 900
+            - 3072
           operator:
             type: and
           query:
@@ -372,8 +377,12 @@ groups:
     labels:
       severity: critical
     annotations:
-      summary: smc-live-overlay memory exceeds 900 MB — OOM kill imminent
-      runbook: Railway 1 GB limit. Check feed accumulation and reconnect cycles.
+      summary: smc-live-overlay RSS exceeds 3072 MB — severe footprint regression
+      runbook: 'NOT an OOM alarm: the Railway limit is 8 GB (MEMORY_LIMIT_GB=8.00,
+        verified 2026-07-15), so 3072 MB is 37% of it. OOM risk is owned solely by
+        lo-railway-memory-ratio-critical (0.90 of the *reported* limit). This fires
+        only far outside the observed envelope (7d p95 259 MB, max 920 MB) — check
+        Databento feed accumulation and reconnect cycles.'
   - uid: alloy-scrape-self-down
     title: Alloy self-scrape target down
     condition: C
@@ -405,7 +414,7 @@ groups:
       runbook: If Alloy self-scrape is down, NO metrics from any container reach Grafana.
         Check Railway deploy logs for alloy container crash/OOM.
   - uid: alloy-memory-critical
-    title: Alloy RSS > 512 MB
+    title: Alloy RSS > 1536 MB
     condition: C
     data:
     - refId: A
@@ -421,7 +430,7 @@ groups:
         - evaluator:
             type: gt
             params:
-            - 512
+            - 1536
           operator:
             type: and
           query:
@@ -431,9 +440,12 @@ groups:
     labels:
       severity: critical
     annotations:
-      summary: Alloy (metric-collector) memory exceeds 512 MB — OOM risk
-      runbook: Railway container limit applies. Alloy should use < 100 MB normally.
-        Check for WAL corruption or stuck remote-write.
+      summary: Alloy (metric-collector) RSS exceeds 1536 MB — severe footprint regression
+      runbook: 'NOT an OOM alarm: the Railway limit is 8 GB (MEMORY_LIMIT_GB=8.00,
+        verified 2026-07-15), so 1536 MB is 19% of it. OOM risk is owned solely by
+        lo-railway-memory-ratio-critical (0.90 of the *reported* limit). Fires only
+        far outside the observed envelope (7d p95 310 MB, max 326 MB) — check for WAL
+        corruption or stuck remote-write.'
   - uid: alloy-targets-down
     title: Alloy scrape targets unreachable
     condition: C
@@ -1468,7 +1480,7 @@ groups:
         fresh rollup within OVERLAY_EXPERIMENT_MAX_AGE_SECS. Check the rolling
         benchmark workflow and the bot/live-experiment-snapshot branch.
   - uid: sp-memory-high
-    title: Signals Producer RSS > 768 MB
+    title: Signals Producer RSS > 2048 MB
     condition: C
     data:
     - refId: A
@@ -1485,7 +1497,7 @@ groups:
         - evaluator:
             type: gt
             params:
-            - 768
+            - 2048
           operator:
             type: and
           query:
@@ -1495,16 +1507,21 @@ groups:
     labels:
       severity: warning
     annotations:
-      summary: smc-signals-producer memory exceeds 768 MB for > 5 min
-      runbook: 'Warning at 75% of the ~1 GiB Railway tier (critical stays at 900 MB
-        ≈ 88%), aligned with the Railway usage-ratio policy (lo-railway-memory-ratio-high
-        at 0.75). The prior 512 MB (~50%) threshold sat below the process''s legitimate
-        steady-state footprint (numpy/pandas/feedparser/httpx + watchlist state) and
-        fired continuously without an OOM. If RSS is genuinely climbing toward 900 MB,
-        check for a memory leak in poll_once / newsstack poller and consider recycling
-        the Railway instance.'
+      summary: smc-signals-producer RSS exceeds 2048 MB for > 5 min — footprint regression
+      runbook: 'Footprint-regression detector, NOT an OOM alarm. The Railway limit is
+        8 GB (MEMORY_LIMIT_GB=8.00, verified 2026-07-15), so 2048 MB is 25% of it and
+        carries no OOM risk; OOM is owned solely by lo-railway-memory-ratio-high (0.75
+        of the *reported* limit = ~6144 MB). Threshold sits above the worst observed
+        envelope (7d p95 1199 MB, max 1514 MB), so firing means the footprint left its
+        historical range — check poll_once / the newsstack poller for a leak and the
+        watchlist size for a workload change. Do NOT re-anchor this to a fraction of a
+        guessed tier: the 512 MB and 768 MB predecessors were both derived from a 1 GB
+        free-tier limit that never applied to this service, and each fired continuously
+        against legitimate steady state (~880 MB as of 2026-07-15). If steady state
+        grows past this threshold again, confirm the new plateau is intentional and
+        re-cut against the *measured* envelope.'
   - uid: lo-memory-high
-    title: Live Overlay RSS > 768 MB
+    title: Live Overlay RSS > 2048 MB
     condition: C
     data:
     - refId: A
@@ -1521,7 +1538,7 @@ groups:
         - evaluator:
             type: gt
             params:
-            - 768
+            - 2048
           operator:
             type: and
           query:
@@ -1531,10 +1548,12 @@ groups:
     labels:
       severity: warning
     annotations:
-      summary: smc-live-overlay memory exceeds 768 MB for > 5 min
-      runbook: Warning at 75% of the ~1 GiB Railway tier, aligned with the
-        Railway usage-ratio policy (lo-railway-memory-ratio-high at 0.75).
-        If RSS climbs toward 900 MB, check Databento feed buffers, bridge
+      summary: smc-live-overlay RSS exceeds 2048 MB for > 5 min — footprint regression
+      runbook: Footprint-regression detector, NOT an OOM alarm. The Railway limit
+        is 8 GB (MEMORY_LIMIT_GB=8.00, verified 2026-07-15), so 2048 MB is 25% of
+        it; OOM risk is owned solely by lo-railway-memory-ratio-high (0.75 of the
+        *reported* limit). Threshold sits above the observed envelope (7d p95 259
+        MB, max 920 MB). If RSS reaches this, check Databento feed buffers, bridge
         snapshots and GC; consider recycling the Railway instance.
   - uid: lo-railway-memory-ratio-high
     title: Railway service memory ratio > 75%
@@ -1601,7 +1620,7 @@ groups:
       runbook: Immediate OOM risk. Inspect service-specific Railway memory, restart
         if growth is monotonic, and check feed/bridge buffers.
   - uid: alloy-memory-high
-    title: Alloy RSS > 256 MB
+    title: Alloy RSS > 1024 MB
     condition: C
     data:
     - refId: A
@@ -1617,7 +1636,7 @@ groups:
         - evaluator:
             type: gt
             params:
-            - 256
+            - 1024
           operator:
             type: and
           query:
@@ -1627,9 +1646,15 @@ groups:
     labels:
       severity: warning
     annotations:
-      summary: Alloy (metric-collector) memory exceeds 256 MB for > 5 min
-      runbook: Alloy is lightweight; high memory suggests scrape target explosion
-        or WAL buildup. Check remote-write backlog.
+      summary: Alloy (metric-collector) RSS exceeds 1024 MB for > 5 min — footprint regression
+      runbook: 'Footprint-regression detector, NOT an OOM alarm. The Railway limit is
+        8 GB (MEMORY_LIMIT_GB=8.00, verified 2026-07-15), so 1024 MB is 12% of it; OOM
+        risk is owned solely by lo-railway-memory-ratio-high (0.75 of the *reported*
+        limit). Threshold sits above the observed envelope (7d p95 310 MB, max 326 MB).
+        The prior 256 MB threshold sat BELOW that p95 and false-fired against legitimate
+        steady state — the "Alloy should use < 100 MB normally" claim it rested on was
+        never measured. High memory suggests scrape-target explosion or WAL buildup;
+        check the remote-write backlog.'
   - uid: alloy-remote-write-failures
     title: Alloy remote-write failures
     condition: C
