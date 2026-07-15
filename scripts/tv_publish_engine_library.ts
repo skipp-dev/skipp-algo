@@ -135,8 +135,14 @@ function verifyEnginePublishContract(cli: CliArgs): ContractDetails {
   if (!coreText.includes(expectedImportLine)) {
     throw new Error(`Core import mismatch: expected ${expectedImportLine}`);
   }
-  if (!Number.isFinite(cli.version) || cli.version < 1) {
+  if (!Number.isInteger(cli.version) || cli.version < 1) {
     throw new Error(`Engine library version must be a positive integer, received: ${cli.version}`);
+  }
+  const importIdentity = cli.importPath.match(/^([^/]+)\/([^/]+)\/(\d+)$/);
+  if (!importIdentity || importIdentity[2] !== cli.scriptName || Number(importIdentity[3]) !== cli.version) {
+    throw new Error(
+      `Engine import path must name ${cli.scriptName}/${cli.version}, received: ${cli.importPath}`,
+    );
   }
 
   return {
