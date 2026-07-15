@@ -92,28 +92,114 @@ def test_no_python_star_imports_in_prod() -> None:
 
 
 # ─── 2. pytest.xfail ─────────────────────────────────────────────────
+#
+# The rule is "xfail hides regressions". That is true of a *non-strict* xfail:
+# the test may start passing and nobody is told, so a fixed bug and a still-
+# broken one look identical. It is the opposite of true for
+# ``@pytest.mark.xfail(strict=True, reason=...)``: pytest FAILS the run the
+# moment such a test passes, so it cannot hide anything — it pins a known,
+# documented violation and demands attention exactly when the source is
+# corrected. Banning that shape does not protect against the failure mode this
+# rule names; it only pushes the known bug towards ``skip``, which really is
+# silent.
+#
+# So the ban is scoped to what it can justify:
+#   * ``pytest.xfail(...)``            — imperative, no strict mode exists. Banned.
+#   * ``@pytest.mark.xfail``           — bare, non-strict by default. Banned.
+#   * ``@pytest.mark.xfail(...)``      — banned unless BOTH strict=True and a
+#                                        non-empty reason= are passed literally.
+#
+# 2026-07-15: previously a line regex, which could not see the keywords at all
+# (a decorator spans lines) and so had to ban the whole shape. AST reads them.
 
-_XFAIL_RE = re.compile(r"@pytest\.mark\.xfail\b|pytest\.xfail\s*\(")
+
+def _is_pytest_attr(node: ast.expr, *path: str) -> bool:
+    """True for the attribute chain ``pytest.<path…>`` (e.g. ``pytest.mark.xfail``)."""
+    for part in reversed(path):
+        if not isinstance(node, ast.Attribute) or node.attr != part:
+            return False
+        node = node.value
+    return isinstance(node, ast.Name) and node.id == "pytest"
 
 
-def test_no_pytest_xfail_anywhere() -> None:
+def _strict_xfail_with_reason(call: ast.Call) -> bool:
+    """True iff the call passes literal ``strict=True`` and a non-empty ``reason=``."""
+    strict = reason = False
+    for kw in call.keywords:
+        if kw.arg == "strict":
+            strict = isinstance(kw.value, ast.Constant) and kw.value.value is True
+        elif kw.arg == "reason":
+            reason = bool(_static_str(kw.value))
+    return strict and reason
+
+
+def _static_str(node: ast.expr) -> str:
+    """Best-effort literal text of a str expression (handles implicit concat)."""
+    if isinstance(node, ast.Constant) and isinstance(node.value, str):
+        return node.value
+    if isinstance(node, ast.JoinedStr):
+        return "".join(
+            v.value
+            for v in node.values
+            if isinstance(v, ast.Constant) and isinstance(v.value, str)
+        )
+    if isinstance(node, ast.BinOp) and isinstance(node.op, ast.Add):
+        return _static_str(node.left) + _static_str(node.right)
+    return ""
+
+
+def _xfail_violations() -> list[tuple[str, int, str]]:
     hits: list[tuple[str, int, str]] = []
     tests_dir = _REPO_ROOT / "tests"
     for path in sorted(tests_dir.rglob("*.py")):
-        # Allow this file to mention the literal string in docs/comments
+        # This file names the shapes it bans in its own prose.
         if path.resolve() == Path(__file__).resolve():
             continue
         try:
-            text = path.read_text(encoding="utf-8")
-        except (OSError, UnicodeDecodeError):  # pragma: no cover
+            tree = ast.parse(path.read_text(encoding="utf-8"))
+        except (OSError, SyntaxError, UnicodeDecodeError):  # pragma: no cover
             continue
         rel = path.relative_to(_REPO_ROOT).as_posix()
-        for ln, line in enumerate(text.splitlines(), start=1):
-            if _XFAIL_RE.search(line):
-                hits.append((rel, ln, line.strip()[:100]))
+        for node in ast.walk(tree):
+            if isinstance(node, ast.Attribute) and _is_pytest_attr(
+                node, "mark", "xfail"
+            ):
+                # Bare `@pytest.mark.xfail` — non-strict by default. An
+                # ast.Call wraps its own func Attribute, so only report the
+                # bare form here; the call form is handled below.
+                parent_is_call = any(
+                    isinstance(n, ast.Call) and n.func is node for n in ast.walk(tree)
+                )
+                if not parent_is_call:
+                    hits.append((rel, node.lineno, "@pytest.mark.xfail (not strict)"))
+            elif isinstance(node, ast.Call):
+                if _is_pytest_attr(node.func, "xfail"):
+                    hits.append(
+                        (rel, node.lineno, "pytest.xfail(...) — imperative, never strict")
+                    )
+                elif _is_pytest_attr(
+                    node.func, "mark", "xfail"
+                ) and not _strict_xfail_with_reason(node):
+                    hits.append(
+                        (
+                            rel,
+                            node.lineno,
+                            "@pytest.mark.xfail(...) without strict=True and reason=",
+                        )
+                    )
+    return hits
+
+
+def test_no_non_strict_pytest_xfail_anywhere() -> None:
+    """Only ``@pytest.mark.xfail(strict=True, reason=…)`` may pin a known bug."""
+    hits = _xfail_violations()
     assert not hits, (
-        "`pytest.xfail` / `@pytest.mark.xfail` introduced. Tests must "
-        "either pass or be skipped with a reason — xfail hides regressions:"
+        "Non-strict `pytest.xfail` / `@pytest.mark.xfail` introduced. A "
+        "non-strict xfail hides regressions: it stays green whether the bug is "
+        "fixed or not. Either make the test pass, or pin the known violation "
+        "with `@pytest.mark.xfail(strict=True, reason=\"…\")` — strict fails the "
+        "run the moment the source is corrected, so the xfail cannot outlive "
+        "the bug:"
         "\n  - " + "\n  - ".join(f"{f}:{ln}  {snip}" for f, ln, snip in hits)
     )
 
@@ -128,8 +214,19 @@ _SECRET_NAME_RE = re.compile(
 # repo for committed secrets; its filename matches ``.*_secret.*`` only by
 # virtue of describing what it probes for. It contains no secret material
 # and is allow-listed by basename here.
+#
+# 2026-07-15: the two TV_STORAGE_STATE rotation files below are the same class
+# — they *rotate* a secret, so `.*_secret.*` matches their name. This guard has
+# never run on the required path, so #3658 added them and merged green; the
+# breach only surfaced when the guard was measured for gating. Verified before
+# allow-listing: both scanned for base64/hex runs (40+ chars) and for the
+# ghp_/sk-/xox/eyJhbGciOi token prefixes — zero matches. The script takes the
+# secret from `gh secret set` stdin and never writes it to disk; the test drives
+# it with a fixture string.
 _SECRET_BASENAME_ALLOW = frozenset(
     {
+        "tv_rotate_storage_state_secret.sh",
+        "test_tv_rotate_storage_state_secret.py",
         ".env.example",
         ".env.sample",
         ".env.template",

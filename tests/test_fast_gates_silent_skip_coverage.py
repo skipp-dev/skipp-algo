@@ -133,10 +133,12 @@ FULL_REQUIRED_PATH_TRIPWIRES: tuple[str, ...] = (
     "tests/test_hmac_auth_zero_surface.py",
     "tests/test_http_client_discipline.py",
     "tests/test_http_post_egress_ledger.py",
+    "tests/test_httpx_timeout_invariant.py",
     "tests/test_library_discipline_zero_surface.py",
     "tests/test_lint_debt_no_regression.py",
     "tests/test_loopback_and_baseimage_pin.py",
     "tests/test_lru_cache_maxsize_discipline.py",
+    "tests/test_mkdir_makedirs_exist_ok_invariant.py",
     "tests/test_module_test_coverage_pin.py",
     "tests/test_monitoring_metric_alert_coverage.py",
     "tests/test_mutable_defaults_and_loads_pins.py",
@@ -168,21 +170,28 @@ FULL_REQUIRED_PATH_TRIPWIRES: tuple[str, ...] = (
     "tests/test_schema_version_manifest_alignment.py",
     "tests/test_silent_error_swallow_pin.py",
     "tests/test_silent_security_and_boundary_bundle.py",
+    "tests/test_six_zero_tripwires_bundle.py",
     "tests/test_smc_bus_v2_freeze.py",
     "tests/test_smc_context_golden.py",
     "tests/test_smc_library_refresh_workflow.py",
     "tests/test_socket_bind_loopback_pin.py",
+    "tests/test_subprocess_run_check_invariant.py",
     "tests/test_subprocess_shell_injection_pin.py",
     "tests/test_subprocess_spawn_sites_ledger.py",
+    "tests/test_subprocess_timeout_discipline.py",
     "tests/test_sys_exit_ledger_pin.py",
     "tests/test_sys_path_mutation_ledger.py",
+    "tests/test_tempfile_namedtemp_delete_kwarg_invariant.py",
+    "tests/test_threading_thread_daemon_invariant.py",
     "tests/test_time_sleep_budget.py",
     "tests/test_tls_jwt_verification_zero_surface.py",
+    "tests/test_to_datetime_utc_discipline.py",
     "tests/test_type_ignore_budget.py",
     "tests/test_urllib_urlopen_ledger.py",
     "tests/test_verdict_panel.py",
     "tests/test_warnings_simplefilter_ledger.py",
     "tests/test_weak_hash_pin.py",
+    "tests/test_weak_hash_usedforsecurity_pin.py",
     "tests/test_while_true_termination_ledger.py",
     "tests/test_workflow_auth_pattern.py",
     "tests/test_workflow_concurrency_cron_no_cancel.py",
@@ -503,4 +512,89 @@ def test_every_zero_surface_guard_is_on_the_required_path() -> None:
         "FAST_TEST_FILES in tests/_fast_inventory.py — the meta-guards will name "
         "them), or add it to _ZERO_SURFACE_INTENTIONALLY_UNGATED with a "
         "justification."
+    )
+
+
+# ---------------------------------------------------------------------------
+# Derived repo-wide-guard rule (2026-07-15)
+# ---------------------------------------------------------------------------
+# The three rules above each key off what a guard *freezes*: line pins (#3672),
+# per-file counts (#3680), or a `*_zero_surface*` filename (#3685). A guard that
+# instead checks a *property* of a call site — "this httpx client passes a
+# timeout", "this NamedTemporaryFile passes delete=" — freezes nothing and is
+# named nothing in particular, so all three miss it.
+#
+# `tests/_guard_corpus` is the signal that survives that: importing the shared
+# repo-wide AST corpus is what a first-party source guard *does*, structurally,
+# whatever it then asserts and whatever it is called. 27 of its 60 importers
+# were off the required path when this landed.
+#
+# Exceptions below are per-surface, not per-name: each is a guard whose surface a
+# gated guard already reads. They were checked one at a time, not inferred from
+# similar filenames.
+_GUARD_CORPUS_INTENTIONALLY_UNGATED: frozenset[str] = frozenset(
+    {
+        # shell=True / os.system / os.popen / eval / exec / pickle. Every leg is
+        # already read on the required path: shell=True by
+        # test_subprocess_shell_injection_pin (test_no_shell_true_anywhere), and
+        # os.system + os.popen + eval + exec + pickle by the zero-surface set
+        # #3685 gated. These four bundles predate that set and restate it.
+        "tests/test_dangerous_call_tripwires.py",
+        "tests/test_dynamic_exec_and_shell_tripwires.py",
+        "tests/test_serialization_and_shell_tripwires.py",
+        "tests/test_shell_true_tripwire.py",
+        # assert-in-prod and encoding-less open(). The gated
+        # test_assert_and_open_encoding_pin freezes a PER-FILE count for both, so
+        # a new violation moves a count and fails there. These two assert the
+        # rule directly — same surface, already covered.
+        "tests/test_no_prod_assert_pin.py",
+        "tests/test_open_encoding_discipline.py",
+        # Not production surfaces: the corpus's own tracked-file self-check and a
+        # pytest-xdist parametrize determinism pin. Both guard the test harness.
+        "tests/test_guard_corpus_tracked_files.py",
+        "tests/test_pytest_xdist_parametrize_determinism.py",
+    }
+)
+
+
+def _guard_corpus_users() -> set[str]:
+    """Every test importing the shared repo-wide AST corpus."""
+    return {
+        f"tests/{path.name}"
+        for path in sorted((ROOT / "tests").glob("test_*.py"))
+        if "_guard_corpus" in path.read_text(encoding="utf-8", errors="replace")
+    }
+
+
+def test_every_guard_corpus_user_is_on_the_required_path() -> None:
+    """A repo-wide source guard that is not gated cannot block the merge it exists for.
+
+    Keys off the import, not the name or the frozen shape, so it also covers the
+    guards that check a *property* rather than freezing a location — the half the
+    three rules above cannot see.
+    """
+    users = _guard_corpus_users()
+    # Sanity: discovery actually found guards, so a corpus rename cannot make
+    # this test vacuously pass on an empty set.
+    assert len(users) >= 40, (
+        f"guard-corpus discovery found only {len(users)} importers — the corpus "
+        "module moved or the tests/ layout changed, and this guard is no longer "
+        "measuring anything"
+    )
+
+    step = _drift_guard_step_text()
+    referenced = set(re.findall(r"tests/test_[A-Za-z0-9_]+\.py", step))
+    ungated = sorted(users - referenced - _GUARD_CORPUS_INTENTIONALLY_UNGATED)
+    assert not ungated, (
+        "repo-wide source guard(s) are not on the required path. fast-gates is "
+        "the only merge-gating job, so these cannot block a merge: the property "
+        "they check — a timeout passed, a kwarg set, a secret-shaped file kept "
+        "out of git — is enforced only afterwards by `validate`, if anyone reads "
+        "it.\n\n"
+        f"Ungated: {ungated}\n\n"
+        "Add each to the 'Run pin / ledger drift guard' step in "
+        "smc-fast-pr-gates.yml (plus FULL_REQUIRED_PATH_TRIPWIRES here and "
+        "FAST_TEST_FILES in tests/_fast_inventory.py — the meta-guards will name "
+        "them), or add it to _GUARD_CORPUS_INTENTIONALLY_UNGATED naming the gated "
+        "guard that already reads its surface."
     )
