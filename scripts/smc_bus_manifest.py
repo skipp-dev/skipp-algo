@@ -75,6 +75,9 @@ CONSUMER_ROLE_VALUES: tuple[str, ...] = (
     # Companion exits / hold-management surfaces (added with v3 phase 1
     # classification of SMC_Exit_Signal.pine + SMC_Hold_Manager.pine).
     'exit_companion',
+    # Alert companion: restores the Suite's per-event selectable alertcondition()
+    # slots (the Suite moved to alert() for the 64-plot budget, RE10140).
+    'alert_companion',
 )
 
 PRODUCT_CUT_MANIFEST_VERSION = 2
@@ -339,6 +342,21 @@ SURFACE_DEFINITIONS: tuple[SurfaceDefinition, ...] = (
             'BE-after-T1, optional Simple-Mode, and time-stop. Imports '
             'skippALGO/smc_micro_profiles_generated (separate namespace '
             'from preuss_steffen — not auto-pinned by library refresh).',
+        ),
+    ),
+    SurfaceDefinition(
+        file = 'SMC_Long_Dip_Alerts.pine',
+        script_name = 'SMC Long-Dip Alerts',
+        surface_role = 'companion_operator_only',
+        contract_tier = 'lite_and_pro',
+        consumer_role = 'alert_companion',
+        notes = (
+            'Alert companion for the Suite. Restores the 16 lifecycle / structure '
+            '/ trust / risk events as individually-selectable alertcondition() '
+            'slots (the Suite moved to alert() for the 64-plot budget, RE10140). '
+            'Product-state + zone from the BUS StateCode/Armed/ZoneActive inputs; '
+            'structure recomputed via eng.detect_structure; trust via '
+            'eng.resolve_trust_tier over mp.* consts; macro/earnings from mp.*.',
         ),
     ),
     SurfaceDefinition(

@@ -83,6 +83,9 @@ _FROZEN_LEDGER: dict[str, int] = {
     "SMC_Regime_and_News.pine": 3,
     "SMC_Volume_Profile_Overlay.pine": 55,
     "SMC_Confluence_Hub.pine": 7,
+    # Alert companion: only the persistent status table needs `var` — the group
+    # labels are plain consts, so the budget stays at 1.
+    "SMC_Long_Dip_Alerts.pine": 1,
     "pine/legacy/BFI-Reversal.pine": 37,
     "pine/legacy/BTC 3m EV Scalper BALANCED (Harmonized).pine": 6,
     "pine/legacy/Breakout_Finder_Intelligent.pine": 6,

@@ -252,6 +252,17 @@
       ]
     },
     {
+      "file": "SMC_Long_Dip_Alerts.pine",
+      "script_name": "SMC Long-Dip Alerts",
+      "surface_role": "companion_operator_only",
+      "contract_tier": "lite_and_pro",
+      "consumer_role": "alert_companion",
+      "validation_target": false,
+      "notes": [
+        "Alert companion for the Suite. Restores the 16 lifecycle / structure / trust / risk events as individually-selectable alertcondition() slots (the Suite moved to alert() for the 64-plot budget, RE10140). Product-state + zone from the BUS StateCode/Armed/ZoneActive inputs; structure recomputed via eng.detect_structure; trust via eng.resolve_trust_tier over mp.* consts; macro/earnings from mp.*."
+      ]
+    },
+    {
       "file": "SMC_Volume_Profile_Overlay.pine",
       "script_name": "SMC Volume Profile Overlay",
       "surface_role": "companion_operator_only",
@@ -266,7 +277,7 @@
   "surfaceRoleCounts": {
     "lite_primary": 1,
     "pro_primary": 3,
-    "companion_operator_only": 15,
+    "companion_operator_only": 16,
     "internal": 1,
     "legacy": 3
   },
@@ -304,6 +315,7 @@
     "SMC_Breakout_Overlay.pine",
     "SMC_Exit_Signal.pine",
     "SMC_Hold_Manager.pine",
+    "SMC_Long_Dip_Alerts.pine",
     "SMC_Volume_Profile_Overlay.pine"
   ],
   "internalFiles": [
