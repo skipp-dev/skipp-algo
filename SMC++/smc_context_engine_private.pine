@@ -14,11 +14,14 @@
 // golden-gated against Python.
 library("smc_context_engine_private", overlay = true)
 
-import preuss_steffen/smc_engine_private/1 as eng
+// eng.FVG has fields typed ct.LevelBreakMode (core_types) and
+// d.SmcBox / d.SmcLine / d.SmcLabel (smc_draw). Pine requires every library
+// referenced by a used type's fields to be imported, and the referenced
+// libraries must be imported before the engine that pulls them into its types —
+// so the engine is imported last, matching SMC_Long_Dip_Suite.
 import preuss_steffen/smc_core_types/5 as ct
-// Required because eng.FVG has fields typed d.SmcBox / d.SmcLine / d.SmcLabel:
-// Pine requires every library referenced by a used type's fields to be imported.
 import preuss_steffen/smc_draw/3 as d
+import preuss_steffen/smc_engine_private/1 as eng
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Rule-layer thresholds — mirror tests/fixtures/smc_context_golden.json._meta.
@@ -135,8 +138,11 @@ export build_structure_frame(simple int swing_len = 50, simple int fresh_max_bar
 // Build the imbalance frame (FVG lifecycle + BPR + liquidity void) from the
 // engine's object-based FVG tracker. Detection is the engine's; the rule layer
 // (mitigation/BPR/void/zone-bias/state) matches the golden parity contract.
-export build_imbalance_frame(simple ct.LevelBreakMode fill_mode = ct.LevelBreakMode.CLOSE, float fill_target_ratio = 0.5, float size_threshold = 0.0) =>
-    [_bull_alert, _bear_alert, active_bull, active_bear, _new_bull, _new_bear, _bull_filled, _bear_filled, _bull_filled_new, _bear_filled_new, _bull_disc, _bear_disc] = eng.fvgs_objects(fill_mode, fill_target_ratio, size_threshold, true)
+export build_imbalance_frame(float fill_target_ratio = 0.5, float size_threshold = 0.0) =>
+    // fill_mode is left at the engine default (ct.LevelBreakMode.CLOSE) via named
+    // args, so this builder never references the ct enum directly — keeping
+    // core_types a pure type-resolution import (like the d.* draw types).
+    [_bull_alert, _bear_alert, active_bull, active_bear, _new_bull, _new_bear, _bull_filled, _bear_filled, _bull_filled_new, _bear_filled_new, _bull_disc, _bear_disc] = eng.fvgs_objects(fill_target_ratio = fill_target_ratio, size_threshold = size_threshold)
 
     [has_bull, bull_top, bull_bottom, bull_mit] = _newest_active_fvg(active_bull)
     [has_bear, bear_top, bear_bottom, bear_mit] = _newest_active_fvg(active_bear)
