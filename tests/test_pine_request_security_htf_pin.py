@@ -1,5 +1,5 @@
-"""Defense pin: every Pine ``request.security(...)`` call must request a
-higher-timeframe series.
+"""Defense pin: every ``request.security(...)`` in a standalone Pine script must
+request a higher-timeframe series.
 
 Same-TF ``request.security`` (i.e. passing ``timeframe.period``, ``""`` or
 ``syminfo.period`` as the timeframe argument) is wasteful, costs against the
@@ -7,10 +7,25 @@ script's request quota, and silently introduces repaint risk when callers
 forget ``lookahead_off`` — equivalent to a normal series access without any
 benefit. Confine the construct to genuine HTF lookups.
 
+Scope, stated precisely: **standalone** ``*.pine`` scripts at the repo root.
+The hand-authored ``SMC++/`` libraries are not scanned, and one of them —
+``SMC++/smc_utils.pine`` — legitimately passes ``timeframe.period`` in a helper
+whose caller supplies the timeframe. This module said "every Pine
+request.security call" until 2026-07-15, which that made false.
+
 Layers (defense-only):
 
 1. **Zero-tripwire** — no ``request.security(<sym>, X, ...)`` where ``X`` is
-   ``timeframe.period``, the empty string ``""``, or ``syminfo.period``.
+   literally ``timeframe.period``, the empty string ``""``, or
+   ``syminfo.period``. This layer only sees literals written inline.
+1b. **Resolved-default check** — the only real call passes a *parameter*
+   (``trend_tf``), which no literal blacklist can match, so the argument is
+   resolved one hop (parameter -> caller argument -> ``input.timeframe(CONST)``
+   -> the const's value) and the resulting default must not be same-TF. This is
+   what makes layer 1's promise apply to the call the script actually has.
+   Bounded honestly: ``input.timeframe`` is a user control, so a user can still
+   pick the chart timeframe at runtime. That is not statically decidable; this
+   pins the defaults the script ships with.
 2. **Frozen total budget** — exactly 1 call site across all standalone
    ``*.pine`` files (in ``SMC_Long_Dip_Suite.pine``). New HTF call sites are
    not banned but every addition must update the ledger and be justified in
@@ -158,6 +173,149 @@ def _scan_calls() -> list[tuple[str, int, str | None]]:
                 tf = _extract_tf_arg(line[m.end() - 1 :])
                 out.append((rel, ln, tf))
     return out
+
+
+# ─── resolve the timeframe argument, don't just blacklist literals ───
+#
+# The tripwire above compares the timeframe argument against four literals. The
+# *only* ledgered call passes `trend_tf` — a function parameter:
+#
+#     get_confirmed_structure_trend(string trend_tf, simple int structure_len) =>
+#         request.security(syminfo.tickerid, trend_tf, ...)
+#
+# A parameter is never one of the four literals, so the blacklist is inert
+# exactly where it is supposed to work, and "every request.security must
+# request a higher-timeframe series" was unenforced. Resolving the argument one
+# hop — parameter -> caller argument -> `input.timeframe(CONST)` -> the const's
+# value — is what makes the claim mean something: today those resolve to '240',
+# '1D' and '1W', and re-pointing a default at `timeframe.period` or '' now fails.
+#
+# Honestly bounded: `input.timeframe` is a user control, so a user can still
+# select the chart timeframe at runtime. That is not statically decidable and
+# this test does not pretend otherwise — it pins the *defaults* the script ships
+# with, which is the part source review can own.
+
+_PINE_FUNC_DEF = re.compile(r"^(\w+)\s*\(([^)]*)\)\s*=>")
+_PINE_CONST = re.compile(r"^\s*(?:const|var)?\s*string\s+(\w+)\s*=\s*'([^']*)'", re.M)
+_PINE_INPUT_TF = re.compile(
+    r"^\s*(?:var\s+)?string\s+(\w+)\s*=\s*input\.timeframe\s*\(\s*(\w+)", re.M
+)
+
+
+def _enclosing_pine_func(lines: list[str], lineno: int) -> tuple[str, list[str]] | None:
+    """Return ``(name, params)`` of the function definition above ``lineno``."""
+    for i in range(lineno - 1, -1, -1):
+        m = _PINE_FUNC_DEF.match(lines[i])
+        if m:
+            params = [p.strip().split()[-1] for p in m.group(2).split(",") if p.strip()]
+            return m.group(1), params
+    return None
+
+
+def _resolve_tf_defaults(text: str, tf: str, lineno: int) -> list[str]:
+    """Resolve a timeframe argument to the literal default(s) it can carry.
+
+    Returns the resolved literals, or ``[tf]`` when ``tf`` is already a literal.
+    An empty list means "could not resolve" — the caller fails closed on that.
+    """
+
+    tf = _normalise_tf(tf)  # `(timeframe.period)` is the same request as bare
+    if tf.startswith(("'", '"')):
+        return [tf.strip("'\"")]
+    if "." in tf or not tf.isidentifier():
+        return [tf]  # timeframe.period & friends — the literal tripwire owns these
+
+    lines = text.splitlines()
+    consts = dict(_PINE_CONST.findall(text))
+    inputs = dict(_PINE_INPUT_TF.findall(text))
+
+    def _resolve_name(name: str) -> list[str]:
+        if name in inputs:  # var string X = input.timeframe(CONST, ...)
+            const_name = inputs[name]
+            return [consts[const_name]] if const_name in consts else []
+        if name in consts:
+            return [consts[name]]
+        return []
+
+    enclosing = _enclosing_pine_func(lines, lineno)
+    if enclosing and tf in enclosing[1]:
+        # A parameter: resolve every caller's corresponding argument.
+        name, params = enclosing
+        idx = params.index(tf)
+        call_re = re.compile(rf"(?<![\w.]){re.escape(name)}\s*\(")
+        out: list[str] = []
+        for i, raw in enumerate(lines):
+            if i == lineno - 1 or _PINE_FUNC_DEF.match(raw):
+                continue  # the definition itself
+            for m in call_re.finditer(raw):
+                arg = _extract_positional(raw[m.end() - 1 :], idx)
+                if arg is None:
+                    return []
+                arg = _normalise_tf(arg)
+                resolved = _resolve_name(arg) if arg.isidentifier() else [arg]
+                if not resolved:
+                    return []
+                out.extend(resolved)
+        return out
+    return _resolve_name(tf)
+
+
+def _extract_positional(call_text: str, index: int) -> str | None:
+    """Return the ``index``-th positional argument of a ``(...)`` call body."""
+    if not call_text.startswith("("):
+        return None
+    depth = 0
+    args: list[str] = []
+    cur: list[str] = []
+    for ch in call_text[1:]:
+        if ch == "(":
+            depth += 1
+            cur.append(ch)
+        elif ch == ")":
+            if depth == 0:
+                args.append("".join(cur).strip())
+                break
+            depth -= 1
+            cur.append(ch)
+        elif ch == "," and depth == 0:
+            args.append("".join(cur).strip())
+            cur = []
+        else:
+            cur.append(ch)
+    return args[index] if len(args) > index else None
+
+
+def test_request_security_timeframe_resolves_to_an_htf_default() -> None:
+    """Resolve each timeframe argument; no resolved default may be same-TF."""
+    forbidden_bare = {lit.strip("'\"") for lit in _FORBIDDEN_TF_LITERALS} | {""}
+    problems: list[str] = []
+    for p in _iter_pine_files():
+        text = p.read_text(encoding="utf-8")
+        for rel, ln, tf in _scan_calls():
+            if rel != p.name or tf is None:
+                continue
+            resolved = _resolve_tf_defaults(text, tf, ln)
+            if not resolved:
+                problems.append(
+                    f"  - {rel}:{ln}: timeframe {tf!r} could not be resolved to a "
+                    "literal default; the blacklist cannot see it either"
+                )
+                continue
+            for value in resolved:
+                if value in forbidden_bare:
+                    problems.append(
+                        f"  - {rel}:{ln}: timeframe {tf!r} resolves to {value!r} "
+                        "— same-TF"
+                    )
+
+    assert not problems, (
+        "request.security must request an HTF. The literal tripwire above only "
+        "sees `timeframe.period` / `syminfo.period` / '' written inline; the one "
+        "real call passes a parameter, so the argument is resolved through its "
+        "caller to the input default it ships with. A default pointing at the "
+        "chart timeframe is the same-TF waste + repaint risk this module "
+        "exists to prevent:\n" + "\n".join(problems)
+    )
 
 
 def test_pine_inventory_sane() -> None:

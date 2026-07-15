@@ -546,6 +546,9 @@ frozen_major = "v7"
 # Counts frozen at the 2026-06-10 inventory (331 sites; mix of benign
 # synonym chains and legacy sites triaged in #2670). 2026-06-11
 # (eval-findings B5): +1 budgeted site in open_prep/outcomes.py → 332.
+# 2026-07-15: this running total read 332 while the table below summed to 333 —
+# a later entry was budgeted without extending the commentary. The table is the
+# authority (test_total_count_pinned checks it); the prose is not.
 # ---------------------------------------------------------------------------
 [field_preference_chain_ledger.file_counts]
 # 2026-07-11 (truth-audit #5): benign GH_PAT->GITHUB_TOKEN token-source fallback
@@ -665,3 +668,96 @@ frozen_major = "v7"
 "terminal_tabs/tab_segments.py" = 1
 "terminal_tabs/tab_spikes.py" = 1
 "terminal_tabs/tab_track_record.py" = 1
+
+# ---------------------------------------------------------------------------
+# Which keys each chain actually reads (2026-07-15).
+#
+# The counts above answer "how many chains does this file have". The harm they
+# name — "silently substitute a *semantically different* field" — is about
+# WHICH keys a chain reads, and the scanner threw that away: _get_literal_key()
+# computed the keys and _scan_preference_chains() returned only line numbers.
+# So `row.get("size") or row.get("volume")` -> `... or row.get("timestamp")`
+# held the count and merged green — exactly the substitution the ledger exists
+# to force a review of, and one of the real bugs #2670 cites (premium computed
+# from session volume instead of print size).
+#
+# Per file: one entry per chain, each the ordered key list of that chain,
+# sorted for a stable diff. The counts above stay the authority for "how many";
+# test_chain_counts_match_frozen_keys keeps the two from drifting apart.
+# ---------------------------------------------------------------------------
+[field_preference_chain_ledger.file_keys]
+"databento_volatility_screener.py" = [["description", "publisher", "venue"], ["export_generated_at", "exported_at"], ["requested_config_snapshot", "config_snapshot"]]
+"newsstack_fmp/ingest_benzinga.py" = [["articles", "results", "data"], ["articles", "results", "data"], ["articles", "results", "data"], ["channels", "data"]]
+"newsstack_fmp/ingest_benzinga_calendar.py" = [["last", "close"]]
+"newsstack_fmp/ingest_benzinga_financial.py" = [["error", "errors"]]
+"newsstack_fmp/ingest_unusual_whales.py" = [["alert_rule", "rule_name"], ["date", "executed_at", "created_at"], ["executed_at", "time"], ["expiry", "expires_at"], ["is_multi_leg", "multi_leg"], ["open_interest", "oi"], ["option_chain", "option_symbol"], ["premium", "total_premium"], ["sentiment", "side"], ["size", "volume"], ["ticker", "underlying_symbol", "symbol"], ["type", "option_type"], ["underlying_price", "spot"]]
+"newsstack_fmp/normalize.py" = [["Headlines", "title", "headline"], ["PUBt", "Date", "created", "published"], ["Provider", "source", "author"], ["RECt", "updated"], ["_id", "ResourceID", "id", "uuid"], ["acceptedDate", "filingDate", "date"], ["body", "content", "summary"], ["created", "published"], ["created", "published"], ["created_at", "published_at", "date"], ["date", "filingDate", "acceptedDate"], ["description", "teaser"], ["finalLink", "link"], ["finalLink", "link"], ["headline", "title"], ["id", "uri", "url"], ["id", "uuid"], ["id", "uuid", "benzinga_id"], ["id", "uuid", "news_id"], ["name", "filerName"], ["name", "ticker", "symbol"], ["published", "dateTime", "dateTimePub", "date"], ["publishedDate", "published", "date"], ["site", "source", "publisher"], ["source", "author"], ["source", "publisher"], ["source", "publisher"], ["stocks", "tickers", "symbols"], ["symbol", "ticker"], ["teaser", "summary"], ["teaser", "summary", "body"], ["teaser", "summary", "body"], ["text", "snippet", "content"], ["ticker", "symbol"], ["tickers", "symbols"], ["title", "headline"], ["title", "headline"], ["title", "headline"], ["title", "headline"], ["title", "name", "uri", "domain"], ["transactionDate", "dateRecieved", "dateReceived"], ["updated", "last_updated"], ["url", "id", "uuid", "news_id"], ["url", "link"], ["url", "link"], ["url", "link"], ["url", "link"], ["url", "link"], ["url", "link", "newsURL"]]
+"newsstack_fmp/opra_uoa.py" = [["expiration", "expiry"], ["instrument_class", "option_type"], ["publisher_id", "exchange"], ["raw_symbol", "symbol"], ["strike_price", "strike"], ["underlying", "asset"]]
+"newsstack_fmp/scoring.py" = [["snippet", "text", "content"]]
+"open_prep/alerts.py" = [["gap_bucket", "gap_class"], ["price", "prev_close"]]
+"open_prep/diff.py" = [["symbol_sector", "sector"], ["symbol_sector", "sector"], ["symbol_sector", "sector"]]
+"open_prep/feature_importance_report.py" = [["device_name", "device_id"]]
+"open_prep/macro.py" = [["OPEN_PREP_FMP_QUOTE_WORKERS", "FMP_QUOTE_WORKERS"], ["event", "name"], ["event", "name"], ["event", "name"], ["event", "name"], ["event", "name"], ["event", "name"], ["event", "name"], ["event", "name"], ["event", "name"], ["impact", "importance", "priority"]]
+"open_prep/news.py" = [["link", "url"], ["source", "site"]]
+"open_prep/outcomes.py" = [["atr_pct_computed", "atr_pct"]]
+"open_prep/playbook.py" = [["avg_volume", "avgVolume"]]
+"open_prep/realtime_signals.py" = [["atr_pct_computed", "atr_pct"], ["averageVolume", "volAvg"], ["averageVolume", "volAvg"], ["avgVolume", "avg_volume"], ["avgVolume", "avg_volume"], ["avgVolume", "volAvg"], ["generated_at", "run_datetime_utc"], ["news_url", "url"], ["price", "lastPrice"], ["price", "lastPrice"], ["price", "lastPrice"], ["price", "lastPrice"], ["time", "releaseTime"]]
+"open_prep/run_open_prep.py" = [["action", "newGrade"], ["atr_pct_computed", "atr_pct"], ["avgVolume", "averageVolume", "avgVolume3Month", "avgVolume50", "avg_volume"], ["changesPercentage", "changePercentage"], ["date", "datetime"], ["earnings_today", "earnings_risk_window"], ["event", "name"], ["event", "name"], ["event", "title", "name"], ["exchange", "exchangeShortName"], ["exchange", "exchangeShortName"], ["exchange", "exchangeShortName"], ["gradingCompany", "company"], ["impact", "importance", "priority"], ["impact", "importance", "priority"], ["impact", "importance", "priority"], ["investorName", "holderName"], ["investorName", "holderName"], ["lastQuarterAvgPriceTarget", "lastYearAvgPriceTarget"], ["lastQuarterCount", "lastYearCount", "allTimeCount"], ["news_event_class", "event_class"], ["news_event_class", "event_class"], ["news_materiality", "materiality"], ["news_materiality", "materiality"], ["news_recency_bucket", "recency_bucket"], ["news_recency_bucket", "recency_bucket"], ["news_source_tier", "source_tier"], ["news_source_tier", "source_tier"], ["patternname", "pattern_name", "name"], ["publishedDate", "date"], ["publishedDate", "date"], ["symbol", "ticker"], ["symbol", "ticker"], ["time", "releaseTime"], ["time", "releaseTime"], ["transactionDate", "disclosureDate", "publishedDate", "date"], ["type", "transactionType"], ["url", "link"], ["url", "link"]]
+"open_prep/scorer.py" = [["avgVolume", "avg_volume", "averageVolume", "avgVolume3Month", "avgVolume50"], ["name", "companyName"], ["rsi", "rsi14"]]
+"open_prep/screen.py" = [["name", "companyName"]]
+"open_prep/streamlit_monitor.py" = [["companyName", "companyCik"], ["enriched_quotes", "ranked_candidates"], ["gap_pct", "bz_chg_pct", "changesPercentage"], ["gap_pct", "bz_chg_pct", "changesPercentage"], ["symbol", "ticker"], ["timestamp", "date"], ["timestamp", "date"], ["trade_cards_v2", "trade_cards"], ["transactionDate", "filingDate"], ["transaction_date", "filing_date"]]
+"open_prep/trade_cards.py" = [["atr", "atr_14", "atr14", "average_true_range"]]
+"scripts/credential_health_check.py" = [["github-authentication-token-expiration", "GitHub-Authentication-Token-Expiration"]]
+"scripts/databento_production_export.py" = [["time", "releaseTime"]]
+"scripts/generate_databento_watchlist.py" = [["export_generated_at", "exported_at"]]
+"scripts/generate_smc_micro_base_from_databento.py" = [["delivered_provider", "provider"], ["event_risk", "event_risk_light"], ["session_context_light", "session_context"]]
+"scripts/probe_databento_entitlement.py" = [["schema", "schemas"]]
+"scripts/probe_newsapi_feed_cursor.py" = [["headline", "title"], ["headline", "title"], ["published", "date"], ["published", "date"], ["published", "date"], ["published", "date"]]
+"scripts/probe_providers.py" = [["reddit", "twitter"]]
+"scripts/publish_universe_snapshots.py" = [["GH_PAT", "GITHUB_TOKEN"]]
+"scripts/refresh_overlay_enrichment.py" = [["universe_symbols", "scanned_symbols"]]
+"scripts/run_ibkr_open_execution.py" = [["captured_at", "trigger_at"]]
+"scripts/run_smc_release_gates.py" = [["code", "status"]]
+"scripts/smc_analyst_enrichment.py" = [["analyistBuy", "analystBuy"], ["analyistHold", "analystHold"], ["analyistSell", "analystSell"], ["analyistStrongBuy", "analystStrongBuy"], ["analyistStrongSell", "analystStrongSell"]]
+"scripts/smc_compression_regime.py" = [["momentum_value", "squeeze_momentum"]]
+"scripts/smc_hero_state.py" = [["event_risk", "event_risk_light"]]
+"scripts/smc_insider_enrichment.py" = [["transactionDate", "filingDate"]]
+"scripts/smc_liquidity_sweeps.py" = [["recent_bull_sweep", "recent_bear_sweep"]]
+"scripts/smc_macro_bias.py" = [["event", "name"], ["event", "name"], ["event", "name"], ["event", "name"], ["event", "name"], ["event", "name"], ["event", "name"], ["event", "name"], ["event", "name"], ["impact", "importance", "priority"], ["impact", "importance", "priority"]]
+"scripts/smc_news_scorer.py" = [["snippet", "text", "content"]]
+"scripts/smc_newsapi_ai.py" = [["body", "content", "summary", "snippet"], ["dateTimePub", "dateTime", "published", "date"], ["eventDate", "date", "dateTime", "reportingDate", "startDate"], ["id", "uri", "title"], ["image", "imageUrl"], ["image", "imageUrl"], ["summary", "body", "snippet", "description"], ["title", "eventTitle"], ["title", "name", "uri", "domain"], ["uri", "eventUri"], ["uri", "eventUri", "id"], ["uri", "url"], ["uri", "url"], ["uri", "url"], ["uri", "url"], ["url", "link"], ["url", "link"]]
+"scripts/smc_provider_policy.py" = [["date", "time_utc"], ["date", "time_utc"], ["event", "name"], ["event", "name", "canonical_event"], ["event", "name", "canonical_event"], ["event_name", "event"], ["text", "snippet", "content"], ["ticker", "symbol"], ["title", "headline"]]
+"scripts/smc_signal_quality.py" = [["MARKET_EVENT_BLOCKED", "SYMBOL_EVENT_BLOCKED"], ["MARKET_EVENT_BLOCKED", "SYMBOL_EVENT_BLOCKED"]]
+"scripts/smc_zone_priority_calibration.py" = [["max_event_timestamp_utc", "end_date"], ["min_event_timestamp_utc", "start_date"]]
+"scripts/tv_publish_evidence_summary.py" = [["compile_ok", "compileOk"], ["publish_ok", "publishOk"]]
+"scripts/verify_tradingview_post_release.py" = [["scriptName", "file"]]
+"scripts/wsh_earnings_calendar.py" = [["con_id", "conId"]]
+"services/live_overlay_daemon/compute.py" = [["stories", "items"], ["stories", "items"]]
+"services/live_overlay_daemon/grafana_composio_fanout.py" = [["summary", "description"], ["title", "message"]]
+"smc_integration/measurement_evidence.py" = [["MARKET_EVENT_BLOCKED", "SYMBOL_EVENT_BLOCKED"], ["invalidated_ts", "invalidated_at"], ["mitigated_ts", "mitigated_at"]]
+"smc_integration/service.py" = [["selected_structure_mode", "coverage", "selected"]]
+"smc_integration/sources/live_news_snapshot_json.py" = [["summary", "snippet"]]
+"smc_integration/trust_state.py" = [["message", "description"], ["message", "description"]]
+"smc_tv_bridge/smc_api.py" = [["timestamp", "t"]]
+"streamlit_terminal.py" = [["_cached_technicals", "_cached_fmp_technicals"], ["catalyst_headline", "headline"], ["changesPercentage", "changePercentage"], ["changesPercentage", "changePercentage"], ["changesPercentage", "change_pct"], ["changesPercentage", "change_pct"], ["last_poll_error", "last_poll_status", "reason"], ["macd_signal", "macd"], ["name", "company"], ["name", "company"], ["pe", "peRatio"], ["published_ts", "created_ts"], ["published_ts", "created_ts"], ["published_ts", "ts"], ["technical_score", "tech_score"], ["technical_signal", "tech_signal"], ["volume", "avgVolume"], ["volume_ratio", "vol_ratio"]]
+"terminal_attention_state.py" = [["catalyst_expires_at", "story_expires_at"], ["posture_last_update_ts", "resolution_last_update_ts", "reaction_last_update_ts", "catalyst_last_update_ts", "story_last_seen_ts", "updated_ts", "published_ts"]]
+"terminal_bitcoin.py" = [["averageDailyVolume10Day", "averageVolume10days"], ["changePercentage", "changesPercentage"], ["regularMarketPrice", "currentPrice"], ["volume24Hr", "volume"]]
+"terminal_catalyst_state.py" = [["story_best_provider", "provider"], ["story_best_source", "source"], ["story_headline", "headline"]]
+"terminal_export.py" = [["headline", "title"], ["published_ts", "updated_ts"], ["published_ts", "updated_ts"]]
+"terminal_feed_state.py" = [["story_best_provider", "best_provider"], ["story_best_source", "best_source"], ["story_expires_at", "expires_at"], ["story_first_seen_ts", "first_seen_ts"], ["story_last_seen_ts", "updated_ts", "published_ts", "last_seen_ts"], ["story_providers_seen", "providers_seen"], ["story_update_kind", "last_action"], ["updated_ts", "published_ts"]]
+"terminal_forecast.py" = [["isEtf", "isFund"]]
+"terminal_live_story_state.py" = [["story_last_seen_ts", "updated_ts", "published_ts"], ["story_last_seen_ts", "updated_ts", "published_ts"]]
+"terminal_poller.py" = [["impact", "importance"], ["time", "releaseTime"]]
+"terminal_posture_state.py" = [["catalyst_expires_at", "story_expires_at"], ["resolution_last_update_ts", "reaction_last_update_ts", "catalyst_last_update_ts", "story_last_seen_ts", "updated_ts", "published_ts"]]
+"terminal_reaction_state.py" = [["catalyst_best_story_key", "story_key"], ["catalyst_last_update_ts", "story_last_seen_ts", "updated_ts", "published_ts"], ["reaction_anchor_story_key", "catalyst_best_story_key"]]
+"terminal_resolution_state.py" = [["reaction_anchor_story_key", "catalyst_best_story_key", "story_key"], ["reaction_last_update_ts", "catalyst_last_update_ts", "story_last_seen_ts", "updated_ts", "published_ts"], ["resolution_anchor_story_key", "resolution_anchor_story_key", "reaction_anchor_story_key"]]
+"terminal_spike_detector.py" = [["name", "companyName"]]
+"terminal_spike_scanner.py" = [["lastPrice", "last_price"], ["lastVolume", "last_volume"], ["marketCap", "market_cap"], ["name", "companyName"], ["previousClose", "previous_close"], ["threeMonthAverageVolume", "three_month_average_volume"]]
+"terminal_tabs/_shared.py" = [["changePercent", "change_percent"], ["companyName", "company_name"], ["gicsSectorName", "sector"], ["marketCap", "market_cap"], ["name", "companyName"], ["price", "last"], ["symbol", "ticker"], ["symbol", "ticker"]]
+"terminal_tabs/tab_bz_movers.py" = [["symbol", "ticker"], ["symbol", "ticker"], ["symbol", "ticker"], ["symbol", "ticker"]]
+"terminal_tabs/tab_defense.py" = [["companyName", "name"]]
+"terminal_tabs/tab_fmp_ai.py" = [["news_score", "composite_score"], ["reportingName", "ownerName"], ["ticker", "symbol"], ["ticker", "symbol"], ["transactionDate", "disclosureDate"], ["type", "transactionType"]]
+"terminal_tabs/tab_heatmap.py" = [["sector", "name"], ["sector", "name"]]
+"terminal_tabs/tab_segments.py" = [["segment_label", "category"]]
+"terminal_tabs/tab_spikes.py" = [["mktcap_display", "market_cap"]]
+"terminal_tabs/tab_track_record.py" = [["gate_failures", "failures"]]
