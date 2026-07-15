@@ -66,7 +66,7 @@ No authentication required. **Readiness/diagnostics** endpoint with worker and d
   "status": "ok",
   "feed_healthy": true,
   "workers_healthy": true,
-  "worker_liveness": {"live_feed": true, "overlay_refresh": true, "flow_refresh": true},
+  "worker_liveness": {"live_feed": true, "ingest_processor": true, "overlay_refresh": true, "flow_refresh": true, "supervisor": true},
   "feed_metrics": {"reconnect_attempts": 0, "bento_errors": 0, "unexpected_errors": 0, "circuit_breakers": 0, "partial_restarts": 0},
   "overlay_fresh": true,
   "last_bar_age_secs": 12.3,

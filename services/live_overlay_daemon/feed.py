@@ -766,11 +766,16 @@ def worker_liveness() -> dict[str, bool]:
     """Return per-worker liveness flags for operational health reporting."""
     with _lifecycle_lock:
         ingest_thread = _runtime.get("ingest_thread")
+        # The supervisor is the only worker that heals the others, so its own
+        # death must be reported — nothing else would re-arm it (_do_start
+        # starts it unconditionally, but only when something calls start()).
+        supervisor_thread = _runtime.get("supervisor_thread")
         return {
             "live_feed": _feed_thread is not None and _feed_thread.is_alive(),
             "ingest_processor": ingest_thread is not None and ingest_thread.is_alive(),
             "overlay_refresh": _refresh_thread is not None and _refresh_thread.is_alive(),
             "flow_refresh": _flow_refresh_thread is not None and _flow_refresh_thread.is_alive(),
+            "supervisor": supervisor_thread is not None and supervisor_thread.is_alive(),
         }
 
 
