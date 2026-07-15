@@ -62,22 +62,65 @@ def _iter_py_files() -> list[Path]:
     return out
 
 
-def _globals_call_sites() -> set[tuple[str, int]]:
-    """Return ``{(relpath, lineno)}`` for every ``globals()`` call."""
+def _globals_write_linenos(tree: ast.AST) -> set[int]:
+    """Linenos of ``globals()`` calls whose result is used to WRITE the namespace.
 
-    sites: set[tuple[str, int]] = set()
+    Shapes: ``globals()[k] = v`` / ``del globals()[k]`` (Subscript in a Store or
+    Del context) and ``globals().update(...)`` and friends.
+    """
+    write_methods = {"update", "setdefault", "pop", "popitem", "clear"}
+    out: set[int] = set()
+    for node in ast.walk(tree):
+        if isinstance(node, ast.Subscript) and _is_globals_call(node.value):
+            if isinstance(node.ctx, (ast.Store, ast.Del)):
+                out.add(node.value.lineno)
+        elif (
+            isinstance(node, ast.Call)
+            and isinstance(node.func, ast.Attribute)
+            and node.func.attr in write_methods
+            and _is_globals_call(node.func.value)
+        ):
+            out.add(node.func.value.lineno)
+    return out
+
+
+def _is_globals_call(node: ast.expr) -> bool:
+    return (
+        isinstance(node, ast.Call)
+        and isinstance(node.func, ast.Name)
+        and node.func.id == "globals"
+    )
+
+
+def _globals_call_sites() -> set[tuple[str, int, str]]:
+    """Return ``{(relpath, lineno, kind)}`` for every ``globals()`` call.
+
+    ``kind`` is ``"read"`` or ``"write"`` and is part of the pinned tuple since
+    2026-07-15. The ledger pinned ``(path, lineno)`` only, so the read/write
+    distinction — which is this module's entire thesis, and the property the
+    streamlit entry's "Read-only ... no mutation" comment asserts — was never
+    checked. Rewriting that allow-listed lookup in place to
+    ``globals()["_INTEL_ENABLED"] = True`` kept the tuple identical and the pin
+    green (verified). The two ``terminal_tabs`` writes are documented in the
+    header and stay: pinning the kind is what tells them apart from a read that
+    silently became a write.
+    """
+
+    sites: set[tuple[str, int, str]] = set()
     for path in _iter_py_files():
         tree = parse_module(path)
         if tree is None:
             continue
+        writes = _globals_write_linenos(tree)
         for node in ast.walk(tree):
             if not isinstance(node, ast.Call):
                 continue
             func = node.func
             if not isinstance(func, ast.Name) or func.id != "globals":
                 continue
+            kind = "write" if node.lineno in writes else "read"
             # POSIX form keeps the ledger stable across OSes (#2244).
-            sites.add((path.relative_to(ROOT).as_posix(), node.lineno))
+            sites.add((path.relative_to(ROOT).as_posix(), node.lineno, kind))
     return sites
 
 
@@ -94,14 +137,19 @@ def _globals_call_sites() -> set[tuple[str, int]]:
 # state or a dataclass/TypedDict context object (see
 # ``terminal_attention_state`` / ``terminal_posture_state`` for the
 # established pattern).
-GLOBALS_CALL_ALLOWED: set[tuple[str, int]] = {
+GLOBALS_CALL_ALLOWED: set[tuple[str, int, str]] = {
     # Sidebar-toggle bridge: _INTEL_ENABLED is set in the sidebar render
     # block and read by tab content rendered later in the same script
     # pass. Read-only globals().get(...) lookup, no mutation.
     # Line shifted 2225 → 2230 (F-V8-cutover branch, 2026-05-18).
-    ("streamlit_terminal.py", 2234),
-    ("terminal_tabs/__init__.py", 57),
-    ("terminal_tabs/__init__.py", 60),
+    # 2026-07-15: "read" is now the THIRD tuple element and enforced — the
+    # no-mutation claim above used to be prose the collector never read.
+    ("streamlit_terminal.py", 2234, "read"),
+    # The two documented lazy-import writes (PEP 562 module __getattr__ caches
+    # the resolved render fn, or None when the trader dep is absent). Pinned as
+    # "write" so they stay distinguishable from a read that turned into one.
+    ("terminal_tabs/__init__.py", 57, "write"),
+    ("terminal_tabs/__init__.py", 60, "write"),
 }
 
 
@@ -110,7 +158,10 @@ def test_globals_call_zero_surface_pin() -> None:
 
     unexpected = sites - GLOBALS_CALL_ALLOWED
     assert not unexpected, (
-        "New globals() call site detected. ``globals()`` defeats static "
+        "Unreviewed globals() site: either a NEW call, or an allow-listed one "
+        "whose KIND changed (the third tuple element). A read that became a "
+        "write is the dangerous one — it bypasses the import system while the "
+        "line number stays put. ``globals()`` defeats static "
         "analysis and is a stepping stone toward ``globals()[name] = ...`` "
         "mutation. Prefer explicit module-level state or a dataclass / "
         "TypedDict context object (see terminal_attention_state / "

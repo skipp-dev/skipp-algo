@@ -34,10 +34,12 @@ def _realtime_signals_noqa_s603_lines() -> set[int]:
 
 
 def _realtime_signals_subprocess_lines() -> set[int]:
+    # The spawn ledgers gained a third element (the literal argv) on 2026-07-15;
+    # this guard couples LINE numbers only, so it indexes rather than unpacks.
     return {
-        lineno
-        for rel, lineno in (SUBPROCESS_RUN_LEDGER | SUBPROCESS_POPEN_LEDGER)
-        if rel == _REALTIME_SIGNALS
+        entry[1]
+        for entry in (SUBPROCESS_RUN_LEDGER | SUBPROCESS_POPEN_LEDGER)
+        if entry[0] == _REALTIME_SIGNALS
     }
 
 

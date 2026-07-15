@@ -249,3 +249,73 @@ def test_asyncio_set_event_loop_zero_surface_pin() -> None:
         + "\n  - ".join(f"{rel}: allowed={allowed}, actual={actual}" for rel, allowed, actual in drifted)
         + "\nUpdate SET_EVENT_LOOP_ALLOWED with justification."
     )
+
+
+def _unpaired_set_event_loop_sites() -> list[tuple[str, int, str]]:
+    """Return ``asyncio.set_event_loop(...)`` calls not installing a locally-created loop.
+
+    The two allow-lists are per-file COUNTS of ``new_event_loop`` and
+    ``set_event_loop`` maintained side by side, with nothing tying one to the
+    other — ``node.args`` is never read, the same shape as the ``os.kill(pid, 0)``
+    gap. So the header's asserted pairing ("only legitimate **paired with**
+    ``asyncio.new_event_loop()`` in a non-main thread that **owns the loop for
+    its entire lifetime**") went unchecked, and
+
+        asyncio.set_event_loop(loop)  ->  asyncio.set_event_loop(None)
+
+    kept both counts and passed (verified 2026-07-15) while the freshly created
+    loop is never installed and leaks — and the thread then hits the
+    ``RuntimeError: There is no current event loop`` the header names verbatim.
+
+    Rule: within the enclosing function, ``set_event_loop(X)`` requires ``X`` to
+    be a plain name bound from ``asyncio.new_event_loop()``. ``None`` (clearing
+    the loop) and any expression whose origin cannot be seen are reported.
+
+    Scope, honestly: this pins the pairing, not the "owns it for its entire
+    lifetime" half — lifetime needs flow analysis and stays with review.
+    """
+    offenders: list[tuple[str, int, str]] = []
+    for path in _iter_py_files():
+        tree = parse_module(path)
+        if tree is None:
+            continue
+        rel = path.relative_to(ROOT).as_posix()
+        for func in ast.walk(tree):
+            if not isinstance(func, (ast.FunctionDef, ast.AsyncFunctionDef)):
+                continue
+            created: set[str] = set()
+            for node in ast.walk(func):
+                if (
+                    isinstance(node, ast.Assign)
+                    and isinstance(node.value, ast.Call)
+                    and isinstance(node.value.func, ast.Attribute)
+                    and node.value.func.attr == "new_event_loop"
+                ):
+                    created.update(t.id for t in node.targets if isinstance(t, ast.Name))
+            for node in ast.walk(func):
+                if not (
+                    isinstance(node, ast.Call)
+                    and isinstance(node.func, ast.Attribute)
+                    and node.func.attr == "set_event_loop"
+                    and isinstance(node.func.value, ast.Name)
+                    and node.func.value.id == "asyncio"
+                ):
+                    continue
+                arg = node.args[0] if node.args else None
+                shown = ast.unparse(arg) if arg is not None else "<no args>"
+                if not (isinstance(arg, ast.Name) and arg.id in created):
+                    offenders.append((rel, node.lineno, f"set_event_loop({shown})"))
+    return offenders
+
+
+def test_set_event_loop_installs_a_locally_created_loop() -> None:
+    """``set_event_loop`` must install the loop ``new_event_loop`` just made."""
+    offenders = _unpaired_set_event_loop_sites()
+    assert not offenders, (
+        "asyncio.set_event_loop(...) does not install a loop created by "
+        "asyncio.new_event_loop() in the same function. Installing None clears "
+        "the thread's loop and leaks the one just created; installing a loop "
+        "from elsewhere competes with whoever owns it. The per-file counts above "
+        "cannot see this — they never read the argument.\n"
+        f"offenders = {offenders}"
+    )

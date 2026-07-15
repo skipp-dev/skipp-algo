@@ -54,6 +54,36 @@ _FROZEN_FILE_COUNTS: dict[str, int] = {
 _FORBIDDEN_TF_LITERALS = frozenset({"timeframe.period", "syminfo.period", '""', "''"})
 
 
+def _normalise_tf(tf: str) -> str:
+    """Strip wrapping parentheses and whitespace before the blacklist compare.
+
+    The blacklist is a SET MEMBERSHIP test on the raw argument text, so it only
+    ever matched the four exact spellings. `(timeframe.period)` — the same
+    chart-TF request, in parentheses — is a different string and sailed through
+    (verified 2026-07-15: all five tests stayed green with the sole pinned site
+    rewritten that way). Pine treats the parenthesised form identically, so the
+    pin must too. Repeated stripping handles `((timeframe.period))`.
+    """
+    out = tf.strip()
+    while len(out) >= 2 and out.startswith("(") and out.endswith(")"):
+        inner = out[1:-1].strip()
+        # Only unwrap a genuine wrapper: "(a) + (b)" must stay as-is.
+        depth = 0
+        wraps = True
+        for ch in inner:
+            if ch == "(":
+                depth += 1
+            elif ch == ")":
+                depth -= 1
+                if depth < 0:
+                    wraps = False
+                    break
+        if not wraps or depth != 0:
+            break
+        out = inner
+    return out
+
+
 def _iter_pine_files() -> Iterable[Path]:
     for p in sorted(ROOT.glob(_PINE_GLOB)):
         if p.name in _PINE_EXCLUDE:
@@ -140,7 +170,7 @@ def test_no_same_tf_request_security() -> None:
     for rel, ln, tf in _scan_calls():
         if tf is None:
             continue
-        if tf in _FORBIDDEN_TF_LITERALS:
+        if _normalise_tf(tf) in _FORBIDDEN_TF_LITERALS:
             bad.append(f"{rel}:{ln}: same-TF request.security (tf={tf!r})")
     assert not bad, (
         "request.security must request an HTF — same-TF calls are wasteful "

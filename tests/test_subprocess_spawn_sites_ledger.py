@@ -71,8 +71,42 @@ def _iter_py_files() -> list[Path]:
     return out
 
 
-def _subprocess_attr_sites(attr: str) -> set[tuple[str, int]]:
-    """Return ``{(relpath, lineno)}`` for literal ``subprocess.<attr>(...)`` calls.
+def _literal_argv(node: ast.Call) -> str:
+    """Return the literal argv words of a spawn call, joined by spaces.
+
+    Non-literal elements (``git_exe``, an f-string, a variable) are rendered
+    as ``?`` — the interpreter path is legitimately resolved at runtime via
+    ``shutil.which``, so pinning it would be noise. What IS pinned is the
+    command identity: ``? rev-parse HEAD`` cannot silently become
+    ``? push --force origin HEAD``.
+    """
+    if not node.args:
+        return "<no argv>"
+    first = node.args[0]
+    if not isinstance(first, (ast.List, ast.Tuple)):
+        return f"<non-list: {type(first).__name__}>"
+    words = []
+    for elt in first.elts:
+        if isinstance(elt, ast.Constant) and isinstance(elt.value, str):
+            words.append(elt.value)
+        else:
+            words.append("?")
+    return " ".join(words)
+
+
+def _subprocess_attr_sites(attr: str) -> set[tuple[str, int, str]]:
+    """Return ``{(relpath, lineno, argv)}`` for literal ``subprocess.<attr>(...)`` calls.
+
+    ``argv`` is the third element since 2026-07-15. The ledger pinned
+    ``(path, lineno)`` only, while its header promises "Every entry is a
+    deliberate, reviewed external command invocation" and each entry names its
+    exact command in a comment — prose the collector never read. So rewriting
+    an allow-listed argv in place::
+
+        [git_exe, "rev-parse", "HEAD"]  ->  [git_exe, "push", "--force", "origin", "HEAD"]
+
+    turned a provenance read into a force-push and passed the pin (verified).
+    shell=True is banned elsewhere, so the argv IS the command surface.
 
     Detects only the ``subprocess.<attr>`` shape: an attribute call whose
     receiver is exactly ``Name('subprocess')``. Aliased imports
@@ -103,7 +137,9 @@ def _subprocess_attr_sites(attr: str) -> set[tuple[str, int]]:
                 continue
             if not (isinstance(func.value, ast.Name) and func.value.id == "subprocess"):
                 continue
-            sites.add((path.relative_to(ROOT).as_posix(), node.lineno))
+            sites.add(
+                (path.relative_to(ROOT).as_posix(), node.lineno, _literal_argv(node))
+            )
     return sites
 
 
@@ -137,7 +173,13 @@ def _subprocess_alias_or_direct_import_sites() -> set[tuple[str, int, str]]:
 
 
 # Locked surface — every entry is a reviewed external command.
-SUBPROCESS_RUN_LEDGER: set[tuple[str, int]] = {
+# 2026-07-15: the literal argv is now the THIRD element and is ENFORCED. It
+# used to live only in the "# `git rev-parse HEAD` for ..." comments above each
+# entry, so an allow-listed provenance read could be rewritten in place into a
+# force-push and the pin stayed green. "?" marks a runtime-resolved element
+# (the interpreter path via shutil.which, a variable) — the command identity is
+# what this pins, not the absolute paths.
+SUBPROCESS_RUN_LEDGER: set[tuple[str, int, str]] = {
     # `git rev-parse HEAD` for release-manifest provenance.
     # Rebaselined 2026-06-11: RECALIBRATION_REQUIRED annotation on the
     # calibrated-ECE degradation added lines above this site (1107 -> 1119).
@@ -145,7 +187,7 @@ SUBPROCESS_RUN_LEDGER: set[tuple[str, int]] = {
     # the subprocess.run call 1119 -> 1121.
     # 2026-07-13: in-sample-disclosure docstring on MeasurementShadowThresholds shifted 1121 -> 1137.
     # 2026-07-13: OOS advisory ceilings (thresholds/registry/checks) shifted 1137 -> 1210.
-    ("smc_integration/release_policy.py", 1210),
+    ("smc_integration/release_policy.py", 1210, "? rev-parse HEAD"),
     # `pgrep` to discover the realtime-signals daemon PID.
     # Rebaselined 2026-05-15 after PR #2233 mainline merge restored the
     # branch-local realtime_signals layout.
@@ -153,22 +195,25 @@ SUBPROCESS_RUN_LEDGER: set[tuple[str, int]] = {
     # 2026-06-28 (semantic monitoring): shifted +20 lines by _extract_snapshot_epoch helper.
     # 2026-07-03 (WP-4 holiday gate): shifted +2 (import block above).
     # 2026-07-12: +1 (DATA_STALL_SECONDS constant added above).
-    ("open_prep/realtime_signals.py", 218),
+    ("open_prep/realtime_signals.py", 218, "? -f python.*-m open_prep.realtime_signals"),
     # 2026-06-22: Grafana dashboard publish script keychain token lookup.
     # Line shifted 151 -> 173 after ADR-0025 App Platform (/apis
     # dashboard.grafana.app/v1) migration added namespace/folder args above.
-    ("scripts/publish_overlay_dashboard.py", 173),
+    ("scripts/publish_overlay_dashboard.py", 173, "? find-generic-password -s ? -a ? -w"),
     # 2026-06-23: host helper publishing latest realtime signals snapshot to
     # rolling bot branch via explicit git argv subprocess calls.
-    ("scripts/publish_signals_snapshot.py", 73),
+    # Generic `[git_exe, *args]` wrapper: the argv is dynamic BY DESIGN, so "? ?"
+    # is all this pin can say here — its callers are the reviewable surface, not
+    # this line. Stated rather than papered over.
+    ("scripts/publish_signals_snapshot.py", 73, "? ?"),
 }
 
-SUBPROCESS_POPEN_LEDGER: set[tuple[str, int]] = {
+SUBPROCESS_POPEN_LEDGER: set[tuple[str, int, str]] = {
     # Detached re-launch of the realtime-signals daemon.
     # Shifted 336 -> 337 -> 341 after import hmac + lock fix + do_HEAD addition.
     # 2026-06-28 (semantic monitoring): shifted +20 lines by _extract_snapshot_epoch helper.
     # 2026-07-03 (WP-4 holiday gate): shifted +2 (import block above).
-    ("open_prep/realtime_signals.py", 383),  # 2026-07-13 (rt_engine_status liveness re-validate above): 368->383
+    ("open_prep/realtime_signals.py", 383, "? -m open_prep.realtime_signals --interval ?"),  # 2026-07-13 (rt_engine_status liveness re-validate above): 368->383
 }
 
 
