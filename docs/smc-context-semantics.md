@@ -103,6 +103,21 @@ objects `eng.fvgs_objects()` yields):
 - **FVG mitigation:** `mit_pct = clamp(fill_depth / gap_size, 0..1)`; a bull FVG's
   `fill_depth = max(0, top − last_low)`, a bear FVG's `= max(0, last_high − bottom)`.
   Active while `mit_pct < 1.0`; partial when `mit_pct ≥ 0.5`.
+
+  **How the Pine port realises this.** It never recomputes `mit_pct`. It
+  configures the engine so that `eng.FVG.filled` *means* full mitigation, then
+  delegates to it:
+
+  - `fill_target_ratio = FULL_MIT_PCT` — the engine retires an FVG once price
+    reaches `top − ratio*size`, so any lower ratio retires it early. Passed as the
+    constant, never a builder parameter: a caller lowering it would break this
+    contract while every test stayed green.
+  - `fill_mode = HIGHLOW` — the engine defaults to CLOSE, which measures from the
+    close and reports ~0% for a bar that wicked deep into the gap and closed back
+    above it. That is the opposite of the `last_low` / `last_high` rule above.
+
+  Every derived field (`*_count`, BPR, liquidity void, `zone_bias`, `state`) reads
+  the engine's **active** buffers, so they all describe one population.
 - **BPR** = an active bull FVG and active bear FVG that overlap:
   `overlap_top = min(bull_top, bear_top)`, `overlap_bottom = max(bull_bottom, bear_bottom)`,
   active iff `overlap_top > overlap_bottom`. Direction `BULL` if

@@ -48,11 +48,11 @@ import preuss_steffen/smc_engine_private/1 as eng
 
 // --- golden-checked (names must match _meta.thresholds) ---
 const float PARTIAL_MIT_PCT       = 0.5   // gap filled >= 50% -> partial mitigation
+const float FULL_MIT_PCT          = 1.0   // gap fully closed  -> no longer active.
+                                          // Handed to the engine as the FVG fill
+                                          // target, which is what makes
+                                          // eng.FVG.filled mean "fully mitigated".
 const float LIQ_VOID_MIN_SIZE_PCT = 2.0   // gap >= 2% of mid  -> liquidity void
-
-// FULL_MIT_PCT (1.0) is deliberately absent: the engine's FVG.filled flag is the
-// full-mitigation SSOT and this library never recomputes mit_pct >= 1.0. Recorded
-// as a delegation in the contract test rather than left as a silent gap.
 
 // --- Pine-only (Column B spec, no Python golden) ---
 const int   ZONE_BIAS_COUNT_DELTA = 2     // |bull-bear count| >= 2 -> directional bias
@@ -288,11 +288,25 @@ export build_structure_frame(simple int swing_len = 50, simple int fresh_max_bar
 // Build the imbalance frame (FVG lifecycle + BPR + liquidity void) from the
 // engine's object-based FVG tracker. Detection is the engine's; the rule layer
 // (mitigation/BPR/void/zone-bias/state) matches the golden parity contract.
-export build_imbalance_frame(float fill_target_ratio = 0.5, float size_threshold = 0.0) =>
-    // fill_mode is left at the engine default (ct.LevelBreakMode.CLOSE) via named
-    // args, so this builder never references the ct enum directly — keeping
-    // core_types a pure type-resolution import (like the d.* draw types).
-    [_bull_alert, _bear_alert, active_bull, active_bear, _new_bull, _new_bear, _bull_filled, _bear_filled, _bull_filled_new, _bear_filled_new, _bull_disc, _bear_disc] = eng.fvgs_objects(fill_target_ratio = fill_target_ratio, size_threshold = size_threshold)
+export build_imbalance_frame(float size_threshold = 0.0) =>
+    // The engine is asked for TERMINAL, WICK-measured fills. Both arguments are
+    // the parity contract, not preferences:
+    //
+    //   fill_target_ratio = FULL_MIT_PCT. The engine retires an FVG once price
+    //   reaches `top - ratio*size`, so the previous 0.5 default retired it at the
+    //   gap MIDPOINT. Everything downstream read a truncated population:
+    //   bull_fvg_partial was unreachable (past 50% the FVG had already left the
+    //   active buffer), and count / BPR / liq_void / zone_bias / state were all
+    //   computed from it. Deliberately NOT a parameter — a caller lowering it
+    //   would silently break the golden contract while every test stayed green.
+    //
+    //   fill_mode = HIGHLOW. The golden measures mitigation from the wick
+    //   (`top - last_low` for bull, `last_high - bottom` for bear). The engine
+    //   defaults to CLOSE, which reports ~0% for a bar that wicked deep into the
+    //   gap and closed back above it. Referencing ct.* here is fine: only `pe` is
+    //   a type-resolution-only import (see the allowlist in
+    //   tests/test_pine_library_import_permissions.py).
+    [_bull_alert, _bear_alert, active_bull, active_bear, _new_bull, _new_bear, _bull_filled, _bear_filled, _bull_filled_new, _bear_filled_new, _bull_disc, _bear_disc] = eng.fvgs_objects(fill_mode = ct.LevelBreakMode.HIGHLOW, fill_target_ratio = FULL_MIT_PCT, size_threshold = size_threshold)
 
     [has_bull, bull_top, bull_bottom, bull_mit] = _newest_active_fvg(active_bull)
     [has_bear, bear_top, bear_bottom, bear_mit] = _newest_active_fvg(active_bear)

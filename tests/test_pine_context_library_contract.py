@@ -34,8 +34,6 @@ import json
 import re
 from pathlib import Path
 
-import pytest
-
 REPO_ROOT = Path(__file__).resolve().parent.parent
 LIB_PATH = REPO_ROOT / "SMC++" / "smc_context_engine_private.pine"
 GOLDEN_PATH = REPO_ROOT / "tests" / "fixtures" / "smc_context_golden.json"
@@ -45,10 +43,13 @@ GOLDEN_PATH = REPO_ROOT / "tests" / "fixtures" / "smc_context_golden.json"
 # on any frozen threshold that is neither implemented in Pine nor listed here, so
 # a newly added threshold cannot slip past unnoticed.
 _NOT_IN_PINE: dict[str, str] = {
-    "FULL_MIT_PCT": (
-        "delegated to the engine: eng.FVG.filled is the full-mitigation SSOT and "
-        "the library never recomputes mit_pct >= 1.0"
-    ),
+    # FULL_MIT_PCT used to sit here as "delegated to the engine: eng.FVG.filled is
+    # the full-mitigation SSOT". Sound in principle, false in fact — the builder
+    # handed the engine fill_target_ratio = 0.5, so `filled` fired at the gap
+    # MIDPOINT and meant "half filled". The entry made that read as a decision on
+    # record rather than a bug, which is worse than a silent gap. The library now
+    # passes FULL_MIT_PCT itself, which is what makes the delegation true, so the
+    # threshold is golden-checked like its siblings and is no longer deferred.
     # --- sweeps: not ported yet (phase 3.2b-1) --------------------------------
     # NOTE when porting: SWEEP_DEPTH_STOP_HUNT_PCT is its own constant (0.3) and
     # must be ported as one. Do NOT re-derive it as ``SWEEP_DEPTH_MIN_PCT * 3`` —
@@ -425,31 +426,24 @@ def _effective_terminal_fill_ratio() -> float:
     return consts[val]
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason=(
-        "KNOWN VIOLATION (F1). _NOT_IN_PINE records FULL_MIT_PCT as 'delegated to "
-        "the engine: eng.FVG.filled is the full-mitigation SSOT'. That delegation "
-        "is only true if the builder asks the engine for a TERMINAL fill target. "
-        "It asks for 0.5, so eng.FVG.filled fires at the gap MIDPOINT and "
-        "clear_filled() drops the FVG from the active buffer at half mitigation. "
-        "Consequences: the golden state FULL_MITIGATION=false + "
-        "PARTIAL_MITIGATION=true is unreachable in Pine, bull_fvg_partial is only "
-        "reachable on an exact-midpoint tick, and count/BPR/zone_bias/state are "
-        "computed from a truncated set. Un-xfail together with the fix; "
-        "strict=True fails the suite the moment the source is corrected."
-    ),
-)
 def test_engine_fill_delegation_holds_its_precondition() -> None:
-    """Delegating FULL_MIT_PCT to the engine requires a terminal fill target."""
+    """Delegating full mitigation to the engine requires a terminal fill target.
+
+    Was xfail(strict=True) while the builder passed 0.5: eng.FVG.filled then
+    fired at the gap MIDPOINT, so the delegation recorded in _NOT_IN_PINE was
+    false and the golden state FULL_MITIGATION=false + PARTIAL_MITIGATION=true
+    was unreachable. The builder now passes FULL_MIT_PCT, which is what makes
+    `filled` mean "fully mitigated" — so this is a live assertion again.
+    """
     expected = _golden_thresholds()["FULL_MIT_PCT"]
     actual = _effective_terminal_fill_ratio()
     assert actual == expected, (
         f"build_imbalance_frame effectively passes fill_target_ratio={actual} to "
-        f"the engine, but _NOT_IN_PINE delegates FULL_MIT_PCT ({expected}) to "
-        "eng.FVG.filled. The engine sets `filled` once price crosses "
-        "top - ratio*size, so any ratio below 1.0 makes that delegation false: "
-        "the flag then means 'partially filled', not 'fully mitigated'."
+        f"the engine, but the golden terminal threshold FULL_MIT_PCT is "
+        f"{expected}. The engine sets `filled` once price reaches "
+        "top - ratio*size, so any ratio below 1.0 retires the FVG early: the "
+        "flag then means 'partially filled', not 'fully mitigated', and every "
+        "field derived from the active buffer reads a truncated population."
     )
 
 
@@ -729,4 +723,87 @@ def test_zone_filter_defaults_match_their_consts() -> None:
             f"build_zone_frame defaults {param}={m.group(1)} but "
             f"{const_name} is {consts[const_name]}. The signature literal and "
             "the const must state the same number."
+        )
+
+
+def test_imbalance_mitigation_is_measured_from_the_wick() -> None:
+    """The engine must be asked for HIGHLOW, not its CLOSE default (F2).
+
+    The golden measures mitigation from the wick: `top - last_low` for bull,
+    `last_high - bottom` for bear (scripts/smc_imbalance_lifecycle.py). The
+    engine defaults to CLOSE, which reports ~0% for a bar that wicked deep into
+    the gap and closed back above it — so a 60%-mitigated bull FVG read as
+    untouched, and `bull_fvg_partial` stayed false.
+    """
+    call = re.search(
+        r"eng\.fvgs_objects\((?P<args>[^)]*)\)", _builder_body("build_imbalance_frame")
+    )
+    assert call, "build_imbalance_frame no longer calls eng.fvgs_objects"
+    args = call.group("args")
+    m = re.search(r"fill_mode\s*=\s*(?P<mode>[\w.]+)", args)
+    assert m, (
+        "build_imbalance_frame does not pass fill_mode, so the engine's CLOSE "
+        "default applies and mitigation is measured from the close, not the wick"
+    )
+    assert m.group("mode") == "ct.LevelBreakMode.HIGHLOW", (
+        f"fill_mode is {m.group('mode')!r}; the golden measures mitigation from "
+        "the wick, which is ct.LevelBreakMode.HIGHLOW"
+    )
+    oracle = (REPO_ROOT / "scripts" / "smc_imbalance_lifecycle.py").read_text(
+        encoding="utf-8"
+    )
+    assert "top - last_low" in oracle and "last_high - bottom" in oracle, (
+        "the oracle no longer measures mitigation from the wick — re-check which "
+        "fill_mode the Pine builder should request"
+    )
+
+
+def test_imbalance_terminal_ratio_is_not_caller_configurable() -> None:
+    """The terminal fill target is the contract, not a knob.
+
+    While it was a public parameter defaulting to 0.5, any caller could retire
+    FVGs early and every test stayed green. It is now fixed at FULL_MIT_PCT.
+    """
+    args = _builder_signature("build_imbalance_frame")
+    assert "fill_target_ratio" not in args, (
+        "build_imbalance_frame exposes fill_target_ratio again. A caller lowering "
+        "it silently breaks the golden parity contract — the terminal target "
+        "belongs to the contract, not the call site."
+    )
+
+
+def test_imbalance_fields_read_one_active_population() -> None:
+    """Counts, newest, BPR, void and zone_bias must share the active buffers.
+
+    Mixing populations (e.g. counting a filled-history array while reading
+    geometry from the active one) would produce a frame that is internally
+    inconsistent rather than merely wrong.
+    """
+    body = _builder_body("build_imbalance_frame")
+    for expr, what in (
+        (r"_newest_active_fvg\(active_bull\)", "newest bull FVG"),
+        (r"_newest_active_fvg\(active_bear\)", "newest bear FVG"),
+        (r"array\.size\(active_bull\)", "bull count"),
+        (r"array\.size\(active_bear\)", "bear count"),
+        (r"_first_void\(active_bull,", "bull liquidity void"),
+        (r"_first_void\(active_bear,", "bear liquidity void"),
+    ):
+        assert re.search(expr, body), f"{what} no longer reads the active buffer"
+    # The engine also returns the filled / filled-new / discarded buffers. They
+    # are destructured (Pine has no positional skip) but must never be read: this
+    # frame describes the ACTIVE population. Surfacing full-mitigation events is
+    # F5, a separate contract decision. One occurrence each = the destructure.
+    for unused in (
+        "_bull_filled",
+        "_bear_filled",
+        "_bull_filled_new",
+        "_bear_filled_new",
+        "_bull_disc",
+        "_bear_disc",
+    ):
+        hits = len(re.findall(rf"\b{re.escape(unused)}\b", body))
+        assert hits == 1, (
+            f"{unused} appears {hits}x in build_imbalance_frame; expected exactly "
+            "one (the destructuring). The rule layer must read only the active "
+            "buffers — full-mitigation events are F5, not this frame."
         )
