@@ -231,3 +231,66 @@ def test_total_count_pinned() -> None:
         f"sys.path mutation total drifted: expected {_FROZEN_TOTAL}, "
         f"got {total}. Per-file = {sorted(observed.items())}"
     )
+
+
+def _sys_path_mutations_not_inserting_at_zero() -> list[tuple[str, int, str]]:
+    """Return sys.path mutations that are not ``insert(0, ...)``.
+
+    ``_FROZEN_SITES`` is a per-file COUNT, and ``_is_sys_path_mutation`` pools
+    ``insert`` and ``append`` without reading the position — so the convention
+    the header states, "every site is a one-shot ``sys.path.insert(0,
+    REPO_ROOT)``", was never checked. All three of these keep the count and pass
+    the pin (verified 2026-07-15):
+
+        sys.path.insert(0, str(ROOT))  ->  sys.path.insert(1, str(ROOT))
+        sys.path.insert(0, str(ROOT))  ->  sys.path.append(str(ROOT))
+        sys.path.insert(0, str(ROOT))  ->  sys.path.insert(0, os.environ[...])
+
+    Position matters: at index 1 the entry loses to whatever holds index 0 —
+    under ``python scripts/X.py`` that is the script's own directory — and
+    ``append`` puts it last. Either way `import foo` can resolve to a different
+    foo.py depending on which script booted the process, which is the exact
+    "order-dependent imports become silently fragile" foot-gun the header names.
+
+    Universal, not per-site: the position is a property of every mutation, not
+    something a count budget can legitimise for one file.
+    """
+    offenders: list[tuple[str, int, str]] = []
+    for path in _iter_first_party_py_files():
+        try:
+            tree = ast.parse(path.read_text(encoding="utf-8"), filename=str(path))
+        except (OSError, UnicodeDecodeError, SyntaxError):
+            continue
+        rel = path.relative_to(ROOT).as_posix()
+        for node in ast.walk(tree):
+            if not (isinstance(node, ast.Call) and _is_sys_path_mutation(node)):
+                continue
+            func = node.func
+            assert isinstance(func, ast.Attribute)
+            if func.attr == "append":
+                offenders.append((rel, node.lineno, "append() — lands at lowest precedence"))
+                continue
+            first = node.args[0] if node.args else None
+            at_zero = (
+                isinstance(first, ast.Constant)
+                and isinstance(first.value, int)
+                and not isinstance(first.value, bool)
+                and first.value == 0
+            )
+            if not at_zero:
+                shown = ast.unparse(first) if first is not None else "<no args>"
+                offenders.append((rel, node.lineno, f"insert({shown}, ...) — not position 0"))
+    return offenders
+
+
+def test_sys_path_is_only_ever_inserted_at_position_zero() -> None:
+    """The pinned convention is ``insert(0, ...)`` — enforce it, don't just count."""
+    offenders = _sys_path_mutations_not_inserting_at_zero()
+    assert not offenders, (
+        "sys.path mutated somewhere other than position 0. The repo convention is "
+        "a one-shot `sys.path.insert(0, REPO_ROOT)` before relative-from-root "
+        "imports; anything else lets `import foo` resolve differently depending "
+        "on which script booted the process. The per-file count above cannot see "
+        "this — insert and append are pooled and the position is never read.\n"
+        f"offenders = {offenders}"
+    )
