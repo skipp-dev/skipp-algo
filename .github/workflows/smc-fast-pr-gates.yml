@@ -373,6 +373,14 @@ jobs:
         # in fast-gates blocks merge under main-governance instead of
         # being discovered ~6 min later in the slow validate job.
         # See PR #2348 for the regression that motivated this gate.
+        #
+        # The four bus-v3 contract guards at the end of the list are here for the
+        # same reason, discovered the hard way: fast-gates is the only merge-gating
+        # test job, so a guard outside it does not guard. #3657 shipped the
+        # smc_profile_engine allowlist exception plus its enforcing test, and
+        # neither ran in CI — the PR merged green having never executed them. The
+        # v2 64/64 freeze and the Python->Pine threshold parity check had the same
+        # hole. All four are source-parsing only (<2s total).
         if: steps.gate.outputs.run_heavy == 'true'
         run: |
           python -m pytest -q --maxfail=1 \
@@ -449,7 +457,11 @@ jobs:
             tests/test_run_edge_pipeline.py \
             tests/test_fast_gates_silent_skip_coverage.py \
             tests/test_lint_debt_no_regression.py \
-            tests/test_pytest_marker_bucket_discipline.py
+            tests/test_pytest_marker_bucket_discipline.py \
+            tests/test_smc_bus_v2_freeze.py \
+            tests/test_smc_context_golden.py \
+            tests/test_pine_context_library_contract.py \
+            tests/test_pine_library_import_permissions.py
 
       - name: Run fast SMC integration tests
         if: steps.gate.outputs.run_heavy == 'true'

@@ -53,6 +53,8 @@ FAST_TEST_FILES: frozenset[str] = frozenset({
     "test_os_unlink_remove_ledger.py",
     "test_path_text_io_encoding_ledger.py",
     "test_pine_alertcondition_and_declaration_pin.py",
+    "test_pine_context_library_contract.py",
+    "test_pine_library_import_permissions.py",
     "test_pine_request_security_htf_pin.py",
     "test_pine_var_budget_pin.py",
     "test_prod_print_ledger.py",
@@ -103,6 +105,12 @@ FAST_TEST_FILES: frozenset[str] = frozenset({
     "test_verdict_panel.py",
     "test_run_edge_pipeline.py",
     "test_fast_gates_silent_skip_coverage.py",
+    # Bus-v3 / context-library contract guards. On the required path because
+    # fast-gates is the only merge-gating test job: #3657 landed the
+    # smc_profile_engine allowlist exception together with the test enforcing it,
+    # and CI ran neither. Source-parsing only, <2s total.
+    "test_smc_bus_v2_freeze.py",
+    "test_smc_context_golden.py",
     # Fast SMC integration suite
     "test_smc_action_degradation.py",
     "test_manifest_preference.py",

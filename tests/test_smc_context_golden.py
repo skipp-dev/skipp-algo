@@ -22,7 +22,11 @@ from scripts.smc_imbalance_lifecycle import (
     LIQ_VOID_MIN_SIZE_PCT,
     PARTIAL_MIT_PCT,
 )
-from scripts.smc_liquidity_pools import IMBALANCE_SIG_THRESHOLD
+from scripts.smc_liquidity_pools import (
+    CLUSTER_STRONG_COUNT,
+    IMBALANCE_SIG_THRESHOLD,
+    PROXIMITY_NEAR_PCT,
+)
 from scripts.smc_liquidity_sweeps import (
     SWEEP_DEPTH_MIN_PCT,
     SWEEP_RECLAIM_MAX_BARS,
@@ -54,8 +58,34 @@ def test_frozen_thresholds_match_live_constants() -> None:
         "SWEEP_DEPTH_MIN_PCT": SWEEP_DEPTH_MIN_PCT,
         "SWEEP_RECLAIM_MAX_BARS": SWEEP_RECLAIM_MAX_BARS,
         "SWEEP_VOLUME_RATIO_MIN": SWEEP_VOLUME_RATIO_MIN,
+        "SWEEP_DEPTH_STOP_HUNT_PCT": SWEEP_DEPTH_MIN_PCT * 3,
     }
-    assert thresholds["pools"] == {"IMBALANCE_SIG_THRESHOLD": IMBALANCE_SIG_THRESHOLD}
+    assert thresholds["pools"] == {
+        "IMBALANCE_SIG_THRESHOLD": IMBALANCE_SIG_THRESHOLD,
+        "PROXIMITY_NEAR_PCT": PROXIMITY_NEAR_PCT,
+        "CLUSTER_STRONG_COUNT": CLUSTER_STRONG_COUNT,
+    }
+
+
+def test_stop_hunt_depth_gate_is_derived_not_a_clean_three_tenths() -> None:
+    """The STOP_HUNT depth gate is ``SWEEP_DEPTH_MIN_PCT * 3``, not a literal 0.3.
+
+    ``0.1 * 3`` is 0.30000000000000004 in IEEE-754, so a depth of *exactly* 0.3
+    does **not** clear the gate — the reference classifies it LIQUIDITY_GRAB. A
+    port that hardcodes a clean ``0.3`` (as the prose spec used to say) returns
+    STOP_HUNT for that input and silently diverges.
+
+    This pins the artifact deliberately. Rounding the gate to a clean 0.3 would be
+    a behaviour change to a production scorer and needs its own decision — it must
+    not happen as a side effect of a doc or port change.
+    """
+    gate = SWEEP_DEPTH_MIN_PCT * 3
+    assert gate != 0.3, "0.1*3 no longer carries the float artifact — re-examine the boundary fixture"
+    # gate > 0.3 is exactly why a depth of 0.3 fails `depth >= gate` in the reference.
+    assert gate > 0.3, "a depth of exactly 0.3 must NOT clear the STOP_HUNT gate"
+    boundary = _frozen()["liquidity_sweeps"]["stop_hunt_depth_boundary"]
+    assert boundary["row"]["sweep_depth_pct"] == 0.3
+    assert boundary["expected"]["SWEEP_TYPE"] == "LIQUIDITY_GRAB"
 
 
 def test_golden_covers_every_rule_branch() -> None:
@@ -78,6 +108,20 @@ def test_golden_covers_every_rule_branch() -> None:
     # Both-sides sweep with no explicit bias must stay ambiguous (NONE), not
     # silently default to BULL.
     assert g["liquidity_sweeps"]["both_sides_ambiguous"]["expected"]["SWEEP_DIRECTION"] == "NONE"
+
+    # _classify_sweep_type has TWO paths, and covering the four output *values*
+    # above only exercises one of them (the depth/volume derivation). An explicit
+    # row ``sweep_type`` is returned verbatim and skips the derivation entirely.
+    # Assert a fixture actually takes that branch — and that it is discriminating,
+    # i.e. its inputs would derive a *different* type if the branch were missed.
+    passthrough = g["liquidity_sweeps"]["explicit_type_passthrough"]
+    assert passthrough["row"]["sweep_type"] == "INDUCEMENT"
+    assert passthrough["expected"]["SWEEP_TYPE"] == "INDUCEMENT"
+    assert passthrough["row"]["sweep_depth_pct"] >= SWEEP_DEPTH_MIN_PCT * 3
+    assert passthrough["row"]["sweep_volume_ratio"] >= SWEEP_VOLUME_RATIO_MIN, (
+        "the passthrough fixture must carry inputs that would derive STOP_HUNT, "
+        "otherwise it cannot catch a port that skips the passthrough branch"
+    )
 
     magnets = {v["expected"]["POOL_MAGNET_DIRECTION"] for v in g["liquidity_pools"].values()}
     assert {"UP", "DOWN", "NONE"} <= magnets
