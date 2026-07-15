@@ -93,27 +93,54 @@ def test_iter_tracked_files_excludes_untracked_root_scratch_file() -> None:
 _requires_git = pytest.mark.skipif(shutil.which("git") is None, reason="git unavailable")
 
 
+def _git(path: Path, *args: str) -> None:
+    """Run git against the throwaway repo at ``path`` and nowhere else.
+
+    The identity is passed per invocation with ``-c`` rather than written with
+    ``git config``. A ``git config`` write is persistent and, in a worktree,
+    lands in the SHARED config of the real repository — so a test helper that
+    writes one can retag the developer's own commits. Passing ``-c`` cannot
+    outlive the process.
+
+    ``--git-dir``/``--work-tree`` are explicit for the same reason: they pin the
+    target, so git can never walk up out of ``path`` and operate on the repo
+    this test file lives in.
+    """
+    subprocess.run(
+        [
+            "git",
+            "--git-dir",
+            str(path / ".git"),
+            "--work-tree",
+            str(path),
+            "-c",
+            "user.email=guard@example.invalid",
+            "-c",
+            "user.name=guard",
+            "-c",
+            "commit.gpgsign=false",
+            *args,
+        ],
+        check=True,
+        capture_output=True,
+        cwd=path,
+    )
+
+
 def _init_repo(path: Path) -> None:
     """Make ``path`` a real git repo with one commit (no *.py tracked)."""
     subprocess.run(["git", "init", "-q", str(path)], check=True, capture_output=True)
-    for args in (
-        ["config", "user.email", "guard@test"],
-        ["config", "user.name", "guard"],
-    ):
-        subprocess.run(["git", "-C", str(path), *args], check=True, capture_output=True)
     (path / "seed.txt").write_text("seed\n", encoding="utf-8")
-    subprocess.run(["git", "-C", str(path), "add", "seed.txt"], check=True, capture_output=True)
-    subprocess.run(
-        ["git", "-C", str(path), "commit", "-qm", "seed"], check=True, capture_output=True
-    )
+    _git(path, "add", "seed.txt")
+    _git(path, "commit", "-qm", "seed")
 
 
 def _commit_py(path: Path, *names: str) -> None:
     for name in names:
         (path / name).parent.mkdir(parents=True, exist_ok=True)
         (path / name).write_text("x = 1\n", encoding="utf-8")
-        subprocess.run(["git", "-C", str(path), "add", name], check=True, capture_output=True)
-    subprocess.run(["git", "-C", str(path), "commit", "-qm", "py"], check=True, capture_output=True)
+        _git(path, "add", name)
+    _git(path, "commit", "-qm", "py")
 
 
 @_requires_git
