@@ -16,6 +16,9 @@ library("smc_context_engine_private", overlay = true)
 
 import preuss_steffen/smc_engine_private/1 as eng
 import preuss_steffen/smc_core_types/5 as ct
+// Required because eng.FVG has fields typed d.SmcBox / d.SmcLine / d.SmcLabel:
+// Pine requires every library referenced by a used type's fields to be imported.
+import preuss_steffen/smc_draw/3 as d
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Rule-layer thresholds — mirror tests/fixtures/smc_context_golden.json._meta.
