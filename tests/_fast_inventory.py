@@ -100,6 +100,28 @@ FAST_TEST_FILES: frozenset[str] = frozenset({
     "test_division_site_baseline.py",
     "test_pine_request_security_per_file_budget.py",
     "test_requirements_discipline_pin.py",
+    # Zero-surface security guards. On the required path because fast-gates is
+    # the only merge-gating test job: these forbid a construct outright, so an
+    # ungated one lets a NEW violation merge green and only fails afterwards in
+    # `validate` (agent.py's asyncio.run reached main exactly that way, #3499).
+    # #3672/#3680 derive the required set from a ledger's structure — line pins
+    # or per-file counts — which these have neither of, so they were invisible
+    # to it. Cost measured A/B on one machine, each run alone: the drift-guard
+    # suite goes 104.98s -> 112.08s (2160 -> 2189 tests), i.e. ~7s. Cheap
+    # because they share the cached AST corpus: parsing ~1030 first-party
+    # modules is already paid for by the guards ahead of them, so each of these
+    # only re-walks the trees. (Run standalone on a cold cache the same set
+    # costs ~62s — nearly all of it that first parse.)
+    "test_dangerous_builtins_zero_surface.py",
+    "test_datetime_tz_safety_zero_surface.py",
+    "test_dynamic_exec_and_pickle_zero_surface.py",
+    "test_exec_mktemp_shelltrue_zero_surface.py",
+    "test_library_discipline_zero_surface.py",
+    "test_os_system_input_assert_zero_surface.py",
+    "test_pickle_read_and_eval_zero_surface.py",
+    "test_pickle_write_and_abs_pathjoin_zero_surface.py",
+    "test_tls_jwt_verification_zero_surface.py",
+    "test_yaml_xml_zero_surface.py",
     "test_module_test_coverage_pin.py",
     "test_workflow_python_unbuffered.py",
     "test_workflow_pythonpath_for_direct_invoke.py",

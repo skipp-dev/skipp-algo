@@ -105,12 +105,16 @@ FULL_REQUIRED_PATH_TRIPWIRES: tuple[str, ...] = (
     "tests/test_broad_except_silent_budget.py",
     "tests/test_build_family_metrics.py",
     "tests/test_builtin_open_encoding_ledger.py",
+    "tests/test_dangerous_builtins_zero_surface.py",
     "tests/test_dangerous_io_zero_surface_pin.py",
+    "tests/test_datetime_tz_safety_zero_surface.py",
     "tests/test_division_site_baseline.py",
+    "tests/test_dynamic_exec_and_pickle_zero_surface.py",
     "tests/test_dynamic_getattr_ledger.py",
     "tests/test_dynamic_import_and_todo_tripwires.py",
     "tests/test_dynamic_setattr_hasattr_zero_surface.py",
     "tests/test_edge_hypotheses_frozen.py",
+    "tests/test_exec_mktemp_shelltrue_zero_surface.py",
     "tests/test_family_event_adapter.py",
     "tests/test_family_returns.py",
     "tests/test_family_verdict.py",
@@ -129,6 +133,7 @@ FULL_REQUIRED_PATH_TRIPWIRES: tuple[str, ...] = (
     "tests/test_hmac_auth_zero_surface.py",
     "tests/test_http_client_discipline.py",
     "tests/test_http_post_egress_ledger.py",
+    "tests/test_library_discipline_zero_surface.py",
     "tests/test_lint_debt_no_regression.py",
     "tests/test_loopback_and_baseimage_pin.py",
     "tests/test_lru_cache_maxsize_discipline.py",
@@ -139,8 +144,11 @@ FULL_REQUIRED_PATH_TRIPWIRES: tuple[str, ...] = (
     "tests/test_noqa_budget.py",
     "tests/test_noqa_suppression_ledger.py",
     "tests/test_os_environ_mutation_ledger.py",
+    "tests/test_os_system_input_assert_zero_surface.py",
     "tests/test_os_unlink_remove_ledger.py",
     "tests/test_path_text_io_encoding_ledger.py",
+    "tests/test_pickle_read_and_eval_zero_surface.py",
+    "tests/test_pickle_write_and_abs_pathjoin_zero_surface.py",
     "tests/test_pine_alertcondition_and_declaration_pin.py",
     "tests/test_pine_context_library_contract.py",
     "tests/test_pine_engine_fill_boundary.py",
@@ -169,6 +177,7 @@ FULL_REQUIRED_PATH_TRIPWIRES: tuple[str, ...] = (
     "tests/test_sys_exit_ledger_pin.py",
     "tests/test_sys_path_mutation_ledger.py",
     "tests/test_time_sleep_budget.py",
+    "tests/test_tls_jwt_verification_zero_surface.py",
     "tests/test_type_ignore_budget.py",
     "tests/test_urllib_urlopen_ledger.py",
     "tests/test_verdict_panel.py",
@@ -189,6 +198,7 @@ FULL_REQUIRED_PATH_TRIPWIRES: tuple[str, ...] = (
     "tests/test_workflow_runner_pinned.py",
     "tests/test_workflow_set_plus_e_inventory.py",
     "tests/test_workflow_upload_artifact_uniform_version.py",
+    "tests/test_yaml_xml_zero_surface.py",
 )
 
 
@@ -421,4 +431,76 @@ def test_every_pinned_ledger_is_on_the_required_path() -> None:
         "smc-fast-pr-gates.yml (plus FULL_REQUIRED_PATH_TRIPWIRES here and "
         "FAST_TEST_FILES in tests/_fast_inventory.py — the meta-guards will name "
         "them), or add it to _LEDGERS_INTENTIONALLY_UNGATED with a justification."
+    )
+
+
+# ---------------------------------------------------------------------------
+# Derived zero-surface guard (2026-07-15)
+# ---------------------------------------------------------------------------
+# The guard above derives its required set from a ledger's *structure*: line
+# pins (#3672) or per-file counts (#3680). Both signatures need an allow-list to
+# exist. That is exactly what the other half of the security surface does not
+# have — a zero-surface guard asserts a construct does not appear at all, so
+# there is nothing to freeze and nothing for those signatures to match.
+#
+# Their failure mode is the inverse, and quieter. Nothing drifts, so nothing
+# goes red — instead a NEW violation merges green and only fails afterwards in
+# the non-required `validate` job. 10 were off the required path when this
+# landed (pickle read/eval, pickle write, exec/mktemp/shell=True, os.system,
+# dangerous builtins, dynamic exec+pickle, TLS/JWT verification, yaml/xml,
+# datetime-tz, library-discipline), and one was ALREADY red on main:
+# agent.py's asyncio.run merged green in #3499 because the rule forbidding it
+# has never run on the required path. The failure mode had already arrived.
+#
+# Naming is a usable signal *here*, where #3672 rejected it for ledgers, and the
+# difference is the hit rate: `*_zero_surface*` matches 17 files and every one
+# is a security guard, whereas ledger/pin/budget-ish names match 300+ files that
+# are mostly unrelated.
+
+# Zero-surface guards deliberately kept OFF the required path. Empty by design:
+# an entry here is a conscious, reviewable decision with a justification, not a
+# side effect of a rebase.
+_ZERO_SURFACE_INTENTIONALLY_UNGATED: frozenset[str] = frozenset()
+
+
+def _zero_surface_guards() -> set[str]:
+    """Every zero-surface security guard, discovered from the tests/ layout."""
+    return {
+        f"tests/{path.name}"
+        for path in sorted((ROOT / "tests").glob("test_*zero_surface*.py"))
+    }
+
+
+def test_every_zero_surface_guard_is_on_the_required_path() -> None:
+    """An ungated zero-surface guard lets a new violation merge green.
+
+    Same contract as the pinned-ledger guard above, for the surface its
+    structural signatures cannot see. Derived from the tests/ layout, so a new
+    zero-surface guard is required-by-default and cannot be born ungated —
+    which is how all of them came to be ungated in the first place.
+    """
+    guards = _zero_surface_guards()
+    # Sanity: discovery actually found guards, so a rename or a layout change
+    # cannot make this test vacuously pass on an empty set.
+    assert len(guards) >= 15, (
+        f"zero-surface discovery found only {len(guards)} — the naming "
+        "convention or the tests/ layout changed and this guard is no longer "
+        "measuring anything"
+    )
+
+    step = _drift_guard_step_text()
+    referenced = set(re.findall(r"tests/test_[A-Za-z0-9_]+\.py", step))
+    ungated = sorted(guards - referenced - _ZERO_SURFACE_INTENTIONALLY_UNGATED)
+    assert not ungated, (
+        "zero-surface guard(s) are not on the required path. fast-gates is the "
+        "only merge-gating job, so these cannot block a merge: a NEW pickle "
+        "load, eval, shell=True, os.system or unverified-TLS call site merges "
+        "green and is only caught afterwards by `validate`, if anyone reads it. "
+        "agent.py's asyncio.run reached main exactly this way (#3499).\n\n"
+        f"Ungated: {ungated}\n\n"
+        "Add each to the 'Run pin / ledger drift guard' step in "
+        "smc-fast-pr-gates.yml (plus FULL_REQUIRED_PATH_TRIPWIRES here and "
+        "FAST_TEST_FILES in tests/_fast_inventory.py — the meta-guards will name "
+        "them), or add it to _ZERO_SURFACE_INTENTIONALLY_UNGATED with a "
+        "justification."
     )
