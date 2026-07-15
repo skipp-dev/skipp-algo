@@ -69,9 +69,11 @@ _PINE_LIBRARIES: frozenset[str] = frozenset({
 
 _SMCPP_LIBRARIES: frozenset[str] = frozenset({
     "smc_bus_private.pine",
+    "smc_context_engine_private.pine",
     "smc_context_resolvers.pine",
     "smc_core_types.pine",
     "smc_draw.pine",
+    "smc_engine_private.pine",
     "smc_lifecycle_private.pine",
     "smc_observability_private.pine",
     "smc_profile_engine.pine",
@@ -121,7 +123,7 @@ def test_smcpp_library_inventory_is_exact() -> None:
 def test_total_active_pine_surface_count() -> None:
     """Belt-and-braces: active surface count is pinned for at-a-glance review."""
     expected = len(_ROOT_ORCHESTRATORS) + len(_PINE_LIBRARIES) + len(_SMCPP_LIBRARIES)
-    # 21 + 5 + 8 = 34 active Pine files
-    # (was 17 + 5 + 8 = 30; +4 from F-04 PR #1924 promoting
-    # SMC_Breakout_Overlay / Exit_Signal / Hold_Manager / VRVP_Overlay).
-    assert expected == 35, f"inventory frozensets drifted: total={expected}"
+    # +2 vs the prior pin of 35: the SMC++ inventory now registers
+    # smc_engine_private.pine (backfilled #3622 extraction gap) and the new
+    # smc_context_engine_private.pine (bus-v3 live context library).
+    assert expected == 37, f"inventory frozensets drifted: total={expected}"

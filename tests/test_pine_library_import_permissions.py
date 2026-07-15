@@ -38,12 +38,19 @@ _LIBRARY_PERMISSIONS: dict[str, tuple[str, ...]] = {
     # Internal bus: only the engine and the SMC++ context resolvers
     # may import. Other Pine consumers must read public ``mp.*`` consts.
     "smc_bus_private": ("SMC_Long_Dip_Suite.pine", "SMC++/"),
-    # Lifecycle private API: engine only.
-    "smc_lifecycle_private": ("SMC_Long_Dip_Suite.pine",),
+    # SMC OB/FVG/structure engine (extracted in #3622). Imported by the Suite,
+    # the Breakout Overlay (#3634), and the live context library (bus-v3).
+    "smc_engine_private": (
+        "SMC_Long_Dip_Suite.pine",
+        "SMC_Breakout_Overlay.pine",
+        "SMC++/smc_context_engine_private.pine",
+    ),
+    # Lifecycle private API: the SMC++ engine and the Suite only.
+    "smc_lifecycle_private": ("SMC_Long_Dip_Suite.pine", "SMC++/smc_engine_private.pine"),
     # Observability private API: engine + SMC++ helpers.
     "smc_observability_private": ("SMC_Long_Dip_Suite.pine", "SMC++/"),
-    # Profile engine: engine only (consumers should use mp.* exports).
-    "smc_profile_engine": ("SMC_Long_Dip_Suite.pine",),
+    # Profile engine: the SMC++ engine and the Suite only (consumers use mp.* exports).
+    "smc_profile_engine": ("SMC_Long_Dip_Suite.pine", "SMC++/smc_engine_private.pine"),
     # Context resolvers: engine only.
     "smc_context_resolvers": ("SMC_Long_Dip_Suite.pine",),
 }
