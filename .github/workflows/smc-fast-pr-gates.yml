@@ -441,6 +441,7 @@ jobs:
             tests/test_workflow_permissions_present.py \
             tests/test_workflow_auth_pattern.py \
             tests/test_dynamic_setattr_hasattr_zero_surface.py \
+            tests/test_hmac_auth_zero_surface.py \
             tests/test_atexit_register_zero_surface.py \
             tests/test_atomic_write_call_sites.py \
             tests/test_module_test_coverage_pin.py \

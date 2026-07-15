@@ -115,6 +115,12 @@ FULL_REQUIRED_PATH_TRIPWIRES: tuple[str, ...] = (
     "tests/test_field_preference_chain_ledger.py",
     "tests/test_global_statement_budget.py",
     "tests/test_hashlib_weak_hash_ledger.py",
+    # 2026-07-15: the hmac zero-surface ledger (auth/integrity primitive) was
+    # never on the required path — not in this roster, not in any workflow (its
+    # git history shows no add/remove in either). Its pins drifted red on main
+    # three times unnoticed (2026-07-09, -07-13, -07-15) because the drift
+    # merged green: fast-gates never ran it. Simply missed when it landed (#3217).
+    "tests/test_hmac_auth_zero_surface.py",
     "tests/test_http_client_discipline.py",
     "tests/test_http_post_egress_ledger.py",
     "tests/test_lint_debt_no_regression.py",
