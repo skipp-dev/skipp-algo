@@ -29,6 +29,7 @@ from scripts.smc_liquidity_pools import (
 )
 from scripts.smc_liquidity_sweeps import (
     SWEEP_DEPTH_MIN_PCT,
+    SWEEP_DEPTH_STOP_HUNT_PCT,
     SWEEP_RECLAIM_MAX_BARS,
     SWEEP_VOLUME_RATIO_MIN,
 )
@@ -58,7 +59,7 @@ def test_frozen_thresholds_match_live_constants() -> None:
         "SWEEP_DEPTH_MIN_PCT": SWEEP_DEPTH_MIN_PCT,
         "SWEEP_RECLAIM_MAX_BARS": SWEEP_RECLAIM_MAX_BARS,
         "SWEEP_VOLUME_RATIO_MIN": SWEEP_VOLUME_RATIO_MIN,
-        "SWEEP_DEPTH_STOP_HUNT_PCT": SWEEP_DEPTH_MIN_PCT * 3,
+        "SWEEP_DEPTH_STOP_HUNT_PCT": SWEEP_DEPTH_STOP_HUNT_PCT,
     }
     assert thresholds["pools"] == {
         "IMBALANCE_SIG_THRESHOLD": IMBALANCE_SIG_THRESHOLD,
@@ -67,25 +68,26 @@ def test_frozen_thresholds_match_live_constants() -> None:
     }
 
 
-def test_stop_hunt_depth_gate_is_derived_not_a_clean_three_tenths() -> None:
-    """The STOP_HUNT depth gate is ``SWEEP_DEPTH_MIN_PCT * 3``, not a literal 0.3.
+def test_stop_hunt_depth_gate_is_an_inclusive_clean_three_tenths() -> None:
+    """The STOP_HUNT depth gate is its own constant, and 0.3 means 0.3.
 
-    ``0.1 * 3`` is 0.30000000000000004 in IEEE-754, so a depth of *exactly* 0.3
-    does **not** clear the gate — the reference classifies it LIQUIDITY_GRAB. A
-    port that hardcodes a clean ``0.3`` (as the prose spec used to say) returns
-    STOP_HUNT for that input and silently diverges.
+    It used to read ``SWEEP_DEPTH_MIN_PCT * 3``. ``0.1 * 3`` is
+    0.30000000000000004 in IEEE-754, so a depth of exactly 0.3 fell just short and
+    classified LIQUIDITY_GRAB — an artifact of the arithmetic, not a rule anyone
+    chose. Removed deliberately, as its own behaviour change (this test previously
+    pinned the artifact so it could not be dropped as a side effect of a port).
 
-    This pins the artifact deliberately. Rounding the gate to a clean 0.3 would be
-    a behaviour change to a production scorer and needs its own decision — it must
-    not happen as a side effect of a doc or port change.
+    Pinned in both directions: the gate must equal 0.3 *and* must not be the
+    derived value again, so the coupling cannot creep back.
     """
-    gate = SWEEP_DEPTH_MIN_PCT * 3
-    assert gate != 0.3, "0.1*3 no longer carries the float artifact — re-examine the boundary fixture"
-    # gate > 0.3 is exactly why a depth of 0.3 fails `depth >= gate` in the reference.
-    assert gate > 0.3, "a depth of exactly 0.3 must NOT clear the STOP_HUNT gate"
+    assert SWEEP_DEPTH_STOP_HUNT_PCT == 0.3
+    assert SWEEP_DEPTH_STOP_HUNT_PCT != SWEEP_DEPTH_MIN_PCT * 3, (
+        "the stop-hunt gate is derived from SWEEP_DEPTH_MIN_PCT again — that is "
+        "what put 0.30000000000000004 on the boundary in the first place"
+    )
     boundary = _frozen()["liquidity_sweeps"]["stop_hunt_depth_boundary"]
     assert boundary["row"]["sweep_depth_pct"] == 0.3
-    assert boundary["expected"]["SWEEP_TYPE"] == "LIQUIDITY_GRAB"
+    assert boundary["expected"]["SWEEP_TYPE"] == "STOP_HUNT"
 
 
 def test_golden_covers_every_rule_branch() -> None:
@@ -117,7 +119,7 @@ def test_golden_covers_every_rule_branch() -> None:
     passthrough = g["liquidity_sweeps"]["explicit_type_passthrough"]
     assert passthrough["row"]["sweep_type"] == "INDUCEMENT"
     assert passthrough["expected"]["SWEEP_TYPE"] == "INDUCEMENT"
-    assert passthrough["row"]["sweep_depth_pct"] >= SWEEP_DEPTH_MIN_PCT * 3
+    assert passthrough["row"]["sweep_depth_pct"] >= SWEEP_DEPTH_STOP_HUNT_PCT
     assert passthrough["row"]["sweep_volume_ratio"] >= SWEEP_VOLUME_RATIO_MIN, (
         "the passthrough fixture must carry inputs that would derive STOP_HUNT, "
         "otherwise it cannot catch a port that skips the passthrough branch"

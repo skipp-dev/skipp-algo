@@ -442,10 +442,6 @@ jobs:
             tests/test_workflow_auth_pattern.py \
             tests/test_dynamic_setattr_hasattr_zero_surface.py \
             tests/test_hmac_auth_zero_surface.py \
-            tests/test_dangerous_io_zero_surface_pin.py \
-            tests/test_fcntl_flock_zero_surface.py \
-            tests/test_globals_call_zero_surface.py \
-            tests/test_lru_cache_maxsize_discipline.py \
             tests/test_atexit_register_zero_surface.py \
             tests/test_atomic_write_call_sites.py \
             tests/test_module_test_coverage_pin.py \

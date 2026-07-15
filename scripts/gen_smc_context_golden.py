@@ -47,6 +47,7 @@ from scripts.smc_liquidity_pools import (
 )
 from scripts.smc_liquidity_sweeps import (
     SWEEP_DEPTH_MIN_PCT,
+    SWEEP_DEPTH_STOP_HUNT_PCT,
     SWEEP_RECLAIM_MAX_BARS,
     SWEEP_VOLUME_RATIO_MIN,
     build_liquidity_sweeps,
@@ -144,11 +145,12 @@ _SWEEP_FIXTURES: dict[str, dict[str, Any]] = {
         "sweep_volume_ratio": 1.5,       # >= 1.2
         "sweep_reclaim_active": True,
     },
-    # Boundary at the *documented* 0.3 depth threshold. The real gate is
-    # ``SWEEP_DEPTH_MIN_PCT * 3`` == 0.30000000000000004 (float artifact of
-    # 0.1*3), so a depth of exactly 0.3 does NOT clear it: the type is
-    # LIQUIDITY_GRAB, not STOP_HUNT. A port that hardcodes a clean 0.3 flips this
-    # case and diverges from the reference. Frozen so that trips here loudly.
+    # Boundary at the STOP_HUNT depth gate. Inclusive: a depth of exactly
+    # SWEEP_DEPTH_STOP_HUNT_PCT clears it. This case classified LIQUIDITY_GRAB
+    # until the gate stopped being derived as ``SWEEP_DEPTH_MIN_PCT * 3``
+    # (0.1*3 == 0.30000000000000004, so 0.3 fell just short) — an artifact of
+    # float arithmetic, not a rule. Frozen so the Pine port inherits the clean
+    # boundary and cannot resurrect the derived one.
     "stop_hunt_depth_boundary": {
         "recent_bull_sweep": True,
         "sweep_depth_pct": 0.3,
@@ -222,11 +224,9 @@ def build_golden() -> dict[str, Any]:
                     "SWEEP_DEPTH_MIN_PCT": SWEEP_DEPTH_MIN_PCT,
                     "SWEEP_RECLAIM_MAX_BARS": SWEEP_RECLAIM_MAX_BARS,
                     "SWEEP_VOLUME_RATIO_MIN": SWEEP_VOLUME_RATIO_MIN,
-                    # Derived, not independent: _classify_sweep_type gates
-                    # STOP_HUNT on ``SWEEP_DEPTH_MIN_PCT * 3``. Frozen explicitly
-                    # so a port cannot hardcode today's 0.3 and silently diverge
-                    # if the base moves.
-                    "SWEEP_DEPTH_STOP_HUNT_PCT": SWEEP_DEPTH_MIN_PCT * 3,
+                    # Its own threshold, no longer derived from the min depth —
+                    # deriving it made 0.1*3 == 0.30000000000000004 the real gate.
+                    "SWEEP_DEPTH_STOP_HUNT_PCT": SWEEP_DEPTH_STOP_HUNT_PCT,
                 },
                 "pools": {
                     "IMBALANCE_SIG_THRESHOLD": IMBALANCE_SIG_THRESHOLD,

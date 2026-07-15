@@ -209,18 +209,20 @@ Rules:
      this branch re-derives and returns a *different* type — the
      `explicit_type_passthrough` golden fixture exists to catch exactly that.
   2. **Derivation (only when no explicit type).** `STOP_HUNT` if
-     `depth ≥ SWEEP_DEPTH_MIN_PCT * 3 AND vol_ratio ≥ 1.2`; else `LIQUIDITY_GRAB`
-     if `vol_ratio ≥ 1.2`; else `INDUCEMENT` (when any sweep is present); else
-     `NONE`.
+     `depth ≥ SWEEP_DEPTH_STOP_HUNT_PCT AND vol_ratio ≥ 1.2`; else
+     `LIQUIDITY_GRAB` if `vol_ratio ≥ 1.2`; else `INDUCEMENT` (when any sweep is
+     present); else `NONE`.
 
-  ⚠️ **The stop-hunt gate is `SWEEP_DEPTH_MIN_PCT * 3`, not a literal `0.3`.**
-  `0.1 * 3` is `0.30000000000000004` in IEEE-754, so a depth of *exactly* `0.3`
-  does **not** clear it — the reference returns `LIQUIDITY_GRAB`. A port that
-  hardcodes `0.3` returns `STOP_HUNT` for that input and silently diverges. Pinned
-  by the `stop_hunt_depth_boundary` fixture and
-  `test_stop_hunt_depth_gate_is_derived_not_a_clean_three_tenths`. Rounding the
-  gate to a clean `0.3` would be a behaviour change to a production scorer and
-  needs its own decision — it must not ride along with a port.
+  The depth gate is **inclusive** and is its own constant — a depth of exactly
+  `0.3` clears it. It used to read `SWEEP_DEPTH_MIN_PCT * 3`, and `0.1 * 3` is
+  `0.30000000000000004` in IEEE-754, so exactly `0.3` fell just short and
+  classified `LIQUIDITY_GRAB`. That boundary was an artifact of the arithmetic,
+  not a rule anyone chose; it was removed as its own deliberate behaviour change.
+  Port `SWEEP_DEPTH_STOP_HUNT_PCT` as a named constant — do **not** re-derive it
+  from `SWEEP_DEPTH_MIN_PCT`. The two answer different questions ("is this a sweep
+  at all" vs "is it deep enough to be a stop hunt") and their coupling was
+  incidental. Pinned by the `stop_hunt_depth_boundary` fixture and
+  `test_stop_hunt_depth_gate_is_an_inclusive_clean_three_tenths`.
 - **Direction:** single-side sweep → `BULL`/`BEAR`; both sides swept → resolved
   only by an explicit `sweep_bias_bull`, otherwise **`NONE` (ambiguous, never a
   silent default)**.

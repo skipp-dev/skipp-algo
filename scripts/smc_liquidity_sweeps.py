@@ -49,6 +49,16 @@ SWEEP_DEPTH_MIN_PCT = 0.1     # min depth % for a valid sweep
 SWEEP_RECLAIM_MAX_BARS = 5    # bars within which reclaim must occur
 SWEEP_VOLUME_RATIO_MIN = 1.2  # volume on sweep bar vs average
 
+# Depth at/above which a high-volume sweep is a STOP_HUNT rather than a
+# LIQUIDITY_GRAB. Its own constant on purpose: this used to be written as
+# ``SWEEP_DEPTH_MIN_PCT * 3``, and ``0.1 * 3`` is 0.30000000000000004 in
+# IEEE-754 — so a sweep at exactly the documented 0.3% depth did NOT clear the
+# gate. That boundary was an artifact of the arithmetic, never a decision.
+# Do not re-derive it from SWEEP_DEPTH_MIN_PCT: the two answer different
+# questions ("is this a sweep at all" vs "is it deep enough to be a stop hunt")
+# and their coupling was incidental.
+SWEEP_DEPTH_STOP_HUNT_PCT = 0.3
+
 
 def build_liquidity_sweeps(
     *,
@@ -135,7 +145,7 @@ def _classify_sweep_type(row: dict[str, Any]) -> str:
     if row.get("recent_bull_sweep") or row.get("recent_bear_sweep"):
         depth = float(row.get("sweep_depth_pct", 0))
         vol_ratio = float(row.get("sweep_volume_ratio", 0))
-        if depth >= SWEEP_DEPTH_MIN_PCT * 3 and vol_ratio >= SWEEP_VOLUME_RATIO_MIN:
+        if depth >= SWEEP_DEPTH_STOP_HUNT_PCT and vol_ratio >= SWEEP_VOLUME_RATIO_MIN:
             return "STOP_HUNT"
         if vol_ratio >= SWEEP_VOLUME_RATIO_MIN:
             return "LIQUIDITY_GRAB"

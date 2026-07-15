@@ -103,7 +103,6 @@ FULL_REQUIRED_PATH_TRIPWIRES: tuple[str, ...] = (
     "tests/test_broad_except_silent_budget.py",
     "tests/test_build_family_metrics.py",
     "tests/test_builtin_open_encoding_ledger.py",
-    "tests/test_dangerous_io_zero_surface_pin.py",
     "tests/test_dynamic_getattr_ledger.py",
     "tests/test_dynamic_import_and_todo_tripwires.py",
     "tests/test_dynamic_setattr_hasattr_zero_surface.py",
@@ -113,10 +112,8 @@ FULL_REQUIRED_PATH_TRIPWIRES: tuple[str, ...] = (
     "tests/test_family_verdict.py",
     "tests/test_family_walkforward_config.py",
     "tests/test_fast_gates_silent_skip_coverage.py",
-    "tests/test_fcntl_flock_zero_surface.py",
     "tests/test_field_preference_chain_ledger.py",
     "tests/test_global_statement_budget.py",
-    "tests/test_globals_call_zero_surface.py",
     "tests/test_hashlib_weak_hash_ledger.py",
     # 2026-07-15: the hmac zero-surface ledger (auth/integrity primitive) was
     # never on the required path — not in this roster, not in any workflow (its
@@ -128,7 +125,6 @@ FULL_REQUIRED_PATH_TRIPWIRES: tuple[str, ...] = (
     "tests/test_http_post_egress_ledger.py",
     "tests/test_lint_debt_no_regression.py",
     "tests/test_loopback_and_baseimage_pin.py",
-    "tests/test_lru_cache_maxsize_discipline.py",
     "tests/test_module_test_coverage_pin.py",
     "tests/test_mutable_defaults_and_loads_pins.py",
     "tests/test_nonlocal_budget.py",

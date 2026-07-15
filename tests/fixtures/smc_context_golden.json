@@ -20,7 +20,7 @@
       },
       "sweeps": {
         "SWEEP_DEPTH_MIN_PCT": 0.1,
-        "SWEEP_DEPTH_STOP_HUNT_PCT": 0.30000000000000004,
+        "SWEEP_DEPTH_STOP_HUNT_PCT": 0.3,
         "SWEEP_RECLAIM_MAX_BARS": 5,
         "SWEEP_VOLUME_RATIO_MIN": 1.2
       }
@@ -474,7 +474,7 @@
         "SWEEP_DIRECTION": "BULL",
         "SWEEP_QUALITY_SCORE": 4,
         "SWEEP_RECLAIM_ACTIVE": false,
-        "SWEEP_TYPE": "LIQUIDITY_GRAB",
+        "SWEEP_TYPE": "STOP_HUNT",
         "SWEEP_ZONE_BOTTOM": 0.0,
         "SWEEP_ZONE_TOP": 0.0
       },
