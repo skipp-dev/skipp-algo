@@ -33,7 +33,9 @@ g_gate = 'Alert Gate'
 bool bar_close_only = input.bool(true, 'Bar-close only', group = g_gate, tooltip = 'When on, every alert fires only on confirmed (closed) bars — non-repainting. Turn off to allow intrabar firing.')
 
 g_struct = 'Structure'
-int swing_len = input.int(50, 'Swing length', minval = 5, group = g_struct, tooltip = 'Pivot length for the recomputed BOS/CHoCH detector. Keep equal to the Suite for matching structure events.')
+// No explicit type annotation: eng.detect_structure takes a `simple int`, and
+// letting Pine infer the input's qualifier keeps it simple rather than series.
+swing_len = input.int(50, 'Swing length', minval = 5, group = g_struct, tooltip = 'Pivot length for the recomputed BOS/CHoCH detector. Keep equal to the Suite for matching structure events.')
 
 g_bus = 'BUS bindings (link to SMC Long-Dip Suite)'
 float src_schema     = input.source(close, 'BUS SchemaVersion', group = g_bus, display = display.none, tooltip = 'Bind to the SMC Long-Dip Suite hidden BUS outputs of the same name.')
@@ -50,7 +52,9 @@ state_on(float v) => not na(v) and v > 0.5
 
 // ── Product state (decoded from BUS StateCode via the Suite's own decoder) ────
 string prod_state = engine_bound ? eng.resolve_core_product_state(int(math.round(src_state_code))) : na
-bool prod_changed_to(string s) => engine_bound and prod_state == s and (na(prod_state[1]) or prod_state[1] != s)
+// NOTE: Pine function definitions take no return-type prefix — `bool f(...) =>`
+// is parsed as a method declaration and fails with CE10152.
+prod_changed_to(string s) => engine_bound and prod_state == s and (na(prod_state[1]) or prod_state[1] != s)
 
 // ── Zone lifecycle (from BUS Armed / ZoneActive) ─────────────────────────────
 bool armed_now = engine_bound and state_on(src_armed) and not state_on(src_armed[1])
