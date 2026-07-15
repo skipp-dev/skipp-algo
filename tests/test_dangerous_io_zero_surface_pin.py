@@ -90,13 +90,14 @@ def _attr_call_sites(attr_owner: str, attr_name: str) -> set[tuple[str, int]]:
 
 # --- os.kill -----------------------------------------------------------------
 
-# Signal-0 liveness probes only. Every one of these call sites passes ``0``
-# as the signal, so they cannot terminate a process — they merely check
-# existence. Two contexts are currently allow-listed:
+# WHERE os.kill may appear. Signal-0-ness is NOT checked here — this set pins
+# only (path, lineno); `test_os_kill_only_ever_sends_signal_zero` below enforces
+# that every site passes the literal 0. Keep the two apart: a real signal is a
+# redesign, not something an entry in this set can legitimise (before 2026-07-15
+# this header claimed the signal was verified when nothing read the argument).
+# Two contexts are currently allow-listed:
 #   * ``open_prep/realtime_signals.py`` — realtime engine PID file probe.
 #   * ``scripts/ib_client_id.py`` — IB API client_id slot leasing registry.
-# New non-zero ``os.kill`` callers must be explicitly added below with
-# justification.
 OS_KILL_ALLOWED: set[tuple[str, int]] = {
     # Signal-0 PID liveness probes in _detect_rt_engine_pid(): existing PID
     # file check and pgrep result validation.
@@ -134,6 +135,75 @@ def test_os_kill_zero_surface_pin() -> None:
         "OS_KILL_ALLOWED entries no longer present in code. Update the "
         "allow-list to match the current call sites.\n"
         f"missing = {sorted(missing)}"
+    )
+
+
+def _os_kill_non_zero_signals() -> set[tuple[str, int, str]]:
+    """Return every ``os.kill(...)`` whose signal argument is not literal ``0``.
+
+    ``OS_KILL_ALLOWED`` above pins only ``(path, lineno)`` — it says WHERE
+    os.kill may appear, never WHAT it sends. Signal-0-ness is a property of the
+    call, so it is checked here for every site rather than being allow-listable
+    per line: a real signal is a redesign, not a ledger entry.
+
+    Anything that is not the literal ``0`` is reported, including a dynamic
+    expression (``os.kill(pid, sig)``) whose value cannot be known statically.
+    """
+    offenders: set[tuple[str, int, str]] = set()
+    for path in _iter_py_files():
+        rel = path.relative_to(ROOT).as_posix()
+        tree = parse_module(path)
+        if tree is None:
+            continue
+        for node in ast.walk(tree):
+            if not isinstance(node, ast.Call):
+                continue
+            func = node.func
+            if not isinstance(func, ast.Attribute) or func.attr != "kill":
+                continue
+            value = func.value
+            if not isinstance(value, ast.Name) or value.id != "os":
+                continue
+            if len(node.args) < 2:
+                offenders.add((rel, node.lineno, f"malformed: {ast.unparse(node)}"))
+                continue
+            sig = node.args[1]
+            is_literal_zero = (
+                isinstance(sig, ast.Constant)
+                and isinstance(sig.value, int)
+                and not isinstance(sig.value, bool)
+                and sig.value == 0
+            )
+            if not is_literal_zero:
+                offenders.add((rel, node.lineno, ast.unparse(sig)))
+    return offenders
+
+
+def test_os_kill_only_ever_sends_signal_zero() -> None:
+    """The signal argument must be the literal ``0`` at every os.kill site.
+
+    Closes a name-promises-more-than-the-test-measures gap (2026-07-15). The
+    header above asserts "Every one of these call sites passes ``0`` as the
+    signal, so they cannot terminate a process", but the collector only
+    recorded ``(path, lineno)`` and never inspected the argument. Mutating an
+    ALLOW-LISTED site in place --
+
+        os.kill(pid, 0)  ->  os.kill(pid, signal.SIGKILL)
+
+    -- left the line number untouched, so the inventory pin above stayed green
+    while the process-signalling surface this file exists to bound had actually
+    opened. Verified: that mutation passed before this test existed.
+    """
+    offenders = _os_kill_non_zero_signals()
+    assert not offenders, (
+        "os.kill(...) called with a signal other than the literal 0. Signal 0 "
+        "sends nothing — it only probes whether a PID exists, which is the ONLY "
+        "process-signalling this repo allows. A real signal can terminate a "
+        "live trading engine, so it is not an allow-list entry: if one is "
+        "genuinely required, it needs its own review and an explicit change to "
+        "this test. A dynamic signal expression is rejected too — its value "
+        "cannot be checked statically.\n"
+        f"offenders = {sorted(offenders)}"
     )
 
 
