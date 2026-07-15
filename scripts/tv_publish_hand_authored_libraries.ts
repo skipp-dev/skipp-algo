@@ -2,7 +2,7 @@
 /**
  * Ordered publish + repin for the hand-authored SMC++ libraries.
  *
- * Why this exists: the 8 hand-authored `SMC++/` libraries form a DEPENDENCY
+ * Why this exists: the 10 hand-authored `SMC++/` libraries form a DEPENDENCY
  * GRAPH (smc_utils imports smc_core_types; profile_engine/observability/
  * context_resolvers import smc_utils; context_resolvers also imports
  * smc_bus_private). #3606 had to republish them BY HAND in topological order —
@@ -36,7 +36,7 @@ import { fileURLToPath } from "node:url";
 export type HandLib = {
   name: string;
   source: string;
-  /** Publisher CLI relative to repo root, or null when none exists (smc_bus_private). */
+  /** Publisher CLI relative to repo root, or null for an explicitly unsupported library. */
   publisher: string | null;
 };
 

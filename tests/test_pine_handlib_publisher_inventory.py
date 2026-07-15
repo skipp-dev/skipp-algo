@@ -189,3 +189,13 @@ def test_engine_publisher_requires_exact_facade_version() -> None:
     assert "publishedVersion = facadeVersion;" in text
     assert "exactVersionVerified = facadeVersion === details.version;" in text
     assert "exactVersionVerified = true;" not in text
+
+
+def test_engine_publisher_rejects_incoherent_publish_identity() -> None:
+    """The expected version must be integral and match the consumer import."""
+    text = ENGINE_PUBLISHER.read_text(encoding="utf-8")
+    assert "!Number.isInteger(cli.version) || cli.version < 1" in text
+    assert "cli.importPath.match(/^([^/]+)\\/([^/]+)\\/(\\d+)$/)" in text
+    assert "importIdentity[2] !== cli.scriptName" in text
+    assert "Number(importIdentity[3]) !== cli.version" in text
+    assert "Engine import path must name" in text

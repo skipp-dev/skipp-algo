@@ -29,14 +29,13 @@ There is **no** TradingView→repo sync, by design. The old `sync-tradingview-pi
 - **Never ran green.** The Playwright fetch scraped source from the Pine Editor DOM and exited 1 on `smc_overlay_generated` (null `script_url`).
 - **Its freshness gate was a structural false-red.** The removed `pine-library-freshness` **job** in `smc-fast-pr-gates.yml` failed any PR whose `pine/LIBRARY_VERSIONS.toml` `local_synced` date exceeded a 7-day SLA — but nothing ever stamped `local_synced` (the sync never wrote it), so from 2026-07-11 it breached on **every** PR. It was non-required (only `fast-gates` gates merges).
 
-Removed 2026-07-11: `.github/workflows/sync-tradingview-pine-libraries.yml`, `scripts/tv_fetch_smc_libraries.ts`, `scripts/check_pine_library_age.py`, and the `pine-library-freshness` job in `smc-fast-pr-gates.yml`.
+Removed 2026-07-11: `.github/workflows/sync-tradingview-pine-libraries.yml`, `scripts/tv_fetch_smc_libraries.ts`, `scripts/check_pine_library_age.py`, and the `pine-library-freshness` job in `smc-fast-pr-gates.yml`. The unread `pine/LIBRARY_VERSIONS.toml` metadata artifact was removed separately on 2026-07-15.
 
 **Still present (unaffected):**
 - `scripts/tv_publish_*_library.ts` — repo→TV publishers (the real, working direction).
 - `smc-library-refresh.yml` / `smc-overlay-library-publish.yml` — regenerate + publish the two generated libraries.
 - `scripts/sync_tradingview_libraries.py` — standalone **local** validator (Pine syntax + import existence; fetches/writes nothing); no longer invoked by any workflow.
 - `.github/workflows/pine-library-freshness.yml` — SEPARATE and unaffected: guards the five hand-authored `pine/skipp_*.pine` libraries on a 120-day/monthly cadence (not the code-generated `SMC++/` set).
-- `pine/LIBRARY_VERSIONS.toml` — now an unread artifact (the gate that consumed it is gone); left in place, safe to drop in a later cleanup.
 
 ### Libraries
 
