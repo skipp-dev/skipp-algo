@@ -24,7 +24,9 @@ export type VerifyConsumerTarget = {
 export type VerifyConsumerResult = {
   ok: boolean;
   repair: boolean;
+  forceRebind: boolean;
   repaired: string[];
+  unknownParentRuntimeError: boolean;
   scriptName: string;
   savedScriptName: string;
   sourcePath: string;
@@ -110,6 +112,7 @@ export async function verifyConsumerBindings(
   session: TradingViewSession,
   target: VerifyConsumerTarget,
   repair = false,
+  forceRebind = false,
 ): Promise<VerifyConsumerResult> {
   const producerName = target.producerName ?? "SMC Long-Dip Suite";
   const sourcePath = path.resolve(target.source);
@@ -132,10 +135,14 @@ export async function verifyConsumerBindings(
   }
   let mismatches = bindings.filter((binding) => !binding.ok);
   const repaired: string[] = [];
-  if (repair && mismatches.length > 0) {
-    for (const mismatch of mismatches) {
-      await repairSelectedSource(session.page, mismatch.label, mismatch.expected);
-      repaired.push(mismatch.label);
+  // A matching dropdown label does not prove a live parent: TradingView keeps the text
+  // while the stored input.source parent study id is dead. --force-rebind re-selects every
+  // source so those stale-but-identical bindings are re-pointed too.
+  const bindingsToRepair = forceRebind ? bindings : mismatches;
+  if (repair && bindingsToRepair.length > 0) {
+    for (const binding of bindingsToRepair) {
+      await repairSelectedSource(session.page, binding.label, binding.expected);
+      repaired.push(binding.label);
     }
     const submit = session.page.locator('button[name="submit"], button[data-name="submit-button"]').first();
     if (!(await submit.isVisible().catch(() => false))) {
@@ -152,10 +159,14 @@ export async function verifyConsumerBindings(
     }
     mismatches = bindings.filter((binding) => !binding.ok);
   }
+  const chartBody = await session.page.locator("body").innerText();
+  const unknownParentRuntimeError = /unknown parent id/i.test(chartBody);
   const result: VerifyConsumerResult = {
-    ok: mismatches.length === 0,
+    ok: mismatches.length === 0 && !unknownParentRuntimeError,
     repair,
+    forceRebind,
     repaired,
+    unknownParentRuntimeError,
     scriptName: target.scriptName,
     savedScriptName: target.savedScriptName,
     sourcePath,
@@ -172,7 +183,8 @@ export async function runVerifyConsumerBindingsCli(): Promise<number> {
   const scriptName = getFlag("--script-name");
   const savedScriptName = getFlag("--saved-script-name", scriptName);
   const producerName = getFlag("--producer-name", "SMC Long-Dip Suite");
-  const repair = hasFlag("--repair");
+  const forceRebind = hasFlag("--force-rebind");
+  const repair = hasFlag("--repair") || forceRebind;
   if (!source) throw new Error("Missing --source");
   if (!scriptName) throw new Error("Missing --script-name");
 
@@ -186,10 +198,14 @@ export async function runVerifyConsumerBindingsCli(): Promise<number> {
       session,
       { source, savedScriptName, scriptName, producerName },
       repair,
+      forceRebind,
     );
     console.log(JSON.stringify(result));
-    if (!result.ok) {
+    if (result.mismatches.length > 0) {
       throw new Error(`${result.mismatches.length}/${result.checked} BUS source bindings do not match ${producerName}`);
+    }
+    if (result.unknownParentRuntimeError) {
+      throw new Error(`TradingView still reports unknown parent id after binding verification: ${scriptName}`);
     }
     return 0;
   } finally {

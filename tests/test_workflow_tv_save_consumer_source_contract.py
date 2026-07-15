@@ -145,6 +145,42 @@ def test_binding_snapshot_is_uploaded_even_when_rollout_fails() -> None:
     assert "bot/live-tradingview-bindings" in publish["run"]
 
 
+def test_force_rebind_is_opt_in_and_reaches_the_rollout_script() -> None:
+    """The dispatch input must not be decoration: it has to reach the script that reads it.
+
+    Mutating away any single link below (input, env plumb, or the env read) has to fail
+    this test, otherwise `force_rebind=true` would silently run a read-only verification.
+    """
+    dispatch = (_load().get("on") or _load().get(True))["workflow_dispatch"]["inputs"]
+    assert dispatch["force_rebind"]["default"] is False, "rebinding must never be the default"
+
+    rollout = next(s for s in _steps() if "scripts/tv_batch_consumer_rollout.ts" in s.get("run", ""))
+    assert rollout["env"]["TV_FORCE_REBIND"] == "${{ github.event.inputs.force_rebind }}"
+
+    batch = (_REPO_ROOT / "scripts" / "tv_batch_consumer_rollout.ts").read_text(encoding="utf-8")
+    assert 'process.env.TV_FORCE_REBIND === "true"' in batch
+    assert "verifyConsumerBindings(session, target, forceRebind, forceRebind)" in batch
+
+
+def test_force_rebind_reselects_every_binding_not_just_mismatches() -> None:
+    """A correct dropdown label can still hide a dead parent study id, so text equality
+    is not a safe skip condition once the operator asked for a rebind."""
+    verifier = (_REPO_ROOT / "scripts" / "tv_verify_consumer_bindings.ts").read_text(encoding="utf-8")
+    assert "const bindingsToRepair = forceRebind ? bindings : mismatches;" in verifier
+    assert "for (const binding of bindingsToRepair)" in verifier
+    assert 'const forceRebind = hasFlag("--force-rebind");' in verifier
+    assert 'const repair = hasFlag("--repair") || forceRebind;' in verifier
+
+
+def test_unknown_parent_runtime_error_fails_closed() -> None:
+    """Exact dropdown text is not proof of a live binding: a remaining runtime marker
+    must sink `ok` and exit non-zero, not be reported alongside a green result."""
+    verifier = (_REPO_ROOT / "scripts" / "tv_verify_consumer_bindings.ts").read_text(encoding="utf-8")
+    assert "/unknown parent id/i.test(chartBody)" in verifier
+    assert "ok: mismatches.length === 0 && !unknownParentRuntimeError," in verifier
+    assert "if (result.unknownParentRuntimeError) {" in verifier
+
+
 def test_cache_runs_on_native_node24_without_force_override() -> None:
     workflow = _WF_PATH.read_text(encoding="utf-8")
     assert "actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5" in workflow
