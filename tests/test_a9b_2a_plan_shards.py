@@ -12,6 +12,7 @@ import io
 import itertools
 import json
 import re
+import subprocess
 import sys
 from contextlib import redirect_stderr, redirect_stdout
 from datetime import date, datetime, time, timedelta
@@ -31,6 +32,29 @@ _SPEC = importlib.util.spec_from_file_location(
 assert _SPEC is not None and _SPEC.loader is not None
 _MOD = importlib.util.module_from_spec(_SPEC)
 sys.modules[_SPEC.name] = _MOD
+
+
+def test_defer_cli_does_not_require_pandas() -> None:
+    """The dependency-free plan job must not import the producer's pandas stack."""
+    repo_root = Path(__file__).resolve().parents[1]
+    blocker = (
+        "import builtins,runpy,sys; "
+        "real_import=builtins.__import__; "
+        "builtins.__import__=lambda name,*a,**kw: "
+        "(_ for _ in ()).throw(ModuleNotFoundError(\"pandas blocked\")) "
+        "if name == \"pandas\" else real_import(name,*a,**kw); "
+        "sys.argv=[\"databento_plan_shards.py\",\"--lookback-days\",\"2\","
+        "\"--num-shards\",\"2\",\"--defer-current-day-until-intraday-window\"]; "
+        "runpy.run_path(\"scripts/databento_plan_shards.py\",run_name=\"__main__\")"
+    )
+    completed = subprocess.run(
+        [sys.executable, "-c", blocker],
+        cwd=repo_root,
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    assert completed.returncode == 0, completed.stderr
 _SPEC.loader.exec_module(_MOD)
 
 
