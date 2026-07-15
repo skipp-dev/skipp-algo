@@ -1553,13 +1553,24 @@ export method clear_filled(FVG[] fvgs, FVG[] filled_buffer, FVG[] filled_new_buf
 
     fvgs
 
+// Reaching the configured fill target IS the fill — the `filled` comparisons
+// below are inclusive.
+//
+// They used to require price to travel one tick PAST the target
+// (`fill_target_level > fill_src` for bull), so a gap filled exactly to its
+// target stayed active forever. That is invisible at the 0.5 default — price
+// rarely lands on the midpoint to the tick — and decisive at 1.0, where the
+// target IS the gap floor and "filled exactly to the bottom" is a real,
+// reachable state. The Python contract already treats it as full:
+// smc_imbalance_lifecycle counts `mit_pct < FULL_MIT_PCT` as active, so
+// mit_pct == 1.0 is mitigated, and mit_pct is clamped to exactly 1.0 there.
 export method update(FVG this) =>
     bool filled_by_close = this.fill_mode == ct.LevelBreakMode.CLOSE
     if not this.filled and (not filled_by_close or barstate.isconfirmed)
         if this.dir == 1
             fill_src = filled_by_close ? close : low
             if this.fill_current_level > fill_src
-                this.filled := this.fill_target_level > fill_src
+                this.filled := fill_src <= this.fill_target_level
                 this.fill_current_level := math.min(this.fill_current_level, fill_src)
                 this.fill_current_ratio := (this.left_top.price - this.fill_current_level) / math.max(this.left_top.price - this.right_bottom.price, syminfo.mintick)
                 if this.filled
@@ -1571,7 +1582,7 @@ export method update(FVG this) =>
         else
             fill_src = this.fill_mode == ct.LevelBreakMode.CLOSE ? close : high
             if this.fill_current_level < fill_src
-                this.filled := this.fill_target_level < fill_src
+                this.filled := fill_src >= this.fill_target_level
                 this.fill_current_level := math.max(this.fill_current_level, fill_src)
                 this.fill_current_ratio := (this.fill_current_level - this.right_bottom.price) / math.max(this.left_top.price - this.right_bottom.price, syminfo.mintick)
                 if this.filled
