@@ -75,6 +75,7 @@ problem. It is mitigated, not eliminated:
 
 from __future__ import annotations
 
+import ast
 import re
 from pathlib import Path
 
@@ -103,6 +104,7 @@ FULL_REQUIRED_PATH_TRIPWIRES: tuple[str, ...] = (
     "tests/test_broad_except_silent_budget.py",
     "tests/test_build_family_metrics.py",
     "tests/test_builtin_open_encoding_ledger.py",
+    "tests/test_dangerous_io_zero_surface_pin.py",
     "tests/test_dynamic_getattr_ledger.py",
     "tests/test_dynamic_import_and_todo_tripwires.py",
     "tests/test_dynamic_setattr_hasattr_zero_surface.py",
@@ -112,8 +114,10 @@ FULL_REQUIRED_PATH_TRIPWIRES: tuple[str, ...] = (
     "tests/test_family_verdict.py",
     "tests/test_family_walkforward_config.py",
     "tests/test_fast_gates_silent_skip_coverage.py",
+    "tests/test_fcntl_flock_zero_surface.py",
     "tests/test_field_preference_chain_ledger.py",
     "tests/test_global_statement_budget.py",
+    "tests/test_globals_call_zero_surface.py",
     "tests/test_hashlib_weak_hash_ledger.py",
     # 2026-07-15: the hmac zero-surface ledger (auth/integrity primitive) was
     # never on the required path — not in this roster, not in any workflow (its
@@ -125,6 +129,7 @@ FULL_REQUIRED_PATH_TRIPWIRES: tuple[str, ...] = (
     "tests/test_http_post_egress_ledger.py",
     "tests/test_lint_debt_no_regression.py",
     "tests/test_loopback_and_baseimage_pin.py",
+    "tests/test_lru_cache_maxsize_discipline.py",
     "tests/test_module_test_coverage_pin.py",
     "tests/test_mutable_defaults_and_loads_pins.py",
     "tests/test_nonlocal_budget.py",
@@ -257,4 +262,110 @@ def test_full_tripwire_roster_pinned_in_fast_gates() -> None:
         f"Referenced but unregistered: {extra}\n\n"
         "Add them to FULL_REQUIRED_PATH_TRIPWIRES in this file (same PR) so the "
         "complete roster stays frozen in both directions."
+    )
+
+
+# ---------------------------------------------------------------------------
+# Derived-roster guard (2026-07-15)
+# ---------------------------------------------------------------------------
+# The roster checks above freeze the step against FULL_REQUIRED_PATH_TRIPWIRES
+# in both directions, but both sides are hand-maintained — so shrinking BOTH
+# together is, by design, the "intentional retirement" escape hatch. #3670
+# exercised it by accident: a rebase artefact in a PR about a sweep threshold
+# silently dropped four security ledgers (os.kill, fcntl.flock, globals(),
+# @lru_cache) from the step, the roster AND the fast inventory. Every guard
+# above stayed green because the removal was *consistent*, and the PR merged on
+# auto-merge ~30 min after #3669 put them there. Nothing noticed.
+#
+# This guard removes the hand-maintained list from the loop: it derives what
+# MUST be gated from the source itself — a test that freezes (file, lineno)
+# tuples is a line-pinned ledger, and a line-pinned ledger that is not on the
+# required path drifts red on main unnoticed (proven three times over for the
+# hmac ledger: 2026-07-09, -07-13, -07-15). Retiring one now takes an explicit,
+# reviewable entry below rather than a silent deletion.
+
+
+# Ledgers deliberately kept OFF the required path. Empty by design: an entry
+# here is a conscious, reviewable decision with a justification, not a
+# side effect of a rebase.
+_LEDGERS_INTENTIONALLY_UNGATED: frozenset[str] = frozenset()
+
+
+def _freezes_line_pins(path: Path) -> bool:
+    """True when the module freezes ``(file, lineno, ...)`` tuples at module level.
+
+    That shape is the structural signature of a line-pinned ledger: it pins a
+    call site by exact line, so ANY edit above that site shifts it and turns the
+    test red. Naming is not a usable signal here (>300 test files match
+    ledger/pin/budget-ish names, almost all unrelated).
+    """
+    try:
+        tree = ast.parse(path.read_text(encoding="utf-8"))
+    except (OSError, SyntaxError):  # pragma: no cover - unparseable/unreadable
+        return False
+    for node in ast.walk(tree):
+        if not isinstance(node, (ast.Assign, ast.AnnAssign)):
+            continue
+        if not isinstance(node.value, (ast.Set, ast.Tuple, ast.List)):
+            continue
+        for elt in getattr(node.value, "elts", []):
+            if not isinstance(elt, ast.Tuple) or len(elt.elts) < 2:
+                continue
+            path_node, lineno_node = elt.elts[0], elt.elts[1]
+            if (
+                isinstance(path_node, ast.Constant)
+                and isinstance(path_node.value, str)
+                and isinstance(lineno_node, ast.Constant)
+                and isinstance(lineno_node.value, int)
+                and not isinstance(lineno_node.value, bool)
+                and lineno_node.value > 0
+            ):
+                return True
+    return False
+
+
+def _line_pinned_ledgers() -> set[str]:
+    """Every line-pinned / registry-backed ledger, discovered from source."""
+    found: set[str] = set()
+    for path in sorted((ROOT / "tests").glob("test_*.py")):
+        if _freezes_line_pins(path):
+            found.add(f"tests/{path.name}")
+            continue
+        # pin_registry-backed ledgers keep their pins in pin_registry.toml
+        # instead of in the test body, so the AST shape above cannot see them.
+        if "pin_registry" in path.read_text(encoding="utf-8", errors="replace"):
+            found.add(f"tests/{path.name}")
+    return found
+
+
+def test_every_line_pinned_ledger_is_on_the_required_path() -> None:
+    """A line-pinned ledger that is not gated drifts red on main unnoticed.
+
+    Derived, not hand-maintained: the required set comes from the source, so a
+    PR cannot retire a ledger by deleting it from the step and the roster
+    together (the hole #3670 fell through). The ledger still exists in tests/,
+    so it must still be gated — or be listed above with a reason.
+    """
+    ledgers = _line_pinned_ledgers()
+    # Sanity: discovery actually found ledgers, so a rename/refactor cannot make
+    # this test vacuously pass with an empty set.
+    assert len(ledgers) >= 15, (
+        f"ledger discovery found only {len(ledgers)} — the AST signature or the "
+        "tests/ layout changed and this guard is no longer measuring anything"
+    )
+
+    step = _drift_guard_step_text()
+    referenced = set(re.findall(r"tests/test_[A-Za-z0-9_]+\.py", step))
+    ungated = sorted(ledgers - referenced - _LEDGERS_INTENTIONALLY_UNGATED)
+    assert not ungated, (
+        "line-pinned ledger(s) are not on the required path. fast-gates is the "
+        "only merge-gating job, so these pins cannot block a merge: a drifted "
+        "pin — or a NEW allow-listed call site they exist to force a review of — "
+        "merges green and accumulates red on main unnoticed (the hmac ledger did "
+        "this three times: 2026-07-09, -07-13, -07-15).\n\n"
+        f"Ungated: {ungated}\n\n"
+        "Add each to the 'Run pin / ledger drift guard' step in "
+        "smc-fast-pr-gates.yml (plus FULL_REQUIRED_PATH_TRIPWIRES here and "
+        "FAST_TEST_FILES in tests/_fast_inventory.py — the meta-guards will name "
+        "them), or add it to _LEDGERS_INTENTIONALLY_UNGATED with a justification."
     )
