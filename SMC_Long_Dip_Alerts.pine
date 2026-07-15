@@ -38,10 +38,14 @@ g_struct = 'Structure'
 swing_len = input.int(50, 'Swing length', minval = 5, group = g_struct, tooltip = 'Pivot length for the recomputed BOS/CHoCH detector. Keep equal to the Suite for matching structure events.')
 
 g_bus = 'BUS bindings (link to SMC Long-Dip Suite)'
-float src_schema     = input.source(close, 'BUS SchemaVersion', group = g_bus, display = display.none, tooltip = 'Bind to the SMC Long-Dip Suite hidden BUS outputs of the same name.')
-float src_state_code = input.source(close, 'BUS StateCode',     group = g_bus, display = display.none)
-float src_armed      = input.source(close, 'BUS Armed',         group = g_bus, display = display.none)
+// Declared in the Suite's BUS plot() order (SchemaVersion, ZoneActive, Armed,
+// StateCode). TradingView lists a source study's outputs in that plot order, so
+// matching it here means the dropdown pick for each row moves strictly downwards
+// — no scrolling back up while binding.
+float src_schema     = input.source(close, 'BUS SchemaVersion', group = g_bus, display = display.none, tooltip = 'Bind to the SMC Long-Dip Suite hidden BUS outputs of the same name. The rows are ordered exactly like the Suite outputs in the dropdown.')
 float src_zone       = input.source(close, 'BUS ZoneActive',    group = g_bus, display = display.none)
+float src_armed      = input.source(close, 'BUS Armed',         group = g_bus, display = display.none)
+float src_state_code = input.source(close, 'BUS StateCode',     group = g_bus, display = display.none)
 
 // ── Gate + engine-bound probe ────────────────────────────────────────────────
 bool _alertGate = bar_close_only ? barstate.isconfirmed : true
