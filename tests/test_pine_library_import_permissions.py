@@ -44,6 +44,9 @@ _LIBRARY_PERMISSIONS: dict[str, tuple[str, ...]] = {
         "SMC_Long_Dip_Suite.pine",
         "SMC_Breakout_Overlay.pine",
         "SMC++/smc_context_engine_private.pine",
+        # Alert companion: recomputes structure / product-state / trust with the
+        # engine's own resolvers so its alerts match the Suite exactly.
+        "SMC_Long_Dip_Alerts.pine",
     ),
     # Lifecycle private API: the SMC++ engine and the Suite only.
     "smc_lifecycle_private": ("SMC_Long_Dip_Suite.pine", "SMC++/smc_engine_private.pine"),

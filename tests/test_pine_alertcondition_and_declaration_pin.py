@@ -80,6 +80,10 @@ _FROZEN_ALERTCOND_COUNTS: dict[str, int] = {
     # SMC_Long_Dip_Suite.pine converted its 16 alertcondition() to alert() so the
     # 64-channel BUS producer stays within TradingView's 64-plot budget
     # (alertcondition() counts as a plot-count; RE10140). It now declares zero.
+    # SMC_Long_Dip_Alerts.pine is the companion that restores those 16 as
+    # individually-selectable alertcondition() slots (it produces no BUS, so its
+    # plot budget is unconstrained).
+    "SMC_Long_Dip_Alerts.pine": 16,
     "SMC_Event_Overlay.pine": 2,
     "SMC_Exit_Signal.pine": 6,
     "SMC_Hold_Manager.pine": 6,
@@ -179,6 +183,7 @@ _FROZEN_DECL_KIND: dict[str, str] = {
     "SMC_Regime_and_News.pine": "indicator",
     "SMC_Volume_Profile_Overlay.pine": "indicator",
     "SMC_Confluence_Hub.pine": "indicator",
+    "SMC_Long_Dip_Alerts.pine": "indicator",
     "test_div.pine": "indicator",
 }
 

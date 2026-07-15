@@ -1,0 +1,101 @@
+// This Pine Script® code is subject to the terms of the Mozilla Public License 2.0 at https://mozilla.org/MPL/2.0/
+// © preuss_steffen
+
+//@version=6
+
+// Product role: alert companion for SMC Long-Dip Suite. Exposes the 16 lifecycle,
+// structure, trust and risk events as individually-selectable alertcondition()
+// slots. The Suite itself fires the same events via alert() (a single "Any
+// alert() function call" alert) so it stays within TradingView's 64-plot budget;
+// this companion restores per-event selection for users who want it.
+//
+// Sources (no per-event value is invented):
+//   - Product state + Zone lifecycle : decoded from the Suite's hidden
+//     `BUS StateCode` / `BUS Armed` / `BUS ZoneActive` outputs via input.source,
+//     using eng.resolve_core_product_state (the same decoder the Suite uses).
+//   - Structure (BOS/CHoCH)          : recomputed locally with the same
+//     eng.detect_structure detector and swing length as the Suite.
+//   - Trust tier                     : eng.resolve_trust_tier over the published
+//     mp.* signal-quality / freshness / provider consts.
+//   - Event / Macro / Earnings       : mp.* calendar consts.
+// Structure and risk alerts work standalone; product-state and zone alerts
+// require the BUS inputs to be bound to the Suite (engine-bound probe below).
+
+indicator("SMC Long-Dip Alerts", overlay = true)
+
+import preuss_steffen/smc_engine_private/1 as eng
+import preuss_steffen/smc_micro_profiles_generated/152 as mp
+
+// ── Inputs ───────────────────────────────────────────────────────────────────
+// Group labels are plain consts — `var` on them is redundant and would only
+// inflate the var-budget ledger (tests/test_pine_var_budget_pin.py).
+g_gate = 'Alert Gate'
+bool bar_close_only = input.bool(true, 'Bar-close only', group = g_gate, tooltip = 'When on, every alert fires only on confirmed (closed) bars — non-repainting. Turn off to allow intrabar firing.')
+
+g_struct = 'Structure'
+int swing_len = input.int(50, 'Swing length', minval = 5, group = g_struct, tooltip = 'Pivot length for the recomputed BOS/CHoCH detector. Keep equal to the Suite for matching structure events.')
+
+g_bus = 'BUS bindings (link to SMC Long-Dip Suite)'
+float src_schema     = input.source(close, 'BUS SchemaVersion', group = g_bus, display = display.none, tooltip = 'Bind to the SMC Long-Dip Suite hidden BUS outputs of the same name.')
+float src_state_code = input.source(close, 'BUS StateCode',     group = g_bus, display = display.none)
+float src_armed      = input.source(close, 'BUS Armed',         group = g_bus, display = display.none)
+float src_zone       = input.source(close, 'BUS ZoneActive',    group = g_bus, display = display.none)
+
+// ── Gate + engine-bound probe ────────────────────────────────────────────────
+bool _alertGate = bar_close_only ? barstate.isconfirmed : true
+int expected_bus_version = 7001
+bool engine_bound = math.round(src_schema) == expected_bus_version
+
+state_on(float v) => not na(v) and v > 0.5
+
+// ── Product state (decoded from BUS StateCode via the Suite's own decoder) ────
+string prod_state = engine_bound ? eng.resolve_core_product_state(int(math.round(src_state_code))) : na
+bool prod_changed_to(string s) => engine_bound and prod_state == s and (na(prod_state[1]) or prod_state[1] != s)
+
+// ── Zone lifecycle (from BUS Armed / ZoneActive) ─────────────────────────────
+bool armed_now = engine_bound and state_on(src_armed) and not state_on(src_armed[1])
+bool zone_invalidated_now = engine_bound and state_on(src_zone[1]) and not state_on(src_zone)
+
+// ── Structure (recomputed with the same detector as the Suite) ───────────────
+[_trend, bull_bos_alert, bull_choch_alert, _tx, _ty, _tux, _tu, _hh, bear_bos_alert, bear_choch_alert, _bx, _by, _tdx, _td, _sl, _hx] = eng.detect_structure(swing_len)
+
+// ── Trust tier (recomputed from published mp.* consts, Suite's own resolver) ──
+string trust_tier = eng.resolve_trust_tier(mp.SIGNAL_QUALITY_TIER, mp.SIGNAL_FRESHNESS, mp.EVENT_PROVIDER_STATUS)
+bool trust_degraded = trust_tier == 'Degraded' and (na(trust_tier[1]) or trust_tier[1] != 'Degraded')
+bool trust_insufficient = trust_tier == 'Insufficient' and (na(trust_tier[1]) or trust_tier[1] != 'Insufficient')
+
+// ── Event / macro / earnings (from mp.* calendar consts) ─────────────────────
+bool event_risk_active = mp.MARKET_EVENT_BLOCKED or mp.SYMBOL_EVENT_BLOCKED
+bool has_earnings = str.contains(mp.EARNINGS_TODAY_TICKERS, syminfo.ticker)
+bool _new_day = ta.change(time('D')) != 0
+
+// ── Alerts (individually selectable; all bar-close gated) ────────────────────
+// Product state transitions
+alertcondition(_alertGate and prod_changed_to('ENTER LONG'),   'SMC: Enter Long',    'SMC Trigger is live. Entry level reached.')
+alertcondition(_alertGate and prod_changed_to('READY LONG'),   'SMC: Ready Long',    'SMC Setup is ready. Confirmed reclaim, watching for trigger.')
+alertcondition(_alertGate and prod_changed_to('PREPARE LONG'), 'SMC: Prepare Long',  'SMC Setup is preparing. Zone is active, waiting for confirmation.')
+alertcondition(_alertGate and prod_changed_to('BLOCKED'),      'SMC: Setup Blocked', 'SMC Setup is now blocked. Invalidation hit or regime issue.')
+alertcondition(_alertGate and prod_changed_to('WAIT'),         'SMC: Wait',          'No active setup — back to wait state.')
+
+// Structure break alerts
+alertcondition(_alertGate and bull_bos_alert,   'SMC: Bullish BOS',   'Bullish Break of Structure confirmed. Trend continuation signal.')
+alertcondition(_alertGate and bull_choch_alert, 'SMC: Bullish CHoCH', 'Bullish Change of Character confirmed. Potential trend reversal to the upside.')
+alertcondition(_alertGate and bear_choch_alert, 'SMC: Bearish CHoCH', 'Bearish Change of Character confirmed. Potential trend reversal to the downside.')
+alertcondition(_alertGate and bear_bos_alert,   'SMC: Bearish BOS',   'Bearish Break of Structure confirmed. Downtrend continuation signal.')
+
+// Zone lifecycle alerts
+alertcondition(_alertGate and armed_now,            'SMC: Zone Armed',       'A bullish zone has been armed. Price reclaimed a demand zone — watching for confirmation.')
+alertcondition(_alertGate and zone_invalidated_now, 'SMC: Zone Invalidated', 'Active zone setup invalidated. Price broke below invalidation level.')
+
+// Trust & risk alerts
+alertcondition(_alertGate and trust_degraded,     'SMC: Trust Degraded',          'Trust tier dropped to degraded')
+alertcondition(_alertGate and trust_insufficient, 'SMC: Trust Insufficient',      'Trust tier dropped to insufficient')
+alertcondition(_alertGate and event_risk_active,  'SMC: Event Risk Active',       'High-impact macro event blocking trades')
+alertcondition(_alertGate and mp.HIGH_IMPACT_MACRO_TODAY and _new_day, 'SMC: High Impact Macro Today', 'High impact macro event today. Reduce position sizes.')
+alertcondition(_alertGate and has_earnings and _new_day,               'SMC: Earnings Today',          'This ticker has earnings today. Exercise caution.')
+
+// Minimal on-chart status so the study has a visible footprint when added.
+var table status_tbl = table.new(position.bottom_right, 1, 1)
+if barstate.islast
+    string status = engine_bound ? 'BUS linked' : 'BUS not linked — bind SchemaVersion/StateCode/Armed/ZoneActive'
+    table.cell(status_tbl, 0, 0, 'SMC Long-Dip Alerts: ' + status, text_size = size.small, text_color = chart.fg_color)

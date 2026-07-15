@@ -55,6 +55,9 @@ _ROOT_ORCHESTRATORS: frozenset[str] = frozenset({
     "SMC_Exit_Signal.pine",
     "SMC_Hold_Manager.pine",
     "SMC_Volume_Profile_Overlay.pine",
+    # Alert companion for the Suite: restores per-event selectable alertcondition()
+    # slots the Suite dropped when it moved to alert() for the 64-plot budget.
+    "SMC_Long_Dip_Alerts.pine",
 })
 
 _PINE_LIBRARIES: frozenset[str] = frozenset({
@@ -123,7 +126,7 @@ def test_smcpp_library_inventory_is_exact() -> None:
 def test_total_active_pine_surface_count() -> None:
     """Belt-and-braces: active surface count is pinned for at-a-glance review."""
     expected = len(_ROOT_ORCHESTRATORS) + len(_PINE_LIBRARIES) + len(_SMCPP_LIBRARIES)
-    # +2 vs the prior pin of 35: the SMC++ inventory now registers
-    # smc_engine_private.pine (backfilled #3622 extraction gap) and the new
-    # smc_context_engine_private.pine (bus-v3 live context library).
-    assert expected == 37, f"inventory frozensets drifted: total={expected}"
+    # +1 vs the prior pin of 37: the SMC_Long_Dip_Alerts.pine alert companion.
+    # (37 was +2 over 35 from the #3622 smc_engine_private backfill + the bus-v3
+    # smc_context_engine_private library.)
+    assert expected == 38, f"inventory frozensets drifted: total={expected}"
