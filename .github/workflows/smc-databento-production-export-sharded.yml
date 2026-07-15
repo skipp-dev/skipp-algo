@@ -33,6 +33,13 @@
 # cover historical bars + FMP intraday bridge for today; the 21:00 run fetches
 # the complete, authoritative Databento record for the just-closed session.
 #
+# Caveat on "FMP intraday bridge for today" (#3649): the bridge only yields rows
+# once the intraday window has opened at 09:20 ET. 12:00 UTC is 08:00 ET in
+# summer — still pre-window — so that tick covers historical bars ONLY, and the
+# plan job defers the current day accordingly
+# (--defer-current-day-until-intraday-window). 16:00 UTC = 12:00 ET is inside
+# the window, so the bridge may contribute there.
+#
 # Probe flow:
 #   gh workflow run smc-databento-production-export-sharded.yml \
 #     -f lookback_days=10 -f num_shards=2
@@ -161,6 +168,7 @@ jobs:
               --num-shards "${NUM}" \
               --last-baked-date "${ASOF}" \
               --drop-weekend-only-shards \
+              --defer-current-day-until-intraday-window \
               > shards_incremental_preview.json 2> incremental_preview.diag
             PREVIEW_RC=$?
             set -e
@@ -199,6 +207,19 @@ jobs:
           # tick replans the same broken window — a self-perpetuating deadlock
           # (observed 2026-07-13..07-15, asof frozen at 2026-07-10). The flag is
           # a no-op whenever every shard already spans a weekday.
+          #
+          # Both paths also pass --defer-current-day-until-intraday-window. The
+          # producer can only rank the current day once the intraday window has
+          # opened at 09:20 ET (market open minus DEFAULT_INTRADAY_PRE_OPEN_MINUTES):
+          # before that Databento has not finalised the day (~20:00 UTC) and the
+          # FMP bridge returns an empty frame by contract, so a shard covering only
+          # the current day raises "No ranked results". In summer the 08:00/10:00/
+          # 12:00 UTC ticks are 04:00/06:00/08:00 ET — all pre-window. This only
+          # bites once the watermark is current (the narrowed window is then a few
+          # days wide, so the split isolates the current day); with a stale
+          # watermark the day is buried in a multi-day shard and ranks fine. The
+          # flag caps the end date at the last rankable day and never moves it
+          # forward.
           if [ -n "${INCREMENTAL}" ] && [ -n "${ASOF}" ]; then
             echo "::notice::incremental_from_manifest ON — narrowing production matrix to the tail since ${ASOF}."
             python scripts/databento_plan_shards.py \
@@ -206,6 +227,7 @@ jobs:
               --num-shards "${NUM}" \
               --last-baked-date "${ASOF}" \
               --drop-weekend-only-shards \
+              --defer-current-day-until-intraday-window \
               > shards.json
           else
             if [ -n "${INCREMENTAL}" ]; then
@@ -215,6 +237,7 @@ jobs:
               --lookback-days "${LOOKBACK}" \
               --num-shards "${NUM}" \
               --drop-weekend-only-shards \
+              --defer-current-day-until-intraday-window \
               > shards.json
           fi
           echo "----- shards.json -----"

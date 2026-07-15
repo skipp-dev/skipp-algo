@@ -42,6 +42,14 @@ down so each shard still spans at least one calendar day::
 
     python scripts/databento_plan_shards.py --lookback-days 30 --num-shards 6 \\
         --last-baked-date 2026-05-27
+
+Current-day deferral (opt-in): pass ``--defer-current-day-until-intraday-window``
+to cap the window end at the last day the producer can actually rank. Before the
+intraday window opens (09:20 ET) the current day has no Databento data yet and
+the FMP bridge returns empty by contract, so a shard covering *only* that day
+raises ``No ranked results``. Relevant once the watermark is current: the
+narrowed window is then only a few days wide, so the shard split isolates the
+current day instead of burying it in a multi-day shard.
 """
 
 from __future__ import annotations
@@ -50,28 +58,100 @@ import argparse
 import json
 import sys
 from collections.abc import Sequence
-from datetime import UTC, date, datetime, timedelta
+from datetime import UTC, date, datetime, time, timedelta
 from pathlib import Path
+
+# Regular US equity market open (ET). Mirrors the constant the producer's FMP
+# bridge derives its window from; there is no exported SSOT for it (see
+# databento_session.compute_market_relative_window, which hardcodes the same
+# time(9, 30)).
+_MARKET_OPEN_ET = time(9, 30)
 
 
 def _today_utc() -> date:
     return datetime.now(UTC).date()
 
 
-def _load_narrow_scan_window():
-    """Lazily import the sibling incremental-window helper.
+def _ensure_repo_root_on_path() -> None:
+    """Put REPO_ROOT on ``sys.path`` so first-party imports resolve.
 
-    Inserts REPO_ROOT into ``sys.path`` so ``from scripts.databento_incremental_window``
-    resolves both when invoked as a script and via importlib in tests.
-    The import is deferred so the default, non-incremental code path never
-    depends on the helper module being importable.
+    Needed so the lazy loaders below work both under script-style invocation
+    (``python scripts/databento_plan_shards.py``) and via importlib in tests.
+    Single bootstrap site on purpose — ``tests/test_sys_path_mutation_ledger.py``
+    pins this file at exactly one sys.path mutation.
     """
     repo_root = str(Path(__file__).resolve().parent.parent)
     if repo_root not in sys.path:
         sys.path.insert(0, repo_root)
+
+
+def _load_narrow_scan_window():
+    """Lazily import the sibling incremental-window helper.
+
+    The import is deferred so the default, non-incremental code path never
+    depends on the helper module being importable.
+    """
+    _ensure_repo_root_on_path()
     from scripts.databento_incremental_window import narrow_scan_window
 
     return narrow_scan_window
+
+
+def _load_intraday_window_defaults():
+    """Lazily import the ET timezone + pre-open SSOT.
+
+    Returns ``(US_EASTERN_TZ, DEFAULT_INTRADAY_PRE_OPEN_MINUTES)``. Deferred for
+    the same reason as ``_load_narrow_scan_window``: the default code path stays
+    dependency-free. Both modules are stdlib-only, so this stays cheap.
+    """
+    _ensure_repo_root_on_path()
+    from databento_session import DEFAULT_INTRADAY_PRE_OPEN_MINUTES
+    from databento_utils import US_EASTERN_TZ
+
+    return US_EASTERN_TZ, DEFAULT_INTRADAY_PRE_OPEN_MINUTES
+
+
+def _now_et() -> datetime:
+    """Current time in US/Eastern. Split out so tests can pin it."""
+    tz, _ = _load_intraday_window_defaults()
+    return datetime.now(tz)
+
+
+def _intraday_window_start_et(pre_open_minutes: int) -> time:
+    """The ET time from which a day becomes measurable.
+
+    Mirrors the producer's FMP-bridge derivation verbatim, including the
+    ``max(0, ...)`` clamp:
+    ``databento_production_export._run_fmp_intraday_bridge``::
+
+        _market_open_et = time(9, 30)
+        _pre_open_minutes = 10  # mirrors _DEFAULT_INTRADAY_PRE_OPEN_MINUTES
+        ws = time(_market_open_et.hour, max(0, _market_open_et.minute - _pre_open_minutes))
+
+    Kept in lockstep by ``test_planner_window_start_matches_producer_bridge``.
+    """
+    return time(
+        _MARKET_OPEN_ET.hour,
+        max(0, _MARKET_OPEN_ET.minute - pre_open_minutes),
+    )
+
+
+def _last_measurable_day(*, now_et: datetime, pre_open_minutes: int) -> date:
+    """Return the most recent day the producer can actually rank.
+
+    Before the intraday window opens, the producer has nothing for the current
+    day: Databento has not finalised it (that happens ~20:00 UTC) and the FMP
+    bridge deliberately returns an empty frame while ``we <= ws``. A shard whose
+    window is *only* that day therefore ranks zero rows and raises
+    ``RuntimeError("No ranked results were returned ...")``.
+
+    Note the boundary is **strict**: the producer bails on ``we <= ws``, so at
+    exactly ``ws`` the current day is still NOT measurable.
+    """
+    ws = _intraday_window_start_et(pre_open_minutes)
+    if now_et.time() > ws:
+        return now_et.date()
+    return now_et.date() - timedelta(days=1)
 
 
 def _shard_has_weekday(start: date, end: date) -> bool:
@@ -182,6 +262,18 @@ def _parse_args(argv: Sequence[str] | None) -> argparse.Namespace:
              "which the workflow's shard_count!='0' guard skips cleanly.",
     )
     parser.add_argument(
+        "--defer-current-day-until-intraday-window",
+        action="store_true",
+        help="Cap the window's end date at the last day the producer can actually "
+             "rank. Before the intraday window opens (09:20 ET = market open minus "
+             "DEFAULT_INTRADAY_PRE_OPEN_MINUTES) the current day has no Databento "
+             "data yet and the FMP bridge returns empty by contract, so a shard "
+             "covering only that day raises 'No ranked results'. The cap only ever "
+             "moves the end date BACKWARDS and never past an explicit historical "
+             "--end-date. Use in cron-driven matrices whose early ticks fire "
+             "pre-market.",
+    )
+    parser.add_argument(
         "--last-baked-date",
         type=lambda s: date.fromisoformat(s),
         default=None,
@@ -211,6 +303,23 @@ def main(argv: Sequence[str] | None = None) -> int:
     end_date = args.end_date if args.end_date is not None else _today_utc()
     lookback_days = int(args.lookback_days)
     num_shards = int(args.num_shards)
+
+    if getattr(args, "defer_current_day_until_intraday_window", False):
+        # Cap BEFORE narrowing so the incremental window and the shard split
+        # both see the same, actually-rankable end day.
+        _tz, pre_open_minutes = _load_intraday_window_defaults()
+        last_measurable = _last_measurable_day(
+            now_et=_now_et(), pre_open_minutes=pre_open_minutes
+        )
+        if end_date > last_measurable:
+            print(
+                f"info: intraday window not open yet "
+                f"(>{_intraday_window_start_et(pre_open_minutes).isoformat()} ET "
+                f"required); capping end date {end_date.isoformat()} -> "
+                f"{last_measurable.isoformat()} so no shard covers an unrankable day.",
+                file=sys.stderr,
+            )
+            end_date = last_measurable
 
     if args.last_baked_date is not None:
         # Opt-in incremental narrowing: shard only the window that has elapsed
