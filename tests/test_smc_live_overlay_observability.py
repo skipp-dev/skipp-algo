@@ -53,7 +53,7 @@ def test_flow_patch_cycle_emits_trace_metric_and_audit(
 
     monkeypatch.setattr(compute.cache, "get_all_symbols_snapshot", lambda: {"AAPL": [_sample_bar()]})
     monkeypatch.setattr(compute.cache, "get_vix", lambda: 18.12345)
-    monkeypatch.setattr(compute.cache, "patch_overlay", lambda *_args, **_kwargs: None)
+    monkeypatch.setattr(compute.cache, "patch_overlay", lambda *_args, **_kwargs: True)
 
     with caplog.at_level(logging.INFO, logger=obs.logger.name):
         n = compute.run_flow_patch_cycle()
@@ -63,6 +63,34 @@ def test_flow_patch_cycle_emits_trace_metric_and_audit(
     assert any("trace name=live_overlay.flow_patch_cycle phase=start" in m for m in msgs)
     assert any("metric kind=gauge name=live_overlay.flow_patch_symbols value=1" in m for m in msgs)
     assert any("audit event=live_overlay_flow_patch_cycle outcome=ok" in m for m in msgs)
+
+
+def test_flow_patch_cycle_counts_only_patched_symbols(
+    monkeypatch: pytest.MonkeyPatch,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """A symbol with bars but no full overlay entry must not inflate flow_patch_symbols."""
+    import services.live_overlay_daemon.compute as compute
+    import services.live_overlay_daemon.observability as obs
+
+    monkeypatch.setattr(compute.cache, "get_all_symbols_snapshot", lambda: {
+        "AAPL": [_sample_bar()],
+        "NEWB": [_sample_bar()],
+    })
+    monkeypatch.setattr(compute.cache, "get_vix", lambda: 18.12345)
+    # Only AAPL has a pre-existing overlay entry; NEWB is ignored by patch_overlay.
+    monkeypatch.setattr(
+        compute.cache,
+        "patch_overlay",
+        lambda sym, _updates, **_kw: sym.upper() == "AAPL",
+    )
+
+    with caplog.at_level(logging.INFO, logger=obs.logger.name):
+        n = compute.run_flow_patch_cycle()
+
+    assert n == 1
+    msgs = [r.getMessage() for r in caplog.records]
+    assert any("metric kind=gauge name=live_overlay.flow_patch_symbols value=1" in m for m in msgs)
 
 
 def test_smc_live_auth_denied_emits_metric_and_audit(
