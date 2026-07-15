@@ -240,6 +240,101 @@ def test_weekend_only_shard_with_require_flag_fails_rc2() -> None:
     assert "weekend-only" in err
 
 
+# ------------------------------------------- --drop-weekend-only-shards (#3645)
+
+
+def test_drop_weekend_only_shards_reproduces_and_fixes_monday_deadlock() -> None:
+    """Regression: the exact plan that deadlocked the export cron 2026-07-13..15.
+
+    The watermark sat on Friday 2026-07-10, so the incremental window
+    2026-07-10..2026-07-14 narrowed to 1 calendar day per shard and isolated
+    Sat 07-11 and Sun 07-12 into shards 2 and 3. Both resolved to zero trading
+    days, so the producer exited 1 and the scheduled run hard-failed on the
+    partial merged manifest -- which meant asof_date never advanced past that
+    Friday and every later tick replanned the same broken window.
+    """
+    argv = ["--lookback-days", "5", "--num-shards", "5", "--end-date", "2026-07-14"]
+    # Without the flag the weekend shards are still planned (default unchanged).
+    rc, out, err = _run_main(argv)
+    assert rc == 0
+    assert [s["start_date"] for s in json.loads(out)] == [
+        "2026-07-10", "2026-07-11", "2026-07-12", "2026-07-13", "2026-07-14",
+    ]
+    assert "shard_ids=[2, 3]" in err
+
+    rc, out, err = _run_main([*argv, "--drop-weekend-only-shards"])
+    assert rc == 0
+    payload = json.loads(out)
+    # Sat + Sun are gone; only the three trading days survive.
+    assert [s["start_date"] for s in payload] == [
+        "2026-07-10", "2026-07-13", "2026-07-14",
+    ]
+    # Renumbered 1..M with a matching shard_of, so the reduce step's
+    # `shard_id > expected_shard_count` guard cannot trip.
+    assert [s["shard_id"] for s in payload] == [1, 2, 3]
+    assert {s["shard_of"] for s in payload} == {3}
+    assert "dropped weekend-only shard(s) [2, 3]" in err
+
+
+def test_drop_weekend_only_shards_is_noop_when_every_shard_has_a_weekday() -> None:
+    # 2026-05-04 .. 2026-05-08 is Mon-Fri.
+    argv = ["--lookback-days", "5", "--num-shards", "5", "--end-date", "2026-05-08"]
+    _rc, baseline, _err = _run_main(argv)
+    rc, out, err = _run_main([*argv, "--drop-weekend-only-shards"])
+    assert rc == 0
+    assert json.loads(out) == json.loads(baseline)
+    assert "dropped weekend-only" not in err
+
+
+def test_drop_weekend_only_shards_all_weekend_emits_empty_matrix() -> None:
+    """Every shard weekend-only -> empty matrix.
+
+    The workflow guards both the producer and reduce jobs with
+    ``shard_count != '0'``, so an empty plan skips them cleanly instead of
+    fanning out shards that are guaranteed to exit 1.
+    """
+    rc, out, _err = _run_main(
+        [
+            "--lookback-days", "2", "--num-shards", "2", "--end-date", "2026-05-10",
+            "--drop-weekend-only-shards",
+        ]
+    )
+    assert rc == 0
+    assert json.loads(out) == []
+
+
+def test_require_weekday_coverage_takes_precedence_over_drop() -> None:
+    rc, out, _err = _run_main(
+        [
+            "--lookback-days", "2", "--num-shards", "2", "--end-date", "2026-05-10",
+            "--require-weekday-coverage", "--drop-weekend-only-shards",
+        ]
+    )
+    assert rc == 2
+    assert out == ""
+
+
+def test_drop_weekend_only_shards_keeps_every_weekday_covered() -> None:
+    """Dropping must not lose coverage: every weekday stays inside some shard."""
+    argv = ["--lookback-days", "30", "--num-shards", "20", "--end-date", "2026-07-14"]
+    _rc, baseline, _err = _run_main(argv)
+    rc, out, _err = _run_main([*argv, "--drop-weekend-only-shards"])
+    assert rc == 0
+
+    def _weekdays(payload: str) -> set[date]:
+        days: set[date] = set()
+        for shard in json.loads(payload):
+            cur = date.fromisoformat(str(shard["start_date"]))
+            end = date.fromisoformat(str(shard["end_date"]))
+            while cur <= end:
+                if cur.weekday() < 5:
+                    days.add(cur)
+                cur += timedelta(days=1)
+        return days
+
+    assert _weekdays(out) == _weekdays(baseline)
+
+
 # --------------------------------------------------------------- workflow YAML
 
 # Module-level constant kept here so the orphan-inventory guard
@@ -291,3 +386,36 @@ def test_sharded_workflow_plan_job_invokes_planner_script() -> None:
     text = path.read_text()
     assert "scripts/databento_plan_shards.py" in text
     assert "a9b-2a-shard-plan" in text  # artifact name pin
+
+
+def test_sharded_workflow_plan_job_drops_weekend_only_shards() -> None:
+    """Every planner invocation must pass --drop-weekend-only-shards (#3645).
+
+    Without it the incremental path re-enters the Monday deadlock: the Friday
+    watermark puts Sat/Sun in the window, they narrow into their own shards,
+    the producer exits 1 on them, the scheduled run fails on the partial merged
+    manifest, and asof_date never advances to replan a healthy window.
+    """
+    path = (
+        Path(__file__).resolve().parents[1]
+        / ".github"
+        / "workflows"
+        / f"{_SHARDED_WORKFLOW_BASENAME}.yml"
+    )
+    text = path.read_text()
+    invocations = text.count("scripts/databento_plan_shards.py \\")
+    assert invocations == 3, (
+        f"expected 3 planner invocations (preview + incremental + full-lookback); "
+        f"got {invocations} — update this pin if the plan job was restructured"
+    )
+    # Count the flag only where it is an actual argument on its own
+    # continuation line, so prose mentioning it does not satisfy the pin.
+    flag_args = [
+        line for line in text.splitlines()
+        if line.strip() in {"--drop-weekend-only-shards \\", "--drop-weekend-only-shards"}
+    ]
+    assert len(flag_args) == invocations, (
+        f"every databento_plan_shards.py invocation in the plan job must pass "
+        f"--drop-weekend-only-shards; found {len(flag_args)} for {invocations} "
+        f"invocations"
+    )

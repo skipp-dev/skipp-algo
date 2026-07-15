@@ -160,6 +160,7 @@ jobs:
               --lookback-days "${LOOKBACK}" \
               --num-shards "${NUM}" \
               --last-baked-date "${ASOF}" \
+              --drop-weekend-only-shards \
               > shards_incremental_preview.json 2> incremental_preview.diag
             PREVIEW_RC=$?
             set -e
@@ -183,15 +184,28 @@ jobs:
           fi
 
           # --- production matrix -----------------------------------------
-          # The toggle-off path is byte-for-byte the original full-lookback
-          # invocation. Only an explicit opt-in AND a present watermark feed
-          # --last-baked-date into the matrix-producing call.
+          # The toggle-off path stays the full-lookback invocation. Only an
+          # explicit opt-in AND a present watermark feed --last-baked-date
+          # into the matrix-producing call.
+          #
+          # Both paths pass --drop-weekend-only-shards. A shard whose window is
+          # entirely Sat/Sun resolves to zero trading days and the producer
+          # exits 1, which fails the shard job and — on schedule events, via the
+          # partial-manifest gate below — the whole run. The incremental path
+          # hits this every Monday: the watermark sits on Friday, so the window
+          # spans the weekend and narrows to ~1 calendar day per shard, isolating
+          # Sat and Sun into their own shards. Because the run then fails, the
+          # manifest asof_date never advances past that Friday and every later
+          # tick replans the same broken window — a self-perpetuating deadlock
+          # (observed 2026-07-13..07-15, asof frozen at 2026-07-10). The flag is
+          # a no-op whenever every shard already spans a weekday.
           if [ -n "${INCREMENTAL}" ] && [ -n "${ASOF}" ]; then
             echo "::notice::incremental_from_manifest ON — narrowing production matrix to the tail since ${ASOF}."
             python scripts/databento_plan_shards.py \
               --lookback-days "${LOOKBACK}" \
               --num-shards "${NUM}" \
               --last-baked-date "${ASOF}" \
+              --drop-weekend-only-shards \
               > shards.json
           else
             if [ -n "${INCREMENTAL}" ]; then
@@ -200,6 +214,7 @@ jobs:
             python scripts/databento_plan_shards.py \
               --lookback-days "${LOOKBACK}" \
               --num-shards "${NUM}" \
+              --drop-weekend-only-shards \
               > shards.json
           fi
           echo "----- shards.json -----"
