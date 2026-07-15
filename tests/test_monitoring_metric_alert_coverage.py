@@ -523,3 +523,52 @@ def test_no_alert_rule_uid_exceeds_grafana_limit() -> None:
         "upsert will HTTP 400 and leave every later group unapplied:\n"
         + "\n".join(f"  {n:>3} chars: {u}  [group: {g}]" for u, n, g in offenders)
     )
+
+
+# Mirrors scripts/grafana_alert_rules_upsert.UID_CHARSET_RE, and duplicated for
+# the same reason as _MAX_UID_LENGTH above: this file is required, the upsert
+# tests are not, so the contract must be unmergeable here rather than merely
+# un-deployable there. Both copies are deliberately independent — a test that
+# asserted the two constants merely AGREE would stay green if both drifted to
+# something wrong together, which is the failure it would exist to catch.
+_UID_CHARSET_RE = re.compile(r"[a-z0-9]+(?:-[a-z0-9]+)*")
+
+
+def test_alert_rule_uids_stay_in_the_portable_charset() -> None:
+    """A look-alike character is invisible to every other uid check.
+
+    The length guard above cannot see this one: swap the ASCII hyphen in
+    `lo-credential-monitor-stale` for a typographic en-dash (U+2013) and the uid
+    is the SAME 27 characters, renders almost identically in a review diff, and
+    is a distinct string — so the uniqueness check reads it as an unrelated rule
+    rather than a duplicate. It sails through to Grafana, which then either 400s
+    a rule that looks correct, or accepts it as a SEPARATE rule and leaves the
+    hyphenated original orphaned, firing forever, while CI and the publish run
+    both stay green.
+
+    Not hypothetical in this repo: the alert YAML is authored by agents and
+    pasted between rendered Markdown, Slack and Outlook, all of which autocorrect
+    hyphens into dashes.
+
+    This is a REPO-LOCAL contract, not a claim about Grafana's charset rules
+    (which the observed HTTP 400 surface does not document). It is deliberately
+    narrower than whatever Grafana accepts: it freezes the lived `lo-…` naming
+    convention and keeps len() an unambiguous stand-in for Grafana's "symbols"
+    count, which only coincides for ASCII.
+    """
+    groups = yaml.safe_load(_ALERT_RULES.read_text(encoding="utf-8"))["groups"]
+    rules = [(r, g["name"]) for g in groups for r in g["rules"]]
+    assert len(rules) >= 90, (
+        f"uid discovery collapsed — only {len(rules)} rule(s) found, so this "
+        "guard would be asserting on almost nothing"
+    )
+    offenders = [
+        (rule["uid"], group, [c for c in rule["uid"] if not re.fullmatch(r"[a-z0-9-]", c)])
+        for rule, group in rules
+        if not _UID_CHARSET_RE.fullmatch(str(rule.get("uid", "")))
+    ]
+    assert not offenders, (
+        "alert rule uid(s) leave the portable [a-z0-9] + '-' subset. A look-alike "
+        "character passes the length and uniqueness checks and reaches Grafana:\n"
+        + "\n".join(f"  {u!r}  [group: {g}]  offending: {o}" for u, g, o in offenders)
+    )
