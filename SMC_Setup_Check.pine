@@ -16,12 +16,15 @@ indicator("SMC Setup Check", overlay = true)
 // ── BUS Bindings (minimal critical set) ──
 var string g_bus = "1. Link to SMC Core Engine"
 
-src_schema   = input.source(close, "BUS SchemaVersion",  group = g_bus, tooltip = "Open indicator settings and bind each row to the matching hidden BUS output from SMC Core Engine.\n\nBind order: SchemaVersion → StateCode → Armed → QualityScore → Trigger → Invalidation.")
-src_state    = input.source(close, "BUS StateCode",      group = g_bus)
+// Declared in the Suite's BUS plot() order. TradingView lists a source study's
+// outputs in that plot order, so matching it here means each row's dropdown pick
+// moves strictly downwards while binding — no scrolling back up.
+src_schema   = input.source(close, "BUS SchemaVersion",  group = g_bus, tooltip = "Open indicator settings and bind each row to the matching hidden BUS output from SMC Long-Dip Suite.\n\nThe rows are listed in the same order as the Suite outputs in the dropdown, so you can bind them top to bottom:\nSchemaVersion → Armed → Trigger → Invalidation → QualityScore → StateCode.")
 src_armed    = input.source(close, "BUS Armed",          group = g_bus)
-src_quality  = input.source(close, "BUS QualityScore",   group = g_bus)
 src_trigger  = input.source(close, "BUS Trigger",        group = g_bus)
 src_invalid  = input.source(close, "BUS Invalidation",   group = g_bus)
+src_quality  = input.source(close, "BUS QualityScore",   group = g_bus)
+src_state    = input.source(close, "BUS StateCode",      group = g_bus)
 
 // ── Detection Logic ──
 // BUS SchemaVersion is a constant (7001) emitted by Core Engine on every bar.

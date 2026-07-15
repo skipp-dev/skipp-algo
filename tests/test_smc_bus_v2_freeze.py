@@ -90,15 +90,24 @@ FROZEN_ENGINE_BUS_CHANNELS: tuple[str, ...] = (
     'PresetVolRegimeDef',
 )
 
+# Re-frozen — deliberate, reviewed change (not a side effect of context-bus work).
+# QualityScore moved from position 6 to last so this tuple mirrors the engine's
+# BUS plot order (channels 2..9). The *set* is unchanged (same 8 executable
+# channels) and the 64-channel engine surface above is untouched.
+# Rationale: TradingView lists a source study's outputs as ONE FLAT list in plot
+# order, so the Strategy can only be bound straight down its settings panel if its
+# rows follow that order. Order carries no semantics for the executable surface —
+# unlike ENGINE_BUS_CHANNELS, whose order mirrors the Pine plot block and stays
+# frozen. Landed with the BUS binding-order alignment slice.
 FROZEN_STRATEGY_BUS_CHANNELS: tuple[str, ...] = (
     'Armed',
     'Confirmed',
     'Ready',
     'EntryBest',
     'EntryStrict',
-    'QualityScore',
     'Trigger',
     'Invalidation',
+    'QualityScore',
 )
 
 # Engine producer schema. Context bus v3 must use a distinct schema (8001) so a

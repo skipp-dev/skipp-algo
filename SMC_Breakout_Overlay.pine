@@ -59,20 +59,25 @@ int structLen = input.int(50, "Library swing length", minval = 5, maxval = 200, 
      tooltip = "Swing lookback for the smc_engine_private structure detector (library tier).")
 
 g_bus = "Engine BUS binding (tier 2)"
+// Declared in the Suite's BUS plot() order. TradingView lists a source study's
+// outputs in that plot order, so matching it here means each row's dropdown pick
+// moves strictly downwards while binding — no scrolling back up.
+// Required for the engine tier: SchemaVersion / ZoneActive / Trigger / Invalidation.
+// Optional enrichment (real zones / risk plan / quality): QualityScore, StopLevel,
+// Target1/2, ZoneObTop/Bottom, ZoneFvgTop/Bottom.
 src_schema       = input.source(close, "BUS SchemaVersion", group = g_bus, display = display.none,
-     tooltip = "Bind to SMC Core's 'BUS SchemaVersion' plot. Must read 7001 for the engine tier to activate.")
-src_zone_active  = input.source(close, "BUS ZoneActive",  group = g_bus, display = display.none)
-src_trigger      = input.source(close, "BUS Trigger",      group = g_bus, display = display.none)
-src_invalidation = input.source(close, "BUS Invalidation", group = g_bus, display = display.none)
-// Enrichment channels (optional — bind for real zones / risk plan / quality):
-src_ob_top       = input.source(close, "BUS ZoneObTop",     group = g_bus, display = display.none)
-src_ob_bottom    = input.source(close, "BUS ZoneObBottom",  group = g_bus, display = display.none)
-src_fvg_top      = input.source(close, "BUS ZoneFvgTop",    group = g_bus, display = display.none)
-src_fvg_bottom   = input.source(close, "BUS ZoneFvgBottom", group = g_bus, display = display.none)
-src_stop         = input.source(close, "BUS StopLevel",     group = g_bus, display = display.none)
-src_target1      = input.source(close, "BUS Target1",       group = g_bus, display = display.none)
-src_target2      = input.source(close, "BUS Target2",       group = g_bus, display = display.none)
-src_quality      = input.source(close, "BUS QualityScore",  group = g_bus, display = display.none)
+     tooltip = "Bind to the SMC Long-Dip Suite 'BUS SchemaVersion' plot. Must read 7001 for the engine tier to activate. The rows below are listed in the same order as the Suite outputs in the dropdown.")
+src_zone_active  = input.source(close, "BUS ZoneActive",     group = g_bus, display = display.none)
+src_trigger      = input.source(close, "BUS Trigger",        group = g_bus, display = display.none)
+src_invalidation = input.source(close, "BUS Invalidation",   group = g_bus, display = display.none)
+src_quality      = input.source(close, "BUS QualityScore",   group = g_bus, display = display.none)
+src_stop         = input.source(close, "BUS StopLevel",      group = g_bus, display = display.none)
+src_target1      = input.source(close, "BUS Target1",        group = g_bus, display = display.none)
+src_target2      = input.source(close, "BUS Target2",        group = g_bus, display = display.none)
+src_ob_top       = input.source(close, "BUS ZoneObTop",      group = g_bus, display = display.none)
+src_ob_bottom    = input.source(close, "BUS ZoneObBottom",   group = g_bus, display = display.none)
+src_fvg_top      = input.source(close, "BUS ZoneFvgTop",     group = g_bus, display = display.none)
+src_fvg_bottom   = input.source(close, "BUS ZoneFvgBottom",  group = g_bus, display = display.none)
 
 int  expected_bus_version = 7001   // matches SMC Core's published 'BUS SchemaVersion'
 bool engine_bound = math.round(src_schema) == expected_bus_version

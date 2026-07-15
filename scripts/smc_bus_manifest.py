@@ -657,15 +657,20 @@ ENGINE_BUS_CHANNELS: tuple[str, ...] = (
 ENGINE_BUS_LABELS: tuple[str, ...] = tuple(f'BUS {channel}' for channel in ENGINE_BUS_CHANNELS)
 
 
+# Ordered to mirror the engine's BUS plot() order (channels 2..9). The set is the
+# contract; the order is not semantic here (unlike ENGINE_BUS_CHANNELS, whose
+# order mirrors the Pine plot block). Aligning it lets the Strategy declare its
+# input.source rows in the same order TradingView lists the Suite's outputs in
+# the dropdown, so the operator binds straight down without scrolling back up.
 EXECUTABLE_BUS_CHANNELS: tuple[str, ...] = (
     'Armed',
     'Confirmed',
     'Ready',
     'EntryBest',
     'EntryStrict',
-    'QualityScore',
     'Trigger',
     'Invalidation',
+    'QualityScore',
 )
 
 LITE_SURFACE_BUS_CHANNELS: tuple[str, ...] = (
@@ -751,14 +756,21 @@ C9_LEGACY_COMPAT_BUS_LABELS: tuple[str, ...] = tuple(f'BUS {channel}' for channe
 C9_STABLE_PRO_BUS_LABELS: tuple[str, ...] = tuple(f'BUS {channel}' for channel in C9_STABLE_PRO_BUS_CHANNELS)
 
 
+# Ordered so the settings panel walks the engine's BUS plot order 0..63 from top
+# to bottom. TradingView renders a source study's outputs as ONE FLAT list in
+# plot order and knows nothing about these groups, so a group whose plot range is
+# out of sequence forces the operator to scroll back up in the dropdown. Every
+# group therefore covers one contiguous range; 'Blocker Codes' was split out of
+# 'Diagnostic Support', which previously held two disjoint ranges (14-16, 40-43).
 DASHBOARD_GROUP_TITLES: tuple[str, ...] = (
-    'Lifecycle BUS',
-    'Diagnostic Rows',
-    'Diagnostic Support',
-    'Trade Plan',
-    'Detail Surface',
-    'Lean Surface',
-    'Preset Contract',
+    'Lifecycle BUS',        # plots 0-13
+    'Diagnostic Support',   # plots 14-16
+    'Trade Plan',           # plots 17-19
+    'Diagnostic Rows',      # plots 20-39
+    'Blocker Codes',        # plots 40-43
+    'Detail Surface',       # plots 44-56
+    'Lean Surface',         # plots 57-58
+    'Preset Contract',      # plots 59-63
 )
 
 STRATEGY_GROUP_TITLES: tuple[str, ...] = (
@@ -768,9 +780,10 @@ STRATEGY_GROUP_TITLES: tuple[str, ...] = (
 
 DASHBOARD_GROUP_TITLES_BY_KEY: dict[str, str] = {
     'g_bus_lifecycle': 'Lifecycle BUS',
-    'g_bus_diag_rows': 'Diagnostic Rows',
     'g_bus_diag': 'Diagnostic Support',
     'g_bus_plan': 'Trade Plan',
+    'g_bus_diag_rows': 'Diagnostic Rows',
+    'g_bus_blockers': 'Blocker Codes',
     'g_bus_detail': 'Detail Surface',
     'g_bus_lean': 'Lean Surface',
     'g_bus_preset': 'Preset Contract',
@@ -797,58 +810,56 @@ DASHBOARD_BUS_BINDINGS: tuple[BusBinding, ...] = (
     BusBinding('BUS StateCode', 'g_bus_lifecycle', 'critical'),
     BusBinding('BUS TrendPack', 'g_bus_lifecycle', 'critical'),
     BusBinding('BUS MetaPack', 'g_bus_lifecycle', 'critical'),
-    BusBinding('BUS SessionGateRow', 'g_bus_diag_rows'),
-    BusBinding('BUS MarketGateRow', 'g_bus_diag_rows'),
-    BusBinding('BUS VolaGateRow', 'g_bus_diag_rows'),
-    BusBinding('BUS MicroSessionGateRow', 'g_bus_diag_rows'),
-    BusBinding('BUS MicroFreshRow', 'g_bus_diag_rows'),
-    BusBinding('BUS VolumeDataRow', 'g_bus_diag_rows'),
-    BusBinding('BUS QualityEnvRow', 'g_bus_diag_rows'),
-    BusBinding('BUS QualityStrictRow', 'g_bus_diag_rows'),
-    BusBinding('BUS CloseStrengthRow', 'g_bus_diag_rows'),
-    BusBinding('BUS EmaSupportRow', 'g_bus_diag_rows'),
-    BusBinding('BUS AdxRow', 'g_bus_diag_rows'),
-    BusBinding('BUS RelVolRow', 'g_bus_diag_rows'),
-    BusBinding('BUS VwapRow', 'g_bus_diag_rows'),
-    BusBinding('BUS ContextQualityRow', 'g_bus_diag_rows'),
-    BusBinding('BUS QualityCleanRow', 'g_bus_diag_rows'),
-    BusBinding('BUS QualityScoreRow', 'g_bus_diag_rows'),
-    BusBinding('BUS SdConfluenceRow', 'g_bus_diag_rows'),
-    BusBinding('BUS SdOscRow', 'g_bus_diag_rows'),
-    BusBinding('BUS VolRegimeRow', 'g_bus_diag_rows'),
-    BusBinding('BUS VolSqueezeRow', 'g_bus_diag_rows'),
-    BusBinding('BUS LtfDeltaState', 'g_bus_diag'),
-    BusBinding('BUS SafeTrendState', 'g_bus_diag'),
-    BusBinding('BUS MicroProfileCode', 'g_bus_diag'),
-    BusBinding('BUS ReadyBlockerCode', 'g_bus_diag'),
-    BusBinding('BUS StrictBlockerCode', 'g_bus_diag'),
-    BusBinding('BUS VolExpansionState', 'g_bus_diag'),
-    BusBinding('BUS DdviContextState', 'g_bus_diag'),
+    BusBinding('BUS LtfDeltaState', 'g_bus_diag', 'diagnostic'),
+    BusBinding('BUS SafeTrendState', 'g_bus_diag', 'diagnostic'),
+    BusBinding('BUS MicroProfileCode', 'g_bus_diag', 'diagnostic'),
     BusBinding('BUS StopLevel', 'g_bus_plan', 'critical'),
     BusBinding('BUS Target1', 'g_bus_plan', 'critical'),
     BusBinding('BUS Target2', 'g_bus_plan', 'critical'),
-    BusBinding('BUS ZoneObTop', 'g_bus_detail'),
-    BusBinding('BUS ZoneObBottom', 'g_bus_detail'),
-    BusBinding('BUS ZoneFvgTop', 'g_bus_detail'),
-    BusBinding('BUS ZoneFvgBottom', 'g_bus_detail'),
-    BusBinding('BUS SessionVwap', 'g_bus_detail'),
-    BusBinding('BUS AdxValue', 'g_bus_detail'),
-    BusBinding('BUS RelVolValue', 'g_bus_detail'),
-    BusBinding('BUS StretchZ', 'g_bus_detail'),
-    BusBinding('BUS StretchSupportMask', 'g_bus_detail'),
-    BusBinding('BUS LtfBullShare', 'g_bus_detail'),
-    BusBinding('BUS LtfBiasHint', 'g_bus_detail'),
-    BusBinding('BUS LtfVolumeDelta', 'g_bus_detail'),
-    BusBinding('BUS ObjectsCountPack', 'g_bus_detail'),
+    BusBinding('BUS SessionGateRow', 'g_bus_diag_rows', 'diagnostic'),
+    BusBinding('BUS MarketGateRow', 'g_bus_diag_rows', 'diagnostic'),
+    BusBinding('BUS VolaGateRow', 'g_bus_diag_rows', 'diagnostic'),
+    BusBinding('BUS MicroSessionGateRow', 'g_bus_diag_rows', 'diagnostic'),
+    BusBinding('BUS MicroFreshRow', 'g_bus_diag_rows', 'diagnostic'),
+    BusBinding('BUS VolumeDataRow', 'g_bus_diag_rows', 'diagnostic'),
+    BusBinding('BUS QualityEnvRow', 'g_bus_diag_rows', 'diagnostic'),
+    BusBinding('BUS QualityStrictRow', 'g_bus_diag_rows', 'diagnostic'),
+    BusBinding('BUS CloseStrengthRow', 'g_bus_diag_rows', 'diagnostic'),
+    BusBinding('BUS EmaSupportRow', 'g_bus_diag_rows', 'diagnostic'),
+    BusBinding('BUS AdxRow', 'g_bus_diag_rows', 'diagnostic'),
+    BusBinding('BUS RelVolRow', 'g_bus_diag_rows', 'diagnostic'),
+    BusBinding('BUS VwapRow', 'g_bus_diag_rows', 'diagnostic'),
+    BusBinding('BUS ContextQualityRow', 'g_bus_diag_rows', 'diagnostic'),
+    BusBinding('BUS QualityCleanRow', 'g_bus_diag_rows', 'diagnostic'),
+    BusBinding('BUS QualityScoreRow', 'g_bus_diag_rows', 'diagnostic'),
+    BusBinding('BUS SdConfluenceRow', 'g_bus_diag_rows', 'diagnostic'),
+    BusBinding('BUS SdOscRow', 'g_bus_diag_rows', 'diagnostic'),
+    BusBinding('BUS VolRegimeRow', 'g_bus_diag_rows', 'diagnostic'),
+    BusBinding('BUS VolSqueezeRow', 'g_bus_diag_rows', 'diagnostic'),
+    BusBinding('BUS ReadyBlockerCode', 'g_bus_blockers', 'diagnostic'),
+    BusBinding('BUS StrictBlockerCode', 'g_bus_blockers', 'diagnostic'),
+    BusBinding('BUS VolExpansionState', 'g_bus_blockers', 'diagnostic'),
+    BusBinding('BUS DdviContextState', 'g_bus_blockers', 'diagnostic'),
+    BusBinding('BUS ZoneObTop', 'g_bus_detail', 'diagnostic'),
+    BusBinding('BUS ZoneObBottom', 'g_bus_detail', 'diagnostic'),
+    BusBinding('BUS ZoneFvgTop', 'g_bus_detail', 'diagnostic'),
+    BusBinding('BUS ZoneFvgBottom', 'g_bus_detail', 'diagnostic'),
+    BusBinding('BUS SessionVwap', 'g_bus_detail', 'diagnostic'),
+    BusBinding('BUS AdxValue', 'g_bus_detail', 'diagnostic'),
+    BusBinding('BUS RelVolValue', 'g_bus_detail', 'diagnostic'),
+    BusBinding('BUS StretchZ', 'g_bus_detail', 'diagnostic'),
+    BusBinding('BUS StretchSupportMask', 'g_bus_detail', 'diagnostic'),
+    BusBinding('BUS LtfBullShare', 'g_bus_detail', 'diagnostic'),
+    BusBinding('BUS LtfBiasHint', 'g_bus_detail', 'diagnostic'),
+    BusBinding('BUS LtfVolumeDelta', 'g_bus_detail', 'diagnostic'),
+    BusBinding('BUS ObjectsCountPack', 'g_bus_detail', 'diagnostic'),
     BusBinding('BUS LeanPackA', 'g_bus_lean', 'critical'),
     BusBinding('BUS LeanPackB', 'g_bus_lean', 'critical'),
-    # Plan 1.4 / §2.5 H5 — Quickstart Preset contract bindings. Order mirrors
-    # the engine plot order; the Hero reads PresetClassCode to detect CUSTOM.
-    BusBinding('BUS PresetClassCode', 'g_bus_preset'),
-    BusBinding('BUS PresetRvolMin', 'g_bus_preset'),
-    BusBinding('BUS PresetHtfBiasMin', 'g_bus_preset'),
-    BusBinding('BUS PresetFvgQualGate', 'g_bus_preset'),
-    BusBinding('BUS PresetVolRegimeDef', 'g_bus_preset'),
+    BusBinding('BUS PresetClassCode', 'g_bus_preset', 'diagnostic'),
+    BusBinding('BUS PresetRvolMin', 'g_bus_preset', 'diagnostic'),
+    BusBinding('BUS PresetHtfBiasMin', 'g_bus_preset', 'diagnostic'),
+    BusBinding('BUS PresetFvgQualGate', 'g_bus_preset', 'diagnostic'),
+    BusBinding('BUS PresetVolRegimeDef', 'g_bus_preset', 'diagnostic'),
 )
 
 STRATEGY_BUS_BINDINGS: tuple[BusBinding, ...] = (
@@ -857,9 +868,9 @@ STRATEGY_BUS_BINDINGS: tuple[BusBinding, ...] = (
     BusBinding('BUS Ready', 'g_bus_entry'),
     BusBinding('BUS EntryBest', 'g_bus_entry'),
     BusBinding('BUS EntryStrict', 'g_bus_entry'),
-    BusBinding('BUS QualityScore', 'g_bus_entry'),
     BusBinding('BUS Trigger', 'g_bus_plan'),
     BusBinding('BUS Invalidation', 'g_bus_plan'),
+    BusBinding('BUS QualityScore', 'g_bus_plan'),
 )
 
 

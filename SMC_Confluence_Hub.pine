@@ -34,12 +34,15 @@ var string g_alerts = "6. Alerts"
 barCloseOnly = input.bool(true, "Alerts nur am Bar-Close", group = g_alerts, tooltip = "Wenn aktiv, feuern Alerts nur auf bestätigten (geschlossenen) Bars. Verhindert Repaint/Flicker während der laufenden Bar.")
 
 var string g_bus = "2. SMC Core Link"
-src_schema     = input.source(close, "BUS SchemaVersion", group = g_bus, display = display.none, tooltip = "Bind to SMC Core Engine hidden BUS outputs.")
-src_state_code = input.source(close, "BUS StateCode",     group = g_bus, display = display.none)
-src_quality    = input.source(close, "BUS QualityScore",  group = g_bus, display = display.none)
+// Declared in the Suite's BUS plot() order. TradingView lists a source study's
+// outputs in that plot order, so matching it here means each row's dropdown pick
+// moves strictly downwards while binding — no scrolling back up.
+src_schema     = input.source(close, "BUS SchemaVersion", group = g_bus, display = display.none, tooltip = "Bind to the SMC Long-Dip Suite hidden BUS outputs. The rows are listed in the same order as the Suite outputs in the dropdown, so you can bind them top to bottom.")
 src_armed      = input.source(close, "BUS Armed",         group = g_bus, display = display.none)
 src_trigger    = input.source(close, "BUS Trigger",       group = g_bus, display = display.none)
 src_invalid    = input.source(close, "BUS Invalidation",  group = g_bus, display = display.none)
+src_quality    = input.source(close, "BUS QualityScore",  group = g_bus, display = display.none)
+src_state_code = input.source(close, "BUS StateCode",     group = g_bus, display = display.none)
 
 var string g_trend = "3. Trend Parameters"
 ema_fast_len = input.int(21, "EMA Fast", minval = 5,  group = g_trend)

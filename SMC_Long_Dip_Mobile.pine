@@ -21,14 +21,17 @@ var color M_NEUTRAL = color.gray
 
 var string g_bus = "Operator Only - BUS"
 
+// Declared in the Suite's BUS plot() order. TradingView lists a source study's
+// outputs in that plot order, so matching it here means each row's dropdown pick
+// moves strictly downwards while binding — no scrolling back up.
 src_bus_schema_version = input.source(close, "BUS SchemaVersion", group = g_bus, display = display.none)
-src_state_code         = input.source(close, "BUS StateCode",      group = g_bus, display = display.none)
 src_armed              = input.source(close, "BUS Armed",          group = g_bus, display = display.none)
 src_confirmed          = input.source(close, "BUS Confirmed",      group = g_bus, display = display.none)
 src_ready              = input.source(close, "BUS Ready",          group = g_bus, display = display.none)
-src_quality_score      = input.source(close, "BUS QualityScore",   group = g_bus, display = display.none)
 src_trigger            = input.source(close, "BUS Trigger",        group = g_bus, display = display.none)
 src_invalidation       = input.source(close, "BUS Invalidation",   group = g_bus, display = display.none)
+src_quality_score      = input.source(close, "BUS QualityScore",   group = g_bus, display = display.none)
+src_state_code         = input.source(close, "BUS StateCode",      group = g_bus, display = display.none)
 
 var string g_trade_mgmt = "Trade Management (optional)"
 tm_enable      = input.bool(false, "Enable Trade-Mgmt rows",        group = g_trade_mgmt, tooltip = "Adds 2 extra rows to the table: Trade-State (FLAT/ARMED/IN-TRADE) and live Stop. Same logic as SMC_Exit_Signal.")
