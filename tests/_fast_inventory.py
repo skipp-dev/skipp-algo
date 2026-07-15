@@ -88,6 +88,7 @@ FAST_TEST_FILES: frozenset[str] = frozenset({
     "test_atexit_register_zero_surface.py",
     "test_atomic_write_call_sites.py",
     "test_dynamic_setattr_hasattr_zero_surface.py",
+    "test_hmac_auth_zero_surface.py",
     "test_module_test_coverage_pin.py",
     "test_workflow_python_unbuffered.py",
     "test_workflow_pythonpath_for_direct_invoke.py",
