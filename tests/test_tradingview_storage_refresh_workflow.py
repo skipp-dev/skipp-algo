@@ -134,3 +134,58 @@ def test_failure_issues_use_cron_failure_label(workflow_text: str) -> None:
 def test_force_with_lease_not_used_for_secret_write(workflow_text: str) -> None:
     write_block = workflow_text_after(workflow_text, "Write refreshed secret back to GitHub")
     assert "force-with-lease" not in write_block
+
+
+def test_failure_issue_gives_a_working_secret_write_command(workflow_text: str) -> None:
+    """The pasted recovery command must target THIS repo and carry a payload.
+
+    #3640 hardcoded ``skippALGO/skipp-algo`` -- the org's pre-rename name. It
+    still resolves, but only because GitHub redirects renamed orgs; that
+    redirect lapses the moment anyone registers the old name, and this command
+    uploads a live TradingView session cookie. Pin it to the real repo.
+
+    Without a redirect ``gh secret set`` reads the value from stdin, so the
+    flow never connects the JSON that ``npm run tv:storage-state`` just wrote
+    to the command that uploads it.
+    """
+    issue_block = workflow_text_after(workflow_text, "File failure issue")
+    assert "skippALGO" not in issue_block
+    assert "gh secret set TV_STORAGE_STATE --repo ${{ github.repository }}" in issue_block
+    assert "< automation/tradingview/auth/storage-state.json" in issue_block
+
+
+def test_failure_issue_does_not_claim_the_current_state_is_still_valid(
+    workflow_text: str,
+) -> None:
+    """A job that never established a session cannot vouch for the secret.
+
+    #3640: "still valid until its 72 h TTL expires" told the operator to stand
+    down while TradingView was already rejecting the stored bootstrap session.
+    """
+    issue_block = workflow_text_after(workflow_text, "File failure issue")
+    assert "is still valid until" not in issue_block
+    assert "UNKNOWN" in issue_block
+    assert "tv_storage_state_age" in issue_block
+
+
+def test_failure_issue_warns_against_re_uploading_a_stale_capture(
+    workflow_text: str,
+) -> None:
+    """The #3640 root cause was an OLD local capture pushed over a live secret."""
+    issue_block = workflow_text_after(workflow_text, "File failure issue")
+    assert "re-upload an older local" in issue_block
+    assert "docs/tradingview-storage-state-capture-runbook.md" in issue_block
+
+
+def test_failure_issue_body_renders_as_markdown(workflow_text: str) -> None:
+    """Body must go via --body-file, never a ``--body "$(cat <<'EOF' ...)"``.
+
+    Inside that command substitution bash still parses backticks, so every
+    code span had to be written escaped -- and a quoted heredoc emits the
+    backslash verbatim. The shipped #3640 issue therefore showed a literal
+    escaped fence instead of a ```bash block, and no inline span rendered.
+    """
+    issue_block = workflow_text_after(workflow_text, "File failure issue")
+    assert "--body-file" in issue_block
+    assert '--body "$(cat' not in issue_block
+    assert "\\`" not in issue_block, "escaped backticks ship verbatim into the issue body"

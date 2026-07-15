@@ -265,28 +265,47 @@ jobs:
             exit 0
           fi
 
-          gh issue create \
-            --repo "${{ github.repository }}" \
-            --title "🔐 tradingview-storage-refresh failed — manual cookie refresh required" \
-            --body "$(cat <<'EOF'
+          # Body via mktemp + --body-file (same pattern as meta-watchdog.yml),
+          # never an inline heredoc-in-command-substitution: bash parses
+          # backticks inside that substitution, so every code span had to be
+          # backslash-escaped -- and a quoted heredoc emits the backslash
+          # verbatim, so the issue shipped with broken markdown (the fenced
+          # bash block never rendered as a code block). See #3640.
+          BODY_FILE=$(mktemp)
+          cat > "$BODY_FILE" <<'EOF'
           The automated TradingView storage-state refresh failed at ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}.
 
           **Likely causes**
-          - \`TV_STORAGE_STATE_WRITE_TOKEN\` missing or lacking access to Actions secrets
-          - Existing \`TV_STORAGE_STATE\` bootstrap session is no longer accepted by TradingView
+          - `TV_STORAGE_STATE_WRITE_TOKEN` missing or lacking access to Actions secrets
+          - Existing `TV_STORAGE_STATE` bootstrap session is no longer accepted by TradingView
           - CAPTCHA / IP-based anti-bot challenge (most common)
           - TradingView login page layout changed (script selectors need update)
-          - \`TV_TOTP_SECRET\` rotated or TOTP clock skew
-          - \`TV_USERNAME\` / \`TV_PASSWORD\` missing or changed
+          - `TV_TOTP_SECRET` rotated or TOTP clock skew
+          - `TV_USERNAME` / `TV_PASSWORD` missing or changed
 
           **Immediate action**
-          Run \`npm run tv:storage-state\` locally, log in manually, then update the secret:
-          \`\`\`bash
-          gh secret set TV_STORAGE_STATE --repo skippALGO/skipp-algo
-          \`\`\`
+          Capture a FRESH session locally (headed browser, real login), then upload
+          exactly that file:
+          ```bash
+          npm run tv:storage-state   # writes automation/tradingview/auth/storage-state.json
+          npm run tv:auth-security   # validates the capture before upload
+          gh secret set TV_STORAGE_STATE --repo ${{ github.repository }} \
+            < automation/tradingview/auth/storage-state.json
+          ```
+          Do **not** re-upload an older local `storage-state.json`: pushing a stale
+          payload over a newer secret clobbers a live session and keeps this cron
+          broken (see #3640 — a 06-29 capture overwrote a fresh 07-13 session).
+          Runbook: `docs/tradingview-storage-state-capture-runbook.md`
 
-          **Note:** The current \`TV_STORAGE_STATE\` is still valid until its 72 h TTL expires.
-          Check \`credential-health-check\` for its remaining age.
+          **Note:** This job failed before it could establish a session, so the
+          validity of the current `TV_STORAGE_STATE` is UNKNOWN here — this failure
+          is itself consistent with the stored bootstrap session already being
+          rejected. Check the `tv_storage_state_age` probe in
+          `credential-health-check` for its actual age.
           EOF
-          )" \
+
+          gh issue create \
+            --repo "${{ github.repository }}" \
+            --title "🔐 tradingview-storage-refresh failed — manual cookie refresh required" \
+            --body-file "$BODY_FILE" \
             --label "cron-failure,bug"

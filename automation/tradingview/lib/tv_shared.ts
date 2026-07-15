@@ -2151,19 +2151,30 @@ export async function clickVisibleWithFallback(
               hit = document.elementFromPoint(x, y) as HTMLElement | null;
             }
 
-            const targetReady = hit === element || Boolean(hit && element.contains(hit));
-            if (targetReady) {
-              element.dispatchEvent(
-                new MouseEvent("click", {
-                  bubbles: true,
-                  cancelable: true,
-                  composed: true,
-                  clientX: x,
-                  clientY: y,
-                  view: window,
-                }),
-              );
-              element.click();
+            // DOM dispatch does not depend on elementFromPoint once the exact
+            // candidate has been resolved. TradingView can stack more than six
+            // canvas/SVG layers, so do not suppress the fallback merely because
+            // the diagnostic walk did not expose the target within its cap.
+            const targetReady = true;
+            {
+              // TradingView's current React controls arm on pointer/mouse down
+              // and ignore a synthetic click-only shortcut. Reproduce the
+              // complete primary-button sequence after removing interceptors.
+              for (const type of ["pointerdown", "mousedown", "pointerup", "mouseup", "click"]) {
+                const EventCtor = type.startsWith("pointer") ? PointerEvent : MouseEvent;
+                element.dispatchEvent(
+                  new EventCtor(type, {
+                    bubbles: true,
+                    cancelable: true,
+                    composed: true,
+                    button: 0,
+                    buttons: type.endsWith("down") ? 1 : 0,
+                    clientX: x,
+                    clientY: y,
+                    view: window,
+                  }),
+                );
+              }
             }
 
             return targetReady;
@@ -5597,12 +5608,21 @@ async function closePineEditorIfVisible(page: Page): Promise<void> {
   tracePageEvent(page, stillVisibleAfterCorner ? "pine-editor-close-still-visible" : "pine-editor-close-ok");
 }
 
-export async function openExistingScript(page: Page, scriptName: string): Promise<boolean> {
+export async function openExistingScript(
+  page: Page,
+  scriptName: string,
+  options: { forceSelection?: boolean } = {},
+): Promise<boolean> {
   return runTrackedStep(page, `openExistingScript:${scriptName}`, async () => {
     const identityNames = openScriptIdentityNames(scriptName);
     const searchNames = resolveOpenScriptSearchNames(scriptName);
     const totalAttempts = Math.max(2, searchNames.length);
-    const alreadyOpen = await waitForAnyOpenScriptIdentity(page, identityNames, 750).catch(() => false);
+    // The title is not sufficient proof that the corresponding Monaco model is
+    // active. TradingView can retain a previous script buffer while repainting
+    // the requested title after a publish/save transition.
+    const alreadyOpen = options.forceSelection
+      ? false
+      : await waitForAnyOpenScriptIdentity(page, identityNames, 750).catch(() => false);
     if (alreadyOpen) {
       tracePageEvent(page, "open-script-identity-current", scriptName);
       return true;

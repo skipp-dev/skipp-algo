@@ -1,6 +1,6 @@
 {
     "CodeGPT.apiKey": "Github Copilot",
-    "editor.experimentalGpuAcceleration": "on",
+    "editor.experimentalGpuAcceleration": "off",
     "chat.useNestedAgentsMdFiles": true,
     "chat.viewProgressBadge.enabled": true,
     "inlineChat.notebookAgent": true,
