@@ -122,6 +122,7 @@ FAST_TEST_FILES: frozenset[str] = frozenset({
     "test_pickle_write_and_abs_pathjoin_zero_surface.py",
     "test_tls_jwt_verification_zero_surface.py",
     "test_yaml_xml_zero_surface.py",
+    "test_guard_corpus_tracked_files.py",
     # Semantic security guards. #3672/#3680/#3685 put the *inventory* guards on
     # the required path — the ones that freeze a call site's line, its per-file
     # count, or the absence of a construct. These are the other half: they check
