@@ -100,8 +100,17 @@ def _attr_call_sites(attr_owner: str, attr_name: str) -> set[tuple[str, int]]:
 OS_KILL_ALLOWED: set[tuple[str, int]] = {
     # Signal-0 PID liveness probes in _detect_rt_engine_pid(): existing PID
     # file check and pgrep result validation.
-    ("open_prep/realtime_signals.py", 207),
-    ("open_prep/realtime_signals.py", 237),
+    # 2026-07-15 (reconcile): shifted 207/237 -> 208/238 by #3584/#3587 edits above.
+    ("open_prep/realtime_signals.py", 208),
+    ("open_prep/realtime_signals.py", 238),
+    # 2026-07-15 (security review): THIRD signal-0 probe, added by #3584 without a
+    # ledger entry -- this pin is not on the required path, so the addition merged
+    # green. Reviewed and accepted: same class as the two above, not new signalling
+    # capability. `_status()` re-validates a `running:true` payload whose PID may be
+    # dead (the status file is written on START paths only, so a crashed engine
+    # leaves running:true forever). Signal 0 sends nothing -- it only probes
+    # existence -- and OSError is caught and mapped to alive=False.
+    ("open_prep/realtime_signals.py", 267),
     # Signal-0 PID liveness probe for the IB-client-id leasing registry
     # (claims an IB API client_id slot only if the previous owner is gone).
     ("scripts/ib_client_id.py", 81),

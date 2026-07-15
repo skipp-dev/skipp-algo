@@ -129,16 +129,20 @@ def _fcntl_alias_or_direct_import_sites() -> set[tuple[str, int, str]]:
 # Locked surface — every entry is a reviewed advisory-lock leg.
 FCNTL_FLOCK_ALLOWED: set[tuple[str, int]] = {
     # Realtime-signals daemon PID-file singleton lock.
-    ("open_prep/realtime_signals.py", 294),  # LOCK_EX | LOCK_NB
-    ("open_prep/realtime_signals.py", 321),  # LOCK_UN
+    # 2026-07-15 (reconcile): 294/321 -> 310/337. Pure drift -- the file still holds
+    # exactly 2 flock legs and the EX/UN pairing is intact; #3584/#3587 edited above.
+    ("open_prep/realtime_signals.py", 310),  # LOCK_EX | LOCK_NB
+    ("open_prep/realtime_signals.py", 337),  # LOCK_UN
     # Watchlist read/write critical section.
     ("open_prep/watchlist.py", 41),  # LOCK_EX
     ("open_prep/watchlist.py", 44),  # LOCK_UN
     # IBKR client-id registry lease lock (guarded; random fallback on no fcntl).
-    ("scripts/ib_client_id.py", 151),  # LOCK_EX | LOCK_NB
-    ("scripts/ib_client_id.py", 195),  # LOCK_UN
-    ("scripts/ib_client_id.py", 215),  # LOCK_EX | LOCK_NB
-    ("scripts/ib_client_id.py", 227),  # LOCK_UN
+    # 2026-07-15 (reconcile): 151/195/215/227 -> 175/219/239/251. Pure drift -- still
+    # exactly 4 legs, still two EX/UN pairs in the same order.
+    ("scripts/ib_client_id.py", 175),  # LOCK_EX | LOCK_NB
+    ("scripts/ib_client_id.py", 219),  # LOCK_UN
+    ("scripts/ib_client_id.py", 239),  # LOCK_EX | LOCK_NB
+    ("scripts/ib_client_id.py", 251),  # LOCK_UN
     # Corpus deduplication writer: POSIX-guarded try/except ImportError;
     # LOCK_EX acquired before checking existing keys, LOCK_UN in finally.
     # Line numbers updated 2026-06-17: written=0 initialised before the
