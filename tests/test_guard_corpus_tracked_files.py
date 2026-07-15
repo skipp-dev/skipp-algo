@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import os
 import shutil
 import subprocess
 from pathlib import Path
@@ -14,6 +15,23 @@ from tests._guard_corpus import (
 )
 
 
+def _clean_git_env() -> dict[str, str]:
+    """The ambient environment with every ``GIT_*`` variable stripped.
+
+    This is the load-bearing part, and it is not paranoia. ``pre-commit`` runs
+    its hooks with ``GIT_DIR`` / ``GIT_INDEX_FILE`` exported and pointing at the
+    REAL repository. Those win over ``-C``: ``git -C /tmp/throwaway config
+    user.email x`` under a hook resolves to the real repo and writes there.
+    Demonstrated on this tree — with ``GIT_DIR`` exported, ``git -C <tmp> config
+    --get user.email`` returns the developer's address, not the temp repo's.
+
+    That is exactly how a helper here overwrote this repo's committer identity
+    and left a stray commit on the branch: it passed under a bare ``pytest`` run
+    and only misfired inside the pre-push hook, where the variables exist.
+    """
+    return {k: v for k, v in os.environ.items() if not k.startswith("GIT_")}
+
+
 def _git_tracked_py_files(root: Path) -> set[Path] | None:
     git = shutil.which("git")
     if git is None:
@@ -24,6 +42,12 @@ def _git_tracked_py_files(root: Path) -> set[Path] | None:
             check=True,
             capture_output=True,
             text=False,
+            # Without this the inherited GIT_INDEX_FILE makes the command fail
+            # under a pre-commit hook, so this returned None and the parity
+            # assertion below skipped itself with "git unavailable" — false, and
+            # precisely in the pre-push run where it is the only thing checking
+            # that iter_tracked_files still agrees with git.
+            env=_clean_git_env(),
         )
     except (OSError, subprocess.SubprocessError):
         return None
@@ -55,11 +79,7 @@ def test_iter_tracked_files_matches_git_ls_files_inventory() -> None:
     tracked = _git_tracked_py_files(root)
     if tracked is None:
         pytest.skip("git unavailable; skipping git ls-files parity assertion")
-    expected = {
-        p
-        for p in tracked
-        if not any(part in exclude_dirs for part in p.relative_to(root).parts)
-    }
+    expected = {p for p in tracked if not any(part in exclude_dirs for part in p.relative_to(root).parts)}
 
     assert observed == expected
 
@@ -71,9 +91,7 @@ def test_iter_tracked_files_excludes_untracked_root_scratch_file() -> None:
 
     scratch = root / "__scratch_guard_scan_regression__.py"
     scratch.write_text(
-        "# untracked scratch file used for tracked-inventory regression\n"
-        "def _scratch() -> None:\n"
-        "    return None\n",
+        "# untracked scratch file used for tracked-inventory regression\ndef _scratch() -> None:\n    return None\n",
         encoding="utf-8",
     )
     try:
@@ -96,15 +114,15 @@ _requires_git = pytest.mark.skipif(shutil.which("git") is None, reason="git unav
 def _git(path: Path, *args: str) -> None:
     """Run git against the throwaway repo at ``path`` and nowhere else.
 
-    The identity is passed per invocation with ``-c`` rather than written with
-    ``git config``. A ``git config`` write is persistent and, in a worktree,
-    lands in the SHARED config of the real repository — so a test helper that
-    writes one can retag the developer's own commits. Passing ``-c`` cannot
-    outlive the process.
+    Three independent belts, because one was not enough:
 
-    ``--git-dir``/``--work-tree`` are explicit for the same reason: they pin the
-    target, so git can never walk up out of ``path`` and operate on the repo
-    this test file lives in.
+    * ``_clean_git_env`` — removes the inherited ``GIT_DIR`` / ``GIT_INDEX_FILE``
+      that would otherwise redirect the whole command at the real repo.
+    * ``--git-dir`` / ``--work-tree`` — pin the target explicitly, so git cannot
+      walk up out of ``path``.
+    * ``-c user.email=…`` — the identity is per invocation and cannot outlive the
+      process. A ``git config`` write is persistent, and in a WORKTREE it lands
+      in the shared config of the real repo. A test helper must never do that.
     """
     subprocess.run(
         [
@@ -124,12 +142,18 @@ def _git(path: Path, *args: str) -> None:
         check=True,
         capture_output=True,
         cwd=path,
+        env=_clean_git_env(),
     )
 
 
 def _init_repo(path: Path) -> None:
     """Make ``path`` a real git repo with one commit (no *.py tracked)."""
-    subprocess.run(["git", "init", "-q", str(path)], check=True, capture_output=True)
+    subprocess.run(
+        ["git", "init", "-q", str(path)],
+        check=True,
+        capture_output=True,
+        env=_clean_git_env(),
+    )
     (path / "seed.txt").write_text("seed\n", encoding="utf-8")
     _git(path, "add", "seed.txt")
     _git(path, "commit", "-qm", "seed")

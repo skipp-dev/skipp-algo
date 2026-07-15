@@ -35,6 +35,7 @@ from __future__ import annotations
 
 import ast
 import functools
+import os
 import shutil
 import subprocess
 from collections.abc import Iterable
@@ -138,15 +139,26 @@ def _git_ls_files(base_str: str, pattern: str) -> tuple[str, ...] | None:
 
     Returns ``None`` when git is unavailable or the command fails, so callers
     can gracefully fall back to filesystem walks.
+
+    The ``GIT_*`` environment is stripped so ``base_str`` is authoritative.
+    Without that, ``-C`` is only half the story: ``pre-commit`` exports
+    ``GIT_DIR`` / ``GIT_INDEX_FILE`` when it runs a hook, and those WIN over
+    ``-C`` — so under the pre-push hook this resolved to the repo the hook runs
+    in and quietly ignored the caller's ``root``. Benign for the production
+    guards, which pass the repo root anyway, but it made the ``root`` parameter
+    a lie for anyone else (a test pointing at a throwaway repo got this repo's
+    inventory back).
     """
     git = shutil.which("git")
     if git is None:
         return None
+    env = {k: v for k, v in os.environ.items() if not k.startswith("GIT_")}
     try:
         proc = subprocess.run(
             [git, "-C", base_str, "ls-files", "-z", "--", pattern],
             check=True,
             capture_output=True,
+            env=env,
         )
     except (OSError, subprocess.SubprocessError):
         return None
