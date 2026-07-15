@@ -11,10 +11,12 @@ import importlib.util
 import io
 import itertools
 import json
+import re
 import sys
 from contextlib import redirect_stderr, redirect_stdout
-from datetime import date, timedelta
+from datetime import date, datetime, time, timedelta
 from pathlib import Path
+from zoneinfo import ZoneInfo
 
 import pytest
 
@@ -335,6 +337,192 @@ def test_drop_weekend_only_shards_keeps_every_weekday_covered() -> None:
     assert _weekdays(out) == _weekdays(baseline)
 
 
+# ------------------------- --defer-current-day-until-intraday-window (#3649)
+
+_ET = ZoneInfo("America/New_York")
+
+
+def _pin_clock(monkeypatch: pytest.MonkeyPatch, now_et: datetime) -> None:
+    """Pin both clocks the planner reads.
+
+    ``_today_utc`` feeds the default end date, ``_now_et`` feeds the cap. The
+    crons never run late enough ET for the two dates to diverge, so pinning
+    ``_today_utc`` to the ET date mirrors production.
+    """
+    monkeypatch.setattr(_MOD, "_now_et", lambda: now_et)
+    monkeypatch.setattr(_MOD, "_today_utc", lambda: now_et.date())
+
+
+def test_defer_before_window_excludes_current_day(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    # Tue 2026-07-14 at 08:20 ET — the 12:00 UTC tick in summer. Pre-window.
+    _pin_clock(monkeypatch, datetime(2026, 7, 14, 8, 20, tzinfo=_ET))
+    rc, out, err = _run_main(
+        [
+            "--lookback-days", "2", "--num-shards", "2",
+            "--defer-current-day-until-intraday-window",
+        ]
+    )
+    assert rc == 0
+    ends = [s["end_date"] for s in json.loads(out)]
+    assert "2026-07-14" not in ends
+    assert max(ends) == "2026-07-13"
+    assert "capping end date 2026-07-14 -> 2026-07-13" in err
+
+
+def test_defer_at_exactly_window_start_still_excludes_current_day(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Boundary is STRICT: the producer bails on ``we <= ws``, so 09:20:00 is out.
+
+    Including the current day here would plan a shard the producer then raises
+    on — the exact failure #3649 is about.
+    """
+    _pin_clock(monkeypatch, datetime(2026, 7, 14, 9, 20, 0, tzinfo=_ET))
+    rc, out, _err = _run_main(
+        [
+            "--lookback-days", "2", "--num-shards", "2",
+            "--defer-current-day-until-intraday-window",
+        ]
+    )
+    assert rc == 0
+    assert "2026-07-14" not in [s["end_date"] for s in json.loads(out)]
+
+
+def test_defer_just_after_window_start_includes_current_day(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _pin_clock(monkeypatch, datetime(2026, 7, 14, 9, 20, 1, tzinfo=_ET))
+    rc, out, err = _run_main(
+        [
+            "--lookback-days", "2", "--num-shards", "2",
+            "--defer-current-day-until-intraday-window",
+        ]
+    )
+    assert rc == 0
+    assert max(s["end_date"] for s in json.loads(out)) == "2026-07-14"
+    assert "capping end date" not in err
+
+
+def test_defer_trims_multiday_shard_rather_than_dropping_it(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A Mon..Tue shard must lose only Tue — Monday's coverage stays."""
+    _pin_clock(monkeypatch, datetime(2026, 7, 14, 4, 0, tzinfo=_ET))
+    rc, out, _err = _run_main(
+        [
+            "--lookback-days", "4", "--num-shards", "2",
+            "--defer-current-day-until-intraday-window",
+        ]
+    )
+    assert rc == 0
+    payload = json.loads(out)
+    # --lookback-days is a width relative to the end date, so capping the end to
+    # Mon 07-13 shifts the whole 4-day window to 07-10..07-13 (still 4 days).
+    assert payload[0]["start_date"] == "2026-07-10"
+    assert payload[-1]["end_date"] == "2026-07-13"
+    # The last shard is Sun..Mon: Monday is trimmed down to, not dropped with,
+    # the deferred Tuesday.
+    assert payload[-1]["start_date"] == "2026-07-12"
+
+
+def test_defer_monday_pre_window_caps_to_sunday_and_weekend_filter_applies(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Mon pre-window + a Friday watermark: cap to Sun, then weekend-drop."""
+    _pin_clock(monkeypatch, datetime(2026, 7, 13, 4, 0, tzinfo=_ET))
+    rc, out, _err = _run_main(
+        [
+            "--lookback-days", "3", "--num-shards", "3",
+            "--defer-current-day-until-intraday-window",
+            "--drop-weekend-only-shards",
+        ]
+    )
+    assert rc == 0
+    # Window 07-11..07-13 caps to 07-10..07-12 (Fri/Sat/Sun); Sat+Sun are
+    # weekend-only and get dropped, leaving the Friday safety-overlap shard.
+    payload = json.loads(out)
+    assert [s["start_date"] for s in payload] == ["2026-07-10"]
+    assert payload[0]["shard_of"] == 1
+
+
+def test_defer_leaves_explicit_historical_end_date_untouched(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _pin_clock(monkeypatch, datetime(2026, 7, 14, 4, 0, tzinfo=_ET))
+    argv = ["--lookback-days", "5", "--num-shards", "5", "--end-date", "2026-05-08"]
+    _rc, baseline, _err = _run_main(argv)
+    rc, out, err = _run_main([*argv, "--defer-current-day-until-intraday-window"])
+    assert rc == 0
+    assert json.loads(out) == json.loads(baseline)
+    assert "capping end date" not in err
+
+
+def test_defer_flag_absent_leaves_planner_unchanged(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Default path stays byte-compatible even mid-pre-market."""
+    _pin_clock(monkeypatch, datetime(2026, 7, 14, 4, 0, tzinfo=_ET))
+    rc, out, err = _run_main(["--lookback-days", "2", "--num-shards", "2"])
+    assert rc == 0
+    assert max(s["end_date"] for s in json.loads(out)) == "2026-07-14"
+    assert "capping end date" not in err
+
+
+def test_defer_caps_incremental_window_before_narrowing(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The cap must land BEFORE narrow_scan_window, not after.
+
+    Reproduces the steady state #3649 predicts once the watermark is current:
+    watermark on Mon, tick on Tue pre-window -> without the cap the 2-day window
+    narrows to a 1-day-per-shard split that isolates Tue.
+    """
+    _pin_clock(monkeypatch, datetime(2026, 7, 14, 8, 0, tzinfo=_ET))
+    argv = [
+        "--lookback-days", "30", "--num-shards", "6",
+        "--last-baked-date", "2026-07-13",
+    ]
+    _rc, baseline, _err = _run_main(argv)
+    assert "2026-07-14" in [s["end_date"] for s in json.loads(baseline)]
+
+    rc, out, err = _run_main([*argv, "--defer-current-day-until-intraday-window"])
+    assert rc == 0
+    payload = json.loads(out)
+    assert "2026-07-14" not in [s["end_date"] for s in payload]
+    assert "window=2026-07-13..2026-07-13" in err
+
+
+def test_planner_window_start_matches_producer_bridge() -> None:
+    """Contract: planner cap time == producer FMP-bridge window start.
+
+    The producer mirrors the pre-open constant locally instead of importing the
+    SSOT. If that mirror drifts, the planner would defer on a different boundary
+    than the producer enforces and #3649 would silently come back.
+    """
+    session = pytest.importorskip("databento_session")
+    ws = _MOD._intraday_window_start_et(session.DEFAULT_INTRADAY_PRE_OPEN_MINUTES)
+    assert ws == time(9, 20)
+
+    producer = (
+        Path(__file__).resolve().parents[1]
+        / "scripts"
+        / "databento_production_export.py"
+    ).read_text()
+    assert "_market_open_et = time(9, 30)" in producer, (
+        "producer market open moved; update _MARKET_OPEN_ET in databento_plan_shards.py"
+    )
+    mirror = re.search(r"_pre_open_minutes = (\d+)\s*#\s*mirrors", producer)
+    assert mirror is not None, "producer's pre-open mirror line not found"
+    assert int(mirror.group(1)) == session.DEFAULT_INTRADAY_PRE_OPEN_MINUTES, (
+        "producer's _pre_open_minutes mirror drifted from "
+        "databento_session.DEFAULT_INTRADAY_PRE_OPEN_MINUTES"
+    )
+    planner_market_open = _MOD._MARKET_OPEN_ET
+    assert planner_market_open == time(9, 30)
+
+
 # --------------------------------------------------------------- workflow YAML
 
 # Module-level constant kept here so the orphan-inventory guard
@@ -418,4 +606,33 @@ def test_sharded_workflow_plan_job_drops_weekend_only_shards() -> None:
         f"every databento_plan_shards.py invocation in the plan job must pass "
         f"--drop-weekend-only-shards; found {len(flag_args)} for {invocations} "
         f"invocations"
+    )
+
+
+def test_sharded_workflow_plan_job_defers_current_day() -> None:
+    """Every planner invocation must pass the current-day deferral (#3649).
+
+    Without it the early ticks (08:00/10:00/12:00 UTC = 04:00/06:00/08:00 ET in
+    summer) plan a shard for a day the producer cannot rank yet, which raises
+    'No ranked results' and fails the scheduled run on the partial manifest.
+    """
+    path = (
+        Path(__file__).resolve().parents[1]
+        / ".github"
+        / "workflows"
+        / f"{_SHARDED_WORKFLOW_BASENAME}.yml"
+    )
+    text = path.read_text()
+    invocations = text.count("scripts/databento_plan_shards.py \\")
+    flag_args = [
+        line for line in text.splitlines()
+        if line.strip() in {
+            "--defer-current-day-until-intraday-window \\",
+            "--defer-current-day-until-intraday-window",
+        }
+    ]
+    assert len(flag_args) == invocations, (
+        f"every databento_plan_shards.py invocation in the plan job must pass "
+        f"--defer-current-day-until-intraday-window; found {len(flag_args)} for "
+        f"{invocations} invocations"
     )
