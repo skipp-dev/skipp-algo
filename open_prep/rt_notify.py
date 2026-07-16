@@ -367,13 +367,18 @@ def _http_post(url: str, *, timeout: float = 5.0, **kwargs: Any) -> bool:
     try:
         import httpx
 
+        # httpx logs the complete request URL at INFO.  Webhook URLs and some
+        # provider paths contain bearer-equivalent secrets, so the notifier
+        # must suppress that transport log before issuing the request.
+        logging.getLogger("httpx").setLevel(logging.WARNING)
         resp = httpx.post(url, timeout=timeout, **kwargs)
         if resp.status_code >= 400:
-            logger.debug("rt_notify POST %s -> HTTP %d", url.split("?")[0], resp.status_code)
+            logger.debug("rt_notify POST -> HTTP %d", resp.status_code)
             return False
         return True
-    except Exception:  # best-effort notifier — never break the poll loop
-        logger.debug("rt_notify POST failed", exc_info=True)
+    except Exception as exc:  # best-effort notifier — never break the poll loop
+        # Exception reprs from HTTP clients commonly include the full URL.
+        logger.debug("rt_notify POST failed (%s)", type(exc).__name__)
         return False
 
 
