@@ -396,6 +396,21 @@ _AGE_UNKNOWN_RULES = (
         "live_overlay_provider_usage_loaded",
         "live_overlay_provider_usage_snapshot_age_known",
     ),
+    (
+        "lo-trading-signals-snapshot-age-unknown",
+        "live_overlay_trading_signals_loaded",
+        "live_overlay_trading_signals_snapshot_age_known",
+    ),
+    (
+        "lo-experiment-snapshot-age-unknown",
+        "live_overlay_experiment_loaded",
+        "live_overlay_experiment_snapshot_age_known",
+    ),
+    (
+        "lo-tradingview-credential-age-unknown",
+        "live_overlay_tradingview_credential_loaded",
+        "live_overlay_tradingview_credential_age_known",
+    ),
 )
 
 
