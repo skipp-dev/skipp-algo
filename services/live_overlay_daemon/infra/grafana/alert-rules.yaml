@@ -1295,6 +1295,39 @@ groups:
       summary: TradingView credential age > 72 h
       runbook: Refresh TradingView session/cookie. Credential becomes invalid around
         72-96 h.
+  - uid: lo-tradingview-credential-age-unknown
+    title: TradingView credential age unknown
+    condition: C
+    noDataState: OK
+    data:
+    - refId: A
+      datasourceUid: grafanacloud-prom
+      model:
+        expr: live_overlay_tradingview_credential_loaded{job="live_overlay"} *
+          (live_overlay_tradingview_credential_age_known{job="live_overlay"} == bool 0)
+        instant: true
+    - refId: C
+      datasourceUid: __expr__
+      model:
+        type: threshold
+        conditions:
+        - evaluator:
+            type: gt
+            params:
+            - 0
+          operator:
+            type: and
+          query:
+            params:
+            - A
+    for: 5m
+    labels:
+      severity: high
+    annotations:
+      summary: TradingView credential report loads but carries no usable age
+      runbook: The tv_storage_state_age probe exists, but details.age_hours is missing
+        or invalid. Inspect credential_health.json and rerun credential-health-check;
+        the 72 h expiry alert cannot evaluate until age_known returns to 1.
   - uid: lo-ingest-queue-lag-high
     title: Ingest queue lag high
     condition: C
@@ -1439,6 +1472,39 @@ groups:
       runbook: The A0/A1 signals feed (producer or snapshot URL/path) has not
         refreshed within OVERLAY_SIGNALS_MAX_AGE_SECS. Check the
         smc-signals-producer service and the snapshot publishing branch.
+  - uid: lo-trading-signals-snapshot-age-unknown
+    title: Trading signals snapshot age unknown
+    condition: C
+    noDataState: OK
+    data:
+    - refId: A
+      datasourceUid: grafanacloud-prom
+      model:
+        expr: live_overlay_trading_signals_loaded{job="live_overlay"} *
+          (live_overlay_trading_signals_snapshot_age_known{job="live_overlay"} == bool 0)
+        instant: true
+    - refId: C
+      datasourceUid: __expr__
+      model:
+        type: threshold
+        conditions:
+        - evaluator:
+            type: gt
+            params:
+            - 0
+          operator:
+            type: and
+          query:
+            params:
+            - A
+    for: 30m
+    labels:
+      severity: critical
+    annotations:
+      summary: Trading signals snapshot loads but carries no usable updated_epoch
+      runbook: Inspect the realtime signals snapshot for a missing, zero, non-numeric,
+        or non-finite updated_epoch. Until repaired, the stale rule reads zero and
+        cannot detect a frozen producer.
   # NOTE (operator decision 2026-07-11, reverses 2026-07-08): neither fresh-A1
   # nor fresh-A2 is a Grafana alert anymore. A fresh signal is not an incident,
   # and the old fresh-A1 alert (uid lo-signal-fresh-a1) duplicated the rt_notify
@@ -1479,6 +1545,38 @@ groups:
       runbook: The daily measurement-benchmark producer has not published a
         fresh rollup within OVERLAY_EXPERIMENT_MAX_AGE_SECS. Check the rolling
         benchmark workflow and the bot/live-experiment-snapshot branch.
+  - uid: lo-experiment-snapshot-age-unknown
+    title: Experiment rollup snapshot age unknown
+    condition: C
+    noDataState: OK
+    data:
+    - refId: A
+      datasourceUid: grafanacloud-prom
+      model:
+        expr: live_overlay_experiment_loaded{job="live_overlay"} *
+          (live_overlay_experiment_snapshot_age_known{job="live_overlay"} == bool 0)
+        instant: true
+    - refId: C
+      datasourceUid: __expr__
+      model:
+        type: threshold
+        conditions:
+        - evaluator:
+            type: gt
+            params:
+            - 0
+          operator:
+            type: and
+          query:
+            params:
+            - A
+    for: 30m
+    labels:
+      severity: critical
+    annotations:
+      summary: Experiment rollup loads but its run date cannot be determined
+      runbook: Inspect scoring_root in the Plan 2.8 rollup. A missing or malformed
+        date leaves age_known=0 and keeps the stale rule silently green.
   - uid: sp-memory-high
     title: Signals Producer RSS > 2048 MB
     condition: C
