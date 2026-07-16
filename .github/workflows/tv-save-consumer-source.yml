@@ -41,6 +41,11 @@ on:
         type: boolean
         required: false
         default: false
+      force_rebind:
+        description: "Re-select every BUS source to replace stale TradingView parent IDs"
+        type: boolean
+        required: false
+        default: false
 
 permissions:
   contents: read
@@ -126,6 +131,7 @@ jobs:
         env:
           TV_STORAGE_STATE: automation/tradingview/auth/storage-state.json
           TV_CONSUMER_MAPPING_JSON: ${{ github.event.inputs.mapping }}
+          TV_FORCE_REBIND: ${{ github.event.inputs.force_rebind }}
         run: |
           npx tsx scripts/tv_batch_consumer_rollout.ts
 

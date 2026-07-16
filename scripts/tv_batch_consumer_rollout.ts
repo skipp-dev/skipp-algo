@@ -95,12 +95,15 @@ async function main(): Promise<void> {
     }
 
     if (report.save.failed.length === 0) {
+      // Opt-in only: TV_FORCE_REBIND re-selects every BUS source, so a stale parent study id
+      // behind a correct-looking dropdown label is re-pointed. Default stays read-only.
+      const forceRebind = process.env.TV_FORCE_REBIND === "true";
       for (const target of config.verifyTargets) {
         let result: VerifyConsumerResult | null = null;
         let lastError = "unknown verification failure";
         for (let attempt = 1; attempt <= 2; attempt += 1) {
           try {
-            result = await verifyConsumerBindings(session, target);
+            result = await verifyConsumerBindings(session, target, forceRebind, forceRebind);
             lastError = "";
             break;
           } catch (error) {
