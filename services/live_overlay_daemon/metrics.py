@@ -2326,8 +2326,16 @@ def _render_sweep_trap_shadow_metrics() -> list[str]:
     lines.append("# TYPE live_overlay_sweep_trap_shadow_snapshot_stale gauge")
     lines.append(f"live_overlay_sweep_trap_shadow_snapshot_stale {stale}")
 
-    # Evidence: Brier delta (>0 = the score adds skill), tercile lift, sample
-    # accrual vs MIN_OOS, and the promotion verdict as a numeric code.
+    # Evidence: both Brier inputs, their delta (>0 = the score adds skill),
+    # tercile lift, sample accrual vs MIN_OOS, and the promotion verdict.
+    lines.append("# TYPE live_overlay_sweep_trap_shadow_brier_signal gauge")
+    lines.append(
+        f"live_overlay_sweep_trap_shadow_brier_signal {_prom_numeric_value(snap.get('brier_signal', 0.0))}"
+    )
+    lines.append("# TYPE live_overlay_sweep_trap_shadow_brier_baseline gauge")
+    lines.append(
+        f"live_overlay_sweep_trap_shadow_brier_baseline {_prom_numeric_value(snap.get('brier_baseline', 0.0))}"
+    )
     lines.append("# TYPE live_overlay_sweep_trap_shadow_brier_delta gauge")
     lines.append(
         f"live_overlay_sweep_trap_shadow_brier_delta {_prom_numeric_value(snap.get('brier_delta', 0.0))}"
@@ -2348,5 +2356,33 @@ def _render_sweep_trap_shadow_metrics() -> list[str]:
         f'live_overlay_sweep_trap_shadow_verdict_code{{verdict="{verdict}"}} '
         f"{_prom_numeric_value(snap.get('verdict_code', 0.0))}"
     )
+
+    # A presentation-oriented info metric powers one latest-evidence table in
+    # Grafana. The numeric gauges above remain the alerting/calculation source;
+    # this low-cardinality view carries the snapshot date and human-readable
+    # assessment so the table does not have to recreate gate logic in PromQL.
+    date = _escape_label_value(str(snap.get("date", "") or "unknown"))
+    n_samples = float(snap.get("n_samples", 0.0) or 0.0)
+    min_samples = float(snap.get("min_samples", 0.0) or 0.0)
+    brier_signal = float(snap.get("brier_signal", 0.0) or 0.0)
+    brier_baseline = float(snap.get("brier_baseline", 0.0) or 0.0)
+    brier_delta = float(snap.get("brier_delta", 0.0) or 0.0)
+    lift = float(snap.get("lift", 0.0) or 0.0)
+    verdict_name = str(snap.get("verdict", "") or "INCONCLUSIVE")
+    rows = (
+        ("Gültige Samples", f"{int(n_samples):,}".replace(",", "."), "Floor erfüllt" if min_samples > 0 and n_samples >= min_samples else "Floor nicht erfüllt"),
+        ("Brier Signal", f"{brier_signal:.6f}", "—"),
+        ("Brier Baseline", f"{brier_baseline:.6f}", "besser als Signal" if brier_baseline < brier_signal else "nicht besser als Signal"),
+        ("Brier Delta", f"{brier_delta:+.6f}", "Gate erfüllt" if brier_delta > 0 else "Gate verfehlt"),
+        ("Tercile Lift", f"{lift:+.6f}", "positiv" if lift > 0 else "nicht positiv"),
+        ("Verdict", verdict_name, "promotable" if verdict_name == "PROMOTABLE" else "nicht promotable"),
+    )
+    lines.append("# TYPE live_overlay_sweep_trap_shadow_evidence_info gauge")
+    for metric_name, value, assessment in rows:
+        labels = (
+            f'date="{date}",metric="{_escape_label_value(metric_name)}",'
+            f'value="{_escape_label_value(value)}",assessment="{_escape_label_value(assessment)}"'
+        )
+        lines.append(f"live_overlay_sweep_trap_shadow_evidence_info{{{labels}}} 1")
 
     return lines

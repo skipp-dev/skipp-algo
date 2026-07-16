@@ -133,6 +133,7 @@ class TestMainEndToEnd:
         assert len(rows) == 1 and rows[0]["verdict"] == "PROMOTABLE"
         s = json.loads(snap.read_text())
         assert s["verdict_code"] == 2 and s["n_samples"] == 50 and s["brier_delta"] > 0
+        assert s["brier_signal"] < s["brier_baseline"]
         assert s["min_samples"] == MIN_SHADOW_SAMPLES  # snapshot carries the local floor
 
     def test_benchmark_dir_fails_closed_on_corrupt_line(self, tmp_path) -> None:

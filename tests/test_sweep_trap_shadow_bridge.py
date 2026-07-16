@@ -139,6 +139,8 @@ def test_failed_load_preserves_last_good_snapshot(monkeypatch, tmp_path):
             "date": "2026-07-11",
             "n_samples": 55,
             "min_samples": 40,
+            "brier_signal": 0.20,
+            "brier_baseline": 0.231,
             "brier_delta": 0.031,
             "lift": 0.12,
             "verdict": "PROMOTABLE",
@@ -180,6 +182,8 @@ def test_valid_snapshot_is_normalized(monkeypatch, tmp_path):
             "date": "2026-07-11",
             "n_samples": 55,
             "min_samples": 40,
+            "brier_signal": 0.20,
+            "brier_baseline": 0.231,
             "brier_delta": 0.031,
             "lift": 0.12,
             "verdict": "PROMOTABLE",
@@ -193,6 +197,8 @@ def test_valid_snapshot_is_normalized(monkeypatch, tmp_path):
     assert snap["date"] == "2026-07-11"
     assert snap["n_samples"] == 55.0
     assert snap["min_samples"] == 40.0
+    assert snap["brier_signal"] == 0.20
+    assert snap["brier_baseline"] == 0.231
     assert snap["brier_delta"] == 0.031
     assert snap["lift"] == 0.12
     assert snap["verdict"] == "PROMOTABLE"

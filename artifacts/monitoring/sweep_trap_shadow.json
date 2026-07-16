@@ -3,6 +3,8 @@
   "date": "",
   "n_samples": 0,
   "min_samples": 40,
+  "brier_signal": 0.0,
+  "brier_baseline": 0.0,
   "brier_delta": 0.0,
   "lift": 0.0,
   "verdict": "INCONCLUSIVE",
