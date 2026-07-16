@@ -1016,6 +1016,9 @@ SECTION_ORDER = [
     # feed — but it MUST be visible so a stale import pin (the ~4-month
     # micro_profiles /1-vs-/152 blind spot) surfaces instead of a silent CE10272.
     "Pine Library ↔ TradingView Versions",
+    # Read-only dropdown-binding verification is the final, operator-focused
+    # drill-down section and remains expanded like every other dashboard row.
+    "TradingView Dropdown Bindings",
 ]
 
 

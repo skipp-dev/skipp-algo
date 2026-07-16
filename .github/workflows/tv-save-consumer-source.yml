@@ -1,5 +1,5 @@
 name: tv-save-consumer-source
-# live-window: mutating-on-cron  # Daily read-only binding verification publishes a bot snapshot.
+# live-window: off-hours-only  # Daily cron is read-only; only manual dispatch mutates TradingView.
 # Manual dispatch can push fresh repo source into the operator's saved TradingView scripts.
 
 # Pushes the CURRENT repo source of the hand-authored CONSUMER scripts (indicators/
