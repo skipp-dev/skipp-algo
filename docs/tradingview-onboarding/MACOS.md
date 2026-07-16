@@ -42,6 +42,11 @@ executable can be selected from Terminal:
   --browser-path "/Applications/Microsoft Edge.app/Contents/MacOS/Microsoft Edge"
 ```
 
+After upgrading from an older onboarding package, this explicit Edge path may
+use the dedicated Edge profile for the first time instead of the former custom
+path profile. If TradingView asks you to sign in once, complete that sign-in;
+subsequent runs reuse the dedicated Edge profile.
+
 ## Run onboarding again
 
 Close the previous onboarding browser window and start the command file again.

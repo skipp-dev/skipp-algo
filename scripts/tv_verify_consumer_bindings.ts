@@ -204,8 +204,9 @@ export async function verifyConsumerBindings(
     // parent is still dead. The monitor accumulates for the whole session, so
     // without this the consumer's own pre-repair "unknown parent id" (the exact
     // condition this force-rebind fixes) — plus errors from other not-yet-repaired
-    // consumers sharing the session — would sink a successful repair. Drop them;
-    // the recreated study re-emits within the settle window below if truly dead.
+    // consumers sharing the session — would sink a successful repair. Drop them,
+    // then observe a short residual-risk window: TradingView usually re-emits a
+    // still-dead parent promptly, but a quiet window is not proof of liveness.
     session.runtimeErrors.clear();
 
     const reopened = await openSettingsForScript(session.page, target.scriptName, { allowChartRefresh: false });
