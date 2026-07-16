@@ -18,6 +18,7 @@ import {
 
 type RolloutConfig = {
   producerName: string;
+  primaryChartUrl: string;
   saveTargets: SaveConsumerTarget[];
   verifyTargets: VerifyConsumerTarget[];
 };
@@ -73,7 +74,7 @@ async function main(): Promise<void> {
   const session = await newTradingViewSession();
   try {
     if (!session.authResolution.authReusedOk) throw new Error("Rollout requires authenticated TradingView state");
-    await gotoChart(session.page);
+    await gotoChart(session.page, config.primaryChartUrl);
     await ensurePineEditor(session.page);
 
     for (const target of config.saveTargets) {
@@ -86,7 +87,7 @@ async function main(): Promise<void> {
         } catch (error) {
           lastError = String((error as Error)?.message ?? error);
           if (attempt < 2) {
-            await gotoChart(session.page).catch(() => undefined);
+            await gotoChart(session.page, config.primaryChartUrl).catch(() => undefined);
             await ensurePineEditor(session.page).catch(() => undefined);
           }
         }
@@ -99,6 +100,10 @@ async function main(): Promise<void> {
       // behind a correct-looking dropdown label is re-pointed. Default stays read-only.
       const forceRebind = process.env.TV_FORCE_REBIND === "true";
       for (const target of config.verifyTargets) {
+        const targetChartUrl = target.chartUrl ?? config.primaryChartUrl;
+        if (!session.page.url().startsWith(targetChartUrl)) {
+          await gotoChart(session.page, targetChartUrl);
+        }
         let result: VerifyConsumerResult | null = null;
         let lastError = "unknown verification failure";
         for (let attempt = 1; attempt <= 2; attempt += 1) {
@@ -108,7 +113,7 @@ async function main(): Promise<void> {
             break;
           } catch (error) {
             lastError = String((error as Error)?.message ?? error);
-            if (attempt < 2) await gotoChart(session.page).catch(() => undefined);
+            if (attempt < 2) await gotoChart(session.page, targetChartUrl).catch(() => undefined);
           }
         }
         if (result) report.bindings.consumers.push(result);

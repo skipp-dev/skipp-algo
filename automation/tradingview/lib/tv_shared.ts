@@ -1725,8 +1725,8 @@ export async function closeTradingViewSession(session: TradingViewSession): Prom
   await session.browser.close().catch(() => undefined);
 }
 
-export async function gotoChart(page: Page): Promise<void> {
-  await page.goto(process.env.TV_CHART_URL || "https://www.tradingview.com/chart/", {
+export async function gotoChart(page: Page, chartUrl?: string): Promise<void> {
+  await page.goto(chartUrl || process.env.TV_CHART_URL || "https://www.tradingview.com/chart/", {
     waitUntil: "domcontentloaded",
   });
   await page.waitForTimeout(3_000);

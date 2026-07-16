@@ -14,7 +14,7 @@ import {
   type VerifyConsumerTarget,
 } from "./tv_verify_consumer_bindings.js";
 
-type Config = { producerName: string; repairE2ETarget: VerifyConsumerTarget };
+type Config = { producerName: string; primaryChartUrl: string; repairE2ETarget: VerifyConsumerTarget };
 
 async function main(): Promise<void> {
   const config = JSON.parse(fs.readFileSync("automation/tradingview/config/consumer-rollout.json", "utf-8")) as Config;
@@ -26,7 +26,7 @@ async function main(): Promise<void> {
   let deliberatelyDrifted = false;
   try {
     if (!session.authResolution.authReusedOk) throw new Error("Repair E2E requires authenticated TradingView state");
-    await gotoChart(session.page);
+    await gotoChart(session.page, config.primaryChartUrl);
     const baseline = await verifyConsumerBindings(session, target, false);
     if (!baseline.ok) throw new Error("Repair E2E precondition failed: target was already drifted");
     await setConsumerBindingForTest(session, target, testLabel, "Close");

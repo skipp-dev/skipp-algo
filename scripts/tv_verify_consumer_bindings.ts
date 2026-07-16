@@ -19,6 +19,7 @@ export type VerifyConsumerTarget = {
   source: string;
   savedScriptName: string;
   scriptName: string;
+  chartUrl?: string;
   producerName?: string;
 };
 export type VerifyConsumerResult = {
