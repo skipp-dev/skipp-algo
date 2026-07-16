@@ -2332,7 +2332,7 @@ def _render_sweep_trap_shadow_metrics() -> list[str]:
     lines.append(f"live_overlay_sweep_trap_shadow_snapshot_stale {stale}")
 
     # Evidence: both Brier inputs, their delta (>0 = the score adds skill),
-    # tercile lift, sample accrual vs MIN_OOS, and the promotion verdict.
+    # tercile lift, sample accrual vs MIN_SHADOW_SAMPLES, and the promotion verdict.
     lines.append("# TYPE live_overlay_sweep_trap_shadow_brier_signal gauge")
     lines.append(
         f"live_overlay_sweep_trap_shadow_brier_signal {_prom_numeric_value(snap.get('brier_signal', 0.0))}"
