@@ -195,7 +195,7 @@ SUBPROCESS_RUN_LEDGER: set[tuple[str, int, str]] = {
     # 2026-06-28 (semantic monitoring): shifted +20 lines by _extract_snapshot_epoch helper.
     # 2026-07-03 (WP-4 holiday gate): shifted +2 (import block above).
     # 2026-07-12: +1 (DATA_STALL_SECONDS constant added above).
-    ("open_prep/realtime_signals.py", 218, "? -f python.*-m open_prep.realtime_signals"),
+    ("open_prep/realtime_signals.py", 219, "? -f python.*-m open_prep.realtime_signals"),  # 2026-07-16 market-session import: 218->219
     # 2026-06-22: Grafana dashboard publish script keychain token lookup.
     # Line shifted 151 -> 173 after ADR-0025 App Platform (/apis
     # dashboard.grafana.app/v1) migration added namespace/folder args above.
@@ -213,7 +213,7 @@ SUBPROCESS_POPEN_LEDGER: set[tuple[str, int, str]] = {
     # Shifted 336 -> 337 -> 341 after import hmac + lock fix + do_HEAD addition.
     # 2026-06-28 (semantic monitoring): shifted +20 lines by _extract_snapshot_epoch helper.
     # 2026-07-03 (WP-4 holiday gate): shifted +2 (import block above).
-    ("open_prep/realtime_signals.py", 383, "? -m open_prep.realtime_signals --interval ?"),  # 2026-07-13 (rt_engine_status liveness re-validate above): 368->383
+    ("open_prep/realtime_signals.py", 384, "? -m open_prep.realtime_signals --interval ?"),  # 2026-07-16 market-session import shifted site: 383->384
 }
 
 

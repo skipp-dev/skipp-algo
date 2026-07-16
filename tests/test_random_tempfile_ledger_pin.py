@@ -118,12 +118,12 @@ _TEMPFILE_LEDGER: frozenset[tuple[str, int, str]] = frozenset({
     # FEATURE_KEYS/PASS_THROUGH entries +16 -> 620.
     ("open_prep/outcomes.py", 714, "mkstemp"),  # 2026-07-13 (directional-era cutoff + loader skip; _pearson_r removed): 704->714
     # 2026-07-03 (WP-4 holiday gate): +2 (import) then +8 below the gate.
-    ("open_prep/realtime_signals.py", 120, "mkstemp"),  # 2026-07-12 data-stall constant added above: 119->120
+    ("open_prep/realtime_signals.py", 121, "mkstemp"),  # 2026-07-16 market-session import shifted site: 120->121
     # 2026-06-25: AsyncNewsstackPoller telemetry additions shifted
     # 2768 -> 2849 and 2815 -> 2896.
     # 2026-06-28 (semantic monitoring): shifted +80/+82 lines by readiness metrics.
-    ("open_prep/realtime_signals.py", 3312, "mkstemp"),  # 2026-07-16 (FMP endpoint telemetry + bounded enrichment): 3284->3312
-    ("open_prep/realtime_signals.py", 3360, "mkstemp"),  # 2026-07-16 (FMP endpoint telemetry + bounded enrichment): 3332->3360
+    ("open_prep/realtime_signals.py", 3365, "mkstemp"),  # 2026-07-16 market-session gating shifted site: 3312->3365
+    ("open_prep/realtime_signals.py", 3416, "mkstemp"),  # 2026-07-16 market-session gating shifted site: 3360->3416
     ("open_prep/watchlist.py", 63, "mkstemp"),
     ("smc_core/benchmark.py", 30, "mkstemp"),
     ("smc_core/ensemble_quality.py", 53, "mkstemp"),  # 2026-07-13 doc truth-fix comments shifted (49->53)

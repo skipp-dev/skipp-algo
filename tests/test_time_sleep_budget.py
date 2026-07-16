@@ -126,11 +126,11 @@ _FROZEN_SITES: frozenset[tuple[str, int]] = frozenset(
         ("open_prep/error_taxonomy.py", 117),
         # 2026-06-28 (semantic monitoring): all realtime_signals sleep sites
         # shifted +20/+20/+72/+80/+80 lines by readiness metrics.
-        ("open_prep/realtime_signals.py", 321),   # 2026-07-13 (status liveness re-validate above): 306->321
-        ("open_prep/realtime_signals.py", 396),    # 2026-07-13 (status liveness re-validate above): 381->396
-        ("open_prep/realtime_signals.py", 2323),  # 2026-07-16 targeted profile throttle: 2308->2323
-        ("open_prep/realtime_signals.py", 3580),  # 2026-07-16 (FMP endpoint telemetry + bounded enrichment): 3552->3580
-        ("open_prep/realtime_signals.py", 3596),  # 2026-07-16 (FMP endpoint telemetry + bounded enrichment): 3568->3596
+        ("open_prep/realtime_signals.py", 322),   # 2026-07-16 market-session import shifted site: 321->322
+        ("open_prep/realtime_signals.py", 397),   # 2026-07-16 market-session import shifted site: 396->397
+        ("open_prep/realtime_signals.py", 2350),  # 2026-07-16 market-session gating shifted site: 2323->2350
+        ("open_prep/realtime_signals.py", 3636),  # 2026-07-16 market-session gating shifted site: 3580->3636
+        ("open_prep/realtime_signals.py", 3652),  # 2026-07-16 market-session gating shifted site: 3596->3652
         # 2026-06-11 (eval-findings D7): technical_analysis import block
         # +8 lines (1943→1951, 1945→1953).
         # 2026-07-04 (market-microstructure observe-only): module import

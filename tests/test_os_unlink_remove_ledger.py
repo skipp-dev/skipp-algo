@@ -134,12 +134,12 @@ OS_DELETE_LEDGER: set[tuple[str, int, str]] = {
     # 2026-07-04 (market-microstructure observe-only): snapshot fields +
     # FEATURE_KEYS/PASS_THROUGH entries +16 → 632.
     ("open_prep/outcomes.py", 726, "unlink"),  # 2026-07-13 (directional-era cutoff + loader skip; _pearson_r removed): 716->726
-    ("open_prep/realtime_signals.py", 128, "remove"),  # 2026-07-12 data-stall constant added above: 127->128
+    ("open_prep/realtime_signals.py", 129, "remove"),  # 2026-07-16 market-session import shifted site: 128->129
     # 2026-06-25: AsyncNewsstackPoller telemetry additions shifted
     # 2783 -> 2862 and 2828 -> 2907.
     # 2026-06-28 (semantic monitoring): shifted +80/+80 lines by readiness metrics.
-    ("open_prep/realtime_signals.py", 3327, "unlink"),  # 2026-07-16 (FMP endpoint telemetry + bounded enrichment): 3299->3327
-    ("open_prep/realtime_signals.py", 3373, "unlink"),  # 2026-07-16 (FMP endpoint telemetry + bounded enrichment): 3345->3373
+    ("open_prep/realtime_signals.py", 3380, "unlink"),  # 2026-07-16 market-session gating shifted site: 3327->3380
+    ("open_prep/realtime_signals.py", 3429, "unlink"),  # 2026-07-16 market-session gating shifted site: 3373->3429
     # 2026-06-11 (eval-findings D7): technical_analysis import block +8
     # lines at L55 shifted all run_open_prep sites; enrichment-loop
     # real-ADX/BBW block added +15 more after L5491.
