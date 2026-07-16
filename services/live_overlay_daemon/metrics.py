@@ -2385,24 +2385,31 @@ def _render_sweep_trap_shadow_metrics() -> list[str]:
     have_data = n_samples > 0
     have_terciles = n_samples >= 6
     samples_assessment = "Floor erfüllt" if min_samples > 0 and n_samples >= min_samples else "Floor nicht erfüllt"
-    baseline_assessment = "besser als Signal" if brier_baseline < brier_signal else "nicht besser als Signal"
-    delta_assessment = "Gate erfüllt" if brier_delta > 0 else "Gate verfehlt"
-    lift_assessment = "positiv" if lift > 0 else "nicht positiv"
-    verdict_assessment = "promotable" if verdict_name == "PROMOTABLE" else "nicht promotable"
-    # (idx, metric, value, assessment) — idx pins the display order via the
-    # dashboard's sortBy transform and is not shown as a column.
+    # Compute the data-derived assessments only when there is data (and, for
+    # lift, enough samples for terciles); otherwise they stay "—". This keeps
+    # the have_data/have_terciles test in one place rather than at every use.
+    if have_data:
+        baseline_assessment = "besser als Signal" if brier_baseline < brier_signal else "nicht besser als Signal"
+        delta_assessment = "Gate erfüllt" if brier_delta > 0 else "Gate verfehlt"
+        verdict_assessment = "promotable" if verdict_name == "PROMOTABLE" else "nicht promotable"
+    else:
+        baseline_assessment = delta_assessment = verdict_assessment = na
+    lift_assessment = ("positiv" if lift > 0 else "nicht positiv") if have_terciles else na
+    # (idx, metric, value, assessment) — idx is zero-padded so the dashboard's
+    # lexicographic sortBy keeps numeric order; it pins the display order and is
+    # not shown as a column.
     rows = (
         (0, "Gültige Samples", _format_int_de(int(n_samples)), samples_assessment),
         (1, "Brier Signal", f"{brier_signal:.6f}" if have_data else na, na),
-        (2, "Brier Baseline", f"{brier_baseline:.6f}" if have_data else na, baseline_assessment if have_data else na),
-        (3, "Brier Delta", f"{brier_delta:+.6f}" if have_data else na, delta_assessment if have_data else na),
-        (4, "Tercile Lift", f"{lift:+.6f}" if have_terciles else na, lift_assessment if have_terciles else na),
-        (5, "Verdict", verdict_name, verdict_assessment if have_data else na),
+        (2, "Brier Baseline", f"{brier_baseline:.6f}" if have_data else na, baseline_assessment),
+        (3, "Brier Delta", f"{brier_delta:+.6f}" if have_data else na, delta_assessment),
+        (4, "Tercile Lift", f"{lift:+.6f}" if have_terciles else na, lift_assessment),
+        (5, "Verdict", verdict_name, verdict_assessment),
     )
     lines.append("# TYPE live_overlay_sweep_trap_shadow_evidence_info gauge")
     for idx, metric_name, value, assessment in rows:
         labels = (
-            f'date="{date}",idx="{idx}",metric="{_escape_label_value(metric_name)}",'
+            f'date="{date}",idx="{idx:02d}",metric="{_escape_label_value(metric_name)}",'
             f'metric_value="{_escape_label_value(value)}",'
             f'assessment="{_escape_label_value(assessment)}"'
         )

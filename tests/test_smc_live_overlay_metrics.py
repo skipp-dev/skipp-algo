@@ -303,9 +303,10 @@ def test_render_metrics_emits_sweep_trap_shadow_values(monkeypatch: pytest.Monke
     assert 'metric="Gültige Samples",metric_value="55",assessment="Floor erfüllt"' in body
     assert 'metric="Brier Baseline",metric_value="0.231000",assessment="nicht besser als Signal"' in body
     assert 'metric="Verdict",metric_value="PROMOTABLE",assessment="promotable"' in body
-    # idx labels pin the table's display order (0..5) via the dashboard sortBy transform.
-    assert 'idx="0",metric="Gültige Samples"' in body
-    assert 'idx="5",metric="Verdict"' in body
+    # idx labels pin the table's display order via the dashboard sortBy transform;
+    # they are zero-padded so Grafana's lexicographic sort keeps numeric order.
+    assert 'idx="00",metric="Gültige Samples"' in body
+    assert 'idx="05",metric="Verdict"' in body
     assert "live_overlay_sweep_trap_shadow_snapshot_age_known 1.0" in body
     assert "live_overlay_sweep_trap_shadow_snapshot_stale 0.0" in body
 
@@ -340,6 +341,38 @@ def test_render_metrics_evidence_table_marks_absent_data_not_failed(
     # It must NOT claim a gate verdict when there is no corpus.
     assert "Gate verfehlt" not in body
     assert "nicht besser als Signal" not in body
+
+
+def test_render_metrics_evidence_table_shows_brier_but_dashes_lift_below_tercile_floor(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """With data but fewer than 6 samples the Brier rows carry real values while
+    the tercile-lift row stays "—" (mirrors the evaluator's own n>=6 floor)."""
+    import services.live_overlay_daemon.metrics as metrics_mod
+
+    snap = _sweep_trap_snap(
+        date="2026-07-16",
+        n_samples=4.0,
+        min_samples=40.0,
+        brier_signal=0.18,
+        brier_baseline=0.20,
+        brier_delta=0.02,
+        lift=0.0,  # evaluator returns None below 6 samples; the bridge coerces to 0.0
+        verdict="INCONCLUSIVE",
+        verdict_code=0.0,
+    )
+    monkeypatch.setattr(metrics_mod.sweep_trap_shadow_bridge, "snapshot", lambda: snap)
+
+    body = "\n".join(metrics_mod._render_sweep_trap_shadow_metrics())
+    # Data present: Brier rows show real numbers and real assessments.
+    assert 'metric="Gültige Samples",metric_value="4",assessment="Floor nicht erfüllt"' in body
+    assert 'metric="Brier Signal",metric_value="0.180000"' in body
+    assert 'metric="Brier Baseline",metric_value="0.200000",assessment="nicht besser als Signal"' in body
+    assert 'metric="Brier Delta",metric_value="+0.020000",assessment="Gate erfüllt"' in body
+    assert 'metric="Verdict",metric_value="INCONCLUSIVE",assessment="nicht promotable"' in body
+    # Too few samples for terciles: the lift row must NOT fabricate +0.000000/nicht positiv.
+    assert 'metric="Tercile Lift",metric_value="—",assessment="—"' in body
+    assert "nicht positiv" not in body
 
 
 def test_sweep_trap_shadow_stale_gauge_fires_past_max_age(monkeypatch: pytest.MonkeyPatch) -> None:
