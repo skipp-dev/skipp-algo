@@ -482,6 +482,7 @@ jobs:
             tests/test_tempfile_namedtemp_delete_kwarg_invariant.py \
             tests/test_threading_thread_daemon_invariant.py \
             tests/test_to_datetime_utc_discipline.py \
+            tests/test_tradingview_provider_qualification_packet.py \
             tests/test_weak_hash_usedforsecurity_pin.py \
             tests/test_atomic_write_call_sites.py \
             tests/test_module_test_coverage_pin.py \

@@ -2,7 +2,7 @@
 
 | Field | Value |
 |---|---|
-| Status | Proposed — qualification required before implementation |
+| Status | Proposed — M0 packet prepared; qualification required before implementation |
 | Date | 2026-07-16 |
 | Deciders | skipp-dev + TradingView partnership owner |
 | Related | `services/live_overlay_daemon`; `spec/smc_live_overlay.schema.json` |
@@ -56,7 +56,7 @@ script may contain `request.raw`, `request.get`, or `request.post` placeholders.
 
 ## Qualification packet and questions
 
-The partnership owner prepares a one-page contact packet containing:
+The partnership owner prepares a qualification packet containing:
 
 - company/product identity, expected users, regions, and target launch window;
 - a data dictionary with provenance, units, update cadence, correction policy,
@@ -64,6 +64,15 @@ The partnership owner prepares a one-page contact packet containing:
 - the pilot universe and expected real-time/historical throughput;
 - entitlement model and proof of redistribution/derived-data rights;
 - operational contacts, uptime target, incident process, and retention needs.
+
+The maintained non-confidential packet and exact routing request are:
+
+- [`docs/tradingview_provider_qualification_packet.md`](../tradingview_provider_qualification_packet.md)
+- [`docs/tradingview_provider_qualification_request.md`](../tradingview_provider_qualification_request.md)
+
+The packet deliberately marks source rights as unverified until written legal
+and vendor evidence exists. The initial support message contains no formulas,
+credentials, contract excerpts, sample payloads or other confidential material.
 
 TradingView must answer these gates in writing:
 
@@ -160,3 +169,6 @@ data only.
   consumers.
 - `tests/test_tradingview_provider_integration_plan.py` pins the qualification,
   licensing, conformance, Pine-access, and Advanced-Charts non-goal gates.
+- `tests/test_tradingview_provider_qualification_packet.py` pins the concrete
+  pilot, rights blockers, non-confidential contact route, Pine gate, and exact
+  Advanced-Charts/broker non-goals.

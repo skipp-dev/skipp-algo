@@ -184,6 +184,7 @@ FULL_REQUIRED_PATH_TRIPWIRES: tuple[str, ...] = (
     "tests/test_time_sleep_budget.py",
     "tests/test_tls_jwt_verification_zero_surface.py",
     "tests/test_to_datetime_utc_discipline.py",
+    "tests/test_tradingview_provider_qualification_packet.py",
     "tests/test_type_ignore_budget.py",
     "tests/test_urllib_urlopen_ledger.py",
     "tests/test_verdict_panel.py",

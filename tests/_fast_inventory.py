@@ -72,6 +72,7 @@ FAST_TEST_FILES: frozenset[str] = frozenset({
     "test_sys_exit_ledger_pin.py",
     "test_sys_path_mutation_ledger.py",
     "test_time_sleep_budget.py",
+    "test_tradingview_provider_qualification_packet.py",
     "test_type_ignore_budget.py",
     "test_urllib_urlopen_ledger.py",
     "test_warnings_simplefilter_ledger.py",
