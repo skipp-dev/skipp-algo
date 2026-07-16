@@ -1449,10 +1449,17 @@ jobs:
           git config user.email "github-actions[bot]@users.noreply.github.com"
           git config --local --unset-all http.https://github.com/.extraheader || true
           git remote set-url origin "https://x-access-token:${GITHUB_TOKEN}@github.com/${GITHUB_REPOSITORY}.git"
-          GIT_LFS_SKIP_SMUDGE=1 git -c filter.lfs.smudge= -c filter.lfs.process= -c filter.lfs.required=false restore --source=HEAD --worktree --staged -- \
+          for runtime_path in \
             artifacts/databento_volatility_cache/ \
+            artifacts/monitoring/provider_usage.json \
             artifacts/smc_microstructure_exports/smc_live_news_snapshot.json \
-            artifacts/smc_microstructure_exports/smc_live_news_state.json || true
+            artifacts/smc_microstructure_exports/smc_live_news_state.json; do
+            # A missing optional cache path must not make git restore reject
+            # every other path in the same invocation (run 29495535495).
+            if git ls-files --error-unmatch "$runtime_path" >/dev/null 2>&1; then
+              GIT_LFS_SKIP_SMUDGE=1 git -c filter.lfs.smudge= -c filter.lfs.process= -c filter.lfs.required=false restore --source=HEAD --worktree --staged -- "$runtime_path"
+            fi
+          done
           git add pine/generated/ \
             SMC_Long_Dip_Suite.pine \
             SMC_Long_Dip_Dashboard.pine \

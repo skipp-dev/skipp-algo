@@ -203,6 +203,21 @@ def test_refresh_workflow_commit_gates_on_policy_not_raw_validation_outcome() ->
     assert 'continue-on-error' not in workflow_text[gates_idx:gates_end]
 
 
+def test_refresh_workflow_restores_optional_runtime_artifacts_individually() -> None:
+    """One absent optional cache path must not block every tracked restore."""
+    workflow_text = _read(WORKFLOW_PATH)
+    commit_idx = workflow_text.index('- name: Commit and push changes')
+    commit_end = workflow_text.index('- name: ', commit_idx + 10)
+    commit_block = workflow_text[commit_idx:commit_end]
+
+    assert 'for runtime_path in' in commit_block
+    assert 'git ls-files --error-unmatch "$runtime_path"' in commit_block
+    assert 'restore --source=HEAD --worktree --staged -- "$runtime_path"' in commit_block
+    assert 'artifacts/monitoring/provider_usage.json' in commit_block
+    assert 'artifacts/smc_microstructure_exports/smc_live_news_snapshot.json' in commit_block
+    assert 'artifacts/smc_microstructure_exports/smc_live_news_state.json' in commit_block
+
+
 def test_refresh_workflow_prefers_priority_cron_runner_with_portable_python() -> None:
     workflow_text = _read(WORKFLOW_PATH)
 
