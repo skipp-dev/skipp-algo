@@ -1950,7 +1950,7 @@
     {
       "title": "Sweep-Trap Evidence — Latest",
       "type": "table",
-      "description": "Latest WS4b shadow-evidence snapshot as a decision table. Datum is the evaluated corpus date, not the dashboard refresh time. Bewertungen mirror the evaluator gate: at least 40 valid samples, positive Brier delta, positive tercile lift, and a PROMOTABLE verdict. This panel is informational and does not activate PROMOTE_SWEEP_TRAP.",
+      "description": "Latest WS4b shadow-evidence snapshot as a decision table. Datum is the evaluated corpus date, not the dashboard refresh time. Bewertungen mirror the evaluator gate: at least 40 valid samples, positive Brier delta, positive tercile lift, and a PROMOTABLE verdict. Before any corpus accrues (or below the 6-sample tercile floor) the affected rows show \"—\" rather than a fabricated pass/fail. This panel is informational and does not activate PROMOTE_SWEEP_TRAP.",
       "gridPos": {
         "h": 8,
         "w": 24,
@@ -1971,25 +1971,36 @@
       ],
       "transformations": [
         {
+          "id": "sortBy",
+          "options": {
+            "sort": [
+              {
+                "field": "idx"
+              }
+            ]
+          }
+        },
+        {
           "id": "organize",
           "options": {
             "excludeByName": {
               "Time": true,
               "Value": true,
               "__name__": true,
+              "idx": true,
               "instance": true,
               "job": true
             },
             "indexByName": {
               "date": 0,
               "metric": 1,
-              "value": 2,
+              "metric_value": 2,
               "assessment": 3
             },
             "renameByName": {
               "date": "Datum",
               "metric": "Kennzahl",
-              "value": "Wert",
+              "metric_value": "Wert",
               "assessment": "Bewertung"
             }
           }

@@ -14,6 +14,7 @@ The sweep-trap detector stays in shadow (no score-budget weight); these gauges
 exist so the Brier-delta + sample accrual toward the promotion decision are
 visible in Grafana instead of buried in a committed JSONL ledger.
 """
+
 from __future__ import annotations
 
 import base64
@@ -43,8 +44,10 @@ def _empty(loaded: float, error: str) -> dict[str, Any]:
         "generated_at_unix": 0.0,
         "date": "",
         "n_samples": 0.0,
-        "min_samples": 0.0, "brier_signal": 0.0,
-        "brier_baseline": 0.0, "brier_delta": 0.0,
+        "min_samples": 0.0,
+        "brier_signal": 0.0,
+        "brier_baseline": 0.0,
+        "brier_delta": 0.0,
         "lift": 0.0,
         "verdict": "",
         "verdict_code": 0.0,
@@ -56,16 +59,20 @@ def _coerce(raw: dict[str, Any]) -> dict[str, Any]:
     verdict = str(raw.get("verdict", "") or "")
     # Trust the producer's verdict_code but fall back to the name mapping.
     code = raw.get("verdict_code")
-    verdict_code = _num(code) if isinstance(code, (int, float)) and not isinstance(code, bool) else float(
-        _VERDICT_CODE.get(verdict, 0)
+    verdict_code = (
+        _num(code)
+        if isinstance(code, (int, float)) and not isinstance(code, bool)
+        else float(_VERDICT_CODE.get(verdict, 0))
     )
     return {
         "loaded": 1.0,
         "generated_at_unix": _num(raw.get("generated_at")),
         "date": str(raw.get("date", "") or ""),
         "n_samples": _num(raw.get("n_samples")),
-        "min_samples": _num(raw.get("min_samples")), "brier_signal": _num(raw.get("brier_signal")),
-        "brier_baseline": _num(raw.get("brier_baseline")), "brier_delta": _num(raw.get("brier_delta")),
+        "min_samples": _num(raw.get("min_samples")),
+        "brier_signal": _num(raw.get("brier_signal")),
+        "brier_baseline": _num(raw.get("brier_baseline")),
+        "brier_delta": _num(raw.get("brier_delta")),
         "lift": _num(raw.get("lift")),
         "verdict": verdict,
         "verdict_code": verdict_code,

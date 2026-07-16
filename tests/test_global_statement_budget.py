@@ -309,8 +309,8 @@ _FROZEN_SITES: frozenset[tuple[str, int, tuple[str, ...]]] = frozenset(
         # 2026-07-11 (feat/sweep-trap-shadow-grafana): WS4a sweep-trap shadow
         # snapshot bridge — same TTL-cache singleton pattern (snapshot() +
         # _reset_cache_for_tests()).
-        ("services/live_overlay_daemon/sweep_trap_shadow_bridge.py", 146, ("_cached", "_cached_at_monotonic")),  # 2026-07-16 (last-good cache docstring): 142->146
-        ("services/live_overlay_daemon/sweep_trap_shadow_bridge.py", 160, ("_cached", "_cached_at_monotonic")),  # 2026-07-16 (last-good cache docstring): 155->160
+        ("services/live_overlay_daemon/sweep_trap_shadow_bridge.py", 153, ("_cached", "_cached_at_monotonic")),  # 2026-07-16 (last-good cache docstring): 142->146; (ruff format): 146->153
+        ("services/live_overlay_daemon/sweep_trap_shadow_bridge.py", 167, ("_cached", "_cached_at_monotonic")),  # 2026-07-16 (last-good cache docstring): 155->160; (ruff format): 160->167
         ("services/live_overlay_daemon/provider_usage_bridge.py", 136, ("_cached", "_cached_at_monotonic")),  # 2026-07-13 (snapshot age-recompute docstring +6): 130->136
         # 2026-07-13 (feat/pine-library-version-monitor, #3599/#3603 follow-up):
         # repo↔TradingView Pine-library version snapshot bridge — same TTL-cache

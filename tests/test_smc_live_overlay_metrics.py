@@ -300,11 +300,125 @@ def test_render_metrics_emits_sweep_trap_shadow_values(monkeypatch: pytest.Monke
     assert "live_overlay_sweep_trap_shadow_sample_count 55.0" in body
     assert "live_overlay_sweep_trap_shadow_min_samples 40.0" in body
     assert 'live_overlay_sweep_trap_shadow_verdict_code{verdict="PROMOTABLE"} 2.0' in body
-    assert 'metric="Gültige Samples",value="55",assessment="Floor erfüllt"' in body
-    assert 'metric="Brier Baseline",value="0.231000",assessment="nicht besser als Signal"' in body
-    assert 'metric="Verdict",value="PROMOTABLE",assessment="promotable"' in body
+    assert 'metric="Gültige Samples",metric_value="55",assessment="Floor erfüllt"' in body
+    assert 'metric="Brier Baseline",metric_value="0.231000",assessment="nicht besser als Signal"' in body
+    assert 'metric="Verdict",metric_value="PROMOTABLE",assessment="promotable"' in body
+    # idx labels pin the table's display order via the dashboard sortBy transform;
+    # they are zero-padded so Grafana's lexicographic sort keeps numeric order.
+    assert 'idx="00",metric="Gültige Samples"' in body
+    assert 'idx="05",metric="Verdict"' in body
     assert "live_overlay_sweep_trap_shadow_snapshot_age_known 1.0" in body
     assert "live_overlay_sweep_trap_shadow_snapshot_stale 0.0" in body
+
+
+def test_render_metrics_evidence_table_marks_absent_data_not_failed(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """With no evaluated corpus the evidence table must show "—", not assert
+    a failed gate on data that was never computed."""
+    import services.live_overlay_daemon.metrics as metrics_mod
+
+    snap = _sweep_trap_snap(
+        date="",
+        n_samples=0.0,
+        min_samples=40.0,
+        brier_signal=0.0,
+        brier_baseline=0.0,
+        brier_delta=0.0,
+        lift=0.0,
+        verdict="INCONCLUSIVE",
+        verdict_code=0.0,
+    )
+    monkeypatch.setattr(metrics_mod.sweep_trap_shadow_bridge, "snapshot", lambda: snap)
+
+    body = "\n".join(metrics_mod._render_sweep_trap_shadow_metrics())
+    # No data: Brier/Delta/Lift/Verdict assessments are neutral, samples honestly fail the floor.
+    assert 'metric="Gültige Samples",metric_value="0",assessment="Floor nicht erfüllt"' in body
+    assert 'metric="Brier Baseline",metric_value="—",assessment="—"' in body
+    assert 'metric="Brier Delta",metric_value="—",assessment="—"' in body
+    assert 'metric="Tercile Lift",metric_value="—",assessment="—"' in body
+    assert 'metric="Verdict",metric_value="INCONCLUSIVE",assessment="—"' in body
+    # It must NOT claim a gate verdict when there is no corpus.
+    assert "Gate verfehlt" not in body
+    assert "nicht besser als Signal" not in body
+
+
+def test_render_metrics_evidence_table_shows_brier_but_dashes_lift_below_tercile_floor(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """With data but fewer than 6 samples the Brier rows carry real values while
+    the tercile-lift row stays "—" (mirrors the evaluator's own n>=6 floor)."""
+    import services.live_overlay_daemon.metrics as metrics_mod
+
+    snap = _sweep_trap_snap(
+        date="2026-07-16",
+        n_samples=4.0,
+        min_samples=40.0,
+        brier_signal=0.18,
+        brier_baseline=0.20,
+        brier_delta=0.02,
+        lift=0.0,  # evaluator returns None below 6 samples; the bridge coerces to 0.0
+        verdict="INCONCLUSIVE",
+        verdict_code=0.0,
+    )
+    monkeypatch.setattr(metrics_mod.sweep_trap_shadow_bridge, "snapshot", lambda: snap)
+
+    body = "\n".join(metrics_mod._render_sweep_trap_shadow_metrics())
+    # Data present: Brier rows show real numbers and real assessments.
+    assert 'metric="Gültige Samples",metric_value="4",assessment="Floor nicht erfüllt"' in body
+    assert 'metric="Brier Signal",metric_value="0.180000"' in body
+    assert 'metric="Brier Baseline",metric_value="0.200000",assessment="nicht besser als Signal"' in body
+    assert 'metric="Brier Delta",metric_value="+0.020000",assessment="Gate erfüllt"' in body
+    assert 'metric="Verdict",metric_value="INCONCLUSIVE",assessment="nicht promotable"' in body
+    # Too few samples for terciles: the lift row must NOT fabricate +0.000000/nicht positiv.
+    assert 'metric="Tercile Lift",metric_value="—",assessment="—"' in body
+    assert "nicht positiv" not in body
+
+
+def test_evidence_table_dashboard_sorts_and_renames_only_emitted_labels(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The dashboard's sortBy field and every renamed evidence column must be a
+    label the metric actually emits. Emitter and consumer are otherwise pinned by
+    two separate tests, so a one-sided rename would leave both green while the
+    table silently stops sorting or loses a column — this couples the two sides."""
+    import services.live_overlay_daemon.metrics as metrics_mod
+
+    snap = _sweep_trap_snap()
+    monkeypatch.setattr(metrics_mod.sweep_trap_shadow_bridge, "snapshot", lambda: snap)
+    body = "\n".join(metrics_mod._render_sweep_trap_shadow_metrics())
+
+    emitted_labels: set[str] = set()
+    for line in body.splitlines():
+        if line.startswith("live_overlay_sweep_trap_shadow_evidence_info{"):
+            label_block = line.split("{", 1)[1].rsplit("}", 1)[0]
+            emitted_labels.update(re.findall(r'(\w+)="', label_block))
+    assert emitted_labels, "evidence_info metric emitted no labelled series"
+
+    dashboard = json.loads(
+        (
+            Path(__file__).resolve().parents[1]
+            / "services"
+            / "live_overlay_daemon"
+            / "infra"
+            / "grafana"
+            / "dashboard-signals-experiments.json"
+        ).read_text(encoding="utf-8")
+    )
+    panel = next(
+        p for p in dashboard["panels"] if p.get("title") == "Sweep-Trap Evidence — Latest"
+    )
+    sort_by = next(t for t in panel["transformations"] if t["id"] == "sortBy")
+    organize = next(t for t in panel["transformations"] if t["id"] == "organize")
+
+    sort_field = sort_by["options"]["sort"][0]["field"]
+    assert sort_field in emitted_labels, (
+        f"dashboard sorts the evidence table by {sort_field!r} but the metric never emits it"
+    )
+    for column in organize["options"]["renameByName"]:
+        assert column in emitted_labels, (
+            f"dashboard renames {column!r} but the metric never emits it as a label"
+        )
 
 
 def test_sweep_trap_shadow_stale_gauge_fires_past_max_age(monkeypatch: pytest.MonkeyPatch) -> None:
