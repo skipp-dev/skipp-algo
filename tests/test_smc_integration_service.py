@@ -137,14 +137,18 @@ class TestSerializeBiasVerdict:
         verdict = SimpleNamespace(
             direction="BULLISH",
             confidence=0.8,
+            chart_tf_direction="UP",
             htf_direction="UP",
             session_direction="UP",
             conflict=False,
             source="merged",
+            source_detail="MERGED_CHART_TF_SESSION",
         )
         result = service._serialize_bias_verdict(verdict)
         assert result["direction"] == "BULLISH"
         assert result["confidence"] == 0.8
+        assert result["chart_tf_direction"] == "UP"
+        assert result["source_detail"] == "MERGED_CHART_TF_SESSION"
         assert result["conflict"] is False
 
 

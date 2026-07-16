@@ -236,3 +236,17 @@ def test_freshness_not_downgraded_without_contra_signals() -> None:
     assert result["SMT_DIVERGENCE_DETECTED"] is False
     assert result["SIGNAL_FRESHNESS"] == "very_fresh"
 
+
+def test_promoted_sweep_trap_quality_feeds_confluence() -> None:
+    """Promotion selects trap quality for the live confluence contribution."""
+    _enable_all_v2_flags()
+    enrichment = _make_full_enrichment()
+    enrichment["fvg_lifecycle_light"]["FVG_GAP_SCORE"] = 0.0
+    enrichment["liquidity_sweeps"]["SWEEP_QUALITY_SCORE"] = 0.0
+
+    shadow_result = build_signal_quality(enrichment=enrichment)
+    assert shadow_result["CONFLUENCE_SCORE"] == 0
+
+    os.environ["PROMOTE_SWEEP_TRAP"] = "1"
+    promoted_result = build_signal_quality(enrichment=enrichment)
+    assert promoted_result["CONFLUENCE_SCORE"] == 12

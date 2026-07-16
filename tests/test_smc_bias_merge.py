@@ -38,7 +38,9 @@ def test_both_missing() -> None:
 def test_htf_only_bullish() -> None:
     v = merge_bias(_htf(3), None)
     assert v.direction == "BULLISH"
+    assert v.chart_tf_direction == "BULLISH"
     assert v.source == "HTF"
+    assert v.source_detail == "CHART_TF"
     assert not v.conflict
 
 
@@ -64,6 +66,7 @@ def test_concordant_bullish() -> None:
     v = merge_bias(_htf(3), _session_bullish())
     assert v.direction == "BULLISH"
     assert v.source == "MERGED"
+    assert v.source_detail == "MERGED_CHART_TF_SESSION"
     assert not v.conflict
     assert v.confidence > 0.8  # concordance bonus
 
