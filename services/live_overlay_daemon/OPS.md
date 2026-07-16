@@ -534,7 +534,7 @@ If this fires in production, set `LIVE_OVERLAY_EXPECT_MARKET_TRAFFIC=1` before
 trusting the first-zero traffic alerts. Local, dev, and warm-standby deployments
 should normally leave the value at `0`.
 
-#### Rollout-Modus: Pine consumer noch nicht live
+#### Production mode: Pine consumer live
 
 Wenn der TradingView/Pine `request.get()`-Consumer noch nicht ausgerollt ist,
 ist "no traffic" **erwartet**. In diesem Modus soll die Deployment-Instanz
@@ -543,19 +543,19 @@ nicht auf fehlendes `/smc_live`-Polling alarmieren.
 Setze daher:
 
 ```env
-LIVE_OVERLAY_EXPECT_MARKET_TRAFFIC=0
+LIVE_OVERLAY_EXPECT_MARKET_TRAFFIC=1
 ```
 
-Zusätzlich ist der Reminder-Alert `lo-expected-traffic-not-armed` bewusst auf
-`isPaused: true` gesetzt, damit die absichtlich unarmed Phase nicht paget.
+The reminder alert `lo-expected-traffic-not-armed` is active. It detects a
+production deployment that accidentally disables Pine polling expectations.
 
-Sobald der Pine-Consumer produktiv pollt:
+Production requirements:
 
-1. `LIVE_OVERLAY_EXPECT_MARKET_TRAFFIC=1` setzen.
-2. `lo-expected-traffic-not-armed` wieder aktivieren (`isPaused: false`).
-3. Alert-Rules erneut anwenden (`scripts/grafana_alert_rules_upsert.py`).
+1. Keep `LIVE_OVERLAY_EXPECT_MARKET_TRAFFIC=1` on the production daemon.
+2. Keep `lo-expected-traffic-not-armed` active (`isPaused: false`).
+3. Reapply alert rules after changes (`scripts/grafana_alert_rules_upsert.py`).
 
-Erwartetes Ergebnis danach:
+Expected result:
 
 - `Pine Polling Watchdog` = `ARMED`
 - `Market Traffic Health` wechselt bei Polling von
@@ -783,7 +783,7 @@ cd ~/Documents/skipp-algo && git checkout main && git pull --ff-only
    python scripts/grafana_dashboard_upsert.py
    ```
 
-   Adds the "Sweep-Trap Shadow (WS4a)" row (verdict, Brier-delta, lift, samples
+   Adds the "Sweep-Trap Promotion Evidence" row (verdict, Brier delta, lift, samples
    toward promotion, snapshot age) to the Signals & Experiments board.
 
 4. **Wire the data feed** (otherwise the tiles serve the no-data seed):

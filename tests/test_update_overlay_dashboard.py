@@ -111,8 +111,8 @@ def test_latency_panels_consolidated_and_slo_added(temp_dashboard: Path) -> None
     titles = {p["title"] for p in data["panels"]}
     assert "smc_live Latency Avg (ms)" not in titles
     assert "smc_live Latency Buckets (req/s)" not in titles
-    assert "Latency vs. SLO (ms)" in titles
-    panel = next(p for p in data["panels"] if p["title"] == "Latency vs. SLO (ms)")
+    assert "Request Latency Against 500 ms Target" in titles
+    panel = next(p for p in data["panels"] if p["title"] == "Request Latency Against 500 ms Target")
     exprs = [t.get("expr", "") for t in panel["targets"]]
     assert any("vector(500)" in e for e in exprs)
 

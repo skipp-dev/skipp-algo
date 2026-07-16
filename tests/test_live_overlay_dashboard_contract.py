@@ -52,6 +52,15 @@ def _dashboard_panels(dashboard: dict) -> list[dict]:
     return []
 
 
+def _field_override_properties(panel: dict, field_name: str) -> dict[str, object]:
+    """Return Grafana override properties keyed by property id."""
+    for override in panel.get("fieldConfig", {}).get("overrides", []):
+        matcher = override.get("matcher", {})
+        if matcher.get("id") == "byName" and matcher.get("options") == field_name:
+            return {prop["id"]: prop.get("value") for prop in override.get("properties", [])}
+    return {}
+
+
 def test_active_alerts_panel_no_data_filter_disabled() -> None:
     """Grafana alert list should not include no_data to avoid unknown-state rows."""
     dashboard = json.loads(_DASHBOARD_JSON.read_text(encoding="utf-8"))
@@ -266,6 +275,115 @@ def test_alert_rules_include_expected_traffic_armed_guard() -> None:
     assert "== bool 0" in expr
     assert rule["labels"]["severity"] == "warning"
     assert rule.get("for") == "15m"
+    assert rule.get("isPaused") is False
+
+
+def test_multi_target_stat_panels_use_field_specific_units() -> None:
+    """Known mixed-unit rates must never inherit one global Grafana unit."""
+    dashboard = json.loads(_DASHBOARD_JSON.read_text(encoding="utf-8"))
+    for panel in _dashboard_panels(dashboard):
+        if panel.get("type") != "stat" or len(panel.get("targets", [])) < 2:
+            continue
+        expected: dict[str, str] = {}
+        for target in panel["targets"]:
+            expr = target.get("expr", "")
+            legend = target.get("legendFormat", "")
+            if "rate(" in expr and "_bytes_total" in expr:
+                expected[legend] = "binBps"
+            elif "rate(" in expr and "_requests_total" in expr:
+                expected[legend] = "reqps"
+        if len(set(expected.values())) < 2:
+            continue
+        for field_name, unit in expected.items():
+            props = _field_override_properties(panel, field_name)
+            assert props.get("unit") == unit, f"{panel.get('title')}:{field_name} must use {unit}"
+
+
+def test_heterogeneous_stat_panels_do_not_share_numeric_thresholds() -> None:
+    """Age, count, and state fields may not share one numeric health threshold."""
+    dashboard = json.loads(_DASHBOARD_JSON.read_text(encoding="utf-8"))
+    heterogeneous = ("Magnitude Ledger Age (days)", "TradingView Binding Status")
+    for title in heterogeneous:
+        panel = next(p for p in _dashboard_panels(dashboard) if p.get("title") == title)
+        defaults = panel.get("fieldConfig", {}).get("defaults", {})
+        steps = defaults.get("thresholds", {}).get("steps", [])
+        assert not any(step.get("value") is not None for step in steps), (
+            f"{title} applies a global numeric threshold to heterogeneous fields"
+        )
+
+
+def test_dashboard_freshness_thresholds_match_alert_rules() -> None:
+    """Dashboard red thresholds must match the alert rules users are paged on."""
+    dashboard = json.loads(_DASHBOARD_JSON.read_text(encoding="utf-8"))
+    panels = {p.get("title"): p for p in _dashboard_panels(dashboard)}
+
+    ledger_rule_expr = _alert_rule("lo-evidence-ledger-stale")["data"][0]["model"]["expr"]
+    ledger_seconds = int(re.search(r">\s*(\d+)", ledger_rule_expr).group(1))
+    ledger_props = _field_override_properties(panels["Magnitude Ledger Age (days)"], "ledger age (d)")
+    ledger_red = next(
+        step["value"]
+        for step in ledger_props["thresholds"]["steps"]
+        if step.get("color") == "red"
+    )
+    assert ledger_red == ledger_seconds / 86400
+
+    binding_rule_expr = _alert_rule("lo-tv-binding-snapshot-stale")["data"][0]["model"]["expr"]
+    binding_seconds = int(re.search(r"> bool\s*(\d+)", binding_rule_expr).group(1))
+    age_props = _field_override_properties(panels["TradingView Binding Status"], "Snapshot age")
+    binding_red = next(
+        step["value"] for step in age_props["thresholds"]["steps"] if step.get("color") == "red"
+    )
+    assert binding_red == binding_seconds / 3600
+
+
+def test_tradingview_binding_health_fields_have_independent_colours() -> None:
+    """A failed load, incomplete check, drift, or mismatch must never stay green."""
+    dashboard = json.loads(_DASHBOARD_JSON.read_text(encoding="utf-8"))
+    panel = next(
+        p for p in _dashboard_panels(dashboard) if p.get("title") == "TradingView Binding Status"
+    )
+    loaded = _field_override_properties(panel, "Snapshot loaded")
+    loaded_mappings = loaded["mappings"][0]["options"]
+    assert loaded_mappings["0"] == {"text": "NOT LOADED", "color": "red"}
+    assert loaded_mappings["1"] == {"text": "LOADED", "color": "green"}
+
+    checked = _field_override_properties(panel, "Bindings checked")
+    checked_steps = checked["thresholds"]["steps"]
+    assert checked_steps == [
+        {"color": "red", "value": None},
+        {"color": "green", "value": 108},
+    ]
+    for field_name in ("Drift", "Mismatches"):
+        steps = _field_override_properties(panel, field_name)["thresholds"]["steps"]
+        assert steps == [
+            {"color": "green", "value": None},
+            {"color": "red", "value": 1},
+        ]
+
+
+def test_fmp_quota_panel_thresholds_match_alert_rules() -> None:
+    """The estimated quota tile and warning/critical alert ratios stay in lock-step."""
+    dashboard = json.loads(_DASHBOARD_JSON.read_text(encoding="utf-8"))
+    panel = next(
+        p for p in _dashboard_panels(dashboard) if p.get("title") == "Estimated FMP Quota Used (%)"
+    )
+    steps = panel["fieldConfig"]["defaults"]["thresholds"]["steps"]
+    panel_thresholds = {step["color"]: step["value"] for step in steps if step.get("value") is not None}
+    warning_expr = _alert_rule("lo-fmp-bandwidth-approaching")["data"][0]["model"]["expr"]
+    critical_expr = _alert_rule("lo-fmp-bandwidth-critical")["data"][0]["model"]["expr"]
+    assert panel_thresholds["yellow"] == float(re.search(r">\s*(0\.\d+)", warning_expr).group(1)) * 100
+    assert panel_thresholds["red"] == float(re.search(r">\s*(0\.\d+)", critical_expr).group(1)) * 100
+
+
+def test_hotspot_panels_explain_empty_state_and_use_request_rate_units() -> None:
+    dashboard = json.loads(_DASHBOARD_JSON.read_text(encoding="utf-8"))
+    panels = {p.get("title"): p for p in _dashboard_panels(dashboard)}
+    for title in ("Most Requested Symbols", "Most Requested Timeframes"):
+        panel = panels[title]
+        defaults = panel["fieldConfig"]["defaults"]
+        assert defaults.get("unit") == "reqps"
+        assert defaults.get("noValue") == "NO PINE REQUESTS"
+        assert "Empty means no Pine requests" in panel.get("description", "")
 
 
 def test_alert_rules_guard_uptimerobot_monitor_count_and_down_total() -> None:
@@ -790,7 +908,7 @@ def test_dashboard_latency_panel_uses_only_histogram_quantile() -> None:
     """Latency vs SLO must use histogram_quantile over exported buckets and not fall back to legacy gauges."""
     dashboard = json.loads(_DASHBOARD_JSON.read_text(encoding="utf-8"))
     panels = _dashboard_panels(dashboard)
-    panel = next(p for p in panels if p.get("title") == "Latency vs. SLO (ms)")
+    panel = next(p for p in panels if p.get("title") == "Request Latency Against 500 ms Target")
     exprs = {t.get("legendFormat"): t["expr"] for t in panel["targets"] if "expr" in t}
 
     assert "histogram_quantile(0.95" in exprs["p95"]
@@ -837,7 +955,7 @@ def test_dashboard_ingest_queue_backpressure_separates_drop_rate_axis() -> None:
 def test_dashboard_hotspots_timeframes_legend_uses_timeframe_label() -> None:
     """The Hotspots Timeframes panel query produces a 'timeframe' label, so the legend must use it."""
     dashboard = json.loads(_DASHBOARD_JSON.read_text(encoding="utf-8"))
-    panel = next(p for p in _dashboard_panels(dashboard) if p.get("title") == "Hotspots — Timeframes (Top)")
+    panel = next(p for p in _dashboard_panels(dashboard) if p.get("title") == "Most Requested Timeframes")
     exprs = [t["expr"] for t in panel["targets"]]
     legends = [t.get("legendFormat") for t in panel["targets"]]
     assert any("label_replace" in e and '"timeframe"' in e for e in exprs), exprs
@@ -903,7 +1021,7 @@ def test_latency_queries_guard_zero_observation_histogram() -> None:
     """Latency panels must not render NaN when no requests have been observed."""
     dashboard = json.loads(_DASHBOARD_JSON.read_text(encoding="utf-8"))
     panels = _dashboard_panels(dashboard)
-    panel = next(p for p in panels if p.get("title") == "Latency vs. SLO (ms)")
+    panel = next(p for p in panels if p.get("title") == "Request Latency Against 500 ms Target")
     for target in panel["targets"]:
         expr = target.get("expr", "")
         if "histogram_quantile" not in expr:
@@ -991,7 +1109,7 @@ PROMOTED_SLO_TITLES = {
     "Market Data Freshness",
     "Core Metrics Present",
     "Bridge Metrics Present",
-    "Latency vs. SLO (ms)",
+    "Request Latency Against 500 ms Target",
     "Error Budget Burn Rate",
 }
 
@@ -1004,11 +1122,11 @@ PROMOTED_SLO_TITLES = {
 # --------------------------------------------------------------------------- #
 SECTION_ORDER = [
     "Status at a Glance",
-    "Trading Evidence & Governance (§2 / §5 Track)",
+    "Trading Evidence and Promotion Readiness",
     "Live Data Chain (Feed → Overlay → Pine)",
-    "API Quality (SLO)",
+    "Overlay API Reliability",
     "Daemon Operations",
-    "External Integrations (CI / Uptime)",
+    "External Checks and Automation",
     "Providers (Feeds, News & Credentials)",
     "Infrastructure (Railway / Collector)",
     # #3599/#3603 follow-up: repo↔TradingView Pine-library version drift. Last
@@ -1081,9 +1199,9 @@ def test_dashboard_fmp_bandwidth_panels_present() -> None:
     """FMP data-VOLUME (bandwidth quota) panels must be in the Providers section
     so the FMP 90%-quota concern is visible/alertable from the dashboard."""
     dashboard = json.loads(_DASHBOARD_JSON.read_text(encoding="utf-8"))
-    for title in ("FMP Bandwidth Used (%)", "FMP Bandwidth Used (GB)", "Provider Data Volume (this month)"):
+    for title in ("Estimated FMP Quota Used (%)", "Estimated FMP Usage", "Provider Data Volume (this month)"):
         assert _section_of(dashboard, title) == "Providers (Feeds, News & Credentials)", title
-    pct = next(p for p in _dashboard_panels(dashboard) if p.get("title") == "FMP Bandwidth Used (%)")
+    pct = next(p for p in _dashboard_panels(dashboard) if p.get("title") == "Estimated FMP Quota Used (%)")
     expr = pct["targets"][0]["expr"]
     assert "live_overlay_provider_usage_bytes" in expr
     assert "live_overlay_provider_bandwidth_limit_bytes" in expr
@@ -1113,16 +1231,16 @@ def test_dashboard_traffic_wording_is_disambiguated() -> None:
 
 
 def test_dashboard_user_impact_block_is_promoted_to_top() -> None:
-    """SLO / user-impact panels must sit in the API Quality (SLO) section,
+    """Reliability and user-impact panels must sit in the Overlay API Reliability section,
     which is above the service-owner Daemon Operations drill-down."""
     dashboard = json.loads(_DASHBOARD_JSON.read_text(encoding="utf-8"))
     by_title = {p.get("title"): p for p in _dashboard_panels(dashboard)}
     for title in PROMOTED_SLO_TITLES:
         assert title in by_title, f"missing panel: {title}"
-    for title in ("Success Rate (%)", "Latency vs. SLO (ms)", "Error Budget Burn Rate"):
-        assert _section_of(dashboard, title) == "API Quality (SLO)", title
+    for title in ("Success Rate (%)", "Request Latency Against 500 ms Target", "Error Budget Burn Rate"):
+        assert _section_of(dashboard, title) == "Overlay API Reliability", title
     rows = {r["title"]: r["gridPos"]["y"] for r in _rows_in_order(dashboard)}
-    assert rows["API Quality (SLO)"] < rows["Daemon Operations"]
+    assert rows["Overlay API Reliability"] < rows["Daemon Operations"]
 
 
 def test_dashboard_title_uses_api_not_daemon() -> None:
@@ -1209,7 +1327,7 @@ def test_dashboard_has_no_grid_overlaps() -> None:
 def test_dashboard_external_details_are_not_in_incident_overview() -> None:
     """External-integration detail must live in its own section, not top status."""
     dashboard = json.loads(_DASHBOARD_JSON.read_text(encoding="utf-8"))
-    assert _section_of(dashboard, "UptimeRobot Monitor States") == "External Integrations (CI / Uptime)"
+    assert _section_of(dashboard, "UptimeRobot Monitor States") == "External Checks and Automation"
 
 
 def test_dashboard_operational_drill_down_row_exists() -> None:
@@ -1276,7 +1394,7 @@ def test_dashboard_top_incident_path_is_above_drilldown() -> None:
         "Market Traffic Health",
         "Market Data Freshness",
         "Core Metrics Present",
-        "Latency vs. SLO (ms)",
+        "Request Latency Against 500 ms Target",
         "Error Budget Burn Rate",
         "Pine Polling Watchdog",
     ):
@@ -1337,8 +1455,8 @@ def test_dashboard_detail_rows_are_marked_as_service_owner_details() -> None:
     """Detail rows must explicitly describe themselves as service-owner details."""
     dashboard = json.loads(_DASHBOARD_JSON.read_text(encoding="utf-8"))
     detail_rows = {
-        "API Quality (SLO)", "Daemon Operations",
-        "External Integrations (CI / Uptime)", "Providers (Feeds, News & Credentials)",
+        "Overlay API Reliability", "Daemon Operations",
+        "External Checks and Automation", "Providers (Feeds, News & Credentials)",
         "Infrastructure (Railway / Collector)",
     }
     rows = {p["title"]: p for p in dashboard["panels"] if p.get("type") == "row"}
@@ -1548,7 +1666,7 @@ def test_dashboard_external_integration_details_are_co_located() -> None:
     """External-integration detail panels must live inside the External Integrations section."""
     dashboard = json.loads(_DASHBOARD_JSON.read_text(encoding="utf-8"))
     for title in ("Bridge Scrape Health Timeline", "GitHub Workflows — Latest Run Detail"):
-        assert _section_of(dashboard, title) == "External Integrations (CI / Uptime)", title
+        assert _section_of(dashboard, title) == "External Checks and Automation", title
 
 
 def test_dashboard_external_checks_ignores_unconfigured_bridges() -> None:

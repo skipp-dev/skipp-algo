@@ -648,12 +648,10 @@ groups:
         OVERLAY_SECRET_TOKEN rollout, and the Railway public endpoint.
   - uid: lo-expected-traffic-not-armed
     title: Pine-polling watchdog is turned off
-    # Paused 2026-07-01: the TradingView/Pine request.get() consumer is not yet
-    # rolled out, so this deployment is deliberately unarmed
-    # (LIVE_OVERLAY_EXPECT_MARKET_TRAFFIC=0). This rule's own runbook condones the
-    # not-armed state during rollout, so the nag is stood down rather than paging.
-    # Set isPaused: false (and re-upsert) when arming for production.
-    isPaused: true
+    # Armed 2026-07-16: the TradingView/Pine request.get() consumer is production.
+    # This reminder must stay active so a deployment with
+    # LIVE_OVERLAY_EXPECT_MARKET_TRAFFIC=0 cannot silently disable traffic alerts.
+    isPaused: false
     condition: C
     data:
     - refId: A
@@ -3341,7 +3339,7 @@ groups:
       runbook: The observe-only sweep_trap_quality_score has beaten baseline Brier with
         positive top/bottom-tercile lift on >= 40 samples for 3 consecutive days. This is the
         WS4b trigger — review live_overlay_sweep_trap_shadow_{brier_delta,lift,sample_count} on
-        the "Sweep-Trap Shadow (WS4a)" dashboard row, then decide whether to grant the detector
+        the "Sweep-Trap Promotion Evidence" dashboard row, then decide whether to grant the detector
         score-budget weight (confluence currently reads the coarse SWEEP_QUALITY_SCORE, not
         SWEEP_TRAP_QUALITY_SCORE). Not an incident — an action prompt.
 - orgId: 1

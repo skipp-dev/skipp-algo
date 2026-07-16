@@ -300,12 +300,12 @@ def test_render_metrics_emits_sweep_trap_shadow_values(monkeypatch: pytest.Monke
     assert "live_overlay_sweep_trap_shadow_sample_count 55.0" in body
     assert "live_overlay_sweep_trap_shadow_min_samples 40.0" in body
     assert 'live_overlay_sweep_trap_shadow_verdict_code{verdict="PROMOTABLE"} 2.0' in body
-    assert 'metric="Gültige Samples",metric_value="55",assessment="Floor erfüllt"' in body
-    assert 'metric="Brier Baseline",metric_value="0.231000",assessment="nicht besser als Signal"' in body
+    assert 'metric="Valid samples",metric_value="55",assessment="Sample floor met"' in body
+    assert 'metric="Brier Baseline",metric_value="0.231000",assessment="not better than signal"' in body
     assert 'metric="Verdict",metric_value="PROMOTABLE",assessment="promotable"' in body
     # idx labels pin the table's display order via the dashboard sortBy transform;
     # they are zero-padded so Grafana's lexicographic sort keeps numeric order.
-    assert 'idx="00",metric="Gültige Samples"' in body
+    assert 'idx="00",metric="Valid samples"' in body
     assert 'idx="05",metric="Verdict"' in body
     assert "live_overlay_sweep_trap_shadow_snapshot_age_known 1.0" in body
     assert "live_overlay_sweep_trap_shadow_snapshot_stale 0.0" in body
@@ -334,14 +334,14 @@ def test_render_metrics_evidence_table_marks_empty_corpus_inconclusive(
     body = "\n".join(metrics_mod._render_sweep_trap_shadow_metrics())
     # Loaded empty corpus: samples honestly fail the floor and verdict explains
     # that no decision can be made; computed-score rows remain neutral.
-    assert 'metric="Gültige Samples",metric_value="0",assessment="Floor nicht erfüllt"' in body
+    assert 'metric="Valid samples",metric_value="0",assessment="Sample floor not met"' in body
     assert 'metric="Brier Baseline",metric_value="—",assessment="—"' in body
     assert 'metric="Brier Delta",metric_value="—",assessment="—"' in body
     assert 'metric="Tercile Lift",metric_value="—",assessment="—"' in body
-    assert 'metric="Verdict",metric_value="INCONCLUSIVE",assessment="keine Entscheidung möglich"' in body
+    assert 'metric="Verdict",metric_value="INCONCLUSIVE",assessment="no decision possible"' in body
     # It must NOT claim a gate verdict when there is no corpus.
-    assert "Gate verfehlt" not in body
-    assert "nicht besser als Signal" not in body
+    assert "Gate failed" not in body
+    assert "not better than signal" not in body
 
 
 def test_render_metrics_evidence_table_marks_unavailable_snapshot_unknown(
@@ -361,7 +361,7 @@ def test_render_metrics_evidence_table_marks_unavailable_snapshot_unknown(
     monkeypatch.setattr(metrics_mod.sweep_trap_shadow_bridge, "snapshot", lambda: snap)
 
     body = "\n".join(metrics_mod._render_sweep_trap_shadow_metrics())
-    assert 'metric="Gültige Samples",metric_value="—",assessment="—"' in body
+    assert 'metric="Valid samples",metric_value="—",assessment="—"' in body
     assert 'metric="Verdict",metric_value="—",assessment="—"' in body
 
 
@@ -378,8 +378,8 @@ def test_render_metrics_evidence_table_sanitizes_non_finite_sample_count(
 
     body = "\n".join(metrics_mod._render_sweep_trap_shadow_metrics())
     assert "live_overlay_sweep_trap_shadow_sample_count nan" in body
-    assert 'metric="Gültige Samples",metric_value="—",assessment="—"' in body
-    assert 'metric="Verdict",metric_value="INCONCLUSIVE",assessment="keine Entscheidung möglich"' in body
+    assert 'metric="Valid samples",metric_value="—",assessment="—"' in body
+    assert 'metric="Verdict",metric_value="INCONCLUSIVE",assessment="no decision possible"' in body
 
 
 def test_render_metrics_evidence_table_shows_brier_but_dashes_lift_below_tercile_floor(
@@ -404,14 +404,14 @@ def test_render_metrics_evidence_table_shows_brier_but_dashes_lift_below_tercile
 
     body = "\n".join(metrics_mod._render_sweep_trap_shadow_metrics())
     # Data present: Brier rows show real numbers and real assessments.
-    assert 'metric="Gültige Samples",metric_value="4",assessment="Floor nicht erfüllt"' in body
+    assert 'metric="Valid samples",metric_value="4",assessment="Sample floor not met"' in body
     assert 'metric="Brier Signal",metric_value="0.180000"' in body
-    assert 'metric="Brier Baseline",metric_value="0.200000",assessment="nicht besser als Signal"' in body
-    assert 'metric="Brier Delta",metric_value="+0.020000",assessment="Gate erfüllt"' in body
-    assert 'metric="Verdict",metric_value="INCONCLUSIVE",assessment="keine Entscheidung möglich"' in body
+    assert 'metric="Brier Baseline",metric_value="0.200000",assessment="not better than signal"' in body
+    assert 'metric="Brier Delta",metric_value="+0.020000",assessment="Gate passed"' in body
+    assert 'metric="Verdict",metric_value="INCONCLUSIVE",assessment="no decision possible"' in body
     # Too few samples for terciles: the lift row must NOT fabricate +0.000000/nicht positiv.
     assert 'metric="Tercile Lift",metric_value="—",assessment="—"' in body
-    assert "nicht positiv" not in body
+    assert "not positive" not in body
 
 
 def test_evidence_table_dashboard_sorts_and_renames_only_emitted_labels(
@@ -445,7 +445,7 @@ def test_evidence_table_dashboard_sorts_and_renames_only_emitted_labels(
         ).read_text(encoding="utf-8")
     )
     panel = next(
-        p for p in dashboard["panels"] if p.get("title") == "Sweep-Trap Evidence — Latest"
+        p for p in dashboard["panels"] if p.get("title") == "Latest Sweep-Trap Evidence"
     )
     sort_by = next(t for t in panel["transformations"] if t["id"] == "sortBy")
     organize = next(t for t in panel["transformations"] if t["id"] == "organize")

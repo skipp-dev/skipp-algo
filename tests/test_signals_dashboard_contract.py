@@ -18,8 +18,8 @@ _DASHBOARD = (
 
 SECTION_ORDER = [
     "Live Trading Signals",
-    "Daily Experiment (Phase E2)",
-    "Sweep-Trap Shadow (WS4a)",
+    "Daily Signal Experiment",
+    "Sweep-Trap Promotion Evidence",
 ]
 
 
@@ -81,6 +81,22 @@ def test_all_panels_have_descriptions() -> None:
     assert not missing, f"panels missing description: {missing}"
 
 
+def test_user_facing_copy_is_english_and_avoids_internal_workstream_acronyms() -> None:
+    """Implementation workstream names must not be required to understand the UI."""
+    d = _load()
+    copy = " ".join(
+        str(value)
+        for panel in d["panels"]
+        for value in (
+            panel.get("title", ""),
+            panel.get("description", ""),
+            panel.get("options", {}).get("content", ""),
+        )
+    )
+    for stale_term in ("WS4a", "WS4b", "MIN_OOS", "Gültige", "Bewertung", "kein Eintrag"):
+        assert stale_term not in copy
+
+
 def test_every_signal_panel_is_in_a_section() -> None:
     """No panel floats above the first section (except the banner at y=0)."""
     d = _load()
@@ -114,7 +130,7 @@ def test_sweep_trap_shadow_panels_query_the_ws4a_gauges() -> None:
 def test_sweep_trap_latest_evidence_table_has_date_value_and_assessment() -> None:
     d = _load()
     panel = next(
-        (p for p in _visual_panels(d) if p.get("title") == "Sweep-Trap Evidence — Latest"),
+        (p for p in _visual_panels(d) if p.get("title") == "Latest Sweep-Trap Evidence"),
         None,
     )
     assert panel is not None
@@ -122,10 +138,10 @@ def test_sweep_trap_latest_evidence_table_has_date_value_and_assessment() -> Non
     assert panel["targets"][0]["expr"] == 'live_overlay_sweep_trap_shadow_evidence_info{job=~"$job"}'
     organize = next(t for t in panel["transformations"] if t["id"] == "organize")
     assert organize["options"]["renameByName"] == {
-        "date": "Datum",
-        "metric": "Kennzahl",
-        "metric_value": "Wert",
-        "assessment": "Bewertung",
+        "date": "Date",
+        "metric": "Metric",
+        "metric_value": "Value",
+        "assessment": "Assessment",
     }
     # The value column is named metric_value, not "value", so it does not collide
     # with Grafana's reserved numeric "Value" field (which the panel excludes).

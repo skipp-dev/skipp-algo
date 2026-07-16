@@ -213,9 +213,9 @@ def _escape_label_value(value: object) -> str:
     )
 
 
-def _format_int_de(value: int) -> str:
-    """Group an integer with German thousands separators (1234 -> "1.234")."""
-    return f"{value:,}".replace(",", ".")
+def _format_int_grouped(value: int) -> str:
+    """Group an integer with English thousands separators (1234 -> "1,234")."""
+    return f"{value:,}"
 
 
 def _workflow_labels(workflow: Mapping[str, object]) -> str:
@@ -2309,7 +2309,7 @@ def _render_evidence_freshness_metrics() -> list[str]:
 
 
 def _render_sweep_trap_shadow_metrics() -> list[str]:
-    """Prometheus gauges for the WS4a sweep-trap shadow eval (Brier-delta + accrual)."""
+    """Prometheus gauges for the sweep-trap shadow evaluation."""
     snap = sweep_trap_shadow_bridge.snapshot()
     lines: list[str] = []
 
@@ -2385,22 +2385,34 @@ def _render_sweep_trap_shadow_metrics() -> list[str]:
     samples_known = math.isfinite(n_samples)
     have_data = have_snapshot and samples_known and n_samples > 0
     have_terciles = have_data and n_samples >= 6
-    samples_assessment = ("Floor erfüllt" if min_samples > 0 and n_samples >= min_samples else "Floor nicht erfüllt") if have_snapshot and samples_known else na
+    samples_assessment = (
+        "Sample floor met"
+        if min_samples > 0 and n_samples >= min_samples
+        else "Sample floor not met"
+    ) if have_snapshot and samples_known else na
     # Compute the data-derived assessments only when there is data (and, for
     # lift, enough samples for terciles); otherwise they stay "—". This keeps
     # the have_data/have_terciles test in one place rather than at every use.
     if have_data:
-        baseline_assessment = "besser als Signal" if brier_baseline < brier_signal else "nicht besser als Signal"
-        delta_assessment = "Gate erfüllt" if brier_delta > 0 else "Gate verfehlt"
+        baseline_assessment = (
+            "better than signal" if brier_baseline < brier_signal else "not better than signal"
+        )
+        delta_assessment = "Gate passed" if brier_delta > 0 else "Gate failed"
     else:
         baseline_assessment = delta_assessment = na
-    verdict_assessment = ({"PROMOTABLE": "promotable", "SHADOW": "nicht promotable"}.get(verdict_name, "keine Entscheidung möglich") if have_snapshot else na)
-    lift_assessment = ("positiv" if lift > 0 else "nicht positiv") if have_terciles else na
+    verdict_assessment = (
+        {"PROMOTABLE": "promotable", "SHADOW": "not promotable"}.get(
+            verdict_name, "no decision possible"
+        )
+        if have_snapshot
+        else na
+    )
+    lift_assessment = ("positive" if lift > 0 else "not positive") if have_terciles else na
     # (idx, metric, value, assessment) — idx is zero-padded so the dashboard's
     # lexicographic sortBy keeps numeric order; it pins the display order and is
     # not shown as a column.
     rows = (
-        (0, "Gültige Samples", _format_int_de(int(n_samples)) if have_snapshot and samples_known else na, samples_assessment),
+        (0, "Valid samples", _format_int_grouped(int(n_samples)) if have_snapshot and samples_known else na, samples_assessment),
         (1, "Brier Signal", f"{brier_signal:.6f}" if have_data else na, na),
         (2, "Brier Baseline", f"{brier_baseline:.6f}" if have_data else na, baseline_assessment),
         (3, "Brier Delta", f"{brier_delta:+.6f}" if have_data else na, delta_assessment),

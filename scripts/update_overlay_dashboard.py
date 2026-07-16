@@ -185,10 +185,9 @@ TRAFFIC_ALERT_ARMED_PANEL: dict[str, Any] = {
     "type": "stat",
     "datasource": PROMETHEUS_DATASOURCE,
     "description": (
-        "Is the TradingView/Pine /smc_live polling watchdog armed? Shows "
-        "LIVE_OVERLAY_EXPECT_MARKET_TRAFFIC. ARMED = a stalled or absent Pine "
-        "consumer will alert during US market open; NOT ARMED = the watchdog is "
-        "stood down."
+        "Production safety check for TradingView/Pine polling. ARMED means a stalled "
+        "or absent Pine consumer alerts while the US regular market session is open. "
+        "NOT ARMED means that protection is disabled and requires operator action."
     ),
     "gridPos": {"x": 8, "y": _TRAFFIC_ALERT_ARMED_Y, "w": 4, "h": _TRAFFIC_ALERT_ARMED_H},
     "targets": [
@@ -309,6 +308,14 @@ def _iter_v1_panels(data: dict[str, Any]):
 def _v1_panel_by_title(data: dict[str, Any], title: str) -> dict[str, Any] | None:
     for panel in _iter_v1_panels(data):
         if panel.get("title") == title:
+            return panel
+    return None
+
+
+def _v1_panel_by_any_title(data: dict[str, Any], *titles: str) -> dict[str, Any] | None:
+    for title in titles:
+        panel = _v1_panel_by_title(data, title)
+        if panel is not None:
             return panel
     return None
 
@@ -1582,21 +1589,450 @@ def _fix_market_traffic_health_description(data: dict[str, Any]) -> bool:
     return changed
 
 
-def _collapse_service_owner_rows(data: dict[str, Any]) -> bool:
-    """Collapse detail rows that are secondary during first-minute triage."""
+def _keep_all_rows_expanded(data: dict[str, Any]) -> bool:
+    """Keep the approved long-form dashboard navigable without extra clicks."""
     changed = False
-    detail_rows = {
-        "External Integrations",
-        "Reliability Drill-down",
-        "Provider Health",
-        "Collector / Scrape Targets",
-        "Railway Resources",
-    }
     for panel in data.get("panels", []):
-        if panel.get("type") == "row" and panel.get("title") in detail_rows:
-            if panel.get("collapsed") is not True:
-                panel["collapsed"] = True
+        if panel.get("type") == "row" and panel.get("collapsed") is not False:
+            panel["collapsed"] = False
+            changed = True
+    return changed
+
+
+def _set_panel_copy(panel: dict[str, Any] | None, *, title: str | None = None, description: str) -> bool:
+    if panel is None:
+        return False
+    changed = False
+    if title is not None and panel.get("title") != title:
+        panel["title"] = title
+        changed = True
+    if panel.get("description") != description:
+        panel["description"] = description
+        changed = True
+    return changed
+
+
+def _apply_user_facing_semantics(data: dict[str, Any]) -> bool:
+    """Reconcile units, health colours, empty states, and plain-language copy."""
+    changed = False
+
+    status_row = _v1_panel_by_title(data, "Status at a Glance")
+    if status_row is not None:
+        wanted = (
+            "Start here. Overall Health covers the daemon's feed, workers, and overlay "
+            "freshness. Active Alerts covers dependent services, quotas, workflows, and "
+            "external checks. Green daemon health does not override a firing alert."
+        )
+        if status_row.get("description") != wanted:
+            status_row["description"] = wanted
+            changed = True
+
+    changed = _set_panel_copy(
+        _v1_panel_by_title(data, "Overall Health"),
+        description=(
+            "Core daemon runtime health only. HEALTHY means the market-data feed, worker "
+            "threads, and overlay output are healthy. It does not include provider quotas, "
+            "workflow results, credentials, or external integrations; review Active Alerts "
+            "for those systems. IDLE means the market is closed before the first bar."
+        ),
+    ) or changed
+
+    evidence_row = _v1_panel_by_any_title(
+        data,
+        "Trading Evidence and Promotion Readiness",
+        "Trading Evidence & Governance (§2 / §5 Track)",
+    )
+    changed = _set_panel_copy(
+        evidence_row,
+        title="Trading Evidence and Promotion Readiness",
+        description=(
+            "Evidence needed before a signal family can advance: valid sample counts toward the "
+            "40-sample floor, evidence freshness, and paper-trading activity."
+        ),
+    ) or changed
+
+    family_samples = _v1_panel_by_any_title(
+        data,
+        "Valid Samples by Signal Family",
+        "Samples toward §2/§5 (need 40 / family)",
+    )
+    changed = _set_panel_copy(
+        family_samples,
+        title="Valid Samples by Signal Family",
+        description=(
+            "Usable scored samples with a triggered return for each signal family. A family needs "
+            "at least 40 samples before evaluation. Break of Structure is the active candidate; "
+            "Sweep is still a proof of concept, while Fair Value Gap and Order Block are controls."
+        ),
+    ) or changed
+
+    paper_fills = _v1_panel_by_any_title(
+        data,
+        "Paper-Trading Fill Activity",
+        "Paper-Trading Fills (C13 activity, not §5)",
+    )
+    changed = _set_panel_copy(
+        paper_fills,
+        title="Paper-Trading Fill Activity",
+        description=(
+            "Operational activity of the paper-trading pipeline: closed and filled records across "
+            "all incubations. This confirms the execution path is alive; it is not the per-family "
+            "promotion sample gate shown above."
+        ),
+    ) or changed
+
+    reliability_row = _v1_panel_by_any_title(data, "Overlay API Reliability", "API Quality (SLO)")
+    changed = _set_panel_copy(
+        reliability_row,
+        title="Overlay API Reliability",
+        description=(
+            "How reliably the live-overlay API serves Pine requests: success rate, latency against "
+            "the service target, and error-budget consumption. Service-owner detail."
+        ),
+    ) or changed
+
+    external_row = _v1_panel_by_any_title(
+        data,
+        "External Checks and Automation",
+        "External Integrations (CI / Uptime)",
+    )
+    changed = _set_panel_copy(
+        external_row,
+        title="External Checks and Automation",
+        description=(
+            "Health of GitHub workflows, uptime monitors, and the bridges that import their status. "
+            "Service-owner detail."
+        ),
+    ) or changed
+
+    latency = _v1_panel_by_any_title(
+        data,
+        "Request Latency Against 500 ms Target",
+        "Latency vs. SLO (ms)",
+    )
+    changed = _set_panel_copy(
+        latency,
+        title="Request Latency Against 500 ms Target",
+        description=(
+            "Five-minute request latency at the 95th and 99th percentiles, compared with the fixed "
+            "500 millisecond service target."
+        ),
+    ) or changed
+
+    daily_experiment = _v1_panel_by_any_title(data, "Daily Signal Experiment", "Daily Experiment (Phase E2)")
+    changed = _set_panel_copy(
+        daily_experiment,
+        title="Daily Signal Experiment",
+        description=(
+            "Daily forward-test results by signal family and timeframe, including hit rate, sample "
+            "size, and history."
+        ),
+    ) or changed
+
+    magnitude = _v1_panel_by_title(data, "Magnitude Ledger Age (days)")
+    if magnitude is not None:
+        wanted_description = (
+            "Age of the newest magnitude evidence row. Red at 5 days, matching the alert "
+            "budget for a weekday producer plus weekends and holidays. Row count, candidate "
+            "passes, and the newest evaluation plane are context only and have no age threshold."
+        )
+        if magnitude.get("description") != wanted_description:
+            magnitude["description"] = wanted_description
+            changed = True
+        wanted_config = {
+            "defaults": {"unit": "short", "mappings": [], "noValue": "NO DATA"},
+            "overrides": [
+                {
+                    "matcher": {"id": "byName", "options": "ledger age (d)"},
+                    "properties": [
+                        {"id": "unit", "value": "d"},
+                        {
+                            "id": "thresholds",
+                            "value": {
+                                "mode": "absolute",
+                                "steps": [
+                                    {"color": "green", "value": None},
+                                    {"color": "red", "value": 5},
+                                ],
+                            },
+                        },
+                    ],
+                },
+                {
+                    "matcher": {"id": "byName", "options": "rows"},
+                    "properties": [{"id": "unit", "value": "short"}],
+                },
+                {
+                    "matcher": {"id": "byName", "options": "candidate PASS"},
+                    "properties": [{"id": "unit", "value": "short"}],
+                },
+            ],
+        }
+        if magnitude.get("fieldConfig") != wanted_config:
+            magnitude["fieldConfig"] = wanted_config
+            changed = True
+
+    evidence_age = _v1_panel_by_title(data, "Evidence Chain Age (days)")
+    if evidence_age is not None:
+        wanted = (
+            "Raw age in days for each evidence output. Reference budgets are: ledger 5 days, "
+            "audit branch 4 days, walk-forward summary 7 days, and freshness snapshot 1 day. "
+            "The lines show age, not percentage of budget consumed."
+        )
+        if evidence_age.get("description") != wanted:
+            evidence_age["description"] = wanted
+            changed = True
+
+    producer = _v1_panel_by_title(data, "Producer FMP Bandwidth")
+    if producer is not None:
+        wanted = (
+            "Five-minute rate of Financial Modeling Prep traffic from the continuously running "
+            "signals producer. Bytes per second measures decoded response volume; requests per "
+            "second measures call frequency. Counters restart when the service restarts."
+        )
+        if producer.get("description") != wanted:
+            producer["description"] = wanted
+            changed = True
+        wanted_config = {
+            "defaults": {"unit": "short", "noValue": "NO DATA"},
+            "overrides": [
+                {
+                    "matcher": {"id": "byName", "options": "bytes/s"},
+                    "properties": [{"id": "unit", "value": "binBps"}],
+                },
+                {
+                    "matcher": {"id": "byName", "options": "req/s"},
+                    "properties": [{"id": "unit", "value": "reqps"}],
+                },
+            ],
+        }
+        if producer.get("fieldConfig") != wanted_config:
+            producer["fieldConfig"] = wanted_config
+            changed = True
+
+    quota_pct = _v1_panel_by_any_title(data, "Estimated FMP Quota Used (%)", "FMP Bandwidth Used (%)")
+    changed = _set_panel_copy(
+        quota_pct,
+        title="Estimated FMP Quota Used (%)",
+        description=(
+            "Estimated Financial Modeling Prep quota pressure. The numerator combines the "
+            "calendar-month ingest snapshot with the signals producer's rolling 30-day response "
+            "volume, so this is an operational estimate rather than the provider's billing meter. "
+            "Warning starts at 80% and critical at 95%; verify the provider portal before changing plans."
+        ),
+    ) or changed
+
+    quota_bytes = _v1_panel_by_any_title(data, "Estimated FMP Usage", "FMP Bandwidth Used (GB)")
+    changed = _set_panel_copy(
+        quota_bytes,
+        title="Estimated FMP Usage",
+        description=(
+            "Estimated Financial Modeling Prep data volume, auto-scaled from bytes. It combines "
+            "the calendar-month ingest snapshot with the signals producer's rolling 30-day volume; "
+            "the two time windows make this a conservative operational estimate, not an invoice value."
+        ),
+    ) or changed
+
+    fmp_key = _v1_panel_by_title(data, "FMP API Key")
+    changed = _set_panel_copy(
+        fmp_key,
+        description=(
+            "Whether the Financial Modeling Prep credential is accepted by the provider. "
+            "Quota pressure and measured data volume are shown in the estimated usage panels above."
+        ),
+    ) or changed
+
+    binding = _v1_panel_by_title(data, "TradingView Binding Status")
+    if binding is not None:
+        wanted_description = (
+            "Latest TradingView dropdown-binding verification. Healthy means the snapshot loaded, "
+            "all 108 bindings were checked, the snapshot is less than 24 hours old, and both drift "
+            "and mismatch counts are zero. Each value has its own health threshold."
+        )
+        if binding.get("description") != wanted_description:
+            binding["description"] = wanted_description
+            changed = True
+        wanted_config = {
+            "defaults": {"unit": "short", "mappings": []},
+            "overrides": [
+                {
+                    "matcher": {"id": "byName", "options": "Snapshot loaded"},
+                    "properties": [
+                        {
+                            "id": "mappings",
+                            "value": [
+                                {
+                                    "type": "value",
+                                    "options": {
+                                        "0": {"text": "NOT LOADED", "color": "red"},
+                                        "1": {"text": "LOADED", "color": "green"},
+                                    },
+                                }
+                            ],
+                        },
+                        {
+                            "id": "thresholds",
+                            "value": {
+                                "mode": "absolute",
+                                "steps": [
+                                    {"color": "red", "value": None},
+                                    {"color": "green", "value": 1},
+                                ],
+                            },
+                        },
+                    ],
+                },
+                {
+                    "matcher": {"id": "byName", "options": "Snapshot age"},
+                    "properties": [
+                        {"id": "unit", "value": "hours"},
+                        {
+                            "id": "thresholds",
+                            "value": {
+                                "mode": "absolute",
+                                "steps": [
+                                    {"color": "green", "value": None},
+                                    {"color": "yellow", "value": 12},
+                                    {"color": "red", "value": 24},
+                                ],
+                            },
+                        },
+                    ],
+                },
+                {
+                    "matcher": {"id": "byName", "options": "Bindings checked"},
+                    "properties": [
+                        {"id": "unit", "value": "short"},
+                        {
+                            "id": "thresholds",
+                            "value": {
+                                "mode": "absolute",
+                                "steps": [
+                                    {"color": "red", "value": None},
+                                    {"color": "green", "value": 108},
+                                ],
+                            },
+                        },
+                    ],
+                },
+                *[
+                    {
+                        "matcher": {"id": "byName", "options": field},
+                        "properties": [
+                            {"id": "unit", "value": "short"},
+                            {
+                                "id": "thresholds",
+                                "value": {
+                                    "mode": "absolute",
+                                    "steps": [
+                                        {"color": "green", "value": None},
+                                        {"color": "red", "value": 1},
+                                    ],
+                                },
+                            },
+                        ],
+                    }
+                    for field in ("Drift", "Mismatches")
+                ],
+            ],
+        }
+        if binding.get("fieldConfig") != wanted_config:
+            binding["fieldConfig"] = wanted_config
+            changed = True
+
+    for old_title, new_title, description in (
+        (
+            "Hotspots — Symbols (Top)",
+            "Most Requested Symbols",
+            "Per-symbol Pine overlay request rate for the selected time range. Empty means no "
+            "Pine requests were observed in that range, not a dashboard failure.",
+        ),
+        (
+            "Hotspots — Timeframes (Top)",
+            "Most Requested Timeframes",
+            "Per-timeframe Pine overlay request rate for the selected time range. Empty means no "
+            "Pine requests were observed in that range, not a dashboard failure.",
+        ),
+    ):
+        panel = _v1_panel_by_any_title(data, new_title, old_title)
+        if panel is None:
+            continue
+        changed = _set_panel_copy(panel, title=new_title, description=description) or changed
+        defaults = panel.setdefault("fieldConfig", {}).setdefault("defaults", {})
+        if defaults.get("unit") != "reqps":
+            defaults["unit"] = "reqps"
+            changed = True
+        if defaults.get("noValue") != "NO PINE REQUESTS":
+            defaults["noValue"] = "NO PINE REQUESTS"
+            changed = True
+
+    help_panel = _v1_panel_by_title(data, "How to read & export this section")
+    if help_panel is not None:
+        content = (
+            "**No rows?** Signal panels contain rows only while active A0, A1, or A2 signals "
+            "exist, usually during US trading hours. Empty means there are currently no live "
+            "signals; it is not an error. Confirm source health with **Active Trading Signals** "
+            "(zero means quiet) and **Signals Snapshot Age** (low means fresh).  \n"
+            "**Export to Excel:** panel menu → **Inspect → Data → Download CSV**."
+        )
+        options = help_panel.setdefault("options", {})
+        if options.get("content") != content:
+            options["content"] = content
+            changed = True
+
+    sweep_row = _v1_panel_by_any_title(data, "Sweep-Trap Promotion Evidence", "Sweep-Trap Shadow (WS4a)")
+    changed = _set_panel_copy(
+        sweep_row,
+        title="Sweep-Trap Promotion Evidence",
+        description=(
+            "Observe-only evaluation of the sweep-trap detector. The daily workflow measures "
+            "prediction quality on the latest rolling corpus and stores one evidence row per run. "
+            "The detector still has no scoring weight; promotion requires a separate decision."
+        ),
+    ) or changed
+
+    verdict = _v1_panel_by_title(data, "Sweep-Trap Shadow Verdict")
+    changed = _set_panel_copy(
+        verdict,
+        description=(
+            "Latest evaluation state. INCONCLUSIVE means fewer than 40 pooled shadow samples. "
+            "SHADOW means the sample floor is met but prediction quality fails at least one gate. "
+            "PROMOTABLE means Brier score improves and tercile lift is positive; it is a candidate "
+            "for review, not out-of-sample validation or automatic activation."
+        ),
+    ) or changed
+
+    samples = _v1_panel_by_any_title(data, "Samples in Latest Evaluation", "Shadow Samples (toward promotion)")
+    changed = _set_panel_copy(
+        samples,
+        title="Samples in Latest Evaluation",
+        description=(
+            "Valid sweep samples in the latest rolling evaluation corpus. This number can rise or "
+            "fall when the corpus changes; the evidence ledger accumulates daily rows separately. "
+            "At least 40 pooled shadow samples are required before a verdict can leave INCONCLUSIVE."
+        ),
+    ) or changed
+
+    evidence = _v1_panel_by_any_title(data, "Latest Sweep-Trap Evidence", "Sweep-Trap Evidence — Latest")
+    changed = _set_panel_copy(
+        evidence,
+        title="Latest Sweep-Trap Evidence",
+        description=(
+            "Decision table for the newest rolling-corpus evaluation. Date is the corpus date, not "
+            "the dashboard refresh time. A promotable candidate needs at least 40 valid samples, a "
+            "positive Brier delta, and positive tercile lift. This table is informational and does "
+            "not activate the detector."
+        ),
+    ) or changed
+    if evidence is not None:
+        organize = next((t for t in evidence.get("transformations", []) if t.get("id") == "organize"), None)
+        if organize is not None:
+            wanted = {"date": "Date", "metric": "Metric", "metric_value": "Value", "assessment": "Assessment"}
+            current = organize.setdefault("options", {}).get("renameByName")
+            if current != wanted:
+                organize["options"]["renameByName"] = wanted
                 changed = True
+
     return changed
 
 
@@ -1720,7 +2156,8 @@ def main(argv: list[str] | None = None) -> int:
         changed = _fix_market_data_freshness_panel(data) or changed
         changed = _fix_core_metrics_present_panel(data) or changed
         changed = _fix_railway_bridge_panel(data) or changed
-        changed = _collapse_service_owner_rows(data) or changed
+        changed = _keep_all_rows_expanded(data) or changed
+        changed = _apply_user_facing_semantics(data) or changed
         changed = _co_locate_external_integration_details(data) or changed
         if changed:
             data["version"] = int(data.get("version", 0) or 0) + 1
