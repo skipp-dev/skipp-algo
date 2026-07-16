@@ -1,7 +1,7 @@
 """Contract pin: ``tv-save-consumer-source`` workflow.
 
-Pins the dispatch-only trigger, the fail-fast-without-auth guard, the
-save and exact binding-verification entrypoints, and fail-closed coordinated
+Pins the manual save and scheduled read-only triggers, the fail-fast-without-auth
+guard, the exact binding-verification entrypoints, and fail-closed coordinated
 rollout handling. Also satisfies
 ``test_workflow_orphan_inventory`` by referencing the stem ``tv-save-consumer-source``.
 """
@@ -28,11 +28,15 @@ def test_workflow_file_exists() -> None:
     assert _WF_PATH.is_file(), f"missing workflow: {_WF_PATH}"
 
 
-def test_dispatch_only_no_schedule() -> None:
+def test_schedule_is_daily_and_forces_read_only_mapping() -> None:
     on_block = _load().get("on") or _load().get(True)
     assert "workflow_dispatch" in on_block
-    # Writing to the operator's personal saved scripts is on-demand only.
-    assert "schedule" not in on_block
+    assert on_block["schedule"] == [{"cron": "17 5 * * *"}]
+    rollout = next(s for s in _steps() if "scripts/tv_batch_consumer_rollout.ts" in s.get("run", ""))
+    mapping = rollout["env"]["TV_CONSUMER_MAPPING_JSON"]
+    assert "github.event_name == 'schedule'" in mapping
+    assert "&& '[]'" in mapping
+    assert "github.event_name == 'workflow_dispatch'" in rollout["env"]["TV_FORCE_REBIND"]
 
 
 def test_fails_fast_without_tv_auth() -> None:
@@ -159,11 +163,20 @@ def test_force_rebind_is_opt_in_and_reaches_the_rollout_script() -> None:
     assert dispatch["force_rebind"]["default"] is False, "rebinding must never be the default"
 
     rollout = next(s for s in _steps() if "scripts/tv_batch_consumer_rollout.ts" in s.get("run", ""))
-    assert rollout["env"]["TV_FORCE_REBIND"] == "${{ github.event.inputs.force_rebind }}"
+    assert rollout["env"]["TV_FORCE_REBIND"] == (
+        "${{ github.event_name == 'workflow_dispatch' && "
+        "github.event.inputs.force_rebind || 'false' }}"
+    )
 
     batch = (_REPO_ROOT / "scripts" / "tv_batch_consumer_rollout.ts").read_text(encoding="utf-8")
     assert 'process.env.TV_FORCE_REBIND === "true"' in batch
     assert "verifyConsumerBindings(session, target, forceRebind, forceRebind)" in batch
+
+
+def test_scheduled_run_cannot_execute_repair_e2e() -> None:
+    repair = next(s for s in _steps() if s.get("name") == "Controlled repair E2E")
+    assert "github.event_name == 'workflow_dispatch'" in repair["if"]
+    assert "repair_e2e == 'true'" in repair["if"]
 
 
 def test_force_rebind_reselects_every_binding_not_just_mismatches() -> None:

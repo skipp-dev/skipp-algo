@@ -67,6 +67,10 @@
 # REST API once per cron tick for silent-skip detection. https-only,
 # explicit timeout=15s, B310 nosec'd at the call site (constant URL).
 "scripts/check_workflow_freshness.py" = [72]
+# 2026-07-16: controlled Grafana TradingView-alert E2E. The reusable
+# client talks only to the configured Grafana API, uses an explicit 30s
+# timeout, silences notifications first, and cleans temporary rules in finally.
+"scripts/grafana_tv_binding_alert_e2e.py" = [46]
 # smc_fmp_client.py: bare-name urlopen (from urllib.request import urlopen)
 # at L279 inside FMPClient._do_request; has timeout=self.timeout_seconds.
 "scripts/smc_fmp_client.py" = [279]

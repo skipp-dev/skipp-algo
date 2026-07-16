@@ -1473,6 +1473,7 @@ def test_age_unknown_gated_stale_alert_rules_require_known_age() -> None:
         ("live-overlay-warning", "lo-news-snapshot-stale", "snapshot_age_known"),
         ("evidence-and-workflow-freshness", "lo-evidence-snapshot-stale", "snapshot_age_known"),
         ("evidence-and-workflow-freshness", "lo-pine-library-snapshot-stale", "snapshot_age_known"),
+        ("evidence-and-workflow-freshness", "lo-tv-binding-snapshot-stale", "snapshot_age_known"),
         ("evidence-and-workflow-freshness", "lo-evidence-ledger-stale", "ledger_age_known"),
         ("evidence-and-workflow-freshness", "lo-evidence-audit-branch-stale", "audit_branch_age_known"),
         ("evidence-and-workflow-freshness", "lo-evidence-wsh-stale", "wsh_age_known"),
@@ -1500,6 +1501,37 @@ def test_dashboard_service_status_panel_maps_starting_state() -> None:
     assert options.get("1", {}).get("text") == "STARTING"
     assert options.get("2", {}).get("text") == "IDLE (MARKET CLOSED)"
     assert options.get("3", {}).get("text") == "OK"
+
+
+def test_dashboard_has_tradingview_binding_status_panel() -> None:
+    repo_root = Path(__file__).resolve().parents[1]
+    dashboard_path = repo_root / "services" / "live_overlay_daemon" / "infra" / "grafana" / "dashboard.json"
+    dashboard = json.loads(dashboard_path.read_text(encoding="utf-8"))
+    panel = next(p for p in dashboard["panels"] if p.get("title") == "TradingView Binding Status")
+    expressions = {target["expr"] for target in panel["targets"]}
+    assert expressions == {
+        'max(live_overlay_tv_binding_snapshot_loaded{job="live_overlay"})',
+        'max(live_overlay_tv_binding_snapshot_age_seconds{job="live_overlay"}) / 3600',
+        'max(live_overlay_tv_bindings_checked{job="live_overlay"})',
+        'max(live_overlay_tv_binding_drift{job="live_overlay"})',
+        'max(live_overlay_tv_binding_mismatches{job="live_overlay"})',
+    }
+
+
+def test_tradingview_binding_snapshot_stale_alert_uses_24_hour_threshold() -> None:
+    import yaml
+
+    repo_root = Path(__file__).resolve().parents[1]
+    rules_path = repo_root / "services" / "live_overlay_daemon" / "infra" / "grafana" / "alert-rules.yaml"
+    rules_doc = yaml.safe_load(rules_path.read_text(encoding="utf-8"))
+    group = next(g for g in rules_doc["groups"] if g.get("name") == "evidence-and-workflow-freshness")
+    rule = next(r for r in group["rules"] if r.get("uid") == "lo-tv-binding-snapshot-stale")
+    expr = rule["data"][0]["model"]["expr"]
+    assert "live_overlay_tv_binding_snapshot_loaded" in expr
+    assert "live_overlay_tv_binding_snapshot_age_known" in expr
+    assert "live_overlay_tv_binding_snapshot_age_seconds" in expr
+    assert "> bool 86400" in expr
+    assert rule["labels"]["severity"] == "warning"
 
 
 def test_dashboard_overall_health_distinguishes_starting_from_idle() -> None:
