@@ -57,3 +57,29 @@ def test_stable_batch_quotes_chunks_at_250_symbols() -> None:
     assert request.call_count == 2
     assert len(rows) == 251
     assert client.get_last_quote_fetch_diagnostics()["quote_fetch_chunks"] == 2
+
+
+def test_dedicated_aftermarket_batch_endpoints_preserve_requested_order() -> None:
+    client = FMPClient(api_key="test")
+
+    def response(path: str, _params: dict[str, str]) -> list[dict[str, object]]:
+        key = "bidPrice" if path.endswith("quote") else "price"
+        return [
+            {"symbol": "MSFT", key: 500.0},
+            {"symbol": "AAPL", key: 200.0},
+        ]
+
+    with patch.object(client, "_get", side_effect=response) as request:
+        quotes = client.get_stable_batch_aftermarket_quotes(["aapl", "MSFT", "AAPL"])
+        trades = client.get_stable_batch_aftermarket_trades(["aapl", "MSFT", "AAPL"])
+
+    assert [row["symbol"] for row in quotes] == ["AAPL", "MSFT"]
+    assert [row["symbol"] for row in trades] == ["AAPL", "MSFT"]
+    assert request.call_args_list[0].args == (
+        "/stable/batch-aftermarket-quote",
+        {"symbols": "AAPL,MSFT"},
+    )
+    assert request.call_args_list[1].args == (
+        "/stable/batch-aftermarket-trade",
+        {"symbols": "AAPL,MSFT"},
+    )

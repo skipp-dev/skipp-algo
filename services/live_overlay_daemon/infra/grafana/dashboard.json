@@ -2206,6 +2206,51 @@
       }
     },
     {
+      "id": 2165782575,
+      "title": "Extended-Hours Feed Shadow",
+      "type": "stat",
+      "description": "Shadow-only comparison of FMP's regular batch quote with the dedicated aftermarket quote and trade feeds. Values are fresh rows (timestamp no older than five minutes); no extended-hours signal is published from this probe.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "grafanacloud-prom"
+      },
+      "gridPos": {
+        "h": 3,
+        "w": 6,
+        "x": 18,
+        "y": 43
+      },
+      "targets": [
+        {
+          "expr": "signals_producer_extended_shadow_fresh_rows{job=~\"signals_producer\"} or on() vector(0)",
+          "legendFormat": "{{feed}} fresh",
+          "instant": true,
+          "datasource": {
+            "type": "prometheus",
+            "uid": "grafanacloud-prom"
+          }
+        }
+      ],
+      "options": {
+        "colorMode": "value",
+        "graphMode": "none",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        }
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "noValue": "NO DATA"
+        },
+        "overrides": []
+      }
+    },
+    {
       "title": "Global Market Sessions",
       "type": "state-timeline",
       "gridPos": {

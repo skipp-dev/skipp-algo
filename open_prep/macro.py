@@ -2217,6 +2217,56 @@ class FMPClient:
         }
         return [rows_by_symbol[symbol] for symbol in deduped if symbol in rows_by_symbol]
 
+    def _get_stable_batch_market_rows(
+        self,
+        endpoint: str,
+        symbols: list[str],
+    ) -> list[dict[str, Any]]:
+        """Fetch and order one of FMP's symbol-list batch market endpoints."""
+
+        deduped = list(dict.fromkeys(
+            str(raw or "").strip().upper() for raw in symbols if str(raw or "").strip()
+        ))
+        rows_by_symbol: dict[str, dict[str, Any]] = {}
+        for start in range(0, len(deduped), 250):
+            chunk = deduped[start : start + 250]
+            try:
+                data = self._get(endpoint, {"symbols": ",".join(chunk)})
+            except RuntimeError as exc:
+                logger.warning("%s chunk %d-%d failed: %s", endpoint, start, start + len(chunk), exc)
+                continue
+            if not isinstance(data, list):
+                continue
+            for row in data:
+                if not isinstance(row, dict):
+                    continue
+                symbol = str(row.get("symbol") or "").strip().upper()
+                if symbol in chunk and symbol not in rows_by_symbol:
+                    rows_by_symbol[symbol] = row
+        return [rows_by_symbol[symbol] for symbol in deduped if symbol in rows_by_symbol]
+
+    def get_stable_batch_aftermarket_quotes(
+        self,
+        symbols: list[str],
+    ) -> list[dict[str, Any]]:
+        """Fetch extended-hours bid/ask rows from the dedicated FMP endpoint."""
+
+        return self._get_stable_batch_market_rows(
+            "/stable/batch-aftermarket-quote",
+            symbols,
+        )
+
+    def get_stable_batch_aftermarket_trades(
+        self,
+        symbols: list[str],
+    ) -> list[dict[str, Any]]:
+        """Fetch extended-hours last-trade rows from the dedicated FMP endpoint."""
+
+        return self._get_stable_batch_market_rows(
+            "/stable/batch-aftermarket-trade",
+            symbols,
+        )
+
 
 @dataclass
 class FinnhubClient:

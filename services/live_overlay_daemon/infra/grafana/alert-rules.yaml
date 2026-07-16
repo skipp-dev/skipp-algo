@@ -2039,6 +2039,66 @@ groups:
     annotations:
       summary: smc-signals-producer transferred more than 50 MB of FMP payloads in one hour.
       runbook: Break down signals_producer_fmp_endpoint_response_bytes_total by endpoint. Normal 200-symbol minute quotes measured about 5.4 MB/hour; profile-bulk previously exceeded 1 GB/hour.
+  - uid: sp-fmp-extended-shadow-stale
+    title: FMP extended-hours shadow probe is stale
+    condition: C
+    noDataState: OK
+    data:
+    - refId: A
+      datasourceUid: grafanacloud-prom
+      model:
+        expr: max(signals_producer_extended_shadow_enabled{job="signals_producer"}) * (max(signals_producer_market_session{job="signals_producer",session="premarket"}) + max(signals_producer_market_session{job="signals_producer",session="postmarket"})) * (max(signals_producer_extended_shadow_last_poll_age_seconds{job="signals_producer"}) > 180)
+        instant: true
+    - refId: C
+      datasourceUid: __expr__
+      model:
+        type: threshold
+        conditions:
+        - evaluator:
+            type: gt
+            params:
+            - 0
+          operator:
+            type: and
+          query:
+            params:
+            - A
+    for: 5m
+    labels:
+      severity: warning
+    annotations:
+      summary: The enabled FMP extended-hours shadow probe has not completed for more than three minutes during premarket or postmarket.
+      runbook: Check the three batch endpoint counters and producer logs. Live extended-hours signals remain disabled; do not enable them while this alert is active.
+  - uid: sp-fmp-shadow-no-fresh-data
+    title: FMP dedicated extended-hours feeds have no fresh rows
+    condition: C
+    noDataState: OK
+    data:
+    - refId: A
+      datasourceUid: grafanacloud-prom
+      model:
+        expr: max(signals_producer_extended_shadow_enabled{job="signals_producer"}) * (max(signals_producer_market_session{job="signals_producer",session="premarket"}) + max(signals_producer_market_session{job="signals_producer",session="postmarket"})) * (sum(signals_producer_extended_shadow_fresh_rows{job="signals_producer",feed=~"aftermarket_quote|aftermarket_trade"}) < bool 1)
+        instant: true
+    - refId: C
+      datasourceUid: __expr__
+      model:
+        type: threshold
+        conditions:
+        - evaluator:
+            type: gt
+            params:
+            - 0
+          operator:
+            type: and
+          query:
+            params:
+            - A
+    for: 5m
+    labels:
+      severity: warning
+    annotations:
+      summary: FMP's dedicated aftermarket quote and trade endpoints returned no rows with a timestamp from the last five minutes.
+      runbook: Compare endpoint request/error/byte counters and the regular-reference fresh-row gauge. Keep extended-hours signal publishing disabled until dedicated data is reliably current.
 - orgId: 1
   name: evidence-and-workflow-freshness
   folder: SMC Live Overlay
