@@ -376,6 +376,24 @@ test("official TS publish contract rejects duplicate real alias block", () => {
   );
 });
 
+test("official TS publish contract accepts a newer published core pin", () => {
+  const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "tv-publish-version-skew-"));
+  const pineDir = path.join(tempDir, "pine", "generated");
+  fs.mkdirSync(pineDir, { recursive: true });
+  const manifestPath = path.join(pineDir, "smc_micro_profiles_generated.json");
+  const snippetPath = path.join(pineDir, "smc_micro_profiles_core_import_snippet.pine");
+  const libraryPath = path.join(pineDir, "smc_micro_profiles_generated.pine");
+  const corePath = path.join(tempDir, "SMC_Long_Dip_Suite.pine");
+  fs.writeFileSync(manifestPath, JSON.stringify(buildGeneratedLibraryManifest({
+    library_version: 1,
+    recommended_import_path: "owner_a/smc_micro_profiles_generated/1",
+  })), "utf-8");
+  fs.writeFileSync(snippetPath, "import owner_a/smc_micro_profiles_generated/1 as mp\nstring value = mp.VALUE\n", "utf-8");
+  fs.writeFileSync(libraryPath, "//@version=6\nlibrary(\"smc_micro_profiles_generated\")\n", "utf-8");
+  fs.writeFileSync(corePath, "//@version=6\nimport owner_a/smc_micro_profiles_generated/152 as mp\nstring value = mp.VALUE\n", "utf-8");
+  assert.equal(verifyPublishContract(manifestPath, corePath).alias, "mp");
+});
+
 test("official TS publish contract rejects non-productive generated source", () => {
   const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "tv-publish-productivity-"));
   const pineDir = path.join(tempDir, "pine", "generated");

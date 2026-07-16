@@ -16,12 +16,14 @@ import {
   type TradingViewAuthResolution,
   type TradingViewStorageStateInspection,
 } from "./tv_validation_model.js";
+import { TradingViewRuntimeErrorMonitor } from "./tv_runtime_errors.js";
 
 export type TradingViewSession = {
   browser: Browser;
   context: BrowserContext;
   page: Page;
   authResolution: TradingViewAuthResolution;
+  runtimeErrors: TradingViewRuntimeErrorMonitor;
 };
 
 export type TradingViewPageAuthEvidence = {
@@ -1714,10 +1716,12 @@ export async function newTradingViewSession(): Promise<TradingViewSession> {
   await context.grantPermissions(["clipboard-read", "clipboard-write"], { origin: chartOrigin }).catch(() => undefined);
 
   const page = context.pages()[0] ?? await context.newPage();
+  const runtimeErrors = new TradingViewRuntimeErrorMonitor();
+  runtimeErrors.attach(page);
   page.setDefaultTimeout(numEnv("TV_TIMEOUT_MS", 25_000));
   attachPageLifecycleTracking(page, context, browser);
 
-  return { browser, context, page, authResolution };
+  return { browser, context, page, authResolution, runtimeErrors };
 }
 
 export async function closeTradingViewSession(session: TradingViewSession): Promise<void> {

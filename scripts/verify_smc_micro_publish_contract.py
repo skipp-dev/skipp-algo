@@ -6,6 +6,7 @@ import re
 from pathlib import Path
 
 IMPORT_RE = re.compile(r"^\s*import\s+([A-Za-z0-9_/-]+)\s+as\s+([A-Za-z_][A-Za-z0-9_]*)\s*$")
+IMPORT_PATH_RE = re.compile(r"^([A-Za-z0-9_-]+)/([A-Za-z0-9_-]+)/(\d+)$")
 EXPECTED_DEPRECATED_POLICY_MODE = "compatibility_only"
 EXPECTED_DEPRECATED_FIELD_VERSION = "v8.0a"
 
@@ -18,6 +19,13 @@ def _parse_import(line: str) -> tuple[str, str] | None:
     match = IMPORT_RE.match(line.strip())
     if not match:
         return None
+    return match.group(1), match.group(2)
+
+
+def _import_identity(import_path: str) -> tuple[str, str]:
+    match = IMPORT_PATH_RE.match(import_path)
+    if not match or int(match.group(3)) < 1:
+        raise RuntimeError(f"Invalid versioned Pine import path: {import_path}")
     return match.group(1), match.group(2)
 
 
@@ -187,16 +195,17 @@ def verify_publish_contract(manifest_path: Path, core_path: Path) -> dict[str, s
     if snippet_import is None:
         raise RuntimeError("Core import snippet does not start with a valid import line")
     snippet_import_path, snippet_alias = snippet_import
-    if snippet_import_path != recommended_import_path:
+    recommended_identity = _import_identity(recommended_import_path)
+    if _import_identity(snippet_import_path) != recommended_identity:
         raise RuntimeError(
-            f"Snippet import path mismatch: expected {recommended_import_path}, found {snippet_import_path}"
+            f"Snippet library identity mismatch: expected {recommended_import_path}, found {snippet_import_path}"
         )
 
     core_text = _read_text(core_path)
     core_import_path = _find_import_path_for_alias(core_text, snippet_alias)
-    if core_import_path != recommended_import_path:
+    if _import_identity(core_import_path) != recommended_identity:
         raise RuntimeError(
-            f"Core import path mismatch for alias {snippet_alias}: expected {recommended_import_path}, found {core_import_path}"
+            f"Core import library identity mismatch for alias {snippet_alias}: expected {recommended_import_path}, found {core_import_path}"
         )
 
     core_code_lines = _code_lines(core_text)
@@ -219,6 +228,7 @@ def verify_publish_contract(manifest_path: Path, core_path: Path) -> dict[str, s
         "library_path": str(library_path),
         "recommended_import_path": recommended_import_path,
         "alias": snippet_alias,
+        "core_import_path": core_import_path,
         "deprecated_policy_mode": str(deprecated_field_policy["mode"]),
         "preferred_field_version": str(deprecated_field_policy["preferred_field_version"]),
         "publish_ready": "true",

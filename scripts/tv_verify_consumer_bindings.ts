@@ -5,6 +5,7 @@ import * as path from "node:path";
 import {
   closeModal,
   closeTradingViewSession,
+  findLegendRowWrappers,
   gotoChart,
   isScriptVisibleOnChartSurface,
   newTradingViewSession,
@@ -28,6 +29,7 @@ export type VerifyConsumerResult = {
   forceRebind: boolean;
   repaired: string[];
   unknownParentRuntimeError: boolean;
+  runtimeErrors: Array<{ at: string; studyId: string | null; message: string }>;
   scriptName: string;
   savedScriptName: string;
   sourcePath: string | null;
@@ -158,6 +160,17 @@ export async function verifyConsumerBindings(
   const { labels, sourcePath } = resolveBindingContract(target);
   if (labels.length === 0) throw new Error(`No BUS input.source labels found: ${sourcePath ?? target.scriptName}`);
 
+  const [producerInstances, consumerInstances] = await Promise.all([
+    findLegendRowWrappers(session.page, producerName),
+    findLegendRowWrappers(session.page, target.scriptName),
+  ]);
+  if (producerInstances.length > 1 || consumerInstances.length > 1) {
+    throw new Error(
+      `Ambiguous multi-pane SMC layout: ${producerName}=${producerInstances.length}, `
+      + `${target.scriptName}=${consumerInstances.length}. Keep one suite and one consumer in the same chart pane before binding.`,
+    );
+  }
+
   if (!(await isScriptVisibleOnChartSurface(session.page, target.scriptName))) {
     throw new Error(`Existing chart instance not found: ${target.scriptName}`);
   }
@@ -197,14 +210,19 @@ export async function verifyConsumerBindings(
     }
     mismatches = bindings.filter((binding) => !binding.ok);
   }
-  const chartBody = await session.page.locator("body").innerText();
-  const unknownParentRuntimeError = /unknown parent id/i.test(chartBody);
+  // TradingView reports dead input.source parents on the chart WebSocket. The
+  // red UI marker is hidden behind a popover, so body-text inspection is not a
+  // reliable runtime check.
+  await session.page.waitForTimeout(1_000);
+  const runtimeErrors = session.runtimeErrors.snapshot().map(({ at, studyId, message }) => ({ at, studyId, message }));
+  const unknownParentRuntimeError = runtimeErrors.some((error) => /unknown parent id/i.test(error.message));
   const result: VerifyConsumerResult = {
     ok: mismatches.length === 0 && !unknownParentRuntimeError,
     repair,
     forceRebind,
     repaired,
     unknownParentRuntimeError,
+    runtimeErrors,
     scriptName: target.scriptName,
     savedScriptName: target.savedScriptName,
     sourcePath,

@@ -2,11 +2,15 @@
 
 ## Before starting
 
+Use one chart pane for the SMC installation. A second suite or duplicate
+consumers in another pane of the same layout make TradingView's source dropdown
+ambiguous.
+
 1. Open the exact TradingView chart layout that should be configured.
-2. Add `SMC Long-Dip Suite` to the chart.
+2. Add exactly one `SMC Long-Dip Suite` to that chart pane.
 3. Wait for the suite to load and confirm that it shows no compile or runtime
    error.
-4. Add each consumer that the user wants to use.
+4. Add each consumer that the user wants to use to the same chart pane.
 5. Save the chart layout.
 6. Copy the chart URL from the browser address bar.
 

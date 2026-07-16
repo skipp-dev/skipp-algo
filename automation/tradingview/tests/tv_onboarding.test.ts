@@ -43,6 +43,7 @@ function result(scriptName: string, labels: string[]): VerifyConsumerResult {
     forceRebind: true,
     repaired: labels,
     unknownParentRuntimeError: false,
+    runtimeErrors: [],
     scriptName,
     savedScriptName: scriptName,
     sourcePath: null,
@@ -59,6 +60,7 @@ function result(scriptName: string, labels: string[]): VerifyConsumerResult {
 
 function adapter(options: {
   visible: string[];
+  counts?: Record<string, number>;
   sourceAvailable?: boolean;
   fail?: string[];
   calls?: string[];
@@ -66,6 +68,7 @@ function adapter(options: {
   const calls = options.calls ?? [];
   return {
     isScriptVisible: async (name) => options.visible.includes(name),
+    countScriptInstances: options.counts ? async (name) => options.counts?.[name] ?? 0 : undefined,
     isSourceOptionAvailable: async (_consumer, chartName) => {
       calls.push(`source:${chartName}`);
       return options.sourceAvailable ?? true;
@@ -101,6 +104,20 @@ test("present consumers are rebound while missing consumers produce partial succ
   assert.equal(report.summary.checkedBindings, 2);
   assert.deepEqual(calls, ["source:Consumer One", "bind:Consumer One"]);
   assert.match(reportSummaryLines(report).join("\n"), /run SMC Onboarding again/);
+});
+
+test("duplicate SMC instances block before the first binding mutation", async () => {
+  const calls: string[] = [];
+  const report = await executeOnboarding(config, adapter({
+    visible: ["SMC Long-Dip Suite", "Consumer One"],
+    counts: { "SMC Long-Dip Suite": 2, "Consumer One": 1 },
+    calls,
+  }));
+  assert.equal(report.outcome, "blocked");
+  assert.equal(report.error?.code, "ONB-LAYOUT-001");
+  assert.equal(report.error?.changesMade, false);
+  assert.match(report.error?.nextStep ?? "", /same chart pane/);
+  assert.deepEqual(calls, []);
 });
 
 test("unavailable suite outputs block before the first binding mutation", async () => {

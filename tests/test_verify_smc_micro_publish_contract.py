@@ -145,8 +145,27 @@ def test_verify_publish_contract_rejects_manifest_core_mismatch(tmp_path: Path) 
         encoding="utf-8",
     )
 
-    with pytest.raises(RuntimeError, match="Core import path mismatch"):
+    with pytest.raises(RuntimeError, match="Core import library identity mismatch"):
         verify_publish_contract(manifest_path, core_path)
+
+
+def test_verify_publish_contract_accepts_newer_published_core_pin(tmp_path: Path) -> None:
+    pine_dir = tmp_path / "pine" / "generated"
+    pine_dir.mkdir(parents=True)
+    manifest_path = pine_dir / "smc_micro_profiles_generated.json"
+    manifest_path.write_text(json.dumps(_manifest_payload("owner_a/smc_micro_profiles_generated/1")), encoding="utf-8")
+    (pine_dir / "smc_micro_profiles_core_import_snippet.pine").write_text(
+        "import owner_a/smc_micro_profiles_generated/1 as mp\nstring value = mp.VALUE\n", encoding="utf-8"
+    )
+    (pine_dir / "smc_micro_profiles_generated.pine").write_text(
+        "//@version=6\nlibrary(\"smc_micro_profiles_generated\")\n", encoding="utf-8"
+    )
+    core_path = tmp_path / "SMC_Long_Dip_Suite.pine"
+    core_path.write_text(
+        "//@version=6\nimport owner_a/smc_micro_profiles_generated/152 as mp\nstring value = mp.VALUE\n", encoding="utf-8"
+    )
+    result = verify_publish_contract(manifest_path, core_path)
+    assert result["core_import_path"] == "owner_a/smc_micro_profiles_generated/152"
 
 
 def test_verify_publish_contract_rejects_missing_exact_code_block(tmp_path: Path) -> None:

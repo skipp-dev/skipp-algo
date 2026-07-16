@@ -3,6 +3,18 @@
 Every blocking message states what happened, whether bindings were changed, and
 what to do next. Running onboarding again is safe after correcting the problem.
 
+## `ONB-LAYOUT-001` — duplicate SMC scripts or chart panes
+
+TradingView identifies an `input.source` parent by an internal study ID, not by
+the displayed script name. Two suites with the same name in different chart
+panes make the dropdown choice ambiguous and can produce `unknown parent id`
+after a reload.
+
+Keep exactly one **SMC Long-Dip Suite** and the consumers you want to connect in
+the same chart pane. Remove duplicate SMC suites and duplicate consumers from
+other panes, wait for the chart to finish loading, then run SMC Onboarding
+again. Onboarding detects this condition before changing any bindings.
+
 ## `ONB-OS-001` — unsupported operating system
 
 The package supports Windows and macOS. Use a matching supported computer and

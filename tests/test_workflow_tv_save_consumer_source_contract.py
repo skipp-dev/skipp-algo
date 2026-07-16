@@ -190,12 +190,20 @@ def test_force_rebind_reselects_every_binding_not_just_mismatches() -> None:
 
 
 def test_unknown_parent_runtime_error_fails_closed() -> None:
-    """Exact dropdown text is not proof of a live binding: a remaining runtime marker
-    must sink `ok` and exit non-zero, not be reported alongside a green result."""
+    """The hidden WebSocket study_error must sink `ok` and exit non-zero."""
     verifier = (_REPO_ROOT / "scripts" / "tv_verify_consumer_bindings.ts").read_text(encoding="utf-8")
-    assert "/unknown parent id/i.test(chartBody)" in verifier
+    assert "session.runtimeErrors.snapshot()" in verifier
+    assert "/unknown parent id/i.test(error.message)" in verifier
+    assert "locator(\"body\").innerText()" not in verifier
     assert "ok: mismatches.length === 0 && !unknownParentRuntimeError," in verifier
     assert "if (result.unknownParentRuntimeError) {" in verifier
+
+
+def test_verifier_blocks_ambiguous_multi_pane_layouts_before_mutation() -> None:
+    verifier = (_REPO_ROOT / "scripts" / "tv_verify_consumer_bindings.ts").read_text(encoding="utf-8")
+    assert "findLegendRowWrappers(session.page, producerName)" in verifier
+    assert "findLegendRowWrappers(session.page, target.scriptName)" in verifier
+    assert "Ambiguous multi-pane SMC layout" in verifier
 
 
 def test_cache_runs_on_native_node24_without_force_override() -> None:
