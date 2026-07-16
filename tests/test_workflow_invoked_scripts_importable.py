@@ -30,6 +30,7 @@ from __future__ import annotations
 
 import os
 import re
+import signal
 import subprocess
 import sys
 from pathlib import Path
@@ -162,26 +163,41 @@ def test_workflow_invoked_scripts_are_importable(script_relpath: str) -> None:
     # Avoid touching real cache/state directories during --help probes.
     env.setdefault("PYTHONDONTWRITEBYTECODE", "1")
 
-    proc = subprocess.run(
+    proc = subprocess.Popen(
         [sys.executable, str(script_path), "--help"],
-        capture_output=True,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
         text=True,
         env=env,
-        timeout=60,
         cwd=str(REPO_ROOT),
+        start_new_session=True,
     )
-    combined = (proc.stdout or "") + "\n" + (proc.stderr or "")
+    try:
+        stdout, stderr = proc.communicate(timeout=60)
+    except subprocess.TimeoutExpired:
+        # Killing only the direct child can leave grandchildren holding the
+        # captured stdout/stderr pipes open forever.  That made main CI reach
+        # 99% and then sit until the 45-minute job timeout.  The probe owns a
+        # fresh process group, so terminate the whole group before draining.
+        os.killpg(proc.pid, signal.SIGKILL)
+        stdout, stderr = proc.communicate()
+        pytest.fail(
+            f"{script_relpath} did not terminate within 60 seconds for "
+            "``--help``; the entire probe process group was killed.\n\n"
+            f"--- stdout ---\n{stdout}\n\n--- stderr ---\n{stderr}\n"
+        )
+    combined = (stdout or "") + "\n" + (stderr or "")
     if "ModuleNotFoundError: No module named 'scripts'" in combined:
         pytest.fail(
             f"{script_relpath} crashes with ``ModuleNotFoundError: No "
             f"module named 'scripts'`` even with PYTHONPATH set. This "
             f"indicates a deeper packaging issue than F-01.\n\n"
-            f"--- stderr ---\n{proc.stderr}\n"
+            f"--- stderr ---\n{stderr}\n"
         )
     # ImportError variants that explicitly mention 'scripts' are also F-01-like.
     if "ImportError" in combined and "scripts" in combined and "from scripts" in combined:
         pytest.fail(
             f"{script_relpath} cannot import a sibling under scripts/ "
             f"even with PYTHONPATH set:\n\n"
-            f"--- stderr ---\n{proc.stderr}\n"
+            f"--- stderr ---\n{stderr}\n"
         )

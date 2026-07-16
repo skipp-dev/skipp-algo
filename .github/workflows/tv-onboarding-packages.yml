@@ -1,3 +1,4 @@
+# live-window: any-trigger  # Packaging CI runs on push, pull request, and manual dispatch.
 name: tv-onboarding-packages
 
 on:
