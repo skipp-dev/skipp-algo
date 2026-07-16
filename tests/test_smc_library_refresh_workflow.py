@@ -69,8 +69,11 @@ def test_refresh_workflow_generates_from_restored_producer_bundle() -> None:
 def test_refresh_commit_step_restores_runtime_artifacts_before_commit() -> None:
     workflow_text = _read(WORKFLOW_PATH)
 
-    assert 'GIT_LFS_SKIP_SMUDGE=1 git -c filter.lfs.smudge= -c filter.lfs.process= -c filter.lfs.required=false restore --source=HEAD --worktree --staged -- \\' in workflow_text
+    assert 'mapfile -t volatile_tracked_paths < <(git ls-files -- \\' in workflow_text
+    assert 'GIT_LFS_SKIP_SMUDGE=1 git -c filter.lfs.smudge= -c filter.lfs.process= -c filter.lfs.required=false \\' in workflow_text
+    assert 'restore --source=HEAD --worktree --staged -- "${volatile_tracked_paths[@]}"' in workflow_text
     assert 'artifacts/databento_volatility_cache/' in workflow_text
+    assert 'artifacts/monitoring/provider_usage.json' in workflow_text
     assert 'artifacts/smc_microstructure_exports/smc_live_news_snapshot.json' in workflow_text
     assert 'artifacts/smc_microstructure_exports/smc_live_news_state.json' in workflow_text
     # Workflow `git add` step was expanded by PR #13 into a multi-line continuation
@@ -620,4 +623,3 @@ def test_refresh_workflow_repins_consumers_from_real_published_version() -> None
     assert "jq -r '.library_version' pine/generated/smc_micro_profiles_generated.json" not in bump_block
     assert 'is not an integer' in bump_block
     assert 'stale-evidence sentinel' in bump_block
-

@@ -407,7 +407,7 @@ jobs:
 
       - name: Restore Playwright browsers cache
         id: pw_cache
-        uses: actions/cache@0400d5f644dc74513175e3cd8d07132dd4860809 # v4.2.4
+        uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5
         with:
           path: ~/.cache/ms-playwright
           key: ${{ runner.os }}-playwright-browsers-${{ steps.pw_version.outputs.version }}
@@ -875,10 +875,15 @@ jobs:
             exit 0
           fi
 
-          GIT_LFS_SKIP_SMUDGE=1 git -c filter.lfs.smudge= -c filter.lfs.process= -c filter.lfs.required=false restore --source=HEAD --worktree --staged -- \
+          mapfile -t volatile_tracked_paths < <(git ls-files -- \
             artifacts/databento_volatility_cache/ \
+            artifacts/monitoring/provider_usage.json \
             artifacts/smc_microstructure_exports/smc_live_news_snapshot.json \
-            artifacts/smc_microstructure_exports/smc_live_news_state.json || true
+            artifacts/smc_microstructure_exports/smc_live_news_state.json)
+          if (( ${#volatile_tracked_paths[@]} > 0 )); then
+            GIT_LFS_SKIP_SMUDGE=1 git -c filter.lfs.smudge= -c filter.lfs.process= -c filter.lfs.required=false \
+              restore --source=HEAD --worktree --staged -- "${volatile_tracked_paths[@]}"
+          fi
 
           git add pine/generated/ \
             artifacts/ci/version_governance_${REFRESH_DATE}.json \
