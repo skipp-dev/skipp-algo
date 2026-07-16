@@ -4,8 +4,7 @@
 
 FastAPI micro-service that subscribes to [Databento](https://databento.com) `EQUS.MINI` live feed
 (schema `ohlcv-1m`, `ALL_SYMBOLS`) and exposes a per-symbol overlay JSON endpoint for
-authenticated server-side consumers. Pine cannot call this REST endpoint directly;
-see [ADR-0028](../../docs/adr/0028-tradingview-data-provider-integration.md).
+authenticated server-side consumers. Pine cannot call this REST endpoint directly.
 
 Deployed on [Railway.app](https://railway.com) — see [Deployment](#deployment).
 
@@ -694,11 +693,7 @@ There is no supported Pine client for `/smc_live`. The former consumer used
 the nonexistent `request.raw()` function and was retired after TradingView
 reported CE10271. Do not paste the endpoint token into Pine.
 
-[ADR-0028](../../docs/adr/0028-tradingview-data-provider-integration.md)
-defines the qualified path: onboard approved series through a real TradingView
-data-provider programme and prove that they are available on tradingview.com
-through a documented Pine API. Advanced Charts on our own website is a separate
-option and does not satisfy that goal.
+No TradingView delivery path is planned for this REST bridge.
 
 ---
 

@@ -3,7 +3,7 @@
 These tests are pure JSON-Schema + pydantic checks with no live FMP/Databento
 dependency, so they run in CI without provider keys. They lock the wire shape
 that authenticated ``GET /smc_live`` clients depend on. The former Pine bridge
-is retired because Pine cannot call arbitrary REST endpoints (ADR-0028).
+is retired because Pine cannot call arbitrary REST endpoints.
 """
 
 from __future__ import annotations

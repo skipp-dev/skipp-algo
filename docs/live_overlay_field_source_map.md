@@ -2,8 +2,7 @@
 
 > **Status correction (2026-07-16):** The field provenance below remains useful
 > for the `/smc_live` API, but the Pine consumption statements are historical.
-> Pine cannot call this REST endpoint; `SMC_Regime_and_News.pine` is retired and
-> ADR-0028 owns future TradingView delivery through an approved provider path.
+> Pine cannot call this REST endpoint, and `SMC_Regime_and_News.pine` is retired.
 
 > **Zweck:** Für jedes Phase-1-Overlay-Feld die produzierende Python-Funktion, das Artefakt
 > und die **Frische-Klasse** festhalten. Entscheidet die Aufteilung von WP-B in **B1**

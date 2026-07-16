@@ -3,8 +3,7 @@
 The live overlay is the *fast* half of the "slow baseline + fast overlay"
 design. The former ``SMC_Regime_and_News.pine`` REST bridge is retired; Pine
 cannot call arbitrary HTTP endpoints. The payload remains the API contract for
-authenticated non-Pine clients, while ADR-0028 tracks TradingView provider
-qualification. Every data field is optional and nullable so the service can
+authenticated non-Pine clients. Every data field is optional and nullable so the service can
 emit only values it currently knows and leave unavailable values absent.
 
 This module is the single source of truth shared by the FastAPI endpoint

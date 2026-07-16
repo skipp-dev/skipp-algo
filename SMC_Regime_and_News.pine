@@ -1,12 +1,12 @@
 //@version=6
 // Retired compatibility surface. Pine cannot call the /smc_live REST endpoint.
-// See docs/adr/0028-tradingview-data-provider-integration.md.
+// No TradingView delivery path is planned for this retired REST bridge.
 indicator("SMC Regime & News", overlay = true)
 
 var table retirementNotice = table.new(position.top_right, 1, 2, border_width = 1)
 
 if barstate.islast
     table.cell(retirementNotice, 0, 0, "SMC Regime & News — RETIRED", text_color = color.white, bgcolor = color.red)
-    table.cell(retirementNotice, 0, 1, "No supported Pine data connection. See ADR-0028.", text_color = color.white, bgcolor = color.new(color.black, 15))
+    table.cell(retirementNotice, 0, 1, "No supported Pine data connection.", text_color = color.white, bgcolor = color.new(color.black, 15))
 
 plot(na, title = "Retired — no external data")

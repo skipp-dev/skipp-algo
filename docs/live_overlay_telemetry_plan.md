@@ -5,7 +5,7 @@ Status: historischer Plan, weitgehend umgesetzt · Datum: 2026-06-19 · Statusko
 > Die Abschnitte unten dokumentieren den damaligen Ausgangspunkt. Prometheus,
 > Grafana, Alloy und Alert-Regeln sind inzwischen produktiv. Die damalige
 > Annahme eines Pine-REST-Konsumenten war falsch; Pine kann `/smc_live` nicht
-> direkt abrufen. Der aktuelle TradingView-Plan steht in ADR-0028.
+> direkt abrufen. Für diesen REST-Bridge-Pfad ist keine Auslieferung an Pine geplant.
 
 ## 1. Ausgangslage
 

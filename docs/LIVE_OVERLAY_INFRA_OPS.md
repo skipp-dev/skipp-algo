@@ -79,7 +79,7 @@
    alle 30 s und schreibt die Zeitreihen nach Grafana Cloud.
 4. Grafana Cloud dient ausschließlich dem Monitoring — nicht der Datenweiterleitung.
 5. Für `/smc_live` ist derzeit kein externer Produktionskonsument ausgerollt;
-   Pine kann den REST-Endpunkt nicht direkt aufrufen (siehe ADR-0028).
+   Pine kann den REST-Endpunkt nicht direkt aufrufen.
 
 ---
 

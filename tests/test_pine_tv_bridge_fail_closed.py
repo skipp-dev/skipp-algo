@@ -2,9 +2,8 @@
 
 Pine v6 does not provide arbitrary HTTP GET/POST access. The retired live-
 overlay consumers used fictional ``request.raw``/``request.get`` calls and
-could therefore compile neither in TradingView nor in CI. A future external
-data integration must arrive through a TradingView-supported provider/symbol
-surface and use supported Pine calls such as ``request.security``.
+could therefore compile neither in TradingView nor in CI. They must remain
+retired.
 """
 from __future__ import annotations
 
@@ -49,7 +48,7 @@ def test_active_pine_has_no_fictional_arbitrary_http_calls(pine_path: Path) -> N
 def test_uncompilable_http_consumers_stay_retired() -> None:
     assert not _RETIRED_HTTP_CONSUMER.exists(), (
         "Retired Pine HTTP consumer reappeared: "
-        f"{_RETIRED_HTTP_CONSUMER.relative_to(_REPO_ROOT)}. Implement ADR-0028's provider path instead of restoring "
+        f"{_RETIRED_HTTP_CONSUMER.relative_to(_REPO_ROOT)}. Do not restore "
         "request.raw/request.get placeholders."
     )
 
@@ -57,6 +56,6 @@ def test_uncompilable_http_consumers_stay_retired() -> None:
 def test_regime_and_news_is_an_explicit_network_inert_tombstone() -> None:
     text = _COMPATIBILITY_TOMBSTONE.read_text(encoding="utf-8")
     assert "RETIRED" in text
-    assert "ADR-0028" in text
+    assert "No supported Pine data connection" in text
     assert "input." not in _strip_comments(text)
     assert "request." not in _strip_comments(text)
