@@ -1,7 +1,14 @@
 import type { Page, WebSocket } from "playwright";
 
+/**
+ * A captured TradingView `study_error`. NOTE: the monitor only ever records the
+ * `unknown parent id` variant (a dead `input.source` parent) — see
+ * {@link TradingViewRuntimeErrorMonitor}. Every value here is that one error kind.
+ */
 export type TradingViewStudyError = {
   at: string;
+  /** Best-effort study id: the first 4–16-char alphanumeric token in the error
+   *  payload. TradingView does not label it, so this is a heuristic, not authoritative. */
   studyId: string | null;
   message: string;
   payload: unknown;
@@ -41,6 +48,15 @@ function collectStrings(value: unknown, out: string[] = []): string[] {
   return out;
 }
 
+/**
+ * Watches the chart WebSocket for TradingView `study_error` frames and records
+ * ONLY those reporting `unknown parent id` (a consumer whose stored
+ * `input.source` parent study id is dead). Every other study/runtime error is
+ * intentionally ignored — the consumer-binding flow needs just the dead-parent
+ * signal. `snapshot()` therefore returns exclusively unknown-parent errors, not
+ * a general runtime-error log; widen {@link record} if broader capture is ever
+ * needed.
+ */
 export class TradingViewRuntimeErrorMonitor {
   private readonly errors: TradingViewStudyError[] = [];
   private readonly sockets = new WeakSet<WebSocket>();
@@ -57,10 +73,6 @@ export class TradingViewRuntimeErrorMonitor {
     this.errors.length = 0;
   }
 
-  hasUnknownParentError(): boolean {
-    return this.errors.some((error) => /unknown parent id/i.test(error.message));
-  }
-
   private attachSocket(socket: WebSocket): void {
     if (this.sockets.has(socket)) return;
     this.sockets.add(socket);
@@ -75,6 +87,7 @@ export class TradingViewRuntimeErrorMonitor {
     const record = payload as { m?: unknown; p?: unknown };
     if (record.m !== "study_error") return;
     const strings = collectStrings(record.p);
+    // Scope guard: keep ONLY the dead-parent variant; drop all other study_errors.
     const message = strings.find((value) => /unknown parent id/i.test(value));
     if (!message) return;
     const studyId = strings.find((value) => /^[A-Za-z0-9]{4,16}$/.test(value)) ?? null;
