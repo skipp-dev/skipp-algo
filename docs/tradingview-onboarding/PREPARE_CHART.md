@@ -33,6 +33,9 @@ Every consumer receives runtime state from the `SMC Long-Dip Suite` instance on
 the same chart. Onboarding stops before changing bindings when the suite is
 missing or its BUS outputs are not selectable.
 
+After changing bindings, onboarding saves the TradingView chart layout and waits
+for TradingView to confirm `All changes saved` before it reports success.
+
 ## Missing consumers
 
 Missing consumers do not block the consumers already present. A `partial` result

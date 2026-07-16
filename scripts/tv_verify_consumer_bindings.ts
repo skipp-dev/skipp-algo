@@ -84,7 +84,7 @@ async function readSelectedSource(page: Parameters<typeof openInputsTab>[0], lab
   return null;
 }
 
-async function repairSelectedSource(
+export async function repairSelectedSource(
   page: Parameters<typeof openInputsTab>[0],
   label: string,
   expected: string,
@@ -94,12 +94,23 @@ async function repairSelectedSource(
   for (let index = 0; index < count; index += 1) {
     const combo = sourceComboboxForLabel(page, label).nth(index);
     if (await combo.count() === 0 || !(await combo.first().isVisible().catch(() => false))) continue;
-    await combo.first().click();
+    await combo.first().scrollIntoViewIfNeeded();
+    // TradingView virtualizes long Inputs dialogs. The scroll can replace the
+    // off-screen combobox, so let that render settle before opening its menu.
+    await page.waitForTimeout(100);
+    const visibleCombo = sourceComboboxForLabel(page, label).nth(index).first();
+    if (!(await visibleCombo.isVisible().catch(() => false))) continue;
+    await visibleCombo.click();
     const exactOption = page.getByRole("option", { name: expected, exact: true });
     const fallbackOption = page.getByText(expected, { exact: true });
-    if (await exactOption.count() > 0) {
+    const exactVisible = await exactOption.first().waitFor({ state: "visible", timeout: 2_500 })
+      .then(() => true)
+      .catch(() => false);
+    if (exactVisible) {
       await exactOption.first().click();
-    } else if (await fallbackOption.count() > 0) {
+    } else if (await fallbackOption.last().waitFor({ state: "visible", timeout: 1_000 })
+      .then(() => true)
+      .catch(() => false)) {
       await fallbackOption.last().click();
     } else {
       throw new Error(`Source option not found for ${label}: ${expected}`);

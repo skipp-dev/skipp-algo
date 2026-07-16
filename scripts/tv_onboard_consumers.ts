@@ -7,6 +7,7 @@ import os from "node:os";
 import path from "node:path";
 import readline from "node:readline/promises";
 import { fileURLToPath } from "node:url";
+import type { Locator, Page } from "playwright";
 
 import {
   closeTradingViewSession,
@@ -107,6 +108,8 @@ export type BrowserSelection = {
   name: string;
   executablePath: string;
 };
+
+const CHART_SAVE_NEXT_STEP = "Run SMC Onboarding again. If this repeats, keep the onboarding browser visible and click TradingView Save when it appears.";
 
 type Cli = {
   browserSmoke: boolean;
@@ -733,6 +736,42 @@ async function runSelfTest(config: OnboardingConfig, cli: Cli): Promise<number> 
   return 0;
 }
 
+export async function saveChangedChartLayout(page: Page): Promise<void> {
+  const buttons = page.locator('button[data-qa-id="header-toolbar-save-load"]');
+  let saveButton: Locator | null = null;
+  for (let index = 0; index < await buttons.count(); index += 1) {
+    const candidate = buttons.nth(index);
+    if (await candidate.isVisible().catch(() => false)) {
+      saveButton = candidate;
+      break;
+    }
+  }
+  if (!saveButton) {
+    throw new OnboardingRunError(
+      "ONB-SAVE-001",
+      "The BUS connections were set, but the TradingView chart layout could not be saved.",
+      CHART_SAVE_NEXT_STEP,
+      true,
+    );
+  }
+
+  const alreadySaved = await saveButton.getAttribute("aria-label").catch(() => null);
+  if (/all changes saved/i.test(alreadySaved ?? "")) return;
+  await saveButton.click();
+  const deadline = Date.now() + 20_000;
+  while (Date.now() < deadline) {
+    const ariaLabel = await saveButton.getAttribute("aria-label").catch(() => null);
+    if (/all changes saved/i.test(ariaLabel ?? "")) return;
+    await page.waitForTimeout(250);
+  }
+  throw new OnboardingRunError(
+    "ONB-SAVE-001",
+    "The BUS connections were set, but TradingView did not confirm that the chart layout was saved.",
+    CHART_SAVE_NEXT_STEP,
+    true,
+  );
+}
+
 async function runCli(): Promise<number> {
   const cli = parseCli();
   let config: OnboardingConfig;
@@ -776,6 +815,29 @@ async function runCli(): Promise<number> {
     await waitForAuthentication(session, chartUrl, cli.waitTimeoutMs);
     console.log("Checking TradingView login... Signed in.");
     report = await executeOnboarding(config, playwrightAdapter(session), (message) => console.log(message));
+    if (report.summary.repairedBindings > 0) {
+      console.log("Saving the TradingView chart layout...");
+      try {
+        await saveChangedChartLayout(session.page);
+        console.log("Chart layout saved.");
+      } catch (error) {
+        const known = error instanceof OnboardingRunError
+          ? error
+          : new OnboardingRunError(
+              "ONB-SAVE-001",
+              error instanceof Error ? error.message : String(error),
+              CHART_SAVE_NEXT_STEP,
+              true,
+            );
+        report.outcome = "failed";
+        report.error = {
+          code: known.code,
+          message: known.message,
+          nextStep: known.nextStep,
+          changesMade: true,
+        };
+      }
+    }
   } catch (error) {
     const known = error instanceof OnboardingRunError
       ? error

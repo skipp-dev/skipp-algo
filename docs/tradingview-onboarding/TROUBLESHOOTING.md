@@ -82,6 +82,14 @@ If the report says `unknown parent id`, do not trust an unchanged dropdown label
 Rerunning onboarding force-reselects every BUS source and replaces the obsolete
 internal parent reference.
 
+## `ONB-SAVE-001` — chart layout was not saved
+
+The BUS sources were selected, but TradingView did not confirm that the chart
+layout was saved. Connections that are only visible in the onboarding browser
+can disappear after that browser closes. Run onboarding again and keep its
+browser window visible. If TradingView still shows `Save`, click it before the
+run finishes. A successful run reports `Chart layout saved.` before closing.
+
 ## `ONB-CONFIG-001` — incomplete or damaged package
 
 Download a fresh copy and extract the entire package. Do not copy only the start

@@ -6,8 +6,10 @@ import {
   browserCandidates,
   classifyBrowserFromPath,
   executeOnboarding,
+  OnboardingRunError,
   renderHtmlReport,
   reportSummaryLines,
+  saveChangedChartLayout,
   validateChartUrl,
   type OnboardingAdapter,
   type OnboardingConfig,
@@ -199,4 +201,37 @@ test("HTML report escapes consumer-controlled text", async () => {
   const html = renderHtmlReport(report);
   assert.doesNotMatch(html, /<script>alert/);
   assert.match(html, /&lt;script&gt;alert/);
+});
+
+test("changed chart layouts are explicitly saved and confirmed", async () => {
+  let ariaLabel = "Save all charts for all symbols and intervals on your layout";
+  let clicks = 0;
+  const button = {
+    isVisible: async () => true,
+    getAttribute: async () => ariaLabel,
+    click: async () => {
+      clicks += 1;
+      ariaLabel = "All changes saved";
+    },
+  };
+  const page = {
+    locator: () => ({ count: async () => 1, nth: () => button }),
+    waitForTimeout: async () => undefined,
+  };
+
+  await saveChangedChartLayout(page as any);
+
+  assert.equal(clicks, 1);
+});
+
+test("missing chart save control fails with a user-facing onboarding code", async () => {
+  const page = {
+    locator: () => ({ count: async () => 0, nth: () => { throw new Error("unreachable"); } }),
+    waitForTimeout: async () => undefined,
+  };
+
+  await assert.rejects(
+    saveChangedChartLayout(page as any),
+    (error: unknown) => error instanceof OnboardingRunError && error.code === "ONB-SAVE-001",
+  );
 });
