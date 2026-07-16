@@ -41,7 +41,7 @@
 │             │                             │  Endpoints:                                 │   │
 │             │                             │  • /health  → Railway healthcheck           │   │
 │             │                             │  • /metrics → metrics-collector (Alloy)     │   │
-│             │                             │  • /smc_live → Pine Script consumer         │   │
+│             │                             │  • /smc_live → authenticated API clients    │   │
 │             │                             └─────────────────────┬───────────────────────┘   │
 │             │                                                   │                         │
 │             │                    ┌──────────────────────────────┘                         │
@@ -77,9 +77,9 @@
    Producer. Er exponiert alles als Prometheus-Metriken unter `/metrics`.
 3. Grafana Alloy (Railway-Service `metrics-collector`) scraped `/metrics` beider Services
    alle 30 s und schreibt die Zeitreihen nach Grafana Cloud.
-4. Grafana Cloud dient ausschließlich dem Monitoring — nicht der Datenweiterleitung an
-   den Overlay-Daemon oder Pine.
-5. Pine Script ist der Endkonsument von `/smc_live`.
+4. Grafana Cloud dient ausschließlich dem Monitoring — nicht der Datenweiterleitung.
+5. Für `/smc_live` ist derzeit kein externer Produktionskonsument ausgerollt;
+   Pine kann den REST-Endpunkt nicht direkt aufrufen (siehe ADR-0028).
 
 ---
 
@@ -137,7 +137,7 @@ curl https://liveoverlaydaemon-production.up.railway.app/ready
 | `DATABENTO_API_KEY` | live_overlay_daemon | ✅ | Databento API key (Unlimited) |
 | `OVERLAY_SECRET_TOKEN` | live_overlay_daemon | ✅ | Shared Secret für `/metrics` Basic Auth und `/smc_live` URL |
 | `PORT` | live_overlay_daemon | ✅ | Production-Pin auf `8080` (nicht auf `${{...PORT}}` referenzieren) |
-| `LIVE_OVERLAY_EXPECT_MARKET_TRAFFIC` | live_overlay_daemon | optional | `1` in Production, wenn TradingView/Pine-Traffic während US Market Open erwartet wird; default `0` lässt den First-Zero-Traffic-Alert deaktiviert |
+| `LIVE_OVERLAY_EXPECT_MARKET_TRAFFIC` | live_overlay_daemon | optional | `1` nur für einen verifizierten externen `/smc_live`-Konsumenten; solange keiner existiert bleibt Production auf `0` |
 | `UPTIMEROBOT_API_KEY` | live_overlay_daemon | optional | API-Key für UptimeRobot-Bridge |
 | `UPTIMEROBOT_MONITOR_IDS` | live_overlay_daemon | optional | Kommagetrennte Monitor-IDs; Production-Allowlist: `803309701,803341452,803343155,803343156,803362511` |
 | `GITHUB_WORKFLOW_MONITOR_TOKEN` | live_overlay_daemon | optional | GitHub PAT für Workflow-Bridge |
@@ -466,7 +466,7 @@ CI-Workflows und exportiert ihn als Prometheus-Gauges.
 | `live_overlay_daemon` → GitHub API | HTTPS | `GITHUB_WORKFLOW_MONITOR_TOKEN` Bearer | Pull | bei Scrape (TTL 30 s) |
 | Entwickler-Mac → Grafana API | HTTPS Bearer | Keychain `skipp.grafana.api` | Push | manuell / bei Dashboard-Update |
 | Railway → GitHub | HTTPS | Railway OAuth App | Pull (Webhook) | bei git push |
-| Pine Script → `live_overlay_daemon /smc_live` | HTTPS | `OVERLAY_SECRET_TOKEN` im URL-Pfad | Pull | bei Chart-Request |
+| Externer API-Client → `live_overlay_daemon /smc_live` | HTTPS | `OVERLAY_SECRET_TOKEN` im URL-Pfad | Pull | derzeit kein Client ausgerollt |
 
 ### Private Networking fuer `live_overlay` Metrics
 
@@ -497,14 +497,14 @@ Production-Konfiguration.
 ### `/smc_live` Synthetic-Canary-Entscheidung
 
 Keinen Production-`OVERLAY_SECRET_TOKEN` in UptimeRobot hinterlegen. Der Token
-ist nicht separat fuer UptimeRobot rotierbar und wird auch von Pine-Consumern
-sowie `/metrics` Basic Auth verwendet.
+ist nicht separat fuer UptimeRobot rotierbar und wird auch fuer `/smc_live`
+sowie Legacy-`/metrics`-Auth verwendet.
 
 Der aktuelle Schutz bleibt:
 
 - UptimeRobot prueft unauthentifizierte Liveness-/Readiness-Endpunkte.
-- Grafana erkennt fehlenden `/smc_live`-Traffic ueber
-  `LIVE_OVERLAY_EXPECT_MARKET_TRAFFIC=1` und Request-Rate-Alerts.
+- Grafana erkennt fehlenden `/smc_live`-Traffic nur, wenn ein realer Client mit
+  `LIVE_OVERLAY_EXPECT_MARKET_TRAFFIC=1` explizit scharfgestellt wurde.
 - Auth-Probleme laufen ueber `live_overlay_smc_live_auth_denied`.
 
 Plan fuer spaeter:
@@ -512,7 +512,7 @@ Plan fuer spaeter:
 1. Bevorzugt einen nicht geheimen Contract-Endpoint wie
    `/ready/smc_live_contract` ergaenzen.
 2. Alternativ einen internen Synthetic-Check aus `metrics-collector` ueber
-   Railway Private Networking bauen, aber mit eigenem, nicht mit Pine geteiltem
+   Railway Private Networking bauen, aber mit eigenem, nicht mit API-Clients geteiltem
    Token.
 3. Ohne sicheren Auth-Split bleibt der Grafana First-Zero-Traffic-Alert die
    End-to-End-Absicherung.
@@ -546,14 +546,14 @@ Production-Konfiguration.
 ### `/smc_live` Synthetic-Canary-Entscheidung
 
 Keinen Production-`OVERLAY_SECRET_TOKEN` in UptimeRobot hinterlegen. Der Token
-ist nicht separat fuer UptimeRobot rotierbar und wird auch von Pine-Consumern
-sowie `/metrics` Basic Auth verwendet.
+ist nicht separat fuer UptimeRobot rotierbar und wird auch fuer `/smc_live`
+sowie Legacy-`/metrics`-Auth verwendet.
 
 Der aktuelle Schutz bleibt:
 
 - UptimeRobot prueft unauthentifizierte Liveness-/Readiness-Endpunkte.
-- Grafana erkennt fehlenden `/smc_live`-Traffic ueber
-  `LIVE_OVERLAY_EXPECT_MARKET_TRAFFIC=1` und Request-Rate-Alerts.
+- Grafana erkennt fehlenden `/smc_live`-Traffic nur, wenn ein realer Client mit
+  `LIVE_OVERLAY_EXPECT_MARKET_TRAFFIC=1` explizit scharfgestellt wurde.
 - Auth-Probleme laufen ueber `live_overlay_smc_live_auth_denied`.
 
 Plan fuer spaeter:
@@ -561,7 +561,7 @@ Plan fuer spaeter:
 1. Bevorzugt einen nicht geheimen Contract-Endpoint wie
    `/ready/smc_live_contract` ergaenzen.
 2. Alternativ einen internen Synthetic-Check aus `metrics-collector` ueber
-   Railway Private Networking bauen, aber mit eigenem, nicht mit Pine geteiltem
+   Railway Private Networking bauen, aber mit eigenem, nicht mit API-Clients geteiltem
    Token.
 3. Ohne sicheren Auth-Split bleibt der Grafana First-Zero-Traffic-Alert die
    End-to-End-Absicherung.

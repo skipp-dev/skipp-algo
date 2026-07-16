@@ -878,6 +878,13 @@ a per-symbol 16-field overlay JSON endpoint for TradingView Pine scripts.
 - Requires TradingView Premium for `request.raw()` (Free tier → all fields stale
   until Premium is activated).
 
+> **Correction (2026-07-16):** Pine v6 has no documented `request.raw()` or
+> arbitrary `request.get()` API. This consumer never formed a working delivery
+> path and failed in TradingView with CE10271. It and the inert
+> `SMC_Regime_and_News.pine` bridge were retired; ADR-0028 records the qualified
+> TradingView data-provider path. This note preserves the historical entry while
+> correcting its operational status.
+
 **Deployment**
 - Production URL: `https://liveoverlaydaemon-production.up.railway.app`
 - Monitoring: UptimeRobot free-tier, `GET/HEAD /health`, 5-min interval.

@@ -4,7 +4,8 @@
 
 FastAPI micro-service that subscribes to [Databento](https://databento.com) `EQUS.MINI` live feed
 (schema `ohlcv-1m`, `ALL_SYMBOLS`) and exposes a per-symbol overlay JSON endpoint for
-TradingView Pine scripts.
+authenticated server-side consumers. Pine cannot call this REST endpoint directly;
+see [ADR-0028](../../docs/adr/0028-tradingview-data-provider-integration.md).
 
 Deployed on [Railway.app](https://railway.com) — see [Deployment](#deployment).
 
@@ -30,8 +31,8 @@ Databento Live (db.Live())
             GET /metrics                GET /{token}/metrics (legacy)
             (Basic auth preferred)      (backward-compatible)
         │                           │
-  Railway healthcheck        Pine request.raw() consumer
-  UptimeRobot HEAD probe     TradingView chart
+  Railway healthcheck        Authenticated API client
+  UptimeRobot HEAD probe     (not a Pine client)
 ```
 
 ---
@@ -180,7 +181,7 @@ All numeric fields are `null`, all bool fields are `false`, `stale: true`.
 | Variable | Required | Default | Notes |
 |----------|----------|---------|-------|
 | `DATABENTO_API_KEY` | ✅ | — | Set in Railway env vars |
-| `OVERLAY_SECRET_TOKEN` | ✅ | — | Embedded in Pine URL path |
+| `OVERLAY_SECRET_TOKEN` | ✅ | — | Path auth for `/smc_live`; also legacy metrics auth |
 | `PORT` | ✅ (production) | `8000` (code default), production pin `8080` | Pin explicitly in Railway for stable private host:port contracts |
 | `LOG_LEVEL` | ❌ | `info` | Uvicorn-compatible level (`critical`,`error`,`warning`,`info`,`debug`,`trace`) |
 | `OVERLAY_REFRESH_SECS` | ❌ | `1800` | Full overlay compute cycle interval (seconds) |
@@ -221,7 +222,7 @@ All numeric fields are `null`, all bool fields are `false`, `stale: true`.
 | `TRADINGVIEW_CREDENTIAL_SNAPSHOT_URL_TOKEN` | ❌ | *(unset)* | Optional bearer token for `TRADINGVIEW_CREDENTIAL_SNAPSHOT_URL` |
 | `OVERLAY_TRADINGVIEW_CREDENTIAL_CACHE_TTL_SECS` | ❌ | `3600` | Credential-health report cache TTL in seconds (range 60–86400) |
 | `OVERLAY_MAX_FEED_FAILURES` | ❌ | `50` | Circuit-breaker threshold for consecutive feed failures (range 1–1000) |
-| `LIVE_OVERLAY_EXPECT_MARKET_TRAFFIC` | ❌ | `0` | Set to `1` in production deployments that should receive TradingView/Pine `/smc_live` traffic during US market-open windows; arms the first-zero traffic alert |
+| `LIVE_OVERLAY_EXPECT_MARKET_TRAFFIC` | ❌ | `0` | Set to `1` only when a real external `/smc_live` consumer is deployed and expected during US market-open windows; arms the first-zero traffic alert |
 | `UPTIMEROBOT_API_KEY` | ❌ | *(unset)* | Enables optional UptimeRobot API bridge metrics in `/metrics` |
 | `UPTIMEROBOT_MONITOR_IDS` | ❌ | *(all monitors)* | Comma-separated monitor IDs to include in bridge poll; production allowlist: `803309701,803341452,803343155,803343156,803362511` |
 | `UPTIMEROBOT_TIMEOUT_SECS` | ❌ | `5` | UptimeRobot API timeout in seconds (range 1–30) |
@@ -234,7 +235,7 @@ All numeric fields are `null`, all bool fields are `false`, `stale: true`.
 | `GITHUB_WORKFLOW_MONITOR_PER_PAGE` | ❌ | `30` | Number of workflow runs fetched per API poll (range 1–100) |
 | `LIVE_OVERLAY_RESTART_CAUSE` | ❌ | `unknown` | Restart cause label (`deploy`, `crash`, `manual`, …) for restart observability |
 | `LIVE_OVERLAY_INGEST_QUEUE_MAX` | ❌ | `20000` | Max pending bars in feed ingest queue before drops (range 1000–200000) |
-| `LIVE_OVERLAY_EXPECT_MARKET_TRAFFIC` | ❌ | `0` | Set to `1` in production deployments that should receive TradingView/Pine `/smc_live` traffic during US market-open windows. Arms the first-zero traffic alert. Leave `0` for local/dev/warm-standby. |
+| `LIVE_OVERLAY_EXPECT_MARKET_TRAFFIC` | ❌ | `0` | Set to `1` only for a verified external `/smc_live` consumer. Keep `0` while no supported consumer exists. |
 | `NEWS_SNAPSHOT_PATH` | ❌ | *(repo root)*`/artifacts/live_overlay/news_snapshot.json` | Absolute path to news JSON file (resolved relative to repo root) |
 
 ### Config validation
@@ -562,7 +563,7 @@ is organized for 3-a.m. incident triage:
   `Workers Healthy`, `External Checks`, `Market Status`, `Last Bar Age`) with
   no grid overlaps so an on-call engineer can read the health story at a glance.
 - **User-impact / SLO block** — immediately after the root-cause row:
-  `Success Rate (%)`, `Market Traffic Health`, `Market Data Freshness`,
+  `Success Rate (%)`, `External Consumer Traffic`, `Market Data Freshness`,
   `Core Metrics Present`, `Request Latency Against 500 ms Target`, and `Error Budget Burn Rate`
   are promoted to the top so SLO pages require no scrolling.
 - **Context after health** — `Service Status`, `Uptime`, symbol counts,
@@ -618,13 +619,13 @@ Operational UX additions:
   `Process Resident Memory`, and `Railway Metrics Bridge` panels include
   direct links to Railway logs, deployments, metrics, and the on-call runbook.
 - Railway panels now have thresholds (memory ratio, snapshot age).
-- `Pine Polling Watchdog` (top Incident Overview row, next to `Overall Health`)
+- `External Consumer Watchdog` (top Incident Overview row, next to `Overall Health`)
   shows `live_overlay_expected_market_traffic` directly with `NOT ARMED` /
   `ARMED` value mappings.
-- The Pine `request.get()` consumer is production. Production deployments must
-  set `LIVE_OVERLAY_EXPECT_MARKET_TRAFFIC=1`; the active
-  `lo-expected-traffic-not-armed` reminder detects accidental rollback to `0`.
-  Local, development, and warm-standby deployments may keep the default `0`.
+- No supported Pine REST consumer exists. Production keeps
+  `LIVE_OVERLAY_EXPECT_MARKET_TRAFFIC=0`, and the
+  `lo-expected-traffic-not-armed` reminder stays paused. Set the gauge to `1`
+  only after a real external consumer has been deployed and verified.
 - Alert rules guard the UptimeRobot production monitor count (`5`), any
   UptimeRobot monitors down, Railway memory-used ratio (`75%` warning, `90%`
   critical), and Alloy remote-write failures.
@@ -687,23 +688,17 @@ Both dashboards are published automatically by
 
 ---
 
-## Pine Script consumer
+## TradingView delivery status
 
-See [`pine/smc_live_overlay_consumer.pine`](../../pine/smc_live_overlay_consumer.pine).
+There is no supported Pine client for `/smc_live`. The former consumer used
+the nonexistent `request.raw()` function and was retired after TradingView
+reported CE10271. Do not paste the endpoint token into Pine.
 
-All 16 overlay fields are exposed as named `plot()` series so other scripts can
-import them via `request.security()`. A dashboard table renders in the top-right
-corner (toggle off in indicator settings).
-
-### Usage
-
-1. Open Pine Script Editor in TradingView
-2. Paste `pine/smc_live_overlay_consumer.pine`
-3. Set `OVERLAY_SECRET_TOKEN` in the `Overlay Token` input
-4. Save as **private** script (do not publish publicly — token is in the URL)
-
-> `request.raw()` requires **TradingView Premium**. On Free tier the script loads
-> but all fields return `null` / stale until Premium is activated.
+[ADR-0028](../../docs/adr/0028-tradingview-data-provider-integration.md)
+defines the qualified path: onboard approved series through a real TradingView
+data-provider programme and prove that they are available on tradingview.com
+through a documented Pine API. Advanced Charts on our own website is a separate
+option and does not satisfy that goal.
 
 ---
 
@@ -711,8 +706,8 @@ corner (toggle off in indicator settings).
 
 - Token is compared via `hmac.compare_digest` (constant-time, no timing oracle).
 - Wrong token returns **404** (not 401/403) to avoid leaking the route structure.
-- Keep the Pine script **invite-only** or private. Rotate `OVERLAY_SECRET_TOKEN`
-  monthly: update Railway env var → update Pine script input → redeploy.
+- Keep `OVERLAY_SECRET_TOKEN` in server-side secret stores. Rotate it by updating
+  Railway clients and redeploying; never embed it in Pine source.
 - Do not put `OVERLAY_SECRET_TOKEN` into UptimeRobot for a `/smc_live`
   synthetic check. UptimeRobot monitors only unauthenticated liveness/readiness
   probes; `/smc_live` traffic expectations are covered by Grafana request-rate

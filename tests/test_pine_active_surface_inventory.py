@@ -66,8 +66,6 @@ _PINE_LIBRARIES: frozenset[str] = frozenset({
     "skipp_labels.pine",
     "skipp_math.pine",
     "skipp_scoring.pine",
-    # feat/live-overlay-daemon (PR #2794): Pine consumer for the FastAPI daemon.
-    "smc_live_overlay_consumer.pine",
 })
 
 _SMCPP_LIBRARIES: frozenset[str] = frozenset({
@@ -126,7 +124,6 @@ def test_smcpp_library_inventory_is_exact() -> None:
 def test_total_active_pine_surface_count() -> None:
     """Belt-and-braces: active surface count is pinned for at-a-glance review."""
     expected = len(_ROOT_ORCHESTRATORS) + len(_PINE_LIBRARIES) + len(_SMCPP_LIBRARIES)
-    # +1 vs the prior pin of 37: the SMC_Long_Dip_Alerts.pine alert companion.
-    # (37 was +2 over 35 from the #3622 smc_engine_private backfill + the bus-v3
-    # smc_context_engine_private library.)
-    assert expected == 38, f"inventory frozensets drifted: total={expected}"
+    # 2026-07-16: 38 -> 37 after retiring the uncompilable HTTP consumer. The
+    # old root bridge remains only as an explicit, network-inert tombstone.
+    assert expected == 37, f"inventory frozensets drifted: total={expected}"

@@ -83,9 +83,11 @@ sweep wick-beyond-with-close-back rules). There is no bridge-local heuristic.
 
 ## TradingView Pine Script
 
-`SMC_Regime_and_News.pine` in the repo root is a display scaffold: its fetch call is
-currently a stubbed placeholder (returns `na`), so the dashboard renders "–"
-until the fetch is implemented — nothing hits the Node bridge from TV today.
+`SMC_Regime_and_News.pine` in the repo root is now a retired compatibility
+notice. Its former fetch design was not supported by Pine; Pine exposes no
+arbitrary HTTP client. ADR-0028 defines the provider qualification path. The
+tombstone deliberately contains no endpoint, token input, fetch code, or data
+visualization; nothing hits the Node bridge from TradingView.
 
 ## Environment Variables
 

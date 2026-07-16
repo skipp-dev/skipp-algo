@@ -607,9 +607,9 @@ groups:
     annotations:
       summary: Auth denied requests spiked in the last 15m
       runbook: Potential token drift or probing. Validate OVERLAY_SECRET_TOKEN rollout
-        in Pine consumers.
+        in authenticated API clients.
   - uid: lo-request-rate-absent-open
-    title: TradingView/Pine is not polling the live overlay (US market open)
+    title: Expected external client is not calling /smc_live (US market open)
     condition: C
     data:
     - refId: A
@@ -638,20 +638,17 @@ groups:
     labels:
       severity: warning
     annotations:
-      summary: No TradingView/Pine /smc_live requests since the US market opened,
-        while polling is expected
-      runbook: The Pine request.get() overlay consumer has sent zero /smc_live
-        requests since the US market opened, but this deployment is armed to expect
-        it (LIVE_OVERLAY_EXPECT_MARKET_TRAFFIC=1). If the Pine consumer is not live
-        yet, set LIVE_OVERLAY_EXPECT_MARKET_TRAFFIC=0 to stand the watchdog down.
-        If it should be polling, check the published Pine request URL,
-        OVERLAY_SECRET_TOKEN rollout, and the Railway public endpoint.
+      summary: No /smc_live requests since the US market opened while an external
+        consumer is explicitly expected
+      runbook: LIVE_OVERLAY_EXPECT_MARKET_TRAFFIC=1 is only valid after a real
+        external client rollout. If no client exists, set it to 0. Otherwise inspect
+        the client's endpoint, OVERLAY_SECRET_TOKEN rollout, and Railway connectivity.
   - uid: lo-expected-traffic-not-armed
-    title: Pine-polling watchdog is turned off
-    # Armed 2026-07-16: the TradingView/Pine request.get() consumer is production.
-    # This reminder must stay active so a deployment with
-    # LIVE_OVERLAY_EXPECT_MARKET_TRAFFIC=0 cannot silently disable traffic alerts.
-    isPaused: false
+    title: External-consumer traffic watchdog is not armed
+    # Paused 2026-07-16: Pine cannot call arbitrary REST endpoints and no supported
+    # external /smc_live consumer is deployed. Unpause only when a verified client
+    # exists and LIVE_OVERLAY_EXPECT_MARKET_TRAFFIC must remain 1 in production.
+    isPaused: true
     condition: C
     data:
     - refId: A
@@ -677,14 +674,13 @@ groups:
     labels:
       severity: warning
     annotations:
-      summary: The TradingView/Pine /smc_live polling watchdog is disabled
+      summary: The external /smc_live consumer watchdog is disabled
         (LIVE_OVERLAY_EXPECT_MARKET_TRAFFIC=0)
-      runbook: Once the Pine request.get() overlay is live in production, set
-        LIVE_OVERLAY_EXPECT_MARKET_TRAFFIC=1 so a stalled or absent Pine consumer
-        alerts. Leave 0 for dev, warm-standby, or while the consumer is not yet
-        rolled out.
+      runbook: Keep this rule paused and the variable at 0 while no supported client
+        exists. After a verified external consumer rollout, set the variable to 1,
+        unpause this reminder, and test the missing-traffic alert end to end.
   - uid: lo-request-rate-drop-open
-    title: TradingView/Pine polling dropped to zero (US market open)
+    title: External /smc_live client traffic dropped to zero (US market open)
     condition: C
     data:
     - refId: A
@@ -713,10 +709,10 @@ groups:
     labels:
       severity: warning
     annotations:
-      summary: TradingView/Pine was polling /smc_live earlier today but has dropped
+      summary: An external client was calling /smc_live earlier today but has dropped
         to near zero while the US market is open
-      runbook: Pine was polling /smc_live earlier today but has stopped. Check the
-        Pine consumer/chart, OVERLAY_SECRET_TOKEN rollout, and the Railway public
+      runbook: A client was calling /smc_live earlier today but has stopped. Check the
+        client process, OVERLAY_SECRET_TOKEN rollout, and the Railway public
         endpoint.
   - uid: lo-compute-errors-rate
     title: Compute cycle errors

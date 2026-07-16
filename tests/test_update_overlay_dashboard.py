@@ -484,7 +484,7 @@ def test_update_script_core_metrics_present_checks_critical_series(temp_dashboar
 
 
 def test_update_script_re_adds_traffic_alert_armed_without_extra_shift(temp_dashboard: Path) -> None:
-    """Pine Polling Watchdog is self-healed (re-added with correct content) when
+    """External Consumer Watchdog is self-healed when
     removed, without shifting the rest of the reflow-owned layout — the updater
     no longer forces positions (2026-07-07 user-first redesign)."""
     _run_script(temp_dashboard)
@@ -493,18 +493,18 @@ def test_update_script_re_adds_traffic_alert_armed_without_extra_shift(temp_dash
     # watchdog tile is re-added.
     ref_title = "Railway CPU Cores"
     ref_y_before = next(p for p in data["panels"] if p.get("title") == ref_title)["gridPos"]["y"]
-    data["panels"] = [p for p in data["panels"] if p.get("title") != "Pine Polling Watchdog"]
+    data["panels"] = [p for p in data["panels"] if p.get("title") != "External Consumer Watchdog"]
     temp_dashboard.write_text(json.dumps(data, indent=2), encoding="utf-8")
 
     _run_script(temp_dashboard)
 
     updated = json.loads(temp_dashboard.read_text(encoding="utf-8"))
-    panel = next(p for p in updated["panels"] if p.get("title") == "Pine Polling Watchdog")
+    panel = next(p for p in updated["panels"] if p.get("title") == "External Consumer Watchdog")
     assert panel["datasource"] == {"type": "prometheus", "uid": "grafanacloud-prom"}
     assert panel["targets"][0]["expr"] == 'live_overlay_expected_market_traffic{job=~"$job"}'
     assert panel["targets"][0]["datasource"] == {"type": "prometheus", "uid": "grafanacloud-prom"}
-    assert panel["fieldConfig"]["defaults"]["mappings"][0]["options"]["0"]["text"] == "NOT ARMED"
-    assert panel["fieldConfig"]["defaults"]["mappings"][0]["options"]["1"]["text"] == "ARMED"
+    assert panel["fieldConfig"]["defaults"]["mappings"][0]["options"]["0"]["text"] == "NO CONSUMER EXPECTED"
+    assert panel["fieldConfig"]["defaults"]["mappings"][0]["options"]["1"]["text"] == "CONSUMER EXPECTED"
     ref_y_after = next(p for p in updated["panels"] if p.get("title") == ref_title)["gridPos"]["y"]
     assert ref_y_after == ref_y_before, "re-adding the watchdog must not shift other panels"
 

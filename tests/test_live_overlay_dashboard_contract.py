@@ -159,7 +159,7 @@ def test_market_open_request_health_uses_us_session_metric() -> None:
     """
     dashboard = json.loads(_DASHBOARD_JSON.read_text(encoding="utf-8"))
     panels = _dashboard_panels(dashboard)
-    panel = next(p for p in panels if p.get("title") == "Market Traffic Health")
+    panel = next(p for p in panels if p.get("title") == "External Consumer Traffic")
     expr = panel["targets"][0]["expr"]
     assert "live_overlay_market_us_open" in expr, expr
     assert "live_overlay_market_open" not in expr, expr
@@ -200,11 +200,12 @@ def test_dashboard_railway_metrics_bridge_query_shows_state_mapping() -> None:
 def test_dashboard_market_open_request_health_uses_fixed_rate_range() -> None:
     """stat panels must not use $__rate_interval because it depends on time range."""
     dashboard = json.loads(_DASHBOARD_JSON.read_text(encoding="utf-8"))
-    panel = next(p for p in _dashboard_panels(dashboard) if p.get("title") == "Market Traffic Health")
+    panel = next(p for p in _dashboard_panels(dashboard) if p.get("title") == "External Consumer Traffic")
     expr = panel["targets"][0]["expr"]
     assert "$__rate_interval" not in expr, "stat panel must use a fixed range vector"
     assert "[5m]" in expr
     assert 'live_overlay_market_us_open{job=~"$job"}' in expr
+    assert 'live_overlay_expected_market_traffic{job=~"$job"}' in expr
     assert 'live_overlay_smc_live_requests_total{job=~"$job"}[5m]' in expr
     assert "or live_overlay_market_open" not in expr
     assert "rate(live_overlay_smc_live_requests_total[5m])" not in expr
@@ -266,8 +267,8 @@ def test_alert_rules_include_expected_traffic_missing_alert() -> None:
     assert "< bool 0.001" in expr
 
 
-def test_alert_rules_include_expected_traffic_armed_guard() -> None:
-    """Production must alert if the first-zero traffic guard is not armed."""
+def test_alert_rules_keep_consumer_reminder_paused_without_a_real_client() -> None:
+    """The reminder must stay paused while no supported client exists."""
     rule = _alert_rule("lo-expected-traffic-not-armed")
     expr = rule["data"][0]["model"]["expr"]
 
@@ -275,7 +276,8 @@ def test_alert_rules_include_expected_traffic_armed_guard() -> None:
     assert "== bool 0" in expr
     assert rule["labels"]["severity"] == "warning"
     assert rule.get("for") == "15m"
-    assert rule.get("isPaused") is False
+    assert rule.get("isPaused") is True
+    assert "no supported" in rule.get("runbook", "").lower() or "no supported" in str(rule).lower()
 
 
 def test_multi_target_stat_panels_use_field_specific_units() -> None:
@@ -382,8 +384,8 @@ def test_hotspot_panels_explain_empty_state_and_use_request_rate_units() -> None
         panel = panels[title]
         defaults = panel["fieldConfig"]["defaults"]
         assert defaults.get("unit") == "reqps"
-        assert defaults.get("noValue") == "NO PINE REQUESTS"
-        assert "Empty means no Pine requests" in panel.get("description", "")
+        assert defaults.get("noValue") == "NO CLIENT REQUESTS"
+        assert "Empty means no external client requests" in panel.get("description", "")
 
 
 def test_alert_rules_guard_uptimerobot_monitor_count_and_down_total() -> None:
@@ -1105,7 +1107,7 @@ def test_auth_denied_spike_has_non_zero_for() -> None:
 
 PROMOTED_SLO_TITLES = {
     "Success Rate (%)",
-    "Market Traffic Health",
+    "External Consumer Traffic",
     "Market Data Freshness",
     "Core Metrics Present",
     "Bridge Metrics Present",
@@ -1226,8 +1228,8 @@ def test_dashboard_traffic_wording_is_disambiguated() -> None:
     sr = by["Success Rate (%)"]
     assert sr["fieldConfig"]["defaults"].get("noValue") != "NO TRAFFIC"
     assert "/smc_live" in sr.get("description", "")
-    mth = by["Market Traffic Health"].get("description", "").lower()
-    assert "overlay" in mth or "pine" in mth, mth
+    mth = by["External Consumer Traffic"].get("description", "").lower()
+    assert "/smc_live" in mth and "external client" in mth, mth
 
 
 def test_dashboard_user_impact_block_is_promoted_to_top() -> None:
@@ -1301,7 +1303,7 @@ def test_dashboard_jargon_reduced_in_top_panels() -> None:
     titles = {p.get("title") for p in panels}
     assert "External Checks" in titles
     assert "Core Metrics Present" in titles
-    assert "Market Traffic Health" in titles
+    assert "External Consumer Traffic" in titles
     assert "No-Data Guard (Core Metrics)" not in titles
     assert "Market-open Request Health" not in titles
     assert "Bridge Scrapes" not in titles
@@ -1391,12 +1393,12 @@ def test_dashboard_top_incident_path_is_above_drilldown() -> None:
         "Overall Health",
         "Active Alerts",
         "Success Rate (%)",
-        "Market Traffic Health",
+        "External Consumer Traffic",
         "Market Data Freshness",
         "Core Metrics Present",
         "Request Latency Against 500 ms Target",
         "Error Budget Burn Rate",
-        "Pine Polling Watchdog",
+        "External Consumer Watchdog",
     ):
         assert y[title] < drilldown_start, title
 
@@ -1641,7 +1643,7 @@ def test_dashboard_market_traffic_health_explains_us_market_context() -> None:
     """The description must spell out the US market open/closed context."""
     dashboard = json.loads(_DASHBOARD_JSON.read_text(encoding="utf-8"))
     panels = _dashboard_panels(dashboard)
-    panel = next(p for p in panels if p.get("title") == "Market Traffic Health")
+    panel = next(p for p in panels if p.get("title") == "External Consumer Traffic")
     expr = panel["targets"][0]["expr"]
     description = panel.get("description", "").lower()
     assert "live_overlay_market_us_open" in expr
@@ -1711,19 +1713,19 @@ def test_dashboard_core_metrics_present_checks_critical_series() -> None:
 
 
 def test_dashboard_traffic_alert_armed_tile_uses_expected_market_traffic() -> None:
-    """Pine Polling Watchdog shows the arming flag directly, in the top incident row."""
+    """External Consumer Watchdog shows rollout intent in the top incident row."""
     dashboard = json.loads(_DASHBOARD_JSON.read_text(encoding="utf-8"))
     panels = {p.get("title"): p for p in _dashboard_panels(dashboard)}
-    panel = panels["Pine Polling Watchdog"]
-    assert _section_of(dashboard, "Pine Polling Watchdog") == "Status at a Glance"
+    panel = panels["External Consumer Watchdog"]
+    assert _section_of(dashboard, "External Consumer Watchdog") == "Status at a Glance"
     expr = panel["targets"][0]["expr"]
     mappings = panel["fieldConfig"]["defaults"]["mappings"]
     labels = {v["text"]: v["color"] for m in mappings for v in (m.get("options") or {}).values()}
 
     assert expr == 'live_overlay_expected_market_traffic{job=~"$job"}'
     assert panel["targets"][0]["legendFormat"] == "expected_market_traffic"
-    assert labels["NOT ARMED"] == "dark-red"
-    assert labels["ARMED"] == "dark-green"
+    assert labels["NO CONSUMER EXPECTED"] == "gray"
+    assert labels["CONSUMER EXPECTED"] == "dark-green"
     assert panel["fieldConfig"]["defaults"].get("noValue") == "NO SIGNAL"
     rows = {r["title"]: r["gridPos"]["y"] for r in _rows_in_order(dashboard)}
     assert panel["gridPos"]["y"] < rows["Daemon Operations"]

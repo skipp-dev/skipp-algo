@@ -176,9 +176,9 @@ failure fails CI instead of silently leaving the old container running.
 | `DATABENTO_API_KEY` | yes | — | Databento live feed API key |
 | `OVERLAY_SECRET_TOKEN` | yes | — | HMAC + `/metrics` basic-auth secret |
 | `PORT` | yes | `8080` (production pin) | HTTP listen port |
-| `LIVE_OVERLAY_EXPECT_MARKET_TRAFFIC` | no | `0` | Set to `1` in production deployments that should receive TradingView/Pine `/smc_live` traffic during US market-open windows; arms the first-zero traffic alert |
+| `LIVE_OVERLAY_EXPECT_MARKET_TRAFFIC` | no | `0` | Set to `1` only for a verified external `/smc_live` consumer; no supported Pine REST consumer exists |
 | `LIVE_OVERLAY_INGEST_QUEUE_MAX` | no | 10000 | Max queued bars before drop |
-| `LIVE_OVERLAY_EXPECT_MARKET_TRAFFIC` | no | `0` | Set to `1` in production deployments that should receive TradingView/Pine `/smc_live` traffic during US market-open windows. Arms the first-zero traffic alert. Leave `0` for local/dev/warm-standby. |
+| `LIVE_OVERLAY_EXPECT_MARKET_TRAFFIC` | no | `0` | Arms first-zero traffic alerts for a verified external `/smc_live` consumer. Keep `0` while none exists. |
 | `LIVE_OVERLAY_INGEST_QUEUE_MAX` | no | 10000 | Max queued bars before drop |
 | `LIVE_OVERLAY_RESTART_CAUSE` | no | — | Label for `live_overlay_daemon_restart_cause_*_total` |
 | `LOG_LEVEL` | no | `INFO` | Python log level |
@@ -251,7 +251,7 @@ failure fails CI instead of silently leaving the old container running.
 - `1`: alert when US market is open, the daemon has been up for more than
   10 minutes, and `/smc_live` request traffic remains near zero.
 
-Production deployments that should receive TradingView/Pine traffic must set:
+Deployments with a verified external `/smc_live` consumer must set:
 
 ```env
 LIVE_OVERLAY_EXPECT_MARKET_TRAFFIC=1
@@ -423,7 +423,7 @@ series were absent from `/metrics`. Grafana's `rate()` over a missing series
 returns no data, which the panel rendered as `0.00 %`. This looked like a
 service outage even though the daemon was healthy and simply had no requests.
 
-The same root cause made older **Market Traffic Health** revisions hard to
+The same root cause made older **External Consumer Traffic** revisions hard to
 interpret during no-traffic startup. `live_overlay_market_us_open` was still the
 correct US-session gate, but missing request counters could make the traffic
 half of the expression collapse to no data. The current dashboard keeps
@@ -471,32 +471,35 @@ The panel's field config sets `noValue: "NO TRAFFIC"`, so Grafana displays
 traffic appears, the series becomes non-zero and the panel shows the real
 success rate again.
 
-#### Market Traffic Health wiring
+#### External Consumer Traffic wiring
 
-The **Market Traffic Health** signal is intentionally US-regular-session gated
-via `live_overlay_market_us_open`. Europe/Asia session gauges are displayed for
-context, but `/smc_live` traffic expectations are evaluated against the US
-regular session only.
+The **External Consumer Traffic** signal is intentionally US-regular-session
+gated via `live_overlay_market_us_open` and rollout-gated via
+`live_overlay_expected_market_traffic`. Europe/Asia session gauges are display
+context only.
 
 Therefore the panel expression reads:
 
 ```promql
 (live_overlay_market_us_open{job=~"$job"} or vector(0))
 + ((live_overlay_market_us_open{job=~"$job"} or vector(0))
+   * (live_overlay_expected_market_traffic{job=~"$job"} or vector(0)))
++ ((live_overlay_market_us_open{job=~"$job"} or vector(0))
+   * (live_overlay_expected_market_traffic{job=~"$job"} or vector(0))
    * ((rate(live_overlay_smc_live_requests_total{job=~"$job"}[5m]) or vector(0)) > bool 0.001))
 ```
 
-- `0` = `MARKET_CLOSED` — US regular session is closed.
-- `1` = `OPEN_NO_TRAFFIC` — US regular session is open, but the request rate is
-  effectively zero.
-- `2` = `TRAFFIC_OK` — US regular session is open and `/smc_live` traffic is
-  present.
+- `0` = US regular session is closed.
+- `1` = market open, but no external consumer is expected (current healthy state).
+- `2` = a consumer is expected, but request traffic is absent.
+- `3` = an expected consumer is sending `/smc_live` traffic.
 
 In der UI sind diese Stati bewusst lesbarer benannt:
 
 - `0` = `MARKET CLOSED`
-- `1` = `OPEN · NO PINE POLLING`
-- `2` = `PINE POLLING OK`
+- `1` = `NO CONSUMER EXPECTED`
+- `2` = `EXPECTED · NO REQUESTS`
+- `3` = `CONSUMER TRAFFIC OK`
 
 #### Expected market traffic alert rollout
 
@@ -507,7 +510,7 @@ In der UI sind diese Stati bewusst lesbarer benannt:
 - `1`: alert when US market is open, the daemon has been up for more than
   10 minutes, and `/smc_live` request traffic remains near zero.
 
-Production deployments that should receive TradingView/Pine traffic must set:
+Deployments with a verified external `/smc_live` consumer must set:
 
 ```env
 LIVE_OVERLAY_EXPECT_MARKET_TRAFFIC=1
@@ -519,10 +522,10 @@ After rollout, verify:
 live_overlay_expected_market_traffic{job="live_overlay"} == 1
 ```
 
-The dashboard tile **Pine Polling Watchdog** shows the same gauge:
+The dashboard tile **External Consumer Watchdog** shows the same gauge:
 
-- `0` = `NOT ARMED`
-- `1` = `ARMED`
+- `0` = `NO CONSUMER EXPECTED`
+- `1` = `CONSUMER EXPECTED`
 
 Production also has a guard alert:
 
@@ -530,36 +533,18 @@ Production also has a guard alert:
 live_overlay_expected_market_traffic{job="live_overlay"} == bool 0
 ```
 
-If this fires in production, set `LIVE_OVERLAY_EXPECT_MARKET_TRAFFIC=1` before
-trusting the first-zero traffic alerts. Local, dev, and warm-standby deployments
-should normally leave the value at `0`.
+This reminder is paused while no supported consumer exists. Set
+`LIVE_OVERLAY_EXPECT_MARKET_TRAFFIC=1` only after a real client has been deployed
+and end-to-end requests are verified.
 
-#### Production mode: Pine consumer live
+#### Current production mode: no supported external consumer
 
-Wenn der TradingView/Pine `request.get()`-Consumer noch nicht ausgerollt ist,
-ist "no traffic" **erwartet**. In diesem Modus soll die Deployment-Instanz
-nicht auf fehlendes `/smc_live`-Polling alarmieren.
-
-Setze daher:
-
-```env
-LIVE_OVERLAY_EXPECT_MARKET_TRAFFIC=1
-```
-
-The reminder alert `lo-expected-traffic-not-armed` is active. It detects a
-production deployment that accidentally disables Pine polling expectations.
-
-Production requirements:
-
-1. Keep `LIVE_OVERLAY_EXPECT_MARKET_TRAFFIC=1` on the production daemon.
-2. Keep `lo-expected-traffic-not-armed` active (`isPaused: false`).
-3. Reapply alert rules after changes (`scripts/grafana_alert_rules_upsert.py`).
-
-Expected result:
-
-- `Pine Polling Watchdog` = `ARMED`
-- `Market Traffic Health` wechselt bei Polling von
-  `OPEN · NO PINE POLLING` auf `PINE POLLING OK`.
+Pine cannot call `/smc_live` directly. Keep
+`LIVE_OVERLAY_EXPECT_MARKET_TRAFFIC=0` and
+`lo-expected-traffic-not-armed` paused (`isPaused: true`). The API's own health,
+latency, error, and auth-denied alerts remain active. ADR-0028 defines the real
+TradingView provider qualification; arm a future watchdog only against the path
+that is actually deployed and verified.
 
 ### Dashboard masking semantics
 
@@ -1070,7 +1055,7 @@ are GitHub-workflow-specific detail series.
 | Source | Destination | Protocol | Auth | Direction | Data |
 |--------|-------------|----------|------|-----------|------|
 | Databento | Daemon `feed.py` | Databento db.Live (TCP/TLS) | `DATABENTO_API_KEY` | Inbound | ohlcv-1m bars |
-| TradingView Pine | Daemon `main.py` | HTTPS | URL path token (`OVERLAY_SECRET_TOKEN`) | Inbound | Overlay JSON |
+| External API client (none deployed) | Daemon `main.py` | HTTPS | URL path token (`OVERLAY_SECRET_TOKEN`) | Inbound | Overlay JSON |
 | Daemon `/metrics` | Grafana Alloy | HTTP | Basic auth (`OVERLAY_SECRET_TOKEN`) | Outbound | Prometheus metrics |
 | Alloy | Grafana Cloud Prometheus | HTTPS/TLS | `GRAFANA_CLOUD_API_KEY` | Outbound | Remote-write samples |
 | Grafana Cloud | Operators | HTTPS | Grafana session/API key | Outbound | Dashboards, alerts |
@@ -1084,7 +1069,7 @@ are GitHub-workflow-specific detail series.
 Do **not** place the production `OVERLAY_SECRET_TOKEN` in UptimeRobot for a
 `/{token}/smc_live` synthetic probe. The token is not independently rotatable for
 that third-party monitor, so a UptimeRobot leak would force the same secret used
-by Pine consumers and `/metrics`.
+by `/smc_live` API clients and legacy `/metrics` auth.
 
 Current production coverage stays:
 
@@ -1099,7 +1084,7 @@ Future safe options, in order of preference:
    validates cache/compute readiness without returning customer-token-protected
    overlay payloads.
 2. Run an internal synthetic from `metrics-collector` over Railway private
-   networking with a token that is not shared with Pine consumers.
+   networking with a token that is not shared with external API clients.
 3. Keep the current Grafana first-zero request-rate detector as the end-to-end
    traffic guard if neither of the above is approved.
 
@@ -1118,7 +1103,7 @@ Future safe options, in order of preference:
 | Variable | Rotation steps |
 |----------|----------------|
 | `DATABENTO_API_KEY` | 1. Create new key in Databento portal.<br>2. Update Railway variable.<br>3. Redeploy daemon.<br>4. Revoke old key after health OK. |
-| `OVERLAY_SECRET_TOKEN` | 1. Generate new random secret.<br>2. Update in Railway for both daemon and Alloy services.<br>3. Redeploy both services.<br>4. Update TradingView Pine script URL tokens if path-token auth is used. |
+| `OVERLAY_SECRET_TOKEN` | 1. Generate new random secret.<br>2. Update in Railway for both daemon and Alloy services.<br>3. Redeploy both services.<br>4. Update any authenticated server-side `/smc_live` clients. |
 | `UPTIMEROBOT_API_KEY` | 1. Regenerate in UptimeRobot dashboard.<br>2. Update Railway variable.<br>3. Redeploy. |
 | `GITHUB_WORKFLOW_MONITOR_TOKEN` | 1. Create new GitHub PAT with `repo` + `actions:read`.<br>2. Update Railway variable.<br>3. Redeploy.<br>4. Delete old PAT. |
 | `GRAFANA_CLOUD_API_KEY` | 1. Create new MetricsPublisher/API key in Grafana Cloud.<br>2. Update Railway Alloy service variable.<br>3. Redeploy Alloy.<br>4. Revoke old key. |

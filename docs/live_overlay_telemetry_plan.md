@@ -1,6 +1,11 @@
 # Live Overlay Telemetrie — Umsetzungsplan
 
-Status: Vorschlag · Datum: 2026-06-19 · Branch-Kontext: `fix/live-overlay-post-merge-bugs` (PR #2860)
+Status: historischer Plan, weitgehend umgesetzt · Datum: 2026-06-19 · Statuskorrektur: 2026-07-16
+
+> Die Abschnitte unten dokumentieren den damaligen Ausgangspunkt. Prometheus,
+> Grafana, Alloy und Alert-Regeln sind inzwischen produktiv. Die damalige
+> Annahme eines Pine-REST-Konsumenten war falsch; Pine kann `/smc_live` nicht
+> direkt abrufen. Der aktuelle TradingView-Plan steht in ADR-0028.
 
 ## 1. Ausgangslage
 
@@ -24,7 +29,7 @@ Konsumiert:
 
 - `/health` → Railway Healthcheck + UptimeRobot (nur binär up/down).
 - Strukturierte Logs → Railway Logs + Mensch + Tests (`caplog`).
-- Pine → nur `/{token}/smc_live`, keine Telemetrie.
+- Kein Pine-REST-Konsument; `/smc_live` ist ein API-Endpunkt für authentifizierte Clients.
 
 Fehlt vollständig: Prometheus, Grafana, Datadog, OpenTelemetry, App Insights, Log-Drain,
 Alert-Regeln, semantischer `/health`-Monitor.

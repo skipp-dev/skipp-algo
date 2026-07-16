@@ -83,7 +83,7 @@ _FROZEN_LEDGER: dict[str, int] = {
     "SMC_Session_Context.pine": 11,
     "SMC_Setup_Check.pine": 2,
     "SMC_Structure_Context.pine": 10,
-    "SMC_Regime_and_News.pine": 3,
+    "SMC_Regime_and_News.pine": 1,  # retired compatibility notice; no data ingress
     "SMC_Volume_Profile_Overlay.pine": 55,
     "SMC_Confluence_Hub.pine": 7,
     # Alert companion: only the persistent status table needs `var` — the group
@@ -108,7 +108,6 @@ _FROZEN_LEDGER: dict[str, int] = {
     "pine/legacy/VWAP_Reclaim_Indicator.pine": 17,
     "pine/legacy/VWAP_Reclaim_Strategy.pine": 19,
     "pine/legacy/Volume_Weighted_Trend_SkippAlgo.pine": 3,
-    "pine/smc_live_overlay_consumer.pine": 4,  # 2026-06-16 (feat/live-overlay-daemon): DAEMON_URL, TOKEN, SHOW_TABLE, _tbl
     # 2026-07-04 (plan B1): generated open-prep daily panel — 11 PANEL_* consts
     # + 7 candidate arrays + var table + var hdrs. Count is stable regardless
     # of candidate count (arrays are single `array.from(...)` decls).
@@ -118,7 +117,7 @@ _FROZEN_LEDGER: dict[str, int] = {
     "test_div.pine": 2,
 }
 
-_TOTAL_BUDGET = 1014  # bumped 2026-07-09: +3 panel level arrays; was 1011 (2026-07-04 plan B1, +20; before that 991).
+_TOTAL_BUDGET = 1008  # 2026-07-16: retired HTTP consumer; bridge reduced to tombstone (-6 total).
 
 
 def _iter_pine() -> list[Path]:

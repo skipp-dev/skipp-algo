@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://skipp-algo.local/spec/smc_live_overlay.schema.json",
   "title": "SMC live-overlay payload (smc-live-overlay/1)",
-  "description": "Flat, Pine-friendly live-overlay payload served at GET /smc_live. It augments the 2x/day baked mp.* baseline that SMC_Regime_and_News.pine already carries. Every data field is optional and nullable: an absent or null field means the overlay has nothing fresher to say and Pine falls back to the baked mp.* value. The overlay may only add or tighten signals, never loosen them; a stale or unreachable endpoint degrades silently to the baked baseline.",
+  "description": "Flat live-overlay payload served at GET /smc_live for authenticated API clients. Every data field is optional and nullable: an absent or null field means the service has no fresh value for that field. This schema is not a Pine transport; Pine has no arbitrary HTTP client. TradingView delivery is planned separately in ADR-0028.",
   "type": "object",
   "required": [
     "schema",
@@ -35,12 +35,12 @@
       ]
     },
     "asof_ts": {
-      "description": "Unix epoch seconds at which the overlay was produced. Pine compares this against OVERLAY_MAX_AGE_SEC to decide freshness.",
+      "description": "Unix epoch seconds at which the overlay was produced. Consumers compare it with their freshness budget.",
       "type": "integer",
       "minimum": 0
     },
     "stale": {
-      "description": "Server-side freshness verdict. True means the producer already knows the payload is older than its target refresh budget; Pine must treat the overlay as fallback-only.",
+      "description": "Server-side freshness verdict. True means the producer already knows the payload is older than its target refresh budget; consumers must not treat its optional values as current.",
       "type": "boolean"
     },
     "news_strength": {
@@ -66,7 +66,7 @@
       ]
     },
     "flow_rel_vol": {
-      "description": "B1. Relative volume vs baseline (>=0). Null when not served fresh (then Pine uses baked mp.flow_rel_vol).",
+      "description": "B1. Relative volume vs baseline (>=0). Null when no fresh value is available.",
       "type": [
         "number",
         "null"
@@ -86,7 +86,7 @@
       ]
     },
     "vix_level": {
-      "description": "B2. Spot VIX level (>=0) from the dedicated market-wide ^VIX quote path. Absent (or null) when not served fresh (then Pine uses the baked mp.* VIX baseline).",
+      "description": "B2. Spot VIX level (>=0) from the dedicated market-wide ^VIX quote path. Absent or null when no fresh value is available.",
       "type": [
         "number",
         "null"
@@ -94,35 +94,35 @@
       "minimum": 0
     },
     "flow_delta_proxy_pct": {
-      "description": "B2. Signed order-flow delta proxy in percent from the live microstructure read. Absent (or null) when not served fresh (then Pine uses baked mp.* delta-proxy).",
+      "description": "B2. Signed order-flow delta proxy in percent from the live microstructure read. Absent or null when no fresh value is available.",
       "type": [
         "number",
         "null"
       ]
     },
     "ats_state": {
-      "description": "B2. Accumulation/distribution regime label from price-delta x volume-zscore: \"accumulation\" | \"distribution\" | \"neutral\". (\"ATS\" here is an accumulation/distribution read, not average-trade-size.) Absent (or null) when not served fresh (then Pine uses baked mp.* ats_state).",
+      "description": "B2. Accumulation/distribution regime label from price-delta x volume-zscore: \"accumulation\" | \"distribution\" | \"neutral\". (\"ATS\" here is an accumulation/distribution read, not average-trade-size.) Absent or null when no fresh value is available.",
       "type": [
         "string",
         "null"
       ]
     },
     "ats_zscore": {
-      "description": "B2. Z-score of the last bar's volume vs the rolling intraday bar window (not average-trade-size, not a 20-day baseline). Absent (or null) when not served fresh (then Pine uses baked mp.* ats_zscore).",
+      "description": "B2. Z-score of the last bar's volume vs the rolling intraday bar window (not average-trade-size, not a 20-day baseline). Absent or null when no fresh value is available.",
       "type": [
         "number",
         "null"
       ]
     },
     "tone": {
-      "description": "B2. Aggregate market-tone label from the live snapshot. Absent (or null) when not served fresh (then Pine uses the baked mp.* tone).",
+      "description": "B2. Aggregate market-tone label from the live snapshot. Absent or null when no fresh value is available.",
       "type": [
         "string",
         "null"
       ]
     },
     "global_heat": {
-      "description": "B2/C. Aggregate directional heat in [-1,1]: the clamped mean of per-story signed news scores (sentiment_score, else news_score) from the live snapshot; news-only (no technical term). Absent (or null) when not served fresh (then Pine uses the baked mp.* global_heat).",
+      "description": "B2/C. Aggregate directional heat in [-1,1]: the clamped mean of per-story signed news scores (sentiment_score, else news_score) from the live snapshot; news-only (no technical term). Absent or null when no fresh value is available.",
       "type": [
         "number",
         "null"
@@ -131,7 +131,7 @@
       "maximum": 1
     },
     "event_window_state": {
-      "description": "Event-risk. Macro/earnings event-window state for the symbol (CLEAR/PRE_EVENT/ACTIVE/COOLDOWN) from the event calendar. Absent (or null) when not served fresh (then Pine keeps the baked mp.* event posture).",
+      "description": "Event-risk. Macro/earnings event-window state for the symbol (CLEAR/PRE_EVENT/ACTIVE/COOLDOWN) from the event calendar. Absent or null when no fresh value is available.",
       "type": [
         "string",
         "null"

@@ -2,7 +2,8 @@
 
 These tests are pure JSON-Schema + pydantic checks with no live FMP/Databento
 dependency, so they run in CI without provider keys. They lock the wire shape
-that ``GET /smc_live`` (WP-B) and ``SMC_Regime_and_News.pine`` (WP-C) depend on.
+that authenticated ``GET /smc_live`` clients depend on. The former Pine bridge
+is retired because Pine cannot call arbitrary REST endpoints (ADR-0028).
 """
 
 from __future__ import annotations

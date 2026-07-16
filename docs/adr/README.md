@@ -44,10 +44,11 @@ old one and update the table below.
 | 0025 | [Grafana App Platform `dashboard.grafana.app/v1` publish surface (classic schema in `spec`)](0025-grafana-dashboard-apis-v1-surface-migration.md) | Accepted | 2026-06-22 | `scripts/publish_overlay_dashboard.py` + `tests/test_publish_overlay_dashboard.py` + `tests/test_live_overlay_dashboard_contract.py`; pin re-alignment per ADR-0009 |
 | 0026 | [Record executed status of the tier-2 magnitude re-target + OHLCV queue closure](0026-magnitude-retarget-executed-and-ohlcv-queue-closed.md) | Accepted (records-only) | 2026-07-12 | doc-only; reconciles the index with executed ADR-0019/0022/0023 decisions + `williams_vix_fix` retirement; no code changed |
 | 0027 | [Structure artifacts are runtime outputs](0027-structure-artifacts-runtime-outputs.md) | Accepted (Design B) | 2026-07-13 | structure-provider integration tests + production/release workflow availability gates |
+| 0028 | [Qualify a real TradingView data-provider integration](0028-tradingview-data-provider-integration.md) | Proposed (qualification required) | 2026-07-16 | `tests/test_pine_tv_bridge_fail_closed.py` + `tests/test_tradingview_provider_integration_plan.py` |
 
 ## Reservation rule
 
-The next free ADR number is **0028**. To avoid concurrent-PR collisions:
+The next free ADR number is **0029**. To avoid concurrent-PR collisions:
 
 1. Reserve the next number by opening the PR with the file already named
    (e.g. `docs/adr/0008-foo.md`) before the rebase race window closes.

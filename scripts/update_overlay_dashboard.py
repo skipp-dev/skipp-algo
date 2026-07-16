@@ -175,7 +175,7 @@ UPTIMEROBOT_PANEL: dict[str, Any] = {
 }
 
 
-_TRAFFIC_ALERT_ARMED_TITLE = "Pine Polling Watchdog"
+_TRAFFIC_ALERT_ARMED_TITLE = "External Consumer Watchdog"
 _TRAFFIC_ALERT_ARMED_Y = 1
 _TRAFFIC_ALERT_ARMED_H = 5
 
@@ -185,9 +185,9 @@ TRAFFIC_ALERT_ARMED_PANEL: dict[str, Any] = {
     "type": "stat",
     "datasource": PROMETHEUS_DATASOURCE,
     "description": (
-        "Production safety check for TradingView/Pine polling. ARMED means a stalled "
-        "or absent Pine consumer alerts while the US regular market session is open. "
-        "NOT ARMED means that protection is disabled and requires operator action."
+        "Whether this deployment expects an external client to call /smc_live during "
+        "the US regular market session. NO CONSUMER EXPECTED is the correct current "
+        "state; CONSUMER EXPECTED arms missing-traffic alerts after a verified client rollout."
     ),
     "gridPos": {"x": 8, "y": _TRAFFIC_ALERT_ARMED_Y, "w": 4, "h": _TRAFFIC_ALERT_ARMED_H},
     "targets": [
@@ -206,15 +206,15 @@ TRAFFIC_ALERT_ARMED_PANEL: dict[str, Any] = {
                 {
                     "type": "value",
                     "options": {
-                        "0": {"text": "NOT ARMED", "color": COLOR_ERROR},
-                        "1": {"text": "ARMED", "color": COLOR_OK},
+                        "0": {"text": "NO CONSUMER EXPECTED", "color": COLOR_NEUTRAL},
+                        "1": {"text": "CONSUMER EXPECTED", "color": COLOR_OK},
                     },
                 }
             ],
             "thresholds": {
                 "mode": "absolute",
                 "steps": [
-                    {"color": COLOR_ERROR, "value": None},
+                    {"color": COLOR_NEUTRAL, "value": None},
                     {"color": COLOR_OK, "value": 1},
                 ],
             },
@@ -461,7 +461,7 @@ def _ensure_traffic_alert_armed_panel(data: dict[str, Any]) -> bool:
     """Keep the production traffic-alert arming tile in the incident overview."""
     changed = False
     desired = copy.deepcopy(TRAFFIC_ALERT_ARMED_PANEL)
-    panel = _v1_panel_by_title(data, _TRAFFIC_ALERT_ARMED_TITLE)
+    panel = _v1_panel_by_any_title(data, _TRAFFIC_ALERT_ARMED_TITLE, "Pine Polling Watchdog")
     desired_bottom = _TRAFFIC_ALERT_ARMED_Y + _TRAFFIC_ALERT_ARMED_H
 
     operational_row = _v1_panel_by_title(data, "Operational Drill-down")
@@ -1572,19 +1572,53 @@ def _fix_railway_bridge_panel(data: dict[str, Any]) -> bool:
 
 
 def _fix_market_traffic_health_description(data: dict[str, Any]) -> bool:
-    """Make the Market Traffic Health description match its US-only query."""
+    """Make external-consumer state explicit and gate it on rollout intent."""
     changed = False
-    panel = _v1_panel_by_title(data, "Market Traffic Health")
+    panel = _v1_panel_by_any_title(data, "External Consumer Traffic", "Market Traffic Health")
     if not panel:
         return changed
+    if panel.get("title") != "External Consumer Traffic":
+        panel["title"] = "External Consumer Traffic"
+        changed = True
     wanted = (
-        "Are Pine/TradingView clients polling the /smc_live overlay endpoint? "
-        "Synthetic signal that amplifies this overlay-request health while the US "
-        "regular trading session is open and suppresses it when the market is "
-        "closed. (This is NOT news/provider traffic.)"
+        "Whether a verified external client is expected to call /smc_live, and whether "
+        "requests are arriving during the US regular market session. NO CONSUMER EXPECTED "
+        "is healthy while the endpoint has no deployed client. This is API traffic, not "
+        "provider-ingest or future TradingView data-provider delivery."
     )
     if panel.get("description") != wanted:
         panel["description"] = wanted
+        changed = True
+    expected_expr = (
+        'max((live_overlay_market_us_open{job=~"$job"} or on() vector(0)) '
+        '+ ((live_overlay_market_us_open{job=~"$job"} or on() vector(0)) '
+        '* (live_overlay_expected_market_traffic{job=~"$job"} or on() vector(0))) '
+        '+ ((live_overlay_market_us_open{job=~"$job"} or on() vector(0)) '
+        '* (live_overlay_expected_market_traffic{job=~"$job"} or on() vector(0)) '
+        '* (((rate(live_overlay_smc_live_requests_total{job=~"$job"}[5m]) '
+        'or on() vector(0)) > bool 0.001))))'
+    )
+    targets = panel.get("targets", [])
+    if targets and targets[0].get("expr") != expected_expr:
+        targets[0]["expr"] = expected_expr
+        changed = True
+    defaults = panel.setdefault("fieldConfig", {}).setdefault("defaults", {})
+    desired_mappings = [
+        _value_mapping(0, "MARKET CLOSED", COLOR_NEUTRAL),
+        _value_mapping(1, "NO CONSUMER EXPECTED", COLOR_NEUTRAL),
+        _value_mapping(2, "EXPECTED · NO REQUESTS", COLOR_WARN),
+        _value_mapping(3, "CONSUMER TRAFFIC OK", COLOR_OK),
+    ]
+    if defaults.get("mappings") != desired_mappings:
+        defaults["mappings"] = desired_mappings
+        changed = True
+    desired_steps = [
+        {"color": COLOR_NEUTRAL, "value": None},
+        {"color": COLOR_WARN, "value": 2},
+        {"color": COLOR_OK, "value": 3},
+    ]
+    if defaults.setdefault("thresholds", {}).get("steps") != desired_steps:
+        defaults["thresholds"] = {"mode": "absolute", "steps": desired_steps}
         changed = True
     return changed
 
@@ -1686,7 +1720,7 @@ def _apply_user_facing_semantics(data: dict[str, Any]) -> bool:
         reliability_row,
         title="Overlay API Reliability",
         description=(
-            "How reliably the live-overlay API serves Pine requests: success rate, latency against "
+            "How reliably the live-overlay API serves authenticated client requests: success rate, latency against "
             "the service target, and error-budget consumption. Service-owner detail."
         ),
     ) or changed
@@ -1944,14 +1978,14 @@ def _apply_user_facing_semantics(data: dict[str, Any]) -> bool:
         (
             "Hotspots — Symbols (Top)",
             "Most Requested Symbols",
-            "Per-symbol Pine overlay request rate for the selected time range. Empty means no "
-            "Pine requests were observed in that range, not a dashboard failure.",
+            "Per-symbol /smc_live request rate for the selected time range. Empty means no "
+            "external client requests were observed, not a dashboard failure.",
         ),
         (
             "Hotspots — Timeframes (Top)",
             "Most Requested Timeframes",
-            "Per-timeframe Pine overlay request rate for the selected time range. Empty means no "
-            "Pine requests were observed in that range, not a dashboard failure.",
+            "Per-timeframe /smc_live request rate for the selected time range. Empty means no "
+            "external client requests were observed, not a dashboard failure.",
         ),
     ):
         panel = _v1_panel_by_any_title(data, new_title, old_title)
@@ -1962,8 +1996,8 @@ def _apply_user_facing_semantics(data: dict[str, Any]) -> bool:
         if defaults.get("unit") != "reqps":
             defaults["unit"] = "reqps"
             changed = True
-        if defaults.get("noValue") != "NO PINE REQUESTS":
-            defaults["noValue"] = "NO PINE REQUESTS"
+        if defaults.get("noValue") != "NO CLIENT REQUESTS":
+            defaults["noValue"] = "NO CLIENT REQUESTS"
             changed = True
 
     help_panel = _v1_panel_by_title(data, "How to read & export this section")

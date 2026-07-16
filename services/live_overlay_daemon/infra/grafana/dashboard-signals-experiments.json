@@ -391,9 +391,9 @@
     },
     {
       "id": 2165782571,
-      "title": "Pine Polling Watchdog",
+      "title": "External Consumer Watchdog",
       "type": "stat",
-      "description": "Production safety check for TradingView/Pine polling. ARMED means a stalled or absent Pine consumer alerts while the US regular market session is open. NOT ARMED means that protection is disabled and requires operator action.",
+      "description": "Whether this deployment expects an external client to call /smc_live during the US regular market session. NO CONSUMER EXPECTED is the correct current state; CONSUMER EXPECTED arms missing-traffic alerts after a verified client rollout.",
       "gridPos": {
         "x": 0,
         "y": 9,
@@ -417,11 +417,11 @@
               "type": "value",
               "options": {
                 "0": {
-                  "text": "NOT ARMED",
-                  "color": "dark-red"
+                  "text": "NO CONSUMER EXPECTED",
+                  "color": "gray"
                 },
                 "1": {
-                  "text": "ARMED",
+                  "text": "CONSUMER EXPECTED",
                   "color": "dark-green"
                 }
               }
@@ -431,7 +431,7 @@
             "mode": "absolute",
             "steps": [
               {
-                "color": "dark-red",
+                "color": "gray",
                 "value": null
               },
               {

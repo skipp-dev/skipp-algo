@@ -6524,6 +6524,21 @@ export async function saveScript(page: Page, scriptName: string): Promise<void> 
 // a clean result — otherwise a crashed page reads as a successful compile.
 const COMPILE_PROBE_UNREADABLE = Symbol("compile-probe-unreadable");
 
+const PINE_COMPILE_ERROR_MARKERS = [
+  "syntax error",
+  "compilation error",
+  "script could not be translated",
+  "error at ",
+  "error on bar",
+  "undeclared identifier",
+  "mismatched input",
+] as const;
+
+export function detectPineCompileErrorMarker(text: string): string | null {
+  const normalized = normalizeUiText(text || "").toLowerCase();
+  return PINE_COMPILE_ERROR_MARKERS.find((marker) => normalized.includes(marker)) ?? null;
+}
+
 async function getVisibleCompileErrorMarker(
   page: Page,
 ): Promise<string | typeof COMPILE_PROBE_UNREADABLE | null> {
@@ -6544,18 +6559,7 @@ async function getVisibleCompileErrorMarker(
     return COMPILE_PROBE_UNREADABLE;
   }
 
-  const bodyText = normalizeUiText(rawBody || "").toLowerCase();
-  const markers = [
-    "syntax error",
-    "compilation error",
-    "script could not be translated",
-    "error at ",
-    "error on bar",
-    "undeclared identifier",
-    "mismatched input",
-  ];
-
-  return markers.find((marker) => bodyText.includes(marker)) ?? null;
+  return detectPineCompileErrorMarker(rawBody || "");
 }
 
 /**
@@ -6617,6 +6621,40 @@ export async function assertNoVisibleCompileError(page: Page): Promise<void> {
   // authoritative final gate.)
   if (hit === COMPILE_PROBE_UNREADABLE) {
     throw new Error("Visible compile error check failed: page body is unreadable (crashed/destroyed context)");
+  }
+}
+
+/**
+ * Return a compile/runtime error attached to the exact chart legend row for
+ * {@link scriptName}. TradingView can expose a clean editor body immediately
+ * after Save, then reveal a Pine compiler error only after Add to chart. The
+ * generic body-text gate above cannot see an icon whose diagnostic lives in a
+ * title/aria-label attribute (the CE10271 incident on 2026-07-16).
+ */
+export async function getVisibleChartScriptError(page: Page, scriptName: string): Promise<string | null> {
+  const wrappers = await findLegendRowWrappers(page, scriptName);
+  for (const wrapper of wrappers) {
+    const candidates = wrapper.locator("[title], [aria-label]");
+    const count = await candidates.count();
+    for (let index = 0; index < Math.min(count, 30); index += 1) {
+      const candidate = candidates.nth(index);
+      if (!(await candidate.isVisible({ timeout: 250 }).catch(() => false))) continue;
+      for (const attribute of ["title", "aria-label"] as const) {
+        const value = normalizeUiText((await candidate.getAttribute(attribute).catch(() => null)) || "");
+        if (detectPineCompileErrorMarker(value)) return value;
+      }
+    }
+
+    const rowText = normalizeUiText((await wrapper.innerText({ timeout: 300 }).catch(() => "")) || "");
+    if (detectPineCompileErrorMarker(rowText)) return rowText;
+  }
+  return null;
+}
+
+export async function assertNoVisibleChartScriptError(page: Page, scriptName: string): Promise<void> {
+  const hit = await getVisibleChartScriptError(page, scriptName);
+  if (hit) {
+    throw new Error(`Visible chart error detected for ${scriptName}: ${hit}`);
   }
 }
 
@@ -7062,7 +7100,11 @@ export async function probeRuntimeSmoke(
   // sentinel: map it to a probe-failure value so a crashed body read fails the
   // smoke gate CLOSED instead of masquerading as a clean compile (`null`).
   const compileMarker = await getVisibleCompileErrorMarker(page).catch(() => "runtime_smoke_probe_failed" as const);
-  const compileError = compileMarker === COMPILE_PROBE_UNREADABLE ? "runtime_smoke_probe_failed" : compileMarker;
+  const bodyCompileError = compileMarker === COMPILE_PROBE_UNREADABLE ? "runtime_smoke_probe_failed" : compileMarker;
+  const chartCompileError = bodyCompileError
+    ? null
+    : await getVisibleChartScriptError(page, scriptName).catch(() => "runtime_smoke_probe_failed");
+  const compileError = bodyCompileError || chartCompileError;
 
   return {
     ok: scriptVisible && !signInModalVisible && !compileError,
