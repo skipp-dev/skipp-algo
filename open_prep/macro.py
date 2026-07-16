@@ -2155,6 +2155,68 @@ class FMPClient:
             query_date = _prev_us_equity_trading_day(query_date)
         return []
 
+    def get_stable_batch_quotes(self, symbols: list[str]) -> list[dict[str, Any]]:
+        """Fetch stock quotes through FMP's real stable batch endpoint.
+
+        This is the low-request-count path for the realtime producer.  The
+        legacy :meth:`get_batch_quotes` remains unchanged for daily-pipeline
+        callers until their per-symbol partial-failure contract is migrated.
+        """
+
+        requested = [str(raw or "").strip().upper() for raw in symbols]
+        deduped = list(dict.fromkeys(symbol for symbol in requested if symbol))
+        started_at = time.perf_counter()
+        rows_by_symbol: dict[str, dict[str, Any]] = {}
+        failed_chunks = 0
+        chunk_count = 0
+        for start in range(0, len(deduped), 250):
+            chunk = deduped[start : start + 250]
+            chunk_count += 1
+            try:
+                data = self._get(
+                    "/stable/batch-quote",
+                    {"symbols": ",".join(chunk)},
+                )
+            except RuntimeError as exc:
+                failed_chunks += 1
+                logger.warning(
+                    "stable batch-quote chunk %d-%d failed: %s",
+                    start,
+                    start + len(chunk),
+                    exc,
+                )
+                continue
+            if not isinstance(data, list):
+                continue
+            for row in data:
+                if not isinstance(row, dict):
+                    continue
+                symbol = str(row.get("symbol") or "").strip().upper()
+                if symbol in chunk and symbol not in rows_by_symbol:
+                    rows_by_symbol[symbol] = row
+
+        fetched = [symbol for symbol in deduped if symbol in rows_by_symbol]
+        missing = [symbol for symbol in deduped if symbol not in rows_by_symbol]
+        self._last_quote_fetch_diagnostics = {
+            "quote_fetch_mode": "fmp_stable_batch_quote",
+            "requested_symbols": requested,
+            "requested_symbol_count": len(requested),
+            "deduped_symbols": deduped,
+            "deduped_symbol_count": len(deduped),
+            "fetched_unique_symbols": fetched,
+            "fetched_unique_symbol_count": len(fetched),
+            "failed_quote_symbols": missing,
+            "failed_quote_symbol_count": len(missing),
+            "partial_quote_fetch": bool(missing) and bool(fetched),
+            "quote_fetch_all_failed": bool(deduped) and not fetched,
+            "quote_fetch_duration_ms": round((time.perf_counter() - started_at) * 1000.0),
+            "quote_fetch_workers": 1,
+            "quote_fetch_chunks": chunk_count,
+            "quote_fetch_failed_chunks": failed_chunks,
+            "endpoint_used": "/stable/batch-quote",
+        }
+        return [rows_by_symbol[symbol] for symbol in deduped if symbol in rows_by_symbol]
+
 
 @dataclass
 class FinnhubClient:

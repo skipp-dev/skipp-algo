@@ -78,8 +78,9 @@ _LEGACY_RUN_PATH = Path(__file__).resolve().parent / "latest_open_prep_run.json"
 DEFAULT_POLL_INTERVAL = 20  # seconds (was 45 — faster detection)
 DEFAULT_TOP_N = 0  # 0 = monitor ALL symbols from pipeline (900+)
 
-# FMP batch-quote chunking: batching only — get_batch_quotes issues ONE request per symbol since the /stable migration, so there is no URL-length effect (corrected 2026-07-08)
-_BATCH_QUOTE_CHUNK_SIZE = 500
+# FMP stable batch-quote accepts comma-separated symbols.  Keep chunks below
+# gateway URL limits; the production 200-symbol watchlist fits in one request.
+_BATCH_QUOTE_CHUNK_SIZE = 250
 
 # Signal level thresholds
 A0_VOLUME_RATIO_MIN = 3.0        # 3x time-of-day-normalized volume pace (not the raw avg multiple)
@@ -718,7 +719,8 @@ class NearA0Repoller:
 
     def _fetch(self, client: Any, symbols: list[str]) -> dict[str, dict[str, Any]]:
         quotes: dict[str, dict[str, Any]] = {}
-        raw = client.get_batch_quotes(symbols)  # warm set is small: one batch
+        fetch_quotes = getattr(client, "get_stable_batch_quotes", None)
+        raw = (fetch_quotes or client.get_batch_quotes)(symbols)
         for q in raw or []:
             sym = str(q.get("symbol", "")).strip().upper()
             if sym:
@@ -867,47 +869,56 @@ def _resolve_expected_volume_fraction(snapshot_fraction: Any | None = None) -> f
     return max(_expected_cumulative_volume_fraction(), 0.02)
 
 
-def _is_within_market_hours() -> bool:
-    """Return ``True`` when the current US-Eastern time is within extended
-    trading hours (Mon–Fri, 04:00–20:00 ET).
+def _market_session(now_et: datetime | None = None) -> str:
+    """Return closed, premarket, regular, or postmarket for US equities.
 
-    Uses ``zoneinfo`` (stdlib ≥ 3.9) with a fallback to ``dateutil.tz``;
-    if BOTH are unavailable it RAISES (fail-closed — no fixed-UTC guess).
+    ``now_et`` is injectable for deterministic boundary tests.  Without it,
+    use ``America/New_York`` with a fail-closed timezone fallback.
     """
-    try:
-        from zoneinfo import ZoneInfo
-        now_et = datetime.now(ZoneInfo("America/New_York"))
-    except ImportError:
+    if now_et is None:
         try:
-            from dateutil.tz import gettz
-            tz = gettz("America/New_York")
-            if tz is None:
-                raise ImportError("dateutil could not resolve America/New_York")
-            now_et = datetime.now(tz)
-        except ImportError as exc:
-            raise RuntimeError(
-                "America/New_York timezone unavailable: install `tzdata` "
-                "or `python-dateutil`. Refusing to fall back to a fixed UTC "
-                "offset because that silently drifts 1h every winter and "
-                "would corrupt realtime signal market-hours gating."
-            ) from exc
+            from zoneinfo import ZoneInfo
+            now_et = datetime.now(ZoneInfo("America/New_York"))
+        except ImportError:
+            try:
+                from dateutil.tz import gettz
+                tz = gettz("America/New_York")
+                if tz is None:
+                    raise ImportError("dateutil could not resolve America/New_York")
+                now_et = datetime.now(tz)
+            except ImportError as exc:
+                raise RuntimeError(
+                    "America/New_York timezone unavailable: install `tzdata` "
+                    "or `python-dateutil`. Refusing to fall back to a fixed UTC "
+                    "offset because that silently drifts 1h every winter and "
+                    "would corrupt realtime signal market-hours gating."
+                ) from exc
 
     # Monday=0, Sunday=6
     if now_et.weekday() >= 5:
-        return False
+        return "closed"
 
     # NYSE full-day holiday: FMP quotes carry the previous session's prints, so
     # without this gate the engine fires false A0/A1 breakouts across the whole
     # watchlist on a closed day (e.g. observed Independence Day 2026-07-03).
     if not is_us_equity_trading_day(now_et.date()):
-        return False
+        return "closed"
 
-    hour = now_et.hour
-    _minute = now_et.minute
-    # 04:00–20:00 ET (pre-market 04:00, regular 09:30-16:00, after-hours until 20:00)
-    if hour < 4:
-        return False
-    return hour < 20
+    now_minute = now_et.hour * 60 + now_et.minute
+    regular_open = 9 * 60 + 30
+    regular_close = regular_session_close_minutes(now_et.date())
+    if 4 * 60 <= now_minute < regular_open:
+        return "premarket"
+    if regular_open <= now_minute < regular_close:
+        return "regular"
+    if regular_close <= now_minute < 20 * 60:
+        return "postmarket"
+    return "closed"
+
+
+def _is_within_market_hours() -> bool:
+    """Compatibility wrapper for the 04:00-20:00 ET product window."""
+    return _market_session() != "closed"
 
 
 # ═══════════════════════════════════════════════════════════════════════════
@@ -1093,6 +1104,15 @@ def _collect_process_metrics(engine: Any | None = None) -> str:
         lines.append(f"{_prefix}_last_data_age_seconds {_last_data_age:.1f}")
         lines.append(f"# TYPE {_prefix}_data_stale gauge")
         lines.append(f"{_prefix}_data_stale {_data_stale}")
+        _session_name = str(getattr(engine, "_market_session_name", "closed"))
+        lines.append(f"# TYPE {_prefix}_market_session gauge")
+        for _session in ("closed", "premarket", "regular", "postmarket"):
+            lines.append(
+                f'{_prefix}_market_session{{session="{_session}"}} '
+                f'{1 if _session_name == _session else 0}'
+            )
+        lines.append(f"# TYPE {_prefix}_quotes_polled gauge")
+        lines.append(f"{_prefix}_quotes_polled {1 if getattr(engine, '_quotes_polled', False) else 0}")
 
         # H3 (2026-07-08): FMP usage counters. The 24/7 producer is the
         # single largest FMP consumer and previously ran past every
@@ -2085,6 +2105,13 @@ class RealtimeEngine:
         self.last_poll_success_epoch: float = 0.0
         self._last_data_epoch: float = 0.0  # stamped ONLY on a non-empty fetch (real data) — drives the data_stale gauge (vs last_poll_success_epoch = loop-liveness)
         self._in_market_hours: bool = False  # cached in poll_once so the /metrics renderer never calls the (raising) market-hours probe
+        self._market_session_name: str = "closed"
+        self._quotes_polled: bool = False
+        # Extended-hours signals stay fail-closed until the dedicated FMP
+        # aftermarket endpoints have been validated in shadow mode.  In
+        # particular, do not let an environment override route pre/post-market
+        # decisions through the regular-session stable batch quote endpoint.
+        self.extended_signals_mode: str = "off"
         self.last_poll_duration_seconds: float = 0.0
 
         self._load_watchlist()
@@ -2400,10 +2427,11 @@ class RealtimeEngine:
     # Fetch current quotes for watched symbols
     # ------------------------------------------------------------------
     def _fetch_realtime_quotes(self) -> dict[str, dict[str, Any]]:
-        """Fetch current quotes for all watched symbols via FMP batch quote.
+        """Fetch current quotes for all watched symbols via FMP stable batch quote.
 
-        For large watchlists (900+ symbols), symbols are processed in batches of
-        ``_BATCH_QUOTE_CHUNK_SIZE`` — loop batching only, no URL-length effect (get_batch_quotes issues one request per symbol since the /stable migration).
+        For large watchlists, symbols are processed in URL-safe chunks of
+        ``_BATCH_QUOTE_CHUNK_SIZE``.  The production 200-symbol watchlist uses
+        one provider request per poll.
         """
         if self._client_disabled_reason:
             return {}
@@ -2419,7 +2447,8 @@ class RealtimeEngine:
         for chunk_start in range(0, len(symbols), chunk_size):
             chunk = symbols[chunk_start:chunk_start + chunk_size]
             try:
-                raw = self.client.get_batch_quotes(chunk)
+                fetch_quotes = getattr(self.client, "get_stable_batch_quotes", None)
+                raw = (fetch_quotes or self.client.get_batch_quotes)(chunk)
                 for q in raw:
                     sym = str(q.get("symbol", "")).strip().upper()
                     if sym:
@@ -2796,9 +2825,12 @@ class RealtimeEngine:
         # When the engine transitions from outside→inside market hours,
         # yesterday's prices would cause false breakout/falling-knife
         # signals on the first poll cycle of the new session.
-        in_market = _is_within_market_hours()
-        self._in_market_hours = in_market  # cache for the /metrics data_stale gauge (renderer must not call the raising probe)
-        if not in_market:
+        market_session = _market_session()
+        self._market_session_name = market_session
+        quotes_expected = market_session == "regular"
+        self._in_market_hours = quotes_expected  # data-stale applies only when this deployment expects quotes
+        self._quotes_polled = False
+        if market_session == "closed":
             self._was_outside_market = True
         elif self._was_outside_market:
             n_cleared = len(self._last_prices)
@@ -2850,6 +2882,27 @@ class RealtimeEngine:
 
         new_signals: list[RealtimeSignal] = []
 
+        if not quotes_expected:
+            # Closed or deliberately disabled extended-hours mode: keep the
+            # producer heartbeat alive, but never fetch quotes that cannot
+            # contribute a published signal.  Expiry still advances by wall
+            # clock so the snapshot cannot retain an overnight stale signal.
+            now_epoch = time.time()
+            with self._lock:
+                for signal in self._active_signals:
+                    signal.freshness = adaptive_freshness_decay(
+                        now_epoch - signal.fired_epoch,
+                        atr_pct=signal.atr_pct if signal.atr_pct > 0 else None,
+                    )
+                self._active_signals = [
+                    signal for signal in self._active_signals
+                    if not signal.is_expired(now_epoch)
+                ]
+            self._save_signals()
+            self._mark_poll_success(poll_start)
+            return new_signals
+
+        self._quotes_polled = True
         quotes = self._fetch_realtime_quotes()
         if not quotes:
             logger.debug("No quotes received in poll cycle")
@@ -3347,6 +3400,9 @@ class RealtimeEngine:
             "updated_epoch": time.time(),
             "poll_interval": self.poll_interval,
             "poll_duration": round(self.last_poll_duration, 3),
+            "market_session": getattr(self, "_market_session_name", "closed"),
+            "quotes_polled": bool(getattr(self, "_quotes_polled", False)),
+            "extended_signals_mode": getattr(self, "extended_signals_mode", "off"),
             "watched_symbols": [str(r.get("symbol", "")) for r in self._watchlist],
             "signals": [s.to_dict() for s in _snap],
             "signal_count": len(_snap),

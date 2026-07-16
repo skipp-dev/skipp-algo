@@ -191,7 +191,7 @@ def test_session_boundary_triggers_watchlist_rebuild(monkeypatch) -> None:
     def _reload() -> None:
         called["reload"] += 1
 
-    monkeypatch.setattr(rs, "_is_within_market_hours", lambda: True)
+    monkeypatch.setattr(rs, "_market_session", lambda: "regular")
     monkeypatch.setattr(engine, "reload_watchlist", _reload)
     monkeypatch.setattr(engine, "_fetch_realtime_quotes", lambda: {})
     monkeypatch.setattr(engine, "_save_signals", lambda *args, **kwargs: None)
@@ -363,6 +363,7 @@ def _mk_a1(direction: str = "LONG") -> rs.RealtimeSignal:
 def _news_upgrade_poll(monkeypatch, *, polarity: float, direction: str = "LONG"):
     monkeypatch.setattr(rs.RealtimeEngine, "_load_watchlist", lambda self: None)
     monkeypatch.setattr(rs.RealtimeEngine, "_restore_signals_from_disk", lambda self: None)
+    monkeypatch.setattr(rs, "_market_session", lambda: "regular")
     monkeypatch.setattr(rs, "_is_within_market_hours", lambda: True)
 
     engine = rs.RealtimeEngine(fmp_client=None)
