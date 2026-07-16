@@ -1117,6 +1117,27 @@ def _collect_process_metrics(engine: Any | None = None) -> str:
             lines.append(f"# HELP {_prefix}_fmp_response_bytes_total Decoded FMP response payload bytes since process start.")
             lines.append(f"# TYPE {_prefix}_fmp_response_bytes_total counter")
             lines.append(f"{_prefix}_fmp_response_bytes_total {_rbytes}")
+            lines.append(f"# TYPE {_prefix}_fmp_endpoint_requests_total counter")
+            lines.append(f"# TYPE {_prefix}_fmp_endpoint_errors_total counter")
+            lines.append(f"# TYPE {_prefix}_fmp_endpoint_empty_responses_total counter")
+            lines.append(f"# TYPE {_prefix}_fmp_endpoint_response_bytes_total counter")
+            for _path, _stats in sorted(_usage.items()):
+                _endpoint = str(_path).replace("\\", "\\\\").replace('"', '\\"').replace("\n", "\\n")
+                _labels = f'{{endpoint="{_endpoint}"}}'
+                lines.append(f"{_prefix}_fmp_endpoint_requests_total{_labels} {int(_stats.get('calls', 0))}")
+                lines.append(f"{_prefix}_fmp_endpoint_errors_total{_labels} {int(_stats.get('errors', 0))}")
+                lines.append(f"{_prefix}_fmp_endpoint_empty_responses_total{_labels} {int(_stats.get('empty_responses', 0))}")
+                lines.append(f"{_prefix}_fmp_endpoint_response_bytes_total{_labels} {int(_stats.get('response_bytes', 0))}")
+
+        _missing_avg = sum(
+            1 for _row in engine._watchlist
+            if isinstance(_row, dict) and _safe_float(_row.get("avg_volume"), 0.0) < 1000
+        )
+        _negative_avg = len(getattr(engine, "_avg_vol_retry_after", {}))
+        lines.append(f"# TYPE {_prefix}_avg_volume_missing_symbols gauge")
+        lines.append(f"{_prefix}_avg_volume_missing_symbols {_missing_avg}")
+        lines.append(f"# TYPE {_prefix}_avg_volume_negative_cache_symbols gauge")
+        lines.append(f"{_prefix}_avg_volume_negative_cache_symbols {_negative_avg}")
 
     return "\n".join(lines) + "\n"
 
@@ -2228,13 +2249,16 @@ class RealtimeEngine:
     def _enrich_watchlist_live(self) -> None:
         """Fetch avg_volume + earnings from FMP for watchlist symbols.
 
-        Uses bulk profile endpoint (single call) for efficient avg_volume
-        enrichment across 900+ symbols.  Falls back to per-symbol profile
-        calls (capped to 50) if bulk is unavailable.
+        Missing average-volume values use bounded per-symbol profile lookups.
+        The realtime producer must never scan the provider-wide profile-bulk
+        dataset merely because one or two watchlist symbols are incomplete.
+        Negative results are cached so an unsupported symbol cannot trigger a
+        remote retry on every five-minute watchlist reload.
 
         The batch-quote endpoint omits avgVolume.  Without it the volume
         ratio is meaningless (everything looks like A0).  We fetch company
-        profiles once per watchlist load and cache the value.
+        profiles at most once per symbol/day and cache the value.  The earnings
+        calendar is likewise fetched at most once per Eastern trading date.
         """
         try:
             client = self.client
@@ -2258,56 +2282,49 @@ class RealtimeEngine:
             if _k and _k not in wl_by_sym:
                 wl_by_sym[_k] = _w
 
-        # Identify symbols that still need avgVolume enrichment
+        # Identify symbols that still need avgVolume enrichment.  A failed or
+        # unsupported profile is retried only after its negative-cache TTL.
+        now_epoch = time.time()
+        retry_after: dict[str, float] = getattr(self, "_avg_vol_retry_after", {})
+        self._avg_vol_retry_after = retry_after
         need_avg_vol: set[str] = set()
         for sym in symbols:
             if sym in self._avg_vol_cache:
                 continue  # already have it from a previous cycle
             _entry = wl_by_sym.get(sym)
             wl_avg = _safe_float(_entry.get("avg_volume"), 0.0) if _entry is not None else 0.0
-            if wl_avg < 1000:
+            if wl_avg < 1000 and retry_after.get(sym, 0.0) <= now_epoch:
                 need_avg_vol.add(sym)
 
         if need_avg_vol:
             enriched_count = 0
-            # Strategy 1: Bulk profile (single call, all symbols)
-            try:
-                bulk = client.get_profile_bulk()
-                for item in bulk:
-                    sym = str(item.get("symbol") or "").strip().upper()
-                    if sym not in need_avg_vol:
-                        continue
+            attempted_count = 0
+            # Bounded targeted lookups: the watchlist snapshot is the primary
+            # source, so unresolved symbols fail closed in _detect_signal().
+            for sym in sorted(need_avg_vol)[:50]:
+                attempted_count += 1
+                try:
+                    profile = client.get_company_profile(sym)
                     avg_vol = _safe_float(
-                        item.get("averageVolume") or item.get("volAvg"), 0.0
+                        profile.get("averageVolume") or profile.get("volAvg"), 0.0
                     )
                     if avg_vol >= 1000:
                         self._avg_vol_cache[sym] = avg_vol
+                        retry_after.pop(sym, None)
                         _entry = wl_by_sym.get(sym)
                         if _entry is not None and _safe_float(_entry.get("avg_volume"), 0.0) < 1000:
                             _entry["avg_volume"] = avg_vol
                         enriched_count += 1
-                logger.info(
-                    "Bulk profile enriched %d/%d symbols with avgVolume",
-                    enriched_count, len(need_avg_vol),
-                )
-            except Exception as exc:
-                logger.debug("Bulk profile unavailable (%s) — falling back to per-symbol", exc)
-                # Strategy 2: Per-symbol fallback (capped to 50 to limit latency)
-                remaining = need_avg_vol - set(self._avg_vol_cache)
-                for _i, sym in enumerate(sorted(remaining)[:50]):
-                    try:
-                        profile = client.get_company_profile(sym)
-                        avg_vol = _safe_float(
-                            profile.get("averageVolume") or profile.get("volAvg"), 0.0
-                        )
-                        if avg_vol >= 1000:
-                            self._avg_vol_cache[sym] = avg_vol
-                            _entry = wl_by_sym.get(sym)
-                            if _entry is not None and _safe_float(_entry.get("avg_volume"), 0.0) < 1000:
-                                _entry["avg_volume"] = avg_vol
-                        time.sleep(0.15)  # throttle
-                    except Exception as exc2:
-                        logger.debug("Profile fetch failed for %s: %s", sym, exc2)
+                    else:
+                        retry_after[sym] = now_epoch + 86_400.0
+                except Exception as exc:
+                    retry_after[sym] = now_epoch + 900.0
+                    logger.debug("Profile fetch failed for %s: %s", sym, exc)
+                time.sleep(0.15)  # throttle the bounded per-symbol fallback
+            logger.info(
+                "Targeted profile enriched %d/%d attempted symbols with avgVolume",
+                enriched_count, attempted_count,
+            )
 
         # Apply cached avg_volume to any watchlist entries still missing it
         for w in self._watchlist:
@@ -2315,23 +2332,34 @@ class RealtimeEngine:
             if _safe_float(w.get("avg_volume"), 0.0) < 1000 and sym in self._avg_vol_cache:
                 w["avg_volume"] = self._avg_vol_cache[sym]
 
-        # ── Earnings calendar for today ──
+        # ── Earnings calendar for today (one remote fetch per ET date) ──
         try:
             from datetime import datetime as _datetime
             from zoneinfo import ZoneInfo as _ZoneInfo
             today = _datetime.now(_ZoneInfo("America/New_York")).date()
-            earnings = client.get_earnings_calendar(today, today)
-            for item in earnings:
-                sym = str(item.get("symbol") or "").strip().upper()
-                if sym in sym_set:
-                    self._earnings_today_cache[sym] = item
-                    # Update watchlist entry (O(1) via prebuilt map)
-                    _entry = wl_by_sym.get(sym)
-                    if _entry is not None:
-                        _entry["earnings_today"] = True
-                        raw_time = str(item.get("time") or item.get("releaseTime") or "").strip().lower()
-                        _entry["earnings_timing"] = raw_time or None
-                        logger.info("Earnings today: %s (timing=%s)", sym, raw_time or "unknown")
+            cached_date = getattr(self, "_earnings_cache_date", None)
+            earnings_by_symbol: dict[str, dict[str, Any]] = getattr(
+                self, "_earnings_day_map", {},
+            )
+            if cached_date != today:
+                earnings = client.get_earnings_calendar(today, today)
+                earnings_by_symbol = {
+                    str(item.get("symbol") or "").strip().upper(): item
+                    for item in earnings
+                    if isinstance(item, dict) and str(item.get("symbol") or "").strip()
+                }
+                self._earnings_cache_date = today
+                self._earnings_day_map = earnings_by_symbol
+            self._earnings_today_cache = {
+                sym: item for sym, item in earnings_by_symbol.items() if sym in sym_set
+            }
+            for sym, item in self._earnings_today_cache.items():
+                _entry = wl_by_sym.get(sym)
+                if _entry is not None:
+                    _entry["earnings_today"] = True
+                    raw_time = str(item.get("time") or item.get("releaseTime") or "").strip().lower()
+                    _entry["earnings_timing"] = raw_time or None
+                    logger.info("Earnings today: %s (timing=%s)", sym, raw_time or "unknown")
         except Exception as exc:
             logger.debug("Earnings calendar fetch failed: %s", exc)
 

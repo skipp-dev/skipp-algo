@@ -128,9 +128,9 @@ _FROZEN_SITES: frozenset[tuple[str, int]] = frozenset(
         # shifted +20/+20/+72/+80/+80 lines by readiness metrics.
         ("open_prep/realtime_signals.py", 321),   # 2026-07-13 (status liveness re-validate above): 306->321
         ("open_prep/realtime_signals.py", 396),    # 2026-07-13 (status liveness re-validate above): 381->396
-        ("open_prep/realtime_signals.py", 2308),  # 2026-07-13 (half-day disclosure above): 2304->2308
-        ("open_prep/realtime_signals.py", 3552),  # 2026-07-13 (half-day disclosure above): 3548->3552
-        ("open_prep/realtime_signals.py", 3568),  # 2026-07-13 (half-day disclosure above): 3564->3568
+        ("open_prep/realtime_signals.py", 2323),  # 2026-07-16 targeted profile throttle: 2308->2323
+        ("open_prep/realtime_signals.py", 3580),  # 2026-07-16 (FMP endpoint telemetry + bounded enrichment): 3552->3580
+        ("open_prep/realtime_signals.py", 3596),  # 2026-07-16 (FMP endpoint telemetry + bounded enrichment): 3568->3596
         # 2026-06-11 (eval-findings D7): technical_analysis import block
         # +8 lines (1943→1951, 1945→1953).
         # 2026-07-04 (market-microstructure observe-only): module import
