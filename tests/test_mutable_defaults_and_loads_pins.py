@@ -143,7 +143,7 @@ _FROZEN_JSON_LOAD_SITES: frozenset[tuple[str, int]] = frozenset(
         # 2026-07-04 (WP-3 backtest tooling): FMPDataLoader.load_from_json parses
         # a local candle-cache file written by its own save_to_json (operator-
         # supplied path in the standalone backtest runner), not untrusted input.
-        ("services/live_overlay_daemon/fmp_data_loader.py", 402),  # +2 (2026-07-09): limit/intraday docstring truth-fix above
+        ("services/live_overlay_daemon/fmp_data_loader.py", 404),  # +2 (2026-07-16): missing-OHLC guard adds two comment lines above
     }
 )
 
