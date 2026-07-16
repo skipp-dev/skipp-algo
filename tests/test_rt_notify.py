@@ -1,9 +1,11 @@
 """Tests for open_prep.rt_notify — the fresh-breakout push notifier."""
 from __future__ import annotations
 
+import logging
 from types import SimpleNamespace
 from typing import Any
 
+import httpx
 import pytest
 
 from open_prep import rt_notify
@@ -474,3 +476,40 @@ def test_mode_is_case_insensitive_and_unknown_mode_warns(
     with caplog.at_level("WARNING"):
         assert rt_notify.is_enabled() is False
     assert any("not a known mode" in r.message for r in caplog.records)
+
+
+def test_http_post_never_logs_secret_webhook_url(
+    monkeypatch: pytest.MonkeyPatch,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    secret_url = "https://hooks.example.invalid/services/SECRET/TOKEN"
+    monkeypatch.setattr(
+        httpx,
+        "post",
+        lambda *_args, **_kwargs: SimpleNamespace(status_code=500),
+    )
+
+    with caplog.at_level(logging.DEBUG):
+        assert rt_notify._http_post(secret_url) is False
+
+    assert secret_url not in caplog.text
+    assert "SECRET/TOKEN" not in caplog.text
+    assert logging.getLogger("httpx").level == logging.WARNING
+
+
+def test_http_post_exception_log_contains_type_not_secret_url(
+    monkeypatch: pytest.MonkeyPatch,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    secret_url = "https://hooks.example.invalid/services/SECRET/TOKEN"
+
+    def fail(*_args: object, **_kwargs: object) -> None:
+        raise httpx.ConnectError(f"failed request to {secret_url}")
+
+    monkeypatch.setattr(httpx, "post", fail)
+    with caplog.at_level(logging.DEBUG):
+        assert rt_notify._http_post(secret_url) is False
+
+    assert "ConnectError" in caplog.text
+    assert secret_url not in caplog.text
+    assert "SECRET/TOKEN" not in caplog.text
