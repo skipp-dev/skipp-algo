@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import inspect
 import sys
 import tomllib
 from pathlib import Path
@@ -100,6 +101,15 @@ def test_signal_engine_port_env_parsing_falls_back(port_value: str, expected: in
 
     monkeypatch.setenv("PORT", port_value)
     assert rs._env_int("PORT", 8099) == expected
+
+
+def test_runtime_poll_budget_is_env_configurable() -> None:
+    """Railway can reduce FMP volume without replacing the start command."""
+    import open_prep.realtime_signals as rs
+
+    source = inspect.getsource(rs.main)
+    assert 'default=_env_int("RT_POLL_INTERVAL_SECS", DEFAULT_POLL_INTERVAL)' in source
+    assert 'default=_env_int("RT_TOP_N", DEFAULT_TOP_N)' in source
 
 
 def test_railway_healthcheck_path_is_healthz() -> None:

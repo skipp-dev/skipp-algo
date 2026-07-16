@@ -3409,8 +3409,8 @@ def main() -> None:
                         os.environ[key] = val
 
     parser = argparse.ArgumentParser(description="Realtime signal engine")
-    parser.add_argument("--interval", type=int, default=DEFAULT_POLL_INTERVAL, help="Poll interval in seconds")
-    parser.add_argument("--top-n", type=int, default=DEFAULT_TOP_N, help="Number of symbols to monitor (0 = all, default)")
+    parser.add_argument("--interval", type=int, default=_env_int("RT_POLL_INTERVAL_SECS", DEFAULT_POLL_INTERVAL), help="Poll interval in seconds")
+    parser.add_argument("--top-n", type=int, default=_env_int("RT_TOP_N", DEFAULT_TOP_N), help="Number of symbols to monitor (0 = all, default)")
     parser.add_argument("--reload-interval", type=int, default=300, help="Seconds between watchlist reloads")
     parser.add_argument(
         "--fast", action="store_true",
