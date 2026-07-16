@@ -3409,8 +3409,8 @@ def main() -> None:
                         os.environ[key] = val
 
     parser = argparse.ArgumentParser(description="Realtime signal engine")
-    parser.add_argument("--interval", type=int, default=_env_int("RT_POLL_INTERVAL_SECS", DEFAULT_POLL_INTERVAL), help="Poll interval in seconds")
-    parser.add_argument("--top-n", type=int, default=_env_int("RT_TOP_N", DEFAULT_TOP_N), help="Number of symbols to monitor (0 = all, default)")
+    parser.add_argument("--interval", type=int, default=_env_int("RT_POLL_INTERVAL_SECS", DEFAULT_POLL_INTERVAL, maximum=None), help="Poll interval in seconds")
+    parser.add_argument("--top-n", type=int, default=_env_int("RT_TOP_N", DEFAULT_TOP_N, minimum=0, maximum=None), help="Number of symbols to monitor (0 = all, default)")
     parser.add_argument("--reload-interval", type=int, default=300, help="Seconds between watchlist reloads")
     parser.add_argument(
         "--fast", action="store_true",
@@ -3568,7 +3568,7 @@ def main() -> None:
             time.sleep(max(10, engine.poll_interval))
 
 
-def _env_int(key: str, default: int) -> int:
+def _env_int(key: str, default: int, *, minimum: int = 1, maximum: int | None = 65535) -> int:
     raw = os.getenv(key)
     if raw is None:
         return default
@@ -3580,13 +3580,13 @@ def _env_int(key: str, default: int) -> int:
     except ValueError:
         logger.warning("Invalid %s=%r, using default %d", key, raw, default)
         return default
-    # PORT-style integers must be strict ASCII digits in the valid TCP range.
-    # Reject sign-prefixed values and non-ASCII numerals so surprising inputs
-    # fall back to default rather than being silently accepted.
-    if not value.isascii() or not value.isdigit() or parsed <= 0 or parsed > 65535:
+    # Strict ASCII digits guard PORT-style vars (default 1..65535); callers pass
+    # their own bounds so a poll interval or symbol count is NOT clamped to the
+    # TCP-port range (minimum=0 keeps RT_TOP_N "0 = all"; maximum=None = no cap).
+    if not value.isascii() or not value.isdigit() or parsed < minimum or (maximum is not None and parsed > maximum):
         logger.warning(
-            "Invalid %s=%r (must be ASCII digits in range 1..65535), using default %d",
-            key, raw, default,
+            "Invalid %s=%r (outside [%s, %s]), using default %d",
+            key, raw, minimum, maximum if maximum is not None else "inf", default,
         )
         return default
     return parsed

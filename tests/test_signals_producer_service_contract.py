@@ -108,8 +108,33 @@ def test_runtime_poll_budget_is_env_configurable() -> None:
     import open_prep.realtime_signals as rs
 
     source = inspect.getsource(rs.main)
-    assert 'default=_env_int("RT_POLL_INTERVAL_SECS", DEFAULT_POLL_INTERVAL)' in source
-    assert 'default=_env_int("RT_TOP_N", DEFAULT_TOP_N)' in source
+    assert 'default=_env_int("RT_POLL_INTERVAL_SECS", DEFAULT_POLL_INTERVAL, maximum=None)' in source
+    assert 'default=_env_int("RT_TOP_N", DEFAULT_TOP_N, minimum=0, maximum=None)' in source
+
+
+def test_poll_budget_env_is_not_clamped_to_the_tcp_port_range(monkeypatch) -> None:
+    """Poll budget vars are not ports: a long interval and RT_TOP_N=0 ('all') must survive.
+
+    Regression for reusing the PORT validator (1..65535) on these vars, which
+    silently reverted RT_POLL_INTERVAL_SECS>65535 to the aggressive 20s default.
+    """
+    import open_prep.realtime_signals as rs
+
+    # A daily poll interval (86400s) is far above the TCP-port ceiling but valid here.
+    monkeypatch.setenv("RT_POLL_INTERVAL_SECS", "86400")
+    assert rs._env_int("RT_POLL_INTERVAL_SECS", rs.DEFAULT_POLL_INTERVAL, maximum=None) == 86400
+
+    # 0 is the documented "monitor ALL symbols" sentinel and must be accepted.
+    monkeypatch.setenv("RT_TOP_N", "0")
+    assert rs._env_int("RT_TOP_N", rs.DEFAULT_TOP_N, minimum=0, maximum=None) == 0
+
+    # Below-minimum / garbage still falls back to the default.
+    monkeypatch.setenv("RT_TOP_N", "-1")
+    assert rs._env_int("RT_TOP_N", rs.DEFAULT_TOP_N, minimum=0, maximum=None) == rs.DEFAULT_TOP_N
+
+    # The default PORT bounds (1..65535) are unchanged for callers that omit them.
+    monkeypatch.setenv("PORT", "86400")
+    assert rs._env_int("PORT", 8099) == 8099
 
 
 def test_railway_healthcheck_path_is_healthz() -> None:
