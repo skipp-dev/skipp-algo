@@ -286,7 +286,7 @@ def main(argv: list[str] | None = None) -> int:
         return 0
     if row["verdict"] == "SHADOW":
         return 2
-    return 3  # INCONCLUSIVE (measured but below MIN_OOS)
+    return 3  # INCONCLUSIVE (measured but below MIN_SHADOW_SAMPLES)
 
 
 if __name__ == "__main__":
