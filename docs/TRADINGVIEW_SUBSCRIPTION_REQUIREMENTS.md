@@ -1,5 +1,11 @@
 # TradingView Subscription Requirements for skipp-algo SMC Suite
 
+> **Status correction (2026-07-16):** The `request.get`/REST bridge described
+> below is not supported by Pine and has been retired. `SMC_Regime_and_News.pine`
+> is a visible compatibility tombstone, not a data consumer. The current plan is
+> ADR-0028's real TradingView data-provider qualification. Subscription tier does
+> not enable arbitrary Pine HTTP.
+
 **Last updated:** 2026-06-16  
 **Scope:** live_overlay_daemon · SMC Pine script suite · smc-library-refresh automation
 
@@ -235,4 +241,3 @@ Dies ist der Plan, der früher "Pro" hieß.
 - Maximal 3 Indikatoren pro Chart-Tab  
 - live_overlay_daemon bleibt voll funktionsfähig  
 - Strict Entry feuert weiterhin, aber ohne intrabar Volumen-Gate (`n/a` in Alert-Feldern)
-

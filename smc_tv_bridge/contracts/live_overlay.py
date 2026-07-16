@@ -1,11 +1,11 @@
 """Typed wire contract for the ``smc-live-overlay/1`` live-overlay payload.
 
 The live overlay is the *fast* half of the "slow baseline + fast overlay"
-design: ``SMC_Regime_and_News.pine`` always carries the 2x/day baked ``mp.*``
-baseline and, when reachable and fresh, pulls this flat JSON from
-``GET /smc_live`` to override individual fields. Every data field is optional
-and nullable so the overlay can speak to whatever it currently knows and stay
-silent (Pine keeps the baked ``mp.*`` value) for everything else.
+design. The former ``SMC_Regime_and_News.pine`` REST bridge is retired; Pine
+cannot call arbitrary HTTP endpoints. The payload remains the API contract for
+authenticated non-Pine clients, while ADR-0028 tracks TradingView provider
+qualification. Every data field is optional and nullable so the service can
+emit only values it currently knows and leave unavailable values absent.
 
 This module is the single source of truth shared by the FastAPI endpoint
 (``smc_tv_bridge/smc_api.py``) and the contract tests. The hand-written JSON

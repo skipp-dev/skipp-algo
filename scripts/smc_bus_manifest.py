@@ -262,7 +262,7 @@ SURFACE_DEFINITIONS: tuple[SurfaceDefinition, ...] = (
         contract_tier = 'internal',
         consumer_role = 'bridge',
         notes = (
-            'Internal bridge helper outside the user-facing Lite/Pro rollout.',
+            'Retired, network-inert compatibility notice; no live-overlay data ingress.',
         ),
     ),
     SurfaceDefinition(

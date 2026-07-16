@@ -7,6 +7,9 @@ import { type Page } from "playwright";
 
 import {
   assertNoVisibleCompileError,
+  assertNoVisibleChartScriptError,
+  detectPineCompileErrorMarker,
+  getVisibleChartScriptError,
   launchTradingViewChromium,
   probeRuntimeSmoke,
   buildScriptNamePatterns,
@@ -2062,6 +2065,42 @@ test("probeRuntimeSmoke fails closed on a crashed compile probe instead of repor
   } finally {
     await browser.close();
   }
+});
+
+test("chart legend compiler error blocks a publish after Add to chart", async () => {
+  const browser = await launchTradingViewChromium({ headless: true });
+  try {
+    const page = await browser.newPage();
+    await page.setContent(`
+      <div class="legend-row">
+        <span>SMC Live Overlay v2</span>
+        <span title="Compilation error: CE10271">!</span>
+        <button data-qa-id="legend-settings-action">Settings</button>
+      </div>
+    `);
+
+    assert.equal(
+      await getVisibleChartScriptError(page, "SMC Live Overlay"),
+      "Compilation error: CE10271",
+    );
+    await assert.rejects(
+      () => assertNoVisibleChartScriptError(page, "SMC Live Overlay"),
+      /CE10271/,
+    );
+    const smoke = await probeRuntimeSmoke(page, "SMC Live Overlay");
+    assert.equal(smoke.compileError, "Compilation error: CE10271");
+    assert.equal(smoke.ok, false);
+  } finally {
+    await browser.close();
+  }
+});
+
+test("publish evidence compiler markers are detected without DOM context", () => {
+  assert.equal(
+    detectPineCompileErrorMarker("The script cannot compile due to a Compilation error: CE10271"),
+    "compilation error",
+  );
+  assert.equal(detectPineCompileErrorMarker("Publication completed"), null);
 });
 
 // ── isIndicatorSettingsDialogSnapshot — inputs-less settings dialogs ─────────

@@ -7,9 +7,11 @@ import { fileURLToPath } from "node:url";
 import {
   addCurrentScriptToChart,
   assertNoVisibleCompileError,
+  assertNoVisibleChartScriptError,
   closeTradingViewSession,
   collectOpenScriptIdentityTexts,
   ensurePineEditor,
+  detectPineCompileErrorMarker,
   gotoChart,
   newTradingViewSession,
   openExistingScript,
@@ -195,6 +197,7 @@ export async function runPublishOpenPrepPanelCli(): Promise<number> {
       await waitForPostSaveCompileSettlement(session.page, details.scriptName);
       await assertNoVisibleCompileError(session.page);
       await addCurrentScriptToChart(session.page, details.scriptName);
+      await assertNoVisibleChartScriptError(session.page, details.scriptName);
       await takeScreenshot(session.page, runId, `${details.scriptName}-compiled`, screenshots);
 
       publishAttempted = true;
@@ -205,6 +208,12 @@ export async function runPublishOpenPrepPanelCli(): Promise<number> {
       });
       noChangeDetected = publishResult.noChangeDetected;
       publishBodyText = publishResult.bodyText;
+      const publishCompileError = detectPineCompileErrorMarker(publishBodyText);
+      if (publishCompileError) {
+        throw new Error(
+          `TradingView publish evidence contains a Pine compiler error for ${details.scriptName}: ${publishCompileError}`,
+        );
+      }
       await takeScreenshot(session.page, runId, `${details.scriptName}-published`, screenshots);
 
       // Identity-only verification (indicator has no library version).
@@ -234,6 +243,7 @@ export async function runPublishOpenPrepPanelCli(): Promise<number> {
           `Published TradingView Open-Prep panel could not be verified by identity: live_script_verified=${publishedScriptVerified}, identity_mode=${identityVerificationMode}, no_change_detected=${noChangeDetected}`,
         );
       }
+      publishedScriptVerified = exactScriptVerified;
     } finally {
       await closeTradingViewSession(session);
     }

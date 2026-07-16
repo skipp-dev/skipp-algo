@@ -74,7 +74,7 @@ SURFACE_MATRIX: tuple[SurfaceEntry, ...] = (
         name="SMC_Regime_and_News.pine",
         classification=SurfaceClass.OPERATOR_ONLY,
         audience=Audience.OPERATOR,
-        description="Operator-Bridge fuer TradingView-Integration.",
+        description="Retired compatibility notice; kein externer Pine-Datenpfad.",
     ),
     SurfaceEntry(
         name="SMC_Event_Overlay.pine",

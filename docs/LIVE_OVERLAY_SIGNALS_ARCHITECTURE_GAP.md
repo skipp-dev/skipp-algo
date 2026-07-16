@@ -21,7 +21,7 @@
 │  │ Outputs:                     │        │ • UptimeRobot / GitHub / Railway    │    │
 │  │ • /signals  ────────────────┼────────►│                                     │    │
 │  │ • /metrics                   │        │ Outputs:                            │    │
-│  │ • /healthz                   │        │ • /smc_live  → Pine Script          │    │
+│  │ • /healthz                   │        │ • /smc_live  → authenticated clients │    │
 │  │ • /telemetry.json            │        │ • /metrics   → metrics-collector    │    │
 │  └──────────┬───────────────────┘        └──────────────────┬──────────────────┘    │
 │             │                                                │                       │
@@ -50,9 +50,9 @@
 | Component | Purpose | Runs where | Monitored by Grafana? |
 |-----------|---------|------------|----------------------|
 | `smc-signals-producer` | Polls FMP, detects A0/A1 breakouts, serves `/signals` | Railway (always on) | Yes (process metrics) |
-| `smc-live-overlay` | Aggregates all data sources, serves `/smc_live` for Pine and `/metrics` for Alloy | Railway (always on) | Yes |
+| `smc-live-overlay` | Aggregates all data sources, serves `/smc_live` for authenticated clients and `/metrics` for Alloy | Railway (always on) | Yes |
 | `metrics-collector` | Grafana Alloy, scrapes `/metrics` from both services | Railway (always on) | Yes (self-metrics) |
-| Pine Script | End consumer of `GET /smc_live` | TradingView / client browsers | No |
+| External `/smc_live` client | No production client is currently deployed; Pine cannot call arbitrary REST endpoints | — | No |
 | Local `smc-signals-producer` | Manual, on-demand runs for local analysis / VisiData | Developer machine | No |
 
 **Important:** Grafana is purely a monitoring/visualization tool. It is **not**
