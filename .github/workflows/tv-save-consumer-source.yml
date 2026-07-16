@@ -1,8 +1,6 @@
 name: tv-save-consumer-source
-# live-window: manual-only  # Push fresh repo source into saved TV consumer scripts (2026-07-13).
-# Dispatch-only, no repo write permissions. It mutates the operator's TradingView
-# account rather than this repo — a risk this GitHub-posture vocabulary does not model,
-# so it is spelled out in the DISPATCH-ONLY note below.
+# live-window: mutating-on-cron  # Daily read-only binding verification publishes a bot snapshot.
+# Manual dispatch can push fresh repo source into the operator's saved TradingView scripts.
 
 # Pushes the CURRENT repo source of the hand-authored CONSUMER scripts (indicators/
 # strategies — SMC_Dashboard, SMC_Core_Engine, …) into their EXISTING TradingView
@@ -12,8 +10,8 @@ name: tv-save-consumer-source
 # imports (Core Engine pinned every lib at /1 → CE10271/CE10272). The repo is
 # SSOT; this recompiles the saved copies against the current library surface.
 #
-# DISPATCH-ONLY (no schedule): it writes to the operator's PERSONAL saved scripts,
-# so it runs on demand, not on a timer.
+# Scheduled runs force an empty save mapping and therefore only inspect dropdown
+# assignments. Manual dispatch remains the only path that writes PERSONAL saved scripts.
 #
 # Safety:
 #   * Requires a real authenticated TV session — fails fast if TV_STORAGE_STATE
@@ -30,6 +28,8 @@ name: tv-save-consumer-source
 # current product manifest; override it to correct operator-specific saved names.
 
 on:
+  schedule:
+    - cron: "17 5 * * *"
   workflow_dispatch:
     inputs:
       mapping:
@@ -126,17 +126,18 @@ jobs:
           out.write_text(payload if payload.endswith('\n') else payload + '\n', encoding='utf-8')
           PY
 
-      - name: Save and verify consumers in one browser session
+      - name: Save or read-only verify consumers in one browser session
         id: save
         env:
           TV_STORAGE_STATE: automation/tradingview/auth/storage-state.json
-          TV_CONSUMER_MAPPING_JSON: ${{ github.event.inputs.mapping }}
-          TV_FORCE_REBIND: ${{ github.event.inputs.force_rebind }}
+          # Cron is fail-safe read-only: [] skips every saved-script write.
+          TV_CONSUMER_MAPPING_JSON: ${{ github.event_name == 'schedule' && '[]' || github.event.inputs.mapping }}
+          TV_FORCE_REBIND: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.force_rebind || 'false' }}
         run: |
           npx tsx scripts/tv_batch_consumer_rollout.ts
 
       - name: Controlled repair E2E
-        if: ${{ github.event.inputs.repair_e2e == 'true' }}
+        if: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.repair_e2e == 'true' }}
         env:
           TV_STORAGE_STATE: automation/tradingview/auth/storage-state.json
         run: npx tsx scripts/tv_repair_binding_e2e.ts

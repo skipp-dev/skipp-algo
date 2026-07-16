@@ -1,0 +1,51 @@
+# live-window: manual-only  # Temporary silenced Grafana firing/recovery test.
+name: tv-binding-alert-e2e
+
+on:
+  workflow_dispatch:
+    inputs:
+      execute:
+        description: "Create silenced temporary alert clones and verify firing/recovery"
+        type: boolean
+        required: true
+        default: false
+
+permissions:
+  contents: read
+
+concurrency:
+  group: tv-binding-alert-e2e
+  cancel-in-progress: false
+
+env:
+  PYTHONUNBUFFERED: "1"
+  PYTHONPATH: ${{ github.workspace }}
+
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  alert-e2e:
+    runs-on: ${{ vars.SMC_GH_HOSTED_RUNNER || 'ubuntu-latest' }}
+    timeout-minutes: 10
+    steps:
+      - name: Checkout
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+        with:
+          persist-credentials: false
+
+      - name: Validate safe test plan
+        run: python scripts/grafana_tv_binding_alert_e2e.py
+
+      - name: Execute silenced firing and recovery test
+        if: ${{ github.event.inputs.execute == 'true' }}
+        env:
+          GRAFANA_API_KEY: ${{ secrets.GRAFANA_API_TOKEN }}
+        run: |
+          set -euo pipefail
+          test -n "${GRAFANA_API_KEY:-}" || {
+            echo "::error::GRAFANA_API_TOKEN is required for the controlled alert E2E."
+            exit 1
+          }
+          python scripts/grafana_tv_binding_alert_e2e.py --execute

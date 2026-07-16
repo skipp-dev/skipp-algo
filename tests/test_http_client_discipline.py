@@ -186,6 +186,9 @@ _FROZEN_URLOPEN_SITES: frozenset[tuple[str, int]] = frozenset(
         # 2026-07-16: actual TradingView dropdown-binding snapshot fetcher;
         # HTTPS-only with an explicit 10-second timeout.
         ("services/live_overlay_daemon/tradingview_binding_bridge.py", 61),
+        # 2026-07-16: controlled Grafana TradingView-alert E2E; explicit 30s
+        # timeout, notifications silenced before temporary rules are created.
+        ("scripts/grafana_tv_binding_alert_e2e.py", 46),
         # 2026-07-11 (feat/sweep-trap-shadow-grafana): WS4a sweep-trap shadow
         # snapshot fetcher, https-only with explicit timeout=.
         ("services/live_overlay_daemon/sweep_trap_shadow_bridge.py", 98),  # 2026-07-13 (F7 docstring fix): 96->98
