@@ -4477,7 +4477,11 @@ async function tryKeyboardRemoveScriptInstance(page: Page, wrapper: Locator, scr
   return false;
 }
 
-async function waitForLegendWrapperCountChange(
+// Counts INSTANCES via countChartScriptInstances, not findLegendRowWrappers(...).length:
+// the latter dedupes rows by legend text, so two identical copies collapse to 1 and a
+// 2->1 removal is never observed as a decrease (the loop would burn the full timeout and
+// mis-count removals). previousCount at the call site must be an instance count too.
+export async function waitForChartScriptInstanceCountChange(
   page: Page,
   scriptName: string,
   previousCount: number,
@@ -4486,14 +4490,14 @@ async function waitForLegendWrapperCountChange(
   const startedAt = Date.now();
 
   while (Date.now() - startedAt < timeoutMs) {
-    const nextCount = (await findLegendRowWrappers(page, scriptName).catch(() => [])).length;
+    const nextCount = await countChartScriptInstances(page, scriptName).catch(() => previousCount);
     if (nextCount < previousCount) {
       return nextCount;
     }
     await page.waitForTimeout(125);
   }
 
-  return (await findLegendRowWrappers(page, scriptName).catch(() => [])).length;
+  return countChartScriptInstances(page, scriptName).catch(() => previousCount);
 }
 
 async function openLegendRemovalMenu(page: Page, wrapper: Locator, scriptName: string, attempt: number): Promise<boolean> {
@@ -4545,7 +4549,10 @@ export async function removeVisibleChartScriptInstances(page: Page, scriptName: 
       }
 
       const targetWrapper = wrappers[0] ?? wrappers[wrappers.length - 1];
-      const previousCount = wrappers.length;
+      // Instance count, NOT wrappers.length: findLegendRowWrappers dedupes identical
+      // rows, so N identical copies report as 1 and the removal accounting/detection
+      // below (which compares against this) would never see a decrease.
+      const previousCount = await countChartScriptInstances(page, scriptName).catch(() => wrappers.length);
       await targetWrapper.scrollIntoViewIfNeeded().catch(() => undefined);
       await targetWrapper.hover({ timeout: 1_000 }).catch(() => undefined);
 
@@ -4566,7 +4573,7 @@ export async function removeVisibleChartScriptInstances(page: Page, scriptName: 
           300,
         ).catch(() => false);
 
-        const remainingCount = await waitForLegendWrapperCountChange(page, scriptName, previousCount);
+        const remainingCount = await waitForChartScriptInstanceCountChange(page, scriptName, previousCount);
         if (remainingCount < previousCount) {
           removedCount += previousCount - remainingCount;
           tracePageEvent(page, "script-remove-ok", `${scriptName}:${previousCount}->${remainingCount}:direct`);
@@ -4587,7 +4594,7 @@ export async function removeVisibleChartScriptInstances(page: Page, scriptName: 
 
       const removedViaKeyboard = await tryKeyboardRemoveScriptInstance(page, targetWrapper, scriptName, attempt);
       if (removedViaKeyboard) {
-        const remainingCount = await waitForLegendWrapperCountChange(page, scriptName, previousCount);
+        const remainingCount = await waitForChartScriptInstanceCountChange(page, scriptName, previousCount);
         if (remainingCount < previousCount) {
           removedCount += previousCount - remainingCount;
           tracePageEvent(page, "script-remove-ok", `${scriptName}:${previousCount}->${remainingCount}:keyboard`);
@@ -4619,7 +4626,7 @@ export async function removeVisibleChartScriptInstances(page: Page, scriptName: 
         break;
       }
 
-      const remainingCount = await waitForLegendWrapperCountChange(page, scriptName, previousCount);
+      const remainingCount = await waitForChartScriptInstanceCountChange(page, scriptName, previousCount);
       if (remainingCount < previousCount) {
         removedCount += previousCount - remainingCount;
         tracePageEvent(page, "script-remove-ok", `${scriptName}:${previousCount}->${remainingCount}`);
