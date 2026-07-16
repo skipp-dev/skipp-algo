@@ -163,6 +163,7 @@ FAST_TEST_FILES: frozenset[str] = frozenset({
     "test_workflow_pythonpath_for_direct_invoke.py",
     "test_workflow_runner_pinned.py",
     "test_workflow_set_plus_e_inventory.py",
+    "test_workflow_tv_save_consumer_source_contract.py",
     "test_smc_library_refresh_workflow.py",
     "test_schema_version_manifest_alignment.py",
     "test_edge_hypotheses_frozen.py",
