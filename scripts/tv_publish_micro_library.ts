@@ -339,17 +339,23 @@ function verifyPublishContractDetails(details: ContractDetails): ContractDetails
   if (!snippetImport) {
     throw new Error("Core import snippet does not contain a valid import line");
   }
-  if (snippetImport.importPath !== details.recommendedImportPath) {
+  const importIdentity = (importPath: string): string => {
+    const match = /^([A-Za-z0-9_-]+)\/([A-Za-z0-9_-]+)\/(\d+)$/.exec(importPath);
+    if (!match || Number(match[3]) < 1) throw new Error(`Invalid versioned Pine import path: ${importPath}`);
+    return `${match[1]}/${match[2]}`;
+  };
+  const recommendedIdentity = importIdentity(details.recommendedImportPath);
+  if (importIdentity(snippetImport.importPath) !== recommendedIdentity) {
     throw new Error(
-      `Snippet import path mismatch: expected ${details.recommendedImportPath}, found ${snippetImport.importPath}`,
+      `Snippet library identity mismatch: expected ${details.recommendedImportPath}, found ${snippetImport.importPath}`,
     );
   }
 
   const coreText = fs.readFileSync(corePath, "utf-8");
   const coreImportPath = findImportPathForAlias(coreText, snippetImport.alias);
-  if (coreImportPath !== details.recommendedImportPath) {
+  if (importIdentity(coreImportPath) !== recommendedIdentity) {
     throw new Error(
-      `Core import path mismatch for alias ${snippetImport.alias}: expected ${details.recommendedImportPath}, found ${coreImportPath}`,
+      `Core import library identity mismatch for alias ${snippetImport.alias}: expected ${details.recommendedImportPath}, found ${coreImportPath}`,
     );
   }
 

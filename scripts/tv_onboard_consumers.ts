@@ -11,6 +11,7 @@ import { fileURLToPath } from "node:url";
 import {
   closeTradingViewSession,
   collectTradingViewPageAuthState,
+  findLegendRowWrappers,
   gotoChart,
   isScriptVisibleOnChartSurface,
   newTradingViewSession,
@@ -91,6 +92,7 @@ export type OnboardingReport = {
 
 export type OnboardingAdapter = {
   isScriptVisible(scriptName: string): Promise<boolean>;
+  countScriptInstances?(scriptName: string): Promise<number>;
   isSourceOptionAvailable(
     consumer: OnboardingConsumer,
     chartName: string,
@@ -278,6 +280,27 @@ export async function executeOnboarding(
       }
     }
     if (!detected.has(consumer.id)) progress(`Consumer not found: ${consumer.displayName}`);
+  }
+
+  if (adapter.countScriptInstances) {
+    const ambiguousNames: string[] = [];
+    const producerCount = await adapter.countScriptInstances(config.producer.scriptName);
+    if (producerCount > 1) ambiguousNames.push(`${config.producer.scriptName} (${producerCount})`);
+    for (const consumer of config.consumers) {
+      for (const chartName of consumer.chartNames) {
+        const count = await adapter.countScriptInstances(chartName);
+        if (count > 1) ambiguousNames.push(`${chartName} (${count})`);
+      }
+    }
+    if (ambiguousNames.length > 0) {
+      return addInventoryToBlockedReport(blockedReport(
+        config,
+        producerVisible ? "present" : "missing",
+        "ONB-LAYOUT-001",
+        `Multiple SMC script instances make the source selection ambiguous: ${ambiguousNames.join(", ")}. No bindings were changed.`,
+        "Keep one SMC Long-Dip Suite and its consumers in the same chart pane, remove duplicate SMC scripts from other panes, and run SMC Onboarding again.",
+      ), config, detected);
+    }
   }
 
   if (!producerVisible) {
@@ -573,6 +596,7 @@ async function waitForAuthentication(session: TradingViewSession, chartUrl: stri
 function playwrightAdapter(session: TradingViewSession): OnboardingAdapter {
   return {
     isScriptVisible: (scriptName) => isScriptVisibleOnChartSurface(session.page, scriptName),
+    countScriptInstances: async (scriptName) => (await findLegendRowWrappers(session.page, scriptName)).length,
     isSourceOptionAvailable: (consumer, chartName, label, expected) => isConsumerSourceOptionAvailable(
       session,
       { bindingLabels: consumer.bindingLabels, savedScriptName: consumer.savedScriptName, scriptName: chartName },
