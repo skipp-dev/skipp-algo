@@ -1,7 +1,7 @@
-"""Central HTF / Session bias merge — Single Source of Truth.
+"""Central chart-timeframe / session bias merge — Single Source of Truth.
 
 Priority rule:
-  1. **HTF bias** sets the *directional anchor* — in prod it's chart-tf momentum (htf_frames unwired).
+  1. **Chart-TF bias** sets the directional anchor in production.
   2. **Session context** *modulates* the confidence without flipping direction.
   3. If HTF is unavailable, session bias is used as a lower-confidence fallback.
 
@@ -19,14 +19,29 @@ BiasDirection = Literal["BULLISH", "BEARISH", "NEUTRAL"]
 
 @dataclass(slots=True, frozen=True)
 class BiasVerdict:
-    """Immutable merge result of HTF + session bias."""
+    """Immutable merge result of chart-timeframe + session bias."""
 
     direction: BiasDirection
     confidence: float  # 0.0–1.0 deterministic conviction/reliability WEIGHT from a fixed table (NOT a probability; rename-later: bias_conviction_score)
-    htf_direction: BiasDirection
+    htf_direction: BiasDirection  # deprecated compatibility name; see chart_tf_direction
     session_direction: BiasDirection
     conflict: bool  # True when HTF and session disagree
     source: Literal["HTF", "SESSION", "MERGED", "NONE"]
+
+    @property
+    def chart_tf_direction(self) -> BiasDirection:
+        """Honest name for the production chart-timeframe direction."""
+        return self.htf_direction
+
+    @property
+    def source_detail(self) -> Literal["CHART_TF", "SESSION", "MERGED_CHART_TF_SESSION", "NONE"]:
+        """Honest provenance for consumers migrating from the legacy source."""
+        return {
+            "HTF": "CHART_TF",
+            "SESSION": "SESSION",
+            "MERGED": "MERGED_CHART_TF_SESSION",
+            "NONE": "NONE",
+        }[self.source]
 
 
 def _direction_from_counter(counter: int) -> BiasDirection:

@@ -84,10 +84,12 @@ def _serialize_bias_verdict(bias_verdict: Any) -> dict[str, Any]:
         # pattern). Values are always identical.
         "confidence": bias_verdict.confidence,
         "conviction_score": bias_verdict.confidence,
-        "htf_direction": bias_verdict.htf_direction,
+        "chart_tf_direction": bias_verdict.chart_tf_direction,
+        "htf_direction": bias_verdict.htf_direction,  # deprecated compatibility alias
         "session_direction": bias_verdict.session_direction,
         "conflict": bias_verdict.conflict,
         "source": bias_verdict.source,
+        "source_detail": bias_verdict.source_detail,
     }
 
 
