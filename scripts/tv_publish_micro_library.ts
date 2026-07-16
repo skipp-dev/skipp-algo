@@ -167,6 +167,17 @@ type PublishReport = {
   error?: string;
 };
 
+export function resolveAuthoritativeReleaseTarget(
+  details: Pick<ContractDetails, "libraryOwner" | "libraryName" | "libraryVersion">,
+  publishedVersion: number | null,
+): { expectedVersion: number; expectedImportPath: string } {
+  const expectedVersion = publishedVersion ?? details.libraryVersion;
+  return {
+    expectedVersion,
+    expectedImportPath: `${details.libraryOwner}/${details.libraryName}/${expectedVersion}`,
+  };
+}
+
 const DEFAULT_PRODUCT_CUT_MANIFEST_PATH = path.resolve("artifacts/tradingview/smc_product_cut_manifest.json");
 
 function parseArgs(): CliArgs {
@@ -482,6 +493,7 @@ function writeReleaseManifest(
     ? readJson<Partial<LibraryReleaseManifest>>(releaseManifestPath)
     : null;
   const productCut = readProductCutSummary();
+  const releaseTarget = resolveAuthoritativeReleaseTarget(details, options.publishedVersion);
 
   const payload: LibraryReleaseManifest = {
     generatedAt: utcNow(),
@@ -490,8 +502,8 @@ function writeReleaseManifest(
     library: {
       scriptName: details.libraryName,
       owner: details.libraryOwner,
-      importPath: details.recommendedImportPath,
-      expectedVersion: details.libraryVersion,
+      importPath: releaseTarget.expectedImportPath,
+      expectedVersion: releaseTarget.expectedVersion,
       publishedVersion: options.publishedVersion,
       publishStatus: options.publishStatus,
       sourceManifest: path.relative(path.dirname(releaseManifestPath), details.manifestPath).replace(/\\/g, "/") === ""
@@ -505,7 +517,7 @@ function writeReleaseManifest(
     lastPreflightReport: options.lastPreflightReport,
     notes: uniqueNotes([
       ...(existing?.notes ?? []),
-      "Manifest, generated import snippet, and SMC_Core_Engine import path must stay identical.",
+      "Generated source may use the /1 sentinel before publish; release metadata and consumers use the facade-verified published version.",
       "Pine library import version is explicit; TradingView does not auto-resolve the newest version in the core import.",
       "Owner/version changes require regenerating the library artifacts before publish.",
       "Release metadata must stay aligned with the canonical SMC product-cut manifest.",
@@ -1101,6 +1113,8 @@ export async function runPublishMicroLibraryCli(): Promise<number> {
       lastPreflightReport: repoCoreValidation.reportPath,
     });
 
+    const releaseTarget = resolveAuthoritativeReleaseTarget(details, publishedVersion);
+
     const pipelinePhase = resolvePublishPipelinePhase({
       ok: publishState.ok,
       contractOk,
@@ -1131,8 +1145,8 @@ export async function runPublishMicroLibraryCli(): Promise<number> {
       failedAtStep: pipelinePhase.failedAtStep,
       resumeFrom: pipelinePhase.resumeFrom,
       completedPhase: pipelinePhase.completedPhase,
-      expectedImportPath: details.recommendedImportPath,
-      expectedVersion: details.libraryVersion,
+      expectedImportPath: releaseTarget.expectedImportPath,
+      expectedVersion: releaseTarget.expectedVersion,
       publishedVersion,
       fallbackPublishedVersion,
       identityEvidenceContext,
@@ -1195,6 +1209,9 @@ export async function runPublishMicroLibraryCli(): Promise<number> {
       versionVerificationMode,
       repoCoreValidationOk,
     });
+    const releaseTarget = details
+      ? resolveAuthoritativeReleaseTarget(details, publishedVersion)
+      : { expectedImportPath: "", expectedVersion: 0 };
     const report: PublishReport = {
       generatedAt: utcNow(),
       ok: false,
@@ -1214,8 +1231,8 @@ export async function runPublishMicroLibraryCli(): Promise<number> {
       failedAtStep: errorPipelinePhase.failedAtStep,
       resumeFrom: errorPipelinePhase.resumeFrom,
       completedPhase: errorPipelinePhase.completedPhase,
-      expectedImportPath: details?.recommendedImportPath ?? "",
-      expectedVersion: details?.libraryVersion ?? 0,
+      expectedImportPath: releaseTarget.expectedImportPath,
+      expectedVersion: releaseTarget.expectedVersion,
       publishedVersion,
       fallbackPublishedVersion,
       identityEvidenceContext,
