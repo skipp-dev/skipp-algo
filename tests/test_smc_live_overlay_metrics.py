@@ -375,6 +375,52 @@ def test_render_metrics_evidence_table_shows_brier_but_dashes_lift_below_tercile
     assert "nicht positiv" not in body
 
 
+def test_evidence_table_dashboard_sorts_and_renames_only_emitted_labels(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The dashboard's sortBy field and every renamed evidence column must be a
+    label the metric actually emits. Emitter and consumer are otherwise pinned by
+    two separate tests, so a one-sided rename would leave both green while the
+    table silently stops sorting or loses a column — this couples the two sides."""
+    import services.live_overlay_daemon.metrics as metrics_mod
+
+    snap = _sweep_trap_snap()
+    monkeypatch.setattr(metrics_mod.sweep_trap_shadow_bridge, "snapshot", lambda: snap)
+    body = "\n".join(metrics_mod._render_sweep_trap_shadow_metrics())
+
+    emitted_labels: set[str] = set()
+    for line in body.splitlines():
+        if line.startswith("live_overlay_sweep_trap_shadow_evidence_info{"):
+            label_block = line.split("{", 1)[1].rsplit("}", 1)[0]
+            emitted_labels.update(re.findall(r'(\w+)="', label_block))
+    assert emitted_labels, "evidence_info metric emitted no labelled series"
+
+    dashboard = json.loads(
+        (
+            Path(__file__).resolve().parents[1]
+            / "services"
+            / "live_overlay_daemon"
+            / "infra"
+            / "grafana"
+            / "dashboard-signals-experiments.json"
+        ).read_text(encoding="utf-8")
+    )
+    panel = next(
+        p for p in dashboard["panels"] if p.get("title") == "Sweep-Trap Evidence — Latest"
+    )
+    sort_by = next(t for t in panel["transformations"] if t["id"] == "sortBy")
+    organize = next(t for t in panel["transformations"] if t["id"] == "organize")
+
+    sort_field = sort_by["options"]["sort"][0]["field"]
+    assert sort_field in emitted_labels, (
+        f"dashboard sorts the evidence table by {sort_field!r} but the metric never emits it"
+    )
+    for column in organize["options"]["renameByName"]:
+        assert column in emitted_labels, (
+            f"dashboard renames {column!r} but the metric never emits it as a label"
+        )
+
+
 def test_sweep_trap_shadow_stale_gauge_fires_past_max_age(monkeypatch: pytest.MonkeyPatch) -> None:
     """The precomputed stale gauge flips to 1 once the snapshot is older than the
     96h max-age budget — the alertable 0/1 that dodges the gt-0-inert trap."""
