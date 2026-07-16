@@ -1971,25 +1971,37 @@
       ],
       "transformations": [
         {
+          "id": "sortBy",
+          "options": {
+            "fields": {},
+            "sort": [
+              {
+                "field": "idx"
+              }
+            ]
+          }
+        },
+        {
           "id": "organize",
           "options": {
             "excludeByName": {
               "Time": true,
               "Value": true,
               "__name__": true,
+              "idx": true,
               "instance": true,
               "job": true
             },
             "indexByName": {
               "date": 0,
               "metric": 1,
-              "value": 2,
+              "metric_value": 2,
               "assessment": 3
             },
             "renameByName": {
               "date": "Datum",
               "metric": "Kennzahl",
-              "value": "Wert",
+              "metric_value": "Wert",
               "assessment": "Bewertung"
             }
           }

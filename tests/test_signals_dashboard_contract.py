@@ -124,9 +124,18 @@ def test_sweep_trap_latest_evidence_table_has_date_value_and_assessment() -> Non
     assert organize["options"]["renameByName"] == {
         "date": "Datum",
         "metric": "Kennzahl",
-        "value": "Wert",
+        "metric_value": "Wert",
         "assessment": "Bewertung",
     }
+    # The value column is named metric_value, not "value", so it does not collide
+    # with Grafana's reserved numeric "Value" field (which the panel excludes).
+    assert organize["options"]["excludeByName"].get("Value") is True
+    assert "value" not in organize["options"]["renameByName"]
+    # A sortBy transform on the hidden idx label pins the logical row order; idx
+    # itself is excluded from the rendered table.
+    sort_by = next(t for t in panel["transformations"] if t["id"] == "sortBy")
+    assert sort_by["options"]["sort"][0]["field"] == "idx"
+    assert organize["options"]["excludeByName"].get("idx") is True
 
 
 def test_sweep_trap_shadow_verdict_panel_maps_all_three_codes() -> None:

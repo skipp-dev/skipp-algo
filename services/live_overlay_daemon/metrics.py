@@ -213,6 +213,11 @@ def _escape_label_value(value: object) -> str:
     )
 
 
+def _format_int_de(value: int) -> str:
+    """Group an integer with German thousands separators (1234 -> "1.234")."""
+    return f"{value:,}".replace(",", ".")
+
+
 def _workflow_labels(workflow: Mapping[str, object]) -> str:
     """Render the ``workflow_id``/``workflow``/``event`` label set for a flow.
 
@@ -2357,10 +2362,13 @@ def _render_sweep_trap_shadow_metrics() -> list[str]:
         f"{_prom_numeric_value(snap.get('verdict_code', 0.0))}"
     )
 
-    # A presentation-oriented info metric powers one latest-evidence table in
-    # Grafana. The numeric gauges above remain the alerting/calculation source;
-    # this low-cardinality view carries the snapshot date and human-readable
-    # assessment so the table does not have to recreate gate logic in PromQL.
+    # A presentation-only info metric powers the single latest-evidence table in
+    # Grafana. It is deliberately NOT low-cardinality: the snapshot date and the
+    # formatted value ride in labels, so a fresh series set churns in whenever the
+    # (roughly daily) snapshot changes — active series stay bounded at len(rows),
+    # stale ones age out. We accept that churn to keep the gate wording in Python
+    # instead of recreating it in PromQL. The numeric gauges above stay the source
+    # for any future alerting/recording rules; nothing alerts on them yet.
     date = _escape_label_value(str(snap.get("date", "") or "unknown"))
     n_samples = float(snap.get("n_samples", 0.0) or 0.0)
     min_samples = float(snap.get("min_samples", 0.0) or 0.0)
@@ -2369,19 +2377,34 @@ def _render_sweep_trap_shadow_metrics() -> list[str]:
     brier_delta = float(snap.get("brier_delta", 0.0) or 0.0)
     lift = float(snap.get("lift", 0.0) or 0.0)
     verdict_name = str(snap.get("verdict", "") or "INCONCLUSIVE")
+
+    # Absent corpus / too-few samples: don't assert pass/fail (or a numeric value)
+    # on data that was never computed. `have_terciles` mirrors the evaluator's own
+    # n>=6 tercile floor so the lift row stays "—" until it is real.
+    na = "—"
+    have_data = n_samples > 0
+    have_terciles = n_samples >= 6
+    samples_assessment = "Floor erfüllt" if min_samples > 0 and n_samples >= min_samples else "Floor nicht erfüllt"
+    baseline_assessment = "besser als Signal" if brier_baseline < brier_signal else "nicht besser als Signal"
+    delta_assessment = "Gate erfüllt" if brier_delta > 0 else "Gate verfehlt"
+    lift_assessment = "positiv" if lift > 0 else "nicht positiv"
+    verdict_assessment = "promotable" if verdict_name == "PROMOTABLE" else "nicht promotable"
+    # (idx, metric, value, assessment) — idx pins the display order via the
+    # dashboard's sortBy transform and is not shown as a column.
     rows = (
-        ("Gültige Samples", f"{int(n_samples):,}".replace(",", "."), "Floor erfüllt" if min_samples > 0 and n_samples >= min_samples else "Floor nicht erfüllt"),
-        ("Brier Signal", f"{brier_signal:.6f}", "—"),
-        ("Brier Baseline", f"{brier_baseline:.6f}", "besser als Signal" if brier_baseline < brier_signal else "nicht besser als Signal"),
-        ("Brier Delta", f"{brier_delta:+.6f}", "Gate erfüllt" if brier_delta > 0 else "Gate verfehlt"),
-        ("Tercile Lift", f"{lift:+.6f}", "positiv" if lift > 0 else "nicht positiv"),
-        ("Verdict", verdict_name, "promotable" if verdict_name == "PROMOTABLE" else "nicht promotable"),
+        (0, "Gültige Samples", _format_int_de(int(n_samples)), samples_assessment),
+        (1, "Brier Signal", f"{brier_signal:.6f}" if have_data else na, na),
+        (2, "Brier Baseline", f"{brier_baseline:.6f}" if have_data else na, baseline_assessment if have_data else na),
+        (3, "Brier Delta", f"{brier_delta:+.6f}" if have_data else na, delta_assessment if have_data else na),
+        (4, "Tercile Lift", f"{lift:+.6f}" if have_terciles else na, lift_assessment if have_terciles else na),
+        (5, "Verdict", verdict_name, verdict_assessment if have_data else na),
     )
     lines.append("# TYPE live_overlay_sweep_trap_shadow_evidence_info gauge")
-    for metric_name, value, assessment in rows:
+    for idx, metric_name, value, assessment in rows:
         labels = (
-            f'date="{date}",metric="{_escape_label_value(metric_name)}",'
-            f'value="{_escape_label_value(value)}",assessment="{_escape_label_value(assessment)}"'
+            f'date="{date}",idx="{idx}",metric="{_escape_label_value(metric_name)}",'
+            f'metric_value="{_escape_label_value(value)}",'
+            f'assessment="{_escape_label_value(assessment)}"'
         )
         lines.append(f"live_overlay_sweep_trap_shadow_evidence_info{{{labels}}} 1")
 

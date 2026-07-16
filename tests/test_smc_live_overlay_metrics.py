@@ -300,11 +300,46 @@ def test_render_metrics_emits_sweep_trap_shadow_values(monkeypatch: pytest.Monke
     assert "live_overlay_sweep_trap_shadow_sample_count 55.0" in body
     assert "live_overlay_sweep_trap_shadow_min_samples 40.0" in body
     assert 'live_overlay_sweep_trap_shadow_verdict_code{verdict="PROMOTABLE"} 2.0' in body
-    assert 'metric="Gültige Samples",value="55",assessment="Floor erfüllt"' in body
-    assert 'metric="Brier Baseline",value="0.231000",assessment="nicht besser als Signal"' in body
-    assert 'metric="Verdict",value="PROMOTABLE",assessment="promotable"' in body
+    assert 'metric="Gültige Samples",metric_value="55",assessment="Floor erfüllt"' in body
+    assert 'metric="Brier Baseline",metric_value="0.231000",assessment="nicht besser als Signal"' in body
+    assert 'metric="Verdict",metric_value="PROMOTABLE",assessment="promotable"' in body
+    # idx labels pin the table's display order (0..5) via the dashboard sortBy transform.
+    assert 'idx="0",metric="Gültige Samples"' in body
+    assert 'idx="5",metric="Verdict"' in body
     assert "live_overlay_sweep_trap_shadow_snapshot_age_known 1.0" in body
     assert "live_overlay_sweep_trap_shadow_snapshot_stale 0.0" in body
+
+
+def test_render_metrics_evidence_table_marks_absent_data_not_failed(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """With no evaluated corpus the evidence table must show "—", not assert
+    a failed gate on data that was never computed."""
+    import services.live_overlay_daemon.metrics as metrics_mod
+
+    snap = _sweep_trap_snap(
+        date="",
+        n_samples=0.0,
+        min_samples=40.0,
+        brier_signal=0.0,
+        brier_baseline=0.0,
+        brier_delta=0.0,
+        lift=0.0,
+        verdict="INCONCLUSIVE",
+        verdict_code=0.0,
+    )
+    monkeypatch.setattr(metrics_mod.sweep_trap_shadow_bridge, "snapshot", lambda: snap)
+
+    body = "\n".join(metrics_mod._render_sweep_trap_shadow_metrics())
+    # No data: Brier/Delta/Lift/Verdict assessments are neutral, samples honestly fail the floor.
+    assert 'metric="Gültige Samples",metric_value="0",assessment="Floor nicht erfüllt"' in body
+    assert 'metric="Brier Baseline",metric_value="—",assessment="—"' in body
+    assert 'metric="Brier Delta",metric_value="—",assessment="—"' in body
+    assert 'metric="Tercile Lift",metric_value="—",assessment="—"' in body
+    assert 'metric="Verdict",metric_value="INCONCLUSIVE",assessment="—"' in body
+    # It must NOT claim a gate verdict when there is no corpus.
+    assert "Gate verfehlt" not in body
+    assert "nicht besser als Signal" not in body
 
 
 def test_sweep_trap_shadow_stale_gauge_fires_past_max_age(monkeypatch: pytest.MonkeyPatch) -> None:
