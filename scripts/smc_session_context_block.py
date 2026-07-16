@@ -15,46 +15,42 @@ Usage::
 from __future__ import annotations
 
 import logging
+from dataclasses import dataclass
 from datetime import UTC, datetime, time
 from typing import Any
+from zoneinfo import ZoneInfo
 
 import pandas as pd
 
 logger = logging.getLogger(__name__)
 
-# ── Session definitions (UTC) ───────────────────────────────────
-#
-# Intent (audit TZ-2, locked-in 2026-04-24):
-#   These windows are FIXED UTC offsets — NOT a local-clock mapping that
-#   shifts with DST. The chosen UTC ranges happen to align with the
-#   *summer* local trading clock of each region:
-#     • LONDON  07:00-15:30 UTC  ≙ 08:00-16:30 BST  (LSE cash, summer)
-#     • NY_AM   13:30-17:00 UTC  ≙ 09:30-13:00 EDT  (NYSE morning, summer)
-#     • NY_PM   17:00-20:00 UTC  ≙ 13:00-16:00 EDT  (NYSE afternoon, summer)
-#     • ASIA    00:00-08:00 UTC  ≙ 09:00-17:00 JST  (Tokyo, no DST)
-#
-# In **winter**, EU/UK switch GMT and US switches EST. Local exchange
-# open then drifts ~1h relative to these UTC windows. This is intentional
-# for the SMC session-context block — downstream consumers reason about
-# *macro liquidity windows* (which we anchor to the summer/LDN-NY overlap
-# clock), not about per-exchange opening bells.
-#
-# If a future feature needs DST-aware exchange clocks, build a separate
-# layer (e.g. `zoneinfo.ZoneInfo("Europe/London")`) — do not redefine
-# these constants. See `tests/test_smc_session_context_block.py`
-# (`test_tz2_*`) for the lock-down tests guarding this contract.
+@dataclass(frozen=True)
+class SessionWindow:
+    timezone: str
+    start_local: time
+    end_local: time
 
+    def contains(self, instant: datetime) -> bool:
+        local_time = instant.astimezone(ZoneInfo(self.timezone)).time().replace(tzinfo=None)
+        if self.start_local <= self.end_local:
+            return self.start_local <= local_time < self.end_local
+        return local_time >= self.start_local or local_time < self.end_local
+
+
+# Session clocks belong to their local markets. London and New York use
+# independent IANA zones because US and European DST transitions do not occur
+# on the same dates. Tokyo has no DST but is still expressed in its local zone.
 SESSIONS = {
-    "ASIA":   (time(0, 0), time(8, 0)),
-    "LONDON": (time(7, 0), time(15, 30)),
-    "NY_AM":  (time(13, 30), time(17, 0)),
-    "NY_PM":  (time(17, 0), time(20, 0)),
+    "ASIA": SessionWindow("Asia/Tokyo", time(9, 0), time(17, 0)),
+    "LONDON": SessionWindow("Europe/London", time(8, 0), time(16, 30)),
+    "NY_AM": SessionWindow("America/New_York", time(9, 30), time(13, 0)),
+    "NY_PM": SessionWindow("America/New_York", time(13, 0), time(16, 0)),
 }
 
 KILLZONES = {
-    "ASIA_KZ":   (time(0, 0), time(4, 0)),
-    "LONDON_KZ": (time(7, 0), time(10, 0)),
-    "NY_KZ":     (time(13, 30), time(16, 0)),
+    "ASIA_KZ": SessionWindow("Asia/Tokyo", time(9, 0), time(13, 0)),
+    "LONDON_KZ": SessionWindow("Europe/London", time(8, 0), time(11, 0)),
+    "NY_KZ": SessionWindow("America/New_York", time(9, 30), time(12, 0)),
 }
 
 # ── Defaults ────────────────────────────────────────────────────
@@ -95,7 +91,7 @@ def build_session_context_block(
     symbol : str
         Ticker to filter in snapshot.
     timestamp : datetime, optional
-        Current UTC time for session classification.
+        Timezone-aware instant for session classification.
         Falls back to ``datetime.now(UTC)`` when not provided.
     overrides : dict, optional
         Manual overrides — flat merge, last wins.
@@ -103,10 +99,11 @@ def build_session_context_block(
     result = dict(DEFAULTS)
 
     ts = timestamp or datetime.now(UTC)
-    current_time = ts.time() if hasattr(ts, "time") else time(0, 0)
+    if ts.tzinfo is None or ts.utcoffset() is None:
+        raise ValueError("timestamp must be timezone-aware")
 
-    result["SESSION_CONTEXT"] = _classify_session(current_time)
-    result["IN_KILLZONE"] = _in_killzone(current_time)
+    result["SESSION_CONTEXT"] = _classify_session(ts)
+    result["IN_KILLZONE"] = _in_killzone(ts)
 
     row = _resolve_row(snapshot, symbol)
     if row is not None:
@@ -149,29 +146,17 @@ def _resolve_row(df: pd.DataFrame | None, symbol: str) -> dict[str, Any] | None:
     return None
 
 
-def _classify_session(t: time) -> str:
+def _classify_session(instant: datetime) -> str:
     # Check in reverse order so more specific/later sessions win
     # over broader ones (e.g. NY_AM over LONDON overlap).
-    for name in reversed(SESSIONS):
-        start, end = SESSIONS[name]
-        if start <= end:
-            if start <= t < end:
-                return name
-        else:
-            if t >= start or t < end:
-                return name
+    for name, window in reversed(SESSIONS.items()):
+        if window.contains(instant):
+            return name
     return "NONE"
 
 
-def _in_killzone(t: time) -> bool:
-    for start, end in KILLZONES.values():
-        if start <= end:
-            if start <= t < end:
-                return True
-        else:
-            if t >= start or t < end:
-                return True
-    return False
+def _in_killzone(instant: datetime) -> bool:
+    return any(window.contains(instant) for window in KILLZONES.values())
 
 
 def _direction_bias(r: dict[str, Any]) -> str:

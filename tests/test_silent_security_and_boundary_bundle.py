@@ -207,7 +207,7 @@ _FROZEN_BASIC_CONFIG_SITES: frozenset[tuple[str, int]] = frozenset({
     ("open_prep/realtime_signals.py", 3709),  # 2026-07-16 postmarket adapter shifted site: 3626->3709
     # 2026-07-04 (market-microstructure observe-only): import + snapshot
     # block + row-loop fields shifted 6079 -> 6105.
-    ("open_prep/run_open_prep.py", 6177),  # 2026-07-13 (truth disclosures above): 6170->6177
+    ("open_prep/run_open_prep.py", 6197),  # 2026-07-17 (DST-aware macro-time helper above): 6177->6197
     # 2026-06-16 (feat/live-overlay-daemon): entry-point main.py configures
     # root logger at startup (Railway container, no other logger setup).
     # 2026-06-19 (fix/live-overlay-post-merge-bugs): import additions for

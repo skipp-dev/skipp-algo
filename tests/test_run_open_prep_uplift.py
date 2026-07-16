@@ -177,6 +177,24 @@ def test_sort_macro_events_stable_for_identical_keys() -> None:
     assert [e["event"] for e in out] == ["Aaa", "Bbb"]
 
 
+def test_preferred_us_market_times_follow_new_york_dst() -> None:
+    # Before US DST: 08:30 New York is 13:30 UTC.
+    assert rop._is_preferred_us_market_time("2026-03-06 13:30:00") is True
+    assert rop._is_preferred_us_market_time("2026-03-06 12:30:00") is False
+
+    # US has switched to EDT while Europe has not: the same local release is
+    # now 12:30 UTC. This explicitly covers the transatlantic divergence week.
+    assert rop._is_preferred_us_market_time("2026-03-20 12:30:00") is True
+    assert rop._is_preferred_us_market_time("2026-03-20 14:30:00") is False
+
+
+def test_preferred_us_market_times_follow_autumn_divergence_week() -> None:
+    # Europe has returned to standard time, but the US remains on EDT.
+    assert rop._is_preferred_us_market_time("2026-10-30 12:30:00") is True
+    # After the US transition, 08:30 New York returns to 13:30 UTC.
+    assert rop._is_preferred_us_market_time("2026-11-02 13:30:00") is True
+
+
 # ---------------------------------------------------------------------------
 # _format_macro_events
 # ---------------------------------------------------------------------------

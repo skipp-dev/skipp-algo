@@ -14,6 +14,7 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 from concurrent.futures import TimeoutError as FuturesTimeoutError
 from dataclasses import dataclass
 from datetime import UTC, date, datetime, timedelta
+from datetime import time as datetime_time
 from pathlib import Path
 from typing import Any
 from zoneinfo import ZoneInfo
@@ -91,9 +92,11 @@ DEFAULT_UNIVERSE = [
     "SMCI",
 ]
 
-PREFERRED_US_OPEN_UTC_TIMES: tuple[str, ...] = ("13:30:00", "14:30:00", "15:00:00")  # KNOWN DST-BLIND: 13:30=9:30ET only in EDT, 14:30 only in EST, 15:00 is never the open; 12:30 (8:30ET releases in summer) missing — display-order tiebreak only
 US_EASTERN_TZ = ZoneInfo("America/New_York")
 BERLIN_TZ = ZoneInfo("Europe/Berlin")
+PREFERRED_US_MARKET_LOCAL_TIMES: frozenset[datetime_time] = frozenset(
+    {datetime_time(8, 30), datetime_time(9, 30)}
+)
 HVB_MULTIPLIER = 1.5
 GAP_MODE_RTH_OPEN = "RTH_OPEN"
 GAP_MODE_PREMARKET_INDICATIVE = "PREMARKET_INDICATIVE"
@@ -239,14 +242,31 @@ def _macro_relevance_score(event_name: str) -> int:
     return score
 
 
+def _is_preferred_us_market_time(event_date: str) -> bool:
+    """Return whether a UTC event timestamp maps to 08:30/09:30 New York.
+
+    Economic-calendar timestamps are handled as UTC when no explicit offset is
+    present. Converting the complete dated instant—not comparing a UTC clock
+    string—keeps ordering correct across EST/EDT and the US/EU divergence weeks.
+    """
+    text = event_date.strip().replace("Z", "+00:00")
+    try:
+        parsed = datetime.fromisoformat(text)
+    except ValueError:
+        return False
+    if parsed.tzinfo is None:
+        parsed = parsed.replace(tzinfo=UTC)
+    local = parsed.astimezone(US_EASTERN_TZ)
+    return local.time().replace(tzinfo=None) in PREFERRED_US_MARKET_LOCAL_TIMES
+
+
 def _sort_macro_events(events: list[dict]) -> list[dict]:
     def key_fn(event: dict) -> tuple[int, int, int, str, str]:
         impact_raw = str(event.get("impact") or event.get("importance") or event.get("priority") or "").lower()
         impact_rank = 2 if impact_raw == "high" else 1 if impact_raw in {"medium", "mid", "moderate"} else 0
 
         date_str = str(event.get("date") or "")
-        time_str = _extract_time_str(date_str)
-        open_time_rank = 1 if time_str in PREFERRED_US_OPEN_UTC_TIMES else 0
+        open_time_rank = 1 if _is_preferred_us_market_time(date_str) else 0
 
         name = str(event.get("event") or event.get("name") or "")
         relevance = _macro_relevance_score(name)

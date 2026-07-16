@@ -50,7 +50,8 @@ DATASET = "EQUS.MINI"
 SCHEMA = "ohlcv-1m"
 UNIVERSE_SIZE = 6_889
 
-# Replay today's session from open (13:30 UTC = NYSE open).
+# Replay recent data. NYSE open is always 09:30 America/New_York; its UTC
+# representation is 13:30 in EDT and 14:30 in EST.
 # We stream live and stop after MAX_RECORDS records (or 60s wall-clock, whichever comes first).
 # ohlcv-1m bars only emit at bar-close, so during live market we expect 1 bar/min/ticker.
 REPLAY_START = datetime.datetime(2026, 6, 14, 0, 0, tzinfo=datetime.UTC)  # earliest available
@@ -236,7 +237,7 @@ def main() -> None:
         print(f"  → Railway 512 MB tier           : {'✓ fits' if ram_numpy_mb + 80 < 512 else '✗ too large'}")
         print(f"  → Railway 1 GB tier ($12/mo)    : {'✓ fits' if ram_numpy_mb + 80 < 1024 else '✗ too large'}")
         print()
-        print("  NOTE: Run during NYSE hours (13:30–20:00 UTC Mon–Fri) for live measurement.")
+        print("  NOTE: Run during NYSE hours (09:30–16:00 America/New_York, Mon–Fri) for live measurement.")
 
     print()
     print("[PoC] Done.")

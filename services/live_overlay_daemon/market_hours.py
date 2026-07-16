@@ -21,19 +21,25 @@ def _is_open_between(
     zone_name: str,
     start_local: datetime.time,
     end_local: datetime.time,
-    fallback_start_utc: datetime.time,
-    fallback_end_utc: datetime.time,
     holiday_calendar_code: str | None = None,
 ) -> bool:
-    """Return whether local market session is open with UTC fallback."""
+    """Return whether a local-clock market session is open.
+
+    Market hours must fail closed when IANA timezone data is unavailable. A
+    fixed UTC fallback is wrong during part of every year and is especially
+    dangerous while US and European DST calendars are temporarily out of
+    sync.
+    """
+    if now_utc.tzinfo is None or now_utc.utcoffset() is None:
+        raise ValueError("now_utc must be timezone-aware")
     try:
         local_tz = ZoneInfo(zone_name)
         now_local = now_utc.astimezone(local_tz)
-    except ZoneInfoNotFoundError:
-        if now_utc.weekday() >= 5:
-            return False
-        current_utc = now_utc.time()
-        return fallback_start_utc <= current_utc < fallback_end_utc
+    except ZoneInfoNotFoundError as exc:
+        raise RuntimeError(
+            f"IANA timezone {zone_name!r} is unavailable; install tzdata. "
+            "Refusing a fixed UTC market-hours fallback because DST rules differ by region."
+        ) from exc
 
     if not _is_weekday(now_local):
         return False
@@ -73,10 +79,6 @@ def is_us_regular_session_open(now_utc: datetime.datetime | None = None) -> bool
         zone_name="America/New_York",
         start_local=datetime.time(9, 30),
         end_local=datetime.time(16, 0),
-        # DST-naive fallback (only used when tzdata/ZoneInfo is unavailable):
-        # 13:30-20:00 UTC assumes EDT (UTC-4); off by +1h during EST (winter).
-        fallback_start_utc=datetime.time(13, 30),
-        fallback_end_utc=datetime.time(20, 0),
         holiday_calendar_code="NYSE",
     )
 
@@ -89,10 +91,6 @@ def is_europe_regular_session_open(now_utc: datetime.datetime | None = None) -> 
         zone_name="Europe/London",
         start_local=datetime.time(8, 0),
         end_local=datetime.time(16, 30),
-        # DST-naive fallback (only used when tzdata/ZoneInfo is unavailable):
-        # 08:00-16:30 UTC assumes GMT (winter); off by -1h during BST (summer).
-        fallback_start_utc=datetime.time(8, 0),
-        fallback_end_utc=datetime.time(16, 30),
         holiday_calendar_code="GB",
     )
 
@@ -105,8 +103,6 @@ def is_asia_regular_session_open(now_utc: datetime.datetime | None = None) -> bo
         zone_name="Asia/Tokyo",
         start_local=datetime.time(9, 0),
         end_local=datetime.time(15, 0),
-        fallback_start_utc=datetime.time(0, 0),
-        fallback_end_utc=datetime.time(6, 0),
         holiday_calendar_code="JP",
     )
 
