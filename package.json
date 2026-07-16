@@ -40,6 +40,8 @@
     "tv:preflight:core-dashboard": "TV_PERSISTENT_PROFILE_DIR=automation/tradingview/auth/chromium-profile tsx scripts/tv_preflight.ts --config automation/tradingview/preflight-core-dashboard.json",
     "tv:preflight:smc-mainline": "TV_PERSISTENT_PROFILE_DIR=automation/tradingview/auth/chromium-profile tsx scripts/tv_preflight.ts --config automation/tradingview/preflight-smc-mainline.json",
     "tv:preflight:decision-first": "TV_PERSISTENT_PROFILE_DIR=automation/tradingview/auth/chromium-profile tsx scripts/tv_preflight.ts --config automation/tradingview/preflight-decision-first.json",
+    "tv:onboard": "tsx scripts/tv_onboard_consumers.ts",
+    "tv:onboarding:package": "node scripts/build_tv_onboarding_package.mjs",
     "tv:smoke-readonly": "tsx scripts/tv_preflight.ts --execution-mode readonly",
     "tv:test": "tsx --test automation/tradingview/tests/**/*.test.ts",
     "tv:verify": "bash scripts/tv_verify_publish_chain.sh",
@@ -53,6 +55,7 @@
   },
   "devDependencies": {
     "@types/node": "^24.6.0",
+    "esbuild": "~0.28.0",
     "playwright": "^1.55.0",
     "tsx": "^4.22.4",
     "typescript": "^5.9.2"
