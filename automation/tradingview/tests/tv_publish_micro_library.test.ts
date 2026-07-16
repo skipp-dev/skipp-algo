@@ -6,6 +6,7 @@ import test from "node:test";
 
 import {
   resolvePreMutationOpenGate,
+  resolveAuthoritativeReleaseTarget,
   resolvePublishPipelinePhase,
   readProductCutSummary,
   resolvePublishReportState,
@@ -14,6 +15,17 @@ import {
   shouldReopenPublishedScriptAfterPublish,
   verifyPublishContract,
 } from "../../../scripts/tv_publish_micro_library.js";
+
+test("facade-published version is the authoritative release target", () => {
+  assert.deepEqual(resolveAuthoritativeReleaseTarget({
+    libraryOwner: "owner_a",
+    libraryName: "smc_micro_profiles_generated",
+    libraryVersion: 1,
+  }, 153), {
+    expectedVersion: 153,
+    expectedImportPath: "owner_a/smc_micro_profiles_generated/153",
+  });
+});
 
 function buildGeneratedLibraryManifest(overrides: Record<string, unknown> = {}): Record<string, unknown> {
   return {
