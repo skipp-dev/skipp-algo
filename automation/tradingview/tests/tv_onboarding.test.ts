@@ -4,6 +4,7 @@ import test from "node:test";
 import {
   browserProfileDirectory,
   browserCandidates,
+  classifyBrowserFromPath,
   executeOnboarding,
   renderHtmlReport,
   reportSummaryLines,
@@ -163,6 +164,18 @@ test("browser candidates cover Windows Chrome/Edge and macOS Chrome/Edge", () =>
   const mac = browserCandidates("darwin", {}, "/Users/ada");
   assert.ok(mac.some((item) => item.name === "Google Chrome"));
   assert.ok(mac.some((item) => item.name === "Microsoft Edge"));
+});
+
+test("--browser-path classifies platform-specific Chrome and Edge bundle executables", () => {
+  // macOS bundle executables have no "msedge"/"chrome.exe" — they are the app
+  // display names. Matching only "msedge" misclassified the documented macOS
+  // Edge path as a custom browser, giving it a separate hashed profile so the
+  // persisted TradingView login was not reused.
+  assert.equal(classifyBrowserFromPath("/Applications/Microsoft Edge.app/Contents/MacOS/Microsoft Edge").id, "edge");
+  assert.equal(classifyBrowserFromPath("/Applications/Google Chrome.app/Contents/MacOS/Google Chrome").id, "chrome");
+  assert.equal(classifyBrowserFromPath("C:\\Program Files (x86)\\Microsoft\\Edge\\Application\\msedge.exe").id, "edge");
+  assert.equal(classifyBrowserFromPath("C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe").id, "chrome");
+  assert.equal(classifyBrowserFromPath("/opt/brave/brave").id, "custom");
 });
 
 test("Chrome, Edge, and custom executables cannot share a persistent profile", () => {

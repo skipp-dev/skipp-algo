@@ -7,6 +7,8 @@ import { createRequire } from "node:module";
 import { fileURLToPath } from "node:url";
 import { build } from "esbuild";
 
+import { parseBusBindingLabels } from "../automation/tradingview/lib/bus_binding_labels.mjs";
+
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const require = createRequire(import.meta.url);
 
@@ -22,11 +24,6 @@ function normalizedPlatform() {
   return process.platform;
 }
 
-function parseBindingLabels(source) {
-  return [...source.matchAll(/input\.source\([^,]+,\s*(["'])(.*?)\1/g)]
-    .map((match) => match[2])
-    .filter((label) => label.startsWith("BUS "));
-}
 
 function copyPackage(packageName, destination) {
   const packageJson = require.resolve(`${packageName}/package.json`);
@@ -64,7 +61,7 @@ function portableConfig() {
   return {
     ...raw,
     consumers: raw.consumers.map((consumer) => {
-      const bindingLabels = parseBindingLabels(fs.readFileSync(path.join(root, consumer.source), "utf-8"));
+      const bindingLabels = parseBusBindingLabels(fs.readFileSync(path.join(root, consumer.source), "utf-8"));
       if (bindingLabels.length === 0) throw new Error(`No BUS bindings found in ${consumer.source}`);
       const { source: _source, ...portable } = consumer;
       return { ...portable, bindingLabels };

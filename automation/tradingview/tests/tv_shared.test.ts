@@ -38,6 +38,7 @@ import {
   ensurePineEditor,
   findChartSurfaceActionButtonsForScript,
   findLegendRowWrappers,
+  countChartScriptInstances,
   isLegendTruncatedMatch,
   hasSettingsSurfaceDomHint,
   dismissOverlapManagerOverlay,
@@ -1103,6 +1104,34 @@ test("findLegendRowWrappers skips invisible legend buttons", async () => {
   const wrappers = await findLegendRowWrappers(makeLegendPage([hiddenButton]) as never, scriptName);
 
   assert.equal(wrappers.length, 0, "invisible legend buttons must be ignored");
+});
+
+test("countChartScriptInstances counts duplicate identical scripts that findLegendRowWrappers dedupes to one", async () => {
+  const scriptName = "SMC Long-Dip Suite";
+  // Two accidental copies of the same script share identical legend text. This
+  // is exactly the ambiguous-source layout the onboarding/verify guards must
+  // catch. findLegendRowWrappers dedupes matches by `${depth}:${text}`, so it
+  // collapses both rows into a single wrapper — using its .length as an
+  // instance count would report 1 and the guard would never fire.
+  const first = makeLegendButton({ 1: "", 2: scriptName });
+  const second = makeLegendButton({ 1: "", 2: scriptName });
+  const page = makeLegendPage([first, second]) as never;
+
+  const wrappers = await findLegendRowWrappers(page, scriptName);
+  assert.equal(wrappers.length, 1, "findLegendRowWrappers dedupes identical rows (the bug being guarded against)");
+
+  const instances = await countChartScriptInstances(page, scriptName);
+  assert.equal(instances, 2, "countChartScriptInstances must report both identical instances");
+});
+
+test("countChartScriptInstances ignores buttons whose ancestors carry no matching name", async () => {
+  const scriptName = "SMC Long-Dip Suite";
+  const match = makeLegendButton({ 1: "", 2: scriptName });
+  const chrome = makeLegendButton({ 1: "", 2: "Indicators templates alerts", 3: "Header toolbar" });
+  const hidden = makeLegendButton({ 1: "", 2: scriptName }, false);
+
+  const instances = await countChartScriptInstances(makeLegendPage([match, chrome, hidden]) as never, scriptName);
+  assert.equal(instances, 1, "only the visible, name-carrying legend row counts");
 });
 
 test("chart surface action button scope keeps only controls whose ancestor names the script", async () => {

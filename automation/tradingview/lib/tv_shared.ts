@@ -4321,6 +4321,59 @@ export async function findLegendRowWrappers(
   return matches.slice(0, 6).map((entry) => entry.locator);
 }
 
+/**
+ * Count how many DISTINCT legend rows on the chart match {@link scriptName}.
+ *
+ * {@link findLegendRowWrappers} dedupes matched wrappers by their rendered text
+ * (`${depth}:${text}`), so two copies of the SAME script — which share identical
+ * legend text — collapse to a single wrapper. Using its `.length` as an instance
+ * count therefore reports 2 identical scripts as 1, defeating the very
+ * duplicate-detection the onboarding/verify ambiguity guards rely on. This
+ * counts each matching legend settings button once instead, so accidental
+ * duplicates report their true multiplicity.
+ */
+export async function countChartScriptInstances(
+  page: Page,
+  scriptName: string,
+  options: VisibleChartScriptStateProbeOptions = {},
+): Promise<number> {
+  const candidateNames = resolveOpenScriptSearchNames(scriptName);
+  const patternsList = candidateNames.map((name) => buildScriptNamePatterns(name));
+  const buttonLimit = options.legendButtonLimit ?? 40;
+  const visibleTimeoutMs = options.legendVisibleTimeoutMs ?? 250;
+  const ancestorTextTimeoutMs = options.legendAncestorTextTimeoutMs ?? 300;
+
+  const buttons = page.locator('button[data-qa-id="legend-settings-action"]');
+  const buttonCount = await buttons.count().catch(() => 0);
+  let instances = 0;
+
+  for (let i = 0; i < Math.min(buttonCount, buttonLimit); i += 1) {
+    const btn = buttons.nth(i);
+    const visible = await btn.isVisible({ timeout: visibleTimeoutMs }).catch(() => false);
+    if (!visible) continue;
+
+    let matched = false;
+    for (const depth of [1, 2, 3, 4, 5]) {
+      const xpath = new Array(depth).fill("..").join("/");
+      const ancestor = btn.locator(`xpath=${xpath}`);
+      const text = normalizeUiText((await ancestor.innerText({ timeout: ancestorTextTimeoutMs }).catch(() => "")) || "");
+      if (!text || text.length > 300) continue;
+
+      for (const [index, candidate] of candidateNames.entries()) {
+        const [, loosePattern, fuzzyPattern] = patternsList[index];
+        if (loosePattern.test(text) || fuzzyPattern.test(text) || isLegendTruncatedMatch(text, candidate)) {
+          matched = true;
+          break;
+        }
+      }
+      if (matched) break;
+    }
+    if (matched) instances += 1;
+  }
+
+  return instances;
+}
+
 function legendMoreActionLocators(wrapper: Locator): Locator[] {
   return [
     wrapper.locator('button[data-qa-id="legend-more-action"]'),
