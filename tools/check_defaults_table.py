@@ -51,6 +51,8 @@ _REPO_ROOT = Path(__file__).resolve().parent.parent
 _CONFIG_PATH = _REPO_ROOT / "newsstack_fmp" / "config.py"
 _DOC_PATH = _REPO_ROOT / "docs" / "CONFIG_DEFAULTS_TABLE.md"
 
+_ATTR_ENVVAR_EXCEPTIONS = {"newsapi_ai_key": "NEWSAPI_KEY"}
+
 
 def _is_os_getenv(call: ast.AST) -> bool:
     """``os.getenv("KEY", "default")``."""
@@ -194,6 +196,8 @@ def _check_attr_envvar_alignment(rows: list[tuple[str, str, str, str]]) -> Itera
     """Yield warnings when attr name and env-var name diverge non-trivially."""
 
     for attr, env_var, _default, _kind in rows:
+        if _ATTR_ENVVAR_EXCEPTIONS.get(attr) == env_var:
+            continue
         expected_env = attr.upper()
         if env_var == expected_env:
             continue

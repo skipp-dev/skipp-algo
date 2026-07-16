@@ -68,7 +68,9 @@ _SYS_EXIT_LEDGER: frozenset[tuple[str, int]] = frozenset({
     # 2026-05-12 (#2171 audit-L-1 PR-D R12+R3): consistency-check CLI tools
     # exit non-zero on findings in --strict mode, 0 otherwise.
     ("tools/check_audit_doc_consistency.py", 135),
-    ("tools/check_defaults_table.py", 249),
+    # 2026-07-16 (truth audit): intentional env-name exception shifted CLI
+    # guard exit from 249 -> 253; the site remains the same __main__ dispatch.
+    ("tools/check_defaults_table.py", 253),
 })
 
 
