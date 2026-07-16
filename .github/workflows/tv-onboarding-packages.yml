@@ -1,0 +1,134 @@
+name: tv-onboarding-packages
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - main
+    paths:
+      - ".github/workflows/tv-onboarding-packages.yml"
+      - "automation/tradingview/config/consumer-onboarding.json"
+      - "automation/tradingview/lib/**"
+      - "automation/tradingview/tests/tv_onboarding.test.ts"
+      - "docs/tradingview-onboarding/**"
+      - "package.json"
+      - "package-lock.json"
+      - "scripts/build_tv_onboarding_package.mjs"
+      - "scripts/tv_onboard_consumers.ts"
+      - "scripts/tv_verify_consumer_bindings.ts"
+  pull_request:
+    paths:
+      - ".github/workflows/tv-onboarding-packages.yml"
+      - "automation/tradingview/config/consumer-onboarding.json"
+      - "automation/tradingview/lib/**"
+      - "automation/tradingview/tests/tv_onboarding.test.ts"
+      - "docs/tradingview-onboarding/**"
+      - "package.json"
+      - "package-lock.json"
+      - "scripts/build_tv_onboarding_package.mjs"
+      - "scripts/tv_onboard_consumers.ts"
+      - "scripts/tv_verify_consumer_bindings.ts"
+
+permissions:
+  contents: read
+
+env:
+  PYTHONUNBUFFERED: "1"
+
+defaults:
+  run:
+    shell: bash
+
+concurrency:
+  group: tv-onboarding-packages-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  package:
+    name: ${{ matrix.name }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: Windows x64
+            runner: windows-latest
+            platform: windows
+            arch: x64
+            package_name: SMC-Onboarding-Windows-x64
+            archive_name: SMC-Onboarding-Windows-x64.zip
+          - name: macOS Apple Silicon
+            runner: macos-latest
+            platform: macos
+            arch: arm64
+            package_name: SMC-Onboarding-macOS-arm64
+            archive_name: SMC-Onboarding-macOS-arm64.tar.gz
+          - name: macOS Intel
+            runner: macos-15-intel
+            platform: macos
+            arch: x64
+            package_name: SMC-Onboarding-macOS-x64
+            archive_name: SMC-Onboarding-macOS-x64.tar.gz
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 20
+    env:
+      PACKAGE_NAME: ${{ matrix.package_name }}
+      ARCHIVE_NAME: ${{ matrix.archive_name }}
+      TARGET_PLATFORM: ${{ matrix.platform }}
+      TARGET_ARCH: ${{ matrix.arch }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+        with:
+          persist-credentials: false
+
+      - name: Set up Node
+        uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6
+        with:
+          node-version: "20"
+          cache: npm
+
+      - name: Install build dependencies
+        run: npm ci
+
+      - name: Type-check onboarding
+        run: npm run tsc:check
+
+      - name: Test onboarding behavior
+        run: npx tsx --test automation/tradingview/tests/tv_onboarding.test.ts
+
+      - name: Build portable package
+        run: npm run tv:onboarding:package -- --platform "$TARGET_PLATFORM" --arch "$TARGET_ARCH" --out-dir dist/tv-onboarding
+        shell: bash
+
+      - name: Smoke-test portable package on Windows
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          $env:SMC_ONBOARDING_NO_PAUSE = "1"
+          & "dist/tv-onboarding/$env:PACKAGE_NAME/runtime/node.exe" `
+            "dist/tv-onboarding/$env:PACKAGE_NAME/app/tv_onboard_consumers.mjs" `
+            --self-test --browser-smoke --no-open-report
+
+      - name: Smoke-test portable package on macOS
+        if: runner.os == 'macOS'
+        run: >-
+          "dist/tv-onboarding/$PACKAGE_NAME/Start SMC Onboarding.command"
+          --self-test --browser-smoke --no-open-report
+
+      - name: Archive Windows package
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: Compress-Archive -Path "dist/tv-onboarding/$env:PACKAGE_NAME" -DestinationPath "dist/$env:ARCHIVE_NAME"
+
+      - name: Archive macOS package
+        if: runner.os == 'macOS'
+        run: tar -C dist/tv-onboarding -czf "dist/$ARCHIVE_NAME" "$PACKAGE_NAME"
+
+      - name: Upload portable package
+        if: ${{ success() }}
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: ${{ matrix.package_name }}
+          path: dist/${{ matrix.archive_name }}
+          if-no-files-found: error
+          retention-days: 30

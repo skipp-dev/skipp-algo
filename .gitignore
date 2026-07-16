@@ -163,3 +163,6 @@ threads_full.json
 threads.json
 fast_gates_fail.json
 .venv/
+
+# Portable end-user packages are reproducible CI artifacts, never source.
+dist/tv-onboarding/

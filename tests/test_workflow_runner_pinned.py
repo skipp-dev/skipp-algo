@@ -52,6 +52,15 @@ _ROUTED_WORKFLOWS = {
     "smc-databento-production-export.yml": {"worker_jobs": {"export"}},
     "smc-live-news-refresh.yml": {"worker_jobs": {"refresh"}},
 }
+_CROSS_PLATFORM_WORKFLOWS = {
+    # End-user packages must execute on each supported OS/architecture; the
+    # matrix is pinned here so it cannot become an arbitrary runner expression.
+    "tv-onboarding-packages.yml": {
+        "job": "package",
+        "runs_on": "${{ matrix.runner }}",
+        "runners": {"windows-latest", "macos-latest", "macos-15-intel"},
+    },
+}
 
 
 def _workflow_files() -> list[Path]:
@@ -111,6 +120,14 @@ def test_workflow_runs_on_contract(path: Path) -> None:
             assert "select-runner" in _needs_list(job), (
                 f"{path.name}:{worker_job} must depend on select-runner"
             )
+        return
+
+    if path.name in _CROSS_PLATFORM_WORKFLOWS:
+        contract = _CROSS_PLATFORM_WORKFLOWS[path.name]
+        job = jobs[contract["job"]]
+        assert job.get("runs-on") == contract["runs_on"]
+        matrix = job.get("strategy", {}).get("matrix", {}).get("include", [])
+        assert {entry.get("runner") for entry in matrix} == contract["runners"]
         return
 
     offenders: list[str] = []

@@ -19,6 +19,7 @@ type Config = { producerName: string; primaryChartUrl: string; repairE2ETarget: 
 async function main(): Promise<void> {
   const config = JSON.parse(fs.readFileSync("automation/tradingview/config/consumer-rollout.json", "utf-8")) as Config;
   const target = { ...config.repairE2ETarget, producerName: config.producerName };
+  if (!target.source) throw new Error("Repair E2E target is missing its Pine source path");
   const labels = parseInputSourceLabels(fs.readFileSync(target.source, "utf-8"));
   const testLabel = labels[0];
   if (!testLabel) throw new Error(`Repair E2E target has no BUS bindings: ${target.source}`);

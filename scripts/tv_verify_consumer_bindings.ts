@@ -1,7 +1,6 @@
 /** Verify an existing chart consumer's input.source selections exactly. */
 import * as fs from "node:fs";
 import * as path from "node:path";
-import { fileURLToPath } from "node:url";
 
 import {
   closeModal,
@@ -16,7 +15,8 @@ import {
 
 export type Binding = { label: string; actual: string | null; expected: string; ok: boolean };
 export type VerifyConsumerTarget = {
-  source: string;
+  source?: string;
+  bindingLabels?: string[];
   savedScriptName: string;
   scriptName: string;
   chartUrl?: string;
@@ -30,7 +30,7 @@ export type VerifyConsumerResult = {
   unknownParentRuntimeError: boolean;
   scriptName: string;
   savedScriptName: string;
-  sourcePath: string;
+  sourcePath: string | null;
   checked: number;
   mismatches: Binding[];
   bindings: Binding[];
@@ -50,6 +50,21 @@ export function parseInputSourceLabels(source: string): string[] {
   return [...source.matchAll(/input\.source\([^,]+,\s*(["'])(.*?)\1/g)]
     .map((match) => match[2])
     .filter((label) => label.startsWith("BUS "));
+}
+
+function resolveBindingContract(target: VerifyConsumerTarget): { labels: string[]; sourcePath: string | null } {
+  if (target.bindingLabels && target.bindingLabels.length > 0) {
+    return { labels: [...target.bindingLabels], sourcePath: target.source ? path.resolve(target.source) : null };
+  }
+  if (!target.source) throw new Error(`No BUS binding contract configured: ${target.scriptName}`);
+  const sourcePath = path.resolve(target.source);
+  if (!fs.existsSync(sourcePath)) throw new Error(`Missing source: ${sourcePath}`);
+  return { labels: parseInputSourceLabels(fs.readFileSync(sourcePath, "utf-8")), sourcePath };
+}
+
+function sourceComboboxForLabel(page: Parameters<typeof openInputsTab>[0], label: string) {
+  return page.getByText(label, { exact: true })
+    .locator("xpath=parent::*/following-sibling::*[1]//button[@role='combobox']");
 }
 
 async function readSelectedSource(page: Parameters<typeof openInputsTab>[0], label: string): Promise<string | null> {
@@ -75,7 +90,7 @@ async function repairSelectedSource(
   const labels = page.getByText(label, { exact: true });
   const count = await labels.count();
   for (let index = 0; index < count; index += 1) {
-    const combo = labels.nth(index).locator("xpath=parent::*/following-sibling::*[1]//button[@role='combobox']");
+    const combo = sourceComboboxForLabel(page, label).nth(index);
     if (await combo.count() === 0 || !(await combo.first().isVisible().catch(() => false))) continue;
     await combo.first().click();
     const exactOption = page.getByRole("option", { name: expected, exact: true });
@@ -90,6 +105,30 @@ async function repairSelectedSource(
     return;
   }
   throw new Error(`Source combobox not found for ${label}`);
+}
+
+/** Confirm that a live producer output is offered before mutating any consumer bindings. */
+export async function isConsumerSourceOptionAvailable(
+  session: TradingViewSession,
+  target: VerifyConsumerTarget,
+  label: string,
+  expected: string,
+): Promise<boolean> {
+  if (!(await isScriptVisibleOnChartSurface(session.page, target.scriptName))) return false;
+  const settingsOpened = await openSettingsForScript(session.page, target.scriptName, { allowChartRefresh: false });
+  if (!settingsOpened) return false;
+  try {
+    await openInputsTab(session.page);
+    const combo = sourceComboboxForLabel(session.page, label).first();
+    if (!(await combo.isVisible().catch(() => false))) return false;
+    await combo.click();
+    const exactOption = session.page.getByRole("option", { name: expected, exact: true });
+    const fallbackOption = session.page.getByText(expected, { exact: true });
+    return (await exactOption.count()) > 0 || (await fallbackOption.count()) > 0;
+  } finally {
+    await session.page.keyboard.press("Escape").catch(() => undefined);
+    await closeModal(session.page).catch(() => undefined);
+  }
 }
 
 export async function setConsumerBindingForTest(
@@ -116,10 +155,8 @@ export async function verifyConsumerBindings(
   forceRebind = false,
 ): Promise<VerifyConsumerResult> {
   const producerName = target.producerName ?? "SMC Long-Dip Suite";
-  const sourcePath = path.resolve(target.source);
-  if (!fs.existsSync(sourcePath)) throw new Error(`Missing source: ${sourcePath}`);
-  const labels = parseInputSourceLabels(fs.readFileSync(sourcePath, "utf-8"));
-  if (labels.length === 0) throw new Error(`No BUS input.source labels found: ${sourcePath}`);
+  const { labels, sourcePath } = resolveBindingContract(target);
+  if (labels.length === 0) throw new Error(`No BUS input.source labels found: ${sourcePath ?? target.scriptName}`);
 
   if (!(await isScriptVisibleOnChartSurface(session.page, target.scriptName))) {
     throw new Error(`Existing chart instance not found: ${target.scriptName}`);
@@ -214,7 +251,11 @@ export async function runVerifyConsumerBindingsCli(): Promise<number> {
   }
 }
 
-if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
+const invokedAsVerifierCli = process.argv[1]
+  ? /tv_verify_consumer_bindings\.(?:[cm]?js|ts)$/.test(path.basename(process.argv[1]))
+  : false;
+
+if (invokedAsVerifierCli) {
   runVerifyConsumerBindingsCli()
     .then((rc) => process.exit(rc))
     .catch((error) => {
