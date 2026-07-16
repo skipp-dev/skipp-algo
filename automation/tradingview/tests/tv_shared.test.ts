@@ -1014,13 +1014,21 @@ test("TradingView page auth probe fails soft when page evaluate crashes (bug-hun
 // that DOM shape directly so neither failure mode can recur silently.
 const LEGEND_BUTTON_SELECTOR = 'button[data-qa-id="legend-settings-action"]';
 
-type FakeAncestor = { __depth: number; innerText: (opts?: unknown) => Promise<string> };
+type FakeAncestor = {
+  __depth: number;
+  innerText: (opts?: unknown) => Promise<string>;
+  locator: (selector: string) => { count: () => Promise<number> };
+};
 type FakeButton = {
   isVisible: (opts?: unknown) => Promise<boolean>;
   locator: (selector: string) => FakeAncestor;
 };
 
-function makeLegendButton(textByDepth: Record<number, string>, visible = true): FakeButton {
+function makeLegendButton(
+  textByDepth: Record<number, string>,
+  visible = true,
+  settingsActionsByDepth: Record<number, number> = {},
+): FakeButton {
   return {
     isVisible: async () => visible,
     locator: (selector: string) => {
@@ -1036,6 +1044,10 @@ function makeLegendButton(textByDepth: Record<number, string>, visible = true): 
       return {
         __depth: depth,
         innerText: async () => textByDepth[depth] ?? "",
+        locator: (nestedSelector: string) => {
+          assert.equal(nestedSelector, LEGEND_BUTTON_SELECTOR);
+          return { count: async () => settingsActionsByDepth[depth] ?? 1 };
+        },
       };
     },
   };
@@ -1132,6 +1144,35 @@ test("countChartScriptInstances ignores buttons whose ancestors carry no matchin
 
   const instances = await countChartScriptInstances(makeLegendPage([match, chrome, hidden]) as never, scriptName);
   assert.equal(instances, 1, "only the visible, name-carrying legend row counts");
+});
+
+test("findLegendRowWrappers rejects a pane container that contains sibling script names", async () => {
+  const suiteName = "SMC Long-Dip Suite";
+  const suiteButton = makeLegendButton({ 1: "", 2: suiteName }, true, { 2: 1 });
+  const siblingButton = makeLegendButton(
+    { 1: "", 2: "SMC Long-Dip Dashboard v7", 3: `${suiteName} SMC Long-Dip Dashboard v7` },
+    true,
+    { 3: 2 },
+  );
+
+  const wrappers = await findLegendRowWrappers(makeLegendPage([suiteButton, siblingButton]) as never, suiteName);
+
+  assert.equal(wrappers.length, 1, "a shared pane with multiple settings actions is not a script instance");
+  assert.equal((wrappers[0] as unknown as FakeAncestor).__depth, 2);
+});
+
+test("countChartScriptInstances rejects sibling buttons that only match through their shared pane", async () => {
+  const suiteName = "SMC Long-Dip Suite";
+  const suiteButton = makeLegendButton({ 1: "", 2: suiteName }, true, { 2: 1 });
+  const siblingButton = makeLegendButton(
+    { 1: "", 2: "SMC Long-Dip Dashboard v7", 3: `${suiteName} SMC Long-Dip Dashboard v7` },
+    true,
+    { 3: 2 },
+  );
+
+  const instances = await countChartScriptInstances(makeLegendPage([suiteButton, siblingButton]) as never, suiteName);
+
+  assert.equal(instances, 1, "a shared pane must not multiply the suite instance count");
 });
 
 test("chart surface action button scope keeps only controls whose ancestor names the script", async () => {
@@ -2159,4 +2200,3 @@ test("facade version helper queries the PUBLISHED listing, not editor save revis
   assert.ok(helperSlice.includes("filter=published"), "helper must query filter=published");
   assert.equal(helperSlice.includes("filter=saved"), false, "helper must not query filter=saved");
 });
-

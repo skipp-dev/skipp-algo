@@ -4307,6 +4307,16 @@ export async function findLegendRowWrappers(
       }
 
       if (matched) {
+        // A pane/container ancestor also contains the text of every study below it.
+        // Treat only the tight legend row, which owns exactly one settings action,
+        // as a script instance. Otherwise one installed study is counted once for
+        // every sibling study in the pane and the duplicate-layout guard fails shut.
+        const settingsActionCount = await ancestor
+          .locator('button[data-qa-id="legend-settings-action"]')
+          .count()
+          .catch(() => 0);
+        if (settingsActionCount !== 1) continue;
+
         const key = `${depth}:${text.slice(0, 60)}`;
         if (!seenKeys.has(key)) {
           seenKeys.add(key);
@@ -4362,7 +4372,11 @@ export async function countChartScriptInstances(
       for (const [index, candidate] of candidateNames.entries()) {
         const [, loosePattern, fuzzyPattern] = patternsList[index];
         if (loosePattern.test(text) || fuzzyPattern.test(text) || isLegendTruncatedMatch(text, candidate)) {
-          matched = true;
+          const settingsActionCount = await ancestor
+            .locator('button[data-qa-id="legend-settings-action"]')
+            .count()
+            .catch(() => 0);
+          matched = settingsActionCount === 1;
           break;
         }
       }
