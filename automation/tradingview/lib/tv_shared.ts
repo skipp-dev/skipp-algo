@@ -5716,7 +5716,11 @@ export async function addExistingScriptToChartViaIndicators(
   });
 }
 
-export async function setEditorContent(page: Page, code: string): Promise<void> {
+export async function setEditorContent(
+  page: Page,
+  code: string,
+  options: { editorAlreadyOpen?: boolean } = {},
+): Promise<void> {
   // Timeout contract: CI sets TV_STEP_TIMEOUT_MS and leaves the editor-specific
   // env vars unset, so these fallbacks raise slow editor operations with the
   // active step budget while keeping a 90s content floor and 45s prepare floor.
@@ -5735,7 +5739,7 @@ export async function setEditorContent(page: Page, code: string): Promise<void> 
     tracePageEvent(page, "editor-trace", "prepare:start");
     await runEditorSubstep("prepare", async () => {
       await dismissCookieBanner(page);
-      await ensurePineEditor(page);
+      if (!options.editorAlreadyOpen) await ensurePineEditor(page);
     }, editorPrepareTimeoutMs);
     tracePageEvent(page, "editor-trace", "prepare:ok");
 
@@ -6565,7 +6569,13 @@ export async function hasAddToChartClickEffect(page: Page, scriptName?: string):
   return Boolean(state && isScriptVisibleOnChart(state));
 }
 
-async function settleChartSurfaceAfterInsert(page: Page, scriptName: string, phase: string, allowTextMatchOnly = true): Promise<boolean> {
+async function settleChartSurfaceAfterInsert(
+  page: Page,
+  scriptName: string,
+  phase: string,
+  allowTextMatchOnly = true,
+  requireLegendMatch = false,
+): Promise<boolean> {
   for (let attempt = 0; attempt < 4; attempt += 1) {
     await dismissSignInModal(page);
 
@@ -6589,7 +6599,10 @@ async function settleChartSurfaceAfterInsert(page: Page, scriptName: string, pha
       `add-to-chart-${phase}-settle`,
       `${scriptName}:attempt=${attempt}:${state ? JSON.stringify(state) : "no-state"}`,
     );
-    if (state && isScriptVisibleOnChart(state)) {
+    // A forced insert must prove that the newly added chart instance has its
+    // own legend row.  The looser strategy-report + text heuristic can match
+    // the open editor title alongside an unrelated existing strategy report.
+    if (state && (requireLegendMatch ? state.hasLegendMatch : isScriptVisibleOnChart(state))) {
       return true;
     }
     if (allowTextMatchOnly && state?.hasScriptNameMatch) {
@@ -6699,7 +6712,7 @@ export async function addCurrentScriptToChart(page: Page, scriptName?: string, o
         return;
       }
 
-      if (await settleChartSurfaceAfterInsert(page, scriptName, "click", !options.forceInsert)) {
+      if (await settleChartSurfaceAfterInsert(page, scriptName, "click", !options.forceInsert, options.forceInsert)) {
         return;
       }
 
@@ -6714,7 +6727,7 @@ export async function addCurrentScriptToChart(page: Page, scriptName?: string, o
     await page.keyboard.press(`${mod}+Enter`).catch(() => undefined);
     await page.waitForTimeout(2_500);
     if (scriptName) {
-      if (await settleChartSurfaceAfterInsert(page, scriptName, "hotkey", !options.forceInsert)) {
+      if (await settleChartSurfaceAfterInsert(page, scriptName, "hotkey", !options.forceInsert, options.forceInsert)) {
         tracePageEvent(page, "add-to-chart-visible-after-hotkey", scriptName);
         return;
       }

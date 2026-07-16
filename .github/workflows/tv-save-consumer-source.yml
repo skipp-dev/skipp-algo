@@ -6,8 +6,8 @@ name: tv-save-consumer-source
 
 # Pushes the CURRENT repo source of the hand-authored CONSUMER scripts (indicators/
 # strategies — SMC_Dashboard, SMC_Core_Engine, …) into their EXISTING TradingView
-# saved scripts, via scripts/tv_save_consumer_source.ts (open → paste → save →
-# compile-verify). Unlike the library publishers, consumers are not "published";
+# saved scripts, via one shared-browser batch (open → paste → save →
+# compile-verify → verify chart bindings). Unlike the library publishers, consumers are not "published";
 # they are the operator's saved chart scripts, which froze months ago on old
 # imports (Core Engine pinned every lib at /1 → CE10271/CE10272). The repo is
 # SSOT; this recompiles the saved copies against the current library surface.
@@ -18,10 +18,12 @@ name: tv-save-consumer-source
 # Safety:
 #   * Requires a real authenticated TV session — fails fast if TV_STORAGE_STATE
 #     is absent (no silent no-op).
-#   * tv_save_consumer_source opens each script by EXACT saved name; a wrong/
+#   * The batch opens each script by EXACT saved name; a wrong/
 #     unknown name simply fails to open (no wrong-script paste) and is reported
 #     as a per-entry miss — the run continues and summarizes hits vs misses.
-#   * Each save compile-verifies (assertNoVisibleCompileError) before reporting ok.
+#   * Each save compile-verifies before reporting ok; existing Dashboard,
+#     Strategy, Alerts, Setup Check, Breakout, and Confluence chart bindings are
+#     checked afterwards in that same browser session.
 #
 # The `mapping` input is a JSON array of {"source": "<repo .pine>", "scriptName":
 # "<exact saved TV name>"}. Default covers the saved names known from the repo /
@@ -34,6 +36,11 @@ on:
         description: 'JSON array of {"source","scriptName"} pairs (empty = built-in default)'
         required: false
         default: ""
+      repair_e2e:
+        description: "Temporarily drift one Dashboard binding, repair it, and reverify"
+        type: boolean
+        required: false
+        default: false
 
 permissions:
   contents: read
@@ -48,7 +55,6 @@ defaults:
 
 env:
   PYTHONUNBUFFERED: "1"
-  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: "true"
 
 jobs:
   save:
@@ -82,7 +88,7 @@ jobs:
 
       - name: Restore Playwright browsers cache
         id: pw_cache
-        uses: actions/cache@0400d5f644dc74513175e3cd8d07132dd4860809 # v4.2.4
+        uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5
         with:
           path: ~/.cache/ms-playwright
           key: ${{ runner.os }}-playwright-browsers-${{ steps.pw_version.outputs.version }}
@@ -115,99 +121,55 @@ jobs:
           out.write_text(payload if payload.endswith('\n') else payload + '\n', encoding='utf-8')
           PY
 
-      - name: Save consumer source into saved TV scripts
+      - name: Save and verify consumers in one browser session
         id: save
         env:
           TV_STORAGE_STATE: automation/tradingview/auth/storage-state.json
-          MAPPING_INPUT: ${{ github.event.inputs.mapping }}
+          TV_CONSUMER_MAPPING_JSON: ${{ github.event.inputs.mapping }}
         run: |
-          set -uo pipefail
-          # Built-in default mapping: source .pine -> exact saved TV script name.
-          # The producer's current saved name is its Pine title. Do not use the
-          # historical "SMC Core Engine" alias: a clean account lookup cannot
-          # resolve it.
-          # Keep every BUS-binding consumer here so a binding-order migration is
-          # rolled out as one auditable operation. Override via `mapping` only
-          # when the operator's exact saved name differs.
-          DEFAULT_MAPPING='[
-            {"source":"SMC_Long_Dip_Suite.pine","scriptName":"SMC Long-Dip Suite"},
-            {"source":"SMC_Breakout_Overlay.pine","scriptName":"SMC Breakout Overlay"},
-            {"source":"SMC_Confluence_Hub.pine","scriptName":"SMC Confluence Hub"},
-            {"source":"SMC_Long_Dip_Alerts.pine","scriptName":"SMC Long-Dip Alerts"},
-            {"source":"SMC_Long_Dip_Dashboard.pine","scriptName":"SMC Long-Dip Dashboard"},
-            {"source":"SMC_Long_Dip_Mobile.pine","scriptName":"SMC Long-Dip Mobile"},
-            {"source":"SMC_Long_Dip_Strategy.pine","scriptName":"SMC Long-Dip Strategy"},
-            {"source":"SMC_Setup_Check.pine","scriptName":"SMC Setup Check"}
-          ]'
-          MAPPING="${MAPPING_INPUT:-}"
-          if [ -z "${MAPPING}" ]; then MAPPING="${DEFAULT_MAPPING}"; fi
+          npx tsx scripts/tv_batch_consumer_rollout.ts
 
-          # Emit "source<TAB>scriptName" lines for a safe read loop.
-          mapfile -t ENTRIES < <(printf '%s' "${MAPPING}" | python3 -c "import json,sys; [print(e['source']+'\t'+e['scriptName']) for e in json.load(sys.stdin)]")
-          if [ ${#ENTRIES[@]} -eq 0 ]; then
-            echo "::error::empty mapping"; exit 1
-          fi
-
-          hits=0; misses=0
-          echo "## TV consumer-source save results" >> "$GITHUB_STEP_SUMMARY"
-          echo "" >> "$GITHUB_STEP_SUMMARY"
-          for entry in "${ENTRIES[@]}"; do
-            src="${entry%%$'\t'*}"
-            name="${entry#*$'\t'}"
-            if [ ! -f "${src}" ]; then
-              echo "::warning::source not found in repo: ${src} — skipping"
-              echo "- ⚠️ \`${src}\` → \"${name}\": repo source missing" >> "$GITHUB_STEP_SUMMARY"
-              misses=$((misses+1)); continue
-            fi
-            echo "▶ saving ${src} → \"${name}\""
-            saved=0
-            for attempt in 1 2; do
-              if npx tsx scripts/tv_save_consumer_source.ts --source "${src}" --script-name "${name}"; then
-                saved=1
-                break
-              fi
-              echo "::warning::save attempt ${attempt}/2 failed for \"${name}\""
-            done
-            if [ "${saved}" -eq 1 ]; then
-              echo "  ✅ ${name}"
-              echo "- ✅ \`${src}\` → \"${name}\"" >> "$GITHUB_STEP_SUMMARY"
-              hits=$((hits+1))
-            else
-              echo "::warning::could not save \"${name}\" (saved script not found under that exact name, or a compile error) — check the name and re-dispatch with a corrected mapping"
-              echo "- ❌ \`${src}\` → \"${name}\": not found / compile error" >> "$GITHUB_STEP_SUMMARY"
-              misses=$((misses+1))
-            fi
-          done
-          echo "" >> "$GITHUB_STEP_SUMMARY"
-          echo "**${hits} saved, ${misses} missed.**" >> "$GITHUB_STEP_SUMMARY"
-          echo "hits=${hits}" >> "$GITHUB_OUTPUT"
-          echo "misses=${misses}" >> "$GITHUB_OUTPUT"
-          # This is a coordinated binding rollout: a partial save can leave the
-          # account on a mixed contract, so fail closed on every miss.
-          if [ "${misses}" -ne 0 ]; then
-            echo "::error::consumer rollout incomplete: ${misses} script(s) were not saved."
-            exit 1
-          fi
-
-      - name: Verify existing consumer BUS source selections
+      - name: Controlled repair E2E
+        if: ${{ github.event.inputs.repair_e2e == 'true' }}
         env:
           TV_STORAGE_STATE: automation/tradingview/auth/storage-state.json
+        run: npx tsx scripts/tv_repair_binding_e2e.ts
+
+      - name: Upload binding snapshot
+        if: ${{ always() }}
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: tradingview-consumer-bindings
+          path: artifacts/monitoring/tradingview_consumer_bindings.json
+          if-no-files-found: error
+          retention-days: 30
+
+      - name: Publish latest binding snapshot
+        if: ${{ always() }}
+        env:
+          GH_TOKEN: ${{ secrets.GH_PAT }}
         run: |
           set -euo pipefail
-          verify() {
-            for attempt in 1 2; do
-              if npx tsx scripts/tv_verify_consumer_bindings.ts \
-                --source "$1" \
-                --saved-script-name "$2" \
-                --script-name "$3" \
-                --producer-name "SMC Long-Dip Suite"; then
-                return 0
-              fi
-              echo "::warning::binding verification attempt ${attempt}/2 failed for \"$3\""
-            done
-            return 1
-          }
-          verify SMC_Long_Dip_Dashboard.pine "SMC Long-Dip Dashboard" "SMC Decision Board"
-          verify SMC_Long_Dip_Strategy.pine "SMC Long-Dip Strategy" "SMC Long-Dip Strategy"
-          verify SMC_Long_Dip_Alerts.pine "SMC Long-Dip Alerts" "SMC Long-Dip Alerts"
-          verify SMC_Setup_Check.pine "SMC Setup Check" "SMC Setup Check"
+          snapshot="artifacts/monitoring/tradingview_consumer_bindings.json"
+          if [ -z "${GH_TOKEN:-}" ] || [ ! -s "${snapshot}" ]; then
+            echo "::warning::Cannot publish TradingView binding snapshot (missing GH_PAT or snapshot)."
+            exit 0
+          fi
+          stable_dir="artifacts/monitoring/latest"
+          mkdir -p "${stable_dir}"
+          cp "${snapshot}" "${stable_dir}/tradingview_consumer_bindings.json"
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          remote_url="https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git"
+          remote_ref="refs/heads/bot/live-tradingview-bindings"
+          tracking_ref="refs/remotes/origin/bot/live-tradingview-bindings"
+          git add -f "${stable_dir}/tradingview_consumer_bindings.json"
+          git commit -m "[skip ci] chore: refresh TradingView binding snapshot"
+          git fetch "${remote_url}" "+${remote_ref}:${tracking_ref}" 2>/dev/null || true
+          zero_sha="0000000000000000000000000000000000000000"
+          expected_sha="$(git rev-parse --verify "${tracking_ref}" 2>/dev/null || echo "${zero_sha}")"
+          if git push "--force-with-lease=${remote_ref}:${expected_sha}" "${remote_url}" "HEAD:${remote_ref}"; then
+            echo "Published TradingView binding snapshot to bot/live-tradingview-bindings."
+          else
+            echo "::warning::TradingView binding snapshot push failed; uploaded artifact remains available."
+          fi

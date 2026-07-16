@@ -2153,6 +2153,69 @@ groups:
         (schema drift, a truncated write, or a non-raw GitHub Contents-API envelope -- see
         _fetch_url in evidence_freshness_bridge.py). Inspect the payload; run/inspect
         .github/workflows/evidence-freshness-snapshot.yml.
+  - uid: lo-tv-binding-snapshot-unloadable
+    title: TradingView binding snapshot unloadable
+    condition: C
+    noDataState: OK
+    data:
+    - refId: A
+      datasourceUid: grafanacloud-prom
+      model:
+        expr: live_overlay_tv_binding_snapshot_loaded{job="live_overlay"} < bool 1
+        instant: true
+    - refId: C
+      datasourceUid: __expr__
+      model:
+        type: threshold
+        conditions:
+        - evaluator:
+            type: gt
+            params:
+            - 0
+          operator:
+            type: and
+          query:
+            params:
+            - A
+    for: 30m
+    labels:
+      severity: critical
+    annotations:
+      summary: The daemon cannot load the latest measured TradingView dropdown assignments.
+      runbook: Configure TRADINGVIEW_BINDINGS_SNAPSHOT_URL(_TOKEN) to the latest JSON on
+        bot/live-tradingview-bindings or inspect the local snapshot path.
+  - uid: lo-tv-binding-drift
+    title: TradingView consumer dropdown binding drift
+    condition: C
+    noDataState: OK
+    data:
+    - refId: A
+      datasourceUid: grafanacloud-prom
+      model:
+        expr: live_overlay_tv_binding_drift{job="live_overlay"} > bool 0
+        instant: true
+    - refId: C
+      datasourceUid: __expr__
+      model:
+        type: threshold
+        conditions:
+        - evaluator:
+            type: gt
+            params:
+            - 0
+          operator:
+            type: and
+          query:
+            params:
+            - A
+    for: 30m
+    labels:
+      severity: warning
+    annotations:
+      summary: At least one measured TradingView input.source dropdown is mapped to the wrong Suite channel.
+      runbook: Inspect artifacts/monitoring/latest/tradingview_consumer_bindings.json on
+        bot/live-tradingview-bindings, then run tv-save-consumer-source with repair_e2e only for a
+        controlled repair test or use tv_verify_consumer_bindings.ts --repair for the affected consumer.
   - uid: lo-pine-library-snapshot-unloadable
     title: Pine-library version snapshot unloadable
     condition: C

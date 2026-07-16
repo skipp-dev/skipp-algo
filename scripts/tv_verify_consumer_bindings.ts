@@ -6,16 +6,32 @@ import { fileURLToPath } from "node:url";
 import {
   closeModal,
   closeTradingViewSession,
-  ensurePineEditor,
   gotoChart,
   isScriptVisibleOnChartSurface,
   newTradingViewSession,
-  openExistingScript,
   openInputsTab,
   openSettingsForScript,
+  type TradingViewSession,
 } from "../automation/tradingview/lib/tv_shared.js";
 
-type Binding = { label: string; actual: string | null; expected: string; ok: boolean };
+export type Binding = { label: string; actual: string | null; expected: string; ok: boolean };
+export type VerifyConsumerTarget = {
+  source: string;
+  savedScriptName: string;
+  scriptName: string;
+  producerName?: string;
+};
+export type VerifyConsumerResult = {
+  ok: boolean;
+  repair: boolean;
+  repaired: string[];
+  scriptName: string;
+  savedScriptName: string;
+  sourcePath: string;
+  checked: number;
+  mismatches: Binding[];
+  bindings: Binding[];
+};
 
 function getFlag(name: string, fallback = ""): string {
   const args = process.argv.slice(2);
@@ -73,19 +89,92 @@ async function repairSelectedSource(
   throw new Error(`Source combobox not found for ${label}`);
 }
 
+export async function setConsumerBindingForTest(
+  session: TradingViewSession,
+  target: VerifyConsumerTarget,
+  label: string,
+  sourceName: string,
+): Promise<void> {
+  const settingsOpened = await openSettingsForScript(session.page, target.scriptName, { allowChartRefresh: false });
+  if (!settingsOpened) throw new Error(`Could not open exact chart settings: ${target.scriptName}`);
+  await openInputsTab(session.page);
+  await repairSelectedSource(session.page, label, sourceName);
+  const submit = session.page.locator('button[name="submit"], button[data-name="submit-button"]').first();
+  if (!(await submit.isVisible().catch(() => false))) {
+    throw new Error("Could not find settings submit button after controlled binding mutation");
+  }
+  await submit.click();
+}
+
+export async function verifyConsumerBindings(
+  session: TradingViewSession,
+  target: VerifyConsumerTarget,
+  repair = false,
+): Promise<VerifyConsumerResult> {
+  const producerName = target.producerName ?? "SMC Long-Dip Suite";
+  const sourcePath = path.resolve(target.source);
+  if (!fs.existsSync(sourcePath)) throw new Error(`Missing source: ${sourcePath}`);
+  const labels = parseInputSourceLabels(fs.readFileSync(sourcePath, "utf-8"));
+  if (labels.length === 0) throw new Error(`No BUS input.source labels found: ${sourcePath}`);
+
+  if (!(await isScriptVisibleOnChartSurface(session.page, target.scriptName))) {
+    throw new Error(`Existing chart instance not found: ${target.scriptName}`);
+  }
+  const settingsOpened = await openSettingsForScript(session.page, target.scriptName, { allowChartRefresh: false });
+  if (!settingsOpened) throw new Error(`Could not open exact chart settings: ${target.scriptName}`);
+  await openInputsTab(session.page);
+
+  const bindings: Binding[] = [];
+  for (const label of labels) {
+    const actual = await readSelectedSource(session.page, label);
+    const expected = `${producerName}: ${label}`;
+    bindings.push({ label, actual, expected, ok: actual === expected });
+  }
+  let mismatches = bindings.filter((binding) => !binding.ok);
+  const repaired: string[] = [];
+  if (repair && mismatches.length > 0) {
+    for (const mismatch of mismatches) {
+      await repairSelectedSource(session.page, mismatch.label, mismatch.expected);
+      repaired.push(mismatch.label);
+    }
+    const submit = session.page.locator('button[name="submit"], button[data-name="submit-button"]').first();
+    if (!(await submit.isVisible().catch(() => false))) {
+      throw new Error("Could not find settings submit button after binding repair");
+    }
+    await submit.click();
+
+    const reopened = await openSettingsForScript(session.page, target.scriptName, { allowChartRefresh: false });
+    if (!reopened) throw new Error(`Could not reopen chart settings after repair: ${target.scriptName}`);
+    await openInputsTab(session.page);
+    for (const binding of bindings) {
+      binding.actual = await readSelectedSource(session.page, binding.label);
+      binding.ok = binding.actual === binding.expected;
+    }
+    mismatches = bindings.filter((binding) => !binding.ok);
+  }
+  const result: VerifyConsumerResult = {
+    ok: mismatches.length === 0,
+    repair,
+    repaired,
+    scriptName: target.scriptName,
+    savedScriptName: target.savedScriptName,
+    sourcePath,
+    checked: bindings.length,
+    mismatches,
+    bindings,
+  };
+  await closeModal(session.page);
+  return result;
+}
+
 export async function runVerifyConsumerBindingsCli(): Promise<number> {
-  const sourceFlag = getFlag("--source");
+  const source = getFlag("--source");
   const scriptName = getFlag("--script-name");
   const savedScriptName = getFlag("--saved-script-name", scriptName);
   const producerName = getFlag("--producer-name", "SMC Long-Dip Suite");
   const repair = hasFlag("--repair");
-  if (!sourceFlag) throw new Error("Missing --source");
+  if (!source) throw new Error("Missing --source");
   if (!scriptName) throw new Error("Missing --script-name");
-
-  const sourcePath = path.resolve(sourceFlag);
-  if (!fs.existsSync(sourcePath)) throw new Error(`Missing source: ${sourcePath}`);
-  const labels = parseInputSourceLabels(fs.readFileSync(sourcePath, "utf-8"));
-  if (labels.length === 0) throw new Error(`No BUS input.source labels found: ${sourcePath}`);
 
   const session = await newTradingViewSession();
   try {
@@ -93,59 +182,15 @@ export async function runVerifyConsumerBindingsCli(): Promise<number> {
       throw new Error("Binding verification requires an authenticated TradingView session");
     }
     await gotoChart(session.page);
-    await ensurePineEditor(session.page);
-    const opened = await openExistingScript(session.page, savedScriptName, { forceSelection: true }).catch(() => false);
-    if (!opened) throw new Error(`Could not open existing saved script: ${savedScriptName}`);
-    if (!(await isScriptVisibleOnChartSurface(session.page, scriptName))) {
-      throw new Error(`Existing chart instance not found: ${scriptName}`);
-    }
-    const settingsOpened = await openSettingsForScript(session.page, scriptName, { allowChartRefresh: false });
-    if (!settingsOpened) throw new Error(`Could not open exact chart settings: ${scriptName}`);
-    await openInputsTab(session.page);
-
-    const bindings: Binding[] = [];
-    for (const label of labels) {
-      const actual = await readSelectedSource(session.page, label);
-      const expected = `${producerName}: ${label}`;
-      bindings.push({ label, actual, expected, ok: actual === expected });
-    }
-    let mismatches = bindings.filter((binding) => !binding.ok);
-    const repaired: string[] = [];
-    if (repair && mismatches.length > 0) {
-      for (const mismatch of mismatches) {
-        await repairSelectedSource(session.page, mismatch.label, mismatch.expected);
-        repaired.push(mismatch.label);
-      }
-      const submit = session.page.locator('button[name="submit"], button[data-name="submit-button"]').first();
-      if (!(await submit.isVisible().catch(() => false))) {
-        throw new Error("Could not find settings submit button after binding repair");
-      }
-      await submit.click();
-
-      const reopened = await openSettingsForScript(session.page, scriptName, { allowChartRefresh: false });
-      if (!reopened) throw new Error(`Could not reopen chart settings after repair: ${scriptName}`);
-      await openInputsTab(session.page);
-      for (const binding of bindings) {
-        binding.actual = await readSelectedSource(session.page, binding.label);
-        binding.ok = binding.actual === binding.expected;
-      }
-      mismatches = bindings.filter((binding) => !binding.ok);
-    }
-    console.log(JSON.stringify({
-      ok: mismatches.length === 0,
+    const result = await verifyConsumerBindings(
+      session,
+      { source, savedScriptName, scriptName, producerName },
       repair,
-      repaired,
-      scriptName,
-      savedScriptName,
-      sourcePath,
-      checked: bindings.length,
-      mismatches,
-      bindings,
-    }));
-    if (mismatches.length > 0) {
-      throw new Error(`${mismatches.length}/${bindings.length} BUS source bindings do not match ${producerName}`);
+    );
+    console.log(JSON.stringify(result));
+    if (!result.ok) {
+      throw new Error(`${result.mismatches.length}/${result.checked} BUS source bindings do not match ${producerName}`);
     }
-    await closeModal(session.page);
     return 0;
   } finally {
     await closeTradingViewSession(session);

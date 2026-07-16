@@ -79,6 +79,9 @@
 "databento_universe.py" = [306]
 "databento_volatility_screener.py" = [1437]
 "open_prep/bea.py" = [94]
+# 2026-07-16: measured TradingView dropdown snapshot bridge. HTTPS-only,
+# explicit 10s timeout, optional bearer token, local-file fallback.
+"services/live_overlay_daemon/tradingview_binding_bridge.py" = [61]
 # 2026-06-11 (eval-findings B8): surprise-scale comment block +8 (713→721).
 "open_prep/macro.py" = [740]
 "open_prep/sentiment_fng.py" = [100]

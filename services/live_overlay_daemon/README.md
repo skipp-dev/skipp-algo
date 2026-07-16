@@ -207,6 +207,9 @@ All numeric fields are `null`, all bool fields are `false`, `stale: true`.
 | `PINE_LIBRARY_VERSIONS_SNAPSHOT_PATH` | ❌ | *(repo root)*`/artifacts/monitoring/pine_library_versions.json` | Local Repo↔TradingView Pine-library version snapshot (per-consumer import-pin drift gauges) |
 | `PINE_LIBRARY_VERSIONS_SNAPSHOT_URL` | ❌ | *(unset)* | Optional HTTPS URL for the Pine-library version snapshot (raw `bot/live-pine-library-versions` file) |
 | `PINE_LIBRARY_VERSIONS_SNAPSHOT_URL_TOKEN` | ❌ | *(unset)* | Optional bearer token for `PINE_LIBRARY_VERSIONS_SNAPSHOT_URL` |
+| `TRADINGVIEW_BINDINGS_SNAPSHOT_PATH` | ❌ | *(repo root)*`/artifacts/monitoring/tradingview_consumer_bindings.json` | Last measured `input.source` dropdown assignments |
+| `TRADINGVIEW_BINDINGS_SNAPSHOT_URL` | ❌ | *(unset)* | Optional HTTPS URL to `artifacts/monitoring/latest/tradingview_consumer_bindings.json` on `bot/live-tradingview-bindings` |
+| `TRADINGVIEW_BINDINGS_SNAPSHOT_URL_TOKEN` | ❌ | *(unset)* | Optional bearer token for the binding snapshot URL |
 | `EXPERIMENT_HISTORY_PATH` | ❌ | *(repo root)*`/artifacts/ci/measurement_benchmark_rolling/latest/plan_2_8_history.jsonl` | Local per-day experiment history JSONL |
 | `EXPERIMENT_HISTORY_URL` | ❌ | *(unset)* | Optional HTTPS URL for per-day experiment history JSONL |
 | `EXPERIMENT_HISTORY_URL_TOKEN` | ❌ | *(unset)* | Optional bearer token for `EXPERIMENT_HISTORY_URL` |

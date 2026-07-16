@@ -408,6 +408,26 @@ def pine_library_versions_snapshot_url_token() -> str:
     return _optional_str("PINE_LIBRARY_VERSIONS_SNAPSHOT_URL_TOKEN", "")
 
 
+def tradingview_bindings_snapshot_path() -> Path:
+    """Local path to the actual TradingView consumer-dropdown snapshot."""
+    return Path(
+        _optional_str(
+            "TRADINGVIEW_BINDINGS_SNAPSHOT_PATH",
+            str(_REPO_ROOT / "artifacts" / "monitoring" / "tradingview_consumer_bindings.json"),
+        )
+    )
+
+
+def tradingview_bindings_snapshot_url() -> str:
+    """Optional HTTPS URL for the actual TradingView dropdown snapshot."""
+    return _optional_str("TRADINGVIEW_BINDINGS_SNAPSHOT_URL", "")
+
+
+def tradingview_bindings_snapshot_url_token() -> str:
+    """Optional bearer token for :func:`tradingview_bindings_snapshot_url`."""
+    return _optional_str("TRADINGVIEW_BINDINGS_SNAPSHOT_URL_TOKEN", "")
+
+
 def fmp_monthly_bandwidth_limit_bytes() -> int:
     """FMP plan's rolling-30-day bandwidth quota, in bytes (default 150 GB).
 
