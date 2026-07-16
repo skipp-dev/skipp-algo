@@ -157,7 +157,9 @@ def test_snapshot_top_n_returns_at_most_n_items(top_n: int) -> None:
         [(f"S{i % 7}", "5m") for i in range(80)],
     ],
 )
-def test_record_request_idempotent_for_same_normalized_input(records: list[tuple[str, str]]) -> None:
+def test_record_request_repeated_normalized_input_doubles_counts_without_adding_keys(
+    records: list[tuple[str, str]],
+) -> None:
     """Recording the same normalized input twice doubles its count but not key count."""
     hotspots.reset()
     for sym, tf in records:
@@ -175,6 +177,11 @@ def test_record_request_idempotent_for_same_normalized_input(records: list[tuple
     second_sym_counts = Counter(dict(second["top_symbols"]))
     for sym, count in first_sym_counts.items():
         assert second_sym_counts[sym] == count * 2
+
+    first_tf_counts = Counter(dict(first["top_tfs"]))
+    second_tf_counts = Counter(dict(second["top_tfs"]))
+    for tf, count in first_tf_counts.items():
+        assert second_tf_counts[tf] == count * 2
 
 
 def test_record_request_count_invariant_with_large_deterministic_mix() -> None:
