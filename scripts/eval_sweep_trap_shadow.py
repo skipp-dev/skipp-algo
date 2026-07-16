@@ -227,6 +227,8 @@ def build_snapshot(row: dict[str, Any]) -> dict[str, Any]:
         "date": row["date"],
         "n_samples": row["n_samples"],
         "min_samples": MIN_SHADOW_SAMPLES,
+        "brier_signal": row["brier_signal"],
+        "brier_baseline": row["brier_baseline"],
         "brier_delta": row["brier_delta"],
         "lift": row["lift"],
         "verdict": row["verdict"],

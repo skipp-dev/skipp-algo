@@ -1946,6 +1946,76 @@
         "uid": "grafanacloud-prom"
       },
       "id": 3005
+    },
+    {
+      "title": "Sweep-Trap Evidence — Latest",
+      "type": "table",
+      "description": "Latest WS4b shadow-evidence snapshot as a decision table. Datum is the evaluated corpus date, not the dashboard refresh time. Bewertungen mirror the evaluator gate: at least 40 valid samples, positive Brier delta, positive tercile lift, and a PROMOTABLE verdict. This panel is informational and does not activate PROMOTE_SWEEP_TRAP.",
+      "gridPos": {
+        "h": 8,
+        "w": 24,
+        "x": 0,
+        "y": 91
+      },
+      "targets": [
+        {
+          "expr": "live_overlay_sweep_trap_shadow_evidence_info{job=~\"$job\"}",
+          "format": "table",
+          "instant": true,
+          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "grafanacloud-prom"
+          }
+        }
+      ],
+      "transformations": [
+        {
+          "id": "organize",
+          "options": {
+            "excludeByName": {
+              "Time": true,
+              "Value": true,
+              "__name__": true,
+              "instance": true,
+              "job": true
+            },
+            "indexByName": {
+              "date": 0,
+              "metric": 1,
+              "value": 2,
+              "assessment": 3
+            },
+            "renameByName": {
+              "date": "Datum",
+              "metric": "Kennzahl",
+              "value": "Wert",
+              "assessment": "Bewertung"
+            }
+          }
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "align": "auto",
+            "cellOptions": {
+              "type": "auto"
+            }
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "cellHeight": "sm",
+        "showHeader": true,
+        "sortBy": []
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "grafanacloud-prom"
+      },
+      "id": 3006
     }
   ],
   "refresh": "1m",

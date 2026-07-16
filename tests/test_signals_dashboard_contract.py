@@ -106,8 +106,27 @@ def test_sweep_trap_shadow_panels_query_the_ws4a_gauges() -> None:
         "live_overlay_sweep_trap_shadow_lift",
         "live_overlay_sweep_trap_shadow_sample_count",
         "live_overlay_sweep_trap_shadow_snapshot_age_seconds",
+        "live_overlay_sweep_trap_shadow_evidence_info",
     ):
         assert metric in exprs, f"no panel queries {metric}"
+
+
+def test_sweep_trap_latest_evidence_table_has_date_value_and_assessment() -> None:
+    d = _load()
+    panel = next(
+        (p for p in _visual_panels(d) if p.get("title") == "Sweep-Trap Evidence — Latest"),
+        None,
+    )
+    assert panel is not None
+    assert panel["type"] == "table"
+    assert panel["targets"][0]["expr"] == 'live_overlay_sweep_trap_shadow_evidence_info{job=~"$job"}'
+    organize = next(t for t in panel["transformations"] if t["id"] == "organize")
+    assert organize["options"]["renameByName"] == {
+        "date": "Datum",
+        "metric": "Kennzahl",
+        "value": "Wert",
+        "assessment": "Bewertung",
+    }
 
 
 def test_sweep_trap_shadow_verdict_panel_maps_all_three_codes() -> None:

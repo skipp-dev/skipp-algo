@@ -269,6 +269,8 @@ def _sweep_trap_snap(**overrides: object) -> dict:
         "date": "2026-07-11",
         "n_samples": 55.0,
         "min_samples": 40.0,
+        "brier_signal": 0.20,
+        "brier_baseline": 0.231,
         "brier_delta": 0.031,
         "lift": 0.12,
         "verdict": "PROMOTABLE",
@@ -291,11 +293,16 @@ def test_render_metrics_emits_sweep_trap_shadow_values(monkeypatch: pytest.Monke
 
     body = "\n".join(metrics_mod._render_sweep_trap_shadow_metrics())
     assert "live_overlay_sweep_trap_shadow_loaded 1.0" in body
+    assert "live_overlay_sweep_trap_shadow_brier_signal 0.2" in body
+    assert "live_overlay_sweep_trap_shadow_brier_baseline 0.231" in body
     assert "live_overlay_sweep_trap_shadow_brier_delta 0.031" in body
     assert "live_overlay_sweep_trap_shadow_lift 0.12" in body
     assert "live_overlay_sweep_trap_shadow_sample_count 55.0" in body
     assert "live_overlay_sweep_trap_shadow_min_samples 40.0" in body
     assert 'live_overlay_sweep_trap_shadow_verdict_code{verdict="PROMOTABLE"} 2.0' in body
+    assert 'metric="Gültige Samples",value="55",assessment="Floor erfüllt"' in body
+    assert 'metric="Brier Baseline",value="0.231000",assessment="nicht besser als Signal"' in body
+    assert 'metric="Verdict",value="PROMOTABLE",assessment="promotable"' in body
     assert "live_overlay_sweep_trap_shadow_snapshot_age_known 1.0" in body
     assert "live_overlay_sweep_trap_shadow_snapshot_stale 0.0" in body
 
