@@ -439,6 +439,7 @@ jobs:
             tests/test_workflow_no_fake_push_success.py \
             tests/test_workflow_runner_pinned.py \
             tests/test_workflow_set_plus_e_inventory.py \
+            tests/test_workflow_tv_save_consumer_source_contract.py \
             tests/test_workflow_orphan_inventory.py \
             tests/test_workflow_pythonpath_for_direct_invoke.py \
             tests/test_workflow_concurrency_cron_no_cancel.py \
