@@ -318,9 +318,19 @@ def is_sweep_trap_promoted() -> bool:
     WS4b promotion gate.  While OFF the sweep-trap detector is observe-only:
     ``ENABLE_SWEEP_TRAP`` still emits the ``sweep_trap_*`` shadow features
     (and ``SWEEP_TRAP_DETECTED``/``_CONFIDENCE``), but they grant NO live
-    weight.  Flipping this to ``"1"`` is the WS4b decision that lets a
-    high-confidence trap downgrade ``SIGNAL_FRESHNESS`` (see OPS.md WS4a and
-    :func:`scripts.smc_signal_quality.build_signal_quality_v2`).
+    weight.  Flipping this to ``"1"`` is the WS4b decision, and it grants that
+    weight in TWO places (see OPS.md WS4a and
+    :func:`scripts.smc_signal_quality.build_signal_quality_v2`):
+
+    1. a high-confidence trap downgrades ``SIGNAL_FRESHNESS``; and
+    2. ``build_signal_quality_v2`` passes ``prefer_trap_score=True`` into
+       :func:`smc_core.smc_confluence.compute_confluence`, so the shadow
+       ``SWEEP_TRAP_QUALITY_SCORE`` replaces the coarse ``SWEEP_QUALITY_SCORE``
+       in the live confluence score.
+
+    Both are inert while OFF.  Keep this list in sync with the call sites: a
+    promotion flag that silently grants more weight than it documents is the
+    failure mode this docstring exists to prevent.
     """
     return _bool_env("PROMOTE_SWEEP_TRAP", "0")
 

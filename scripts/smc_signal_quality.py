@@ -634,7 +634,12 @@ def build_signal_quality_v2(
                 **normalized_sweep,
                 "SWEEP_QUALITY_SCORE": min(1.0, max(0.0, float(normalized_sweep["SWEEP_QUALITY_SCORE"]) / 5.0)),
             }
-        confluence_result = compute_confluence(ob_light, fvg_light, normalized_sweep)
+        confluence_result = compute_confluence(
+            ob_light,
+            fvg_light,
+            normalized_sweep,
+            prefer_trap_score=is_sweep_trap_promoted(),
+        )
         confluence_contribution = int(_MAX_CONFLUENCE_V2 * confluence_result.raw_confluence_score)
         score += confluence_contribution
         result["CONFLUENCE_SCORE"] = confluence_contribution
