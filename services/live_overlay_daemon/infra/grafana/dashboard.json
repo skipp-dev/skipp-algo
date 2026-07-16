@@ -2228,7 +2228,7 @@
       "id": 2165782575,
       "title": "Extended-Hours Feed Shadow",
       "type": "stat",
-      "description": "Shadow-only comparison of FMP's regular batch quote with the dedicated aftermarket quote and trade feeds. Values are fresh rows (timestamp no older than five minutes); no extended-hours signal is published from this probe.",
+      "description": "Shadow-only comparison of FMP's regular batch quote with the dedicated aftermarket quote and trade feeds. Fresh trade prices win; a fresh non-crossed bid/ask midpoint is the fallback. Signal-ready additionally requires a same-session regular-close cumulative-volume baseline. No extended-hours signal is published from this probe.",
       "datasource": {
         "type": "prometheus",
         "uid": "grafanacloud-prom"
@@ -2243,6 +2243,24 @@
         {
           "expr": "signals_producer_extended_shadow_fresh_rows{job=~\"signals_producer\"} or on() vector(0)",
           "legendFormat": "{{feed}} fresh",
+          "instant": true,
+          "datasource": {
+            "type": "prometheus",
+            "uid": "grafanacloud-prom"
+          }
+        },
+        {
+          "expr": "signals_producer_postmarket_adapter_rows{job=~\"signals_producer\"} or on() vector(0)",
+          "legendFormat": "postmarket {{state}}",
+          "instant": true,
+          "datasource": {
+            "type": "prometheus",
+            "uid": "grafanacloud-prom"
+          }
+        },
+        {
+          "expr": "signals_producer_postmarket_baseline_symbols{job=~\"signals_producer\"} or on() vector(0)",
+          "legendFormat": "close-volume baseline",
           "instant": true,
           "datasource": {
             "type": "prometheus",

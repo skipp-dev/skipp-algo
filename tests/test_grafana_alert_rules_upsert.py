@@ -742,3 +742,8 @@ def test_signals_producer_fmp_hotpath_alerts_present() -> None:
     shadow_empty = _rule_expr(rules["sp-fmp-shadow-no-fresh-data"])
     assert "signals_producer_extended_shadow_fresh_rows" in shadow_empty
     assert "aftermarket_quote|aftermarket_trade" in shadow_empty
+
+    baseline_missing = _rule_expr(rules["sp-fmp-postmarket-baseline-missing"])
+    assert "signals_producer_extended_shadow_enabled" in baseline_missing
+    assert 'session="postmarket"' in baseline_missing
+    assert "signals_producer_postmarket_baseline_symbols" in baseline_missing

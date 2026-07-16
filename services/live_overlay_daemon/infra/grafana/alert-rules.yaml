@@ -2095,6 +2095,36 @@ groups:
     annotations:
       summary: FMP's dedicated aftermarket quote and trade endpoints returned no rows with a timestamp from the last five minutes.
       runbook: Compare endpoint request/error/byte counters and the regular-reference fresh-row gauge. Keep extended-hours signal publishing disabled until dedicated data is reliably current.
+  - uid: sp-fmp-postmarket-baseline-missing
+    title: FMP postmarket adapter has no close-volume baseline
+    condition: C
+    noDataState: OK
+    data:
+    - refId: A
+      datasourceUid: grafanacloud-prom
+      model:
+        expr: max(signals_producer_extended_shadow_enabled{job="signals_producer"}) * max(signals_producer_market_session{job="signals_producer",session="postmarket"}) * (max(signals_producer_postmarket_baseline_symbols{job="signals_producer"}) < bool 1)
+        instant: true
+    - refId: C
+      datasourceUid: __expr__
+      model:
+        type: threshold
+        conditions:
+        - evaluator:
+            type: gt
+            params:
+            - 0
+          operator:
+            type: and
+          query:
+            params:
+            - A
+    for: 5m
+    labels:
+      severity: warning
+    annotations:
+      summary: The postmarket shadow adapter has no same-session regular-close cumulative-volume baseline, so price rows cannot become signal-ready.
+      runbook: Verify that the producer completed at least one successful regular-session quote poll and persisted postmarket_close_volume. Keep extended-hours signal publishing disabled until the baseline is present.
 - orgId: 1
   name: evidence-and-workflow-freshness
   folder: SMC Live Overlay

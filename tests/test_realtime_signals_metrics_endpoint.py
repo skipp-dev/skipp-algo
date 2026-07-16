@@ -266,6 +266,37 @@ def test_collect_process_metrics_defaults_last_poll_age_to_max_when_never_polled
     assert "signals_producer_last_poll_age_seconds 999999.0" in body
 
 
+def test_collect_process_metrics_exposes_postmarket_adapter_state() -> None:
+    engine = SimpleNamespace(
+        _watchlist=[],
+        open_prep_snapshot_loaded=1.0,
+        open_prep_snapshot_age_seconds=0.0,
+        last_poll_success_epoch=0.0,
+        last_poll_duration_seconds=0.0,
+        _postmarket_close_volume={"AAPL": 1_000_000.0, "MSFT": 2_000_000.0},
+        _postmarket_adapter_stats={
+            "price_ready_rows": 2,
+            "signal_ready_rows": 1,
+            "trade_price_rows": 1,
+            "midpoint_price_rows": 1,
+            "rejected_missing_baseline": 1,
+            "rejected_volume_regression": 0,
+        },
+    )
+
+    body = rs._collect_process_metrics(engine)
+
+    assert "signals_producer_postmarket_baseline_symbols 2" in body
+    assert 'signals_producer_postmarket_adapter_rows{state="price_ready"} 2' in body
+    assert 'signals_producer_postmarket_adapter_rows{state="signal_ready"} 1' in body
+    assert 'signals_producer_postmarket_adapter_rows{state="trade_price"} 1' in body
+    assert 'signals_producer_postmarket_adapter_rows{state="midpoint_price"} 1' in body
+    assert (
+        'signals_producer_postmarket_adapter_rejections{reason="missing_baseline"} 1'
+        in body
+    )
+
+
 def test_readyz_returns_503_when_not_ready(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.delenv("SIGNALS_INTERNAL_TOKEN", raising=False)
     telemetry = MagicMock()

@@ -204,7 +204,7 @@ _FROZEN_BASIC_CONFIG_SITES: frozenset[tuple[str, int]] = frozenset({
     # 2913 -> 2992; feature-flag helper additions shifted run_open_prep
     # 6059 -> 6063.
     # 2026-06-28 (semantic monitoring): shifted +80 lines by readiness metrics.
-    ("open_prep/realtime_signals.py", 3626),  # 2026-07-16 extended shadow shifted site: 3514->3626
+    ("open_prep/realtime_signals.py", 3709),  # 2026-07-16 postmarket adapter shifted site: 3626->3709
     # 2026-07-04 (market-microstructure observe-only): import + snapshot
     # block + row-loop fields shifted 6079 -> 6105.
     ("open_prep/run_open_prep.py", 6177),  # 2026-07-13 (truth disclosures above): 6170->6177
@@ -273,7 +273,7 @@ _FROZEN_SYSPATH_SITES: frozenset[tuple[str, int, str]] = frozenset({
     # 2026-06-25: AsyncNewsstackPoller telemetry additions shifted
     # 1302 -> 1381.
     # 2026-06-28 (semantic monitoring): shifted +53 lines by readiness metrics.
-    ("open_prep/realtime_signals.py", 1808, "insert"),  # 2026-07-16 extended shadow metrics shifted site: 1768->1808
+    ("open_prep/realtime_signals.py", 1837, "insert"),  # 2026-07-16 postmarket metrics shifted site: 1808->1837
     ("open_prep/streamlit_monitor.py", 34, "insert"),
     # WP-H (PR #2612): 32 -> 34, VIX import + helper block added above.
     ("smc_tv_bridge/smc_api.py", 34, "insert"),
