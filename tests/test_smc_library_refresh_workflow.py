@@ -68,19 +68,20 @@ def test_refresh_workflow_generates_from_restored_producer_bundle() -> None:
 
 def test_refresh_commit_step_restores_runtime_artifacts_before_commit() -> None:
     workflow_text = _read(WORKFLOW_PATH)
+    commit_block = _step_block(workflow_text, "Commit and push changes")
 
-    assert 'mapfile -t volatile_tracked_paths < <(git ls-files -- \\' in workflow_text
-    assert 'GIT_LFS_SKIP_SMUDGE=1 git -c filter.lfs.smudge= -c filter.lfs.process= -c filter.lfs.required=false \\' in workflow_text
-    assert 'restore --source=HEAD --worktree --staged -- "${volatile_tracked_paths[@]}"' in workflow_text
-    assert 'artifacts/databento_volatility_cache/' in workflow_text
-    assert 'artifacts/monitoring/provider_usage.json' in workflow_text
-    assert 'artifacts/smc_microstructure_exports/smc_live_news_snapshot.json' in workflow_text
-    assert 'artifacts/smc_microstructure_exports/smc_live_news_state.json' in workflow_text
+    assert 'for runtime_path in \\' in commit_block
+    assert 'git ls-files --error-unmatch "$runtime_path"' in commit_block
+    assert 'restore --source=HEAD --worktree --staged -- "$runtime_path"' in commit_block
+    assert 'artifacts/databento_volatility_cache/' in commit_block
+    assert 'artifacts/monitoring/provider_usage.json' in commit_block
+    assert 'artifacts/smc_microstructure_exports/smc_live_news_snapshot.json' in commit_block
+    assert 'artifacts/smc_microstructure_exports/smc_live_news_state.json' in commit_block
     # Workflow `git add` step was expanded by PR #13 into a multi-line continuation
     # listing all 14 Pine consumers. Pin each required path individually instead of a
     # single concatenated substring so further consumer additions don't silently break
     # the assertion form.
-    assert 'git add pine/generated/ \\' in workflow_text
+    assert 'git add pine/generated/ \\' in commit_block
     for path in (
         'SMC_Long_Dip_Suite.pine',
         'SMC_Long_Dip_Dashboard.pine',
@@ -98,8 +99,8 @@ def test_refresh_commit_step_restores_runtime_artifacts_before_commit() -> None:
         'SMC_Event_Overlay.pine',
         'artifacts/tradingview/library_release_manifest.json',
     ):
-        assert path in workflow_text, f"workflow git add step missing: {path}"
-    assert 'Unexpected tracked changes remain unstaged before refresh commit.' in workflow_text
+        assert path in commit_block, f"workflow git add step missing: {path}"
+    assert 'Unexpected tracked changes remain unstaged before refresh commit.' in commit_block
 
 
 def test_refresh_workflow_surfaces_first_failing_gate_test() -> None:
