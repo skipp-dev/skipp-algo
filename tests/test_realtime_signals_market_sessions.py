@@ -96,3 +96,37 @@ def test_realtime_fetch_uses_true_batch_method() -> None:
 
     assert client.calls == [["AAPL", "MSFT"]]
     assert sorted(quotes) == ["AAPL", "MSFT"]
+
+
+def test_extended_shadow_compares_fresh_dedicated_feeds_without_signaling(monkeypatch) -> None:
+    now_epoch = 1_784_221_934.0
+
+    class _Client:
+        def get_stable_batch_quotes(self, _symbols):
+            return [{"symbol": "AAPL", "price": 101.0, "timestamp": now_epoch}]
+
+        def get_stable_batch_aftermarket_quotes(self, _symbols):
+            return [{
+                "symbol": "AAPL",
+                "bidPrice": 100.0,
+                "askPrice": 102.0,
+                "timestamp": now_epoch * 1000,
+            }]
+
+        def get_stable_batch_aftermarket_trades(self, _symbols):
+            return [{"symbol": "AAPL", "price": 100.5, "timestamp": now_epoch * 1000}]
+
+    engine = rs.RealtimeEngine.__new__(rs.RealtimeEngine)
+    engine._client = _Client()
+    engine._watchlist = [{"symbol": "AAPL"}]
+    engine.extended_shadow_enabled = True
+    engine._extended_shadow = {}
+    monkeypatch.setattr(rs.time, "time", lambda: now_epoch)
+
+    engine._poll_extended_shadow("premarket")
+
+    assert engine._extended_shadow["fresh_regular_rows"] == 1
+    assert engine._extended_shadow["fresh_quote_rows"] == 1
+    assert engine._extended_shadow["fresh_trade_rows"] == 1
+    assert engine._extended_shadow["overlap_rows"] == 1
+    assert engine._extended_shadow["mean_reference_delta_bps"] > 0

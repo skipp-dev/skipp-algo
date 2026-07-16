@@ -1113,6 +1113,46 @@ def _collect_process_metrics(engine: Any | None = None) -> str:
             )
         lines.append(f"# TYPE {_prefix}_quotes_polled gauge")
         lines.append(f"{_prefix}_quotes_polled {1 if getattr(engine, '_quotes_polled', False) else 0}")
+        _shadow = getattr(engine, "_extended_shadow", {})
+        _shadow_epoch = _safe_float(_shadow.get("last_poll_epoch"), 0.0)
+        _shadow_age = max(0.0, now - _shadow_epoch) if _shadow_epoch > 0 else 999999.0
+        lines.append(f"# TYPE {_prefix}_extended_shadow_enabled gauge")
+        lines.append(
+            f"{_prefix}_extended_shadow_enabled "
+            f"{1 if getattr(engine, 'extended_shadow_enabled', False) else 0}"
+        )
+        lines.append(f"# TYPE {_prefix}_extended_shadow_last_poll_age_seconds gauge")
+        lines.append(f"{_prefix}_extended_shadow_last_poll_age_seconds {_shadow_age:.1f}")
+        lines.append(f"# TYPE {_prefix}_extended_shadow_rows gauge")
+        for _feed, _key in (
+            ("regular", "regular_rows"),
+            ("aftermarket_quote", "quote_rows"),
+            ("aftermarket_trade", "trade_rows"),
+        ):
+            lines.append(
+                f'{_prefix}_extended_shadow_rows{{feed="{_feed}"}} '
+                f'{int(_shadow.get(_key, 0))}'
+            )
+        lines.append(f"# TYPE {_prefix}_extended_shadow_fresh_rows gauge")
+        for _feed, _key in (
+            ("regular", "fresh_regular_rows"),
+            ("aftermarket_quote", "fresh_quote_rows"),
+            ("aftermarket_trade", "fresh_trade_rows"),
+        ):
+            lines.append(
+                f'{_prefix}_extended_shadow_fresh_rows{{feed="{_feed}"}} '
+                f'{int(_shadow.get(_key, 0))}'
+            )
+        lines.append(f"# TYPE {_prefix}_extended_shadow_overlap_rows gauge")
+        lines.append(
+            f"{_prefix}_extended_shadow_overlap_rows "
+            f"{int(_shadow.get('overlap_rows', 0))}"
+        )
+        lines.append(f"# TYPE {_prefix}_extended_shadow_reference_delta_bps gauge")
+        lines.append(
+            f"{_prefix}_extended_shadow_reference_delta_bps "
+            f"{_safe_float(_shadow.get('mean_reference_delta_bps'), 0.0):.3f}"
+        )
 
         # H3 (2026-07-08): FMP usage counters. The 24/7 producer is the
         # single largest FMP consumer and previously ran past every
@@ -2112,6 +2152,22 @@ class RealtimeEngine:
         # particular, do not let an environment override route pre/post-market
         # decisions through the regular-session stable batch quote endpoint.
         self.extended_signals_mode: str = "off"
+        self.extended_shadow_enabled: bool = os.getenv(
+            "RT_EXTENDED_SHADOW_ENABLED", "0"
+        ).strip().lower() in {"1", "true", "yes", "on"}
+        self._extended_shadow: dict[str, Any] = {
+            "last_poll_epoch": 0.0,
+            "session": "closed",
+            "symbols": 0,
+            "regular_rows": 0,
+            "quote_rows": 0,
+            "trade_rows": 0,
+            "fresh_regular_rows": 0,
+            "fresh_quote_rows": 0,
+            "fresh_trade_rows": 0,
+            "overlap_rows": 0,
+            "mean_reference_delta_bps": 0.0,
+        }
         self.last_poll_duration_seconds: float = 0.0
 
         self._load_watchlist()
@@ -2459,6 +2515,59 @@ class RealtimeEngine:
                     chunk_start, chunk_start + len(chunk), exc,
                 )
         return quotes
+
+    def _poll_extended_shadow(self, market_session: str) -> None:
+        """Compare regular and dedicated extended-hours feeds without signaling."""
+
+        if not self.extended_shadow_enabled or market_session not in {"premarket", "postmarket"}:
+            return
+        symbols = [
+            str(row.get("symbol") or "").strip().upper()
+            for row in self._watchlist
+            if str(row.get("symbol") or "").strip()
+        ]
+        if not symbols:
+            return
+
+        regular = self.client.get_stable_batch_quotes(symbols)
+        quote_rows = self.client.get_stable_batch_aftermarket_quotes(symbols)
+        trade_rows = self.client.get_stable_batch_aftermarket_trades(symbols)
+        now_epoch = time.time()
+
+        def _timestamp_epoch(row: dict[str, Any]) -> float:
+            raw = _safe_float(row.get("timestamp"), 0.0)
+            return raw / 1000.0 if raw >= 1_000_000_000_000 else raw
+
+        def _is_fresh(row: dict[str, Any]) -> bool:
+            age = now_epoch - _timestamp_epoch(row)
+            return -30.0 <= age <= 300.0
+
+        regular_by = {str(row.get("symbol") or "").upper(): row for row in regular}
+        quote_by = {str(row.get("symbol") or "").upper(): row for row in quote_rows}
+        trade_by = {str(row.get("symbol") or "").upper(): row for row in trade_rows}
+        deltas: list[float] = []
+        for symbol in sorted(set(regular_by) & set(quote_by) & set(trade_by)):
+            ref_price = _safe_float(regular_by[symbol].get("price"), 0.0)
+            bid = _safe_float(quote_by[symbol].get("bidPrice"), 0.0)
+            ask = _safe_float(quote_by[symbol].get("askPrice"), 0.0)
+            trade_price = _safe_float(trade_by[symbol].get("price"), 0.0)
+            extended_price = trade_price or ((bid + ask) / 2.0 if bid > 0 and ask > 0 else 0.0)
+            if ref_price > 0 and extended_price > 0:
+                deltas.append(abs(ref_price - extended_price) / extended_price * 10_000.0)
+
+        self._extended_shadow = {
+            "last_poll_epoch": now_epoch,
+            "session": market_session,
+            "symbols": len(set(symbols)),
+            "regular_rows": len(regular),
+            "quote_rows": len(quote_rows),
+            "trade_rows": len(trade_rows),
+            "fresh_regular_rows": sum(1 for row in regular if _is_fresh(row)),
+            "fresh_quote_rows": sum(1 for row in quote_rows if _is_fresh(row)),
+            "fresh_trade_rows": sum(1 for row in trade_rows if _is_fresh(row)),
+            "overlap_rows": len(deltas),
+            "mean_reference_delta_bps": sum(deltas) / len(deltas) if deltas else 0.0,
+        }
 
     # ------------------------------------------------------------------
     # Signal detection
@@ -2887,6 +2996,7 @@ class RealtimeEngine:
             # producer heartbeat alive, but never fetch quotes that cannot
             # contribute a published signal.  Expiry still advances by wall
             # clock so the snapshot cannot retain an overnight stale signal.
+            self._poll_extended_shadow(market_session)
             now_epoch = time.time()
             with self._lock:
                 for signal in self._active_signals:
@@ -3403,6 +3513,8 @@ class RealtimeEngine:
             "market_session": getattr(self, "_market_session_name", "closed"),
             "quotes_polled": bool(getattr(self, "_quotes_polled", False)),
             "extended_signals_mode": getattr(self, "extended_signals_mode", "off"),
+            "extended_shadow_enabled": getattr(self, "extended_shadow_enabled", False),
+            "extended_shadow": dict(getattr(self, "_extended_shadow", {})),
             "watched_symbols": [str(r.get("symbol", "")) for r in self._watchlist],
             "signals": [s.to_dict() for s in _snap],
             "signal_count": len(_snap),

@@ -732,3 +732,13 @@ def test_signals_producer_fmp_hotpath_alerts_present() -> None:
     burn_expr = _rule_expr(burn_rule)
     assert "signals_producer_fmp_response_bytes_total" in burn_expr
     assert "[1h]" in burn_expr
+
+    shadow_stale = _rule_expr(rules["sp-fmp-extended-shadow-stale"])
+    assert "signals_producer_extended_shadow_enabled" in shadow_stale
+    assert "signals_producer_extended_shadow_last_poll_age_seconds" in shadow_stale
+    assert 'session="premarket"' in shadow_stale
+    assert 'session="postmarket"' in shadow_stale
+
+    shadow_empty = _rule_expr(rules["sp-fmp-shadow-no-fresh-data"])
+    assert "signals_producer_extended_shadow_fresh_rows" in shadow_empty
+    assert "aftermarket_quote|aftermarket_trade" in shadow_empty
