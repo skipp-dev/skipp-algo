@@ -39,6 +39,7 @@ import {
   findChartSurfaceActionButtonsForScript,
   findLegendRowWrappers,
   countChartScriptInstances,
+  waitForChartScriptInstanceCountChange,
   isLegendTruncatedMatch,
   hasSettingsSurfaceDomHint,
   dismissOverlapManagerOverlay,
@@ -1173,6 +1174,22 @@ test("countChartScriptInstances rejects sibling buttons that only match through 
   const instances = await countChartScriptInstances(makeLegendPage([suiteButton, siblingButton]) as never, suiteName);
 
   assert.equal(instances, 1, "a shared pane must not multiply the suite instance count");
+});
+
+test("waitForChartScriptInstanceCountChange sees a 2->1 decrease that findLegendRowWrappers would hide", async () => {
+  const scriptName = "SMC Long-Dip Suite";
+  // The removal loop compares against this count to confirm an instance was deleted.
+  // Two identical copies remain; findLegendRowWrappers dedupes them to a single wrapper,
+  // so the old probe (its .length) reported 1 and could never register a decrease from a
+  // previousCount of 3 — it burned the full timeout and mis-counted removals. The instance
+  // counter reports the true 2, so the decrease is observed on the first poll (no timeout).
+  const twoIdentical = makeLegendPage([
+    makeLegendButton({ 1: "", 2: scriptName }),
+    makeLegendButton({ 1: "", 2: scriptName }),
+  ]) as never;
+
+  const remaining = await waitForChartScriptInstanceCountChange(twoIdentical, scriptName, 3);
+  assert.equal(remaining, 2, "must report the true remaining instance count, not the deduped 1");
 });
 
 test("chart surface action button scope keeps only controls whose ancestor names the script", async () => {
