@@ -1926,6 +1926,8 @@ def build_measurement_evidence(
     # Disclose which inputs actually fed the merged bias (htf+session vs.
     # single-source vs. none) — mirrors vol_regime_model_source (audit #2670 W6).
     details["bias_source"] = bias_verdict.source
+    details["bias_source_detail"] = bias_verdict.source_detail
+    details["bias_chart_tf_direction"] = bias_verdict.chart_tf_direction
     details["vol_regime"] = vol_regime.label
     details["vol_regime_confidence"] = vol_regime.confidence
     details["vol_regime_model_source"] = vol_regime.model_source
