@@ -141,8 +141,9 @@ def snapshot() -> dict[str, Any]:
             snap = dict(_cached)
         else:
             fresh = _load_raw()
-            _cached = fresh
+            if fresh.get("loaded") == 1.0 or _cached is None:
+                _cached = fresh
             _cached_at_monotonic = time.monotonic()
-            snap = dict(fresh)
+            snap = dict(_cached)
     snap["snapshot_age_seconds"] = _age_seconds(str(snap.get("updated_at") or ""))
     return snap

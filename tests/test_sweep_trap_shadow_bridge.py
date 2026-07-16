@@ -128,6 +128,45 @@ def test_non_dict_snapshot_is_fail_soft(monkeypatch, tmp_path):
     assert snap["error"] == "malformed_snapshot"
 
 
+
+
+def test_failed_load_preserves_last_good_snapshot(monkeypatch, tmp_path):
+    """A transient load failure must not evict a previously-good sweep-trap snapshot."""
+    p = _write(
+        tmp_path,
+        {
+            "generated_at": 1_783_000_000.0,
+            "date": "2026-07-11",
+            "n_samples": 55,
+            "min_samples": 40,
+            "brier_delta": 0.031,
+            "lift": 0.12,
+            "verdict": "PROMOTABLE",
+            "verdict_code": 2,
+        },
+    )
+    monkeypatch.setenv("SWEEP_TRAP_SHADOW_SNAPSHOT_PATH", str(p))
+    first = bridge.snapshot()
+    assert first["loaded"] == 1.0
+    assert first["n_samples"] == 55.0
+
+    bad = tmp_path / "sweep_trap_shadow_bad.json"
+    bad.write_text("{ not json", encoding="utf-8")
+    monkeypatch.setenv("SWEEP_TRAP_SHADOW_SNAPSHOT_PATH", str(bad))
+    bridge._cached_at_monotonic = 0.0
+
+    second = bridge.snapshot()
+    assert second["loaded"] == 1.0
+    assert second["n_samples"] == 55.0
+
+
+def test_failed_load_without_prior_cache_returns_error_payload(monkeypatch, tmp_path):
+    bad = tmp_path / "sweep_trap_shadow.json"
+    bad.write_text("{ not json", encoding="utf-8")
+    monkeypatch.setenv("SWEEP_TRAP_SHADOW_SNAPSHOT_PATH", str(bad))
+    snap = bridge.snapshot()
+    assert snap["loaded"] == 0.0
+    assert snap["error"] == "unreadable_snapshot"
 # --------------------------------------------------------------------------- #
 # Normalization
 # --------------------------------------------------------------------------- #

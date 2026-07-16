@@ -196,6 +196,41 @@ def test_non_dict_snapshot_is_fail_soft(monkeypatch, tmp_path):
     assert snap["error"] == "malformed_snapshot"
 
 
+
+
+def test_failed_load_preserves_last_good_snapshot(monkeypatch, tmp_path):
+    """A transient load failure must not evict a previously-good snapshot.
+
+    Without this guard a missing/unreadable snapshot immediately flips the
+    dashboard to loaded=0, masking a broken producer with a false "no data"
+    reading even though the last-known good evidence is still useful.
+    """
+    good = _write(tmp_path, {"generated_at_unix": 1_783_000_000.0, "ledger": {"newest_date": "2026-07-06"}})
+    monkeypatch.setenv("EVIDENCE_FRESHNESS_SNAPSHOT_PATH", str(good))
+    first = bridge.snapshot()
+    assert first["loaded"] == 1.0
+    assert first["generated_at_unix"] == 1_783_000_000.0
+
+    # Simulate the snapshot becoming unreadable and the TTL expiring.
+    bad = tmp_path / "evidence.json"
+    bad.write_text("{ not json", encoding="utf-8")
+    monkeypatch.setenv("EVIDENCE_FRESHNESS_SNAPSHOT_PATH", str(bad))
+    bridge._cached_at_monotonic = 0.0
+
+    second = bridge.snapshot()
+    assert second["loaded"] == 1.0
+    assert second["generated_at_unix"] == 1_783_000_000.0
+    assert second["ledger"]["newest_date"] == "2026-07-06"
+
+
+def test_failed_load_without_prior_cache_returns_error_payload(monkeypatch, tmp_path):
+    """When no good snapshot was ever loaded, a failure must still be fail-soft."""
+    bad = tmp_path / "evidence.json"
+    bad.write_text("{ not json", encoding="utf-8")
+    monkeypatch.setenv("EVIDENCE_FRESHNESS_SNAPSHOT_PATH", str(bad))
+    snap = bridge.snapshot()
+    assert snap["loaded"] == 0.0
+    assert snap["error"] == "unreadable_snapshot"
 # --------------------------------------------------------------------------- #
 # age_seconds_from_date
 # --------------------------------------------------------------------------- #

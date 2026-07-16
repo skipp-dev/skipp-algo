@@ -5,6 +5,8 @@ from __future__ import annotations
 import base64
 import json
 
+import pytest
+
 from services.live_overlay_daemon import pine_library_version_bridge as bridge
 
 # --------------------------------------------------------------------------- #
@@ -147,6 +149,45 @@ def test_load_raw_local_happy_path(monkeypatch, tmp_path):
     assert out["libraries_drifted"] == 1.0
 
 
+
+
+@pytest.fixture(autouse=True)
+def _reset_pine_cache():
+    bridge._cached = None
+    bridge._cached_at_monotonic = 0.0
+    yield
+    bridge._cached = None
+    bridge._cached_at_monotonic = 0.0
+
+
+def test_failed_load_preserves_last_good_snapshot(monkeypatch, tmp_path):
+    """A transient load failure must not evict a previously-good pine snapshot."""
+    p = tmp_path / "pine.json"
+    p.write_text(json.dumps(_raw_snapshot()), encoding="utf-8")
+    monkeypatch.setattr(bridge.config, "pine_library_versions_snapshot_url", lambda: "")
+    monkeypatch.setattr(bridge.config, "pine_library_versions_snapshot_path", lambda: p)
+    first = bridge.snapshot()
+    assert first["loaded"] == 1.0
+    assert first["libraries_drifted"] == 1.0
+
+    bad = tmp_path / "pine_bad.json"
+    bad.write_text("{ not json", encoding="utf-8")
+    monkeypatch.setattr(bridge.config, "pine_library_versions_snapshot_path", lambda: bad)
+    bridge._cached_at_monotonic = 0.0
+
+    second = bridge.snapshot()
+    assert second["loaded"] == 1.0
+    assert second["libraries_drifted"] == 1.0
+
+
+def test_failed_load_without_prior_cache_returns_error_payload(monkeypatch, tmp_path):
+    bad = tmp_path / "pine.json"
+    bad.write_text("{ not json", encoding="utf-8")
+    monkeypatch.setattr(bridge.config, "pine_library_versions_snapshot_url", lambda: "")
+    monkeypatch.setattr(bridge.config, "pine_library_versions_snapshot_path", lambda: bad)
+    snap = bridge.snapshot()
+    assert snap["loaded"] == 0.0
+    assert snap["error"] == "unreadable_snapshot"
 # --------------------------------------------------------------------------- #
 # Metrics renderer: a known TV version emits the gauge; an unknown one does NOT
 # (an unreachable facade must never report version 0 as the real TV version).

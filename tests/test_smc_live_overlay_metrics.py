@@ -69,6 +69,7 @@ def _patch_common(
     overlay_symbols: int,
     overlay_age: float,
     workers: dict[str, bool] | None = None,
+    last_bar_age: float | None = 5.0,
 ) -> None:
     import services.live_overlay_daemon.cache as cache
     import services.live_overlay_daemon.config as config
@@ -76,7 +77,7 @@ def _patch_common(
     import services.live_overlay_daemon.metrics as metrics_mod
 
     monkeypatch.setattr(feed, "is_ready", lambda: feed_ready)
-    monkeypatch.setattr(feed, "last_bar_age_secs", lambda: 5.0)
+    monkeypatch.setattr(feed, "last_bar_age_secs", lambda: last_bar_age)
     monkeypatch.setattr(
         feed,
         "worker_liveness",
@@ -545,7 +546,6 @@ def test_render_metrics_emits_age_known_gauges(monkeypatch: pytest.MonkeyPatch) 
 
 
 def test_render_metrics_age_known_zero_when_unknown(monkeypatch: pytest.MonkeyPatch) -> None:
-    import services.live_overlay_daemon.feed as feed
     import services.live_overlay_daemon.metrics as metrics_mod
 
     _patch_common(
@@ -555,14 +555,37 @@ def test_render_metrics_age_known_zero_when_unknown(monkeypatch: pytest.MonkeyPa
         bar_count=0,
         overlay_symbols=0,
         overlay_age=float("inf"),
+        last_bar_age=None,
     )
-    monkeypatch.setattr(feed, "last_bar_age_secs", lambda: None)
 
     body = metrics_mod.render_metrics(startup_ts=100.0)
     assert "live_overlay_overlay_age_known 0.0" in body
+    # 0.0 and NOT nan is the contract `lo-overlay-stale` depends on: it selects with
+    # `(age * known) + ((1 - known) * 3601)`, so a NaN age would make `nan * 0 = nan`
+    # swallow the 3601 unknown-sentinel and silence a severity-high rule.
     assert "live_overlay_overlay_age_seconds 0.0" in body
     assert "live_overlay_last_bar_age_known 0.0" in body
     assert "live_overlay_last_bar_age_seconds 0.0" in body
+
+
+def test_render_metrics_known_age_still_renders_finite_value(monkeypatch: pytest.MonkeyPatch) -> None:
+    import services.live_overlay_daemon.metrics as metrics_mod
+
+    _patch_common(
+        monkeypatch,
+        feed_ready=True,
+        market_open=True,
+        bar_count=10,
+        overlay_symbols=5,
+        overlay_age=60.0,
+        last_bar_age=12.5,
+    )
+
+    body = metrics_mod.render_metrics(startup_ts=100.0)
+    assert "live_overlay_overlay_age_known 1.0" in body
+    assert "live_overlay_overlay_age_seconds 60.0" in body
+    assert "live_overlay_last_bar_age_known 1.0" in body
+    assert "live_overlay_last_bar_age_seconds 12.5" in body
 
 
 def test_render_metrics_emits_hotspot_gauges(monkeypatch: pytest.MonkeyPatch) -> None:
