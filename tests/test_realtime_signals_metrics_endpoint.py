@@ -361,6 +361,10 @@ class TestFmpUsageCounters:
         assert "signals_producer_fmp_requests_total 10" in body
         assert "signals_producer_fmp_request_errors_total 1" in body
         assert "signals_producer_fmp_response_bytes_total 2000" in body
+        assert 'signals_producer_fmp_endpoint_requests_total{endpoint="/stable/quote"} 7' in body
+        assert 'signals_producer_fmp_endpoint_errors_total{endpoint="/stable/quote"} 1' in body
+        assert 'signals_producer_fmp_endpoint_response_bytes_total{endpoint="/stable/profile"} 766' in body
+        assert "signals_producer_avg_volume_missing_symbols 0" in body
 
     def test_fmp_counters_absent_without_client(self) -> None:
         """Lazy client not yet created (no key / never polled) — no series,

@@ -1979,6 +1979,66 @@ groups:
     annotations:
       summary: smc-signals-producer got no market data for 5+ min during US extended-hours (04:00-20:00 ET) — likely an FMP outage (poll loop alive, every fetch empty). Pages ~15 min after onset (5-min stall + 10-min for:).
       runbook: Check signals_producer_fmp_request_errors_total and the FMP status page. last_poll_age stays ~0 because the loop runs; signals are frozen until non-empty quotes return.
+  - uid: sp-fmp-profile-bulk-used
+    title: Signals Producer unexpectedly used FMP profile-bulk
+    condition: C
+    noDataState: OK
+    data:
+    - refId: A
+      datasourceUid: grafanacloud-prom
+      model:
+        expr: sum(increase(signals_producer_fmp_endpoint_requests_total{job="signals_producer",endpoint="/stable/profile-bulk"}[15m]))
+        instant: true
+    - refId: C
+      datasourceUid: __expr__
+      model:
+        type: threshold
+        conditions:
+        - evaluator:
+            type: gt
+            params:
+            - 0
+          operator:
+            type: and
+          query:
+            params:
+            - A
+    for: 0s
+    labels:
+      severity: critical
+    annotations:
+      summary: The realtime signals producer called the provider-wide profile-bulk endpoint, which previously burned about 113 MB every six minutes.
+      runbook: Inspect _enrich_watchlist_live and recent deploys. Realtime avg-volume gaps must use bounded per-symbol profile lookups with negative caching; never restore profile-bulk in this service.
+  - uid: sp-fmp-byte-burn-high
+    title: Signals Producer FMP bandwidth burn is unexpectedly high
+    condition: C
+    noDataState: OK
+    data:
+    - refId: A
+      datasourceUid: grafanacloud-prom
+      model:
+        expr: sum(increase(signals_producer_fmp_response_bytes_total{job="signals_producer"}[1h]))
+        instant: true
+    - refId: C
+      datasourceUid: __expr__
+      model:
+        type: threshold
+        conditions:
+        - evaluator:
+            type: gt
+            params:
+            - 50000000
+          operator:
+            type: and
+          query:
+            params:
+            - A
+    for: 15m
+    labels:
+      severity: warning
+    annotations:
+      summary: smc-signals-producer transferred more than 50 MB of FMP payloads in one hour.
+      runbook: Break down signals_producer_fmp_endpoint_response_bytes_total by endpoint. Normal 200-symbol minute quotes measured about 5.4 MB/hour; profile-bulk previously exceeded 1 GB/hour.
 - orgId: 1
   name: evidence-and-workflow-freshness
   folder: SMC Live Overlay

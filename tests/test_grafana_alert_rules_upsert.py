@@ -718,3 +718,17 @@ def test_fmp_bandwidth_alerts_include_producer_consumption() -> None:
         assert "signals_producer_fmp_response_bytes_total" in expr, uid
         # The producer term must degrade to 0 when absent (never null the base).
         assert "or vector(0)" in expr, uid
+
+
+def test_signals_producer_fmp_hotpath_alerts_present() -> None:
+    rules = _rules_by_uid()
+
+    profile_rule = rules["sp-fmp-profile-bulk-used"]
+    profile_expr = _rule_expr(profile_rule)
+    assert "signals_producer_fmp_endpoint_requests_total" in profile_expr
+    assert 'endpoint="/stable/profile-bulk"' in profile_expr
+
+    burn_rule = rules["sp-fmp-byte-burn-high"]
+    burn_expr = _rule_expr(burn_rule)
+    assert "signals_producer_fmp_response_bytes_total" in burn_expr
+    assert "[1h]" in burn_expr
