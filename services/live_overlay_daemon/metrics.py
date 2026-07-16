@@ -2378,33 +2378,33 @@ def _render_sweep_trap_shadow_metrics() -> list[str]:
     lift = float(snap.get("lift", 0.0) or 0.0)
     verdict_name = str(snap.get("verdict", "") or "INCONCLUSIVE")
 
-    # Absent corpus / too-few samples: don't assert pass/fail (or a numeric value)
-    # on data that was never computed. `have_terciles` mirrors the evaluator's own
-    # n>=6 tercile floor so the lift row stays "—" until it is real.
+    # Absent snapshot / too-few samples: don't assert pass/fail on unknown data;
+    # `have_terciles` mirrors the evaluator's n>=6 floor for a real lift value.
     na = "—"
-    have_data = n_samples > 0
-    have_terciles = n_samples >= 6
-    samples_assessment = "Floor erfüllt" if min_samples > 0 and n_samples >= min_samples else "Floor nicht erfüllt"
+    have_snapshot = loaded == 1.0
+    have_data = have_snapshot and n_samples > 0
+    have_terciles = have_data and n_samples >= 6
+    samples_assessment = ("Floor erfüllt" if min_samples > 0 and n_samples >= min_samples else "Floor nicht erfüllt") if have_snapshot else na
     # Compute the data-derived assessments only when there is data (and, for
     # lift, enough samples for terciles); otherwise they stay "—". This keeps
     # the have_data/have_terciles test in one place rather than at every use.
     if have_data:
         baseline_assessment = "besser als Signal" if brier_baseline < brier_signal else "nicht besser als Signal"
         delta_assessment = "Gate erfüllt" if brier_delta > 0 else "Gate verfehlt"
-        verdict_assessment = "promotable" if verdict_name == "PROMOTABLE" else "nicht promotable"
     else:
-        baseline_assessment = delta_assessment = verdict_assessment = na
+        baseline_assessment = delta_assessment = na
+    verdict_assessment = ({"PROMOTABLE": "promotable", "SHADOW": "nicht promotable"}.get(verdict_name, "keine Entscheidung möglich") if have_snapshot else na)
     lift_assessment = ("positiv" if lift > 0 else "nicht positiv") if have_terciles else na
     # (idx, metric, value, assessment) — idx is zero-padded so the dashboard's
     # lexicographic sortBy keeps numeric order; it pins the display order and is
     # not shown as a column.
     rows = (
-        (0, "Gültige Samples", _format_int_de(int(n_samples)), samples_assessment),
+        (0, "Gültige Samples", _format_int_de(int(n_samples)) if have_snapshot else na, samples_assessment),
         (1, "Brier Signal", f"{brier_signal:.6f}" if have_data else na, na),
         (2, "Brier Baseline", f"{brier_baseline:.6f}" if have_data else na, baseline_assessment),
         (3, "Brier Delta", f"{brier_delta:+.6f}" if have_data else na, delta_assessment),
         (4, "Tercile Lift", f"{lift:+.6f}" if have_terciles else na, lift_assessment),
-        (5, "Verdict", verdict_name, verdict_assessment),
+        (5, "Verdict", verdict_name if have_snapshot else na, verdict_assessment),
     )
     lines.append("# TYPE live_overlay_sweep_trap_shadow_evidence_info gauge")
     for idx, metric_name, value, assessment in rows:
