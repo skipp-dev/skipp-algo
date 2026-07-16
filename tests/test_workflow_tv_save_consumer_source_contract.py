@@ -97,9 +97,16 @@ def test_transient_binding_verification_failures_are_retried_once() -> None:
 
 
 def test_binding_parser_accepts_single_and_double_quoted_pine_labels() -> None:
+    # The BUS label parser is the single source of truth shared by the runtime
+    # verifier and the build-time packager, so the regex now lives in the shared
+    # .mjs module rather than being copied into each consumer.
+    parser = (
+        _REPO_ROOT / "automation" / "tradingview" / "lib" / "bus_binding_labels.mjs"
+    ).read_text(encoding="utf-8")
+    assert '(["\'])' in parser
+    assert ".map((match) => match[2])" in parser
     verifier = (_REPO_ROOT / "scripts" / "tv_verify_consumer_bindings.ts").read_text(encoding="utf-8")
-    assert '(["\'])' in verifier
-    assert ".map((match) => match[2])" in verifier
+    assert "parseBusBindingLabels" in verifier
 
 
 def test_binding_repair_is_explicit_and_reverified_before_success() -> None:
@@ -197,12 +204,21 @@ def test_unknown_parent_runtime_error_fails_closed() -> None:
     assert "locator(\"body\").innerText()" not in verifier
     assert "ok: mismatches.length === 0 && !unknownParentRuntimeError," in verifier
     assert "if (result.unknownParentRuntimeError) {" in verifier
+    # The session-wide monitor must be cleared AFTER the committed rebind so a
+    # successful repair is not sunk by its own pre-repair "unknown parent id"
+    # (nor by errors from other not-yet-repaired consumers on the same session).
+    assert "session.runtimeErrors.clear()" in verifier
 
 
 def test_verifier_blocks_ambiguous_multi_pane_layouts_before_mutation() -> None:
     verifier = (_REPO_ROOT / "scripts" / "tv_verify_consumer_bindings.ts").read_text(encoding="utf-8")
-    assert "findLegendRowWrappers(session.page, producerName)" in verifier
-    assert "findLegendRowWrappers(session.page, target.scriptName)" in verifier
+    # Instance counting must NOT go through findLegendRowWrappers: it dedupes
+    # matched wrappers by legend text, so two identically-named scripts collapse
+    # to one and the ambiguity guard never fires. countChartScriptInstances
+    # counts each legend row independently.
+    assert "countChartScriptInstances(session.page, producerName)" in verifier
+    assert "countChartScriptInstances(session.page, target.scriptName)" in verifier
+    assert "findLegendRowWrappers" not in verifier
     assert "Ambiguous multi-pane SMC layout" in verifier
 
 

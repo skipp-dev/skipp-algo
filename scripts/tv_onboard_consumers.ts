@@ -11,7 +11,7 @@ import { fileURLToPath } from "node:url";
 import {
   closeTradingViewSession,
   collectTradingViewPageAuthState,
-  findLegendRowWrappers,
+  countChartScriptInstances,
   gotoChart,
   isScriptVisibleOnChartSurface,
   newTradingViewSession,
@@ -480,6 +480,23 @@ export function browserCandidates(
   return [];
 }
 
+/**
+ * Classify a --browser-path executable by its file name. Chrome and Edge bundle
+ * executables differ by platform: Windows uses "chrome.exe" / "msedge.exe", but
+ * macOS uses "Google Chrome" / "Microsoft Edge". Matching only "msedge" would
+ * misclassify the documented macOS Edge path as a generic custom browser, giving
+ * it a separate hashed profile so its persisted TradingView login is not reused.
+ */
+export function classifyBrowserFromPath(executablePath: string): Pick<BrowserSelection, "id" | "name"> {
+  const basename = path.basename(executablePath).toLowerCase();
+  const id: BrowserSelection["id"] = basename.includes("edge")
+    ? "edge"
+    : basename.includes("chrome") || basename.includes("chromium")
+      ? "chrome"
+      : "custom";
+  return { id, name: id === "edge" ? "Microsoft Edge" : id === "chrome" ? "Google Chrome" : "Custom Chromium browser" };
+}
+
 export function detectSupportedBrowser(browserPath = ""): BrowserSelection {
   if (browserPath) {
     const executablePath = path.resolve(browserPath);
@@ -490,9 +507,7 @@ export function detectSupportedBrowser(browserPath = ""): BrowserSelection {
         "Choose an installed Google Chrome or Microsoft Edge executable and run SMC Onboarding again.",
       );
     }
-    const basename = path.basename(executablePath).toLowerCase();
-    const id = basename.includes("msedge") ? "edge" : basename.includes("chrome") ? "chrome" : "custom";
-    return { id, name: id === "edge" ? "Microsoft Edge" : id === "chrome" ? "Google Chrome" : "Custom Chromium browser", executablePath };
+    return { ...classifyBrowserFromPath(executablePath), executablePath };
   }
   const browser = browserCandidates().find((candidate) => fs.existsSync(candidate.executablePath));
   if (!browser) {
@@ -533,7 +548,13 @@ function parseCli(): Cli {
     outDir: path.resolve(getFlag("--out-dir", path.join(dataDir, "reports"))),
     profileDir: path.resolve(getFlag("--profile-dir", path.join(dataDir, "browser-profile"))),
     selfTest: args.includes("--self-test"),
-    waitTimeoutMs: Number.parseInt(getFlag("--wait-timeout-ms", "900000"), 10),
+    // A non-numeric --wait-timeout-ms yields NaN; NaN would make the auth-wait
+    // deadline NaN, so `Date.now() < NaN` is instantly false and onboarding
+    // throws ONB-AUTH-001 before the user can sign in. Fall back on NaN/<=0.
+    waitTimeoutMs: (() => {
+      const parsed = Number.parseInt(getFlag("--wait-timeout-ms", ""), 10);
+      return Number.isFinite(parsed) && parsed > 0 ? parsed : 900_000;
+    })(),
   };
 }
 
@@ -596,7 +617,7 @@ async function waitForAuthentication(session: TradingViewSession, chartUrl: stri
 function playwrightAdapter(session: TradingViewSession): OnboardingAdapter {
   return {
     isScriptVisible: (scriptName) => isScriptVisibleOnChartSurface(session.page, scriptName),
-    countScriptInstances: async (scriptName) => (await findLegendRowWrappers(session.page, scriptName)).length,
+    countScriptInstances: (scriptName) => countChartScriptInstances(session.page, scriptName),
     isSourceOptionAvailable: (consumer, chartName, label, expected) => isConsumerSourceOptionAvailable(
       session,
       { bindingLabels: consumer.bindingLabels, savedScriptName: consumer.savedScriptName, scriptName: chartName },

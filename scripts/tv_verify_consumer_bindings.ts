@@ -2,10 +2,12 @@
 import * as fs from "node:fs";
 import * as path from "node:path";
 
+import { parseBusBindingLabels } from "../automation/tradingview/lib/bus_binding_labels.mjs";
+
 import {
   closeModal,
   closeTradingViewSession,
-  findLegendRowWrappers,
+  countChartScriptInstances,
   gotoChart,
   isScriptVisibleOnChartSurface,
   newTradingViewSession,
@@ -49,9 +51,7 @@ function hasFlag(name: string): boolean {
 }
 
 export function parseInputSourceLabels(source: string): string[] {
-  return [...source.matchAll(/input\.source\([^,]+,\s*(["'])(.*?)\1/g)]
-    .map((match) => match[2])
-    .filter((label) => label.startsWith("BUS "));
+  return parseBusBindingLabels(source);
 }
 
 function resolveBindingContract(target: VerifyConsumerTarget): { labels: string[]; sourcePath: string | null } {
@@ -161,13 +161,13 @@ export async function verifyConsumerBindings(
   if (labels.length === 0) throw new Error(`No BUS input.source labels found: ${sourcePath ?? target.scriptName}`);
 
   const [producerInstances, consumerInstances] = await Promise.all([
-    findLegendRowWrappers(session.page, producerName),
-    findLegendRowWrappers(session.page, target.scriptName),
+    countChartScriptInstances(session.page, producerName),
+    countChartScriptInstances(session.page, target.scriptName),
   ]);
-  if (producerInstances.length > 1 || consumerInstances.length > 1) {
+  if (producerInstances > 1 || consumerInstances > 1) {
     throw new Error(
-      `Ambiguous multi-pane SMC layout: ${producerName}=${producerInstances.length}, `
-      + `${target.scriptName}=${consumerInstances.length}. Keep one suite and one consumer in the same chart pane before binding.`,
+      `Ambiguous multi-pane SMC layout: ${producerName}=${producerInstances}, `
+      + `${target.scriptName}=${consumerInstances}. Keep one suite and one consumer in the same chart pane before binding.`,
     );
   }
 
@@ -200,6 +200,13 @@ export async function verifyConsumerBindings(
       throw new Error("Could not find settings submit button after binding repair");
     }
     await submit.click();
+    // Only errors TradingView emits AFTER the committed rebind prove the NEW
+    // parent is still dead. The monitor accumulates for the whole session, so
+    // without this the consumer's own pre-repair "unknown parent id" (the exact
+    // condition this force-rebind fixes) — plus errors from other not-yet-repaired
+    // consumers sharing the session — would sink a successful repair. Drop them;
+    // the recreated study re-emits within the settle window below if truly dead.
+    session.runtimeErrors.clear();
 
     const reopened = await openSettingsForScript(session.page, target.scriptName, { allowChartRefresh: false });
     if (!reopened) throw new Error(`Could not reopen chart settings after repair: ${target.scriptName}`);
