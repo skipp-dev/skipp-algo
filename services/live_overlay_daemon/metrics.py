@@ -2370,7 +2370,7 @@ def _render_sweep_trap_shadow_metrics() -> list[str]:
     # instead of recreating it in PromQL. The numeric gauges above stay the source
     # for any future alerting/recording rules; nothing alerts on them yet.
     date = _escape_label_value(str(snap.get("date", "") or "unknown"))
-    n_samples = float(snap.get("n_samples", 0.0) or 0.0)
+    n_samples = _prom_numeric_value(snap.get("n_samples", 0.0))
     min_samples = float(snap.get("min_samples", 0.0) or 0.0)
     brier_signal = float(snap.get("brier_signal", 0.0) or 0.0)
     brier_baseline = float(snap.get("brier_baseline", 0.0) or 0.0)
@@ -2382,9 +2382,10 @@ def _render_sweep_trap_shadow_metrics() -> list[str]:
     # `have_terciles` mirrors the evaluator's n>=6 floor for a real lift value.
     na = "—"
     have_snapshot = loaded == 1.0
-    have_data = have_snapshot and n_samples > 0
+    samples_known = math.isfinite(n_samples)
+    have_data = have_snapshot and samples_known and n_samples > 0
     have_terciles = have_data and n_samples >= 6
-    samples_assessment = ("Floor erfüllt" if min_samples > 0 and n_samples >= min_samples else "Floor nicht erfüllt") if have_snapshot else na
+    samples_assessment = ("Floor erfüllt" if min_samples > 0 and n_samples >= min_samples else "Floor nicht erfüllt") if have_snapshot and samples_known else na
     # Compute the data-derived assessments only when there is data (and, for
     # lift, enough samples for terciles); otherwise they stay "—". This keeps
     # the have_data/have_terciles test in one place rather than at every use.
@@ -2399,7 +2400,7 @@ def _render_sweep_trap_shadow_metrics() -> list[str]:
     # lexicographic sortBy keeps numeric order; it pins the display order and is
     # not shown as a column.
     rows = (
-        (0, "Gültige Samples", _format_int_de(int(n_samples)) if have_snapshot else na, samples_assessment),
+        (0, "Gültige Samples", _format_int_de(int(n_samples)) if have_snapshot and samples_known else na, samples_assessment),
         (1, "Brier Signal", f"{brier_signal:.6f}" if have_data else na, na),
         (2, "Brier Baseline", f"{brier_baseline:.6f}" if have_data else na, baseline_assessment),
         (3, "Brier Delta", f"{brier_delta:+.6f}" if have_data else na, delta_assessment),

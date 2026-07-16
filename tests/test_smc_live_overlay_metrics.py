@@ -365,6 +365,23 @@ def test_render_metrics_evidence_table_marks_unavailable_snapshot_unknown(
     assert 'metric="Verdict",metric_value="—",assessment="—"' in body
 
 
+@pytest.mark.parametrize("n_samples", [float("nan"), float("inf"), float("-inf")])
+def test_render_metrics_evidence_table_sanitizes_non_finite_sample_count(
+    monkeypatch: pytest.MonkeyPatch,
+    n_samples: float,
+) -> None:
+    """A corrupt sample count must not take down the whole metrics render."""
+    import services.live_overlay_daemon.metrics as metrics_mod
+
+    snap = _sweep_trap_snap(n_samples=n_samples, verdict="INCONCLUSIVE", verdict_code=0.0)
+    monkeypatch.setattr(metrics_mod.sweep_trap_shadow_bridge, "snapshot", lambda: snap)
+
+    body = "\n".join(metrics_mod._render_sweep_trap_shadow_metrics())
+    assert "live_overlay_sweep_trap_shadow_sample_count nan" in body
+    assert 'metric="Gültige Samples",metric_value="—",assessment="—"' in body
+    assert 'metric="Verdict",metric_value="INCONCLUSIVE",assessment="keine Entscheidung möglich"' in body
+
+
 def test_render_metrics_evidence_table_shows_brier_but_dashes_lift_below_tercile_floor(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
