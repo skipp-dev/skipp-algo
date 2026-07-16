@@ -1153,6 +1153,35 @@ def _collect_process_metrics(engine: Any | None = None) -> str:
             f"{_prefix}_extended_shadow_reference_delta_bps "
             f"{_safe_float(_shadow.get('mean_reference_delta_bps'), 0.0):.3f}"
         )
+        _postmarket_stats = getattr(engine, "_postmarket_adapter_stats", {})
+        lines.append(f"# TYPE {_prefix}_postmarket_baseline_symbols gauge")
+        lines.append(
+            f"{_prefix}_postmarket_baseline_symbols "
+            f"{len(getattr(engine, '_postmarket_close_volume', {}))}"
+        )
+        lines.append(f"# TYPE {_prefix}_postmarket_adapter_rows gauge")
+        for _state, _key in (
+            ("price_ready", "price_ready_rows"),
+            ("signal_ready", "signal_ready_rows"),
+            ("trade_price", "trade_price_rows"),
+            ("midpoint_price", "midpoint_price_rows"),
+        ):
+            lines.append(
+                f'{_prefix}_postmarket_adapter_rows{{state="{_state}"}} '
+                f'{int(_postmarket_stats.get(_key, 0))}'
+            )
+        lines.append(f"# TYPE {_prefix}_postmarket_adapter_rejections gauge")
+        for _reason, _key in (
+            ("no_reference", "rejected_no_reference"),
+            ("no_fresh_price", "rejected_no_fresh_price"),
+            ("crossed_quote", "rejected_crossed_quote"),
+            ("missing_baseline", "rejected_missing_baseline"),
+            ("volume_regression", "rejected_volume_regression"),
+        ):
+            lines.append(
+                f'{_prefix}_postmarket_adapter_rejections{{reason="{_reason}"}} '
+                f'{int(_postmarket_stats.get(_key, 0))}'
+            )
 
         # H3 (2026-07-08): FMP usage counters. The 24/7 producer is the
         # single largest FMP consumer and previously ran past every
@@ -2168,6 +2197,10 @@ class RealtimeEngine:
             "overlap_rows": 0,
             "mean_reference_delta_bps": 0.0,
         }
+        self._postmarket_baseline_date: str = ""
+        self._postmarket_close_volume: dict[str, float] = {}
+        self._postmarket_adapter_stats: dict[str, int] = {}
+        self._postmarket_adapter_quotes: dict[str, dict[str, Any]] = {}
         self.last_poll_duration_seconds: float = 0.0
 
         self._load_watchlist()
@@ -2180,6 +2213,16 @@ class RealtimeEngine:
         """Load previously persisted signals to avoid re-firing on restart."""
         try:
             data = self.load_signals_from_disk()
+            baseline_date = str(data.get("postmarket_baseline_date") or "")
+            raw_baseline = data.get("postmarket_close_volume") or {}
+            if isinstance(raw_baseline, dict):
+                restored_baseline = {
+                    str(symbol).strip().upper(): _safe_float(volume, 0.0)
+                    for symbol, volume in raw_baseline.items()
+                    if str(symbol).strip() and _safe_float(volume, 0.0) > 0
+                }
+                self._postmarket_baseline_date = baseline_date
+                self._postmarket_close_volume = restored_baseline
             now_epoch = time.time()
             for raw in data.get("signals", []):
                 fired_epoch = _safe_float(raw.get("fired_epoch", 0), 0.0)
@@ -2516,6 +2559,21 @@ class RealtimeEngine:
                 )
         return quotes
 
+    def _capture_regular_close_baseline(self, quotes: dict[str, dict[str, Any]]) -> None:
+        """Retain the latest regular-session cumulative volume for postmarket."""
+
+        from zoneinfo import ZoneInfo
+
+        session_date = (now_et := datetime.now(ZoneInfo("America/New_York"))).date().isoformat()
+        captured = {
+            symbol: _safe_float(row.get("volume"), 0.0)
+            for symbol, row in quotes.items()
+            if _safe_float(row.get("volume"), 0.0) > 0
+        }
+        if captured and now_et.hour * 60 + now_et.minute >= regular_session_close_minutes(now_et.date()) - 5:
+            self._postmarket_baseline_date = session_date
+            self._postmarket_close_volume = captured
+
     def _poll_extended_shadow(self, market_session: str) -> None:
         """Compare regular and dedicated extended-hours feeds without signaling."""
 
@@ -2533,6 +2591,26 @@ class RealtimeEngine:
         quote_rows = self.client.get_stable_batch_aftermarket_quotes(symbols)
         trade_rows = self.client.get_stable_batch_aftermarket_trades(symbols)
         now_epoch = time.time()
+
+        if market_session == "postmarket":
+            from zoneinfo import ZoneInfo
+
+            from open_prep.postmarket_quotes import build_postmarket_quotes
+
+            current_session_date = datetime.now(
+                ZoneInfo("America/New_York")
+            ).date().isoformat()
+            adapted = build_postmarket_quotes(
+                reference_rows=regular,
+                quote_rows=quote_rows,
+                trade_rows=trade_rows,
+                close_volume_by_symbol=self._postmarket_close_volume,
+                baseline_session_date=self._postmarket_baseline_date,
+                current_session_date=current_session_date,
+                now_epoch=now_epoch,
+            )
+            self._postmarket_adapter_quotes = adapted.quotes
+            self._postmarket_adapter_stats = adapted.stats
 
         def _timestamp_epoch(row: dict[str, Any]) -> float:
             raw = _safe_float(row.get("timestamp"), 0.0)
@@ -3019,6 +3097,8 @@ class RealtimeEngine:
             self._save_signals()
             self._mark_poll_success(poll_start)  # loop-liveness, NOT data-freshness: an empty market-hours fetch still marks success (poll_age/readyz/snapshot_stale stay green) — data-feed health is now in signals_producer_data_stale / last_data_age_seconds (+ fmp_request_errors_total)
             return new_signals
+
+        self._capture_regular_close_baseline(quotes)
 
         self._poll_seq += 1
         self._last_data_epoch = time.time()  # real data arrived — data-freshness clock (see the data_stale gauge)
@@ -3515,6 +3595,9 @@ class RealtimeEngine:
             "extended_signals_mode": getattr(self, "extended_signals_mode", "off"),
             "extended_shadow_enabled": getattr(self, "extended_shadow_enabled", False),
             "extended_shadow": dict(getattr(self, "_extended_shadow", {})),
+            "postmarket_baseline_date": getattr(self, "_postmarket_baseline_date", ""),
+            "postmarket_close_volume": dict(getattr(self, "_postmarket_close_volume", {})),
+            "postmarket_adapter_stats": dict(getattr(self, "_postmarket_adapter_stats", {})),
             "watched_symbols": [str(r.get("symbol", "")) for r in self._watchlist],
             "signals": [s.to_dict() for s in _snap],
             "signal_count": len(_snap),
