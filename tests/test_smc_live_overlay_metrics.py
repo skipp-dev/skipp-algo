@@ -311,7 +311,7 @@ def test_render_metrics_emits_sweep_trap_shadow_values(monkeypatch: pytest.Monke
     assert "live_overlay_sweep_trap_shadow_snapshot_stale 0.0" in body
 
 
-def test_render_metrics_evidence_table_marks_absent_data_not_failed(
+def test_render_metrics_evidence_table_marks_empty_corpus_inconclusive(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """With no evaluated corpus the evidence table must show "—", not assert
@@ -332,15 +332,37 @@ def test_render_metrics_evidence_table_marks_absent_data_not_failed(
     monkeypatch.setattr(metrics_mod.sweep_trap_shadow_bridge, "snapshot", lambda: snap)
 
     body = "\n".join(metrics_mod._render_sweep_trap_shadow_metrics())
-    # No data: Brier/Delta/Lift/Verdict assessments are neutral, samples honestly fail the floor.
+    # Loaded empty corpus: samples honestly fail the floor and verdict explains
+    # that no decision can be made; computed-score rows remain neutral.
     assert 'metric="Gültige Samples",metric_value="0",assessment="Floor nicht erfüllt"' in body
     assert 'metric="Brier Baseline",metric_value="—",assessment="—"' in body
     assert 'metric="Brier Delta",metric_value="—",assessment="—"' in body
     assert 'metric="Tercile Lift",metric_value="—",assessment="—"' in body
-    assert 'metric="Verdict",metric_value="INCONCLUSIVE",assessment="—"' in body
+    assert 'metric="Verdict",metric_value="INCONCLUSIVE",assessment="keine Entscheidung möglich"' in body
     # It must NOT claim a gate verdict when there is no corpus.
     assert "Gate verfehlt" not in body
     assert "nicht besser als Signal" not in body
+
+
+def test_render_metrics_evidence_table_marks_unavailable_snapshot_unknown(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A missing snapshot is unknown, not an evaluated zero-sample corpus."""
+    import services.live_overlay_daemon.metrics as metrics_mod
+
+    snap = _sweep_trap_snap(
+        loaded=0.0,
+        date="",
+        n_samples=0.0,
+        min_samples=0.0,
+        verdict="",
+        verdict_code=0.0,
+    )
+    monkeypatch.setattr(metrics_mod.sweep_trap_shadow_bridge, "snapshot", lambda: snap)
+
+    body = "\n".join(metrics_mod._render_sweep_trap_shadow_metrics())
+    assert 'metric="Gültige Samples",metric_value="—",assessment="—"' in body
+    assert 'metric="Verdict",metric_value="—",assessment="—"' in body
 
 
 def test_render_metrics_evidence_table_shows_brier_but_dashes_lift_below_tercile_floor(
@@ -369,7 +391,7 @@ def test_render_metrics_evidence_table_shows_brier_but_dashes_lift_below_tercile
     assert 'metric="Brier Signal",metric_value="0.180000"' in body
     assert 'metric="Brier Baseline",metric_value="0.200000",assessment="nicht besser als Signal"' in body
     assert 'metric="Brier Delta",metric_value="+0.020000",assessment="Gate erfüllt"' in body
-    assert 'metric="Verdict",metric_value="INCONCLUSIVE",assessment="nicht promotable"' in body
+    assert 'metric="Verdict",metric_value="INCONCLUSIVE",assessment="keine Entscheidung möglich"' in body
     # Too few samples for terciles: the lift row must NOT fabricate +0.000000/nicht positiv.
     assert 'metric="Tercile Lift",metric_value="—",assessment="—"' in body
     assert "nicht positiv" not in body
