@@ -24,7 +24,8 @@ Stand 2026-07-17 auf Branch `feat/a0-early-detection-foundation`:
 | A0-301 Quellenreine Referenz | technisch umgesetzt | `a0_reference.py` baut Previous Close und ADV ausschließlich aus versionierter, Corporate-Action-adjustierter Databento-Tageshistorie und verwirft Mischquellen |
 | A0-302 Bootstrap/Recovery | Recovery-Pfad technisch umgesetzt, Betriebsnachweis offen | Mid-session-Start und erkannte Lücken lösen eine quellenreine Databento-Rekonstruktion von Session-Open bis vor den aktuellen Bar aus; Fetch-, Coverage- und Datenfehler bleiben fail-closed mit Backoff; kontrollierte Live-Reconnects und mehrsitzige Evidenz bleiben offen |
 | A0-303 Paritätsmatcher | technisch umgesetzt, Betriebsnachweis offen | Fast- und FMP-Pfade besitzen getrennte opt-in Journale; der deterministische Tagesreport liefert Matchklassen, Lead, Ursachen und beide Snapshots; echte Mehrsitzungsdaten und Dashboard-Auswertung bleiben offen |
-| A0-304 bis A0-801 | offen | Last-/Kostenprobe, mehrsitzige Shadow-Evidenz und spätere Phasen bleiben an die festgelegten Messfenster gebunden |
+| A0-304 Last/Resilienz/Kosten | technisch umgesetzt, Live-Nachweis offen | bounded Queue, Drop-/Resync-Vertrag, Reconnect-Schleife, Metrics/Alerts und reproduzierbare 200-/900-/6.889-Symbol-Probe sind vorhanden; echte Databento-/Railway-Messung bleibt offen |
+| A0-400 bis A0-801 | offen | PRE-A0-ETA, Datensatz, Modell, Ablationen und Promotion bleiben an die festgelegten Messfenster gebunden |
 
 Die Umsetzung dieses ersten Meilensteins verändert noch keine produktive
 Benachrichtigungs- oder Promotion-Semantik. Das bestehende Feld `volume_ratio`
@@ -658,6 +659,27 @@ Abnahme:
 - definierte Backpressure-/Drop-Policy
 - CPU, RAM, Netzwerk und Databento-Nutzung innerhalb Phase-0-Budget
 - Slow-Reader- und Disconnect-Zustände alarmierbar
+
+Umsetzungsstand 2026-07-17:
+
+- Reader und Consumer sind über `BoundedBarBuffer` mit harter Kapazität
+  getrennt. Die Drop-Policy entfernt den ältesten Bar und erzwingt für dessen
+  Symbol eine Historical-Rekonstruktion; die Markierung wird erst nach
+  erfolgreicher Recovery entfernt.
+- Der Worker reconnectet nach Streamende oder Readerfehler mit begrenztem
+  Backoff. Nach einem Disconnect werden alle Symbole invalidiert; FMP bleibt
+  vollständig unabhängig.
+- `/metrics`, `/healthz` und versionierte Alertregeln machen Queue-Drops,
+  Queue-Druck, Disconnects, stale Daten und festhängende Resyncs sichtbar.
+- `scripts/run_a0_load_probe.py` simuliert deterministisch 200, 900 und optional
+  die volle Symbolzahl sowie Open-Burst, Slow Consumer, Disconnect, Restart und
+  Bootstrap. Der Lauf mit 6.889 Symbolen bestand alle sieben Szenarien; Details
+  und provisorische Budgets stehen in
+  `A0_FAST_LOAD_RESILIENCE_REPORT_2026-07-17.md`.
+- Der technische Nachweis ersetzt keine echte Provider-/Container-Messung.
+  Insbesondere bis zu 900 einzelne Historical Requests nach einem
+  900-Symbol-Disconnect benötigen einen Live-Kosten-/Rate-Limit-Beleg oder eine
+  Batchoptimierung. A0-Fast bleibt deshalb Shadow-only.
 
 ### Phase-3-Exit
 

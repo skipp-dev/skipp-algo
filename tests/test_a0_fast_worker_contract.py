@@ -38,6 +38,34 @@ def test_worker_requires_durable_parity_log_dir(
     assert worker._parity_log_dir() == tmp_path
 
 
+def test_worker_uses_bounded_capacity_and_validates_runtime_ports(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.delenv("A0_FAST_BUFFER_CAPACITY", raising=False)
+    assert worker._buffer_capacity(900) == 3_600
+    monkeypatch.setenv("A0_FAST_BUFFER_CAPACITY", "128")
+    assert worker._buffer_capacity(900) == 128
+    monkeypatch.setenv("A0_FAST_BUFFER_CAPACITY", "0")
+    with pytest.raises(ValueError, match="BUFFER_CAPACITY"):
+        worker._buffer_capacity(1)
+
+    monkeypatch.setenv("A0_FAST_METRICS_PORT", "0")
+    assert worker._metrics_port() == 0
+    monkeypatch.setenv("A0_FAST_METRICS_PORT", "70000")
+    with pytest.raises(ValueError, match="METRICS_PORT"):
+        worker._metrics_port()
+    monkeypatch.setenv("A0_FAST_METRICS_HOST", "")
+    assert worker._metrics_host() == "127.0.0.1"
+
+
+def test_worker_bounds_reconnect_backoff(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("A0_FAST_RECONNECT_BACKOFF_SECONDS", "0.1")
+    assert worker._reconnect_backoff_seconds() == 0.1
+    monkeypatch.setenv("A0_FAST_RECONNECT_BACKOFF_SECONDS", "61")
+    with pytest.raises(ValueError, match="RECONNECT_BACKOFF"):
+        worker._reconnect_backoff_seconds()
+
+
 def test_reference_loader_rejects_fmp_source(tmp_path: Path) -> None:
     path = tmp_path / "references.json"
     path.write_text(json.dumps([{

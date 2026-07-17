@@ -122,6 +122,7 @@ class A0StreamState:
         self._max_gap_seconds = max(1.0, float(max_gap_seconds))
         self._states: dict[str, _SymbolState] = {}
         self._references: dict[str, StreamReference] = {}
+        self._invalidated_symbols: set[str] = set()
 
     def set_reference(self, reference: StreamReference) -> None:
         self._references[reference.symbol.strip().upper()] = reference
@@ -149,6 +150,17 @@ class A0StreamState:
             last_sequence=last_sequence,
             gap_state=GapState.COMPLETE,
         )
+        self._invalidated_symbols.discard(normalized)
+
+    def invalidate(self, symbol: str) -> None:
+        """Force the next bar through historical recovery after a local drop."""
+        normalized = symbol.strip().upper()
+        if not normalized:
+            raise ValueError("symbol must not be empty")
+        self._invalidated_symbols.add(normalized)
+        state = self._states.get(normalized)
+        if state is not None:
+            state.gap_state = GapState.GAP_DETECTED
 
     def apply(self, bar: StreamBar) -> StreamApplyResult:
         symbol = bar.symbol.strip().upper()
@@ -174,6 +186,7 @@ class A0StreamState:
             )
 
         state = self._states.get(symbol)
+        forced_gap = symbol in self._invalidated_symbols
         if state is None or state.session_date != session_date:
             seconds_from_open = (minute - _OPEN_MINUTES) * 60 + event_et.second
             state = _SymbolState(
@@ -182,6 +195,9 @@ class A0StreamState:
                 last_ts_event=bar.ts_event,
                 last_sequence=bar.sequence,
                 gap_state=(
+                    GapState.GAP_DETECTED
+                    if forced_gap
+                    else
                     GapState.COMPLETE
                     if seconds_from_open <= self._max_gap_seconds
                     else GapState.BOOTSTRAP_REQUIRED
@@ -198,6 +214,8 @@ class A0StreamState:
             if bar.ts_event <= state.last_ts_event:
                 return StreamApplyResult(StreamApplyStatus.OUT_OF_ORDER, state.gap_state, None)
             if bar.ts_event - state.last_ts_event > self._max_gap_seconds:
+                state.gap_state = GapState.GAP_DETECTED
+            if forced_gap:
                 state.gap_state = GapState.GAP_DETECTED
             state.last_ts_event = bar.ts_event
             state.last_sequence = bar.sequence
@@ -245,13 +263,19 @@ class A0StreamState:
         return StreamApplyResult(StreamApplyStatus.ACCEPTED, state.gap_state, snapshot)
 
     def state_snapshot(self, symbol: str) -> dict[str, Any] | None:
-        state = self._states.get(symbol.strip().upper())
+        normalized = symbol.strip().upper()
+        state = self._states.get(normalized)
         if state is None:
-            return None
+            return (
+                {"gap_state": str(GapState.GAP_DETECTED), "invalidated": True}
+                if normalized in self._invalidated_symbols
+                else None
+            )
         return {
             "session_date": state.session_date,
             "cumulative_volume": state.cumulative_volume,
             "last_ts_event": state.last_ts_event,
             "last_sequence": state.last_sequence,
             "gap_state": str(state.gap_state),
+            "invalidated": normalized in self._invalidated_symbols,
         }

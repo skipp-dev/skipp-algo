@@ -20,6 +20,9 @@ Regular-Hours-Volumen und verwendet die gemeinsame Kernentscheidung aus
   Session/Symbol/Richtung in ein fsync-gesichertes JSONL-Journal geschrieben;
   schlägt das Persistieren fehl, wird kein Shadow-Ereignis ausgegeben.
 - Der produktive FMP-Producer bleibt vollständig unabhängig.
+- Reader und Consumer sind durch eine beschränkte Queue getrennt. Bei Überlauf
+  wird der älteste Bar verworfen und das betroffene Symbol bis zur belegten
+  Historical-Rekonstruktion gesperrt.
 
 ## Pflichtvariablen
 
@@ -32,7 +35,43 @@ Regular-Hours-Volumen und verwendet die gemeinsame Kernentscheidung aus
 | `A0_FAST_PARITY_LOG_DIR` | Verzeichnis auf einem persistenten Volume für tägliche Fast-JSONL-Journale |
 
 Optional: `A0_FAST_MAX_GAP_SECONDS`, `A0_FAST_A0_VOLUME`,
-`A0_FAST_A0_PRICE` und die entsprechenden A1-/A2-Schwellen.
+`A0_FAST_A0_PRICE` und die entsprechenden A1-/A2-Schwellen sowie:
+
+| Variable | Default | Bedeutung |
+| --- | ---: | --- |
+| `A0_FAST_BUFFER_CAPACITY` | `max(2048, 4 × Symbole)` | harte Obergrenze der Reader-/Consumer-Queue |
+| `A0_FAST_RECONNECT_BACKOFF_SECONDS` | `5` | Reconnect-Backoff, zulässig 0,1 bis 60 s |
+| `A0_FAST_METRICS_PORT` | `9108` | lokaler Metrics-/Health-Port; `0` deaktiviert |
+| `A0_FAST_METRICS_HOST` | `127.0.0.1` | sichere Bind-Adresse; für externes Scraping bewusst konfigurieren |
+
+Nach einem Disconnect reconnectet der Worker selbstständig. Alle abonnierten
+Symbole werden dabei invalidiert und müssen vor einer neuen Entscheidung ihre
+Sessionhistorie rekonstruieren. Ein Prozessrestart erreicht denselben
+fail-closed Zustand über den Mid-session-Bootstrap.
+
+## Metrics und Alerts
+
+- `/metrics`: Prometheus-Textformat für Verbindung, Datenalter, Queue-Tiefe und
+  -Kapazität, Drops, Resync-Pflicht, Disconnects, Recoveries, Live-/Historical-
+  Nutzung, Entscheidungen, CPU und Peak-RSS.
+- `/healthz`: `200` nur bei verbundener Quelle ohne ausstehende Resync-Pflicht,
+  andernfalls `503`.
+- `alert-rules.yml`: Regeln für Disconnect, Slow-Reader-Drops, festhängenden
+  Resync, Queue-Druck und stale Daten.
+
+## Reproduzierbare Lastprobe
+
+```bash
+.venv/bin/python -m scripts.run_a0_load_probe \
+  --duration-seconds 8 \
+  --all-symbol-count 6889 \
+  --output /tmp/a0_load_probe.json
+```
+
+Die Probe deckt 200, 900 und optional die angegebene Maximalzahl, Open-Burst,
+Slow Consumer, Disconnect, Prozessrestart und Historical Bootstrap ab. Der
+aktuelle Messbericht steht in
+`docs/A0_FAST_LOAD_RESILIENCE_REPORT_2026-07-17.md`.
 
 ## Noch nicht produktionsbereit
 
@@ -58,7 +97,7 @@ Evidenzproblem den produktiven FMP-Fallback nicht beeinflusst. Der lokale
 Report verbindet diese Datei mit dem Fast-Journal reproduzierbar:
 
 ```bash
-.venv/bin/python scripts/report_a0_parity.py \
+.venv/bin/python -m scripts.report_a0_parity \
   --session-date 2026-07-17 \
   --fast /volume/a0_shadow_databento_2026-07-17.jsonl \
   --fmp /volume/a0_shadow_fmp_2026-07-17.jsonl \

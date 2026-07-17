@@ -205,8 +205,10 @@ _FROZEN_ENV_SUBSCRIPT_SITES: frozenset[tuple[str, int]] = frozenset(
         ("open_prep/streamlit_monitor.py", 79),  # +1 from import time as _time (PR #2764)
         # 2026-07-17: the isolated A0-Fast entry point must fail closed when
         # either its Databento credential or versioned reference file is absent.
-        ("services/a0_fast_detector/worker.py", 82),
-        ("services/a0_fast_detector/worker.py", 83),
+        # 2026-07-17: bounded runtime/telemetry extraction shifted the two
+        # intentional fail-closed A0-Fast entry-point reads 82/83 -> 196/197.
+        ("services/a0_fast_detector/worker.py", 196),
+        ("services/a0_fast_detector/worker.py", 197),
         ("streamlit_terminal.py", 327),
         # 2026-07-04 (WP-3 backtest CLI): `os.environ["FMP_API_KEY"] = args.api_key`
     }

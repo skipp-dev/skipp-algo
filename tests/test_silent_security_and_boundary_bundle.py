@@ -220,8 +220,9 @@ _FROZEN_BASIC_CONFIG_SITES: frozenset[tuple[str, int]] = frozenset({
     # basicConfig to line 40.
     ("services/live_overlay_daemon/main.py", 40),
     # 2026-07-17: isolated Railway entry point for the shadow-only A0 worker;
-    # Historical-Recovery and parity persistence shifted basicConfig 128 -> 180.
-    ("services/a0_fast_detector/worker.py", 180),
+    # 2026-07-17: bounded runtime, reconnect and telemetry shifted the isolated
+    # entry-point basicConfig from 180 -> 285.
+    ("services/a0_fast_detector/worker.py", 285),
     # WP-H (PR #2612): 35 -> 37, VIX import + helper block added above.
     ("smc_tv_bridge/smc_api.py", 37),
 })
