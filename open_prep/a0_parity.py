@@ -31,6 +31,26 @@ class ShadowDecision:
     normalized_volume_pace: float | None = None
     effective_a0_volume_threshold: float | None = None
     effective_a0_price_threshold: float | None = None
+    price: float | None = None
+    previous_close: float | None = None
+    change_pct: float | None = None
+    expected_volume_fraction: float | None = None
+    ts_event: float | None = None
+    session_date: str | None = None
+    cumulative_regular_volume: int | None = None
+    decision_scope: str | None = None
+    decision_contract_version: int | None = None
+    detector_version: str | None = None
+    decision_basis_id: str | None = None
+    core_level: str | None = None
+    ts_recv: float | None = None
+    observed_at: float | None = None
+    data_age_ms: float | None = None
+    data_age_unknown: bool | None = None
+    gap_state: str | None = None
+    reference_source: str | None = None
+    reference_version: str | None = None
+    corporate_action_version: str | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -45,6 +65,8 @@ class ParityMatch:
     direction: str | None
     fast_reason_codes: tuple[str, ...]
     fmp_reason_codes: tuple[str, ...]
+    fast_snapshot: dict[str, Any] | None = None
+    fmp_snapshot: dict[str, Any] | None = None
 
 
 def match_shadow_decisions(
@@ -71,7 +93,7 @@ def match_shadow_decisions(
         ]
         same_direction = [
             index for index in candidates
-            if fmp[index].direction == fast_event.direction
+            if _same_decision(fast_event, fmp[index])
         ]
         if same_direction:
             index = min(
@@ -115,6 +137,7 @@ def match_shadow_decisions(
                     direction=fast_event.direction,
                     fast_reason_codes=fast_event.reason_codes,
                     fmp_reason_codes=(),
+                    fast_snapshot=_decision_snapshot(fast_event),
                 )
             )
     for index in sorted(remaining_fmp, key=lambda item: fmp[item].decision_at):
@@ -138,9 +161,18 @@ def match_shadow_decisions(
                 direction=event.direction,
                 fast_reason_codes=(),
                 fmp_reason_codes=event.reason_codes,
+                fmp_snapshot=_decision_snapshot(event),
             )
         )
     return matches
+
+
+def _same_decision(fast: ShadowDecision, fmp: ShadowDecision) -> bool:
+    if fast.direction != fmp.direction or fast.level != fmp.level:
+        return False
+    if fast.decision_scope == "core_only":
+        return fast.core_level == "A0" and fmp.core_level == "A0"
+    return True
 
 
 def _matched(
@@ -160,7 +192,46 @@ def _matched(
         direction=fast.direction if fast.direction == fmp.direction else None,
         fast_reason_codes=fast.reason_codes,
         fmp_reason_codes=fmp.reason_codes,
+        fast_snapshot=_decision_snapshot(fast),
+        fmp_snapshot=_decision_snapshot(fmp),
     )
+
+
+def _decision_snapshot(decision: ShadowDecision) -> dict[str, Any]:
+    """Keep the evidence required to drill a match back to both snapshots."""
+    return {
+        "decision_id": decision.decision_id,
+        "symbol": decision.symbol.strip().upper(),
+        "direction": decision.direction,
+        "level": decision.level,
+        "decision_at": decision.decision_at,
+        "source": decision.source,
+        "reason_codes": list(decision.reason_codes),
+        "raw_daily_volume_ratio": decision.raw_daily_volume_ratio,
+        "normalized_volume_pace": decision.normalized_volume_pace,
+        "effective_a0_volume_threshold": decision.effective_a0_volume_threshold,
+        "effective_a0_price_threshold": decision.effective_a0_price_threshold,
+        "price": decision.price,
+        "previous_close": decision.previous_close,
+        "change_pct": decision.change_pct,
+        "expected_volume_fraction": decision.expected_volume_fraction,
+        "ts_event": decision.ts_event,
+        "session_date": decision.session_date,
+        "cumulative_regular_volume": decision.cumulative_regular_volume,
+        "decision_scope": decision.decision_scope,
+        "decision_contract_version": decision.decision_contract_version,
+        "detector_version": decision.detector_version,
+        "decision_basis_id": decision.decision_basis_id,
+        "core_level": decision.core_level,
+        "ts_recv": decision.ts_recv,
+        "observed_at": decision.observed_at,
+        "data_age_ms": decision.data_age_ms,
+        "data_age_unknown": decision.data_age_unknown,
+        "gap_state": decision.gap_state,
+        "reference_source": decision.reference_source,
+        "reference_version": decision.reference_version,
+        "corporate_action_version": decision.corporate_action_version,
+    }
 
 
 def build_parity_report(matches: list[ParityMatch]) -> dict[str, Any]:
@@ -183,4 +254,21 @@ def build_parity_report(matches: list[ParityMatch]) -> dict[str, Any]:
             )
         ),
         "median_fast_lead_seconds": round(median(leads), 6) if leads else None,
+        "matches": [
+            {
+                "status": str(match.status),
+                "symbol": match.symbol,
+                "fast_decision_id": match.fast_decision_id,
+                "fmp_decision_id": match.fmp_decision_id,
+                "fast_decision_at": match.fast_decision_at,
+                "fmp_decision_at": match.fmp_decision_at,
+                "lead_seconds": match.lead_seconds,
+                "direction": match.direction,
+                "fast_reason_codes": list(match.fast_reason_codes),
+                "fmp_reason_codes": list(match.fmp_reason_codes),
+                "fast_snapshot": match.fast_snapshot,
+                "fmp_snapshot": match.fmp_snapshot,
+            }
+            for match in matches
+        ],
     }

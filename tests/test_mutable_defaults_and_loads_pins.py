@@ -203,6 +203,10 @@ _FROZEN_ENV_SUBSCRIPT_SITES: frozenset[tuple[str, int]] = frozenset(
         # 2026-07-03 (WP-4 holiday gate): shifted +8.
         ("open_prep/realtime_signals.py", 3812),  # 2026-07-17 A0 latency metrics shifted site: 3800->3812
         ("open_prep/streamlit_monitor.py", 79),  # +1 from import time as _time (PR #2764)
+        # 2026-07-17: the isolated A0-Fast entry point must fail closed when
+        # either its Databento credential or versioned reference file is absent.
+        ("services/a0_fast_detector/worker.py", 82),
+        ("services/a0_fast_detector/worker.py", 83),
         ("streamlit_terminal.py", 327),
         # 2026-07-04 (WP-3 backtest CLI): `os.environ["FMP_API_KEY"] = args.api_key`
     }

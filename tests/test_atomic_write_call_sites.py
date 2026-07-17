@@ -134,6 +134,7 @@ _ALLOWED_RAW_WRITE_FILES: dict[str, str] = {
     "open_prep/outcome_backfill.py": "outcome backfill audit + state JSON",
     "open_prep/outcomes.py": "outcomes ledger snapshots",
     "open_prep/realtime_signals.py": "realtime-signals state + audit JSONL",
+    "open_prep/a0_parity_store.py": "A0 parity JSONL append with flush+fsync; strict replay rejects truncated rows and atomic replace is not applicable to an append journal",
     "open_prep/signal_events.py": "signal-event JSONL append (mode='a'), best-effort log — atomic replace N/A for appends",
     "open_prep/watchlist.py": "watchlist snapshot",
     # --- rl/ surface ---
@@ -293,4 +294,3 @@ def test_allowlist_is_pruned() -> None:
         f"Allowlist contains files that no longer perform raw writes: {stale}. "
         "Remove them from _ALLOWED_RAW_WRITE_FILES."
     )
-

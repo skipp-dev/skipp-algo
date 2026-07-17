@@ -5,12 +5,17 @@ from __future__ import annotations
 import json
 import logging
 import os
+import time
 from pathlib import Path
 from typing import Any
 
 from open_prep.a0_contract import A0ThresholdContext, decide_core_level
+from open_prep.a0_parity_store import A0ParityJournal, shadow_decision_row
 from open_prep.a0_stream import DatabentoOhlcv1sAdapter
+from open_prep.a0_stream_recovery import RecoveryStatus, recover_before_bar
 from open_prep.a0_stream_state import A0StreamState, StreamApplyStatus, StreamReference
+
+from .history import DatabentoHistoricalBarsProvider
 
 logger = logging.getLogger(__name__)
 
@@ -42,6 +47,13 @@ def _thresholds() -> A0ThresholdContext:
         a1_price=float(os.getenv("A0_FAST_A1_PRICE", "1.0")),
         a2_price=float(os.getenv("A0_FAST_A2_PRICE", "0.5")),
     )
+
+
+def _parity_log_dir() -> Path:
+    raw = os.getenv("A0_FAST_PARITY_LOG_DIR", "").strip()
+    if not raw:
+        raise RuntimeError("A0_FAST_PARITY_LOG_DIR must point to durable storage")
+    return Path(raw)
 
 
 def _load_references(path: Path) -> list[StreamReference]:
@@ -76,6 +88,9 @@ def run() -> None:
         state.set_reference(reference)
     adapter = DatabentoOhlcv1sAdapter()
     thresholds = _thresholds()
+    history = DatabentoHistoricalBarsProvider(api_key)
+    journal = A0ParityJournal(_parity_log_dir(), source="databento")
+    recovery_retry_after: dict[str, float] = {}
 
     import databento as db
     client = db.Live(key=api_key)
@@ -101,27 +116,64 @@ def run() -> None:
         if symbol is None:
             continue
         try:
-            result = state.apply(adapter.normalize(record, symbol=symbol))
+            bar = adapter.normalize(record, symbol=symbol)
+            result = state.apply(bar)
         except (TypeError, ValueError, OverflowError):
             logger.debug("A0-Fast rejected malformed stream record", exc_info=True)
             continue
+        if result.status in (
+            StreamApplyStatus.BOOTSTRAP_REQUIRED,
+            StreamApplyStatus.GAP_DETECTED,
+        ):
+            retry_at = recovery_retry_after.get(symbol, 0.0)
+            if time.monotonic() < retry_at:
+                continue
+            recovery = recover_before_bar(state, bar, history)
+            if recovery.status is not RecoveryStatus.RECOVERED:
+                recovery_retry_after[symbol] = time.monotonic() + 30.0
+                logger.warning(
+                    "A0-Fast recovery failed for %s: status=%s error=%s",
+                    symbol, recovery.status, recovery.error,
+                )
+                continue
+            recovery_retry_after.pop(symbol, None)
+            result = recovery.apply_result
+            logger.info(
+                "A0-Fast recovered %s from %d historical bars (volume=%d)",
+                symbol, recovery.historical_bars, recovery.recovered_volume,
+            )
+            if result is None:
+                continue
         if result.status is not StreamApplyStatus.ACCEPTED or result.snapshot is None:
             continue
         decision = decide_core_level(result.snapshot.market, thresholds)
         if decision.core_level != "A0":
             continue
-        payload = {
-            "mode": "shadow",
-            "decision_scope": "core_only",
-            **decision.to_details(),
-            "symbol": result.snapshot.market.symbol,
-            "cumulative_regular_volume": result.snapshot.cumulative_regular_volume,
-            "gap_state": str(result.snapshot.gap_state),
-            "reference_source": result.snapshot.reference_source,
-            "reference_version": result.snapshot.reference_version,
-            "corporate_action_version": result.snapshot.corporate_action_version,
-        }
-        logger.info("A0_FAST_SHADOW %s", json.dumps(payload, sort_keys=True))
+        payload = shadow_decision_row(
+            decision,
+            thresholds,
+            direction="LONG" if decision.snapshot.change_pct > 0 else "SHORT",
+            decision_scope="core_only",
+            cumulative_regular_volume=result.snapshot.cumulative_regular_volume,
+            extra={
+                "mode": "shadow",
+                "gap_state": str(result.snapshot.gap_state),
+                "reference_source": result.snapshot.reference_source,
+                "reference_version": result.snapshot.reference_version,
+                "corporate_action_version": result.snapshot.corporate_action_version,
+            },
+        )
+        try:
+            recorded = journal.record(payload)
+        except (OSError, TypeError, ValueError):
+            logger.warning(
+                "A0-Fast parity persistence failed for %s",
+                result.snapshot.market.symbol,
+                exc_info=True,
+            )
+            continue
+        if recorded:
+            logger.info("A0_FAST_SHADOW %s", json.dumps(payload, sort_keys=True))
 
 
 def main() -> None:

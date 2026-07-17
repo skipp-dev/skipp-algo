@@ -3878,6 +3878,18 @@ def main() -> None:
     except Exception:
         logger.debug("signal-event logger init failed", exc_info=True)
 
+    # Opt-in A0 parity evidence. This is independent from notifications and
+    # fail-soft so an evidence-volume issue cannot interrupt the FMP fallback.
+    a0_parity_journal = None
+    a0_parity_dir = os.environ.get("RT_A0_PARITY_LOG_DIR", "").strip()
+    if a0_parity_dir:
+        try:
+            from open_prep.a0_parity_store import A0ParityJournal
+            a0_parity_journal = A0ParityJournal(a0_parity_dir, source="fmp")
+            logger.info("FMP A0 parity journal enabled (RT_A0_PARITY_LOG_DIR)")
+        except Exception:
+            logger.warning("FMP A0 parity journal init failed", exc_info=True)
+
     # Opt-in nightly follow-through calibration (RT_CALIBRATION_UTC_HHMM="HH:MM"
     # UTC, e.g. "21:30" ≈ 17:30 ET). Runs in-process because the event log lives
     # on THIS service's Railway volume and a separate cron cannot share it; fires
@@ -3930,6 +3942,17 @@ def main() -> None:
             # Persist the fresh/strengthened events (record() is itself fail-soft).
             if event_logger is not None:
                 event_logger.record(active)
+
+            if a0_parity_journal is not None:
+                try:
+                    from open_prep.a0_parity_store import record_realtime_a0_signals
+                    record_realtime_a0_signals(
+                        a0_parity_journal,
+                        active,
+                        now_epoch=time.time(),
+                    )
+                except Exception:
+                    logger.warning("FMP A0 parity persistence failed", exc_info=True)
 
             # Nightly follow-through calibration — once per UTC day, off-thread
             # (the poll loop must never block on the calibrator's FMP fetches).

@@ -22,8 +22,8 @@ Stand 2026-07-17 auf Branch `feat/a0-early-detection-foundation`:
 | A0-202 Latenzmetriken | teilweise umgesetzt | Quote-Datenalter, tatsächliches Pollintervall, Newsalter/-dauer sowie News- und Quote-Phase sind verfügbar; Notification-Latenz und Dashboard-Auswertung bleiben offen |
 | A0-300 Databento-Adapter | technisch umgesetzt | `a0_stream.py` normalisiert OHLCV-1s; `a0_stream_state.py` behandelt Symbol, Event-/Receive-Zeit, RTH-Volumen, Duplikate, Out-of-order, Lücken und Half Days ohne Levelentscheidung im Adapter |
 | A0-301 Quellenreine Referenz | technisch umgesetzt | `a0_reference.py` baut Previous Close und ADV ausschließlich aus versionierter, Corporate-Action-adjustierter Databento-Tageshistorie und verwirft Mischquellen |
-| A0-302 Bootstrap/Recovery | teilweise umgesetzt | Zustandsautomat und explizite Bootstrap-Schnittstelle sind vorhanden; automatischer Historical Bootstrap und Reconnect-Replay im Worker bleiben offen und halten ihn fail-closed |
-| A0-303 Paritätsmatcher | Offline-Kern umgesetzt | reproduzierbare Matchklassen, Lead und Ursachenreport sind implementiert; persistente tägliche Worker-/FMP-Zusammenführung bleibt offen |
+| A0-302 Bootstrap/Recovery | Recovery-Pfad technisch umgesetzt, Betriebsnachweis offen | Mid-session-Start und erkannte Lücken lösen eine quellenreine Databento-Rekonstruktion von Session-Open bis vor den aktuellen Bar aus; Fetch-, Coverage- und Datenfehler bleiben fail-closed mit Backoff; kontrollierte Live-Reconnects und mehrsitzige Evidenz bleiben offen |
+| A0-303 Paritätsmatcher | technisch umgesetzt, Betriebsnachweis offen | Fast- und FMP-Pfade besitzen getrennte opt-in Journale; der deterministische Tagesreport liefert Matchklassen, Lead, Ursachen und beide Snapshots; echte Mehrsitzungsdaten und Dashboard-Auswertung bleiben offen |
 | A0-304 bis A0-801 | offen | Last-/Kostenprobe, mehrsitzige Shadow-Evidenz und spätere Phasen bleiben an die festgelegten Messfenster gebunden |
 
 Die Umsetzung dieses ersten Meilensteins verändert noch keine produktive
@@ -575,6 +575,22 @@ Abnahme:
 - kein A0 aus partiellem Volumenstand
 - Gap- und Recovery-Metriken
 
+Umsetzungsstand 2026-07-17:
+
+- Der Worker startet die Rekonstruktion automatisch beim ersten
+  `BOOTSTRAP_REQUIRED` oder `GAP_DETECTED`.
+- Historische OHLCV-1s-Bars werden über den zentralen Databento-Retry-Pfad von
+  Session-Open bis exklusiv zum aktuellen Bar geladen, validiert, dedupliziert
+  und anschließend zusammen mit dem erneut eingespielten aktuellen Bar in
+  einen vollständigen Zustand überführt.
+- Fetchfehler, unvollständige Coverage, Fremdsymbole sowie ungültige oder
+  sitzungsfremde Bars erzeugen keine Entscheidung. Ein 30-Sekunden-Backoff
+  begrenzt wiederholte Historical-Abrufe.
+- Deterministische Tests belegen Mid-session-Recovery, Gap-Recovery,
+  Deduplizierung und die Fail-closed-Fälle. Kontrollierte Live-Reconnect-Proben,
+  dedizierte Prometheus-Metriken und die mehrsitzige Beobachtung bleiben als
+  Betriebsnachweis offen.
+
 #### A0-303: Paritäts- und Lead-Matcher
 
 Für jedes Shadow-A0 speichern:
@@ -599,6 +615,31 @@ Abnahme:
 - täglich reproduzierbarer Paritätsreport
 - keine reine Gesamtquote ohne Ursachenklassen
 - Drill-down bis zum zugrunde liegenden Snapshot
+
+Umsetzungsstand 2026-07-17:
+
+- Der Fast-Worker verlangt `A0_FAST_PARITY_LOG_DIR` auf persistentem Storage
+  und schreibt die erste A0-Entscheidung je Session, Symbol und Richtung als
+  sortierte JSONL-Zeile mit `flush` und `fsync`. Erst nach erfolgreicher
+  Persistenz wird das zugehörige `A0_FAST_SHADOW`-Ereignis geloggt.
+- Der produktive FMP-Pfad bleibt unverändert maßgeblich und erhält mit
+  `RT_A0_PARITY_LOG_DIR` einen unabhängigen, fail-soft Opt-in-Evidenz-Sink. Er
+  persistiert sowohl finale A0 als auch Core-A0-Entscheidungen, die durch
+  Cooldown, Momentum oder andere Zustandsregeln final heruntergestuft wurden.
+- Der Journalzustand wird beim Restart rekonstruiert; gleiche Episoden werden
+  dadurch nicht erneut geschrieben. Konfligierende Decision-IDs, beschädigte
+  JSONL-Zeilen, falsche Quellen und fehlende Pflichtfelder brechen den Report
+  sichtbar ab statt stillschweigend die Quote zu schönen.
+- `scripts/report_a0_parity.py` verbindet beide Journale für genau eine
+  ET-Session, klassifiziert Ursachen, berechnet die Fast-Lead-Zeit und schreibt
+  einen atomaren, `fsync`-gesicherten JSON-Report. Jede Matchzeile enthält beide
+  Decision-IDs, Reason Codes, Zeiten, Preise, Volumenwerte, Schwellen und
+  Vertrags-/Referenzmetadaten für den Drill-down.
+- Ein Fast-Ereignis mit `decision_scope=core_only` zählt nur dann als gleiche
+  Entscheidung, wenn das FMP-Ereignis ebenfalls `core_level=A0` belegt;
+  andernfalls wird es als `rule_state_mismatch` ausgewiesen.
+- Offen bleiben reale Mehrsitzungsreports, die Kalibrierung des Matchfensters
+  und eine Dashboard-/Alert-Auswertung der gespeicherten Ursachenklassen.
 
 #### A0-304: Last-, Resilienz- und Kostenprobe
 

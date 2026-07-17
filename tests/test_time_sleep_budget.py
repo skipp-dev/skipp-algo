@@ -129,8 +129,10 @@ _FROZEN_SITES: frozenset[tuple[str, int]] = frozenset(
         ("open_prep/realtime_signals.py", 322),   # 2026-07-16 market-session import shifted site: 321->322
         ("open_prep/realtime_signals.py", 397),   # 2026-07-16 market-session import shifted site: 396->397
         ("open_prep/realtime_signals.py", 2452),  # 2026-07-17 A0 latency state shifted site: 2449->2452
-        ("open_prep/realtime_signals.py", 3957),  # 2026-07-17 A0 latency metrics shifted site: 3943->3957
-        ("open_prep/realtime_signals.py", 3973),  # 2026-07-17 A0 latency metrics shifted site: 3959->3973
+        # 2026-07-17: opt-in FMP A0 parity persistence shifted the unchanged
+        # poll-loop throttle and error-backoff sleeps by +23 lines.
+        ("open_prep/realtime_signals.py", 3980),
+        ("open_prep/realtime_signals.py", 3996),
         # 2026-06-11 (eval-findings D7): technical_analysis import block
         # +8 lines (1943→1951, 1945→1953).
         # 2026-07-04 (market-microstructure observe-only): module import

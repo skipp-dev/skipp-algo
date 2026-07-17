@@ -27,6 +27,17 @@ def test_worker_requires_explicit_symbols(monkeypatch: pytest.MonkeyPatch) -> No
     assert worker._symbols() == ["NVDA", "AMD"]
 
 
+def test_worker_requires_durable_parity_log_dir(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    monkeypatch.delenv("A0_FAST_PARITY_LOG_DIR", raising=False)
+    with pytest.raises(RuntimeError, match="durable storage"):
+        worker._parity_log_dir()
+    monkeypatch.setenv("A0_FAST_PARITY_LOG_DIR", str(tmp_path))
+    assert worker._parity_log_dir() == tmp_path
+
+
 def test_reference_loader_rejects_fmp_source(tmp_path: Path) -> None:
     path = tmp_path / "references.json"
     path.write_text(json.dumps([{

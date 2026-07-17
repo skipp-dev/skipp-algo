@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from dataclasses import replace
+
 from open_prep.a0_parity import (
     ParityMatchStatus,
     ShadowDecision,
@@ -78,3 +80,19 @@ def test_report_keeps_cause_classes_and_fast_lead_median() -> None:
     assert report["matched_same_direction"] == 2
     assert report["median_fast_lead_seconds"] == 8.0
     assert report["status_counts"] == {"same_decision_fast_first": 2}
+    assert report["matches"][0]["fast_snapshot"]["decision_id"] == "fast-1"
+    assert report["matches"][0]["fmp_snapshot"]["decision_id"] == "fmp-1"
+
+
+def test_core_only_fast_requires_fmp_core_a0_for_same_decision() -> None:
+    fast = replace(
+        _decision("fast", "NVDA", "LONG", 100.0, "databento"),
+        decision_scope="core_only",
+        core_level="A0",
+    )
+    fmp = replace(
+        _decision("fmp", "NVDA", "LONG", 101.0, "fmp"),
+        core_level="A1",
+    )
+    matches = match_shadow_decisions([fast], [fmp], matching_window_seconds=5)
+    assert matches[0].status is ParityMatchStatus.RULE_STATE_MISMATCH

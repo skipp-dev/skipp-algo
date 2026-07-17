@@ -3,8 +3,12 @@ builder = "DOCKERFILE"
 dockerfilePath = "services/a0_fast_detector/Dockerfile"
 watchPatterns = [
     "open_prep/a0_contract.py",
+    "open_prep/a0_parity.py",
+    "open_prep/a0_parity_store.py",
     "open_prep/a0_stream.py",
     "open_prep/a0_stream_state.py",
+    "open_prep/a0_stream_recovery.py",
+    "databento_client.py",
     "newsstack_fmp/_market_cal.py",
     "services/a0_fast_detector/**",
 ]
