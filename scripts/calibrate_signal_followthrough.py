@@ -5,7 +5,7 @@ Joins each signal event (``open_prep/signal_events.py`` output) to the symbol's
 FMP 1-minute bars *after* the event and measures what actually happened next —
 turning the A0/A1/A2 heuristic into empirical numbers:
 
-    P(favorable move >= target within horizon | level, volume-ratio bucket)
+    P(favorable move >= target within horizon | level, normalized-volume bucket)
 
 plus the mean net return and the median favorable / adverse excursion. Two
 methodology caveats: ``median_mae_pct`` is SIGNED entry-relative (bullish:
@@ -75,7 +75,7 @@ def normalize_bars(raw_bars: list[dict[str, Any]]) -> list[dict[str, float]]:
 
 
 def vol_bucket(volume_ratio: float) -> str:
-    """Bucket the entry volume ratio into fixed bands; 3.0/1.0 are the A0/A1 floors, 2.0/1.5 add resolution between."""
+    """Bucket normalized entry-volume pace into fixed bands."""
     if volume_ratio >= 3.0:
         return ">=3.0"
     if volume_ratio >= 2.0:
@@ -85,6 +85,22 @@ def vol_bucket(volume_ratio: float) -> str:
     if volume_ratio >= 1.0:
         return "1.0-1.5"
     return "<1.0"
+
+
+def _event_volume_pace(event: dict[str, Any]) -> tuple[float | None, str]:
+    """Resolve v2 normalized pace, with an explicit fallback for legacy rows."""
+    normalized = event.get("normalized_volume_pace")
+    if normalized is not None:
+        try:
+            return float(normalized), "normalized_pace_v2"
+        except (TypeError, ValueError):
+            return None, "invalid_normalized_pace_v2"
+    if int(event.get("schema_version") or 1) >= 2:
+        return None, "missing_normalized_pace_v2"
+    try:
+        return float(event.get("volume_ratio") or 0.0), "legacy_ambiguous_v1"
+    except (TypeError, ValueError):
+        return None, "invalid_legacy_volume_ratio"
 
 
 def compute_outcome(
@@ -102,7 +118,8 @@ def compute_outcome(
     """
     entry = float(event.get("price") or 0.0)
     start = event.get("logged_epoch")
-    if entry <= 0 or start is None:
+    volume_pace, volume_semantics = _event_volume_pace(event)
+    if entry <= 0 or start is None or volume_pace is None:
         return None
     window = [b for b in bars if start < b["epoch"] <= start + horizon_min * 60]
     if not window:
@@ -122,8 +139,11 @@ def compute_outcome(
     return {
         "symbol": event.get("symbol"),
         "level": str(event.get("level", "")),
-        "vol_ratio": float(event.get("volume_ratio") or 0.0),
-        "vol_bucket": vol_bucket(float(event.get("volume_ratio") or 0.0)),
+        "vol_ratio": volume_pace,
+        "normalized_volume_pace": volume_pace,
+        "raw_daily_volume_ratio": event.get("raw_daily_volume_ratio"),
+        "volume_semantics": volume_semantics,
+        "vol_bucket": vol_bucket(volume_pace),
         "n_bars": len(window),
         "mfe_pct": round(mfe, 4),
         "mae_pct": round(mae, 4),

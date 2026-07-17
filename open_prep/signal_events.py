@@ -64,6 +64,26 @@ def event_row(signal: Any, *, now_epoch: float) -> dict[str, Any]:
     }
     for field in _FEATURE_FIELDS:
         row[field] = _safe(getattr(signal, field, None))
+    details = getattr(signal, "details", {})
+    details = details if isinstance(details, dict) else {}
+    normalized_pace = details.get("normalized_volume_pace")
+    row.update({
+        "schema_version": int(details.get("signal_schema_version", 2)),
+        "raw_daily_volume_ratio": _safe(
+            details.get("raw_daily_volume_ratio", getattr(signal, "volume_ratio", None))
+        ),
+        "expected_volume_fraction": _safe(details.get("expected_volume_fraction")),
+        "normalized_volume_pace": _safe(normalized_pace),
+        "effective_a0_volume_threshold": _safe(
+            details.get("effective_a0_volume_threshold")
+        ),
+        "effective_a0_price_threshold": _safe(
+            details.get("effective_a0_price_threshold")
+        ),
+        "volume_semantics": (
+            "normalized_pace_v2" if normalized_pace is not None else "legacy_raw_only"
+        ),
+    })
     return row
 
 

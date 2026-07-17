@@ -45,6 +45,33 @@ def test_records_fresh_and_dedups_same_level(tmp_path: Any) -> None:
     assert nvda["level"] == "A1" and nvda["news_score"] == 0.6 and nvda["technical_score"] == 0.8
 
 
+def test_event_row_emits_explicit_v2_volume_semantics() -> None:
+    signal = _sig(
+        "NVDA",
+        "A1",
+        details={
+            "signal_schema_version": 2,
+            "raw_daily_volume_ratio": 0.6,
+            "expected_volume_fraction": 0.25,
+            "normalized_volume_pace": 2.4,
+            "effective_a0_volume_threshold": 3.0,
+            "effective_a0_price_threshold": 2.0,
+        },
+    )
+    row = se.event_row(signal, now_epoch=1_700_000_000.0)
+    assert row["schema_version"] == 2
+    assert row["raw_daily_volume_ratio"] == 0.6
+    assert row["normalized_volume_pace"] == 2.4
+    assert row["volume_semantics"] == "normalized_pace_v2"
+
+
+def test_event_row_marks_missing_normalized_pace() -> None:
+    row = se.event_row(_sig("NVDA", "A1"), now_epoch=1_700_000_000.0)
+    assert row["schema_version"] == 2
+    assert row["normalized_volume_pace"] is None
+    assert row["volume_semantics"] == "legacy_raw_only"
+
+
 def test_strengthen_logs_new_row(tmp_path: Any) -> None:
     logger = se.SignalEventLogger(tmp_path)
     t = 1_700_000_000.0

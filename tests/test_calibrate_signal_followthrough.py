@@ -53,6 +53,43 @@ def test_compute_outcome_bearish_inverts() -> None:
     assert out["mfe_pct"] == 2.0 and out["mae_pct"] == -0.5 and out["net_pct"] == 1.0
 
 
+def test_compute_outcome_v2_buckets_normalized_pace_not_raw_ratio() -> None:
+    start = cal._bar_epoch("2026-07-08 09:30:00")
+    bars = cal.normalize_bars(_bars_from_et([
+        ("2026-07-08 09:31:00", 101.0, 99.0, 100.5),
+    ]))
+    event = {
+        "schema_version": 2,
+        "price": 100.0,
+        "logged_epoch": start,
+        "direction": "LONG",
+        "level": "A1",
+        "raw_daily_volume_ratio": 0.6,
+        "normalized_volume_pace": 2.4,
+        "volume_ratio": 0.6,
+    }
+    out = cal.compute_outcome(event, bars, horizon_min=60, target_pct=0.5)
+    assert out["vol_bucket"] == "2.0-3.0"
+    assert out["normalized_volume_pace"] == 2.4
+    assert out["volume_semantics"] == "normalized_pace_v2"
+
+
+def test_compute_outcome_rejects_malformed_v2_volume_semantics() -> None:
+    start = cal._bar_epoch("2026-07-08 09:30:00")
+    bars = cal.normalize_bars(_bars_from_et([
+        ("2026-07-08 09:31:00", 101.0, 99.0, 100.5),
+    ]))
+    event = {
+        "schema_version": 2,
+        "price": 100.0,
+        "logged_epoch": start,
+        "direction": "LONG",
+        "level": "A1",
+        "volume_ratio": 2.4,
+    }
+    assert cal.compute_outcome(event, bars, horizon_min=60, target_pct=0.5) is None
+
+
 def test_compute_outcome_windows_and_empty() -> None:
     start = cal._bar_epoch("2026-07-08 09:30:00")
     # Bar 90 min later is outside a 60-min horizon → no window → None.

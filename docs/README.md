@@ -11,6 +11,8 @@
 
 - [../README.md](../README.md) — top-level platform overview and operator quick starts
 - [OPEN_PREP_SUITE_TECHNICAL_REFERENCE.md](OPEN_PREP_SUITE_TECHNICAL_REFERENCE.md)
+- [A0_EARLY_DETECTION_RESEARCH_2026-07-17.md](A0_EARLY_DETECTION_RESEARCH_2026-07-17.md) — verifizierte Analyse für A0-Fast und PRE-A0
+- [A0_EARLY_DETECTION_ACTION_PLAN_2026-07-17.md](A0_EARLY_DETECTION_ACTION_PLAN_2026-07-17.md) — phasenweiser Umsetzungs-, Test- und Rolloutplan
 - [DATABENTO_VOLATILITY_SUITE.md](DATABENTO_VOLATILITY_SUITE.md)
 - [../ml/README.md](../ml/README.md)
 - [../rl/README.md](../rl/README.md)

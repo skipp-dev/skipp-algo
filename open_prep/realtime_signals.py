@@ -2687,7 +2687,6 @@ class RealtimeEngine:
             return None
 
         change_pct = ((price / prev_close) - 1) * 100
-        raw_volume_ratio = volume / avg_volume
 
         # ── Time-of-day volume normalization ─────────────────────
         # Raw volume_ratio uses cumulative daily volume vs daily average.
@@ -2695,12 +2694,13 @@ class RealtimeEngine:
         # because most of the day hasn't happened yet.  Normalize by
         # expected cumulative fraction so we measure *pace above average*
         # rather than *cumulative total*.
-        vol_frac = _resolve_expected_volume_fraction(
+        raw_volume_ratio, vol_frac, volume_ratio = _volume_semantics(
+            volume,
+            avg_volume,
             expected_volume_fraction
             if expected_volume_fraction is not None
-            else quote.get("expected_volume_fraction")
+            else quote.get("expected_volume_fraction"),
         )
-        volume_ratio = raw_volume_ratio / vol_frac
 
         atr_pct = _safe_float(watchlist_entry.get("atr_pct_computed") or watchlist_entry.get("atr_pct"), 0.0)
         confidence_tier = str(watchlist_entry.get("confidence_tier", "STANDARD"))
@@ -2924,6 +2924,12 @@ class RealtimeEngine:
             level_since_at=now_iso,
             level_since_epoch=now_ts,
             details={
+                "signal_schema_version": 2,
+                "raw_daily_volume_ratio": round(raw_volume_ratio, 6),
+                "expected_volume_fraction": round(vol_frac, 6),
+                "normalized_volume_pace": round(volume_ratio, 6),
+                "effective_a0_volume_threshold": round(eff_a0_vol, 6),
+                "effective_a0_price_threshold": round(eff_a0_chg, 6),
                 "pdh": pdh,
                 "pdl": pdl,
                 "volume": volume,
@@ -3213,7 +3219,11 @@ class RealtimeEngine:
             _avg_vol = _safe_float(
                 quote.get("avgVolume") or wl_entry.get("avg_volume"), 0.0
             )
-            vol_ratio = round(q_volume / _avg_vol, 2) if _avg_vol >= 1000 else 0.0
+            vol_ratio, expected_vol_frac, normalized_volume_pace = _volume_semantics(
+                q_volume,
+                _avg_vol,
+                quote.get("expected_volume_fraction"),
+            )
             # Determine signal status for this symbol
             with self._lock:
                 _current_active = list(self._active_signals)
@@ -3274,7 +3284,12 @@ class RealtimeEngine:
                 # Near-threshold early warning (coming breakout)
                 eff_a2_vol = A2_VOLUME_RATIO_MIN * regime_thresholds["vol_mult"]
                 eff_a2_chg = A2_PRICE_CHANGE_PCT_MIN * regime_thresholds["chg_mult"]
-                near = (vol_ratio >= 0.8 * eff_a2_vol and abs(chg_pct) >= 0.8 * eff_a2_chg)
+                near = _is_upcoming_a2(
+                    normalized_volume_pace,
+                    abs(chg_pct),
+                    eff_a2_vol,
+                    eff_a2_chg,
+                )
                 _breakout = "UPCOMING" if near else ""
 
             prev_row = self._vd_rows.get(sym, {})
@@ -3311,6 +3326,16 @@ class RealtimeEngine:
                 "price": round(price, 2),
                 "chg_pct": round(chg_pct, 2),
                 "vol_ratio": round(vol_ratio, 2),
+                "signal_schema_version": 2,
+                "raw_daily_volume_ratio": round(vol_ratio, 6),
+                "expected_volume_fraction": round(expected_vol_frac, 6),
+                "normalized_volume_pace": round(normalized_volume_pace, 6),
+                "effective_a0_volume_threshold": round(
+                    A0_VOLUME_RATIO_MIN * regime_thresholds["vol_mult"], 6,
+                ),
+                "effective_a0_price_threshold": round(
+                    A0_PRICE_CHANGE_PCT_MIN * regime_thresholds["chg_mult"], 6,
+                ),
                 "d_price_pct": delta["d_price_pct"],
                 "tier": str(wl_entry.get("confidence_tier", "")),
                 "last_change_age_s": last_change_age_s,
@@ -3881,6 +3906,31 @@ def _replace_non_finite(value: Any) -> Any:
     if isinstance(value, tuple):
         return [_replace_non_finite(item) for item in value]
     return value
+
+
+def _volume_semantics(
+    volume: Any,
+    avg_volume: Any,
+    expected_volume_fraction: Any = None,
+) -> tuple[float, float, float]:
+    """Return raw daily ratio, expected fraction, and normalized volume pace."""
+    average = _safe_float(avg_volume, 0.0)
+    raw_ratio = _safe_float(volume, 0.0) / average if average >= 1000 else 0.0
+    expected_fraction = _resolve_expected_volume_fraction(expected_volume_fraction)
+    return raw_ratio, expected_fraction, raw_ratio / expected_fraction
+
+
+def _is_upcoming_a2(
+    normalized_volume_pace: float,
+    abs_change_pct: float,
+    effective_a2_volume_threshold: float,
+    effective_a2_price_threshold: float,
+) -> bool:
+    """Whether a symbol has reached 80% of both effective A2 thresholds."""
+    return (
+        normalized_volume_pace >= 0.8 * effective_a2_volume_threshold
+        and abs_change_pct >= 0.8 * effective_a2_price_threshold
+    )
 
 
 if __name__ == "__main__":
