@@ -20,7 +20,11 @@ Stand 2026-07-17 auf Branch `feat/a0-early-detection-foundation`:
 | A0-200 News entkoppeln | umgesetzt | der Produktionsstart aktiviert den asynchronen News-Poller jetzt unabhängig von Fast/Ultra; `RT_NEWS_POLL_SECS` steuert nur dessen eigene Kadenz |
 | A0-201 Near-A0-Telemetrie | technisch umgesetzt, Beobachtung offen | Prometheus weist Aktivierung, Intervall, Warm-Set, Polls, Fehler und früh gepushte A0 aus; Sitzungsvergleich 2/5/10 s bleibt messzeitgebunden |
 | A0-202 Latenzmetriken | teilweise umgesetzt | Quote-Datenalter, tatsächliches Pollintervall, Newsalter/-dauer sowie News- und Quote-Phase sind verfügbar; Notification-Latenz und Dashboard-Auswertung bleiben offen |
-| A0-300 bis A0-801 | offen | folgen abhängigkeitsgerecht; messzeitgebundene Promotion-Gates können erst nach den festgelegten vollständigen Handelssitzungen abgeschlossen werden |
+| A0-300 Databento-Adapter | technisch umgesetzt | `a0_stream.py` normalisiert OHLCV-1s; `a0_stream_state.py` behandelt Symbol, Event-/Receive-Zeit, RTH-Volumen, Duplikate, Out-of-order, Lücken und Half Days ohne Levelentscheidung im Adapter |
+| A0-301 Quellenreine Referenz | technisch umgesetzt | `a0_reference.py` baut Previous Close und ADV ausschließlich aus versionierter, Corporate-Action-adjustierter Databento-Tageshistorie und verwirft Mischquellen |
+| A0-302 Bootstrap/Recovery | teilweise umgesetzt | Zustandsautomat und explizite Bootstrap-Schnittstelle sind vorhanden; automatischer Historical Bootstrap und Reconnect-Replay im Worker bleiben offen und halten ihn fail-closed |
+| A0-303 Paritätsmatcher | Offline-Kern umgesetzt | reproduzierbare Matchklassen, Lead und Ursachenreport sind implementiert; persistente tägliche Worker-/FMP-Zusammenführung bleibt offen |
+| A0-304 bis A0-801 | offen | Last-/Kostenprobe, mehrsitzige Shadow-Evidenz und spätere Phasen bleiben an die festgelegten Messfenster gebunden |
 
 Die Umsetzung dieses ersten Meilensteins verändert noch keine produktive
 Benachrichtigungs- oder Promotion-Semantik. Das bestehende Feld `volume_ratio`
