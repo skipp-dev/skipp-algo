@@ -1227,6 +1227,7 @@ def _collect_process_metrics(engine: Any | None = None) -> str:
         lines.append(f"{_prefix}_avg_volume_missing_symbols {_missing_avg}")
         lines.append(f"# TYPE {_prefix}_avg_volume_negative_cache_symbols gauge")
         lines.append(f"{_prefix}_avg_volume_negative_cache_symbols {_negative_avg}")
+        lines.extend(_collect_a0_latency_metrics(engine, now, _prefix))
 
     return "\n".join(lines) + "\n"
 
@@ -2172,6 +2173,8 @@ class RealtimeEngine:
         self.open_prep_snapshot_age_seconds: float = 0.0
         self.last_poll_attempt_epoch: float = 0.0
         self.last_poll_success_epoch: float = 0.0
+        self.last_poll_interval_actual_seconds: float = 0.0
+        self._poll_phase_seconds: dict[str, float] = {}
         self._last_data_epoch: float = 0.0  # stamped ONLY on a non-empty fetch (real data) — drives the data_stale gauge (vs last_poll_success_epoch = loop-liveness)
         self._in_market_hours: bool = False  # cached in poll_once so the /metrics renderer never calls the (raising) market-hours probe
         self._market_session_name: str = "closed"
@@ -3069,7 +3072,12 @@ class RealtimeEngine:
           - VisiData delta tracking (Δ-price, Δ-volume, tick, streak)
         """
         poll_start = time.monotonic()
-        self.last_poll_attempt_epoch = time.time()
+        poll_attempt_epoch = time.time()
+        if self.last_poll_attempt_epoch > 0:
+            self.last_poll_interval_actual_seconds = max(
+                0.0, poll_attempt_epoch - self.last_poll_attempt_epoch,
+            )
+        self.last_poll_attempt_epoch = poll_attempt_epoch
 
         # ── Session-boundary detection: clear stale _last_prices ──
         # When the engine transitions from outside→inside market hours,
@@ -3106,6 +3114,7 @@ class RealtimeEngine:
             return []
 
         # ── Newsstack: prefer async poller, fall back to synchronous ──
+        phase_started = time.monotonic()
         news_by_ticker: dict[str, dict[str, Any]] = {}
         if self._async_newsstack is not None:
             # Non-blocking: read latest cached result
@@ -3129,6 +3138,7 @@ class RealtimeEngine:
                             news_by_ticker[tk] = nc
             except Exception as exc:
                 logger.debug("Newsstack poll skipped: %s", exc)
+        self._poll_phase_seconds["news_context"] = time.monotonic() - phase_started
 
         new_signals: list[RealtimeSignal] = []
 
@@ -3154,7 +3164,9 @@ class RealtimeEngine:
             return new_signals
 
         self._quotes_polled = True
+        phase_started = time.monotonic()
         quotes = self._fetch_realtime_quotes()
+        self._poll_phase_seconds["quote_fetch"] = time.monotonic() - phase_started
         if not quotes:
             logger.debug("No quotes received in poll cycle")
             self._save_signals()
@@ -3839,11 +3851,13 @@ def main() -> None:
             engine.telemetry, port=args.telemetry_port, engine=engine,
         )
 
-    # Start async newsstack for fast/ultra modes (reduces per-poll latency)
-    if args.fast or args.ultra:
-        ns_interval = 30 if args.ultra else 60
-        engine.start_async_newsstack(poll_interval=ns_interval)
-        logger.info("Async newsstack started (interval=%ds)", ns_interval)
+    # News is always off the quote-critical path. Fast/ultra only change the
+    # default cadence; RT_NEWS_POLL_SECS can tune it independently of mode.
+    ns_interval = _env_int(
+        "RT_NEWS_POLL_SECS", 30 if args.ultra else 60, minimum=5, maximum=None,
+    )
+    engine.start_async_newsstack(poll_interval=ns_interval)
+    logger.info("Async newsstack started (interval=%ds)", ns_interval)
 
     # Opt-in near-A0 fast lane: re-poll A1/A2 symbols every N seconds so an
     # escalation to A0 pushes to Slack in seconds, not a full ~30s cycle late.
@@ -3993,6 +4007,56 @@ def _replace_non_finite(value: Any) -> Any:
     if isinstance(value, tuple):
         return [_replace_non_finite(item) for item in value]
     return value
+
+
+def _collect_a0_latency_metrics(engine: Any, now: float, prefix: str) -> list[str]:
+    """Render A0 latency/news/fast-lane metrics without blocking poll threads."""
+    lines: list[str] = []
+    last_data_epoch = _safe_float(getattr(engine, "_last_data_epoch", 0.0), 0.0)
+    quote_age = max(0.0, now - last_data_epoch) if last_data_epoch > 0 else 999999.0
+    lines.extend([
+        f"# TYPE {prefix}_a0_quote_data_age_seconds gauge",
+        f"{prefix}_a0_quote_data_age_seconds {quote_age:.3f}",
+        f"# TYPE {prefix}_a0_poll_interval_actual_seconds gauge",
+        f"{prefix}_a0_poll_interval_actual_seconds "
+        f"{_safe_float(getattr(engine, 'last_poll_interval_actual_seconds', 0.0), 0.0):.3f}",
+    ])
+    for phase, duration in sorted(getattr(engine, "_poll_phase_seconds", {}).items()):
+        safe_phase = str(phase).replace("\\", "_").replace('"', "_").replace("\n", "_")
+        lines.append(
+            f'{prefix}_a0_poll_phase_seconds{{phase="{safe_phase}"}} '
+            f"{_safe_float(duration, 0.0):.6f}"
+        )
+
+    news_poller = getattr(engine, "_async_newsstack", None)
+    lines.append(f"{prefix}_a0_news_async_enabled {1 if news_poller is not None else 0}")
+    if news_poller is not None:
+        news = news_poller.metrics()
+        success_at = _safe_float(news.get("last_success_at"), 0.0)
+        snapshot_age = max(0.0, now - success_at) if success_at > 0 else 999999.0
+        lines.extend([
+            f"{prefix}_a0_news_snapshot_age_seconds {snapshot_age:.3f}",
+            f"{prefix}_a0_news_poll_duration_seconds "
+            f"{_safe_float(news.get('last_poll_duration'), 0.0):.6f}",
+            f"{prefix}_a0_news_polls_total {int(news.get('poll_count', 0))}",
+            f"{prefix}_a0_news_poll_errors_total {int(news.get('poll_errors', 0))}",
+            f"{prefix}_a0_news_cached_tickers {int(news.get('cached_tickers_count', 0))}",
+        ])
+
+    repoller = getattr(engine, "_near_a0_repoller", None)
+    lines.append(f"{prefix}_a0_near_repoll_enabled {1 if repoller is not None else 0}")
+    if repoller is not None:
+        near = repoller.metrics()
+        lines.extend([
+            f"{prefix}_a0_near_repoll_interval_seconds "
+            f"{_safe_float(getattr(repoller, '_interval', 0.0), 0.0):.3f}",
+            f"{prefix}_a0_near_repoll_warm_set_size "
+            f"{int(near.get('last_warm_set_size', 0))}",
+            f"{prefix}_a0_near_repolls_total {int(near.get('poll_count', 0))}",
+            f"{prefix}_a0_near_repoll_errors_total {int(near.get('poll_errors', 0))}",
+            f"{prefix}_a0_near_repoll_a0_pushed_total {int(near.get('a0_pushed', 0))}",
+        ])
+    return lines
 
 
 def _volume_semantics(

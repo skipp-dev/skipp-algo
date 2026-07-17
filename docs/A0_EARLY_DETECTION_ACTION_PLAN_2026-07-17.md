@@ -17,7 +17,10 @@ Stand 2026-07-17 auf Branch `feat/a0-early-detection-foundation`:
 | A0-101 Entscheidungstypen | umgesetzt | `open_prep/a0_contract.py` enthält Snapshot, Schwellen-/Zustandskontext, reine Kernentscheidung, finales Level und stabile Reason Codes |
 | A0-102 Zeit und Idempotenz | umgesetzt | Event-, Empfangs-, Beobachtungs- und Entscheidungszeit, Datenalter, Quelle, Session, Detector-Version und deterministische Decision-ID werden persistiert |
 | A0-103 Golden-Case-Migration | umgesetzt | versionierte JSON-Fixture und Integrationstests decken Schwellenkanten, PDH/PDL, Stale Velocity, RSI, technische Bestätigung, Cooldown, Momentum, Hysterese sowie ungültiges Volumen ab |
-| A0-200 bis A0-801 | offen | folgen abhängigkeitsgerecht; messzeitgebundene Promotion-Gates können erst nach den festgelegten vollständigen Handelssitzungen abgeschlossen werden |
+| A0-200 News entkoppeln | umgesetzt | der Produktionsstart aktiviert den asynchronen News-Poller jetzt unabhängig von Fast/Ultra; `RT_NEWS_POLL_SECS` steuert nur dessen eigene Kadenz |
+| A0-201 Near-A0-Telemetrie | technisch umgesetzt, Beobachtung offen | Prometheus weist Aktivierung, Intervall, Warm-Set, Polls, Fehler und früh gepushte A0 aus; Sitzungsvergleich 2/5/10 s bleibt messzeitgebunden |
+| A0-202 Latenzmetriken | teilweise umgesetzt | Quote-Datenalter, tatsächliches Pollintervall, Newsalter/-dauer sowie News- und Quote-Phase sind verfügbar; Notification-Latenz und Dashboard-Auswertung bleiben offen |
+| A0-300 bis A0-801 | offen | folgen abhängigkeitsgerecht; messzeitgebundene Promotion-Gates können erst nach den festgelegten vollständigen Handelssitzungen abgeschlossen werden |
 
 Die Umsetzung dieses ersten Meilensteins verändert noch keine produktive
 Benachrichtigungs- oder Promotion-Semantik. Das bestehende Feld `volume_ratio`
