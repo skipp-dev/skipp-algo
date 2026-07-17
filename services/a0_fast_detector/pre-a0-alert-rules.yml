@@ -1,0 +1,19 @@
+groups:
+  - name: pre-a0-shadow
+    rules:
+      - alert: PreA0ModelUnavailable
+        expr: pre_a0_model_ready == 0
+        for: 5m
+      - alert: PreA0CalibrationInvalid
+        expr: pre_a0_calibration_valid == 0
+        for: 5m
+      - alert: PreA0InferenceErrors
+        expr: increase(pre_a0_inference_errors_total[5m]) > 0
+      - alert: PreA0FeatureMissingness
+        expr: increase(pre_a0_feature_missing_total[15m]) > 10
+      - alert: PreA0FeatureOutOfRange
+        expr: increase(pre_a0_feature_out_of_range_total[15m]) > 10
+      - alert: PreA0AlertBudgetExceeded
+        expr: increase(pre_a0_alert_budget_exceeded_total[1h]) > 0
+      - alert: PreA0DuplicateDecisionId
+        expr: increase(pre_a0_duplicate_decision_ids_total[5m]) > 0
