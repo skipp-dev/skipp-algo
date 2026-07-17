@@ -2668,10 +2668,23 @@ class RealtimeEngine:
 
         price = _safe_float(quote.get("price") or quote.get("lastPrice"), 0.0)
         prev_close = _safe_float(quote.get("previousClose"), 0.0)
-        volume = _safe_float(quote.get("volume"), 0.0)
+        raw_volume_value = quote.get("volume")
+        volume = _safe_float(raw_volume_value, 0.0)
         avg_volume = _safe_float(
             quote.get("avgVolume") or watchlist_entry.get("avg_volume"), 0.0
         )
+        if raw_volume_value is not None:
+            try:
+                parsed_volume = float(raw_volume_value)
+            except (TypeError, ValueError, OverflowError):
+                parsed_volume = float("nan")
+            if parsed_volume < 0 or parsed_volume != parsed_volume or parsed_volume in (
+                float("inf"), float("-inf"),
+            ):
+                logger.debug(
+                    "Skipping %s: invalid cumulative volume=%r", symbol, raw_volume_value,
+                )
+                return None
         # FMP batch-quote endpoint doesn't return avgVolume.
         # When truly unknown, we cannot compute a meaningful ratio —
         # skip signal detection rather than dividing by 1 and getting

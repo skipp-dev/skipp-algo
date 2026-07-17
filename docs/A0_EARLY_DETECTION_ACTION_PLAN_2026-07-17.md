@@ -16,7 +16,7 @@ Stand 2026-07-17 auf Branch `feat/a0-early-detection-foundation`:
 | A0-100 Kalibrierung migrieren | umgesetzt | Schema v2 nutzt ausschließlich `normalized_volume_pace`; alte v1-Zeilen bleiben explizit als mehrdeutig lesbar; fehlerhafte v2-Zeilen werden verworfen |
 | A0-101 Entscheidungstypen | umgesetzt | `open_prep/a0_contract.py` enthält Snapshot, Schwellen-/Zustandskontext, reine Kernentscheidung, finales Level und stabile Reason Codes |
 | A0-102 Zeit und Idempotenz | umgesetzt | Event-, Empfangs-, Beobachtungs- und Entscheidungszeit, Datenalter, Quelle, Session, Detector-Version und deterministische Decision-ID werden persistiert |
-| A0-103 Golden-Case-Migration | in Umsetzung | Kernschwellen, Zeitplausibilität, Retry-ID, FMP-Integration und Modifier-Trail sind abgedeckt; vollständige Modifier-Matrix bleibt offen |
+| A0-103 Golden-Case-Migration | umgesetzt | versionierte JSON-Fixture und Integrationstests decken Schwellenkanten, PDH/PDL, Stale Velocity, RSI, technische Bestätigung, Cooldown, Momentum, Hysterese sowie ungültiges Volumen ab |
 | A0-200 bis A0-801 | offen | folgen abhängigkeitsgerecht; messzeitgebundene Promotion-Gates können erst nach den festgelegten vollständigen Handelssitzungen abgeschlossen werden |
 
 Die Umsetzung dieses ersten Meilensteins verändert noch keine produktive

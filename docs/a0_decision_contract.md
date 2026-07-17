@@ -79,7 +79,6 @@ stillschweigend als Altformat interpretiert.
 ## Noch offene Grenzen
 
 - Der Streamingadapter ist noch nicht angeschlossen.
-- Die vollständige Golden-Case-Matrix für alle Modifier ist Teil von A0-103.
 - Ein Sunset-Datum für den `volume_ratio`-Alias wird erst nach Migration aller
   Consumer festgelegt.
 - Production-Promotion bleibt an die Messfenster und Gates des Action Plans
