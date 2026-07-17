@@ -80,6 +80,20 @@ def event_row(signal: Any, *, now_epoch: float) -> dict[str, Any]:
         "effective_a0_price_threshold": _safe(
             details.get("effective_a0_price_threshold")
         ),
+        "decision_contract_version": _safe(details.get("decision_contract_version")),
+        "detector_version": _safe(details.get("detector_version")),
+        "core_level": _safe(details.get("core_level")),
+        "final_level": _safe(details.get("final_level")),
+        "reason_codes": details.get("reason_codes") or [],
+        "decision_id": _safe(details.get("decision_id")),
+        "ts_event": _safe(details.get("ts_event")),
+        "ts_recv": _safe(details.get("ts_recv")),
+        "observed_at": _safe(details.get("observed_at")),
+        "decision_at": _safe(details.get("decision_at")),
+        "data_age_ms": _safe(details.get("data_age_ms")),
+        "data_age_unknown": bool(details.get("data_age_unknown", True)),
+        "source": _safe(details.get("source")),
+        "session_date": _safe(details.get("session_date")),
         "volume_semantics": (
             "normalized_pace_v2" if normalized_pace is not None else "legacy_raw_only"
         ),

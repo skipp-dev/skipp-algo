@@ -2719,21 +2719,41 @@ class RealtimeEngine:
         eff_a1_chg = A1_PRICE_CHANGE_PCT_MIN * rt["chg_mult"]
         eff_a2_chg = A2_PRICE_CHANGE_PCT_MIN * rt["chg_mult"]
 
-        # Determine signal level (A0 > A1 > A2)
-        level: str | None = None
-        if volume_ratio >= eff_a0_vol and abs_change >= eff_a0_chg:
-            level = "A0"
-        elif volume_ratio >= eff_a1_vol and abs_change >= eff_a1_chg:
-            level = "A1"
-        elif abs_change >= eff_a0_chg * 1.2:
-            # Large move even without full volume confirmation
-            level = "A1"
-        elif volume_ratio >= eff_a2_vol and abs_change >= eff_a2_chg:
-            # Early warning — building momentum, not confirmed yet
-            level = "A2"
-        elif abs_change >= eff_a1_chg * 1.5:
-            # Moderate move, minimal volume — still worth watching
-            level = "A2"
+        # Provider-neutral, deterministic core decision. Stateful modifiers
+        # below retain ownership of hysteresis/cooldown and append reason codes.
+        from open_prep.a0_contract import (
+            A0ReasonCode,
+            A0ThresholdContext,
+            build_market_snapshot,
+            decide_core_level,
+        )
+        observed_at = time.time()
+        market_snapshot = build_market_snapshot(
+            symbol=symbol,
+            price=price,
+            prev_close=prev_close,
+            change_pct=change_pct,
+            raw_daily_volume_ratio=raw_volume_ratio,
+            expected_volume_fraction=vol_frac,
+            normalized_volume_pace=volume_ratio,
+            source=str(quote.get("source") or "fmp"),
+            raw_ts_event=quote.get("timestamp"),
+            raw_ts_recv=quote.get("received_at"),
+            observed_at=observed_at,
+        )
+        core_decision = decide_core_level(
+            market_snapshot,
+            A0ThresholdContext(
+                a0_volume=eff_a0_vol,
+                a1_volume=eff_a1_vol,
+                a2_volume=eff_a2_vol,
+                a0_price=eff_a0_chg,
+                a1_price=eff_a1_chg,
+                a2_price=eff_a2_chg,
+            ),
+        )
+        level = core_decision.final_level
+        reason_codes = list(core_decision.reason_codes)
 
         if level is None:
             return None
@@ -2760,6 +2780,7 @@ class RealtimeEngine:
             # Price dropped since last poll — momentum is negative
             if level == "A0":
                 level = "A1"  # downgrade — do not fire A0 into a falling knife
+                reason_codes.append(A0ReasonCode.FALLING_KNIFE_DOWNGRADE)
                 logger.debug(
                     "Falling-knife downgrade: %s A0→A1 (price %.2f < prev %.2f)",
                     symbol, price, prev_price,
@@ -2781,11 +2802,13 @@ class RealtimeEngine:
             direction = "LONG"
             if level == "A1":
                 level = "A0"  # PDH breakout upgrades to A0
+                reason_codes.append(A0ReasonCode.PDH_BREAKOUT_UPGRADE)
         if pdl > 0 and price < pdl and prev_price is not None and prev_price >= pdl:
             pattern = "pdl_breakdown"
             direction = "SHORT"
             if level == "A1":
                 level = "A0"
+                reason_codes.append(A0ReasonCode.PDL_BREAKDOWN_UPGRADE)
 
         # ── Stale-move velocity gate ───────────────────────────
         # If price hasn't moved in the last N polls, cumulative change
@@ -2798,12 +2821,14 @@ class RealtimeEngine:
                 if velocity_pct < STALE_VELOCITY_PCT:
                     if level == "A0":
                         level = "A1"
+                        reason_codes.append(A0ReasonCode.STALE_VELOCITY_DOWNGRADE)
                         logger.debug(
                             "Stale velocity: %s A0→A1 (vel=%.3f%% < %.3f%%)",
                             symbol, velocity_pct, STALE_VELOCITY_PCT,
                         )
                     elif level == "A1":
                         level = "A2"
+                        reason_codes.append(A0ReasonCode.STALE_VELOCITY_DOWNGRADE)
                         logger.debug(
                             "Stale velocity: %s A1→A2 (vel=%.3f%%)",
                             symbol, velocity_pct,
@@ -2812,10 +2837,13 @@ class RealtimeEngine:
         # ── #1  Gate hysteresis — prevent A0↔A1 flapping ───────────
         # Pass the regime-adjusted A0 thresholds so the "clearly A0" band tracks
         # the effective bar (e.g. relaxed in LOW_VOLUME), not the NORMAL constant.
+        pre_hysteresis_level = level
         level = self._hysteresis.evaluate(
             symbol, level, volume_ratio, abs_change,
             a0_vol_threshold=eff_a0_vol, a0_chg_threshold=eff_a0_chg,
         )
+        if level != pre_hysteresis_level:
+            reason_codes.append(A0ReasonCode.HYSTERESIS_ADJUSTMENT)
 
         # ── #12 Technical indicator confirmation/boost/penalty ───────
         tech_data = self._technical_scorer.get_technical_data(symbol, "1D")
@@ -2829,14 +2857,17 @@ class RealtimeEngine:
                 # RSI oversold boost — upgrade A1→A0, A2→A1
                 if tech_rsi < 30 and level == "A1":
                     level = "A0"
+                    reason_codes.append(A0ReasonCode.RSI_DIRECTIONAL_UPGRADE)
                     logger.debug(
                         "%s RSI %.1f < 30 oversold — upgrading A1→A0", symbol, tech_rsi,
                     )
                 elif tech_rsi < 30 and level == "A2":
                     level = "A1"
+                    reason_codes.append(A0ReasonCode.RSI_DIRECTIONAL_UPGRADE)
                 # RSI overbought penalty — downgrade A0→A1
                 elif tech_rsi > 70 and level == "A0":
                     level = "A1"
+                    reason_codes.append(A0ReasonCode.RSI_CONTRA_DOWNGRADE)
                     logger.debug(
                         "%s RSI %.1f > 70 overbought — downgrade A0→A1", symbol, tech_rsi,
                     )
@@ -2844,20 +2875,28 @@ class RealtimeEngine:
                 # RSI overbought boost for shorts
                 if tech_rsi > 70 and level == "A1":
                     level = "A0"
+                    reason_codes.append(A0ReasonCode.RSI_DIRECTIONAL_UPGRADE)
                     logger.debug(
                         "%s RSI %.1f > 70 overbought — SHORT upgrade A1→A0", symbol, tech_rsi,
                     )
                 elif (tech_rsi > 70 and level == "A2") or (tech_rsi < 30 and level == "A0"):
                     level = "A1"
+                    reason_codes.append(
+                        A0ReasonCode.RSI_DIRECTIONAL_UPGRADE
+                        if tech_rsi > 70
+                        else A0ReasonCode.RSI_CONTRA_DOWNGRADE
+                    )
 
         # Technical consensus confirmation (non-RSI)
         if level == "A0" and tech_signal in ("STRONG_SELL",) and direction == "LONG":
             level = "A1"
+            reason_codes.append(A0ReasonCode.TECHNICAL_CONTRA_DOWNGRADE)
             logger.debug(
                 "%s STRONG_SELL technicals — blocking A0 LONG", symbol,
             )
         elif level == "A0" and tech_signal in ("STRONG_BUY",) and direction == "SHORT":
             level = "A1"
+            reason_codes.append(A0ReasonCode.TECHNICAL_CONTRA_DOWNGRADE)
             logger.debug(
                 "%s STRONG_BUY technicals — blocking A0 SHORT", symbol,
             )
@@ -2868,6 +2907,7 @@ class RealtimeEngine:
                      or (direction == "SHORT" and tech_signal in ("STRONG_SELL", "SELL")))
                 and volume_ratio >= A1_VOLUME_RATIO_MIN * 1.5):
             level = "A0"
+            reason_codes.append(A0ReasonCode.TECHNICAL_ALIGNMENT_UPGRADE)
             logger.debug(
                 "%s tech_score=%.3f + aligned tech_signal=%s — upgrading A1→A0",
                 symbol, tech_score, tech_signal,
@@ -2890,6 +2930,7 @@ class RealtimeEngine:
             )
             if is_active:
                 level = "A1"  # cooldown active — downgrade to A1
+                reason_codes.append(A0ReasonCode.COOLDOWN_DOWNGRADE)
                 logger.debug(
                     "Dynamic cooldown active for %s (%.0fs remaining, regime=%s)",
                     symbol, remaining, _cd_regime,
@@ -2898,14 +2939,16 @@ class RealtimeEngine:
                 # Require momentum confirmation for A0
                 if prev_price is not None and direction == "LONG" and price <= prev_price:
                     level = "A1"  # momentum not confirming — downgrade A0→A1 (this block runs only when level=="A0")
+                    reason_codes.append(A0ReasonCode.MOMENTUM_NOT_CONFIRMED)
                 elif prev_price is not None and direction == "SHORT" and price >= prev_price:
                     level = "A1"
+                    reason_codes.append(A0ReasonCode.MOMENTUM_NOT_CONFIRMED)
                 else:
                     self._dynamic_cooldown.record_transition(symbol, direction)
 
-        now = datetime.now(UTC)
-        now_iso = now.isoformat()
-        now_ts = now.timestamp()
+        final_decision = core_decision.with_final_level(level, reason_codes)
+        now_ts = final_decision.decision_at
+        now_iso = datetime.fromtimestamp(now_ts, UTC).isoformat()
         return RealtimeSignal(
             symbol=symbol,
             level=level,
@@ -2930,6 +2973,7 @@ class RealtimeEngine:
                 "normalized_volume_pace": round(volume_ratio, 6),
                 "effective_a0_volume_threshold": round(eff_a0_vol, 6),
                 "effective_a0_price_threshold": round(eff_a0_chg, 6),
+                **final_decision.to_details(),
                 "pdh": pdh,
                 "pdl": pdl,
                 "volume": volume,
@@ -3199,6 +3243,15 @@ class RealtimeEngine:
                         if not cd_active:
                             signal.level = "A0"
                             signal.details["a0_upgrade_reason"] = "news_catalyst"
+                            from open_prep.a0_contract import (
+                                A0ReasonCode,
+                                amend_decision_details,
+                            )
+                            amend_decision_details(
+                                signal.details,
+                                final_level="A0",
+                                reason_code=A0ReasonCode.NEWS_CATALYST_UPGRADE,
+                            )
                             self._dynamic_cooldown.record_transition(sym, signal.direction)
 
                 # Check if we already have an active signal for this symbol
@@ -3356,6 +3409,7 @@ class RealtimeEngine:
         # Re-validate ALL active signals against current quotes.  If a
         # signal no longer meets even A1 criteria → expire it early.
         requalified: list[RealtimeSignal] = []
+        from open_prep.a0_contract import A0ReasonCode, amend_decision_details
         with self._lock:
             signals_snapshot = list(self._active_signals)
         for sig in signals_snapshot:
@@ -3429,6 +3483,11 @@ class RealtimeEngine:
 
             if sig.level == "A0" and sig_age > eff_a0_max:
                 sig.level = "A1"
+                amend_decision_details(
+                    sig.details,
+                    final_level="A1",
+                    reason_code=A0ReasonCode.TIME_DECAY_DOWNGRADE,
+                )
                 now_iso = datetime.now(UTC).isoformat()
                 sig.level_since_at = now_iso
                 sig.level_since_epoch = time.time()
@@ -3438,6 +3497,11 @@ class RealtimeEngine:
                 )
             if sig.level == "A1" and sig_age > eff_a1_max:
                 sig.level = "A2"
+                amend_decision_details(
+                    sig.details,
+                    final_level="A2",
+                    reason_code=A0ReasonCode.TIME_DECAY_DOWNGRADE,
+                )
                 now_iso = datetime.now(UTC).isoformat()
                 sig.level_since_at = now_iso
                 sig.level_since_epoch = time.time()
@@ -3451,6 +3515,11 @@ class RealtimeEngine:
             eff_a0_chg = A0_PRICE_CHANGE_PCT_MIN * regime_thresholds["chg_mult"]
             if sig.level == "A0" and not (cur_vol_ratio >= eff_a0_vol and cur_change >= eff_a0_chg):
                 sig.level = "A1"
+                amend_decision_details(
+                    sig.details,
+                    final_level="A1",
+                    reason_code=A0ReasonCode.REQUALIFICATION_DOWNGRADE,
+                )
                 now_iso = datetime.now(UTC).isoformat()
                 sig.level_since_at = now_iso
                 sig.level_since_epoch = time.time()
@@ -3462,6 +3531,11 @@ class RealtimeEngine:
                 or cur_change >= A0_PRICE_CHANGE_PCT_MIN * 1.2 * regime_thresholds["chg_mult"]
             ):
                 sig.level = "A2"
+                amend_decision_details(
+                    sig.details,
+                    final_level="A2",
+                    reason_code=A0ReasonCode.REQUALIFICATION_DOWNGRADE,
+                )
                 now_iso = datetime.now(UTC).isoformat()
                 sig.level_since_at = now_iso
                 sig.level_since_epoch = time.time()

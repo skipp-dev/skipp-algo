@@ -126,7 +126,7 @@ _FROZEN_JSON_LOAD_SITES: frozenset[tuple[str, int]] = frozenset(
         # 2026-06-28 (semantic monitoring): shifted +64/+80 lines by readiness metrics.
         # 2026-07-03 (WP-4 holiday gate): shifted +8 below the market-hours gate.
         ("open_prep/realtime_signals.py", 2308),  # 2026-07-16 postmarket adapter shifted site: 2265->2308
-        ("open_prep/realtime_signals.py", 3648),  # 2026-07-16 postmarket adapter shifted site: 3565->3648
+        ("open_prep/realtime_signals.py", 3747),  # 2026-07-17 A0 decision contract shifted site: 3648->3747
         ("open_prep/scorer.py", 122),
         ("open_prep/watchlist.py", 53),
         # 2026-06-10 (PR #2658): centralized trading-thresholds loader parses a
@@ -201,7 +201,7 @@ _FROZEN_ENV_SUBSCRIPT_SITES: frozenset[tuple[str, int]] = frozenset(
         # 2026-06-25: shifted 2892 -> 2973 by AsyncNewsstackPoller telemetry additions.
         # 2026-06-28 (semantic monitoring): shifted +80 lines by readiness metrics.
         # 2026-07-03 (WP-4 holiday gate): shifted +8.
-        ("open_prep/realtime_signals.py", 3688),  # 2026-07-16 postmarket adapter shifted site: 3605->3688
+        ("open_prep/realtime_signals.py", 3787),  # 2026-07-17 A0 decision contract shifted site: 3688->3787
         ("open_prep/streamlit_monitor.py", 79),  # +1 from import time as _time (PR #2764)
         ("streamlit_terminal.py", 327),
         # 2026-07-04 (WP-3 backtest CLI): `os.environ["FMP_API_KEY"] = args.api_key`
