@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import copy
+import json
 import logging
 import os
 import re
@@ -220,21 +221,6 @@ try:
     )
 except ImportError:  # pragma: no cover
     _uw_configured = lambda: False  # type: ignore[assignment]
-
-# 2026-05-12 OPRA UOA replacement: when ENABLE_OPRA_UOA=1 and a Databento
-# key is configured, prefer the self-hosted OPRA.PILLAR-backed UOA
-# detector over the (now-cancelled) Unusual Whales flow-alerts feed.
-try:
-    from newsstack_fmp.ingest_opra_options_flow import (
-        fetch_opra_options_flow as _fetch_opra_options,
-    )
-except Exception as exc:  # pragma: no cover
-    logger.debug(
-        "OPRA options flow import unavailable: %s",
-        type(exc).__name__,
-        exc_info=True,
-    )
-    _fetch_opra_options = None  # type: ignore[assignment]
 
 # v3 P-4b/d: dark-pool prints, dealer-gamma-by-strike, marketwide tide.
 try:
@@ -653,35 +639,58 @@ def _cached_defense_wl_op(api_key: str) -> list[dict[str, Any]]:
         return []
 
 
-@st.cache_data(ttl=180, show_spinner=False)
-def _cached_bz_options_op(api_key: str, tickers: str) -> list[dict[str, Any]]:
-    """Cache options activity for 3 minutes.
+@st.cache_data(ttl=5, show_spinner=False)
+def _cached_opra_shadow_snapshot(path_raw: str) -> dict[str, Any]:
+    """Read the local sidecar snapshot; never contact a data provider."""
+    path = Path(path_raw)
+    try:
+        payload = json.loads(path.read_text(encoding="utf-8"))
+    except FileNotFoundError:
+        return {"status": "unavailable", "reason": "snapshot_not_found", "candidates": []}
+    except Exception as exc:
+        return {
+            "status": "unavailable",
+            "reason": f"snapshot_unreadable:{type(exc).__name__}",
+            "candidates": [],
+        }
+    if not isinstance(payload, dict) or payload.get("version") != "opra-shadow/v1":
+        return {"status": "unavailable", "reason": "snapshot_contract_invalid", "candidates": []}
+    try:
+        asof = datetime.fromisoformat(str(payload.get("asof") or "").replace("Z", "+00:00"))
+        if asof.tzinfo is None:
+            asof = asof.replace(tzinfo=UTC)
+        age_seconds = max(0.0, (datetime.now(UTC) - asof.astimezone(UTC)).total_seconds())
+    except (TypeError, ValueError):
+        age_seconds = None
+    payload["age_seconds"] = age_seconds
+    if age_seconds is None or age_seconds > 30.0:
+        payload["status"] = "stale"
+    try:
+        import databento_usage
 
-    Sole provider (since 2026-05-12): **Databento OPRA.PILLAR** via
-    :func:`newsstack_fmp.ingest_opra_options_flow.fetch_opra_options_flow`,
-    gated on ``ENABLE_OPRA_UOA`` (default 1) and a configured
-    ``DATABENTO_API_KEY``.
+        databento_usage.record(
+            dataset="OPRA.PILLAR",
+            schema="tcbbo",
+            mode="live",
+            consumer="streamlit-options",
+            downstream_reads=1,
+        )
+        databento_usage.flush()
+    except Exception:
+        logger.debug("OPRA downstream-read telemetry skipped", exc_info=True)
+    return payload
 
-    Historical paths (removed):
-      - Unusual Whales flow-alerts (PR #2158, subscription cancelled)
-      - Benzinga ``/api/v2.1/calendar/options_activity`` (retired upstream
-        2026-04-30, dead-code removed in chore/dead-code-benzinga-options-activity)
 
-    Function name retained for Streamlit cache-key stability; the
-    ``api_key`` parameter is the Benzinga key, kept in signature so callers
-    do not need refactoring even though it is unused on the OPRA path.
-    """
-    from open_prep.feature_flags import is_opra_uoa_enabled
-    if (
-        is_opra_uoa_enabled()
-        and _fetch_opra_options is not None
-        and os.environ.get("DATABENTO_API_KEY", "").strip()
-    ):
-        try:
-            return _fetch_opra_options(api_key, tickers) or []
-        except Exception:
-            logger.warning("_cached_bz_options_op (OPRA) failed", exc_info=True)
-    return []
+def load_opra_shadow_snapshot(path: str | Path | None = None) -> dict[str, Any]:
+    """Public local snapshot loader used by the explicitly loaded options tab."""
+    target = Path(
+        path
+        or os.getenv(
+            "OPRA_LIVE_SNAPSHOT_PATH",
+            "artifacts/monitoring/opra_live_shadow.json",
+        )
+    )
+    return _cached_opra_shadow_snapshot(str(target))
 
 
 def _get_bz_quotes_for_symbols(
@@ -2242,49 +2251,41 @@ def main() -> None:
 
             # ── Options Activity ──
             with bz_op_opts:
-                # Use top movers as default tickers for options
-                _opt_syms_default = "AAPL,NVDA,SPY,QQQ,TSLA"
-                _opt_tickers = st.text_input(
-                    "Ticker(s)",
-                    value=_opt_syms_default,
-                    placeholder="e.g. AAPL,NVDA,SPY",
-                    key="bz_op_opt_tickers",
+                st.caption(
+                    "Local shadow snapshot only. This tab never contacts Databento directly."
                 )
-                if _opt_tickers.strip():
-                    opt_data = _cached_bz_options_op(bz_key, _opt_tickers.strip())
-                    # Resolve display source label from the first record's
-                    # `_source` tag (set by OPRA wrapper). Falls back to a
-                    # Benzinga (retired) caption when OPRA is disabled.
-                    # Read via SSOT helper (audit-L-1 R4).
-                    from open_prep.feature_flags import is_opra_uoa_enabled
-                    _opra_active = (
-                        is_opra_uoa_enabled()
-                        and os.environ.get("DATABENTO_API_KEY", "").strip()
+                if st.button("Load / refresh OPRA shadow snapshot", key="load_opra_shadow"):
+                    _cached_opra_shadow_snapshot.clear()
+                    st.session_state["opra_shadow_loaded"] = True
+                if st.session_state.get("opra_shadow_loaded", False):
+                    snapshot = load_opra_shadow_snapshot()
+                    status = str(snapshot.get("status") or "unavailable")
+                    age = snapshot.get("age_seconds")
+                    age_label = f"{float(age):.1f}s" if isinstance(age, int | float) else "unknown"
+                    st.caption(
+                        f"Status: {status} · snapshot age: {age_label} · "
+                        f"shadow_only={bool(snapshot.get('shadow_only'))}"
                     )
-                    if opt_data and (opt_data[0].get("_source") == "databento_opra"):
-                        _src = "Databento OPRA.PILLAR"
-                    elif _opra_active:
-                        _src = "Databento OPRA.PILLAR (no rows in window)"
-                    else:
-                        _src = "Benzinga (retired)"
-                    if opt_data:
-                        df_o = pd.DataFrame(opt_data)
-                        # Hide raw payload column from the table view.
-                        # `_uw_raw` is retained defensively for any legacy
-                        # cached rows; new rows only carry `_opra_raw`.
-                        for _raw_col in ("_uw_raw", "_opra_raw"):
-                            if _raw_col in df_o.columns:
-                                df_o = df_o.drop(columns=[_raw_col])
-                        st.caption(f"{len(df_o)} options activity record(s) — source: {_src}")
-                        st.dataframe(df_o, width="stretch", height=min(400, 40 + 35 * len(df_o)))
-                    else:
-                        st.info(
-                            f"No options activity found (source: {_src}). "
-                            "Set ENABLE_OPRA_UOA=1 + DATABENTO_API_KEY to enable "
-                            "the Databento OPRA.PILLAR UOA detector."
+                    if status == "unavailable":
+                        st.warning(
+                            "OPRA shadow sidecar unavailable: "
+                            f"{snapshot.get('reason') or 'no local snapshot'}"
                         )
+                    elif status == "stale":
+                        st.warning("OPRA shadow snapshot is stale; rows are diagnostic only.")
+                    opt_data = snapshot.get("candidates") or []
+                    if isinstance(opt_data, list) and opt_data:
+                        df_o = pd.DataFrame(opt_data)
+                        st.caption(f"{len(df_o)} shadow options candidate(s)")
+                        st.dataframe(
+                            df_o,
+                            width="stretch",
+                            height=min(400, 40 + 35 * len(df_o)),
+                        )
+                    elif status != "unavailable":
+                        st.info("No OPRA shadow candidates in the current rolling window.")
                 else:
-                    st.info("Enter ticker(s) above to view options activity.")
+                    st.info("Load the local snapshot to inspect shadow-only options activity.")
 
             # ── Insider Trades ──
             with bz_op_insider:

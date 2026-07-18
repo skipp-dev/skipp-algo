@@ -8,9 +8,10 @@ The detector lives in ``newsstack_fmp.opra_uoa`` and is I/O-free; this module
 is the I/O shell that:
 
 1.  Resolves the ticker list and parent-symbology symbols (``AAPL.OPT``).
-2.  Pulls a short trailing window of OPRA ``trades`` records via
+2.  Pulls a bounded historical OPRA ``trades`` window only through the
+    provider's actual ``available_end``. This is research/backfill, not live.
     :pyclass:`databento_provider.DabentoProvider`.
-3.  Pulls the matching ``definition`` slice for the same window to resolve
+3.  Pulls and caches a UTC-day-aligned ``definition`` slice to resolve
     ``instrument_id`` -> underlying / strike / expiry / call-put.
 4.  Hands both to ``detect_unusual_options_activity`` and returns the
     Benzinga-compatible record list.
@@ -30,6 +31,7 @@ from __future__ import annotations
 
 import logging
 import os
+import threading
 from datetime import UTC, datetime, timedelta
 from typing import Any
 
@@ -74,6 +76,8 @@ _DEFAULT_TRADES_WINDOW_MIN = _safe_int_env("OPRA_UOA_TRADES_WINDOW_MIN", 15)
 _OPRA_DATASET = "OPRA.PILLAR"
 _TRADES_SCHEMA = "trades"
 _DEFINITION_SCHEMA = "definition"
+_DEFINITION_CACHE: dict[tuple[tuple[str, ...], str, str], list[OpraDefinitionRecord]] = {}
+_DEFINITION_CACHE_LOCK = threading.Lock()
 
 
 def _split_tickers(tickers: str | list[str] | tuple[str, ...] | None) -> list[str]:
@@ -159,8 +163,6 @@ def _make_provider(api_key: str | None) -> Any | None:
     except Exception:
         logger.debug("databento_provider import failed", exc_info=True)
         return None
-    # Prefer the explicit kwarg key, but fall back to the env-var path the
-    # provider itself honours so callers can wire either way.
     key = (api_key or os.getenv("DATABENTO_API_KEY", "") or "").strip()
     if not key:
         logger.debug("OPRA UOA: no Databento API key available")
@@ -170,6 +172,80 @@ def _make_provider(api_key: str | None) -> Any | None:
     except Exception:
         logger.warning("DabentoProvider instantiation failed", exc_info=True)
         return None
+
+
+def _historical_end(provider: Any, *, schema: str, requested_end: datetime) -> datetime | None:
+    """Clamp a research request to the provider's explicit available end."""
+    available = provider.get_schema_available_end(_OPRA_DATASET, schema)
+    if available is None:
+        logger.warning("OPRA historical %s available_end is unknown; failing closed", schema)
+        return None
+    value = available.to_pydatetime() if hasattr(available, "to_pydatetime") else available
+    if value.tzinfo is None:
+        value = value.replace(tzinfo=UTC)
+    value = value.astimezone(UTC)
+    lag = max(0.0, (requested_end - value).total_seconds())
+    try:
+        import databento_usage
+
+        databento_usage.record(
+            dataset=_OPRA_DATASET,
+            schema=schema,
+            mode="historical",
+            consumer="opra-uoa-research",
+            availability_lag_seconds=lag,
+        )
+    except Exception:
+        logger.debug("OPRA availability-lag telemetry skipped", exc_info=True)
+    return min(requested_end, value)
+
+
+def _definition_window(start: datetime, end: datetime) -> tuple[datetime, datetime]:
+    day_start = start.astimezone(UTC).replace(hour=0, minute=0, second=0, microsecond=0)
+    end_day = end.astimezone(UTC).replace(hour=0, minute=0, second=0, microsecond=0)
+    return day_start, end_day + timedelta(days=1)
+
+
+def _load_definitions(
+    provider: Any,
+    *,
+    symbols: list[str],
+    trade_start: datetime,
+    trade_end: datetime,
+) -> list[OpraDefinitionRecord]:
+    start, requested_end = _definition_window(trade_start, trade_end)
+    actual_end = _historical_end(provider, schema=_DEFINITION_SCHEMA, requested_end=requested_end)
+    if actual_end is None or actual_end <= start:
+        return []
+    key = (tuple(symbols), _format_ts(start), _format_ts(actual_end))
+    with _DEFINITION_CACHE_LOCK:
+        cached = _DEFINITION_CACHE.get(key)
+    if cached is not None:
+        try:
+            import databento_usage
+
+            databento_usage.record(
+                dataset=_OPRA_DATASET,
+                schema=_DEFINITION_SCHEMA,
+                mode="historical",
+                consumer="opra-uoa-research",
+                cache_hits=1,
+            )
+        except Exception:
+            logger.debug("OPRA definition cache telemetry skipped", exc_info=True)
+        return list(cached)
+    store = provider.get_range(
+        context="opra_uoa.definition",
+        dataset=_OPRA_DATASET,
+        symbols=symbols,
+        schema=_DEFINITION_SCHEMA,
+        start=_format_ts(start),
+        end=_format_ts(actual_end),
+    )
+    definitions = [OpraDefinitionRecord.from_row(row) for row in _store_to_rows(store)]
+    with _DEFINITION_CACHE_LOCK:
+        _DEFINITION_CACHE[key] = definitions
+    return list(definitions)
 
 
 def fetch_opra_options_flow(
@@ -220,8 +296,19 @@ def fetch_opra_options_flow(
 
     window_min = int(window_minutes or _DEFAULT_TRADES_WINDOW_MIN)
     window_min = max(window_min, 1)
-    end_dt = _utc_now()
-    start_dt = end_dt - timedelta(minutes=window_min)
+    requested_end_dt = _utc_now()
+    start_dt = requested_end_dt - timedelta(minutes=window_min)
+    end_dt = _historical_end(
+        provider,
+        schema=_TRADES_SCHEMA,
+        requested_end=requested_end_dt,
+    )
+    if end_dt is None or end_dt <= start_dt:
+        logger.info(
+            "OPRA research window is newer than Historical availability; "
+            "use the OPRA live shadow snapshot for current data"
+        )
+        return []
     start_iso = _format_ts(start_dt)
     end_iso = _format_ts(end_dt)
 
@@ -247,19 +334,13 @@ def fetch_opra_options_flow(
     if not trade_rows:
         return []
 
-    # ---- pull definitions (parallel slice) ----
-    # ``definition`` is published once per session per instrument, so even a
-    # 15-minute window typically yields a complete map for active strikes.
-    # If gaps surface in production we'll widen this to a session-aligned
-    # 24h pull and cache the resulting map.
+    # ---- pull definitions (UTC-day-aligned and cached) ----
     try:
-        defs_store = provider.get_range(
-            context="opra_uoa.definition",
-            dataset=_OPRA_DATASET,
+        definitions = _load_definitions(
+            provider,
             symbols=symbols,
-            schema=_DEFINITION_SCHEMA,
-            start=start_iso,
-            end=end_iso,
+            trade_start=start_dt,
+            trade_end=end_dt,
         )
     except Exception:
         logger.warning(
@@ -267,8 +348,7 @@ def fetch_opra_options_flow(
             norm_tickers, window_min, exc_info=True,
         )
         return []
-    def_rows = _store_to_rows(defs_store)
-    if not def_rows:
+    if not definitions:
         # Without definitions we cannot map instrument_id -> underlying.
         # Bail rather than emit malformed records.
         logger.info(
@@ -276,8 +356,6 @@ def fetch_opra_options_flow(
             norm_tickers, window_min,
         )
         return []
-
-    definitions = [OpraDefinitionRecord.from_row(r) for r in def_rows]
 
     try:
         records = detect_unusual_options_activity(

@@ -31,7 +31,7 @@ def main() -> None:
     if not databento_api_key:
         raise SystemExit("DATABENTO_API_KEY must be set in .env")
 
-    dataset = "DBEQ.BASIC"
+    dataset = "EQUS.MINI"
     lookback_days = 1
     min_market_cap = 200_000_000_000.0 if fmp_api_key else None
     window_start = time(16, 40)

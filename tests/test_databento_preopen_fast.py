@@ -10,6 +10,7 @@ from scripts.databento_preopen_fast import (
     _build_current_daily_features,
     _choose_scope_days,
     _merge_current_structure_features,
+    _normalize_exchange_label,
     _resolve_effective_dataset,
     _resolve_premarket_anchor_et,
     _resolve_scope_selection_column,
@@ -18,6 +19,12 @@ from scripts.databento_preopen_fast import (
     _target_scope_symbol_count,
     _write_fast_outputs,
 )
+
+
+def test_nyse_arca_is_not_collapsed_into_amex() -> None:
+    assert _normalize_exchange_label("ARCX") == "ARCA"
+    assert _normalize_exchange_label("NYSE ARCA") == "ARCA"
+    assert _normalize_exchange_label("XASE") == "AMEX"
 
 
 def test_resolve_target_trade_date_advances_to_current_et_day() -> None:
@@ -222,27 +229,27 @@ def test_aggregate_current_premarket_features_computes_gap_metrics() -> None:
     assert round(float(result.iloc[0]["prev_close_to_premarket_pct"]), 4) == 5.0
 
 
-def test_resolve_effective_dataset_uses_available_fallback(monkeypatch) -> None:
+def test_resolve_effective_dataset_keeps_role_semantics(monkeypatch) -> None:
     monkeypatch.setattr(
-        "scripts.databento_preopen_fast.list_accessible_datasets",
-        lambda api_key: ["XNAS.BASIC", "DBEQ.BASIC"],
+        "scripts.databento_preopen_fast.list_catalog_datasets",
+        lambda api_key: ["XNAS.BASIC", "EQUS.MINI"],
     )
 
-    resolved, available = _resolve_effective_dataset("test-key", "unknown.dataset")
+    resolved, available = _resolve_effective_dataset("test-key", "EQUS.MINI")
 
-    assert resolved == "DBEQ.BASIC"
-    assert available == ["XNAS.BASIC", "DBEQ.BASIC"]
+    assert resolved == "EQUS.MINI"
+    assert available == ["XNAS.BASIC", "EQUS.MINI"]
 
 
 def test_resolve_effective_dataset_gracefully_handles_dataset_listing_errors(monkeypatch) -> None:
     def fail_list(api_key):
         raise RuntimeError("401 unauthorized")
 
-    monkeypatch.setattr("scripts.databento_preopen_fast.list_accessible_datasets", fail_list)
+    monkeypatch.setattr("scripts.databento_preopen_fast.list_catalog_datasets", fail_list)
 
-    resolved, available = _resolve_effective_dataset("test-key", "xnas.basic")
+    resolved, available = _resolve_effective_dataset("test-key", "equs.mini")
 
-    assert resolved == "XNAS.BASIC"
+    assert resolved == "EQUS.MINI"
     assert available == []
 
 
@@ -303,13 +310,13 @@ def test_run_preopen_fast_refresh_raises_when_all_batches_fail(monkeypatch, tmp_
         metadata = _FailingMetadata()
 
     monkeypatch.setattr("scripts.databento_preopen_fast.load_export_bundle", lambda bundle, **kwargs: payload)
-    monkeypatch.setattr("scripts.databento_preopen_fast.list_accessible_datasets", lambda api_key: ["DBEQ.BASIC"])
+    monkeypatch.setattr("scripts.databento_preopen_fast.list_catalog_datasets", lambda api_key: ["EQUS.MINI"])
     monkeypatch.setattr("scripts.databento_preopen_fast._make_databento_client", lambda api_key: _FailingClient())
 
     try:
         run_preopen_fast_refresh(
             databento_api_key="test-key",
-            dataset="DBEQ.BASIC",
+            dataset="EQUS.MINI",
             export_dir=tmp_path,
             bundle=tmp_path,
             scope_days=1,
@@ -373,12 +380,12 @@ def test_run_preopen_fast_refresh_skips_fetch_when_dataset_not_available(monkeyp
         metadata = _EarlyEndMetadata()
 
     monkeypatch.setattr("scripts.databento_preopen_fast.load_export_bundle", lambda bundle, **kwargs: payload)
-    monkeypatch.setattr("scripts.databento_preopen_fast.list_accessible_datasets", lambda api_key: ["DBEQ.BASIC"])
+    monkeypatch.setattr("scripts.databento_preopen_fast.list_catalog_datasets", lambda api_key: ["EQUS.MINI"])
     monkeypatch.setattr("scripts.databento_preopen_fast._make_databento_client", lambda api_key: _MockClient())
 
     result = run_preopen_fast_refresh(
         databento_api_key="test-key",
-        dataset="DBEQ.BASIC",
+        dataset="EQUS.MINI",
         export_dir=tmp_path,
         bundle=tmp_path,
         scope_days=1,
@@ -437,7 +444,7 @@ def test_run_preopen_fast_refresh_raises_on_window_features_missing_trade_date(m
         metadata = _EarlyEndMetadata()
 
     monkeypatch.setattr("scripts.databento_preopen_fast.load_export_bundle", lambda bundle, **kwargs: payload)
-    monkeypatch.setattr("scripts.databento_preopen_fast.list_accessible_datasets", lambda api_key: ["DBEQ.BASIC"])
+    monkeypatch.setattr("scripts.databento_preopen_fast.list_catalog_datasets", lambda api_key: ["EQUS.MINI"])
     monkeypatch.setattr("scripts.databento_preopen_fast._make_databento_client", lambda api_key: _MockClient())
     monkeypatch.setattr(
         "scripts.databento_preopen_fast.build_premarket_window_features_full_universe_export",
@@ -447,7 +454,7 @@ def test_run_preopen_fast_refresh_raises_on_window_features_missing_trade_date(m
     try:
         run_preopen_fast_refresh(
             databento_api_key="test-key",
-            dataset="DBEQ.BASIC",
+            dataset="EQUS.MINI",
             export_dir=tmp_path,
             bundle=tmp_path,
             scope_days=1,
@@ -527,14 +534,14 @@ def test_run_preopen_fast_refresh_warns_when_target_trade_date_rows_are_missing(
         )
 
     monkeypatch.setattr("scripts.databento_preopen_fast.load_export_bundle", lambda bundle, **kwargs: payload)
-    monkeypatch.setattr("scripts.databento_preopen_fast.list_accessible_datasets", lambda api_key: ["DBEQ.BASIC"])
+    monkeypatch.setattr("scripts.databento_preopen_fast.list_catalog_datasets", lambda api_key: ["EQUS.MINI"])
     monkeypatch.setattr("scripts.databento_preopen_fast._make_databento_client", lambda api_key: _MockClient())
     monkeypatch.setattr("scripts.databento_preopen_fast.build_premarket_window_features_full_universe_export", _mock_window_builder)
     monkeypatch.setattr("scripts.databento_preopen_fast._build_quality_window_status_latest", lambda *args, **kwargs: pd.DataFrame())
 
     result = run_preopen_fast_refresh(
         databento_api_key="test-key",
-        dataset="DBEQ.BASIC",
+        dataset="EQUS.MINI",
         export_dir=tmp_path,
         bundle=tmp_path,
         scope_days=1,
@@ -606,14 +613,14 @@ def test_run_preopen_fast_refresh_passes_selected_score_profile_to_window_builde
         )
 
     monkeypatch.setattr("scripts.databento_preopen_fast.load_export_bundle", lambda bundle, **kwargs: payload)
-    monkeypatch.setattr("scripts.databento_preopen_fast.list_accessible_datasets", lambda api_key: ["DBEQ.BASIC"])
+    monkeypatch.setattr("scripts.databento_preopen_fast.list_catalog_datasets", lambda api_key: ["EQUS.MINI"])
     monkeypatch.setattr("scripts.databento_preopen_fast._make_databento_client", lambda api_key: _MockClient())
     monkeypatch.setattr("scripts.databento_preopen_fast.build_premarket_window_features_full_universe_export", _mock_window_builder)
     monkeypatch.setattr("scripts.databento_preopen_fast._build_quality_window_status_latest", lambda *args, **kwargs: pd.DataFrame())
 
     run_preopen_fast_refresh(
         databento_api_key="test-key",
-        dataset="DBEQ.BASIC",
+        dataset="EQUS.MINI",
         export_dir=tmp_path,
         bundle=tmp_path,
         scope_days=1,
@@ -637,7 +644,7 @@ def test_run_preopen_fast_refresh_rejects_invalid_score_profile_before_loading_b
     try:
         run_preopen_fast_refresh(
             databento_api_key="test-key",
-            dataset="DBEQ.BASIC",
+            dataset="EQUS.MINI",
             export_dir=tmp_path,
             bundle=tmp_path,
             scope_days=1,

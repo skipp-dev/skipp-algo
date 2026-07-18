@@ -9,7 +9,7 @@ Validates the four new arguments added to
   --shard-of   INT          (paired with --shard-id)
 
 Backward compatibility, success path, and all validation failure modes are
-covered without invoking any network IO (load_dotenv, dataset listing,
+covered without invoking any network IO (load_dotenv,
 trading-day listing, and the export pipeline are all mocked).
 """
 
@@ -32,10 +32,6 @@ def _patch_common(monkeypatch) -> dict[str, Any]:
     captured: dict[str, Any] = {}
 
     monkeypatch.setattr(mod, "load_dotenv", lambda *args, **kwargs: None)
-    monkeypatch.setattr(
-        mod, "list_accessible_datasets", lambda api_key: ["XNAS.ITCH", "DBEQ.BASIC"]
-    )
-
     # Default mock: returns a stable list spanning the full April 2026 range
     # used in the success test.  Individual tests can re-patch as needed.
     monkeypatch.setattr(
@@ -63,6 +59,8 @@ def _patch_common(monkeypatch) -> dict[str, Any]:
     monkeypatch.setenv("DATABENTO_API_KEY", "test-key")
     monkeypatch.delenv("FMP_API_KEY", raising=False)
     monkeypatch.delenv("DATABENTO_DATASET", raising=False)
+    monkeypatch.delenv("DATABENTO_EQUITY_INTRADAY_DATASET", raising=False)
+    monkeypatch.delenv("DATABENTO_EQUITY_EOD_DATASET", raising=False)
 
     return captured
 

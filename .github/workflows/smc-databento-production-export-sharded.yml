@@ -341,7 +341,8 @@ jobs:
           BENZINGA_API_KEY: ${{ secrets.BENZINGA_API_KEY }}
           # Transport-Flip (Massive-Reseller-Key) — repo variable, default direct.
           BENZINGA_PROVIDER: ${{ vars.BENZINGA_PROVIDER || 'direct' }}
-          DATABENTO_DATASET: ${{ vars.DATABENTO_DATASET }}
+          DATABENTO_EQUITY_INTRADAY_DATASET: ${{ vars.DATABENTO_EQUITY_INTRADAY_DATASET || 'EQUS.MINI' }}
+          DATABENTO_EQUITY_EOD_DATASET: ${{ vars.DATABENTO_EQUITY_EOD_DATASET || 'EQUS.SUMMARY' }}
           PYTHONUNBUFFERED: "1"
           # Q3a (post-Probe-v3): activate the parallel-fetch cure landed in
           # Q3 (#2098) for Step 5/10 (load_daily_bars). 4 workers fan out

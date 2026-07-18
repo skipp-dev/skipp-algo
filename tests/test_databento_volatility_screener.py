@@ -455,15 +455,14 @@ def test_cached_frame_coverage_full_partial_miss(tmp_path) -> None:
 
 def test_choose_default_dataset_prefers_requested_then_priority_order() -> None:
     available = ["DBEQ.BASIC", "XNAS.BASIC", "XNAS.ITCH"]
-    assert choose_default_dataset(available, requested_dataset="XNAS.BASIC") == "XNAS.BASIC"
-    assert choose_default_dataset(available, requested_dataset="EQUS.ALL") == "XNAS.ITCH"
-    assert choose_default_dataset(["XNAS.ITCH", "XNYS.PILLAR"], requested_dataset=None) == "XNAS.ITCH"
+    assert choose_default_dataset(available) == "EQUS.MINI"
+    with pytest.raises(ValueError, match="invalid for role"):
+        choose_default_dataset(available, requested_dataset="XNAS.BASIC")
 
 
 def test_choose_default_dataset_matches_requested_case_insensitively() -> None:
     available = ["DBEQ.BASIC", "XNAS.ITCH"]
-
-    assert choose_default_dataset(available, requested_dataset=" xnas.itch ") == "XNAS.ITCH"
+    assert choose_default_dataset(available, requested_dataset=" equs.mini ") == "EQUS.MINI"
 
 
 def test_import_databento_closes_new_idle_event_loops(monkeypatch) -> None:
@@ -1380,17 +1379,23 @@ def test_collect_quality_window_source_frames_prefers_exchange_specific_early_an
     bbb_premarket = premarket_detail.loc[premarket_detail["symbol"] == "BBB"].sort_values("timestamp")
     ccc_premarket = premarket_detail.loc[premarket_detail["symbol"] == "CCC"].sort_values("timestamp")
 
-    assert list(aaa_quality["close"]) == [100.0, 11.0, 12.0, 130.0]
-    assert list(bbb_quality["close"]) == [200.0, 21.0, 22.0, 230.0]
-    assert list(ccc_quality["close"]) == [300.0, 31.0, 32.0, 330.0]
-    assert list(aaa_premarket["close"]) == [100.0, 110.0, 120.0]
-    assert list(bbb_premarket["close"]) == [200.0, 210.0, 220.0]
-    assert list(ccc_premarket["close"]) == [300.0, 310.0, 320.0]
+    assert list(aaa_quality["close"]) == [10.0, 11.0, 12.0, 13.0]
+    assert list(bbb_quality["close"]) == [20.0, 21.0, 22.0, 23.0]
+    assert list(ccc_quality["close"]) == [30.0, 31.0, 32.0, 33.0]
+    assert list(aaa_quality["venue_close"].dropna()) == [100.0, 130.0]
+    assert list(bbb_quality["venue_close"].dropna()) == [200.0, 230.0]
+    assert list(ccc_quality["venue_close"].dropna()) == [300.0, 330.0]
+    assert list(aaa_premarket["close"]) == [10.0, 11.0, 12.0]
+    assert list(bbb_premarket["close"]) == [20.0, 21.0, 22.0]
+    assert list(ccc_premarket["close"]) == [30.0, 31.0, 32.0]
+    assert list(aaa_premarket["venue_close"]) == [100.0, 110.0, 120.0]
+    assert list(bbb_premarket["venue_close"]) == [200.0, 210.0, 220.0]
+    assert list(ccc_premarket["venue_close"]) == [300.0, 310.0, 320.0]
     assert metadata["applied_early_exchange_datasets"] == {"NASDAQ": "XNAS.BASIC", "NYSE": "XNYS.PILLAR", "AMEX": "XASE.PILLAR"}
     assert metadata["early_exchange_symbol_counts"] == {"NASDAQ": 1, "NYSE": 1, "AMEX": 1}
 
 
-def test_collect_quality_window_source_frames_uses_alternate_on_timestamp_collisions(monkeypatch, tmp_path: Path) -> None:
+def test_collect_quality_window_source_frames_preserves_base_on_timestamp_collisions(monkeypatch, tmp_path: Path) -> None:
     trade_day = date(2026, 3, 6)
     raw_universe = pd.DataFrame({"symbol": ["AAA"], "exchange": ["NASDAQ"]})
     supported_universe = raw_universe.copy()
@@ -1444,8 +1449,10 @@ def test_collect_quality_window_source_frames_uses_alternate_on_timestamp_collis
 
     assert len(quality_detail) == 1
     assert len(premarket_detail) == 1
-    assert float(quality_detail.iloc[0]["close"]) == 100.0
-    assert float(premarket_detail.iloc[0]["close"]) == 100.0
+    assert float(quality_detail.iloc[0]["close"]) == 10.0
+    assert float(premarket_detail.iloc[0]["close"]) == 10.0
+    assert float(quality_detail.iloc[0]["venue_close"]) == 100.0
+    assert quality_detail.iloc[0]["venue_source_dataset"] == "XNAS.BASIC"
 
 
 def test_collect_quality_window_source_frames_keeps_base_for_exchange_symbols_missing_in_alternate(monkeypatch, tmp_path: Path) -> None:
@@ -1517,8 +1524,10 @@ def test_collect_quality_window_source_frames_keeps_base_for_exchange_symbols_mi
 
     aaa_pm = premarket_detail.loc[premarket_detail["symbol"] == "AAA", "close"].tolist()
     aab_pm = premarket_detail.loc[premarket_detail["symbol"] == "AAB", "close"].tolist()
-    assert aaa_pm == [100.0]
+    assert aaa_pm == [10.0]
     assert aab_pm == [20.0]
+    assert premarket_detail.loc[premarket_detail["symbol"] == "AAA", "venue_close"].tolist() == [100.0]
+    assert premarket_detail.loc[premarket_detail["symbol"] == "AAB", "venue_close"].isna().all()
     assert set(quality_detail["symbol"].tolist()) == {"AAA", "AAB"}
 
 
@@ -1588,9 +1597,11 @@ def test_collect_quality_window_source_frames_keeps_base_rows_for_partial_altern
     )
 
     assert premarket_detail["timestamp"].dt.strftime("%H:%M:%S").tolist() == ["09:00:00", "09:10:00", "14:00:00", "14:10:00"]
-    assert premarket_detail["close"].tolist() == [100.0, 11.0, 12.0, 13.0]
+    assert premarket_detail["close"].tolist() == [10.0, 11.0, 12.0, 13.0]
+    assert premarket_detail["venue_close"].dropna().tolist() == [100.0]
     assert quality_detail["timestamp"].dt.strftime("%H:%M:%S").tolist() == ["09:00:00", "09:10:00", "14:00:00", "14:10:00", "14:30:10"]
-    assert quality_detail["close"].tolist() == [100.0, 11.0, 12.0, 13.0, 140.0]
+    assert quality_detail["close"].tolist() == [10.0, 11.0, 12.0, 13.0, 14.0]
+    assert quality_detail["venue_close"].dropna().tolist() == [100.0, 140.0]
 
 
 def test_collect_quality_window_source_frames_normalizes_symbol_aliases_for_exchange_routing(monkeypatch, tmp_path: Path) -> None:
@@ -1647,8 +1658,9 @@ def test_collect_quality_window_source_frames_normalizes_symbol_aliases_for_exch
 
     assert len(quality_detail) == 1
     assert len(premarket_detail) == 1
-    assert float(quality_detail.iloc[0]["close"]) == 100.0
-    assert float(premarket_detail.iloc[0]["close"]) == 100.0
+    assert float(quality_detail.iloc[0]["close"]) == 10.0
+    assert float(premarket_detail.iloc[0]["close"]) == 10.0
+    assert float(quality_detail.iloc[0]["venue_close"]) == 100.0
     assert metadata["applied_early_exchange_datasets"] == {"NYSE": "XNYS.PILLAR"}
 
 
@@ -1706,8 +1718,9 @@ def test_collect_quality_window_source_frames_normalizes_exchange_aliases_for_am
 
     assert len(quality_detail) == 1
     assert len(premarket_detail) == 1
-    assert float(quality_detail.iloc[0]["close"]) == 100.0
-    assert float(premarket_detail.iloc[0]["close"]) == 100.0
+    assert float(quality_detail.iloc[0]["close"]) == 10.0
+    assert float(premarket_detail.iloc[0]["close"]) == 10.0
+    assert float(quality_detail.iloc[0]["venue_close"]) == 100.0
     assert metadata["applied_early_exchange_datasets"] == {"AMEX": "XASE.PILLAR"}
 
 
@@ -4984,13 +4997,9 @@ def test_tradingview_watchlist_writes_are_atomic(tmp_path) -> None:
     assert temps == [], f"Leftover temp files: {temps}"
 
 
-def test_choose_default_dataset_warns_on_fallback(caplog) -> None:
-    """A warning should be logged when the requested dataset is not available."""
-    import logging
-    with caplog.at_level(logging.WARNING):
-        result = choose_default_dataset(["DBEQ.BASIC"], requested_dataset="EQUS.ALL")
-    assert result == "DBEQ.BASIC"
-    assert any("EQUS.ALL" in msg for msg in caplog.messages)
+def test_choose_default_dataset_rejects_cross_role_override() -> None:
+    with pytest.raises(ValueError, match="invalid for role"):
+        choose_default_dataset(["DBEQ.BASIC"], requested_dataset="EQUS.ALL")
 
 
 def test_streamlit_watchlist_txt_exports_are_atomic(tmp_path) -> None:
@@ -5205,14 +5214,12 @@ def test_deduplicate_daily_symbol_rows_nan_volume_keeps_row_with_valid_close() -
     assert float(deduped.iloc[0]["volume"]) == 500.0
 
 
-def test_databento_production_export_main_uses_preferred_dataset_fallback(monkeypatch) -> None:
+def test_databento_production_export_main_uses_explicit_dataset_roles(monkeypatch) -> None:
     from scripts import databento_production_export as mod
 
     captured: dict[str, Any] = {}
 
     monkeypatch.setattr(mod, "load_dotenv", lambda *args, **kwargs: None)
-    monkeypatch.setattr(mod, "list_accessible_datasets", lambda api_key: ["XNAS.ITCH", "DBEQ.BASIC"])
-
     def fake_run_production_export_pipeline(**kwargs):
         captured.update(kwargs)
         return {
@@ -5225,11 +5232,13 @@ def test_databento_production_export_main_uses_preferred_dataset_fallback(monkey
     monkeypatch.setattr(mod, "run_production_export_pipeline", fake_run_production_export_pipeline)
     monkeypatch.setenv("DATABENTO_API_KEY", "test-key")
     monkeypatch.delenv("FMP_API_KEY", raising=False)
-    monkeypatch.delenv("DATABENTO_DATASET", raising=False)
+    monkeypatch.delenv("DATABENTO_EQUITY_INTRADAY_DATASET", raising=False)
+    monkeypatch.delenv("DATABENTO_EQUITY_EOD_DATASET", raising=False)
 
     mod.main()
 
-    assert captured["dataset"] == "XNAS.ITCH"
+    assert captured["dataset"] == "EQUS.MINI"
+    assert captured["daily_dataset"] == "EQUS.SUMMARY"
 
 
 def test_run_production_export_pipeline_skips_cost_estimate_for_unlimited_plan(monkeypatch, tmp_path) -> None:
@@ -5267,7 +5276,7 @@ def test_run_production_export_pipeline_skips_cost_estimate_for_unlimited_plan(m
         run_production_export_pipeline(
             databento_api_key="test-key",
             fmp_api_key="",
-            dataset="DBEQ.BASIC",
+                dataset="EQUS.MINI",
             cache_dir=tmp_path,
             export_dir=tmp_path,
             progress_callback=progress_messages.append,
@@ -5311,7 +5320,7 @@ def test_run_production_export_pipeline_estimates_costs_only_when_explicitly_ena
         run_production_export_pipeline(
             databento_api_key="test-key",
             fmp_api_key="",
-            dataset="DBEQ.BASIC",
+                dataset="EQUS.MINI",
             cache_dir=tmp_path,
             export_dir=tmp_path,
             skip_cost_estimate=False,
@@ -5372,7 +5381,7 @@ def test_run_production_export_pipeline_smc_base_only_trims_close_detail_scope(m
         run_production_export_pipeline(
             databento_api_key="test-key",
             fmp_api_key="",
-            dataset="DBEQ.BASIC",
+                dataset="EQUS.MINI",
             cache_dir=tmp_path,
             export_dir=tmp_path,
             smc_base_only=True,
@@ -5476,7 +5485,7 @@ def test_run_production_export_pipeline_smc_base_only_slims_runtime_bundle_and_l
     result = run_production_export_pipeline(
         databento_api_key="test-key",
         fmp_api_key="",
-        dataset="DBEQ.BASIC",
+            dataset="EQUS.MINI",
         cache_dir=tmp_path,
         export_dir=tmp_path,
         smc_base_only=True,
@@ -5713,15 +5722,15 @@ def test_deduplicate_daily_symbol_rows_missing_required_columns() -> None:
 
 
 def test_choose_default_dataset_empty_list_returns_fallback() -> None:
-    """Empty available list with no requested → returns first preferred."""
+    """Catalog emptiness cannot change the canonical role."""
     result = choose_default_dataset([], requested_dataset=None)
-    assert result == "XNAS.ITCH"
+    assert result == "EQUS.MINI"
 
 
 def test_choose_default_dataset_empty_list_with_request_returns_request() -> None:
-    """Empty available list but requested dataset → returns requested."""
-    result = choose_default_dataset([], requested_dataset="CUSTOM.DS")
-    assert result == "CUSTOM.DS"
+    """An arbitrary requested dataset is never accepted as fallback."""
+    with pytest.raises(ValueError, match="invalid for role"):
+        choose_default_dataset([], requested_dataset="CUSTOM.DS")
 
 
 def test_normalize_exchange_key_covers_all_aliases() -> None:

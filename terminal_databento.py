@@ -22,11 +22,9 @@ from zoneinfo import ZoneInfo as _ZoneInfo
 import pandas as pd
 
 from databento_client import _databento_get_range_with_retry
+from databento_dataset_policy import DatasetMode, DatasetRole, resolve_dataset
 from databento_reference import maybe_refresh_symbol_reference_cache
 from databento_utils import normalize_symbol_for_databento
-from databento_volatility_screener import (
-    PREFERRED_DATABENTO_DATASETS as _PREFERRED_DATASETS,
-)
 from databento_volatility_screener import (
     _clamp_request_end,
     _get_schema_available_end,
@@ -348,14 +346,8 @@ def _reset_dataset_cache() -> None:
 
 
 def _pick_dataset(client: Any, api_key: str) -> str:
-    """Choose the best available dataset for *client* (scoped by *api_key*).
-
-    Audit 2026-05-10 (PR-C): the cache used to be a single module-global
-    string, so the first client's dataset was returned for every
-    subsequent call regardless of which API key (or which Databento
-    account / entitlement set) was in use. The cache is now a dict keyed
-    by an opaque per-key fingerprint.
-    """
+    """Resolve the canonical daily dataset without catalog-driven fallback."""
+    del client
     fp = _client_fingerprint(api_key)
     cached = _dataset_cache.get(fp)
     if cached is not None:
@@ -364,21 +356,16 @@ def _pick_dataset(client: Any, api_key: str) -> str:
         cached = _dataset_cache.get(fp)
         if cached is not None:
             return cached
-        try:
-            available = client.metadata.list_datasets()
-            available_set = {str(d) for d in available}
-            for ds in _PREFERRED_DATASETS:
-                if ds in available_set:
-                    _dataset_cache[fp] = ds
-                    logger.info("Databento dataset selected: %s", ds)
-                    return ds
-            # Fallback
-            picked = str(available[0]) if available else "DBEQ.BASIC"
-            _dataset_cache[fp] = picked
-            return picked
-        except Exception:
-            _dataset_cache[fp] = "DBEQ.BASIC"
-            return "DBEQ.BASIC"
+        picked = resolve_dataset(
+            DatasetRole.EQUITY_EOD_CANONICAL,
+            requested_dataset=os.getenv("DATABENTO_EQUITY_EOD_DATASET")
+            or "EQUS.SUMMARY",
+            schema="ohlcv-1d",
+            mode=DatasetMode.HISTORICAL,
+        )
+        _dataset_cache[fp] = picked
+        logger.info("Databento daily dataset selected: %s", picked)
+        return picked
 
 
 def get_dataset_info(api_key: str | None = None) -> dict[str, Any]:

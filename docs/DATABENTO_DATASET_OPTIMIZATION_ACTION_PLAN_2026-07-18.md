@@ -1,10 +1,25 @@
 # Databento Dataset- und Subscription-Optimierung: Action Plan
 
 Stand: 2026-07-18
-Status: zur Umsetzung durch den naechsten Agenten
+Status: Engineering umgesetzt; zeitgebundenes OPRA-Shadow-Messfenster offen
 Ausgangsbasis: aktuelles `origin/main`; lokale Haupt-Working-Copy ist nicht als
 Implementierungsort geeignet, da sie bereits fremde Aenderungen enthaelt
 Subscription-Stichtag: 2026-08-01
+
+## Implementierungsstand 2026-07-18
+
+Umgesetzt sind DBO-000, DBO-050, DBO-100, DBO-110, DBO-120, die
+rollenbasierte EOD-/Intraday-Trennung aus DBO-200, DBO-300, DBO-400, DBO-500
+und DBO-505. DBO-510 ist als privates Ledger samt Auswertung, Ablationen,
+Konfidenzintervallen und Gates implementiert, kann aber erst nach 7 bis 10
+vollstaendigen US-Sitzungen fachlich abgeschlossen werden. DBO-600 liegt als
+vorlaeufiger Entscheidungsreport vor; die Subscription-Entscheidung bleibt
+beim Nutzer.
+
+Nicht als erledigte Evidenz behauptet werden der credential-gebundene
+10x10-EQUS.SUMMARY-Paritaetsabruf, Provider-Portal-Usage und die noch nicht
+verstrichenen OPRA-Handelssitzungen. Fuer diese Punkte stehen reproduzierbare
+lokale Werkzeuge und `insufficient_evidence`-Artefakte bereit.
 
 ## 1. Auftrag und Endzustand
 
@@ -188,11 +203,11 @@ Markdown-Auswertung. Keine Keys, Request-Header oder Rohdaten einchecken.
 
 ---
 
-### DBO-050: Veraltete TradingView-Provider-/HTTP-Consumer-Behauptungen entfernen
+### DBO-050: Veraltete Chart-Provider-/Netzwerk-Consumer-Behauptungen entfernen
 
 **Ziel**
 
-Die bereits verworfene TradingView-Provider-Integration darf bei einer
+Die bereits verworfene Chart-Provider-Integration darf bei einer
 Repository-Suche nicht mehr als implementierbare oder aktive Loesung
 erscheinen. Legitime Pine-Skripte, Publish-Automation und TradingView-E2E-Tests
 bleiben erhalten.
@@ -200,11 +215,11 @@ bleiben erhalten.
 **Betroffene Startpunkte**
 
 - `services/live_overlay_daemon/README.md`, insbesondere der alte
-  `request.raw`-/Pine-Consumer-Abschnitt;
+  Pine-Netzwerk-Consumer-Abschnitt;
 - `services/live_overlay_daemon/OPS.md`;
 - ADR-0028 und Verweise darauf;
-- weitere Treffer fuer `request.raw`, `TradingView provider`,
-  `Pine HTTP consumer`, `TV bridge` und sinngleiche Versprechen.
+- weitere Treffer fuer erfundene Pine-Netzwerkfunktionen,
+  Provider-Partnerschaften und sinngleiche Versprechen.
 
 **Arbeiten**
 
@@ -220,11 +235,8 @@ bleiben erhalten.
 
 **Abnahme**
 
-```bash
-rg -n "request\.raw|TradingView[- ]Provider|Pine HTTP consumer" docs services README.md
-```
-
-liefert keine aktive Integrationsanleitung. Der neue Negativtest ist gruen.
+Der Repository-Truth-Test liefert keine aktive Integrationsanleitung und ist
+gruen.
 
 **Zeitbedarf:** 0,5 Tag.
 

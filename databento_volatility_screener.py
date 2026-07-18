@@ -239,12 +239,12 @@ SUPPORTED_DISPLAY_TZ = {
     "America/New_York": ZoneInfo("America/New_York"),
     "Europe/Berlin": ZoneInfo("Europe/Berlin"),
 }
-PREFERRED_DATABENTO_DATASETS = (
-    "XNAS.ITCH",
-    "XNYS.PILLAR",
-    "DBEQ.BASIC",
-    "XNAS.BASIC",
-)
+# Dataset choice is now resolved by databento_dataset_policy at the caller.
+# Catalog order must never change the consolidated market-data role.
+# The former global preference tuple intentionally has no replacement here.
+# Venue datasets remain additive feature sources, not base-series fallbacks.
+# Keep this explanatory block stable because downstream audit pins are exact.
+# See DatasetRole.EQUITY_INTRADAY_PARITY for the canonical contract.
 # ET-relative defaults for the intraday screening window
 _DEFAULT_INTRADAY_PRE_OPEN_MINUTES = 10
 _DEFAULT_INTRADAY_POST_OPEN_MINUTES = 30
@@ -1022,30 +1022,47 @@ def _daily_request_end_exclusive(last_trading_day: date, available_end: pd.Times
 
 
 def list_accessible_datasets(databento_api_key: str | None = None) -> list[str]:
+    """Deprecated catalog alias; catalog membership is not entitlement."""
+    import warnings
+
+    warnings.warn(
+        "list_accessible_datasets() returns the global catalog, not entitlements; "
+        "use list_catalog_datasets()",
+        DeprecationWarning,
+        stacklevel=2,
+    )
+    return list_catalog_datasets(databento_api_key)
+
+
+def list_catalog_datasets(databento_api_key: str | None = None) -> list[str]:
+    """Return Databento's global catalog without claiming account access."""
     client = _make_databento_client(databento_api_key)
-    datasets = client.metadata.list_datasets()
-    return sorted({str(dataset) for dataset in datasets if dataset})
+    from databento_access import list_catalog_datasets_from_client
+
+    return list_catalog_datasets_from_client(client)
 
 
 def choose_default_dataset(
     available_datasets: list[str],
     requested_dataset: str | None = None,
 ) -> str:
-    normalized = [str(dataset).strip() for dataset in available_datasets if str(dataset).strip()]
-    available_lookup = {dataset.upper(): dataset for dataset in normalized}
-    requested_normalized = str(requested_dataset).strip() if requested_dataset else None
-    if requested_normalized:
-        matched_requested = available_lookup.get(requested_normalized.upper())
-        if matched_requested:
-            return matched_requested
-        logger.warning("Requested dataset %r not in available datasets %r, falling back.", requested_dataset, normalized)
-    for dataset in PREFERRED_DATABENTO_DATASETS:
-        matched_preferred = available_lookup.get(dataset.upper())
-        if matched_preferred:
-            return matched_preferred
-    if normalized:
-        return normalized[0]
-    return requested_normalized or PREFERRED_DATABENTO_DATASETS[0]
+    """Deprecated fail-closed compatibility wrapper for the intraday role."""
+    import warnings
+
+    from databento_dataset_policy import DatasetMode, DatasetRole, resolve_dataset
+
+    del available_datasets
+    warnings.warn(
+        "choose_default_dataset() no longer uses catalog order; use resolve_dataset(role=...)",
+        DeprecationWarning,
+        stacklevel=2,
+    )
+    return resolve_dataset(
+        DatasetRole.EQUITY_INTRADAY_PARITY,
+        requested_dataset=requested_dataset or "EQUS.MINI",
+        schema="ohlcv-1m",
+        mode=DatasetMode.HISTORICAL,
+    )
 
 
 def _safe_float(value: Any, default: float | None = None) -> float | None:
@@ -5310,7 +5327,12 @@ def run_streamlit_app() -> None:
         databento_api_key = str(st.session_state.get("dvs_databento_api_key", "")).strip()
         fmp_api_key = str(st.session_state.get("dvs_fmp_api_key", "")).strip()
         export_dir = st.text_input("Export directory", value=str(default_export_directory()))
-        dataset = st.text_input("Databento dataset", value=os.getenv("DATABENTO_DATASET", "DBEQ.BASIC"))
+        dataset = st.text_input(
+            "Databento intraday dataset",
+            value=os.getenv("DATABENTO_EQUITY_INTRADAY_DATASET", "EQUS.MINI"),
+            disabled=True,
+            help="The broad intraday role is fail-closed to EQUS.MINI.",
+        )
         lookback_days = st.number_input("Trading days", min_value=1, max_value=90, value=30)
         top_n = st.number_input("Top N watchlist", min_value=1, max_value=25, value=default_top_n)
         bullish_score_profile = st.selectbox(

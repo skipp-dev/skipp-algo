@@ -1,14 +1,15 @@
 # Live Overlay — Pine delivery status
 
 > Status corrected 2026-07-16. This file previously described a Pine
-> `request.get()`/JSON architecture that TradingView Pine does not support.
+> a retired server-to-Pine network architecture that TradingView Pine does not
+> support.
 
 The Railway live-overlay daemon and its authenticated `/smc_live` API remain
 operational for server-side and future supported consumers. There is currently
 **no Pine consumer** for that REST endpoint:
 
 - Pine v6 exposes no documented arbitrary HTTP GET/POST client.
-- The retired `request.raw()` consumer failed in TradingView with CE10271.
+- The retired Pine network consumer failed to compile in TradingView.
 - Webhooks send alerts out of TradingView and cannot pull JSON into Pine.
 - Advanced Charts' JavaScript Datafeed API applies to charts embedded on our
   site, not to scripts running on tradingview.com.

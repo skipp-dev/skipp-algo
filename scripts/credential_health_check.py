@@ -429,9 +429,9 @@ def probe_databento(key: str, opener: Any = None) -> ProbeResult:
     )
 
 
-# Dataset the pipeline actually consumes (open_prep/outcome_backfill.py).
-DATABENTO_DELIVERY_DATASET = "DBEQ.BASIC"
-# DBEQ.BASIC is a daily dataset; weekend + market holiday can stack to
+# Canonical end-of-day source included in US Equities Standard.
+DATABENTO_DELIVERY_DATASET = "EQUS.SUMMARY"
+# EQUS.SUMMARY advances after each completed session; weekends and holidays can stack to
 # ~4 calendar days without new data. 5 days of silence is a real problem
 # (e.g. account suspended for non-payment while metadata auth still works).
 DATABENTO_DELIVERY_MAX_STALENESS_DAYS = 5.0
@@ -452,7 +452,7 @@ def probe_databento_delivery(
     12 days. ``list_publishers`` keeps returning HTTP 200 with broken
     billing, so the key probe alone cannot catch a suspended account.
     This probe calls ``metadata.get_dataset_range`` (free metadata call)
-    for the dataset the pipeline consumes and alarms when the dataset's
+    for the canonical EOD dataset and alarms when its
     available ``end`` date stops advancing — the symptom of an account
     that silently stopped receiving data.
     """

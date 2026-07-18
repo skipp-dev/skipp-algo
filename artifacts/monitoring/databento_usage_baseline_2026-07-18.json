@@ -1,0 +1,4236 @@
+{
+  "classification_counts": {
+    "documentation": 84,
+    "historical_artifact_or_report": 42,
+    "research_or_cli": 24,
+    "runtime_or_library": 127,
+    "test_fixture": 238,
+    "workflow_configuration": 5
+  },
+  "findings": [
+    {
+      "classification": "workflow_configuration",
+      "line": 40,
+      "matches": [
+        "XNAS.ITCH"
+      ],
+      "path": ".github/workflows/edge-pipeline-real-run.yml"
+    },
+    {
+      "classification": "workflow_configuration",
+      "line": 43,
+      "matches": [
+        "XNAS.ITCH"
+      ],
+      "path": ".github/workflows/edge-pipeline-real-run.yml"
+    },
+    {
+      "classification": "workflow_configuration",
+      "line": 86,
+      "matches": [
+        "OPRA.PILLAR"
+      ],
+      "path": ".github/workflows/edge-pipeline-real-run.yml"
+    },
+    {
+      "classification": "workflow_configuration",
+      "line": 344,
+      "matches": [
+        "DATABENTO_DATASET"
+      ],
+      "path": ".github/workflows/smc-databento-production-export-sharded.yml"
+    },
+    {
+      "classification": "workflow_configuration",
+      "line": 275,
+      "matches": [
+        "DATABENTO_DATASET"
+      ],
+      "path": ".github/workflows/smc-databento-production-export.yml"
+    },
+    {
+      "classification": "runtime_or_library",
+      "line": 61,
+      "matches": [
+        "XNAS.ITCH"
+      ],
+      "path": "BACKTEST_VALIDATION_GUIDE.md"
+    },
+    {
+      "classification": "documentation",
+      "line": 847,
+      "matches": [
+        "EQUS.MINI"
+      ],
+      "path": "CHANGELOG.md"
+    },
+    {
+      "classification": "documentation",
+      "line": 1299,
+      "matches": [
+        "DBEQ.BASIC"
+      ],
+      "path": "CHANGELOG.md"
+    },
+    {
+      "classification": "documentation",
+      "line": 2685,
+      "matches": [
+        "OPRA.PILLAR"
+      ],
+      "path": "CHANGELOG.md"
+    },
+    {
+      "classification": "documentation",
+      "line": 2695,
+      "matches": [
+        "OPRA.PILLAR"
+      ],
+      "path": "CHANGELOG.md"
+    },
+    {
+      "classification": "documentation",
+      "line": 2704,
+      "matches": [
+        "OPRA.PILLAR"
+      ],
+      "path": "CHANGELOG.md"
+    },
+    {
+      "classification": "historical_artifact_or_report",
+      "line": 2,
+      "matches": [
+        "DBEQ.BASIC"
+      ],
+      "path": "artifacts/ci/fvg_asia_real_sample_60d.json"
+    },
+    {
+      "classification": "historical_artifact_or_report",
+      "line": 3,
+      "matches": [
+        "DBEQ.BASIC"
+      ],
+      "path": "artifacts/open_prep/outcome_backfill/backfill_20260430T065458.json"
+    },
+    {
+      "classification": "historical_artifact_or_report",
+      "line": 3,
+      "matches": [
+        "DBEQ.BASIC"
+      ],
+      "path": "artifacts/open_prep/outcome_backfill/backfill_20260504T190945.json"
+    },
+    {
+      "classification": "historical_artifact_or_report",
+      "line": 3,
+      "matches": [
+        "DBEQ.BASIC"
+      ],
+      "path": "artifacts/open_prep/outcome_backfill/backfill_20260505T191014.json"
+    },
+    {
+      "classification": "historical_artifact_or_report",
+      "line": 3,
+      "matches": [
+        "DBEQ.BASIC"
+      ],
+      "path": "artifacts/open_prep/outcome_backfill/backfill_20260506T190557.json"
+    },
+    {
+      "classification": "historical_artifact_or_report",
+      "line": 3,
+      "matches": [
+        "DBEQ.BASIC"
+      ],
+      "path": "artifacts/open_prep/outcome_backfill/backfill_20260508T190922.json"
+    },
+    {
+      "classification": "historical_artifact_or_report",
+      "line": 3,
+      "matches": [
+        "DBEQ.BASIC"
+      ],
+      "path": "artifacts/open_prep/outcome_backfill/backfill_20260511T191035.json"
+    },
+    {
+      "classification": "historical_artifact_or_report",
+      "line": 3,
+      "matches": [
+        "DBEQ.BASIC"
+      ],
+      "path": "artifacts/open_prep/outcome_backfill/backfill_20260512T191718.json"
+    },
+    {
+      "classification": "historical_artifact_or_report",
+      "line": 3,
+      "matches": [
+        "DBEQ.BASIC"
+      ],
+      "path": "artifacts/open_prep/outcome_backfill/backfill_20260513T192125.json"
+    },
+    {
+      "classification": "historical_artifact_or_report",
+      "line": 3,
+      "matches": [
+        "DBEQ.BASIC"
+      ],
+      "path": "artifacts/open_prep/outcome_backfill/backfill_20260514T191850.json"
+    },
+    {
+      "classification": "historical_artifact_or_report",
+      "line": 3,
+      "matches": [
+        "DBEQ.BASIC"
+      ],
+      "path": "artifacts/open_prep/outcome_backfill/backfill_20260518T191921.json"
+    },
+    {
+      "classification": "historical_artifact_or_report",
+      "line": 3,
+      "matches": [
+        "DBEQ.BASIC"
+      ],
+      "path": "artifacts/open_prep/outcome_backfill/backfill_20260521T191934.json"
+    },
+    {
+      "classification": "historical_artifact_or_report",
+      "line": 3,
+      "matches": [
+        "DBEQ.BASIC"
+      ],
+      "path": "artifacts/open_prep/outcome_backfill/backfill_20260522T192050.json"
+    },
+    {
+      "classification": "historical_artifact_or_report",
+      "line": 3,
+      "matches": [
+        "DBEQ.BASIC"
+      ],
+      "path": "artifacts/open_prep/outcome_backfill/backfill_20260525T192157.json"
+    },
+    {
+      "classification": "historical_artifact_or_report",
+      "line": 3,
+      "matches": [
+        "DBEQ.BASIC"
+      ],
+      "path": "artifacts/open_prep/outcome_backfill/backfill_20260527T193832.json"
+    },
+    {
+      "classification": "historical_artifact_or_report",
+      "line": 3,
+      "matches": [
+        "DBEQ.BASIC"
+      ],
+      "path": "artifacts/open_prep/outcome_backfill/backfill_20260528T194331.json"
+    },
+    {
+      "classification": "historical_artifact_or_report",
+      "line": 3,
+      "matches": [
+        "DBEQ.BASIC"
+      ],
+      "path": "artifacts/open_prep/outcome_backfill/backfill_20260529T194133.json"
+    },
+    {
+      "classification": "historical_artifact_or_report",
+      "line": 3,
+      "matches": [
+        "DBEQ.BASIC"
+      ],
+      "path": "artifacts/open_prep/outcome_backfill/backfill_20260601T194520.json"
+    },
+    {
+      "classification": "historical_artifact_or_report",
+      "line": 3,
+      "matches": [
+        "DBEQ.BASIC"
+      ],
+      "path": "artifacts/open_prep/outcome_backfill/backfill_20260602T200200.json"
+    },
+    {
+      "classification": "historical_artifact_or_report",
+      "line": 3,
+      "matches": [
+        "DBEQ.BASIC"
+      ],
+      "path": "artifacts/open_prep/outcome_backfill/backfill_20260603T195924.json"
+    },
+    {
+      "classification": "historical_artifact_or_report",
+      "line": 3,
+      "matches": [
+        "DBEQ.BASIC"
+      ],
+      "path": "artifacts/open_prep/outcome_backfill/backfill_20260608T192353.json"
+    },
+    {
+      "classification": "historical_artifact_or_report",
+      "line": 3,
+      "matches": [
+        "DBEQ.BASIC"
+      ],
+      "path": "artifacts/open_prep/outcome_backfill/backfill_20260609T194125.json"
+    },
+    {
+      "classification": "historical_artifact_or_report",
+      "line": 3,
+      "matches": [
+        "DBEQ.BASIC"
+      ],
+      "path": "artifacts/open_prep/outcome_backfill/backfill_20260611T185215.json"
+    },
+    {
+      "classification": "historical_artifact_or_report",
+      "line": 3,
+      "matches": [
+        "DBEQ.BASIC"
+      ],
+      "path": "artifacts/open_prep/outcome_backfill/backfill_20260612T184658.json"
+    },
+    {
+      "classification": "historical_artifact_or_report",
+      "line": 3,
+      "matches": [
+        "DBEQ.BASIC"
+      ],
+      "path": "artifacts/open_prep/outcome_backfill/backfill_20260615T185508.json"
+    },
+    {
+      "classification": "historical_artifact_or_report",
+      "line": 3,
+      "matches": [
+        "DBEQ.BASIC"
+      ],
+      "path": "artifacts/open_prep/outcome_backfill/backfill_20260616T185322.json"
+    },
+    {
+      "classification": "historical_artifact_or_report",
+      "line": 3,
+      "matches": [
+        "DBEQ.BASIC"
+      ],
+      "path": "artifacts/open_prep/outcome_backfill/backfill_20260618T185348.json"
+    },
+    {
+      "classification": "historical_artifact_or_report",
+      "line": 3,
+      "matches": [
+        "DBEQ.BASIC"
+      ],
+      "path": "artifacts/open_prep/outcome_backfill/backfill_20260619T183445.json"
+    },
+    {
+      "classification": "historical_artifact_or_report",
+      "line": 3,
+      "matches": [
+        "DBEQ.BASIC"
+      ],
+      "path": "artifacts/open_prep/outcome_backfill/backfill_20260623T184236.json"
+    },
+    {
+      "classification": "historical_artifact_or_report",
+      "line": 3,
+      "matches": [
+        "DBEQ.BASIC"
+      ],
+      "path": "artifacts/open_prep/outcome_backfill/backfill_20260624T184245.json"
+    },
+    {
+      "classification": "historical_artifact_or_report",
+      "line": 3,
+      "matches": [
+        "DBEQ.BASIC"
+      ],
+      "path": "artifacts/open_prep/outcome_backfill/backfill_20260630T184318.json"
+    },
+    {
+      "classification": "historical_artifact_or_report",
+      "line": 3,
+      "matches": [
+        "DBEQ.BASIC"
+      ],
+      "path": "artifacts/open_prep/outcome_backfill/backfill_20260702T183810.json"
+    },
+    {
+      "classification": "historical_artifact_or_report",
+      "line": 3,
+      "matches": [
+        "DBEQ.BASIC"
+      ],
+      "path": "artifacts/open_prep/outcome_backfill/backfill_20260707T183721.json"
+    },
+    {
+      "classification": "historical_artifact_or_report",
+      "line": 3,
+      "matches": [
+        "DBEQ.BASIC"
+      ],
+      "path": "artifacts/open_prep/outcome_backfill/backfill_20260708T183653.json"
+    },
+    {
+      "classification": "historical_artifact_or_report",
+      "line": 3,
+      "matches": [
+        "DBEQ.BASIC"
+      ],
+      "path": "artifacts/open_prep/outcome_backfill/backfill_20260709T184437.json"
+    },
+    {
+      "classification": "historical_artifact_or_report",
+      "line": 3,
+      "matches": [
+        "DBEQ.BASIC"
+      ],
+      "path": "artifacts/open_prep/outcome_backfill/backfill_20260710T191240.json"
+    },
+    {
+      "classification": "historical_artifact_or_report",
+      "line": 3,
+      "matches": [
+        "DBEQ.BASIC"
+      ],
+      "path": "artifacts/open_prep/outcome_backfill/backfill_20260713T183325.json"
+    },
+    {
+      "classification": "historical_artifact_or_report",
+      "line": 3,
+      "matches": [
+        "DBEQ.BASIC"
+      ],
+      "path": "artifacts/open_prep/outcome_backfill/backfill_20260714T183438.json"
+    },
+    {
+      "classification": "historical_artifact_or_report",
+      "line": 3,
+      "matches": [
+        "DBEQ.BASIC"
+      ],
+      "path": "artifacts/open_prep/outcome_backfill/backfill_20260716T183400.json"
+    },
+    {
+      "classification": "historical_artifact_or_report",
+      "line": 3,
+      "matches": [
+        "DBEQ.BASIC"
+      ],
+      "path": "artifacts/open_prep/outcome_backfill/backfill_20260717T183039.json"
+    },
+    {
+      "classification": "historical_artifact_or_report",
+      "line": 3,
+      "matches": [
+        "DBEQ.BASIC"
+      ],
+      "path": "artifacts/open_prep/outcome_backfill/latest.json"
+    },
+    {
+      "classification": "runtime_or_library",
+      "line": 17,
+      "matches": [
+        "DBEQ.BASIC"
+      ],
+      "path": "databento_provider.py"
+    },
+    {
+      "classification": "runtime_or_library",
+      "line": 388,
+      "matches": [
+        "DATABENTO_DATASET"
+      ],
+      "path": "databento_utils.py"
+    },
+    {
+      "classification": "runtime_or_library",
+      "line": 389,
+      "matches": [
+        "XNAS.ITCH"
+      ],
+      "path": "databento_utils.py"
+    },
+    {
+      "classification": "runtime_or_library",
+      "line": 390,
+      "matches": [
+        "XNYS.PILLAR"
+      ],
+      "path": "databento_utils.py"
+    },
+    {
+      "classification": "runtime_or_library",
+      "line": 391,
+      "matches": [
+        "DBEQ.BASIC"
+      ],
+      "path": "databento_utils.py"
+    },
+    {
+      "classification": "runtime_or_library",
+      "line": 392,
+      "matches": [
+        "XNAS.BASIC"
+      ],
+      "path": "databento_utils.py"
+    },
+    {
+      "classification": "runtime_or_library",
+      "line": 426,
+      "matches": [
+        "DATABENTO_DATASET"
+      ],
+      "path": "databento_utils.py"
+    },
+    {
+      "classification": "runtime_or_library",
+      "line": 432,
+      "matches": [
+        "DATABENTO_DATASET"
+      ],
+      "path": "databento_utils.py"
+    },
+    {
+      "classification": "runtime_or_library",
+      "line": 440,
+      "matches": [
+        "OPRA.PILLAR"
+      ],
+      "path": "databento_utils.py"
+    },
+    {
+      "classification": "runtime_or_library",
+      "line": 450,
+      "matches": [
+        "OPRA.PILLAR"
+      ],
+      "path": "databento_utils.py"
+    },
+    {
+      "classification": "runtime_or_library",
+      "line": 242,
+      "matches": [
+        "DATABENTO_DATASET"
+      ],
+      "path": "databento_volatility_screener.py"
+    },
+    {
+      "classification": "runtime_or_library",
+      "line": 243,
+      "matches": [
+        "XNAS.ITCH"
+      ],
+      "path": "databento_volatility_screener.py"
+    },
+    {
+      "classification": "runtime_or_library",
+      "line": 244,
+      "matches": [
+        "XNYS.PILLAR"
+      ],
+      "path": "databento_volatility_screener.py"
+    },
+    {
+      "classification": "runtime_or_library",
+      "line": 245,
+      "matches": [
+        "DBEQ.BASIC"
+      ],
+      "path": "databento_volatility_screener.py"
+    },
+    {
+      "classification": "runtime_or_library",
+      "line": 246,
+      "matches": [
+        "XNAS.BASIC"
+      ],
+      "path": "databento_volatility_screener.py"
+    },
+    {
+      "classification": "runtime_or_library",
+      "line": 1042,
+      "matches": [
+        "DATABENTO_DATASET"
+      ],
+      "path": "databento_volatility_screener.py"
+    },
+    {
+      "classification": "runtime_or_library",
+      "line": 1048,
+      "matches": [
+        "DATABENTO_DATASET"
+      ],
+      "path": "databento_volatility_screener.py"
+    },
+    {
+      "classification": "runtime_or_library",
+      "line": 5313,
+      "matches": [
+        "DATABENTO_DATASET",
+        "DBEQ.BASIC"
+      ],
+      "path": "databento_volatility_screener.py"
+    },
+    {
+      "classification": "documentation",
+      "line": 14,
+      "matches": [
+        "OPRA.PILLAR"
+      ],
+      "path": "docs/AGENT_HANDOVER_2026-06-04.md"
+    },
+    {
+      "classification": "documentation",
+      "line": 21,
+      "matches": [
+        "OPRA.PILLAR"
+      ],
+      "path": "docs/AGENT_HANDOVER_2026-06-04.md"
+    },
+    {
+      "classification": "documentation",
+      "line": 61,
+      "matches": [
+        "XNAS.ITCH"
+      ],
+      "path": "docs/AGENT_HANDOVER_2026-06-04.md"
+    },
+    {
+      "classification": "documentation",
+      "line": 192,
+      "matches": [
+        "OPRA.PILLAR"
+      ],
+      "path": "docs/AGENT_HANDOVER_2026-06-04.md"
+    },
+    {
+      "classification": "documentation",
+      "line": 39,
+      "matches": [
+        "OPRA.PILLAR"
+      ],
+      "path": "docs/AUDIT_L1_REVIEW_RETROSPECTIVE_2026-05-12.md"
+    },
+    {
+      "classification": "documentation",
+      "line": 179,
+      "matches": [
+        "DATABENTO_DATASET"
+      ],
+      "path": "docs/AUDIT_L1_REVIEW_RETROSPECTIVE_2026-05-12.md"
+    },
+    {
+      "classification": "documentation",
+      "line": 183,
+      "matches": [
+        "OPRA.PILLAR"
+      ],
+      "path": "docs/AUDIT_L1_REVIEW_RETROSPECTIVE_2026-05-12.md"
+    },
+    {
+      "classification": "documentation",
+      "line": 207,
+      "matches": [
+        "OPRA.PILLAR"
+      ],
+      "path": "docs/BLOOMBERG_TERMINAL_PLAN.md"
+    },
+    {
+      "classification": "documentation",
+      "line": 110,
+      "matches": [
+        "XNAS.BASIC"
+      ],
+      "path": "docs/CLOSE_IMBALANCE_IMPLEMENTATION_BLUEPRINT.md"
+    },
+    {
+      "classification": "documentation",
+      "line": 71,
+      "matches": [
+        "DATABENTO_DATASET"
+      ],
+      "path": "docs/DATABENTO_DECOMPOSITION_PLAN.md"
+    },
+    {
+      "classification": "documentation",
+      "line": 269,
+      "matches": [
+        "DBEQ.BASIC"
+      ],
+      "path": "docs/DATABENTO_STRUCTURE_FEATURES.md"
+    },
+    {
+      "classification": "documentation",
+      "line": 281,
+      "matches": [
+        "DBEQ.BASIC"
+      ],
+      "path": "docs/DATABENTO_STRUCTURE_FEATURES.md"
+    },
+    {
+      "classification": "documentation",
+      "line": 83,
+      "matches": [
+        "DATABENTO_DATASET"
+      ],
+      "path": "docs/DATABENTO_VOLATILITY_SUITE.md"
+    },
+    {
+      "classification": "documentation",
+      "line": 395,
+      "matches": [
+        "DATABENTO_DATASET",
+        "DBEQ.BASIC"
+      ],
+      "path": "docs/DATABENTO_VOLATILITY_SUITE.md"
+    },
+    {
+      "classification": "documentation",
+      "line": 180,
+      "matches": [
+        "DBEQ.BASIC"
+      ],
+      "path": "docs/FVG_LABEL_AUDIT_Q3.md"
+    },
+    {
+      "classification": "documentation",
+      "line": 208,
+      "matches": [
+        "GLBX.MDP3"
+      ],
+      "path": "docs/FVG_LABEL_AUDIT_Q3.md"
+    },
+    {
+      "classification": "documentation",
+      "line": 244,
+      "matches": [
+        "DBEQ.BASIC"
+      ],
+      "path": "docs/FVG_LABEL_AUDIT_Q3.md"
+    },
+    {
+      "classification": "documentation",
+      "line": 197,
+      "matches": [
+        "OPRA.PILLAR"
+      ],
+      "path": "docs/OPEN_PREP_OPS_QUICK_REFERENCE.md"
+    },
+    {
+      "classification": "documentation",
+      "line": 198,
+      "matches": [
+        "OPRA.PILLAR"
+      ],
+      "path": "docs/OPEN_PREP_OPS_QUICK_REFERENCE.md"
+    },
+    {
+      "classification": "documentation",
+      "line": 214,
+      "matches": [
+        "OPRA.PILLAR"
+      ],
+      "path": "docs/OPEN_PREP_OPS_QUICK_REFERENCE.md"
+    },
+    {
+      "classification": "documentation",
+      "line": 396,
+      "matches": [
+        "OPRA.PILLAR"
+      ],
+      "path": "docs/OPEN_PREP_OPS_QUICK_REFERENCE.md"
+    },
+    {
+      "classification": "documentation",
+      "line": 13,
+      "matches": [
+        "OPRA.PILLAR"
+      ],
+      "path": "docs/PROVIDER_RATIONALIZATION_AUDIT_2026-05-12.md"
+    },
+    {
+      "classification": "documentation",
+      "line": 30,
+      "matches": [
+        "OPRA.PILLAR"
+      ],
+      "path": "docs/PROVIDER_RATIONALIZATION_AUDIT_2026-05-12.md"
+    },
+    {
+      "classification": "documentation",
+      "line": 76,
+      "matches": [
+        "DBEQ.BASIC",
+        "OPRA.PILLAR",
+        "XNAS.ITCH"
+      ],
+      "path": "docs/PROVIDER_RATIONALIZATION_AUDIT_2026-05-12.md"
+    },
+    {
+      "classification": "documentation",
+      "line": 77,
+      "matches": [
+        "GLBX.MDP3",
+        "XNYS.PILLAR"
+      ],
+      "path": "docs/PROVIDER_RATIONALIZATION_AUDIT_2026-05-12.md"
+    },
+    {
+      "classification": "documentation",
+      "line": 110,
+      "matches": [
+        "OPRA.PILLAR"
+      ],
+      "path": "docs/PROVIDER_RATIONALIZATION_AUDIT_2026-05-12.md"
+    },
+    {
+      "classification": "documentation",
+      "line": 137,
+      "matches": [
+        "OPRA.PILLAR"
+      ],
+      "path": "docs/PROVIDER_RATIONALIZATION_AUDIT_2026-05-12.md"
+    },
+    {
+      "classification": "documentation",
+      "line": 36,
+      "matches": [
+        "DBEQ.BASIC"
+      ],
+      "path": "docs/REAL_GREEN_AUDIT_2026-05-03.md"
+    },
+    {
+      "classification": "documentation",
+      "line": 53,
+      "matches": [
+        "DBEQ.BASIC"
+      ],
+      "path": "docs/REAL_GREEN_AUDIT_2026-05-03.md"
+    },
+    {
+      "classification": "documentation",
+      "line": 80,
+      "matches": [
+        "DBEQ.BASIC"
+      ],
+      "path": "docs/REAL_GREEN_AUDIT_2026-05-03.md"
+    },
+    {
+      "classification": "documentation",
+      "line": 149,
+      "matches": [
+        "DATABENTO_DATASET"
+      ],
+      "path": "docs/REAL_GREEN_AUDIT_2026-05-03.md"
+    },
+    {
+      "classification": "documentation",
+      "line": 215,
+      "matches": [
+        "DBEQ.BASIC"
+      ],
+      "path": "docs/REAL_GREEN_AUDIT_2026-05-03.md"
+    },
+    {
+      "classification": "documentation",
+      "line": 275,
+      "matches": [
+        "DBEQ.BASIC"
+      ],
+      "path": "docs/REAL_GREEN_AUDIT_2026-05-03.md"
+    },
+    {
+      "classification": "documentation",
+      "line": 476,
+      "matches": [
+        "DBEQ.BASIC"
+      ],
+      "path": "docs/REAL_GREEN_AUDIT_2026-05-03.md"
+    },
+    {
+      "classification": "documentation",
+      "line": 576,
+      "matches": [
+        "DBEQ.BASIC"
+      ],
+      "path": "docs/REAL_GREEN_AUDIT_2026-05-03.md"
+    },
+    {
+      "classification": "documentation",
+      "line": 686,
+      "matches": [
+        "DBEQ.BASIC"
+      ],
+      "path": "docs/REAL_GREEN_AUDIT_2026-05-03.md"
+    },
+    {
+      "classification": "documentation",
+      "line": 693,
+      "matches": [
+        "DBEQ.BASIC"
+      ],
+      "path": "docs/REAL_GREEN_AUDIT_2026-05-03.md"
+    },
+    {
+      "classification": "documentation",
+      "line": 32,
+      "matches": [
+        "OPRA.PILLAR"
+      ],
+      "path": "docs/adr/0020-options-flow-datapath.md"
+    },
+    {
+      "classification": "documentation",
+      "line": 33,
+      "matches": [
+        "DBEQ.BASIC",
+        "GLBX.MDP3",
+        "XNAS.ITCH",
+        "XNYS.PILLAR"
+      ],
+      "path": "docs/adr/0020-options-flow-datapath.md"
+    },
+    {
+      "classification": "documentation",
+      "line": 41,
+      "matches": [
+        "OPRA.PILLAR"
+      ],
+      "path": "docs/adr/0020-options-flow-datapath.md"
+    },
+    {
+      "classification": "documentation",
+      "line": 45,
+      "matches": [
+        "XNAS.ITCH"
+      ],
+      "path": "docs/adr/0020-options-flow-datapath.md"
+    },
+    {
+      "classification": "documentation",
+      "line": 46,
+      "matches": [
+        "DBEQ.BASIC",
+        "GLBX.MDP3",
+        "XNYS.PILLAR"
+      ],
+      "path": "docs/adr/0020-options-flow-datapath.md"
+    },
+    {
+      "classification": "documentation",
+      "line": 50,
+      "matches": [
+        "XNAS.ITCH"
+      ],
+      "path": "docs/adr/0020-options-flow-datapath.md"
+    },
+    {
+      "classification": "documentation",
+      "line": 51,
+      "matches": [
+        "OPRA.PILLAR",
+        "XNYS.PILLAR"
+      ],
+      "path": "docs/adr/0020-options-flow-datapath.md"
+    },
+    {
+      "classification": "documentation",
+      "line": 83,
+      "matches": [
+        "OPRA.PILLAR"
+      ],
+      "path": "docs/adr/0020-options-flow-datapath.md"
+    },
+    {
+      "classification": "documentation",
+      "line": 91,
+      "matches": [
+        "XNAS.ITCH"
+      ],
+      "path": "docs/adr/0020-options-flow-datapath.md"
+    },
+    {
+      "classification": "documentation",
+      "line": 96,
+      "matches": [
+        "XNAS.ITCH"
+      ],
+      "path": "docs/adr/0020-options-flow-datapath.md"
+    },
+    {
+      "classification": "documentation",
+      "line": 121,
+      "matches": [
+        "OPRA.PILLAR"
+      ],
+      "path": "docs/adr/0020-options-flow-datapath.md"
+    },
+    {
+      "classification": "documentation",
+      "line": 150,
+      "matches": [
+        "OPRA.PILLAR"
+      ],
+      "path": "docs/adr/0020-options-flow-datapath.md"
+    },
+    {
+      "classification": "documentation",
+      "line": 182,
+      "matches": [
+        "OPRA.PILLAR"
+      ],
+      "path": "docs/adr/0020-options-flow-datapath.md"
+    },
+    {
+      "classification": "documentation",
+      "line": 185,
+      "matches": [
+        "OPRA.PILLAR"
+      ],
+      "path": "docs/adr/0020-options-flow-datapath.md"
+    },
+    {
+      "classification": "documentation",
+      "line": 186,
+      "matches": [
+        "XNAS.ITCH"
+      ],
+      "path": "docs/adr/0020-options-flow-datapath.md"
+    },
+    {
+      "classification": "documentation",
+      "line": 189,
+      "matches": [
+        "XNAS.ITCH"
+      ],
+      "path": "docs/adr/0020-options-flow-datapath.md"
+    },
+    {
+      "classification": "documentation",
+      "line": 40,
+      "matches": [
+        "XNAS.ITCH"
+      ],
+      "path": "docs/edge_first_real_run_runbook.md"
+    },
+    {
+      "classification": "documentation",
+      "line": 7,
+      "matches": [
+        "GLBX.MDP3"
+      ],
+      "path": "docs/fx_probe/probe_status.md"
+    },
+    {
+      "classification": "documentation",
+      "line": 36,
+      "matches": [
+        "XNAS.ITCH"
+      ],
+      "path": "docs/governance/adr0019_magnitude_regime_ab_findings.md"
+    },
+    {
+      "classification": "documentation",
+      "line": 35,
+      "matches": [
+        "XNAS.ITCH"
+      ],
+      "path": "docs/governance/adr0019_vpin_ab_findings.md"
+    },
+    {
+      "classification": "documentation",
+      "line": 32,
+      "matches": [
+        "OPRA.PILLAR"
+      ],
+      "path": "docs/governance/adr0020_options_flow_ab_findings.md"
+    },
+    {
+      "classification": "documentation",
+      "line": 45,
+      "matches": [
+        "XNAS.ITCH"
+      ],
+      "path": "docs/governance/adr0020_options_flow_ab_findings.md"
+    },
+    {
+      "classification": "documentation",
+      "line": 46,
+      "matches": [
+        "OPRA.PILLAR"
+      ],
+      "path": "docs/governance/adr0020_options_flow_ab_findings.md"
+    },
+    {
+      "classification": "documentation",
+      "line": 47,
+      "matches": [
+        "OPRA.PILLAR"
+      ],
+      "path": "docs/governance/adr0020_options_flow_ab_findings.md"
+    },
+    {
+      "classification": "documentation",
+      "line": 37,
+      "matches": [
+        "XNAS.ITCH"
+      ],
+      "path": "docs/governance/adr0021_cross_asset_lead_lag_ab_findings.md"
+    },
+    {
+      "classification": "documentation",
+      "line": 39,
+      "matches": [
+        "XNAS.ITCH"
+      ],
+      "path": "docs/governance/adr0021_cross_asset_lead_lag_ab_findings.md"
+    },
+    {
+      "classification": "documentation",
+      "line": 135,
+      "matches": [
+        "XNAS.ITCH"
+      ],
+      "path": "docs/governance/adr0021_cross_asset_lead_lag_ab_findings.md"
+    },
+    {
+      "classification": "documentation",
+      "line": 73,
+      "matches": [
+        "XNAS.ITCH"
+      ],
+      "path": "docs/governance/cross_asset_lead_lag_design.md"
+    },
+    {
+      "classification": "documentation",
+      "line": 78,
+      "matches": [
+        "GLBX.MDP3"
+      ],
+      "path": "docs/governance/cross_asset_lead_lag_design.md"
+    },
+    {
+      "classification": "documentation",
+      "line": 248,
+      "matches": [
+        "XNAS.ITCH"
+      ],
+      "path": "docs/governance/cross_asset_lead_lag_design.md"
+    },
+    {
+      "classification": "documentation",
+      "line": 261,
+      "matches": [
+        "XNAS.ITCH"
+      ],
+      "path": "docs/governance/cross_asset_lead_lag_design.md"
+    },
+    {
+      "classification": "documentation",
+      "line": 42,
+      "matches": [
+        "XNAS.ITCH"
+      ],
+      "path": "docs/governance/tick_hayashi_yoshida_scope.md"
+    },
+    {
+      "classification": "documentation",
+      "line": 56,
+      "matches": [
+        "XNAS.ITCH"
+      ],
+      "path": "docs/governance/tick_hayashi_yoshida_scope.md"
+    },
+    {
+      "classification": "documentation",
+      "line": 117,
+      "matches": [
+        "DBEQ.BASIC"
+      ],
+      "path": "docs/sample_expansion_e1_e2_evidence_2026-04-21.md"
+    },
+    {
+      "classification": "documentation",
+      "line": 244,
+      "matches": [
+        "DATABENTO_DATASET"
+      ],
+      "path": "docs/smc-microstructure-ui-audit.md"
+    },
+    {
+      "classification": "documentation",
+      "line": 65,
+      "matches": [
+        "DBEQ.BASIC"
+      ],
+      "path": "docs/smc-microstructure-ui-operator-runbook.md"
+    },
+    {
+      "classification": "documentation",
+      "line": 69,
+      "matches": [
+        "XNAS.BASIC"
+      ],
+      "path": "docs/smc-microstructure-ui-operator-runbook.md"
+    },
+    {
+      "classification": "documentation",
+      "line": 71,
+      "matches": [
+        "XNAS.ITCH"
+      ],
+      "path": "docs/smc-microstructure-ui-operator-runbook.md"
+    },
+    {
+      "classification": "documentation",
+      "line": 73,
+      "matches": [
+        "XNYS.PILLAR"
+      ],
+      "path": "docs/smc-microstructure-ui-operator-runbook.md"
+    },
+    {
+      "classification": "documentation",
+      "line": 50,
+      "matches": [
+        "DBEQ.BASIC"
+      ],
+      "path": "docs/smc_bundle_to_library_recovery_plan_2026-04-09.md"
+    },
+    {
+      "classification": "documentation",
+      "line": 146,
+      "matches": [
+        "DBEQ.BASIC"
+      ],
+      "path": "docs/smc_local_first_productive_run.md"
+    },
+    {
+      "classification": "documentation",
+      "line": 396,
+      "matches": [
+        "DBEQ.BASIC"
+      ],
+      "path": "docs/smc_local_first_productive_run.md"
+    },
+    {
+      "classification": "runtime_or_library",
+      "line": 420,
+      "matches": [
+        "XNAS.ITCH"
+      ],
+      "path": "governance/promotion_decisions/promotion_decisions_AAPL_20260602T094551Z.json"
+    },
+    {
+      "classification": "runtime_or_library",
+      "line": 311,
+      "matches": [
+        "XNAS.ITCH"
+      ],
+      "path": "governance/promotion_decisions/promotion_decisions_AAPL_20260603T170444Z.json"
+    },
+    {
+      "classification": "runtime_or_library",
+      "line": 346,
+      "matches": [
+        "XNAS.ITCH"
+      ],
+      "path": "governance/promotion_decisions/promotion_decisions_AAPL_20260603T171239Z.json"
+    },
+    {
+      "classification": "runtime_or_library",
+      "line": 311,
+      "matches": [
+        "XNAS.ITCH"
+      ],
+      "path": "governance/promotion_decisions/promotion_decisions_AAPL_20260603T190034Z.json"
+    },
+    {
+      "classification": "runtime_or_library",
+      "line": 346,
+      "matches": [
+        "XNAS.ITCH"
+      ],
+      "path": "governance/promotion_decisions/promotion_decisions_AAPL_20260603T190333Z.json"
+    },
+    {
+      "classification": "runtime_or_library",
+      "line": 374,
+      "matches": [
+        "XNAS.ITCH"
+      ],
+      "path": "governance/promotion_decisions/promotion_decisions_AAPL_20260706T113849Z.json"
+    },
+    {
+      "classification": "runtime_or_library",
+      "line": 374,
+      "matches": [
+        "XNAS.ITCH"
+      ],
+      "path": "governance/promotion_decisions/promotion_decisions_AAPL_20260706T123928Z.json"
+    },
+    {
+      "classification": "runtime_or_library",
+      "line": 420,
+      "matches": [
+        "XNAS.ITCH"
+      ],
+      "path": "governance/promotion_decisions/promotion_decisions_AMZN_20260602T100301Z.json"
+    },
+    {
+      "classification": "runtime_or_library",
+      "line": 311,
+      "matches": [
+        "XNAS.ITCH"
+      ],
+      "path": "governance/promotion_decisions/promotion_decisions_AMZN_20260603T170543Z.json"
+    },
+    {
+      "classification": "runtime_or_library",
+      "line": 332,
+      "matches": [
+        "XNAS.ITCH"
+      ],
+      "path": "governance/promotion_decisions/promotion_decisions_AMZN_20260603T171341Z.json"
+    },
+    {
+      "classification": "runtime_or_library",
+      "line": 311,
+      "matches": [
+        "XNAS.ITCH"
+      ],
+      "path": "governance/promotion_decisions/promotion_decisions_AMZN_20260603T190124Z.json"
+    },
+    {
+      "classification": "runtime_or_library",
+      "line": 332,
+      "matches": [
+        "XNAS.ITCH"
+      ],
+      "path": "governance/promotion_decisions/promotion_decisions_AMZN_20260603T190506Z.json"
+    },
+    {
+      "classification": "runtime_or_library",
+      "line": 360,
+      "matches": [
+        "XNAS.ITCH"
+      ],
+      "path": "governance/promotion_decisions/promotion_decisions_AMZN_20260706T114022Z.json"
+    },
+    {
+      "classification": "runtime_or_library",
+      "line": 360,
+      "matches": [
+        "XNAS.ITCH"
+      ],
+      "path": "governance/promotion_decisions/promotion_decisions_AMZN_20260706T124130Z.json"
+    },
+    {
+      "classification": "runtime_or_library",
+      "line": 413,
+      "matches": [
+        "XNAS.ITCH"
+      ],
+      "path": "governance/promotion_decisions/promotion_decisions_MSFT_20260602T095444Z.json"
+    },
+    {
+      "classification": "runtime_or_library",
+      "line": 332,
+      "matches": [
+        "XNAS.ITCH"
+      ],
+      "path": "governance/promotion_decisions/promotion_decisions_MSFT_20260603T170503Z.json"
+    },
+    {
+      "classification": "runtime_or_library",
+      "line": 344,
+      "matches": [
+        "XNAS.ITCH"
+      ],
+      "path": "governance/promotion_decisions/promotion_decisions_MSFT_20260603T171301Z.json"
+    },
+    {
+      "classification": "runtime_or_library",
+      "line": 332,
+      "matches": [
+        "XNAS.ITCH"
+      ],
+      "path": "governance/promotion_decisions/promotion_decisions_MSFT_20260603T190051Z.json"
+    },
+    {
+      "classification": "runtime_or_library",
+      "line": 344,
+      "matches": [
+        "XNAS.ITCH"
+      ],
+      "path": "governance/promotion_decisions/promotion_decisions_MSFT_20260603T190406Z.json"
+    },
+    {
+      "classification": "runtime_or_library",
+      "line": 374,
+      "matches": [
+        "XNAS.ITCH"
+      ],
+      "path": "governance/promotion_decisions/promotion_decisions_MSFT_20260706T113915Z.json"
+    },
+    {
+      "classification": "runtime_or_library",
+      "line": 374,
+      "matches": [
+        "XNAS.ITCH"
+      ],
+      "path": "governance/promotion_decisions/promotion_decisions_MSFT_20260706T124005Z.json"
+    },
+    {
+      "classification": "runtime_or_library",
+      "line": 325,
+      "matches": [
+        "XNAS.ITCH"
+      ],
+      "path": "governance/promotion_decisions/promotion_decisions_NVDA_20260603T170523Z.json"
+    },
+    {
+      "classification": "runtime_or_library",
+      "line": 297,
+      "matches": [
+        "XNAS.ITCH"
+      ],
+      "path": "governance/promotion_decisions/promotion_decisions_NVDA_20260603T171321Z.json"
+    },
+    {
+      "classification": "runtime_or_library",
+      "line": 325,
+      "matches": [
+        "XNAS.ITCH"
+      ],
+      "path": "governance/promotion_decisions/promotion_decisions_NVDA_20260603T190109Z.json"
+    },
+    {
+      "classification": "runtime_or_library",
+      "line": 297,
+      "matches": [
+        "XNAS.ITCH"
+      ],
+      "path": "governance/promotion_decisions/promotion_decisions_NVDA_20260603T190434Z.json"
+    },
+    {
+      "classification": "runtime_or_library",
+      "line": 346,
+      "matches": [
+        "XNAS.ITCH"
+      ],
+      "path": "governance/promotion_decisions/promotion_decisions_NVDA_20260706T113952Z.json"
+    },
+    {
+      "classification": "runtime_or_library",
+      "line": 346,
+      "matches": [
+        "XNAS.ITCH"
+      ],
+      "path": "governance/promotion_decisions/promotion_decisions_NVDA_20260706T124046Z.json"
+    },
+    {
+      "classification": "runtime_or_library",
+      "line": 418,
+      "matches": [
+        "XNAS.ITCH"
+      ],
+      "path": "governance/promotion_decisions/promotion_decisions_TSLA_20260602T101039Z.json"
+    },
+    {
+      "classification": "runtime_or_library",
+      "line": 311,
+      "matches": [
+        "XNAS.ITCH"
+      ],
+      "path": "governance/promotion_decisions/promotion_decisions_TSLA_20260603T170606Z.json"
+    },
+    {
+      "classification": "runtime_or_library",
+      "line": 332,
+      "matches": [
+        "XNAS.ITCH"
+      ],
+      "path": "governance/promotion_decisions/promotion_decisions_TSLA_20260603T171433Z.json"
+    },
+    {
+      "classification": "runtime_or_library",
+      "line": 311,
+      "matches": [
+        "XNAS.ITCH"
+      ],
+      "path": "governance/promotion_decisions/promotion_decisions_TSLA_20260603T190145Z.json"
+    },
+    {
+      "classification": "runtime_or_library",
+      "line": 332,
+      "matches": [
+        "XNAS.ITCH"
+      ],
+      "path": "governance/promotion_decisions/promotion_decisions_TSLA_20260603T190535Z.json"
+    },
+    {
+      "classification": "runtime_or_library",
+      "line": 381,
+      "matches": [
+        "XNAS.ITCH"
+      ],
+      "path": "governance/promotion_decisions/promotion_decisions_TSLA_20260706T114053Z.json"
+    },
+    {
+      "classification": "runtime_or_library",
+      "line": 381,
+      "matches": [
+        "XNAS.ITCH"
+      ],
+      "path": "governance/promotion_decisions/promotion_decisions_TSLA_20260706T124203Z.json"
+    },
+    {
+      "classification": "runtime_or_library",
+      "line": 89,
+      "matches": [
+        "OPRA.PILLAR"
+      ],
+      "path": "newsstack_fmp/config.py"
+    },
+    {
+      "classification": "runtime_or_library",
+      "line": 36,
+      "matches": [
+        "OPRA.PILLAR"
+      ],
+      "path": "newsstack_fmp/ingest_benzinga_financial.py"
+    },
+    {
+      "classification": "runtime_or_library",
+      "line": 1,
+      "matches": [
+        "OPRA.PILLAR"
+      ],
+      "path": "newsstack_fmp/ingest_opra_options_flow.py"
+    },
+    {
+      "classification": "runtime_or_library",
+      "line": 74,
+      "matches": [
+        "OPRA.PILLAR"
+      ],
+      "path": "newsstack_fmp/ingest_opra_options_flow.py"
+    },
+    {
+      "classification": "runtime_or_library",
+      "line": 184,
+      "matches": [
+        "OPRA.PILLAR"
+      ],
+      "path": "newsstack_fmp/ingest_opra_options_flow.py"
+    },
+    {
+      "classification": "runtime_or_library",
+      "line": 52,
+      "matches": [
+        "OPRA.PILLAR"
+      ],
+      "path": "newsstack_fmp/ingest_unusual_whales.py"
+    },
+    {
+      "classification": "runtime_or_library",
+      "line": 306,
+      "matches": [
+        "OPRA.PILLAR"
+      ],
+      "path": "newsstack_fmp/ingest_unusual_whales.py"
+    },
+    {
+      "classification": "runtime_or_library",
+      "line": 398,
+      "matches": [
+        "OPRA.PILLAR"
+      ],
+      "path": "newsstack_fmp/ingest_unusual_whales.py"
+    },
+    {
+      "classification": "runtime_or_library",
+      "line": 1,
+      "matches": [
+        "OPRA.PILLAR"
+      ],
+      "path": "newsstack_fmp/opra_uoa.py"
+    },
+    {
+      "classification": "runtime_or_library",
+      "line": 4,
+      "matches": [
+        "OPRA.PILLAR"
+      ],
+      "path": "newsstack_fmp/opra_uoa.py"
+    },
+    {
+      "classification": "runtime_or_library",
+      "line": 6,
+      "matches": [
+        "OPRA.PILLAR"
+      ],
+      "path": "newsstack_fmp/opra_uoa.py"
+    },
+    {
+      "classification": "runtime_or_library",
+      "line": 60,
+      "matches": [
+        "OPRA.PILLAR"
+      ],
+      "path": "newsstack_fmp/opra_uoa.py"
+    },
+    {
+      "classification": "runtime_or_library",
+      "line": 60,
+      "matches": [
+        "OPRA.PILLAR"
+      ],
+      "path": "open_prep/feature_flags.py"
+    },
+    {
+      "classification": "runtime_or_library",
+      "line": 67,
+      "matches": [
+        "DBEQ.BASIC"
+      ],
+      "path": "open_prep/outcome_backfill.py"
+    },
+    {
+      "classification": "runtime_or_library",
+      "line": 212,
+      "matches": [
+        "OPRA.PILLAR"
+      ],
+      "path": "open_prep/streamlit_monitor.py"
+    },
+    {
+      "classification": "runtime_or_library",
+      "line": 225,
+      "matches": [
+        "OPRA.PILLAR"
+      ],
+      "path": "open_prep/streamlit_monitor.py"
+    },
+    {
+      "classification": "runtime_or_library",
+      "line": 660,
+      "matches": [
+        "OPRA.PILLAR"
+      ],
+      "path": "open_prep/streamlit_monitor.py"
+    },
+    {
+      "classification": "runtime_or_library",
+      "line": 2265,
+      "matches": [
+        "OPRA.PILLAR"
+      ],
+      "path": "open_prep/streamlit_monitor.py"
+    },
+    {
+      "classification": "runtime_or_library",
+      "line": 2267,
+      "matches": [
+        "OPRA.PILLAR"
+      ],
+      "path": "open_prep/streamlit_monitor.py"
+    },
+    {
+      "classification": "runtime_or_library",
+      "line": 2284,
+      "matches": [
+        "OPRA.PILLAR"
+      ],
+      "path": "open_prep/streamlit_monitor.py"
+    },
+    {
+      "classification": "historical_artifact_or_report",
+      "line": 3,
+      "matches": [
+        "XNAS.ITCH"
+      ],
+      "path": "reports/ats_baseline_20d.json"
+    },
+    {
+      "classification": "runtime_or_library",
+      "line": 39,
+      "matches": [
+        "XNAS.ITCH"
+      ],
+      "path": "scripts/build_ats_20d_baseline.py"
+    },
+    {
+      "classification": "runtime_or_library",
+      "line": 433,
+      "matches": [
+        "DBEQ.BASIC"
+      ],
+      "path": "scripts/credential_health_check.py"
+    },
+    {
+      "classification": "runtime_or_library",
+      "line": 434,
+      "matches": [
+        "DBEQ.BASIC"
+      ],
+      "path": "scripts/credential_health_check.py"
+    },
+    {
+      "classification": "runtime_or_library",
+      "line": 115,
+      "matches": [
+        "DBEQ.BASIC"
+      ],
+      "path": "scripts/databento_preopen_fast.py"
+    },
+    {
+      "classification": "runtime_or_library",
+      "line": 117,
+      "matches": [
+        "DBEQ.BASIC"
+      ],
+      "path": "scripts/databento_preopen_fast.py"
+    },
+    {
+      "classification": "runtime_or_library",
+      "line": 808,
+      "matches": [
+        "DBEQ.BASIC"
+      ],
+      "path": "scripts/databento_preopen_fast.py"
+    },
+    {
+      "classification": "runtime_or_library",
+      "line": 811,
+      "matches": [
+        "XNAS.BASIC"
+      ],
+      "path": "scripts/databento_preopen_fast.py"
+    },
+    {
+      "classification": "runtime_or_library",
+      "line": 812,
+      "matches": [
+        "XNAS.ITCH"
+      ],
+      "path": "scripts/databento_preopen_fast.py"
+    },
+    {
+      "classification": "runtime_or_library",
+      "line": 813,
+      "matches": [
+        "XNYS.PILLAR"
+      ],
+      "path": "scripts/databento_preopen_fast.py"
+    },
+    {
+      "classification": "runtime_or_library",
+      "line": 815,
+      "matches": [
+        "ARCX.PILLAR"
+      ],
+      "path": "scripts/databento_preopen_fast.py"
+    },
+    {
+      "classification": "runtime_or_library",
+      "line": 1208,
+      "matches": [
+        "DATABENTO_DATASET",
+        "DBEQ.BASIC"
+      ],
+      "path": "scripts/databento_preopen_fast.py"
+    },
+    {
+      "classification": "runtime_or_library",
+      "line": 817,
+      "matches": [
+        "XNAS.BASIC"
+      ],
+      "path": "scripts/databento_production_export.py"
+    },
+    {
+      "classification": "runtime_or_library",
+      "line": 818,
+      "matches": [
+        "XNYS.PILLAR"
+      ],
+      "path": "scripts/databento_production_export.py"
+    },
+    {
+      "classification": "runtime_or_library",
+      "line": 819,
+      "matches": [
+        "XASE.PILLAR"
+      ],
+      "path": "scripts/databento_production_export.py"
+    },
+    {
+      "classification": "runtime_or_library",
+      "line": 4828,
+      "matches": [
+        "DATABENTO_DATASET"
+      ],
+      "path": "scripts/databento_production_export.py"
+    },
+    {
+      "classification": "runtime_or_library",
+      "line": 34,
+      "matches": [
+        "DBEQ.BASIC"
+      ],
+      "path": "scripts/databento_smoke_test.py"
+    },
+    {
+      "classification": "runtime_or_library",
+      "line": 9,
+      "matches": [
+        "DBEQ.BASIC"
+      ],
+      "path": "scripts/fvg_asia_real_sample.py"
+    },
+    {
+      "classification": "runtime_or_library",
+      "line": 89,
+      "matches": [
+        "DBEQ.BASIC"
+      ],
+      "path": "scripts/fvg_asia_real_sample.py"
+    },
+    {
+      "classification": "runtime_or_library",
+      "line": 109,
+      "matches": [
+        "DATABENTO_DATASET"
+      ],
+      "path": "scripts/fvg_asia_real_sample.py"
+    },
+    {
+      "classification": "runtime_or_library",
+      "line": 145,
+      "matches": [
+        "DBEQ.BASIC"
+      ],
+      "path": "scripts/fvg_asia_real_sample.py"
+    },
+    {
+      "classification": "runtime_or_library",
+      "line": 34,
+      "matches": [
+        "GLBX.MDP3"
+      ],
+      "path": "scripts/fx_probe_universe.py"
+    },
+    {
+      "classification": "runtime_or_library",
+      "line": 295,
+      "matches": [
+        "GLBX.MDP3"
+      ],
+      "path": "scripts/fx_probe_universe.py"
+    },
+    {
+      "classification": "runtime_or_library",
+      "line": 1809,
+      "matches": [
+        "DATABENTO_DATASET",
+        "DBEQ.BASIC"
+      ],
+      "path": "scripts/generate_smc_micro_base_from_databento.py"
+    },
+    {
+      "classification": "runtime_or_library",
+      "line": 38,
+      "matches": [
+        "DBEQ.BASIC"
+      ],
+      "path": "scripts/investigate_universe_delta.py"
+    },
+    {
+      "classification": "runtime_or_library",
+      "line": 38,
+      "matches": [
+        "DATABENTO_DATASET",
+        "DBEQ.BASIC"
+      ],
+      "path": "scripts/measure_databento_ops_run.py"
+    },
+    {
+      "classification": "runtime_or_library",
+      "line": 2,
+      "matches": [
+        "EQUS.MINI"
+      ],
+      "path": "scripts/poc_live_feed_bandwidth.py"
+    },
+    {
+      "classification": "runtime_or_library",
+      "line": 49,
+      "matches": [
+        "EQUS.MINI"
+      ],
+      "path": "scripts/poc_live_feed_bandwidth.py"
+    },
+    {
+      "classification": "research_or_cli",
+      "line": 6,
+      "matches": [
+        "OPRA.PILLAR"
+      ],
+      "path": "scripts/probe_databento_entitlement.py"
+    },
+    {
+      "classification": "research_or_cli",
+      "line": 20,
+      "matches": [
+        "DATABENTO_DATASET"
+      ],
+      "path": "scripts/probe_databento_entitlement.py"
+    },
+    {
+      "classification": "research_or_cli",
+      "line": 24,
+      "matches": [
+        "OPRA.PILLAR"
+      ],
+      "path": "scripts/probe_databento_entitlement.py"
+    },
+    {
+      "classification": "research_or_cli",
+      "line": 31,
+      "matches": [
+        "OPRA.PILLAR"
+      ],
+      "path": "scripts/probe_databento_entitlement.py"
+    },
+    {
+      "classification": "research_or_cli",
+      "line": 68,
+      "matches": [
+        "OPRA.PILLAR"
+      ],
+      "path": "scripts/probe_databento_entitlement.py"
+    },
+    {
+      "classification": "research_or_cli",
+      "line": 69,
+      "matches": [
+        "DBEQ.BASIC"
+      ],
+      "path": "scripts/probe_databento_entitlement.py"
+    },
+    {
+      "classification": "research_or_cli",
+      "line": 70,
+      "matches": [
+        "XNAS.ITCH"
+      ],
+      "path": "scripts/probe_databento_entitlement.py"
+    },
+    {
+      "classification": "research_or_cli",
+      "line": 71,
+      "matches": [
+        "GLBX.MDP3"
+      ],
+      "path": "scripts/probe_databento_entitlement.py"
+    },
+    {
+      "classification": "research_or_cli",
+      "line": 72,
+      "matches": [
+        "XNYS.PILLAR"
+      ],
+      "path": "scripts/probe_databento_entitlement.py"
+    },
+    {
+      "classification": "research_or_cli",
+      "line": 156,
+      "matches": [
+        "OPRA.PILLAR"
+      ],
+      "path": "scripts/probe_databento_entitlement.py"
+    },
+    {
+      "classification": "research_or_cli",
+      "line": 159,
+      "matches": [
+        "OPRA.PILLAR"
+      ],
+      "path": "scripts/probe_databento_entitlement.py"
+    },
+    {
+      "classification": "research_or_cli",
+      "line": 209,
+      "matches": [
+        "DATABENTO_DATASET"
+      ],
+      "path": "scripts/probe_databento_entitlement.py"
+    },
+    {
+      "classification": "research_or_cli",
+      "line": 211,
+      "matches": [
+        "DATABENTO_DATASET"
+      ],
+      "path": "scripts/probe_databento_entitlement.py"
+    },
+    {
+      "classification": "research_or_cli",
+      "line": 213,
+      "matches": [
+        "DATABENTO_DATASET"
+      ],
+      "path": "scripts/probe_databento_entitlement.py"
+    },
+    {
+      "classification": "research_or_cli",
+      "line": 215,
+      "matches": [
+        "DATABENTO_DATASET"
+      ],
+      "path": "scripts/probe_databento_entitlement.py"
+    },
+    {
+      "classification": "research_or_cli",
+      "line": 223,
+      "matches": [
+        "DBEQ.BASIC"
+      ],
+      "path": "scripts/probe_databento_entitlement.py"
+    },
+    {
+      "classification": "research_or_cli",
+      "line": 344,
+      "matches": [
+        "DBEQ.BASIC"
+      ],
+      "path": "scripts/probe_providers.py"
+    },
+    {
+      "classification": "research_or_cli",
+      "line": 348,
+      "matches": [
+        "OPRA.PILLAR"
+      ],
+      "path": "scripts/probe_providers.py"
+    },
+    {
+      "classification": "research_or_cli",
+      "line": 370,
+      "matches": [
+        "OPRA.PILLAR"
+      ],
+      "path": "scripts/probe_providers.py"
+    },
+    {
+      "classification": "research_or_cli",
+      "line": 373,
+      "matches": [
+        "OPRA.PILLAR"
+      ],
+      "path": "scripts/probe_providers.py"
+    },
+    {
+      "classification": "research_or_cli",
+      "line": 377,
+      "matches": [
+        "OPRA.PILLAR"
+      ],
+      "path": "scripts/probe_providers.py"
+    },
+    {
+      "classification": "research_or_cli",
+      "line": 639,
+      "matches": [
+        "OPRA.PILLAR"
+      ],
+      "path": "scripts/probe_providers.py"
+    },
+    {
+      "classification": "research_or_cli",
+      "line": 907,
+      "matches": [
+        "OPRA.PILLAR"
+      ],
+      "path": "scripts/probe_providers.py"
+    },
+    {
+      "classification": "research_or_cli",
+      "line": 924,
+      "matches": [
+        "OPRA.PILLAR"
+      ],
+      "path": "scripts/probe_providers.py"
+    },
+    {
+      "classification": "runtime_or_library",
+      "line": 90,
+      "matches": [
+        "OPRA.PILLAR"
+      ],
+      "path": "scripts/pull_databento_edge_input.py"
+    },
+    {
+      "classification": "runtime_or_library",
+      "line": 101,
+      "matches": [
+        "OPRA.PILLAR"
+      ],
+      "path": "scripts/pull_databento_edge_input.py"
+    },
+    {
+      "classification": "runtime_or_library",
+      "line": 696,
+      "matches": [
+        "XNAS.ITCH"
+      ],
+      "path": "scripts/pull_databento_edge_input.py"
+    },
+    {
+      "classification": "runtime_or_library",
+      "line": 727,
+      "matches": [
+        "OPRA.PILLAR"
+      ],
+      "path": "scripts/pull_databento_edge_input.py"
+    },
+    {
+      "classification": "runtime_or_library",
+      "line": 781,
+      "matches": [
+        "XNAS.ITCH"
+      ],
+      "path": "scripts/pull_databento_edge_input.py"
+    },
+    {
+      "classification": "runtime_or_library",
+      "line": 812,
+      "matches": [
+        "OPRA.PILLAR"
+      ],
+      "path": "scripts/pull_databento_edge_input.py"
+    },
+    {
+      "classification": "runtime_or_library",
+      "line": 30,
+      "matches": [
+        "XNAS.ITCH"
+      ],
+      "path": "scripts/pull_tick_trades.py"
+    },
+    {
+      "classification": "runtime_or_library",
+      "line": 125,
+      "matches": [
+        "XNAS.ITCH"
+      ],
+      "path": "scripts/pull_tick_trades.py"
+    },
+    {
+      "classification": "runtime_or_library",
+      "line": 17,
+      "matches": [
+        "DATABENTO_DATASET"
+      ],
+      "path": "scripts/smc_micro_streamlit_app.py"
+    },
+    {
+      "classification": "runtime_or_library",
+      "line": 27,
+      "matches": [
+        "DATABENTO_DATASET",
+        "DBEQ.BASIC"
+      ],
+      "path": "scripts/smc_micro_streamlit_app.py"
+    },
+    {
+      "classification": "runtime_or_library",
+      "line": 30,
+      "matches": [
+        "DBEQ.BASIC"
+      ],
+      "path": "scripts/smc_micro_streamlit_app.py"
+    },
+    {
+      "classification": "runtime_or_library",
+      "line": 262,
+      "matches": [
+        "DATABENTO_DATASET",
+        "DBEQ.BASIC"
+      ],
+      "path": "scripts/smc_micro_streamlit_app.py"
+    },
+    {
+      "classification": "runtime_or_library",
+      "line": 269,
+      "matches": [
+        "DBEQ.BASIC",
+        "XNAS.BASIC",
+        "XNAS.ITCH"
+      ],
+      "path": "scripts/smc_micro_streamlit_app.py"
+    },
+    {
+      "classification": "runtime_or_library",
+      "line": 274,
+      "matches": [
+        "DBEQ.BASIC",
+        "XNAS.BASIC",
+        "XNAS.ITCH"
+      ],
+      "path": "scripts/smc_micro_streamlit_app.py"
+    },
+    {
+      "classification": "runtime_or_library",
+      "line": 5,
+      "matches": [
+        "EQUS.MINI"
+      ],
+      "path": "services/live_overlay_daemon/README.md"
+    },
+    {
+      "classification": "runtime_or_library",
+      "line": 5,
+      "matches": [
+        "EQUS.MINI"
+      ],
+      "path": "services/live_overlay_daemon/feed.py"
+    },
+    {
+      "classification": "runtime_or_library",
+      "line": 44,
+      "matches": [
+        "EQUS.MINI"
+      ],
+      "path": "services/live_overlay_daemon/feed.py"
+    },
+    {
+      "classification": "runtime_or_library",
+      "line": 144,
+      "matches": [
+        "EQUS.MINI"
+      ],
+      "path": "services/live_overlay_daemon/feed.py"
+    },
+    {
+      "classification": "runtime_or_library",
+      "line": 258,
+      "matches": [
+        "EQUS.MINI"
+      ],
+      "path": "services/live_overlay_daemon/feed.py"
+    },
+    {
+      "classification": "runtime_or_library",
+      "line": 264,
+      "matches": [
+        "EQUS.MINI"
+      ],
+      "path": "services/live_overlay_daemon/feed.py"
+    },
+    {
+      "classification": "runtime_or_library",
+      "line": 5802,
+      "matches": [
+        "DBEQ.BASIC"
+      ],
+      "path": "services/live_overlay_daemon/infra/grafana/dashboard.json"
+    },
+    {
+      "classification": "runtime_or_library",
+      "line": 331,
+      "matches": [
+        "XNAS.ITCH"
+      ],
+      "path": "smc_tv_bridge/smc_api.py"
+    },
+    {
+      "classification": "runtime_or_library",
+      "line": 20,
+      "matches": [
+        "DBEQ.BASIC"
+      ],
+      "path": "spec/sprints/c3_bootstrap_inventory.md"
+    },
+    {
+      "classification": "runtime_or_library",
+      "line": 28,
+      "matches": [
+        "DATABENTO_DATASET"
+      ],
+      "path": "terminal_databento.py"
+    },
+    {
+      "classification": "runtime_or_library",
+      "line": 376,
+      "matches": [
+        "DBEQ.BASIC"
+      ],
+      "path": "terminal_databento.py"
+    },
+    {
+      "classification": "runtime_or_library",
+      "line": 380,
+      "matches": [
+        "DBEQ.BASIC"
+      ],
+      "path": "terminal_databento.py"
+    },
+    {
+      "classification": "runtime_or_library",
+      "line": 381,
+      "matches": [
+        "DBEQ.BASIC"
+      ],
+      "path": "terminal_databento.py"
+    },
+    {
+      "classification": "test_fixture",
+      "line": 58,
+      "matches": [
+        "XNAS.ITCH"
+      ],
+      "path": "tests/fixtures/a9b3_manifest_shard1.json"
+    },
+    {
+      "classification": "test_fixture",
+      "line": 159,
+      "matches": [
+        "XASE.PILLAR"
+      ],
+      "path": "tests/fixtures/a9b3_manifest_shard1.json"
+    },
+    {
+      "classification": "test_fixture",
+      "line": 160,
+      "matches": [
+        "XNAS.BASIC"
+      ],
+      "path": "tests/fixtures/a9b3_manifest_shard1.json"
+    },
+    {
+      "classification": "test_fixture",
+      "line": 161,
+      "matches": [
+        "XNYS.PILLAR"
+      ],
+      "path": "tests/fixtures/a9b3_manifest_shard1.json"
+    },
+    {
+      "classification": "test_fixture",
+      "line": 163,
+      "matches": [
+        "XNAS.ITCH"
+      ],
+      "path": "tests/fixtures/a9b3_manifest_shard1.json"
+    },
+    {
+      "classification": "test_fixture",
+      "line": 165,
+      "matches": [
+        "XASE.PILLAR"
+      ],
+      "path": "tests/fixtures/a9b3_manifest_shard1.json"
+    },
+    {
+      "classification": "test_fixture",
+      "line": 166,
+      "matches": [
+        "XNAS.BASIC"
+      ],
+      "path": "tests/fixtures/a9b3_manifest_shard1.json"
+    },
+    {
+      "classification": "test_fixture",
+      "line": 167,
+      "matches": [
+        "XNYS.PILLAR"
+      ],
+      "path": "tests/fixtures/a9b3_manifest_shard1.json"
+    },
+    {
+      "classification": "test_fixture",
+      "line": 58,
+      "matches": [
+        "XNAS.ITCH"
+      ],
+      "path": "tests/fixtures/a9b3_manifest_shard2.json"
+    },
+    {
+      "classification": "test_fixture",
+      "line": 156,
+      "matches": [
+        "XASE.PILLAR"
+      ],
+      "path": "tests/fixtures/a9b3_manifest_shard2.json"
+    },
+    {
+      "classification": "test_fixture",
+      "line": 157,
+      "matches": [
+        "XNAS.BASIC"
+      ],
+      "path": "tests/fixtures/a9b3_manifest_shard2.json"
+    },
+    {
+      "classification": "test_fixture",
+      "line": 158,
+      "matches": [
+        "XNYS.PILLAR"
+      ],
+      "path": "tests/fixtures/a9b3_manifest_shard2.json"
+    },
+    {
+      "classification": "test_fixture",
+      "line": 160,
+      "matches": [
+        "XNAS.ITCH"
+      ],
+      "path": "tests/fixtures/a9b3_manifest_shard2.json"
+    },
+    {
+      "classification": "test_fixture",
+      "line": 162,
+      "matches": [
+        "XASE.PILLAR"
+      ],
+      "path": "tests/fixtures/a9b3_manifest_shard2.json"
+    },
+    {
+      "classification": "test_fixture",
+      "line": 163,
+      "matches": [
+        "XNAS.BASIC"
+      ],
+      "path": "tests/fixtures/a9b3_manifest_shard2.json"
+    },
+    {
+      "classification": "test_fixture",
+      "line": 164,
+      "matches": [
+        "XNYS.PILLAR"
+      ],
+      "path": "tests/fixtures/a9b3_manifest_shard2.json"
+    },
+    {
+      "classification": "test_fixture",
+      "line": 36,
+      "matches": [
+        "DBEQ.BASIC",
+        "XNAS.ITCH"
+      ],
+      "path": "tests/test_a9b_1_producer_cli.py"
+    },
+    {
+      "classification": "test_fixture",
+      "line": 65,
+      "matches": [
+        "DATABENTO_DATASET"
+      ],
+      "path": "tests/test_a9b_1_producer_cli.py"
+    },
+    {
+      "classification": "test_fixture",
+      "line": 63,
+      "matches": [
+        "XNAS.ITCH"
+      ],
+      "path": "tests/test_benchmark_universe_intraday_frames.py"
+    },
+    {
+      "classification": "test_fixture",
+      "line": 79,
+      "matches": [
+        "XNAS.ITCH"
+      ],
+      "path": "tests/test_benchmark_universe_intraday_frames.py"
+    },
+    {
+      "classification": "test_fixture",
+      "line": 82,
+      "matches": [
+        "XNAS.ITCH"
+      ],
+      "path": "tests/test_benchmark_universe_intraday_frames.py"
+    },
+    {
+      "classification": "test_fixture",
+      "line": 100,
+      "matches": [
+        "XNAS.ITCH"
+      ],
+      "path": "tests/test_benchmark_universe_intraday_frames.py"
+    },
+    {
+      "classification": "test_fixture",
+      "line": 77,
+      "matches": [
+        "XNAS.ITCH"
+      ],
+      "path": "tests/test_build_ats_20d_baseline.py"
+    },
+    {
+      "classification": "test_fixture",
+      "line": 91,
+      "matches": [
+        "XNAS.ITCH"
+      ],
+      "path": "tests/test_build_ats_20d_baseline.py"
+    },
+    {
+      "classification": "test_fixture",
+      "line": 107,
+      "matches": [
+        "XNAS.ITCH"
+      ],
+      "path": "tests/test_build_ats_20d_baseline.py"
+    },
+    {
+      "classification": "test_fixture",
+      "line": 120,
+      "matches": [
+        "XNAS.ITCH"
+      ],
+      "path": "tests/test_build_ats_20d_baseline.py"
+    },
+    {
+      "classification": "test_fixture",
+      "line": 131,
+      "matches": [
+        "XNAS.ITCH"
+      ],
+      "path": "tests/test_build_ats_20d_baseline.py"
+    },
+    {
+      "classification": "test_fixture",
+      "line": 615,
+      "matches": [
+        "DBEQ.BASIC"
+      ],
+      "path": "tests/test_credential_health_check.py"
+    },
+    {
+      "classification": "test_fixture",
+      "line": 60,
+      "matches": [
+        "DATABENTO_DATASET"
+      ],
+      "path": "tests/test_databento_boundary.py"
+    },
+    {
+      "classification": "test_fixture",
+      "line": 85,
+      "matches": [
+        "DBEQ.BASIC",
+        "XNAS.ITCH"
+      ],
+      "path": "tests/test_databento_boundary.py"
+    },
+    {
+      "classification": "test_fixture",
+      "line": 92,
+      "matches": [
+        "DBEQ.BASIC",
+        "XNAS.ITCH"
+      ],
+      "path": "tests/test_databento_boundary.py"
+    },
+    {
+      "classification": "test_fixture",
+      "line": 63,
+      "matches": [
+        "EQUS.MINI"
+      ],
+      "path": "tests/test_databento_consumers_partial_bundle_integration.py"
+    },
+    {
+      "classification": "test_fixture",
+      "line": 30,
+      "matches": [
+        "EQUS.MINI"
+      ],
+      "path": "tests/test_databento_live_contract.py"
+    },
+    {
+      "classification": "test_fixture",
+      "line": 228,
+      "matches": [
+        "DBEQ.BASIC",
+        "XNAS.BASIC"
+      ],
+      "path": "tests/test_databento_preopen_fast.py"
+    },
+    {
+      "classification": "test_fixture",
+      "line": 233,
+      "matches": [
+        "DBEQ.BASIC"
+      ],
+      "path": "tests/test_databento_preopen_fast.py"
+    },
+    {
+      "classification": "test_fixture",
+      "line": 234,
+      "matches": [
+        "DBEQ.BASIC",
+        "XNAS.BASIC"
+      ],
+      "path": "tests/test_databento_preopen_fast.py"
+    },
+    {
+      "classification": "test_fixture",
+      "line": 245,
+      "matches": [
+        "XNAS.BASIC"
+      ],
+      "path": "tests/test_databento_preopen_fast.py"
+    },
+    {
+      "classification": "test_fixture",
+      "line": 306,
+      "matches": [
+        "DBEQ.BASIC"
+      ],
+      "path": "tests/test_databento_preopen_fast.py"
+    },
+    {
+      "classification": "test_fixture",
+      "line": 312,
+      "matches": [
+        "DBEQ.BASIC"
+      ],
+      "path": "tests/test_databento_preopen_fast.py"
+    },
+    {
+      "classification": "test_fixture",
+      "line": 376,
+      "matches": [
+        "DBEQ.BASIC"
+      ],
+      "path": "tests/test_databento_preopen_fast.py"
+    },
+    {
+      "classification": "test_fixture",
+      "line": 381,
+      "matches": [
+        "DBEQ.BASIC"
+      ],
+      "path": "tests/test_databento_preopen_fast.py"
+    },
+    {
+      "classification": "test_fixture",
+      "line": 440,
+      "matches": [
+        "DBEQ.BASIC"
+      ],
+      "path": "tests/test_databento_preopen_fast.py"
+    },
+    {
+      "classification": "test_fixture",
+      "line": 450,
+      "matches": [
+        "DBEQ.BASIC"
+      ],
+      "path": "tests/test_databento_preopen_fast.py"
+    },
+    {
+      "classification": "test_fixture",
+      "line": 530,
+      "matches": [
+        "DBEQ.BASIC"
+      ],
+      "path": "tests/test_databento_preopen_fast.py"
+    },
+    {
+      "classification": "test_fixture",
+      "line": 537,
+      "matches": [
+        "DBEQ.BASIC"
+      ],
+      "path": "tests/test_databento_preopen_fast.py"
+    },
+    {
+      "classification": "test_fixture",
+      "line": 609,
+      "matches": [
+        "DBEQ.BASIC"
+      ],
+      "path": "tests/test_databento_preopen_fast.py"
+    },
+    {
+      "classification": "test_fixture",
+      "line": 616,
+      "matches": [
+        "DBEQ.BASIC"
+      ],
+      "path": "tests/test_databento_preopen_fast.py"
+    },
+    {
+      "classification": "test_fixture",
+      "line": 640,
+      "matches": [
+        "DBEQ.BASIC"
+      ],
+      "path": "tests/test_databento_preopen_fast.py"
+    },
+    {
+      "classification": "test_fixture",
+      "line": 409,
+      "matches": [
+        "DATABENTO_DATASET"
+      ],
+      "path": "tests/test_databento_preopen_fast_uplift.py"
+    },
+    {
+      "classification": "test_fixture",
+      "line": 412,
+      "matches": [
+        "DBEQ.BASIC"
+      ],
+      "path": "tests/test_databento_preopen_fast_uplift.py"
+    },
+    {
+      "classification": "test_fixture",
+      "line": 421,
+      "matches": [
+        "XNAS.BASIC"
+      ],
+      "path": "tests/test_databento_preopen_fast_uplift.py"
+    },
+    {
+      "classification": "test_fixture",
+      "line": 426,
+      "matches": [
+        "XNAS.BASIC"
+      ],
+      "path": "tests/test_databento_preopen_fast_uplift.py"
+    },
+    {
+      "classification": "test_fixture",
+      "line": 433,
+      "matches": [
+        "DATABENTO_DATASET"
+      ],
+      "path": "tests/test_databento_preopen_fast_uplift.py"
+    },
+    {
+      "classification": "test_fixture",
+      "line": 357,
+      "matches": [
+        "XNAS.ITCH"
+      ],
+      "path": "tests/test_databento_production_export_uplift.py"
+    },
+    {
+      "classification": "test_fixture",
+      "line": 358,
+      "matches": [
+        "XNAS.ITCH"
+      ],
+      "path": "tests/test_databento_production_export_uplift.py"
+    },
+    {
+      "classification": "test_fixture",
+      "line": 374,
+      "matches": [
+        "XNAS.ITCH"
+      ],
+      "path": "tests/test_databento_production_export_uplift.py"
+    },
+    {
+      "classification": "test_fixture",
+      "line": 384,
+      "matches": [
+        "XNAS.ITCH"
+      ],
+      "path": "tests/test_databento_production_export_uplift.py"
+    },
+    {
+      "classification": "test_fixture",
+      "line": 405,
+      "matches": [
+        "XNAS.ITCH"
+      ],
+      "path": "tests/test_databento_production_export_uplift.py"
+    },
+    {
+      "classification": "test_fixture",
+      "line": 406,
+      "matches": [
+        "XNAS.ITCH"
+      ],
+      "path": "tests/test_databento_production_export_uplift.py"
+    },
+    {
+      "classification": "test_fixture",
+      "line": 384,
+      "matches": [
+        "XNAS.BASIC"
+      ],
+      "path": "tests/test_databento_production_export_uplift_n.py"
+    },
+    {
+      "classification": "test_fixture",
+      "line": 167,
+      "matches": [
+        "DBEQ.BASIC"
+      ],
+      "path": "tests/test_databento_production_workbook_shared.py"
+    },
+    {
+      "classification": "test_fixture",
+      "line": 224,
+      "matches": [
+        "DBEQ.BASIC"
+      ],
+      "path": "tests/test_databento_production_workbook_shared.py"
+    },
+    {
+      "classification": "test_fixture",
+      "line": 303,
+      "matches": [
+        "DBEQ.BASIC"
+      ],
+      "path": "tests/test_databento_production_workbook_slim_whitelist.py"
+    },
+    {
+      "classification": "test_fixture",
+      "line": 20,
+      "matches": [
+        "DATABENTO_DATASET"
+      ],
+      "path": "tests/test_databento_provider.py"
+    },
+    {
+      "classification": "test_fixture",
+      "line": 79,
+      "matches": [
+        "DBEQ.BASIC"
+      ],
+      "path": "tests/test_databento_provider.py"
+    },
+    {
+      "classification": "test_fixture",
+      "line": 91,
+      "matches": [
+        "XNAS.ITCH"
+      ],
+      "path": "tests/test_databento_provider.py"
+    },
+    {
+      "classification": "test_fixture",
+      "line": 100,
+      "matches": [
+        "DBEQ.BASIC"
+      ],
+      "path": "tests/test_databento_provider.py"
+    },
+    {
+      "classification": "test_fixture",
+      "line": 113,
+      "matches": [
+        "DBEQ.BASIC"
+      ],
+      "path": "tests/test_databento_provider.py"
+    },
+    {
+      "classification": "test_fixture",
+      "line": 120,
+      "matches": [
+        "DBEQ.BASIC"
+      ],
+      "path": "tests/test_databento_provider.py"
+    },
+    {
+      "classification": "test_fixture",
+      "line": 123,
+      "matches": [
+        "DBEQ.BASIC"
+      ],
+      "path": "tests/test_databento_provider.py"
+    },
+    {
+      "classification": "test_fixture",
+      "line": 382,
+      "matches": [
+        "DBEQ.BASIC",
+        "XNAS.ITCH"
+      ],
+      "path": "tests/test_databento_provider.py"
+    },
+    {
+      "classification": "test_fixture",
+      "line": 383,
+      "matches": [
+        "DBEQ.BASIC"
+      ],
+      "path": "tests/test_databento_provider.py"
+    },
+    {
+      "classification": "test_fixture",
+      "line": 386,
+      "matches": [
+        "DBEQ.BASIC",
+        "XNAS.ITCH"
+      ],
+      "path": "tests/test_databento_provider.py"
+    },
+    {
+      "classification": "test_fixture",
+      "line": 387,
+      "matches": [
+        "XNAS.ITCH"
+      ],
+      "path": "tests/test_databento_provider.py"
+    },
+    {
+      "classification": "test_fixture",
+      "line": 395,
+      "matches": [
+        "DATABENTO_DATASET"
+      ],
+      "path": "tests/test_databento_provider.py"
+    },
+    {
+      "classification": "test_fixture",
+      "line": 417,
+      "matches": [
+        "DBEQ.BASIC"
+      ],
+      "path": "tests/test_databento_provider.py"
+    },
+    {
+      "classification": "test_fixture",
+      "line": 454,
+      "matches": [
+        "DBEQ.BASIC"
+      ],
+      "path": "tests/test_databento_provider.py"
+    },
+    {
+      "classification": "test_fixture",
+      "line": 459,
+      "matches": [
+        "DBEQ.BASIC"
+      ],
+      "path": "tests/test_databento_provider.py"
+    },
+    {
+      "classification": "test_fixture",
+      "line": 479,
+      "matches": [
+        "DBEQ.BASIC"
+      ],
+      "path": "tests/test_databento_provider.py"
+    },
+    {
+      "classification": "test_fixture",
+      "line": 497,
+      "matches": [
+        "DBEQ.BASIC"
+      ],
+      "path": "tests/test_databento_provider.py"
+    },
+    {
+      "classification": "test_fixture",
+      "line": 52,
+      "matches": [
+        "DBEQ.BASIC"
+      ],
+      "path": "tests/test_databento_safe_fetch.py"
+    },
+    {
+      "classification": "test_fixture",
+      "line": 68,
+      "matches": [
+        "DBEQ.BASIC"
+      ],
+      "path": "tests/test_databento_safe_fetch.py"
+    },
+    {
+      "classification": "test_fixture",
+      "line": 73,
+      "matches": [
+        "DBEQ.BASIC"
+      ],
+      "path": "tests/test_databento_safe_fetch.py"
+    },
+    {
+      "classification": "test_fixture",
+      "line": 90,
+      "matches": [
+        "DBEQ.BASIC"
+      ],
+      "path": "tests/test_databento_safe_fetch.py"
+    },
+    {
+      "classification": "test_fixture",
+      "line": 106,
+      "matches": [
+        "DBEQ.BASIC"
+      ],
+      "path": "tests/test_databento_safe_fetch.py"
+    },
+    {
+      "classification": "test_fixture",
+      "line": 364,
+      "matches": [
+        "DBEQ.BASIC"
+      ],
+      "path": "tests/test_databento_volatility_screener.py"
+    },
+    {
+      "classification": "test_fixture",
+      "line": 365,
+      "matches": [
+        "DBEQ.BASIC"
+      ],
+      "path": "tests/test_databento_volatility_screener.py"
+    },
+    {
+      "classification": "test_fixture",
+      "line": 366,
+      "matches": [
+        "DBEQ.BASIC"
+      ],
+      "path": "tests/test_databento_volatility_screener.py"
+    },
+    {
+      "classification": "test_fixture",
+      "line": 374,
+      "matches": [
+        "DBEQ.BASIC"
+      ],
+      "path": "tests/test_databento_volatility_screener.py"
+    },
+    {
+      "classification": "test_fixture",
+      "line": 375,
+      "matches": [
+        "DBEQ.BASIC"
+      ],
+      "path": "tests/test_databento_volatility_screener.py"
+    },
+    {
+      "classification": "test_fixture",
+      "line": 400,
+      "matches": [
+        "XNAS.ITCH"
+      ],
+      "path": "tests/test_databento_volatility_screener.py"
+    },
+    {
+      "classification": "test_fixture",
+      "line": 415,
+      "matches": [
+        "XNAS.ITCH"
+      ],
+      "path": "tests/test_databento_volatility_screener.py"
+    },
+    {
+      "classification": "test_fixture",
+      "line": 416,
+      "matches": [
+        "XNAS.ITCH"
+      ],
+      "path": "tests/test_databento_volatility_screener.py"
+    },
+    {
+      "classification": "test_fixture",
+      "line": 457,
+      "matches": [
+        "DBEQ.BASIC",
+        "XNAS.BASIC",
+        "XNAS.ITCH"
+      ],
+      "path": "tests/test_databento_volatility_screener.py"
+    },
+    {
+      "classification": "test_fixture",
+      "line": 458,
+      "matches": [
+        "XNAS.BASIC"
+      ],
+      "path": "tests/test_databento_volatility_screener.py"
+    },
+    {
+      "classification": "test_fixture",
+      "line": 459,
+      "matches": [
+        "XNAS.ITCH"
+      ],
+      "path": "tests/test_databento_volatility_screener.py"
+    },
+    {
+      "classification": "test_fixture",
+      "line": 460,
+      "matches": [
+        "XNAS.ITCH",
+        "XNYS.PILLAR"
+      ],
+      "path": "tests/test_databento_volatility_screener.py"
+    },
+    {
+      "classification": "test_fixture",
+      "line": 464,
+      "matches": [
+        "DBEQ.BASIC",
+        "XNAS.ITCH"
+      ],
+      "path": "tests/test_databento_volatility_screener.py"
+    },
+    {
+      "classification": "test_fixture",
+      "line": 466,
+      "matches": [
+        "XNAS.ITCH"
+      ],
+      "path": "tests/test_databento_volatility_screener.py"
+    },
+    {
+      "classification": "test_fixture",
+      "line": 615,
+      "matches": [
+        "DBEQ.BASIC"
+      ],
+      "path": "tests/test_databento_volatility_screener.py"
+    },
+    {
+      "classification": "test_fixture",
+      "line": 640,
+      "matches": [
+        "DBEQ.BASIC"
+      ],
+      "path": "tests/test_databento_volatility_screener.py"
+    },
+    {
+      "classification": "test_fixture",
+      "line": 950,
+      "matches": [
+        "DBEQ.BASIC"
+      ],
+      "path": "tests/test_databento_volatility_screener.py"
+    },
+    {
+      "classification": "test_fixture",
+      "line": 976,
+      "matches": [
+        "DBEQ.BASIC"
+      ],
+      "path": "tests/test_databento_volatility_screener.py"
+    },
+    {
+      "classification": "test_fixture",
+      "line": 1015,
+      "matches": [
+        "DBEQ.BASIC"
+      ],
+      "path": "tests/test_databento_volatility_screener.py"
+    },
+    {
+      "classification": "test_fixture",
+      "line": 1056,
+      "matches": [
+        "DBEQ.BASIC"
+      ],
+      "path": "tests/test_databento_volatility_screener.py"
+    },
+    {
+      "classification": "test_fixture",
+      "line": 1064,
+      "matches": [
+        "DBEQ.BASIC"
+      ],
+      "path": "tests/test_databento_volatility_screener.py"
+    },
+    {
+      "classification": "test_fixture",
+      "line": 1111,
+      "matches": [
+        "DBEQ.BASIC"
+      ],
+      "path": "tests/test_databento_volatility_screener.py"
+    },
+    {
+      "classification": "test_fixture",
+      "line": 1163,
+      "matches": [
+        "DBEQ.BASIC"
+      ],
+      "path": "tests/test_databento_volatility_screener.py"
+    },
+    {
+      "classification": "test_fixture",
+      "line": 1310,
+      "matches": [
+        "DBEQ.BASIC"
+      ],
+      "path": "tests/test_databento_volatility_screener.py"
+    },
+    {
+      "classification": "test_fixture",
+      "line": 1326,
+      "matches": [
+        "XNAS.BASIC"
+      ],
+      "path": "tests/test_databento_volatility_screener.py"
+    },
+    {
+      "classification": "test_fixture",
+      "line": 1334,
+      "matches": [
+        "XNYS.PILLAR"
+      ],
+      "path": "tests/test_databento_volatility_screener.py"
+    },
+    {
+      "classification": "test_fixture",
+      "line": 1342,
+      "matches": [
+        "XASE.PILLAR"
+      ],
+      "path": "tests/test_databento_volatility_screener.py"
+    },
+    {
+      "classification": "test_fixture",
+      "line": 1360,
+      "matches": [
+        "DBEQ.BASIC"
+      ],
+      "path": "tests/test_databento_volatility_screener.py"
+    },
+    {
+      "classification": "test_fixture",
+      "line": 1373,
+      "matches": [
+        "XASE.PILLAR",
+        "XNAS.BASIC",
+        "XNYS.PILLAR"
+      ],
+      "path": "tests/test_databento_volatility_screener.py"
+    },
+    {
+      "classification": "test_fixture",
+      "line": 1389,
+      "matches": [
+        "XASE.PILLAR",
+        "XNAS.BASIC",
+        "XNYS.PILLAR"
+      ],
+      "path": "tests/test_databento_volatility_screener.py"
+    },
+    {
+      "classification": "test_fixture",
+      "line": 1417,
+      "matches": [
+        "DBEQ.BASIC"
+      ],
+      "path": "tests/test_databento_volatility_screener.py"
+    },
+    {
+      "classification": "test_fixture",
+      "line": 1418,
+      "matches": [
+        "XNAS.BASIC"
+      ],
+      "path": "tests/test_databento_volatility_screener.py"
+    },
+    {
+      "classification": "test_fixture",
+      "line": 1429,
+      "matches": [
+        "DBEQ.BASIC"
+      ],
+      "path": "tests/test_databento_volatility_screener.py"
+    },
+    {
+      "classification": "test_fixture",
+      "line": 1442,
+      "matches": [
+        "XNAS.BASIC"
+      ],
+      "path": "tests/test_databento_volatility_screener.py"
+    },
+    {
+      "classification": "test_fixture",
+      "line": 1481,
+      "matches": [
+        "DBEQ.BASIC"
+      ],
+      "path": "tests/test_databento_volatility_screener.py"
+    },
+    {
+      "classification": "test_fixture",
+      "line": 1487,
+      "matches": [
+        "XNAS.BASIC"
+      ],
+      "path": "tests/test_databento_volatility_screener.py"
+    },
+    {
+      "classification": "test_fixture",
+      "line": 1502,
+      "matches": [
+        "DBEQ.BASIC"
+      ],
+      "path": "tests/test_databento_volatility_screener.py"
+    },
+    {
+      "classification": "test_fixture",
+      "line": 1515,
+      "matches": [
+        "XNAS.BASIC"
+      ],
+      "path": "tests/test_databento_volatility_screener.py"
+    },
+    {
+      "classification": "test_fixture",
+      "line": 1549,
+      "matches": [
+        "DBEQ.BASIC"
+      ],
+      "path": "tests/test_databento_volatility_screener.py"
+    },
+    {
+      "classification": "test_fixture",
+      "line": 1558,
+      "matches": [
+        "XNAS.BASIC"
+      ],
+      "path": "tests/test_databento_volatility_screener.py"
+    },
+    {
+      "classification": "test_fixture",
+      "line": 1574,
+      "matches": [
+        "DBEQ.BASIC"
+      ],
+      "path": "tests/test_databento_volatility_screener.py"
+    },
+    {
+      "classification": "test_fixture",
+      "line": 1587,
+      "matches": [
+        "XNAS.BASIC"
+      ],
+      "path": "tests/test_databento_volatility_screener.py"
+    },
+    {
+      "classification": "test_fixture",
+      "line": 1620,
+      "matches": [
+        "DBEQ.BASIC"
+      ],
+      "path": "tests/test_databento_volatility_screener.py"
+    },
+    {
+      "classification": "test_fixture",
+      "line": 1621,
+      "matches": [
+        "XNYS.PILLAR"
+      ],
+      "path": "tests/test_databento_volatility_screener.py"
+    },
+    {
+      "classification": "test_fixture",
+      "line": 1632,
+      "matches": [
+        "DBEQ.BASIC"
+      ],
+      "path": "tests/test_databento_volatility_screener.py"
+    },
+    {
+      "classification": "test_fixture",
+      "line": 1645,
+      "matches": [
+        "XNYS.PILLAR"
+      ],
+      "path": "tests/test_databento_volatility_screener.py"
+    },
+    {
+      "classification": "test_fixture",
+      "line": 1652,
+      "matches": [
+        "XNYS.PILLAR"
+      ],
+      "path": "tests/test_databento_volatility_screener.py"
+    },
+    {
+      "classification": "test_fixture",
+      "line": 1679,
+      "matches": [
+        "DBEQ.BASIC"
+      ],
+      "path": "tests/test_databento_volatility_screener.py"
+    },
+    {
+      "classification": "test_fixture",
+      "line": 1680,
+      "matches": [
+        "XASE.PILLAR"
+      ],
+      "path": "tests/test_databento_volatility_screener.py"
+    },
+    {
+      "classification": "test_fixture",
+      "line": 1691,
+      "matches": [
+        "DBEQ.BASIC"
+      ],
+      "path": "tests/test_databento_volatility_screener.py"
+    },
+    {
+      "classification": "test_fixture",
+      "line": 1704,
+      "matches": [
+        "XASE.PILLAR"
+      ],
+      "path": "tests/test_databento_volatility_screener.py"
+    },
+    {
+      "classification": "test_fixture",
+      "line": 1711,
+      "matches": [
+        "XASE.PILLAR"
+      ],
+      "path": "tests/test_databento_volatility_screener.py"
+    },
+    {
+      "classification": "test_fixture",
+      "line": 1903,
+      "matches": [
+        "DBEQ.BASIC"
+      ],
+      "path": "tests/test_databento_volatility_screener.py"
+    },
+    {
+      "classification": "test_fixture",
+      "line": 1918,
+      "matches": [
+        "DBEQ.BASIC"
+      ],
+      "path": "tests/test_databento_volatility_screener.py"
+    },
+    {
+      "classification": "test_fixture",
+      "line": 2136,
+      "matches": [
+        "DBEQ.BASIC"
+      ],
+      "path": "tests/test_databento_volatility_screener.py"
+    },
+    {
+      "classification": "test_fixture",
+      "line": 2151,
+      "matches": [
+        "DBEQ.BASIC"
+      ],
+      "path": "tests/test_databento_volatility_screener.py"
+    },
+    {
+      "classification": "test_fixture",
+      "line": 2163,
+      "matches": [
+        "DBEQ.BASIC"
+      ],
+      "path": "tests/test_databento_volatility_screener.py"
+    },
+    {
+      "classification": "test_fixture",
+      "line": 2207,
+      "matches": [
+        "DBEQ.BASIC"
+      ],
+      "path": "tests/test_databento_volatility_screener.py"
+    },
+    {
+      "classification": "test_fixture",
+      "line": 2225,
+      "matches": [
+        "DBEQ.BASIC"
+      ],
+      "path": "tests/test_databento_volatility_screener.py"
+    },
+    {
+      "classification": "test_fixture",
+      "line": 2724,
+      "matches": [
+        "DBEQ.BASIC"
+      ],
+      "path": "tests/test_databento_volatility_screener.py"
+    },
+    {
+      "classification": "test_fixture",
+      "line": 2789,
+      "matches": [
+        "DBEQ.BASIC"
+      ],
+      "path": "tests/test_databento_volatility_screener.py"
+    },
+    {
+      "classification": "test_fixture",
+      "line": 2927,
+      "matches": [
+        "DBEQ.BASIC"
+      ],
+      "path": "tests/test_databento_volatility_screener.py"
+    },
+    {
+      "classification": "test_fixture",
+      "line": 3120,
+      "matches": [
+        "XNAS.BASIC"
+      ],
+      "path": "tests/test_databento_volatility_screener.py"
+    },
+    {
+      "classification": "test_fixture",
+      "line": 3609,
+      "matches": [
+        "DBEQ.BASIC"
+      ],
+      "path": "tests/test_databento_volatility_screener.py"
+    },
+    {
+      "classification": "test_fixture",
+      "line": 3643,
+      "matches": [
+        "DBEQ.BASIC"
+      ],
+      "path": "tests/test_databento_volatility_screener.py"
+    },
+    {
+      "classification": "test_fixture",
+      "line": 3821,
+      "matches": [
+        "DBEQ.BASIC"
+      ],
+      "path": "tests/test_databento_volatility_screener.py"
+    },
+    {
+      "classification": "test_fixture",
+      "line": 4022,
+      "matches": [
+        "DBEQ.BASIC"
+      ],
+      "path": "tests/test_databento_volatility_screener.py"
+    },
+    {
+      "classification": "test_fixture",
+      "line": 4078,
+      "matches": [
+        "DBEQ.BASIC"
+      ],
+      "path": "tests/test_databento_volatility_screener.py"
+    },
+    {
+      "classification": "test_fixture",
+      "line": 4133,
+      "matches": [
+        "DBEQ.BASIC"
+      ],
+      "path": "tests/test_databento_volatility_screener.py"
+    },
+    {
+      "classification": "test_fixture",
+      "line": 4144,
+      "matches": [
+        "DBEQ.BASIC"
+      ],
+      "path": "tests/test_databento_volatility_screener.py"
+    },
+    {
+      "classification": "test_fixture",
+      "line": 4158,
+      "matches": [
+        "DBEQ.BASIC"
+      ],
+      "path": "tests/test_databento_volatility_screener.py"
+    },
+    {
+      "classification": "test_fixture",
+      "line": 4207,
+      "matches": [
+        "DBEQ.BASIC"
+      ],
+      "path": "tests/test_databento_volatility_screener.py"
+    },
+    {
+      "classification": "test_fixture",
+      "line": 4381,
+      "matches": [
+        "DBEQ.BASIC"
+      ],
+      "path": "tests/test_databento_volatility_screener.py"
+    },
+    {
+      "classification": "test_fixture",
+      "line": 4449,
+      "matches": [
+        "DBEQ.BASIC"
+      ],
+      "path": "tests/test_databento_volatility_screener.py"
+    },
+    {
+      "classification": "test_fixture",
+      "line": 4522,
+      "matches": [
+        "DBEQ.BASIC"
+      ],
+      "path": "tests/test_databento_volatility_screener.py"
+    },
+    {
+      "classification": "test_fixture",
+      "line": 4573,
+      "matches": [
+        "DBEQ.BASIC"
+      ],
+      "path": "tests/test_databento_volatility_screener.py"
+    },
+    {
+      "classification": "test_fixture",
+      "line": 4626,
+      "matches": [
+        "DBEQ.BASIC"
+      ],
+      "path": "tests/test_databento_volatility_screener.py"
+    },
+    {
+      "classification": "test_fixture",
+      "line": 4683,
+      "matches": [
+        "DBEQ.BASIC"
+      ],
+      "path": "tests/test_databento_volatility_screener.py"
+    },
+    {
+      "classification": "test_fixture",
+      "line": 4732,
+      "matches": [
+        "DBEQ.BASIC"
+      ],
+      "path": "tests/test_databento_volatility_screener.py"
+    },
+    {
+      "classification": "test_fixture",
+      "line": 4762,
+      "matches": [
+        "DBEQ.BASIC"
+      ],
+      "path": "tests/test_databento_volatility_screener.py"
+    },
+    {
+      "classification": "test_fixture",
+      "line": 4796,
+      "matches": [
+        "DBEQ.BASIC"
+      ],
+      "path": "tests/test_databento_volatility_screener.py"
+    },
+    {
+      "classification": "test_fixture",
+      "line": 4821,
+      "matches": [
+        "DBEQ.BASIC"
+      ],
+      "path": "tests/test_databento_volatility_screener.py"
+    },
+    {
+      "classification": "test_fixture",
+      "line": 4841,
+      "matches": [
+        "DBEQ.BASIC"
+      ],
+      "path": "tests/test_databento_volatility_screener.py"
+    },
+    {
+      "classification": "test_fixture",
+      "line": 4887,
+      "matches": [
+        "DBEQ.BASIC"
+      ],
+      "path": "tests/test_databento_volatility_screener.py"
+    },
+    {
+      "classification": "test_fixture",
+      "line": 4947,
+      "matches": [
+        "DBEQ.BASIC"
+      ],
+      "path": "tests/test_databento_volatility_screener.py"
+    },
+    {
+      "classification": "test_fixture",
+      "line": 4951,
+      "matches": [
+        "DBEQ.BASIC"
+      ],
+      "path": "tests/test_databento_volatility_screener.py"
+    },
+    {
+      "classification": "test_fixture",
+      "line": 4991,
+      "matches": [
+        "DBEQ.BASIC"
+      ],
+      "path": "tests/test_databento_volatility_screener.py"
+    },
+    {
+      "classification": "test_fixture",
+      "line": 4992,
+      "matches": [
+        "DBEQ.BASIC"
+      ],
+      "path": "tests/test_databento_volatility_screener.py"
+    },
+    {
+      "classification": "test_fixture",
+      "line": 5214,
+      "matches": [
+        "DBEQ.BASIC",
+        "XNAS.ITCH"
+      ],
+      "path": "tests/test_databento_volatility_screener.py"
+    },
+    {
+      "classification": "test_fixture",
+      "line": 5228,
+      "matches": [
+        "DATABENTO_DATASET"
+      ],
+      "path": "tests/test_databento_volatility_screener.py"
+    },
+    {
+      "classification": "test_fixture",
+      "line": 5232,
+      "matches": [
+        "XNAS.ITCH"
+      ],
+      "path": "tests/test_databento_volatility_screener.py"
+    },
+    {
+      "classification": "test_fixture",
+      "line": 5270,
+      "matches": [
+        "DBEQ.BASIC"
+      ],
+      "path": "tests/test_databento_volatility_screener.py"
+    },
+    {
+      "classification": "test_fixture",
+      "line": 5314,
+      "matches": [
+        "DBEQ.BASIC"
+      ],
+      "path": "tests/test_databento_volatility_screener.py"
+    },
+    {
+      "classification": "test_fixture",
+      "line": 5375,
+      "matches": [
+        "DBEQ.BASIC"
+      ],
+      "path": "tests/test_databento_volatility_screener.py"
+    },
+    {
+      "classification": "test_fixture",
+      "line": 5479,
+      "matches": [
+        "DBEQ.BASIC"
+      ],
+      "path": "tests/test_databento_volatility_screener.py"
+    },
+    {
+      "classification": "test_fixture",
+      "line": 5718,
+      "matches": [
+        "XNAS.ITCH"
+      ],
+      "path": "tests/test_databento_volatility_screener.py"
+    },
+    {
+      "classification": "test_fixture",
+      "line": 5752,
+      "matches": [
+        "XNAS.BASIC"
+      ],
+      "path": "tests/test_databento_volatility_screener.py"
+    },
+    {
+      "classification": "test_fixture",
+      "line": 5753,
+      "matches": [
+        "XNYS.PILLAR"
+      ],
+      "path": "tests/test_databento_volatility_screener.py"
+    },
+    {
+      "classification": "test_fixture",
+      "line": 5754,
+      "matches": [
+        "XASE.PILLAR"
+      ],
+      "path": "tests/test_databento_volatility_screener.py"
+    },
+    {
+      "classification": "test_fixture",
+      "line": 5766,
+      "matches": [
+        "XNAS.BASIC"
+      ],
+      "path": "tests/test_databento_volatility_screener.py"
+    },
+    {
+      "classification": "test_fixture",
+      "line": 5767,
+      "matches": [
+        "XNYS.PILLAR"
+      ],
+      "path": "tests/test_databento_volatility_screener.py"
+    },
+    {
+      "classification": "test_fixture",
+      "line": 5770,
+      "matches": [
+        "XNAS.BASIC"
+      ],
+      "path": "tests/test_databento_volatility_screener.py"
+    },
+    {
+      "classification": "test_fixture",
+      "line": 5782,
+      "matches": [
+        "DBEQ.BASIC"
+      ],
+      "path": "tests/test_databento_volatility_screener.py"
+    },
+    {
+      "classification": "test_fixture",
+      "line": 5822,
+      "matches": [
+        "DBEQ.BASIC"
+      ],
+      "path": "tests/test_databento_volatility_screener.py"
+    },
+    {
+      "classification": "test_fixture",
+      "line": 5920,
+      "matches": [
+        "DBEQ.BASIC"
+      ],
+      "path": "tests/test_databento_volatility_screener.py"
+    },
+    {
+      "classification": "test_fixture",
+      "line": 5942,
+      "matches": [
+        "DBEQ.BASIC"
+      ],
+      "path": "tests/test_databento_volatility_screener.py"
+    },
+    {
+      "classification": "test_fixture",
+      "line": 5955,
+      "matches": [
+        "DBEQ.BASIC"
+      ],
+      "path": "tests/test_databento_volatility_screener.py"
+    },
+    {
+      "classification": "test_fixture",
+      "line": 6006,
+      "matches": [
+        "DBEQ.BASIC"
+      ],
+      "path": "tests/test_databento_volatility_screener.py"
+    },
+    {
+      "classification": "test_fixture",
+      "line": 6358,
+      "matches": [
+        "DBEQ.BASIC"
+      ],
+      "path": "tests/test_databento_volatility_screener.py"
+    },
+    {
+      "classification": "test_fixture",
+      "line": 89,
+      "matches": [
+        "XNAS.ITCH"
+      ],
+      "path": "tests/test_databento_volatility_screener_load_daily_bars_progress.py"
+    },
+    {
+      "classification": "test_fixture",
+      "line": 193,
+      "matches": [
+        "XNAS.ITCH"
+      ],
+      "path": "tests/test_databento_volatility_screener_load_daily_bars_progress.py"
+    },
+    {
+      "classification": "test_fixture",
+      "line": 59,
+      "matches": [
+        "DBEQ.BASIC"
+      ],
+      "path": "tests/test_measure_databento_ops_run.py"
+    },
+    {
+      "classification": "test_fixture",
+      "line": 99,
+      "matches": [
+        "DBEQ.BASIC"
+      ],
+      "path": "tests/test_measure_databento_ops_run.py"
+    },
+    {
+      "classification": "test_fixture",
+      "line": 123,
+      "matches": [
+        "DBEQ.BASIC"
+      ],
+      "path": "tests/test_measure_databento_ops_run.py"
+    },
+    {
+      "classification": "test_fixture",
+      "line": 46,
+      "matches": [
+        "OPRA.PILLAR"
+      ],
+      "path": "tests/test_module_test_coverage_pin.py"
+    },
+    {
+      "classification": "test_fixture",
+      "line": 209,
+      "matches": [
+        "DATABENTO_DATASET"
+      ],
+      "path": "tests/test_noqa_suppression_ledger.py"
+    },
+    {
+      "classification": "test_fixture",
+      "line": 1,
+      "matches": [
+        "OPRA.PILLAR"
+      ],
+      "path": "tests/test_opra_uoa.py"
+    },
+    {
+      "classification": "test_fixture",
+      "line": 137,
+      "matches": [
+        "XNAS.ITCH"
+      ],
+      "path": "tests/test_pull_databento_edge_input.py"
+    },
+    {
+      "classification": "test_fixture",
+      "line": 144,
+      "matches": [
+        "XNAS.ITCH"
+      ],
+      "path": "tests/test_pull_databento_edge_input.py"
+    },
+    {
+      "classification": "test_fixture",
+      "line": 102,
+      "matches": [
+        "XNAS.ITCH"
+      ],
+      "path": "tests/test_run_edge_pipeline.py"
+    },
+    {
+      "classification": "test_fixture",
+      "line": 624,
+      "matches": [
+        "XNAS.ITCH"
+      ],
+      "path": "tests/test_run_promotion_gate.py"
+    },
+    {
+      "classification": "test_fixture",
+      "line": 422,
+      "matches": [
+        "EQUS.MINI"
+      ],
+      "path": "tests/test_silent_fallback_audit_r2.py"
+    },
+    {
+      "classification": "test_fixture",
+      "line": 437,
+      "matches": [
+        "EQUS.MINI"
+      ],
+      "path": "tests/test_silent_fallback_audit_r2.py"
+    },
+    {
+      "classification": "test_fixture",
+      "line": 138,
+      "matches": [
+        "EQUS.MINI"
+      ],
+      "path": "tests/test_smc_live_overlay_additional_bugs_repro.py"
+    },
+    {
+      "classification": "test_fixture",
+      "line": 866,
+      "matches": [
+        "DBEQ.BASIC"
+      ],
+      "path": "tests/test_smc_microstructure_base_runtime.py"
+    },
+    {
+      "classification": "test_fixture",
+      "line": 954,
+      "matches": [
+        "DBEQ.BASIC"
+      ],
+      "path": "tests/test_smc_microstructure_base_runtime.py"
+    },
+    {
+      "classification": "test_fixture",
+      "line": 1202,
+      "matches": [
+        "DBEQ.BASIC"
+      ],
+      "path": "tests/test_smc_microstructure_base_runtime.py"
+    },
+    {
+      "classification": "test_fixture",
+      "line": 1256,
+      "matches": [
+        "DBEQ.BASIC"
+      ],
+      "path": "tests/test_smc_microstructure_base_runtime.py"
+    },
+    {
+      "classification": "test_fixture",
+      "line": 1294,
+      "matches": [
+        "DBEQ.BASIC"
+      ],
+      "path": "tests/test_smc_microstructure_base_runtime.py"
+    },
+    {
+      "classification": "test_fixture",
+      "line": 1321,
+      "matches": [
+        "DBEQ.BASIC"
+      ],
+      "path": "tests/test_smc_microstructure_base_runtime.py"
+    },
+    {
+      "classification": "test_fixture",
+      "line": 1379,
+      "matches": [
+        "DBEQ.BASIC"
+      ],
+      "path": "tests/test_smc_microstructure_base_runtime.py"
+    },
+    {
+      "classification": "test_fixture",
+      "line": 1441,
+      "matches": [
+        "DBEQ.BASIC"
+      ],
+      "path": "tests/test_smc_microstructure_base_runtime.py"
+    },
+    {
+      "classification": "test_fixture",
+      "line": 1580,
+      "matches": [
+        "DBEQ.BASIC"
+      ],
+      "path": "tests/test_smc_microstructure_base_runtime.py"
+    },
+    {
+      "classification": "test_fixture",
+      "line": 1645,
+      "matches": [
+        "DBEQ.BASIC"
+      ],
+      "path": "tests/test_smc_microstructure_base_runtime.py"
+    },
+    {
+      "classification": "test_fixture",
+      "line": 2212,
+      "matches": [
+        "DBEQ.BASIC"
+      ],
+      "path": "tests/test_smc_microstructure_base_runtime.py"
+    },
+    {
+      "classification": "test_fixture",
+      "line": 2308,
+      "matches": [
+        "DBEQ.BASIC"
+      ],
+      "path": "tests/test_smc_microstructure_base_runtime.py"
+    },
+    {
+      "classification": "test_fixture",
+      "line": 73,
+      "matches": [
+        "DBEQ.BASIC"
+      ],
+      "path": "tests/test_terminal_databento_chunking.py"
+    },
+    {
+      "classification": "test_fixture",
+      "line": 90,
+      "matches": [
+        "DBEQ.BASIC"
+      ],
+      "path": "tests/test_terminal_databento_chunking.py"
+    },
+    {
+      "classification": "test_fixture",
+      "line": 119,
+      "matches": [
+        "DBEQ.BASIC"
+      ],
+      "path": "tests/test_terminal_databento_chunking.py"
+    },
+    {
+      "classification": "test_fixture",
+      "line": 136,
+      "matches": [
+        "DBEQ.BASIC"
+      ],
+      "path": "tests/test_terminal_databento_chunking.py"
+    },
+    {
+      "classification": "test_fixture",
+      "line": 35,
+      "matches": [
+        "XNAS.ITCH"
+      ],
+      "path": "tests/test_terminal_databento_dataset_cache.py"
+    },
+    {
+      "classification": "test_fixture",
+      "line": 36,
+      "matches": [
+        "XNAS.ITCH"
+      ],
+      "path": "tests/test_terminal_databento_dataset_cache.py"
+    },
+    {
+      "classification": "test_fixture",
+      "line": 39,
+      "matches": [
+        "DBEQ.BASIC"
+      ],
+      "path": "tests/test_terminal_databento_dataset_cache.py"
+    },
+    {
+      "classification": "test_fixture",
+      "line": 40,
+      "matches": [
+        "XNAS.ITCH"
+      ],
+      "path": "tests/test_terminal_databento_dataset_cache.py"
+    },
+    {
+      "classification": "test_fixture",
+      "line": 41,
+      "matches": [
+        "DBEQ.BASIC"
+      ],
+      "path": "tests/test_terminal_databento_dataset_cache.py"
+    },
+    {
+      "classification": "test_fixture",
+      "line": 44,
+      "matches": [
+        "XNAS.ITCH"
+      ],
+      "path": "tests/test_terminal_databento_dataset_cache.py"
+    },
+    {
+      "classification": "test_fixture",
+      "line": 45,
+      "matches": [
+        "DBEQ.BASIC"
+      ],
+      "path": "tests/test_terminal_databento_dataset_cache.py"
+    },
+    {
+      "classification": "test_fixture",
+      "line": 54,
+      "matches": [
+        "DBEQ.BASIC"
+      ],
+      "path": "tests/test_terminal_databento_dataset_cache.py"
+    },
+    {
+      "classification": "test_fixture",
+      "line": 61,
+      "matches": [
+        "DBEQ.BASIC"
+      ],
+      "path": "tests/test_terminal_databento_dataset_cache.py"
+    },
+    {
+      "classification": "test_fixture",
+      "line": 71,
+      "matches": [
+        "DBEQ.BASIC"
+      ],
+      "path": "tests/test_terminal_databento_dataset_cache.py"
+    },
+    {
+      "classification": "test_fixture",
+      "line": 98,
+      "matches": [
+        "DBEQ.BASIC"
+      ],
+      "path": "tests/test_terminal_databento_dataset_cache.py"
+    },
+    {
+      "classification": "test_fixture",
+      "line": 115,
+      "matches": [
+        "DBEQ.BASIC"
+      ],
+      "path": "tests/test_terminal_databento_dataset_cache.py"
+    },
+    {
+      "classification": "test_fixture",
+      "line": 117,
+      "matches": [
+        "DBEQ.BASIC"
+      ],
+      "path": "tests/test_terminal_databento_dataset_cache.py"
+    }
+  ],
+  "generated_without_provider_calls": true,
+  "portal_usage": {
+    "current_month": null,
+    "previous_month": null,
+    "status": "not_collected"
+  },
+  "production_export_runs": {
+    "runs_observed": null,
+    "runs_requested": 10,
+    "status": "not_collected"
+  },
+  "revision": "805f4bff733263503f14a3ae1362f8bca5438b24",
+  "source_revision": "origin/main",
+  "subscriptions": [
+    {
+      "exchange_or_distribution_fees_usd": null,
+      "monthly_cost_usd": 199,
+      "name": "Databento US Equities Standard",
+      "renews_on": "2026-08-01"
+    },
+    {
+      "exchange_or_distribution_fees_usd": null,
+      "monthly_cost_usd": 199,
+      "name": "OPRA Standard",
+      "renews_on": "2026-08-01"
+    }
+  ],
+  "version": "databento-baseline/v1"
+}

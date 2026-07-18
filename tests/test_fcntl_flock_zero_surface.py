@@ -210,6 +210,10 @@ FCNTL_FLOCK_ALLOWED: set[tuple[str, int, str]] = {
     # Databento reference-cache interprocess lock (advisory, POSIX-guarded exception/import).
     ("databento_reference.py", 127, "LOCK_EX"),
     ("databento_reference.py", 131, "LOCK_UN"),
+    # Monthly Databento usage snapshot: POSIX-guarded advisory lock around
+    # read/merge/atomic-replace, with release in the context manager finally.
+    ("databento_usage.py", 189, "LOCK_EX"),
+    ("databento_usage.py", 197, "LOCK_UN"),
 }
 
 

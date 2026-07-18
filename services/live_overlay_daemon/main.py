@@ -6,14 +6,14 @@ Endpoints:
     GET /ready                           — readiness diagnostics (no auth)
   GET /{token}/smc_live?symbol=NVDA    — overlay payload (token = OVERLAY_SECRET_TOKEN)
 Security model:
-    Pine's request.get() cannot send Authorization headers, so the secret
-  token is embedded in the URL path. The Pine source is never released to
-  users, so the URL is effectively obscure. Rotate monthly via library update.
+  The service is an internal/server-side API. The secret token remains in the
+  URL path for compatibility with existing operational clients and must never
+  be embedded in Pine source or exposed to chart users.
 
 Stale handling:
   If the overlay cache is older than OVERLAY_MAX_STALE_SECS, the response
   still returns 200 but with stale=true and asof_ts showing the last computation
-  time, so Pine can degrade gracefully to the baked mp.* defaults.
+  time, so downstream server-side consumers can fail closed.
 """
 from __future__ import annotations
 

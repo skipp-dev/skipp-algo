@@ -204,11 +204,47 @@ def _databento_get_range_with_retry(
     last_exc: BaseException | None = None
     attempts = max(1, int(max_attempts or DATABENTO_GET_RANGE_MAX_ATTEMPTS))
     for attempt in range(1, attempts + 1):
+        started = time_module.monotonic()
+        dataset = str(kwargs.get("dataset") or "UNKNOWN")
+        schema = str(kwargs.get("schema") or "unknown")
+        symbols = kwargs.get("symbols") or []
         try:
             _normalize_tls_certificate_env()
-            return client.timeseries.get_range(**kwargs)
+            result = client.timeseries.get_range(**kwargs)
+            try:
+                import databento_usage
+
+                databento_usage.record(
+                    dataset=dataset,
+                    schema=schema,
+                    mode="historical",
+                    consumer=context,
+                    external_requests=1,
+                    symbols_requested=len(symbols),
+                    latency_ms=(time_module.monotonic() - started) * 1000.0,
+                )
+                databento_usage.flush()
+            except Exception:
+                logger.debug("Databento usage success event skipped", exc_info=True)
+            return result
         except Exception as exc:
             last_exc = exc
+            try:
+                import databento_usage
+
+                databento_usage.record(
+                    dataset=dataset,
+                    schema=schema,
+                    mode="historical",
+                    consumer=context,
+                    external_requests=1,
+                    symbols_requested=len(symbols),
+                    errors=1,
+                    latency_ms=(time_module.monotonic() - started) * 1000.0,
+                )
+                databento_usage.flush()
+            except Exception:
+                logger.debug("Databento usage error event skipped", exc_info=True)
             _msg = _redact_sensitive_error_text(str(exc)).lower()
             if "429" in _msg or "too many requests" in _msg:
                 try:  # 429 telemetry — count every hit, even on the final attempt
@@ -235,11 +271,25 @@ def _databento_get_range_with_retry(
 
 # ── Dataset enumeration ────────────────────────────────────────────────────
 
-def list_accessible_datasets(databento_api_key: str | None = None) -> list[str]:
-    """Return sorted list of datasets the API key can access."""
+def list_catalog_datasets(databento_api_key: str | None = None) -> list[str]:
+    """Return Databento's dataset catalog; this is not an entitlement list."""
     client = _make_databento_client(databento_api_key)
-    datasets = client.metadata.list_datasets()
-    return sorted({str(dataset) for dataset in datasets if dataset})
+    from databento_access import list_catalog_datasets_from_client
+
+    return list_catalog_datasets_from_client(client)
+
+
+def list_accessible_datasets(databento_api_key: str | None = None) -> list[str]:
+    """Deprecated compatibility alias for :func:`list_catalog_datasets`."""
+    import warnings
+
+    warnings.warn(
+        "list_accessible_datasets() returns the global catalog, not entitlements; "
+        "use list_catalog_datasets()",
+        DeprecationWarning,
+        stacklevel=2,
+    )
+    return list_catalog_datasets(databento_api_key)
 
 
 def _install_databento_requests_tls_override(cafile: str) -> None:

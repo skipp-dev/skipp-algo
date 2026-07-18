@@ -21,6 +21,8 @@ if str(REPO_ROOT) not in sys.path:
 
 import contextlib
 
+from databento_dataset_policy import DatasetMode, DatasetRole, resolve_dataset
+from databento_provider import list_catalog_datasets
 from databento_volatility_screener import (
     US_EASTERN_TZ,
     _clamp_request_end,
@@ -32,8 +34,6 @@ from databento_volatility_screener import (
     _safe_float,
     _store_to_frame,
     _write_exact_named_export_state,
-    choose_default_dataset,
-    list_accessible_datasets,
     normalize_symbol_for_databento,
 )
 from scripts._progress_flush import flush_progress_streams
@@ -73,7 +73,8 @@ _EXCHANGE_ALIASES: dict[str, str] = {
     "NYSE AMERICAN": "AMEX",
     "AMEX": "AMEX",
     "XASE": "AMEX",
-    "ARCX": "AMEX",
+    "ARCX": "ARCA",
+    "NYSE ARCA": "ARCA",
 }
 
 
@@ -106,16 +107,22 @@ def _extract_live_license_cutoff_utc(error_text: str) -> datetime | None:
 
 
 def _resolve_effective_dataset(databento_api_key: str, requested_dataset: str) -> tuple[str, list[str]]:
-    requested = str(requested_dataset or "").strip().upper()
+    requested = str(requested_dataset or "").strip().upper() or None
+    resolved = resolve_dataset(
+        DatasetRole.EQUITY_INTRADAY_PARITY,
+        requested_dataset=requested,
+        schema="ohlcv-1m",
+        mode=DatasetMode.HISTORICAL,
+    )
     try:
-        available = [
-            str(item).strip().upper() for item in list_accessible_datasets(databento_api_key) if str(item).strip()
+        catalog = [
+            str(item).strip().upper()
+            for item in list_catalog_datasets(databento_api_key)
+            if str(item).strip()
         ]
     except Exception:
-        return requested or "DBEQ.BASIC", []
-    if not available:
-        return requested or "DBEQ.BASIC", []
-    return choose_default_dataset(available, requested_dataset=requested or None), available
+        catalog = []
+    return resolved, catalog
 
 
 def _resolve_premarket_anchor_et(manifest: dict[str, Any]) -> time:
@@ -805,276 +812,13 @@ def run_preopen_fast_refresh(
 
     if attempted_batches > 0 and not batch_frames and failed_batch_errors:
         if clamp_bypassed:
-            # The selected dataset (e.g. DBEQ.BASIC) does not serve same-day
-            # data.  Cascade through real-time capable datasets until one works.
-            _REALTIME_DATASET_PREFERENCE = (
-                "XNAS.BASIC",
-                "XNAS.ITCH",
-                "XNYS.PILLAR",
-                "DBEQ.PLUS",
-                "ARCX.PILLAR",
-                "BATS.PITCH",
-                "IEXG.TOPS",
-                "MEMX.MEMOIR",
-                "XBOS.ITCH",
+            warning = (
+                "Premarket fetch failed for every batch on the selected consolidated "
+                f"dataset={effective_dataset}; no venue fallback is permitted because "
+                f"it would change market coverage semantics. First error: {failed_batch_errors[0]}"
             )
-            fallback_candidates = [
-                ds for ds in _REALTIME_DATASET_PREFERENCE if ds in available_datasets and ds != effective_dataset
-            ]
-            if not fallback_candidates:
-                logger.warning(
-                    "All premarket fetch batches failed after availability-clamp bypass "
-                    "(dataset=%s, batches=%d). No alternative datasets available. "
-                    "First error: %s. Proceeding with empty premarket.",
-                    effective_dataset,
-                    attempted_batches,
-                    failed_batch_errors[0],
-                )
-            else:
-                fallback_succeeded = False
-                fallback_batch_errors: list[str] = []
-                skipped_for_exchange: list[str] = []
-                for fallback_dataset in fallback_candidates:
-                    dataset_upper = str(fallback_dataset).upper()
-                    symbol_exchange = {
-                        str(row.symbol).upper(): _normalize_exchange_label(row.exchange)
-                        for row in daily_current[["symbol", "exchange"]]
-                        .drop_duplicates(subset=["symbol"])
-                        .itertuples(index=False)
-                    }
-                    fallback_available_end = _get_schema_available_end(client, fallback_dataset, "ohlcv-1s")
-                    fallback_fetch_end = _clamp_request_end(
-                        pd.Timestamp(fetch_end_utc), fallback_available_end
-                    ).to_pydatetime()
-                    if fallback_fetch_end < premarket_start_utc:
-                        if resolved_now_utc >= premarket_start_utc:
-                            logger.info(
-                                "Fallback dataset %s clamped end %s is before premarket start %s; "
-                                "bypassing clamp for live premarket probe (fetch_end=%s).",
-                                fallback_dataset,
-                                fallback_fetch_end,
-                                premarket_start_utc,
-                                fetch_end_utc,
-                            )
-                            fallback_fetch_end = fetch_end_utc
-                        else:
-                            skipped_for_exchange.append(f"{fallback_dataset} (no premarket window)")
-                            logger.info(
-                                "Skipping fallback dataset %s: clamped end %s is before premarket start %s.",
-                                fallback_dataset,
-                                fallback_fetch_end,
-                                premarket_start_utc,
-                            )
-                            continue
-
-                    allowed_exchanges: set[str] | None = None
-                    if dataset_upper.startswith("XNAS"):
-                        allowed_exchanges = {"NASDAQ"}
-                    elif dataset_upper.startswith("XNYS"):
-                        allowed_exchanges = {"NYSE"}
-                    elif dataset_upper.startswith("XASE") or dataset_upper.startswith("ARCX"):
-                        allowed_exchanges = {"AMEX"}
-
-                    fallback_symbols = symbols
-                    if allowed_exchanges is not None:
-                        fallback_symbols = [
-                            symbol
-                            for symbol in symbols
-                            if symbol_exchange.get(str(symbol).upper(), "") in allowed_exchanges
-                        ]
-                    if not fallback_symbols:
-                        skipped_for_exchange.append(str(fallback_dataset))
-                        logger.info(
-                            "Skipping fallback dataset %s: no compatible symbols in current scope.",
-                            fallback_dataset,
-                        )
-                        continue
-
-                    logger.info(
-                        "Dataset %s does not serve same-day data. Trying fallback dataset %s "
-                        "for premarket fetch (%d compatible symbols).",
-                        effective_dataset,
-                        fallback_dataset,
-                        len(fallback_symbols),
-                    )
-                    batch_frames.clear()
-                    failed_batch_errors.clear()
-                    unresolved_symbols.clear()
-                    attempted_batches = 0
-                    # Only test with one small batch first to check license/availability
-                    fallback_batches = list(_iter_symbol_batches(fallback_symbols))
-                    test_batch = fallback_batches[0]
-                    try:
-                        with warnings.catch_warnings(record=True):
-                            warnings.simplefilter("always")
-                            store = client.timeseries.get_range(
-                                dataset=fallback_dataset,
-                                symbols=test_batch,
-                                schema="ohlcv-1s",
-                                start=premarket_query_start_utc.isoformat(),
-                                end=_exclusive_ohlcv_1s_end(fallback_fetch_end).isoformat(),
-                            )
-                        test_frame = _store_to_frame(store, context="run_preopen_fast_refresh_probe")
-                    except Exception as probe_exc:
-                        probe_text = str(probe_exc).lower()
-                        no_window_yet = (
-                            "data_start_after_available_end" in probe_text or "after the available end" in probe_text
-                        )
-                        if no_window_yet:
-                            skipped_for_exchange.append(f"{fallback_dataset} (no premarket window yet)")
-                            logger.info(
-                                "Fallback %s probe indicates no premarket window yet: %s. Trying next dataset.",
-                                fallback_dataset,
-                                probe_exc,
-                            )
-                            continue
-                        retry_end = _extract_live_license_cutoff_utc(str(probe_exc))
-                        if retry_end is not None and retry_end >= premarket_start_utc:
-                            adjusted_end = min(fallback_fetch_end, retry_end)
-                            try:
-                                with warnings.catch_warnings(record=True):
-                                    warnings.simplefilter("always")
-                                    store = client.timeseries.get_range(
-                                        dataset=fallback_dataset,
-                                        symbols=test_batch,
-                                        schema="ohlcv-1s",
-                                        start=premarket_query_start_utc.isoformat(),
-                                        end=_exclusive_ohlcv_1s_end(adjusted_end).isoformat(),
-                                    )
-                                test_frame = _store_to_frame(store, context="run_preopen_fast_refresh_probe_retry")
-                                fallback_fetch_end = adjusted_end
-                                logger.info(
-                                    "Fallback %s probe retried with delayed cutoff end=%s after live-license boundary.",
-                                    fallback_dataset,
-                                    adjusted_end,
-                                )
-                            except Exception as retry_exc:
-                                fallback_batch_errors.append(
-                                    f"fallback={fallback_dataset} probe error={type(retry_exc).__name__}: {retry_exc}"
-                                )
-                                logger.info(
-                                    "Fallback %s delayed-cutoff probe retry failed: %s. Trying next dataset.",
-                                    fallback_dataset,
-                                    retry_exc,
-                                )
-                                continue
-                        else:
-                            fallback_batch_errors.append(
-                                f"fallback={fallback_dataset} probe error={type(probe_exc).__name__}: {probe_exc}"
-                            )
-                            logger.info(
-                                "Fallback %s probe failed: %s. Trying next dataset.",
-                                fallback_dataset,
-                                probe_exc,
-                            )
-                            continue
-
-                    # Probe succeeded — use this dataset for all batches
-                    effective_dataset = fallback_dataset
-                    if not test_frame.empty:
-                        batch_frames.append(test_frame)
-                    for symbols_batch in fallback_batches[1:]:
-                        attempted_batches += 1
-                        try:
-                            with warnings.catch_warnings(record=True) as caught_warnings:
-                                warnings.simplefilter("always")
-                                store = client.timeseries.get_range(
-                                    dataset=fallback_dataset,
-                                    symbols=symbols_batch,
-                                    schema="ohlcv-1s",
-                                    start=premarket_query_start_utc.isoformat(),
-                                    end=_exclusive_ohlcv_1s_end(fallback_fetch_end).isoformat(),
-                                )
-                            frame = _store_to_frame(store, context="run_preopen_fast_refresh_fallback")
-                            unresolved_symbols.update(
-                                _extract_unresolved_symbols_from_warning_messages(
-                                    [str(item.message) for item in caught_warnings]
-                                )
-                            )
-                        except Exception as exc:
-                            err = f"fallback={fallback_dataset} batch_size={len(symbols_batch)} error={type(exc).__name__}: {exc}"
-                            failed_batch_errors.append(err)
-                            fallback_batch_errors.append(err)
-                            continue
-                        if frame.empty:
-                            continue
-                        batch_frames.append(frame)
-                    fallback_succeeded = True
-                    logger.info(
-                        "Fallback dataset %s succeeded (%d frames collected).",
-                        fallback_dataset,
-                        len(batch_frames),
-                    )
-                    break
-
-                if not fallback_succeeded:
-                    fallback_detail = (
-                        f" First fallback error: {fallback_batch_errors[0]}" if fallback_batch_errors else ""
-                    )
-                    error_text = "\n".join(fallback_batch_errors).lower()
-                    skipped_no_window_only = bool(skipped_for_exchange) and all(
-                        "(no premarket window" in item for item in skipped_for_exchange
-                    )
-                    skipped_no_compatible_only = bool(skipped_for_exchange) and all(
-                        "(no premarket window" not in item for item in skipped_for_exchange
-                    )
-                    if skipped_for_exchange:
-                        if skipped_no_window_only:
-                            skip_detail = f" Skipped (no premarket window): {', '.join(skipped_for_exchange)}."
-                        elif skipped_no_compatible_only:
-                            skip_detail = f" Skipped (no compatible symbols): {', '.join(skipped_for_exchange)}."
-                        else:
-                            skip_detail = f" Skipped: {', '.join(skipped_for_exchange)}."
-                    else:
-                        skip_detail = ""
-                    availability_lag = (
-                        "data_end_after_available_end" in error_text
-                        or "data_start_after_available_end" in error_text
-                        or "after the available end" in error_text
-                        or "available up to" in error_text
-                    )
-                    if skipped_no_window_only and not fallback_batch_errors:
-                        now_et = resolved_now_utc.astimezone(US_EASTERN_TZ)
-                        anchor_dt_et = datetime.combine(now_et.date(), premarket_anchor_et, tzinfo=US_EASTERN_TZ)
-                        minutes_after_anchor = int((now_et - anchor_dt_et).total_seconds() // 60)
-                        if resolved_now_utc < premarket_start_utc:
-                            _timing_hint = (
-                                f"Current ET time {now_et.strftime('%H:%M:%S')} is before the "
-                                f"{premarket_anchor_et.strftime('%H:%M')} ET anchor. "
-                                "Retry shortly after premarket starts."
-                            )
-                        elif minutes_after_anchor < 15:
-                            _timing_hint = (
-                                f"Current ET time is {now_et.strftime('%H:%M:%S')} ({minutes_after_anchor} min after anchor). "
-                                "This is often a short availability lag right after premarket open; retry shortly."
-                            )
-                        else:
-                            _timing_hint = (
-                                f"Current ET time is {now_et.strftime('%H:%M:%S')} ({minutes_after_anchor} min after anchor) "
-                                "and no premarket window is reported yet. This can indicate delayed dataset updates or "
-                                "missing same-day premarket entitlement for the available feeds."
-                            )
-                        _warn_msg = (
-                            "All fallback datasets were skipped because each dataset currently reports no premarket window. "
-                            f"Checked: {', '.join(fallback_candidates)}.{skip_detail} "
-                            f"{_timing_hint}"
-                        )
-                    elif availability_lag:
-                        _warn_msg = (
-                            "All fallback datasets failed due to dataset availability lag (not a confirmed license issue). "
-                            f"Tried: {', '.join(fallback_candidates)}. "
-                            f"Premarket data will be empty for this run.{skip_detail}{fallback_detail} "
-                            "Retry shortly; availability can catch up during premarket."
-                        )
-                    else:
-                        _warn_msg = (
-                            "All fallback datasets failed — this may indicate missing live data access for same-day premarket. "
-                            f"Tried: {', '.join(fallback_candidates)}. "
-                            f"Premarket data will be empty.{skip_detail}{fallback_detail} "
-                            "See https://databento.com/docs for licensing."
-                        )
-                    logger.warning(_warn_msg)
-                    user_warnings.append(_warn_msg)
+            logger.warning(warning)
+            user_warnings.append(warning)
         else:
             raise RuntimeError(
                 "Premarket fetch failed for all symbol batches "
@@ -1205,7 +949,13 @@ def _build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         description="Build a reduced-scope pre-open refresh from the latest full-history Databento bundle."
     )
-    parser.add_argument("--dataset", default=os.getenv("DATABENTO_DATASET", "DBEQ.BASIC"))
+    parser.add_argument(
+        "--dataset",
+        default=(
+            os.getenv("DATABENTO_EQUITY_INTRADAY_DATASET")
+            or "EQUS.MINI"
+        ),
+    )
     parser.add_argument("--export-dir", default=str(DEFAULT_EXPORT_DIR))
     parser.add_argument(
         "--bundle",

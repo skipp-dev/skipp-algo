@@ -118,6 +118,12 @@ REPO_ROOT = Path(__file__).resolve().parents[1]
 if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
 
+from databento_dataset_policy import (
+    DatasetMode,
+    DatasetRole,
+    dataset_manifest_fields,
+    resolve_dataset,
+)
 from databento_universe import fetch_us_equity_universe_with_metadata
 from databento_volatility_screener import (
     DEFAULT_CLOSE_IMBALANCE_AFTERHOURS_END_ET,
@@ -136,7 +142,6 @@ from databento_volatility_screener import (
     build_export_basename,
     build_run_manifest_frame,
     build_summary_table,
-    choose_default_dataset,
     collect_benchmark_universe_ohlcv_1m,
     collect_full_universe_close_outcome_minute_detail,
     collect_full_universe_close_trade_detail,
@@ -146,7 +151,6 @@ from databento_volatility_screener import (
     export_run_artifacts,
     fetch_symbol_day_detail,
     filter_supported_universe_for_databento,
-    list_accessible_datasets,
     list_recent_trading_days,
     load_daily_bars,
     normalize_symbol_for_databento,
@@ -817,6 +821,7 @@ QUALITY_OPEN_DRIVE_EARLY_EXCHANGE_DATASETS = {
     "NASDAQ": "XNAS.BASIC",
     "NYSE": "XNYS.PILLAR",
     "AMEX": "XASE.PILLAR",
+    "ARCA": "ARCX.PILLAR",
 }
 QUALITY_OPEN_DRIVE_HARD_FILTERS = {
     "min_previous_close": 5.0,
@@ -1913,6 +1918,8 @@ def _normalize_exchange_key(value: object) -> str:
         return "NYSE"
     if compact in {"AMEX", "XASE", "NYSEAMERICAN", "NYSEMKT"}:
         return "AMEX"
+    if compact in {"ARCA", "ARCX", "NYSEARCA"}:
+        return "ARCA"
     return normalized
 
 
@@ -1944,6 +1951,53 @@ def _with_source_priority(frame: pd.DataFrame, *, source_priority: int) -> pd.Da
     enriched = frame.copy()
     enriched["_source_priority"] = int(source_priority)
     return enriched
+
+
+def _attach_venue_observations(
+    base: pd.DataFrame,
+    alternate_parts: list[pd.DataFrame],
+) -> pd.DataFrame:
+    """Attach venue observations without replacing consolidated base OHLCV."""
+    result = base.copy()
+    if result.empty or not alternate_parts:
+        return result
+    keys = ["trade_date", "symbol", "timestamp"]
+    if any(key not in result.columns for key in keys):
+        return result
+    alternate = pd.concat(alternate_parts, ignore_index=True)
+    if alternate.empty or any(key not in alternate.columns for key in keys):
+        return result
+    for frame in (result, alternate):
+        frame["symbol"] = frame["symbol"].astype(str).str.upper()
+        frame["timestamp"] = pd.to_datetime(frame["timestamp"], errors="coerce", utc=True)
+        frame.dropna(subset=["timestamp"], inplace=True)
+    alternate.sort_values([*keys, "_venue_source_dataset"], inplace=True, kind="stable")
+    alternate.drop_duplicates(subset=keys, keep="last", inplace=True)
+    observed_columns = [
+        column
+        for column in (
+            "open",
+            "high",
+            "low",
+            "close",
+            "volume",
+            "second_delta_pct",
+            "from_previous_close_pct",
+            "_venue_source_dataset",
+        )
+        if column in alternate.columns
+    ]
+    venue = alternate[[*keys, *observed_columns]].rename(
+        columns={
+            column: (
+                "venue_source_dataset"
+                if column == "_venue_source_dataset"
+                else f"venue_{column}"
+            )
+            for column in observed_columns
+        }
+    )
+    return result.merge(venue, on=keys, how="left", validate="one_to_one")
 
 
 def _filter_quality_window_intervals(
@@ -2097,15 +2151,17 @@ def _collect_quality_window_source_frames(
         if alt_detail.empty:
             continue
         applied_datasets[exchange_key] = dataset_name
-        alternate_quality_parts.append(
-            _filter_quality_window_intervals(
-                alt_detail,
-                include_early=True,
-                include_late=False,
-                include_open_confirm=True,
-            )
+        alt_quality = _filter_quality_window_intervals(
+            alt_detail,
+            include_early=True,
+            include_late=False,
+            include_open_confirm=True,
         )
-        alternate_premarket_parts.append(_filter_premarket_rows(alt_detail))
+        alt_premarket = _filter_premarket_rows(alt_detail)
+        alt_quality["_venue_source_dataset"] = dataset_name
+        alt_premarket["_venue_source_dataset"] = dataset_name
+        alternate_quality_parts.append(alt_quality)
+        alternate_premarket_parts.append(alt_premarket)
 
     if base_detail.empty:
         base_quality = empty.copy()
@@ -2114,13 +2170,8 @@ def _collect_quality_window_source_frames(
         base_quality = _filter_quality_window_intervals(base_detail, include_early=True, include_late=True, include_open_confirm=True)
         base_premarket = _filter_premarket_rows(base_detail)
 
-    base_quality = _with_source_priority(base_quality, source_priority=0)
-    base_premarket = _with_source_priority(base_premarket, source_priority=0)
-    alternate_quality_parts = [_with_source_priority(part, source_priority=1) for part in alternate_quality_parts]
-    alternate_premarket_parts = [_with_source_priority(part, source_priority=1) for part in alternate_premarket_parts]
-
-    quality_detail = pd.concat([base_quality, *alternate_quality_parts], ignore_index=True) if alternate_quality_parts else base_quality.copy()
-    premarket_detail = pd.concat([base_premarket, *alternate_premarket_parts], ignore_index=True) if alternate_premarket_parts else base_premarket.copy()
+    quality_detail = _attach_venue_observations(base_quality, alternate_quality_parts)
+    premarket_detail = _attach_venue_observations(base_premarket, alternate_premarket_parts)
 
     for frame in (quality_detail, premarket_detail):
         if not frame.empty:
@@ -2131,9 +2182,8 @@ def _collect_quality_window_source_frames(
             _n_dropped = _n_before - len(frame)
             if _n_dropped:
                 logger.debug("collect_quality_window_source_frames: dropped %d/%d rows with null timestamp", _n_dropped, _n_before)
-            frame.sort_values(["trade_date", "symbol", "timestamp", "_source_priority"], inplace=True, kind="stable")
+            frame.sort_values(["trade_date", "symbol", "timestamp"], inplace=True, kind="stable")
             frame.drop_duplicates(subset=["trade_date", "symbol", "timestamp"], keep="last", inplace=True)
-            frame.drop(columns=["_source_priority"], errors="ignore", inplace=True)
             frame.reset_index(drop=True, inplace=True)
 
     metadata = {
@@ -3713,6 +3763,7 @@ def run_production_export_pipeline(
     fmp_api_key: str = "",
     benzinga_api_key: str = "",
     dataset: str,
+    daily_dataset: str | None = None,
     quality_window_early_exchange_datasets: dict[str, str] | None = None,
     lookback_days: int = 15,
     top_fraction: float = 0.20,
@@ -3741,6 +3792,18 @@ def run_production_export_pipeline(
         raise ValueError("second_detail_scope must be one of: full_universe, ranked_only, none")
     resolved_bullish_cfg = build_default_bullish_quality_config(score_profile=bullish_score_profile)
     resolved_skip_cost_estimate = True if skip_cost_estimate is None else bool(skip_cost_estimate)
+    dataset = resolve_dataset(
+        DatasetRole.EQUITY_INTRADAY_PARITY,
+        requested_dataset=dataset,
+        schema="ohlcv-1m",
+        mode=DatasetMode.HISTORICAL,
+    )
+    resolved_daily_dataset = resolve_dataset(
+        DatasetRole.EQUITY_EOD_CANONICAL,
+        requested_dataset=daily_dataset,
+        schema="ohlcv-1d",
+        mode=DatasetMode.HISTORICAL,
+    )
 
     # P5.4 Option B: timestamp every progress line with elapsed wallclock + RSS so
     # that even when the runner is killed by SIGTERM (exit 143) mid-pipeline — see
@@ -3768,7 +3831,11 @@ def run_production_export_pipeline(
         _progress(f"Step 1/10: Using overridden trading day scope ({len(trading_days)} days)...")
     else:
         _progress("Step 1/10: Listing recent trading days...")
-        trading_days = list_recent_trading_days(databento_api_key, dataset=dataset, lookback_days=lookback_days)
+        trading_days = list_recent_trading_days(
+            databento_api_key,
+            dataset=resolved_daily_dataset,
+            lookback_days=lookback_days,
+        )
     if resolved_skip_cost_estimate:
         _progress("Step 2/10: Skipping cost estimate (default operational mode)...")
         cost_estimate = pd.DataFrame(columns=["scope", "cost_usd", "billable_size_bytes"])
@@ -3835,7 +3902,7 @@ def run_production_export_pipeline(
         _daily_max_workers = 1
     daily_bars = load_daily_bars(
         databento_api_key,
-        dataset=dataset,
+        dataset=resolved_daily_dataset,
         trading_days=trading_days,
         universe_symbols=universe_symbols,
         cache_dir=resolved_cache_dir,
@@ -4400,6 +4467,17 @@ def run_production_export_pipeline(
     basename = build_export_basename(prefix="databento_volatility_production")
     manifest = {
         "dataset": dataset,
+        "daily_dataset": resolved_daily_dataset,
+        "dataset_contract": dataset_manifest_fields(
+            DatasetRole.EQUITY_INTRADAY_PARITY,
+            schema="ohlcv-1m",
+            mode=DatasetMode.HISTORICAL,
+        ),
+        "daily_dataset_contract": dataset_manifest_fields(
+            DatasetRole.EQUITY_EOD_CANONICAL,
+            schema="ohlcv-1d",
+            mode=DatasetMode.HISTORICAL,
+        ),
         "universe_source": universe_metadata.get("source"),
         "universe_source_fallback": universe_metadata.get("fallback_source"),
         "universe_scope_definition": universe_metadata.get("scope_definition"),
@@ -4464,7 +4542,7 @@ def run_production_export_pipeline(
         "quality_window_source_early_exchange_datasets": quality_window_source_metadata["early_exchange_datasets"],
         "quality_window_source_applied_early_exchange_datasets": quality_window_source_metadata["applied_early_exchange_datasets"],
         "quality_window_source_early_exchange_symbol_counts": quality_window_source_metadata["early_exchange_symbol_counts"],
-        "quality_window_source_strategy": "Use exchange-specific early/premarket sources where configured with row-level fallback to the base dataset for missing timestamps, use the base dataset for the late 09:00-09:30 ET window, and derive open-confirm from the same merged early-path source.",
+        "quality_window_source_strategy": "Keep consolidated base OHLCV authoritative and attach exchange-specific early/premarket observations in venue_* provenance columns; never replace base bars with single-venue rows.",
         "quality_open_drive_window_trade_date_rule": "latest trade_date covered by daily_symbol_features_full_universe",
         "quality_open_drive_window_coverage_latest_berlin_rule": "categorical latest-trade-date data-presence status derived from canonical premarket_window_features_full_universe rows across bullish_quality_window_tags, rendered as display_timezone-local window labels joined by '+', or none",
         "quality_open_drive_window_latest_berlin_rule": "categorical latest-trade-date bullish-quality status derived from the best-scoring passing canonical window row on the latest trade date, ties broken by later configured window order, rendered as a display_timezone-local window label, or none",
@@ -4825,7 +4903,17 @@ def main(argv: Sequence[str] | None = None) -> None:
     load_dotenv(REPO_ROOT / ".env")
 
     parser = argparse.ArgumentParser(description="Run the Databento production export pipeline.")
-    parser.add_argument("--dataset", default=(os.getenv("DATABENTO_DATASET") or "").strip() or None)
+    parser.add_argument(
+        "--dataset",
+        default=(
+            os.getenv("DATABENTO_EQUITY_INTRADAY_DATASET")
+            or "EQUS.MINI"
+        ),
+    )
+    parser.add_argument(
+        "--daily-dataset",
+        default=os.getenv("DATABENTO_EQUITY_EOD_DATASET") or "EQUS.SUMMARY",
+    )
     parser.add_argument("--lookback-days", type=int, default=15)
     parser.add_argument("--top-fraction", type=float, default=float(os.getenv("DATABENTO_TOP_FRACTION", "0.20")))
     parser.add_argument(
@@ -4923,9 +5011,18 @@ def main(argv: Sequence[str] | None = None) -> None:
     if not fmp_api_key:
         print("INFO: FMP_API_KEY not set — running without FMP enrichment (Nasdaq Trader primary universe only).")
 
-    available = list_accessible_datasets(databento_api_key)
-    requested_dataset = str(args.dataset or "").strip()
-    dataset = choose_default_dataset(available, requested_dataset=requested_dataset or None)
+    dataset = resolve_dataset(
+        DatasetRole.EQUITY_INTRADAY_PARITY,
+        requested_dataset=args.dataset,
+        schema="ohlcv-1m",
+        mode=DatasetMode.HISTORICAL,
+    )
+    daily_dataset = resolve_dataset(
+        DatasetRole.EQUITY_EOD_CANONICAL,
+        requested_dataset=args.daily_dataset,
+        schema="ohlcv-1d",
+        mode=DatasetMode.HISTORICAL,
+    )
 
     # A9b.1: when an explicit range is given, resolve trading days against
     # the dataset's availability metadata and pass the closed [start, end]
@@ -4936,7 +5033,7 @@ def main(argv: Sequence[str] | None = None) -> None:
         candidate_lookback = max(span_days * 4, span_days + 10, 30)
         candidate_days = list_recent_trading_days(
             databento_api_key,
-            dataset=dataset,
+            dataset=daily_dataset,
             lookback_days=candidate_lookback,
             end_date=args.end_date,
         )
@@ -4966,6 +5063,7 @@ def main(argv: Sequence[str] | None = None) -> None:
         fmp_api_key=fmp_api_key,
         benzinga_api_key=benzinga_api_key,
         dataset=dataset,
+        daily_dataset=daily_dataset,
         lookback_days=int(args.lookback_days),
         top_fraction=float(args.top_fraction),
         ranking_metric="window_range_pct",

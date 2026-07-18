@@ -5,8 +5,8 @@ overlay served at ``GET /smc_live``. Any field the overlay does not serve
 fresh must be ABSENT from the JSON so Pine reads ``na`` and silently falls
 back to the baked ``mp.*`` value; a stale or unreachable endpoint degrades to
 the baked baseline. These tests pin the CONTRACT-level guarantees that make
-that fallback safe. The Pine-side ``request.get``/``na`` handling itself is
-covered by the TypeScript bridge tests in CI.
+that fallback safe. No Pine network consumer exists; these tests cover the
+server-side contract only.
 
 Scenario table::
 
