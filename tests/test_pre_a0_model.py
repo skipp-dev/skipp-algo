@@ -10,6 +10,7 @@ from open_prep.pre_a0_model import (
     PreA0ShadowScorer,
     average_precision,
     brier_score,
+    compute_artifact_id,
     expected_calibration_error,
     fit_platt_calibration,
     load_artifact,
@@ -64,6 +65,14 @@ def test_model_and_calibration_are_deterministic_and_bounded() -> None:
     assert expected_calibration_error([0.1, 0.9], [0, 1]) > 0
     assert average_precision([0.1, 0.9], [0, 1]) == 1.0
     assert sum(row["count"] for row in reliability_bins([0.1, 0.9], [0, 1])) == 2
+    assert first.artifact_id == compute_artifact_id(
+        contract_version=first.contract_version,
+        schema_version=first.schema_version,
+        feature_version=first.feature_version,
+        split_manifest_sha256=first.split_manifest_sha256,
+        model=first.model,
+        calibration=first.calibration,
+    )
 
 
 def test_monotone_stump_boost_never_decreases_with_progress() -> None:
@@ -94,6 +103,20 @@ def test_artifact_loader_fails_closed_for_expiry_and_incompatibility(tmp_path) -
     )
     assert status is ModelStatus.INCOMPATIBLE
     assert loaded is None
+
+
+def test_artifact_loader_rejects_content_tampering(tmp_path) -> None:
+    payload = _artifact().to_dict()
+    payload["model"]["intercept"] += 0.01
+    path = tmp_path / "model.json"
+    path.write_text(json.dumps(payload), encoding="utf-8")
+    status, loaded, reason = load_artifact(
+        path,
+        expected_schema="pre-a0-snapshot-v1",
+        expected_feature_version="pre-a0-features-v1",
+        now=datetime(2026, 7, 2, tzinfo=UTC),
+    )
+    assert (status, loaded, reason) == (ModelStatus.INVALID, None, "artifact_identity_mismatch")
 
 
 def test_shadow_scorer_rejects_missing_features_without_a_probability() -> None:

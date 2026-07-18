@@ -403,6 +403,20 @@ file = "open_prep/realtime_signals.py"
 attr = "run"
 count = 1
 
+# services/mlflow_tracking/server.py: authenticated MLflow launcher first runs
+# the schema migration synchronously with a 120s timeout, then execs the server
+# as a supervised child for signal forwarding. Both use token-list argv, an
+# executable resolved with shutil.which, and never invoke a shell.
+[[subprocess_shell_injection_pin.sites]]
+file = "services/mlflow_tracking/server.py"
+attr = "run"
+count = 1
+
+[[subprocess_shell_injection_pin.sites]]
+file = "services/mlflow_tracking/server.py"
+attr = "Popen"
+count = 1
+
 [[subprocess_shell_injection_pin.sites]]
 file = "scripts/measure_databento_ops_run.py"
 attr = "run"

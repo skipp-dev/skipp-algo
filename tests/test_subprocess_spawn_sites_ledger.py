@@ -16,8 +16,8 @@ Why pin sites (in addition to the existing kwarg-shape invariants):
   "is this new shell-out actually necessary?".
 
 Today the audited repository surface (production modules + explicitly
-included helper scripts) spawns external commands from exactly five
-locations:
+included helper scripts) spawns external commands only from the reviewed
+locations pinned below. The MLflow pilot contributes two of them:
 
 * ``smc_integration/release_policy.py:1210`` — read git HEAD SHA
   (``git rev-parse HEAD``) for release manifest provenance.
@@ -30,6 +30,10 @@ locations:
   for the Grafana API token (``security find-generic-password ...``).
 * ``scripts/publish_signals_snapshot.py:73`` — run explicit git argv
     commands to publish the rolling live-signals snapshot branch.
+* ``services/mlflow_tracking/server.py:84`` — run the MLflow database schema
+  migration synchronously with a 120-second timeout.
+* ``services/mlflow_tracking/server.py:108`` — launch the authenticated MLflow
+  server as the signal-supervised long-lived child process.
 
 Defense-only — no production changes.
 """
@@ -206,6 +210,10 @@ SUBPROCESS_RUN_LEDGER: set[tuple[str, int, str]] = {
     # is all this pin can say here — its callers are the reviewable surface, not
     # this line. Stated rather than papered over.
     ("scripts/publish_signals_snapshot.py", 73, "? ?"),
+    # MLflow schema migration before the server accepts traffic. Executable is
+    # resolved with shutil.which; token-list argv, check=True, timeout=120,
+    # shell=False. DATABASE_URL is one opaque argv item, never shell-parsed.
+    ("services/mlflow_tracking/server.py", 84, "? db upgrade ?"),
 }
 
 SUBPROCESS_POPEN_LEDGER: set[tuple[str, int, str]] = {
@@ -214,6 +222,10 @@ SUBPROCESS_POPEN_LEDGER: set[tuple[str, int, str]] = {
     # 2026-06-28 (semantic monitoring): shifted +20 lines by _extract_snapshot_epoch helper.
     # 2026-07-03 (WP-4 holiday gate): shifted +2 (import block above).
     ("open_prep/realtime_signals.py", 384, "? -m open_prep.realtime_signals --interval ?"),  # 2026-07-16 market-session import shifted site: 383->384
+    # Authenticated MLflow server. `args` is assembled solely from fixed flags
+    # and validated environment values; Popen receives the list directly with
+    # shell=False. The launcher forwards SIGTERM/SIGINT and waits for the child.
+    ("services/mlflow_tracking/server.py", 108, "<non-list: Name>"),
 }
 
 
