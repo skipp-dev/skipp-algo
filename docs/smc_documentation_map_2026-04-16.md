@@ -142,6 +142,9 @@ gepflegt; jüngste Updates folgen Phase H + Plan 2.8 + Q3-Pipeline-Closure.
 | [DATABENTO_DECOMPOSITION_PLAN.md](DATABENTO_DECOMPOSITION_PLAN.md) | Databento Decomposition Plan |
 | [OPEN_PREP_SUITE_TECHNICAL_REFERENCE.md](OPEN_PREP_SUITE_TECHNICAL_REFERENCE.md) | Open Prep Technische Referenz |
 | [OPEN_PREP_OPS_QUICK_REFERENCE.md](OPEN_PREP_OPS_QUICK_REFERENCE.md) | Open Prep Ops Quick Reference |
+| [A0_EARLY_DETECTION_RESEARCH_2026-07-17.md](A0_EARLY_DETECTION_RESEARCH_2026-07-17.md) | Verifizierte Analyse für A0-Fast und PRE-A0 |
+| [A0_EARLY_DETECTION_ACTION_PLAN_2026-07-17.md](A0_EARLY_DETECTION_ACTION_PLAN_2026-07-17.md) | Phasenweiser A0-Fast-/PRE-A0-Action-Plan |
+| [a0_decision_contract.md](a0_decision_contract.md) | Versionierter A0-Entscheidungs-, Reason-, Zeit- und Idempotenzvertrag |
 | [OPEN_PREP_INCIDENT_RUNBOOK_ONEPAGE.md](OPEN_PREP_INCIDENT_RUNBOOK_ONEPAGE.md) | Open Prep Incident On-Call |
 | [OPEN_PREP_INCIDENT_RUNBOOK_MATRIX.md](OPEN_PREP_INCIDENT_RUNBOOK_MATRIX.md) | Open Prep Incident Matrix |
 | [OPEN_CHECKLIST.md](OPEN_CHECKLIST.md) | US-Open Execution Checklist |

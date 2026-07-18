@@ -160,8 +160,8 @@ HTTP_POST_LEDGER: set[tuple[str, int]] = {
     # Databento BentoHttpAPI._post TLS-override patch (F1 dedup, 2026-06-14):
     # both calls are internal Databento SDK POST paths using trust_env=False
     # + certifi CA bundle. Auth via HTTPBasicAuth(api_key, "").
-    ("databento_client.py", 350),  # 2026-07-18: Databento usage telemetry shifted the TLS patch sites
-    ("databento_client.py", 373),  # 2026-07-18: Databento usage telemetry shifted the TLS patch sites
+    ("databento_client.py", 355),  # 2026-07-18: usage telemetry + A0 live loop shift
+    ("databento_client.py", 378),  # 2026-07-18: usage telemetry + A0 live loop shift
 }
 
 

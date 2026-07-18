@@ -204,7 +204,7 @@ _FROZEN_BASIC_CONFIG_SITES: frozenset[tuple[str, int]] = frozenset({
     # 2913 -> 2992; feature-flag helper additions shifted run_open_prep
     # 6059 -> 6063.
     # 2026-06-28 (semantic monitoring): shifted +80 lines by readiness metrics.
-    ("open_prep/realtime_signals.py", 3709),  # 2026-07-16 postmarket adapter shifted site: 3626->3709
+    ("open_prep/realtime_signals.py", 3833),  # 2026-07-17 A0 latency metrics shifted site: 3821->3833
     # 2026-07-04 (market-microstructure observe-only): import + snapshot
     # block + row-loop fields shifted 6079 -> 6105.
     ("open_prep/run_open_prep.py", 6197),  # 2026-07-17 (DST-aware macro-time helper above): 6177->6197
@@ -219,6 +219,14 @@ _FROZEN_BASIC_CONFIG_SITES: frozenset[tuple[str, int]] = frozenset({
     # 2026-06-21 (auth decode hardening): binascii import shifted
     # basicConfig to line 40.
     ("services/live_overlay_daemon/main.py", 40),
+    # 2026-07-17: isolated Railway entry point for the shadow-only A0 worker;
+    # 2026-07-17: bounded runtime, reconnect and telemetry shifted the isolated
+    # entry-point basicConfig from 180 -> 285.
+    # 2026-07-18: PRE-A0 shadow wiring shifted the same entry-point site
+    # 285 -> 324; root logging remains confined to main().
+    # 2026-07-18: live-client thread-affinity fix removed the outer client
+    # cleanup block, shifting the entry-point site 324 -> 316.
+    ("services/a0_fast_detector/worker.py", 316),
     # 2026-07-18: standalone OPRA shadow-daemon CLI configures logging once at
     # process startup; the package modules themselves do not touch root logging.
     ("services/opra_live_daemon/main.py", 70),
@@ -276,7 +284,7 @@ _FROZEN_SYSPATH_SITES: frozenset[tuple[str, int, str]] = frozenset({
     # 2026-06-25: AsyncNewsstackPoller telemetry additions shifted
     # 1302 -> 1381.
     # 2026-06-28 (semantic monitoring): shifted +53 lines by readiness metrics.
-    ("open_prep/realtime_signals.py", 1837, "insert"),  # 2026-07-16 postmarket metrics shifted site: 1808->1837
+    ("open_prep/realtime_signals.py", 1838, "insert"),  # 2026-07-17 A0 latency metrics shifted site: 1837->1838
     ("open_prep/streamlit_monitor.py", 35, "insert"),  # 2026-07-18: dataset-usage import shifted +1
     # WP-H (PR #2612): 32 -> 34, VIX import + helper block added above.
     ("smc_tv_bridge/smc_api.py", 34, "insert"),

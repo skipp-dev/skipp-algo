@@ -1227,6 +1227,7 @@ def _collect_process_metrics(engine: Any | None = None) -> str:
         lines.append(f"{_prefix}_avg_volume_missing_symbols {_missing_avg}")
         lines.append(f"# TYPE {_prefix}_avg_volume_negative_cache_symbols gauge")
         lines.append(f"{_prefix}_avg_volume_negative_cache_symbols {_negative_avg}")
+        lines.extend(_collect_a0_latency_metrics(engine, now, _prefix))
 
     return "\n".join(lines) + "\n"
 
@@ -2172,6 +2173,8 @@ class RealtimeEngine:
         self.open_prep_snapshot_age_seconds: float = 0.0
         self.last_poll_attempt_epoch: float = 0.0
         self.last_poll_success_epoch: float = 0.0
+        self.last_poll_interval_actual_seconds: float = 0.0
+        self._poll_phase_seconds: dict[str, float] = {}
         self._last_data_epoch: float = 0.0  # stamped ONLY on a non-empty fetch (real data) — drives the data_stale gauge (vs last_poll_success_epoch = loop-liveness)
         self._in_market_hours: bool = False  # cached in poll_once so the /metrics renderer never calls the (raising) market-hours probe
         self._market_session_name: str = "closed"
@@ -2668,10 +2671,23 @@ class RealtimeEngine:
 
         price = _safe_float(quote.get("price") or quote.get("lastPrice"), 0.0)
         prev_close = _safe_float(quote.get("previousClose"), 0.0)
-        volume = _safe_float(quote.get("volume"), 0.0)
+        raw_volume_value = quote.get("volume")
+        volume = _safe_float(raw_volume_value, 0.0)
         avg_volume = _safe_float(
             quote.get("avgVolume") or watchlist_entry.get("avg_volume"), 0.0
         )
+        if raw_volume_value is not None:
+            try:
+                parsed_volume = float(raw_volume_value)
+            except (TypeError, ValueError, OverflowError):
+                parsed_volume = float("nan")
+            if parsed_volume < 0 or parsed_volume != parsed_volume or parsed_volume in (
+                float("inf"), float("-inf"),
+            ):
+                logger.debug(
+                    "Skipping %s: invalid cumulative volume=%r", symbol, raw_volume_value,
+                )
+                return None
         # FMP batch-quote endpoint doesn't return avgVolume.
         # When truly unknown, we cannot compute a meaningful ratio —
         # skip signal detection rather than dividing by 1 and getting
@@ -2687,7 +2703,6 @@ class RealtimeEngine:
             return None
 
         change_pct = ((price / prev_close) - 1) * 100
-        raw_volume_ratio = volume / avg_volume
 
         # ── Time-of-day volume normalization ─────────────────────
         # Raw volume_ratio uses cumulative daily volume vs daily average.
@@ -2695,12 +2710,13 @@ class RealtimeEngine:
         # because most of the day hasn't happened yet.  Normalize by
         # expected cumulative fraction so we measure *pace above average*
         # rather than *cumulative total*.
-        vol_frac = _resolve_expected_volume_fraction(
+        raw_volume_ratio, vol_frac, volume_ratio = _volume_semantics(
+            volume,
+            avg_volume,
             expected_volume_fraction
             if expected_volume_fraction is not None
-            else quote.get("expected_volume_fraction")
+            else quote.get("expected_volume_fraction"),
         )
-        volume_ratio = raw_volume_ratio / vol_frac
 
         atr_pct = _safe_float(watchlist_entry.get("atr_pct_computed") or watchlist_entry.get("atr_pct"), 0.0)
         confidence_tier = str(watchlist_entry.get("confidence_tier", "STANDARD"))
@@ -2719,21 +2735,41 @@ class RealtimeEngine:
         eff_a1_chg = A1_PRICE_CHANGE_PCT_MIN * rt["chg_mult"]
         eff_a2_chg = A2_PRICE_CHANGE_PCT_MIN * rt["chg_mult"]
 
-        # Determine signal level (A0 > A1 > A2)
-        level: str | None = None
-        if volume_ratio >= eff_a0_vol and abs_change >= eff_a0_chg:
-            level = "A0"
-        elif volume_ratio >= eff_a1_vol and abs_change >= eff_a1_chg:
-            level = "A1"
-        elif abs_change >= eff_a0_chg * 1.2:
-            # Large move even without full volume confirmation
-            level = "A1"
-        elif volume_ratio >= eff_a2_vol and abs_change >= eff_a2_chg:
-            # Early warning — building momentum, not confirmed yet
-            level = "A2"
-        elif abs_change >= eff_a1_chg * 1.5:
-            # Moderate move, minimal volume — still worth watching
-            level = "A2"
+        # Provider-neutral, deterministic core decision. Stateful modifiers
+        # below retain ownership of hysteresis/cooldown and append reason codes.
+        from open_prep.a0_contract import (
+            A0ReasonCode,
+            A0ThresholdContext,
+            build_market_snapshot,
+            decide_core_level,
+        )
+        observed_at = time.time()
+        market_snapshot = build_market_snapshot(
+            symbol=symbol,
+            price=price,
+            prev_close=prev_close,
+            change_pct=change_pct,
+            raw_daily_volume_ratio=raw_volume_ratio,
+            expected_volume_fraction=vol_frac,
+            normalized_volume_pace=volume_ratio,
+            source=str(quote.get("source") or "fmp"),
+            raw_ts_event=quote.get("timestamp"),
+            raw_ts_recv=quote.get("received_at"),
+            observed_at=observed_at,
+        )
+        core_decision = decide_core_level(
+            market_snapshot,
+            A0ThresholdContext(
+                a0_volume=eff_a0_vol,
+                a1_volume=eff_a1_vol,
+                a2_volume=eff_a2_vol,
+                a0_price=eff_a0_chg,
+                a1_price=eff_a1_chg,
+                a2_price=eff_a2_chg,
+            ),
+        )
+        level = core_decision.final_level
+        reason_codes = list(core_decision.reason_codes)
 
         if level is None:
             return None
@@ -2760,6 +2796,7 @@ class RealtimeEngine:
             # Price dropped since last poll — momentum is negative
             if level == "A0":
                 level = "A1"  # downgrade — do not fire A0 into a falling knife
+                reason_codes.append(A0ReasonCode.FALLING_KNIFE_DOWNGRADE)
                 logger.debug(
                     "Falling-knife downgrade: %s A0→A1 (price %.2f < prev %.2f)",
                     symbol, price, prev_price,
@@ -2781,11 +2818,13 @@ class RealtimeEngine:
             direction = "LONG"
             if level == "A1":
                 level = "A0"  # PDH breakout upgrades to A0
+                reason_codes.append(A0ReasonCode.PDH_BREAKOUT_UPGRADE)
         if pdl > 0 and price < pdl and prev_price is not None and prev_price >= pdl:
             pattern = "pdl_breakdown"
             direction = "SHORT"
             if level == "A1":
                 level = "A0"
+                reason_codes.append(A0ReasonCode.PDL_BREAKDOWN_UPGRADE)
 
         # ── Stale-move velocity gate ───────────────────────────
         # If price hasn't moved in the last N polls, cumulative change
@@ -2798,12 +2837,14 @@ class RealtimeEngine:
                 if velocity_pct < STALE_VELOCITY_PCT:
                     if level == "A0":
                         level = "A1"
+                        reason_codes.append(A0ReasonCode.STALE_VELOCITY_DOWNGRADE)
                         logger.debug(
                             "Stale velocity: %s A0→A1 (vel=%.3f%% < %.3f%%)",
                             symbol, velocity_pct, STALE_VELOCITY_PCT,
                         )
                     elif level == "A1":
                         level = "A2"
+                        reason_codes.append(A0ReasonCode.STALE_VELOCITY_DOWNGRADE)
                         logger.debug(
                             "Stale velocity: %s A1→A2 (vel=%.3f%%)",
                             symbol, velocity_pct,
@@ -2812,10 +2853,13 @@ class RealtimeEngine:
         # ── #1  Gate hysteresis — prevent A0↔A1 flapping ───────────
         # Pass the regime-adjusted A0 thresholds so the "clearly A0" band tracks
         # the effective bar (e.g. relaxed in LOW_VOLUME), not the NORMAL constant.
+        pre_hysteresis_level = level
         level = self._hysteresis.evaluate(
             symbol, level, volume_ratio, abs_change,
             a0_vol_threshold=eff_a0_vol, a0_chg_threshold=eff_a0_chg,
         )
+        if level != pre_hysteresis_level:
+            reason_codes.append(A0ReasonCode.HYSTERESIS_ADJUSTMENT)
 
         # ── #12 Technical indicator confirmation/boost/penalty ───────
         tech_data = self._technical_scorer.get_technical_data(symbol, "1D")
@@ -2829,14 +2873,17 @@ class RealtimeEngine:
                 # RSI oversold boost — upgrade A1→A0, A2→A1
                 if tech_rsi < 30 and level == "A1":
                     level = "A0"
+                    reason_codes.append(A0ReasonCode.RSI_DIRECTIONAL_UPGRADE)
                     logger.debug(
                         "%s RSI %.1f < 30 oversold — upgrading A1→A0", symbol, tech_rsi,
                     )
                 elif tech_rsi < 30 and level == "A2":
                     level = "A1"
+                    reason_codes.append(A0ReasonCode.RSI_DIRECTIONAL_UPGRADE)
                 # RSI overbought penalty — downgrade A0→A1
                 elif tech_rsi > 70 and level == "A0":
                     level = "A1"
+                    reason_codes.append(A0ReasonCode.RSI_CONTRA_DOWNGRADE)
                     logger.debug(
                         "%s RSI %.1f > 70 overbought — downgrade A0→A1", symbol, tech_rsi,
                     )
@@ -2844,20 +2891,28 @@ class RealtimeEngine:
                 # RSI overbought boost for shorts
                 if tech_rsi > 70 and level == "A1":
                     level = "A0"
+                    reason_codes.append(A0ReasonCode.RSI_DIRECTIONAL_UPGRADE)
                     logger.debug(
                         "%s RSI %.1f > 70 overbought — SHORT upgrade A1→A0", symbol, tech_rsi,
                     )
                 elif (tech_rsi > 70 and level == "A2") or (tech_rsi < 30 and level == "A0"):
                     level = "A1"
+                    reason_codes.append(
+                        A0ReasonCode.RSI_DIRECTIONAL_UPGRADE
+                        if tech_rsi > 70
+                        else A0ReasonCode.RSI_CONTRA_DOWNGRADE
+                    )
 
         # Technical consensus confirmation (non-RSI)
         if level == "A0" and tech_signal in ("STRONG_SELL",) and direction == "LONG":
             level = "A1"
+            reason_codes.append(A0ReasonCode.TECHNICAL_CONTRA_DOWNGRADE)
             logger.debug(
                 "%s STRONG_SELL technicals — blocking A0 LONG", symbol,
             )
         elif level == "A0" and tech_signal in ("STRONG_BUY",) and direction == "SHORT":
             level = "A1"
+            reason_codes.append(A0ReasonCode.TECHNICAL_CONTRA_DOWNGRADE)
             logger.debug(
                 "%s STRONG_BUY technicals — blocking A0 SHORT", symbol,
             )
@@ -2868,6 +2923,7 @@ class RealtimeEngine:
                      or (direction == "SHORT" and tech_signal in ("STRONG_SELL", "SELL")))
                 and volume_ratio >= A1_VOLUME_RATIO_MIN * 1.5):
             level = "A0"
+            reason_codes.append(A0ReasonCode.TECHNICAL_ALIGNMENT_UPGRADE)
             logger.debug(
                 "%s tech_score=%.3f + aligned tech_signal=%s — upgrading A1→A0",
                 symbol, tech_score, tech_signal,
@@ -2890,6 +2946,7 @@ class RealtimeEngine:
             )
             if is_active:
                 level = "A1"  # cooldown active — downgrade to A1
+                reason_codes.append(A0ReasonCode.COOLDOWN_DOWNGRADE)
                 logger.debug(
                     "Dynamic cooldown active for %s (%.0fs remaining, regime=%s)",
                     symbol, remaining, _cd_regime,
@@ -2898,14 +2955,16 @@ class RealtimeEngine:
                 # Require momentum confirmation for A0
                 if prev_price is not None and direction == "LONG" and price <= prev_price:
                     level = "A1"  # momentum not confirming — downgrade A0→A1 (this block runs only when level=="A0")
+                    reason_codes.append(A0ReasonCode.MOMENTUM_NOT_CONFIRMED)
                 elif prev_price is not None and direction == "SHORT" and price >= prev_price:
                     level = "A1"
+                    reason_codes.append(A0ReasonCode.MOMENTUM_NOT_CONFIRMED)
                 else:
                     self._dynamic_cooldown.record_transition(symbol, direction)
 
-        now = datetime.now(UTC)
-        now_iso = now.isoformat()
-        now_ts = now.timestamp()
+        final_decision = core_decision.with_final_level(level, reason_codes)
+        now_ts = final_decision.decision_at
+        now_iso = datetime.fromtimestamp(now_ts, UTC).isoformat()
         return RealtimeSignal(
             symbol=symbol,
             level=level,
@@ -2924,6 +2983,13 @@ class RealtimeEngine:
             level_since_at=now_iso,
             level_since_epoch=now_ts,
             details={
+                "signal_schema_version": 2,
+                "raw_daily_volume_ratio": round(raw_volume_ratio, 6),
+                "expected_volume_fraction": round(vol_frac, 6),
+                "normalized_volume_pace": round(volume_ratio, 6),
+                "effective_a0_volume_threshold": round(eff_a0_vol, 6),
+                "effective_a0_price_threshold": round(eff_a0_chg, 6),
+                **final_decision.to_details(),
                 "pdh": pdh,
                 "pdl": pdl,
                 "volume": volume,
@@ -3006,7 +3072,12 @@ class RealtimeEngine:
           - VisiData delta tracking (Δ-price, Δ-volume, tick, streak)
         """
         poll_start = time.monotonic()
-        self.last_poll_attempt_epoch = time.time()
+        poll_attempt_epoch = time.time()
+        if self.last_poll_attempt_epoch > 0:
+            self.last_poll_interval_actual_seconds = max(
+                0.0, poll_attempt_epoch - self.last_poll_attempt_epoch,
+            )
+        self.last_poll_attempt_epoch = poll_attempt_epoch
 
         # ── Session-boundary detection: clear stale _last_prices ──
         # When the engine transitions from outside→inside market hours,
@@ -3043,6 +3114,7 @@ class RealtimeEngine:
             return []
 
         # ── Newsstack: prefer async poller, fall back to synchronous ──
+        phase_started = time.monotonic()
         news_by_ticker: dict[str, dict[str, Any]] = {}
         if self._async_newsstack is not None:
             # Non-blocking: read latest cached result
@@ -3066,6 +3138,7 @@ class RealtimeEngine:
                             news_by_ticker[tk] = nc
             except Exception as exc:
                 logger.debug("Newsstack poll skipped: %s", exc)
+        self._poll_phase_seconds["news_context"] = time.monotonic() - phase_started
 
         new_signals: list[RealtimeSignal] = []
 
@@ -3091,7 +3164,9 @@ class RealtimeEngine:
             return new_signals
 
         self._quotes_polled = True
+        phase_started = time.monotonic()
         quotes = self._fetch_realtime_quotes()
+        self._poll_phase_seconds["quote_fetch"] = time.monotonic() - phase_started
         if not quotes:
             logger.debug("No quotes received in poll cycle")
             self._save_signals()
@@ -3193,6 +3268,15 @@ class RealtimeEngine:
                         if not cd_active:
                             signal.level = "A0"
                             signal.details["a0_upgrade_reason"] = "news_catalyst"
+                            from open_prep.a0_contract import (
+                                A0ReasonCode,
+                                amend_decision_details,
+                            )
+                            amend_decision_details(
+                                signal.details,
+                                final_level="A0",
+                                reason_code=A0ReasonCode.NEWS_CATALYST_UPGRADE,
+                            )
                             self._dynamic_cooldown.record_transition(sym, signal.direction)
 
                 # Check if we already have an active signal for this symbol
@@ -3213,7 +3297,11 @@ class RealtimeEngine:
             _avg_vol = _safe_float(
                 quote.get("avgVolume") or wl_entry.get("avg_volume"), 0.0
             )
-            vol_ratio = round(q_volume / _avg_vol, 2) if _avg_vol >= 1000 else 0.0
+            vol_ratio, expected_vol_frac, normalized_volume_pace = _volume_semantics(
+                q_volume,
+                _avg_vol,
+                quote.get("expected_volume_fraction"),
+            )
             # Determine signal status for this symbol
             with self._lock:
                 _current_active = list(self._active_signals)
@@ -3274,7 +3362,12 @@ class RealtimeEngine:
                 # Near-threshold early warning (coming breakout)
                 eff_a2_vol = A2_VOLUME_RATIO_MIN * regime_thresholds["vol_mult"]
                 eff_a2_chg = A2_PRICE_CHANGE_PCT_MIN * regime_thresholds["chg_mult"]
-                near = (vol_ratio >= 0.8 * eff_a2_vol and abs(chg_pct) >= 0.8 * eff_a2_chg)
+                near = _is_upcoming_a2(
+                    normalized_volume_pace,
+                    abs(chg_pct),
+                    eff_a2_vol,
+                    eff_a2_chg,
+                )
                 _breakout = "UPCOMING" if near else ""
 
             prev_row = self._vd_rows.get(sym, {})
@@ -3311,6 +3404,16 @@ class RealtimeEngine:
                 "price": round(price, 2),
                 "chg_pct": round(chg_pct, 2),
                 "vol_ratio": round(vol_ratio, 2),
+                "signal_schema_version": 2,
+                "raw_daily_volume_ratio": round(vol_ratio, 6),
+                "expected_volume_fraction": round(expected_vol_frac, 6),
+                "normalized_volume_pace": round(normalized_volume_pace, 6),
+                "effective_a0_volume_threshold": round(
+                    A0_VOLUME_RATIO_MIN * regime_thresholds["vol_mult"], 6,
+                ),
+                "effective_a0_price_threshold": round(
+                    A0_PRICE_CHANGE_PCT_MIN * regime_thresholds["chg_mult"], 6,
+                ),
                 "d_price_pct": delta["d_price_pct"],
                 "tier": str(wl_entry.get("confidence_tier", "")),
                 "last_change_age_s": last_change_age_s,
@@ -3331,6 +3434,7 @@ class RealtimeEngine:
         # Re-validate ALL active signals against current quotes.  If a
         # signal no longer meets even A1 criteria → expire it early.
         requalified: list[RealtimeSignal] = []
+        from open_prep.a0_contract import A0ReasonCode, amend_decision_details
         with self._lock:
             signals_snapshot = list(self._active_signals)
         for sig in signals_snapshot:
@@ -3404,6 +3508,11 @@ class RealtimeEngine:
 
             if sig.level == "A0" and sig_age > eff_a0_max:
                 sig.level = "A1"
+                amend_decision_details(
+                    sig.details,
+                    final_level="A1",
+                    reason_code=A0ReasonCode.TIME_DECAY_DOWNGRADE,
+                )
                 now_iso = datetime.now(UTC).isoformat()
                 sig.level_since_at = now_iso
                 sig.level_since_epoch = time.time()
@@ -3413,6 +3522,11 @@ class RealtimeEngine:
                 )
             if sig.level == "A1" and sig_age > eff_a1_max:
                 sig.level = "A2"
+                amend_decision_details(
+                    sig.details,
+                    final_level="A2",
+                    reason_code=A0ReasonCode.TIME_DECAY_DOWNGRADE,
+                )
                 now_iso = datetime.now(UTC).isoformat()
                 sig.level_since_at = now_iso
                 sig.level_since_epoch = time.time()
@@ -3426,6 +3540,11 @@ class RealtimeEngine:
             eff_a0_chg = A0_PRICE_CHANGE_PCT_MIN * regime_thresholds["chg_mult"]
             if sig.level == "A0" and not (cur_vol_ratio >= eff_a0_vol and cur_change >= eff_a0_chg):
                 sig.level = "A1"
+                amend_decision_details(
+                    sig.details,
+                    final_level="A1",
+                    reason_code=A0ReasonCode.REQUALIFICATION_DOWNGRADE,
+                )
                 now_iso = datetime.now(UTC).isoformat()
                 sig.level_since_at = now_iso
                 sig.level_since_epoch = time.time()
@@ -3437,6 +3556,11 @@ class RealtimeEngine:
                 or cur_change >= A0_PRICE_CHANGE_PCT_MIN * 1.2 * regime_thresholds["chg_mult"]
             ):
                 sig.level = "A2"
+                amend_decision_details(
+                    sig.details,
+                    final_level="A2",
+                    reason_code=A0ReasonCode.REQUALIFICATION_DOWNGRADE,
+                )
                 now_iso = datetime.now(UTC).isoformat()
                 sig.level_since_at = now_iso
                 sig.level_since_epoch = time.time()
@@ -3727,11 +3851,13 @@ def main() -> None:
             engine.telemetry, port=args.telemetry_port, engine=engine,
         )
 
-    # Start async newsstack for fast/ultra modes (reduces per-poll latency)
-    if args.fast or args.ultra:
-        ns_interval = 30 if args.ultra else 60
-        engine.start_async_newsstack(poll_interval=ns_interval)
-        logger.info("Async newsstack started (interval=%ds)", ns_interval)
+    # News is always off the quote-critical path. Fast/ultra only change the
+    # default cadence; RT_NEWS_POLL_SECS can tune it independently of mode.
+    ns_interval = _env_int(
+        "RT_NEWS_POLL_SECS", 30 if args.ultra else 60, minimum=5, maximum=None,
+    )
+    engine.start_async_newsstack(poll_interval=ns_interval)
+    logger.info("Async newsstack started (interval=%ds)", ns_interval)
 
     # Opt-in near-A0 fast lane: re-poll A1/A2 symbols every N seconds so an
     # escalation to A0 pushes to Slack in seconds, not a full ~30s cycle late.
@@ -3751,6 +3877,18 @@ def main() -> None:
             logger.info("Signal-event log enabled (RT_SIGNAL_EVENT_LOG_DIR)")
     except Exception:
         logger.debug("signal-event logger init failed", exc_info=True)
+
+    # Opt-in A0 parity evidence. This is independent from notifications and
+    # fail-soft so an evidence-volume issue cannot interrupt the FMP fallback.
+    a0_parity_journal = None
+    a0_parity_dir = os.environ.get("RT_A0_PARITY_LOG_DIR", "").strip()
+    if a0_parity_dir:
+        try:
+            from open_prep.a0_parity_store import A0ParityJournal
+            a0_parity_journal = A0ParityJournal(a0_parity_dir, source="fmp")
+            logger.info("FMP A0 parity journal enabled (RT_A0_PARITY_LOG_DIR)")
+        except Exception:
+            logger.warning("FMP A0 parity journal init failed", exc_info=True)
 
     # Opt-in nightly follow-through calibration (RT_CALIBRATION_UTC_HHMM="HH:MM"
     # UTC, e.g. "21:30" ≈ 17:30 ET). Runs in-process because the event log lives
@@ -3804,6 +3942,17 @@ def main() -> None:
             # Persist the fresh/strengthened events (record() is itself fail-soft).
             if event_logger is not None:
                 event_logger.record(active)
+
+            if a0_parity_journal is not None:
+                try:
+                    from open_prep.a0_parity_store import record_realtime_a0_signals
+                    record_realtime_a0_signals(
+                        a0_parity_journal,
+                        active,
+                        now_epoch=time.time(),
+                    )
+                except Exception:
+                    logger.warning("FMP A0 parity persistence failed", exc_info=True)
 
             # Nightly follow-through calibration — once per UTC day, off-thread
             # (the poll loop must never block on the calibrator's FMP fetches).
@@ -3881,6 +4030,81 @@ def _replace_non_finite(value: Any) -> Any:
     if isinstance(value, tuple):
         return [_replace_non_finite(item) for item in value]
     return value
+
+
+def _collect_a0_latency_metrics(engine: Any, now: float, prefix: str) -> list[str]:
+    """Render A0 latency/news/fast-lane metrics without blocking poll threads."""
+    lines: list[str] = []
+    last_data_epoch = _safe_float(getattr(engine, "_last_data_epoch", 0.0), 0.0)
+    quote_age = max(0.0, now - last_data_epoch) if last_data_epoch > 0 else 999999.0
+    lines.extend([
+        f"# TYPE {prefix}_a0_quote_data_age_seconds gauge",
+        f"{prefix}_a0_quote_data_age_seconds {quote_age:.3f}",
+        f"# TYPE {prefix}_a0_poll_interval_actual_seconds gauge",
+        f"{prefix}_a0_poll_interval_actual_seconds "
+        f"{_safe_float(getattr(engine, 'last_poll_interval_actual_seconds', 0.0), 0.0):.3f}",
+    ])
+    for phase, duration in sorted(getattr(engine, "_poll_phase_seconds", {}).items()):
+        safe_phase = str(phase).replace("\\", "_").replace('"', "_").replace("\n", "_")
+        lines.append(
+            f'{prefix}_a0_poll_phase_seconds{{phase="{safe_phase}"}} '
+            f"{_safe_float(duration, 0.0):.6f}"
+        )
+
+    news_poller = getattr(engine, "_async_newsstack", None)
+    lines.append(f"{prefix}_a0_news_async_enabled {1 if news_poller is not None else 0}")
+    if news_poller is not None:
+        news = news_poller.metrics()
+        success_at = _safe_float(news.get("last_success_at"), 0.0)
+        snapshot_age = max(0.0, now - success_at) if success_at > 0 else 999999.0
+        lines.extend([
+            f"{prefix}_a0_news_snapshot_age_seconds {snapshot_age:.3f}",
+            f"{prefix}_a0_news_poll_duration_seconds "
+            f"{_safe_float(news.get('last_poll_duration'), 0.0):.6f}",
+            f"{prefix}_a0_news_polls_total {int(news.get('poll_count', 0))}",
+            f"{prefix}_a0_news_poll_errors_total {int(news.get('poll_errors', 0))}",
+            f"{prefix}_a0_news_cached_tickers {int(news.get('cached_tickers_count', 0))}",
+        ])
+
+    repoller = getattr(engine, "_near_a0_repoller", None)
+    lines.append(f"{prefix}_a0_near_repoll_enabled {1 if repoller is not None else 0}")
+    if repoller is not None:
+        near = repoller.metrics()
+        lines.extend([
+            f"{prefix}_a0_near_repoll_interval_seconds "
+            f"{_safe_float(getattr(repoller, '_interval', 0.0), 0.0):.3f}",
+            f"{prefix}_a0_near_repoll_warm_set_size "
+            f"{int(near.get('last_warm_set_size', 0))}",
+            f"{prefix}_a0_near_repolls_total {int(near.get('poll_count', 0))}",
+            f"{prefix}_a0_near_repoll_errors_total {int(near.get('poll_errors', 0))}",
+            f"{prefix}_a0_near_repoll_a0_pushed_total {int(near.get('a0_pushed', 0))}",
+        ])
+    return lines
+
+
+def _volume_semantics(
+    volume: Any,
+    avg_volume: Any,
+    expected_volume_fraction: Any = None,
+) -> tuple[float, float, float]:
+    """Return raw daily ratio, expected fraction, and normalized volume pace."""
+    average = _safe_float(avg_volume, 0.0)
+    raw_ratio = _safe_float(volume, 0.0) / average if average >= 1000 else 0.0
+    expected_fraction = _resolve_expected_volume_fraction(expected_volume_fraction)
+    return raw_ratio, expected_fraction, raw_ratio / expected_fraction
+
+
+def _is_upcoming_a2(
+    normalized_volume_pace: float,
+    abs_change_pct: float,
+    effective_a2_volume_threshold: float,
+    effective_a2_price_threshold: float,
+) -> bool:
+    """Whether a symbol has reached 80% of both effective A2 thresholds."""
+    return (
+        normalized_volume_pace >= 0.8 * effective_a2_volume_threshold
+        and abs_change_pct >= 0.8 * effective_a2_price_threshold
+    )
 
 
 if __name__ == "__main__":

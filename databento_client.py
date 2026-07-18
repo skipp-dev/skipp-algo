@@ -72,10 +72,15 @@ def _import_databento() -> Any:
     }
     import databento as db
 
+    live_owner = getattr(db, "Live", None)
+    live_loop = getattr(live_owner, "_loop", None)
+    protected_loop_ids = (
+        {id(live_loop)} if isinstance(live_loop, asyncio.AbstractEventLoop) else set()
+    )
     for obj in gc.get_objects():
         if not isinstance(obj, asyncio.AbstractEventLoop):
             continue
-        if id(obj) in existing_loop_ids:
+        if id(obj) in existing_loop_ids or id(obj) in protected_loop_ids:
             continue
         if obj.is_closed() or obj.is_running():
             continue

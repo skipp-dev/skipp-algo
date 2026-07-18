@@ -1,0 +1,6 @@
+databento==0.79.0
+certifi==2026.4.22
+holidays==0.76
+pandas==3.0.3
+pyarrow==24.0.0
+tzdata==2025.2

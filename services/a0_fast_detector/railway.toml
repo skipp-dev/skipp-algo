@@ -1,0 +1,26 @@
+[build]
+builder = "DOCKERFILE"
+dockerfilePath = "services/a0_fast_detector/Dockerfile"
+watchPatterns = [
+    "open_prep/a0_contract.py",
+    "open_prep/a0_parity.py",
+    "open_prep/a0_parity_store.py",
+    "open_prep/a0_stream.py",
+    "open_prep/a0_stream_buffer.py",
+    "open_prep/a0_stream_state.py",
+    "open_prep/a0_stream_recovery.py",
+    "open_prep/a0_rollout.py",
+    "open_prep/pre_a0*.py",
+    "scripts/smc_atomic_write.py",
+    "databento_client.py",
+    "newsstack_fmp/_market_cal.py",
+    "services/a0_fast_detector/**",
+]
+
+[deploy]
+startCommand = "python -m services.a0_fast_detector.worker"
+restartPolicyType = "ON_FAILURE"
+restartPolicyMaxRetries = 3
+
+[[services]]
+name = "a0-fast-shadow"

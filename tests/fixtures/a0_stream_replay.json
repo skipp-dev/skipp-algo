@@ -1,0 +1,5 @@
+[
+  {"offset_s": 0, "close_nano": 102000000000, "volume": 1000, "sequence": 1},
+  {"offset_s": 1, "close_nano": 102100000000, "volume": 1200, "sequence": 2},
+  {"offset_s": 2, "close_nano": 102200000000, "volume": 1300, "sequence": 3}
+]

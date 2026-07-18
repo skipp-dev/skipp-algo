@@ -64,6 +64,40 @@ def event_row(signal: Any, *, now_epoch: float) -> dict[str, Any]:
     }
     for field in _FEATURE_FIELDS:
         row[field] = _safe(getattr(signal, field, None))
+    details = getattr(signal, "details", {})
+    details = details if isinstance(details, dict) else {}
+    normalized_pace = details.get("normalized_volume_pace")
+    row.update({
+        "schema_version": int(details.get("signal_schema_version", 2)),
+        "raw_daily_volume_ratio": _safe(
+            details.get("raw_daily_volume_ratio", getattr(signal, "volume_ratio", None))
+        ),
+        "expected_volume_fraction": _safe(details.get("expected_volume_fraction")),
+        "normalized_volume_pace": _safe(normalized_pace),
+        "effective_a0_volume_threshold": _safe(
+            details.get("effective_a0_volume_threshold")
+        ),
+        "effective_a0_price_threshold": _safe(
+            details.get("effective_a0_price_threshold")
+        ),
+        "decision_contract_version": _safe(details.get("decision_contract_version")),
+        "detector_version": _safe(details.get("detector_version")),
+        "core_level": _safe(details.get("core_level")),
+        "final_level": _safe(details.get("final_level")),
+        "reason_codes": details.get("reason_codes") or [],
+        "decision_id": _safe(details.get("decision_id")),
+        "ts_event": _safe(details.get("ts_event")),
+        "ts_recv": _safe(details.get("ts_recv")),
+        "observed_at": _safe(details.get("observed_at")),
+        "decision_at": _safe(details.get("decision_at")),
+        "data_age_ms": _safe(details.get("data_age_ms")),
+        "data_age_unknown": bool(details.get("data_age_unknown", True)),
+        "source": _safe(details.get("source")),
+        "session_date": _safe(details.get("session_date")),
+        "volume_semantics": (
+            "normalized_pace_v2" if normalized_pace is not None else "legacy_raw_only"
+        ),
+    })
     return row
 
 

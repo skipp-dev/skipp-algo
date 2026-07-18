@@ -71,6 +71,9 @@ _FROZEN_LOOPBACK_COUNTS: dict[str, int] = {
     "open_prep/alerts.py": 2,
     "open_prep/realtime_signals.py": 1,
     "newsstack_fmp/enrich.py": 1,
+    # 2026-07-17: A0-Fast metrics defaults to loopback; external binding must
+    # be an explicit deployment setting rather than an accidental exposure.
+    "services/a0_fast_detector/telemetry.py": 1,
 }
 _FROZEN_LOOPBACK_TOTAL = sum(_FROZEN_LOOPBACK_COUNTS.values())
 
