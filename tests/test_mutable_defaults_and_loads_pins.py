@@ -207,8 +207,10 @@ _FROZEN_ENV_SUBSCRIPT_SITES: frozenset[tuple[str, int]] = frozenset(
         # either its Databento credential or versioned reference file is absent.
         # 2026-07-17: bounded runtime/telemetry extraction shifted the two
         # intentional fail-closed A0-Fast entry-point reads 82/83 -> 196/197.
-        ("services/a0_fast_detector/worker.py", 196),
-        ("services/a0_fast_detector/worker.py", 197),
+        # 2026-07-18: PRE-A0 shadow wiring shifted these same required reads
+        # 196/197 -> 221/222; missing credential/reference still fail closed.
+        ("services/a0_fast_detector/worker.py", 221),
+        ("services/a0_fast_detector/worker.py", 222),
         ("streamlit_terminal.py", 327),
         # 2026-07-04 (WP-3 backtest CLI): `os.environ["FMP_API_KEY"] = args.api_key`
     }

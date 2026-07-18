@@ -15,16 +15,21 @@ from open_prep.a0_parity_store import A0ParityJournal, shadow_decision_row
 from open_prep.a0_stream_buffer import BoundedBarBuffer, BufferedBar
 from open_prep.a0_stream_recovery import RecoveryStatus, recover_before_bar
 from open_prep.a0_stream_state import A0StreamState, StreamApplyStatus, StreamReference
+from open_prep.pre_a0_telemetry import PreA0Telemetry
 
 from .history import DatabentoHistoricalBarsProvider
 from .live_runtime import start_live_reader
+from .pre_a0_runtime import PreA0Runtime, build_pre_a0_runtime
 from .telemetry import DEFAULT_METRICS_HOST, A0FastTelemetry, start_metrics_server
 
 logger = logging.getLogger(__name__)
 
 
 def _shadow_mode() -> str:
-    mode = os.getenv("A0_FAST_MODE", "off").strip().lower()
+    mode = os.getenv(
+        "RT_A0_FAST_MODE",
+        os.getenv("A0_FAST_MODE", "off"),
+    ).strip().lower()
     if mode != "shadow":
         raise RuntimeError("A0_FAST_MODE must be exactly 'shadow'")
     return mode
@@ -107,6 +112,7 @@ class _Processor:
     history: DatabentoHistoricalBarsProvider
     journal: A0ParityJournal
     telemetry: A0FastTelemetry
+    pre_a0: PreA0Runtime | None = None
     recovery_retry_after: dict[str, float] = field(default_factory=dict)
 
     def process(self, item: BufferedBar) -> bool:
@@ -116,6 +122,8 @@ class _Processor:
         self.telemetry.record_processed()
         if item.resync_required:
             self.state.invalidate(symbol)
+            if self.pre_a0 is not None:
+                self.pre_a0.reset(symbol)
         try:
             result = self.state.apply(bar)
         except (TypeError, ValueError, OverflowError):
@@ -127,6 +135,8 @@ class _Processor:
             StreamApplyStatus.BOOTSTRAP_REQUIRED,
             StreamApplyStatus.GAP_DETECTED,
         ):
+            if self.pre_a0 is not None:
+                self.pre_a0.reset(symbol)
             retry_at = self.recovery_retry_after.get(symbol, 0.0)
             if time.monotonic() < retry_at:
                 return False
@@ -157,6 +167,21 @@ class _Processor:
                 return recovered
         if result.status is not StreamApplyStatus.ACCEPTED or result.snapshot is None:
             return recovered
+        if self.pre_a0 is not None:
+            try:
+                pre_result = self.pre_a0.process(result.snapshot)
+                if pre_result.operator_payload is not None:
+                    logger.info(
+                        "PRE_A0_OBSERVE %s",
+                        json.dumps(pre_result.operator_payload, sort_keys=True),
+                    )
+            except (OSError, TypeError, ValueError, OverflowError):
+                self.pre_a0.telemetry.record_runtime_error()
+                logger.warning(
+                    "PRE-A0 shadow processing failed for %s",
+                    result.snapshot.market.symbol,
+                    exc_info=True,
+                )
         decision = decide_core_level(result.snapshot.market, self.thresholds)
         if decision.core_level != "A0":
             return recovered
@@ -203,13 +228,19 @@ def run() -> None:
     thresholds = _thresholds()
     history = DatabentoHistoricalBarsProvider(api_key)
     journal = A0ParityJournal(_parity_log_dir(), source="databento")
-    telemetry = A0FastTelemetry()
+    pre_a0_telemetry = PreA0Telemetry()
+    telemetry = A0FastTelemetry(pre_a0=pre_a0_telemetry)
+    pre_a0 = build_pre_a0_runtime(
+        os.environ,
+        thresholds=thresholds,
+        telemetry=pre_a0_telemetry,
+    )
     metrics_server = start_metrics_server(
         _metrics_port(),
         telemetry,
         host=_metrics_host(),
     )
-    processor = _Processor(state, thresholds, history, journal, telemetry)
+    processor = _Processor(state, thresholds, history, journal, telemetry, pre_a0)
     capacity = _buffer_capacity(len(symbols))
     reconnect_backoff = _reconnect_backoff_seconds()
     backoff_event = threading.Event()
@@ -268,6 +299,8 @@ def run() -> None:
             for symbol in symbols:
                 state.invalidate(symbol)
                 telemetry.require_resync(symbol)
+                if pre_a0 is not None:
+                    pre_a0.reset(symbol)
             logger.warning(
                 "A0-Fast disconnected (%s); reconnecting in %.1fs",
                 reason,
@@ -277,6 +310,12 @@ def run() -> None:
     except KeyboardInterrupt:
         logger.info("A0-Fast shutdown requested")
     finally:
+        if pre_a0 is not None:
+            try:
+                pre_a0.flush()
+            except (OSError, TypeError, ValueError):
+                pre_a0.telemetry.record_persistence_error()
+                logger.warning("PRE-A0 final snapshot flush failed", exc_info=True)
         if metrics_server is not None:
             metrics_server.shutdown()
 

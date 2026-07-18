@@ -8,6 +8,7 @@ from open_prep.a0_rollout import (
     evaluate_promotion,
     load_rollout_config,
 )
+from open_prep.pre_a0_model import ModelStatus, ShadowScore
 from open_prep.pre_a0_telemetry import PreA0Telemetry
 
 
@@ -55,10 +56,14 @@ def test_promotion_requires_every_evidence_gate_and_explicit_approval() -> None:
 
 
 def test_pre_a0_telemetry_covers_runtime_gates() -> None:
-    telemetry = PreA0Telemetry(model_ready=True, calibration_valid=True)
-    telemetry.observe_inference(1.5)
-    telemetry.alerts[(60, "up")] += 1
+    telemetry = PreA0Telemetry()
+    telemetry.set_model(ModelStatus.READY, None, None)
+    telemetry.record_score(
+        ShadowScore(ModelStatus.READY, 0.7, False, 60, 1.5, (), (), "model", None)
+    )
+    telemetry.record_alert(60, "up")
     text = telemetry.render_prometheus()
+    assert "pre_a0_enabled 1" in text
     assert "pre_a0_model_ready 1" in text
-    assert "pre_a0_calibration_valid 1" in text
+    assert "pre_a0_calibration_valid 0" in text
     assert 'pre_a0_alerts_total{horizon="60",direction="up"} 1' in text

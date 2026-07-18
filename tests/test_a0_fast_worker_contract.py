@@ -17,6 +17,11 @@ def test_worker_refuses_every_mode_except_shadow(monkeypatch: pytest.MonkeyPatch
         worker._shadow_mode()
     monkeypatch.setenv("A0_FAST_MODE", "shadow")
     assert worker._shadow_mode() == "shadow"
+    monkeypatch.setenv("RT_A0_FAST_MODE", "off")
+    with pytest.raises(RuntimeError, match="shadow"):
+        worker._shadow_mode()
+    monkeypatch.setenv("RT_A0_FAST_MODE", "shadow")
+    assert worker._shadow_mode() == "shadow"
 
 
 def test_worker_requires_explicit_symbols(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -95,3 +100,14 @@ def test_worker_has_no_notification_or_publication_import() -> None:
     source = path.read_text(encoding="utf-8")
     assert "notify_fresh_signals" not in source
     assert '"mode": "shadow"' in source
+
+
+def test_worker_image_packages_pre_a0_atomic_parquet_runtime() -> None:
+    root = Path(worker.__file__).parents[2]
+    dockerfile = (root / "services/a0_fast_detector/Dockerfile").read_text(encoding="utf-8")
+    requirements = (root / "services/a0_fast_detector/requirements.txt").read_text(encoding="utf-8")
+    railway = (root / "services/a0_fast_detector/railway.toml").read_text(encoding="utf-8")
+    assert "COPY scripts/smc_atomic_write.py /app/scripts/smc_atomic_write.py" in dockerfile
+    assert "pyarrow==24.0.0" in requirements
+    assert '"open_prep/pre_a0*.py"' in railway
+    assert '"scripts/smc_atomic_write.py"' in railway

@@ -15,5 +15,7 @@ def test_pre_a0_alert_rules_cover_fail_closed_states() -> None:
         "PreA0FeatureMissingness",
         "PreA0AlertBudgetExceeded",
         "PreA0DuplicateDecisionId",
+        "PreA0PersistenceErrors",
+        "PreA0ShadowDataMissing",
     ):
         assert alert in text

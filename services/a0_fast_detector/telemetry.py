@@ -11,12 +11,18 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from typing import Any
 
 from open_prep.a0_stream_buffer import BufferSnapshot
+from open_prep.pre_a0_telemetry import PreA0Telemetry
 
 DEFAULT_METRICS_HOST = "127.0.0.1"
 
 
 class A0FastTelemetry:
-    def __init__(self, *, record_wire_bytes: int = 104) -> None:
+    def __init__(
+        self,
+        *,
+        record_wire_bytes: int = 104,
+        pre_a0: PreA0Telemetry | None = None,
+    ) -> None:
         self._lock = threading.Lock()
         self._started_monotonic = time.monotonic()
         self._record_wire_bytes = max(0, int(record_wire_bytes))
@@ -36,6 +42,7 @@ class A0FastTelemetry:
         self._forced_resync_symbols: set[str] = set()
         self._last_record_monotonic: float | None = None
         self._last_disconnect_reason = "none"
+        self._pre_a0 = pre_a0
 
     def set_connected(self, connected: bool) -> None:
         with self._lock:
@@ -163,7 +170,10 @@ class A0FastTelemetry:
             "a0_fast_last_disconnect_info"
             f'{{reason="{snapshot["last_disconnect_reason"]}"}} 1\n'
         )
-        return "".join(metrics)
+        rendered = "".join(metrics)
+        if self._pre_a0 is not None:
+            rendered += self._pre_a0.render_prometheus()
+        return rendered
 
 
 def start_metrics_server(

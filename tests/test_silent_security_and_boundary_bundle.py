@@ -222,7 +222,9 @@ _FROZEN_BASIC_CONFIG_SITES: frozenset[tuple[str, int]] = frozenset({
     # 2026-07-17: isolated Railway entry point for the shadow-only A0 worker;
     # 2026-07-17: bounded runtime, reconnect and telemetry shifted the isolated
     # entry-point basicConfig from 180 -> 285.
-    ("services/a0_fast_detector/worker.py", 285),
+    # 2026-07-18: PRE-A0 shadow wiring shifted the same entry-point site
+    # 285 -> 324; root logging remains confined to main().
+    ("services/a0_fast_detector/worker.py", 324),
     # WP-H (PR #2612): 35 -> 37, VIX import + helper block added above.
     ("smc_tv_bridge/smc_api.py", 37),
 })

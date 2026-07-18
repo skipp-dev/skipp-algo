@@ -16,6 +16,10 @@
   contracts, bounded warm set and common ablation gate.
 - Independent flags, deployment approval gates, alert budget, telemetry, alert
   rules and separate A0-Fast/PRE-A0 rollback runbooks.
+- PRE-A0 shadow/observe runtime wiring in the isolated A0-Fast worker, including
+  per-symbol trailing state, reset on recovery/disconnect, calibrated scoring,
+  weighted 5s/1s sampling, atomic Parquet flushes and combined metrics. There
+  is still no notification import or publication path.
 
 ## Deliberately not claimed
 

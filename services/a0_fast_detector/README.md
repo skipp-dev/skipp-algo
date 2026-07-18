@@ -23,6 +23,11 @@ Regular-Hours-Volumen und verwendet die gemeinsame Kernentscheidung aus
 - Reader und Consumer sind durch eine beschränkte Queue getrennt. Bei Überlauf
   wird der älteste Bar verworfen und das betroffene Symbol bis zur belegten
   Historical-Rekonstruktion gesperrt.
+- PRE-A0 ist optional in denselben vollständigen Snapshotpfad eingebunden. Ein
+  PRE-A0-Fehler wird protokolliert, darf aber die A0-Kernentscheidung nicht
+  unterdrücken oder verändern.
+- Dieser Worker besitzt weiterhin keinen Notification-Pfad. `notify` wird auch
+  bei gesetzter Freigabe fail-closed abgelehnt.
 
 ## Pflichtvariablen
 
@@ -33,6 +38,28 @@ Regular-Hours-Volumen und verwendet die gemeinsame Kernentscheidung aus
 | `A0_FAST_SYMBOLS` | kommasepariertes, explizites Symbolset |
 | `A0_FAST_REFERENCE_FILE` | gemountete JSON-Datei mit `StreamReference`-Zeilen |
 | `A0_FAST_PARITY_LOG_DIR` | Verzeichnis auf einem persistenten Volume für tägliche Fast-JSONL-Journale |
+
+`RT_A0_FAST_MODE=shadow` ist der kanonische Schalter; `A0_FAST_MODE=shadow`
+bleibt als Kompatibilitätsalias erhalten.
+
+## Optionaler PRE-A0-Shadowbetrieb
+
+PRE-A0 startet nur, wenn alle folgenden Variablen gültig sind. Andernfalls
+bleibt ausschließlich PRE-A0 aus; A0-Fast und FMP-A0 laufen unabhängig weiter.
+
+| Variable | Bedeutung |
+| --- | --- |
+| `RT_PRE_A0_MODE` | `shadow` oder `observe`; `notify` ist in diesem Worker verboten |
+| `RT_PRE_A0_MODEL_PATH` | lokales, kompatibles und nicht abgelaufenes Modellartefakt |
+| `RT_PRE_A0_SNAPSHOT_DIR` | persistentes Ziel für atomare Parquet-Partitionen und Manifeste |
+| `RT_PRE_A0_ALLOWED_HORIZONS` | Teilmenge von `30,60,180` |
+| `RT_PRE_A0_SNAPSHOT_FLUSH_ROWS` | Puffergrenze, Default `500`, maximal `100000` |
+
+Sampling: ruhige Grundgesamtheit alle fünf Sekunden mit `sample_weight=5`,
+ab `WATCH` jede Sekunde mit `sample_weight=1`. Recovery, Queue-Lücke und
+Disconnect löschen den rollierenden PRE-A0-Zustand. `observe` schreibt nur ein
+klar unbestätigtes `PRE_A0_OBSERVE`-Operatorlog; es existiert weiterhin kein
+Versandpfad.
 
 Optional: `A0_FAST_MAX_GAP_SECONDS`, `A0_FAST_A0_VOLUME`,
 `A0_FAST_A0_PRICE` und die entsprechenden A1-/A2-Schwellen sowie:
@@ -54,6 +81,9 @@ fail-closed Zustand über den Mid-session-Bootstrap.
 - `/metrics`: Prometheus-Textformat für Verbindung, Datenalter, Queue-Tiefe und
   -Kapazität, Drops, Resync-Pflicht, Disconnects, Recoveries, Live-/Historical-
   Nutzung, Entscheidungen, CPU und Peak-RSS.
+- Bei aktiviertem PRE-A0 zusätzlich Modell-/Kalibrierungsstatus, Inferenzzeit,
+  Missingness, Out-of-range-Werte, Zustände, Score-Buckets, Snapshotwrites und
+  Persistenzfehler. `pre_a0_enabled=0` unterdrückt Modellalarme im Off-Modus.
 - `/healthz`: `200` nur bei verbundener Quelle ohne ausstehende Resync-Pflicht,
   andernfalls `503`.
 - `alert-rules.yml`: Regeln für Disconnect, Slow-Reader-Drops, festhängenden

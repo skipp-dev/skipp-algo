@@ -10,6 +10,7 @@ RUN pip install --no-cache-dir -r /app/requirements.txt
 
 COPY open_prep /app/open_prep
 COPY newsstack_fmp /app/newsstack_fmp
+COPY scripts/smc_atomic_write.py /app/scripts/smc_atomic_write.py
 COPY databento_client.py /app/databento_client.py
 COPY services /app/services
 
