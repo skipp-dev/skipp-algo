@@ -20,7 +20,9 @@ name: open-prep-outcome-backfill
 
 on:
   schedule:
-    # F-V4-C2 + F-V4-E2 (audit 2026-05-01): moved out of US RTH (13:30-21:00 UTC).
+    # F-V4-C2 + F-V4-E2 (audit 2026-05-01): moved out of US RTH
+    # (09:30-16:00 America/New_York; 13:30-20:00 UTC in EDT and
+    # 14:30-21:00 UTC in EST).
     # Previous cron entries 15:15 UTC + 16:15 UTC fired DURING the US session and
     # repeatedly hit Databento HTTP 422 ("data_start_after_available_end") because
     # the post-open data does not settle until after RTH close. Moved to 22:15 UTC

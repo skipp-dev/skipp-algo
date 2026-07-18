@@ -43,9 +43,10 @@ import os
 import sys
 from collections.abc import Callable, Iterable
 from dataclasses import asdict, dataclass, field
-from datetime import UTC, datetime
+from datetime import UTC, date, datetime, time
 from pathlib import Path
 from typing import Any
+from zoneinfo import ZoneInfo
 
 # ── canonical universe ────────────────────────────────────────────────────
 
@@ -91,16 +92,28 @@ FX_MAJORS: tuple[FxPair, ...] = (
 # Plan §3.3 timeframes (line 553).
 FX_TIMEFRAMES: tuple[str, ...] = ("15m", "1H")
 
-# Plan §3.3 sessions (line 554) — single source of truth so the
-# benchmark consumer doesn't have to re-derive the FX session map.
-# Hours are UTC; consumer-side calibration code aligns to these.
-FX_SESSIONS: dict[str, tuple[int, int]] = {
-    # Tokyo session 00:00–09:00 UTC (~JST 09:00–18:00).
-    "TOKYO": (0, 9),
-    # London session 07:00–16:00 UTC.
-    "LONDON": (7, 16),
-    # NY session 13:00–22:00 UTC.
-    "NY": (13, 22),
+@dataclass(frozen=True)
+class FxSession:
+    """Local-clock FX session whose UTC bounds are resolved per trade date."""
+
+    timezone: str
+    start_local: time
+    end_local: time
+
+    def bounds_utc(self, trade_date: date) -> tuple[datetime, datetime]:
+        tz = ZoneInfo(self.timezone)
+        start = datetime.combine(trade_date, self.start_local, tzinfo=tz)
+        end = datetime.combine(trade_date, self.end_local, tzinfo=tz)
+        return start.astimezone(UTC), end.astimezone(UTC)
+
+
+# Plan §3.3 sessions (line 554). Session definitions are local exchange clocks,
+# never fixed UTC offsets. London and New York intentionally resolve through
+# separate IANA zones because their DST transition dates differ.
+FX_SESSIONS: dict[str, FxSession] = {
+    "TOKYO": FxSession("Asia/Tokyo", time(9, 0), time(18, 0)),
+    "LONDON": FxSession("Europe/London", time(8, 0), time(17, 0)),
+    "NY": FxSession("America/New_York", time(8, 0), time(17, 0)),
 }
 
 

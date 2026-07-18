@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import json
 import sys
+from datetime import UTC, date
 from pathlib import Path
 
 import pytest
@@ -51,6 +52,22 @@ def test_fx_timeframes_match_plan():
 
 def test_fx_sessions_cover_three_global_blocks():
     assert set(fx.FX_SESSIONS) == {"TOKYO", "LONDON", "NY"}
+
+
+def test_fx_sessions_resolve_us_and_london_dst_independently() -> None:
+    march = date(2026, 3, 20)  # US EDT, London GMT
+    london_start, _ = fx.FX_SESSIONS["LONDON"].bounds_utc(march)
+    ny_start, _ = fx.FX_SESSIONS["NY"].bounds_utc(march)
+    assert london_start.hour == 8
+    assert ny_start.hour == 12
+    assert london_start.tzinfo is UTC
+    assert ny_start.tzinfo is UTC
+
+    autumn = date(2026, 10, 30)  # London GMT, US still EDT
+    london_start, _ = fx.FX_SESSIONS["LONDON"].bounds_utc(autumn)
+    ny_start, _ = fx.FX_SESSIONS["NY"].bounds_utc(autumn)
+    assert london_start.hour == 8
+    assert ny_start.hour == 12
 
 
 # ── inverse-pair conversion ───────────────────────────────────────────────

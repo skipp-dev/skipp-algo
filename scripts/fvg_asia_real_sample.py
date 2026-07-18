@@ -251,7 +251,7 @@ def _process_symbol_tf(
             future=future,
         )
         anchor_dt = datetime.fromtimestamp(anchor_ts, tz=UTC)
-        session = _classify_session(anchor_dt.time())
+        session = _classify_session(anchor_dt)
         out.append(
             {
                 "symbol": symbol,
