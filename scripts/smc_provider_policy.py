@@ -84,7 +84,7 @@ POLICY_NEWS = DomainPolicy("news", primary="fmp", fallbacks=("benzinga",))
 # its dispatch branch are kept dormant (re-arm = add "benzinga" back here) for
 # a future bz-direct key or a Massive Earnings/Ratings pack.
 POLICY_CALENDAR = DomainPolicy("calendar", primary="fmp", fallbacks=())
-POLICY_TECHNICAL = DomainPolicy("technical", primary="fmp", fallbacks=("tradingview",))
+POLICY_TECHNICAL = DomainPolicy("technical", primary="fmp", fallbacks=())
 
 ALL_POLICIES: dict[str, DomainPolicy] = {
     p.domain: p
@@ -537,39 +537,6 @@ def fetch_technical_fmp(fmp: Any, symbol: str = "SPY") -> ProviderResult:
     raise ValueError("FMP returned no RSI data")
 
 
-def fetch_technical_tradingview(symbol: str = "SPY") -> ProviderResult:
-    """Fetch technical summary via the real TradingView adapter path.
-
-    This fallback must remain independent from the FMP technical fallback.
-    When the TradingView adapter is unavailable or returns an error, the
-    provider is treated as unavailable rather than silently reusing FMP.
-    """
-    from terminal_technicals import _TV_AVAILABLE, fetch_technicals
-
-    if not _TV_AVAILABLE:
-        raise ValueError("TradingView technical adapter not available")
-
-    data = fetch_technicals(symbol, "1D")
-    if data.error:
-        raise ValueError("TradingView technical fallback returned no data")
-
-    summary_buy = int(data.summary_buy or 0)
-    summary_sell = int(data.summary_sell or 0)
-    summary_neutral = int(data.summary_neutral or 0)
-    total = summary_buy + summary_sell + summary_neutral
-    if total > 0:
-        strength = abs(summary_buy - summary_sell) / total
-        bias = "BULLISH" if summary_buy > summary_sell else ("BEARISH" if summary_sell > summary_buy else "NEUTRAL")
-    else:
-        strength = 0.5
-        bias = "NEUTRAL"
-
-    return ProviderResult(
-        data={"strength": min(strength, 1.0), "bias": bias},
-        provider="tradingview",
-    )
-
-
 # ── Domain orchestrators ────────────────────────────────────────
 
 def resolve_domain(
@@ -709,7 +676,5 @@ def _call_provider(
             if fmp is None:
                 raise RuntimeError("FMP client not available")
             return fetch_technical_fmp(fmp)
-        if provider_name == "tradingview":
-            return fetch_technical_tradingview()
 
     raise ValueError(f"No adapter for {domain}/{provider_name}")

@@ -502,13 +502,7 @@ from terminal_technicals import (
     signal_label,
 )
 from terminal_tradingview_news import (
-    fetch_tv_feed_dicts,
-)
-from terminal_tradingview_news import (
     health_status as tv_health_status,
-)
-from terminal_tradingview_news import (
-    is_available as tv_available,
 )
 from terminal_ui_helpers import (
     MATERIALITY_COLORS,
@@ -2764,54 +2758,6 @@ else:
 # data written to disk by other sessions or external scripts.
 if time.time() - st.session_state.last_resync_ts >= _RESYNC_INTERVAL_S:
     _resync_feed_from_jsonl()
-
-# ── TradingView headline supplement ────────────────────────────
-# After the main poll cycle, fetch TradingView headlines for tickers
-# already present in the feed.  TV results are merged into the feed
-# with dedup so duplicate headlines are suppressed.  This runs on a
-# separate cadence (every 3 min via its internal cache TTL) to avoid
-# hammering the unofficial endpoint.
-_tv_last_ts: float = st.session_state.get("tv_supplement_ts", 0.0)
-_tv_live_bus_owned = bool(_collect_tv_news_symbols(st.session_state.cfg, st.session_state.feed))
-if tv_available() and not _tv_live_bus_owned and time.time() - _tv_last_ts >= 180:  # 3 min cadence
-    # Pick the 8 most-recently-seen tickers (newest feed items first)
-    _tv_seen: dict[str, None] = {}  # ordered-dict trick for dedup
-    for _fd in st.session_state.feed:
-        _tk = _fd.get("ticker", "")
-        if _tk and _tk not in ("MARKET", "") and _tk not in _tv_seen:
-            _tv_seen[_tk] = None
-            if len(_tv_seen) >= 8:
-                break
-    _tv_tickers = list(_tv_seen)
-    if _tv_tickers:
-        try:
-            _tv_dicts = fetch_tv_feed_dicts(_tv_tickers, max_per_ticker=8, max_total=30)
-            if _tv_dicts:
-                # Dedup against existing feed by headline text
-                _existing_hl = {
-                    d.get("headline", "").strip().lower()
-                    for d in st.session_state.feed if d.get("headline")
-                }
-                _existing_ids = {
-                    d.get("item_id", "") for d in st.session_state.feed
-                }
-                _tv_unique = [
-                    d for d in _tv_dicts
-                    if d.get("item_id") not in _existing_ids
-                    and d.get("headline", "").strip().lower() not in _existing_hl
-                ]
-                if _tv_unique:
-                    st.session_state.feed = dedup_feed_items(
-                        _tv_unique + st.session_state.feed
-                    )
-                    logger.info(
-                        "TV supplement: added %d headlines for %s",
-                        len(_tv_unique), ", ".join(_tv_tickers[:4]),
-                    )
-        except Exception as _tv_exc:
-            logger.warning("TV supplement fetch failed: %s", _tv_exc, exc_info=True)
-        st.session_state["tv_supplement_ts"] = time.time()
-
 
 # ── Main display ────────────────────────────────────────────────
 

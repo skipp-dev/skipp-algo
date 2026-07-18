@@ -1,8 +1,8 @@
-"""FMP Technical Indicators fallback provider.
+"""FMP Technical Indicators provider.
 
-When TradingView is rate-limited (429 cooldown), this module fetches
-technical indicators from FMP's REST API and constructs a
-``TechnicalResult`` compatible with the TradingView-based flow.
+This module is the sole runtime technical source after TradingView retirement.
+It fetches FMP indicators and constructs a ``TechnicalResult`` compatible with
+the existing dashboard flow.
 
 FMP stable endpoints used (as of 2025):
   - /stable/technical-indicators/rsi?symbol=X&periodLength=14&timeframe=1day
@@ -53,7 +53,7 @@ _INTERVAL_TO_TIMEFRAME: dict[str, str] = {
     # Truth-audit 2026-07-11: unmapped intervals (e.g. "2h", "10m" requested by
     # terminal_technicals.fetch_multi_interval) fall through to the "1day"
     # default below, so those cards show DAILY bars mislabeled with the
-    # requested interval during a TradingView cooldown. Left mapped-to-daily
+    # requested interval. Left mapped-to-daily
     # deliberately (FMP stable has no 2h/10m); the card's interval label is
     # the caveat.
 }
@@ -67,7 +67,7 @@ def _get_api_key() -> str:
     return os.getenv("FMP_API_KEY", "")
 
 
-# ── Cache (separate from TradingView cache) ─────────────────────────
+# ── FMP technical cache ────────────────────────────────────────────
 # Audit 2026-05-10 (PR-I): cache keys are scoped per-API-key fingerprint.
 # Pre-PR-I the key was (symbol, interval) and the cache was a single
 # module-global dict shared across every FMP account, so a technical-
@@ -251,7 +251,7 @@ def _opt_float(value: Any) -> float | None:
     """Parse an FMP indicator value to float, or None when missing / non-numeric
     / NaN. A provider '' / 'N/A' / null must skip the indicator (the downstream
     ``_classify_*`` helpers already treat None as NEUTRAL), never raise — this
-    fallback runs UNGUARDED whenever TradingView is rate-limited, so a raw
+    provider runs directly without a TradingView dependency, so a raw
     ``float("N/A")`` here would crash the whole technicals fetch."""
     if value is None:
         return None

@@ -1802,7 +1802,7 @@ def _format_age_hms(seconds: float) -> str:
 class TechnicalScorer:
     """Cached technical indicator scoring layer.
 
-    Wraps ``fetch_technicals()`` (TradingView primary, FMP stable fallback)
+    Wraps ``fetch_technicals()`` (FMP-only after TradingView retirement)
     with per-symbol caching and rate-limit awareness.  Computes a weighted
     ``technical_score`` (0.0–1.0) from RSI, MACD, EMA/SMA alignment, and ADX.
 
@@ -2067,7 +2067,7 @@ class RealtimeSignal:
     news_category: str = ""
     news_headline: str = ""
     news_warn_flags: list[str] = field(default_factory=list)
-    # ── Technical indicator enrichment (TradingView / FMP) ──
+    # ── Technical indicator enrichment (FMP-only) ──
     technical_score: float = 0.5      # 0.0–1.0 weighted indicator score
     technical_signal: str = "NEUTRAL" # STRONG_BUY / BUY / NEUTRAL / SELL / STRONG_SELL
     rsi: float | None = None          # RSI-14 value (None if unavailable)
@@ -2155,7 +2155,7 @@ class RealtimeEngine:
         self._earnings_today_cache: dict[str, dict[str, Any]] = {}
         self._new_entrant_set: set[str] = set()
 
-        # #12 Technical indicator scorer (TradingView + FMP)
+        # #12 Technical indicator scorer (FMP-only)
         self._technical_scorer = TechnicalScorer()
 
         # #11 Dirty flag — {symbol: quote_hash}

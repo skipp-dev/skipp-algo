@@ -13,7 +13,6 @@ Covers:
 from __future__ import annotations
 
 import json
-from types import SimpleNamespace
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -31,7 +30,6 @@ from scripts.smc_provider_policy import (
     fetch_news_newsapi_ai,
     fetch_regime_fmp,
     fetch_technical_fmp,
-    fetch_technical_tradingview,
     resolve_domain,
 )
 
@@ -68,9 +66,9 @@ class TestPolicyDeclarations:
         assert POLICY_CALENDAR.primary == "fmp"
         assert POLICY_CALENDAR.fallbacks == ()
 
-    def test_technical_is_fmp_primary_tradingview_fallback(self):
+    def test_technical_is_fmp_primary_without_fallback(self):
         assert POLICY_TECHNICAL.primary == "fmp"
-        assert POLICY_TECHNICAL.fallbacks == ("tradingview",)
+        assert POLICY_TECHNICAL.fallbacks == ()
 
     def test_all_policies_registered(self):
         assert set(ALL_POLICIES.keys()) == {
@@ -165,14 +163,11 @@ class TestProviderUnavailable:
         assert "fmp" in result.stale
         assert "benzinga" not in result.stale
 
-    @patch("scripts.smc_provider_policy.fetch_technical_tradingview")
-    def test_technical_all_fail_returns_safe_default(self, mock_tradingview):
-        mock_tradingview.side_effect = RuntimeError("TradingView fallback unavailable")
+    def test_technical_all_fail_returns_safe_default(self):
         result = resolve_domain("technical", fmp=None)
         assert result.ok is False
         assert result.provider == "none"
-        assert "fmp" in result.stale
-        assert "tradingview" in result.stale
+        assert result.stale == ["fmp"]
 
     def test_unknown_domain_raises(self):
         with pytest.raises(ValueError, match="Unknown enrichment domain"):
@@ -248,18 +243,13 @@ class TestPartialProviderAvailability:
         assert result.provider == "none"
         assert result.stale == ["fmp"]
 
-    @patch("scripts.smc_provider_policy.fetch_technical_tradingview")
     @patch("scripts.smc_provider_policy.fetch_technical_fmp")
-    def test_technical_fmp_fails_tradingview_succeeds(self, mock_fmp, mock_tv):
+    def test_technical_fmp_failure_stops_without_upstream_fallback(self, mock_fmp):
         mock_fmp.side_effect = RuntimeError("FMP rate limit")
-        mock_tv.return_value = ProviderResult(
-            data={"strength": 0.7, "bias": "BULLISH"},
-            provider="tradingview",
-        )
         result = resolve_domain("technical", fmp=MagicMock())
-        assert result.ok is True
-        assert result.provider == "tradingview"
-        assert "fmp" in result.stale
+        assert result.ok is False
+        assert result.provider == "none"
+        assert result.stale == ["fmp"]
 
     @patch("scripts.smc_provider_policy.fetch_news_newsapi_ai")
     @patch("scripts.smc_provider_policy.fetch_news_benzinga")
@@ -634,50 +624,6 @@ class TestMalformedPayloads:
         fmp.get_technical_indicator.return_value = {}
         with pytest.raises(ValueError, match="no RSI data"):
             fetch_technical_fmp(fmp)
-
-    @patch("terminal_technicals.fetch_technicals")
-    def test_technical_tradingview_uses_real_tradingview_adapter(self, mock_fetch, monkeypatch):
-        import terminal_technicals
-
-        monkeypatch.setattr(terminal_technicals, "_TV_AVAILABLE", True)
-        mock_fetch.return_value = SimpleNamespace(
-            summary_buy=8,
-            summary_sell=2,
-            summary_neutral=0,
-            error="",
-        )
-
-        result = fetch_technical_tradingview("AAPL")
-
-        assert result.provider == "tradingview"
-        assert result.data == {"strength": 0.6, "bias": "BULLISH"}
-        mock_fetch.assert_called_once_with("AAPL", "1D")
-
-    @patch("terminal_technicals.fetch_technicals")
-    def test_technical_tradingview_rejects_non_tradingview_fallback_path(self, mock_fetch, monkeypatch):
-        import terminal_technicals
-
-        monkeypatch.setattr(terminal_technicals, "_TV_AVAILABLE", False)
-
-        with pytest.raises(ValueError, match="adapter not available"):
-            fetch_technical_tradingview("AAPL")
-
-        mock_fetch.assert_not_called()
-
-    @patch("terminal_technicals.fetch_technicals")
-    def test_technical_tradingview_raises_on_adapter_error(self, mock_fetch, monkeypatch):
-        import terminal_technicals
-
-        monkeypatch.setattr(terminal_technicals, "_TV_AVAILABLE", True)
-        mock_fetch.return_value = SimpleNamespace(
-            summary_buy=0,
-            summary_sell=0,
-            summary_neutral=0,
-            error="symbol not found",
-        )
-
-        with pytest.raises(ValueError, match="returned no data"):
-            fetch_technical_tradingview("AAPL")
 
     def test_calendar_fmp_empty_earnings(self):
         fmp = MagicMock()
@@ -1195,7 +1141,7 @@ class TestBaseScanProvenance:
                 data={"earnings_today_tickers": ""}, provider="fmp",
             ),
             "technical": ProviderResult(
-                data={"strength": 0.5, "bias": "NEUTRAL"}, provider="tradingview",
+                data={"strength": 0.5, "bias": "NEUTRAL"}, provider="fmp",
             ),
         }
         mock_resolve.side_effect = lambda domain, **kw: call_map[domain]
@@ -1206,8 +1152,8 @@ class TestBaseScanProvenance:
             enrich_calendar=True, enrich_layering=True,
         )
         assert enrichment is not None
-        # databento + fmp + benzinga + tradingview = 4 unique
-        assert enrichment["providers"]["provider_count"] == 4
+        # databento + fmp + benzinga = 3 unique
+        assert enrichment["providers"]["provider_count"] == 3
         assert enrichment["providers"]["base_scan_provider"] == "databento"
 
 
@@ -1268,15 +1214,14 @@ class TestBuildEnrichmentFallbackPaths:
         assert enrichment["calendar"]["earnings_today_tickers"] == "AAPL"
 
     @patch("scripts.smc_provider_policy.resolve_domain")
-    def test_technical_falls_back_to_tradingview(self, mock_resolve):
+    def test_technical_provider_remains_fmp_when_resolved(self, mock_resolve):
         from scripts.generate_smc_micro_base_from_databento import build_enrichment
 
         def _side_effect(domain, **kw):
             if domain == "technical":
                 return ProviderResult(
                     data={"strength": 0.7, "bias": "BULLISH"},
-                    provider="tradingview",
-                    stale=["fmp"],
+                    provider="fmp",
                 )
             return ProviderResult(data={"regime": "RISK_ON"}, provider="fmp")
 
@@ -1287,8 +1232,7 @@ class TestBuildEnrichmentFallbackPaths:
             enrich_regime=True, enrich_layering=True,
         )
         assert enrichment is not None
-        assert enrichment["providers"]["technical_provider"] == "tradingview"
-        assert "fmp" in enrichment["providers"]["stale_providers"]
+        assert enrichment["providers"]["technical_provider"] == "fmp"
 
     @patch("scripts.smc_provider_policy.resolve_domain")
     def test_all_domains_fail_gives_zero_enrichment_providers(self, mock_resolve):
