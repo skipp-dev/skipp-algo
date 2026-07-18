@@ -104,8 +104,11 @@ def expected_regular_volume_fraction(ts_event: float) -> float:
     session_minutes = close_minutes - _OPEN_MINUTES
     elapsed = min(max(now_minutes - _OPEN_MINUTES, 0.0), float(session_minutes))
     progress = elapsed / session_minutes if session_minutes > 0 else 1.0
-    first_break = 30.0 / 390.0
-    second_break = 90.0 / 390.0
+    # Knees at 30 and 90 clock-minutes into the session, scaled to the actual
+    # session length so half days aren't distorted by a full-day (390) constant.
+    span = session_minutes if session_minutes > 0 else 390.0
+    first_break = min(30.0, span) / span
+    second_break = min(90.0, span) / span
     if progress <= first_break:
         fraction = 0.25 * progress / first_break
     elif progress <= second_break:

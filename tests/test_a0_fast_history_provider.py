@@ -49,3 +49,24 @@ def test_history_provider_requests_open_to_current_exclusive(monkeypatch) -> Non
     assert calls[0]["schema"] == "ohlcv-1s"
     assert calls[0]["symbols"] == ["NVDA"]
     assert calls[0]["stype_in"] == "raw_symbol"
+
+
+def test_history_provider_fails_closed_on_out_of_window_bar(monkeypatch) -> None:
+    monkeypatch.setattr(history, "_make_databento_client", lambda _key: object())
+    current_et = datetime(2026, 7, 17, 11, 0, tzinfo=_ET)
+    # A bar stamped at the exclusive end is outside the proven session window,
+    # so coverage must not be asserted (recovery then fails closed).
+    stray = Ohlcv1SMsg(int(current_et.timestamp() * 1_000_000_000))
+    monkeypatch.setattr(
+        history, "_databento_get_range_with_retry", lambda _client, **_kwargs: [stray]
+    )
+    provider = history.DatabentoHistoricalBarsProvider("test-key")
+    current = StreamBar(
+        symbol="NVDA",
+        close=103.0,
+        volume=50,
+        ts_event=current_et.timestamp(),
+        ts_recv=current_et.timestamp() + 0.1,
+    )
+    batch = provider.fetch_before(current)
+    assert batch.coverage_complete is False

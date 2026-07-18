@@ -35,11 +35,20 @@ class DatabentoHistoricalBarsProvider:
             end=end.isoformat(),
         )
         bars = tuple(self._normalize_records(store, bar.symbol))
+        request_start = start.timestamp()
+        request_end = end.timestamp()
+        # Databento get_range returns the whole requested window or raises, so
+        # coverage is proven only when every returned bar lands inside it; a
+        # truncated or misranged fetch then fails closed (INCOMPLETE_COVERAGE)
+        # instead of reconstructing cumulative volume from partial history.
+        coverage_complete = all(
+            request_start <= record.ts_event < request_end for record in bars
+        )
         return HistoricalBootstrapBatch(
             symbol=bar.symbol,
-            request_start=start.timestamp(),
-            request_end=end.timestamp(),
-            coverage_complete=True,
+            request_start=request_start,
+            request_end=request_end,
+            coverage_complete=coverage_complete,
             bars=bars,
         )
 

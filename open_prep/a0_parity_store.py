@@ -90,7 +90,7 @@ class A0ParityJournal:
                 return False
             self._directory.mkdir(parents=True, exist_ok=True)
             path = self._path_for(decision.session_date)
-            payload = json.dumps(dict(row), sort_keys=True, separators=(",", ":"))
+            payload = json.dumps(dict(row), sort_keys=True, separators=(",", ":"), allow_nan=False)
             with path.open("a", encoding="utf-8") as handle:
                 handle.write(payload + "\n")
                 handle.flush()

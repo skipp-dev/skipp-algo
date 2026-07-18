@@ -128,6 +128,14 @@ def test_half_day_volume_curve_reaches_one_at_early_close() -> None:
     assert expected_regular_volume_fraction(almost_close) > 0.99
 
 
+def test_half_day_volume_curve_knee_scales_to_session_length() -> None:
+    # 2026-11-27 is an early-close (13:00 ET) session. Thirty clock-minutes in
+    # must land exactly on the first-knee 25% mark; the pre-fix code scaled the
+    # knees to a full 390-min day and overshot (~0.31) on half days.
+    thirty_minutes_in = datetime(2026, 11, 27, 10, 0, 0, tzinfo=_ET).timestamp()
+    assert abs(expected_regular_volume_fraction(thirty_minutes_in) - 0.25) < 1e-9
+
+
 def test_replay_is_deterministic_and_uses_common_decider() -> None:
     rows = json.loads(
         (Path(__file__).parent / "fixtures" / "a0_stream_replay.json").read_text(

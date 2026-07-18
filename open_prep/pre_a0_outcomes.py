@@ -76,7 +76,7 @@ def summarize_outcomes(
     report: dict[str, object] = {
         "episodes": len(rows),
         "alerts_per_hour": len(rows) / max(session_seconds / 3600.0, 1e-9),
-        "repeat_alerts": max(0, len(rows) - len({(row.symbol, row.direction, row.time_to_a0_s) for row in rows})),
+        "repeat_alerts": max(0, len(rows) - len({(row.symbol, row.direction) for row in rows})),
     }
     labels_by_horizon = {
         30: [row.y_30 for row in rows],
