@@ -9,6 +9,10 @@ on:
 permissions:
   contents: read
 
+defaults:
+  run:
+    shell: bash
+
 env:
   PYTHONPATH: ${{ github.workspace }}
   PYTHONUNBUFFERED: "1"
