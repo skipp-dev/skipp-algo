@@ -26,6 +26,8 @@ def _artifact(
     horizons=(30, 60, 180),
     offline_evaluated=True,
     shadow_evaluated=False,
+    shadow_sessions=20,
+    shadow_episodes=200,
 ) -> None:
     rows = [
         {"price_progress": index / 39, "volume_progress": index / 39}
@@ -44,7 +46,11 @@ def _artifact(
         calibrated_window=("2026-07-01", "2026-07-10"),
         review_after="2099-01-01T00:00:00Z",
         horizons=horizons,
-        metrics={"brier": 0.1},
+        metrics={
+            "brier": 0.1,
+            "shadow_sessions": float(shadow_sessions),
+            "shadow_confirmed_a0_episodes": float(shadow_episodes),
+        },
         gates={
             "offline_evaluated": offline_evaluated,
             "shadow_evaluated": shadow_evaluated,
@@ -181,7 +187,21 @@ def test_notify_requires_shadow_gate_and_emits_episode_identity(tmp_path) -> Non
         "notify_requires_offline_and_shadow_evaluation_gates",
     )
 
-    _artifact(model_path, shadow_evaluated=True)
+    _artifact(model_path, shadow_evaluated=True, shadow_sessions=19, shadow_episodes=200)
+    telemetry = PreA0Telemetry()
+    assert build_pre_a0_runtime(base_env, thresholds=_THRESHOLDS, telemetry=telemetry) is None
+    assert telemetry.snapshot()["disabled_reasons"] == (
+        "notify_requires_20_sessions_and_200_a0_episodes",
+    )
+
+    _artifact(model_path, shadow_evaluated=True, shadow_sessions=20, shadow_episodes=199)
+    telemetry = PreA0Telemetry()
+    assert build_pre_a0_runtime(base_env, thresholds=_THRESHOLDS, telemetry=telemetry) is None
+    assert telemetry.snapshot()["disabled_reasons"] == (
+        "notify_requires_20_sessions_and_200_a0_episodes",
+    )
+
+    _artifact(model_path, shadow_evaluated=True, shadow_sessions=20, shadow_episodes=200)
     telemetry = PreA0Telemetry()
     runtime = build_pre_a0_runtime(base_env, thresholds=_THRESHOLDS, telemetry=telemetry)
     assert runtime is not None

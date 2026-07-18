@@ -229,6 +229,12 @@ def evaluate(
         for horizon, values in metrics.items()
         for name, value in values.items()
     }
+    flat_metrics.update(
+        {
+            "shadow_sessions": float(sessions),
+            "shadow_confirmed_a0_episodes": float(len(events)),
+        }
+    )
     report = {
         **offline_report,
         "metrics": {**offline_report.get("metrics", {}), **flat_metrics},

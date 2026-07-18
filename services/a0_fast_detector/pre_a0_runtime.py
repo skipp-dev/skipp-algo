@@ -34,6 +34,9 @@ from open_prep.pre_a0_telemetry import PreA0Telemetry
 
 logger = logging.getLogger(__name__)
 
+_NOTIFY_MIN_SHADOW_SESSIONS = 20
+_NOTIFY_MIN_CONFIRMED_A0_EPISODES = 200
+
 
 @dataclass(frozen=True, slots=True)
 class PreA0RuntimeResult:
@@ -206,12 +209,20 @@ def build_pre_a0_runtime(
     ):
         telemetry.set_disabled(("observe_requires_offline_evaluation_gate",))
         return None
-    if config.pre_a0_mode is PreA0Mode.NOTIFY and not (
-        artifact.gates.get("offline_evaluated", False)
-        and artifact.gates.get("shadow_evaluated", False)
-    ):
-        telemetry.set_disabled(("notify_requires_offline_and_shadow_evaluation_gates",))
-        return None
+    if config.pre_a0_mode is PreA0Mode.NOTIFY:
+        if not (
+            artifact.gates.get("offline_evaluated", False)
+            and artifact.gates.get("shadow_evaluated", False)
+        ):
+            telemetry.set_disabled(("notify_requires_offline_and_shadow_evaluation_gates",))
+            return None
+        if (
+            artifact.metrics.get("shadow_sessions", 0.0) < _NOTIFY_MIN_SHADOW_SESSIONS
+            or artifact.metrics.get("shadow_confirmed_a0_episodes", 0.0)
+            < _NOTIFY_MIN_CONFIRMED_A0_EPISODES
+        ):
+            telemetry.set_disabled(("notify_requires_20_sessions_and_200_a0_episodes",))
+            return None
     try:
         max_rows = int(env.get("RT_PRE_A0_SNAPSHOT_FLUSH_ROWS", "500"))
     except ValueError:
