@@ -6,7 +6,7 @@ of the canonical export bundle (which only covers 11–14 UTC).
 
 Approach:
 
-1. Pull DBEQ.BASIC OHLCV-5m for a small high-extended-hours universe
+1. Pull EQUS.MINI OHLCV-5m for a small high-extended-hours universe
    (TSLA / NVDA / AAPL / AMZN / META / MSFT / GOOGL / SPY / QQQ) over a
    configurable window (default 60 days), with **full 24 h coverage**.
    These instruments have material extended-hours volume in the
@@ -86,7 +86,7 @@ DEFAULT_SYMBOLS: tuple[str, ...] = (
     "QQQ",
 )
 DEFAULT_TIMEFRAMES: tuple[str, ...] = ("5m", "15m", "1H")
-DEFAULT_DATASET: str = "DBEQ.BASIC"
+DEFAULT_DATASET: str = "EQUS.MINI"
 
 
 def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
@@ -106,7 +106,7 @@ def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser.add_argument(
         "--dataset",
         type=str,
-        default=os.environ.get("DATABENTO_DATASET") or DEFAULT_DATASET,
+        default=os.environ.get("DATABENTO_EQUITY_INTRADAY_DATASET") or DEFAULT_DATASET,
     )
     parser.add_argument(
         "--days",
@@ -142,7 +142,7 @@ def _fetch_bars_5m(
     start: datetime,
     end: datetime,
 ) -> pd.DataFrame:
-    """Fetch DBEQ.BASIC OHLCV-1m bars and resample to 5m, all hours."""
+    """Fetch EQUS.MINI OHLCV-1m bars and resample to 5m, all hours."""
     import databento as db  # local import keeps the module importable offline
 
     client = db.Historical(api_key)

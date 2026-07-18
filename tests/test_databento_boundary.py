@@ -3,7 +3,7 @@
 Ensures that:
 1. All public (unprefixed) aliases in ``databento_utils`` resolve and point
    to the same underlying implementation as their underscore-prefixed originals.
-2. ``databento_provider.list_accessible_datasets`` is importable and callable.
+2. Databento catalog enumeration is explicit and the legacy alias stays callable.
 3. ``scripts.smc_microstructure_base_runtime`` no longer references the
    screener monolith (``databento_volatility_screener``).
 """
@@ -57,7 +57,6 @@ class TestPublicConstantsAccessible:
         "name",
         [
             "US_EASTERN_TZ",
-            "PREFERRED_DATABENTO_DATASETS",
             "build_cache_path",
             "choose_default_dataset",
             "resolve_display_timezone",
@@ -71,14 +70,16 @@ class TestPublicConstantsAccessible:
 # ── 2. Provider-level list_accessible_datasets ──────────────────────────────
 
 class TestProviderListAccessibleDatasets:
-    """``list_accessible_datasets`` lives in ``databento_provider``."""
+    """The provider exposes catalog truth without claiming entitlements."""
 
     def test_importable(self) -> None:
-        from databento_provider import list_accessible_datasets
+        from databento_provider import list_accessible_datasets, list_catalog_datasets
+
         assert callable(list_accessible_datasets)
+        assert callable(list_catalog_datasets)
 
     def test_delegates_to_provider(self) -> None:
-        """Calling list_accessible_datasets instantiates DabentoProvider."""
+        """The compatibility alias delegates to the explicit catalog method."""
         from databento_provider import list_accessible_datasets
 
         mock_client = MagicMock()
@@ -88,12 +89,13 @@ class TestProviderListAccessibleDatasets:
             return_value=None,
         ) as mock_init, patch.object(
             importlib.import_module("databento_provider").DabentoProvider,
-            "list_datasets",
+            "list_catalog_datasets",
             return_value=["DBEQ.BASIC", "XNAS.ITCH"],
         ):
-            result = list_accessible_datasets("fake-key")
+            with pytest.warns(DeprecationWarning, match="global catalog"):
+                result = list_accessible_datasets("fake-key")
             mock_init.assert_called_once_with("fake-key")
-            assert isinstance(result, list)
+            assert result == ["DBEQ.BASIC", "XNAS.ITCH"]
 
 
 # ── 3. Base runtime screener-free ───────────────────────────────────────────

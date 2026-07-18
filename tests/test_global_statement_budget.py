@@ -129,7 +129,7 @@ _FROZEN_SITES: frozenset[tuple[str, int, tuple[str, ...]]] = frozenset(
         # to fix the 5 consecutive cron OOMs 2026-05-11 → 2026-05-13.
         (
             "scripts/databento_production_export.py",
-            846,  # 2026-07-13 (benchmark_universe_ohlcv_1m import + base-only allowlist entries): 843->846
+            851,  # 2026-07-18 (dataset-policy imports): 846->851
             ("_DEFAULT_BULLISH_QUALITY_CFG",),
         ),
         # WP-H (PR #2612): lines shifted 184/192/200 -> 186/194/202 by the
@@ -289,10 +289,10 @@ _FROZEN_SITES: frozenset[tuple[str, int, tuple[str, ...]]] = frozenset(
         # ingest loop into the feed loop (F2.1). The +3-line arming block in the
         # feed loop shifted every anchor below it: 421->427 (the ingest-side
         # swap was net-zero), 586->589, 685->688. 229 is above the edit.
-        ("services/live_overlay_daemon/feed.py", 229, ("_feed_connected_at",)),
-        ("services/live_overlay_daemon/feed.py", 427, ("_last_bar_at",)),
-        ("services/live_overlay_daemon/feed.py", 589, ("_feed_thread", "_flow_refresh_thread", "_refresh_thread")),
-        ("services/live_overlay_daemon/feed.py", 688, ("_feed_thread", "_flow_refresh_thread", "_refresh_thread")),
+        ("services/live_overlay_daemon/feed.py", 231, ("_feed_connected_at",)),
+        ("services/live_overlay_daemon/feed.py", 483, ("_last_bar_at",)),
+        ("services/live_overlay_daemon/feed.py", 646, ("_feed_thread", "_flow_refresh_thread", "_refresh_thread")),
+        ("services/live_overlay_daemon/feed.py", 745, ("_feed_thread", "_flow_refresh_thread", "_refresh_thread")),
         # 2026-06-21: optional external bridge snapshot caches are guarded by
         # module locks and cached via module-level singleton snapshots.
         # 2026-06-23: workflow bridge hardening (status/conclusion semantics,

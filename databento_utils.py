@@ -383,16 +383,6 @@ def _warn_with_redacted_exception(message: str, exc: BaseException, *, include_t
     logger.warning("%s: %s", message, _redact_sensitive_error_text(str(exc)), exc_info=include_traceback)
 
 
-# ── Dataset selection ───────────────────────────────────────────────────────
-
-PREFERRED_DATABENTO_DATASETS = (
-    "XNAS.ITCH",
-    "XNYS.PILLAR",
-    "DBEQ.BASIC",
-    "XNAS.BASIC",
-)
-
-
 # ── Public aliases ───────────────────────────────────────────────────────
 #
 # The helpers below were originally extracted with underscore prefixes to
@@ -415,21 +405,23 @@ def choose_default_dataset(
     available_datasets: list[str],
     requested_dataset: str | None = None,
 ) -> str:
-    normalized = [str(dataset).strip() for dataset in available_datasets if str(dataset).strip()]
-    available_lookup = {dataset.upper(): dataset for dataset in normalized}
-    requested_normalized = str(requested_dataset).strip() if requested_dataset else None
-    if requested_normalized:
-        matched_requested = available_lookup.get(requested_normalized.upper())
-        if matched_requested:
-            return matched_requested
-        logger.warning("Requested dataset %r not in available datasets %r, falling back.", requested_dataset, normalized)
-    for dataset in PREFERRED_DATABENTO_DATASETS:
-        matched_preferred = available_lookup.get(dataset.upper())
-        if matched_preferred:
-            return matched_preferred
-    if normalized:
-        return normalized[0]
-    return requested_normalized or PREFERRED_DATABENTO_DATASETS[0]
+    """Deprecated fail-closed compatibility wrapper for the intraday role."""
+    import warnings
+
+    from databento_dataset_policy import DatasetMode, DatasetRole, resolve_dataset
+
+    del available_datasets
+    warnings.warn(
+        "choose_default_dataset() no longer uses catalog order; use resolve_dataset(role=...)",
+        DeprecationWarning,
+        stacklevel=2,
+    )
+    return resolve_dataset(
+        DatasetRole.EQUITY_INTRADAY_PARITY,
+        requested_dataset=requested_dataset or "EQUS.MINI",
+        schema="ohlcv-1m",
+        mode=DatasetMode.HISTORICAL,
+    )
 
 
 def list_datasets_normalized(client: Any) -> set[str]:
@@ -452,4 +444,3 @@ def list_datasets_normalized(client: Any) -> set[str]:
     """
     raw = client.metadata.list_datasets()
     return {s for s in (str(item).strip() for item in raw) if s}
-

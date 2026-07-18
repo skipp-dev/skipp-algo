@@ -332,26 +332,28 @@ def probe_fmp_eod_bulk() -> tuple[str, str]:
 
 
 def probe_databento_metadata() -> tuple[str, str]:
-    """Databento metadata.list_datasets — auth + reachability."""
+    """Databento catalog reachability (catalog membership is not entitlement)."""
     key = os.getenv("DATABENTO_API_KEY", "")
     if not key:
         return ("SKIP", "DATABENTO_API_KEY missing")
     from databento_client import _make_databento_client
     client = _make_databento_client(key)
-    datasets = client.metadata.list_datasets()
+    from databento_access import list_catalog_datasets_from_client
+
+    datasets = list_catalog_datasets_from_client(client)
     if not datasets:
         return ("WARN", "empty dataset list")
-    return ("OK", f"{len(datasets)} datasets, includes DBEQ.BASIC={'DBEQ.BASIC' in datasets}")
+    return ("OK", f"{len(datasets)} catalog datasets (not an entitlement check)")
 
 
-def probe_databento_opra_entitlement() -> tuple[str, str]:
-    """Databento OPRA.PILLAR entitlement — gates the self-hosted OPRA UOA detector.
+def probe_databento_opra_access() -> tuple[str, str]:
+    """Databento OPRA historical access; live access remains a separate probe.
 
     Replaces the pre-decommission Unusual Whales options-flow probe. SKIPs cleanly
     when ENABLE_OPRA_UOA != '1' or DATABENTO_API_KEY is unset (mock-friendly: no
     API call is issued on SKIP), so this probe runs in CI/local without leaking
     Databento quota. WARN/FAIL only when the feature is enabled AND the key is
-    present but the dataset is not entitled — i.e. the operator misconfiguration
+    present but historical range access is unavailable — i.e. the operator misconfiguration
     case the matrix in docs/OPEN_PREP_OPS_QUICK_REFERENCE.md §13 calls out.
     """
     # SSOT helper (audit-L-1 R4) so the probe agrees with streamlit_monitor
@@ -362,19 +364,25 @@ def probe_databento_opra_entitlement() -> tuple[str, str]:
     key = os.getenv("DATABENTO_API_KEY", "")
     if not key:
         return ("SKIP", "DATABENTO_API_KEY missing (env-blocked outside production CI)")
-    from databento_client import _make_databento_client
-    from databento_utils import list_datasets_normalized
+    from databento_provider import get_dataset_access_status
 
-    client = _make_databento_client(key)
-    datasets = list_datasets_normalized(client)
-    if "OPRA.PILLAR" not in datasets:
+    status = get_dataset_access_status(key, "OPRA.PILLAR")
+    if not status.historical_range_available:
         return (
             "FAIL",
-            "OPRA.PILLAR not entitled — ENABLE_OPRA_UOA=1 but key lacks dataset; "
-            "either entitle the key, set ENABLE_OPRA_UOA=0, or revert to the dormant "
-            "UnusualWhalesAdapter (see docs/OPEN_PREP_OPS_QUICK_REFERENCE.md §13)",
+            "OPRA.PILLAR historical range unavailable — ENABLE_OPRA_UOA=1; "
+            f"catalog_present={status.catalog_present} reason={status.reason}",
         )
-    return ("OK", "OPRA.PILLAR entitled (self-hosted UOA detector unblocked)")
+    return (
+        "OK",
+        "OPRA.PILLAR historical range available; live entitlement NOT_CHECKED "
+        "(run the explicit bounded live probe before enabling live UOA)",
+    )
+
+
+def probe_databento_opra_entitlement() -> tuple[str, str]:
+    """Compatibility alias for the truthful OPRA access probe."""
+    return probe_databento_opra_access()
 
 
 def probe_databento_daily_bars() -> tuple[str, str]:
@@ -904,7 +912,7 @@ PROBES: list[Probe] = [
     Probe("FMP /stable/eod-bulk", probe_fmp_eod_bulk, critical=True),
     # Databento — primary market data
     Probe("Databento metadata.list_datasets", probe_databento_metadata, critical=True),
-    Probe("Databento OPRA.PILLAR entitlement (UOA detector gate)", probe_databento_opra_entitlement, critical=False),
+    Probe("Databento OPRA.PILLAR historical access (live not checked)", probe_databento_opra_access, critical=False),
     Probe("Databento ohlcv-1d (AAPL,MSFT)", probe_databento_daily_bars, critical=True),
     # Benzinga — news is the one critical surface (works via the Massive route).
     # earnings-cal is non-critical: it SKIPs in massive mode (no Massive route,

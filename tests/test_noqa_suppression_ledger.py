@@ -78,6 +78,9 @@ _NOQA_RE = re.compile(r"#\s*noqa\b", re.IGNORECASE)
 #   ``git rev-parse HEAD`` via a ``shutil.which("git")``-resolved
 #   executable with a hardcoded argv list. Bandit S603 is a false
 #   positive.
+# * ``scripts/build_databento_usage_baseline.py``: invokes a
+#   ``shutil.which("git")``-resolved executable with explicit argv to read a
+#   requested Git revision. No shell is used; Bandit S603 is a false positive.
 # * ``scripts/start_open_prep_suite.py``: launches the open-prep run
 #   (``python_exe -m open_prep.run_open_prep``), stops any prior
 #   streamlit monitor (``shutil.which("pkill")``), and spawns a
@@ -111,6 +114,7 @@ _FROZEN_SITES: dict[str, int] = {
     "scripts/measure_databento_ops_run.py": 2,
     "scripts/smc_micro_publish_guard.py": 1,
     "scripts/smc_zone_priority_calibration.py": 2,
+    "scripts/build_databento_usage_baseline.py": 1,
     "scripts/start_open_prep_suite.py": 3,
     "smc_integration/release_policy.py": 1,
     # 2026-06-30 (Railway live-overlay daemon): S104 is intentional because

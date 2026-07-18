@@ -95,7 +95,7 @@ _FROZEN_FILE_COUNTS: dict[str, int] = {
     "newsstack_fmp/store_sqlite.py": 3,
     "open_prep/alerts.py": 1,
     "open_prep/diff.py": 1,
-    "open_prep/streamlit_monitor.py": 21,  # 2026-07-09: 24->21 (-3, removed guidance/retail/conf-calls Benzinga import fallbacks — terminal-calendar Massive migration)
+    "open_prep/streamlit_monitor.py": 20,  # 2026-07-18: 21->20 (-1, removed OPRA _fetch_opra_options import fallback — databento OPRA shadow migration)
     "rl/agents/ppo_slicer.py": 4,
     "rl/agents/sac_sizer.py": 2,
     "rl/simulator/execution_env.py": 5,

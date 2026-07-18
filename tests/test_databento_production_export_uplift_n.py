@@ -359,6 +359,8 @@ class TestNormalizeExchangeKey:
             ("xase", "AMEX"),
             ("nyse american", "AMEX"),
             ("nyse mkt", "AMEX"),
+            ("ARCX", "ARCA"),
+            ("nyse arca", "ARCA"),
             ("custom_x", "CUSTOM_X"),
             (None, ""),
             ("", ""),

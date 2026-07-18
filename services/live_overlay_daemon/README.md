@@ -687,13 +687,11 @@ Both dashboards are published automatically by
 
 ---
 
-## TradingView delivery status
+## Consumer boundary
 
-There is no supported Pine client for `/smc_live`. The former consumer used
-the nonexistent `request.raw()` function and was retired after TradingView
-reported CE10271. Do not paste the endpoint token into Pine.
-
-No TradingView delivery path is planned for this REST bridge.
+There is no supported Pine client for `/smc_live` and no chart-vendor data
+integration. The REST API is reserved for internal and server-side consumers.
+Do not paste the endpoint token into Pine or expose it to chart users.
 
 ---
 

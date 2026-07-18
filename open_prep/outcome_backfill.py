@@ -63,8 +63,9 @@ _EXIT_TIME = dt_time(10, 0)
 _MAX_ENTRY_DELAY_MIN = 5
 _MIN_WINDOW_MIN = 25
 
-# Databento dataset for US equities.
-_DEFAULT_DATASET = "DBEQ.BASIC"
+# Consolidated intraday parity source. EQUS.SUMMARY is daily-only and cannot
+# resolve the 09:30-10:00 ET outcome window.
+_DEFAULT_DATASET = "EQUS.MINI"
 _DEFAULT_SCHEMA = "ohlcv-1m"
 
 # Sentinel returned by ``_fetch_bars`` when Databento's historical API

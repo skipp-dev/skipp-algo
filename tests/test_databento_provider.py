@@ -17,7 +17,6 @@ import pytest
 from databento_provider import DegradedProvider, MarketDataProvider
 from databento_utils import (
     DATA_CACHE_TTL_SECONDS,
-    PREFERRED_DATABENTO_DATASETS,
     RECENT_INTRADAY_CACHE_TTL_SECONDS,
     _clamp_request_end,
     _coerce_timestamp_frame,
@@ -378,21 +377,21 @@ class TestRedaction:
 
 
 class TestDatasetSelection:
-    def test_choose_requested_dataset(self):
-        result = choose_default_dataset(["DBEQ.BASIC", "XNAS.ITCH"], "DBEQ.BASIC")
-        assert result == "DBEQ.BASIC"
-
-    def test_choose_preferred_fallback(self):
+    def test_choose_canonical_dataset(self):
         result = choose_default_dataset(["DBEQ.BASIC", "XNAS.ITCH"])
-        assert result == "XNAS.ITCH"  # first preferred match
+        assert result == "EQUS.MINI"
 
-    def test_choose_first_available(self):
-        result = choose_default_dataset(["CUSTOM.FEED"])
-        assert result == "CUSTOM.FEED"
+    def test_catalog_order_cannot_change_role(self):
+        assert choose_default_dataset(["XNAS.ITCH", "EQUS.MINI"]) == "EQUS.MINI"
+        assert choose_default_dataset(["EQUS.MINI", "XNAS.ITCH"]) == "EQUS.MINI"
+
+    def test_cross_role_override_fails(self):
+        with pytest.raises(ValueError, match="invalid for role"):
+            choose_default_dataset(["XNAS.ITCH"], "XNAS.ITCH")
 
     def test_choose_empty_list(self):
         result = choose_default_dataset([])
-        assert result == PREFERRED_DATABENTO_DATASETS[0]
+        assert result == "EQUS.MINI"
 
 
 # ── Provider injection into consumer ────────────────────────────────────────

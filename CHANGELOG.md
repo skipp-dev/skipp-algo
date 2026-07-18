@@ -28,36 +28,12 @@ All notable changes to this project are documented in this file.
   (`HIGH_CONVICTION`, `open_prep/alerts.py`) ist **nicht** betroffen; ein
   Config-/Env-Sweep fand keinen `STANDARD`-Consumer im Repo.
 
-### Changed (2026-07-01) — Human-readable overlay alert wording + Pine Polling Watchdog panel
+### Corrected (2026-07-18) — Removed an invalid Pine delivery assumption
 
-- Rewrote the three traffic/market alert rules so the message names the actual
-  mechanism (TradingView/Pine `request.get()` polling) instead of the ambiguous
-  "expected request traffic". UIDs and expressions are unchanged — only titles,
-  summaries, and runbooks:
-  - `lo-request-rate-absent-open`: "Expected request traffic missing while US
-    market open" → "TradingView/Pine is not polling the live overlay (US market
-    open)".
-  - `lo-expected-traffic-not-armed`: "Expected traffic alert is not armed" →
-    "Pine-polling watchdog is turned off".
-  - `lo-request-rate-drop-open`: "Request rate near zero while market open" →
-    "TradingView/Pine polling dropped to zero (US market open)".
-  Runbooks now spell out the two resolutions (arm vs. stand down via
-  `LIVE_OVERLAY_EXPECT_MARKET_TRAFFIC`) and where to look (published Pine URL,
-  `OVERLAY_SECRET_TOKEN`, Railway public endpoint).
-- Renamed the confusing **"Traffic Alert Armed"** dashboard tile to **"Pine
-  Polling Watchdog"** and moved it into the top *Incident Overview* row, directly
-  next to **Overall Health** (was buried at `y=41`). Active Alerts narrows from
-  `w=16` to `w=12` to make room; no other panels move. Generator
-  (`scripts/update_overlay_dashboard.py`) and pinned layout contract tests
-  updated accordingly.
-- **Market Traffic Health** value mappings made human-readable: `MARKET_CLOSED`
-  → "MARKET CLOSED", `OPEN_NO_TRAFFIC` → "OPEN · NO PINE POLLING", `TRAFFIC_OK`
-  → "PINE POLLING OK".
-- Paused `lo-expected-traffic-not-armed` (`isPaused: true`) while the Pine
-  `request.get()` consumer is not yet rolled out and the production deployment is
-  intentionally unarmed (`LIVE_OVERLAY_EXPECT_MARKET_TRAFFIC=0` on Railway); the
-  rule's own runbook already condones the not-armed state during rollout, so it
-  no longer pages. Set `isPaused: false` and re-upsert when arming for production.
+- Removed stale operational guidance that treated Pine as a network client of
+  the live-overlay service. Pine has no supported consumer for that endpoint.
+- Traffic dashboards and alerts now describe authorized internal consumers
+  only. The service remains available for server-side processing and operations.
 
 ### Added (2026-07-01) — PromQL gating anti-pattern guard
 
@@ -870,20 +846,11 @@ a per-symbol 16-field overlay JSON endpoint for TradingView Pine scripts.
 - `/health` accepts both `GET` and `HEAD` (PR #2795) — UptimeRobot sends HEAD;
   without this every probe returned `405 Method Not Allowed`.
 
-**Pine consumer (`pine/smc_live_overlay_consumer.pine`)**
-- Pine Script v6 indicator that calls the Railway daemon via `request.raw()`.
-- All 16 fields exposed as named `plot()` series (importable via
-  `request.security()`).
-- Dashboard table in top-right corner (toggle off in indicator settings).
-- Requires TradingView Premium for `request.raw()` (Free tier → all fields stale
-  until Premium is activated).
+**Consumer boundary**
 
-> **Correction (2026-07-16):** Pine v6 has no documented `request.raw()` or
-> arbitrary `request.get()` API. This consumer never formed a working delivery
-> path and failed in TradingView with CE10271. It and the inert
-> `SMC_Regime_and_News.pine` bridge were retired. No TradingView delivery path is
-> planned for that REST bridge. This note preserves the historical entry while
-> correcting its operational status.
+- The live-overlay API has no Pine consumer and is not a TradingView data
+  source. A former prototype based on an unsupported network assumption was
+  removed.
 
 **Deployment**
 - Production URL: `https://liveoverlaydaemon-production.up.railway.app`
@@ -2522,8 +2489,8 @@ New regression guards:
   versions (e.g. `//@version=999`), with an explanatory message. Closes the
   substring-match blind spot.
 - `tests/test_pine_tv_bridge_fail_closed.py` — fail-closed guards for the
-  untrusted-JSON bridge: `request.get` must not appear in live code (network
-  stays opt-in/inert), numeric reads carry explicit `str.tonumber(_, default)`
+  retired untrusted-JSON bridge: arbitrary network access must not appear in
+  live Pine code, numeric reads carry explicit `str.tonumber(_, default)`
   fallbacks, drawing blocks are gated on non-empty payloads, plus a faithful
   Python reference port of `f_getField` pinned against malformed JSON
   (empty/missing-key/unterminated-string/garbage → fail closed to `""`).
