@@ -106,6 +106,44 @@ def test_record_rate_limit_hit_accumulates_and_flushes(tmp_path: Path) -> None:
     assert data["months"]["2026-07"]["massive"]["rate_limit_hits"] == 2
 
 
+def test_detailed_endpoint_consumer_and_cache_telemetry_is_additive(tmp_path: Path) -> None:
+    u = ProviderUsage()
+    u.record(
+        "fmp",
+        response_bytes=120,
+        endpoint="/stable/batch-quote",
+        consumer="open_prep.fmp_client",
+        latency_ms=12.5,
+    )
+    u.record_cache_event("fmp", endpoint="shared_cache", consumer="shared_fetch", hit=True)
+    u.record_cache_event("fmp", endpoint="shared_cache", consumer="shared_fetch", hit=False)
+    u.record_records("fmp", 3, endpoint="response", consumer="shared_fetch")
+    u.record_error("fmp", endpoint="/stable/batch-quote", consumer="open_prep.fmp_client")
+    detailed = u.detailed_snapshot()
+    quote = detailed["fmp|/stable/batch-quote|open_prep.fmp_client"]
+    assert quote["calls"] == 1
+    assert quote["bytes"] == 120
+    assert quote["latency_ms_total"] == 12.5
+    assert quote["errors"] == 1
+    cache = detailed["fmp|shared_cache|shared_fetch"]
+    assert cache["cache_hits"] == 1
+    assert cache["cache_misses"] == 1
+    assert u.snapshot()["fmp"]["records"] == 3
+
+    path = tmp_path / "provider_usage.json"
+    assert u.flush(path, month="2026-07", now_iso="2026-07-18T10:00:00Z") is True
+    payload = json.loads(path.read_text(encoding="utf-8"))
+    assert payload["dimensions"]["2026-07"]["fmp|/stable/batch-quote|open_prep.fmp_client"]["calls"] == 1
+
+    # A later legacy-only flush must retain the detailed history.
+    later = ProviderUsage()
+    later.record("fmp", response_bytes=10)
+    later.flush(path, month="2026-07", now_iso="2026-07-18T11:00:00Z")
+    retained = json.loads(path.read_text(encoding="utf-8"))
+    assert "dimensions" in retained
+    assert retained["dimensions"]["2026-07"]["fmp|/stable/batch-quote|open_prep.fmp_client"]["calls"] == 1
+
+
 def test_rate_limit_hits_accumulate_across_runs(tmp_path: Path) -> None:
     path = tmp_path / "usage.json"
     u1 = ProviderUsage()

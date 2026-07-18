@@ -278,6 +278,16 @@ def _provider_from_url(url: str) -> str:
     return "unknown"
 
 
+def _endpoint_label(url: str) -> str:
+    """Return a query-free URL path for detailed usage telemetry."""
+    try:
+        from urllib.parse import urlsplit
+
+        return urlsplit(str(url)).path or "unknown"
+    except Exception:
+        return "unknown"
+
+
 def _request_with_retry(
     client: httpx.Client,
     url: str,
@@ -299,6 +309,7 @@ def _request_with_retry(
     """
     if label is not None and is_endpoint_disabled(label):
         raise BenzingaEndpointDisabledError(label)
+    started = time.perf_counter()
     try:
         resp = _attempt_bz_get(client, url, params)
         # Provider-usage telemetry (fail-soft): record the metered response
@@ -306,11 +317,27 @@ def _request_with_retry(
         try:
             from newsstack_fmp import provider_usage
 
-            provider_usage.record(_usage_provider(label), response_bytes=len(resp.content))
+            provider_usage.record(
+                _usage_provider(label),
+                response_bytes=len(resp.content),
+                endpoint=_endpoint_label(url),
+                consumer=str(label or "benzinga_http"),
+                latency_ms=(time.perf_counter() - started) * 1000.0,
+            )
         except Exception as usage_exc:  # never let telemetry break an ingest
             logger.debug("provider-usage record skipped: %s", usage_exc)
         return resp
     except httpx.HTTPStatusError as exc:
+        try:
+            from newsstack_fmp import provider_usage
+
+            provider_usage.record_error(
+                _usage_provider(label),
+                endpoint=_endpoint_label(url),
+                consumer=str(label or "benzinga_http"),
+            )
+        except Exception:
+            logger.debug("provider error telemetry skipped", exc_info=True)
         # Auto-disable on tier-limited / retired-URL responses so the
         # next poll skips the wasted round-trip.
         if label is not None and exc.response.status_code in _TIER_LIMITED_CODES:

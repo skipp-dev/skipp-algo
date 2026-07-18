@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from unittest.mock import patch
 
+from newsstack_fmp import provider_usage
 from newsstack_fmp.common_types import NewsItem
 from newsstack_fmp.shared_fetch import fetch_cached_batch, resolved_shared_cache_ttl_seconds
 
@@ -90,3 +91,27 @@ def test_resolved_shared_cache_ttl_seconds_prefers_newsapi_override() -> None:
 def test_resolved_shared_cache_ttl_seconds_ignores_invalid_override() -> None:
     with patch.dict("os.environ", {"NEWSAPI_AI_SHARED_CACHE_TTL_SECONDS": "invalid"}, clear=False):
         assert resolved_shared_cache_ttl_seconds("newsapi_ai", 90.0) == 90.0
+
+
+def test_shared_cache_records_hit_and_miss_telemetry(tmp_path) -> None:
+    provider_usage.reset()
+    fetch_cached_batch(
+        provider="fmp_stock_latest",
+        scope={"page": 0, "limit": 1},
+        ttl_seconds=120.0,
+        min_cursor=0.0,
+        fetcher=lambda: [_item(item_id="telemetry", ts=100.0)],
+        cache_dir=tmp_path,
+    )
+    fetch_cached_batch(
+        provider="fmp_stock_latest",
+        scope={"page": 0, "limit": 1},
+        ttl_seconds=120.0,
+        min_cursor=0.0,
+        fetcher=lambda: [],
+        cache_dir=tmp_path,
+    )
+    detailed = provider_usage.detailed_snapshot()
+    assert detailed["fmp_stock_latest|shared_cache|shared_fetch"]["cache_misses"] == 1
+    assert detailed["fmp_stock_latest|shared_cache|shared_fetch"]["cache_hits"] == 1
+    provider_usage.reset()

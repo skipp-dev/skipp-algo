@@ -74,8 +74,8 @@ _FROZEN_SITES: dict[str, dict[str, frozenset[int]]] = {
     },
     "newsstack_fmp/scoring.py": {"sha1": frozenset({125})},  # +2 (2026-07-10): cluster_hash docstring truth-fix
     "newsstack_fmp/shared_fetch.py": {
-        "md5": frozenset({117}),
-        "sha1": frozenset({226}),
+        "md5": frozenset({114}),  # 2026-07-19 (provider telemetry helper shift): 117->114
+        "sha1": frozenset({225}),  # 2026-07-19 (provider telemetry helper shift): 226->225
     },
     "open_prep/dirty_flag_manager.py": {"md5": frozenset({74})},
     # 2026-06-25: shifted 1250 -> 1331 by AsyncNewsstackPoller telemetry additions.

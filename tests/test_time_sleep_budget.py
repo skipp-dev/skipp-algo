@@ -92,7 +92,7 @@ _FROZEN_SITES: frozenset[tuple[str, int]] = frozenset(
         ("newsstack_fmp/ingest_benzinga.py", 298),  # 284→298 (2026-07-12): fetch_news 429 wire + import block
         ("newsstack_fmp/ingest_benzinga.py", 309),  # 295→309 (2026-07-12): fetch_news 429 wire + import block
         ("newsstack_fmp/ingest_fmp.py", 143),  # +1 (2026-07-10): docstring 3→4 endpoints
-        ("newsstack_fmp/ingest_fmp.py", 169),  # +1 (2026-07-10): docstring 3→4 endpoints
+        ("newsstack_fmp/ingest_fmp.py", 179),  # 2026-07-19 (provider telemetry helper): 169->179
         # PR #2154: ingest_fmp_filings.py shifted +8 (121→129, 134→142)
         # by the FMP-13F probe instrumentation + retry-after-Header parser.
         # Both sleeps remain legit retry-backoff (HTTP 429 + connect error).
@@ -105,8 +105,8 @@ _FROZEN_SITES: frozenset[tuple[str, int]] = frozenset(
         # (776→784, 795→803).
         # 2026-06-13: profile-bulk pagination constant shifted +1
         # (784→785, 803→804); sleeps unchanged: retry-backoff paths.
-        ("open_prep/macro.py", 818),  # 2026-07-08 H3 response-bytes accounting shifted (+9)
-        ("open_prep/macro.py", 837),  # 2026-07-08 H3 response-bytes accounting shifted (+9)
+        ("open_prep/macro.py", 826),  # 2026-07-19 (provider telemetry helper): 818->826
+        ("open_prep/macro.py", 845),  # 2026-07-19 (provider telemetry helper): 837->845
         ("newsstack_fmp/ingest_fmp_political.py", 122),
         ("newsstack_fmp/ingest_fmp_political.py", 135),
         ("newsstack_fmp/shared_fetch.py", 337),

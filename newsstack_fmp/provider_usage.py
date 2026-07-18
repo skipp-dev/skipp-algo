@@ -6,11 +6,11 @@ REST data providers (FMP first, but also Benzinga and Unusual Whales) meter a
 monthly **data volume**, not just a call count — an FMP "you've used 90% of your
 volume" email was the first and only signal we had, because nothing in the stack
 measured provider consumption. The FMP (ingest_fmp) and Benzinga/Massive
-(_bz_http) clients record response size here; NOTE: Unusual Whales, FMP-filings
-and FMP-political VOLUME is not recorded here (UW 429 hits are, via _bz_http; byte
-volume stays the blind spot). The item-count (``records``) field is not currently
-populated by any caller — it stays 0. At run end the totals are flushed into a
-monthly snapshot that the live-overlay daemon surfaces as Prometheus gauges.
+(_bz_http) clients record response size here; endpoint/consumer dimensions
+additionally record parsed rows, cache hits/misses, latency, errors, and rate
+limits. Some legacy FMP-filings/political and UW paths remain outside this
+instrumentation. At run end the totals are flushed into a monthly snapshot
+that the live-overlay daemon surfaces as Prometheus gauges.
 
 Accumulation model
 ------------------
@@ -46,14 +46,44 @@ def _empty_slot() -> dict[str, float]:
     return {"calls": 0.0, "bytes": 0.0, "records": 0.0, "rate_limit_hits": 0.0}
 
 
+def _empty_dimension_slot() -> dict[str, float]:
+    """Detailed per-endpoint/consumer counters.
+
+    The provider totals above are intentionally kept backwards compatible with
+    the existing dashboard contract.  Detailed counters live in a separate
+    top-level snapshot section so adding dimensions cannot break consumers that
+    compare the legacy provider slots exactly.
+    """
+    return {
+        "calls": 0.0,
+        "bytes": 0.0,
+        "records": 0.0,
+        "rate_limit_hits": 0.0,
+        "errors": 0.0,
+        "cache_hits": 0.0,
+        "cache_misses": 0.0,
+        "latency_ms_total": 0.0,
+    }
+
+
 @dataclass
 class ProviderUsage:
     """Thread-safe in-memory accumulator of per-provider API usage for one run."""
 
     _totals: dict[str, dict[str, float]] = field(default_factory=dict)
+    _dimensions: dict[str, dict[str, float]] = field(default_factory=dict)
     _lock: threading.Lock = field(default_factory=threading.Lock)
 
-    def record(self, provider: str, *, response_bytes: int = 0, records: int = 0) -> None:
+    def record(
+        self,
+        provider: str,
+        *,
+        response_bytes: int = 0,
+        records: int = 0,
+        endpoint: str = "",
+        consumer: str = "",
+        latency_ms: float = 0.0,
+    ) -> None:
         """Record one API call's payload size and item count for ``provider``.
 
         ``response_bytes`` is the raw response body length (the metered volume);
@@ -71,8 +101,18 @@ class ProviderUsage:
             slot["calls"] += 1
             slot["bytes"] += rb
             slot["records"] += rec
+            if endpoint or consumer or latency_ms:
+                self._record_dimension_locked(
+                    name,
+                    endpoint=endpoint,
+                    consumer=consumer,
+                    response_bytes=rb,
+                    records=rec,
+                    latency_ms=latency_ms,
+                    count_call=True,
+                )
 
-    def record_rate_limit_hit(self, provider: str) -> None:
+    def record_rate_limit_hit(self, provider: str, *, endpoint: str = "", consumer: str = "") -> None:
         """Record one HTTP-429 (rate-limit) hit for ``provider``.
 
         Distinct from :meth:`record`, which only counts SUCCESSFUL calls: a 429
@@ -85,14 +125,95 @@ class ProviderUsage:
         with self._lock:
             slot = self._totals.setdefault(name, _empty_slot())
             slot["rate_limit_hits"] = slot.get("rate_limit_hits", 0.0) + 1
+            if endpoint or consumer:
+                self._record_dimension_locked(name, endpoint=endpoint, consumer=consumer, rate_limit_hits=1, count_call=False)
+
+    def record_cache_event(self, provider: str, *, endpoint: str = "", consumer: str = "", hit: bool) -> None:
+        """Record a shared-cache hit/miss without counting a provider call."""
+        name = str(provider or "unknown").strip().lower() or "unknown"
+        with self._lock:
+            if endpoint or consumer:
+                self._record_dimension_locked(
+                    name,
+                    endpoint=endpoint,
+                    consumer=consumer,
+                    cache_hits=1 if hit else 0,
+                    cache_misses=0 if hit else 1,
+                    count_call=False,
+                )
+
+    def record_records(self, provider: str, records: int, *, endpoint: str = "", consumer: str = "") -> None:
+        """Add parsed record count after a response has been decoded.
+
+        HTTP instrumentation knows the byte volume but not the number of
+        records until the adapter parses the body.  This method updates the
+        legacy aggregate and detailed dimensions without inventing another
+        API call.
+        """
+        name = str(provider or "unknown").strip().lower() or "unknown"
+        try:
+            count = max(0, int(records))
+        except (TypeError, ValueError):
+            return
+        with self._lock:
+            slot = self._totals.setdefault(name, _empty_slot())
+            slot["records"] += count
+            if endpoint or consumer:
+                self._record_dimension_locked(name, endpoint=endpoint, consumer=consumer, records=count, count_call=False)
+
+    def record_error(self, provider: str, *, endpoint: str = "", consumer: str = "") -> None:
+        """Record a failed provider request in detailed telemetry."""
+        name = str(provider or "unknown").strip().lower() or "unknown"
+        with self._lock:
+            if endpoint or consumer:
+                self._record_dimension_locked(name, endpoint=endpoint, consumer=consumer, errors=1, count_call=False)
+
+    def _record_dimension_locked(
+        self,
+        provider: str,
+        *,
+        endpoint: str = "",
+        consumer: str = "",
+        response_bytes: int = 0,
+        records: int = 0,
+        rate_limit_hits: int = 0,
+        errors: int = 0,
+        cache_hits: int = 0,
+        cache_misses: int = 0,
+        latency_ms: float = 0.0,
+        count_call: bool = False,
+    ) -> None:
+        endpoint_name = str(endpoint or "unknown").strip().lower() or "unknown"
+        consumer_name = str(consumer or "unknown").strip().lower() or "unknown"
+        key = f"{provider}|{endpoint_name}|{consumer_name}"
+        slot = self._dimensions.setdefault(key, _empty_dimension_slot())
+        if count_call:
+            slot["calls"] += 1
+        slot["bytes"] += max(0, int(response_bytes))
+        slot["records"] += max(0, int(records))
+        slot["rate_limit_hits"] += max(0, int(rate_limit_hits))
+        slot["errors"] += max(0, int(errors))
+        slot["cache_hits"] += max(0, int(cache_hits))
+        slot["cache_misses"] += max(0, int(cache_misses))
+        try:
+            numeric_latency = float(latency_ms)
+        except (TypeError, ValueError):
+            numeric_latency = 0.0
+        if numeric_latency >= 0:
+            slot["latency_ms_total"] += numeric_latency
 
     def snapshot(self) -> dict[str, dict[str, float]]:
         with self._lock:
             return {p: dict(v) for p, v in self._totals.items()}
 
+    def detailed_snapshot(self) -> dict[str, dict[str, float]]:
+        with self._lock:
+            return {key: dict(value) for key, value in self._dimensions.items()}
+
     def reset(self) -> None:
         with self._lock:
             self._totals.clear()
+            self._dimensions.clear()
 
     def flush(self, path: str | Path, *, month: str, now_iso: str) -> bool:
         """Merge this run's deltas into the monthly snapshot at ``path``.
@@ -103,7 +224,8 @@ class ProviderUsage:
         written. Fail-soft: a read/write error is logged, not raised.
         """
         deltas = self.snapshot()
-        if not deltas:
+        dimension_deltas = self.detailed_snapshot()
+        if not deltas and not dimension_deltas:
             return False
         try:
             from scripts.smc_atomic_write import atomic_write_json
@@ -124,6 +246,24 @@ class ProviderUsage:
             for stale in sorted(months)[:-_MAX_MONTHS]:
                 months.pop(stale, None)
             payload = {"updated_at": now_iso, "current_month": month, "months": months}
+            existing_dimensions = dict(existing.get("dimensions") or {})
+            if dimension_deltas:
+                month_dimensions = dict(existing_dimensions.get(month) or {})
+                for key, delta in dimension_deltas.items():
+                    cur = dict(month_dimensions.get(key) or _empty_dimension_slot())
+                    for field_name in _empty_dimension_slot():
+                        increment = (
+                            float(delta.get(field_name, 0))
+                            if field_name == "latency_ms_total"
+                            else int(delta.get(field_name, 0))
+                        )
+                        cur[field_name] = cur.get(field_name, 0) + increment
+                    month_dimensions[key] = cur
+                existing_dimensions[month] = month_dimensions
+                for stale in sorted(existing_dimensions)[:-_MAX_MONTHS]:
+                    existing_dimensions.pop(stale, None)
+            if existing_dimensions:
+                payload["dimensions"] = existing_dimensions
             target.parent.mkdir(parents=True, exist_ok=True)
             atomic_write_json(payload, target, sort_keys=True)
             self.reset()
@@ -151,18 +291,50 @@ def _load(path: Path) -> dict[str, Any]:
 _RECORDER = ProviderUsage()
 
 
-def record(provider: str, *, response_bytes: int = 0, records: int = 0) -> None:
+def record(
+    provider: str,
+    *,
+    response_bytes: int = 0,
+    records: int = 0,
+    endpoint: str = "",
+    consumer: str = "",
+    latency_ms: float = 0.0,
+) -> None:
     """Record usage on the process-wide recorder (see :meth:`ProviderUsage.record`)."""
-    _RECORDER.record(provider, response_bytes=response_bytes, records=records)
+    _RECORDER.record(
+        provider,
+        response_bytes=response_bytes,
+        records=records,
+        endpoint=endpoint,
+        consumer=consumer,
+        latency_ms=latency_ms,
+    )
 
 
-def record_rate_limit_hit(provider: str) -> None:
+def record_rate_limit_hit(provider: str, *, endpoint: str = "", consumer: str = "") -> None:
     """Record a 429 on the process-wide recorder (see :meth:`ProviderUsage.record_rate_limit_hit`)."""
-    _RECORDER.record_rate_limit_hit(provider)
+    _RECORDER.record_rate_limit_hit(provider, endpoint=endpoint, consumer=consumer)
+
+
+def record_cache_event(provider: str, *, endpoint: str = "", consumer: str = "", hit: bool) -> None:
+    """Record a shared-cache hit/miss without incrementing API calls."""
+    _RECORDER.record_cache_event(provider, endpoint=endpoint, consumer=consumer, hit=hit)
+
+
+def record_records(provider: str, records: int, *, endpoint: str = "", consumer: str = "") -> None:
+    _RECORDER.record_records(provider, records, endpoint=endpoint, consumer=consumer)
+
+
+def record_error(provider: str, *, endpoint: str = "", consumer: str = "") -> None:
+    _RECORDER.record_error(provider, endpoint=endpoint, consumer=consumer)
 
 
 def snapshot() -> dict[str, dict[str, float]]:
     return _RECORDER.snapshot()
+
+
+def detailed_snapshot() -> dict[str, dict[str, float]]:
+    return _RECORDER.detailed_snapshot()
 
 
 def reset() -> None:

@@ -736,6 +736,7 @@ class FMPClient:
         return data
 
     def _request_once(self, path: str, params: dict[str, Any]) -> Any:
+        started = time.perf_counter()
         request = Request(self._build_url(path, params), headers={"User-Agent": "skipp-algo/1.0"})
         with urlopen(request, timeout=self.timeout_seconds, context=_build_tls_context()) as response:
             raw = response.read()
@@ -744,7 +745,14 @@ class FMPClient:
         # this client and previously ran past every bandwidth-quota check
         # (only the ingest paths were instrumented via provider_usage).
         self._record_endpoint_event(path, response_bytes=len(raw))
-        return self._parse_payload(path, raw.decode("utf-8"))
+        data = self._parse_payload(path, raw.decode("utf-8"))
+        _record_fmp_client_usage(
+            path=path,
+            response_bytes=len(raw),
+            records=len(data) if isinstance(data, list) else 1 if isinstance(data, dict) else 0,
+            started=started,
+        )
+        return data
 
     def _record_endpoint_event(self, path: str, *, calls: int = 0, errors: int = 0, empty_responses: int = 0, response_bytes: int = 0) -> None:
         """Increment per-endpoint counters (G6 instrumentation).
@@ -2408,3 +2416,20 @@ class FinnhubClient:
         if isinstance(raw, list):
             return [r for r in raw if isinstance(r, dict)]
         return []
+
+
+def _record_fmp_client_usage(*, path: str, response_bytes: int, records: int, started: float) -> None:
+    """Persist unified FMP endpoint telemetry without affecting fetches."""
+    try:
+        from newsstack_fmp import provider_usage
+
+        provider_usage.record(
+            "fmp",
+            response_bytes=response_bytes,
+            records=records,
+            endpoint=path,
+            consumer="open_prep.fmp_client",
+            latency_ms=(time.perf_counter() - started) * 1000.0,
+        )
+    except Exception:  # monitoring must never break a provider request
+        logger.debug("fmp provider-usage record skipped", exc_info=True)

@@ -148,11 +148,21 @@ class FmpAdapter:
                 try:
                     from newsstack_fmp import provider_usage
 
-                    provider_usage.record("fmp", response_bytes=len(r.content))
+                    _record_fmp_usage(provider_usage, url=url, response=r)
                 except Exception as usage_exc:  # never let telemetry break an ingest
                     logger.debug("provider-usage record skipped: %s", usage_exc)
                 return r
             except httpx.HTTPStatusError as exc:
+                try:
+                    from newsstack_fmp import provider_usage
+
+                    provider_usage.record_error(
+                        "fmp",
+                        endpoint=_endpoint_label(url),
+                        consumer="newsstack_fmp.ingest_fmp",
+                    )
+                except Exception:
+                    logger.debug("fmp provider error telemetry skipped", exc_info=True)
                 raise httpx.HTTPStatusError(
                     message=f"HTTP {r.status_code} from {_sanitize_url(str(r.url))}",
                     request=exc.request,
@@ -203,3 +213,23 @@ class FmpAdapter:
 
     def close(self) -> None:
         self.client.close()
+
+
+def _endpoint_label(url: str) -> str:
+    """Return a stable path label for usage telemetry (never query params)."""
+    try:
+        from urllib.parse import urlsplit
+
+        return urlsplit(str(url)).path or "unknown"
+    except Exception:
+        return "unknown"
+
+
+def _record_fmp_usage(provider_usage: Any, *, url: str, response: httpx.Response) -> None:
+    """Emit detailed FMP telemetry without coupling the retry loop to storage."""
+    provider_usage.record(
+        "fmp",
+        response_bytes=len(response.content),
+        endpoint=_endpoint_label(url),
+        consumer="newsstack_fmp.ingest_fmp",
+    )
