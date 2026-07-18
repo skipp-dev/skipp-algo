@@ -38,7 +38,7 @@ providers add context.
 | FMP | Primary slow-moving enrichment source | Generator and CI enrichment | It is broad, predictable, and already the primary contract source for regime, news, calendar, and technical enrichment | Defining structural SMC states or replacing Databento bars |
 | Benzinga | Curated catalyst and news fallback | Generator fallback and operator workflows | It is strong when the system needs a second opinion on headlines and calendar-style catalysts, especially for operator review | Canonical scanner input or structural context |
 | NewsAPI.ai | Breadth and long-tail news fallback | Batch enrichment and research | It is most useful as a pull-based article source for recall, backfill, thematic discovery, and low-frequency fallback coverage | Primary live feed, calendar source, structural gating |
-| TradingView | Consumer runtime and publish target | Publish, validation, fallback technical context | It is the downstream runtime that must consume the generated library, and it can act as a practical fallback for technical context when external enrichment is thin | Source of truth for scanner membership, base OHLCV, or structure derivation |
+| TradingView | Consumer runtime and publish target | Publish and validation only | It is the downstream runtime that consumes the generated library; it is not an upstream enrichment provider | Source of truth for scanner membership, base OHLCV, structure derivation, or technical enrichment |
 
 ## Recommended Lane Ownership
 
@@ -52,7 +52,7 @@ Use this ownership model:
 - FMP: primary source for regime, news, calendar, and technical enrichment
 - Benzinga: fallback for news and calendar when FMP is stale or unavailable
 - NewsAPI.ai: optional tertiary fallback for news only
-- TradingView: technical fallback and final publish surface only
+- TradingView: final publish and validation surface only
 
 This keeps the library/core contract anchored to one market-data truth while
 still allowing external context to degrade gracefully.
@@ -80,7 +80,7 @@ The scheduled workflow should remain conservative and deterministic:
 - FMP stays primary for contextual enrichment
 - Benzinga remains the practical fallback for news and calendar
 - NewsAPI.ai stays optional so the workflow can still run without it
-- TradingView stays at the end of the chain as the publish target
+- TradingView remains outside the enrichment chain as the publish target
 
 This is the right balance between coverage and operational robustness. The
 workflow should not become dependent on a tertiary news source for the core
@@ -129,7 +129,7 @@ TradingView should only own the last mile:
 - publish generated libraries,
 - validate consumer bindings,
 - smoke-test the runtime surface,
-- provide fallback technical context when needed.
+- report consumer/runtime health when validation fails.
 
 It should not own base data generation and it should not become the hidden
 source of structure fields that the generator could not reproduce.
@@ -206,7 +206,7 @@ Highest-value next uses:
 - consumer-surface smoke checks before publish
 - fast operator validation that the generated library still binds cleanly into
   the runtime
-- selective technical fallback where the enrichment contract allows it
+- explicit FMP technical provenance when technical enrichment is available
 
 ## Recommended Near-Term Extensions
 

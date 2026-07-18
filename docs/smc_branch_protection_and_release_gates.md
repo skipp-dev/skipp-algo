@@ -218,9 +218,8 @@ Fuer jede Domaene (volume, technical, news) stehen folgende Felder zur Verfuegun
 
 Wichtig fuer News: Im aktuellen Release-/Refresh-Pfad plant `smc_integration/repo_sources.py`
 die News-Domaene standardmaessig ueber `live_news_snapshot_json`. Die konkreten
-Upstream-Provider dahinter koennen NewsAPI.ai, TradingView sowie weitere
-Live-News-Feeds sein; deren Provenance bleibt im Snapshot erhalten, auch wenn
-der Repo-Source-Name nur `live_news_snapshot_json` ist.
+Upstream-Provider dahinter bleiben im Snapshot als Provenance erhalten; eine
+TradingView-Anreicherung ist dabei kein aktiver Vertrag.
 
 ### Zusaetzliche `domain_alerts` im Provider-Health-/Release-Gate-Report
 
@@ -269,14 +268,14 @@ spaeter ein Fallback eingesprungen ist.
 | Code | Typische Ursache |
 |---|---|
 | `STALE_META_VOLUME_DOMAIN` | Databento-Watchlist-CSV nicht aktualisiert (Pipeline-Fehler, Export nicht gelaufen, CSV aelter als 48 h). |
-| `STALE_META_TECHNICAL_DOMAIN` | FMP- oder TradingView-Watchlist-JSON nicht aktualisiert. Primaer-Provider fehlgeschlagen und Fallback ebenfalls veraltet. |
-| `STALE_META_NEWS_DOMAIN` | Live-News-Snapshot nicht aktualisiert oder die zugrunde liegenden News-Feeds (z. B. NewsAPI.ai, TradingView, Benzinga/FMP) haben keine frischen Symboltreffer geliefert. |
+| `STALE_META_TECHNICAL_DOMAIN` | FMP-Technikdaten nicht aktualisiert oder der technische FMP-Pfad ist veraltet. |
+| `STALE_META_NEWS_DOMAIN` | Live-News-Snapshot nicht aktualisiert oder die zugrunde liegenden News-Feeds (z. B. Benzinga/FMP) haben keine frischen Symboltreffer geliefert. |
 
 ### Sofortmassnahmen fuer Operatoren
 
 1. **Report pruefen:** Im Health-/Gate-Report die `meta_domain_diagnostics` des betroffenen Symbols/Timeframes lesen. Dort stehen `{domain}_source`, `{domain}_age_hours` und `{domain}_asof_ts`.
 2. **`domain_alerts` lesen:** Root-Cause aus `gates[].details.domain_alerts` ziehen. Dort stehen `status`, `planned_source`, `actual_source` und `fallback_used` bereits operator-lesbar.
-3. **Provider-Pipeline pruefen:** Hat der zustaendige Export/Poller (Databento, FMP, Live-News-Snapshot inklusive NewsAPI.ai/TradingView/Benzinga/FMP) zuletzt erfolgreich gelaufen?
+3. **Provider-Pipeline pruefen:** Hat der zustaendige Export/Poller (Databento, FMP, Live-News-Snapshot inklusive Benzinga/FMP) zuletzt erfolgreich gelaufen?
 4. **Manuellen Refresh ausloesen:** Den betroffenen Provider-Export oder Snapshot-Export erneut starten (z. B. Databento-Watchlist-Export, FMP-Refresh, Live-News-Snapshot-Export).
 5. **Gate erneut laufen lassen:** Nach erfolgreichem Refresh den deeper- oder release-Gate-Lauf wiederholen.
 
@@ -321,8 +320,8 @@ spaeter ein Fallback eingesprungen ist.
     "volume_age_hours": 3.2,
     "volume_stale": false,
     "technical": "present",
-    "technical_source": "tradingview_watchlist_json",
-    "technical_fallback_used": true,
+    "technical_source": "fmp_watchlist_json",
+    "technical_fallback_used": false,
     "technical_asof_ts": 1711324800.0,
     "technical_age_hours": 51.2,
     "technical_stale": true,
