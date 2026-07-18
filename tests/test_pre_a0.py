@@ -9,6 +9,7 @@ from open_prep.pre_a0 import (
 )
 from open_prep.pre_a0_outcomes import (
     ConfirmedA0,
+    PreA0Outcome,
     evaluate_outcomes,
     summarize_outcomes,
 )
@@ -87,3 +88,17 @@ def test_reversal_resets_state_and_outcomes_are_horizon_bounded() -> None:
     assert report["precision_60"] == 1.0
     assert report["alerts_per_hour"] == 1.0
     assert report["recall_60"] == 1.0
+
+
+def test_repeat_alerts_count_ignores_lead_time() -> None:
+    # Three (AAA, up) episodes with distinct lead times must collapse to one
+    # distinct pair -> two repeats; the pre-fix key included time_to_a0_s, so
+    # every row looked unique and repeat_alerts under-counted to zero.
+    outcomes = [
+        PreA0Outcome("d1", "AAA", "up", True, True, True, 10.0, None),
+        PreA0Outcome("d2", "AAA", "up", True, True, True, 20.0, None),
+        PreA0Outcome("d3", "AAA", "up", True, True, True, 30.0, None),
+        PreA0Outcome("d4", "BBB", "down", False, False, True, 90.0, None),
+    ]
+    report = summarize_outcomes(outcomes, session_seconds=3600)
+    assert report["repeat_alerts"] == 2

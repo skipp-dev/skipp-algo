@@ -35,11 +35,22 @@ class DatabentoHistoricalBarsProvider:
             end=end.isoformat(),
         )
         bars = tuple(self._normalize_records(store, bar.symbol))
+        request_start = start.timestamp()
+        request_end = end.timestamp()
+        # Completeness rests on Databento get_range's contract (it returns the
+        # full requested window or raises). Here we only reject a *misranged*
+        # fetch — any bar outside [request_start, request_end) fails closed
+        # (INCOMPLETE_COVERAGE). An in-window response that is sparse or empty is
+        # treated as covered: OHLCV-1s emits bars only for active seconds, so
+        # there is no per-second expected count to detect a same-window gap.
+        coverage_complete = all(
+            request_start <= record.ts_event < request_end for record in bars
+        )
         return HistoricalBootstrapBatch(
             symbol=bar.symbol,
-            request_start=start.timestamp(),
-            request_end=end.timestamp(),
-            coverage_complete=True,
+            request_start=request_start,
+            request_end=request_end,
+            coverage_complete=coverage_complete,
             bars=bars,
         )
 

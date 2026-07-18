@@ -4044,6 +4044,7 @@ def _collect_a0_latency_metrics(engine: Any, now: float, prefix: str) -> list[st
         f"{prefix}_a0_poll_interval_actual_seconds "
         f"{_safe_float(getattr(engine, 'last_poll_interval_actual_seconds', 0.0), 0.0):.3f}",
     ])
+    lines.append(f"# TYPE {prefix}_a0_poll_phase_seconds gauge")
     for phase, duration in sorted(getattr(engine, "_poll_phase_seconds", {}).items()):
         safe_phase = str(phase).replace("\\", "_").replace('"', "_").replace("\n", "_")
         lines.append(
@@ -4052,31 +4053,43 @@ def _collect_a0_latency_metrics(engine: Any, now: float, prefix: str) -> list[st
         )
 
     news_poller = getattr(engine, "_async_newsstack", None)
+    lines.append(f"# TYPE {prefix}_a0_news_async_enabled gauge")
     lines.append(f"{prefix}_a0_news_async_enabled {1 if news_poller is not None else 0}")
     if news_poller is not None:
         news = news_poller.metrics()
         success_at = _safe_float(news.get("last_success_at"), 0.0)
         snapshot_age = max(0.0, now - success_at) if success_at > 0 else 999999.0
         lines.extend([
+            f"# TYPE {prefix}_a0_news_snapshot_age_seconds gauge",
             f"{prefix}_a0_news_snapshot_age_seconds {snapshot_age:.3f}",
+            f"# TYPE {prefix}_a0_news_poll_duration_seconds gauge",
             f"{prefix}_a0_news_poll_duration_seconds "
             f"{_safe_float(news.get('last_poll_duration'), 0.0):.6f}",
+            f"# TYPE {prefix}_a0_news_polls_total counter",
             f"{prefix}_a0_news_polls_total {int(news.get('poll_count', 0))}",
+            f"# TYPE {prefix}_a0_news_poll_errors_total counter",
             f"{prefix}_a0_news_poll_errors_total {int(news.get('poll_errors', 0))}",
+            f"# TYPE {prefix}_a0_news_cached_tickers gauge",
             f"{prefix}_a0_news_cached_tickers {int(news.get('cached_tickers_count', 0))}",
         ])
 
     repoller = getattr(engine, "_near_a0_repoller", None)
+    lines.append(f"# TYPE {prefix}_a0_near_repoll_enabled gauge")
     lines.append(f"{prefix}_a0_near_repoll_enabled {1 if repoller is not None else 0}")
     if repoller is not None:
         near = repoller.metrics()
         lines.extend([
+            f"# TYPE {prefix}_a0_near_repoll_interval_seconds gauge",
             f"{prefix}_a0_near_repoll_interval_seconds "
             f"{_safe_float(getattr(repoller, '_interval', 0.0), 0.0):.3f}",
+            f"# TYPE {prefix}_a0_near_repoll_warm_set_size gauge",
             f"{prefix}_a0_near_repoll_warm_set_size "
             f"{int(near.get('last_warm_set_size', 0))}",
+            f"# TYPE {prefix}_a0_near_repolls_total counter",
             f"{prefix}_a0_near_repolls_total {int(near.get('poll_count', 0))}",
+            f"# TYPE {prefix}_a0_near_repoll_errors_total counter",
             f"{prefix}_a0_near_repoll_errors_total {int(near.get('poll_errors', 0))}",
+            f"# TYPE {prefix}_a0_near_repoll_a0_pushed_total counter",
             f"{prefix}_a0_near_repoll_a0_pushed_total {int(near.get('a0_pushed', 0))}",
         ])
     return lines

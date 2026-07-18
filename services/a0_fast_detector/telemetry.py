@@ -162,10 +162,12 @@ class A0FastTelemetry:
             _gauge("a0_fast_process_peak_rss_bytes", snapshot["process_peak_rss_bytes"]),
             _gauge("a0_fast_uptime_seconds", snapshot["uptime_seconds"]),
         ]
+        metrics.append("# TYPE a0_fast_recoveries_total counter\n")
         for status, count in sorted(snapshot["recovery_counts"].items()):
             metrics.append(
                 f'a0_fast_recoveries_total{{status="{status}"}} {count}\n'
             )
+        metrics.append("# TYPE a0_fast_last_disconnect_info gauge\n")
         metrics.append(
             "a0_fast_last_disconnect_info"
             f'{{reason="{snapshot["last_disconnect_reason"]}"}} 1\n'
