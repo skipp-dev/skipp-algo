@@ -11,6 +11,11 @@ from open_prep.a0_stream import DatabentoOhlcv1sAdapter
 from open_prep.a0_stream_recovery import HistoricalBootstrapBatch
 from open_prep.a0_stream_state import StreamBar
 
+# An in-window response with zero bars is a legitimately quiet symbol only over a
+# short window; beyond this many seconds of regular session, an empty fetch is a
+# fault (e.g. a 200-empty response) and must not be trusted as full coverage.
+_MAX_EMPTY_COVERAGE_WINDOW_SECONDS = 300.0
+
 
 class DatabentoHistoricalBarsProvider:
     def __init__(self, api_key: str, *, dataset: str = "EQUS.MINI") -> None:
@@ -38,14 +43,21 @@ class DatabentoHistoricalBarsProvider:
         request_start = start.timestamp()
         request_end = end.timestamp()
         # Completeness rests on Databento get_range's contract (it returns the
-        # full requested window or raises). Here we only reject a *misranged*
-        # fetch — any bar outside [request_start, request_end) fails closed
-        # (INCOMPLETE_COVERAGE). An in-window response that is sparse or empty is
-        # treated as covered: OHLCV-1s emits bars only for active seconds, so
-        # there is no per-second expected count to detect a same-window gap.
-        coverage_complete = all(
+        # full requested window or raises). We reject a *misranged* fetch — any
+        # bar outside [request_start, request_end) — and, as defence in depth, an
+        # empty response over a window too long to be a genuinely quiet symbol
+        # (a 200-empty fault mid-session would otherwise reconstruct volume as
+        # zero). A short empty window (quiet open) stays covered; OHLCV-1s emits
+        # bars only for active seconds, so a sparse in-window response has no
+        # per-second expected count to check.
+        in_window = all(
             request_start <= record.ts_event < request_end for record in bars
         )
+        empty_over_long_window = (
+            not bars
+            and request_end - request_start > _MAX_EMPTY_COVERAGE_WINDOW_SECONDS
+        )
+        coverage_complete = in_window and not empty_over_long_window
         return HistoricalBootstrapBatch(
             symbol=bar.symbol,
             request_start=request_start,
