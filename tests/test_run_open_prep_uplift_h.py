@@ -717,12 +717,10 @@ def test_benzinga_core_news_without_priority_keeps_old_order(
     assert captured[:2] == ["AAPL", "MSFT"], captured
 
 
-def test_tradingview_news_queries_priority_symbols_first(
+def test_retired_tradingview_news_does_not_query_priority_symbols(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """Same mega-cap-bias fix as the Benzinga lane (2026-07-08): with only 8
-    default slots the bare [:max_symbols] slice was even more skewed. The
-    mover seed must fill the TV budget first."""
+    """The retired upstream stays fail-closed even with a legacy budget."""
     captured: list[list[str]] = []
 
     def _fake_fetch_tv_multi(symbols: list[str], **_kw: Any) -> list[Any]:
@@ -739,10 +737,10 @@ def test_tradingview_news_queries_priority_symbols_first(
         symbols=universe, priority_symbols=["AMPG", "AKAN"]
     )
     assert err is None
-    assert captured == [["AMPG", "AKAN", "AAPL"]], captured
+    assert captured == [], captured
 
 
-def test_tradingview_news_without_priority_keeps_old_order(
+def test_retired_tradingview_news_does_not_query_without_priority(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     captured: list[list[str]] = []
@@ -758,7 +756,7 @@ def test_tradingview_news_without_priority_keeps_old_order(
 
     _arts, err = rop._fetch_tradingview_news_articles(symbols=["AAPL", "MSFT", "NVDA"])
     assert err is None
-    assert captured == [["AAPL", "MSFT"]], captured
+    assert captured == [], captured
 
 
 def test_priority_first_symbols_promotes_only_universe_members() -> None:

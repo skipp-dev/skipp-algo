@@ -2,8 +2,13 @@ from __future__ import annotations
 
 from datetime import UTC, datetime
 
+import pandas as pd
+
 from newsstack_fmp.opra_uoa import OpraDefinitionRecord
-from services.opra_live_daemon.definitions import previous_complete_utc_day
+from services.opra_live_daemon.definitions import (
+    bootstrap_definitions,
+    previous_complete_utc_day,
+)
 from services.opra_live_daemon.state import OpraShadowState
 
 
@@ -84,6 +89,42 @@ def test_previous_complete_day_is_utc_aligned() -> None:
     )
     assert start.isoformat() == "2026-07-17T00:00:00+00:00"
     assert end.isoformat() == "2026-07-18T00:00:00+00:00"
+
+
+def test_definition_bootstrap_uses_parent_symbology() -> None:
+    class Provider:
+        request: dict[str, object] | None = None
+
+        def get_range(self, **kwargs):
+            self.request = kwargs
+            return type(
+                "Store",
+                (),
+                {
+                    "to_df": lambda _self: pd.DataFrame(
+                        [
+                            {
+                                "instrument_id": 1,
+                                "underlying": "AAPL",
+                                "strike_price": 200.0,
+                                "expiration": "2026-07-24",
+                                "instrument_class": "C",
+                                "raw_symbol": "AAPL  260724C00200000",
+                            }
+                        ]
+                    )
+                },
+            )()
+
+    provider = Provider()
+    records = bootstrap_definitions(
+        provider,
+        symbols=["AAPL.OPT"],
+        instant=datetime(2026, 7, 18, 23, 45, tzinfo=UTC),
+    )
+    assert provider.request is not None
+    assert provider.request["stype_in"] == "parent"
+    assert records == [_definition()]
 
 
 def test_hotlist_remove_purges_removed_underlying() -> None:

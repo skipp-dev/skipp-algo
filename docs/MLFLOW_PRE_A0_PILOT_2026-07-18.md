@@ -53,13 +53,13 @@ bleibt die Artefaktschicht außerdem unabhängig von einer einzelnen Replik.
 
 | Punkt | Ergebnis | Verbleibende operative Schranke |
 | --- | --- | --- |
-| 1. Migration und Serverhärtung | Tracking- und Authmigration laufen seriell; Host, CORS, S3, Secrets und Workerzahl werden fail-closed geprüft. | Gehärtetes Image nach Merge deployen und Health-Probe wiederholen. |
-| 2. PR-Kette | A0-PR `#3771` und darauf gestapelter MLflow-PR `#3772` existieren; beide waren vor diesem Folge-Diff CI-grün. | Folge-Diff pushen, CI erneut abwarten, erst `#3771`, dann `#3772` mergen. |
-| 3. Backup und Recovery | Hash-geprüftes Backup-/Verify-/kollisionsfreies Restore-Werkzeug sowie RPO/RTO-, Restart- und Rollback-Runbook sind implementiert. | Zweiten privaten Bucket, Zeitpläne und ersten realen Restore-Drill anlegen bzw. ausführen. |
-| 4. Monitoring | Railway-Healthcheck, GitHub-Candidate-/Expiry-Probe, Alloy-Scrape und sechs Grafana-Regeln sind implementiert. | Monitor-RBAC/Secrets setzen, Collector deployen und Regeln veröffentlichen. |
+| 1. Migration und Serverhärtung | MLflow 3.14.0 läuft mit serieller Tracking-/Authmigration, Basic Auth, erlaubten Hosts, CORS-Prüfung, PostgreSQL und privatem S3-Artefaktspeicher. Health-, Alias- und Modell-Ladetest sind grün. | Access-Proxy/SSO erst vor einer breiteren oder dauerhaften Internetfreigabe ergänzen. |
+| 2. PR-Kette | Die ursprünglichen A0-/MLflow-PRs `#3771` und `#3772` sind gemergt und ausgerollt. | Der aktuelle kleine Betriebs-Folge-Diff muss noch durch CI und Review. |
+| 3. Backup und Recovery | Tägliche und wöchentliche PostgreSQL-Backups, separater privater Artefakt-Backup-Bucket und tägliche SHA-256-Prüfung sind aktiv. Der vollständige isolierte Restore-Drill vom 18. Juli ist bestanden. | Drill vierteljährlich und vor migrationsrelevanten Änderungen wiederholen. |
+| 4. Monitoring | Railway-Healthcheck, halbstündlicher Candidate-/Expiry-Probe, eigener Read-only-Monitor, Alloy-Scrape und sechs Grafana-PRE-A0-Regeln sind aktiv. | Alarmzustände und Ablaufdatum weiterhin operativ beobachten. |
 | 5. Reales Training | Scored Snapshot-Provenienz, kausaler Walk-forward-Builder, Sample-Weights und versiegelter Testpfad sind implementiert. | Erst nach neuen vollständigen Live-Sessions einen echten Run erzeugen; Alt-Snapshots enthalten die nötige Scoreprovenienz nicht. |
 | 6. Shadow-Promotion | Messbare Coverage-, Klassen-, Brier-, AP-, ECE-, Audit- und Artifact-ID-Gates sind implementiert. | `shadow` bleibt korrekt blockiert, bis mindestens fünf neue Sessions alle Schwellen belegen. |
-| 7. Zugriffsschutz | Getrennte Writer-/Monitor-Rollen und ein fail-closed RBAC-Reconciler sind implementiert. | Rollen operativ anwenden; für dauerhafte breitere Internetfreigabe weiterhin Access-Proxy/SSO ergänzen. |
+| 7. Zugriffsschutz | Getrennte Writer-/Monitor-Rollen sind angewendet. Der Reconciler bleibt bei unbekannten Zusatzrollen fail-closed und akzeptiert nur MLflows synthetische Direktzuweisungsrolle `__user_<id>__`. | Folge-Fix mergen; für breiteren Internetzugriff weiterhin Access-Proxy/SSO ergänzen. |
 | 8. Aim/Alternativen | Entscheidung dokumentiert: MLflow bleibt führend, DVC ist die sinnvollste spätere Datensatzergänzung, Aim nur bei messbarem UI-/Skalierungsbedarf. | Keine produktive Aim-Instanz anlegen. |
 
 Damit ist der Codeanteil aller acht Punkte umgesetzt. Externe Rollout- und
@@ -119,6 +119,10 @@ unabhängige Bestätigungen: `artifact.gates.shadow_evaluated=true` und
 diese Bedingung absichtlich noch nicht. Ein lokaler Negativtest bestätigt,
 dass die Promotion mit `shadow_evaluation_missing` abgewiesen wird.
 
+Fünf qualifizierte vollständige neue Sessions sind dabei nur die
+Mindestvoraussetzung für die MLflow-Evaluation und einen möglichen
+`shadow`-Alias. Sie sind keine Freigabe für Benachrichtigungen.
+
 ### Runtime/Production
 
 MLflow bietet in diesem Pilot keinen `production`- oder `notify`-Alias an.
@@ -126,6 +130,11 @@ Eine Registry-Promotion verändert den Railway-Worker nicht. Der Austausch des
 lokalen JSON-Vertrags bleibt ein separater, reviewpflichtiger Code-/Deployment-
 Vorgang inklusive Worker-Validierung. Damit kann ein kompromittierter oder
 fehlbedienter MLflow-Server keine Laufzeitpromotion auslösen.
+
+Der Runtime-Notify-Pfad bleibt zusätzlich fail-closed, bis mindestens 20
+vollständige neue Sessions und 200 bestätigte A0-Episoden im validierten
+Artefakt nachgewiesen sind. Fehlt eine dieser Metriken, wird sie als 0
+behandelt. Offline- und Shadow-Gate müssen ebenfalls bestanden sein.
 
 ## Lokale Nutzung
 
@@ -361,19 +370,23 @@ Rollback des Piloten ist unabhängig vom A0-Betrieb:
 4. A0-/PRE-A0-Worker nicht neu deployen; dessen lokaler JSON-Vertrag läuft
    unverändert weiter.
 
-## Externer Ist-Stand und nächste Rollout-Schritte
+## Externer Ist-Stand und nächste Schritte
 
 PostgreSQL, operativer Artefakt-Bucket, MLflow-Service, öffentliche Domain und
 der reproduzierbare Bootstrap-Import existieren bereits. Der importierte
 Candidate ist Run `44dd712b9bd84c35a41e8ab9d1a87cb3`, Modellversion 1 und
 Artifact ID `71831770afe43bdd424aa7ab`; der Railway-Worker verwendet weiterhin
-seinen lokal validierten JSON-Vertrag.
+seinen lokal validierten JSON-Vertrag. RBAC, Read-only-Monitor, sechs
+Grafana-Regeln, PostgreSQL-Zeitpläne und der getrennte Artefakt-Backup-Pfad
+sind aktiv. Der Restore-Drill vom 18. Juli 2026 hat Datenbank, Alias,
+Modell-Ladevorgang und sämtliche 77 Backupobjekte unabhängig verifiziert.
 
-Noch offen sind der Push dieses Folge-Diffs, die geordnete Merge-Kette,
-Deployment der Härtung und Snapshot-Provenienz, Monitor-RBAC samt GitHub-
-Secrets, Alloy-/Grafana-Rollout sowie separater Backup-Bucket und erster
-Restore-Drill. Ein neuer Trainingsrun oder `shadow`-Alias folgt ausdrücklich
-erst nach ausreichender neuer Live-Evidenz.
+Operativ offen ist ausschließlich echte Evidenz: ab der nächsten vollständigen
+US-Handelssitzung Snapshots und Journale sammeln, nach fünf qualifizierten
+Sessions das Shadow-Gate auswerten und erst bei bestandenem Gate einen neuen
+Trainingsrun beziehungsweise `shadow`-Alias erzeugen. Notify bleibt bis 20
+Sessions und 200 bestätigten A0-Episoden gesperrt. Es wurde keine Evidenz
+simuliert oder umgangen.
 
 ## Technische Referenzen
 

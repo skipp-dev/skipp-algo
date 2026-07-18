@@ -1,13 +1,13 @@
 # A0-Fast und PRE-A0: detaillierter Action Plan
 
-Stand: 2026-07-17
-Status: in Umsetzung; Produktionsfreigabe offen
-Verifizierter Ausgangsstand: `origin/main` bei `244862229`
+Stand: 2026-07-18
+Status: technische Shadow-Laufzeit aktiv; Evidenz- und Produktionsfreigabe offen
+Verifizierter Laufzeitstand: `origin/main` bei `5b0996246`
 Fachliche Grundlage: [A0_EARLY_DETECTION_RESEARCH_2026-07-17.md](A0_EARLY_DETECTION_RESEARCH_2026-07-17.md)
 
 ## Umsetzungsstand
 
-Stand 2026-07-17 auf Branch `feat/a0-early-detection-foundation`:
+Stand 2026-07-18 nach Merge und Railway-Rollout:
 
 | Arbeitspaket | Status | Nachweis |
 | --- | --- | --- |
@@ -24,8 +24,8 @@ Stand 2026-07-17 auf Branch `feat/a0-early-detection-foundation`:
 | A0-301 Quellenreine Referenz | technisch umgesetzt | `a0_reference.py` baut Previous Close und ADV ausschließlich aus versionierter, Corporate-Action-adjustierter Databento-Tageshistorie und verwirft Mischquellen |
 | A0-302 Bootstrap/Recovery | Recovery-Pfad technisch umgesetzt, Betriebsnachweis offen | Mid-session-Start und erkannte Lücken lösen eine quellenreine Databento-Rekonstruktion von Session-Open bis vor den aktuellen Bar aus; Fetch-, Coverage- und Datenfehler bleiben fail-closed mit Backoff; kontrollierte Live-Reconnects und mehrsitzige Evidenz bleiben offen |
 | A0-303 Paritätsmatcher | technisch umgesetzt, Betriebsnachweis offen | Fast- und FMP-Pfade besitzen getrennte opt-in Journale; der deterministische Tagesreport liefert Matchklassen, Lead, Ursachen und beide Snapshots; echte Mehrsitzungsdaten und Dashboard-Auswertung bleiben offen |
-| A0-304 Last/Resilienz/Kosten | technisch umgesetzt, Live-Nachweis offen | bounded Queue, Drop-/Resync-Vertrag, Reconnect-Schleife, Metrics/Alerts und reproduzierbare 200-/900-/6.889-Symbol-Probe sind vorhanden; echte Databento-/Railway-Messung bleibt offen |
-| A0-400 bis A0-801 | offen | PRE-A0-ETA, Datensatz, Modell, Ablationen und Promotion bleiben an die festgelegten Messfenster gebunden |
+| A0-304 Last/Resilienz/Kosten | Shadow aktiv, Mehrsitzungsnachweis offen | dedizierter Worker läuft mit 900 Symbolen, verbundenem Databento-Live-Stream, bounded Queue, privatem Metrics-Scrape und persistentem `/app/data`; Open-Burst und vollständige Sessions fehlen noch |
+| A0-400 bis A0-801 | technisch umgesetzt, Evidenz offen | ETA, Snapshotvertrag, Baseline, kalibriertes Candidate-Artefakt und fail-closed Shadow-Inferenz sind vorhanden; neuer Trainingsrun, Shadow-Promotion und Notify bleiben an echte neue Messfenster gebunden |
 
 Die Umsetzung dieses ersten Meilensteins verändert noch keine produktive
 Benachrichtigungs- oder Promotion-Semantik. Das bestehende Feld `volume_ratio`
@@ -100,7 +100,7 @@ nachträglich gelockert werden.
 
 Mindestumfang:
 
-- mindestens 10 vollständige reguläre Handelssitzungen
+- mindestens 20 vollständige reguläre Handelssitzungen
 - Open, Midday und Close enthalten
 - mindestens eine Stream-Unterbrechung oder kontrollierte Reconnect-Probe
 - ausreichend A0-Ereignisse für Long und Short; andernfalls Messfenster
@@ -1358,23 +1358,17 @@ existierende Dateien.
 
 ## 19. Nächster konkreter Schritt
 
-Vor dem ersten fachlichen Implementierungs-PR werden A0-000 und A0-003
-geschlossen: Golden-Inventar, Reason-Taxonomie und vorläufige Gates werden
-festgehalten. Die vorhandene Telemetrie startet gleichzeitig die
-Runtime-Baseline aus A0-001; fehlende Messpunkte kommen in einen eigenen,
-reinen Observability-PR.
+Ab der nächsten vollständigen US-Handelssitzung echte Shadow-Evidenz sammeln:
 
-Der erste fachliche Implementierungs-PR sollte **nicht** mit Databento oder
-Modellcode beginnen. Sein Scope ist A0-100:
-
-1. rohe und normalisierte Volumenfelder sauber trennen
-2. Eventlog und Kalibrator auf Schema v2 umstellen
-3. `UPCOMING` auf die normalisierte Semantik korrigieren
-4. Kompatibilitätsalias und Sunset dokumentieren
-5. Contract- und Migrationstests ergänzen
-
-Erst ein nachfolgender PR extrahiert den gemeinsamen A0-Entscheider. So bleibt
-die semantische Korrektur getrennt von einem größeren Produktionsrefactor.
-
-Damit werden alle folgenden Stream- und Modellmessungen auf einen stabilen,
-erklärbaren und reproduzierbaren Vertrag gestellt.
+1. A0-Fast-Parität, Latenz, Reconnects und Persistenz über mindestens 20
+   vollständige Sessions messen.
+2. PRE-A0-Snapshots und bestätigte A0-Episoden ausschließlich aus echten neuen
+   Sessions labeln.
+3. Nach fünf qualifizierten Sessions das MLflow-Shadow-Gate auswerten; dies ist
+   noch keine Notify-Freigabe.
+4. Einen neuen Trainingsrun und eine Shadow-Promotion nur bei bestandenem Gate
+   erzeugen. Notify bleibt zusätzlich bis 20 Sessions und 200 bestätigten
+   A0-Episoden blockiert.
+5. Parallel 7–10 vollständige OPRA-Sessions im separaten privaten Shadow-
+   Service sammeln und dessen Definition Coverage, Duplikate, Gaps und Latenz
+   unabhängig bewerten.

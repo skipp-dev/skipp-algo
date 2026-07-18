@@ -20,7 +20,9 @@ configuration fails to `off`.
 
 ## Promotion checklist
 
-1. At least 20 representative sessions, including Open Burst and a half day.
+1. At least 20 complete representative sessions, including Open Burst and a
+   half day. This is the canonical minimum; older 10-session planning text is
+   superseded.
 2. Parity at least 99.9%, zero duplicate decisions, no unexplained fast-only
    or FMP-only cluster.
 3. Reconnect, queue overflow, stale data and restart probes green.

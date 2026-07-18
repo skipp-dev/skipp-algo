@@ -28,7 +28,7 @@ All notable changes to this project are documented in this file.
   (`HIGH_CONVICTION`, `open_prep/alerts.py`) ist **nicht** betroffen; ein
   Config-/Env-Sweep fand keinen `STANDARD`-Consumer im Repo.
 
-### Corrected (2026-07-18) — Removed an invalid Pine delivery assumption
+### Fixed (2026-07-18) — Removed an invalid Pine delivery assumption
 
 - Removed stale operational guidance that treated Pine as a network client of
   the live-overlay service. Pine has no supported consumer for that endpoint.

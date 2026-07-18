@@ -133,6 +133,29 @@ def test_unexpected_role_assignment_fails_closed() -> None:
         rbac._ensure_assignment(client, spec.username, role)
 
 
+def test_synthetic_direct_grant_role_does_not_break_assignment_reconcile() -> None:
+    client = _Client()
+    spec = rbac._specs("1", "skipp-pre-a0")[1]
+    role, _action = rbac._ensure_role(client, spec, workspace="default")
+    synthetic = client.create_role("default", "__user_2__", "MLflow direct grants")
+    client.assign_role(spec.username, synthetic.id)
+
+    assert rbac._ensure_assignment(client, spec.username, role) == "created"
+    assert rbac._ensure_assignment(client, spec.username, role) == "existing"
+
+
+@pytest.mark.parametrize("name", ["__user_admin__", "__user_2", "__user_2__extra"])
+def test_synthetic_role_lookalikes_still_fail_closed(name: str) -> None:
+    client = _Client()
+    spec = rbac._specs("1", "skipp-pre-a0")[1]
+    role, _action = rbac._ensure_role(client, spec, workspace="default")
+    extra = client.create_role("default", name, "unexpected")
+    client.assign_role(spec.username, extra.id)
+
+    with pytest.raises(RuntimeError, match="unexpected roles"):
+        rbac._ensure_assignment(client, spec.username, role)
+
+
 def test_tracking_uri_and_password_validation(monkeypatch) -> None:
     assert rbac._tracking_uri("https://mlflow.example.test/") == "https://mlflow.example.test"
     with pytest.raises(ValueError):

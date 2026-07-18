@@ -1,6 +1,6 @@
 {
   "schema": "pine-input-provenance/v2",
-  "total_inputs": 529,
+  "total_inputs": 523,
   "total_hidden": 315,
   "files": [
     {
@@ -3933,58 +3933,9 @@
     },
     {
       "file": "SMC_Regime_and_News.pine",
-      "input_count": 6,
+      "input_count": 0,
       "hidden_count": 0,
-      "inputs": [
-        {
-          "varname": "i_sym",
-          "kind": "symbol",
-          "label": "Backend Symbol",
-          "group": null,
-          "has_display_none": false,
-          "visibility": null
-        },
-        {
-          "varname": "i_tf",
-          "kind": "string",
-          "label": "15m",
-          "group": null,
-          "has_display_none": false,
-          "visibility": null
-        },
-        {
-          "varname": "i_apiUrl",
-          "kind": "string",
-          "label": "https://your-node-host/smc_tv",
-          "group": null,
-          "has_display_none": false,
-          "visibility": null
-        },
-        {
-          "varname": "i_enabled",
-          "kind": "bool",
-          "label": "Enable overlay",
-          "group": null,
-          "has_display_none": false,
-          "visibility": null
-        },
-        {
-          "varname": "i_refresh",
-          "kind": "int",
-          "label": "Refresh (sec)",
-          "group": null,
-          "has_display_none": false,
-          "visibility": null
-        },
-        {
-          "varname": "i_overlayMaxAge",
-          "kind": "int",
-          "label": "Overlay max age (sec)",
-          "group": null,
-          "has_display_none": false,
-          "visibility": null
-        }
-      ]
+      "inputs": []
     },
     {
       "file": "SMC_Session_Context.pine",

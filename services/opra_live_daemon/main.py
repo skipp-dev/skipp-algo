@@ -68,6 +68,10 @@ def _append_new_candidates(
 
 def main() -> int:
     logging.basicConfig(level=logging.INFO)
+    # A parent-symbol OPRA subscription resolves tens of thousands of option
+    # symbols. Databento logs every mapping at INFO, which can exceed Railway's
+    # per-replica log limit without adding useful operational evidence.
+    logging.getLogger("databento.live.client").setLevel(logging.WARNING)
     config = load()
     if not config.enabled:
         logger.info("OPRA_LIVE_MODE=off; exiting without opening a connection")

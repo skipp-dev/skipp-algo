@@ -89,7 +89,7 @@ def test_confluence_has_alert_conditions() -> None:
 
 def test_confluence_imports_library() -> None:
     source = _read(CONFLUENCE_PATH)
-    assert "import preuss_steffen/smc_micro_profiles_generated/152 as mp" in source  # 2026-07-14: repo repinned /1 -> /152
+    assert "import preuss_steffen/smc_micro_profiles_generated/155 as mp" in source  # 2026-07-18: repo repinned /152 -> /155
 
 
 def test_confluence_is_a_pure_consumer() -> None:
@@ -149,7 +149,7 @@ def test_mobile_is_a_pure_consumer() -> None:
 
 def test_mobile_imports_library() -> None:
     source = _read(MOBILE_PATH)
-    assert "import preuss_steffen/smc_micro_profiles_generated/152 as mp" in source  # 2026-07-14: repo repinned /1 -> /152
+    assert "import preuss_steffen/smc_micro_profiles_generated/155 as mp" in source  # 2026-07-18: repo repinned /152 -> /155
 
 
 # ── Dashboard Explain Mode ──────────────────────────────────

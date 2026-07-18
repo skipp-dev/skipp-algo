@@ -50,6 +50,7 @@ class MarketDataProvider(Protocol):
         schema: str,
         start: str,
         end: str,
+        stype_in: str | None = None,
     ) -> Any:
         """Return a Databento-compatible store (supports ``.to_df()``)."""
         ...
@@ -85,16 +86,22 @@ class DabentoProvider:
         schema: str,
         start: str,
         end: str,
+        stype_in: str | None = None,
     ) -> Any:
         from databento_client import _databento_get_range_with_retry
+        request = {
+            "dataset": dataset,
+            "symbols": symbols,
+            "schema": schema,
+            "start": start,
+            "end": end,
+        }
+        if stype_in is not None:
+            request["stype_in"] = stype_in
         return _databento_get_range_with_retry(
             self._client,
             context=context,
-            dataset=dataset,
-            symbols=symbols,
-            schema=schema,
-            start=start,
-            end=end,
+            **request,
         )
 
     def get_schema_available_end(self, dataset: str, schema: str) -> pd.Timestamp | None:
@@ -143,6 +150,7 @@ class DegradedProvider:
         schema: str,
         start: str,
         end: str,
+        stype_in: str | None = None,
     ) -> Any:
         raise RuntimeError(
             f"DegradedProvider: no market data backend available "
